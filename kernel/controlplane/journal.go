@@ -20,6 +20,29 @@ const (
 	maxJournalTailN     = 10_000
 )
 
+// handleJournalHead serves CmdJournalHead — the minimal-payload
+// "what's the current head?" query. Sister to handleJournalTail
+// (which also returns head, but bundles N events). Useful for
+// operators who just need a seq checkpoint to pass to
+// `pulse --since <seq>` later.
+func (s *Server) handleJournalHead(conn net.Conn, req Request) {
+	headSeq, headHash := s.k.Journal().Head()
+	// Match handleJournalTail's clamp: an empty journal reports
+	// head=0, not -1. Hash is empty in both the empty and pre-genesis
+	// cases — operators shouldn't need to special-case either.
+	if headSeq < 0 {
+		headSeq = 0
+	}
+	s.writeResp(conn, Response{
+		ID:   req.ID,
+		Type: RespResult,
+		Result: map[string]any{
+			"head": headSeq,
+			"hash": headHash,
+		},
+	})
+}
+
 func (s *Server) handleJournalTail(conn net.Conn, req Request) {
 	n := defaultJournalTailN
 	if raw, ok := req.Args["n"]; ok {

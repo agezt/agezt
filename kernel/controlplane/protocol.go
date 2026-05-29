@@ -221,6 +221,21 @@ const (
 	//   - found : bool — false when (ns, key) doesn't exist; value is null
 	CmdStateGet = "state_get"
 
+	// CmdJournalHead returns just the current journal head seq +
+	// hash. The minimal-payload sibling of CmdJournalTail (which
+	// includes events). Useful when an operator just needs to
+	// remember a checkpoint to pass as `pulse --since <seq>`
+	// later, or to poll for journal growth in a tight loop
+	// without parsing every event.
+	//
+	// No args. Returns:
+	//   - head  : int    — current head seq (0 on empty journal)
+	//   - hash  : string — current chain-tail hash, 64-hex. On an
+	//                      empty journal this is the 64-zero
+	//                      genesis (which is what any first
+	//                      event will use as prev_hash).
+	CmdJournalHead = "journal_head"
+
 	// CmdJournalGrep is the server-side filter sibling of
 	// CmdJournalTail. Today operators run `agt journal tail 10000
 	// --json | jq 'select(...)'` which loads the entire tail into

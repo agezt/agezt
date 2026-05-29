@@ -28,13 +28,16 @@ func cmdRuns(args []string, stdout, stderr io.Writer) int {
 		return cmdRunsList(args[1:], stdout, stderr)
 	case "show":
 		return cmdRunsShow(args[1:], stdout, stderr)
+	case "last":
+		return cmdRunsLast(args[1:], stdout, stderr)
 	case "-h", "--help", "help":
 		fmt.Fprintf(stdout, "usage: %s runs <subcommand>\n", brand.CLI)
 		fmt.Fprintf(stdout, "  list [N] [--json]            show the last N agent runs (default 20)\n")
 		fmt.Fprintf(stdout, "  show <correlation> [--json]  render one run as a task arc\n")
+		fmt.Fprintf(stdout, "  last [--json]                shorthand for show <newest correlation>\n")
 		return 0
 	default:
-		fmt.Fprintf(stderr, "%s runs: unknown subcommand %q (list|show)\n", brand.CLI, args[0])
+		fmt.Fprintf(stderr, "%s runs: unknown subcommand %q (list|show|last)\n", brand.CLI, args[0])
 		return 2
 	}
 }
@@ -253,6 +256,63 @@ func cmdRunsShow(args []string, stdout, stderr io.Writer) int {
 
 	renderTaskArc(stdout, corr, matchedRow, chain)
 	return 0
+}
+
+// cmdRunsLast implements `agt runs last [--json]` — a convenience
+// shortcut for the most-common operator pattern: render the
+// task arc for the run that just finished (or is still running).
+// Replaces the awkward two-step
+//   `agt runs list 1 --json | jq -r '.runs[0].correlation_id' | xargs agt runs show`
+// with a single command. Identical exit codes + rendering to
+// `runs show`; the only difference is "which correlation".
+func cmdRunsLast(args []string, stdout, stderr io.Writer) int {
+	asJSON := false
+	for _, a := range args {
+		switch a {
+		case "--json":
+			asJSON = true
+		case "-h", "--help":
+			fmt.Fprintf(stdout, "usage: %s runs last [--json]\n", brand.CLI)
+			fmt.Fprintf(stdout, "render the most-recent run as a task arc (shorthand for `runs show`)\n")
+			return 0
+		default:
+			fmt.Fprintf(stderr, "%s runs last: unexpected arg %q\n", brand.CLI, a)
+			return 2
+		}
+	}
+
+	c := dial(stderr)
+	if c == nil {
+		return 1
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	// Limit=1 because CmdRunsList sorts newest-first — the head of
+	// the slice is exactly what `last` wants.
+	listRes, err := c.Call(ctx, controlplane.CmdRunsList, map[string]any{"limit": 1})
+	if err != nil {
+		fmt.Fprintf(stderr, "%s runs last: %v\n", brand.CLI, err)
+		return 1
+	}
+	runs, _ := listRes["runs"].([]any)
+	if len(runs) == 0 {
+		fmt.Fprintln(stderr, "no runs yet (journal has no task.received events)")
+		return 1
+	}
+	row, _ := runs[0].(map[string]any)
+	corr, _ := row["correlation_id"].(string)
+	if corr == "" {
+		fmt.Fprintln(stderr, "runs last: most-recent run has no correlation_id (corrupt journal?)")
+		return 1
+	}
+
+	// Delegate to runs show so the rendering path is identical.
+	// Pass the JSON flag through verbatim.
+	delegateArgs := []string{corr}
+	if asJSON {
+		delegateArgs = append(delegateArgs, "--json")
+	}
+	return cmdRunsShow(delegateArgs, stdout, stderr)
 }
 
 // renderTaskArc prints a human-friendly view of a single run.

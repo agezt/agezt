@@ -109,6 +109,7 @@ func printHelp(w io.Writer) {
 	fmt.Fprintf(w, "  journal verify                        verify the BLAKE3 hash chain\n")
 	fmt.Fprintf(w, "  journal tail [N] [--json]             snapshot of the last N events (default 20)\n")
 	fmt.Fprintf(w, "  journal grep <pattern> [filters]      server-side filter (--kind/--subject/--actor/--correlation)\n")
+	fmt.Fprintf(w, "  journal head [--json]                 print current head seq + chain-tail hash\n")
 	fmt.Fprintf(w, "  approvals [--json]                    list pending HITL approval requests\n")
 	fmt.Fprintf(w, "  approve <id> [reason]  grant a pending approval\n")
 	fmt.Fprintf(w, "  deny    <id> [reason]  deny a pending approval\n")
@@ -150,6 +151,7 @@ func printHelp(w io.Writer) {
 	fmt.Fprintf(w, "  state get <namespace> <key> [--json]  read one state value (exit 3 = absent)\n")
 	fmt.Fprintf(w, "  runs list [N] [--json]                list the last N agent runs (task-level summary)\n")
 	fmt.Fprintf(w, "  runs show <correlation> [--json]      render one run as a task arc\n")
+	fmt.Fprintf(w, "  runs last [--json]                    render the most-recent run as a task arc\n")
 	fmt.Fprintf(w, "  config show [--json]                  daemon's resolved config (paths, model, env presence)\n")
 	fmt.Fprintf(w, "  vault status                          show vault encryption state + path\n")
 	fmt.Fprintf(w, "  vault encrypt                         migrate plaintext vault to encrypted (set AGEZT_VAULT_PASSPHRASE)\n")
@@ -302,8 +304,10 @@ func cmdJournal(args []string, stdout, stderr io.Writer) int {
 		return cmdJournalTail(args[1:], stdout, stderr)
 	case "grep":
 		return cmdJournalGrep(args[1:], stdout, stderr)
+	case "head":
+		return cmdJournalHead(args[1:], stdout, stderr)
 	default:
-		fmt.Fprintf(stderr, "%s journal: unknown subcommand %q (verify|tail|grep)\n", brand.CLI, args[0])
+		fmt.Fprintf(stderr, "%s journal: unknown subcommand %q (verify|tail|grep|head)\n", brand.CLI, args[0])
 		return 2
 	}
 }

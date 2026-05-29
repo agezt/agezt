@@ -281,6 +281,8 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.handleConfig(conn, req)
 	case CmdJournalGrep:
 		s.handleJournalGrep(conn, req)
+	case CmdJournalHead:
+		s.handleJournalHead(conn, req)
 	default:
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "unknown command: " + req.Cmd})
 	}
