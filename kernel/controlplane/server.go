@@ -275,6 +275,8 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.handleStateList(conn, req)
 	case CmdStateGet:
 		s.handleStateGet(conn, req)
+	case CmdRunsList:
+		s.handleRunsList(conn, req)
 	default:
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "unknown command: " + req.Cmd})
 	}

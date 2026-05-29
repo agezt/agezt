@@ -87,6 +87,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return cmdEdict(args[1:], stdout, stderr)
 	case "state":
 		return cmdState(args[1:], stdout, stderr)
+	case "runs":
+		return cmdRuns(args[1:], stdout, stderr)
 	default:
 		fmt.Fprintf(stderr, "%s: unknown command %q\n", brand.CLI, args[0])
 		printHelp(stderr)
@@ -143,6 +145,7 @@ func printHelp(w io.Writer) {
 	fmt.Fprintf(w, "  edict test <cap> [<input>] [--json]   dry-run a policy decision; exit 3 = deny\n")
 	fmt.Fprintf(w, "  state list [<namespace>] [--json]     enumerate state namespaces or keys\n")
 	fmt.Fprintf(w, "  state get <namespace> <key> [--json]  read one state value (exit 3 = absent)\n")
+	fmt.Fprintf(w, "  runs list [N] [--json]                list the last N agent runs (task-level summary)\n")
 	fmt.Fprintf(w, "  vault status                          show vault encryption state + path\n")
 	fmt.Fprintf(w, "  vault encrypt                         migrate plaintext vault to encrypted (set AGEZT_VAULT_PASSPHRASE)\n")
 	fmt.Fprintf(w, "  vault decrypt                         migrate encrypted vault back to plaintext\n")

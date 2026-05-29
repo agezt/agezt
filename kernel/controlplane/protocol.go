@@ -220,6 +220,22 @@ const (
 	//   - value : json.RawMessage — the stored value (any JSON shape)
 	//   - found : bool — false when (ns, key) doesn't exist; value is null
 	CmdStateGet = "state_get"
+
+	// CmdRunsList enumerates past agent runs by scanning the
+	// journal for task.received / task.completed pairs. Each
+	// task.received starts a "run"; the matching task.completed
+	// (same correlation_id) marks success. Unmatched task.received
+	// events are reported as status="running" or "abandoned"
+	// depending on whether the kernel still has the correlation
+	// in its active map.
+	// Args:
+	//   - limit : int (optional; default 20, clamped to 1..1000)
+	// Returns:
+	//   - runs : [{correlation_id, intent, status, started_unix_ms,
+	//             completed_unix_ms, duration_ms, iters}, ...]
+	//           sorted by started_unix_ms DESCENDING (newest first).
+	//   - count : int
+	CmdRunsList = "runs_list"
 )
 
 // Request is the wire shape sent by the client.
