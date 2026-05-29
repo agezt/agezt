@@ -111,6 +111,8 @@ func printHelp(w io.Writer) {
 	fmt.Fprintf(w, "  plan refine <file> --feedback \"...\"\n")
 	fmt.Fprintf(w, "                              revise an existing plan with operator feedback\n")
 	fmt.Fprintf(w, "  plan validate <file.json>   verify a hand-authored plan (client-side, no daemon)\n")
+	fmt.Fprintf(w, "  plan visualize <file.json> [--raw]\n")
+	fmt.Fprintf(w, "                              render plan as Mermaid graph TD (pasteable into markdown)\n")
 	fmt.Fprintf(w, "  plan cost <file.json> --model <id>\n")
 	fmt.Fprintf(w, "                              estimate plan cost in USD (client-side)\n")
 	fmt.Fprintf(w, "  catalog sync [url]                    sync provider/model catalog from models.dev\n")
@@ -325,6 +327,8 @@ func cmdPlan(args []string, stdout, stderr io.Writer) int {
 		return cmdPlanRefine(args[1:], stdout, stderr)
 	case "validate":
 		return cmdPlanValidate(args[1:], stdout, stderr)
+	case "visualize", "viz":
+		return cmdPlanVisualize(args[1:], stdout, stderr)
 	default:
 		// Backwards-compatible: `agt plan <file.json>` still executes
 		// a hand-authored plan. Detected by checking if the arg is a
