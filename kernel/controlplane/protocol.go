@@ -168,6 +168,32 @@ const (
 	//   - hard_deny  : [{name, substring, applies_to}, ...] — the
 	//                  unconditional-block patterns, sorted by name
 	CmdEdictShow = "edict_show"
+
+	// CmdEdictTest dry-runs a policy decision: "if I asked to do
+	// <capability> with this <input>, what would the engine say?"
+	// Read-only — does not register the call as having happened,
+	// does not consume approval slots, does not journal as a
+	// real decision event. Useful for:
+	//   - CI preflight: assert "rm -rf /" is hard-denied before
+	//     running an agent loop that might receive it.
+	//   - Debugging: "why was this allowed but the next one
+	//     denied?" — operators can probe variations interactively.
+	//   - Composing hard-deny rules: confirm a new pattern
+	//     actually catches the inputs the operator expects.
+	// Args:
+	//   - capability : string (required) — must match a known
+	//                  edict.Capability value (shell, file_read, ...)
+	//   - input      : string (optional, default "") — the input
+	//                  text the runtime would be checking against
+	// Returns the engine.Outcome shape:
+	//   - decision         : "allow" | "deny"
+	//   - level            : string — TrustLevel.String() (L0..L4)
+	//   - reason           : string — human explanation from engine
+	//   - hard_denied      : bool
+	//   - hard_deny_rule   : string — present iff hard_denied=true
+	//   - would_ask        : bool — Ask-class folded by AskPolicy
+	//   - requires_approval: bool — AskPrompt mode + Ask-class hit
+	CmdEdictTest = "edict_test"
 )
 
 // Request is the wire shape sent by the client.

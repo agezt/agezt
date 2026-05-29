@@ -60,6 +60,37 @@ func (s *Server) handleEdictShow(conn net.Conn, req Request) {
 	})
 }
 
+// handleEdictTest dry-runs a policy decision. The Outcome shape
+// flattens onto the same JSON the runtime journals — operators
+// who've gotten used to reading policy.decision events get the
+// same vocabulary here.
+func (s *Server) handleEdictTest(conn net.Conn, req Request) {
+	capRaw, _ := req.Args["capability"]
+	capStr, _ := capRaw.(string)
+	if capStr == "" {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.capability required"})
+		return
+	}
+	inputRaw, _ := req.Args["input"]
+	input, _ := inputRaw.(string) // empty string is a valid probe
+
+	out := s.k.Edict().Decide(edict.Capability(capStr), input)
+	s.writeResp(conn, Response{
+		ID:   req.ID,
+		Type: RespResult,
+		Result: map[string]any{
+			"decision":          string(out.Decision),
+			"capability":        string(out.Capability),
+			"level":             out.Level.String(),
+			"reason":            out.Reason,
+			"hard_denied":       out.HardDenied,
+			"hard_deny_rule":    out.HardDenyRule,
+			"would_ask":         out.WouldAsk,
+			"requires_approval": out.RequiresApproval,
+		},
+	})
+}
+
 // askPolicyLabel maps the AskPolicy enum to the operator-facing
 // strings AGEZT_APPROVAL_MODE accepts. Kept here (vs adding
 // String() on the enum) because the daemon-facing env var

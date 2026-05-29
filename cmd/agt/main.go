@@ -134,6 +134,7 @@ func printHelp(w io.Writer) {
 	fmt.Fprintf(w, "  plugin list [--json]                  list external plugins the daemon spawned\n")
 	fmt.Fprintf(w, "  shutdown [--json]                     ask the daemon to exit gracefully (same path as SIGTERM)\n")
 	fmt.Fprintf(w, "  edict show [--json]                   show loaded policies (ask_policy, levels, hard-deny rules)\n")
+	fmt.Fprintf(w, "  edict test <cap> [<input>] [--json]   dry-run a policy decision; exit 3 = deny\n")
 	fmt.Fprintf(w, "  vault status                          show vault encryption state + path\n")
 	fmt.Fprintf(w, "  vault encrypt                         migrate plaintext vault to encrypted (set AGEZT_VAULT_PASSPHRASE)\n")
 	fmt.Fprintf(w, "  vault decrypt                         migrate encrypted vault back to plaintext\n")
