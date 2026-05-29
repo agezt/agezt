@@ -279,6 +279,8 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.handleRunsList(conn, req)
 	case CmdConfig:
 		s.handleConfig(conn, req)
+	case CmdJournalGrep:
+		s.handleJournalGrep(conn, req)
 	default:
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "unknown command: " + req.Cmd})
 	}

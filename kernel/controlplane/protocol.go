@@ -221,6 +221,38 @@ const (
 	//   - found : bool — false when (ns, key) doesn't exist; value is null
 	CmdStateGet = "state_get"
 
+	// CmdJournalGrep is the server-side filter sibling of
+	// CmdJournalTail. Today operators run `agt journal tail 10000
+	// --json | jq 'select(...)'` which loads the entire tail into
+	// the client just to throw most of it away — for a journal
+	// with 100k+ events the client-side filter cost dominates the
+	// daemon round-trip. CmdJournalGrep moves the filter into the
+	// server: it walks the journal once and only ships matching
+	// events back.
+	//
+	// Filters AND together (all must match):
+	//   - pattern        : substring (case-INSENSITIVE) matched against
+	//                      kind, subject, actor, correlation_id, AND
+	//                      the raw payload bytes. Empty pattern = match all.
+	//   - kind           : exact match on Event.Kind (e.g. "tool.invoked").
+	//   - subject        : exact match on Event.Subject.
+	//   - actor          : exact match on Event.Actor.
+	//   - correlation_id : exact match on Event.CorrelationID.
+	//   - limit          : int (optional; default 100, clamped to 1..10000) —
+	//                      maximum matches returned. Walking stops once
+	//                      the limit is reached (oldest→newest order).
+	//
+	// Returns the same shape as CmdJournalTail so renderers reuse:
+	//   - events : [*event.Event, ...] in seq order
+	//   - count  : int — how many matched (may equal limit)
+	//   - head   : int — current journal head seq
+	//
+	// Privacy note: the substring search inspects payload bytes
+	// for free-text "find anything that mentions X" debugging. The
+	// daemon does not redact or summarise — operators get back the
+	// same payload they'd see in `agt why` or `agt journal tail`.
+	CmdJournalGrep = "journal_grep"
+
 	// CmdConfig returns a snapshot of the daemon's effective config:
 	// resolved paths, model name, system-prompt presence (NOT
 	// content), inventory counts (tools, plugins), and which
