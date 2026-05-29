@@ -140,6 +140,21 @@ const (
 	// delay so the client read completes before the process exits.
 	// No args.
 	CmdShutdown = "shutdown"
+
+	// CmdJournalTail returns the last N events from the journal as a
+	// one-shot historical read. Different from CmdPulseSubscribe with
+	// --until: this never starts a subscription, never blocks, and
+	// streams nothing — it's a synchronous snapshot for "show me what
+	// just happened" use cases (postmortems, smoke tests, scrollback).
+	// Args:
+	//   - n : int (optional; default 20, clamped to 1..10000)
+	// Returns:
+	//   - events : [*event.Event, ...] in seq order, oldest→newest
+	//   - count  : int — actual number returned (may be < n if the
+	//              journal is shorter)
+	//   - head   : int — current journal head seq (so the operator
+	//              can compute "we showed events seq=(head-count+1)..head")
+	CmdJournalTail = "journal_tail"
 )
 
 // Request is the wire shape sent by the client.

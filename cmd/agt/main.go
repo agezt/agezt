@@ -98,7 +98,8 @@ func printHelp(w io.Writer) {
 	fmt.Fprintf(w, "  halt              freeze all in-flight runs\n")
 	fmt.Fprintf(w, "  resume            clear the halt flag\n")
 	fmt.Fprintf(w, "  why <event_id> [--json|--payload]  list events sharing an event's correlation\n")
-	fmt.Fprintf(w, "  journal verify    verify the BLAKE3 hash chain\n")
+	fmt.Fprintf(w, "  journal verify                        verify the BLAKE3 hash chain\n")
+	fmt.Fprintf(w, "  journal tail [N] [--json]             snapshot of the last N events (default 20)\n")
 	fmt.Fprintf(w, "  approvals [--json]                    list pending HITL approval requests\n")
 	fmt.Fprintf(w, "  approve <id> [reason]  grant a pending approval\n")
 	fmt.Fprintf(w, "  deny    <id> [reason]  deny a pending approval\n")
@@ -226,11 +227,19 @@ func cmdSimple(cmd string, args map[string]any, stdout, stderr io.Writer) int {
 }
 
 func cmdJournal(args []string, stdout, stderr io.Writer) int {
-	if len(args) == 0 || args[0] != "verify" {
-		fmt.Fprintf(stderr, "%s journal: only 'verify' is implemented in M0.5\n", brand.CLI)
+	if len(args) == 0 {
+		fmt.Fprintf(stderr, "%s journal: subcommand required (verify|tail)\n", brand.CLI)
 		return 2
 	}
-	return cmdSimple(controlplane.CmdJournalVerify, nil, stdout, stderr)
+	switch args[0] {
+	case "verify":
+		return cmdSimple(controlplane.CmdJournalVerify, nil, stdout, stderr)
+	case "tail":
+		return cmdJournalTail(args[1:], stdout, stderr)
+	default:
+		fmt.Fprintf(stderr, "%s journal: unknown subcommand %q (verify|tail)\n", brand.CLI, args[0])
+		return 2
+	}
 }
 
 func cmdApprovals(args []string, stdout, stderr io.Writer) int {

@@ -54,13 +54,18 @@ func TestUnknownCommand(t *testing.T) {
 	}
 }
 
-func TestJournalRequiresVerify(t *testing.T) {
+// TestJournalRejectsUnknownSubcommand — `agt journal <unknown>`
+// must surface the supported set so operators discover what's
+// available. After M0.5 the set is verify|tail (cmdJournal gained
+// `tail` for snapshot-of-last-N reads); update this test if the
+// set changes again.
+func TestJournalRejectsUnknownSubcommand(t *testing.T) {
 	var out, errOut bytes.Buffer
 	code := run([]string{"journal", "list"}, &out, &errOut)
 	if code != 2 {
 		t.Errorf("exit=%d want 2", code)
 	}
-	if !strings.Contains(errOut.String(), "only 'verify'") {
-		t.Errorf("stderr missing verify-only note; got %q", errOut.String())
+	if !strings.Contains(errOut.String(), "verify|tail") {
+		t.Errorf("stderr missing supported-subcommands note; got %q", errOut.String())
 	}
 }
