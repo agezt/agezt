@@ -1,0 +1,261 @@
+// SPDX-License-Identifier: MIT
+
+package journal
+
+import (
+	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/ersinkoc/agezt/kernel/event"
+)
+
+func newTestJournal(t *testing.T, segBytes int64) *Journal {
+	t.Helper()
+	dir := t.TempDir()
+	j, err := Open(dir, Options{
+		SegmentBytes: segBytes,
+		Now:          func() time.Time { return time.UnixMilli(1_700_000_000_000) },
+		IDGen:        sequentialIDs(),
+	})
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	t.Cleanup(func() { j.Close() })
+	return j
+}
+
+// sequentialIDs returns an IDGen that produces deterministic, ULID-shaped
+// strings ("01H..." prefix kept; only the tail varies). Determinism makes
+// hash-chain tests reproducible.
+func sequentialIDs() func() string {
+	var n int
+	return func() string {
+		n++
+		return fmt.Sprintf("01HQRSTUVWXYZ0123456789%04d", n)
+	}
+}
+
+func TestAppend_ChainsAndPersists(t *testing.T) {
+	j := newTestJournal(t, 0)
+
+	a, err := j.Append(event.Spec{Subject: "task.x", Kind: event.KindTaskReceived, Actor: "kernel"})
+	if err != nil {
+		t.Fatalf("Append a: %v", err)
+	}
+	b, err := j.Append(event.Spec{Subject: "task.x", Kind: event.KindTaskCompleted, Actor: "kernel"})
+	if err != nil {
+		t.Fatalf("Append b: %v", err)
+	}
+	if a.Seq != 0 || b.Seq != 1 {
+		t.Errorf("seq drift: a=%d b=%d", a.Seq, b.Seq)
+	}
+	if a.PrevHash != event.GenesisHash {
+		t.Errorf("first event prev_hash %s, want genesis", a.PrevHash)
+	}
+	if b.PrevHash != a.Hash {
+		t.Errorf("chain broken: b.prev=%s a.hash=%s", b.PrevHash, a.Hash)
+	}
+	seq, head := j.Head()
+	if seq != 1 || head != b.Hash {
+		t.Errorf("Head() = (%d,%s), want (1,%s)", seq, head, b.Hash)
+	}
+}
+
+func TestVerify_ClearChain(t *testing.T) {
+	j := newTestJournal(t, 0)
+	for i := range 10 {
+		_, err := j.Append(event.Spec{
+			Subject: fmt.Sprintf("task.%d", i),
+			Kind:    event.KindTaskReceived,
+			Actor:   "kernel",
+			Payload: map[string]int{"i": i},
+		})
+		if err != nil {
+			t.Fatalf("append %d: %v", i, err)
+		}
+	}
+	if err := j.Verify(); err != nil {
+		t.Errorf("Verify clean chain: %v", err)
+	}
+}
+
+func TestVerify_DetectsTamper(t *testing.T) {
+	j := newTestJournal(t, 0)
+	for range 3 {
+		_, err := j.Append(event.Spec{Subject: "x", Kind: event.KindHalt, Actor: "kernel"})
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := j.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	// Tamper with the middle event in the segment.
+	path := filepath.Join(j.dir, fmt.Sprintf("%0*d%s", segmentDigits, 1, segmentExt))
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tampered := strings.Replace(string(data), `"actor":"kernel"`, `"actor":"attacker"`, 1)
+	if tampered == string(data) {
+		t.Fatal("test setup failure: no actor field to tamper")
+	}
+	if err := os.WriteFile(path, []byte(tampered), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Reopen and verify — must detect.
+	reopened, err := Open(j.dir, Options{})
+	if err == nil {
+		reopened.Close()
+		t.Fatal("Open should detect tamper at recovery time, got nil error")
+	}
+	if !errors.Is(err, ErrChainBreak) {
+		t.Errorf("got err=%v, want ErrChainBreak wrapped", err)
+	}
+}
+
+func TestRotation(t *testing.T) {
+	// Tiny segments force rotation every few events.
+	j := newTestJournal(t, 200)
+	for i := range 20 {
+		_, err := j.Append(event.Spec{
+			Subject: "x",
+			Kind:    event.KindHalt,
+			Actor:   "kernel",
+			Payload: map[string]int{"i": i},
+		})
+		if err != nil {
+			t.Fatalf("append %d: %v", i, err)
+		}
+	}
+	entries, err := os.ReadDir(j.dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) < 2 {
+		t.Errorf("expected rotation, got %d segment(s)", len(entries))
+	}
+	if err := j.Verify(); err != nil {
+		t.Errorf("Verify across rotation: %v", err)
+	}
+}
+
+func TestRecovery_FromExistingSegments(t *testing.T) {
+	dir := t.TempDir()
+
+	// Phase 1: write 5 events, close.
+	j1, err := Open(dir, Options{IDGen: sequentialIDs(), Now: func() time.Time { return time.UnixMilli(1_700_000_000_000) }})
+	if err != nil {
+		t.Fatalf("Open phase1: %v", err)
+	}
+	var lastHash string
+	for i := range 5 {
+		ev, err := j1.Append(event.Spec{
+			Subject: fmt.Sprintf("e.%d", i),
+			Kind:    event.KindTaskReceived,
+			Actor:   "kernel",
+		})
+		if err != nil {
+			t.Fatalf("append phase1 %d: %v", i, err)
+		}
+		lastHash = ev.Hash
+	}
+	if err := j1.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	// Phase 2: reopen, head must match.
+	j2, err := Open(dir, Options{})
+	if err != nil {
+		t.Fatalf("Open phase2: %v", err)
+	}
+	defer j2.Close()
+	seq, head := j2.Head()
+	if seq != 4 {
+		t.Errorf("recovered seq=%d, want 4", seq)
+	}
+	if head != lastHash {
+		t.Errorf("recovered head=%s, want %s", head, lastHash)
+	}
+
+	// Append one more, ensure it chains from the recovered head.
+	ev, err := j2.Append(event.Spec{Subject: "after", Kind: event.KindHalt, Actor: "kernel"})
+	if err != nil {
+		t.Fatalf("append phase2: %v", err)
+	}
+	if ev.PrevHash != lastHash {
+		t.Errorf("post-recovery prev_hash=%s, want %s", ev.PrevHash, lastHash)
+	}
+	if ev.Seq != 5 {
+		t.Errorf("post-recovery seq=%d, want 5", ev.Seq)
+	}
+}
+
+func TestRange_IteratesInOrder(t *testing.T) {
+	j := newTestJournal(t, 0)
+	for i := range 6 {
+		_, err := j.Append(event.Spec{Subject: "x", Kind: event.KindHalt, Actor: "kernel", Payload: map[string]int{"i": i}})
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	var got []int64
+	err := j.Range(func(e *event.Event) error {
+		got = append(got, e.Seq)
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("Range: %v", err)
+	}
+	want := []int64{0, 1, 2, 3, 4, 5}
+	if len(got) != len(want) {
+		t.Fatalf("got %d events, want %d", len(got), len(want))
+	}
+	for i, s := range want {
+		if got[i] != s {
+			t.Errorf("seq[%d] = %d, want %d", i, got[i], s)
+		}
+	}
+}
+
+func TestRange_StopsOnError(t *testing.T) {
+	j := newTestJournal(t, 0)
+	for range 4 {
+		_, _ = j.Append(event.Spec{Subject: "x", Kind: event.KindHalt, Actor: "kernel"})
+	}
+	stop := errors.New("stop")
+	count := 0
+	err := j.Range(func(e *event.Event) error {
+		count++
+		if count == 2 {
+			return stop
+		}
+		return nil
+	})
+	if !errors.Is(err, stop) {
+		t.Errorf("got err=%v, want stop", err)
+	}
+	if count != 2 {
+		t.Errorf("count=%d, want 2", count)
+	}
+}
+
+func TestRequiredFields_PropagateError(t *testing.T) {
+	j := newTestJournal(t, 0)
+	_, err := j.Append(event.Spec{Subject: "", Kind: event.KindHalt, Actor: "kernel"})
+	if err == nil {
+		t.Fatal("expected error for empty subject")
+	}
+	// Failed append must NOT advance seq or head.
+	seq, head := j.Head()
+	if seq != -1 || head != event.GenesisHash {
+		t.Errorf("seq/head moved after failed append: seq=%d head=%s", seq, head)
+	}
+}

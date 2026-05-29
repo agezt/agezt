@@ -1,0 +1,112 @@
+# SPDX-License-Identifier: MIT
+# CI for Milestone 0 — build, test, vet, deps-check, multi-arch cross-build.
+# Codegen-in-sync is enforced: `make gen` must produce no diff against what
+# is checked in (DECISIONS G2).
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    name: test (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    env:
+      CGO_ENABLED: '0'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          check-latest: true
+      - run: go vet ./...
+      - run: go test ./...
+      - run: go build ./...
+
+  race:
+    # Race detector needs cgo, so it can't run in the default CGO_ENABLED=0
+    # build matrix. We run it once on Linux with cgo enabled to surface
+    # concurrent-code regressions in kernel/bus, kernel/journal, etc.
+    name: race (linux, cgo)
+    runs-on: ubuntu-latest
+    env:
+      CGO_ENABLED: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+      - run: go test -race ./...
+
+  codegen-in-sync:
+    name: codegen-in-sync
+    runs-on: ubuntu-latest
+    env:
+      CGO_ENABLED: '0'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+      - name: Regenerate SDK types
+        run: |
+          go run ./tools/jsonschemagen \
+            -in  .project/agezt-contract.jsonc \
+            -out contract/gen/types.gen.go \
+            -pkg gen
+      - name: Verify no drift
+        run: |
+          if ! git diff --exit-code -- contract/gen/; then
+            echo "::error::contract/gen/ is out of sync with the contract."
+            echo "Run \`make gen\` and commit the result."
+            exit 1
+          fi
+
+  multi-arch:
+    name: cross-build (${{ matrix.goos }}/${{ matrix.goarch }})
+    runs-on: ubuntu-latest
+    env:
+      CGO_ENABLED: '0'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { goos: linux,   goarch: amd64 }
+          - { goos: linux,   goarch: arm64 }
+          - { goos: darwin,  goarch: amd64 }
+          - { goos: darwin,  goarch: arm64 }
+          - { goos: windows, goarch: amd64 }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+      - name: Generate SDK types
+        run: |
+          go run ./tools/jsonschemagen \
+            -in  .project/agezt-contract.jsonc \
+            -out contract/gen/types.gen.go \
+            -pkg gen
+      - name: Cross-build
+        env:
+          GOOS:   ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: go build -trimpath -ldflags='-s -w' -o /tmp/out/ ./cmd/...
+
+  deps-check:
+    name: deps-check (allowlist, POLICY §1)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+      - name: Verify every module is in tools/depscheck/allowlist.txt
+        run: go run ./tools/depscheck

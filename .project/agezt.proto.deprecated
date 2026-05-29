@@ -1,0 +1,459 @@
+// SPDX-License-Identifier: MIT
+// DEPRECATED — superseded by agezt-contract.jsonc (DECISIONS B0).
+// The base transport is now stdio + JSON-RPC 2.0, not gRPC/protobuf.
+// This file is kept only as a historical reference for the message shapes;
+// it is NOT the contract source. Do not generate from it.
+
+// SPDX-License-Identifier: MIT
+// Agezt — Plugin & Kernel Contracts (v1)
+// This is the frozen, complete contract surface. Everything binds to this.
+// Build-time codegen target (per DECISIONS G2). Append-only evolution within major 1.
+
+syntax = "proto3";
+
+package agezt.v1;
+
+option go_package = "github.com/agezt/agezt/contracts/gen/ageztv1;ageztv1";
+
+// =====================================================================
+// SECTION 1 — Registration, health, lifecycle
+// =====================================================================
+
+enum CapabilityKind {
+  CAP_UNSPECIFIED  = 0;
+  CAP_CHANNEL      = 1;
+  CAP_PROVIDER     = 2;
+  CAP_TOOL         = 3;
+  CAP_CODING_AGENT = 4;
+  CAP_MEMORY       = 5;
+  CAP_STORAGE      = 6;
+  CAP_TUNNEL       = 7;
+}
+
+message Capability {
+  CapabilityKind kind = 1;
+  map<string, string> attributes = 2; // e.g. {"models":"claude-*","modalities":"text,vision"}
+}
+
+message Contribution {
+  repeated string migrations_dir = 1;   // schema migrations this plugin owns
+  repeated ApiRoute api_routes   = 2;
+  repeated CliCommand cli_commands = 3;
+  repeated string ui_widgets     = 4;    // widget kinds contributed
+  repeated string event_subjects = 5;
+  repeated string cron_jobs      = 6;
+  repeated string world_entities = 7;
+}
+
+message ApiRoute { string path = 1; repeated string methods = 2; string auth = 3; }
+message CliCommand { string name = 1; repeated string subcommands = 2; }
+
+message RegisterRequest {
+  string plugin_id        = 1;
+  string display_name     = 2;
+  string version          = 3;
+  uint32 protocol_version = 4;
+  string token            = 5;   // one-time bootstrap token
+  repeated Capability capabilities = 6;
+  Contribution contributes = 7;
+  map<string, string> metadata = 8; // author, homepage, license
+}
+
+message RegisterResponse {
+  bool accepted           = 1;
+  string reason           = 2;
+  uint32 protocol_version = 3;
+  repeated string kernel_capabilities = 4;
+}
+
+enum PluginHealth { HEALTH_OK = 0; HEALTH_DEGRADED = 1; HEALTH_FAILING = 2; }
+message HealthPing { uint64 seq = 1; int64 sent_unix_ms = 2; }
+message HealthPong { uint64 seq = 1; PluginHealth health = 2; string detail = 3; }
+
+message ShutdownRequest { string reason = 1; uint32 drain_seconds = 2; }
+message ShutdownResponse { bool ok = 1; }
+
+enum ErrorClass {
+  ERR_UNSPECIFIED = 0;
+  ERR_TRANSIENT   = 1;
+  ERR_INVALID_INPUT = 2;
+  ERR_UNAUTHORIZED = 3;
+  ERR_UNAVAILABLE = 4;
+  ERR_INTERNAL    = 5;
+  ERR_CANCELLED   = 6;
+}
+message PluginError {
+  ErrorClass class = 1;
+  string code      = 2;
+  string message   = 3;
+  bool   retryable = 4;
+  uint32 retry_after_ms = 5;
+}
+
+message Empty {}
+
+// =====================================================================
+// SECTION 2 — Event schema (the single source of truth)
+// =====================================================================
+
+enum EventKind {
+  EVT_UNSPECIFIED = 0;
+
+  // Lifecycle 10-19
+  EVT_AGENT_SPAWNED   = 10;
+  EVT_AGENT_SUSPENDED = 11;
+  EVT_AGENT_RESUMED   = 12;
+  EVT_AGENT_DIED      = 13;
+  EVT_AGENT_CRASHED   = 14;
+
+  // Task / DAG 20-29
+  EVT_TASK_RECEIVED  = 20;
+  EVT_PLAN_PROPOSED  = 21;
+  EVT_NODE_STARTED   = 22;
+  EVT_NODE_COMPLETED = 23;
+  EVT_NODE_FAILED    = 24;
+  EVT_TASK_COMPLETED = 25;
+
+  // Tool / LLM 30-39
+  EVT_TOOL_INVOKED = 30;
+  EVT_TOOL_RESULT  = 31;
+  EVT_LLM_REQUEST  = 32;
+  EVT_LLM_TOKEN    = 33;
+  EVT_LLM_RESPONSE = 34;
+
+  // Channels 40-49
+  EVT_CHANNEL_INBOUND  = 40;
+  EVT_CHANNEL_OUTBOUND = 41;
+
+  // Memory / Forge 50-59
+  EVT_MEMORY_WRITE      = 50;
+  EVT_MEMORY_FORGET     = 51;
+  EVT_SKILL_CREATED     = 52;
+  EVT_SKILL_PATCHED     = 53;
+  EVT_SKILL_PROMOTED    = 54;
+  EVT_SKILL_QUARANTINED = 55;
+  EVT_SKILL_REVERTED    = 56;
+
+  // Pulse 60-69
+  EVT_PULSE_TICK       = 60;
+  EVT_OBSERVER_DELTA   = 61;
+  EVT_SALIENCE_SCORED  = 62;
+  EVT_INITIATIVE_TAKEN = 63;
+  EVT_BRIEFING_SENT    = 64;
+
+  // Governance 70-79
+  EVT_POLICY_DECISION   = 70;
+  EVT_BUDGET_CONSUMED   = 71;
+  EVT_APPROVAL_REQUESTED = 72;
+  EVT_APPROVAL_GRANTED  = 73;
+  EVT_APPROVAL_DENIED   = 74;
+  EVT_HALT              = 75;
+  EVT_RESUME            = 76;
+  EVT_ANOMALY_DETECTED  = 77;
+
+  // Operability 80-89
+  EVT_PLUGIN_INSTALLED     = 80;
+  EVT_PLUGIN_UPDATED       = 81;
+  EVT_PLUGIN_REMOVED       = 82;
+  EVT_PLUGIN_ENABLED       = 83;
+  EVT_PLUGIN_DISABLED      = 84;
+  EVT_MIGRATION_APPLIED    = 85;
+  EVT_MIGRATION_REVERTED   = 86;
+  EVT_CORE_UPDATED         = 87;
+  EVT_CONTRIBUTION_MOUNTED = 88;
+  EVT_CONTRIBUTION_UNMOUNTED = 89;
+
+  // Identity / backup 90-99
+  EVT_EXPORTED            = 90;
+  EVT_IMPORTED            = 91;
+  EVT_BACKUP_CREATED      = 92;
+  EVT_RESTORED            = 93;
+  EVT_RESTORE_POINT_CREATED = 94;
+
+  // Widgets / HITL / resilience 100-119
+  EVT_WIDGET_ACTION           = 100;
+  EVT_CLARIFY_REQUESTED       = 101;
+  EVT_CLARIFY_ANSWERED        = 102;
+  EVT_TASK_SUSPENDED_FOR_INPUT = 103;
+  EVT_TASK_STEERED            = 104;
+  EVT_CHECKPOINT_CREATED      = 105;
+  EVT_COMPENSATION_RUN        = 106;
+  EVT_DEGRADED_MODE_ENTERED   = 107;
+  EVT_DEGRADED_MODE_EXITED    = 108;
+
+  // Provider ecosystem 120-129 (SPEC-15)
+  EVT_CATALOG_SYNCED            = 120;
+  EVT_PROVIDER_CREDENTIAL_ADDED = 121;
+  EVT_ACP_SESSION_STARTED       = 122;
+  EVT_ACP_SESSION_ENDED         = 123;
+}
+
+message Event {
+  // Identity & ordering (kernel-assigned; plugins MUST NOT set)
+  string id         = 1;   // ULID
+  uint64 seq        = 2;
+  int64  ts_unix_ms = 3;
+  string prev_hash  = 4;   // BLAKE3 hex
+  string hash       = 5;   // BLAKE3 hex
+
+  // Routing & provenance
+  string subject        = 6;
+  string actor          = 7;   // kernel | plugin:<id> | agent:<id> | user:<id>
+  string correlation_id = 8;
+  string causation_id   = 9;
+
+  EventKind kind        = 10;
+  bytes payload         = 11;  // typed by kind
+  map<string,string> tags = 12;
+}
+
+message Attachment {
+  string name       = 1;
+  string media_type = 2;
+  bytes  inline     = 3;   // if <= 32 KiB (DECISIONS B5)
+  string blob_digest = 4;  // else content-addressed reference
+  uint64 size       = 5;
+}
+
+message UnifiedMessage {
+  string channel_kind = 1;
+  string channel_id   = 2;
+  string sender       = 3;
+  string text         = 4;
+  repeated Attachment attachments = 5;
+  int64  platform_ts_ms = 6;
+  map<string,string> platform_meta = 7;
+}
+
+// =====================================================================
+// SECTION 3 — Kernel service (what plugins call back into)
+// =====================================================================
+
+message EventEmit {
+  string subject        = 1;
+  EventKind kind        = 2;
+  bytes payload         = 3;
+  string correlation_id = 4;
+  string causation_id   = 5;
+  map<string,string> tags = 6;
+}
+message EventAck { string event_id = 1; uint64 seq = 2; }
+
+message CompletionRequest {
+  string task_type = 1;   // drives routing (e.g. "plan","salience","code")
+  repeated ChatMessage messages = 2;
+  repeated ToolDef tools = 3;
+  CompletionOptions options = 4;
+  string correlation_id = 5;
+}
+message ChatMessage { string role = 1; string content = 2; repeated Attachment attachments = 3; }
+message ToolDef { string name = 1; string description = 2; bytes schema_json = 3; }
+message CompletionOptions {
+  bool   json_mode      = 1;
+  bool   stream         = 2;
+  uint32 max_tokens     = 3;
+  float  temperature    = 4;
+  bool   allow_caching  = 5;
+  uint32 context_budget_tokens = 6;
+}
+message CompletionChunk {
+  oneof chunk {
+    string text_delta   = 1;
+    ToolCall tool_call  = 2;
+    Usage usage         = 3;
+    PluginError error   = 4;
+  }
+  bool done = 10;
+}
+message ToolCall { string id = 1; string name = 2; bytes input_json = 3; }
+message Usage { uint64 input_tokens = 1; uint64 output_tokens = 2; uint64 cached_tokens = 3; int64 cost_microcents = 4; string model = 5; }
+
+message ConfigRequest { string key_prefix = 1; }
+message ConfigValue { map<string,string> values = 1; }
+message StateKey { string namespace = 1; string key = 2; }
+message StateValue { bytes value = 1; bool found = 2; }
+message StateEntry { string namespace = 1; string key = 2; bytes value = 3; }
+message StateAck { bool ok = 1; }
+message SubscribeRequest { string pattern = 1; }
+
+service Kernel {
+  rpc EmitEvent(EventEmit) returns (EventAck);
+  rpc RequestCompletion(CompletionRequest) returns (stream CompletionChunk);
+  rpc GetConfig(ConfigRequest) returns (ConfigValue);
+  rpc StateGet(StateKey) returns (StateValue);
+  rpc StateSet(StateEntry) returns (StateAck);
+  rpc Subscribe(SubscribeRequest) returns (stream Event);
+}
+
+// =====================================================================
+// SECTION 4 — Shared plugin handshake service
+// =====================================================================
+
+service PluginBase {
+  rpc Register(RegisterRequest) returns (RegisterResponse);
+  rpc Health(stream HealthPing) returns (stream HealthPong);
+  rpc Shutdown(ShutdownRequest) returns (ShutdownResponse);
+}
+
+// =====================================================================
+// SECTION 5 — The seven plugin interfaces
+// =====================================================================
+
+// 5.1 Channel
+enum MessagePriority { PRIO_INFO=0; PRIO_NORMAL=1; PRIO_IMPORTANT=2; PRIO_URGENT=3; }
+message ChannelStartRequest { map<string,string> config = 1; }
+message ChannelStartResponse { bool ok = 1; PluginError error = 2; }
+message OutboundMessage {
+  string channel_id = 1;
+  string text       = 2;
+  repeated Attachment attachments = 3;
+  MessagePriority priority = 4;
+  string in_reply_to = 5;
+  string correlation_id = 6;
+  repeated WidgetRef widgets = 7;
+}
+message WidgetRef { string kind = 1; bytes data_json = 2; }
+message SendReceipt { string platform_message_id = 1; PluginError error = 2; }
+message ChannelSignal { string channel_id = 1; string signal = 2; map<string,string> data = 3; }
+message SignalAck { bool ok = 1; }
+message ChannelStopRequest {}
+message ChannelStopResponse { bool ok = 1; }
+service ChannelPlugin {
+  rpc Start(ChannelStartRequest) returns (ChannelStartResponse);
+  rpc Send(OutboundMessage) returns (SendReceipt);
+  rpc Signal(ChannelSignal) returns (SignalAck);
+  rpc Stop(ChannelStopRequest) returns (ChannelStopResponse);
+}
+
+// 5.2 Provider
+message ProviderCompletionRequest {
+  repeated ChatMessage messages = 1;
+  repeated ToolDef tools = 2;
+  CompletionOptions options = 3;
+  string model = 4;
+}
+message ProviderChunk {
+  oneof chunk { string text_delta = 1; ToolCall tool_call = 2; Usage usage = 3; PluginError error = 4; }
+  bool done = 10;
+}
+message EmbedRequest { repeated string inputs = 1; string model = 2; }
+message EmbedResponse { repeated FloatVector vectors = 1; Usage usage = 2; }
+message FloatVector { repeated float values = 1; }
+message ListModelsRequest {}
+message ModelList { repeated ModelInfo models = 1; }
+message ModelInfo {
+  string id = 1; uint32 context_window = 2;
+  repeated string modalities = 3;     // text,vision,embeddings
+  bool tool_use = 4; bool json_mode = 5; bool prompt_caching = 6; bool reasoning = 7;
+  int64 input_microcents_per_mtok = 8; int64 output_microcents_per_mtok = 9;
+}
+message LimitsRequest {}
+message LimitsResponse { uint32 rpm = 1; uint32 tpm = 2; uint32 remaining = 3; int64 reset_unix_ms = 4; string auth_mode = 5; } // subscription|api-key|local
+service ProviderPlugin {
+  rpc Complete(ProviderCompletionRequest) returns (stream ProviderChunk);
+  rpc Embed(EmbedRequest) returns (EmbedResponse);
+  rpc ListModels(ListModelsRequest) returns (ModelList);
+  rpc ReportLimits(LimitsRequest) returns (LimitsResponse);
+}
+
+// 5.3 Tool
+enum IsolationProfile { ISO_NONE=0; ISO_NAMESPACE=1; ISO_CONTAINER=2; ISO_MICROVM=3; }
+message ToolSchema { string name = 1; string description = 2; bytes input_schema_json = 3; bytes output_schema_json = 4; }
+message ToolInvocation {
+  string tool_name = 1;
+  bytes input_json = 2;
+  IsolationProfile isolation = 3;
+  string correlation_id = 4;
+  uint32 timeout_ms = 5;
+}
+message ToolEvent {
+  oneof event { string progress = 1; bytes result_json = 2; Attachment artifact = 3; PluginError error = 4; }
+  bool done = 10;
+}
+message CancelRequest { string correlation_id = 1; }
+message CancelAck { bool ok = 1; }
+service ToolPlugin {
+  rpc Describe(Empty) returns (ToolSchema);
+  rpc Invoke(ToolInvocation) returns (stream ToolEvent);
+  rpc Cancel(CancelRequest) returns (CancelAck);
+}
+
+// 5.4 CodingAgent
+message CodingSessionRequest { string workdir = 1; map<string,string> config = 2; }
+message CodingSessionHandle { string session_id = 1; PluginError error = 2; }
+message CodingTurn { string session_id = 1; string prompt = 2; }
+message CodingEvent {
+  oneof event { string output = 1; FileDiff diff = 2; ToolCall tool_call = 3; ApprovalNeeded approval = 4; PluginError error = 5; }
+  bool done = 10;
+}
+message FileDiff { string path = 1; string unified_diff = 2; }
+message ApprovalNeeded { string action = 1; string detail = 2; }
+message ApprovalDecision { string session_id = 1; string action = 2; bool approved = 3; }
+message ApprovalAck { bool ok = 1; }
+message EndSessionRequest { string session_id = 1; }
+service CodingAgentPlugin {
+  rpc StartSession(CodingSessionRequest) returns (CodingSessionHandle);
+  rpc Send(CodingTurn) returns (stream CodingEvent);
+  rpc Approve(ApprovalDecision) returns (ApprovalAck);
+  rpc EndSession(EndSessionRequest) returns (Empty);
+}
+
+// 5.5 Memory
+enum MemoryType { MEM_UNSPECIFIED=0; MEM_FACT=1; MEM_SUMMARY=2; MEM_RELATION=3; MEM_PREFERENCE=4; MEM_SKILL_REF=5; MEM_OBSERVATION=6; }
+message MemoryRecord {
+  string id = 1; MemoryType type = 2; string subject = 3; string content = 4;
+  repeated float embedding = 5; repeated string tags = 6; string source_event = 7;
+  float confidence = 8; int64 created_ms = 9; int64 last_seen_ms = 10;
+  string superseded_by = 11; bool tombstoned = 12;
+}
+message MemoryAck { string id = 1; }
+message MemoryQuery { string text = 1; repeated float embedding = 2; repeated string tags = 3; uint32 limit = 4; bool include_graph = 5; }
+message MemoryResults { repeated MemoryRecord records = 1; }
+message ForgetRequest { string id = 1; string reason = 2; }
+message ForgetAck { bool ok = 1; }
+message SnapshotRequest { int64 at_unix_ms = 1; }
+message SnapshotHandle { string id = 1; }
+service MemoryPlugin {
+  rpc Write(MemoryRecord) returns (MemoryAck);
+  rpc Query(MemoryQuery) returns (MemoryResults);
+  rpc Forget(ForgetRequest) returns (ForgetAck);
+  rpc Snapshot(SnapshotRequest) returns (SnapshotHandle);
+}
+
+// 5.6 Storage
+message JournalBatch { repeated Event events = 1; }
+message JournalAck { string head_hash = 1; uint64 head_seq = 2; }
+message JournalRange { uint64 from_seq = 1; uint64 to_seq = 2; int64 from_ms = 3; int64 to_ms = 4; }
+message StorageCapabilities { bool journal = 1; bool kv = 2; bool memory = 3; uint64 max_value_bytes = 4; bool transactional = 5; }
+service StoragePlugin {
+  rpc AppendJournal(JournalBatch) returns (JournalAck);
+  rpc ReadJournal(JournalRange) returns (stream Event);
+  rpc KVGet(StateKey) returns (StateValue);
+  rpc KVSet(StateEntry) returns (StateAck);
+  rpc Capabilities(Empty) returns (StorageCapabilities);
+}
+
+// 5.7 Tunnel
+message TunnelUpRequest { string target = 1; string kind = 2; map<string,string> config = 3; }
+message TunnelStatus { string state = 1; string public_url = 2; repeated string addresses = 3; PluginError error = 4; }
+message TunnelDownRequest { string id = 1; }
+service TunnelPlugin {
+  rpc Up(TunnelUpRequest) returns (stream TunnelStatus);
+  rpc Down(TunnelDownRequest) returns (Empty);
+  rpc Status(Empty) returns (TunnelStatus);
+}
+
+// =====================================================================
+// SECTION 6 — Typed payloads referenced by EventKind (selected)
+// =====================================================================
+
+message AgentResult {
+  string status = 1; // ok|partial|failed
+  string summary = 2;
+  repeated Attachment artifacts = 3;
+  map<string,string> outputs = 4;
+  PluginError error = 5;
+}
+message BudgetConsumed { string provider = 1; string model = 2; uint64 input_tokens = 3; uint64 output_tokens = 4; int64 cost_microcents = 5; }
+message SalienceScored { string delta_ref = 1; float score = 2; string reason = 3; string disposition = 4; } // drop|digest|notify|alert|act
+message PolicyDecision { string action = 1; string decision = 2; string matched_rule = 3; string trust_level = 4; }

@@ -1,0 +1,355 @@
+// SPDX-License-Identifier: MIT
+// Agezt — Contract v1 (JSON-RPC 2.0 over stdio, newline-delimited)
+// Supersedes the gRPC/protobuf contract per DECISIONS B0.
+// This file documents the wire protocol + JSON Schema types. The base is
+// MINIMAL (Event + Kernel API + Tool + Provider); other interfaces are added
+// append-only as their layers are built (DECISIONS B0b).
+//
+// Format: this is a readable contract spec. Machine source of truth is the
+// JSON Schema blocks (under "$schemas"); SDK types are generated from them.
+
+// =====================================================================
+// 0. WIRE PROTOCOL
+// =====================================================================
+//
+// Transport: each plugin is launched by the kernel (when out-of-process) or
+// linked in (when in-process, DECISIONS B0a). Out-of-process plugins speak
+// JSON-RPC 2.0 over stdio:
+//   - one JSON object per line (newline-delimited) on stdin/stdout
+//   - requests:  {"jsonrpc":"2.0","id":<n>,"method":"<m>","params":{...}}
+//   - responses: {"jsonrpc":"2.0","id":<n>,"result":{...}}  | {"error":{...}}
+//   - notifications (no id) used for streaming chunks and events
+//   - streaming: a call returns an initial ack, then the server emits
+//     notifications {"method":"stream.chunk","params":{stream_id, chunk}}
+//     terminated by {"method":"stream.end","params":{stream_id}}
+//
+// In-process plugins implement the same method set as Go interfaces; the
+// kernel dispatches directly (no serialization). Same contract, no wire cost.
+//
+// Bootstrap env for out-of-process: AGEZT_PLUGIN_TOKEN (one-time),
+// AGEZT_PROTOCOL_VERSION (=1). The kernel speaks JSON-RPC back to the plugin
+// for the Kernel callback API on the same stdio channel (bidirectional).
+
+// =====================================================================
+// 1. SHARED METHODS (every plugin)
+// =====================================================================
+//
+// plugin.register(RegisterParams) -> RegisterResult
+// plugin.health()                 -> HealthResult            (polled or pushed)
+// plugin.shutdown(ShutdownParams) -> {ok:bool}
+
+"$schemas": {
+
+  "RegisterParams": {
+    "type": "object",
+    "required": ["plugin_id","version","protocol_version","token","capabilities"],
+    "properties": {
+      "plugin_id":        {"type":"string"},
+      "display_name":     {"type":"string"},
+      "version":          {"type":"string"},
+      "protocol_version": {"type":"integer","const":1},
+      "token":            {"type":"string"},
+      "capabilities":     {"type":"array","items":{"$ref":"#/Capability"}},
+      "contributes":      {"$ref":"#/Contribution"},
+      "metadata":         {"type":"object","additionalProperties":{"type":"string"}}
+    }
+  },
+
+  "Capability": {
+    "type":"object",
+    "required":["kind"],
+    "properties":{
+      "kind":{"enum":["channel","provider","tool","coding_agent","memory","storage","tunnel"]},
+      "attributes":{"type":"object","additionalProperties":{"type":"string"}}
+    }
+  },
+
+  "Contribution": {
+    "type":"object",
+    "properties":{
+      "migrations_dir":{"type":"array","items":{"type":"string"}},
+      "api_routes":{"type":"array","items":{"type":"object"}},
+      "cli_commands":{"type":"array","items":{"type":"object"}},
+      "ui_widgets":{"type":"array","items":{"type":"string"}},
+      "event_subjects":{"type":"array","items":{"type":"string"}},
+      "cron_jobs":{"type":"array","items":{"type":"string"}},
+      "world_entities":{"type":"array","items":{"type":"string"}}
+    }
+  },
+
+  "RegisterResult": {
+    "type":"object",
+    "required":["accepted","protocol_version"],
+    "properties":{
+      "accepted":{"type":"boolean"},
+      "reason":{"type":"string"},
+      "protocol_version":{"type":"integer"},
+      "kernel_capabilities":{"type":"array","items":{"type":"string"}}
+    }
+  },
+
+  "HealthResult": {
+    "type":"object",
+    "properties":{"health":{"enum":["ok","degraded","failing"]},"detail":{"type":"string"}}
+  },
+
+  "PluginError": {
+    "type":"object",
+    "required":["class","message"],
+    "properties":{
+      "class":{"enum":["transient","invalid_input","unauthorized","unavailable","internal","cancelled"]},
+      "code":{"type":"string"},
+      "message":{"type":"string"},
+      "retryable":{"type":"boolean"},
+      "retry_after_ms":{"type":"integer"}
+    }
+  },
+
+  // =====================================================================
+  // 2. EVENT SCHEMA (the audit/replay truth; see DECISIONS B0c)
+  // =====================================================================
+  //
+  // Identity/seq/ts/prev_hash/hash are kernel-assigned; plugins MUST NOT set.
+  // ULID ids (DECISIONS B2). hash = BLAKE3(prev_hash || canonical_json_bytes).
+
+  "Event": {
+    "type":"object",
+    "required":["id","seq","ts_unix_ms","prev_hash","hash","subject","actor","kind"],
+    "properties":{
+      "id":{"type":"string"},
+      "seq":{"type":"integer"},
+      "ts_unix_ms":{"type":"integer"},
+      "prev_hash":{"type":"string"},
+      "hash":{"type":"string"},
+      "subject":{"type":"string"},
+      "actor":{"type":"string"},
+      "correlation_id":{"type":"string"},
+      "causation_id":{"type":"string"},
+      "kind":{"type":"string"},          // string enum; see EventKind list
+      "payload":{"type":"object"},       // JSON object typed by kind
+      "tags":{"type":"object","additionalProperties":{"type":"string"}}
+    }
+  },
+
+  // EventKind values (string form; grow append-only). Base set for MVP:
+  // agent.spawned/suspended/resumed/died/crashed
+  // task.received, plan.proposed (DAG layer), node.started/completed/failed, task.completed
+  // tool.invoked/result, llm.request/token/response
+  // channel.inbound/outbound  (Channel layer)
+  // memory.write/forget, skill.created/patched/promoted/quarantined/reverted (Memory/Forge layer)
+  // pulse.tick, observer.delta, salience.scored, initiative.taken, briefing.sent (Pulse layer)
+  // policy.decision, budget.consumed, approval.requested/granted/denied, halt, resume, anomaly.detected
+  // plugin.installed/updated/removed/enabled/disabled, migration.applied/reverted, core.updated,
+  //   contribution.mounted/unmounted  (Operability layer)
+  // exported/imported/backup.created/restored/restore_point.created  (Identity layer)
+  // widget.action, clarify.requested/answered, task.suspended_for_input/steered,
+  //   checkpoint.created, compensation.run, degraded.entered/exited  (Widget/HITL/Resilience)
+  // catalog.synced, provider.credential_added, acp.session_started/ended  (Provider ecosystem)
+
+  "Attachment": {
+    "type":"object",
+    "properties":{
+      "name":{"type":"string"},
+      "media_type":{"type":"string"},
+      "inline_b64":{"type":"string"},   // if <= 32 KiB (DECISIONS B5)
+      "blob_digest":{"type":"string"},  // else content-addressed
+      "size":{"type":"integer"}
+    }
+  },
+
+  "UnifiedMessage": {
+    "type":"object",
+    "properties":{
+      "channel_kind":{"type":"string"},
+      "channel_id":{"type":"string"},
+      "sender":{"type":"string"},
+      "text":{"type":"string"},
+      "attachments":{"type":"array","items":{"$ref":"#/Attachment"}},
+      "platform_ts_ms":{"type":"integer"},
+      "platform_meta":{"type":"object","additionalProperties":{"type":"string"}}
+    }
+  },
+
+  // =====================================================================
+  // 3. KERNEL CALLBACK API (what plugins call on the kernel)
+  // =====================================================================
+  //
+  // kernel.emitEvent(EventEmit)            -> {event_id, seq}
+  // kernel.requestCompletion(CompletionRequest) -> stream CompletionChunk
+  // kernel.getConfig({key_prefix})         -> {values:{...}}
+  // kernel.stateGet({namespace,key})       -> {value, found}     (mutable store, B0c)
+  // kernel.stateSet({namespace,key,value}) -> {ok}
+  // kernel.subscribe({pattern})            -> stream Event
+
+  "EventEmit": {
+    "type":"object",
+    "required":["subject","kind"],
+    "properties":{
+      "subject":{"type":"string"},
+      "kind":{"type":"string"},
+      "payload":{"type":"object"},
+      "correlation_id":{"type":"string"},
+      "causation_id":{"type":"string"},
+      "tags":{"type":"object","additionalProperties":{"type":"string"}}
+    }
+  },
+
+  "CompletionRequest": {
+    "type":"object",
+    "required":["messages"],
+    "properties":{
+      "task_type":{"type":"string"},     // drives routing: plan|salience|code|...
+      "messages":{"type":"array","items":{"$ref":"#/ChatMessage"}},
+      "tools":{"type":"array","items":{"$ref":"#/ToolDef"}},
+      "options":{"$ref":"#/CompletionOptions"},
+      "correlation_id":{"type":"string"}
+    }
+  },
+  "ChatMessage": {
+    "type":"object",
+    "required":["role","content"],
+    "properties":{
+      "role":{"enum":["system","user","assistant","tool"]},
+      "content":{"type":"string"},
+      "tool_call_id":{"type":"string"},        // for role=tool results
+      "attachments":{"type":"array","items":{"$ref":"#/Attachment"}}
+    }
+  },
+  // Canonical, dialect-free tool-calling shapes (SPEC-15 §2). Provider plugins
+  // translate to/from OpenAI / OpenAI-compatible / Anthropic / Gemini / others.
+  "ToolDef": {
+    "type":"object",
+    "required":["name","schema"],
+    "properties":{"name":{"type":"string"},"description":{"type":"string"},"schema":{"type":"object"}}
+  },
+  "ToolCall": {
+    "type":"object",
+    "required":["id","name","input"],
+    "properties":{"id":{"type":"string"},"name":{"type":"string"},"input":{"type":"object"}}
+  },
+  "CompletionOptions": {
+    "type":"object",
+    "properties":{
+      "json_mode":{"type":"boolean"},
+      "stream":{"type":"boolean"},
+      "max_tokens":{"type":"integer"},
+      "temperature":{"type":"number"},
+      "allow_caching":{"type":"boolean"},
+      "context_budget_tokens":{"type":"integer"}
+    }
+  },
+  "CompletionChunk": {
+    "type":"object",
+    "properties":{
+      "text_delta":{"type":"string"},
+      "tool_call":{"$ref":"#/ToolCall"},
+      "usage":{"$ref":"#/Usage"},
+      "error":{"$ref":"#/PluginError"},
+      "done":{"type":"boolean"}
+    }
+  },
+  "Usage": {
+    "type":"object",
+    "properties":{
+      "input_tokens":{"type":"integer"},
+      "output_tokens":{"type":"integer"},
+      "cached_tokens":{"type":"integer"},
+      "cost_microcents":{"type":"integer"},   // DECISIONS C1
+      "model":{"type":"string"}
+    }
+  },
+
+  // =====================================================================
+  // 4. TOOL interface (base layer)
+  // =====================================================================
+  //
+  // tool.describe()            -> ToolSchema
+  // tool.invoke(ToolInvocation)-> stream ToolEvent
+  // tool.cancel({correlation_id}) -> {ok}
+
+  "ToolSchema": {
+    "type":"object",
+    "required":["name","input_schema"],
+    "properties":{"name":{"type":"string"},"description":{"type":"string"},
+                  "input_schema":{"type":"object"},"output_schema":{"type":"object"}}
+  },
+  "ToolInvocation": {
+    "type":"object",
+    "required":["tool_name","input"],
+    "properties":{
+      "tool_name":{"type":"string"},
+      "input":{"type":"object"},
+      "isolation":{"enum":["none","namespace","container","microvm"]},
+      "correlation_id":{"type":"string"},
+      "timeout_ms":{"type":"integer"}
+    }
+  },
+  "ToolEvent": {
+    "type":"object",
+    "properties":{
+      "progress":{"type":"string"},
+      "result":{"type":"object"},
+      "artifact":{"$ref":"#/Attachment"},
+      "error":{"$ref":"#/PluginError"},
+      "done":{"type":"boolean"}
+    }
+  },
+
+  // =====================================================================
+  // 5. PROVIDER interface (base layer)
+  // =====================================================================
+  //
+  // provider.complete(ProviderCompletionRequest) -> stream ProviderChunk
+  // provider.embed({inputs,model})               -> {vectors, usage}
+  // provider.listModels()                         -> {models:[ModelInfo]}
+  // provider.reportLimits()                       -> Limits
+  //
+  // The provider plugin TRANSLATES Agezt's canonical ToolDef/ToolCall to/from
+  // its backend dialect (OpenAI/OpenAI-compatible/Anthropic/Gemini/...). SPEC-15.
+
+  "ProviderCompletionRequest": {
+    "type":"object",
+    "required":["messages","model"],
+    "properties":{
+      "messages":{"type":"array","items":{"$ref":"#/ChatMessage"}},
+      "tools":{"type":"array","items":{"$ref":"#/ToolDef"}},
+      "options":{"$ref":"#/CompletionOptions"},
+      "model":{"type":"string"}
+    }
+  },
+  "ProviderChunk": {"$ref":"#/CompletionChunk"},
+  "ModelInfo": {
+    "type":"object",
+    "required":["id","context_window"],
+    "properties":{
+      "id":{"type":"string"},
+      "context_window":{"type":"integer"},
+      "modalities":{"type":"array","items":{"type":"string"}},
+      "tool_use":{"type":"boolean"},
+      "json_mode":{"type":"boolean"},
+      "prompt_caching":{"type":"boolean"},
+      "reasoning":{"type":"boolean"},
+      "input_microcents_per_mtok":{"type":"integer"},
+      "output_microcents_per_mtok":{"type":"integer"}
+    }
+  },
+  "Limits": {
+    "type":"object",
+    "properties":{
+      "rpm":{"type":"integer"},"tpm":{"type":"integer"},
+      "remaining":{"type":"integer"},"reset_unix_ms":{"type":"integer"},
+      "auth_mode":{"enum":["subscription","api-key","local"]}
+    }
+  }
+
+  // =====================================================================
+  // APPEND-ONLY GROWTH (added when their layers are built; DECISIONS B0b):
+  //   Channel:      channel.start/send/signal/stop  (+ OutboundMessage, WidgetRef)
+  //   CodingAgent:  codingAgent.startSession/send/approve/endSession  (+ ACP variant, SPEC-15)
+  //   Memory:       memory.write/query/forget/snapshot  (+ MemoryRecord)
+  //   Storage:      storage.appendJournal/readJournal/kvGet/kvSet/capabilities
+  //   Tunnel:       tunnel.up/down/status
+  // These are specified in SPEC-04; their JSON-RPC methods + schemas are added
+  // here as each layer lands, never renumbering or breaking existing methods.
+  // =====================================================================
+}

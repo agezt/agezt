@@ -1,0 +1,194 @@
+// SPDX-License-Identifier: MIT
+
+package anthropic
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+
+	"github.com/ersinkoc/agezt/kernel/agent"
+)
+
+func TestComplete_NoAPIKey(t *testing.T) {
+	p := New("")
+	_, err := p.Complete(context.Background(), agent.CompletionRequest{
+		Messages: []agent.Message{{Role: agent.RoleUser, Content: "hi"}},
+	})
+	if !errors.Is(err, ErrNoAPIKey) {
+		t.Errorf("got err=%v, want ErrNoAPIKey", err)
+	}
+}
+
+func TestComplete_HappyPath_TextOnly(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Validate headers.
+		if r.Header.Get("anthropic-version") != APIVersion {
+			t.Errorf("missing/wrong anthropic-version: %q", r.Header.Get("anthropic-version"))
+		}
+		if r.Header.Get("x-api-key") != "test-key" {
+			t.Errorf("wrong x-api-key: %q", r.Header.Get("x-api-key"))
+		}
+		// Inspect request body.
+		body, _ := io.ReadAll(r.Body)
+		if !strings.Contains(string(body), `"model":"test-model"`) {
+			t.Errorf("body missing model: %s", body)
+		}
+		if !strings.Contains(string(body), `"system":"sys"`) {
+			t.Errorf("body missing system: %s", body)
+		}
+		w.WriteHeader(200)
+		w.Write([]byte(`{
+			"id":"msg_x","type":"message","role":"assistant","model":"test-model",
+			"content":[{"type":"text","text":"hello back"}],
+			"stop_reason":"end_turn",
+			"usage":{"input_tokens":3,"output_tokens":2}
+		}`))
+	}))
+	defer srv.Close()
+
+	p := New("test-key")
+	p.Endpoint = srv.URL
+	resp, err := p.Complete(context.Background(), agent.CompletionRequest{
+		Model:    "test-model",
+		System:   "sys",
+		Messages: []agent.Message{{Role: agent.RoleUser, Content: "hello"}},
+	})
+	if err != nil {
+		t.Fatalf("Complete: %v", err)
+	}
+	if resp.Message.Content != "hello back" {
+		t.Errorf("Content=%q want %q", resp.Message.Content, "hello back")
+	}
+	if resp.StopReason != agent.StopEndTurn {
+		t.Errorf("StopReason=%q want end_turn", resp.StopReason)
+	}
+	if resp.Usage.InputTokens != 3 || resp.Usage.OutputTokens != 2 {
+		t.Errorf("usage=%+v", resp.Usage)
+	}
+}
+
+func TestComplete_ToolUseResponse(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(200)
+		w.Write([]byte(`{
+			"id":"msg_x","type":"message","role":"assistant","model":"m",
+			"content":[
+				{"type":"text","text":"I'll run shell."},
+				{"type":"tool_use","id":"call_1","name":"shell","input":{"command":"ls"}}
+			],
+			"stop_reason":"tool_use",
+			"usage":{"input_tokens":5,"output_tokens":7}
+		}`))
+	}))
+	defer srv.Close()
+
+	p := New("k"); p.Endpoint = srv.URL
+	resp, err := p.Complete(context.Background(), agent.CompletionRequest{
+		Messages: []agent.Message{{Role: agent.RoleUser, Content: "list files"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StopReason != agent.StopToolUse {
+		t.Errorf("StopReason=%q want tool_use", resp.StopReason)
+	}
+	if len(resp.Message.ToolCalls) != 1 {
+		t.Fatalf("ToolCalls=%d want 1", len(resp.Message.ToolCalls))
+	}
+	tc := resp.Message.ToolCalls[0]
+	if tc.ID != "call_1" || tc.Name != "shell" {
+		t.Errorf("ToolCall=%+v", tc)
+	}
+	if !strings.Contains(string(tc.Input), `"command":"ls"`) {
+		t.Errorf("ToolCall.Input=%s", tc.Input)
+	}
+	if resp.Message.Content != "I'll run shell." {
+		t.Errorf("text concat = %q", resp.Message.Content)
+	}
+}
+
+func TestComplete_APIError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(429)
+		w.Write([]byte(`{"type":"error","error":{"type":"rate_limit_error","message":"slow down"}}`))
+	}))
+	defer srv.Close()
+
+	p := New("k"); p.Endpoint = srv.URL
+	_, err := p.Complete(context.Background(), agent.CompletionRequest{
+		Messages: []agent.Message{{Role: agent.RoleUser, Content: "x"}},
+	})
+	if err == nil {
+		t.Fatal("expected error for 429")
+	}
+	var apiErr *APIError
+	if !errors.As(err, &apiErr) {
+		t.Fatalf("got err=%v, want *APIError", err)
+	}
+	if apiErr.Status != 429 || !strings.Contains(apiErr.Body, "rate_limit") {
+		t.Errorf("apiErr=%+v", apiErr)
+	}
+}
+
+func TestEncodeRequest_TranslatesRoles(t *testing.T) {
+	body, err := encodeRequest("m", "", []agent.Message{
+		{Role: agent.RoleSystem, Content: "ignored"}, // routed to top-level field by caller; encoder skips
+		{Role: agent.RoleUser, Content: "user1"},
+		{Role: agent.RoleAssistant, ToolCalls: []agent.ToolCall{{ID: "c1", Name: "shell", Input: json.RawMessage(`{"command":"ls"}`)}}},
+		{Role: agent.RoleTool, ToolCallID: "c1", Content: "file1\nfile2"},
+		{Role: agent.RoleAssistant, Content: "done"},
+	}, nil, 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := string(body)
+	// System message must NOT appear as a message; SystemField is empty here so absent.
+	if strings.Contains(s, `"text":"ignored"`) {
+		t.Errorf("system message leaked into messages array: %s", s)
+	}
+	// Tool result must be wrapped in a user-role tool_result block.
+	if !strings.Contains(s, `"tool_use_id":"c1"`) {
+		t.Errorf("tool result missing tool_use_id: %s", s)
+	}
+	if !strings.Contains(s, `"content":"file1\nfile2"`) {
+		t.Errorf("tool result body missing: %s", s)
+	}
+	// Tool-use block emitted on the assistant turn.
+	if !strings.Contains(s, `"type":"tool_use"`) || !strings.Contains(s, `"name":"shell"`) {
+		t.Errorf("tool_use block missing: %s", s)
+	}
+}
+
+func TestEncodeRequest_SystemFieldRespected(t *testing.T) {
+	body, _ := encodeRequest("m", "you are precise", []agent.Message{
+		{Role: agent.RoleUser, Content: "hi"},
+	}, nil, 100)
+	if !strings.Contains(string(body), `"system":"you are precise"`) {
+		t.Errorf("missing system field: %s", body)
+	}
+}
+
+func TestDecodeResponse_MapsStopReasons(t *testing.T) {
+	cases := map[string]agent.StopReason{
+		"end_turn":     agent.StopEndTurn,
+		"stop_sequence": agent.StopEndTurn,
+		"tool_use":     agent.StopToolUse,
+		"max_tokens":   agent.StopMaxTokens,
+	}
+	for in, want := range cases {
+		raw := []byte(`{"id":"x","role":"assistant","content":[{"type":"text","text":""}],"stop_reason":"` + in + `","usage":{}}`)
+		got, err := decodeResponse(raw)
+		if err != nil {
+			t.Fatalf("decode %s: %v", in, err)
+		}
+		if got.StopReason != want {
+			t.Errorf("stop_reason %q → %q want %q", in, got.StopReason, want)
+		}
+	}
+}

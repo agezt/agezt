@@ -1,0 +1,188 @@
+// SPDX-License-Identifier: MIT
+
+// Package shell is the in-process shell tool. It runs commands via the
+// platform's default shell ("cmd /C" on Windows, "sh -c" elsewhere) and
+// returns combined stdout+stderr to the model.
+//
+// Execution is delegated to the kernel/warden Engine so timeout,
+// output truncation, exit code propagation, and audit events
+// (warden.executed, warden.profile_downgraded, warden.limit_exceeded)
+// are all handled in one place — including the future Linux
+// namespace+cgroups isolation when that backend ships in M1.d.
+//
+// SECURITY NOTE (M1.c): the cross-platform Warden Engine runs commands
+// with the kernel's full privileges (ProfileNone). Edict's trust ladder
+// + hard-deny rules are still the only gate on what the shell tool may
+// execute. A request for ProfileNamespace is honoured *as a request*
+// and journaled as a downgrade so audits stay honest.
+package shell
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"runtime"
+	"time"
+
+	"github.com/ersinkoc/agezt/kernel/agent"
+	"github.com/ersinkoc/agezt/kernel/warden"
+)
+
+// DefaultTimeout caps a single command's wall time when the model
+// omits timeout_ms and the Tool has no explicit Timeout set.
+const DefaultTimeout = 30 * time.Second
+
+// MaxOutputBytes truncates command output so a runaway command does not
+// blow the journal/context budget. 64 KiB is the model-facing budget;
+// Warden's own cap is 256 KiB (SPEC-02 §5) and we tighten it here.
+const MaxOutputBytes = 64 * 1024
+
+// Tool is the in-process shell tool implementation of agent.Tool.
+type Tool struct {
+	// Warden is the isolation engine commands run through. If nil, a
+	// process-default engine (warden.New(nil)) is used — events go
+	// nowhere in that case, suitable for unit tests.
+	Warden warden.Engine
+	// Shell overrides the default shell binary (mainly for tests). Empty
+	// means use the platform default.
+	Shell string
+	// ShellArg is the flag passed before the command (default "/C" on
+	// Windows, "-c" elsewhere).
+	ShellArg string
+	// Timeout overrides DefaultTimeout when > 0.
+	Timeout time.Duration
+	// Profile is the isolation profile the shell tool requests of
+	// Warden. Defaults to ProfileNamespace (shell is the canonical
+	// "needs isolation" tool per SPEC-06 §2). On non-Linux this
+	// downgrades to ProfileNone with a journal event.
+	Profile warden.Profile
+}
+
+// New returns a Tool with platform defaults and a no-bus Warden engine.
+// Production callers should set Warden explicitly so audit events land
+// on the kernel bus.
+func New() *Tool {
+	return &Tool{
+		Warden:  warden.New(nil),
+		Profile: warden.ProfileNamespace,
+	}
+}
+
+// NewWithWarden returns a Tool that routes through the supplied Warden
+// engine — the path the daemon uses.
+func NewWithWarden(w warden.Engine) *Tool {
+	return &Tool{Warden: w, Profile: warden.ProfileNamespace}
+}
+
+// Name returns the tool's canonical name.
+func (t *Tool) Name() string { return "shell" }
+
+// Definition implements agent.Tool.
+func (t *Tool) Definition() agent.ToolDef {
+	return agent.ToolDef{
+		Name: "shell",
+		Description: "Run a command in the operating system's default shell. " +
+			"Returns combined stdout+stderr. Output is truncated to 64 KiB.",
+		InputSchema: json.RawMessage(`{
+  "type": "object",
+  "required": ["command"],
+  "properties": {
+    "command": {"type": "string", "description": "The shell command to run (a single line; use && or ; to chain)."},
+    "timeout_ms": {"type": "integer", "description": "Per-call timeout in milliseconds. Default 30000."}
+  }
+}`),
+	}
+}
+
+type shellInput struct {
+	Command   string `json:"command"`
+	TimeoutMS int64  `json:"timeout_ms,omitempty"`
+}
+
+// Invoke implements agent.Tool. It builds a Warden Spec and delegates;
+// the Result is rendered into the model's tool_result text.
+func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, error) {
+	var in shellInput
+	if err := json.Unmarshal(raw, &in); err != nil {
+		return agent.Result{}, fmt.Errorf("shell: parse input: %w", err)
+	}
+	if in.Command == "" {
+		return agent.Result{Output: "command is required", IsError: true}, nil
+	}
+
+	timeout := DefaultTimeout
+	if t.Timeout > 0 {
+		timeout = t.Timeout
+	}
+	if in.TimeoutMS > 0 {
+		timeout = time.Duration(in.TimeoutMS) * time.Millisecond
+	}
+
+	w := t.Warden
+	if w == nil {
+		w = warden.New(nil)
+	}
+	profile := t.Profile
+	if profile == "" {
+		profile = warden.ProfileNamespace
+	}
+
+	shellBin, shellArg := t.resolveShell()
+	res, err := w.Run(ctx, warden.Spec{
+		Profile: profile,
+		Argv:    []string{shellBin, shellArg, in.Command},
+		Limits: warden.Limits{
+			Timeout:        timeout,
+			MaxOutputBytes: MaxOutputBytes,
+		},
+		Actor: "tool.shell",
+	})
+	if err != nil {
+		return agent.Result{
+			Output:  fmt.Sprintf("warden run failed: %v", err),
+			IsError: true,
+		}, nil
+	}
+
+	// Combine streams the way the previous implementation did
+	// (CombinedOutput). Stderr appended after stdout keeps the order
+	// stable across shells.
+	combined := append([]byte{}, res.Stdout...)
+	if len(res.Stderr) > 0 {
+		if len(combined) > 0 {
+			combined = append(combined, '\n')
+		}
+		combined = append(combined, res.Stderr...)
+	}
+	if res.Truncated {
+		combined = append([]byte("[truncated to last 64 KiB]\n"), combined...)
+	}
+
+	if res.TimedOut {
+		return agent.Result{
+			Output:  fmt.Sprintf("timed out after %s\n%s", timeout, combined),
+			IsError: true,
+		}, nil
+	}
+	if res.ExitCode != 0 {
+		return agent.Result{
+			Output:  fmt.Sprintf("%s\n[exit code %d]", combined, res.ExitCode),
+			IsError: true,
+		}, nil
+	}
+	return agent.Result{Output: string(combined)}, nil
+}
+
+func (t *Tool) resolveShell() (string, string) {
+	if t.Shell != "" {
+		arg := t.ShellArg
+		if arg == "" {
+			arg = "-c"
+		}
+		return t.Shell, arg
+	}
+	if runtime.GOOS == "windows" {
+		return "cmd", "/C"
+	}
+	return "sh", "-c"
+}

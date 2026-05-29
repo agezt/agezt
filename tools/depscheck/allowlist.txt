@@ -1,0 +1,6 @@
+# Agezt core dependency allowlist.
+# One module path per line; comments start with '#'. Every entry MUST also
+# have a row in DEPENDENCIES.md justifying it (POLICY §1.1). CI fails on any
+# module appearing in `go list -m all` that is absent from this file.
+lukechampine.com/blake3
+github.com/klauspost/cpuid/v2

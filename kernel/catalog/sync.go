@@ -1,0 +1,107 @@
+// SPDX-License-Identifier: MIT
+
+package catalog
+
+import (
+	"context"
+	"fmt"
+	"io"
+	"net/http"
+	"time"
+)
+
+// DefaultSyncURL is the community-maintained source the catalog syncs
+// from. Overridable via AGEZT_CATALOG_URL on the daemon side.
+const DefaultSyncURL = "https://models.dev/api.json"
+
+// DefaultSyncTimeout caps the HTTP fetch. Tight enough that a wedged
+// remote can't hang `agt catalog sync` for minutes.
+const DefaultSyncTimeout = 30 * time.Second
+
+// MaxSyncBytes caps the response body so a misbehaving source can't
+// blow memory. 8 MiB is well above the ~1.5 MiB models.dev currently
+// publishes; trip it and we know something's wrong.
+const MaxSyncBytes int64 = 8 * 1024 * 1024
+
+// Syncer fetches and parses a remote catalog. Reusable; safe for
+// concurrent Sync calls.
+type Syncer struct {
+	HTTP    *http.Client
+	URL     string
+	Timeout time.Duration
+}
+
+// NewSyncer returns a Syncer with sensible defaults.
+func NewSyncer() *Syncer {
+	return &Syncer{
+		HTTP:    &http.Client{Timeout: DefaultSyncTimeout},
+		URL:     DefaultSyncURL,
+		Timeout: DefaultSyncTimeout,
+	}
+}
+
+// SyncResult summarises one successful Sync for events + reporting.
+type SyncResult struct {
+	URL           string
+	Bytes         int
+	ProviderCount int
+	ModelCount    int
+	Duration      time.Duration
+	FetchedAt     time.Time
+}
+
+// Sync fetches the catalog from s.URL, parses + validates it, and
+// returns the raw bytes (for direct writing to api.json) plus a
+// Catalog (for in-memory use) plus a SyncResult summary.
+func (s *Syncer) Sync(ctx context.Context) (raw []byte, cat *Catalog, res SyncResult, err error) {
+	if s.URL == "" {
+		return nil, nil, res, fmt.Errorf("catalog: empty sync URL")
+	}
+	start := time.Now()
+
+	to := s.Timeout
+	if to <= 0 {
+		to = DefaultSyncTimeout
+	}
+	reqCtx, cancel := context.WithTimeout(ctx, to)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, s.URL, nil)
+	if err != nil {
+		return nil, nil, res, fmt.Errorf("catalog: new request: %w", err)
+	}
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("User-Agent", "agezt-catalog-sync")
+
+	resp, err := s.HTTP.Do(req)
+	if err != nil {
+		return nil, nil, res, fmt.Errorf("catalog: fetch %s: %w", s.URL, err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, nil, res, fmt.Errorf("catalog: fetch %s: %s", s.URL, resp.Status)
+	}
+
+	limited := io.LimitReader(resp.Body, MaxSyncBytes+1)
+	raw, err = io.ReadAll(limited)
+	if err != nil {
+		return nil, nil, res, fmt.Errorf("catalog: read body: %w", err)
+	}
+	if int64(len(raw)) > MaxSyncBytes {
+		return nil, nil, res, fmt.Errorf("catalog: body exceeds %d bytes", MaxSyncBytes)
+	}
+
+	cat, err = ParseAPIFile(raw)
+	if err != nil {
+		return raw, nil, res, err
+	}
+	res.URL = s.URL
+	res.Bytes = len(raw)
+	res.ProviderCount = len(cat.Providers)
+	for _, p := range cat.Providers {
+		res.ModelCount += len(p.Models)
+	}
+	res.Duration = time.Since(start)
+	res.FetchedAt = time.Now().UTC()
+	return raw, cat, res, nil
+}
