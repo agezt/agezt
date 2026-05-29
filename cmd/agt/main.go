@@ -83,6 +83,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return cmdStatus(args[1:], stdout, stderr)
 	case "shutdown":
 		return cmdShutdown(args[1:], stdout, stderr)
+	case "edict":
+		return cmdEdict(args[1:], stdout, stderr)
 	default:
 		fmt.Fprintf(stderr, "%s: unknown command %q\n", brand.CLI, args[0])
 		printHelp(stderr)
@@ -131,6 +133,7 @@ func printHelp(w io.Writer) {
 	fmt.Fprintf(w, "  plugin hash <path>                    BLAKE3 hex digest of a plugin binary (for AGEZT_PLUGIN_PINS)\n")
 	fmt.Fprintf(w, "  plugin list [--json]                  list external plugins the daemon spawned\n")
 	fmt.Fprintf(w, "  shutdown [--json]                     ask the daemon to exit gracefully (same path as SIGTERM)\n")
+	fmt.Fprintf(w, "  edict show [--json]                   show loaded policies (ask_policy, levels, hard-deny rules)\n")
 	fmt.Fprintf(w, "  vault status                          show vault encryption state + path\n")
 	fmt.Fprintf(w, "  vault encrypt                         migrate plaintext vault to encrypted (set AGEZT_VAULT_PASSPHRASE)\n")
 	fmt.Fprintf(w, "  vault decrypt                         migrate encrypted vault back to plaintext\n")

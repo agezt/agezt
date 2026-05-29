@@ -155,6 +155,19 @@ const (
 	//   - head   : int — current journal head seq (so the operator
 	//              can compute "we showed events seq=(head-count+1)..head")
 	CmdJournalTail = "journal_tail"
+
+	// CmdEdictShow returns the loaded policy snapshot. Closes a
+	// real visibility gap: operators set AGEZT_APPROVAL_MODE and
+	// per-capability levels but had no way to confirm what the
+	// engine actually loaded — `agt edict show` is the canonical
+	// answer ("is shell really Ask-First in this deployment?",
+	// "did my custom HardDeny rule make it in?").
+	// No args. Returns:
+	//   - ask_policy : string — "allow" | "deny" | "prompt"
+	//   - levels     : {capability: level-name} — sorted, all caps
+	//   - hard_deny  : [{name, substring, applies_to}, ...] — the
+	//                  unconditional-block patterns, sorted by name
+	CmdEdictShow = "edict_show"
 )
 
 // Request is the wire shape sent by the client.

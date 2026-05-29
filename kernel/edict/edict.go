@@ -163,6 +163,36 @@ type Engine struct {
 	askPolicy AskPolicy
 }
 
+// Levels returns a snapshot of the per-capability trust levels.
+// Returned map is a copy — mutating it doesn't affect the engine.
+// Used by the control plane to power `agt edict show`.
+func (e *Engine) Levels() map[Capability]TrustLevel {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	out := make(map[Capability]TrustLevel, len(e.levels))
+	maps.Copy(out, e.levels)
+	return out
+}
+
+// HardDenyRules returns a snapshot of the hard-deny rule set.
+// Returned slice is a copy — same rationale as Levels().
+func (e *Engine) HardDenyRules() []HardDenyRule {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	out := make([]HardDenyRule, len(e.hardDeny))
+	copy(out, e.hardDeny)
+	return out
+}
+
+// AskPolicy returns the configured AskPolicy. Useful for the
+// control plane's `agt edict show` so operators can confirm
+// whether the daemon is currently in allow/deny/prompt mode.
+func (e *Engine) AskPolicy() AskPolicy {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	return e.askPolicy
+}
+
 // New builds an Engine. Unset Options fall back to DefaultLevels +
 // DefaultHardDeny + AskAllow.
 func New(opt Options) *Engine {

@@ -267,6 +267,8 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.handleShutdown(conn, req)
 	case CmdJournalTail:
 		s.handleJournalTail(conn, req)
+	case CmdEdictShow:
+		s.handleEdictShow(conn, req)
 	default:
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "unknown command: " + req.Cmd})
 	}
