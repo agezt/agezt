@@ -20,18 +20,21 @@ import (
 // renaming.
 func cmdRuns(args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
-		fmt.Fprintf(stderr, "%s runs: subcommand required (list)\n", brand.CLI)
+		fmt.Fprintf(stderr, "%s runs: subcommand required (list|show)\n", brand.CLI)
 		return 2
 	}
 	switch args[0] {
 	case "list":
 		return cmdRunsList(args[1:], stdout, stderr)
+	case "show":
+		return cmdRunsShow(args[1:], stdout, stderr)
 	case "-h", "--help", "help":
 		fmt.Fprintf(stdout, "usage: %s runs <subcommand>\n", brand.CLI)
-		fmt.Fprintf(stdout, "  list [N] [--json]   show the last N agent runs (default 20)\n")
+		fmt.Fprintf(stdout, "  list [N] [--json]            show the last N agent runs (default 20)\n")
+		fmt.Fprintf(stdout, "  show <correlation> [--json]  render one run as a task arc\n")
 		return 0
 	default:
-		fmt.Fprintf(stderr, "%s runs: unknown subcommand %q (list)\n", brand.CLI, args[0])
+		fmt.Fprintf(stderr, "%s runs: unknown subcommand %q (list|show)\n", brand.CLI, args[0])
 		return 2
 	}
 }
@@ -124,6 +127,257 @@ func cmdRunsList(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "    intent  : %s\n\n", intentDisplay)
 	}
 	return 0
+}
+
+// cmdRunsShow implements `agt runs show <correlation> [--json]`.
+//
+// Walks the correlation chain (via CmdWhy on the daemon) and
+// renders the events as a task arc: intent → per-round
+// (llm.request → tool calls → llm.response) → final answer.
+// Different from `agt why <event_id> --payload`, which dumps
+// every event verbatim; runs show is opinionated, with
+// per-round grouping and an answer banner at the end. `agt why`
+// remains the right tool for "I need every event"; runs show
+// is the right tool for "what did the agent actually do?".
+//
+// Resolves the chain by correlation_id directly — operators
+// already have it from `agt runs list` or the `(correlation_id:
+// ...)` footer `agt run` prints. To make that work without
+// requiring an event_id we leverage the property that
+// correlation_id is also the *id* of the task.received event in
+// the M0.5 schema NOT — actually `Why` takes any event ID in
+// the chain, so we use the first event the chain produces. The
+// server-side Why handler walks the journal for the chain, so
+// we send a probe with the correlation as event_id; if that
+// fails, we surface a clear "no events for that correlation".
+func cmdRunsShow(args []string, stdout, stderr io.Writer) int {
+	asJSON := false
+	var corr string
+	for _, a := range args {
+		switch a {
+		case "--json":
+			asJSON = true
+		case "-h", "--help":
+			fmt.Fprintf(stdout, "usage: %s runs show <correlation> [--json]\n", brand.CLI)
+			fmt.Fprintf(stdout, "render a single run as a task arc (intent → rounds → answer)\n")
+			return 0
+		default:
+			if corr == "" {
+				corr = a
+				continue
+			}
+			fmt.Fprintf(stderr, "%s runs show: unexpected arg %q\n", brand.CLI, a)
+			return 2
+		}
+	}
+	if corr == "" {
+		fmt.Fprintf(stderr, "%s runs show: correlation id required\n", brand.CLI)
+		return 2
+	}
+
+	c := dial(stderr)
+	if c == nil {
+		return 1
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	// First-pass: ask the daemon to enumerate runs and find the
+	// chain whose correlation matches. We pull the first event ID
+	// in that chain and use it as the seed for CmdWhy (which
+	// requires any event ID in the chain, not the correlation
+	// itself). This indirection means `runs show` works with the
+	// existing Why contract without a new server endpoint.
+	listRes, err := c.Call(ctx, controlplane.CmdRunsList, map[string]any{"limit": 1000})
+	if err != nil {
+		fmt.Fprintf(stderr, "%s runs show: %v\n", brand.CLI, err)
+		return 1
+	}
+	runs, _ := listRes["runs"].([]any)
+	var matchedRow map[string]any
+	for _, raw := range runs {
+		r, _ := raw.(map[string]any)
+		if s, _ := r["correlation_id"].(string); s == corr {
+			matchedRow = r
+			break
+		}
+	}
+	if matchedRow == nil {
+		fmt.Fprintf(stderr, "%s runs show: no run with correlation %q (try `%s runs list`)\n",
+			brand.CLI, corr, brand.CLI)
+		return 1
+	}
+
+	// Now walk the chain. We need an event ID — fetch via a small
+	// pulse-style trick: use the correlation_id as event_id and
+	// see if the daemon resolves it. The journal's Why looks up
+	// the target event then enumerates same-correlation; if the
+	// correlation_id is also an event ULID (current convention),
+	// it works. Otherwise we'd need a CmdWhyByCorrelation endpoint —
+	// but in the M0.5+ schema correlation_id is set to "run-<ULID>"
+	// or "plan-<ULID>", neither of which match an event ID. So we
+	// instead pull events via the journal_tail endpoint and filter
+	// client-side.
+	tailRes, err := c.Call(ctx, controlplane.CmdJournalTail, map[string]any{"n": 10_000})
+	if err != nil {
+		fmt.Fprintf(stderr, "%s runs show: %v\n", brand.CLI, err)
+		return 1
+	}
+	allEvents, _ := tailRes["events"].([]any)
+	chain := make([]map[string]any, 0)
+	for _, raw := range allEvents {
+		e, _ := raw.(map[string]any)
+		if s, _ := e["correlation_id"].(string); s == corr {
+			chain = append(chain, e)
+		}
+	}
+	if len(chain) == 0 {
+		fmt.Fprintf(stderr, "%s runs show: no journaled events for correlation %q\n",
+			brand.CLI, corr)
+		return 1
+	}
+
+	if asJSON {
+		// Echo the matched row metadata plus the full event chain
+		// so jq pipelines have everything in one document.
+		out := map[string]any{
+			"correlation_id": corr,
+			"summary":        matchedRow,
+			"events":         chain,
+		}
+		enc := json.NewEncoder(stdout)
+		enc.SetIndent("", "  ")
+		_ = enc.Encode(out)
+		return 0
+	}
+
+	renderTaskArc(stdout, corr, matchedRow, chain)
+	return 0
+}
+
+// renderTaskArc prints a human-friendly view of a single run.
+// Layout (rough):
+//
+//	correlation: run-01H...
+//	intent     : do the thing
+//	status     : completed (5 iters, 1.2s)
+//
+//	round 1
+//	  llm.request   → 1234 input tokens
+//	  tool: shell   input={...}
+//	    result      output=...
+//	  llm.response  → 567 output tokens
+//
+//	round 2 ...
+//
+//	final answer:
+//	  ...
+//
+// Falls back to a minimal one-event-per-line view if the chain
+// doesn't fit the canonical task arc (e.g. an old run from a
+// schema that didn't emit llm.request/response).
+func renderTaskArc(w io.Writer, corr string, summary map[string]any, events []map[string]any) {
+	intent, _ := summary["intent"].(string)
+	status, _ := summary["status"].(string)
+	iters := intOfStatus(summary["iters"])
+	duration := intOfStatus(summary["duration_ms"])
+
+	fmt.Fprintf(w, "correlation: %s\n", corr)
+	if intent != "" {
+		fmt.Fprintf(w, "intent     : %s\n", intent)
+	}
+	switch status {
+	case "completed":
+		fmt.Fprintf(w, "status     : completed (%d iters, %s)\n", iters, fmtDuration(duration))
+	case "running":
+		fmt.Fprintf(w, "status     : running (no task.completed yet — abandoned?)\n")
+	default:
+		fmt.Fprintf(w, "status     : %s\n", status)
+	}
+	fmt.Fprintln(w)
+
+	// Group events into rounds. A "round" starts at llm.request
+	// and ends at the next llm.response. Tool events between them
+	// belong to that round. Events outside the round structure
+	// (task.received, task.completed, policy.decision, etc.)
+	// render inline at the position they appear.
+	round := 0
+	inRound := false
+	var finalAnswer string
+
+	for _, e := range events {
+		kind, _ := e["kind"].(string)
+		payload, _ := e["payload"].(map[string]any)
+		seq := intOfStatus(e["seq"])
+		switch kind {
+		case "task.received":
+			// Already shown in the header.
+		case "llm.request":
+			round++
+			fmt.Fprintf(w, "round %d (seq=%d)\n", round, seq)
+			fmt.Fprintf(w, "  llm.request\n")
+			inRound = true
+		case "llm.response":
+			fmt.Fprintf(w, "  llm.response")
+			if usage, _ := payload["usage"].(map[string]any); usage != nil {
+				in := intOfStatus(usage["input_tokens"])
+				out := intOfStatus(usage["output_tokens"])
+				fmt.Fprintf(w, "  (input=%d, output=%d tokens)", in, out)
+			}
+			fmt.Fprintln(w)
+			fmt.Fprintln(w)
+			inRound = false
+		case "tool.invoked":
+			tool, _ := payload["tool"].(string)
+			indent := "  "
+			if inRound {
+				indent = "    "
+			}
+			fmt.Fprintf(w, "%stool.invoked: %s\n", indent, tool)
+		case "tool.result":
+			indent := "  "
+			if inRound {
+				indent = "    "
+			}
+			isErr, _ := payload["is_error"].(bool)
+			tag := "ok"
+			if isErr {
+				tag = "ERROR"
+			}
+			fmt.Fprintf(w, "%stool.result : %s\n", indent, tag)
+		case "task.completed":
+			// The final-answer text isn't on task.completed itself
+			// (that carries iters/chars/stopped). The last
+			// llm.response payload's content is the answer; we
+			// stash it as we walked.
+		case "policy.decision":
+			cap, _ := payload["capability"].(string)
+			dec, _ := payload["decision"].(string)
+			fmt.Fprintf(w, "  policy: %s %s\n", cap, dec)
+		case "approval.requested", "approval.granted", "approval.denied", "approval.timeout":
+			fmt.Fprintf(w, "  %s\n", kind)
+		default:
+			// Surface unknown kinds at minimal verbosity so a future
+			// kind doesn't silently vanish from the arc view.
+			fmt.Fprintf(w, "  %s (seq=%d)\n", kind, seq)
+		}
+
+		// Capture the last assistant message content for the final
+		// answer line. The agent loop's last llm.response carries
+		// it.
+		if kind == "llm.response" && payload != nil {
+			if msg, _ := payload["message"].(map[string]any); msg != nil {
+				if content, _ := msg["content"].(string); content != "" {
+					finalAnswer = content
+				}
+			}
+		}
+	}
+
+	if finalAnswer != "" {
+		fmt.Fprintln(w, "final answer:")
+		fmt.Fprintf(w, "  %s\n", finalAnswer)
+	}
 }
 
 // fmtDuration renders milliseconds as a human-readable duration.

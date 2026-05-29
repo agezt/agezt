@@ -100,7 +100,7 @@ func printHelp(w io.Writer) {
 	fmt.Fprintf(w, "usage: %s <command> [args...]\n", brand.CLI)
 	fmt.Fprintf(w, "\n")
 	fmt.Fprintf(w, "Commands:\n")
-	fmt.Fprintf(w, "  run \"<intent>\"     run an intent end-to-end\n")
+	fmt.Fprintf(w, "  run \"<intent>\" [--json]   run an intent end-to-end (JSON = ndjson stream)\n")
 	fmt.Fprintf(w, "  halt              freeze all in-flight runs\n")
 	fmt.Fprintf(w, "  resume            clear the halt flag\n")
 	fmt.Fprintf(w, "  why <event_id> [--json|--payload]  list events sharing an event's correlation\n")
@@ -146,6 +146,7 @@ func printHelp(w io.Writer) {
 	fmt.Fprintf(w, "  state list [<namespace>] [--json]     enumerate state namespaces or keys\n")
 	fmt.Fprintf(w, "  state get <namespace> <key> [--json]  read one state value (exit 3 = absent)\n")
 	fmt.Fprintf(w, "  runs list [N] [--json]                list the last N agent runs (task-level summary)\n")
+	fmt.Fprintf(w, "  runs show <correlation> [--json]      render one run as a task arc\n")
 	fmt.Fprintf(w, "  vault status                          show vault encryption state + path\n")
 	fmt.Fprintf(w, "  vault encrypt                         migrate plaintext vault to encrypted (set AGEZT_VAULT_PASSPHRASE)\n")
 	fmt.Fprintf(w, "  vault decrypt                         migrate encrypted vault back to plaintext\n")
@@ -169,11 +170,22 @@ func dial(stderr io.Writer) *controlplane.Client {
 }
 
 func cmdRun(args []string, stdout, stderr io.Writer) int {
-	if len(args) == 0 || strings.TrimSpace(strings.Join(args, " ")) == "" {
+	// Strip --json early so it works in any position: `agt run
+	// "..." --json` or `agt run --json "..."` both compose.
+	asJSON := false
+	var intentParts []string
+	for _, a := range args {
+		if a == "--json" {
+			asJSON = true
+			continue
+		}
+		intentParts = append(intentParts, a)
+	}
+	intent := strings.TrimSpace(strings.Join(intentParts, " "))
+	if intent == "" {
 		fmt.Fprintf(stderr, "%s run: intent required (quote it as one argument)\n", brand.CLI)
 		return 2
 	}
-	intent := strings.Join(args, " ")
 
 	c := dial(stderr)
 	if c == nil {
@@ -181,6 +193,10 @@ func cmdRun(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
 	defer cancel()
+
+	if asJSON {
+		return runJSONMode(ctx, c, intent, stdout, stderr)
+	}
 
 	// Stream-aware renderer: KindLLMToken events carry partial text
 	// the model is generating live (ephemeral; never journaled — see
@@ -221,6 +237,35 @@ func cmdRun(args []string, stdout, stderr io.Writer) int {
 	ans, _ := result["answer"].(string)
 	fmt.Fprintf(stdout, "\n--- final answer ---\n%s\n", ans)
 	fmt.Fprintf(stdout, "(correlation_id: %s; use `%s why <event_id>` to walk the chain)\n", corr, brand.CLI)
+	return 0
+}
+
+// runJSONMode implements `agt run --json`. Output is one JSON
+// object per line — every streamed event as `{"type":"event","event":{...}}`
+// (matching the control-plane Response shape), then a final
+// `{"type":"result","result":{...}}` line. This is JSON-Lines /
+// ndjson — operators pipe into `jq -c` for filtering, or read
+// line-by-line in any language.
+//
+// Ephemeral token events (KindLLMToken) are emitted alongside
+// journaled events; consumers that only want stable data should
+// filter `.event.seq > 0`. Including them keeps streaming
+// consumers responsive (e.g. live UIs that mirror agt run).
+func runJSONMode(ctx context.Context, c *controlplane.Client, intent string, stdout, stderr io.Writer) int {
+	enc := json.NewEncoder(stdout)
+	// Compact one-object-per-line is the convention for ndjson;
+	// jq -c handles it natively. Using NewEncoder also flushes
+	// after every Encode call, so each line streams as it arrives.
+	result, err := c.Stream(ctx, controlplane.CmdRun, map[string]any{"intent": intent}, func(ev *event.Event) {
+		_ = enc.Encode(map[string]any{"type": "event", "event": ev})
+	})
+	if err != nil {
+		// Final line: error envelope. Exit 1 so CI scripts
+		// distinguish failure from success.
+		_ = enc.Encode(map[string]any{"type": "error", "error": err.Error()})
+		return 1
+	}
+	_ = enc.Encode(map[string]any{"type": "result", "result": result})
 	return 0
 }
 
