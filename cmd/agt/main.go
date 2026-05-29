@@ -50,9 +50,9 @@ func run(args []string, stdout, stderr io.Writer) int {
 	case "run":
 		return cmdRun(args[1:], stdout, stderr)
 	case "halt":
-		return cmdSimple(controlplane.CmdHalt, nil, stdout, stderr)
+		return cmdHaltResume("halt", args[1:], stdout, stderr)
 	case "resume":
-		return cmdSimple(controlplane.CmdResume, nil, stdout, stderr)
+		return cmdHaltResume("resume", args[1:], stdout, stderr)
 	case "why":
 		return cmdWhy(args[1:], stdout, stderr)
 	case "journal":
@@ -103,8 +103,8 @@ func printHelp(w io.Writer) {
 	fmt.Fprintf(w, "\n")
 	fmt.Fprintf(w, "Commands:\n")
 	fmt.Fprintf(w, "  run \"<intent>\" [--json]   run an intent end-to-end (JSON = ndjson stream)\n")
-	fmt.Fprintf(w, "  halt              freeze all in-flight runs\n")
-	fmt.Fprintf(w, "  resume            clear the halt flag\n")
+	fmt.Fprintf(w, "  halt [--reason \"...\"] [--json]  freeze all in-flight runs (reason is journaled)\n")
+	fmt.Fprintf(w, "  resume [--reason \"...\"] [--json] clear the halt flag (reason is journaled)\n")
 	fmt.Fprintf(w, "  why <event_id> [--json|--payload]  list events sharing an event's correlation\n")
 	fmt.Fprintf(w, "  journal verify                        verify the BLAKE3 hash chain\n")
 	fmt.Fprintf(w, "  journal tail [N] [--json]             snapshot of the last N events (default 20)\n")

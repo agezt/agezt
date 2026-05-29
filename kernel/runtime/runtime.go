@@ -490,8 +490,16 @@ func (k *Kernel) IsHalted() bool {
 }
 
 // Halt cancels every in-flight run and prevents new ones. It emits a
-// `halt` event to the journal so the action is auditable.
-func (k *Kernel) Halt() {
+// `halt` event to the journal so the action is auditable. Equivalent
+// to HaltWith("") for callers that have no reason to record.
+func (k *Kernel) Halt() { k.HaltWith("") }
+
+// HaltWith is Halt plus a free-text reason that the operator (or
+// upstream automation) gave when issuing the halt. The reason is
+// journaled on the kernel.halt event so postmortems can answer
+// "why was the daemon halted at 14:32?". Empty reason is fine and
+// rendered as omitted in the payload.
+func (k *Kernel) HaltWith(reason string) {
 	k.mu.Lock()
 	if k.halted {
 		k.mu.Unlock()
@@ -507,17 +515,27 @@ func (k *Kernel) Halt() {
 	for _, c := range cancels {
 		c()
 	}
+	payload := map[string]any{"cancelled_runs": len(cancels)}
+	if reason != "" {
+		payload["reason"] = reason
+	}
 	_, _ = k.bus.Publish(event.Spec{
 		Subject: "kernel.halt",
 		Kind:    event.KindHalt,
 		Actor:   "kernel",
-		Payload: map[string]int{"cancelled_runs": len(cancels)},
+		Payload: payload,
 	})
 }
 
 // Resume clears the halt flag, allowing new runs. Already-cancelled runs
-// stay cancelled; only future Run calls will succeed.
-func (k *Kernel) Resume() {
+// stay cancelled; only future Run calls will succeed. Equivalent to
+// ResumeWith("").
+func (k *Kernel) Resume() { k.ResumeWith("") }
+
+// ResumeWith is Resume plus a free-text reason recorded on the
+// kernel.resume event. Symmetric with HaltWith for postmortem
+// reconstruction.
+func (k *Kernel) ResumeWith(reason string) {
 	k.mu.Lock()
 	if !k.halted {
 		k.mu.Unlock()
@@ -525,10 +543,15 @@ func (k *Kernel) Resume() {
 	}
 	k.halted = false
 	k.mu.Unlock()
+	var payload any
+	if reason != "" {
+		payload = map[string]any{"reason": reason}
+	}
 	_, _ = k.bus.Publish(event.Spec{
 		Subject: "kernel.resume",
 		Kind:    event.KindResume,
 		Actor:   "kernel",
+		Payload: payload,
 	})
 }
 

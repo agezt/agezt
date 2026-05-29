@@ -322,13 +322,23 @@ func (s *Server) handleVersion(conn net.Conn, req Request) {
 }
 
 func (s *Server) handleHalt(conn net.Conn, req Request) {
-	s.k.Halt()
-	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"ok": true}})
+	reason, _ := req.Args["reason"].(string)
+	s.k.HaltWith(reason)
+	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{
+		"ok":     true,
+		"halted": true,
+		"reason": reason,
+	}})
 }
 
 func (s *Server) handleResume(conn net.Conn, req Request) {
-	s.k.Resume()
-	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"ok": true}})
+	reason, _ := req.Args["reason"].(string)
+	s.k.ResumeWith(reason)
+	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{
+		"ok":     true,
+		"halted": false,
+		"reason": reason,
+	}})
 }
 
 func (s *Server) handleWhy(conn net.Conn, req Request) {
