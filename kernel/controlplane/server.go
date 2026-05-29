@@ -271,6 +271,10 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.handleEdictShow(conn, req)
 	case CmdEdictTest:
 		s.handleEdictTest(conn, req)
+	case CmdStateList:
+		s.handleStateList(conn, req)
+	case CmdStateGet:
+		s.handleStateGet(conn, req)
 	default:
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "unknown command: " + req.Cmd})
 	}

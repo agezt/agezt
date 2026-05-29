@@ -7,7 +7,7 @@
 > **Autonomous, under your authority.**
 
 **Status:** v1 substrate — shipped (post-M1.zz, May 2026).
-**Tests:** 688 passing across 39 packages.
+**Tests:** 735 passing across 39 packages.
 **Dependencies:** one (`lukechampine.com/blake3`) + one transitive.
 
 ## What you get
@@ -17,14 +17,20 @@ A single Go daemon (`agezt`) and a CLI (`agt`) that, together, let you:
 ```
 agt run "summarise the latest commits and email the team"      — one-shot intent
 agt plan generate "audit my repo for secrets, propose fixes"   — LLM-generated DAG
+agt plan run --dry-run "ship the release" --model sonnet       — preview: gen+validate+viz+cost
 agt plan refine plan.json --feedback "skip the email step"     — operator-driven re-plan
 agt plan validate plan.json                                    — pure client-side check
+agt plan visualize plan.json                                   — Mermaid graph TD output
 agt pulse --correlation run-01H...                             — live tail of one chain
 agt pulse --since 0 --replay-rate 50                           — historical replay
 agt status                                                     — daemon health overview
 agt budget                                                     — spend vs daily / per-task caps
 agt tool list                                                  — in-process tools the model sees
 agt plugin list                                                — external plugins loaded
+agt edict show / edict test shell "rm -rf /"                   — view + preflight policy decisions
+agt state list / state get <ns> <key>                          — read kernel state store
+agt journal tail 50 --json                                     — snapshot of recent events
+agt shutdown                                                   — graceful exit (CI-friendly)
 agt provider check --all                                       — verify all credentials
 agt provider creds set OPENAI_API_KEY sk-...                   — managed vault
 agt vault encrypt / vault rotate                               — at-rest encryption + key rotation
@@ -167,8 +173,10 @@ dependency, a CGO requirement, or a substantial design phase:
   refinement shipped (`agt plan refine`); recursive sub-planning is a
   separate design phase.
 - **Pulse v2 — TUI** — non-stdlib (Bubble Tea / tview). Programmatic
-  observability is complete (`agt pulse`, `agt status`, `agt tool list`,
-  `agt plugin list`, `agt budget`, `agt why --json/--payload`).
+  observability is otherwise complete: `agt pulse`, `agt status`,
+  `agt tool list`, `agt plugin list`, `agt budget`, `agt why --json/--payload`,
+  `agt journal tail`, `agt edict show`/`edict test`, `agt state list`/`state get`,
+  `agt plan visualize`, `agt plan run --dry-run`, `agt shutdown`.
 - **Windows job objects / macOS sandbox-exec** — both need per-OS CGO
   bindings; in M1.d Linux got `prlimit64` (raw syscall, stdlib).
 

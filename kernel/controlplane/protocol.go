@@ -194,6 +194,32 @@ const (
 	//   - would_ask        : bool — Ask-class folded by AskPolicy
 	//   - requires_approval: bool — AskPrompt mode + Ask-class hit
 	CmdEdictTest = "edict_test"
+
+	// CmdStateList enumerates namespaces and (optionally) keys in
+	// the kernel state store. State is normally invisible to
+	// operators — agents and the scheduler write here but there's
+	// no CLI path to read what's accumulated. Closing this gap
+	// matters for debugging "why did the agent loop think X?" and
+	// for postmortems on long-running runs.
+	// Args:
+	//   - namespace : string (optional) — if set, returns keys in
+	//                 that namespace; otherwise returns the
+	//                 sorted namespace list.
+	// Returns:
+	//   - namespaces : []string  (when namespace arg empty)
+	//   - keys       : []string  (when namespace arg set)
+	//   - namespace  : string    (echoed for context)
+	CmdStateList = "state_list"
+
+	// CmdStateGet reads a single (namespace, key) entry. Returns
+	// the raw JSON value verbatim so jq pipelines can navigate it.
+	// Args:
+	//   - namespace : string (required)
+	//   - key       : string (required)
+	// Returns:
+	//   - value : json.RawMessage — the stored value (any JSON shape)
+	//   - found : bool — false when (ns, key) doesn't exist; value is null
+	CmdStateGet = "state_get"
 )
 
 // Request is the wire shape sent by the client.

@@ -152,6 +152,22 @@ func (s *FileStore) Delete(ns, key string) error {
 	return s.snapshotLocked(ns)
 }
 
+// Namespaces returns a sorted list of every namespace currently
+// loaded in the store. Used by the control plane to power
+// `agt state list` — operators frequently need to discover what
+// the agent loop / scheduler / planner have been writing without
+// shelling into the data dir.
+func (s *FileStore) Namespaces() []string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make([]string, 0, len(s.data))
+	for ns := range s.data {
+		out = append(out, ns)
+	}
+	sort.Strings(out)
+	return out
+}
+
 // Keys implements Store.
 func (s *FileStore) Keys(ns string) ([]string, error) {
 	if err := validateNamespace(ns); err != nil {

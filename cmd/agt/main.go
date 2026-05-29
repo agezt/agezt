@@ -85,6 +85,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return cmdShutdown(args[1:], stdout, stderr)
 	case "edict":
 		return cmdEdict(args[1:], stdout, stderr)
+	case "state":
+		return cmdState(args[1:], stdout, stderr)
 	default:
 		fmt.Fprintf(stderr, "%s: unknown command %q\n", brand.CLI, args[0])
 		printHelp(stderr)
@@ -108,6 +110,8 @@ func printHelp(w io.Writer) {
 	fmt.Fprintf(w, "  plan <file.json>            execute a pre-built DAG plan\n")
 	fmt.Fprintf(w, "  plan generate \"<intent>\"    LLM-generate a plan; print JSON (pipe to a file)\n")
 	fmt.Fprintf(w, "  plan run      \"<intent>\"    LLM-generate AND execute a plan in one go\n")
+	fmt.Fprintf(w, "  plan run --dry-run \"<intent>\" [--model <id>]\n")
+	fmt.Fprintf(w, "                              preview only: generate, validate, visualize (+cost); no execution\n")
 	fmt.Fprintf(w, "  plan refine <file> --feedback \"...\"\n")
 	fmt.Fprintf(w, "                              revise an existing plan with operator feedback\n")
 	fmt.Fprintf(w, "  plan validate <file.json>   verify a hand-authored plan (client-side, no daemon)\n")
@@ -137,6 +141,8 @@ func printHelp(w io.Writer) {
 	fmt.Fprintf(w, "  shutdown [--json]                     ask the daemon to exit gracefully (same path as SIGTERM)\n")
 	fmt.Fprintf(w, "  edict show [--json]                   show loaded policies (ask_policy, levels, hard-deny rules)\n")
 	fmt.Fprintf(w, "  edict test <cap> [<input>] [--json]   dry-run a policy decision; exit 3 = deny\n")
+	fmt.Fprintf(w, "  state list [<namespace>] [--json]     enumerate state namespaces or keys\n")
+	fmt.Fprintf(w, "  state get <namespace> <key> [--json]  read one state value (exit 3 = absent)\n")
 	fmt.Fprintf(w, "  vault status                          show vault encryption state + path\n")
 	fmt.Fprintf(w, "  vault encrypt                         migrate plaintext vault to encrypted (set AGEZT_VAULT_PASSPHRASE)\n")
 	fmt.Fprintf(w, "  vault decrypt                         migrate encrypted vault back to plaintext\n")
@@ -382,12 +388,46 @@ func cmdPlanGenerate(args []string, stdout, stderr io.Writer) int {
 // in one operator-facing command. The Generate call returns the
 // JSON; we then forward it to CmdPlan via the same machinery
 // `agt plan <file>` uses. Keeps server endpoints single-purpose.
+//
+// Flags:
+//
+//	--dry-run            preview only: generate + validate + visualize
+//	                     (+ cost if --model set), then exit without
+//	                     executing. CI / human-review workflow.
+//	--model <id>         cost-estimation model id (only meaningful
+//	                     with --dry-run)
 func cmdPlanRun(args []string, stdout, stderr io.Writer) int {
-	if len(args) == 0 || strings.TrimSpace(strings.Join(args, " ")) == "" {
+	dryRun := false
+	model := ""
+	var intentParts []string
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		switch a {
+		case "--dry-run":
+			dryRun = true
+		case "--model", "-m":
+			i++
+			if i >= len(args) {
+				fmt.Fprintf(stderr, "%s plan run: --model needs a value\n", brand.CLI)
+				return 2
+			}
+			model = args[i]
+		default:
+			intentParts = append(intentParts, a)
+		}
+	}
+	intent := strings.TrimSpace(strings.Join(intentParts, " "))
+	if intent == "" {
 		fmt.Fprintf(stderr, "%s plan run: intent required (quote it as one argument)\n", brand.CLI)
 		return 2
 	}
-	intent := strings.Join(args, " ")
+	if model != "" && !dryRun {
+		// --model only makes sense in dry-run mode (execution uses
+		// the governor's primary). Warn rather than fail — operator
+		// intent is clear; ignoring silently would be worse.
+		fmt.Fprintf(stderr, "%s plan run: --model is only used with --dry-run; ignored for execution\n", brand.CLI)
+	}
+
 	c := dial(stderr)
 	if c == nil {
 		return 1
@@ -405,6 +445,11 @@ func cmdPlanRun(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "%s plan run: daemon returned empty plan_json\n", brand.CLI)
 		return 1
 	}
+
+	if dryRun {
+		return runDryRunPreview(planJSON, int(nodeCount), model, stdout, stderr)
+	}
+
 	fmt.Fprintf(stdout, "generated %d-node plan:\n%s\n\n--- executing ---\n", int(nodeCount), planJSON)
 	return runPlanJSON(planJSON, stdout, stderr)
 }
