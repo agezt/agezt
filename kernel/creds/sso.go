@@ -41,23 +41,25 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ersinkoc/agezt/kernel/creds/sigv4"
+	"github.com/agezt/agezt/kernel/creds/sigv4"
 )
 
 // SSOParams describes one SSO profile worth of inputs. Most fields
 // are read out of `~/.aws/config`; AWSSSOLookup composes them by
 // profile name so callers don't have to thread the values manually.
 type SSOParams struct {
-	StartURL    string
-	Region      string
-	AccountID   string
-	RoleName    string
+	StartURL  string
+	Region    string
+	AccountID string
+	RoleName  string
 
 	// Test seams. Empty / nil in production.
-	Endpoint  string // override SSO portal endpoint
-	CacheDir  string // override ~/.aws/sso/cache
-	HTTP      interface{ Do(*http.Request) (*http.Response, error) }
-	Now       func() time.Time
+	Endpoint string // override SSO portal endpoint
+	CacheDir string // override ~/.aws/sso/cache
+	HTTP     interface {
+		Do(*http.Request) (*http.Response, error)
+	}
+	Now func() time.Time
 }
 
 // ssoCachedToken mirrors the JSON shape `aws sso login` writes

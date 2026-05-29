@@ -10,11 +10,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ersinkoc/agezt/kernel/approval"
-	"github.com/ersinkoc/agezt/kernel/bus"
-	"github.com/ersinkoc/agezt/kernel/event"
-	"github.com/ersinkoc/agezt/kernel/journal"
-	"github.com/ersinkoc/agezt/kernel/scheduler"
+	"github.com/agezt/agezt/kernel/approval"
+	"github.com/agezt/agezt/kernel/bus"
+	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/journal"
+	"github.com/agezt/agezt/kernel/scheduler"
 )
 
 // ---- helpers ----
@@ -156,9 +156,9 @@ type recordingNode struct {
 	log   *[]string
 }
 
-func (n *recordingNode) ID() string                { return n.inner.ID() }
-func (n *recordingNode) Kind() scheduler.NodeKind  { return n.inner.Kind() }
-func (n *recordingNode) DependsOn() []string       { return n.inner.DependsOn() }
+func (n *recordingNode) ID() string               { return n.inner.ID() }
+func (n *recordingNode) Kind() scheduler.NodeKind { return n.inner.Kind() }
+func (n *recordingNode) DependsOn() []string      { return n.inner.DependsOn() }
 func (n *recordingNode) Run(ctx context.Context, in scheduler.Inputs) (scheduler.Result, error) {
 	res, err := n.inner.Run(ctx, in)
 	n.mu.Lock()

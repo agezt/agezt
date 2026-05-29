@@ -7,18 +7,18 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/ersinkoc/agezt/kernel/agent"
-	"github.com/ersinkoc/agezt/kernel/governor"
-	"github.com/ersinkoc/agezt/plugins/providers/mock"
+	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/governor"
+	"github.com/agezt/agezt/plugins/providers/mock"
 )
 
 // stubProvider returns a fixed Usage so cost accounting is
 // deterministic — each Complete call "costs" the same.
 type stubProvider struct {
-	name     string
-	inToks   int
-	outToks  int
-	model    string
+	name      string
+	inToks    int
+	outToks   int
+	model     string
 	callsSeen int
 }
 
@@ -221,12 +221,12 @@ func TestParseTaskBudgetsEnv(t *testing.T) {
 	}
 
 	for _, bad := range []string{
-		"plan",          // no '='
-		"=100",          // empty key
-		"plan=",         // empty value
-		"plan=0",        // zero
-		"plan=-50",      // negative
-		"plan=notanum",  // non-numeric
+		"plan",         // no '='
+		"=100",         // empty key
+		"plan=",        // empty value
+		"plan=0",       // zero
+		"plan=-50",     // negative
+		"plan=notanum", // non-numeric
 	} {
 		if _, err := governor.ParseTaskBudgetsEnv(bad); err == nil {
 			t.Errorf("ParseTaskBudgetsEnv(%q) should error", bad)

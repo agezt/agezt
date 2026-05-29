@@ -22,7 +22,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ersinkoc/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/agent"
 )
 
 const (
@@ -155,11 +155,11 @@ func (p *Provider) Complete(ctx context.Context, req agent.CompletionRequest) (*
 
 // anthRequest is the wire-shape of a Messages API request.
 type anthRequest struct {
-	Model     string          `json:"model"`
-	MaxTokens int             `json:"max_tokens"`
-	System    string          `json:"system,omitempty"`
-	Messages  []anthMessage   `json:"messages"`
-	Tools     []anthTool      `json:"tools,omitempty"`
+	Model     string        `json:"model"`
+	MaxTokens int           `json:"max_tokens"`
+	System    string        `json:"system,omitempty"`
+	Messages  []anthMessage `json:"messages"`
+	Tools     []anthTool    `json:"tools,omitempty"`
 }
 
 type anthTool struct {
@@ -169,8 +169,8 @@ type anthTool struct {
 }
 
 type anthMessage struct {
-	Role    string         `json:"role"` // "user" | "assistant"
-	Content []anthBlock    `json:"content"`
+	Role    string      `json:"role"` // "user" | "assistant"
+	Content []anthBlock `json:"content"`
 }
 
 // anthBlock is a single content block. Only one of Text / ToolUse /
@@ -178,9 +178,9 @@ type anthMessage struct {
 type anthBlock struct {
 	Type       string          `json:"type"`
 	Text       string          `json:"text,omitempty"`
-	ID         string          `json:"id,omitempty"`         // tool_use
-	Name       string          `json:"name,omitempty"`       // tool_use
-	Input      json.RawMessage `json:"input,omitempty"`      // tool_use
+	ID         string          `json:"id,omitempty"`          // tool_use
+	Name       string          `json:"name,omitempty"`        // tool_use
+	Input      json.RawMessage `json:"input,omitempty"`       // tool_use
 	ToolUseID  string          `json:"tool_use_id,omitempty"` // tool_result
 	ResultBody string          `json:"content,omitempty"`     // tool_result (string form)
 	IsError    bool            `json:"is_error,omitempty"`    // tool_result

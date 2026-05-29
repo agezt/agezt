@@ -6,11 +6,11 @@ import (
 	"context"
 	"testing"
 
-	"github.com/ersinkoc/agezt/kernel/agent"
-	"github.com/ersinkoc/agezt/kernel/controlplane"
-	"github.com/ersinkoc/agezt/kernel/runtime"
-	"github.com/ersinkoc/agezt/plugins/providers/mock"
-	"github.com/ersinkoc/agezt/plugins/tools/shell"
+	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/runtime"
+	"github.com/agezt/agezt/plugins/providers/mock"
+	"github.com/agezt/agezt/plugins/tools/shell"
 )
 
 // TestPluginList_EmptyWhenNoneConfigured covers the common case

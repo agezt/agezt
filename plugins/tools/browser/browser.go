@@ -38,7 +38,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ersinkoc/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/agent"
 )
 
 // DefaultTimeout caps a single fetch.

@@ -15,7 +15,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/ersinkoc/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/agent"
 )
 
 // DefaultInitTimeout caps the initialize round-trip. Plugins that
@@ -132,7 +132,7 @@ type Plugin struct {
 	// dead is set when the read loop sees EOF or a fatal error.
 	// All subsequent operations fail fast with errors that name
 	// the cause (rather than hanging).
-	dead    atomic.Bool
+	dead     atomic.Bool
 	deathErr error
 }
 
@@ -178,10 +178,10 @@ func Spawn(ctx context.Context, cfg Config) (*Plugin, error) {
 	}
 
 	p := &Plugin{
-		cfg:     cfg,
-		cmd:     cmd,
-		stdin:   stdin,
-		stdout:  bufio.NewReader(stdout),
+		cfg:      cfg,
+		cmd:      cmd,
+		stdin:    stdin,
+		stdout:   bufio.NewReader(stdout),
 		pending:  make(map[string]chan *Response),
 		progress: make(map[string]func(string)),
 	}

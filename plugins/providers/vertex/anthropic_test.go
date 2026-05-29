@@ -12,8 +12,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ersinkoc/agezt/kernel/agent"
-	"github.com/ersinkoc/agezt/plugins/providers/vertex"
+	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/plugins/providers/vertex"
 )
 
 // ---- model id detection ----

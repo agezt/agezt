@@ -11,7 +11,7 @@ import (
 	"net"
 	"sort"
 
-	"github.com/ersinkoc/agezt/kernel/governor"
+	"github.com/agezt/agezt/kernel/governor"
 )
 
 // handleBudget serves CmdBudget. Returns the governor's snapshot
@@ -41,9 +41,9 @@ func (s *Server) handleBudget(conn net.Conn, req Request) {
 	perTask := make([]map[string]any, 0, len(snap.PerTask))
 	for _, row := range snap.PerTask {
 		perTask = append(perTask, map[string]any{
-			"task_type":   row.TaskType,
-			"spent_mc":    row.SpentMicrocents,
-			"ceiling_mc":  row.CapMicrocents,
+			"task_type":  row.TaskType,
+			"spent_mc":   row.SpentMicrocents,
+			"ceiling_mc": row.CapMicrocents,
 		})
 	}
 

@@ -7,8 +7,8 @@ import (
 	"io"
 	"os"
 
-	"github.com/ersinkoc/agezt/internal/brand"
-	"github.com/ersinkoc/agezt/kernel/planner"
+	"github.com/agezt/agezt/internal/brand"
+	"github.com/agezt/agezt/kernel/planner"
 )
 
 // cmdPlanValidate implements `agt plan validate <file.json>`.

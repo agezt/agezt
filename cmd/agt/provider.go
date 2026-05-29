@@ -12,11 +12,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ersinkoc/agezt/internal/brand"
-	"github.com/ersinkoc/agezt/internal/paths"
-	"github.com/ersinkoc/agezt/kernel/catalog"
-	"github.com/ersinkoc/agezt/kernel/controlplane"
-	"github.com/ersinkoc/agezt/kernel/creds"
+	"github.com/agezt/agezt/internal/brand"
+	"github.com/agezt/agezt/internal/paths"
+	"github.com/agezt/agezt/kernel/catalog"
+	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/creds"
 )
 
 // cmdProvider handles `agt provider <subcommand>`. M1.o introduced

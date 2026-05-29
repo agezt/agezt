@@ -207,7 +207,7 @@ MCPBRIDGE_SERVER_CMD="..." \
 
 ```
 go test ./plugins/external/mcpbridge/... -v -count=1
-ok  	github.com/ersinkoc/agezt/plugins/external/mcpbridge	0.985s
+ok  	github.com/agezt/agezt/plugins/external/mcpbridge	0.985s
 (6 tests — all PASS)
 
 go test ./... -count=1

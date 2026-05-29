@@ -10,8 +10,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/ersinkoc/agezt/kernel/agent"
-	"github.com/ersinkoc/agezt/plugins/providers/bedrock"
+	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/plugins/providers/bedrock"
 )
 
 func TestComplete_AnthropicOnBedrockTextResponse(t *testing.T) {
@@ -192,10 +192,10 @@ func TestResolveEndpoint(t *testing.T) {
 		name, endpoint, baseURL, region, model, want string
 	}{
 		{
-			name:     "default — derive from region",
-			region:   "eu-central-1",
-			model:    "anthropic.claude-opus-4-7",
-			want:     "https://bedrock-runtime.eu-central-1.amazonaws.com/model/anthropic.claude-opus-4-7/invoke",
+			name:   "default — derive from region",
+			region: "eu-central-1",
+			model:  "anthropic.claude-opus-4-7",
+			want:   "https://bedrock-runtime.eu-central-1.amazonaws.com/model/anthropic.claude-opus-4-7/invoke",
 		},
 		{
 			name:    "custom.json BaseURL override",

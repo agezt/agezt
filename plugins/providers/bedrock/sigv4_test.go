@@ -17,7 +17,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ersinkoc/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/agent"
 )
 
 // Test helpers — keep below so they live near where they're used.
@@ -244,11 +244,11 @@ func TestProvider_NoAuthErrors(t *testing.T) {
 
 func TestCollapseSpaces_LeavesSingleRunsAlone(t *testing.T) {
 	cases := map[string]string{
-		"a b c":     "a b c",
-		"a  b":      "a b",
-		"a   b  c":  "a b c",
-		"single":    "single",
-		"":          "",
+		"a b c":    "a b c",
+		"a  b":     "a b",
+		"a   b  c": "a b c",
+		"single":   "single",
+		"":         "",
 	}
 	for in, want := range cases {
 		if got := collapseSpaces(in); got != want {

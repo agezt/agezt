@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ersinkoc/agezt/kernel/agent"
-	"github.com/ersinkoc/agezt/plugins/providers/vertex"
+	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/plugins/providers/vertex"
 )
 
 // sampleVertexTextStream is a representative text-only SSE response
@@ -218,11 +218,11 @@ func TestCompleteStream_Vertex_NilOnChunkRejected(t *testing.T) {
 
 func TestResolveStreamEndpoint_Vertex(t *testing.T) {
 	cases := []struct {
-		name              string
-		baseURL, project  string
-		location, model   string
-		endpoint          string
-		want              string
+		name             string
+		baseURL, project string
+		location, model  string
+		endpoint         string
+		want             string
 	}{
 		{
 			name:     "default regional host",

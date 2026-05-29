@@ -39,7 +39,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/ersinkoc/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/agent"
 )
 
 type mistralBedrockRequest struct {

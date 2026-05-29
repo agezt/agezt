@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ersinkoc/agezt/kernel/agent"
-	"github.com/ersinkoc/agezt/kernel/plugin"
+	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/plugin"
 )
 
 // doubleTool is a tiny in-process agent.Tool the test wires into

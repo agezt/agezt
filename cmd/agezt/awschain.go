@@ -32,9 +32,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/ersinkoc/agezt/internal/brand"
-	"github.com/ersinkoc/agezt/kernel/creds"
-	"github.com/ersinkoc/agezt/kernel/creds/sigv4"
+	"github.com/agezt/agezt/internal/brand"
+	"github.com/agezt/agezt/kernel/creds"
+	"github.com/agezt/agezt/kernel/creds/sigv4"
 )
 
 // buildAWSCredChain returns the composed lookup plus a short

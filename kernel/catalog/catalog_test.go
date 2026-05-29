@@ -12,7 +12,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ersinkoc/agezt/kernel/catalog"
+	"github.com/agezt/agezt/kernel/catalog"
 )
 
 // ---- fixture ----
@@ -91,28 +91,28 @@ func TestParseAPIFile(t *testing.T) {
 
 func TestFamilyFromNPM(t *testing.T) {
 	cases := map[string]catalog.Family{
-		"@ai-sdk/anthropic":            catalog.FamilyAnthropic,
-		"anthropic":                    catalog.FamilyAnthropic,
-		"@ai-sdk/openai":               catalog.FamilyOpenAI,
-		"@ai-sdk/openai-compatible":    catalog.FamilyOpenAICompatible,
-		"@ai-sdk/ollama":               catalog.FamilyOllama,
-		"@ai-sdk/google":               catalog.FamilyGoogle,
-		"@ai-sdk/google-generative-ai": catalog.FamilyGoogle,
-		"@ai-sdk/google-vertex":        catalog.FamilyGoogleVertex,
+		"@ai-sdk/anthropic":               catalog.FamilyAnthropic,
+		"anthropic":                       catalog.FamilyAnthropic,
+		"@ai-sdk/openai":                  catalog.FamilyOpenAI,
+		"@ai-sdk/openai-compatible":       catalog.FamilyOpenAICompatible,
+		"@ai-sdk/ollama":                  catalog.FamilyOllama,
+		"@ai-sdk/google":                  catalog.FamilyGoogle,
+		"@ai-sdk/google-generative-ai":    catalog.FamilyGoogle,
+		"@ai-sdk/google-vertex":           catalog.FamilyGoogleVertex,
 		"@ai-sdk/google-vertex/anthropic": catalog.FamilyGoogleVertex,
 		// First-party AI SDK packages whose wire dialect is OpenAI
 		// Chat Completions. Catalog-driven compat treats them all the
 		// same — only base URL + env-var differ.
-		"@ai-sdk/groq":                 catalog.FamilyOpenAICompatible,
-		"@ai-sdk/xai":                  catalog.FamilyOpenAICompatible,
-		"@ai-sdk/cerebras":             catalog.FamilyOpenAICompatible,
-		"@ai-sdk/togetherai":           catalog.FamilyOpenAICompatible,
-		"@ai-sdk/deepinfra":            catalog.FamilyOpenAICompatible,
-		"@ai-sdk/perplexity":           catalog.FamilyOpenAICompatible,
-		"@ai-sdk/fireworks":            catalog.FamilyOpenAICompatible,
-		"@openrouter/ai-sdk-provider":  catalog.FamilyOpenAICompatible,
-		"":                             catalog.FamilyUnknown,
-		"random-sdk":                   catalog.FamilyUnknown,
+		"@ai-sdk/groq":                catalog.FamilyOpenAICompatible,
+		"@ai-sdk/xai":                 catalog.FamilyOpenAICompatible,
+		"@ai-sdk/cerebras":            catalog.FamilyOpenAICompatible,
+		"@ai-sdk/togetherai":          catalog.FamilyOpenAICompatible,
+		"@ai-sdk/deepinfra":           catalog.FamilyOpenAICompatible,
+		"@ai-sdk/perplexity":          catalog.FamilyOpenAICompatible,
+		"@ai-sdk/fireworks":           catalog.FamilyOpenAICompatible,
+		"@openrouter/ai-sdk-provider": catalog.FamilyOpenAICompatible,
+		"":                            catalog.FamilyUnknown,
+		"random-sdk":                  catalog.FamilyUnknown,
 	}
 	for in, want := range cases {
 		if got := catalog.FamilyFromNPM(in); got != want {
@@ -389,5 +389,5 @@ func TestDiscoverOllama_AbsentReturnsError(t *testing.T) {
 
 // ---- helpers ----
 
-func readFile(p string) ([]byte, error)        { return os.ReadFile(p) }
-func writeFile(p string, data []byte) error    { return os.WriteFile(p, data, 0o644) }
+func readFile(p string) ([]byte, error)     { return os.ReadFile(p) }
+func writeFile(p string, data []byte) error { return os.WriteFile(p, data, 0o644) }

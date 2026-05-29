@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ersinkoc/agezt/kernel/plugin"
+	"github.com/agezt/agezt/kernel/plugin"
 )
 
 // TestSpawn_AllowlistAcceptsListedTools: when the allowlist
@@ -87,10 +87,10 @@ func TestParseToolAllowlistSpec_Basic(t *testing.T) {
 // at parse time so operators get fast startup feedback.
 func TestParseToolAllowlistSpec_RejectsBadFormat(t *testing.T) {
 	for _, c := range []string{
-		"search",         // no '='
-		"=foo+bar",       // empty prefix
-		"search=",        // empty tool list (use "unset" instead)
-		"search=  +  ",   // whitespace-only tools
+		"search",       // no '='
+		"=foo+bar",     // empty prefix
+		"search=",      // empty tool list (use "unset" instead)
+		"search=  +  ", // whitespace-only tools
 	} {
 		_, err := plugin.ParseToolAllowlistSpec(c)
 		if err == nil {

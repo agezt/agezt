@@ -33,7 +33,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ersinkoc/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/agent"
 )
 
 const (
@@ -152,28 +152,28 @@ func (p *Provider) Complete(ctx context.Context, req agent.CompletionRequest) (*
 // ----- dialect translation (canonical ↔ Cohere v2 chat) -----
 
 type cohereRequest struct {
-	Model       string          `json:"model"`
-	Messages    []cohereMessage `json:"messages"`
-	Tools       []cohereTool    `json:"tools,omitempty"`
-	Stream      bool            `json:"stream"`
-	MaxTokens   int             `json:"max_tokens,omitempty"`
+	Model     string          `json:"model"`
+	Messages  []cohereMessage `json:"messages"`
+	Tools     []cohereTool    `json:"tools,omitempty"`
+	Stream    bool            `json:"stream"`
+	MaxTokens int             `json:"max_tokens,omitempty"`
 }
 
 // cohereMessage uses a permissive `content` shape: string when
 // outgoing (we always send strings), array-of-blocks when incoming.
 // We model both via json.RawMessage and inspect at decode time.
 type cohereMessage struct {
-	Role       string             `json:"role"`
-	Content    string             `json:"content,omitempty"`
-	ToolCalls  []cohereToolCall   `json:"tool_calls,omitempty"`
-	ToolCallID string             `json:"tool_call_id,omitempty"`
-	ToolPlan   string             `json:"tool_plan,omitempty"`
+	Role       string           `json:"role"`
+	Content    string           `json:"content,omitempty"`
+	ToolCalls  []cohereToolCall `json:"tool_calls,omitempty"`
+	ToolCallID string           `json:"tool_call_id,omitempty"`
+	ToolPlan   string           `json:"tool_plan,omitempty"`
 }
 
 type cohereToolCall struct {
-	ID       string             `json:"id"`
-	Type     string             `json:"type"`
-	Function cohereToolCallFn   `json:"function"`
+	ID       string           `json:"id"`
+	Type     string           `json:"type"`
+	Function cohereToolCallFn `json:"function"`
 }
 
 type cohereToolCallFn struct {
@@ -182,8 +182,8 @@ type cohereToolCallFn struct {
 }
 
 type cohereTool struct {
-	Type     string           `json:"type"`
-	Function cohereToolFnDef  `json:"function"`
+	Type     string          `json:"type"`
+	Function cohereToolFnDef `json:"function"`
 }
 
 type cohereToolFnDef struct {
@@ -196,17 +196,17 @@ type cohereToolFnDef struct {
 // block array on the wire; we tolerate either string or array via
 // json.RawMessage + custom inspection.
 type cohereResponse struct {
-	ID           string             `json:"id"`
-	FinishReason string             `json:"finish_reason"`
-	Message      cohereRespMessage  `json:"message"`
-	Usage        *cohereUsage       `json:"usage,omitempty"`
+	ID           string            `json:"id"`
+	FinishReason string            `json:"finish_reason"`
+	Message      cohereRespMessage `json:"message"`
+	Usage        *cohereUsage      `json:"usage,omitempty"`
 }
 
 type cohereRespMessage struct {
-	Role      string             `json:"role"`
-	Content   json.RawMessage    `json:"content"`
-	ToolCalls []cohereToolCall   `json:"tool_calls,omitempty"`
-	ToolPlan  string             `json:"tool_plan,omitempty"`
+	Role      string           `json:"role"`
+	Content   json.RawMessage  `json:"content"`
+	ToolCalls []cohereToolCall `json:"tool_calls,omitempty"`
+	ToolPlan  string           `json:"tool_plan,omitempty"`
 }
 
 type cohereContentBlock struct {

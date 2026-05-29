@@ -9,7 +9,7 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/ersinkoc/agezt/kernel/creds"
+	"github.com/agezt/agezt/kernel/creds"
 )
 
 // helperProcessJSON is the fixed JSON payload our test helper

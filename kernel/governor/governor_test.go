@@ -11,12 +11,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ersinkoc/agezt/kernel/agent"
-	"github.com/ersinkoc/agezt/kernel/bus"
-	"github.com/ersinkoc/agezt/kernel/catalog"
-	"github.com/ersinkoc/agezt/kernel/event"
-	"github.com/ersinkoc/agezt/kernel/governor"
-	"github.com/ersinkoc/agezt/kernel/journal"
+	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/bus"
+	"github.com/agezt/agezt/kernel/catalog"
+	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/governor"
+	"github.com/agezt/agezt/kernel/journal"
 )
 
 // ---- helpers ----

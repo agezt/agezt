@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ersinkoc/agezt/kernel/creds"
-	"github.com/ersinkoc/agezt/kernel/creds/sigv4"
+	"github.com/agezt/agezt/kernel/creds"
+	"github.com/agezt/agezt/kernel/creds/sigv4"
 )
 
 const assumeRoleHappyResponse = `<AssumeRoleResponse xmlns="https://sts.amazonaws.com/doc/2011-06-15/">

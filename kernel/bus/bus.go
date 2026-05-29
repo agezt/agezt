@@ -32,8 +32,8 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/ersinkoc/agezt/kernel/event"
-	"github.com/ersinkoc/agezt/kernel/journal"
+	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/journal"
 )
 
 // DefaultSubBuffer is used when Subscribe is called with buf <= 0.

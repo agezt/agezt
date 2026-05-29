@@ -17,10 +17,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ersinkoc/agezt/internal/brand"
-	"github.com/ersinkoc/agezt/kernel/approval"
-	"github.com/ersinkoc/agezt/kernel/runtime"
-	"github.com/ersinkoc/agezt/kernel/scheduler"
+	"github.com/agezt/agezt/internal/brand"
+	"github.com/agezt/agezt/kernel/approval"
+	"github.com/agezt/agezt/kernel/runtime"
+	"github.com/agezt/agezt/kernel/scheduler"
 )
 
 // Server hosts the control plane for a running Kernel.
@@ -34,12 +34,38 @@ type Server struct {
 	done     chan struct{}
 	stopOnce sync.Once
 	wg       sync.WaitGroup
+
+	// shutdownCh fires (close) when a client sends CmdShutdown. The
+	// daemon's main loop selects on this alongside SIGINT/SIGTERM so
+	// programmatic shutdown shares the same orderly exit path as the
+	// signal-driven one. Closed at most once (guarded by shutdownOnce).
+	shutdownCh   chan struct{}
+	shutdownOnce sync.Once
 }
 
 // NewServer constructs a Server that will manage runtime files under
 // <baseDir>/runtime/ when Start is called.
 func NewServer(k *runtime.Kernel, baseDir string) *Server {
-	return &Server{k: k, baseDir: baseDir}
+	return &Server{
+		k:          k,
+		baseDir:    baseDir,
+		shutdownCh: make(chan struct{}),
+	}
+}
+
+// Shutdown returns a channel that closes when a client has issued
+// CmdShutdown. The daemon's main loop should select on it next to
+// the OS-signal channel so `agt shutdown` reaches the same orderly
+// exit path as Ctrl+C. The channel never re-opens; the daemon must
+// treat a close as terminal.
+func (s *Server) Shutdown() <-chan struct{} { return s.shutdownCh }
+
+// signalShutdown closes shutdownCh exactly once. Used by
+// handleShutdown after the OK response has been written to the
+// client, so the client read completes before the daemon starts
+// tearing the process down.
+func (s *Server) signalShutdown() {
+	s.shutdownOnce.Do(func() { close(s.shutdownCh) })
 }
 
 // Start binds to localhost on an ephemeral port, writes the addr+token
@@ -237,6 +263,8 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.handleStatus(conn, req)
 	case CmdPluginList:
 		s.handlePluginList(conn, req)
+	case CmdShutdown:
+		s.handleShutdown(conn, req)
 	default:
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "unknown command: " + req.Cmd})
 	}
@@ -349,9 +377,9 @@ type planSpec struct {
 }
 
 type planNodeSpec struct {
-	ID          string   `json:"id"`
-	Kind        string   `json:"kind"`
-	Deps        []string `json:"deps,omitempty"`
+	ID   string   `json:"id"`
+	Kind string   `json:"kind"`
+	Deps []string `json:"deps,omitempty"`
 	// Loop fields.
 	Intent string `json:"intent,omitempty"`
 	// Gate fields.
@@ -582,4 +610,3 @@ func (s *Server) handleRun(ctx context.Context, conn net.Conn, req Request) {
 		}
 	}
 }
-

@@ -30,9 +30,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ersinkoc/agezt/kernel/agent"
-	"github.com/ersinkoc/agezt/kernel/bus"
-	"github.com/ersinkoc/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/bus"
+	"github.com/agezt/agezt/kernel/event"
 )
 
 // DefaultDailyCeilingMicrocents is the per-day spend cap from DECISIONS F3
@@ -273,9 +273,9 @@ func (g *Governor) Complete(ctx context.Context, req agent.CompletionRequest) (*
 				Kind:    event.KindProviderFallback,
 				Actor:   "governor",
 				Payload: map[string]any{
-					"failed":  p.Name,
-					"next":    chain[i+1].Name,
-					"reason":  err.Error(),
+					"failed": p.Name,
+					"next":   chain[i+1].Name,
+					"reason": err.Error(),
 				},
 			})
 		}
@@ -408,13 +408,13 @@ func (g *Governor) recordUsage(p *ProviderInfo, req agent.CompletionRequest, res
 		Kind:    event.KindBudgetConsumed,
 		Actor:   "governor",
 		Payload: map[string]any{
-			"provider":         p.Name,
-			"model":            model,
-			"input_tokens":     resp.Usage.InputTokens,
-			"output_tokens":    resp.Usage.OutputTokens,
-			"cost_microcents":  cost,
-			"spent_today_mc":   spent,
-			"ceiling_mc":       g.cfg.DailyCeilingMicrocents,
+			"provider":        p.Name,
+			"model":           model,
+			"input_tokens":    resp.Usage.InputTokens,
+			"output_tokens":   resp.Usage.OutputTokens,
+			"cost_microcents": cost,
+			"spent_today_mc":  spent,
+			"ceiling_mc":      g.cfg.DailyCeilingMicrocents,
 		},
 	})
 }
@@ -463,9 +463,9 @@ func (g *Governor) SpentByTaskMicrocents(taskType string) int64 {
 // CeilingMicrocents is the configured cap (always > 0 since
 // zero-cap entries are filtered at parse time).
 type TaskBudgetSnapshot struct {
-	TaskType         string
-	SpentMicrocents  int64
-	CapMicrocents    int64
+	TaskType        string
+	SpentMicrocents int64
+	CapMicrocents   int64
 }
 
 // BudgetSnapshot is the read-only view powering `agt budget`
@@ -473,10 +473,10 @@ type TaskBudgetSnapshot struct {
 // for the current UTC day; UTCDate names that day so callers
 // can render "as of 2026-05-29" without a separate field.
 type BudgetSnapshot struct {
-	UTCDate            string
-	SpentMicrocents    int64
-	CeilingMicrocents  int64
-	PerTask            []TaskBudgetSnapshot
+	UTCDate           string
+	SpentMicrocents   int64
+	CeilingMicrocents int64
+	PerTask           []TaskBudgetSnapshot
 }
 
 // Snapshot returns a point-in-time copy of the governor's budget

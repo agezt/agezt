@@ -8,7 +8,7 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/ersinkoc/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/agent"
 )
 
 // AuthMode summarises how a provider authenticates (DECISIONS C2: routing
@@ -38,9 +38,9 @@ type ProviderInfo struct {
 // Registry holds all known providers in insertion order. Safe for
 // concurrent use.
 type Registry struct {
-	mu        sync.RWMutex
-	byName    map[string]*ProviderInfo
-	order     []string // insertion order
+	mu     sync.RWMutex
+	byName map[string]*ProviderInfo
+	order  []string // insertion order
 }
 
 // NewRegistry returns an empty Registry.

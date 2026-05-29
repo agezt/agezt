@@ -9,9 +9,9 @@ import (
 	"sort"
 	"time"
 
-	"github.com/ersinkoc/agezt/internal/brand"
-	"github.com/ersinkoc/agezt/kernel/catalog"
-	"github.com/ersinkoc/agezt/kernel/event"
+	"github.com/agezt/agezt/internal/brand"
+	"github.com/agezt/agezt/kernel/catalog"
+	"github.com/agezt/agezt/kernel/event"
 )
 
 // handleCatalogSync runs a remote sync (models.dev/api.json or whatever
@@ -112,15 +112,15 @@ func (s *Server) handleCatalogList(conn net.Conn, req Request) {
 			models = append(models, entry)
 		}
 		providers = append(providers, map[string]any{
-			"id":            p.ID,
-			"name":          p.Name,
-			"family":        string(p.Family()),
-			"api":           p.API,
-			"doc":           p.Doc,
-			"env":           p.Env,
-			"credentialed":  p.HasCredentials(os.Getenv),
-			"model_count":   len(p.Models),
-			"models":        models,
+			"id":           p.ID,
+			"name":         p.Name,
+			"family":       string(p.Family()),
+			"api":          p.API,
+			"doc":          p.Doc,
+			"env":          p.Env,
+			"credentialed": p.HasCredentials(os.Getenv),
+			"model_count":  len(p.Models),
+			"models":       models,
 		})
 	}
 	meta, _ := s.k.CatalogStore().LoadMeta()

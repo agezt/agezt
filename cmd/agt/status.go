@@ -9,8 +9,8 @@ import (
 	"io"
 	"time"
 
-	"github.com/ersinkoc/agezt/internal/brand"
-	"github.com/ersinkoc/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/internal/brand"
+	"github.com/agezt/agezt/kernel/controlplane"
 )
 
 // cmdStatus implements `agt status` and `agt status --json`.

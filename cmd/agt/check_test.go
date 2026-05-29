@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ersinkoc/agezt/kernel/agent"
-	"github.com/ersinkoc/agezt/kernel/catalog"
+	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/catalog"
 )
 
 func TestParseCheckFlags(t *testing.T) {
@@ -246,13 +246,12 @@ type errFixed string
 
 func (e errFixed) Error() string { return string(e) }
 
-
 func TestComputeCostMicrocents(t *testing.T) {
 	cases := []struct {
-		name      string
-		model     *catalog.Model
-		usage     agent.Usage
-		want      int64
+		name  string
+		model *catalog.Model
+		usage agent.Usage
+		want  int64
 	}{
 		{
 			name:  "nil model -> 0",
@@ -303,14 +302,14 @@ func TestComputeCostMicrocents(t *testing.T) {
 func TestFormatMicrocentsUSD(t *testing.T) {
 	cases := map[int64]string{
 		0:             "0.00",
-		1_000_000_000: "1.00",          // exactly $1
-		17_500_000:    "0.0175",        // claude small call
-		4500:          "0.0000045",     // gpt-4o-mini tiny call (full microcent precision)
-		1_000_000:     "0.001",         // one cent
+		1_000_000_000: "1.00",      // exactly $1
+		17_500_000:    "0.0175",    // claude small call
+		4500:          "0.0000045", // gpt-4o-mini tiny call (full microcent precision)
+		1_000_000:     "0.001",     // one cent
 		500_000:       "0.0005",
-		999_999_999:   "0.999999999",   // just under $1, all 9 sub-dollar digits
+		999_999_999:   "0.999999999", // just under $1, all 9 sub-dollar digits
 		2_500_000_000: "2.50",
-		1:             "0.000000001",   // one microcent ($1e-9)
+		1:             "0.000000001", // one microcent ($1e-9)
 	}
 	for in, want := range cases {
 		if got := formatMicrocentsUSD(in); got != want {
@@ -406,9 +405,9 @@ func TestTruncate(t *testing.T) {
 		n    int
 		want string
 	}{
-		"":            {n: 10, want: ""},
-		"short":       {n: 10, want: "short"},
-		"abcdefghij":  {n: 10, want: "abcdefghij"}, // exactly 10 chars
+		"":                                      {n: 10, want: ""},
+		"short":                                 {n: 10, want: "short"},
+		"abcdefghij":                            {n: 10, want: "abcdefghij"}, // exactly 10 chars
 		"definitely longer than ten characters": {n: 10, want: "definitely…"},
 	}
 	for in, c := range cases {

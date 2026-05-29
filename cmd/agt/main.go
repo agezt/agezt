@@ -25,10 +25,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ersinkoc/agezt/internal/brand"
-	"github.com/ersinkoc/agezt/internal/paths"
-	"github.com/ersinkoc/agezt/kernel/controlplane"
-	"github.com/ersinkoc/agezt/kernel/event"
+	"github.com/agezt/agezt/internal/brand"
+	"github.com/agezt/agezt/internal/paths"
+	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/event"
 )
 
 func main() {
@@ -81,6 +81,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return cmdTool(args[1:], stdout, stderr)
 	case "status":
 		return cmdStatus(args[1:], stdout, stderr)
+	case "shutdown":
+		return cmdShutdown(args[1:], stdout, stderr)
 	default:
 		fmt.Fprintf(stderr, "%s: unknown command %q\n", brand.CLI, args[0])
 		printHelp(stderr)
@@ -127,6 +129,7 @@ func printHelp(w io.Writer) {
 	fmt.Fprintf(w, "  status [--json]                       daemon health overview (version skew, uptime, runs)\n")
 	fmt.Fprintf(w, "  plugin hash <path>                    BLAKE3 hex digest of a plugin binary (for AGEZT_PLUGIN_PINS)\n")
 	fmt.Fprintf(w, "  plugin list [--json]                  list external plugins the daemon spawned\n")
+	fmt.Fprintf(w, "  shutdown [--json]                     ask the daemon to exit gracefully (same path as SIGTERM)\n")
 	fmt.Fprintf(w, "  vault status                          show vault encryption state + path\n")
 	fmt.Fprintf(w, "  vault encrypt                         migrate plaintext vault to encrypted (set AGEZT_VAULT_PASSPHRASE)\n")
 	fmt.Fprintf(w, "  vault decrypt                         migrate encrypted vault back to plaintext\n")
@@ -221,7 +224,6 @@ func cmdSimple(cmd string, args map[string]any, stdout, stderr io.Writer) int {
 	fmt.Fprintf(stdout, "%s\n", enc)
 	return 0
 }
-
 
 func cmdJournal(args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 || args[0] != "verify" {

@@ -13,7 +13,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/ersinkoc/agezt/kernel/plugin"
+	"github.com/agezt/agezt/kernel/plugin"
 )
 
 // The tests in this file build two binaries on demand:

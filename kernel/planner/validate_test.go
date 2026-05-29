@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ersinkoc/agezt/kernel/planner"
+	"github.com/agezt/agezt/kernel/planner"
 )
 
 // TestValidateJSON_AcceptsGoodPlan ensures the public API matches

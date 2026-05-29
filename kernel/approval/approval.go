@@ -27,9 +27,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ersinkoc/agezt/kernel/bus"
-	"github.com/ersinkoc/agezt/kernel/event"
-	"github.com/ersinkoc/agezt/kernel/ulid"
+	"github.com/agezt/agezt/kernel/bus"
+	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/ulid"
 )
 
 // Decision is the operator's verdict on a pending Request.
@@ -38,8 +38,8 @@ type Decision string
 const (
 	DecisionGrant   Decision = "grant"
 	DecisionDeny    Decision = "deny"
-	DecisionTimeout Decision = "timeout"  // synthesised when DefaultTimeout fires
-	DecisionCancel  Decision = "cancel"   // synthesised when caller ctx is cancelled
+	DecisionTimeout Decision = "timeout" // synthesised when DefaultTimeout fires
+	DecisionCancel  Decision = "cancel"  // synthesised when caller ctx is cancelled
 )
 
 // IsTerminal reports whether d is a final outcome (any of the four).
@@ -269,13 +269,13 @@ func (r *Registry) publishRequested(req Request) {
 		Actor:         actorOr(req.Actor, "approval"),
 		CorrelationID: req.CorrelationID,
 		Payload: map[string]any{
-			"approval_id":   req.ID,
-			"capability":    req.Capability,
-			"tool_name":     req.ToolName,
-			"input":         req.Input,
-			"reason":        req.Reason,
-			"timeout_unix":  req.Timeout.Unix(),
-			"created_unix":  req.CreatedAt.Unix(),
+			"approval_id":  req.ID,
+			"capability":   req.Capability,
+			"tool_name":    req.ToolName,
+			"input":        req.Input,
+			"reason":       req.Reason,
+			"timeout_unix": req.Timeout.Unix(),
+			"created_unix": req.CreatedAt.Unix(),
 		},
 	})
 }

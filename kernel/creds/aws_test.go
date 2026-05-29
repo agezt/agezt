@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ersinkoc/agezt/kernel/creds"
+	"github.com/agezt/agezt/kernel/creds"
 )
 
 // TestAWSSharedCredentialsLookup_ReadsCredentialsFile verifies the

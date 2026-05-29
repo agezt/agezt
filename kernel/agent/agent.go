@@ -19,8 +19,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/ersinkoc/agezt/kernel/bus"
-	"github.com/ersinkoc/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/bus"
+	"github.com/agezt/agezt/kernel/event"
 )
 
 // Role is the canonical conversation role.
@@ -93,7 +93,7 @@ const (
 
 // CompletionResponse is what a Provider returns from Complete.
 type CompletionResponse struct {
-	Message    Message    // role=assistant; may contain ToolCalls
+	Message    Message // role=assistant; may contain ToolCalls
 	StopReason StopReason
 	Usage      Usage
 }

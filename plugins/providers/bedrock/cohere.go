@@ -42,7 +42,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/ersinkoc/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/agent"
 )
 
 type cohereBedrockRequest struct {

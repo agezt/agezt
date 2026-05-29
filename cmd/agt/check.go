@@ -13,11 +13,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ersinkoc/agezt/internal/brand"
-	"github.com/ersinkoc/agezt/kernel/agent"
-	"github.com/ersinkoc/agezt/kernel/catalog"
-	"github.com/ersinkoc/agezt/kernel/creds"
-	"github.com/ersinkoc/agezt/plugins/providers/compat"
+	"github.com/agezt/agezt/internal/brand"
+	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/catalog"
+	"github.com/agezt/agezt/kernel/creds"
+	"github.com/agezt/agezt/plugins/providers/compat"
 )
 
 // checkFlags is the parsed argv state for `agt provider check ...`.

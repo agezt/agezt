@@ -9,7 +9,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/ersinkoc/agezt/internal/brand"
+	"github.com/agezt/agezt/internal/brand"
 )
 
 // BaseDir returns the resolved Agezt base directory.

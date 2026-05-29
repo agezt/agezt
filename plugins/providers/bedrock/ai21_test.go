@@ -10,8 +10,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/ersinkoc/agezt/kernel/agent"
-	"github.com/ersinkoc/agezt/plugins/providers/bedrock"
+	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/plugins/providers/bedrock"
 )
 
 // TestComplete_AI21Jamba_HappyPath verifies the M1.tt-4 path:

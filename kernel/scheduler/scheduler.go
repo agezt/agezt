@@ -9,12 +9,12 @@
 // Two Node types ship in M1.e:
 //
 //   - LoopNode  — wraps one agent.Run; the existing tool-loop becomes
-//                 a single node, so a 1-node plan is identical to
-//                 today's `agt run` end-to-end.
+//     a single node, so a 1-node plan is identical to
+//     today's `agt run` end-to-end.
 //   - GateNode  — synchronously submits an approval.Request and
-//                 blocks until the operator decides (or the configured
-//                 timeout). A deny aborts the plan; a grant releases
-//                 the downstream branch.
+//     blocks until the operator decides (or the configured
+//     timeout). A deny aborts the plan; a grant releases
+//     the downstream branch.
 //
 // Future node types (per SPEC-02 §4.2): llm, tool, agent (parallel
 // sub-agent spawn), coding. The Node interface is intentionally narrow
@@ -36,9 +36,9 @@ import (
 
 	"maps"
 
-	"github.com/ersinkoc/agezt/kernel/bus"
-	"github.com/ersinkoc/agezt/kernel/event"
-	"github.com/ersinkoc/agezt/kernel/ulid"
+	"github.com/agezt/agezt/kernel/bus"
+	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/ulid"
 )
 
 // DefaultMaxParallel is the bounded worker pool size when Plan.MaxParallel

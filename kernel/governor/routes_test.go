@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ersinkoc/agezt/kernel/agent"
-	"github.com/ersinkoc/agezt/kernel/governor"
+	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/governor"
 )
 
 // TestParseTaskRoutesEnv_Basic covers the happy-path of the env
@@ -70,10 +70,10 @@ func TestParseTaskRoutesEnv_Empty(t *testing.T) {
 // misconfiguration surfaces at daemon startup rather than silently.
 func TestParseTaskRoutesEnv_BadEntry(t *testing.T) {
 	cases := []string{
-		"plan",            // missing '='
-		"plan=foo;bare",   // second entry malformed
-		"=foo",            // empty key
-		"   =foo",         // whitespace-only key
+		"plan",          // missing '='
+		"plan=foo;bare", // second entry malformed
+		"=foo",          // empty key
+		"   =foo",       // whitespace-only key
 	}
 	for _, c := range cases {
 		_, err := governor.ParseTaskRoutesEnv(c)

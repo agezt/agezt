@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ersinkoc/agezt/kernel/creds"
+	"github.com/agezt/agezt/kernel/creds"
 )
 
 func TestStore_LoadMissingFileIsEmpty(t *testing.T) {

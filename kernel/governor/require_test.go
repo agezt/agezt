@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ersinkoc/agezt/kernel/agent"
-	"github.com/ersinkoc/agezt/kernel/governor"
+	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/governor"
 )
 
 // TestGovernor_TaskRouteRequire_RestrictsChain: when require is

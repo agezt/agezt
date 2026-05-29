@@ -10,12 +10,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ersinkoc/agezt/kernel/agent"
-	"github.com/ersinkoc/agezt/kernel/bus"
-	"github.com/ersinkoc/agezt/kernel/event"
-	"github.com/ersinkoc/agezt/kernel/journal"
-	"github.com/ersinkoc/agezt/plugins/providers/mock"
-	"github.com/ersinkoc/agezt/plugins/tools/shell"
+	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/bus"
+	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/journal"
+	"github.com/agezt/agezt/plugins/providers/mock"
+	"github.com/agezt/agezt/plugins/tools/shell"
 )
 
 func newTestBus(t *testing.T) (*bus.Bus, *journal.Journal) {
@@ -303,11 +303,11 @@ func (r *repeatingToolUseProvider) Complete(_ context.Context, _ agent.Completio
 // loop's streaming dispatch. It feeds a pre-set sequence of text
 // fragments through onChunk and returns the assembled response.
 type streamProv struct {
-	chunks      []string
-	stopReason  agent.StopReason
-	gotInvoked  bool
-	gotIter     int
-	chunkErr    error // when non-nil, returned from onChunk on first call
+	chunks     []string
+	stopReason agent.StopReason
+	gotInvoked bool
+	gotIter    int
+	chunkErr   error // when non-nil, returned from onChunk on first call
 }
 
 func (p *streamProv) Name() string { return "stream-mock" }

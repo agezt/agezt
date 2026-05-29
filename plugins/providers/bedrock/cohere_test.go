@@ -10,8 +10,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/ersinkoc/agezt/kernel/agent"
-	"github.com/ersinkoc/agezt/plugins/providers/bedrock"
+	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/plugins/providers/bedrock"
 )
 
 // TestComplete_CohereOnBedrock_HappyPath verifies the M1.tt-2
@@ -19,11 +19,11 @@ import (
 // → chat_history, system → preamble.
 func TestComplete_CohereOnBedrock_HappyPath(t *testing.T) {
 	var captured struct {
-		Message     string                   `json:"message"`
-		ChatHistory []map[string]any         `json:"chat_history"`
-		Preamble    string                   `json:"preamble"`
-		MaxTokens   int                      `json:"max_tokens"`
-		Extra       map[string]any           `json:"-"`
+		Message     string           `json:"message"`
+		ChatHistory []map[string]any `json:"chat_history"`
+		Preamble    string           `json:"preamble"`
+		MaxTokens   int              `json:"max_tokens"`
+		Extra       map[string]any   `json:"-"`
 	}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, _ := io.ReadAll(r.Body)

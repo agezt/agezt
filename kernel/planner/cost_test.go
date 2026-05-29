@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ersinkoc/agezt/kernel/planner"
+	"github.com/agezt/agezt/kernel/planner"
 )
 
 // fakeEstimator is a CostEstimator that returns input+output*2
@@ -70,10 +70,10 @@ func TestFormatUSD(t *testing.T) {
 		want string
 	}{
 		{0, "$0.0000"},
-		{1_000_000_000, "$1.0000"},   // $1 = 1e9 microcents
-		{500_000_000, "$0.5000"},     // 50¢
-		{1_234_500_000, "$1.2345"},   // $1.2345
-		{100_000, "$0.0001"},         // 0.01¢ rounded to display
+		{1_000_000_000, "$1.0000"}, // $1 = 1e9 microcents
+		{500_000_000, "$0.5000"},   // 50¢
+		{1_234_500_000, "$1.2345"}, // $1.2345
+		{100_000, "$0.0001"},       // 0.01¢ rounded to display
 	}
 	for _, c := range cases {
 		if got := planner.FormatUSD(c.mc); got != c.want {

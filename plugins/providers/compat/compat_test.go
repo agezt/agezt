@@ -17,9 +17,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ersinkoc/agezt/kernel/agent"
-	"github.com/ersinkoc/agezt/kernel/catalog"
-	"github.com/ersinkoc/agezt/plugins/providers/compat"
+	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/catalog"
+	"github.com/agezt/agezt/plugins/providers/compat"
 )
 
 // genTestVertexSA generates an RSA keypair and embeds it in a valid
@@ -38,12 +38,12 @@ func genTestVertexSA(t *testing.T, tokenURI string) []byte {
 	}
 	pemBytes := pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: pkcs8})
 	raw, err := json.Marshal(map[string]any{
-		"type":            "service_account",
-		"project_id":      "test-project",
-		"private_key":     string(pemBytes),
-		"private_key_id":  "test-kid",
-		"client_email":    "test@test-project.iam.gserviceaccount.com",
-		"token_uri":       tokenURI,
+		"type":           "service_account",
+		"project_id":     "test-project",
+		"private_key":    string(pemBytes),
+		"private_key_id": "test-kid",
+		"client_email":   "test@test-project.iam.gserviceaccount.com",
+		"token_uri":      tokenURI,
 	})
 	if err != nil {
 		t.Fatalf("marshal sa json: %v", err)
@@ -103,7 +103,7 @@ func newOpenAICatalogEntry(api string) *catalog.Provider {
 func TestBuild_AnthropicFamilyRoutesToAnthropicWire(t *testing.T) {
 	var seen struct {
 		method, url, apiKey, anthVer string
-		body                          map[string]any
+		body                         map[string]any
 	}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		seen.method = r.Method
@@ -134,7 +134,7 @@ func TestBuild_AnthropicFamilyRoutesToAnthropicWire(t *testing.T) {
 		t.Errorf("Name()=%q want catalog id 'anthropic'", prov.Name())
 	}
 	resp, err := prov.Complete(context.Background(), agent.CompletionRequest{
-		Model: "claude-opus-4-7",
+		Model:    "claude-opus-4-7",
 		Messages: []agent.Message{{Role: agent.RoleUser, Content: "ping"}},
 	})
 	if err != nil {
@@ -272,7 +272,7 @@ func TestBuild_OllamaFamilyRoutesToOllamaWire(t *testing.T) {
 				"role":    "assistant",
 				"content": "ok from ollama-compat",
 			},
-			"done":             true,
+			"done":              true,
 			"prompt_eval_count": 4,
 			"eval_count":        2,
 		})
@@ -397,7 +397,7 @@ func TestBuild_VertexFamilyRoutesToVertexWire(t *testing.T) {
 func TestBuild_VertexMissingCredsRefused(t *testing.T) {
 	entry := &catalog.Provider{
 		ID: "google-vertex", NPM: "@ai-sdk/google-vertex",
-		Env: []string{"GOOGLE_VERTEX_PROJECT", "GOOGLE_VERTEX_LOCATION", "GOOGLE_APPLICATION_CREDENTIALS"},
+		Env:    []string{"GOOGLE_VERTEX_PROJECT", "GOOGLE_VERTEX_LOCATION", "GOOGLE_APPLICATION_CREDENTIALS"},
 		Models: map[string]*catalog.Model{"gemini-1.5-flash": {ID: "gemini-1.5-flash"}},
 	}
 	// Only project set, no creds file path, no location.
@@ -487,7 +487,7 @@ func TestBuild_BedrockFamilyRoutesToBedrockWire(t *testing.T) {
 func TestBuild_BedrockMissingBearerTokenRefused(t *testing.T) {
 	entry := &catalog.Provider{
 		ID: "amazon-bedrock", NPM: "@ai-sdk/amazon-bedrock",
-		Env: []string{"AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_REGION", "AWS_BEARER_TOKEN_BEDROCK"},
+		Env:    []string{"AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_REGION", "AWS_BEARER_TOKEN_BEDROCK"},
 		Models: map[string]*catalog.Model{"anthropic.claude-opus-4-7": {ID: "anthropic.claude-opus-4-7"}},
 	}
 	// Only AWS_REGION set; no bearer token.
@@ -650,7 +650,7 @@ func TestBuild_AzureURLBuildsFromResourceWhenAPIEmpty(t *testing.T) {
 func TestBuild_AzureMissingApiKeyRefused(t *testing.T) {
 	entry := &catalog.Provider{
 		ID: "azure", NPM: "@ai-sdk/azure",
-		Env: []string{"AZURE_RESOURCE_NAME", "AZURE_API_KEY"},
+		Env:    []string{"AZURE_RESOURCE_NAME", "AZURE_API_KEY"},
 		Models: map[string]*catalog.Model{"d": {ID: "d"}},
 	}
 	// Only resource set, no API key.
@@ -1123,8 +1123,8 @@ func TestBuild_BedrockAdvertisesStreaming(t *testing.T) {
 func TestBuild_AnyOfCredentialsWorks(t *testing.T) {
 	entry := &catalog.Provider{
 		ID: "any-of-creds", NPM: "@ai-sdk/anthropic",
-		API: "http://example.invalid",
-		Env: []string{"FIRST_KEY", "SECOND_KEY", "THIRD_KEY"},
+		API:    "http://example.invalid",
+		Env:    []string{"FIRST_KEY", "SECOND_KEY", "THIRD_KEY"},
 		Models: map[string]*catalog.Model{"m": {ID: "m"}},
 	}
 	lookup := func(name string) string {

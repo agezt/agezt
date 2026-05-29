@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ersinkoc/agezt/kernel/plugin"
+	"github.com/agezt/agezt/kernel/plugin"
 )
 
 // TestVerifyPin_HashMatch covers the happy path: hash the file,
@@ -125,9 +125,9 @@ func TestParsePinSpec_Basic(t *testing.T) {
 func TestParsePinSpec_RejectsBadFormat(t *testing.T) {
 	good := strings.Repeat("c", 64)
 	cases := []string{
-		"search",                          // no '='
-		"=" + good,                        // empty prefix
-		"search=notahash",                 // pin too short
+		"search",                            // no '='
+		"=" + good,                          // empty prefix
+		"search=notahash",                   // pin too short
 		"search=" + strings.Repeat("z", 64), // pin not hex
 	}
 	for _, c := range cases {

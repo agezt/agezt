@@ -14,7 +14,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/ersinkoc/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/agent"
 )
 
 // CompleteStream implements agent.StreamingProvider for Bedrock's

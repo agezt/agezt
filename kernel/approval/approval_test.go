@@ -10,10 +10,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ersinkoc/agezt/kernel/approval"
-	"github.com/ersinkoc/agezt/kernel/bus"
-	"github.com/ersinkoc/agezt/kernel/event"
-	"github.com/ersinkoc/agezt/kernel/journal"
+	"github.com/agezt/agezt/kernel/approval"
+	"github.com/agezt/agezt/kernel/bus"
+	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/journal"
 )
 
 func newBus(t *testing.T) (*bus.Bus, *journal.Journal) {

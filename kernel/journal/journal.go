@@ -27,8 +27,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ersinkoc/agezt/kernel/event"
-	"github.com/ersinkoc/agezt/kernel/ulid"
+	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/ulid"
 )
 
 // DefaultSegmentBytes is the default rotation threshold (DECISIONS D1).
@@ -52,10 +52,10 @@ type Options struct {
 
 // Journal owns the on-disk event log under a single directory.
 type Journal struct {
-	dir       string
-	segBytes  int64
-	now       func() time.Time
-	idGen     func() string
+	dir      string
+	segBytes int64
+	now      func() time.Time
+	idGen    func() string
 
 	mu       sync.Mutex
 	nextSeq  int64

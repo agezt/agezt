@@ -11,8 +11,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ersinkoc/agezt/kernel/agent"
-	"github.com/ersinkoc/agezt/plugins/providers/bedrock"
+	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/plugins/providers/bedrock"
 )
 
 // TestComplete_MistralOnBedrockChatResponse covers the M1.tt

@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ersinkoc/agezt/internal/brand"
-	"github.com/ersinkoc/agezt/internal/paths"
+	"github.com/agezt/agezt/internal/brand"
+	"github.com/agezt/agezt/internal/paths"
 )
 
 // TestBaseDir_HonoursEnvOverride proves the AGEZT_HOME env var

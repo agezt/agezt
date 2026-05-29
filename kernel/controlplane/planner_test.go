@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ersinkoc/agezt/kernel/controlplane"
-	"github.com/ersinkoc/agezt/plugins/providers/mock"
+	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/plugins/providers/mock"
 )
 
 // TestPlanGenerate_StreamsValidPlan exercises the round-trip:

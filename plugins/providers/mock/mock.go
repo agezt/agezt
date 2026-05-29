@@ -10,7 +10,7 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/ersinkoc/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/agent"
 )
 
 // Provider replays a scripted sequence of completion responses. Useful for

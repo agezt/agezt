@@ -25,7 +25,7 @@
 // purpose-built shape so the CLI binary stays small.)
 package controlplane
 
-import "github.com/ersinkoc/agezt/kernel/event"
+import "github.com/agezt/agezt/kernel/event"
 
 // Command names supported by the control plane.
 const (
@@ -129,6 +129,17 @@ const (
 	//             sorted by prefix.
 	//   - count   : int
 	CmdPluginList = "plugin_list"
+
+	// CmdShutdown asks the daemon to exit gracefully. Same effect as
+	// SIGTERM but reachable from any host that holds a valid control-
+	// plane token — the gap that motivates this command is scripted
+	// / CI workflows that need to stop the daemon without a shell on
+	// the host (`pkill agezt` doesn't compose well in CI YAML; this
+	// does). Handler writes `{ok:true}` first, then signals the
+	// daemon's main loop to unblock and shut down after a short
+	// delay so the client read completes before the process exits.
+	// No args.
+	CmdShutdown = "shutdown"
 )
 
 // Request is the wire shape sent by the client.

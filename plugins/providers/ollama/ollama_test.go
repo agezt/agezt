@@ -12,7 +12,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ersinkoc/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/agent"
 )
 
 func TestComplete_HappyPath_TextOnly(t *testing.T) {

@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ersinkoc/agezt/kernel/agent"
-	"github.com/ersinkoc/agezt/plugins/providers/openai"
+	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/plugins/providers/openai"
 )
 
 func TestComplete_TextResponse(t *testing.T) {
@@ -104,7 +104,7 @@ func TestComplete_ToolCalls(t *testing.T) {
 	p := openai.New("sk-test")
 	p.Endpoint = srv.URL
 	resp, err := p.Complete(context.Background(), agent.CompletionRequest{
-		Model: "gpt-4o-mini",
+		Model:    "gpt-4o-mini",
 		Messages: []agent.Message{{Role: agent.RoleUser, Content: "list files"}},
 		Tools: []agent.ToolDef{{
 			Name:        "shell",

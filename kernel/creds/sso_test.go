@@ -15,7 +15,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ersinkoc/agezt/kernel/creds"
+	"github.com/agezt/agezt/kernel/creds"
 )
 
 func writeSSOToken(t *testing.T, cacheDir, startURL string, token string, expires time.Time) {

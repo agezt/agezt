@@ -24,7 +24,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/ersinkoc/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/agent"
 )
 
 const (
@@ -141,23 +141,23 @@ func (p *Provider) Complete(ctx context.Context, req agent.CompletionRequest) (*
 // ----- dialect translation -----
 
 type ollamaRequest struct {
-	Model    string              `json:"model"`
-	Stream   bool                `json:"stream"`
-	Messages []ollamaMessage     `json:"messages"`
-	Tools    []ollamaTool        `json:"tools,omitempty"`
-	Options  map[string]any      `json:"options,omitempty"`
+	Model    string          `json:"model"`
+	Stream   bool            `json:"stream"`
+	Messages []ollamaMessage `json:"messages"`
+	Tools    []ollamaTool    `json:"tools,omitempty"`
+	Options  map[string]any  `json:"options,omitempty"`
 }
 
 type ollamaMessage struct {
-	Role       string                `json:"role"`
-	Content    string                `json:"content"`
-	ToolCalls  []ollamaToolCall      `json:"tool_calls,omitempty"`
-	ToolCallID string                `json:"tool_call_id,omitempty"`
+	Role       string           `json:"role"`
+	Content    string           `json:"content"`
+	ToolCalls  []ollamaToolCall `json:"tool_calls,omitempty"`
+	ToolCallID string           `json:"tool_call_id,omitempty"`
 }
 
 type ollamaToolCall struct {
-	ID       string                  `json:"id,omitempty"`
-	Function ollamaToolCallFn        `json:"function"`
+	ID       string           `json:"id,omitempty"`
+	Function ollamaToolCallFn `json:"function"`
 }
 
 type ollamaToolCallFn struct {
@@ -177,10 +177,10 @@ type ollamaToolFunction struct {
 }
 
 type ollamaResponse struct {
-	Model      string         `json:"model"`
-	Message    ollamaMessage  `json:"message"`
-	Done       bool           `json:"done"`
-	DoneReason string         `json:"done_reason"`
+	Model      string        `json:"model"`
+	Message    ollamaMessage `json:"message"`
+	Done       bool          `json:"done"`
+	DoneReason string        `json:"done_reason"`
 	// Usage-ish fields. Names vary by version; we read what's there.
 	PromptEvalCount int `json:"prompt_eval_count"`
 	EvalCount       int `json:"eval_count"`

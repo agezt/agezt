@@ -138,7 +138,7 @@ beats vigilance.
 
 ```
 go test ./plugins/providers/vertex/ -v -count=1
-ok  	github.com/ersinkoc/agezt/plugins/providers/vertex	0.833s
+ok  	github.com/agezt/agezt/plugins/providers/vertex	0.833s
 
 go test ./... -count=1
 (all packages PASS)

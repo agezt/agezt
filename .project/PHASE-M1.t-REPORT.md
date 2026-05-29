@@ -165,8 +165,8 @@ go test ./plugins/providers/bedrock/ -v -count=1 -run "Stream"
 --- PASS  (and 9 others)
 
 go test ./... -count=1
-ok      github.com/ersinkoc/agezt/plugins/providers/bedrock    0.342s
-ok      github.com/ersinkoc/agezt/plugins/providers/compat     0.525s
+ok      github.com/agezt/agezt/plugins/providers/bedrock    0.342s
+ok      github.com/agezt/agezt/plugins/providers/compat     0.525s
 (all packages PASS)
 ```
 

@@ -42,7 +42,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/ersinkoc/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/agent"
 )
 
 // TaskType is the per-task-type routing hint (M1.cc) the planner

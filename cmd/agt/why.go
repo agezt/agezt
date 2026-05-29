@@ -9,8 +9,8 @@ import (
 	"io"
 	"time"
 
-	"github.com/ersinkoc/agezt/internal/brand"
-	"github.com/ersinkoc/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/internal/brand"
+	"github.com/agezt/agezt/kernel/controlplane"
 )
 
 // cmdWhy implements `agt why <event_id> [--json|--payload]`.
@@ -20,13 +20,16 @@ import (
 // task get to step N?".
 //
 // --json    dumps the full events array verbatim, suitable for
-//           piping into jq or a teammate ("share the full chain
-//           that led to this failure"). Includes every field
-//           in *event.Event including payloads.
+//
+//	piping into jq or a teammate ("share the full chain
+//	that led to this failure"). Includes every field
+//	in *event.Event including payloads.
+//
 // --payload renders each event human-readable but inlines the
-//           payload JSON pretty-printed; useful for eyeballing
-//           the tool call/result bodies without leaving the
-//           terminal. AND-composes with --json (--json wins).
+//
+//	payload JSON pretty-printed; useful for eyeballing
+//	the tool call/result bodies without leaving the
+//	terminal. AND-composes with --json (--json wins).
 func cmdWhy(args []string, stdout, stderr io.Writer) int {
 	asJSON := false
 	withPayload := false

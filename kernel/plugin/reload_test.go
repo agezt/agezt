@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ersinkoc/agezt/kernel/plugin"
+	"github.com/agezt/agezt/kernel/plugin"
 )
 
 // TestPlugin_Reload_SwapsChildInPlace verifies that after Reload

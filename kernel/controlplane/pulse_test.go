@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ersinkoc/agezt/kernel/controlplane"
-	"github.com/ersinkoc/agezt/kernel/event"
-	"github.com/ersinkoc/agezt/plugins/providers/mock"
+	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/plugins/providers/mock"
 )
 
 // TestPulse_StreamsEvents verifies the happy path: subscribe with
@@ -100,9 +100,9 @@ func TestPulse_FiltersByKind(t *testing.T) {
 	defer cancel()
 
 	var (
-		mu      sync.Mutex
-		kinds   []event.Kind
-		anyEv   = make(chan struct{}, 1)
+		mu       sync.Mutex
+		kinds    []event.Kind
+		anyEv    = make(chan struct{}, 1)
 		signaled bool
 	)
 	errCh := make(chan error, 1)

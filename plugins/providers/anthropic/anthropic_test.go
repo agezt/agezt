@@ -12,7 +12,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ersinkoc/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/agent"
 )
 
 func TestComplete_NoAPIKey(t *testing.T) {
@@ -88,7 +88,8 @@ func TestComplete_ToolUseResponse(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	p := New("k"); p.Endpoint = srv.URL
+	p := New("k")
+	p.Endpoint = srv.URL
 	resp, err := p.Complete(context.Background(), agent.CompletionRequest{
 		Messages: []agent.Message{{Role: agent.RoleUser, Content: "list files"}},
 	})
@@ -120,7 +121,8 @@ func TestComplete_APIError(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	p := New("k"); p.Endpoint = srv.URL
+	p := New("k")
+	p.Endpoint = srv.URL
 	_, err := p.Complete(context.Background(), agent.CompletionRequest{
 		Messages: []agent.Message{{Role: agent.RoleUser, Content: "x"}},
 	})
@@ -176,10 +178,10 @@ func TestEncodeRequest_SystemFieldRespected(t *testing.T) {
 
 func TestDecodeResponse_MapsStopReasons(t *testing.T) {
 	cases := map[string]agent.StopReason{
-		"end_turn":     agent.StopEndTurn,
+		"end_turn":      agent.StopEndTurn,
 		"stop_sequence": agent.StopEndTurn,
-		"tool_use":     agent.StopToolUse,
-		"max_tokens":   agent.StopMaxTokens,
+		"tool_use":      agent.StopToolUse,
+		"max_tokens":    agent.StopMaxTokens,
 	}
 	for in, want := range cases {
 		raw := []byte(`{"id":"x","role":"assistant","content":[{"type":"text","text":""}],"stop_reason":"` + in + `","usage":{}}`)

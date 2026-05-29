@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ersinkoc/agezt/kernel/controlplane"
-	"github.com/ersinkoc/agezt/kernel/event"
-	"github.com/ersinkoc/agezt/plugins/providers/mock"
+	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/plugins/providers/mock"
 )
 
 // TestPulse_HistoricalReplay verifies that --since N delivers

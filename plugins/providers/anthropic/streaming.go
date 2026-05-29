@@ -13,7 +13,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/ersinkoc/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/agent"
 )
 
 // CompleteStream implements agent.StreamingProvider. It POSTs to the
@@ -128,24 +128,24 @@ func encodeStreamRequest(model, system string, msgs []agent.Message, tools []age
 // streamState accumulates everything we need to assemble the final
 // CompletionResponse as SSE frames arrive.
 type streamState struct {
-	textParts    strings.Builder
-	openBlock    *openBlock // currently-streaming block, if any
+	textParts     strings.Builder
+	openBlock     *openBlock // currently-streaming block, if any
 	finishedTools []agent.ToolCall
-	inputTokens  int
-	outputTokens int
-	stopReason   string
-	model        string
+	inputTokens   int
+	outputTokens  int
+	stopReason    string
+	model         string
 }
 
 // openBlock tracks a content block while its deltas stream in. For
 // text blocks textBuf collects the delta strings; for tool_use the
 // inputBuf collects the streamed JSON fragments.
 type openBlock struct {
-	kind      string // "text" or "tool_use"
-	toolID    string
-	toolName  string
-	textBuf   strings.Builder
-	inputBuf  strings.Builder
+	kind     string // "text" or "tool_use"
+	toolID   string
+	toolName string
+	textBuf  strings.Builder
+	inputBuf strings.Builder
 }
 
 // parseStream consumes an SSE response body until message_stop or

@@ -113,7 +113,7 @@ and the tier-internal order goes non-deterministic.
 
 ```
 go test ./... -count=1
-ok  	github.com/ersinkoc/agezt/kernel/governor	0.099s
+ok  	github.com/agezt/agezt/kernel/governor	0.099s
 ```
 
 Total suite: **431 passing** (from 427 after M1.r). +3 from the

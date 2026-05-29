@@ -7,9 +7,9 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/ersinkoc/agezt/kernel/agent"
-	"github.com/ersinkoc/agezt/kernel/approval"
-	"github.com/ersinkoc/agezt/kernel/bus"
+	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/approval"
+	"github.com/agezt/agezt/kernel/bus"
 )
 
 // LoopRunner is the kernel-side hook that runs one agent tool-loop end
@@ -23,10 +23,10 @@ type LoopRunner func(ctx context.Context, intent string, correlationID string) (
 // containing a single LoopNode is operationally identical to today's
 // `agt run "<intent>"`.
 type LoopNode struct {
-	NodeID   string
-	Intent   string
-	Deps     []string
-	Runner   LoopRunner
+	NodeID string
+	Intent string
+	Deps   []string
+	Runner LoopRunner
 	// IntentFn, if set, overrides Intent. The function receives the
 	// upstream Inputs so a downstream loop can react to upstream
 	// results (e.g. "given the research summary, do the work").

@@ -46,8 +46,8 @@ external dependencies — stdlib only ([POLICY §1](POLICY.md)).
 $ go version
 go version go1.26.3 windows/amd64
 
-$ go mod init github.com/ersinkoc/agezt
-go: creating new go.mod: module github.com/ersinkoc/agezt
+$ go mod init github.com/agezt/agezt
+go: creating new go.mod: module github.com/agezt/agezt
 
 $ go run ./tools/jsonschemagen \
     -in .project/agezt-contract.jsonc \
@@ -59,11 +59,11 @@ $ go vet ./...
 (no output)
 
 $ go test ./...
-ok  github.com/ersinkoc/agezt/cmd/agt            0.160s
-ok  github.com/ersinkoc/agezt/cmd/agezt         0.148s
-?   github.com/ersinkoc/agezt/contract/gen       [no test files]
-ok  github.com/ersinkoc/agezt/internal/brand     0.164s
-ok  github.com/ersinkoc/agezt/tools/jsonschemagen 0.164s
+ok  github.com/agezt/agezt/cmd/agt            0.160s
+ok  github.com/agezt/agezt/cmd/agezt         0.148s
+?   github.com/agezt/agezt/contract/gen       [no test files]
+ok  github.com/agezt/agezt/internal/brand     0.164s
+ok  github.com/agezt/agezt/tools/jsonschemagen 0.164s
 
 $ go build -trimpath -ldflags='-s -w' -o bin/ ./cmd/...
 $ ls -la bin/
@@ -77,7 +77,7 @@ $ ./bin/agt --version
 agt 0.0.0-m0 (protocol v1)
 
 $ cat go.mod
-module github.com/ersinkoc/agezt
+module github.com/agezt/agezt
 go 1.26.3
 
 $ cat go.sum

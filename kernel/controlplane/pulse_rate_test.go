@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ersinkoc/agezt/kernel/controlplane"
-	"github.com/ersinkoc/agezt/kernel/event"
-	"github.com/ersinkoc/agezt/plugins/providers/mock"
+	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/plugins/providers/mock"
 )
 
 // TestPulse_ReplayRate_PacesEvents verifies that --replay-rate
@@ -47,10 +47,10 @@ func TestPulse_ReplayRate_PacesEvents(t *testing.T) {
 	go func() {
 		errCh <- c.StreamUntilCancel(ctx, controlplane.CmdPulseSubscribe,
 			map[string]any{
-				"pattern":      ">",
-				"since":        0,
-				"until":        head,
-				"replay_rate":  20.0, // events/sec
+				"pattern":     ">",
+				"since":       0,
+				"until":       head,
+				"replay_rate": 20.0, // events/sec
 			},
 			func(e *event.Event) {
 				if e.IsEphemeral() {

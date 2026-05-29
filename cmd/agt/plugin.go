@@ -10,9 +10,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ersinkoc/agezt/internal/brand"
-	"github.com/ersinkoc/agezt/kernel/controlplane"
-	"github.com/ersinkoc/agezt/kernel/plugin"
+	"github.com/agezt/agezt/internal/brand"
+	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/plugin"
 )
 
 // cmdPlugin dispatches `agt plugin <subcommand>`. M1.ff adds one

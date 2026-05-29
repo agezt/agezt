@@ -35,7 +35,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/ersinkoc/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/agent"
 )
 
 const (
@@ -97,12 +97,12 @@ func (p *Provider) ResolveAnthropicStreamEndpoint(model string) string {
 // ----- wire types (Anthropic Messages API shape, no `model` field) -----
 
 type anthVertexRequest struct {
-	AnthropicVersion string             `json:"anthropic_version"`
-	MaxTokens        int                `json:"max_tokens"`
-	System           string             `json:"system,omitempty"`
-	Messages         []anthVxMessage    `json:"messages"`
-	Tools            []anthVxTool       `json:"tools,omitempty"`
-	Stream           bool               `json:"stream,omitempty"`
+	AnthropicVersion string          `json:"anthropic_version"`
+	MaxTokens        int             `json:"max_tokens"`
+	System           string          `json:"system,omitempty"`
+	Messages         []anthVxMessage `json:"messages"`
+	Tools            []anthVxTool    `json:"tools,omitempty"`
+	Stream           bool            `json:"stream,omitempty"`
 }
 
 type anthVxTool struct {

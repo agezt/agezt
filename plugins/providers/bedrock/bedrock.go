@@ -38,7 +38,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ersinkoc/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/agent"
 )
 
 const (
@@ -313,11 +313,11 @@ func (p *Provider) Complete(ctx context.Context, req agent.CompletionRequest) (*
 // independent of the direct-Anthropic adapter's evolution.
 
 type anthBedrockRequest struct {
-	AnthropicVersion string             `json:"anthropic_version"`
-	MaxTokens        int                `json:"max_tokens"`
-	System           string             `json:"system,omitempty"`
-	Messages         []anthMessage      `json:"messages"`
-	Tools            []anthTool         `json:"tools,omitempty"`
+	AnthropicVersion string        `json:"anthropic_version"`
+	MaxTokens        int           `json:"max_tokens"`
+	System           string        `json:"system,omitempty"`
+	Messages         []anthMessage `json:"messages"`
+	Tools            []anthTool    `json:"tools,omitempty"`
 }
 
 type anthTool struct {

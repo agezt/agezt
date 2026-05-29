@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ersinkoc/agezt/plugins/tools/browser"
+	"github.com/agezt/agezt/plugins/tools/browser"
 )
 
 // ---- HTMLToText unit tests ----

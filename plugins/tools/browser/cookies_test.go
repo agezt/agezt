@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ersinkoc/agezt/plugins/tools/browser"
+	"github.com/agezt/agezt/plugins/tools/browser"
 )
 
 // TestBrowser_CookiesPersistAcrossInvokes: a server that sets a

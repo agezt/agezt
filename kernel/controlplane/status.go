@@ -14,7 +14,7 @@ import (
 	"net"
 	"time"
 
-	"github.com/ersinkoc/agezt/internal/brand"
+	"github.com/agezt/agezt/internal/brand"
 )
 
 func (s *Server) handleStatus(conn net.Conn, req Request) {

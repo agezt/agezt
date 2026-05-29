@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ersinkoc/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/event"
 )
 
 func newTestJournal(t *testing.T, segBytes int64) *Journal {

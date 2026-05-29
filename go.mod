@@ -1,4 +1,4 @@
-module github.com/ersinkoc/agezt
+module github.com/agezt/agezt
 
 go 1.26.3
 

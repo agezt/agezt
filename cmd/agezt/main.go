@@ -31,25 +31,25 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/ersinkoc/agezt/internal/brand"
-	"github.com/ersinkoc/agezt/internal/paths"
-	"github.com/ersinkoc/agezt/kernel/agent"
-	"github.com/ersinkoc/agezt/kernel/catalog"
-	"github.com/ersinkoc/agezt/kernel/controlplane"
-	"github.com/ersinkoc/agezt/kernel/creds"
-	"github.com/ersinkoc/agezt/kernel/edict"
-	"github.com/ersinkoc/agezt/kernel/event"
-	"github.com/ersinkoc/agezt/kernel/governor"
-	kernelruntime "github.com/ersinkoc/agezt/kernel/runtime"
-	"github.com/ersinkoc/agezt/kernel/warden"
-	"github.com/ersinkoc/agezt/plugins/providers/anthropic"
-	"github.com/ersinkoc/agezt/plugins/providers/compat"
-	"github.com/ersinkoc/agezt/plugins/providers/mock"
-	"github.com/ersinkoc/agezt/kernel/plugin"
-	"github.com/ersinkoc/agezt/plugins/tools/browser"
-	filetool "github.com/ersinkoc/agezt/plugins/tools/file"
-	httptool "github.com/ersinkoc/agezt/plugins/tools/http"
-	"github.com/ersinkoc/agezt/plugins/tools/shell"
+	"github.com/agezt/agezt/internal/brand"
+	"github.com/agezt/agezt/internal/paths"
+	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/catalog"
+	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/creds"
+	"github.com/agezt/agezt/kernel/edict"
+	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/governor"
+	"github.com/agezt/agezt/kernel/plugin"
+	kernelruntime "github.com/agezt/agezt/kernel/runtime"
+	"github.com/agezt/agezt/kernel/warden"
+	"github.com/agezt/agezt/plugins/providers/anthropic"
+	"github.com/agezt/agezt/plugins/providers/compat"
+	"github.com/agezt/agezt/plugins/providers/mock"
+	"github.com/agezt/agezt/plugins/tools/browser"
+	filetool "github.com/agezt/agezt/plugins/tools/file"
+	httptool "github.com/agezt/agezt/plugins/tools/http"
+	"github.com/agezt/agezt/plugins/tools/shell"
 )
 
 func main() {
@@ -264,8 +264,17 @@ func runDaemon(stdout, stderr io.Writer) int {
 
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
-	<-sig
-	fmt.Fprintf(stdout, "\n%s: shutting down...\n", brand.Binary)
+	// Also block on the control-plane's shutdown channel so `agt
+	// shutdown` reaches the same orderly exit path as SIGTERM. The
+	// CmdShutdown handler ACKs the client first, then closes this
+	// channel; main() unblocks here and drops into the existing
+	// halt-then-exit sequence.
+	select {
+	case s := <-sig:
+		fmt.Fprintf(stdout, "\n%s: shutting down (signal=%v)...\n", brand.Binary, s)
+	case <-srv.Shutdown():
+		fmt.Fprintf(stdout, "\n%s: shutting down (requested via %s shutdown)...\n", brand.Binary, brand.CLI)
+	}
 	cancel()
 	// Give in-flight runs a moment to react to halt.
 	deadline := time.Now().Add(2 * time.Second)
@@ -425,11 +434,11 @@ func buildGovernor(cat *catalog.Catalog, lookup func(string) string) (*governor.
 //  1. AGEZT_PROVIDER=mock        → fixture (bypasses catalog).
 //  2. AGEZT_PROVIDER=<catalog id> → look up in cat; compat.Build it.
 //  3. AGEZT_PROVIDER unset       → auto-pick: first catalog provider
-//                                   that (a) is in a compat-supported
-//                                   family and (b) has credentials.
-//                                   If none, fall back to mock with a
-//                                   stderr note so the operator knows
-//                                   the catalog wasn't usable.
+//     that (a) is in a compat-supported
+//     family and (b) has credentials.
+//     If none, fall back to mock with a
+//     stderr note so the operator knows
+//     the catalog wasn't usable.
 //
 // The model id within a chosen provider comes from AGEZT_MODEL when
 // set; otherwise compat.FirstModelID picks the alphabetically-first

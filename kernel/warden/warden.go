@@ -41,8 +41,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ersinkoc/agezt/kernel/bus"
-	"github.com/ersinkoc/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/bus"
+	"github.com/agezt/agezt/kernel/event"
 )
 
 // Profile is one of the four named isolation modes from SPEC-06 §2.
@@ -210,8 +210,8 @@ type engine struct {
 	// mu guards downgradeWarned so we only journal one downgrade event
 	// per (requested-profile) per process lifetime — repeated tool
 	// calls don't spam the journal with identical warnings.
-	mu               sync.Mutex
-	downgradeWarned  map[Profile]struct{}
+	mu              sync.Mutex
+	downgradeWarned map[Profile]struct{}
 }
 
 // New constructs the default engine. b may be nil for tests; events are
@@ -228,10 +228,10 @@ func (e *engine) SetBus(b *bus.Bus) { e.bus = b }
 
 // EffectiveProfile reports what a request for p resolves to *today*.
 //
-// - On non-Linux hosts: everything downgrades to ProfileNone (M1.c).
-// - On Linux (M1.d): ProfileNamespace stays as-is and engages the
-//   rlimit + Setpgid hardening in warden_linux.go. Container and
-//   MicroVM still downgrade to Namespace (next-best available).
+//   - On non-Linux hosts: everything downgrades to ProfileNone (M1.c).
+//   - On Linux (M1.d): ProfileNamespace stays as-is and engages the
+//     rlimit + Setpgid hardening in warden_linux.go. Container and
+//     MicroVM still downgrade to Namespace (next-best available).
 //
 // The platform split is in resolveEffectiveProfile (defined per-OS).
 func (e *engine) EffectiveProfile(p Profile) Profile {

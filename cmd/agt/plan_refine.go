@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ersinkoc/agezt/internal/brand"
-	"github.com/ersinkoc/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/internal/brand"
+	"github.com/agezt/agezt/kernel/controlplane"
 )
 
 // cmdPlanRefine implements `agt plan refine <file.json> --feedback "..."`.

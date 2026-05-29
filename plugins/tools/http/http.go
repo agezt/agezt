@@ -27,7 +27,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ersinkoc/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/agent"
 )
 
 // DefaultTimeout caps a single request.
@@ -171,13 +171,13 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, e
 	}
 
 	out := map[string]any{
-		"status":     resp.StatusCode,
+		"status":      resp.StatusCode,
 		"status_text": resp.Status,
-		"headers":    flattenHeaders(resp.Header),
-		"body":       string(body),
-		"body_bytes": len(body),
-		"truncated":  truncated,
-		"final_url":  resp.Request.URL.String(),
+		"headers":     flattenHeaders(resp.Header),
+		"body":        string(body),
+		"body_bytes":  len(body),
+		"truncated":   truncated,
+		"final_url":   resp.Request.URL.String(),
 	}
 	enc, err := json.MarshalIndent(out, "", "  ")
 	if err != nil {

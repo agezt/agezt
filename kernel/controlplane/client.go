@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ersinkoc/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/event"
 )
 
 // Client connects to a running agezt daemon's control plane.

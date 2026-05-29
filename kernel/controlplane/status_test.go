@@ -6,10 +6,10 @@ import (
 	"context"
 	"testing"
 
-	"github.com/ersinkoc/agezt/internal/brand"
-	"github.com/ersinkoc/agezt/kernel/controlplane"
-	"github.com/ersinkoc/agezt/kernel/event"
-	"github.com/ersinkoc/agezt/plugins/providers/mock"
+	"github.com/agezt/agezt/internal/brand"
+	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/plugins/providers/mock"
 )
 
 // TestStatus_ReturnsExpectedShape asserts the wire fields the

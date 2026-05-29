@@ -7,10 +7,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ersinkoc/agezt/kernel/agent"
-	"github.com/ersinkoc/agezt/kernel/controlplane"
-	"github.com/ersinkoc/agezt/kernel/governor"
-	"github.com/ersinkoc/agezt/plugins/providers/mock"
+	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/governor"
+	"github.com/agezt/agezt/plugins/providers/mock"
 )
 
 // makeGovernor builds a Governor wrapped around the mock provider

@@ -24,8 +24,8 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/ersinkoc/agezt/kernel/agent"
-	"github.com/ersinkoc/agezt/kernel/warden"
+	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/warden"
 )
 
 // DefaultTimeout caps a single command's wall time when the model

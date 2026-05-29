@@ -27,7 +27,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/ersinkoc/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/agent"
 )
 
 // MaxReadBytes caps how much of a single file the tool will return so a

@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ersinkoc/agezt/kernel/creds/sigv4"
+	"github.com/agezt/agezt/kernel/creds/sigv4"
 )
 
 // TestSignRequest_ServiceScopedCorrectly is the load-bearing test

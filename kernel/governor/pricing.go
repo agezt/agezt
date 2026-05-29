@@ -6,7 +6,7 @@ import (
 	"strings"
 	"sync/atomic"
 
-	"github.com/ersinkoc/agezt/kernel/catalog"
+	"github.com/agezt/agezt/kernel/catalog"
 )
 
 // Pricing tables. All values in USD-microcents per million tokens

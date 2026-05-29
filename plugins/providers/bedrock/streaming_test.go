@@ -14,8 +14,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ersinkoc/agezt/kernel/agent"
-	"github.com/ersinkoc/agezt/plugins/providers/bedrock"
+	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/plugins/providers/bedrock"
 )
 
 // ---- event-stream framing helpers (synthesize what AWS would send) ----
@@ -404,8 +404,8 @@ func TestCompleteStream_RejectsNonStringHeader(t *testing.T) {
 	name := ":custom"
 	hdr.WriteByte(byte(len(name)))
 	hdr.WriteString(name)
-	hdr.WriteByte(8)                          // type 8 = timestamp
-	hdr.Write(make([]byte, 8))                // 8-byte body
+	hdr.WriteByte(8)           // type 8 = timestamp
+	hdr.Write(make([]byte, 8)) // 8-byte body
 	hdrBytes := hdr.Bytes()
 	payload := []byte("{}")
 	totalLen := uint32(12 + len(hdrBytes) + len(payload) + 4)

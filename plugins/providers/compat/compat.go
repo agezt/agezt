@@ -57,15 +57,15 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/ersinkoc/agezt/kernel/agent"
-	"github.com/ersinkoc/agezt/kernel/catalog"
-	"github.com/ersinkoc/agezt/plugins/providers/anthropic"
-	"github.com/ersinkoc/agezt/plugins/providers/bedrock"
-	"github.com/ersinkoc/agezt/plugins/providers/cohere"
-	"github.com/ersinkoc/agezt/plugins/providers/google"
-	"github.com/ersinkoc/agezt/plugins/providers/ollama"
-	"github.com/ersinkoc/agezt/plugins/providers/openai"
-	"github.com/ersinkoc/agezt/plugins/providers/vertex"
+	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/catalog"
+	"github.com/agezt/agezt/plugins/providers/anthropic"
+	"github.com/agezt/agezt/plugins/providers/bedrock"
+	"github.com/agezt/agezt/plugins/providers/cohere"
+	"github.com/agezt/agezt/plugins/providers/google"
+	"github.com/agezt/agezt/plugins/providers/ollama"
+	"github.com/agezt/agezt/plugins/providers/openai"
+	"github.com/agezt/agezt/plugins/providers/vertex"
 )
 
 // ErrFamilyUnsupported is returned by Build when the catalog entry's
@@ -89,7 +89,7 @@ type CredLookup func(name string) string
 //
 //   - p:          a catalog.Provider (typically from Kernel.Catalog())
 //   - modelID:    the model the agent loop will pass in
-//                 CompletionRequest.Model. Must exist in p.Models.
+//     CompletionRequest.Model. Must exist in p.Models.
 //   - lookup:     credential resolver; nil is treated as "no creds set"
 //
 // Returns (provider, modelID-used, error). The returned Provider's

@@ -7,7 +7,7 @@ import (
 	"encoding/json"
 	"net"
 
-	"github.com/ersinkoc/agezt/kernel/planner"
+	"github.com/agezt/agezt/kernel/planner"
 )
 
 // handlePlanGenerate calls planner.Generate with the daemon's

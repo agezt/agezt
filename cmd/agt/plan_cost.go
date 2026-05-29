@@ -8,9 +8,9 @@ import (
 	"io"
 	"os"
 
-	"github.com/ersinkoc/agezt/internal/brand"
-	"github.com/ersinkoc/agezt/kernel/governor"
-	"github.com/ersinkoc/agezt/kernel/planner"
+	"github.com/agezt/agezt/internal/brand"
+	"github.com/agezt/agezt/kernel/governor"
+	"github.com/agezt/agezt/kernel/planner"
 )
 
 // cmdPlanCost implements `agt plan cost <file.json> --model <id>`.

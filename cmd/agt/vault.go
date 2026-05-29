@@ -8,9 +8,9 @@ import (
 	"os"
 	"strings"
 
-	"github.com/ersinkoc/agezt/internal/brand"
-	"github.com/ersinkoc/agezt/internal/paths"
-	"github.com/ersinkoc/agezt/kernel/creds"
+	"github.com/agezt/agezt/internal/brand"
+	"github.com/agezt/agezt/internal/paths"
+	"github.com/agezt/agezt/kernel/creds"
 )
 
 // cmdVault dispatches `agt vault <subcommand>`. M1.w added three;

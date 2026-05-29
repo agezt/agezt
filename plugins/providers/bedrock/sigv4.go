@@ -23,7 +23,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ersinkoc/agezt/kernel/creds/sigv4"
+	"github.com/agezt/agezt/kernel/creds/sigv4"
 )
 
 // SigV4Creds is the bedrock-package alias for sigv4.Creds.

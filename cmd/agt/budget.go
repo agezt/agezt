@@ -9,8 +9,8 @@ import (
 	"io"
 	"time"
 
-	"github.com/ersinkoc/agezt/internal/brand"
-	"github.com/ersinkoc/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/internal/brand"
+	"github.com/agezt/agezt/kernel/controlplane"
 )
 
 // cmdBudget implements `agt budget` and `agt budget --json`.
@@ -120,4 +120,3 @@ func pct(spent, cap int64) string {
 	}
 	return fmt.Sprintf("%d", spent*100/cap)
 }
-

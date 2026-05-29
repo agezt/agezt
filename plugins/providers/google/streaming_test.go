@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ersinkoc/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/agent"
 )
 
 // sampleGeminiTextStream is a representative text-only SSE response.

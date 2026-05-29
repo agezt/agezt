@@ -15,8 +15,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ersinkoc/agezt/kernel/agent"
-	"github.com/ersinkoc/agezt/kernel/plugin"
+	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/plugin"
 )
 
 var (

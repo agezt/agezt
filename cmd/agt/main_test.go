@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ersinkoc/agezt/internal/brand"
+	"github.com/agezt/agezt/internal/brand"
 )
 
 func TestRunVersion(t *testing.T) {

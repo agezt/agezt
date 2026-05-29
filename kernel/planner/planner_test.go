@@ -7,9 +7,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ersinkoc/agezt/kernel/agent"
-	"github.com/ersinkoc/agezt/kernel/planner"
-	"github.com/ersinkoc/agezt/plugins/providers/mock"
+	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/planner"
+	"github.com/agezt/agezt/plugins/providers/mock"
 )
 
 // fencedJSON wraps a JSON object in the ```json fence the planner

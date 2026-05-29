@@ -28,7 +28,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ersinkoc/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/agent"
 )
 
 const (
@@ -194,20 +194,20 @@ type oaMessage struct {
 }
 
 type oaToolCall struct {
-	ID       string           `json:"id"`
-	Type     string           `json:"type"`
-	Function oaToolCallFn     `json:"function"`
+	ID       string       `json:"id"`
+	Type     string       `json:"type"`
+	Function oaToolCallFn `json:"function"`
 }
 
 type oaToolCallFn struct {
-	Name      string `json:"name"`
+	Name string `json:"name"`
 	// OpenAI passes arguments as a JSON-encoded string, not a nested object.
 	Arguments string `json:"arguments"`
 }
 
 type oaTool struct {
-	Type     string       `json:"type"`
-	Function oaToolFnDef  `json:"function"`
+	Type     string      `json:"type"`
+	Function oaToolFnDef `json:"function"`
 }
 
 type oaToolFnDef struct {

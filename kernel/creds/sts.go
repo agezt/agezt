@@ -51,7 +51,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ersinkoc/agezt/kernel/creds/sigv4"
+	"github.com/agezt/agezt/kernel/creds/sigv4"
 )
 
 // AssumeRoleParams configures a single AssumeRole call. Region is
@@ -68,9 +68,11 @@ type AssumeRoleParams struct {
 	ExternalID      string // optional; only when the role's trust policy demands one
 
 	// Test seams. Production callers leave these nil/empty.
-	Endpoint string                                  // override STS endpoint; default https://sts.{region}.amazonaws.com/
-	HTTP     interface{ Do(*http.Request) (*http.Response, error) }
-	Now      func() time.Time
+	Endpoint string // override STS endpoint; default https://sts.{region}.amazonaws.com/
+	HTTP     interface {
+		Do(*http.Request) (*http.Response, error)
+	}
+	Now func() time.Time
 }
 
 // AssumedCreds is the result of a successful AssumeRole call. It
