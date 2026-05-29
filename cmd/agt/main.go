@@ -89,6 +89,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return cmdState(args[1:], stdout, stderr)
 	case "runs":
 		return cmdRuns(args[1:], stdout, stderr)
+	case "config":
+		return cmdConfig(args[1:], stdout, stderr)
 	default:
 		fmt.Fprintf(stderr, "%s: unknown command %q\n", brand.CLI, args[0])
 		printHelp(stderr)
@@ -147,6 +149,7 @@ func printHelp(w io.Writer) {
 	fmt.Fprintf(w, "  state get <namespace> <key> [--json]  read one state value (exit 3 = absent)\n")
 	fmt.Fprintf(w, "  runs list [N] [--json]                list the last N agent runs (task-level summary)\n")
 	fmt.Fprintf(w, "  runs show <correlation> [--json]      render one run as a task arc\n")
+	fmt.Fprintf(w, "  config show [--json]                  daemon's resolved config (paths, model, env presence)\n")
 	fmt.Fprintf(w, "  vault status                          show vault encryption state + path\n")
 	fmt.Fprintf(w, "  vault encrypt                         migrate plaintext vault to encrypted (set AGEZT_VAULT_PASSPHRASE)\n")
 	fmt.Fprintf(w, "  vault decrypt                         migrate encrypted vault back to plaintext\n")

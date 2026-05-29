@@ -221,6 +221,33 @@ const (
 	//   - found : bool — false when (ns, key) doesn't exist; value is null
 	CmdStateGet = "state_get"
 
+	// CmdConfig returns a snapshot of the daemon's effective config:
+	// resolved paths, model name, system-prompt presence (NOT
+	// content), inventory counts (tools, plugins), and which
+	// AGEZT_* env vars the operator has set. Closes the "what is
+	// this daemon ACTUALLY running with?" question that today
+	// requires reading the kernel's startup log line by line.
+	//
+	// Privacy: env-var values are NOT included — only presence
+	// (true/false). This matters for AGEZT_VAULT_PASSPHRASE,
+	// AGEZT_TASK_BUDGETS (which sometimes embed cost ceilings
+	// operators don't want to log), and AGEZT_PLUGIN_PINS (which
+	// embeds blake3 digests; surfacing them is fine but the
+	// blanket "presence-only" rule is simpler to reason about).
+	// system_prompt is reported as a bool for the same reason —
+	// the prompt body can contain proprietary instructions.
+	//
+	// No args. Returns:
+	//   - paths       : {base, journal, state, runtime, catalog, vault}
+	//   - model       : string (empty when using provider defaults)
+	//   - system_prompt_set : bool (NOT the content)
+	//   - tool_count  : int  — registered tools
+	//   - plugin_count: int  — external plugins spawned
+	//   - ask_policy  : string ("allow"|"deny"|"prompt")
+	//   - env         : {VARNAME: true} — only PRESENT vars listed
+	//                   (absent ones omitted to keep the map small)
+	CmdConfig = "config"
+
 	// CmdRunsList enumerates past agent runs by scanning the
 	// journal for task.received / task.completed pairs. Each
 	// task.received starts a "run"; the matching task.completed

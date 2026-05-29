@@ -298,6 +298,24 @@ func (k *Kernel) StartTime() time.Time { return k.startTime }
 // returns nil when no external plugins are configured.
 func (k *Kernel) Plugins() []PluginInfo { return k.cfg.Plugins }
 
+// BaseDir returns the kernel's base directory — the root under
+// which journal/, state/, runtime/, catalog/, and vault data
+// live. Used by `agt config show` to surface the resolved data
+// directory to operators (which can differ from $AGEZT_HOME
+// when the daemon was launched with a custom path).
+func (k *Kernel) BaseDir() string { return k.cfg.BaseDir }
+
+// Model returns the configured default model name. Empty when
+// the daemon uses provider defaults rather than an override.
+// Used by `agt config show`.
+func (k *Kernel) Model() string { return k.cfg.Model }
+
+// System returns the configured default system prompt. Empty
+// when none is set. Used by `agt config show` — but only to
+// report PRESENCE, not the prompt content (could contain
+// proprietary instructions).
+func (k *Kernel) System() string { return k.cfg.System }
+
 // Catalog returns the currently-loaded provider/model catalog. The
 // returned pointer is the live snapshot; callers should treat it as
 // read-only and re-call after ReloadCatalog if they need fresh data.
