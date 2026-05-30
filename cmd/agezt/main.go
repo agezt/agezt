@@ -58,6 +58,7 @@ import (
 	"github.com/agezt/agezt/plugins/providers/anthropic"
 	"github.com/agezt/agezt/plugins/providers/compat"
 	"github.com/agezt/agezt/plugins/providers/mock"
+	"github.com/agezt/agezt/plugins/tools/acpagent"
 	"github.com/agezt/agezt/plugins/tools/browser"
 	"github.com/agezt/agezt/plugins/tools/coding"
 	filetool "github.com/agezt/agezt/plugins/tools/file"
@@ -1099,6 +1100,18 @@ func buildTools(baseDir string, stderr io.Writer, ward warden.Engine) (map[strin
 		if ct := coding.New(codingCmd, coding.AbsRepo(wsRoot)); ct != nil {
 			out["coding"] = ct
 			registered = append(registered, "coding(external agent)")
+		}
+	}
+
+	// acp_agent — external ACP-agent bridge (SPEC-15 §3, the inverse of `agt
+	// acp`). Registered only when AGEZT_ACP_AGENT_CMD is set (the command that
+	// launches an external agent speaking the Agent Client Protocol over stdio,
+	// e.g. `claude-code-acp` or `codex acp`). It drives that agent over JSON-RPC
+	// and relays its answer. Off by default.
+	if acpCmd := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "ACP_AGENT_CMD")); acpCmd != "" {
+		if at := acpagent.New(acpCmd, acpagent.AbsCwd(wsRoot)); at != nil {
+			out["acp_agent"] = at
+			registered = append(registered, "acp_agent(external agent)")
 		}
 	}
 

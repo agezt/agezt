@@ -12,6 +12,17 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **ACP-agent bridge** — the `acp_agent` tool (SPEC-15 §3, the inverse of the
+  `agt acp` server): delegates a task to an *external* agent that speaks the
+  Agent Client Protocol (Claude Code, Codex, Gemini CLI, or any command via
+  `AGEZT_ACP_AGENT_CMD`). It spawns the agent as a subprocess and drives it over
+  JSON-RPC 2.0 on stdio — `initialize` → `session/new` → `session/prompt` —
+  relaying the agent's streamed `agent_message_chunk` updates back as the tool
+  result. The new `kernel/acp` `Client` is transport-agnostic (round-trip tested
+  against the real `Server` over pipes); the bridge's spawn path is proven by a
+  live test that drives a genuine ACP subprocess end to end. Gated by a new Edict
+  `acp_agent` capability (Ask-first — the external agent acts in its own
+  sandbox). Off unless `AGEZT_ACP_AGENT_CMD` is set.
 - **Coding-agent bridge** — the `coding` tool (ROADMAP P6-CODE, SPEC-04 §4):
   delegates a coding task to an external coding agent (Claude Code, Codex, Aider,
   or any command via `AGEZT_CODING_CMD`) running in an **isolated git worktree**

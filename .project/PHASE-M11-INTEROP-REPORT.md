@@ -99,11 +99,14 @@ id, a streamed chunk from a real journaled run, and `stopReason: end_turn`.
                                                  ├▶ kernel tool-loop ─▶ Edict ─▶ journal
    agt run / Telegram / Web UI ─────────────────┘        │
                                                  lead agent ──delegate──▶ sub-agent (own loop)
+                                                          │ ──acp_agent──▶ external ACP agent (subprocess)
+                                                          │ ──coding─────▶ external coding agent (worktree)
    provider import ─▶ vault ─▶ Governor routes ──▶ every provider family
 ```
 
-Every inbound path funnels through the one governed loop; no surface is a
-side-door around Edict or the journal.
+Every inbound path funnels through the one governed loop; and every outbound
+delegation (sub-agent, ACP agent, coding agent) is dispatched *from* that loop
+through Edict — no surface is a side-door around Edict or the journal.
 
 ## Engineering
 
@@ -117,8 +120,6 @@ side-door around Edict or the journal.
 
 ## Deferred (named, not forgotten)
 
-- **ACP client** — driving *external* ACP agents from a Agezt node (the inverse
-  of the server). A focused follow-on now that the coding bridge exists.
 - **OpenAI `/v1/responses`** and native REST/webhooks (P7-API-02 remainder).
 
 ## Follow-up shipped (same milestone)
@@ -143,6 +144,21 @@ side-door around Edict or the journal.
   so the orchestration is unit-tested deterministically, and a git-guarded live
   test proves real worktree isolation + diff capture against actual git. The
   external coding CLIs bind by config; the bridge mechanism is what shipped.
+
+- **ACP client / `acp_agent` bridge** (SPEC-15 §3, the inverse of the server) —
+  Agezt can now *drive* external ACP agents, not just be driven. A new
+  transport-agnostic `kernel/acp.Client` speaks the client side of the protocol
+  (`initialize` → `session/new` → `session/prompt`, consuming `session/update`
+  notifications); the `acp_agent` in-process tool spawns an operator-configured
+  external ACP agent (`AGEZT_ACP_AGENT_CMD` — Claude Code / Codex / Gemini CLI /
+  any) as a subprocess and relays its streamed answer back into the run. SPEC-15
+  §3 is now bidirectional on one substrate: the same `kernel/acp` package is both
+  the server an IDE drives and the client that drives other agents. Gated
+  Ask-first by a new Edict `acp_agent` capability (the external agent acts in its
+  own sandbox). **Proven:** the `Client` round-trips against the real `Server`
+  over pipes (both wire directions), the bridge relays a streamed answer from a
+  real `acp.Server` peer, and a live test drives a genuine ACP **subprocess** end
+  to end (`initialize`/`new`/`prompt` over real stdio).
 
 These are the next reachable steps toward the full vision; the substrate they
 build on shipped here.

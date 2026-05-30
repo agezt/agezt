@@ -11,10 +11,11 @@ providers (proven end-to-end), sandboxed tools, Telegram, Pulse, the
 memory / world-model / skills / reflection cognitive loop, and a Web UI —
 all journaled, content-addressed, and reversible. Since the MVP (M11):
 any **OpenAI client or IDE** can drive it (OpenAI-compatible `/v1` API +
-an **ACP** server), agents **delegate** to bounded sub-agents, and
-`agt provider import` brings every key you already have online in one pass.
+an **ACP** server), agents **delegate** to bounded sub-agents and to
+**external ACP agents** (Claude Code / Codex / …), and `agt provider import`
+brings every key you already have online in one pass.
 See [CHANGELOG.md](CHANGELOG.md).
-**Tests:** 1021 passing across 50 packages.
+**Tests:** 1030 passing across 51 packages.
 **Dependencies:** one (`lukechampine.com/blake3`) + one transitive.
 
 ## What you get
@@ -48,10 +49,11 @@ agt approvals --json                                           — HITL queue (m
 with **9 provider families** (Anthropic, OpenAI + ~11 compatibles, Google
 direct + Vertex, Cohere, Mistral, Ollama, AWS Bedrock with bearer +
 SigV4 + STS-AssumeRole + SSO, Azure OpenAI) with **per-request model routing**
-(a request's `model` selects its provider), **all streaming**, **8 in-process
+(a request's `model` selects its provider), **all streaming**, **9 in-process
 tools** (`shell`, `file`, `http`, `browser.read`, plus `memory`, `world`,
-`delegate` for sub-agent fan-out, and `coding` for worktree-isolated external
-coding agents), an **OpenAI-compatible `/v1` API** and an **ACP server** so any
+`delegate` for sub-agent fan-out, `coding` for worktree-isolated external
+coding agents, and `acp_agent` to drive external ACP agents), an
+**OpenAI-compatible `/v1` API** and an **ACP server** so any
 OpenAI client or IDE can drive it,
 **out-of-process plugins** in any language over a tiny JSON protocol
 (with **hot-reload**, **BLAKE3 pin gating**, **tool allowlists**,
@@ -192,6 +194,10 @@ The v1 substrate. Highlights:
 - `coding` — delegate a coding task to an external agent (Claude Code / Codex /
   Aider / any command) in an isolated git worktree; returns the diff, never
   merges. Off unless `AGEZT_CODING_CMD` is set
+- `acp_agent` — delegate a task to an external agent over the Agent Client
+  Protocol (Claude Code / Codex / Gemini CLI / any ACP agent), spawned over
+  stdio and driven via JSON-RPC; relays its answer. Off unless
+  `AGEZT_ACP_AGENT_CMD` is set
 
 **External plugins** (`plugins/external/`)
 - `mcpbridge` — Model Context Protocol bridge, both stdio and HTTP+SSE
@@ -204,7 +210,7 @@ The v1 substrate. Highlights:
 ## Verify
 
 ```bash
-make test     # 1021 tests, all green
+make test     # 1030 tests, all green
 make build    # produces bin/agezt + bin/agt
 make gen      # regenerate SDK types from the contract
 ```

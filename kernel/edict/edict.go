@@ -51,6 +51,10 @@ const (
 	// writes files, so it is Ask-first by default — but the change lands only
 	// in a throwaway worktree and is returned as a diff, never merged.
 	CapCoding Capability = "coding"
+	// CapACPAgent gates the `acp_agent` tool (delegate to an external agent over
+	// the Agent Client Protocol, SPEC-15 §3). It spawns an external agent that
+	// can act in its own sandbox, so it is Ask-first by default like coding.
+	CapACPAgent Capability = "acp_agent"
 )
 
 // TrustLevel encodes the trust ladder (DECISIONS F3).
@@ -236,6 +240,7 @@ func DefaultLevels() map[Capability]TrustLevel {
 		CapProviderCall: LevelAllow,    // governed by budget, not Edict
 		CapDelegate:     LevelAllow,    // sub-agent spawn; its tool calls are gated individually
 		CapCoding:       LevelAskFirst, // external coding agent; isolated to a worktree, returns a diff
+		CapACPAgent:     LevelAskFirst, // external ACP agent; runs in its own sandbox, returns its answer
 	}
 }
 
