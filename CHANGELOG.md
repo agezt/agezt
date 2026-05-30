@@ -12,6 +12,16 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Coding-agent bridge** — the `coding` tool (ROADMAP P6-CODE, SPEC-04 §4):
+  delegates a coding task to an external coding agent (Claude Code, Codex, Aider,
+  or any command via `AGEZT_CODING_CMD`) running in an **isolated git worktree**
+  off the current HEAD, captures the resulting diff, and returns it for review.
+  It never commits to, merges, or force-pushes the working branch — applying the
+  diff is a separate operator-approved step (§4.3 escalation). The task is passed
+  in `$AGEZT_CODING_TASK` (no shell-quoting of model output); the worktree is
+  removed afterward. Gated by a new Edict `coding` capability (Ask-first). Off
+  unless `AGEZT_CODING_CMD` is set. Proven live against real git: a stub agent's
+  new file is captured as a diff while the working repo stays untouched.
 - **Cross-provider model routing** (SPEC-15 §1) — the daemon now registers
   *every* credentialed + supported catalog provider (not just the primary), each
   carrying the model ids it serves; the Governor routes a request naming a model

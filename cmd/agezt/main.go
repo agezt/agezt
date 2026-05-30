@@ -59,6 +59,7 @@ import (
 	"github.com/agezt/agezt/plugins/providers/compat"
 	"github.com/agezt/agezt/plugins/providers/mock"
 	"github.com/agezt/agezt/plugins/tools/browser"
+	"github.com/agezt/agezt/plugins/tools/coding"
 	filetool "github.com/agezt/agezt/plugins/tools/file"
 	httptool "github.com/agezt/agezt/plugins/tools/http"
 	"github.com/agezt/agezt/plugins/tools/shell"
@@ -1088,6 +1089,17 @@ func buildTools(baseDir string, stderr io.Writer, ward warden.Engine) (map[strin
 		registered = append(registered, "browser.read(allow_all=true)")
 	} else {
 		registered = append(registered, fmt.Sprintf("browser.read(hosts=%d)", len(br.AllowedHosts)))
+	}
+
+	// coding — external coding-agent bridge (P6-CODE). Registered only when
+	// AGEZT_CODING_CMD is set (the command that runs Claude Code / Codex / Aider
+	// / any agent). It operates on a git worktree of the workspace and returns a
+	// diff; it never merges. Off by default.
+	if codingCmd := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "CODING_CMD")); codingCmd != "" {
+		if ct := coding.New(codingCmd, coding.AbsRepo(wsRoot)); ct != nil {
+			out["coding"] = ct
+			registered = append(registered, "coding(external agent)")
+		}
 	}
 
 	// External plugins via AGEZT_PLUGINS env var (M1.y). Format:

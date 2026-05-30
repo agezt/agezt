@@ -39,6 +39,8 @@ func CapabilityForToolCall(toolName string, input json.RawMessage) Capability {
 		return Capability("file." + p.Op)
 	case "delegate":
 		return CapDelegate
+	case "coding":
+		return CapCoding
 	case "http":
 		var p struct {
 			Method string `json:"method"`

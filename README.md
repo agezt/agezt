@@ -185,6 +185,9 @@ The v1 substrate. Highlights:
 - `browser.read` — fetch + HTML→text extraction, opt-in cookie jar
 - `delegate` — spawn a bounded sub-agent for a focused subtask (multi-agent
   fan-out); depth-bounded, journaled, each sub-action gated through Edict
+- `coding` — delegate a coding task to an external agent (Claude Code / Codex /
+  Aider / any command) in an isolated git worktree; returns the diff, never
+  merges. Off unless `AGEZT_CODING_CMD` is set
 
 **External plugins** (`plugins/external/`)
 - `mcpbridge` — Model Context Protocol bridge, both stdio and HTTP+SSE

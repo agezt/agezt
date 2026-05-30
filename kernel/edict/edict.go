@@ -46,6 +46,11 @@ const (
 	// effect of its own; the sub-agent's actual tool calls are each gated
 	// through this same engine, so safety is enforced where the action happens.
 	CapDelegate Capability = "delegate"
+	// CapCoding gates the `coding` tool (delegate to an external coding agent
+	// in an isolated git worktree, P6-CODE). It runs an external process that
+	// writes files, so it is Ask-first by default — but the change lands only
+	// in a throwaway worktree and is returned as a diff, never merged.
+	CapCoding Capability = "coding"
 )
 
 // TrustLevel encodes the trust ladder (DECISIONS F3).
@@ -230,6 +235,7 @@ func DefaultLevels() map[Capability]TrustLevel {
 		CapHTTPPost:     LevelAsk,      // L1
 		CapProviderCall: LevelAllow,    // governed by budget, not Edict
 		CapDelegate:     LevelAllow,    // sub-agent spawn; its tool calls are gated individually
+		CapCoding:       LevelAskFirst, // external coding agent; isolated to a worktree, returns a diff
 	}
 }
 
