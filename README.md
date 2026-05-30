@@ -15,7 +15,7 @@ an **ACP** server), agents **delegate** to bounded sub-agents and to
 **external ACP agents** (Claude Code / Codex / …), and `agt provider import`
 brings every key you already have online in one pass.
 See [CHANGELOG.md](CHANGELOG.md).
-**Tests:** 1030 passing across 51 packages.
+**Tests:** 1037 passing across 51 packages.
 **Dependencies:** one (`lukechampine.com/blake3`) + one transitive.
 
 ## What you get
@@ -108,10 +108,11 @@ bound and token-authed.
 
 **Drive Agezt from any OpenAI client.** Set `AGEZT_API_ADDR=127.0.0.1:8799` and
 the daemon serves an OpenAI-compatible API (`POST /v1/chat/completions`,
-`GET /v1/models`) — point any OpenAI SDK/IDE at it with the printed Bearer
-token. Every request runs the full agent loop through Edict + the journal (not
-a raw passthrough), and the response carries an `agezt_correlation_id` you can
-`agt why`:
+`POST /v1/responses`, `GET /v1/models`) — point any OpenAI SDK/IDE at it with
+the printed Bearer token. Both the Chat Completions and the newer Responses API
+shapes are supported (streaming + non-streaming). Every request runs the full
+agent loop through Edict + the journal (not a raw passthrough), and the response
+carries an `agezt_correlation_id` you can `agt why`:
 
 ```bash
 curl http://127.0.0.1:8799/v1/chat/completions \
@@ -210,7 +211,7 @@ The v1 substrate. Highlights:
 ## Verify
 
 ```bash
-make test     # 1030 tests, all green
+make test     # 1037 tests, all green
 make build    # produces bin/agezt + bin/agt
 make gen      # regenerate SDK types from the contract
 ```

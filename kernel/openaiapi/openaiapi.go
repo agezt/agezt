@@ -60,6 +60,7 @@ func New(eng Engine, b *bus.Bus, token string) *Server {
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/v1/chat/completions", s.auth(s.handleChat))
+	mux.HandleFunc("/v1/responses", s.auth(s.handleResponses))
 	mux.HandleFunc("/v1/models", s.auth(s.handleModels))
 	return mux
 }

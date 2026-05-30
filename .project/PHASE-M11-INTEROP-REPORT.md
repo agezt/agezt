@@ -120,7 +120,8 @@ through Edict — no surface is a side-door around Edict or the journal.
 
 ## Deferred (named, not forgotten)
 
-- **OpenAI `/v1/responses`** and native REST/webhooks (P7-API-02 remainder).
+- **Native REST / webhooks** (P7-API-02 remainder) — a first-party (non-OpenAI)
+  HTTP surface and outbound webhooks.
 
 ## Follow-up shipped (same milestone)
 
@@ -159,6 +160,19 @@ through Edict — no surface is a side-door around Edict or the journal.
   over pipes (both wire directions), the bridge relays a streamed answer from a
   real `acp.Server` peer, and a live test drives a genuine ACP **subprocess** end
   to end (`initialize`/`new`/`prompt` over real stdio).
+
+- **OpenAI Responses API** (`POST /v1/responses`, P7-API-02) — the newer OpenAI
+  surface, served beside `/v1/chat/completions` on the same resident. A string or
+  message-array `input` plus top-level `instructions` collapse into one intent
+  through the *same* governed loop (it reuses `intentFromMessages`, so the
+  mapping and tests stay shared); non-streaming returns a `response` object, and
+  streaming emits the Responses event sequence (`response.created` →
+  `response.output_text.delta` → `…done` → `response.completed`) mapped from the
+  kernel's `llm.token` events. Same auth, loopback binding, and
+  `agezt_correlation_id`. **Proven:** non-streaming output/usage shape, the
+  `instructions` + typed-array `input` flattening, the full streaming event
+  sequence, and the non-streaming-provider single-delta fallback — all against
+  the fake engine on a real bus.
 
 These are the next reachable steps toward the full vision; the substrate they
 build on shipped here.

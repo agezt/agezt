@@ -12,6 +12,16 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **OpenAI Responses API** — `POST /v1/responses` (ROADMAP P7-API-02), alongside
+  the existing `/v1/chat/completions`, so clients on OpenAI's newer Responses
+  surface drive Agezt too. Accepts a string or message-array `input` plus
+  top-level `instructions`, which collapse into one Agezt intent through the same
+  governed kernel loop (Edict + journal + budget). Non-streaming returns a
+  `response` object (`output[].content[].output_text` + `output_text` +
+  `agezt_correlation_id`); streaming emits the Responses SSE event sequence
+  (`response.created` → `response.output_text.delta*` →
+  `response.output_text.done` → `response.completed`). Same resident, auth, and
+  loopback binding as the chat endpoint.
 - **ACP-agent bridge** — the `acp_agent` tool (SPEC-15 §3, the inverse of the
   `agt acp` server): delegates a task to an *external* agent that speaks the
   Agent Client Protocol (Claude Code, Codex, Gemini CLI, or any command via

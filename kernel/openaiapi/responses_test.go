@@ -1,0 +1,180 @@
+// SPDX-License-Identifier: MIT
+
+package openaiapi
+
+import (
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+)
+
+func TestResponses_NonStreaming(t *testing.T) {
+	eng := &fakeEngine{model: "m", answer: "the whole answer"}
+	s := newAPIServer(t, eng, "secret")
+	body := `{"model":"gpt-4o","input":"what is this?"}`
+	req := httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(body))
+	req.Header.Set("Authorization", "Bearer secret")
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	var out struct {
+		Object string `json:"object"`
+		Model  string `json:"model"`
+		Status string `json:"status"`
+		Output []struct {
+			Type    string `json:"type"`
+			Role    string `json:"role"`
+			Content []struct {
+				Type string `json:"type"`
+				Text string `json:"text"`
+			} `json:"content"`
+		} `json:"output"`
+		OutputText string `json:"output_text"`
+		Usage      struct {
+			InputTokens  int `json:"input_tokens"`
+			OutputTokens int `json:"output_tokens"`
+			TotalTokens  int `json:"total_tokens"`
+		} `json:"usage"`
+		Corr string `json:"agezt_correlation_id"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+		t.Fatal(err)
+	}
+	if out.Object != "response" || out.Model != "gpt-4o" || out.Status != "completed" {
+		t.Errorf("object=%q model=%q status=%q", out.Object, out.Model, out.Status)
+	}
+	if out.OutputText != "the whole answer" {
+		t.Errorf("output_text=%q", out.OutputText)
+	}
+	if len(out.Output) != 1 || out.Output[0].Role != "assistant" || out.Output[0].Type != "message" {
+		t.Fatalf("output = %+v", out.Output)
+	}
+	c := out.Output[0].Content
+	if len(c) != 1 || c[0].Type != "output_text" || c[0].Text != "the whole answer" {
+		t.Errorf("content = %+v", c)
+	}
+	if out.Usage.TotalTokens != out.Usage.InputTokens+out.Usage.OutputTokens || out.Usage.OutputTokens == 0 {
+		t.Errorf("usage = %+v", out.Usage)
+	}
+	if out.Corr == "" {
+		t.Error("expected agezt_correlation_id")
+	}
+	// Per-request model + verbatim intent reached the engine.
+	if eng.ranModel != "gpt-4o" {
+		t.Errorf("ranModel=%q want gpt-4o", eng.ranModel)
+	}
+	if eng.ranIntent != "what is this?" {
+		t.Errorf("intent=%q", eng.ranIntent)
+	}
+}
+
+func TestResponses_InstructionsAndArrayInput(t *testing.T) {
+	eng := &fakeEngine{model: "m", answer: "ok"}
+	s := newAPIServer(t, eng, "secret")
+	// instructions → system guidance; array input with typed parts.
+	body := `{
+		"instructions":"be terse",
+		"input":[
+			{"role":"user","content":[{"type":"input_text","text":"hello there"}]}
+		]
+	}`
+	req := httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(body))
+	req.Header.Set("Authorization", "Bearer secret")
+	s.Handler().ServeHTTP(httptest.NewRecorder(), req)
+
+	if !strings.HasPrefix(eng.ranIntent, "be terse") {
+		t.Errorf("instructions not surfaced as guidance: %q", eng.ranIntent)
+	}
+	if !strings.Contains(eng.ranIntent, "hello there") {
+		t.Errorf("array input text not flattened: %q", eng.ranIntent)
+	}
+}
+
+func TestResponses_Streaming(t *testing.T) {
+	eng := &fakeEngine{model: "m", answer: "hello world", tokens: []string{"hello", " world"}}
+	s := newAPIServer(t, eng, "secret")
+	body := `{"model":"m","stream":true,"input":"hi"}`
+	req := httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(body))
+	req.Header.Set("Authorization", "Bearer secret")
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status=%d", rec.Code)
+	}
+	if ct := rec.Header().Get("Content-Type"); !strings.HasPrefix(ct, "text/event-stream") {
+		t.Errorf("content-type=%q", ct)
+	}
+	out := rec.Body.String()
+	for _, want := range []string{
+		"event: response.created",
+		"event: response.output_text.delta",
+		`"delta":"hello"`,
+		`"delta":" world"`,
+		"event: response.output_text.done",
+		`"text":"hello world"`,
+		"event: response.completed",
+		"data: [DONE]",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("stream missing %q in:\n%s", want, out)
+		}
+	}
+}
+
+func TestResponses_StreamingNonStreamProviderEmitsAnswerOnce(t *testing.T) {
+	// No tokens streamed → the answer should arrive as a single delta.
+	eng := &fakeEngine{model: "m", answer: "single shot"}
+	s := newAPIServer(t, eng, "secret")
+	body := `{"stream":true,"input":"q"}`
+	req := httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(body))
+	req.Header.Set("Authorization", "Bearer secret")
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+	out := rec.Body.String()
+	if !strings.Contains(out, `"delta":"single shot"`) {
+		t.Errorf("non-streaming answer should be emitted as one delta:\n%s", out)
+	}
+	if !strings.Contains(out, `"text":"single shot"`) {
+		t.Errorf("output_text.done should carry the full answer:\n%s", out)
+	}
+}
+
+func TestResponses_RejectsGET(t *testing.T) {
+	eng := &fakeEngine{model: "m"}
+	s := newAPIServer(t, eng, "secret")
+	req := httptest.NewRequest(http.MethodGet, "/v1/responses?token=secret", nil)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusMethodNotAllowed {
+		t.Errorf("GET should be 405, got %d", rec.Code)
+	}
+}
+
+func TestResponses_EmptyInput(t *testing.T) {
+	eng := &fakeEngine{model: "m"}
+	s := newAPIServer(t, eng, "secret")
+	req := httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(`{"input":""}`))
+	req.Header.Set("Authorization", "Bearer secret")
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("empty input should be 400, got %d", rec.Code)
+	}
+}
+
+func TestResponses_AuthRequired(t *testing.T) {
+	eng := &fakeEngine{model: "m"}
+	s := newAPIServer(t, eng, "secret")
+	req := httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(`{"input":"hi"}`))
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Errorf("no token should be 401, got %d", rec.Code)
+	}
+}

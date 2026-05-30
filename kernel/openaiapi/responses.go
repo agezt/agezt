@@ -1,0 +1,250 @@
+// SPDX-License-Identifier: MIT
+
+package openaiapi
+
+import (
+	"encoding/json"
+	"net/http"
+	"strings"
+	"time"
+
+	"github.com/agezt/agezt/kernel/ulid"
+)
+
+// This file adds POST /v1/responses — OpenAI's newer Responses API surface
+// (alongside the Chat Completions API in openaiapi.go). It runs through the
+// exact same governed kernel loop; only the request/response shapes differ.
+//
+// Mapping: the Responses `input` (a plain string or an array of message items)
+// plus the top-level `instructions` collapse into one Agezt intent via the same
+// intentFromMessages used for chat. Streaming maps the kernel's llm.token events
+// to the Responses SSE event sequence (response.created →
+// response.output_text.delta* → response.output_text.done →
+// response.completed).
+
+type responsesRequest struct {
+	Model        string          `json:"model"`
+	Input        json.RawMessage `json:"input"`
+	Instructions string          `json:"instructions"`
+	Stream       bool            `json:"stream"`
+}
+
+func (s *Server) handleResponses(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.Header().Set("Allow", http.MethodPost)
+		writeErr(w, http.StatusMethodNotAllowed, "method_not_allowed", "POST required")
+		return
+	}
+	var req responsesRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeErr(w, http.StatusBadRequest, "invalid_request_error", "invalid JSON body: "+err.Error())
+		return
+	}
+	intent := intentFromResponsesInput(req)
+	if intent == "" {
+		writeErr(w, http.StatusBadRequest, "invalid_request_error", "no usable input content")
+		return
+	}
+	model := req.Model
+	if model == "" {
+		model = s.eng.DefaultModel()
+	}
+
+	if req.Stream {
+		s.streamResponses(w, r, intent, model)
+		return
+	}
+
+	corr := s.eng.NewCorrelation()
+	answer, err := s.eng.RunModel(r.Context(), corr, intent, model)
+	if err != nil {
+		writeErr(w, http.StatusBadGateway, "upstream_error", err.Error())
+		return
+	}
+	id := "resp_" + ulid.New()
+	writeJSON(w, http.StatusOK, responseObject(id, model, answer, intent, corr, "completed"))
+}
+
+// intentFromResponsesInput collapses a Responses request into one intent by
+// reusing the chat message machinery: `instructions` becomes a leading system
+// message; a string `input` becomes a single user turn; an array `input` is
+// parsed as message items (content parts like {type:"input_text",text} flatten
+// via chatMessage.text, which reads the text field regardless of the part type).
+func intentFromResponsesInput(req responsesRequest) string {
+	var msgs []chatMessage
+	if instr := strings.TrimSpace(req.Instructions); instr != "" {
+		msgs = append(msgs, chatMessage{Role: "system", Content: jsonString(instr)})
+	}
+	if len(req.Input) > 0 {
+		var asString string
+		if json.Unmarshal(req.Input, &asString) == nil {
+			msgs = append(msgs, chatMessage{Role: "user", Content: jsonString(asString)})
+		} else {
+			var items []chatMessage
+			if json.Unmarshal(req.Input, &items) == nil {
+				msgs = append(msgs, items...)
+			}
+		}
+	}
+	return intentFromMessages(msgs)
+}
+
+// responseObject builds a Responses API result object. status is "completed"
+// for a finished run; the output carries one assistant message with an
+// output_text content part, and output_text mirrors it for SDK convenience.
+func responseObject(id, model, answer, intent, corr, status string) map[string]any {
+	msgID := "msg_" + ulid.New()
+	return map[string]any{
+		"id":         id,
+		"object":     "response",
+		"created_at": time.Now().Unix(),
+		"model":      model,
+		"status":     status,
+		"output": []map[string]any{{
+			"id":   msgID,
+			"type": "message",
+			"role": "assistant",
+			"content": []map[string]any{{
+				"type":        "output_text",
+				"text":        answer,
+				"annotations": []any{},
+			}},
+		}},
+		"output_text": answer, // SDK convenience accessor
+		"usage":       responsesUsage(intent, answer),
+		// Agezt-specific: the correlation id so callers can `agt why` the run.
+		"agezt_correlation_id": corr,
+	}
+}
+
+// responsesUsage uses the Responses token field names (input_tokens /
+// output_tokens) rather than the chat ones.
+func responsesUsage(prompt, completion string) map[string]any {
+	p := len(strings.Fields(prompt))
+	c := len(strings.Fields(completion))
+	return map[string]any{
+		"input_tokens": p, "output_tokens": c, "total_tokens": p + c,
+	}
+}
+
+// streamResponses relays the run's llm.token events as the Responses SSE event
+// sequence. It subscribes BEFORE starting the run so no early token is missed
+// (the same no-race pattern as streamChat).
+func (s *Server) streamResponses(w http.ResponseWriter, r *http.Request, intent, model string) {
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		writeErr(w, http.StatusInternalServerError, "stream_unsupported", "streaming unsupported")
+		return
+	}
+	corr := s.eng.NewCorrelation()
+	sub, err := s.bus.Subscribe(s.eng.SubjectForRun(corr), 1024)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "subscribe_error", err.Error())
+		return
+	}
+	defer sub.Cancel()
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.WriteHeader(http.StatusOK)
+
+	respID := "resp_" + ulid.New()
+	msgID := "msg_" + ulid.New()
+	seq := 0
+	send := func(eventType string, payload map[string]any) {
+		payload["type"] = eventType
+		payload["sequence_number"] = seq
+		seq++
+		b, _ := json.Marshal(payload)
+		_, _ = w.Write([]byte("event: " + eventType + "\ndata: " + string(b) + "\n\n"))
+		flusher.Flush()
+	}
+
+	// response.created — a skeleton response, status in_progress.
+	send("response.created", map[string]any{
+		"response": map[string]any{
+			"id": respID, "object": "response", "model": model, "status": "in_progress",
+		},
+	})
+
+	type result struct {
+		answer string
+		err    error
+	}
+	done := make(chan result, 1)
+	go func() {
+		ans, err := s.eng.RunModel(r.Context(), corr, intent, model)
+		done <- result{ans, err}
+	}()
+
+	var full strings.Builder
+	emitDelta := func(txt string) {
+		if txt == "" {
+			return
+		}
+		full.WriteString(txt)
+		send("response.output_text.delta", map[string]any{
+			"item_id": msgID, "output_index": 0, "content_index": 0, "delta": txt,
+		})
+	}
+
+	ctx := r.Context()
+	finish := func(res result) {
+		// Drain any tokens still queued.
+		for drained := false; !drained; {
+			select {
+			case ev := <-sub.C:
+				emitDelta(tokenText(ev))
+			default:
+				drained = true
+			}
+		}
+		// If nothing streamed (non-streaming provider), emit the answer once.
+		if full.Len() == 0 && res.answer != "" {
+			emitDelta(res.answer)
+		}
+		send("response.output_text.done", map[string]any{
+			"item_id": msgID, "output_index": 0, "content_index": 0, "text": full.String(),
+		})
+		status := "completed"
+		if res.err != nil {
+			status = "failed"
+		}
+		final := responseObject(respID, model, full.String(), intent, corr, status)
+		if res.err != nil {
+			final["error"] = map[string]any{"message": res.err.Error(), "type": "upstream_error"}
+			send("response.failed", map[string]any{"response": final})
+		} else {
+			send("response.completed", map[string]any{"response": final})
+		}
+		_, _ = w.Write([]byte("data: [DONE]\n\n"))
+		flusher.Flush()
+	}
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case ev, ok := <-sub.C:
+			if !ok {
+				finish(result{answer: full.String()})
+				return
+			}
+			emitDelta(tokenText(ev))
+		case res := <-done:
+			finish(res)
+			return
+		}
+	}
+}
+
+// jsonString marshals s into a JSON string literal for use as chatMessage
+// content (a json.RawMessage holding a quoted string).
+func jsonString(s string) json.RawMessage {
+	b, err := json.Marshal(s)
+	if err != nil {
+		return json.RawMessage(`""`)
+	}
+	return b
+}

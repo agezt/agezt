@@ -360,9 +360,10 @@ func runDaemon(stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "  web ui           : disabled (set AGEZT_WEB_ADDR, e.g. 127.0.0.1:8787)\n")
 	}
 
-	// OpenAI-compatible API (P7-API-01) — POST /v1/chat/completions + GET
-	// /v1/models so any OpenAI client drives Agezt through the same tool-loop +
-	// Edict + journal. Off unless AGEZT_API_ADDR is set; loopback + token.
+	// OpenAI-compatible API (P7-API-01) — POST /v1/chat/completions,
+	// POST /v1/responses, and GET /v1/models so any OpenAI client drives Agezt
+	// through the same tool-loop + Edict + journal. Off unless AGEZT_API_ADDR is
+	// set; loopback + token.
 	if apiDesc := buildOpenAIAPI(ctx, k, stdout); apiDesc != "" {
 		fmt.Fprintf(stdout, "  openai api       : %s\n", apiDesc)
 	} else {
