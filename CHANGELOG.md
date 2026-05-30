@@ -12,6 +12,15 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **ACP server** — `agt acp` (SPEC-15 §3): an Agent Client Protocol server
+  speaking JSON-RPC 2.0 over stdio, so an IDE (Zed and other ACP clients) can
+  drive Agezt as an agent backend. Implements `initialize` / `session/new` /
+  `session/prompt` with streamed `session/update` (agent_message_chunk)
+  notifications. Each prompt is forwarded to the daemon as a normal governed
+  `run`, so it passes through the same tool-loop + Edict + journal — the editor
+  does not bypass governance (§3.3). The protocol core is transport- and
+  kernel-agnostic (a `Runner` interface), tested with a fake; the `agt acp`
+  bridge backs it with the control-plane streaming client.
 - **Multi-agent delegation** (ROADMAP P6-MULTI-01) — a `delegate` in-process
   tool lets a lead agent spawn a bounded sub-agent (its own tool-loop) for a
   focused subtask and get back a concise result; issuing several `delegate`
