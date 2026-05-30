@@ -363,6 +363,9 @@ const (
 	// CmdScheduleRun marks a schedule due immediately (fires on the next tick).
 	// Args: id (required). Returns: { triggered (bool) }
 	CmdScheduleRun = "schedule_run"
+	// CmdScheduleEnable enables or disables a schedule (pause/resume without
+	// deleting). Args: id (required), enabled (bool). Returns: { updated, enabled }
+	CmdScheduleEnable = "schedule_enable"
 
 	// World model (SPEC-05 §3). The journaled entity/relation graph behind
 	// `agt world`; writes go through the kernel's worldmodel.Graph so every

@@ -68,6 +68,48 @@ func TestScheduleAddListRemove(t *testing.T) {
 	}
 }
 
+func TestScheduleAddDailyAndPauseResume(t *testing.T) {
+	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	ctx := context.Background()
+
+	// Daily wall-clock schedule via at_minutes (09:30 = 570).
+	res, err := c.Call(ctx, controlplane.CmdScheduleAdd, map[string]any{
+		"intent": "morning brief", "at_minutes": 570,
+	})
+	if err != nil {
+		t.Fatalf("add daily: %v", err)
+	}
+	if res["mode"] != "daily" {
+		t.Errorf("mode = %v, want daily", res["mode"])
+	}
+	id, _ := res["id"].(string)
+
+	// Pause → enabled=false in the listing.
+	if _, err := c.Call(ctx, controlplane.CmdScheduleEnable, map[string]any{"id": id, "enabled": false}); err != nil {
+		t.Fatalf("pause: %v", err)
+	}
+	res, _ = c.Call(ctx, controlplane.CmdScheduleList, nil)
+	list, _ := res["schedules"].([]any)
+	m, _ := list[0].(map[string]any)
+	if m["enabled"] != false {
+		t.Errorf("paused entry should be disabled: %v", m["enabled"])
+	}
+	if m["cadence"] != "daily at 09:30" {
+		t.Errorf("cadence = %v", m["cadence"])
+	}
+
+	// Resume.
+	if _, err := c.Call(ctx, controlplane.CmdScheduleEnable, map[string]any{"id": id, "enabled": true}); err != nil {
+		t.Fatalf("resume: %v", err)
+	}
+	res, _ = c.Call(ctx, controlplane.CmdScheduleList, nil)
+	list, _ = res["schedules"].([]any)
+	m, _ = list[0].(map[string]any)
+	if m["enabled"] != true {
+		t.Errorf("resumed entry should be enabled")
+	}
+}
+
 func TestScheduleAddValidates(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 	ctx := context.Background()

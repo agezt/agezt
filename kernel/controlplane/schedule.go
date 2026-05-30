@@ -20,14 +20,22 @@ func (s *Server) handleScheduleAdd(conn net.Conn, req Request) {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.intent required"})
 		return
 	}
-	sec, _ := req.Args["interval_sec"].(float64) // JSON numbers decode to float64
-	if sec < 1 {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.interval_sec must be >= 1"})
-		return
-	}
 	model, _ := req.Args["model"].(string)
 
-	e, err := s.k.Schedules().Add(intent, time.Duration(sec)*time.Second, model, cadence.SourceOperator, time.Now())
+	var e cadence.Entry
+	var err error
+	// Daily (wall-clock) when at_minutes is present; interval otherwise.
+	if atAny, ok := req.Args["at_minutes"]; ok {
+		at, _ := atAny.(float64)
+		e, err = s.k.Schedules().AddDaily(intent, int(at), model, cadence.SourceOperator, time.Now())
+	} else {
+		sec, _ := req.Args["interval_sec"].(float64) // JSON numbers decode to float64
+		if sec < 1 {
+			s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.interval_sec must be >= 1 (or pass at_minutes)"})
+			return
+		}
+		e, err = s.k.Schedules().Add(intent, time.Duration(sec)*time.Second, model, cadence.SourceOperator, time.Now())
+	}
 	if err != nil {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
 		return
@@ -36,10 +44,25 @@ func (s *Server) handleScheduleAdd(conn net.Conn, req Request) {
 		ID:   req.ID,
 		Type: RespResult,
 		Result: map[string]any{
-			"id": e.ID, "intent": e.Intent, "interval_sec": e.IntervalSec,
-			"model": e.Model, "next_run_unix": e.NextRunUnix,
+			"id": e.ID, "intent": e.Intent, "mode": e.Mode, "interval_sec": e.IntervalSec,
+			"at_minutes": e.AtMinutes, "model": e.Model, "next_run_unix": e.NextRunUnix,
 		},
 	})
+}
+
+func (s *Server) handleScheduleEnable(conn net.Conn, req Request) {
+	id, _ := req.Args["id"].(string)
+	if id == "" {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.id required"})
+		return
+	}
+	enabled, _ := req.Args["enabled"].(bool)
+	ok, err := s.k.Schedules().SetEnabled(id, enabled)
+	if err != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		return
+	}
+	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"updated": ok, "enabled": enabled}})
 }
 
 func (s *Server) handleScheduleList(conn net.Conn, req Request) {
@@ -47,7 +70,8 @@ func (s *Server) handleScheduleList(conn net.Conn, req Request) {
 	out := make([]map[string]any, 0, len(entries))
 	for _, e := range entries {
 		out = append(out, map[string]any{
-			"id": e.ID, "intent": e.Intent, "interval_sec": e.IntervalSec,
+			"id": e.ID, "intent": e.Intent, "mode": e.Mode, "interval_sec": e.IntervalSec,
+			"at_minutes": e.AtMinutes, "cadence": e.Cadence(),
 			"model": e.Model, "source": e.Source, "enabled": e.Enabled,
 			"created_unix": e.CreatedUnix, "last_run_unix": e.LastRunUnix,
 			"next_run_unix": e.NextRunUnix,

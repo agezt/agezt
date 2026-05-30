@@ -217,6 +217,79 @@ func TestEngine_Start_FiresLive(t *testing.T) {
 	waitCount(t, rec, 1)
 }
 
+func TestStore_Daily_FiresAtTimeAndAdvancesOneDay(t *testing.T) {
+	s := mustStore(t)
+	// "now" is 08:00 UTC; schedule daily at 09:00 → next run today 09:00.
+	now := time.Date(2026, 5, 31, 8, 0, 0, 0, time.UTC)
+	e, err := s.AddDaily("morning brief", 9*60, "", SourceOperator, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if e.Mode != ModeDaily || e.AtMinutes != 540 {
+		t.Fatalf("entry = %+v", e)
+	}
+	wantNext := time.Date(2026, 5, 31, 9, 0, 0, 0, time.UTC).Unix()
+	if e.NextRunUnix != wantNext {
+		t.Errorf("next run = %d want %d (today 09:00)", e.NextRunUnix, wantNext)
+	}
+	// Not due at 08:30; due at 09:00.
+	if len(s.Due(now.Add(30*time.Minute))) != 0 {
+		t.Fatal("should not be due before 09:00")
+	}
+	due := s.Due(time.Date(2026, 5, 31, 9, 0, 1, 0, time.UTC))
+	if len(due) != 1 {
+		t.Fatalf("should fire at 09:00, got %d", len(due))
+	}
+	// Next run advanced to tomorrow 09:00.
+	got, _ := s.Get(e.ID)
+	wantTomorrow := time.Date(2026, 6, 1, 9, 0, 0, 0, time.UTC).Unix()
+	if got.NextRunUnix != wantTomorrow {
+		t.Errorf("after firing, next = %d want %d (tomorrow 09:00)", got.NextRunUnix, wantTomorrow)
+	}
+}
+
+func TestStore_AddDaily_Validates(t *testing.T) {
+	s := mustStore(t)
+	now := time.Now()
+	if _, err := s.AddDaily("x", -1, "", SourceOperator, now); err == nil {
+		t.Error("negative time-of-day should error")
+	}
+	if _, err := s.AddDaily("x", 1440, "", SourceOperator, now); err == nil {
+		t.Error("24:00 (1440) should error")
+	}
+	if _, err := s.AddDaily("  ", 540, "", SourceOperator, now); err == nil {
+		t.Error("empty intent should error")
+	}
+}
+
+func TestStore_SetEnabled_PausesFromDue(t *testing.T) {
+	s := mustStore(t)
+	base := time.Date(2026, 5, 31, 0, 0, 0, 0, time.UTC)
+	e, _ := s.Add("x", time.Hour, "", SourceOperator, base)
+	// Pause → not due even when the time has come.
+	ok, _ := s.SetEnabled(e.ID, false)
+	if !ok {
+		t.Fatal("SetEnabled returned false")
+	}
+	if len(s.Due(base.Add(2*time.Hour))) != 0 {
+		t.Error("paused entry must not be due")
+	}
+	// Resume → due again.
+	s.SetEnabled(e.ID, true)
+	if len(s.Due(base.Add(2*time.Hour))) != 1 {
+		t.Error("resumed entry should be due")
+	}
+}
+
+func TestEntry_Cadence(t *testing.T) {
+	if got := (Entry{IntervalSec: 3600}).Cadence(); got != "every 1h0m0s" {
+		t.Errorf("interval cadence = %q", got)
+	}
+	if got := (Entry{Mode: ModeDaily, AtMinutes: 9*60 + 30}).Cadence(); got != "daily at 09:30" {
+		t.Errorf("daily cadence = %q", got)
+	}
+}
+
 func TestParseJobs(t *testing.T) {
 	jobs, err := ParseJobs("1h=summarise new commits; 24h=daily security audit, with commas")
 	if err != nil {

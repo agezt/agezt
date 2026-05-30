@@ -17,10 +17,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   so the system acts on its own ("every morning, summarise new commits and brief
   me") — the timer companion to Pulse's event-driven proactivity. Schedules live
   in a **persistent store** (survive restarts, reversible) and are managed with
-  `agt schedule add|list|rm|run` over the control plane; `AGEZT_SCHEDULE`
+  `agt schedule add|list|rm|run|pause|resume` over the control plane; `AGEZT_SCHEDULE`
   (`;`-separated `interval=intent` jobs) seeds env-sourced entries at startup and
-  is synced into the same store. A single ticker fires every due entry; a
-  still-running entry is skipped (no overlap). Each firing journals a
+  is synced into the same store. Two cadences: **interval** (`--every 1h`) and
+  **daily wall-clock** (`--at 09:30`, local time, e.g. a morning brief); `agt
+  schedule pause`/`resume` disable and re-enable an entry without deleting it (a
+  paused entry is skipped by the ticker but kept in the store). A single ticker
+  fires every due entry; a still-running entry is skipped (no overlap). Each firing journals a
   `schedule.fired` event carrying the run's correlation, so `agt why` / `agt
   journal grep schedule` show what the system did autonomously. The store always
   works (`agt schedule` is always available); env-only setups need no CLI.

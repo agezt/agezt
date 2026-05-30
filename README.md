@@ -16,7 +16,7 @@ a **native REST** `/api/v1`), it drives **external ACP agents** and **peer
 Agezt nodes** back (mesh), pushes events out via **HMAC-signed webhooks**, and
 `agt provider import` brings every key you already have online in one pass.
 See [CHANGELOG.md](CHANGELOG.md).
-**Tests:** 1085 passing across 55 packages.
+**Tests:** 1090 passing across 55 packages.
 **Dependencies:** one (`lukechampine.com/blake3`) + one transitive.
 
 ## What you get
@@ -36,7 +36,7 @@ agt status                                                     — daemon health
 agt budget                                                     — spend vs daily / per-task caps
 agt tool list                                                  — in-process tools the model sees
 agt peers [--json]                                             — list peer nodes + check their REST health
-agt schedule add "<intent>" --every 1h                         — recurring autonomous intent (list/rm/run)
+agt schedule add "<intent>" --every 1h | --at 09:30            — recurring/daily autonomous intent (list/rm/run/pause/resume)
 agt plugin list                                                — external plugins loaded
 agt edict show / edict test shell "rm -rf /"                   — view + preflight policy decisions
 agt state list / state get <ns> <key>                          — read kernel state store
@@ -161,8 +161,10 @@ run:
 
 ```bash
 agt schedule add "summarise new commits and brief me" --every 1h
+agt schedule add "morning brief: overnight events + today's plan" --at 09:30
 agt schedule list            # id, cadence, source, next run
 agt schedule run <id>        # fire now (next tick)
+agt schedule pause <id>      # disable without deleting (resume re-enables)
 agt schedule rm <id>         # reversible
 # or seed at startup:
 AGEZT_SCHEDULE='24h=audit the repo for secrets' ./bin/agezt
@@ -263,7 +265,7 @@ The v1 substrate. Highlights:
 ## Verify
 
 ```bash
-make test     # 1085 tests, all green
+make test     # 1090 tests, all green
 make build    # produces bin/agezt + bin/agt
 make gen      # regenerate SDK types from the contract
 ```

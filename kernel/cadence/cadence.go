@@ -42,11 +42,22 @@ const (
 	SourceEnv      = "env"
 )
 
-// Entry is one persisted schedule.
+// Scheduling modes. The zero value ("") is ModeInterval for backward
+// compatibility with stores written before daily scheduling existed.
+const (
+	ModeInterval = "" // fire every IntervalSec seconds
+	ModeDaily    = "daily"
+)
+
+// Entry is one persisted schedule. An entry is either interval-based
+// (Mode==ModeInterval, fires every IntervalSec) or daily (Mode==ModeDaily,
+// fires once a day at AtMinutes minutes past local midnight).
 type Entry struct {
 	ID          string `json:"id"`
 	Intent      string `json:"intent"`
-	IntervalSec int64  `json:"interval_sec"`
+	Mode        string `json:"mode,omitempty"`
+	IntervalSec int64  `json:"interval_sec,omitempty"`
+	AtMinutes   int    `json:"at_minutes,omitempty"` // daily: minutes since local midnight
 	Model       string `json:"model,omitempty"`
 	Source      string `json:"source"`
 	Enabled     bool   `json:"enabled"`
@@ -55,8 +66,35 @@ type Entry struct {
 	NextRunUnix int64  `json:"next_run_unix"`
 }
 
-// Interval is the entry's firing period.
+// Interval is the entry's firing period (interval mode only).
 func (e Entry) Interval() time.Duration { return time.Duration(e.IntervalSec) * time.Second }
+
+// Cadence renders the entry's schedule for display.
+func (e Entry) Cadence() string {
+	if e.Mode == ModeDaily {
+		return fmt.Sprintf("daily at %02d:%02d", e.AtMinutes/60, e.AtMinutes%60)
+	}
+	return "every " + e.Interval().String()
+}
+
+// advance computes the next-run time after firing at now.
+func (e Entry) advance(now time.Time) int64 {
+	if e.Mode == ModeDaily {
+		return nextDaily(now, e.AtMinutes).Unix()
+	}
+	return now.Add(e.Interval()).Unix()
+}
+
+// nextDaily returns the next local-time occurrence of atMinutes-past-midnight
+// strictly after now.
+func nextDaily(now time.Time, atMinutes int) time.Time {
+	y, m, d := now.Date()
+	cand := time.Date(y, m, d, atMinutes/60, atMinutes%60, 0, 0, now.Location())
+	if !cand.After(now) {
+		cand = cand.Add(24 * time.Hour)
+	}
+	return cand
+}
 
 // Job is an interval+intent pair parsed from AGEZT_SCHEDULE (see ParseJobs),
 // used to seed env-sourced entries into the store.
@@ -130,6 +168,54 @@ func (s *Store) Add(intent string, interval time.Duration, model, source string,
 	return *e, nil
 }
 
+// AddDaily creates an enabled entry firing once a day at atMinutes minutes past
+// local midnight (0..1439), first run at the next such time.
+func (s *Store) AddDaily(intent string, atMinutes int, model, source string, now time.Time) (Entry, error) {
+	intent = strings.TrimSpace(intent)
+	if intent == "" {
+		return Entry{}, fmt.Errorf("cadence: intent is required")
+	}
+	if atMinutes < 0 || atMinutes > 1439 {
+		return Entry{}, fmt.Errorf("cadence: time-of-day must be 00:00..23:59")
+	}
+	if source == "" {
+		source = SourceOperator
+	}
+	e := &Entry{
+		ID:          "sched-" + ulid.New(),
+		Intent:      intent,
+		Mode:        ModeDaily,
+		AtMinutes:   atMinutes,
+		Model:       strings.TrimSpace(model),
+		Source:      source,
+		Enabled:     true,
+		CreatedUnix: now.Unix(),
+		NextRunUnix: nextDaily(now, atMinutes).Unix(),
+	}
+	s.mu.Lock()
+	s.entries = append(s.entries, e)
+	err := s.save()
+	s.mu.Unlock()
+	if err != nil {
+		return Entry{}, err
+	}
+	return *e, nil
+}
+
+// SetEnabled enables or disables an entry (pause/resume without deleting).
+// Returns whether the entry exists.
+func (s *Store) SetEnabled(id string, enabled bool) (bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, e := range s.entries {
+		if e.ID == id {
+			e.Enabled = enabled
+			return true, s.save()
+		}
+	}
+	return false, nil
+}
+
 // Remove deletes the entry with id; returns whether one was removed.
 func (s *Store) Remove(id string) (bool, error) {
 	s.mu.Lock()
@@ -197,7 +283,7 @@ func (s *Store) Due(now time.Time) []Entry {
 			continue
 		}
 		e.LastRunUnix = now.Unix()
-		e.NextRunUnix = now.Add(e.Interval()).Unix()
+		e.NextRunUnix = e.advance(now)
 		changed = true
 		due = append(due, *e)
 	}
@@ -326,7 +412,7 @@ func (e *Engine) fireDue(ctx context.Context, now time.Time) {
 		ent := entry
 		go func() {
 			defer e.running.Delete(ent.ID)
-			fmt.Fprintf(e.log, "schedule: firing %q (every %s)\n", short(ent.Intent), ent.Interval())
+			fmt.Fprintf(e.log, "schedule: firing %q (%s)\n", short(ent.Intent), ent.Cadence())
 			if err := e.run(ctx, ent.Intent, ent.Model); err != nil {
 				fmt.Fprintf(e.log, "schedule: %q failed: %v\n", short(ent.Intent), err)
 			}
@@ -387,7 +473,7 @@ func Describe(entries []Entry) string {
 	}
 	parts := make([]string, 0, len(entries))
 	for _, e := range entries {
-		parts = append(parts, fmt.Sprintf("every %s → %q", e.Interval(), short(e.Intent)))
+		parts = append(parts, fmt.Sprintf("%s → %q", e.Cadence(), short(e.Intent)))
 	}
 	return fmt.Sprintf("%d schedule(s): %s", len(entries), strings.Join(parts, ", "))
 }
