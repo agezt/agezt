@@ -33,8 +33,10 @@ func cmdProvider(args []string, stdout, stderr io.Writer) int {
 		return cmdProviderCheck(args[1:], stdout, stderr)
 	case "reload":
 		return cmdProviderReload(stdout, stderr)
+	case "setup":
+		return cmdProviderSetup(args[1:], stdout, stderr)
 	default:
-		fmt.Fprintf(stderr, "%s provider: unknown subcommand %q (creds, check, reload)\n", brand.CLI, args[0])
+		fmt.Fprintf(stderr, "%s provider: unknown subcommand %q (creds, check, reload, setup)\n", brand.CLI, args[0])
 		return 2
 	}
 }

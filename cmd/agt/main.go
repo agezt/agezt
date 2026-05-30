@@ -137,12 +137,13 @@ func printHelp(w io.Writer) {
 	fmt.Fprintf(w, "                              render plan as Mermaid graph TD (pasteable into markdown)\n")
 	fmt.Fprintf(w, "  plan cost <file.json> --model <id>\n")
 	fmt.Fprintf(w, "                              estimate plan cost in USD (client-side)\n")
-	fmt.Fprintf(w, "  catalog sync [url]                    sync provider/model catalog from models.dev\n")
+	fmt.Fprintf(w, "  catalog sync [url] [--local] [--json] sync provider/model catalog from models.dev (--local = offline, no daemon)\n")
 	fmt.Fprintf(w, "  catalog list [--json]                 list synced providers + models + pricing\n")
 	fmt.Fprintf(w, "  catalog discover [url]                auto-discover local Ollama models\n")
 	fmt.Fprintf(w, "  provider creds list                   list credential env vars in the vault\n")
 	fmt.Fprintf(w, "  provider creds set <NAME> [<value>]   store a credential (prompts if value omitted)\n")
 	fmt.Fprintf(w, "  provider creds rm <NAME>              remove a credential\n")
+	fmt.Fprintf(w, "  provider setup [provider-id]          list providers needing a key, or prompt to add one's keys (offline)\n")
 	fmt.Fprintf(w, "  provider check [id]                   live roundtrip to verify creds + latency + cost\n")
 	fmt.Fprintf(w, "  provider check --all                  probe every credentialed provider; summary table\n")
 	fmt.Fprintf(w, "  provider check --bench N [id]         run N probes; report min/p50/p95/max latencies\n")
@@ -586,11 +587,7 @@ func cmdCatalog(args []string, stdout, stderr io.Writer) int {
 	}
 	switch args[0] {
 	case "sync":
-		callArgs := map[string]any{}
-		if len(args) > 1 {
-			callArgs["url"] = args[1]
-		}
-		return cmdSimple(controlplane.CmdCatalogSync, callArgs, stdout, stderr)
+		return cmdCatalogSync(args[1:], stdout, stderr)
 	case "discover":
 		callArgs := map[string]any{}
 		if len(args) > 1 {
