@@ -383,6 +383,35 @@ const (
 	// Args: id (required). Returns: { found, entity }
 	CmdWorldGet = "world_get"
 
+	// Forge / skills (SPEC-05 §4–5). The journaled skill-lifecycle behind
+	// `agt skill`; transitions go through the kernel's skill.Forge so every
+	// promote/quarantine/revert is auditable via `agt why`.
+	//
+	// CmdSkillList returns all skills (any state), with an active count.
+	// No args. Returns: { skills: [...], count, active_count }
+	CmdSkillList = "skill_list"
+
+	// CmdSkillGet reads one skill by id.
+	// Args: id (required). Returns: { found, skill }
+	CmdSkillGet = "skill_get"
+
+	// CmdSkillHistory folds the journal for one skill's lifecycle events.
+	// Args: id (required). Returns: { id, events: [...], count }
+	CmdSkillHistory = "skill_history"
+
+	// CmdSkillPromote advances draft→shadow→active (or un-quarantines).
+	// Args: id (required). Returns: { id, status }
+	CmdSkillPromote = "skill_promote"
+
+	// CmdSkillQuarantine pulls an active/shadow skill from production.
+	// Args: id (required), reason (optional). Returns: { id, status }
+	CmdSkillQuarantine = "skill_quarantine"
+
+	// CmdSkillRevert archives a skill and re-activates its lineage parent
+	// (non-destructive — appends a reversal).
+	// Args: id (required). Returns: { id, restored }
+	CmdSkillRevert = "skill_revert"
+
 	// Pulse — the proactive heart (SPEC-03). These control the resident
 	// heartbeat the daemon runs in the background. When Pulse is disabled
 	// (AGEZT_PULSE=off) the handlers report it rather than erroring.

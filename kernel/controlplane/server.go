@@ -310,6 +310,18 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.handleWorldList(conn, req)
 	case CmdWorldGet:
 		s.handleWorldGet(conn, req)
+	case CmdSkillList:
+		s.handleSkillList(conn, req)
+	case CmdSkillGet:
+		s.handleSkillGet(conn, req)
+	case CmdSkillHistory:
+		s.handleSkillHistory(conn, req)
+	case CmdSkillPromote:
+		s.handleSkillPromote(conn, req)
+	case CmdSkillQuarantine:
+		s.handleSkillQuarantine(conn, req)
+	case CmdSkillRevert:
+		s.handleSkillRevert(conn, req)
 	case CmdPulseStatus:
 		s.handlePulseStatus(conn, req)
 	case CmdPulsePause:

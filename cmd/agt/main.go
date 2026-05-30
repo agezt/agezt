@@ -95,6 +95,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return cmdMemory(args[1:], stdout, stderr)
 	case "world":
 		return cmdWorld(args[1:], stdout, stderr)
+	case "skill":
+		return cmdSkill(args[1:], stdout, stderr)
 	case "inbox":
 		return cmdInbox(args[1:], stdout, stderr)
 	default:
@@ -174,6 +176,12 @@ func printHelp(w io.Writer) {
 	fmt.Fprintf(w, "  world neighbors <name> [--json]       what an entity connects to\n")
 	fmt.Fprintf(w, "  world list [--json]                   list active entities + relation count\n")
 	fmt.Fprintf(w, "  world show <id> [--json]              read one entity (exit 3 = absent)\n")
+	fmt.Fprintf(w, "  skill list [--json]                   list learned skills + lifecycle state\n")
+	fmt.Fprintf(w, "  skill show <id> [--json]             read one skill (exit 3 = absent)\n")
+	fmt.Fprintf(w, "  skill history <id> [--json]          a skill's lifecycle event chain\n")
+	fmt.Fprintf(w, "  skill promote <id> [--json]          advance draft->shadow->active\n")
+	fmt.Fprintf(w, "  skill quarantine <id> [--reason R] [--json]   pull a skill from production\n")
+	fmt.Fprintf(w, "  skill revert <id> [--json]           archive + restore lineage parent\n")
 	fmt.Fprintf(w, "  inbox [N] [--json]                    unified channel conversations (newest first)\n")
 	fmt.Fprintf(w, "  vault status                          show vault encryption state + path\n")
 	fmt.Fprintf(w, "  vault encrypt                         migrate plaintext vault to encrypted (set AGEZT_VAULT_PASSPHRASE)\n")

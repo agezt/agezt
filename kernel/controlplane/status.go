@@ -45,6 +45,7 @@ func (s *Server) handleStatus(conn net.Conn, req Request) {
 			"tools":          len(s.k.Tools()),
 			"memory_records": s.k.Memory().Count(),
 			"world_entities": s.k.World().Count(),
+			"active_skills":  s.k.Forge().Count(),
 			"journal_head":   headSeq,
 		},
 	})

@@ -30,6 +30,7 @@ import (
 	"github.com/agezt/agezt/kernel/journal"
 	"github.com/agezt/agezt/kernel/memory"
 	"github.com/agezt/agezt/kernel/scheduler"
+	"github.com/agezt/agezt/kernel/skill"
 	"github.com/agezt/agezt/kernel/state"
 	"github.com/agezt/agezt/kernel/ulid"
 	"github.com/agezt/agezt/kernel/warden"
@@ -156,6 +157,23 @@ type Config struct {
 	WorldTopK   int
 	WorldTool   bool
 
+	// Forge / skill knobs (SPEC-05 §4–5; Phase 2 slice 2). The skill store
+	// and `agt skill` CLI always work; these gate only the per-run
+	// behaviour and default OFF (daemon is the single enable point).
+	//
+	//   SkillInject        — retrieve matching ACTIVE skills and prepend
+	//                        their bodies to the System prompt (journals
+	//                        skill.activated for provenance).
+	//   SkillTopK          — max skills injected (default 3 when unset).
+	//   SkillForge         — after a multi-tool run, propose a DRAFT skill
+	//                        via one best-effort LLM call (operator promotes).
+	//   SkillForgeMinTools — tool-call threshold that triggers a proposal
+	//                        (default 4 when unset).
+	SkillInject        bool
+	SkillTopK          int
+	SkillForge         bool
+	SkillForgeMinTools int
+
 	// OnReload is invoked by Kernel.Reload() AFTER the catalog snapshot
 	// has been refreshed from disk. The closure is supplied by the
 	// daemon and is expected to:
@@ -188,6 +206,8 @@ type Kernel struct {
 	memoryDir *memory.FileStore
 	world     *worldmodel.Graph
 	worldDir  *worldmodel.FileStore
+	forge     *skill.Forge
+	skillDir  *skill.FileStore
 	tools     map[string]agent.Tool // cfg.Tools + the memory/world tools (when enabled)
 
 	catalogStore *catalog.Store
@@ -258,6 +278,16 @@ func Open(cfg Config) (*Kernel, error) {
 	}
 	wgraph := worldmodel.NewGraph(wstore, kbus)
 
+	skstore, err := skill.Open(filepath.Join(cfg.BaseDir, "skills"))
+	if err != nil {
+		j.Close()
+		st.Close()
+		mstore.Close()
+		wstore.Close()
+		return nil, fmt.Errorf("runtime: skills: %w", err)
+	}
+	forge := skill.NewForge(skstore, kbus)
+
 	// The agent's effective tool set is the configured tools plus the
 	// in-process memory/world tools (when enabled). Built once, exposed via
 	// Tools() so `agt tool list` reflects what the loop actually sees.
@@ -279,6 +309,7 @@ func Open(cfg Config) (*Kernel, error) {
 			st.Close()
 			mstore.Close()
 			wstore.Close()
+			skstore.Close()
 			return nil, fmt.Errorf("runtime: catalog load: %w", err)
 		}
 		cat = loaded
@@ -300,6 +331,8 @@ func Open(cfg Config) (*Kernel, error) {
 		memoryDir:    mstore,
 		world:        wgraph,
 		worldDir:     wstore,
+		forge:        forge,
+		skillDir:     skstore,
 		tools:        effTools,
 		runs:         make(map[string]context.CancelFunc),
 		startTime:    time.Now(),
@@ -319,6 +352,9 @@ func (k *Kernel) Close() error {
 		return err
 	}
 	if err := k.worldDir.Close(); err != nil {
+		return err
+	}
+	if err := k.skillDir.Close(); err != nil {
 		return err
 	}
 	return k.journal.Close()
@@ -377,6 +413,10 @@ func (k *Kernel) Memory() *memory.Manager { return k.memory }
 // injection, and the Pulse salience relevance signal. Always non-nil after
 // Open.
 func (k *Kernel) World() *worldmodel.Graph { return k.world }
+
+// Forge returns the skill manager backing `agt skill`, run-time skill
+// activation, and post-run skill proposal. Always non-nil after Open.
+func (k *Kernel) Forge() *skill.Forge { return k.forge }
 
 // ActiveRuns returns the number of in-flight Run / RunPlan
 // invocations. Used by `agt status` to surface "is anything
@@ -709,6 +749,7 @@ func (k *Kernel) RunWith(ctx context.Context, corr, intent string) (string, erro
 	runCtx = context.WithValue(runCtx, ctxKeyCorrelation, corr)
 	runCtx = memory.WithCorrelation(runCtx, corr)
 	runCtx = worldmodel.WithCorrelation(runCtx, corr)
+	runCtx = skill.WithCorrelation(runCtx, corr)
 
 	// Memory injection: recall relevant records and prepend them to the
 	// system prompt so the model starts the task already knowing what
@@ -739,6 +780,19 @@ func (k *Kernel) RunWith(ctx context.Context, corr, intent string) (string, erro
 		}
 	}
 
+	// Skill activation: retrieve matching ACTIVE skills and prepend their
+	// bodies so the model plans with learned procedures (SPEC-05 §4.2, §7
+	// step 4). Activate journals skill.activated under corr for `agt why`.
+	if k.cfg.SkillInject {
+		topK := k.cfg.SkillTopK
+		if topK <= 0 {
+			topK = 3
+		}
+		if hits, err := k.forge.Activate(corr, intent, topK); err == nil && len(hits) > 0 {
+			system = injectSkills(system, hits)
+		}
+	}
+
 	answer, err := agent.Run(runCtx, agent.LoopConfig{
 		Provider:      k.cfg.Provider,
 		Tools:         k.tools,
@@ -761,6 +815,13 @@ func (k *Kernel) RunWith(ctx context.Context, corr, intent string) (string, erro
 	// successful task into a failed one.
 	if k.cfg.MemoryDistill {
 		k.maybeDistill(runCtx, corr, intent, answer)
+	}
+
+	// Forge proposal: after a multi-tool run, propose a DRAFT skill via one
+	// best-effort LLM call (the operator promotes it — §5.1/§5.3). Same
+	// threshold-gated, never-fail-the-task contract as distillation.
+	if k.cfg.SkillForge {
+		k.maybeForge(runCtx, corr, intent, answer)
 	}
 	return answer, nil
 }
@@ -799,6 +860,47 @@ func injectWorld(system string, hits []worldmodel.ScoredEntity) string {
 		b.WriteString(system)
 	}
 	return b.String()
+}
+
+// injectSkills prepends matching active skills' bodies to the system prompt so
+// the model plans with learned procedures. Each is rendered as a titled block.
+func injectSkills(system string, hits []skill.Scored) string {
+	var b strings.Builder
+	b.WriteString("Applicable skills (learned procedures; follow if relevant):\n")
+	for _, h := range hits {
+		s := h.Skill
+		fmt.Fprintf(&b, "## %s — %s\n%s\n", s.Name, s.Description, s.Body)
+	}
+	if system != "" {
+		b.WriteString("\n")
+		b.WriteString(system)
+	}
+	return b.String()
+}
+
+// maybeForge folds the run's journal by correlation, and if the run made at
+// least SkillForgeMinTools tool calls, runs one best-effort skill proposal over
+// a compact transcript. Best-effort: any error is journaled and swallowed — a
+// proposal must never turn a successful task into a failed one.
+func (k *Kernel) maybeForge(ctx context.Context, corr, intent, answer string) {
+	minTools := k.cfg.SkillForgeMinTools
+	if minTools <= 0 {
+		minTools = 4
+	}
+	toolCount, names := k.foldRunTools(corr)
+	if toolCount < minTools {
+		return
+	}
+	transcript := buildTranscript(names, answer)
+	if _, err := k.forge.Propose(ctx, corr, k.cfg.Provider, k.cfg.Model, intent, transcript); err != nil {
+		_, _ = k.bus.Publish(event.Spec{
+			Subject:       "skill.propose_failed",
+			Kind:          event.KindSkillCreated,
+			Actor:         "forge",
+			CorrelationID: corr,
+			Payload:       map[string]any{"action": "propose_failed", "error": err.Error()},
+		})
+	}
 }
 
 // maybeDistill folds the run's journal by correlation, and if the run made at

@@ -185,6 +185,12 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// The graph store and `agt world` CLI always work; this only gates the
 	// in-run wiring. AGEZT_WORLDMODEL=off disables it.
 	worldOn := !strings.EqualFold(os.Getenv(brand.EnvPrefix+"WORLDMODEL"), "off")
+	// Forge / skills (SPEC-05 §4-5). Active skills inject into runs and Forge
+	// proposes drafts after complex tasks. Store + `agt skill` CLI stay live
+	// regardless. AGEZT_SKILLS=off disables injection; AGEZT_FORGE=off
+	// disables post-run proposal.
+	skillOn := !strings.EqualFold(os.Getenv(brand.EnvPrefix+"SKILLS"), "off")
+	forgeOn := !strings.EqualFold(os.Getenv(brand.EnvPrefix+"FORGE"), "off")
 
 	cfg := kernelruntime.Config{
 		BaseDir:               baseDir,
@@ -204,6 +210,10 @@ func runDaemon(stdout, stderr io.Writer) int {
 		WorldInject:           worldOn,
 		WorldTool:             worldOn,
 		WorldTopK:             5,
+		SkillInject:           skillOn,
+		SkillTopK:             3,
+		SkillForge:            forgeOn,
+		SkillForgeMinTools:    4,
 	}
 	cfg.OnReload = func() error {
 		// Re-load vault (catalog already refreshed by Kernel.Reload).
@@ -271,8 +281,8 @@ func runDaemon(stdout, stderr io.Writer) int {
 	fmt.Fprintf(stdout, "  policy engine    : edict (defaults from DECISIONS F3; %s)\n", askPolicyDesc)
 	fmt.Fprintf(stdout, "  warden           : %s\n", wardDesc)
 	fmt.Fprintf(stdout, "  control plane    : %s\n", srv.Addr())
-	fmt.Fprintf(stdout, "  knowledge        : memory %s · world model %s (%d entities)\n",
-		onOff(memOn), onOff(worldOn), k.World().Count())
+	fmt.Fprintf(stdout, "  knowledge        : memory %s · world model %s (%d entities) · skills %s/forge %s (%d active)\n",
+		onOff(memOn), onOff(worldOn), k.World().Count(), onOff(skillOn), onOff(forgeOn), k.Forge().Count())
 
 	// Telegram channel (SPEC-04 §1) — duplex when AGEZT_TELEGRAM_TOKEN is
 	// set. Built before Pulse so its brief sink can tee with the log sink.

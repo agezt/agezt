@@ -102,6 +102,15 @@ const (
 	KindWorldForgotten        Kind = "worldmodel.forgotten"         // a node/edge tombstoned (soft delete)
 	KindWorldSuperseded       Kind = "worldmodel.superseded"        // a node replaced by a newer version
 
+	// Forge — auditable self-improvement (SPEC-05 §5). Skill lifecycle is a
+	// journaled state machine so `agt skill history` and `agt why` explain
+	// every create/promote/quarantine, and revert is non-destructive.
+	KindSkillCreated     Kind = "skill.created"     // a draft skill authored (by Forge or operator)
+	KindSkillPromoted    Kind = "skill.promoted"    // draft→shadow→active (or un-quarantine)
+	KindSkillQuarantined Kind = "skill.quarantined" // pulled from production
+	KindSkillReverted    Kind = "skill.reverted"    // a reversal appended (never an edit)
+	KindSkillActivated   Kind = "skill.activated"   // active skills injected into a run's context
+
 	// Journal self-events (used for snapshot/verify boundaries).
 	KindJournalSegmentRotated Kind = "journal.segment_rotated"
 )
@@ -169,5 +178,10 @@ var knownKinds = map[Kind]struct{}{
 	KindWorldRetrieved:            {},
 	KindWorldForgotten:            {},
 	KindWorldSuperseded:           {},
+	KindSkillCreated:              {},
+	KindSkillPromoted:             {},
+	KindSkillQuarantined:          {},
+	KindSkillReverted:             {},
+	KindSkillActivated:            {},
 	KindJournalSegmentRotated:     {},
 }
