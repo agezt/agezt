@@ -242,6 +242,35 @@ func TestScheduleAddWindow(t *testing.T) {
 	}
 }
 
+func TestScheduleAddDailyWithTimezone(t *testing.T) {
+	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	ctx := context.Background()
+
+	res, err := c.Call(ctx, controlplane.CmdScheduleAdd, map[string]any{
+		"intent": "tokyo brief", "at_minutes": 540, "tz": "Asia/Tokyo",
+	})
+	if err != nil {
+		t.Fatalf("add daily+tz: %v", err)
+	}
+	if res["mode"] != "daily" {
+		t.Errorf("mode = %v", res["mode"])
+	}
+
+	res, _ = c.Call(ctx, controlplane.CmdScheduleList, nil)
+	list, _ := res["schedules"].([]any)
+	m, _ := list[0].(map[string]any)
+	if m["tz"] != "Asia/Tokyo" || m["cadence"] != "daily at 09:00 Asia/Tokyo" {
+		t.Errorf("listed entry = %v", m)
+	}
+
+	// An unknown zone is rejected by the store.
+	if _, err := c.Call(ctx, controlplane.CmdScheduleAdd, map[string]any{
+		"intent": "bad", "at_minutes": 540, "tz": "Mars/Phobos",
+	}); err == nil {
+		t.Error("unknown timezone should error")
+	}
+}
+
 func TestScheduleAddValidates(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 	ctx := context.Background()

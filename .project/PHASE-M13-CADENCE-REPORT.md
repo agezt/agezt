@@ -36,8 +36,8 @@ A full management verb over the token-authed control plane (handlers in
 
 - `add "<intent>" --every <dur> [--between <HH:MM-HH:MM> [--days <spec>]]` —
   interval, optionally restricted to a daily window on certain weekdays.
-- `add "<intent>" --at <HH:MM> [--days <spec>]` — daily wall-clock, optionally
-  weekday-filtered.
+- `add "<intent>" --at <HH:MM> [--days <spec>] [--tz <IANA>]` — daily wall-clock,
+  optionally weekday-filtered and in a specific timezone.
 - `add "<intent>" --in <dur>` / `--once --at <HH:MM>` — one-shot.
 - `edit <id> [--intent <s>] [--model <id>] [<cadence flag>]` — change a schedule
   in place, preserving its id. A field-only edit (intent/model) leaves the
@@ -52,8 +52,10 @@ A full management verb over the token-authed control plane (handlers in
 
 - **Interval** (`ModeInterval`): fire every `IntervalSec`. The original behavior,
   preserved as the zero-value mode for backward-compatible stores.
-- **Daily wall-clock** (`ModeDaily`, `--at 09:30`): fire once a day at a local
-  time-of-day, advancing by **calendar date** (DST-correct — no 24h-add drift).
+- **Daily wall-clock** (`ModeDaily`, `--at 09:30 [--tz America/New_York]`): fire
+  once a day at a time-of-day, advancing by **calendar date** (DST-correct — no
+  24h-add drift). An optional **per-schedule IANA timezone** interprets the
+  wall-clock time in that zone ("09:00 in New York"); empty = daemon local.
   Optionally restricted to specific weekdays via a `time.Weekday` bitmask:
   `--days mon-fri`, `--days weekends`, or a case-insensitive list/range like
   `mon,wed,fri` / `fri-mon` (inclusive, wrapping). `cadence.ParseDays` /
@@ -123,14 +125,13 @@ what the system did on its own and link it to the resulting run.
 - `agt schedule edit` — change a schedule in place (intent/model/cadence)
 - catch-up-once-after-downtime guarantee (test)
 - windowed intervals (`--every 15m --between 09:00-17:00 [--days …]`)
+- per-schedule IANA timezone for wall-clock cadences (`--tz America/New_York`)
 
 ## Deferred (named for future autonomy work)
 
 - **A `--skip-missed` opt-out** for the catch-up-once behavior — today a slot
   missed during downtime fires once on restart (verified); some schedules would
   rather skip a stale slot entirely than run it late.
-- **Timezone-per-schedule** (today: the daemon's local zone for all wall-clock
-  and windowed schedules).
 - **Calendar-style rules** beyond weekly recurrence (e.g. "first Monday of the
   month", specific dates) — the current primitives cover interval / daily /
   weekday / windowed / one-shot.

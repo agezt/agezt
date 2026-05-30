@@ -30,7 +30,9 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   and then remove themselves from the store, plus **windowed intervals** (`--every
   15m --between 09:00-17:00 [--days mon-fri]`) that fire on a sub-daily cadence
   but only inside a daily time window on permitted weekdays, jumping to the next
-  window-open when one closes; `agt
+  window-open when one closes. Wall-clock cadences (daily and windowed) accept a
+  **per-schedule IANA timezone** (`--tz America/New_York`) so "09:00" means 09:00
+  *there* regardless of where the daemon runs (DST handled by the zone); `agt
   schedule pause`/`resume` disable and re-enable an entry without deleting it (a
   paused entry is skipped by the ticker but kept in the store). A single ticker
   fires every due entry; a still-running entry is skipped (no overlap). Each firing journals a

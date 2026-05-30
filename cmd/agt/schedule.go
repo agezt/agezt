@@ -49,8 +49,9 @@ func cmdSchedule(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "  rm <id> [--json]                                             delete a schedule\n")
 		fmt.Fprintf(stdout, "  run <id> [--json]                                            fire a schedule now (next tick)\n")
 		fmt.Fprintf(stdout, "  pause <id> / resume <id> [--json]                            disable / re-enable without deleting\n")
-		fmt.Fprintf(stdout, "  <dur> is a Go duration (30m, 1h, 24h); <HH:MM> is local 24h time.\n")
+		fmt.Fprintf(stdout, "  <dur> is a Go duration (30m, 1h, 24h); <HH:MM> is 24h time.\n")
 		fmt.Fprintf(stdout, "  <spec> is weekdays | weekends | a list/range like mon,wed,fri or mon-fri.\n")
+		fmt.Fprintf(stdout, "  --tz <IANA> (e.g. America/New_York) sets the zone for --at / --between wall-clock times.\n")
 		return 0
 	default:
 		fmt.Fprintf(stderr, "%s schedule: unknown subcommand %q (add|list|rm|run|pause|resume)\n", brand.CLI, args[0])
@@ -107,7 +108,7 @@ func nextWallclock(now time.Time, mins int) time.Time {
 func cmdScheduleAdd(args []string, stdout, stderr io.Writer) int {
 	asJSON := false
 	once := false
-	var every, at, in, between, days, model string
+	var every, at, in, between, days, tz, model string
 	var positional []string
 	for i := 0; i < len(args); i++ {
 		a := args[i]
@@ -117,8 +118,15 @@ func cmdScheduleAdd(args []string, stdout, stderr io.Writer) int {
 		case "--once":
 			once = true
 		case "-h", "--help":
-			fmt.Fprintf(stdout, "usage: %s schedule add \"<intent>\" (--every <dur> [--between <HH:MM-HH:MM> [--days <spec>]] | --at <HH:MM> [--days <spec>] | --once --at <HH:MM> | --in <dur>) [--model <id>] [--json]\n", brand.CLI)
+			fmt.Fprintf(stdout, "usage: %s schedule add \"<intent>\" (--every <dur> [--between <HH:MM-HH:MM> [--days <spec>]] | --at <HH:MM> [--days <spec>] | --once --at <HH:MM> | --in <dur>) [--tz <IANA>] [--model <id>] [--json]\n", brand.CLI)
 			return 0
+		case "--tz":
+			if i+1 >= len(args) {
+				fmt.Fprintf(stderr, "%s schedule add: --tz needs an IANA zone (e.g. America/New_York)\n", brand.CLI)
+				return 2
+			}
+			i++
+			tz = args[i]
 		case "--between":
 			if i+1 >= len(args) {
 				fmt.Fprintf(stderr, "%s schedule add: --between needs a HH:MM-HH:MM window\n", brand.CLI)
@@ -190,6 +198,10 @@ func cmdScheduleAdd(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "%s schedule add: --between requires --every <dur> (a windowed interval)\n", brand.CLI)
 		return 2
 	}
+	if tz != "" && !((at != "" && !once) || between != "") {
+		fmt.Fprintf(stderr, "%s schedule add: --tz applies to --at (daily) or --every+--between (windowed) schedules\n", brand.CLI)
+		return 2
+	}
 	if once && at == "" {
 		fmt.Fprintf(stderr, "%s schedule add: --once requires --at <HH:MM> (use --in for a relative one-shot)\n", brand.CLI)
 		return 2
@@ -243,6 +255,10 @@ func cmdScheduleAdd(args []string, stdout, stderr io.Writer) int {
 				human = label + " at " + at
 			}
 		}
+		if tz != "" {
+			callArgs["tz"] = tz
+			human += " " + tz
+		}
 	default: // every (plain interval, or windowed when --between is set)
 		d, err := time.ParseDuration(every)
 		if err != nil {
@@ -273,6 +289,10 @@ func cmdScheduleAdd(args []string, stdout, stderr io.Writer) int {
 				if label := cadence.FormatDays(mask); label != "" {
 					human += " " + label
 				}
+			}
+			if tz != "" {
+				callArgs["tz"] = tz
+				human += " " + tz
 			}
 		} else {
 			human = "every " + d.String()
@@ -307,7 +327,7 @@ func cmdScheduleAdd(args []string, stdout, stderr io.Writer) int {
 func cmdScheduleEdit(args []string, stdout, stderr io.Writer) int {
 	asJSON := false
 	once := false
-	var id, intent, model, every, at, in, between, days string
+	var id, intent, model, every, at, in, between, days, tz string
 	var setIntent, setModel bool
 	for i := 0; i < len(args); i++ {
 		a := args[i]
@@ -363,6 +383,12 @@ func cmdScheduleEdit(args []string, stdout, stderr io.Writer) int {
 				return 2
 			}
 			between = v
+		case "--tz":
+			v, ok := needVal("--tz")
+			if !ok {
+				return 2
+			}
+			tz = v
 		case "--days":
 			v, ok := needVal("--days")
 			if !ok {
@@ -398,6 +424,10 @@ func cmdScheduleEdit(args []string, stdout, stderr io.Writer) int {
 	}
 	if between != "" && every == "" {
 		fmt.Fprintf(stderr, "%s schedule edit: --between requires --every <dur>\n", brand.CLI)
+		return 2
+	}
+	if tz != "" && !((at != "" && !once) || between != "") {
+		fmt.Fprintf(stderr, "%s schedule edit: --tz applies to --at (daily) or --every+--between (windowed) schedules\n", brand.CLI)
 		return 2
 	}
 	if once && at == "" {
@@ -454,6 +484,9 @@ func cmdScheduleEdit(args []string, stdout, stderr io.Writer) int {
 			}
 			callArgs["days"] = mask
 		}
+		if tz != "" {
+			callArgs["tz"] = tz
+		}
 	case every != "":
 		d, err := time.ParseDuration(every)
 		if err != nil || d < time.Second {
@@ -476,6 +509,9 @@ func cmdScheduleEdit(args []string, stdout, stderr io.Writer) int {
 					return 2
 				}
 				callArgs["days"] = mask
+			}
+			if tz != "" {
+				callArgs["tz"] = tz
 			}
 		}
 	}

@@ -221,7 +221,7 @@ func TestStore_Daily_FiresAtTimeAndAdvancesOneDay(t *testing.T) {
 	s := mustStore(t)
 	// "now" is 08:00 UTC; schedule daily at 09:00 → next run today 09:00.
 	now := time.Date(2026, 5, 31, 8, 0, 0, 0, time.UTC)
-	e, err := s.AddDaily("morning brief", 9*60, 0, "", SourceOperator, now)
+	e, err := s.AddDaily("morning brief", 9*60, 0, "", "", SourceOperator, now)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -256,7 +256,7 @@ func TestStore_Daily_CatchesUpOnceAfterDowntime(t *testing.T) {
 	s := mustStore(t)
 	// Created Monday 08:00; daily at 09:00 → next run Monday 09:00.
 	created := time.Date(2026, 6, 1, 8, 0, 0, 0, time.UTC)
-	e, _ := s.AddDaily("morning brief", 9*60, 0, "", SourceOperator, created)
+	e, _ := s.AddDaily("morning brief", 9*60, 0, "", "", SourceOperator, created)
 
 	// Daemon "down" until Thursday 10:00 — three 09:00 slots passed.
 	back := time.Date(2026, 6, 4, 10, 0, 0, 0, time.UTC)
@@ -279,13 +279,13 @@ func TestStore_Daily_CatchesUpOnceAfterDowntime(t *testing.T) {
 func TestStore_AddDaily_Validates(t *testing.T) {
 	s := mustStore(t)
 	now := time.Now()
-	if _, err := s.AddDaily("x", -1, 0, "", SourceOperator, now); err == nil {
+	if _, err := s.AddDaily("x", -1, 0, "", "", SourceOperator, now); err == nil {
 		t.Error("negative time-of-day should error")
 	}
-	if _, err := s.AddDaily("x", 1440, 0, "", SourceOperator, now); err == nil {
+	if _, err := s.AddDaily("x", 1440, 0, "", "", SourceOperator, now); err == nil {
 		t.Error("24:00 (1440) should error")
 	}
-	if _, err := s.AddDaily("  ", 540, 0, "", SourceOperator, now); err == nil {
+	if _, err := s.AddDaily("  ", 540, 0, "", "", SourceOperator, now); err == nil {
 		t.Error("empty intent should error")
 	}
 }
@@ -369,7 +369,7 @@ func TestStore_Daily_SkipsDisallowedWeekdays(t *testing.T) {
 	// Monday 2026-06-01 09:00 (Sunday is skipped).
 	now := time.Date(2026, 5, 31, 8, 0, 0, 0, time.UTC)
 	weekdays, _ := ParseDays("weekdays")
-	e, err := s.AddDaily("standup nudge", 9*60, weekdays, "", SourceOperator, now)
+	e, err := s.AddDaily("standup nudge", 9*60, weekdays, "", "", SourceOperator, now)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -458,7 +458,7 @@ func TestStore_EditAndReschedule(t *testing.T) {
 	// Reschedule interval → daily weekdays: mode/at/days change, id preserved,
 	// next run recomputed (Sunday skipped → Monday 09:30).
 	wd, _ := ParseDays("weekdays")
-	if ok, err := s.Reschedule(e.ID, ModeDaily, 0, 9*60+30, 0, wd, time.Time{}, now); !ok || err != nil {
+	if ok, err := s.Reschedule(e.ID, ModeDaily, 0, 9*60+30, 0, wd, "", time.Time{}, now); !ok || err != nil {
 		t.Fatalf("Reschedule daily: ok=%v err=%v", ok, err)
 	}
 	got, _ = s.Get(e.ID)
@@ -474,11 +474,11 @@ func TestStore_EditAndReschedule(t *testing.T) {
 	}
 
 	// Reschedule to one-shot; a past instant is rejected.
-	if _, err := s.Reschedule(e.ID, ModeOnce, 0, 0, 0, 0, now.Add(-time.Minute), now); err == nil {
+	if _, err := s.Reschedule(e.ID, ModeOnce, 0, 0, 0, 0, "", now.Add(-time.Minute), now); err == nil {
 		t.Error("past one-shot reschedule should error")
 	}
 	future := now.Add(2 * time.Hour)
-	if ok, _ := s.Reschedule(e.ID, ModeOnce, 0, 0, 0, 0, future, now); !ok {
+	if ok, _ := s.Reschedule(e.ID, ModeOnce, 0, 0, 0, 0, "", future, now); !ok {
 		t.Fatal("reschedule once returned false")
 	}
 	got, _ = s.Get(e.ID)
@@ -490,7 +490,7 @@ func TestStore_EditAndReschedule(t *testing.T) {
 	if ok, err := s.SetIntent("nope", "x"); ok || err != nil {
 		t.Errorf("missing SetIntent: ok=%v err=%v", ok, err)
 	}
-	if ok, _ := s.Reschedule("nope", ModeInterval, time.Hour, 0, 0, 0, time.Time{}, now); ok {
+	if ok, _ := s.Reschedule("nope", ModeInterval, time.Hour, 0, 0, 0, "", time.Time{}, now); ok {
 		t.Error("missing Reschedule should report false")
 	}
 }
@@ -500,7 +500,7 @@ func TestStore_Window_FiresWithinWindowAndJumpsAcrossClose(t *testing.T) {
 	// Monday 2026-06-01. Window 09:00–10:00 every 15m on weekdays.
 	wd, _ := ParseDays("weekdays")
 	created := time.Date(2026, 6, 1, 8, 0, 0, 0, time.UTC)
-	e, err := s.AddWindow("poll the queue", 15*time.Minute, 9*60, 10*60, wd, "", SourceOperator, created)
+	e, err := s.AddWindow("poll the queue", 15*time.Minute, 9*60, 10*60, wd, "", "", SourceOperator, created)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -546,7 +546,7 @@ func TestStore_Window_SkipsDisallowedDay(t *testing.T) {
 	// weekend to Monday 06-08.
 	wd, _ := ParseDays("weekdays")
 	created := time.Date(2026, 6, 5, 8, 0, 0, 0, time.UTC)
-	e, _ := s.AddWindow("x", time.Hour, 9*60, 17*60, wd, "", SourceOperator, created)
+	e, _ := s.AddWindow("x", time.Hour, 9*60, 17*60, wd, "", "", SourceOperator, created)
 	// After the last Friday slot (17:00) the next run jumps over the weekend to
 	// Monday 09:00, not Saturday — assert advance() directly from Friday 17:00.
 	fri17 := time.Date(2026, 6, 5, 17, 0, 0, 0, time.UTC)
@@ -560,20 +560,60 @@ func TestStore_Window_SkipsDisallowedDay(t *testing.T) {
 func TestStore_AddWindow_Validates(t *testing.T) {
 	s := mustStore(t)
 	now := time.Now()
-	if _, err := s.AddWindow("x", time.Hour, 600, 540, 0, "", SourceOperator, now); err == nil {
+	if _, err := s.AddWindow("x", time.Hour, 600, 540, 0, "", "", SourceOperator, now); err == nil {
 		t.Error("end before start should error")
 	}
-	if _, err := s.AddWindow("x", time.Millisecond, 540, 600, 0, "", SourceOperator, now); err == nil {
+	if _, err := s.AddWindow("x", time.Millisecond, 540, 600, 0, "", "", SourceOperator, now); err == nil {
 		t.Error("sub-minimum interval should error")
 	}
-	if _, err := s.AddWindow("  ", time.Hour, 540, 600, 0, "", SourceOperator, now); err == nil {
+	if _, err := s.AddWindow("  ", time.Hour, 540, 600, 0, "", "", SourceOperator, now); err == nil {
 		t.Error("empty intent should error")
+	}
+}
+
+func TestStore_Daily_TimezoneInterpretsWallClockInZone(t *testing.T) {
+	// 09:00 in Asia/Tokyo (UTC+9, no DST) is 00:00 UTC. With "now" at 2026-06-01
+	// 03:00 UTC (= 12:00 in Tokyo, past 09:00), the next Tokyo-09:00 is the next
+	// day, 2026-06-02 00:00 UTC.
+	s := mustStore(t)
+	now := time.Date(2026, 6, 1, 3, 0, 0, 0, time.UTC)
+	e, err := s.AddDaily("tokyo brief", 9*60, 0, "Asia/Tokyo", "", SourceOperator, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if e.TZ != "Asia/Tokyo" {
+		t.Errorf("TZ = %q", e.TZ)
+	}
+	if e.Cadence() != "daily at 09:00 Asia/Tokyo" {
+		t.Errorf("cadence = %q", e.Cadence())
+	}
+	want := time.Date(2026, 6, 2, 0, 0, 0, 0, time.UTC).Unix() // 09:00 JST = 00:00 UTC next day
+	if e.NextRunUnix != want {
+		t.Errorf("next = %d want %d (09:00 JST = 00:00 UTC, tomorrow)", e.NextRunUnix, want)
+	}
+	// Before that instant: not due. At it: fires, advances another JST day.
+	if len(s.Due(time.Date(2026, 6, 1, 23, 0, 0, 0, time.UTC))) != 0 {
+		t.Fatal("should not be due before 09:00 JST")
+	}
+	if len(s.Due(time.Date(2026, 6, 2, 0, 0, 1, 0, time.UTC))) != 1 {
+		t.Fatal("should fire at 09:00 JST")
+	}
+	got, _ := s.Get(e.ID)
+	if got.NextRunUnix != time.Date(2026, 6, 3, 0, 0, 0, 0, time.UTC).Unix() {
+		t.Errorf("after firing, next = %d want 2026-06-03 00:00 UTC", got.NextRunUnix)
+	}
+}
+
+func TestStore_AddDaily_RejectsBadTimezone(t *testing.T) {
+	s := mustStore(t)
+	if _, err := s.AddDaily("x", 540, 0, "Mars/Phobos", "", SourceOperator, time.Now()); err == nil {
+		t.Error("an unknown timezone should error")
 	}
 }
 
 func TestStore_AddDaily_ValidatesDayMask(t *testing.T) {
 	s := mustStore(t)
-	if _, err := s.AddDaily("x", 540, AllDays+1, "", SourceOperator, time.Now()); err == nil {
+	if _, err := s.AddDaily("x", 540, AllDays+1, "", "", SourceOperator, time.Now()); err == nil {
 		t.Error("out-of-range day-mask should error")
 	}
 }
