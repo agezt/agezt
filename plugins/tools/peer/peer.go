@@ -1,0 +1,261 @@
+// SPDX-License-Identifier: MIT
+
+// Package peer is the mesh delegation tool (ROADMAP P6-MULTI / M8): it lets one
+// Agezt node hand a self-contained task to a *peer* Agezt node and get the
+// answer back, by driving the peer's native REST surface
+// (POST /api/v1/runs, kernel/restapi). This composes the REST API into a
+// node-to-node primitive — cooperating Jarvis nodes, each governing its own runs.
+//
+// Peers are operator-configured (AGEZT_PEERS); the local agent only names which
+// peer and what task. Because the call ships a task to an external node (an
+// outward, side-effecting action), it is gated Ask-first by Edict
+// (remote_run capability). The peer runs the task through its own governed loop
+// — delegation does not bypass the peer's Edict/journal, and the returned
+// correlation id makes the remote run auditable on that node.
+package peer
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"net/url"
+	"sort"
+	"strings"
+	"time"
+
+	"github.com/agezt/agezt/kernel/agent"
+)
+
+// DefaultTimeout caps one remote run.
+const DefaultTimeout = 5 * time.Minute
+
+// MaxAnswerBytes truncates a peer's answer so a runaway remote can't blow the
+// context budget.
+const MaxAnswerBytes = 60 * 1024
+
+// Peer is a configured remote Agezt node.
+type Peer struct {
+	Name  string
+	URL   string // base URL, e.g. http://host:8800 (no trailing /api/v1)
+	Token string // Bearer token for the peer's REST API
+}
+
+// poster performs the HTTP POST to a peer; injectable for tests.
+type poster func(ctx context.Context, endpoint, token string, body []byte) (status int, respBody []byte, err error)
+
+// Tool implements agent.Tool. Constructed only when at least one peer is
+// configured; see New.
+type Tool struct {
+	Peers   map[string]Peer
+	Timeout time.Duration
+	post    poster
+}
+
+// New builds a peer Tool from configured peers. Returns nil when none are
+// configured (tool disabled).
+func New(peers map[string]Peer) *Tool {
+	if len(peers) == 0 {
+		return nil
+	}
+	return &Tool{Peers: peers, post: httpPost}
+}
+
+func (t *Tool) Definition() agent.ToolDef {
+	return agent.ToolDef{
+		Name: "remote_run",
+		Description: "Delegate a self-contained task to a PEER Agezt node and return its answer. " +
+			"The peer runs the task through its own governed agent loop (its tools, its policy) and " +
+			"reports back. Use to hand work to a node with different capabilities, data access, or " +
+			"location. Available peers: " + t.peerNames() + ".",
+		InputSchema: json.RawMessage(`{
+  "type": "object",
+  "properties": {
+    "peer": {
+      "type": "string",
+      "description": "Which configured peer to run on. Omit to use the only peer when exactly one is configured."
+    },
+    "task": {
+      "type": "string",
+      "description": "The complete, self-contained instruction for the peer node."
+    }
+  },
+  "required": ["task"]
+}`),
+	}
+}
+
+func (t *Tool) peerNames() string {
+	names := make([]string, 0, len(t.Peers))
+	for n := range t.Peers {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+	return strings.Join(names, ", ")
+}
+
+func (t *Tool) Invoke(ctx context.Context, input json.RawMessage) (agent.Result, error) {
+	var in struct {
+		Peer string `json:"peer"`
+		Task string `json:"task"`
+	}
+	if err := json.Unmarshal(input, &in); err != nil {
+		return agent.Result{Output: "invalid input: " + err.Error(), IsError: true}, nil
+	}
+	task := strings.TrimSpace(in.Task)
+	if task == "" {
+		return agent.Result{Output: "task is required", IsError: true}, nil
+	}
+	peer, err := t.resolve(in.Peer)
+	if err != nil {
+		return agent.Result{Output: err.Error(), IsError: true}, nil
+	}
+
+	to := t.Timeout
+	if to <= 0 {
+		to = DefaultTimeout
+	}
+	ctx, cancel := context.WithTimeout(ctx, to)
+	defer cancel()
+
+	body, _ := json.Marshal(map[string]string{"intent": task})
+	endpoint := strings.TrimRight(peer.URL, "/") + "/api/v1/runs"
+	status, respBody, err := t.post(ctx, endpoint, peer.Token, body)
+	if err != nil {
+		return agent.Result{Output: fmt.Sprintf("remote_run: POST %s failed: %v", endpoint, err), IsError: true}, nil
+	}
+
+	var resp struct {
+		CorrelationID string `json:"correlation_id"`
+		Status        string `json:"status"`
+		Answer        string `json:"answer"`
+		Error         string `json:"error"`
+	}
+	_ = json.Unmarshal(respBody, &resp)
+
+	if status < 200 || status >= 300 || resp.Status == "failed" {
+		msg := resp.Error
+		if msg == "" {
+			msg = fmt.Sprintf("status %d", status)
+		}
+		out := fmt.Sprintf("remote_run on peer %q failed: %s", peer.Name, msg)
+		if resp.CorrelationID != "" {
+			out += fmt.Sprintf(" (peer correlation: %s)", resp.CorrelationID)
+		}
+		return agent.Result{Output: out, IsError: true}, nil
+	}
+
+	return agent.Result{Output: render(peer.Name, resp.CorrelationID, resp.Answer)}, nil
+}
+
+func render(peerName, corr, answer string) string {
+	var b strings.Builder
+	a := strings.TrimSpace(answer)
+	if a == "" {
+		b.WriteString("The peer returned no answer.")
+	} else {
+		b.WriteString(truncate(a, MaxAnswerBytes))
+	}
+	fmt.Fprintf(&b, "\n\n[peer=%s correlation=%s]", peerName, corr)
+	return b.String()
+}
+
+// resolve picks the named peer, or the sole peer when name is empty.
+func (t *Tool) resolve(name string) (Peer, error) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		if len(t.Peers) == 1 {
+			for _, p := range t.Peers {
+				return p, nil
+			}
+		}
+		return Peer{}, fmt.Errorf("remote_run: a peer name is required (configured: %s)", t.peerNames())
+	}
+	p, ok := t.Peers[name]
+	if !ok {
+		return Peer{}, fmt.Errorf("remote_run: unknown peer %q (configured: %s)", name, t.peerNames())
+	}
+	return p, nil
+}
+
+func truncate(s string, max int) string {
+	if len(s) <= max {
+		return s
+	}
+	return s[:max] + fmt.Sprintf("\n… [truncated %d bytes]", len(s)-max)
+}
+
+// httpPost is the default poster: a JSON POST with a Bearer token.
+func httpPost(ctx context.Context, endpoint, token string, body []byte) (int, []byte, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
+	if err != nil {
+		return 0, nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return 0, nil, err
+	}
+	defer resp.Body.Close()
+	rb, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	return resp.StatusCode, rb, nil
+}
+
+// ParsePeers parses the AGEZT_PEERS spec: a comma-separated list of peers, each
+// "name=url|token" (token optional). Whitespace is trimmed; the URL must be
+// http(s). A malformed entry is a hard error so a misconfigured mesh is caught
+// at startup.
+func ParsePeers(spec string) (map[string]Peer, error) {
+	spec = strings.TrimSpace(spec)
+	if spec == "" {
+		return nil, nil
+	}
+	peers := map[string]Peer{}
+	for _, raw := range strings.Split(spec, ",") {
+		entry := strings.TrimSpace(raw)
+		if entry == "" {
+			continue
+		}
+		name, rest, ok := strings.Cut(entry, "=")
+		name = strings.TrimSpace(name)
+		if !ok || name == "" {
+			return nil, fmt.Errorf("peer: entry %q must be name=url[|token]", entry)
+		}
+		urlStr, token, _ := strings.Cut(rest, "|")
+		urlStr = strings.TrimSpace(urlStr)
+		token = strings.TrimSpace(token)
+		u, err := url.Parse(urlStr)
+		if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+			return nil, fmt.Errorf("peer %q: invalid URL %q (need http(s)://host…)", name, urlStr)
+		}
+		peers[name] = Peer{Name: name, URL: urlStr, Token: token}
+	}
+	return peers, nil
+}
+
+// Describe renders a one-line banner summary of the peers (tokens redacted).
+func Describe(peers map[string]Peer) string {
+	if len(peers) == 0 {
+		return ""
+	}
+	names := make([]string, 0, len(peers))
+	for n := range peers {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+	parts := make([]string, 0, len(peers))
+	for _, n := range names {
+		p := peers[n]
+		auth := ""
+		if p.Token != "" {
+			auth = " (token)"
+		}
+		parts = append(parts, fmt.Sprintf("%s→%s%s", n, p.URL, auth))
+	}
+	return fmt.Sprintf("%d peer(s): %s", len(peers), strings.Join(parts, ", "))
+}

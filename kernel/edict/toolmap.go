@@ -43,6 +43,8 @@ func CapabilityForToolCall(toolName string, input json.RawMessage) Capability {
 		return CapCoding
 	case "acp_agent":
 		return CapACPAgent
+	case "remote_run":
+		return CapRemoteRun
 	case "http":
 		var p struct {
 			Method string `json:"method"`

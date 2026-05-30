@@ -15,7 +15,7 @@ an **ACP** server), agents **delegate** to bounded sub-agents and to
 **external ACP agents** (Claude Code / Codex / …), and `agt provider import`
 brings every key you already have online in one pass.
 See [CHANGELOG.md](CHANGELOG.md).
-**Tests:** 1055 passing across 53 packages.
+**Tests:** 1066 passing across 54 packages.
 **Dependencies:** one (`lukechampine.com/blake3`) + one transitive.
 
 ## What you get
@@ -49,10 +49,11 @@ agt approvals --json                                           — HITL queue (m
 with **9 provider families** (Anthropic, OpenAI + ~11 compatibles, Google
 direct + Vertex, Cohere, Mistral, Ollama, AWS Bedrock with bearer +
 SigV4 + STS-AssumeRole + SSO, Azure OpenAI) with **per-request model routing**
-(a request's `model` selects its provider), **all streaming**, **9 in-process
+(a request's `model` selects its provider), **all streaming**, **10 in-process
 tools** (`shell`, `file`, `http`, `browser.read`, plus `memory`, `world`,
 `delegate` for sub-agent fan-out, `coding` for worktree-isolated external
-coding agents, and `acp_agent` to drive external ACP agents), an
+coding agents, `acp_agent` to drive external ACP agents, and `remote_run` to
+delegate to peer Agezt nodes), an
 **OpenAI-compatible `/v1` API** (chat completions + responses) and an
 **ACP server** so any OpenAI client or IDE can drive it, a **native REST
 `/api/v1`** (submit + inspect runs) for first-party clients,
@@ -226,6 +227,10 @@ The v1 substrate. Highlights:
   Protocol (Claude Code / Codex / Gemini CLI / any ACP agent), spawned over
   stdio and driven via JSON-RPC; relays its answer. Off unless
   `AGEZT_ACP_AGENT_CMD` is set
+- `remote_run` — delegate a task to a peer Agezt node over its native REST
+  API (`/api/v1/runs`); the peer runs it through its own governed loop and
+  reports back with its correlation id. The mesh primitive — cooperating
+  nodes. Off unless `AGEZT_PEERS` (`name=url|token,…`) is set
 
 **External plugins** (`plugins/external/`)
 - `mcpbridge` — Model Context Protocol bridge, both stdio and HTTP+SSE
@@ -238,7 +243,7 @@ The v1 substrate. Highlights:
 ## Verify
 
 ```bash
-make test     # 1055 tests, all green
+make test     # 1066 tests, all green
 make build    # produces bin/agezt + bin/agt
 make gen      # regenerate SDK types from the contract
 ```

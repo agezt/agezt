@@ -105,6 +105,7 @@ id, a streamed chunk from a real journaled run, and `stopReason: end_turn`.
    provider import ─▶ vault ─▶ Governor routes ──▶ every provider family
 
    kernel tool-loop ─▶ journal/bus ──webhooks──▶ external HTTP endpoints (HMAC)
+   kernel tool-loop ─▶ remote_run ──▶ peer Agezt node's /api/v1/runs (its own loop)
 ```
 
 Every inbound path funnels through the one governed loop; every outbound
@@ -124,10 +125,11 @@ signed webhooks — no surface is a side-door around Edict or the journal.
 
 ## Deferred (named, not forgotten)
 
-- **M8–M9** — mesh / multi-tenant / marketplace, and voice / mobile / tray.
-  These need either non-stdlib dependencies or a large design phase; named in
-  ROADMAP, not started. (P7-API-02 — both the inbound REST surface and the
-  outbound webhooks — is now complete; see below.)
+- **M8–M9 (the large pieces)** — multi-tenant isolation, a skill/plugin
+  marketplace, and voice / mobile / tray clients. These need either non-stdlib
+  dependencies or a large design phase; named in ROADMAP, not started.
+  (P7-API-02 — both the inbound REST surface and outbound webhooks — is complete;
+  and the **mesh primitive** of M8, node-to-node delegation, shipped — see below.)
 
 ## Follow-up shipped (same milestone)
 
@@ -213,6 +215,22 @@ signed webhooks — no surface is a side-door around Edict or the journal.
   9-event arc (`task.received` → … → `task.completed`), the SSE stream
   (`start`→`done`, and a provider error correctly surfaced as `error`), and
   no-token → 401.
+
+- **Mesh delegation** (`plugins/tools/peer`, M8) — the first node-to-node
+  primitive: the `remote_run` tool lets a lead agent on one node hand a
+  self-contained task to a *peer* Agezt node and get the answer back, by driving
+  the peer's native REST surface (`POST /api/v1/runs`). It composes the REST API
+  shipped above into cooperation between nodes — and dogfoods it. The peer runs
+  the task through its *own* governed loop (its tools, policy, journal), so the
+  remote work is auditable on that node via the returned correlation id, and
+  delegation bypasses no governance on either side. Peers are operator-configured
+  (`AGEZT_PEERS=name=url|token,…`, hard-validated at startup); the call is gated
+  Ask-first by a new Edict `remote_run` capability (it ships a task to an
+  external node). **Proven:** unit tests (happy path with endpoint/token/intent
+  assertions, sole-peer default, ambiguous/unknown peer, peer-failure surfaced,
+  spec parsing, token redaction) plus a live round-trip driving the **real**
+  `kernel/restapi` handler over HTTP with Bearer auth enforced, and a two-daemon
+  check where node A registers `remote_run(2 peer(s))` and lists both peers.
 
 These are the next reachable steps toward the full vision; the substrate they
 build on shipped here.

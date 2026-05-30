@@ -65,6 +65,7 @@ import (
 	"github.com/agezt/agezt/plugins/tools/coding"
 	filetool "github.com/agezt/agezt/plugins/tools/file"
 	httptool "github.com/agezt/agezt/plugins/tools/http"
+	"github.com/agezt/agezt/plugins/tools/peer"
 	"github.com/agezt/agezt/plugins/tools/shell"
 )
 
@@ -1209,6 +1210,20 @@ func buildTools(baseDir string, stderr io.Writer, ward warden.Engine) (map[strin
 		if at := acpagent.New(acpCmd, acpagent.AbsCwd(wsRoot)); at != nil {
 			out["acp_agent"] = at
 			registered = append(registered, "acp_agent(external agent)")
+		}
+	}
+
+	// remote_run — mesh delegation to a peer Agezt node over its REST API (M8).
+	// Registered only when AGEZT_PEERS is set (name=url|token,…). A malformed
+	// spec is a hard startup error so a misconfigured mesh is caught early.
+	if peerSpec := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "PEERS")); peerSpec != "" {
+		peers, err := peer.ParsePeers(peerSpec)
+		if err != nil {
+			return nil, nil, "", fmt.Errorf("AGEZT_PEERS: %w", err)
+		}
+		if pt := peer.New(peers); pt != nil {
+			out["remote_run"] = pt
+			registered = append(registered, fmt.Sprintf("remote_run(%d peer(s))", len(peers)))
 		}
 	}
 

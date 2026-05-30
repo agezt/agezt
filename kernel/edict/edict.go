@@ -55,6 +55,10 @@ const (
 	// the Agent Client Protocol, SPEC-15 §3). It spawns an external agent that
 	// can act in its own sandbox, so it is Ask-first by default like coding.
 	CapACPAgent Capability = "acp_agent"
+	// CapRemoteRun gates the `remote_run` tool (delegate a task to a peer Agezt
+	// node over its REST API, M8 mesh). It ships a task to an external node — an
+	// outward, side-effecting action — so it is Ask-first by default.
+	CapRemoteRun Capability = "remote_run"
 )
 
 // TrustLevel encodes the trust ladder (DECISIONS F3).
@@ -241,6 +245,7 @@ func DefaultLevels() map[Capability]TrustLevel {
 		CapDelegate:     LevelAllow,    // sub-agent spawn; its tool calls are gated individually
 		CapCoding:       LevelAskFirst, // external coding agent; isolated to a worktree, returns a diff
 		CapACPAgent:     LevelAskFirst, // external ACP agent; runs in its own sandbox, returns its answer
+		CapRemoteRun:    LevelAskFirst, // peer Agezt node; ships a task to an external node over REST
 	}
 }
 

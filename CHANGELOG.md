@@ -12,6 +12,16 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Mesh delegation** — the `remote_run` tool (ROADMAP P6-MULTI / M8): a lead
+  agent on one Agezt node can hand a self-contained task to a *peer* Agezt node
+  and get the answer back, by driving the peer's native REST surface
+  (`POST /api/v1/runs`). The peer runs the task through its own governed loop
+  (its tools, its policy, its journal), so delegation does not bypass the peer's
+  governance, and the returned correlation id makes the remote run auditable on
+  that node — cooperating nodes, each under its own authority. Peers are
+  operator-configured via `AGEZT_PEERS` (`name=url|token,…`); a malformed spec is
+  a hard startup error. Gated Ask-first by a new Edict `remote_run` capability
+  (it ships a task to an external node). Off unless `AGEZT_PEERS` is set.
 - **Native REST API** (ROADMAP P7-API-02) — a first-party `/api/v1` HTTP surface
   with Agezt-native semantics (where `/v1` mimics OpenAI). `POST /api/v1/runs`
   submits an intent and returns a `correlation_id` + answer (sync JSON), or an
