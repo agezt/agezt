@@ -46,18 +46,42 @@ type Engine interface {
 	EventsForCorrelation(corr string) ([]*event.Event, error)
 }
 
+// TenantResolver maps a tenant id to the Engine + bus that serve it. The daemon
+// injects one (backed by the tenant registry) when multi-tenancy is enabled.
+type TenantResolver func(tenant string) (Engine, *bus.Bus, error)
+
 // Server is the native REST surface.
 type Server struct {
 	eng     Engine
 	bus     *bus.Bus
 	token   string
 	version string
+
+	// resolve, when set, maps the X-Agezt-Tenant request header to a per-tenant
+	// Engine + bus. Nil (or an empty header) means the primary engine/bus —
+	// the unchanged single-tenant path.
+	resolve TenantResolver
 }
 
 // New builds a Server. token gates every request; bus drives streaming;
 // version is reported by /health.
 func New(eng Engine, b *bus.Bus, token, version string) *Server {
 	return &Server{eng: eng, bus: b, token: token, version: version}
+}
+
+// SetTenantResolver enables tenant routing: requests carrying an X-Agezt-Tenant
+// header are served by the resolved per-tenant Engine + bus.
+func (s *Server) SetTenantResolver(r TenantResolver) { s.resolve = r }
+
+// bind resolves the Engine + bus for a request: the per-tenant pair when an
+// X-Agezt-Tenant header is present and a resolver is configured, else the
+// primary engine/bus.
+func (s *Server) bind(r *http.Request) (Engine, *bus.Bus, error) {
+	tenant := strings.TrimSpace(r.Header.Get("X-Agezt-Tenant"))
+	if tenant == "" || s.resolve == nil {
+		return s.eng, s.bus, nil
+	}
+	return s.resolve(tenant)
 }
 
 // Handler builds the mux; every route is token-authed.
@@ -152,19 +176,24 @@ func (s *Server) handleRunsRoot(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "invalid_request", "intent is required")
 		return
 	}
+	eng, b, err := s.bind(r)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "invalid_tenant", err.Error())
+		return
+	}
 	model := req.Model
 	if model == "" {
-		model = s.eng.DefaultModel()
+		model = eng.DefaultModel()
 	}
 
 	// Streaming is opt-in via the body flag or the SSE Accept header.
 	if req.Stream || strings.Contains(r.Header.Get("Accept"), "text/event-stream") {
-		s.streamRun(w, r, intent, model)
+		s.streamRun(w, r, eng, b, intent, model)
 		return
 	}
 
-	corr := s.eng.NewCorrelation()
-	answer, err := s.eng.RunModel(r.Context(), corr, intent, model)
+	corr := eng.NewCorrelation()
+	answer, err := eng.RunModel(r.Context(), corr, intent, model)
 	if err != nil {
 		writeJSON(w, http.StatusBadGateway, map[string]any{
 			"correlation_id": corr, "model": model, "status": "failed", "error": err.Error(),
@@ -182,14 +211,14 @@ func (s *Server) handleRunsRoot(w http.ResponseWriter, r *http.Request) {
 // streamRun runs the intent and relays the kernel's llm.token events as native
 // SSE frames (event: token / event: done / event: error). It subscribes BEFORE
 // starting the run so no early token is missed.
-func (s *Server) streamRun(w http.ResponseWriter, r *http.Request, intent, model string) {
+func (s *Server) streamRun(w http.ResponseWriter, r *http.Request, eng Engine, b *bus.Bus, intent, model string) {
 	flusher, ok := w.(http.Flusher)
 	if !ok {
 		writeErr(w, http.StatusInternalServerError, "stream_unsupported", "streaming unsupported")
 		return
 	}
-	corr := s.eng.NewCorrelation()
-	sub, err := s.bus.Subscribe(s.eng.SubjectForRun(corr), 1024)
+	corr := eng.NewCorrelation()
+	sub, err := b.Subscribe(eng.SubjectForRun(corr), 1024)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "subscribe_error", err.Error())
 		return
@@ -202,8 +231,8 @@ func (s *Server) streamRun(w http.ResponseWriter, r *http.Request, intent, model
 	w.WriteHeader(http.StatusOK)
 
 	send := func(eventName string, payload map[string]any) {
-		b, _ := json.Marshal(payload)
-		_, _ = w.Write([]byte("event: " + eventName + "\ndata: " + string(b) + "\n\n"))
+		data, _ := json.Marshal(payload)
+		_, _ = w.Write([]byte("event: " + eventName + "\ndata: " + string(data) + "\n\n"))
 		flusher.Flush()
 	}
 	send("start", map[string]any{"correlation_id": corr, "model": model})
@@ -214,7 +243,7 @@ func (s *Server) streamRun(w http.ResponseWriter, r *http.Request, intent, model
 	}
 	done := make(chan result, 1)
 	go func() {
-		ans, err := s.eng.RunModel(r.Context(), corr, intent, model)
+		ans, err := eng.RunModel(r.Context(), corr, intent, model)
 		done <- result{ans, err}
 	}()
 
@@ -266,7 +295,12 @@ func (s *Server) handleRunByID(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "invalid_request", "correlation id required in path")
 		return
 	}
-	events, err := s.eng.EventsForCorrelation(corr)
+	eng, _, err := s.bind(r)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "invalid_tenant", err.Error())
+		return
+	}
+	events, err := eng.EventsForCorrelation(corr)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "lookup_error", err.Error())
 		return

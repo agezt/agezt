@@ -1,10 +1,11 @@
 # Phase Report — Milestone M14 (Multi-tenant isolation)
 
-> Status: **Phases 1–3 shipped** · Date: 2026-05-31
+> Status: **Phases 1–4 shipped** · Date: 2026-05-31
 > ROADMAP P6-MULTI. Phase 1: the storage + lifecycle isolation core
 > (`kernel/tenant`). Phase 2: the daemon wiring + operator surface (`agt
 > tenant`). Phase 3: per-request **run routing** (`agt run --tenant <id>`).
-> Per-tenant auth/quotas and tenant-routed API surfaces are the remaining work.
+> Phase 4: **tenant-routed REST API** (`X-Agezt-Tenant` header). Per-tenant
+> auth/quotas and routing the OpenAI/ACP surfaces are the remaining work.
 
 ## Why this milestone
 
@@ -111,6 +112,34 @@ journal; `run` without the flag stayed on the primary; `run --tenant beta`
 test asserts a routed run's intent is in the tenant journal and absent from the
 primary's, and that an invalid tenant id errors.
 
+## Phase 4 — tenant-routed REST API
+
+The native REST surface (`kernel/restapi`) now routes per tenant, the same way
+`CmdRun` does — external HTTP clients, not just `agt run`, can target a tenant.
+
+- **Header-driven.** A request carrying `X-Agezt-Tenant: <id>` is served by that
+  tenant's Engine **and bus**; absent the header (or with no resolver wired) it
+  uses the primary engine/bus — byte-for-byte the previous single-tenant path.
+  The bus, not just the engine, is per-tenant: streaming runs subscribe to the
+  resolved tenant kernel's bus so SSE tokens come from the right journal.
+- **Resolver seam.** `Server.SetTenantResolver(func(id) (Engine, *bus.Bus,
+  error))` injects the mapping; `Server.bind(r)` reads the header and returns the
+  pair (or the primary). All three run paths — sync `POST /api/v1/runs`,
+  streaming `POST /api/v1/runs` (SSE), and `GET /api/v1/runs/{corr}` — go through
+  `bind`. A resolver error is a clean `400 invalid_tenant`.
+- **Daemon wiring.** When `AGEZT_MULTITENANT=on`, `buildRESTAPI` installs a
+  resolver backed by the registry: `Acquire(id)` → the tenant kernel's
+  `kernelAPIEngine` adapter + its `Bus()`. Off by default; nil resolver = today's
+  behavior.
+
+**Proven live (`AGEZT_MULTITENANT=on`, `AGEZT_REST_ADDR=127.0.0.1:8810`):** a
+`curl -H "X-Agezt-Tenant: alpha"` POST to `/api/v1/runs` landed in
+`tenants/alpha/journal` ("YES in alpha") and was **absent** from the primary
+journal ("NO (isolated)"); a header-less POST stayed on the primary. Plus a unit
+test (`TestRun_TenantRouting`): header-less → primary engine, `X-Agezt-Tenant:
+alpha` → alpha's answer with the run recorded only on alpha, unknown tenant
+`ghost` → 400.
+
 ## Engineering notes
 
 - **Stdlib only** (`os`, `path/filepath`, `regexp`, `sort`, `sync`). The
@@ -122,10 +151,10 @@ primary's, and that an invalid tenant id errors.
 
 ## Deferred — the later phases (named, not yet built)
 
-- **Tenant-routed API surfaces.** Extend the same routing to the OpenAI / REST /
-  ACP residents (e.g. an `X-Agezt-Tenant` header) so external clients, not just
-  `agt run`, can target a tenant. The control-plane `CmdRun` path is done; the
-  HTTP residents reuse the same `kernelFor` resolver.
+- **Tenant-routed API surfaces (remaining).** The control-plane `CmdRun` path
+  (Phase 3) and the native REST surface (Phase 4) route per tenant. Still to do:
+  the **OpenAI-compatible** (`kernel/openaiapi`) and **ACP** residents — same
+  `X-Agezt-Tenant` header, reusing the resolver seam.
 - **Per-tenant auth + quotas.** A token (or token scope) per tenant; per-tenant
   budget ceilings and rate limits, so one tenant can't exhaust another's spend.
 - **Shared vs. per-tenant catalog/credentials** policy (today each tenant base

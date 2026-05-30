@@ -40,6 +40,7 @@ import (
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/internal/paths"
 	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/cadence"
 	"github.com/agezt/agezt/kernel/catalog"
 	"github.com/agezt/agezt/kernel/channel"
@@ -321,6 +322,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// state is its own) and no reload hook. The primary kernel is unaffected;
 	// `agt tenant` manages the registry over the control plane.
 	tenantsDesc := "disabled (set " + brand.EnvPrefix + "MULTITENANT=on)"
+	var tenantReg *tenant.Registry
 	if strings.EqualFold(os.Getenv(brand.EnvPrefix+"MULTITENANT"), "on") {
 		reg, terr := tenant.New(filepath.Join(baseDir, "tenants"), func(id, tdir string) (io.Closer, error) {
 			tcfg := cfg // copy the primary config value
@@ -334,6 +336,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 			fmt.Fprintf(stderr, "%s: tenant registry: %v\n", brand.Binary, terr)
 			return 1
 		}
+		tenantReg = reg
 		srv.SetTenants(reg)
 		defer reg.CloseAll()
 		if infos, _ := reg.List(); infos != nil {
@@ -418,7 +421,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// Native REST API (P7-API-02) — first-party /api/v1 surface: submit runs
 	// (sync or SSE), inspect a run's journaled arc, health/models. Same governed
 	// loop as `agt run`. Off unless AGEZT_REST_ADDR is set; loopback + token.
-	if restDesc := buildRESTAPI(ctx, k, stdout); restDesc != "" {
+	if restDesc := buildRESTAPI(ctx, k, tenantReg, stdout); restDesc != "" {
 		fmt.Fprintf(stdout, "  rest api         : %s\n", restDesc)
 	} else {
 		fmt.Fprintf(stdout, "  rest api         : disabled (set AGEZT_REST_ADDR, e.g. 127.0.0.1:8800)\n")
@@ -733,7 +736,7 @@ func buildOpenAIAPI(ctx context.Context, k *kernelruntime.Kernel, stdout io.Writ
 // buildRESTAPI starts the native REST resident when AGEZT_REST_ADDR is set,
 // mirroring buildOpenAIAPI's lifecycle (daemon ctx, graceful shutdown, minted
 // token, loopback warning). Returns the banner description or "".
-func buildRESTAPI(ctx context.Context, k *kernelruntime.Kernel, stdout io.Writer) string {
+func buildRESTAPI(ctx context.Context, k *kernelruntime.Kernel, reg *tenant.Registry, stdout io.Writer) string {
 	addr := os.Getenv(brand.EnvPrefix + "REST_ADDR")
 	if addr == "" {
 		return ""
@@ -750,7 +753,23 @@ func buildRESTAPI(ctx context.Context, k *kernelruntime.Kernel, stdout io.Writer
 		fmt.Fprintf(stdout, "  rest api         : disabled (listen %s: %v)\n", addr, err)
 		return ""
 	}
-	srv := &http.Server{Handler: restapi.New(kernelAPIEngine{k}, k.Bus(), token, brand.Version).Handler()}
+	rest := restapi.New(kernelAPIEngine{k}, k.Bus(), token, brand.Version)
+	if reg != nil {
+		// Tenant routing: an X-Agezt-Tenant header serves the request from that
+		// tenant's isolated kernel + bus (opened on demand).
+		rest.SetTenantResolver(func(id string) (restapi.Engine, *bus.Bus, error) {
+			t, err := reg.Acquire(id, time.Now())
+			if err != nil {
+				return nil, nil, err
+			}
+			tk, ok := t.Kernel.(*kernelruntime.Kernel)
+			if !ok {
+				return nil, nil, fmt.Errorf("tenant %q: unexpected kernel type", id)
+			}
+			return kernelAPIEngine{tk}, tk.Bus(), nil
+		})
+	}
+	srv := &http.Server{Handler: rest.Handler()}
 	go func() {
 		if err := srv.Serve(ln); err != nil && err != http.ErrServerClosed {
 			fmt.Fprintf(stdout, "rest api server error: %v\n", err)

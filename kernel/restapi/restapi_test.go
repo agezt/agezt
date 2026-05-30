@@ -5,6 +5,7 @@ package restapi
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -76,6 +77,67 @@ func do(t *testing.T, s *Server, method, path, body, token string) *httptest.Res
 	rec := httptest.NewRecorder()
 	s.Handler().ServeHTTP(rec, r)
 	return rec
+}
+
+func TestRun_TenantRouting(t *testing.T) {
+	// Primary engine + a separate tenant engine with its own bus.
+	primary := &fakeEngine{answer: "primary-answer", model: "m"}
+	s := newServer(t, primary, "secret")
+
+	tj, err := journal.Open(t.TempDir(), journal.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	tbus := bus.New(tj)
+	t.Cleanup(func() { tbus.Close(); tj.Close() })
+	alpha := &fakeEngine{answer: "alpha-answer", model: "m", b: tbus}
+
+	s.SetTenantResolver(func(id string) (Engine, *bus.Bus, error) {
+		if id == "alpha" {
+			return alpha, tbus, nil
+		}
+		return nil, nil, errors.New("unknown tenant " + id)
+	})
+
+	// No header → primary engine.
+	rec := do(t, s, http.MethodPost, "/api/v1/runs", `{"intent":"hello"}`, "secret")
+	if rec.Code != http.StatusOK || primary.ranIntent != "hello" {
+		t.Fatalf("primary route: code=%d ran=%q", rec.Code, primary.ranIntent)
+	}
+	if alpha.ranIntent != "" {
+		t.Error("tenant engine should not have run for a header-less request")
+	}
+
+	// X-Agezt-Tenant: alpha → tenant engine.
+	r := httptest.NewRequest(http.MethodPost, "/api/v1/runs", strings.NewReader(`{"intent":"for-alpha"}`))
+	r.Header.Set("Authorization", "Bearer secret")
+	r.Header.Set("X-Agezt-Tenant", "alpha")
+	rec = httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, r)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("tenant route status=%d", rec.Code)
+	}
+	var out map[string]any
+	_ = json.Unmarshal(rec.Body.Bytes(), &out)
+	if out["answer"] != "alpha-answer" {
+		t.Errorf("answer = %v, want alpha-answer", out["answer"])
+	}
+	if alpha.ranIntent != "for-alpha" {
+		t.Errorf("tenant engine ran %q, want for-alpha", alpha.ranIntent)
+	}
+	if primary.ranIntent != "hello" {
+		t.Error("primary engine must not have run the tenant request")
+	}
+
+	// Unknown tenant → 400 from the resolver error.
+	r = httptest.NewRequest(http.MethodPost, "/api/v1/runs", strings.NewReader(`{"intent":"x"}`))
+	r.Header.Set("Authorization", "Bearer secret")
+	r.Header.Set("X-Agezt-Tenant", "ghost")
+	rec = httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, r)
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("unknown tenant status = %d, want 400", rec.Code)
+	}
 }
 
 func TestHealth(t *testing.T) {

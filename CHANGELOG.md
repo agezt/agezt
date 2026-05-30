@@ -31,9 +31,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   deletes only that tenant's tree, traversal ids rejected. Runs can be routed to
   a tenant with `agt run "<intent>" --tenant <id>` — the run executes under that
   tenant's governance and lands in its journal (proven isolated from the primary
-  journal; an unknown tenant id is auto-created on demand). Tenant-routed API
-  surfaces (OpenAI/REST/ACP) and per-tenant auth/quotas are the remaining phases
-  (see `.project/PHASE-M14-MULTITENANT-REPORT.md`).
+  journal; an unknown tenant id is auto-created on demand). The native **REST
+  API** routes per tenant too: a `POST /api/v1/runs` (or `GET
+  /api/v1/runs/{corr}`) carrying an `X-Agezt-Tenant: <id>` header runs on — and
+  streams from — that tenant's kernel and bus, isolated from the primary (proven
+  live; header-less requests stay on the primary). The remaining phases are the
+  OpenAI-compatible/ACP residents and per-tenant auth/quotas (see
+  `.project/PHASE-M14-MULTITENANT-REPORT.md`).
 - **Scheduled intents** — a `cadence` daemon resident (autonomy): fires intents
   on a recurring timer through the same governed loop (Edict + journal + budget),
   so the system acts on its own ("every morning, summarise new commits and brief
