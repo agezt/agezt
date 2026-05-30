@@ -61,6 +61,12 @@ func TestDashboardServedAtRoot(t *testing.T) {
 	if !strings.Contains(rec.Body.String(), "live monitor") {
 		t.Error("dashboard body missing expected marker")
 	}
+	// The world panel ships a node-link graph renderer; guard against a refactor
+	// silently dropping it (the backend feeds it via the /api/world `edges` key).
+	body := rec.Body.String()
+	if !strings.Contains(body, "function worldGraph") {
+		t.Error("dashboard missing the world graph renderer")
+	}
 }
 
 func TestAuthRequired(t *testing.T) {

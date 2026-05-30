@@ -163,10 +163,19 @@ func (s *Server) handleWorldList(conn net.Conn, req Request) {
 	for _, e := range ents {
 		out = append(out, entityView(e))
 	}
+	edges := make([]any, 0, len(rels))
+	for _, r := range rels {
+		edges = append(edges, map[string]any{
+			"id": r.ID, "from": r.From, "verb": string(r.Verb), "to": r.To, "weight": r.Weight,
+		})
+	}
 	s.writeResp(conn, Response{
-		ID:     req.ID,
-		Type:   RespResult,
-		Result: map[string]any{"entities": out, "count": len(out), "relation_count": len(rels)},
+		ID:   req.ID,
+		Type: RespResult,
+		Result: map[string]any{
+			"entities": out, "count": len(out),
+			"edges": edges, "relation_count": len(rels),
+		},
 	})
 }
 

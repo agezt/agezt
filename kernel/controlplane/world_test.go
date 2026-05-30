@@ -78,6 +78,36 @@ func TestWorldListEmpty(t *testing.T) {
 	}
 }
 
+func TestWorldListReturnsEdges(t *testing.T) {
+	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	ctx := context.Background()
+	if _, err := c.Call(ctx, controlplane.CmdWorldRelate, map[string]any{
+		"from": "Lictor", "verb": "depends_on", "to": "go-stdlib",
+	}); err != nil {
+		t.Fatalf("relate: %v", err)
+	}
+
+	res, err := c.Call(ctx, controlplane.CmdWorldList, nil)
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	if rc, _ := res["relation_count"].(float64); rc != 1 {
+		t.Errorf("relation_count = %v, want 1", res["relation_count"])
+	}
+	edges, ok := res["edges"].([]any)
+	if !ok || len(edges) != 1 {
+		t.Fatalf("expected 1 edge, got %v", res["edges"])
+	}
+	e, _ := edges[0].(map[string]any)
+	if e["verb"] != "depends_on" {
+		t.Errorf("edge verb = %v, want depends_on", e["verb"])
+	}
+	// from/to are entity ids; both must be non-empty so the graph can link nodes.
+	if e["from"] == "" || e["to"] == "" {
+		t.Errorf("edge endpoints must be set, got from=%v to=%v", e["from"], e["to"])
+	}
+}
+
 func TestWorldForgetExcludesFromList(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 	ctx := context.Background()

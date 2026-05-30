@@ -14,6 +14,11 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ### Added
 - `agt world forget <id>` — tombstone a world-model entity (soft delete;
   reversible, journaled), completing the symmetry with `memory forget`.
+- **Web UI world graph** — the World panel now renders a node-link diagram
+  (entities as nodes, relations as directed arrows) above the entity list, an
+  inline SVG laid out client-side with no dependency. `GET /api/world` now
+  returns the relation `edges` (from/verb/to/weight) alongside the existing
+  `relation_count` to feed it.
 - **Web UI operator actions** — the dashboard is no longer read-only: a HALT /
   Resume control bar, an Approvals panel (approve/deny pending HITL requests),
   and per-item actions in the Memory (forget), World (forget), and Skills

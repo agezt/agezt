@@ -66,6 +66,10 @@
   .chip { background: var(--panel2); border: 1px solid var(--line); border-radius: 12px;
     padding: 1px 9px; font-size: 11px; }
   .count { margin-bottom: 6px; }
+  .wgraph-wrap { border: 1px solid var(--line); border-radius: 6px;
+    background: var(--panel2); margin-bottom: 8px; }
+  svg.wgraph { width: 100%; height: 240px; display: block; }
+  svg.wgraph text { user-select: none; pointer-events: none; }
 </style>
 </head>
 <body>
@@ -110,6 +114,68 @@ function clear(node) { while (node.firstChild) node.removeChild(node.firstChild)
 function setBody(id, node) { const b = document.getElementById(id); clear(b); b.appendChild(node); }
 function muted(text) { return el("span", "muted", text); }
 function chip(text) { return el("span", "chip", text); }
+
+// --- SVG builders for the world node-link graph (same textContent discipline) ---
+const SVGNS = "http://www.w3.org/2000/svg";
+function svgEl(tag, attrs) {
+  const n = document.createElementNS(SVGNS, tag);
+  if (attrs) for (const k in attrs) n.setAttribute(k, attrs[k]);
+  return n;
+}
+
+// worldGraph renders a circular node-link diagram of the world model: one node
+// per entity, one arrow per relation (from → to). Returns an <svg>, or null
+// when there's too little to draw. Endpoints are matched by entity id; an edge
+// whose endpoint is absent (e.g. a forgotten node) is skipped. Nodes are capped
+// so a large graph stays legible.
+const WGRAPH_MAX = 40;
+function worldGraph(ents, edges) {
+  const nodes = (ents || []).filter((e) => e && e.id).slice(0, WGRAPH_MAX);
+  if (nodes.length < 2) return null;
+  const W = 360, H = 240, cx = W / 2, cy = H / 2, R = Math.min(W, H) / 2 - 36, NR = 5;
+  const pos = {};
+  nodes.forEach((e, i) => {
+    const a = (2 * Math.PI * i) / nodes.length - Math.PI / 2;
+    pos[e.id] = { x: cx + R * Math.cos(a), y: cy + R * Math.sin(a), e: e, right: Math.cos(a) >= 0 };
+  });
+
+  const svg = svgEl("svg", { class: "wgraph", viewBox: "0 0 " + W + " " + H,
+    preserveAspectRatio: "xMidYMid meet" });
+  const defs = svgEl("defs");
+  const marker = svgEl("marker", { id: "wg-arrow", markerWidth: 8, markerHeight: 8,
+    refX: 6, refY: 3, orient: "auto", markerUnits: "strokeWidth" });
+  marker.appendChild(svgEl("path", { d: "M0,0 L6,3 L0,6 Z", fill: "#6b7585" }));
+  defs.appendChild(marker);
+  svg.appendChild(defs);
+
+  for (const ed of edges || []) {
+    const a = pos[ed.from], b = pos[ed.to];
+    if (!a || !b || a === b) continue;
+    const dx = b.x - a.x, dy = b.y - a.y, len = Math.hypot(dx, dy) || 1;
+    const ux = dx / len, uy = dy / len;
+    const line = svgEl("line", {
+      x1: a.x + ux * (NR + 1), y1: a.y + uy * (NR + 1),
+      x2: b.x - ux * (NR + 4), y2: b.y - uy * (NR + 4),
+      stroke: "#2b3446", "stroke-width": 1, "marker-end": "url(#wg-arrow)" });
+    const tt = svgEl("title"); tt.textContent = (ed.verb || "relates_to");
+    line.appendChild(tt);
+    svg.appendChild(line);
+  }
+  for (const id in pos) {
+    const p = pos[id];
+    const c = svgEl("circle", { cx: p.x, cy: p.y, r: NR,
+      fill: "#131722", stroke: "#58a6ff", "stroke-width": 1.5 });
+    const tt = svgEl("title");
+    tt.textContent = (p.e.kind ? p.e.kind + ": " : "") + (p.e.name || id);
+    c.appendChild(tt);
+    svg.appendChild(c);
+    const t = svgEl("text", { x: p.x + (p.right ? NR + 3 : -(NR + 3)), y: p.y + 3,
+      "text-anchor": p.right ? "start" : "end", "font-size": 9, fill: "#c9d1d9" });
+    t.textContent = (p.e.name || "").slice(0, 16);
+    svg.appendChild(t);
+  }
+  return svg;
+}
 
 // ---- live event feed (SSE) ----
 const feedBody = document.getElementById("feedBody");
@@ -198,9 +264,20 @@ const renderers = {
 
   world: (d) => {
     const ents = d.entities || d.Entities || [];
-    const rels = d.relations != null ? d.relations : (d.relation_count != null ? d.relation_count : 0);
+    const edges = d.edges || [];
+    const rels = d.relations != null ? d.relations
+      : (d.relation_count != null ? d.relation_count : edges.length);
     const frag = document.createDocumentFragment();
     frag.appendChild(el("div", "count muted", ents.length + " entities · " + rels + " relations"));
+    const g = worldGraph(ents, edges);
+    if (g) {
+      const wrap = el("div", "wgraph-wrap");
+      wrap.appendChild(g);
+      frag.appendChild(wrap);
+      if (ents.length > WGRAPH_MAX) {
+        frag.appendChild(el("div", "count muted", "graph shows first " + WGRAPH_MAX + " of " + ents.length));
+      }
+    }
     return listInto(frag, ents, (e) => {
       const row = el("div", "item");
       row.appendChild(chip(e.kind || ""));
