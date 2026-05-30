@@ -104,11 +104,16 @@ func cmdQuickstart(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "      %s already has its key.\n", pid)
 	}
 
-	// [4/4] Start command + next steps.
+	// [4/4] Start command + next steps. AGEZT_WORKSPACE="$PWD" scopes the file
+	// tool to the directory you launch from, so the agent can read your project
+	// (the default is a sandboxed ~/.agezt/workspace). Opt-in and visible here
+	// rather than changing the safe default.
 	model := firstModelID(p)
-	fmt.Fprintf(stdout, "\n[4/4] You're set. Start the daemon (terminal 1):\n\n")
-	fmt.Fprintf(stdout, "  %sPROVIDER=%s %sMODEL=%s %sWEB_ADDR=127.0.0.1:8787 %s\n\n",
-		brand.EnvPrefix, pid, brand.EnvPrefix, model, brand.EnvPrefix, brand.Binary)
+	fmt.Fprintf(stdout, "\n[4/4] You're set. Start the daemon from your project dir (terminal 1):\n\n")
+	fmt.Fprintf(stdout, "  %sPROVIDER=%s %sMODEL=%s %sWORKSPACE=\"$PWD\" %sWEB_ADDR=127.0.0.1:8787 %s\n\n",
+		brand.EnvPrefix, pid, brand.EnvPrefix, model, brand.EnvPrefix, brand.EnvPrefix, brand.Binary)
+	fmt.Fprintf(stdout, "  (%sWORKSPACE=\"$PWD\" lets the file tool read the current directory;\n", brand.EnvPrefix)
+	fmt.Fprintf(stdout, "   omit it to keep the file tool sandboxed to ~/.agezt/workspace.)\n\n")
 	fmt.Fprintf(stdout, "Then, in another terminal:\n")
 	fmt.Fprintf(stdout, "  %s doctor                 # confirm it's healthy\n", brand.CLI)
 	fmt.Fprintf(stdout, "  %s provider check         # live roundtrip (latency + cost)\n", brand.CLI)

@@ -33,6 +33,10 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ### Fixed
 - Web UI Memory panel read the wrong result key (`memories` vs the actual
   `records`), so it never listed stored facts; now renders them.
+- Onboarding now surfaces `AGEZT_WORKSPACE="$PWD"` in the quickstart/README
+  start command so the file tool can read the project you launch from — the
+  common "my first `agt run` can't see my files" gap. The safe sandboxed
+  default (`~/.agezt/workspace`) is unchanged; this is a visible opt-in.
 
 ## [0.1.0] — 2026-05-30
 

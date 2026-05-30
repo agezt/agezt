@@ -77,9 +77,11 @@ agt provider setup minimax-coding-plan   # prompt + store MINIMAX_API_KEY
 #    key: `agt catalog discover` then use AGEZT_PROVIDER=ollama-local.
 
 # 4. Start the daemon (terminal 1) — pick the provider + model, and
-#    optionally expose the Web UI on loopback:
+#    optionally expose the Web UI on loopback. AGEZT_WORKSPACE="$PWD" lets the
+#    file tool read the directory you launch from (default: a sandboxed
+#    ~/.agezt/workspace); omit it to keep the file tool sandboxed.
 AGEZT_PROVIDER=minimax-coding-plan AGEZT_MODEL=MiniMax-M2.7 \
-  AGEZT_WEB_ADDR=127.0.0.1:8787 ./bin/agezt
+  AGEZT_WORKSPACE="$PWD" AGEZT_WEB_ADDR=127.0.0.1:8787 ./bin/agezt
 
 # 5. In another terminal — verify, then use it:
 agt doctor                # preflight: daemon, journal integrity, tools, skew
