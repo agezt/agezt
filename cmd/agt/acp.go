@@ -25,21 +25,34 @@ import (
 // editor's configured ACP agent command: `agt acp`.
 func cmdACP(args []string, stdout, stderr io.Writer) int {
 	if len(args) == 1 && (args[0] == "-h" || args[0] == "--help") {
-		fmt.Fprintf(stdout, "usage: %s acp\n", brand.CLI)
+		fmt.Fprintf(stdout, "usage: %s acp [--tenant <id>]\n", brand.CLI)
 		fmt.Fprintf(stdout, "Agent Client Protocol server over stdio (JSON-RPC 2.0) — configure your IDE\n")
 		fmt.Fprintf(stdout, "(e.g. Zed) to launch `%s acp` as its agent backend. Requires a running daemon.\n", brand.CLI)
+		fmt.Fprintf(stdout, "  --tenant <id>   route every prompt to an isolated tenant kernel (daemon\n")
+		fmt.Fprintf(stdout, "                  AGEZT_MULTITENANT=on); omit for the primary kernel.\n")
 		return 0
 	}
-	if len(args) > 0 {
-		fmt.Fprintf(stderr, "%s acp: unexpected argument %q\n", brand.CLI, args[0])
-		return 2
+	tenant := ""
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "--tenant":
+			if i+1 >= len(args) {
+				fmt.Fprintf(stderr, "%s acp: --tenant requires an id\n", brand.CLI)
+				return 2
+			}
+			tenant = args[i+1]
+			i++
+		default:
+			fmt.Fprintf(stderr, "%s acp: unexpected argument %q\n", brand.CLI, args[i])
+			return 2
+		}
 	}
 
 	c := dial(stderr)
 	if c == nil {
 		return 1
 	}
-	srv := acp.New(controlPlaneRunner{c: c}, os.Stdin, stdout)
+	srv := acp.New(controlPlaneRunner{c: c, tenant: tenant}, os.Stdin, stdout)
 	if err := srv.Serve(context.Background()); err != nil {
 		fmt.Fprintf(stderr, "%s acp: %v\n", brand.CLI, err)
 		return 1
@@ -47,15 +60,26 @@ func cmdACP(args []string, stdout, stderr io.Writer) int {
 	return 0
 }
 
+// runStreamer is the slice of *controlplane.Client the ACP runner needs. An
+// interface keeps the tenant-arg forwarding unit-testable with a fake (no daemon).
+type runStreamer interface {
+	Stream(ctx context.Context, cmd string, args map[string]any, onEvent func(*event.Event)) (map[string]any, error)
+}
+
 // controlPlaneRunner adapts the control-plane streaming client to acp.Runner:
 // one ACP prompt becomes one streamed `run`, with llm.token events relayed as
 // ACP message chunks.
 type controlPlaneRunner struct {
-	c *controlplane.Client
+	c      runStreamer
+	tenant string // empty = primary kernel; else route the run to this tenant
 }
 
 func (r controlPlaneRunner) Prompt(ctx context.Context, cwd, intent string, onChunk func(string)) (string, error) {
-	res, err := r.c.Stream(ctx, controlplane.CmdRun, map[string]any{"intent": intent}, func(ev *event.Event) {
+	runArgs := map[string]any{"intent": intent}
+	if r.tenant != "" {
+		runArgs["tenant"] = r.tenant
+	}
+	res, err := r.c.Stream(ctx, controlplane.CmdRun, runArgs, func(ev *event.Event) {
 		if ev.Kind != event.KindLLMToken {
 			return
 		}

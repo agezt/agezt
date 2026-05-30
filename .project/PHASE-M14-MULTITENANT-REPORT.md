@@ -6,7 +6,8 @@
 > tenant`). Phase 3: per-request **run routing** (`agt run --tenant <id>`).
 > Phase 4: **tenant-routed REST API** (`X-Agezt-Tenant` header). Phase 5:
 > **tenant-routed OpenAI-compatible API** (same header on `/v1/chat/completions`,
-> `/v1/responses`, `/v1/models`). Per-tenant auth/quotas and the ACP surface are
+> `/v1/responses`, `/v1/models`). Phase 6: **tenant-routed ACP** (`agt acp
+> --tenant <id>`), completing the API-surface routing. Per-tenant auth/quotas are
 > the remaining work.
 
 ## Why this milestone
@@ -167,6 +168,33 @@ run recorded only on alpha, primary untouched), and with an unknown tenant
 `ghost` (→ 400). The streaming paths reuse the same `bind`-resolved bus the
 non-streaming path proves.
 
+## Phase 6 — tenant-routed ACP (editor backend)
+
+The Agent Client Protocol bridge (`agt acp`, the stdio JSON-RPC agent an IDE like
+Zed drives) can now bind a whole editor session to a tenant. Unlike the HTTP
+surfaces, ACP is **not** a daemon resident — it runs in the `agt` client process
+and forwards each prompt to the daemon over the control plane. So routing reuses
+the Phase 3 seam directly: the control-plane `CmdRun` already honours a `tenant`
+arg; ACP just supplies it.
+
+- **One flag.** `agt acp --tenant <id>` stores the id on the runner; every prompt
+  it forwards adds `tenant: <id>` to the `CmdRun` args, so the run executes on —
+  and streams chunks from — that tenant's kernel. Omit the flag and the `tenant`
+  key is absent entirely (byte-for-byte the prior request; the daemon's
+  `kernelFor("")` stays on the primary).
+- **No new daemon code.** The whole feature is the CLI flag + a one-line arg; the
+  routing it triggers is the control-plane path already proven in Phase 3.
+
+**Proven:** unit tests on the runner (`TestACPRunner_ForwardsTenant` asserts the
+`tenant` arg is forwarded with the intent; `TestACPRunner_OmitsTenantWhenUnset`
+asserts the key is absent when no tenant is set) via a fake streamer — no daemon
+needed. The downstream routing (`tenant` arg → isolated kernel + journal) is the
+control-plane behaviour Phase 3's `TestRun_RoutesToTenantKernel` already proves.
+
+With Phases 3–6, **every** way to start a run — `agt run`, the native REST API,
+the OpenAI-compatible API, and an ACP editor session — can target a tenant
+through one consistent seam (an arg/header resolved to an isolated kernel + bus).
+
 ## Engineering notes
 
 - **Stdlib only** (`os`, `path/filepath`, `regexp`, `sort`, `sync`). The
@@ -178,10 +206,9 @@ non-streaming path proves.
 
 ## Deferred — the later phases (named, not yet built)
 
-- **Tenant-routed API surfaces (remaining).** The control-plane `CmdRun` path
-  (Phase 3), the native REST surface (Phase 4), and the OpenAI-compatible surface
-  (Phase 5) route per tenant. Still to do: the **ACP** resident — same
-  `X-Agezt-Tenant` header, reusing the resolver seam.
+- **Tenant-routed API surfaces — done.** All run entry points route per tenant:
+  the control plane (`CmdRun` tenant arg, Phase 3), the native REST surface
+  (Phase 4), the OpenAI-compatible surface (Phase 5), and ACP (Phase 6).
 - **Per-tenant auth + quotas.** A token (or token scope) per tenant; per-tenant
   budget ceilings and rate limits, so one tenant can't exhaust another's spend.
 - **Shared vs. per-tenant catalog/credentials** policy (today each tenant base

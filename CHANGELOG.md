@@ -39,7 +39,10 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   honours the same header: `/v1/chat/completions`, `/v1/responses`, and
   `/v1/models` route per tenant (both SSE streaming forms subscribe to the
   tenant's own bus), so any OpenAI SDK can target a tenant with one extra header.
-  The remaining phases are the ACP resident and per-tenant auth/quotas (see
+  An **ACP** editor session can be bound to a tenant too: `agt acp --tenant <id>`
+  forwards the id on every prompt so an IDE drives an isolated tenant kernel.
+  With this, every run entry point — `agt run`, REST, OpenAI, ACP — routes per
+  tenant through one seam. Per-tenant auth/quotas are the remaining phase (see
   `.project/PHASE-M14-MULTITENANT-REPORT.md`).
 - **Scheduled intents** — a `cadence` daemon resident (autonomy): fires intents
   on a recurring timer through the same governed loop (Edict + journal + budget),
