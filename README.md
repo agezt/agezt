@@ -58,6 +58,10 @@ limits and process-group SIGKILL.
 
 ## Quick start
 
+**The one-command path:** after `make build`, run `agt quickstart` — it syncs
+the catalog, prompts for a provider key, and prints your exact start command.
+The full manual flow:
+
 ```bash
 # 1. Build (puts agt + agezt in ./bin), or `make install` to put them on PATH:
 make build

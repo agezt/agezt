@@ -21,6 +21,10 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   allowlist, POST-only, token-authed, and pass only allowlisted args
   (GET/no-token are refused); reads stay GET.
 
+- `agt quickstart` — interactive first-run wizard: syncs the catalog
+  (offline), shows configured providers, prompts to add a key for the one you
+  pick, and prints the exact daemon start command + next steps. Thin glue over
+  `catalog sync --local` + `provider setup`.
 - `make install` (binaries onto PATH) and `make run` (build + run the daemon)
   targets; the README quick start now documents the real onboarding —
   `catalog sync --local` → `provider setup` → start with a provider → `doctor`
