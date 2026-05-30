@@ -41,6 +41,11 @@ type Server struct {
 	// signal-driven one. Closed at most once (guarded by shutdownOnce).
 	shutdownCh   chan struct{}
 	shutdownOnce sync.Once
+
+	// pulse is the optional resident proactive engine, injected by the
+	// daemon via SetPulse. Nil when Pulse is disabled (AGEZT_PULSE=off);
+	// the pulse handlers report "disabled" rather than dereferencing it.
+	pulse PulseController
 }
 
 // NewServer constructs a Server that will manage runtime files under
@@ -283,6 +288,24 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.handleJournalGrep(conn, req)
 	case CmdJournalHead:
 		s.handleJournalHead(conn, req)
+	case CmdMemoryAdd:
+		s.handleMemoryAdd(conn, req)
+	case CmdMemoryList:
+		s.handleMemoryList(conn, req)
+	case CmdMemoryGet:
+		s.handleMemoryGet(conn, req)
+	case CmdMemorySearch:
+		s.handleMemorySearch(conn, req)
+	case CmdMemoryForget:
+		s.handleMemoryForget(conn, req)
+	case CmdPulseStatus:
+		s.handlePulseStatus(conn, req)
+	case CmdPulsePause:
+		s.handlePulsePause(conn, req)
+	case CmdPulseResume:
+		s.handlePulseResume(conn, req)
+	case CmdInbox:
+		s.handleInbox(conn, req)
 	default:
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "unknown command: " + req.Cmd})
 	}

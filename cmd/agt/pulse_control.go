@@ -1,0 +1,83 @@
+// SPDX-License-Identifier: MIT
+
+package main
+
+import (
+	"context"
+	"fmt"
+	"io"
+	"time"
+
+	"github.com/agezt/agezt/internal/brand"
+	"github.com/agezt/agezt/kernel/controlplane"
+)
+
+// cmdPulseControl implements `agt pulse {status|pause|resume} [--json]`,
+// driving the resident proactive engine (SPEC-03 §2).
+func cmdPulseControl(sub string, args []string, stdout, stderr io.Writer) int {
+	asJSON := false
+	for _, a := range args {
+		switch a {
+		case "--json":
+			asJSON = true
+		case "-h", "--help":
+			fmt.Fprintf(stdout, "usage: %s pulse %s [--json]\n", brand.CLI, sub)
+			return 0
+		default:
+			fmt.Fprintf(stderr, "%s pulse %s: unexpected arg %q\n", brand.CLI, sub, a)
+			return 2
+		}
+	}
+
+	cmd := map[string]string{
+		"status": controlplane.CmdPulseStatus,
+		"pause":  controlplane.CmdPulsePause,
+		"resume": controlplane.CmdPulseResume,
+	}[sub]
+
+	c := dial(stderr)
+	if c == nil {
+		return 1
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	res, err := c.Call(ctx, cmd, nil)
+	if err != nil {
+		fmt.Fprintf(stderr, "%s pulse %s: %v\n", brand.CLI, sub, err)
+		return 1
+	}
+	if asJSON {
+		return encodeJSON(stdout, res)
+	}
+
+	switch sub {
+	case "pause":
+		fmt.Fprintln(stdout, "pulse paused")
+	case "resume":
+		fmt.Fprintln(stdout, "pulse resumed")
+	default: // status
+		if enabled, _ := res["enabled"].(bool); !enabled {
+			fmt.Fprintln(stdout, "pulse is disabled (AGEZT_PULSE=off)")
+			return 0
+		}
+		running, _ := res["running"].(bool)
+		state := "running"
+		if !running {
+			state = "paused"
+		}
+		beats, _ := res["beats"].(float64)
+		dial, _ := res["dial"].(string)
+		pending, _ := res["digest_pending"].(float64)
+		fmt.Fprintf(stdout, "pulse %s · %d beats · dial=%s · digest pending=%d\n",
+			state, int64(beats), dial, int64(pending))
+		if obs, ok := res["observers"].([]any); ok && len(obs) > 0 {
+			fmt.Fprintf(stdout, "observers:\n")
+			for _, o := range obs {
+				if name, ok := o.(string); ok {
+					fmt.Fprintf(stdout, "  %s\n", name)
+				}
+			}
+		}
+	}
+	return 0
+}

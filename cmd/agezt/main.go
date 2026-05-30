@@ -27,6 +27,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -35,14 +36,17 @@ import (
 	"github.com/agezt/agezt/internal/paths"
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/catalog"
+	"github.com/agezt/agezt/kernel/channel"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/creds"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/governor"
 	"github.com/agezt/agezt/kernel/plugin"
+	"github.com/agezt/agezt/kernel/pulse"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/warden"
+	"github.com/agezt/agezt/plugins/channels/telegram"
 	"github.com/agezt/agezt/plugins/providers/anthropic"
 	"github.com/agezt/agezt/plugins/providers/compat"
 	"github.com/agezt/agezt/plugins/providers/mock"
@@ -171,16 +175,28 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// `buildFromCatalog` path the boot path uses, so the live
 	// post-reload registry matches what a fresh boot would have
 	// produced for the same on-disk state.
+	// Memory-lite (ROADMAP §2.3): on by default. The agent reads recalled
+	// records as injected context, can remember/recall/forget via the
+	// in-process `memory` tool, and multi-tool runs are auto-distilled into
+	// durable facts. Set AGEZT_MEMORY=off to disable the per-run behaviour
+	// (the store and `agt memory` CLI stay available either way).
+	memOn := !strings.EqualFold(os.Getenv(brand.EnvPrefix+"MEMORY"), "off")
+
 	cfg := kernelruntime.Config{
-		BaseDir:  baseDir,
-		Provider: gov, // Governor implements agent.Provider
-		Tools:    tools,
-		Plugins:  pluginManifest,
-		Model:    model,
-		System:   os.Getenv(brand.EnvPrefix + "SYSTEM_PROMPT"),
-		Warden:   ward,
-		Edict:    edictEng,
-		Catalog:  cat,
+		BaseDir:               baseDir,
+		Provider:              gov, // Governor implements agent.Provider
+		Tools:                 tools,
+		Plugins:               pluginManifest,
+		Model:                 model,
+		System:                os.Getenv(brand.EnvPrefix + "SYSTEM_PROMPT"),
+		Warden:                ward,
+		Edict:                 edictEng,
+		Catalog:               cat,
+		MemoryInject:          memOn,
+		MemoryTool:            memOn,
+		MemoryDistill:         memOn,
+		MemoryTopK:            5,
+		MemoryDistillMinTools: 4,
 	}
 	cfg.OnReload = func() error {
 		// Re-load vault (catalog already refreshed by Kernel.Reload).
@@ -248,6 +264,29 @@ func runDaemon(stdout, stderr io.Writer) int {
 	fmt.Fprintf(stdout, "  policy engine    : edict (defaults from DECISIONS F3; %s)\n", askPolicyDesc)
 	fmt.Fprintf(stdout, "  warden           : %s\n", wardDesc)
 	fmt.Fprintf(stdout, "  control plane    : %s\n", srv.Addr())
+
+	// Telegram channel (SPEC-04 §1) — duplex when AGEZT_TELEGRAM_TOKEN is
+	// set. Built before Pulse so its brief sink can tee with the log sink.
+	tgChan, tgSink, tgDesc := buildTelegram(ctx, k)
+	if tgChan != nil {
+		go tgChan.Start(ctx)
+		fmt.Fprintf(stdout, "  telegram         : %s\n", tgDesc)
+	} else {
+		fmt.Fprintf(stdout, "  telegram         : disabled (set AGEZT_TELEGRAM_TOKEN)\n")
+	}
+
+	// Pulse — the proactive heart (SPEC-03). On by default; the resident
+	// engine runs on the daemon ctx so `agt halt`/SIGTERM/`agt shutdown`
+	// stop it with everything else. AGEZT_PULSE=off disables it. When
+	// Telegram is configured, briefs tee to it (closes the Jarvis loop).
+	if eng, pulseDesc := buildPulse(k, ward, model, stdout, tgSink); eng != nil {
+		eng.Start(ctx)
+		srv.SetPulse(eng)
+		fmt.Fprintf(stdout, "  pulse            : %s\n", pulseDesc)
+	} else {
+		fmt.Fprintf(stdout, "  pulse            : disabled (AGEZT_PULSE=off)\n")
+	}
+
 	fmt.Fprintf(stdout, "  client commands  : %s run | halt | resume | why <id> | journal verify\n", brand.CLI)
 	fmt.Fprintf(stdout, "Press Ctrl+C to stop.\n")
 
@@ -283,6 +322,146 @@ func runDaemon(stdout, stderr io.Writer) int {
 		time.Sleep(50 * time.Millisecond)
 	}
 	return 0
+}
+
+// buildTelegram constructs the in-process Telegram channel when
+// AGEZT_TELEGRAM_TOKEN is set, plus a Pulse brief sink that forwards briefs to
+// the allowlisted chats. Returns (nil, nil, "") when no token is configured.
+//
+//	AGEZT_TELEGRAM_TOKEN    bot token (required to enable)
+//	AGEZT_TELEGRAM_CHAT_ID  comma-separated allowlist of chat ids that may
+//	                        drive the agent AND receive Pulse briefs
+//
+// The inbound handler runs the normal agent loop under the channel's
+// correlation, so `agt why`/`agt inbox` link the Telegram message to the task.
+func buildTelegram(ctx context.Context, k *kernelruntime.Kernel) (*telegram.Channel, pulse.BriefSink, string) {
+	token := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "TELEGRAM_TOKEN"))
+	if token == "" {
+		return nil, nil, ""
+	}
+	chatIDs := splitNonEmpty(os.Getenv(brand.EnvPrefix + "TELEGRAM_CHAT_ID"))
+	allow := channel.NewAllowlist(chatIDs)
+
+	handler := func(hctx context.Context, msg channel.UnifiedMessage, corr string) (string, error) {
+		return k.RunWith(hctx, corr, msg.Text)
+	}
+	ch := telegram.New(telegram.Config{
+		Token:     token,
+		BaseURL:   strings.TrimSpace(os.Getenv(brand.EnvPrefix + "TELEGRAM_API_BASE")), // empty → public Bot API
+		Allowlist: allow,
+		Bus:       k.Bus(),
+		Handler:   handler,
+	})
+
+	// Pulse briefs → the allowlisted chats. Nil sink when no chat configured
+	// (the bot can still receive commands once a chat is allowlisted).
+	var sink pulse.BriefSink
+	if len(chatIDs) > 0 {
+		sink = pulse.SinkFunc(func(b pulse.Brief) error {
+			var firstErr error
+			for _, id := range chatIDs {
+				if err := ch.Send(ctx, channel.Outbound{ChannelID: id, Text: formatBrief(b), Priority: channel.PriorityNotify}); err != nil && firstErr == nil {
+					firstErr = err
+				}
+			}
+			return firstErr
+		})
+	}
+
+	desc := fmt.Sprintf("listening, allowlist=%d chat(s)", len(chatIDs))
+	if len(chatIDs) == 0 {
+		desc = "listening, NO allowlist (outbound-only; set AGEZT_TELEGRAM_CHAT_ID to allow commands)"
+	}
+	return ch, sink, desc
+}
+
+// briefSink returns the Pulse sink: the log sink alone, or teed with extra
+// (Telegram) when configured.
+func briefSink(stdout io.Writer, extra pulse.BriefSink) pulse.BriefSink {
+	log := pulse.LogSink{W: stdout}
+	if extra == nil {
+		return log
+	}
+	return pulse.MultiSink{log, extra}
+}
+
+// formatBrief renders a Pulse brief as plain Telegram text.
+func formatBrief(b pulse.Brief) string {
+	if b.Body != "" {
+		return "📣 " + b.Title + "\n" + b.Body
+	}
+	return "📣 " + b.Title
+}
+
+// splitNonEmpty splits a comma list, trimming and dropping blanks.
+func splitNonEmpty(s string) []string {
+	var out []string
+	for part := range strings.SplitSeq(s, ",") {
+		if p := strings.TrimSpace(part); p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+// buildPulse constructs the resident Pulse engine from env config, or returns
+// (nil, "") when AGEZT_PULSE=off. Observers are wired only when configured:
+//
+//	AGEZT_PULSE_CADENCE      beat interval (default 60s)
+//	AGEZT_PULSE_DIAL         quiet|balanced|chatty (default balanced)
+//	AGEZT_PULSE_QUIET_HOURS  e.g. "22-7" (only alerts break through)
+//	AGEZT_PULSE_PROBE        "name=ci;argv=make test" → green↔red CI detector
+//	AGEZT_PULSE_DISK         "/:10" → alert under 10% free on "/"
+//	AGEZT_PULSE_LLM=on       enable the optional cheap-LLM salience refine
+func buildPulse(k *kernelruntime.Kernel, ward warden.Engine, model string, stdout io.Writer, extraSink pulse.BriefSink) (*pulse.Engine, string) {
+	if strings.EqualFold(os.Getenv(brand.EnvPrefix+"PULSE"), "off") {
+		return nil, ""
+	}
+	cadence := 60 * time.Second
+	if v := os.Getenv(brand.EnvPrefix + "PULSE_CADENCE"); v != "" {
+		if d, err := time.ParseDuration(v); err == nil && d > 0 {
+			cadence = d
+		}
+	}
+	dial := pulse.ParseDial(os.Getenv(brand.EnvPrefix + "PULSE_DIAL"))
+	qh := pulse.ParseQuietHours(os.Getenv(brand.EnvPrefix + "PULSE_QUIET_HOURS"))
+
+	var obs []pulse.Observer
+	var parts []string
+	if spec := os.Getenv(brand.EnvPrefix + "PULSE_PROBE"); spec != "" {
+		if name, argv, ok := pulse.ParseProbeSpec(spec); ok {
+			obs = append(obs, pulse.NewProbeObserver(name, argv, ward, k.State()))
+			parts = append(parts, "probe:"+name)
+		}
+	}
+	if spec := os.Getenv(brand.EnvPrefix + "PULSE_DISK"); spec != "" {
+		if path, pctStr, ok := strings.Cut(spec, ":"); ok {
+			if pct, err := strconv.ParseFloat(pctStr, 64); err == nil && pct > 0 {
+				obs = append(obs, pulse.NewDiskObserver(path, pct, pulse.DiskUsage))
+				parts = append(parts, "disk:"+path)
+			}
+		}
+	}
+	useLLM := strings.EqualFold(os.Getenv(brand.EnvPrefix+"PULSE_LLM"), "on")
+
+	eng := pulse.New(pulse.Config{
+		Bus:        k.Bus(),
+		State:      k.State(),
+		Warden:     ward,
+		Provider:   k.Provider(),
+		Model:      model,
+		Observers:  obs,
+		Dial:       dial,
+		Cadence:    cadence,
+		QuietHours: qh,
+		UseLLM:     useLLM,
+		Sink:       briefSink(stdout, extraSink),
+	})
+	observers := "no observers configured"
+	if len(parts) > 0 {
+		observers = strings.Join(parts, ",")
+	}
+	return eng, fmt.Sprintf("dial=%s cadence=%s observers=[%s]", dial, cadence, observers)
 }
 
 // buildGovernor constructs the routing layer: one primary provider

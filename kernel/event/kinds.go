@@ -71,6 +71,28 @@ const (
 	KindCatalogDiscoveryCompleted  Kind = "catalog.discovery_completed"
 	KindCatalogDiscoveryFailed     Kind = "catalog.discovery_failed"
 
+	// Pulse — the proactive heart (SPEC-03). Every stage emits its own
+	// event so `agt why` reconstructs tick→delta→score→initiative→brief.
+	KindPulseTick       Kind = "pulse.tick"
+	KindObserverDelta   Kind = "observer.delta"
+	KindSalienceScored  Kind = "salience.scored"
+	KindInitiativeTaken Kind = "initiative.taken"
+	KindBriefingSent    Kind = "briefing.sent"
+	KindPulsePaused     Kind = "pulse.paused"
+	KindPulseResumed    Kind = "pulse.resumed"
+
+	// Channels (SPEC-04 §1). Inbound/outbound messages normalized to
+	// UnifiedMessage; the Unified Inbox folds these by correlation.
+	KindChannelInbound  Kind = "channel.inbound"
+	KindChannelOutbound Kind = "channel.outbound"
+
+	// Memory-lite (SPEC-05 §2; ROADMAP §2.3). The store is content-
+	// addressed and journaled so `agt why` can explain every belief.
+	KindMemoryWritten    Kind = "memory.written"    // a record created/reinforced/revived
+	KindMemoryRetrieved  Kind = "memory.retrieved"  // records surfaced into a run's context
+	KindMemoryForgotten  Kind = "memory.forgotten"  // a record tombstoned (soft delete)
+	KindMemorySuperseded Kind = "memory.superseded" // a record replaced by a newer version
+
 	// Journal self-events (used for snapshot/verify boundaries).
 	KindJournalSegmentRotated Kind = "journal.segment_rotated"
 )
@@ -120,5 +142,18 @@ var knownKinds = map[Kind]struct{}{
 	KindCatalogSyncFailed:         {},
 	KindCatalogDiscoveryCompleted: {},
 	KindCatalogDiscoveryFailed:    {},
+	KindChannelInbound:            {},
+	KindChannelOutbound:           {},
+	KindPulseTick:                 {},
+	KindObserverDelta:             {},
+	KindSalienceScored:            {},
+	KindInitiativeTaken:           {},
+	KindBriefingSent:              {},
+	KindPulsePaused:               {},
+	KindPulseResumed:              {},
+	KindMemoryWritten:             {},
+	KindMemoryRetrieved:           {},
+	KindMemoryForgotten:           {},
+	KindMemorySuperseded:          {},
 	KindJournalSegmentRotated:     {},
 }

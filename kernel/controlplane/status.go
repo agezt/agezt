@@ -43,6 +43,7 @@ func (s *Server) handleStatus(conn net.Conn, req Request) {
 			"halted":         s.k.IsHalted(),
 			"active_runs":    s.k.ActiveRuns(),
 			"tools":          len(s.k.Tools()),
+			"memory_records": s.k.Memory().Count(),
 			"journal_head":   headSeq,
 		},
 	})

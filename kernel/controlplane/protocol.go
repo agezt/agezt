@@ -310,6 +310,62 @@ const (
 	//           sorted by started_unix_ms DESCENDING (newest first).
 	//   - count : int
 	CmdRunsList = "runs_list"
+
+	// Memory-lite (ROADMAP §2.3). The content-addressed, journaled
+	// knowledge store the agent reads as injected context. These give
+	// operators a read/write path without shelling into the data dir.
+	//
+	// CmdMemoryAdd stores (or reinforces) a record.
+	// Args:
+	//   - subject    : string (optional) — entity/topic
+	//   - content    : string (required) — the text to remember
+	//   - type       : string (optional) — FACT|SUMMARY|RELATION|
+	//                  PREFERENCE|OBSERVATION (default FACT)
+	//   - confidence : number (optional, 0..1; default 1)
+	//   - tags       : {k:v} (optional)
+	// Returns: { id, created (bool), type, subject }
+	CmdMemoryAdd = "memory_add"
+
+	// CmdMemoryList returns active (non-tombstoned, non-superseded)
+	// records, newest activity first. No args.
+	// Returns: { records: [...], count }
+	CmdMemoryList = "memory_list"
+
+	// CmdMemoryGet reads one record by id (any state).
+	// Args: id (required). Returns: { found, record }
+	CmdMemoryGet = "memory_get"
+
+	// CmdMemorySearch ranks active records by keyword×confidence×recency.
+	// Args: query (required), limit (optional; default 10, 1..100).
+	// Returns: { results: [{record, score}, ...], count }
+	CmdMemorySearch = "memory_search"
+
+	// CmdMemoryForget tombstones a record (soft delete; reversible,
+	// retained on disk and in the journal).
+	// Args: id (required). Returns: { forgotten (bool) }
+	CmdMemoryForget = "memory_forget"
+
+	// Pulse — the proactive heart (SPEC-03). These control the resident
+	// heartbeat the daemon runs in the background. When Pulse is disabled
+	// (AGEZT_PULSE=off) the handlers report it rather than erroring.
+	//
+	// CmdPulseStatus returns the engine snapshot (running, beats,
+	// observers, dial, cadence, last tick, pending digest). No args.
+	CmdPulseStatus = "pulse_status"
+	// CmdPulsePause suppresses new beats (in-flight processing finishes).
+	// No args. Returns { paused: true }.
+	CmdPulsePause = "pulse_pause"
+	// CmdPulseResume re-enables beats. No args. Returns { paused: false }.
+	CmdPulseResume = "pulse_resume"
+
+	// CmdInbox returns the Unified Inbox (SPEC-07 §4): channel.inbound /
+	// channel.outbound events folded into conversation threads grouped by
+	// correlation_id, newest activity first.
+	// Args: limit (optional; default 20, clamped 1..1000).
+	// Returns: { threads: [{correlation_id, channel_kind, channel_id,
+	//            messages:[{direction,sender,text,ts_unix_ms,event_id}],
+	//            last_ts_unix_ms}, ...], count }
+	CmdInbox = "inbox"
 )
 
 // Request is the wire shape sent by the client.

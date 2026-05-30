@@ -1,0 +1,257 @@
+// SPDX-License-Identifier: MIT
+
+package pulse
+
+import (
+	"context"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/agezt/agezt/kernel/bus"
+	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/journal"
+	"github.com/agezt/agezt/kernel/state"
+)
+
+// --- test doubles ---------------------------------------------------------
+
+type fakeObserver struct {
+	name   string
+	deltas []Delta
+	err    error
+}
+
+func (f *fakeObserver) Name() string { return f.name }
+func (f *fakeObserver) Poll(context.Context) ([]Delta, error) {
+	return f.deltas, f.err
+}
+
+type capturingSink struct {
+	mu     sync.Mutex
+	briefs []Brief
+}
+
+func (c *capturingSink) Deliver(b Brief) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.briefs = append(c.briefs, b)
+	return nil
+}
+func (c *capturingSink) count() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return len(c.briefs)
+}
+
+func newEngine(t *testing.T, cfg Config) (*Engine, *journal.Journal) {
+	t.Helper()
+	j, err := journal.Open(t.TempDir(), journal.Options{})
+	if err != nil {
+		t.Fatalf("journal: %v", err)
+	}
+	st, err := state.Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("state: %v", err)
+	}
+	cfg.Bus = bus.New(j)
+	cfg.State = st
+	if cfg.Now == nil {
+		cfg.Now = func() time.Time { return time.Unix(1_700_000_000, 0).UTC() }
+	}
+	t.Cleanup(func() { cfg.Bus.Close(); j.Close(); st.Close() })
+	return New(cfg), j
+}
+
+func countKind(t *testing.T, j *journal.Journal, k event.Kind) int {
+	t.Helper()
+	n := 0
+	_ = j.Range(func(e *event.Event) error {
+		if e.Kind == k {
+			n++
+		}
+		return nil
+	})
+	return n
+}
+
+// --- tests ----------------------------------------------------------------
+
+func TestTickEmitsFullChain(t *testing.T) {
+	sink := &capturingSink{}
+	obs := &fakeObserver{name: "fake", deltas: []Delta{{
+		Source: "probe:ci", Kind: "probe_failed", Summary: "ci failed",
+		Hints: map[string]string{"severity": "high"},
+	}}}
+	e, j := newEngine(t, Config{Observers: []Observer{obs}, Dial: DialBalanced, Sink: sink})
+
+	e.tickOnce(context.Background())
+
+	for _, k := range []event.Kind{
+		event.KindPulseTick, event.KindObserverDelta, event.KindSalienceScored,
+		event.KindInitiativeTaken, event.KindBriefingSent,
+	} {
+		if countKind(t, j, k) != 1 {
+			t.Errorf("expected exactly one %s event", k)
+		}
+	}
+	if sink.count() != 1 {
+		t.Fatalf("alert should deliver one brief now, got %d", sink.count())
+	}
+}
+
+func TestChainSharesCorrelation(t *testing.T) {
+	obs := &fakeObserver{name: "f", deltas: []Delta{{Source: "s", Kind: "k", Summary: "x", Hints: map[string]string{"severity": "high"}}}}
+	e, j := newEngine(t, Config{Observers: []Observer{obs}})
+	e.tickOnce(context.Background())
+
+	// The delta→score→initiative→brief events must share one correlation so
+	// `agt why <brief>` walks the whole chain.
+	corrs := map[event.Kind]string{}
+	_ = j.Range(func(ev *event.Event) error {
+		switch ev.Kind {
+		case event.KindObserverDelta, event.KindSalienceScored, event.KindInitiativeTaken, event.KindBriefingSent:
+			corrs[ev.Kind] = ev.CorrelationID
+		}
+		return nil
+	})
+	base := corrs[event.KindObserverDelta]
+	if base == "" {
+		t.Fatal("observer.delta missing correlation")
+	}
+	for k, c := range corrs {
+		if c != base {
+			t.Errorf("%s correlation %q != %q", k, c, base)
+		}
+	}
+}
+
+func TestDialQuietSuppressesNotify(t *testing.T) {
+	sink := &capturingSink{}
+	// medium severity → notify; quiet dial routes notify to digest (not now).
+	obs := &fakeObserver{name: "f", deltas: []Delta{{Source: "s", Kind: "k", Summary: "meh", Hints: map[string]string{"severity": "medium"}}}}
+	e, j := newEngine(t, Config{Observers: []Observer{obs}, Dial: DialQuiet, Sink: sink})
+	e.tickOnce(context.Background())
+
+	if sink.count() != 0 {
+		t.Fatal("quiet dial must not send a notify-level brief immediately")
+	}
+	if countKind(t, j, event.KindBriefingSent) != 0 {
+		t.Fatal("no briefing.sent until the digest flushes")
+	}
+	if countKind(t, j, event.KindInitiativeTaken) != 1 {
+		t.Fatal("a digested item still records initiative.taken")
+	}
+}
+
+func TestNoveltySuppressesRepeat(t *testing.T) {
+	sink := &capturingSink{}
+	obs := &fakeObserver{name: "f", deltas: []Delta{{Source: "probe:ci", Kind: "probe_failed", Summary: "ci red", Hints: map[string]string{"severity": "high"}}}}
+	e, _ := newEngine(t, Config{Observers: []Observer{obs}, Dial: DialBalanced, Sink: sink})
+
+	e.tickOnce(context.Background())
+	e.tickOnce(context.Background()) // identical delta again
+
+	if sink.count() != 1 {
+		t.Fatalf("identical repeat should be novelty-suppressed; got %d briefs", sink.count())
+	}
+}
+
+func TestQuietHoursHoldsNonAlert(t *testing.T) {
+	sink := &capturingSink{}
+	// notify-level delta during quiet hours → held for digest, not sent now.
+	obs := &fakeObserver{name: "f", deltas: []Delta{{Source: "s", Kind: "k", Summary: "fyi", Hints: map[string]string{"severity": "medium"}}}}
+	at2am := func() time.Time { return time.Date(2026, 1, 1, 2, 0, 0, 0, time.UTC) }
+	e, _ := newEngine(t, Config{
+		Observers:  []Observer{obs},
+		Dial:       DialBalanced,
+		Sink:       sink,
+		QuietHours: QuietHours{Enabled: true, Start: 22, End: 7},
+		Now:        at2am,
+	})
+	e.tickOnce(context.Background())
+	if sink.count() != 0 {
+		t.Fatal("quiet hours must hold a notify-level brief")
+	}
+}
+
+func TestAlertBreaksQuietHours(t *testing.T) {
+	sink := &capturingSink{}
+	obs := &fakeObserver{name: "f", deltas: []Delta{{Source: "s", Kind: "k", Summary: "PROD DOWN", Hints: map[string]string{"severity": "critical"}}}}
+	at2am := func() time.Time { return time.Date(2026, 1, 1, 2, 0, 0, 0, time.UTC) }
+	e, _ := newEngine(t, Config{
+		Observers:  []Observer{obs},
+		Sink:       sink,
+		QuietHours: QuietHours{Enabled: true, Start: 22, End: 7},
+		Now:        at2am,
+	})
+	e.tickOnce(context.Background())
+	if sink.count() != 1 {
+		t.Fatal("alert/critical must break quiet hours")
+	}
+}
+
+func TestDigestFlush(t *testing.T) {
+	sink := &capturingSink{}
+	obs := &fakeObserver{name: "f", deltas: []Delta{{Source: "s", Kind: "k", Summary: "low item", Hints: map[string]string{"severity": "low"}}}}
+	// low → digest under balanced; DigestEvery=1 flushes each beat.
+	e, j := newEngine(t, Config{Observers: []Observer{obs}, Dial: DialBalanced, Sink: sink, DigestEvery: 1})
+	e.tickOnce(context.Background())
+	if sink.count() != 1 {
+		t.Fatalf("digest should flush one combined brief, got %d", sink.count())
+	}
+	if countKind(t, j, event.KindBriefingSent) != 1 {
+		t.Fatal("digest flush should emit briefing.sent")
+	}
+}
+
+func TestPauseResume(t *testing.T) {
+	e, j := newEngine(t, Config{})
+	e.Pause()
+	if !e.IsPaused() {
+		t.Fatal("should be paused")
+	}
+	e.Resume()
+	if e.IsPaused() {
+		t.Fatal("should be resumed")
+	}
+	if countKind(t, j, event.KindPulsePaused) != 1 || countKind(t, j, event.KindPulseResumed) != 1 {
+		t.Fatal("pause/resume must be journaled")
+	}
+}
+
+func TestStatusSnapshot(t *testing.T) {
+	obs := &fakeObserver{name: "probe:ci"}
+	e, _ := newEngine(t, Config{Observers: []Observer{obs}, Dial: DialChatty, Cadence: 5 * time.Second})
+	e.tickOnce(context.Background())
+	st := e.Status()
+	if st.Beats != 1 || st.Dial != "chatty" || len(st.Observers) != 1 || !st.Running {
+		t.Fatalf("unexpected status: %+v", st)
+	}
+}
+
+func TestObserverErrorJournaledNotFatal(t *testing.T) {
+	obs := &fakeObserver{name: "boom", err: context.DeadlineExceeded}
+	e, j := newEngine(t, Config{Observers: []Observer{obs}})
+	e.tickOnce(context.Background()) // must not panic
+	if countKind(t, j, event.KindPulseTick) != 1 {
+		t.Fatal("tick should still be emitted despite observer error")
+	}
+	if countKind(t, j, event.KindObserverDelta) != 1 {
+		t.Fatal("observer error should be journaled as an observer.delta carrying the error")
+	}
+}
+
+func TestStartStopsOnContextCancel(t *testing.T) {
+	e, _ := newEngine(t, Config{Cadence: 5 * time.Millisecond})
+	ctx, cancel := context.WithCancel(context.Background())
+	e.Start(ctx)
+	time.Sleep(25 * time.Millisecond)
+	cancel()
+	time.Sleep(20 * time.Millisecond)
+	before := e.Status().Beats
+	time.Sleep(30 * time.Millisecond)
+	if e.Status().Beats != before {
+		t.Fatal("beats should stop advancing after ctx cancel")
+	}
+}

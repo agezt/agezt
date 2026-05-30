@@ -1,0 +1,215 @@
+// SPDX-License-Identifier: MIT
+
+package telegram
+
+import (
+	"context"
+	"encoding/json"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/agezt/agezt/kernel/bus"
+	"github.com/agezt/agezt/kernel/channel"
+	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/journal"
+)
+
+// fakeBotServer records sendMessage calls and serves scripted getUpdates.
+type fakeBotServer struct {
+	mu       sync.Mutex
+	sent     []map[string]any
+	updates  [][]tgUpdate // one batch per getUpdates call
+	getCalls int
+}
+
+func (f *fakeBotServer) handler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.Contains(r.URL.Path, "/getUpdates"):
+			f.mu.Lock()
+			var batch []tgUpdate
+			if f.getCalls < len(f.updates) {
+				batch = f.updates[f.getCalls]
+			}
+			f.getCalls++
+			f.mu.Unlock()
+			json.NewEncoder(w).Encode(getUpdatesResp{OK: true, Result: batch})
+		case strings.Contains(r.URL.Path, "/sendMessage"):
+			body, _ := io.ReadAll(r.Body)
+			var m map[string]any
+			json.Unmarshal(body, &m)
+			f.mu.Lock()
+			f.sent = append(f.sent, m)
+			f.mu.Unlock()
+			w.WriteHeader(200)
+			io.WriteString(w, `{"ok":true}`)
+		default:
+			w.WriteHeader(404)
+		}
+	}
+}
+
+func (f *fakeBotServer) sentCount() int { f.mu.Lock(); defer f.mu.Unlock(); return len(f.sent) }
+
+func newTestChannel(t *testing.T, srv *httptest.Server, allow channel.Allowlist, h channel.InboundHandler) (*Channel, *journal.Journal) {
+	t.Helper()
+	j, err := journal.Open(t.TempDir(), journal.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	b := bus.New(j)
+	t.Cleanup(func() { b.Close(); j.Close() })
+	return New(Config{
+		Token:      "TESTTOKEN",
+		BaseURL:    srv.URL,
+		HTTPClient: srv.Client(),
+		Allowlist:  allow,
+		Bus:        b,
+		Handler:    h,
+	}), j
+}
+
+func countKind(t *testing.T, j *journal.Journal, k event.Kind) int {
+	t.Helper()
+	n := 0
+	_ = j.Range(func(e *event.Event) error {
+		if e.Kind == k {
+			n++
+		}
+		return nil
+	})
+	return n
+}
+
+func TestInboundRunsHandlerAndReplies(t *testing.T) {
+	fb := &fakeBotServer{}
+	srv := httptest.NewServer(fb.handler())
+	defer srv.Close()
+
+	var gotText, gotCorr string
+	h := func(_ context.Context, msg channel.UnifiedMessage, corr string) (string, error) {
+		gotText = msg.Text
+		gotCorr = corr
+		return "the answer", nil
+	}
+	c, j := newTestChannel(t, srv, channel.NewAllowlist([]string{"42"}), h)
+
+	c.handleInbound(context.Background(), &tgMessage{MessageID: 1, Chat: tgChat{ID: 42}, From: &tgUser{Username: "ersin"}, Text: "hi bot"})
+
+	if gotText != "hi bot" {
+		t.Fatalf("handler text = %q", gotText)
+	}
+	if gotCorr == "" {
+		t.Fatal("handler should receive a correlation")
+	}
+	if fb.sentCount() != 1 || fb.sent[0]["text"] != "the answer" {
+		t.Fatalf("expected one reply with the answer, got %+v", fb.sent)
+	}
+	if countKind(t, j, event.KindChannelInbound) != 1 || countKind(t, j, event.KindChannelOutbound) != 1 {
+		t.Fatal("inbound and outbound must both be journaled")
+	}
+
+	// inbound + outbound share the run correlation → linkable in the inbox.
+	var inCorr, outCorr string
+	_ = j.Range(func(e *event.Event) error {
+		switch e.Kind {
+		case event.KindChannelInbound:
+			inCorr = e.CorrelationID
+		case event.KindChannelOutbound:
+			outCorr = e.CorrelationID
+		}
+		return nil
+	})
+	if inCorr == "" || inCorr != outCorr || inCorr != gotCorr {
+		t.Fatalf("inbound/outbound/handler correlations must match: %q %q %q", inCorr, outCorr, gotCorr)
+	}
+}
+
+func TestInboundAllowlistRejection(t *testing.T) {
+	fb := &fakeBotServer{}
+	srv := httptest.NewServer(fb.handler())
+	defer srv.Close()
+
+	called := false
+	h := func(context.Context, channel.UnifiedMessage, string) (string, error) {
+		called = true
+		return "should not run", nil
+	}
+	c, j := newTestChannel(t, srv, channel.NewAllowlist([]string{"42"}), h)
+
+	c.handleInbound(context.Background(), &tgMessage{Chat: tgChat{ID: 999}, Text: "let me in"})
+
+	if called {
+		t.Fatal("non-allowlisted sender must NOT drive the agent")
+	}
+	if fb.sentCount() != 1 || fb.sent[0]["text"] != "not authorized" {
+		t.Fatalf("rejected sender should get a 'not authorized' notice, got %+v", fb.sent)
+	}
+	// The inbound is still journaled (with allowed=false) for audit.
+	if countKind(t, j, event.KindChannelInbound) != 1 {
+		t.Fatal("rejected inbound must still be journaled")
+	}
+}
+
+func TestSendEmitsOutbound(t *testing.T) {
+	fb := &fakeBotServer{}
+	srv := httptest.NewServer(fb.handler())
+	defer srv.Close()
+	c, j := newTestChannel(t, srv, channel.Allowlist{}, nil)
+
+	if err := c.Send(context.Background(), channel.Outbound{ChannelID: "7", Text: "brief"}); err != nil {
+		t.Fatal(err)
+	}
+	if fb.sentCount() != 1 || fb.sent[0]["chat_id"] != "7" {
+		t.Fatalf("send should POST sendMessage, got %+v", fb.sent)
+	}
+	if countKind(t, j, event.KindChannelOutbound) != 1 {
+		t.Fatal("Send must journal channel.outbound")
+	}
+}
+
+func TestStartPollsAndAdvancesOffset(t *testing.T) {
+	fb := &fakeBotServer{updates: [][]tgUpdate{
+		{{UpdateID: 100, Message: &tgMessage{Chat: tgChat{ID: 42}, Text: "first"}}},
+	}}
+	srv := httptest.NewServer(fb.handler())
+	defer srv.Close()
+
+	var mu sync.Mutex
+	var seen []string
+	h := func(_ context.Context, msg channel.UnifiedMessage, _ string) (string, error) {
+		mu.Lock()
+		seen = append(seen, msg.Text)
+		mu.Unlock()
+		return "", nil
+	}
+	c, _ := newTestChannel(t, srv, channel.NewAllowlist([]string{"42"}), h)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() { c.Start(ctx); close(done) }()
+
+	// Wait until the first update is processed, then cancel.
+	waitFor(t, func() bool { mu.Lock(); defer mu.Unlock(); return len(seen) == 1 })
+	if c.offset != 101 {
+		t.Errorf("offset should advance to update_id+1 (101), got %d", c.offset)
+	}
+	cancel()
+	<-done
+}
+
+func waitFor(t *testing.T, cond func() bool) {
+	t.Helper()
+	for range 200 {
+		if cond() {
+			return
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	t.Fatal("condition not met in time")
+}

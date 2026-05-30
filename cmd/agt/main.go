@@ -91,6 +91,10 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return cmdRuns(args[1:], stdout, stderr)
 	case "config":
 		return cmdConfig(args[1:], stdout, stderr)
+	case "memory":
+		return cmdMemory(args[1:], stdout, stderr)
+	case "inbox":
+		return cmdInbox(args[1:], stdout, stderr)
 	default:
 		fmt.Fprintf(stderr, "%s: unknown command %q\n", brand.CLI, args[0])
 		printHelp(stderr)
@@ -139,6 +143,8 @@ func printHelp(w io.Writer) {
 	fmt.Fprintf(w, "  provider reload                       re-read catalog + vault; rebuild primary in place\n")
 	fmt.Fprintf(w, "  pulse [--subject PATTERN] [--kind K]  live tail of the daemon's event bus (Ctrl+C to exit)\n")
 	fmt.Fprintf(w, "  pulse --json                          one JSON event per line (pipe to jq, etc.)\n")
+	fmt.Fprintf(w, "  pulse status [--json]                 proactive engine: beats, observers, dial\n")
+	fmt.Fprintf(w, "  pulse pause | pulse resume            suspend/resume the proactive heartbeat\n")
 	fmt.Fprintf(w, "  budget [--json]                       show current-day spend vs daily + per-task-type caps\n")
 	fmt.Fprintf(w, "  tool list [--json]                    list in-process tools advertised to the model\n")
 	fmt.Fprintf(w, "  status [--json]                       daemon health overview (version skew, uptime, runs)\n")
@@ -153,6 +159,13 @@ func printHelp(w io.Writer) {
 	fmt.Fprintf(w, "  runs show <correlation> [--json]      render one run as a task arc\n")
 	fmt.Fprintf(w, "  runs last [--json]                    render the most-recent run as a task arc\n")
 	fmt.Fprintf(w, "  config show [--json]                  daemon's resolved config (paths, model, env presence)\n")
+	fmt.Fprintf(w, "  memory add <subject> <content> [--type T] [--tag k=v] [--conf F] [--json]\n")
+	fmt.Fprintf(w, "                              store a fact in memory (the agent reads it as context)\n")
+	fmt.Fprintf(w, "  memory list [--json]                  list active memory records\n")
+	fmt.Fprintf(w, "  memory search <query> [N] [--json]    rank records by keyword×confidence×recency\n")
+	fmt.Fprintf(w, "  memory get <id> [--json]              read one record (exit 3 = absent)\n")
+	fmt.Fprintf(w, "  memory forget <id> [--json]           tombstone a record (reversible, journaled)\n")
+	fmt.Fprintf(w, "  inbox [N] [--json]                    unified channel conversations (newest first)\n")
 	fmt.Fprintf(w, "  vault status                          show vault encryption state + path\n")
 	fmt.Fprintf(w, "  vault encrypt                         migrate plaintext vault to encrypted (set AGEZT_VAULT_PASSPHRASE)\n")
 	fmt.Fprintf(w, "  vault decrypt                         migrate encrypted vault back to plaintext\n")

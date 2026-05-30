@@ -11,9 +11,12 @@ package runtime
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -25,6 +28,7 @@ import (
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/governor"
 	"github.com/agezt/agezt/kernel/journal"
+	"github.com/agezt/agezt/kernel/memory"
 	"github.com/agezt/agezt/kernel/scheduler"
 	"github.com/agezt/agezt/kernel/state"
 	"github.com/agezt/agezt/kernel/ulid"
@@ -113,6 +117,28 @@ type Config struct {
 	// external plugins are configured. Read-only after Open.
 	Plugins []PluginInfo
 
+	// Memory-lite knobs (ROADMAP §2.3). The memory store is always
+	// opened and the manager + `agt memory` CLI always work; these
+	// flags gate only the per-run behaviour, and all default OFF so the
+	// daemon (cmd/agezt) is the single enable point and existing
+	// runtime callers/tests are unaffected.
+	//
+	//   MemoryInject          — recall relevant records and prepend them
+	//                           to the System prompt for each run.
+	//   MemoryTopK            — max records injected (default 5 when
+	//                           MemoryInject and unset).
+	//   MemoryTool            — register the in-process `memory` tool so
+	//                           the agent can remember/recall/forget.
+	//   MemoryDistill         — after a multi-tool run, extract durable
+	//                           facts via one best-effort LLM call.
+	//   MemoryDistillMinTools — tool-call threshold that triggers
+	//                           distillation (default 4 when unset).
+	MemoryInject          bool
+	MemoryTopK            int
+	MemoryTool            bool
+	MemoryDistill         bool
+	MemoryDistillMinTools int
+
 	// OnReload is invoked by Kernel.Reload() AFTER the catalog snapshot
 	// has been refreshed from disk. The closure is supplied by the
 	// daemon and is expected to:
@@ -140,6 +166,10 @@ type Kernel struct {
 	warden    warden.Engine
 	approvals *approval.Registry
 	scheduler *scheduler.Executor
+
+	memory    *memory.Manager
+	memoryDir *memory.FileStore
+	tools     map[string]agent.Tool // cfg.Tools + the memory tool (when enabled)
 
 	catalogStore *catalog.Store
 	catalog      *catalog.Catalog // snapshot — refreshable via ReloadCatalog
@@ -192,6 +222,23 @@ func Open(cfg Config) (*Kernel, error) {
 	if catDir == "" {
 		catDir = filepath.Join(cfg.BaseDir, "catalog")
 	}
+	mstore, err := memory.Open(filepath.Join(cfg.BaseDir, "memory"))
+	if err != nil {
+		j.Close()
+		st.Close()
+		return nil, fmt.Errorf("runtime: memory: %w", err)
+	}
+	mgr := memory.NewManager(mstore, kbus)
+
+	// The agent's effective tool set is the configured tools plus the
+	// in-process memory tool (when enabled). Built once, exposed via
+	// Tools() so `agt tool list` reflects what the loop actually sees.
+	effTools := make(map[string]agent.Tool, len(cfg.Tools)+1)
+	maps.Copy(effTools, cfg.Tools)
+	if cfg.MemoryTool {
+		effTools["memory"] = mgr.Tool()
+	}
+
 	catStore := catalog.NewStore(catDir)
 	cat := cfg.Catalog
 	if cat == nil {
@@ -199,6 +246,7 @@ func Open(cfg Config) (*Kernel, error) {
 		if err != nil {
 			j.Close()
 			st.Close()
+			mstore.Close()
 			return nil, fmt.Errorf("runtime: catalog load: %w", err)
 		}
 		cat = loaded
@@ -216,6 +264,9 @@ func Open(cfg Config) (*Kernel, error) {
 		scheduler:    sched,
 		catalogStore: catStore,
 		catalog:      cat,
+		memory:       mgr,
+		memoryDir:    mstore,
+		tools:        effTools,
 		runs:         make(map[string]context.CancelFunc),
 		startTime:    time.Now(),
 	}
@@ -228,6 +279,9 @@ func (k *Kernel) Close() error {
 	k.Halt() // cancel any in-flight runs first
 	k.bus.Close()
 	if err := k.state.Close(); err != nil {
+		return err
+	}
+	if err := k.memoryDir.Close(); err != nil {
 		return err
 	}
 	return k.journal.Close()
@@ -270,11 +324,17 @@ func (k *Kernel) Scheduler() *scheduler.Executor { return k.scheduler }
 func (k *Kernel) Provider() agent.Provider { return k.cfg.Provider }
 
 // Tools returns the live in-process tool map exactly as the agent
-// loop sees it. Read-only — callers must not mutate the returned
-// map. Used by the control plane to power `agt tool list`, which
-// is operator visibility into what's actually wired into the
-// daemon (vs what `agt catalog list` claims about providers).
-func (k *Kernel) Tools() map[string]agent.Tool { return k.cfg.Tools }
+// loop sees it — the configured tools plus the in-process `memory`
+// tool when MemoryTool is enabled. Read-only — callers must not
+// mutate the returned map. Used by the control plane to power
+// `agt tool list`, which is operator visibility into what's actually
+// wired into the daemon (vs what `agt catalog list` claims about
+// providers).
+func (k *Kernel) Tools() map[string]agent.Tool { return k.tools }
+
+// Memory returns the memory-lite manager backing `agt memory`, run-time
+// context injection, and auto-distillation. Always non-nil after Open.
+func (k *Kernel) Memory() *memory.Manager { return k.memory }
 
 // ActiveRuns returns the number of in-flight Run / RunPlan
 // invocations. Used by `agt status` to surface "is anything
@@ -601,20 +661,128 @@ func (k *Kernel) RunWith(ctx context.Context, corr, intent string) (string, erro
 	actor := "agent-" + corr
 	// Stash actor + correlation on the ctx so the policyHook can
 	// thread them into approval.Submit (the agent.Policy contract
-	// doesn't expose them directly).
+	// doesn't expose them directly), and so the in-process memory tool
+	// can journal its writes under this run.
 	runCtx = context.WithValue(runCtx, ctxKeyActor, actor)
 	runCtx = context.WithValue(runCtx, ctxKeyCorrelation, corr)
-	return agent.Run(runCtx, agent.LoopConfig{
+	runCtx = memory.WithCorrelation(runCtx, corr)
+
+	// Memory injection: recall relevant records and prepend them to the
+	// system prompt so the model starts the task already knowing what
+	// Agezt remembers. The recall is journaled (memory.retrieved) under
+	// corr, so `agt why` shows exactly what knowledge was surfaced.
+	system := k.cfg.System
+	if k.cfg.MemoryInject {
+		topK := k.cfg.MemoryTopK
+		if topK <= 0 {
+			topK = 5
+		}
+		if hits, err := k.memory.Recall(corr, intent, topK); err == nil && len(hits) > 0 {
+			system = injectMemory(system, hits)
+		}
+	}
+
+	answer, err := agent.Run(runCtx, agent.LoopConfig{
 		Provider:      k.cfg.Provider,
-		Tools:         k.cfg.Tools,
+		Tools:         k.tools,
 		Bus:           k.bus,
 		Model:         k.cfg.Model,
-		System:        k.cfg.System,
+		System:        system,
 		MaxIter:       k.cfg.MaxIter,
 		Actor:         actor,
 		CorrelationID: corr,
 		Policy:        k.policyHook,
 	}, intent)
+	if err != nil {
+		return answer, err
+	}
+
+	// Auto-distillation: after a multi-tool run, extract durable facts
+	// via one best-effort LLM call. Gated on a tool-call threshold so
+	// simple Q&A runs aren't taxed with an extra round-trip. Failures are
+	// journaled but never propagated — distillation must not turn a
+	// successful task into a failed one.
+	if k.cfg.MemoryDistill {
+		k.maybeDistill(runCtx, corr, intent, answer)
+	}
+	return answer, nil
+}
+
+// injectMemory prepends a compact "Relevant memory" block to the system
+// prompt. Records are rendered one per line as "- [TYPE] subject: content".
+func injectMemory(system string, hits []memory.Scored) string {
+	var b strings.Builder
+	b.WriteString("Relevant memory (recalled from prior tasks; use if helpful):\n")
+	for _, h := range hits {
+		fmt.Fprintf(&b, "- [%s] %s: %s\n", h.Record.Type, h.Record.Subject, h.Record.Content)
+	}
+	if system != "" {
+		b.WriteString("\n")
+		b.WriteString(system)
+	}
+	return b.String()
+}
+
+// maybeDistill folds the run's journal by correlation, and if the run made at
+// least MemoryDistillMinTools tool calls, runs one best-effort distillation
+// pass over a compact transcript. Best-effort: any error is journaled as a
+// memory distill failure and swallowed.
+func (k *Kernel) maybeDistill(ctx context.Context, corr, intent, answer string) {
+	minTools := k.cfg.MemoryDistillMinTools
+	if minTools <= 0 {
+		minTools = 4
+	}
+	toolCount, names := k.foldRunTools(corr)
+	if toolCount < minTools {
+		return
+	}
+	transcript := buildTranscript(names, answer)
+	if _, err := k.memory.Distill(ctx, corr, k.cfg.Provider, k.cfg.Model, intent, transcript); err != nil {
+		_, _ = k.bus.Publish(event.Spec{
+			Subject:       "memory.distill_failed",
+			Kind:          event.KindMemoryWritten,
+			Actor:         "memory",
+			CorrelationID: corr,
+			Payload:       map[string]any{"action": "distill_failed", "error": err.Error()},
+		})
+	}
+}
+
+// foldRunTools counts tool.result events for corr and collects the tool names
+// invoked (in order), for the distillation transcript.
+func (k *Kernel) foldRunTools(corr string) (int, []string) {
+	var (
+		count int
+		names []string
+	)
+	_ = k.journal.Range(func(e *event.Event) error {
+		if e.CorrelationID != corr || e.Kind != event.KindToolResult {
+			return nil
+		}
+		count++
+		var p struct {
+			Tool string `json:"tool"`
+		}
+		if json.Unmarshal(e.Payload, &p) == nil && p.Tool != "" {
+			names = append(names, p.Tool)
+		}
+		return nil
+	})
+	return count, names
+}
+
+// buildTranscript renders a compact, token-cheap summary of a run for the
+// distiller: the tools used and the final answer.
+func buildTranscript(toolNames []string, answer string) string {
+	var b strings.Builder
+	if len(toolNames) > 0 {
+		b.WriteString("Tools used: ")
+		b.WriteString(strings.Join(toolNames, ", "))
+		b.WriteString("\n")
+	}
+	b.WriteString("Final answer:\n")
+	b.WriteString(answer)
+	return b.String()
 }
 
 // Why returns every event with the same correlation_id as the named event,

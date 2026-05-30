@@ -34,6 +34,17 @@ import (
 //
 // The command runs until SIGINT/SIGTERM; Ctrl+C exits cleanly.
 func cmdPulse(args []string, stdout, stderr io.Writer) int {
+	// Subcommand routing: `agt pulse {status|pause|resume}` controls the
+	// resident engine (SPEC-03 §2). Bare `agt pulse [flags]` keeps its
+	// original meaning — a live tail of the event bus — so existing
+	// scripts and the `--subject/--kind/--json` flags are unaffected.
+	if len(args) > 0 {
+		switch args[0] {
+		case "status", "pause", "resume":
+			return cmdPulseControl(args[0], args[1:], stdout, stderr)
+		}
+	}
+
 	pattern := ">"
 	var kinds []string
 	correlation := ""
