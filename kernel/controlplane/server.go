@@ -308,6 +308,8 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.handleScheduleRun(conn, req)
 	case CmdScheduleEnable:
 		s.handleScheduleEnable(conn, req)
+	case CmdScheduleEdit:
+		s.handleScheduleEdit(conn, req)
 	case CmdWorldAdd:
 		s.handleWorldAdd(conn, req)
 	case CmdWorldRelate:

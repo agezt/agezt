@@ -21,12 +21,14 @@ import (
 // `agt run`; these commands add/list/remove/trigger them.
 func cmdSchedule(args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
-		fmt.Fprintf(stderr, "%s schedule: subcommand required (add|list|rm|run)\n", brand.CLI)
+		fmt.Fprintf(stderr, "%s schedule: subcommand required (add|edit|list|rm|run|pause|resume)\n", brand.CLI)
 		return 2
 	}
 	switch args[0] {
 	case "add":
 		return cmdScheduleAdd(args[1:], stdout, stderr)
+	case "edit":
+		return cmdScheduleEdit(args[1:], stdout, stderr)
 	case "list", "ls":
 		return cmdScheduleList(args[1:], stdout, stderr)
 	case "rm", "remove":
@@ -42,6 +44,7 @@ func cmdSchedule(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "  add \"<intent>\" --every <dur> [--model <id>] [--json]          recurring interval intent\n")
 		fmt.Fprintf(stdout, "  add \"<intent>\" --at <HH:MM> [--days <spec>] [--model <id>]    daily at a wall-clock time\n")
 		fmt.Fprintf(stdout, "  add \"<intent>\" --in <dur> | --once --at <HH:MM>              one-shot (fires once, then removed)\n")
+		fmt.Fprintf(stdout, "  edit <id> [--intent <s>] [--model <id>] [<cadence flag>]      change a schedule in place\n")
 		fmt.Fprintf(stdout, "  list [--json]                                                list all schedules\n")
 		fmt.Fprintf(stdout, "  rm <id> [--json]                                             delete a schedule\n")
 		fmt.Fprintf(stdout, "  run <id> [--json]                                            fire a schedule now (next tick)\n")
@@ -241,6 +244,181 @@ func cmdScheduleAdd(args []string, stdout, stderr io.Writer) int {
 	}
 	id, _ := res["id"].(string)
 	fmt.Fprintf(stdout, "scheduled %s (%s)\n", id, human)
+	return 0
+}
+
+// cmdScheduleEdit changes an existing schedule in place: any of --intent,
+// --model, and at most one new cadence (--every | --at [--days] | --in | --once
+// --at). The id is preserved; the cadence change recomputes the next run.
+func cmdScheduleEdit(args []string, stdout, stderr io.Writer) int {
+	asJSON := false
+	once := false
+	var id, intent, model, every, at, in, days string
+	var setIntent, setModel bool
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		needVal := func(flag string) (string, bool) {
+			if i+1 >= len(args) {
+				fmt.Fprintf(stderr, "%s schedule edit: %s needs a value\n", brand.CLI, flag)
+				return "", false
+			}
+			i++
+			return args[i], true
+		}
+		switch a {
+		case "--json":
+			asJSON = true
+		case "--once":
+			once = true
+		case "-h", "--help":
+			fmt.Fprintf(stdout, "usage: %s schedule edit <id> [--intent <s>] [--model <id>] [--every <dur> | --at <HH:MM> [--days <spec>] | --in <dur> | --once --at <HH:MM>] [--json]\n", brand.CLI)
+			return 0
+		case "--intent":
+			v, ok := needVal("--intent")
+			if !ok {
+				return 2
+			}
+			intent, setIntent = v, true
+		case "--model":
+			v, ok := needVal("--model")
+			if !ok {
+				return 2
+			}
+			model, setModel = v, true
+		case "--every":
+			v, ok := needVal("--every")
+			if !ok {
+				return 2
+			}
+			every = v
+		case "--at":
+			v, ok := needVal("--at")
+			if !ok {
+				return 2
+			}
+			at = v
+		case "--in":
+			v, ok := needVal("--in")
+			if !ok {
+				return 2
+			}
+			in = v
+		case "--days":
+			v, ok := needVal("--days")
+			if !ok {
+				return 2
+			}
+			days = v
+		default:
+			if id == "" && !strings.HasPrefix(a, "-") {
+				id = a
+			} else {
+				fmt.Fprintf(stderr, "%s schedule edit: unexpected arg %q\n", brand.CLI, a)
+				return 2
+			}
+		}
+	}
+	if id == "" {
+		fmt.Fprintf(stderr, "%s schedule edit: an id is required\n", brand.CLI)
+		return 2
+	}
+	sources := 0
+	for _, s := range []string{every, at, in} {
+		if s != "" {
+			sources++
+		}
+	}
+	if sources > 1 {
+		fmt.Fprintf(stderr, "%s schedule edit: pass at most one of --every, --at, or --in\n", brand.CLI)
+		return 2
+	}
+	if days != "" && at == "" {
+		fmt.Fprintf(stderr, "%s schedule edit: --days only applies to --at (daily) schedules\n", brand.CLI)
+		return 2
+	}
+	if once && at == "" {
+		fmt.Fprintf(stderr, "%s schedule edit: --once requires --at <HH:MM>\n", brand.CLI)
+		return 2
+	}
+	if once && days != "" {
+		fmt.Fprintf(stderr, "%s schedule edit: --days cannot combine with --once\n", brand.CLI)
+		return 2
+	}
+	if !setIntent && !setModel && sources == 0 {
+		fmt.Fprintf(stderr, "%s schedule edit: nothing to change (pass --intent, --model, or a cadence flag)\n", brand.CLI)
+		return 2
+	}
+
+	callArgs := map[string]any{"id": id}
+	if setIntent {
+		if strings.TrimSpace(intent) == "" {
+			fmt.Fprintf(stderr, "%s schedule edit: --intent cannot be empty\n", brand.CLI)
+			return 2
+		}
+		callArgs["intent"] = intent
+	}
+	if setModel {
+		callArgs["model"] = model
+	}
+	switch {
+	case in != "":
+		d, err := time.ParseDuration(in)
+		if err != nil || d < time.Second {
+			fmt.Fprintf(stderr, "%s schedule edit: bad --in duration %q\n", brand.CLI, in)
+			return 2
+		}
+		callArgs["once_at_unix"] = time.Now().Add(d).Unix()
+	case at != "" && once:
+		mins, err := parseHHMM(at)
+		if err != nil {
+			fmt.Fprintf(stderr, "%s schedule edit: bad --at %q: %v\n", brand.CLI, at, err)
+			return 2
+		}
+		callArgs["once_at_unix"] = nextWallclock(time.Now(), mins).Unix()
+	case at != "":
+		mins, err := parseHHMM(at)
+		if err != nil {
+			fmt.Fprintf(stderr, "%s schedule edit: bad --at %q: %v\n", brand.CLI, at, err)
+			return 2
+		}
+		callArgs["at_minutes"] = mins
+		if days != "" {
+			mask, err := cadence.ParseDays(days)
+			if err != nil {
+				fmt.Fprintf(stderr, "%s schedule edit: bad --days %q: %v\n", brand.CLI, days, err)
+				return 2
+			}
+			callArgs["days"] = mask
+		}
+	case every != "":
+		d, err := time.ParseDuration(every)
+		if err != nil || d < time.Second {
+			fmt.Fprintf(stderr, "%s schedule edit: bad --every duration %q\n", brand.CLI, every)
+			return 2
+		}
+		callArgs["interval_sec"] = int64(d / time.Second)
+	}
+
+	c := dial(stderr)
+	if c == nil {
+		return 1
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	res, err := c.Call(ctx, controlplane.CmdScheduleEdit, callArgs)
+	if err != nil {
+		fmt.Fprintf(stderr, "%s schedule edit: %v\n", brand.CLI, err)
+		return 1
+	}
+	if asJSON {
+		return encodeJSON(stdout, res)
+	}
+	if updated, _ := res["updated"].(bool); !updated {
+		fmt.Fprintf(stderr, "%s schedule edit: not found (%s)\n", brand.CLI, id)
+		return 3
+	}
+	cad, _ := res["cadence"].(string)
+	fmt.Fprintf(stdout, "%s updated (%s)\n", id, cad)
 	return 0
 }
 

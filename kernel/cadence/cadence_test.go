@@ -407,6 +407,66 @@ func TestStore_AddOnce_RejectsPastTime(t *testing.T) {
 	}
 }
 
+func TestStore_EditAndReschedule(t *testing.T) {
+	s := mustStore(t)
+	now := time.Date(2026, 5, 31, 8, 0, 0, 0, time.UTC) // a Sunday
+	e, _ := s.Add("old intent", time.Hour, "sonnet", SourceOperator, now)
+
+	// SetIntent / SetModel preserve everything else.
+	if ok, err := s.SetIntent(e.ID, "new intent"); !ok || err != nil {
+		t.Fatalf("SetIntent: ok=%v err=%v", ok, err)
+	}
+	if ok, _ := s.SetModel(e.ID, "opus"); !ok {
+		t.Fatal("SetModel returned false")
+	}
+	if _, err := s.SetIntent(e.ID, "  "); err == nil {
+		t.Error("empty intent should error")
+	}
+	got, _ := s.Get(e.ID)
+	if got.Intent != "new intent" || got.Model != "opus" || got.Source != SourceOperator || got.CreatedUnix != now.Unix() {
+		t.Errorf("after field edits: %+v", got)
+	}
+
+	// Reschedule interval → daily weekdays: mode/at/days change, id preserved,
+	// next run recomputed (Sunday skipped → Monday 09:30).
+	wd, _ := ParseDays("weekdays")
+	if ok, err := s.Reschedule(e.ID, ModeDaily, 0, 9*60+30, wd, time.Time{}, now); !ok || err != nil {
+		t.Fatalf("Reschedule daily: ok=%v err=%v", ok, err)
+	}
+	got, _ = s.Get(e.ID)
+	if got.ID != e.ID || got.Mode != ModeDaily || got.AtMinutes != 570 || got.Days != wd || got.IntervalSec != 0 {
+		t.Errorf("after reschedule to daily: %+v", got)
+	}
+	if got.Cadence() != "Mon-Fri at 09:30" {
+		t.Errorf("cadence = %q", got.Cadence())
+	}
+	wantMon := time.Date(2026, 6, 1, 9, 30, 0, 0, time.UTC).Unix()
+	if got.NextRunUnix != wantMon {
+		t.Errorf("next = %d want %d (Mon, Sun skipped)", got.NextRunUnix, wantMon)
+	}
+
+	// Reschedule to one-shot; a past instant is rejected.
+	if _, err := s.Reschedule(e.ID, ModeOnce, 0, 0, 0, now.Add(-time.Minute), now); err == nil {
+		t.Error("past one-shot reschedule should error")
+	}
+	future := now.Add(2 * time.Hour)
+	if ok, _ := s.Reschedule(e.ID, ModeOnce, 0, 0, 0, future, now); !ok {
+		t.Fatal("reschedule once returned false")
+	}
+	got, _ = s.Get(e.ID)
+	if got.Mode != ModeOnce || got.NextRunUnix != future.Unix() || got.AtMinutes != 0 || got.Days != 0 {
+		t.Errorf("after reschedule to once: %+v", got)
+	}
+
+	// Editing a missing id reports not-found, not an error.
+	if ok, err := s.SetIntent("nope", "x"); ok || err != nil {
+		t.Errorf("missing SetIntent: ok=%v err=%v", ok, err)
+	}
+	if ok, _ := s.Reschedule("nope", ModeInterval, time.Hour, 0, 0, time.Time{}, now); ok {
+		t.Error("missing Reschedule should report false")
+	}
+}
+
 func TestStore_AddDaily_ValidatesDayMask(t *testing.T) {
 	s := mustStore(t)
 	if _, err := s.AddDaily("x", 540, AllDays+1, "", SourceOperator, time.Now()); err == nil {

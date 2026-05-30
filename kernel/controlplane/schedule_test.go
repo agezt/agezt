@@ -163,6 +163,51 @@ func TestScheduleAddOnce(t *testing.T) {
 	}
 }
 
+func TestScheduleEdit(t *testing.T) {
+	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	ctx := context.Background()
+
+	// Start with an interval schedule.
+	res, err := c.Call(ctx, controlplane.CmdScheduleAdd, map[string]any{
+		"intent": "old", "interval_sec": 3600,
+	})
+	if err != nil {
+		t.Fatalf("add: %v", err)
+	}
+	id, _ := res["id"].(string)
+
+	// Edit intent + reschedule to daily weekdays at 09:30 in one call.
+	res, err = c.Call(ctx, controlplane.CmdScheduleEdit, map[string]any{
+		"id": id, "intent": "new", "at_minutes": 570, "days": 62,
+	})
+	if err != nil {
+		t.Fatalf("edit: %v", err)
+	}
+	if res["updated"] != true {
+		t.Fatalf("updated = %v", res["updated"])
+	}
+	if res["mode"] != "daily" || res["cadence"] != "Mon-Fri at 09:30" {
+		t.Errorf("edit result = %v", res)
+	}
+
+	// Verify via list.
+	res, _ = c.Call(ctx, controlplane.CmdScheduleList, nil)
+	list, _ := res["schedules"].([]any)
+	m, _ := list[0].(map[string]any)
+	if m["intent"] != "new" || m["cadence"] != "Mon-Fri at 09:30" || m["id"] != id {
+		t.Errorf("listed after edit = %v", m)
+	}
+
+	// Editing a missing id reports updated=false (not an error).
+	res, err = c.Call(ctx, controlplane.CmdScheduleEdit, map[string]any{"id": "nope", "intent": "x"})
+	if err != nil {
+		t.Fatalf("edit missing: %v", err)
+	}
+	if res["updated"] != false {
+		t.Errorf("missing edit updated = %v, want false", res["updated"])
+	}
+}
+
 func TestScheduleAddValidates(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 	ctx := context.Background()

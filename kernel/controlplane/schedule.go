@@ -70,6 +70,61 @@ func (s *Server) handleScheduleEnable(conn net.Conn, req Request) {
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"updated": ok, "enabled": enabled}})
 }
 
+func (s *Server) handleScheduleEdit(conn net.Conn, req Request) {
+	id, _ := req.Args["id"].(string)
+	if id == "" {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.id required"})
+		return
+	}
+	store := s.k.Schedules()
+	if _, ok := store.Get(id); !ok {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"updated": false}})
+		return
+	}
+	now := time.Now()
+
+	// Field edits (any subset). A failure on intent (empty) is reported.
+	if v, ok := req.Args["intent"]; ok {
+		intent, _ := v.(string)
+		if _, err := store.SetIntent(id, intent); err != nil {
+			s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+			return
+		}
+	}
+	if v, ok := req.Args["model"]; ok {
+		model, _ := v.(string)
+		_, _ = store.SetModel(id, model)
+	}
+
+	// At most one cadence change: once_at_unix | at_minutes[+days] | interval_sec.
+	var err error
+	if v, ok := req.Args["once_at_unix"]; ok {
+		at, _ := v.(float64)
+		_, err = store.Reschedule(id, cadence.ModeOnce, 0, 0, 0, time.Unix(int64(at), 0), now)
+	} else if v, ok := req.Args["at_minutes"]; ok {
+		at, _ := v.(float64)
+		days, _ := req.Args["days"].(float64)
+		_, err = store.Reschedule(id, cadence.ModeDaily, 0, int(at), int(days), time.Time{}, now)
+	} else if v, ok := req.Args["interval_sec"]; ok {
+		sec, _ := v.(float64)
+		_, err = store.Reschedule(id, cadence.ModeInterval, time.Duration(sec)*time.Second, 0, 0, time.Time{}, now)
+	}
+	if err != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		return
+	}
+
+	e, _ := store.Get(id)
+	s.writeResp(conn, Response{
+		ID:   req.ID,
+		Type: RespResult,
+		Result: map[string]any{
+			"updated": true, "id": e.ID, "mode": e.Mode, "cadence": e.Cadence(),
+			"intent": e.Intent, "next_run_unix": e.NextRunUnix,
+		},
+	})
+}
+
 func (s *Server) handleScheduleList(conn net.Conn, req Request) {
 	entries := s.k.Schedules().List()
 	out := make([]map[string]any, 0, len(entries))

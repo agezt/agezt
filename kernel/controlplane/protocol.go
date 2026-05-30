@@ -366,6 +366,11 @@ const (
 	// CmdScheduleEnable enables or disables a schedule (pause/resume without
 	// deleting). Args: id (required), enabled (bool). Returns: { updated, enabled }
 	CmdScheduleEnable = "schedule_enable"
+	// CmdScheduleEdit changes an existing schedule in place (preserving its id),
+	// applying any of: intent, model, and a new cadence (interval_sec |
+	// at_minutes[+days] | once_at_unix). Args: id (required) + whichever fields
+	// change. Returns: { updated (bool), id, mode, cadence }
+	CmdScheduleEdit = "schedule_edit"
 
 	// World model (SPEC-05 §3). The journaled entity/relation graph behind
 	// `agt world`; writes go through the kernel's worldmodel.Graph so every

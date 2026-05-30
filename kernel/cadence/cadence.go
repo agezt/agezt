@@ -373,6 +373,81 @@ func (s *Store) SetEnabled(id string, enabled bool) (bool, error) {
 	return false, nil
 }
 
+// SetIntent changes an entry's intent in place. Returns whether it exists.
+func (s *Store) SetIntent(id, intent string) (bool, error) {
+	intent = strings.TrimSpace(intent)
+	if intent == "" {
+		return false, fmt.Errorf("cadence: intent is required")
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, e := range s.entries {
+		if e.ID == id {
+			e.Intent = intent
+			return true, s.save()
+		}
+	}
+	return false, nil
+}
+
+// SetModel changes an entry's model in place (empty clears it). Returns whether
+// it exists.
+func (s *Store) SetModel(id, model string) (bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, e := range s.entries {
+		if e.ID == id {
+			e.Model = strings.TrimSpace(model)
+			return true, s.save()
+		}
+	}
+	return false, nil
+}
+
+// Reschedule replaces an entry's cadence in place (preserving id/source/created/
+// enabled), recomputing its next-run time. mode selects which of the cadence
+// parameters apply: ModeOnce → onceAt; ModeDaily → atMinutes+days; ModeInterval
+// → interval. Returns whether the entry exists.
+func (s *Store) Reschedule(id, mode string, interval time.Duration, atMinutes, days int, onceAt, now time.Time) (bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, e := range s.entries {
+		if e.ID != id {
+			continue
+		}
+		switch mode {
+		case ModeOnce:
+			if !onceAt.After(now) {
+				return false, fmt.Errorf("cadence: one-shot time must be in the future")
+			}
+			e.Mode = ModeOnce
+			e.IntervalSec, e.AtMinutes, e.Days = 0, 0, 0
+			e.NextRunUnix = onceAt.Unix()
+		case ModeDaily:
+			if atMinutes < 0 || atMinutes > 1439 {
+				return false, fmt.Errorf("cadence: time-of-day must be 00:00..23:59")
+			}
+			if days < 0 || days > AllDays {
+				return false, fmt.Errorf("cadence: day-mask must be 0..%d", AllDays)
+			}
+			e.Mode = ModeDaily
+			e.IntervalSec = 0
+			e.AtMinutes, e.Days = atMinutes, days
+			e.NextRunUnix = nextDaily(now, atMinutes, days).Unix()
+		default: // ModeInterval
+			if interval < MinInterval {
+				return false, fmt.Errorf("cadence: interval %s is below the %s minimum", interval, MinInterval)
+			}
+			e.Mode = ModeInterval
+			e.AtMinutes, e.Days = 0, 0
+			e.IntervalSec = int64(interval / time.Second)
+			e.NextRunUnix = now.Add(interval).Unix()
+		}
+		return true, s.save()
+	}
+	return false, nil
+}
+
 // Remove deletes the entry with id; returns whether one was removed.
 func (s *Store) Remove(id string) (bool, error) {
 	s.mu.Lock()

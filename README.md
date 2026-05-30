@@ -16,7 +16,7 @@ a **native REST** `/api/v1`), it drives **external ACP agents** and **peer
 Agezt nodes** back (mesh), pushes events out via **HMAC-signed webhooks**, and
 `agt provider import` brings every key you already have online in one pass.
 See [CHANGELOG.md](CHANGELOG.md).
-**Tests:** 1098 passing across 55 packages.
+**Tests:** 1100 passing across 55 packages.
 **Dependencies:** one (`lukechampine.com/blake3`) + one transitive.
 
 ## What you get
@@ -166,6 +166,7 @@ agt schedule add "standup nudge" --at 09:30 --days mon-fri   # weekdays only
 agt schedule add "weekend digest" --at 11:00 --days weekends
 agt schedule add "remind me to push" --in 30m                # one-shot, then self-removes
 agt schedule add "deploy recap" --once --at 18:00            # one-shot at a wall-clock time
+agt schedule edit <id> --intent "..." --at 10:00 --days mon-fri  # change in place (id preserved)
 agt schedule list            # id, cadence, source, next run
 agt schedule run <id>        # fire now (next tick)
 agt schedule pause <id>      # disable without deleting (resume re-enables)
@@ -269,7 +270,7 @@ The v1 substrate. Highlights:
 ## Verify
 
 ```bash
-make test     # 1098 tests, all green
+make test     # 1100 tests, all green
 make build    # produces bin/agezt + bin/agt
 make gen      # regenerate SDK types from the contract
 ```

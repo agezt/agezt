@@ -38,6 +38,10 @@ A full management verb over the token-authed control plane (handlers in
 - `add "<intent>" --at <HH:MM> [--days <spec>]` — daily wall-clock, optionally
   weekday-filtered.
 - `add "<intent>" --in <dur>` / `--once --at <HH:MM>` — one-shot.
+- `edit <id> [--intent <s>] [--model <id>] [<cadence flag>]` — change a schedule
+  in place, preserving its id. A field-only edit (intent/model) leaves the
+  next-run time undisturbed; a cadence change (interval ↔ daily ↔ one-shot)
+  recomputes it.
 - `list [--json]` — id, rendered cadence, source, enabled/paused, next run.
 - `run <id>` — fire on the next tick (marks due now).
 - `pause <id>` / `resume <id>` — disable/re-enable without deleting.
@@ -103,12 +107,12 @@ what the system did on its own and link it to the resulting run.
 - `a477700` — daily wall-clock scheduling (`--at HH:MM`) + pause/resume
 - `cee731a` — weekday filtering for daily schedules (`--days mon-fri`)
 - `79e4083` — one-shot schedules (`--in 30m` / `--once --at 18:00`)
+- `agt schedule edit` — change a schedule in place (intent/model/cadence)
 
 ## Deferred (named for future autonomy work)
 
 - **Catch-up semantics** for daily/once schedules missed while the daemon was
   down (currently they advance past the missed slot rather than firing late).
-- **`agt schedule edit`** to change an entry's cadence in place (today: rm + add).
 - **Sub-daily cron expressions** (e.g. "every 15 min between 09:00–17:00 on
   weekdays") — the day/time/interval primitives are in place to build on.
 - **Timezone-per-schedule** (today: the daemon's local zone for all wall-clock

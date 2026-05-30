@@ -19,7 +19,9 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   in a **persistent store** (survive restarts, reversible) and are managed with
   `agt schedule add|list|rm|run|pause|resume` over the control plane; `AGEZT_SCHEDULE`
   (`;`-separated `interval=intent` jobs) seeds env-sourced entries at startup and
-  is synced into the same store. Three cadences: **interval** (`--every 1h`),
+  is synced into the same store, and any entry can be **edited in place** (`agt
+  schedule edit <id>`) — change its intent, model, or cadence while preserving its
+  id (a field-only edit leaves the next-run time undisturbed). Three cadences: **interval** (`--every 1h`),
   **daily wall-clock** (`--at 09:30`, local time, e.g. a morning brief),
   optionally restricted to **specific weekdays** (`--days mon-fri`, `--days
   weekends`, or a list/range like `mon,wed,fri`) so a daily schedule fires only on
