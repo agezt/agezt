@@ -21,8 +21,12 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"io"
+	"net"
+	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -47,6 +51,7 @@ import (
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/ulid"
 	"github.com/agezt/agezt/kernel/warden"
+	"github.com/agezt/agezt/kernel/webui"
 	"github.com/agezt/agezt/plugins/channels/telegram"
 	"github.com/agezt/agezt/plugins/providers/anthropic"
 	"github.com/agezt/agezt/plugins/providers/compat"
@@ -316,6 +321,15 @@ func runDaemon(stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "  reflection       : on-demand (agt reflect run; set AGEZT_REFLECT_EVERY for a timer)\n")
 	}
 
+	// Web UI (SPEC-07) — the SSE Live Monitor + read panels over the same
+	// bus/control plane the CLI uses. Off unless AGEZT_WEB_ADDR is set;
+	// runs on the daemon ctx (halt/shutdown stop it), localhost + token.
+	if webDesc := buildWebUI(ctx, k, baseDir, stdout); webDesc != "" {
+		fmt.Fprintf(stdout, "  web ui           : %s\n", webDesc)
+	} else {
+		fmt.Fprintf(stdout, "  web ui           : disabled (set AGEZT_WEB_ADDR, e.g. 127.0.0.1:8787)\n")
+	}
+
 	fmt.Fprintf(stdout, "  client commands  : %s run | halt | resume | why <id> | journal verify\n", brand.CLI)
 	fmt.Fprintf(stdout, "Press Ctrl+C to stop.\n")
 
@@ -471,6 +485,83 @@ func onOff(b bool) string {
 		return "on"
 	}
 	return "off"
+}
+
+// buildWebUI starts the Web UI resident when AGEZT_WEB_ADDR is set, on the
+// daemon ctx (so `agt halt`/SIGTERM/`agt shutdown` stop it). It serves the SSE
+// Live Monitor + read panels (SPEC-07) — token-authed and read-only (SPEC-06)
+// — over the same bus and control plane the CLI uses, so the two views are
+// guaranteed consistent. Returns a banner description (the tokenized URL), or
+// "" when disabled.
+//
+//	AGEZT_WEB_ADDR  host:port to serve on (e.g. 127.0.0.1:8787); unset = off.
+//
+// We never bind 0.0.0.0 implicitly: the operator supplies the host, and the
+// banner warns if it isn't loopback (public exposure is their explicit choice,
+// SPEC-06).
+func buildWebUI(ctx context.Context, k *kernelruntime.Kernel, baseDir string, stdout io.Writer) string {
+	addr := os.Getenv(brand.EnvPrefix + "WEB_ADDR")
+	if addr == "" {
+		return ""
+	}
+	// Fresh random token, minted like the control plane's (crypto/rand → hex).
+	tokBytes := make([]byte, 32)
+	if _, err := rand.Read(tokBytes); err != nil {
+		fmt.Fprintf(stdout, "  web ui           : disabled (token mint failed: %v)\n", err)
+		return ""
+	}
+	token := hex.EncodeToString(tokBytes)
+
+	// Reuse the same control-plane client `agt` builds — every read panel is a
+	// proxied Cmd* call, so there is zero query duplication and full parity.
+	client, err := controlplane.NewClient(baseDir)
+	if err != nil {
+		fmt.Fprintf(stdout, "  web ui           : disabled (control-plane client: %v)\n", err)
+		return ""
+	}
+
+	ln, err := net.Listen("tcp", addr)
+	if err != nil {
+		fmt.Fprintf(stdout, "  web ui           : disabled (listen %s: %v)\n", addr, err)
+		return ""
+	}
+	srv := &http.Server{Handler: webui.New(k.Bus(), client, token).Handler()}
+	go func() {
+		if err := srv.Serve(ln); err != nil && err != http.ErrServerClosed {
+			fmt.Fprintf(stdout, "web ui server error: %v\n", err)
+		}
+	}()
+	// Stop with the daemon: graceful shutdown on ctx cancel.
+	go func() {
+		<-ctx.Done()
+		shutCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		_ = srv.Shutdown(shutCtx)
+	}()
+
+	desc := "http://" + ln.Addr().String() + "/?token=" + token
+	if !isLoopback(addr) {
+		desc += "  [WARNING: not loopback — reachable beyond localhost]"
+	}
+	return desc
+}
+
+// isLoopback reports whether the host portion of addr binds to loopback only.
+func isLoopback(addr string) bool {
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		host = addr
+	}
+	if host == "" {
+		return false // empty host = all interfaces
+	}
+	if host == "localhost" {
+		return true
+	}
+	if ip := net.ParseIP(host); ip != nil {
+		return ip.IsLoopback()
+	}
+	return false
 }
 
 // buildPulse constructs the resident Pulse engine from env config, or returns

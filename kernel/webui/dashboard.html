@@ -1,0 +1,226 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: MIT -->
+<!-- Agezt Web UI v1 — server-rendered, SSE-driven, zero build chain.
+     One self-contained page: vanilla JS, EventSource for the live feed,
+     fetch for the read panels. The token is read from this page's own URL
+     (the operator opened /?token=…), so every request re-presents it.
+
+     XSS safety: every value that originates from the bus or the control
+     plane (event kinds/subjects, entity names, memory text, …) is rendered
+     with textContent via DOM construction — never string-interpolated into
+     innerHTML. The only innerHTML use is clearing nodes ("" ). -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agezt · Live Monitor</title>
+<style>
+  :root {
+    --bg: #0b0e14; --panel: #131722; --panel2: #0f1320; --line: #1f2633;
+    --fg: #c9d1d9; --dim: #6b7585; --accent: #58a6ff; --good: #3fb950;
+    --warn: #d29922; --bad: #f85149; --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 13px/1.5 var(--mono); }
+  header { display: flex; align-items: center; gap: 12px; padding: 10px 16px;
+    border-bottom: 1px solid var(--line); background: var(--panel2); position: sticky; top: 0; z-index: 2; }
+  header h1 { font-size: 14px; margin: 0; letter-spacing: .5px; }
+  header h1 b { color: var(--accent); }
+  #conn { margin-left: auto; font-size: 11px; color: var(--dim); }
+  #conn.live { color: var(--good); }
+  #conn.down { color: var(--bad); }
+  .grid { display: grid; grid-template-columns: 1.4fr 1fr; gap: 12px; padding: 12px; }
+  @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+    overflow: hidden; display: flex; flex-direction: column; min-height: 0; }
+  .panel > h2 { margin: 0; padding: 8px 12px; font-size: 11px; text-transform: uppercase;
+    letter-spacing: 1px; color: var(--dim); border-bottom: 1px solid var(--line);
+    display: flex; align-items: center; gap: 8px; }
+  .panel > h2 button { margin-left: auto; background: none; border: 1px solid var(--line);
+    color: var(--dim); border-radius: 5px; font: inherit; font-size: 10px; padding: 1px 7px; cursor: pointer; }
+  .panel > h2 button:hover { color: var(--fg); border-color: var(--accent); }
+  .body { padding: 8px 12px; overflow: auto; }
+  #feed { grid-row: span 3; max-height: calc(100vh - 90px); }
+  #feed .body { padding: 0; }
+  .ev { display: grid; grid-template-columns: 64px 1fr; gap: 8px; padding: 4px 12px;
+    border-bottom: 1px solid var(--panel2); white-space: nowrap; }
+  .ev:hover { background: var(--panel2); }
+  .ev .seq { color: var(--dim); text-align: right; }
+  .ev .kind { color: var(--accent); }
+  .ev .subj { color: var(--fg); }
+  .ev .meta { color: var(--dim); }
+  pre { margin: 0; white-space: pre-wrap; word-break: break-word; color: var(--fg); }
+  .kv { display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; margin: 0; }
+  .kv dt { color: var(--dim); }
+  .kv dd { margin: 0; word-break: break-word; }
+  .muted { color: var(--dim); }
+  .err { color: var(--bad); }
+  .item { margin: 3px 0; display: flex; gap: 6px; align-items: baseline; flex-wrap: wrap; }
+  .chip { background: var(--panel2); border: 1px solid var(--line); border-radius: 12px;
+    padding: 1px 9px; font-size: 11px; }
+  .count { margin-bottom: 6px; }
+</style>
+</head>
+<body>
+<header>
+  <h1><b>agezt</b> · live monitor</h1>
+  <span id="conn">connecting…</span>
+</header>
+
+<div class="grid">
+  <section class="panel" id="feed">
+    <h2>Event Feed <span class="muted" id="evcount">0</span>
+      <button id="clearBtn">clear</button></h2>
+    <div class="body" id="feedBody"></div>
+  </section>
+
+  <section class="panel"><h2>Status <button data-panel="status">↻</button></h2><div class="body" id="status"></div></section>
+  <section class="panel"><h2>World <button data-panel="world">↻</button></h2><div class="body" id="world"></div></section>
+  <section class="panel"><h2>Skills <button data-panel="skills">↻</button></h2><div class="body" id="skills"></div></section>
+  <section class="panel"><h2>Memory <button data-panel="memory">↻</button></h2><div class="body" id="memory"></div></section>
+  <section class="panel"><h2>Inbox <button data-panel="inbox">↻</button></h2><div class="body" id="inbox"></div></section>
+  <section class="panel"><h2>Reflection <button data-panel="reflect">↻</button></h2><div class="body" id="reflect"></div></section>
+</div>
+
+<script>
+"use strict";
+const TOKEN = new URLSearchParams(location.search).get("token") || "";
+const qs = TOKEN ? "?token=" + encodeURIComponent(TOKEN) : "";
+const MAX_FEED = 300;
+let evCount = 0;
+
+// --- safe DOM builders (textContent only; no innerHTML with dynamic data) ---
+function el(tag, cls, text) {
+  const n = document.createElement(tag);
+  if (cls) n.className = cls;
+  if (text != null) n.textContent = String(text);
+  return n;
+}
+function clear(node) { while (node.firstChild) node.removeChild(node.firstChild); }
+function setBody(id, node) { const b = document.getElementById(id); clear(b); b.appendChild(node); }
+function muted(text) { return el("span", "muted", text); }
+function chip(text) { return el("span", "chip", text); }
+
+// ---- live event feed (SSE) ----
+const feedBody = document.getElementById("feedBody");
+const conn = document.getElementById("conn");
+const evcount = document.getElementById("evcount");
+
+function clearFeed() { clear(feedBody); evCount = 0; evcount.textContent = "0"; }
+
+function addEvent(ev) {
+  const row = el("div", "ev");
+  row.appendChild(el("span", "seq", ev.seq != null ? ev.seq : ""));
+  const right = el("span");
+  right.appendChild(el("span", "kind", ev.kind || ""));
+  right.appendChild(document.createTextNode(" "));
+  right.appendChild(el("span", "subj", ev.subject || ""));
+  if (ev.actor) right.appendChild(el("span", "meta", " · " + ev.actor));
+  row.appendChild(right);
+  feedBody.insertBefore(row, feedBody.firstChild);
+  while (feedBody.childElementCount > MAX_FEED) feedBody.removeChild(feedBody.lastChild);
+  evCount++;
+  evcount.textContent = evCount;
+}
+
+function connect() {
+  const src = new EventSource("/events" + qs);
+  src.onopen = () => { conn.textContent = "● live"; conn.className = "live"; };
+  src.onmessage = (m) => { try { addEvent(JSON.parse(m.data)); } catch (e) { /* ignore */ } };
+  src.onerror = () => { conn.textContent = "● disconnected — retrying"; conn.className = "down"; };
+}
+
+// ---- read panels (fetch → control plane) ----
+async function loadPanel(name) {
+  setBody(name, muted("loading…"));
+  try {
+    const res = await fetch("/api/" + name + qs, { headers: { "Accept": "application/json" } });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const data = await res.json();
+    setBody(name, (renderers[name] || pre)(data));
+  } catch (e) {
+    setBody(name, el("span", "err", e.message));
+  }
+}
+
+function pre(o) { return el("pre", null, JSON.stringify(o, null, 2)); }
+
+function kv(pairs) {
+  const dl = el("dl", "kv");
+  for (const [k, v] of pairs) { dl.appendChild(el("dt", null, k)); dl.appendChild(el("dd", null, v)); }
+  return dl;
+}
+
+function listInto(frag, arr, fn, empty) {
+  if (!arr || !arr.length) { frag.appendChild(muted(empty || "none")); return frag; }
+  for (const x of arr) frag.appendChild(fn(x));
+  return frag;
+}
+
+const renderers = {
+  status: (d) => kv(Object.entries(d).map(([k, v]) =>
+    [k, typeof v === "object" ? JSON.stringify(v) : v])),
+
+  world: (d) => {
+    const ents = d.entities || d.Entities || [];
+    const rels = d.relations != null ? d.relations : (d.relation_count != null ? d.relation_count : 0);
+    const frag = document.createDocumentFragment();
+    frag.appendChild(el("div", "count muted", ents.length + " entities · " + rels + " relations"));
+    return listInto(frag, ents, (e) => {
+      const row = el("div", "item");
+      row.appendChild(chip(e.kind || ""));
+      row.appendChild(el("span", null, e.name || ""));
+      if (e.weight != null) row.appendChild(muted("w=" + e.weight));
+      return row;
+    }, "no entities");
+  },
+
+  skills: (d) => {
+    const sk = d.skills || d.Skills || [];
+    const frag = document.createDocumentFragment();
+    frag.appendChild(el("div", "count muted",
+      (d.active != null ? d.active + " active · " : "") + sk.length + " total"));
+    return listInto(frag, sk, (s) => {
+      const row = el("div", "item");
+      row.appendChild(chip(s.status || ""));
+      row.appendChild(el("span", null, s.name || ""));
+      return row;
+    }, "no skills");
+  },
+
+  memory: (d) => {
+    const ms = d.memories || d.Memories || (Array.isArray(d) ? d : []);
+    const frag = document.createDocumentFragment();
+    return listInto(frag, ms, (m) =>
+      el("div", "item", m.text || m.content || JSON.stringify(m)), "no memories");
+  },
+
+  inbox: (d) => {
+    const items = d.items || d.Items || (Array.isArray(d) ? d : []);
+    const frag = document.createDocumentFragment();
+    return listInto(frag, items, (i) => {
+      const row = el("div", "item");
+      row.appendChild(chip(i.channel || i.kind || ""));
+      row.appendChild(el("span", null, i.summary || i.text || ""));
+      return row;
+    }, "inbox empty");
+  },
+
+  reflect: (d) => {
+    if (d && d.error) return muted(d.error);
+    return pre(d);
+  },
+};
+
+// ---- boot ----
+document.getElementById("clearBtn").addEventListener("click", clearFeed);
+document.querySelectorAll("button[data-panel]").forEach((b) =>
+  b.addEventListener("click", () => loadPanel(b.dataset.panel)));
+connect();
+const PANELS = ["status", "world", "skills", "memory", "inbox", "reflect"];
+for (const p of PANELS) loadPanel(p);
+// Light periodic refresh of the cheap read panels (the feed is already live).
+setInterval(() => { for (const p of ["status", "world", "skills"]) loadPanel(p); }, 15000);
+</script>
+</body>
+</html>
