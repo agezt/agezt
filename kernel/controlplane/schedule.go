@@ -24,8 +24,12 @@ func (s *Server) handleScheduleAdd(conn net.Conn, req Request) {
 
 	var e cadence.Entry
 	var err error
-	// Daily (wall-clock) when at_minutes is present; interval otherwise.
-	if atAny, ok := req.Args["at_minutes"]; ok {
+	// One-shot when once_at_unix is present; daily when at_minutes is present;
+	// interval otherwise.
+	if onceAny, ok := req.Args["once_at_unix"]; ok {
+		at, _ := onceAny.(float64)
+		e, err = s.k.Schedules().AddOnce(intent, time.Unix(int64(at), 0), model, cadence.SourceOperator, time.Now())
+	} else if atAny, ok := req.Args["at_minutes"]; ok {
 		at, _ := atAny.(float64)
 		days, _ := req.Args["days"].(float64) // weekday bitmask; 0 = every day
 		e, err = s.k.Schedules().AddDaily(intent, int(at), int(days), model, cadence.SourceOperator, time.Now())

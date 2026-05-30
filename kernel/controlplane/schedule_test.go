@@ -5,6 +5,7 @@ package controlplane_test
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/plugins/providers/mock"
@@ -133,6 +134,32 @@ func TestScheduleAddDailyWithDays(t *testing.T) {
 	m, _ := list[0].(map[string]any)
 	if m["cadence"] != "Mon-Fri at 09:00" {
 		t.Errorf("cadence = %v, want Mon-Fri at 09:00", m["cadence"])
+	}
+}
+
+func TestScheduleAddOnce(t *testing.T) {
+	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	ctx := context.Background()
+
+	at := time.Now().Add(time.Hour).Unix()
+	res, err := c.Call(ctx, controlplane.CmdScheduleAdd, map[string]any{
+		"intent": "summarise the deploy", "once_at_unix": at,
+	})
+	if err != nil {
+		t.Fatalf("add once: %v", err)
+	}
+	if res["mode"] != "once" {
+		t.Errorf("mode = %v, want once", res["mode"])
+	}
+	if next, _ := res["next_run_unix"].(float64); int64(next) != at {
+		t.Errorf("next_run_unix = %v, want %d", res["next_run_unix"], at)
+	}
+
+	// A one-shot in the past is rejected by the store.
+	if _, err := c.Call(ctx, controlplane.CmdScheduleAdd, map[string]any{
+		"intent": "too late", "once_at_unix": time.Now().Add(-time.Hour).Unix(),
+	}); err == nil {
+		t.Error("a past one-shot should error")
 	}
 }
 

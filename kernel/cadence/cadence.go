@@ -47,6 +47,7 @@ const (
 const (
 	ModeInterval = "" // fire every IntervalSec seconds
 	ModeDaily    = "daily"
+	ModeOnce     = "once" // fire exactly once at NextRunUnix, then self-remove
 )
 
 // AllDays is the day-mask meaning "every day" (all seven bits set); the zero
@@ -78,12 +79,15 @@ func (e Entry) Interval() time.Duration { return time.Duration(e.IntervalSec) * 
 
 // Cadence renders the entry's schedule for display.
 func (e Entry) Cadence() string {
-	if e.Mode == ModeDaily {
+	switch e.Mode {
+	case ModeDaily:
 		hhmm := fmt.Sprintf("%02d:%02d", e.AtMinutes/60, e.AtMinutes%60)
 		if d := FormatDays(e.Days); d != "" {
 			return d + " at " + hhmm
 		}
 		return "daily at " + hhmm
+	case ModeOnce:
+		return "once at " + time.Unix(e.NextRunUnix, 0).Format("2006-01-02 15:04")
 	}
 	return "every " + e.Interval().String()
 }
@@ -321,6 +325,40 @@ func (s *Store) AddDaily(intent string, atMinutes, days int, model, source strin
 	return *e, nil
 }
 
+// AddOnce creates an enabled one-shot entry that fires exactly once at the
+// wall-clock instant at (which must be in the future) and then removes itself.
+// It is the reminder/at-job primitive ("at 14:00 today, summarise the deploy").
+func (s *Store) AddOnce(intent string, at time.Time, model, source string, now time.Time) (Entry, error) {
+	intent = strings.TrimSpace(intent)
+	if intent == "" {
+		return Entry{}, fmt.Errorf("cadence: intent is required")
+	}
+	if !at.After(now) {
+		return Entry{}, fmt.Errorf("cadence: one-shot time must be in the future")
+	}
+	if source == "" {
+		source = SourceOperator
+	}
+	e := &Entry{
+		ID:          "sched-" + ulid.New(),
+		Intent:      intent,
+		Mode:        ModeOnce,
+		Model:       strings.TrimSpace(model),
+		Source:      source,
+		Enabled:     true,
+		CreatedUnix: now.Unix(),
+		NextRunUnix: at.Unix(),
+	}
+	s.mu.Lock()
+	s.entries = append(s.entries, e)
+	err := s.save()
+	s.mu.Unlock()
+	if err != nil {
+		return Entry{}, err
+	}
+	return *e, nil
+}
+
 // SetEnabled enables or disables an entry (pause/resume without deleting).
 // Returns whether the entry exists.
 func (s *Store) SetEnabled(id string, enabled bool) (bool, error) {
@@ -393,6 +431,7 @@ func (s *Store) Due(now time.Time) []Entry {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	var due []Entry
+	var fired map[string]bool // one-shot entries to remove after firing
 	changed := false
 	for _, e := range s.entries {
 		if !e.Enabled {
@@ -402,9 +441,25 @@ func (s *Store) Due(now time.Time) []Entry {
 			continue
 		}
 		e.LastRunUnix = now.Unix()
-		e.NextRunUnix = e.advance(now)
+		if e.Mode == ModeOnce {
+			if fired == nil {
+				fired = make(map[string]bool)
+			}
+			fired[e.ID] = true // self-removes; no next run
+		} else {
+			e.NextRunUnix = e.advance(now)
+		}
 		changed = true
 		due = append(due, *e)
+	}
+	if len(fired) > 0 {
+		kept := s.entries[:0:0]
+		for _, e := range s.entries {
+			if !fired[e.ID] {
+				kept = append(kept, e)
+			}
+		}
+		s.entries = kept
 	}
 	if changed {
 		_ = s.save()

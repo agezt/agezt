@@ -364,6 +364,49 @@ func TestStore_Daily_SkipsDisallowedWeekdays(t *testing.T) {
 	}
 }
 
+func TestStore_Once_FiresOnceAndSelfRemoves(t *testing.T) {
+	s := mustStore(t)
+	now := time.Date(2026, 5, 31, 8, 0, 0, 0, time.UTC)
+	at := time.Date(2026, 5, 31, 8, 30, 0, 0, time.UTC)
+	e, err := s.AddOnce("summarise the deploy", at, "", SourceOperator, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if e.Mode != ModeOnce || e.NextRunUnix != at.Unix() {
+		t.Fatalf("entry = %+v", e)
+	}
+	if e.Cadence() != "once at "+at.Local().Format("2006-01-02 15:04") {
+		t.Errorf("cadence = %q", e.Cadence())
+	}
+	// Not due before 08:30.
+	if len(s.Due(now)) != 0 {
+		t.Fatal("should not be due before its time")
+	}
+	// Fires at 08:30 and removes itself from the store.
+	due := s.Due(at.Add(time.Second))
+	if len(due) != 1 || due[0].ID != e.ID {
+		t.Fatalf("should fire once: %+v", due)
+	}
+	if s.Count() != 0 {
+		t.Errorf("one-shot should self-remove, count = %d", s.Count())
+	}
+	// Never fires again.
+	if len(s.Due(at.Add(2*time.Hour))) != 0 {
+		t.Error("removed one-shot must not fire again")
+	}
+}
+
+func TestStore_AddOnce_RejectsPastTime(t *testing.T) {
+	s := mustStore(t)
+	now := time.Date(2026, 5, 31, 8, 0, 0, 0, time.UTC)
+	if _, err := s.AddOnce("x", now.Add(-time.Minute), "", SourceOperator, now); err == nil {
+		t.Error("a past one-shot time should error")
+	}
+	if _, err := s.AddOnce("  ", now.Add(time.Hour), "", SourceOperator, now); err == nil {
+		t.Error("empty intent should error")
+	}
+}
+
 func TestStore_AddDaily_ValidatesDayMask(t *testing.T) {
 	s := mustStore(t)
 	if _, err := s.AddDaily("x", 540, AllDays+1, "", SourceOperator, time.Now()); err == nil {

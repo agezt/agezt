@@ -41,6 +41,7 @@ func cmdSchedule(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "usage: %s schedule <subcommand>\n", brand.CLI)
 		fmt.Fprintf(stdout, "  add \"<intent>\" --every <dur> [--model <id>] [--json]          recurring interval intent\n")
 		fmt.Fprintf(stdout, "  add \"<intent>\" --at <HH:MM> [--days <spec>] [--model <id>]    daily at a wall-clock time\n")
+		fmt.Fprintf(stdout, "  add \"<intent>\" --in <dur> | --once --at <HH:MM>              one-shot (fires once, then removed)\n")
 		fmt.Fprintf(stdout, "  list [--json]                                                list all schedules\n")
 		fmt.Fprintf(stdout, "  rm <id> [--json]                                             delete a schedule\n")
 		fmt.Fprintf(stdout, "  run <id> [--json]                                            fire a schedule now (next tick)\n")
@@ -68,17 +69,31 @@ func parseHHMM(s string) (int, error) {
 	return hh*60 + mm, nil
 }
 
+// nextWallclock returns the next local occurrence of mins-past-midnight strictly
+// after now (today if still ahead, else tomorrow) — used for one-shot --once --at.
+func nextWallclock(now time.Time, mins int) time.Time {
+	y, m, d := now.Date()
+	cand := time.Date(y, m, d, mins/60, mins%60, 0, 0, now.Location())
+	if !cand.After(now) {
+		cand = time.Date(y, m, d+1, mins/60, mins%60, 0, 0, now.Location())
+	}
+	return cand
+}
+
 func cmdScheduleAdd(args []string, stdout, stderr io.Writer) int {
 	asJSON := false
-	var every, at, days, model string
+	once := false
+	var every, at, in, days, model string
 	var positional []string
 	for i := 0; i < len(args); i++ {
 		a := args[i]
 		switch a {
 		case "--json":
 			asJSON = true
+		case "--once":
+			once = true
 		case "-h", "--help":
-			fmt.Fprintf(stdout, "usage: %s schedule add \"<intent>\" (--every <dur> | --at <HH:MM> [--days <spec>]) [--model <id>] [--json]\n", brand.CLI)
+			fmt.Fprintf(stdout, "usage: %s schedule add \"<intent>\" (--every <dur> | --at <HH:MM> [--days <spec>] | --once --at <HH:MM> | --in <dur>) [--model <id>] [--json]\n", brand.CLI)
 			return 0
 		case "--every":
 			if i+1 >= len(args) {
@@ -94,6 +109,13 @@ func cmdScheduleAdd(args []string, stdout, stderr io.Writer) int {
 			}
 			i++
 			at = args[i]
+		case "--in":
+			if i+1 >= len(args) {
+				fmt.Fprintf(stderr, "%s schedule add: --in needs a duration\n", brand.CLI)
+				return 2
+			}
+			i++
+			in = args[i]
 		case "--days":
 			if i+1 >= len(args) {
 				fmt.Fprintf(stderr, "%s schedule add: --days needs a spec (e.g. mon-fri, weekends)\n", brand.CLI)
@@ -117,18 +139,57 @@ func cmdScheduleAdd(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "%s schedule add: an intent is required\n", brand.CLI)
 		return 2
 	}
-	if (every == "") == (at == "") {
-		fmt.Fprintf(stderr, "%s schedule add: pass exactly one of --every <dur> or --at <HH:MM>\n", brand.CLI)
+	// Exactly one cadence source: --every (interval), --at (daily/one-shot), or
+	// --in (one-shot relative).
+	sources := 0
+	for _, s := range []string{every, at, in} {
+		if s != "" {
+			sources++
+		}
+	}
+	if sources != 1 {
+		fmt.Fprintf(stderr, "%s schedule add: pass exactly one of --every <dur>, --at <HH:MM>, or --in <dur>\n", brand.CLI)
 		return 2
 	}
 	if days != "" && at == "" {
 		fmt.Fprintf(stderr, "%s schedule add: --days only applies to --at (daily) schedules\n", brand.CLI)
 		return 2
 	}
+	if once && at == "" {
+		fmt.Fprintf(stderr, "%s schedule add: --once requires --at <HH:MM> (use --in for a relative one-shot)\n", brand.CLI)
+		return 2
+	}
+	if once && days != "" {
+		fmt.Fprintf(stderr, "%s schedule add: --days cannot combine with --once (a one-shot has no recurrence)\n", brand.CLI)
+		return 2
+	}
 
 	callArgs := map[string]any{"intent": intent}
 	var human string
-	if at != "" {
+	switch {
+	case in != "":
+		d, err := time.ParseDuration(in)
+		if err != nil {
+			fmt.Fprintf(stderr, "%s schedule add: bad --in duration %q: %v\n", brand.CLI, in, err)
+			return 2
+		}
+		if d < time.Second {
+			fmt.Fprintf(stderr, "%s schedule add: --in must be at least 1s\n", brand.CLI)
+			return 2
+		}
+		fireAt := time.Now().Add(d)
+		callArgs["once_at_unix"] = fireAt.Unix()
+		human = "once at " + fireAt.Format("2006-01-02 15:04")
+	case at != "" && once:
+		mins, err := parseHHMM(at)
+		if err != nil {
+			fmt.Fprintf(stderr, "%s schedule add: bad --at %q: %v\n", brand.CLI, at, err)
+			return 2
+		}
+		fireAt := nextWallclock(time.Now(), mins)
+		callArgs["once_at_unix"] = fireAt.Unix()
+		human = "once at " + fireAt.Format("2006-01-02 15:04")
+	case at != "":
 		mins, err := parseHHMM(at)
 		if err != nil {
 			fmt.Fprintf(stderr, "%s schedule add: bad --at %q: %v\n", brand.CLI, at, err)
@@ -147,7 +208,7 @@ func cmdScheduleAdd(args []string, stdout, stderr io.Writer) int {
 				human = label + " at " + at
 			}
 		}
-	} else {
+	default: // every
 		d, err := time.ParseDuration(every)
 		if err != nil {
 			fmt.Fprintf(stderr, "%s schedule add: bad --every duration %q: %v\n", brand.CLI, every, err)
