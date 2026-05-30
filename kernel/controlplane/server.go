@@ -322,6 +322,10 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.handleSkillQuarantine(conn, req)
 	case CmdSkillRevert:
 		s.handleSkillRevert(conn, req)
+	case CmdReflectRun:
+		s.handleReflectRun(conn, req)
+	case CmdReflectShow:
+		s.handleReflectShow(conn, req)
 	case CmdPulseStatus:
 		s.handlePulseStatus(conn, req)
 	case CmdPulsePause:

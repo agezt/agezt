@@ -111,6 +111,11 @@ const (
 	KindSkillReverted    Kind = "skill.reverted"    // a reversal appended (never an edit)
 	KindSkillActivated   Kind = "skill.activated"   // active skills injected into a run's context
 
+	// Reflection — meta-cognition (SPEC-05 §6). The system reviews its own
+	// behaviour from the journal and recalibrates; the report (observations,
+	// adjustments applied, advisory proposals) is itself journaled.
+	KindReflectionCompleted Kind = "reflection.completed"
+
 	// Journal self-events (used for snapshot/verify boundaries).
 	KindJournalSegmentRotated Kind = "journal.segment_rotated"
 )
@@ -183,5 +188,6 @@ var knownKinds = map[Kind]struct{}{
 	KindSkillQuarantined:          {},
 	KindSkillReverted:             {},
 	KindSkillActivated:            {},
+	KindReflectionCompleted:       {},
 	KindJournalSegmentRotated:     {},
 }

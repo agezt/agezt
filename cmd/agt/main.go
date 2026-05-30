@@ -97,6 +97,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return cmdWorld(args[1:], stdout, stderr)
 	case "skill":
 		return cmdSkill(args[1:], stdout, stderr)
+	case "reflect":
+		return cmdReflect(args[1:], stdout, stderr)
 	case "inbox":
 		return cmdInbox(args[1:], stdout, stderr)
 	default:
@@ -182,6 +184,8 @@ func printHelp(w io.Writer) {
 	fmt.Fprintf(w, "  skill promote <id> [--json]          advance draft->shadow->active\n")
 	fmt.Fprintf(w, "  skill quarantine <id> [--reason R] [--json]   pull a skill from production\n")
 	fmt.Fprintf(w, "  skill revert <id> [--json]           archive + restore lineage parent\n")
+	fmt.Fprintf(w, "  reflect run [--json]                  run a reflection pass (decays stale world-model entities)\n")
+	fmt.Fprintf(w, "  reflect show [--json]                 print the latest reflection report\n")
 	fmt.Fprintf(w, "  inbox [N] [--json]                    unified channel conversations (newest first)\n")
 	fmt.Fprintf(w, "  vault status                          show vault encryption state + path\n")
 	fmt.Fprintf(w, "  vault encrypt                         migrate plaintext vault to encrypted (set AGEZT_VAULT_PASSPHRASE)\n")

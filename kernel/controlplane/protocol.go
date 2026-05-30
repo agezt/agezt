@@ -412,6 +412,17 @@ const (
 	// Args: id (required). Returns: { id, restored }
 	CmdSkillRevert = "skill_revert"
 
+	// Reflection — meta-cognition (SPEC-05 §6).
+	//
+	// CmdReflectRun runs one reflection pass now: folds the journal, applies
+	// world-model decay, and journals the report. No args.
+	// Returns: the Report (observations, entities_decayed, proposals).
+	CmdReflectRun = "reflect_run"
+
+	// CmdReflectShow returns the latest reflection report from the journal.
+	// No args. Returns: { found, report }
+	CmdReflectShow = "reflect_show"
+
 	// Pulse — the proactive heart (SPEC-03). These control the resident
 	// heartbeat the daemon runs in the background. When Pulse is disabled
 	// (AGEZT_PULSE=off) the handlers report it rather than erroring.

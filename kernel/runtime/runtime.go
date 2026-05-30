@@ -29,6 +29,7 @@ import (
 	"github.com/agezt/agezt/kernel/governor"
 	"github.com/agezt/agezt/kernel/journal"
 	"github.com/agezt/agezt/kernel/memory"
+	"github.com/agezt/agezt/kernel/reflect"
 	"github.com/agezt/agezt/kernel/scheduler"
 	"github.com/agezt/agezt/kernel/skill"
 	"github.com/agezt/agezt/kernel/state"
@@ -208,6 +209,7 @@ type Kernel struct {
 	worldDir  *worldmodel.FileStore
 	forge     *skill.Forge
 	skillDir  *skill.FileStore
+	reflect   *reflect.Engine
 	tools     map[string]agent.Tool // cfg.Tools + the memory/world tools (when enabled)
 
 	catalogStore *catalog.Store
@@ -288,6 +290,11 @@ func Open(cfg Config) (*Kernel, error) {
 	}
 	forge := skill.NewForge(skstore, kbus)
 
+	// Reflection holds no store of its own — it folds the journal and tunes
+	// the world graph, then journals its report (SPEC-05 §6). Default decay
+	// knobs; the daemon may override via the optional periodic trigger.
+	reflectEng := reflect.New(j, wgraph, kbus, reflect.Config{})
+
 	// The agent's effective tool set is the configured tools plus the
 	// in-process memory/world tools (when enabled). Built once, exposed via
 	// Tools() so `agt tool list` reflects what the loop actually sees.
@@ -333,6 +340,7 @@ func Open(cfg Config) (*Kernel, error) {
 		worldDir:     wstore,
 		forge:        forge,
 		skillDir:     skstore,
+		reflect:      reflectEng,
 		tools:        effTools,
 		runs:         make(map[string]context.CancelFunc),
 		startTime:    time.Now(),
@@ -417,6 +425,10 @@ func (k *Kernel) World() *worldmodel.Graph { return k.world }
 // Forge returns the skill manager backing `agt skill`, run-time skill
 // activation, and post-run skill proposal. Always non-nil after Open.
 func (k *Kernel) Forge() *skill.Forge { return k.forge }
+
+// Reflect returns the reflection engine backing `agt reflect` and the optional
+// periodic reflection trigger. Always non-nil after Open.
+func (k *Kernel) Reflect() *reflect.Engine { return k.reflect }
 
 // ActiveRuns returns the number of in-flight Run / RunPlan
 // invocations. Used by `agt status` to surface "is anything

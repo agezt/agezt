@@ -45,6 +45,7 @@ import (
 	"github.com/agezt/agezt/kernel/plugin"
 	"github.com/agezt/agezt/kernel/pulse"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
+	"github.com/agezt/agezt/kernel/ulid"
 	"github.com/agezt/agezt/kernel/warden"
 	"github.com/agezt/agezt/plugins/channels/telegram"
 	"github.com/agezt/agezt/plugins/providers/anthropic"
@@ -306,6 +307,15 @@ func runDaemon(stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "  pulse            : disabled (AGEZT_PULSE=off)\n")
 	}
 
+	// Reflection (SPEC-05 §6). Always available via `agt reflect run`; set
+	// AGEZT_REFLECT_EVERY (e.g. 24h) to also run a pass on a timer (mirrors
+	// the Pulse ticker, on the daemon ctx). Absent → on-demand only.
+	if reflectDesc := startReflectTicker(ctx, k, stdout); reflectDesc != "" {
+		fmt.Fprintf(stdout, "  reflection       : %s\n", reflectDesc)
+	} else {
+		fmt.Fprintf(stdout, "  reflection       : on-demand (agt reflect run; set AGEZT_REFLECT_EVERY for a timer)\n")
+	}
+
 	fmt.Fprintf(stdout, "  client commands  : %s run | halt | resume | why <id> | journal verify\n", brand.CLI)
 	fmt.Fprintf(stdout, "Press Ctrl+C to stop.\n")
 
@@ -421,6 +431,38 @@ func splitNonEmpty(s string) []string {
 		}
 	}
 	return out
+}
+
+// startReflectTicker starts a periodic reflection pass when AGEZT_REFLECT_EVERY
+// is a valid positive duration, on the daemon ctx (so halt/shutdown stop it).
+// Returns a banner description, or "" when no timer is configured. Mirrors the
+// Pulse ticker lifecycle.
+func startReflectTicker(ctx context.Context, k *kernelruntime.Kernel, stdout io.Writer) string {
+	raw := os.Getenv(brand.EnvPrefix + "REFLECT_EVERY")
+	if raw == "" {
+		return ""
+	}
+	every, err := time.ParseDuration(raw)
+	if err != nil || every <= 0 {
+		fmt.Fprintf(stdout, "  reflection       : invalid AGEZT_REFLECT_EVERY %q (%v) — on-demand only\n", raw, err)
+		return ""
+	}
+	go func() {
+		ticker := time.NewTicker(every)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				corr := "reflect-" + ulid.New()
+				if _, err := k.Reflect().Reflect(ctx, corr); err != nil {
+					fmt.Fprintf(stdout, "reflection pass failed: %v\n", err)
+				}
+			}
+		}
+	}()
+	return "every " + every.String()
 }
 
 // onOff renders a boolean as a banner-friendly enabled/disabled token.
