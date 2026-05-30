@@ -149,6 +149,7 @@ func printHelp(w io.Writer) {
 	fmt.Fprintf(w, "  provider creds set <NAME> [<value>]   store a credential (prompts if value omitted)\n")
 	fmt.Fprintf(w, "  provider creds rm <NAME>              remove a credential\n")
 	fmt.Fprintf(w, "  provider setup [provider-id]          list providers needing a key, or prompt to add one's keys (offline)\n")
+	fmt.Fprintf(w, "  provider import [--from f] [--all] [-y] discover keys already on this machine (env/.env/Codex/Gemini) → vault\n")
 	fmt.Fprintf(w, "  provider check [id]                   live roundtrip to verify creds + latency + cost\n")
 	fmt.Fprintf(w, "  provider check --all                  probe every credentialed provider; summary table\n")
 	fmt.Fprintf(w, "  provider check --bench N [id]         run N probes; report min/p50/p95/max latencies\n")

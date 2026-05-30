@@ -12,6 +12,14 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- `agt provider import` — credential auto-discovery (SPEC-15 §1.3): scans the
+  process environment, a local `.env`, an explicit `--from <file>`, and
+  well-known agent-CLI credential files (Codex, Gemini) for API keys, matches
+  them against the synced catalog (or a `*_API_KEY`/`*_TOKEN` heuristic with
+  `--all`), and stores the recognised ones in the vault. Values are always
+  masked; nothing is written without per-key confirmation unless `--yes`.
+  `--dry-run` previews; `--json` for automation. "Works with every provider you
+  already have a key for" with one command.
 - `agt world forget <id>` — tombstone a world-model entity (soft delete;
   reversible, journaled), completing the symmetry with `memory forget`.
 - **Web UI world graph** — the World panel now renders a node-link diagram
