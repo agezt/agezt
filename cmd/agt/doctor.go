@@ -108,13 +108,27 @@ func runDoctorChecks() []doctorCheck {
 		checks = append(checks, fail("daemon", "cannot resolve base dir", "fix the base dir error above"))
 		return checks
 	}
-	client, err := controlplane.NewClient(base)
-	if err != nil {
-		checks = append(checks, fail("daemon", "not running (no control-plane socket)",
+	// Probe the recorded control-plane address. This surfaces *which* daemon
+	// the CLI reaches (so a stray second instance is visible) and tells a
+	// stale socket (recorded, dead) apart from no socket at all.
+	addr, alive := controlplane.ProbeExisting(base)
+	switch {
+	case addr == "":
+		checks = append(checks, fail("daemon", "not running (no control-plane socket recorded)",
 			fmt.Sprintf("start it: %s", brand.Binary)))
+		return checks
+	case !alive:
+		checks = append(checks, fail("daemon", "recorded at "+addr+" but not responding (stale socket)",
+			fmt.Sprintf("a daemon crashed or was killed; start a fresh one: %s", brand.Binary)))
 		return checks
 	}
 
+	client, err := controlplane.NewClient(base)
+	if err != nil {
+		checks = append(checks, fail("daemon", "socket recorded but client build failed: "+err.Error(),
+			fmt.Sprintf("start it: %s", brand.Binary)))
+		return checks
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	status, err := client.Call(ctx, controlplane.CmdStatus, nil)
@@ -123,7 +137,7 @@ func runDoctorChecks() []doctorCheck {
 			fmt.Sprintf("is the daemon healthy? try `%s status`", brand.CLI)))
 		return checks
 	}
-	checks = append(checks, ok("daemon", "running and reachable"))
+	checks = append(checks, ok("daemon", "running at "+addr))
 	checks = append(checks, checkVersionSkew(status))
 	checks = append(checks, checkJournal(ctx, client, status))
 	checks = append(checks, checkTools(status))
