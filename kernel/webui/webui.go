@@ -14,9 +14,12 @@
 //     `agt` uses, so the CLI and the Web UI are guaranteed-consistent views and
 //     no query logic is duplicated.
 //
-// Security (SPEC-06): the server is bound by the operator (loopback by default),
-// token-authed on every request, and READ-ONLY in v1 — it only ever issues
-// read commands; halt/approve/forget from the browser are deferred.
+// Security (SPEC-06): the server is bound by the operator (loopback by
+// default) and token-authed on every request. Reads are GET; the few
+// mutating actions (halt, resume, approve/deny) are POST-only and pass the
+// same token — a cross-site page can't forge them because it can't read the
+// token, and the surface is loopback. The write set is a fixed allowlist
+// (writeRoutes); there is no generic passthrough.
 package webui
 
 import (
@@ -54,15 +57,33 @@ func New(b *bus.Bus, client Caller, token string) *Server {
 	return &Server{bus: b, client: client, token: token}
 }
 
-// apiRoutes maps each /api path to the read-only control-plane command it
+// apiRoutes maps each GET /api path to the read-only control-plane command it
 // proxies. Read-only by construction: there is no path here that mutates.
 var apiRoutes = map[string]string{
-	"/api/status":  controlplane.CmdStatus,
-	"/api/memory":  controlplane.CmdMemoryList,
-	"/api/world":   controlplane.CmdWorldList,
-	"/api/skills":  controlplane.CmdSkillList,
-	"/api/inbox":   controlplane.CmdInbox,
-	"/api/reflect": controlplane.CmdReflectShow,
+	"/api/status":    controlplane.CmdStatus,
+	"/api/memory":    controlplane.CmdMemoryList,
+	"/api/world":     controlplane.CmdWorldList,
+	"/api/skills":    controlplane.CmdSkillList,
+	"/api/inbox":     controlplane.CmdInbox,
+	"/api/reflect":   controlplane.CmdReflectShow,
+	"/api/approvals": controlplane.CmdApprovals,
+}
+
+// writeRoute is a mutating control-plane command exposed over POST. args lists
+// the query-param names copied into the call — a fixed allowlist, so the
+// browser can only ever invoke these specific commands with these arguments.
+type writeRoute struct {
+	cmd  string
+	args []string
+}
+
+// writeRoutes is the operator-action allowlist: the big red button (halt),
+// its inverse (resume), and HITL approval resolution (decide). Each is
+// POST-only (see writeProxy).
+var writeRoutes = map[string]writeRoute{
+	"/api/halt":   {controlplane.CmdHalt, []string{"reason"}},
+	"/api/resume": {controlplane.CmdResume, []string{"reason"}},
+	"/api/decide": {controlplane.CmdDecide, []string{"id", "decision", "reason"}},
 }
 
 // Handler builds the mux. Every route is wrapped in token auth.
@@ -72,6 +93,9 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/events", s.auth(s.handleEvents))
 	for path, cmd := range apiRoutes {
 		mux.HandleFunc(path, s.auth(s.proxy(cmd)))
+	}
+	for path, wr := range writeRoutes {
+		mux.HandleFunc(path, s.auth(s.writeProxy(wr)))
 	}
 	return mux
 }
@@ -174,6 +198,33 @@ func (s *Server) proxy(cmd string) http.HandlerFunc {
 		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 		defer cancel()
 		res, err := s.client.Call(ctx, cmd, nil)
+		if err != nil {
+			writeJSON(w, http.StatusBadGateway, map[string]any{"error": err.Error()})
+			return
+		}
+		writeJSON(w, http.StatusOK, res)
+	}
+}
+
+// writeProxy returns a handler for one allowlisted mutating command. It is
+// POST-only (a GET — e.g. a prefetch or an <img> — must never halt the agent),
+// copies the route's allowed args from the query string, and relays the result.
+func (s *Server) writeProxy(wr writeRoute) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			w.Header().Set("Allow", http.MethodPost)
+			writeJSON(w, http.StatusMethodNotAllowed, map[string]any{"error": "POST required"})
+			return
+		}
+		args := map[string]any{}
+		for _, k := range wr.args {
+			if v := strings.TrimSpace(r.URL.Query().Get(k)); v != "" {
+				args[k] = v
+			}
+		}
+		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+		defer cancel()
+		res, err := s.client.Call(ctx, wr.cmd, args)
 		if err != nil {
 			writeJSON(w, http.StatusBadGateway, map[string]any{"error": err.Error()})
 			return

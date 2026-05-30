@@ -14,6 +14,10 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ### Added
 - `agt world forget <id>` — tombstone a world-model entity (soft delete;
   reversible, journaled), completing the symmetry with `memory forget`.
+- **Web UI operator actions** — the dashboard is no longer read-only: a HALT /
+  Resume control bar and an Approvals panel (approve/deny pending HITL
+  requests). Mutating actions are a fixed allowlist, POST-only, token-authed,
+  and pass only allowlisted args (GET/no-token are refused); reads stay GET.
 
 ## [0.1.0] — 2026-05-30
 

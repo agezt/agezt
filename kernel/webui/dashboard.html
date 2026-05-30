@@ -26,6 +26,13 @@
     border-bottom: 1px solid var(--line); background: var(--panel2); position: sticky; top: 0; z-index: 2; }
   header h1 { font-size: 14px; margin: 0; letter-spacing: .5px; }
   header h1 b { color: var(--accent); }
+  .act { background: var(--panel); color: var(--fg); border: 1px solid var(--line);
+    border-radius: 6px; font: inherit; font-size: 11px; padding: 3px 10px; cursor: pointer; }
+  .act:hover { border-color: var(--accent); }
+  .act.danger { color: var(--bad); border-color: var(--bad); }
+  .act.danger:hover { background: var(--bad); color: #fff; }
+  .act.mini { padding: 1px 8px; font-size: 10px; }
+  .act.ok { color: var(--good); border-color: var(--good); }
   #conn { margin-left: auto; font-size: 11px; color: var(--dim); }
   #conn.live { color: var(--good); }
   #conn.down { color: var(--bad); }
@@ -64,6 +71,8 @@
 <body>
 <header>
   <h1><b>agezt</b> · live monitor</h1>
+  <button id="haltBtn" class="act danger" title="Freeze all in-flight runs">⏸ HALT</button>
+  <button id="resumeBtn" class="act" title="Clear the halt flag">▶ Resume</button>
   <span id="conn">connecting…</span>
 </header>
 
@@ -78,6 +87,7 @@
   <section class="panel"><h2>World <button data-panel="world">↻</button></h2><div class="body" id="world"></div></section>
   <section class="panel"><h2>Skills <button data-panel="skills">↻</button></h2><div class="body" id="skills"></div></section>
   <section class="panel"><h2>Memory <button data-panel="memory">↻</button></h2><div class="body" id="memory"></div></section>
+  <section class="panel"><h2>Approvals <button data-panel="approvals">↻</button></h2><div class="body" id="approvals"></div></section>
   <section class="panel"><h2>Inbox <button data-panel="inbox">↻</button></h2><div class="body" id="inbox"></div></section>
   <section class="panel"><h2>Reflection <button data-panel="reflect">↻</button></h2><div class="body" id="reflect"></div></section>
 </div>
@@ -143,6 +153,20 @@ async function loadPanel(name) {
   }
 }
 
+// post issues a mutating action (halt/resume/decide) as POST with the token
+// and allowlisted params in the query string.
+async function post(path, params) {
+  const qp = new URLSearchParams(params || {});
+  if (TOKEN) qp.set("token", TOKEN);
+  const res = await fetch(path + "?" + qp.toString(), { method: "POST" });
+  if (!res.ok) {
+    let msg = "HTTP " + res.status;
+    try { const j = await res.json(); if (j.error) msg = j.error; } catch (e) {}
+    throw new Error(msg);
+  }
+  return res.json();
+}
+
 function pre(o) { return el("pre", null, JSON.stringify(o, null, 2)); }
 
 function kv(pairs) {
@@ -206,21 +230,71 @@ const renderers = {
     }, "inbox empty");
   },
 
+  approvals: (d) => {
+    const items = d.pending || d.Pending || [];
+    const frag = document.createDocumentFragment();
+    frag.appendChild(el("div", "count muted", items.length + " pending"));
+    if (!items.length) { frag.appendChild(muted("nothing awaiting approval")); return frag; }
+    for (const a of items) {
+      const row = el("div", "item");
+      row.appendChild(chip(a.capability || a.tool_name || "?"));
+      const desc = el("span", null, a.reason || a.tool_name || a.id || "");
+      row.appendChild(desc);
+      const grant = el("button", "act mini ok", "approve");
+      const deny = el("button", "act mini danger", "deny");
+      const decide = async (decision) => {
+        grant.disabled = deny.disabled = true;
+        try {
+          await post("/api/decide", { id: a.id, decision });
+          loadPanel("approvals");
+        } catch (e) {
+          desc.textContent = "error: " + e.message;
+          grant.disabled = deny.disabled = false;
+        }
+      };
+      grant.addEventListener("click", () => decide("grant"));
+      deny.addEventListener("click", () => decide("deny"));
+      row.appendChild(grant);
+      row.appendChild(deny);
+      frag.appendChild(row);
+    }
+    return frag;
+  },
+
   reflect: (d) => {
     if (d && d.error) return muted(d.error);
     return pre(d);
   },
 };
 
+// ---- operator actions (halt / resume) ----
+async function act(path, confirmMsg, btn) {
+  if (confirmMsg && !window.confirm(confirmMsg)) return;
+  const prev = btn.textContent;
+  btn.disabled = true; btn.textContent = "…";
+  try {
+    await post(path, {});
+    btn.textContent = "done"; loadPanel("status");
+  } catch (e) {
+    btn.textContent = "error"; alert(path + ": " + e.message);
+  } finally {
+    setTimeout(() => { btn.textContent = prev; btn.disabled = false; }, 1200);
+  }
+}
+
 // ---- boot ----
 document.getElementById("clearBtn").addEventListener("click", clearFeed);
+document.getElementById("haltBtn").addEventListener("click", (e) =>
+  act("/api/halt", "Freeze ALL in-flight runs?", e.currentTarget));
+document.getElementById("resumeBtn").addEventListener("click", (e) =>
+  act("/api/resume", null, e.currentTarget));
 document.querySelectorAll("button[data-panel]").forEach((b) =>
   b.addEventListener("click", () => loadPanel(b.dataset.panel)));
 connect();
-const PANELS = ["status", "world", "skills", "memory", "inbox", "reflect"];
+const PANELS = ["status", "world", "skills", "memory", "approvals", "inbox", "reflect"];
 for (const p of PANELS) loadPanel(p);
 // Light periodic refresh of the cheap read panels (the feed is already live).
-setInterval(() => { for (const p of ["status", "world", "skills"]) loadPanel(p); }, 15000);
+setInterval(() => { for (const p of ["status", "approvals"]) loadPanel(p); }, 10000);
 </script>
 </body>
 </html>

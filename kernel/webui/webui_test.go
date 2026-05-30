@@ -20,13 +20,15 @@ import (
 
 // fakeCaller records the commands the proxy issues and returns canned results.
 type fakeCaller struct {
-	calls  []string
-	result map[string]any
-	err    error
+	calls    []string
+	lastArgs map[string]any
+	result   map[string]any
+	err      error
 }
 
-func (f *fakeCaller) Call(_ context.Context, cmd string, _ map[string]any) (map[string]any, error) {
+func (f *fakeCaller) Call(_ context.Context, cmd string, args map[string]any) (map[string]any, error) {
 	f.calls = append(f.calls, cmd)
+	f.lastArgs = args
 	if f.err != nil {
 		return nil, f.err
 	}
@@ -121,11 +123,11 @@ func TestAPIProxiesControlPlane(t *testing.T) {
 }
 
 func TestAPIReadOnly(t *testing.T) {
-	// Every advertised /api route must map to a read-only command — assert the
-	// proxy never issues anything outside the known read set.
+	// Every GET /api route must map to a read-only command — assert the proxy
+	// never issues anything outside the known read set.
 	readOnly := map[string]bool{
 		"status": true, "memory_list": true, "world_list": true,
-		"skill_list": true, "inbox": true, "reflect_show": true,
+		"skill_list": true, "inbox": true, "reflect_show": true, "approvals": true,
 	}
 	for path := range apiRoutes {
 		fc := &fakeCaller{result: map[string]any{"ok": true}}
@@ -138,6 +140,73 @@ func TestAPIReadOnly(t *testing.T) {
 		if !readOnly[fc.calls[0]] {
 			t.Errorf("%s issued non-read command %q", path, fc.calls[0])
 		}
+	}
+}
+
+func TestWriteRequiresPOST(t *testing.T) {
+	// A GET to a write route must NOT issue the mutating command (405).
+	for path := range writeRoutes {
+		fc := &fakeCaller{result: map[string]any{"ok": true}}
+		s, _ := newServer(t, fc, "secret")
+		req := httptest.NewRequest(http.MethodGet, path+"?token=secret", nil)
+		rec := httptest.NewRecorder()
+		s.Handler().ServeHTTP(rec, req)
+		if rec.Code != http.StatusMethodNotAllowed {
+			t.Errorf("GET %s = %d want 405", path, rec.Code)
+		}
+		if len(fc.calls) != 0 {
+			t.Errorf("GET %s must not issue a command, issued %v", path, fc.calls)
+		}
+	}
+}
+
+func TestWriteRequiresToken(t *testing.T) {
+	fc := &fakeCaller{result: map[string]any{"ok": true}}
+	s, _ := newServer(t, fc, "secret")
+	req := httptest.NewRequest(http.MethodPost, "/api/halt", nil) // no token
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Errorf("POST /api/halt without token = %d want 401", rec.Code)
+	}
+	if len(fc.calls) != 0 {
+		t.Errorf("unauthorized write must not issue a command, issued %v", fc.calls)
+	}
+}
+
+func TestHaltPOSTIssuesCommand(t *testing.T) {
+	fc := &fakeCaller{result: map[string]any{"halted": true}}
+	s, _ := newServer(t, fc, "secret")
+	req := httptest.NewRequest(http.MethodPost, "/api/halt?token=secret", nil)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d want 200", rec.Code)
+	}
+	if len(fc.calls) != 1 || fc.calls[0] != "halt" {
+		t.Errorf("expected one CmdHalt call, got %v", fc.calls)
+	}
+}
+
+func TestDecidePassesAllowlistedArgs(t *testing.T) {
+	fc := &fakeCaller{result: map[string]any{"ok": true}}
+	s, _ := newServer(t, fc, "secret")
+	// id + decision are allowlisted; a stray param must be dropped.
+	req := httptest.NewRequest(http.MethodPost,
+		"/api/decide?token=secret&id=ap1&decision=grant&evil=rm-rf", nil)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d want 200", rec.Code)
+	}
+	if len(fc.calls) != 1 || fc.calls[0] != "decide" {
+		t.Fatalf("expected CmdDecide, got %v", fc.calls)
+	}
+	if _, ok := fc.lastArgs["evil"]; ok {
+		t.Error("non-allowlisted arg leaked into the call")
+	}
+	if fc.lastArgs["id"] != "ap1" || fc.lastArgs["decision"] != "grant" {
+		t.Errorf("allowlisted args not forwarded: %v", fc.lastArgs)
 	}
 }
 
