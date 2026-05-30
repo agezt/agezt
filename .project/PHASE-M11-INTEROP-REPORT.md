@@ -94,10 +94,11 @@ id, a streamed chunk from a real journaled run, and `stopReason: end_turn`.
 ## How it connects
 
 ```
-   OpenAI clients/SDKs ─▶  /v1/chat/completions ─┐
-   IDEs (Zed, …)       ─▶  agt acp (JSON-RPC)   ─┤
-                                                 ├▶ kernel tool-loop ─▶ Edict ─▶ journal
-   agt run / Telegram / Web UI ─────────────────┘        │
+   OpenAI clients/SDKs ─▶  /v1/chat/completions, /v1/responses ─┐
+   first-party clients ─▶  /api/v1/runs (REST, native)         ─┤
+   IDEs (Zed, …)       ─▶  agt acp (JSON-RPC)                  ─┤
+                                                                ├▶ kernel tool-loop ─▶ Edict ─▶ journal
+   agt run / Telegram / Web UI ────────────────────────────────┘        │
                                                  lead agent ──delegate──▶ sub-agent (own loop)
                                                           │ ──acp_agent──▶ external ACP agent (subprocess)
                                                           │ ──coding─────▶ external coding agent (worktree)
@@ -123,9 +124,10 @@ signed webhooks — no surface is a side-door around Edict or the journal.
 
 ## Deferred (named, not forgotten)
 
-- **Native REST surface** (P7-API-02 remainder) — a first-party (non-OpenAI)
-  versioned HTTP API for submitting/inspecting runs (the inbound half; the
-  outbound half — webhooks — shipped below).
+- **M8–M9** — mesh / multi-tenant / marketplace, and voice / mobile / tray.
+  These need either non-stdlib dependencies or a large design phase; named in
+  ROADMAP, not started. (P7-API-02 — both the inbound REST surface and the
+  outbound webhooks — is now complete; see below.)
 
 ## Follow-up shipped (same milestone)
 
@@ -194,6 +196,23 @@ signed webhooks — no surface is a side-door around Edict or the journal.
   full arc (`task.received` → … → `task.completed`, 9 events) delivered HMAC-
   signed to a local receiver with 9 matching `webhook.delivered` audit events
   journaled.
+
+- **Native REST surface** (`kernel/restapi`, P7-API-02) — the first-party,
+  non-OpenAI inbound API, completing P7-API-02 alongside the webhooks above.
+  Where `kernel/openaiapi` mimics OpenAI wire shapes for drop-in clients, this
+  speaks Agezt-native semantics: `POST /api/v1/runs` submits an intent and
+  returns a `correlation_id` (sync JSON or an SSE `start`→`token`*→`done`/`error`
+  stream), and — uniquely — `GET /api/v1/runs/{corr}` returns the run's full
+  journaled event arc, so a client can submit *and* audit through one surface.
+  `GET /api/v1/health` and `/models` round it out. Same governed loop, same
+  resident lifecycle (loopback + minted Bearer token), per-request model. The
+  server depends on a small `Engine` interface (the same kernel adapter as the
+  OpenAI surface, plus `EventsForCorrelation`), so it is fully unit-tested with a
+  fake on a real bus. **Proven live:** health/models, a sync `POST /runs` that
+  returned a journaled answer + correlation, `GET /runs/{corr}` returning the
+  9-event arc (`task.received` → … → `task.completed`), the SSE stream
+  (`start`→`done`, and a provider error correctly surfaced as `error`), and
+  no-token → 401.
 
 These are the next reachable steps toward the full vision; the substrate they
 build on shipped here.

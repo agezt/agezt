@@ -50,6 +50,7 @@ import (
 	"github.com/agezt/agezt/kernel/openaiapi"
 	"github.com/agezt/agezt/kernel/plugin"
 	"github.com/agezt/agezt/kernel/pulse"
+	"github.com/agezt/agezt/kernel/restapi"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/ulid"
 	"github.com/agezt/agezt/kernel/warden"
@@ -381,6 +382,15 @@ func runDaemon(stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "  webhooks         : disabled (set AGEZT_WEBHOOKS, e.g. https://host/hook|agent.>|secret)\n")
 	}
 
+	// Native REST API (P7-API-02) — first-party /api/v1 surface: submit runs
+	// (sync or SSE), inspect a run's journaled arc, health/models. Same governed
+	// loop as `agt run`. Off unless AGEZT_REST_ADDR is set; loopback + token.
+	if restDesc := buildRESTAPI(ctx, k, stdout); restDesc != "" {
+		fmt.Fprintf(stdout, "  rest api         : %s\n", restDesc)
+	} else {
+		fmt.Fprintf(stdout, "  rest api         : disabled (set AGEZT_REST_ADDR, e.g. 127.0.0.1:8800)\n")
+	}
+
 	fmt.Fprintf(stdout, "  client commands  : %s run | halt | resume | why <id> | journal verify\n", brand.CLI)
 	fmt.Fprintf(stdout, "Press Ctrl+C to stop.\n")
 
@@ -624,6 +634,20 @@ func (e kernelAPIEngine) ModelIDs() []string {
 	return ids
 }
 
+// EventsForCorrelation returns the journaled events of a run, in order, by
+// ranging the journal (the restapi run-inspection route, P7-API-02). Empty when
+// the correlation is unknown.
+func (e kernelAPIEngine) EventsForCorrelation(corr string) ([]*event.Event, error) {
+	var out []*event.Event
+	err := e.k.Journal().Range(func(ev *event.Event) error {
+		if ev.CorrelationID == corr {
+			out = append(out, ev)
+		}
+		return nil
+	})
+	return out, err
+}
+
 // buildOpenAIAPI starts the OpenAI-compatible HTTP resident when AGEZT_API_ADDR
 // is set, mirroring buildWebUI's lifecycle (daemon ctx, graceful shutdown,
 // minted token, loopback warning). Returns the banner description or "".
@@ -658,6 +682,46 @@ func buildOpenAIAPI(ctx context.Context, k *kernelruntime.Kernel, stdout io.Writ
 	}()
 
 	desc := "http://" + ln.Addr().String() + "/v1  (Authorization: Bearer " + token + ")"
+	if !isLoopback(addr) {
+		desc += "  [WARNING: not loopback — reachable beyond localhost]"
+	}
+	return desc
+}
+
+// buildRESTAPI starts the native REST resident when AGEZT_REST_ADDR is set,
+// mirroring buildOpenAIAPI's lifecycle (daemon ctx, graceful shutdown, minted
+// token, loopback warning). Returns the banner description or "".
+func buildRESTAPI(ctx context.Context, k *kernelruntime.Kernel, stdout io.Writer) string {
+	addr := os.Getenv(brand.EnvPrefix + "REST_ADDR")
+	if addr == "" {
+		return ""
+	}
+	tokBytes := make([]byte, 32)
+	if _, err := rand.Read(tokBytes); err != nil {
+		fmt.Fprintf(stdout, "  rest api         : disabled (token mint failed: %v)\n", err)
+		return ""
+	}
+	token := hex.EncodeToString(tokBytes)
+
+	ln, err := net.Listen("tcp", addr)
+	if err != nil {
+		fmt.Fprintf(stdout, "  rest api         : disabled (listen %s: %v)\n", addr, err)
+		return ""
+	}
+	srv := &http.Server{Handler: restapi.New(kernelAPIEngine{k}, k.Bus(), token, brand.Version).Handler()}
+	go func() {
+		if err := srv.Serve(ln); err != nil && err != http.ErrServerClosed {
+			fmt.Fprintf(stdout, "rest api server error: %v\n", err)
+		}
+	}()
+	go func() {
+		<-ctx.Done()
+		shutCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		_ = srv.Shutdown(shutCtx)
+	}()
+
+	desc := "http://" + ln.Addr().String() + "/api/v1  (Authorization: Bearer " + token + ")"
 	if !isLoopback(addr) {
 		desc += "  [WARNING: not loopback — reachable beyond localhost]"
 	}

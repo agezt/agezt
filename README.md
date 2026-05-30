@@ -15,7 +15,7 @@ an **ACP** server), agents **delegate** to bounded sub-agents and to
 **external ACP agents** (Claude Code / Codex / …), and `agt provider import`
 brings every key you already have online in one pass.
 See [CHANGELOG.md](CHANGELOG.md).
-**Tests:** 1044 passing across 52 packages.
+**Tests:** 1055 passing across 53 packages.
 **Dependencies:** one (`lukechampine.com/blake3`) + one transitive.
 
 ## What you get
@@ -54,7 +54,8 @@ tools** (`shell`, `file`, `http`, `browser.read`, plus `memory`, `world`,
 `delegate` for sub-agent fan-out, `coding` for worktree-isolated external
 coding agents, and `acp_agent` to drive external ACP agents), an
 **OpenAI-compatible `/v1` API** (chat completions + responses) and an
-**ACP server** so any OpenAI client or IDE can drive it,
+**ACP server** so any OpenAI client or IDE can drive it, a **native REST
+`/api/v1`** (submit + inspect runs) for first-party clients,
 **outbound webhooks** (HMAC-signed) so external systems react to its events,
 **out-of-process plugins** in any language over a tiny JSON protocol
 (with **hot-reload**, **BLAKE3 pin gating**, **tool allowlists**,
@@ -132,6 +133,18 @@ on failure, and never loops:
 
 ```bash
 AGEZT_WEBHOOKS='https://hooks.example.com/agezt|agent.>|my-signing-secret' ./bin/agezt
+```
+
+**Or drive it natively over REST.** Set `AGEZT_REST_ADDR=127.0.0.1:8800` for a
+first-party `/api/v1` surface with Agezt-native semantics: `POST /api/v1/runs`
+submits an intent (sync JSON, or an SSE event stream with `"stream":true`) and
+returns a `correlation_id`; `GET /api/v1/runs/{correlation_id}` returns that
+run's full journaled event arc; plus `GET /api/v1/health` and
+`GET /api/v1/models`. Same governed loop, loopback-bound + Bearer-token:
+
+```bash
+curl -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"intent":"what is this project?"}' http://127.0.0.1:8800/api/v1/runs
 ```
 
 For the full operator cheat sheet: `agt help`.  Day-to-day commands:
@@ -225,7 +238,7 @@ The v1 substrate. Highlights:
 ## Verify
 
 ```bash
-make test     # 1044 tests, all green
+make test     # 1055 tests, all green
 make build    # produces bin/agezt + bin/agt
 make gen      # regenerate SDK types from the contract
 ```

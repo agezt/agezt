@@ -12,6 +12,16 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Native REST API** (ROADMAP P7-API-02) — a first-party `/api/v1` HTTP surface
+  with Agezt-native semantics (where `/v1` mimics OpenAI). `POST /api/v1/runs`
+  submits an intent and returns a `correlation_id` + answer (sync JSON), or an
+  SSE event stream (`start` → `token`* → `done`/`error`) with `"stream":true` or
+  an `Accept: text/event-stream` header; `GET /api/v1/runs/{correlation_id}`
+  returns that run's full journaled event arc (correlation-first inspection the
+  OpenAI surface can't do); plus `GET /api/v1/health` and `GET /api/v1/models`.
+  Every run goes through the same governed kernel loop (Edict + journal + budget);
+  per-request `model` is honoured. Off unless `AGEZT_REST_ADDR` is set;
+  loopback-bound + Bearer-token authed, same lifecycle as the OpenAI resident.
 - **Outbound webhooks** (ROADMAP P7-API-02) — a daemon resident that POSTs
   journal events to operator-configured HTTP endpoints as they happen, so
   external systems react to Agezt in real time (a run completed, an approval is
