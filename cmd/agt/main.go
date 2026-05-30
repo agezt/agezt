@@ -115,6 +115,9 @@ func run(args []string, stdout, stderr io.Writer) int {
 func printHelp(w io.Writer) {
 	fmt.Fprintf(w, "usage: %s <command> [args...]\n", brand.CLI)
 	fmt.Fprintf(w, "\n")
+	fmt.Fprintf(w, "New here? Run `%s quickstart` — it syncs the catalog, adds a provider\n", brand.CLI)
+	fmt.Fprintf(w, "key, and prints the exact command to start the daemon.\n")
+	fmt.Fprintf(w, "\n")
 	fmt.Fprintf(w, "Commands:\n")
 	fmt.Fprintf(w, "  run \"<intent>\" [--json]   run an intent end-to-end (JSON = ndjson stream)\n")
 	fmt.Fprintf(w, "  halt [--reason \"...\"] [--json]  freeze all in-flight runs (reason is journaled)\n")

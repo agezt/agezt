@@ -10,7 +10,7 @@
 providers (proven end-to-end), sandboxed tools, Telegram, Pulse, the
 memory / world-model / skills / reflection cognitive loop, and a Web UI —
 all journaled, content-addressed, and reversible. See [CHANGELOG.md](CHANGELOG.md).
-**Tests:** 874 passing across 47 packages.
+**Tests:** 981 passing across 47 packages.
 **Dependencies:** one (`lukechampine.com/blake3`) + one transitive.
 
 ## What you get
@@ -178,7 +178,7 @@ The v1 substrate. Highlights:
 ## Verify
 
 ```bash
-make test     # 688 tests, all green
+make test     # 981 tests, all green
 make build    # produces bin/agezt + bin/agt
 make gen      # regenerate SDK types from the contract
 ```
