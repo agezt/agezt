@@ -15,7 +15,7 @@ an **ACP** server), agents **delegate** to bounded sub-agents and to
 **external ACP agents** (Claude Code / Codex / …), and `agt provider import`
 brings every key you already have online in one pass.
 See [CHANGELOG.md](CHANGELOG.md).
-**Tests:** 1066 passing across 54 packages.
+**Tests:** 1072 passing across 54 packages.
 **Dependencies:** one (`lukechampine.com/blake3`) + one transitive.
 
 ## What you get
@@ -34,6 +34,7 @@ agt pulse --since 0 --replay-rate 50                           — historical re
 agt status                                                     — daemon health overview
 agt budget                                                     — spend vs daily / per-task caps
 agt tool list                                                  — in-process tools the model sees
+agt peers [--json]                                             — list peer nodes + check their REST health
 agt plugin list                                                — external plugins loaded
 agt edict show / edict test shell "rm -rf /"                   — view + preflight policy decisions
 agt state list / state get <ns> <key>                          — read kernel state store
@@ -243,7 +244,7 @@ The v1 substrate. Highlights:
 ## Verify
 
 ```bash
-make test     # 1066 tests, all green
+make test     # 1072 tests, all green
 make build    # produces bin/agezt + bin/agt
 make gen      # regenerate SDK types from the contract
 ```

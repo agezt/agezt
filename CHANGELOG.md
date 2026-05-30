@@ -22,6 +22,9 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   operator-configured via `AGEZT_PEERS` (`name=url|token,…`); a malformed spec is
   a hard startup error. Gated Ask-first by a new Edict `remote_run` capability
   (it ships a task to an external node). Off unless `AGEZT_PEERS` is set.
+  `agt peers [--json]` lists the configured peers and checks each one's REST
+  `/api/v1/health` (reporting OK + version, or unreachable/401), so an operator
+  can verify the mesh wiring; it exits non-zero if any peer is unreachable.
 - **Native REST API** (ROADMAP P7-API-02) — a first-party `/api/v1` HTTP surface
   with Agezt-native semantics (where `/v1` mimics OpenAI). `POST /api/v1/runs`
   submits an intent and returns a `correlation_id` + answer (sync JSON), or an
