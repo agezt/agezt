@@ -28,9 +28,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   primary's provider/tools but a fresh per-tenant Warden/Edict), and operators
   manage tenants with `agt tenant create|list|release|rm` over the control plane
   — proven live: isolated base dirs created, `release` keeps state while `rm`
-  deletes only that tenant's tree, traversal ids rejected. Per-request *run*
-  routing (a request choosing its tenant) and per-tenant auth/quotas are the
-  remaining phases (see `.project/PHASE-M14-MULTITENANT-REPORT.md`).
+  deletes only that tenant's tree, traversal ids rejected. Runs can be routed to
+  a tenant with `agt run "<intent>" --tenant <id>` — the run executes under that
+  tenant's governance and lands in its journal (proven isolated from the primary
+  journal; an unknown tenant id is auto-created on demand). Tenant-routed API
+  surfaces (OpenAI/REST/ACP) and per-tenant auth/quotas are the remaining phases
+  (see `.project/PHASE-M14-MULTITENANT-REPORT.md`).
 - **Scheduled intents** — a `cadence` daemon resident (autonomy): fires intents
   on a recurring timer through the same governed loop (Edict + journal + budget),
   so the system acts on its own ("every morning, summarise new commits and brief

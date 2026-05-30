@@ -3,11 +3,37 @@
 package controlplane
 
 import (
+	"fmt"
 	"net"
+	"strings"
 	"time"
 
+	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/tenant"
 )
+
+// kernelFor resolves the kernel that should handle a request: the primary kernel
+// when tenantID is empty (the single-tenant default), otherwise the named
+// tenant's kernel, opening it on demand. It errors if a tenant is requested but
+// multi-tenancy is disabled or the tenant cannot be opened.
+func (s *Server) kernelFor(tenantID string) (*runtime.Kernel, error) {
+	tenantID = strings.TrimSpace(tenantID)
+	if tenantID == "" {
+		return s.k, nil
+	}
+	if s.tenants == nil {
+		return nil, fmt.Errorf("multi-tenancy is disabled (no tenant registry configured)")
+	}
+	t, err := s.tenants.Acquire(tenantID, time.Now())
+	if err != nil {
+		return nil, err
+	}
+	k, ok := t.Kernel.(*runtime.Kernel)
+	if !ok {
+		return nil, fmt.Errorf("tenant %q: kernel is not a *runtime.Kernel", tenantID)
+	}
+	return k, nil
+}
 
 // Multi-tenant management handlers (ROADMAP P6-MULTI) — the control-plane
 // surface behind `agt tenant`. They operate on the daemon's tenant.Registry,

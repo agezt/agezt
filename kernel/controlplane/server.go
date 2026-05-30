@@ -653,10 +653,20 @@ func (s *Server) handleRun(ctx context.Context, conn net.Conn, req Request) {
 		return
 	}
 
+	// Optional tenant routing: an empty tenant runs on the primary kernel
+	// (unchanged single-tenant path); a named tenant routes to its isolated
+	// kernel via the registry.
+	tenantID, _ := req.Args["tenant"].(string)
+	k, err := s.kernelFor(tenantID)
+	if err != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		return
+	}
+
 	// Pre-generate the correlation ID so we can subscribe to this run's
 	// subject *before* starting it. No race; no missed events.
-	corr := s.k.NewCorrelation()
-	sub, err := s.k.Bus().Subscribe(s.k.SubjectForRun(corr), 1024)
+	corr := k.NewCorrelation()
+	sub, err := k.Bus().Subscribe(k.SubjectForRun(corr), 1024)
 	if err != nil {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
 		return
@@ -669,7 +679,7 @@ func (s *Server) handleRun(ctx context.Context, conn net.Conn, req Request) {
 	}
 	resultCh := make(chan runResult, 1)
 	go func() {
-		ans, err := s.k.RunWith(ctx, corr, intent)
+		ans, err := k.RunWith(ctx, corr, intent)
 		resultCh <- runResult{ans, err}
 	}()
 

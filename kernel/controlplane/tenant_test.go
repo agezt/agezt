@@ -5,10 +5,16 @@ package controlplane_test
 import (
 	"context"
 	"io"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/tenant"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
@@ -83,6 +89,65 @@ func TestTenantCreateListReleaseRemove(t *testing.T) {
 	if _, err := c.Call(ctx, controlplane.CmdTenantCreate, map[string]any{"id": "../evil"}); err == nil {
 		t.Error("traversal id should be rejected")
 	}
+}
+
+func TestRun_RoutesToTenantKernel(t *testing.T) {
+	// Primary kernel (from startPair) plus a registry of real tenant kernels.
+	_, srv, c, primaryDir := startPair(t, mock.New(mock.FinalText("primary")))
+	regRoot := t.TempDir()
+	reg, err := tenant.New(regRoot, func(id, baseDir string) (io.Closer, error) {
+		return runtime.Open(runtime.Config{
+			BaseDir:  baseDir,
+			Provider: mock.New(mock.FinalText("tenant-" + id)),
+			Tools:    map[string]agent.Tool{},
+		})
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { reg.CloseAll() })
+	srv.SetTenants(reg)
+
+	ctx := context.Background()
+	// Route a run to tenant "alpha" (CmdRun streams events, so use Stream).
+	res, err := c.Stream(ctx, controlplane.CmdRun, map[string]any{
+		"intent": "routed-to-alpha-only", "tenant": "alpha",
+	}, func(*event.Event) {})
+	if err != nil {
+		t.Fatalf("tenant run: %v", err)
+	}
+	if ans, _ := res["answer"].(string); ans != "tenant-alpha" {
+		t.Errorf("answer = %q, want tenant-alpha", ans)
+	}
+
+	// The run is in alpha's journal, never the primary's.
+	alphaJournal := readDir(t, filepath.Join(regRoot, "alpha", "journal"))
+	primaryJournal := readDir(t, filepath.Join(primaryDir, "journal"))
+	if !strings.Contains(alphaJournal, "routed-to-alpha-only") {
+		t.Error("alpha journal should contain the routed run")
+	}
+	if strings.Contains(primaryJournal, "routed-to-alpha-only") {
+		t.Error("primary journal must NOT contain a tenant-routed run")
+	}
+
+	// Routing to a tenant when the registry is present but the id is invalid errors.
+	if _, err := c.Call(ctx, controlplane.CmdRun, map[string]any{"intent": "x", "tenant": "../evil"}); err == nil {
+		t.Error("invalid tenant id should error")
+	}
+}
+
+func readDir(t *testing.T, dir string) string {
+	t.Helper()
+	var b strings.Builder
+	_ = filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+		if err != nil || info.IsDir() {
+			return nil
+		}
+		data, _ := os.ReadFile(path)
+		b.Write(data)
+		return nil
+	})
+	return b.String()
 }
 
 func TestTenantDisabledWithoutRegistry(t *testing.T) {

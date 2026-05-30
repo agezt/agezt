@@ -1,10 +1,10 @@
 # Phase Report — Milestone M14 (Multi-tenant isolation)
 
-> Status: **Phases 1–2 shipped** · Date: 2026-05-31
+> Status: **Phases 1–3 shipped** · Date: 2026-05-31
 > ROADMAP P6-MULTI. Phase 1: the storage + lifecycle isolation core
 > (`kernel/tenant`). Phase 2: the daemon wiring + operator surface (`agt
-> tenant`). Per-request *run* routing (a request choosing its tenant) and
-> per-tenant auth/quotas are the remaining phases.
+> tenant`). Phase 3: per-request **run routing** (`agt run --tenant <id>`).
+> Per-tenant auth/quotas and tenant-routed API surfaces are the remaining work.
 
 ## Why this milestone
 
@@ -89,6 +89,28 @@ of a missing id returned exit 3. Plus a control-plane integration test
 (create/list/release/remove + idempotent re-create + traversal rejection) and
 a "disabled without a registry" test.
 
+## Phase 3 — per-request run routing
+
+Runs can now choose their tenant; everything else about a run is unchanged.
+
+- **Resolver.** `Server.kernelFor(tenantID)` returns the primary kernel for an
+  empty id (the untouched single-tenant path) or the named tenant's kernel,
+  opening it on demand via the registry (type-asserting the `io.Closer` back to
+  `*runtime.Kernel`). A tenant id with no registry configured, or an invalid id,
+  errors cleanly.
+- **`CmdRun`.** `handleRun` reads an optional `tenant` arg and routes the whole
+  run — correlation, bus subscription, `RunWith` — through the resolved kernel,
+  so the run executes under *that tenant's* governance and lands in *that
+  tenant's* journal. Absent the arg, byte-for-byte the previous behavior.
+- **CLI.** `agt run "<intent>" --tenant <id>` (composes with `--json`).
+
+**Proven live:** `run --tenant alpha` executed on alpha's kernel and its
+correlation appears in `tenants/alpha/journal` but **not** in the primary
+journal; `run` without the flag stayed on the primary; `run --tenant beta`
+**auto-created** beta on demand (lazy Acquire) and ran there. A control-plane
+test asserts a routed run's intent is in the tenant journal and absent from the
+primary's, and that an invalid tenant id errors.
+
 ## Engineering notes
 
 - **Stdlib only** (`os`, `path/filepath`, `regexp`, `sort`, `sync`). The
@@ -100,11 +122,10 @@ a "disabled without a registry" test.
 
 ## Deferred — the later phases (named, not yet built)
 
-- **Per-request run routing.** Wire the OpenAI/REST/ACP surfaces and `agt run`
-  to select a tenant per request (`X-Agezt-Tenant` header / a control-plane
-  `tenant` arg), dispatching to that tenant's kernel via the registry. The big,
-  behavior-changing phase — Phase 2 manages tenants but runs still go to the
-  primary kernel.
+- **Tenant-routed API surfaces.** Extend the same routing to the OpenAI / REST /
+  ACP residents (e.g. an `X-Agezt-Tenant` header) so external clients, not just
+  `agt run`, can target a tenant. The control-plane `CmdRun` path is done; the
+  HTTP residents reuse the same `kernelFor` resolver.
 - **Per-tenant auth + quotas.** A token (or token scope) per tenant; per-tenant
   budget ceilings and rate limits, so one tenant can't exhaust another's spend.
 - **Shared vs. per-tenant catalog/credentials** policy (today each tenant base

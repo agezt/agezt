@@ -127,7 +127,7 @@ func printHelp(w io.Writer) {
 	fmt.Fprintf(w, "key, and prints the exact command to start the daemon.\n")
 	fmt.Fprintf(w, "\n")
 	fmt.Fprintf(w, "Commands:\n")
-	fmt.Fprintf(w, "  run \"<intent>\" [--json]   run an intent end-to-end (JSON = ndjson stream)\n")
+	fmt.Fprintf(w, "  run \"<intent>\" [--json] [--tenant <id>]   run an intent end-to-end (JSON = ndjson stream; --tenant routes to an isolated tenant)\n")
 	fmt.Fprintf(w, "  halt [--reason \"...\"] [--json]  freeze all in-flight runs (reason is journaled)\n")
 	fmt.Fprintf(w, "  resume [--reason \"...\"] [--json] clear the halt flag (reason is journaled)\n")
 	fmt.Fprintf(w, "  why <event_id> [--json|--payload]  list events sharing an event's correlation\n")
@@ -234,21 +234,37 @@ func dial(stderr io.Writer) *controlplane.Client {
 }
 
 func cmdRun(args []string, stdout, stderr io.Writer) int {
-	// Strip --json early so it works in any position: `agt run
-	// "..." --json` or `agt run --json "..."` both compose.
+	// Strip flags early so they work in any position: `agt run "..." --json`
+	// or `agt run --json "..."` both compose. --tenant <id> routes the run to
+	// an isolated tenant's kernel (requires the daemon with AGEZT_MULTITENANT=on).
 	asJSON := false
+	tenant := ""
 	var intentParts []string
-	for _, a := range args {
-		if a == "--json" {
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		switch a {
+		case "--json":
 			asJSON = true
-			continue
+		case "--tenant":
+			if i+1 >= len(args) {
+				fmt.Fprintf(stderr, "%s run: --tenant needs an id\n", brand.CLI)
+				return 2
+			}
+			i++
+			tenant = args[i]
+		default:
+			intentParts = append(intentParts, a)
 		}
-		intentParts = append(intentParts, a)
 	}
 	intent := strings.TrimSpace(strings.Join(intentParts, " "))
 	if intent == "" {
 		fmt.Fprintf(stderr, "%s run: intent required (quote it as one argument)\n", brand.CLI)
 		return 2
+	}
+
+	runArgs := map[string]any{"intent": intent}
+	if tenant != "" {
+		runArgs["tenant"] = tenant
 	}
 
 	c := dial(stderr)
@@ -259,7 +275,7 @@ func cmdRun(args []string, stdout, stderr io.Writer) int {
 	defer cancel()
 
 	if asJSON {
-		return runJSONMode(ctx, c, intent, stdout, stderr)
+		return runJSONMode(ctx, c, runArgs, stdout, stderr)
 	}
 
 	// Stream-aware renderer: KindLLMToken events carry partial text
@@ -274,7 +290,7 @@ func cmdRun(args []string, stdout, stderr io.Writer) int {
 			inStream = false
 		}
 	}
-	result, err := c.Stream(ctx, controlplane.CmdRun, map[string]any{"intent": intent}, func(ev *event.Event) {
+	result, err := c.Stream(ctx, controlplane.CmdRun, runArgs, func(ev *event.Event) {
 		if ev.Kind == event.KindLLMToken {
 			var p struct {
 				Text string `json:"text"`
@@ -315,12 +331,12 @@ func cmdRun(args []string, stdout, stderr io.Writer) int {
 // journaled events; consumers that only want stable data should
 // filter `.event.seq > 0`. Including them keeps streaming
 // consumers responsive (e.g. live UIs that mirror agt run).
-func runJSONMode(ctx context.Context, c *controlplane.Client, intent string, stdout, stderr io.Writer) int {
+func runJSONMode(ctx context.Context, c *controlplane.Client, runArgs map[string]any, stdout, stderr io.Writer) int {
 	enc := json.NewEncoder(stdout)
 	// Compact one-object-per-line is the convention for ndjson;
 	// jq -c handles it natively. Using NewEncoder also flushes
 	// after every Encode call, so each line streams as it arrives.
-	result, err := c.Stream(ctx, controlplane.CmdRun, map[string]any{"intent": intent}, func(ev *event.Event) {
+	result, err := c.Stream(ctx, controlplane.CmdRun, runArgs, func(ev *event.Event) {
 		_ = enc.Encode(map[string]any{"type": "event", "event": ev})
 	})
 	if err != nil {
