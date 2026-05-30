@@ -31,6 +31,8 @@ const (
 	ProtocolVersion = 1
 )
 
-// Version is the kernel semver, updated per release. Pre-1.0 the patch suffix
-// encodes the milestone (e.g. "0.0.0-m0", "0.1.0-mvp").
-var Version = "0.0.0-m0"
+// Version is the kernel semver, updated per release. v0.1.0 is the MVP
+// (ROADMAP §2.2): a usable Jarvis — kernel + journal + agent loop + real
+// providers + sandboxed tools + Telegram + Pulse + memory/world/skills/
+// reflection + Web UI, all journaled and reversible. See CHANGELOG.md.
+var Version = "0.1.0"
