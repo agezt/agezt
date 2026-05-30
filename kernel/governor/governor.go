@@ -302,6 +302,28 @@ func (g *Governor) SetBus(b *bus.Bus) {
 	g.cfg.Bus = b
 }
 
+// DailyCeilingMicrocents returns the configured global daily cap (0 =
+// unlimited). Used by the daemon to derive per-tenant ceilings.
+func (g *Governor) DailyCeilingMicrocents() int64 {
+	return g.cfg.DailyCeilingMicrocents
+}
+
+// WithDailyCeiling returns a sibling Governor that shares this one's
+// registry, routing config, and task budgets but keeps an INDEPENDENT
+// daily-spend ledger and its own global ceiling. The bus is inherited
+// (the caller typically re-points it with SetBus to the sibling's own
+// kernel bus before first use).
+//
+// This is the multi-tenant quota seam (M14): each tenant gets its own
+// Governor so one tenant's spend — and its exhaustion of the daily cap —
+// can never block another's, while the underlying provider pool and
+// credentials stay shared. ceiling is in microcents (0 = unlimited).
+func (g *Governor) WithDailyCeiling(ceiling int64) (*Governor, error) {
+	ncfg := g.cfg // copy: shares Registry/Bus pointers, copies scalars/maps refs
+	ncfg.DailyCeilingMicrocents = ceiling
+	return New(ncfg)
+}
+
 // Providers returns a snapshot of the routing chain (primary first,
 // fallback last). Used by the daemon banner.
 func (g *Governor) Providers() []*ProviderInfo {

@@ -324,13 +324,39 @@ func runDaemon(stdout, stderr io.Writer) int {
 	tenantsDesc := "disabled (set " + brand.EnvPrefix + "MULTITENANT=on)"
 	var tenantReg *tenant.Registry
 	if strings.EqualFold(os.Getenv(brand.EnvPrefix+"MULTITENANT"), "on") {
+		// Per-tenant daily spend ceiling (M14 quotas). Each tenant gets its OWN
+		// governor (independent ledger) so one tenant exhausting its cap can
+		// never block another's runs, while the provider pool stays shared. The
+		// ceiling defaults to the primary's; AGEZT_TENANT_DAILY_CEILING (USD)
+		// overrides it for every tenant.
+		tenantCeiling := gov.DailyCeilingMicrocents()
+		ceilingDesc := "inherited"
+		if spec := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "TENANT_DAILY_CEILING")); spec != "" {
+			usd, perr := strconv.ParseFloat(spec, 64)
+			if perr != nil || usd < 0 {
+				fmt.Fprintf(stderr, "%s: %sTENANT_DAILY_CEILING: want a non-negative USD amount, got %q\n", brand.Binary, brand.EnvPrefix, spec)
+				return 1
+			}
+			tenantCeiling = int64(usd * 1e9)
+			ceilingDesc = fmt.Sprintf("$%.2f/day", usd)
+		}
 		reg, terr := tenant.New(filepath.Join(baseDir, "tenants"), func(id, tdir string) (io.Closer, error) {
+			tgov, gerr := gov.WithDailyCeiling(tenantCeiling)
+			if gerr != nil {
+				return nil, fmt.Errorf("tenant %q governor: %w", id, gerr)
+			}
 			tcfg := cfg // copy the primary config value
 			tcfg.BaseDir = tdir
-			tcfg.Warden = nil   // fresh per-tenant warden (isolated HALT)
-			tcfg.Edict = nil    // fresh per-tenant policy engine
-			tcfg.OnReload = nil // no per-tenant reload wiring yet
-			return kernelruntime.Open(tcfg)
+			tcfg.Provider = tgov // isolated spend ledger + per-tenant ceiling
+			tcfg.Warden = nil    // fresh per-tenant warden (isolated HALT)
+			tcfg.Edict = nil     // fresh per-tenant policy engine
+			tcfg.OnReload = nil  // no per-tenant reload wiring yet
+			tk, oerr := kernelruntime.Open(tcfg)
+			if oerr != nil {
+				return nil, oerr
+			}
+			tgov.SetBus(tk.Bus()) // budget events land in the tenant's journal
+			return tk, nil
 		})
 		if terr != nil {
 			fmt.Fprintf(stderr, "%s: tenant registry: %v\n", brand.Binary, terr)
@@ -339,10 +365,11 @@ func runDaemon(stdout, stderr io.Writer) int {
 		tenantReg = reg
 		srv.SetTenants(reg)
 		defer reg.CloseAll()
+		root := filepath.Join(baseDir, "tenants")
 		if infos, _ := reg.List(); infos != nil {
-			tenantsDesc = fmt.Sprintf("enabled (root=%s, %d on disk)", filepath.Join(baseDir, "tenants"), len(infos))
+			tenantsDesc = fmt.Sprintf("enabled (root=%s, %d on disk, ceiling=%s)", root, len(infos), ceilingDesc)
 		} else {
-			tenantsDesc = "enabled (root=" + filepath.Join(baseDir, "tenants") + ")"
+			tenantsDesc = fmt.Sprintf("enabled (root=%s, ceiling=%s)", root, ceilingDesc)
 		}
 	}
 

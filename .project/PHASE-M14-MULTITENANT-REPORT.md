@@ -1,14 +1,15 @@
 # Phase Report — Milestone M14 (Multi-tenant isolation)
 
-> Status: **Phases 1–4 shipped** · Date: 2026-05-31
+> Status: **Phases 1–7 shipped** · Date: 2026-05-31
 > ROADMAP P6-MULTI. Phase 1: the storage + lifecycle isolation core
 > (`kernel/tenant`). Phase 2: the daemon wiring + operator surface (`agt
 > tenant`). Phase 3: per-request **run routing** (`agt run --tenant <id>`).
 > Phase 4: **tenant-routed REST API** (`X-Agezt-Tenant` header). Phase 5:
 > **tenant-routed OpenAI-compatible API** (same header on `/v1/chat/completions`,
 > `/v1/responses`, `/v1/models`). Phase 6: **tenant-routed ACP** (`agt acp
-> --tenant <id>`), completing the API-surface routing. Per-tenant auth/quotas are
-> the remaining work.
+> --tenant <id>`), completing the API-surface routing. Phase 7: **per-tenant
+> budget quotas** (each tenant its own governor + spend ledger + ceiling).
+> Per-tenant auth is the remaining work.
 
 ## Why this milestone
 
@@ -195,6 +196,35 @@ With Phases 3–6, **every** way to start a run — `agt run`, the native REST A
 the OpenAI-compatible API, and an ACP editor session — can target a tenant
 through one consistent seam (an arg/header resolved to an isolated kernel + bus).
 
+## Phase 7 — per-tenant budget quotas
+
+Isolation wasn't complete while tenants shared one spend ledger: until now every
+tenant kernel was opened with the **primary's** governor, so they shared its
+single in-memory daily-spend counter and ceiling — one tenant could exhaust the
+global cap and silently starve every other tenant (and the primary). Phase 7
+gives each tenant its **own** governor.
+
+- **Sibling governor.** `Governor.WithDailyCeiling(microcents)` returns a sibling
+  that shares the parent's provider **registry** (same provider pool, same
+  credentials — tenants don't each need their own keys) and routing config, but
+  keeps an **independent spend ledger** (its own `spentToday`, its own day
+  rollover) and its own global ceiling. The daemon's tenant `OpenFunc` builds one
+  per tenant, sets it as the tenant kernel's `Provider`, and re-points its bus to
+  the tenant's own kernel bus (`SetBus`) so budget events land in *that* tenant's
+  journal.
+- **Operator control.** Each tenant's daily ceiling defaults to the primary's;
+  `AGEZT_TENANT_DAILY_CEILING=<usd>` overrides it for every tenant (a malformed
+  or negative value is a hard startup error). The banner reports it
+  (`tenancy: enabled (root=…, ceiling=$5.00/day)` or `ceiling=inherited`).
+
+**Proven:** a governor unit test (`TestWithDailyCeiling_IndependentLedgers`)
+shows a sibling with a tiny ceiling getting its **second** call blocked with
+`ErrBudgetExceeded` while the parent's ledger stays at 0 and the parent keeps its
+full headroom — spend does not bleed across the boundary — and the sibling
+reports its own ceiling, not the parent's. Live: the daemon boots with
+`AGEZT_MULTITENANT=on AGEZT_TENANT_DAILY_CEILING=5.00` and the banner shows the
+per-tenant ceiling.
+
 ## Engineering notes
 
 - **Stdlib only** (`os`, `path/filepath`, `regexp`, `sort`, `sync`). The
@@ -209,8 +239,11 @@ through one consistent seam (an arg/header resolved to an isolated kernel + bus)
 - **Tenant-routed API surfaces — done.** All run entry points route per tenant:
   the control plane (`CmdRun` tenant arg, Phase 3), the native REST surface
   (Phase 4), the OpenAI-compatible surface (Phase 5), and ACP (Phase 6).
-- **Per-tenant auth + quotas.** A token (or token scope) per tenant; per-tenant
-  budget ceilings and rate limits, so one tenant can't exhaust another's spend.
+- **Per-tenant auth.** A token (or token scope) per tenant so a caller proves
+  which tenant it may target (today the daemon token gates the surface and the
+  `X-Agezt-Tenant`/`--tenant` selector is trusted). Per-tenant budget *ceilings*
+  shipped in Phase 7; per-tenant **rate limits** (calls/min, not just $/day) are
+  the natural companion still to do.
 - **Shared vs. per-tenant catalog/credentials** policy (today each tenant base
   dir would carry its own vault; some deployments want a shared provider pool).
 - **Tenant-scoped Pulse / cadence residents** (each tenant's autonomous timers

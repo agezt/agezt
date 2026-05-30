@@ -42,8 +42,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   An **ACP** editor session can be bound to a tenant too: `agt acp --tenant <id>`
   forwards the id on every prompt so an IDE drives an isolated tenant kernel.
   With this, every run entry point — `agt run`, REST, OpenAI, ACP — routes per
-  tenant through one seam. Per-tenant auth/quotas are the remaining phase (see
-  `.project/PHASE-M14-MULTITENANT-REPORT.md`).
+  tenant through one seam. Each tenant also gets its **own budget ledger**: a
+  per-tenant governor with an independent daily-spend counter and ceiling, so one
+  tenant exhausting its cap can never starve another (or the primary), while the
+  provider pool and credentials stay shared. The ceiling defaults to the
+  primary's; `AGEZT_TENANT_DAILY_CEILING=<usd>` overrides it for every tenant.
+  Per-tenant auth (a token/scope per tenant) and rate limits are the remaining
+  work (see `.project/PHASE-M14-MULTITENANT-REPORT.md`).
 - **Scheduled intents** — a `cadence` daemon resident (autonomy): fires intents
   on a recurring timer through the same governed loop (Edict + journal + budget),
   so the system acts on its own ("every morning, summarise new commits and brief

@@ -295,6 +295,50 @@ func TestBudgetCeiling_RefusesNewCalls(t *testing.T) {
 	}
 }
 
+// A sibling governor from WithDailyCeiling shares the provider pool but keeps
+// its OWN spend ledger and ceiling: exhausting the sibling's budget must not
+// touch the parent's headroom, and vice versa (the M14 per-tenant quota seam).
+func TestWithDailyCeiling_IndependentLedgers(t *testing.T) {
+	b, _ := newBus(t)
+	prov := &fakeProvider{name: "p", resp: okResp("claude-sonnet-4-6", 1_000_000, 0)} // ~$0.30/call
+	r := governor.NewRegistry()
+	mustRegister(t, r, &governor.ProviderInfo{Name: "p", Provider: prov, AuthMode: governor.AuthAPIKey})
+
+	parent, err := governor.New(governor.Config{
+		Registry: r, Bus: b,
+		DailyCeilingMicrocents: 100_000_000, // generous; parent never blocks here
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Sibling with a tiny ceiling: $0.020 — its second call must be blocked.
+	tenant, err := parent.WithDailyCeiling(200_000)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Sibling: first call ok, second blocked at the pre-check.
+	if _, err := tenant.Complete(context.Background(), agent.CompletionRequest{Model: "claude-sonnet-4-6"}); err != nil {
+		t.Fatalf("tenant first call: %v", err)
+	}
+	if _, err := tenant.Complete(context.Background(), agent.CompletionRequest{Model: "claude-sonnet-4-6"}); !errors.Is(err, governor.ErrBudgetExceeded) {
+		t.Errorf("tenant second call: got %v, want ErrBudgetExceeded", err)
+	}
+
+	// Parent's ledger is untouched by the sibling's spend — it can still run.
+	if parent.SpentMicrocents() != 0 {
+		t.Errorf("parent ledger = %d, want 0 (sibling spend must not bleed in)", parent.SpentMicrocents())
+	}
+	if _, err := parent.Complete(context.Background(), agent.CompletionRequest{Model: "claude-sonnet-4-6"}); err != nil {
+		t.Errorf("parent call after sibling exhausted: %v (parent must keep its headroom)", err)
+	}
+	// And the sibling's own ceiling is what we set, not the parent's.
+	if got := tenant.DailyCeilingMicrocents(); got != 200_000 {
+		t.Errorf("sibling ceiling = %d, want 200000", got)
+	}
+}
+
 func TestBudgetRollover_NewUTCDay(t *testing.T) {
 	b, _ := newBus(t)
 	prov := &fakeProvider{name: "p", resp: okResp("claude-sonnet-4-6", 1_000_000, 0)}
