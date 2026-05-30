@@ -37,7 +37,9 @@ import (
 type Engine interface {
 	NewCorrelation() string
 	SubjectForRun(corr string) string
-	RunWith(ctx context.Context, corr, intent string) (string, error)
+	// RunModel runs the intent under the given correlation, honouring the
+	// requested model (empty → the kernel's configured default).
+	RunModel(ctx context.Context, corr, intent, model string) (string, error)
 	DefaultModel() string
 	ModelIDs() []string
 }
@@ -182,7 +184,7 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 	}
 
 	corr := s.eng.NewCorrelation()
-	answer, err := s.eng.RunWith(r.Context(), corr, intent)
+	answer, err := s.eng.RunModel(r.Context(), corr, intent, model)
 	if err != nil {
 		writeErr(w, http.StatusBadGateway, "upstream_error", err.Error())
 		return
@@ -245,7 +247,7 @@ func (s *Server) streamChat(w http.ResponseWriter, r *http.Request, intent, mode
 	}
 	done := make(chan res, 1)
 	go func() {
-		_, err := s.eng.RunWith(r.Context(), corr, intent)
+		_, err := s.eng.RunModel(r.Context(), corr, intent, model)
 		done <- res{err}
 	}()
 

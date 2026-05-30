@@ -160,6 +160,49 @@ func TestSubAgent_DepthGuard(t *testing.T) {
 	}
 }
 
+func TestWithModel_OverridesPerRun(t *testing.T) {
+	// A run started with runtime.WithModel makes the provider see that model in
+	// CompletionRequest.Model — the basis for per-request model selection.
+	prov := mock.New(mock.FinalText("ok"))
+	var sawModel string
+	prov.OnRequest = func(req agent.CompletionRequest) { sawModel = req.Model }
+
+	k, err := runtime.Open(runtime.Config{
+		BaseDir:  t.TempDir(),
+		Provider: prov,
+		Model:    "default-model",
+		Tools:    map[string]agent.Tool{"shell": shell.New()},
+	})
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	t.Cleanup(func() { k.Close() })
+
+	ctx := runtime.WithModel(context.Background(), "requested-model")
+	if _, err := k.RunWith(ctx, k.NewCorrelation(), "hi"); err != nil {
+		t.Fatalf("RunWith: %v", err)
+	}
+	if sawModel != "requested-model" {
+		t.Errorf("provider saw model %q, want the per-run override", sawModel)
+	}
+
+	// Without an override, the configured default is used.
+	sawModel = ""
+	prov2 := mock.New(mock.FinalText("ok"))
+	prov2.OnRequest = func(req agent.CompletionRequest) { sawModel = req.Model }
+	k2, _ := runtime.Open(runtime.Config{
+		BaseDir: t.TempDir(), Provider: prov2, Model: "default-model",
+		Tools: map[string]agent.Tool{"shell": shell.New()},
+	})
+	t.Cleanup(func() { k2.Close() })
+	if _, err := k2.RunWith(context.Background(), k2.NewCorrelation(), "hi"); err != nil {
+		t.Fatalf("RunWith: %v", err)
+	}
+	if sawModel != "default-model" {
+		t.Errorf("no override → provider should see default-model, got %q", sawModel)
+	}
+}
+
 func TestSubAgent_DisabledByDefault(t *testing.T) {
 	// Without SubAgentTool, the delegate tool is absent.
 	k, err := runtime.Open(runtime.Config{

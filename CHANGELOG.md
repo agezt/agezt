@@ -42,6 +42,9 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   kernel's `llm.token` events to `chat.completion.chunk` SSE frames; the
   response carries an `agezt_correlation_id` so any call is `agt why`-able.
   Off unless `AGEZT_API_ADDR` is set; loopback-bound + Bearer-token authed.
+  The request's `model` is honoured per-request (threaded through the run via
+  `runtime.WithModel` into the provider's `CompletionRequest.Model`), so callers
+  pick the model per call instead of being pinned to the daemon's default.
 - `agt provider import` — credential auto-discovery (SPEC-15 §1.3): scans the
   process environment, a local `.env`, an explicit `--from <file>`, and
   well-known agent-CLI credential files (Codex, Gemini) for API keys, matches

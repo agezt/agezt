@@ -24,14 +24,16 @@ type fakeEngine struct {
 	model     string
 	models    []string
 	ranIntent string
+	ranModel  string
 }
 
 func (f *fakeEngine) NewCorrelation() string        { return "test-corr" }
 func (f *fakeEngine) SubjectForRun(c string) string { return "agent.agent-" + c + ".llm" }
 func (f *fakeEngine) DefaultModel() string          { return f.model }
 func (f *fakeEngine) ModelIDs() []string            { return f.models }
-func (f *fakeEngine) RunWith(_ context.Context, corr, intent string) (string, error) {
+func (f *fakeEngine) RunModel(_ context.Context, corr, intent, model string) (string, error) {
 	f.ranIntent = intent
+	f.ranModel = model
 	for _, tok := range f.tokens {
 		_, _ = f.b.PublishStreaming(event.Spec{
 			Subject:       f.SubjectForRun(corr),
@@ -160,6 +162,24 @@ func TestChatCompletionNonStreaming(t *testing.T) {
 	// The user content reached the engine verbatim (single-turn → clean intent).
 	if eng.ranIntent != "what is this project?" {
 		t.Errorf("intent = %q", eng.ranIntent)
+	}
+	// The requested model is honoured (per-request routing): the engine ran
+	// under "gpt-4o", not the configured default "m".
+	if eng.ranModel != "gpt-4o" {
+		t.Errorf("ranModel = %q, want the requested gpt-4o", eng.ranModel)
+	}
+}
+
+func TestChatRequestedModelHonoured_Default(t *testing.T) {
+	// No model in the request → the engine runs under the configured default.
+	eng := &fakeEngine{model: "MiniMax-M2.7", answer: "ok"}
+	s := newAPIServer(t, eng, "secret")
+	body := `{"messages":[{"role":"user","content":"hi"}]}`
+	req := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(body))
+	req.Header.Set("Authorization", "Bearer secret")
+	s.Handler().ServeHTTP(httptest.NewRecorder(), req)
+	if eng.ranModel != "MiniMax-M2.7" {
+		t.Errorf("ranModel = %q, want default MiniMax-M2.7", eng.ranModel)
 	}
 }
 

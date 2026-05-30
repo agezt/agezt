@@ -640,7 +640,27 @@ type ctxKey int
 const (
 	ctxKeyActor ctxKey = iota
 	ctxKeyCorrelation
+	ctxKeyModel
 )
+
+// WithModel returns a context that overrides the model for the run started with
+// it. Empty model is a no-op (the kernel's configured Model is used). The
+// override flows into the agent loop's CompletionRequest.Model, so the selected
+// provider serves exactly the requested model — the basis for per-request model
+// selection from the OpenAI-compatible API.
+func WithModel(ctx context.Context, model string) context.Context {
+	if model == "" {
+		return ctx
+	}
+	return context.WithValue(ctx, ctxKeyModel, model)
+}
+
+func modelFromCtx(ctx context.Context) string {
+	if v, ok := ctx.Value(ctxKeyModel).(string); ok {
+		return v
+	}
+	return ""
+}
 
 func actorFromCtx(ctx context.Context) string {
 	if v, ok := ctx.Value(ctxKeyActor).(string); ok {
@@ -825,11 +845,18 @@ func (k *Kernel) RunWith(ctx context.Context, corr, intent string) (string, erro
 		}
 	}
 
+	// Per-run model override (WithModel) — used by the OpenAI-compatible API to
+	// honour the request's `model`. Falls back to the configured model.
+	model := k.cfg.Model
+	if m := modelFromCtx(runCtx); m != "" {
+		model = m
+	}
+
 	answer, err := agent.Run(runCtx, agent.LoopConfig{
 		Provider:      k.cfg.Provider,
 		Tools:         k.tools,
 		Bus:           k.bus,
-		Model:         k.cfg.Model,
+		Model:         model,
 		System:        system,
 		MaxIter:       k.cfg.MaxIter,
 		Actor:         actor,
