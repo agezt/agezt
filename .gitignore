@@ -17,3 +17,9 @@ Thumbs.db
 .agezt/
 
 .dfmt/
+
+# secrets / local env — never commit (API keys, tokens)
+.env
+.env.*
+*.env
+creds.json
