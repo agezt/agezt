@@ -12,6 +12,20 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Multi-tenant isolation foundation** (ROADMAP P6-MULTI, Phase 1) — a
+  `kernel/tenant` `Registry` that lets one process host many fully-isolated
+  tenants, each with its own base dir (and therefore its own journal, state,
+  vault, memory, world model, skills, and schedules) and its own lazily-opened
+  kernel. Tenant ids are validated as a single safe path segment
+  (`[a-z0-9_-]`, 1–64 chars), so an id can neither traverse out of the root nor
+  collide with a sibling — isolation by construction. The registry is decoupled
+  from `kernel/runtime` via an injected opener (`OpenFunc`), with lazy
+  `Acquire` (idempotent), `Release` (close, keep state), `Remove` (destructive),
+  `List`, and `CloseAll`. Proven end-to-end: two tenants each run an intent
+  through their own governed loop and each journal contains only its own run (no
+  cross-tenant bleed). This is the storage/lifecycle core; wiring the control
+  plane and APIs to route per tenant is a later phase (see
+  `.project/PHASE-M14-MULTITENANT-REPORT.md`).
 - **Scheduled intents** — a `cadence` daemon resident (autonomy): fires intents
   on a recurring timer through the same governed loop (Edict + journal + budget),
   so the system acts on its own ("every morning, summarise new commits and brief
