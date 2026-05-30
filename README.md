@@ -9,11 +9,12 @@
 **Status:** **v0.1.0 — the MVP ships** (May 2026). A usable Jarvis: real
 providers (proven end-to-end), sandboxed tools, Telegram, Pulse, the
 memory / world-model / skills / reflection cognitive loop, and a Web UI —
-all journaled, content-addressed, and reversible. Since the MVP (M11):
-any **OpenAI client or IDE** can drive it (OpenAI-compatible `/v1` API +
-an **ACP** server), agents **delegate** to bounded sub-agents and to
-**external ACP agents** (Claude Code / Codex / …), and `agt provider import`
-brings every key you already have online in one pass.
+all journaled, content-addressed, and reversible. Since the MVP — **M11**
+(reach + delegate) and **M12** (full API surface + mesh): any **OpenAI client
+or IDE** can drive it (OpenAI **chat + responses** APIs, an **ACP** server, and
+a **native REST** `/api/v1`), it drives **external ACP agents** and **peer
+Agezt nodes** back (mesh), pushes events out via **HMAC-signed webhooks**, and
+`agt provider import` brings every key you already have online in one pass.
 See [CHANGELOG.md](CHANGELOG.md).
 **Tests:** 1072 passing across 54 packages.
 **Dependencies:** one (`lukechampine.com/blake3`) + one transitive.
