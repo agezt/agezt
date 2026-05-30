@@ -49,15 +49,22 @@ const (
 	ModeDaily    = "daily"
 )
 
+// AllDays is the day-mask meaning "every day" (all seven bits set); the zero
+// value 0 means the same (an unrestricted daily schedule).
+const AllDays = 0x7F
+
 // Entry is one persisted schedule. An entry is either interval-based
 // (Mode==ModeInterval, fires every IntervalSec) or daily (Mode==ModeDaily,
-// fires once a day at AtMinutes minutes past local midnight).
+// fires once a day at AtMinutes minutes past local midnight). A daily entry may
+// be restricted to certain weekdays via Days (a bitmask over time.Weekday, bit
+// Sunday=0 .. Saturday=6); Days==0 (or AllDays) means every day.
 type Entry struct {
 	ID          string `json:"id"`
 	Intent      string `json:"intent"`
 	Mode        string `json:"mode,omitempty"`
 	IntervalSec int64  `json:"interval_sec,omitempty"`
 	AtMinutes   int    `json:"at_minutes,omitempty"` // daily: minutes since local midnight
+	Days        int    `json:"days,omitempty"`       // daily: weekday bitmask (0/AllDays = every day)
 	Model       string `json:"model,omitempty"`
 	Source      string `json:"source"`
 	Enabled     bool   `json:"enabled"`
@@ -72,7 +79,11 @@ func (e Entry) Interval() time.Duration { return time.Duration(e.IntervalSec) * 
 // Cadence renders the entry's schedule for display.
 func (e Entry) Cadence() string {
 	if e.Mode == ModeDaily {
-		return fmt.Sprintf("daily at %02d:%02d", e.AtMinutes/60, e.AtMinutes%60)
+		hhmm := fmt.Sprintf("%02d:%02d", e.AtMinutes/60, e.AtMinutes%60)
+		if d := FormatDays(e.Days); d != "" {
+			return d + " at " + hhmm
+		}
+		return "daily at " + hhmm
 	}
 	return "every " + e.Interval().String()
 }
@@ -80,20 +91,122 @@ func (e Entry) Cadence() string {
 // advance computes the next-run time after firing at now.
 func (e Entry) advance(now time.Time) int64 {
 	if e.Mode == ModeDaily {
-		return nextDaily(now, e.AtMinutes).Unix()
+		return nextDaily(now, e.AtMinutes, e.Days).Unix()
 	}
 	return now.Add(e.Interval()).Unix()
 }
 
-// nextDaily returns the next local-time occurrence of atMinutes-past-midnight
-// strictly after now.
-func nextDaily(now time.Time, atMinutes int) time.Time {
-	y, m, d := now.Date()
-	cand := time.Date(y, m, d, atMinutes/60, atMinutes%60, 0, 0, now.Location())
-	if !cand.After(now) {
-		cand = cand.Add(24 * time.Hour)
+// dayAllowed reports whether wd is permitted by the day-mask. A zero mask (or
+// AllDays) permits every day.
+func dayAllowed(wd time.Weekday, days int) bool {
+	if days == 0 || days == AllDays {
+		return true
 	}
-	return cand
+	return days&(1<<uint(wd)) != 0
+}
+
+// nextDaily returns the next local-time occurrence of atMinutes-past-midnight,
+// strictly after now, that falls on a weekday permitted by days. It walks
+// forward by calendar date (not by adding 24h) so it stays correct across DST
+// transitions.
+func nextDaily(now time.Time, atMinutes, days int) time.Time {
+	loc := now.Location()
+	y, m, d := now.Date()
+	for i := 0; i < 8; i++ {
+		cand := time.Date(y, m, d+i, atMinutes/60, atMinutes%60, 0, 0, loc)
+		if cand.After(now) && dayAllowed(cand.Weekday(), days) {
+			return cand
+		}
+	}
+	return time.Date(y, m, d+1, atMinutes/60, atMinutes%60, 0, 0, loc) // unreachable for any non-empty mask
+}
+
+var dayAbbr = [7]string{"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"}
+
+// Weekday bitmask shortcuts (over time.Weekday: Sunday=0 .. Saturday=6).
+const (
+	maskWeekdays = 1<<int(time.Monday) | 1<<int(time.Tuesday) | 1<<int(time.Wednesday) | 1<<int(time.Thursday) | 1<<int(time.Friday)
+	maskWeekends = 1<<int(time.Sunday) | 1<<int(time.Saturday)
+)
+
+// FormatDays renders a weekday bitmask compactly ("" for every day, "Mon-Fri",
+// "Sat,Sun", or "Mon,Wed,Fri").
+func FormatDays(days int) string {
+	if days == 0 || days == AllDays {
+		return ""
+	}
+	switch days {
+	case maskWeekdays:
+		return "Mon-Fri"
+	case maskWeekends:
+		return "Sat,Sun"
+	}
+	var names []string
+	for wd := 0; wd < 7; wd++ {
+		if days&(1<<uint(wd)) != 0 {
+			names = append(names, dayAbbr[wd])
+		}
+	}
+	return strings.Join(names, ",")
+}
+
+// dayTokens maps the accepted weekday spellings to their time.Weekday index.
+var dayTokens = map[string]int{
+	"sun": 0, "sunday": 0,
+	"mon": 1, "monday": 1,
+	"tue": 2, "tues": 2, "tuesday": 2,
+	"wed": 3, "weds": 3, "wednesday": 3,
+	"thu": 4, "thur": 4, "thurs": 4, "thursday": 4,
+	"fri": 5, "friday": 5,
+	"sat": 6, "saturday": 6,
+}
+
+// ParseDays parses a day specification into a weekday bitmask. It accepts the
+// shortcuts "daily"/"everyday"/"all" (every day), "weekdays", "weekends", a
+// comma-separated list ("mon,wed,fri"), and inclusive ranges ("mon-fri",
+// wrapping like "fri-mon"). Day names are case-insensitive. An empty/"daily"
+// spec yields 0 (every day).
+func ParseDays(spec string) (int, error) {
+	spec = strings.ToLower(strings.TrimSpace(spec))
+	switch spec {
+	case "", "daily", "everyday", "every-day", "all":
+		return 0, nil
+	case "weekdays", "weekday":
+		return maskWeekdays, nil
+	case "weekends", "weekend":
+		return maskWeekends, nil
+	}
+	mask := 0
+	for _, part := range strings.Split(spec, ",") {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		if lo, hi, ok := strings.Cut(part, "-"); ok {
+			loIdx, ok1 := dayTokens[strings.TrimSpace(lo)]
+			hiIdx, ok2 := dayTokens[strings.TrimSpace(hi)]
+			if !ok1 || !ok2 {
+				return 0, fmt.Errorf("cadence: bad day range %q", part)
+			}
+			// Inclusive, wrapping (e.g. fri-mon = Fri,Sat,Sun,Mon).
+			for d := loIdx; ; d = (d + 1) % 7 {
+				mask |= 1 << uint(d)
+				if d == hiIdx {
+					break
+				}
+			}
+			continue
+		}
+		idx, ok := dayTokens[part]
+		if !ok {
+			return 0, fmt.Errorf("cadence: unknown day %q", part)
+		}
+		mask |= 1 << uint(idx)
+	}
+	if mask == 0 {
+		return 0, fmt.Errorf("cadence: no valid days in %q", spec)
+	}
+	return mask, nil
 }
 
 // Job is an interval+intent pair parsed from AGEZT_SCHEDULE (see ParseJobs),
@@ -169,14 +282,19 @@ func (s *Store) Add(intent string, interval time.Duration, model, source string,
 }
 
 // AddDaily creates an enabled entry firing once a day at atMinutes minutes past
-// local midnight (0..1439), first run at the next such time.
-func (s *Store) AddDaily(intent string, atMinutes int, model, source string, now time.Time) (Entry, error) {
+// local midnight (0..1439), first run at the next such time. days restricts the
+// schedule to certain weekdays (a time.Weekday bitmask); 0 or AllDays = every
+// day.
+func (s *Store) AddDaily(intent string, atMinutes, days int, model, source string, now time.Time) (Entry, error) {
 	intent = strings.TrimSpace(intent)
 	if intent == "" {
 		return Entry{}, fmt.Errorf("cadence: intent is required")
 	}
 	if atMinutes < 0 || atMinutes > 1439 {
 		return Entry{}, fmt.Errorf("cadence: time-of-day must be 00:00..23:59")
+	}
+	if days < 0 || days > AllDays {
+		return Entry{}, fmt.Errorf("cadence: day-mask must be 0..%d", AllDays)
 	}
 	if source == "" {
 		source = SourceOperator
@@ -186,11 +304,12 @@ func (s *Store) AddDaily(intent string, atMinutes int, model, source string, now
 		Intent:      intent,
 		Mode:        ModeDaily,
 		AtMinutes:   atMinutes,
+		Days:        days,
 		Model:       strings.TrimSpace(model),
 		Source:      source,
 		Enabled:     true,
 		CreatedUnix: now.Unix(),
-		NextRunUnix: nextDaily(now, atMinutes).Unix(),
+		NextRunUnix: nextDaily(now, atMinutes, days).Unix(),
 	}
 	s.mu.Lock()
 	s.entries = append(s.entries, e)

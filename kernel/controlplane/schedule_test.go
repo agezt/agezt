@@ -110,6 +110,32 @@ func TestScheduleAddDailyAndPauseResume(t *testing.T) {
 	}
 }
 
+func TestScheduleAddDailyWithDays(t *testing.T) {
+	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	ctx := context.Background()
+
+	// Weekdays-only daily at 09:00. maskWeekdays = Mon..Fri = bits 1..5 = 62.
+	res, err := c.Call(ctx, controlplane.CmdScheduleAdd, map[string]any{
+		"intent": "standup nudge", "at_minutes": 540, "days": 62,
+	})
+	if err != nil {
+		t.Fatalf("add daily+days: %v", err)
+	}
+	if res["mode"] != "daily" {
+		t.Errorf("mode = %v, want daily", res["mode"])
+	}
+	if d, _ := res["days"].(float64); int(d) != 62 {
+		t.Errorf("days = %v, want 62", res["days"])
+	}
+
+	res, _ = c.Call(ctx, controlplane.CmdScheduleList, nil)
+	list, _ := res["schedules"].([]any)
+	m, _ := list[0].(map[string]any)
+	if m["cadence"] != "Mon-Fri at 09:00" {
+		t.Errorf("cadence = %v, want Mon-Fri at 09:00", m["cadence"])
+	}
+}
+
 func TestScheduleAddValidates(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 	ctx := context.Background()

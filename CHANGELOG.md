@@ -20,7 +20,10 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   `agt schedule add|list|rm|run|pause|resume` over the control plane; `AGEZT_SCHEDULE`
   (`;`-separated `interval=intent` jobs) seeds env-sourced entries at startup and
   is synced into the same store. Two cadences: **interval** (`--every 1h`) and
-  **daily wall-clock** (`--at 09:30`, local time, e.g. a morning brief); `agt
+  **daily wall-clock** (`--at 09:30`, local time, e.g. a morning brief),
+  optionally restricted to **specific weekdays** (`--days mon-fri`, `--days
+  weekends`, or a list/range like `mon,wed,fri`) so a daily schedule fires only on
+  the days you want (DST-correct, advancing by calendar date); `agt
   schedule pause`/`resume` disable and re-enable an entry without deleting it (a
   paused entry is skipped by the ticker but kept in the store). A single ticker
   fires every due entry; a still-running entry is skipped (no overlap). Each firing journals a

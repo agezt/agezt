@@ -221,7 +221,7 @@ func TestStore_Daily_FiresAtTimeAndAdvancesOneDay(t *testing.T) {
 	s := mustStore(t)
 	// "now" is 08:00 UTC; schedule daily at 09:00 → next run today 09:00.
 	now := time.Date(2026, 5, 31, 8, 0, 0, 0, time.UTC)
-	e, err := s.AddDaily("morning brief", 9*60, "", SourceOperator, now)
+	e, err := s.AddDaily("morning brief", 9*60, 0, "", SourceOperator, now)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -251,13 +251,13 @@ func TestStore_Daily_FiresAtTimeAndAdvancesOneDay(t *testing.T) {
 func TestStore_AddDaily_Validates(t *testing.T) {
 	s := mustStore(t)
 	now := time.Now()
-	if _, err := s.AddDaily("x", -1, "", SourceOperator, now); err == nil {
+	if _, err := s.AddDaily("x", -1, 0, "", SourceOperator, now); err == nil {
 		t.Error("negative time-of-day should error")
 	}
-	if _, err := s.AddDaily("x", 1440, "", SourceOperator, now); err == nil {
+	if _, err := s.AddDaily("x", 1440, 0, "", SourceOperator, now); err == nil {
 		t.Error("24:00 (1440) should error")
 	}
-	if _, err := s.AddDaily("  ", 540, "", SourceOperator, now); err == nil {
+	if _, err := s.AddDaily("  ", 540, 0, "", SourceOperator, now); err == nil {
 		t.Error("empty intent should error")
 	}
 }
@@ -287,6 +287,87 @@ func TestEntry_Cadence(t *testing.T) {
 	}
 	if got := (Entry{Mode: ModeDaily, AtMinutes: 9*60 + 30}).Cadence(); got != "daily at 09:30" {
 		t.Errorf("daily cadence = %q", got)
+	}
+}
+
+func TestParseDays(t *testing.T) {
+	cases := map[string]int{
+		"":            0,
+		"daily":       0,
+		"all":         0,
+		"weekdays":    maskWeekdays,
+		"weekends":    maskWeekends,
+		"mon-fri":     maskWeekdays,
+		"sat,sun":     maskWeekends,
+		"Mon,Wed,Fri": 1<<1 | 1<<3 | 1<<5,
+		"fri-mon":     1<<5 | 1<<6 | 1<<0 | 1<<1, // wrapping range
+		"tue":         1 << 2,
+	}
+	for spec, want := range cases {
+		got, err := ParseDays(spec)
+		if err != nil {
+			t.Errorf("ParseDays(%q) error: %v", spec, err)
+			continue
+		}
+		if got != want {
+			t.Errorf("ParseDays(%q) = %d, want %d", spec, got, want)
+		}
+	}
+	for _, bad := range []string{"funday", "mon-funday", "mon,,bad", ","} {
+		if _, err := ParseDays(bad); err == nil {
+			t.Errorf("ParseDays(%q) should error", bad)
+		}
+	}
+}
+
+func TestFormatDays(t *testing.T) {
+	cases := map[int]string{
+		0:                  "",
+		AllDays:            "",
+		maskWeekdays:       "Mon-Fri",
+		maskWeekends:       "Sat,Sun",
+		1<<1 | 1<<3 | 1<<5: "Mon,Wed,Fri",
+	}
+	for mask, want := range cases {
+		if got := FormatDays(mask); got != want {
+			t.Errorf("FormatDays(%d) = %q, want %q", mask, got, want)
+		}
+	}
+}
+
+func TestStore_Daily_SkipsDisallowedWeekdays(t *testing.T) {
+	s := mustStore(t)
+	// 2026-05-31 is a Sunday. Weekdays-only daily at 09:00 → first run should be
+	// Monday 2026-06-01 09:00 (Sunday is skipped).
+	now := time.Date(2026, 5, 31, 8, 0, 0, 0, time.UTC)
+	weekdays, _ := ParseDays("weekdays")
+	e, err := s.AddDaily("standup nudge", 9*60, weekdays, "", SourceOperator, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if e.Cadence() != "Mon-Fri at 09:00" {
+		t.Errorf("cadence = %q", e.Cadence())
+	}
+	wantMon := time.Date(2026, 6, 1, 9, 0, 0, 0, time.UTC).Unix()
+	if e.NextRunUnix != wantMon {
+		t.Errorf("next = %d want %d (Mon 06-01 09:00, Sun skipped)", e.NextRunUnix, wantMon)
+	}
+	// Fire Monday; next advances to Tuesday (still a weekday), not the weekend.
+	due := s.Due(time.Date(2026, 6, 1, 9, 0, 1, 0, time.UTC))
+	if len(due) != 1 {
+		t.Fatalf("should fire Monday, got %d", len(due))
+	}
+	got, _ := s.Get(e.ID)
+	wantTue := time.Date(2026, 6, 2, 9, 0, 0, 0, time.UTC).Unix()
+	if got.NextRunUnix != wantTue {
+		t.Errorf("after Mon, next = %d want %d (Tue)", got.NextRunUnix, wantTue)
+	}
+}
+
+func TestStore_AddDaily_ValidatesDayMask(t *testing.T) {
+	s := mustStore(t)
+	if _, err := s.AddDaily("x", 540, AllDays+1, "", SourceOperator, time.Now()); err == nil {
+		t.Error("out-of-range day-mask should error")
 	}
 }
 

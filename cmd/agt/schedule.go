@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/internal/brand"
+	"github.com/agezt/agezt/kernel/cadence"
 	"github.com/agezt/agezt/kernel/controlplane"
 )
 
@@ -38,13 +39,14 @@ func cmdSchedule(args []string, stdout, stderr io.Writer) int {
 		return cmdScheduleEnable(args[1:], stdout, stderr, true)
 	case "-h", "--help", "help":
 		fmt.Fprintf(stdout, "usage: %s schedule <subcommand>\n", brand.CLI)
-		fmt.Fprintf(stdout, "  add \"<intent>\" --every <dur> [--model <id>] [--json]   recurring interval intent\n")
-		fmt.Fprintf(stdout, "  add \"<intent>\" --at <HH:MM> [--model <id>] [--json]    daily at a wall-clock time\n")
-		fmt.Fprintf(stdout, "  list [--json]                                          list all schedules\n")
-		fmt.Fprintf(stdout, "  rm <id> [--json]                                       delete a schedule\n")
-		fmt.Fprintf(stdout, "  run <id> [--json]                                      fire a schedule now (next tick)\n")
-		fmt.Fprintf(stdout, "  pause <id> / resume <id> [--json]                      disable / re-enable without deleting\n")
+		fmt.Fprintf(stdout, "  add \"<intent>\" --every <dur> [--model <id>] [--json]          recurring interval intent\n")
+		fmt.Fprintf(stdout, "  add \"<intent>\" --at <HH:MM> [--days <spec>] [--model <id>]    daily at a wall-clock time\n")
+		fmt.Fprintf(stdout, "  list [--json]                                                list all schedules\n")
+		fmt.Fprintf(stdout, "  rm <id> [--json]                                             delete a schedule\n")
+		fmt.Fprintf(stdout, "  run <id> [--json]                                            fire a schedule now (next tick)\n")
+		fmt.Fprintf(stdout, "  pause <id> / resume <id> [--json]                            disable / re-enable without deleting\n")
 		fmt.Fprintf(stdout, "  <dur> is a Go duration (30m, 1h, 24h); <HH:MM> is local 24h time.\n")
+		fmt.Fprintf(stdout, "  <spec> is weekdays | weekends | a list/range like mon,wed,fri or mon-fri.\n")
 		return 0
 	default:
 		fmt.Fprintf(stderr, "%s schedule: unknown subcommand %q (add|list|rm|run|pause|resume)\n", brand.CLI, args[0])
@@ -68,7 +70,7 @@ func parseHHMM(s string) (int, error) {
 
 func cmdScheduleAdd(args []string, stdout, stderr io.Writer) int {
 	asJSON := false
-	var every, at, model string
+	var every, at, days, model string
 	var positional []string
 	for i := 0; i < len(args); i++ {
 		a := args[i]
@@ -76,7 +78,7 @@ func cmdScheduleAdd(args []string, stdout, stderr io.Writer) int {
 		case "--json":
 			asJSON = true
 		case "-h", "--help":
-			fmt.Fprintf(stdout, "usage: %s schedule add \"<intent>\" (--every <dur> | --at <HH:MM>) [--model <id>] [--json]\n", brand.CLI)
+			fmt.Fprintf(stdout, "usage: %s schedule add \"<intent>\" (--every <dur> | --at <HH:MM> [--days <spec>]) [--model <id>] [--json]\n", brand.CLI)
 			return 0
 		case "--every":
 			if i+1 >= len(args) {
@@ -92,6 +94,13 @@ func cmdScheduleAdd(args []string, stdout, stderr io.Writer) int {
 			}
 			i++
 			at = args[i]
+		case "--days":
+			if i+1 >= len(args) {
+				fmt.Fprintf(stderr, "%s schedule add: --days needs a spec (e.g. mon-fri, weekends)\n", brand.CLI)
+				return 2
+			}
+			i++
+			days = args[i]
 		case "--model":
 			if i+1 >= len(args) {
 				fmt.Fprintf(stderr, "%s schedule add: --model needs a value\n", brand.CLI)
@@ -112,6 +121,10 @@ func cmdScheduleAdd(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "%s schedule add: pass exactly one of --every <dur> or --at <HH:MM>\n", brand.CLI)
 		return 2
 	}
+	if days != "" && at == "" {
+		fmt.Fprintf(stderr, "%s schedule add: --days only applies to --at (daily) schedules\n", brand.CLI)
+		return 2
+	}
 
 	callArgs := map[string]any{"intent": intent}
 	var human string
@@ -123,6 +136,17 @@ func cmdScheduleAdd(args []string, stdout, stderr io.Writer) int {
 		}
 		callArgs["at_minutes"] = mins
 		human = "daily at " + at
+		if days != "" {
+			mask, err := cadence.ParseDays(days)
+			if err != nil {
+				fmt.Fprintf(stderr, "%s schedule add: bad --days %q: %v\n", brand.CLI, days, err)
+				return 2
+			}
+			callArgs["days"] = mask
+			if label := cadence.FormatDays(mask); label != "" {
+				human = label + " at " + at
+			}
+		}
 	} else {
 		d, err := time.ParseDuration(every)
 		if err != nil {

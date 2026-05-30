@@ -27,7 +27,8 @@ func (s *Server) handleScheduleAdd(conn net.Conn, req Request) {
 	// Daily (wall-clock) when at_minutes is present; interval otherwise.
 	if atAny, ok := req.Args["at_minutes"]; ok {
 		at, _ := atAny.(float64)
-		e, err = s.k.Schedules().AddDaily(intent, int(at), model, cadence.SourceOperator, time.Now())
+		days, _ := req.Args["days"].(float64) // weekday bitmask; 0 = every day
+		e, err = s.k.Schedules().AddDaily(intent, int(at), int(days), model, cadence.SourceOperator, time.Now())
 	} else {
 		sec, _ := req.Args["interval_sec"].(float64) // JSON numbers decode to float64
 		if sec < 1 {
@@ -45,7 +46,7 @@ func (s *Server) handleScheduleAdd(conn net.Conn, req Request) {
 		Type: RespResult,
 		Result: map[string]any{
 			"id": e.ID, "intent": e.Intent, "mode": e.Mode, "interval_sec": e.IntervalSec,
-			"at_minutes": e.AtMinutes, "model": e.Model, "next_run_unix": e.NextRunUnix,
+			"at_minutes": e.AtMinutes, "days": e.Days, "model": e.Model, "next_run_unix": e.NextRunUnix,
 		},
 	})
 }
@@ -71,7 +72,7 @@ func (s *Server) handleScheduleList(conn net.Conn, req Request) {
 	for _, e := range entries {
 		out = append(out, map[string]any{
 			"id": e.ID, "intent": e.Intent, "mode": e.Mode, "interval_sec": e.IntervalSec,
-			"at_minutes": e.AtMinutes, "cadence": e.Cadence(),
+			"at_minutes": e.AtMinutes, "days": e.Days, "cadence": e.Cadence(),
 			"model": e.Model, "source": e.Source, "enabled": e.Enabled,
 			"created_unix": e.CreatedUnix, "last_run_unix": e.LastRunUnix,
 			"next_run_unix": e.NextRunUnix,
