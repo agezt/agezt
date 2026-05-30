@@ -188,6 +188,24 @@ func (s *Server) handleWorldGet(conn net.Conn, req Request) {
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: result})
 }
 
+func (s *Server) handleWorldForget(conn net.Conn, req Request) {
+	id, _ := req.Args["id"].(string)
+	if id == "" {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.id required"})
+		return
+	}
+	ok, err := s.k.World().Forget("", id)
+	if err != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		return
+	}
+	s.writeResp(conn, Response{
+		ID:     req.ID,
+		Type:   RespResult,
+		Result: map[string]any{"forgotten": ok},
+	})
+}
+
 // entityView renders a worldmodel.Entity as a stable JSON object for the wire.
 func entityView(e worldmodel.Entity) map[string]any {
 	v := map[string]any{

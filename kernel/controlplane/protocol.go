@@ -383,6 +383,10 @@ const (
 	// Args: id (required). Returns: { found, entity }
 	CmdWorldGet = "world_get"
 
+	// CmdWorldForget tombstones an entity (soft delete; reversible,
+	// journaled). Args: id (required). Returns: { forgotten }
+	CmdWorldForget = "world_forget"
+
 	// Forge / skills (SPEC-05 §4–5). The journaled skill-lifecycle behind
 	// `agt skill`; transitions go through the kernel's skill.Forge so every
 	// promote/quarantine/revert is auditable via `agt why`.

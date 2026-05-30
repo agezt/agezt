@@ -310,6 +310,8 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.handleWorldList(conn, req)
 	case CmdWorldGet:
 		s.handleWorldGet(conn, req)
+	case CmdWorldForget:
+		s.handleWorldForget(conn, req)
 	case CmdSkillList:
 		s.handleSkillList(conn, req)
 	case CmdSkillGet:

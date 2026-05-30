@@ -46,3 +46,20 @@ func TestCmdWorldRelate_NeedsThreeArgs(t *testing.T) {
 		t.Errorf("relate with 2 args should be exit 2, got %d", code)
 	}
 }
+
+func TestCmdWorldForget_RequiresID(t *testing.T) {
+	var out, errOut bytes.Buffer
+	if code := cmdWorldForget(nil, &out, &errOut); code != 2 {
+		t.Errorf("missing id should be exit 2, got %d", code)
+	}
+}
+
+func TestCmdWorldForget_Help(t *testing.T) {
+	var out, errOut bytes.Buffer
+	if code := cmdWorldForget([]string{"--help"}, &out, &errOut); code != 0 {
+		t.Fatalf("exit=%d want 0", code)
+	}
+	if !strings.Contains(out.String(), "world forget <id>") {
+		t.Errorf("help missing usage; got %q", out.String())
+	}
+}

@@ -182,6 +182,7 @@ func printHelp(w io.Writer) {
 	fmt.Fprintf(w, "  world neighbors <name> [--json]       what an entity connects to\n")
 	fmt.Fprintf(w, "  world list [--json]                   list active entities + relation count\n")
 	fmt.Fprintf(w, "  world show <id> [--json]              read one entity (exit 3 = absent)\n")
+	fmt.Fprintf(w, "  world forget <id> [--json]            tombstone an entity (reversible, journaled)\n")
 	fmt.Fprintf(w, "  skill list [--json]                   list learned skills + lifecycle state\n")
 	fmt.Fprintf(w, "  skill show <id> [--json]             read one skill (exit 3 = absent)\n")
 	fmt.Fprintf(w, "  skill history <id> [--json]          a skill's lifecycle event chain\n")

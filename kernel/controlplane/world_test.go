@@ -77,3 +77,46 @@ func TestWorldListEmpty(t *testing.T) {
 		t.Fatalf("empty world should return [], got %v", res["entities"])
 	}
 }
+
+func TestWorldForgetExcludesFromList(t *testing.T) {
+	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	ctx := context.Background()
+	res, err := c.Call(ctx, controlplane.CmdWorldAdd, map[string]any{"name": "Ephemeral", "kind": "project"})
+	if err != nil {
+		t.Fatalf("add: %v", err)
+	}
+	id, _ := res["id"].(string)
+	if id == "" {
+		t.Fatal("add returned no id")
+	}
+
+	res, err = c.Call(ctx, controlplane.CmdWorldForget, map[string]any{"id": id})
+	if err != nil {
+		t.Fatalf("forget: %v", err)
+	}
+	if ok, _ := res["forgotten"].(bool); !ok {
+		t.Error("forget should report forgotten=true")
+	}
+
+	// Gone from the active list...
+	res, _ = c.Call(ctx, controlplane.CmdWorldList, nil)
+	if ents, _ := res["entities"].([]any); len(ents) != 0 {
+		t.Fatalf("forgotten entity must not appear in list, got %d", len(ents))
+	}
+	// ...but still retrievable by id (reversibility) and marked tombstoned.
+	res, _ = c.Call(ctx, controlplane.CmdWorldGet, map[string]any{"id": id})
+	if found, _ := res["found"].(bool); !found {
+		t.Fatal("forgotten entity must remain retrievable by id")
+	}
+	ent, _ := res["entity"].(map[string]any)
+	if tomb, _ := ent["tombstoned"].(bool); !tomb {
+		t.Error("retrieved forgotten entity should be marked tombstoned")
+	}
+}
+
+func TestWorldForgetRequiresID(t *testing.T) {
+	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	if _, err := c.Call(context.Background(), controlplane.CmdWorldForget, map[string]any{}); err == nil {
+		t.Error("world_forget without id should error")
+	}
+}

@@ -35,6 +35,8 @@ func cmdWorld(args []string, stdout, stderr io.Writer) int {
 		return cmdWorldList(args[1:], stdout, stderr)
 	case "show", "get":
 		return cmdWorldShow(args[1:], stdout, stderr)
+	case "forget":
+		return cmdWorldForget(args[1:], stdout, stderr)
 	case "-h", "--help", "help":
 		fmt.Fprintf(stdout, "usage: %s world <subcommand>\n", brand.CLI)
 		fmt.Fprintf(stdout, "  add <name> [--kind K] [--alias A ...] [--json]\n")
@@ -43,13 +45,59 @@ func cmdWorld(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "  neighbors <name> [--json]\n")
 		fmt.Fprintf(stdout, "  list [--json]\n")
 		fmt.Fprintf(stdout, "  show <id> [--json]     (exit 3 = absent)\n")
+		fmt.Fprintf(stdout, "  forget <id> [--json]   tombstone an entity (reversible, journaled)\n")
 		fmt.Fprintf(stdout, "kinds: project|repo|person|org|account|device|channel|topic|task\n")
 		fmt.Fprintf(stdout, "verbs: owns|depends_on|member_of|prefers|relates_to|assigned_to|derived_from\n")
 		return 0
 	default:
-		fmt.Fprintf(stderr, "%s world: unknown subcommand %q (add|relate|resolve|neighbors|list|show)\n", brand.CLI, args[0])
+		fmt.Fprintf(stderr, "%s world: unknown subcommand %q (add|relate|resolve|neighbors|list|show|forget)\n", brand.CLI, args[0])
 		return 2
 	}
+}
+
+// cmdWorldForget implements `agt world forget <id> [--json]` — tombstones an
+// entity (soft delete; reversible, journaled). Mirrors `memory forget`.
+func cmdWorldForget(args []string, stdout, stderr io.Writer) int {
+	asJSON := false
+	var id string
+	for _, a := range args {
+		switch {
+		case a == "--json":
+			asJSON = true
+		case a == "-h" || a == "--help":
+			fmt.Fprintf(stdout, "usage: %s world forget <id> [--json]\n", brand.CLI)
+			return 0
+		case id == "":
+			id = a
+		default:
+			fmt.Fprintf(stderr, "%s world forget: unexpected arg %q\n", brand.CLI, a)
+			return 2
+		}
+	}
+	if id == "" {
+		fmt.Fprintf(stderr, "%s world forget: id required\n", brand.CLI)
+		return 2
+	}
+	c := dial(stderr)
+	if c == nil {
+		return 1
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	res, err := c.Call(ctx, controlplane.CmdWorldForget, map[string]any{"id": id})
+	if err != nil {
+		fmt.Fprintf(stderr, "%s world forget: %v\n", brand.CLI, err)
+		return 1
+	}
+	if asJSON {
+		return encodeJSON(stdout, res)
+	}
+	if ok, _ := res["forgotten"].(bool); ok {
+		fmt.Fprintf(stdout, "forgot %s\n", id)
+	} else {
+		fmt.Fprintf(stdout, "no such entity %s\n", id)
+	}
+	return 0
 }
 
 // cmdWorldAdd implements `agt world add <name> [--kind K] [--alias A ...]`.
