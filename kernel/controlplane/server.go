@@ -298,6 +298,14 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.handleMemorySearch(conn, req)
 	case CmdMemoryForget:
 		s.handleMemoryForget(conn, req)
+	case CmdScheduleAdd:
+		s.handleScheduleAdd(conn, req)
+	case CmdScheduleList:
+		s.handleScheduleList(conn, req)
+	case CmdScheduleRemove:
+		s.handleScheduleRemove(conn, req)
+	case CmdScheduleRun:
+		s.handleScheduleRun(conn, req)
 	case CmdWorldAdd:
 		s.handleWorldAdd(conn, req)
 	case CmdWorldRelate:

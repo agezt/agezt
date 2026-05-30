@@ -345,6 +345,25 @@ const (
 	// Args: id (required). Returns: { forgotten (bool) }
 	CmdMemoryForget = "memory_forget"
 
+	// Scheduled intents (autonomy). The cadence resident fires due schedules
+	// through the governed loop; these commands manage the persistent store
+	// behind `agt schedule`.
+	//
+	// CmdScheduleAdd creates a recurring schedule.
+	// Args: intent (required), interval_sec (required, >= 1), model (optional).
+	// Returns: { id, intent, interval_sec, next_run_unix }
+	CmdScheduleAdd = "schedule_add"
+	// CmdScheduleList returns all schedules.
+	// Returns: { schedules: [ {id,intent,interval_sec,model,source,enabled,
+	//            created_unix,last_run_unix,next_run_unix} ], count }
+	CmdScheduleList = "schedule_list"
+	// CmdScheduleRemove deletes a schedule by id.
+	// Args: id (required). Returns: { removed (bool) }
+	CmdScheduleRemove = "schedule_rm"
+	// CmdScheduleRun marks a schedule due immediately (fires on the next tick).
+	// Args: id (required). Returns: { triggered (bool) }
+	CmdScheduleRun = "schedule_run"
+
 	// World model (SPEC-05 §3). The journaled entity/relation graph behind
 	// `agt world`; writes go through the kernel's worldmodel.Graph so every
 	// node/edge mutation is auditable via `agt why`.

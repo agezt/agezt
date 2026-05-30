@@ -16,7 +16,7 @@ a **native REST** `/api/v1`), it drives **external ACP agents** and **peer
 Agezt nodes** back (mesh), pushes events out via **HMAC-signed webhooks**, and
 `agt provider import` brings every key you already have online in one pass.
 See [CHANGELOG.md](CHANGELOG.md).
-**Tests:** 1080 passing across 55 packages.
+**Tests:** 1085 passing across 55 packages.
 **Dependencies:** one (`lukechampine.com/blake3`) + one transitive.
 
 ## What you get
@@ -36,6 +36,7 @@ agt status                                                     — daemon health
 agt budget                                                     — spend vs daily / per-task caps
 agt tool list                                                  — in-process tools the model sees
 agt peers [--json]                                             — list peer nodes + check their REST health
+agt schedule add "<intent>" --every 1h                         — recurring autonomous intent (list/rm/run)
 agt plugin list                                                — external plugins loaded
 agt edict show / edict test shell "rm -rf /"                   — view + preflight policy decisions
 agt state list / state get <ns> <key>                          — read kernel state store
@@ -150,14 +151,21 @@ curl -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
   -d '{"intent":"what is this project?"}' http://127.0.0.1:8800/api/v1/runs
 ```
 
-**Let it act on its own schedule.** Set `AGEZT_SCHEDULE` to a `;`-separated list
-of `interval=intent` jobs and the daemon runs each intent on that cadence through
-the same governed loop — the timer companion to Pulse's event-driven
-proactivity. Every firing is journaled (`schedule.fired`), so `agt why` links
-what the system did on its own back to the run:
+**Let it act on its own schedule.** The daemon runs intents on a recurring timer
+through the same governed loop — the timer companion to Pulse's event-driven
+proactivity. Manage schedules live with `agt schedule` (persisted across
+restarts, reversible), or seed them at startup with `AGEZT_SCHEDULE`
+(`;`-separated `interval=intent` jobs). Every firing is journaled
+(`schedule.fired`), so `agt why` links what the system did on its own back to the
+run:
 
 ```bash
-AGEZT_SCHEDULE='1h=summarise new commits and brief me; 24h=audit the repo for secrets' ./bin/agezt
+agt schedule add "summarise new commits and brief me" --every 1h
+agt schedule list            # id, cadence, source, next run
+agt schedule run <id>        # fire now (next tick)
+agt schedule rm <id>         # reversible
+# or seed at startup:
+AGEZT_SCHEDULE='24h=audit the repo for secrets' ./bin/agezt
 ```
 
 For the full operator cheat sheet: `agt help`.  Day-to-day commands:
@@ -255,7 +263,7 @@ The v1 substrate. Highlights:
 ## Verify
 
 ```bash
-make test     # 1080 tests, all green
+make test     # 1085 tests, all green
 make build    # produces bin/agezt + bin/agt
 make gen      # regenerate SDK types from the contract
 ```

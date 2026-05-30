@@ -764,19 +764,27 @@ func buildWebhooks(ctx context.Context, k *kernelruntime.Kernel, stdout io.Write
 // Each firing journals a schedule.fired event (carrying the run's correlation so
 // `agt why` links the schedule to the run) and then runs the intent through the
 // normal governed loop. Returns the banner description; "" only when the env var
-// is unset (an invalid spec returns a one-line reason).
+// is unset and the store is empty.
 func buildCadence(ctx context.Context, k *kernelruntime.Kernel, stdout io.Writer) string {
-	spec := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "SCHEDULE"))
-	if spec == "" {
+	store := k.Schedules()
+	if store == nil {
 		return ""
 	}
-	jobs, err := cadence.ParseJobs(spec)
-	if err != nil {
-		return "disabled (" + err.Error() + ")"
+	// Sync AGEZT_SCHEDULE env jobs into the store (idempotent: replaces the
+	// previous env-sourced entries, leaves operator-managed ones untouched).
+	if spec := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "SCHEDULE")); spec != "" {
+		jobs, err := cadence.ParseJobs(spec)
+		if err != nil {
+			return "disabled (" + err.Error() + ")"
+		}
+		if err := store.SyncEnv(jobs, time.Now()); err != nil {
+			return "disabled (" + err.Error() + ")"
+		}
+	} else {
+		_ = store.SyncEnv(nil, time.Now()) // env cleared → drop stale env entries
 	}
-	if len(jobs) == 0 {
-		return ""
-	}
+	// The engine always runs (so operator-added schedules fire even with no env
+	// spec). With no entries it simply ticks idly.
 	run := func(runCtx context.Context, intent, model string) error {
 		corr := k.NewCorrelation()
 		_, _ = k.Bus().Publish(event.Spec{
@@ -789,8 +797,13 @@ func buildCadence(ctx context.Context, k *kernelruntime.Kernel, stdout io.Writer
 		_, err := k.RunWith(kernelruntime.WithModel(runCtx, model), corr, intent)
 		return err
 	}
-	cadence.New(jobs, run, 0, stdout).Start(ctx)
-	return cadence.Describe(jobs)
+	cadence.NewEngine(store, run, 0, stdout).Start(ctx)
+
+	entries := store.List()
+	if len(entries) == 0 {
+		return "active (no schedules yet — add with `agt schedule add`)"
+	}
+	return cadence.Describe(entries)
 }
 
 // isLoopback reports whether the host portion of addr binds to loopback only.

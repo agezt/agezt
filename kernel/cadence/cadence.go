@@ -1,108 +1,306 @@
 // SPDX-License-Identifier: MIT
 
-// Package cadence is the scheduled-intents resident (autonomy): it fires
-// operator-configured intents on a recurring timer through the normal governed
-// kernel loop, so the system acts on its own ("every morning, summarise new
-// commits and brief me") rather than only reacting. It is the timer companion
-// to Pulse's event-driven proactivity.
+// Package cadence is the scheduled-intents subsystem (autonomy): it fires
+// intents on a recurring timer through the normal governed kernel loop, so the
+// system acts on its own ("every morning, summarise new commits and brief me")
+// rather than only reacting. It is the timer companion to Pulse's event-driven
+// proactivity.
 //
-// Each job is an (interval, intent) pair. A single ticker fires every job whose
-// next-run time has arrived; a still-running job is skipped (no overlap) so a
-// slow run can't pile up. Every firing is journaled (schedule.fired) and the run
-// it launches goes through Edict + the journal like any other — a scheduled run
-// is governed exactly like `agt run`, with no extra authority.
-//
-// Configuration is env-driven (AGEZT_SCHEDULE); like the webhook and reflect
-// residents it has no CLI/control-plane surface of its own in this MVP.
+// Schedules live in a persistent Store (survives restarts) and are managed by
+// the operator over the control plane (`agt schedule add|list|rm|run`).
+// Operator-configured AGEZT_SCHEDULE env jobs are synced into the same store at
+// startup (source="env"), so both paths share one source of truth. The Engine
+// ticks, asks the Store which entries are due, and fires each through a RunFunc;
+// a still-running entry is skipped (no overlap). Every firing is journaled
+// (schedule.fired) and the run it launches is governed exactly like `agt run`.
 package cadence
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
+	"os"
+	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
+
+	"github.com/agezt/agezt/kernel/ulid"
 )
 
 // MinInterval guards against a busy-loop from a misconfigured tiny interval.
 const MinInterval = time.Second
 
-// DefaultResolution is how often the ticker wakes to check for due jobs.
-const DefaultResolution = 30 * time.Second
+// DefaultResolution is how often the ticker wakes to check for due entries.
+const DefaultResolution = 10 * time.Second
 
-// Job is one scheduled intent.
+// Source values distinguish operator-managed entries from env-seeded ones.
+const (
+	SourceOperator = "operator"
+	SourceEnv      = "env"
+)
+
+// Entry is one persisted schedule.
+type Entry struct {
+	ID          string `json:"id"`
+	Intent      string `json:"intent"`
+	IntervalSec int64  `json:"interval_sec"`
+	Model       string `json:"model,omitempty"`
+	Source      string `json:"source"`
+	Enabled     bool   `json:"enabled"`
+	CreatedUnix int64  `json:"created_unix"`
+	LastRunUnix int64  `json:"last_run_unix,omitempty"`
+	NextRunUnix int64  `json:"next_run_unix"`
+}
+
+// Interval is the entry's firing period.
+func (e Entry) Interval() time.Duration { return time.Duration(e.IntervalSec) * time.Second }
+
+// Job is an interval+intent pair parsed from AGEZT_SCHEDULE (see ParseJobs),
+// used to seed env-sourced entries into the store.
 type Job struct {
 	Interval time.Duration
 	Intent   string
-	Model    string // optional; empty → daemon default
+	Model    string
 }
+
+// --- Store ---
+
+// Store is the persistent set of schedules, written as a single JSON file
+// rewritten atomically on change. It is safe for concurrent use.
+type Store struct {
+	path    string
+	mu      sync.Mutex
+	entries []*Entry
+}
+
+// OpenStore opens (or creates) the schedule store under dir.
+func OpenStore(dir string) (*Store, error) {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return nil, fmt.Errorf("cadence: mkdir %s: %w", dir, err)
+	}
+	s := &Store{path: filepath.Join(dir, "schedules.json")}
+	b, err := os.ReadFile(s.path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return s, nil
+		}
+		return nil, fmt.Errorf("cadence: read %s: %w", s.path, err)
+	}
+	if len(b) > 0 {
+		if err := json.Unmarshal(b, &s.entries); err != nil {
+			return nil, fmt.Errorf("cadence: parse %s: %w", s.path, err)
+		}
+	}
+	return s, nil
+}
+
+// Add creates an enabled entry firing every interval, first run one interval
+// from now. source is SourceOperator or SourceEnv.
+func (s *Store) Add(intent string, interval time.Duration, model, source string, now time.Time) (Entry, error) {
+	intent = strings.TrimSpace(intent)
+	if intent == "" {
+		return Entry{}, fmt.Errorf("cadence: intent is required")
+	}
+	if interval < MinInterval {
+		return Entry{}, fmt.Errorf("cadence: interval %s is below the %s minimum", interval, MinInterval)
+	}
+	if source == "" {
+		source = SourceOperator
+	}
+	e := &Entry{
+		ID:          "sched-" + ulid.New(),
+		Intent:      intent,
+		IntervalSec: int64(interval / time.Second),
+		Model:       strings.TrimSpace(model),
+		Source:      source,
+		Enabled:     true,
+		CreatedUnix: now.Unix(),
+		NextRunUnix: now.Add(interval).Unix(),
+	}
+	s.mu.Lock()
+	s.entries = append(s.entries, e)
+	err := s.save()
+	s.mu.Unlock()
+	if err != nil {
+		return Entry{}, err
+	}
+	return *e, nil
+}
+
+// Remove deletes the entry with id; returns whether one was removed.
+func (s *Store) Remove(id string) (bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for i, e := range s.entries {
+		if e.ID == id {
+			s.entries = append(s.entries[:i], s.entries[i+1:]...)
+			return true, s.save()
+		}
+	}
+	return false, nil
+}
+
+// List returns a copy of all entries, sorted by creation time.
+func (s *Store) List() []Entry {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := make([]Entry, 0, len(s.entries))
+	for _, e := range s.entries {
+		out = append(out, *e)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].CreatedUnix < out[j].CreatedUnix })
+	return out
+}
+
+// Get returns the entry with id.
+func (s *Store) Get(id string) (Entry, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, e := range s.entries {
+		if e.ID == id {
+			return *e, true
+		}
+	}
+	return Entry{}, false
+}
+
+// RunNow marks the entry due immediately (the next tick fires it). Returns
+// whether the entry exists.
+func (s *Store) RunNow(id string) (bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, e := range s.entries {
+		if e.ID == id {
+			e.NextRunUnix = 0 // epoch → always due
+			e.Enabled = true
+			return true, s.save()
+		}
+	}
+	return false, nil
+}
+
+// Due returns the entries whose next-run time has arrived, advancing each one's
+// next-run and last-run and persisting. Disabled entries are never due.
+func (s *Store) Due(now time.Time) []Entry {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var due []Entry
+	changed := false
+	for _, e := range s.entries {
+		if !e.Enabled {
+			continue
+		}
+		if now.Unix() < e.NextRunUnix {
+			continue
+		}
+		e.LastRunUnix = now.Unix()
+		e.NextRunUnix = now.Add(e.Interval()).Unix()
+		changed = true
+		due = append(due, *e)
+	}
+	if changed {
+		_ = s.save()
+	}
+	return due
+}
+
+// SyncEnv replaces all SourceEnv entries with the given jobs (idempotent across
+// restarts): operator-managed entries are untouched, and removing a job from
+// AGEZT_SCHEDULE removes its entry on the next start.
+func (s *Store) SyncEnv(jobs []Job, now time.Time) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	kept := s.entries[:0:0]
+	for _, e := range s.entries {
+		if e.Source != SourceEnv {
+			kept = append(kept, e)
+		}
+	}
+	for _, j := range jobs {
+		iv := j.Interval
+		if iv < MinInterval {
+			iv = MinInterval
+		}
+		kept = append(kept, &Entry{
+			ID:          "sched-" + ulid.New(),
+			Intent:      strings.TrimSpace(j.Intent),
+			IntervalSec: int64(iv / time.Second),
+			Model:       strings.TrimSpace(j.Model),
+			Source:      SourceEnv,
+			Enabled:     true,
+			CreatedUnix: now.Unix(),
+			NextRunUnix: now.Add(iv).Unix(),
+		})
+	}
+	s.entries = kept
+	return s.save()
+}
+
+// Count returns the number of entries.
+func (s *Store) Count() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return len(s.entries)
+}
+
+// save writes the entries atomically (temp file + rename). Caller holds s.mu.
+func (s *Store) save() error {
+	b, err := json.MarshalIndent(s.entries, "", "  ")
+	if err != nil {
+		return err
+	}
+	tmp := s.path + ".tmp"
+	if err := os.WriteFile(tmp, b, 0o644); err != nil {
+		return err
+	}
+	return os.Rename(tmp, s.path)
+}
+
+// --- Engine ---
 
 // RunFunc executes one scheduled intent through the governed loop. The engine
 // calls it on its own goroutine; a returned error is logged, not fatal.
 type RunFunc func(ctx context.Context, intent, model string) error
 
-type jobState struct {
-	Job
-	next    time.Time
-	running atomic.Bool
-}
-
-// Engine fires the configured jobs on a timer.
+// Engine fires the store's due entries on a timer.
 type Engine struct {
-	jobs []*jobState
-	run  RunFunc
-	res  time.Duration
-	log  io.Writer
+	store *Store
+	run   RunFunc
+	res   time.Duration
+	log   io.Writer
 
+	running sync.Map // entry ID -> struct{} while a run is in flight
 	mu      sync.Mutex
 	started bool
 }
 
-// New builds an Engine. resolution <= 0 uses DefaultResolution (clamped to the
-// smallest interval so short intervals still fire promptly). log receives one
-// line per firing (nil = discard).
-func New(jobs []Job, run RunFunc, resolution time.Duration, log io.Writer) *Engine {
+// NewEngine builds an Engine over a store. resolution <= 0 uses
+// DefaultResolution. log receives one line per firing (nil = discard).
+func NewEngine(store *Store, run RunFunc, resolution time.Duration, log io.Writer) *Engine {
 	if log == nil {
 		log = io.Discard
-	}
-	states := make([]*jobState, 0, len(jobs))
-	smallest := time.Duration(0)
-	for _, j := range jobs {
-		if j.Interval < MinInterval {
-			j.Interval = MinInterval
-		}
-		states = append(states, &jobState{Job: j})
-		if smallest == 0 || j.Interval < smallest {
-			smallest = j.Interval
-		}
 	}
 	res := resolution
 	if res <= 0 {
 		res = DefaultResolution
 	}
-	if smallest > 0 && smallest < res {
-		res = smallest
-	}
-	return &Engine{jobs: states, run: run, res: res, log: log}
+	return &Engine{store: store, run: run, res: res, log: log}
 }
 
-// Start arms every job (first fire one interval from now) and runs the ticker
-// until ctx is done. It returns immediately; the loop runs on its own goroutine.
+// Start runs the ticker until ctx is done. It returns immediately; the loop runs
+// on its own goroutine.
 func (e *Engine) Start(ctx context.Context) {
 	e.mu.Lock()
-	if e.started || len(e.jobs) == 0 {
+	if e.started {
 		e.mu.Unlock()
 		return
 	}
 	e.started = true
 	e.mu.Unlock()
 
-	now := time.Now()
-	for _, j := range e.jobs {
-		j.next = now.Add(j.Interval)
-	}
 	go func() {
 		t := time.NewTicker(e.res)
 		defer t.Stop()
@@ -117,29 +315,20 @@ func (e *Engine) Start(ctx context.Context) {
 	}()
 }
 
-// fireDue launches every job whose next-run time has arrived and that is not
-// already running, rescheduling each. Exported behaviour is tested directly with
-// a controlled clock (no ticker, no flakiness).
+// fireDue launches every due entry that is not already running. Tested directly
+// with a controlled clock (no ticker, no flakiness).
 func (e *Engine) fireDue(ctx context.Context, now time.Time) {
-	for _, j := range e.jobs {
-		if j.next.IsZero() {
-			j.next = now.Add(j.Interval) // lazy arm (used by tests that skip Start)
+	for _, entry := range e.store.Due(now) {
+		if _, busy := e.running.LoadOrStore(entry.ID, struct{}{}); busy {
+			fmt.Fprintf(e.log, "schedule: skip %q (previous run still in progress)\n", short(entry.Intent))
 			continue
 		}
-		if now.Before(j.next) {
-			continue
-		}
-		j.next = now.Add(j.Interval)
-		if !j.running.CompareAndSwap(false, true) {
-			fmt.Fprintf(e.log, "schedule: skip %q (previous run still in progress)\n", short(j.Intent))
-			continue
-		}
-		job := j
+		ent := entry
 		go func() {
-			defer job.running.Store(false)
-			fmt.Fprintf(e.log, "schedule: firing %q (every %s)\n", short(job.Intent), job.Interval)
-			if err := e.run(ctx, job.Intent, job.Model); err != nil {
-				fmt.Fprintf(e.log, "schedule: %q failed: %v\n", short(job.Intent), err)
+			defer e.running.Delete(ent.ID)
+			fmt.Fprintf(e.log, "schedule: firing %q (every %s)\n", short(ent.Intent), ent.Interval())
+			if err := e.run(ctx, ent.Intent, ent.Model); err != nil {
+				fmt.Fprintf(e.log, "schedule: %q failed: %v\n", short(ent.Intent), err)
 			}
 		}()
 	}
@@ -152,6 +341,8 @@ func short(s string) string {
 	}
 	return s
 }
+
+// --- env parsing ---
 
 // ParseJobs parses the AGEZT_SCHEDULE spec: a semicolon-separated list of jobs
 // (semicolon, not comma, because intents commonly contain commas), each
@@ -189,14 +380,14 @@ func ParseJobs(spec string) ([]Job, error) {
 	return jobs, nil
 }
 
-// Describe renders a one-line banner summary of the jobs.
-func Describe(jobs []Job) string {
-	if len(jobs) == 0 {
+// Describe renders a one-line banner summary of the store's entries.
+func Describe(entries []Entry) string {
+	if len(entries) == 0 {
 		return ""
 	}
-	parts := make([]string, 0, len(jobs))
-	for _, j := range jobs {
-		parts = append(parts, fmt.Sprintf("every %s → %q", j.Interval, short(j.Intent)))
+	parts := make([]string, 0, len(entries))
+	for _, e := range entries {
+		parts = append(parts, fmt.Sprintf("every %s → %q", e.Interval(), short(e.Intent)))
 	}
-	return fmt.Sprintf("%d job(s): %s", len(jobs), strings.Join(parts, ", "))
+	return fmt.Sprintf("%d schedule(s): %s", len(entries), strings.Join(parts, ", "))
 }

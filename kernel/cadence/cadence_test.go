@@ -6,16 +6,24 @@ import (
 	"context"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 )
 
-// recorder counts and records the intents a RunFunc was asked to run.
+func mustStore(t *testing.T) *Store {
+	t.Helper()
+	s, err := OpenStore(t.TempDir())
+	if err != nil {
+		t.Fatalf("OpenStore: %v", err)
+	}
+	return s
+}
+
+// recorder counts the intents a RunFunc was asked to run.
 type recorder struct {
 	mu      sync.Mutex
 	intents []string
-	block   chan struct{} // if non-nil, Run blocks on it (to simulate a slow run)
+	block   chan struct{}
 }
 
 func (r *recorder) run(_ context.Context, intent, _ string) error {
@@ -34,7 +42,6 @@ func (r *recorder) count() int {
 	return len(r.intents)
 }
 
-// waitCount waits until the recorder has seen n intents (goroutine deliveries).
 func waitCount(t *testing.T, r *recorder, n int) {
 	t.Helper()
 	deadline := time.Now().Add(2 * time.Second)
@@ -47,87 +54,167 @@ func waitCount(t *testing.T, r *recorder, n int) {
 	t.Fatalf("expected %d runs, got %d", n, r.count())
 }
 
-func TestFireDue_FiresWhenIntervalElapses(t *testing.T) {
-	rec := &recorder{}
-	e := New([]Job{{Interval: time.Hour, Intent: "daily brief"}}, rec.run, 0, nil)
-
-	base := time.Date(2026, 5, 30, 9, 0, 0, 0, time.UTC)
-	e.fireDue(context.Background(), base)                     // arms: next = base+1h
-	e.fireDue(context.Background(), base.Add(30*time.Minute)) // not due
-	if rec.count() != 0 {
-		t.Fatalf("should not fire before interval, got %d", rec.count())
+func TestStore_AddListGetRemove(t *testing.T) {
+	s := mustStore(t)
+	now := time.Date(2026, 5, 30, 9, 0, 0, 0, time.UTC)
+	e, err := s.Add("daily brief", time.Hour, "sonnet", SourceOperator, now)
+	if err != nil {
+		t.Fatal(err)
 	}
-	e.fireDue(context.Background(), base.Add(time.Hour+time.Second)) // due
-	waitCount(t, rec, 1)
-	if rec.intents[0] != "daily brief" {
-		t.Errorf("intent = %q", rec.intents[0])
+	if e.ID == "" || e.Intent != "daily brief" || e.IntervalSec != 3600 || e.Model != "sonnet" {
+		t.Fatalf("entry = %+v", e)
+	}
+	if e.NextRunUnix != now.Add(time.Hour).Unix() {
+		t.Errorf("next run not one interval out: %+v", e)
+	}
+	if got, ok := s.Get(e.ID); !ok || got.Intent != "daily brief" {
+		t.Errorf("Get = %+v %v", got, ok)
+	}
+	if len(s.List()) != 1 {
+		t.Errorf("List len = %d", len(s.List()))
+	}
+	ok, _ := s.Remove(e.ID)
+	if !ok || s.Count() != 0 {
+		t.Errorf("Remove failed: ok=%v count=%d", ok, s.Count())
 	}
 }
 
-func TestFireDue_RepeatsEachInterval(t *testing.T) {
-	rec := &recorder{}
-	e := New([]Job{{Interval: time.Hour, Intent: "x"}}, rec.run, 0, nil)
+func TestStore_AddRejectsBadInput(t *testing.T) {
+	s := mustStore(t)
+	now := time.Now()
+	if _, err := s.Add("  ", time.Hour, "", SourceOperator, now); err == nil {
+		t.Error("empty intent should error")
+	}
+	if _, err := s.Add("x", time.Millisecond, "", SourceOperator, now); err == nil {
+		t.Error("sub-minimum interval should error")
+	}
+}
+
+func TestStore_PersistsAcrossReopen(t *testing.T) {
+	dir := t.TempDir()
+	s1, _ := OpenStore(dir)
+	now := time.Now()
+	e, _ := s1.Add("survive a restart", 2*time.Hour, "", SourceOperator, now)
+
+	s2, err := OpenStore(dir) // reopen
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, ok := s2.Get(e.ID)
+	if !ok || got.Intent != "survive a restart" || got.IntervalSec != 7200 {
+		t.Errorf("reopened entry = %+v ok=%v", got, ok)
+	}
+}
+
+func TestStore_Due_AdvancesAndPersists(t *testing.T) {
+	s := mustStore(t)
 	base := time.Date(2026, 5, 30, 0, 0, 0, 0, time.UTC)
-	e.fireDue(context.Background(), base) // arm
-	e.fireDue(context.Background(), base.Add(1*time.Hour+time.Second))
-	waitCount(t, rec, 1)
-	e.fireDue(context.Background(), base.Add(2*time.Hour+time.Second))
-	waitCount(t, rec, 2)
-	e.fireDue(context.Background(), base.Add(3*time.Hour+time.Second))
-	waitCount(t, rec, 3)
+	e, _ := s.Add("x", time.Hour, "", SourceOperator, base) // next = base+1h
+
+	if due := s.Due(base.Add(30 * time.Minute)); len(due) != 0 {
+		t.Fatalf("not due yet, got %d", len(due))
+	}
+	due := s.Due(base.Add(time.Hour + time.Second))
+	if len(due) != 1 || due[0].ID != e.ID {
+		t.Fatalf("should be due: %+v", due)
+	}
+	// Next run advanced ~one interval; last run recorded.
+	got, _ := s.Get(e.ID)
+	if got.LastRunUnix == 0 || got.NextRunUnix <= base.Add(time.Hour).Unix() {
+		t.Errorf("due did not advance schedule: %+v", got)
+	}
 }
 
-func TestFireDue_SkipsOverlappingRun(t *testing.T) {
+func TestStore_RunNow_MakesDue(t *testing.T) {
+	s := mustStore(t)
+	now := time.Now()
+	e, _ := s.Add("later", 24*time.Hour, "", SourceOperator, now) // not due for a day
+	if len(s.Due(now)) != 0 {
+		t.Fatal("should not be due")
+	}
+	ok, _ := s.RunNow(e.ID)
+	if !ok {
+		t.Fatal("RunNow returned false")
+	}
+	if len(s.Due(now)) != 1 {
+		t.Error("RunNow should make the entry due immediately")
+	}
+}
+
+func TestStore_SyncEnv_ReplacesEnvKeepsOperator(t *testing.T) {
+	s := mustStore(t)
+	now := time.Now()
+	op, _ := s.Add("operator job", time.Hour, "", SourceOperator, now)
+	_ = s.SyncEnv([]Job{{Interval: time.Hour, Intent: "env one"}}, now)
+	if s.Count() != 2 {
+		t.Fatalf("expected operator + 1 env = 2, got %d", s.Count())
+	}
+	// A second sync with a different env set replaces only env entries.
+	_ = s.SyncEnv([]Job{{Interval: 2 * time.Hour, Intent: "env two"}}, now)
+	got := s.List()
+	var envIntents, opStillThere = []string{}, false
+	for _, e := range got {
+		if e.Source == SourceEnv {
+			envIntents = append(envIntents, e.Intent)
+		}
+		if e.ID == op.ID {
+			opStillThere = true
+		}
+	}
+	if !opStillThere {
+		t.Error("operator entry should survive SyncEnv")
+	}
+	if len(envIntents) != 1 || envIntents[0] != "env two" {
+		t.Errorf("env entries should be replaced: %v", envIntents)
+	}
+}
+
+func TestEngine_FireDue_FiresAndSkipsOverlap(t *testing.T) {
+	s := mustStore(t)
+	base := time.Date(2026, 5, 30, 0, 0, 0, 0, time.UTC)
+	s.Add("slow", time.Hour, "", SourceOperator, base)
+
 	rec := &recorder{block: make(chan struct{})}
-	e := New([]Job{{Interval: time.Hour, Intent: "slow"}}, rec.run, 0, nil)
-	base := time.Date(2026, 5, 30, 0, 0, 0, 0, time.UTC)
-	e.fireDue(context.Background(), base) // arm
+	e := NewEngine(s, rec.run, 0, nil)
 
-	// First fire starts a run that blocks (still running).
-	e.fireDue(context.Background(), base.Add(time.Hour+time.Second))
-	// Give the goroutine a moment to mark itself running.
-	waitRunning(t, e, 0)
-	// Second fire while the first is still running → must be skipped.
-	e.fireDue(context.Background(), base.Add(2*time.Hour+time.Second))
-
-	close(rec.block) // let the (single) run finish
+	e.fireDue(context.Background(), base.Add(time.Hour+time.Second)) // fires (blocks)
+	waitRunningCount(t, e, 1)
+	e.fireDue(context.Background(), base.Add(2*time.Hour+time.Second)) // due again but still running → skip
+	close(rec.block)
 	waitCount(t, rec, 1)
 	time.Sleep(20 * time.Millisecond)
-	if c := rec.count(); c != 1 {
-		t.Errorf("overlapping fire should be skipped: got %d runs", c)
+	if rec.count() != 1 {
+		t.Errorf("overlap should be skipped: got %d", rec.count())
 	}
 }
 
-func waitRunning(t *testing.T, e *Engine, idx int) {
+func waitRunningCount(t *testing.T, e *Engine, n int) {
 	t.Helper()
 	deadline := time.Now().Add(time.Second)
 	for time.Now().Before(deadline) {
-		if e.jobs[idx].running.Load() {
+		c := 0
+		e.running.Range(func(_, _ any) bool { c++; return true })
+		if c >= n {
 			return
 		}
 		time.Sleep(time.Millisecond)
 	}
-	t.Fatal("job did not enter running state")
+	t.Fatal("run did not enter running state")
 }
 
-func TestStart_FiresLiveOnShortInterval(t *testing.T) {
+func TestEngine_Start_FiresLive(t *testing.T) {
+	s := mustStore(t)
+	// Already-due entry (next run in the past) → fires on the first tick.
+	now := time.Now()
+	e, _ := s.Add("tick", time.Hour, "", SourceOperator, now)
+	_, _ = s.RunNow(e.ID) // make it due now
+
 	rec := &recorder{}
-	// 1s interval, fine resolution → fires within a couple seconds.
-	e := New([]Job{{Interval: time.Second, Intent: "tick"}}, rec.run, 200*time.Millisecond, nil)
+	eng := NewEngine(s, rec.run, 100*time.Millisecond, nil)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	e.Start(ctx)
+	eng.Start(ctx)
 	waitCount(t, rec, 1)
-}
-
-func TestStart_NoJobsIsNoop(t *testing.T) {
-	var ran atomic.Bool
-	e := New(nil, func(context.Context, string, string) error { ran.Store(true); return nil }, 0, nil)
-	e.Start(context.Background())
-	time.Sleep(20 * time.Millisecond)
-	if ran.Load() {
-		t.Error("no jobs should mean nothing fires")
-	}
 }
 
 func TestParseJobs(t *testing.T) {
@@ -141,11 +228,9 @@ func TestParseJobs(t *testing.T) {
 	if jobs[0].Interval != time.Hour || jobs[0].Intent != "summarise new commits" {
 		t.Errorf("job0 = %+v", jobs[0])
 	}
-	// Commas inside the intent survive (semicolon is the separator).
 	if jobs[1].Intent != "daily security audit, with commas" {
 		t.Errorf("job1 intent = %q", jobs[1].Intent)
 	}
-
 	for _, bad := range []string{"noequals", "notaduration=do x", "500ms=too fast", "1h=  "} {
 		if _, err := ParseJobs(bad); err == nil {
 			t.Errorf("ParseJobs(%q) should error", bad)
@@ -156,16 +241,9 @@ func TestParseJobs(t *testing.T) {
 	}
 }
 
-func TestNew_ClampsTinyInterval(t *testing.T) {
-	e := New([]Job{{Interval: time.Millisecond, Intent: "x"}}, func(context.Context, string, string) error { return nil }, 0, nil)
-	if e.jobs[0].Interval < MinInterval {
-		t.Errorf("interval not clamped: %s", e.jobs[0].Interval)
-	}
-}
-
 func TestDescribe(t *testing.T) {
-	out := Describe([]Job{{Interval: time.Hour, Intent: "brief me"}})
-	if out == "" || !strings.Contains(out, "every 1h") || !strings.Contains(out, "brief me") {
+	out := Describe([]Entry{{Intent: "brief me", IntervalSec: 3600}})
+	if !strings.Contains(out, "every 1h0m0s") || !strings.Contains(out, "brief me") {
 		t.Errorf("describe = %q", out)
 	}
 }

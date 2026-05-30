@@ -23,6 +23,7 @@ import (
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/approval"
 	"github.com/agezt/agezt/kernel/bus"
+	"github.com/agezt/agezt/kernel/cadence"
 	"github.com/agezt/agezt/kernel/catalog"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/event"
@@ -219,6 +220,7 @@ type Kernel struct {
 	forge     *skill.Forge
 	skillDir  *skill.FileStore
 	reflect   *reflect.Engine
+	schedules *cadence.Store        // persistent scheduled-intents store (autonomy)
 	tools     map[string]agent.Tool // cfg.Tools + the memory/world tools (when enabled)
 
 	catalogStore *catalog.Store
@@ -299,6 +301,16 @@ func Open(cfg Config) (*Kernel, error) {
 	}
 	forge := skill.NewForge(skstore, kbus)
 
+	schedStore, err := cadence.OpenStore(filepath.Join(cfg.BaseDir, "cadence"))
+	if err != nil {
+		j.Close()
+		st.Close()
+		mstore.Close()
+		wstore.Close()
+		skstore.Close()
+		return nil, fmt.Errorf("runtime: cadence: %w", err)
+	}
+
 	// Reflection holds no store of its own — it folds the journal and tunes
 	// the world graph, then journals its report (SPEC-05 §6). Default decay
 	// knobs; the daemon may override via the optional periodic trigger.
@@ -358,6 +370,7 @@ func Open(cfg Config) (*Kernel, error) {
 		forge:        forge,
 		skillDir:     skstore,
 		reflect:      reflectEng,
+		schedules:    schedStore,
 		tools:        effTools,
 		runs:         make(map[string]context.CancelFunc),
 		startTime:    time.Now(),
@@ -436,6 +449,10 @@ func (k *Kernel) Tools() map[string]agent.Tool { return k.tools }
 // Memory returns the memory-lite manager backing `agt memory`, run-time
 // context injection, and auto-distillation. Always non-nil after Open.
 func (k *Kernel) Memory() *memory.Manager { return k.memory }
+
+// Schedules returns the persistent scheduled-intents store (autonomy). The
+// cadence resident fires its due entries; `agt schedule` manages them.
+func (k *Kernel) Schedules() *cadence.Store { return k.schedules }
 
 // World returns the world-model graph backing `agt world`, run-time entity
 // injection, and the Pulse salience relevance signal. Always non-nil after

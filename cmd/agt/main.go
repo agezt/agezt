@@ -109,6 +109,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return cmdInbox(args[1:], stdout, stderr)
 	case "peers":
 		return cmdPeers(args[1:], stdout, stderr)
+	case "schedule":
+		return cmdSchedule(args[1:], stdout, stderr)
 	default:
 		fmt.Fprintf(stderr, "%s: unknown command %q\n", brand.CLI, args[0])
 		printHelp(stderr)
@@ -167,6 +169,7 @@ func printHelp(w io.Writer) {
 	fmt.Fprintf(w, "  budget [--json]                       show current-day spend vs daily + per-task-type caps\n")
 	fmt.Fprintf(w, "  tool list [--json]                    list in-process tools advertised to the model\n")
 	fmt.Fprintf(w, "  peers [--json]                        list configured peer nodes + check their REST health\n")
+	fmt.Fprintf(w, "  schedule add \"<intent>\" --every <dur>  recurring autonomous intent (list|rm|run)\n")
 	fmt.Fprintf(w, "  status [--json]                       daemon health overview (version skew, uptime, runs)\n")
 	fmt.Fprintf(w, "  doctor [--json]                       preflight checklist (base dir, daemon, journal, tools); exit 1 = a check failed\n")
 	fmt.Fprintf(w, "  quickstart                            interactive first-run: sync catalog, add a key, print the start command\n")
