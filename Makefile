@@ -12,7 +12,7 @@ GEN_PKG  := gen
 
 export CGO_ENABLED := 0
 
-.PHONY: all help gen build test vet fmt lint clean check deps-check
+.PHONY: all help gen build install run test vet fmt lint clean check deps-check
 
 all: build ## (default) build all binaries
 
@@ -28,6 +28,12 @@ $(GEN_FILE): $(CONTRACT) tools/jsonschemagen/main.go
 build: gen ## build all binaries into $(BIN_DIR)/
 	@mkdir -p $(BIN_DIR)
 	$(GO) build $(GOFLAGS) -ldflags='$(LDFLAGS)' -o $(BIN_DIR)/ ./cmd/...
+
+install: gen ## install agt + agezt onto your PATH (GOBIN / GOPATH/bin)
+	$(GO) install $(GOFLAGS) -ldflags='$(LDFLAGS)' ./cmd/...
+
+run: build ## build, then run the agezt daemon in the foreground
+	$(BIN_DIR)/agezt
 
 test: gen ## run unit tests
 	$(GO) test $(GOFLAGS) ./...

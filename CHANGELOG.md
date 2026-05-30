@@ -21,6 +21,11 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   allowlist, POST-only, token-authed, and pass only allowlisted args
   (GET/no-token are refused); reads stay GET.
 
+- `make install` (binaries onto PATH) and `make run` (build + run the daemon)
+  targets; the README quick start now documents the real onboarding —
+  `catalog sync --local` → `provider setup` → start with a provider → `doctor`
+  → `run`, plus the Web UI.
+
 ### Fixed
 - Web UI Memory panel read the wrong result key (`memories` vs the actual
   `records`), so it never listed stored facts; now renders them.

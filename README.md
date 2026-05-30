@@ -6,8 +6,11 @@
 > extends via in-process or out-of-process plugins.
 > **Autonomous, under your authority.**
 
-**Status:** v1 substrate — shipped (post-M1.zz, May 2026).
-**Tests:** 735 passing across 39 packages.
+**Status:** **v0.1.0 — the MVP ships** (May 2026). A usable Jarvis: real
+providers (proven end-to-end), sandboxed tools, Telegram, Pulse, the
+memory / world-model / skills / reflection cognitive loop, and a Web UI —
+all journaled, content-addressed, and reversible. See [CHANGELOG.md](CHANGELOG.md).
+**Tests:** 874 passing across 47 packages.
 **Dependencies:** one (`lukechampine.com/blake3`) + one transitive.
 
 ## What you get
@@ -56,26 +59,51 @@ limits and process-group SIGKILL.
 ## Quick start
 
 ```bash
-# Build:
-go build ./...
-# (or with make: `make build`)
+# 1. Build (puts agt + agezt in ./bin), or `make install` to put them on PATH:
+make build
 
-# Tell the CLI where to send commands and what model to use:
-mkdir -p ~/.agezt
-agt provider creds set ANTHROPIC_API_KEY sk-ant-…
-agt catalog sync                       # pull the models.dev catalog
-agt provider check                     # verify credentials work
+# 2. Sync the model catalog. Works OFFLINE — no daemon needed:
+agt catalog sync --local
 
-# Start the daemon (terminal 1):
-./bin/agezt
-# tools registered: shell(...), file(...), http(...), browser.read(...)
-# provider primary=anthropic ...
+# 3. Add credentials for a provider you have a key for. `provider setup`
+#    lists who needs a key and prompts on stdin (never argv → no shell history):
+agt provider setup                       # what still needs a key?
+agt provider setup minimax-coding-plan   # prompt + store MINIMAX_API_KEY
+#    Any models.dev provider works (anthropic, openai, …). Ollama needs no
+#    key: `agt catalog discover` then use AGEZT_PROVIDER=ollama-local.
 
-# Run an intent (terminal 2):
+# 4. Start the daemon (terminal 1) — pick the provider + model, and
+#    optionally expose the Web UI on loopback:
+AGEZT_PROVIDER=minimax-coding-plan AGEZT_MODEL=MiniMax-M2.7 \
+  AGEZT_WEB_ADDR=127.0.0.1:8787 ./bin/agezt
+
+# 5. In another terminal — verify, then use it:
+agt doctor                # preflight: daemon, journal integrity, tools, skew
+agt provider check        # live roundtrip (latency + cost)
 agt run "list the files here and tell me what this project is"
+agt why <event_id>        # walk the audit chain for any event
+agt halt                  # freeze everything instantly
 ```
 
-For the full operator cheat sheet: `agt help`.
+If `AGEZT_WEB_ADDR` is set, the banner prints a tokenized URL — open it for a
+live event monitor, read panels (status / memory / world / skills / inbox /
+reflection), and operator controls (HALT, approve/deny, forget). Localhost-
+bound and token-authed.
+
+For the full operator cheat sheet: `agt help`.  Day-to-day commands:
+
+```
+agt run "<intent>"                     one-shot intent (LLM ↔ tools loop)
+agt doctor                             health preflight (exit 1 = a check failed)
+agt status / agt runs last             daemon health · last run as a task arc
+agt provider setup [id] / check        add keys · verify a live roundtrip
+agt catalog sync [--local]             refresh models.dev (offline-capable)
+agt memory … / agt world … / agt skill …   the cognitive loop (add/list/forget/…)
+agt reflect run                        review behaviour, decay stale knowledge
+agt approvals / approve / deny         the HITL queue
+agt why <id> --payload                 walk the audit chain
+agt halt / resume / shutdown           stop · resume · graceful exit
+```
 
 ## Where the design lives
 
