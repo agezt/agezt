@@ -111,6 +111,20 @@ func runDaemon(stdout, stderr io.Writer) int {
 		return 1
 	}
 
+	// Single-instance guard: a second daemon on the same base dir would
+	// overwrite the control-plane addr/token files and split clients across
+	// two kernels writing the same journal — `agt` would silently reach
+	// whichever started last. Refuse if a live daemon already answers.
+	// AGEZT_FORCE_START=1 overrides (e.g. to reclaim after a confirmed crash).
+	if addr, alive := controlplane.ProbeExisting(baseDir); alive {
+		if strings.TrimSpace(os.Getenv(brand.EnvPrefix+"FORCE_START")) != "1" {
+			fmt.Fprintf(stderr, "%s: a daemon is already running at %s (base dir %s)\n", brand.Binary, addr, baseDir)
+			fmt.Fprintf(stderr, "Hint: stop it with `%s shutdown`, or set %sFORCE_START=1 to override.\n", brand.CLI, brand.EnvPrefix)
+			return 1
+		}
+		fmt.Fprintf(stderr, "%s: warning: %sFORCE_START=1 — starting despite a live daemon at %s\n", brand.Binary, brand.EnvPrefix, addr)
+	}
+
 	// Load catalog once; share with buildGovernor + runtime.Config so
 	// the daemon and the kernel see the same snapshot. An empty catalog
 	// on disk is fine: selectPrimary will fall through to the offline

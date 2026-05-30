@@ -5,6 +5,8 @@ package controlplane_test
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -217,5 +219,45 @@ func TestUnknownCommand(t *testing.T) {
 	}
 	if !strings.Contains(se.Msg, "unknown command") {
 		t.Errorf("err=%v", se)
+	}
+}
+
+func TestProbeExisting_NoDaemon(t *testing.T) {
+	// A fresh base dir with no runtime files → nothing recorded, not alive.
+	addr, alive := controlplane.ProbeExisting(t.TempDir())
+	if alive || addr != "" {
+		t.Errorf("empty base dir: got (%q, %v) want (\"\", false)", addr, alive)
+	}
+}
+
+func TestProbeExisting_LiveDaemon(t *testing.T) {
+	// startPair brings up a real server + writes runtime files into dir.
+	_, _, _, dir := startPair(t, mock.New())
+	addr, alive := controlplane.ProbeExisting(dir)
+	if !alive {
+		t.Errorf("a live daemon should be detected; got (%q, %v)", addr, alive)
+	}
+	if addr == "" {
+		t.Error("live daemon probe should report its address")
+	}
+}
+
+func TestProbeExisting_StaleRuntimeFiles(t *testing.T) {
+	// Runtime files present but pointing at a dead address → stale, not alive.
+	dir := t.TempDir()
+	rt := filepath.Join(dir, "runtime")
+	if err := os.MkdirAll(rt, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// 127.0.0.1:1 — reserved, nothing listens; dial fails fast.
+	if err := os.WriteFile(filepath.Join(rt, "control.addr"), []byte("127.0.0.1:1\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(rt, "control.token"), []byte("deadbeef\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	addr, alive := controlplane.ProbeExisting(dir)
+	if alive {
+		t.Errorf("dead address should be stale, not alive; got (%q, %v)", addr, alive)
 	}
 }

@@ -45,6 +45,31 @@ func NewClient(baseDir string) (*Client, error) {
 	}, nil
 }
 
+// ProbeExisting reports whether a live daemon is already serving at the
+// address recorded in <baseDir>/runtime. It is the single-instance guard the
+// daemon runs before claiming the runtime files: a second daemon on the same
+// base dir would overwrite addr/token and silently split clients across two
+// kernels writing the same journal — each `agt` call would reach whichever
+// daemon wrote the addr file last.
+//
+// Returns:
+//   - (addr, true)  — a daemon answered a status probe; do NOT start another.
+//   - (addr, false) — an addr file exists but nothing live answers (a stale
+//     leftover from a crash); safe to overwrite.
+//   - ("",  false)  — no addr file; no daemon.
+func ProbeExisting(baseDir string) (addr string, alive bool) {
+	c, err := NewClient(baseDir)
+	if err != nil {
+		return "", false // no runtime files → no daemon recorded
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 1500*time.Millisecond)
+	defer cancel()
+	if _, err := c.Call(ctx, CmdStatus, nil); err != nil {
+		return c.addr, false // recorded but unreachable → stale
+	}
+	return c.addr, true
+}
+
 // ErrServerError wraps a server-side error response.
 type ErrServerError struct{ Msg string }
 
