@@ -12,6 +12,14 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Cross-provider model routing** (SPEC-15 §1) — the daemon now registers
+  *every* credentialed + supported catalog provider (not just the primary), each
+  carrying the model ids it serves; the Governor routes a request naming a model
+  to the provider that serves it (`ProviderInfo.Models` + `applyModelRoute`, a
+  pure reorder that preserves the fallback chain). Combined with the OpenAI API's
+  per-request model override, `{"model":"gpt-4o"}` routes to OpenAI and
+  `{"model":"claude-…"}` to Anthropic on the same daemon — "drive Agezt with any
+  provider/model" end to end. The banner reports `model-routable_alternates=N`.
 - **ACP server** — `agt acp` (SPEC-15 §3): an Agent Client Protocol server
   speaking JSON-RPC 2.0 over stdio, so an IDE (Zed and other ACP clients) can
   drive Agezt as an agent backend. Implements `initialize` / `session/new` /

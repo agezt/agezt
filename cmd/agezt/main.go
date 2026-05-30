@@ -766,7 +766,8 @@ func buildGovernor(cat *catalog.Catalog, lookup func(string) string) (*governor.
 	// We rename the shim to "<orig>-failshim" so it never collides with
 	// a mock fallback that shares the original name.
 	demoFail := os.Getenv(brand.EnvPrefix+"DEMO_FAIL_PRIMARY") == "1"
-	primaryName := primary.Name()
+	origPrimaryName := primary.Name()
+	primaryName := origPrimaryName
 	if demoFail {
 		primaryName = primaryName + "-failshim"
 		primary = &alwaysFailProvider{name: primaryName}
@@ -776,8 +777,38 @@ func buildGovernor(cat *catalog.Catalog, lookup func(string) string) (*governor.
 		Name:     primaryName,
 		Provider: primary,
 		AuthMode: authMode,
+		Models:   catalogModelIDs(cat, origPrimaryName),
 	}); err != nil {
 		return nil, "", "", fmt.Errorf("register primary: %w", err)
+	}
+
+	// Register every OTHER credentialed + supported catalog provider as a
+	// model-routable alternate (SPEC-15 §1): a request naming one of their
+	// models is routed to that provider (per-request model routing), while the
+	// primary stays the default. Build failures are skipped, never fatal — a
+	// misconfigured alternate must not stop the daemon. Each compat provider's
+	// Name() is its unique catalog id (wrapNamed), so there are no collisions.
+	extraProviders := 0
+	for _, entry := range cat.ProviderList() {
+		if entry.ID == origPrimaryName {
+			continue // already the primary
+		}
+		if !compat.IsSupportedFamily(entry.Family()) || !entry.HasCredentials(lookup) {
+			continue
+		}
+		p, _, _, auth, err := buildFromCatalog(entry, "", lookup)
+		if err != nil {
+			continue
+		}
+		if err := reg.Register(&governor.ProviderInfo{
+			Name:     p.Name(),
+			Provider: p,
+			AuthMode: auth,
+			Models:   catalogModelIDs(cat, entry.ID),
+		}); err != nil {
+			continue // duplicate name or similar — skip gracefully
+		}
+		extraProviders++
 	}
 
 	// Always add the offline demo mock as a last-resort fallback —
@@ -860,6 +891,9 @@ func buildGovernor(cat *catalog.Catalog, lookup func(string) string) (*governor.
 	}
 	desc := fmt.Sprintf("primary=%s%s, daily_ceiling=$%.2f",
 		primaryDesc, fallbackDesc, float64(ceiling)/1e9)
+	if extraProviders > 0 {
+		desc += fmt.Sprintf(", model-routable_alternates=%d", extraProviders)
+	}
 	if len(taskRoutes) > 0 {
 		desc += fmt.Sprintf(", task_routes=%d", len(taskRoutes))
 	}
@@ -867,6 +901,25 @@ func buildGovernor(cat *catalog.Catalog, lookup func(string) string) (*governor.
 		desc += fmt.Sprintf(", task_budgets=%d", len(taskBudgets))
 	}
 	return gov, desc, model, nil
+}
+
+// catalogModelIDs returns the sorted model ids the catalog lists for the given
+// provider id, used to populate ProviderInfo.Models for per-request routing.
+// Returns nil when the catalog or entry is absent (e.g. the mock primary).
+func catalogModelIDs(cat *catalog.Catalog, providerID string) []string {
+	if cat == nil {
+		return nil
+	}
+	entry, ok := cat.Providers[providerID]
+	if !ok || len(entry.Models) == 0 {
+		return nil
+	}
+	ids := make([]string, 0, len(entry.Models))
+	for m := range entry.Models {
+		ids = append(ids, m)
+	}
+	sort.Strings(ids)
+	return ids
 }
 
 // selectPrimary returns the primary provider, a banner description,

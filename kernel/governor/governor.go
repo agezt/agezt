@@ -368,7 +368,34 @@ func (g *Governor) routeChain(req agent.CompletionRequest) []*ProviderInfo {
 	if len(g.cfg.TaskRoutes) > 0 && req.TaskType != "" {
 		chain = applyTaskRoute(chain, g.cfg.TaskRoutes, req.TaskType)
 	}
+	// Per-request model routing: when the request names a model, hoist the
+	// provider(s) that serve it to the front so a `model` selects its provider
+	// (the basis for OpenAI-API model selection across providers). Pure
+	// reorder — the fallback chain is preserved if the model's provider fails.
+	if req.Model != "" {
+		chain = applyModelRoute(chain, req.Model)
+	}
 	return chain
+}
+
+// applyModelRoute hoists providers that serve the given model id to the front
+// of the chain, preserving relative order of the rest. A no-op when no provider
+// declares the model (the request still runs on the default chain — the named
+// provider may still accept the model id even if the catalog didn't list it).
+func applyModelRoute(chain []*ProviderInfo, model string) []*ProviderInfo {
+	serving := make([]*ProviderInfo, 0, 1)
+	rest := make([]*ProviderInfo, 0, len(chain))
+	for _, p := range chain {
+		if p.Serves(model) {
+			serving = append(serving, p)
+		} else {
+			rest = append(rest, p)
+		}
+	}
+	if len(serving) == 0 {
+		return chain
+	}
+	return append(serving, rest...)
 }
 
 // authModePriority maps an AuthMode to a sort key (lower = preferred).

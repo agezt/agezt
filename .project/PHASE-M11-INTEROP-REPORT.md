@@ -122,10 +122,20 @@ side-door around Edict or the journal.
 - **Coding-agent bridges** (P6-CODE: claude-code / codex / aider as nodes, with
   git-worktree isolation and merge/force-push escalation) — needs external CLIs
   and a substantial worktree/diff/escalation design phase.
-- **Per-request model routing** in the OpenAI API — today the request `model` is
-  echoed but routing is the Governor's configured primary; routing the API's
-  `model` field to a specific catalog provider is a Governor enhancement.
 - **OpenAI `/v1/responses`** and native REST/webhooks (P7-API-02 remainder).
+
+## Follow-up shipped (same milestone)
+
+- **Per-request + cross-provider model routing** (SPEC-15 §1) — the OpenAI API's
+  `model` is now honoured per call (`runtime.WithModel` → the agent loop's
+  `CompletionRequest.Model`), and the daemon registers **every** credentialed +
+  supported provider with the model ids it serves so the Governor routes a named
+  model to its provider (`ProviderInfo.Models` + `applyModelRoute`, a pure
+  reorder preserving the fallback chain). `{"model":"gpt-4o"}` → OpenAI,
+  `{"model":"claude-…"}` → Anthropic, on one daemon. Proven by Governor unit
+  tests (model hoists the serving provider; unknown model keeps default order)
+  and live (`model-routable_alternates=N` in the banner with two providers
+  credentialed).
 
 These are the next reachable steps toward the full vision; the substrate they
 build on shipped here.

@@ -5,6 +5,7 @@ package governor
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 	"sync"
 
@@ -33,6 +34,17 @@ type ProviderInfo struct {
 	// IsFallback hints that this provider is suitable as a last-resort
 	// floor (typically a local model). True → always tried last.
 	IsFallback bool
+	// Models is the set of model ids this provider serves (from the catalog
+	// entry). Used for per-request model routing: a request naming a model is
+	// routed to the provider that serves it. Empty means "unknown" — the
+	// provider is never hoisted by model, but still serves as a default/
+	// fallback in registration order.
+	Models []string
+}
+
+// Serves reports whether this provider lists the given model id.
+func (p *ProviderInfo) Serves(model string) bool {
+	return model != "" && slices.Contains(p.Models, model)
 }
 
 // Registry holds all known providers in insertion order. Safe for
