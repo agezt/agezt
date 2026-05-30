@@ -12,6 +12,16 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **OpenAI-compatible API server** (ROADMAP P7-API-01) — a daemon resident
+  exposing `POST /v1/chat/completions` (streaming + non-streaming) and
+  `GET /v1/models`, so any OpenAI client, SDK, or IDE can drive Agezt as if it
+  were OpenAI. Each request runs through the same kernel tool-loop as `agt run`
+  — Edict, journal, budget all apply; it is not a governance backdoor. The
+  OpenAI `messages[]` collapse into one Agezt intent (single-turn → verbatim;
+  multi-turn → labelled transcript; array content flattened); streaming maps the
+  kernel's `llm.token` events to `chat.completion.chunk` SSE frames; the
+  response carries an `agezt_correlation_id` so any call is `agt why`-able.
+  Off unless `AGEZT_API_ADDR` is set; loopback-bound + Bearer-token authed.
 - `agt provider import` — credential auto-discovery (SPEC-15 §1.3): scans the
   process environment, a local `.env`, an explicit `--from <file>`, and
   well-known agent-CLI credential files (Codex, Gemini) for API keys, matches

@@ -96,6 +96,19 @@ live event monitor, read panels (status / memory / world / skills / inbox /
 reflection), and operator controls (HALT, approve/deny, forget). Localhost-
 bound and token-authed.
 
+**Drive Agezt from any OpenAI client.** Set `AGEZT_API_ADDR=127.0.0.1:8799` and
+the daemon serves an OpenAI-compatible API (`POST /v1/chat/completions`,
+`GET /v1/models`) — point any OpenAI SDK/IDE at it with the printed Bearer
+token. Every request runs the full agent loop through Edict + the journal (not
+a raw passthrough), and the response carries an `agezt_correlation_id` you can
+`agt why`:
+
+```bash
+curl http://127.0.0.1:8799/v1/chat/completions \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"model":"agezt","messages":[{"role":"user","content":"what is this project?"}]}'
+```
+
 For the full operator cheat sheet: `agt help`.  Day-to-day commands:
 
 ```

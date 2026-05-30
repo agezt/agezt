@@ -31,6 +31,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strconv"
 	"strings"
 	"syscall"
@@ -46,6 +47,7 @@ import (
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/governor"
+	"github.com/agezt/agezt/kernel/openaiapi"
 	"github.com/agezt/agezt/kernel/plugin"
 	"github.com/agezt/agezt/kernel/pulse"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
@@ -344,6 +346,15 @@ func runDaemon(stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "  web ui           : disabled (set AGEZT_WEB_ADDR, e.g. 127.0.0.1:8787)\n")
 	}
 
+	// OpenAI-compatible API (P7-API-01) — POST /v1/chat/completions + GET
+	// /v1/models so any OpenAI client drives Agezt through the same tool-loop +
+	// Edict + journal. Off unless AGEZT_API_ADDR is set; loopback + token.
+	if apiDesc := buildOpenAIAPI(ctx, k, stdout); apiDesc != "" {
+		fmt.Fprintf(stdout, "  openai api       : %s\n", apiDesc)
+	} else {
+		fmt.Fprintf(stdout, "  openai api       : disabled (set AGEZT_API_ADDR, e.g. 127.0.0.1:8799)\n")
+	}
+
 	fmt.Fprintf(stdout, "  client commands  : %s run | halt | resume | why <id> | journal verify\n", brand.CLI)
 	fmt.Fprintf(stdout, "Press Ctrl+C to stop.\n")
 
@@ -554,6 +565,72 @@ func buildWebUI(ctx context.Context, k *kernelruntime.Kernel, baseDir string, st
 	}()
 
 	desc := "http://" + ln.Addr().String() + "/?token=" + token
+	if !isLoopback(addr) {
+		desc += "  [WARNING: not loopback — reachable beyond localhost]"
+	}
+	return desc
+}
+
+// kernelAPIEngine adapts *kernelruntime.Kernel to openaiapi.Engine: it adds
+// DefaultModel/ModelIDs (drawn from the configured model + synced catalog) on
+// top of the run/correlation methods the kernel already exposes.
+type kernelAPIEngine struct{ k *kernelruntime.Kernel }
+
+func (e kernelAPIEngine) NewCorrelation() string        { return e.k.NewCorrelation() }
+func (e kernelAPIEngine) SubjectForRun(c string) string { return e.k.SubjectForRun(c) }
+func (e kernelAPIEngine) RunWith(ctx context.Context, corr, intent string) (string, error) {
+	return e.k.RunWith(ctx, corr, intent)
+}
+func (e kernelAPIEngine) DefaultModel() string { return e.k.Model() }
+func (e kernelAPIEngine) ModelIDs() []string {
+	cat := e.k.Catalog()
+	if cat == nil {
+		return nil
+	}
+	var ids []string
+	for _, p := range cat.ProviderList() {
+		for id := range p.Models {
+			ids = append(ids, id)
+		}
+	}
+	sort.Strings(ids)
+	return ids
+}
+
+// buildOpenAIAPI starts the OpenAI-compatible HTTP resident when AGEZT_API_ADDR
+// is set, mirroring buildWebUI's lifecycle (daemon ctx, graceful shutdown,
+// minted token, loopback warning). Returns the banner description or "".
+func buildOpenAIAPI(ctx context.Context, k *kernelruntime.Kernel, stdout io.Writer) string {
+	addr := os.Getenv(brand.EnvPrefix + "API_ADDR")
+	if addr == "" {
+		return ""
+	}
+	tokBytes := make([]byte, 32)
+	if _, err := rand.Read(tokBytes); err != nil {
+		fmt.Fprintf(stdout, "  openai api       : disabled (token mint failed: %v)\n", err)
+		return ""
+	}
+	token := hex.EncodeToString(tokBytes)
+
+	ln, err := net.Listen("tcp", addr)
+	if err != nil {
+		fmt.Fprintf(stdout, "  openai api       : disabled (listen %s: %v)\n", addr, err)
+		return ""
+	}
+	srv := &http.Server{Handler: openaiapi.New(kernelAPIEngine{k}, k.Bus(), token).Handler()}
+	go func() {
+		if err := srv.Serve(ln); err != nil && err != http.ErrServerClosed {
+			fmt.Fprintf(stdout, "openai api server error: %v\n", err)
+		}
+	}()
+	go func() {
+		<-ctx.Done()
+		shutCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		_ = srv.Shutdown(shutCtx)
+	}()
+
+	desc := "http://" + ln.Addr().String() + "/v1  (Authorization: Bearer " + token + ")"
 	if !isLoopback(addr) {
 		desc += "  [WARNING: not loopback — reachable beyond localhost]"
 	}
