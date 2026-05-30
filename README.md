@@ -179,6 +179,8 @@ The v1 substrate. Highlights:
 - `file` — scoped to `AGEZT_WORKSPACE`
 - `http` — GET/POST with host allowlist
 - `browser.read` — fetch + HTML→text extraction, opt-in cookie jar
+- `delegate` — spawn a bounded sub-agent for a focused subtask (multi-agent
+  fan-out); depth-bounded, journaled, each sub-action gated through Edict
 
 **External plugins** (`plugins/external/`)
 - `mcpbridge` — Model Context Protocol bridge, both stdio and HTTP+SSE

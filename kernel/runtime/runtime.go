@@ -82,6 +82,15 @@ type Config struct {
 	// MaxIter caps tool-call rounds per run (DECISIONS E5).
 	MaxIter int
 
+	// SubAgentTool registers the in-process `delegate` tool (P6-MULTI-01) so
+	// a lead agent can spawn a bounded sub-agent for a focused subtask and get
+	// back its summary. Off by default; the daemon is the single enable point.
+	SubAgentTool bool
+	// SubAgentMaxDepth bounds how deep delegation can nest (a sub-agent calling
+	// delegate again). Defaults to 1 when SubAgentTool is on and this is unset
+	// — one level of sub-agents, no unbounded recursion.
+	SubAgentMaxDepth int
+
 	// Edict is the policy engine that gates each tool call. If nil, a
 	// default engine (edict.New(edict.Options{})) is constructed — the
 	// runtime is never policy-less.
@@ -306,6 +315,14 @@ func Open(cfg Config) (*Kernel, error) {
 	if cfg.WorldTool {
 		effTools["world"] = wgraph.Tool()
 	}
+	// The sub-agent tool's runner needs the finished *Kernel, which doesn't
+	// exist yet; register the tool now and wire its runner just after k is
+	// built (effTools is the same map k.tools holds).
+	var subTool *subAgentTool
+	if cfg.SubAgentTool {
+		subTool = newSubAgentTool()
+		effTools["delegate"] = subTool
+	}
 
 	catStore := catalog.NewStore(catDir)
 	cat := cfg.Catalog
@@ -344,6 +361,9 @@ func Open(cfg Config) (*Kernel, error) {
 		tools:        effTools,
 		runs:         make(map[string]context.CancelFunc),
 		startTime:    time.Now(),
+	}
+	if subTool != nil {
+		subTool.run = k.runSubAgent
 	}
 	return k, nil
 }

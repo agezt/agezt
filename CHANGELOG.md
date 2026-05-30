@@ -12,6 +12,17 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Multi-agent delegation** (ROADMAP P6-MULTI-01) — a `delegate` in-process
+  tool lets a lead agent spawn a bounded sub-agent (its own tool-loop) for a
+  focused subtask and get back a concise result; issuing several `delegate`
+  calls in one turn fans out concurrently. Each spawn is journaled as
+  `subagent.spawned` under the **parent** correlation (carrying the child
+  correlation), so `agt why <parent>` shows the delegation and the child
+  correlation is the drill-down into the sub-agent's own run. Nesting is bounded
+  by `AGEZT_SUBAGENT_DEPTH` (default 1); the sub-agent's actual tool calls are
+  each gated through Edict (new `delegate` capability, allow-by-default — the
+  delegation itself has no external side effect). On by default;
+  `AGEZT_SUBAGENT=off` disables it.
 - **OpenAI-compatible API server** (ROADMAP P7-API-01) — a daemon resident
   exposing `POST /v1/chat/completions` (streaming + non-streaming) and
   `GET /v1/models`, so any OpenAI client, SDK, or IDE can drive Agezt as if it

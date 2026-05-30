@@ -33,14 +33,19 @@ import (
 type Capability string
 
 const (
-	CapShell      Capability = "shell"
-	CapFileRead   Capability = "file.read"
-	CapFileWrite  Capability = "file.write"
-	CapFileDelete Capability = "file.delete"
-	CapFileList   Capability = "file.list"
-	CapHTTPGet    Capability = "http.get"
-	CapHTTPPost   Capability = "http.post"
+	CapShell        Capability = "shell"
+	CapFileRead     Capability = "file.read"
+	CapFileWrite    Capability = "file.write"
+	CapFileDelete   Capability = "file.delete"
+	CapFileList     Capability = "file.list"
+	CapHTTPGet      Capability = "http.get"
+	CapHTTPPost     Capability = "http.post"
 	CapProviderCall Capability = "provider.call"
+	// CapDelegate gates the `delegate` tool (spawn a sub-agent, P6-MULTI-01).
+	// The delegation itself is allowed by default — it has no external side
+	// effect of its own; the sub-agent's actual tool calls are each gated
+	// through this same engine, so safety is enforced where the action happens.
+	CapDelegate Capability = "delegate"
 )
 
 // TrustLevel encodes the trust ladder (DECISIONS F3).
@@ -130,9 +135,9 @@ const (
 
 // HardDenyRule is a single hard-deny pattern.
 type HardDenyRule struct {
-	Name       string       // human label, included in the Outcome
-	Substring  string       // case-insensitive substring match against input
-	AppliesTo  []Capability // empty = applies to every capability
+	Name      string       // human label, included in the Outcome
+	Substring string       // case-insensitive substring match against input
+	AppliesTo []Capability // empty = applies to every capability
 }
 
 // matches reports whether r fires against the input under the named cap.
@@ -224,6 +229,7 @@ func DefaultLevels() map[Capability]TrustLevel {
 		CapHTTPGet:      LevelAskFirst, // L2 (more permissive than F3's L1)
 		CapHTTPPost:     LevelAsk,      // L1
 		CapProviderCall: LevelAllow,    // governed by budget, not Edict
+		CapDelegate:     LevelAllow,    // sub-agent spawn; its tool calls are gated individually
 	}
 }
 

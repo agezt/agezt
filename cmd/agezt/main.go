@@ -213,6 +213,16 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// disables post-run proposal.
 	skillOn := !strings.EqualFold(os.Getenv(brand.EnvPrefix+"SKILLS"), "off")
 	forgeOn := !strings.EqualFold(os.Getenv(brand.EnvPrefix+"FORGE"), "off")
+	// Multi-agent delegation (P6-MULTI-01): the `delegate` tool lets a lead
+	// agent spawn bounded sub-agents. On by default; AGEZT_SUBAGENT=off disables
+	// it, AGEZT_SUBAGENT_DEPTH sets how deep delegation may nest (default 1).
+	subAgentOn := !strings.EqualFold(os.Getenv(brand.EnvPrefix+"SUBAGENT"), "off")
+	subAgentDepth := 1
+	if v := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "SUBAGENT_DEPTH")); v != "" {
+		if d, err := strconv.Atoi(v); err == nil && d > 0 {
+			subAgentDepth = d
+		}
+	}
 
 	cfg := kernelruntime.Config{
 		BaseDir:               baseDir,
@@ -236,6 +246,8 @@ func runDaemon(stdout, stderr io.Writer) int {
 		SkillTopK:             3,
 		SkillForge:            forgeOn,
 		SkillForgeMinTools:    4,
+		SubAgentTool:          subAgentOn,
+		SubAgentMaxDepth:      subAgentDepth,
 	}
 	cfg.OnReload = func() error {
 		// Re-load vault (catalog already refreshed by Kernel.Reload).

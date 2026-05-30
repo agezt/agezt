@@ -24,6 +24,13 @@ const (
 	KindTaskReceived  Kind = "task.received"
 	KindTaskCompleted Kind = "task.completed"
 
+	// Multi-agent orchestration (P6-MULTI-01). A lead agent delegates a
+	// bounded task to a sub-agent via the `delegate` tool; the spawn is
+	// journaled under the PARENT correlation (carrying the child correlation)
+	// so `agt why <parent>` shows the delegation, and the child correlation is
+	// the drill-down into the sub-agent's own run.
+	KindSubAgentSpawned Kind = "subagent.spawned"
+
 	// Tool calls (the in-process Tool interface, DECISIONS B0a).
 	KindToolInvoked Kind = "tool.invoked"
 	KindToolResult  Kind = "tool.result"
@@ -66,10 +73,10 @@ const (
 	KindNodeFailed    Kind = "node.failed"
 
 	// Catalog / provider ecosystem (SPEC-15 §1; TASKS P1-CONDUIT-04).
-	KindCatalogSynced              Kind = "catalog.synced"
-	KindCatalogSyncFailed          Kind = "catalog.sync_failed"
-	KindCatalogDiscoveryCompleted  Kind = "catalog.discovery_completed"
-	KindCatalogDiscoveryFailed     Kind = "catalog.discovery_failed"
+	KindCatalogSynced             Kind = "catalog.synced"
+	KindCatalogSyncFailed         Kind = "catalog.sync_failed"
+	KindCatalogDiscoveryCompleted Kind = "catalog.discovery_completed"
+	KindCatalogDiscoveryFailed    Kind = "catalog.discovery_failed"
 
 	// Pulse — the proactive heart (SPEC-03). Every stage emits its own
 	// event so `agt why` reconstructs tick→delta→score→initiative→brief.
@@ -129,32 +136,33 @@ func IsKnown(k Kind) bool {
 }
 
 var knownKinds = map[Kind]struct{}{
-	KindAgentSpawned:          {},
-	KindAgentSuspended:        {},
-	KindAgentResumed:          {},
-	KindAgentDied:             {},
-	KindAgentCrashed:          {},
-	KindTaskReceived:          {},
-	KindTaskCompleted:         {},
-	KindToolInvoked:           {},
-	KindToolResult:            {},
-	KindLLMRequest:            {},
-	KindLLMResponse:           {},
-	KindLLMToken:              {},
-	KindHalt:                  {},
-	KindResume:                {},
-	KindPolicyDecision:        {},
-	KindRoutingDecision:         {},
-	KindBudgetConsumed:          {},
-	KindProviderFallback:        {},
-	KindBudgetExceeded:          {},
-	KindWardenExecuted:          {},
-	KindWardenProfileDowngraded: {},
-	KindWardenLimitExceeded:     {},
-	KindApprovalRequested:       {},
-	KindApprovalGranted:         {},
-	KindApprovalDenied:          {},
-	KindApprovalTimeout:         {},
+	KindAgentSpawned:              {},
+	KindAgentSuspended:            {},
+	KindAgentResumed:              {},
+	KindAgentDied:                 {},
+	KindAgentCrashed:              {},
+	KindTaskReceived:              {},
+	KindTaskCompleted:             {},
+	KindSubAgentSpawned:           {},
+	KindToolInvoked:               {},
+	KindToolResult:                {},
+	KindLLMRequest:                {},
+	KindLLMResponse:               {},
+	KindLLMToken:                  {},
+	KindHalt:                      {},
+	KindResume:                    {},
+	KindPolicyDecision:            {},
+	KindRoutingDecision:           {},
+	KindBudgetConsumed:            {},
+	KindProviderFallback:          {},
+	KindBudgetExceeded:            {},
+	KindWardenExecuted:            {},
+	KindWardenProfileDowngraded:   {},
+	KindWardenLimitExceeded:       {},
+	KindApprovalRequested:         {},
+	KindApprovalGranted:           {},
+	KindApprovalDenied:            {},
+	KindApprovalTimeout:           {},
 	KindPlanStarted:               {},
 	KindPlanCompleted:             {},
 	KindPlanFailed:                {},

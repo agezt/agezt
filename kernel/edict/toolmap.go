@@ -37,6 +37,8 @@ func CapabilityForToolCall(toolName string, input json.RawMessage) Capability {
 			return CapFileDelete
 		}
 		return Capability("file." + p.Op)
+	case "delegate":
+		return CapDelegate
 	case "http":
 		var p struct {
 			Method string `json:"method"`
