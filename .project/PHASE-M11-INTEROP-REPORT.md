@@ -118,10 +118,7 @@ side-door around Edict or the journal.
 ## Deferred (named, not forgotten)
 
 - **ACP client** — driving *external* ACP agents from a Agezt node (the inverse
-  of the server). Folds into the coding-agent bridge work below.
-- **Coding-agent bridges** (P6-CODE: claude-code / codex / aider as nodes, with
-  git-worktree isolation and merge/force-push escalation) — needs external CLIs
-  and a substantial worktree/diff/escalation design phase.
+  of the server). A focused follow-on now that the coding bridge exists.
 - **OpenAI `/v1/responses`** and native REST/webhooks (P7-API-02 remainder).
 
 ## Follow-up shipped (same milestone)
@@ -136,6 +133,16 @@ side-door around Edict or the journal.
   tests (model hoists the serving provider; unknown model keeps default order)
   and live (`model-routable_alternates=N` in the banner with two providers
   credentialed).
+
+- **Coding-agent bridge** (P6-CODE) — the `coding` tool delegates a coding task
+  to an external agent (Claude Code / Codex / Aider / any `AGEZT_CODING_CMD`)
+  inside an **isolated git worktree** off HEAD, captures the diff, and returns it
+  marked "NOT applied" — never commit/merge/push (§4.3 escalation kept separate).
+  The task rides `$AGEZT_CODING_TASK`; the worktree is removed afterward; a new
+  Edict `coding` capability gates it Ask-first. The command runner is injectable,
+  so the orchestration is unit-tested deterministically, and a git-guarded live
+  test proves real worktree isolation + diff capture against actual git. The
+  external coding CLIs bind by config; the bridge mechanism is what shipped.
 
 These are the next reachable steps toward the full vision; the substrate they
 build on shipped here.

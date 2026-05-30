@@ -14,7 +14,7 @@ any **OpenAI client or IDE** can drive it (OpenAI-compatible `/v1` API +
 an **ACP** server), agents **delegate** to bounded sub-agents, and
 `agt provider import` brings every key you already have online in one pass.
 See [CHANGELOG.md](CHANGELOG.md).
-**Tests:** 1009 passing across 49 packages.
+**Tests:** 1021 passing across 50 packages.
 **Dependencies:** one (`lukechampine.com/blake3`) + one transitive.
 
 ## What you get
@@ -47,8 +47,12 @@ agt approvals --json                                           — HITL queue (m
 
 with **9 provider families** (Anthropic, OpenAI + ~11 compatibles, Google
 direct + Vertex, Cohere, Mistral, Ollama, AWS Bedrock with bearer +
-SigV4 + STS-AssumeRole + SSO, Azure OpenAI), **all streaming**, **4 in-process
-tools** (`shell`, `file`, `http`, `browser.read` with cookies),
+SigV4 + STS-AssumeRole + SSO, Azure OpenAI) with **per-request model routing**
+(a request's `model` selects its provider), **all streaming**, **8 in-process
+tools** (`shell`, `file`, `http`, `browser.read`, plus `memory`, `world`,
+`delegate` for sub-agent fan-out, and `coding` for worktree-isolated external
+coding agents), an **OpenAI-compatible `/v1` API** and an **ACP server** so any
+OpenAI client or IDE can drive it,
 **out-of-process plugins** in any language over a tiny JSON protocol
 (with **hot-reload**, **BLAKE3 pin gating**, **tool allowlists**,
 **streaming progress**, and **kernel-callbacks**), an **MCP bridge plugin**
@@ -200,7 +204,7 @@ The v1 substrate. Highlights:
 ## Verify
 
 ```bash
-make test     # 1009 tests, all green
+make test     # 1021 tests, all green
 make build    # produces bin/agezt + bin/agt
 make gen      # regenerate SDK types from the contract
 ```
