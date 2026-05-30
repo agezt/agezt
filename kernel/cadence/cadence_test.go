@@ -248,6 +248,34 @@ func TestStore_Daily_FiresAtTimeAndAdvancesOneDay(t *testing.T) {
 	}
 }
 
+// TestStore_Daily_CatchesUpOnceAfterDowntime locks in the restart behavior: if
+// the daemon was down across one (or several) daily slots, the entry fires
+// exactly once on the next due check and then advances to the next *future*
+// occurrence — never a burst of back-dated runs.
+func TestStore_Daily_CatchesUpOnceAfterDowntime(t *testing.T) {
+	s := mustStore(t)
+	// Created Monday 08:00; daily at 09:00 → next run Monday 09:00.
+	created := time.Date(2026, 6, 1, 8, 0, 0, 0, time.UTC)
+	e, _ := s.AddDaily("morning brief", 9*60, 0, "", SourceOperator, created)
+
+	// Daemon "down" until Thursday 10:00 — three 09:00 slots passed.
+	back := time.Date(2026, 6, 4, 10, 0, 0, 0, time.UTC)
+	due := s.Due(back)
+	if len(due) != 1 {
+		t.Fatalf("a long downtime should fire exactly once, got %d", len(due))
+	}
+	// Advanced to the next future slot (Friday 09:00), not a back-dated one.
+	got, _ := s.Get(e.ID)
+	wantFri := time.Date(2026, 6, 5, 9, 0, 0, 0, time.UTC).Unix()
+	if got.NextRunUnix != wantFri {
+		t.Errorf("after catch-up, next = %d want %d (Fri 09:00)", got.NextRunUnix, wantFri)
+	}
+	// Immediately checking again does not double-fire.
+	if len(s.Due(back)) != 0 {
+		t.Error("must not fire again on the same tick after catch-up")
+	}
+}
+
 func TestStore_AddDaily_Validates(t *testing.T) {
 	s := mustStore(t)
 	now := time.Now()

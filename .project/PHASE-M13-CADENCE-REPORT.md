@@ -96,6 +96,11 @@ what the system did on its own and link it to the resulting run.
   stays at 09:30 across a spring-forward / fall-back boundary.
 - **Backward compatibility:** the zero-value mode is interval; existing stores and
   env-seeded jobs keep working untouched. `Days == 0` means every day.
+- **Restart / downtime is safe (catch-up-once):** because `Store.Due` fires any
+  entry whose next-run is in the past and then advances to the next *future*
+  occurrence, a schedule missed while the daemon was down fires exactly once on
+  restart — never a back-dated burst. Verified for a daily missed across three
+  days (fires once, advances to the next slot, no double-fire on the same tick).
 - **Tests: 1098** across 55 packages (green), `go vet` clean, `GOOS=linux`
   builds. New coverage: `ParseDays`/`FormatDays`, daily fire+advance, weekday
   skip+advance, one-shot fire+self-remove, all validation paths, and the
@@ -111,8 +116,9 @@ what the system did on its own and link it to the resulting run.
 
 ## Deferred (named for future autonomy work)
 
-- **Catch-up semantics** for daily/once schedules missed while the daemon was
-  down (currently they advance past the missed slot rather than firing late).
+- **A `--skip-missed` opt-out** for the catch-up-once behavior — today a slot
+  missed during downtime fires once on restart (verified); some schedules would
+  rather skip a stale slot entirely than run it late.
 - **Sub-daily cron expressions** (e.g. "every 15 min between 09:00–17:00 on
   weekdays") — the day/time/interval primitives are in place to build on.
 - **Timezone-per-schedule** (today: the daemon's local zone for all wall-clock
