@@ -167,6 +167,17 @@ async function post(path, params) {
   return res.json();
 }
 
+// actBtn builds a small inline action button that POSTs then refreshes a panel.
+function actBtn(label, cls, path, params, panel) {
+  const b = el("button", "act mini " + (cls || ""), label);
+  b.addEventListener("click", async () => {
+    b.disabled = true;
+    try { await post(path, params); loadPanel(panel); }
+    catch (e) { b.textContent = "err"; b.title = e.message; b.disabled = false; }
+  });
+  return b;
+}
+
 function pre(o) { return el("pre", null, JSON.stringify(o, null, 2)); }
 
 function kv(pairs) {
@@ -195,6 +206,7 @@ const renderers = {
       row.appendChild(chip(e.kind || ""));
       row.appendChild(el("span", null, e.name || ""));
       if (e.weight != null) row.appendChild(muted("w=" + e.weight));
+      if (e.id) row.appendChild(actBtn("forget", "danger", "/api/world/forget", { id: e.id }, "world"));
       return row;
     }, "no entities");
   },
@@ -208,15 +220,26 @@ const renderers = {
       const row = el("div", "item");
       row.appendChild(chip(s.status || ""));
       row.appendChild(el("span", null, s.name || ""));
+      if (s.id) {
+        if (s.status === "draft" || s.status === "shadow")
+          row.appendChild(actBtn("promote", "ok", "/api/skill/promote", { id: s.id }, "skills"));
+        if (s.status === "active")
+          row.appendChild(actBtn("quarantine", "danger", "/api/skill/quarantine", { id: s.id }, "skills"));
+        row.appendChild(actBtn("revert", "", "/api/skill/revert", { id: s.id }, "skills"));
+      }
       return row;
     }, "no skills");
   },
 
   memory: (d) => {
-    const ms = d.memories || d.Memories || (Array.isArray(d) ? d : []);
+    const ms = d.records || d.Records || (Array.isArray(d) ? d : []);
     const frag = document.createDocumentFragment();
-    return listInto(frag, ms, (m) =>
-      el("div", "item", m.text || m.content || JSON.stringify(m)), "no memories");
+    return listInto(frag, ms, (m) => {
+      const row = el("div", "item");
+      row.appendChild(el("span", null, m.content || m.subject || m.text || JSON.stringify(m)));
+      if (m.id) row.appendChild(actBtn("forget", "danger", "/api/memory/forget", { id: m.id }, "memory"));
+      return row;
+    }, "no memories");
   },
 
   inbox: (d) => {

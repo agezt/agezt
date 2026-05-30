@@ -81,9 +81,14 @@ type writeRoute struct {
 // its inverse (resume), and HITL approval resolution (decide). Each is
 // POST-only (see writeProxy).
 var writeRoutes = map[string]writeRoute{
-	"/api/halt":   {controlplane.CmdHalt, []string{"reason"}},
-	"/api/resume": {controlplane.CmdResume, []string{"reason"}},
-	"/api/decide": {controlplane.CmdDecide, []string{"id", "decision", "reason"}},
+	"/api/halt":             {controlplane.CmdHalt, []string{"reason"}},
+	"/api/resume":           {controlplane.CmdResume, []string{"reason"}},
+	"/api/decide":           {controlplane.CmdDecide, []string{"id", "decision", "reason"}},
+	"/api/memory/forget":    {controlplane.CmdMemoryForget, []string{"id"}},
+	"/api/world/forget":     {controlplane.CmdWorldForget, []string{"id"}},
+	"/api/skill/promote":    {controlplane.CmdSkillPromote, []string{"id"}},
+	"/api/skill/quarantine": {controlplane.CmdSkillQuarantine, []string{"id", "reason"}},
+	"/api/skill/revert":     {controlplane.CmdSkillRevert, []string{"id"}},
 }
 
 // Handler builds the mux. Every route is wrapped in token auth.
