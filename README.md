@@ -9,8 +9,12 @@
 **Status:** **v0.1.0 — the MVP ships** (May 2026). A usable Jarvis: real
 providers (proven end-to-end), sandboxed tools, Telegram, Pulse, the
 memory / world-model / skills / reflection cognitive loop, and a Web UI —
-all journaled, content-addressed, and reversible. See [CHANGELOG.md](CHANGELOG.md).
-**Tests:** 981 passing across 47 packages.
+all journaled, content-addressed, and reversible. Since the MVP (M11):
+any **OpenAI client or IDE** can drive it (OpenAI-compatible `/v1` API +
+an **ACP** server), agents **delegate** to bounded sub-agents, and
+`agt provider import` brings every key you already have online in one pass.
+See [CHANGELOG.md](CHANGELOG.md).
+**Tests:** 1009 passing across 49 packages.
 **Dependencies:** one (`lukechampine.com/blake3`) + one transitive.
 
 ## What you get
@@ -193,7 +197,7 @@ The v1 substrate. Highlights:
 ## Verify
 
 ```bash
-make test     # 981 tests, all green
+make test     # 1009 tests, all green
 make build    # produces bin/agezt + bin/agt
 make gen      # regenerate SDK types from the contract
 ```
