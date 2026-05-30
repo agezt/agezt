@@ -1,0 +1,201 @@
+// SPDX-License-Identifier: MIT
+
+package worldmodel
+
+import (
+	"context"
+	"encoding/json"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/bus"
+	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/journal"
+)
+
+var fixedNow = time.Unix(1_700_000_000, 0).UTC()
+
+func newTestGraph(t *testing.T) (*Graph, *journal.Journal) {
+	t.Helper()
+	j, err := journal.Open(t.TempDir(), journal.Options{})
+	if err != nil {
+		t.Fatalf("journal.Open: %v", err)
+	}
+	b := bus.New(j)
+	s, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("worldmodel.Open: %v", err)
+	}
+	g := NewGraph(s, b)
+	g.now = func() time.Time { return fixedNow }
+	t.Cleanup(func() { b.Close(); j.Close() })
+	return g, j
+}
+
+func countKind(t *testing.T, j *journal.Journal, k event.Kind) int {
+	t.Helper()
+	n := 0
+	if err := j.Range(func(e *event.Event) error {
+		if e.Kind == k {
+			n++
+		}
+		return nil
+	}); err != nil {
+		t.Fatalf("range: %v", err)
+	}
+	return n
+}
+
+func TestUpsertCreatesAndJournals(t *testing.T) {
+	g, j := newTestGraph(t)
+	e, created, err := g.Upsert("corr-1", UpsertSpec{Kind: KindProject, Name: "Lictor", Aliases: []string{"portfolio"}})
+	if err != nil || !created {
+		t.Fatalf("upsert: created=%v err=%v", created, err)
+	}
+	if e.SourceEvent == "" {
+		t.Fatal("created entity must carry provenance (source_event)")
+	}
+	if countKind(t, j, event.KindWorldEntityUpserted) != 1 {
+		t.Errorf("expected 1 entity.upserted event")
+	}
+}
+
+func TestUpsertReinforcesAndMergesAliases(t *testing.T) {
+	g, _ := newTestGraph(t)
+	first, _, _ := g.Upsert("c", UpsertSpec{Kind: KindProject, Name: "Lictor", Aliases: []string{"portfolio"}, Weight: 0.5})
+	second, created, err := g.Upsert("c", UpsertSpec{Kind: KindProject, Name: "Lictor", Aliases: []string{"the repos"}})
+	if err != nil {
+		t.Fatalf("reinforce: %v", err)
+	}
+	if created {
+		t.Error("same (kind,name) must dedupe, not create")
+	}
+	if second.ID != first.ID {
+		t.Error("content-address should match")
+	}
+	if second.Weight <= first.Weight {
+		t.Errorf("weight should strengthen: %v -> %v", first.Weight, second.Weight)
+	}
+	if len(second.Aliases) != 2 {
+		t.Errorf("aliases should merge to 2, got %v", second.Aliases)
+	}
+}
+
+func TestForgetRevive(t *testing.T) {
+	g, _ := newTestGraph(t)
+	e, _, _ := g.Upsert("c", UpsertSpec{Kind: KindProject, Name: "Lictor"})
+	ok, err := g.Forget("c", e.ID)
+	if err != nil || !ok {
+		t.Fatalf("forget: ok=%v err=%v", ok, err)
+	}
+	if ents, _ := g.Entities(); len(ents) != 0 {
+		t.Errorf("forgotten entity should not be active, got %d", len(ents))
+	}
+	// Re-add revives.
+	revived, created, _ := g.Upsert("c", UpsertSpec{Kind: KindProject, Name: "Lictor"})
+	if created {
+		t.Error("revive should not report created")
+	}
+	if revived.Tombstoned {
+		t.Error("revived entity should be active")
+	}
+}
+
+func TestRelateResolvesEndpointsAndJournals(t *testing.T) {
+	g, j := newTestGraph(t)
+	_, _, _ = g.Upsert("c", UpsertSpec{Kind: KindProject, Name: "Lictor"})
+	r, err := g.Relate("c", "Lictor", VerbDependsOn, "go-stdlib")
+	if err != nil {
+		t.Fatalf("relate: %v", err)
+	}
+	if r.Verb != VerbDependsOn {
+		t.Errorf("verb = %s", r.Verb)
+	}
+	// go-stdlib was auto-created as a topic, so 2 entities now.
+	if c := g.Count(); c != 2 {
+		t.Errorf("expected 2 entities (Lictor + auto go-stdlib), got %d", c)
+	}
+	if countKind(t, j, event.KindWorldRelationUpserted) != 1 {
+		t.Errorf("expected 1 relation.upserted event")
+	}
+	ns, _ := g.Neighbors(r.From)
+	if len(ns) != 1 || ns[0].Other.Name != "go-stdlib" {
+		t.Errorf("neighbors wrong: %+v", ns)
+	}
+}
+
+func TestResolveJournalsRetrieved(t *testing.T) {
+	g, j := newTestGraph(t)
+	_, _, _ = g.Upsert("c", UpsertSpec{Kind: KindProject, Name: "Lictor", Aliases: []string{"the portfolio"}})
+	hits, err := g.Resolve("run-1", "the portfolio", 5)
+	if err != nil || len(hits) == 0 {
+		t.Fatalf("resolve: hits=%d err=%v", len(hits), err)
+	}
+	if countKind(t, j, event.KindWorldRetrieved) != 1 {
+		t.Errorf("resolve with hits should journal worldmodel.retrieved")
+	}
+	// A miss journals nothing.
+	_, _ = g.Resolve("run-1", "nonexistent-zzz", 5)
+	if countKind(t, j, event.KindWorldRetrieved) != 1 {
+		t.Errorf("resolve miss should not journal")
+	}
+}
+
+func TestIsActiveSubject(t *testing.T) {
+	g, _ := newTestGraph(t)
+	_, _, _ = g.Upsert("c", UpsertSpec{Kind: KindProject, Name: "Lictor", Aliases: []string{"portfolio"}})
+	if name, ok := g.IsActiveSubject("the portfolio is broken"); !ok || name != "Lictor" {
+		t.Errorf("known subject should match: name=%q ok=%v", name, ok)
+	}
+	if _, ok := g.IsActiveSubject("completely unrelated thing"); ok {
+		t.Error("unknown subject should not match")
+	}
+}
+
+func TestNilBusStoreOnly(t *testing.T) {
+	s, _ := Open(t.TempDir())
+	g := NewGraph(s, nil) // no bus — store-only
+	g.now = func() time.Time { return fixedNow }
+	if _, _, err := g.Upsert("", UpsertSpec{Kind: KindProject, Name: "X"}); err != nil {
+		t.Fatalf("upsert without bus should work: %v", err)
+	}
+}
+
+func TestWorldToolRoundTrip(t *testing.T) {
+	g, _ := newTestGraph(t)
+	tool := g.Tool()
+	if tool.Definition().Name != "world" {
+		t.Fatalf("tool name = %q", tool.Definition().Name)
+	}
+	ctx := WithCorrelation(context.Background(), "tool-corr")
+
+	add, _ := json.Marshal(map[string]any{"action": "add", "kind": "project", "name": "Lictor", "aliases": []string{"portfolio"}})
+	if res, _ := tool.Invoke(ctx, add); res.IsError {
+		t.Fatalf("add failed: %s", res.Output)
+	}
+	rel, _ := json.Marshal(map[string]any{"action": "relate", "from": "Lictor", "verb": "depends_on", "to": "go-stdlib"})
+	if res, _ := tool.Invoke(ctx, rel); res.IsError {
+		t.Fatalf("relate failed: %s", res.Output)
+	}
+	res, _ := tool.Invoke(ctx, mustJSON(t, map[string]any{"action": "resolve", "query": "the portfolio"}))
+	if res.IsError || !strings.Contains(res.Output, "Lictor") {
+		t.Fatalf("resolve output = %q", res.Output)
+	}
+	res, _ = tool.Invoke(ctx, mustJSON(t, map[string]any{"action": "neighbors", "query": "Lictor"}))
+	if res.IsError || !strings.Contains(res.Output, "go-stdlib") {
+		t.Fatalf("neighbors output = %q", res.Output)
+	}
+}
+
+func mustJSON(t *testing.T, v any) []byte {
+	t.Helper()
+	b, err := json.Marshal(v)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	return b
+}
+
+var _ = agent.Tool(worldTool{})

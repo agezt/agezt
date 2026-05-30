@@ -298,6 +298,18 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.handleMemorySearch(conn, req)
 	case CmdMemoryForget:
 		s.handleMemoryForget(conn, req)
+	case CmdWorldAdd:
+		s.handleWorldAdd(conn, req)
+	case CmdWorldRelate:
+		s.handleWorldRelate(conn, req)
+	case CmdWorldResolve:
+		s.handleWorldResolve(conn, req)
+	case CmdWorldNeighbors:
+		s.handleWorldNeighbors(conn, req)
+	case CmdWorldList:
+		s.handleWorldList(conn, req)
+	case CmdWorldGet:
+		s.handleWorldGet(conn, req)
 	case CmdPulseStatus:
 		s.handlePulseStatus(conn, req)
 	case CmdPulsePause:

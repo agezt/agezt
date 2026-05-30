@@ -30,6 +30,7 @@ type Config struct {
 	Warden      warden.Engine    // for the probe observer; optional
 	Provider    agent.Provider   // for the optional LLM salience refine
 	Model       string
+	Relevance   Relevance // world-model relevance signal; optional
 	Observers   []Observer
 	Dial        Dial
 	Cadence     time.Duration
@@ -101,6 +102,7 @@ func New(cfg Config) *Engine {
 			state:      cfg.State,
 			provider:   cfg.Provider,
 			model:      cfg.Model,
+			relevance:  cfg.Relevance,
 			dial:       dial,
 			useLLM:     cfg.UseLLM,
 			noveltyTTL: ttl,

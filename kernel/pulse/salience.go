@@ -15,6 +15,23 @@ import (
 // salienceNS is the state namespace for the novelty seen-cache.
 const salienceNS = "pulse_seen"
 
+// relevanceBoost is how much a delta about a known active entity has its
+// salience nudged up — enough to lift a notify into an alert band or rescue a
+// digest-bound delta, without overriding novelty suppression. Bounded so a
+// match can never fabricate urgency from nothing.
+const relevanceBoost = 0.15
+
+// Relevance answers "is this text about something the operator actually cares
+// about?" — the world-model signal SPEC-05 §3.4 promised salience. It is an
+// interface (not a direct worldmodel dependency) so pulse stays decoupled from
+// the graph package; the daemon adapts kernel/worldmodel.Graph to it. A nil
+// Relevance simply means no boost (v1 behaviour unchanged).
+type Relevance interface {
+	// IsActiveSubject reports whether text refers to a known active entity,
+	// returning that entity's name when it does.
+	IsActiveSubject(text string) (string, bool)
+}
+
 // Salience turns a stream of deltas into the few that matter (SPEC-03 §4) —
 // the single most important component for being neither annoying nor useless.
 // v1 is rules-first (severity + novelty suppression) with an optional cheap-
@@ -23,6 +40,7 @@ type Salience struct {
 	state      *state.FileStore
 	provider   agent.Provider // optional; only used when useLLM
 	model      string
+	relevance  Relevance // optional world-model relevance signal
 	dial       Dial
 	useLLM     bool
 	noveltyTTL time.Duration
@@ -49,7 +67,47 @@ func (s *Salience) Score(ctx context.Context, d Delta) Score {
 			reason = "llm: " + r
 		}
 	}
+
+	// World-model relevance: if this delta is about something the operator
+	// actively cares about (a known project/repo/topic), nudge it up a band
+	// (SPEC-05 §3.4). Bounded — a match sharpens attention but never invents
+	// urgency. Checked against the delta's issue key and summary so both
+	// "ci:lictor" style keys and prose summaries can match.
+	if s.relevance != nil {
+		if name, ok := s.relevanceHit(d); ok {
+			value = clamp01(value + relevanceBoost)
+			disp = dispositionForValue(value)
+			reason += "; relevant to " + name
+		}
+	}
 	return Score{Value: value, Reason: reason, Disposition: disp}
+}
+
+// relevanceHit asks the world-model signal whether this delta is about a
+// known active entity, trying the prose summary first (richer) then the issue
+// key. Returns the matched entity name.
+func (s *Salience) relevanceHit(d Delta) (string, bool) {
+	if d.Summary != "" {
+		if name, ok := s.relevance.IsActiveSubject(d.Summary); ok {
+			return name, true
+		}
+	}
+	if key := d.IssueKey(); key != "" {
+		if name, ok := s.relevance.IsActiveSubject(key); ok {
+			return name, true
+		}
+	}
+	return "", false
+}
+
+func clamp01(v float64) float64 {
+	if v < 0 {
+		return 0
+	}
+	if v > 1 {
+		return 1
+	}
+	return v
 }
 
 // scoreFromSeverity is the deterministic rules baseline.

@@ -93,6 +93,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return cmdConfig(args[1:], stdout, stderr)
 	case "memory":
 		return cmdMemory(args[1:], stdout, stderr)
+	case "world":
+		return cmdWorld(args[1:], stdout, stderr)
 	case "inbox":
 		return cmdInbox(args[1:], stdout, stderr)
 	default:
@@ -165,6 +167,13 @@ func printHelp(w io.Writer) {
 	fmt.Fprintf(w, "  memory search <query> [N] [--json]    rank records by keyword×confidence×recency\n")
 	fmt.Fprintf(w, "  memory get <id> [--json]              read one record (exit 3 = absent)\n")
 	fmt.Fprintf(w, "  memory forget <id> [--json]           tombstone a record (reversible, journaled)\n")
+	fmt.Fprintf(w, "  world add <name> [--kind K] [--alias A ...] [--json]\n")
+	fmt.Fprintf(w, "                              record an entity in the world model (the agent resolves references to it)\n")
+	fmt.Fprintf(w, "  world relate <from> <verb> <to> [--json]   link two entities\n")
+	fmt.Fprintf(w, "  world resolve <phrase> [N] [--json]   what does a phrase refer to?\n")
+	fmt.Fprintf(w, "  world neighbors <name> [--json]       what an entity connects to\n")
+	fmt.Fprintf(w, "  world list [--json]                   list active entities + relation count\n")
+	fmt.Fprintf(w, "  world show <id> [--json]              read one entity (exit 3 = absent)\n")
 	fmt.Fprintf(w, "  inbox [N] [--json]                    unified channel conversations (newest first)\n")
 	fmt.Fprintf(w, "  vault status                          show vault encryption state + path\n")
 	fmt.Fprintf(w, "  vault encrypt                         migrate plaintext vault to encrypted (set AGEZT_VAULT_PASSPHRASE)\n")

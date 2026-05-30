@@ -181,6 +181,10 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// durable facts. Set AGEZT_MEMORY=off to disable the per-run behaviour
 	// (the store and `agt memory` CLI stay available either way).
 	memOn := !strings.EqualFold(os.Getenv(brand.EnvPrefix+"MEMORY"), "off")
+	// World-model per-run behaviour (entity injection + the `world` tool).
+	// The graph store and `agt world` CLI always work; this only gates the
+	// in-run wiring. AGEZT_WORLDMODEL=off disables it.
+	worldOn := !strings.EqualFold(os.Getenv(brand.EnvPrefix+"WORLDMODEL"), "off")
 
 	cfg := kernelruntime.Config{
 		BaseDir:               baseDir,
@@ -197,6 +201,9 @@ func runDaemon(stdout, stderr io.Writer) int {
 		MemoryDistill:         memOn,
 		MemoryTopK:            5,
 		MemoryDistillMinTools: 4,
+		WorldInject:           worldOn,
+		WorldTool:             worldOn,
+		WorldTopK:             5,
 	}
 	cfg.OnReload = func() error {
 		// Re-load vault (catalog already refreshed by Kernel.Reload).
@@ -264,6 +271,8 @@ func runDaemon(stdout, stderr io.Writer) int {
 	fmt.Fprintf(stdout, "  policy engine    : edict (defaults from DECISIONS F3; %s)\n", askPolicyDesc)
 	fmt.Fprintf(stdout, "  warden           : %s\n", wardDesc)
 	fmt.Fprintf(stdout, "  control plane    : %s\n", srv.Addr())
+	fmt.Fprintf(stdout, "  knowledge        : memory %s · world model %s (%d entities)\n",
+		onOff(memOn), onOff(worldOn), k.World().Count())
 
 	// Telegram channel (SPEC-04 §1) — duplex when AGEZT_TELEGRAM_TOKEN is
 	// set. Built before Pulse so its brief sink can tee with the log sink.
@@ -404,6 +413,14 @@ func splitNonEmpty(s string) []string {
 	return out
 }
 
+// onOff renders a boolean as a banner-friendly enabled/disabled token.
+func onOff(b bool) string {
+	if b {
+		return "on"
+	}
+	return "off"
+}
+
 // buildPulse constructs the resident Pulse engine from env config, or returns
 // (nil, "") when AGEZT_PULSE=off. Observers are wired only when configured:
 //
@@ -450,6 +467,7 @@ func buildPulse(k *kernelruntime.Kernel, ward warden.Engine, model string, stdou
 		Warden:     ward,
 		Provider:   k.Provider(),
 		Model:      model,
+		Relevance:  k.World(), // world-model relevance signal (SPEC-05 §3.4)
 		Observers:  obs,
 		Dial:       dial,
 		Cadence:    cadence,

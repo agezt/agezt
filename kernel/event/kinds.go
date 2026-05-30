@@ -93,6 +93,15 @@ const (
 	KindMemoryForgotten  Kind = "memory.forgotten"  // a record tombstoned (soft delete)
 	KindMemorySuperseded Kind = "memory.superseded" // a record replaced by a newer version
 
+	// World model (SPEC-05 §3). The entity/relation graph is content-
+	// addressed and journaled so `agt why` can explain why "the portfolio"
+	// resolves to those repos, and so the graph is diffable/revertible.
+	KindWorldEntityUpserted   Kind = "worldmodel.entity.upserted"   // a node created/reinforced
+	KindWorldRelationUpserted Kind = "worldmodel.relation.upserted" // an edge created/reinforced
+	KindWorldRetrieved        Kind = "worldmodel.retrieved"         // entities resolved into a run's context
+	KindWorldForgotten        Kind = "worldmodel.forgotten"         // a node/edge tombstoned (soft delete)
+	KindWorldSuperseded       Kind = "worldmodel.superseded"        // a node replaced by a newer version
+
 	// Journal self-events (used for snapshot/verify boundaries).
 	KindJournalSegmentRotated Kind = "journal.segment_rotated"
 )
@@ -155,5 +164,10 @@ var knownKinds = map[Kind]struct{}{
 	KindMemoryRetrieved:           {},
 	KindMemoryForgotten:           {},
 	KindMemorySuperseded:          {},
+	KindWorldEntityUpserted:       {},
+	KindWorldRelationUpserted:     {},
+	KindWorldRetrieved:            {},
+	KindWorldForgotten:            {},
+	KindWorldSuperseded:           {},
 	KindJournalSegmentRotated:     {},
 }

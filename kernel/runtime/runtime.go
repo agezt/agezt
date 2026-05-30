@@ -33,6 +33,7 @@ import (
 	"github.com/agezt/agezt/kernel/state"
 	"github.com/agezt/agezt/kernel/ulid"
 	"github.com/agezt/agezt/kernel/warden"
+	"github.com/agezt/agezt/kernel/worldmodel"
 )
 
 // PluginInfo is the daemon-supplied manifest entry for one
@@ -139,6 +140,22 @@ type Config struct {
 	MemoryDistill         bool
 	MemoryDistillMinTools int
 
+	// World-model knobs (SPEC-05 §3; Phase 2 slice 1). Like the memory
+	// knobs the graph store and `agt world` CLI always work; these flags
+	// gate only the per-run behaviour and default OFF (daemon is the single
+	// enable point).
+	//
+	//   WorldInject — resolve entities mentioned in the run's intent and
+	//                 prepend a compact "Known entities" block to the System
+	//                 prompt (journals worldmodel.retrieved for provenance).
+	//   WorldTopK   — max entities injected (default 5 when WorldInject and
+	//                 unset).
+	//   WorldTool   — register the in-process `world` tool so the agent can
+	//                 add/relate/resolve/neighbors during a run.
+	WorldInject bool
+	WorldTopK   int
+	WorldTool   bool
+
 	// OnReload is invoked by Kernel.Reload() AFTER the catalog snapshot
 	// has been refreshed from disk. The closure is supplied by the
 	// daemon and is expected to:
@@ -169,7 +186,9 @@ type Kernel struct {
 
 	memory    *memory.Manager
 	memoryDir *memory.FileStore
-	tools     map[string]agent.Tool // cfg.Tools + the memory tool (when enabled)
+	world     *worldmodel.Graph
+	worldDir  *worldmodel.FileStore
+	tools     map[string]agent.Tool // cfg.Tools + the memory/world tools (when enabled)
 
 	catalogStore *catalog.Store
 	catalog      *catalog.Catalog // snapshot — refreshable via ReloadCatalog
@@ -230,13 +249,25 @@ func Open(cfg Config) (*Kernel, error) {
 	}
 	mgr := memory.NewManager(mstore, kbus)
 
+	wstore, err := worldmodel.Open(filepath.Join(cfg.BaseDir, "worldmodel"))
+	if err != nil {
+		j.Close()
+		st.Close()
+		mstore.Close()
+		return nil, fmt.Errorf("runtime: worldmodel: %w", err)
+	}
+	wgraph := worldmodel.NewGraph(wstore, kbus)
+
 	// The agent's effective tool set is the configured tools plus the
-	// in-process memory tool (when enabled). Built once, exposed via
+	// in-process memory/world tools (when enabled). Built once, exposed via
 	// Tools() so `agt tool list` reflects what the loop actually sees.
-	effTools := make(map[string]agent.Tool, len(cfg.Tools)+1)
+	effTools := make(map[string]agent.Tool, len(cfg.Tools)+2)
 	maps.Copy(effTools, cfg.Tools)
 	if cfg.MemoryTool {
 		effTools["memory"] = mgr.Tool()
+	}
+	if cfg.WorldTool {
+		effTools["world"] = wgraph.Tool()
 	}
 
 	catStore := catalog.NewStore(catDir)
@@ -247,6 +278,7 @@ func Open(cfg Config) (*Kernel, error) {
 			j.Close()
 			st.Close()
 			mstore.Close()
+			wstore.Close()
 			return nil, fmt.Errorf("runtime: catalog load: %w", err)
 		}
 		cat = loaded
@@ -266,6 +298,8 @@ func Open(cfg Config) (*Kernel, error) {
 		catalog:      cat,
 		memory:       mgr,
 		memoryDir:    mstore,
+		world:        wgraph,
+		worldDir:     wstore,
 		tools:        effTools,
 		runs:         make(map[string]context.CancelFunc),
 		startTime:    time.Now(),
@@ -282,6 +316,9 @@ func (k *Kernel) Close() error {
 		return err
 	}
 	if err := k.memoryDir.Close(); err != nil {
+		return err
+	}
+	if err := k.worldDir.Close(); err != nil {
 		return err
 	}
 	return k.journal.Close()
@@ -335,6 +372,11 @@ func (k *Kernel) Tools() map[string]agent.Tool { return k.tools }
 // Memory returns the memory-lite manager backing `agt memory`, run-time
 // context injection, and auto-distillation. Always non-nil after Open.
 func (k *Kernel) Memory() *memory.Manager { return k.memory }
+
+// World returns the world-model graph backing `agt world`, run-time entity
+// injection, and the Pulse salience relevance signal. Always non-nil after
+// Open.
+func (k *Kernel) World() *worldmodel.Graph { return k.world }
 
 // ActiveRuns returns the number of in-flight Run / RunPlan
 // invocations. Used by `agt status` to surface "is anything
@@ -666,6 +708,7 @@ func (k *Kernel) RunWith(ctx context.Context, corr, intent string) (string, erro
 	runCtx = context.WithValue(runCtx, ctxKeyActor, actor)
 	runCtx = context.WithValue(runCtx, ctxKeyCorrelation, corr)
 	runCtx = memory.WithCorrelation(runCtx, corr)
+	runCtx = worldmodel.WithCorrelation(runCtx, corr)
 
 	// Memory injection: recall relevant records and prepend them to the
 	// system prompt so the model starts the task already knowing what
@@ -679,6 +722,20 @@ func (k *Kernel) RunWith(ctx context.Context, corr, intent string) (string, erro
 		}
 		if hits, err := k.memory.Recall(corr, intent, topK); err == nil && len(hits) > 0 {
 			system = injectMemory(system, hits)
+		}
+	}
+
+	// World-model injection: resolve the entities the intent refers to and
+	// prepend them, so the model starts knowing what "the portfolio" means
+	// (SPEC-05 §7 step 1). Resolve journals worldmodel.retrieved under corr,
+	// so `agt why` shows what references were grounded.
+	if k.cfg.WorldInject {
+		topK := k.cfg.WorldTopK
+		if topK <= 0 {
+			topK = 5
+		}
+		if hits, err := k.world.Resolve(corr, intent, topK); err == nil && len(hits) > 0 {
+			system = injectWorld(system, hits)
 		}
 	}
 
@@ -715,6 +772,27 @@ func injectMemory(system string, hits []memory.Scored) string {
 	b.WriteString("Relevant memory (recalled from prior tasks; use if helpful):\n")
 	for _, h := range hits {
 		fmt.Fprintf(&b, "- [%s] %s: %s\n", h.Record.Type, h.Record.Subject, h.Record.Content)
+	}
+	if system != "" {
+		b.WriteString("\n")
+		b.WriteString(system)
+	}
+	return b.String()
+}
+
+// injectWorld prepends a compact "Known entities" block to the system prompt.
+// Entities are rendered one per line as "- [kind] name (aliases: ...)" so the
+// model can ground references like "the portfolio" to concrete things.
+func injectWorld(system string, hits []worldmodel.ScoredEntity) string {
+	var b strings.Builder
+	b.WriteString("Known entities (from the world model; use to ground references):\n")
+	for _, h := range hits {
+		e := h.Entity
+		if len(e.Aliases) > 0 {
+			fmt.Fprintf(&b, "- [%s] %s (aka %s)\n", e.Kind, e.Name, strings.Join(e.Aliases, ", "))
+		} else {
+			fmt.Fprintf(&b, "- [%s] %s\n", e.Kind, e.Name)
+		}
 	}
 	if system != "" {
 		b.WriteString("\n")

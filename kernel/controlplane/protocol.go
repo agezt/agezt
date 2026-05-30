@@ -345,6 +345,44 @@ const (
 	// Args: id (required). Returns: { forgotten (bool) }
 	CmdMemoryForget = "memory_forget"
 
+	// World model (SPEC-05 §3). The journaled entity/relation graph behind
+	// `agt world`; writes go through the kernel's worldmodel.Graph so every
+	// node/edge mutation is auditable via `agt why`.
+	//
+	// CmdWorldAdd creates (or reinforces) an entity.
+	// Args:
+	//   - name    : string (required) — entity name
+	//   - kind    : string (optional) — project|repo|person|org|account|
+	//               device|channel|topic|task (default topic)
+	//   - aliases : [string] (optional) — phrases that resolve to it
+	//   - attrs   : {k:v} (optional) — preferences/habits/constraints
+	// Returns: { id, created (bool), kind, name }
+	CmdWorldAdd = "world_add"
+
+	// CmdWorldRelate asserts a directed relation between two entities named
+	// from/to (endpoints auto-created as topics if unknown).
+	// Args: from (required), verb (optional; default relates_to), to (required).
+	// Returns: { id, from, verb, to }
+	CmdWorldRelate = "world_relate"
+
+	// CmdWorldResolve ranks active entities matching a phrase.
+	// Args: query (required), limit (optional; default 10, 1..100).
+	// Returns: { results: [{entity, score}, ...], count }
+	CmdWorldResolve = "world_resolve"
+
+	// CmdWorldNeighbors lists the active edges incident to the entity that
+	// best matches a phrase, with the adjacent entity for each.
+	// Args: query (required). Returns: { entity, neighbors: [...], count }
+	CmdWorldNeighbors = "world_neighbors"
+
+	// CmdWorldList returns active entities (and a relation count). No args.
+	// Returns: { entities: [...], count, relation_count }
+	CmdWorldList = "world_list"
+
+	// CmdWorldGet reads one entity by id (any state).
+	// Args: id (required). Returns: { found, entity }
+	CmdWorldGet = "world_get"
+
 	// Pulse — the proactive heart (SPEC-03). These control the resident
 	// heartbeat the daemon runs in the background. When Pulse is disabled
 	// (AGEZT_PULSE=off) the handlers report it rather than erroring.
