@@ -53,6 +53,7 @@ import (
 	"github.com/agezt/agezt/kernel/pulse"
 	"github.com/agezt/agezt/kernel/restapi"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
+	"github.com/agezt/agezt/kernel/tenant"
 	"github.com/agezt/agezt/kernel/ulid"
 	"github.com/agezt/agezt/kernel/warden"
 	"github.com/agezt/agezt/kernel/webhook"
@@ -313,6 +314,35 @@ func runDaemon(stdout, stderr io.Writer) int {
 	}
 	defer srv.Stop()
 
+	// Multi-tenant registry (ROADMAP P6-MULTI), opt-in via AGEZT_MULTITENANT.
+	// Each tenant gets its own isolated base dir under <baseDir>/tenants/<id>
+	// and its own kernel — opened with the same provider/tools/model as the
+	// primary, but a fresh per-tenant Warden/Edict (so a tenant HALT or policy
+	// state is its own) and no reload hook. The primary kernel is unaffected;
+	// `agt tenant` manages the registry over the control plane.
+	tenantsDesc := "disabled (set " + brand.EnvPrefix + "MULTITENANT=on)"
+	if strings.EqualFold(os.Getenv(brand.EnvPrefix+"MULTITENANT"), "on") {
+		reg, terr := tenant.New(filepath.Join(baseDir, "tenants"), func(id, tdir string) (io.Closer, error) {
+			tcfg := cfg // copy the primary config value
+			tcfg.BaseDir = tdir
+			tcfg.Warden = nil   // fresh per-tenant warden (isolated HALT)
+			tcfg.Edict = nil    // fresh per-tenant policy engine
+			tcfg.OnReload = nil // no per-tenant reload wiring yet
+			return kernelruntime.Open(tcfg)
+		})
+		if terr != nil {
+			fmt.Fprintf(stderr, "%s: tenant registry: %v\n", brand.Binary, terr)
+			return 1
+		}
+		srv.SetTenants(reg)
+		defer reg.CloseAll()
+		if infos, _ := reg.List(); infos != nil {
+			tenantsDesc = fmt.Sprintf("enabled (root=%s, %d on disk)", filepath.Join(baseDir, "tenants"), len(infos))
+		} else {
+			tenantsDesc = "enabled (root=" + filepath.Join(baseDir, "tenants") + ")"
+		}
+	}
+
 	fmt.Fprintf(stdout, "%s %s — daemon ready (protocol v%d)\n", brand.Name, brand.Version, brand.ProtocolVersion)
 	fmt.Fprintf(stdout, "  base dir         : %s\n", baseDir)
 	fmt.Fprintf(stdout, "  governor         : %s\n", govDesc)
@@ -321,6 +351,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 	fmt.Fprintf(stdout, "  policy engine    : edict (defaults from DECISIONS F3; %s)\n", askPolicyDesc)
 	fmt.Fprintf(stdout, "  warden           : %s\n", wardDesc)
 	fmt.Fprintf(stdout, "  control plane    : %s\n", srv.Addr())
+	fmt.Fprintf(stdout, "  tenancy          : %s\n", tenantsDesc)
 	fmt.Fprintf(stdout, "  knowledge        : memory %s · world model %s (%d entities) · skills %s/forge %s (%d active)\n",
 		onOff(memOn), onOff(worldOn), k.World().Count(), onOff(skillOn), onOff(forgeOn), k.Forge().Count())
 

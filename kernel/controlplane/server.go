@@ -21,6 +21,7 @@ import (
 	"github.com/agezt/agezt/kernel/approval"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/scheduler"
+	"github.com/agezt/agezt/kernel/tenant"
 )
 
 // Server hosts the control plane for a running Kernel.
@@ -46,6 +47,11 @@ type Server struct {
 	// daemon via SetPulse. Nil when Pulse is disabled (AGEZT_PULSE=off);
 	// the pulse handlers report "disabled" rather than dereferencing it.
 	pulse PulseController
+
+	// tenants is the optional multi-tenant registry, injected by the daemon
+	// via SetTenants. Nil unless multi-tenancy is enabled; the tenant handlers
+	// report "disabled" rather than dereferencing it.
+	tenants *tenant.Registry
 }
 
 // NewServer constructs a Server that will manage runtime files under
@@ -310,6 +316,14 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.handleScheduleEnable(conn, req)
 	case CmdScheduleEdit:
 		s.handleScheduleEdit(conn, req)
+	case CmdTenantCreate:
+		s.handleTenantCreate(conn, req)
+	case CmdTenantList:
+		s.handleTenantList(conn, req)
+	case CmdTenantRelease:
+		s.handleTenantRelease(conn, req)
+	case CmdTenantRemove:
+		s.handleTenantRemove(conn, req)
 	case CmdWorldAdd:
 		s.handleWorldAdd(conn, req)
 	case CmdWorldRelate:

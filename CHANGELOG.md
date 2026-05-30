@@ -23,9 +23,14 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   `Acquire` (idempotent), `Release` (close, keep state), `Remove` (destructive),
   `List`, and `CloseAll`. Proven end-to-end: two tenants each run an intent
   through their own governed loop and each journal contains only its own run (no
-  cross-tenant bleed). This is the storage/lifecycle core; wiring the control
-  plane and APIs to route per tenant is a later phase (see
-  `.project/PHASE-M14-MULTITENANT-REPORT.md`).
+  cross-tenant bleed). The daemon mounts the registry opt-in via
+  `AGEZT_MULTITENANT=on` (rooted at `<base>/tenants`, each tenant opened with the
+  primary's provider/tools but a fresh per-tenant Warden/Edict), and operators
+  manage tenants with `agt tenant create|list|release|rm` over the control plane
+  — proven live: isolated base dirs created, `release` keeps state while `rm`
+  deletes only that tenant's tree, traversal ids rejected. Per-request *run*
+  routing (a request choosing its tenant) and per-tenant auth/quotas are the
+  remaining phases (see `.project/PHASE-M14-MULTITENANT-REPORT.md`).
 - **Scheduled intents** — a `cadence` daemon resident (autonomy): fires intents
   on a recurring timer through the same governed loop (Edict + journal + budget),
   so the system acts on its own ("every morning, summarise new commits and brief

@@ -16,7 +16,7 @@ a **native REST** `/api/v1`), it drives **external ACP agents** and **peer
 Agezt nodes** back (mesh), pushes events out via **HMAC-signed webhooks**, and
 `agt provider import` brings every key you already have online in one pass.
 See [CHANGELOG.md](CHANGELOG.md).
-**Tests:** 1116 passing across 56 packages.
+**Tests:** 1118 passing across 56 packages.
 **Dependencies:** one (`lukechampine.com/blake3`) + one transitive.
 
 ## What you get
@@ -37,6 +37,7 @@ agt budget                                                     — spend vs dail
 agt tool list                                                  — in-process tools the model sees
 agt peers [--json]                                             — list peer nodes + check their REST health
 agt schedule add "<intent>" --every 1h | --at 09:30            — recurring/daily autonomous intent (list/rm/run/pause/resume)
+agt tenant create <id> / tenant list / tenant rm <id>          — manage isolated tenants (daemon AGEZT_MULTITENANT=on)
 agt plugin list                                                — external plugins loaded
 agt edict show / edict test shell "rm -rf /"                   — view + preflight policy decisions
 agt state list / state get <ns> <key>                          — read kernel state store
@@ -272,7 +273,7 @@ The v1 substrate. Highlights:
 ## Verify
 
 ```bash
-make test     # 1116 tests, all green
+make test     # 1118 tests, all green
 make build    # produces bin/agezt + bin/agt
 make gen      # regenerate SDK types from the contract
 ```

@@ -372,6 +372,22 @@ const (
 	// change. Returns: { updated (bool), id, mode, cadence }
 	CmdScheduleEdit = "schedule_edit"
 
+	// Multi-tenant management (ROADMAP P6-MULTI). The control-plane surface
+	// behind `agt tenant`; operates on the daemon's tenant.Registry. Disabled
+	// (returns an error) when the daemon has no registry configured.
+	//
+	// CmdTenantCreate creates/opens an isolated tenant. Args: id (required).
+	// Returns: { id, base_dir, created (bool) }
+	CmdTenantCreate = "tenant_create"
+	// CmdTenantList lists tenants on disk. Returns: { tenants: [{id, base_dir, open}], count }
+	CmdTenantList = "tenant_list"
+	// CmdTenantRelease closes a tenant's kernel, keeping its state on disk.
+	// Args: id (required). Returns: { released (bool) }
+	CmdTenantRelease = "tenant_release"
+	// CmdTenantRemove deletes a tenant and all its state (destructive).
+	// Args: id (required). Returns: { removed (bool) }
+	CmdTenantRemove = "tenant_remove"
+
 	// World model (SPEC-05 §3). The journaled entity/relation graph behind
 	// `agt world`; writes go through the kernel's worldmodel.Graph so every
 	// node/edge mutation is auditable via `agt why`.

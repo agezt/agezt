@@ -1,9 +1,10 @@
-# Phase Report — Milestone M14 (Multi-tenant isolation: the foundation)
+# Phase Report — Milestone M14 (Multi-tenant isolation)
 
-> Status: **Phase 1 shipped** (foundation) · Date: 2026-05-31
-> ROADMAP P6-MULTI. The storage + lifecycle core that lets one daemon host many
-> fully-isolated tenants. Control-plane / API routing per tenant is an explicit
-> later phase; this is the isolation primitive those build on.
+> Status: **Phases 1–2 shipped** · Date: 2026-05-31
+> ROADMAP P6-MULTI. Phase 1: the storage + lifecycle isolation core
+> (`kernel/tenant`). Phase 2: the daemon wiring + operator surface (`agt
+> tenant`). Per-request *run* routing (a request choosing its tenant) and
+> per-tenant auth/quotas are the remaining phases.
 
 ## Why this milestone
 
@@ -60,6 +61,34 @@ A `Registry` that manages isolated tenants under one root directory:
 8 new tests; suite **1116** green, `go vet` clean, `GOOS=linux` builds,
 `go.mod` unchanged.
 
+## Phase 2 — daemon wiring + `agt tenant`
+
+The registry is now mounted in the daemon and managed by operators:
+
+- **Daemon mount (opt-in).** With `AGEZT_MULTITENANT=on`, the daemon builds a
+  `tenant.Registry` rooted at `<baseDir>/tenants` whose `OpenFunc` clones the
+  *primary* kernel config (same provider, tools, model, catalog) with a
+  per-tenant base dir and a **fresh per-tenant Warden and Edict** (so a tenant's
+  HALT or policy state is its own, not shared) and no reload hook. The primary
+  single-tenant kernel is untouched; off by default. A banner line
+  (`tenancy: enabled (root=…)` / `disabled`) reports the state, and `CloseAll`
+  runs on shutdown.
+- **Control plane.** Four token-authed commands — `tenant_create` (Acquire),
+  `tenant_list` (List), `tenant_release` (Release), `tenant_remove` (Remove) —
+  injected via `Server.SetTenants`. When no registry is configured they return a
+  clear "multi-tenancy is disabled" error instead of touching anything.
+- **CLI.** `agt tenant create|list|release|rm <id>` (with `--json`), distinct
+  exit codes (3 for not-open / not-found), and a help subcommand.
+
+**Proven live (daemon + CLI, `AGEZT_MULTITENANT=on`):** `tenant create alpha` /
+`beta` each materialised an isolated base dir with its own
+`journal/state/memory/worldmodel/skills/cadence`; `tenant list` showed both
+open; `release alpha` closed it (→ `[closed]`, state kept on disk); `rm beta`
+deleted *only* beta's tree (alpha untouched); a `../evil` id was rejected; `rm`
+of a missing id returned exit 3. Plus a control-plane integration test
+(create/list/release/remove + idempotent re-create + traversal rejection) and
+a "disabled without a registry" test.
+
 ## Engineering notes
 
 - **Stdlib only** (`os`, `path/filepath`, `regexp`, `sort`, `sync`). The
@@ -71,12 +100,11 @@ A `Registry` that manages isolated tenants under one root directory:
 
 ## Deferred — the later phases (named, not yet built)
 
-- **Daemon routing.** Wire the control plane and the OpenAI/REST/ACP surfaces to
-  select a tenant per request (`X-Agezt-Tenant` header / a control-plane `tenant`
-  arg), dispatching to that tenant's kernel via the registry. The big,
-  behavior-changing phase.
-- **`agt tenant` CLI** — create / list / release / remove tenants over the
-  control plane.
+- **Per-request run routing.** Wire the OpenAI/REST/ACP surfaces and `agt run`
+  to select a tenant per request (`X-Agezt-Tenant` header / a control-plane
+  `tenant` arg), dispatching to that tenant's kernel via the registry. The big,
+  behavior-changing phase — Phase 2 manages tenants but runs still go to the
+  primary kernel.
 - **Per-tenant auth + quotas.** A token (or token scope) per tenant; per-tenant
   budget ceilings and rate limits, so one tenant can't exhaust another's spend.
 - **Shared vs. per-tenant catalog/credentials** policy (today each tenant base
