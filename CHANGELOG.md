@@ -35,8 +35,11 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   API** routes per tenant too: a `POST /api/v1/runs` (or `GET
   /api/v1/runs/{corr}`) carrying an `X-Agezt-Tenant: <id>` header runs on — and
   streams from — that tenant's kernel and bus, isolated from the primary (proven
-  live; header-less requests stay on the primary). The remaining phases are the
-  OpenAI-compatible/ACP residents and per-tenant auth/quotas (see
+  live; header-less requests stay on the primary). The **OpenAI-compatible** API
+  honours the same header: `/v1/chat/completions`, `/v1/responses`, and
+  `/v1/models` route per tenant (both SSE streaming forms subscribe to the
+  tenant's own bus), so any OpenAI SDK can target a tenant with one extra header.
+  The remaining phases are the ACP resident and per-tenant auth/quotas (see
   `.project/PHASE-M14-MULTITENANT-REPORT.md`).
 - **Scheduled intents** — a `cadence` daemon resident (autonomy): fires intents
   on a recurring timer through the same governed loop (Edict + journal + budget),

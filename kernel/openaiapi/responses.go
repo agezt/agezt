@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/ulid"
 )
 
@@ -45,18 +46,23 @@ func (s *Server) handleResponses(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "invalid_request_error", "no usable input content")
 		return
 	}
+	eng, b, err := s.bind(r)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "invalid_request_error", err.Error())
+		return
+	}
 	model := req.Model
 	if model == "" {
-		model = s.eng.DefaultModel()
+		model = eng.DefaultModel()
 	}
 
 	if req.Stream {
-		s.streamResponses(w, r, intent, model)
+		s.streamResponses(w, r, eng, b, intent, model)
 		return
 	}
 
-	corr := s.eng.NewCorrelation()
-	answer, err := s.eng.RunModel(r.Context(), corr, intent, model)
+	corr := eng.NewCorrelation()
+	answer, err := eng.RunModel(r.Context(), corr, intent, model)
 	if err != nil {
 		writeErr(w, http.StatusBadGateway, "upstream_error", err.Error())
 		return
@@ -130,14 +136,14 @@ func responsesUsage(prompt, completion string) map[string]any {
 // streamResponses relays the run's llm.token events as the Responses SSE event
 // sequence. It subscribes BEFORE starting the run so no early token is missed
 // (the same no-race pattern as streamChat).
-func (s *Server) streamResponses(w http.ResponseWriter, r *http.Request, intent, model string) {
+func (s *Server) streamResponses(w http.ResponseWriter, r *http.Request, eng Engine, b *bus.Bus, intent, model string) {
 	flusher, ok := w.(http.Flusher)
 	if !ok {
 		writeErr(w, http.StatusInternalServerError, "stream_unsupported", "streaming unsupported")
 		return
 	}
-	corr := s.eng.NewCorrelation()
-	sub, err := s.bus.Subscribe(s.eng.SubjectForRun(corr), 1024)
+	corr := eng.NewCorrelation()
+	sub, err := b.Subscribe(eng.SubjectForRun(corr), 1024)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "subscribe_error", err.Error())
 		return
@@ -174,7 +180,7 @@ func (s *Server) streamResponses(w http.ResponseWriter, r *http.Request, intent,
 	}
 	done := make(chan result, 1)
 	go func() {
-		ans, err := s.eng.RunModel(r.Context(), corr, intent, model)
+		ans, err := eng.RunModel(r.Context(), corr, intent, model)
 		done <- result{ans, err}
 	}()
 

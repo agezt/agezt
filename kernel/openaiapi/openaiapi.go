@@ -44,16 +44,40 @@ type Engine interface {
 	ModelIDs() []string
 }
 
+// TenantResolver maps a tenant id to the Engine + bus that serve it. The daemon
+// injects one (backed by the tenant registry) when multi-tenancy is enabled.
+type TenantResolver func(tenant string) (Engine, *bus.Bus, error)
+
 // Server is the OpenAI-compatible HTTP surface.
 type Server struct {
 	eng   Engine
 	bus   *bus.Bus
 	token string
+
+	// resolve, when set, maps the X-Agezt-Tenant request header to a per-tenant
+	// Engine + bus. Nil (or an empty header) means the primary engine/bus —
+	// the unchanged single-tenant path.
+	resolve TenantResolver
 }
 
 // New builds a Server. token gates every request; bus drives streaming.
 func New(eng Engine, b *bus.Bus, token string) *Server {
 	return &Server{eng: eng, bus: b, token: token}
+}
+
+// SetTenantResolver enables tenant routing: requests carrying an X-Agezt-Tenant
+// header are served by the resolved per-tenant Engine + bus.
+func (s *Server) SetTenantResolver(r TenantResolver) { s.resolve = r }
+
+// bind resolves the Engine + bus for a request: the per-tenant pair when an
+// X-Agezt-Tenant header is present and a resolver is configured, else the
+// primary engine/bus.
+func (s *Server) bind(r *http.Request) (Engine, *bus.Bus, error) {
+	tenant := strings.TrimSpace(r.Header.Get("X-Agezt-Tenant"))
+	if tenant == "" || s.resolve == nil {
+		return s.eng, s.bus, nil
+	}
+	return s.resolve(tenant)
 }
 
 // Handler builds the mux; every route is token-authed.
@@ -96,7 +120,12 @@ func (s *Server) handleModels(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusMethodNotAllowed, "method_not_allowed", "GET required")
 		return
 	}
-	ids := s.eng.ModelIDs()
+	eng, _, err := s.bind(r)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "invalid_request_error", err.Error())
+		return
+	}
+	ids := eng.ModelIDs()
 	seen := map[string]bool{}
 	data := make([]map[string]any, 0, len(ids)+1)
 	add := func(id string) {
@@ -108,7 +137,7 @@ func (s *Server) handleModels(w http.ResponseWriter, r *http.Request) {
 			"id": id, "object": "model", "created": 0, "owned_by": "agezt",
 		})
 	}
-	add(s.eng.DefaultModel())
+	add(eng.DefaultModel())
 	for _, id := range ids {
 		add(id)
 	}
@@ -174,18 +203,23 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "invalid_request_error", "no usable message content")
 		return
 	}
+	eng, b, err := s.bind(r)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "invalid_request_error", err.Error())
+		return
+	}
 	model := req.Model
 	if model == "" {
-		model = s.eng.DefaultModel()
+		model = eng.DefaultModel()
 	}
 
 	if req.Stream {
-		s.streamChat(w, r, intent, model)
+		s.streamChat(w, r, eng, b, intent, model)
 		return
 	}
 
-	corr := s.eng.NewCorrelation()
-	answer, err := s.eng.RunModel(r.Context(), corr, intent, model)
+	corr := eng.NewCorrelation()
+	answer, err := eng.RunModel(r.Context(), corr, intent, model)
 	if err != nil {
 		writeErr(w, http.StatusBadGateway, "upstream_error", err.Error())
 		return
@@ -209,14 +243,14 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 // OpenAI chat.completion.chunk SSE frames. It subscribes to the run subject
 // BEFORE starting the run so no early token is missed (the same no-race pattern
 // the control plane's handleRun uses).
-func (s *Server) streamChat(w http.ResponseWriter, r *http.Request, intent, model string) {
+func (s *Server) streamChat(w http.ResponseWriter, r *http.Request, eng Engine, b *bus.Bus, intent, model string) {
 	flusher, ok := w.(http.Flusher)
 	if !ok {
 		writeErr(w, http.StatusInternalServerError, "stream_unsupported", "streaming unsupported")
 		return
 	}
-	corr := s.eng.NewCorrelation()
-	sub, err := s.bus.Subscribe(s.eng.SubjectForRun(corr), 1024)
+	corr := eng.NewCorrelation()
+	sub, err := b.Subscribe(eng.SubjectForRun(corr), 1024)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "subscribe_error", err.Error())
 		return
@@ -248,7 +282,7 @@ func (s *Server) streamChat(w http.ResponseWriter, r *http.Request, intent, mode
 	}
 	done := make(chan res, 1)
 	go func() {
-		_, err := s.eng.RunModel(r.Context(), corr, intent, model)
+		_, err := eng.RunModel(r.Context(), corr, intent, model)
 		done <- res{err}
 	}()
 

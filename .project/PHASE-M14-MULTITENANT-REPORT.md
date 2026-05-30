@@ -4,8 +4,10 @@
 > ROADMAP P6-MULTI. Phase 1: the storage + lifecycle isolation core
 > (`kernel/tenant`). Phase 2: the daemon wiring + operator surface (`agt
 > tenant`). Phase 3: per-request **run routing** (`agt run --tenant <id>`).
-> Phase 4: **tenant-routed REST API** (`X-Agezt-Tenant` header). Per-tenant
-> auth/quotas and routing the OpenAI/ACP surfaces are the remaining work.
+> Phase 4: **tenant-routed REST API** (`X-Agezt-Tenant` header). Phase 5:
+> **tenant-routed OpenAI-compatible API** (same header on `/v1/chat/completions`,
+> `/v1/responses`, `/v1/models`). Per-tenant auth/quotas and the ACP surface are
+> the remaining work.
 
 ## Why this milestone
 
@@ -140,6 +142,31 @@ test (`TestRun_TenantRouting`): header-less → primary engine, `X-Agezt-Tenant:
 alpha` → alpha's answer with the run recorded only on alpha, unknown tenant
 `ghost` → 400.
 
+## Phase 5 — tenant-routed OpenAI-compatible API
+
+The drop-in OpenAI surface (`kernel/openaiapi`) now routes per tenant too, so any
+OpenAI SDK / IDE / client can target a tenant by setting one extra header — the
+same `X-Agezt-Tenant` seam as the native REST surface.
+
+- **All three routes.** `POST /v1/chat/completions`, `POST /v1/responses`, and
+  `GET /v1/models` resolve their Engine + bus through `Server.bind(r)`. Both
+  streaming forms (Chat `chat.completion.chunk` SSE and the Responses
+  `response.*` SSE sequence) subscribe to the **resolved tenant's bus** so token
+  deltas come from that tenant's journal, not the primary's.
+- **Same resolver shape.** `Server.SetTenantResolver(func(id) (Engine, *bus.Bus,
+  error))`; header-less requests (or a nil resolver) stay on the primary —
+  byte-for-byte the prior single-tenant path. A resolver error is a clean `400
+  invalid_request_error`.
+- **Daemon wiring.** `buildOpenAIAPI` takes the registry and installs the same
+  `Acquire(id)` → tenant `kernelAPIEngine` + `Bus()` resolver as `buildRESTAPI`,
+  guarded by `AGEZT_MULTITENANT=on`.
+
+**Proven:** a unit test (`TestChat_TenantRouting`) drives `/v1/chat/completions`
+header-less (→ primary engine), with `X-Agezt-Tenant: alpha` (→ alpha's answer,
+run recorded only on alpha, primary untouched), and with an unknown tenant
+`ghost` (→ 400). The streaming paths reuse the same `bind`-resolved bus the
+non-streaming path proves.
+
 ## Engineering notes
 
 - **Stdlib only** (`os`, `path/filepath`, `regexp`, `sort`, `sync`). The
@@ -152,8 +179,8 @@ alpha` → alpha's answer with the run recorded only on alpha, unknown tenant
 ## Deferred — the later phases (named, not yet built)
 
 - **Tenant-routed API surfaces (remaining).** The control-plane `CmdRun` path
-  (Phase 3) and the native REST surface (Phase 4) route per tenant. Still to do:
-  the **OpenAI-compatible** (`kernel/openaiapi`) and **ACP** residents — same
+  (Phase 3), the native REST surface (Phase 4), and the OpenAI-compatible surface
+  (Phase 5) route per tenant. Still to do: the **ACP** resident — same
   `X-Agezt-Tenant` header, reusing the resolver seam.
 - **Per-tenant auth + quotas.** A token (or token scope) per tenant; per-tenant
   budget ceilings and rate limits, so one tenant can't exhaust another's spend.

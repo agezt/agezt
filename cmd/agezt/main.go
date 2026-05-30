@@ -402,7 +402,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// POST /v1/responses, and GET /v1/models so any OpenAI client drives Agezt
 	// through the same tool-loop + Edict + journal. Off unless AGEZT_API_ADDR is
 	// set; loopback + token.
-	if apiDesc := buildOpenAIAPI(ctx, k, stdout); apiDesc != "" {
+	if apiDesc := buildOpenAIAPI(ctx, k, tenantReg, stdout); apiDesc != "" {
 		fmt.Fprintf(stdout, "  openai api       : %s\n", apiDesc)
 	} else {
 		fmt.Fprintf(stdout, "  openai api       : disabled (set AGEZT_API_ADDR, e.g. 127.0.0.1:8799)\n")
@@ -696,7 +696,7 @@ func (e kernelAPIEngine) EventsForCorrelation(corr string) ([]*event.Event, erro
 // buildOpenAIAPI starts the OpenAI-compatible HTTP resident when AGEZT_API_ADDR
 // is set, mirroring buildWebUI's lifecycle (daemon ctx, graceful shutdown,
 // minted token, loopback warning). Returns the banner description or "".
-func buildOpenAIAPI(ctx context.Context, k *kernelruntime.Kernel, stdout io.Writer) string {
+func buildOpenAIAPI(ctx context.Context, k *kernelruntime.Kernel, reg *tenant.Registry, stdout io.Writer) string {
 	addr := os.Getenv(brand.EnvPrefix + "API_ADDR")
 	if addr == "" {
 		return ""
@@ -713,7 +713,23 @@ func buildOpenAIAPI(ctx context.Context, k *kernelruntime.Kernel, stdout io.Writ
 		fmt.Fprintf(stdout, "  openai api       : disabled (listen %s: %v)\n", addr, err)
 		return ""
 	}
-	srv := &http.Server{Handler: openaiapi.New(kernelAPIEngine{k}, k.Bus(), token).Handler()}
+	api := openaiapi.New(kernelAPIEngine{k}, k.Bus(), token)
+	if reg != nil {
+		// Tenant routing: an X-Agezt-Tenant header serves the request from that
+		// tenant's isolated kernel + bus (opened on demand).
+		api.SetTenantResolver(func(id string) (openaiapi.Engine, *bus.Bus, error) {
+			t, err := reg.Acquire(id, time.Now())
+			if err != nil {
+				return nil, nil, err
+			}
+			tk, ok := t.Kernel.(*kernelruntime.Kernel)
+			if !ok {
+				return nil, nil, fmt.Errorf("tenant %q: unexpected kernel type", id)
+			}
+			return kernelAPIEngine{tk}, tk.Bus(), nil
+		})
+	}
+	srv := &http.Server{Handler: api.Handler()}
 	go func() {
 		if err := srv.Serve(ln); err != nil && err != http.ErrServerClosed {
 			fmt.Fprintf(stdout, "openai api server error: %v\n", err)
