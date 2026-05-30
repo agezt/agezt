@@ -133,6 +133,12 @@ const (
 	// loop).
 	KindWebhookDelivered Kind = "webhook.delivered" // a 2xx delivery
 	KindWebhookFailed    Kind = "webhook.failed"    // exhausted retries (error or non-2xx)
+
+	// Scheduled intents (autonomy). The cadence resident fires operator-
+	// configured intents on a timer through the normal governed loop; each
+	// firing is journaled so `agt journal grep schedule` shows what the system
+	// did on its own and `agt why` links the firing to the resulting run.
+	KindScheduleFired Kind = "schedule.fired"
 )
 
 // IsKnown reports whether k is one of the kinds defined in this file. Useful
@@ -208,4 +214,5 @@ var knownKinds = map[Kind]struct{}{
 	KindJournalSegmentRotated:     {},
 	KindWebhookDelivered:          {},
 	KindWebhookFailed:             {},
+	KindScheduleFired:             {},
 }

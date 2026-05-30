@@ -40,6 +40,7 @@ import (
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/internal/paths"
 	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/cadence"
 	"github.com/agezt/agezt/kernel/catalog"
 	"github.com/agezt/agezt/kernel/channel"
 	"github.com/agezt/agezt/kernel/controlplane"
@@ -390,6 +391,15 @@ func runDaemon(stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "  rest api         : %s\n", restDesc)
 	} else {
 		fmt.Fprintf(stdout, "  rest api         : disabled (set AGEZT_REST_ADDR, e.g. 127.0.0.1:8800)\n")
+	}
+
+	// Scheduled intents (autonomy) — fire operator-configured intents on a timer
+	// through the governed loop. Runs on the daemon ctx (halt/shutdown stop it).
+	// Off unless AGEZT_SCHEDULE is set.
+	if schedDesc := buildCadence(ctx, k, stdout); schedDesc != "" {
+		fmt.Fprintf(stdout, "  schedule         : %s\n", schedDesc)
+	} else {
+		fmt.Fprintf(stdout, "  schedule         : disabled (set AGEZT_SCHEDULE, e.g. \"1h=summarise new commits\")\n")
 	}
 
 	fmt.Fprintf(stdout, "  client commands  : %s run | halt | resume | why <id> | journal verify\n", brand.CLI)
@@ -748,6 +758,39 @@ func buildWebhooks(ctx context.Context, k *kernelruntime.Kernel, stdout io.Write
 	}
 	webhook.NewDispatcher(k.Bus(), sinks, stdout).Start(ctx)
 	return webhook.Describe(sinks)
+}
+
+// buildCadence starts the scheduled-intents resident when AGEZT_SCHEDULE is set.
+// Each firing journals a schedule.fired event (carrying the run's correlation so
+// `agt why` links the schedule to the run) and then runs the intent through the
+// normal governed loop. Returns the banner description; "" only when the env var
+// is unset (an invalid spec returns a one-line reason).
+func buildCadence(ctx context.Context, k *kernelruntime.Kernel, stdout io.Writer) string {
+	spec := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "SCHEDULE"))
+	if spec == "" {
+		return ""
+	}
+	jobs, err := cadence.ParseJobs(spec)
+	if err != nil {
+		return "disabled (" + err.Error() + ")"
+	}
+	if len(jobs) == 0 {
+		return ""
+	}
+	run := func(runCtx context.Context, intent, model string) error {
+		corr := k.NewCorrelation()
+		_, _ = k.Bus().Publish(event.Spec{
+			Subject:       "schedule.fired",
+			Kind:          event.KindScheduleFired,
+			Actor:         "schedule",
+			CorrelationID: corr,
+			Payload:       map[string]any{"intent": intent, "model": model},
+		})
+		_, err := k.RunWith(kernelruntime.WithModel(runCtx, model), corr, intent)
+		return err
+	}
+	cadence.New(jobs, run, 0, stdout).Start(ctx)
+	return cadence.Describe(jobs)
 }
 
 // isLoopback reports whether the host portion of addr binds to loopback only.

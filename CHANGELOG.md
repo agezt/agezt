@@ -12,6 +12,17 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Scheduled intents** — a `cadence` daemon resident (autonomy): fires
+  operator-configured intents on a recurring timer through the same governed
+  loop (Edict + journal + budget), so the system acts on its own ("every
+  morning, summarise new commits and brief me") — the timer companion to Pulse's
+  event-driven proactivity. Configured via `AGEZT_SCHEDULE`, a `;`-separated list
+  of `interval=intent` jobs (interval is a Go duration, ≥ 1s; a malformed spec is
+  a hard startup error). A single ticker fires every due job; a still-running job
+  is skipped (no overlap). Each firing is journaled as `schedule.fired` (carrying
+  the run's correlation), so `agt why`/`agt journal grep schedule` show what the
+  system did autonomously. Runs on the daemon ctx (halt/shutdown stop it); off
+  unless `AGEZT_SCHEDULE` is set.
 - **Mesh delegation** — the `remote_run` tool (ROADMAP P6-MULTI / M8): a lead
   agent on one Agezt node can hand a self-contained task to a *peer* Agezt node
   and get the answer back, by driving the peer's native REST surface
