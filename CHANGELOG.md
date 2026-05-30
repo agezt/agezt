@@ -11,6 +11,10 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 
 ## [Unreleased]
 
+### Added
+- `agt world forget <id>` — tombstone a world-model entity (soft delete;
+  reversible, journaled), completing the symmetry with `memory forget`.
+
 ## [0.1.0] — 2026-05-30
 
 The **MVP** (ROADMAP §2.2): a usable, single-deployment Jarvis. Everything the
