@@ -122,7 +122,9 @@ func TestBuild_AnthropicFamilyRoutesToAnthropicWire(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	entry := newAnthCatalogEntry(srv.URL)
+	// models.dev's anthropic `api` includes the version segment; the
+	// adapter appends only "/messages". Mirror that here.
+	entry := newAnthCatalogEntry(srv.URL + "/v1")
 	prov, model, err := compat.Build(entry, "claude-opus-4-7", func(string) string { return "test-key" })
 	if err != nil {
 		t.Fatalf("Build: %v", err)
@@ -157,6 +159,48 @@ func TestBuild_AnthropicFamilyRoutesToAnthropicWire(t *testing.T) {
 	}
 	if seen.body["model"] != "claude-opus-4-7" {
 		t.Errorf("body.model=%v", seen.body["model"])
+	}
+}
+
+// TestBuild_AnthropicThirdPartyBaseURLNoDoubleVersion is a regression test for
+// third-party Anthropic-shaped providers (MiniMax coding-plan, Kimi-for-coding)
+// whose models.dev `api` already carries a versioned path like
+// "…/anthropic/v1". The adapter must append only "/messages" — NOT
+// "/v1/messages" — so the request lands on "/anthropic/v1/messages", not the
+// doubled "/anthropic/v1/v1/messages" that 404s.
+func TestBuild_AnthropicThirdPartyBaseURLNoDoubleVersion(t *testing.T) {
+	var gotPath string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"id": "msg_test", "type": "message", "role": "assistant",
+			"model": "MiniMax-M2.7", "stop_reason": "end_turn",
+			"content": []map[string]any{{"type": "text", "text": "ok"}},
+			"usage":   map[string]any{"input_tokens": 1, "output_tokens": 1},
+		})
+	}))
+	defer srv.Close()
+
+	// Mirror the models.dev minimax-coding-plan entry: anthropic family, an
+	// `api` that already ends in a versioned segment.
+	entry := &catalog.Provider{
+		ID: "minimax-coding-plan", Name: "MiniMax (coding plan)",
+		Env: []string{"MINIMAX_API_KEY"}, NPM: "@ai-sdk/anthropic",
+		API:    srv.URL + "/anthropic/v1",
+		Models: map[string]*catalog.Model{"MiniMax-M2.7": {ID: "MiniMax-M2.7"}},
+	}
+	prov, _, err := compat.Build(entry, "MiniMax-M2.7", func(string) string { return "k" })
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	if _, err := prov.Complete(context.Background(), agent.CompletionRequest{
+		Model:    "MiniMax-M2.7",
+		Messages: []agent.Message{{Role: agent.RoleUser, Content: "ping"}},
+	}); err != nil {
+		t.Fatalf("Complete: %v", err)
+	}
+	if gotPath != "/anthropic/v1/messages" {
+		t.Errorf("path = %q want /anthropic/v1/messages (no doubled version segment)", gotPath)
 	}
 }
 

@@ -43,11 +43,15 @@ const (
 type Provider struct {
 	APIKey string
 	// Endpoint is the full Messages API URL. If empty, BaseURL is used
-	// (appending /v1/messages); if both are empty, DefaultEndpoint.
+	// (appending /messages); if both are empty, DefaultEndpoint.
 	Endpoint string
-	// BaseURL lets the catalog/compat layer pass a bare provider URL
-	// (e.g. "https://api.anthropic.com") and have this Provider derive
-	// the right Messages path. Ignored when Endpoint is set.
+	// BaseURL is the AI-SDK-style Anthropic base URL — the value the
+	// catalog/compat layer passes from models.dev's `api` field, which
+	// already includes the version segment (e.g.
+	// "https://api.anthropic.com/v1", or a third-party Anthropic-shaped
+	// endpoint like "https://api.minimax.io/anthropic/v1"). This Provider
+	// appends only "/messages", matching the @ai-sdk/anthropic convention.
+	// Ignored when Endpoint is set.
 	BaseURL string
 	Model   string
 	HTTP    *http.Client
@@ -66,7 +70,10 @@ func New(apiKey string) *Provider {
 // resolveEndpoint returns the URL to POST to, derived in this order:
 //
 //  1. explicit p.Endpoint
-//  2. p.BaseURL + "/v1/messages" (the catalog/compat path)
+//  2. p.BaseURL + "/messages" (the catalog/compat path — BaseURL already
+//     carries the version segment per the @ai-sdk/anthropic convention,
+//     so we append only "/messages"; models.dev's `api` for third-party
+//     Anthropic-shaped providers ends in "/v1", "/anthropic/v1", etc.)
 //  3. DefaultEndpoint
 func (p *Provider) resolveEndpoint() string {
 	if p.Endpoint != "" {
@@ -77,7 +84,7 @@ func (p *Provider) resolveEndpoint() string {
 		for len(base) > 0 && base[len(base)-1] == '/' {
 			base = base[:len(base)-1]
 		}
-		return base + "/v1/messages"
+		return base + "/messages"
 	}
 	return DefaultEndpoint
 }

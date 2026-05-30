@@ -483,7 +483,9 @@ func resolveBedrockCreds(p *catalog.Provider, lookup CredLookup) (bedrockAuth, e
 func defaultBaseURL(f catalog.Family) string {
 	switch f {
 	case catalog.FamilyAnthropic:
-		return "https://api.anthropic.com"
+		// Includes the version segment: the anthropic adapter appends only
+		// "/messages" (the @ai-sdk/anthropic convention models.dev follows).
+		return "https://api.anthropic.com/v1"
 	case catalog.FamilyOpenAI:
 		return "https://api.openai.com/v1"
 	case catalog.FamilyGoogle:
