@@ -41,7 +41,7 @@ func cmdSchedule(args []string, stdout, stderr io.Writer) int {
 		return cmdScheduleEnable(args[1:], stdout, stderr, true)
 	case "-h", "--help", "help":
 		fmt.Fprintf(stdout, "usage: %s schedule <subcommand>\n", brand.CLI)
-		fmt.Fprintf(stdout, "  add \"<intent>\" --every <dur> [--model <id>] [--json]          recurring interval intent\n")
+		fmt.Fprintf(stdout, "  add \"<intent>\" --every <dur> [--between HH:MM-HH:MM [--days <spec>]]  interval, optionally windowed\n")
 		fmt.Fprintf(stdout, "  add \"<intent>\" --at <HH:MM> [--days <spec>] [--model <id>]    daily at a wall-clock time\n")
 		fmt.Fprintf(stdout, "  add \"<intent>\" --in <dur> | --once --at <HH:MM>              one-shot (fires once, then removed)\n")
 		fmt.Fprintf(stdout, "  edit <id> [--intent <s>] [--model <id>] [<cadence flag>]      change a schedule in place\n")
@@ -72,6 +72,27 @@ func parseHHMM(s string) (int, error) {
 	return hh*60 + mm, nil
 }
 
+// parseWindow parses a "HH:MM-HH:MM" window into start/end minutes since
+// midnight, requiring end strictly after start.
+func parseWindow(s string) (start, end int, err error) {
+	lo, hi, ok := strings.Cut(s, "-")
+	if !ok {
+		return 0, 0, fmt.Errorf("expected HH:MM-HH:MM")
+	}
+	start, err = parseHHMM(strings.TrimSpace(lo))
+	if err != nil {
+		return 0, 0, err
+	}
+	end, err = parseHHMM(strings.TrimSpace(hi))
+	if err != nil {
+		return 0, 0, err
+	}
+	if end <= start {
+		return 0, 0, fmt.Errorf("window end must be after its start")
+	}
+	return start, end, nil
+}
+
 // nextWallclock returns the next local occurrence of mins-past-midnight strictly
 // after now (today if still ahead, else tomorrow) — used for one-shot --once --at.
 func nextWallclock(now time.Time, mins int) time.Time {
@@ -86,7 +107,7 @@ func nextWallclock(now time.Time, mins int) time.Time {
 func cmdScheduleAdd(args []string, stdout, stderr io.Writer) int {
 	asJSON := false
 	once := false
-	var every, at, in, days, model string
+	var every, at, in, between, days, model string
 	var positional []string
 	for i := 0; i < len(args); i++ {
 		a := args[i]
@@ -96,8 +117,15 @@ func cmdScheduleAdd(args []string, stdout, stderr io.Writer) int {
 		case "--once":
 			once = true
 		case "-h", "--help":
-			fmt.Fprintf(stdout, "usage: %s schedule add \"<intent>\" (--every <dur> | --at <HH:MM> [--days <spec>] | --once --at <HH:MM> | --in <dur>) [--model <id>] [--json]\n", brand.CLI)
+			fmt.Fprintf(stdout, "usage: %s schedule add \"<intent>\" (--every <dur> [--between <HH:MM-HH:MM> [--days <spec>]] | --at <HH:MM> [--days <spec>] | --once --at <HH:MM> | --in <dur>) [--model <id>] [--json]\n", brand.CLI)
 			return 0
+		case "--between":
+			if i+1 >= len(args) {
+				fmt.Fprintf(stderr, "%s schedule add: --between needs a HH:MM-HH:MM window\n", brand.CLI)
+				return 2
+			}
+			i++
+			between = args[i]
 		case "--every":
 			if i+1 >= len(args) {
 				fmt.Fprintf(stderr, "%s schedule add: --every needs a duration\n", brand.CLI)
@@ -154,8 +182,12 @@ func cmdScheduleAdd(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "%s schedule add: pass exactly one of --every <dur>, --at <HH:MM>, or --in <dur>\n", brand.CLI)
 		return 2
 	}
-	if days != "" && at == "" {
-		fmt.Fprintf(stderr, "%s schedule add: --days only applies to --at (daily) schedules\n", brand.CLI)
+	if days != "" && at == "" && between == "" {
+		fmt.Fprintf(stderr, "%s schedule add: --days applies to --at (daily) or --every+--between (windowed) schedules\n", brand.CLI)
+		return 2
+	}
+	if between != "" && every == "" {
+		fmt.Fprintf(stderr, "%s schedule add: --between requires --every <dur> (a windowed interval)\n", brand.CLI)
 		return 2
 	}
 	if once && at == "" {
@@ -211,7 +243,7 @@ func cmdScheduleAdd(args []string, stdout, stderr io.Writer) int {
 				human = label + " at " + at
 			}
 		}
-	default: // every
+	default: // every (plain interval, or windowed when --between is set)
 		d, err := time.ParseDuration(every)
 		if err != nil {
 			fmt.Fprintf(stderr, "%s schedule add: bad --every duration %q: %v\n", brand.CLI, every, err)
@@ -222,7 +254,29 @@ func cmdScheduleAdd(args []string, stdout, stderr io.Writer) int {
 			return 2
 		}
 		callArgs["interval_sec"] = int64(d / time.Second)
-		human = "every " + d.String()
+		if between != "" {
+			start, end, err := parseWindow(between)
+			if err != nil {
+				fmt.Fprintf(stderr, "%s schedule add: bad --between %q: %v\n", brand.CLI, between, err)
+				return 2
+			}
+			callArgs["window_start"] = start
+			callArgs["window_end"] = end
+			human = fmt.Sprintf("every %s %s", d, between)
+			if days != "" {
+				mask, err := cadence.ParseDays(days)
+				if err != nil {
+					fmt.Fprintf(stderr, "%s schedule add: bad --days %q: %v\n", brand.CLI, days, err)
+					return 2
+				}
+				callArgs["days"] = mask
+				if label := cadence.FormatDays(mask); label != "" {
+					human += " " + label
+				}
+			}
+		} else {
+			human = "every " + d.String()
+		}
 	}
 	if model != "" {
 		callArgs["model"] = model
@@ -253,7 +307,7 @@ func cmdScheduleAdd(args []string, stdout, stderr io.Writer) int {
 func cmdScheduleEdit(args []string, stdout, stderr io.Writer) int {
 	asJSON := false
 	once := false
-	var id, intent, model, every, at, in, days string
+	var id, intent, model, every, at, in, between, days string
 	var setIntent, setModel bool
 	for i := 0; i < len(args); i++ {
 		a := args[i]
@@ -303,6 +357,12 @@ func cmdScheduleEdit(args []string, stdout, stderr io.Writer) int {
 				return 2
 			}
 			in = v
+		case "--between":
+			v, ok := needVal("--between")
+			if !ok {
+				return 2
+			}
+			between = v
 		case "--days":
 			v, ok := needVal("--days")
 			if !ok {
@@ -332,8 +392,12 @@ func cmdScheduleEdit(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "%s schedule edit: pass at most one of --every, --at, or --in\n", brand.CLI)
 		return 2
 	}
-	if days != "" && at == "" {
-		fmt.Fprintf(stderr, "%s schedule edit: --days only applies to --at (daily) schedules\n", brand.CLI)
+	if days != "" && at == "" && between == "" {
+		fmt.Fprintf(stderr, "%s schedule edit: --days applies to --at (daily) or --every+--between (windowed) schedules\n", brand.CLI)
+		return 2
+	}
+	if between != "" && every == "" {
+		fmt.Fprintf(stderr, "%s schedule edit: --between requires --every <dur>\n", brand.CLI)
 		return 2
 	}
 	if once && at == "" {
@@ -397,6 +461,23 @@ func cmdScheduleEdit(args []string, stdout, stderr io.Writer) int {
 			return 2
 		}
 		callArgs["interval_sec"] = int64(d / time.Second)
+		if between != "" {
+			start, end, err := parseWindow(between)
+			if err != nil {
+				fmt.Fprintf(stderr, "%s schedule edit: bad --between %q: %v\n", brand.CLI, between, err)
+				return 2
+			}
+			callArgs["window_start"] = start
+			callArgs["window_end"] = end
+			if days != "" {
+				mask, err := cadence.ParseDays(days)
+				if err != nil {
+					fmt.Fprintf(stderr, "%s schedule edit: bad --days %q: %v\n", brand.CLI, days, err)
+					return 2
+				}
+				callArgs["days"] = mask
+			}
+		}
 	}
 
 	c := dial(stderr)

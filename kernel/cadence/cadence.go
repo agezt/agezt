@@ -47,7 +47,8 @@ const (
 const (
 	ModeInterval = "" // fire every IntervalSec seconds
 	ModeDaily    = "daily"
-	ModeOnce     = "once" // fire exactly once at NextRunUnix, then self-remove
+	ModeOnce     = "once"   // fire exactly once at NextRunUnix, then self-remove
+	ModeWindow   = "window" // fire every IntervalSec, but only within a daily time window
 )
 
 // AllDays is the day-mask meaning "every day" (all seven bits set); the zero
@@ -64,8 +65,9 @@ type Entry struct {
 	Intent      string `json:"intent"`
 	Mode        string `json:"mode,omitempty"`
 	IntervalSec int64  `json:"interval_sec,omitempty"`
-	AtMinutes   int    `json:"at_minutes,omitempty"` // daily: minutes since local midnight
-	Days        int    `json:"days,omitempty"`       // daily: weekday bitmask (0/AllDays = every day)
+	AtMinutes   int    `json:"at_minutes,omitempty"`  // daily/window: minutes since local midnight (window: start)
+	EndMinutes  int    `json:"end_minutes,omitempty"` // window: window end, minutes since local midnight
+	Days        int    `json:"days,omitempty"`        // daily/window: weekday bitmask (0/AllDays = every day)
 	Model       string `json:"model,omitempty"`
 	Source      string `json:"source"`
 	Enabled     bool   `json:"enabled"`
@@ -88,16 +90,58 @@ func (e Entry) Cadence() string {
 		return "daily at " + hhmm
 	case ModeOnce:
 		return "once at " + time.Unix(e.NextRunUnix, 0).Format("2006-01-02 15:04")
+	case ModeWindow:
+		w := fmt.Sprintf("every %s %02d:%02d-%02d:%02d", e.Interval(),
+			e.AtMinutes/60, e.AtMinutes%60, e.EndMinutes/60, e.EndMinutes%60)
+		if d := FormatDays(e.Days); d != "" {
+			w += " " + d
+		}
+		return w
 	}
 	return "every " + e.Interval().String()
 }
 
 // advance computes the next-run time after firing at now.
 func (e Entry) advance(now time.Time) int64 {
-	if e.Mode == ModeDaily {
+	switch e.Mode {
+	case ModeDaily:
 		return nextDaily(now, e.AtMinutes, e.Days).Unix()
+	case ModeWindow:
+		return nextWindowSlot(now, e.AtMinutes, e.EndMinutes, e.IntervalSec, e.Days).Unix()
 	}
 	return now.Add(e.Interval()).Unix()
+}
+
+// nextWindowSlot returns the next firing instant strictly after now for a
+// windowed-interval schedule: slots are start, start+interval, … up to and
+// including end, on permitted weekdays. After the window closes for a day it
+// jumps to the next permitted day's start. Walks by calendar date (DST-correct).
+func nextWindowSlot(now time.Time, start, end int, intervalSec int64, days int) time.Time {
+	loc := now.Location()
+	y, m, d := now.Date()
+	iv := time.Duration(intervalSec) * time.Second
+	for i := 0; i < 8; i++ {
+		day := time.Date(y, m, d+i, 0, 0, 0, 0, loc)
+		if !dayAllowed(day.Weekday(), days) {
+			continue
+		}
+		startT := time.Date(y, m, d+i, start/60, start%60, 0, 0, loc)
+		endT := time.Date(y, m, d+i, end/60, end%60, 0, 0, loc)
+		if now.Before(startT) {
+			return startT
+		}
+		if !now.Before(endT) {
+			continue // today's window has closed
+		}
+		// now is inside [startT, endT): next aligned slot strictly after now.
+		k := now.Sub(startT)/iv + 1
+		slot := startT.Add(k * iv)
+		if !slot.After(endT) {
+			return slot
+		}
+		// no slot left today before end → fall through to the next permitted day
+	}
+	return now.Add(iv) // unreachable for a valid window
 }
 
 // dayAllowed reports whether wd is permitted by the day-mask. A zero mask (or
@@ -373,6 +417,61 @@ func (s *Store) SetEnabled(id string, enabled bool) (bool, error) {
 	return false, nil
 }
 
+// AddWindow creates an enabled windowed-interval entry: fire every interval, but
+// only within the daily time window [startMin, endMin] (minutes since local
+// midnight) on permitted weekdays. days==0/AllDays = every day.
+func (s *Store) AddWindow(intent string, interval time.Duration, startMin, endMin, days int, model, source string, now time.Time) (Entry, error) {
+	intent = strings.TrimSpace(intent)
+	if intent == "" {
+		return Entry{}, fmt.Errorf("cadence: intent is required")
+	}
+	if err := validateWindow(interval, startMin, endMin, days); err != nil {
+		return Entry{}, err
+	}
+	if source == "" {
+		source = SourceOperator
+	}
+	e := &Entry{
+		ID:          "sched-" + ulid.New(),
+		Intent:      intent,
+		Mode:        ModeWindow,
+		IntervalSec: int64(interval / time.Second),
+		AtMinutes:   startMin,
+		EndMinutes:  endMin,
+		Days:        days,
+		Model:       strings.TrimSpace(model),
+		Source:      source,
+		Enabled:     true,
+		CreatedUnix: now.Unix(),
+		NextRunUnix: nextWindowSlot(now, startMin, endMin, int64(interval/time.Second), days).Unix(),
+	}
+	s.mu.Lock()
+	s.entries = append(s.entries, e)
+	err := s.save()
+	s.mu.Unlock()
+	if err != nil {
+		return Entry{}, err
+	}
+	return *e, nil
+}
+
+// validateWindow checks the shared constraints for windowed schedules.
+func validateWindow(interval time.Duration, startMin, endMin, days int) error {
+	if interval < MinInterval {
+		return fmt.Errorf("cadence: interval %s is below the %s minimum", interval, MinInterval)
+	}
+	if startMin < 0 || startMin > 1439 || endMin < 0 || endMin > 1439 {
+		return fmt.Errorf("cadence: window bounds must be 00:00..23:59")
+	}
+	if endMin <= startMin {
+		return fmt.Errorf("cadence: window end must be after its start")
+	}
+	if days < 0 || days > AllDays {
+		return fmt.Errorf("cadence: day-mask must be 0..%d", AllDays)
+	}
+	return nil
+}
+
 // SetIntent changes an entry's intent in place. Returns whether it exists.
 func (s *Store) SetIntent(id, intent string) (bool, error) {
 	intent = strings.TrimSpace(intent)
@@ -408,7 +507,7 @@ func (s *Store) SetModel(id, model string) (bool, error) {
 // enabled), recomputing its next-run time. mode selects which of the cadence
 // parameters apply: ModeOnce → onceAt; ModeDaily → atMinutes+days; ModeInterval
 // → interval. Returns whether the entry exists.
-func (s *Store) Reschedule(id, mode string, interval time.Duration, atMinutes, days int, onceAt, now time.Time) (bool, error) {
+func (s *Store) Reschedule(id, mode string, interval time.Duration, atMinutes, endMinutes, days int, onceAt, now time.Time) (bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for _, e := range s.entries {
@@ -421,7 +520,7 @@ func (s *Store) Reschedule(id, mode string, interval time.Duration, atMinutes, d
 				return false, fmt.Errorf("cadence: one-shot time must be in the future")
 			}
 			e.Mode = ModeOnce
-			e.IntervalSec, e.AtMinutes, e.Days = 0, 0, 0
+			e.IntervalSec, e.AtMinutes, e.EndMinutes, e.Days = 0, 0, 0, 0
 			e.NextRunUnix = onceAt.Unix()
 		case ModeDaily:
 			if atMinutes < 0 || atMinutes > 1439 {
@@ -431,15 +530,23 @@ func (s *Store) Reschedule(id, mode string, interval time.Duration, atMinutes, d
 				return false, fmt.Errorf("cadence: day-mask must be 0..%d", AllDays)
 			}
 			e.Mode = ModeDaily
-			e.IntervalSec = 0
+			e.IntervalSec, e.EndMinutes = 0, 0
 			e.AtMinutes, e.Days = atMinutes, days
 			e.NextRunUnix = nextDaily(now, atMinutes, days).Unix()
+		case ModeWindow:
+			if err := validateWindow(interval, atMinutes, endMinutes, days); err != nil {
+				return false, err
+			}
+			e.Mode = ModeWindow
+			e.IntervalSec = int64(interval / time.Second)
+			e.AtMinutes, e.EndMinutes, e.Days = atMinutes, endMinutes, days
+			e.NextRunUnix = nextWindowSlot(now, atMinutes, endMinutes, e.IntervalSec, days).Unix()
 		default: // ModeInterval
 			if interval < MinInterval {
 				return false, fmt.Errorf("cadence: interval %s is below the %s minimum", interval, MinInterval)
 			}
 			e.Mode = ModeInterval
-			e.AtMinutes, e.Days = 0, 0
+			e.AtMinutes, e.EndMinutes, e.Days = 0, 0, 0
 			e.IntervalSec = int64(interval / time.Second)
 			e.NextRunUnix = now.Add(interval).Unix()
 		}

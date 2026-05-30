@@ -21,13 +21,16 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   (`;`-separated `interval=intent` jobs) seeds env-sourced entries at startup and
   is synced into the same store, and any entry can be **edited in place** (`agt
   schedule edit <id>`) — change its intent, model, or cadence while preserving its
-  id (a field-only edit leaves the next-run time undisturbed). Three cadences: **interval** (`--every 1h`),
+  id (a field-only edit leaves the next-run time undisturbed). Four cadences: **interval** (`--every 1h`),
   **daily wall-clock** (`--at 09:30`, local time, e.g. a morning brief),
   optionally restricted to **specific weekdays** (`--days mon-fri`, `--days
   weekends`, or a list/range like `mon,wed,fri`) so a daily schedule fires only on
   the days you want (DST-correct, advancing by calendar date), and **one-shot**
   reminders (`--in 30m` relative, or `--once --at 18:00`) that fire exactly once
-  and then remove themselves from the store; `agt
+  and then remove themselves from the store, plus **windowed intervals** (`--every
+  15m --between 09:00-17:00 [--days mon-fri]`) that fire on a sub-daily cadence
+  but only inside a daily time window on permitted weekdays, jumping to the next
+  window-open when one closes; `agt
   schedule pause`/`resume` disable and re-enable an entry without deleting it (a
   paused entry is skipped by the ticker but kept in the store). A single ticker
   fires every due entry; a still-running entry is skipped (no overlap). Each firing journals a

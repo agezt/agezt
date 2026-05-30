@@ -208,6 +208,40 @@ func TestScheduleEdit(t *testing.T) {
 	}
 }
 
+func TestScheduleAddWindow(t *testing.T) {
+	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	ctx := context.Background()
+
+	// Windowed interval: every 15m (900s) between 09:00–17:00 on weekdays (62).
+	res, err := c.Call(ctx, controlplane.CmdScheduleAdd, map[string]any{
+		"intent": "poll the queue", "interval_sec": 900,
+		"window_start": 540, "window_end": 1020, "days": 62,
+	})
+	if err != nil {
+		t.Fatalf("add window: %v", err)
+	}
+	if res["mode"] != "window" {
+		t.Errorf("mode = %v, want window", res["mode"])
+	}
+
+	res, _ = c.Call(ctx, controlplane.CmdScheduleList, nil)
+	list, _ := res["schedules"].([]any)
+	m, _ := list[0].(map[string]any)
+	if m["cadence"] != "every 15m0s 09:00-17:00 Mon-Fri" {
+		t.Errorf("cadence = %v", m["cadence"])
+	}
+	if end, _ := m["end_minutes"].(float64); int(end) != 1020 {
+		t.Errorf("end_minutes = %v, want 1020", m["end_minutes"])
+	}
+
+	// A window with end <= start is rejected by the store.
+	if _, err := c.Call(ctx, controlplane.CmdScheduleAdd, map[string]any{
+		"intent": "bad", "interval_sec": 900, "window_start": 1020, "window_end": 540,
+	}); err == nil {
+		t.Error("inverted window should error")
+	}
+}
+
 func TestScheduleAddValidates(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 	ctx := context.Background()

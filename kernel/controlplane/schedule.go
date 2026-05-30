@@ -29,6 +29,12 @@ func (s *Server) handleScheduleAdd(conn net.Conn, req Request) {
 	if onceAny, ok := req.Args["once_at_unix"]; ok {
 		at, _ := onceAny.(float64)
 		e, err = s.k.Schedules().AddOnce(intent, time.Unix(int64(at), 0), model, cadence.SourceOperator, time.Now())
+	} else if startAny, ok := req.Args["window_start"]; ok {
+		start, _ := startAny.(float64)
+		end, _ := req.Args["window_end"].(float64)
+		sec, _ := req.Args["interval_sec"].(float64)
+		days, _ := req.Args["days"].(float64)
+		e, err = s.k.Schedules().AddWindow(intent, time.Duration(sec)*time.Second, int(start), int(end), int(days), model, cadence.SourceOperator, time.Now())
 	} else if atAny, ok := req.Args["at_minutes"]; ok {
 		at, _ := atAny.(float64)
 		days, _ := req.Args["days"].(float64) // weekday bitmask; 0 = every day
@@ -50,7 +56,8 @@ func (s *Server) handleScheduleAdd(conn net.Conn, req Request) {
 		Type: RespResult,
 		Result: map[string]any{
 			"id": e.ID, "intent": e.Intent, "mode": e.Mode, "interval_sec": e.IntervalSec,
-			"at_minutes": e.AtMinutes, "days": e.Days, "model": e.Model, "next_run_unix": e.NextRunUnix,
+			"at_minutes": e.AtMinutes, "end_minutes": e.EndMinutes, "days": e.Days,
+			"model": e.Model, "next_run_unix": e.NextRunUnix,
 		},
 	})
 }
@@ -96,18 +103,24 @@ func (s *Server) handleScheduleEdit(conn net.Conn, req Request) {
 		_, _ = store.SetModel(id, model)
 	}
 
-	// At most one cadence change: once_at_unix | at_minutes[+days] | interval_sec.
+	// At most one cadence change: once | window | daily | interval.
 	var err error
 	if v, ok := req.Args["once_at_unix"]; ok {
 		at, _ := v.(float64)
-		_, err = store.Reschedule(id, cadence.ModeOnce, 0, 0, 0, time.Unix(int64(at), 0), now)
+		_, err = store.Reschedule(id, cadence.ModeOnce, 0, 0, 0, 0, time.Unix(int64(at), 0), now)
+	} else if v, ok := req.Args["window_start"]; ok {
+		start, _ := v.(float64)
+		end, _ := req.Args["window_end"].(float64)
+		sec, _ := req.Args["interval_sec"].(float64)
+		days, _ := req.Args["days"].(float64)
+		_, err = store.Reschedule(id, cadence.ModeWindow, time.Duration(sec)*time.Second, int(start), int(end), int(days), time.Time{}, now)
 	} else if v, ok := req.Args["at_minutes"]; ok {
 		at, _ := v.(float64)
 		days, _ := req.Args["days"].(float64)
-		_, err = store.Reschedule(id, cadence.ModeDaily, 0, int(at), int(days), time.Time{}, now)
+		_, err = store.Reschedule(id, cadence.ModeDaily, 0, int(at), 0, int(days), time.Time{}, now)
 	} else if v, ok := req.Args["interval_sec"]; ok {
 		sec, _ := v.(float64)
-		_, err = store.Reschedule(id, cadence.ModeInterval, time.Duration(sec)*time.Second, 0, 0, time.Time{}, now)
+		_, err = store.Reschedule(id, cadence.ModeInterval, time.Duration(sec)*time.Second, 0, 0, 0, time.Time{}, now)
 	}
 	if err != nil {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
@@ -131,7 +144,7 @@ func (s *Server) handleScheduleList(conn net.Conn, req Request) {
 	for _, e := range entries {
 		out = append(out, map[string]any{
 			"id": e.ID, "intent": e.Intent, "mode": e.Mode, "interval_sec": e.IntervalSec,
-			"at_minutes": e.AtMinutes, "days": e.Days, "cadence": e.Cadence(),
+			"at_minutes": e.AtMinutes, "end_minutes": e.EndMinutes, "days": e.Days, "cadence": e.Cadence(),
 			"model": e.Model, "source": e.Source, "enabled": e.Enabled,
 			"created_unix": e.CreatedUnix, "last_run_unix": e.LastRunUnix,
 			"next_run_unix": e.NextRunUnix,

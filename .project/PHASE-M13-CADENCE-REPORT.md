@@ -34,7 +34,8 @@ Survives restarts; every mutation persists immediately.
 A full management verb over the token-authed control plane (handlers in
 `kernel/controlplane/schedule.go`, commands `schedule_{add,list,remove,run,enable}`):
 
-- `add "<intent>" --every <dur>` — recurring interval.
+- `add "<intent>" --every <dur> [--between <HH:MM-HH:MM> [--days <spec>]]` —
+  interval, optionally restricted to a daily window on certain weekdays.
 - `add "<intent>" --at <HH:MM> [--days <spec>]` — daily wall-clock, optionally
   weekday-filtered.
 - `add "<intent>" --in <dur>` / `--once --at <HH:MM>` — one-shot.
@@ -47,7 +48,7 @@ A full management verb over the token-authed control plane (handlers in
 - `pause <id>` / `resume <id>` — disable/re-enable without deleting.
 - `rm <id>` — reversible removal.
 
-### 3. Three cadences
+### 3. Four cadences
 
 - **Interval** (`ModeInterval`): fire every `IntervalSec`. The original behavior,
   preserved as the zero-value mode for backward-compatible stores.
@@ -61,6 +62,13 @@ A full management verb over the token-authed control plane (handlers in
 - **One-shot** (`ModeOnce`, `--in 30m` / `--once --at 18:00`): fire exactly once
   at a wall-clock instant, then **remove itself** from the store in `Store.Due`.
   The reminder / at-job primitive. A past time is rejected.
+- **Windowed interval** (`ModeWindow`, `--every 15m --between 09:00-17:00
+  [--days mon-fri]`): fire on a sub-daily cadence, but only at aligned slots
+  (`start`, `start+interval`, … up to `end`) inside a daily time window, on
+  permitted weekdays. When the window closes for a day, the next run jumps to the
+  next permitted day's start. The cron-expression piece — "every 15 minutes during
+  business hours on weekdays" — composed from the interval/day/time primitives.
+  `nextWindowSlot` walks by calendar date (DST-correct).
 
 ### 4. Pause/resume + no-overlap firing
 `SetEnabled` toggles an entry's `Enabled` flag; the ticker (`Engine.fireDue` →
@@ -113,13 +121,16 @@ what the system did on its own and link it to the resulting run.
 - `cee731a` — weekday filtering for daily schedules (`--days mon-fri`)
 - `79e4083` — one-shot schedules (`--in 30m` / `--once --at 18:00`)
 - `agt schedule edit` — change a schedule in place (intent/model/cadence)
+- catch-up-once-after-downtime guarantee (test)
+- windowed intervals (`--every 15m --between 09:00-17:00 [--days …]`)
 
 ## Deferred (named for future autonomy work)
 
 - **A `--skip-missed` opt-out** for the catch-up-once behavior — today a slot
   missed during downtime fires once on restart (verified); some schedules would
   rather skip a stale slot entirely than run it late.
-- **Sub-daily cron expressions** (e.g. "every 15 min between 09:00–17:00 on
-  weekdays") — the day/time/interval primitives are in place to build on.
 - **Timezone-per-schedule** (today: the daemon's local zone for all wall-clock
-  schedules).
+  and windowed schedules).
+- **Calendar-style rules** beyond weekly recurrence (e.g. "first Monday of the
+  month", specific dates) — the current primitives cover interval / daily /
+  weekday / windowed / one-shot.

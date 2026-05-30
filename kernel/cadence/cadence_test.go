@@ -458,7 +458,7 @@ func TestStore_EditAndReschedule(t *testing.T) {
 	// Reschedule interval → daily weekdays: mode/at/days change, id preserved,
 	// next run recomputed (Sunday skipped → Monday 09:30).
 	wd, _ := ParseDays("weekdays")
-	if ok, err := s.Reschedule(e.ID, ModeDaily, 0, 9*60+30, wd, time.Time{}, now); !ok || err != nil {
+	if ok, err := s.Reschedule(e.ID, ModeDaily, 0, 9*60+30, 0, wd, time.Time{}, now); !ok || err != nil {
 		t.Fatalf("Reschedule daily: ok=%v err=%v", ok, err)
 	}
 	got, _ = s.Get(e.ID)
@@ -474,11 +474,11 @@ func TestStore_EditAndReschedule(t *testing.T) {
 	}
 
 	// Reschedule to one-shot; a past instant is rejected.
-	if _, err := s.Reschedule(e.ID, ModeOnce, 0, 0, 0, now.Add(-time.Minute), now); err == nil {
+	if _, err := s.Reschedule(e.ID, ModeOnce, 0, 0, 0, 0, now.Add(-time.Minute), now); err == nil {
 		t.Error("past one-shot reschedule should error")
 	}
 	future := now.Add(2 * time.Hour)
-	if ok, _ := s.Reschedule(e.ID, ModeOnce, 0, 0, 0, future, now); !ok {
+	if ok, _ := s.Reschedule(e.ID, ModeOnce, 0, 0, 0, 0, future, now); !ok {
 		t.Fatal("reschedule once returned false")
 	}
 	got, _ = s.Get(e.ID)
@@ -490,8 +490,84 @@ func TestStore_EditAndReschedule(t *testing.T) {
 	if ok, err := s.SetIntent("nope", "x"); ok || err != nil {
 		t.Errorf("missing SetIntent: ok=%v err=%v", ok, err)
 	}
-	if ok, _ := s.Reschedule("nope", ModeInterval, time.Hour, 0, 0, time.Time{}, now); ok {
+	if ok, _ := s.Reschedule("nope", ModeInterval, time.Hour, 0, 0, 0, time.Time{}, now); ok {
 		t.Error("missing Reschedule should report false")
+	}
+}
+
+func TestStore_Window_FiresWithinWindowAndJumpsAcrossClose(t *testing.T) {
+	s := mustStore(t)
+	// Monday 2026-06-01. Window 09:00–10:00 every 15m on weekdays.
+	wd, _ := ParseDays("weekdays")
+	created := time.Date(2026, 6, 1, 8, 0, 0, 0, time.UTC)
+	e, err := s.AddWindow("poll the queue", 15*time.Minute, 9*60, 10*60, wd, "", SourceOperator, created)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if e.Mode != ModeWindow || e.AtMinutes != 540 || e.EndMinutes != 600 {
+		t.Fatalf("entry = %+v", e)
+	}
+	if e.Cadence() != "every 15m0s 09:00-10:00 Mon-Fri" {
+		t.Errorf("cadence = %q", e.Cadence())
+	}
+	// Created at 08:00 → first slot is the window start, 09:00.
+	if e.NextRunUnix != time.Date(2026, 6, 1, 9, 0, 0, 0, time.UTC).Unix() {
+		t.Errorf("first slot = %d, want 09:00", e.NextRunUnix)
+	}
+
+	// Walk the in-window slots: 09:00 → 09:15 → … → 10:00.
+	fireAndNext := func(at time.Time) int64 {
+		due := s.Due(at)
+		if len(due) != 1 {
+			t.Fatalf("expected fire at %s, got %d", at.Format("15:04"), len(due))
+		}
+		g, _ := s.Get(e.ID)
+		return g.NextRunUnix
+	}
+	next := fireAndNext(time.Date(2026, 6, 1, 9, 0, 1, 0, time.UTC))
+	if next != time.Date(2026, 6, 1, 9, 15, 0, 0, time.UTC).Unix() {
+		t.Errorf("after 09:00, next = %d want 09:15", next)
+	}
+	// Fire the last in-window slot (10:00); next jumps to Tuesday 09:00.
+	// Advance NextRunUnix to 10:00 first by firing through the slots quickly.
+	for _, hhmm := range []struct{ h, m int }{{9, 15}, {9, 30}, {9, 45}, {10, 0}} {
+		fireAndNext(time.Date(2026, 6, 1, hhmm.h, hhmm.m, 1, 0, time.UTC))
+	}
+	got, _ := s.Get(e.ID)
+	wantTue := time.Date(2026, 6, 2, 9, 0, 0, 0, time.UTC).Unix()
+	if got.NextRunUnix != wantTue {
+		t.Errorf("after window close, next = %d want %d (Tue 09:00)", got.NextRunUnix, wantTue)
+	}
+}
+
+func TestStore_Window_SkipsDisallowedDay(t *testing.T) {
+	s := mustStore(t)
+	// Friday 2026-06-05; weekdays-only window → fires Friday, then jumps over the
+	// weekend to Monday 06-08.
+	wd, _ := ParseDays("weekdays")
+	created := time.Date(2026, 6, 5, 8, 0, 0, 0, time.UTC)
+	e, _ := s.AddWindow("x", time.Hour, 9*60, 17*60, wd, "", SourceOperator, created)
+	// After the last Friday slot (17:00) the next run jumps over the weekend to
+	// Monday 09:00, not Saturday — assert advance() directly from Friday 17:00.
+	fri17 := time.Date(2026, 6, 5, 17, 0, 0, 0, time.UTC)
+	nxt := time.Unix(e.advance(fri17), 0).UTC()
+	wantMon := time.Date(2026, 6, 8, 9, 0, 0, 0, time.UTC)
+	if !nxt.Equal(wantMon) {
+		t.Errorf("advance from Fri 17:00 = %s, want Mon 09:00", nxt.Format("2006-01-02 15:04"))
+	}
+}
+
+func TestStore_AddWindow_Validates(t *testing.T) {
+	s := mustStore(t)
+	now := time.Now()
+	if _, err := s.AddWindow("x", time.Hour, 600, 540, 0, "", SourceOperator, now); err == nil {
+		t.Error("end before start should error")
+	}
+	if _, err := s.AddWindow("x", time.Millisecond, 540, 600, 0, "", SourceOperator, now); err == nil {
+		t.Error("sub-minimum interval should error")
+	}
+	if _, err := s.AddWindow("  ", time.Hour, 540, 600, 0, "", SourceOperator, now); err == nil {
+		t.Error("empty intent should error")
 	}
 }
 
