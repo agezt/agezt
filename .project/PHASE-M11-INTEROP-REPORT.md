@@ -102,11 +102,14 @@ id, a streamed chunk from a real journaled run, and `stopReason: end_turn`.
                                                           │ ──acp_agent──▶ external ACP agent (subprocess)
                                                           │ ──coding─────▶ external coding agent (worktree)
    provider import ─▶ vault ─▶ Governor routes ──▶ every provider family
+
+   kernel tool-loop ─▶ journal/bus ──webhooks──▶ external HTTP endpoints (HMAC)
 ```
 
-Every inbound path funnels through the one governed loop; and every outbound
+Every inbound path funnels through the one governed loop; every outbound
 delegation (sub-agent, ACP agent, coding agent) is dispatched *from* that loop
-through Edict — no surface is a side-door around Edict or the journal.
+through Edict; and every journal event can fan out to external systems via
+signed webhooks — no surface is a side-door around Edict or the journal.
 
 ## Engineering
 
@@ -120,8 +123,9 @@ through Edict — no surface is a side-door around Edict or the journal.
 
 ## Deferred (named, not forgotten)
 
-- **Native REST / webhooks** (P7-API-02 remainder) — a first-party (non-OpenAI)
-  HTTP surface and outbound webhooks.
+- **Native REST surface** (P7-API-02 remainder) — a first-party (non-OpenAI)
+  versioned HTTP API for submitting/inspecting runs (the inbound half; the
+  outbound half — webhooks — shipped below).
 
 ## Follow-up shipped (same milestone)
 
@@ -173,6 +177,23 @@ through Edict — no surface is a side-door around Edict or the journal.
   `instructions` + typed-array `input` flattening, the full streaming event
   sequence, and the non-streaming-provider single-delta fallback — all against
   the fake engine on a real bus.
+
+- **Outbound webhooks** (`kernel/webhook`, P7-API-02) — the outbound counterpart
+  of the inbound API surfaces: a daemon resident that subscribes to the journal
+  bus and POSTs matching events to operator-configured endpoints, so external
+  systems react to Agezt in real time. Each sink is a `url|subject|secret`
+  triple (`AGEZT_WEBHOOKS`); the subject is a normal bus pattern, so matching is
+  the bus's, not a reimplementation. A secret turns on HMAC-SHA256 body signing
+  (`X-Agezt-Signature`) for receiver verification. Deliveries retry with backoff,
+  every outcome is journaled (`webhook.delivered` / `webhook.failed`, tied to the
+  originating run's correlation), and the dispatcher skips its own `webhook.*`
+  events so there is no feedback loop. **Proven:** unit-tested against a real
+  `httptest` receiver + real bus/journal (signed delivery + signature
+  verification, subject filtering, retry-then-succeed, fail-after-max-attempts,
+  the no-loop guard, spec parsing), and live end-to-end — a mock-provider run's
+  full arc (`task.received` → … → `task.completed`, 9 events) delivered HMAC-
+  signed to a local receiver with 9 matching `webhook.delivered` audit events
+  journaled.
 
 These are the next reachable steps toward the full vision; the substrate they
 build on shipped here.

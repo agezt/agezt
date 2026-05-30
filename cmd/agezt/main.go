@@ -53,6 +53,7 @@ import (
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/ulid"
 	"github.com/agezt/agezt/kernel/warden"
+	"github.com/agezt/agezt/kernel/webhook"
 	"github.com/agezt/agezt/kernel/webui"
 	"github.com/agezt/agezt/plugins/channels/telegram"
 	"github.com/agezt/agezt/plugins/providers/anthropic"
@@ -370,6 +371,16 @@ func runDaemon(stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "  openai api       : disabled (set AGEZT_API_ADDR, e.g. 127.0.0.1:8799)\n")
 	}
 
+	// Outbound webhooks (P7-API-02) — POST journal events to operator-configured
+	// endpoints (HMAC-signed), so external systems react to Agezt in real time.
+	// Runs on the daemon ctx (halt/shutdown stop it). Off unless AGEZT_WEBHOOKS
+	// is set.
+	if whDesc := buildWebhooks(ctx, k, stdout); whDesc != "" {
+		fmt.Fprintf(stdout, "  webhooks         : %s\n", whDesc)
+	} else {
+		fmt.Fprintf(stdout, "  webhooks         : disabled (set AGEZT_WEBHOOKS, e.g. https://host/hook|agent.>|secret)\n")
+	}
+
 	fmt.Fprintf(stdout, "  client commands  : %s run | halt | resume | why <id> | journal verify\n", brand.CLI)
 	fmt.Fprintf(stdout, "Press Ctrl+C to stop.\n")
 
@@ -651,6 +662,27 @@ func buildOpenAIAPI(ctx context.Context, k *kernelruntime.Kernel, stdout io.Writ
 		desc += "  [WARNING: not loopback — reachable beyond localhost]"
 	}
 	return desc
+}
+
+// buildWebhooks starts the outbound-webhook dispatcher when AGEZT_WEBHOOKS is
+// set. It subscribes to the bus on the daemon ctx (so halt/shutdown stop it) and
+// POSTs matching events to the configured sinks. Returns the banner description;
+// "" only when the env var is unset (an empty/invalid spec returns a one-line
+// reason so the operator sees the misconfiguration).
+func buildWebhooks(ctx context.Context, k *kernelruntime.Kernel, stdout io.Writer) string {
+	spec := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "WEBHOOKS"))
+	if spec == "" {
+		return ""
+	}
+	sinks, err := webhook.ParseSinks(spec)
+	if err != nil {
+		return "disabled (" + err.Error() + ")"
+	}
+	if len(sinks) == 0 {
+		return ""
+	}
+	webhook.NewDispatcher(k.Bus(), sinks, stdout).Start(ctx)
+	return webhook.Describe(sinks)
 }
 
 // isLoopback reports whether the host portion of addr binds to loopback only.

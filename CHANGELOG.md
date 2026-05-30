@@ -12,6 +12,18 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Outbound webhooks** (ROADMAP P7-API-02) — a daemon resident that POSTs
+  journal events to operator-configured HTTP endpoints as they happen, so
+  external systems react to Agezt in real time (a run completed, an approval is
+  pending, the system halted). Configured via `AGEZT_WEBHOOKS`, a comma-list of
+  `url|subject|secret` sinks; `subject` is a bus pattern (`agent.>`, `edict.>`,
+  `>`) so matching reuses the bus verbatim. When a `secret` is set each POST is
+  HMAC-SHA256-signed (`X-Agezt-Signature: sha256=…`) for receiver verification;
+  headers also carry `X-Agezt-Event`/`X-Agezt-Subject`/`X-Agezt-Delivery`.
+  Deliveries retry with backoff and each outcome is journaled
+  (`webhook.delivered` / `webhook.failed`) — and the dispatcher never
+  re-delivers its own `webhook.*` events, so there is no feedback loop. Runs on
+  the daemon ctx (halt/shutdown stop it); off unless `AGEZT_WEBHOOKS` is set.
 - **OpenAI Responses API** — `POST /v1/responses` (ROADMAP P7-API-02), alongside
   the existing `/v1/chat/completions`, so clients on OpenAI's newer Responses
   surface drive Agezt too. Accepts a string or message-array `input` plus

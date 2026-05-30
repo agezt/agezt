@@ -125,6 +125,14 @@ const (
 
 	// Journal self-events (used for snapshot/verify boundaries).
 	KindJournalSegmentRotated Kind = "journal.segment_rotated"
+
+	// Outbound webhooks (P7-API-02). The webhook dispatcher POSTs journal
+	// events to operator-configured endpoints; each delivery attempt's outcome
+	// is itself journaled so `agt journal grep webhook` audits what left the
+	// system. The dispatcher never re-delivers webhook.* events (no feedback
+	// loop).
+	KindWebhookDelivered Kind = "webhook.delivered" // a 2xx delivery
+	KindWebhookFailed    Kind = "webhook.failed"    // exhausted retries (error or non-2xx)
 )
 
 // IsKnown reports whether k is one of the kinds defined in this file. Useful
@@ -198,4 +206,6 @@ var knownKinds = map[Kind]struct{}{
 	KindSkillActivated:            {},
 	KindReflectionCompleted:       {},
 	KindJournalSegmentRotated:     {},
+	KindWebhookDelivered:          {},
+	KindWebhookFailed:             {},
 }

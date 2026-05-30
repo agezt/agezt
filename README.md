@@ -15,7 +15,7 @@ an **ACP** server), agents **delegate** to bounded sub-agents and to
 **external ACP agents** (Claude Code / Codex / …), and `agt provider import`
 brings every key you already have online in one pass.
 See [CHANGELOG.md](CHANGELOG.md).
-**Tests:** 1037 passing across 51 packages.
+**Tests:** 1044 passing across 52 packages.
 **Dependencies:** one (`lukechampine.com/blake3`) + one transitive.
 
 ## What you get
@@ -53,8 +53,9 @@ SigV4 + STS-AssumeRole + SSO, Azure OpenAI) with **per-request model routing**
 tools** (`shell`, `file`, `http`, `browser.read`, plus `memory`, `world`,
 `delegate` for sub-agent fan-out, `coding` for worktree-isolated external
 coding agents, and `acp_agent` to drive external ACP agents), an
-**OpenAI-compatible `/v1` API** and an **ACP server** so any
-OpenAI client or IDE can drive it,
+**OpenAI-compatible `/v1` API** (chat completions + responses) and an
+**ACP server** so any OpenAI client or IDE can drive it,
+**outbound webhooks** (HMAC-signed) so external systems react to its events,
 **out-of-process plugins** in any language over a tiny JSON protocol
 (with **hot-reload**, **BLAKE3 pin gating**, **tool allowlists**,
 **streaming progress**, and **kernel-callbacks**), an **MCP bridge plugin**
@@ -118,6 +119,19 @@ carries an `agezt_correlation_id` you can `agt why`:
 curl http://127.0.0.1:8799/v1/chat/completions \
   -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
   -d '{"model":"agezt","messages":[{"role":"user","content":"what is this project?"}]}'
+```
+
+**Push events out to your own systems.** Set `AGEZT_WEBHOOKS` to a comma-list of
+`url|subject|secret` sinks and the daemon POSTs every matching journal event to
+your endpoint as it happens — `task.completed`, `policy.decision`,
+`webhook.failed`, anything. The `subject` is a bus pattern (`agent.>`,
+`edict.>`, `>` for all); with a `secret` each POST carries an
+`X-Agezt-Signature: sha256=…` HMAC so you can verify authenticity. Every
+delivery is itself journaled (`webhook.delivered` / `webhook.failed`), retried
+on failure, and never loops:
+
+```bash
+AGEZT_WEBHOOKS='https://hooks.example.com/agezt|agent.>|my-signing-secret' ./bin/agezt
 ```
 
 For the full operator cheat sheet: `agt help`.  Day-to-day commands:
@@ -211,7 +225,7 @@ The v1 substrate. Highlights:
 ## Verify
 
 ```bash
-make test     # 1037 tests, all green
+make test     # 1044 tests, all green
 make build    # produces bin/agezt + bin/agt
 make gen      # regenerate SDK types from the contract
 ```
