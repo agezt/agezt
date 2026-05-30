@@ -81,6 +81,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return cmdTool(args[1:], stdout, stderr)
 	case "status":
 		return cmdStatus(args[1:], stdout, stderr)
+	case "doctor":
+		return cmdDoctor(args[1:], stdout, stderr)
 	case "shutdown":
 		return cmdShutdown(args[1:], stdout, stderr)
 	case "edict":
@@ -154,6 +156,7 @@ func printHelp(w io.Writer) {
 	fmt.Fprintf(w, "  budget [--json]                       show current-day spend vs daily + per-task-type caps\n")
 	fmt.Fprintf(w, "  tool list [--json]                    list in-process tools advertised to the model\n")
 	fmt.Fprintf(w, "  status [--json]                       daemon health overview (version skew, uptime, runs)\n")
+	fmt.Fprintf(w, "  doctor [--json]                       preflight checklist (base dir, daemon, journal, tools); exit 1 = a check failed\n")
 	fmt.Fprintf(w, "  plugin hash <path>                    BLAKE3 hex digest of a plugin binary (for AGEZT_PLUGIN_PINS)\n")
 	fmt.Fprintf(w, "  plugin list [--json]                  list external plugins the daemon spawned\n")
 	fmt.Fprintf(w, "  shutdown [--json]                     ask the daemon to exit gracefully (same path as SIGTERM)\n")
