@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/event"
 )
 
@@ -35,13 +36,23 @@ func NewClient(baseDir string) (*Client, error) {
 		}
 		return nil, fmt.Errorf("controlplane: read addr: %w", err)
 	}
-	tokenBytes, err := os.ReadFile(tokenPath)
-	if err != nil {
-		return nil, fmt.Errorf("controlplane: read token: %w", err)
+	// Token resolution: AGEZT_TOKEN overrides the on-disk primary token, so a
+	// tenant operator can present their tenant token (M38) — `AGEZT_TOKEN=<tok>
+	// agt --tenant X edict show` connects to the primary control plane but
+	// authenticates as tenant X. Falls back to the daemon's primary token file
+	// (the single-tenant default). A missing file is only an error when no env
+	// override is set.
+	token := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "TOKEN"))
+	if token == "" {
+		tokenBytes, rerr := os.ReadFile(tokenPath)
+		if rerr != nil {
+			return nil, fmt.Errorf("controlplane: read token: %w", rerr)
+		}
+		token = strings.TrimSpace(string(tokenBytes))
 	}
 	return &Client{
 		addr:  strings.TrimSpace(string(addrBytes)),
-		token: strings.TrimSpace(string(tokenBytes)),
+		token: token,
 	}, nil
 }
 

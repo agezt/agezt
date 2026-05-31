@@ -12,6 +12,22 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Per-tenant authenticated control-plane access** (SPEC-14, M38) — completes the
+  M14 tenant-isolation story on the control side. Tenant tokens already existed
+  (minted by `agt tenant create`) but the control plane only accepted the *primary*
+  token, so they were useless for auth. Now a request that presents a **tenant's
+  own token** (plus that tenant's id) authenticates *as* that tenant — a tenant can
+  manage its own runs and Edict policy without the primary token. A tenant
+  principal is strictly confined: a deny-by-default allowlist of tenant-routed
+  commands (`run`, `runs cancel`, all `edict` subcommands), with the tenant arg
+  pinned to the authorized tenant, so it cannot touch another tenant, the
+  tenant registry, or daemon-global state (halt/shutdown/pulse) — those stay
+  primary-only. The primary token retains full access, unchanged. Token presented
+  via `AGEZT_TOKEN=<tok>` (overrides the on-disk primary token); authorization uses
+  the registry's existing constant-time `Authorize`. Proven live: a tenant token
+  managed its own edict, was denied another tenant, primary-only commands, and the
+  registry, while the primary token kept full reach. See
+  `.project/PHASE-M38-PER-TENANT-AUTH-REPORT.md`.
 - **Capability down-routing** (`AGEZT_MODEL_DOWNROUTE=on`, SPEC-15, M37) — completes
   the M23–M27 capability arc: instead of merely *rejecting* a tools-bearing request
   to a tool-incapable model (M25 strict gate), the Governor now **remaps** it to a

@@ -235,9 +235,32 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "bad request: " + err.Error()})
 		return
 	}
+	// Authentication + authorization (M38). The primary (admin) token
+	// authorizes everything, on any tenant. Otherwise the request must name a
+	// tenant AND present that tenant's own token: the principal is then that
+	// tenant, restricted to an allowlist of tenant-routed commands and pinned
+	// to its own tenant. This completes M14 tenant isolation on the control
+	// side — a tenant manages its own runs/policy without the primary token,
+	// and cannot touch another tenant or daemon-global state.
 	if req.Token != s.Token() {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "unauthorized"})
-		return
+		reqTenant, _ := req.Args["tenant"].(string)
+		reqTenant = strings.TrimSpace(reqTenant)
+		if s.tenants == nil || reqTenant == "" || !s.tenants.Authorize(reqTenant, req.Token) {
+			s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "unauthorized"})
+			return
+		}
+		// Authorized as the named tenant. Restrict to tenant-safe commands.
+		if !tenantTokenAllows(req.Cmd) {
+			s.writeResp(conn, Response{ID: req.ID, Type: RespError,
+				Error: fmt.Sprintf("forbidden: a tenant token cannot run %q (primary token required)", req.Cmd)})
+			return
+		}
+		// Pin the tenant arg to the authorized tenant (defense in depth — it
+		// already matched, but no handler should ever see a different value).
+		if req.Args == nil {
+			req.Args = map[string]any{}
+		}
+		req.Args["tenant"] = reqTenant
 	}
 
 	switch req.Cmd {

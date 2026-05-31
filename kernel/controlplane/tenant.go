@@ -44,6 +44,25 @@ func (s *Server) kernelFor(tenantID string) (*runtime.Kernel, error) {
 // when multi-tenancy is enabled.
 func (s *Server) SetTenants(r *tenant.Registry) { s.tenants = r }
 
+// tenantTokenAllows is the deny-by-default allowlist of commands a TENANT
+// token may invoke (M38). It contains exactly the commands that route to the
+// caller's kernel via kernelFor/edictFor — running and cancelling the
+// tenant's own work, and managing the tenant's own Edict policy. Everything
+// else (tenant-registry management, daemon-global halt/resume/shutdown,
+// pulse, and the primary-journal run stats) requires the primary token. New
+// tenant-routed commands must be added here explicitly; forgetting to is the
+// safe failure (the tenant is denied, not over-granted).
+func tenantTokenAllows(cmd string) bool {
+	switch cmd {
+	case CmdRun, CmdCancelRun,
+		CmdEdictShow, CmdEdictTest, CmdEdictDenyList, CmdEdictDenyAdd,
+		CmdEdictDenyRemove, CmdEdictSetLevel, CmdEdictSetMode:
+		return true
+	default:
+		return false
+	}
+}
+
 func (s *Server) handleTenantCreate(conn net.Conn, req Request) {
 	if s.tenants == nil {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "multi-tenancy is disabled (no tenant registry configured)"})
