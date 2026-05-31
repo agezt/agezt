@@ -4,6 +4,7 @@ package runtime_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 	"sync"
@@ -87,6 +88,108 @@ func TestHalt_CancelsInflightRun(t *testing.T) {
 		}
 	case <-time.After(time.Second):
 		t.Fatal("in-flight run did not unblock after Halt")
+	}
+}
+
+// TestRunWith_TimesOut — a run whose wall-clock exceeds Config.MaxDuration
+// is cancelled with context.DeadlineExceeded (M31), and the agent loop's
+// M30 terminal emitter records task.failed(reason=timeout).
+func TestRunWith_TimesOut(t *testing.T) {
+	k, err := runtime.Open(runtime.Config{
+		BaseDir:     t.TempDir(),
+		Provider:    &blockingProvider{}, // never returns until ctx done
+		Tools:       map[string]agent.Tool{"shell": shell.New()},
+		MaxDuration: 30 * time.Millisecond,
+	})
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	t.Cleanup(func() { k.Close() })
+
+	start := time.Now()
+	_, corr, runErr := k.Run(context.Background(), "hang forever")
+	if !errors.Is(runErr, context.DeadlineExceeded) {
+		t.Fatalf("got err=%v, want context.DeadlineExceeded", runErr)
+	}
+	if elapsed := time.Since(start); elapsed > time.Second {
+		t.Errorf("run took %v, want it cut off near the 30ms deadline", elapsed)
+	}
+
+	// The M30 terminal event must classify this as a timeout, not a
+	// generic error or a cancel.
+	var failReason string
+	_ = k.Journal().Range(func(e *event.Event) error {
+		if e.Kind == event.KindTaskFailed && e.CorrelationID == corr {
+			var p struct {
+				Reason string `json:"reason"`
+			}
+			_ = json.Unmarshal(e.Payload, &p)
+			failReason = p.Reason
+		}
+		return nil
+	})
+	if failReason != "timeout" {
+		t.Errorf("task.failed reason = %q want timeout", failReason)
+	}
+}
+
+// TestRunWith_HaltBeatsTimeout — with a per-run timeout armed, an explicit
+// Halt before the deadline still cancels with context.Canceled (not
+// DeadlineExceeded), so an operator halt stays distinguishable from a
+// wall-clock timeout in the failure reason (M30/M31).
+func TestRunWith_HaltBeatsTimeout(t *testing.T) {
+	k, err := runtime.Open(runtime.Config{
+		BaseDir:     t.TempDir(),
+		Provider:    &blockingProvider{},
+		Tools:       map[string]agent.Tool{"shell": shell.New()},
+		MaxDuration: 10 * time.Second, // far longer than the test
+	})
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	t.Cleanup(func() { k.Close() })
+
+	done := make(chan error, 1)
+	go func() {
+		_, _, e := k.Run(context.Background(), "hang")
+		done <- e
+	}()
+	time.Sleep(50 * time.Millisecond)
+	k.Halt()
+
+	select {
+	case e := <-done:
+		if !errors.Is(e, context.Canceled) {
+			t.Errorf("got err=%v, want context.Canceled (halt, not timeout)", e)
+		}
+		if errors.Is(e, context.DeadlineExceeded) {
+			t.Error("halt was misclassified as a deadline timeout")
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("halted run did not unblock")
+	}
+}
+
+// TestRunWith_CompletesUnderTimeout — a fast run with a generous timeout
+// finishes normally; the deadline must not interfere with the happy path.
+func TestRunWith_CompletesUnderTimeout(t *testing.T) {
+	k, err := runtime.Open(runtime.Config{
+		BaseDir:     t.TempDir(),
+		Provider:    mock.New(mock.FinalText("done")),
+		Tools:       map[string]agent.Tool{},
+		MaxDuration: 5 * time.Second,
+	})
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	t.Cleanup(func() { k.Close() })
+
+	ans, _, runErr := k.Run(context.Background(), "hi")
+	if runErr != nil {
+		t.Fatalf("Run under generous timeout: %v", runErr)
+	}
+	if ans != "done" {
+		t.Errorf("ans = %q want done", ans)
 	}
 }
 

@@ -83,6 +83,16 @@ type Config struct {
 	// MaxIter caps tool-call rounds per run (DECISIONS E5).
 	MaxIter int
 
+	// MaxDuration is an optional per-run wall-clock budget (M31). When > 0,
+	// RunWith wraps the run context with this deadline; a run that overruns
+	// is cancelled and the agent loop returns context.DeadlineExceeded,
+	// which the M30 terminal emitter classifies as task.failed(reason=
+	// timeout). 0 (the default) means no wall-clock cap — only MaxIter and
+	// explicit halt bound a run. Distinct from a halt: the deadline cancels
+	// with DeadlineExceeded, while Halt() cancels with Canceled, so the two
+	// stay distinguishable in the failure reason.
+	MaxDuration time.Duration
+
 	// SubAgentTool registers the in-process `delegate` tool (P6-MULTI-01) so
 	// a lead agent can spawn a bounded sub-agent for a focused subtask and get
 	// back its summary. Off by default; the daemon is the single enable point.
@@ -798,7 +808,19 @@ func (k *Kernel) RunWith(ctx context.Context, corr, intent string) (string, erro
 		k.mu.Unlock()
 		return "", ErrHalted
 	}
-	runCtx, cancel := context.WithCancel(ctx)
+	// Per-run wall-clock budget (M31): when configured, the run context
+	// carries a deadline so a slow provider / blocking tool can't hang a
+	// run forever within a live session. The deadline cancels with
+	// DeadlineExceeded (→ task.failed reason=timeout, M30), whereas the
+	// cancel stored in k.runs (invoked by Halt) cancels with Canceled
+	// (→ reason=canceled) — the two stay distinguishable. 0 = no cap.
+	var runCtx context.Context
+	var cancel context.CancelFunc
+	if k.cfg.MaxDuration > 0 {
+		runCtx, cancel = context.WithTimeout(ctx, k.cfg.MaxDuration)
+	} else {
+		runCtx, cancel = context.WithCancel(ctx)
+	}
 	k.runs[corr] = cancel
 	k.mu.Unlock()
 

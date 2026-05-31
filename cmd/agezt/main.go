@@ -271,6 +271,23 @@ func runDaemon(stdout, stderr io.Writer) int {
 		SubAgentTool:          subAgentOn,
 		SubAgentMaxDepth:      subAgentDepth,
 	}
+	// Per-run wall-clock timeout (M31): AGEZT_RUN_TIMEOUT=<duration> caps how
+	// long a single run may take inside a live session. Off by default (only
+	// MaxIter + explicit halt bound a run); a positive duration arms the cap.
+	// A malformed value is a hard startup error (fast feedback over silent
+	// misconfig); a non-positive value is treated as "off".
+	runTimeoutDesc := "disabled (set " + brand.EnvPrefix + "RUN_TIMEOUT, e.g. 5m)"
+	if spec := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "RUN_TIMEOUT")); spec != "" {
+		d, derr := time.ParseDuration(spec)
+		if derr != nil {
+			fmt.Fprintf(stderr, "%s: %sRUN_TIMEOUT: want a Go duration (e.g. 90s, 5m), got %q\n", brand.Binary, brand.EnvPrefix, spec)
+			return 1
+		}
+		if d > 0 {
+			cfg.MaxDuration = d
+			runTimeoutDesc = fmt.Sprintf("%s per run (task.failed reason=timeout on overrun)", d)
+		}
+	}
 	// Secret redaction (M15 / SPEC-06): scrub secrets from every durably-published
 	// event before it enters the hash-chained (permanent) journal. On by default;
 	// AGEZT_REDACT=off disables. Seeded with the configured provider keys (exact
@@ -484,6 +501,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 	fmt.Fprintf(stdout, "  redaction        : %s\n", redactDesc)
 	fmt.Fprintf(stdout, "  tools            : %s\n", toolsDesc)
 	fmt.Fprintf(stdout, "  policy engine    : edict (defaults from DECISIONS F3; %s)\n", askPolicyDesc)
+	fmt.Fprintf(stdout, "  run timeout      : %s\n", runTimeoutDesc)
 	fmt.Fprintf(stdout, "  warden           : %s\n", wardDesc)
 	fmt.Fprintf(stdout, "  control plane    : %s\n", srv.Addr())
 	fmt.Fprintf(stdout, "  tenancy          : %s\n", tenantsDesc)

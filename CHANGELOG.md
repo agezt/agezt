@@ -12,6 +12,21 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Per-run wall-clock timeout** (SPEC-08, M31) — `AGEZT_RUN_TIMEOUT=<duration>`
+  (e.g. `90s`, `5m`) arms an optional per-run deadline so a slow provider or a
+  blocking tool can't hang a run forever *within* a live session (M28 only
+  covers across-restart). Off by default — only `MaxIter` and an explicit halt
+  bound a run. When armed, `RunWith` wraps the run context with the deadline; an
+  overrun cancels with `context.DeadlineExceeded`, which the M30 terminal emitter
+  classifies as `task.failed(reason=timeout)` — so `agt runs` shows
+  `failed (timeout)` and `agt runs stats` counts it against the success rate.
+  Crucially distinguished from an operator halt: the deadline cancels with
+  `DeadlineExceeded` while `Halt()` cancels with `Canceled` (→ `reason=canceled`),
+  so the two never blur. A malformed duration is a hard startup error; the boot
+  banner shows `run timeout : <d> per run …` / `disabled`. Proven live: a run
+  pointed at a black-hole endpoint was cut off at exactly its 2s budget and
+  rendered as `failed (timeout)` end-to-end. See
+  `.project/PHASE-M31-RUN-TIMEOUT-REPORT.md`.
 - **`task.failed` terminal event** (SPEC-08, M30) — a run that started
   (`task.received`) but errored out instead of completing used to emit no
   terminal event, so `agt runs` couldn't tell a real failure apart from a true
