@@ -417,6 +417,16 @@ func runDaemon(stdout, stderr io.Writer) int {
 	defer cancel()
 
 	srv := controlplane.NewServer(k, baseDir)
+	// Cancel-on-disconnect (M35): when AGEZT_CANCEL_ON_DISCONNECT=on, a
+	// streaming `agt run` whose client drops (Ctrl-C / killed) cancels its run
+	// server-side instead of running on headless. Off by default so a
+	// backgrounded `agt run &` (client still alive) is unaffected.
+	cancelOnDisconnect := strings.EqualFold(os.Getenv(brand.EnvPrefix+"CANCEL_ON_DISCONNECT"), "on")
+	srv.SetCancelOnDisconnect(cancelOnDisconnect)
+	cancelOnDisconnectDesc := "disabled (set " + brand.EnvPrefix + "CANCEL_ON_DISCONNECT=on)"
+	if cancelOnDisconnect {
+		cancelOnDisconnectDesc = "on (a dropped `agt run` client cancels its run)"
+	}
 	if err := srv.Start(ctx); err != nil {
 		fmt.Fprintf(stderr, "%s: start control plane: %v\n", brand.Binary, err)
 		return 1
@@ -521,6 +531,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 	fmt.Fprintf(stdout, "  tool timeout     : %s\n", toolTimeoutDesc)
 	fmt.Fprintf(stdout, "  warden           : %s\n", wardDesc)
 	fmt.Fprintf(stdout, "  control plane    : %s\n", srv.Addr())
+	fmt.Fprintf(stdout, "  cancel-on-disc.  : %s\n", cancelOnDisconnectDesc)
 	fmt.Fprintf(stdout, "  tenancy          : %s\n", tenantsDesc)
 	fmt.Fprintf(stdout, "  recovery         : %s\n", recoveryDesc)
 	fmt.Fprintf(stdout, "  knowledge        : memory %s · world model %s (%d entities) · skills %s/forge %s (%d active)\n",

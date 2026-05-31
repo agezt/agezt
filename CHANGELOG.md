@@ -12,6 +12,18 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Cancel-on-disconnect** (`AGEZT_CANCEL_ON_DISCONNECT=on`, SPEC-08, M35) — when
+  enabled, a streaming `agt run` whose client connection drops (Ctrl-C or a killed
+  client) cancels its run server-side instead of letting it churn on headless. The
+  run handler watches the otherwise-idle client connection in a goroutine; a read
+  unblocks only when the connection closes, at which point the run is cancelled via
+  the same `Kernel.CancelRun` path as `agt runs cancel` (M32) — so it terminates as
+  `failed (canceled)`. Off by default, so a backgrounded `agt run &` (whose client
+  stays alive) is unaffected — only a genuinely-gone client triggers it. When the
+  run finishes normally the watcher's read returns and the cancel is a harmless
+  no-op. Boot banner shows `cancel-on-disc. : on/disabled`. Proven live: killing a
+  hung run's client terminated it as `failed (canceled)`. See
+  `.project/PHASE-M35-CANCEL-ON-DISCONNECT-REPORT.md`.
 - **Per-tool-call timeout** (`AGEZT_TOOL_TIMEOUT=<dur>`, SPEC-08, M34) — bound
   each individual tool invocation's wall-clock without bounding the whole run.
   Where the per-run cap (M31) *fails the run* on overrun, a per-tool overrun fails

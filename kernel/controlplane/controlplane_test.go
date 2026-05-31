@@ -4,6 +4,7 @@ package controlplane_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -240,6 +241,97 @@ func TestCancelRun_UnknownAndMissingArg(t *testing.T) {
 
 	if _, err := c.Call(context.Background(), controlplane.CmdCancelRun, nil); err == nil {
 		t.Error("missing correlation arg should be a request error")
+	}
+}
+
+// firstFailureReason polls the journal for a task.failed under corr and
+// returns its reason, or "" if none appears within the deadline.
+func firstFailureReason(t *testing.T, k *runtime.Kernel, corr string, within time.Duration) string {
+	t.Helper()
+	deadline := time.Now().Add(within)
+	for time.Now().Before(deadline) {
+		reason := ""
+		_ = k.Journal().Range(func(e *event.Event) error {
+			if e.Kind == event.KindTaskFailed && e.CorrelationID == corr {
+				var p struct {
+					Reason string `json:"reason"`
+				}
+				_ = json.Unmarshal(e.Payload, &p)
+				reason = p.Reason
+			}
+			return nil
+		})
+		if reason != "" {
+			return reason
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	return ""
+}
+
+// startDisconnectRun starts a hanging streaming run via StreamUntilCancel,
+// returns its correlation and a cancel func that drops the client conn.
+func startDisconnectRun(t *testing.T, c *controlplane.Client) (corr string, drop func(), streamDone chan struct{}) {
+	t.Helper()
+	ctx, cancel := context.WithCancel(context.Background())
+	corrCh := make(chan string, 1)
+	done := make(chan struct{})
+	go func() {
+		_ = c.StreamUntilCancel(ctx, controlplane.CmdRun,
+			map[string]any{"intent": "hang"},
+			func(e *event.Event) {
+				if e.Kind == event.KindTaskReceived {
+					select {
+					case corrCh <- e.CorrelationID:
+					default:
+					}
+				}
+			})
+		close(done)
+	}()
+	select {
+	case corr = <-corrCh:
+	case <-time.After(2 * time.Second):
+		cancel()
+		t.Fatal("never observed task.received for the in-flight run")
+	}
+	return corr, cancel, done
+}
+
+// TestCancelOnDisconnect_Enabled — with cancel-on-disconnect on, dropping
+// the client connection mid-run cancels the run server-side, terminating it
+// as task.failed(reason=canceled) (M35).
+func TestCancelOnDisconnect_Enabled(t *testing.T) {
+	k, srv, c, _ := startPair(t, cpBlockingProvider{})
+	srv.SetCancelOnDisconnect(true)
+
+	corr, drop, streamDone := startDisconnectRun(t, c)
+	drop() // simulate Ctrl-C / killed client
+	<-streamDone
+
+	if reason := firstFailureReason(t, k, corr, 3*time.Second); reason != "canceled" {
+		t.Errorf("task.failed reason = %q want canceled (disconnect should cancel the run)", reason)
+	}
+}
+
+// TestCancelOnDisconnect_DisabledByDefault — with the feature off (default),
+// a dropped client does NOT cancel the run; it stays live (and we cancel it
+// ourselves to clean up).
+func TestCancelOnDisconnect_DisabledByDefault(t *testing.T) {
+	k, _, c, _ := startPair(t, cpBlockingProvider{})
+	// SetCancelOnDisconnect not called → default off.
+
+	corr, drop, streamDone := startDisconnectRun(t, c)
+	drop()
+	<-streamDone
+
+	// Give any (incorrect) cancellation a moment to land; none should.
+	if reason := firstFailureReason(t, k, corr, 500*time.Millisecond); reason != "" {
+		t.Errorf("run was cancelled on disconnect with the feature off (reason=%q)", reason)
+	}
+	// The run must still be live — cancel it ourselves to unblock + clean up.
+	if !k.CancelRun(corr) {
+		t.Error("run was not live after disconnect (feature off should leave it running)")
 	}
 }
 

@@ -52,6 +52,13 @@ type Server struct {
 	// via SetTenants. Nil unless multi-tenancy is enabled; the tenant handlers
 	// report "disabled" rather than dereferencing it.
 	tenants *tenant.Registry
+
+	// cancelOnDisconnect, when true, makes a streaming CmdRun cancel its run
+	// if the client connection drops before the run finishes (M35). Off by
+	// default so a backgrounded `agt run &` (whose client stays alive) is
+	// unaffected; only a genuinely-gone client (Ctrl-C / killed) cancels.
+	// Set once at startup via SetCancelOnDisconnect.
+	cancelOnDisconnect bool
 }
 
 // NewServer constructs a Server that will manage runtime files under
@@ -683,6 +690,11 @@ func (s *Server) handleDecide(conn net.Conn, req Request) {
 	})
 }
 
+// SetCancelOnDisconnect enables/disables cancelling a streaming run when its
+// client connection drops (M35). Called once at startup by the daemon when
+// AGEZT_CANCEL_ON_DISCONNECT=on. Off by default.
+func (s *Server) SetCancelOnDisconnect(on bool) { s.cancelOnDisconnect = on }
+
 func (s *Server) handleRun(ctx context.Context, conn net.Conn, req Request) {
 	intentAny, _ := req.Args["intent"]
 	intent, _ := intentAny.(string)
@@ -721,6 +733,24 @@ func (s *Server) handleRun(ctx context.Context, conn net.Conn, req Request) {
 		ans, err := k.RunWith(ctx, corr, intent)
 		resultCh <- runResult{ans, err}
 	}()
+
+	// Cancel-on-disconnect (M35): if enabled, watch the client connection and
+	// cancel this run the moment the client goes away (Ctrl-C / killed),
+	// instead of letting it run on headless. The client sends nothing after
+	// its request, so a read unblocks only when the connection closes — at
+	// which point we cancel via the same path as `agt runs cancel`. We clear
+	// the read deadline first so a long run isn't mistaken for a disconnect
+	// when the 10-minute handleConn deadline elapses. When the run finishes
+	// normally, handleConn's defer closes the conn, the read returns, and
+	// CancelRun is a harmless no-op (the run is already gone).
+	if s.cancelOnDisconnect {
+		go func() {
+			_ = conn.SetReadDeadline(time.Time{})
+			buf := make([]byte, 1)
+			_, _ = conn.Read(buf) // blocks until the connection closes
+			k.CancelRun(corr)
+		}()
+	}
 
 	// Forward events to the client until the run finishes, then drain
 	// the subscription one last time and send the final result.
