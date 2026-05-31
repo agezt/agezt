@@ -9,10 +9,12 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/internal/paths"
+	"github.com/agezt/agezt/kernel/catalog"
 	"github.com/agezt/agezt/kernel/controlplane"
 )
 
@@ -141,9 +143,41 @@ func runDoctorChecks() []doctorCheck {
 	checks = append(checks, checkVersionSkew(status))
 	checks = append(checks, checkJournal(ctx, client, status))
 	checks = append(checks, checkTools(status))
+	// Model readiness (M26): is the running model fit for the tool-driven
+	// agent loop? Best-effort — the catalog is read from disk (the same one
+	// the daemon loaded); a missing catalog or unlisted model yields an
+	// informational OK, never a false alarm.
+	cat, _ := loadCatalogIfAny(io.Discard)
+	checks = append(checks, checkModelReadiness(status, cat))
 	checks = append(checks, checkHalt(status))
 
 	return checks
+}
+
+// checkModelReadiness reports whether the daemon's configured model is fit
+// for the tool-driven agent loop, surfacing the same catalog.Model.AgentWarnings
+// as `agt provider check --caps` / the boot advisory (M23–M25), now inside the
+// operator's go-to diagnostic. Conservative: WARN only on a known capability
+// gap; an offline/mock model or a model the catalog doesn't list is an
+// informational OK (capabilities unknown), never a FAIL.
+func checkModelReadiness(status map[string]any, cat *catalog.Catalog) doctorCheck {
+	const name = "model readiness"
+	model, _ := status["model"].(string)
+	if model == "" || model == "mock" {
+		return ok(name, "offline/mock model (no catalog capabilities to assess)")
+	}
+	if cat == nil {
+		return ok(name, fmt.Sprintf("%s (catalog not synced — capabilities unknown)", model))
+	}
+	_, m := cat.FindModel(model)
+	if m == nil {
+		return ok(name, fmt.Sprintf("%s (not in catalog — capabilities unknown)", model))
+	}
+	if w := m.AgentWarnings(); len(w) > 0 {
+		return warn(name, fmt.Sprintf("%s — %s", model, strings.Join(w, "; ")),
+			"pick a tool-capable model (AGEZT_MODEL) or set AGEZT_MODEL_STRICT=on to fail fast")
+	}
+	return ok(name, model+" (agent-ready: advertises tool-use)")
 }
 
 func checkBaseDir(base string, baseErr error) doctorCheck {

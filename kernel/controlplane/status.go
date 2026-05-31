@@ -39,6 +39,7 @@ func (s *Server) handleStatus(conn net.Conn, req Request) {
 		Result: map[string]any{
 			"daemon":         brand.Version,
 			"protocol":       brand.ProtocolVersion,
+			"model":          s.k.Model(),
 			"uptime_seconds": uptimeSecs,
 			"halted":         s.k.IsHalted(),
 			"active_runs":    s.k.ActiveRuns(),

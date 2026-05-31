@@ -12,6 +12,16 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **`agt doctor` model-readiness check** (SPEC-08, M26) — the capability work
+  (M23–M25) now lands in the operator's go-to diagnostic. `agt doctor` gains a
+  `model readiness` line: OK when the running model advertises tool-use, WARN
+  (with the advisory + a remediation hint) when it doesn't — so someone debugging
+  "why won't my agent call tools?" sees the cause in the first command they run.
+  Conservative like the rest of the triad: an offline/mock model, an unsynced
+  catalog, or a model the catalog doesn't list is an informational OK, never a
+  false FAIL. `agt status` now also reports the configured `model`. Proven live:
+  doctor WARNs on a `tool_call=false` model and is OK on a tool-capable one. See
+  `.project/PHASE-M26-DOCTOR-MODEL-READINESS-REPORT.md`.
 - **Strict model-capability enforcement** (SPEC-15, M25) — the enforcement step
   after the M23/M24 advisories. `AGEZT_MODEL_STRICT=on` makes the Governor reject
   a tools-bearing request whose target model the catalog *knows* lacks tool-use,

@@ -6,6 +6,8 @@ import (
 	"bytes"
 	"strings"
 	"testing"
+
+	"github.com/agezt/agezt/kernel/catalog"
 )
 
 func TestCmdDoctor_Help(t *testing.T) {
@@ -89,3 +91,41 @@ func TestDoctorJSONShape(t *testing.T) {
 type errFake string
 
 func (e errFake) Error() string { return string(e) }
+
+func TestCheckModelReadiness(t *testing.T) {
+	cat := catalog.NewEmpty()
+	cat.Providers["acme"] = &catalog.Provider{
+		ID: "acme", NPM: "@ai-sdk/openai-compatible",
+		Models: map[string]*catalog.Model{
+			"mini":  {ID: "mini", ToolCall: false, Limit: catalog.Limit{Context: 32768}},
+			"large": {ID: "large", ToolCall: true, Limit: catalog.Limit{Context: 200000}},
+		},
+	}
+
+	// Tool-capable model → OK.
+	if c := checkModelReadiness(map[string]any{"model": "large"}, cat); c.Status != statusOK {
+		t.Errorf("large should be OK; got %s %q", c.State, c.Detail)
+	}
+	// Tool-less known model → WARN with the advisory + hint.
+	c := checkModelReadiness(map[string]any{"model": "mini"}, cat)
+	if c.Status != statusWarn {
+		t.Errorf("mini should WARN; got %s", c.State)
+	}
+	if !strings.Contains(c.Detail, "tool-use") || c.Hint == "" {
+		t.Errorf("mini warn should mention tool-use + carry a hint; got %q / %q", c.Detail, c.Hint)
+	}
+	// Unknown-to-catalog model → OK (no false alarm).
+	if c := checkModelReadiness(map[string]any{"model": "ghost"}, cat); c.Status != statusOK {
+		t.Errorf("unknown model should be OK; got %s", c.State)
+	}
+	// Mock / empty model → OK.
+	for _, m := range []string{"", "mock"} {
+		if c := checkModelReadiness(map[string]any{"model": m}, cat); c.Status != statusOK {
+			t.Errorf("model %q should be OK; got %s", m, c.State)
+		}
+	}
+	// Nil catalog → OK (capabilities unknown).
+	if c := checkModelReadiness(map[string]any{"model": "mini"}, nil); c.Status != statusOK {
+		t.Errorf("nil catalog should be OK; got %s", c.State)
+	}
+}
