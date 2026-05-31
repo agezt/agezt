@@ -200,6 +200,33 @@ func TestInvoke_RejectsMissingURL(t *testing.T) {
 	}
 }
 
+// The default client refuses internal addresses even when the hostname check is
+// bypassed (AllowAll) — browser.read must not fetch a page off loopback / the
+// metadata endpoint / the private network.
+func TestSSRFGuard_BlocksLoopbackEvenWithAllowAll(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = io.WriteString(w, "<html><body>internal-page-secret</body></html>")
+	}))
+	defer srv.Close()
+
+	tool := browser.New()
+	tool.AllowAll = true // bypass the hostname allowlist; egress guard must remain
+
+	res, err := tool.Invoke(context.Background(), mustJSON(t, map[string]any{"url": srv.URL}))
+	if err == nil {
+		t.Fatalf("loopback must be blocked by the egress guard; got %v", res)
+	}
+	if !strings.Contains(err.Error(), "netguard") && !strings.Contains(err.Error(), "blocked") {
+		t.Errorf("expected a netguard rejection, got: %v", err)
+	}
+
+	// With AllowLoopback the same fetch succeeds.
+	tool.AllowLoopback = true
+	if _, err := tool.Invoke(context.Background(), mustJSON(t, map[string]any{"url": srv.URL})); err != nil {
+		t.Errorf("AllowLoopback should permit the loopback server: %v", err)
+	}
+}
+
 func TestInvoke_Surfaces4xxAsToolError(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusNotFound)

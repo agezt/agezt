@@ -39,6 +39,7 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/netguard"
 )
 
 // DefaultTimeout caps a single fetch.
@@ -62,8 +63,17 @@ type Tool struct {
 	AllowedHosts []string
 	// AllowAll bypasses the host check (tests / trusted contexts).
 	AllowAll bool
-	// HTTP overrides the default client (tests use httptest.Client).
+	// HTTP overrides the default client (tests use httptest.Client). When nil,
+	// the tool builds a netguard-protected client (default-deny to internal /
+	// metadata addresses) honouring AllowLoopback/AllowPrivate. Setting it
+	// bypasses the guard — an explicit caller choice.
 	HTTP *stdhttp.Client
+	// AllowLoopback / AllowPrivate relax the egress guard for the default client
+	// (loopback, RFC1918+ULA). Default false: even an allowlisted/AllowAll host
+	// cannot reach internal addresses, so the agent can't read a page off the
+	// metadata endpoint or a co-located service. Neither unblocks 169.254.0.0/16.
+	AllowLoopback bool
+	AllowPrivate  bool
 	// UserAgent is sent on every request. A real browser-like value
 	// reduces the chance of WAFs / CDN edge rules treating the agent
 	// as a bot.
@@ -83,13 +93,30 @@ type Tool struct {
 	Cookies stdhttp.CookieJar
 }
 
-// New returns a Tool with safe defaults.
+// New returns a Tool with safe defaults (default-deny hosts, default-deny
+// internal egress).
 func New() *Tool {
 	return &Tool{
-		HTTP:      &stdhttp.Client{Timeout: DefaultTimeout},
 		UserAgent: "Mozilla/5.0 (compatible; agezt-browser/0.1)",
 		MaxChars:  DefaultMaxChars,
 	}
+}
+
+// client returns the fetch client: the injected one if set, else a fresh
+// netguard-protected client that refuses internal/metadata addresses on every
+// hop (initial + redirects), relaxed by AllowLoopback/AllowPrivate.
+func (t *Tool) client() *stdhttp.Client {
+	if t.HTTP != nil {
+		return t.HTTP
+	}
+	var opts []netguard.Option
+	if t.AllowLoopback {
+		opts = append(opts, netguard.AllowLoopback())
+	}
+	if t.AllowPrivate {
+		opts = append(opts, netguard.AllowPrivate())
+	}
+	return netguard.New(opts...).HTTPClient(DefaultTimeout)
 }
 
 // EnableCookies attaches a fresh in-memory cookie jar to the tool
@@ -163,10 +190,7 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, e
 	// see only application/* and that's harder to extract from.
 	req.Header.Set("Accept", "text/html,application/xhtml+xml,*/*;q=0.8")
 
-	client := t.HTTP
-	if client == nil {
-		client = stdhttp.DefaultClient
-	}
+	client := t.client()
 	// Per-Invoke cookie jar attach. Mutating the shared client's
 	// Jar would be a data race across concurrent Invokes; instead
 	// we make a shallow copy of the client when a jar is configured

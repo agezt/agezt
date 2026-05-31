@@ -33,6 +33,7 @@ func TestBrowser_CookiesPersistAcrossInvokes(t *testing.T) {
 
 	tool := browser.New()
 	tool.AllowAll = true
+	tool.AllowLoopback = true // reach the loopback test server
 	if err := tool.EnableCookies(); err != nil {
 		t.Fatalf("EnableCookies: %v", err)
 	}
@@ -73,6 +74,7 @@ func TestBrowser_NoCookieJarMeansNoPersistence(t *testing.T) {
 
 	tool := browser.New()
 	tool.AllowAll = true
+	tool.AllowLoopback = true // reach the loopback test server
 	// NO EnableCookies — jar nil.
 
 	for range 2 {

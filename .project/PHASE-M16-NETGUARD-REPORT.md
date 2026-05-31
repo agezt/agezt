@@ -1,12 +1,12 @@
 # Phase Report — Milestone M16 (Network egress guard: no SSRF, no metadata theft)
 
-> Status: **Phases 1–2 shipped** · Date: 2026-05-31
+> Status: **Phases 1–3 shipped** · Date: 2026-05-31
 > SPEC-06 security defaults. Phase 1: the egress-guard substrate
 > (`kernel/netguard`) — a dialer-level block on internal/metadata addresses that
-> defeats DNS rebinding and redirect-based SSRF. Phase 2: the HTTP tool builds a
-> guarded client by default, so even an allowlisted/AllowAll host cannot reach
-> loopback, the metadata endpoint, or the private network. Other outbound tools
-> are a named follow-up.
+> defeats DNS rebinding and redirect-based SSRF. Phase 2: the HTTP tool is guarded
+> by default. Phase 3: `browser.read` is guarded by default too. Both outbound
+> URL-fetching tools now refuse internal addresses even with the host check
+> bypassed.
 
 ## Why this milestone
 
@@ -102,9 +102,26 @@ refused with a `netguard` error and the server's body never returns; flipping
 test servers opt in explicitly. Live: the daemon banner shows
 `http(allow_all=true, egress=guarded)`.
 
+## Phase 3 — `browser.read` is guarded too
+
+The browser tool fetches arbitrary URLs and follows redirects — the same SSRF
+surface as the http tool — so it gets the same treatment. `browser.Tool` builds
+its fetch client from a `netguard` guard when none is injected, with
+`AllowLoopback`/`AllowPrivate` fields and `AGEZT_BROWSER_ALLOW_LOOPBACK` /
+`_PRIVATE` env opt-ins (private logs a warning). The per-Invoke cookie-jar shim
+still works — it shallow-copies the guarded client and sets the jar, preserving
+the guarded transport.
+
+**Proven:** `TestSSRFGuard_BlocksLoopbackEvenWithAllowAll` — `AllowAll=true`
+pointed at a loopback page is refused with a `netguard` error; `AllowLoopback`
+lets it through. The two cookie tests that exercise the default client opt into
+loopback; every other browser test injects `srv.Client()` (an explicit bypass)
+and is unaffected.
+
 ## Deferred — later phases (named)
 
-- **Other outbound tools** (`browser`, `peer`, MCP bridge, webhook sinks) routed
-  through the same guard — each builds its own client today.
+- **Remaining outbound paths** (`peer` tool, MCP bridge, webhook sinks) routed
+  through the same guard — each builds its own client today; the two
+  agent-driven URL fetchers (http, browser) — the highest-risk surface — are done.
 - **Per-call egress as an Edict capability** so the trust ladder governs which
   hosts/ranges a given run may reach (not just a global tool flag).

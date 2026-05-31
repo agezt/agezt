@@ -23,11 +23,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   on every connection — initial dial **and each redirect hop** — so it sees past
   the hostname and refuses loopback / private (RFC1918+ULA) / link-local (incl.
   metadata) / unspecified addresses at connect time, defeating both rebinding and
-  redirect SSRF. The **http tool is guarded by default** (even `AGEZT_HTTP_ALLOW_ALL`
-  can no longer reach internal addresses); `AGEZT_HTTP_ALLOW_LOOPBACK` /
-  `AGEZT_HTTP_ALLOW_PRIVATE` relax one range each for local use, and neither
-  unblocks the metadata endpoint. Other outbound tools and per-call Edict egress
-  are named follow-ups. See `.project/PHASE-M16-NETGUARD-REPORT.md`.
+  redirect SSRF. Both agent-driven URL fetchers — the **http tool** and
+  **`browser.read`** — are guarded by default (even `AGEZT_HTTP_ALLOW_ALL` /
+  `AGEZT_BROWSER_ALLOW_ALL` can no longer reach internal addresses);
+  `AGEZT_{HTTP,BROWSER}_ALLOW_LOOPBACK` / `_ALLOW_PRIVATE` relax one range each for
+  local use, and neither unblocks the metadata endpoint. The remaining outbound
+  paths (peer, MCP bridge, webhook sinks) and per-call Edict egress are named
+  follow-ups. See `.project/PHASE-M16-NETGUARD-REPORT.md`.
 - **Secret redaction at the journal boundary** (ROADMAP/SPEC-06, M15) — the
   journal is append-only and hash-chained, so any secret that reaches an event
   payload (a key echoed in tool stdout, a token in a prompt, an `Authorization`

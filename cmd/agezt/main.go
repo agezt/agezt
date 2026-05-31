@@ -1419,6 +1419,15 @@ func buildTools(baseDir string, stderr io.Writer, ward warden.Engine) (map[strin
 		br.AllowAll = true
 		fmt.Fprintln(stderr, "WARNING: AGEZT_BROWSER_ALLOW_ALL=1 disables the browser host allowlist.")
 	}
+	// Egress guard (M16): browser.read refuses internal/metadata addresses by
+	// default, even for allowlisted/AllowAll hosts. Relax per range for local use.
+	if os.Getenv(brand.EnvPrefix+"BROWSER_ALLOW_LOOPBACK") == "1" {
+		br.AllowLoopback = true
+	}
+	if os.Getenv(brand.EnvPrefix+"BROWSER_ALLOW_PRIVATE") == "1" {
+		br.AllowPrivate = true
+		fmt.Fprintln(stderr, "WARNING: AGEZT_BROWSER_ALLOW_PRIVATE=1 lets browser.read reach the private network.")
+	}
 	// Browser cookies (M1.mm) — off by default; operator opts in
 	// when they need session-following reads. In-memory jar; lost
 	// on daemon restart.
