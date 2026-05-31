@@ -288,6 +288,22 @@ func runDaemon(stdout, stderr io.Writer) int {
 			runTimeoutDesc = fmt.Sprintf("%s per run (task.failed reason=timeout on overrun)", d)
 		}
 	}
+	// Per-tool-call timeout (M34): AGEZT_TOOL_TIMEOUT=<duration> bounds each
+	// individual tool invocation. Unlike the per-run cap, an overrun fails
+	// only that tool call (the model gets an error result and can adapt) —
+	// the run continues. Off by default; malformed = hard startup error.
+	toolTimeoutDesc := "disabled (set " + brand.EnvPrefix + "TOOL_TIMEOUT, e.g. 30s)"
+	if spec := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "TOOL_TIMEOUT")); spec != "" {
+		d, derr := time.ParseDuration(spec)
+		if derr != nil {
+			fmt.Fprintf(stderr, "%s: %sTOOL_TIMEOUT: want a Go duration (e.g. 30s, 2m), got %q\n", brand.Binary, brand.EnvPrefix, spec)
+			return 1
+		}
+		if d > 0 {
+			cfg.ToolTimeout = d
+			toolTimeoutDesc = fmt.Sprintf("%s per tool call (error result on overrun; run continues)", d)
+		}
+	}
 	// Secret redaction (M15 / SPEC-06): scrub secrets from every durably-published
 	// event before it enters the hash-chained (permanent) journal. On by default;
 	// AGEZT_REDACT=off disables. Seeded with the configured provider keys (exact
@@ -502,6 +518,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 	fmt.Fprintf(stdout, "  tools            : %s\n", toolsDesc)
 	fmt.Fprintf(stdout, "  policy engine    : edict (defaults from DECISIONS F3; %s)\n", askPolicyDesc)
 	fmt.Fprintf(stdout, "  run timeout      : %s\n", runTimeoutDesc)
+	fmt.Fprintf(stdout, "  tool timeout     : %s\n", toolTimeoutDesc)
 	fmt.Fprintf(stdout, "  warden           : %s\n", wardDesc)
 	fmt.Fprintf(stdout, "  control plane    : %s\n", srv.Addr())
 	fmt.Fprintf(stdout, "  tenancy          : %s\n", tenantsDesc)

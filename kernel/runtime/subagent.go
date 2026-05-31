@@ -144,6 +144,7 @@ func (k *Kernel) runSubAgent(ctx context.Context, task string) (string, error) {
 		Model:         k.cfg.Model,
 		System:        system,
 		MaxIter:       k.cfg.MaxIter,
+		ToolTimeout:   k.cfg.ToolTimeout,
 		Actor:         actor,
 		CorrelationID: childCorr,
 		Policy:        k.policyHook,

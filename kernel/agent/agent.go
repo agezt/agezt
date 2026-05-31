@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/event"
@@ -144,6 +145,14 @@ type LoopConfig struct {
 	System   string
 	// MaxIter caps tool-call rounds (DECISIONS E5: default 25).
 	MaxIter int
+	// ToolTimeout, when > 0, bounds each individual tool invocation's
+	// wall-clock (M34). A tool that overruns has its call context cancelled
+	// and the loop feeds an IsError result ("tool X exceeded its … timeout")
+	// back to the model — the RUN continues, unlike the per-run MaxDuration
+	// (M31) which terminates the whole run. 0 = unbounded tool calls. A
+	// genuine run-level cancel/timeout (operator halt, M32 cancel, or the
+	// per-run deadline) still propagates and fails the run.
+	ToolTimeout time.Duration
 	// MaxTokens passed to the provider per call. 0 → provider default.
 	MaxTokens int
 	// Actor is the journaling actor for emitted events (e.g. "agent-01H").
@@ -407,11 +416,47 @@ func Run(ctx context.Context, cfg LoopConfig, userIntent string) (answer string,
 						IsError: true,
 					}
 				} else {
-					r, invokeErr := tool.Invoke(ctx, tc.Input)
-					if invokeErr != nil {
-						result = Result{Output: invokeErr.Error(), IsError: true}
-					} else {
+					// Optional per-tool wall-clock (M34): bound this single
+					// invocation without bounding the whole run. A tool that
+					// overruns gets an IsError result fed back to the model so
+					// it can adapt; the run keeps going. The per-run deadline
+					// (M31) and operator/M32 cancellation, by contrast, fail
+					// the run — distinguished below by checking the PARENT ctx.
+					toolCtx := ctx
+					var toolCancel context.CancelFunc
+					if cfg.ToolTimeout > 0 {
+						toolCtx, toolCancel = context.WithTimeout(ctx, cfg.ToolTimeout)
+					}
+					r, invokeErr := tool.Invoke(toolCtx, tc.Input)
+					// Capture whether the tool's OWN per-call deadline fired
+					// BEFORE cancelling — calling toolCancel() would flip a
+					// not-yet-expired toolCtx to Canceled and mask the
+					// distinction. We key on toolCtx's state rather than the
+					// returned error so a tool that wraps its error without the
+					// DeadlineExceeded sentinel (e.g. the warden's "context
+					// deadline exceeded" string) is still classified cleanly.
+					toolTimedOut := cfg.ToolTimeout > 0 && toolCtx.Err() == context.DeadlineExceeded
+					if toolCancel != nil {
+						toolCancel()
+					}
+					switch {
+					case invokeErr == nil:
 						result = r
+					case ctx.Err() != nil:
+						// The RUN context itself ended (operator halt, M32
+						// cancel, or the M31 per-run deadline) — a run-level
+						// terminal, not a tool fault. Propagate so the run
+						// fails with the correct reason instead of limping on.
+						return "", ctx.Err()
+					case toolTimedOut:
+						// The tool overran its own budget while the run is fine:
+						// hand the model a clear error and keep the run going.
+						result = Result{
+							Output:  fmt.Sprintf("tool %q exceeded its %s timeout", tc.Name, cfg.ToolTimeout),
+							IsError: true,
+						}
+					default:
+						result = Result{Output: invokeErr.Error(), IsError: true}
 					}
 				}
 			}

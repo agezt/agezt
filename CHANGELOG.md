@@ -12,6 +12,20 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Per-tool-call timeout** (`AGEZT_TOOL_TIMEOUT=<dur>`, SPEC-08, M34) — bound
+  each individual tool invocation's wall-clock without bounding the whole run.
+  Where the per-run cap (M31) *fails the run* on overrun, a per-tool overrun fails
+  only that one call: the loop hands the model an `IsError` result ("tool X
+  exceeded its … timeout") and the run continues so the model can adapt or try
+  another approach. A genuine run-level cancel/timeout (operator halt, M32 cancel,
+  or the M31 per-run deadline) still propagates and fails the run — the loop keys
+  off the *parent* run context to tell the two apart, and off the tool call
+  context's own deadline state (not the returned error string) so a tool that
+  wraps its error opaquely is still classified cleanly. Plumbed through
+  `LoopConfig.ToolTimeout` → `runtime.Config.ToolTimeout` (applies to sub-agents
+  too); off by default; boot banner shows `tool timeout : …`. Proven live: with a
+  tiny budget a tool call timed out and the run still completed. See
+  `.project/PHASE-M34-TOOL-TIMEOUT-REPORT.md`.
 - **Windowed run stats** (`agt runs stats --since <dur>`, SPEC-08, M33) —
   restrict the run-health aggregation to runs that *started* within the last
   `<dur>` (e.g. `--since 1h`, `--since 30m`), instead of all-time. Answers "how

@@ -359,6 +359,146 @@ func TestRun_SuccessEmitsNoTaskFailed(t *testing.T) {
 	}
 }
 
+// blockingTool blocks Invoke until ctx is cancelled, then returns ctx.Err()
+// — used to exercise the per-tool timeout (M34).
+type blockingTool struct{}
+
+func (blockingTool) Definition() agent.ToolDef {
+	return agent.ToolDef{Name: "slow", Description: "blocks", InputSchema: json.RawMessage(`{"type":"object"}`)}
+}
+func (blockingTool) Invoke(ctx context.Context, _ json.RawMessage) (agent.Result, error) {
+	<-ctx.Done()
+	return agent.Result{}, ctx.Err()
+}
+
+// TestRun_ToolTimeoutFeedsErrorNotFailure — a tool that overruns its
+// ToolTimeout yields an IsError result fed back to the model, and the RUN
+// still completes (M34). Distinct from the per-run MaxDuration (M31), which
+// fails the whole run.
+func TestRun_ToolTimeoutFeedsErrorNotFailure(t *testing.T) {
+	b, j := newTestBus(t)
+	// Round 1: model asks for the slow tool. Round 2: it gives a final
+	// answer (after seeing the timeout error result).
+	prov := mock.New(
+		mock.ToolUse("c1", "slow", map[string]string{}),
+		mock.FinalText("gave up on the slow tool"),
+	)
+	ans, err := agent.Run(context.Background(), agent.LoopConfig{
+		Provider:      prov,
+		Tools:         map[string]agent.Tool{"slow": blockingTool{}},
+		Bus:           b,
+		Actor:         "agent-tt",
+		CorrelationID: "corr-tt",
+		ToolTimeout:   30 * time.Millisecond,
+	}, "use the slow tool")
+	if err != nil {
+		t.Fatalf("run should complete despite a tool timeout, got err=%v", err)
+	}
+	if ans != "gave up on the slow tool" {
+		t.Errorf("ans = %q want final answer", ans)
+	}
+
+	// The tool.result must be an error mentioning the timeout, and there
+	// must be NO task.failed (the run succeeded).
+	var sawTimeoutResult, sawFailed bool
+	_ = j.Range(func(e *event.Event) error {
+		switch e.Kind {
+		case event.KindToolResult:
+			var p struct {
+				Output string `json:"output"`
+				Error  bool   `json:"error"`
+			}
+			_ = json.Unmarshal(e.Payload, &p)
+			if p.Error && strings.Contains(p.Output, "timeout") {
+				sawTimeoutResult = true
+			}
+		case event.KindTaskFailed:
+			sawFailed = true
+		}
+		return nil
+	})
+	if !sawTimeoutResult {
+		t.Error("expected an is_error tool.result mentioning the timeout")
+	}
+	if sawFailed {
+		t.Error("a per-tool timeout must not emit task.failed (run continues)")
+	}
+}
+
+// TestRun_FastToolUnderTimeoutUnaffected — a tool that finishes within its
+// ToolTimeout runs normally; the cap doesn't interfere.
+func TestRun_FastToolUnderTimeoutUnaffected(t *testing.T) {
+	b, _ := newTestBus(t)
+	prov := mock.New(
+		mock.ToolUse("c1", "shell", map[string]string{"command": "echo hi"}),
+		mock.FinalText("done"),
+	)
+	ans, err := agent.Run(context.Background(), agent.LoopConfig{
+		Provider:      prov,
+		Tools:         map[string]agent.Tool{"shell": shell.New()},
+		Bus:           b,
+		Actor:         "agent-ft",
+		CorrelationID: "corr-ft",
+		ToolTimeout:   5 * time.Second,
+	}, "echo")
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if ans != "done" {
+		t.Errorf("ans = %q want done", ans)
+	}
+}
+
+// TestRun_RunCancelDuringToolFailsRun — if the RUN context is cancelled
+// while a tool is executing, the run fails with context.Canceled rather
+// than the tool timeout swallowing it into an error result and limping on
+// (M34 must not mask run-level cancellation).
+func TestRun_RunCancelDuringToolFailsRun(t *testing.T) {
+	b, j := newTestBus(t)
+	prov := mock.New(
+		mock.ToolUse("c1", "slow", map[string]string{}),
+		mock.FinalText("should never reach here"),
+	)
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() {
+		_, e := agent.Run(ctx, agent.LoopConfig{
+			Provider:      prov,
+			Tools:         map[string]agent.Tool{"slow": blockingTool{}},
+			Bus:           b,
+			Actor:         "agent-rc",
+			CorrelationID: "corr-rc",
+			ToolTimeout:   10 * time.Second, // long; the run cancel must win
+		}, "use the slow tool")
+		done <- e
+	}()
+	time.Sleep(50 * time.Millisecond)
+	cancel()
+
+	select {
+	case e := <-done:
+		if !errors.Is(e, context.Canceled) {
+			t.Errorf("got err=%v, want context.Canceled", e)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("run did not return after cancel during tool")
+	}
+	var reason string
+	_ = j.Range(func(e *event.Event) error {
+		if e.Kind == event.KindTaskFailed {
+			var p struct {
+				Reason string `json:"reason"`
+			}
+			_ = json.Unmarshal(e.Payload, &p)
+			reason = p.Reason
+		}
+		return nil
+	})
+	if reason != "canceled" {
+		t.Errorf("task.failed reason = %q want canceled", reason)
+	}
+}
+
 func TestRun_RequiresProviderAndBusAndActor(t *testing.T) {
 	b, _ := newTestBus(t)
 	_, err := agent.Run(context.Background(), agent.LoopConfig{Bus: b, Actor: "a"}, "x")

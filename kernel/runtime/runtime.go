@@ -93,6 +93,13 @@ type Config struct {
 	// stay distinguishable in the failure reason.
 	MaxDuration time.Duration
 
+	// ToolTimeout is an optional per-tool-call wall-clock budget (M34),
+	// passed straight through to the agent loop's LoopConfig. When > 0, a
+	// single tool invocation that overruns is cancelled and the model is
+	// handed an error result — the run continues, unlike MaxDuration which
+	// fails the whole run. 0 (the default) means no per-tool cap.
+	ToolTimeout time.Duration
+
 	// SubAgentTool registers the in-process `delegate` tool (P6-MULTI-01) so
 	// a lead agent can spawn a bounded sub-agent for a focused subtask and get
 	// back its summary. Off by default; the daemon is the single enable point.
@@ -926,6 +933,7 @@ func (k *Kernel) RunWith(ctx context.Context, corr, intent string) (string, erro
 		Model:         model,
 		System:        system,
 		MaxIter:       k.cfg.MaxIter,
+		ToolTimeout:   k.cfg.ToolTimeout,
 		Actor:         actor,
 		CorrelationID: corr,
 		Policy:        k.policyHook,
