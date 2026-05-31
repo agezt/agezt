@@ -27,7 +27,10 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   every tenant bus; `AGEZT_REDACT=off` disables). Because the state/memory/world
   stores are event-sourced projections fed by the bus, scrubbing at this one
   chokepoint keeps the raw secret out of *every* on-disk store at once (proven
-  live). Streaming display tokens are a named follow-up. See
+  live). Operators can add site-specific secrets the vault doesn't hold and the
+  patterns can't recognise (internal tokens, DB passwords) via
+  `AGEZT_REDACT_EXTRA` (`;`-separated literals). Streaming display tokens and
+  custom regex rules are named follow-ups. See
   `.project/PHASE-M15-REDACTION-REPORT.md`.
 - **Multi-tenant isolation foundation** (ROADMAP P6-MULTI, Phase 1) — a
   `kernel/tenant` `Registry` that lets one process host many fully-isolated

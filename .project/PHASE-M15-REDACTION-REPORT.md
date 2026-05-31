@@ -1,6 +1,6 @@
 # Phase Report — Milestone M15 (Secret redaction at the journal boundary)
 
-> Status: **Phases 1–2 shipped** · Date: 2026-05-31
+> Status: **Phases 1–3 shipped** · Date: 2026-05-31
 > SPEC-06 / ROADMAP "redaction must work before Initiative can act
 > autonomously." Phase 1: the redaction substrate (`kernel/redact`) + the bus
 > seam that scrubs every durably-published event before it is hashed and written.
@@ -102,11 +102,28 @@ of the *entire base dir* — not just `journal/` but `state/`, `memory/`,
 event-sourced projections fed by the bus, redacting at the bus chokepoint
 protects every downstream store at once.
 
+## Phase 3 — operator-extensible literals
+
+Real deployments have secrets the provider vault never holds and the built-in
+patterns can't recognise — internal API tokens, DB passwords, service
+credentials. `AGEZT_REDACT_EXTRA` (a `;`-separated list, trimmed, empties
+dropped) adds those as literal secrets alongside the vault values, seeded at
+startup and re-seeded on reload. The banner reports the count
+(`…, 2 via AGEZT_REDACT_EXTRA`).
+
+**Proven live:** with `AGEZT_REDACT_EXTRA="HUNTER2-internal-db-pw;
+corp-token-9f8e7d6c5b4a"`, a run that echoes both internal secrets (neither
+matches a pattern nor lives in the vault) leaves **neither** anywhere in the base
+dir.
+
 ## Deferred — later phases (named)
 
 - **Streaming-token redaction** for the live display path (defense-in-depth for
-  secrets fully contained in one chunk).
-- **Custom redaction rules** (operator-supplied regexes / additional literals via
-  env or config) for site-specific secret shapes.
+  secrets fully contained in one chunk; cross-chunk secrets need stream
+  buffering, which would change streaming semantics — hence deferred).
+- **Custom regex rules** (operator-supplied patterns, validated/compiled at
+  startup) for site-specific secret *shapes* — the literal half shipped in
+  Phase 3; arbitrary regexes need careful compile-error handling to avoid an
+  over-redacting or daemon-failing footgun.
 - **Per-tenant secret sets** (today all tenants share the primary redactor's
   literals + patterns; a tenant with its own vault would seed its own literals).

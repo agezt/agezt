@@ -266,8 +266,12 @@ func runDaemon(stdout, stderr io.Writer) int {
 	redactDesc := "disabled (" + brand.EnvPrefix + "REDACT=off)"
 	if !strings.EqualFold(os.Getenv(brand.EnvPrefix+"REDACT"), "off") {
 		redactor = redact.New()
-		redactor.SetSecrets(credSecrets(credStore))
-		redactDesc = fmt.Sprintf("enabled (%d vault secrets + built-in patterns)", len(credStore.Names()))
+		lits := credSecrets(credStore)
+		redactor.SetSecrets(lits)
+		redactDesc = fmt.Sprintf("enabled (%d literal secrets + built-in patterns)", len(lits))
+		if n := len(extraRedactLiterals()); n > 0 {
+			redactDesc += fmt.Sprintf(", %d via %sREDACT_EXTRA", n, brand.EnvPrefix)
+		}
 	}
 
 	cfg.OnReload = func() error {
@@ -759,9 +763,12 @@ func (e kernelAPIEngine) EventsForCorrelation(corr string) ([]*event.Event, erro
 	return out, err
 }
 
-// credSecrets returns the non-empty values of every vault entry, for seeding the
-// secret redactor's literal set (M15). Values, not names — the redactor scrubs
-// the actual secret strings wherever they appear in event payloads.
+// credSecrets returns the non-empty values of every vault entry plus any extra
+// operator-supplied literals, for seeding the secret redactor (M15). Values, not
+// names — the redactor scrubs the actual secret strings wherever they appear in
+// event payloads. Extra literals (AGEZT_REDACT_EXTRA, ';'-separated) cover
+// site-specific secrets not in the provider vault and not matching a built-in
+// pattern (internal API tokens, DB passwords, …).
 func credSecrets(store *creds.Store) []string {
 	names := store.Names()
 	vals := make([]string, 0, len(names))
@@ -770,7 +777,24 @@ func credSecrets(store *creds.Store) []string {
 			vals = append(vals, v)
 		}
 	}
+	vals = append(vals, extraRedactLiterals()...)
 	return vals
+}
+
+// extraRedactLiterals parses AGEZT_REDACT_EXTRA into a list of additional literal
+// secrets to scrub. Entries are ';'-separated and trimmed; empties are dropped.
+func extraRedactLiterals() []string {
+	spec := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "REDACT_EXTRA"))
+	if spec == "" {
+		return nil
+	}
+	var out []string
+	for _, part := range strings.Split(spec, ";") {
+		if v := strings.TrimSpace(part); v != "" {
+			out = append(out, v)
+		}
+	}
+	return out
 }
 
 // buildOpenAIAPI starts the OpenAI-compatible HTTP resident when AGEZT_API_ADDR
