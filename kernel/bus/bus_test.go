@@ -6,12 +6,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/journal"
+	"github.com/agezt/agezt/kernel/redact"
 )
 
 func newTestBus(t *testing.T) *Bus {
@@ -45,6 +47,90 @@ func TestSubscribePublish(t *testing.T) {
 		}
 	case <-time.After(time.Second):
 		t.Fatal("no delivery within 1s")
+	}
+}
+
+// With a redactor installed, a secret in a published payload must never reach
+// the journal: the persisted event carries the placeholder, the hash is computed
+// over the redacted bytes (so it still verifies), and tag values are scrubbed too.
+func TestRedactor_ScrubsBeforeJournal(t *testing.T) {
+	b := newTestBus(t)
+	r := redact.New()
+	r.SetSecrets([]string{"literal-tenant-key-xyz"})
+	b.SetRedactor(r)
+
+	sub, _ := b.Subscribe("tool.result", 4)
+	defer sub.Cancel()
+
+	got, err := b.Publish(event.Spec{
+		Subject: "tool.result",
+		Kind:    event.KindToolResult,
+		Actor:   "agent-1",
+		Payload: map[string]any{
+			"stdout": "OPENAI_API_KEY=sk-abcdefghijklmnopqrstuvwx and literal-tenant-key-xyz",
+			"ok":     true,
+		},
+		Tags: map[string]string{"note": "key sk-zzzzzzzzzzzzzzzzzzzzzz here"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// The returned (and delivered) event is already redacted.
+	if strings.Contains(string(got.Payload), "sk-abcdefghijklmnopqrstuvwx") ||
+		strings.Contains(string(got.Payload), "literal-tenant-key-xyz") {
+		t.Fatalf("returned payload still has a secret: %s", got.Payload)
+	}
+	if !strings.Contains(string(got.Payload), redact.Placeholder) {
+		t.Errorf("expected placeholder in payload: %s", got.Payload)
+	}
+	if strings.Contains(got.Tags["note"], "sk-zzzzzzzzzzzzzzzzzzzzzz") {
+		t.Errorf("tag value not redacted: %q", got.Tags["note"])
+	}
+
+	// The PERSISTED event in the journal is redacted and its hash verifies over
+	// the redacted bytes.
+	var seen int
+	_ = b.j.Range(func(e *event.Event) error {
+		if e.Kind != event.KindToolResult {
+			return nil
+		}
+		seen++
+		if strings.Contains(string(e.Payload), "sk-abcdefghijklmnopqrstuvwx") ||
+			strings.Contains(string(e.Payload), "literal-tenant-key-xyz") {
+			t.Errorf("journaled payload leaks a secret: %s", e.Payload)
+		}
+		if err := e.VerifyHash(); err != nil {
+			t.Errorf("redacted event fails hash verify: %v", err)
+		}
+		return nil
+	})
+	if seen != 1 {
+		t.Fatalf("expected 1 journaled tool.result, got %d", seen)
+	}
+
+	// Sanity: the non-secret field is intact.
+	var back map[string]any
+	if err := json.Unmarshal(got.Payload, &back); err != nil {
+		t.Fatalf("redacted payload is invalid JSON: %v", err)
+	}
+	if back["ok"] != true {
+		t.Errorf("non-secret field corrupted: %v", back)
+	}
+}
+
+// Without a redactor, payloads pass through untouched (default behavior).
+func TestRedactor_DisabledByDefault(t *testing.T) {
+	b := newTestBus(t)
+	got, err := b.Publish(event.Spec{
+		Subject: "tool.result", Kind: event.KindToolResult, Actor: "a",
+		Payload: map[string]any{"v": "sk-abcdefghijklmnopqrstuvwx"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(got.Payload), "sk-abcdefghijklmnopqrstuvwx") {
+		t.Errorf("no redactor configured, payload should be verbatim: %s", got.Payload)
 	}
 }
 

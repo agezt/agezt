@@ -26,6 +26,7 @@
 package bus
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -39,6 +40,14 @@ import (
 // DefaultSubBuffer is used when Subscribe is called with buf <= 0.
 const DefaultSubBuffer = 256
 
+// Redactor scrubs secrets from a string / byte slice. A *redact.Redactor
+// satisfies it; the bus takes the narrow interface so this package stays free of
+// a redact dependency.
+type Redactor interface {
+	Redact(string) string
+	RedactBytes([]byte) []byte
+}
+
 // Bus routes events from publishers to subscribers, persisting through a
 // Journal before notification.
 type Bus struct {
@@ -48,11 +57,45 @@ type Bus struct {
 	subs      map[uint64]*subscription
 	nextSubID uint64
 	closed    bool
+	redactor  Redactor // optional; scrubs secrets from payloads before journaling
 }
 
 // New creates a Bus that durably-publishes through j.
 func New(j *journal.Journal) *Bus {
 	return &Bus{j: j, subs: make(map[uint64]*subscription)}
+}
+
+// SetRedactor installs a secret redactor applied to every durably-published
+// event's payload and tags BEFORE it is hashed and written to the journal, so a
+// leaked secret never enters the permanent record. Nil (the default) disables
+// redaction. Set once at startup, before the first Publish.
+func (b *Bus) SetRedactor(r Redactor) {
+	b.mu.Lock()
+	b.redactor = r
+	b.mu.Unlock()
+}
+
+// redactSpec returns spec with its payload and tag values scrubbed when a
+// redactor is configured. The original payload/tags are not mutated: payload is
+// re-marshaled to redacted JSON and tags are copied into a fresh map. Caller
+// holds b.mu (so the redactor pointer read is race-free).
+func (b *Bus) redactSpecLocked(spec event.Spec) event.Spec {
+	if b.redactor == nil {
+		return spec
+	}
+	if spec.Payload != nil {
+		if raw, err := json.Marshal(spec.Payload); err == nil {
+			spec.Payload = json.RawMessage(b.redactor.RedactBytes(raw))
+		}
+	}
+	if len(spec.Tags) > 0 {
+		nt := make(map[string]string, len(spec.Tags))
+		for k, v := range spec.Tags {
+			nt[k] = b.redactor.Redact(v)
+		}
+		spec.Tags = nt
+	}
+	return spec
 }
 
 // subscription is the bus-internal record per subscriber.
@@ -131,6 +174,7 @@ func (b *Bus) Publish(spec event.Spec) (*event.Event, error) {
 		return nil, ErrClosed
 	}
 
+	spec = b.redactSpecLocked(spec)
 	e, err := b.j.Append(spec)
 	if err != nil {
 		return nil, err
