@@ -91,6 +91,7 @@ func parseCheckFlags(args []string) (checkFlags, error) {
 //	agt provider check --all --bench 3          # all, 3 probes each
 //	agt provider check --caps [<id>]            # model capabilities; no network
 //	agt provider check --caps --json [<id>]     # capabilities, machine-readable
+//	agt provider check --caps --all             # capability matrix, all providers
 //
 // Probe prompt is tiny ("Say 'pong' in one word.", MaxTokens=16) so
 // even --bench 20 runs near-free on most providers.
@@ -116,9 +117,12 @@ func cmdProviderCheck(args []string, stdout, stderr io.Writer) int {
 	// about to use actually call tools / see images?" before a run, and
 	// warns when the agent loop's prerequisite (tool-use) is missing.
 	if flags.caps {
-		if flags.all || flags.bench >= 2 || flags.stream {
-			fmt.Fprintf(stderr, "%s: --caps is single-provider only (no --all/--bench/--stream)\n", brand.CLI)
+		if flags.bench >= 2 || flags.stream {
+			fmt.Fprintf(stderr, "%s: --caps cannot combine with --bench/--stream (it makes no live call)\n", brand.CLI)
 			return 2
+		}
+		if flags.all {
+			return runCheckCapsAll(cat, flags, stdout)
 		}
 		return runCheckCaps(cat, flags, stdout, stderr)
 	}
@@ -331,6 +335,117 @@ func emitCapsHuman(c jsonCaps, stdout io.Writer) {
 	} else {
 		fmt.Fprintf(stdout, "\n  ✓ agent-ready (advertises tool-use)\n")
 	}
+}
+
+// runCheckCapsAll renders a capability matrix: one row per supported
+// catalog provider (its selected model), network-free and credential-free,
+// so an operator can compare models by capability at a glance. Always exit
+// 0 — it's a survey, not a gate (the single-provider --caps gates with
+// exit 3 for CI). $AGEZT_MODEL, when set, selects that model for every
+// provider that serves it; otherwise each provider's first model is shown.
+func runCheckCapsAll(cat *catalog.Catalog, flags checkFlags, stdout io.Writer) int {
+	modelOverride := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "MODEL"))
+	var rows []jsonCaps
+	for _, entry := range cat.ProviderList() {
+		if !compat.IsSupportedFamily(entry.Family()) {
+			continue
+		}
+		modelID := modelOverride
+		if _, ok := entry.Models[modelID]; !ok {
+			modelID = compat.FirstModelID(entry)
+		}
+		model := entry.Models[modelID]
+		if model == nil {
+			continue // provider with no models — nothing to report
+		}
+		rows = append(rows, jsonCaps{
+			Provider:     entry.ID,
+			Family:       string(entry.Family()),
+			Model:        modelID,
+			ToolCall:     model.ToolCall,
+			Reasoning:    model.Reasoning,
+			Vision:       model.SupportsVision(),
+			Attachment:   model.Attachment,
+			ContextLimit: model.Limit.Context,
+			Warnings:     model.AgentWarnings(),
+		})
+	}
+
+	if flags.jsonOut {
+		buf, _ := json.MarshalIndent(rows, "", "  ")
+		fmt.Fprintln(stdout, string(buf))
+		return 0
+	}
+	if len(rows) == 0 {
+		fmt.Fprintln(stdout, "no supported providers in the catalog")
+		return 0
+	}
+	fmt.Fprintln(stdout, renderCapsTable(rows))
+	ready := 0
+	for _, r := range rows {
+		if len(r.Warnings) == 0 {
+			ready++
+		}
+	}
+	fmt.Fprintf(stdout, "\n%d providers, %d agent-ready (advertise tool-use)\n", len(rows), ready)
+	return 0
+}
+
+// renderCapsTable lays out the capability matrix. A leading ✓/⚠ marks
+// agent-readiness (tool-use) so the eye lands on the ready ones first.
+func renderCapsTable(rows []jsonCaps) string {
+	yn := func(b bool) string {
+		if b {
+			return "yes"
+		}
+		return "-"
+	}
+	headers := []string{"", "PROVIDER", "MODEL", "TOOLS", "VISION", "REASON", "CONTEXT"}
+	cells := make([][]string, 0, len(rows))
+	for _, r := range rows {
+		mark := "✓"
+		if len(r.Warnings) > 0 {
+			mark = "⚠"
+		}
+		ctx := "-"
+		if r.ContextLimit > 0 {
+			ctx = fmt.Sprintf("%d", r.ContextLimit)
+		}
+		cells = append(cells, []string{
+			mark, r.Provider, r.Model, yn(r.ToolCall), yn(r.Vision), yn(r.Reasoning), ctx,
+		})
+	}
+	widths := make([]int, len(headers))
+	for i, h := range headers {
+		widths[i] = len(h)
+	}
+	for _, c := range cells {
+		for i, v := range c {
+			// Width by rune count so the ✓/⚠ column doesn't over-pad.
+			if n := len([]rune(v)); n > widths[i] {
+				widths[i] = n
+			}
+		}
+	}
+	var b strings.Builder
+	writeRow := func(vals []string) {
+		for i, v := range vals {
+			if i > 0 {
+				b.WriteString("  ")
+			}
+			pad := widths[i] - len([]rune(v))
+			b.WriteString(v)
+			if pad > 0 {
+				b.WriteString(strings.Repeat(" ", pad))
+			}
+		}
+		b.WriteByte('\n')
+	}
+	writeRow(headers)
+	for _, c := range cells {
+		writeRow(c)
+	}
+	return strings.TrimRight(b.String(), "\n")
 }
 
 // runCheckAll iterates credentialed providers. Each provider runs

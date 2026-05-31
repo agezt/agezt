@@ -501,3 +501,74 @@ func TestRunCheckCaps_UnknownProvider(t *testing.T) {
 		t.Errorf("exit=%d want 1 for unknown provider", code)
 	}
 }
+
+// capsMultiCatalog builds a catalog with two supported providers (one
+// tool-less, one tool-capable) and one unsupported-family provider that
+// the matrix must skip.
+func capsMultiCatalog() *catalog.Catalog {
+	c := catalog.NewEmpty()
+	c.Providers["acme"] = &catalog.Provider{
+		ID: "acme", NPM: "@ai-sdk/openai-compatible", API: "https://a.test/v1",
+		Models: map[string]*catalog.Model{
+			"acme-mini": {ID: "acme-mini", ToolCall: false, Limit: catalog.Limit{Context: 32768}},
+		},
+	}
+	c.Providers["good"] = &catalog.Provider{
+		ID: "good", NPM: "@ai-sdk/anthropic", API: "https://g.test",
+		Models: map[string]*catalog.Model{
+			"good-x": {ID: "good-x", ToolCall: true, Reasoning: true,
+				Modalities: catalog.Modalities{Input: []string{"text", "image"}},
+				Limit:      catalog.Limit{Context: 200000}},
+		},
+	}
+	c.Providers["weird"] = &catalog.Provider{
+		ID: "weird", NPM: "@ai-sdk/unheard-of", // FamilyUnknown → skipped
+		Models: map[string]*catalog.Model{"w": {ID: "w", ToolCall: true}},
+	}
+	return c
+}
+
+func TestRunCheckCapsAll_Human(t *testing.T) {
+	var out, errOut bytes.Buffer
+	code := runCheckCapsAll(capsMultiCatalog(), checkFlags{caps: true, all: true}, &out)
+	_ = errOut
+	if code != 0 {
+		t.Errorf("exit=%d want 0 (survey)", code)
+	}
+	s := out.String()
+	// Both supported providers present, unsupported one skipped.
+	if !strings.Contains(s, "acme") || !strings.Contains(s, "good") {
+		t.Errorf("matrix missing a supported provider:\n%s", s)
+	}
+	if strings.Contains(s, "weird") {
+		t.Errorf("unsupported family should be skipped:\n%s", s)
+	}
+	// 2 providers, 1 agent-ready (good has tools, acme doesn't).
+	if !strings.Contains(s, "2 providers, 1 agent-ready") {
+		t.Errorf("summary wrong:\n%s", s)
+	}
+}
+
+func TestRunCheckCapsAll_JSON(t *testing.T) {
+	var out bytes.Buffer
+	if code := runCheckCapsAll(capsMultiCatalog(), checkFlags{caps: true, all: true, jsonOut: true}, &out); code != 0 {
+		t.Errorf("exit=%d want 0", code)
+	}
+	var rows []jsonCaps
+	if err := json.Unmarshal(out.Bytes(), &rows); err != nil {
+		t.Fatalf("json: %v\n%s", err, out.String())
+	}
+	if len(rows) != 2 {
+		t.Fatalf("got %d rows, want 2 (supported only): %+v", len(rows), rows)
+	}
+	byID := map[string]jsonCaps{}
+	for _, r := range rows {
+		byID[r.Provider] = r
+	}
+	if byID["acme"].ToolCall || len(byID["acme"].Warnings) == 0 {
+		t.Errorf("acme should be tool-less + warned: %+v", byID["acme"])
+	}
+	if !byID["good"].ToolCall || !byID["good"].Vision || len(byID["good"].Warnings) != 0 {
+		t.Errorf("good should be tool+vision, no warnings: %+v", byID["good"])
+	}
+}

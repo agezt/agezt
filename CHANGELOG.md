@@ -12,6 +12,15 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Capability matrix** (`agt provider check --caps --all`, SPEC-15, M27) —
+  completes the M23 capability view: a one-row-per-provider table comparing every
+  supported catalog provider's selected model by tool-use, vision, reasoning, and
+  context window, each marked ✓ (agent-ready) or ⚠ (a capability gap), with a
+  trailing "N providers, M agent-ready" summary. Network-free and credential-free
+  like single `--caps`; `--json` emits the array. Lets an operator pick a model
+  by capability at a glance instead of probing one at a time. Proven live: a
+  three-provider catalog renders the matrix with the right ✓/⚠ marks and skips
+  unsupported families. See `.project/PHASE-M27-CAPABILITY-MATRIX-REPORT.md`.
 - **`agt doctor` model-readiness check** (SPEC-08, M26) — the capability work
   (M23–M25) now lands in the operator's go-to diagnostic. `agt doctor` gains a
   `model readiness` line: OK when the running model advertises tool-use, WARN
