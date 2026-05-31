@@ -12,6 +12,20 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Capability down-routing** (`AGEZT_MODEL_DOWNROUTE=on`, SPEC-15, M37) — completes
+  the M23–M27 capability arc: instead of merely *rejecting* a tools-bearing request
+  to a tool-incapable model (M25 strict gate), the Governor now **remaps** it to a
+  tool-capable sibling in the same provider and proceeds. The substitute is the
+  same-provider model with the largest context window (tie-broken by id, so it's
+  deterministic) — staying in-provider keeps the remap on an already-credentialed
+  provider. Runs pre-flight, before the strict gate, and journals a
+  `capability.rerouted` event (`{from_model, to_model}`) so `agt why` shows why the
+  served model differs from the requested one. Composes with strict mode
+  (reroute-if-possible, else reject) but works independently. Off by default; new
+  `catalog.ToolCapableAlternative` + governor `DownRouteToolModels` /
+  `ToolCapableAlternative`. Proven live: a tools request to a tool-incapable model
+  was rerouted to its capable sibling instead of rejected. See
+  `.project/PHASE-M37-CAPABILITY-DOWNROUTE-REPORT.md`.
 - **Failure-reason breakdown in `agt runs stats`** (SPEC-08, M36) — the `failed`
   count is now split by *why* runs fail: `failed : 3 (timeout=2, canceled=1)`. The
   M30 reason tag (`error` / `max_iters` / `canceled` / `timeout`, plus `unknown`

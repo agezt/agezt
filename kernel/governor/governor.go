@@ -107,6 +107,22 @@ type Config struct {
 	// catalog-data gap must not break a working setup), and non-tool
 	// requests pass regardless.
 	StrictModelCapabilities bool
+
+	// DownRouteToolModels enables capability down-routing (M37): instead of
+	// rejecting a tools-bearing request to a known tool-incapable model
+	// (M25), the Governor REMAPS req.Model to a tool-capable alternative
+	// (via ToolCapableAlternative) and proceeds. Runs before the strict
+	// gate, so a successful remap means the gate never fires; if no
+	// alternative exists the request falls through to the strict gate's
+	// reject (when strict is on) or passes (when it isn't). Off by default.
+	DownRouteToolModels bool
+
+	// ToolCapableAlternative, when set, returns a tool-capable substitute
+	// model id for a tool-incapable one (and whether one was found). Injected
+	// by the daemon, backed by the catalog (same-provider substitute), so the
+	// Governor stays decoupled from kernel/catalog. Used only when
+	// DownRouteToolModels is on. Nil disables down-routing.
+	ToolCapableAlternative func(model string) (alt string, found bool)
 }
 
 // Governor is the per-task routing + budget layer.
@@ -232,6 +248,32 @@ func (g *Governor) Complete(ctx context.Context, req agent.CompletionRequest) (*
 	if len(g.cfg.TaskModelOverrides) > 0 && req.TaskType != "" {
 		if newModel, ok := g.cfg.TaskModelOverrides[req.TaskType]; ok {
 			req.Model = newModel
+		}
+	}
+
+	// Capability down-routing (M37). Before the strict gate rejects a
+	// tools-bearing request to a tool-incapable model, try to REMAP it to a
+	// tool-capable alternative. A successful remap means the strict gate
+	// below sees a capable model and passes; a miss leaves req.Model
+	// unchanged so the gate (if on) still rejects. The remap is journaled so
+	// `agt why` shows why the served model differs from the requested one.
+	if g.cfg.DownRouteToolModels && g.cfg.ToolCapableAlternative != nil &&
+		g.cfg.ModelToolCapable != nil && len(req.Tools) > 0 {
+		if capable, known := g.cfg.ModelToolCapable(req.Model); known && !capable {
+			if alt, found := g.cfg.ToolCapableAlternative(req.Model); found && alt != req.Model {
+				g.publish(event.Spec{
+					Subject: "governor.capability",
+					Kind:    event.KindCapabilityRerouted,
+					Actor:   "governor",
+					Payload: map[string]any{
+						"from_model":      req.Model,
+						"to_model":        alt,
+						"capability":      "tool_call",
+						"tools_requested": len(req.Tools),
+					},
+				})
+				req.Model = alt
+			}
 		}
 	}
 

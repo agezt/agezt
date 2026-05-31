@@ -310,6 +310,46 @@ func (c *Catalog) FindModel(modelID string) (*Provider, *Model) {
 	return nil, nil
 }
 
+// ToolCapableAlternative finds a tool-capable substitute for a
+// tool-incapable model, within the SAME provider (M37 down-routing).
+// Restricting to the same provider keeps the substitute on a provider that
+// is already configured/credentialed — cross-provider remaps would risk
+// routing to an unregistered provider. Among the provider's tool-capable
+// models (excluding modelID itself) it picks the one with the largest
+// context window, tie-broken by model ID ascending, so the choice is the
+// most-capable sibling and deterministic. Returns (altID, true) on success,
+// ("", false) if the model is unknown or the provider has no other
+// tool-capable model. The returned ID is bare (no "provider/" prefix),
+// matching how the catalog keys models.
+func (c *Catalog) ToolCapableAlternative(modelID string) (string, bool) {
+	p, _ := c.FindModel(modelID)
+	if p == nil {
+		return "", false
+	}
+	// Bare id used for the "don't pick myself" check (modelID may be
+	// "provider/model"); FindModel already resolved the provider.
+	selfID := modelID
+	if idx := strings.Index(modelID, "/"); idx > 0 {
+		selfID = modelID[idx+1:]
+	}
+	best := ""
+	bestCtx := -1
+	for id, m := range p.Models {
+		if id == selfID || !m.ToolCall {
+			continue
+		}
+		// Prefer the larger context window; tie-break by ID ascending so
+		// the result is stable across runs (map iteration is random).
+		if m.Limit.Context > bestCtx || (m.Limit.Context == bestCtx && id < best) {
+			best, bestCtx = id, m.Limit.Context
+		}
+	}
+	if best == "" {
+		return "", false
+	}
+	return best, true
+}
+
 // Merge folds src into dst with src winning on key conflict. Mutates
 // dst.Providers in place; per-provider Models maps are also merged
 // (src model wins). Used by the loader to apply local/custom on top

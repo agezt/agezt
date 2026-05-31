@@ -821,6 +821,120 @@ func TestStrictCapabilities_RejectsToolsOnNonToolModel(t *testing.T) {
 	}
 }
 
+// recordingProvider captures the req.Model it was called with, so a test
+// can assert capability down-routing remapped the model (M37).
+type recordingProvider struct {
+	name     string
+	resp     *agent.CompletionResponse
+	gotModel string
+	calls    atomic.Int64
+}
+
+func (p *recordingProvider) Name() string { return p.name }
+func (p *recordingProvider) Complete(_ context.Context, req agent.CompletionRequest) (*agent.CompletionResponse, error) {
+	p.gotModel = req.Model
+	p.calls.Add(1)
+	return p.resp, nil
+}
+
+func altLookup(m map[string]string) func(string) (string, bool) {
+	return func(model string) (string, bool) {
+		a, ok := m[model]
+		return a, ok
+	}
+}
+
+// TestDownRoute_RemapsToolIncapableModel — with down-routing on, a tools
+// request to a tool-incapable model is remapped to a capable alternative,
+// the provider sees the new model, and a capability.rerouted event is
+// journaled (M37).
+func TestDownRoute_RemapsToolIncapableModel(t *testing.T) {
+	b, j := newBus(t)
+	r := governor.NewRegistry()
+	prov := &recordingProvider{name: "p", resp: okResp("big", 1, 1)}
+	mustRegister(t, r, &governor.ProviderInfo{Name: "p", Provider: prov, AuthMode: governor.AuthAPIKey})
+	g, err := governor.New(governor.Config{
+		Registry:               r,
+		Bus:                    b,
+		DownRouteToolModels:    true,
+		ModelToolCapable:       capLookup(map[string]bool{"mini": false, "big": true}),
+		ToolCapableAlternative: altLookup(map[string]string{"mini": "big"}),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := g.Complete(context.Background(), agent.CompletionRequest{
+		Model: "mini", Tools: []agent.ToolDef{{Name: "shell"}},
+	}); err != nil {
+		t.Fatalf("down-route should let the request proceed; got %v", err)
+	}
+	if prov.gotModel != "big" {
+		t.Errorf("provider saw model %q, want remapped %q", prov.gotModel, "big")
+	}
+	var from, to string
+	_ = j.Range(func(e *event.Event) error {
+		if e.Kind == event.KindCapabilityRerouted {
+			var p struct {
+				From string `json:"from_model"`
+				To   string `json:"to_model"`
+			}
+			_ = json.Unmarshal(e.Payload, &p)
+			from, to = p.From, p.To
+		}
+		return nil
+	})
+	if from != "mini" || to != "big" {
+		t.Errorf("capability.rerouted = %q→%q, want mini→big", from, to)
+	}
+}
+
+// TestDownRoute_NoAlternativeFallsThroughToStrict — down-routing + strict
+// together: when no alternative exists, the request falls through to the
+// strict gate and is rejected (M37 composes with M25).
+func TestDownRoute_NoAlternativeFallsThroughToStrict(t *testing.T) {
+	r := governor.NewRegistry()
+	prov := &recordingProvider{name: "p", resp: okResp("mini", 1, 1)}
+	mustRegister(t, r, &governor.ProviderInfo{Name: "p", Provider: prov, AuthMode: governor.AuthAPIKey})
+	g, _ := governor.New(governor.Config{
+		Registry:                r,
+		StrictModelCapabilities: true,
+		DownRouteToolModels:     true,
+		ModelToolCapable:        capLookup(map[string]bool{"mini": false}),
+		ToolCapableAlternative:  altLookup(map[string]string{}), // no alternative
+	})
+	_, err := g.Complete(context.Background(), agent.CompletionRequest{
+		Model: "mini", Tools: []agent.ToolDef{{Name: "shell"}},
+	})
+	if !errors.Is(err, governor.ErrModelLacksToolUse) {
+		t.Fatalf("err = %v, want ErrModelLacksToolUse (no alt → strict reject)", err)
+	}
+	if prov.calls.Load() != 0 {
+		t.Errorf("provider called %d times; want 0 (rejected pre-flight)", prov.calls.Load())
+	}
+}
+
+// TestDownRoute_OffLeavesModelUnchanged — with down-routing off, the model
+// is not remapped (the provider sees the original, incapable model).
+func TestDownRoute_OffLeavesModelUnchanged(t *testing.T) {
+	r := governor.NewRegistry()
+	prov := &recordingProvider{name: "p", resp: okResp("mini", 1, 1)}
+	mustRegister(t, r, &governor.ProviderInfo{Name: "p", Provider: prov, AuthMode: governor.AuthAPIKey})
+	g, _ := governor.New(governor.Config{
+		Registry:               r,
+		ModelToolCapable:       capLookup(map[string]bool{"mini": false, "big": true}),
+		ToolCapableAlternative: altLookup(map[string]string{"mini": "big"}),
+		// DownRouteToolModels not set → off.
+	})
+	if _, err := g.Complete(context.Background(), agent.CompletionRequest{
+		Model: "mini", Tools: []agent.ToolDef{{Name: "shell"}},
+	}); err != nil {
+		t.Fatalf("Complete: %v", err)
+	}
+	if prov.gotModel != "mini" {
+		t.Errorf("provider saw model %q, want unchanged %q (down-route off)", prov.gotModel, "mini")
+	}
+}
+
 func TestStrictCapabilities_AllowsWhenNoTools(t *testing.T) {
 	r := governor.NewRegistry()
 	prov := &fakeProvider{name: "p", resp: okResp("mini", 1, 1)}

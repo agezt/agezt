@@ -79,6 +79,11 @@ const (
 	// because the target model lacks a required capability (M25 strict
 	// mode: a tools-bearing request to a non-tool model).
 	KindCapabilityRejected Kind = "capability.rejected"
+	// KindCapabilityRerouted records a pre-flight model REMAP: a
+	// tools-bearing request to a tool-incapable model was down-routed to a
+	// tool-capable alternative instead of being rejected (M37 down-routing).
+	// Payload: {from_model, to_model, capability, tools_requested}.
+	KindCapabilityRerouted Kind = "capability.rerouted"
 
 	// Warden (P1-WARD-*).
 	KindWardenExecuted          Kind = "warden.executed"
@@ -202,6 +207,7 @@ var knownKinds = map[Kind]struct{}{
 	KindBudgetExceeded:            {},
 	KindRateLimited:               {},
 	KindCapabilityRejected:        {},
+	KindCapabilityRerouted:        {},
 	KindWardenExecuted:            {},
 	KindWardenProfileDowngraded:   {},
 	KindWardenLimitExceeded:       {},

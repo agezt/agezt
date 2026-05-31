@@ -1464,6 +1464,12 @@ func buildGovernor(cat *catalog.Catalog, lookup func(string) string) (*governor.
 	// catalog backs the lookup; per-tenant governors inherit it via
 	// WithLimits (the whole Config is copied).
 	strictCaps := strings.EqualFold(os.Getenv(brand.EnvPrefix+"MODEL_STRICT"), "on")
+	// Capability down-routing (M37). Opt-in via AGEZT_MODEL_DOWNROUTE=on: a
+	// tools-bearing request to a tool-incapable model is remapped to a
+	// tool-capable sibling in the same provider instead of being rejected
+	// (M25). Pairs naturally with strict mode (reroute-if-possible, else
+	// reject), but works independently too.
+	downRoute := strings.EqualFold(os.Getenv(brand.EnvPrefix+"MODEL_DOWNROUTE"), "on")
 
 	gov, err := governor.New(governor.Config{
 		Registry:                reg,
@@ -1473,6 +1479,7 @@ func buildGovernor(cat *catalog.Catalog, lookup func(string) string) (*governor.
 		TaskModelOverrides:      taskModels,
 		TaskBudgets:             taskBudgets,
 		StrictModelCapabilities: strictCaps,
+		DownRouteToolModels:     downRoute,
 		ModelToolCapable: func(model string) (bool, bool) {
 			_, m := cat.FindModel(model)
 			if m == nil {
@@ -1480,6 +1487,7 @@ func buildGovernor(cat *catalog.Catalog, lookup func(string) string) (*governor.
 			}
 			return m.ToolCall, true
 		},
+		ToolCapableAlternative: cat.ToolCapableAlternative,
 	})
 	if err != nil {
 		return nil, "", "", err
@@ -1488,6 +1496,9 @@ func buildGovernor(cat *catalog.Catalog, lookup func(string) string) (*governor.
 		primaryDesc, fallbackDesc, float64(ceiling)/1e9)
 	if strictCaps {
 		desc += ", strict-capabilities"
+	}
+	if downRoute {
+		desc += ", tool-downrouting"
 	}
 	if extraProviders > 0 {
 		desc += fmt.Sprintf(", model-routable_alternates=%d", extraProviders)
