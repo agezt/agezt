@@ -12,6 +12,18 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Tenant-scoped run observability** (`agt runs list/stats --tenant <id>`,
+  SPEC-14, M39) — a natural M38 follow-on. `runs list` and `runs stats` now walk
+  the *target tenant's* journal (via `kernelFor`) instead of always the primary's,
+  so a tenant — authenticating with its own token — can observe its **own** run
+  health (counts, success rate, durations, failure-reason breakdown, windowed),
+  fully isolated from the primary and other tenants. The shared `collectRuns` fold
+  is parameterized by kernel; both commands gain `--tenant <id>`; both are added to
+  the M38 tenant-token allowlist (they read the tenant's own journal now, not the
+  primary's). The primary/empty-tenant path is byte-for-byte unchanged. Proven
+  live: a tenant saw only its own run via its token while the primary saw only its
+  own, and a tenant token with no tenant arg was denied. See
+  `.project/PHASE-M39-TENANT-RUN-OBSERVABILITY-REPORT.md`.
 - **Per-tenant authenticated control-plane access** (SPEC-14, M38) — completes the
   M14 tenant-isolation story on the control side. Tenant tokens already existed
   (minted by `agt tenant create`) but the control plane only accepted the *primary*

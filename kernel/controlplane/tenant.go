@@ -12,6 +12,13 @@ import (
 	"github.com/agezt/agezt/kernel/tenant"
 )
 
+// tenantOf extracts the optional "tenant" routing arg from a request (empty
+// when absent or not a string → the primary kernel).
+func tenantOf(req Request) string {
+	t, _ := req.Args["tenant"].(string)
+	return t
+}
+
 // kernelFor resolves the kernel that should handle a request: the primary kernel
 // when tenantID is empty (the single-tenant default), otherwise the named
 // tenant's kernel, opening it on demand. It errors if a tenant is requested but
@@ -55,6 +62,7 @@ func (s *Server) SetTenants(r *tenant.Registry) { s.tenants = r }
 func tenantTokenAllows(cmd string) bool {
 	switch cmd {
 	case CmdRun, CmdCancelRun,
+		CmdRunsList, CmdRunsStats,
 		CmdEdictShow, CmdEdictTest, CmdEdictDenyList, CmdEdictDenyAdd,
 		CmdEdictDenyRemove, CmdEdictSetLevel, CmdEdictSetMode:
 		return true

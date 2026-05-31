@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/runtime"
 )
 
 const (
@@ -49,13 +50,16 @@ type runEntry struct {
 	Abandoned bool
 }
 
-// collectRuns walks the journal once and folds task.received /
-// task.completed / task.abandoned events into per-correlation
-// runEntry records. Shared by handleRunsList (which sorts +
-// limits + renders) and handleRunsStats (which aggregates). The
-// fold is identical in both so the two surfaces never disagree
-// about a run's status.
-func (s *Server) collectRuns() (map[string]*runEntry, error) {
+// collectRuns walks the given kernel's journal once and folds
+// task.received / task.completed / task.failed / task.abandoned
+// events into per-correlation runEntry records. Shared by
+// handleRunsList (which sorts + limits + renders) and
+// handleRunsStats (which aggregates). The fold is identical in
+// both so the two surfaces never disagree about a run's status.
+// Takes an explicit kernel so the run views can be tenant-scoped
+// (M39): the primary kernel for an empty tenant, else the tenant's
+// own isolated journal — a tenant sees only its own runs.
+func (s *Server) collectRuns(k *runtime.Kernel) (map[string]*runEntry, error) {
 	// Single forward walk: build per-correlation entry on
 	// task.received, update on task.completed. We don't try to
 	// stream early-stop after N — limit is applied post-sort, since
@@ -63,7 +67,7 @@ func (s *Server) collectRuns() (map[string]*runEntry, error) {
 	// is by seq, not by run start time, and the same run's events
 	// are interleaved with others under concurrency).
 	runs := map[string]*runEntry{}
-	err := s.k.Journal().Range(func(e *event.Event) error {
+	err := k.Journal().Range(func(e *event.Event) error {
 		switch e.Kind {
 		case event.KindTaskReceived:
 			entry, ok := runs[e.CorrelationID]
@@ -136,7 +140,14 @@ func (s *Server) handleRunsList(conn net.Conn, req Request) {
 		limit = maxRunsLimit
 	}
 
-	runs, err := s.collectRuns()
+	// Tenant-scoped (M39): an empty tenant reads the primary journal; a named
+	// tenant reads its own isolated journal, so a tenant sees only its runs.
+	k, err := s.kernelFor(tenantOf(req))
+	if err != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		return
+	}
+	runs, err := s.collectRuns(k)
 	if err != nil {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
 		return
@@ -227,7 +238,14 @@ func (s *Server) handleRunsList(conn net.Conn, req Request) {
 // "how have runs done in the last hour" — the failure/timeout/
 // canceled terminal terms make that rate meaningful.
 func (s *Server) handleRunsStats(conn net.Conn, req Request) {
-	runs, err := s.collectRuns()
+	// Tenant-scoped (M39): empty tenant → primary journal; named tenant →
+	// its own isolated journal.
+	k, err := s.kernelFor(tenantOf(req))
+	if err != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		return
+	}
+	runs, err := s.collectRuns(k)
 	if err != nil {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
 		return

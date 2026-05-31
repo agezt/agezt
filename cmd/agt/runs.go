@@ -121,11 +121,21 @@ func cmdRunsStats(args []string, stdout, stderr io.Writer) int {
 	asJSON := false
 	var sinceMS int64
 	var sinceLabel string
+	var tenant string
 	for i := 0; i < len(args); i++ {
 		a := args[i]
 		switch {
 		case a == "--json":
 			asJSON = true
+		case a == "--tenant":
+			if i+1 >= len(args) {
+				fmt.Fprintf(stderr, "%s runs stats: --tenant needs an id\n", brand.CLI)
+				return 2
+			}
+			i++
+			tenant = args[i]
+		case strings.HasPrefix(a, "--tenant="):
+			tenant = strings.TrimPrefix(a, "--tenant=")
 		case a == "--since":
 			// `--since 1h` — value is the next arg.
 			if i+1 >= len(args) {
@@ -155,9 +165,10 @@ func cmdRunsStats(args []string, stdout, stderr io.Writer) int {
 			fmt.Fprintf(stdout, "  total / completed / failed / running / abandoned counts,\n")
 			fmt.Fprintf(stdout, "  success rate, and completed-run duration avg/min/max/p50/p95\n")
 			fmt.Fprintf(stdout, "  --since <dur>  restrict to runs started in the last <dur> (e.g. 1h, 30m)\n")
+			fmt.Fprintf(stdout, "  --tenant <id>  read a tenant's own runs (needs that tenant's token)\n")
 			return 0
 		default:
-			fmt.Fprintf(stderr, "%s runs stats: unexpected arg %q (expected --since <dur> or --json)\n", brand.CLI, a)
+			fmt.Fprintf(stderr, "%s runs stats: unexpected arg %q (expected --since <dur>, --tenant <id>, or --json)\n", brand.CLI, a)
 			return 2
 		}
 	}
@@ -171,6 +182,9 @@ func cmdRunsStats(args []string, stdout, stderr io.Writer) int {
 	callArgs := map[string]any{}
 	if sinceMS > 0 {
 		callArgs["since_ms"] = sinceMS
+	}
+	if tenant != "" {
+		callArgs["tenant"] = tenant
 	}
 	res, err := c.Call(ctx, controlplane.CmdRunsStats, callArgs)
 	if err != nil {
@@ -254,18 +268,29 @@ func cmdRunsStats(args []string, stdout, stderr io.Writer) int {
 func cmdRunsList(args []string, stdout, stderr io.Writer) int {
 	limit := 20
 	asJSON := false
-	for _, a := range args {
-		switch a {
-		case "--json":
+	tenant := ""
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		switch {
+		case a == "--json":
 			asJSON = true
-		case "-h", "--help":
-			fmt.Fprintf(stdout, "usage: %s runs list [N] [--json]\n", brand.CLI)
-			fmt.Fprintf(stdout, "show the last N agent runs (default 20, max 1000)\n")
+		case a == "--tenant":
+			if i+1 >= len(args) {
+				fmt.Fprintf(stderr, "%s runs list: --tenant needs an id\n", brand.CLI)
+				return 2
+			}
+			i++
+			tenant = args[i]
+		case strings.HasPrefix(a, "--tenant="):
+			tenant = strings.TrimPrefix(a, "--tenant=")
+		case a == "-h" || a == "--help":
+			fmt.Fprintf(stdout, "usage: %s runs list [N] [--tenant <id>] [--json]\n", brand.CLI)
+			fmt.Fprintf(stdout, "show the last N agent runs (default 20, max 1000); --tenant reads a tenant's own runs\n")
 			return 0
 		default:
 			n, err := strconv.Atoi(a)
 			if err != nil {
-				fmt.Fprintf(stderr, "%s runs list: unexpected arg %q (expected N or --json)\n", brand.CLI, a)
+				fmt.Fprintf(stderr, "%s runs list: unexpected arg %q (expected N, --tenant <id>, or --json)\n", brand.CLI, a)
 				return 2
 			}
 			if n < 1 {
@@ -282,7 +307,11 @@ func cmdRunsList(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdRunsList, map[string]any{"limit": limit})
+	callArgs := map[string]any{"limit": limit}
+	if tenant != "" {
+		callArgs["tenant"] = tenant
+	}
+	res, err := c.Call(ctx, controlplane.CmdRunsList, callArgs)
 	if err != nil {
 		fmt.Fprintf(stderr, "%s runs list: %v\n", brand.CLI, err)
 		return 1
