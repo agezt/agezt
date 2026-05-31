@@ -185,7 +185,19 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// Edict policy mode: AGEZT_APPROVAL_MODE=allow|deny|prompt
 	// (M1.a default: allow; M1.d adds prompt for live HITL).
 	askPolicy, askPolicyDesc := selectAskPolicy()
-	edictEng := edict.New(edict.Options{AskPolicy: askPolicy})
+	// Operator-extensible hard-deny rules (M17): AGEZT_EDICT_DENY appends
+	// site-specific rules to the built-in set (e.g. "git push;shell:/etc/shadow").
+	hardDeny := edict.DefaultHardDeny()
+	if spec := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "EDICT_DENY")); spec != "" {
+		extra, derr := edict.ParseDenyRules(spec)
+		if derr != nil {
+			fmt.Fprintf(stderr, "%s: %sEDICT_DENY: %v\n", brand.Binary, brand.EnvPrefix, derr)
+			return 1
+		}
+		hardDeny = append(hardDeny, extra...)
+		askPolicyDesc += fmt.Sprintf("; +%d operator deny rule(s)", len(extra))
+	}
+	edictEng := edict.New(edict.Options{AskPolicy: askPolicy, HardDeny: hardDeny})
 
 	tools, pluginManifest, toolsDesc, err := buildTools(baseDir, stderr, ward)
 	if err != nil {

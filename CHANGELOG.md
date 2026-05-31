@@ -12,6 +12,17 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Operator-extensible policy deny rules** (DECISIONS F4, M17) — Edict's
+  hard-deny layer (the non-overridable floor that fires regardless of trust
+  level) was a fixed built-in list. `AGEZT_EDICT_DENY` now appends site-specific
+  rules: a `;`-separated spec where each entry is `substring` (denied for every
+  capability) or `<capability>:substring` (scoped, when the prefix is a known
+  capability — e.g. `shell:rm -rf /etc`, `http.post:169.254`). A `https://…`
+  prefix isn't a capability, so URLs are taken verbatim; a blank substring is a
+  hard error (it would deny everything). Rules are named `operator[N]` so a
+  denial's journaled reason names the rule that fired. Proven live: booting with
+  `AGEZT_EDICT_DENY="git push;shell:/etc/shadow"`, `agt edict test` denies both
+  and allows ordinary commands. See `.project/PHASE-M17-EDICT-DENY-REPORT.md`.
 - **Network egress guard against SSRF / metadata theft** (SPEC-06, M16) — an
   autonomous (or prompt-injected) agent making outbound HTTP must not reach the
   host's internal network: the cloud metadata endpoint (`169.254.169.254`) hands

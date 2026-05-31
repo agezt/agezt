@@ -7,6 +7,77 @@ import (
 	"testing"
 )
 
+func TestParseDenyRules(t *testing.T) {
+	rules, err := ParseDenyRules("git push ; shell:rm -rf /etc ; https://evil.example ; http.post:169.254 ;  ; file.delete:/etc")
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if len(rules) != 5 { // the blank entry is skipped
+		t.Fatalf("got %d rules, want 5: %+v", len(rules), rules)
+	}
+	// "git push" — no known-cap prefix → applies to all caps.
+	if rules[0].Substring != "git push" || len(rules[0].AppliesTo) != 0 {
+		t.Errorf("rule0 = %+v", rules[0])
+	}
+	// "shell:rm -rf /etc" — cap-scoped to shell.
+	if rules[1].Substring != "rm -rf /etc" || len(rules[1].AppliesTo) != 1 || rules[1].AppliesTo[0] != CapShell {
+		t.Errorf("rule1 = %+v", rules[1])
+	}
+	// "https://evil.example" — prefix "https" is NOT a capability → verbatim, all caps.
+	if rules[2].Substring != "https://evil.example" || len(rules[2].AppliesTo) != 0 {
+		t.Errorf("rule2 = %+v (https prefix must not be parsed as a capability)", rules[2])
+	}
+	// "http.post:169.254" — cap-scoped.
+	if rules[3].AppliesTo[0] != CapHTTPPost || rules[3].Substring != "169.254" {
+		t.Errorf("rule3 = %+v", rules[3])
+	}
+	if rules[4].AppliesTo[0] != CapFileDelete || rules[4].Substring != "/etc" {
+		t.Errorf("rule4 = %+v", rules[4])
+	}
+}
+
+func TestParseDenyRules_RejectsEmptySubstring(t *testing.T) {
+	// A bare "shell:" (known cap, empty substring) would deny ALL shell — reject.
+	if _, err := ParseDenyRules("shell:"); err == nil {
+		t.Error("expected an error for an empty cap-scoped substring")
+	}
+	// Empty / whitespace-only spec is a no-op, not an error.
+	if rules, err := ParseDenyRules("   "); err != nil || rules != nil {
+		t.Errorf("blank spec: rules=%v err=%v, want nil,nil", rules, err)
+	}
+}
+
+func TestParsedDenyRules_FireThroughDecide(t *testing.T) {
+	extra, err := ParseDenyRules("git push ; shell:/etc/shadow")
+	if err != nil {
+		t.Fatal(err)
+	}
+	e := New(Options{
+		Levels:   map[Capability]TrustLevel{CapShell: LevelAllow, CapHTTPPost: LevelAllow},
+		HardDeny: append(DefaultHardDeny(), extra...),
+	})
+	// "git push" denied for any capability (all-caps rule), even though shell=L4.
+	if o := e.Decide(CapShell, "git push origin main"); !o.HardDenied || o.Decision != DecisionDeny {
+		t.Errorf("git push should be hard-denied: %+v", o)
+	}
+	// The cap-scoped rule fires for shell...
+	if o := e.Decide(CapShell, "cat /etc/shadow"); !o.HardDenied {
+		t.Errorf("/etc/shadow should be hard-denied on shell: %+v", o)
+	}
+	// ...but NOT for a different capability (http.post), which the rule doesn't target.
+	if o := e.Decide(CapHTTPPost, "POST body mentioning /etc/shadow"); o.HardDenied {
+		t.Errorf("cap-scoped shell rule must not fire on http.post: %+v", o)
+	}
+	// The built-in rules still work alongside the custom ones.
+	if o := e.Decide(CapShell, "rm -rf /"); !o.HardDenied {
+		t.Errorf("built-in rm-rf rule should still fire: %+v", o)
+	}
+	// An ordinary command is allowed (shell=L4).
+	if o := e.Decide(CapShell, "echo hello"); o.Decision != DecisionAllow {
+		t.Errorf("ordinary command should be allowed: %+v", o)
+	}
+}
+
 func TestDefaultLevels_RespectF3(t *testing.T) {
 	e := New(Options{})
 	checks := map[Capability]TrustLevel{

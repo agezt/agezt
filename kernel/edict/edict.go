@@ -265,6 +265,67 @@ func DefaultHardDeny() []HardDenyRule {
 	}
 }
 
+// AllCapabilities returns every governed capability, sorted, for validation and
+// operator-facing listings.
+func AllCapabilities() []Capability {
+	caps := []Capability{
+		CapShell, CapFileRead, CapFileWrite, CapFileDelete, CapFileList,
+		CapHTTPGet, CapHTTPPost, CapProviderCall, CapDelegate, CapCoding,
+		CapACPAgent, CapRemoteRun,
+	}
+	slices.Sort(caps)
+	return caps
+}
+
+// knownCapability reports whether s names a governed capability.
+func knownCapability(s string) bool {
+	return slices.Contains(AllCapabilities(), Capability(s))
+}
+
+// ParseDenyRules parses operator-supplied hard-deny rules from a ';'-separated
+// spec, for AGEZT_EDICT_DENY. Each entry is either:
+//
+//   - "substring"               — denies that substring for EVERY capability
+//   - "<capability>:substring"  — denies it only for that capability, when the
+//     text before the first ':' is a known capability (e.g. "shell:rm -rf",
+//     "http.post:169.254", "file.delete:/etc"). If the prefix is not a known
+//     capability the whole entry is treated as an all-capability substring (so
+//     "https://evil.example" works verbatim).
+//
+// A blank substring is rejected — a hard-deny rule matching the empty string
+// would deny every action. Returned rules are meant to be appended to
+// DefaultHardDeny. Entry order is preserved; rules are named "operator[N]".
+func ParseDenyRules(spec string) ([]HardDenyRule, error) {
+	spec = strings.TrimSpace(spec)
+	if spec == "" {
+		return nil, nil
+	}
+	var out []HardDenyRule
+	for raw := range strings.SplitSeq(spec, ";") {
+		entry := strings.TrimSpace(raw)
+		if entry == "" {
+			continue
+		}
+		var applies []Capability
+		substr := entry
+		if i := strings.IndexByte(entry, ':'); i > 0 {
+			if prefix := entry[:i]; knownCapability(prefix) {
+				applies = []Capability{Capability(prefix)}
+				substr = strings.TrimSpace(entry[i+1:])
+			}
+		}
+		if substr == "" {
+			return nil, fmt.Errorf("edict: deny rule %q has an empty substring (would deny everything)", entry)
+		}
+		out = append(out, HardDenyRule{
+			Name:      fmt.Sprintf("operator[%d]", len(out)+1),
+			Substring: substr,
+			AppliesTo: applies,
+		})
+	}
+	return out, nil
+}
+
 // Decide returns the engine's verdict for one (capability, input) pair.
 // input is the stringified tool input — the engine treats it as opaque
 // text for hard-deny substring matching only. The runtime is responsible
