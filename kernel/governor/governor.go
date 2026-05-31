@@ -83,6 +83,14 @@ type Config struct {
 	// has a $20/day global ceiling), without throttling other
 	// classes. Zero or missing entry = no per-task cap.
 	TaskBudgets map[string]int64
+
+	// RateLimitPerMin caps the number of completion calls admitted per
+	// rolling clock-minute (a fixed window keyed to UTC HH:MM). 0 =
+	// unlimited. This is the frequency companion to the spend ceiling:
+	// it bounds burst rate (calls/min) independently of cost ($/day), so
+	// a per-tenant governor can stop one tenant flooding the shared
+	// provider pool even while under its daily budget (M14 quotas).
+	RateLimitPerMin int
 }
 
 // Governor is the per-task routing + budget layer.
@@ -93,6 +101,8 @@ type Governor struct {
 	spentToday       int64            // microcents (global)
 	spentByTaskToday map[string]int64 // microcents per task type (M1.zz)
 	today            string           // YYYY-MM-DD UTC
+	rateWindow       string           // current rate window key (YYYY-MM-DDTHH:MM UTC)
+	callsThisWindow  int              // admitted calls in the current rate window
 
 	// Stable ordering for routing: primary chain + fallback chain.
 	primary  []*ProviderInfo
@@ -167,6 +177,13 @@ var ErrBudgetExceeded = errors.New("governor: daily budget exceeded")
 // budget-exhaustion as terminal (shouldFallback) catches both.
 var ErrTaskBudgetExceeded = fmt.Errorf("%w: task type", ErrBudgetExceeded)
 
+// ErrRateLimited is returned when the per-minute call rate has been exceeded.
+// Distinct from ErrBudgetExceeded: a rate-limited caller has headroom in its
+// daily budget but is calling too fast. It is a transient throttle (the next
+// clock-minute admits calls again) raised as a pre-check before any provider is
+// tried, so the fallback chain never sees it.
+var ErrRateLimited = errors.New("governor: rate limit exceeded")
+
 // ErrNoProviders is returned when no provider in the chain succeeded.
 type ErrNoProviders struct {
 	Tried []string
@@ -195,6 +212,18 @@ func (g *Governor) Complete(ctx context.Context, req agent.CompletionRequest) (*
 		if newModel, ok := g.cfg.TaskModelOverrides[req.TaskType]; ok {
 			req.Model = newModel
 		}
+	}
+
+	// Rate-limit pre-check (frequency gate, before spend). Admitted calls are
+	// counted; a blocked call never reaches a provider or the budget check.
+	if admitted, used, limit := g.admitRate(); !admitted {
+		g.publish(event.Spec{
+			Subject: "governor.rate",
+			Kind:    event.KindRateLimited,
+			Actor:   "governor",
+			Payload: map[string]any{"used": used, "limit_per_min": limit},
+		})
+		return nil, fmt.Errorf("%w (used=%d, limit=%d/min)", ErrRateLimited, used, limit)
 	}
 
 	// Budget pre-check (don't even attempt if already past the ceiling).
@@ -319,8 +348,18 @@ func (g *Governor) DailyCeilingMicrocents() int64 {
 // can never block another's, while the underlying provider pool and
 // credentials stay shared. ceiling is in microcents (0 = unlimited).
 func (g *Governor) WithDailyCeiling(ceiling int64) (*Governor, error) {
+	return g.WithLimits(ceiling, g.cfg.RateLimitPerMin)
+}
+
+// WithLimits is WithDailyCeiling plus an independent per-minute rate cap: the
+// sibling shares the parent's provider pool and routing but gets its own spend
+// ledger AND its own rate-window counter, with both limits overridden. ratePerMin
+// <= 0 means no rate cap. This is the full per-tenant quota seam (M14): cost and
+// frequency bounded per tenant, the pool shared.
+func (g *Governor) WithLimits(ceiling int64, ratePerMin int) (*Governor, error) {
 	ncfg := g.cfg // copy: shares Registry/Bus pointers, copies scalars/maps refs
 	ncfg.DailyCeilingMicrocents = ceiling
+	ncfg.RateLimitPerMin = ratePerMin
 	return New(ncfg)
 }
 
@@ -466,6 +505,28 @@ func (g *Governor) recordUsage(p *ProviderInfo, req agent.CompletionRequest, res
 			"ceiling_mc":      g.cfg.DailyCeilingMicrocents,
 		},
 	})
+}
+
+// admitRate applies the per-minute fixed-window rate limit. It returns
+// (admitted, callsUsedThisWindow, limit). When unlimited (RateLimitPerMin <= 0)
+// it always admits without counting. On admission it increments the window
+// counter; the window resets when the UTC clock-minute changes.
+func (g *Governor) admitRate() (bool, int, int) {
+	if g.cfg.RateLimitPerMin <= 0 {
+		return true, 0, 0
+	}
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	win := g.cfg.Now().UTC().Format("2006-01-02T15:04")
+	if win != g.rateWindow {
+		g.rateWindow = win
+		g.callsThisWindow = 0
+	}
+	if g.callsThisWindow >= g.cfg.RateLimitPerMin {
+		return false, g.callsThisWindow, g.cfg.RateLimitPerMin
+	}
+	g.callsThisWindow++
+	return true, g.callsThisWindow, g.cfg.RateLimitPerMin
 }
 
 func (g *Governor) budgetExceeded() (bool, int64, int64) {

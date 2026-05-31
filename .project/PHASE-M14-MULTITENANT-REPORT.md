@@ -1,6 +1,6 @@
 # Phase Report — Milestone M14 (Multi-tenant isolation)
 
-> Status: **Phases 1–8 shipped** · Date: 2026-05-31
+> Status: **Phases 1–9 shipped** · Date: 2026-05-31
 > ROADMAP P6-MULTI. Phase 1: the storage + lifecycle isolation core
 > (`kernel/tenant`). Phase 2: the daemon wiring + operator surface (`agt
 > tenant`). Phase 3: per-request **run routing** (`agt run --tenant <id>`).
@@ -10,7 +10,9 @@
 > --tenant <id>`), completing the API-surface routing. Phase 7: **per-tenant
 > budget quotas** (each tenant its own governor + spend ledger + ceiling).
 > Phase 8: **per-tenant auth** — a token per tenant that scopes an HTTP caller to
-> exactly one tenant. Per-tenant rate limits are the remaining refinement.
+> exactly one tenant. Phase 9: **per-tenant rate limits** (calls/min, the
+> frequency companion to the $/day ceiling). The per-tenant quota + isolation
+> story is now complete.
 
 ## Why this milestone
 
@@ -266,6 +268,35 @@ alpha's token + `X-Agezt-Tenant: alpha` → 200 and landed in alpha's journal;
 the same token aimed at `beta` → 401; with no header → 401; a garbage token →
 401; the admin token reached the run for any tenant.
 
+## Phase 9 — per-tenant rate limits
+
+Budget ceilings (Phase 7) bound *cost* ($/day) but not *frequency*: a tenant
+under its daily cap could still burst hundreds of calls a second at the shared
+provider pool. Phase 9 adds a per-minute call-rate cap as the frequency companion,
+on the same per-tenant governor.
+
+- **Fixed-window limiter.** `Governor` gains `RateLimitPerMin` (0 = unlimited)
+  and a per-minute fixed window keyed to UTC `HH:MM`. `Complete` runs an
+  `admitRate` pre-check *before* the budget check — admitted calls increment the
+  window counter; a blocked call never reaches a provider or the spend check and
+  returns `ErrRateLimited` (distinct from `ErrBudgetExceeded`: a throttle, not
+  exhaustion — the next clock-minute admits calls again). A `rate.limited`
+  journal event (new `event.KindRateLimited`) records each block.
+- **Per-tenant, independent.** `Governor.WithLimits(ceiling, ratePerMin)`
+  generalizes Phase 7's `WithDailyCeiling` (now a thin wrapper that preserves the
+  parent's rate): a sibling gets its **own** rate window as well as its own spend
+  ledger, so throttling one tenant never throttles another or the primary.
+- **Operator control.** `AGEZT_TENANT_RATE_PER_MIN=<n>` caps every tenant's
+  calls/min (0/unset = unlimited); a malformed/negative value is a hard startup
+  error. The banner reports it (`rate=30/min` / `rate=unlimited`).
+
+**Proven:** `TestRateLimit_PerMinuteWindow` (2/min cap admits two, blocks the
+third with `ErrRateLimited` and a journaled `rate.limited` event, then a clock
+advance into the next minute admits again — provider call counts confirm nothing
+slipped through); `TestWithLimits_IndependentRateWindows` (a 1/min sibling is
+throttled after one call while the uncapped parent keeps running). Live: the
+banner shows `ceiling=$5.00/day, rate=30/min`.
+
 ## Engineering notes
 
 - **Stdlib only** (`os`, `path/filepath`, `regexp`, `sort`, `sync`). The
@@ -280,12 +311,13 @@ the same token aimed at `beta` → 401; with no header → 401; a garbage token 
 - **Tenant-routed API surfaces — done.** All run entry points route per tenant:
   the control plane (`CmdRun` tenant arg, Phase 3), the native REST surface
   (Phase 4), the OpenAI-compatible surface (Phase 5), and ACP (Phase 6).
-- **Per-tenant rate limits.** Per-tenant budget *ceilings* (Phase 7) and per-
-  tenant *auth* (Phase 8) shipped; the natural companion still to do is per-tenant
-  **rate limits** (calls/min, not just $/day) so a tenant can't burst-flood the
-  shared provider pool even while under its daily cap. ACP/control-plane per-
-  tenant auth (today admin-token-gated on the trusted localhost plane) would
-  extend the same `Authorize` seam if those surfaces are ever exposed remotely.
+- **Remote-exposed control-plane / ACP auth.** Per-tenant *cost* (Phase 7),
+  *auth* (Phase 8), and *rate* (Phase 9) limits shipped — the per-tenant quota +
+  isolation story is complete for the HTTP surfaces. The control plane and ACP
+  stay admin-token-gated on the trusted localhost plane; if those are ever exposed
+  remotely they would extend the same `Authorize` seam. A future refinement is a
+  shared sliding-window (vs. fixed-minute) limiter if burst-at-the-boundary ever
+  matters in practice.
 - **Shared vs. per-tenant catalog/credentials** policy (today each tenant base
   dir would carry its own vault; some deployments want a shared provider pool).
 - **Tenant-scoped Pulse / cadence residents** (each tenant's autonomous timers

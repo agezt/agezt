@@ -339,6 +339,83 @@ func TestWithDailyCeiling_IndependentLedgers(t *testing.T) {
 	}
 }
 
+func TestRateLimit_PerMinuteWindow(t *testing.T) {
+	b, j := newBus(t)
+	prov := &fakeProvider{name: "p", resp: okResp("claude-sonnet-4-6", 1, 1)}
+	r := governor.NewRegistry()
+	mustRegister(t, r, &governor.ProviderInfo{Name: "p", Provider: prov, AuthMode: governor.AuthLocal})
+
+	clock := time.Date(2026, 1, 1, 10, 30, 0, 0, time.UTC)
+	g, _ := governor.New(governor.Config{
+		Registry: r, Bus: b,
+		RateLimitPerMin: 2,
+		Now:             func() time.Time { return clock },
+	})
+
+	// First two calls in the 10:30 window are admitted.
+	for i := 0; i < 2; i++ {
+		if _, err := g.Complete(context.Background(), agent.CompletionRequest{Model: "claude-sonnet-4-6"}); err != nil {
+			t.Fatalf("call %d should be admitted: %v", i+1, err)
+		}
+	}
+	// Third in the same minute is rejected (provider not called a 3rd time).
+	if _, err := g.Complete(context.Background(), agent.CompletionRequest{Model: "claude-sonnet-4-6"}); !errors.Is(err, governor.ErrRateLimited) {
+		t.Errorf("3rd call: got %v, want ErrRateLimited", err)
+	}
+	if prov.calls.Load() != 2 {
+		t.Errorf("provider called %d times; want 2 (3rd blocked pre-call)", prov.calls.Load())
+	}
+	// rate.limited event is journaled.
+	var limited bool
+	_ = j.Range(func(e *event.Event) error {
+		if e.Kind == event.KindRateLimited {
+			limited = true
+		}
+		return nil
+	})
+	if !limited {
+		t.Error("missing rate.limited event")
+	}
+
+	// Advance into the next clock-minute: the window resets, calls admitted again.
+	clock = clock.Add(time.Minute)
+	if _, err := g.Complete(context.Background(), agent.CompletionRequest{Model: "claude-sonnet-4-6"}); err != nil {
+		t.Errorf("call after window rollover should be admitted: %v", err)
+	}
+	if prov.calls.Load() != 3 {
+		t.Errorf("provider calls = %d, want 3 after rollover", prov.calls.Load())
+	}
+}
+
+// WithLimits gives a sibling its own rate window as well as its own ledger:
+// throttling the sibling must not throttle the parent.
+func TestWithLimits_IndependentRateWindows(t *testing.T) {
+	b, _ := newBus(t)
+	prov := &fakeProvider{name: "p", resp: okResp("claude-sonnet-4-6", 1, 1)}
+	r := governor.NewRegistry()
+	mustRegister(t, r, &governor.ProviderInfo{Name: "p", Provider: prov, AuthMode: governor.AuthLocal})
+
+	clock := time.Date(2026, 1, 1, 10, 30, 0, 0, time.UTC)
+	parent, _ := governor.New(governor.Config{
+		Registry: r, Bus: b,
+		Now: func() time.Time { return clock }, // no rate cap on the parent
+	})
+	tenant, _ := parent.WithLimits(0, 1) // 1 call/min for the tenant
+	// Tenant's single allowance is consumed, second is throttled.
+	if _, err := tenant.Complete(context.Background(), agent.CompletionRequest{Model: "claude-sonnet-4-6"}); err != nil {
+		t.Fatalf("tenant first call: %v", err)
+	}
+	if _, err := tenant.Complete(context.Background(), agent.CompletionRequest{Model: "claude-sonnet-4-6"}); !errors.Is(err, governor.ErrRateLimited) {
+		t.Errorf("tenant second call: got %v, want ErrRateLimited", err)
+	}
+	// Parent (no cap) is unaffected and keeps running.
+	for i := 0; i < 5; i++ {
+		if _, err := parent.Complete(context.Background(), agent.CompletionRequest{Model: "claude-sonnet-4-6"}); err != nil {
+			t.Errorf("parent call %d should not be throttled by tenant: %v", i+1, err)
+		}
+	}
+}
+
 func TestBudgetRollover_NewUTCDay(t *testing.T) {
 	b, _ := newBus(t)
 	prov := &fakeProvider{name: "p", resp: okResp("claude-sonnet-4-6", 1_000_000, 0)}

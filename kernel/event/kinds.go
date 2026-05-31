@@ -52,6 +52,7 @@ const (
 	KindBudgetConsumed   Kind = "budget.consumed"
 	KindProviderFallback Kind = "provider.fallback"
 	KindBudgetExceeded   Kind = "budget.exceeded"
+	KindRateLimited      Kind = "rate.limited"
 
 	// Warden (P1-WARD-*).
 	KindWardenExecuted          Kind = "warden.executed"
@@ -170,6 +171,7 @@ var knownKinds = map[Kind]struct{}{
 	KindBudgetConsumed:            {},
 	KindProviderFallback:          {},
 	KindBudgetExceeded:            {},
+	KindRateLimited:               {},
 	KindWardenExecuted:            {},
 	KindWardenProfileDowngraded:   {},
 	KindWardenLimitExceeded:       {},

@@ -340,8 +340,20 @@ func runDaemon(stdout, stderr io.Writer) int {
 			tenantCeiling = int64(usd * 1e9)
 			ceilingDesc = fmt.Sprintf("$%.2f/day", usd)
 		}
+		// Per-tenant per-minute call rate cap (M14 quotas). 0 = unlimited.
+		tenantRate := 0
+		rateDesc := "unlimited"
+		if spec := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "TENANT_RATE_PER_MIN")); spec != "" {
+			n, perr := strconv.Atoi(spec)
+			if perr != nil || n < 0 {
+				fmt.Fprintf(stderr, "%s: %sTENANT_RATE_PER_MIN: want a non-negative integer, got %q\n", brand.Binary, brand.EnvPrefix, spec)
+				return 1
+			}
+			tenantRate = n
+			rateDesc = fmt.Sprintf("%d/min", n)
+		}
 		reg, terr := tenant.New(filepath.Join(baseDir, "tenants"), func(id, tdir string) (io.Closer, error) {
-			tgov, gerr := gov.WithDailyCeiling(tenantCeiling)
+			tgov, gerr := gov.WithLimits(tenantCeiling, tenantRate)
 			if gerr != nil {
 				return nil, fmt.Errorf("tenant %q governor: %w", id, gerr)
 			}
@@ -367,9 +379,9 @@ func runDaemon(stdout, stderr io.Writer) int {
 		defer reg.CloseAll()
 		root := filepath.Join(baseDir, "tenants")
 		if infos, _ := reg.List(); infos != nil {
-			tenantsDesc = fmt.Sprintf("enabled (root=%s, %d on disk, ceiling=%s)", root, len(infos), ceilingDesc)
+			tenantsDesc = fmt.Sprintf("enabled (root=%s, %d on disk, ceiling=%s, rate=%s)", root, len(infos), ceilingDesc, rateDesc)
 		} else {
-			tenantsDesc = fmt.Sprintf("enabled (root=%s, ceiling=%s)", root, ceilingDesc)
+			tenantsDesc = fmt.Sprintf("enabled (root=%s, ceiling=%s, rate=%s)", root, ceilingDesc, rateDesc)
 		}
 	}
 

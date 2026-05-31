@@ -53,9 +53,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   request targeting a tenant may authorize with the daemon admin token (any
   tenant) OR that tenant's own token (that tenant ONLY); a tenant token used for
   another tenant, or with no `X-Agezt-Tenant` header, is `401`. So you can hand
-  one tenant's operator a credential that can't touch the others. Per-tenant
-  rate limits are the remaining refinement (see
-  `.project/PHASE-M14-MULTITENANT-REPORT.md`).
+  one tenant's operator a credential that can't touch the others. Each tenant
+  also has a per-minute **call-rate cap** (the frequency companion to the $/day
+  ceiling): the governor admits up to `AGEZT_TENANT_RATE_PER_MIN` calls per
+  clock-minute and returns a `rate.limited` event + error beyond that, per tenant
+  and independent — so one tenant can't burst-flood the shared provider pool even
+  while under its daily budget. Together these make the per-tenant quota +
+  isolation story complete (see `.project/PHASE-M14-MULTITENANT-REPORT.md`).
 - **Scheduled intents** — a `cadence` daemon resident (autonomy): fires intents
   on a recurring timer through the same governed loop (Edict + journal + budget),
   so the system acts on its own ("every morning, summarise new commits and brief
