@@ -165,6 +165,76 @@ func TestParseTrustLevel(t *testing.T) {
 	}
 }
 
+func TestProjectPolicyChanges(t *testing.T) {
+	// A realistic history: add two deny rules, remove one, change a level
+	// twice (last wins), and a malformed entry that must be skipped.
+	changes := []PolicyChange{
+		{Action: "deny.add", Name: "runtime[1]", Substring: "kubectl delete", AppliesTo: []string{"shell"}},
+		{Action: "level.set", Capability: "shell", To: "L0"},
+		{Action: "deny.add", Name: "runtime[2]", Substring: "git push"},
+		{Action: "level.set", Capability: "shell", To: "L4"},        // last wins
+		{Action: "deny.rm", Name: "runtime[1]"},                     // first rule gone
+		{Action: "level.set", Capability: "http.post", To: "bogus"}, // skipped (bad level)
+		{Action: "deny.add", Name: "runtime[3]", Substring: "  "},   // skipped (blank)
+	}
+	o := ProjectPolicyChanges(changes)
+
+	// Levels: shell=L4 (last write), http.post NOT present (bad level skipped).
+	if got := o.Levels[CapShell]; got != LevelAllow {
+		t.Errorf("shell level = %s want L4", got)
+	}
+	if _, ok := o.Levels[CapHTTPPost]; ok {
+		t.Error("http.post should be absent (unparseable level skipped)")
+	}
+
+	// Deny survivors: only runtime[2] (git push, all caps); runtime[1] removed,
+	// runtime[3] skipped as blank.
+	if len(o.DenyRules) != 1 {
+		t.Fatalf("got %d deny rules, want 1: %+v", len(o.DenyRules), o.DenyRules)
+	}
+	if o.DenyRules[0].Substring != "git push" || len(o.DenyRules[0].AppliesTo) != 0 {
+		t.Errorf("survivor = %+v want {git push, all caps}", o.DenyRules[0])
+	}
+	if o.IsEmpty() {
+		t.Error("overlay should not be empty")
+	}
+}
+
+func TestProjectPolicyChanges_EmptyHistory(t *testing.T) {
+	o := ProjectPolicyChanges(nil)
+	if !o.IsEmpty() {
+		t.Errorf("empty history should yield empty overlay: %+v", o)
+	}
+}
+
+func TestApplyOverlay_RestoresOntoEngine(t *testing.T) {
+	// Simulate a fresh boot engine, then apply an overlay projected from a
+	// prior session — the restored deny rule must fire and the restored
+	// level must take effect.
+	e := New(Options{Levels: map[Capability]TrustLevel{CapShell: LevelAskFirst}})
+	o := PolicyOverlay{
+		Levels:    map[Capability]TrustLevel{CapShell: LevelDeny},
+		DenyRules: []HardDenyRule{{Name: "ignored", Substring: "kubectl delete", AppliesTo: []Capability{CapShell}}},
+	}
+	nl, nr := e.ApplyOverlay(o)
+	if nl != 1 || nr != 1 {
+		t.Fatalf("ApplyOverlay returned (%d,%d) want (1,1)", nl, nr)
+	}
+	// Level restored to L0.
+	if lvl, _ := e.Level(CapShell); lvl != LevelDeny {
+		t.Errorf("shell level = %s want L0", lvl)
+	}
+	// The restored deny rule fires and was re-named with the runtime prefix
+	// (the overlay's "ignored" name is replaced by AddHardDeny).
+	out := e.Decide(CapShell, "kubectl delete pod")
+	if !out.HardDenied {
+		t.Error("restored deny rule should fire")
+	}
+	if !IsRuntimeRule(out.HardDenyRule) {
+		t.Errorf("restored rule name %q should carry runtime prefix", out.HardDenyRule)
+	}
+}
+
 func TestDefaultLevels_RespectF3(t *testing.T) {
 	e := New(Options{})
 	checks := map[Capability]TrustLevel{

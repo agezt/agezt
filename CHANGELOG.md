@@ -12,6 +12,22 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Durable runtime policy** (DECISIONS F3/F4, M20) — runtime deny rules (M18)
+  and trust-level changes (M19) lived only in the running engine and reverted on
+  restart. They were already journaled as `policy.changed` events; with
+  `AGEZT_EDICT_DURABLE=on` the daemon now replays those events at boot and
+  reconstructs the net overlay onto the freshly-built engine — the journal is
+  the source of truth, the engine state a projection of it. Pure projection
+  (`edict.ProjectPolicyChanges`): level changes are last-wins, deny rules are
+  tracked by journaled name so an add-then-remove leaves no trace, malformed
+  historical events are skipped rather than wedging the boot. Opt-in by design —
+  a level *loosening* that silently persisted across a restart would be a
+  footgun, so the operator asks for it; the banner reports what was restored
+  (`durable=on (restored N level(s), M deny rule(s))`). Proven live: a deny rule
+  + an `http.post` level change added in one session both fire after a full
+  daemon restart (without re-adding), a non-durable boot restores neither, and
+  the hard-deny floor is intact throughout. See
+  `.project/PHASE-M20-EDICT-DURABLE-REPORT.md`.
 - **Runtime trust-level changes** (DECISIONS F3, M19) — the other half of the
   policy engine, the trust ladder (L0 deny .. L4 allow), was boot-only config
   (env vars). `agt edict level <capability> <level>` now changes a capability's

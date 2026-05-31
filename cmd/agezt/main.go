@@ -23,6 +23,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -342,6 +343,23 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// event is journaled un-scrubbed.
 	if redactor != nil {
 		k.Bus().SetRedactor(redactor)
+	}
+
+	// Durable runtime policy (M20): runtime deny rules (M18) and trust-level
+	// changes (M19) are journaled as policy.changed events. When
+	// AGEZT_EDICT_DURABLE=on, replay them at boot onto the freshly-built
+	// engine so they survive a restart — the journal is the source of truth,
+	// the engine overlay is a projection of it. Opt-in: a level *loosening*
+	// that silently persisted across a restart would be a footgun, so the
+	// operator asks for it explicitly. MUST run before any Run is dispatched.
+	if strings.EqualFold(os.Getenv(brand.EnvPrefix+"EDICT_DURABLE"), "on") {
+		overlay, rerr := replayPolicyOverlay(k)
+		if rerr != nil {
+			fmt.Fprintf(stderr, "%s: replay durable policy: %v\n", brand.Binary, rerr)
+			return 1
+		}
+		nl, nr := k.Edict().ApplyOverlay(overlay)
+		askPolicyDesc += fmt.Sprintf("; durable=on (restored %d level(s), %d deny rule(s))", nl, nr)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -773,6 +791,33 @@ func (e kernelAPIEngine) EventsForCorrelation(corr string) ([]*event.Event, erro
 		return nil
 	})
 	return out, err
+}
+
+// replayPolicyOverlay reads the journal, decodes every policy.changed event
+// (runtime deny-rule add/rm + trust-level changes, M18/M19), and projects
+// them into the net overlay to restore onto the engine (M20). The journal is
+// the source of truth; the engine overlay is a projection. Order is preserved
+// by Range (append-only journal), which ProjectPolicyChanges relies on for
+// last-wins level semantics and add/rm rule bookkeeping.
+func replayPolicyOverlay(k *kernelruntime.Kernel) (edict.PolicyOverlay, error) {
+	var changes []edict.PolicyChange
+	err := k.Journal().Range(func(ev *event.Event) error {
+		if ev.Kind != event.KindPolicyChanged {
+			return nil
+		}
+		var ch edict.PolicyChange
+		if uerr := json.Unmarshal(ev.Payload, &ch); uerr != nil {
+			// A single malformed historical payload must not wedge boot;
+			// skip it (ProjectPolicyChanges also skips malformed content).
+			return nil
+		}
+		changes = append(changes, ch)
+		return nil
+	})
+	if err != nil {
+		return edict.PolicyOverlay{}, err
+	}
+	return edict.ProjectPolicyChanges(changes), nil
 }
 
 // credSecrets returns the non-empty values of every vault entry plus any extra
