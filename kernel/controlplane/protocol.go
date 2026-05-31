@@ -195,6 +195,32 @@ const (
 	//   - requires_approval: bool — AskPrompt mode + Ask-class hit
 	CmdEdictTest = "edict_test"
 
+	// CmdEdictDenyList enumerates the hard-deny rules currently loaded,
+	// each tagged with whether it is removable at runtime. Same rows as
+	// CmdEdictShow's hard_deny block, plus a `removable` flag: built-in
+	// and AGEZT_EDICT_DENY (operator[N]) rules are the immutable floor;
+	// only runtime[N] rules added via CmdEdictDenyAdd can be removed.
+	// No args. Returns:
+	//   - rules : [{name, substring, applies_to, removable}, ...]
+	CmdEdictDenyList = "edict_deny_list"
+
+	// CmdEdictDenyAdd appends a hard-deny rule at runtime — no restart.
+	// The deny floor is security-critical, so the change is journaled as
+	// a policy.changed event. Args:
+	//   - rule : string (required) — one rule in AGEZT_EDICT_DENY syntax,
+	//            "substring" (all caps) or "<capability>:substring"
+	//            (scoped). Must parse to exactly one rule.
+	// Returns: {name, substring, applies_to, count} — name is the
+	// engine-assigned "runtime[N]" handle for a later remove.
+	CmdEdictDenyAdd = "edict_deny_add"
+
+	// CmdEdictDenyRemove removes a runtime-added hard-deny rule by name
+	// and journals a policy.changed event. Refuses to remove a built-in
+	// or operator[N] floor rule (error, not a silent no-op). Args:
+	//   - name : string (required) — the "runtime[N]" handle.
+	// Returns: {removed: bool, count}.
+	CmdEdictDenyRemove = "edict_deny_rm"
+
 	// CmdStateList enumerates namespaces and (optionally) keys in
 	// the kernel state store. State is normally invisible to
 	// operators — agents and the scheduler write here but there's

@@ -179,6 +179,22 @@ type Engine struct {
 	levels    map[Capability]TrustLevel
 	hardDeny  []HardDenyRule
 	askPolicy AskPolicy
+	rtSeq     int // monotonic counter naming runtime-added hard-deny rules
+}
+
+// RuntimeRulePrefix names rules added at runtime via AddHardDeny. The
+// prefix is the load-bearing security invariant of runtime management:
+// RemoveHardDeny only removes rules whose name carries it, so the
+// boot-time floor (DefaultHardDeny + AGEZT_EDICT_DENY's operator[N]
+// rules) can be *tightened* at runtime but never *loosened*. You can add
+// a deny without a restart; you cannot delete a kernel/operator deny.
+const RuntimeRulePrefix = "runtime["
+
+// IsRuntimeRule reports whether name belongs to a rule added at runtime
+// (and is therefore removable via RemoveHardDeny). Built-in and
+// AGEZT_EDICT_DENY rules return false — they are the immutable floor.
+func IsRuntimeRule(name string) bool {
+	return strings.HasPrefix(name, RuntimeRulePrefix)
 }
 
 // Levels returns a snapshot of the per-capability trust levels.
@@ -417,6 +433,46 @@ func (e *Engine) SetLevel(cap Capability, lvl TrustLevel) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	e.levels[cap] = lvl
+}
+
+// AddHardDeny appends a hard-deny rule at runtime and returns the stored
+// rule (with its engine-assigned name). The caller supplies Substring and
+// AppliesTo (e.g. from ParseDenyRules); the Name is always overwritten
+// with a fresh "runtime[N]" so the rule is removable via RemoveHardDeny
+// and can never be confused with a built-in or operator[N] floor rule.
+//
+// A blank substring is rejected for the same reason ParseDenyRules rejects
+// it: a rule matching the empty string would deny every action. Safe for
+// concurrent use; the change takes effect on the next Decide.
+func (e *Engine) AddHardDeny(rule HardDenyRule) (HardDenyRule, error) {
+	if strings.TrimSpace(rule.Substring) == "" {
+		return HardDenyRule{}, fmt.Errorf("edict: hard-deny rule has an empty substring (would deny everything)")
+	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.rtSeq++
+	rule.Name = fmt.Sprintf("%s%d]", RuntimeRulePrefix, e.rtSeq)
+	e.hardDeny = append(e.hardDeny, rule)
+	return rule, nil
+}
+
+// RemoveHardDeny removes the runtime-added hard-deny rule named name and
+// reports whether a rule was removed. It refuses to touch the boot-time
+// floor: removing a built-in or operator[N] rule returns an error, never a
+// silent success — the floor stays put. Safe for concurrent use.
+func (e *Engine) RemoveHardDeny(name string) (bool, error) {
+	if !IsRuntimeRule(name) {
+		return false, fmt.Errorf("edict: %q is not a runtime-added rule; the boot-time deny floor cannot be removed at runtime", name)
+	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	for i, r := range e.hardDeny {
+		if r.Name == name {
+			e.hardDeny = slices.Delete(e.hardDeny, i, i+1)
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // Level returns the current trust level for a capability, and a bool

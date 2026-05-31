@@ -63,6 +63,102 @@ func TestEdictShow_ReturnsDefaultPolicy(t *testing.T) {
 	}
 }
 
+// TestEdictDeny_AddListRemove walks the runtime-management lifecycle:
+// add a rule, see it in the list tagged removable, confirm it actually
+// hard-denies via edict_test, then remove it and confirm it's gone.
+func TestEdictDeny_AddListRemove(t *testing.T) {
+	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	ctx := context.Background()
+
+	// Add a scoped rule.
+	add, err := c.Call(ctx, controlplane.CmdEdictDenyAdd, map[string]any{"rule": "shell:kubectl delete"})
+	if err != nil {
+		t.Fatalf("deny add: %v", err)
+	}
+	name, _ := add["name"].(string)
+	if name == "" {
+		t.Fatalf("deny add returned no name: %v", add)
+	}
+
+	// It must now appear in the list, flagged removable.
+	list, err := c.Call(ctx, controlplane.CmdEdictDenyList, nil)
+	if err != nil {
+		t.Fatalf("deny list: %v", err)
+	}
+	rules, _ := list["rules"].([]any)
+	var found map[string]any
+	for _, raw := range rules {
+		r, _ := raw.(map[string]any)
+		if n, _ := r["name"].(string); n == name {
+			found = r
+		}
+	}
+	if found == nil {
+		t.Fatalf("added rule %q not in list: %v", name, rules)
+	}
+	if removable, _ := found["removable"].(bool); !removable {
+		t.Errorf("runtime rule %q should be removable", name)
+	}
+
+	// And it must actually fire through the engine.
+	probe, err := c.Call(ctx, controlplane.CmdEdictTest, map[string]any{
+		"capability": "shell", "input": "kubectl delete ns prod",
+	})
+	if err != nil {
+		t.Fatalf("edict test: %v", err)
+	}
+	if d, _ := probe["decision"].(string); d != "deny" {
+		t.Errorf("added rule did not deny: decision=%q", d)
+	}
+	if hd, _ := probe["hard_denied"].(bool); !hd {
+		t.Error("added rule should hard-deny")
+	}
+
+	// Remove it.
+	rm, err := c.Call(ctx, controlplane.CmdEdictDenyRemove, map[string]any{"name": name})
+	if err != nil {
+		t.Fatalf("deny rm: %v", err)
+	}
+	if removed, _ := rm["removed"].(bool); !removed {
+		t.Errorf("deny rm did not remove %q: %v", name, rm)
+	}
+
+	// After removal the probe is no longer hard-denied.
+	probe2, _ := c.Call(ctx, controlplane.CmdEdictTest, map[string]any{
+		"capability": "shell", "input": "kubectl delete ns prod",
+	})
+	if hd, _ := probe2["hard_denied"].(bool); hd {
+		t.Error("rule should no longer fire after removal")
+	}
+}
+
+// TestEdictDeny_CannotRemoveFloorRule verifies the security invariant:
+// a built-in floor rule cannot be removed at runtime — the handler
+// surfaces an error rather than silently dropping the kernel's deny.
+func TestEdictDeny_CannotRemoveFloorRule(t *testing.T) {
+	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	_, err := c.Call(context.Background(), controlplane.CmdEdictDenyRemove,
+		map[string]any{"name": "rm-rf-root"})
+	if err == nil {
+		t.Fatal("removing a built-in floor rule must error, not succeed")
+	}
+}
+
+// TestEdictDeny_AddRejectsMultiAndEmpty guards the input contract:
+// exactly one rule per add, and no empty-substring footgun.
+func TestEdictDeny_AddRejectsMultiAndEmpty(t *testing.T) {
+	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	ctx := context.Background()
+	if _, err := c.Call(ctx, controlplane.CmdEdictDenyAdd,
+		map[string]any{"rule": "a ; b"}); err == nil {
+		t.Error("multi-rule spec should be rejected")
+	}
+	if _, err := c.Call(ctx, controlplane.CmdEdictDenyAdd,
+		map[string]any{"rule": "shell:"}); err == nil {
+		t.Error("empty-substring rule should be rejected")
+	}
+}
+
 // TestEdictShow_HardDenyRulesAreSortedByName covers the
 // deterministic-output promise. Operators diffing `agt edict
 // show` output across calls/deployments shouldn't see the row

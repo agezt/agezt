@@ -78,6 +78,68 @@ func TestParsedDenyRules_FireThroughDecide(t *testing.T) {
 	}
 }
 
+func TestAddHardDeny_AssignsRuntimeNameAndFires(t *testing.T) {
+	e := New(Options{Levels: map[Capability]TrustLevel{CapShell: LevelAllow}})
+	r, err := e.AddHardDeny(HardDenyRule{Substring: "kubectl delete", AppliesTo: []Capability{CapShell}})
+	if err != nil {
+		t.Fatalf("AddHardDeny: %v", err)
+	}
+	// Name is engine-assigned with the runtime prefix, regardless of any
+	// supplied name — that's the invariant RemoveHardDeny relies on.
+	if !IsRuntimeRule(r.Name) {
+		t.Errorf("added rule name %q lacks runtime prefix", r.Name)
+	}
+	if o := e.Decide(CapShell, "kubectl delete pod x"); !o.HardDenied {
+		t.Errorf("runtime-added rule should hard-deny: %+v", o)
+	}
+	// The supplied Name is overwritten, not honoured.
+	r2, _ := e.AddHardDeny(HardDenyRule{Name: "forged", Substring: "rm secret"})
+	if r2.Name == "forged" {
+		t.Errorf("AddHardDeny must overwrite the caller's name; got %q", r2.Name)
+	}
+	if r2.Name == r.Name {
+		t.Errorf("runtime names must be unique; both = %q", r.Name)
+	}
+}
+
+func TestAddHardDeny_RejectsEmptySubstring(t *testing.T) {
+	e := New(Options{})
+	if _, err := e.AddHardDeny(HardDenyRule{Substring: "   "}); err == nil {
+		t.Error("empty/whitespace substring must be rejected")
+	}
+}
+
+func TestRemoveHardDeny_OnlyRuntimeRules(t *testing.T) {
+	e := New(Options{Levels: map[Capability]TrustLevel{CapShell: LevelAllow}})
+	added, _ := e.AddHardDeny(HardDenyRule{Substring: "kubectl delete", AppliesTo: []Capability{CapShell}})
+
+	// A built-in floor rule cannot be removed.
+	if _, err := e.RemoveHardDeny("rm-rf-root"); err == nil {
+		t.Error("removing a built-in rule must error")
+	}
+	// An operator[N] (AGEZT_EDICT_DENY) rule cannot be removed either.
+	if _, err := e.RemoveHardDeny("operator[1]"); err == nil {
+		t.Error("removing an operator[N] floor rule must error")
+	}
+	// The built-in still fires (it was never touched).
+	if o := e.Decide(CapShell, "rm -rf /"); !o.HardDenied {
+		t.Error("built-in rule must survive a failed remove attempt")
+	}
+
+	// The runtime rule removes cleanly.
+	removed, err := e.RemoveHardDeny(added.Name)
+	if err != nil || !removed {
+		t.Fatalf("RemoveHardDeny(%q) = %v, %v; want true, nil", added.Name, removed, err)
+	}
+	if o := e.Decide(CapShell, "kubectl delete pod x"); o.HardDenied {
+		t.Error("removed runtime rule must stop firing")
+	}
+	// Removing an unknown-but-runtime-shaped name is a clean false, no error.
+	if removed, err := e.RemoveHardDeny("runtime[999]"); err != nil || removed {
+		t.Errorf("removing absent runtime rule = %v, %v; want false, nil", removed, err)
+	}
+}
+
 func TestDefaultLevels_RespectF3(t *testing.T) {
 	e := New(Options{})
 	checks := map[Capability]TrustLevel{

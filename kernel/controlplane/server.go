@@ -282,6 +282,12 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.handleEdictShow(conn, req)
 	case CmdEdictTest:
 		s.handleEdictTest(conn, req)
+	case CmdEdictDenyList:
+		s.handleEdictDenyList(conn, req)
+	case CmdEdictDenyAdd:
+		s.handleEdictDenyAdd(conn, req)
+	case CmdEdictDenyRemove:
+		s.handleEdictDenyRemove(conn, req)
 	case CmdStateList:
 		s.handleStateList(conn, req)
 	case CmdStateGet:

@@ -12,6 +12,21 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Runtime-managed policy deny rules** (DECISIONS F4, M18) — the hard-deny
+  floor could only be changed by restarting the daemon (M17's `AGEZT_EDICT_DENY`
+  is boot config). `agt edict deny list|add|rm` now manages it live over the
+  control plane: `add "shell:kubectl delete"` (same syntax as the env var)
+  appends a rule with no restart; `list` shows every rule tagged `floor` or
+  `runtime`; `rm runtime[N]` removes one. The load-bearing invariant — runtime
+  `rm` only touches runtime-added rules; built-in and `operator[N]` floor rules
+  are refused with an error, never silently dropped — so the floor can be
+  *tightened* at runtime but never *loosened*. Every add/rm is journaled as a
+  `policy.changed` event (actor `operator`, with the rule + new count) in the
+  same hash-chained journal as the decisions it governs, so a policy change is
+  as auditable as a policy decision. Proven live: `add` → the rule fires via
+  `agt edict test`; removing `rm-rf-root` or `operator[1]` is refused; `rm
+  runtime[1]` clears it; both mutations land in the journal. See
+  `.project/PHASE-M18-EDICT-RUNTIME-REPORT.md`.
 - **Operator-extensible policy deny rules** (DECISIONS F4, M17) — Edict's
   hard-deny layer (the non-overridable floor that fires regardless of trust
   level) was a fixed built-in list. `AGEZT_EDICT_DENY` now appends site-specific

@@ -46,6 +46,11 @@ const (
 
 	// Policy / Edict (P1-EDICT-*).
 	KindPolicyDecision Kind = "policy.decision"
+	// KindPolicyChanged records a runtime mutation of the policy engine's
+	// hard-deny rules (operator added/removed a deny rule over the control
+	// plane). The deny floor is security-critical, so every change is an
+	// auditable event in the same journal as the decisions it governs.
+	KindPolicyChanged Kind = "policy.changed"
 
 	// Governor (P1-CONDUIT-*).
 	KindRoutingDecision  Kind = "routing.decision"
@@ -167,6 +172,7 @@ var knownKinds = map[Kind]struct{}{
 	KindHalt:                      {},
 	KindResume:                    {},
 	KindPolicyDecision:            {},
+	KindPolicyChanged:             {},
 	KindRoutingDecision:           {},
 	KindBudgetConsumed:            {},
 	KindProviderFallback:          {},
