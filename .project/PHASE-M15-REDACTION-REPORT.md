@@ -1,11 +1,12 @@
 # Phase Report — Milestone M15 (Secret redaction at the journal boundary)
 
-> Status: **Phase 1 shipped** · Date: 2026-05-31
+> Status: **Phases 1–2 shipped** · Date: 2026-05-31
 > SPEC-06 / ROADMAP "redaction must work before Initiative can act
 > autonomously." Phase 1: the redaction substrate (`kernel/redact`) + the bus
 > seam that scrubs every durably-published event before it is hashed and written.
-> Phase 2 wires the daemon (seed literal secrets from the creds store; enable
-> gate). Streaming-token redaction is a named follow-up.
+> Phase 2: the daemon wiring — on by default, seeded from the creds vault,
+> installed on the primary and every tenant bus. Streaming-token redaction is a
+> named follow-up.
 
 ## Why this milestone
 
@@ -77,13 +78,35 @@ follow-up.
 9 new tests; suite **1139** green, `go vet` clean, `GOOS=linux` builds,
 `go.mod` unchanged.
 
+## Phase 2 — daemon wiring
+
+The redactor is now live in the daemon, on by default:
+
+- **Built at startup**, seeded with the vault's secret *values* (`credSecrets` →
+  `SetSecrets`) plus the built-in patterns. `AGEZT_REDACT=off` disables it (the
+  bus then runs with a nil redactor — the unchanged path). A banner line reports
+  the state (`redaction: enabled (N vault secrets + built-in patterns)`).
+- **Installed on every bus before any run:** the primary kernel bus right after
+  `gov.SetBus`, and each tenant kernel bus inside the tenant `OpenFunc`. So a
+  multi-tenant deployment scrubs every tenant's journal too, with one redactor.
+- **Refreshed on reload:** the existing `OnReload` hook re-seeds the literal set
+  after a creds rotation, so a newly-added/rotated key is scrubbed as a literal
+  from then on (the patterns already covered it regardless).
+
+**Proven live (mock provider, fresh base dir):** the daemon boots with
+`redaction: enabled (0 vault secrets + built-in patterns)`; an `agt run` whose
+shell tool echoes `MYKEY=sk-abcdefghijklmnopqrstuvwxyz0123` produces a journal
+where the **raw secret is absent** and `[REDACTED]` is present. Crucially, a scan
+of the *entire base dir* — not just `journal/` but `state/`, `memory/`,
+`worldmodel/` — finds the raw secret **nowhere**: because those stores are
+event-sourced projections fed by the bus, redacting at the bus chokepoint
+protects every downstream store at once.
+
 ## Deferred — later phases (named)
 
-- **Phase 2 — daemon wiring.** Build a redactor at startup, seed its literal set
-  from the creds store (and refresh on rotation), enable it by default with an
-  `AGEZT_REDACT=off` escape hatch, and `SetRedactor` it on the kernel bus (and
-  each tenant bus). A banner line reports the state.
 - **Streaming-token redaction** for the live display path (defense-in-depth for
   secrets fully contained in one chunk).
 - **Custom redaction rules** (operator-supplied regexes / additional literals via
   env or config) for site-specific secret shapes.
+- **Per-tenant secret sets** (today all tenants share the primary redactor's
+  literals + patterns; a tenant with its own vault would seed its own literals).

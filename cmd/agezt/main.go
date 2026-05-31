@@ -52,6 +52,7 @@ import (
 	"github.com/agezt/agezt/kernel/openaiapi"
 	"github.com/agezt/agezt/kernel/plugin"
 	"github.com/agezt/agezt/kernel/pulse"
+	"github.com/agezt/agezt/kernel/redact"
 	"github.com/agezt/agezt/kernel/restapi"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/tenant"
@@ -257,10 +258,27 @@ func runDaemon(stdout, stderr io.Writer) int {
 		SubAgentTool:          subAgentOn,
 		SubAgentMaxDepth:      subAgentDepth,
 	}
+	// Secret redaction (M15 / SPEC-06): scrub secrets from every durably-published
+	// event before it enters the hash-chained (permanent) journal. On by default;
+	// AGEZT_REDACT=off disables. Seeded with the configured provider keys (exact
+	// literals) plus built-in high-confidence secret patterns.
+	var redactor *redact.Redactor
+	redactDesc := "disabled (" + brand.EnvPrefix + "REDACT=off)"
+	if !strings.EqualFold(os.Getenv(brand.EnvPrefix+"REDACT"), "off") {
+		redactor = redact.New()
+		redactor.SetSecrets(credSecrets(credStore))
+		redactDesc = fmt.Sprintf("enabled (%d vault secrets + built-in patterns)", len(credStore.Names()))
+	}
+
 	cfg.OnReload = func() error {
 		// Re-load vault (catalog already refreshed by Kernel.Reload).
 		if err := credStore.Load(); err != nil {
 			return fmt.Errorf("credentials vault: %w", err)
+		}
+		// Refresh the redactor's literal set so a rotated/added key is scrubbed
+		// from here on (the patterns already cover it regardless).
+		if redactor != nil {
+			redactor.SetSecrets(credSecrets(credStore))
 		}
 		freshLookup, _ := buildAWSCredChain(credStore.Lookup)
 
@@ -304,6 +322,11 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// land in the journal. MUST happen before any Run is dispatched.
 	gov.SetBus(k.Bus())
 	ward.SetBus(k.Bus())
+	// Install the secret redactor on the primary bus before any Run, so no
+	// event is journaled un-scrubbed.
+	if redactor != nil {
+		k.Bus().SetRedactor(redactor)
+	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -368,6 +391,9 @@ func runDaemon(stdout, stderr io.Writer) int {
 				return nil, oerr
 			}
 			tgov.SetBus(tk.Bus()) // budget events land in the tenant's journal
+			if redactor != nil {
+				tk.Bus().SetRedactor(redactor) // same scrub on the tenant's journal
+			}
 			return tk, nil
 		})
 		if terr != nil {
@@ -389,6 +415,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 	fmt.Fprintf(stdout, "  base dir         : %s\n", baseDir)
 	fmt.Fprintf(stdout, "  governor         : %s\n", govDesc)
 	fmt.Fprintf(stdout, "  credentials      : %s\n", credDesc)
+	fmt.Fprintf(stdout, "  redaction        : %s\n", redactDesc)
 	fmt.Fprintf(stdout, "  tools            : %s\n", toolsDesc)
 	fmt.Fprintf(stdout, "  policy engine    : edict (defaults from DECISIONS F3; %s)\n", askPolicyDesc)
 	fmt.Fprintf(stdout, "  warden           : %s\n", wardDesc)
@@ -730,6 +757,20 @@ func (e kernelAPIEngine) EventsForCorrelation(corr string) ([]*event.Event, erro
 		return nil
 	})
 	return out, err
+}
+
+// credSecrets returns the non-empty values of every vault entry, for seeding the
+// secret redactor's literal set (M15). Values, not names — the redactor scrubs
+// the actual secret strings wherever they appear in event payloads.
+func credSecrets(store *creds.Store) []string {
+	names := store.Names()
+	vals := make([]string, 0, len(names))
+	for _, n := range names {
+		if v := store.Get(n); v != "" {
+			vals = append(vals, v)
+		}
+	}
+	return vals
 }
 
 // buildOpenAIAPI starts the OpenAI-compatible HTTP resident when AGEZT_API_ADDR

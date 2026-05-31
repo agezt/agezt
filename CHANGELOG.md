@@ -12,6 +12,23 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Secret redaction at the journal boundary** (ROADMAP/SPEC-06, M15) — the
+  journal is append-only and hash-chained, so any secret that reaches an event
+  payload (a key echoed in tool stdout, a token in a prompt, an `Authorization`
+  header in a debug dump) would be recorded permanently. A new `kernel/redact`
+  `Redactor` scrubs secrets on two signals — exact **literal** values from the
+  creds vault and high-confidence **patterns** (OpenAI/Anthropic `sk-…`, AWS
+  `AKIA…`, GitHub `ghp_…`, Slack `xox…`, Google `AIza…`, `Bearer …`, PEM private
+  keys) — replacing each with `[REDACTED]`. The bus applies it to every durably-
+  published event's payload and tags **before** hashing/writing, so the secret
+  never enters the chain (which still verifies over the redacted bytes), and the
+  redaction is deterministic so replay is unaffected. On by default in the daemon
+  (seeded from the vault, refreshed on rotation, installed on the primary and
+  every tenant bus; `AGEZT_REDACT=off` disables). Because the state/memory/world
+  stores are event-sourced projections fed by the bus, scrubbing at this one
+  chokepoint keeps the raw secret out of *every* on-disk store at once (proven
+  live). Streaming display tokens are a named follow-up. See
+  `.project/PHASE-M15-REDACTION-REPORT.md`.
 - **Multi-tenant isolation foundation** (ROADMAP P6-MULTI, Phase 1) — a
   `kernel/tenant` `Registry` that lets one process host many fully-isolated
   tenants, each with its own base dir (and therefore its own journal, state,
