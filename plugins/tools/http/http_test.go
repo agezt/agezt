@@ -33,6 +33,7 @@ func TestGet_Happy(t *testing.T) {
 
 	u, _ := url.Parse(srv.URL)
 	tool := New()
+	tool.AllowLoopback = true // reach the loopback test server
 	tool.AllowedHosts = []string{u.Hostname()}
 
 	out, isErr := invoke(t, tool, httpInput{Method: "GET", URL: srv.URL + "/ping"})
@@ -65,6 +66,7 @@ func TestPost_SendsBodyAndHeaders(t *testing.T) {
 
 	u, _ := url.Parse(srv.URL)
 	tool := New()
+	tool.AllowLoopback = true // reach the loopback test server
 	tool.AllowedHosts = []string{u.Hostname()}
 
 	out, isErr := invoke(t, tool, httpInput{
@@ -190,6 +192,7 @@ func TestNon2xx_FlaggedIsError(t *testing.T) {
 	defer srv.Close()
 	u, _ := url.Parse(srv.URL)
 	tool := New()
+	tool.AllowLoopback = true // reach the loopback test server
 	tool.AllowedHosts = []string{u.Hostname()}
 	out, isErr := invoke(t, tool, httpInput{Method: "GET", URL: srv.URL})
 	if !isErr {
@@ -208,10 +211,42 @@ func TestResponseTruncation(t *testing.T) {
 	defer srv.Close()
 	u, _ := url.Parse(srv.URL)
 	tool := New()
+	tool.AllowLoopback = true // reach the loopback test server
 	tool.AllowedHosts = []string{u.Hostname()}
 	out, _ := invoke(t, tool, httpInput{Method: "GET", URL: srv.URL})
 	if !strings.Contains(out, `"truncated": true`) {
 		t.Errorf("truncation flag missing: %s", out[:min(200, len(out))])
+	}
+}
+
+// The default client refuses internal addresses even when the hostname check is
+// bypassed (AllowAll). This is the SSRF guard: AllowAll loosens the host
+// allowlist but must NOT let the agent reach loopback/metadata/private ranges.
+func TestSSRFGuard_BlocksLoopbackEvenWithAllowAll(t *testing.T) {
+	srv := httptest.NewServer(stdhttp.HandlerFunc(func(w stdhttp.ResponseWriter, _ *stdhttp.Request) {
+		w.Write([]byte("internal-service-secret"))
+	}))
+	defer srv.Close()
+
+	tool := New()
+	tool.AllowAll = true // bypass the hostname allowlist
+	// AllowLoopback stays false → the egress guard must still block 127.0.0.1.
+
+	out, isErr := invoke(t, tool, httpInput{Method: "GET", URL: srv.URL})
+	if !isErr {
+		t.Fatalf("loopback must be blocked by the egress guard; out=%s", out)
+	}
+	if strings.Contains(out, "internal-service-secret") {
+		t.Fatal("the guard let the response through — loopback was reachable")
+	}
+	if !strings.Contains(out, "netguard") && !strings.Contains(out, "blocked") {
+		t.Errorf("expected a netguard rejection, got: %s", out)
+	}
+
+	// With AllowLoopback the same request succeeds (opt-in for local services).
+	tool.AllowLoopback = true
+	if out, isErr := invoke(t, tool, httpInput{Method: "GET", URL: srv.URL}); isErr {
+		t.Errorf("AllowLoopback should permit the loopback server; out=%s", out)
 	}
 }
 

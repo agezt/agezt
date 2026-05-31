@@ -1381,11 +1381,27 @@ func buildTools(baseDir string, stderr io.Writer, ward warden.Engine) (map[strin
 		ht.AllowAll = true
 		fmt.Fprintln(stderr, "WARNING: AGEZT_HTTP_ALLOW_ALL=1 disables the http host allowlist.")
 	}
+	// Egress guard (M16): by default the http tool refuses internal/metadata
+	// addresses even for allowlisted/AllowAll hosts. Relax per range for local use.
+	egress := "guarded"
+	if os.Getenv(brand.EnvPrefix+"HTTP_ALLOW_LOOPBACK") == "1" {
+		ht.AllowLoopback = true
+		egress = "loopback-ok"
+	}
+	if os.Getenv(brand.EnvPrefix+"HTTP_ALLOW_PRIVATE") == "1" {
+		ht.AllowPrivate = true
+		if egress == "loopback-ok" {
+			egress = "loopback+private-ok"
+		} else {
+			egress = "private-ok"
+		}
+		fmt.Fprintln(stderr, "WARNING: AGEZT_HTTP_ALLOW_PRIVATE=1 lets the http tool reach the private network.")
+	}
 	out["http"] = ht
 	if ht.AllowAll {
-		registered = append(registered, "http(allow_all=true)")
+		registered = append(registered, fmt.Sprintf("http(allow_all=true, egress=%s)", egress))
 	} else {
-		registered = append(registered, fmt.Sprintf("http(hosts=%d)", len(ht.AllowedHosts)))
+		registered = append(registered, fmt.Sprintf("http(hosts=%d, egress=%s)", len(ht.AllowedHosts), egress))
 	}
 
 	// browser.read — same allowlist pattern as http (uses AGEZT_BROWSER_*

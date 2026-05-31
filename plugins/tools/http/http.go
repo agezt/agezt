@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/netguard"
 )
 
 // DefaultTimeout caps a single request.
@@ -49,18 +50,45 @@ type Tool struct {
 	// AllowAll bypasses the host check. Use only in trusted contexts
 	// (tests, local development); production should rely on Edict.
 	AllowAll bool
-	// HTTP overrides the default client.
+	// HTTP overrides the default client. When nil, the tool builds a
+	// netguard-protected client (default-deny to internal/metadata addresses)
+	// honouring AllowLoopback/AllowPrivate. Setting it bypasses the guard — an
+	// explicit caller choice.
 	HTTP *stdhttp.Client
+	// AllowLoopback permits the default client to reach 127.0.0.0/8 and ::1
+	// (a local sidecar/service). Default false: even an allowlisted or AllowAll
+	// host cannot reach loopback, so the agent can't pivot into co-located
+	// admin surfaces.
+	AllowLoopback bool
+	// AllowPrivate permits the default client to reach RFC1918 + IPv6 ULA (the
+	// local network). Default false. Neither flag unblocks the cloud metadata
+	// endpoint (169.254.169.254) — that needs an explicit netguard.AllowLinkLocal.
+	AllowPrivate bool
 	// UserAgent is sent on every request. Default: "agezt-http/0.1".
 	UserAgent string
 }
 
-// New returns a Tool with safe defaults: default-deny hosts, 30s timeout.
+// New returns a Tool with safe defaults: default-deny hosts, default-deny
+// internal egress (SSRF guard), 30s timeout.
 func New() *Tool {
-	return &Tool{
-		HTTP:      &stdhttp.Client{Timeout: DefaultTimeout},
-		UserAgent: "agezt-http/0.1",
+	return &Tool{UserAgent: "agezt-http/0.1"}
+}
+
+// client returns the request client: the injected one if set, else a fresh
+// netguard-protected client that refuses internal/metadata addresses on every
+// hop (initial + redirects), relaxed by AllowLoopback/AllowPrivate.
+func (t *Tool) client() *stdhttp.Client {
+	if t.HTTP != nil {
+		return t.HTTP
 	}
+	var opts []netguard.Option
+	if t.AllowLoopback {
+		opts = append(opts, netguard.AllowLoopback())
+	}
+	if t.AllowPrivate {
+		opts = append(opts, netguard.AllowPrivate())
+	}
+	return netguard.New(opts...).HTTPClient(DefaultTimeout)
 }
 
 // Definition implements agent.Tool.
@@ -150,11 +178,7 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, e
 		req.Header.Set(k, v)
 	}
 
-	client := t.HTTP
-	if client == nil {
-		client = &stdhttp.Client{Timeout: DefaultTimeout}
-	}
-	resp, err := client.Do(req)
+	resp, err := t.client().Do(req)
 	if err != nil {
 		return errResult("http: " + err.Error()), nil
 	}

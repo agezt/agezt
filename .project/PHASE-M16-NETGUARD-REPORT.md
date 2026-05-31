@@ -1,10 +1,12 @@
 # Phase Report — Milestone M16 (Network egress guard: no SSRF, no metadata theft)
 
-> Status: **Phase 1 shipped** · Date: 2026-05-31
+> Status: **Phases 1–2 shipped** · Date: 2026-05-31
 > SPEC-06 security defaults. Phase 1: the egress-guard substrate
 > (`kernel/netguard`) — a dialer-level block on internal/metadata addresses that
-> defeats DNS rebinding and redirect-based SSRF. Phase 2 wires the HTTP tool (and
-> other outbound tools) to use it by default.
+> defeats DNS rebinding and redirect-based SSRF. Phase 2: the HTTP tool builds a
+> guarded client by default, so even an allowlisted/AllowAll host cannot reach
+> loopback, the metadata endpoint, or the private network. Other outbound tools
+> are a named follow-up.
 
 ## Why this milestone
 
@@ -76,12 +78,33 @@ Stdlib only (`net`, `net/http`, `syscall`, `time`, `fmt`).
 5 new tests; suite **1144** green, `go vet` clean, `GOOS=linux` builds,
 `go.mod` unchanged.
 
-## Deferred — Phase 2+ (named)
+## Phase 2 — the HTTP tool is guarded by default
 
-- **Phase 2 — wire the HTTP tool.** Build the tool's client from a `netguard`
-  guard (default-deny internal), keeping the hostname allowlist as a second layer.
-  An `AGEZT_HTTP_ALLOW_LOOPBACK` / `_PRIVATE` escape hatch for trusted local use.
+`http.Tool` now builds its request client from a `netguard` guard whenever no
+client is injected — which is the production path (the daemon never injects). The
+guard is a **second, IP-level layer beneath the hostname allowlist**:
+
+- **Default-deny internal.** Even an allowlisted host — or `AGEZT_HTTP_ALLOW_ALL=1`,
+  which only ever loosened the *hostname* check — can no longer reach loopback,
+  the metadata endpoint, or RFC1918. The previously-dangerous `AllowAll` is now
+  safe against the worst case (AllowAll + `http://169.254.169.254/…`).
+- **Per-range opt-in.** `AllowLoopback` / `AllowPrivate` fields (env
+  `AGEZT_HTTP_ALLOW_LOOPBACK=1` / `AGEZT_HTTP_ALLOW_PRIVATE=1`) relax exactly one
+  range for a local sidecar or LAN service; the private opt-in logs a warning.
+  Neither unblocks the metadata endpoint. The tool banner reports the egress
+  posture (`http(hosts=N, egress=guarded)`).
+- **Injection still bypasses** (an explicit caller choice — used by tests).
+
+**Proven:** a new tool test (`TestSSRFGuard_BlocksLoopbackEvenWithAllowAll`)
+sets `AllowAll=true` and points the tool at a loopback server: the request is
+refused with a `netguard` error and the server's body never returns; flipping
+`AllowLoopback` then lets it through. The four existing tests that dial loopback
+test servers opt in explicitly. Live: the daemon banner shows
+`http(allow_all=true, egress=guarded)`.
+
+## Deferred — later phases (named)
+
 - **Other outbound tools** (`browser`, `peer`, MCP bridge, webhook sinks) routed
-  through the same guard.
+  through the same guard — each builds its own client today.
 - **Per-call egress as an Edict capability** so the trust ladder governs which
-  hosts/ranges a given run may reach.
+  hosts/ranges a given run may reach (not just a global tool flag).

@@ -12,6 +12,22 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Network egress guard against SSRF / metadata theft** (SPEC-06, M16) — an
+  autonomous (or prompt-injected) agent making outbound HTTP must not reach the
+  host's internal network: the cloud metadata endpoint (`169.254.169.254`) hands
+  out IAM credentials, `127.0.0.1` reaches co-located admin services, RFC1918 is
+  the private LAN. A hostname allowlist did not stop this — an allowed host can
+  DNS-rebind to an internal IP, and `http.Client` follows redirects, so an allowed
+  first hop can `Location:` you to the metadata endpoint. A new `kernel/netguard`
+  validates the **resolved IP** at the dialer (`net.Dialer.Control`), which fires
+  on every connection — initial dial **and each redirect hop** — so it sees past
+  the hostname and refuses loopback / private (RFC1918+ULA) / link-local (incl.
+  metadata) / unspecified addresses at connect time, defeating both rebinding and
+  redirect SSRF. The **http tool is guarded by default** (even `AGEZT_HTTP_ALLOW_ALL`
+  can no longer reach internal addresses); `AGEZT_HTTP_ALLOW_LOOPBACK` /
+  `AGEZT_HTTP_ALLOW_PRIVATE` relax one range each for local use, and neither
+  unblocks the metadata endpoint. Other outbound tools and per-call Edict egress
+  are named follow-ups. See `.project/PHASE-M16-NETGUARD-REPORT.md`.
 - **Secret redaction at the journal boundary** (ROADMAP/SPEC-06, M15) — the
   journal is append-only and hash-chained, so any secret that reaches an event
   payload (a key echoed in tool stdout, a token in a prompt, an `Authorization`
