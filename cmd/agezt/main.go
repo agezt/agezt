@@ -862,13 +862,15 @@ type orphanRun struct {
 }
 
 // runScan folds the journal's task.* events to find orphaned runs (M28). A
-// run is orphaned when it has a task.received but neither a task.completed
-// (it never finished — crash or error) nor a task.abandoned (we haven't
-// already reconciled it on an earlier boot — the idempotency guard). Pure
-// and fed one event at a time, so it's unit-testable without a kernel.
+// run is orphaned when it has a task.received but no terminal event:
+// neither a task.completed (it finished), a task.failed (it errored out
+// live — M30), nor a task.abandoned (we already reconciled it on an
+// earlier boot — the idempotency guard). Pure and fed one event at a
+// time, so it's unit-testable without a kernel.
 type runScan struct {
 	received  map[string]*orphanRun
 	completed map[string]bool
+	failed    map[string]bool
 	abandoned map[string]bool
 }
 
@@ -876,6 +878,7 @@ func newRunScan() *runScan {
 	return &runScan{
 		received:  map[string]*orphanRun{},
 		completed: map[string]bool{},
+		failed:    map[string]bool{},
 		abandoned: map[string]bool{},
 	}
 }
@@ -892,6 +895,8 @@ func (s *runScan) observe(e *event.Event) {
 		s.received[e.CorrelationID] = o
 	case event.KindTaskCompleted:
 		s.completed[e.CorrelationID] = true
+	case event.KindTaskFailed:
+		s.failed[e.CorrelationID] = true
 	case event.KindTaskAbandoned:
 		s.abandoned[e.CorrelationID] = true
 	}
@@ -902,7 +907,7 @@ func (s *runScan) observe(e *event.Event) {
 func (s *runScan) orphans() []orphanRun {
 	var out []orphanRun
 	for corr, o := range s.received {
-		if !s.completed[corr] && !s.abandoned[corr] {
+		if !s.completed[corr] && !s.failed[corr] && !s.abandoned[corr] {
 			out = append(out, *o)
 		}
 	}

@@ -239,6 +239,59 @@ func TestRunsList_CompletedBeatsAbandoned(t *testing.T) {
 	}
 }
 
+// TestRunsList_FailedStatus — a run terminated by task.failed (M30)
+// reports status="failed" and surfaces the reason tag.
+func TestRunsList_FailedStatus(t *testing.T) {
+	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	const corr = "fail-001"
+	if _, err := k.Bus().Publish(event.Spec{
+		Subject: "task", Kind: event.KindTaskReceived, Actor: "a",
+		CorrelationID: corr, Payload: map[string]string{"intent": "will error"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := k.Bus().Publish(event.Spec{
+		Subject: "task", Kind: event.KindTaskFailed, Actor: "a",
+		CorrelationID: corr, Payload: map[string]any{"error": "boom", "reason": "error"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	res, err := c.Call(context.Background(), controlplane.CmdRunsList, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rows, _ := res["runs"].([]any)
+	row, _ := rows[0].(map[string]any)
+	if got, _ := row["status"].(string); got != "failed" {
+		t.Errorf("status = %q want failed", got)
+	}
+	if got, _ := row["reason"].(string); got != "error" {
+		t.Errorf("reason = %q want error", got)
+	}
+}
+
+// TestRunsList_CompletedBeatsFailed — defensive precedence: a run with
+// both terminal markers reports completed (Completed > Failed).
+func TestRunsList_CompletedBeatsFailed(t *testing.T) {
+	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	const corr = "race-cf"
+	for _, spec := range []event.Spec{
+		{Subject: "task", Kind: event.KindTaskReceived, Actor: "a", CorrelationID: corr, Payload: map[string]string{"intent": "x"}},
+		{Subject: "task", Kind: event.KindTaskFailed, Actor: "a", CorrelationID: corr, Payload: map[string]any{"reason": "error"}},
+		{Subject: "task", Kind: event.KindTaskCompleted, Actor: "a", CorrelationID: corr, Payload: map[string]any{"iters": 1}},
+	} {
+		if _, err := k.Bus().Publish(spec); err != nil {
+			t.Fatal(err)
+		}
+	}
+	res, _ := c.Call(context.Background(), controlplane.CmdRunsList, nil)
+	rows, _ := res["runs"].([]any)
+	row, _ := rows[0].(map[string]any)
+	if got, _ := row["status"].(string); got != "completed" {
+		t.Errorf("status = %q want completed (completed beats failed)", got)
+	}
+}
+
 // --- M29: runs stats -------------------------------------------------
 
 // TestRunsStats_EmptyJournal — no runs at all reports total=0 and a
@@ -291,14 +344,24 @@ func TestRunsStats_CountsAndSuccessRate(t *testing.T) {
 			CorrelationID: corr,
 		})
 	}
+	fail := func(corr string) {
+		t.Helper()
+		_, _ = k.Bus().Publish(event.Spec{
+			Subject: "task", Kind: event.KindTaskFailed, Actor: "a",
+			CorrelationID: corr, Payload: map[string]any{"reason": "error"},
+		})
+	}
 
-	// 3 completed, 1 abandoned, 1 running → terminal=4, rate=0.75.
+	// 3 completed, 1 failed, 1 abandoned, 1 running → terminal=5,
+	// rate = 3/5 = 0.6 (M30: failures count against the rate).
 	received("c1")
 	complete("c1", 2)
 	received("c2")
 	complete("c2", 4)
 	received("c3")
 	complete("c3", 6)
+	received("f1")
+	fail("f1")
 	received("a1")
 	abandon("a1")
 	received("r1") // left running
@@ -307,11 +370,14 @@ func TestRunsStats_CountsAndSuccessRate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
-	if got := intOf(res["total"]); got != 5 {
-		t.Errorf("total = %d want 5", got)
+	if got := intOf(res["total"]); got != 6 {
+		t.Errorf("total = %d want 6", got)
 	}
 	if got := intOf(res["completed"]); got != 3 {
 		t.Errorf("completed = %d want 3", got)
+	}
+	if got := intOf(res["failed"]); got != 1 {
+		t.Errorf("failed = %d want 1", got)
 	}
 	if got := intOf(res["abandoned"]); got != 1 {
 		t.Errorf("abandoned = %d want 1", got)
@@ -319,11 +385,11 @@ func TestRunsStats_CountsAndSuccessRate(t *testing.T) {
 	if got := intOf(res["running"]); got != 1 {
 		t.Errorf("running = %d want 1", got)
 	}
-	if got := intOf(res["terminal"]); got != 4 {
-		t.Errorf("terminal = %d want 4", got)
+	if got := intOf(res["terminal"]); got != 5 {
+		t.Errorf("terminal = %d want 5", got)
 	}
-	if got, _ := res["success_rate"].(float64); got != 0.75 {
-		t.Errorf("success_rate = %v want 0.75", got)
+	if got, _ := res["success_rate"].(float64); got != 0.6 {
+		t.Errorf("success_rate = %v want 0.6", got)
 	}
 	// avg iters over completed runs: (2+4+6)/3 = 4.
 	if got, _ := res["avg_iters"].(float64); got != 4 {

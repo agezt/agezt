@@ -354,9 +354,12 @@ const (
 	// Args:
 	//   - limit : int (optional; default 20, clamped to 1..1000)
 	// Returns:
-	//   - runs : [{correlation_id, intent, status, started_unix_ms,
-	//             completed_unix_ms, duration_ms, iters}, ...]
-	//           sorted by started_unix_ms DESCENDING (newest first).
+	//   - runs : [{correlation_id, intent, status, reason,
+	//             started_unix_ms, completed_unix_ms, duration_ms,
+	//             iters}, ...] sorted by started_unix_ms DESCENDING
+	//           (newest first). status ∈ {completed, failed, abandoned,
+	//           running}; reason carries the task.failed tag (M30) when
+	//           status=failed, else "".
 	//   - count : int
 	CmdRunsList = "runs_list"
 
@@ -369,9 +372,10 @@ const (
 	// Returns:
 	//   - total       : int — distinct correlation ids seen
 	//   - completed    : int — runs with a task.completed
+	//   - failed       : int — runs with a task.failed (M30)
 	//   - running      : int — received, no terminal event (in-flight)
 	//   - abandoned    : int — reconciled at boot (M28), never completed
-	//   - terminal     : int — completed + abandoned
+	//   - terminal     : int — completed + failed + abandoned
 	//   - success_rate : float — completed / terminal (0 if terminal==0)
 	//   - avg_iters    : float — mean iters over completed runs
 	//   - duration_ms  : {count, avg, min, max, p50, p95} over completed

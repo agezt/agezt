@@ -12,6 +12,22 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **`task.failed` terminal event** (SPEC-08, M30) — a run that started
+  (`task.received`) but errored out instead of completing used to emit no
+  terminal event, so `agt runs` couldn't tell a real failure apart from a true
+  orphan (M28) — both showed as `running` until the next boot abandoned them.
+  The agent loop now emits a `task.failed` event on any error return after
+  `task.received` (best-effort, via a deferred terminal emitter), carrying
+  `{error, reason}` where `reason ∈ {error, max_iters, canceled, timeout}`.
+  `agt runs` renders `status="failed (reason)"` with a real duration; `agt runs
+  stats` (M29) counts `failed` as a first-class non-success terminal and folds
+  it into the success rate (`completed / (completed + failed + abandoned)`); and
+  the M28 boot reconciliation treats `task.failed` as terminal, so a failed run
+  is never double-marked `abandoned`. Status precedence is
+  `completed > failed > abandoned > running`. Proven live with the strict
+  capability gate (a tools request to a tool-incapable model is rejected
+  terminally → `task.failed(reason=error)`), end-to-end through `agt runs
+  list`/`stats`. See `.project/PHASE-M30-TASK-FAILED-REPORT.md`.
 - **`agt runs stats`** (SPEC-08, M29) — a pure, read-only aggregation over the
   whole journal that answers "how are my agent runs doing overall?" in one
   command. Folds every `task.received` / `task.completed` / `task.abandoned`

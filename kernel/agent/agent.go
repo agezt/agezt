@@ -206,7 +206,7 @@ var ErrUnknownTool = errors.New("agent: unknown tool")
 //  3. If MaxIter elapses, return ErrMaxIter.
 //
 // Every step is durable-before-publish through cfg.Bus.
-func Run(ctx context.Context, cfg LoopConfig, userIntent string) (string, error) {
+func Run(ctx context.Context, cfg LoopConfig, userIntent string) (answer string, runErr error) {
 	if cfg.Provider == nil {
 		return "", errors.New("agent: provider required")
 	}
@@ -243,6 +243,25 @@ func Run(ctx context.Context, cfg LoopConfig, userIntent string) (string, error)
 	if _, err := publish(event.KindTaskReceived, "task", map[string]string{"intent": userIntent}); err != nil {
 		return "", fmt.Errorf("agent: publish task.received: %w", err)
 	}
+
+	// From here the run has started: any error return is a run that began
+	// but never reached task.completed. Emit a terminal task.failed exactly
+	// once (best-effort) so `agt runs` can tell a real failure apart from a
+	// true orphan (M28) and `agt runs stats` can split the success rate
+	// (M30). A clean completion returns runErr==nil and is already terminal
+	// via task.completed, so the defer no-ops. The best-effort publish must
+	// not mask runErr, and must not run for the pre-task validation errors
+	// above (no run started) — hence it's registered only after
+	// task.received succeeds.
+	defer func() {
+		if runErr == nil {
+			return
+		}
+		_, _ = publish(event.KindTaskFailed, "task", map[string]any{
+			"error":  runErr.Error(),
+			"reason": failureReason(ctx, runErr),
+		})
+	}()
 
 	messages := []Message{
 		{Role: RoleUser, Content: userIntent},
@@ -415,4 +434,30 @@ func Run(ctx context.Context, cfg LoopConfig, userIntent string) (string, error)
 	}
 
 	return "", ErrMaxIter
+}
+
+// failureReason classifies a run's terminal error into a short, stable
+// tag carried on the task.failed payload (the full error string rides
+// alongside in "error"). Operators and `agt runs` use the tag to group
+// failures without parsing free-form error text:
+//
+//	max_iters — the loop exhausted MaxIter without a final answer.
+//	canceled  — the context was cancelled (operator halt / shutdown).
+//	timeout   — the context deadline elapsed (a future per-run timeout).
+//	error     — anything else (provider error, publish failure, …).
+//
+// errors.Is is used so a wrapped provider error that ultimately carries
+// context.Canceled/DeadlineExceeded is still classified correctly; the
+// ctx.Err() fallback covers the bare-return cancellation paths.
+func failureReason(ctx context.Context, err error) string {
+	switch {
+	case errors.Is(err, ErrMaxIter):
+		return "max_iters"
+	case errors.Is(err, context.Canceled) || ctx.Err() == context.Canceled:
+		return "canceled"
+	case errors.Is(err, context.DeadlineExceeded) || ctx.Err() == context.DeadlineExceeded:
+		return "timeout"
+	default:
+		return "error"
+	}
 }

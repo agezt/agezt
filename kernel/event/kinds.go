@@ -29,6 +29,17 @@ const (
 	// reconciliation, so `agt runs` shows it as "abandoned" instead of
 	// "running" forever (M28).
 	KindTaskAbandoned Kind = "task.abandoned"
+	// KindTaskFailed is the terminal event for a run that started
+	// (task.received) but errored out instead of completing — a provider
+	// error, an exhausted iteration budget, or a cancelled/timed-out
+	// context. Emitted live by the agent loop on any error return after
+	// task.received (best-effort), so `agt runs` can tell a real failure
+	// apart from a true orphan (M28) and `agt runs stats` (M29) can split
+	// the success rate. The payload carries {error, reason} where reason ∈
+	// {error, max_iters, canceled, timeout}. The boot-time abandon
+	// reconciliation treats task.failed as terminal (a failed run is not
+	// abandoned) (M30).
+	KindTaskFailed Kind = "task.failed"
 
 	// Multi-agent orchestration (P6-MULTI-01). A lead agent delegates a
 	// bounded task to a sub-agent via the `delegate` tool; the spawn is
@@ -174,6 +185,7 @@ var knownKinds = map[Kind]struct{}{
 	KindTaskReceived:              {},
 	KindTaskCompleted:             {},
 	KindTaskAbandoned:             {},
+	KindTaskFailed:                {},
 	KindSubAgentSpawned:           {},
 	KindToolInvoked:               {},
 	KindToolResult:                {},

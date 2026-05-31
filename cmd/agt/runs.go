@@ -94,12 +94,14 @@ func cmdRunsStats(args []string, stdout, stderr io.Writer) int {
 		return 0
 	}
 	completed := intOfStatus(res["completed"])
+	failed := intOfStatus(res["failed"])
 	running := intOfStatus(res["running"])
 	abandoned := intOfStatus(res["abandoned"])
 	terminal := intOfStatus(res["terminal"])
 
 	fmt.Fprintf(stdout, "run stats (over %d run(s)):\n\n", total)
 	fmt.Fprintf(stdout, "  completed : %d\n", completed)
+	fmt.Fprintf(stdout, "  failed    : %d\n", failed)
 	fmt.Fprintf(stdout, "  running   : %d\n", running)
 	fmt.Fprintf(stdout, "  abandoned : %d\n", abandoned)
 
@@ -193,6 +195,7 @@ func cmdRunsList(args []string, stdout, stderr io.Writer) int {
 		corr, _ := r["correlation_id"].(string)
 		intent, _ := r["intent"].(string)
 		status, _ := r["status"].(string)
+		reason, _ := r["reason"].(string)
 		started := intOfStatus(r["started_unix_ms"])
 		duration := intOfStatus(r["duration_ms"])
 		iters := intOfStatus(r["iters"])
@@ -201,9 +204,17 @@ func cmdRunsList(args []string, stdout, stderr io.Writer) int {
 		if started > 0 {
 			startedStr = time.UnixMilli(started).Format("2006-01-02 15:04:05")
 		}
+		// Both completed and failed runs have a real terminal timestamp,
+		// so both carry a meaningful duration; running/abandoned don't.
 		durationStr := "—"
-		if status == "completed" {
+		if status == "completed" || status == "failed" {
 			durationStr = fmtDuration(duration)
+		}
+		// Annotate a failure with its classified reason (M30) so the
+		// operator sees "failed (timeout)" without drilling into `agt why`.
+		statusDisplay := status
+		if status == "failed" && reason != "" {
+			statusDisplay = "failed (" + reason + ")"
 		}
 		intentDisplay := intent
 		if intentDisplay == "" {
@@ -214,8 +225,8 @@ func cmdRunsList(args []string, stdout, stderr io.Writer) int {
 		}
 
 		fmt.Fprintf(stdout, "  %s\n", corr)
-		fmt.Fprintf(stdout, "    started : %s   status: %-9s  duration: %s   iters: %d\n",
-			startedStr, status, durationStr, iters)
+		fmt.Fprintf(stdout, "    started : %s   status: %-18s  duration: %s   iters: %d\n",
+			startedStr, statusDisplay, durationStr, iters)
 		fmt.Fprintf(stdout, "    intent  : %s\n\n", intentDisplay)
 	}
 	return 0

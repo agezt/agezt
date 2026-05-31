@@ -234,6 +234,131 @@ func TestRun_MaxIterStops(t *testing.T) {
 	}
 }
 
+// failureReasonOf walks the journal and returns the reason tag of the
+// single task.failed event (or "" with ok=false if none). M30 helper.
+func failureReasonOf(t *testing.T, j interface {
+	Range(func(*event.Event) error) error
+}) (reason string, ok bool) {
+	t.Helper()
+	_ = j.Range(func(e *event.Event) error {
+		if e.Kind == event.KindTaskFailed {
+			var p struct {
+				Reason string `json:"reason"`
+			}
+			_ = json.Unmarshal(e.Payload, &p)
+			reason = p.Reason
+			ok = true
+		}
+		return nil
+	})
+	return reason, ok
+}
+
+// TestRun_ProviderErrorEmitsTaskFailed — a provider that errors out must
+// produce a terminal task.failed (reason=error) and NO task.completed, so
+// `agt runs` shows a real failure instead of a phantom orphan (M30).
+func TestRun_ProviderErrorEmitsTaskFailed(t *testing.T) {
+	b, j := newTestBus(t)
+	_, err := agent.Run(context.Background(), agent.LoopConfig{
+		Provider:      &errorProvider{},
+		Bus:           b,
+		Actor:         "agent-err",
+		CorrelationID: "corr-err",
+	}, "boom")
+	if err == nil {
+		t.Fatal("expected error from provider, got nil")
+	}
+
+	reason, ok := failureReasonOf(t, j)
+	if !ok {
+		t.Fatal("no task.failed event emitted on provider error")
+	}
+	if reason != "error" {
+		t.Errorf("reason = %q want %q", reason, "error")
+	}
+	// And there must be no task.completed.
+	_ = j.Range(func(e *event.Event) error {
+		if e.Kind == event.KindTaskCompleted {
+			t.Errorf("unexpected task.completed on the error path")
+		}
+		return nil
+	})
+}
+
+// TestRun_MaxIterEmitsTaskFailed — exhausting the iteration budget is a
+// failure terminal with reason=max_iters.
+func TestRun_MaxIterEmitsTaskFailed(t *testing.T) {
+	b, j := newTestBus(t)
+	_, err := agent.Run(context.Background(), agent.LoopConfig{
+		Provider:      &repeatingToolUseProvider{},
+		Tools:         map[string]agent.Tool{"shell": shell.New()},
+		Bus:           b,
+		Actor:         "agent-loop",
+		CorrelationID: "corr-loop",
+		MaxIter:       2,
+	}, "loop forever")
+	if !errors.Is(err, agent.ErrMaxIter) {
+		t.Fatalf("got err=%v, want ErrMaxIter", err)
+	}
+	reason, ok := failureReasonOf(t, j)
+	if !ok {
+		t.Fatal("no task.failed event emitted on max-iter")
+	}
+	if reason != "max_iters" {
+		t.Errorf("reason = %q want %q", reason, "max_iters")
+	}
+}
+
+// TestRun_CancelEmitsTaskFailed — a cancelled context terminates the run
+// with reason=canceled (the operator-halt path).
+func TestRun_CancelEmitsTaskFailed(t *testing.T) {
+	blockingProv := &blockingProvider{released: make(chan struct{})}
+	b, j := newTestBus(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() {
+		_, _ = agent.Run(ctx, agent.LoopConfig{
+			Provider:      blockingProv,
+			Bus:           b,
+			Actor:         "agent-cancel",
+			CorrelationID: "corr-cancel",
+		}, "wait")
+		close(done)
+	}()
+	time.Sleep(50 * time.Millisecond)
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("Run did not return after cancel")
+	}
+	reason, ok := failureReasonOf(t, j)
+	if !ok {
+		t.Fatal("no task.failed event emitted on cancel")
+	}
+	if reason != "canceled" {
+		t.Errorf("reason = %q want %q", reason, "canceled")
+	}
+}
+
+// TestRun_SuccessEmitsNoTaskFailed — the happy path must NOT emit a
+// task.failed (the defer no-ops on a nil error).
+func TestRun_SuccessEmitsNoTaskFailed(t *testing.T) {
+	b, j := newTestBus(t)
+	_, err := agent.Run(context.Background(), agent.LoopConfig{
+		Provider:      mock.New(mock.FinalText("ok")),
+		Bus:           b,
+		Actor:         "agent-ok",
+		CorrelationID: "corr-ok",
+	}, "say ok")
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if _, ok := failureReasonOf(t, j); ok {
+		t.Error("task.failed emitted on a successful run")
+	}
+}
+
 func TestRun_RequiresProviderAndBusAndActor(t *testing.T) {
 	b, _ := newTestBus(t)
 	_, err := agent.Run(context.Background(), agent.LoopConfig{Bus: b, Actor: "a"}, "x")
@@ -262,6 +387,15 @@ func equalKinds(a, b []event.Kind) bool {
 		}
 	}
 	return true
+}
+
+// errorProvider always fails its Complete call — drives the M30
+// task.failed(reason=error) path.
+type errorProvider struct{}
+
+func (e *errorProvider) Name() string { return "erroring" }
+func (e *errorProvider) Complete(_ context.Context, _ agent.CompletionRequest) (*agent.CompletionResponse, error) {
+	return nil, errors.New("simulated upstream failure")
 }
 
 type blockingProvider struct {

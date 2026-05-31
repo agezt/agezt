@@ -33,9 +33,18 @@ type runEntry struct {
 	CompletedUnixMS int64
 	Iters           int
 	Completed       bool
+	// Failed is set when a task.failed event terminated this run — it
+	// started but errored out (provider error, max iters, cancel/timeout)
+	// instead of completing (M30). FailedUnixMS / FailReason carry the
+	// terminal timestamp and the classified reason for rendering.
+	Failed       bool
+	FailedUnixMS int64
+	FailReason   string
 	// Abandoned is set when a task.abandoned event reconciled this run at
 	// boot — it was received but never completed in a prior session (M28).
-	// Completed always wins over Abandoned if both somehow appear.
+	// Status precedence is Completed > Failed > Abandoned > running, so a
+	// run that somehow carries several terminal markers reports the most
+	// authoritative one.
 	Abandoned bool
 }
 
@@ -82,6 +91,15 @@ func (s *Server) collectRuns() (map[string]*runEntry, error) {
 			if iters := extractIters(e.Payload); iters > 0 {
 				entry.Iters = iters
 			}
+		case event.KindTaskFailed:
+			entry, ok := runs[e.CorrelationID]
+			if !ok {
+				entry = &runEntry{CorrelationID: e.CorrelationID}
+				runs[e.CorrelationID] = entry
+			}
+			entry.Failed = true
+			entry.FailedUnixMS = e.TSUnixMS
+			entry.FailReason = extractReason(e.Payload)
 		case event.KindTaskAbandoned:
 			entry, ok := runs[e.CorrelationID]
 			if !ok {
@@ -144,12 +162,21 @@ func (s *Server) handleRunsList(conn net.Conn, req Request) {
 	out := make([]map[string]any, 0, len(entries))
 	for _, r := range entries {
 		status := "running"
+		reason := ""
 		duration := int64(0)
 		switch {
 		case r.Completed:
 			status = "completed"
 			if r.StartedUnixMS > 0 {
 				duration = r.CompletedUnixMS - r.StartedUnixMS
+			}
+		case r.Failed:
+			// Errored out live (M30) — provider error, max iters, or a
+			// cancelled/timed-out context. The reason tag drills down.
+			status = "failed"
+			reason = r.FailReason
+			if r.StartedUnixMS > 0 && r.FailedUnixMS >= r.StartedUnixMS {
+				duration = r.FailedUnixMS - r.StartedUnixMS
 			}
 		case r.Abandoned:
 			// Reconciled at boot: received but never completed in a prior
@@ -160,6 +187,7 @@ func (s *Server) handleRunsList(conn net.Conn, req Request) {
 			"correlation_id":    r.CorrelationID,
 			"intent":            r.Intent,
 			"status":            status,
+			"reason":            reason,
 			"started_unix_ms":   r.StartedUnixMS,
 			"completed_unix_ms": r.CompletedUnixMS,
 			"duration_ms":       duration,
@@ -198,7 +226,7 @@ func (s *Server) handleRunsStats(conn net.Conn, req Request) {
 		return
 	}
 
-	var total, completed, running, abandoned int
+	var total, completed, failed, running, abandoned int
 	var itersSum int
 	durations := make([]int64, 0, len(runs)) // completed runs only, for percentiles
 	for _, r := range runs {
@@ -210,6 +238,8 @@ func (s *Server) handleRunsStats(conn net.Conn, req Request) {
 			if r.StartedUnixMS > 0 && r.CompletedUnixMS >= r.StartedUnixMS {
 				durations = append(durations, r.CompletedUnixMS-r.StartedUnixMS)
 			}
+		case r.Failed:
+			failed++
 		case r.Abandoned:
 			abandoned++
 		default:
@@ -217,12 +247,14 @@ func (s *Server) handleRunsStats(conn net.Conn, req Request) {
 		}
 	}
 
-	// success_rate is completed / (completed + abandoned): runs
-	// still running are in-flight and shouldn't count against the
-	// rate (they haven't failed — they just haven't finished). When
-	// no run has reached a terminal state yet the rate is undefined;
-	// we report 0 and the renderer shows "n/a".
-	terminal := completed + abandoned
+	// success_rate is completed / (completed + failed + abandoned): runs
+	// still running are in-flight and shouldn't count against the rate
+	// (they haven't failed — they just haven't finished), but failed and
+	// abandoned runs are non-success terminal states and DO count against
+	// it (M30 makes failures first-class here). When no run has reached a
+	// terminal state yet the rate is undefined; we report 0 and the
+	// renderer shows "n/a".
+	terminal := completed + failed + abandoned
 	successRate := 0.0
 	if terminal > 0 {
 		successRate = float64(completed) / float64(terminal)
@@ -242,6 +274,7 @@ func (s *Server) handleRunsStats(conn net.Conn, req Request) {
 		Result: map[string]any{
 			"total":        total,
 			"completed":    completed,
+			"failed":       failed,
 			"running":      running,
 			"abandoned":    abandoned,
 			"terminal":     terminal,
@@ -343,4 +376,20 @@ func extractIters(payload json.RawMessage) int {
 		return 0
 	}
 	return int(p.Iters)
+}
+
+// extractReason pulls "reason" out of a task.failed payload (M30) —
+// the classified failure tag (error|max_iters|canceled|timeout). Returns
+// "" on parse failure or absence, so the renderer falls back gracefully.
+func extractReason(payload json.RawMessage) string {
+	if len(payload) == 0 {
+		return ""
+	}
+	var p struct {
+		Reason string `json:"reason"`
+	}
+	if err := json.Unmarshal(payload, &p); err != nil {
+		return ""
+	}
+	return p.Reason
 }

@@ -104,6 +104,11 @@ func TestRunScan_Orphans(t *testing.T) {
 	s.observe(ev(event.KindTaskAbandoned, "C", 300, ""))
 	// run D: received only, earlier than B → orphaned, sorts first.
 	s.observe(ev(event.KindTaskReceived, "D", 110, "delta"))
+	// run E: received + failed (errored out live, M30) → terminal, NOT
+	// orphaned (the run already has a terminal event; abandoning it would
+	// double-mark it).
+	s.observe(ev(event.KindTaskReceived, "E", 130, "epsilon"))
+	s.observe(ev(event.KindTaskFailed, "E", 140, ""))
 
 	orphans := s.orphans()
 	if len(orphans) != 2 {
@@ -115,6 +120,12 @@ func TestRunScan_Orphans(t *testing.T) {
 	}
 	if orphans[0].Intent != "delta" {
 		t.Errorf("orphan intent = %q want delta", orphans[0].Intent)
+	}
+	// Explicit: the failed run E must never appear as an orphan.
+	for _, o := range orphans {
+		if o.Corr == "E" {
+			t.Errorf("failed run E was abandoned; task.failed must be terminal")
+		}
 	}
 }
 
