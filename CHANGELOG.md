@@ -12,6 +12,17 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **`agt why` sub-agent → parent backlink** (SPEC-12 multi-agent, M42) — closes the
+  child→parent discovery gap M41 left open. A `subagent.spawned` event lives under
+  the *parent's* correlation, so parent→child was walkable but from a sub-agent's
+  own chain there was no way back to its lead. New `Kernel.ParentOf(childCorr)`
+  scans the journal for the spawn that names a correlation as its child and returns
+  the lead; `handleWhy` includes `correlation` + `parent_correlation` in its
+  result; `agt why <event>` prints `spawned by <lead>  (try: agt runs show <lead>)`
+  for a sub-agent chain (and `--json` carries both fields). The delegation tree is
+  now walkable in BOTH directions (M41 parent→child, M42 child→parent). Proven
+  live: `agt why` on a sub-agent event reported its lead. See
+  `.project/PHASE-M42-WHY-PARENT-BACKLINK-REPORT.md`.
 - **Sub-agent delegation links in `agt runs`** (SPEC-12 multi-agent, M41) — opens
   the multi-agent orchestration axis. A lead agent's `delegate` tool spawns a
   sub-agent that runs under its own correlation, so parent and child already

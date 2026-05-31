@@ -73,15 +73,18 @@ func cmdWhy(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	events, _ := res["events"].([]any)
+	parent, _ := res["parent_correlation"].(string)
 
 	if asJSON {
 		// Re-wrap so the JSON output is self-describing — a bare
 		// array is less helpful when piped without context. Mirrors
 		// the shape `agt status --json` returns.
 		out := map[string]any{
-			"event_id": eventID,
-			"count":    len(events),
-			"events":   events,
+			"event_id":           eventID,
+			"count":              len(events),
+			"correlation":        res["correlation"],
+			"parent_correlation": parent,
+			"events":             events,
 		}
 		enc := json.NewEncoder(stdout)
 		enc.SetIndent("", "  ")
@@ -97,6 +100,12 @@ func cmdWhy(args []string, stdout, stderr io.Writer) int {
 		if withPayload {
 			renderPayload(stdout, m["payload"])
 		}
+	}
+	// Parent backlink (M42): this chain is a sub-agent's — point up to its
+	// lead. `agt runs show <parent>` renders the lead's task arc (which
+	// includes the `delegated → …` line back to this child).
+	if parent != "" {
+		fmt.Fprintf(stdout, "\nspawned by %s  (try: %s runs show %s)\n", parent, brand.CLI, parent)
 	}
 	return 0
 }

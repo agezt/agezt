@@ -505,10 +505,26 @@ func (s *Server) handleWhy(conn net.Conn, req Request) {
 	for _, e := range events {
 		out = append(out, e)
 	}
+	// Parent backlink (M42): if this chain belongs to a sub-agent run,
+	// surface its lead's correlation so an operator can walk child→parent
+	// (only parent→child was visible before). correlation is the chain's
+	// shared id; parent_correlation is "" for top-level runs.
+	corr := ""
+	if len(events) > 0 {
+		corr = events[0].CorrelationID
+	}
+	parent := ""
+	if corr != "" {
+		parent = s.k.ParentOf(corr)
+	}
 	s.writeResp(conn, Response{
-		ID:     req.ID,
-		Type:   RespResult,
-		Result: map[string]any{"events": out},
+		ID:   req.ID,
+		Type: RespResult,
+		Result: map[string]any{
+			"events":             out,
+			"correlation":        corr,
+			"parent_correlation": parent,
+		},
 	})
 }
 

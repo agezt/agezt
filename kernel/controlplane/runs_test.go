@@ -292,6 +292,54 @@ func TestRunsList_CompletedBeatsFailed(t *testing.T) {
 	}
 }
 
+// TestWhy_SubAgentParentBacklink — `agt why` on an event in a sub-agent's
+// chain reports its lead via parent_correlation; a top-level run reports ""
+// (M42).
+func TestWhy_SubAgentParentBacklink(t *testing.T) {
+	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+
+	// Parent p1 spawns child c1.
+	if _, err := k.Bus().Publish(event.Spec{
+		Subject: "agent.sub.spawn", Kind: event.KindSubAgentSpawned, Actor: "subagent-c1",
+		CorrelationID: "p1",
+		Payload:       map[string]any{"child_correlation": "c1", "parent": "p1", "task": "subtask", "depth": 1},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	// Child c1's own event — capture its id for the why lookup.
+	childEv, err := k.Bus().Publish(event.Spec{
+		Subject: "task", Kind: event.KindTaskReceived, Actor: "subagent-c1",
+		CorrelationID: "c1", Payload: map[string]string{"intent": "subtask"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A top-level run for the negative case.
+	rootEv, err := k.Bus().Publish(event.Spec{
+		Subject: "task", Kind: event.KindTaskReceived, Actor: "agent-r1",
+		CorrelationID: "r1", Payload: map[string]string{"intent": "root"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	res, err := c.Call(context.Background(), controlplane.CmdWhy, map[string]any{"event_id": childEv.ID})
+	if err != nil {
+		t.Fatalf("Why(child): %v", err)
+	}
+	if got, _ := res["parent_correlation"].(string); got != "p1" {
+		t.Errorf("child why parent_correlation = %q want p1", got)
+	}
+
+	res, err = c.Call(context.Background(), controlplane.CmdWhy, map[string]any{"event_id": rootEv.ID})
+	if err != nil {
+		t.Fatalf("Why(root): %v", err)
+	}
+	if got, _ := res["parent_correlation"].(string); got != "" {
+		t.Errorf("top-level why parent_correlation = %q want empty", got)
+	}
+}
+
 // TestRunsList_SubAgentParentLink — a sub-agent run carries its lead run's
 // correlation in parent_correlation (from the parent's subagent.spawned
 // event); a top-level run carries "" (M41).

@@ -282,6 +282,28 @@ func TestCancelRun_UnknownReturnsFalse(t *testing.T) {
 	}
 }
 
+// TestParentOf — ParentOf resolves a sub-agent's lead from the journal's
+// subagent.spawned event; unknown/empty correlations return "" (M42).
+func TestParentOf(t *testing.T) {
+	k := newKernel(t, mock.New(mock.FinalText("ok")))
+	if _, err := k.Bus().Publish(event.Spec{
+		Subject: "agent.sub.spawn", Kind: event.KindSubAgentSpawned, Actor: "subagent-c1",
+		CorrelationID: "p1",
+		Payload:       map[string]any{"child_correlation": "c1", "parent": "p1", "task": "x", "depth": 1},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if got := k.ParentOf("c1"); got != "p1" {
+		t.Errorf("ParentOf(c1) = %q want p1", got)
+	}
+	if got := k.ParentOf("unknown"); got != "" {
+		t.Errorf("ParentOf(unknown) = %q want empty", got)
+	}
+	if got := k.ParentOf(""); got != "" {
+		t.Errorf("ParentOf(\"\") = %q want empty", got)
+	}
+}
+
 func TestWhy_ReturnsCorrelationGroup(t *testing.T) {
 	k := newKernel(t, mock.New(
 		mock.ToolUse("c1", "shell", map[string]string{"command": "echo ok"}),

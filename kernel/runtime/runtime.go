@@ -1133,6 +1133,37 @@ func (k *Kernel) Why(eventID string) ([]*event.Event, error) {
 	return out, nil
 }
 
+// ParentOf returns the lead run's correlation for a sub-agent run, or "" if
+// childCorr was not spawned via delegation (M42). It scans the journal for a
+// subagent.spawned event whose payload names childCorr as its child — the
+// spawn lives under the PARENT correlation, so this is the only way to walk
+// child→parent (the parent→child direction is already visible because the
+// spawn is in the parent's own chain). A single forward scan; the last match
+// wins (a child has exactly one spawn in practice).
+func (k *Kernel) ParentOf(childCorr string) string {
+	if childCorr == "" {
+		return ""
+	}
+	parent := ""
+	_ = k.journal.Range(func(e *event.Event) error {
+		if e.Kind != event.KindSubAgentSpawned {
+			return nil
+		}
+		var p struct {
+			Child  string `json:"child_correlation"`
+			Parent string `json:"parent"`
+		}
+		if err := json.Unmarshal(e.Payload, &p); err != nil {
+			return nil
+		}
+		if p.Child == childCorr && p.Parent != "" {
+			parent = p.Parent
+		}
+		return nil
+	})
+	return parent
+}
+
 // Verify replays every event and confirms the BLAKE3 chain is intact.
 // Returns nil on success.
 func (k *Kernel) Verify() error {
