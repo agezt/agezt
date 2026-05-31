@@ -166,6 +166,90 @@ func TestRegistry_ReleaseAndRemove(t *testing.T) {
 	}
 }
 
+func TestRegistry_TokenMintedPersistedAndStable(t *testing.T) {
+	o := newFakeOpener()
+	root := t.TempDir()
+	reg, _ := tenant.New(root, o.open)
+	now := time.Now()
+
+	a, err := reg.Acquire("alpha", now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Acquire mints a non-empty token and persists it inside the tenant's dir.
+	if len(a.Token) < 32 {
+		t.Fatalf("token looks unminted: %q", a.Token)
+	}
+	onDisk, err := os.ReadFile(filepath.Join(a.BaseDir, ".tenant-token"))
+	if err != nil {
+		t.Fatalf("token file: %v", err)
+	}
+	if strings.TrimSpace(string(onDisk)) != a.Token {
+		t.Errorf("on-disk token %q != acquired %q", strings.TrimSpace(string(onDisk)), a.Token)
+	}
+
+	// Token(id) returns the same value without the kernel open (after Release).
+	if _, err := reg.Release("alpha"); err != nil {
+		t.Fatal(err)
+	}
+	got, err := reg.Token("alpha")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != a.Token {
+		t.Errorf("Token after release = %q, want stable %q", got, a.Token)
+	}
+	// Re-acquire keeps the SAME token (read, not re-minted).
+	a2, _ := reg.Acquire("alpha", now)
+	if a2.Token != a.Token {
+		t.Errorf("re-acquired token = %q, want stable %q", a2.Token, a.Token)
+	}
+
+	// Distinct tenants get distinct tokens.
+	b, _ := reg.Acquire("beta", now)
+	if b.Token == a.Token {
+		t.Error("alpha and beta share a token")
+	}
+
+	// Token of an unknown tenant errors and does NOT create it.
+	if _, err := reg.Token("ghost"); err == nil {
+		t.Error("Token(ghost) should error")
+	}
+	if reg.Exists("ghost") {
+		t.Error("Token(ghost) must not materialise the tenant")
+	}
+}
+
+func TestRegistry_Authorize(t *testing.T) {
+	o := newFakeOpener()
+	reg, _ := tenant.New(t.TempDir(), o.open)
+	now := time.Now()
+	a, _ := reg.Acquire("alpha", now)
+	reg.Acquire("beta", now)
+
+	if !reg.Authorize("alpha", a.Token) {
+		t.Error("alpha's own token must authorize alpha")
+	}
+	bTok, _ := reg.Token("beta")
+	if reg.Authorize("alpha", bTok) {
+		t.Error("beta's token must NOT authorize alpha (cross-tenant)")
+	}
+	if reg.Authorize("alpha", "") {
+		t.Error("blank token must never authorize")
+	}
+	if reg.Authorize("alpha", "deadbeef") {
+		t.Error("a wrong token must not authorize")
+	}
+	if reg.Authorize("ghost", "anything") {
+		t.Error("unknown tenant must not authorize")
+	}
+	// Removing a tenant destroys its token (no auth against a gone tenant).
+	reg.Remove("beta")
+	if reg.Authorize("beta", bTok) {
+		t.Error("removed tenant's token must no longer authorize")
+	}
+}
+
 func TestRegistry_ListReflectsDiskAndOpenState(t *testing.T) {
 	o := newFakeOpener()
 	reg, _ := tenant.New(t.TempDir(), o.open)

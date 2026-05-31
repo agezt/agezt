@@ -17,6 +17,9 @@
 package tenant
 
 import (
+	"crypto/rand"
+	"crypto/subtle"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"os"
@@ -43,13 +46,56 @@ func ValidID(id string) bool { return idPattern.MatchString(id) }
 // passes a func that calls runtime.Open and returns the *Kernel.
 type OpenFunc func(id, baseDir string) (io.Closer, error)
 
+// tokenFile is the per-tenant credential, stored inside the tenant's own base
+// dir so it is isolated from siblings, survives Release (close, keep disk), and
+// is destroyed by Remove (RemoveAll) along with the rest of the tenant's state.
+const tokenFile = ".tenant-token"
+
 // Tenant is one isolated tenant with its base dir and (once acquired) its open
 // kernel.
 type Tenant struct {
-	ID          string
-	BaseDir     string
-	Kernel      io.Closer
+	ID      string
+	BaseDir string
+	Kernel  io.Closer
+	// Token is the tenant's persistent credential (hex). A caller targeting
+	// this tenant on an externally-exposed surface must present it; the daemon
+	// admin token also authorizes any tenant. Minted on first Acquire.
+	Token       string
 	CreatedUnix int64
+}
+
+// loadOrMintToken reads dir's persistent tenant token, minting and atomically
+// persisting a fresh 32-byte hex token (0600) if none exists yet. The
+// O_CREATE|O_EXCL write makes concurrent first-mints race-safe: the loser reads
+// the winner's token rather than overwriting it, so a tenant's token is stable.
+func loadOrMintToken(dir string) (string, error) {
+	p := filepath.Join(dir, tokenFile)
+	if b, err := os.ReadFile(p); err == nil {
+		if tok := strings.TrimSpace(string(b)); tok != "" {
+			return tok, nil
+		}
+	}
+	raw := make([]byte, 32)
+	if _, err := rand.Read(raw); err != nil {
+		return "", fmt.Errorf("tenant: mint token: %w", err)
+	}
+	tok := hex.EncodeToString(raw)
+	f, err := os.OpenFile(p, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+	if err != nil {
+		if os.IsExist(err) {
+			b, rerr := os.ReadFile(p)
+			if rerr != nil {
+				return "", fmt.Errorf("tenant: read token: %w", rerr)
+			}
+			return strings.TrimSpace(string(b)), nil
+		}
+		return "", fmt.Errorf("tenant: write token: %w", err)
+	}
+	defer f.Close()
+	if _, err := f.WriteString(tok); err != nil {
+		return "", fmt.Errorf("tenant: write token: %w", err)
+	}
+	return tok, nil
 }
 
 // Info is a listing snapshot: a tenant that exists on disk, and whether its
@@ -117,13 +163,47 @@ func (r *Registry) Acquire(id string, now time.Time) (*Tenant, error) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return nil, fmt.Errorf("tenant: mkdir %s: %w", dir, err)
 	}
+	token, err := loadOrMintToken(dir)
+	if err != nil {
+		return nil, err
+	}
 	k, err := r.open(id, dir)
 	if err != nil {
 		return nil, fmt.Errorf("tenant %q: open: %w", id, err)
 	}
-	t := &Tenant{ID: id, BaseDir: dir, Kernel: k, CreatedUnix: now.Unix()}
+	t := &Tenant{ID: id, BaseDir: dir, Kernel: k, Token: token, CreatedUnix: now.Unix()}
 	r.live[id] = t
 	return t, nil
+}
+
+// Token returns the persistent credential of an existing tenant, read from disk
+// without requiring its kernel to be open (a released tenant keeps its token).
+// It does NOT create the tenant: an unknown id is an error, so revealing a token
+// can never materialise a tenant as a side effect.
+func (r *Registry) Token(id string) (string, error) {
+	dir, err := r.baseDir(id)
+	if err != nil {
+		return "", err
+	}
+	if !r.Exists(id) {
+		return "", fmt.Errorf("tenant %q: does not exist", id)
+	}
+	return loadOrMintToken(dir)
+}
+
+// Authorize reports whether presented is the persistent token of tenant id,
+// using a constant-time comparison. A blank presented token, an unknown tenant,
+// or a missing token never authorizes. This is the per-tenant half of auth; the
+// daemon admin token (checked by the surface) authorizes any tenant.
+func (r *Registry) Authorize(id, presented string) bool {
+	if presented == "" {
+		return false
+	}
+	want, err := r.Token(id)
+	if err != nil || want == "" {
+		return false
+	}
+	return subtle.ConstantTimeCompare([]byte(presented), []byte(want)) == 1
 }
 
 // Get returns the tenant with id if its kernel is currently loaded.
