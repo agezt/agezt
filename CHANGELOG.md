@@ -12,6 +12,20 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Model capability inspection** (SPEC-15, M23) — the catalog tracked per-model
+  capability flags (tool-use, reasoning, modalities, context window) but nothing
+  surfaced or checked them, so pointing the tool-driven agent loop at a model
+  that can't call tools failed deep in a run with a cryptic upstream error. `agt
+  provider check --caps [<id>]` now reports a model's capabilities — tool-use,
+  reasoning, vision, attachments, input/output modalities, context/output limits,
+  knowledge cutoff — straight from the catalog with **no network call and no
+  credentials**, and flags agent-readiness gaps under a ⚠ marker (headline: a
+  model that doesn't advertise tool-use). Exit 3 when warnings exist so CI can
+  gate "is this model agent-ready?"; `--caps --json` emits a stable record. New
+  pure `catalog.Model` helpers (`SupportsModality`, `SupportsVision`,
+  `AgentWarnings`) back it. Proven: a tool-less model warns + exits 3, a
+  tool-capable model reports agent-ready + exits 0. See
+  `.project/PHASE-M23-MODEL-CAPABILITIES-REPORT.md`.
 - **Per-tenant policy management** (ROADMAP P6-MULTI, M22) — the runtime policy
   surface (deny rules · trust levels · approval mode, M18–M21) was primary-kernel
   only; tenants (M14) had isolated engines but no way to manage them. Every `agt

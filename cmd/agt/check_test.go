@@ -416,3 +416,88 @@ func TestTruncate(t *testing.T) {
 		}
 	}
 }
+
+func TestParseCheckFlags_Caps(t *testing.T) {
+	got, err := parseCheckFlags([]string{"openai", "--caps"})
+	if err != nil {
+		t.Fatalf("err=%v", err)
+	}
+	if !got.caps || got.providerID != "openai" {
+		t.Errorf("got %+v want caps=true provider=openai", got)
+	}
+	if alias, _ := parseCheckFlags([]string{"--capabilities"}); !alias.caps {
+		t.Error("--capabilities alias should set caps")
+	}
+}
+
+// capsCatalog builds a tiny in-memory catalog with one provider whose
+// single model lacks tool-use, for the --caps rendering tests.
+func capsCatalog() *catalog.Catalog {
+	c := catalog.NewEmpty()
+	c.Providers["acme"] = &catalog.Provider{
+		ID:  "acme",
+		NPM: "@ai-sdk/openai-compatible",
+		API: "https://api.acme.test/v1",
+		Models: map[string]*catalog.Model{
+			"acme-mini": {
+				ID:         "acme-mini",
+				ToolCall:   false, // ← the agent-readiness gap
+				Modalities: catalog.Modalities{Input: []string{"text", "image"}, Output: []string{"text"}},
+				Limit:      catalog.Limit{Context: 32768, Output: 4096},
+				Knowledge:  "2024-10",
+			},
+		},
+	}
+	return c
+}
+
+func TestRunCheckCaps_WarnsNoToolUse(t *testing.T) {
+	cat := capsCatalog()
+	var out, errOut bytes.Buffer
+	code := runCheckCaps(cat, checkFlags{providerID: "acme"}, &out, &errOut)
+	if code != 3 {
+		t.Errorf("exit=%d want 3 (warnings present)", code)
+	}
+	s := out.String()
+	if !strings.Contains(s, "tool-use        : no") {
+		t.Errorf("output missing tool-use=no; got:\n%s", s)
+	}
+	if !strings.Contains(s, "vision (image)  : yes") {
+		t.Errorf("output should report vision yes; got:\n%s", s)
+	}
+	if !strings.Contains(s, "⚠") || !strings.Contains(s, "tool-use") {
+		t.Errorf("output should warn about tool-use; got:\n%s", s)
+	}
+}
+
+func TestRunCheckCaps_JSON(t *testing.T) {
+	cat := capsCatalog()
+	var out, errOut bytes.Buffer
+	code := runCheckCaps(cat, checkFlags{providerID: "acme", jsonOut: true}, &out, &errOut)
+	if code != 3 {
+		t.Errorf("exit=%d want 3", code)
+	}
+	var caps jsonCaps
+	if err := json.Unmarshal(out.Bytes(), &caps); err != nil {
+		t.Fatalf("json: %v\n%s", err, out.String())
+	}
+	if caps.Provider != "acme" || caps.Model != "acme-mini" {
+		t.Errorf("ids wrong: %+v", caps)
+	}
+	if caps.ToolCall {
+		t.Error("tool_call should be false")
+	}
+	if !caps.Vision {
+		t.Error("vision should be true (image input)")
+	}
+	if len(caps.Warnings) == 0 {
+		t.Error("warnings should be present")
+	}
+}
+
+func TestRunCheckCaps_UnknownProvider(t *testing.T) {
+	var out, errOut bytes.Buffer
+	if code := runCheckCaps(capsCatalog(), checkFlags{providerID: "nope"}, &out, &errOut); code != 1 {
+		t.Errorf("exit=%d want 1 for unknown provider", code)
+	}
+}

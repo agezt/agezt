@@ -391,3 +391,62 @@ func TestDiscoverOllama_AbsentReturnsError(t *testing.T) {
 
 func readFile(p string) ([]byte, error)     { return os.ReadFile(p) }
 func writeFile(p string, data []byte) error { return os.WriteFile(p, data, 0o644) }
+
+func TestModel_SupportsModality(t *testing.T) {
+	m := &catalog.Model{
+		ID: "m1",
+		Modalities: catalog.Modalities{
+			Input:  []string{"text", "image"},
+			Output: []string{"text"},
+		},
+	}
+	if !m.SupportsModality("input", "image") {
+		t.Error("input image should be supported")
+	}
+	if !m.SupportsModality("input", "IMAGE") { // case-insensitive
+		t.Error("modality match should be case-insensitive")
+	}
+	if m.SupportsModality("output", "image") {
+		t.Error("image is not an output modality here")
+	}
+	if m.SupportsModality("sideways", "text") {
+		t.Error("unknown io must return false")
+	}
+	if !m.SupportsVision() {
+		t.Error("a model with image input is vision-capable")
+	}
+	textOnly := &catalog.Model{ID: "t", Modalities: catalog.Modalities{Input: []string{"text"}}}
+	if textOnly.SupportsVision() {
+		t.Error("text-only model is not vision-capable")
+	}
+	// "vision" spelling is also honoured.
+	visAlt := &catalog.Model{ID: "v", Modalities: catalog.Modalities{Input: []string{"vision"}}}
+	if !visAlt.SupportsVision() {
+		t.Error("the 'vision' spelling should count")
+	}
+}
+
+func TestModel_AgentWarnings(t *testing.T) {
+	// Tool-capable, large context → no warnings.
+	good := &catalog.Model{ID: "good", ToolCall: true, Limit: catalog.Limit{Context: 200000}}
+	if w := good.AgentWarnings(); len(w) != 0 {
+		t.Errorf("tool-capable model should have no warnings; got %v", w)
+	}
+	// No tool-use → warned.
+	noTools := &catalog.Model{ID: "noTools", ToolCall: false, Limit: catalog.Limit{Context: 32768}}
+	w := noTools.AgentWarnings()
+	if len(w) != 1 || !strings.Contains(w[0], "tool-use") {
+		t.Errorf("non-tool model should warn about tool-use; got %v", w)
+	}
+	// No tool-use AND tiny context → two warnings.
+	weak := &catalog.Model{ID: "weak", ToolCall: false, Limit: catalog.Limit{Context: 4096}}
+	if w := weak.AgentWarnings(); len(w) != 2 {
+		t.Errorf("weak model should have 2 warnings; got %v", w)
+	}
+	// Tool-capable but tiny context → one (context) warning.
+	smallCtx := &catalog.Model{ID: "small", ToolCall: true, Limit: catalog.Limit{Context: 2048}}
+	w = smallCtx.AgentWarnings()
+	if len(w) != 1 || !strings.Contains(w[0], "context") {
+		t.Errorf("small-context model should warn about context; got %v", w)
+	}
+}

@@ -168,6 +168,54 @@ type Modalities struct {
 	Output []string `json:"output,omitempty"`
 }
 
+// SupportsModality reports whether the model lists name among its input
+// (io = "input") or output (io = "output") modalities. Match is
+// case-insensitive. Unknown io values return false.
+func (m *Model) SupportsModality(io, name string) bool {
+	var list []string
+	switch strings.ToLower(io) {
+	case "input":
+		list = m.Modalities.Input
+	case "output":
+		list = m.Modalities.Output
+	default:
+		return false
+	}
+	for _, v := range list {
+		if strings.EqualFold(v, name) {
+			return true
+		}
+	}
+	return false
+}
+
+// SupportsVision reports whether the model accepts image input — the
+// most-asked capability. models.dev uses "image"; some catalogs say
+// "vision", so both are accepted.
+func (m *Model) SupportsVision() bool {
+	return m.SupportsModality("input", "image") || m.SupportsModality("input", "vision")
+}
+
+// AgentWarnings returns operator-facing advisories about a model's
+// fitness for the tool-driven agent loop. Empty slice = no concerns.
+// The headline check is tool-use: an agent that can't call tools can't
+// act, so a model that doesn't advertise it is the single most useful
+// thing to surface before someone relies on it. The wording says
+// "advertise" because the signal is catalog metadata — a locally-served
+// model may in fact support tools without the catalog knowing.
+func (m *Model) AgentWarnings() []string {
+	var w []string
+	if !m.ToolCall {
+		w = append(w, fmt.Sprintf("model %q does not advertise tool-use (tool_call=false) — "+
+			"the agent loop relies on tools to act; tool calls may fail or be ignored", m.ID))
+	}
+	if m.Limit.Context > 0 && m.Limit.Context < 8192 {
+		w = append(w, fmt.Sprintf("model %q has a small context window (%d tokens) — "+
+			"long agent runs with memory/tools may overflow it", m.ID, m.Limit.Context))
+	}
+	return w
+}
+
 // Limit captures the model's token windows.
 type Limit struct {
 	Context int `json:"context,omitempty"`
