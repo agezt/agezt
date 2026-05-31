@@ -48,6 +48,10 @@ type runEntry struct {
 	// run that somehow carries several terminal markers reports the most
 	// authoritative one.
 	Abandoned bool
+	// ParentCorrelation links a sub-agent run to the lead run that
+	// delegated it (M41), derived from the parent's subagent.spawned event.
+	// Empty for top-level runs. Lets `agt runs` show the delegation tree.
+	ParentCorrelation string
 }
 
 // collectRuns walks the given kernel's journal once and folds
@@ -112,6 +116,20 @@ func (s *Server) collectRuns(k *runtime.Kernel) (map[string]*runEntry, error) {
 				runs[e.CorrelationID] = entry
 			}
 			entry.Abandoned = true
+		case event.KindSubAgentSpawned:
+			// The spawn event lives under the PARENT correlation; its payload
+			// names the CHILD. We attach the parent link to the child's entry
+			// (creating it if the spawn is seen before the child's
+			// task.received), so a sub-agent run knows its lead (M41).
+			child, parent := extractSpawnLink(e.Payload)
+			if child != "" && parent != "" {
+				entry, ok := runs[child]
+				if !ok {
+					entry = &runEntry{CorrelationID: child}
+					runs[child] = entry
+				}
+				entry.ParentCorrelation = parent
+			}
 		}
 		return nil
 	})
@@ -196,14 +214,15 @@ func (s *Server) handleRunsList(conn net.Conn, req Request) {
 			status = "abandoned"
 		}
 		out = append(out, map[string]any{
-			"correlation_id":    r.CorrelationID,
-			"intent":            r.Intent,
-			"status":            status,
-			"reason":            reason,
-			"started_unix_ms":   r.StartedUnixMS,
-			"completed_unix_ms": r.CompletedUnixMS,
-			"duration_ms":       duration,
-			"iters":             r.Iters,
+			"correlation_id":     r.CorrelationID,
+			"intent":             r.Intent,
+			"status":             status,
+			"reason":             reason,
+			"started_unix_ms":    r.StartedUnixMS,
+			"completed_unix_ms":  r.CompletedUnixMS,
+			"duration_ms":        duration,
+			"iters":              r.Iters,
+			"parent_correlation": r.ParentCorrelation, // "" for top-level runs (M41)
 		})
 	}
 
@@ -439,6 +458,23 @@ func extractIters(payload json.RawMessage) int {
 		return 0
 	}
 	return int(p.Iters)
+}
+
+// extractSpawnLink pulls child + parent correlation ids out of a
+// subagent.spawned payload (M41). Returns ("","") on parse failure so the
+// fold simply skips an unparseable delegation rather than crashing.
+func extractSpawnLink(payload json.RawMessage) (child, parent string) {
+	if len(payload) == 0 {
+		return "", ""
+	}
+	var p struct {
+		Child  string `json:"child_correlation"`
+		Parent string `json:"parent"`
+	}
+	if err := json.Unmarshal(payload, &p); err != nil {
+		return "", ""
+	}
+	return p.Child, p.Parent
 }
 
 // extractReason pulls "reason" out of a task.failed payload (M30) —

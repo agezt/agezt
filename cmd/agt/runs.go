@@ -336,6 +336,7 @@ func cmdRunsList(args []string, stdout, stderr io.Writer) int {
 		intent, _ := r["intent"].(string)
 		status, _ := r["status"].(string)
 		reason, _ := r["reason"].(string)
+		parent, _ := r["parent_correlation"].(string)
 		started := intOfStatus(r["started_unix_ms"])
 		duration := intOfStatus(r["duration_ms"])
 		iters := intOfStatus(r["iters"])
@@ -364,7 +365,12 @@ func cmdRunsList(args []string, stdout, stderr io.Writer) int {
 			intentDisplay = intentDisplay[:69] + "…"
 		}
 
-		fmt.Fprintf(stdout, "  %s\n", corr)
+		corrDisplay := corr
+		if parent != "" {
+			// A sub-agent run — mark it and name its lead (M41).
+			corrDisplay = corr + "  ↳ sub-agent of " + parent
+		}
+		fmt.Fprintf(stdout, "  %s\n", corrDisplay)
 		fmt.Fprintf(stdout, "    started : %s   status: %-18s  duration: %s   iters: %d\n",
 			startedStr, statusDisplay, durationStr, iters)
 		fmt.Fprintf(stdout, "    intent  : %s\n\n", intentDisplay)
@@ -691,6 +697,20 @@ func renderTaskArc(w io.Writer, corr string, summary map[string]any, events []ma
 			fmt.Fprintf(w, "  policy: %s %s\n", cap, dec)
 		case "approval.requested", "approval.granted", "approval.denied", "approval.timeout":
 			fmt.Fprintf(w, "  %s\n", kind)
+		case "subagent.spawned":
+			// Call out the delegation prominently with the child correlation
+			// (drill in with `agt runs show <child>`) and the delegated task
+			// (M41) — instead of the generic "subagent.spawned (seq=N)" line.
+			child, _ := payload["child_correlation"].(string)
+			task, _ := payload["task"].(string)
+			if len(task) > 60 {
+				task = task[:59] + "…"
+			}
+			fmt.Fprintf(w, "  delegated → %s", child)
+			if task != "" {
+				fmt.Fprintf(w, "  (task: %s)", task)
+			}
+			fmt.Fprintln(w)
 		default:
 			// Surface unknown kinds at minimal verbosity so a future
 			// kind doesn't silently vanish from the arc view.

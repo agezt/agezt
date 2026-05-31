@@ -1898,6 +1898,19 @@ func buildTools(baseDir string, stderr io.Writer, ward warden.Engine) (map[strin
 // Deterministic; satisfies the demo gate `agt run "list the files here and
 // tell me what this project is"` end-to-end with no external services.
 func newDemoMock() agent.Provider {
+	// Demo escape hatch: AGEZT_DEMO_DELEGATE=1 scripts a single delegation so
+	// the multi-agent path (the `delegate` tool, subagent.spawned, M41 run
+	// links) is observable from `agt run` with no external services. The lead
+	// delegates once; the sub-agent answers; the lead finalises. The mock
+	// replays responses sequentially across the lead+child Complete calls
+	// (lead-r1 → child-r1 → lead-r2).
+	if os.Getenv(brand.EnvPrefix+"DEMO_DELEGATE") == "1" {
+		return mock.New(
+			mock.ToolUse("call-1", "delegate", map[string]any{"task": "summarize the kernel package layout"}),
+			mock.FinalText("[offline-mock sub-agent] kernel/ holds event, journal, bus, agent, runtime, and controlplane."),
+			mock.FinalText("[offline-mock lead] I delegated the kernel-layout summary to a sub-agent; it reported the core packages."),
+		)
+	}
 	listCmd := "ls -la"
 	if runtime.GOOS == "windows" {
 		listCmd = "dir"

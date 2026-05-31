@@ -356,10 +356,12 @@ const (
 	// Returns:
 	//   - runs : [{correlation_id, intent, status, reason,
 	//             started_unix_ms, completed_unix_ms, duration_ms,
-	//             iters}, ...] sorted by started_unix_ms DESCENDING
-	//           (newest first). status ∈ {completed, failed, abandoned,
-	//           running}; reason carries the task.failed tag (M30) when
-	//           status=failed, else "".
+	//             iters, parent_correlation}, ...] sorted by
+	//           started_unix_ms DESCENDING (newest first). status ∈
+	//           {completed, failed, abandoned, running}; reason carries the
+	//           task.failed tag (M30) when status=failed, else "".
+	//           parent_correlation links a sub-agent run to the lead run that
+	//           delegated it (M41), else "".
 	//   - count : int
 	CmdRunsList = "runs_list"
 

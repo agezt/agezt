@@ -292,6 +292,66 @@ func TestRunsList_CompletedBeatsFailed(t *testing.T) {
 	}
 }
 
+// TestRunsList_SubAgentParentLink — a sub-agent run carries its lead run's
+// correlation in parent_correlation (from the parent's subagent.spawned
+// event); a top-level run carries "" (M41).
+func TestRunsList_SubAgentParentLink(t *testing.T) {
+	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+
+	// Parent run p1 delegates to child c1.
+	if _, err := k.Bus().Publish(event.Spec{
+		Subject: "task", Kind: event.KindTaskReceived, Actor: "agent-p1",
+		CorrelationID: "p1", Payload: map[string]string{"intent": "lead"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := k.Bus().Publish(event.Spec{
+		Subject: "agent.subagent.spawn", Kind: event.KindSubAgentSpawned, Actor: "subagent-c1",
+		CorrelationID: "p1", // spawn lives under the PARENT correlation
+		Payload:       map[string]any{"child_correlation": "c1", "parent": "p1", "task": "subtask", "depth": 1},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := k.Bus().Publish(event.Spec{
+		Subject: "task", Kind: event.KindTaskCompleted, Actor: "agent-p1",
+		CorrelationID: "p1", Payload: map[string]any{"iters": 2},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	// Child run c1 (its own task arc).
+	if _, err := k.Bus().Publish(event.Spec{
+		Subject: "task", Kind: event.KindTaskReceived, Actor: "subagent-c1",
+		CorrelationID: "c1", Payload: map[string]string{"intent": "subtask"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := k.Bus().Publish(event.Spec{
+		Subject: "task", Kind: event.KindTaskCompleted, Actor: "subagent-c1",
+		CorrelationID: "c1", Payload: map[string]any{"iters": 1},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	res, err := c.Call(context.Background(), controlplane.CmdRunsList, nil)
+	if err != nil {
+		t.Fatalf("Call: %v", err)
+	}
+	rows, _ := res["runs"].([]any)
+	parentOf := map[string]string{}
+	for _, raw := range rows {
+		r, _ := raw.(map[string]any)
+		id, _ := r["correlation_id"].(string)
+		p, _ := r["parent_correlation"].(string)
+		parentOf[id] = p
+	}
+	if got := parentOf["c1"]; got != "p1" {
+		t.Errorf("child c1 parent_correlation = %q want p1", got)
+	}
+	if got := parentOf["p1"]; got != "" {
+		t.Errorf("top-level p1 parent_correlation = %q want empty", got)
+	}
+}
+
 // --- M29: runs stats -------------------------------------------------
 
 // TestRunsStats_EmptyJournal — no runs at all reports total=0 and a

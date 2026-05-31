@@ -12,6 +12,20 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Sub-agent delegation links in `agt runs`** (SPEC-12 multi-agent, M41) — opens
+  the multi-agent orchestration axis. A lead agent's `delegate` tool spawns a
+  sub-agent that runs under its own correlation, so parent and child already
+  appeared as separate `agt runs` rows — but *unlinked*, with no way to see the
+  delegation without reading the journal. Now `collectRuns` also folds the
+  `subagent.spawned` event (which carries `child_correlation` + `parent`) to set a
+  `parent_correlation` on the child's run entry. `agt runs list` marks a sub-agent
+  row `↳ sub-agent of <lead>`; `agt runs show <lead>` renders the delegation as
+  `delegated → <child> (task: …)` instead of a generic event line; the link is in
+  the `--json` output too. A small `AGEZT_DEMO_DELEGATE=1` escape hatch (mirroring
+  `AGEZT_DEMO_FAIL_PRIMARY`) scripts the offline mock to delegate once, so the
+  whole path is network-free-demoable. Proven live: a lead delegated to a
+  sub-agent and both the list link and the show callout rendered. See
+  `.project/PHASE-M41-SUBAGENT-RUN-LINKS-REPORT.md`.
 - **Cross-provider down-routing** (`AGEZT_MODEL_DOWNROUTE_CROSS=on`, SPEC-15, M40)
   — extends M37: when a tools-bearing request hits a tool-incapable model whose own
   provider has **no** tool-capable sibling, the substitute search widens to a
