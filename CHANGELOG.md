@@ -47,8 +47,15 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   tenant exhausting its cap can never starve another (or the primary), while the
   provider pool and credentials stay shared. The ceiling defaults to the
   primary's; `AGEZT_TENANT_DAILY_CEILING=<usd>` overrides it for every tenant.
-  Per-tenant auth (a token/scope per tenant) and rate limits are the remaining
-  work (see `.project/PHASE-M14-MULTITENANT-REPORT.md`).
+  Each tenant also has its **own auth token**, minted on create and stored at
+  `<base>/tenants/<id>/.tenant-token`: `agt tenant create` prints it and `agt
+  tenant token <id>` reveals it, and the REST + OpenAI surfaces enforce it — a
+  request targeting a tenant may authorize with the daemon admin token (any
+  tenant) OR that tenant's own token (that tenant ONLY); a tenant token used for
+  another tenant, or with no `X-Agezt-Tenant` header, is `401`. So you can hand
+  one tenant's operator a credential that can't touch the others. Per-tenant
+  rate limits are the remaining refinement (see
+  `.project/PHASE-M14-MULTITENANT-REPORT.md`).
 - **Scheduled intents** — a `cadence` daemon resident (autonomy): fires intents
   on a recurring timer through the same governed loop (Edict + journal + budget),
   so the system acts on its own ("every morning, summarise new commits and brief

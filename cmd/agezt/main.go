@@ -755,6 +755,7 @@ func buildOpenAIAPI(ctx context.Context, k *kernelruntime.Kernel, reg *tenant.Re
 			}
 			return kernelAPIEngine{tk}, tk.Bus(), nil
 		})
+		api.SetTenantAuthorizer(reg.Authorize)
 	}
 	srv := &http.Server{Handler: api.Handler()}
 	go func() {
@@ -811,6 +812,7 @@ func buildRESTAPI(ctx context.Context, k *kernelruntime.Kernel, reg *tenant.Regi
 			}
 			return kernelAPIEngine{tk}, tk.Bus(), nil
 		})
+		rest.SetTenantAuthorizer(reg.Authorize)
 	}
 	srv := &http.Server{Handler: rest.Handler()}
 	go func() {

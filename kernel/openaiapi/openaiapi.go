@@ -21,6 +21,7 @@ package openaiapi
 
 import (
 	"context"
+	"crypto/subtle"
 	"encoding/json"
 	"net/http"
 	"strings"
@@ -48,6 +49,11 @@ type Engine interface {
 // injects one (backed by the tenant registry) when multi-tenancy is enabled.
 type TenantResolver func(tenant string) (Engine, *bus.Bus, error)
 
+// TenantAuthorizer reports whether presented is the per-tenant credential of
+// tenant id. It lets a scoped per-tenant token authorize requests against ONLY
+// its own tenant, while the daemon admin token authorizes any tenant.
+type TenantAuthorizer func(tenant, presented string) bool
+
 // Server is the OpenAI-compatible HTTP surface.
 type Server struct {
 	eng   Engine
@@ -58,6 +64,10 @@ type Server struct {
 	// Engine + bus. Nil (or an empty header) means the primary engine/bus —
 	// the unchanged single-tenant path.
 	resolve TenantResolver
+
+	// tenantAuth, when set, validates a per-tenant token against the tenant named
+	// in the X-Agezt-Tenant header. Nil means only the admin token authorizes.
+	tenantAuth TenantAuthorizer
 }
 
 // New builds a Server. token gates every request; bus drives streaming.
@@ -68,6 +78,11 @@ func New(eng Engine, b *bus.Bus, token string) *Server {
 // SetTenantResolver enables tenant routing: requests carrying an X-Agezt-Tenant
 // header are served by the resolved per-tenant Engine + bus.
 func (s *Server) SetTenantResolver(r TenantResolver) { s.resolve = r }
+
+// SetTenantAuthorizer enables per-tenant credentials: a request targeting a
+// tenant (X-Agezt-Tenant header) may authorize with that tenant's own token
+// instead of the daemon admin token. The admin token still authorizes any tenant.
+func (s *Server) SetTenantAuthorizer(a TenantAuthorizer) { s.tenantAuth = a }
 
 // bind resolves the Engine + bus for a request: the per-tenant pair when an
 // X-Agezt-Tenant header is present and a resolver is configured, else the
@@ -100,16 +115,31 @@ func (s *Server) auth(next http.HandlerFunc) http.HandlerFunc {
 }
 
 func (s *Server) authorized(r *http.Request) bool {
-	if s.token == "" {
+	presented := bearerToken(r)
+	if presented == "" {
 		return false
 	}
-	if h := r.Header.Get("Authorization"); strings.HasPrefix(h, "Bearer ") {
-		return strings.TrimPrefix(h, "Bearer ") == s.token
-	}
-	if tok := r.URL.Query().Get("token"); tok == s.token {
+	// The daemon admin token authorizes the primary and any tenant.
+	if s.token != "" && subtle.ConstantTimeCompare([]byte(presented), []byte(s.token)) == 1 {
 		return true
 	}
+	// Otherwise a per-tenant token authorizes ONLY its own tenant, and only when
+	// the request actually targets that tenant via the header.
+	if s.tenantAuth != nil {
+		if id := strings.TrimSpace(r.Header.Get("X-Agezt-Tenant")); id != "" {
+			return s.tenantAuth(id, presented)
+		}
+	}
 	return false
+}
+
+// bearerToken extracts the presented token from the Authorization: Bearer
+// header, falling back to the ?token= query param (client convenience).
+func bearerToken(r *http.Request) string {
+	if h := r.Header.Get("Authorization"); strings.HasPrefix(h, "Bearer ") {
+		return strings.TrimPrefix(h, "Bearer ")
+	}
+	return r.URL.Query().Get("token")
 }
 
 // --- /v1/models ---

@@ -1,6 +1,6 @@
 # Phase Report — Milestone M14 (Multi-tenant isolation)
 
-> Status: **Phases 1–7 shipped** · Date: 2026-05-31
+> Status: **Phases 1–8 shipped** · Date: 2026-05-31
 > ROADMAP P6-MULTI. Phase 1: the storage + lifecycle isolation core
 > (`kernel/tenant`). Phase 2: the daemon wiring + operator surface (`agt
 > tenant`). Phase 3: per-request **run routing** (`agt run --tenant <id>`).
@@ -9,7 +9,8 @@
 > `/v1/responses`, `/v1/models`). Phase 6: **tenant-routed ACP** (`agt acp
 > --tenant <id>`), completing the API-surface routing. Phase 7: **per-tenant
 > budget quotas** (each tenant its own governor + spend ledger + ceiling).
-> Per-tenant auth is the remaining work.
+> Phase 8: **per-tenant auth** — a token per tenant that scopes an HTTP caller to
+> exactly one tenant. Per-tenant rate limits are the remaining refinement.
 
 ## Why this milestone
 
@@ -225,6 +226,46 @@ reports its own ceiling, not the parent's. Live: the daemon boots with
 `AGEZT_MULTITENANT=on AGEZT_TENANT_DAILY_CEILING=5.00` and the banner shows the
 per-tenant ceiling.
 
+## Phase 8 — per-tenant auth
+
+Until now the daemon admin token gated the surface and the
+`X-Agezt-Tenant`/`--tenant` selector was *trusted*: anyone holding the admin
+token could drive any tenant, and there was no credential you could hand to one
+tenant's operator that couldn't also touch the others. Phase 8 gives each tenant
+its own token and enforces it on the HTTP surfaces. Built in three thin slices:
+
+**8a — token substrate (`kernel/tenant`).** Each tenant has a persistent
+credential at `<baseDir>/.tenant-token` (0600), minted on first `Acquire` with a
+race-safe `O_CREATE|O_EXCL` write (concurrent first-mints converge on one value).
+It lives inside the tenant's own tree, so it survives `Release` and is destroyed
+by `Remove`. `Registry.Token(id)` reveals an existing tenant's token without
+opening its kernel and without creating the tenant; `Registry.Authorize(id,
+presented)` does a constant-time compare (blank / wrong / cross-tenant /
+unknown-tenant never authorize).
+
+**8b — reveal (control plane + CLI).** `tenant_create` returns the token;
+`tenant_token` (`CmdTenantToken`) reveals an existing one. `agt tenant create
+<id>` prints the token plus a ready-to-use HTTP header hint; `agt tenant token
+<id>` prints just the token (script-friendly). Both stay behind the daemon token
+and refuse cleanly when multi-tenancy is off.
+
+**8c — enforcement (REST + OpenAI).** Each server's `authorized` is now
+tenant-aware: the daemon **admin** token authorizes the primary and any tenant
+(constant-time compared); otherwise a **per-tenant** token authorizes ONLY its
+own tenant, and only when the request actually targets that tenant via the
+`X-Agezt-Tenant` header. A tenant token with the wrong header, no header, or a
+bad value is `401`. Wired by `SetTenantAuthorizer(reg.Authorize)` in
+`buildRESTAPI`/`buildOpenAIAPI`; nil authorizer = today's admin-only behavior.
+
+**Proven:** `tenant.Authorize` unit tests (own-token ok, cross-tenant rejected,
+blank/wrong/unknown rejected, removed-tenant token dead); a control-plane test
+(create returns a stable token `tenant_token` echoes); table-driven auth tests on
+both HTTP servers (admin→primary+any-tenant ok, tenant-token→own-tenant-only,
+wrong/missing-header/bad-token→401). Live (REST, `AGEZT_MULTITENANT=on`):
+alpha's token + `X-Agezt-Tenant: alpha` → 200 and landed in alpha's journal;
+the same token aimed at `beta` → 401; with no header → 401; a garbage token →
+401; the admin token reached the run for any tenant.
+
 ## Engineering notes
 
 - **Stdlib only** (`os`, `path/filepath`, `regexp`, `sort`, `sync`). The
@@ -239,11 +280,12 @@ per-tenant ceiling.
 - **Tenant-routed API surfaces — done.** All run entry points route per tenant:
   the control plane (`CmdRun` tenant arg, Phase 3), the native REST surface
   (Phase 4), the OpenAI-compatible surface (Phase 5), and ACP (Phase 6).
-- **Per-tenant auth.** A token (or token scope) per tenant so a caller proves
-  which tenant it may target (today the daemon token gates the surface and the
-  `X-Agezt-Tenant`/`--tenant` selector is trusted). Per-tenant budget *ceilings*
-  shipped in Phase 7; per-tenant **rate limits** (calls/min, not just $/day) are
-  the natural companion still to do.
+- **Per-tenant rate limits.** Per-tenant budget *ceilings* (Phase 7) and per-
+  tenant *auth* (Phase 8) shipped; the natural companion still to do is per-tenant
+  **rate limits** (calls/min, not just $/day) so a tenant can't burst-flood the
+  shared provider pool even while under its daily cap. ACP/control-plane per-
+  tenant auth (today admin-token-gated on the trusted localhost plane) would
+  extend the same `Authorize` seam if those surfaces are ever exposed remotely.
 - **Shared vs. per-tenant catalog/credentials** policy (today each tenant base
   dir would carry its own vault; some deployments want a shared provider pool).
 - **Tenant-scoped Pulse / cadence residents** (each tenant's autonomous timers

@@ -128,6 +128,47 @@ func TestChat_TenantRouting(t *testing.T) {
 	}
 }
 
+// A per-tenant token authorizes ONLY its own tenant on the OpenAI surface; the
+// admin token authorizes anything; a tenant token needs the matching header.
+func TestTenantAuth(t *testing.T) {
+	eng := &fakeEngine{model: "m", models: []string{"m"}}
+	s := newAPIServer(t, eng, "admin-tok")
+	s.SetTenantAuthorizer(func(id, presented string) bool {
+		return id == "alpha" && presented == "alpha-tok"
+	})
+
+	req := func(token, tenant string) int {
+		r := httptest.NewRequest(http.MethodGet, "/v1/models", nil)
+		if token != "" {
+			r.Header.Set("Authorization", "Bearer "+token)
+		}
+		if tenant != "" {
+			r.Header.Set("X-Agezt-Tenant", tenant)
+		}
+		rec := httptest.NewRecorder()
+		s.Handler().ServeHTTP(rec, r)
+		return rec.Code
+	}
+
+	cases := []struct {
+		name          string
+		token, tenant string
+		want          int
+	}{
+		{"admin no tenant", "admin-tok", "", http.StatusOK},
+		{"admin any tenant", "admin-tok", "alpha", http.StatusOK},
+		{"tenant token own tenant", "alpha-tok", "alpha", http.StatusOK},
+		{"tenant token wrong tenant", "alpha-tok", "beta", http.StatusUnauthorized},
+		{"tenant token no header", "alpha-tok", "", http.StatusUnauthorized},
+		{"no token", "", "alpha", http.StatusUnauthorized},
+	}
+	for _, c := range cases {
+		if got := req(c.token, c.tenant); got != c.want {
+			t.Errorf("%s: status = %d, want %d", c.name, got, c.want)
+		}
+	}
+}
+
 func TestModelsListsDefaultAndCatalog(t *testing.T) {
 	eng := &fakeEngine{model: "MiniMax-M2.7", models: []string{"gpt-4o", "MiniMax-M2.7"}}
 	s := newAPIServer(t, eng, "secret")
