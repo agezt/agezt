@@ -497,11 +497,17 @@ func cmdRunsShow(args []string, stdout, stderr io.Writer) int {
 	}
 	runs, _ := listRes["runs"].([]any)
 	var matchedRow map[string]any
+	// Index every run's summary by correlation so we can show a delegated
+	// sub-agent's outcome inline on the lead's arc (M44).
+	summaries := map[string]map[string]any{}
 	for _, raw := range runs {
 		r, _ := raw.(map[string]any)
-		if s, _ := r["correlation_id"].(string); s == corr {
+		s, _ := r["correlation_id"].(string)
+		if s != "" {
+			summaries[s] = r
+		}
+		if s == corr {
 			matchedRow = r
-			break
 		}
 	}
 	if matchedRow == nil {
@@ -553,8 +559,34 @@ func cmdRunsShow(args []string, stdout, stderr io.Writer) int {
 		return 0
 	}
 
-	renderTaskArc(stdout, corr, matchedRow, chain)
+	// Build per-correlation outcomes so the arc can show a delegated
+	// sub-agent's terminal result inline (M44).
+	outcomes := map[string]childOutcome{}
+	for cid, s := range summaries {
+		st, _ := s["status"].(string)
+		rs, _ := s["reason"].(string)
+		outcomes[cid] = childOutcome{
+			status:     st,
+			reason:     rs,
+			iters:      int64(intOfStatus(s["iters"])),
+			durationMS: int64(intOfStatus(s["duration_ms"])),
+		}
+	}
+
+	renderTaskArc(stdout, corr, matchedRow, chain, outcomes)
 	return 0
+}
+
+// childOutcome is a delegated sub-agent's terminal result, shown inline under
+// the lead's `delegated → …` line (M44). The run answer text isn't journaled
+// (the schema records text_chars/usage, not the message body), so the outcome
+// is the status/iters/duration — enough to answer "did the delegation
+// succeed?"; the sub-agent's events are a `agt runs show <child>` away.
+type childOutcome struct {
+	status     string
+	reason     string
+	iters      int64
+	durationMS int64
 }
 
 // cmdRunsLast implements `agt runs last [--json]` — a convenience
@@ -670,7 +702,7 @@ func failedByReasonStr(raw any) string {
 // Falls back to a minimal one-event-per-line view if the chain
 // doesn't fit the canonical task arc (e.g. an old run from a
 // schema that didn't emit llm.request/response).
-func renderTaskArc(w io.Writer, corr string, summary map[string]any, events []map[string]any) {
+func renderTaskArc(w io.Writer, corr string, summary map[string]any, events []map[string]any, outcomes map[string]childOutcome) {
 	intent, _ := summary["intent"].(string)
 	status, _ := summary["status"].(string)
 	iters := intOfStatus(summary["iters"])
@@ -764,6 +796,19 @@ func renderTaskArc(w io.Writer, corr string, summary map[string]any, events []ma
 				fmt.Fprintf(w, "  (task: %s)", task)
 			}
 			fmt.Fprintln(w)
+			// Show the sub-agent's terminal outcome inline (M44), so the
+			// lead's arc tells the whole story without `agt runs show <child>`.
+			if oc, ok := outcomes[child]; ok && oc.status != "" {
+				statusStr := oc.status
+				if oc.status == "failed" && oc.reason != "" {
+					statusStr = "failed (" + oc.reason + ")"
+				}
+				durStr := ""
+				if oc.status == "completed" || oc.status == "failed" {
+					durStr = ", " + fmtDuration(oc.durationMS)
+				}
+				fmt.Fprintf(w, "    ↳ %s (%d iters%s)\n", statusStr, oc.iters, durStr)
+			}
 		default:
 			// Surface unknown kinds at minimal verbosity so a future
 			// kind doesn't silently vanish from the arc view.

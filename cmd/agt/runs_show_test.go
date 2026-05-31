@@ -69,7 +69,7 @@ func TestRenderTaskArc_CompletedRunHasHeader(t *testing.T) {
 		{"kind": "task.completed", "seq": float64(4)},
 	}
 	var buf bytes.Buffer
-	renderTaskArc(&buf, "run-AAA", summary, events)
+	renderTaskArc(&buf, "run-AAA", summary, events, nil)
 	s := buf.String()
 	for _, want := range []string{
 		"correlation: run-AAA",
@@ -86,6 +86,53 @@ func TestRenderTaskArc_CompletedRunHasHeader(t *testing.T) {
 	}
 }
 
+// TestRenderTaskArc_DelegationShowsChildOutcome — a subagent.spawned event
+// renders the delegation AND the child's terminal outcome inline (M44).
+func TestRenderTaskArc_DelegationShowsChildOutcome(t *testing.T) {
+	summary := map[string]any{"intent": "lead task", "status": "completed", "iters": float64(2), "duration_ms": float64(500)}
+	events := []map[string]any{
+		{"kind": "task.received", "seq": float64(1)},
+		{"kind": "subagent.spawned", "seq": float64(2), "payload": map[string]any{
+			"child_correlation": "run-CHILD", "task": "summarize",
+		}},
+		{"kind": "task.completed", "seq": float64(3)},
+	}
+	outcomes := map[string]childOutcome{
+		"run-CHILD": {status: "completed", iters: 1, durationMS: 42},
+	}
+	var buf bytes.Buffer
+	renderTaskArc(&buf, "run-LEAD", summary, events, outcomes)
+	s := buf.String()
+	for _, want := range []string{
+		"delegated → run-CHILD",
+		"(task: summarize)",
+		"↳ completed (1 iters, 42ms)",
+	} {
+		if !strings.Contains(s, want) {
+			t.Errorf("output missing %q; got:\n%s", want, s)
+		}
+	}
+}
+
+// TestRenderTaskArc_DelegationNoOutcomeStillRenders — without an outcome
+// entry (e.g. child not in the fetched window) the spawn line still renders,
+// just without the inline status (M44 degrades gracefully).
+func TestRenderTaskArc_DelegationNoOutcomeStillRenders(t *testing.T) {
+	summary := map[string]any{"intent": "lead", "status": "completed", "iters": float64(1), "duration_ms": float64(1)}
+	events := []map[string]any{
+		{"kind": "subagent.spawned", "seq": float64(1), "payload": map[string]any{"child_correlation": "run-X", "task": "t"}},
+	}
+	var buf bytes.Buffer
+	renderTaskArc(&buf, "run-L", summary, events, nil) // nil outcomes
+	s := buf.String()
+	if !strings.Contains(s, "delegated → run-X") {
+		t.Errorf("spawn line should still render with nil outcomes; got:\n%s", s)
+	}
+	if strings.Contains(s, "↳ ") {
+		t.Errorf("no inline outcome expected without an outcomes entry; got:\n%s", s)
+	}
+}
+
 // TestRenderTaskArc_RunningShowsAbandonedHint — task.received
 // without a corresponding task.completed is the "operator
 // killed daemon mid-run" case; status line must surface the
@@ -99,7 +146,7 @@ func TestRenderTaskArc_RunningShowsAbandonedHint(t *testing.T) {
 		{"kind": "task.received", "seq": float64(1)},
 	}
 	var buf bytes.Buffer
-	renderTaskArc(&buf, "stranded", summary, events)
+	renderTaskArc(&buf, "stranded", summary, events, nil)
 	if !strings.Contains(buf.String(), "abandoned") {
 		t.Errorf("running run should hint abandoned; got %q", buf.String())
 	}
@@ -117,7 +164,7 @@ func TestRenderTaskArc_ToolEventsAreIndented(t *testing.T) {
 		{"kind": "llm.response", "seq": float64(4)},
 	}
 	var buf bytes.Buffer
-	renderTaskArc(&buf, "x", summary, events)
+	renderTaskArc(&buf, "x", summary, events, nil)
 	s := buf.String()
 	// 4-space indent for in-round tool events; 2 for outside.
 	if !strings.Contains(s, "    tool.invoked: shell") {
@@ -142,7 +189,7 @@ func TestRenderTaskArc_FinalAnswerSurfacesFromLlmResponse(t *testing.T) {
 		{"kind": "task.completed", "seq": float64(3)},
 	}
 	var buf bytes.Buffer
-	renderTaskArc(&buf, "x", summary, events)
+	renderTaskArc(&buf, "x", summary, events, nil)
 	if !strings.Contains(buf.String(), "final answer:") {
 		t.Errorf("missing final-answer header; got:\n%s", buf.String())
 	}

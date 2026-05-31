@@ -12,6 +12,18 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Per-delegation outcome on the lead's arc** (SPEC-12 multi-agent, M44) — in
+  `agt runs show <lead>`, each `delegated → <child>` line is now followed by the
+  sub-agent's terminal outcome inline: `↳ completed (1 iters, 1ms)` (or
+  `failed (timeout)` etc.), so the lead's arc answers "did the delegation
+  succeed?" without a second `agt runs show <child>`. `cmdRunsShow` already
+  fetches the full runs list, so it builds a correlation→summary map for free and
+  passes the outcomes to `renderTaskArc` — no extra round-trips, no server change.
+  (The sub-agent's answer *text* is not journaled — the schema records
+  `text_chars`/`usage`, not the message body — so the outcome is status/iters/
+  duration; the child's events remain one `runs show <child>` away.) Proven live: a
+  lead's arc showed its sub-agent's `↳ completed` outcome. See
+  `.project/PHASE-M44-DELEGATION-OUTCOME-REPORT.md`.
 - **`agt runs list --tree`** (SPEC-12 multi-agent, M43) — renders the delegation
   hierarchy: each lead run with its sub-agent runs nested beneath it (two spaces of
   indent per level, depth-first), instead of the flat newest-first list. Pure
