@@ -4,11 +4,44 @@ package controlplane_test
 
 import (
 	"context"
+	"io"
 	"testing"
 
+	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/runtime"
+	"github.com/agezt/agezt/kernel/tenant"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
+
+// newTenantReg builds a registry of real per-tenant kernels (each a fresh
+// runtime.Open) for the per-tenant policy tests, and wires it into srv.
+func newTenantReg(t *testing.T, srv *controlplane.Server) {
+	t.Helper()
+	reg, err := tenant.New(t.TempDir(), func(id, baseDir string) (io.Closer, error) {
+		return runtime.Open(runtime.Config{
+			BaseDir:  baseDir,
+			Provider: mock.New(mock.FinalText("t")),
+			Tools:    map[string]agent.Tool{},
+		})
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { reg.CloseAll() })
+	srv.SetTenants(reg)
+}
+
+// hardDenied is a tiny helper: does an edict_test probe report hard_denied?
+func hardDenied(t *testing.T, c *controlplane.Client, args map[string]any) bool {
+	t.Helper()
+	res, err := c.Call(context.Background(), controlplane.CmdEdictTest, args)
+	if err != nil {
+		t.Fatalf("edict_test %v: %v", args, err)
+	}
+	hd, _ := res["hard_denied"].(bool)
+	return hd
+}
 
 // TestEdictShow_ReturnsDefaultPolicy verifies the wire shape: an
 // edict.New(edict.Options{}) engine (which is what startPair gets
@@ -273,6 +306,102 @@ func TestEdictSetMode_RuntimeChange(t *testing.T) {
 	}
 	if _, err := c.Call(ctx, controlplane.CmdEdictSetMode, map[string]any{"mode": "loose"}); err == nil {
 		t.Error("unknown mode should error")
+	}
+}
+
+// TestEdictDeny_PerTenantIsolation proves M22: a deny rule added to one
+// tenant's engine is invisible to other tenants and to the primary.
+func TestEdictDeny_PerTenantIsolation(t *testing.T) {
+	_, srv, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	newTenantReg(t, srv)
+	ctx := context.Background()
+
+	// Add a deny rule to tenant "alpha" only.
+	if _, err := c.Call(ctx, controlplane.CmdEdictDenyAdd, map[string]any{
+		"tenant": "alpha", "rule": "shell:kubectl delete",
+	}); err != nil {
+		t.Fatalf("add to alpha: %v", err)
+	}
+
+	// alpha denies it; beta and the primary do NOT (isolated engines).
+	if !hardDenied(t, c, map[string]any{"tenant": "alpha", "capability": "shell", "input": "kubectl delete x"}) {
+		t.Error("alpha should hard-deny its own rule")
+	}
+	if hardDenied(t, c, map[string]any{"tenant": "beta", "capability": "shell", "input": "kubectl delete x"}) {
+		t.Error("beta must NOT see alpha's rule")
+	}
+	if hardDenied(t, c, map[string]any{"capability": "shell", "input": "kubectl delete x"}) {
+		t.Error("primary must NOT see a tenant's rule")
+	}
+
+	// deny list reflects the same isolation: one runtime rule on alpha, none on beta.
+	countRuntime := func(tenant string) int {
+		args := map[string]any{}
+		if tenant != "" {
+			args["tenant"] = tenant
+		}
+		res, err := c.Call(ctx, controlplane.CmdEdictDenyList, args)
+		if err != nil {
+			t.Fatalf("deny list %q: %v", tenant, err)
+		}
+		rules, _ := res["rules"].([]any)
+		n := 0
+		for _, raw := range rules {
+			if r, _ := raw.(map[string]any); r["removable"] == true {
+				n++
+			}
+		}
+		return n
+	}
+	if got := countRuntime("alpha"); got != 1 {
+		t.Errorf("alpha runtime rules = %d, want 1", got)
+	}
+	if got := countRuntime("beta"); got != 0 {
+		t.Errorf("beta runtime rules = %d, want 0", got)
+	}
+}
+
+// TestEdictLevel_PerTenantIsolation proves a trust-level change on one
+// tenant doesn't leak to another or to the primary.
+func TestEdictLevel_PerTenantIsolation(t *testing.T) {
+	_, srv, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	newTenantReg(t, srv)
+	ctx := context.Background()
+
+	// Lock shell to L0 on alpha.
+	if _, err := c.Call(ctx, controlplane.CmdEdictSetLevel, map[string]any{
+		"tenant": "alpha", "capability": "shell", "level": "L0",
+	}); err != nil {
+		t.Fatalf("set level alpha: %v", err)
+	}
+	shellLevel := func(tenant string) string {
+		args := map[string]any{}
+		if tenant != "" {
+			args["tenant"] = tenant
+		}
+		res, _ := c.Call(ctx, controlplane.CmdEdictShow, args)
+		levels, _ := res["levels"].(map[string]any)
+		s, _ := levels["shell"].(string)
+		return s
+	}
+	if got := shellLevel("alpha"); got != "L0" {
+		t.Errorf("alpha shell = %q want L0", got)
+	}
+	if got := shellLevel("beta"); got == "L0" {
+		t.Errorf("beta shell = %q must not be L0 (isolation leak)", got)
+	}
+	if got := shellLevel(""); got == "L0" {
+		t.Errorf("primary shell = %q must not be L0 (isolation leak)", got)
+	}
+}
+
+// TestEdict_TenantWithoutRegistry errors clearly when a tenant is named
+// but multi-tenancy is disabled (no registry wired).
+func TestEdict_TenantWithoutRegistry(t *testing.T) {
+	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	_, err := c.Call(context.Background(), controlplane.CmdEdictShow, map[string]any{"tenant": "alpha"})
+	if err == nil {
+		t.Fatal("naming a tenant with no registry should error")
 	}
 }
 

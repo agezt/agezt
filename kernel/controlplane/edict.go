@@ -15,10 +15,30 @@ import (
 
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/runtime"
 )
 
+// edictFor resolves the Edict engine (and owning kernel, for journaling to
+// the right bus) for a request's optional "tenant" arg: empty → the primary
+// kernel, else the named tenant's isolated engine (M22). On error it writes
+// the response and returns ok=false, so callers just `if !ok { return }`.
+// Every `agt edict` command routes through here, giving per-tenant policy
+// management for free across show/test/deny/level/mode.
+func (s *Server) edictFor(conn net.Conn, req Request) (*edict.Engine, *runtime.Kernel, bool) {
+	tenantID, _ := req.Args["tenant"].(string)
+	k, err := s.kernelFor(tenantID)
+	if err != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		return nil, nil, false
+	}
+	return k.Edict(), k, true
+}
+
 func (s *Server) handleEdictShow(conn net.Conn, req Request) {
-	eng := s.k.Edict()
+	eng, _, ok := s.edictFor(conn, req)
+	if !ok {
+		return
+	}
 	levels := eng.Levels()
 
 	// Sort capabilities for deterministic output — operators
@@ -76,7 +96,11 @@ func (s *Server) handleEdictTest(conn net.Conn, req Request) {
 	inputRaw, _ := req.Args["input"]
 	input, _ := inputRaw.(string) // empty string is a valid probe
 
-	out := s.k.Edict().Decide(edict.Capability(capStr), input)
+	eng, _, ok := s.edictFor(conn, req)
+	if !ok {
+		return
+	}
+	out := eng.Decide(edict.Capability(capStr), input)
 	s.writeResp(conn, Response{
 		ID:   req.ID,
 		Type: RespResult,
@@ -118,7 +142,11 @@ func denyRuleRows(rules []edict.HardDenyRule) []map[string]any {
 // so the operator can see at a glance which rules are the immutable floor
 // (built-ins + AGEZT_EDICT_DENY) versus runtime-added.
 func (s *Server) handleEdictDenyList(conn net.Conn, req Request) {
-	rules := s.k.Edict().HardDenyRules()
+	eng, _, ok := s.edictFor(conn, req)
+	if !ok {
+		return
+	}
+	rules := eng.HardDenyRules()
 	s.writeResp(conn, Response{
 		ID:     req.ID,
 		Type:   RespResult,
@@ -142,7 +170,10 @@ func (s *Server) handleEdictDenyAdd(conn net.Conn, req Request) {
 			Error: "args.rule must specify exactly one deny rule (no ';' separators)"})
 		return
 	}
-	eng := s.k.Edict()
+	eng, k, ok := s.edictFor(conn, req)
+	if !ok {
+		return
+	}
 	added, err := eng.AddHardDeny(parsed[0])
 	if err != nil {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
@@ -154,7 +185,7 @@ func (s *Server) handleEdictDenyAdd(conn net.Conn, req Request) {
 		applies = append(applies, string(c))
 	}
 	count := len(eng.HardDenyRules())
-	_, _ = s.k.Bus().Publish(event.Spec{
+	_, _ = k.Bus().Publish(event.Spec{
 		Subject: "kernel.policy",
 		Kind:    event.KindPolicyChanged,
 		Actor:   "operator",
@@ -187,7 +218,10 @@ func (s *Server) handleEdictDenyRemove(conn net.Conn, req Request) {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.name required"})
 		return
 	}
-	eng := s.k.Edict()
+	eng, k, ok := s.edictFor(conn, req)
+	if !ok {
+		return
+	}
 	removed, err := eng.RemoveHardDeny(name)
 	if err != nil {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
@@ -195,7 +229,7 @@ func (s *Server) handleEdictDenyRemove(conn net.Conn, req Request) {
 	}
 	count := len(eng.HardDenyRules())
 	if removed {
-		_, _ = s.k.Bus().Publish(event.Spec{
+		_, _ = k.Bus().Publish(event.Spec{
 			Subject: "kernel.policy",
 			Kind:    event.KindPolicyChanged,
 			Actor:   "operator",
@@ -237,7 +271,10 @@ func (s *Server) handleEdictSetLevel(conn net.Conn, req Request) {
 		return
 	}
 
-	eng := s.k.Edict()
+	eng, k, ok := s.edictFor(conn, req)
+	if !ok {
+		return
+	}
 	from := "unset"
 	if prev, ok := eng.Level(cap); ok {
 		from = prev.String()
@@ -245,7 +282,7 @@ func (s *Server) handleEdictSetLevel(conn net.Conn, req Request) {
 	eng.SetLevel(cap, lvl)
 	to := lvl.String()
 
-	_, _ = s.k.Bus().Publish(event.Spec{
+	_, _ = k.Bus().Publish(event.Spec{
 		Subject: "kernel.policy",
 		Kind:    event.KindPolicyChanged,
 		Actor:   "operator",
@@ -278,12 +315,15 @@ func (s *Server) handleEdictSetMode(conn net.Conn, req Request) {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
 		return
 	}
-	eng := s.k.Edict()
+	eng, k, ok := s.edictFor(conn, req)
+	if !ok {
+		return
+	}
 	from := eng.AskPolicy().String()
 	eng.SetAskPolicy(mode)
 	to := mode.String()
 
-	_, _ = s.k.Bus().Publish(event.Spec{
+	_, _ = k.Bus().Publish(event.Spec{
 		Subject: "kernel.policy",
 		Kind:    event.KindPolicyChanged,
 		Actor:   "operator",

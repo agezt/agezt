@@ -434,6 +434,17 @@ func runDaemon(stdout, stderr io.Writer) int {
 			if redactor != nil {
 				tk.Bus().SetRedactor(redactor) // same scrub on the tenant's journal
 			}
+			// Durable runtime policy per tenant (M22): replay this tenant's OWN
+			// policy.changed history so its runtime deny rules / level / mode
+			// changes survive a restart, exactly as the primary does — each
+			// tenant's journal is its own source of truth. Best-effort: a
+			// journal read error leaves the tenant on its boot policy rather
+			// than failing the lazy open. Gated on the same AGEZT_EDICT_DURABLE.
+			if strings.EqualFold(os.Getenv(brand.EnvPrefix+"EDICT_DURABLE"), "on") {
+				if overlay, rerr := replayPolicyOverlay(tk); rerr == nil {
+					tk.Edict().ApplyOverlay(overlay)
+				}
+			}
 			return tk, nil
 		})
 		if terr != nil {

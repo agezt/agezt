@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/agezt/agezt/internal/brand"
@@ -54,6 +55,7 @@ func cmdEdict(args []string, stdout, stderr io.Writer) int {
 // note), deny (strict; only L4 runs), or prompt (block for live HITL).
 // The hard-deny floor is unaffected. Journaled as a policy.changed event.
 func cmdEdictMode(args []string, stdout, stderr io.Writer) int {
+	tenant, args := extractTenantFlag(args)
 	asJSON := false
 	var mode string
 	for _, a := range args {
@@ -61,7 +63,7 @@ func cmdEdictMode(args []string, stdout, stderr io.Writer) int {
 		case "--json":
 			asJSON = true
 		case "-h", "--help":
-			fmt.Fprintf(stdout, "usage: %s edict mode <allow|deny|prompt> [--json]\n", brand.CLI)
+			fmt.Fprintf(stdout, "usage: %s edict mode <allow|deny|prompt> [--tenant <id>] [--json]\n", brand.CLI)
 			fmt.Fprintf(stdout, "allow = fold Ask to allow; deny = strict (only L4); prompt = live HITL\n")
 			return 0
 		default:
@@ -84,7 +86,7 @@ func cmdEdictMode(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdEdictSetMode, map[string]any{"mode": mode})
+	res, err := c.Call(ctx, controlplane.CmdEdictSetMode, withTenant(tenant, map[string]any{"mode": mode}))
 	if err != nil {
 		fmt.Fprintf(stderr, "%s edict mode: %v\n", brand.CLI, err)
 		return 1
@@ -107,6 +109,7 @@ func cmdEdictMode(args []string, stdout, stderr io.Writer) int {
 // can't unlock a catastrophic command. The change is journaled as a
 // policy.changed event. Use `edict show` to read the current ladder.
 func cmdEdictLevel(args []string, stdout, stderr io.Writer) int {
+	tenant, args := extractTenantFlag(args)
 	asJSON := false
 	var capability, level string
 	for _, a := range args {
@@ -114,7 +117,7 @@ func cmdEdictLevel(args []string, stdout, stderr io.Writer) int {
 		case "--json":
 			asJSON = true
 		case "-h", "--help":
-			fmt.Fprintf(stdout, "usage: %s edict level <capability> <level> [--json]\n", brand.CLI)
+			fmt.Fprintf(stdout, "usage: %s edict level <capability> <level> [--tenant <id>] [--json]\n", brand.CLI)
 			fmt.Fprintf(stdout, "level is L0..L4 or deny/ask/askfirst/askscoped/allow\n")
 			fmt.Fprintf(stdout, "the hard-deny floor still applies regardless of level\n")
 			return 0
@@ -142,10 +145,10 @@ func cmdEdictLevel(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdEdictSetLevel, map[string]any{
+	res, err := c.Call(ctx, controlplane.CmdEdictSetLevel, withTenant(tenant, map[string]any{
 		"capability": capability,
 		"level":      level,
-	})
+	}))
 	if err != nil {
 		fmt.Fprintf(stderr, "%s edict level: %v\n", brand.CLI, err)
 		return 1
@@ -194,13 +197,14 @@ func cmdEdictDeny(args []string, stdout, stderr io.Writer) int {
 
 // cmdEdictDenyList implements `agt edict deny list [--json]`.
 func cmdEdictDenyList(args []string, stdout, stderr io.Writer) int {
+	tenant, args := extractTenantFlag(args)
 	asJSON := false
 	for _, a := range args {
 		switch a {
 		case "--json":
 			asJSON = true
 		case "-h", "--help":
-			fmt.Fprintf(stdout, "usage: %s edict deny list [--json]\n", brand.CLI)
+			fmt.Fprintf(stdout, "usage: %s edict deny list [--tenant <id>] [--json]\n", brand.CLI)
 			return 0
 		default:
 			fmt.Fprintf(stderr, "%s edict deny list: unexpected arg %q\n", brand.CLI, a)
@@ -214,7 +218,7 @@ func cmdEdictDenyList(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdEdictDenyList, nil)
+	res, err := c.Call(ctx, controlplane.CmdEdictDenyList, withTenant(tenant, nil))
 	if err != nil {
 		fmt.Fprintf(stderr, "%s edict deny list: %v\n", brand.CLI, err)
 		return 1
@@ -259,6 +263,7 @@ func cmdEdictDenyList(args []string, stdout, stderr io.Writer) int {
 
 // cmdEdictDenyAdd implements `agt edict deny add <rule> [--json]`.
 func cmdEdictDenyAdd(args []string, stdout, stderr io.Writer) int {
+	tenant, args := extractTenantFlag(args)
 	asJSON := false
 	var rule string
 	for _, a := range args {
@@ -266,7 +271,7 @@ func cmdEdictDenyAdd(args []string, stdout, stderr io.Writer) int {
 		case "--json":
 			asJSON = true
 		case "-h", "--help":
-			fmt.Fprintf(stdout, "usage: %s edict deny add <rule> [--json]\n", brand.CLI)
+			fmt.Fprintf(stdout, "usage: %s edict deny add <rule> [--tenant <id>] [--json]\n", brand.CLI)
 			fmt.Fprintf(stdout, "rule is \"substring\" (all caps) or \"<capability>:substring\" (scoped)\n")
 			return 0
 		default:
@@ -289,7 +294,7 @@ func cmdEdictDenyAdd(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdEdictDenyAdd, map[string]any{"rule": rule})
+	res, err := c.Call(ctx, controlplane.CmdEdictDenyAdd, withTenant(tenant, map[string]any{"rule": rule}))
 	if err != nil {
 		fmt.Fprintf(stderr, "%s edict deny add: %v\n", brand.CLI, err)
 		return 1
@@ -309,6 +314,7 @@ func cmdEdictDenyAdd(args []string, stdout, stderr io.Writer) int {
 
 // cmdEdictDenyRemove implements `agt edict deny rm <name> [--json]`.
 func cmdEdictDenyRemove(args []string, stdout, stderr io.Writer) int {
+	tenant, args := extractTenantFlag(args)
 	asJSON := false
 	var name string
 	for _, a := range args {
@@ -316,7 +322,7 @@ func cmdEdictDenyRemove(args []string, stdout, stderr io.Writer) int {
 		case "--json":
 			asJSON = true
 		case "-h", "--help":
-			fmt.Fprintf(stdout, "usage: %s edict deny rm <name> [--json]\n", brand.CLI)
+			fmt.Fprintf(stdout, "usage: %s edict deny rm <name> [--tenant <id>] [--json]\n", brand.CLI)
 			fmt.Fprintf(stdout, "only runtime-added rules (runtime[N]) can be removed\n")
 			return 0
 		default:
@@ -339,7 +345,7 @@ func cmdEdictDenyRemove(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdEdictDenyRemove, map[string]any{"name": name})
+	res, err := c.Call(ctx, controlplane.CmdEdictDenyRemove, withTenant(tenant, map[string]any{"name": name}))
 	if err != nil {
 		fmt.Fprintf(stderr, "%s edict deny rm: %v\n", brand.CLI, err)
 		return 1
@@ -364,13 +370,14 @@ func cmdEdictDenyRemove(args []string, stdout, stderr io.Writer) int {
 // debugging "why was my shell call denied?" / "is the daemon
 // actually in prompt mode?" — this is where the answer lives.
 func cmdEdictShow(args []string, stdout, stderr io.Writer) int {
+	tenant, args := extractTenantFlag(args)
 	asJSON := false
 	for _, a := range args {
 		switch a {
 		case "--json":
 			asJSON = true
 		case "-h", "--help":
-			fmt.Fprintf(stdout, "usage: %s edict show [--json]\n", brand.CLI)
+			fmt.Fprintf(stdout, "usage: %s edict show [--tenant <id>] [--json]\n", brand.CLI)
 			fmt.Fprintf(stdout, "display the policy snapshot the daemon's edict engine loaded\n")
 			return 0
 		default:
@@ -385,7 +392,7 @@ func cmdEdictShow(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdEdictShow, nil)
+	res, err := c.Call(ctx, controlplane.CmdEdictShow, withTenant(tenant, nil))
 	if err != nil {
 		fmt.Fprintf(stderr, "%s edict show: %v\n", brand.CLI, err)
 		return 1
@@ -457,6 +464,7 @@ func cmdEdictShow(args []string, stdout, stderr io.Writer) int {
 // The non-zero "deny" exit (3, not 1) lets CI scripts distinguish
 // "policy said no" from "couldn't reach the daemon".
 func cmdEdictTest(args []string, stdout, stderr io.Writer) int {
+	tenant, args := extractTenantFlag(args)
 	asJSON := false
 	var capability, input string
 	for _, a := range args {
@@ -464,7 +472,7 @@ func cmdEdictTest(args []string, stdout, stderr io.Writer) int {
 		case "--json":
 			asJSON = true
 		case "-h", "--help":
-			fmt.Fprintf(stdout, "usage: %s edict test <capability> [<input>] [--json]\n", brand.CLI)
+			fmt.Fprintf(stdout, "usage: %s edict test <capability> [<input>] [--tenant <id>] [--json]\n", brand.CLI)
 			fmt.Fprintf(stdout, "dry-run a policy decision; never journals, never consumes approval slots\n")
 			fmt.Fprintf(stdout, "exit 0 = allow, 3 = deny, 1 = error, 2 = usage\n")
 			return 0
@@ -492,10 +500,10 @@ func cmdEdictTest(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdEdictTest, map[string]any{
+	res, err := c.Call(ctx, controlplane.CmdEdictTest, withTenant(tenant, map[string]any{
 		"capability": capability,
 		"input":      input,
-	})
+	}))
 	if err != nil {
 		fmt.Fprintf(stderr, "%s edict test: %v\n", brand.CLI, err)
 		return 1
@@ -538,6 +546,42 @@ func cmdEdictTest(args []string, stdout, stderr io.Writer) int {
 		return 3
 	}
 	return 0
+}
+
+// extractTenantFlag pulls an optional "--tenant <id>" (or "--tenant=<id>")
+// out of args, returning the id ("" if absent) and the remaining args. Lets
+// every `agt edict` subcommand target a tenant's isolated policy engine
+// (M22) without each reimplementing the flag. Place it after the subcommand,
+// e.g. `agt edict deny add --tenant acme "shell:kubectl delete"`.
+func extractTenantFlag(args []string) (tenant string, rest []string) {
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		switch {
+		case a == "--tenant":
+			if i+1 < len(args) {
+				tenant = args[i+1]
+				i++ // consume the value
+			}
+		case strings.HasPrefix(a, "--tenant="):
+			tenant = a[len("--tenant="):]
+		default:
+			rest = append(rest, a)
+		}
+	}
+	return tenant, rest
+}
+
+// withTenant adds the tenant id to a control-plane args map when non-empty
+// (empty routes to the primary kernel server-side). Tolerates a nil map.
+func withTenant(tenant string, m map[string]any) map[string]any {
+	if tenant == "" {
+		return m
+	}
+	if m == nil {
+		m = map[string]any{}
+	}
+	m["tenant"] = tenant
+	return m
 }
 
 // joinCaps formats a capability list for the human renderer. Kept

@@ -12,6 +12,23 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Per-tenant policy management** (ROADMAP P6-MULTI, M22) — the runtime policy
+  surface (deny rules · trust levels · approval mode, M18–M21) was primary-kernel
+  only; tenants (M14) had isolated engines but no way to manage them. Every `agt
+  edict` subcommand now takes `--tenant <id>`: `agt edict deny add --tenant acme
+  "shell:kubectl delete"`, `agt edict level --tenant acme http.post L0`, `agt
+  edict mode --tenant acme deny`, and the read commands (`show`/`test`/`deny
+  list`) too. Server-side every handler routes through `kernelFor(tenant)` —
+  empty targets the primary, else the tenant's isolated engine — and journals to
+  that kernel's own bus, so a tenant's policy changes land in the tenant's own
+  hash-chained journal. Isolation is total: a rule added to one tenant is
+  invisible to other tenants and to the primary. Per-tenant durability comes for
+  free: with `AGEZT_EDICT_DURABLE=on` each tenant kernel replays its OWN
+  policy.changed history on open (M20), so tenant policy survives a restart.
+  Proven live: a deny rule + level change set on tenant `alpha` deny only for
+  `alpha` (beta + primary unaffected), survive a full daemon restart restored
+  from alpha's own journal, and the primary journal holds zero tenant policy
+  events. See `.project/PHASE-M22-PER-TENANT-POLICY-REPORT.md`.
 - **Runtime approval-mode changes** (DECISIONS F3, M21) — the third and final
   runtime policy knob, alongside deny rules (M18) and trust levels (M19). `agt
   edict mode <allow|deny|prompt>` changes how Ask-class levels (L1..L3) are

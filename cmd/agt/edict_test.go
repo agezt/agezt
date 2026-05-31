@@ -195,6 +195,56 @@ func TestCmdEdictMode_HelpDocsModes(t *testing.T) {
 	}
 }
 
+// TestExtractTenantFlag covers both --tenant forms and the no-flag case,
+// and that the remaining args are preserved in order.
+func TestExtractTenantFlag(t *testing.T) {
+	cases := []struct {
+		in         []string
+		wantTenant string
+		wantRest   []string
+	}{
+		{[]string{"add", "rule"}, "", []string{"add", "rule"}},
+		{[]string{"--tenant", "acme", "rule"}, "acme", []string{"rule"}},
+		{[]string{"rule", "--tenant", "acme"}, "acme", []string{"rule"}},
+		{[]string{"--tenant=acme", "rule"}, "acme", []string{"rule"}},
+		{[]string{"--tenant"}, "", nil}, // trailing flag, no value
+	}
+	for _, tc := range cases {
+		gotT, gotR := extractTenantFlag(tc.in)
+		if gotT != tc.wantTenant {
+			t.Errorf("extractTenantFlag(%v) tenant=%q want %q", tc.in, gotT, tc.wantTenant)
+		}
+		if strings.Join(gotR, ",") != strings.Join(tc.wantRest, ",") {
+			t.Errorf("extractTenantFlag(%v) rest=%v want %v", tc.in, gotR, tc.wantRest)
+		}
+	}
+}
+
+// TestWithTenant — non-empty tenant is injected; empty leaves the map alone.
+func TestWithTenant(t *testing.T) {
+	if m := withTenant("", nil); m != nil {
+		t.Errorf("empty tenant should pass nil through; got %v", m)
+	}
+	m := withTenant("acme", map[string]any{"rule": "x"})
+	if m["tenant"] != "acme" || m["rule"] != "x" {
+		t.Errorf("withTenant lost data: %v", m)
+	}
+	if m := withTenant("acme", nil); m["tenant"] != "acme" {
+		t.Errorf("withTenant should create a map for a nil input: %v", m)
+	}
+}
+
+// TestCmdEdictShow_HelpDocsTenant — help advertises --tenant.
+func TestCmdEdictShow_HelpDocsTenant(t *testing.T) {
+	var out, errOut bytes.Buffer
+	if code := cmdEdictShow([]string{"--help"}, &out, &errOut); code != 0 {
+		t.Fatalf("exit=%d want 0", code)
+	}
+	if !strings.Contains(out.String(), "--tenant") {
+		t.Errorf("show --help missing --tenant; got %q", out.String())
+	}
+}
+
 // TestCmdEdictShow_HelpDocsJSON — operators must discover
 // --json from the help text.
 func TestCmdEdictShow_HelpDocsJSON(t *testing.T) {
