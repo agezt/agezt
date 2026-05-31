@@ -1361,6 +1361,10 @@ func buildGovernor(cat *catalog.Catalog, lookup func(string) string) (*governor.
 	}); err != nil {
 		return nil, "", "", fmt.Errorf("register primary: %w", err)
 	}
+	// Track which catalog providers actually got registered — the eligible
+	// set for cross-provider down-routing (M40). Keyed by catalog provider id
+	// (not the shim Name), so it matches catalog lookups.
+	registered := map[string]bool{origPrimaryName: true}
 
 	// Register every OTHER credentialed + supported catalog provider as a
 	// model-routable alternate (SPEC-15 §1): a request naming one of their
@@ -1388,6 +1392,7 @@ func buildGovernor(cat *catalog.Catalog, lookup func(string) string) (*governor.
 		}); err != nil {
 			continue // duplicate name or similar — skip gracefully
 		}
+		registered[entry.ID] = true
 		extraProviders++
 	}
 
@@ -1469,7 +1474,21 @@ func buildGovernor(cat *catalog.Catalog, lookup func(string) string) (*governor.
 	// tool-capable sibling in the same provider instead of being rejected
 	// (M25). Pairs naturally with strict mode (reroute-if-possible, else
 	// reject), but works independently too.
-	downRoute := strings.EqualFold(os.Getenv(brand.EnvPrefix+"MODEL_DOWNROUTE"), "on")
+	// AGEZT_MODEL_DOWNROUTE_CROSS=on widens the substitute search to OTHER
+	// registered+credentialed providers when the model's own provider has no
+	// tool-capable sibling (M40). It implies down-routing. Without it, the
+	// search stays same-provider only (M37).
+	crossDownRoute := strings.EqualFold(os.Getenv(brand.EnvPrefix+"MODEL_DOWNROUTE_CROSS"), "on")
+	downRoute := crossDownRoute || strings.EqualFold(os.Getenv(brand.EnvPrefix+"MODEL_DOWNROUTE"), "on")
+
+	// The alternative finder: same-provider by default, cross-provider (among
+	// the actually-registered providers) when enabled.
+	altFinder := cat.ToolCapableAlternative
+	if crossDownRoute {
+		altFinder = func(model string) (string, bool) {
+			return cat.ToolCapableAlternativeAmong(model, func(provID string) bool { return registered[provID] })
+		}
+	}
 
 	gov, err := governor.New(governor.Config{
 		Registry:                reg,
@@ -1487,7 +1506,7 @@ func buildGovernor(cat *catalog.Catalog, lookup func(string) string) (*governor.
 			}
 			return m.ToolCall, true
 		},
-		ToolCapableAlternative: cat.ToolCapableAlternative,
+		ToolCapableAlternative: altFinder,
 	})
 	if err != nil {
 		return nil, "", "", err
@@ -1498,7 +1517,11 @@ func buildGovernor(cat *catalog.Catalog, lookup func(string) string) (*governor.
 		desc += ", strict-capabilities"
 	}
 	if downRoute {
-		desc += ", tool-downrouting"
+		if crossDownRoute {
+			desc += ", tool-downrouting(cross)"
+		} else {
+			desc += ", tool-downrouting"
+		}
 	}
 	if extraProviders > 0 {
 		desc += fmt.Sprintf(", model-routable_alternates=%d", extraProviders)

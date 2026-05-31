@@ -12,6 +12,22 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Cross-provider down-routing** (`AGEZT_MODEL_DOWNROUTE_CROSS=on`, SPEC-15, M40)
+  — extends M37: when a tools-bearing request hits a tool-incapable model whose own
+  provider has **no** tool-capable sibling, the substitute search widens to a
+  tool-capable model on a *different* registered + credentialed provider (instead
+  of falling through to a reject). Same-provider is still preferred (the remap stays
+  on the already-serving provider when it can); only when there's no in-provider
+  option does it cross. Crucially the eligible set is the providers the governor
+  *actually registered* (tracked during registration), so a remap target is always
+  one the router can reach via `applyModelRoute`/`Serves` — never a phantom. The
+  largest-context capable model wins, tie-broken by id for determinism. Implies
+  down-routing; boot banner shows `tool-downrouting(cross)`. New
+  `catalog.ToolCapableAlternativeAmong(model, providerEligible)`; `ToolCapable
+  Alternative` refactored to delegate (same-provider = eligible-self). Proven live:
+  a request to a provider with only an incapable model was rerouted across to a
+  capable model on another provider. See
+  `.project/PHASE-M40-CROSS-PROVIDER-DOWNROUTE-REPORT.md`.
 - **Tenant-scoped run observability** (`agt runs list/stats --tenant <id>`,
   SPEC-14, M39) — a natural M38 follow-on. `runs list` and `runs stats` now walk
   the *target tenant's* journal (via `kernelFor`) instead of always the primary's,

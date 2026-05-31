@@ -322,32 +322,88 @@ func (c *Catalog) FindModel(modelID string) (*Provider, *Model) {
 // tool-capable model. The returned ID is bare (no "provider/" prefix),
 // matching how the catalog keys models.
 func (c *Catalog) ToolCapableAlternative(modelID string) (string, bool) {
+	// Same-provider only: the eligible set is the model's own provider.
 	p, _ := c.FindModel(modelID)
 	if p == nil {
 		return "", false
 	}
-	// Bare id used for the "don't pick myself" check (modelID may be
-	// "provider/model"); FindModel already resolved the provider.
+	return c.ToolCapableAlternativeAmong(modelID, func(provID string) bool { return provID == p.ID })
+}
+
+// ToolCapableAlternativeAmong generalises ToolCapableAlternative to
+// cross-provider down-routing (M40): it finds a tool-capable substitute for a
+// tool-incapable model among the providers for which providerEligible
+// returns true. The daemon supplies providerEligible so only
+// registered+credentialed providers are considered — a substitute on a
+// provider the governor can't actually route to would be useless.
+//
+// Selection: the model's OWN provider is preferred (stay in-provider when
+// possible); only if it has no eligible tool-capable sibling does the search
+// widen to other eligible providers. Within the chosen scope the model with
+// the largest context window wins, tie-broken by model id ascending, so the
+// result is the most-capable option and deterministic despite random map
+// iteration. Returns (altID, true) or ("", false) when nothing qualifies.
+func (c *Catalog) ToolCapableAlternativeAmong(modelID string, providerEligible func(provID string) bool) (string, bool) {
+	p, _ := c.FindModel(modelID)
 	selfID := modelID
 	if idx := strings.Index(modelID, "/"); idx > 0 {
 		selfID = modelID[idx+1:]
 	}
+
+	// Pass 1: the model's own provider (preferred — keeps the remap on the
+	// same, already-serving provider).
+	if p != nil && providerEligible(p.ID) {
+		if alt, ok := bestToolCapableModel(p, selfID); ok {
+			return alt, true
+		}
+	}
+
+	// Pass 2: widen to every OTHER eligible provider, deterministically.
+	bestID, bestCtx := "", -1
+	for _, q := range c.ProviderList() { // sorted by provider id
+		if p != nil && q.ID == p.ID {
+			continue
+		}
+		if !providerEligible(q.ID) {
+			continue
+		}
+		if id, ctx, ok := pickBestToolCapable(q, ""); ok {
+			if ctx > bestCtx || (ctx == bestCtx && id < bestID) {
+				bestID, bestCtx = id, ctx
+			}
+		}
+	}
+	if bestID == "" {
+		return "", false
+	}
+	return bestID, true
+}
+
+// bestToolCapableModel returns the largest-context tool-capable model in p,
+// excluding excludeID, or ("", false) if none. Tie-broken by id ascending.
+func bestToolCapableModel(p *Provider, excludeID string) (string, bool) {
+	id, _, ok := pickBestToolCapable(p, excludeID)
+	return id, ok
+}
+
+// pickBestToolCapable is the shared selection: largest Limit.Context among
+// p's tool-capable models (excluding excludeID), tie-broken by id ascending.
+// Returns the id, its context, and whether any qualified.
+func pickBestToolCapable(p *Provider, excludeID string) (string, int, bool) {
 	best := ""
 	bestCtx := -1
 	for id, m := range p.Models {
-		if id == selfID || !m.ToolCall {
+		if id == excludeID || !m.ToolCall {
 			continue
 		}
-		// Prefer the larger context window; tie-break by ID ascending so
-		// the result is stable across runs (map iteration is random).
 		if m.Limit.Context > bestCtx || (m.Limit.Context == bestCtx && id < best) {
 			best, bestCtx = id, m.Limit.Context
 		}
 	}
 	if best == "" {
-		return "", false
+		return "", 0, false
 	}
-	return best, true
+	return best, bestCtx, true
 }
 
 // Merge folds src into dst with src winning on key conflict. Mutates
