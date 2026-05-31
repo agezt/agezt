@@ -12,6 +12,15 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **`agt runs list --tree`** (SPEC-12 multi-agent, M43) — renders the delegation
+  hierarchy: each lead run with its sub-agent runs nested beneath it (two spaces of
+  indent per level, depth-first), instead of the flat newest-first list. Pure
+  client-side rendering over the `parent_correlation` field M41 already added — no
+  server change. A sub-agent whose lead isn't in the fetched window renders as a
+  root so nothing is hidden; the flat default and `--json` are unchanged. Completes
+  the delegation-observability trio (M41 link, M42 backlink, M43 tree). Proven
+  live: a lead's `--tree` nested its sub-agent under it. See
+  `.project/PHASE-M43-RUNS-TREE-REPORT.md`.
 - **`agt why` sub-agent → parent backlink** (SPEC-12 multi-agent, M42) — closes the
   child→parent discovery gap M41 left open. A `subagent.spawned` event lives under
   the *parent's* correlation, so parent→child was walkable but from a sub-agent's
