@@ -30,16 +30,105 @@ func cmdRuns(args []string, stdout, stderr io.Writer) int {
 		return cmdRunsShow(args[1:], stdout, stderr)
 	case "last":
 		return cmdRunsLast(args[1:], stdout, stderr)
+	case "stats":
+		return cmdRunsStats(args[1:], stdout, stderr)
 	case "-h", "--help", "help":
 		fmt.Fprintf(stdout, "usage: %s runs <subcommand>\n", brand.CLI)
 		fmt.Fprintf(stdout, "  list [N] [--json]            show the last N agent runs (default 20)\n")
 		fmt.Fprintf(stdout, "  show <correlation> [--json]  render one run as a task arc\n")
 		fmt.Fprintf(stdout, "  last [--json]                shorthand for show <newest correlation>\n")
+		fmt.Fprintf(stdout, "  stats [--json]               aggregate run health (counts, success rate, durations)\n")
 		return 0
 	default:
-		fmt.Fprintf(stderr, "%s runs: unknown subcommand %q (list|show|last)\n", brand.CLI, args[0])
+		fmt.Fprintf(stderr, "%s runs: unknown subcommand %q (list|show|last|stats)\n", brand.CLI, args[0])
 		return 2
 	}
+}
+
+// cmdRunsStats implements `agt runs stats [--json]`. Asks the
+// daemon to fold the whole journal into a single health summary
+// (counts, success rate, duration percentiles) and renders it.
+// Different from `runs list` (one row per run) — this is the
+// fleet-level view: "how are my runs doing overall?". Purely
+// additive, read-only observability.
+func cmdRunsStats(args []string, stdout, stderr io.Writer) int {
+	asJSON := false
+	for _, a := range args {
+		switch a {
+		case "--json":
+			asJSON = true
+		case "-h", "--help":
+			fmt.Fprintf(stdout, "usage: %s runs stats [--json]\n", brand.CLI)
+			fmt.Fprintf(stdout, "aggregate run health over the whole journal:\n")
+			fmt.Fprintf(stdout, "  total / completed / running / abandoned counts,\n")
+			fmt.Fprintf(stdout, "  success rate, and completed-run duration avg/min/max/p50/p95\n")
+			return 0
+		default:
+			fmt.Fprintf(stderr, "%s runs stats: unexpected arg %q (expected --json)\n", brand.CLI, a)
+			return 2
+		}
+	}
+
+	c := dial(stderr)
+	if c == nil {
+		return 1
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	res, err := c.Call(ctx, controlplane.CmdRunsStats, nil)
+	if err != nil {
+		fmt.Fprintf(stderr, "%s runs stats: %v\n", brand.CLI, err)
+		return 1
+	}
+
+	if asJSON {
+		enc := json.NewEncoder(stdout)
+		enc.SetIndent("", "  ")
+		_ = enc.Encode(res)
+		return 0
+	}
+
+	total := intOfStatus(res["total"])
+	if total == 0 {
+		fmt.Fprintln(stdout, "no runs yet (journal has no task.received events)")
+		return 0
+	}
+	completed := intOfStatus(res["completed"])
+	running := intOfStatus(res["running"])
+	abandoned := intOfStatus(res["abandoned"])
+	terminal := intOfStatus(res["terminal"])
+
+	fmt.Fprintf(stdout, "run stats (over %d run(s)):\n\n", total)
+	fmt.Fprintf(stdout, "  completed : %d\n", completed)
+	fmt.Fprintf(stdout, "  running   : %d\n", running)
+	fmt.Fprintf(stdout, "  abandoned : %d\n", abandoned)
+
+	// success rate is undefined until at least one run reaches a
+	// terminal state — show n/a rather than a misleading 0%.
+	if terminal > 0 {
+		rate, _ := res["success_rate"].(float64)
+		fmt.Fprintf(stdout, "  success   : %.1f%% (%d/%d terminal)\n", rate*100, completed, terminal)
+	} else {
+		fmt.Fprintf(stdout, "  success   : n/a (no run has finished yet)\n")
+	}
+	if avgIters, _ := res["avg_iters"].(float64); completed > 0 {
+		fmt.Fprintf(stdout, "  avg iters : %.1f\n", avgIters)
+	}
+
+	// Duration block — only meaningful when at least one run
+	// completed (running/abandoned runs have no end time).
+	if dur, _ := res["duration_ms"].(map[string]any); dur != nil {
+		dcount := intOfStatus(dur["count"])
+		if dcount > 0 {
+			fmt.Fprintf(stdout, "\n  duration (over %d completed run(s)):\n", dcount)
+			fmt.Fprintf(stdout, "    avg : %s\n", fmtDuration(intOfStatus(dur["avg"])))
+			fmt.Fprintf(stdout, "    min : %s\n", fmtDuration(intOfStatus(dur["min"])))
+			fmt.Fprintf(stdout, "    p50 : %s\n", fmtDuration(intOfStatus(dur["p50"])))
+			fmt.Fprintf(stdout, "    p95 : %s\n", fmtDuration(intOfStatus(dur["p95"])))
+			fmt.Fprintf(stdout, "    max : %s\n", fmtDuration(intOfStatus(dur["max"])))
+		}
+	}
+	return 0
 }
 
 // cmdRunsList implements `agt runs list [N] [--json]`.

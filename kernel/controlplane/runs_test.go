@@ -238,3 +238,146 @@ func TestRunsList_CompletedBeatsAbandoned(t *testing.T) {
 		t.Errorf("status = %q want completed (completed beats abandoned)", got)
 	}
 }
+
+// --- M29: runs stats -------------------------------------------------
+
+// TestRunsStats_EmptyJournal — no runs at all reports total=0 and a
+// well-formed (zero-valued) duration block so renderers/jq don't crash.
+func TestRunsStats_EmptyJournal(t *testing.T) {
+	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	res, err := c.Call(context.Background(), controlplane.CmdRunsStats, nil)
+	if err != nil {
+		t.Fatalf("Call: %v", err)
+	}
+	if got := intOf(res["total"]); got != 0 {
+		t.Errorf("total = %d want 0", got)
+	}
+	if got, _ := res["success_rate"].(float64); got != 0 {
+		t.Errorf("success_rate = %v want 0", got)
+	}
+	dur, ok := res["duration_ms"].(map[string]any)
+	if !ok {
+		t.Fatalf("duration_ms missing or wrong type: %T", res["duration_ms"])
+	}
+	if got := intOf(dur["count"]); got != 0 {
+		t.Errorf("duration_ms.count = %d want 0", got)
+	}
+}
+
+// TestRunsStats_CountsAndSuccessRate — a mix of completed, abandoned,
+// and still-running runs; verify the split, the terminal count, and
+// that success_rate = completed/(completed+abandoned) ignores running.
+func TestRunsStats_CountsAndSuccessRate(t *testing.T) {
+	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+
+	received := func(corr string) {
+		t.Helper()
+		_, _ = k.Bus().Publish(event.Spec{
+			Subject: "task", Kind: event.KindTaskReceived, Actor: "a",
+			CorrelationID: corr, Payload: map[string]string{"intent": "x"},
+		})
+	}
+	complete := func(corr string, iters int) {
+		t.Helper()
+		_, _ = k.Bus().Publish(event.Spec{
+			Subject: "task", Kind: event.KindTaskCompleted, Actor: "a",
+			CorrelationID: corr, Payload: map[string]any{"iters": iters},
+		})
+	}
+	abandon := func(corr string) {
+		t.Helper()
+		_, _ = k.Bus().Publish(event.Spec{
+			Subject: "task", Kind: event.KindTaskAbandoned, Actor: "kernel",
+			CorrelationID: corr,
+		})
+	}
+
+	// 3 completed, 1 abandoned, 1 running → terminal=4, rate=0.75.
+	received("c1")
+	complete("c1", 2)
+	received("c2")
+	complete("c2", 4)
+	received("c3")
+	complete("c3", 6)
+	received("a1")
+	abandon("a1")
+	received("r1") // left running
+
+	res, err := c.Call(context.Background(), controlplane.CmdRunsStats, nil)
+	if err != nil {
+		t.Fatalf("Call: %v", err)
+	}
+	if got := intOf(res["total"]); got != 5 {
+		t.Errorf("total = %d want 5", got)
+	}
+	if got := intOf(res["completed"]); got != 3 {
+		t.Errorf("completed = %d want 3", got)
+	}
+	if got := intOf(res["abandoned"]); got != 1 {
+		t.Errorf("abandoned = %d want 1", got)
+	}
+	if got := intOf(res["running"]); got != 1 {
+		t.Errorf("running = %d want 1", got)
+	}
+	if got := intOf(res["terminal"]); got != 4 {
+		t.Errorf("terminal = %d want 4", got)
+	}
+	if got, _ := res["success_rate"].(float64); got != 0.75 {
+		t.Errorf("success_rate = %v want 0.75", got)
+	}
+	// avg iters over completed runs: (2+4+6)/3 = 4.
+	if got, _ := res["avg_iters"].(float64); got != 4 {
+		t.Errorf("avg_iters = %v want 4", got)
+	}
+}
+
+// TestRunsStats_DurationPercentiles — publish completed runs with
+// known, monotonically increasing durations and verify the percentile
+// math (nearest-rank) and avg/min/max.
+func TestRunsStats_DurationPercentiles(t *testing.T) {
+	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+
+	// Build 10 completed runs whose durations are 100,200,...,1000 ms.
+	// We can't control wall-clock directly, but we CAN publish the
+	// received/completed pair and then assert the percentile *shape*
+	// from the live timestamps. To get deterministic durations we
+	// instead lean on a controlled gap: publish received, sleep, then
+	// completed — but that's slow and flaky. Easier: assert the
+	// invariants that must hold for ANY positive durations.
+	for i := 0; i < 10; i++ {
+		corr := "d-" + string(rune('A'+i))
+		_, _ = k.Bus().Publish(event.Spec{
+			Subject: "task", Kind: event.KindTaskReceived, Actor: "a",
+			CorrelationID: corr, Payload: map[string]string{"intent": "x"},
+		})
+		time.Sleep(time.Millisecond)
+		_, _ = k.Bus().Publish(event.Spec{
+			Subject: "task", Kind: event.KindTaskCompleted, Actor: "a",
+			CorrelationID: corr, Payload: map[string]any{"iters": 1},
+		})
+	}
+
+	res, err := c.Call(context.Background(), controlplane.CmdRunsStats, nil)
+	if err != nil {
+		t.Fatalf("Call: %v", err)
+	}
+	dur, _ := res["duration_ms"].(map[string]any)
+	if got := intOf(dur["count"]); got != 10 {
+		t.Fatalf("duration count = %d want 10", got)
+	}
+	min := int64(intOf(dur["min"]))
+	max := int64(intOf(dur["max"]))
+	p50 := int64(intOf(dur["p50"]))
+	p95 := int64(intOf(dur["p95"]))
+	avg := int64(intOf(dur["avg"]))
+	// Invariants that hold for any non-degenerate distribution.
+	if !(min <= p50 && p50 <= p95 && p95 <= max) {
+		t.Errorf("percentile ordering violated: min=%d p50=%d p95=%d max=%d", min, p50, p95, max)
+	}
+	if !(min <= avg && avg <= max) {
+		t.Errorf("avg=%d outside [min=%d, max=%d]", avg, min, max)
+	}
+	if min < 0 {
+		t.Errorf("min duration negative: %d", min)
+	}
+}

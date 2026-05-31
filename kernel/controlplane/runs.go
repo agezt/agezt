@@ -39,25 +39,13 @@ type runEntry struct {
 	Abandoned bool
 }
 
-func (s *Server) handleRunsList(conn net.Conn, req Request) {
-	limit := defaultRunsLimit
-	if raw, ok := req.Args["limit"]; ok {
-		switch v := raw.(type) {
-		case float64:
-			limit = int(v)
-		case int:
-			limit = v
-		case int64:
-			limit = int(v)
-		}
-	}
-	if limit < 1 {
-		limit = 1
-	}
-	if limit > maxRunsLimit {
-		limit = maxRunsLimit
-	}
-
+// collectRuns walks the journal once and folds task.received /
+// task.completed / task.abandoned events into per-correlation
+// runEntry records. Shared by handleRunsList (which sorts +
+// limits + renders) and handleRunsStats (which aggregates). The
+// fold is identical in both so the two surfaces never disagree
+// about a run's status.
+func (s *Server) collectRuns() (map[string]*runEntry, error) {
 	// Single forward walk: build per-correlation entry on
 	// task.received, update on task.completed. We don't try to
 	// stream early-stop after N — limit is applied post-sort, since
@@ -104,6 +92,32 @@ func (s *Server) handleRunsList(conn net.Conn, req Request) {
 		}
 		return nil
 	})
+	if err != nil {
+		return nil, err
+	}
+	return runs, nil
+}
+
+func (s *Server) handleRunsList(conn net.Conn, req Request) {
+	limit := defaultRunsLimit
+	if raw, ok := req.Args["limit"]; ok {
+		switch v := raw.(type) {
+		case float64:
+			limit = int(v)
+		case int:
+			limit = v
+		case int64:
+			limit = int(v)
+		}
+	}
+	if limit < 1 {
+		limit = 1
+	}
+	if limit > maxRunsLimit {
+		limit = maxRunsLimit
+	}
+
+	runs, err := s.collectRuns()
 	if err != nil {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
 		return
@@ -161,6 +175,141 @@ func (s *Server) handleRunsList(conn net.Conn, req Request) {
 			"count": len(out),
 		},
 	})
+}
+
+// handleRunsStats aggregates the whole journal into a single
+// summary of agent-run health. Pure read-only fold over the same
+// runEntry records handleRunsList builds, so the two can never
+// disagree about a run's status. No limit/sort — stats are over
+// ALL runs in the journal by definition (a "last N" window would
+// make success-rate/percentiles meaningless).
+//
+// Duration percentiles (p50/p95) are computed over COMPLETED runs
+// only — running/abandoned runs have no end time, so including
+// them would either skew the distribution (treat now-start as the
+// duration) or require a placeholder. Operators reading p95 want
+// "how long do finished runs take", so completed-only is the
+// honest denominator. The completed/abandoned/running split is
+// reported separately so nothing is hidden.
+func (s *Server) handleRunsStats(conn net.Conn, req Request) {
+	runs, err := s.collectRuns()
+	if err != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		return
+	}
+
+	var total, completed, running, abandoned int
+	var itersSum int
+	durations := make([]int64, 0, len(runs)) // completed runs only, for percentiles
+	for _, r := range runs {
+		total++
+		switch {
+		case r.Completed:
+			completed++
+			itersSum += r.Iters
+			if r.StartedUnixMS > 0 && r.CompletedUnixMS >= r.StartedUnixMS {
+				durations = append(durations, r.CompletedUnixMS-r.StartedUnixMS)
+			}
+		case r.Abandoned:
+			abandoned++
+		default:
+			running++
+		}
+	}
+
+	// success_rate is completed / (completed + abandoned): runs
+	// still running are in-flight and shouldn't count against the
+	// rate (they haven't failed — they just haven't finished). When
+	// no run has reached a terminal state yet the rate is undefined;
+	// we report 0 and the renderer shows "n/a".
+	terminal := completed + abandoned
+	successRate := 0.0
+	if terminal > 0 {
+		successRate = float64(completed) / float64(terminal)
+	}
+
+	// Duration aggregates over completed runs. avgIters is over
+	// completed runs too (only they carry an iters count).
+	dstats := durationStats(durations)
+	avgIters := 0.0
+	if completed > 0 {
+		avgIters = float64(itersSum) / float64(completed)
+	}
+
+	s.writeResp(conn, Response{
+		ID:   req.ID,
+		Type: RespResult,
+		Result: map[string]any{
+			"total":        total,
+			"completed":    completed,
+			"running":      running,
+			"abandoned":    abandoned,
+			"terminal":     terminal,
+			"success_rate": successRate,
+			"avg_iters":    avgIters,
+			"duration_ms": map[string]any{
+				"count": len(durations),
+				"avg":   dstats.avg,
+				"min":   dstats.min,
+				"max":   dstats.max,
+				"p50":   dstats.p50,
+				"p95":   dstats.p95,
+			},
+		},
+	})
+}
+
+type durStats struct {
+	avg, min, max, p50, p95 int64
+}
+
+// durationStats computes summary statistics over a slice of
+// completed-run durations (milliseconds). Returns a zero-value
+// durStats for an empty input so the caller doesn't special-case
+// the no-completed-runs path. Percentiles use the nearest-rank
+// method on a sorted copy (sort is in-place on a copy to avoid
+// mutating the caller's slice ordering, which it doesn't rely on
+// but a future caller might).
+func durationStats(ms []int64) durStats {
+	if len(ms) == 0 {
+		return durStats{}
+	}
+	sorted := make([]int64, len(ms))
+	copy(sorted, ms)
+	sort.Slice(sorted, func(i, j int) bool { return sorted[i] < sorted[j] })
+
+	var sum int64
+	for _, d := range sorted {
+		sum += d
+	}
+	return durStats{
+		avg: sum / int64(len(sorted)),
+		min: sorted[0],
+		max: sorted[len(sorted)-1],
+		p50: percentileNearestRank(sorted, 50),
+		p95: percentileNearestRank(sorted, 95),
+	}
+}
+
+// percentileNearestRank returns the p-th percentile of an
+// ascending-sorted slice using the nearest-rank method:
+// rank = ceil(p/100 * N), 1-based, clamped to [1, N]. Chosen over
+// linear interpolation because it always returns an actual
+// observed duration (operators trust "p95 = 1200ms" more when
+// 1200ms is a real run, not an interpolated phantom).
+func percentileNearestRank(sorted []int64, p int) int64 {
+	if len(sorted) == 0 {
+		return 0
+	}
+	// ceil(p/100 * N) without floats: (p*N + 99) / 100.
+	rank := (p*len(sorted) + 99) / 100
+	if rank < 1 {
+		rank = 1
+	}
+	if rank > len(sorted) {
+		rank = len(sorted)
+	}
+	return sorted[rank-1]
 }
 
 // extractIntent pulls "intent" out of a task.received payload.

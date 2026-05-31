@@ -12,6 +12,20 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **`agt runs stats`** (SPEC-08, M29) — a pure, read-only aggregation over the
+  whole journal that answers "how are my agent runs doing overall?" in one
+  command. Folds every `task.received` / `task.completed` / `task.abandoned`
+  event (sharing the exact `collectRuns` fold with `agt runs list`, so the two
+  can never disagree about a run's status) into: total / completed / running /
+  abandoned counts, a success rate (`completed / (completed + abandoned)` — runs
+  still in-flight don't count against it), mean iterations, and a duration
+  distribution over **completed runs only** (avg / min / p50 / p95 / max).
+  Percentiles use the nearest-rank method so every reported value is a real
+  observed duration, not an interpolated phantom. `--json` for pipelines; an
+  empty journal renders cleanly (`total=0`, zero-valued duration block) rather
+  than crashing. New `CmdRunsStats` control-plane verb + `handleRunsStats` +
+  `cmdRunsStats` renderer. Proven live with the mock provider. See
+  `.project/PHASE-M29-RUNS-STATS-REPORT.md`.
 - **Orphaned-run recovery on boot** (SPEC-08, M28) — a run that was in-flight
   when a prior daemon exited (a crash, or a run cancelled/errored without a
   completion event) used to sit in `agt runs` as `running` forever. The daemon

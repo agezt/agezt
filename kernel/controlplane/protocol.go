@@ -360,6 +360,24 @@ const (
 	//   - count : int
 	CmdRunsList = "runs_list"
 
+	// CmdRunsStats aggregates the entire journal into a single
+	// agent-run health summary. Pure read-only fold over the same
+	// task.received/completed/abandoned events CmdRunsList pairs,
+	// but over ALL runs (no limit/sort window — a "last N" stat
+	// would make success-rate and percentiles meaningless).
+	// Args: none.
+	// Returns:
+	//   - total       : int — distinct correlation ids seen
+	//   - completed    : int — runs with a task.completed
+	//   - running      : int — received, no terminal event (in-flight)
+	//   - abandoned    : int — reconciled at boot (M28), never completed
+	//   - terminal     : int — completed + abandoned
+	//   - success_rate : float — completed / terminal (0 if terminal==0)
+	//   - avg_iters    : float — mean iters over completed runs
+	//   - duration_ms  : {count, avg, min, max, p50, p95} over completed
+	//                    runs only (running/abandoned have no end time)
+	CmdRunsStats = "runs_stats"
+
 	// Memory-lite (ROADMAP §2.3). The content-addressed, journaled
 	// knowledge store the agent reads as injected context. These give
 	// operators a read/write path without shelling into the data dir.
