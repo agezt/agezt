@@ -465,6 +465,9 @@ func runDaemon(stdout, stderr io.Writer) int {
 	fmt.Fprintf(stdout, "%s %s — daemon ready (protocol v%d)\n", brand.Name, brand.Version, brand.ProtocolVersion)
 	fmt.Fprintf(stdout, "  base dir         : %s\n", baseDir)
 	fmt.Fprintf(stdout, "  governor         : %s\n", govDesc)
+	if adv := modelAdvisory(cat, model); adv != "" {
+		fmt.Fprintf(stdout, "  model advisory   : ⚠ %s\n", adv)
+	}
 	fmt.Fprintf(stdout, "  credentials      : %s\n", credDesc)
 	fmt.Fprintf(stdout, "  redaction        : %s\n", redactDesc)
 	fmt.Fprintf(stdout, "  tools            : %s\n", toolsDesc)
@@ -835,6 +838,24 @@ func replayPolicyOverlay(k *kernelruntime.Kernel) (edict.PolicyOverlay, error) {
 		return edict.PolicyOverlay{}, err
 	}
 	return edict.ProjectPolicyChanges(changes), nil
+}
+
+// modelAdvisory returns a one-line agent-readiness advisory for the selected
+// primary model (M24), or "" when the model is unknown to the catalog or has no
+// concerns. It surfaces the same catalog.Model.AgentWarnings that
+// `agt provider check --caps` reports, but at boot — the moment an operator
+// would want to know the headline gap: a model that doesn't advertise tool-use,
+// which the tool-driven agent loop relies on. Unknown models (the offline mock,
+// a model absent from the catalog) yield no advisory rather than a false alarm.
+func modelAdvisory(cat *catalog.Catalog, model string) string {
+	if cat == nil || model == "" {
+		return ""
+	}
+	_, m := cat.FindModel(model)
+	if m == nil {
+		return ""
+	}
+	return strings.Join(m.AgentWarnings(), "; ")
 }
 
 // credSecrets returns the non-empty values of every vault entry plus any extra

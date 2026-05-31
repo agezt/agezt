@@ -12,6 +12,17 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Boot-time model advisory** (SPEC-15, M24) — the daemon now surfaces the M23
+  agent-readiness check at startup: when the auto-selected primary model is in
+  the catalog and doesn't advertise tool-use (or has a tiny context window), the
+  banner prints a `model advisory : ⚠ …` line, using the same
+  `catalog.Model.AgentWarnings` as `agt provider check --caps`. An operator who
+  points the tool-driven loop at a model that can't call tools learns it the
+  moment they boot, not deep in a failing run. Conservative by design: a model
+  the catalog doesn't know (the offline mock, a bare local model) yields no line,
+  not a false alarm. Proven live: booting on a `tool_call=false` model prints the
+  advisory; a tool-capable model boots clean. See
+  `.project/PHASE-M24-BOOT-ADVISORY-REPORT.md`.
 - **Model capability inspection** (SPEC-15, M23) — the catalog tracked per-model
   capability flags (tool-use, reasoning, modalities, context window) but nothing
   surfaced or checked them, so pointing the tool-driven agent loop at a model
