@@ -324,6 +324,8 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.handleTenantRelease(conn, req)
 	case CmdTenantRemove:
 		s.handleTenantRemove(conn, req)
+	case CmdTenantToken:
+		s.handleTenantToken(conn, req)
 	case CmdWorldAdd:
 		s.handleWorldAdd(conn, req)
 	case CmdWorldRelate:

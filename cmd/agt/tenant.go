@@ -26,20 +26,24 @@ func cmdTenant(args []string, stdout, stderr io.Writer) int {
 		return cmdTenantByID(args[1:], stdout, stderr, "create", controlplane.CmdTenantCreate)
 	case "list", "ls":
 		return cmdTenantList(args[1:], stdout, stderr)
+	case "token":
+		return cmdTenantByID(args[1:], stdout, stderr, "token", controlplane.CmdTenantToken)
 	case "release", "close":
 		return cmdTenantByID(args[1:], stdout, stderr, "release", controlplane.CmdTenantRelease)
 	case "rm", "remove", "delete":
 		return cmdTenantByID(args[1:], stdout, stderr, "rm", controlplane.CmdTenantRemove)
 	case "-h", "--help", "help":
 		fmt.Fprintf(stdout, "usage: %s tenant <subcommand>\n", brand.CLI)
-		fmt.Fprintf(stdout, "  create <id> [--json]    create / open an isolated tenant\n")
+		fmt.Fprintf(stdout, "  create <id> [--json]    create / open an isolated tenant (prints its token)\n")
 		fmt.Fprintf(stdout, "  list [--json]           list tenants (id, open state, base dir)\n")
+		fmt.Fprintf(stdout, "  token <id> [--json]     reveal a tenant's per-tenant credential\n")
 		fmt.Fprintf(stdout, "  release <id> [--json]   close a tenant's kernel, keep its state on disk\n")
 		fmt.Fprintf(stdout, "  rm <id> [--json]        delete a tenant and ALL its state (destructive)\n")
 		fmt.Fprintf(stdout, "  <id> is [a-z0-9_-], 1-64 chars. Requires the daemon started with %sMULTITENANT=on.\n", brand.EnvPrefix)
+		fmt.Fprintf(stdout, "  Route to a tenant: HTTP `X-Agezt-Tenant: <id>` + its token, or `%s run --tenant <id>`.\n", brand.CLI)
 		return 0
 	default:
-		fmt.Fprintf(stderr, "%s tenant: unknown subcommand %q (create|list|release|rm)\n", brand.CLI, args[0])
+		fmt.Fprintf(stderr, "%s tenant: unknown subcommand %q (create|list|token|release|rm)\n", brand.CLI, args[0])
 		return 2
 	}
 }
@@ -130,11 +134,19 @@ func cmdTenantByID(args []string, stdout, stderr io.Writer, verb, cmd string) in
 	switch cmd {
 	case controlplane.CmdTenantCreate:
 		baseDir, _ := res["base_dir"].(string)
+		token, _ := res["token"].(string)
 		if created, _ := res["created"].(bool); created {
 			fmt.Fprintf(stdout, "created %s (%s)\n", id, baseDir)
 		} else {
 			fmt.Fprintf(stdout, "opened %s (already existed; %s)\n", id, baseDir)
 		}
+		if token != "" {
+			fmt.Fprintf(stdout, "  token: %s\n", token)
+			fmt.Fprintf(stdout, "  use:   HTTP header `X-Agezt-Tenant: %s` with `Authorization: Bearer %s`\n", id, token)
+		}
+	case controlplane.CmdTenantToken:
+		token, _ := res["token"].(string)
+		fmt.Fprintf(stdout, "%s\n", token)
 	case controlplane.CmdTenantRelease:
 		if released, _ := res["released"].(bool); !released {
 			fmt.Fprintf(stderr, "%s tenant release: %s was not open\n", brand.CLI, id)

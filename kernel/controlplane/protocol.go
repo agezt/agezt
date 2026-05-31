@@ -377,7 +377,8 @@ const (
 	// (returns an error) when the daemon has no registry configured.
 	//
 	// CmdTenantCreate creates/opens an isolated tenant. Args: id (required).
-	// Returns: { id, base_dir, created (bool) }
+	// Returns: { id, base_dir, created (bool), token } — token is the tenant's
+	// per-tenant credential for routing on externally-exposed surfaces.
 	CmdTenantCreate = "tenant_create"
 	// CmdTenantList lists tenants on disk. Returns: { tenants: [{id, base_dir, open}], count }
 	CmdTenantList = "tenant_list"
@@ -387,6 +388,9 @@ const (
 	// CmdTenantRemove deletes a tenant and all its state (destructive).
 	// Args: id (required). Returns: { removed (bool) }
 	CmdTenantRemove = "tenant_remove"
+	// CmdTenantToken reveals an existing tenant's per-tenant credential.
+	// Args: id (required). Returns: { id, token }
+	CmdTenantToken = "tenant_token"
 
 	// World model (SPEC-05 §3). The journaled entity/relation graph behind
 	// `agt world`; writes go through the kernel's worldmodel.Graph so every

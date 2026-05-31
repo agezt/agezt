@@ -42,6 +42,19 @@ func TestTenantCreateListReleaseRemove(t *testing.T) {
 	if res["created"] != true || res["id"] != "alpha" {
 		t.Errorf("create result = %v", res)
 	}
+	// Create returns the tenant's per-tenant token, and tenant_token reveals the
+	// same value (stable across calls).
+	alphaTok, _ := res["token"].(string)
+	if len(alphaTok) < 32 {
+		t.Errorf("create alpha token looks unminted: %q", alphaTok)
+	}
+	res, err = c.Call(ctx, controlplane.CmdTenantToken, map[string]any{"id": "alpha"})
+	if err != nil {
+		t.Fatalf("token alpha: %v", err)
+	}
+	if res["token"] != alphaTok {
+		t.Errorf("tenant_token = %v, want stable %q", res["token"], alphaTok)
+	}
 	if _, err := c.Call(ctx, controlplane.CmdTenantCreate, map[string]any{"id": "beta"}); err != nil {
 		t.Fatalf("create beta: %v", err)
 	}
@@ -158,6 +171,7 @@ func TestTenantDisabledWithoutRegistry(t *testing.T) {
 	for _, cmd := range []string{
 		controlplane.CmdTenantCreate, controlplane.CmdTenantList,
 		controlplane.CmdTenantRelease, controlplane.CmdTenantRemove,
+		controlplane.CmdTenantToken,
 	} {
 		if _, err := c.Call(ctx, cmd, map[string]any{"id": "alpha"}); err == nil {
 			t.Errorf("%s should error when multi-tenancy is disabled", cmd)

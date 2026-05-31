@@ -64,9 +64,27 @@ func (s *Server) handleTenantCreate(conn net.Conn, req Request) {
 		ID:   req.ID,
 		Type: RespResult,
 		Result: map[string]any{
-			"id": t.ID, "base_dir": t.BaseDir, "created": !existed,
+			"id": t.ID, "base_dir": t.BaseDir, "created": !existed, "token": t.Token,
 		},
 	})
+}
+
+func (s *Server) handleTenantToken(conn net.Conn, req Request) {
+	if s.tenants == nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "multi-tenancy is disabled (no tenant registry configured)"})
+		return
+	}
+	id, _ := req.Args["id"].(string)
+	if id == "" {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.id required"})
+		return
+	}
+	token, err := s.tenants.Token(id)
+	if err != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		return
+	}
+	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"id": id, "token": token}})
 }
 
 func (s *Server) handleTenantList(conn net.Conn, req Request) {
