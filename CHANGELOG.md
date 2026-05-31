@@ -12,6 +12,19 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Orphaned-run recovery on boot** (SPEC-08, M28) — a run that was in-flight
+  when a prior daemon exited (a crash, or a run cancelled/errored without a
+  completion event) used to sit in `agt runs` as `running` forever. The daemon
+  now reconciles them at startup: it scans the journal for runs with a
+  `task.received` but no `task.completed`, and emits a `task.abandoned` event for
+  each — so `agt runs` shows `abandoned` instead of a phantom `running`, and the
+  recovery is itself auditable. Idempotent (a run already carrying
+  `task.abandoned` is skipped, so repeated restarts don't re-abandon), runs
+  before any new run is dispatched, and reports the count on the boot banner
+  (`recovery : N run(s) abandoned …` / `clean`). Proven live across three boots:
+  a hung run is left incomplete, the next boot abandons it (banner + journaled
+  event + `agt runs` status), and a third boot is clean. See
+  `.project/PHASE-M28-ORPHAN-RUN-RECOVERY-REPORT.md`.
 - **Capability matrix** (`agt provider check --caps --all`, SPEC-15, M27) —
   completes the M23 capability view: a one-row-per-provider table comparing every
   supported catalog provider's selected model by tool-use, vision, reasoning, and

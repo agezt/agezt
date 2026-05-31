@@ -368,6 +368,18 @@ func runDaemon(stdout, stderr io.Writer) int {
 		askPolicyDesc += "; durable=on (" + restored + ")"
 	}
 
+	// Orphaned-run reconciliation (M28). A run that was in-flight when a
+	// prior daemon exited (crash or error) sits in the journal as received
+	// with no completion; mark each as abandoned now — before any new run
+	// starts — so `agt runs` reflects reality instead of "running" forever.
+	recoveryDesc := "clean (no in-flight runs from a prior session)"
+	if n, rerr := reconcileOrphanRuns(k); rerr != nil {
+		fmt.Fprintf(stderr, "%s: reconcile orphaned runs: %v\n", brand.Binary, rerr)
+		return 1
+	} else if n > 0 {
+		recoveryDesc = fmt.Sprintf("%d run(s) abandoned on restart (were in-flight, never completed)", n)
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -475,6 +487,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 	fmt.Fprintf(stdout, "  warden           : %s\n", wardDesc)
 	fmt.Fprintf(stdout, "  control plane    : %s\n", srv.Addr())
 	fmt.Fprintf(stdout, "  tenancy          : %s\n", tenantsDesc)
+	fmt.Fprintf(stdout, "  recovery         : %s\n", recoveryDesc)
 	fmt.Fprintf(stdout, "  knowledge        : memory %s · world model %s (%d entities) · skills %s/forge %s (%d active)\n",
 		onOff(memOn), onOff(worldOn), k.World().Count(), onOff(skillOn), onOff(forgeOn), k.Forge().Count())
 
@@ -838,6 +851,99 @@ func replayPolicyOverlay(k *kernelruntime.Kernel) (edict.PolicyOverlay, error) {
 		return edict.PolicyOverlay{}, err
 	}
 	return edict.ProjectPolicyChanges(changes), nil
+}
+
+// orphanRun is a run that was received but never completed in a prior
+// session — found at boot by runScan.
+type orphanRun struct {
+	Corr      string
+	Intent    string
+	StartedMS int64
+}
+
+// runScan folds the journal's task.* events to find orphaned runs (M28). A
+// run is orphaned when it has a task.received but neither a task.completed
+// (it never finished — crash or error) nor a task.abandoned (we haven't
+// already reconciled it on an earlier boot — the idempotency guard). Pure
+// and fed one event at a time, so it's unit-testable without a kernel.
+type runScan struct {
+	received  map[string]*orphanRun
+	completed map[string]bool
+	abandoned map[string]bool
+}
+
+func newRunScan() *runScan {
+	return &runScan{
+		received:  map[string]*orphanRun{},
+		completed: map[string]bool{},
+		abandoned: map[string]bool{},
+	}
+}
+
+func (s *runScan) observe(e *event.Event) {
+	switch e.Kind {
+	case event.KindTaskReceived:
+		o := &orphanRun{Corr: e.CorrelationID, StartedMS: e.TSUnixMS}
+		var p struct {
+			Intent string `json:"intent"`
+		}
+		_ = json.Unmarshal(e.Payload, &p)
+		o.Intent = p.Intent
+		s.received[e.CorrelationID] = o
+	case event.KindTaskCompleted:
+		s.completed[e.CorrelationID] = true
+	case event.KindTaskAbandoned:
+		s.abandoned[e.CorrelationID] = true
+	}
+}
+
+// orphans returns the orphaned runs, sorted by start time then correlation
+// id for deterministic output (and stable abandon-event ordering).
+func (s *runScan) orphans() []orphanRun {
+	var out []orphanRun
+	for corr, o := range s.received {
+		if !s.completed[corr] && !s.abandoned[corr] {
+			out = append(out, *o)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].StartedMS != out[j].StartedMS {
+			return out[i].StartedMS < out[j].StartedMS
+		}
+		return out[i].Corr < out[j].Corr
+	})
+	return out
+}
+
+// reconcileOrphanRuns scans the journal at boot for runs that were in-flight
+// when a prior daemon exited and publishes a task.abandoned event for each,
+// so `agt runs` shows them as "abandoned" rather than "running" forever
+// (M28). Idempotent: a run already carrying task.abandoned is skipped, so
+// repeated restarts don't re-abandon. Returns the count reconciled. MUST run
+// before any new Run is dispatched (so the scan can't see a live run).
+func reconcileOrphanRuns(k *kernelruntime.Kernel) (int, error) {
+	scan := newRunScan()
+	if err := k.Journal().Range(func(e *event.Event) error {
+		scan.observe(e)
+		return nil
+	}); err != nil {
+		return 0, err
+	}
+	orphans := scan.orphans()
+	for _, o := range orphans {
+		_, _ = k.Bus().Publish(event.Spec{
+			Subject:       "task",
+			Kind:          event.KindTaskAbandoned,
+			Actor:         "kernel",
+			CorrelationID: o.Corr,
+			Payload: map[string]any{
+				"intent":          o.Intent,
+				"reason":          "daemon restart: run was in-flight and never completed",
+				"started_unix_ms": o.StartedMS,
+			},
+		})
+	}
+	return len(orphans), nil
 }
 
 // modelAdvisory returns a one-line agent-readiness advisory for the selected

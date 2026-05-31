@@ -9,6 +9,7 @@ import (
 
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/catalog"
+	"github.com/agezt/agezt/kernel/event"
 )
 
 func TestRunVersion(t *testing.T) {
@@ -81,5 +82,44 @@ func TestModelAdvisory(t *testing.T) {
 	}
 	if adv := modelAdvisory(nil, "mini"); adv != "" {
 		t.Errorf("nil catalog should yield no advisory; got %q", adv)
+	}
+}
+
+func TestRunScan_Orphans(t *testing.T) {
+	ev := func(kind event.Kind, corr string, ts int64, intent string) *event.Event {
+		e := &event.Event{Kind: kind, CorrelationID: corr, TSUnixMS: ts}
+		if intent != "" {
+			e.Payload = []byte(`{"intent":"` + intent + `"}`)
+		}
+		return e
+	}
+	s := newRunScan()
+	// run A: received + completed → NOT orphaned.
+	s.observe(ev(event.KindTaskReceived, "A", 100, "alpha"))
+	s.observe(ev(event.KindTaskCompleted, "A", 200, ""))
+	// run B: received only → orphaned.
+	s.observe(ev(event.KindTaskReceived, "B", 150, "beta"))
+	// run C: received + abandoned (already reconciled) → NOT orphaned (idempotent).
+	s.observe(ev(event.KindTaskReceived, "C", 120, "gamma"))
+	s.observe(ev(event.KindTaskAbandoned, "C", 300, ""))
+	// run D: received only, earlier than B → orphaned, sorts first.
+	s.observe(ev(event.KindTaskReceived, "D", 110, "delta"))
+
+	orphans := s.orphans()
+	if len(orphans) != 2 {
+		t.Fatalf("got %d orphans, want 2 (B,D): %+v", len(orphans), orphans)
+	}
+	// Sorted by StartedMS: D(110) before B(150).
+	if orphans[0].Corr != "D" || orphans[1].Corr != "B" {
+		t.Errorf("orphan order = %s,%s want D,B", orphans[0].Corr, orphans[1].Corr)
+	}
+	if orphans[0].Intent != "delta" {
+		t.Errorf("orphan intent = %q want delta", orphans[0].Intent)
+	}
+}
+
+func TestRunScan_Empty(t *testing.T) {
+	if got := newRunScan().orphans(); len(got) != 0 {
+		t.Errorf("empty scan should yield no orphans; got %v", got)
 	}
 }

@@ -33,6 +33,10 @@ type runEntry struct {
 	CompletedUnixMS int64
 	Iters           int
 	Completed       bool
+	// Abandoned is set when a task.abandoned event reconciled this run at
+	// boot — it was received but never completed in a prior session (M28).
+	// Completed always wins over Abandoned if both somehow appear.
+	Abandoned bool
 }
 
 func (s *Server) handleRunsList(conn net.Conn, req Request) {
@@ -90,6 +94,13 @@ func (s *Server) handleRunsList(conn net.Conn, req Request) {
 			if iters := extractIters(e.Payload); iters > 0 {
 				entry.Iters = iters
 			}
+		case event.KindTaskAbandoned:
+			entry, ok := runs[e.CorrelationID]
+			if !ok {
+				entry = &runEntry{CorrelationID: e.CorrelationID}
+				runs[e.CorrelationID] = entry
+			}
+			entry.Abandoned = true
 		}
 		return nil
 	})
@@ -120,11 +131,16 @@ func (s *Server) handleRunsList(conn net.Conn, req Request) {
 	for _, r := range entries {
 		status := "running"
 		duration := int64(0)
-		if r.Completed {
+		switch {
+		case r.Completed:
 			status = "completed"
 			if r.StartedUnixMS > 0 {
 				duration = r.CompletedUnixMS - r.StartedUnixMS
 			}
+		case r.Abandoned:
+			// Reconciled at boot: received but never completed in a prior
+			// session. Not "running" — the daemon that owned it is gone.
+			status = "abandoned"
 		}
 		out = append(out, map[string]any{
 			"correlation_id":    r.CorrelationID,

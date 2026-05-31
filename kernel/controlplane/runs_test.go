@@ -182,3 +182,59 @@ func TestRunsList_LimitClamps(t *testing.T) {
 	}
 }
 
+
+// TestRunsList_AbandonedStatus — a run reconciled at boot (task.received
+// + task.abandoned, no completion) reports status="abandoned", M28.
+func TestRunsList_AbandonedStatus(t *testing.T) {
+	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	const corr = "orphan-001"
+	if _, err := k.Bus().Publish(event.Spec{
+		Subject: "agent.test.task", Kind: event.KindTaskReceived, Actor: "agent-test",
+		CorrelationID: corr, Payload: map[string]string{"intent": "crashed mid-run"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := k.Bus().Publish(event.Spec{
+		Subject: "task", Kind: event.KindTaskAbandoned, Actor: "kernel",
+		CorrelationID: corr, Payload: map[string]any{"reason": "daemon restart"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	res, err := c.Call(context.Background(), controlplane.CmdRunsList, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rows, _ := res["runs"].([]any)
+	if len(rows) != 1 {
+		t.Fatalf("want 1 row, got %d", len(rows))
+	}
+	row, _ := rows[0].(map[string]any)
+	if got, _ := row["status"].(string); got != "abandoned" {
+		t.Errorf("status = %q want abandoned", got)
+	}
+	if got, _ := row["intent"].(string); got != "crashed mid-run" {
+		t.Errorf("intent = %q want 'crashed mid-run'", got)
+	}
+}
+
+// TestRunsList_CompletedBeatsAbandoned — if a run somehow has both a
+// completion and a (stale) abandoned marker, completed wins.
+func TestRunsList_CompletedBeatsAbandoned(t *testing.T) {
+	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	const corr = "raced-001"
+	for _, spec := range []event.Spec{
+		{Subject: "task", Kind: event.KindTaskReceived, Actor: "a", CorrelationID: corr, Payload: map[string]string{"intent": "x"}},
+		{Subject: "task", Kind: event.KindTaskAbandoned, Actor: "kernel", CorrelationID: corr},
+		{Subject: "task", Kind: event.KindTaskCompleted, Actor: "a", CorrelationID: corr, Payload: map[string]any{"iters": 1}},
+	} {
+		if _, err := k.Bus().Publish(spec); err != nil {
+			t.Fatal(err)
+		}
+	}
+	res, _ := c.Call(context.Background(), controlplane.CmdRunsList, nil)
+	rows, _ := res["runs"].([]any)
+	row, _ := rows[0].(map[string]any)
+	if got, _ := row["status"].(string); got != "completed" {
+		t.Errorf("status = %q want completed (completed beats abandoned)", got)
+	}
+}

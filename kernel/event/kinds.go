@@ -23,6 +23,12 @@ const (
 	// later per DECISIONS B0d).
 	KindTaskReceived  Kind = "task.received"
 	KindTaskCompleted Kind = "task.completed"
+	// KindTaskAbandoned marks a run that was received but never completed
+	// in a prior daemon session (a crash mid-run, or a run that errored and
+	// emitted no completion). Published once at boot during orphan
+	// reconciliation, so `agt runs` shows it as "abandoned" instead of
+	// "running" forever (M28).
+	KindTaskAbandoned Kind = "task.abandoned"
 
 	// Multi-agent orchestration (P6-MULTI-01). A lead agent delegates a
 	// bounded task to a sub-agent via the `delegate` tool; the spawn is
@@ -167,6 +173,7 @@ var knownKinds = map[Kind]struct{}{
 	KindAgentCrashed:              {},
 	KindTaskReceived:              {},
 	KindTaskCompleted:             {},
+	KindTaskAbandoned:             {},
 	KindSubAgentSpawned:           {},
 	KindToolInvoked:               {},
 	KindToolResult:                {},
