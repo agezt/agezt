@@ -12,6 +12,19 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Targeted run cancellation** (`agt runs cancel <correlation>`, SPEC-08, M32) —
+  cancel a single in-flight run without halting the whole daemon. Until now the
+  only way to stop a stuck run was `agt halt`, which cancels **every** run and
+  blocks new ones until `agt resume` — far too blunt for a multi-run daemon.
+  `Kernel.CancelRun(corr)` looks up the run's own `CancelFunc` in the live-run
+  registry and cancels just it; the agent loop returns `context.Canceled`, which
+  the M30 terminal emitter records as `task.failed(reason=canceled)` — so the run
+  shows as `failed (canceled)` in `agt runs` while the kernel stays un-halted and
+  every other run keeps going. New `CmdCancelRun` control-plane verb (tenant-
+  routable) + `agt runs cancel` (exit 0 when a live run matched, 1 when none did,
+  for scripting). Proven live: a hung run was cancelled individually, terminated
+  as `failed (canceled)`, and the daemon kept serving. See
+  `.project/PHASE-M32-RUN-CANCEL-REPORT.md`.
 - **Per-run wall-clock timeout** (SPEC-08, M31) — `AGEZT_RUN_TIMEOUT=<duration>`
   (e.g. `90s`, `5m`) arms an optional per-run deadline so a slow provider or a
   blocking tool can't hang a run forever *within* a live session (M28 only

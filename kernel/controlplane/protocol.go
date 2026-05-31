@@ -382,6 +382,21 @@ const (
 	//                    runs only (running/abandoned have no end time)
 	CmdRunsStats = "runs_stats"
 
+	// CmdCancelRun cancels a single in-flight run by correlation id (M32),
+	// leaving the kernel un-halted and every other run untouched — the
+	// targeted alternative to CmdHalt (which cancels ALL runs and blocks
+	// new ones until resume). The cancelled run's agent loop returns
+	// context.Canceled, which the M30 terminal emitter records as
+	// task.failed(reason=canceled).
+	// Args:
+	//   - correlation : string (required) — the run's correlation id
+	//   - tenant      : string (optional) — route to a tenant kernel
+	// Returns:
+	//   - correlation : string — echoed back
+	//   - cancelled   : bool — true if a live run matched, false otherwise
+	//                   (already finished / never existed / wrong id)
+	CmdCancelRun = "cancel_run"
+
 	// Memory-lite (ROADMAP §2.3). The content-addressed, journaled
 	// knowledge store the agent reads as injected context. These give
 	// operators a read/write path without shelling into the data dir.

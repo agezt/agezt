@@ -300,6 +300,8 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.handleRunsList(conn, req)
 	case CmdRunsStats:
 		s.handleRunsStats(conn, req)
+	case CmdCancelRun:
+		s.handleCancelRun(conn, req)
 	case CmdConfig:
 		s.handleConfig(conn, req)
 	case CmdJournalGrep:
@@ -421,6 +423,29 @@ func (s *Server) handleHalt(conn net.Conn, req Request) {
 		"ok":     true,
 		"halted": true,
 		"reason": reason,
+	}})
+}
+
+// handleCancelRun cancels a single in-flight run by correlation id (M32),
+// leaving the kernel un-halted and other runs untouched — the targeted
+// alternative to the global halt. Routes to the tenant kernel when a
+// tenant is named (empty → primary), mirroring handleRun.
+func (s *Server) handleCancelRun(conn net.Conn, req Request) {
+	corr, _ := req.Args["correlation"].(string)
+	if corr == "" {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.correlation required"})
+		return
+	}
+	tenantID, _ := req.Args["tenant"].(string)
+	k, err := s.kernelFor(tenantID)
+	if err != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		return
+	}
+	cancelled := k.CancelRun(corr)
+	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{
+		"correlation": corr,
+		"cancelled":   cancelled,
 	}})
 }
 

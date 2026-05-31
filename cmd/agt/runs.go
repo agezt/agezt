@@ -32,17 +32,81 @@ func cmdRuns(args []string, stdout, stderr io.Writer) int {
 		return cmdRunsLast(args[1:], stdout, stderr)
 	case "stats":
 		return cmdRunsStats(args[1:], stdout, stderr)
+	case "cancel":
+		return cmdRunsCancel(args[1:], stdout, stderr)
 	case "-h", "--help", "help":
 		fmt.Fprintf(stdout, "usage: %s runs <subcommand>\n", brand.CLI)
 		fmt.Fprintf(stdout, "  list [N] [--json]            show the last N agent runs (default 20)\n")
 		fmt.Fprintf(stdout, "  show <correlation> [--json]  render one run as a task arc\n")
 		fmt.Fprintf(stdout, "  last [--json]                shorthand for show <newest correlation>\n")
 		fmt.Fprintf(stdout, "  stats [--json]               aggregate run health (counts, success rate, durations)\n")
+		fmt.Fprintf(stdout, "  cancel <correlation>         cancel one in-flight run (→ failed/canceled)\n")
 		return 0
 	default:
-		fmt.Fprintf(stderr, "%s runs: unknown subcommand %q (list|show|last|stats)\n", brand.CLI, args[0])
+		fmt.Fprintf(stderr, "%s runs: unknown subcommand %q (list|show|last|stats|cancel)\n", brand.CLI, args[0])
 		return 2
 	}
+}
+
+// cmdRunsCancel implements `agt runs cancel <correlation> [--json]`.
+// Cancels a single in-flight run by correlation id without halting the
+// whole daemon (the targeted alternative to `agt halt`). The cancelled
+// run terminates as `failed (canceled)` in `agt runs`. Exit code 0 when a
+// live run was cancelled, 1 when no matching active run was found (already
+// finished, never existed, or wrong id) so scripts can branch on it.
+func cmdRunsCancel(args []string, stdout, stderr io.Writer) int {
+	asJSON := false
+	var corr string
+	for _, a := range args {
+		switch a {
+		case "--json":
+			asJSON = true
+		case "-h", "--help":
+			fmt.Fprintf(stdout, "usage: %s runs cancel <correlation> [--json]\n", brand.CLI)
+			fmt.Fprintf(stdout, "cancel one in-flight run by correlation id (leaves the daemon running)\n")
+			return 0
+		default:
+			if corr == "" {
+				corr = a
+				continue
+			}
+			fmt.Fprintf(stderr, "%s runs cancel: unexpected arg %q\n", brand.CLI, a)
+			return 2
+		}
+	}
+	if corr == "" {
+		fmt.Fprintf(stderr, "%s runs cancel: correlation id required\n", brand.CLI)
+		return 2
+	}
+
+	c := dial(stderr)
+	if c == nil {
+		return 1
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	res, err := c.Call(ctx, controlplane.CmdCancelRun, map[string]any{"correlation": corr})
+	if err != nil {
+		fmt.Fprintf(stderr, "%s runs cancel: %v\n", brand.CLI, err)
+		return 1
+	}
+
+	if asJSON {
+		enc := json.NewEncoder(stdout)
+		enc.SetIndent("", "  ")
+		_ = enc.Encode(res)
+	}
+	cancelled, _ := res["cancelled"].(bool)
+	if !cancelled {
+		if !asJSON {
+			fmt.Fprintf(stderr, "no in-flight run with correlation %q (already finished or unknown)\n", corr)
+		}
+		return 1
+	}
+	if !asJSON {
+		fmt.Fprintf(stdout, "cancelled run %s (it will terminate as failed/canceled)\n", corr)
+	}
+	return 0
 }
 
 // cmdRunsStats implements `agt runs stats [--json]`. Asks the

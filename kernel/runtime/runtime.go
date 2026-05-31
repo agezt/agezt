@@ -748,6 +748,34 @@ func (k *Kernel) HaltWith(reason string) {
 	})
 }
 
+// CancelRun cancels a single in-flight run by correlation id, leaving the
+// kernel un-halted and every other run untouched (M32). This is the
+// targeted counterpart to Halt's blunt "cancel everything and block new
+// runs": an operator can kill one stuck run without pausing the whole
+// daemon. Returns true if a matching live run was found and cancelled,
+// false if there is no such active run (already finished, never existed,
+// or wrong id).
+//
+// The cancel is the run context's own CancelFunc, so it cancels with
+// context.Canceled — the agent loop's M30 terminal emitter then records
+// task.failed(reason=canceled), distinct from a wall-clock timeout
+// (DeadlineExceeded → reason=timeout, M31). We delete the entry here too;
+// RunWith's defer also deletes it, but delete is idempotent so the race is
+// harmless.
+func (k *Kernel) CancelRun(corr string) bool {
+	k.mu.Lock()
+	cancel, ok := k.runs[corr]
+	if ok {
+		delete(k.runs, corr)
+	}
+	k.mu.Unlock()
+	if !ok {
+		return false
+	}
+	cancel()
+	return true
+}
+
 // Resume clears the halt flag, allowing new runs. Already-cancelled runs
 // stay cancelled; only future Run calls will succeed. Equivalent to
 // ResumeWith("").

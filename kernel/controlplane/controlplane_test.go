@@ -165,6 +165,84 @@ func TestHaltViaControlPlane(t *testing.T) {
 	}
 }
 
+// cpBlockingProvider blocks Complete until ctx is cancelled — used to keep
+// a run in-flight while a CmdCancelRun targets it.
+type cpBlockingProvider struct{}
+
+func (cpBlockingProvider) Name() string { return "cp-blocking" }
+func (cpBlockingProvider) Complete(ctx context.Context, _ agent.CompletionRequest) (*agent.CompletionResponse, error) {
+	<-ctx.Done()
+	return nil, ctx.Err()
+}
+
+// TestCancelRunViaControlPlane — a targeted CmdCancelRun cancels one
+// in-flight run (captured by correlation from its own event stream) and
+// leaves the kernel un-halted (M32).
+func TestCancelRunViaControlPlane(t *testing.T) {
+	k, _, c, _ := startPair(t, cpBlockingProvider{})
+
+	corrCh := make(chan string, 1)
+	streamDone := make(chan error, 1)
+	go func() {
+		_, err := c.Stream(context.Background(), controlplane.CmdRun,
+			map[string]any{"intent": "hang"},
+			func(e *event.Event) {
+				if e.Kind == event.KindTaskReceived {
+					select {
+					case corrCh <- e.CorrelationID:
+					default:
+					}
+				}
+			})
+		streamDone <- err
+	}()
+
+	var corr string
+	select {
+	case corr = <-corrCh:
+	case <-time.After(2 * time.Second):
+		t.Fatal("never observed task.received for the in-flight run")
+	}
+
+	res, err := c.Call(context.Background(), controlplane.CmdCancelRun,
+		map[string]any{"correlation": corr})
+	if err != nil {
+		t.Fatalf("CmdCancelRun: %v", err)
+	}
+	if cancelled, _ := res["cancelled"].(bool); !cancelled {
+		t.Errorf("cancelled=false, want true for a live run")
+	}
+
+	select {
+	case <-streamDone:
+	case <-time.After(2 * time.Second):
+		t.Fatal("cancelled run did not return to the client")
+	}
+	if k.IsHalted() {
+		t.Error("a targeted cancel must not halt the kernel")
+	}
+}
+
+// TestCancelRun_UnknownAndMissingArg — cancelling an unknown correlation
+// reports cancelled=false (not an error); a missing correlation arg is a
+// request error.
+func TestCancelRun_UnknownAndMissingArg(t *testing.T) {
+	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+
+	res, err := c.Call(context.Background(), controlplane.CmdCancelRun,
+		map[string]any{"correlation": "run-nope"})
+	if err != nil {
+		t.Fatalf("unknown correlation should not error: %v", err)
+	}
+	if cancelled, _ := res["cancelled"].(bool); cancelled {
+		t.Error("cancelled=true for an unknown correlation")
+	}
+
+	if _, err := c.Call(context.Background(), controlplane.CmdCancelRun, nil); err == nil {
+		t.Error("missing correlation arg should be a request error")
+	}
+}
+
 func TestWhy(t *testing.T) {
 	// One scripted final answer is enough — we capture the event ID
 	// during the SAME run we're going to ask "why" about.

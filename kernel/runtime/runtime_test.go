@@ -193,6 +193,95 @@ func TestRunWith_CompletesUnderTimeout(t *testing.T) {
 	}
 }
 
+// TestCancelRun_CancelsOneRunNotKernel — CancelRun(corr) cancels exactly
+// that run (→ context.Canceled, → task.failed reason=canceled) without
+// halting the kernel, so other/new runs are unaffected (M32). This is the
+// key difference from Halt, which cancels everything and blocks new runs.
+func TestCancelRun_CancelsOneRunNotKernel(t *testing.T) {
+	k, err := runtime.Open(runtime.Config{
+		BaseDir:  t.TempDir(),
+		Provider: &blockingProvider{},
+		Tools:    map[string]agent.Tool{"shell": shell.New()},
+	})
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	t.Cleanup(func() { k.Close() })
+
+	corr := k.NewCorrelation()
+	done := make(chan error, 1)
+	go func() {
+		_, e := k.RunWith(context.Background(), corr, "hang")
+		done <- e
+	}()
+	time.Sleep(50 * time.Millisecond)
+
+	if !k.CancelRun(corr) {
+		t.Fatal("CancelRun returned false for a live run")
+	}
+	select {
+	case e := <-done:
+		if !errors.Is(e, context.Canceled) {
+			t.Errorf("got err=%v, want context.Canceled", e)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("cancelled run did not unblock")
+	}
+
+	// The kernel must NOT be halted — CancelRun is targeted, not global.
+	if k.IsHalted() {
+		t.Error("CancelRun must not halt the kernel")
+	}
+
+	// The M30 terminal event must classify this as a cancel, not a timeout
+	// or generic error.
+	var failReason string
+	_ = k.Journal().Range(func(e *event.Event) error {
+		if e.Kind == event.KindTaskFailed && e.CorrelationID == corr {
+			var p struct {
+				Reason string `json:"reason"`
+			}
+			_ = json.Unmarshal(e.Payload, &p)
+			failReason = p.Reason
+		}
+		return nil
+	})
+	if failReason != "canceled" {
+		t.Errorf("task.failed reason = %q want canceled", failReason)
+	}
+
+	// A new run is still accepted (proves the kernel wasn't halted): start
+	// another blocking run, confirm it's live (cancellable), then clean up.
+	corr2 := k.NewCorrelation()
+	done2 := make(chan error, 1)
+	go func() {
+		_, e := k.RunWith(context.Background(), corr2, "hang again")
+		done2 <- e
+	}()
+	time.Sleep(50 * time.Millisecond)
+	if !k.CancelRun(corr2) {
+		t.Error("second run was not live — kernel may have been wrongly halted")
+	}
+	<-done2
+}
+
+// TestCancelRun_UnknownReturnsFalse — cancelling a correlation with no live
+// run is a no-op that reports false (already finished / never existed).
+func TestCancelRun_UnknownReturnsFalse(t *testing.T) {
+	k := newKernel(t, mock.New(mock.FinalText("ok")))
+	if k.CancelRun("run-does-not-exist") {
+		t.Error("CancelRun returned true for an unknown correlation")
+	}
+	// A completed run is no longer live, so cancelling it also reports false.
+	_, corr, err := k.Run(context.Background(), "hi")
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if k.CancelRun(corr) {
+		t.Error("CancelRun returned true for an already-finished run")
+	}
+}
+
 func TestWhy_ReturnsCorrelationGroup(t *testing.T) {
 	k := newKernel(t, mock.New(
 		mock.ToolUse("c1", "shell", map[string]string{"command": "echo ok"}),
