@@ -378,6 +378,9 @@ const (
 	//   - total       : int — distinct correlation ids seen
 	//   - completed    : int — runs with a task.completed
 	//   - failed       : int — runs with a task.failed (M30)
+	//   - failed_by_reason : {reason→count} — failure breakdown by M30
+	//                    reason tag (error|max_iters|canceled|timeout|
+	//                    unknown); empty when no failures (M36)
 	//   - running      : int — received, no terminal event (in-flight)
 	//   - abandoned    : int — reconciled at boot (M28), never completed
 	//   - terminal     : int — completed + failed + abandoned

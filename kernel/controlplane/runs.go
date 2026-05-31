@@ -253,6 +253,11 @@ func (s *Server) handleRunsStats(conn net.Conn, req Request) {
 	var total, completed, failed, running, abandoned int
 	var itersSum int
 	durations := make([]int64, 0, len(runs)) // completed runs only, for percentiles
+	// failedByReason buckets failures by their M30 reason tag (error /
+	// max_iters / canceled / timeout), so an operator sees WHY runs fail,
+	// not just how many (M36). A failure with no recorded reason buckets
+	// under "unknown" rather than vanishing.
+	failedByReason := map[string]int{}
 	for _, r := range runs {
 		// Windowed: keep only runs that started at/after the cutoff. A run
 		// with no recorded start (the completed-without-received edge) can't
@@ -270,6 +275,11 @@ func (s *Server) handleRunsStats(conn net.Conn, req Request) {
 			}
 		case r.Failed:
 			failed++
+			reason := r.FailReason
+			if reason == "" {
+				reason = "unknown"
+			}
+			failedByReason[reason]++
 		case r.Abandoned:
 			abandoned++
 		default:
@@ -310,6 +320,9 @@ func (s *Server) handleRunsStats(conn net.Conn, req Request) {
 			"terminal":     terminal,
 			"success_rate": successRate,
 			"avg_iters":    avgIters,
+			// Per-reason failure breakdown (M36): {error|max_iters|canceled|
+			// timeout|unknown → count}. Empty map when there are no failures.
+			"failed_by_reason": failedByReason,
 			// 0 = all-time; >0 = the window width in ms the stats cover (M33).
 			"window_ms": sinceMS,
 			"duration_ms": map[string]any{

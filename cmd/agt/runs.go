@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -205,7 +206,13 @@ func cmdRunsStats(args []string, stdout, stderr io.Writer) int {
 
 	fmt.Fprintf(stdout, "run stats (over %d run(s)%s):\n\n", total, windowSuffix)
 	fmt.Fprintf(stdout, "  completed : %d\n", completed)
-	fmt.Fprintf(stdout, "  failed    : %d\n", failed)
+	// Annotate the failed count with its per-reason breakdown (M36) so the
+	// operator sees WHY runs fail, e.g. "failed : 3 (timeout=2, error=1)".
+	failedLine := fmt.Sprintf("%d", failed)
+	if br := failedByReasonStr(res["failed_by_reason"]); br != "" {
+		failedLine += " (" + br + ")"
+	}
+	fmt.Fprintf(stdout, "  failed    : %s\n", failedLine)
 	fmt.Fprintf(stdout, "  running   : %d\n", running)
 	fmt.Fprintf(stdout, "  abandoned : %d\n", abandoned)
 
@@ -517,6 +524,41 @@ func cmdRunsLast(args []string, stdout, stderr io.Writer) int {
 		delegateArgs = append(delegateArgs, "--json")
 	}
 	return cmdRunsShow(delegateArgs, stdout, stderr)
+}
+
+// failedByReasonStr renders the M36 failed_by_reason map as a compact,
+// stably-ordered string like "timeout=2, error=1". Known reasons come
+// first in a fixed order (so the line is stable run-to-run); any unknown
+// reasons follow. Returns "" for an empty/absent map. JSON decodes the
+// counts as float64.
+func failedByReasonStr(raw any) string {
+	m, _ := raw.(map[string]any)
+	if len(m) == 0 {
+		return ""
+	}
+	var parts []string
+	seen := map[string]bool{}
+	for _, reason := range []string{"error", "timeout", "max_iters", "canceled", "unknown"} {
+		if n := intOfStatus(m[reason]); n > 0 {
+			parts = append(parts, fmt.Sprintf("%s=%d", reason, n))
+			seen[reason] = true
+		}
+	}
+	// Any reason tags we didn't anticipate — append in sorted order so the
+	// output stays deterministic.
+	var extras []string
+	for reason := range m {
+		if !seen[reason] {
+			extras = append(extras, reason)
+		}
+	}
+	sort.Strings(extras)
+	for _, reason := range extras {
+		if n := intOfStatus(m[reason]); n > 0 {
+			parts = append(parts, fmt.Sprintf("%s=%d", reason, n))
+		}
+	}
+	return strings.Join(parts, ", ")
 }
 
 // renderTaskArc prints a human-friendly view of a single run.

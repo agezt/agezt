@@ -12,6 +12,15 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Failure-reason breakdown in `agt runs stats`** (SPEC-08, M36) — the `failed`
+  count is now split by *why* runs fail: `failed : 3 (timeout=2, canceled=1)`. The
+  M30 reason tag (`error` / `max_iters` / `canceled` / `timeout`, plus `unknown`
+  for a failure with no recorded reason) is aggregated into a `failed_by_reason`
+  map on `CmdRunsStats` and rendered inline, stably ordered. Turns "10% of runs
+  fail" into "…and they're all timeouts" — the actionable form. Purely additive;
+  the map is empty (jq-safe) when there are no failures. Proven live: two timed-out
+  runs and one cancelled run rendered as `failed : 3 (timeout=2, canceled=1)`. See
+  `.project/PHASE-M36-FAILED-BY-REASON-REPORT.md`.
 - **Cancel-on-disconnect** (`AGEZT_CANCEL_ON_DISCONNECT=on`, SPEC-08, M35) — when
   enabled, a streaming `agt run` whose client connection drops (Ctrl-C or a killed
   client) cancels its run server-side instead of letting it churn on headless. The

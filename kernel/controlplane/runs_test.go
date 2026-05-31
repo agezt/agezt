@@ -397,6 +397,79 @@ func TestRunsStats_CountsAndSuccessRate(t *testing.T) {
 	}
 }
 
+// TestRunsStats_FailedByReason — failures are bucketed by their M30 reason
+// tag in failed_by_reason (M36); a failure with no reason buckets under
+// "unknown".
+func TestRunsStats_FailedByReason(t *testing.T) {
+	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+
+	failWith := func(corr, reason string) {
+		t.Helper()
+		_, _ = k.Bus().Publish(event.Spec{
+			Subject: "task", Kind: event.KindTaskReceived, Actor: "a",
+			CorrelationID: corr, Payload: map[string]string{"intent": "x"},
+		})
+		payload := map[string]any{"error": "boom"}
+		if reason != "" {
+			payload["reason"] = reason
+		}
+		_, _ = k.Bus().Publish(event.Spec{
+			Subject: "task", Kind: event.KindTaskFailed, Actor: "a",
+			CorrelationID: corr, Payload: payload,
+		})
+	}
+	failWith("f1", "timeout")
+	failWith("f2", "timeout")
+	failWith("f3", "error")
+	failWith("f4", "") // no reason → "unknown"
+
+	res, err := c.Call(context.Background(), controlplane.CmdRunsStats, nil)
+	if err != nil {
+		t.Fatalf("Call: %v", err)
+	}
+	if got := intOf(res["failed"]); got != 4 {
+		t.Fatalf("failed = %d want 4", got)
+	}
+	br, ok := res["failed_by_reason"].(map[string]any)
+	if !ok {
+		t.Fatalf("failed_by_reason missing/wrong type: %T", res["failed_by_reason"])
+	}
+	if got := intOf(br["timeout"]); got != 2 {
+		t.Errorf("failed_by_reason[timeout] = %d want 2", got)
+	}
+	if got := intOf(br["error"]); got != 1 {
+		t.Errorf("failed_by_reason[error] = %d want 1", got)
+	}
+	if got := intOf(br["unknown"]); got != 1 {
+		t.Errorf("failed_by_reason[unknown] = %d want 1", got)
+	}
+}
+
+// TestRunsStats_NoFailuresEmptyBreakdown — with no failures the breakdown
+// map is present but empty (jq-safe).
+func TestRunsStats_NoFailuresEmptyBreakdown(t *testing.T) {
+	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	_, _ = k.Bus().Publish(event.Spec{
+		Subject: "task", Kind: event.KindTaskReceived, Actor: "a",
+		CorrelationID: "ok1", Payload: map[string]string{"intent": "x"},
+	})
+	_, _ = k.Bus().Publish(event.Spec{
+		Subject: "task", Kind: event.KindTaskCompleted, Actor: "a",
+		CorrelationID: "ok1", Payload: map[string]any{"iters": 1},
+	})
+	res, err := c.Call(context.Background(), controlplane.CmdRunsStats, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	br, ok := res["failed_by_reason"].(map[string]any)
+	if !ok {
+		t.Fatalf("failed_by_reason should be an (empty) map, got %T", res["failed_by_reason"])
+	}
+	if len(br) != 0 {
+		t.Errorf("failed_by_reason = %v want empty", br)
+	}
+}
+
 // TestRunsStats_SinceWindow — args.since_ms restricts the aggregate to
 // runs started within the window (M33). A huge window includes a
 // just-published run; a tiny window after a sleep excludes it; window_ms
