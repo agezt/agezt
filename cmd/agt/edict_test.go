@@ -121,6 +121,43 @@ func TestCmdEdictDeny_HelpDocsSubcommands(t *testing.T) {
 	}
 }
 
+// TestCmdEdict_HelpDocsLevel — the dispatcher's help must mention
+// `level` now that runtime trust-level changes exist.
+func TestCmdEdict_HelpDocsLevel(t *testing.T) {
+	var out, errOut bytes.Buffer
+	if code := cmdEdict([]string{"--help"}, &out, &errOut); code != 0 {
+		t.Fatalf("exit=%d want 0", code)
+	}
+	if !strings.Contains(out.String(), "level") {
+		t.Errorf("--help missing `level`; got %q", out.String())
+	}
+}
+
+// TestCmdEdictLevel_RequiresBothArgs — `level` needs capability AND
+// level; missing either is a usage error surfaced before any daemon dial.
+func TestCmdEdictLevel_RequiresBothArgs(t *testing.T) {
+	for _, args := range [][]string{nil, {"shell"}} {
+		var out, errOut bytes.Buffer
+		if code := cmdEdictLevel(args, &out, &errOut); code != 2 {
+			t.Errorf("args=%v exit=%d want 2", args, code)
+		}
+		if !strings.Contains(errOut.String(), "required") {
+			t.Errorf("args=%v stderr missing required note; got %q", args, errOut.String())
+		}
+	}
+}
+
+// TestCmdEdictLevel_HelpDocsLevels — help must teach the level vocabulary.
+func TestCmdEdictLevel_HelpDocsLevels(t *testing.T) {
+	var out, errOut bytes.Buffer
+	if code := cmdEdictLevel([]string{"--help"}, &out, &errOut); code != 0 {
+		t.Fatalf("exit=%d want 0", code)
+	}
+	if !strings.Contains(out.String(), "L0..L4") {
+		t.Errorf("--help missing level vocabulary; got %q", out.String())
+	}
+}
+
 // TestCmdEdictShow_HelpDocsJSON — operators must discover
 // --json from the help text.
 func TestCmdEdictShow_HelpDocsJSON(t *testing.T) {

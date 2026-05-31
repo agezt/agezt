@@ -95,6 +95,28 @@ func (l TrustLevel) String() string {
 	}
 }
 
+// ParseTrustLevel parses an operator-facing trust-level string into a
+// TrustLevel. It accepts the canonical "L0".."L4" labels (case-insensitive,
+// the same vocabulary TrustLevel.String() emits) and the word aliases
+// deny/ask/askfirst/askscoped/allow, so `agt edict level shell allow` and
+// `... shell L4` are equivalent. Unknown input is an error, not a default —
+// a typo must never silently land a capability at the wrong level.
+func ParseTrustLevel(s string) (TrustLevel, error) {
+	switch strings.ToLower(strings.TrimSpace(s)) {
+	case "l0", "deny":
+		return LevelDeny, nil
+	case "l1", "ask":
+		return LevelAsk, nil
+	case "l2", "askfirst", "ask-first":
+		return LevelAskFirst, nil
+	case "l3", "askscoped", "ask-scoped":
+		return LevelAskScoped, nil
+	case "l4", "allow":
+		return LevelAllow, nil
+	}
+	return 0, fmt.Errorf("edict: unknown trust level %q (want L0..L4 or deny/ask/askfirst/askscoped/allow)", s)
+}
+
 // Decision is the engine's final operational decision.
 type Decision string
 

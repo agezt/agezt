@@ -12,6 +12,18 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Runtime trust-level changes** (DECISIONS F3, M19) — the other half of the
+  policy engine, the trust ladder (L0 deny .. L4 allow), was boot-only config
+  (env vars). `agt edict level <capability> <level>` now changes a capability's
+  level on a running daemon — `agt edict level shell L0` locks shell down mid-
+  incident, `agt edict level http.post allow` opens one up — no restart.
+  Loosening is safe by construction: the hard-deny floor fires regardless of
+  level, so even `shell=L4` still blocks `rm -rf /` (proven live). Levels accept
+  `L0..L4` or word aliases (`deny`/`ask`/`askfirst`/`askscoped`/`allow`); an
+  unknown capability or unparseable level is an error, never a silent default-
+  deny phantom. Each change journals a `policy.changed` event
+  (`action=level.set`, with `from`/`to`) so the trust ladder's history is as
+  auditable as the deny floor's. See `.project/PHASE-M19-EDICT-LEVEL-REPORT.md`.
 - **Runtime-managed policy deny rules** (DECISIONS F4, M18) — the hard-deny
   floor could only be changed by restarting the daemon (M17's `AGEZT_EDICT_DENY`
   is boot config). `agt edict deny list|add|rm` now manages it live over the

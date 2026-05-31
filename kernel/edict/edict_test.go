@@ -140,6 +140,31 @@ func TestRemoveHardDeny_OnlyRuntimeRules(t *testing.T) {
 	}
 }
 
+func TestParseTrustLevel(t *testing.T) {
+	cases := map[string]TrustLevel{
+		"L0": LevelDeny, "l0": LevelDeny, "deny": LevelDeny,
+		"L1": LevelAsk, "ask": LevelAsk,
+		"L2": LevelAskFirst, "askfirst": LevelAskFirst, "ask-first": LevelAskFirst,
+		"L3": LevelAskScoped, "askscoped": LevelAskScoped, "ask-scoped": LevelAskScoped,
+		"L4": LevelAllow, "allow": LevelAllow, "  ALLOW ": LevelAllow,
+	}
+	for in, want := range cases {
+		got, err := ParseTrustLevel(in)
+		if err != nil {
+			t.Errorf("ParseTrustLevel(%q): %v", in, err)
+			continue
+		}
+		if got != want {
+			t.Errorf("ParseTrustLevel(%q) = %s want %s", in, got, want)
+		}
+	}
+	for _, bad := range []string{"", "L5", "L-1", "permit", "yes"} {
+		if _, err := ParseTrustLevel(bad); err == nil {
+			t.Errorf("ParseTrustLevel(%q) should error", bad)
+		}
+	}
+}
+
 func TestDefaultLevels_RespectF3(t *testing.T) {
 	e := New(Options{})
 	checks := map[Capability]TrustLevel{

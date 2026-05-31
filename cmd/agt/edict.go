@@ -30,16 +30,81 @@ func cmdEdict(args []string, stdout, stderr io.Writer) int {
 		return cmdEdictTest(args[1:], stdout, stderr)
 	case "deny":
 		return cmdEdictDeny(args[1:], stdout, stderr)
+	case "level":
+		return cmdEdictLevel(args[1:], stdout, stderr)
 	case "-h", "--help", "help":
 		fmt.Fprintf(stdout, "usage: %s edict <subcommand>\n", brand.CLI)
 		fmt.Fprintf(stdout, "  show [--json]                          display loaded policies\n")
 		fmt.Fprintf(stdout, "  test <capability> [<input>] [--json]   dry-run a decision; no side effects\n")
 		fmt.Fprintf(stdout, "  deny list|add|rm ...                   manage hard-deny rules at runtime\n")
+		fmt.Fprintf(stdout, "  level <capability> <level> [--json]    set a capability's trust level at runtime\n")
 		return 0
 	default:
-		fmt.Fprintf(stderr, "%s edict: unknown subcommand %q (show|test|deny)\n", brand.CLI, args[0])
+		fmt.Fprintf(stderr, "%s edict: unknown subcommand %q (show|test|deny|level)\n", brand.CLI, args[0])
 		return 2
 	}
+}
+
+// cmdEdictLevel implements `agt edict level <capability> <level> [--json]`.
+// Changes a capability's trust level on the running daemon (M19). The
+// hard-deny floor still fires regardless of level, so loosening a level
+// can't unlock a catastrophic command. The change is journaled as a
+// policy.changed event. Use `edict show` to read the current ladder.
+func cmdEdictLevel(args []string, stdout, stderr io.Writer) int {
+	asJSON := false
+	var capability, level string
+	for _, a := range args {
+		switch a {
+		case "--json":
+			asJSON = true
+		case "-h", "--help":
+			fmt.Fprintf(stdout, "usage: %s edict level <capability> <level> [--json]\n", brand.CLI)
+			fmt.Fprintf(stdout, "level is L0..L4 or deny/ask/askfirst/askscoped/allow\n")
+			fmt.Fprintf(stdout, "the hard-deny floor still applies regardless of level\n")
+			return 0
+		default:
+			if capability == "" {
+				capability = a
+				continue
+			}
+			if level == "" {
+				level = a
+				continue
+			}
+			fmt.Fprintf(stderr, "%s edict level: unexpected arg %q (capability and level already set)\n", brand.CLI, a)
+			return 2
+		}
+	}
+	if capability == "" || level == "" {
+		fmt.Fprintf(stderr, "%s edict level: capability and level required (e.g. `%s edict level shell L4`)\n", brand.CLI, brand.CLI)
+		return 2
+	}
+
+	c := dial(stderr)
+	if c == nil {
+		return 1
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	res, err := c.Call(ctx, controlplane.CmdEdictSetLevel, map[string]any{
+		"capability": capability,
+		"level":      level,
+	})
+	if err != nil {
+		fmt.Fprintf(stderr, "%s edict level: %v\n", brand.CLI, err)
+		return 1
+	}
+	if asJSON {
+		enc := json.NewEncoder(stdout)
+		enc.SetIndent("", "  ")
+		_ = enc.Encode(res)
+		return 0
+	}
+	cap, _ := res["capability"].(string)
+	from, _ := res["from"].(string)
+	to, _ := res["to"].(string)
+	fmt.Fprintf(stdout, "%s: %s → %s\n", cap, from, to)
+	return 0
 }
 
 // cmdEdictDeny dispatches `agt edict deny <list|add|rm>`. Runtime

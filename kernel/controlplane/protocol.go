@@ -221,6 +221,20 @@ const (
 	// Returns: {removed: bool, count}.
 	CmdEdictDenyRemove = "edict_deny_rm"
 
+	// CmdEdictSetLevel changes a capability's trust level at runtime — no
+	// restart. The companion to CmdEdictDeny* for the other policy layer:
+	// the trust ladder (L0 deny .. L4 allow). Loosening is safe by
+	// construction — the hard-deny floor still fires regardless of level,
+	// so even shell=L4 cannot pass `rm -rf /`. The change is journaled as
+	// a policy.changed event. Args:
+	//   - capability : string (required) — must be a known capability
+	//                  (shell, file.read, http.post, ...). Unknown is an
+	//                  error, never a silent default-deny entry.
+	//   - level      : string (required) — "L0".."L4" or a word alias
+	//                  (deny/ask/askfirst/askscoped/allow).
+	// Returns: {capability, from, to} — the previous and new level labels.
+	CmdEdictSetLevel = "edict_set_level"
+
 	// CmdStateList enumerates namespaces and (optionally) keys in
 	// the kernel state store. State is normally invisible to
 	// operators — agents and the scheduler write here but there's

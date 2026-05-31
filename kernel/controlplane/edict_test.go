@@ -159,6 +159,84 @@ func TestEdictDeny_AddRejectsMultiAndEmpty(t *testing.T) {
 	}
 }
 
+// TestEdictSetLevel_RuntimeChange walks a level change end to end: flip
+// shell to deny (L0), confirm edict_test now denies it and edict_show
+// reflects the new level, then flip it back to allow (L4).
+func TestEdictSetLevel_RuntimeChange(t *testing.T) {
+	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	ctx := context.Background()
+
+	set, err := c.Call(ctx, controlplane.CmdEdictSetLevel, map[string]any{
+		"capability": "shell", "level": "L0",
+	})
+	if err != nil {
+		t.Fatalf("set level: %v", err)
+	}
+	if to, _ := set["to"].(string); to != "L0" {
+		t.Errorf("to = %q want L0", to)
+	}
+	// from must be the F3 default for shell (L2), proving we captured it.
+	if from, _ := set["from"].(string); from != "L2" {
+		t.Errorf("from = %q want L2 (shell default)", from)
+	}
+
+	probe, _ := c.Call(ctx, controlplane.CmdEdictTest, map[string]any{
+		"capability": "shell", "input": "echo hi",
+	})
+	if d, _ := probe["decision"].(string); d != "deny" {
+		t.Errorf("after L0, shell should deny; got %q", d)
+	}
+
+	show, _ := c.Call(ctx, controlplane.CmdEdictShow, nil)
+	levels, _ := show["levels"].(map[string]any)
+	if lvl, _ := levels["shell"].(string); lvl != "L0" {
+		t.Errorf("edict show shell = %q want L0", lvl)
+	}
+
+	// Flip back to allow; the alias form must work too.
+	back, err := c.Call(ctx, controlplane.CmdEdictSetLevel, map[string]any{
+		"capability": "shell", "level": "allow",
+	})
+	if err != nil {
+		t.Fatalf("set level back: %v", err)
+	}
+	if to, _ := back["to"].(string); to != "L4" {
+		t.Errorf("to = %q want L4", to)
+	}
+}
+
+// TestEdictSetLevel_RejectsBadInput pins the input contract: unknown
+// capability and unparseable level are both errors, not silent no-ops.
+func TestEdictSetLevel_RejectsBadInput(t *testing.T) {
+	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	ctx := context.Background()
+	if _, err := c.Call(ctx, controlplane.CmdEdictSetLevel,
+		map[string]any{"capability": "shel", "level": "L4"}); err == nil {
+		t.Error("unknown capability should error")
+	}
+	if _, err := c.Call(ctx, controlplane.CmdEdictSetLevel,
+		map[string]any{"capability": "shell", "level": "L9"}); err == nil {
+		t.Error("unparseable level should error")
+	}
+}
+
+// TestEdictSetLevel_FloorStillFires is the safety guarantee: loosening a
+// capability to L4 must NOT let a hard-deny pattern through.
+func TestEdictSetLevel_FloorStillFires(t *testing.T) {
+	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	ctx := context.Background()
+	if _, err := c.Call(ctx, controlplane.CmdEdictSetLevel,
+		map[string]any{"capability": "shell", "level": "L4"}); err != nil {
+		t.Fatalf("set level: %v", err)
+	}
+	probe, _ := c.Call(ctx, controlplane.CmdEdictTest, map[string]any{
+		"capability": "shell", "input": "rm -rf /",
+	})
+	if hd, _ := probe["hard_denied"].(bool); !hd {
+		t.Error("hard-deny floor must fire even at L4")
+	}
+}
+
 // TestEdictShow_HardDenyRulesAreSortedByName covers the
 // deterministic-output promise. Operators diffing `agt edict
 // show` output across calls/deployments shouldn't see the row

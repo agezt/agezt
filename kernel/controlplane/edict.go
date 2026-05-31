@@ -10,6 +10,7 @@ package controlplane
 
 import (
 	"net"
+	"slices"
 	"sort"
 
 	"github.com/agezt/agezt/kernel/edict"
@@ -209,6 +210,60 @@ func (s *Server) handleEdictDenyRemove(conn net.Conn, req Request) {
 		ID:     req.ID,
 		Type:   RespResult,
 		Result: map[string]any{"removed": removed, "count": count},
+	})
+}
+
+// handleEdictSetLevel changes a capability's trust level at runtime and
+// journals a policy.changed event. The capability must be known (a typo
+// would otherwise create a default-deny phantom entry); the level string
+// is parsed leniently (L0..L4 or aliases). The previous level is captured
+// for the event + response so the change is fully reconstructable.
+func (s *Server) handleEdictSetLevel(conn net.Conn, req Request) {
+	capStr, _ := req.Args["capability"].(string)
+	if capStr == "" {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.capability required"})
+		return
+	}
+	cap := edict.Capability(capStr)
+	if !slices.Contains(edict.AllCapabilities(), cap) {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError,
+			Error: "unknown capability " + capStr + " (see `edict show` for the governed set)"})
+		return
+	}
+	levelStr, _ := req.Args["level"].(string)
+	lvl, err := edict.ParseTrustLevel(levelStr)
+	if err != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		return
+	}
+
+	eng := s.k.Edict()
+	from := "unset"
+	if prev, ok := eng.Level(cap); ok {
+		from = prev.String()
+	}
+	eng.SetLevel(cap, lvl)
+	to := lvl.String()
+
+	_, _ = s.k.Bus().Publish(event.Spec{
+		Subject: "kernel.policy",
+		Kind:    event.KindPolicyChanged,
+		Actor:   "operator",
+		Payload: map[string]any{
+			"action":     "level.set",
+			"capability": capStr,
+			"from":       from,
+			"to":         to,
+		},
+	})
+	s.writeResp(conn, Response{
+		ID:   req.ID,
+		Type: RespResult,
+		Result: map[string]any{
+			"capability": capStr,
+			"from":       from,
+			"to":         to,
+		},
 	})
 }
 
