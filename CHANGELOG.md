@@ -12,6 +12,19 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Windowed run stats** (`agt runs stats --since <dur>`, SPEC-08, M33) —
+  restrict the run-health aggregation to runs that *started* within the last
+  `<dur>` (e.g. `--since 1h`, `--since 30m`), instead of all-time. Answers "how
+  have runs done in the last hour" — a view made meaningful by the
+  failed/timeout/canceled terminal terms (M30–M32) that now populate the success
+  rate. The server computes the cutoff against its own clock (the same clock that
+  stamps event timestamps) and filters on each run's start time; runs with no
+  recorded start are excluded from a window. `CmdRunsStats` gains an optional
+  `since_ms` arg and echoes `window_ms` (0 = all-time); the header reads `run
+  stats (over N run(s), last 1h)`. Both `--since 1h` and `--since=1h` forms work;
+  a malformed/zero duration is a usage error. Proven live: three runs counted
+  all-time and under `--since 1h`, then aged out under `--since 2s`. See
+  `.project/PHASE-M33-RUNS-STATS-SINCE-REPORT.md`.
 - **Targeted run cancellation** (`agt runs cancel <correlation>`, SPEC-08, M32) —
   cancel a single in-flight run without halting the whole daemon. Until now the
   only way to stop a stuck run was `agt halt`, which cancels **every** run and

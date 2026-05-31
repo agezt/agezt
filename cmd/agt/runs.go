@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/agezt/agezt/internal/brand"
@@ -117,18 +118,45 @@ func cmdRunsCancel(args []string, stdout, stderr io.Writer) int {
 // additive, read-only observability.
 func cmdRunsStats(args []string, stdout, stderr io.Writer) int {
 	asJSON := false
-	for _, a := range args {
-		switch a {
-		case "--json":
+	var sinceMS int64
+	var sinceLabel string
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		switch {
+		case a == "--json":
 			asJSON = true
-		case "-h", "--help":
-			fmt.Fprintf(stdout, "usage: %s runs stats [--json]\n", brand.CLI)
-			fmt.Fprintf(stdout, "aggregate run health over the whole journal:\n")
-			fmt.Fprintf(stdout, "  total / completed / running / abandoned counts,\n")
+		case a == "--since":
+			// `--since 1h` — value is the next arg.
+			if i+1 >= len(args) {
+				fmt.Fprintf(stderr, "%s runs stats: --since needs a duration (e.g. 1h, 30m)\n", brand.CLI)
+				return 2
+			}
+			i++
+			d, derr := time.ParseDuration(args[i])
+			if derr != nil || d <= 0 {
+				fmt.Fprintf(stderr, "%s runs stats: --since: want a positive Go duration (e.g. 90s, 1h), got %q\n", brand.CLI, args[i])
+				return 2
+			}
+			sinceMS = d.Milliseconds()
+			sinceLabel = d.String()
+		case strings.HasPrefix(a, "--since="):
+			// `--since=1h` form.
+			d, derr := time.ParseDuration(strings.TrimPrefix(a, "--since="))
+			if derr != nil || d <= 0 {
+				fmt.Fprintf(stderr, "%s runs stats: --since: want a positive Go duration (e.g. 90s, 1h), got %q\n", brand.CLI, strings.TrimPrefix(a, "--since="))
+				return 2
+			}
+			sinceMS = d.Milliseconds()
+			sinceLabel = d.String()
+		case a == "-h" || a == "--help":
+			fmt.Fprintf(stdout, "usage: %s runs stats [--since <dur>] [--json]\n", brand.CLI)
+			fmt.Fprintf(stdout, "aggregate run health over the journal:\n")
+			fmt.Fprintf(stdout, "  total / completed / failed / running / abandoned counts,\n")
 			fmt.Fprintf(stdout, "  success rate, and completed-run duration avg/min/max/p50/p95\n")
+			fmt.Fprintf(stdout, "  --since <dur>  restrict to runs started in the last <dur> (e.g. 1h, 30m)\n")
 			return 0
 		default:
-			fmt.Fprintf(stderr, "%s runs stats: unexpected arg %q (expected --json)\n", brand.CLI, a)
+			fmt.Fprintf(stderr, "%s runs stats: unexpected arg %q (expected --since <dur> or --json)\n", brand.CLI, a)
 			return 2
 		}
 	}
@@ -139,7 +167,11 @@ func cmdRunsStats(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdRunsStats, nil)
+	callArgs := map[string]any{}
+	if sinceMS > 0 {
+		callArgs["since_ms"] = sinceMS
+	}
+	res, err := c.Call(ctx, controlplane.CmdRunsStats, callArgs)
 	if err != nil {
 		fmt.Fprintf(stderr, "%s runs stats: %v\n", brand.CLI, err)
 		return 1
@@ -152,9 +184,17 @@ func cmdRunsStats(args []string, stdout, stderr io.Writer) int {
 		return 0
 	}
 
+	windowSuffix := ""
+	if sinceLabel != "" {
+		windowSuffix = ", last " + sinceLabel
+	}
 	total := intOfStatus(res["total"])
 	if total == 0 {
-		fmt.Fprintln(stdout, "no runs yet (journal has no task.received events)")
+		if sinceLabel != "" {
+			fmt.Fprintf(stdout, "no runs in the last %s\n", sinceLabel)
+		} else {
+			fmt.Fprintln(stdout, "no runs yet (journal has no task.received events)")
+		}
 		return 0
 	}
 	completed := intOfStatus(res["completed"])
@@ -163,7 +203,7 @@ func cmdRunsStats(args []string, stdout, stderr io.Writer) int {
 	abandoned := intOfStatus(res["abandoned"])
 	terminal := intOfStatus(res["terminal"])
 
-	fmt.Fprintf(stdout, "run stats (over %d run(s)):\n\n", total)
+	fmt.Fprintf(stdout, "run stats (over %d run(s)%s):\n\n", total, windowSuffix)
 	fmt.Fprintf(stdout, "  completed : %d\n", completed)
 	fmt.Fprintf(stdout, "  failed    : %d\n", failed)
 	fmt.Fprintf(stdout, "  running   : %d\n", running)

@@ -397,6 +397,65 @@ func TestRunsStats_CountsAndSuccessRate(t *testing.T) {
 	}
 }
 
+// TestRunsStats_SinceWindow — args.since_ms restricts the aggregate to
+// runs started within the window (M33). A huge window includes a
+// just-published run; a tiny window after a sleep excludes it; window_ms
+// is echoed back.
+func TestRunsStats_SinceWindow(t *testing.T) {
+	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+
+	const corr = "win-1"
+	if _, err := k.Bus().Publish(event.Spec{
+		Subject: "task", Kind: event.KindTaskReceived, Actor: "a",
+		CorrelationID: corr, Payload: map[string]string{"intent": "x"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := k.Bus().Publish(event.Spec{
+		Subject: "task", Kind: event.KindTaskCompleted, Actor: "a",
+		CorrelationID: corr, Payload: map[string]any{"iters": 1},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	// All-time: the run is counted, window_ms == 0.
+	res, err := c.Call(context.Background(), controlplane.CmdRunsStats, nil)
+	if err != nil {
+		t.Fatalf("Call: %v", err)
+	}
+	if got := intOf(res["total"]); got != 1 {
+		t.Fatalf("all-time total = %d want 1", got)
+	}
+	if got := intOf(res["window_ms"]); got != 0 {
+		t.Errorf("all-time window_ms = %d want 0", got)
+	}
+
+	// Huge window (1h): the just-published run is well within it.
+	res, err = c.Call(context.Background(), controlplane.CmdRunsStats,
+		map[string]any{"since_ms": 3_600_000})
+	if err != nil {
+		t.Fatalf("Call(since=1h): %v", err)
+	}
+	if got := intOf(res["total"]); got != 1 {
+		t.Errorf("1h-window total = %d want 1", got)
+	}
+	if got := intOf(res["window_ms"]); got != 3_600_000 {
+		t.Errorf("window_ms = %d want 3600000", got)
+	}
+
+	// Tiny window after a sleep: the run started > 30ms ago, so a 30ms
+	// window excludes it.
+	time.Sleep(60 * time.Millisecond)
+	res, err = c.Call(context.Background(), controlplane.CmdRunsStats,
+		map[string]any{"since_ms": 30})
+	if err != nil {
+		t.Fatalf("Call(since=30ms): %v", err)
+	}
+	if got := intOf(res["total"]); got != 0 {
+		t.Errorf("30ms-window total = %d want 0 (run is older than the window)", got)
+	}
+}
+
 // TestRunsStats_DurationPercentiles — publish completed runs with
 // known, monotonically increasing durations and verify the percentile
 // math (nearest-rank) and avg/min/max.

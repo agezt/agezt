@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"net"
 	"sort"
+	"time"
 
 	"github.com/agezt/agezt/kernel/event"
 )
@@ -219,6 +220,12 @@ func (s *Server) handleRunsList(conn net.Conn, req Request) {
 // "how long do finished runs take", so completed-only is the
 // honest denominator. The completed/abandoned/running split is
 // reported separately so nothing is hidden.
+//
+// Optional time window (M33): args.since_ms restricts the stats to
+// runs that STARTED within the last since_ms (server clock). 0 or
+// absent = all-time (the original behaviour). A windowed view is
+// "how have runs done in the last hour" — the failure/timeout/
+// canceled terminal terms make that rate meaningful.
 func (s *Server) handleRunsStats(conn net.Conn, req Request) {
 	runs, err := s.collectRuns()
 	if err != nil {
@@ -226,10 +233,33 @@ func (s *Server) handleRunsStats(conn net.Conn, req Request) {
 		return
 	}
 
+	// Resolve the optional window. cutoff==0 means "no filter". We compute
+	// the cutoff against the server's clock, which is the same clock that
+	// stamped the events' TSUnixMS — so the comparison is apples-to-apples.
+	sinceMS := int64(0)
+	switch v := req.Args["since_ms"].(type) {
+	case float64:
+		sinceMS = int64(v)
+	case int64:
+		sinceMS = v
+	case int:
+		sinceMS = int64(v)
+	}
+	var cutoff int64
+	if sinceMS > 0 {
+		cutoff = time.Now().UnixMilli() - sinceMS
+	}
+
 	var total, completed, failed, running, abandoned int
 	var itersSum int
 	durations := make([]int64, 0, len(runs)) // completed runs only, for percentiles
 	for _, r := range runs {
+		// Windowed: keep only runs that started at/after the cutoff. A run
+		// with no recorded start (the completed-without-received edge) can't
+		// be placed on the timeline, so it's excluded from a windowed view.
+		if cutoff > 0 && (r.StartedUnixMS == 0 || r.StartedUnixMS < cutoff) {
+			continue
+		}
 		total++
 		switch {
 		case r.Completed:
@@ -280,6 +310,8 @@ func (s *Server) handleRunsStats(conn net.Conn, req Request) {
 			"terminal":     terminal,
 			"success_rate": successRate,
 			"avg_iters":    avgIters,
+			// 0 = all-time; >0 = the window width in ms the stats cover (M33).
+			"window_ms": sinceMS,
 			"duration_ms": map[string]any{
 				"count": len(durations),
 				"avg":   dstats.avg,

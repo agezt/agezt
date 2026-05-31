@@ -368,8 +368,13 @@ const (
 	// task.received/completed/abandoned events CmdRunsList pairs,
 	// but over ALL runs (no limit/sort window — a "last N" stat
 	// would make success-rate and percentiles meaningless).
-	// Args: none.
+	// Args:
+	//   - since_ms : int (optional) — restrict to runs that STARTED
+	//                within the last since_ms (server clock). 0/absent
+	//                = all-time. A windowed view answers "how have runs
+	//                done in the last hour" (M33).
 	// Returns:
+	//   - window_ms   : int — the window width covered (0 = all-time)
 	//   - total       : int — distinct correlation ids seen
 	//   - completed    : int — runs with a task.completed
 	//   - failed       : int — runs with a task.failed (M30)
