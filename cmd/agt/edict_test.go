@@ -158,6 +158,43 @@ func TestCmdEdictLevel_HelpDocsLevels(t *testing.T) {
 	}
 }
 
+// TestCmdEdict_HelpDocsMode — the dispatcher's help must mention `mode`.
+func TestCmdEdict_HelpDocsMode(t *testing.T) {
+	var out, errOut bytes.Buffer
+	if code := cmdEdict([]string{"--help"}, &out, &errOut); code != 0 {
+		t.Fatalf("exit=%d want 0", code)
+	}
+	if !strings.Contains(out.String(), "mode") {
+		t.Errorf("--help missing `mode`; got %q", out.String())
+	}
+}
+
+// TestCmdEdictMode_RequiresMode — `mode` with no arg is a usage error
+// surfaced before any daemon dial.
+func TestCmdEdictMode_RequiresMode(t *testing.T) {
+	var out, errOut bytes.Buffer
+	if code := cmdEdictMode(nil, &out, &errOut); code != 2 {
+		t.Errorf("exit=%d want 2", code)
+	}
+	if !strings.Contains(errOut.String(), "mode required") {
+		t.Errorf("stderr missing mode-required note; got %q", errOut.String())
+	}
+}
+
+// TestCmdEdictMode_HelpDocsModes — help must teach allow/deny/prompt.
+func TestCmdEdictMode_HelpDocsModes(t *testing.T) {
+	var out, errOut bytes.Buffer
+	if code := cmdEdictMode([]string{"--help"}, &out, &errOut); code != 0 {
+		t.Fatalf("exit=%d want 0", code)
+	}
+	s := out.String()
+	for _, want := range []string{"allow", "deny", "prompt"} {
+		if !strings.Contains(s, want) {
+			t.Errorf("--help missing %q; got %q", want, s)
+		}
+	}
+}
+
 // TestCmdEdictShow_HelpDocsJSON — operators must discover
 // --json from the help text.
 func TestCmdEdictShow_HelpDocsJSON(t *testing.T) {

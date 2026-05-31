@@ -267,19 +267,39 @@ func (s *Server) handleEdictSetLevel(conn net.Conn, req Request) {
 	})
 }
 
-// askPolicyLabel maps the AskPolicy enum to the operator-facing
-// strings AGEZT_APPROVAL_MODE accepts. Kept here (vs adding
-// String() on the enum) because the daemon-facing env var
-// vocabulary belongs to the daemon, not the kernel policy engine.
-func askPolicyLabel(p edict.AskPolicy) string {
-	switch p {
-	case edict.AskAllow:
-		return "allow"
-	case edict.AskDeny:
-		return "deny"
-	case edict.AskPrompt:
-		return "prompt"
-	default:
-		return "unknown"
+// handleEdictSetMode changes the engine-wide approval mode at runtime and
+// journals a policy.changed event. The mode string is parsed leniently
+// (allow/deny/prompt); the previous mode is captured for the event +
+// response so the change is fully reconstructable (and replayable, M20).
+func (s *Server) handleEdictSetMode(conn net.Conn, req Request) {
+	modeStr, _ := req.Args["mode"].(string)
+	mode, err := edict.ParseAskPolicy(modeStr)
+	if err != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		return
 	}
+	eng := s.k.Edict()
+	from := eng.AskPolicy().String()
+	eng.SetAskPolicy(mode)
+	to := mode.String()
+
+	_, _ = s.k.Bus().Publish(event.Spec{
+		Subject: "kernel.policy",
+		Kind:    event.KindPolicyChanged,
+		Actor:   "operator",
+		Payload: map[string]any{
+			"action": "mode.set",
+			"from":   from,
+			"to":     to,
+		},
+	})
+	s.writeResp(conn, Response{
+		ID:     req.ID,
+		Type:   RespResult,
+		Result: map[string]any{"from": from, "to": to},
+	})
 }
+
+// askPolicyLabel maps the AskPolicy enum to the operator-facing strings
+// AGEZT_APPROVAL_MODE accepts — now a thin alias over AskPolicy.String().
+func askPolicyLabel(p edict.AskPolicy) string { return p.String() }

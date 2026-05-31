@@ -237,6 +237,45 @@ func TestEdictSetLevel_FloorStillFires(t *testing.T) {
 	}
 }
 
+// TestEdictSetMode_RuntimeChange flips the approval mode to deny and
+// confirms edict_show reflects it and an Ask-class capability now denies,
+// then flips to prompt. Rejects an unknown mode.
+func TestEdictSetMode_RuntimeChange(t *testing.T) {
+	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	ctx := context.Background()
+
+	set, err := c.Call(ctx, controlplane.CmdEdictSetMode, map[string]any{"mode": "deny"})
+	if err != nil {
+		t.Fatalf("set mode: %v", err)
+	}
+	if from, _ := set["from"].(string); from != "allow" {
+		t.Errorf("from = %q want allow (default)", from)
+	}
+	if to, _ := set["to"].(string); to != "deny" {
+		t.Errorf("to = %q want deny", to)
+	}
+
+	show, _ := c.Call(ctx, controlplane.CmdEdictShow, nil)
+	if ap, _ := show["ask_policy"].(string); ap != "deny" {
+		t.Errorf("edict show ask_policy = %q want deny", ap)
+	}
+
+	// shell is L2 (ask-class) by default; under AskDeny it must now deny.
+	probe, _ := c.Call(ctx, controlplane.CmdEdictTest, map[string]any{
+		"capability": "shell", "input": "echo hi",
+	})
+	if d, _ := probe["decision"].(string); d != "deny" {
+		t.Errorf("under deny mode, ask-class shell should deny; got %q", d)
+	}
+
+	if _, err := c.Call(ctx, controlplane.CmdEdictSetMode, map[string]any{"mode": "prompt"}); err != nil {
+		t.Fatalf("set mode prompt: %v", err)
+	}
+	if _, err := c.Call(ctx, controlplane.CmdEdictSetMode, map[string]any{"mode": "loose"}); err == nil {
+		t.Error("unknown mode should error")
+	}
+}
+
 // TestEdictShow_HardDenyRulesAreSortedByName covers the
 // deterministic-output promise. Operators diffing `agt edict
 // show` output across calls/deployments shouldn't see the row

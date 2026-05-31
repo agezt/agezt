@@ -235,6 +235,15 @@ const (
 	// Returns: {capability, from, to} — the previous and new level labels.
 	CmdEdictSetLevel = "edict_set_level"
 
+	// CmdEdictSetMode changes the engine-wide approval mode (how Ask-class
+	// levels L1..L3 are folded) at runtime — no restart. The third runtime
+	// policy knob alongside CmdEdictDeny* and CmdEdictSetLevel. The hard-deny
+	// floor is unaffected (it fires before AskPolicy), so even `allow` mode
+	// can't relax a hard-deny. Journaled as a policy.changed event. Args:
+	//   - mode : string (required) — "allow" | "deny" | "prompt".
+	// Returns: {from, to} — the previous and new mode labels.
+	CmdEdictSetMode = "edict_set_mode"
+
 	// CmdStateList enumerates namespaces and (optionally) keys in
 	// the kernel state store. State is normally invisible to
 	// operators — agents and the scheduler write here but there's

@@ -32,17 +32,73 @@ func cmdEdict(args []string, stdout, stderr io.Writer) int {
 		return cmdEdictDeny(args[1:], stdout, stderr)
 	case "level":
 		return cmdEdictLevel(args[1:], stdout, stderr)
+	case "mode":
+		return cmdEdictMode(args[1:], stdout, stderr)
 	case "-h", "--help", "help":
 		fmt.Fprintf(stdout, "usage: %s edict <subcommand>\n", brand.CLI)
 		fmt.Fprintf(stdout, "  show [--json]                          display loaded policies\n")
 		fmt.Fprintf(stdout, "  test <capability> [<input>] [--json]   dry-run a decision; no side effects\n")
 		fmt.Fprintf(stdout, "  deny list|add|rm ...                   manage hard-deny rules at runtime\n")
 		fmt.Fprintf(stdout, "  level <capability> <level> [--json]    set a capability's trust level at runtime\n")
+		fmt.Fprintf(stdout, "  mode <allow|deny|prompt> [--json]      set the approval mode at runtime\n")
 		return 0
 	default:
-		fmt.Fprintf(stderr, "%s edict: unknown subcommand %q (show|test|deny|level)\n", brand.CLI, args[0])
+		fmt.Fprintf(stderr, "%s edict: unknown subcommand %q (show|test|deny|level|mode)\n", brand.CLI, args[0])
 		return 2
 	}
+}
+
+// cmdEdictMode implements `agt edict mode <allow|deny|prompt> [--json]`.
+// Changes the engine-wide approval mode on the running daemon (M21): how
+// Ask-class levels (L1..L3) are folded — allow (fold to allow + journal
+// note), deny (strict; only L4 runs), or prompt (block for live HITL).
+// The hard-deny floor is unaffected. Journaled as a policy.changed event.
+func cmdEdictMode(args []string, stdout, stderr io.Writer) int {
+	asJSON := false
+	var mode string
+	for _, a := range args {
+		switch a {
+		case "--json":
+			asJSON = true
+		case "-h", "--help":
+			fmt.Fprintf(stdout, "usage: %s edict mode <allow|deny|prompt> [--json]\n", brand.CLI)
+			fmt.Fprintf(stdout, "allow = fold Ask to allow; deny = strict (only L4); prompt = live HITL\n")
+			return 0
+		default:
+			if mode == "" {
+				mode = a
+				continue
+			}
+			fmt.Fprintf(stderr, "%s edict mode: unexpected arg %q (mode already set)\n", brand.CLI, a)
+			return 2
+		}
+	}
+	if mode == "" {
+		fmt.Fprintf(stderr, "%s edict mode: mode required (allow|deny|prompt)\n", brand.CLI)
+		return 2
+	}
+
+	c := dial(stderr)
+	if c == nil {
+		return 1
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	res, err := c.Call(ctx, controlplane.CmdEdictSetMode, map[string]any{"mode": mode})
+	if err != nil {
+		fmt.Fprintf(stderr, "%s edict mode: %v\n", brand.CLI, err)
+		return 1
+	}
+	if asJSON {
+		enc := json.NewEncoder(stdout)
+		enc.SetIndent("", "  ")
+		_ = enc.Encode(res)
+		return 0
+	}
+	from, _ := res["from"].(string)
+	to, _ := res["to"].(string)
+	fmt.Fprintf(stdout, "approval mode: %s → %s\n", from, to)
+	return 0
 }
 
 // cmdEdictLevel implements `agt edict level <capability> <level> [--json]`.

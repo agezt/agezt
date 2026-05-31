@@ -359,7 +359,13 @@ func runDaemon(stdout, stderr io.Writer) int {
 			return 1
 		}
 		nl, nr := k.Edict().ApplyOverlay(overlay)
-		askPolicyDesc += fmt.Sprintf("; durable=on (restored %d level(s), %d deny rule(s))", nl, nr)
+		restored := fmt.Sprintf("restored %d level(s), %d deny rule(s)", nl, nr)
+		if overlay.Mode != nil {
+			// A restored mode overrides the boot AskPolicy — call it out so
+			// the banner's mode label isn't silently stale.
+			restored += "; mode=" + overlay.Mode.String()
+		}
+		askPolicyDesc += "; durable=on (" + restored + ")"
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())

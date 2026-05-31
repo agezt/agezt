@@ -12,6 +12,19 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Runtime approval-mode changes** (DECISIONS F3, M21) — the third and final
+  runtime policy knob, alongside deny rules (M18) and trust levels (M19). `agt
+  edict mode <allow|deny|prompt>` changes how Ask-class levels (L1..L3) are
+  folded on a running daemon — `deny` for strict (only L4 runs), `prompt` for
+  live HITL, `allow` to fold-and-journal — no restart. The hard-deny floor is
+  unaffected (it fires before AskPolicy), so no mode can relax a hard-deny.
+  Journaled as a `policy.changed` event (`action=mode.set`, `from`/`to`) and —
+  because it flows through the same event — **durable for free** under M20:
+  `AGEZT_EDICT_DURABLE=on` replays it, the banner shows `mode=deny` restored.
+  Proven live: `mode deny` makes ask-class shell deny; after a full restart the
+  mode is restored without re-setting; an unknown mode is rejected. This
+  completes the runtime-policy surface (deny · level · mode), all three
+  runtime-manageable and durable. See `.project/PHASE-M21-EDICT-MODE-REPORT.md`.
 - **Durable runtime policy** (DECISIONS F3/F4, M20) — runtime deny rules (M18)
   and trust-level changes (M19) lived only in the running engine and reverted on
   restart. They were already journaled as `policy.changed` events; with

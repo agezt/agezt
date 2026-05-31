@@ -168,6 +168,37 @@ const (
 	AskPrompt
 )
 
+// String returns the operator-facing label for an AskPolicy — the same
+// vocabulary AGEZT_APPROVAL_MODE accepts and `agt edict show` prints.
+func (p AskPolicy) String() string {
+	switch p {
+	case AskAllow:
+		return "allow"
+	case AskDeny:
+		return "deny"
+	case AskPrompt:
+		return "prompt"
+	default:
+		return "unknown"
+	}
+}
+
+// ParseAskPolicy parses an operator-facing approval-mode string into an
+// AskPolicy. Accepts allow/deny/prompt (case-insensitive); unknown input
+// is an error, never a silent default — a typo must not quietly flip the
+// daemon into a different approval posture.
+func ParseAskPolicy(s string) (AskPolicy, error) {
+	switch strings.ToLower(strings.TrimSpace(s)) {
+	case "allow":
+		return AskAllow, nil
+	case "deny":
+		return AskDeny, nil
+	case "prompt":
+		return AskPrompt, nil
+	}
+	return 0, fmt.Errorf("edict: unknown approval mode %q (want allow/deny/prompt)", s)
+}
+
 // HardDenyRule is a single hard-deny pattern.
 type HardDenyRule struct {
 	Name      string       // human label, included in the Outcome
@@ -247,6 +278,15 @@ func (e *Engine) AskPolicy() AskPolicy {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 	return e.askPolicy
+}
+
+// SetAskPolicy changes the engine-wide approval mode at runtime. The
+// hard-deny floor is unaffected (it fires before AskPolicy is consulted),
+// so even AskAllow can't relax a hard-deny. Safe for concurrent use.
+func (e *Engine) SetAskPolicy(p AskPolicy) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.askPolicy = p
 }
 
 // New builds an Engine. Unset Options fall back to DefaultLevels +
@@ -517,12 +557,15 @@ type PolicyChange struct {
 type PolicyOverlay struct {
 	Levels    map[Capability]TrustLevel
 	DenyRules []HardDenyRule
+	// Mode, when non-nil, is the net runtime approval-mode override. A
+	// pointer so "no mode change in history" is distinct from AskAllow (0).
+	Mode *AskPolicy
 }
 
 // IsEmpty reports whether the overlay carries no changes — lets a caller
 // skip the apply (and a banner line) when there's nothing to restore.
 func (o PolicyOverlay) IsEmpty() bool {
-	return len(o.Levels) == 0 && len(o.DenyRules) == 0
+	return len(o.Levels) == 0 && len(o.DenyRules) == 0 && o.Mode == nil
 }
 
 // ProjectPolicyChanges folds an ordered sequence of policy.changed events
@@ -540,8 +583,13 @@ func ProjectPolicyChanges(changes []PolicyChange) PolicyOverlay {
 	levels := map[Capability]TrustLevel{}
 	denyByName := map[string]HardDenyRule{}
 	var order []string // surviving deny names, in add order
+	var mode *AskPolicy
 	for _, ch := range changes {
 		switch ch.Action {
+		case "mode.set":
+			if p, err := ParseAskPolicy(ch.To); err == nil {
+				mode = &p // last-wins
+			}
 		case "level.set":
 			if ch.Capability == "" {
 				continue
@@ -577,7 +625,7 @@ func ProjectPolicyChanges(changes []PolicyChange) PolicyOverlay {
 			}
 		}
 	}
-	overlay := PolicyOverlay{}
+	overlay := PolicyOverlay{Mode: mode}
 	if len(levels) > 0 {
 		overlay.Levels = levels
 	}
@@ -593,6 +641,9 @@ func ProjectPolicyChanges(changes []PolicyChange) PolicyOverlay {
 // for an operator banner. Used by the daemon when AGEZT_EDICT_DURABLE is
 // on to restore runtime policy from the journal.
 func (e *Engine) ApplyOverlay(o PolicyOverlay) (levels, rules int) {
+	if o.Mode != nil {
+		e.SetAskPolicy(*o.Mode)
+	}
 	for cap, lvl := range o.Levels {
 		e.SetLevel(cap, lvl)
 		levels++

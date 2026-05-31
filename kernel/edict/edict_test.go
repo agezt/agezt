@@ -200,6 +200,54 @@ func TestProjectPolicyChanges(t *testing.T) {
 	}
 }
 
+func TestParseAskPolicy_RoundTrip(t *testing.T) {
+	for _, p := range []AskPolicy{AskAllow, AskDeny, AskPrompt} {
+		got, err := ParseAskPolicy(p.String())
+		if err != nil || got != p {
+			t.Errorf("round-trip %v: got %v, %v", p, got, err)
+		}
+	}
+	if _, err := ParseAskPolicy("permit"); err == nil {
+		t.Error("unknown mode should error")
+	}
+}
+
+func TestSetAskPolicy_TakesEffect(t *testing.T) {
+	e := New(Options{Levels: map[Capability]TrustLevel{CapShell: LevelAskFirst}})
+	// Default AskAllow folds L2 → allow.
+	if o := e.Decide(CapShell, "echo"); o.Decision != DecisionAllow {
+		t.Fatalf("default should allow: %v", o)
+	}
+	e.SetAskPolicy(AskDeny)
+	if o := e.Decide(CapShell, "echo"); o.Decision != DecisionDeny {
+		t.Errorf("after SetAskPolicy(AskDeny), L2 should deny: %v", o)
+	}
+	// The hard-deny floor still fires regardless of mode.
+	e.SetAskPolicy(AskAllow)
+	e.SetLevel(CapShell, LevelAllow)
+	if o := e.Decide(CapShell, "rm -rf /"); !o.HardDenied {
+		t.Error("floor must fire regardless of mode/level")
+	}
+}
+
+func TestProjectPolicyChanges_Mode(t *testing.T) {
+	// mode.set is last-wins; an unparseable mode is skipped.
+	o := ProjectPolicyChanges([]PolicyChange{
+		{Action: "mode.set", To: "deny"},
+		{Action: "mode.set", To: "prompt"},
+		{Action: "mode.set", To: "bogus"}, // skipped
+	})
+	if o.Mode == nil || *o.Mode != AskPrompt {
+		t.Fatalf("mode = %v want prompt", o.Mode)
+	}
+	// Applying the overlay flips the engine into prompt mode.
+	e := New(Options{})
+	e.ApplyOverlay(o)
+	if e.AskPolicy() != AskPrompt {
+		t.Errorf("engine mode = %v want prompt", e.AskPolicy())
+	}
+}
+
 func TestProjectPolicyChanges_EmptyHistory(t *testing.T) {
 	o := ProjectPolicyChanges(nil)
 	if !o.IsEmpty() {
