@@ -773,3 +773,114 @@ func TestGovernor_StableSortWithinSameTier(t *testing.T) {
 		t.Errorf("b should be tried after a fails (calls=%d)", b.calls.Load())
 	}
 }
+
+// capLookup builds a ModelToolCapable func from a fixed map of model→toolcap;
+// any model absent from the map reports known=false.
+func capLookup(m map[string]bool) func(string) (bool, bool) {
+	return func(model string) (bool, bool) {
+		c, ok := m[model]
+		return c, ok
+	}
+}
+
+func TestStrictCapabilities_RejectsToolsOnNonToolModel(t *testing.T) {
+	b, j := newBus(t)
+	r := governor.NewRegistry()
+	prov := &fakeProvider{name: "p", resp: okResp("mini", 1, 1)}
+	mustRegister(t, r, &governor.ProviderInfo{Name: "p", Provider: prov, AuthMode: governor.AuthAPIKey})
+	g, err := governor.New(governor.Config{
+		Registry:                r,
+		Bus:                     b,
+		StrictModelCapabilities: true,
+		ModelToolCapable:        capLookup(map[string]bool{"mini": false}),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = g.Complete(context.Background(), agent.CompletionRequest{
+		Model: "mini",
+		Tools: []agent.ToolDef{{Name: "shell"}},
+	})
+	if !errors.Is(err, governor.ErrModelLacksToolUse) {
+		t.Fatalf("err = %v, want ErrModelLacksToolUse", err)
+	}
+	// The provider must NOT have been called (pre-flight reject).
+	if prov.calls.Load() != 0 {
+		t.Errorf("provider was called %d times; expected 0 (pre-flight reject)", prov.calls.Load())
+	}
+	// A capability.rejected event must be journaled.
+	found := false
+	_ = j.Range(func(e *event.Event) error {
+		if e.Kind == event.KindCapabilityRejected {
+			found = true
+		}
+		return nil
+	})
+	if !found {
+		t.Error("expected a capability.rejected event in the journal")
+	}
+}
+
+func TestStrictCapabilities_AllowsWhenNoTools(t *testing.T) {
+	r := governor.NewRegistry()
+	prov := &fakeProvider{name: "p", resp: okResp("mini", 1, 1)}
+	mustRegister(t, r, &governor.ProviderInfo{Name: "p", Provider: prov, AuthMode: governor.AuthAPIKey})
+	g, _ := governor.New(governor.Config{
+		Registry:                r,
+		StrictModelCapabilities: true,
+		ModelToolCapable:        capLookup(map[string]bool{"mini": false}),
+	})
+	// No tools in the request → the gate doesn't apply.
+	if _, err := g.Complete(context.Background(), agent.CompletionRequest{Model: "mini"}); err != nil {
+		t.Errorf("non-tool request should pass on a non-tool model; got %v", err)
+	}
+}
+
+func TestStrictCapabilities_UnknownModelNotBlocked(t *testing.T) {
+	r := governor.NewRegistry()
+	prov := &fakeProvider{name: "p", resp: okResp("who", 1, 1)}
+	mustRegister(t, r, &governor.ProviderInfo{Name: "p", Provider: prov, AuthMode: governor.AuthAPIKey})
+	g, _ := governor.New(governor.Config{
+		Registry:                r,
+		StrictModelCapabilities: true,
+		ModelToolCapable:        capLookup(map[string]bool{"mini": false}), // "who" absent → unknown
+	})
+	// Unknown model must not be blocked even with tools (catalog-gap safety).
+	if _, err := g.Complete(context.Background(), agent.CompletionRequest{
+		Model: "who", Tools: []agent.ToolDef{{Name: "shell"}},
+	}); err != nil {
+		t.Errorf("unknown model must not be blocked; got %v", err)
+	}
+}
+
+func TestStrictCapabilities_OffByDefault(t *testing.T) {
+	r := governor.NewRegistry()
+	prov := &fakeProvider{name: "p", resp: okResp("mini", 1, 1)}
+	mustRegister(t, r, &governor.ProviderInfo{Name: "p", Provider: prov, AuthMode: governor.AuthAPIKey})
+	// Strict OFF: even a tools request to a non-tool model passes (advisory-only).
+	g, _ := governor.New(governor.Config{
+		Registry:         r,
+		ModelToolCapable: capLookup(map[string]bool{"mini": false}),
+	})
+	if _, err := g.Complete(context.Background(), agent.CompletionRequest{
+		Model: "mini", Tools: []agent.ToolDef{{Name: "shell"}},
+	}); err != nil {
+		t.Errorf("strict off: request should pass; got %v", err)
+	}
+}
+
+func TestStrictCapabilities_AllowsToolCapableModel(t *testing.T) {
+	r := governor.NewRegistry()
+	prov := &fakeProvider{name: "p", resp: okResp("big", 1, 1)}
+	mustRegister(t, r, &governor.ProviderInfo{Name: "p", Provider: prov, AuthMode: governor.AuthAPIKey})
+	g, _ := governor.New(governor.Config{
+		Registry:                r,
+		StrictModelCapabilities: true,
+		ModelToolCapable:        capLookup(map[string]bool{"big": true}),
+	})
+	if _, err := g.Complete(context.Background(), agent.CompletionRequest{
+		Model: "big", Tools: []agent.ToolDef{{Name: "shell"}},
+	}); err != nil {
+		t.Errorf("tool-capable model should pass; got %v", err)
+	}
+}

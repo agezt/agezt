@@ -91,6 +91,22 @@ type Config struct {
 	// a per-tenant governor can stop one tenant flooding the shared
 	// provider pool even while under its daily budget (M14 quotas).
 	RateLimitPerMin int
+
+	// ModelToolCapable, when set, reports whether the given model id
+	// advertises tool-use (capable) and whether the catalog knows the
+	// model at all (known). Injected by the daemon (backed by the model
+	// catalog) so the Governor stays decoupled from kernel/catalog. Used
+	// only when StrictModelCapabilities is on. Nil disables the gate.
+	ModelToolCapable func(model string) (capable, known bool)
+
+	// StrictModelCapabilities turns the tool-use capability check into a
+	// hard pre-flight error (M25). Off by default — the boot advisory
+	// (M24) already informs without blocking. When on, a tools-bearing
+	// request to a model the catalog KNOWS lacks tool-use is rejected
+	// before any provider call; unknown models are never blocked (a
+	// catalog-data gap must not break a working setup), and non-tool
+	// requests pass regardless.
+	StrictModelCapabilities bool
 }
 
 // Governor is the per-task routing + budget layer.
@@ -184,6 +200,11 @@ var ErrTaskBudgetExceeded = fmt.Errorf("%w: task type", ErrBudgetExceeded)
 // tried, so the fallback chain never sees it.
 var ErrRateLimited = errors.New("governor: rate limit exceeded")
 
+// ErrModelLacksToolUse is returned (only in StrictModelCapabilities mode)
+// when a tools-bearing request targets a model the catalog knows does not
+// advertise tool-use. A pre-flight error — no provider is called.
+var ErrModelLacksToolUse = errors.New("governor: model does not support tool-use")
+
 // ErrNoProviders is returned when no provider in the chain succeeded.
 type ErrNoProviders struct {
 	Tried []string
@@ -211,6 +232,28 @@ func (g *Governor) Complete(ctx context.Context, req agent.CompletionRequest) (*
 	if len(g.cfg.TaskModelOverrides) > 0 && req.TaskType != "" {
 		if newModel, ok := g.cfg.TaskModelOverrides[req.TaskType]; ok {
 			req.Model = newModel
+		}
+	}
+
+	// Model capability gate (M25). In strict mode, a tools-bearing request
+	// to a model the catalog KNOWS lacks tool-use is rejected pre-flight —
+	// converting a confusing deep upstream failure into a clear, journaled
+	// error. Checked against the final req.Model (after any task override).
+	// Unknown models are never blocked; non-tool requests pass regardless.
+	if g.cfg.StrictModelCapabilities && g.cfg.ModelToolCapable != nil && len(req.Tools) > 0 {
+		if capable, known := g.cfg.ModelToolCapable(req.Model); known && !capable {
+			g.publish(event.Spec{
+				Subject: "governor.capability",
+				Kind:    event.KindCapabilityRejected,
+				Actor:   "governor",
+				Payload: map[string]any{
+					"model":           req.Model,
+					"capability":      "tool_call",
+					"tools_requested": len(req.Tools),
+				},
+			})
+			return nil, fmt.Errorf("%w: model %q (request carries %d tool(s))",
+				ErrModelLacksToolUse, req.Model, len(req.Tools))
 		}
 	}
 

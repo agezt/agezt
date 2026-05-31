@@ -12,6 +12,19 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Strict model-capability enforcement** (SPEC-15, M25) — the enforcement step
+  after the M23/M24 advisories. `AGEZT_MODEL_STRICT=on` makes the Governor reject
+  a tools-bearing request whose target model the catalog *knows* lacks tool-use,
+  pre-flight — turning a confusing deep upstream failure into a clear
+  `governor: model does not support tool-use` error before any provider is
+  called, journaled as a `capability.rejected` event. Conservative by design:
+  off by default (advisory-only), only blocks models the catalog actually knows
+  (an unknown/local model is never blocked — a catalog-data gap must not break a
+  working setup), and non-tool requests always pass. Per-tenant governors inherit
+  it (the Config is copied by `WithLimits`). Proven live both ways: with strict
+  on, a 7-tool run is rejected pre-flight and journaled; with strict off
+  (default) the same run flows through the chain. See
+  `.project/PHASE-M25-STRICT-CAPABILITIES-REPORT.md`.
 - **Boot-time model advisory** (SPEC-15, M24) — the daemon now surfaces the M23
   agent-readiness check at startup: when the auto-selected primary model is in
   the catalog and doesn't advertise tool-use (or has a tiny context window), the

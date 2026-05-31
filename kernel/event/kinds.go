@@ -58,6 +58,10 @@ const (
 	KindProviderFallback Kind = "provider.fallback"
 	KindBudgetExceeded   Kind = "budget.exceeded"
 	KindRateLimited      Kind = "rate.limited"
+	// KindCapabilityRejected records a pre-flight rejection of a request
+	// because the target model lacks a required capability (M25 strict
+	// mode: a tools-bearing request to a non-tool model).
+	KindCapabilityRejected Kind = "capability.rejected"
 
 	// Warden (P1-WARD-*).
 	KindWardenExecuted          Kind = "warden.executed"
@@ -178,6 +182,7 @@ var knownKinds = map[Kind]struct{}{
 	KindProviderFallback:          {},
 	KindBudgetExceeded:            {},
 	KindRateLimited:               {},
+	KindCapabilityRejected:        {},
 	KindWardenExecuted:            {},
 	KindWardenProfileDowngraded:   {},
 	KindWardenLimitExceeded:       {},

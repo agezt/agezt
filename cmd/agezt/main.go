@@ -1301,19 +1301,37 @@ func buildGovernor(cat *catalog.Catalog, lookup func(string) string) (*governor.
 		taskBudgets = parsed
 	}
 
+	// Model capability gate (M25). Opt-in via AGEZT_MODEL_STRICT=on: a
+	// tools-bearing request to a catalog-known model that lacks tool-use is
+	// rejected pre-flight instead of failing deep in the provider call. The
+	// catalog backs the lookup; per-tenant governors inherit it via
+	// WithLimits (the whole Config is copied).
+	strictCaps := strings.EqualFold(os.Getenv(brand.EnvPrefix+"MODEL_STRICT"), "on")
+
 	gov, err := governor.New(governor.Config{
-		Registry:               reg,
-		DailyCeilingMicrocents: ceiling,
-		TaskRoutes:             taskRoutes,
-		TaskRouteRequires:      taskRequires,
-		TaskModelOverrides:     taskModels,
-		TaskBudgets:            taskBudgets,
+		Registry:                reg,
+		DailyCeilingMicrocents:  ceiling,
+		TaskRoutes:              taskRoutes,
+		TaskRouteRequires:       taskRequires,
+		TaskModelOverrides:      taskModels,
+		TaskBudgets:             taskBudgets,
+		StrictModelCapabilities: strictCaps,
+		ModelToolCapable: func(model string) (bool, bool) {
+			_, m := cat.FindModel(model)
+			if m == nil {
+				return false, false
+			}
+			return m.ToolCall, true
+		},
 	})
 	if err != nil {
 		return nil, "", "", err
 	}
 	desc := fmt.Sprintf("primary=%s%s, daily_ceiling=$%.2f",
 		primaryDesc, fallbackDesc, float64(ceiling)/1e9)
+	if strictCaps {
+		desc += ", strict-capabilities"
+	}
 	if extraProviders > 0 {
 		desc += fmt.Sprintf(", model-routable_alternates=%d", extraProviders)
 	}
