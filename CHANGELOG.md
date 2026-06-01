@@ -21,6 +21,11 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   input/output excerpts. See `.project/PHASE-M68-ARC-HONESTY-REPORT.md`.
 
 ### Added
+- **`agt edict log` tool & capability filters** (Edict observability, M74) —
+  `--tool <name>` and `--capability <cap>` (alias `--cap`) scope the policy-
+  decision log, the drill-down from `agt edict stats`' denied-by-capability
+  breakdown. Compose with `--denied` / `--since`. See
+  `.project/PHASE-M74-EDICT-LOG-FILTERS-REPORT.md`.
 - **`agt tool log --slow <dur>` latency filter** (SPEC-08, M73) — the
   performance-hunting counterpart to `--errors`: keeps only tool calls whose
   invoked→result latency is at/above the floor, applied server-side before the

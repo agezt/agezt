@@ -134,3 +134,58 @@ func TestEdictLog_SinceWindow(t *testing.T) {
 		t.Errorf("1ms window decisions = %d want 0", len(got))
 	}
 }
+
+// TestEdictLog_ToolAndCapabilityFilters — `agt edict log --tool` / `--capability`
+// scope the decision log, the drill-down from edict stats' breakdown (M74).
+func TestEdictLog_ToolAndCapabilityFilters(t *testing.T) {
+	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	dec := func(tool, capability string, allow bool) {
+		_, _ = k.Bus().Publish(event.Spec{
+			Subject: "policy", Kind: event.KindPolicyDecision, Actor: "agent-x",
+			CorrelationID: "run-1",
+			Payload: map[string]any{
+				"tool": tool, "capability": capability, "allow": allow, "reason": "t",
+			},
+		})
+	}
+	dec("shell", "shell", true)
+	dec("http", "net", false)
+	dec("curl", "net", false)
+
+	// --tool shell → 1.
+	tres, err := c.Call(context.Background(), controlplane.CmdEdictLog,
+		map[string]any{"tool": "shell"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := tres["decisions"].([]any); len(got) != 1 {
+		t.Errorf("--tool shell = %d want 1", len(got))
+	}
+
+	// --capability net → 2 (http + curl).
+	cres, err := c.Call(context.Background(), controlplane.CmdEdictLog,
+		map[string]any{"capability": "net"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	netd, _ := cres["decisions"].([]any)
+	if len(netd) != 2 {
+		t.Fatalf("--capability net = %d want 2", len(netd))
+	}
+	for _, raw := range netd {
+		m, _ := raw.(map[string]any)
+		if m["capability"] != "net" {
+			t.Errorf("--capability net returned %v", m["capability"])
+		}
+	}
+
+	// Combined with --denied: net + denied → still 2 (both net are denials).
+	dres, err := c.Call(context.Background(), controlplane.CmdEdictLog,
+		map[string]any{"capability": "net", "denied": true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := dres["decisions"].([]any); len(got) != 2 {
+		t.Errorf("--capability net --denied = %d want 2", len(got))
+	}
+}

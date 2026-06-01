@@ -36,7 +36,9 @@ func (s *Server) handleEdictLog(conn net.Conn, req Request) {
 		limit = maxRunsLimit
 	}
 	deniedOnly, _ := req.Args["denied"].(bool)
-	cutoff := sinceCutoff(req.Args["since_ms"]) // M65: optional time window
+	toolFilter, _ := req.Args["tool"].(string)      // M74: scope to one tool
+	capFilter, _ := req.Args["capability"].(string) // M74: scope to one capability
+	cutoff := sinceCutoff(req.Args["since_ms"])     // M65: optional time window
 
 	k, err := s.kernelFor(tenantOf(req))
 	if err != nil {
@@ -62,6 +64,12 @@ func (s *Server) handleEdictLog(conn net.Conn, req Request) {
 		}
 		d := decodePolicyDecision(e.Payload)
 		if deniedOnly && d.allow {
+			return nil
+		}
+		if toolFilter != "" && d.tool != toolFilter {
+			return nil
+		}
+		if capFilter != "" && d.capability != capFilter {
 			return nil
 		}
 		decisions = append(decisions, decision{

@@ -65,6 +65,8 @@ func cmdEdictLog(args []string, stdout, stderr io.Writer) int {
 	limit := 0
 	tenant := ""
 	sinceMS := int64(0)
+	toolFilter := ""
+	capFilter := ""
 	for i := 0; i < len(args); i++ {
 		a := args[i]
 		switch {
@@ -72,6 +74,26 @@ func cmdEdictLog(args []string, stdout, stderr io.Writer) int {
 			asJSON = true
 		case a == "--denied":
 			deniedOnly = true
+		case a == "--tool":
+			if i+1 >= len(args) {
+				fmt.Fprintf(stderr, "%s edict log: --tool needs a name\n", brand.CLI)
+				return 2
+			}
+			i++
+			toolFilter = args[i]
+		case strings.HasPrefix(a, "--tool="):
+			toolFilter = strings.TrimPrefix(a, "--tool=")
+		case a == "--capability" || a == "--cap":
+			if i+1 >= len(args) {
+				fmt.Fprintf(stderr, "%s edict log: --capability needs a name\n", brand.CLI)
+				return 2
+			}
+			i++
+			capFilter = args[i]
+		case strings.HasPrefix(a, "--capability="):
+			capFilter = strings.TrimPrefix(a, "--capability=")
+		case strings.HasPrefix(a, "--cap="):
+			capFilter = strings.TrimPrefix(a, "--cap=")
 		case a == "--since":
 			if i+1 >= len(args) {
 				fmt.Fprintf(stderr, "%s edict log: --since needs a duration\n", brand.CLI)
@@ -101,17 +123,19 @@ func cmdEdictLog(args []string, stdout, stderr io.Writer) int {
 		case strings.HasPrefix(a, "--tenant="):
 			tenant = strings.TrimPrefix(a, "--tenant=")
 		case a == "-h" || a == "--help":
-			fmt.Fprintf(stdout, "usage: %s edict log [N] [--denied] [--since <dur>] [--tenant <id>] [--json]\n", brand.CLI)
+			fmt.Fprintf(stdout, "usage: %s edict log [N] [--denied] [--tool <name>] [--capability <cap>] [--since <dur>] [--tenant <id>] [--json]\n", brand.CLI)
 			fmt.Fprintf(stdout, "show recent policy decisions (every tool-call gating: tool, capability, allow/deny, reason)\n")
-			fmt.Fprintf(stdout, "  --denied      only show denials\n")
-			fmt.Fprintf(stdout, "  --since <dur> only decisions in the last <dur>\n")
+			fmt.Fprintf(stdout, "  --denied           only show denials\n")
+			fmt.Fprintf(stdout, "  --tool <name>      only decisions for this tool\n")
+			fmt.Fprintf(stdout, "  --capability <cap> only decisions for this capability (alias --cap)\n")
+			fmt.Fprintf(stdout, "  --since <dur>      only decisions in the last <dur>\n")
 			return 0
 		default:
 			if n, err := strconv.Atoi(a); err == nil && n > 0 {
 				limit = n
 				continue
 			}
-			fmt.Fprintf(stderr, "%s edict log: unexpected arg %q (expected N, --denied, --tenant <id>, or --json)\n", brand.CLI, a)
+			fmt.Fprintf(stderr, "%s edict log: unexpected arg %q (expected N, --denied, --tool, --capability, --since, --tenant, or --json)\n", brand.CLI, a)
 			return 2
 		}
 	}
@@ -131,6 +155,12 @@ func cmdEdictLog(args []string, stdout, stderr io.Writer) int {
 	}
 	if sinceMS > 0 {
 		callArgs["since_ms"] = sinceMS // M65: time window
+	}
+	if toolFilter != "" {
+		callArgs["tool"] = toolFilter // M74
+	}
+	if capFilter != "" {
+		callArgs["capability"] = capFilter // M74
 	}
 	if tenant != "" {
 		callArgs["tenant"] = tenant
