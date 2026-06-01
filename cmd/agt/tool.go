@@ -9,6 +9,9 @@ import (
 	"io"
 	"time"
 
+	"strconv"
+	"strings"
+
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/controlplane"
 )
@@ -19,12 +22,14 @@ import (
 // `agt tool describe <name>` slot in without renaming.
 func cmdTool(args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
-		fmt.Fprintf(stderr, "%s tool: subcommand required (list)\n", brand.CLI)
+		fmt.Fprintf(stderr, "%s tool: subcommand required (list, log)\n", brand.CLI)
 		return 2
 	}
 	switch args[0] {
 	case "list":
 		return cmdToolList(args[1:], stdout, stderr)
+	case "log":
+		return cmdToolLog(args[1:], stdout, stderr)
 	default:
 		fmt.Fprintf(stderr, "%s tool: unknown subcommand %q\n", brand.CLI, args[0])
 		return 2
@@ -86,6 +91,144 @@ func cmdToolList(args []string, stdout, stderr io.Writer) int {
 		} else {
 			fmt.Fprintf(stdout, "  %-20s %s\n", name, desc)
 		}
+	}
+	return 0
+}
+
+// cmdToolLog implements `agt tool log [N] [--errors] [--tool <name>]
+// [--since <dur>] [--tenant <id>] [--json]` — a read-only audit of recent tool
+// invocations (M66). `tool list` shows the tools advertised; this shows the
+// calls the agent actually made and how each turned out. The execution
+// analogue of `agt edict log`.
+func cmdToolLog(args []string, stdout, stderr io.Writer) int {
+	asJSON := false
+	errorsOnly := false
+	limit := 0
+	toolFilter := ""
+	tenant := ""
+	sinceMS := int64(0)
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		switch {
+		case a == "--json":
+			asJSON = true
+		case a == "--errors":
+			errorsOnly = true
+		case a == "--tool":
+			if i+1 >= len(args) {
+				fmt.Fprintf(stderr, "%s tool log: --tool needs a name\n", brand.CLI)
+				return 2
+			}
+			i++
+			toolFilter = args[i]
+		case strings.HasPrefix(a, "--tool="):
+			toolFilter = strings.TrimPrefix(a, "--tool=")
+		case a == "--since":
+			if i+1 >= len(args) {
+				fmt.Fprintf(stderr, "%s tool log: --since needs a duration\n", brand.CLI)
+				return 2
+			}
+			i++
+			d, derr := time.ParseDuration(args[i])
+			if derr != nil || d <= 0 {
+				fmt.Fprintf(stderr, "%s tool log: bad --since %q\n", brand.CLI, args[i])
+				return 2
+			}
+			sinceMS = d.Milliseconds()
+		case strings.HasPrefix(a, "--since="):
+			d, derr := time.ParseDuration(strings.TrimPrefix(a, "--since="))
+			if derr != nil || d <= 0 {
+				fmt.Fprintf(stderr, "%s tool log: bad --since\n", brand.CLI)
+				return 2
+			}
+			sinceMS = d.Milliseconds()
+		case a == "--tenant":
+			if i+1 >= len(args) {
+				fmt.Fprintf(stderr, "%s tool log: --tenant needs an id\n", brand.CLI)
+				return 2
+			}
+			i++
+			tenant = args[i]
+		case strings.HasPrefix(a, "--tenant="):
+			tenant = strings.TrimPrefix(a, "--tenant=")
+		case a == "-h" || a == "--help":
+			fmt.Fprintf(stdout, "usage: %s tool log [N] [--errors] [--tool <name>] [--since <dur>] [--tenant <id>] [--json]\n", brand.CLI)
+			fmt.Fprintf(stdout, "show recent tool invocations (what the agent ran: tool, input, output, ok/ERROR)\n")
+			fmt.Fprintf(stdout, "  --errors      only show failed calls\n")
+			fmt.Fprintf(stdout, "  --tool <name> only calls to this tool\n")
+			fmt.Fprintf(stdout, "  --since <dur> only calls in the last <dur>\n")
+			return 0
+		default:
+			if n, err := strconv.Atoi(a); err == nil && n > 0 {
+				limit = n
+				continue
+			}
+			fmt.Fprintf(stderr, "%s tool log: unexpected arg %q (expected N, --errors, --tool, --since, --tenant, or --json)\n", brand.CLI, a)
+			return 2
+		}
+	}
+
+	c := dial(stderr)
+	if c == nil {
+		return 1
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	callArgs := map[string]any{}
+	if limit > 0 {
+		callArgs["limit"] = limit
+	}
+	if errorsOnly {
+		callArgs["errors"] = true
+	}
+	if toolFilter != "" {
+		callArgs["tool"] = toolFilter
+	}
+	if sinceMS > 0 {
+		callArgs["since_ms"] = sinceMS
+	}
+	if tenant != "" {
+		callArgs["tenant"] = tenant
+	}
+	res, err := c.Call(ctx, controlplane.CmdToolLog, callArgs)
+	if err != nil {
+		fmt.Fprintf(stderr, "%s tool log: %v\n", brand.CLI, err)
+		return 1
+	}
+	if asJSON {
+		return encodeJSON(stdout, res)
+	}
+	invs, _ := res["invocations"].([]any)
+	if len(invs) == 0 {
+		if errorsOnly {
+			fmt.Fprintf(stdout, "no failed tool calls.\n")
+		} else {
+			fmt.Fprintf(stdout, "no tool invocations journaled yet.\n")
+		}
+		return 0
+	}
+	for _, item := range invs {
+		m, _ := item.(map[string]any)
+		tool, _ := m["tool"].(string)
+		output, _ := m["output"].(string)
+		isErr, _ := m["error"].(bool)
+		ts := int64(0)
+		if f, ok := m["ts_unix_ms"].(float64); ok {
+			ts = int64(f)
+		}
+		verdict := "ok"
+		if isErr {
+			verdict = "ERROR"
+		}
+		whenStr := "—"
+		if ts > 0 {
+			whenStr = time.UnixMilli(ts).Format("2006-01-02 15:04:05")
+		}
+		line := fmt.Sprintf("  %s  %-5s %-16s", whenStr, verdict, tool)
+		if output != "" {
+			line += "  " + output
+		}
+		fmt.Fprintln(stdout, line)
 	}
 	return 0
 }

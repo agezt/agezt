@@ -12,6 +12,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **`agt tool log` — tool-invocation audit** (SPEC-08, M66) — a read-only view of
+  the journal's `tool.invoked` + `tool.result` events: what the agent actually
+  ran and how each call turned out (`<time> ok|ERROR <tool>  <output-preview>`).
+  The execution analogue of `agt edict log` (which audits the *gating* of those
+  same calls). Filters: `--errors`, `--tool <name>`, `--since <dur>`; `--json`;
+  tenant-scoped. See `.project/PHASE-M66-TOOL-LOG-REPORT.md`.
 - **`--since` windowing for `agt edict log` & `agt schedule fires`** (SPEC-08, M65) —
   both per-event logs gain `--since <dur>` (the time filter their `stats`
   counterparts already had), applied server-side during the journal walk via a

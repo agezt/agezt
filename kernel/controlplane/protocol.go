@@ -261,6 +261,14 @@ const (
 	//   { total, allowed, denied, hard_denied, denial_rate,
 	//     denied_by_capability: {cap → count}, window_ms }
 	CmdEdictStats = "edict_stats"
+	// CmdToolLog lists recent tool invocations (M66) — a read-only audit of the
+	// journal's tool.invoked + tool.result events (what the agent actually ran).
+	// The execution analogue of CmdEdictLog (which audits the policy gating of
+	// those same calls). Args: limit (optional), errors (optional bool — only
+	// failed calls), tool (optional name filter), since_ms (optional window).
+	// Returns: { invocations: [ {ts_unix_ms, actor, correlation_id, tool,
+	// call_id, input, output, error} ], count }
+	CmdToolLog = "tool_log"
 
 	// CmdStateList enumerates namespaces and (optionally) keys in
 	// the kernel state store. State is normally invisible to

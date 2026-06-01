@@ -302,6 +302,8 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.handleBudget(conn, req)
 	case CmdToolList:
 		s.handleToolList(conn, req)
+	case CmdToolLog:
+		s.handleToolLog(conn, req)
 	case CmdStatus:
 		s.handleStatus(conn, req)
 	case CmdPluginList:
