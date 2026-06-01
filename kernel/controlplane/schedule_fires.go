@@ -16,7 +16,60 @@ import (
 	"sort"
 
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/runtime"
 )
+
+// scheduleLastFiring is the most-recent firing of a schedule and its outcome
+// (M56), used to annotate `agt schedule list` rows with how each schedule last
+// went — not just what's scheduled.
+type scheduleLastFiring struct {
+	correlation string
+	firedMS     int64
+	status      string
+	reason      string
+}
+
+// latestFiringBySchedule folds the journal into a schedule_id → most-recent
+// firing map (M56), joining each firing's correlation with its run outcome from
+// the shared collectRuns fold. Firings with no schedule_id (pre-M55) are skipped
+// — they can't be attributed to a schedule entry.
+func (s *Server) latestFiringBySchedule(k *runtime.Kernel) (map[string]scheduleLastFiring, error) {
+	runs, err := s.collectRuns(k)
+	if err != nil {
+		return nil, err
+	}
+	latest := map[string]scheduleLastFiring{}
+	err = k.Journal().Range(func(e *event.Event) error {
+		if e.Kind != event.KindScheduleFired {
+			return nil
+		}
+		id, _, _ := extractScheduleFired(e.Payload)
+		if id == "" {
+			return nil
+		}
+		if cur, ok := latest[id]; ok && cur.firedMS >= e.TSUnixMS {
+			return nil // already have a newer (or same-ms) firing for this schedule
+		}
+		lf := scheduleLastFiring{correlation: e.CorrelationID, firedMS: e.TSUnixMS, status: "running"}
+		if r, ok := runs[e.CorrelationID]; ok {
+			switch {
+			case r.Completed:
+				lf.status = "completed"
+			case r.Failed:
+				lf.status = "failed"
+				lf.reason = r.FailReason
+			case r.Abandoned:
+				lf.status = "abandoned"
+			}
+		}
+		latest[id] = lf
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return latest, nil
+}
 
 func (s *Server) handleScheduleFires(conn net.Conn, req Request) {
 	limit := defaultRunsLimit

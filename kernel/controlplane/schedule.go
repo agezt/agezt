@@ -143,15 +143,25 @@ func (s *Server) handleScheduleEdit(conn net.Conn, req Request) {
 
 func (s *Server) handleScheduleList(conn net.Conn, req Request) {
 	entries := s.k.Schedules().List()
+	// Per-schedule last-firing outcome (M56): annotate each row with how the
+	// schedule last went (status + when), folded from schedule.fired events
+	// (M54/M55). Best-effort — a journal-walk failure just omits the annotation.
+	latest, _ := s.latestFiringBySchedule(s.k)
 	out := make([]map[string]any, 0, len(entries))
 	for _, e := range entries {
-		out = append(out, map[string]any{
+		row := map[string]any{
 			"id": e.ID, "intent": e.Intent, "mode": e.Mode, "interval_sec": e.IntervalSec,
 			"at_minutes": e.AtMinutes, "end_minutes": e.EndMinutes, "days": e.Days, "tz": e.TZ, "cadence": e.Cadence(),
 			"model": e.Model, "source": e.Source, "enabled": e.Enabled,
 			"created_unix": e.CreatedUnix, "last_run_unix": e.LastRunUnix,
 			"next_run_unix": e.NextRunUnix,
-		})
+		}
+		if lf, ok := latest[e.ID]; ok {
+			row["last_status"] = lf.status
+			row["last_reason"] = lf.reason
+			row["last_fired_unix_ms"] = lf.firedMS
+		}
+		out = append(out, row)
 	}
 	s.writeResp(conn, Response{
 		ID:     req.ID,

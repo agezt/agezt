@@ -75,6 +75,71 @@ func TestScheduleFires_JoinsRunOutcome(t *testing.T) {
 	}
 }
 
+// TestScheduleList_ShowsLastFiringOutcome — a schedule's row carries its most
+// recent firing's outcome (M56), folded from schedule.fired + the run outcome.
+func TestScheduleList_ShowsLastFiringOutcome(t *testing.T) {
+	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	ctx := context.Background()
+
+	// Create a real schedule so it appears in the list, capture its id.
+	add, err := c.Call(ctx, controlplane.CmdScheduleAdd,
+		map[string]any{"intent": "daily brief", "interval_sec": 3600})
+	if err != nil {
+		t.Fatalf("ScheduleAdd: %v", err)
+	}
+	schedID, _ := add["id"].(string)
+	if schedID == "" {
+		t.Fatal("ScheduleAdd returned no id")
+	}
+
+	// Two firings of it; the later one (f2) failed and must win as "last".
+	_, _ = k.Bus().Publish(event.Spec{
+		Subject: "schedule.fired", Kind: event.KindScheduleFired, Actor: "schedule",
+		CorrelationID: "f1", Payload: map[string]any{"schedule_id": schedID, "intent": "daily brief"},
+	})
+	_, _ = k.Bus().Publish(event.Spec{
+		Subject: "task", Kind: event.KindTaskReceived, Actor: "a", CorrelationID: "f1",
+	})
+	_, _ = k.Bus().Publish(event.Spec{
+		Subject: "task", Kind: event.KindTaskCompleted, Actor: "a", CorrelationID: "f1",
+		Payload: map[string]any{"iters": 1},
+	})
+	time.Sleep(2 * time.Millisecond) // ensure f2 has a later TSUnixMS
+	_, _ = k.Bus().Publish(event.Spec{
+		Subject: "schedule.fired", Kind: event.KindScheduleFired, Actor: "schedule",
+		CorrelationID: "f2", Payload: map[string]any{"schedule_id": schedID, "intent": "daily brief"},
+	})
+	_, _ = k.Bus().Publish(event.Spec{
+		Subject: "task", Kind: event.KindTaskReceived, Actor: "a", CorrelationID: "f2",
+	})
+	_, _ = k.Bus().Publish(event.Spec{
+		Subject: "task", Kind: event.KindTaskFailed, Actor: "a", CorrelationID: "f2",
+		Payload: map[string]any{"reason": "timeout"},
+	})
+
+	res, err := c.Call(ctx, controlplane.CmdScheduleList, nil)
+	if err != nil {
+		t.Fatalf("ScheduleList: %v", err)
+	}
+	list, _ := res["schedules"].([]any)
+	var row map[string]any
+	for _, item := range list {
+		m, _ := item.(map[string]any)
+		if id, _ := m["id"].(string); id == schedID {
+			row = m
+		}
+	}
+	if row == nil {
+		t.Fatalf("schedule %s not in list", schedID)
+	}
+	if got, _ := row["last_status"].(string); got != "failed" {
+		t.Errorf("last_status = %q want failed (the later firing)", got)
+	}
+	if got, _ := row["last_reason"].(string); got != "timeout" {
+		t.Errorf("last_reason = %q want timeout", got)
+	}
+}
+
 // TestScheduleFires_FilterByScheduleID — `--id` (args.id) restricts the listing
 // to one schedule's firings (M55).
 func TestScheduleFires_FilterByScheduleID(t *testing.T) {

@@ -12,6 +12,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Per-schedule last outcome in `agt schedule list`** (SPEC-08 × cadence, M56) — each
+  schedule row now shows how it last went: `… last: completed 06-01 12:16` (or
+  `failed (timeout) …`). `latestFiringBySchedule` folds the journal into a
+  schedule_id → newest-firing map (joined with the run outcome via the shared
+  `collectRuns` fold, M54/M55); `handleScheduleList` annotates each row with
+  `last_status`/`last_reason`/`last_fired_unix_ms`. Pure derivation, no new event.
+  See `.project/PHASE-M56-SCHEDULE-LAST-OUTCOME-REPORT.md`.
 - **Link firings to their schedule** (SPEC-08 journal × cadence, M55) — the
   `schedule.fired` event now carries `schedule_id`, threaded from the cadence
   Engine's `RunFunc` (widened to `func(ctx, id, intent, model)`) through the

@@ -639,8 +639,22 @@ func cmdScheduleList(args []string, stdout, stderr io.Writer) int {
 		if next > 0 {
 			nextStr = time.Unix(int64(next), 0).Format("2006-01-02 15:04")
 		}
-		fmt.Fprintf(stdout, "  %-22s %-16s [%s,%s] next %s  %q\n",
+		fmt.Fprintf(stdout, "  %-22s %-16s [%s,%s] next %s  %q",
 			id, cadence, source, state, nextStr, intent)
+		// Last-firing outcome (M56) — how the schedule last went, when known.
+		lastStatus, _ := m["last_status"].(string)
+		if lastStatus != "" {
+			lastReason, _ := m["last_reason"].(string)
+			if lastStatus == "failed" && lastReason != "" {
+				lastStatus = "failed (" + lastReason + ")"
+			}
+			lastWhen := ""
+			if lf, ok := m["last_fired_unix_ms"].(float64); ok && lf > 0 {
+				lastWhen = " " + time.UnixMilli(int64(lf)).Format("01-02 15:04")
+			}
+			fmt.Fprintf(stdout, "  last: %s%s", lastStatus, lastWhen)
+		}
+		fmt.Fprintln(stdout)
 	}
 	return 0
 }
