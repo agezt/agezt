@@ -12,6 +12,11 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **`agt netguard test`** (SPEC-06 / M16, M105) — preview the egress guard:
+  resolve a host and report which resolved IPs the http/browser tools may reach,
+  catching SSRF / DNS-rebinding traps (a public name pointing at 169.254.169.254
+  or a private address) before any tool dials. Exit 3 when blocked. See
+  `.project/PHASE-M105-NETGUARD-TEST-REPORT.md`.
 - **`agt redact test`** (SPEC-06, M104) — verify the live secret redactor would
   scrub a candidate string before it could reach the journal (built-in pattern
   categories + configured literals), without leaking which literal matched. Exit

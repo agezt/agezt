@@ -88,6 +88,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return cmdWarden(args[1:], stdout, stderr)
 	case "redact":
 		return cmdRedact(args[1:], stdout, stderr)
+	case "netguard":
+		return cmdNetguard(args[1:], stdout, stderr)
 	case "doctor":
 		return cmdDoctor(args[1:], stdout, stderr)
 	case "quickstart":
