@@ -453,3 +453,53 @@ func TestRenderTaskArc_SummaryFooter(t *testing.T) {
 		t.Errorf("arc footer wrong; got:\n%s", s)
 	}
 }
+
+// TestRenderTaskArc_PlanNodeEvents — a plan-execution run renders plan.started
+// and node.* events legibly instead of as generic default-branch lines (M82).
+func TestRenderTaskArc_PlanNodeEvents(t *testing.T) {
+	summary := map[string]any{"intent": "ship it", "status": "completed", "iters": float64(0), "duration_ms": float64(50)}
+	events := []map[string]any{
+		{"kind": "plan.started", "seq": float64(1), "payload": map[string]any{
+			"plan_name": "deploy", "node_count": float64(2),
+		}},
+		{"kind": "node.started", "seq": float64(2), "payload": map[string]any{
+			"node_id": "build", "node_kind": "loop",
+		}},
+		{"kind": "node.completed", "seq": float64(3), "payload": map[string]any{
+			"node_id": "build", "node_kind": "loop", "output_bytes": float64(128),
+		}},
+		{"kind": "node.failed", "seq": float64(4), "payload": map[string]any{
+			"node_id": "gate", "node_kind": "gate", "error": "condition false",
+		}},
+	}
+	var buf bytes.Buffer
+	renderTaskArc(&buf, "plan-XYZ", summary, events, nil)
+	s := buf.String()
+	for _, want := range []string{
+		"plan: deploy (2 node(s))",
+		"node build [loop] started",
+		"node build [loop] completed (128B)",
+		"node gate [gate] FAILED: condition false",
+	} {
+		if !strings.Contains(s, want) {
+			t.Errorf("arc missing %q; got:\n%s", want, s)
+		}
+	}
+}
+
+// TestSynthesizePlanSummary — a plan-execution chain yields a header summary
+// from plan.started + plan.completed (M82), since plan runs aren't in collectRuns.
+func TestSynthesizePlanSummary(t *testing.T) {
+	chain := []map[string]any{
+		{"kind": "plan.started", "payload": map[string]any{"plan_name": "deploy"}},
+		{"kind": "node.started", "payload": map[string]any{"node_id": "a"}},
+		{"kind": "plan.completed", "payload": map[string]any{}},
+	}
+	s := synthesizePlanSummary(chain)
+	if s["intent"] != "plan: deploy" {
+		t.Errorf("intent = %v want 'plan: deploy'", s["intent"])
+	}
+	if s["status"] != "completed" {
+		t.Errorf("status = %v want completed", s["status"])
+	}
+}

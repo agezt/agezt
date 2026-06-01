@@ -607,11 +607,9 @@ func cmdRunsShow(args []string, stdout, stderr io.Writer) int {
 			matchedRow = r
 		}
 	}
-	if matchedRow == nil {
-		fmt.Fprintf(stderr, "%s runs show: no run with correlation %q (try `%s runs list`)\n",
-			brand.CLI, corr, brand.CLI)
-		return 1
-	}
+	// A plan-execution correlation ("plan-…") isn't a task run, so it won't be
+	// in collectRuns/runs list (M82). Don't error yet — walk the chain first and,
+	// if it carries plan.started, synthesise a summary from it below.
 
 	// Now walk the chain. We need an event ID — fetch via a small
 	// pulse-style trick: use the correlation_id as event_id and
@@ -637,9 +635,14 @@ func cmdRunsShow(args []string, stdout, stderr io.Writer) int {
 		}
 	}
 	if len(chain) == 0 {
-		fmt.Fprintf(stderr, "%s runs show: no journaled events for correlation %q\n",
-			brand.CLI, corr)
+		fmt.Fprintf(stderr, "%s runs show: no run with correlation %q (try `%s runs list`)\n",
+			brand.CLI, corr, brand.CLI)
 		return 1
+	}
+	// Plan-execution run (M82): no task-run summary, but the chain has plan
+	// events — synthesise a header from them so the arc renders.
+	if matchedRow == nil {
+		matchedRow = synthesizePlanSummary(chain)
 	}
 
 	if asJSON {
@@ -839,6 +842,34 @@ func arcPreview(v any) string {
 	return s
 }
 
+// synthesizePlanSummary builds a runTaskArc header summary for a plan-execution
+// correlation (M82), which has no task-run row in collectRuns. It reads
+// plan.started for the name/intent and the terminal plan.completed/plan.failed
+// for status, so `agt runs show <plan-corr>` renders a header like a task run's.
+// Falls back to a minimal "completed" summary if the chain has events but no
+// recognisable plan lifecycle (an unknown-but-present correlation).
+func synthesizePlanSummary(chain []map[string]any) map[string]any {
+	summary := map[string]any{"status": "running"}
+	for _, e := range chain {
+		kind, _ := e["kind"].(string)
+		payload, _ := e["payload"].(map[string]any)
+		switch kind {
+		case "plan.started":
+			if name, _ := payload["plan_name"].(string); name != "" {
+				summary["intent"] = "plan: " + name
+			}
+		case "plan.completed":
+			summary["status"] = "completed"
+		case "plan.failed":
+			summary["status"] = "failed"
+			if r, _ := payload["reason"].(string); r != "" {
+				summary["reason"] = r
+			}
+		}
+	}
+	return summary
+}
+
 func renderTaskArc(w io.Writer, corr string, summary map[string]any, events []map[string]any, outcomes map[string]childOutcome) {
 	intent, _ := summary["intent"].(string)
 	status, _ := summary["status"].(string)
@@ -990,6 +1021,37 @@ func renderTaskArc(w io.Writer, corr string, summary map[string]any, events []ma
 			out := intOfStatus(payload["output_tokens"])
 			if in > 0 || out > 0 {
 				line += fmt.Sprintf(" (in=%d, out=%d tokens)", in, out)
+			}
+			fmt.Fprintln(w, line)
+		case "plan.started":
+			// Plan-execution runs (M82): `agt runs show <plan-corr>` walks the
+			// scheduler's plan.started + node.* events. Render them legibly instead
+			// of as generic default-branch lines, so a plan run reads like a task arc.
+			name, _ := payload["plan_name"].(string)
+			nodeCount := intOfStatus(payload["node_count"])
+			if name == "" {
+				name = "(unnamed)"
+			}
+			fmt.Fprintf(w, "plan: %s (%d node(s))\n", name, nodeCount)
+		case "node.started":
+			nodeID, _ := payload["node_id"].(string)
+			nodeKind, _ := payload["node_kind"].(string)
+			fmt.Fprintf(w, "  node %s [%s] started\n", nodeID, nodeKind)
+		case "node.completed":
+			nodeID, _ := payload["node_id"].(string)
+			nodeKind, _ := payload["node_kind"].(string)
+			line := fmt.Sprintf("  node %s [%s] completed", nodeID, nodeKind)
+			if ob := intOfStatus(payload["output_bytes"]); ob > 0 {
+				line += fmt.Sprintf(" (%dB)", ob)
+			}
+			fmt.Fprintln(w, line)
+		case "node.failed":
+			nodeID, _ := payload["node_id"].(string)
+			nodeKind, _ := payload["node_kind"].(string)
+			nodeErr, _ := payload["error"].(string)
+			line := fmt.Sprintf("  node %s [%s] FAILED", nodeID, nodeKind)
+			if nodeErr != "" {
+				line += ": " + nodeErr
 			}
 			fmt.Fprintln(w, line)
 		case "task.failed":
