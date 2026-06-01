@@ -110,6 +110,45 @@ func (c *Client) Call(ctx context.Context, cmd string, args map[string]any) (map
 	return resp.Result, nil
 }
 
+// CallRaw is Call's byte-preserving sibling: it returns the response's
+// "result" object as raw JSON instead of a decoded map[string]any. Use it
+// when the result carries data whose exact byte form matters — notably
+// journaled events, whose BLAKE3 hash is computed over the canonical payload
+// bytes and would NOT survive a round-trip through map[string]any (which
+// reorders object keys and renumbers integers). The journal-export bundle
+// (M101) relies on this so the exported events still re-verify offline.
+func (c *Client) CallRaw(ctx context.Context, cmd string, args map[string]any) (json.RawMessage, error) {
+	conn, err := c.dial(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer conn.Close()
+
+	if err := writeRequest(conn, cmd, args, c.token); err != nil {
+		return nil, err
+	}
+	reader := bufio.NewReader(conn)
+	line, err := reader.ReadBytes('\n')
+	if err != nil {
+		return nil, fmt.Errorf("controlplane: read: %w", err)
+	}
+	var resp struct {
+		Type   string          `json:"type"`
+		Result json.RawMessage `json:"result"`
+		Error  string          `json:"error"`
+	}
+	if err := json.Unmarshal(line, &resp); err != nil {
+		return nil, fmt.Errorf("controlplane: parse response: %w", err)
+	}
+	if resp.Type == RespError {
+		return nil, &ErrServerError{Msg: resp.Error}
+	}
+	if resp.Type != RespResult {
+		return nil, fmt.Errorf("controlplane: unexpected response type %q", resp.Type)
+	}
+	return resp.Result, nil
+}
+
 // Stream sends a streaming command (currently only "run"). onEvent is
 // called for every event before the final result is returned.
 func (c *Client) Stream(ctx context.Context, cmd string, args map[string]any, onEvent func(*event.Event)) (map[string]any, error) {

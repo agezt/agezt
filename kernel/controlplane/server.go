@@ -371,6 +371,8 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.handleJournalGrep(conn, req)
 	case CmdJournalHead:
 		s.handleJournalHead(conn, req)
+	case CmdJournalExport:
+		s.handleJournalExport(conn, req)
 	case CmdMemoryAdd:
 		s.handleMemoryAdd(conn, req)
 	case CmdMemoryList:

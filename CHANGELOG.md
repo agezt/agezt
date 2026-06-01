@@ -12,6 +12,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Verifiable journal export** (SPEC-09 §8, M101) — `agt journal export [--since
+  <dur>] [--out <file>]` writes a hash-chained bundle bound to the chain head, and
+  `agt journal verify --bundle <file>` re-verifies it OFFLINE (recompute every
+  BLAKE3 hash + check prev-hash continuity), making archives tamper-evident. Adds
+  the byte-preserving `Client.CallRaw` so exported events survive the wire
+  verifiably. See `.project/PHASE-M101-JOURNAL-EXPORT-REPORT.md`.
 - **Tunable HITL timeout + doctor surfaces unanswered approvals** (SPEC-08, M100) —
   `AGEZT_APPROVAL_TIMEOUT` right-sizes how long a prompt-mode approval waits before
   auto-deny (was hardcoded 5m), and `agt doctor` now WARNs when approvals have been

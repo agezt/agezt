@@ -136,10 +136,11 @@ func printHelp(w io.Writer) {
 	fmt.Fprintf(w, "  halt [--reason \"...\"] [--json]  freeze all in-flight runs (reason is journaled)\n")
 	fmt.Fprintf(w, "  resume [--reason \"...\"] [--json] clear the halt flag (reason is journaled)\n")
 	fmt.Fprintf(w, "  why <event_id> [--json|--payload]  list events sharing an event's correlation\n")
-	fmt.Fprintf(w, "  journal verify                        verify the BLAKE3 hash chain\n")
+	fmt.Fprintf(w, "  journal verify [--bundle <file>]      verify the live chain, or an exported bundle offline\n")
 	fmt.Fprintf(w, "  journal tail [N] [--json]             snapshot of the last N events (default 20)\n")
 	fmt.Fprintf(w, "  journal grep <pattern> [filters]      server-side filter (--kind/--subject/--actor/--correlation)\n")
 	fmt.Fprintf(w, "  journal head [--json]                 print current head seq + chain-tail hash\n")
+	fmt.Fprintf(w, "  journal export [--since <dur>] [--out <file>]  re-verifiable journal bundle (archive/audit)\n")
 	fmt.Fprintf(w, "  approvals [--json]                    list pending HITL approval requests\n")
 	fmt.Fprintf(w, "  approve <id> [reason]  grant a pending approval\n")
 	fmt.Fprintf(w, "  deny    <id> [reason]  deny a pending approval\n")
@@ -406,15 +407,17 @@ func cmdJournal(args []string, stdout, stderr io.Writer) int {
 	}
 	switch args[0] {
 	case "verify":
-		return cmdSimple(controlplane.CmdJournalVerify, nil, stdout, stderr)
+		return cmdJournalVerify(args[1:], stdout, stderr)
 	case "tail":
 		return cmdJournalTail(args[1:], stdout, stderr)
 	case "grep":
 		return cmdJournalGrep(args[1:], stdout, stderr)
 	case "head":
 		return cmdJournalHead(args[1:], stdout, stderr)
+	case "export":
+		return cmdJournalExport(args[1:], stdout, stderr)
 	default:
-		fmt.Fprintf(stderr, "%s journal: unknown subcommand %q (verify|tail|grep|head)\n", brand.CLI, args[0])
+		fmt.Fprintf(stderr, "%s journal: unknown subcommand %q (verify|tail|grep|head|export)\n", brand.CLI, args[0])
 		return 2
 	}
 }

@@ -365,6 +365,26 @@ const (
 	//                      event will use as prev_hash).
 	CmdJournalHead = "journal_head"
 
+	// CmdJournalExport returns a complete, integrity-attested slice of
+	// the journal for archival / compliance / disaster-recovery (M101).
+	// Unlike CmdJournalTail (count-windowed) and CmdJournalGrep
+	// (predicate-filtered for triage), export streams EVERY event —
+	// optionally only those at/after a since_ms cutoff — with its hash
+	// and prev_hash intact, plus the chain head at export time, so the
+	// resulting bundle can be re-verified OFFLINE via
+	// `agt journal verify --bundle <file>` (recompute each event's
+	// BLAKE3 hash + check prev-hash continuity).
+	//
+	// Args:
+	//   - since_ms : int (optional) — only events with ts >= now-since_ms.
+	// Returns:
+	//   - events    : []event — full events, ascending seq.
+	//   - count     : int     — len(events).
+	//   - first_seq / last_seq : int — seq bounds of the slice (-1 if empty).
+	//   - head_seq / head_hash : int / string — chain head at export time.
+	//   - truncated : bool    — true if the export hit the size cap.
+	CmdJournalExport = "journal_export"
+
 	// CmdJournalGrep is the server-side filter sibling of
 	// CmdJournalTail. Today operators run `agt journal tail 10000
 	// --json | jq 'select(...)'` which loads the entire tail into
