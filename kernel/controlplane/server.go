@@ -300,6 +300,8 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.handleCatalogDiscover(ctx, conn, req)
 	case CmdProviderReload:
 		s.handleProviderReload(conn, req)
+	case CmdProviderLog:
+		s.handleProviderLog(conn, req)
 	case CmdPulseSubscribe:
 		s.handlePulseSubscribe(ctx, conn, req)
 	case CmdPlanGenerate:

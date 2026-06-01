@@ -57,6 +57,11 @@ const (
 	// (M1.r). Replaces the "restart the daemon" friction printed by
 	// `agt provider creds set` since M1.o.
 	CmdProviderReload = "provider_reload"
+	// CmdProviderLog lists recent provider-routing activity (M89) — a timeline of
+	// routing.decision + provider.fallback events (which provider handled calls,
+	// when the primary fell back). Args: limit, fallbacks (bool — only fallbacks),
+	// since_ms. Returns: { events: [ {ts_unix_ms, kind, ...} ], count }
+	CmdProviderLog = "provider_log"
 	// Planner: ask the daemon's configured Provider to generate a
 	// scheduler-shaped Plan JSON from a natural-language intent (M1.v).
 	// Args: intent (string), optional model (string).

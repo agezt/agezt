@@ -43,6 +43,11 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   a denied-by-capability breakdown. Completes the approvals `log`/`stats` pair;
   the human analogue of `agt edict stats`. See
   `.project/PHASE-M88-APPROVALS-STATS-REPORT.md`.
+- **`agt provider log`** (SPEC-08, M89) — a provider-routing activity timeline:
+  folds `routing.decision` + `provider.fallback` to show which provider handled
+  calls and when the primary fell back (`--fallbacks` isolates failures). The
+  provider-layer analogue of `agt tool log`. See
+  `.project/PHASE-M89-PROVIDER-LOG-REPORT.md`.
 - **`agt approvals log`** (SPEC-08, M87) — the HITL approval audit: folds
   `approval.requested` joined with the terminal granted/denied/timeout into a
   timeline of what was asked, how it resolved, and who decided. The human
