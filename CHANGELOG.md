@@ -12,6 +12,11 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **`agt edict overlay`** (SPEC-08, M94) — surfaces the NET durable policy
+  overlay: every runtime `policy.changed` folded via the same
+  `ProjectPolicyChanges` the daemon replays at boot, so an operator sees what
+  runtime policy is actually in effect (show = base config, log = raw events,
+  overlay = net result). See `.project/PHASE-M94-EDICT-OVERLAY-REPORT.md`.
 - **Vision image input** (SPEC-14, M93) — a vision-capable model now actually
   *receives* attachments: `agent.Message` carries `Images`, the agent loop puts
   them on the initial user message (stamping the count on `task.received` for

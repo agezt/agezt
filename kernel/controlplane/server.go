@@ -329,6 +329,8 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.handleShutdown(conn, req)
 	case CmdJournalTail:
 		s.handleJournalTail(conn, req)
+	case CmdEdictOverlay:
+		s.handleEdictOverlay(conn, req)
 	case CmdEdictLog:
 		s.handleEdictLog(conn, req)
 	case CmdEdictStats:

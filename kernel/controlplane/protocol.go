@@ -206,6 +206,11 @@ const (
 	//   - hard_deny  : [{name, substring, applies_to}, ...] — the
 	//                  unconditional-block patterns, sorted by name
 	CmdEdictShow = "edict_show"
+	// CmdEdictOverlay returns the NET durable policy overlay (M94) — every
+	// runtime policy.changed folded via ProjectPolicyChanges (the boot replay).
+	// No args. Returns: { levels: {cap: level}, deny_rules: [...], mode,
+	// empty, changes_folded }
+	CmdEdictOverlay = "edict_overlay"
 
 	// CmdEdictTest dry-runs a policy decision: "if I asked to do
 	// <capability> with this <input>, what would the engine say?"
