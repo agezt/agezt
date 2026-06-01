@@ -183,7 +183,6 @@ func TestRunsList_LimitClamps(t *testing.T) {
 	}
 }
 
-
 // TestRunsList_AbandonedStatus — a run reconciled at boot (task.received
 // + task.abandoned, no completion) reports status="abandoned", M28.
 func TestRunsList_AbandonedStatus(t *testing.T) {
@@ -1098,5 +1097,38 @@ func TestRunsStats_DurationPercentiles(t *testing.T) {
 	}
 	if min < 0 {
 		t.Errorf("min duration negative: %d", min)
+	}
+}
+
+// TestRunsList_IntentFilter — `agt runs list --intent` keeps only runs whose
+// intent contains the substring, case-insensitively (M77).
+func TestRunsList_IntentFilter(t *testing.T) {
+	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	recv := func(corr, intent string) {
+		_, _ = k.Bus().Publish(event.Spec{
+			Subject: "agent", Kind: event.KindTaskReceived, Actor: "agent",
+			CorrelationID: corr,
+			Payload:       map[string]any{"intent": intent},
+		})
+	}
+	recv("run-a", "deploy the staging cluster")
+	recv("run-b", "summarize the README")
+	recv("run-c", "DEPLOY production now")
+
+	res, err := c.Call(context.Background(), controlplane.CmdRunsList,
+		map[string]any{"intent": "deploy"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rows, _ := res["runs"].([]any)
+	if len(rows) != 2 {
+		t.Fatalf("--intent deploy = %d want 2 (case-insensitive)", len(rows))
+	}
+	for _, raw := range rows {
+		m, _ := raw.(map[string]any)
+		got, _ := m["intent"].(string)
+		if !strings.Contains(strings.ToLower(got), "deploy") {
+			t.Errorf("--intent deploy returned %q", got)
+		}
 	}
 }

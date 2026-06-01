@@ -21,6 +21,10 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   input/output excerpts. See `.project/PHASE-M68-ARC-HONESTY-REPORT.md`.
 
 ### Added
+- **`agt runs list --intent <substr>`** (SPEC-08, M77) — a case-insensitive
+  substring filter on a run's intent, applied server-side before the limit, so an
+  operator can find "that deploy run" without grepping. Composes with
+  `--status`/`--failed`. See `.project/PHASE-M77-RUNS-INTENT-FILTER-REPORT.md`.
 - **`agt edict stats` tool & capability scope** (Edict observability, M76) —
   `--tool <name>` / `--capability <cap>` (alias `--cap`) scope the aggregate, so
   the denial rate + counts reflect one tool/capability. Completes the symmetry

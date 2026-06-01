@@ -204,6 +204,10 @@ func (s *Server) handleRunsList(conn net.Conn, req Request) {
 
 	// Optional status filter (M61): completed|failed|running|abandoned.
 	statusFilter, _ := req.Args["status"].(string)
+	// Optional intent substring filter (M77): case-insensitive contains, so an
+	// operator can find "that deploy run" without scanning the whole list.
+	intentQuery, _ := req.Args["intent"].(string)
+	intentQuery = strings.ToLower(intentQuery)
 
 	// Tenant-scoped (M39): an empty tenant reads the primary journal; a named
 	// tenant reads its own isolated journal, so a tenant sees only its runs.
@@ -226,6 +230,10 @@ func (s *Server) handleRunsList(conn net.Conn, req Request) {
 		// applied BEFORE the limit so `list 5 --failed` returns 5 failed runs,
 		// not "failed runs among the last 5".
 		if statusFilter != "" && runEntryStatus(r) != statusFilter {
+			continue
+		}
+		// Intent substring filter (M77), also before the limit.
+		if intentQuery != "" && !strings.Contains(strings.ToLower(r.Intent), intentQuery) {
 			continue
 		}
 		entries = append(entries, r)
