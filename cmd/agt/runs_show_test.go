@@ -427,3 +427,29 @@ func TestRenderTaskArc_ToolResultShowsLatency(t *testing.T) {
 		t.Errorf("arc missing tool latency; got:\n%s", s)
 	}
 }
+
+// TestRenderTaskArc_SummaryFooter — the arc ends with a one-line summary of
+// rounds, tool calls (with errors), spend, and duration (M81).
+func TestRenderTaskArc_SummaryFooter(t *testing.T) {
+	summary := map[string]any{
+		"intent": "do thing", "status": "completed", "iters": float64(2),
+		"duration_ms": float64(1500), "spent_mc": float64(8_400_000), // $0.0084
+	}
+	events := []map[string]any{
+		{"kind": "llm.request", "seq": float64(1)},
+		{"kind": "tool.invoked", "seq": float64(2), "payload": map[string]any{"tool": "shell", "call_id": "c1"}},
+		{"kind": "tool.result", "seq": float64(3), "payload": map[string]any{"tool": "shell", "call_id": "c1", "error": false}},
+		{"kind": "llm.response", "seq": float64(4)},
+		{"kind": "llm.request", "seq": float64(5)},
+		{"kind": "tool.invoked", "seq": float64(6), "payload": map[string]any{"tool": "http", "call_id": "c2"}},
+		{"kind": "tool.result", "seq": float64(7), "payload": map[string]any{"tool": "http", "call_id": "c2", "error": true}},
+		{"kind": "llm.response", "seq": float64(8)},
+		{"kind": "task.completed", "seq": float64(9)},
+	}
+	var buf bytes.Buffer
+	renderTaskArc(&buf, "run-SUM", summary, events, nil)
+	s := buf.String()
+	if !strings.Contains(s, "summary    : 2 round(s), 2 tool call(s) (1 error(s)), $0.0084, 1.5s") {
+		t.Errorf("arc footer wrong; got:\n%s", s)
+	}
+}

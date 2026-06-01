@@ -38,6 +38,10 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   the denial rate + counts reflect one tool/capability. Completes the symmetry
   with `edict log`'s M74 filters. See
   `.project/PHASE-M76-EDICT-STATS-SCOPE-REPORT.md`.
+- **Task-arc summary footer** (SPEC-08, M81) — `agt runs show` ends with a
+  one-line `summary: N round(s), M tool call(s) [(K error(s))], $<spend>,
+  <duration>`, so a long arc reads at a glance without scrolling back to tally.
+  See `.project/PHASE-M81-ARC-FOOTER-REPORT.md`.
 - **Error-message breakdown in `agt tool stats`** (SPEC-08, M79) — an
   `errors by message` block (most-frequent first) buckets failed tool calls by
   their message, so an operator sees WHAT is failing (denied / not-available /

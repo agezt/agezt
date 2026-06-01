@@ -889,6 +889,10 @@ func renderTaskArc(w io.Writer, corr string, summary map[string]any, events []ma
 	// so the matching tool.result can show its wall-clock — the same
 	// invoked→result span `agt tool log` reports, here inline on the arc.
 	invokedAt := map[string]int64{}
+	// Arc-footer tallies (M81): a long arc gets a one-line summary at the end so
+	// an operator doesn't have to scroll back and count.
+	toolCalls := 0
+	toolErrors := 0
 
 	for _, e := range events {
 		kind, _ := e["kind"].(string)
@@ -938,6 +942,10 @@ func renderTaskArc(w io.Writer, corr string, summary map[string]any, events []ma
 			// "is_error" here meant the arc always said "ok", even for a failed
 			// tool call (M68 fix). Honour the real field name.
 			isErr, _ := payload["error"].(bool)
+			toolCalls++
+			if isErr {
+				toolErrors++
+			}
 			tag := "ok"
 			if isErr {
 				tag = "ERROR"
@@ -1069,6 +1077,22 @@ func renderTaskArc(w io.Writer, corr string, summary map[string]any, events []ma
 			}
 		}
 	}
+
+	// Summary footer (M81): collapse the arc into one glanceable line — rounds,
+	// tool calls (with error count), spend, duration — so a long arc doesn't need
+	// scrolling back to tally. Spend/duration come from the same folded summary
+	// the header uses, so the footer never disagrees with it.
+	footer := fmt.Sprintf("summary    : %d round(s), %d tool call(s)", round, toolCalls)
+	if toolErrors > 0 {
+		footer += fmt.Sprintf(" (%d error(s))", toolErrors)
+	}
+	if spent := mcFromAny(summary["spent_mc"]); spent > 0 {
+		footer += ", " + fmtUSD(spent)
+	}
+	if duration > 0 {
+		footer += ", " + fmtDuration(duration)
+	}
+	fmt.Fprintln(w, footer)
 
 	if finalAnswer != "" {
 		fmt.Fprintln(w, "final answer:")
