@@ -1132,3 +1132,38 @@ func TestRunsList_IntentFilter(t *testing.T) {
 		}
 	}
 }
+
+// TestRunsStats_IntentScope — `agt runs stats --intent` aggregates only runs
+// whose intent contains the substring, case-insensitively (M78).
+func TestRunsStats_IntentScope(t *testing.T) {
+	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	recv := func(corr, intent string) {
+		_, _ = k.Bus().Publish(event.Spec{
+			Subject: "agent", Kind: event.KindTaskReceived, Actor: "agent",
+			CorrelationID: corr,
+			Payload:       map[string]any{"intent": intent},
+		})
+	}
+	recv("run-a", "deploy staging")
+	recv("run-b", "summarize docs")
+	recv("run-c", "DEPLOY prod")
+
+	// Unscoped → 3.
+	all, err := c.Call(context.Background(), controlplane.CmdRunsStats, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tot, _ := all["total"].(float64); tot != 3 {
+		t.Errorf("unscoped total = %v want 3", all["total"])
+	}
+
+	// --intent deploy → 2 (case-insensitive).
+	res, err := c.Call(context.Background(), controlplane.CmdRunsStats,
+		map[string]any{"intent": "deploy"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tot, _ := res["total"].(float64); tot != 2 {
+		t.Errorf("--intent deploy total = %v want 2", res["total"])
+	}
+}

@@ -122,11 +122,21 @@ func cmdRunsStats(args []string, stdout, stderr io.Writer) int {
 	var sinceMS int64
 	var sinceLabel string
 	var tenant string
+	var intent string
 	for i := 0; i < len(args); i++ {
 		a := args[i]
 		switch {
 		case a == "--json":
 			asJSON = true
+		case a == "--intent":
+			if i+1 >= len(args) {
+				fmt.Fprintf(stderr, "%s runs stats: --intent needs a substring\n", brand.CLI)
+				return 2
+			}
+			i++
+			intent = args[i]
+		case strings.HasPrefix(a, "--intent="):
+			intent = strings.TrimPrefix(a, "--intent=")
 		case a == "--tenant":
 			if i+1 >= len(args) {
 				fmt.Fprintf(stderr, "%s runs stats: --tenant needs an id\n", brand.CLI)
@@ -165,8 +175,9 @@ func cmdRunsStats(args []string, stdout, stderr io.Writer) int {
 			fmt.Fprintf(stdout, "  total / completed / failed / running / abandoned counts,\n")
 			fmt.Fprintf(stdout, "  success rate, completed-run duration avg/min/max/p50/p95,\n")
 			fmt.Fprintf(stdout, "  delegation fan-out (sub-agent runs spawned), and spend\n")
-			fmt.Fprintf(stdout, "  --since <dur>  restrict to runs started in the last <dur> (e.g. 1h, 30m)\n")
-			fmt.Fprintf(stdout, "  --tenant <id>  read a tenant's own runs (needs that tenant's token)\n")
+			fmt.Fprintf(stdout, "  --since <dur>     restrict to runs started in the last <dur> (e.g. 1h, 30m)\n")
+			fmt.Fprintf(stdout, "  --intent <substr> aggregate only runs whose intent contains <substr>\n")
+			fmt.Fprintf(stdout, "  --tenant <id>    read a tenant's own runs (needs that tenant's token)\n")
 			return 0
 		default:
 			fmt.Fprintf(stderr, "%s runs stats: unexpected arg %q (expected --since <dur>, --tenant <id>, or --json)\n", brand.CLI, a)
@@ -183,6 +194,9 @@ func cmdRunsStats(args []string, stdout, stderr io.Writer) int {
 	callArgs := map[string]any{}
 	if sinceMS > 0 {
 		callArgs["since_ms"] = sinceMS
+	}
+	if intent != "" {
+		callArgs["intent"] = intent // M78: scope aggregate to matching intents
 	}
 	if tenant != "" {
 		callArgs["tenant"] = tenant

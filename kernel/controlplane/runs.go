@@ -350,6 +350,11 @@ func (s *Server) handleRunsStats(conn net.Conn, req Request) {
 		cutoff = time.Now().UnixMilli() - sinceMS
 	}
 
+	// Optional intent substring scope (M78): aggregate only runs whose intent
+	// matches, so an operator can ask "how reliable are my deploy runs?".
+	// Case-insensitive contains, mirroring `agt runs list --intent` (M77).
+	intentQuery := strings.ToLower(func() string { s, _ := req.Args["intent"].(string); return s }())
+
 	var total, completed, failed, running, abandoned int
 	var itersSum int
 	durations := make([]int64, 0, len(runs)) // completed runs only, for percentiles
@@ -381,6 +386,10 @@ func (s *Server) handleRunsStats(conn net.Conn, req Request) {
 		// with no recorded start (the completed-without-received edge) can't
 		// be placed on the timeline, so it's excluded from a windowed view.
 		if cutoff > 0 && (r.StartedUnixMS == 0 || r.StartedUnixMS < cutoff) {
+			continue
+		}
+		// Intent scope (M78), applied alongside the window.
+		if intentQuery != "" && !strings.Contains(strings.ToLower(r.Intent), intentQuery) {
 			continue
 		}
 		total++

@@ -21,6 +21,10 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   input/output excerpts. See `.project/PHASE-M68-ARC-HONESTY-REPORT.md`.
 
 ### Added
+- **`agt runs stats --intent <substr>`** (SPEC-08, M78) — scopes the run-health
+  aggregate to runs whose intent matches, so an operator can ask "the success
+  rate / p95 / spend of my deploy runs?". Same matcher as `runs list --intent`
+  (M77); composes with `--since`. See `.project/PHASE-M78-RUNS-STATS-INTENT-REPORT.md`.
 - **`agt runs list --intent <substr>`** (SPEC-08, M77) — a case-insensitive
   substring filter on a run's intent, applied server-side before the limit, so an
   operator can find "that deploy run" without grepping. Composes with
