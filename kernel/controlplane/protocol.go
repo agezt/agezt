@@ -256,6 +256,11 @@ const (
 	// [ {ts_unix_ms, actor, correlation_id, tool, capability, allow, reason,
 	// hard_denied} ], count }
 	CmdEdictLog = "edict_log"
+	// CmdEdictStats aggregates policy decisions (M64) — the security-dashboard
+	// analogue of CmdRunsStats. Args: since_ms (optional window). Returns:
+	//   { total, allowed, denied, hard_denied, denial_rate,
+	//     denied_by_capability: {cap → count}, window_ms }
+	CmdEdictStats = "edict_stats"
 
 	// CmdStateList enumerates namespaces and (optionally) keys in
 	// the kernel state store. State is normally invisible to

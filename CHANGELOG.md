@@ -12,6 +12,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **`agt edict stats` — policy-decision aggregate** (Edict observability, M64) — the
+  security-dashboard analogue of `agt runs stats`: total / allowed / denied /
+  hard-denied, denial rate, and a denied-by-capability breakdown, over the journal's
+  `policy.decision` events (`--since` windowed, tenant-scoped). Completes the
+  show(rules)/log(decisions)/stats(aggregate) triad. See
+  `.project/PHASE-M64-EDICT-STATS-REPORT.md`.
 - **`agt edict log` — policy-decision audit** (Edict observability, M63) — a
   read-only view of the journal's `policy.decision` events (every tool-call gating):
   `<time> allow|DENY|DENY(hard) <capability> <tool> (reason)`. `agt edict show` lists

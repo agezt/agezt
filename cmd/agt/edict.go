@@ -38,10 +38,13 @@ func cmdEdict(args []string, stdout, stderr io.Writer) int {
 		return cmdEdictMode(args[1:], stdout, stderr)
 	case "log":
 		return cmdEdictLog(args[1:], stdout, stderr)
+	case "stats":
+		return cmdEdictStats(args[1:], stdout, stderr)
 	case "-h", "--help", "help":
 		fmt.Fprintf(stdout, "usage: %s edict <subcommand>\n", brand.CLI)
 		fmt.Fprintf(stdout, "  show [--json]                          display loaded policies\n")
 		fmt.Fprintf(stdout, "  log [N] [--denied] [--json]            recent policy decisions (allow/deny audit)\n")
+		fmt.Fprintf(stdout, "  stats [--since <dur>] [--json]         policy-decision aggregate (denial rate, by capability)\n")
 		fmt.Fprintf(stdout, "  test <capability> [<input>] [--json]   dry-run a decision; no side effects\n")
 		fmt.Fprintf(stdout, "  deny list|add|rm ...                   manage hard-deny rules at runtime\n")
 		fmt.Fprintf(stdout, "  level <capability> <level> [--json]    set a capability's trust level at runtime\n")
@@ -152,6 +155,112 @@ func cmdEdictLog(args []string, stdout, stderr io.Writer) int {
 			line += "  (" + reason + ")"
 		}
 		fmt.Fprintln(stdout, line)
+	}
+	return 0
+}
+
+// cmdEdictStats implements `agt edict stats [--since <dur>] [--tenant <id>]
+// [--json]` — a policy-decision aggregate (denial rate + denied-by-capability),
+// the security-dashboard analogue of `agt runs stats` (M64).
+func cmdEdictStats(args []string, stdout, stderr io.Writer) int {
+	asJSON := false
+	tenant := ""
+	sinceMS := int64(0)
+	sinceLabel := ""
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		switch {
+		case a == "--json":
+			asJSON = true
+		case a == "--tenant":
+			if i+1 >= len(args) {
+				fmt.Fprintf(stderr, "%s edict stats: --tenant needs an id\n", brand.CLI)
+				return 2
+			}
+			i++
+			tenant = args[i]
+		case strings.HasPrefix(a, "--tenant="):
+			tenant = strings.TrimPrefix(a, "--tenant=")
+		case a == "--since":
+			if i+1 >= len(args) {
+				fmt.Fprintf(stderr, "%s edict stats: --since needs a duration\n", brand.CLI)
+				return 2
+			}
+			i++
+			d, derr := time.ParseDuration(args[i])
+			if derr != nil || d <= 0 {
+				fmt.Fprintf(stderr, "%s edict stats: bad --since %q\n", brand.CLI, args[i])
+				return 2
+			}
+			sinceMS = d.Milliseconds()
+			sinceLabel = d.String()
+		case strings.HasPrefix(a, "--since="):
+			d, derr := time.ParseDuration(strings.TrimPrefix(a, "--since="))
+			if derr != nil || d <= 0 {
+				fmt.Fprintf(stderr, "%s edict stats: bad --since\n", brand.CLI)
+				return 2
+			}
+			sinceMS = d.Milliseconds()
+			sinceLabel = d.String()
+		case a == "-h" || a == "--help":
+			fmt.Fprintf(stdout, "usage: %s edict stats [--since <dur>] [--tenant <id>] [--json]\n", brand.CLI)
+			fmt.Fprintf(stdout, "aggregate policy decisions: total, allowed, denied (rate), denied-by-capability\n")
+			return 0
+		default:
+			fmt.Fprintf(stderr, "%s edict stats: unexpected arg %q\n", brand.CLI, a)
+			return 2
+		}
+	}
+
+	c := dial(stderr)
+	if c == nil {
+		return 1
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	callArgs := map[string]any{}
+	if tenant != "" {
+		callArgs["tenant"] = tenant
+	}
+	if sinceMS > 0 {
+		callArgs["since_ms"] = sinceMS
+	}
+	res, err := c.Call(ctx, controlplane.CmdEdictStats, callArgs)
+	if err != nil {
+		fmt.Fprintf(stderr, "%s edict stats: %v\n", brand.CLI, err)
+		return 1
+	}
+	if asJSON {
+		return encodeJSON(stdout, res)
+	}
+	total := intOfStatus(res["total"])
+	windowSuffix := ""
+	if sinceLabel != "" {
+		windowSuffix = " in the last " + sinceLabel
+	}
+	if total == 0 {
+		fmt.Fprintf(stdout, "no policy decisions%s.\n", windowSuffix)
+		return 0
+	}
+	allowed := intOfStatus(res["allowed"])
+	denied := intOfStatus(res["denied"])
+	hard := intOfStatus(res["hard_denied"])
+	rate, _ := res["denial_rate"].(float64)
+	fmt.Fprintf(stdout, "policy decisions (over %d%s):\n\n", total, windowSuffix)
+	fmt.Fprintf(stdout, "  allowed   : %d\n", allowed)
+	fmt.Fprintf(stdout, "  denied    : %d (hard %d)\n", denied, hard)
+	fmt.Fprintf(stdout, "  denial    : %.1f%%\n", rate*100)
+	if byCap, _ := res["denied_by_capability"].(map[string]any); len(byCap) > 0 {
+		fmt.Fprintf(stdout, "\n  denied by capability:\n")
+		// Deterministic order by capability name.
+		caps := make([]string, 0, len(byCap))
+		for capName := range byCap {
+			caps = append(caps, capName)
+		}
+		sort.Strings(caps)
+		for _, capName := range caps {
+			fmt.Fprintf(stdout, "    %-14s %d\n", capName, intOfStatus(byCap[capName]))
+		}
 	}
 	return 0
 }

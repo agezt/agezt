@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"net"
 	"sort"
+	"time"
 
 	"github.com/agezt/agezt/kernel/event"
 )
@@ -125,4 +126,78 @@ func decodePolicyDecision(payload json.RawMessage) policyDecisionPayload {
 		tool: p.Tool, capability: p.Capability, reason: p.Reason,
 		allow: p.Allow, hardDenied: p.HardDenied,
 	}
+}
+
+// handleEdictStats aggregates policy decisions (M64) — total/allowed/denied/
+// hard-denied, denial rate, and a denied-by-capability breakdown. Optional
+// since_ms windows by decision time. Tenant-scoped via kernelFor.
+func (s *Server) handleEdictStats(conn net.Conn, req Request) {
+	sinceMS := int64(0)
+	switch v := req.Args["since_ms"].(type) {
+	case float64:
+		sinceMS = int64(v)
+	case int64:
+		sinceMS = v
+	case int:
+		sinceMS = int64(v)
+	}
+	var cutoff int64
+	if sinceMS > 0 {
+		cutoff = time.Now().UnixMilli() - sinceMS
+	}
+
+	k, err := s.kernelFor(tenantOf(req))
+	if err != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		return
+	}
+
+	var total, allowed, denied, hardDenied int
+	deniedByCap := map[string]int{}
+	if err := k.Journal().Range(func(e *event.Event) error {
+		if e.Kind != event.KindPolicyDecision {
+			return nil
+		}
+		if cutoff > 0 && e.TSUnixMS < cutoff {
+			return nil
+		}
+		d := decodePolicyDecision(e.Payload)
+		total++
+		if d.allow {
+			allowed++
+			return nil
+		}
+		denied++
+		if d.hardDenied {
+			hardDenied++
+		}
+		capName := d.capability
+		if capName == "" {
+			capName = "unknown"
+		}
+		deniedByCap[capName]++
+		return nil
+	}); err != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		return
+	}
+
+	denialRate := 0.0
+	if total > 0 {
+		denialRate = float64(denied) / float64(total)
+	}
+
+	s.writeResp(conn, Response{
+		ID:   req.ID,
+		Type: RespResult,
+		Result: map[string]any{
+			"total":                total,
+			"allowed":              allowed,
+			"denied":               denied,
+			"hard_denied":          hardDenied,
+			"denial_rate":          denialRate,
+			"denied_by_capability": deniedByCap,
+			"window_ms":            sinceMS,
+		},
+	})
 }
