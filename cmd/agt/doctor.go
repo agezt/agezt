@@ -152,6 +152,7 @@ func runDoctorChecks() []doctorCheck {
 	checks = append(checks, checkSandbox(ctx, client))
 	checks = append(checks, checkProvider(ctx, client))
 	checks = append(checks, checkApprovals(ctx, client))
+	checks = append(checks, checkCatalog(ctx, client))
 	checks = append(checks, checkHalt(status))
 
 	return checks
@@ -239,6 +240,44 @@ func topFailingProvider(raw any) string {
 		}
 	}
 	return worst
+}
+
+// catalogStaleAfter is how old an API catalog sync can get before doctor warns:
+// pricing drifts, so cost/budget decisions made on a stale catalog can be wrong.
+const catalogStaleAfter = 21 * 24 * time.Hour
+
+// checkCatalog warns when the API model catalog hasn't been synced in a while
+// (M110) — stale pricing silently skews spend tracking and budget enforcement.
+// Best-effort: a never-synced catalog (offline/mock) or an unreachable call is an
+// informational OK, never a FAIL.
+func checkCatalog(ctx context.Context, client *controlplane.Client) doctorCheck {
+	res, err := client.Call(ctx, controlplane.CmdCatalogList, nil)
+	if err != nil {
+		return ok("catalog freshness", "catalog info unavailable (—)")
+	}
+	syncedAt, _ := res["api_synced_at"].(string)
+	return catalogCheckFromSync(syncedAt, time.Now())
+}
+
+// catalogCheckFromSync is the pure verdict from an api_synced_at timestamp — split
+// out so the staleness logic is testable without a live daemon (M110).
+func catalogCheckFromSync(apiSyncedAt string, now time.Time) doctorCheck {
+	const name = "catalog freshness"
+	if apiSyncedAt == "" {
+		return ok(name, "no API catalog synced (offline/mock, or pre-sync)")
+	}
+	t, err := time.Parse(time.RFC3339, apiSyncedAt)
+	if err != nil || t.Year() <= 1 {
+		return ok(name, "no API catalog synced (offline/mock, or pre-sync)")
+	}
+	age := now.Sub(t)
+	days := int(age.Hours() / 24)
+	if age > catalogStaleAfter {
+		return warn(name,
+			fmt.Sprintf("API catalog last synced %d day(s) ago — model pricing may be stale", days),
+			"refresh with `agt catalog sync` so cost estimates and budget enforcement use current prices")
+	}
+	return ok(name, fmt.Sprintf("API catalog synced %d day(s) ago", days))
 }
 
 // checkApprovals warns when HITL approvals have been timing out (M100) — in

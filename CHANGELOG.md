@@ -12,6 +12,10 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Catalog-freshness check in `agt doctor`** (SPEC-08, M110) — the diagnostic now
+  WARNs when the API model catalog hasn't been synced in over 21 days, since stale
+  pricing silently skews cost estimates and budget enforcement. See
+  `.project/PHASE-M110-CATALOG-FRESHNESS-REPORT.md`.
 - **Egress-block audit** (SPEC-06 / M16, M109) — the egress guard now journals a
   `netguard.blocked` event whenever the http/browser tools are refused a dial to an
   internal/metadata address, and `agt netguard log` surfaces the audit trail — so

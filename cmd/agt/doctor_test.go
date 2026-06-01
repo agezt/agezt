@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/agezt/agezt/kernel/catalog"
 )
@@ -226,5 +227,32 @@ func TestTopFailingProvider(t *testing.T) {
 	}
 	if topFailingProvider(nil) != "" {
 		t.Errorf("nil should yield \"\"")
+	}
+}
+
+func TestCatalogCheckFromSync(t *testing.T) {
+	now := time.Date(2026, 6, 2, 12, 0, 0, 0, time.UTC)
+
+	// Fresh sync (2 days ago) → OK.
+	fresh := now.Add(-2 * 24 * time.Hour).Format(time.RFC3339)
+	if c := catalogCheckFromSync(fresh, now); c.Status != statusOK {
+		t.Errorf("fresh: status=%v want OK", c.State)
+	}
+	// Stale sync (30 days ago) → WARN.
+	stale := now.Add(-30 * 24 * time.Hour).Format(time.RFC3339)
+	if c := catalogCheckFromSync(stale, now); c.Status != statusWarn {
+		t.Errorf("stale: status=%v want WARN", c.State)
+	}
+	// Never synced (empty) → OK.
+	if c := catalogCheckFromSync("", now); c.Status != statusOK {
+		t.Errorf("empty: status=%v want OK", c.State)
+	}
+	// Zero time.Time (pre-sync marshal) → OK, not a bogus huge age.
+	if c := catalogCheckFromSync("0001-01-01T00:00:00Z", now); c.Status != statusOK {
+		t.Errorf("zero time: status=%v want OK", c.State)
+	}
+	// Unparseable → OK (never a FAIL).
+	if c := catalogCheckFromSync("not-a-time", now); c.Status != statusOK {
+		t.Errorf("bad time: status=%v want OK", c.State)
 	}
 }
