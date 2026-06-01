@@ -9,6 +9,7 @@ import (
 	"io"
 	"time"
 
+	"sort"
 	"strconv"
 	"strings"
 
@@ -22,7 +23,7 @@ import (
 // `agt tool describe <name>` slot in without renaming.
 func cmdTool(args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
-		fmt.Fprintf(stderr, "%s tool: subcommand required (list, log)\n", brand.CLI)
+		fmt.Fprintf(stderr, "%s tool: subcommand required (list, log, stats)\n", brand.CLI)
 		return 2
 	}
 	switch args[0] {
@@ -30,6 +31,8 @@ func cmdTool(args []string, stdout, stderr io.Writer) int {
 		return cmdToolList(args[1:], stdout, stderr)
 	case "log":
 		return cmdToolLog(args[1:], stdout, stderr)
+	case "stats":
+		return cmdToolStats(args[1:], stdout, stderr)
 	default:
 		fmt.Fprintf(stderr, "%s tool: unknown subcommand %q\n", brand.CLI, args[0])
 		return 2
@@ -229,6 +232,124 @@ func cmdToolLog(args []string, stdout, stderr io.Writer) int {
 			line += "  " + output
 		}
 		fmt.Fprintln(stdout, line)
+	}
+	return 0
+}
+
+// cmdToolStats implements `agt tool stats [--tool <name>] [--since <dur>]
+// [--tenant <id>] [--json]` — a tool-invocation aggregate (error rate + a
+// per-tool calls/errors breakdown), the execution-dashboard analogue of
+// `agt edict stats` (M67). Completes the tool list/log/stats triad.
+func cmdToolStats(args []string, stdout, stderr io.Writer) int {
+	asJSON := false
+	toolFilter := ""
+	tenant := ""
+	sinceMS := int64(0)
+	sinceLabel := ""
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		switch {
+		case a == "--json":
+			asJSON = true
+		case a == "--tool":
+			if i+1 >= len(args) {
+				fmt.Fprintf(stderr, "%s tool stats: --tool needs a name\n", brand.CLI)
+				return 2
+			}
+			i++
+			toolFilter = args[i]
+		case strings.HasPrefix(a, "--tool="):
+			toolFilter = strings.TrimPrefix(a, "--tool=")
+		case a == "--since":
+			if i+1 >= len(args) {
+				fmt.Fprintf(stderr, "%s tool stats: --since needs a duration\n", brand.CLI)
+				return 2
+			}
+			i++
+			d, derr := time.ParseDuration(args[i])
+			if derr != nil || d <= 0 {
+				fmt.Fprintf(stderr, "%s tool stats: bad --since %q\n", brand.CLI, args[i])
+				return 2
+			}
+			sinceMS = d.Milliseconds()
+			sinceLabel = d.String()
+		case strings.HasPrefix(a, "--since="):
+			d, derr := time.ParseDuration(strings.TrimPrefix(a, "--since="))
+			if derr != nil || d <= 0 {
+				fmt.Fprintf(stderr, "%s tool stats: bad --since\n", brand.CLI)
+				return 2
+			}
+			sinceMS = d.Milliseconds()
+			sinceLabel = d.String()
+		case a == "--tenant":
+			if i+1 >= len(args) {
+				fmt.Fprintf(stderr, "%s tool stats: --tenant needs an id\n", brand.CLI)
+				return 2
+			}
+			i++
+			tenant = args[i]
+		case strings.HasPrefix(a, "--tenant="):
+			tenant = strings.TrimPrefix(a, "--tenant=")
+		case a == "-h" || a == "--help":
+			fmt.Fprintf(stdout, "usage: %s tool stats [--tool <name>] [--since <dur>] [--tenant <id>] [--json]\n", brand.CLI)
+			fmt.Fprintf(stdout, "aggregate tool invocations: total, errored (rate), calls/errors by tool\n")
+			return 0
+		default:
+			fmt.Fprintf(stderr, "%s tool stats: unexpected arg %q\n", brand.CLI, a)
+			return 2
+		}
+	}
+
+	c := dial(stderr)
+	if c == nil {
+		return 1
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	callArgs := map[string]any{}
+	if toolFilter != "" {
+		callArgs["tool"] = toolFilter
+	}
+	if sinceMS > 0 {
+		callArgs["since_ms"] = sinceMS
+	}
+	if tenant != "" {
+		callArgs["tenant"] = tenant
+	}
+	res, err := c.Call(ctx, controlplane.CmdToolStats, callArgs)
+	if err != nil {
+		fmt.Fprintf(stderr, "%s tool stats: %v\n", brand.CLI, err)
+		return 1
+	}
+	if asJSON {
+		return encodeJSON(stdout, res)
+	}
+	total := intOfStatus(res["total"])
+	windowSuffix := ""
+	if sinceLabel != "" {
+		windowSuffix = " in the last " + sinceLabel
+	}
+	if total == 0 {
+		fmt.Fprintf(stdout, "no tool invocations%s.\n", windowSuffix)
+		return 0
+	}
+	errored := intOfStatus(res["errored"])
+	rate, _ := res["error_rate"].(float64)
+	fmt.Fprintf(stdout, "tool invocations (over %d%s):\n\n", total, windowSuffix)
+	fmt.Fprintf(stdout, "  errored   : %d\n", errored)
+	fmt.Fprintf(stdout, "  error     : %.1f%%\n", rate*100)
+	if byTool, _ := res["by_tool"].(map[string]any); len(byTool) > 0 {
+		fmt.Fprintf(stdout, "\n  by tool:\n")
+		names := make([]string, 0, len(byTool))
+		for name := range byTool {
+			names = append(names, name)
+		}
+		sort.Strings(names)
+		for _, name := range names {
+			m, _ := byTool[name].(map[string]any)
+			fmt.Fprintf(stdout, "    %-16s %d call(s), %d error(s)\n",
+				name, intOfStatus(m["calls"]), intOfStatus(m["errors"]))
+		}
 	}
 	return 0
 }

@@ -269,6 +269,11 @@ const (
 	// Returns: { invocations: [ {ts_unix_ms, actor, correlation_id, tool,
 	// call_id, input, output, error} ], count }
 	CmdToolLog = "tool_log"
+	// CmdToolStats aggregates tool invocations (M67) — the execution-dashboard
+	// analogue of CmdEdictStats. Args: tool (optional name filter), since_ms
+	// (optional window). Returns: { total, errored, error_rate, by_tool: {tool →
+	// {calls, errors}}, tools, window_ms }
+	CmdToolStats = "tool_stats"
 
 	// CmdStateList enumerates namespaces and (optionally) keys in
 	// the kernel state store. State is normally invisible to

@@ -106,6 +106,48 @@ func TestToolLog_FiltersErrorsAndTool(t *testing.T) {
 	}
 }
 
+// TestToolStats_Aggregates — `agt tool stats` counts total/errored, computes the
+// error rate, and breaks calls + errors down by tool (M67).
+func TestToolStats_Aggregates(t *testing.T) {
+	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	toolResult(k, "a", "shell", "ok", false)
+	toolResult(k, "b", "shell", "boom", true)
+	toolResult(k, "c", "http", "ok", false)
+	toolResult(k, "d", "http", "fail", true)
+
+	res, err := c.Call(context.Background(), controlplane.CmdToolStats, nil)
+	if err != nil {
+		t.Fatalf("Call: %v", err)
+	}
+	if total, _ := res["total"].(float64); total != 4 {
+		t.Errorf("total = %v want 4", res["total"])
+	}
+	if errored, _ := res["errored"].(float64); errored != 2 {
+		t.Errorf("errored = %v want 2", res["errored"])
+	}
+	if rate, _ := res["error_rate"].(float64); rate != 0.5 {
+		t.Errorf("error_rate = %v want 0.5", rate)
+	}
+	byTool, _ := res["by_tool"].(map[string]any)
+	shell, _ := byTool["shell"].(map[string]any)
+	if calls, _ := shell["calls"].(float64); calls != 2 {
+		t.Errorf("shell calls = %v want 2", shell["calls"])
+	}
+	if errs, _ := shell["errors"].(float64); errs != 1 {
+		t.Errorf("shell errors = %v want 1", shell["errors"])
+	}
+
+	// Tool filter scopes the aggregate to one tool.
+	fres, err := c.Call(context.Background(), controlplane.CmdToolStats,
+		map[string]any{"tool": "http"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if total, _ := fres["total"].(float64); total != 2 {
+		t.Errorf("filtered total = %v want 2", fres["total"])
+	}
+}
+
 // TestToolLog_SinceWindow — args.since_ms restricts the log to calls within the
 // window (M66, via the shared sinceCutoff helper): a 1h window includes a
 // just-published result; a 1ms window after a brief sleep excludes it.

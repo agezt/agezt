@@ -12,6 +12,11 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **`agt tool stats` — tool-invocation aggregate** (SPEC-08, M67) — folds the
+  journal's `tool.result` events into total / errored / error-rate plus a
+  per-tool calls+errors breakdown. The execution-dashboard analogue of
+  `agt edict stats`; completes the tool `list`/`log`/`stats` triad. `--tool`,
+  `--since`, `--json`, tenant-scoped. See `.project/PHASE-M67-TOOL-STATS-REPORT.md`.
 - **`agt tool log` — tool-invocation audit** (SPEC-08, M66) — a read-only view of
   the journal's `tool.invoked` + `tool.result` events: what the agent actually
   ran and how each call turned out (`<time> ok|ERROR <tool>  <output-preview>`).

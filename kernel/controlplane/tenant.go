@@ -62,7 +62,7 @@ func (s *Server) SetTenants(r *tenant.Registry) { s.tenants = r }
 func tenantTokenAllows(cmd string) bool {
 	switch cmd {
 	case CmdRun, CmdCancelRun,
-		CmdRunsList, CmdRunsStats, CmdWhy, CmdWhoami, CmdToolLog,
+		CmdRunsList, CmdRunsStats, CmdWhy, CmdWhoami, CmdToolLog, CmdToolStats,
 		CmdEdictLog, CmdEdictStats, CmdEdictShow, CmdEdictTest, CmdEdictDenyList, CmdEdictDenyAdd,
 		CmdEdictDenyRemove, CmdEdictSetLevel, CmdEdictSetMode:
 		return true

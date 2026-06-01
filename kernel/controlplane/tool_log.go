@@ -127,6 +127,86 @@ func (s *Server) handleToolLog(conn net.Conn, req Request) {
 	})
 }
 
+// handleToolStats aggregates tool invocations (M67) — the execution-dashboard
+// analogue of handleEdictStats. Folds the journal's tool.result events into
+// total / errored / error-rate plus a per-tool breakdown ({calls, errors}).
+// Optional tool scopes to one tool; since_ms windows by call time. Tenant-scoped.
+func (s *Server) handleToolStats(conn net.Conn, req Request) {
+	toolFilter, _ := req.Args["tool"].(string)
+	cutoff := sinceCutoff(req.Args["since_ms"])
+
+	k, err := s.kernelFor(tenantOf(req))
+	if err != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		return
+	}
+
+	var total, errored int
+	type toolAgg struct{ calls, errors int }
+	byTool := map[string]*toolAgg{}
+	if err := k.Journal().Range(func(e *event.Event) error {
+		if e.Kind != event.KindToolResult {
+			return nil
+		}
+		if cutoff > 0 && e.TSUnixMS < cutoff {
+			return nil
+		}
+		tool, _, _, isErr := decodeToolResult(e.Payload)
+		if toolFilter != "" && tool != toolFilter {
+			return nil
+		}
+		if tool == "" {
+			tool = "unknown"
+		}
+		total++
+		agg := byTool[tool]
+		if agg == nil {
+			agg = &toolAgg{}
+			byTool[tool] = agg
+		}
+		agg.calls++
+		if isErr {
+			errored++
+			agg.errors++
+		}
+		return nil
+	}); err != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		return
+	}
+
+	errorRate := 0.0
+	if total > 0 {
+		errorRate = float64(errored) / float64(total)
+	}
+	byToolOut := make(map[string]any, len(byTool))
+	for tool, agg := range byTool {
+		byToolOut[tool] = map[string]any{"calls": agg.calls, "errors": agg.errors}
+	}
+
+	var sinceMS int64
+	switch v := req.Args["since_ms"].(type) {
+	case float64:
+		sinceMS = int64(v)
+	case int64:
+		sinceMS = v
+	case int:
+		sinceMS = int64(v)
+	}
+	s.writeResp(conn, Response{
+		ID:   req.ID,
+		Type: RespResult,
+		Result: map[string]any{
+			"total":      total,
+			"errored":    errored,
+			"error_rate": errorRate,
+			"by_tool":    byToolOut,
+			"tools":      len(byTool),
+			"window_ms":  sinceMS,
+		},
+	})
+}
+
 // decodeToolInvoked pulls call_id + a whitespace-collapsed input preview out of
 // a tool.invoked payload (M66). Returns zero values on parse failure so a
 // malformed event simply contributes no input annotation.
