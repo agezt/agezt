@@ -360,6 +360,8 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.handleScheduleEnable(conn, req)
 	case CmdScheduleEdit:
 		s.handleScheduleEdit(conn, req)
+	case CmdScheduleFires:
+		s.handleScheduleFires(conn, req)
 	case CmdTenantCreate:
 		s.handleTenantCreate(conn, req)
 	case CmdTenantList:

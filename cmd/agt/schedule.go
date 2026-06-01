@@ -31,6 +31,8 @@ func cmdSchedule(args []string, stdout, stderr io.Writer) int {
 		return cmdScheduleEdit(args[1:], stdout, stderr)
 	case "list", "ls":
 		return cmdScheduleList(args[1:], stdout, stderr)
+	case "fires", "history":
+		return cmdScheduleFires(args[1:], stdout, stderr)
 	case "rm", "remove":
 		return cmdScheduleRemove(args[1:], stdout, stderr)
 	case "run", "trigger":
@@ -46,6 +48,7 @@ func cmdSchedule(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "  add \"<intent>\" --in <dur> | --once --at <HH:MM>              one-shot (fires once, then removed)\n")
 		fmt.Fprintf(stdout, "  edit <id> [--intent <s>] [--model <id>] [<cadence flag>]      change a schedule in place\n")
 		fmt.Fprintf(stdout, "  list [--json]                                                list all schedules\n")
+		fmt.Fprintf(stdout, "  fires [N] [--json]                                           recent scheduled firings + outcomes\n")
 		fmt.Fprintf(stdout, "  rm <id> [--json]                                             delete a schedule\n")
 		fmt.Fprintf(stdout, "  run <id> [--json]                                            fire a schedule now (next tick)\n")
 		fmt.Fprintf(stdout, "  pause <id> / resume <id> [--json]                            disable / re-enable without deleting\n")
@@ -638,6 +641,88 @@ func cmdScheduleList(args []string, stdout, stderr io.Writer) int {
 		}
 		fmt.Fprintf(stdout, "  %-22s %-16s [%s,%s] next %s  %q\n",
 			id, cadence, source, state, nextStr, intent)
+	}
+	return 0
+}
+
+// cmdScheduleFires implements `agt schedule fires [N] [--json]` — the autonomy
+// analogue of `agt runs list`. `schedule list` shows what's scheduled; this
+// shows what actually FIRED and how it turned out (status, duration, spend),
+// joined server-side from the schedule.fired events and the run outcomes (M54).
+// Drill into any firing with `agt runs show <correlation>`.
+func cmdScheduleFires(args []string, stdout, stderr io.Writer) int {
+	asJSON := false
+	limit := 0
+	for _, a := range args {
+		switch {
+		case a == "--json":
+			asJSON = true
+		case a == "-h" || a == "--help":
+			fmt.Fprintf(stdout, "usage: %s schedule fires [N] [--json]\n", brand.CLI)
+			fmt.Fprintf(stdout, "show recent scheduled-run firings and their outcomes (status, duration, spend)\n")
+			fmt.Fprintf(stdout, "drill into a firing with `%s runs show <correlation>`\n", brand.CLI)
+			return 0
+		default:
+			if n, err := strconv.Atoi(a); err == nil && n > 0 {
+				limit = n
+				continue
+			}
+			fmt.Fprintf(stderr, "%s schedule fires: unexpected arg %q (expected N or --json)\n", brand.CLI, a)
+			return 2
+		}
+	}
+
+	c := dial(stderr)
+	if c == nil {
+		return 1
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	callArgs := map[string]any{}
+	if limit > 0 {
+		callArgs["limit"] = limit
+	}
+	res, err := c.Call(ctx, controlplane.CmdScheduleFires, callArgs)
+	if err != nil {
+		fmt.Fprintf(stderr, "%s schedule fires: %v\n", brand.CLI, err)
+		return 1
+	}
+	if asJSON {
+		return encodeJSON(stdout, res)
+	}
+	fires, _ := res["fires"].([]any)
+	if len(fires) == 0 {
+		fmt.Fprintf(stdout, "no scheduled firings yet (schedules fire on their cadence; see `%s schedule list`).\n", brand.CLI)
+		return 0
+	}
+	for _, item := range fires {
+		m, _ := item.(map[string]any)
+		corr, _ := m["correlation_id"].(string)
+		intent, _ := m["intent"].(string)
+		status, _ := m["status"].(string)
+		reason, _ := m["reason"].(string)
+		fired := intOfStatus(m["fired_unix_ms"])
+		dur := intOfStatus(m["duration_ms"])
+		spent := mcFromAny(m["spent_mc"])
+
+		statusDisp := status
+		if status == "failed" && reason != "" {
+			statusDisp = "failed (" + reason + ")"
+		}
+		firedStr := "—"
+		if fired > 0 {
+			firedStr = time.UnixMilli(fired).Format("2006-01-02 15:04:05")
+		}
+		// Duration + spend only for terminal firings (running ones have neither).
+		meta := ""
+		if status == "completed" || status == "failed" {
+			meta = " (" + fmtDuration(dur)
+			if spent > 0 {
+				meta += ", " + fmtUSD(spent)
+			}
+			meta += ")"
+		}
+		fmt.Fprintf(stdout, "  %s  %-18s%s  %s  %q\n", firedStr, statusDisp, meta, corr, intent)
 	}
 	return 0
 }

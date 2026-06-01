@@ -8,8 +8,90 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
+
+// TestScheduleFires_JoinsRunOutcome — `agt schedule fires` lists only scheduled
+// firings (schedule.fired events), each joined with its run's outcome from the
+// shared collectRuns fold: status, spend (M47), and answer preview (M52). A
+// manual (non-scheduled) run must NOT appear (M54).
+func TestScheduleFires_JoinsRunOutcome(t *testing.T) {
+	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+
+	// A schedule fired under correlation f1, then its run completed with spend.
+	_, _ = k.Bus().Publish(event.Spec{
+		Subject: "schedule.fired", Kind: event.KindScheduleFired, Actor: "schedule",
+		CorrelationID: "f1", Payload: map[string]any{"intent": "summarize the day", "model": "m1"},
+	})
+	_, _ = k.Bus().Publish(event.Spec{
+		Subject: "task", Kind: event.KindTaskReceived, Actor: "a",
+		CorrelationID: "f1", Payload: map[string]string{"intent": "summarize the day"},
+	})
+	_, _ = k.Bus().Publish(event.Spec{
+		Subject: "governor.budget", Kind: event.KindBudgetConsumed, Actor: "governor",
+		CorrelationID: "f1", Payload: map[string]any{"cost_microcents": int64(2_100_000)},
+	})
+	_, _ = k.Bus().Publish(event.Spec{
+		Subject: "task", Kind: event.KindTaskCompleted, Actor: "a",
+		CorrelationID: "f1", Payload: map[string]any{"iters": 1, "answer": "all done"},
+	})
+	// A manual (non-scheduled) run — must not show up under fires.
+	_, _ = k.Bus().Publish(event.Spec{
+		Subject: "task", Kind: event.KindTaskReceived, Actor: "a",
+		CorrelationID: "manual", Payload: map[string]string{"intent": "manual run"},
+	})
+	_, _ = k.Bus().Publish(event.Spec{
+		Subject: "task", Kind: event.KindTaskCompleted, Actor: "a",
+		CorrelationID: "manual", Payload: map[string]any{"iters": 1},
+	})
+
+	res, err := c.Call(context.Background(), controlplane.CmdScheduleFires, nil)
+	if err != nil {
+		t.Fatalf("Call: %v", err)
+	}
+	fires, _ := res["fires"].([]any)
+	if len(fires) != 1 {
+		t.Fatalf("fires = %d want 1 (only the scheduled firing)", len(fires))
+	}
+	row, _ := fires[0].(map[string]any)
+	if got, _ := row["correlation_id"].(string); got != "f1" {
+		t.Errorf("correlation_id = %q want f1", got)
+	}
+	if got, _ := row["status"].(string); got != "completed" {
+		t.Errorf("status = %q want completed", got)
+	}
+	if got, _ := row["intent"].(string); got != "summarize the day" {
+		t.Errorf("intent = %q want summarize the day", got)
+	}
+	if got := int64(intOf(row["spent_mc"])); got != 2_100_000 {
+		t.Errorf("spent_mc = %d want 2100000", got)
+	}
+	if got, _ := row["answer_preview"].(string); got != "all done" {
+		t.Errorf("answer_preview = %q want \"all done\"", got)
+	}
+}
+
+// TestScheduleFires_EmptyWhenNoFirings — a journal with runs but no
+// schedule.fired events returns an empty (non-nil) fires array (M54).
+func TestScheduleFires_EmptyWhenNoFirings(t *testing.T) {
+	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	_, _ = k.Bus().Publish(event.Spec{
+		Subject: "task", Kind: event.KindTaskReceived, Actor: "a",
+		CorrelationID: "r1", Payload: map[string]string{"intent": "x"},
+	})
+	res, err := c.Call(context.Background(), controlplane.CmdScheduleFires, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fires, ok := res["fires"].([]any)
+	if !ok {
+		t.Fatalf("fires should be an array, got %T", res["fires"])
+	}
+	if len(fires) != 0 {
+		t.Errorf("fires = %d want 0", len(fires))
+	}
+}
 
 func TestScheduleAddListRemove(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))

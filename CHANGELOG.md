@@ -12,6 +12,16 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **`agt schedule fires` — autonomy firing history** (SPEC-08 journal × cadence, M54)
+  — the first operator view of what scheduled work has *done*, not just what's
+  scheduled. `agt schedule list` shows the schedules; `agt schedule fires [N]` (alias
+  `history`) shows each firing and its outcome: `<time>  completed (22ms, $X)
+  <correlation>  "<intent>"`. The new `handleScheduleFires` walks the journal for
+  `schedule.fired` events and joins each with its run outcome from the shared
+  `collectRuns` fold (status/duration/spend M47/answer-preview M52) — so a firing
+  never disagrees with `agt runs show <correlation>`. The autonomy analogue of
+  `agt runs list` (newest-first, `[N]` limit, `--json`, tenant-scoped); manual runs
+  are excluded. See `.project/PHASE-M54-SCHEDULE-FIRES-REPORT.md`.
 - **Tenant-scoped `agt why`** (SPEC-08 journal × SPEC-14 multi-tenancy, M53) — the
   event-chain tracer is now routed per-tenant via `kernelFor(tenantOf(req))` (the
   M39 seam): `agt why <id> --tenant <id>` traces a tenant's own journal, and the
