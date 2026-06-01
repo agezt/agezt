@@ -46,6 +46,16 @@ func (s *Server) handleToolLog(conn net.Conn, req Request) {
 	errorsOnly, _ := req.Args["errors"].(bool)
 	toolFilter, _ := req.Args["tool"].(string)
 	cutoff := sinceCutoff(req.Args["since_ms"]) // M65 helper: optional time window
+	// Latency floor (M73): keep only calls at/above this wall-clock. 0 = no floor.
+	var slowMS int64
+	switch v := req.Args["slow_ms"].(type) {
+	case float64:
+		slowMS = int64(v)
+	case int64:
+		slowMS = v
+	case int:
+		slowMS = int64(v)
+	}
 
 	k, err := s.kernelFor(tenantOf(req))
 	if err != nil {
@@ -94,6 +104,9 @@ func (s *Server) handleToolLog(conn net.Conn, req Request) {
 			var dur int64
 			if it, ok := invokedTS[id]; ok && e.TSUnixMS >= it {
 				dur = e.TSUnixMS - it
+			}
+			if slowMS > 0 && dur < slowMS {
+				return nil // M73: faster than the latency floor (or unmeasurable)
 			}
 			results = append(results, invocation{
 				ts: e.TSUnixMS, seq: e.Seq, actor: e.Actor, corr: e.CorrelationID,

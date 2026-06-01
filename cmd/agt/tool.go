@@ -110,6 +110,7 @@ func cmdToolLog(args []string, stdout, stderr io.Writer) int {
 	toolFilter := ""
 	tenant := ""
 	sinceMS := int64(0)
+	slowMS := int64(0)
 	for i := 0; i < len(args); i++ {
 		a := args[i]
 		switch {
@@ -117,6 +118,25 @@ func cmdToolLog(args []string, stdout, stderr io.Writer) int {
 			asJSON = true
 		case a == "--errors":
 			errorsOnly = true
+		case a == "--slow":
+			if i+1 >= len(args) {
+				fmt.Fprintf(stderr, "%s tool log: --slow needs a duration\n", brand.CLI)
+				return 2
+			}
+			i++
+			d, derr := time.ParseDuration(args[i])
+			if derr != nil || d <= 0 {
+				fmt.Fprintf(stderr, "%s tool log: bad --slow %q\n", brand.CLI, args[i])
+				return 2
+			}
+			slowMS = d.Milliseconds()
+		case strings.HasPrefix(a, "--slow="):
+			d, derr := time.ParseDuration(strings.TrimPrefix(a, "--slow="))
+			if derr != nil || d <= 0 {
+				fmt.Fprintf(stderr, "%s tool log: bad --slow\n", brand.CLI)
+				return 2
+			}
+			slowMS = d.Milliseconds()
 		case a == "--tool":
 			if i+1 >= len(args) {
 				fmt.Fprintf(stderr, "%s tool log: --tool needs a name\n", brand.CLI)
@@ -155,9 +175,10 @@ func cmdToolLog(args []string, stdout, stderr io.Writer) int {
 		case strings.HasPrefix(a, "--tenant="):
 			tenant = strings.TrimPrefix(a, "--tenant=")
 		case a == "-h" || a == "--help":
-			fmt.Fprintf(stdout, "usage: %s tool log [N] [--errors] [--tool <name>] [--since <dur>] [--tenant <id>] [--json]\n", brand.CLI)
-			fmt.Fprintf(stdout, "show recent tool invocations (what the agent ran: tool, input, output, ok/ERROR)\n")
+			fmt.Fprintf(stdout, "usage: %s tool log [N] [--errors] [--slow <dur>] [--tool <name>] [--since <dur>] [--tenant <id>] [--json]\n", brand.CLI)
+			fmt.Fprintf(stdout, "show recent tool invocations (what the agent ran: tool, input, output, ok/ERROR, latency)\n")
 			fmt.Fprintf(stdout, "  --errors      only show failed calls\n")
+			fmt.Fprintf(stdout, "  --slow <dur>  only calls at/above this latency (e.g. 500ms, 2s)\n")
 			fmt.Fprintf(stdout, "  --tool <name> only calls to this tool\n")
 			fmt.Fprintf(stdout, "  --since <dur> only calls in the last <dur>\n")
 			return 0
@@ -166,7 +187,7 @@ func cmdToolLog(args []string, stdout, stderr io.Writer) int {
 				limit = n
 				continue
 			}
-			fmt.Fprintf(stderr, "%s tool log: unexpected arg %q (expected N, --errors, --tool, --since, --tenant, or --json)\n", brand.CLI, a)
+			fmt.Fprintf(stderr, "%s tool log: unexpected arg %q (expected N, --errors, --slow, --tool, --since, --tenant, or --json)\n", brand.CLI, a)
 			return 2
 		}
 	}
@@ -190,6 +211,9 @@ func cmdToolLog(args []string, stdout, stderr io.Writer) int {
 	if sinceMS > 0 {
 		callArgs["since_ms"] = sinceMS
 	}
+	if slowMS > 0 {
+		callArgs["slow_ms"] = slowMS
+	}
 	if tenant != "" {
 		callArgs["tenant"] = tenant
 	}
@@ -203,9 +227,12 @@ func cmdToolLog(args []string, stdout, stderr io.Writer) int {
 	}
 	invs, _ := res["invocations"].([]any)
 	if len(invs) == 0 {
-		if errorsOnly {
+		switch {
+		case errorsOnly:
 			fmt.Fprintf(stdout, "no failed tool calls.\n")
-		} else {
+		case slowMS > 0:
+			fmt.Fprintf(stdout, "no tool calls at/above that latency.\n")
+		default:
 			fmt.Fprintf(stdout, "no tool invocations journaled yet.\n")
 		}
 		return 0

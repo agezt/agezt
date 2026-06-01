@@ -21,6 +21,11 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   input/output excerpts. See `.project/PHASE-M68-ARC-HONESTY-REPORT.md`.
 
 ### Added
+- **`agt tool log --slow <dur>` latency filter** (SPEC-08, M73) — the
+  performance-hunting counterpart to `--errors`: keeps only tool calls whose
+  invoked→result latency is at/above the floor, applied server-side before the
+  limit. Completes the tool-log filter family (errors / slow / tool / since). See
+  `.project/PHASE-M73-TOOL-SLOW-REPORT.md`.
 - **Per-tool latency inline in the task arc** (SPEC-08, M72) — `agt runs show`
   now renders each `tool.result` with its invoked→result wall-clock
   (`tool.result : ok (18ms) …`), joined by `call_id` from the arc's own event

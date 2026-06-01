@@ -214,3 +214,41 @@ func TestToolLog_ReportsLatency(t *testing.T) {
 		t.Errorf("latency count = %v want 1", dur["count"])
 	}
 }
+
+// TestToolLog_SlowFilter — --slow keeps only calls at/above the latency floor
+// (M73). Two calls are published with controlled invoked→result spans by
+// stamping events through the bus back-to-back vs after a sleep.
+func TestToolLog_SlowFilter(t *testing.T) {
+	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	// Fast call: invoked+result back-to-back (~0ms).
+	toolInvoked(k, "fast", "shell", "a")
+	toolResult(k, "fast", "shell", "ok", false)
+	// Slow call: ~20ms between invoked and result.
+	toolInvoked(k, "slow", "http", "b")
+	time.Sleep(20 * time.Millisecond)
+	toolResult(k, "slow", "http", "ok", false)
+
+	// No floor → both.
+	all, err := c.Call(context.Background(), controlplane.CmdToolLog, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := all["invocations"].([]any); len(got) != 2 {
+		t.Fatalf("unfiltered = %d want 2", len(got))
+	}
+
+	// 10ms floor → only the slow one.
+	res, err := c.Call(context.Background(), controlplane.CmdToolLog,
+		map[string]any{"slow_ms": int64(10)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	slow, _ := res["invocations"].([]any)
+	if len(slow) != 1 {
+		t.Fatalf("slow-filtered = %d want 1", len(slow))
+	}
+	m, _ := slow[0].(map[string]any)
+	if m["tool"] != "http" {
+		t.Errorf("slow call tool = %v want http", m["tool"])
+	}
+}
