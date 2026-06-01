@@ -31,7 +31,7 @@ func CapabilityForToolCall(toolName string, input json.RawMessage) Capability {
 			return CapFileRead
 		case "list":
 			return CapFileList
-		case "write", "append":
+		case "write", "append", "replace":
 			return CapFileWrite
 		case "delete":
 			return CapFileDelete

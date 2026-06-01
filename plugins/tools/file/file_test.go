@@ -188,3 +188,53 @@ func TestDefinitionMentionsWorkspaceContainment(t *testing.T) {
 	}
 }
 
+func TestReplace_UniqueMatch(t *testing.T) {
+	tool := newTool(t)
+	invoke(t, tool, fileInput{Op: "write", Path: "code.txt", Content: "alpha\nBETA\ngamma\n"})
+
+	out := invoke(t, tool, fileInput{Op: "replace", Path: "code.txt", Find: "BETA", Replacement: "beta"})
+	if !strings.Contains(out, "replaced 1") {
+		t.Errorf("replace output = %q", out)
+	}
+	if got := invoke(t, tool, fileInput{Op: "read", Path: "code.txt"}); !strings.Contains(got, "beta") || strings.Contains(got, "BETA") {
+		t.Errorf("file after replace = %q", got)
+	}
+}
+
+func TestReplace_AmbiguousRequiresAll(t *testing.T) {
+	tool := newTool(t)
+	invoke(t, tool, fileInput{Op: "write", Path: "x.txt", Content: "x x x"})
+
+	// Without all=true, multiple matches must error (and not change the file).
+	invokeExpectErr(t, tool, fileInput{Op: "replace", Path: "x.txt", Find: "x", Replacement: "y"}, "matches 3 times")
+	if got := invoke(t, tool, fileInput{Op: "read", Path: "x.txt"}); got != "x x x" {
+		t.Errorf("file changed despite ambiguous replace: %q", got)
+	}
+
+	// With all=true, replace every occurrence.
+	out := invoke(t, tool, fileInput{Op: "replace", Path: "x.txt", Find: "x", Replacement: "y", All: true})
+	if !strings.Contains(out, "replaced 3") {
+		t.Errorf("replace all output = %q", out)
+	}
+	if got := invoke(t, tool, fileInput{Op: "read", Path: "x.txt"}); got != "y y y" {
+		t.Errorf("file after replace-all = %q", got)
+	}
+}
+
+func TestReplace_NotFound(t *testing.T) {
+	tool := newTool(t)
+	invoke(t, tool, fileInput{Op: "write", Path: "f.txt", Content: "hello"})
+	invokeExpectErr(t, tool, fileInput{Op: "replace", Path: "f.txt", Find: "absent", Replacement: "x"}, "not found")
+}
+
+func TestReplace_GuardsEmptyAndIdentical(t *testing.T) {
+	tool := newTool(t)
+	invoke(t, tool, fileInput{Op: "write", Path: "f.txt", Content: "hello"})
+	invokeExpectErr(t, tool, fileInput{Op: "replace", Path: "f.txt", Find: "", Replacement: "x"}, "non-empty")
+	invokeExpectErr(t, tool, fileInput{Op: "replace", Path: "f.txt", Find: "hello", Replacement: "hello"}, "identical")
+}
+
+func TestReplace_RejectsEscape(t *testing.T) {
+	tool := newTool(t)
+	invokeExpectErr(t, tool, fileInput{Op: "replace", Path: "../outside.txt", Find: "a", Replacement: "b"}, "")
+}

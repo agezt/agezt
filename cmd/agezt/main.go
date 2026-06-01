@@ -2087,6 +2087,16 @@ func newDemoMock() agent.Provider {
 			mock.FinalText("[offline-mock] I attempted to read the cloud metadata endpoint; the egress guard refused the connection."),
 		)
 	}
+	// Demo escape hatch: AGEZT_DEMO_FILE_EDIT=1 scripts the lead to write a file
+	// then SURGICALLY edit it with the file tool's replace op (M114), so the
+	// partial-edit path is observable end-to-end offline.
+	if os.Getenv(brand.EnvPrefix+"DEMO_FILE_EDIT") == "1" {
+		return mock.New(
+			mock.ToolUse("call-1", "file", map[string]any{"op": "write", "path": "notes.txt", "content": "status = draft\nowner = nobody\n"}),
+			mock.ToolUse("call-2", "file", map[string]any{"op": "replace", "path": "notes.txt", "find": "draft", "replacement": "published"}),
+			mock.FinalText("[offline-mock] I wrote notes.txt and edited it in place: status is now 'published'."),
+		)
+	}
 	// Demo escape hatch: AGEZT_DEMO_DELEGATE=1 scripts a single delegation so
 	// the multi-agent path (the `delegate` tool, subagent.spawned, M41 run
 	// links) is observable from `agt run` with no external services. The lead

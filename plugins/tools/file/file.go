@@ -89,17 +89,20 @@ func (t *Tool) Root() string { return t.root }
 func (t *Tool) Definition() agent.ToolDef {
 	return agent.ToolDef{
 		Name: "file",
-		Description: "Read, write, list, and search files in the workspace. " +
+		Description: "Read, write, list, search, and edit files in the workspace. " +
 			"All paths are relative to the workspace root; absolute paths or `..` " +
-			"escape are rejected.",
+			"escape are rejected. Prefer `replace` for small edits over rewriting a whole file.",
 		InputSchema: json.RawMessage(`{
   "type": "object",
   "required": ["op"],
   "properties": {
-    "op":   {"type": "string", "enum": ["read","write","append","list","search","stat","delete"]},
+    "op":   {"type": "string", "enum": ["read","write","append","list","search","stat","delete","replace"]},
     "path": {"type": "string", "description": "Path relative to the workspace root."},
     "content": {"type": "string", "description": "For write/append: the bytes to write."},
     "pattern": {"type": "string", "description": "For search: a literal substring (not regex) to grep for."},
+    "find": {"type": "string", "description": "For replace: the exact substring to find. Must be unique unless all=true."},
+    "replacement": {"type": "string", "description": "For replace: the text to substitute for 'find'."},
+    "all": {"type": "boolean", "description": "For replace: replace every occurrence instead of requiring a single unique match."},
     "max_results": {"type": "integer", "description": "For list/search: cap the entries returned."}
   }
 }`),
@@ -107,11 +110,14 @@ func (t *Tool) Definition() agent.ToolDef {
 }
 
 type fileInput struct {
-	Op         string `json:"op"`
-	Path       string `json:"path,omitempty"`
-	Content    string `json:"content,omitempty"`
-	Pattern    string `json:"pattern,omitempty"`
-	MaxResults int    `json:"max_results,omitempty"`
+	Op          string `json:"op"`
+	Path        string `json:"path,omitempty"`
+	Content     string `json:"content,omitempty"`
+	Pattern     string `json:"pattern,omitempty"`
+	Find        string `json:"find,omitempty"`
+	Replacement string `json:"replacement,omitempty"`
+	All         bool   `json:"all,omitempty"`
+	MaxResults  int    `json:"max_results,omitempty"`
 }
 
 // Invoke implements agent.Tool.
@@ -139,6 +145,8 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, e
 		return t.doStat(in)
 	case "delete":
 		return t.doDelete(in)
+	case "replace":
+		return t.doReplace(in)
 	case "":
 		return errResult("op is required"), nil
 	default:
@@ -211,6 +219,56 @@ func (t *Tool) doWrite(in fileInput, appendMode bool) (agent.Result, error) {
 	}
 	return agent.Result{
 		Output: fmt.Sprintf("%s %d bytes to %s", verb, len(in.Content), in.Path),
+	}, nil
+}
+
+// doReplace performs an in-place find/replace edit (M114) — the partial-edit op
+// the file tool long deferred. By default `find` must match EXACTLY ONCE so an
+// ambiguous edit fails loudly instead of changing the wrong place; set all=true
+// to replace every occurrence. This lets an agent edit a file surgically rather
+// than read-and-rewrite the whole thing, cutting context cost and clobber risk.
+func (t *Tool) doReplace(in fileInput) (agent.Result, error) {
+	p, err := t.resolve(in.Path)
+	if err != nil {
+		return errResult(err.Error()), nil
+	}
+	if in.Find == "" {
+		return errResult("replace: 'find' must be non-empty"), nil
+	}
+	if in.Find == in.Replacement {
+		return errResult("replace: 'find' and 'replacement' are identical (no change)"), nil
+	}
+	info, err := os.Stat(p)
+	if err != nil {
+		return errResult("stat: " + err.Error()), nil
+	}
+	if info.IsDir() {
+		return errResult("replace: " + in.Path + " is a directory"), nil
+	}
+	data, err := os.ReadFile(p)
+	if err != nil {
+		return errResult("read: " + err.Error()), nil
+	}
+	content := string(data)
+	n := strings.Count(content, in.Find)
+	if n == 0 {
+		return errResult(fmt.Sprintf("replace: 'find' string not found in %s", in.Path)), nil
+	}
+	if n > 1 && !in.All {
+		return errResult(fmt.Sprintf("replace: 'find' matches %d times in %s — make it unique (add surrounding context) or set all=true", n, in.Path)), nil
+	}
+	count := 1
+	updated := strings.Replace(content, in.Find, in.Replacement, 1)
+	if in.All {
+		count = n
+		updated = strings.ReplaceAll(content, in.Find, in.Replacement)
+	}
+	if err := os.WriteFile(p, []byte(updated), info.Mode().Perm()); err != nil {
+		return errResult("write: " + err.Error()), nil
+	}
+	delta := len(updated) - len(content)
+	return agent.Result{
+		Output: fmt.Sprintf("replaced %d occurrence(s) in %s (%+d bytes)", count, in.Path, delta),
 	}, nil
 }
 

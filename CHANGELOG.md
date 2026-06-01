@@ -12,6 +12,11 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **File tool partial edit** (M114) — the `file` tool gains a `replace` op
+  (`find`/`replacement`, unique-match by default or `all=true`), so an agent can
+  edit a file surgically instead of rewriting the whole thing — cheaper in context
+  and safer. Governed as a write (CapFileWrite). See
+  `.project/PHASE-M114-FILE-REPLACE-REPORT.md`.
 - **`agt backup` / `agt restore`** (SPEC-09 §8, M113) — one-command, secret-free
   node migration: a portable `.tar.gz` of the home (journal + catalog) that
   restores on a fresh host and boots. Secrets are excluded by construction (only

@@ -18,6 +18,7 @@ func TestCapabilityForToolCall(t *testing.T) {
 		{"file", `{"op":"list"}`, CapFileList},
 		{"file", `{"op":"write","path":"x","content":"y"}`, CapFileWrite},
 		{"file", `{"op":"append","path":"x","content":"y"}`, CapFileWrite},
+		{"file", `{"op":"replace","path":"x","find":"a","replacement":"b"}`, CapFileWrite},
 		{"file", `{"op":"delete","path":"x"}`, CapFileDelete},
 		{"file", `{"op":"stat","path":"x"}`, CapFileRead},
 		{"file", `{"op":"search","pattern":"x"}`, CapFileRead},
