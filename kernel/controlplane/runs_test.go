@@ -793,6 +793,61 @@ func TestRunsStats_SpendAttribution(t *testing.T) {
 	}
 }
 
+// TestRunsStats_SpendDistribution — the per-run spend distribution (M60) reports
+// count/avg/min/max/p50/p95 over priced runs only, in microcents. Three runs
+// spend 100, 200, 300 → count 3, min 100, max 300, avg 200.
+func TestRunsStats_SpendDistribution(t *testing.T) {
+	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	mkRun := func(corr string, mc int64) {
+		t.Helper()
+		_, _ = k.Bus().Publish(event.Spec{
+			Subject: "task", Kind: event.KindTaskReceived, Actor: "a",
+			CorrelationID: corr, Payload: map[string]string{"intent": "x"},
+		})
+		_, _ = k.Bus().Publish(event.Spec{
+			Subject: "governor.budget", Kind: event.KindBudgetConsumed, Actor: "governor",
+			CorrelationID: corr, Payload: map[string]any{"cost_microcents": mc},
+		})
+		_, _ = k.Bus().Publish(event.Spec{
+			Subject: "task", Kind: event.KindTaskCompleted, Actor: "a",
+			CorrelationID: corr, Payload: map[string]any{"iters": 1},
+		})
+	}
+	mkRun("r1", 100)
+	mkRun("r2", 200)
+	mkRun("r3", 300)
+	// A free run (no spend) must be excluded from the distribution.
+	_, _ = k.Bus().Publish(event.Spec{
+		Subject: "task", Kind: event.KindTaskReceived, Actor: "a",
+		CorrelationID: "free", Payload: map[string]string{"intent": "x"},
+	})
+	_, _ = k.Bus().Publish(event.Spec{
+		Subject: "task", Kind: event.KindTaskCompleted, Actor: "a",
+		CorrelationID: "free", Payload: map[string]any{"iters": 1},
+	})
+
+	res, err := c.Call(context.Background(), controlplane.CmdRunsStats, nil)
+	if err != nil {
+		t.Fatalf("Call: %v", err)
+	}
+	sp, ok := res["spend_microcents"].(map[string]any)
+	if !ok {
+		t.Fatalf("spend_microcents missing/wrong type: %T", res["spend_microcents"])
+	}
+	if got := intOf(sp["count"]); got != 3 {
+		t.Errorf("count = %d want 3 (free run excluded)", got)
+	}
+	if got := int64(intOf(sp["min"])); got != 100 {
+		t.Errorf("min = %d want 100", got)
+	}
+	if got := int64(intOf(sp["max"])); got != 300 {
+		t.Errorf("max = %d want 300", got)
+	}
+	if got := int64(intOf(sp["avg"])); got != 200 {
+		t.Errorf("avg = %d want 200", got)
+	}
+}
+
 // TestRunsStats_SpendIgnoresUnknownCorrelation — a budget.consumed event whose
 // correlation never had a task.received (an out-of-run governor call) must not
 // conjure a phantom run nor inflate the spend total (M47).

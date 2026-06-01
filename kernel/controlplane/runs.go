@@ -338,6 +338,11 @@ func (s *Server) handleRunsStats(conn net.Conn, req Request) {
 	// attributable to sub-agent runs — so an operator sees not just how many
 	// delegations happened (M45) but what they cost.
 	var spentTotal, spentDelegated int64
+	// Per-run spend distribution (M60): the microcents each priced run cost,
+	// for an avg/p50/p95 breakdown mirroring the duration block — so an operator
+	// sees not just total spend (M47) but how it's distributed (a few expensive
+	// runs vs many cheap ones). Only runs that actually spent are included.
+	spends := make([]int64, 0, len(runs))
 	for _, r := range runs {
 		// Windowed: keep only runs that started at/after the cutoff. A run
 		// with no recorded start (the completed-without-received edge) can't
@@ -347,6 +352,9 @@ func (s *Server) handleRunsStats(conn net.Conn, req Request) {
 		}
 		total++
 		spentTotal += r.SpentMicrocents
+		if r.SpentMicrocents > 0 {
+			spends = append(spends, r.SpentMicrocents)
+		}
 		if r.ParentCorrelation != "" {
 			delegations++
 			fanout[r.ParentCorrelation]++
@@ -389,6 +397,9 @@ func (s *Server) handleRunsStats(conn net.Conn, req Request) {
 	// Duration aggregates over completed runs. avgIters is over
 	// completed runs too (only they carry an iters count).
 	dstats := durationStats(durations)
+	// Spend distribution over priced runs (M60) — reuses the same nearest-rank
+	// percentile helper as duration, in microcents.
+	sstats := durationStats(spends)
 	avgIters := 0.0
 	if completed > 0 {
 		avgIters = float64(itersSum) / float64(completed)
@@ -435,6 +446,15 @@ func (s *Server) handleRunsStats(conn net.Conn, req Request) {
 			// was journaled (e.g. a free/local model or the offline mock).
 			"spent_microcents":           spentTotal,
 			"delegated_spent_microcents": spentDelegated,
+			// Per-run spend distribution over priced runs (M60), in microcents.
+			"spend_microcents": map[string]any{
+				"count": len(spends),
+				"avg":   sstats.avg,
+				"min":   sstats.min,
+				"max":   sstats.max,
+				"p50":   sstats.p50,
+				"p95":   sstats.p95,
+			},
 			"duration_ms": map[string]any{
 				"count": len(durations),
 				"avg":   dstats.avg,

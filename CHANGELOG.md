@@ -12,6 +12,11 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **`agt runs stats` spend percentiles** (SPEC-12 multi-agent, M60) — the spend
+  aggregate now includes a per-run cost distribution (`spend dist`: avg/min/p50/p95/max
+  over priced runs), mirroring the duration block and reusing the same nearest-rank
+  helper. So an operator sees not just total spend (M47) but how it's distributed.
+  See `.project/PHASE-M60-RUNS-STATS-SPEND-PERCENTILES-REPORT.md`.
 - **`agt runs list` answer preview** (SPEC-08 × SPEC-12, M59) — `agt runs list` now
   shows each run's one-line answer preview beneath its intent (`answer : "…"`),
   rendering the `answer_preview` M52 already put on every row. Pure render, quiet

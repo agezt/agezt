@@ -257,6 +257,20 @@ func cmdRunsStats(args []string, stdout, stderr io.Writer) int {
 		}
 	}
 
+	// Spend distribution block (M60) — how per-run cost is spread (a few
+	// expensive runs vs many cheap ones), over priced runs only. Omitted when
+	// nothing was priced (free/local model or offline mock).
+	if sp, _ := res["spend_microcents"].(map[string]any); sp != nil {
+		if scount := intOfStatus(sp["count"]); scount > 0 {
+			fmt.Fprintf(stdout, "\n  spend dist (over %d priced run(s)):\n", scount)
+			fmt.Fprintf(stdout, "    avg : %s\n", fmtUSD(mcFromAny(sp["avg"])))
+			fmt.Fprintf(stdout, "    min : %s\n", fmtUSD(mcFromAny(sp["min"])))
+			fmt.Fprintf(stdout, "    p50 : %s\n", fmtUSD(mcFromAny(sp["p50"])))
+			fmt.Fprintf(stdout, "    p95 : %s\n", fmtUSD(mcFromAny(sp["p95"])))
+			fmt.Fprintf(stdout, "    max : %s\n", fmtUSD(mcFromAny(sp["max"])))
+		}
+	}
+
 	// Delegation block (M45) — surfaces the SCALE of multi-agent fan-out the
 	// other lines can't show: a sub-agent run is just another row in the
 	// totals above, indistinguishable from a top-level one. Printed only when
