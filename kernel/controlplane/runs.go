@@ -242,6 +242,7 @@ func (s *Server) handleRunsList(conn net.Conn, req Request) {
 			"duration_ms":        duration,
 			"iters":              r.Iters,
 			"parent_correlation": r.ParentCorrelation, // "" for top-level runs (M41)
+			"spent_mc":           r.SpentMicrocents,    // this run's spend in microcents (M50; 0 = none/unpriced)
 		})
 	}
 

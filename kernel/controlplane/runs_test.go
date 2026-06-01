@@ -642,6 +642,40 @@ func TestRunsStats_DelegationMetrics(t *testing.T) {
 	}
 }
 
+// TestRunsList_RowCarriesSpend — each runs-list row exposes the run's spend in
+// microcents (M50), folded from its budget.consumed events (M47), so the CLI can
+// show per-run cost. A run with two spend events of 100+50 reports spent_mc=150.
+func TestRunsList_RowCarriesSpend(t *testing.T) {
+	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	_, _ = k.Bus().Publish(event.Spec{
+		Subject: "task", Kind: event.KindTaskReceived, Actor: "a",
+		CorrelationID: "r1", Payload: map[string]string{"intent": "x"},
+	})
+	for _, mc := range []int64{100, 50} {
+		_, _ = k.Bus().Publish(event.Spec{
+			Subject: "governor.budget", Kind: event.KindBudgetConsumed, Actor: "governor",
+			CorrelationID: "r1", Payload: map[string]any{"cost_microcents": mc},
+		})
+	}
+	_, _ = k.Bus().Publish(event.Spec{
+		Subject: "task", Kind: event.KindTaskCompleted, Actor: "a",
+		CorrelationID: "r1", Payload: map[string]any{"iters": 1},
+	})
+
+	res, err := c.Call(context.Background(), controlplane.CmdRunsList, nil)
+	if err != nil {
+		t.Fatalf("Call: %v", err)
+	}
+	rows, _ := res["runs"].([]any)
+	if len(rows) != 1 {
+		t.Fatalf("rows = %d want 1", len(rows))
+	}
+	row, _ := rows[0].(map[string]any)
+	if got := int64(intOf(row["spent_mc"])); got != 150 {
+		t.Errorf("spent_mc = %d want 150", got)
+	}
+}
+
 // TestRunsStats_SpendAttribution — budget.consumed events stamped with a run's
 // correlation (M47) are folded into per-run spend; the stats report the window's
 // total spend and the share attributable to sub-agent runs. Lead p1 spends 100+50

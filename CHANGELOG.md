@@ -12,6 +12,15 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Per-run spend in `agt runs list` / `show`** (SPEC-12 multi-agent, M50) — the
+  per-run views now show cost, completing the spend story M47 started in aggregate:
+  `agt runs list` appends `spend: $0.0021` to a run's row, `agt runs show` adds a
+  `spend      : $0.0084` header line (the lead's own spend), and each delegation's
+  `↳` outcome line gains its cost — `↳ completed (1 iters, 42ms, $0.0021)`. Pure
+  rendering over the M47 `runEntry.SpentMicrocents` fold — one new `spent_mc` JSON
+  field server-side, the rest client formatting (reusing the `agt budget` `fmtUSD`).
+  Every surface stays quiet at $0 (free/local model or offline mock). See
+  `.project/PHASE-M50-PER-RUN-SPEND-REPORT.md`.
 - **Delegation ceilings in `agt status`** (SPEC-12 multi-agent, M49) — the status
   round-trip now reports the active delegation governance: `delegation: depth≤1,
   fan-out ≤3, spend ≤$0.5000` (or `unbounded` for an unset cap, `off` when the

@@ -383,6 +383,7 @@ func renderRunRow(w io.Writer, r map[string]any, base string, showParentTag bool
 	started := intOfStatus(r["started_unix_ms"])
 	duration := intOfStatus(r["duration_ms"])
 	iters := intOfStatus(r["iters"])
+	spent := mcFromAny(r["spent_mc"]) // M50: this run's spend (microcents)
 
 	startedStr := "—"
 	if started > 0 {
@@ -412,9 +413,14 @@ func renderRunRow(w io.Writer, r map[string]any, base string, showParentTag bool
 		corrDisplay = corr + "  ↳ sub-agent of " + parent
 	}
 	fmt.Fprintf(w, "%s%s\n", base, corrDisplay)
-	fmt.Fprintf(w, "%s  started : %s   status: %-18s  duration: %s   iters: %d\n",
+	fmt.Fprintf(w, "%s  started : %s   status: %-18s  duration: %s   iters: %d",
 		base, startedStr, statusDisplay, durationStr, iters)
-	fmt.Fprintf(w, "%s  intent  : %s\n\n", base, intentDisplay)
+	// Append spend only when this run cost something (a free/local model or
+	// the offline mock spends $0) — keeps the row clean in the common case (M50).
+	if spent > 0 {
+		fmt.Fprintf(w, "   spend: %s", fmtUSD(spent))
+	}
+	fmt.Fprintf(w, "\n%s  intent  : %s\n\n", base, intentDisplay)
 }
 
 // renderRunsTree groups sub-agent runs under the lead that delegated them
@@ -596,6 +602,7 @@ func cmdRunsShow(args []string, stdout, stderr io.Writer) int {
 			reason:     rs,
 			iters:      int64(intOfStatus(s["iters"])),
 			durationMS: int64(intOfStatus(s["duration_ms"])),
+			spentMC:    mcFromAny(s["spent_mc"]), // M50
 		}
 	}
 
@@ -613,6 +620,7 @@ type childOutcome struct {
 	reason     string
 	iters      int64
 	durationMS int64
+	spentMC    int64 // this sub-agent's spend in microcents (M50; 0 = none/unpriced)
 }
 
 // cmdRunsLast implements `agt runs last [--json]` — a convenience
@@ -746,6 +754,11 @@ func renderTaskArc(w io.Writer, corr string, summary map[string]any, events []ma
 	default:
 		fmt.Fprintf(w, "status     : %s\n", status)
 	}
+	// This run's own spend (M50) — shown only when it cost something. For a lead
+	// this is its DIRECT spend; each delegation's cost is on its ↳ line below.
+	if spent := mcFromAny(summary["spent_mc"]); spent > 0 {
+		fmt.Fprintf(w, "spend      : %s\n", fmtUSD(spent))
+	}
 	fmt.Fprintln(w)
 
 	// Group events into rounds. A "round" starts at llm.request
@@ -833,7 +846,11 @@ func renderTaskArc(w io.Writer, corr string, summary map[string]any, events []ma
 				if oc.status == "completed" || oc.status == "failed" {
 					durStr = ", " + fmtDuration(oc.durationMS)
 				}
-				fmt.Fprintf(w, "    ↳ %s (%d iters%s)\n", statusStr, oc.iters, durStr)
+				spendStr := ""
+				if oc.spentMC > 0 {
+					spendStr = ", " + fmtUSD(oc.spentMC) // M50: what this delegation cost
+				}
+				fmt.Fprintf(w, "    ↳ %s (%d iters%s%s)\n", statusStr, oc.iters, durStr, spendStr)
 			}
 		default:
 			// Surface unknown kinds at minimal verbosity so a future

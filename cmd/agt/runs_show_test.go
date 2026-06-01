@@ -114,6 +114,56 @@ func TestRenderTaskArc_DelegationShowsChildOutcome(t *testing.T) {
 	}
 }
 
+// TestRenderTaskArc_ShowsSpend — when the run (and a delegation) cost something,
+// the lead's own spend renders in the header and the sub-agent's spend on its ↳
+// outcome line (M50). $ figures come from the M47 per-run spend fold.
+func TestRenderTaskArc_ShowsSpend(t *testing.T) {
+	summary := map[string]any{
+		"intent": "lead task", "status": "completed", "iters": float64(2),
+		"duration_ms": float64(500), "spent_mc": float64(8_400_000), // $0.0084
+	}
+	events := []map[string]any{
+		{"kind": "task.received", "seq": float64(1)},
+		{"kind": "subagent.spawned", "seq": float64(2), "payload": map[string]any{
+			"child_correlation": "run-CHILD", "task": "summarize",
+		}},
+		{"kind": "task.completed", "seq": float64(3)},
+	}
+	outcomes := map[string]childOutcome{
+		"run-CHILD": {status: "completed", iters: 1, durationMS: 42, spentMC: 2_100_000}, // $0.0021
+	}
+	var buf bytes.Buffer
+	renderTaskArc(&buf, "run-LEAD", summary, events, outcomes)
+	s := buf.String()
+	for _, want := range []string{
+		"spend      : $0.0084",                 // lead's own spend in the header
+		"↳ completed (1 iters, 42ms, $0.0021)", // the delegation's cost inline
+	} {
+		if !strings.Contains(s, want) {
+			t.Errorf("output missing %q; got:\n%s", want, s)
+		}
+	}
+}
+
+// TestRenderTaskArc_NoSpendLineWhenZero — a free/local run ($0) shows neither a
+// header spend line nor a spend figure on the ↳ outcome (M50 stays quiet).
+func TestRenderTaskArc_NoSpendLineWhenZero(t *testing.T) {
+	summary := map[string]any{"intent": "lead", "status": "completed", "iters": float64(1), "duration_ms": float64(1)}
+	events := []map[string]any{
+		{"kind": "subagent.spawned", "seq": float64(1), "payload": map[string]any{"child_correlation": "run-X", "task": "t"}},
+	}
+	outcomes := map[string]childOutcome{"run-X": {status: "completed", iters: 1, durationMS: 1}} // spentMC 0
+	var buf bytes.Buffer
+	renderTaskArc(&buf, "run-L", summary, events, outcomes)
+	s := buf.String()
+	if strings.Contains(s, "spend      :") {
+		t.Errorf("no header spend line expected at $0; got:\n%s", s)
+	}
+	if strings.Contains(s, "$") {
+		t.Errorf("no dollar figure expected at $0; got:\n%s", s)
+	}
+}
+
 // TestRenderTaskArc_DelegationNoOutcomeStillRenders — without an outcome
 // entry (e.g. child not in the fetched window) the spawn line still renders,
 // just without the inline status (M44 degrades gracefully).
