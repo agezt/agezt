@@ -12,6 +12,17 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Sub-agent fan-out bound** (SPEC-12 multi-agent, M46) — `AGEZT_SUBAGENT_FANOUT=<n>`
+  caps how many sub-agents a single run may spawn at its level (depth caps nesting;
+  this caps breadth, which was previously unbounded — only `SubAgentMaxDepth`
+  existed). The Nth+1 `delegate` call is refused with `max sub-agent fan-out N
+  reached`, surfaced as a tool error the lead adapts to (mirroring the depth guard)
+  and journaled via the existing `tool.result`; the M45 metric correctly excludes
+  the refusal. Tallied in-memory per spawning correlation (O(1), no journal scan),
+  released when the spawning run ends. `0`/absent = unbounded (default preserved).
+  The first *governance* lever on the multi-agent axis, atop M41–M45's
+  observability. Proven live: 3 attempts under a cap of 2 → 2 spawned, 3rd refused.
+  See `.project/PHASE-M46-FANOUT-BOUND-REPORT.md`.
 - **Delegation metrics in `agt runs stats`** (SPEC-12 multi-agent, M45) — the
   stats aggregate now surfaces the *scale* of multi-agent fan-out the other lines
   can't: `delegations: 3 (from 2 run(s), max fan-out 2)` — total sub-agent runs,

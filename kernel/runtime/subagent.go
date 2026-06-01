@@ -104,8 +104,36 @@ func (k *Kernel) runSubAgent(ctx context.Context, task string) (string, error) {
 	}
 
 	parentCorr := correlationFromCtx(ctx)
+
+	// Fan-out bound (M46): depth caps how DEEP delegation nests; this caps how
+	// WIDE a single run fans out. We tally sub-agents per spawning correlation
+	// (the lead run, or a sub-agent that itself delegates) in k.fanout and
+	// refuse the Nth+1 call with a tool error the lead adapts to. 0 = unbounded
+	// (default). A correlation-less spawn (no run context) can't be attributed,
+	// so it's left unbounded. The tally is released when the spawning run ends
+	// (RunWith's defer for top-level; this function's defer for a nested
+	// spawner's own child correlation below).
+	if maxFanout := k.cfg.SubAgentMaxFanout; maxFanout > 0 && parentCorr != "" {
+		k.mu.Lock()
+		n := k.fanout[parentCorr]
+		if n >= maxFanout {
+			k.mu.Unlock()
+			return "", fmt.Errorf("max sub-agent fan-out %d reached", maxFanout)
+		}
+		k.fanout[parentCorr] = n + 1
+		k.mu.Unlock()
+	}
+
 	childCorr := k.NewCorrelation()
 	actor := "subagent-" + childCorr
+
+	// This child may itself delegate; release its own fan-out tally when it
+	// returns so the map doesn't accumulate across a long-lived kernel.
+	defer func() {
+		k.mu.Lock()
+		delete(k.fanout, childCorr)
+		k.mu.Unlock()
+	}()
 
 	// Journal the spawn under the parent correlation so `agt why <parent>`
 	// reveals the delegation and the child correlation to drill into.

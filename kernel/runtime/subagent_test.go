@@ -160,6 +160,77 @@ func TestSubAgent_DepthGuard(t *testing.T) {
 	}
 }
 
+func TestSubAgent_FanoutGuard(t *testing.T) {
+	// maxFanout=2: the lead delegates three times in three rounds, but only the
+	// first TWO spawn a sub-agent — the third is refused with a tool error the
+	// lead works around to still complete. Depth caps nesting; fan-out caps
+	// breadth, independently. The script is consumed in call order: each lead
+	// round produces one response, each spawned child consumes the next.
+	prov := mock.New(
+		mock.ToolUse("c1", "delegate", map[string]any{"task": "t1"}), // lead round 1
+		mock.FinalText("child 1 done"),                               // child 1
+		mock.ToolUse("c2", "delegate", map[string]any{"task": "t2"}), // lead round 2
+		mock.FinalText("child 2 done"),                               // child 2
+		mock.ToolUse("c3", "delegate", map[string]any{"task": "t3"}), // lead round 3 — refused, no child runs
+		mock.FinalText("lead done"),                                  // lead final after the refusal
+	)
+	k, err := runtime.Open(runtime.Config{
+		BaseDir:           t.TempDir(),
+		Provider:          prov,
+		Tools:             map[string]agent.Tool{"shell": shell.New()},
+		SubAgentTool:      true,
+		SubAgentMaxDepth:  1,
+		SubAgentMaxFanout: 2,
+	})
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	t.Cleanup(func() { k.Close() })
+
+	col := &collector{}
+	col.watch(k)
+
+	ans, _, err := k.Run(context.Background(), "fan out")
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if ans != "lead done" {
+		t.Errorf("final answer = %q, want %q (lead completes despite the refusal)", ans, "lead done")
+	}
+	time.Sleep(50 * time.Millisecond)
+
+	if n := len(col.ofKind(event.KindSubAgentSpawned)); n != 2 {
+		t.Errorf("fan-out guard: expected 2 spawns (the 3rd refused), got %d", n)
+	}
+}
+
+func TestSubAgent_FanoutUnboundedByDefault(t *testing.T) {
+	// SubAgentMaxFanout=0 (the default) keeps the historical behaviour: a lead
+	// may spawn as many sub-agents as it asks for. Three delegate rounds → three
+	// spawns, none refused.
+	prov := mock.New(
+		mock.ToolUse("c1", "delegate", map[string]any{"task": "t1"}),
+		mock.FinalText("child 1"),
+		mock.ToolUse("c2", "delegate", map[string]any{"task": "t2"}),
+		mock.FinalText("child 2"),
+		mock.ToolUse("c3", "delegate", map[string]any{"task": "t3"}),
+		mock.FinalText("child 3"),
+		mock.FinalText("lead done"),
+	)
+	k := openSubAgentKernel(t, prov, 1) // no fan-out cap
+	col := &collector{}
+	col.watch(k)
+
+	if _, _, err := k.Run(context.Background(), "fan out"); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	time.Sleep(50 * time.Millisecond)
+
+	if n := len(col.ofKind(event.KindSubAgentSpawned)); n != 3 {
+		t.Errorf("unbounded fan-out: expected 3 spawns, got %d", n)
+	}
+}
+
 func TestWithModel_OverridesPerRun(t *testing.T) {
 	// A run started with runtime.WithModel makes the provider see that model in
 	// CompletionRequest.Model — the basis for per-request model selection.

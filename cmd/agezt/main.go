@@ -245,6 +245,15 @@ func runDaemon(stdout, stderr io.Writer) int {
 			subAgentDepth = d
 		}
 	}
+	// AGEZT_SUBAGENT_FANOUT bounds how many sub-agents a single run may spawn at
+	// its level (M46). 0 / absent = unbounded (the historical default); a
+	// positive value refuses the Nth+1 delegate call with a tool error.
+	subAgentFanout := 0
+	if v := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "SUBAGENT_FANOUT")); v != "" {
+		if f, err := strconv.Atoi(v); err == nil && f > 0 {
+			subAgentFanout = f
+		}
+	}
 
 	cfg := kernelruntime.Config{
 		BaseDir:               baseDir,
@@ -270,6 +279,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 		SkillForgeMinTools:    4,
 		SubAgentTool:          subAgentOn,
 		SubAgentMaxDepth:      subAgentDepth,
+		SubAgentMaxFanout:     subAgentFanout,
 	}
 	// Per-run wall-clock timeout (M31): AGEZT_RUN_TIMEOUT=<duration> caps how
 	// long a single run may take inside a live session. Off by default (only
@@ -1904,12 +1914,32 @@ func newDemoMock() agent.Provider {
 	// delegates once; the sub-agent answers; the lead finalises. The mock
 	// replays responses sequentially across the lead+child Complete calls
 	// (lead-r1 → child-r1 → lead-r2).
-	if os.Getenv(brand.EnvPrefix+"DEMO_DELEGATE") == "1" {
+	if v := os.Getenv(brand.EnvPrefix + "DEMO_DELEGATE"); v == "1" {
 		return mock.New(
 			mock.ToolUse("call-1", "delegate", map[string]any{"task": "summarize the kernel package layout"}),
 			mock.FinalText("[offline-mock sub-agent] kernel/ holds event, journal, bus, agent, runtime, and controlplane."),
 			mock.FinalText("[offline-mock lead] I delegated the kernel-layout summary to a sub-agent; it reported the core packages."),
 		)
+	} else if n, err := strconv.Atoi(strings.TrimSpace(v)); err == nil && n >= 2 {
+		// AGEZT_DEMO_DELEGATE=N (N≥2) scripts the lead attempting N delegations
+		// in N rounds so the M46 fan-out cap is observable: run with
+		// AGEZT_SUBAGENT_FANOUT=N-1 and the final attempt is refused (a tool
+		// error the lead reports), while N-1 sub-agents spawn. The script feeds
+		// N-1 child answers then the lead's final — consumed in call order
+		// (lead-rk → child-k), so the refused Nth call falls straight through to
+		// the lead's final response.
+		resp := make([]agent.CompletionResponse, 0, 2*n)
+		for i := 1; i < n; i++ {
+			resp = append(resp,
+				mock.ToolUse(fmt.Sprintf("call-%d", i), "delegate", map[string]any{"task": fmt.Sprintf("subtask %d", i)}),
+				mock.FinalText(fmt.Sprintf("[offline-mock sub-agent %d] done.", i)),
+			)
+		}
+		resp = append(resp,
+			mock.ToolUse(fmt.Sprintf("call-%d", n), "delegate", map[string]any{"task": fmt.Sprintf("subtask %d", n)}),
+			mock.FinalText(fmt.Sprintf("[offline-mock lead] spawned %d sub-agent(s); the fan-out cap refused the rest.", n-1)),
+		)
+		return mock.New(resp...)
 	}
 	listCmd := "ls -la"
 	if runtime.GOOS == "windows" {

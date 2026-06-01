@@ -108,6 +108,12 @@ type Config struct {
 	// delegate again). Defaults to 1 when SubAgentTool is on and this is unset
 	// — one level of sub-agents, no unbounded recursion.
 	SubAgentMaxDepth int
+	// SubAgentMaxFanout bounds how many sub-agents a SINGLE agent run may spawn
+	// at its level (depth caps nesting; fan-out caps breadth). The Nth+1
+	// delegate call from one run is refused with a tool error the lead adapts
+	// to. 0 (the default) means unbounded — the historical behaviour; the
+	// daemon is the single enable point.
+	SubAgentMaxFanout int
 
 	// Edict is the policy engine that gates each tool call. If nil, a
 	// default engine (edict.New(edict.Options{})) is constructed — the
@@ -246,6 +252,7 @@ type Kernel struct {
 	mu     sync.Mutex
 	halted bool
 	runs   map[string]context.CancelFunc // correlation_id → cancel
+	fanout map[string]int                // spawning correlation_id → sub-agents spawned (M46 fan-out bound)
 
 	startTime time.Time // wall-clock at Open() — powers `agt status` uptime
 }
@@ -390,6 +397,7 @@ func Open(cfg Config) (*Kernel, error) {
 		schedules:    schedStore,
 		tools:        effTools,
 		runs:         make(map[string]context.CancelFunc),
+		fanout:       make(map[string]int),
 		startTime:    time.Now(),
 	}
 	if subTool != nil {
@@ -862,6 +870,7 @@ func (k *Kernel) RunWith(ctx context.Context, corr, intent string) (string, erro
 	defer func() {
 		k.mu.Lock()
 		delete(k.runs, corr)
+		delete(k.fanout, corr) // release this run's fan-out tally (M46)
 		k.mu.Unlock()
 		cancel()
 	}()
