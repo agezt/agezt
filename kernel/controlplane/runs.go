@@ -65,6 +65,22 @@ type runEntry struct {
 	AnswerPreview string
 }
 
+// runEntryStatus reports a run's terminal status (M61), the single source of
+// truth shared by handleRunsList, handleScheduleFires, and the status filter so
+// they never disagree. Precedence: completed > failed > abandoned > running.
+func runEntryStatus(r *runEntry) string {
+	switch {
+	case r.Completed:
+		return "completed"
+	case r.Failed:
+		return "failed"
+	case r.Abandoned:
+		return "abandoned"
+	default:
+		return "running"
+	}
+}
+
 // collectRuns walks the given kernel's journal once and folds
 // task.received / task.completed / task.failed / task.abandoned
 // events into per-correlation runEntry records. Shared by
@@ -186,6 +202,9 @@ func (s *Server) handleRunsList(conn net.Conn, req Request) {
 		limit = maxRunsLimit
 	}
 
+	// Optional status filter (M61): completed|failed|running|abandoned.
+	statusFilter, _ := req.Args["status"].(string)
+
 	// Tenant-scoped (M39): an empty tenant reads the primary journal; a named
 	// tenant reads its own isolated journal, so a tenant sees only its runs.
 	k, err := s.kernelFor(tenantOf(req))
@@ -203,6 +222,12 @@ func (s *Server) handleRunsList(conn net.Conn, req Request) {
 	// "completed without received" edge case) sort to the bottom.
 	entries := make([]*runEntry, 0, len(runs))
 	for _, r := range runs {
+		// Status filter (M61): keep only runs matching the requested status,
+		// applied BEFORE the limit so `list 5 --failed` returns 5 failed runs,
+		// not "failed runs among the last 5".
+		if statusFilter != "" && runEntryStatus(r) != statusFilter {
+			continue
+		}
 		entries = append(entries, r)
 	}
 	sort.Slice(entries, func(i, j int) bool {

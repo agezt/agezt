@@ -12,6 +12,11 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Status filter on `agt runs list` & `agt schedule fires`** (SPEC-08, M61) — both
+  gain `--status <s>` and `--failed` (shorthand) to filter by run/firing outcome
+  (completed|failed|running|abandoned), applied server-side BEFORE the limit so
+  `list 5 --failed` returns 5 failed runs. A shared `runEntryStatus` helper keeps
+  list/fires/filter in agreement. See `.project/PHASE-M61-STATUS-FILTER-REPORT.md`.
 - **`agt runs stats` spend percentiles** (SPEC-12 multi-agent, M60) — the spend
   aggregate now includes a per-run cost distribution (`spend dist`: avg/min/p50/p95/max
   over priced runs), mirroring the duration block and reusing the same nearest-rank

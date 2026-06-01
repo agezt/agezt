@@ -92,6 +92,8 @@ func (s *Server) handleScheduleFires(conn net.Conn, req Request) {
 	}
 	// Optional filter (M55): only firings of this schedule id.
 	idFilter, _ := req.Args["id"].(string)
+	// Optional status filter (M61): completed|failed|running|abandoned.
+	statusFilter, _ := req.Args["status"].(string)
 
 	// Tenant-scoped via the M39 seam: an empty tenant reads the primary journal.
 	k, err := s.kernelFor(tenantOf(req))
@@ -117,6 +119,17 @@ func (s *Server) handleScheduleFires(conn net.Conn, req Request) {
 			schedID, intent, model := extractScheduleFired(e.Payload)
 			if idFilter != "" && schedID != idFilter {
 				return nil // M55: filtered to a single schedule
+			}
+			if statusFilter != "" {
+				// Status filter (M61): match the firing's run outcome. Applied
+				// before sort/limit so `fires 5 --failed` returns 5 failed firings.
+				st := "running"
+				if r, ok := runs[e.CorrelationID]; ok {
+					st = runEntryStatus(r)
+				}
+				if st != statusFilter {
+					return nil
+				}
 			}
 			fires = append(fires, fired{e.CorrelationID, schedID, intent, model, e.TSUnixMS, e.Seq})
 		}

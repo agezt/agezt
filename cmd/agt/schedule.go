@@ -671,6 +671,7 @@ func cmdScheduleFires(args []string, stdout, stderr io.Writer) int {
 	asJSON := false
 	limit := 0
 	id := ""
+	status := ""
 	for i := 0; i < len(args); i++ {
 		a := args[i]
 		switch {
@@ -685,10 +686,23 @@ func cmdScheduleFires(args []string, stdout, stderr io.Writer) int {
 			id = args[i]
 		case strings.HasPrefix(a, "--id="):
 			id = strings.TrimPrefix(a, "--id=")
+		case a == "--failed":
+			status = "failed"
+		case a == "--status":
+			if i+1 >= len(args) {
+				fmt.Fprintf(stderr, "%s schedule fires: --status needs a value\n", brand.CLI)
+				return 2
+			}
+			i++
+			status = args[i]
+		case strings.HasPrefix(a, "--status="):
+			status = strings.TrimPrefix(a, "--status=")
 		case a == "-h" || a == "--help":
-			fmt.Fprintf(stdout, "usage: %s schedule fires [N] [--id <sched>] [--json]\n", brand.CLI)
+			fmt.Fprintf(stdout, "usage: %s schedule fires [N] [--id <sched>] [--status <s>|--failed] [--json]\n", brand.CLI)
 			fmt.Fprintf(stdout, "show recent scheduled-run firings and their outcomes (status, duration, spend)\n")
-			fmt.Fprintf(stdout, "  --id <sched>  only this schedule's firings\n")
+			fmt.Fprintf(stdout, "  --id <sched>   only this schedule's firings\n")
+			fmt.Fprintf(stdout, "  --status <s>   only firings with this status (completed|failed|running|abandoned)\n")
+			fmt.Fprintf(stdout, "  --failed       shorthand for --status failed\n")
 			fmt.Fprintf(stdout, "drill into a firing with `%s runs show <correlation>`\n", brand.CLI)
 			return 0
 		default:
@@ -696,7 +710,7 @@ func cmdScheduleFires(args []string, stdout, stderr io.Writer) int {
 				limit = n
 				continue
 			}
-			fmt.Fprintf(stderr, "%s schedule fires: unexpected arg %q (expected N, --id <sched>, or --json)\n", brand.CLI, a)
+			fmt.Fprintf(stderr, "%s schedule fires: unexpected arg %q (expected N, --id <sched>, --status <s>, or --json)\n", brand.CLI, a)
 			return 2
 		}
 	}
@@ -713,6 +727,9 @@ func cmdScheduleFires(args []string, stdout, stderr io.Writer) int {
 	}
 	if id != "" {
 		callArgs["id"] = id // M55: filter to one schedule's firings
+	}
+	if status != "" {
+		callArgs["status"] = status // M61: filter by firing status
 	}
 	res, err := c.Call(ctx, controlplane.CmdScheduleFires, callArgs)
 	if err != nil {

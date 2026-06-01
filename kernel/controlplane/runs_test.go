@@ -643,6 +643,91 @@ func TestRunsStats_DelegationMetrics(t *testing.T) {
 	}
 }
 
+// TestRunsList_StatusFilter — `--status` (args.status) restricts the listing to
+// runs with that status, applied before the limit (M61).
+func TestRunsList_StatusFilter(t *testing.T) {
+	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	complete := func(corr string) {
+		_, _ = k.Bus().Publish(event.Spec{
+			Subject: "task", Kind: event.KindTaskReceived, Actor: "a",
+			CorrelationID: corr, Payload: map[string]string{"intent": "x"},
+		})
+		_, _ = k.Bus().Publish(event.Spec{
+			Subject: "task", Kind: event.KindTaskCompleted, Actor: "a",
+			CorrelationID: corr, Payload: map[string]any{"iters": 1},
+		})
+	}
+	fail := func(corr string) {
+		_, _ = k.Bus().Publish(event.Spec{
+			Subject: "task", Kind: event.KindTaskReceived, Actor: "a",
+			CorrelationID: corr, Payload: map[string]string{"intent": "x"},
+		})
+		_, _ = k.Bus().Publish(event.Spec{
+			Subject: "task", Kind: event.KindTaskFailed, Actor: "a",
+			CorrelationID: corr, Payload: map[string]any{"reason": "error"},
+		})
+	}
+	complete("ok1")
+	complete("ok2")
+	fail("bad1")
+
+	res, err := c.Call(context.Background(), controlplane.CmdRunsList,
+		map[string]any{"status": "failed"})
+	if err != nil {
+		t.Fatalf("Call: %v", err)
+	}
+	rows, _ := res["runs"].([]any)
+	if len(rows) != 1 {
+		t.Fatalf("rows = %d want 1 (only the failed run)", len(rows))
+	}
+	row, _ := rows[0].(map[string]any)
+	if got, _ := row["correlation_id"].(string); got != "bad1" {
+		t.Errorf("filtered row = %q want bad1", got)
+	}
+}
+
+// TestScheduleFires_StatusFilter — `--status` restricts firings by their run
+// outcome (M61).
+func TestScheduleFires_StatusFilter(t *testing.T) {
+	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	fire := func(corr string, fail bool) {
+		_, _ = k.Bus().Publish(event.Spec{
+			Subject: "schedule.fired", Kind: event.KindScheduleFired, Actor: "schedule",
+			CorrelationID: corr, Payload: map[string]any{"schedule_id": "s", "intent": "i"},
+		})
+		_, _ = k.Bus().Publish(event.Spec{
+			Subject: "task", Kind: event.KindTaskReceived, Actor: "a", CorrelationID: corr,
+		})
+		if fail {
+			_, _ = k.Bus().Publish(event.Spec{
+				Subject: "task", Kind: event.KindTaskFailed, Actor: "a", CorrelationID: corr,
+				Payload: map[string]any{"reason": "timeout"},
+			})
+		} else {
+			_, _ = k.Bus().Publish(event.Spec{
+				Subject: "task", Kind: event.KindTaskCompleted, Actor: "a", CorrelationID: corr,
+				Payload: map[string]any{"iters": 1},
+			})
+		}
+	}
+	fire("ok1", false)
+	fire("bad1", true)
+
+	res, err := c.Call(context.Background(), controlplane.CmdScheduleFires,
+		map[string]any{"status": "failed"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	fires, _ := res["fires"].([]any)
+	if len(fires) != 1 {
+		t.Fatalf("fires = %d want 1 (only the failed firing)", len(fires))
+	}
+	row, _ := fires[0].(map[string]any)
+	if got, _ := row["status"].(string); got != "failed" {
+		t.Errorf("filtered firing status = %q want failed", got)
+	}
+}
+
 // TestRunsList_RowCarriesSpend — each runs-list row exposes the run's spend in
 // microcents (M50), folded from its budget.consumed events (M47), so the CLI can
 // show per-run cost. A run with two spend events of 100+50 reports spent_mc=150.

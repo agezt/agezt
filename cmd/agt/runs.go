@@ -310,6 +310,7 @@ func cmdRunsList(args []string, stdout, stderr io.Writer) int {
 	asJSON := false
 	tree := false
 	tenant := ""
+	status := ""
 	for i := 0; i < len(args); i++ {
 		a := args[i]
 		switch {
@@ -317,6 +318,17 @@ func cmdRunsList(args []string, stdout, stderr io.Writer) int {
 			asJSON = true
 		case a == "--tree":
 			tree = true
+		case a == "--failed":
+			status = "failed"
+		case a == "--status":
+			if i+1 >= len(args) {
+				fmt.Fprintf(stderr, "%s runs list: --status needs a value\n", brand.CLI)
+				return 2
+			}
+			i++
+			status = args[i]
+		case strings.HasPrefix(a, "--status="):
+			status = strings.TrimPrefix(a, "--status=")
 		case a == "--tenant":
 			if i+1 >= len(args) {
 				fmt.Fprintf(stderr, "%s runs list: --tenant needs an id\n", brand.CLI)
@@ -327,14 +339,16 @@ func cmdRunsList(args []string, stdout, stderr io.Writer) int {
 		case strings.HasPrefix(a, "--tenant="):
 			tenant = strings.TrimPrefix(a, "--tenant=")
 		case a == "-h" || a == "--help":
-			fmt.Fprintf(stdout, "usage: %s runs list [N] [--tree] [--tenant <id>] [--json]\n", brand.CLI)
+			fmt.Fprintf(stdout, "usage: %s runs list [N] [--tree] [--status <s>|--failed] [--tenant <id>] [--json]\n", brand.CLI)
 			fmt.Fprintf(stdout, "show the last N agent runs (default 20, max 1000); --tenant reads a tenant's own runs\n")
-			fmt.Fprintf(stdout, "  --tree  group sub-agent runs under the lead that delegated them\n")
+			fmt.Fprintf(stdout, "  --tree            group sub-agent runs under the lead that delegated them\n")
+			fmt.Fprintf(stdout, "  --status <s>      only runs with this status (completed|failed|running|abandoned)\n")
+			fmt.Fprintf(stdout, "  --failed          shorthand for --status failed\n")
 			return 0
 		default:
 			n, err := strconv.Atoi(a)
 			if err != nil {
-				fmt.Fprintf(stderr, "%s runs list: unexpected arg %q (expected N, --tenant <id>, or --json)\n", brand.CLI, a)
+				fmt.Fprintf(stderr, "%s runs list: unexpected arg %q (expected N, --status <s>, --tenant <id>, or --json)\n", brand.CLI, a)
 				return 2
 			}
 			if n < 1 {
@@ -354,6 +368,9 @@ func cmdRunsList(args []string, stdout, stderr io.Writer) int {
 	callArgs := map[string]any{"limit": limit}
 	if tenant != "" {
 		callArgs["tenant"] = tenant
+	}
+	if status != "" {
+		callArgs["status"] = status // M61: filter by run status
 	}
 	res, err := c.Call(ctx, controlplane.CmdRunsList, callArgs)
 	if err != nil {
