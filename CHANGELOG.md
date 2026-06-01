@@ -38,6 +38,11 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   the denial rate + counts reflect one tool/capability. Completes the symmetry
   with `edict log`'s M74 filters. See
   `.project/PHASE-M76-EDICT-STATS-SCOPE-REPORT.md`.
+- **`agt memory log`** (SPEC-08, M85) — a timeline of memory operations
+  (`memory.written`/`forgotten`/`superseded`): what the agent learned, forgot,
+  and replaced, newest-first, with an `--op` filter and `--since` window.
+  `memory list` shows current state; this shows its provenance. See
+  `.project/PHASE-M85-MEMORY-LOG-REPORT.md`.
 - **`agt plan stats`** (SPEC-02/SPEC-08, M84) — the plan analogue of
   `runs stats`: aggregates plan executions into total / completed / failed /
   running, a success rate, and a duration distribution. Completes the plan

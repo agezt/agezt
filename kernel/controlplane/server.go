@@ -356,6 +356,8 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.handleMemoryAdd(conn, req)
 	case CmdMemoryList:
 		s.handleMemoryList(conn, req)
+	case CmdMemoryLog:
+		s.handleMemoryLog(conn, req)
 	case CmdMemoryGet:
 		s.handleMemoryGet(conn, req)
 	case CmdMemorySearch:

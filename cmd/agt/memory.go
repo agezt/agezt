@@ -20,7 +20,7 @@ import (
 // context; this is the operator's read/write path into it.
 func cmdMemory(args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
-		fmt.Fprintf(stderr, "%s memory: subcommand required (add|list|search|get|forget)\n", brand.CLI)
+		fmt.Fprintf(stderr, "%s memory: subcommand required (add|list|log|search|get|forget)\n", brand.CLI)
 		return 2
 	}
 	switch args[0] {
@@ -28,6 +28,8 @@ func cmdMemory(args []string, stdout, stderr io.Writer) int {
 		return cmdMemoryAdd(args[1:], stdout, stderr)
 	case "list", "ls":
 		return cmdMemoryList(args[1:], stdout, stderr)
+	case "log":
+		return cmdMemoryLog(args[1:], stdout, stderr)
 	case "search":
 		return cmdMemorySearch(args[1:], stdout, stderr)
 	case "get":
@@ -38,12 +40,13 @@ func cmdMemory(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "usage: %s memory <subcommand>\n", brand.CLI)
 		fmt.Fprintf(stdout, "  add <subject> <content> [--type T] [--tag k=v] [--conf F] [--json]\n")
 		fmt.Fprintf(stdout, "  list [--json]\n")
+		fmt.Fprintf(stdout, "  log [N] [--op written|forgotten|superseded] [--since <dur>] [--json]\n")
 		fmt.Fprintf(stdout, "  search <query> [N] [--json]\n")
 		fmt.Fprintf(stdout, "  get <id> [--json]      (exit 3 = absent)\n")
 		fmt.Fprintf(stdout, "  forget <id> [--json]\n")
 		return 0
 	default:
-		fmt.Fprintf(stderr, "%s memory: unknown subcommand %q (add|list|search|get|forget)\n", brand.CLI, args[0])
+		fmt.Fprintf(stderr, "%s memory: unknown subcommand %q (add|list|log|search|get|forget)\n", brand.CLI, args[0])
 		return 2
 	}
 }

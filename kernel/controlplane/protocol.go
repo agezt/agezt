@@ -468,6 +468,13 @@ const (
 	// Returns: { records: [...], count }
 	CmdMemoryList = "memory_list"
 
+	// CmdMemoryLog lists recent memory operations (M85) — a timeline of the
+	// journal's memory.written/forgotten/superseded events (what the agent
+	// learned, forgot, replaced). Args: limit (optional), op (optional:
+	// written|forgotten|superseded), since_ms (optional window). Returns:
+	// { ops: [ {ts_unix_ms, op, id, type, subject} ], count }
+	CmdMemoryLog = "memory_log"
+
 	// CmdMemoryGet reads one record by id (any state).
 	// Args: id (required). Returns: { found, record }
 	CmdMemoryGet = "memory_get"
