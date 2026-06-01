@@ -19,17 +19,6 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   M25 tool gate, since an image on a non-vision model is a guaranteed failure).
   Enforced at the submission boundary — no agent/message-type change. See
   `.project/PHASE-M91-VISION-GATE-REPORT.md`.
-
-### Fixed
-- **Task-arc rendering told the truth** (SPEC-08, M68) — `agt runs show` read two
-  journal fields the agent loop never writes: `tool.result` checked `is_error`
-  (journaled as `error`), so every tool call showed `ok` even on failure; and
-  `policy.decision` checked a non-existent `decision` string, leaving every
-  policy line's verdict blank. Both now read the real fields (`error`; `allow` /
-  `hard_denied` / `reason`), and the arc additionally shows compact tool
-  input/output excerpts. See `.project/PHASE-M68-ARC-HONESTY-REPORT.md`.
-
-### Added
 - **`agt schedule fires --intent <substr>`** (SPEC-08, M80) — the last list
   surface gains the intent substring filter, completing symmetry with
   `runs list --intent` (M77). Composes with `--id`/`--status`/`--since`. See
@@ -928,6 +917,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   (`run` errors with no catalog/key yet).
 
 ### Fixed
+- **Task-arc rendering told the truth** (SPEC-08, M68) — `agt runs show` read two
+  journal fields the agent loop never writes: `tool.result` checked `is_error`
+  (journaled as `error`), so every tool call showed `ok` even on failure; and
+  `policy.decision` checked a non-existent `decision` string, leaving every
+  policy line's verdict blank. Both now read the real fields (`error`; `allow` /
+  `hard_denied` / `reason`), and the arc additionally shows compact tool
+  input/output excerpts. See `.project/PHASE-M68-ARC-HONESTY-REPORT.md`.
 - Web UI Memory panel read the wrong result key (`memories` vs the actual
   `records`), so it never listed stored facts; now renders them.
 - Onboarding now surfaces `AGEZT_WORKSPACE="$PWD"` in the quickstart/README
