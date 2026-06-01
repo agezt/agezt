@@ -12,6 +12,10 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **`--since` windowing for `agt edict log` & `agt schedule fires`** (SPEC-08, M65) —
+  both per-event logs gain `--since <dur>` (the time filter their `stats`
+  counterparts already had), applied server-side during the journal walk via a
+  shared `sinceCutoff` helper. See `.project/PHASE-M65-WINDOWED-LOGS-REPORT.md`.
 - **`agt edict stats` — policy-decision aggregate** (Edict observability, M64) — the
   security-dashboard analogue of `agt runs stats`: total / allowed / denied /
   hard-denied, denial rate, and a denied-by-capability breakdown, over the journal's

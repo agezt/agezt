@@ -94,6 +94,8 @@ func (s *Server) handleScheduleFires(conn net.Conn, req Request) {
 	idFilter, _ := req.Args["id"].(string)
 	// Optional status filter (M61): completed|failed|running|abandoned.
 	statusFilter, _ := req.Args["status"].(string)
+	// Optional time window (M65): only firings at/after now − since_ms.
+	cutoff := sinceCutoff(req.Args["since_ms"])
 
 	// Tenant-scoped via the M39 seam: an empty tenant reads the primary journal.
 	k, err := s.kernelFor(tenantOf(req))
@@ -119,6 +121,9 @@ func (s *Server) handleScheduleFires(conn net.Conn, req Request) {
 			schedID, intent, model := extractScheduleFired(e.Payload)
 			if idFilter != "" && schedID != idFilter {
 				return nil // M55: filtered to a single schedule
+			}
+			if cutoff > 0 && e.TSUnixMS < cutoff {
+				return nil // M65: outside the time window
 			}
 			if statusFilter != "" {
 				// Status filter (M61): match the firing's run outcome. Applied

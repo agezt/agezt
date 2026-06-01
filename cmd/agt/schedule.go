@@ -672,6 +672,7 @@ func cmdScheduleFires(args []string, stdout, stderr io.Writer) int {
 	limit := 0
 	id := ""
 	status := ""
+	sinceMS := int64(0)
 	for i := 0; i < len(args); i++ {
 		a := args[i]
 		switch {
@@ -686,6 +687,25 @@ func cmdScheduleFires(args []string, stdout, stderr io.Writer) int {
 			id = args[i]
 		case strings.HasPrefix(a, "--id="):
 			id = strings.TrimPrefix(a, "--id=")
+		case a == "--since":
+			if i+1 >= len(args) {
+				fmt.Fprintf(stderr, "%s schedule fires: --since needs a duration\n", brand.CLI)
+				return 2
+			}
+			i++
+			d, derr := time.ParseDuration(args[i])
+			if derr != nil || d <= 0 {
+				fmt.Fprintf(stderr, "%s schedule fires: bad --since %q\n", brand.CLI, args[i])
+				return 2
+			}
+			sinceMS = d.Milliseconds()
+		case strings.HasPrefix(a, "--since="):
+			d, derr := time.ParseDuration(strings.TrimPrefix(a, "--since="))
+			if derr != nil || d <= 0 {
+				fmt.Fprintf(stderr, "%s schedule fires: bad --since\n", brand.CLI)
+				return 2
+			}
+			sinceMS = d.Milliseconds()
 		case a == "--failed":
 			status = "failed"
 		case a == "--status":
@@ -698,7 +718,7 @@ func cmdScheduleFires(args []string, stdout, stderr io.Writer) int {
 		case strings.HasPrefix(a, "--status="):
 			status = strings.TrimPrefix(a, "--status=")
 		case a == "-h" || a == "--help":
-			fmt.Fprintf(stdout, "usage: %s schedule fires [N] [--id <sched>] [--status <s>|--failed] [--json]\n", brand.CLI)
+			fmt.Fprintf(stdout, "usage: %s schedule fires [N] [--id <sched>] [--status <s>|--failed] [--since <dur>] [--json]\n", brand.CLI)
 			fmt.Fprintf(stdout, "show recent scheduled-run firings and their outcomes (status, duration, spend)\n")
 			fmt.Fprintf(stdout, "  --id <sched>   only this schedule's firings\n")
 			fmt.Fprintf(stdout, "  --status <s>   only firings with this status (completed|failed|running|abandoned)\n")
@@ -730,6 +750,9 @@ func cmdScheduleFires(args []string, stdout, stderr io.Writer) int {
 	}
 	if status != "" {
 		callArgs["status"] = status // M61: filter by firing status
+	}
+	if sinceMS > 0 {
+		callArgs["since_ms"] = sinceMS // M65: time window
 	}
 	res, err := c.Call(ctx, controlplane.CmdScheduleFires, callArgs)
 	if err != nil {

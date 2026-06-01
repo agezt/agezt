@@ -5,6 +5,7 @@ package controlplane_test
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/event"
@@ -100,5 +101,36 @@ func TestEdictStats_Aggregates(t *testing.T) {
 	}
 	if got := intOf(byCap["fs"]); got != 1 {
 		t.Errorf("denied_by_capability[fs] = %d want 1", got)
+	}
+}
+
+// TestEdictLog_SinceWindow — args.since_ms restricts the log to decisions within
+// the window (M65): a huge window includes a just-published decision; a tiny
+// window after a brief sleep excludes it.
+func TestEdictLog_SinceWindow(t *testing.T) {
+	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	_, _ = k.Bus().Publish(event.Spec{
+		Subject: "policy", Kind: event.KindPolicyDecision, Actor: "agent-x",
+		CorrelationID: "run-1",
+		Payload:       map[string]any{"tool": "t", "capability": "c", "allow": true},
+	})
+
+	res, err := c.Call(context.Background(), controlplane.CmdEdictLog,
+		map[string]any{"since_ms": int64(3_600_000)}) // 1h window includes it
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := res["decisions"].([]any); len(got) != 1 {
+		t.Errorf("1h window decisions = %d want 1", len(got))
+	}
+
+	time.Sleep(5 * time.Millisecond)
+	res, err = c.Call(context.Background(), controlplane.CmdEdictLog,
+		map[string]any{"since_ms": int64(1)}) // 1ms window excludes it
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := res["decisions"].([]any); len(got) != 0 {
+		t.Errorf("1ms window decisions = %d want 0", len(got))
 	}
 }

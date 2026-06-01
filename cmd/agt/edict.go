@@ -64,6 +64,7 @@ func cmdEdictLog(args []string, stdout, stderr io.Writer) int {
 	deniedOnly := false
 	limit := 0
 	tenant := ""
+	sinceMS := int64(0)
 	for i := 0; i < len(args); i++ {
 		a := args[i]
 		switch {
@@ -71,6 +72,25 @@ func cmdEdictLog(args []string, stdout, stderr io.Writer) int {
 			asJSON = true
 		case a == "--denied":
 			deniedOnly = true
+		case a == "--since":
+			if i+1 >= len(args) {
+				fmt.Fprintf(stderr, "%s edict log: --since needs a duration\n", brand.CLI)
+				return 2
+			}
+			i++
+			d, derr := time.ParseDuration(args[i])
+			if derr != nil || d <= 0 {
+				fmt.Fprintf(stderr, "%s edict log: bad --since %q\n", brand.CLI, args[i])
+				return 2
+			}
+			sinceMS = d.Milliseconds()
+		case strings.HasPrefix(a, "--since="):
+			d, derr := time.ParseDuration(strings.TrimPrefix(a, "--since="))
+			if derr != nil || d <= 0 {
+				fmt.Fprintf(stderr, "%s edict log: bad --since\n", brand.CLI)
+				return 2
+			}
+			sinceMS = d.Milliseconds()
 		case a == "--tenant":
 			if i+1 >= len(args) {
 				fmt.Fprintf(stderr, "%s edict log: --tenant needs an id\n", brand.CLI)
@@ -81,9 +101,10 @@ func cmdEdictLog(args []string, stdout, stderr io.Writer) int {
 		case strings.HasPrefix(a, "--tenant="):
 			tenant = strings.TrimPrefix(a, "--tenant=")
 		case a == "-h" || a == "--help":
-			fmt.Fprintf(stdout, "usage: %s edict log [N] [--denied] [--tenant <id>] [--json]\n", brand.CLI)
+			fmt.Fprintf(stdout, "usage: %s edict log [N] [--denied] [--since <dur>] [--tenant <id>] [--json]\n", brand.CLI)
 			fmt.Fprintf(stdout, "show recent policy decisions (every tool-call gating: tool, capability, allow/deny, reason)\n")
-			fmt.Fprintf(stdout, "  --denied  only show denials\n")
+			fmt.Fprintf(stdout, "  --denied      only show denials\n")
+			fmt.Fprintf(stdout, "  --since <dur> only decisions in the last <dur>\n")
 			return 0
 		default:
 			if n, err := strconv.Atoi(a); err == nil && n > 0 {
@@ -107,6 +128,9 @@ func cmdEdictLog(args []string, stdout, stderr io.Writer) int {
 	}
 	if deniedOnly {
 		callArgs["denied"] = true
+	}
+	if sinceMS > 0 {
+		callArgs["since_ms"] = sinceMS // M65: time window
 	}
 	if tenant != "" {
 		callArgs["tenant"] = tenant

@@ -574,3 +574,36 @@ func TestScheduleRemoveMissing(t *testing.T) {
 		t.Error("removing a missing id should report removed=false")
 	}
 }
+
+// TestScheduleFires_SinceWindow — args.since_ms windows the firing history
+// (M65): a huge window includes a just-published firing; a tiny window after a
+// sleep excludes it.
+func TestScheduleFires_SinceWindow(t *testing.T) {
+	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	_, _ = k.Bus().Publish(event.Spec{
+		Subject: "schedule.fired", Kind: event.KindScheduleFired, Actor: "schedule",
+		CorrelationID: "f1", Payload: map[string]any{"schedule_id": "s", "intent": "i"},
+	})
+	_, _ = k.Bus().Publish(event.Spec{
+		Subject: "task", Kind: event.KindTaskReceived, Actor: "a", CorrelationID: "f1",
+	})
+
+	res, err := c.Call(context.Background(), controlplane.CmdScheduleFires,
+		map[string]any{"since_ms": int64(3_600_000)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := res["fires"].([]any); len(got) != 1 {
+		t.Errorf("1h window fires = %d want 1", len(got))
+	}
+
+	time.Sleep(5 * time.Millisecond)
+	res, err = c.Call(context.Background(), controlplane.CmdScheduleFires,
+		map[string]any{"since_ms": int64(1)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := res["fires"].([]any); len(got) != 0 {
+		t.Errorf("1ms window fires = %d want 0", len(got))
+	}
+}

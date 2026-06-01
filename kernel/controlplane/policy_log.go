@@ -36,6 +36,7 @@ func (s *Server) handleEdictLog(conn net.Conn, req Request) {
 		limit = maxRunsLimit
 	}
 	deniedOnly, _ := req.Args["denied"].(bool)
+	cutoff := sinceCutoff(req.Args["since_ms"]) // M65: optional time window
 
 	k, err := s.kernelFor(tenantOf(req))
 	if err != nil {
@@ -54,6 +55,9 @@ func (s *Server) handleEdictLog(conn net.Conn, req Request) {
 	decisions := make([]decision, 0)
 	if err := k.Journal().Range(func(e *event.Event) error {
 		if e.Kind != event.KindPolicyDecision {
+			return nil
+		}
+		if cutoff > 0 && e.TSUnixMS < cutoff {
 			return nil
 		}
 		d := decodePolicyDecision(e.Payload)
@@ -126,6 +130,26 @@ func decodePolicyDecision(payload json.RawMessage) policyDecisionPayload {
 		tool: p.Tool, capability: p.Capability, reason: p.Reason,
 		allow: p.Allow, hardDenied: p.HardDenied,
 	}
+}
+
+// sinceCutoff converts an optional since_ms request arg into an absolute
+// cutoff timestamp (M65): now − since_ms. Returns 0 when absent/zero, meaning
+// "no window / all-time". Shared by the windowed log + stats folds so they apply
+// the same clock (the server's, which also stamps event TSUnixMS).
+func sinceCutoff(arg any) int64 {
+	var sinceMS int64
+	switch v := arg.(type) {
+	case float64:
+		sinceMS = int64(v)
+	case int64:
+		sinceMS = v
+	case int:
+		sinceMS = int64(v)
+	}
+	if sinceMS <= 0 {
+		return 0
+	}
+	return time.Now().UnixMilli() - sinceMS
 }
 
 // handleEdictStats aggregates policy decisions (M64) — total/allowed/denied/
