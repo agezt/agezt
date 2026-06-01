@@ -19,21 +19,34 @@ func mustStore(t *testing.T) *Store {
 	return s
 }
 
-// recorder counts the intents a RunFunc was asked to run.
+// recorder counts the intents a RunFunc was asked to run, and the schedule ids
+// it was passed (M55).
 type recorder struct {
 	mu      sync.Mutex
 	intents []string
+	ids     []string
 	block   chan struct{}
 }
 
-func (r *recorder) run(_ context.Context, intent, _ string) error {
+func (r *recorder) run(_ context.Context, id, intent, _ string) error {
 	if r.block != nil {
 		<-r.block
 	}
 	r.mu.Lock()
 	r.intents = append(r.intents, intent)
+	r.ids = append(r.ids, id)
 	r.mu.Unlock()
 	return nil
+}
+
+// lastID returns the most recent schedule id passed to run (M55).
+func (r *recorder) lastID() string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if len(r.ids) == 0 {
+		return ""
+	}
+	return r.ids[len(r.ids)-1]
 }
 
 func (r *recorder) count() int {
@@ -215,6 +228,12 @@ func TestEngine_Start_FiresLive(t *testing.T) {
 	defer cancel()
 	eng.Start(ctx)
 	waitCount(t, rec, 1)
+
+	// The engine threads the firing entry's id to the RunFunc (M55), so the
+	// caller can attribute the run to its schedule.
+	if got := rec.lastID(); got != e.ID {
+		t.Errorf("RunFunc id = %q, want the firing entry's id %q", got, e.ID)
+	}
 }
 
 func TestStore_Daily_FiresAtTimeAndAdvancesOneDay(t *testing.T) {

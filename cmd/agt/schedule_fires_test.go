@@ -36,6 +36,23 @@ func TestCmdScheduleFires_RejectsBadArg(t *testing.T) {
 	}
 }
 
+// TestCmdScheduleFires_IdFlagNeedsValue — `--id` without a value is a usage
+// error before any dial (M55). `--help` documents --id.
+func TestCmdScheduleFires_IdFlagNeedsValue(t *testing.T) {
+	var out, errOut bytes.Buffer
+	if code := cmdScheduleFires([]string{"--id"}, &out, &errOut); code != 2 {
+		t.Errorf("--id with no value exit=%d want 2", code)
+	}
+	if !strings.Contains(errOut.String(), "--id needs a schedule id") {
+		t.Errorf("stderr should explain --id needs a value; got %q", errOut.String())
+	}
+	var h, hErr bytes.Buffer
+	cmdScheduleFires([]string{"--help"}, &h, &hErr)
+	if !strings.Contains(h.String(), "--id") {
+		t.Errorf("--help should document --id; got %q", h.String())
+	}
+}
+
 // TestCmdSchedule_DispatchesFires — the `fires` subcommand (and its `history`
 // alias) reach cmdScheduleFires via the dispatcher (M54).
 func TestCmdSchedule_DispatchesFires(t *testing.T) {

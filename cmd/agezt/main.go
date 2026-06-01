@@ -270,27 +270,27 @@ func runDaemon(stdout, stderr io.Writer) int {
 	}
 
 	cfg := kernelruntime.Config{
-		BaseDir:               baseDir,
-		Provider:              gov, // Governor implements agent.Provider
-		Tools:                 tools,
-		Plugins:               pluginManifest,
-		Model:                 model,
-		System:                os.Getenv(brand.EnvPrefix + "SYSTEM_PROMPT"),
-		Warden:                ward,
-		Edict:                 edictEng,
-		Catalog:               cat,
-		MemoryInject:          memOn,
-		MemoryTool:            memOn,
-		MemoryDistill:         memOn,
-		MemoryTopK:            5,
-		MemoryDistillMinTools: 4,
-		WorldInject:           worldOn,
-		WorldTool:             worldOn,
-		WorldTopK:             5,
-		SkillInject:           skillOn,
-		SkillTopK:             3,
-		SkillForge:            forgeOn,
-		SkillForgeMinTools:    4,
+		BaseDir:                    baseDir,
+		Provider:                   gov, // Governor implements agent.Provider
+		Tools:                      tools,
+		Plugins:                    pluginManifest,
+		Model:                      model,
+		System:                     os.Getenv(brand.EnvPrefix + "SYSTEM_PROMPT"),
+		Warden:                     ward,
+		Edict:                      edictEng,
+		Catalog:                    cat,
+		MemoryInject:               memOn,
+		MemoryTool:                 memOn,
+		MemoryDistill:              memOn,
+		MemoryTopK:                 5,
+		MemoryDistillMinTools:      4,
+		WorldInject:                worldOn,
+		WorldTool:                  worldOn,
+		WorldTopK:                  5,
+		SkillInject:                skillOn,
+		SkillTopK:                  3,
+		SkillForge:                 forgeOn,
+		SkillForgeMinTools:         4,
 		SubAgentTool:               subAgentOn,
 		SubAgentMaxDepth:           subAgentDepth,
 		SubAgentMaxFanout:          subAgentFanout,
@@ -1234,14 +1234,17 @@ func buildCadence(ctx context.Context, k *kernelruntime.Kernel, stdout io.Writer
 	}
 	// The engine always runs (so operator-added schedules fire even with no env
 	// spec). With no entries it simply ticks idly.
-	run := func(runCtx context.Context, intent, model string) error {
+	run := func(runCtx context.Context, id, intent, model string) error {
 		corr := k.NewCorrelation()
 		_, _ = k.Bus().Publish(event.Spec{
 			Subject:       "schedule.fired",
 			Kind:          event.KindScheduleFired,
 			Actor:         "schedule",
 			CorrelationID: corr,
-			Payload:       map[string]any{"intent": intent, "model": model},
+			// schedule_id (M55) attributes the firing to its schedule entry, so
+			// `agt schedule fires --id <sched>` can filter and `agt schedule list`
+			// can show a schedule's last outcome.
+			Payload: map[string]any{"schedule_id": id, "intent": intent, "model": model},
 		})
 		_, err := k.RunWith(kernelruntime.WithModel(runCtx, model), corr, intent)
 		return err

@@ -470,9 +470,9 @@ const (
 	// CmdScheduleFires lists recent scheduled-run FIRINGS (M54) — the autonomy
 	// analogue of CmdRunsList. Walks the journal for schedule.fired events and
 	// joins each with its run's outcome (status/duration/spend/answer). Args:
-	// limit (optional). Returns: { fires: [ {correlation_id, fired_unix_ms,
-	// intent, model, status, reason, duration_ms, spent_mc, answer_preview} ],
-	// count }
+	// limit (optional), id (optional — only this schedule's firings, M55).
+	// Returns: { fires: [ {correlation_id, schedule_id, fired_unix_ms, intent,
+	// model, status, reason, duration_ms, spent_mc, answer_preview} ], count }
 	CmdScheduleFires = "schedule_fires"
 
 	// Multi-tenant management (ROADMAP P6-MULTI). The control-plane surface

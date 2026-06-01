@@ -36,6 +36,8 @@ func (s *Server) handleScheduleFires(conn net.Conn, req Request) {
 	if limit > maxRunsLimit {
 		limit = maxRunsLimit
 	}
+	// Optional filter (M55): only firings of this schedule id.
+	idFilter, _ := req.Args["id"].(string)
 
 	// Tenant-scoped via the M39 seam: an empty tenant reads the primary journal.
 	k, err := s.kernelFor(tenantOf(req))
@@ -52,14 +54,17 @@ func (s *Server) handleScheduleFires(conn net.Conn, req Request) {
 	}
 
 	type fired struct {
-		corr, intent, model string
-		firedMS, seq        int64
+		corr, schedID, intent, model string
+		firedMS, seq                 int64
 	}
 	fires := make([]fired, 0)
 	if err := k.Journal().Range(func(e *event.Event) error {
 		if e.Kind == event.KindScheduleFired {
-			intent, model := extractScheduleFired(e.Payload)
-			fires = append(fires, fired{e.CorrelationID, intent, model, e.TSUnixMS, e.Seq})
+			schedID, intent, model := extractScheduleFired(e.Payload)
+			if idFilter != "" && schedID != idFilter {
+				return nil // M55: filtered to a single schedule
+			}
+			fires = append(fires, fired{e.CorrelationID, schedID, intent, model, e.TSUnixMS, e.Seq})
 		}
 		return nil
 	}); err != nil {
@@ -107,6 +112,7 @@ func (s *Server) handleScheduleFires(conn net.Conn, req Request) {
 		}
 		out = append(out, map[string]any{
 			"correlation_id": f.corr,
+			"schedule_id":    f.schedID, // M55: which schedule fired ("" for pre-M55 firings)
 			"fired_unix_ms":  f.firedMS,
 			"intent":         f.intent,
 			"model":          f.model,
@@ -125,19 +131,21 @@ func (s *Server) handleScheduleFires(conn net.Conn, req Request) {
 	})
 }
 
-// extractScheduleFired pulls intent + model out of a schedule.fired payload
-// (M54). Returns ("","") on parse failure so a malformed firing still lists with
-// its correlation and outcome, just without the intent text.
-func extractScheduleFired(payload json.RawMessage) (intent, model string) {
+// extractScheduleFired pulls schedule_id + intent + model out of a
+// schedule.fired payload (M54; schedule_id added M55). Returns zero values on
+// parse failure so a malformed firing still lists with its correlation and
+// outcome. schedule_id is "" for firings journaled before M55.
+func extractScheduleFired(payload json.RawMessage) (id, intent, model string) {
 	if len(payload) == 0 {
-		return "", ""
+		return "", "", ""
 	}
 	var p struct {
-		Intent string `json:"intent"`
-		Model  string `json:"model"`
+		ScheduleID string `json:"schedule_id"`
+		Intent     string `json:"intent"`
+		Model      string `json:"model"`
 	}
 	if err := json.Unmarshal(payload, &p); err != nil {
-		return "", ""
+		return "", "", ""
 	}
-	return p.Intent, p.Model
+	return p.ScheduleID, p.Intent, p.Model
 }

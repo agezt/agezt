@@ -22,7 +22,7 @@ func TestScheduleFires_JoinsRunOutcome(t *testing.T) {
 	// A schedule fired under correlation f1, then its run completed with spend.
 	_, _ = k.Bus().Publish(event.Spec{
 		Subject: "schedule.fired", Kind: event.KindScheduleFired, Actor: "schedule",
-		CorrelationID: "f1", Payload: map[string]any{"intent": "summarize the day", "model": "m1"},
+		CorrelationID: "f1", Payload: map[string]any{"schedule_id": "sched-A", "intent": "summarize the day", "model": "m1"},
 	})
 	_, _ = k.Bus().Publish(event.Spec{
 		Subject: "task", Kind: event.KindTaskReceived, Actor: "a",
@@ -58,6 +58,9 @@ func TestScheduleFires_JoinsRunOutcome(t *testing.T) {
 	if got, _ := row["correlation_id"].(string); got != "f1" {
 		t.Errorf("correlation_id = %q want f1", got)
 	}
+	if got, _ := row["schedule_id"].(string); got != "sched-A" {
+		t.Errorf("schedule_id = %q want sched-A (M55)", got)
+	}
 	if got, _ := row["status"].(string); got != "completed" {
 		t.Errorf("status = %q want completed", got)
 	}
@@ -69,6 +72,46 @@ func TestScheduleFires_JoinsRunOutcome(t *testing.T) {
 	}
 	if got, _ := row["answer_preview"].(string); got != "all done" {
 		t.Errorf("answer_preview = %q want \"all done\"", got)
+	}
+}
+
+// TestScheduleFires_FilterByScheduleID — `--id` (args.id) restricts the listing
+// to one schedule's firings (M55).
+func TestScheduleFires_FilterByScheduleID(t *testing.T) {
+	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	fire := func(corr, schedID string) {
+		t.Helper()
+		_, _ = k.Bus().Publish(event.Spec{
+			Subject: "schedule.fired", Kind: event.KindScheduleFired, Actor: "schedule",
+			CorrelationID: corr, Payload: map[string]any{"schedule_id": schedID, "intent": "i"},
+		})
+		_, _ = k.Bus().Publish(event.Spec{
+			Subject: "task", Kind: event.KindTaskReceived, Actor: "a",
+			CorrelationID: corr, Payload: map[string]string{"intent": "i"},
+		})
+		_, _ = k.Bus().Publish(event.Spec{
+			Subject: "task", Kind: event.KindTaskCompleted, Actor: "a",
+			CorrelationID: corr, Payload: map[string]any{"iters": 1},
+		})
+	}
+	fire("a1", "sched-A")
+	fire("a2", "sched-A")
+	fire("b1", "sched-B")
+
+	res, err := c.Call(context.Background(), controlplane.CmdScheduleFires,
+		map[string]any{"id": "sched-A"})
+	if err != nil {
+		t.Fatalf("Call: %v", err)
+	}
+	fires, _ := res["fires"].([]any)
+	if len(fires) != 2 {
+		t.Fatalf("fires = %d want 2 (only sched-A's firings)", len(fires))
+	}
+	for _, raw := range fires {
+		row, _ := raw.(map[string]any)
+		if got, _ := row["schedule_id"].(string); got != "sched-A" {
+			t.Errorf("filtered row schedule_id = %q want sched-A", got)
+		}
 	}
 }
 

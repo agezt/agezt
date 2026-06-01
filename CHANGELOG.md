@@ -12,6 +12,15 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Link firings to their schedule** (SPEC-08 journal × cadence, M55) — the
+  `schedule.fired` event now carries `schedule_id`, threaded from the cadence
+  Engine's `RunFunc` (widened to `func(ctx, id, intent, model)`) through the
+  daemon's firing closure. `agt schedule fires` exposes `schedule_id` per row and
+  gains `--id <sched>` to filter the history to one schedule. Pre-M55 firings list
+  with an empty id (backward-compatible). The M54 follow-on: a firing now knows
+  which schedule produced it. (Also re-aligned the daemon's `kernelruntime.Config`
+  literal — a stale gofmt alignment left by M48's long key; whitespace only.) See
+  `.project/PHASE-M55-SCHEDULE-FIRING-LINK-REPORT.md`.
 - **`agt schedule fires` — autonomy firing history** (SPEC-08 journal × cadence, M54)
   — the first operator view of what scheduled work has *done*, not just what's
   scheduled. `agt schedule list` shows the schedules; `agt schedule fires [N]` (alias

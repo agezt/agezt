@@ -653,13 +653,25 @@ func cmdScheduleList(args []string, stdout, stderr io.Writer) int {
 func cmdScheduleFires(args []string, stdout, stderr io.Writer) int {
 	asJSON := false
 	limit := 0
-	for _, a := range args {
+	id := ""
+	for i := 0; i < len(args); i++ {
+		a := args[i]
 		switch {
 		case a == "--json":
 			asJSON = true
+		case a == "--id":
+			if i+1 >= len(args) {
+				fmt.Fprintf(stderr, "%s schedule fires: --id needs a schedule id\n", brand.CLI)
+				return 2
+			}
+			i++
+			id = args[i]
+		case strings.HasPrefix(a, "--id="):
+			id = strings.TrimPrefix(a, "--id=")
 		case a == "-h" || a == "--help":
-			fmt.Fprintf(stdout, "usage: %s schedule fires [N] [--json]\n", brand.CLI)
+			fmt.Fprintf(stdout, "usage: %s schedule fires [N] [--id <sched>] [--json]\n", brand.CLI)
 			fmt.Fprintf(stdout, "show recent scheduled-run firings and their outcomes (status, duration, spend)\n")
+			fmt.Fprintf(stdout, "  --id <sched>  only this schedule's firings\n")
 			fmt.Fprintf(stdout, "drill into a firing with `%s runs show <correlation>`\n", brand.CLI)
 			return 0
 		default:
@@ -667,7 +679,7 @@ func cmdScheduleFires(args []string, stdout, stderr io.Writer) int {
 				limit = n
 				continue
 			}
-			fmt.Fprintf(stderr, "%s schedule fires: unexpected arg %q (expected N or --json)\n", brand.CLI, a)
+			fmt.Fprintf(stderr, "%s schedule fires: unexpected arg %q (expected N, --id <sched>, or --json)\n", brand.CLI, a)
 			return 2
 		}
 	}
@@ -681,6 +693,9 @@ func cmdScheduleFires(args []string, stdout, stderr io.Writer) int {
 	callArgs := map[string]any{}
 	if limit > 0 {
 		callArgs["limit"] = limit
+	}
+	if id != "" {
+		callArgs["id"] = id // M55: filter to one schedule's firings
 	}
 	res, err := c.Call(ctx, controlplane.CmdScheduleFires, callArgs)
 	if err != nil {

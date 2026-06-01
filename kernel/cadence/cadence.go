@@ -743,8 +743,10 @@ func (s *Store) save() error {
 // --- Engine ---
 
 // RunFunc executes one scheduled intent through the governed loop. The engine
-// calls it on its own goroutine; a returned error is logged, not fatal.
-type RunFunc func(ctx context.Context, intent, model string) error
+// calls it on its own goroutine; a returned error is logged, not fatal. id is
+// the firing schedule's entry id (M55) so the caller can attribute the run to
+// its schedule (e.g. stamp it on the schedule.fired event).
+type RunFunc func(ctx context.Context, id, intent, model string) error
 
 // Engine fires the store's due entries on a timer.
 type Engine struct {
@@ -808,7 +810,7 @@ func (e *Engine) fireDue(ctx context.Context, now time.Time) {
 		go func() {
 			defer e.running.Delete(ent.ID)
 			fmt.Fprintf(e.log, "schedule: firing %q (%s)\n", short(ent.Intent), ent.Cadence())
-			if err := e.run(ctx, ent.Intent, ent.Model); err != nil {
+			if err := e.run(ctx, ent.ID, ent.Intent, ent.Model); err != nil {
 				fmt.Fprintf(e.log, "schedule: %q failed: %v\n", short(ent.Intent), err)
 			}
 		}()
