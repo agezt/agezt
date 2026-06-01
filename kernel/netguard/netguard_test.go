@@ -125,3 +125,33 @@ func TestHTTPClient_BlocksRedirectToInternal(t *testing.T) {
 		t.Errorf("expected a netguard rejection on the redirect hop, got: %v", err)
 	}
 }
+
+func TestOnBlock_FiresOnRefusal(t *testing.T) {
+	var gotIP, gotReason string
+	calls := 0
+	g := netguard.New(netguard.OnBlock(func(ip, reason string) {
+		calls++
+		gotIP, gotReason = ip, reason
+	}))
+
+	// A blocked dial (metadata IP) must invoke the callback with ip + reason.
+	err := g.Control("tcp", "169.254.169.254:80", nil)
+	if err == nil {
+		t.Fatalf("expected Control to block the metadata IP")
+	}
+	if calls != 1 {
+		t.Fatalf("OnBlock called %d times, want 1", calls)
+	}
+	if gotIP != "169.254.169.254" || gotReason == "" {
+		t.Errorf("OnBlock got ip=%q reason=%q", gotIP, gotReason)
+	}
+
+	// An allowed dial must NOT invoke the callback.
+	calls = 0
+	if err := g.Control("tcp", "8.8.8.8:443", nil); err != nil {
+		t.Fatalf("public IP should be allowed: %v", err)
+	}
+	if calls != 0 {
+		t.Errorf("OnBlock fired %d times for an allowed dial, want 0", calls)
+	}
+}

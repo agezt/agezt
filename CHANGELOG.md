@@ -12,6 +12,11 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Egress-block audit** (SPEC-06 / M16, M109) — the egress guard now journals a
+  `netguard.blocked` event whenever the http/browser tools are refused a dial to an
+  internal/metadata address, and `agt netguard log` surfaces the audit trail — so
+  an attempted SSRF / metadata read (a prompt-injection / exfiltration signal) is
+  recorded, not lost. See `.project/PHASE-M109-NETGUARD-AUDIT-REPORT.md`.
 - **Effective routing in `agt config show`** (SPEC-08, M108) — the config snapshot
   now surfaces the PARSED routing tables (`AGEZT_TASK_ROUTES` / `_ROUTE_REQUIRES` /
   `_MODEL_OVERRIDES`), so an operator can confirm a rule loaded instead of reading

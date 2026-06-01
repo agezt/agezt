@@ -3,13 +3,18 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net"
 	"os"
 	"sort"
+	"strconv"
+	"strings"
+	"time"
 
 	"github.com/agezt/agezt/internal/brand"
+	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/netguard"
 )
 
@@ -17,16 +22,108 @@ import (
 // is `test` — the egress-policy preview (M105).
 func cmdNetguard(args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
-		fmt.Fprintf(stderr, "%s netguard: subcommand required (test)\n", brand.CLI)
+		fmt.Fprintf(stderr, "%s netguard: subcommand required (test|log)\n", brand.CLI)
 		return 2
 	}
 	switch args[0] {
 	case "test":
 		return cmdNetguardTest(args[1:], stdout, stderr)
+	case "log":
+		return cmdNetguardLog(args[1:], stdout, stderr)
 	default:
-		fmt.Fprintf(stderr, "%s netguard: unknown subcommand %q (test)\n", brand.CLI, args[0])
+		fmt.Fprintf(stderr, "%s netguard: unknown subcommand %q (test|log)\n", brand.CLI, args[0])
 		return 2
 	}
+}
+
+// cmdNetguardLog implements `agt netguard log [N] [--tenant <id>] [--since <dur>]
+// [--json]` (M109) — the audit trail of egress connections the guard actually
+// refused (a tool reaching for an internal/metadata address).
+func cmdNetguardLog(args []string, stdout, stderr io.Writer) int {
+	tenant, args := extractTenantFlag(args)
+	asJSON := false
+	limit := 0
+	sinceMS := int64(0)
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		switch {
+		case a == "--json":
+			asJSON = true
+		case a == "--since":
+			if i+1 >= len(args) {
+				fmt.Fprintf(stderr, "%s netguard log: --since needs a duration\n", brand.CLI)
+				return 2
+			}
+			i++
+			d, derr := time.ParseDuration(args[i])
+			if derr != nil || d <= 0 {
+				fmt.Fprintf(stderr, "%s netguard log: bad --since %q\n", brand.CLI, args[i])
+				return 2
+			}
+			sinceMS = d.Milliseconds()
+		case strings.HasPrefix(a, "--since="):
+			d, derr := time.ParseDuration(strings.TrimPrefix(a, "--since="))
+			if derr != nil || d <= 0 {
+				fmt.Fprintf(stderr, "%s netguard log: bad --since\n", brand.CLI)
+				return 2
+			}
+			sinceMS = d.Milliseconds()
+		case a == "-h" || a == "--help":
+			fmt.Fprintf(stdout, "usage: %s netguard log [N] [--tenant <id>] [--since <dur>] [--json]\n", brand.CLI)
+			fmt.Fprintf(stdout, "show egress connections the guard refused (tool tried to reach an internal/metadata address)\n")
+			return 0
+		default:
+			if n, err := strconv.Atoi(a); err == nil && n > 0 {
+				limit = n
+				continue
+			}
+			fmt.Fprintf(stderr, "%s netguard log: unexpected arg %q\n", brand.CLI, a)
+			return 2
+		}
+	}
+
+	c := dial(stderr)
+	if c == nil {
+		return 1
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	callArgs := map[string]any{}
+	if limit > 0 {
+		callArgs["limit"] = limit
+	}
+	if sinceMS > 0 {
+		callArgs["since_ms"] = sinceMS
+	}
+	res, err := c.Call(ctx, controlplane.CmdNetguardLog, withTenant(tenant, callArgs))
+	if err != nil {
+		fmt.Fprintf(stderr, "%s netguard log: %v\n", brand.CLI, err)
+		return 1
+	}
+	if asJSON {
+		return encodeJSON(stdout, res)
+	}
+	rows, _ := res["blocks"].([]any)
+	if len(rows) == 0 {
+		fmt.Fprintln(stdout, "no blocked egress attempts journaled — nothing tried to reach an internal address.")
+		return 0
+	}
+	for _, raw := range rows {
+		m, _ := raw.(map[string]any)
+		ts := int64(0)
+		if f, ok := m["ts_unix_ms"].(float64); ok {
+			ts = int64(f)
+		}
+		when := "—"
+		if ts > 0 {
+			when = time.UnixMilli(ts).Format("2006-01-02 15:04:05")
+		}
+		ip, _ := m["ip"].(string)
+		reason, _ := m["reason"].(string)
+		tool, _ := m["tool"].(string)
+		fmt.Fprintf(stdout, "  %s  BLOCKED  %-18s via %-8s — %s\n", when, ip, tool, reason)
+	}
+	return 0
 }
 
 // ipVerdict is one resolved address and the guard's decision for it.

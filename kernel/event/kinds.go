@@ -75,6 +75,11 @@ const (
 	KindProviderFallback Kind = "provider.fallback"
 	KindBudgetExceeded   Kind = "budget.exceeded"
 	KindRateLimited      Kind = "rate.limited"
+	// KindNetguardBlocked records an outbound connection the egress guard
+	// refused at dial time (M109) — a tool (http/browser) tried to reach an
+	// internal/metadata address. An audit signal for SSRF / prompt-injection /
+	// exfiltration attempts.
+	KindNetguardBlocked Kind = "netguard.blocked"
 	// KindCapabilityRejected records a pre-flight rejection of a request
 	// because the target model lacks a required capability (M25 strict
 	// mode: a tools-bearing request to a non-tool model).
@@ -206,6 +211,7 @@ var knownKinds = map[Kind]struct{}{
 	KindProviderFallback:          {},
 	KindBudgetExceeded:            {},
 	KindRateLimited:               {},
+	KindNetguardBlocked:           {},
 	KindCapabilityRejected:        {},
 	KindCapabilityRerouted:        {},
 	KindWardenExecuted:            {},

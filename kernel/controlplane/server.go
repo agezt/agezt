@@ -379,6 +379,8 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.handleRateLimitLog(conn, req)
 	case CmdRateLimitStats:
 		s.handleRateLimitStats(conn, req)
+	case CmdNetguardLog:
+		s.handleNetguardLog(conn, req)
 	case CmdMemoryAdd:
 		s.handleMemoryAdd(conn, req)
 	case CmdMemoryList:

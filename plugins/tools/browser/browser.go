@@ -74,6 +74,10 @@ type Tool struct {
 	// metadata endpoint or a co-located service. Neither unblocks 169.254.0.0/16.
 	AllowLoopback bool
 	AllowPrivate  bool
+	// OnBlock, if set, is called (resolved IP, reason) when the egress guard
+	// refuses a dial — wired by the daemon to journal a netguard.blocked event
+	// for audit (M109). Ignored when HTTP is injected.
+	OnBlock func(ip, reason string)
 	// UserAgent is sent on every request. A real browser-like value
 	// reduces the chance of WAFs / CDN edge rules treating the agent
 	// as a bot.
@@ -115,6 +119,9 @@ func (t *Tool) client() *stdhttp.Client {
 	}
 	if t.AllowPrivate {
 		opts = append(opts, netguard.AllowPrivate())
+	}
+	if t.OnBlock != nil {
+		opts = append(opts, netguard.OnBlock(t.OnBlock))
 	}
 	return netguard.New(opts...).HTTPClient(DefaultTimeout)
 }

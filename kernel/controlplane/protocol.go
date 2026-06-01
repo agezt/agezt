@@ -230,6 +230,13 @@ const (
 	// "is this tenant/primary hitting its call-rate cap?". Tenant-routed.
 	CmdRateLimitStats = "ratelimit_stats"
 
+	// CmdNetguardLog lists egress connections the guard refused (M109) — a
+	// timeline of netguard.blocked events (a tool tried to reach an internal /
+	// metadata address). Args: limit, since_ms. Returns blocks
+	// [{ts_unix_ms, ip, reason, tool}] + count. An audit trail for SSRF /
+	// prompt-injection / exfiltration attempts. Tenant-routed.
+	CmdNetguardLog = "netguard_log"
+
 	// CmdEdictShow returns the loaded policy snapshot. Closes a
 	// real visibility gap: operators set AGEZT_APPROVAL_MODE and
 	// per-capability levels but had no way to confirm what the

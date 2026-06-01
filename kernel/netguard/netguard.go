@@ -34,6 +34,7 @@ type Guard struct {
 	allowLoopback bool
 	allowPrivate  bool // RFC1918 + ULA
 	allowLinkqual bool // link-local (169.254/16, fe80::/10) — includes cloud metadata
+	onBlock       func(ip, reason string)
 }
 
 // Option configures a Guard.
@@ -50,6 +51,14 @@ func AllowPrivate() Option { return func(g *Guard) { g.allowPrivate = true } }
 // AllowLinkLocal permits link-local addresses, INCLUDING the cloud metadata
 // endpoint (169.254.169.254). Dangerous; only for explicit, trusted use.
 func AllowLinkLocal() Option { return func(g *Guard) { g.allowLinkqual = true } }
+
+// OnBlock installs a callback invoked (with the resolved IP and reason) every
+// time the guard refuses a dial (M109). The daemon uses it to journal a
+// netguard.blocked event so an operator can audit egress that was stopped —
+// notably a tool trying to reach the cloud-metadata endpoint, a sign of prompt
+// injection or exfiltration. The callback runs on the dial path, so it must be
+// cheap and non-blocking.
+func OnBlock(fn func(ip, reason string)) Option { return func(g *Guard) { g.onBlock = fn } }
 
 // New builds a Guard with the secure defaults, relaxed by any options.
 func New(opts ...Option) *Guard {
@@ -104,6 +113,9 @@ func (g *Guard) Control(_, address string, _ syscall.RawConn) error {
 		return fmt.Errorf("netguard: refusing unresolved dial address %q", address)
 	}
 	if ok, reason := g.Allowed(ip); !ok {
+		if g.onBlock != nil {
+			g.onBlock(ip.String(), reason)
+		}
 		return fmt.Errorf("netguard: blocked %s (%s)", ip, reason)
 	}
 	return nil

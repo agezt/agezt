@@ -419,6 +419,11 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// land in the journal. MUST happen before any Run is dispatched.
 	gov.SetBus(k.Bus())
 	ward.SetBus(k.Bus())
+	// Egress-block audit (M109): when the http/browser tools' guard refuses a
+	// dial, journal a netguard.blocked event so an operator can see attempted
+	// SSRF / metadata reads. Wired here because the tools are built before the
+	// kernel exists (same ordering as gov.SetBus).
+	wireNetguardAudit(tools, k.Bus())
 	// Install the secret redactor on the primary bus before any Run, so no
 	// event is journaled un-scrubbed.
 	if redactor != nil {
@@ -1747,6 +1752,32 @@ func buildFromCatalog(entry *catalog.Provider, modelOverride string, lookup func
 	return prov, desc, modelID, auth, nil
 }
 
+// wireNetguardAudit points the http/browser tools' egress-guard OnBlock at the
+// kernel bus, so a refused dial (SSRF / metadata attempt) is journaled as a
+// netguard.blocked event (M109). Called after the kernel exists because the
+// tools are built earlier; a nil bus or a missing tool is a harmless no-op.
+func wireNetguardAudit(tools map[string]agent.Tool, b *bus.Bus) {
+	if b == nil {
+		return
+	}
+	publish := func(tool string) func(ip, reason string) {
+		return func(ip, reason string) {
+			_, _ = b.Publish(event.Spec{
+				Subject: "netguard.block",
+				Kind:    event.KindNetguardBlocked,
+				Actor:   tool,
+				Payload: map[string]any{"ip": ip, "reason": reason, "tool": tool},
+			})
+		}
+	}
+	if ht, ok := tools["http"].(*httptool.Tool); ok {
+		ht.OnBlock = publish("http")
+	}
+	if br, ok := tools["browser"].(*browser.Tool); ok {
+		br.OnBlock = publish("browser")
+	}
+}
+
 // buildTools registers the in-process tools. Each tool gets its own
 // configuration from env vars; defaults are safe (file tool scoped to a
 // per-instance workspace, http tool default-deny). The shell tool runs
@@ -2044,6 +2075,17 @@ func newDemoMock() agent.Provider {
 			return mock.FinalText(fmt.Sprintf(
 				"[offline-mock vision] received %d image attachment(s); a real vision model would describe them here.", n))
 		}}
+	}
+	// Demo escape hatch: AGEZT_DEMO_SSRF=1 scripts the lead to fetch the cloud
+	// metadata endpoint via the http tool, so the egress-guard block + the M109
+	// netguard.blocked audit are observable offline. Pair with
+	// AGEZT_HTTP_ALLOW_ALL=1 so the HOST allowlist passes and the IP guard (not
+	// the allowlist) is what refuses the dial.
+	if os.Getenv(brand.EnvPrefix+"DEMO_SSRF") == "1" {
+		return mock.New(
+			mock.ToolUse("call-1", "http", map[string]any{"method": "GET", "url": "http://169.254.169.254/latest/meta-data/"}),
+			mock.FinalText("[offline-mock] I attempted to read the cloud metadata endpoint; the egress guard refused the connection."),
+		)
 	}
 	// Demo escape hatch: AGEZT_DEMO_DELEGATE=1 scripts a single delegation so
 	// the multi-agent path (the `delegate` tool, subagent.spawned, M41 run

@@ -66,6 +66,10 @@ type Tool struct {
 	AllowPrivate bool
 	// UserAgent is sent on every request. Default: "agezt-http/0.1".
 	UserAgent string
+	// OnBlock, if set, is called (resolved IP, reason) whenever the egress
+	// guard refuses a dial — the daemon wires it to journal a netguard.blocked
+	// event for audit (M109). Ignored when HTTP is injected.
+	OnBlock func(ip, reason string)
 }
 
 // New returns a Tool with safe defaults: default-deny hosts, default-deny
@@ -87,6 +91,9 @@ func (t *Tool) client() *stdhttp.Client {
 	}
 	if t.AllowPrivate {
 		opts = append(opts, netguard.AllowPrivate())
+	}
+	if t.OnBlock != nil {
+		opts = append(opts, netguard.OnBlock(t.OnBlock))
 	}
 	return netguard.New(opts...).HTTPClient(DefaultTimeout)
 }
