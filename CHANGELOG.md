@@ -12,6 +12,17 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Per-delegation spend cap** (SPEC-12 multi-agent, M48) — `AGEZT_SUBAGENT_SPEND_CAP=<usd>`
+  caps the total spend a single run's sub-agents may collectively consume; once a
+  lead's delegations have spent past it, the next `delegate` is refused with
+  `max sub-agent spend $X.XXXX reached` (a tool error the lead adapts to, mirroring
+  the M46 fan-out guard). The tally is a **stateless** transitive-descendant sum
+  over the journal's M47 `budget.consumed` events — durable by the time each child
+  returns, so it's race-free with no in-memory accounting; scanned only when the
+  cap is enabled. Closes the count→cost→cap governance loop (M46 count, M47 cost,
+  M48 cap). `0`/absent = unbounded. Proven live: 3 attempts under a $0.003 cap → 2
+  ran ($0.0042 sub-agent spend), 3rd refused. See
+  `.project/PHASE-M48-DELEGATION-SPEND-CAP-REPORT.md`.
 - **Per-delegation spend attribution** (SPEC-12 multi-agent, M47) — the governor's
   `budget.consumed` event now carries the spending run's correlation (envelope +
   payload), threaded in via a new Governor-only `CompletionRequest.CorrelationID`

@@ -124,6 +124,19 @@ func (k *Kernel) runSubAgent(ctx context.Context, task string) (string, error) {
 		k.mu.Unlock()
 	}
 
+	// Spend cap (M48): once this run's sub-agents have collectively spent past
+	// SubAgentMaxSpendMicrocents, refuse further delegations — the cost analogue
+	// of the fan-out count cap above. The tally is read from the journal, which
+	// is durable by the time each prior child returned (bus.Publish appends
+	// before it returns), so the previous delegations' spend is already visible
+	// here — no in-memory accounting, race-free. Only scanned when the cap is
+	// enabled, so it stays off the default path. 0 = unbounded.
+	if cap := k.cfg.SubAgentMaxSpendMicrocents; cap > 0 && parentCorr != "" {
+		if spent := k.subAgentSpendMicrocents(parentCorr); spent >= cap {
+			return "", fmt.Errorf("max sub-agent spend $%.4f reached", float64(cap)/1e9)
+		}
+	}
+
 	childCorr := k.NewCorrelation()
 	actor := "subagent-" + childCorr
 
@@ -181,4 +194,82 @@ func (k *Kernel) runSubAgent(ctx context.Context, task string) (string, error) {
 		return "", fmt.Errorf("sub-agent %s: %w", childCorr, err)
 	}
 	return answer, nil
+}
+
+// subAgentSpendMicrocents sums the spend (budget.consumed cost_microcents, M47)
+// of every run descended from parentCorr — its sub-agents and their sub-agents,
+// transitively — excluding parentCorr's own direct spend. It backs the M48
+// spend cap: a single forward journal pass builds the parent→children links
+// (from subagent.spawned) and the per-run spend (from budget.consumed), then
+// totals the spend over parentCorr's transitive descendants. Stateless and
+// race-free: every prior delegation's spend is already durably journaled by the
+// time the next delegate calls this. Only invoked when the cap is enabled.
+func (k *Kernel) subAgentSpendMicrocents(parentCorr string) int64 {
+	childrenOf := map[string][]string{}
+	spendOf := map[string]int64{}
+	_ = k.journal.Range(func(e *event.Event) error {
+		switch e.Kind {
+		case event.KindSubAgentSpawned:
+			if child, parent := spawnLink(e.Payload); child != "" && parent != "" {
+				childrenOf[parent] = append(childrenOf[parent], child)
+			}
+		case event.KindBudgetConsumed:
+			if e.CorrelationID != "" {
+				spendOf[e.CorrelationID] += budgetCostMicrocents(e.Payload)
+			}
+		}
+		return nil
+	})
+
+	// Sum spend over the transitive descendants of parentCorr (BFS over the
+	// links), excluding parentCorr itself — the cap bounds sub-agent spend, not
+	// the lead's own. A `seen` set guards against a malformed cyclic link.
+	var total int64
+	seen := map[string]bool{parentCorr: true}
+	queue := append([]string{}, childrenOf[parentCorr]...)
+	for len(queue) > 0 {
+		corr := queue[0]
+		queue = queue[1:]
+		if seen[corr] {
+			continue
+		}
+		seen[corr] = true
+		total += spendOf[corr]
+		queue = append(queue, childrenOf[corr]...)
+	}
+	return total
+}
+
+// spawnLink pulls child + parent correlation ids out of a subagent.spawned
+// payload (M48 mirror of the control plane's extractSpawnLink). Returns
+// ("","") on parse failure so an unparseable link is simply skipped.
+func spawnLink(payload json.RawMessage) (child, parent string) {
+	if len(payload) == 0 {
+		return "", ""
+	}
+	var p struct {
+		Child  string `json:"child_correlation"`
+		Parent string `json:"parent"`
+	}
+	if err := json.Unmarshal(payload, &p); err != nil {
+		return "", ""
+	}
+	return p.Child, p.Parent
+}
+
+// budgetCostMicrocents pulls cost_microcents out of a budget.consumed payload
+// (M48). Returns 0 on parse failure so an unparseable spend event contributes
+// nothing. JSON numbers decode as float64; the integer microcents have no
+// fractional part to lose.
+func budgetCostMicrocents(payload json.RawMessage) int64 {
+	if len(payload) == 0 {
+		return 0
+	}
+	var p struct {
+		Cost float64 `json:"cost_microcents"`
+	}
+	if err := json.Unmarshal(payload, &p); err != nil {
+		return 0
+	}
+	return int64(p.Cost)
 }

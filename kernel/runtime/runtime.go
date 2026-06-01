@@ -114,6 +114,14 @@ type Config struct {
 	// to. 0 (the default) means unbounded — the historical behaviour; the
 	// daemon is the single enable point.
 	SubAgentMaxFanout int
+	// SubAgentMaxSpendMicrocents caps the TOTAL spend (in microcents) a single
+	// run's sub-agents may collectively consume. Once a lead's delegations have
+	// spent past this, the next delegate is refused — the cost analogue of
+	// SubAgentMaxFanout's count cap (M48), closing the count→cost→cap loop atop
+	// M47's per-delegation spend attribution. Read from the journal (durable by
+	// the time each child returns), so it needs no in-memory tally. 0 (the
+	// default) means unbounded; the daemon is the single enable point.
+	SubAgentMaxSpendMicrocents int64
 
 	// Edict is the policy engine that gates each tool call. If nil, a
 	// default engine (edict.New(edict.Options{})) is constructed — the

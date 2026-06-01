@@ -11,10 +11,108 @@ import (
 
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/governor"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/plugins/providers/mock"
 	"github.com/agezt/agezt/plugins/tools/shell"
 )
+
+// openSpendKernel wires a mock provider behind a real Governor so each scripted
+// response (given token usage) journals a budget.consumed event — the substrate
+// the M48 sub-agent spend cap reads. The governor shares the kernel's bus
+// (SetBus, the daemon's pattern) so spend events land in the kernel's journal.
+func openSpendKernel(t *testing.T, prov agent.Provider, spendCapMC int64) *runtime.Kernel {
+	t.Helper()
+	reg := governor.NewRegistry()
+	if err := reg.Register(&governor.ProviderInfo{
+		Name: prov.Name(), Provider: prov, AuthMode: governor.AuthLocal,
+	}); err != nil {
+		t.Fatalf("register: %v", err)
+	}
+	g, err := governor.New(governor.Config{Registry: reg})
+	if err != nil {
+		t.Fatalf("governor.New: %v", err)
+	}
+	k, err := runtime.Open(runtime.Config{
+		BaseDir:                    t.TempDir(),
+		Provider:                   g,
+		Tools:                      map[string]agent.Tool{"shell": shell.New()},
+		Model:                      "claude-sonnet-4-6", // priced, so usage → non-zero spend
+		SubAgentTool:               true,
+		SubAgentMaxDepth:           1,
+		SubAgentMaxSpendMicrocents: spendCapMC,
+	})
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	g.SetBus(k.Bus()) // budget.consumed → the kernel's journal
+	t.Cleanup(func() { k.Close() })
+	return k
+}
+
+// withUsage stamps synthetic token usage on a response so the governor prices a
+// non-zero cost. 2000/1000 tokens on claude-sonnet-4-6 = 2_100_000 microcents
+// ($0.0021) per call.
+func withUsage(r agent.CompletionResponse) agent.CompletionResponse {
+	return mock.WithUsage(r, agent.Usage{InputTokens: 2000, OutputTokens: 1000, Model: "claude-sonnet-4-6"})
+}
+
+func TestSubAgent_SpendGuard(t *testing.T) {
+	// Each sub-agent call costs $0.0021. With a $0.0030 cap the first delegation
+	// (descendant spend $0) and the second ($0.0021 < $0.0030) are admitted, but
+	// by the third the sub-agents have spent $0.0042 ≥ $0.0030, so it's refused —
+	// the cost analogue of the fan-out guard. Two spawns; the lead still finishes.
+	prov := mock.New(
+		withUsage(mock.ToolUse("c1", "delegate", map[string]any{"task": "t1"})), // lead r1
+		withUsage(mock.FinalText("child 1 done")),                               // child 1
+		withUsage(mock.ToolUse("c2", "delegate", map[string]any{"task": "t2"})), // lead r2
+		withUsage(mock.FinalText("child 2 done")),                               // child 2
+		withUsage(mock.ToolUse("c3", "delegate", map[string]any{"task": "t3"})), // lead r3 — refused on spend
+		withUsage(mock.FinalText("lead done")),                                  // lead final
+	)
+	k := openSpendKernel(t, prov, 3_000_000) // $0.0030
+	col := &collector{}
+	col.watch(k)
+
+	ans, _, err := k.Run(context.Background(), "spend out")
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if ans != "lead done" {
+		t.Errorf("final answer = %q, want %q (lead completes despite the refusal)", ans, "lead done")
+	}
+	time.Sleep(50 * time.Millisecond)
+
+	if n := len(col.ofKind(event.KindSubAgentSpawned)); n != 2 {
+		t.Errorf("spend guard: expected 2 spawns (the 3rd refused on spend), got %d", n)
+	}
+}
+
+func TestSubAgent_SpendUnboundedByDefault(t *testing.T) {
+	// SubAgentMaxSpendMicrocents=0 keeps the historical behaviour: spend never
+	// blocks a delegation. Three delegate rounds → three spawns.
+	prov := mock.New(
+		withUsage(mock.ToolUse("c1", "delegate", map[string]any{"task": "t1"})),
+		withUsage(mock.FinalText("child 1")),
+		withUsage(mock.ToolUse("c2", "delegate", map[string]any{"task": "t2"})),
+		withUsage(mock.FinalText("child 2")),
+		withUsage(mock.ToolUse("c3", "delegate", map[string]any{"task": "t3"})),
+		withUsage(mock.FinalText("child 3")),
+		withUsage(mock.FinalText("lead done")),
+	)
+	k := openSpendKernel(t, prov, 0) // no spend cap
+	col := &collector{}
+	col.watch(k)
+
+	if _, _, err := k.Run(context.Background(), "spend out"); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	time.Sleep(50 * time.Millisecond)
+
+	if n := len(col.ofKind(event.KindSubAgentSpawned)); n != 3 {
+		t.Errorf("unbounded spend: expected 3 spawns, got %d", n)
+	}
+}
 
 // collector drains the bus into a slice for post-run assertions.
 type collector struct {

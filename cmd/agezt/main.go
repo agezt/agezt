@@ -254,6 +254,20 @@ func runDaemon(stdout, stderr io.Writer) int {
 			subAgentFanout = f
 		}
 	}
+	// AGEZT_SUBAGENT_SPEND_CAP caps the total spend a single run's sub-agents
+	// may collectively consume (M48), given as a USD amount (matching the
+	// AGEZT_*_DAILY_CEILING convention) and stored as microcents. Once a lead's
+	// delegations have spent past it, the next delegate is refused. 0 / absent =
+	// unbounded; a malformed value is a hard startup error (fast feedback).
+	var subAgentSpendCap int64
+	if v := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "SUBAGENT_SPEND_CAP")); v != "" {
+		usd, perr := strconv.ParseFloat(v, 64)
+		if perr != nil || usd < 0 {
+			fmt.Fprintf(stderr, "%s: %sSUBAGENT_SPEND_CAP: want a non-negative USD amount, got %q\n", brand.Binary, brand.EnvPrefix, v)
+			return 1
+		}
+		subAgentSpendCap = int64(usd * 1e9)
+	}
 
 	cfg := kernelruntime.Config{
 		BaseDir:               baseDir,
@@ -277,9 +291,10 @@ func runDaemon(stdout, stderr io.Writer) int {
 		SkillTopK:             3,
 		SkillForge:            forgeOn,
 		SkillForgeMinTools:    4,
-		SubAgentTool:          subAgentOn,
-		SubAgentMaxDepth:      subAgentDepth,
-		SubAgentMaxFanout:     subAgentFanout,
+		SubAgentTool:               subAgentOn,
+		SubAgentMaxDepth:           subAgentDepth,
+		SubAgentMaxFanout:          subAgentFanout,
+		SubAgentMaxSpendMicrocents: subAgentSpendCap,
 	}
 	// Per-run wall-clock timeout (M31): AGEZT_RUN_TIMEOUT=<duration> caps how
 	// long a single run may take inside a live session. Off by default (only
