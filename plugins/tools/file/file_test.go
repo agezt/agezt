@@ -238,3 +238,27 @@ func TestReplace_RejectsEscape(t *testing.T) {
 	tool := newTool(t)
 	invokeExpectErr(t, tool, fileInput{Op: "replace", Path: "../outside.txt", Find: "a", Replacement: "b"}, "")
 }
+
+func TestSearch_RegexMode(t *testing.T) {
+	tool := newTool(t)
+	invoke(t, tool, fileInput{Op: "write", Path: "a.go", Content: "func Foo() {}\nfunc Bar() {}\nvar x = 1\n"})
+
+	// Literal search for "func(" finds nothing; regex finds both func defs.
+	lit := invoke(t, tool, fileInput{Op: "search", Pattern: `func \w+\(`})
+	if strings.Contains(lit, `"count": 2`) {
+		t.Errorf("literal search should not regex-match: %s", lit)
+	}
+	rx := invoke(t, tool, fileInput{Op: "search", Pattern: `func \w+\(`, Regex: true})
+	if !strings.Contains(rx, `"count": 2`) {
+		t.Errorf("regex search should find 2 func defs: %s", rx)
+	}
+	if !strings.Contains(rx, "Foo") || !strings.Contains(rx, "Bar") {
+		t.Errorf("regex hits missing Foo/Bar: %s", rx)
+	}
+}
+
+func TestSearch_BadRegexErrors(t *testing.T) {
+	tool := newTool(t)
+	invoke(t, tool, fileInput{Op: "write", Path: "a.txt", Content: "hello"})
+	invokeExpectErr(t, tool, fileInput{Op: "search", Pattern: "func(", Regex: true}, "bad regex")
+}

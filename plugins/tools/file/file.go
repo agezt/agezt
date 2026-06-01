@@ -24,6 +24,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -99,7 +100,8 @@ func (t *Tool) Definition() agent.ToolDef {
     "op":   {"type": "string", "enum": ["read","write","append","list","search","stat","delete","replace"]},
     "path": {"type": "string", "description": "Path relative to the workspace root."},
     "content": {"type": "string", "description": "For write/append: the bytes to write."},
-    "pattern": {"type": "string", "description": "For search: a literal substring (not regex) to grep for."},
+    "pattern": {"type": "string", "description": "For search: a substring (or RE2 regular expression when regex=true) to grep for."},
+    "regex": {"type": "boolean", "description": "For search: treat 'pattern' as an RE2 regular expression instead of a literal substring."},
     "find": {"type": "string", "description": "For replace: the exact substring to find. Must be unique unless all=true."},
     "replacement": {"type": "string", "description": "For replace: the text to substitute for 'find'."},
     "all": {"type": "boolean", "description": "For replace: replace every occurrence instead of requiring a single unique match."},
@@ -117,6 +119,7 @@ type fileInput struct {
 	Find        string `json:"find,omitempty"`
 	Replacement string `json:"replacement,omitempty"`
 	All         bool   `json:"all,omitempty"`
+	Regex       bool   `json:"regex,omitempty"`
 	MaxResults  int    `json:"max_results,omitempty"`
 }
 
@@ -349,6 +352,18 @@ func (t *Tool) doSearch(in fileInput) (agent.Result, error) {
 	var hits []hit
 	pattern := in.Pattern
 
+	// matcher is a literal substring test by default, or an RE2 regexp when
+	// regex=true (M115) — letting an agent grep for code patterns, not just
+	// fixed strings. A bad regex errors loudly instead of matching nothing.
+	matcher := func(line string) bool { return strings.Contains(line, pattern) }
+	if in.Regex {
+		re, rerr := regexp.Compile(pattern)
+		if rerr != nil {
+			return errResult("search: bad regex: " + rerr.Error()), nil
+		}
+		matcher = re.MatchString
+	}
+
 	walkErr := filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return nil // skip unreadable
@@ -369,7 +384,7 @@ func (t *Tool) doSearch(in fileInput) (agent.Result, error) {
 			if len(hits) >= cap {
 				break
 			}
-			if strings.Contains(line, pattern) {
+			if matcher(line) {
 				hits = append(hits, hit{Path: rel, Line: i + 1, Text: line})
 			}
 		}

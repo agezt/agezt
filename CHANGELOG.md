@@ -12,6 +12,10 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **File tool regex search** (M115) — the `file` tool's `search` op gains an opt-in
+  `regex: true` mode (RE2), so an agent can grep for code patterns, not just literal
+  substrings. Default literal behaviour is unchanged. See
+  `.project/PHASE-M115-FILE-REGEX-SEARCH-REPORT.md`.
 - **File tool partial edit** (M114) — the `file` tool gains a `replace` op
   (`find`/`replacement`, unique-match by default or `all=true`), so an agent can
   edit a file surgically instead of rewriting the whole thing — cheaper in context
