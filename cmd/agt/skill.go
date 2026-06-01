@@ -33,6 +33,8 @@ func cmdSkill(args []string, stdout, stderr io.Writer) int {
 		return cmdSkillTransition(args[1:], controlplane.CmdSkillQuarantine, "quarantine", stdout, stderr)
 	case "revert":
 		return cmdSkillTransition(args[1:], controlplane.CmdSkillRevert, "revert", stdout, stderr)
+	case "diff":
+		return cmdSkillDiff(args[1:], stdout, stderr)
 	case "-h", "--help", "help":
 		fmt.Fprintf(stdout, "usage: %s skill <subcommand>\n", brand.CLI)
 		fmt.Fprintf(stdout, "  list [--json]                 list all skills + lifecycle state\n")
@@ -41,6 +43,7 @@ func cmdSkill(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "  promote <id> [--json]         advance draft->shadow->active\n")
 		fmt.Fprintf(stdout, "  quarantine <id> [--reason R] [--json]   pull from production\n")
 		fmt.Fprintf(stdout, "  revert <id> [--json]          archive + restore lineage parent\n")
+		fmt.Fprintf(stdout, "  diff <id> [<id2>]             diff a skill's body vs its parent (or vs id2)\n")
 		return 0
 	default:
 		fmt.Fprintf(stderr, "%s skill: unknown subcommand %q (list|show|history|promote|quarantine|revert)\n", brand.CLI, args[0])

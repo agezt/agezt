@@ -12,6 +12,10 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **`agt skill diff`** (M118) — diff a skill's body against its lineage parent (or
+  another skill), with a line-level LCS diff, so an operator can see how a skill
+  evolved instead of eyeballing two bodies. See
+  `.project/PHASE-M118-SKILL-DIFF-REPORT.md`.
 - **File tool line-range read** (M117) — `read` accepts `start_line`/`end_line` to
   page a region of a file (under a `[lines X-Y]` header), so an agent can reach
   content past the 256 KiB truncation point and read around a `search` hit. See
