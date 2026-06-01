@@ -12,6 +12,10 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **`agt provider cost`** (SPEC-08, M111) — standalone model-price lookup: a model's
+  per-Mtok input/output price and an optional cost estimate for a given token count
+  (`--input-tokens` / `--output-tokens`), reusing the catalog. See
+  `.project/PHASE-M111-PROVIDER-COST-REPORT.md`.
 - **Catalog-freshness check in `agt doctor`** (SPEC-08, M110) — the diagnostic now
   WARNs when the API model catalog hasn't been synced in over 21 days, since stale
   pricing silently skews cost estimates and budget enforcement. See
