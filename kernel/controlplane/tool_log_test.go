@@ -275,3 +275,31 @@ func TestToolStats_PerToolLatency(t *testing.T) {
 		t.Errorf("shell avg_ms = %v want >= 0", avg)
 	}
 }
+
+// TestToolStats_ErrorsByMessage — the aggregate buckets failed calls by their
+// error message, most-frequent surfaced via the map (M79).
+func TestToolStats_ErrorsByMessage(t *testing.T) {
+	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	toolResult(k, "a", "shell", "boom", true)
+	toolResult(k, "b", "http", "boom", true)
+	toolResult(k, "c", "http", "denied by policy", true)
+	toolResult(k, "d", "shell", "ok", false) // success: not bucketed
+
+	res, err := c.Call(context.Background(), controlplane.CmdToolStats, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	byErr, _ := res["errors_by_message"].(map[string]any)
+	if byErr == nil {
+		t.Fatalf("missing errors_by_message")
+	}
+	if got, _ := byErr["boom"].(float64); got != 2 {
+		t.Errorf("errors_by_message[boom] = %v want 2", byErr["boom"])
+	}
+	if got, _ := byErr["denied by policy"].(float64); got != 1 {
+		t.Errorf("errors_by_message[denied by policy] = %v want 1", byErr["denied by policy"])
+	}
+	if _, ok := byErr["ok"]; ok {
+		t.Errorf("successful call was bucketed as an error")
+	}
+}

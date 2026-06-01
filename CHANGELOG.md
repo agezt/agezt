@@ -34,6 +34,11 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   the denial rate + counts reflect one tool/capability. Completes the symmetry
   with `edict log`'s M74 filters. See
   `.project/PHASE-M76-EDICT-STATS-SCOPE-REPORT.md`.
+- **Error-message breakdown in `agt tool stats`** (SPEC-08, M79) — an
+  `errors by message` block (most-frequent first) buckets failed tool calls by
+  their message, so an operator sees WHAT is failing (denied / not-available /
+  timeout), not just how many. The tool analogue of `runs stats`'
+  `failed_by_reason`. See `.project/PHASE-M79-TOOL-ERROR-BREAKDOWN-REPORT.md`.
 - **Per-tool latency in `agt tool stats`** (SPEC-08, M75) — the by-tool
   breakdown now carries a per-tool mean latency (`shell 3 call(s), 0 error(s),
   avg 14ms`), so an operator can see WHICH tool is slow, not just that calls are

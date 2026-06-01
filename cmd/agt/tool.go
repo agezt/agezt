@@ -392,6 +392,28 @@ func cmdToolStats(args []string, stdout, stderr io.Writer) int {
 			fmt.Fprintln(stdout, line)
 		}
 	}
+	// Failure-mode breakdown (M79) — what the errors actually were, most-frequent
+	// first, so an operator sees denied / not-available / timeout at a glance.
+	if byErr, _ := res["errors_by_message"].(map[string]any); len(byErr) > 0 {
+		type em struct {
+			msg string
+			n   int64
+		}
+		ems := make([]em, 0, len(byErr))
+		for msg, c := range byErr {
+			ems = append(ems, em{msg, intOfStatus(c)})
+		}
+		sort.Slice(ems, func(i, j int) bool {
+			if ems[i].n != ems[j].n {
+				return ems[i].n > ems[j].n // most frequent first
+			}
+			return ems[i].msg < ems[j].msg // stable tiebreak
+		})
+		fmt.Fprintf(stdout, "\n  errors by message:\n")
+		for _, e := range ems {
+			fmt.Fprintf(stdout, "    %2d  %s\n", e.n, e.msg)
+		}
+	}
 	// Latency distribution (M71) — same nearest-rank block as `runs stats`,
 	// over tool calls whose invoked→result span was joinable.
 	if dur, _ := res["duration_ms"].(map[string]any); dur != nil {

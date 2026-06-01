@@ -172,6 +172,10 @@ func (s *Server) handleToolStats(conn net.Conn, req Request) {
 	byTool := map[string]*toolAgg{}
 	invokedTS := map[string]int64{} // call_id → tool.invoked timestamp (M71)
 	durations := make([]int64, 0)   // per-call latency, for the distribution (M71)
+	// Failure-mode breakdown (M79): bucket error outputs by their message so an
+	// operator sees WHAT is failing (denied / not-available / timeout / …), not
+	// just how many — the tool analogue of runs stats' failed_by_reason.
+	errorsByMessage := map[string]int{}
 	if err := k.Journal().Range(func(e *event.Event) error {
 		if e.Kind == event.KindToolInvoked {
 			if id, _ := decodeToolInvoked(e.Payload); id != "" {
@@ -185,7 +189,7 @@ func (s *Server) handleToolStats(conn net.Conn, req Request) {
 		if cutoff > 0 && e.TSUnixMS < cutoff {
 			return nil
 		}
-		tool, id, _, isErr := decodeToolResult(e.Payload)
+		tool, id, output, isErr := decodeToolResult(e.Payload)
 		if toolFilter != "" && tool != toolFilter {
 			return nil
 		}
@@ -202,6 +206,11 @@ func (s *Server) handleToolStats(conn net.Conn, req Request) {
 		if isErr {
 			errored++
 			agg.errors++
+			msg := output // already whitespace-collapsed + capped by decodeToolResult
+			if msg == "" {
+				msg = "(no message)"
+			}
+			errorsByMessage[msg]++
 		}
 		if it, ok := invokedTS[id]; ok && e.TSUnixMS >= it {
 			d := e.TSUnixMS - it
@@ -244,12 +253,13 @@ func (s *Server) handleToolStats(conn net.Conn, req Request) {
 		ID:   req.ID,
 		Type: RespResult,
 		Result: map[string]any{
-			"total":      total,
-			"errored":    errored,
-			"error_rate": errorRate,
-			"by_tool":    byToolOut,
-			"tools":      len(byTool),
-			"window_ms":  sinceMS,
+			"total":             total,
+			"errored":           errored,
+			"error_rate":        errorRate,
+			"by_tool":           byToolOut,
+			"tools":             len(byTool),
+			"window_ms":         sinceMS,
+			"errors_by_message": errorsByMessage, // M79: failure-mode breakdown
 			"duration_ms": map[string]any{
 				"count": len(durations),
 				"avg":   dstats.avg,
