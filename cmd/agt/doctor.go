@@ -153,6 +153,7 @@ func runDoctorChecks() []doctorCheck {
 	checks = append(checks, checkProvider(ctx, client))
 	checks = append(checks, checkApprovals(ctx, client))
 	checks = append(checks, checkCatalog(ctx, client))
+	checks = append(checks, checkWebhooks(ctx, client))
 	checks = append(checks, checkHalt(status))
 
 	return checks
@@ -312,6 +313,61 @@ func approvalsCheckFromStats(res map[string]any) doctorCheck {
 		return ok(name, fmt.Sprintf("%d resolved, %d awaiting operator", total-pending, pending))
 	}
 	return ok(name, fmt.Sprintf("%d approval(s), none timed out", total))
+}
+
+// checkWebhooks warns when outbound webhook deliveries have been failing (M121)
+// — an operator wires a webhook sink precisely so they get notified; a sink that
+// silently 5xx's or times out is the classic "I never got paged" outage, and it
+// is invisible unless someone thinks to run `agt webhook stats`. Folding it into
+// the go-to diagnostic surfaces broken notifications proactively. Same shape as
+// the sandbox/provider/approvals checks. Best-effort: no deliveries yet, or the
+// call failing, is an informational OK, never a FAIL.
+func checkWebhooks(ctx context.Context, client *controlplane.Client) doctorCheck {
+	res, err := client.Call(ctx, controlplane.CmdWebhookStats, nil)
+	if err != nil {
+		return ok("webhooks", "webhook stats unavailable (—)")
+	}
+	return webhookCheckFromStats(res)
+}
+
+// webhookCheckFromStats is the pure verdict from a webhook-stats response — split
+// out so the failure logic is testable without a live daemon (M121).
+func webhookCheckFromStats(res map[string]any) doctorCheck {
+	const name = "webhooks"
+	total := intOfStatus(res["total"])
+	if total == 0 {
+		return ok(name, "no webhook deliveries yet")
+	}
+	failed := intOfStatus(res["failed"])
+	if failed == 0 {
+		return ok(name, fmt.Sprintf("%d delivery(ies), all delivered", total))
+	}
+	rate, _ := res["failure_rate"].(float64)
+	detail := fmt.Sprintf("%d/%d webhook delivery(ies) failed (%.0f%%)", failed, total, rate*100)
+	hint := "a notification sink is unreachable or erroring; check `agt webhook log --failed`"
+	if worst := topFailingWebhook(res["by_url"]); worst != "" {
+		hint = fmt.Sprintf("%q is failing; check `agt webhook log --failed`", worst)
+	}
+	return warn(name, detail, hint)
+}
+
+// topFailingWebhook returns the sink URL with the most failed deliveries from a
+// by_url map (url → {delivered, failed}), ties broken by URL for determinism, or "".
+func topFailingWebhook(raw any) string {
+	m, _ := raw.(map[string]any)
+	worst := ""
+	worstN := int64(0)
+	for url, v := range m {
+		entry, _ := v.(map[string]any)
+		n := intOfStatus(entry["failed"])
+		if n > worstN || (n == worstN && n > 0 && url < worst) {
+			worst, worstN = url, n
+		}
+	}
+	if worstN == 0 {
+		return ""
+	}
+	return worst
 }
 
 // checkModelReadiness reports whether the daemon's configured model is fit

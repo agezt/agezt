@@ -12,6 +12,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **`agt doctor` webhook-health check** (M121) — the go-to diagnostic now WARNs when
+  outbound webhook deliveries are failing, naming the worst sink and pointing at
+  `agt webhook log --failed`. A notification sink that silently 5xx's or times out
+  is the classic "I never got paged" outage; this folds the M112 webhook-delivery
+  data into the first-look diagnostic so broken notifications surface proactively.
+  See `.project/PHASE-M121-DOCTOR-WEBHOOKS-REPORT.md`.
 - **`agt schedule test`** (M120) — a dry-run that previews a schedule's next N fire
   times, so an operator can validate a complex daily/windowed/timezone/weekday
   cadence before relying on it (parity with `agt edict test`). New

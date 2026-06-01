@@ -230,6 +230,55 @@ func TestTopFailingProvider(t *testing.T) {
 	}
 }
 
+func TestWebhookCheckFromStats(t *testing.T) {
+	// Failures present → WARN, hint names the worst sink.
+	w := webhookCheckFromStats(map[string]any{
+		"total": float64(10), "delivered": float64(7), "failed": float64(3), "failure_rate": 0.3,
+		"by_url": map[string]any{
+			"https://a.example/hook": map[string]any{"delivered": float64(5), "failed": float64(1)},
+			"https://b.example/hook": map[string]any{"delivered": float64(2), "failed": float64(2)},
+		},
+	})
+	if w.Status != statusWarn {
+		t.Fatalf("failures: status = %v want WARN", w.State)
+	}
+	if !strings.Contains(w.Hint, "b.example") {
+		t.Errorf("hint = %q want to name the worst sink b.example", w.Hint)
+	}
+	// All delivered → OK.
+	good := webhookCheckFromStats(map[string]any{
+		"total": float64(8), "delivered": float64(8), "failed": float64(0),
+	})
+	if good.Status != statusOK {
+		t.Errorf("all delivered: status = %v want OK", good.State)
+	}
+	// No deliveries yet → OK.
+	none := webhookCheckFromStats(map[string]any{"total": float64(0)})
+	if none.Status != statusOK {
+		t.Errorf("no deliveries: status = %v want OK", none.State)
+	}
+}
+
+func TestTopFailingWebhook(t *testing.T) {
+	got := topFailingWebhook(map[string]any{
+		"u1": map[string]any{"delivered": float64(3), "failed": float64(1)},
+		"u2": map[string]any{"delivered": float64(0), "failed": float64(4)},
+		"u3": map[string]any{"delivered": float64(9), "failed": float64(2)},
+	})
+	if got != "u2" {
+		t.Errorf("topFailingWebhook = %q want u2", got)
+	}
+	// All-zero failures → "" (no sink to blame).
+	if z := topFailingWebhook(map[string]any{
+		"u1": map[string]any{"delivered": float64(3), "failed": float64(0)},
+	}); z != "" {
+		t.Errorf("no failures should yield \"\", got %q", z)
+	}
+	if topFailingWebhook(nil) != "" {
+		t.Errorf("nil should yield \"\"")
+	}
+}
+
 func TestCatalogCheckFromSync(t *testing.T) {
 	now := time.Date(2026, 6, 2, 12, 0, 0, 0, time.UTC)
 
