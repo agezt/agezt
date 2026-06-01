@@ -211,6 +211,10 @@ const (
 	// No args. Returns: { levels: {cap: level}, deny_rules: [...], mode,
 	// empty, changes_folded }
 	CmdEdictOverlay = "edict_overlay"
+	// CmdEdictCompact collapses the durable policy overlay into a snapshot (M95)
+	// so boot replays {snapshot + post-snapshot changes} instead of all history.
+	// No args. Returns: { folded, compacted, through_seq, empty }
+	CmdEdictCompact = "edict_compact"
 
 	// CmdEdictTest dry-runs a policy decision: "if I asked to do
 	// <capability> with this <input>, what would the engine say?"

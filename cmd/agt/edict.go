@@ -30,6 +30,8 @@ func cmdEdict(args []string, stdout, stderr io.Writer) int {
 		return cmdEdictShow(args[1:], stdout, stderr)
 	case "overlay":
 		return cmdEdictOverlay(args[1:], stdout, stderr)
+	case "compact":
+		return cmdEdictCompact(args[1:], stdout, stderr)
 	case "test":
 		return cmdEdictTest(args[1:], stdout, stderr)
 	case "deny":
@@ -46,6 +48,7 @@ func cmdEdict(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "usage: %s edict <subcommand>\n", brand.CLI)
 		fmt.Fprintf(stdout, "  show [--json]                          display loaded policies\n")
 		fmt.Fprintf(stdout, "  overlay [--json]                       net runtime policy overlay (level/mode/deny changes in effect)\n")
+		fmt.Fprintf(stdout, "  compact [--json]                       snapshot the overlay so boot replays it + later changes only\n")
 		fmt.Fprintf(stdout, "  log [N] [--denied] [--json]            recent policy decisions (allow/deny audit)\n")
 		fmt.Fprintf(stdout, "  stats [--since <dur>] [--json]         policy-decision aggregate (denial rate, by capability)\n")
 		fmt.Fprintf(stdout, "  test <capability> [<input>] [--json]   dry-run a decision; no side effects\n")

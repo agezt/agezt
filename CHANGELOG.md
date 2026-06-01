@@ -12,6 +12,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Durable-policy compaction** (SPEC-08, M95) — `agt edict compact` snapshots
+  the net policy overlay (minimal change list + journal seq) so boot
+  (`AGEZT_EDICT_DURABLE=on`) replays `{snapshot + only later changes}` instead of
+  the whole `policy.changed` history. Fallback-safe (absent/corrupt → full fold);
+  the journal stays the immutable source of truth. See
+  `.project/PHASE-M95-EDICT-COMPACT-REPORT.md`.
 - **`agt edict overlay`** (SPEC-08, M94) — surfaces the NET durable policy
   overlay: every runtime `policy.changed` folded via the same
   `ProjectPolicyChanges` the daemon replays at boot, so an operator sees what

@@ -911,9 +911,23 @@ func (e kernelAPIEngine) EventsForCorrelation(corr string) ([]*event.Event, erro
 // last-wins level semantics and add/rm rule bookkeeping.
 func replayPolicyOverlay(k *kernelruntime.Kernel) (edict.PolicyOverlay, error) {
 	var changes []edict.PolicyChange
+	// Compaction (M95): if a snapshot exists, seed the fold with its collapsed
+	// changes and replay only the journal events recorded AFTER it. A corrupt
+	// snapshot is ignored (fromSeq stays -1 → full fold) rather than wedging
+	// boot — the journal is always the source of truth. ProjectPolicyChanges is
+	// resumable (snapshot.ToChanges + later changes folds to the same overlay as
+	// the full history), so this is equivalent to the uncompacted replay.
+	var fromSeq int64 = -1
+	if snap, serr := edict.LoadOverlaySnapshot(overlaySnapshotPath(k)); serr == nil && snap != nil {
+		changes = append(changes, snap.Changes...)
+		fromSeq = snap.ThroughSeq
+	}
 	err := k.Journal().Range(func(ev *event.Event) error {
 		if ev.Kind != event.KindPolicyChanged {
 			return nil
+		}
+		if ev.Seq <= fromSeq {
+			return nil // already folded into the snapshot
 		}
 		var ch edict.PolicyChange
 		if uerr := json.Unmarshal(ev.Payload, &ch); uerr != nil {
@@ -928,6 +942,12 @@ func replayPolicyOverlay(k *kernelruntime.Kernel) (edict.PolicyOverlay, error) {
 		return edict.PolicyOverlay{}, err
 	}
 	return edict.ProjectPolicyChanges(changes), nil
+}
+
+// overlaySnapshotPath is the per-kernel durable-policy snapshot location (M95),
+// under the kernel's own base dir so each tenant snapshots independently.
+func overlaySnapshotPath(k *kernelruntime.Kernel) string {
+	return filepath.Join(k.BaseDir(), "runtime", edict.OverlaySnapshotFile)
 }
 
 // orphanRun is a run that was received but never completed in a prior
