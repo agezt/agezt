@@ -21,6 +21,10 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   input/output excerpts. See `.project/PHASE-M68-ARC-HONESTY-REPORT.md`.
 
 ### Added
+- **Per-tool latency in `agt tool stats`** (SPEC-08, M75) — the by-tool
+  breakdown now carries a per-tool mean latency (`shell 3 call(s), 0 error(s),
+  avg 14ms`), so an operator can see WHICH tool is slow, not just that calls are
+  slow overall. See `.project/PHASE-M75-PERTOOL-LATENCY-REPORT.md`.
 - **`agt edict log` tool & capability filters** (Edict observability, M74) —
   `--tool <name>` and `--capability <cap>` (alias `--cap`) scope the policy-
   decision log, the drill-down from `agt edict stats`' denied-by-capability

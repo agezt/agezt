@@ -165,7 +165,10 @@ func (s *Server) handleToolStats(conn net.Conn, req Request) {
 	}
 
 	var total, errored int
-	type toolAgg struct{ calls, errors int }
+	type toolAgg struct {
+		calls, errors      int
+		durSum, durSamples int64 // M75: per-tool latency, to show which TOOL is slow
+	}
 	byTool := map[string]*toolAgg{}
 	invokedTS := map[string]int64{} // call_id → tool.invoked timestamp (M71)
 	durations := make([]int64, 0)   // per-call latency, for the distribution (M71)
@@ -201,7 +204,10 @@ func (s *Server) handleToolStats(conn net.Conn, req Request) {
 			agg.errors++
 		}
 		if it, ok := invokedTS[id]; ok && e.TSUnixMS >= it {
-			durations = append(durations, e.TSUnixMS-it)
+			d := e.TSUnixMS - it
+			durations = append(durations, d)
+			agg.durSum += d
+			agg.durSamples++
 		}
 		return nil
 	}); err != nil {
@@ -215,7 +221,11 @@ func (s *Server) handleToolStats(conn net.Conn, req Request) {
 	}
 	byToolOut := make(map[string]any, len(byTool))
 	for tool, agg := range byTool {
-		byToolOut[tool] = map[string]any{"calls": agg.calls, "errors": agg.errors}
+		entry := map[string]any{"calls": agg.calls, "errors": agg.errors}
+		if agg.durSamples > 0 {
+			entry["avg_ms"] = agg.durSum / agg.durSamples // M75: per-tool mean latency
+		}
+		byToolOut[tool] = entry
 	}
 	// Latency distribution (M71) over calls with a joinable invoked→result span,
 	// reusing the nearest-rank durationStats so it reads like runs stats' block.

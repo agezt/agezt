@@ -252,3 +252,26 @@ func TestToolLog_SlowFilter(t *testing.T) {
 		t.Errorf("slow call tool = %v want http", m["tool"])
 	}
 }
+
+// TestToolStats_PerToolLatency — the by_tool breakdown carries a per-tool avg_ms
+// for tools with a joinable invoked→result span (M75).
+func TestToolStats_PerToolLatency(t *testing.T) {
+	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	toolInvoked(k, "s1", "shell", "a")
+	time.Sleep(15 * time.Millisecond)
+	toolResult(k, "s1", "shell", "ok", false)
+
+	res, err := c.Call(context.Background(), controlplane.CmdToolStats, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	byTool, _ := res["by_tool"].(map[string]any)
+	shell, _ := byTool["shell"].(map[string]any)
+	avg, ok := shell["avg_ms"].(float64)
+	if !ok {
+		t.Fatalf("shell entry missing avg_ms: %v", shell)
+	}
+	if avg < 0 {
+		t.Errorf("shell avg_ms = %v want >= 0", avg)
+	}
+}

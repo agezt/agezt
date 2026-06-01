@@ -382,8 +382,14 @@ func cmdToolStats(args []string, stdout, stderr io.Writer) int {
 		sort.Strings(names)
 		for _, name := range names {
 			m, _ := byTool[name].(map[string]any)
-			fmt.Fprintf(stdout, "    %-16s %d call(s), %d error(s)\n",
+			line := fmt.Sprintf("    %-16s %d call(s), %d error(s)",
 				name, intOfStatus(m["calls"]), intOfStatus(m["errors"]))
+			// Per-tool mean latency (M75) — present only for tools with a
+			// joinable invoked→result span, so unmeasured tools stay clean.
+			if _, ok := m["avg_ms"]; ok {
+				line += fmt.Sprintf(", avg %s", fmtDuration(intOfStatus(m["avg_ms"])))
+			}
+			fmt.Fprintln(stdout, line)
 		}
 	}
 	// Latency distribution (M71) — same nearest-rank block as `runs stats`,
