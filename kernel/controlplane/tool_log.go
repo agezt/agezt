@@ -65,8 +65,10 @@ func (s *Server) handleToolLog(conn net.Conn, req Request) {
 		callID      string
 		output      string
 		isError     bool
+		duration    int64 // M71: result.TS − invoked.TS, 0 when unknowable
 	}
-	inputs := map[string]string{} // call_id → input preview
+	inputs := map[string]string{}   // call_id → input preview
+	invokedTS := map[string]int64{} // call_id → tool.invoked timestamp (M71)
 	results := make([]invocation, 0)
 	if err := k.Journal().Range(func(e *event.Event) error {
 		switch e.Kind {
@@ -74,6 +76,7 @@ func (s *Server) handleToolLog(conn net.Conn, req Request) {
 			id, input := decodeToolInvoked(e.Payload)
 			if id != "" {
 				inputs[id] = input
+				invokedTS[id] = e.TSUnixMS
 			}
 		case event.KindToolResult:
 			if cutoff > 0 && e.TSUnixMS < cutoff {
@@ -86,9 +89,15 @@ func (s *Server) handleToolLog(conn net.Conn, req Request) {
 			if errorsOnly && !isErr {
 				return nil
 			}
+			// Latency (M71) joins the call's invoked→result span by call_id. A
+			// policy-denied call has no tool.invoked, so it has no latency (0).
+			var dur int64
+			if it, ok := invokedTS[id]; ok && e.TSUnixMS >= it {
+				dur = e.TSUnixMS - it
+			}
 			results = append(results, invocation{
 				ts: e.TSUnixMS, seq: e.Seq, actor: e.Actor, corr: e.CorrelationID,
-				tool: tool, callID: id, output: output, isError: isErr,
+				tool: tool, callID: id, output: output, isError: isErr, duration: dur,
 			})
 		}
 		return nil
@@ -118,6 +127,7 @@ func (s *Server) handleToolLog(conn net.Conn, req Request) {
 			"input":          inputs[r.callID],
 			"output":         r.output,
 			"error":          r.isError,
+			"duration_ms":    r.duration, // M71: invoked→result span (0 if unknowable)
 		})
 	}
 	s.writeResp(conn, Response{
@@ -144,14 +154,22 @@ func (s *Server) handleToolStats(conn net.Conn, req Request) {
 	var total, errored int
 	type toolAgg struct{ calls, errors int }
 	byTool := map[string]*toolAgg{}
+	invokedTS := map[string]int64{} // call_id → tool.invoked timestamp (M71)
+	durations := make([]int64, 0)   // per-call latency, for the distribution (M71)
 	if err := k.Journal().Range(func(e *event.Event) error {
+		if e.Kind == event.KindToolInvoked {
+			if id, _ := decodeToolInvoked(e.Payload); id != "" {
+				invokedTS[id] = e.TSUnixMS
+			}
+			return nil
+		}
 		if e.Kind != event.KindToolResult {
 			return nil
 		}
 		if cutoff > 0 && e.TSUnixMS < cutoff {
 			return nil
 		}
-		tool, _, _, isErr := decodeToolResult(e.Payload)
+		tool, id, _, isErr := decodeToolResult(e.Payload)
 		if toolFilter != "" && tool != toolFilter {
 			return nil
 		}
@@ -169,6 +187,9 @@ func (s *Server) handleToolStats(conn net.Conn, req Request) {
 			errored++
 			agg.errors++
 		}
+		if it, ok := invokedTS[id]; ok && e.TSUnixMS >= it {
+			durations = append(durations, e.TSUnixMS-it)
+		}
 		return nil
 	}); err != nil {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
@@ -183,6 +204,9 @@ func (s *Server) handleToolStats(conn net.Conn, req Request) {
 	for tool, agg := range byTool {
 		byToolOut[tool] = map[string]any{"calls": agg.calls, "errors": agg.errors}
 	}
+	// Latency distribution (M71) over calls with a joinable invoked→result span,
+	// reusing the nearest-rank durationStats so it reads like runs stats' block.
+	dstats := durationStats(durations)
 
 	var sinceMS int64
 	switch v := req.Args["since_ms"].(type) {
@@ -203,6 +227,14 @@ func (s *Server) handleToolStats(conn net.Conn, req Request) {
 			"by_tool":    byToolOut,
 			"tools":      len(byTool),
 			"window_ms":  sinceMS,
+			"duration_ms": map[string]any{
+				"count": len(durations),
+				"avg":   dstats.avg,
+				"min":   dstats.min,
+				"max":   dstats.max,
+				"p50":   dstats.p50,
+				"p95":   dstats.p95,
+			},
 		},
 	})
 }

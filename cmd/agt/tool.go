@@ -219,6 +219,10 @@ func cmdToolLog(args []string, stdout, stderr io.Writer) int {
 		if f, ok := m["ts_unix_ms"].(float64); ok {
 			ts = int64(f)
 		}
+		dur := int64(0)
+		if f, ok := m["duration_ms"].(float64); ok {
+			dur = int64(f)
+		}
 		verdict := "ok"
 		if isErr {
 			verdict = "ERROR"
@@ -227,7 +231,11 @@ func cmdToolLog(args []string, stdout, stderr io.Writer) int {
 		if ts > 0 {
 			whenStr = time.UnixMilli(ts).Format("2006-01-02 15:04:05")
 		}
-		line := fmt.Sprintf("  %s  %-5s %-16s", whenStr, verdict, tool)
+		durStr := "    —"
+		if dur > 0 {
+			durStr = fmt.Sprintf("%5dms", dur)
+		}
+		line := fmt.Sprintf("  %s  %-5s %s  %-16s", whenStr, verdict, durStr, tool)
 		if output != "" {
 			line += "  " + output
 		}
@@ -349,6 +357,18 @@ func cmdToolStats(args []string, stdout, stderr io.Writer) int {
 			m, _ := byTool[name].(map[string]any)
 			fmt.Fprintf(stdout, "    %-16s %d call(s), %d error(s)\n",
 				name, intOfStatus(m["calls"]), intOfStatus(m["errors"]))
+		}
+	}
+	// Latency distribution (M71) — same nearest-rank block as `runs stats`,
+	// over tool calls whose invoked→result span was joinable.
+	if dur, _ := res["duration_ms"].(map[string]any); dur != nil {
+		if dcount := intOfStatus(dur["count"]); dcount > 0 {
+			fmt.Fprintf(stdout, "\n  latency (over %d call(s)):\n", dcount)
+			fmt.Fprintf(stdout, "    avg : %s\n", fmtDuration(intOfStatus(dur["avg"])))
+			fmt.Fprintf(stdout, "    min : %s\n", fmtDuration(intOfStatus(dur["min"])))
+			fmt.Fprintf(stdout, "    p50 : %s\n", fmtDuration(intOfStatus(dur["p50"])))
+			fmt.Fprintf(stdout, "    p95 : %s\n", fmtDuration(intOfStatus(dur["p95"])))
+			fmt.Fprintf(stdout, "    max : %s\n", fmtDuration(intOfStatus(dur["max"])))
 		}
 	}
 	return 0

@@ -21,6 +21,11 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   input/output excerpts. See `.project/PHASE-M68-ARC-HONESTY-REPORT.md`.
 
 ### Added
+- **Tool-call latency in `agt tool log` & `tool stats`** (SPEC-08, M71) — each
+  log row gains a latency column and `tool stats` gains an avg/min/p50/p95/max
+  `latency` block, computed from the journal's `tool.invoked`→`tool.result`
+  timestamp span (joined by `call_id`) — a pure read-side fold, no agent or
+  event-schema change. See `.project/PHASE-M71-TOOL-LATENCY-REPORT.md`.
 - **Failure reason in the task arc** (SPEC-08, M70) — `agt runs show` now renders
   a failed run's header as `status: failed (<reason>) after <duration>` and marks
   the `task.failed` event inline, instead of a bare `status: failed` that dropped

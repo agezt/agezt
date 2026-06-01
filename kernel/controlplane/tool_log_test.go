@@ -174,3 +174,43 @@ func TestToolLog_SinceWindow(t *testing.T) {
 		t.Errorf("1ms window invocations = %d want 0", len(got))
 	}
 }
+
+// TestToolLog_ReportsLatency — each invocation row carries a duration_ms field
+// (M71), the invoked→result span joined by call_id; back-to-back publish yields
+// a small non-negative latency.
+func TestToolLog_ReportsLatency(t *testing.T) {
+	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	toolInvoked(k, "call-1", "shell", "ls")
+	time.Sleep(3 * time.Millisecond)
+	toolResult(k, "call-1", "shell", "done", false)
+
+	res, err := c.Call(context.Background(), controlplane.CmdToolLog, nil)
+	if err != nil {
+		t.Fatalf("Call: %v", err)
+	}
+	invs, _ := res["invocations"].([]any)
+	if len(invs) != 1 {
+		t.Fatalf("invocations = %d want 1", len(invs))
+	}
+	m, _ := invs[0].(map[string]any)
+	d, ok := m["duration_ms"].(float64)
+	if !ok {
+		t.Fatalf("duration_ms missing or not numeric: %v", m["duration_ms"])
+	}
+	if d < 0 {
+		t.Errorf("duration_ms = %v want >= 0", d)
+	}
+
+	// stats carries a latency distribution block (M71).
+	sres, err := c.Call(context.Background(), controlplane.CmdToolStats, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dur, _ := sres["duration_ms"].(map[string]any)
+	if dur == nil {
+		t.Fatalf("tool stats missing duration_ms block")
+	}
+	if cnt, _ := dur["count"].(float64); cnt != 1 {
+		t.Errorf("latency count = %v want 1", dur["count"])
+	}
+}
