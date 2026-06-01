@@ -474,6 +474,12 @@ const (
 	// Returns: { fires: [ {correlation_id, schedule_id, fired_unix_ms, intent,
 	// model, status, reason, duration_ms, spent_mc, answer_preview} ], count }
 	CmdScheduleFires = "schedule_fires"
+	// CmdScheduleStats aggregates scheduled-run FIRINGS (M57) — the autonomy
+	// analogue of CmdRunsStats. Args: id (optional, one schedule), since_ms
+	// (optional window). Returns: { total, completed, failed, running,
+	// abandoned, success_rate, spent_microcents, schedules (distinct that fired),
+	// failed_by_reason, window_ms }
+	CmdScheduleStats = "schedule_stats"
 
 	// Multi-tenant management (ROADMAP P6-MULTI). The control-plane surface
 	// behind `agt tenant`; operates on the daemon's tenant.Registry. Disabled

@@ -12,6 +12,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **`agt schedule stats` — autonomy aggregate** (SPEC-08 × cadence, M57) — the
+  autonomy analogue of `agt runs stats`: `handleScheduleStats` folds `schedule.fired`
+  events, joins each with its run outcome (`collectRuns`), and reports total firings,
+  counts by outcome, success rate, total spend, and distinct schedules fired.
+  `agt schedule stats [--id <sched>] [--since <dur>] [--json]`, reusing the
+  `agt runs` renderers. See `.project/PHASE-M57-SCHEDULE-STATS-REPORT.md`.
 - **Per-schedule last outcome in `agt schedule list`** (SPEC-08 × cadence, M56) — each
   schedule row now shows how it last went: `… last: completed 06-01 12:16` (or
   `failed (timeout) …`). `latestFiringBySchedule` folds the journal into a

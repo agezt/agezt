@@ -180,6 +180,98 @@ func TestScheduleFires_FilterByScheduleID(t *testing.T) {
 	}
 }
 
+// TestScheduleStats_AggregatesFirings — `agt schedule stats` counts firings by
+// outcome, computes success rate, sums spend, and counts distinct schedules
+// (M57). Two completed (one with spend) + one failed across two schedules.
+func TestScheduleStats_AggregatesFirings(t *testing.T) {
+	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	fire := func(corr, schedID string, fail bool, spendMC int64) {
+		t.Helper()
+		_, _ = k.Bus().Publish(event.Spec{
+			Subject: "schedule.fired", Kind: event.KindScheduleFired, Actor: "schedule",
+			CorrelationID: corr, Payload: map[string]any{"schedule_id": schedID, "intent": "i"},
+		})
+		_, _ = k.Bus().Publish(event.Spec{
+			Subject: "task", Kind: event.KindTaskReceived, Actor: "a", CorrelationID: corr,
+		})
+		if spendMC > 0 {
+			_, _ = k.Bus().Publish(event.Spec{
+				Subject: "governor.budget", Kind: event.KindBudgetConsumed, Actor: "governor",
+				CorrelationID: corr, Payload: map[string]any{"cost_microcents": spendMC},
+			})
+		}
+		if fail {
+			_, _ = k.Bus().Publish(event.Spec{
+				Subject: "task", Kind: event.KindTaskFailed, Actor: "a", CorrelationID: corr,
+				Payload: map[string]any{"reason": "timeout"},
+			})
+		} else {
+			_, _ = k.Bus().Publish(event.Spec{
+				Subject: "task", Kind: event.KindTaskCompleted, Actor: "a", CorrelationID: corr,
+				Payload: map[string]any{"iters": 1},
+			})
+		}
+	}
+	fire("c1", "sched-A", false, 100)
+	fire("c2", "sched-A", false, 50)
+	fire("c3", "sched-B", true, 0)
+
+	res, err := c.Call(context.Background(), controlplane.CmdScheduleStats, nil)
+	if err != nil {
+		t.Fatalf("Call: %v", err)
+	}
+	if got := intOf(res["total"]); got != 3 {
+		t.Errorf("total = %d want 3", got)
+	}
+	if got := intOf(res["completed"]); got != 2 {
+		t.Errorf("completed = %d want 2", got)
+	}
+	if got := intOf(res["failed"]); got != 1 {
+		t.Errorf("failed = %d want 1", got)
+	}
+	if got := intOf(res["schedules"]); got != 2 {
+		t.Errorf("schedules = %d want 2", got)
+	}
+	if got := int64(intOf(res["spent_microcents"])); got != 150 {
+		t.Errorf("spent_microcents = %d want 150", got)
+	}
+	if rate, _ := res["success_rate"].(float64); rate < 0.66 || rate > 0.67 {
+		t.Errorf("success_rate = %v want ~0.667", rate)
+	}
+}
+
+// TestScheduleStats_FilterByScheduleID — `--id` scopes the stats to one
+// schedule's firings (M57).
+func TestScheduleStats_FilterByScheduleID(t *testing.T) {
+	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	for _, f := range []struct {
+		corr, sched string
+	}{{"a1", "sched-A"}, {"a2", "sched-A"}, {"b1", "sched-B"}} {
+		_, _ = k.Bus().Publish(event.Spec{
+			Subject: "schedule.fired", Kind: event.KindScheduleFired, Actor: "schedule",
+			CorrelationID: f.corr, Payload: map[string]any{"schedule_id": f.sched, "intent": "i"},
+		})
+		_, _ = k.Bus().Publish(event.Spec{
+			Subject: "task", Kind: event.KindTaskReceived, Actor: "a", CorrelationID: f.corr,
+		})
+		_, _ = k.Bus().Publish(event.Spec{
+			Subject: "task", Kind: event.KindTaskCompleted, Actor: "a", CorrelationID: f.corr,
+			Payload: map[string]any{"iters": 1},
+		})
+	}
+	res, err := c.Call(context.Background(), controlplane.CmdScheduleStats,
+		map[string]any{"id": "sched-A"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := intOf(res["total"]); got != 2 {
+		t.Errorf("total = %d want 2 (only sched-A)", got)
+	}
+	if got := intOf(res["schedules"]); got != 1 {
+		t.Errorf("schedules = %d want 1", got)
+	}
+}
+
 // TestScheduleFires_EmptyWhenNoFirings — a journal with runs but no
 // schedule.fired events returns an empty (non-nil) fires array (M54).
 func TestScheduleFires_EmptyWhenNoFirings(t *testing.T) {

@@ -33,6 +33,8 @@ func cmdSchedule(args []string, stdout, stderr io.Writer) int {
 		return cmdScheduleList(args[1:], stdout, stderr)
 	case "fires", "history":
 		return cmdScheduleFires(args[1:], stdout, stderr)
+	case "stats":
+		return cmdScheduleStats(args[1:], stdout, stderr)
 	case "rm", "remove":
 		return cmdScheduleRemove(args[1:], stdout, stderr)
 	case "run", "trigger":
@@ -48,7 +50,8 @@ func cmdSchedule(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "  add \"<intent>\" --in <dur> | --once --at <HH:MM>              one-shot (fires once, then removed)\n")
 		fmt.Fprintf(stdout, "  edit <id> [--intent <s>] [--model <id>] [<cadence flag>]      change a schedule in place\n")
 		fmt.Fprintf(stdout, "  list [--json]                                                list all schedules\n")
-		fmt.Fprintf(stdout, "  fires [N] [--json]                                           recent scheduled firings + outcomes\n")
+		fmt.Fprintf(stdout, "  fires [N] [--id <sched>] [--json]                            recent scheduled firings + outcomes\n")
+		fmt.Fprintf(stdout, "  stats [--id <sched>] [--since <dur>] [--json]                aggregate firing health (counts, success, spend)\n")
 		fmt.Fprintf(stdout, "  rm <id> [--json]                                             delete a schedule\n")
 		fmt.Fprintf(stdout, "  run <id> [--json]                                            fire a schedule now (next tick)\n")
 		fmt.Fprintf(stdout, "  pause <id> / resume <id> [--json]                            disable / re-enable without deleting\n")
@@ -752,6 +755,118 @@ func cmdScheduleFires(args []string, stdout, stderr io.Writer) int {
 			meta += ")"
 		}
 		fmt.Fprintf(stdout, "  %s  %-18s%s  %s  %q\n", firedStr, statusDisp, meta, corr, intent)
+	}
+	return 0
+}
+
+// cmdScheduleStats implements `agt schedule stats [--id <sched>] [--since <dur>]
+// [--json]` — the autonomy analogue of `agt runs stats`, aggregating scheduled
+// firings: counts, success rate, and total spend (M57).
+func cmdScheduleStats(args []string, stdout, stderr io.Writer) int {
+	asJSON := false
+	id := ""
+	sinceMS := int64(0)
+	sinceLabel := ""
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		switch {
+		case a == "--json":
+			asJSON = true
+		case a == "--id":
+			if i+1 >= len(args) {
+				fmt.Fprintf(stderr, "%s schedule stats: --id needs a schedule id\n", brand.CLI)
+				return 2
+			}
+			i++
+			id = args[i]
+		case strings.HasPrefix(a, "--id="):
+			id = strings.TrimPrefix(a, "--id=")
+		case a == "--since":
+			if i+1 >= len(args) {
+				fmt.Fprintf(stderr, "%s schedule stats: --since needs a duration\n", brand.CLI)
+				return 2
+			}
+			i++
+			d, derr := time.ParseDuration(args[i])
+			if derr != nil || d <= 0 {
+				fmt.Fprintf(stderr, "%s schedule stats: bad --since %q\n", brand.CLI, args[i])
+				return 2
+			}
+			sinceMS = d.Milliseconds()
+			sinceLabel = d.String()
+		case strings.HasPrefix(a, "--since="):
+			d, derr := time.ParseDuration(strings.TrimPrefix(a, "--since="))
+			if derr != nil || d <= 0 {
+				fmt.Fprintf(stderr, "%s schedule stats: bad --since\n", brand.CLI)
+				return 2
+			}
+			sinceMS = d.Milliseconds()
+			sinceLabel = d.String()
+		case a == "-h" || a == "--help":
+			fmt.Fprintf(stdout, "usage: %s schedule stats [--id <sched>] [--since <dur>] [--json]\n", brand.CLI)
+			fmt.Fprintf(stdout, "aggregate scheduled-firing health: counts, success rate, total spend\n")
+			return 0
+		default:
+			fmt.Fprintf(stderr, "%s schedule stats: unexpected arg %q\n", brand.CLI, a)
+			return 2
+		}
+	}
+
+	c := dial(stderr)
+	if c == nil {
+		return 1
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	callArgs := map[string]any{}
+	if id != "" {
+		callArgs["id"] = id
+	}
+	if sinceMS > 0 {
+		callArgs["since_ms"] = sinceMS
+	}
+	res, err := c.Call(ctx, controlplane.CmdScheduleStats, callArgs)
+	if err != nil {
+		fmt.Fprintf(stderr, "%s schedule stats: %v\n", brand.CLI, err)
+		return 1
+	}
+	if asJSON {
+		return encodeJSON(stdout, res)
+	}
+	total := intOfStatus(res["total"])
+	windowSuffix := ""
+	if sinceLabel != "" {
+		windowSuffix = " in the last " + sinceLabel
+	}
+	if total == 0 {
+		fmt.Fprintf(stdout, "no scheduled firings%s.\n", windowSuffix)
+		return 0
+	}
+	completed := intOfStatus(res["completed"])
+	failed := intOfStatus(res["failed"])
+	running := intOfStatus(res["running"])
+	abandoned := intOfStatus(res["abandoned"])
+	terminal := intOfStatus(res["terminal"])
+	schedules := intOfStatus(res["schedules"])
+
+	fmt.Fprintf(stdout, "schedule firings (over %d firing(s)%s):\n\n", total, windowSuffix)
+	fmt.Fprintf(stdout, "  schedules : %d distinct fired\n", schedules)
+	fmt.Fprintf(stdout, "  completed : %d\n", completed)
+	failedLine := fmt.Sprintf("%d", failed)
+	if br := failedByReasonStr(res["failed_by_reason"]); br != "" {
+		failedLine += " (" + br + ")"
+	}
+	fmt.Fprintf(stdout, "  failed    : %s\n", failedLine)
+	fmt.Fprintf(stdout, "  running   : %d\n", running)
+	fmt.Fprintf(stdout, "  abandoned : %d\n", abandoned)
+	if terminal > 0 {
+		rate, _ := res["success_rate"].(float64)
+		fmt.Fprintf(stdout, "  success   : %.1f%% (%d/%d terminal)\n", rate*100, completed, terminal)
+	} else {
+		fmt.Fprintf(stdout, "  success   : n/a (no firing has finished yet)\n")
+	}
+	if spent := mcFromAny(res["spent_microcents"]); spent > 0 {
+		fmt.Fprintf(stdout, "  spend     : %s\n", fmtUSD(spent))
 	}
 	return 0
 }

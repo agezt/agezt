@@ -14,6 +14,7 @@ import (
 	"encoding/json"
 	"net"
 	"sort"
+	"time"
 
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/runtime"
@@ -201,4 +202,107 @@ func extractScheduleFired(payload json.RawMessage) (id, intent, model string) {
 		return "", "", ""
 	}
 	return p.ScheduleID, p.Intent, p.Model
+}
+
+// handleScheduleStats aggregates scheduled-run firings (M57) — the autonomy
+// analogue of handleRunsStats. Folds the journal's schedule.fired events, joins
+// each with its run outcome (collectRuns), and reports counts, success rate, and
+// total spend over scheduled runs. Optional args.id scopes to one schedule;
+// args.since_ms windows by firing time.
+func (s *Server) handleScheduleStats(conn net.Conn, req Request) {
+	idFilter, _ := req.Args["id"].(string)
+	sinceMS := int64(0)
+	switch v := req.Args["since_ms"].(type) {
+	case float64:
+		sinceMS = int64(v)
+	case int64:
+		sinceMS = v
+	case int:
+		sinceMS = int64(v)
+	}
+	var cutoff int64
+	if sinceMS > 0 {
+		cutoff = time.Now().UnixMilli() - sinceMS
+	}
+
+	k, err := s.kernelFor(tenantOf(req))
+	if err != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		return
+	}
+	runs, err := s.collectRuns(k)
+	if err != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		return
+	}
+
+	var total, completed, failed, running, abandoned int
+	var spent int64
+	failedByReason := map[string]int{}
+	scheduleSet := map[string]struct{}{}
+	if err := k.Journal().Range(func(e *event.Event) error {
+		if e.Kind != event.KindScheduleFired {
+			return nil
+		}
+		id, _, _ := extractScheduleFired(e.Payload)
+		if idFilter != "" && id != idFilter {
+			return nil
+		}
+		if cutoff > 0 && e.TSUnixMS < cutoff {
+			return nil
+		}
+		total++
+		if id != "" {
+			scheduleSet[id] = struct{}{}
+		}
+		// Join with the firing's run outcome.
+		if r, ok := runs[e.CorrelationID]; ok {
+			switch {
+			case r.Completed:
+				completed++
+			case r.Failed:
+				failed++
+				reason := r.FailReason
+				if reason == "" {
+					reason = "unknown"
+				}
+				failedByReason[reason]++
+			case r.Abandoned:
+				abandoned++
+			default:
+				running++
+			}
+			spent += r.SpentMicrocents
+		} else {
+			running++ // fired but no run events yet (or trimmed)
+		}
+		return nil
+	}); err != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		return
+	}
+
+	terminal := completed + failed + abandoned
+	successRate := 0.0
+	if terminal > 0 {
+		successRate = float64(completed) / float64(terminal)
+	}
+
+	s.writeResp(conn, Response{
+		ID:   req.ID,
+		Type: RespResult,
+		Result: map[string]any{
+			"total":            total,
+			"completed":        completed,
+			"failed":           failed,
+			"running":          running,
+			"abandoned":        abandoned,
+			"terminal":         terminal,
+			"success_rate":     successRate,
+			"spent_microcents": spent,
+			"schedules":        len(scheduleSet),
+			"failed_by_reason": failedByReason,
+			"window_ms":        sinceMS,
+		},
+	})
 }
