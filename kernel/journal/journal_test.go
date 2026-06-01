@@ -259,3 +259,101 @@ func TestRequiredFields_PropagateError(t *testing.T) {
 		t.Errorf("seq/head moved after failed append: seq=%d head=%s", seq, head)
 	}
 }
+
+// collectEvents reads every event from a journal in seq order.
+func collectEvents(t *testing.T, j *Journal) []*event.Event {
+	t.Helper()
+	var out []*event.Event
+	if err := j.Range(func(e *event.Event) error {
+		clone := *e
+		out = append(out, &clone)
+		return nil
+	}); err != nil {
+		t.Fatalf("Range: %v", err)
+	}
+	return out
+}
+
+func TestRestore_RoundTripBootsCleanly(t *testing.T) {
+	src := newTestJournal(t, 0)
+	for i := range 4 {
+		if _, err := src.Append(event.Spec{
+			Subject: fmt.Sprintf("task.%d", i), Kind: event.KindTaskReceived, Actor: "kernel",
+		}); err != nil {
+			t.Fatalf("append %d: %v", i, err)
+		}
+	}
+	events := collectEvents(t, src)
+	wantSeq, wantHash := src.Head()
+
+	dst := t.TempDir()
+	gotSeq, gotHash, err := Restore(filepath.Join(dst, "journal"), events)
+	if err != nil {
+		t.Fatalf("Restore: %v", err)
+	}
+	if gotSeq != wantSeq || gotHash != wantHash {
+		t.Fatalf("restored head (%d,%s) != source (%d,%s)", gotSeq, gotHash, wantSeq, wantHash)
+	}
+
+	// Re-open the restored journal: it must boot, verify, and report the head.
+	j, err := Open(filepath.Join(dst, "journal"), Options{})
+	if err != nil {
+		t.Fatalf("Open restored: %v", err)
+	}
+	defer j.Close()
+	if err := j.Verify(); err != nil {
+		t.Fatalf("restored journal fails Verify: %v", err)
+	}
+	if s, h := j.Head(); s != wantSeq || h != wantHash {
+		t.Errorf("restored head (%d,%s) != source (%d,%s)", s, h, wantSeq, wantHash)
+	}
+	if got := collectEvents(t, j); len(got) != len(events) {
+		t.Errorf("restored %d events, want %d", len(got), len(events))
+	}
+}
+
+func TestRestore_RefusesNonEmpty(t *testing.T) {
+	src := newTestJournal(t, 0)
+	_, _ = src.Append(event.Spec{Subject: "x", Kind: event.KindTaskReceived, Actor: "kernel"})
+	events := collectEvents(t, src)
+
+	// Restore into an already-populated dir (the source's own dir).
+	if _, _, err := Restore(src.dir, events); !errors.Is(err, ErrNotEmpty) {
+		t.Fatalf("Restore into non-empty: err=%v, want ErrNotEmpty", err)
+	}
+}
+
+func TestRestore_RefusesWindowedExport(t *testing.T) {
+	src := newTestJournal(t, 0)
+	for i := range 3 {
+		_, _ = src.Append(event.Spec{Subject: fmt.Sprintf("t%d", i), Kind: event.KindTaskReceived, Actor: "kernel"})
+	}
+	events := collectEvents(t, src)
+
+	// Drop the genesis event → slice starts at seq 1.
+	if _, _, err := Restore(t.TempDir(), events[1:]); !errors.Is(err, ErrNotFullExport) {
+		t.Fatalf("Restore windowed: err=%v, want ErrNotFullExport", err)
+	}
+	// Empty slice → also not a full export.
+	if _, _, err := Restore(t.TempDir(), nil); !errors.Is(err, ErrNotFullExport) {
+		t.Fatalf("Restore empty: err=%v, want ErrNotFullExport", err)
+	}
+}
+
+func TestRestore_RefusesTamperedChain(t *testing.T) {
+	src := newTestJournal(t, 0)
+	for i := range 3 {
+		_, _ = src.Append(event.Spec{Subject: fmt.Sprintf("t%d", i), Kind: event.KindTaskReceived, Actor: "kernel"})
+	}
+	events := collectEvents(t, src)
+	events[1].Payload = []byte(`{"tampered":true}`) // break event 1's hash
+
+	dst := filepath.Join(t.TempDir(), "journal")
+	if _, _, err := Restore(dst, events); !errors.Is(err, ErrChainBreak) {
+		t.Fatalf("Restore tampered: err=%v, want ErrChainBreak", err)
+	}
+	// Nothing should have been written (validation precedes any disk write).
+	if entries, _ := os.ReadDir(dst); len(entries) != 0 {
+		t.Errorf("tampered restore wrote %d file(s), want 0", len(entries))
+	}
+}

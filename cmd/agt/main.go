@@ -141,6 +141,7 @@ func printHelp(w io.Writer) {
 	fmt.Fprintf(w, "  journal grep <pattern> [filters]      server-side filter (--kind/--subject/--actor/--correlation)\n")
 	fmt.Fprintf(w, "  journal head [--json]                 print current head seq + chain-tail hash\n")
 	fmt.Fprintf(w, "  journal export [--since <dur>] [--out <file>]  re-verifiable journal bundle (archive/audit)\n")
+	fmt.Fprintf(w, "  journal import <bundle> [--home <dir>]  restore a full export into an empty journal (offline)\n")
 	fmt.Fprintf(w, "  approvals [--json]                    list pending HITL approval requests\n")
 	fmt.Fprintf(w, "  approve <id> [reason]  grant a pending approval\n")
 	fmt.Fprintf(w, "  deny    <id> [reason]  deny a pending approval\n")
@@ -416,8 +417,10 @@ func cmdJournal(args []string, stdout, stderr io.Writer) int {
 		return cmdJournalHead(args[1:], stdout, stderr)
 	case "export":
 		return cmdJournalExport(args[1:], stdout, stderr)
+	case "import":
+		return cmdJournalImport(args[1:], stdout, stderr)
 	default:
-		fmt.Fprintf(stderr, "%s journal: unknown subcommand %q (verify|tail|grep|head|export)\n", brand.CLI, args[0])
+		fmt.Fprintf(stderr, "%s journal: unknown subcommand %q (verify|tail|grep|head|export|import)\n", brand.CLI, args[0])
 		return 2
 	}
 }

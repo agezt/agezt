@@ -223,6 +223,99 @@ func (j *Journal) Range(fn func(*event.Event) error) error {
 // inconsistent (bad hash, missing seq, or non-monotonic seq).
 var ErrChainBreak = errors.New("journal: chain break")
 
+// ErrNotEmpty is returned by Restore when the target directory already holds
+// journal segments — restore never clobbers an existing chain.
+var ErrNotEmpty = errors.New("journal: target already has segments")
+
+// ErrNotFullExport is returned by Restore when the event slice does not begin
+// at seq 0 with prev_hash == GenesisHash. A windowed export (`--since`) starts
+// mid-chain and cannot seed a bootable journal.
+var ErrNotFullExport = errors.New("journal: restore needs a full export (must start at seq 0 from genesis)")
+
+// Restore seeds an EMPTY journal directory from a verified, genesis-anchored
+// event slice — the disaster-recovery / migration read-back of an export
+// bundle (M102). It is deliberately strict and non-destructive:
+//
+//   - the directory must contain no existing segments (else ErrNotEmpty);
+//   - the slice must start at seq 0 with prev_hash == GenesisHash and chain-
+//     verify end-to-end (else ErrNotFullExport / ErrChainBreak), so the
+//     resulting journal boots cleanly through the same scan Open() runs.
+//
+// On success it writes every event verbatim (compact, one per line) as the
+// initial segment and returns the restored head seq + hash. On any failure it
+// writes nothing (validation happens before the first byte hits disk).
+func Restore(dir string, events []*event.Event) (headSeq int64, headHash string, err error) {
+	if len(events) == 0 {
+		return 0, "", fmt.Errorf("%w: empty event set", ErrNotFullExport)
+	}
+	if events[0].Seq != 0 || events[0].PrevHash != event.GenesisHash {
+		return 0, "", ErrNotFullExport
+	}
+
+	// Full chain verification BEFORE touching disk: seq monotonic from 0,
+	// prev-hash continuity, and each recomputed hash matches. Mirrors Verify
+	// (which needs an open journal) for an in-memory slice.
+	prev := event.GenesisHash
+	var expectedSeq int64
+	lines := make([][]byte, 0, len(events))
+	for _, e := range events {
+		if e.Seq != expectedSeq {
+			return 0, "", fmt.Errorf("%w: expected seq %d, got %d (id=%s)", ErrChainBreak, expectedSeq, e.Seq, e.ID)
+		}
+		if e.PrevHash != prev {
+			return 0, "", fmt.Errorf("%w: seq %d prev_hash %s != actual %s", ErrChainBreak, e.Seq, e.PrevHash, prev)
+		}
+		if verr := e.VerifyHash(); verr != nil {
+			return 0, "", fmt.Errorf("%w: seq %d: %w", ErrChainBreak, e.Seq, verr)
+		}
+		// Re-marshal compactly so the segment line matches Append's format
+		// regardless of how the bundle stored (and possibly re-indented) it.
+		line, merr := json.Marshal(e)
+		if merr != nil {
+			return 0, "", fmt.Errorf("journal: marshal event seq %d: %w", e.Seq, merr)
+		}
+		lines = append(lines, append(line, '\n'))
+		prev = e.Hash
+		expectedSeq++
+	}
+
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return 0, "", fmt.Errorf("journal: mkdir %s: %w", dir, err)
+	}
+	existing, err := listSegments(dir)
+	if err != nil {
+		return 0, "", err
+	}
+	if len(existing) > 0 {
+		return 0, "", ErrNotEmpty
+	}
+
+	path := filepath.Join(dir, fmt.Sprintf("%0*d%s", segmentDigits, 1, segmentExt))
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+	if err != nil {
+		return 0, "", fmt.Errorf("journal: create segment %s: %w", path, err)
+	}
+	for _, line := range lines {
+		if _, werr := f.Write(line); werr != nil {
+			f.Close()
+			os.Remove(path)
+			return 0, "", fmt.Errorf("journal: write segment: %w", werr)
+		}
+	}
+	if serr := f.Sync(); serr != nil {
+		f.Close()
+		os.Remove(path)
+		return 0, "", fmt.Errorf("journal: fsync segment: %w", serr)
+	}
+	if cerr := f.Close(); cerr != nil {
+		os.Remove(path)
+		return 0, "", fmt.Errorf("journal: close segment: %w", cerr)
+	}
+
+	last := events[len(events)-1]
+	return last.Seq, last.Hash, nil
+}
+
 // Verify replays every event, recomputes its hash, and confirms each one
 // chains from its predecessor. Returns nil iff the entire chain is intact.
 // On break, returns ErrChainBreak wrapped with the offending seq.

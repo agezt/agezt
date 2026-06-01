@@ -12,6 +12,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Journal import / restore** (SPEC-09 §8, M102) — `agt journal import <bundle>
+  [--home <dir>]` seeds a fresh host from an `agt journal export` bundle for
+  disaster-recovery / migration: it verifies the bundle, refuses to clobber a
+  non-empty journal, writes events verbatim (so the restored chain still
+  verifies), and re-opens the journal to confirm it boots. New strict
+  `journal.Restore` primitive. See `.project/PHASE-M102-JOURNAL-IMPORT-REPORT.md`.
 - **Verifiable journal export** (SPEC-09 §8, M101) — `agt journal export [--since
   <dur>] [--out <file>]` writes a hash-chained bundle bound to the chain head, and
   `agt journal verify --bundle <file>` re-verifies it OFFLINE (recompute every
