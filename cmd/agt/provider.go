@@ -35,6 +35,8 @@ func cmdProvider(args []string, stdout, stderr io.Writer) int {
 		return cmdProviderLog(args[1:], stdout, stderr)
 	case "stats":
 		return cmdProviderStats(args[1:], stdout, stderr)
+	case "rejections":
+		return cmdProviderRejections(args[1:], stdout, stderr)
 	case "reload":
 		return cmdProviderReload(stdout, stderr)
 	case "setup":

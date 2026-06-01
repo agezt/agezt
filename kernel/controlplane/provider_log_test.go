@@ -94,3 +94,46 @@ func TestProviderStats_Aggregates(t *testing.T) {
 		t.Errorf("by_primary[openai] = %v want 2", byP["openai"])
 	}
 }
+
+// TestProviderRejections_FoldsCapabilityEvents — `agt provider rejections` folds
+// capability.rejected + capability.rerouted newest-first (M92).
+func TestProviderRejections_FoldsCapabilityEvents(t *testing.T) {
+	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	k.Bus().Publish(event.Spec{
+		Subject: "governor.capability", Kind: event.KindCapabilityRejected, Actor: "governor",
+		Payload: map[string]any{"model": "text-only", "capability": "tool_call"},
+	})
+	k.Bus().Publish(event.Spec{
+		Subject: "governor.capability", Kind: event.KindCapabilityRejected, Actor: "controlplane",
+		Payload: map[string]any{"model": "mock", "capability": "vision"},
+	})
+	k.Bus().Publish(event.Spec{
+		Subject: "governor.capability", Kind: event.KindCapabilityRerouted, Actor: "governor",
+		Payload: map[string]any{"from_model": "text-only", "to_model": "gpt-tools", "capability": "tool_call"},
+	})
+
+	res, err := c.Call(context.Background(), controlplane.CmdProviderRejections, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rows, _ := res["rejections"].([]any)
+	if len(rows) != 3 {
+		t.Fatalf("rejections = %d want 3", len(rows))
+	}
+	// Newest first: the rerouted.
+	first, _ := rows[0].(map[string]any)
+	if first["kind"] != "rerouted" || first["to_model"] != "gpt-tools" {
+		t.Errorf("newest = %v want rerouted → gpt-tools", first)
+	}
+	// A vision rejection is present.
+	var vision bool
+	for _, raw := range rows {
+		m, _ := raw.(map[string]any)
+		if m["kind"] == "rejected" && m["capability"] == "vision" && m["model"] == "mock" {
+			vision = true
+		}
+	}
+	if !vision {
+		t.Errorf("vision rejection not found in %v", rows)
+	}
+}

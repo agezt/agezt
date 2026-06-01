@@ -65,6 +65,10 @@ const (
 	// CmdProviderStats aggregates provider routing (M90) — routed calls, fallback
 	// count + rate, calls-by-primary, fallbacks-by-failed-provider. Args: since_ms.
 	CmdProviderStats = "provider_stats"
+	// CmdProviderRejections lists capability-gating events (M92) —
+	// capability.rejected (M25 tool_call / M91 vision) + capability.rerouted (M40
+	// down-route). Args: limit, since_ms. Returns: { rejections: [...], count }
+	CmdProviderRejections = "provider_rejections"
 	// Planner: ask the daemon's configured Provider to generate a
 	// scheduler-shaped Plan JSON from a natural-language intent (M1.v).
 	// Args: intent (string), optional model (string).

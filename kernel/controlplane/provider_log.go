@@ -100,6 +100,97 @@ func (s *Server) handleProviderStats(conn net.Conn, req Request) {
 	})
 }
 
+// handleProviderRejections folds the journal's capability-gating events (M92) —
+// capability.rejected (a request blocked because the model lacks a capability:
+// tool_call from the M25 strict gate, vision from the M91 image gate) and
+// capability.rerouted (the M40 down-route: remapped to a tool-capable model
+// instead of rejecting). Together they answer "what did the capability gates do?".
+// Newest-first, limited, with the shared --since window.
+func (s *Server) handleProviderRejections(conn net.Conn, req Request) {
+	limit := defaultRunsLimit
+	if raw, ok := req.Args["limit"]; ok {
+		switch v := raw.(type) {
+		case float64:
+			limit = int(v)
+		case int:
+			limit = v
+		case int64:
+			limit = int(v)
+		}
+	}
+	if limit < 1 {
+		limit = 1
+	}
+	if limit > maxRunsLimit {
+		limit = maxRunsLimit
+	}
+	cutoff := sinceCutoff(req.Args["since_ms"])
+
+	k, err := s.kernelFor(tenantOf(req))
+	if err != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		return
+	}
+
+	type capEvent struct {
+		ts, seq            int64
+		kind               string // rejected | rerouted
+		capability, model  string
+		fromModel, toModel string
+	}
+	rows := make([]capEvent, 0)
+	if err := k.Journal().Range(func(e *event.Event) error {
+		if cutoff > 0 && e.TSUnixMS < cutoff {
+			return nil
+		}
+		switch e.Kind {
+		case event.KindCapabilityRejected:
+			var p struct{ Model, Capability string }
+			_ = json.Unmarshal(e.Payload, &p)
+			rows = append(rows, capEvent{ts: e.TSUnixMS, seq: e.Seq, kind: "rejected", capability: p.Capability, model: p.Model})
+		case event.KindCapabilityRerouted:
+			var p struct {
+				FromModel  string `json:"from_model"`
+				ToModel    string `json:"to_model"`
+				Capability string `json:"capability"`
+			}
+			_ = json.Unmarshal(e.Payload, &p)
+			rows = append(rows, capEvent{ts: e.TSUnixMS, seq: e.Seq, kind: "rerouted", capability: p.Capability, fromModel: p.FromModel, toModel: p.ToModel})
+		}
+		return nil
+	}); err != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		return
+	}
+
+	sort.Slice(rows, func(i, j int) bool {
+		if rows[i].ts != rows[j].ts {
+			return rows[i].ts > rows[j].ts
+		}
+		return rows[i].seq > rows[j].seq
+	})
+	if len(rows) > limit {
+		rows = rows[:limit]
+	}
+
+	out := make([]map[string]any, 0, len(rows))
+	for _, r := range rows {
+		row := map[string]any{"ts_unix_ms": r.ts, "kind": r.kind, "capability": r.capability}
+		if r.kind == "rerouted" {
+			row["from_model"] = r.fromModel
+			row["to_model"] = r.toModel
+		} else {
+			row["model"] = r.model
+		}
+		out = append(out, row)
+	}
+	s.writeResp(conn, Response{
+		ID:     req.ID,
+		Type:   RespResult,
+		Result: map[string]any{"rejections": out, "count": len(out)},
+	})
+}
+
 func (s *Server) handleProviderLog(conn net.Conn, req Request) {
 	limit := defaultRunsLimit
 	if raw, ok := req.Args["limit"]; ok {

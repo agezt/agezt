@@ -12,6 +12,11 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **`agt provider rejections`** (SPEC-14, M92) — a capability-gating audit:
+  folds `capability.rejected` (M25 tool_call / M91 vision) + `capability.rerouted`
+  (M40 down-route) into one timeline of what the capability gates did. Completes
+  the M23/M25/M40/M91 enforcement story. See
+  `.project/PHASE-M92-PROVIDER-REJECTIONS-REPORT.md`.
 - **Vision capability gate** (SPEC-14, M91) — `agt run --image <path>` attaches
   images to a run; the daemon rejects them pre-flight (before any provider call)
   unless the active model is confirmed vision-capable, journaling

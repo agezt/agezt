@@ -305,6 +305,8 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.handleProviderLog(conn, req)
 	case CmdProviderStats:
 		s.handleProviderStats(conn, req)
+	case CmdProviderRejections:
+		s.handleProviderRejections(conn, req)
 	case CmdPulseSubscribe:
 		s.handlePulseSubscribe(ctx, conn, req)
 	case CmdPlanGenerate:
