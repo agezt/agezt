@@ -634,6 +634,13 @@ const (
 	// failed_by_reason, window_ms }
 	CmdScheduleStats = "schedule_stats"
 
+	// CmdScheduleTest previews a schedule's upcoming fire times (M120) — a
+	// read-only dry-run so an operator can confirm a daily/windowed/interval
+	// cadence does what they expect before relying on it (parity with
+	// `agt edict test` for policy). Args: id (required), count (default 5,
+	// max 100). Returns forecasts [{unix}] + the rendered cadence.
+	CmdScheduleTest = "schedule_test"
+
 	// Multi-tenant management (ROADMAP P6-MULTI). The control-plane surface
 	// behind `agt tenant`; operates on the daemon's tenant.Registry. Disabled
 	// (returns an error) when the daemon has no registry configured.

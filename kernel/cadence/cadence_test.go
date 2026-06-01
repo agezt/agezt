@@ -667,3 +667,63 @@ func TestDescribe(t *testing.T) {
 		t.Errorf("describe = %q", out)
 	}
 }
+
+func TestForecast_Interval(t *testing.T) {
+	from := time.Unix(1_700_000_000, 0).UTC()
+	e := Entry{Mode: ModeInterval, IntervalSec: 3600, NextRunUnix: from.Add(time.Hour).Unix(), Enabled: true}
+	got := e.Forecast(from, 3)
+	want := []int64{
+		from.Add(1 * time.Hour).Unix(),
+		from.Add(2 * time.Hour).Unix(),
+		from.Add(3 * time.Hour).Unix(),
+	}
+	if len(got) != 3 {
+		t.Fatalf("got %d fires, want 3: %v", len(got), got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("fire %d = %d, want %d", i, got[i], want[i])
+		}
+	}
+}
+
+func TestForecast_DailyAllDays(t *testing.T) {
+	from := time.Date(2026, 6, 2, 8, 0, 0, 0, time.UTC) // 08:00, before 09:00
+	e := Entry{Mode: ModeDaily, AtMinutes: 9 * 60, Days: AllDays, Enabled: true}
+	got := e.Forecast(from, 4)
+	if len(got) != 4 {
+		t.Fatalf("got %d fires, want 4", len(got))
+	}
+	prev := int64(0)
+	for i, u := range got {
+		ft := time.Unix(u, 0).UTC()
+		if ft.Hour() != 9 || ft.Minute() != 0 {
+			t.Errorf("fire %d at %s, want 09:00", i, ft.Format("15:04"))
+		}
+		if ft.Unix() <= from.Unix() {
+			t.Errorf("fire %d is not after `from`", i)
+		}
+		if prev != 0 && ft.Unix()-prev < 23*3600 {
+			t.Errorf("fires %d/%d too close (< ~1 day apart)", i-1, i)
+		}
+		prev = ft.Unix()
+	}
+}
+
+func TestForecast_OnceAndZero(t *testing.T) {
+	from := time.Unix(1_700_000_000, 0).UTC()
+	// A once schedule in the future → one fire.
+	future := Entry{Mode: ModeOnce, NextRunUnix: from.Add(time.Hour).Unix()}
+	if got := future.Forecast(from, 5); len(got) != 1 {
+		t.Errorf("future once: got %d, want 1", len(got))
+	}
+	// A once schedule in the past → none.
+	past := Entry{Mode: ModeOnce, NextRunUnix: from.Add(-time.Hour).Unix()}
+	if got := past.Forecast(from, 5); len(got) != 0 {
+		t.Errorf("past once: got %d, want 0", len(got))
+	}
+	// n <= 0 → nil.
+	if got := future.Forecast(from, 0); got != nil {
+		t.Errorf("n=0 should be nil, got %v", got)
+	}
+}

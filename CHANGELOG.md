@@ -12,6 +12,10 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **`agt schedule test`** (M120) — a dry-run that previews a schedule's next N fire
+  times, so an operator can validate a complex daily/windowed/timezone/weekday
+  cadence before relying on it (parity with `agt edict test`). New
+  `cadence.Entry.Forecast`. See `.project/PHASE-M120-SCHEDULE-TEST-REPORT.md`.
 - **File tool glob** (M119) — the `file` tool gains a `glob` op that finds files by
   name pattern (`*.go`, `*_test.go`) across the workspace tree, complementing `list`
   (one dir) and `search` (content). See `.project/PHASE-M119-FILE-GLOB-REPORT.md`.

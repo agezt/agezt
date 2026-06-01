@@ -79,6 +79,56 @@ func (s *Server) handleScheduleEnable(conn net.Conn, req Request) {
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"updated": ok, "enabled": enabled}})
 }
 
+// handleScheduleTest previews a schedule's next fire times (M120) — a read-only
+// dry-run. Uses the entry's own Forecast simulation so the result matches what
+// the cadence engine will actually do.
+func (s *Server) handleScheduleTest(conn net.Conn, req Request) {
+	id, _ := req.Args["id"].(string)
+	if id == "" {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.id required"})
+		return
+	}
+	count := 5
+	switch v := req.Args["count"].(type) {
+	case float64:
+		count = int(v)
+	case int:
+		count = v
+	case int64:
+		count = int(v)
+	}
+	if count < 1 {
+		count = 1
+	}
+	if count > 100 {
+		count = 100
+	}
+
+	e, ok := s.k.Schedules().Get(id)
+	if !ok {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"found": false}})
+		return
+	}
+	fires := e.Forecast(time.Now(), count)
+	out := make([]map[string]any, 0, len(fires))
+	for _, f := range fires {
+		out = append(out, map[string]any{"unix": f})
+	}
+	s.writeResp(conn, Response{
+		ID:   req.ID,
+		Type: RespResult,
+		Result: map[string]any{
+			"found":     true,
+			"id":        e.ID,
+			"mode":      e.Mode,
+			"cadence":   e.Cadence(),
+			"enabled":   e.Enabled,
+			"forecasts": out,
+			"count":     len(out),
+		},
+	})
+}
+
 func (s *Server) handleScheduleEdit(conn net.Conn, req Request) {
 	id, _ := req.Args["id"].(string)
 	if id == "" {

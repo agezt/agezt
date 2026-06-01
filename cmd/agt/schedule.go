@@ -35,6 +35,8 @@ func cmdSchedule(args []string, stdout, stderr io.Writer) int {
 		return cmdScheduleFires(args[1:], stdout, stderr)
 	case "stats":
 		return cmdScheduleStats(args[1:], stdout, stderr)
+	case "test", "preview":
+		return cmdScheduleTest(args[1:], stdout, stderr)
 	case "rm", "remove":
 		return cmdScheduleRemove(args[1:], stdout, stderr)
 	case "run", "trigger":
@@ -52,6 +54,7 @@ func cmdSchedule(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "  list [--json]                                                list all schedules\n")
 		fmt.Fprintf(stdout, "  fires [N] [--id <sched>] [--json]                            recent scheduled firings + outcomes\n")
 		fmt.Fprintf(stdout, "  stats [--id <sched>] [--since <dur>] [--json]                aggregate firing health (counts, success, spend)\n")
+		fmt.Fprintf(stdout, "  test <id> [--count N] [--json]                               preview the next N fire times (dry-run)\n")
 		fmt.Fprintf(stdout, "  rm <id> [--json]                                             delete a schedule\n")
 		fmt.Fprintf(stdout, "  run <id> [--json]                                            fire a schedule now (next tick)\n")
 		fmt.Fprintf(stdout, "  pause <id> / resume <id> [--json]                            disable / re-enable without deleting\n")
