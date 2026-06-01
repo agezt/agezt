@@ -776,6 +776,41 @@ func failedByReasonStr(raw any) string {
 // Falls back to a minimal one-event-per-line view if the chain
 // doesn't fit the canonical task arc (e.g. an old run from a
 // schema that didn't emit llm.request/response).
+// arcPreviewRunes bounds a tool input/output excerpt on a task-arc line (M68) —
+// long enough to read a short command or error, short enough to keep one event
+// per line. Mirrors the server-side toolOutputPreviewRunes for `agt tool log`.
+const arcPreviewRunes = 80
+
+// arcPreview renders a journaled tool input/output value as a compact one-line
+// excerpt (M68): strings pass through, anything else (the raw-JSON input) is
+// re-marshaled, then whitespace is collapsed and the result truncated. Returns
+// "" for empty/unrenderable values so the caller simply omits the detail.
+func arcPreview(v any) string {
+	if v == nil {
+		return ""
+	}
+	var s string
+	switch t := v.(type) {
+	case string:
+		s = t
+	default:
+		b, err := json.Marshal(t)
+		if err != nil {
+			return ""
+		}
+		s = string(b)
+	}
+	s = strings.Join(strings.Fields(s), " ")
+	if s == "" {
+		return ""
+	}
+	r := []rune(s)
+	if len(r) > arcPreviewRunes {
+		return string(r[:arcPreviewRunes]) + "…"
+	}
+	return s
+}
+
 func renderTaskArc(w io.Writer, corr string, summary map[string]any, events []map[string]any, outcomes map[string]childOutcome) {
 	intent, _ := summary["intent"].(string)
 	status, _ := summary["status"].(string)
@@ -838,18 +873,31 @@ func renderTaskArc(w io.Writer, corr string, summary map[string]any, events []ma
 			if inRound {
 				indent = "    "
 			}
-			fmt.Fprintf(w, "%stool.invoked: %s\n", indent, tool)
+			line := fmt.Sprintf("%stool.invoked: %s", indent, tool)
+			// Show a compact input excerpt so the arc says WHAT was called, not
+			// just that something was (M68). input is journaled as raw JSON.
+			if in := arcPreview(payload["input"]); in != "" {
+				line += "  " + in
+			}
+			fmt.Fprintln(w, line)
 		case "tool.result":
 			indent := "  "
 			if inRound {
 				indent = "    "
 			}
-			isErr, _ := payload["is_error"].(bool)
+			// The agent journals this flag as "error" (agent.go); reading
+			// "is_error" here meant the arc always said "ok", even for a failed
+			// tool call (M68 fix). Honour the real field name.
+			isErr, _ := payload["error"].(bool)
 			tag := "ok"
 			if isErr {
 				tag = "ERROR"
 			}
-			fmt.Fprintf(w, "%stool.result : %s\n", indent, tag)
+			line := fmt.Sprintf("%stool.result : %s", indent, tag)
+			if out := arcPreview(payload["output"]); out != "" {
+				line += "  " + out
+			}
+			fmt.Fprintln(w, line)
 		case "task.completed":
 			// The run's final answer is journaled on task.completed (M51):
 			// {iters, chars, stopped, answer}. Prefer it over the last
@@ -860,9 +908,25 @@ func renderTaskArc(w io.Writer, corr string, summary map[string]any, events []ma
 				finalAnswer = a
 			}
 		case "policy.decision":
-			cap, _ := payload["capability"].(string)
-			dec, _ := payload["decision"].(string)
-			fmt.Fprintf(w, "  policy: %s %s\n", cap, dec)
+			// The agent journals {capability, allow, hard_denied, reason} — there
+			// is no "decision" string, so the old read rendered a blank verdict on
+			// every policy line (M68 fix). Derive the verdict from the real fields.
+			capName, _ := payload["capability"].(string)
+			allow, _ := payload["allow"].(bool)
+			hard, _ := payload["hard_denied"].(bool)
+			reason, _ := payload["reason"].(string)
+			verdict := "allow"
+			if !allow {
+				verdict = "DENY"
+				if hard {
+					verdict = "DENY(hard)"
+				}
+			}
+			line := fmt.Sprintf("  policy: %-10s %s", verdict, capName)
+			if reason != "" {
+				line += "  (" + reason + ")"
+			}
+			fmt.Fprintln(w, line)
 		case "approval.requested", "approval.granted", "approval.denied", "approval.timeout":
 			fmt.Fprintf(w, "  %s\n", kind)
 		case "subagent.spawned":

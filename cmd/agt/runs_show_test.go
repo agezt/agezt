@@ -291,3 +291,63 @@ func TestRenderTaskArc_FinalAnswerSurfacesFromLlmResponse(t *testing.T) {
 		t.Errorf("final answer body missing; got:\n%s", buf.String())
 	}
 }
+
+// TestRenderTaskArc_ToolResultHonoursErrorField — a failed tool call must render
+// ERROR (M68 fix). The agent journals the flag as "error"; the arc previously
+// read "is_error", so every tool result showed "ok" regardless of failure.
+func TestRenderTaskArc_ToolResultHonoursErrorField(t *testing.T) {
+	summary := map[string]any{"intent": "do thing", "status": "completed", "iters": float64(1), "duration_ms": float64(10)}
+	events := []map[string]any{
+		{"kind": "tool.invoked", "seq": float64(1), "payload": map[string]any{
+			"tool": "shell", "input": map[string]any{"command": "false"},
+		}},
+		{"kind": "tool.result", "seq": float64(2), "payload": map[string]any{
+			"tool": "shell", "output": "exit status 1", "error": true,
+		}},
+	}
+	var buf bytes.Buffer
+	renderTaskArc(&buf, "run-ERR", summary, events, nil)
+	s := buf.String()
+	for _, want := range []string{
+		"tool.invoked: shell",
+		`{"command":"false"}`, // input excerpt
+		"tool.result : ERROR", // the fix: not "ok"
+		"exit status 1",       // output excerpt
+	} {
+		if !strings.Contains(s, want) {
+			t.Errorf("arc missing %q; got:\n%s", want, s)
+		}
+	}
+	if strings.Contains(s, "tool.result : ok") {
+		t.Errorf("failed tool call still rendered as ok; got:\n%s", s)
+	}
+}
+
+// TestRenderTaskArc_PolicyDecisionVerdict — a policy.decision renders a real
+// verdict derived from {allow, hard_denied} (M68 fix). The arc previously read a
+// non-existent "decision" field, leaving every policy line blank.
+func TestRenderTaskArc_PolicyDecisionVerdict(t *testing.T) {
+	summary := map[string]any{"intent": "do thing", "status": "completed", "iters": float64(1), "duration_ms": float64(10)}
+	events := []map[string]any{
+		{"kind": "policy.decision", "seq": float64(1), "payload": map[string]any{
+			"capability": "net", "allow": false, "hard_denied": true, "reason": "egress blocked",
+		}},
+		{"kind": "policy.decision", "seq": float64(2), "payload": map[string]any{
+			"capability": "shell", "allow": true,
+		}},
+	}
+	var buf bytes.Buffer
+	renderTaskArc(&buf, "run-POL", summary, events, nil)
+	s := buf.String()
+	for _, want := range []string{
+		"policy: DENY(hard)",
+		"net",
+		"(egress blocked)",
+		"policy: allow",
+		"shell",
+	} {
+		if !strings.Contains(s, want) {
+			t.Errorf("arc missing %q; got:\n%s", want, s)
+		}
+	}
+}

@@ -11,6 +11,15 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 
 ## [Unreleased]
 
+### Fixed
+- **Task-arc rendering told the truth** (SPEC-08, M68) — `agt runs show` read two
+  journal fields the agent loop never writes: `tool.result` checked `is_error`
+  (journaled as `error`), so every tool call showed `ok` even on failure; and
+  `policy.decision` checked a non-existent `decision` string, leaving every
+  policy line's verdict blank. Both now read the real fields (`error`; `allow` /
+  `hard_denied` / `reason`), and the arc additionally shows compact tool
+  input/output excerpts. See `.project/PHASE-M68-ARC-HONESTY-REPORT.md`.
+
 ### Added
 - **`agt tool stats` — tool-invocation aggregate** (SPEC-08, M67) — folds the
   journal's `tool.result` events into total / errored / error-rate plus a
