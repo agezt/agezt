@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -25,8 +26,10 @@ func cmdWarden(args []string, stdout, stderr io.Writer) int {
 	switch args[0] {
 	case "log":
 		return cmdWardenLog(args[1:], stdout, stderr)
+	case "stats":
+		return cmdWardenStats(args[1:], stdout, stderr)
 	default:
-		fmt.Fprintf(stderr, "%s warden: unknown subcommand %q (log)\n", brand.CLI, args[0])
+		fmt.Fprintf(stderr, "%s warden: unknown subcommand %q (log, stats)\n", brand.CLI, args[0])
 		return 2
 	}
 }
@@ -147,6 +150,99 @@ func cmdWardenLog(args []string, stdout, stderr io.Writer) int {
 			argv0, _ := m["argv0"].(string)
 			reason, _ := m["reason"].(string)
 			fmt.Fprintf(stdout, "  %s  LIMIT      %-16s %s exceeded\n", whenStr, argv0, reason)
+		}
+	}
+	return 0
+}
+
+// cmdWardenStats implements `agt warden stats [--since <dur>] [--json]` (M97) —
+// sandbox posture: how many executions, how often the warden had to downgrade
+// isolation, time-outs, limit breaches, and a by-effective-profile breakdown.
+func cmdWardenStats(args []string, stdout, stderr io.Writer) int {
+	asJSON := false
+	sinceMS := int64(0)
+	sinceLabel := ""
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		switch {
+		case a == "--json":
+			asJSON = true
+		case a == "--since":
+			if i+1 >= len(args) {
+				fmt.Fprintf(stderr, "%s warden stats: --since needs a duration\n", brand.CLI)
+				return 2
+			}
+			i++
+			d, derr := time.ParseDuration(args[i])
+			if derr != nil || d <= 0 {
+				fmt.Fprintf(stderr, "%s warden stats: bad --since %q\n", brand.CLI, args[i])
+				return 2
+			}
+			sinceMS = d.Milliseconds()
+			sinceLabel = d.String()
+		case strings.HasPrefix(a, "--since="):
+			d, derr := time.ParseDuration(strings.TrimPrefix(a, "--since="))
+			if derr != nil || d <= 0 {
+				fmt.Fprintf(stderr, "%s warden stats: bad --since\n", brand.CLI)
+				return 2
+			}
+			sinceMS = d.Milliseconds()
+			sinceLabel = d.String()
+		case a == "-h" || a == "--help":
+			fmt.Fprintf(stdout, "usage: %s warden stats [--since <dur>] [--json]\n", brand.CLI)
+			fmt.Fprintf(stdout, "aggregate sandbox posture: executions, downgrade rate, timeouts, limit breaches, by profile\n")
+			return 0
+		default:
+			fmt.Fprintf(stderr, "%s warden stats: unexpected arg %q\n", brand.CLI, a)
+			return 2
+		}
+	}
+
+	c := dial(stderr)
+	if c == nil {
+		return 1
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	callArgs := map[string]any{}
+	if sinceMS > 0 {
+		callArgs["since_ms"] = sinceMS
+	}
+	res, err := c.Call(ctx, controlplane.CmdWardenStats, callArgs)
+	if err != nil {
+		fmt.Fprintf(stderr, "%s warden stats: %v\n", brand.CLI, err)
+		return 1
+	}
+	if asJSON {
+		return encodeJSON(stdout, res)
+	}
+	total := intOfStatus(res["executions"])
+	windowSuffix := ""
+	if sinceLabel != "" {
+		windowSuffix = " in the last " + sinceLabel
+	}
+	if total == 0 {
+		fmt.Fprintf(stdout, "no sandboxed executions%s.\n", windowSuffix)
+		return 0
+	}
+	downgraded := intOfStatus(res["downgraded"])
+	rate, _ := res["downgrade_rate"].(float64)
+	timedOut := intOfStatus(res["timed_out"])
+	limits := intOfStatus(res["limit_breaches"])
+	fmt.Fprintf(stdout, "sandbox executions (over %d%s):\n\n", total, windowSuffix)
+	fmt.Fprintf(stdout, "  downgraded    : %d\n", downgraded)
+	fmt.Fprintf(stdout, "  downgrade     : %.1f%%\n", rate*100)
+	fmt.Fprintf(stdout, "  timed out     : %d\n", timedOut)
+	fmt.Fprintf(stdout, "  limit breaches: %d\n", limits)
+	if byP, _ := res["by_profile"].(map[string]any); len(byP) > 0 {
+		fmt.Fprintf(stdout, "\n  by effective profile:\n")
+		names := make([]string, 0, len(byP))
+		for n := range byP {
+			names = append(names, n)
+		}
+		sort.Strings(names)
+		for _, n := range names {
+			fmt.Fprintf(stdout, "    %-12s %d\n", n, intOfStatus(byP[n]))
 		}
 	}
 	return 0

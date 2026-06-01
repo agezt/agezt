@@ -12,6 +12,10 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **`agt warden stats`** (SPEC-08, M97) — sandbox posture aggregate: executions,
+  downgrade count + rate, timeouts, limit breaches, by-effective-profile.
+  Completes the warden `log`/`stats` pair and the security-triad stats
+  (edict/approvals/warden). See `.project/PHASE-M97-WARDEN-STATS-REPORT.md`.
 - **`agt warden log`** (SPEC-08, M96) — the OS-sandbox execution audit: folds
   `warden.executed` / `profile_downgraded` / `limit_exceeded` into one timeline
   (what ran, under which profile, downgrades, limit breaches; `--issues` isolates

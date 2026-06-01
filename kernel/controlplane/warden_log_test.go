@@ -53,3 +53,43 @@ func TestWardenLog_FoldsExecAndIssues(t *testing.T) {
 		}
 	}
 }
+
+// TestWardenStats_Aggregates — `agt warden stats` counts execs, downgrades (+
+// rate), limit breaches, and breaks down by effective profile (M97).
+func TestWardenStats_Aggregates(t *testing.T) {
+	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	exec := func(profile string, downgraded bool) {
+		k.Bus().Publish(event.Spec{
+			Subject: "warden.exec", Kind: event.KindWardenExecuted, Actor: "tool",
+			Payload: map[string]any{"profile_effective": profile, "argv0": "ls", "exit_code": 0, "downgraded": downgraded},
+		})
+	}
+	exec("namespace", false)
+	exec("none", true)
+	exec("none", true)
+	k.Bus().Publish(event.Spec{
+		Subject: "warden.limit", Kind: event.KindWardenLimitExceeded, Actor: "tool",
+		Payload: map[string]any{"limit": "stdout_bytes", "argv0": "cat"},
+	})
+
+	res, err := c.Call(context.Background(), controlplane.CmdWardenStats, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if e, _ := res["executions"].(float64); e != 3 {
+		t.Errorf("executions = %v want 3", res["executions"])
+	}
+	if d, _ := res["downgraded"].(float64); d != 2 {
+		t.Errorf("downgraded = %v want 2", res["downgraded"])
+	}
+	if rate, _ := res["downgrade_rate"].(float64); rate < 0.66 || rate > 0.67 {
+		t.Errorf("downgrade_rate = %v want ~0.667", rate)
+	}
+	if lb, _ := res["limit_breaches"].(float64); lb != 1 {
+		t.Errorf("limit_breaches = %v want 1", res["limit_breaches"])
+	}
+	byP, _ := res["by_profile"].(map[string]any)
+	if n, _ := byP["none"].(float64); n != 2 {
+		t.Errorf("by_profile[none] = %v want 2", byP["none"])
+	}
+}

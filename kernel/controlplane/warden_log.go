@@ -19,6 +19,86 @@ import (
 	"github.com/agezt/agezt/kernel/event"
 )
 
+// handleWardenStats aggregates sandboxed executions (M97) — total execs,
+// downgraded count + rate, timed-out count, a by-effective-profile breakdown,
+// and the count of limit breaches. Answers "is my sandbox actually isolating, or
+// silently degrading?". since_ms windows by event time. Tenant-routed.
+func (s *Server) handleWardenStats(conn net.Conn, req Request) {
+	cutoff := sinceCutoff(req.Args["since_ms"])
+	var sinceMS int64
+	switch v := req.Args["since_ms"].(type) {
+	case float64:
+		sinceMS = int64(v)
+	case int64:
+		sinceMS = v
+	case int:
+		sinceMS = int64(v)
+	}
+
+	k, err := s.kernelFor(tenantOf(req))
+	if err != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		return
+	}
+
+	var total, downgraded, timedOut, limitBreaches int
+	byProfile := map[string]int{}
+	if err := k.Journal().Range(func(e *event.Event) error {
+		if cutoff > 0 && e.TSUnixMS < cutoff {
+			return nil
+		}
+		switch e.Kind {
+		case event.KindWardenExecuted:
+			var p struct {
+				ProfileEffective string `json:"profile_effective"`
+				Downgraded       bool   `json:"downgraded"`
+				TimedOut         bool   `json:"timed_out"`
+			}
+			_ = json.Unmarshal(e.Payload, &p)
+			total++
+			prof := p.ProfileEffective
+			if prof == "" {
+				prof = "unknown"
+			}
+			byProfile[prof]++
+			if p.Downgraded {
+				downgraded++
+			}
+			if p.TimedOut {
+				timedOut++
+			}
+		case event.KindWardenLimitExceeded:
+			limitBreaches++
+		}
+		return nil
+	}); err != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		return
+	}
+
+	downgradeRate := 0.0
+	if total > 0 {
+		downgradeRate = float64(downgraded) / float64(total)
+	}
+	byProfileOut := make(map[string]any, len(byProfile))
+	for n, c := range byProfile {
+		byProfileOut[n] = c
+	}
+	s.writeResp(conn, Response{
+		ID:   req.ID,
+		Type: RespResult,
+		Result: map[string]any{
+			"executions":     total,
+			"downgraded":     downgraded,
+			"downgrade_rate": downgradeRate,
+			"timed_out":      timedOut,
+			"limit_breaches": limitBreaches,
+			"by_profile":     byProfileOut,
+			"window_ms":      sinceMS,
+		},
+	})
+}
+
 func (s *Server) handleWardenLog(conn net.Conn, req Request) {
 	limit := defaultRunsLimit
 	if raw, ok := req.Args["limit"]; ok {

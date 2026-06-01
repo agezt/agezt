@@ -325,6 +325,8 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.handleStatus(conn, req)
 	case CmdWardenLog:
 		s.handleWardenLog(conn, req)
+	case CmdWardenStats:
+		s.handleWardenStats(conn, req)
 	case CmdPluginList:
 		s.handlePluginList(conn, req)
 	case CmdShutdown:

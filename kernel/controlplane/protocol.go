@@ -152,6 +152,10 @@ const (
 	// (the OS-sandbox audit). Args: limit, issues (bool — only downgrades/limit
 	// breaches), since_ms. Returns: { executions: [...], count }
 	CmdWardenLog = "warden_log"
+	// CmdWardenStats aggregates sandboxed executions (M97) — total, downgraded
+	// count + rate, timed-out, limit breaches, by-effective-profile. Args:
+	// since_ms (optional window).
+	CmdWardenStats = "warden_stats"
 	// CmdWhoami reports the authenticated principal (M62) — whether the request
 	// used the primary (admin) token or a tenant's own token, and which tenant.
 	// Args: tenant (required for a tenant token, pinned by handleConn). Returns:
