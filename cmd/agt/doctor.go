@@ -149,9 +149,44 @@ func runDoctorChecks() []doctorCheck {
 	// informational OK, never a false alarm.
 	cat, _ := loadCatalogIfAny(io.Discard)
 	checks = append(checks, checkModelReadiness(status, cat))
+	checks = append(checks, checkSandbox(ctx, client))
 	checks = append(checks, checkHalt(status))
 
 	return checks
+}
+
+// checkSandbox warns when the OS warden has been silently downgrading isolation
+// (M98) — a sandbox running weaker than requested is a real security gap an
+// operator should see in their go-to diagnostic, not only in `agt warden stats`.
+// Best-effort: no executions yet, or the call failing, is an informational OK.
+func checkSandbox(ctx context.Context, client *controlplane.Client) doctorCheck {
+	res, err := client.Call(ctx, controlplane.CmdWardenStats, nil)
+	if err != nil {
+		return ok("sandbox (warden)", "warden stats unavailable (—)")
+	}
+	return sandboxCheckFromStats(res)
+}
+
+// sandboxCheckFromStats is the pure verdict from a warden-stats response — split
+// out so the downgrade/limit logic is testable without a live daemon (M98).
+func sandboxCheckFromStats(res map[string]any) doctorCheck {
+	const name = "sandbox (warden)"
+	total := intOfStatus(res["executions"])
+	if total == 0 {
+		return ok(name, "no sandboxed executions yet")
+	}
+	downgraded := intOfStatus(res["downgraded"])
+	rate, _ := res["downgrade_rate"].(float64)
+	if downgraded > 0 {
+		return warn(name,
+			fmt.Sprintf("%d/%d execution(s) ran with downgraded isolation (%.0f%%)", downgraded, total, rate*100),
+			"the host lacks the requested sandbox backend; on Linux build with full-namespace support, or accept the reduced isolation knowingly")
+	}
+	if breaches := intOfStatus(res["limit_breaches"]); breaches > 0 {
+		return warn(name, fmt.Sprintf("%d execution(s), %d limit breach(es)", total, breaches),
+			"a tool hit a warden resource cap; check `agt warden log --issues`")
+	}
+	return ok(name, fmt.Sprintf("%d execution(s), full requested isolation", total))
 }
 
 // checkModelReadiness reports whether the daemon's configured model is fit

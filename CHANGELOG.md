@@ -12,6 +12,10 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **`agt doctor` sandbox check** (SPEC-08, M98) — the go-to diagnostic now WARNs
+  when the OS warden has been silently downgrading isolation (or hitting resource
+  limits), turning the M97 sandbox stats into an actionable health signal. See
+  `.project/PHASE-M98-DOCTOR-SANDBOX-REPORT.md`.
 - **`agt warden stats`** (SPEC-08, M97) — sandbox posture aggregate: executions,
   downgrade count + rate, timeouts, limit breaches, by-effective-profile.
   Completes the warden `log`/`stats` pair and the security-triad stats

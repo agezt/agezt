@@ -129,3 +129,34 @@ func TestCheckModelReadiness(t *testing.T) {
 		t.Errorf("nil catalog should be OK; got %s", c.State)
 	}
 }
+
+// TestSandboxCheckFromStats — the doctor's sandbox verdict: WARN on downgraded
+// isolation or limit breaches, OK on full isolation / no executions (M98).
+func TestSandboxCheckFromStats(t *testing.T) {
+	// Downgraded → WARN.
+	w := sandboxCheckFromStats(map[string]any{
+		"executions": float64(3), "downgraded": float64(2), "downgrade_rate": 0.667,
+	})
+	if w.Status != statusWarn {
+		t.Errorf("downgraded: status = %v want WARN", w.State)
+	}
+	// Limit breach (no downgrade) → WARN.
+	lb := sandboxCheckFromStats(map[string]any{
+		"executions": float64(2), "downgraded": float64(0), "limit_breaches": float64(1),
+	})
+	if lb.Status != statusWarn {
+		t.Errorf("limit breach: status = %v want WARN", lb.State)
+	}
+	// Full isolation → OK.
+	good := sandboxCheckFromStats(map[string]any{
+		"executions": float64(5), "downgraded": float64(0),
+	})
+	if good.Status != statusOK {
+		t.Errorf("full isolation: status = %v want OK", good.State)
+	}
+	// No executions → OK.
+	none := sandboxCheckFromStats(map[string]any{"executions": float64(0)})
+	if none.Status != statusOK {
+		t.Errorf("no execs: status = %v want OK", none.State)
+	}
+}
