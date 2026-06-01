@@ -389,14 +389,19 @@ func cmdJournal(args []string, stdout, stderr io.Writer) int {
 }
 
 func cmdApprovals(args []string, stdout, stderr io.Writer) int {
+	// `agt approvals log` — the resolved/pending audit timeline (M87); plain
+	// `agt approvals` stays the pending-only list.
+	if len(args) > 0 && args[0] == "log" {
+		return cmdApprovalsLog(args[1:], stdout, stderr)
+	}
 	asJSON := false
 	for _, a := range args {
 		switch a {
 		case "--json":
 			asJSON = true
 		case "-h", "--help":
-			fmt.Fprintf(stdout, "usage: %s approvals [--json]\n", brand.CLI)
-			fmt.Fprintf(stdout, "list pending HITL approval requests\n")
+			fmt.Fprintf(stdout, "usage: %s approvals [log] [--json]\n", brand.CLI)
+			fmt.Fprintf(stdout, "list pending HITL approval requests (or `approvals log` for the resolved audit)\n")
 			fmt.Fprintf(stdout, "  --json   emit the full pending array (CI/automation pipelines)\n")
 			return 0
 		default:

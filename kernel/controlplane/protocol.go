@@ -37,7 +37,12 @@ const (
 	CmdJournalVerify = "journal_verify"
 	// HITL approval queue.
 	CmdApprovals = "approvals" // list pending requests
-	CmdDecide    = "decide"    // resolve one (args: id, decision="grant|deny", reason)
+	// CmdApprovalsLog lists resolved + pending HITL approvals (M87) — a timeline
+	// of approval.requested joined with the terminal granted/denied/timeout.
+	// Args: limit, denied (bool), since_ms. Returns: { approvals: [ {ts_unix_ms,
+	// approval_id, capability, tool, reason, status, resolved_by} ], count }
+	CmdApprovalsLog = "approvals_log"
+	CmdDecide       = "decide" // resolve one (args: id, decision="grant|deny", reason)
 	// DAG scheduler.
 	CmdPlan = "plan" // run a pre-built Plan (args: plan_json — see scheduler/PlanSpec)
 	// Provider / model catalog (SPEC-15 §1; TASKS P1-CONDUIT-04).

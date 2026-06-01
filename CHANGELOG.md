@@ -38,6 +38,11 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   the denial rate + counts reflect one tool/capability. Completes the symmetry
   with `edict log`'s M74 filters. See
   `.project/PHASE-M76-EDICT-STATS-SCOPE-REPORT.md`.
+- **`agt approvals log`** (SPEC-08, M87) — the HITL approval audit: folds
+  `approval.requested` joined with the terminal granted/denied/timeout into a
+  timeline of what was asked, how it resolved, and who decided. The human
+  analogue of `agt edict log`; `--denied` + `--since`. See
+  `.project/PHASE-M87-APPROVALS-LOG-REPORT.md`.
 - **`agt world log`** (SPEC-08, M86) — a timeline of world-model operations
   (entity/relation upserts and forgets): what the agent observed, reinforced, and
   forgot. The world-model analogue of `agt memory log`; `--kind` filter +
