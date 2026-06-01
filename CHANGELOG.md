@@ -12,6 +12,11 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Webhook delivery observability** (SPEC-08 / P7-API-02, M112) — `agt webhook log`
+  (with `--failed`) and `agt webhook stats` surface outbound webhook deliveries and
+  failures (per URL), so a silently-failing notification sink is visible instead of
+  a "I never got paged" outage. See
+  `.project/PHASE-M112-WEBHOOK-OBSERVABILITY-REPORT.md`.
 - **`agt provider cost`** (SPEC-08, M111) — standalone model-price lookup: a model's
   per-Mtok input/output price and an optional cost estimate for a given token count
   (`--input-tokens` / `--output-tokens`), reusing the catalog. See

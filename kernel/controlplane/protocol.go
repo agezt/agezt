@@ -237,6 +237,18 @@ const (
 	// prompt-injection / exfiltration attempts. Tenant-routed.
 	CmdNetguardLog = "netguard_log"
 
+	// CmdWebhookLog lists recent outbound webhook deliveries (M112) — a timeline
+	// of webhook.delivered / webhook.failed events. `--failed` keeps only the
+	// failures. Args: limit, since_ms, failed. Returns deliveries
+	// [{ts_unix_ms, status, url, event_kind, attempts, ok, error}] + count.
+	// Webhook delivery was previously only reachable via `journal grep webhook`.
+	CmdWebhookLog = "webhook_log"
+
+	// CmdWebhookStats aggregates webhook deliveries (M112) — total, delivered,
+	// failed, failure_rate, and a per-URL breakdown. Answers "are my
+	// notifications getting through?". Tenant-routed.
+	CmdWebhookStats = "webhook_stats"
+
 	// CmdEdictShow returns the loaded policy snapshot. Closes a
 	// real visibility gap: operators set AGEZT_APPROVAL_MODE and
 	// per-capability levels but had no way to confirm what the

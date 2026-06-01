@@ -64,6 +64,7 @@ func tenantTokenAllows(cmd string) bool {
 	case CmdRun, CmdCancelRun,
 		CmdRunsList, CmdRunsStats, CmdWhy, CmdWhoami, CmdToolLog, CmdToolStats,
 		CmdRateLimitLog, CmdRateLimitStats, CmdNetguardLog,
+		CmdWebhookLog, CmdWebhookStats,
 		CmdEdictLog, CmdEdictStats, CmdEdictShow, CmdEdictOverlay, CmdEdictTest, CmdEdictDenyList, CmdEdictDenyAdd,
 		CmdEdictDenyRemove, CmdEdictSetLevel, CmdEdictSetMode:
 		return true
