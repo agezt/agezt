@@ -23,12 +23,21 @@ import (
 
 func startPair(t *testing.T, prov agent.Provider) (*runtime.Kernel, *controlplane.Server, *controlplane.Client, string) {
 	t.Helper()
-	dir := t.TempDir()
-	k, err := runtime.Open(runtime.Config{
-		BaseDir:  dir,
+	return startPairWithConfig(t, runtime.Config{
 		Provider: prov,
 		Tools:    map[string]agent.Tool{"shell": shell.New()},
 	})
+}
+
+// startPairWithConfig is startPair parameterised by a runtime.Config, so a test
+// can exercise the control plane against a kernel with specific config (e.g. the
+// M49 delegation ceilings). BaseDir is set to a fresh TempDir; the rest of the
+// config is the caller's.
+func startPairWithConfig(t *testing.T, cfg runtime.Config) (*runtime.Kernel, *controlplane.Server, *controlplane.Client, string) {
+	t.Helper()
+	dir := t.TempDir()
+	cfg.BaseDir = dir
+	k, err := runtime.Open(cfg)
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}

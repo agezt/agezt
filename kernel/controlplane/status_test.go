@@ -7,9 +7,12 @@ import (
 	"testing"
 
 	"github.com/agezt/agezt/internal/brand"
+	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/plugins/providers/mock"
+	"github.com/agezt/agezt/plugins/tools/shell"
 )
 
 // TestStatus_ReturnsExpectedShape asserts the wire fields the
@@ -44,6 +47,50 @@ func TestStatus_ReturnsExpectedShape(t *testing.T) {
 	}
 	if got := intOf(res["journal_head"]); got != 0 {
 		t.Errorf("journal_head = %d; want 0 on an empty journal", got)
+	}
+	// Delegation block present and disabled by default (startPair doesn't
+	// enable the delegate tool) — M49.
+	deleg, ok := res["delegation"].(map[string]any)
+	if !ok {
+		t.Fatalf("delegation missing or wrong type: %T", res["delegation"])
+	}
+	if enabled, _ := deleg["enabled"].(bool); enabled {
+		t.Errorf("delegation.enabled = true; want false when the delegate tool is off")
+	}
+}
+
+// TestStatus_DelegationCeilings — with the delegate tool on and the M46–M48 caps
+// set, status reports the effective ceilings: depth defaults to 1 (unset), and
+// the configured fan-out / spend caps are echoed (M49).
+func TestStatus_DelegationCeilings(t *testing.T) {
+	_, _, c, _ := startPairWithConfig(t, runtime.Config{
+		Provider:                   mock.New(mock.FinalText("ok")),
+		Tools:                      map[string]agent.Tool{"shell": shell.New()},
+		SubAgentTool:               true,
+		SubAgentMaxDepth:           0, // effective 1
+		SubAgentMaxFanout:          3,
+		SubAgentMaxSpendMicrocents: 500_000_000, // $0.50
+	})
+
+	res, err := c.Call(context.Background(), controlplane.CmdStatus, nil)
+	if err != nil {
+		t.Fatalf("Call: %v", err)
+	}
+	deleg, ok := res["delegation"].(map[string]any)
+	if !ok {
+		t.Fatalf("delegation missing or wrong type: %T", res["delegation"])
+	}
+	if enabled, _ := deleg["enabled"].(bool); !enabled {
+		t.Errorf("delegation.enabled = false; want true")
+	}
+	if got := intOf(deleg["max_depth"]); got != 1 {
+		t.Errorf("max_depth = %d; want effective default 1", got)
+	}
+	if got := intOf(deleg["max_fanout"]); got != 3 {
+		t.Errorf("max_fanout = %d; want 3", got)
+	}
+	if got := intOf(deleg["max_spend_microcents"]); got != 500_000_000 {
+		t.Errorf("max_spend_microcents = %d; want 500000000", got)
 	}
 }
 

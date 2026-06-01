@@ -12,6 +12,16 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Delegation ceilings in `agt status`** (SPEC-12 multi-agent, M49) — the status
+  round-trip now reports the active delegation governance: `delegation: depth≤1,
+  fan-out ≤3, spend ≤$0.5000` (or `unbounded` for an unset cap, `off` when the
+  delegate tool is disabled). The M46–M48 caps were silent until a delegation
+  tripped one; this makes them legible at a glance. `Kernel.SubAgentLimits()`
+  reports the *effective* ceilings (depth defaults to 1 when enabled and unset,
+  matching enforcement); `handleStatus` adds a `delegation` object (jq-friendly
+  scalars) and `cmdStatus` renders the line, reusing the `agt budget` `fmtUSD`
+  formatter. Read-only. See
+  `.project/PHASE-M49-DELEGATION-CEILINGS-STATUS-REPORT.md`.
 - **Per-delegation spend cap** (SPEC-12 multi-agent, M48) — `AGEZT_SUBAGENT_SPEND_CAP=<usd>`
   caps the total spend a single run's sub-agents may collectively consume; once a
   lead's delegations have spent past it, the next `delegate` is refused with

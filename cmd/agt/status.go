@@ -26,7 +26,7 @@ func cmdStatus(args []string, stdout, stderr io.Writer) int {
 			asJSON = true
 		case "-h", "--help":
 			fmt.Fprintf(stdout, "usage: %s status [--json]\n", brand.CLI)
-			fmt.Fprintf(stdout, "show daemon health overview (version, uptime, halt, runs, tools)\n")
+			fmt.Fprintf(stdout, "show daemon health overview (version, uptime, halt, runs, tools, delegation caps)\n")
 			return 0
 		default:
 			fmt.Fprintf(stderr, "%s status: unexpected arg %q\n", brand.CLI, a)
@@ -84,6 +84,26 @@ func cmdStatus(args []string, stdout, stderr io.Writer) int {
 	fmt.Fprintf(stdout, "  runs      : %d active\n", activeRuns)
 	fmt.Fprintf(stdout, "  tools     : %d registered\n", toolCount)
 	fmt.Fprintf(stdout, "  journal   : head seq=%d\n", journalHead)
+
+	// Delegation ceilings (M49) — make the M46–M48 governance legible: depth /
+	// fan-out / spend caps in effect, or "off" when the delegate tool is
+	// disabled. 0 fan-out / spend renders as "unbounded".
+	if deleg, _ := res["delegation"].(map[string]any); deleg != nil {
+		if enabled, _ := deleg["enabled"].(bool); !enabled {
+			fmt.Fprintf(stdout, "  delegation: off\n")
+		} else {
+			fanout := "unbounded"
+			if f := intOfStatus(deleg["max_fanout"]); f > 0 {
+				fanout = fmt.Sprintf("≤%d", f)
+			}
+			spend := "unbounded"
+			if sp := mcFromAny(deleg["max_spend_microcents"]); sp > 0 {
+				spend = "≤" + fmtUSD(sp)
+			}
+			fmt.Fprintf(stdout, "  delegation: depth≤%d, fan-out %s, spend %s\n",
+				intOfStatus(deleg["max_depth"]), fanout, spend)
+		}
+	}
 	return 0
 }
 

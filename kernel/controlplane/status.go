@@ -33,6 +33,11 @@ func (s *Server) handleStatus(conn net.Conn, req Request) {
 	// uptime renders as 0, matching "just started".
 	uptimeSecs := int64(uptime / time.Second)
 
+	// Delegation governance (M49): surface the active depth / fan-out / spend
+	// ceilings (M46–M48) so an operator can see what's in effect — they were
+	// silent until a delegation tripped one. 0 fan-out / spend = unbounded.
+	dl := s.k.SubAgentLimits()
+
 	s.writeResp(conn, Response{
 		ID:   req.ID,
 		Type: RespResult,
@@ -48,6 +53,12 @@ func (s *Server) handleStatus(conn net.Conn, req Request) {
 			"world_entities": s.k.World().Count(),
 			"active_skills":  s.k.Forge().Count(),
 			"journal_head":   headSeq,
+			"delegation": map[string]any{
+				"enabled":              dl.Enabled,
+				"max_depth":            dl.MaxDepth,
+				"max_fanout":           dl.MaxFanout,
+				"max_spend_microcents": dl.MaxSpendMicrocents,
+			},
 		},
 	})
 }

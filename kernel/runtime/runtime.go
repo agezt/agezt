@@ -534,6 +534,33 @@ func (k *Kernel) BaseDir() string { return k.cfg.BaseDir }
 // Used by `agt config show`.
 func (k *Kernel) Model() string { return k.cfg.Model }
 
+// SubAgentLimits reports the active delegation-governance ceilings (M46–M48)
+// for `agt status` (M49). Enabled mirrors whether the `delegate` tool is
+// registered; MaxDepth is the EFFECTIVE cap (defaulting to 1 when enabled and
+// unset, exactly as runSubAgent does); MaxFanout / MaxSpendMicrocents of 0 mean
+// unbounded. Read-only — surfaces config the operator set, makes silent
+// governance legible.
+type SubAgentLimits struct {
+	Enabled            bool
+	MaxDepth           int
+	MaxFanout          int
+	MaxSpendMicrocents int64
+}
+
+// SubAgentLimits returns the effective delegation ceilings (M49).
+func (k *Kernel) SubAgentLimits() SubAgentLimits {
+	l := SubAgentLimits{
+		Enabled:            k.cfg.SubAgentTool,
+		MaxDepth:           k.cfg.SubAgentMaxDepth,
+		MaxFanout:          k.cfg.SubAgentMaxFanout,
+		MaxSpendMicrocents: k.cfg.SubAgentMaxSpendMicrocents,
+	}
+	if l.Enabled && l.MaxDepth <= 0 {
+		l.MaxDepth = 1 // effective default, matching runSubAgent
+	}
+	return l
+}
+
 // System returns the configured default system prompt. Empty
 // when none is set. Used by `agt config show` — but only to
 // report PRESENCE, not the prompt content (could contain
