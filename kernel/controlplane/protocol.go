@@ -62,6 +62,9 @@ const (
 	// when the primary fell back). Args: limit, fallbacks (bool — only fallbacks),
 	// since_ms. Returns: { events: [ {ts_unix_ms, kind, ...} ], count }
 	CmdProviderLog = "provider_log"
+	// CmdProviderStats aggregates provider routing (M90) — routed calls, fallback
+	// count + rate, calls-by-primary, fallbacks-by-failed-provider. Args: since_ms.
+	CmdProviderStats = "provider_stats"
 	// Planner: ask the daemon's configured Provider to generate a
 	// scheduler-shaped Plan JSON from a natural-language intent (M1.v).
 	// Args: intent (string), optional model (string).

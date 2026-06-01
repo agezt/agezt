@@ -19,6 +19,87 @@ import (
 	"github.com/agezt/agezt/kernel/event"
 )
 
+// handleProviderStats aggregates provider routing (M90) — total routed calls,
+// fallback count + rate, calls-handled-by-provider (the chosen primary per
+// routing.decision), and a fallbacks-by-failed-provider breakdown. Answers "how
+// reliable is my primary?". since_ms windows by event time. Tenant-routed.
+func (s *Server) handleProviderStats(conn net.Conn, req Request) {
+	cutoff := sinceCutoff(req.Args["since_ms"])
+	var sinceMS int64
+	switch v := req.Args["since_ms"].(type) {
+	case float64:
+		sinceMS = int64(v)
+	case int64:
+		sinceMS = v
+	case int:
+		sinceMS = int64(v)
+	}
+
+	k, err := s.kernelFor(tenantOf(req))
+	if err != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		return
+	}
+
+	var routed, fallbacks int
+	byPrimary := map[string]int{}        // routing.decision primary → count
+	fallbackByFailed := map[string]int{} // provider.fallback failed → count
+	if err := k.Journal().Range(func(e *event.Event) error {
+		if cutoff > 0 && e.TSUnixMS < cutoff {
+			return nil
+		}
+		switch e.Kind {
+		case event.KindRoutingDecision:
+			var p struct {
+				Primary string `json:"primary"`
+			}
+			_ = json.Unmarshal(e.Payload, &p)
+			routed++
+			if p.Primary != "" {
+				byPrimary[p.Primary]++
+			}
+		case event.KindProviderFallback:
+			var p struct {
+				Failed string `json:"failed"`
+			}
+			_ = json.Unmarshal(e.Payload, &p)
+			fallbacks++
+			if p.Failed != "" {
+				fallbackByFailed[p.Failed]++
+			}
+		}
+		return nil
+	}); err != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		return
+	}
+
+	fallbackRate := 0.0
+	if routed > 0 {
+		fallbackRate = float64(fallbacks) / float64(routed)
+	}
+	byPrimaryOut := make(map[string]any, len(byPrimary))
+	for n, c := range byPrimary {
+		byPrimaryOut[n] = c
+	}
+	fbOut := make(map[string]any, len(fallbackByFailed))
+	for n, c := range fallbackByFailed {
+		fbOut[n] = c
+	}
+	s.writeResp(conn, Response{
+		ID:   req.ID,
+		Type: RespResult,
+		Result: map[string]any{
+			"routed":               routed,
+			"fallbacks":            fallbacks,
+			"fallback_rate":        fallbackRate,
+			"by_primary":           byPrimaryOut,
+			"fallbacks_by_primary": fbOut,
+			"window_ms":            sinceMS,
+		},
+	})
+}
+
 func (s *Server) handleProviderLog(conn net.Conn, req Request) {
 	limit := defaultRunsLimit
 	if raw, ok := req.Args["limit"]; ok {

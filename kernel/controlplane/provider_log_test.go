@@ -53,3 +53,44 @@ func TestProviderLog_RoutingAndFallbacks(t *testing.T) {
 		t.Errorf("--fallbacks returned %v", m["kind"])
 	}
 }
+
+// TestProviderStats_Aggregates — `agt provider stats` counts routed + fallbacks,
+// computes the fallback rate, and breaks both down by provider (M90).
+func TestProviderStats_Aggregates(t *testing.T) {
+	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	route := func(primary string) {
+		k.Bus().Publish(event.Spec{
+			Subject: "governor.route", Kind: event.KindRoutingDecision, Actor: "governor",
+			Payload: map[string]any{"primary": primary, "chain": []string{primary, "mock"}},
+		})
+	}
+	fb := func(failed string) {
+		k.Bus().Publish(event.Spec{
+			Subject: "governor.fallback", Kind: event.KindProviderFallback, Actor: "governor",
+			Payload: map[string]any{"failed": failed, "next": "mock", "reason": "err"},
+		})
+	}
+	route("openai")
+	fb("openai")
+	route("openai")
+	route("anthropic")
+
+	res, err := c.Call(context.Background(), controlplane.CmdProviderStats, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r, _ := res["routed"].(float64); r != 3 {
+		t.Errorf("routed = %v want 3", res["routed"])
+	}
+	if f, _ := res["fallbacks"].(float64); f != 1 {
+		t.Errorf("fallbacks = %v want 1", res["fallbacks"])
+	}
+	// fallback rate = 1/3.
+	if rate, _ := res["fallback_rate"].(float64); rate < 0.33 || rate > 0.34 {
+		t.Errorf("fallback_rate = %v want ~0.333", rate)
+	}
+	byP, _ := res["by_primary"].(map[string]any)
+	if n, _ := byP["openai"].(float64); n != 2 {
+		t.Errorf("by_primary[openai] = %v want 2", byP["openai"])
+	}
+}

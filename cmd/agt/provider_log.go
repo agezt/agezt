@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -131,6 +132,106 @@ func cmdProviderLog(args []string, stdout, stderr io.Writer) int {
 				line += "  [" + taskType + "]"
 			}
 			fmt.Fprintln(stdout, line)
+		}
+	}
+	return 0
+}
+
+// cmdProviderStats implements `agt provider stats [--since <dur>] [--json]`
+// (M90) — provider-routing reliability: routed calls, fallback rate,
+// calls-by-primary, fallbacks-by-failed-provider.
+func cmdProviderStats(args []string, stdout, stderr io.Writer) int {
+	asJSON := false
+	sinceMS := int64(0)
+	sinceLabel := ""
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		switch {
+		case a == "--json":
+			asJSON = true
+		case a == "--since":
+			if i+1 >= len(args) {
+				fmt.Fprintf(stderr, "%s provider stats: --since needs a duration\n", brand.CLI)
+				return 2
+			}
+			i++
+			d, derr := time.ParseDuration(args[i])
+			if derr != nil || d <= 0 {
+				fmt.Fprintf(stderr, "%s provider stats: bad --since %q\n", brand.CLI, args[i])
+				return 2
+			}
+			sinceMS = d.Milliseconds()
+			sinceLabel = d.String()
+		case strings.HasPrefix(a, "--since="):
+			d, derr := time.ParseDuration(strings.TrimPrefix(a, "--since="))
+			if derr != nil || d <= 0 {
+				fmt.Fprintf(stderr, "%s provider stats: bad --since\n", brand.CLI)
+				return 2
+			}
+			sinceMS = d.Milliseconds()
+			sinceLabel = d.String()
+		case a == "-h" || a == "--help":
+			fmt.Fprintf(stdout, "usage: %s provider stats [--since <dur>] [--json]\n", brand.CLI)
+			fmt.Fprintf(stdout, "aggregate provider routing: routed calls, fallback rate, calls-by-primary\n")
+			return 0
+		default:
+			fmt.Fprintf(stderr, "%s provider stats: unexpected arg %q\n", brand.CLI, a)
+			return 2
+		}
+	}
+
+	c := dial(stderr)
+	if c == nil {
+		return 1
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	callArgs := map[string]any{}
+	if sinceMS > 0 {
+		callArgs["since_ms"] = sinceMS
+	}
+	res, err := c.Call(ctx, controlplane.CmdProviderStats, callArgs)
+	if err != nil {
+		fmt.Fprintf(stderr, "%s provider stats: %v\n", brand.CLI, err)
+		return 1
+	}
+	if asJSON {
+		return encodeJSON(stdout, res)
+	}
+	routed := intOfStatus(res["routed"])
+	windowSuffix := ""
+	if sinceLabel != "" {
+		windowSuffix = " in the last " + sinceLabel
+	}
+	if routed == 0 {
+		fmt.Fprintf(stdout, "no provider routing%s.\n", windowSuffix)
+		return 0
+	}
+	fallbacks := intOfStatus(res["fallbacks"])
+	rate, _ := res["fallback_rate"].(float64)
+	fmt.Fprintf(stdout, "provider routing (over %d routed call(s)%s):\n\n", routed, windowSuffix)
+	fmt.Fprintf(stdout, "  fallbacks : %d\n", fallbacks)
+	fmt.Fprintf(stdout, "  fallback  : %.1f%%\n", rate*100)
+	if byP, _ := res["by_primary"].(map[string]any); len(byP) > 0 {
+		fmt.Fprintf(stdout, "\n  calls by primary:\n")
+		names := make([]string, 0, len(byP))
+		for n := range byP {
+			names = append(names, n)
+		}
+		sort.Strings(names)
+		for _, n := range names {
+			fmt.Fprintf(stdout, "    %-18s %d\n", n, intOfStatus(byP[n]))
+		}
+	}
+	if fb, _ := res["fallbacks_by_primary"].(map[string]any); len(fb) > 0 {
+		fmt.Fprintf(stdout, "\n  fallbacks by failed provider:\n")
+		names := make([]string, 0, len(fb))
+		for n := range fb {
+			names = append(names, n)
+		}
+		sort.Strings(names)
+		for _, n := range names {
+			fmt.Fprintf(stdout, "    %-18s %d\n", n, intOfStatus(fb[n]))
 		}
 	}
 	return 0

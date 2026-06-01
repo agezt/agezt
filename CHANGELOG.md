@@ -43,6 +43,10 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   a denied-by-capability breakdown. Completes the approvals `log`/`stats` pair;
   the human analogue of `agt edict stats`. See
   `.project/PHASE-M88-APPROVALS-STATS-REPORT.md`.
+- **`agt provider stats`** (SPEC-08, M90) — the provider-reliability aggregate:
+  routed calls, fallback count + rate, calls-by-primary, and
+  fallbacks-by-failed-provider. Completes the provider `log`/`stats` pair. See
+  `.project/PHASE-M90-PROVIDER-STATS-REPORT.md`.
 - **`agt provider log`** (SPEC-08, M89) — a provider-routing activity timeline:
   folds `routing.decision` + `provider.fallback` to show which provider handled
   calls and when the primary fell back (`--fallbacks` isolates failures). The
