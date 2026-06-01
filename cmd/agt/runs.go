@@ -811,10 +811,14 @@ func renderTaskArc(w io.Writer, corr string, summary map[string]any, events []ma
 			}
 			fmt.Fprintf(w, "%stool.result : %s\n", indent, tag)
 		case "task.completed":
-			// The final-answer text isn't on task.completed itself
-			// (that carries iters/chars/stopped). The last
-			// llm.response payload's content is the answer; we
-			// stash it as we walked.
+			// The run's final answer is journaled on task.completed (M51):
+			// {iters, chars, stopped, answer}. Prefer it over the last
+			// llm.response's content (the older, often-empty path) — it's the
+			// authoritative end-of-run text and comes after every llm.response,
+			// so it wins. Pre-M51 runs without the field fall back below.
+			if a, _ := payload["answer"].(string); a != "" {
+				finalAnswer = a
+			}
 		case "policy.decision":
 			cap, _ := payload["capability"].(string)
 			dec, _ := payload["decision"].(string)

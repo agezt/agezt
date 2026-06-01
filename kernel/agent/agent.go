@@ -207,6 +207,28 @@ var ErrMaxIter = errors.New("agent: max iterations exceeded")
 // not have registered.
 var ErrUnknownTool = errors.New("agent: unknown tool")
 
+// maxJournaledAnswerRunes caps the answer text stored on task.completed (M51).
+// The full answer is always returned to the caller; only the journaled copy —
+// which lands in the append-only, hash-chained journal and is replayed on every
+// projection rebuild — is bounded, so a pathologically large final message can't
+// bloat the journal. The true length is preserved in the event's `chars` field.
+const maxJournaledAnswerRunes = 8192
+
+// truncateForJournal returns s unchanged when it fits the journal cap, else a
+// rune-safe prefix with a marker. The byte-length fast path avoids the []rune
+// allocation for the overwhelmingly common short answer (bytes ≤ cap ⇒ runes ≤
+// cap, since a rune is ≥ 1 byte).
+func truncateForJournal(s string) string {
+	if len(s) <= maxJournaledAnswerRunes {
+		return s
+	}
+	r := []rune(s)
+	if len(r) <= maxJournaledAnswerRunes {
+		return s
+	}
+	return string(r[:maxJournaledAnswerRunes]) + "…[truncated]"
+}
+
 // Run executes the tool-loop end-to-end:
 //
 //  1. Publish task.received with the user's intent.
@@ -365,10 +387,17 @@ func Run(ctx context.Context, cfg LoopConfig, userIntent string) (answer string,
 
 		// 2d. final answer?
 		if resp.StopReason != StopToolUse || len(resp.Message.ToolCalls) == 0 {
+			// Journal the answer text (M51) so `agt runs show` can display what
+			// the run produced — the renderers expected it but it was never
+			// emitted. The bus redactor scrubs secrets from the payload before it
+			// lands in the journal (M15); the stored copy is length-capped so a
+			// pathological output can't bloat the hash-chained, replayed journal.
+			// The FULL answer is still returned to the caller unchanged.
 			if _, err := publish(event.KindTaskCompleted, "task", map[string]any{
 				"iters":   iter + 1,
 				"chars":   len(resp.Message.Content),
 				"stopped": resp.StopReason,
+				"answer":  truncateForJournal(resp.Message.Content),
 			}); err != nil {
 				return "", fmt.Errorf("agent: publish task.completed: %w", err)
 			}

@@ -183,6 +183,29 @@ func TestRenderTaskArc_DelegationNoOutcomeStillRenders(t *testing.T) {
 	}
 }
 
+// TestRenderTaskArc_FinalAnswerFromTaskCompleted — the run's answer is now
+// journaled on task.completed (M51); the arc surfaces it under "final answer:"
+// in preference to the older llm.response path.
+func TestRenderTaskArc_FinalAnswerFromTaskCompleted(t *testing.T) {
+	summary := map[string]any{"intent": "x", "status": "completed"}
+	events := []map[string]any{
+		{"kind": "llm.request", "seq": float64(1)},
+		{"kind": "llm.response", "seq": float64(2)},
+		{"kind": "task.completed", "seq": float64(3), "payload": map[string]any{
+			"answer": "the module is github.com/agezt/agezt",
+		}},
+	}
+	var buf bytes.Buffer
+	renderTaskArc(&buf, "x", summary, events, nil)
+	s := buf.String()
+	if !strings.Contains(s, "final answer:") {
+		t.Errorf("missing final-answer header; got:\n%s", s)
+	}
+	if !strings.Contains(s, "the module is github.com/agezt/agezt") {
+		t.Errorf("final answer body missing; got:\n%s", s)
+	}
+}
+
 // TestRenderTaskArc_RunningShowsAbandonedHint — task.received
 // without a corresponding task.completed is the "operator
 // killed daemon mid-run" case; status line must surface the

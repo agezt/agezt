@@ -12,6 +12,17 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Journal the run answer** (SPEC-08 journal × SPEC-12, M51) — the agent loop now
+  records the final assistant text on `task.completed` (`answer`, alongside
+  `iters`/`chars`/`stopped`), so `agt runs show`'s "final answer:" section displays
+  what a run actually produced — it was empty since written, because the body was
+  never journaled (the renderers read a `llm.response.message.content` the daemon
+  doesn't populate). The bus's M15 redactor scrubs the answer for free; the stored
+  copy is rune-capped (8192) with a `…[truncated]` marker so the hash-chained,
+  replayed journal can't be bloated by a pathological output (the full answer is
+  still returned to the caller; `chars` records the true length). The renderer
+  prefers the journaled answer and falls back to the old path for pre-M51 runs. See
+  `.project/PHASE-M51-JOURNAL-RUN-ANSWER-REPORT.md`.
 - **Per-run spend in `agt runs list` / `show`** (SPEC-12 multi-agent, M50) — the
   per-run views now show cost, completing the spend story M47 started in aggregate:
   `agt runs list` appends `spend: $0.0021` to a run's row, `agt runs show` adds a

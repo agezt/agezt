@@ -64,6 +64,94 @@ func TestRun_NoTools_OneShot(t *testing.T) {
 	}
 }
 
+// TestRun_TaskCompletedCarriesAnswer — the run's final text is journaled on
+// task.completed (M51) so `agt runs show` can display what the run produced.
+func TestRun_TaskCompletedCarriesAnswer(t *testing.T) {
+	b, j := newTestBus(t)
+	const final = "The module is github.com/agezt/agezt."
+	prov := mock.New(mock.FinalText(final))
+
+	if _, err := agent.Run(context.Background(), agent.LoopConfig{
+		Provider: prov, Bus: b, Actor: "agent-1", CorrelationID: "corr-ans",
+	}, "what is the module?"); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	var answer string
+	var found bool
+	_ = j.Range(func(e *event.Event) error {
+		if e.Kind == event.KindTaskCompleted {
+			var p struct {
+				Answer string `json:"answer"`
+				Chars  int    `json:"chars"`
+			}
+			if err := json.Unmarshal(e.Payload, &p); err != nil {
+				t.Fatalf("unmarshal task.completed: %v", err)
+			}
+			answer = p.Answer
+			found = true
+			if p.Chars != len(final) {
+				t.Errorf("chars = %d want %d", p.Chars, len(final))
+			}
+		}
+		return nil
+	})
+	if !found {
+		t.Fatal("no task.completed event")
+	}
+	if answer != final {
+		t.Errorf("journaled answer = %q want %q", answer, final)
+	}
+}
+
+// TestRun_AnswerTruncatedInJournal — a pathologically long answer is capped in
+// the journal (M51) with a marker, while the FULL text is returned to the caller.
+func TestRun_AnswerTruncatedInJournal(t *testing.T) {
+	b, j := newTestBus(t)
+	long := strings.Repeat("x", 20_000) // > the 8192-rune journal cap
+	prov := mock.New(mock.FinalText(long))
+
+	got, err := agent.Run(context.Background(), agent.LoopConfig{
+		Provider: prov, Bus: b, Actor: "agent-1", CorrelationID: "corr-long",
+	}, "dump")
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if got != long {
+		t.Errorf("caller should get the FULL answer (%d chars), got %d", len(long), len(got))
+	}
+
+	_ = j.Range(func(e *event.Event) error {
+		if e.Kind == event.KindTaskCompleted {
+			var p struct {
+				Answer string `json:"answer"`
+				Chars  int    `json:"chars"`
+			}
+			_ = json.Unmarshal(e.Payload, &p)
+			if !strings.HasSuffix(p.Answer, "…[truncated]") {
+				t.Errorf("journaled answer should be truncated with a marker; got %d chars ending %q",
+					len([]rune(p.Answer)), tail(p.Answer))
+			}
+			if len([]rune(p.Answer)) > 8192+len([]rune("…[truncated]")) {
+				t.Errorf("journaled answer too long: %d runes", len([]rune(p.Answer)))
+			}
+			if p.Chars != len(long) {
+				t.Errorf("chars must record the TRUE length %d, got %d", len(long), p.Chars)
+			}
+		}
+		return nil
+	})
+}
+
+// tail returns the last few runes of s for error messages.
+func tail(s string) string {
+	r := []rune(s)
+	if len(r) > 16 {
+		return string(r[len(r)-16:])
+	}
+	return s
+}
+
 func TestRun_ToolCallRoundtrip(t *testing.T) {
 	b, j := newTestBus(t)
 	prov := mock.New(
