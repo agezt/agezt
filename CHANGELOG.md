@@ -12,6 +12,10 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **`agt runs list` answer preview** (SPEC-08 × SPEC-12, M59) — `agt runs list` now
+  shows each run's one-line answer preview beneath its intent (`answer : "…"`),
+  rendering the `answer_preview` M52 already put on every row. Pure render, quiet
+  when absent. See `.project/PHASE-M59-RUNS-LIST-ANSWER-PREVIEW-REPORT.md`.
 - **Boot-banner the delegation caps** (SPEC-12 multi-agent, M58) — the daemon boot
   banner now shows the active delegation ceilings: `delegation : depth≤1, fan-out
   ≤3, spend $0.5000` (or `off` / `unbounded`), from the same `k.SubAgentLimits()`

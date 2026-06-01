@@ -420,7 +420,13 @@ func renderRunRow(w io.Writer, r map[string]any, base string, showParentTag bool
 	if spent > 0 {
 		fmt.Fprintf(w, "   spend: %s", fmtUSD(spent))
 	}
-	fmt.Fprintf(w, "\n%s  intent  : %s\n\n", base, intentDisplay)
+	fmt.Fprintf(w, "\n%s  intent  : %s\n", base, intentDisplay)
+	// One-line preview of what the run answered (M59), when journaled (M51/M52) —
+	// so `agt runs list` shows results, not just intents. Quiet when absent.
+	if ap, _ := r["answer_preview"].(string); ap != "" {
+		fmt.Fprintf(w, "%s  answer  : %q\n", base, ap)
+	}
+	fmt.Fprintln(w)
 }
 
 // renderRunsTree groups sub-agent runs under the lead that delegated them
