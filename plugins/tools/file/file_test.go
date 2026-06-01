@@ -294,3 +294,40 @@ func TestRead_LineRange_Errors(t *testing.T) {
 	// range past EOF → no lines.
 	invokeExpectErr(t, tool, fileInput{Op: "read", Path: "n.txt", StartLine: 100, EndLine: 200}, "no lines")
 }
+
+func TestGlob_FindsAcrossTree(t *testing.T) {
+	tool := newTool(t)
+	invoke(t, tool, fileInput{Op: "write", Path: "main.go", Content: "x"})
+	invoke(t, tool, fileInput{Op: "write", Path: "pkg/util.go", Content: "x"})
+	invoke(t, tool, fileInput{Op: "write", Path: "pkg/sub/deep.go", Content: "x"})
+	invoke(t, tool, fileInput{Op: "write", Path: "README.md", Content: "x"})
+
+	out := invoke(t, tool, fileInput{Op: "glob", Pattern: "*.go"})
+	for _, want := range []string{"main.go", "pkg/util.go", "pkg/sub/deep.go"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("glob *.go missing %q in:\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, "README.md") {
+		t.Errorf("glob *.go should not match README.md:\n%s", out)
+	}
+	if !strings.Contains(out, `"count": 3`) {
+		t.Errorf("expected count 3:\n%s", out)
+	}
+}
+
+func TestGlob_ScopedAndErrors(t *testing.T) {
+	tool := newTool(t)
+	invoke(t, tool, fileInput{Op: "write", Path: "a/x.txt", Content: "x"})
+	invoke(t, tool, fileInput{Op: "write", Path: "b/y.txt", Content: "x"})
+
+	// Scoped to subtree a/.
+	out := invoke(t, tool, fileInput{Op: "glob", Pattern: "*.txt", Path: "a"})
+	if !strings.Contains(out, "a/x.txt") || strings.Contains(out, "b/y.txt") {
+		t.Errorf("scoped glob wrong:\n%s", out)
+	}
+	// Empty pattern errors.
+	invokeExpectErr(t, tool, fileInput{Op: "glob", Pattern: ""}, "requires a pattern")
+	// Bad pattern errors.
+	invokeExpectErr(t, tool, fileInput{Op: "glob", Pattern: "[bad"}, "bad pattern")
+}

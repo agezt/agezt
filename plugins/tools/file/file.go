@@ -98,10 +98,10 @@ func (t *Tool) Definition() agent.ToolDef {
   "type": "object",
   "required": ["op"],
   "properties": {
-    "op":   {"type": "string", "enum": ["read","write","append","list","search","stat","delete","replace"]},
+    "op":   {"type": "string", "enum": ["read","write","append","list","search","stat","delete","replace","glob"]},
     "path": {"type": "string", "description": "Path relative to the workspace root."},
     "content": {"type": "string", "description": "For write/append: the bytes to write."},
-    "pattern": {"type": "string", "description": "For search: a substring (or RE2 regular expression when regex=true) to grep for."},
+    "pattern": {"type": "string", "description": "For search: a substring (or RE2 regex when regex=true) to grep for. For glob: a filename pattern (*, ?, [..]) matched against each file's name across the tree."},
     "regex": {"type": "boolean", "description": "For search: treat 'pattern' as an RE2 regular expression instead of a literal substring."},
     "start_line": {"type": "integer", "description": "For read: 1-based first line to return (pages a large file; pair with search)."},
     "end_line": {"type": "integer", "description": "For read: 1-based last line to return (default: start_line + 200)."},
@@ -155,6 +155,8 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, e
 		return t.doDelete(in)
 	case "replace":
 		return t.doReplace(in)
+	case "glob":
+		return t.doGlob(in)
 	case "":
 		return errResult("op is required"), nil
 	default:
@@ -477,6 +479,69 @@ func (t *Tool) doSearch(in fileInput) (agent.Result, error) {
 		"hits":    hits,
 		"count":   len(hits),
 		"capped":  len(hits) == cap,
+	}, "", "  ")
+	if err != nil {
+		return errResult("marshal: " + err.Error()), nil
+	}
+	return agent.Result{Output: string(body)}, nil
+}
+
+// doGlob finds files whose NAME matches a shell pattern (*, ?, [..]) anywhere
+// under the workspace (or under `path`) — the cross-tree file-finder the agent
+// lacked (M119). `list` shows one directory and `search` greps content; glob
+// answers "where are the *.go files?". Directories are skipped; results are
+// workspace-relative, sorted, and capped.
+func (t *Tool) doGlob(in fileInput) (agent.Result, error) {
+	if in.Pattern == "" {
+		return errResult("glob requires a pattern"), nil
+	}
+	if _, perr := filepath.Match(in.Pattern, "probe"); perr != nil {
+		return errResult("glob: bad pattern: " + perr.Error()), nil
+	}
+	target := in.Path
+	if target == "" {
+		target = "."
+	}
+	root, err := t.resolve(target)
+	if err != nil {
+		return errResult(err.Error()), nil
+	}
+	limit := in.MaxResults
+	if limit <= 0 || limit > MaxListEntries {
+		limit = MaxListEntries
+	}
+
+	var matches []string
+	capped := false
+	walkErr := filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return nil // skip unreadable
+		}
+		if d.IsDir() {
+			return nil
+		}
+		if len(matches) >= limit {
+			capped = true
+			return filepath.SkipAll
+		}
+		if ok, _ := filepath.Match(in.Pattern, d.Name()); ok {
+			rel, rerr := filepath.Rel(t.root, p)
+			if rerr == nil {
+				matches = append(matches, filepath.ToSlash(rel))
+			}
+		}
+		return nil
+	})
+	if walkErr != nil && !errors.Is(walkErr, filepath.SkipAll) {
+		return errResult("walk: " + walkErr.Error()), nil
+	}
+	sort.Strings(matches)
+
+	body, err := json.MarshalIndent(map[string]any{
+		"pattern": in.Pattern,
+		"matches": matches,
+		"count":   len(matches),
+		"capped":  capped,
 	}, "", "  ")
 	if err != nil {
 		return errResult("marshal: " + err.Error()), nil

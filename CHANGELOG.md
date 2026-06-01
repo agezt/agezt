@@ -12,6 +12,9 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **File tool glob** (M119) — the `file` tool gains a `glob` op that finds files by
+  name pattern (`*.go`, `*_test.go`) across the workspace tree, complementing `list`
+  (one dir) and `search` (content). See `.project/PHASE-M119-FILE-GLOB-REPORT.md`.
 - **`agt skill diff`** (M118) — diff a skill's body against its lineage parent (or
   another skill), with a line-level LCS diff, so an operator can see how a skill
   evolved instead of eyeballing two bodies. See
