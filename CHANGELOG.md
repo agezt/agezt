@@ -12,6 +12,11 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **`agt warden log`** (SPEC-08, M96) — the OS-sandbox execution audit: folds
+  `warden.executed` / `profile_downgraded` / `limit_exceeded` into one timeline
+  (what ran, under which profile, downgrades, limit breaches; `--issues` isolates
+  the latter). Completes the security-observability triad with `agt edict log`
+  (policy) and `agt approvals log` (HITL). See `.project/PHASE-M96-WARDEN-LOG-REPORT.md`.
 - **Durable-policy compaction** (SPEC-08, M95) — `agt edict compact` snapshots
   the net policy overlay (minimal change list + journal seq) so boot
   (`AGEZT_EDICT_DURABLE=on`) replays `{snapshot + only later changes}` instead of

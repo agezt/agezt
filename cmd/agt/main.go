@@ -84,6 +84,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return cmdTool(args[1:], stdout, stderr)
 	case "status":
 		return cmdStatus(args[1:], stdout, stderr)
+	case "warden":
+		return cmdWarden(args[1:], stdout, stderr)
 	case "doctor":
 		return cmdDoctor(args[1:], stdout, stderr)
 	case "quickstart":

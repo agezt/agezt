@@ -147,6 +147,11 @@ const (
 	//   - tools          (int)    — registered tool count
 	//   - journal_head   (int)    — last journaled seq (0 = empty)
 	CmdStatus = "status"
+	// CmdWardenLog lists recent sandboxed executions (M96) — a timeline of the
+	// journal's warden.executed / profile_downgraded / limit_exceeded events
+	// (the OS-sandbox audit). Args: limit, issues (bool — only downgrades/limit
+	// breaches), since_ms. Returns: { executions: [...], count }
+	CmdWardenLog = "warden_log"
 	// CmdWhoami reports the authenticated principal (M62) — whether the request
 	// used the primary (admin) token or a tenant's own token, and which tenant.
 	// Args: tenant (required for a tenant token, pinned by handleConn). Returns:
