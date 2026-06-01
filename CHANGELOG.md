@@ -12,6 +12,10 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **File tool line-range read** (M117) — `read` accepts `start_line`/`end_line` to
+  page a region of a file (under a `[lines X-Y]` header), so an agent can reach
+  content past the 256 KiB truncation point and read around a `search` hit. See
+  `.project/PHASE-M117-FILE-LINE-RANGE-REPORT.md`.
 - **Agent loop guard** (M116) — the agent loop now refuses to re-execute the SAME
   `(tool, input)` call more than `MaxIdenticalToolCalls` times (default 5) in one
   run, feeding the model a nudge instead of repeating a stuck/failing/expensive

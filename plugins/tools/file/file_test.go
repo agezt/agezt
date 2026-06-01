@@ -262,3 +262,35 @@ func TestSearch_BadRegexErrors(t *testing.T) {
 	invoke(t, tool, fileInput{Op: "write", Path: "a.txt", Content: "hello"})
 	invokeExpectErr(t, tool, fileInput{Op: "search", Pattern: "func(", Regex: true}, "bad regex")
 }
+
+func TestRead_LineRange(t *testing.T) {
+	tool := newTool(t)
+	invoke(t, tool, fileInput{Op: "write", Path: "n.txt", Content: "L1\nL2\nL3\nL4\nL5\n"})
+
+	// Explicit range [2,4].
+	out := invoke(t, tool, fileInput{Op: "read", Path: "n.txt", StartLine: 2, EndLine: 4})
+	if !strings.Contains(out, "[lines 2-4]") {
+		t.Errorf("missing range header: %q", out)
+	}
+	if !strings.Contains(out, "L2") || !strings.Contains(out, "L4") {
+		t.Errorf("range should include L2..L4: %q", out)
+	}
+	if strings.Contains(out, "L1") || strings.Contains(out, "L5") {
+		t.Errorf("range leaked out-of-range lines: %q", out)
+	}
+
+	// start_line only → window from there to EOF (within default window).
+	out = invoke(t, tool, fileInput{Op: "read", Path: "n.txt", StartLine: 4})
+	if !strings.Contains(out, "L4") || !strings.Contains(out, "L5") || strings.Contains(out, "L3") {
+		t.Errorf("start-only window wrong: %q", out)
+	}
+}
+
+func TestRead_LineRange_Errors(t *testing.T) {
+	tool := newTool(t)
+	invoke(t, tool, fileInput{Op: "write", Path: "n.txt", Content: "a\nb\n"})
+	// end before start.
+	invokeExpectErr(t, tool, fileInput{Op: "read", Path: "n.txt", StartLine: 5, EndLine: 2}, "before")
+	// range past EOF → no lines.
+	invokeExpectErr(t, tool, fileInput{Op: "read", Path: "n.txt", StartLine: 100, EndLine: 200}, "no lines")
+}
