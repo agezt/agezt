@@ -141,6 +141,13 @@ type Config struct {
 	// list pending requests at any time.
 	Approvals *approval.Registry
 
+	// ApprovalTimeout overrides how long a HITL approval blocks waiting
+	// for an operator before it auto-denies (DecisionTimeout). Zero means
+	// approval.DefaultTimeout (5m). Only applied when Approvals is nil and
+	// the kernel constructs the default registry (M100); an explicitly
+	// supplied registry carries its own timeout.
+	ApprovalTimeout time.Duration
+
 	// CatalogDir is where catalog/{api,local,custom}.json live. Empty
 	// means <BaseDir>/catalog. The kernel loads whatever is on disk on
 	// Open (empty catalog if nothing) and installs it into the Governor
@@ -298,7 +305,7 @@ func Open(cfg Config) (*Kernel, error) {
 	}
 	apr := cfg.Approvals
 	if apr == nil {
-		apr = approval.New(approval.Config{Bus: kbus})
+		apr = approval.New(approval.Config{Bus: kbus, Timeout: cfg.ApprovalTimeout})
 	}
 	sched := scheduler.New(scheduler.Config{Bus: kbus})
 

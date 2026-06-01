@@ -151,6 +151,7 @@ func runDoctorChecks() []doctorCheck {
 	checks = append(checks, checkModelReadiness(status, cat))
 	checks = append(checks, checkSandbox(ctx, client))
 	checks = append(checks, checkProvider(ctx, client))
+	checks = append(checks, checkApprovals(ctx, client))
 	checks = append(checks, checkHalt(status))
 
 	return checks
@@ -238,6 +239,40 @@ func topFailingProvider(raw any) string {
 		}
 	}
 	return worst
+}
+
+// checkApprovals warns when HITL approvals have been timing out (M100) — in
+// prompt mode an approval that expires with no operator answer auto-denies, so
+// the run silently stalls or dies. A nonzero timeout count means the operator is
+// not answering or the AGEZT_APPROVAL_TIMEOUT window is too short for the
+// deployment; either way it belongs in the go-to diagnostic, not only in
+// `agt approvals stats`. Best-effort: no approvals yet, or the call failing, is OK.
+func checkApprovals(ctx context.Context, client *controlplane.Client) doctorCheck {
+	res, err := client.Call(ctx, controlplane.CmdApprovalsStats, nil)
+	if err != nil {
+		return ok("approvals (HITL)", "approvals stats unavailable (—)")
+	}
+	return approvalsCheckFromStats(res)
+}
+
+// approvalsCheckFromStats is the pure verdict from an approvals-stats response —
+// split out so the timeout logic is testable without a live daemon (M100).
+func approvalsCheckFromStats(res map[string]any) doctorCheck {
+	const name = "approvals (HITL)"
+	total := intOfStatus(res["total"])
+	if total == 0 {
+		return ok(name, "no approvals requested yet")
+	}
+	timeouts := intOfStatus(res["timeout"])
+	if timeouts > 0 {
+		return warn(name,
+			fmt.Sprintf("%d/%d approval(s) expired with no operator response", timeouts, total),
+			"HITL requests are going unanswered — runs auto-deny and stall; respond promptly, lengthen "+brand.EnvPrefix+"APPROVAL_TIMEOUT, or change "+brand.EnvPrefix+"APPROVAL_MODE")
+	}
+	if pending := intOfStatus(res["pending"]); pending > 0 {
+		return ok(name, fmt.Sprintf("%d resolved, %d awaiting operator", total-pending, pending))
+	}
+	return ok(name, fmt.Sprintf("%d approval(s), none timed out", total))
 }
 
 // checkModelReadiness reports whether the daemon's configured model is fit

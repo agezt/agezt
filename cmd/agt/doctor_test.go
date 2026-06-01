@@ -187,6 +187,35 @@ func TestProviderCheckFromStats(t *testing.T) {
 	}
 }
 
+func TestApprovalsCheckFromStats(t *testing.T) {
+	// Timeouts present → WARN.
+	w := approvalsCheckFromStats(map[string]any{
+		"total": float64(5), "timeout": float64(2), "pending": float64(0),
+	})
+	if w.Status != statusWarn {
+		t.Errorf("timeouts: status = %v want WARN", w.State)
+	}
+	// Some pending, no timeouts → OK (in-flight is normal).
+	p := approvalsCheckFromStats(map[string]any{
+		"total": float64(3), "timeout": float64(0), "pending": float64(1),
+	})
+	if p.Status != statusOK {
+		t.Errorf("pending: status = %v want OK", p.State)
+	}
+	// All resolved, none timed out → OK.
+	good := approvalsCheckFromStats(map[string]any{
+		"total": float64(4), "timeout": float64(0), "pending": float64(0),
+	})
+	if good.Status != statusOK {
+		t.Errorf("resolved: status = %v want OK", good.State)
+	}
+	// No approvals yet → OK.
+	none := approvalsCheckFromStats(map[string]any{"total": float64(0)})
+	if none.Status != statusOK {
+		t.Errorf("no approvals: status = %v want OK", none.State)
+	}
+}
+
 func TestTopFailingProvider(t *testing.T) {
 	got := topFailingProvider(map[string]any{"a": float64(1), "b": float64(5), "c": float64(2)})
 	if got != "b" {

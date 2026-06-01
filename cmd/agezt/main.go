@@ -334,6 +334,23 @@ func runDaemon(stdout, stderr io.Writer) int {
 			toolTimeoutDesc = fmt.Sprintf("%s per tool call (error result on overrun; run continues)", d)
 		}
 	}
+	// HITL approval window (M100): AGEZT_APPROVAL_TIMEOUT=<duration> sets how long
+	// a prompt-mode approval blocks waiting for an operator before it auto-denies
+	// (DecisionTimeout). Default is approval.DefaultTimeout (5m); right-size it for
+	// the deployment — a short window for unattended runs, longer for an operator
+	// at the console. Malformed = hard startup error; non-positive = use default.
+	approvalTimeoutDesc := "default (5m; set " + brand.EnvPrefix + "APPROVAL_TIMEOUT, e.g. 2m)"
+	if spec := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "APPROVAL_TIMEOUT")); spec != "" {
+		d, derr := time.ParseDuration(spec)
+		if derr != nil {
+			fmt.Fprintf(stderr, "%s: %sAPPROVAL_TIMEOUT: want a Go duration (e.g. 2m, 30s), got %q\n", brand.Binary, brand.EnvPrefix, spec)
+			return 1
+		}
+		if d > 0 {
+			cfg.ApprovalTimeout = d
+			approvalTimeoutDesc = fmt.Sprintf("%s per HITL approval (auto-deny on overrun)", d)
+		}
+	}
 	// Secret redaction (M15 / SPEC-06): scrub secrets from every durably-published
 	// event before it enters the hash-chained (permanent) journal. On by default;
 	// AGEZT_REDACT=off disables. Seeded with the configured provider keys (exact
@@ -560,6 +577,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 	fmt.Fprintf(stdout, "  delegation       : %s\n", delegationBanner(k))
 	fmt.Fprintf(stdout, "  run timeout      : %s\n", runTimeoutDesc)
 	fmt.Fprintf(stdout, "  tool timeout     : %s\n", toolTimeoutDesc)
+	fmt.Fprintf(stdout, "  approval timeout : %s\n", approvalTimeoutDesc)
 	fmt.Fprintf(stdout, "  warden           : %s\n", wardDesc)
 	fmt.Fprintf(stdout, "  control plane    : %s\n", srv.Addr())
 	fmt.Fprintf(stdout, "  cancel-on-disc.  : %s\n", cancelOnDisconnectDesc)

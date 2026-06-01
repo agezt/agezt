@@ -12,6 +12,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Tunable HITL timeout + doctor surfaces unanswered approvals** (SPEC-08, M100) —
+  `AGEZT_APPROVAL_TIMEOUT` right-sizes how long a prompt-mode approval waits before
+  auto-deny (was hardcoded 5m), and `agt doctor` now WARNs when approvals have been
+  timing out (operator not answering / window too short → runs silently stall).
+  Third doctor single-pane check after M98/M99. See
+  `.project/PHASE-M100-HITL-TIMEOUT-REPORT.md`.
 - **`agt doctor` provider-health check** (SPEC-08, M99) — the diagnostic now WARNs
   when the daemon has been silently falling back from its primary model provider
   to a secondary, and the hint names the worst-offending provider so the operator

@@ -32,6 +32,7 @@ import (
 // references this list as the operator-facing inventory.
 var configEnvVars = []string{
 	"AGEZT_APPROVAL_MODE",
+	"AGEZT_APPROVAL_TIMEOUT",
 	"AGEZT_AWS_ASSUME_ROLE_ARN",
 	"AGEZT_AWS_SSO_PROFILE",
 	"AGEZT_BROWSER_ALLOWED_HOSTS",
