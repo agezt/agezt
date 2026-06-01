@@ -20,14 +20,18 @@ import (
 // Default output is a small table; --json passes the raw shape
 // straight through for jq / CI pipelines.
 func cmdBudget(args []string, stdout, stderr io.Writer) int {
+	if len(args) > 0 && args[0] == "check" {
+		return cmdBudgetCheck(args[1:], stdout, stderr)
+	}
 	asJSON := false
 	for _, a := range args {
 		switch a {
 		case "--json":
 			asJSON = true
 		case "-h", "--help":
-			fmt.Fprintf(stdout, "usage: %s budget [--json]\n", brand.CLI)
+			fmt.Fprintf(stdout, "usage: %s budget [check] [--json]\n", brand.CLI)
 			fmt.Fprintf(stdout, "show current-day spend vs daily ceiling + per-task-type caps\n")
+			fmt.Fprintf(stdout, "  check [--task-type <t>]  report remaining headroom before a run (exit 3 if exhausted)\n")
 			return 0
 		default:
 			fmt.Fprintf(stderr, "%s budget: unexpected arg %q\n", brand.CLI, a)

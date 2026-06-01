@@ -12,6 +12,10 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **`agt budget check`** (SPEC-08, M107) — pre-flight remaining daily-spend
+  headroom before submitting a run (global + optional `--task-type` cap, whichever
+  binds), with exit 3 when exhausted for CI gating. Reuses the existing budget
+  snapshot. See `.project/PHASE-M107-BUDGET-CHECK-REPORT.md`.
 - **Rate-limit observability + primary cap** (SPEC-08, M106) — `AGEZT_RATE_PER_MIN`
   rate-limits the primary governor (previously only tenants could be capped), and
   `agt ratelimit log` / `agt ratelimit stats` surface throttle events (per tenant),
