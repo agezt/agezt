@@ -1508,6 +1508,20 @@ func buildGovernor(cat *catalog.Catalog, lookup func(string) string) (*governor.
 
 	ceiling := governor.DefaultDailyCeilingMicrocents
 
+	// Optional primary call-rate cap (M106): AGEZT_RATE_PER_MIN=<n> bounds how
+	// many completion calls the PRIMARY governor admits per minute (tenants have
+	// AGEZT_TENANT_RATE_PER_MIN). 0 / unset = unlimited. A throttled call is
+	// journaled as rate.limited and surfaced by `agt ratelimit log`. Malformed =
+	// hard startup error (fast feedback, mirrors the other numeric knobs).
+	ratePerMin := 0
+	if spec := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "RATE_PER_MIN")); spec != "" {
+		n, perr := strconv.Atoi(spec)
+		if perr != nil || n < 0 {
+			return nil, "", "", fmt.Errorf("AGEZT_RATE_PER_MIN: want a non-negative integer, got %q", spec)
+		}
+		ratePerMin = n
+	}
+
 	// Optional per-task-type routing override (M1.cc). Operators set
 	// AGEZT_TASK_ROUTES="plan=anthropic;code=anthropic,openai;..." to
 	// pin specific task types to specific providers. Unrecognised
@@ -1585,6 +1599,7 @@ func buildGovernor(cat *catalog.Catalog, lookup func(string) string) (*governor.
 	gov, err := governor.New(governor.Config{
 		Registry:                reg,
 		DailyCeilingMicrocents:  ceiling,
+		RateLimitPerMin:         ratePerMin,
 		TaskRoutes:              taskRoutes,
 		TaskRouteRequires:       taskRequires,
 		TaskModelOverrides:      taskModels,

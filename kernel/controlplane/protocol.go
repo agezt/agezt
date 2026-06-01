@@ -219,6 +219,17 @@ const (
 	//   - literal_hit  : bool — a configured literal secret matched (no pattern).
 	CmdRedactTest = "redact_test"
 
+	// CmdRateLimitLog lists recent throttle events (M106) — a timeline of
+	// rate.limited events (the governor refused a call because the per-minute
+	// call cap was hit). Tenant-routed. Args: limit, since_ms. Returns events
+	// [{ts_unix_ms, used, limit_per_min}] + count.
+	CmdRateLimitLog = "ratelimit_log"
+
+	// CmdRateLimitStats aggregates throttle events (M106) — total throttled,
+	// the configured limit, and the worst observed `used` overshoot. Answers
+	// "is this tenant/primary hitting its call-rate cap?". Tenant-routed.
+	CmdRateLimitStats = "ratelimit_stats"
+
 	// CmdEdictShow returns the loaded policy snapshot. Closes a
 	// real visibility gap: operators set AGEZT_APPROVAL_MODE and
 	// per-capability levels but had no way to confirm what the

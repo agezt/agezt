@@ -375,6 +375,10 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.handleJournalExport(conn, req)
 	case CmdRedactTest:
 		s.handleRedactTest(conn, req)
+	case CmdRateLimitLog:
+		s.handleRateLimitLog(conn, req)
+	case CmdRateLimitStats:
+		s.handleRateLimitStats(conn, req)
 	case CmdMemoryAdd:
 		s.handleMemoryAdd(conn, req)
 	case CmdMemoryList:

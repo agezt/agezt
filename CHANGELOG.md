@@ -12,6 +12,11 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Rate-limit observability + primary cap** (SPEC-08, M106) — `AGEZT_RATE_PER_MIN`
+  rate-limits the primary governor (previously only tenants could be capped), and
+  `agt ratelimit log` / `agt ratelimit stats` surface throttle events (per tenant),
+  turning silent throttling into a first-class SRE signal. See
+  `.project/PHASE-M106-RATELIMIT-OBSERVABILITY-REPORT.md`.
 - **`agt netguard test`** (SPEC-06 / M16, M105) — preview the egress guard:
   resolve a host and report which resolved IPs the http/browser tools may reach,
   catching SSRF / DNS-rebinding traps (a public name pointing at 169.254.169.254
