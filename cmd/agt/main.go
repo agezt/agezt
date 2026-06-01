@@ -394,6 +394,9 @@ func cmdApprovals(args []string, stdout, stderr io.Writer) int {
 	if len(args) > 0 && args[0] == "log" {
 		return cmdApprovalsLog(args[1:], stdout, stderr)
 	}
+	if len(args) > 0 && args[0] == "stats" {
+		return cmdApprovalsStats(args[1:], stdout, stderr)
+	}
 	asJSON := false
 	for _, a := range args {
 		switch a {

@@ -17,6 +17,129 @@ import (
 	"github.com/agezt/agezt/kernel/event"
 )
 
+// handleApprovalsStats aggregates HITL approvals (M88) — total / granted /
+// denied / timeout, a grant rate over resolved requests, and a denied-by-
+// capability breakdown. The human analogue of handleEdictStats. since_ms windows
+// by request time. Tenant-routed.
+func (s *Server) handleApprovalsStats(conn net.Conn, req Request) {
+	cutoff := sinceCutoff(req.Args["since_ms"])
+	var sinceMS int64
+	switch v := req.Args["since_ms"].(type) {
+	case float64:
+		sinceMS = int64(v)
+	case int64:
+		sinceMS = v
+	case int:
+		sinceMS = int64(v)
+	}
+
+	k, err := s.kernelFor(tenantOf(req))
+	if err != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		return
+	}
+
+	// Status + capability per approval_id, folded across request + resolution.
+	type ap struct {
+		ts         int64
+		capability string
+		status     string
+	}
+	byID := map[string]*ap{}
+	get := func(id string) *ap {
+		a := byID[id]
+		if a == nil {
+			a = &ap{status: "pending"}
+			byID[id] = a
+		}
+		return a
+	}
+	if err := k.Journal().Range(func(e *event.Event) error {
+		switch e.Kind {
+		case event.KindApprovalRequested:
+			var p struct {
+				ApprovalID string `json:"approval_id"`
+				Capability string `json:"capability"`
+			}
+			_ = json.Unmarshal(e.Payload, &p)
+			if p.ApprovalID == "" {
+				return nil
+			}
+			a := get(p.ApprovalID)
+			a.ts = e.TSUnixMS
+			a.capability = p.Capability
+		case event.KindApprovalGranted, event.KindApprovalDenied, event.KindApprovalTimeout:
+			var p struct {
+				ApprovalID string `json:"approval_id"`
+			}
+			_ = json.Unmarshal(e.Payload, &p)
+			if p.ApprovalID == "" {
+				return nil
+			}
+			a := get(p.ApprovalID)
+			switch e.Kind {
+			case event.KindApprovalGranted:
+				a.status = "granted"
+			case event.KindApprovalDenied:
+				a.status = "denied"
+			case event.KindApprovalTimeout:
+				a.status = "timeout"
+			}
+		}
+		return nil
+	}); err != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		return
+	}
+
+	var total, granted, denied, timeout, pending int
+	deniedByCap := map[string]int{}
+	for _, a := range byID {
+		if cutoff > 0 && a.ts < cutoff {
+			continue
+		}
+		total++
+		switch a.status {
+		case "granted":
+			granted++
+		case "denied":
+			denied++
+		case "timeout":
+			timeout++
+		default:
+			pending++
+		}
+		if a.status == "denied" || a.status == "timeout" {
+			capName := a.capability
+			if capName == "" {
+				capName = "unknown"
+			}
+			deniedByCap[capName]++
+		}
+	}
+	resolved := granted + denied + timeout
+	grantRate := 0.0
+	if resolved > 0 {
+		grantRate = float64(granted) / float64(resolved)
+	}
+
+	s.writeResp(conn, Response{
+		ID:   req.ID,
+		Type: RespResult,
+		Result: map[string]any{
+			"total":                total,
+			"granted":              granted,
+			"denied":               denied,
+			"timeout":              timeout,
+			"pending":              pending,
+			"resolved":             resolved,
+			"grant_rate":           grantRate,
+			"denied_by_capability": deniedByCap,
+			"window_ms":            sinceMS,
+		},
+	})
+}
+
 func (s *Server) handleApprovalsLog(conn net.Conn, req Request) {
 	limit := defaultRunsLimit
 	if raw, ok := req.Args["limit"]; ok {

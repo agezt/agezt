@@ -282,6 +282,8 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.handleApprovals(conn, req)
 	case CmdApprovalsLog:
 		s.handleApprovalsLog(conn, req)
+	case CmdApprovalsStats:
+		s.handleApprovalsStats(conn, req)
 	case CmdDecide:
 		s.handleDecide(conn, req)
 	case CmdPlan:

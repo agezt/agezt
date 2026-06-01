@@ -42,7 +42,11 @@ const (
 	// Args: limit, denied (bool), since_ms. Returns: { approvals: [ {ts_unix_ms,
 	// approval_id, capability, tool, reason, status, resolved_by} ], count }
 	CmdApprovalsLog = "approvals_log"
-	CmdDecide       = "decide" // resolve one (args: id, decision="grant|deny", reason)
+	// CmdApprovalsStats aggregates HITL approvals (M88) — total / granted /
+	// denied / timeout / pending, grant rate, denied-by-capability. Args:
+	// since_ms (optional window).
+	CmdApprovalsStats = "approvals_stats"
+	CmdDecide         = "decide" // resolve one (args: id, decision="grant|deny", reason)
 	// DAG scheduler.
 	CmdPlan = "plan" // run a pre-built Plan (args: plan_json — see scheduler/PlanSpec)
 	// Provider / model catalog (SPEC-15 §1; TASKS P1-CONDUIT-04).

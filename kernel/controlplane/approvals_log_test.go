@@ -69,3 +69,50 @@ func TestApprovalsLog_JoinsRequestAndOutcome(t *testing.T) {
 		t.Errorf("denied = %v want a2", m["approval_id"])
 	}
 }
+
+// TestApprovalsStats_Aggregates — `agt approvals stats` counts granted/denied/
+// timeout/pending and computes the grant rate over resolved requests (M88).
+func TestApprovalsStats_Aggregates(t *testing.T) {
+	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	reqd := func(id, cap string) {
+		k.Bus().Publish(event.Spec{
+			Subject: "approval", Kind: event.KindApprovalRequested, Actor: "agent",
+			Payload: map[string]any{"approval_id": id, "capability": cap},
+		})
+	}
+	res2 := func(id string, kind event.Kind) {
+		k.Bus().Publish(event.Spec{
+			Subject: "approval", Kind: kind, Actor: "agent",
+			Payload: map[string]any{"approval_id": id},
+		})
+	}
+	reqd("a1", "shell")
+	res2("a1", event.KindApprovalGranted)
+	reqd("a2", "net")
+	res2("a2", event.KindApprovalDenied)
+	reqd("a3", "fs")
+	res2("a3", event.KindApprovalGranted)
+	reqd("a4", "shell") // pending
+
+	res, err := c.Call(context.Background(), controlplane.CmdApprovalsStats, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tot, _ := res["total"].(float64); tot != 4 {
+		t.Errorf("total = %v want 4", res["total"])
+	}
+	if g, _ := res["granted"].(float64); g != 2 {
+		t.Errorf("granted = %v want 2", res["granted"])
+	}
+	if p, _ := res["pending"].(float64); p != 1 {
+		t.Errorf("pending = %v want 1", res["pending"])
+	}
+	// grant rate over resolved (3): 2/3.
+	if rate, _ := res["grant_rate"].(float64); rate < 0.66 || rate > 0.67 {
+		t.Errorf("grant_rate = %v want ~0.667", rate)
+	}
+	byCap, _ := res["denied_by_capability"].(map[string]any)
+	if n, _ := byCap["net"].(float64); n != 1 {
+		t.Errorf("denied_by_capability[net] = %v want 1", byCap["net"])
+	}
+}

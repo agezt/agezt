@@ -38,6 +38,11 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   the denial rate + counts reflect one tool/capability. Completes the symmetry
   with `edict log`'s M74 filters. See
   `.project/PHASE-M76-EDICT-STATS-SCOPE-REPORT.md`.
+- **`agt approvals stats`** (SPEC-08, M88) — the HITL approval aggregate:
+  granted / denied / timeout / pending, a grant rate over resolved requests, and
+  a denied-by-capability breakdown. Completes the approvals `log`/`stats` pair;
+  the human analogue of `agt edict stats`. See
+  `.project/PHASE-M88-APPROVALS-STATS-REPORT.md`.
 - **`agt approvals log`** (SPEC-08, M87) — the HITL approval audit: folds
   `approval.requested` joined with the terminal granted/denied/timeout into a
   timeline of what was asked, how it resolved, and who decided. The human
