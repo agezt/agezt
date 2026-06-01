@@ -718,7 +718,26 @@ const (
 	ctxKeyActor ctxKey = iota
 	ctxKeyCorrelation
 	ctxKeyModel
+	ctxKeyImages
 )
+
+// WithImages returns a context carrying image-attachment references for the run
+// started with it (M93). They flow into the agent loop's initial user message.
+// Empty is a no-op. The caller (control plane) only sets this after the M91
+// vision gate confirms the active model is vision-capable.
+func WithImages(ctx context.Context, images []string) context.Context {
+	if len(images) == 0 {
+		return ctx
+	}
+	return context.WithValue(ctx, ctxKeyImages, images)
+}
+
+func imagesFromCtx(ctx context.Context) []string {
+	if v, ok := ctx.Value(ctxKeyImages).([]string); ok {
+		return v
+	}
+	return nil
+}
 
 // WithModel returns a context that overrides the model for the run started with
 // it. Empty model is a no-op (the kernel's configured Model is used). The
@@ -981,6 +1000,7 @@ func (k *Kernel) RunWith(ctx context.Context, corr, intent string) (string, erro
 		Actor:         actor,
 		CorrelationID: corr,
 		Policy:        k.policyHook,
+		Images:        imagesFromCtx(runCtx), // M93: image attachments (vision-gated upstream)
 	}, intent)
 	if err != nil {
 		return answer, err

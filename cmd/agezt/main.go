@@ -147,6 +147,11 @@ func runDaemon(stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "%s: catalog load: %v\n", brand.Binary, err)
 		return 1
 	}
+	// M93 demo: make the offline "mock" model vision-capable so `agt run --image`
+	// passes the M91 gate and exercises the image-input path end-to-end.
+	if os.Getenv(brand.EnvPrefix+"DEMO_VISION") == "1" {
+		injectDemoVisionModel(cat)
+	}
 
 	// Load credentials vault (M1.o). Missing file is a valid first-run
 	// state — operators can still rely on env vars. Vault entries take
@@ -1946,7 +1951,47 @@ func buildTools(baseDir string, stderr io.Writer, ward warden.Engine) (map[strin
 //
 // Deterministic; satisfies the demo gate `agt run "list the files here and
 // tell me what this project is"` end-to-end with no external services.
+// injectDemoVisionModel adds a synthetic vision-capable "mock" catalog entry
+// (M93 demo) so the offline mock model passes the M91 vision gate. Production
+// catalogs are untouched; this only fires under AGEZT_DEMO_VISION=1.
+func injectDemoVisionModel(cat *catalog.Catalog) {
+	if cat == nil {
+		return
+	}
+	if cat.Providers == nil {
+		cat.Providers = map[string]*catalog.Provider{}
+	}
+	cat.Providers["mock"] = &catalog.Provider{
+		ID:   "mock",
+		Name: "Mock (demo vision)",
+		Models: map[string]*catalog.Model{
+			"mock": {
+				ID:         "mock",
+				Name:       "Mock Vision (demo)",
+				Modalities: catalog.Modalities{Input: []string{"text", "image"}, Output: []string{"text"}},
+			},
+		},
+	}
+}
+
 func newDemoMock() agent.Provider {
+	// Demo escape hatch: AGEZT_DEMO_VISION=1 returns a mock that reflects its
+	// input — it reports how many image attachments the user message carried
+	// (M93), so the vision-input path (agt run --image on a vision-capable
+	// model) is observable end-to-end offline. Pairs with injectDemoVisionModel,
+	// which makes the "mock" model pass the M91 vision gate.
+	if os.Getenv(brand.EnvPrefix+"DEMO_VISION") == "1" {
+		return &mock.Provider{Responder: func(req agent.CompletionRequest) agent.CompletionResponse {
+			n := 0
+			for _, m := range req.Messages {
+				if m.Role == agent.RoleUser {
+					n = len(m.Images)
+				}
+			}
+			return mock.FinalText(fmt.Sprintf(
+				"[offline-mock vision] received %d image attachment(s); a real vision model would describe them here.", n))
+		}}
+	}
 	// Demo escape hatch: AGEZT_DEMO_DELEGATE=1 scripts a single delegation so
 	// the multi-agent path (the `delegate` tool, subagent.spawned, M41 run
 	// links) is observable from `agt run` with no external services. The lead

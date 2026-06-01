@@ -832,6 +832,7 @@ func (s *Server) handleRun(ctx context.Context, conn net.Conn, req Request) {
 	// active model is confirmed vision-capable (confirmed-or-reject), pre-flight,
 	// before any provider call. Enforced here at the submission boundary so the
 	// agent loop and message type stay untouched.
+	var imageRefs []string
 	if imgs, ok := req.Args["images"].([]any); ok && len(imgs) > 0 {
 		var visionOK bool
 		if cat := k.Catalog(); cat != nil {
@@ -855,6 +856,16 @@ func (s *Server) handleRun(ctx context.Context, conn net.Conn, req Request) {
 				k.Model())})
 			return
 		}
+		// Gate passed (M93): carry the image refs into the run so they reach the
+		// initial user message and, in turn, the provider.
+		for _, v := range imgs {
+			if s, ok := v.(string); ok && s != "" {
+				imageRefs = append(imageRefs, s)
+			}
+		}
+	}
+	if len(imageRefs) > 0 {
+		ctx = runtime.WithImages(ctx, imageRefs)
 	}
 
 	// Pre-generate the correlation ID so we can subscribe to this run's

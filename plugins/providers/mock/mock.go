@@ -23,6 +23,11 @@ type Provider struct {
 	// OnRequest, if set, is called with each incoming request before the
 	// scripted response is returned. Useful for test assertions.
 	OnRequest func(agent.CompletionRequest)
+	// Responder, if set, computes the response from the request instead of
+	// replaying the scripted list — so a demo/test can reflect the input (e.g.
+	// echo how many image attachments the message carried, M93). Takes
+	// precedence over the scripted responses when non-nil.
+	Responder func(agent.CompletionRequest) agent.CompletionResponse
 }
 
 // New returns a Provider that replays responses in order.
@@ -46,6 +51,10 @@ func (p *Provider) Complete(ctx context.Context, req agent.CompletionRequest) (*
 	defer p.mu.Unlock()
 	if p.OnRequest != nil {
 		p.OnRequest(req)
+	}
+	if p.Responder != nil {
+		r := p.Responder(req)
+		return &r, nil
 	}
 	if p.idx >= len(p.responses) {
 		return nil, ErrExhausted

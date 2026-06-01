@@ -932,7 +932,11 @@ func renderTaskArc(w io.Writer, corr string, summary map[string]any, events []ma
 		ts := intOfStatus(e["ts_unix_ms"])
 		switch kind {
 		case "task.received":
-			// Already shown in the header.
+			// Intent is shown in the header; surface image attachments (M93) as
+			// run provenance so a vision run is self-evident in the arc.
+			if n := intOfStatus(payload["images"]); n > 0 {
+				fmt.Fprintf(w, "inputs     : %d image attachment(s)\n", n)
+			}
 		case "llm.request":
 			round++
 			fmt.Fprintf(w, "round %d (seq=%d)\n", round, seq)

@@ -45,6 +45,11 @@ type Message struct {
 	Content    string     `json:"content,omitempty"`
 	ToolCalls  []ToolCall `json:"tool_calls,omitempty"`
 	ToolCallID string     `json:"tool_call_id,omitempty"`
+	// Images carries image-attachment references for a vision-capable run
+	// (M93). Additive + omitempty — providers that don't read it are
+	// unaffected, and the M91 capability gate ensures a non-vision model never
+	// receives a message carrying images.
+	Images []string `json:"images,omitempty"`
 }
 
 // ToolCall is a model-issued request to invoke a tool.
@@ -170,6 +175,10 @@ type LoopConfig struct {
 	// event. A Deny verdict skips the tool invocation; the model sees a
 	// tool result containing the deny reason so it can adjust.
 	Policy Policy
+	// Images attaches image references to the initial user message (M93).
+	// Only set on a vision-capable run (gated upstream by M91); the loop
+	// puts them on the first user Message so the provider can encode them.
+	Images []string
 }
 
 // PolicyVerdict is the contract between the loop and the policy engine
@@ -276,8 +285,13 @@ func Run(ctx context.Context, cfg LoopConfig, userIntent string) (answer string,
 		})
 	}
 
-	// 1. task.received
-	if _, err := publish(event.KindTaskReceived, "task", map[string]string{"intent": userIntent}); err != nil {
+	// 1. task.received — records the intent and, when present, the count of
+	// image attachments (M93) so the run's provenance shows it had vision input.
+	received := map[string]any{"intent": userIntent}
+	if len(cfg.Images) > 0 {
+		received["images"] = len(cfg.Images)
+	}
+	if _, err := publish(event.KindTaskReceived, "task", received); err != nil {
 		return "", fmt.Errorf("agent: publish task.received: %w", err)
 	}
 
@@ -301,7 +315,7 @@ func Run(ctx context.Context, cfg LoopConfig, userIntent string) (answer string,
 	}()
 
 	messages := []Message{
-		{Role: RoleUser, Content: userIntent},
+		{Role: RoleUser, Content: userIntent, Images: cfg.Images},
 	}
 
 	tools := make([]ToolDef, 0, len(cfg.Tools))

@@ -12,6 +12,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Vision image input** (SPEC-14, M93) — a vision-capable model now actually
+  *receives* attachments: `agent.Message` carries `Images`, the agent loop puts
+  them on the initial user message (stamping the count on `task.received` for
+  provenance), threaded from the control plane via `runtime.WithImages` after the
+  M91 gate passes. Demoable offline via `AGEZT_DEMO_VISION=1` (a vision-capable
+  mock that echoes the received count). See `.project/PHASE-M93-VISION-INPUT-REPORT.md`.
 - **`agt provider rejections`** (SPEC-14, M92) — a capability-gating audit:
   folds `capability.rejected` (M25 tool_call / M91 vision) + `capability.rerouted`
   (M40 down-route) into one timeline of what the capability gates did. Completes
