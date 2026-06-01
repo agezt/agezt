@@ -583,6 +583,12 @@ const (
 	// Returns: { entities: [...], count, relation_count }
 	CmdWorldList = "world_list"
 
+	// CmdWorldLog lists recent world-model operations (M86) — a timeline of the
+	// journal's worldmodel.entity.upserted / relation.upserted / forgotten
+	// events. Args: limit (optional), kind (optional: entity|relation), since_ms
+	// (optional window). Returns: { ops: [ {ts_unix_ms, op, what, label} ], count }
+	CmdWorldLog = "world_log"
+
 	// CmdWorldGet reads one entity by id (any state).
 	// Args: id (required). Returns: { found, entity }
 	CmdWorldGet = "world_get"

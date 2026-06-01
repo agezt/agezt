@@ -38,6 +38,10 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   the denial rate + counts reflect one tool/capability. Completes the symmetry
   with `edict log`'s M74 filters. See
   `.project/PHASE-M76-EDICT-STATS-SCOPE-REPORT.md`.
+- **`agt world log`** (SPEC-08, M86) — a timeline of world-model operations
+  (entity/relation upserts and forgets): what the agent observed, reinforced, and
+  forgot. The world-model analogue of `agt memory log`; `--kind` filter +
+  `--since` window. See `.project/PHASE-M86-WORLD-LOG-REPORT.md`.
 - **`agt memory log`** (SPEC-08, M85) — a timeline of memory operations
   (`memory.written`/`forgotten`/`superseded`): what the agent learned, forgot,
   and replaced, newest-first, with an `--op` filter and `--since` window.

@@ -33,6 +33,8 @@ func cmdWorld(args []string, stdout, stderr io.Writer) int {
 		return cmdWorldNeighbors(args[1:], stdout, stderr)
 	case "list", "ls":
 		return cmdWorldList(args[1:], stdout, stderr)
+	case "log":
+		return cmdWorldLog(args[1:], stdout, stderr)
 	case "show", "get":
 		return cmdWorldShow(args[1:], stdout, stderr)
 	case "forget":

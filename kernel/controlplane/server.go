@@ -398,6 +398,8 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.handleWorldResolve(conn, req)
 	case CmdWorldNeighbors:
 		s.handleWorldNeighbors(conn, req)
+	case CmdWorldLog:
+		s.handleWorldLog(conn, req)
 	case CmdWorldList:
 		s.handleWorldList(conn, req)
 	case CmdWorldGet:
