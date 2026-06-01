@@ -21,6 +21,11 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   input/output excerpts. See `.project/PHASE-M68-ARC-HONESTY-REPORT.md`.
 
 ### Added
+- **Per-round budget in the task arc** (SPEC-08, M69) — `agt runs show` renders
+  `budget.consumed` as `budget: <model> $<cost> (in=N, out=M tokens)` instead of
+  a generic event line, so the arc shows WHERE a run's spend accrued round by
+  round (complementing the header's M50 total). See
+  `.project/PHASE-M69-ARC-BUDGET-REPORT.md`.
 - **`agt tool stats` — tool-invocation aggregate** (SPEC-08, M67) — folds the
   journal's `tool.result` events into total / errored / error-rate plus a
   per-tool calls+errors breakdown. The execution-dashboard analogue of

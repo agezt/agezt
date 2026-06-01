@@ -351,3 +351,32 @@ func TestRenderTaskArc_PolicyDecisionVerdict(t *testing.T) {
 		}
 	}
 }
+
+// TestRenderTaskArc_BudgetConsumedShowsCost — a budget.consumed event renders
+// the per-round model + cost + tokens instead of falling to the generic
+// "unknown kind" line (M69).
+func TestRenderTaskArc_BudgetConsumedShowsCost(t *testing.T) {
+	summary := map[string]any{"intent": "do thing", "status": "completed", "iters": float64(1), "duration_ms": float64(10)}
+	events := []map[string]any{
+		{"kind": "llm.request", "seq": float64(1)},
+		{"kind": "budget.consumed", "seq": float64(2), "payload": map[string]any{
+			"model": "claude-sonnet-4-6", "cost_microcents": float64(8_400_000), // $0.0084
+			"input_tokens": float64(120), "output_tokens": float64(45),
+		}},
+		{"kind": "llm.response", "seq": float64(3)},
+	}
+	var buf bytes.Buffer
+	renderTaskArc(&buf, "run-BUD", summary, events, nil)
+	s := buf.String()
+	for _, want := range []string{
+		"budget: claude-sonnet-4-6 $0.0084",
+		"(in=120, out=45 tokens)",
+	} {
+		if !strings.Contains(s, want) {
+			t.Errorf("arc missing %q; got:\n%s", want, s)
+		}
+	}
+	if strings.Contains(s, "budget.consumed (seq=") {
+		t.Errorf("budget.consumed still rendered as generic kind; got:\n%s", s)
+	}
+}

@@ -907,6 +907,28 @@ func renderTaskArc(w io.Writer, corr string, summary map[string]any, events []ma
 			if a, _ := payload["answer"].(string); a != "" {
 				finalAnswer = a
 			}
+		case "budget.consumed":
+			// Per-round cost (M69): the governor stamps {model, cost_microcents,
+			// input/output_tokens} on each priced LLM call. The header shows the
+			// run's TOTAL spend (M50); this shows where it accrued, round by round.
+			// Rendered inside the round's indent when we're mid-round.
+			indent := "  "
+			if inRound {
+				indent = "    "
+			}
+			model, _ := payload["model"].(string)
+			cost := mcFromAny(payload["cost_microcents"])
+			line := indent + "budget: "
+			if model != "" {
+				line += model + " "
+			}
+			line += fmtUSD(cost)
+			in := intOfStatus(payload["input_tokens"])
+			out := intOfStatus(payload["output_tokens"])
+			if in > 0 || out > 0 {
+				line += fmt.Sprintf(" (in=%d, out=%d tokens)", in, out)
+			}
+			fmt.Fprintln(w, line)
 		case "policy.decision":
 			// The agent journals {capability, allow, hard_denied, reason} — there
 			// is no "decision" string, so the old read rendered a blank verdict on
