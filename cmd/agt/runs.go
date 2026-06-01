@@ -309,6 +309,35 @@ func cmdRunsStats(args []string, stdout, stderr io.Writer) int {
 		}
 		fmt.Fprintln(stdout, line)
 	}
+
+	// Per-model breakdown (M124) — where the spend goes across a multi-provider
+	// mix: run count + spend per model, sorted by spend desc (ties by name).
+	// Printed only when a model was attributed; an all-free/mock window has none.
+	if bm, _ := res["by_model"].(map[string]any); len(bm) > 0 {
+		type mrow struct {
+			model       string
+			runs, spent int64
+		}
+		rows := make([]mrow, 0, len(bm))
+		for m, raw := range bm {
+			e, _ := raw.(map[string]any)
+			rows = append(rows, mrow{model: m, runs: int64(intOfStatus(e["runs"])), spent: mcFromAny(e["spent_microcents"])})
+		}
+		sort.Slice(rows, func(i, j int) bool {
+			if rows[i].spent != rows[j].spent {
+				return rows[i].spent > rows[j].spent
+			}
+			return rows[i].model < rows[j].model
+		})
+		fmt.Fprintf(stdout, "\n  by model:\n")
+		for _, r := range rows {
+			if r.spent > 0 {
+				fmt.Fprintf(stdout, "    %-28s %d run(s), %s\n", r.model, r.runs, fmtUSD(r.spent))
+			} else {
+				fmt.Fprintf(stdout, "    %-28s %d run(s)\n", r.model, r.runs)
+			}
+		}
+	}
 	return 0
 }
 

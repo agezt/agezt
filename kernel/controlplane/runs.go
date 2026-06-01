@@ -407,6 +407,12 @@ func (s *Server) handleRunsStats(conn net.Conn, req Request) {
 	// sees not just total spend (M47) but how it's distributed (a few expensive
 	// runs vs many cheap ones). Only runs that actually spent are included.
 	spends := make([]int64, 0, len(runs))
+	// Per-model attribution (M124): run count and spend grouped by the run's
+	// folded model (M123), so an operator sees WHERE the money goes across a
+	// multi-provider mix — "$X on opus over N runs, $Y on haiku". Runs with no
+	// journaled model (free/local/mock — they didn't spend) are not attributed.
+	modelRuns := map[string]int{}
+	modelSpent := map[string]int64{}
 	for _, r := range runs {
 		// Windowed: keep only runs that started at/after the cutoff. A run
 		// with no recorded start (the completed-without-received edge) can't
@@ -422,6 +428,10 @@ func (s *Server) handleRunsStats(conn net.Conn, req Request) {
 		spentTotal += r.SpentMicrocents
 		if r.SpentMicrocents > 0 {
 			spends = append(spends, r.SpentMicrocents)
+		}
+		if r.Model != "" {
+			modelRuns[r.Model]++
+			modelSpent[r.Model] += r.SpentMicrocents
 		}
 		if r.ParentCorrelation != "" {
 			delegations++
@@ -485,6 +495,13 @@ func (s *Server) handleRunsStats(conn net.Conn, req Request) {
 		}
 	}
 
+	// Per-model breakdown (M124): {model → {runs, spent_microcents}}. Empty map
+	// when no run carried a model (free/local/mock) — the CLI omits the block.
+	byModel := make(map[string]any, len(modelRuns))
+	for m, n := range modelRuns {
+		byModel[m] = map[string]any{"runs": n, "spent_microcents": modelSpent[m]}
+	}
+
 	s.writeResp(conn, Response{
 		ID:   req.ID,
 		Type: RespResult,
@@ -514,6 +531,8 @@ func (s *Server) handleRunsStats(conn net.Conn, req Request) {
 			// was journaled (e.g. a free/local model or the offline mock).
 			"spent_microcents":           spentTotal,
 			"delegated_spent_microcents": spentDelegated,
+			// Per-model run-count + spend breakdown (M124). Empty when unpriced.
+			"by_model": byModel,
 			// Per-run spend distribution over priced runs (M60), in microcents.
 			"spend_microcents": map[string]any{
 				"count": len(spends),

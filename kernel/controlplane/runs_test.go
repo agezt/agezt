@@ -932,6 +932,61 @@ func TestRunsStats_SpendDistribution(t *testing.T) {
 	}
 }
 
+// TestRunsStats_ByModel — runs stats attributes run count + spend per model
+// (M124), folded from each run's model (M123). Two opus runs (100+300mc) and one
+// haiku run (50mc) → by_model{opus:{runs:2, spent:400}, haiku:{runs:1, spent:50}}.
+// A model-less (free/mock) run is not attributed.
+func TestRunsStats_ByModel(t *testing.T) {
+	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	mkRun := func(corr, model string, mc int64) {
+		t.Helper()
+		_, _ = k.Bus().Publish(event.Spec{
+			Subject: "task", Kind: event.KindTaskReceived, Actor: "a",
+			CorrelationID: corr, Payload: map[string]string{"intent": "x"},
+		})
+		if model != "" {
+			_, _ = k.Bus().Publish(event.Spec{
+				Subject: "governor.budget", Kind: event.KindBudgetConsumed, Actor: "governor",
+				CorrelationID: corr, Payload: map[string]any{"cost_microcents": mc, "model": model},
+			})
+		}
+		_, _ = k.Bus().Publish(event.Spec{
+			Subject: "task", Kind: event.KindTaskCompleted, Actor: "a",
+			CorrelationID: corr, Payload: map[string]any{"iters": 1},
+		})
+	}
+	mkRun("o1", "opus", 100)
+	mkRun("o2", "opus", 300)
+	mkRun("h1", "haiku", 50)
+	mkRun("free", "", 0)
+
+	res, err := c.Call(context.Background(), controlplane.CmdRunsStats, nil)
+	if err != nil {
+		t.Fatalf("Call: %v", err)
+	}
+	bm, ok := res["by_model"].(map[string]any)
+	if !ok {
+		t.Fatalf("by_model missing/wrong type: %T", res["by_model"])
+	}
+	if len(bm) != 2 {
+		t.Fatalf("by_model has %d entries want 2 (free run not attributed): %v", len(bm), bm)
+	}
+	opus, _ := bm["opus"].(map[string]any)
+	if got := intOf(opus["runs"]); got != 2 {
+		t.Errorf("opus runs = %d want 2", got)
+	}
+	if got := int64(intOf(opus["spent_microcents"])); got != 400 {
+		t.Errorf("opus spent = %d want 400", got)
+	}
+	haiku, _ := bm["haiku"].(map[string]any)
+	if got := intOf(haiku["runs"]); got != 1 {
+		t.Errorf("haiku runs = %d want 1", got)
+	}
+	if got := int64(intOf(haiku["spent_microcents"])); got != 50 {
+		t.Errorf("haiku spent = %d want 50", got)
+	}
+}
+
 // TestRunsList_ModelFoldAndFilter — the run's model is folded first-wins from
 // budget.consumed and surfaced in each row, and `--model` filters by a
 // case-insensitive substring (M123). A run that never spent has an empty model.

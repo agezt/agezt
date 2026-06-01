@@ -12,6 +12,11 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Per-model cost attribution in `agt runs stats`** (M124) — a `by model` block
+  (and `by_model` in `--json`) breaks down run count + spend per model, sorted by
+  spend, so "where is my money going across the provider mix?" is answered in the
+  fleet-level view. Builds on the M123 per-run model fold; no new event or command.
+  See `.project/PHASE-M124-RUNS-STATS-BY-MODEL-REPORT.md`.
 - **Model-aware `agt runs`** (M123) — each run now folds and surfaces the model it
   was routed to (first-wins, from its `budget.consumed` events), shown inline in
   `agt runs list` and as a `model` field in `--json`, plus a `--model <substr>`
