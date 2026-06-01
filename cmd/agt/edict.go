@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -35,18 +36,124 @@ func cmdEdict(args []string, stdout, stderr io.Writer) int {
 		return cmdEdictLevel(args[1:], stdout, stderr)
 	case "mode":
 		return cmdEdictMode(args[1:], stdout, stderr)
+	case "log":
+		return cmdEdictLog(args[1:], stdout, stderr)
 	case "-h", "--help", "help":
 		fmt.Fprintf(stdout, "usage: %s edict <subcommand>\n", brand.CLI)
 		fmt.Fprintf(stdout, "  show [--json]                          display loaded policies\n")
+		fmt.Fprintf(stdout, "  log [N] [--denied] [--json]            recent policy decisions (allow/deny audit)\n")
 		fmt.Fprintf(stdout, "  test <capability> [<input>] [--json]   dry-run a decision; no side effects\n")
 		fmt.Fprintf(stdout, "  deny list|add|rm ...                   manage hard-deny rules at runtime\n")
 		fmt.Fprintf(stdout, "  level <capability> <level> [--json]    set a capability's trust level at runtime\n")
 		fmt.Fprintf(stdout, "  mode <allow|deny|prompt> [--json]      set the approval mode at runtime\n")
 		return 0
 	default:
-		fmt.Fprintf(stderr, "%s edict: unknown subcommand %q (show|test|deny|level|mode)\n", brand.CLI, args[0])
+		fmt.Fprintf(stderr, "%s edict: unknown subcommand %q (show|test|deny|level|mode|log)\n", brand.CLI, args[0])
 		return 2
 	}
+}
+
+// cmdEdictLog implements `agt edict log [N] [--denied] [--tenant <id>] [--json]`
+// — a read-only audit of recent policy.decision events (M63). `edict show` lists
+// the rules; this lists the decisions they produced.
+func cmdEdictLog(args []string, stdout, stderr io.Writer) int {
+	asJSON := false
+	deniedOnly := false
+	limit := 0
+	tenant := ""
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		switch {
+		case a == "--json":
+			asJSON = true
+		case a == "--denied":
+			deniedOnly = true
+		case a == "--tenant":
+			if i+1 >= len(args) {
+				fmt.Fprintf(stderr, "%s edict log: --tenant needs an id\n", brand.CLI)
+				return 2
+			}
+			i++
+			tenant = args[i]
+		case strings.HasPrefix(a, "--tenant="):
+			tenant = strings.TrimPrefix(a, "--tenant=")
+		case a == "-h" || a == "--help":
+			fmt.Fprintf(stdout, "usage: %s edict log [N] [--denied] [--tenant <id>] [--json]\n", brand.CLI)
+			fmt.Fprintf(stdout, "show recent policy decisions (every tool-call gating: tool, capability, allow/deny, reason)\n")
+			fmt.Fprintf(stdout, "  --denied  only show denials\n")
+			return 0
+		default:
+			if n, err := strconv.Atoi(a); err == nil && n > 0 {
+				limit = n
+				continue
+			}
+			fmt.Fprintf(stderr, "%s edict log: unexpected arg %q (expected N, --denied, --tenant <id>, or --json)\n", brand.CLI, a)
+			return 2
+		}
+	}
+
+	c := dial(stderr)
+	if c == nil {
+		return 1
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	callArgs := map[string]any{}
+	if limit > 0 {
+		callArgs["limit"] = limit
+	}
+	if deniedOnly {
+		callArgs["denied"] = true
+	}
+	if tenant != "" {
+		callArgs["tenant"] = tenant
+	}
+	res, err := c.Call(ctx, controlplane.CmdEdictLog, callArgs)
+	if err != nil {
+		fmt.Fprintf(stderr, "%s edict log: %v\n", brand.CLI, err)
+		return 1
+	}
+	if asJSON {
+		return encodeJSON(stdout, res)
+	}
+	decisions, _ := res["decisions"].([]any)
+	if len(decisions) == 0 {
+		if deniedOnly {
+			fmt.Fprintf(stdout, "no denied policy decisions.\n")
+		} else {
+			fmt.Fprintf(stdout, "no policy decisions journaled yet.\n")
+		}
+		return 0
+	}
+	for _, item := range decisions {
+		m, _ := item.(map[string]any)
+		tool, _ := m["tool"].(string)
+		capability, _ := m["capability"].(string)
+		reason, _ := m["reason"].(string)
+		allow, _ := m["allow"].(bool)
+		hard, _ := m["hard_denied"].(bool)
+		ts := int64(0)
+		if f, ok := m["ts_unix_ms"].(float64); ok {
+			ts = int64(f)
+		}
+		verdict := "allow"
+		if !allow {
+			verdict = "DENY"
+			if hard {
+				verdict = "DENY(hard)"
+			}
+		}
+		whenStr := "—"
+		if ts > 0 {
+			whenStr = time.UnixMilli(ts).Format("2006-01-02 15:04:05")
+		}
+		line := fmt.Sprintf("  %s  %-10s %-12s %s", whenStr, verdict, capability, tool)
+		if reason != "" {
+			line += "  (" + reason + ")"
+		}
+		fmt.Fprintln(stdout, line)
+	}
+	return 0
 }
 
 // cmdEdictMode implements `agt edict mode <allow|deny|prompt> [--json]`.

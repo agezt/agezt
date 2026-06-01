@@ -250,6 +250,12 @@ const (
 	//   - mode : string (required) — "allow" | "deny" | "prompt".
 	// Returns: {from, to} — the previous and new mode labels.
 	CmdEdictSetMode = "edict_set_mode"
+	// CmdEdictLog lists recent policy decisions (M63) — a read-only audit of the
+	// journal's policy.decision events (every tool-call gating). Args: limit
+	// (optional), denied (optional bool — only denials). Returns: { decisions:
+	// [ {ts_unix_ms, actor, correlation_id, tool, capability, allow, reason,
+	// hard_denied} ], count }
+	CmdEdictLog = "edict_log"
 
 	// CmdStateList enumerates namespaces and (optionally) keys in
 	// the kernel state store. State is normally invisible to

@@ -12,6 +12,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **`agt edict log` — policy-decision audit** (Edict observability, M63) — a
+  read-only view of the journal's `policy.decision` events (every tool-call gating):
+  `<time> allow|DENY|DENY(hard) <capability> <tool> (reason)`. `agt edict show` lists
+  the RULES; `edict log [N] [--denied]` lists the DECISIONS they produced.
+  `handleEdictLog` folds the events newest-first (tenant-scoped, allowlisted). See
+  `.project/PHASE-M63-EDICT-LOG-REPORT.md`.
 - **`agt whoami`** (SPEC-14 multi-tenancy, M62) — reports the authenticated
   principal: `primary (admin token …)` or `tenant "acme" (own token …)`. M38/M39
   added tenant tokens but a client couldn't confirm which identity it authenticates
