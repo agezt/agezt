@@ -55,6 +55,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return cmdHaltResume("resume", args[1:], stdout, stderr)
 	case "why":
 		return cmdWhy(args[1:], stdout, stderr)
+	case "whoami":
+		return cmdWhoami(args[1:], stdout, stderr)
 	case "journal":
 		return cmdJournal(args[1:], stdout, stderr)
 	case "approvals":

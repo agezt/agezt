@@ -12,6 +12,11 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **`agt whoami`** (SPEC-14 multi-tenancy, M62) — reports the authenticated
+  principal: `primary (admin token …)` or `tenant "acme" (own token …)`. M38/M39
+  added tenant tokens but a client couldn't confirm which identity it authenticates
+  as; `handleWhoami` derives it from `req.Token` vs the primary token (no new auth
+  state). `CmdWhoami` is tenant-allowlisted. See `.project/PHASE-M62-WHOAMI-REPORT.md`.
 - **Status filter on `agt runs list` & `agt schedule fires`** (SPEC-08, M61) — both
   gain `--status <s>` and `--failed` (shorthand) to filter by run/firing outcome
   (completed|failed|running|abandoned), applied server-side BEFORE the limit so

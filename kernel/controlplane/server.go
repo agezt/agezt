@@ -274,6 +274,8 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.handleResume(conn, req)
 	case CmdWhy:
 		s.handleWhy(conn, req)
+	case CmdWhoami:
+		s.handleWhoami(conn, req)
 	case CmdJournalVerify:
 		s.handleVerify(conn, req)
 	case CmdApprovals:
@@ -537,6 +539,36 @@ func (s *Server) handleWhy(conn net.Conn, req Request) {
 			"events":             out,
 			"correlation":        corr,
 			"parent_correlation": parent,
+		},
+	})
+}
+
+// handleWhoami reports the authenticated principal (M62). By the time a request
+// reaches a handler, handleConn has already verified the token: the primary
+// token equals s.Token(); any other token that got here authenticated as the
+// tenant named in (and pinned to) req.Args["tenant"]. So identity is a pure
+// read of req.Token vs the primary token — no new auth state.
+func (s *Server) handleWhoami(conn net.Conn, req Request) {
+	if req.Token == s.Token() {
+		s.writeResp(conn, Response{
+			ID:   req.ID,
+			Type: RespResult,
+			Result: map[string]any{
+				"identity": "primary",
+				"primary":  true,
+				"tenant":   "",
+			},
+		})
+		return
+	}
+	tenant, _ := req.Args["tenant"].(string)
+	s.writeResp(conn, Response{
+		ID:   req.ID,
+		Type: RespResult,
+		Result: map[string]any{
+			"identity": "tenant",
+			"primary":  false,
+			"tenant":   tenant,
 		},
 	})
 }

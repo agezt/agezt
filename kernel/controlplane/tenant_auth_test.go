@@ -259,6 +259,40 @@ func TestWhyIsTenantScoped(t *testing.T) {
 	}
 }
 
+// TestWhoami_PrimaryAndTenant — `agt whoami` reports the authenticated principal
+// (M62): the primary token reports primary; a tenant token reports its tenant.
+func TestWhoami_PrimaryAndTenant(t *testing.T) {
+	_, srv, c, dir := startPair(t, mock.New(mock.FinalText("ok")))
+	reg := withTenants(t, srv, dir)
+	tok := mustTenant(t, reg, "acme")
+
+	// Primary token (the default startPair client).
+	res, err := c.Call(context.Background(), controlplane.CmdWhoami, nil)
+	if err != nil {
+		t.Fatalf("primary whoami: %v", err)
+	}
+	if p, _ := res["primary"].(bool); !p {
+		t.Errorf("primary token whoami primary = false, want true")
+	}
+	if id, _ := res["identity"].(string); id != "primary" {
+		t.Errorf("primary identity = %q want primary", id)
+	}
+
+	// Tenant token.
+	tc := tenantClient(t, dir, tok)
+	tres, err := tc.Call(context.Background(), controlplane.CmdWhoami,
+		map[string]any{"tenant": "acme"})
+	if err != nil {
+		t.Fatalf("tenant whoami: %v", err)
+	}
+	if p, _ := tres["primary"].(bool); p {
+		t.Errorf("tenant token whoami primary = true, want false")
+	}
+	if got, _ := tres["tenant"].(string); got != "acme" {
+		t.Errorf("tenant whoami tenant = %q want acme", got)
+	}
+}
+
 // TestPrimaryToken_RetainsFullAccess — the primary token still authorizes
 // everything: a tenant-routed command on any tenant AND tenant-registry
 // management (which a tenant token may not do).

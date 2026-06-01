@@ -116,6 +116,13 @@ const (
 	//   - tools          (int)    — registered tool count
 	//   - journal_head   (int)    — last journaled seq (0 = empty)
 	CmdStatus = "status"
+	// CmdWhoami reports the authenticated principal (M62) — whether the request
+	// used the primary (admin) token or a tenant's own token, and which tenant.
+	// Args: tenant (required for a tenant token, pinned by handleConn). Returns:
+	//   - identity (string) — "primary" | "tenant"
+	//   - primary  (bool)   — true for the admin token
+	//   - tenant   (string) — the tenant id (empty for primary)
+	CmdWhoami = "whoami"
 
 	// CmdPluginList enumerates the external plugins the daemon
 	// spawned at startup. Sister to CmdToolList (which sees
