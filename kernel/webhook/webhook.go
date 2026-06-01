@@ -165,9 +165,27 @@ func (d *Dispatcher) deliver(ctx context.Context, sink Sink, ev *event.Event) {
 }
 
 func (d *Dispatcher) post(ctx context.Context, sink Sink, body []byte, ev *event.Event, deliveryID string) (int, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, sink.URL, bytes.NewReader(body))
+	req, err := newDeliveryRequest(ctx, sink, body, ev, deliveryID)
 	if err != nil {
 		return 0, err
+	}
+	resp, err := d.client.Do(req)
+	if err != nil {
+		return 0, err
+	}
+	defer resp.Body.Close()
+	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 4<<10)) // drain to reuse conn
+	return resp.StatusCode, nil
+}
+
+// newDeliveryRequest builds the signed POST a delivery sends. Shared by the live
+// dispatcher (post) and the daemon-free Probe so a `agt webhook test` carries the
+// byte-identical body, headers, and HMAC signature a real delivery would — the
+// test is only meaningful if it mirrors reality exactly.
+func newDeliveryRequest(ctx context.Context, sink Sink, body []byte, ev *event.Event, deliveryID string) (*http.Request, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, sink.URL, bytes.NewReader(body))
+	if err != nil {
+		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("User-Agent", "agezt-webhook/1")
@@ -177,13 +195,7 @@ func (d *Dispatcher) post(ctx context.Context, sink Sink, body []byte, ev *event
 	if sink.Secret != "" {
 		req.Header.Set("X-Agezt-Signature", "sha256="+sign(sink.Secret, body))
 	}
-	resp, err := d.client.Do(req)
-	if err != nil {
-		return 0, err
-	}
-	defer resp.Body.Close()
-	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 4<<10)) // drain to reuse conn
-	return resp.StatusCode, nil
+	return req, nil
 }
 
 func (d *Dispatcher) journal(kind event.Kind, ev *event.Event, payload map[string]any) {
@@ -254,6 +266,77 @@ func ParseSinks(spec string) ([]Sink, error) {
 		sinks = append(sinks, s)
 	}
 	return sinks, nil
+}
+
+// TestEventKind is the Kind carried by a probe delivery (agt webhook test). A
+// receiver sees it in the X-Agezt-Event header and can recognize a ping rather
+// than acting on it as a real event.
+const TestEventKind = "webhook.test"
+
+// testEventID is the stable, obviously-synthetic delivery id a probe sends, so a
+// receiver that dedupes on X-Agezt-Delivery can tell test pings apart.
+const testEventID = "00000000000000000000000000"
+
+// ProbeResult reports the outcome of a single test delivery.
+type ProbeResult struct {
+	URL     string        `json:"url"`
+	Subject string        `json:"subject"`
+	Signed  bool          `json:"signed"`
+	Status  int           `json:"status"`
+	Latency time.Duration `json:"latency_ns"`
+	Err     string        `json:"error,omitempty"`
+}
+
+// OK reports whether the probe received a 2xx response.
+func (r ProbeResult) OK() bool { return r.Err == "" && r.Status >= 200 && r.Status < 300 }
+
+// Probe sends a single synthetic webhook.test event to sink and reports the
+// outcome, using the byte-identical body, headers, and HMAC signature the live
+// dispatcher uses — so a 2xx here means real deliveries will be accepted too. It
+// is the daemon-free verification behind `agt webhook test`: an operator who just
+// configured a sink can confirm it is reachable, accepts the format, and (if
+// signed) validates the signature, without waiting for a real event to fire.
+// Unlike a real delivery it does NOT retry — a test wants the immediate truth,
+// not a transient masked by backoff. now stamps the synthetic event; client may
+// be nil (a DefaultTimeout client is used).
+func Probe(ctx context.Context, sink Sink, now time.Time, client *http.Client) ProbeResult {
+	if client == nil {
+		client = &http.Client{Timeout: DefaultTimeout}
+	}
+	subject := sink.Subject
+	if subject == "" {
+		subject = ">"
+	}
+	res := ProbeResult{URL: sink.URL, Subject: subject, Signed: sink.Secret != ""}
+	ev := &event.Event{
+		ID:       testEventID,
+		TSUnixMS: now.UnixMilli(),
+		Subject:  subject,
+		Actor:    "agezt",
+		Kind:     TestEventKind,
+		Payload:  json.RawMessage(`{"test":true,"message":"agezt webhook test probe"}`),
+	}
+	body, err := json.Marshal(ev)
+	if err != nil {
+		res.Err = err.Error()
+		return res
+	}
+	req, err := newDeliveryRequest(ctx, sink, body, ev, ev.ID)
+	if err != nil {
+		res.Err = err.Error()
+		return res
+	}
+	start := time.Now()
+	resp, err := client.Do(req)
+	res.Latency = time.Since(start)
+	if err != nil {
+		res.Err = err.Error()
+		return res
+	}
+	defer resp.Body.Close()
+	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 4<<10))
+	res.Status = resp.StatusCode
+	return res
 }
 
 // Describe renders a one-line banner summary of the sinks (secrets redacted).

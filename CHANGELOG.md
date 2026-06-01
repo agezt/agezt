@@ -12,6 +12,14 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **`agt webhook test`** (M122) — a daemon-free probe that POSTs one synthetic
+  `webhook.test` event to a sink using the byte-identical body, headers, and HMAC
+  signature a real delivery sends, so an operator can confirm a sink is reachable
+  and accepts the format before relying on it — no more waiting for a real event
+  to fire. With no `<url>` it probes every sink in `AGEZT_WEBHOOKS`; exit 0 = all
+  2xx, 3 = at least one failed. The active companion to the M121 doctor check and
+  M112 `webhook stats`. New `webhook.Probe`. See
+  `.project/PHASE-M122-WEBHOOK-TEST-REPORT.md`.
 - **`agt doctor` webhook-health check** (M121) — the go-to diagnostic now WARNs when
   outbound webhook deliveries are failing, naming the worst sink and pointing at
   `agt webhook log --failed`. A notification sink that silently 5xx's or times out

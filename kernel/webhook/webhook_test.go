@@ -277,3 +277,62 @@ func TestDescribe_RedactsSecret(t *testing.T) {
 		t.Errorf("signed sink should be marked: %s", out)
 	}
 }
+
+func TestProbe_Delivers(t *testing.T) {
+	cap := &capture{}
+	srv := httptest.NewServer(cap.handler())
+	defer srv.Close()
+
+	r := Probe(context.Background(), Sink{URL: srv.URL, Secret: "k"}, time.Unix(1700000000, 0), srv.Client())
+	if !r.OK() {
+		t.Fatalf("probe not OK: status=%d err=%q", r.Status, r.Err)
+	}
+	if r.Status != http.StatusOK {
+		t.Errorf("status = %d want 200", r.Status)
+	}
+	if !r.Signed {
+		t.Errorf("Signed should be true for a sink with a secret")
+	}
+	if cap.calls != 1 {
+		t.Errorf("a probe must POST exactly once (no retry), got %d", cap.calls)
+	}
+	// Headers + signature mirror a real delivery.
+	h := cap.headers[0]
+	if got := h.Get("X-Agezt-Event"); got != TestEventKind {
+		t.Errorf("X-Agezt-Event = %q want %q", got, TestEventKind)
+	}
+	if h.Get("X-Agezt-Delivery") == "" {
+		t.Errorf("X-Agezt-Delivery should be set")
+	}
+	mac := hmac.New(sha256.New, []byte("k"))
+	mac.Write([]byte(cap.bodies[0]))
+	want := "sha256=" + hex.EncodeToString(mac.Sum(nil))
+	if got := h.Get("X-Agezt-Signature"); got != want {
+		t.Errorf("signature = %q want %q", got, want)
+	}
+}
+
+func TestProbe_Non2xxNoRetry(t *testing.T) {
+	cap := &capture{statuses: []int{http.StatusInternalServerError, http.StatusInternalServerError}}
+	srv := httptest.NewServer(cap.handler())
+	defer srv.Close()
+
+	r := Probe(context.Background(), Sink{URL: srv.URL}, time.Unix(1700000000, 0), srv.Client())
+	if r.OK() {
+		t.Errorf("500 should not be OK")
+	}
+	if r.Status != http.StatusInternalServerError {
+		t.Errorf("status = %d want 500", r.Status)
+	}
+	if cap.calls != 1 {
+		t.Errorf("probe must not retry, got %d calls", cap.calls)
+	}
+}
+
+func TestProbe_ConnError(t *testing.T) {
+	// Nothing listening on this port → transport error, reported in Err.
+	r := Probe(context.Background(), Sink{URL: "http://127.0.0.1:1/hook"}, time.Unix(1700000000, 0), nil)
+	if r.OK() || r.Err == "" {
+		t.Errorf("connection failure should set Err and not be OK: %+v", r)
+	}
+}
