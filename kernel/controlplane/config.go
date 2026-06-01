@@ -77,17 +77,55 @@ func (s *Server) handleConfig(conn net.Conn, req Request) {
 		}
 	}
 
-	s.writeResp(conn, Response{
-		ID:   req.ID,
-		Type: RespResult,
-		Result: map[string]any{
-			"paths":              paths,
-			"model":              s.k.Model(),
-			"system_prompt_set":  s.k.System() != "",
-			"tool_count":         len(s.k.Tools()),
-			"plugin_count":       len(s.k.Plugins()),
-			"ask_policy":         askPolicyLabel(s.k.Edict().AskPolicy()),
-			"env":                env,
-		},
-	})
+	result := map[string]any{
+		"paths":             paths,
+		"model":             s.k.Model(),
+		"system_prompt_set": s.k.System() != "",
+		"tool_count":        len(s.k.Tools()),
+		"plugin_count":      len(s.k.Plugins()),
+		"ask_policy":        askPolicyLabel(s.k.Edict().AskPolicy()),
+		"env":               env,
+	}
+
+	// Effective routing tables (M108): surface what AGEZT_TASK_ROUTES /
+	// _ROUTE_REQUIRES / _MODEL_OVERRIDES actually parsed to, so an operator can
+	// confirm a rule loaded rather than reading the boot log. Only present when
+	// the provider is the governor (the usual case) and a table is non-empty.
+	if gov, ok := s.k.Provider().(interface {
+		TaskRoutesView() map[string][]string
+		TaskRouteRequiresView() map[string][]string
+		TaskModelOverridesView() map[string]string
+	}); ok {
+		routing := map[string]any{}
+		if r := gov.TaskRoutesView(); len(r) > 0 {
+			routing["routes"] = stringSliceMapToAny(r)
+		}
+		if r := gov.TaskRouteRequiresView(); len(r) > 0 {
+			routing["requires"] = stringSliceMapToAny(r)
+		}
+		if o := gov.TaskModelOverridesView(); len(o) > 0 {
+			m := make(map[string]any, len(o))
+			for k, v := range o {
+				m[k] = v
+			}
+			routing["model_overrides"] = m
+		}
+		if len(routing) > 0 {
+			result["routing"] = routing
+		}
+	}
+
+	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: result})
+}
+
+func stringSliceMapToAny(in map[string][]string) map[string]any {
+	out := make(map[string]any, len(in))
+	for k, v := range in {
+		arr := make([]any, len(v))
+		for i, s := range v {
+			arr[i] = s
+		}
+		out[k] = arr
+	}
+	return out
 }

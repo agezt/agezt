@@ -39,6 +39,35 @@ func cmdConfig(args []string, stdout, stderr io.Writer) int {
 	}
 }
 
+// renderRoutingTable prints a "task → [providers]" table for routes / requires.
+func renderRoutingTable(stdout io.Writer, label string, raw any) {
+	m, ok := raw.(map[string]any)
+	if !ok || len(m) == 0 {
+		return
+	}
+	fmt.Fprintf(stdout, "    %s:\n", label)
+	for _, k := range sortedKeys(m) {
+		provs, _ := m[k].([]any)
+		names := make([]string, 0, len(provs))
+		for _, p := range provs {
+			if s, ok := p.(string); ok {
+				names = append(names, s)
+			}
+		}
+		fmt.Fprintf(stdout, "      %-12s → %v\n", k, names)
+	}
+}
+
+// sortedKeys returns the keys of a map[string]any sorted for stable output.
+func sortedKeys(m map[string]any) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
 func cmdConfigShow(args []string, stdout, stderr io.Writer) int {
 	asJSON := false
 	for _, a := range args {
@@ -105,6 +134,22 @@ func cmdConfigShow(args []string, stdout, stderr io.Writer) int {
 	fmt.Fprintf(stdout, "  ask_policy      : %s\n", askPolicy)
 	fmt.Fprintf(stdout, "  tools           : %d registered\n", toolCount)
 	fmt.Fprintf(stdout, "  plugins         : %d spawned\n", pluginCount)
+
+	// Effective routing tables (M108) — only present when configured, so the
+	// common no-routing daemon stays compact.
+	if routing, ok := res["routing"].(map[string]any); ok && len(routing) > 0 {
+		fmt.Fprintf(stdout, "  routing (effective):\n")
+		renderRoutingTable(stdout, "routes", routing["routes"])
+		renderRoutingTable(stdout, "requires", routing["requires"])
+		if ov, ok := routing["model_overrides"].(map[string]any); ok && len(ov) > 0 {
+			fmt.Fprintf(stdout, "    model_overrides:\n")
+			for _, k := range sortedKeys(ov) {
+				if m, _ := ov[k].(string); m != "" {
+					fmt.Fprintf(stdout, "      %-12s → %s\n", k, m)
+				}
+			}
+		}
+	}
 
 	if len(envMap) == 0 {
 		fmt.Fprintf(stdout, "  env (AGEZT_*)   : none set\n")

@@ -12,6 +12,11 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Effective routing in `agt config show`** (SPEC-08, M108) — the config snapshot
+  now surfaces the PARSED routing tables (`AGEZT_TASK_ROUTES` / `_ROUTE_REQUIRES` /
+  `_MODEL_OVERRIDES`), so an operator can confirm a rule loaded instead of reading
+  the boot log. New read-only governor introspection views. See
+  `.project/PHASE-M108-CONFIG-ROUTING-REPORT.md`.
 - **`agt budget check`** (SPEC-08, M107) — pre-flight remaining daily-spend
   headroom before submitting a run (global + optional `--task-type` cap, whichever
   binds), with exit 3 when exhausted for CI gating. Reuses the existing budget
