@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -805,5 +806,85 @@ func TestRun_StreamingFallsBackToCompleteForNonStreamingProvider(t *testing.T) {
 	}
 	if got != "Plain old text." {
 		t.Errorf("got %q want %q", got, "Plain old text.")
+	}
+}
+
+// countingTool records how many times it actually ran (the loop guard should
+// stop the model from executing it more than the cap with identical input).
+type countingTool struct{ calls int }
+
+func (c *countingTool) Definition() agent.ToolDef {
+	return agent.ToolDef{Name: "echo", Description: "echo", InputSchema: json.RawMessage(`{"type":"object"}`)}
+}
+func (c *countingTool) Invoke(_ context.Context, _ json.RawMessage) (agent.Result, error) {
+	c.calls++
+	return agent.Result{Output: "ok"}, nil
+}
+
+// repeatEchoProvider always asks for the same echo call with identical input.
+type repeatEchoProvider struct {
+	varyInput bool
+	n         int
+}
+
+func (p *repeatEchoProvider) Name() string { return "repeat-echo" }
+func (p *repeatEchoProvider) Complete(_ context.Context, _ agent.CompletionRequest) (*agent.CompletionResponse, error) {
+	p.n++
+	input := `{"x":1}`
+	if p.varyInput {
+		input = fmt.Sprintf(`{"x":%d}`, p.n) // distinct each call
+	}
+	return &agent.CompletionResponse{
+		Message: agent.Message{Role: agent.RoleAssistant, ToolCalls: []agent.ToolCall{{
+			ID: "call-x", Name: "echo", Input: json.RawMessage(input),
+		}}},
+		StopReason: agent.StopToolUse,
+	}, nil
+}
+
+func TestRun_LoopGuard_CapsIdenticalCalls(t *testing.T) {
+	b, _ := newTestBus(t)
+	tool := &countingTool{}
+	_, err := agent.Run(context.Background(), agent.LoopConfig{
+		Provider: &repeatEchoProvider{}, Tools: map[string]agent.Tool{"echo": tool},
+		Bus: b, Actor: "a", CorrelationID: "c",
+		MaxIter: 12, MaxIdenticalToolCalls: 3,
+	}, "loop")
+	if !errors.Is(err, agent.ErrMaxIter) {
+		t.Errorf("got err=%v, want ErrMaxIter", err)
+	}
+	// Executed at most the cap, not all 12 iterations.
+	if tool.calls != 3 {
+		t.Errorf("tool executed %d times, want 3 (loop guard cap)", tool.calls)
+	}
+}
+
+func TestRun_LoopGuard_DistinctInputsNotCapped(t *testing.T) {
+	b, _ := newTestBus(t)
+	tool := &countingTool{}
+	_, err := agent.Run(context.Background(), agent.LoopConfig{
+		Provider: &repeatEchoProvider{varyInput: true}, Tools: map[string]agent.Tool{"echo": tool},
+		Bus: b, Actor: "a", CorrelationID: "c",
+		MaxIter: 6, MaxIdenticalToolCalls: 3,
+	}, "loop")
+	if !errors.Is(err, agent.ErrMaxIter) {
+		t.Errorf("got err=%v, want ErrMaxIter", err)
+	}
+	// Each call has distinct input, so the guard never fires — all 6 run.
+	if tool.calls != 6 {
+		t.Errorf("tool executed %d times, want 6 (distinct inputs not capped)", tool.calls)
+	}
+}
+
+func TestRun_LoopGuard_DisabledByNegative(t *testing.T) {
+	b, _ := newTestBus(t)
+	tool := &countingTool{}
+	_, _ = agent.Run(context.Background(), agent.LoopConfig{
+		Provider: &repeatEchoProvider{}, Tools: map[string]agent.Tool{"echo": tool},
+		Bus: b, Actor: "a", CorrelationID: "c",
+		MaxIter: 5, MaxIdenticalToolCalls: -1, // disabled
+	}, "loop")
+	if tool.calls != 5 {
+		t.Errorf("tool executed %d times, want 5 (guard disabled)", tool.calls)
 	}
 }

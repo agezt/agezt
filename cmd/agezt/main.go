@@ -2087,6 +2087,15 @@ func newDemoMock() agent.Provider {
 			mock.FinalText("[offline-mock] I attempted to read the cloud metadata endpoint; the egress guard refused the connection."),
 		)
 	}
+	// Demo escape hatch: AGEZT_DEMO_LOOP=1 returns a mock that ALWAYS requests
+	// the same shell call, so the M116 loop guard is observable: the call runs at
+	// most MaxIdenticalToolCalls times, then the loop refuses further executions
+	// (the run still exhausts MaxIter since the mock never adapts).
+	if os.Getenv(brand.EnvPrefix+"DEMO_LOOP") == "1" {
+		return &mock.Provider{Responder: func(agent.CompletionRequest) agent.CompletionResponse {
+			return mock.ToolUse("call-loop", "shell", map[string]any{"command": "true"})
+		}}
+	}
 	// Demo escape hatch: AGEZT_DEMO_FILE_EDIT=1 scripts the lead to write a file
 	// then SURGICALLY edit it with the file tool's replace op (M114), so the
 	// partial-edit path is observable end-to-end offline.

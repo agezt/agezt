@@ -12,6 +12,11 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Agent loop guard** (M116) — the agent loop now refuses to re-execute the SAME
+  `(tool, input)` call more than `MaxIdenticalToolCalls` times (default 5) in one
+  run, feeding the model a nudge instead of repeating a stuck/failing/expensive
+  call up to MaxIter. Distinct inputs are never capped. See
+  `.project/PHASE-M116-LOOP-GUARD-REPORT.md`.
 - **File tool regex search** (M115) — the `file` tool's `search` op gains an opt-in
   `regex: true` mode (RE2), so an agent can grep for code patterns, not just literal
   substrings. Default literal behaviour is unchanged. See

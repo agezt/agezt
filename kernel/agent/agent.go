@@ -166,6 +166,13 @@ type LoopConfig struct {
 	ToolTimeout time.Duration
 	// MaxTokens passed to the provider per call. 0 → provider default.
 	MaxTokens int
+	// MaxIdenticalToolCalls caps how many times the model may invoke the SAME
+	// (tool, input) within one run before the loop refuses to execute it again
+	// (M116). A model stuck retrying an identical failing/expensive call would
+	// otherwise re-run it every iteration up to MaxIter; the guard stops the
+	// re-execution and feeds back a clear nudge to change approach. 0 → default
+	// (DefaultMaxIdenticalToolCalls); a negative value disables the guard.
+	MaxIdenticalToolCalls int
 	// Actor is the journaling actor for emitted events (e.g. "agent-01H").
 	Actor string
 	// CorrelationID ties every event in this run together.
@@ -207,6 +214,12 @@ type Policy func(ctx context.Context, tc ToolCall) PolicyVerdict
 
 // DefaultMaxIter is DECISIONS E5.
 const DefaultMaxIter = 25
+
+// DefaultMaxIdenticalToolCalls is how many times the same (tool, input) may run
+// in one run before the loop guard refuses further executions (M116). Generous
+// enough for legitimate retries, far below MaxIter so a stuck loop can't re-run
+// an expensive/failing call dozens of times.
+const DefaultMaxIdenticalToolCalls = 5
 
 // ErrMaxIter is returned by Run when MaxIter rounds elapse without a final
 // assistant message.
@@ -265,6 +278,9 @@ func Run(ctx context.Context, cfg LoopConfig, userIntent string) (answer string,
 	if cfg.MaxIter <= 0 {
 		cfg.MaxIter = DefaultMaxIter
 	}
+	if cfg.MaxIdenticalToolCalls == 0 {
+		cfg.MaxIdenticalToolCalls = DefaultMaxIdenticalToolCalls
+	}
 	if cfg.Tools == nil {
 		cfg.Tools = map[string]Tool{}
 	}
@@ -322,6 +338,10 @@ func Run(ctx context.Context, cfg LoopConfig, userIntent string) (answer string,
 	for _, t := range cfg.Tools {
 		tools = append(tools, t.Definition())
 	}
+
+	// callCounts tracks how many times each exact (tool, input) has been
+	// requested in this run, for the M116 loop guard.
+	callCounts := map[string]int{}
 
 	for iter := range cfg.MaxIter {
 		if err := ctx.Err(); err != nil {
@@ -422,6 +442,31 @@ func Run(ctx context.Context, cfg LoopConfig, userIntent string) (answer string,
 		for _, tc := range resp.Message.ToolCalls {
 			if err := ctx.Err(); err != nil {
 				return "", err
+			}
+
+			// Loop guard (M116): if the model has already invoked this EXACT
+			// (tool, input) the cap number of times in this run, refuse to run it
+			// again — re-executing a stuck/failing call produces the same result
+			// and wastes work (and money). Feed back a clear nudge so the model
+			// changes approach instead of looping to MaxIter. Identical-input
+			// only, so a legitimate re-call with different args is unaffected. A
+			// negative cap disables the guard.
+			if cfg.MaxIdenticalToolCalls > 0 {
+				callKey := tc.Name + "\x00" + string(tc.Input)
+				callCounts[callKey]++
+				if callCounts[callKey] > cfg.MaxIdenticalToolCalls {
+					loopMsg := fmt.Sprintf("loop guard: %q was already called with this exact input %d times in this run; the result will not change. Use different input or stop and give your answer.", tc.Name, cfg.MaxIdenticalToolCalls)
+					if _, err := publish(event.KindToolResult, "tool", map[string]any{
+						"tool":    tc.Name,
+						"call_id": tc.ID,
+						"output":  loopMsg,
+						"error":   true,
+					}); err != nil {
+						return "", fmt.Errorf("agent: publish tool.result: %w", err)
+					}
+					messages = append(messages, Message{Role: RoleTool, Content: loopMsg, ToolCallID: tc.ID})
+					continue
+				}
 			}
 
 			// Policy gate (Edict). Publishes a policy.decision event even
