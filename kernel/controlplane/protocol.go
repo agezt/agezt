@@ -59,7 +59,11 @@ const (
 	// Args: limit (optional), status (optional: completed|failed|running).
 	// Returns: { plans: [ {correlation_id, plan_name, node_count, status,
 	// started_unix_ms, duration_ms} ], count }
-	CmdPlanHistory  = "plan_history"
+	CmdPlanHistory = "plan_history"
+	// CmdPlanStats aggregates plan executions (M84) — the plan analogue of
+	// CmdRunsStats. Returns: { total, completed, failed, running, terminal,
+	// success_rate, duration_ms: {count,avg,min,max,p50,p95} }
+	CmdPlanStats    = "plan_stats"
 	CmdPlanGenerate = "plan_generate"
 	// Planner refinement (M1.uu): operator-driven re-plan with
 	// feedback. Takes an existing plan JSON + free-text feedback,

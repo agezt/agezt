@@ -133,6 +133,94 @@ func (s *Server) handlePlanHistory(conn net.Conn, req Request) {
 	})
 }
 
+// handlePlanStats aggregates plan executions (M84) — the plan analogue of
+// handleRunsStats. Folds the plan lifecycle into total / completed / failed /
+// running counts, a success rate, and a duration distribution over terminal
+// plans. Tenant-routed (primary-only, like CmdPlan).
+func (s *Server) handlePlanStats(conn net.Conn, req Request) {
+	k, err := s.kernelFor(tenantOf(req))
+	if err != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		return
+	}
+
+	type planRun struct {
+		startedMS, endedMS int64
+		status             string
+	}
+	plans := map[string]*planRun{}
+	get := func(corr string) *planRun {
+		p := plans[corr]
+		if p == nil {
+			p = &planRun{status: "running"}
+			plans[corr] = p
+		}
+		return p
+	}
+	if err := k.Journal().Range(func(e *event.Event) error {
+		switch e.Kind {
+		case event.KindPlanStarted:
+			get(e.CorrelationID).startedMS = e.TSUnixMS
+		case event.KindPlanCompleted:
+			p := get(e.CorrelationID)
+			p.status = "completed"
+			p.endedMS = e.TSUnixMS
+		case event.KindPlanFailed:
+			p := get(e.CorrelationID)
+			p.status = "failed"
+			p.endedMS = e.TSUnixMS
+		}
+		return nil
+	}); err != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		return
+	}
+
+	var total, completed, failed, running int
+	durations := make([]int64, 0, len(plans))
+	for _, p := range plans {
+		total++
+		switch p.status {
+		case "completed":
+			completed++
+		case "failed":
+			failed++
+		default:
+			running++
+		}
+		if p.endedMS > 0 && p.startedMS > 0 && p.endedMS >= p.startedMS {
+			durations = append(durations, p.endedMS-p.startedMS)
+		}
+	}
+	terminal := completed + failed
+	successRate := 0.0
+	if terminal > 0 {
+		successRate = float64(completed) / float64(terminal)
+	}
+	dstats := durationStats(durations)
+
+	s.writeResp(conn, Response{
+		ID:   req.ID,
+		Type: RespResult,
+		Result: map[string]any{
+			"total":        total,
+			"completed":    completed,
+			"failed":       failed,
+			"running":      running,
+			"terminal":     terminal,
+			"success_rate": successRate,
+			"duration_ms": map[string]any{
+				"count": len(durations),
+				"avg":   dstats.avg,
+				"min":   dstats.min,
+				"max":   dstats.max,
+				"p50":   dstats.p50,
+				"p95":   dstats.p95,
+			},
+		},
+	})
+}
+
 // decodePlanLifecycle pulls plan_name + node_count out of a plan.started /
 // plan.completed payload (M83). Returns zero values on parse failure.
 func decodePlanLifecycle(payload json.RawMessage) (name string, nodeCount int64) {

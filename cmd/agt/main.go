@@ -462,6 +462,8 @@ func cmdPlan(args []string, stdout, stderr io.Writer) int {
 		return cmdPlanGenerate(args[1:], stdout, stderr)
 	case "history", "runs", "ls":
 		return cmdPlanHistory(args[1:], stdout, stderr)
+	case "stats":
+		return cmdPlanStats(args[1:], stdout, stderr)
 	case "run":
 		return cmdPlanRun(args[1:], stdout, stderr)
 	case "cost":

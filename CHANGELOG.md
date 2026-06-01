@@ -38,6 +38,10 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   the denial rate + counts reflect one tool/capability. Completes the symmetry
   with `edict log`'s M74 filters. See
   `.project/PHASE-M76-EDICT-STATS-SCOPE-REPORT.md`.
+- **`agt plan stats`** (SPEC-02/SPEC-08, M84) — the plan analogue of
+  `runs stats`: aggregates plan executions into total / completed / failed /
+  running, a success rate, and a duration distribution. Completes the plan
+  `history`/`stats` pair. See `.project/PHASE-M84-PLAN-STATS-REPORT.md`.
 - **`agt plan history`** (SPEC-02/SPEC-08, M83) — the plan analogue of
   `runs list`: folds `plan.started` joined with `plan.completed`/`plan.failed`
   into a newest-first list of plan executions (name, status, nodes, duration),

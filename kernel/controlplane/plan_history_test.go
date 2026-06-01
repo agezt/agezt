@@ -73,3 +73,49 @@ func TestPlanHistory_ListsAndJoinsOutcome(t *testing.T) {
 		t.Errorf("failed plan = %v / %v want plan-2 / backup", m["correlation_id"], m["plan_name"])
 	}
 }
+
+// TestPlanStats_Aggregates — `agt plan stats` counts completed/failed/running
+// and computes the success rate over terminal plans (M84).
+func TestPlanStats_Aggregates(t *testing.T) {
+	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	started := func(corr string) {
+		_, _ = k.Bus().Publish(event.Spec{
+			Subject: "plan", Kind: event.KindPlanStarted, Actor: "scheduler",
+			CorrelationID: corr, Payload: map[string]any{"plan_name": "p", "node_count": 1},
+		})
+	}
+	term := func(corr string, kind event.Kind) {
+		_, _ = k.Bus().Publish(event.Spec{
+			Subject: "plan", Kind: kind, Actor: "scheduler",
+			CorrelationID: corr, Payload: map[string]any{"plan_name": "p"},
+		})
+	}
+	started("p1")
+	term("p1", event.KindPlanCompleted)
+	started("p2")
+	term("p2", event.KindPlanCompleted)
+	started("p3")
+	term("p3", event.KindPlanFailed)
+	started("p4") // running
+
+	res, err := c.Call(context.Background(), controlplane.CmdPlanStats, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tot, _ := res["total"].(float64); tot != 4 {
+		t.Errorf("total = %v want 4", res["total"])
+	}
+	if comp, _ := res["completed"].(float64); comp != 2 {
+		t.Errorf("completed = %v want 2", res["completed"])
+	}
+	if fail, _ := res["failed"].(float64); fail != 1 {
+		t.Errorf("failed = %v want 1", res["failed"])
+	}
+	if run, _ := res["running"].(float64); run != 1 {
+		t.Errorf("running = %v want 1", res["running"])
+	}
+	// success rate over terminal (3): 2/3.
+	if rate, _ := res["success_rate"].(float64); rate < 0.66 || rate > 0.67 {
+		t.Errorf("success_rate = %v want ~0.667", rate)
+	}
+}

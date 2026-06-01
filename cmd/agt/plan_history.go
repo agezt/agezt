@@ -108,3 +108,69 @@ func cmdPlanHistory(args []string, stdout, stderr io.Writer) int {
 	}
 	return 0
 }
+
+// cmdPlanStats implements `agt plan stats [--json]` — the plan analogue of
+// `agt runs stats` (M84): aggregate plan-execution health (counts, success
+// rate, duration distribution).
+func cmdPlanStats(args []string, stdout, stderr io.Writer) int {
+	asJSON := false
+	for _, a := range args {
+		switch a {
+		case "--json":
+			asJSON = true
+		case "-h", "--help":
+			fmt.Fprintf(stdout, "usage: %s plan stats [--json]\n", brand.CLI)
+			fmt.Fprintf(stdout, "aggregate plan-execution health: total / completed / failed / running,\n")
+			fmt.Fprintf(stdout, "success rate, and plan-duration avg/min/p50/p95/max\n")
+			return 0
+		default:
+			fmt.Fprintf(stderr, "%s plan stats: unexpected arg %q\n", brand.CLI, a)
+			return 2
+		}
+	}
+
+	c := dial(stderr)
+	if c == nil {
+		return 1
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	res, err := c.Call(ctx, controlplane.CmdPlanStats, nil)
+	if err != nil {
+		fmt.Fprintf(stderr, "%s plan stats: %v\n", brand.CLI, err)
+		return 1
+	}
+	if asJSON {
+		return encodeJSON(stdout, res)
+	}
+	total := intOfStatus(res["total"])
+	if total == 0 {
+		fmt.Fprintln(stdout, "no plan executions journaled yet.")
+		return 0
+	}
+	completed := intOfStatus(res["completed"])
+	failed := intOfStatus(res["failed"])
+	running := intOfStatus(res["running"])
+	terminal := intOfStatus(res["terminal"])
+	rate, _ := res["success_rate"].(float64)
+	fmt.Fprintf(stdout, "plan stats (over %d execution(s)):\n\n", total)
+	fmt.Fprintf(stdout, "  completed : %d\n", completed)
+	fmt.Fprintf(stdout, "  failed    : %d\n", failed)
+	fmt.Fprintf(stdout, "  running   : %d\n", running)
+	if terminal > 0 {
+		fmt.Fprintf(stdout, "  success   : %.1f%% (%d/%d terminal)\n", rate*100, completed, terminal)
+	} else {
+		fmt.Fprintf(stdout, "  success   : n/a (no plan has finished yet)\n")
+	}
+	if dur, _ := res["duration_ms"].(map[string]any); dur != nil {
+		if dcount := intOfStatus(dur["count"]); dcount > 0 {
+			fmt.Fprintf(stdout, "\n  duration (over %d terminal plan(s)):\n", dcount)
+			fmt.Fprintf(stdout, "    avg : %s\n", fmtDuration(intOfStatus(dur["avg"])))
+			fmt.Fprintf(stdout, "    min : %s\n", fmtDuration(intOfStatus(dur["min"])))
+			fmt.Fprintf(stdout, "    p50 : %s\n", fmtDuration(intOfStatus(dur["p50"])))
+			fmt.Fprintf(stdout, "    p95 : %s\n", fmtDuration(intOfStatus(dur["p95"])))
+			fmt.Fprintf(stdout, "    max : %s\n", fmtDuration(intOfStatus(dur["max"])))
+		}
+	}
+	return 0
+}
