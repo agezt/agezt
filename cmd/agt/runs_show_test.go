@@ -407,3 +407,23 @@ func TestRenderTaskArc_FailedRunShowsReason(t *testing.T) {
 		}
 	}
 }
+
+// TestRenderTaskArc_ToolResultShowsLatency — a tool.result renders its
+// invoked→result latency (M72), joined by call_id from the events' ts_unix_ms.
+func TestRenderTaskArc_ToolResultShowsLatency(t *testing.T) {
+	summary := map[string]any{"intent": "do thing", "status": "completed", "iters": float64(1), "duration_ms": float64(10)}
+	events := []map[string]any{
+		{"kind": "tool.invoked", "seq": float64(1), "ts_unix_ms": float64(1_000), "payload": map[string]any{
+			"tool": "shell", "call_id": "c1", "input": map[string]any{"command": "ls"},
+		}},
+		{"kind": "tool.result", "seq": float64(2), "ts_unix_ms": float64(1_250), "payload": map[string]any{
+			"tool": "shell", "call_id": "c1", "output": "done", "error": false,
+		}},
+	}
+	var buf bytes.Buffer
+	renderTaskArc(&buf, "run-LAT", summary, events, nil)
+	s := buf.String()
+	if !strings.Contains(s, "tool.result : ok (250ms)") {
+		t.Errorf("arc missing tool latency; got:\n%s", s)
+	}
+}

@@ -21,6 +21,11 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   input/output excerpts. See `.project/PHASE-M68-ARC-HONESTY-REPORT.md`.
 
 ### Added
+- **Per-tool latency inline in the task arc** (SPEC-08, M72) — `agt runs show`
+  now renders each `tool.result` with its invoked→result wall-clock
+  (`tool.result : ok (18ms) …`), joined by `call_id` from the arc's own event
+  timestamps — the same span `agt tool log` reports, on the run-debugging
+  surface. See `.project/PHASE-M72-ARC-LATENCY-REPORT.md`.
 - **Tool-call latency in `agt tool log` & `tool stats`** (SPEC-08, M71) — each
   log row gains a latency column and `tool stats` gains an avg/min/p50/p95/max
   `latency` block, computed from the journal's `tool.invoked`→`tool.result`

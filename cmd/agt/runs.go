@@ -857,11 +857,16 @@ func renderTaskArc(w io.Writer, corr string, summary map[string]any, events []ma
 	round := 0
 	inRound := false
 	var finalAnswer string
+	// Per-call tool latency (M72): stash each tool.invoked timestamp by call_id
+	// so the matching tool.result can show its wall-clock — the same
+	// invoked→result span `agt tool log` reports, here inline on the arc.
+	invokedAt := map[string]int64{}
 
 	for _, e := range events {
 		kind, _ := e["kind"].(string)
 		payload, _ := e["payload"].(map[string]any)
 		seq := intOfStatus(e["seq"])
+		ts := intOfStatus(e["ts_unix_ms"])
 		switch kind {
 		case "task.received":
 			// Already shown in the header.
@@ -882,6 +887,9 @@ func renderTaskArc(w io.Writer, corr string, summary map[string]any, events []ma
 			inRound = false
 		case "tool.invoked":
 			tool, _ := payload["tool"].(string)
+			if callID, _ := payload["call_id"].(string); callID != "" {
+				invokedAt[callID] = ts // M72: anchor for the result's latency
+			}
 			indent := "  "
 			if inRound {
 				indent = "    "
@@ -907,6 +915,12 @@ func renderTaskArc(w io.Writer, corr string, summary map[string]any, events []ma
 				tag = "ERROR"
 			}
 			line := fmt.Sprintf("%stool.result : %s", indent, tag)
+			// Per-call latency (M72): the invoked→result span, joined by call_id.
+			if callID, _ := payload["call_id"].(string); callID != "" {
+				if it, ok := invokedAt[callID]; ok && ts >= it {
+					line += fmt.Sprintf(" (%s)", fmtDuration(ts-it))
+				}
+			}
 			if out := arcPreview(payload["output"]); out != "" {
 				line += "  " + out
 			}
