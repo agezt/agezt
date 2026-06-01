@@ -11,6 +11,15 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 
 ## [Unreleased]
 
+### Added
+- **Vision capability gate** (SPEC-14, M91) — `agt run --image <path>` attaches
+  images to a run; the daemon rejects them pre-flight (before any provider call)
+  unless the active model is confirmed vision-capable, journaling
+  `capability.rejected{capability:vision}`. Confirmed-or-reject (stricter than the
+  M25 tool gate, since an image on a non-vision model is a guaranteed failure).
+  Enforced at the submission boundary — no agent/message-type change. See
+  `.project/PHASE-M91-VISION-GATE-REPORT.md`.
+
 ### Fixed
 - **Task-arc rendering told the truth** (SPEC-08, M68) — `agt runs show` read two
   journal fields the agent loop never writes: `tool.result` checked `is_error`

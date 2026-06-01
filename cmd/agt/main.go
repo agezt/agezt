@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -241,19 +242,40 @@ func cmdRun(args []string, stdout, stderr io.Writer) int {
 	// an isolated tenant's kernel (requires the daemon with AGEZT_MULTITENANT=on).
 	asJSON := false
 	tenant := ""
+	var images []string
 	var intentParts []string
 	for i := 0; i < len(args); i++ {
 		a := args[i]
-		switch a {
-		case "--json":
+		switch {
+		case a == "--json":
 			asJSON = true
-		case "--tenant":
+		case a == "--tenant":
 			if i+1 >= len(args) {
 				fmt.Fprintf(stderr, "%s run: --tenant needs an id\n", brand.CLI)
 				return 2
 			}
 			i++
 			tenant = args[i]
+		case a == "--image":
+			// Attach an image to the run (M91). The daemon gates it against the
+			// model's vision capability before any provider call.
+			if i+1 >= len(args) {
+				fmt.Fprintf(stderr, "%s run: --image needs a path\n", brand.CLI)
+				return 2
+			}
+			i++
+			if _, err := os.Stat(args[i]); err != nil {
+				fmt.Fprintf(stderr, "%s run: --image %q: %v\n", brand.CLI, args[i], err)
+				return 2
+			}
+			images = append(images, filepath.Base(args[i]))
+		case strings.HasPrefix(a, "--image="):
+			p := strings.TrimPrefix(a, "--image=")
+			if _, err := os.Stat(p); err != nil {
+				fmt.Fprintf(stderr, "%s run: --image %q: %v\n", brand.CLI, p, err)
+				return 2
+			}
+			images = append(images, filepath.Base(p))
 		default:
 			intentParts = append(intentParts, a)
 		}
@@ -267,6 +289,13 @@ func cmdRun(args []string, stdout, stderr io.Writer) int {
 	runArgs := map[string]any{"intent": intent}
 	if tenant != "" {
 		runArgs["tenant"] = tenant
+	}
+	if len(images) > 0 {
+		imgs := make([]any, len(images))
+		for i, n := range images {
+			imgs[i] = n
+		}
+		runArgs["images"] = imgs
 	}
 
 	c := dial(stderr)

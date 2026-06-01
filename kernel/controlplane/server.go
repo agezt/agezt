@@ -19,6 +19,7 @@ import (
 
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/approval"
+	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/scheduler"
 	"github.com/agezt/agezt/kernel/tenant"
@@ -820,6 +821,38 @@ func (s *Server) handleRun(ctx context.Context, conn net.Conn, req Request) {
 	if err != nil {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
 		return
+	}
+
+	// Vision capability gate (M91): a run carrying image attachments requires a
+	// model confirmed to accept image input. Unlike the M25 tool gate (which
+	// allows unknown models because many tolerate tool schemas), an image sent to
+	// a non-vision model is a guaranteed hard failure — so this denies unless the
+	// active model is confirmed vision-capable (confirmed-or-reject), pre-flight,
+	// before any provider call. Enforced here at the submission boundary so the
+	// agent loop and message type stay untouched.
+	if imgs, ok := req.Args["images"].([]any); ok && len(imgs) > 0 {
+		var visionOK bool
+		if cat := k.Catalog(); cat != nil {
+			if _, m := cat.FindModel(k.Model()); m != nil {
+				visionOK = m.SupportsVision()
+			}
+		}
+		if !visionOK {
+			_, _ = k.Bus().Publish(event.Spec{
+				Subject: "governor.capability",
+				Kind:    event.KindCapabilityRejected,
+				Actor:   "controlplane",
+				Payload: map[string]any{
+					"model":            k.Model(),
+					"capability":       "vision",
+					"images_requested": len(imgs),
+				},
+			})
+			s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: fmt.Sprintf(
+				"model %q does not support vision (image input); attach images only to a vision-capable model (see `agt provider check --caps`)",
+				k.Model())})
+			return
+		}
 	}
 
 	// Pre-generate the correlation ID so we can subscribe to this run's
