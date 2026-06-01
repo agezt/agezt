@@ -12,6 +12,11 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **`agt backup` / `agt restore`** (SPEC-09 §8, M113) — one-command, secret-free
+  node migration: a portable `.tar.gz` of the home (journal + catalog) that
+  restores on a fresh host and boots. Secrets are excluded by construction (only
+  journal/ + catalog/ are captured) and restore is path-traversal-safe. See
+  `.project/PHASE-M113-BACKUP-RESTORE-REPORT.md`.
 - **Webhook delivery observability** (SPEC-08 / P7-API-02, M112) — `agt webhook log`
   (with `--failed`) and `agt webhook stats` surface outbound webhook deliveries and
   failures (per URL), so a silently-failing notification sink is visible instead of

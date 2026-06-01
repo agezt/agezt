@@ -94,6 +94,10 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return cmdRateLimit(args[1:], stdout, stderr)
 	case "webhook":
 		return cmdWebhook(args[1:], stdout, stderr)
+	case "backup":
+		return cmdBackup(args[1:], stdout, stderr)
+	case "restore":
+		return cmdRestore(args[1:], stdout, stderr)
 	case "doctor":
 		return cmdDoctor(args[1:], stdout, stderr)
 	case "quickstart":
