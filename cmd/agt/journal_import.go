@@ -83,6 +83,12 @@ func cmdJournalImport(args []string, stdout, stderr io.Writer) int {
 		}
 		events = append(events, e)
 	}
+	// Reject a tail-truncated bundle before touching disk: it would chain-verify
+	// as a valid prefix but restore an incomplete history (M103).
+	if cerr := checkBundleCompleteness(events, b.Manifest); cerr != nil {
+		fmt.Fprintf(stderr, "%s journal import: bundle INCOMPLETE: %v\n", brand.CLI, cerr)
+		return 1
+	}
 
 	baseDir := homeOverride
 	if baseDir == "" {

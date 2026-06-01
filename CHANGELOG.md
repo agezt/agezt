@@ -12,6 +12,11 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Anti-truncation for journal bundles** (SPEC-09 §8, M103) — `agt journal verify
+  --bundle` and `agt journal import` now confirm a bundle REACHES the chain head
+  its manifest attests (`last.Hash == head_hash`), closing a tail-truncation /
+  omission gap: a dropped tail previously still chain-verified as a valid prefix.
+  See `.project/PHASE-M103-BUNDLE-COMPLETENESS-REPORT.md`.
 - **Journal import / restore** (SPEC-09 §8, M102) — `agt journal import <bundle>
   [--home <dir>]` seeds a fresh host from an `agt journal export` bundle for
   disaster-recovery / migration: it verifies the bundle, refuses to clobber a

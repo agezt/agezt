@@ -227,6 +227,10 @@ func cmdJournalVerify(args []string, stdout, stderr io.Writer) int {
 			brand.CLI, b.Manifest.Count, len(events))
 		return 1
 	}
+	if cerr := checkBundleCompleteness(events, b.Manifest); cerr != nil {
+		fmt.Fprintf(stderr, "%s journal verify: bundle INCOMPLETE: %v\n", brand.CLI, cerr)
+		return 1
+	}
 	fmt.Fprintf(stdout, "bundle OK: %d event(s) verified", n)
 	if n > 0 {
 		fmt.Fprintf(stdout, " (seq %d..%d)", b.Manifest.FirstSeq, b.Manifest.LastSeq)
@@ -253,6 +257,38 @@ func verifyBundleEvents(events []*event.Event) (int, error) {
 		}
 	}
 	return len(events), nil
+}
+
+// checkBundleCompleteness confirms a verified bundle actually REACHES the chain
+// head its manifest attests (M103) — closing a tail-truncation / omission gap:
+// per-event hashing + continuity prove the prefix is untampered, but a dropped
+// tail would still verify. Because an export streams every event up to the head
+// read at the same instant, the last bundle event must be that head; its hash is
+// cryptographically bound, so `last.Hash == head_hash` proves nothing was
+// truncated. Seq cross-checks give a clearer message. An empty head_hash (pre-
+// genesis / legacy bundle) skips the cryptographic check.
+func checkBundleCompleteness(events []*event.Event, m journalBundleManifest) error {
+	if len(events) == 0 {
+		if m.Count != 0 {
+			return fmt.Errorf("manifest claims %d event(s) but bundle is empty", m.Count)
+		}
+		return nil
+	}
+	first, last := events[0], events[len(events)-1]
+	if first.Seq != m.FirstSeq {
+		return fmt.Errorf("first event seq %d != manifest first_seq %d", first.Seq, m.FirstSeq)
+	}
+	if last.Seq != m.LastSeq {
+		return fmt.Errorf("last event seq %d != manifest last_seq %d (bundle truncated?)", last.Seq, m.LastSeq)
+	}
+	if last.Seq != m.HeadSeq {
+		return fmt.Errorf("last event seq %d does not reach attested head seq %d (bundle incomplete)", last.Seq, m.HeadSeq)
+	}
+	if m.HeadHash != "" && last.Hash != m.HeadHash {
+		return fmt.Errorf("last event hash %s != attested chain head %s (bundle truncated/incomplete)",
+			shortHash(last.Hash), shortHash(m.HeadHash))
+	}
+	return nil
 }
 
 // shortHash trims a 64-hex digest to its first 12 chars for display.

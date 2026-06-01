@@ -59,6 +59,44 @@ func TestVerifyBundleEvents(t *testing.T) {
 	}
 }
 
+func TestCheckBundleCompleteness(t *testing.T) {
+	e0 := mkChainEvent(t, 0, event.GenesisHash, map[string]any{"n": 0})
+	e1 := mkChainEvent(t, 1, e0.Hash, map[string]any{"n": 1})
+	e2 := mkChainEvent(t, 2, e1.Hash, map[string]any{"n": 2})
+	full := []*event.Event{e0, e1, e2}
+
+	// A manifest matching the full slice (head = last event) is complete.
+	good := journalBundleManifest{
+		Count: 3, FirstSeq: 0, LastSeq: 2, HeadSeq: 2, HeadHash: e2.Hash,
+	}
+	if err := checkBundleCompleteness(full, good); err != nil {
+		t.Fatalf("complete bundle: unexpected error %v", err)
+	}
+
+	// Tail-truncated: drop the last event but keep the manifest claiming head=e2.
+	// This is the omission attack — the prefix still chain-verifies, so only the
+	// head check catches it.
+	if err := checkBundleCompleteness([]*event.Event{e0, e1}, good); err == nil {
+		t.Fatalf("tail-truncated bundle: want error, got nil")
+	}
+
+	// Hash mismatch at the head (manifest head_hash forged) → incomplete.
+	forged := good
+	forged.HeadHash = e1.Hash // claim a different head than the actual last event
+	if err := checkBundleCompleteness(full, forged); err == nil {
+		t.Fatalf("forged head_hash: want error, got nil")
+	}
+
+	// Empty bundle with a non-zero manifest count → error.
+	if err := checkBundleCompleteness(nil, journalBundleManifest{Count: 5}); err == nil {
+		t.Fatalf("empty vs count=5: want error, got nil")
+	}
+	// Genuinely empty (count 0) → OK.
+	if err := checkBundleCompleteness(nil, journalBundleManifest{}); err != nil {
+		t.Fatalf("empty bundle: unexpected error %v", err)
+	}
+}
+
 func TestShortHash(t *testing.T) {
 	if got := shortHash("abcdef"); got != "abcdef" {
 		t.Errorf("short input should be unchanged, got %q", got)
