@@ -326,6 +326,7 @@ func cmdRunsList(args []string, stdout, stderr io.Writer) int {
 	tenant := ""
 	status := ""
 	intent := ""
+	model := ""
 	for i := 0; i < len(args); i++ {
 		a := args[i]
 		switch {
@@ -335,6 +336,15 @@ func cmdRunsList(args []string, stdout, stderr io.Writer) int {
 			tree = true
 		case a == "--failed":
 			status = "failed"
+		case a == "--model":
+			if i+1 >= len(args) {
+				fmt.Fprintf(stderr, "%s runs list: --model needs a substring\n", brand.CLI)
+				return 2
+			}
+			i++
+			model = args[i]
+		case strings.HasPrefix(a, "--model="):
+			model = strings.TrimPrefix(a, "--model=")
 		case a == "--intent":
 			if i+1 >= len(args) {
 				fmt.Fprintf(stderr, "%s runs list: --intent needs a substring\n", brand.CLI)
@@ -369,6 +379,7 @@ func cmdRunsList(args []string, stdout, stderr io.Writer) int {
 			fmt.Fprintf(stdout, "  --status <s>      only runs with this status (completed|failed|running|abandoned)\n")
 			fmt.Fprintf(stdout, "  --failed          shorthand for --status failed\n")
 			fmt.Fprintf(stdout, "  --intent <substr> only runs whose intent contains <substr> (case-insensitive)\n")
+			fmt.Fprintf(stdout, "  --model <substr>  only runs whose model contains <substr> (case-insensitive)\n")
 			return 0
 		default:
 			n, err := strconv.Atoi(a)
@@ -399,6 +410,9 @@ func cmdRunsList(args []string, stdout, stderr io.Writer) int {
 	}
 	if intent != "" {
 		callArgs["intent"] = intent // M77: filter by intent substring
+	}
+	if model != "" {
+		callArgs["model"] = model // M123: filter by model substring
 	}
 	res, err := c.Call(ctx, controlplane.CmdRunsList, callArgs)
 	if err != nil {
@@ -443,6 +457,7 @@ func renderRunRow(w io.Writer, r map[string]any, base string, showParentTag bool
 	duration := intOfStatus(r["duration_ms"])
 	iters := intOfStatus(r["iters"])
 	spent := mcFromAny(r["spent_mc"]) // M50: this run's spend (microcents)
+	model, _ := r["model"].(string)   // M123: the run's primary model ("" if unpriced/mock)
 
 	startedStr := "—"
 	if started > 0 {
@@ -474,6 +489,12 @@ func renderRunRow(w io.Writer, r map[string]any, base string, showParentTag bool
 	fmt.Fprintf(w, "%s%s\n", base, corrDisplay)
 	fmt.Fprintf(w, "%s  started : %s   status: %-18s  duration: %s   iters: %d",
 		base, startedStr, statusDisplay, durationStr, iters)
+	// Append the run's model when journaled (M123) — answers "which model served
+	// this run" inline, the natural pair to the --model filter. Quiet for an
+	// unpriced/mock run that journaled no model.
+	if model != "" {
+		fmt.Fprintf(w, "   model: %s", model)
+	}
 	// Append spend only when this run cost something (a free/local model or
 	// the offline mock spends $0) — keeps the row clean in the common case (M50).
 	if spent > 0 {

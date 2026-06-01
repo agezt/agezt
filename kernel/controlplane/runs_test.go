@@ -932,6 +932,80 @@ func TestRunsStats_SpendDistribution(t *testing.T) {
 	}
 }
 
+// TestRunsList_ModelFoldAndFilter — the run's model is folded first-wins from
+// budget.consumed and surfaced in each row, and `--model` filters by a
+// case-insensitive substring (M123). A run that never spent has an empty model.
+func TestRunsList_ModelFoldAndFilter(t *testing.T) {
+	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+
+	mkRun := func(corr, model string) {
+		t.Helper()
+		_, _ = k.Bus().Publish(event.Spec{
+			Subject: "task", Kind: event.KindTaskReceived, Actor: "a",
+			CorrelationID: corr, Payload: map[string]string{"intent": "x"},
+		})
+		if model != "" {
+			_, _ = k.Bus().Publish(event.Spec{
+				Subject: "governor.budget", Kind: event.KindBudgetConsumed, Actor: "governor",
+				CorrelationID: corr, Payload: map[string]any{"cost_microcents": int64(10), "model": model},
+			})
+			// A later fallback to a different model must NOT overwrite (first-wins).
+			_, _ = k.Bus().Publish(event.Spec{
+				Subject: "governor.budget", Kind: event.KindBudgetConsumed, Actor: "governor",
+				CorrelationID: corr, Payload: map[string]any{"cost_microcents": int64(10), "model": "OTHER-fallback"},
+			})
+		}
+		_, _ = k.Bus().Publish(event.Spec{
+			Subject: "task", Kind: event.KindTaskCompleted, Actor: "a",
+			CorrelationID: corr, Payload: map[string]any{"iters": 1},
+		})
+	}
+	mkRun("r1", "claude-opus-4")
+	mkRun("r2", "claude-haiku-4")
+	mkRun("r3", "") // free/mock — no model journaled
+
+	modelsByCorr := func(args map[string]any) map[string]string {
+		t.Helper()
+		res, err := c.Call(context.Background(), controlplane.CmdRunsList, args)
+		if err != nil {
+			t.Fatalf("Call: %v", err)
+		}
+		rows, _ := res["runs"].([]any)
+		got := map[string]string{}
+		for _, raw := range rows {
+			m, _ := raw.(map[string]any)
+			corr, _ := m["correlation_id"].(string)
+			model, _ := m["model"].(string)
+			got[corr] = model
+		}
+		return got
+	}
+
+	// No filter: all three runs, r1/r2 carry their first model, r3 empty.
+	all := modelsByCorr(nil)
+	if len(all) != 3 {
+		t.Fatalf("no filter: got %d runs want 3 (%v)", len(all), all)
+	}
+	if all["r1"] != "claude-opus-4" {
+		t.Errorf("r1 model = %q want claude-opus-4 (first-wins, not the fallback)", all["r1"])
+	}
+	if all["r3"] != "" {
+		t.Errorf("r3 model = %q want empty (no spend journaled)", all["r3"])
+	}
+
+	// Substring "haiku" → only r2.
+	haiku := modelsByCorr(map[string]any{"model": "haiku"})
+	if len(haiku) != 1 || haiku["r2"] != "claude-haiku-4" {
+		t.Errorf("--model haiku = %v want only r2", haiku)
+	}
+
+	// Case-insensitive "CLAUDE" → r1 and r2, not r3.
+	claude := modelsByCorr(map[string]any{"model": "CLAUDE"})
+	if len(claude) != 2 || claude["r1"] == "" || claude["r2"] == "" {
+		t.Errorf("--model CLAUDE = %v want r1+r2", claude)
+	}
+}
+
 // TestRunsStats_SpendIgnoresUnknownCorrelation — a budget.consumed event whose
 // correlation never had a task.received (an out-of-run governor call) must not
 // conjure a phantom run nor inflate the spend total (M47).

@@ -12,6 +12,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Model-aware `agt runs`** (M123) — each run now folds and surfaces the model it
+  was routed to (first-wins, from its `budget.consumed` events), shown inline in
+  `agt runs list` and as a `model` field in `--json`, plus a `--model <substr>`
+  filter (case-insensitive). Answers "which runs used claude-opus?" / "did routing
+  go as expected?" in a multi-provider deployment — the natural companion to the
+  M99 provider-fallback stats. See `.project/PHASE-M123-RUNS-MODEL-REPORT.md`.
 - **`agt webhook test`** (M122) — a daemon-free probe that POSTs one synthetic
   `webhook.test` event to a sink using the byte-identical body, headers, and HMAC
   signature a real delivery sends, so an operator can confirm a sink is reachable

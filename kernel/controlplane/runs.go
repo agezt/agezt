@@ -63,6 +63,13 @@ type runEntry struct {
 	// show what a delegation RESULTED IN inline on its ↳ line, not just its
 	// status/cost. Empty for a run that didn't complete with text.
 	AnswerPreview string
+	// Model is the run's primary (first-routed) model name (M123), folded
+	// first-wins from its budget.consumed events. Lets `agt runs` show and
+	// filter by model — "which runs used claude-opus?" / "did the fallback
+	// route as expected?" — in a multi-provider deployment. Empty for a run
+	// that never spent (no model journaled, e.g. the offline mock or a run
+	// that errored before its first call).
+	Model string
 }
 
 // runEntryStatus reports a run's terminal status (M61), the single source of
@@ -173,6 +180,16 @@ func (s *Server) collectRuns(k *runtime.Kernel) (map[string]*runEntry, error) {
 			}
 			if entry, ok := runs[e.CorrelationID]; ok {
 				entry.SpentMicrocents += extractCostMicrocents(e.Payload)
+				// Record the run's model (M123), first-wins: the model it was
+				// initially routed to. A later fallback to another model does
+				// not overwrite it — provider-fallback rates live in `agt
+				// provider stats` (M99); this field answers "what model was
+				// this run", which the first call settles.
+				if entry.Model == "" {
+					if m := extractModel(e.Payload); m != "" {
+						entry.Model = m
+					}
+				}
 			}
 		}
 		return nil
@@ -208,6 +225,10 @@ func (s *Server) handleRunsList(conn net.Conn, req Request) {
 	// operator can find "that deploy run" without scanning the whole list.
 	intentQuery, _ := req.Args["intent"].(string)
 	intentQuery = strings.ToLower(intentQuery)
+	// Optional model substring filter (M123): case-insensitive contains, so an
+	// operator can find "which runs used claude-opus" in a multi-provider mix.
+	modelQuery, _ := req.Args["model"].(string)
+	modelQuery = strings.ToLower(modelQuery)
 
 	// Tenant-scoped (M39): an empty tenant reads the primary journal; a named
 	// tenant reads its own isolated journal, so a tenant sees only its runs.
@@ -234,6 +255,10 @@ func (s *Server) handleRunsList(conn net.Conn, req Request) {
 		}
 		// Intent substring filter (M77), also before the limit.
 		if intentQuery != "" && !strings.Contains(strings.ToLower(r.Intent), intentQuery) {
+			continue
+		}
+		// Model substring filter (M123), also before the limit.
+		if modelQuery != "" && !strings.Contains(strings.ToLower(r.Model), modelQuery) {
 			continue
 		}
 		entries = append(entries, r)
@@ -285,6 +310,7 @@ func (s *Server) handleRunsList(conn net.Conn, req Request) {
 			"iters":              r.Iters,
 			"parent_correlation": r.ParentCorrelation, // "" for top-level runs (M41)
 			"spent_mc":           r.SpentMicrocents,    // this run's spend in microcents (M50; 0 = none/unpriced)
+			"model":              r.Model,              // primary (first-routed) model (M123; "" if unpriced/mock)
 			"answer_preview":     r.AnswerPreview,      // one-line excerpt of the final answer (M52; "" if none)
 		})
 	}
@@ -611,6 +637,22 @@ func extractCostMicrocents(payload json.RawMessage) int64 {
 		return 0
 	}
 	return int64(p.Cost)
+}
+
+// extractModel pulls the model name out of a budget.consumed payload (M123).
+// Returns "" on parse failure or absence, so an unparseable or model-less spend
+// event leaves the run's model unset rather than crashing the fold.
+func extractModel(payload json.RawMessage) string {
+	if len(payload) == 0 {
+		return ""
+	}
+	var p struct {
+		Model string `json:"model"`
+	}
+	if err := json.Unmarshal(payload, &p); err != nil {
+		return ""
+	}
+	return p.Model
 }
 
 // answerPreviewRunes bounds the one-line answer excerpt folded into a run row
