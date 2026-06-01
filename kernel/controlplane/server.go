@@ -496,7 +496,16 @@ func (s *Server) handleWhy(conn net.Conn, req Request) {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.event_id required"})
 		return
 	}
-	events, err := s.k.Why(id)
+	// Tenant-scoped (M53): an empty tenant traces the primary journal; a named
+	// tenant traces its own isolated journal, so a tenant walks only its own
+	// events — completing tenant isolation on the observability surface (M39
+	// did runs list/stats; this does why).
+	k, err := s.kernelFor(tenantOf(req))
+	if err != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		return
+	}
+	events, err := k.Why(id)
 	if err != nil {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
 		return
@@ -515,7 +524,7 @@ func (s *Server) handleWhy(conn net.Conn, req Request) {
 	}
 	parent := ""
 	if corr != "" {
-		parent = s.k.ParentOf(corr)
+		parent = k.ParentOf(corr)
 	}
 	s.writeResp(conn, Response{
 		ID:   req.ID,

@@ -12,6 +12,15 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Tenant-scoped `agt why`** (SPEC-08 journal × SPEC-14 multi-tenancy, M53) — the
+  event-chain tracer is now routed per-tenant via `kernelFor(tenantOf(req))` (the
+  M39 seam): `agt why <id> --tenant <id>` traces a tenant's own journal, and the
+  primary scope no longer reads across the isolation boundary. `CmdWhy` joins the
+  tenant-token allowlist so a tenant can trace its own events with its own token.
+  Closes the last non-tenant-aware control surface — isolation is now complete
+  across execution (M14), control (M38), and observability (M39 runs + M53 why).
+  Proven live: a primary event resolves under the primary scope but "not found"
+  under `--tenant acme`. See `.project/PHASE-M53-TENANT-SCOPED-WHY-REPORT.md`.
 - **Sub-agent answer preview on the delegation arc** (SPEC-12 multi-agent, M52) —
   `agt runs show <lead>` now appends a one-line excerpt of each sub-agent's answer
   to its `↳` outcome line: `↳ completed (1 iters, 42ms, $0.0021): "kernel/ holds

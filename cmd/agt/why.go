@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"strings"
 	"time"
 
 	"github.com/agezt/agezt/internal/brand"
@@ -34,16 +35,28 @@ func cmdWhy(args []string, stdout, stderr io.Writer) int {
 	asJSON := false
 	withPayload := false
 	var eventID string
+	tenant := ""
 
-	for _, a := range args {
-		switch a {
-		case "--json":
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		switch {
+		case a == "--json":
 			asJSON = true
-		case "--payload":
+		case a == "--payload":
 			withPayload = true
-		case "-h", "--help":
-			fmt.Fprintf(stdout, "usage: %s why <event_id> [--json|--payload]\n", brand.CLI)
+		case a == "--tenant":
+			if i+1 >= len(args) {
+				fmt.Fprintf(stderr, "%s why: --tenant needs an id\n", brand.CLI)
+				return 2
+			}
+			i++
+			tenant = args[i]
+		case strings.HasPrefix(a, "--tenant="):
+			tenant = strings.TrimPrefix(a, "--tenant=")
+		case a == "-h" || a == "--help":
+			fmt.Fprintf(stdout, "usage: %s why <event_id> [--tenant <id>] [--json|--payload]\n", brand.CLI)
 			fmt.Fprintf(stdout, "list every event sharing an event's correlation chain\n")
+			fmt.Fprintf(stdout, "  --tenant <id>  trace a tenant's own events (needs that tenant's token)\n")
 			fmt.Fprintf(stdout, "  --json     dump the full events array (jq-friendly)\n")
 			fmt.Fprintf(stdout, "  --payload  render human-readable but include payload bodies\n")
 			return 0
@@ -67,7 +80,11 @@ func cmdWhy(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdWhy, map[string]any{"event_id": eventID})
+	callArgs := map[string]any{"event_id": eventID}
+	if tenant != "" {
+		callArgs["tenant"] = tenant // M53: trace this tenant's own journal
+	}
+	res, err := c.Call(ctx, controlplane.CmdWhy, callArgs)
 	if err != nil {
 		fmt.Fprintf(stderr, "%s why: %v\n", brand.CLI, err)
 		return 1

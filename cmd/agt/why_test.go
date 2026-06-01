@@ -46,7 +46,7 @@ func TestCmdWhy_HelpExitsCleanly(t *testing.T) {
 		t.Fatalf("exit=%d want 0; stderr=%q", code, errOut.String())
 	}
 	stdout := out.String()
-	for _, want := range []string{"--json", "--payload", "correlation chain"} {
+	for _, want := range []string{"--json", "--payload", "correlation chain", "--tenant"} {
 		if !strings.Contains(stdout, want) {
 			t.Errorf("--help missing %q; got %q", want, stdout)
 		}

@@ -202,6 +202,63 @@ func TestRunsAreTenantScoped(t *testing.T) {
 	}
 }
 
+// TestWhyIsTenantScoped — `agt why` is routed per-tenant (M53): a tenant's
+// event chain is traceable only under that tenant's scope, and the primary
+// scope can't see it (and vice versa). Also proves CmdWhy is allowlisted for a
+// tenant token (the tenant call reaches the handler rather than being forbidden).
+func TestWhyIsTenantScoped(t *testing.T) {
+	k, srv, c, dir := startPair(t, mock.New(mock.FinalText("ok")))
+	reg := withTenants(t, srv, dir)
+	tok := mustTenant(t, reg, "acme")
+	tk, _ := reg.Get("acme")
+	tenantK := tk.Kernel.(*runtime.Kernel)
+
+	publish := func(k *runtime.Kernel, corr string) string {
+		t.Helper()
+		e, err := k.Bus().Publish(event.Spec{
+			Subject: "task", Kind: event.KindTaskReceived, Actor: "a",
+			CorrelationID: corr, Payload: map[string]string{"intent": corr},
+		})
+		if err != nil {
+			t.Fatalf("Publish: %v", err)
+		}
+		return e.ID
+	}
+	primID := publish(k, "primary-run")
+	tenID := publish(tenantK, "tenant-run")
+
+	tc := tenantClient(t, dir, tok)
+
+	// Tenant token tracing its OWN event: allowed and found.
+	res, err := tc.Call(context.Background(), controlplane.CmdWhy,
+		map[string]any{"event_id": tenID, "tenant": "acme"})
+	if err != nil {
+		t.Fatalf("tenant why of own event should succeed; got %v", err)
+	}
+	if got, _ := res["correlation"].(string); got != "tenant-run" {
+		t.Errorf("tenant why correlation = %q want tenant-run", got)
+	}
+
+	// Tenant token tracing the PRIMARY's event: not in the tenant journal →
+	// the chain isn't found, so the tenant can't see primary events.
+	if _, err := tc.Call(context.Background(), controlplane.CmdWhy,
+		map[string]any{"event_id": primID, "tenant": "acme"}); err == nil {
+		t.Errorf("tenant why of a primary event should fail (isolation); got nil error")
+	}
+
+	// Symmetry: the primary scope sees its own event but NOT the tenant's.
+	if res, err := c.Call(context.Background(), controlplane.CmdWhy,
+		map[string]any{"event_id": primID}); err != nil {
+		t.Errorf("primary why of its own event should succeed; got %v", err)
+	} else if got, _ := res["correlation"].(string); got != "primary-run" {
+		t.Errorf("primary why correlation = %q want primary-run", got)
+	}
+	if _, err := c.Call(context.Background(), controlplane.CmdWhy,
+		map[string]any{"event_id": tenID}); err == nil {
+		t.Errorf("primary why of a tenant event should fail (isolation); got nil error")
+	}
+}
+
 // TestPrimaryToken_RetainsFullAccess — the primary token still authorizes
 // everything: a tenant-routed command on any tenant AND tenant-registry
 // management (which a tenant token may not do).
