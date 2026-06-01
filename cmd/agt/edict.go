@@ -221,11 +221,33 @@ func cmdEdictStats(args []string, stdout, stderr io.Writer) int {
 	tenant := ""
 	sinceMS := int64(0)
 	sinceLabel := ""
+	toolFilter := ""
+	capFilter := ""
 	for i := 0; i < len(args); i++ {
 		a := args[i]
 		switch {
 		case a == "--json":
 			asJSON = true
+		case a == "--tool":
+			if i+1 >= len(args) {
+				fmt.Fprintf(stderr, "%s edict stats: --tool needs a name\n", brand.CLI)
+				return 2
+			}
+			i++
+			toolFilter = args[i]
+		case strings.HasPrefix(a, "--tool="):
+			toolFilter = strings.TrimPrefix(a, "--tool=")
+		case a == "--capability" || a == "--cap":
+			if i+1 >= len(args) {
+				fmt.Fprintf(stderr, "%s edict stats: --capability needs a name\n", brand.CLI)
+				return 2
+			}
+			i++
+			capFilter = args[i]
+		case strings.HasPrefix(a, "--capability="):
+			capFilter = strings.TrimPrefix(a, "--capability=")
+		case strings.HasPrefix(a, "--cap="):
+			capFilter = strings.TrimPrefix(a, "--cap=")
 		case a == "--tenant":
 			if i+1 >= len(args) {
 				fmt.Fprintf(stderr, "%s edict stats: --tenant needs an id\n", brand.CLI)
@@ -257,8 +279,10 @@ func cmdEdictStats(args []string, stdout, stderr io.Writer) int {
 			sinceMS = d.Milliseconds()
 			sinceLabel = d.String()
 		case a == "-h" || a == "--help":
-			fmt.Fprintf(stdout, "usage: %s edict stats [--since <dur>] [--tenant <id>] [--json]\n", brand.CLI)
+			fmt.Fprintf(stdout, "usage: %s edict stats [--tool <name>] [--capability <cap>] [--since <dur>] [--tenant <id>] [--json]\n", brand.CLI)
 			fmt.Fprintf(stdout, "aggregate policy decisions: total, allowed, denied (rate), denied-by-capability\n")
+			fmt.Fprintf(stdout, "  --tool <name>      scope to one tool\n")
+			fmt.Fprintf(stdout, "  --capability <cap> scope to one capability (alias --cap)\n")
 			return 0
 		default:
 			fmt.Fprintf(stderr, "%s edict stats: unexpected arg %q\n", brand.CLI, a)
@@ -275,6 +299,12 @@ func cmdEdictStats(args []string, stdout, stderr io.Writer) int {
 	callArgs := map[string]any{}
 	if tenant != "" {
 		callArgs["tenant"] = tenant
+	}
+	if toolFilter != "" {
+		callArgs["tool"] = toolFilter // M76
+	}
+	if capFilter != "" {
+		callArgs["capability"] = capFilter // M76
 	}
 	if sinceMS > 0 {
 		callArgs["since_ms"] = sinceMS

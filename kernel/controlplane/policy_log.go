@@ -177,6 +177,8 @@ func (s *Server) handleEdictStats(conn net.Conn, req Request) {
 	if sinceMS > 0 {
 		cutoff = time.Now().UnixMilli() - sinceMS
 	}
+	toolFilter, _ := req.Args["tool"].(string)      // M76: scope to one tool
+	capFilter, _ := req.Args["capability"].(string) // M76: scope to one capability
 
 	k, err := s.kernelFor(tenantOf(req))
 	if err != nil {
@@ -194,6 +196,12 @@ func (s *Server) handleEdictStats(conn net.Conn, req Request) {
 			return nil
 		}
 		d := decodePolicyDecision(e.Payload)
+		if toolFilter != "" && d.tool != toolFilter {
+			return nil
+		}
+		if capFilter != "" && d.capability != capFilter {
+			return nil
+		}
 		total++
 		if d.allow {
 			allowed++

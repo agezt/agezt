@@ -189,3 +189,44 @@ func TestEdictLog_ToolAndCapabilityFilters(t *testing.T) {
 		t.Errorf("--capability net --denied = %d want 2", len(got))
 	}
 }
+
+// TestEdictStats_ToolScope — `agt edict stats --tool` scopes the aggregate to one
+// tool (M76), symmetric with edict log's M74 filters.
+func TestEdictStats_ToolScope(t *testing.T) {
+	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	dec := func(tool, capability string, allow bool) {
+		_, _ = k.Bus().Publish(event.Spec{
+			Subject: "policy", Kind: event.KindPolicyDecision, Actor: "agent-x",
+			CorrelationID: "run-1",
+			Payload:       map[string]any{"tool": tool, "capability": capability, "allow": allow},
+		})
+	}
+	dec("shell", "shell", true)
+	dec("http", "net", false)
+	dec("http", "net", false)
+
+	// Unscoped → 3 total.
+	all, err := c.Call(context.Background(), controlplane.CmdEdictStats, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tot, _ := all["total"].(float64); tot != 3 {
+		t.Errorf("unscoped total = %v want 3", all["total"])
+	}
+
+	// --tool http → 2 total, both denied (rate 1.0).
+	res, err := c.Call(context.Background(), controlplane.CmdEdictStats,
+		map[string]any{"tool": "http"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tot, _ := res["total"].(float64); tot != 2 {
+		t.Errorf("--tool http total = %v want 2", res["total"])
+	}
+	if dn, _ := res["denied"].(float64); dn != 2 {
+		t.Errorf("--tool http denied = %v want 2", res["denied"])
+	}
+	if rate, _ := res["denial_rate"].(float64); rate != 1.0 {
+		t.Errorf("--tool http denial_rate = %v want 1.0", rate)
+	}
+}
