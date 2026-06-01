@@ -12,6 +12,11 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **`agt doctor` provider-health check** (SPEC-08, M99) — the diagnostic now WARNs
+  when the daemon has been silently falling back from its primary model provider
+  to a secondary, and the hint names the worst-offending provider so the operator
+  knows which key/outage to chase. Mirrors the M98 sandbox check. See
+  `.project/PHASE-M99-DOCTOR-PROVIDER-REPORT.md`.
 - **`agt doctor` sandbox check** (SPEC-08, M98) — the go-to diagnostic now WARNs
   when the OS warden has been silently downgrading isolation (or hitting resource
   limits), turning the M97 sandbox stats into an actionable health signal. See

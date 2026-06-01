@@ -160,3 +160,42 @@ func TestSandboxCheckFromStats(t *testing.T) {
 		t.Errorf("no execs: status = %v want OK", none.State)
 	}
 }
+
+func TestProviderCheckFromStats(t *testing.T) {
+	// Fallbacks present → WARN, hint names the worst primary.
+	w := providerCheckFromStats(map[string]any{
+		"routed": float64(10), "fallbacks": float64(3), "fallback_rate": 0.3,
+		"fallbacks_by_primary": map[string]any{"openai": float64(2), "anthropic": float64(1)},
+	})
+	if w.Status != statusWarn {
+		t.Fatalf("fallbacks: status = %v want WARN", w.State)
+	}
+	if !strings.Contains(w.Hint, "openai") {
+		t.Errorf("hint = %q want to name the worst provider openai", w.Hint)
+	}
+	// No fallbacks → OK.
+	good := providerCheckFromStats(map[string]any{
+		"routed": float64(8), "fallbacks": float64(0),
+	})
+	if good.Status != statusOK {
+		t.Errorf("no fallbacks: status = %v want OK", good.State)
+	}
+	// No routing yet → OK.
+	none := providerCheckFromStats(map[string]any{"routed": float64(0)})
+	if none.Status != statusOK {
+		t.Errorf("no routing: status = %v want OK", none.State)
+	}
+}
+
+func TestTopFailingProvider(t *testing.T) {
+	got := topFailingProvider(map[string]any{"a": float64(1), "b": float64(5), "c": float64(2)})
+	if got != "b" {
+		t.Errorf("topFailingProvider = %q want b", got)
+	}
+	if topFailingProvider(map[string]any{}) != "" {
+		t.Errorf("empty map should yield \"\"")
+	}
+	if topFailingProvider(nil) != "" {
+		t.Errorf("nil should yield \"\"")
+	}
+}

@@ -150,6 +150,7 @@ func runDoctorChecks() []doctorCheck {
 	cat, _ := loadCatalogIfAny(io.Discard)
 	checks = append(checks, checkModelReadiness(status, cat))
 	checks = append(checks, checkSandbox(ctx, client))
+	checks = append(checks, checkProvider(ctx, client))
 	checks = append(checks, checkHalt(status))
 
 	return checks
@@ -187,6 +188,56 @@ func sandboxCheckFromStats(res map[string]any) doctorCheck {
 			"a tool hit a warden resource cap; check `agt warden log --issues`")
 	}
 	return ok(name, fmt.Sprintf("%d execution(s), full requested isolation", total))
+}
+
+// checkProvider warns when the daemon has been silently falling back from its
+// primary model provider to a secondary (M99) — a high fallback rate means the
+// primary keeps failing (bad key, outage, rate limit) and the agent is running
+// degraded without anyone noticing. Same shape as the sandbox-downgrade check:
+// a real operational gap that belongs in the go-to diagnostic, not only in
+// `agt provider stats`. Best-effort: no routing yet, or the call failing, is OK.
+func checkProvider(ctx context.Context, client *controlplane.Client) doctorCheck {
+	res, err := client.Call(ctx, controlplane.CmdProviderStats, nil)
+	if err != nil {
+		return ok("provider routing", "provider stats unavailable (—)")
+	}
+	return providerCheckFromStats(res)
+}
+
+// providerCheckFromStats is the pure verdict from a provider-stats response —
+// split out so the fallback logic is testable without a live daemon (M99).
+func providerCheckFromStats(res map[string]any) doctorCheck {
+	const name = "provider routing"
+	routed := intOfStatus(res["routed"])
+	if routed == 0 {
+		return ok(name, "no provider routing yet")
+	}
+	fallbacks := intOfStatus(res["fallbacks"])
+	if fallbacks == 0 {
+		return ok(name, fmt.Sprintf("%d routed call(s), no fallbacks", routed))
+	}
+	rate, _ := res["fallback_rate"].(float64)
+	detail := fmt.Sprintf("%d/%d routed call(s) fell back to a secondary provider (%.0f%%)", fallbacks, routed, rate*100)
+	hint := "the primary provider is failing (bad key, outage, or rate limit); check `agt provider stats`"
+	if worst := topFailingProvider(res["fallbacks_by_primary"]); worst != "" {
+		hint = fmt.Sprintf("%q is failing most often (bad key, outage, or rate limit); check `agt provider stats`", worst)
+	}
+	return warn(name, detail, hint)
+}
+
+// topFailingProvider returns the provider name with the most fallbacks from a
+// fallbacks_by_primary map (ties broken by name for determinism), or "".
+func topFailingProvider(raw any) string {
+	m, _ := raw.(map[string]any)
+	worst := ""
+	worstN := int64(0)
+	for name, v := range m {
+		n := intOfStatus(v)
+		if n > worstN || (n == worstN && name < worst) {
+			worst, worstN = name, n
+		}
+	}
+	return worst
 }
 
 // checkModelReadiness reports whether the daemon's configured model is fit
