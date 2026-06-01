@@ -450,15 +450,18 @@ func cmdApprovals(args []string, stdout, stderr io.Writer) int {
 
 func cmdPlan(args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
-		fmt.Fprintf(stderr, "%s plan: subcommand required (generate|run|<file.json>)\n", brand.CLI)
+		fmt.Fprintf(stderr, "%s plan: subcommand required (generate|run|history|<file.json>)\n", brand.CLI)
 		fmt.Fprintf(stderr, "  generate \"<intent>\"  — ask the planner LLM for a plan; print JSON\n")
 		fmt.Fprintf(stderr, "  run      \"<intent>\"  — generate, then execute the plan\n")
+		fmt.Fprintf(stderr, "  history [N]          — list recent plan executions and outcomes\n")
 		fmt.Fprintf(stderr, "  <file.json>          — execute a hand-authored plan\n")
 		return 2
 	}
 	switch args[0] {
 	case "generate", "gen":
 		return cmdPlanGenerate(args[1:], stdout, stderr)
+	case "history", "runs", "ls":
+		return cmdPlanHistory(args[1:], stdout, stderr)
 	case "run":
 		return cmdPlanRun(args[1:], stdout, stderr)
 	case "cost":

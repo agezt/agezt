@@ -284,6 +284,8 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.handleDecide(conn, req)
 	case CmdPlan:
 		s.handlePlan(ctx, conn, req)
+	case CmdPlanHistory:
+		s.handlePlanHistory(conn, req)
 	case CmdCatalogSync:
 		s.handleCatalogSync(ctx, conn, req)
 	case CmdCatalogList:

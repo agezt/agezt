@@ -54,6 +54,12 @@ const (
 	// Returns: { "plan_json": "<the JSON string>", "node_count": N }.
 	// The CLI can then forward plan_json to CmdPlan to execute, or
 	// just print it for the operator to review.
+	// CmdPlanHistory lists recent plan executions (M83) — the plan analogue of
+	// CmdRunsList. Folds plan.started joined with plan.completed/plan.failed.
+	// Args: limit (optional), status (optional: completed|failed|running).
+	// Returns: { plans: [ {correlation_id, plan_name, node_count, status,
+	// started_unix_ms, duration_ms} ], count }
+	CmdPlanHistory  = "plan_history"
 	CmdPlanGenerate = "plan_generate"
 	// Planner refinement (M1.uu): operator-driven re-plan with
 	// feedback. Takes an existing plan JSON + free-text feedback,
