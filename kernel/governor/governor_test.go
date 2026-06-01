@@ -151,6 +151,56 @@ func TestComplete_HappyPath_RecordsUsage(t *testing.T) {
 	}
 }
 
+func TestComplete_BudgetConsumedCarriesCorrelation(t *testing.T) {
+	// M47: the request's CorrelationID is stamped onto the budget.consumed
+	// event (envelope + payload) so spend can be attributed to its run.
+	b, j := newBus(t)
+	r := governor.NewRegistry()
+	mustRegister(t, r, &governor.ProviderInfo{
+		Name: "fake", Provider: &fakeProvider{name: "fake", resp: okResp("claude-sonnet-4-6", 1_000, 500)},
+		AuthMode: governor.AuthAPIKey,
+	})
+	g, err := governor.New(governor.Config{Registry: r, Bus: b})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	const corr = "run-SPEND-1"
+	if _, err := g.Complete(context.Background(), agent.CompletionRequest{
+		Model:         "claude-sonnet-4-6",
+		CorrelationID: corr,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	var found *event.Event
+	_ = j.Range(func(e *event.Event) error {
+		if e.Kind == event.KindBudgetConsumed {
+			found = e
+		}
+		return nil
+	})
+	if found == nil {
+		t.Fatal("no budget.consumed event journaled")
+	}
+	if found.CorrelationID != corr {
+		t.Errorf("budget.consumed envelope correlation = %q, want %q", found.CorrelationID, corr)
+	}
+	var pl struct {
+		Correlation string `json:"correlation_id"`
+		Cost        int64  `json:"cost_microcents"`
+	}
+	if err := json.Unmarshal(found.Payload, &pl); err != nil {
+		t.Fatal(err)
+	}
+	if pl.Correlation != corr {
+		t.Errorf("budget.consumed payload correlation_id = %q, want %q", pl.Correlation, corr)
+	}
+	if pl.Cost <= 0 {
+		t.Errorf("budget.consumed cost_microcents = %d, want > 0", pl.Cost)
+	}
+}
+
 func TestComplete_FallbackChain(t *testing.T) {
 	b, j := newBus(t)
 	bad1 := &fakeProvider{name: "bad1", err: errors.New("upstream 503")}

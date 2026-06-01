@@ -1928,16 +1928,24 @@ func newDemoMock() agent.Provider {
 		// N-1 child answers then the lead's final — consumed in call order
 		// (lead-rk → child-k), so the refused Nth call falls straight through to
 		// the lead's final response.
+		//
+		// Each response carries synthetic token usage on a priced model so the
+		// Governor journals a non-zero budget.consumed per call (M47) — the
+		// lead's calls under the lead correlation, each child's under its own —
+		// making per-run / per-delegation spend visible in `agt runs stats`.
+		withUsage := func(r agent.CompletionResponse) agent.CompletionResponse {
+			return mock.WithUsage(r, agent.Usage{InputTokens: 2000, OutputTokens: 1000, Model: "claude-sonnet-4-6"})
+		}
 		resp := make([]agent.CompletionResponse, 0, 2*n)
 		for i := 1; i < n; i++ {
 			resp = append(resp,
-				mock.ToolUse(fmt.Sprintf("call-%d", i), "delegate", map[string]any{"task": fmt.Sprintf("subtask %d", i)}),
-				mock.FinalText(fmt.Sprintf("[offline-mock sub-agent %d] done.", i)),
+				withUsage(mock.ToolUse(fmt.Sprintf("call-%d", i), "delegate", map[string]any{"task": fmt.Sprintf("subtask %d", i)})),
+				withUsage(mock.FinalText(fmt.Sprintf("[offline-mock sub-agent %d] done.", i))),
 			)
 		}
 		resp = append(resp,
-			mock.ToolUse(fmt.Sprintf("call-%d", n), "delegate", map[string]any{"task": fmt.Sprintf("subtask %d", n)}),
-			mock.FinalText(fmt.Sprintf("[offline-mock lead] spawned %d sub-agent(s); the fan-out cap refused the rest.", n-1)),
+			withUsage(mock.ToolUse(fmt.Sprintf("call-%d", n), "delegate", map[string]any{"task": fmt.Sprintf("subtask %d", n)})),
+			withUsage(mock.FinalText(fmt.Sprintf("[offline-mock lead] spawned %d sub-agent(s); the fan-out cap refused the rest.", n-1))),
 		)
 		return mock.New(resp...)
 	}

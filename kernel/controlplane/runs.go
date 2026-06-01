@@ -52,6 +52,11 @@ type runEntry struct {
 	// delegated it (M41), derived from the parent's subagent.spawned event.
 	// Empty for top-level runs. Lets `agt runs` show the delegation tree.
 	ParentCorrelation string
+	// SpentMicrocents is the sum of this run's budget.consumed cost (M47),
+	// folded from the governor's per-call spend events now that they carry
+	// the spending run's correlation. Lets `agt runs stats` cost a run — and,
+	// via ParentCorrelation, cost a delegation.
+	SpentMicrocents int64
 }
 
 // collectRuns walks the given kernel's journal once and folds
@@ -129,6 +134,20 @@ func (s *Server) collectRuns(k *runtime.Kernel) (map[string]*runEntry, error) {
 					runs[child] = entry
 				}
 				entry.ParentCorrelation = parent
+			}
+		case event.KindBudgetConsumed:
+			// Attribute spend to its run (M47). The governor stamps each
+			// budget.consumed with the spending run's correlation; fold its
+			// cost into the EXISTING entry only — a budget event for an
+			// unknown correlation (an out-of-run governor call) must not
+			// conjure a phantom run that would then count as "running" in
+			// stats. task.received always precedes a run's spend, so the
+			// entry exists by the time we see its budget events.
+			if e.CorrelationID == "" {
+				return nil
+			}
+			if entry, ok := runs[e.CorrelationID]; ok {
+				entry.SpentMicrocents += extractCostMicrocents(e.Payload)
 			}
 		}
 		return nil
@@ -303,6 +322,11 @@ func (s *Server) handleRunsStats(conn net.Conn, req Request) {
 	// the number of sub-agents it spawned within the window.
 	delegations := 0
 	fanout := map[string]int{}
+	// Spend attribution (M47): sum each run's folded budget.consumed cost.
+	// spentTotal is the window's whole spend; spentDelegated is the share
+	// attributable to sub-agent runs — so an operator sees not just how many
+	// delegations happened (M45) but what they cost.
+	var spentTotal, spentDelegated int64
 	for _, r := range runs {
 		// Windowed: keep only runs that started at/after the cutoff. A run
 		// with no recorded start (the completed-without-received edge) can't
@@ -311,9 +335,11 @@ func (s *Server) handleRunsStats(conn net.Conn, req Request) {
 			continue
 		}
 		total++
+		spentTotal += r.SpentMicrocents
 		if r.ParentCorrelation != "" {
 			delegations++
 			fanout[r.ParentCorrelation]++
+			spentDelegated += r.SpentMicrocents
 		}
 		switch {
 		case r.Completed:
@@ -393,6 +419,11 @@ func (s *Server) handleRunsStats(conn net.Conn, req Request) {
 			"delegations":     delegations,
 			"delegating_runs": delegatingRuns,
 			"max_fanout":      maxFanout,
+			// Spend over the window (M47), in microcents: the whole spend and
+			// the share attributable to sub-agent runs. 0 when no priced usage
+			// was journaled (e.g. a free/local model or the offline mock).
+			"spent_microcents":           spentTotal,
+			"delegated_spent_microcents": spentDelegated,
 			"duration_ms": map[string]any{
 				"count": len(durations),
 				"avg":   dstats.avg,
@@ -489,6 +520,24 @@ func extractIters(payload json.RawMessage) int {
 		return 0
 	}
 	return int(p.Iters)
+}
+
+// extractCostMicrocents pulls cost_microcents out of a budget.consumed
+// payload (M47). Returns 0 on parse failure or absence, so an unparseable
+// spend event contributes nothing rather than crashing the fold. JSON
+// numbers decode as float64; int64(...) truncates the fractional part the
+// integer microcents never has.
+func extractCostMicrocents(payload json.RawMessage) int64 {
+	if len(payload) == 0 {
+		return 0
+	}
+	var p struct {
+		Cost float64 `json:"cost_microcents"`
+	}
+	if err := json.Unmarshal(payload, &p); err != nil {
+		return 0
+	}
+	return int64(p.Cost)
 }
 
 // extractSpawnLink pulls child + parent correlation ids out of a

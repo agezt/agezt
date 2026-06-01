@@ -580,6 +580,11 @@ func (g *Governor) recordUsage(p *ProviderInfo, req agent.CompletionRequest, res
 		Subject: "governor.budget",
 		Kind:    event.KindBudgetConsumed,
 		Actor:   "governor",
+		// Stamp the spending run's correlation (M47) so spend can be
+		// attributed per run / per delegation by a journal fold — the same
+		// way every other event ties to its run. Empty when the caller set
+		// no CorrelationID (e.g. an out-of-run governor call).
+		CorrelationID: req.CorrelationID,
 		Payload: map[string]any{
 			"provider":        p.Name,
 			"model":           model,
@@ -588,6 +593,7 @@ func (g *Governor) recordUsage(p *ProviderInfo, req agent.CompletionRequest, res
 			"cost_microcents": cost,
 			"spent_today_mc":  spent,
 			"ceiling_mc":      g.cfg.DailyCeilingMicrocents,
+			"correlation_id":  req.CorrelationID,
 		},
 	})
 }

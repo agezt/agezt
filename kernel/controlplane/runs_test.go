@@ -642,6 +642,100 @@ func TestRunsStats_DelegationMetrics(t *testing.T) {
 	}
 }
 
+// TestRunsStats_SpendAttribution — budget.consumed events stamped with a run's
+// correlation (M47) are folded into per-run spend; the stats report the window's
+// total spend and the share attributable to sub-agent runs. Lead p1 spends 100+50
+// over two calls and delegates to child c1 (spends 30); the totals are 180 and the
+// delegated share is 30.
+func TestRunsStats_SpendAttribution(t *testing.T) {
+	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+
+	received := func(corr, actor string) {
+		t.Helper()
+		_, _ = k.Bus().Publish(event.Spec{
+			Subject: "task", Kind: event.KindTaskReceived, Actor: actor,
+			CorrelationID: corr, Payload: map[string]string{"intent": "x"},
+		})
+	}
+	complete := func(corr, actor string) {
+		t.Helper()
+		_, _ = k.Bus().Publish(event.Spec{
+			Subject: "task", Kind: event.KindTaskCompleted, Actor: actor,
+			CorrelationID: corr, Payload: map[string]any{"iters": 1},
+		})
+	}
+	spend := func(corr string, mc int64) {
+		t.Helper()
+		_, _ = k.Bus().Publish(event.Spec{
+			Subject: "governor.budget", Kind: event.KindBudgetConsumed, Actor: "governor",
+			CorrelationID: corr, Payload: map[string]any{"cost_microcents": mc},
+		})
+	}
+	spawn := func(parent, child string) {
+		t.Helper()
+		_, _ = k.Bus().Publish(event.Spec{
+			Subject: "agent.subagent.spawn", Kind: event.KindSubAgentSpawned, Actor: "subagent",
+			CorrelationID: parent,
+			Payload:       map[string]any{"child_correlation": child, "parent": parent, "task": "sub", "depth": 1},
+		})
+	}
+
+	received("p1", "agent-p1")
+	spend("p1", 100)
+	spawn("p1", "c1")
+	spend("p1", 50)
+	complete("p1", "agent-p1")
+	received("c1", "subagent-c1")
+	spend("c1", 30)
+	complete("c1", "subagent-c1")
+
+	res, err := c.Call(context.Background(), controlplane.CmdRunsStats, nil)
+	if err != nil {
+		t.Fatalf("Call: %v", err)
+	}
+	if got := int64(intOf(res["spent_microcents"])); got != 180 {
+		t.Errorf("spent_microcents = %d want 180", got)
+	}
+	if got := int64(intOf(res["delegated_spent_microcents"])); got != 30 {
+		t.Errorf("delegated_spent_microcents = %d want 30", got)
+	}
+}
+
+// TestRunsStats_SpendIgnoresUnknownCorrelation — a budget.consumed event whose
+// correlation never had a task.received (an out-of-run governor call) must not
+// conjure a phantom run nor inflate the spend total (M47).
+func TestRunsStats_SpendIgnoresUnknownCorrelation(t *testing.T) {
+	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	_, _ = k.Bus().Publish(event.Spec{
+		Subject: "task", Kind: event.KindTaskReceived, Actor: "a",
+		CorrelationID: "real", Payload: map[string]string{"intent": "x"},
+	})
+	_, _ = k.Bus().Publish(event.Spec{
+		Subject: "task", Kind: event.KindTaskCompleted, Actor: "a",
+		CorrelationID: "real", Payload: map[string]any{"iters": 1},
+	})
+	_, _ = k.Bus().Publish(event.Spec{
+		Subject: "governor.budget", Kind: event.KindBudgetConsumed, Actor: "governor",
+		CorrelationID: "real", Payload: map[string]any{"cost_microcents": int64(40)},
+	})
+	// Orphan spend — no matching task.received.
+	_, _ = k.Bus().Publish(event.Spec{
+		Subject: "governor.budget", Kind: event.KindBudgetConsumed, Actor: "governor",
+		CorrelationID: "ghost", Payload: map[string]any{"cost_microcents": int64(999)},
+	})
+
+	res, err := c.Call(context.Background(), controlplane.CmdRunsStats, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := intOf(res["total"]); got != 1 {
+		t.Errorf("total = %d want 1 (ghost spend must not create a run)", got)
+	}
+	if got := int64(intOf(res["spent_microcents"])); got != 40 {
+		t.Errorf("spent_microcents = %d want 40 (ghost spend excluded)", got)
+	}
+}
+
 // TestRunsStats_NoDelegationsZeroed — a journal with only top-level runs
 // reports all delegation aggregates as 0 (the CLI then omits the line).
 func TestRunsStats_NoDelegationsZeroed(t *testing.T) {

@@ -81,6 +81,12 @@ type CompletionRequest struct {
 	// can ignore the field; setting or not setting it never changes
 	// what the provider receives.
 	TaskType string
+	// CorrelationID identifies the run this completion serves. Like
+	// TaskType it is a Governor-only hint — opaque to providers, who
+	// never see it — letting the Governor stamp its budget.consumed
+	// event with the spending run's correlation (M47) so spend can be
+	// attributed per run / per delegation. Empty means "unattributed".
+	CorrelationID string
 }
 
 // StopReason is the canonical reason a Provider stopped emitting tokens.
@@ -297,11 +303,12 @@ func Run(ctx context.Context, cfg LoopConfig, userIntent string) (answer string,
 		}
 
 		req := CompletionRequest{
-			Model:     cfg.Model,
-			System:    cfg.System,
-			Messages:  messages,
-			Tools:     tools,
-			MaxTokens: cfg.MaxTokens,
+			Model:         cfg.Model,
+			System:        cfg.System,
+			Messages:      messages,
+			Tools:         tools,
+			MaxTokens:     cfg.MaxTokens,
+			CorrelationID: cfg.CorrelationID, // M47: attribute spend to this run
 		}
 		var resp *CompletionResponse
 		// Use the streaming path when the provider advertises it

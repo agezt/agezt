@@ -12,6 +12,19 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Per-delegation spend attribution** (SPEC-12 multi-agent, M47) — the governor's
+  `budget.consumed` event now carries the spending run's correlation (envelope +
+  payload), threaded in via a new Governor-only `CompletionRequest.CorrelationID`
+  hint (opaque to providers, mirroring `TaskType`). `collectRuns` folds each run's
+  `cost_microcents` into `runEntry.SpentMicrocents` (existing entries only — an
+  orphan spend event can't conjure a phantom run), and `agt runs stats` renders
+  `spend: $0.0126 (delegated: $0.0042)` — the window's total spend and the share
+  attributable to sub-agent runs. Pure journal fold over data the governor already
+  emits; no new endpoint or projection. The mock gains `WithUsage` so the offline
+  demo exercises the spend path. Pairs M46's delegation-count cap with cost
+  *visibility* (a cost cap is the next step). Proven live with
+  `AGEZT_DEMO_DELEGATE=3` + `AGEZT_SUBAGENT_FANOUT=2`. See
+  `.project/PHASE-M47-DELEGATION-SPEND-REPORT.md`.
 - **Sub-agent fan-out bound** (SPEC-12 multi-agent, M46) — `AGEZT_SUBAGENT_FANOUT=<n>`
   caps how many sub-agents a single run may spawn at its level (depth caps nesting;
   this caps breadth, which was previously unbounded — only `SubAgentMaxDepth`
