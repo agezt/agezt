@@ -12,6 +12,16 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Delegation metrics in `agt runs stats`** (SPEC-12 multi-agent, M45) — the
+  stats aggregate now surfaces the *scale* of multi-agent fan-out the other lines
+  can't: `delegations: 3 (from 2 run(s), max fan-out 2)` — total sub-agent runs,
+  the number of distinct leads that delegated, and the widest single fan-out.
+  Folded server-side over the same windowed run set (so `--since` applies) by
+  counting runs that carry a `parent_correlation` (M41); the line is omitted when
+  no delegation occurred, so single-agent operators see no noise. A sub-agent run
+  was previously indistinguishable from a top-level one in the totals — this makes
+  it countable without a new endpoint. Proven live with `AGEZT_DEMO_DELEGATE=1`.
+  See `.project/PHASE-M45-DELEGATION-METRICS-REPORT.md`.
 - **Per-delegation outcome on the lead's arc** (SPEC-12 multi-agent, M44) — in
   `agt runs show <lead>`, each `delegated → <child>` line is now followed by the
   sub-agent's terminal outcome inline: `↳ completed (1 iters, 1ms)` (or

@@ -163,7 +163,8 @@ func cmdRunsStats(args []string, stdout, stderr io.Writer) int {
 			fmt.Fprintf(stdout, "usage: %s runs stats [--since <dur>] [--json]\n", brand.CLI)
 			fmt.Fprintf(stdout, "aggregate run health over the journal:\n")
 			fmt.Fprintf(stdout, "  total / completed / failed / running / abandoned counts,\n")
-			fmt.Fprintf(stdout, "  success rate, and completed-run duration avg/min/max/p50/p95\n")
+			fmt.Fprintf(stdout, "  success rate, completed-run duration avg/min/max/p50/p95,\n")
+			fmt.Fprintf(stdout, "  and delegation fan-out (sub-agent runs spawned)\n")
 			fmt.Fprintf(stdout, "  --since <dur>  restrict to runs started in the last <dur> (e.g. 1h, 30m)\n")
 			fmt.Fprintf(stdout, "  --tenant <id>  read a tenant's own runs (needs that tenant's token)\n")
 			return 0
@@ -254,6 +255,18 @@ func cmdRunsStats(args []string, stdout, stderr io.Writer) int {
 			fmt.Fprintf(stdout, "    p95 : %s\n", fmtDuration(intOfStatus(dur["p95"])))
 			fmt.Fprintf(stdout, "    max : %s\n", fmtDuration(intOfStatus(dur["max"])))
 		}
+	}
+
+	// Delegation block (M45) — surfaces the SCALE of multi-agent fan-out the
+	// other lines can't show: a sub-agent run is just another row in the
+	// totals above, indistinguishable from a top-level one. Printed only when
+	// delegation actually occurred in the window, so single-agent operators
+	// never see noise. "delegations" counts sub-agent runs; "from N run(s)"
+	// is the number of leads that delegated; "max fan-out" is the widest.
+	if delegations := intOfStatus(res["delegations"]); delegations > 0 {
+		leads := intOfStatus(res["delegating_runs"])
+		maxFanout := intOfStatus(res["max_fanout"])
+		fmt.Fprintf(stdout, "\n  delegations: %d (from %d run(s), max fan-out %d)\n", delegations, leads, maxFanout)
 	}
 	return 0
 }

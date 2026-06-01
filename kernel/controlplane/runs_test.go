@@ -578,6 +578,93 @@ func TestRunsStats_NoFailuresEmptyBreakdown(t *testing.T) {
 	}
 }
 
+// TestRunsStats_DelegationMetrics — sub-agent runs (those carrying a
+// parent_correlation) are folded into delegation aggregates (M45): the
+// total sub-agent count, the number of distinct leads that delegated, and
+// the widest fan-out from one lead. Here lead p1 spawns c1+c2, lead p2
+// spawns c3, and standalone s1 delegates nothing: delegations=3,
+// delegating_runs=2, max_fanout=2.
+func TestRunsStats_DelegationMetrics(t *testing.T) {
+	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+
+	received := func(corr, actor string) {
+		t.Helper()
+		_, _ = k.Bus().Publish(event.Spec{
+			Subject: "task", Kind: event.KindTaskReceived, Actor: actor,
+			CorrelationID: corr, Payload: map[string]string{"intent": "x"},
+		})
+	}
+	complete := func(corr, actor string) {
+		t.Helper()
+		_, _ = k.Bus().Publish(event.Spec{
+			Subject: "task", Kind: event.KindTaskCompleted, Actor: actor,
+			CorrelationID: corr, Payload: map[string]any{"iters": 1},
+		})
+	}
+	// spawn publishes the parent's subagent.spawned event (under the PARENT
+	// correlation) that collectRuns folds into the child's parent link.
+	spawn := func(parent, child string) {
+		t.Helper()
+		_, _ = k.Bus().Publish(event.Spec{
+			Subject: "agent.subagent.spawn", Kind: event.KindSubAgentSpawned, Actor: "subagent",
+			CorrelationID: parent,
+			Payload:       map[string]any{"child_correlation": child, "parent": parent, "task": "sub", "depth": 1},
+		})
+	}
+
+	// Lead p1 → c1, c2 (fan-out 2); lead p2 → c3 (fan-out 1); s1 standalone.
+	received("p1", "agent-p1")
+	spawn("p1", "c1")
+	spawn("p1", "c2")
+	complete("p1", "agent-p1")
+	received("p2", "agent-p2")
+	spawn("p2", "c3")
+	complete("p2", "agent-p2")
+	received("s1", "agent-s1")
+	complete("s1", "agent-s1")
+	for _, ch := range []string{"c1", "c2", "c3"} {
+		received(ch, "subagent-"+ch)
+		complete(ch, "subagent-"+ch)
+	}
+
+	res, err := c.Call(context.Background(), controlplane.CmdRunsStats, nil)
+	if err != nil {
+		t.Fatalf("Call: %v", err)
+	}
+	if got := intOf(res["delegations"]); got != 3 {
+		t.Errorf("delegations = %d want 3", got)
+	}
+	if got := intOf(res["delegating_runs"]); got != 2 {
+		t.Errorf("delegating_runs = %d want 2", got)
+	}
+	if got := intOf(res["max_fanout"]); got != 2 {
+		t.Errorf("max_fanout = %d want 2", got)
+	}
+}
+
+// TestRunsStats_NoDelegationsZeroed — a journal with only top-level runs
+// reports all delegation aggregates as 0 (the CLI then omits the line).
+func TestRunsStats_NoDelegationsZeroed(t *testing.T) {
+	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	_, _ = k.Bus().Publish(event.Spec{
+		Subject: "task", Kind: event.KindTaskReceived, Actor: "a",
+		CorrelationID: "solo", Payload: map[string]string{"intent": "x"},
+	})
+	_, _ = k.Bus().Publish(event.Spec{
+		Subject: "task", Kind: event.KindTaskCompleted, Actor: "a",
+		CorrelationID: "solo", Payload: map[string]any{"iters": 1},
+	})
+	res, err := c.Call(context.Background(), controlplane.CmdRunsStats, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, key := range []string{"delegations", "delegating_runs", "max_fanout"} {
+		if got := intOf(res[key]); got != 0 {
+			t.Errorf("%s = %d want 0", key, got)
+		}
+	}
+}
+
 // TestRunsStats_SinceWindow — args.since_ms restricts the aggregate to
 // runs started within the window (M33). A huge window includes a
 // just-published run; a tiny window after a sleep excludes it; window_ms

@@ -295,6 +295,14 @@ func (s *Server) handleRunsStats(conn net.Conn, req Request) {
 	// not just how many (M36). A failure with no recorded reason buckets
 	// under "unknown" rather than vanishing.
 	failedByReason := map[string]int{}
+	// Delegation metrics (M45): a sub-agent run carries the lead's
+	// correlation in ParentCorrelation (M41). Folding those over the SAME
+	// windowed set surfaces the SCALE of delegation — invisible until now:
+	// how many sub-agents were spawned, how many leads delegated, and the
+	// widest fan-out from a single lead. fanout maps a lead's correlation to
+	// the number of sub-agents it spawned within the window.
+	delegations := 0
+	fanout := map[string]int{}
 	for _, r := range runs {
 		// Windowed: keep only runs that started at/after the cutoff. A run
 		// with no recorded start (the completed-without-received edge) can't
@@ -303,6 +311,10 @@ func (s *Server) handleRunsStats(conn net.Conn, req Request) {
 			continue
 		}
 		total++
+		if r.ParentCorrelation != "" {
+			delegations++
+			fanout[r.ParentCorrelation]++
+		}
 		switch {
 		case r.Completed:
 			completed++
@@ -345,6 +357,18 @@ func (s *Server) handleRunsStats(conn net.Conn, req Request) {
 		avgIters = float64(itersSum) / float64(completed)
 	}
 
+	// Derive the delegation aggregates from the fanout map. delegatingRuns
+	// is the number of distinct leads that delegated at least once;
+	// maxFanout is the widest single lead's sub-agent count. Both are 0 when
+	// nothing was delegated in the window — the renderer then omits the line.
+	delegatingRuns := len(fanout)
+	maxFanout := 0
+	for _, n := range fanout {
+		if n > maxFanout {
+			maxFanout = n
+		}
+	}
+
 	s.writeResp(conn, Response{
 		ID:   req.ID,
 		Type: RespResult,
@@ -362,6 +386,13 @@ func (s *Server) handleRunsStats(conn net.Conn, req Request) {
 			"failed_by_reason": failedByReason,
 			// 0 = all-time; >0 = the window width in ms the stats cover (M33).
 			"window_ms": sinceMS,
+			// Delegation scale (M45): total sub-agent runs spawned within the
+			// window, the number of distinct leads that delegated, and the
+			// widest fan-out from a single lead. All 0 when no delegation
+			// occurred — the CLI omits the line in that case.
+			"delegations":     delegations,
+			"delegating_runs": delegatingRuns,
+			"max_fanout":      maxFanout,
 			"duration_ms": map[string]any{
 				"count": len(durations),
 				"avg":   dstats.avg,
