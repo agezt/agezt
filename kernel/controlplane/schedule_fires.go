@@ -14,6 +14,7 @@ import (
 	"encoding/json"
 	"net"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/agezt/agezt/kernel/event"
@@ -94,6 +95,10 @@ func (s *Server) handleScheduleFires(conn net.Conn, req Request) {
 	idFilter, _ := req.Args["id"].(string)
 	// Optional status filter (M61): completed|failed|running|abandoned.
 	statusFilter, _ := req.Args["status"].(string)
+	// Optional intent substring filter (M80): case-insensitive contains, mirroring
+	// `agt runs list --intent` (M77) so the two list surfaces filter alike.
+	intentQuery, _ := req.Args["intent"].(string)
+	intentQuery = strings.ToLower(intentQuery)
 	// Optional time window (M65): only firings at/after now − since_ms.
 	cutoff := sinceCutoff(req.Args["since_ms"])
 
@@ -124,6 +129,9 @@ func (s *Server) handleScheduleFires(conn net.Conn, req Request) {
 			}
 			if cutoff > 0 && e.TSUnixMS < cutoff {
 				return nil // M65: outside the time window
+			}
+			if intentQuery != "" && !strings.Contains(strings.ToLower(intent), intentQuery) {
+				return nil // M80: intent substring filter
 			}
 			if statusFilter != "" {
 				// Status filter (M61): match the firing's run outcome. Applied

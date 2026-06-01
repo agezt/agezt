@@ -672,12 +672,22 @@ func cmdScheduleFires(args []string, stdout, stderr io.Writer) int {
 	limit := 0
 	id := ""
 	status := ""
+	intent := ""
 	sinceMS := int64(0)
 	for i := 0; i < len(args); i++ {
 		a := args[i]
 		switch {
 		case a == "--json":
 			asJSON = true
+		case a == "--intent":
+			if i+1 >= len(args) {
+				fmt.Fprintf(stderr, "%s schedule fires: --intent needs a substring\n", brand.CLI)
+				return 2
+			}
+			i++
+			intent = args[i]
+		case strings.HasPrefix(a, "--intent="):
+			intent = strings.TrimPrefix(a, "--intent=")
 		case a == "--id":
 			if i+1 >= len(args) {
 				fmt.Fprintf(stderr, "%s schedule fires: --id needs a schedule id\n", brand.CLI)
@@ -723,6 +733,7 @@ func cmdScheduleFires(args []string, stdout, stderr io.Writer) int {
 			fmt.Fprintf(stdout, "  --id <sched>   only this schedule's firings\n")
 			fmt.Fprintf(stdout, "  --status <s>   only firings with this status (completed|failed|running|abandoned)\n")
 			fmt.Fprintf(stdout, "  --failed       shorthand for --status failed\n")
+			fmt.Fprintf(stdout, "  --intent <substr> only firings whose intent contains <substr>\n")
 			fmt.Fprintf(stdout, "drill into a firing with `%s runs show <correlation>`\n", brand.CLI)
 			return 0
 		default:
@@ -750,6 +761,9 @@ func cmdScheduleFires(args []string, stdout, stderr io.Writer) int {
 	}
 	if status != "" {
 		callArgs["status"] = status // M61: filter by firing status
+	}
+	if intent != "" {
+		callArgs["intent"] = intent // M80: intent substring filter
 	}
 	if sinceMS > 0 {
 		callArgs["since_ms"] = sinceMS // M65: time window

@@ -607,3 +607,29 @@ func TestScheduleFires_SinceWindow(t *testing.T) {
 		t.Errorf("1ms window fires = %d want 0", len(got))
 	}
 }
+
+// TestScheduleFires_IntentFilter — `agt schedule fires --intent` keeps only
+// firings whose intent contains the substring, case-insensitively (M80).
+func TestScheduleFires_IntentFilter(t *testing.T) {
+	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	fire := func(schedID, intent string) {
+		_, _ = k.Bus().Publish(event.Spec{
+			Subject: "schedule", Kind: event.KindScheduleFired, Actor: "cadence",
+			CorrelationID: "run-" + schedID,
+			Payload:       map[string]any{"schedule_id": schedID, "intent": intent, "model": "m"},
+		})
+	}
+	fire("s1", "nightly DEPLOY")
+	fire("s2", "hourly summary")
+	fire("s3", "deploy canary")
+
+	res, err := c.Call(context.Background(), controlplane.CmdScheduleFires,
+		map[string]any{"intent": "deploy"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	fires, _ := res["fires"].([]any)
+	if len(fires) != 2 {
+		t.Fatalf("--intent deploy = %d want 2 (case-insensitive)", len(fires))
+	}
+}
