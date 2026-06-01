@@ -8,9 +8,50 @@ import (
 	"testing"
 
 	"github.com/agezt/agezt/internal/brand"
+	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/catalog"
 	"github.com/agezt/agezt/kernel/event"
+	kernelruntime "github.com/agezt/agezt/kernel/runtime"
+	"github.com/agezt/agezt/plugins/providers/mock"
 )
+
+// TestDelegationBanner — the boot banner reflects the active delegation ceilings
+// (M58): "off" when disabled, the effective caps otherwise (M49 source).
+func TestDelegationBanner(t *testing.T) {
+	open := func(t *testing.T, cfg kernelruntime.Config) *kernelruntime.Kernel {
+		cfg.BaseDir = t.TempDir()
+		cfg.Provider = mock.New(mock.FinalText("ok"))
+		k, err := kernelruntime.Open(cfg)
+		if err != nil {
+			t.Fatalf("Open: %v", err)
+		}
+		t.Cleanup(func() { k.Close() })
+		return k
+	}
+
+	off := open(t, kernelruntime.Config{}) // SubAgentTool false
+	if got := delegationBanner(off); !strings.HasPrefix(got, "off") {
+		t.Errorf("disabled banner = %q, want off…", got)
+	}
+
+	capped := open(t, kernelruntime.Config{
+		Tools:                      map[string]agent.Tool{},
+		SubAgentTool:               true,
+		SubAgentMaxFanout:          3,
+		SubAgentMaxSpendMicrocents: 500_000_000, // $0.50
+	})
+	got := delegationBanner(capped)
+	for _, want := range []string{"depth≤1", "fan-out ≤3", "spend $0.5000"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("capped banner = %q, missing %q", got, want)
+		}
+	}
+
+	unbounded := open(t, kernelruntime.Config{SubAgentTool: true})
+	if got := delegationBanner(unbounded); !strings.Contains(got, "fan-out unbounded") || !strings.Contains(got, "spend unbounded") {
+		t.Errorf("unbounded banner = %q, want unbounded fan-out + spend", got)
+	}
+}
 
 func TestRunVersion(t *testing.T) {
 	for _, flag := range []string{"-v", "--version", "version"} {

@@ -552,6 +552,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 	fmt.Fprintf(stdout, "  redaction        : %s\n", redactDesc)
 	fmt.Fprintf(stdout, "  tools            : %s\n", toolsDesc)
 	fmt.Fprintf(stdout, "  policy engine    : edict (defaults from DECISIONS F3; %s)\n", askPolicyDesc)
+	fmt.Fprintf(stdout, "  delegation       : %s\n", delegationBanner(k))
 	fmt.Fprintf(stdout, "  run timeout      : %s\n", runTimeoutDesc)
 	fmt.Fprintf(stdout, "  tool timeout     : %s\n", toolTimeoutDesc)
 	fmt.Fprintf(stdout, "  warden           : %s\n", wardDesc)
@@ -1207,6 +1208,26 @@ func buildWebhooks(ctx context.Context, k *kernelruntime.Kernel, stdout io.Write
 	}
 	webhook.NewDispatcher(k.Bus(), sinks, stdout).Start(ctx)
 	return webhook.Describe(sinks)
+}
+
+// delegationBanner renders the active multi-agent delegation ceilings (M58) for
+// the boot banner — the same effective caps `agt status` reports (M49), so the
+// governance is visible at startup, not only on demand. "off" when the delegate
+// tool is disabled; 0 fan-out / spend render as "unbounded".
+func delegationBanner(k *kernelruntime.Kernel) string {
+	l := k.SubAgentLimits()
+	if !l.Enabled {
+		return "off (AGEZT_SUBAGENT=off)"
+	}
+	fanout := "unbounded"
+	if l.MaxFanout > 0 {
+		fanout = fmt.Sprintf("≤%d", l.MaxFanout)
+	}
+	spend := "unbounded"
+	if l.MaxSpendMicrocents > 0 {
+		spend = fmt.Sprintf("$%.4f", float64(l.MaxSpendMicrocents)/1e9)
+	}
+	return fmt.Sprintf("depth≤%d, fan-out %s, spend %s", l.MaxDepth, fanout, spend)
 }
 
 // buildCadence starts the scheduled-intents resident when AGEZT_SCHEDULE is set.

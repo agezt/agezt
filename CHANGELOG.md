@@ -12,6 +12,11 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Boot-banner the delegation caps** (SPEC-12 multi-agent, M58) — the daemon boot
+  banner now shows the active delegation ceilings: `delegation : depth≤1, fan-out
+  ≤3, spend $0.5000` (or `off` / `unbounded`), from the same `k.SubAgentLimits()`
+  source as `agt status` (M49). Visible at startup, not only on demand. See
+  `.project/PHASE-M58-DELEGATION-BOOT-BANNER-REPORT.md`.
 - **`agt schedule stats` — autonomy aggregate** (SPEC-08 × cadence, M57) — the
   autonomy analogue of `agt runs stats`: `handleScheduleStats` folds `schedule.fired`
   events, joins each with its run outcome (`collectRuns`), and reports total firings,
