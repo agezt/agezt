@@ -203,6 +203,22 @@ const (
 	//              can compute "we showed events seq=(head-count+1)..head")
 	CmdJournalTail = "journal_tail"
 
+	// CmdRedactTest checks whether the LIVE secret redactor would scrub a
+	// candidate string before it could reach the hash-chained journal (M104) —
+	// the "is my secret actually protected?" confidence check. The daemon never
+	// echoes the raw input back: it returns only the redacted form plus which
+	// built-in pattern categories matched, so the response is safe to display.
+	//
+	// Args:
+	//   - text : string — the candidate to test.
+	// Returns:
+	//   - enabled      : bool — whether redaction is on (off → nothing scrubbed).
+	//   - would_redact : bool — the redactor changed the input.
+	//   - redacted     : string — the scrubbed form (safe to print).
+	//   - categories   : []string — built-in pattern labels that matched.
+	//   - literal_hit  : bool — a configured literal secret matched (no pattern).
+	CmdRedactTest = "redact_test"
+
 	// CmdEdictShow returns the loaded policy snapshot. Closes a
 	// real visibility gap: operators set AGEZT_APPROVAL_MODE and
 	// per-capability levels but had no way to confirm what the

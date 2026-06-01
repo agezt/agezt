@@ -104,3 +104,57 @@ func TestRedactBytes_KeepsJSONValid(t *testing.T) {
 		t.Errorf("non-secret field corrupted: %v", back)
 	}
 }
+
+func TestMatchedCategories(t *testing.T) {
+	cases := []struct {
+		in   string
+		want string // expected category, "" = none
+	}{
+		{"sk-ant-api03-abcdefghijklmnopqrstuvwxyz0123", "openai/anthropic-key"},
+		{"AKIA0123456789ABCDEF", "aws-access-key-id"},
+		{"ghp_0123456789012345678901234567890123456789", "github-token"},
+		{"xoxb-0123456789-abcdef", "slack-token"},
+		{"AIza" + strings.Repeat("a", 35), "google-api-key"},
+		{"Authorization: Bearer abcdefghijklmnopqrstuvwxyz", "bearer-token"},
+		{"just some ordinary prose without secrets", ""},
+	}
+	for _, c := range cases {
+		got := redact.MatchedCategories(c.in)
+		if c.want == "" {
+			if len(got) != 0 {
+				t.Errorf("MatchedCategories(%q) = %v, want none", c.in, got)
+			}
+			continue
+		}
+		found := false
+		for _, g := range got {
+			if g == c.want {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf("MatchedCategories(%q) = %v, want to include %q", c.in, got, c.want)
+		}
+	}
+	// Empty input → nil.
+	if got := redact.MatchedCategories(""); got != nil {
+		t.Errorf("MatchedCategories(\"\") = %v, want nil", got)
+	}
+}
+
+// TestPatternsDerivedFromNamed pins that the redaction list and the labelled
+// list stay in lockstep — a Redact match implies a MatchedCategories label.
+func TestPatternsDerivedFromNamed(t *testing.T) {
+	r := redact.New()
+	for _, s := range []string{
+		"sk-ant-api03-abcdefghijklmnopqrstuvwxyz0123",
+		"AKIA0123456789ABCDEF",
+	} {
+		if r.Redact(s) == s {
+			t.Errorf("Redact did not scrub %q", s)
+		}
+		if len(redact.MatchedCategories(s)) == 0 {
+			t.Errorf("MatchedCategories empty for a string Redact scrubs: %q", s)
+		}
+	}
+}

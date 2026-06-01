@@ -12,6 +12,11 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **`agt redact test`** (SPEC-06, M104) — verify the live secret redactor would
+  scrub a candidate string before it could reach the journal (built-in pattern
+  categories + configured literals), without leaking which literal matched. Exit
+  3 when it would NOT redact, for scriptable secret-hygiene checks. See
+  `.project/PHASE-M104-REDACT-TEST-REPORT.md`.
 - **Anti-truncation for journal bundles** (SPEC-09 §8, M103) — `agt journal verify
   --bundle` and `agt journal import` now confirm a bundle REACHES the chain head
   its manifest attests (`last.Hash == head_hash`), closing a tail-truncation /

@@ -40,25 +40,59 @@ const Placeholder = "[REDACTED]"
 // unrelated data; provider keys/tokens are always far longer.
 const minLiteralLen = 8
 
-// patterns are high-confidence secret formats. Each must match a token shape
-// that is implausible as ordinary prose, so a full-match replacement is safe.
-// Order is irrelevant: matches are non-overlapping replacements.
-var patterns = []*regexp.Regexp{
+// namedPattern pairs a high-confidence secret detector with a human-readable
+// label, used both for redaction and for `agt redact test` diagnostics (M104).
+type namedPattern struct {
+	name string
+	re   *regexp.Regexp
+}
+
+// namedPatterns are high-confidence secret formats. Each must match a token
+// shape that is implausible as ordinary prose, so a full-match replacement is
+// safe. Order is irrelevant: matches are non-overlapping replacements.
+var namedPatterns = []namedPattern{
 	// OpenAI / Anthropic style keys: sk-…, sk-proj-…, sk-ant-… (the dash class
 	// makes the single rule cover the prefixed variants).
-	regexp.MustCompile(`sk-[A-Za-z0-9_-]{20,}`),
+	{"openai/anthropic-key", regexp.MustCompile(`sk-[A-Za-z0-9_-]{20,}`)},
 	// AWS access key id.
-	regexp.MustCompile(`AKIA[0-9A-Z]{16}`),
+	{"aws-access-key-id", regexp.MustCompile(`AKIA[0-9A-Z]{16}`)},
 	// GitHub tokens: ghp_, gho_, ghu_, ghs_, ghr_.
-	regexp.MustCompile(`gh[pousr]_[A-Za-z0-9]{36,}`),
+	{"github-token", regexp.MustCompile(`gh[pousr]_[A-Za-z0-9]{36,}`)},
 	// Slack tokens: xoxb-, xoxa-, xoxp-, xoxr-, xoxs-.
-	regexp.MustCompile(`xox[baprs]-[A-Za-z0-9-]{10,}`),
+	{"slack-token", regexp.MustCompile(`xox[baprs]-[A-Za-z0-9-]{10,}`)},
 	// Google API key.
-	regexp.MustCompile(`AIza[0-9A-Za-z_-]{35}`),
+	{"google-api-key", regexp.MustCompile(`AIza[0-9A-Za-z_-]{35}`)},
 	// Bearer tokens (Authorization headers, OAuth dumps).
-	regexp.MustCompile(`(?i)bearer\s+[A-Za-z0-9._-]{20,}`),
+	{"bearer-token", regexp.MustCompile(`(?i)bearer\s+[A-Za-z0-9._-]{20,}`)},
 	// PEM private-key blocks (any type), body and delimiters.
-	regexp.MustCompile(`(?s)-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----.*?-----END [A-Z0-9 ]*PRIVATE KEY-----`),
+	{"pem-private-key", regexp.MustCompile(`(?s)-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----.*?-----END [A-Z0-9 ]*PRIVATE KEY-----`)},
+}
+
+// patterns is the detector list used by Redact, derived from namedPatterns so
+// the labels and the redaction rules can never drift apart.
+var patterns = func() []*regexp.Regexp {
+	ps := make([]*regexp.Regexp, len(namedPatterns))
+	for i, np := range namedPatterns {
+		ps[i] = np.re
+	}
+	return ps
+}()
+
+// MatchedCategories returns the labels of the built-in patterns that match s,
+// in declaration order. It is a pure, daemon-free helper behind
+// `agt redact test`; configured literal secrets are NOT covered here (they are
+// only known to a live Redactor). Returns nil when nothing matches.
+func MatchedCategories(s string) []string {
+	if s == "" {
+		return nil
+	}
+	var out []string
+	for _, np := range namedPatterns {
+		if np.re.MatchString(s) {
+			out = append(out, np.name)
+		}
+	}
+	return out
 }
 
 // Redactor scrubs secrets from strings and bytes. It is safe for concurrent use;

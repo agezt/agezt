@@ -75,6 +75,15 @@ func (b *Bus) SetRedactor(r Redactor) {
 	b.mu.Unlock()
 }
 
+// Redactor returns the installed secret redactor, or nil when redaction is
+// disabled. Used by `agt redact test` to exercise the LIVE redactor (built-in
+// patterns + configured literal secrets) without leaking which literal matched.
+func (b *Bus) Redactor() Redactor {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.redactor
+}
+
 // redactSpec returns spec with its payload and tag values scrubbed when a
 // redactor is configured. The original payload/tags are not mutated: payload is
 // re-marshaled to redacted JSON and tags are copied into a fresh map. Caller
