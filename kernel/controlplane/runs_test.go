@@ -4,6 +4,7 @@ package controlplane_test
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -673,6 +674,63 @@ func TestRunsList_RowCarriesSpend(t *testing.T) {
 	row, _ := rows[0].(map[string]any)
 	if got := int64(intOf(row["spent_mc"])); got != 150 {
 		t.Errorf("spent_mc = %d want 150", got)
+	}
+}
+
+// TestRunsList_RowCarriesAnswerPreview — a completed run's row exposes a one-line
+// excerpt of its M51 answer (M52): newlines collapsed to spaces, trimmed, and
+// truncated to the preview cap with an ellipsis.
+func TestRunsList_RowCarriesAnswerPreview(t *testing.T) {
+	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	_, _ = k.Bus().Publish(event.Spec{
+		Subject: "task", Kind: event.KindTaskReceived, Actor: "a",
+		CorrelationID: "r1", Payload: map[string]string{"intent": "x"},
+	})
+	_, _ = k.Bus().Publish(event.Spec{
+		Subject: "task", Kind: event.KindTaskCompleted, Actor: "a",
+		CorrelationID: "r1", Payload: map[string]any{
+			"iters": 1, "answer": "line one\n\tline two   with   spaces",
+		},
+	})
+
+	res, err := c.Call(context.Background(), controlplane.CmdRunsList, nil)
+	if err != nil {
+		t.Fatalf("Call: %v", err)
+	}
+	rows, _ := res["runs"].([]any)
+	if len(rows) != 1 {
+		t.Fatalf("rows = %d want 1", len(rows))
+	}
+	row, _ := rows[0].(map[string]any)
+	got, _ := row["answer_preview"].(string)
+	if got != "line one line two with spaces" {
+		t.Errorf("answer_preview = %q; want whitespace-collapsed single line", got)
+	}
+}
+
+// TestRunsList_AnswerPreviewTruncated — a long answer is truncated to the preview
+// cap with an ellipsis (M52); the row never carries the full text.
+func TestRunsList_AnswerPreviewTruncated(t *testing.T) {
+	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	long := strings.Repeat("a", 200)
+	_, _ = k.Bus().Publish(event.Spec{
+		Subject: "task", Kind: event.KindTaskReceived, Actor: "a",
+		CorrelationID: "r1", Payload: map[string]string{"intent": "x"},
+	})
+	_, _ = k.Bus().Publish(event.Spec{
+		Subject: "task", Kind: event.KindTaskCompleted, Actor: "a",
+		CorrelationID: "r1", Payload: map[string]any{"iters": 1, "answer": long},
+	})
+
+	res, _ := c.Call(context.Background(), controlplane.CmdRunsList, nil)
+	rows, _ := res["runs"].([]any)
+	row, _ := rows[0].(map[string]any)
+	got, _ := row["answer_preview"].(string)
+	if !strings.HasSuffix(got, "…") {
+		t.Errorf("answer_preview should end with an ellipsis; got %q", got)
+	}
+	if r := []rune(got); len(r) > 81 { // 80 + the ellipsis rune
+		t.Errorf("answer_preview too long: %d runes", len(r))
 	}
 }
 

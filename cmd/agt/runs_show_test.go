@@ -145,6 +145,27 @@ func TestRenderTaskArc_ShowsSpend(t *testing.T) {
 	}
 }
 
+// TestRenderTaskArc_DelegationShowsAnswerPreview — a sub-agent's answer preview
+// (M52) renders inline on its ↳ outcome line, after the status/iters/cost.
+func TestRenderTaskArc_DelegationShowsAnswerPreview(t *testing.T) {
+	summary := map[string]any{"intent": "lead", "status": "completed", "iters": float64(1), "duration_ms": float64(1)}
+	events := []map[string]any{
+		{"kind": "subagent.spawned", "seq": float64(1), "payload": map[string]any{
+			"child_correlation": "run-CHILD", "task": "summarize the kernel",
+		}},
+	}
+	outcomes := map[string]childOutcome{
+		"run-CHILD": {status: "completed", iters: 1, durationMS: 42, answerPreview: "kernel/ holds event, journal, bus"},
+	}
+	var buf bytes.Buffer
+	renderTaskArc(&buf, "run-LEAD", summary, events, outcomes)
+	s := buf.String()
+	want := `↳ completed (1 iters, 42ms): "kernel/ holds event, journal, bus"`
+	if !strings.Contains(s, want) {
+		t.Errorf("output missing %q; got:\n%s", want, s)
+	}
+}
+
 // TestRenderTaskArc_NoSpendLineWhenZero — a free/local run ($0) shows neither a
 // header spend line nor a spend figure on the ↳ outcome (M50 stays quiet).
 func TestRenderTaskArc_NoSpendLineWhenZero(t *testing.T) {

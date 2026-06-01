@@ -12,6 +12,16 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Sub-agent answer preview on the delegation arc** (SPEC-12 multi-agent, M52) —
+  `agt runs show <lead>` now appends a one-line excerpt of each sub-agent's answer
+  to its `↳` outcome line: `↳ completed (1 iters, 42ms, $0.0021): "kernel/ holds
+  event, journal…"`. `collectRuns` folds the M51 `task.completed` answer into
+  `runEntry.AnswerPreview` (whitespace collapsed to one line, truncated to 80 runes);
+  `handleRunsList` exposes `answer_preview` per row; `renderTaskArc` shows it when
+  present. Pure derivation over M51 — no new event or round-trip. Completes the
+  delegation story (link → task → outcome → cost → result): an operator sees what a
+  delegation said without drilling into the child. See
+  `.project/PHASE-M52-DELEGATION-ANSWER-PREVIEW-REPORT.md`.
 - **Journal the run answer** (SPEC-08 journal × SPEC-12, M51) — the agent loop now
   records the final assistant text on `task.completed` (`answer`, alongside
   `iters`/`chars`/`stopped`), so `agt runs show`'s "final answer:" section displays

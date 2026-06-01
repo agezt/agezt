@@ -597,12 +597,14 @@ func cmdRunsShow(args []string, stdout, stderr io.Writer) int {
 	for cid, s := range summaries {
 		st, _ := s["status"].(string)
 		rs, _ := s["reason"].(string)
+		ap, _ := s["answer_preview"].(string)
 		outcomes[cid] = childOutcome{
-			status:     st,
-			reason:     rs,
-			iters:      int64(intOfStatus(s["iters"])),
-			durationMS: int64(intOfStatus(s["duration_ms"])),
-			spentMC:    mcFromAny(s["spent_mc"]), // M50
+			status:        st,
+			reason:        rs,
+			iters:         int64(intOfStatus(s["iters"])),
+			durationMS:    int64(intOfStatus(s["duration_ms"])),
+			spentMC:       mcFromAny(s["spent_mc"]), // M50
+			answerPreview: ap,                       // M52
 		}
 	}
 
@@ -616,11 +618,12 @@ func cmdRunsShow(args []string, stdout, stderr io.Writer) int {
 // is the status/iters/duration — enough to answer "did the delegation
 // succeed?"; the sub-agent's events are a `agt runs show <child>` away.
 type childOutcome struct {
-	status     string
-	reason     string
-	iters      int64
-	durationMS int64
-	spentMC    int64 // this sub-agent's spend in microcents (M50; 0 = none/unpriced)
+	status        string
+	reason        string
+	iters         int64
+	durationMS    int64
+	spentMC       int64  // this sub-agent's spend in microcents (M50; 0 = none/unpriced)
+	answerPreview string // one-line excerpt of the sub-agent's answer (M52; "" if none)
 }
 
 // cmdRunsLast implements `agt runs last [--json]` — a convenience
@@ -854,7 +857,13 @@ func renderTaskArc(w io.Writer, corr string, summary map[string]any, events []ma
 				if oc.spentMC > 0 {
 					spendStr = ", " + fmtUSD(oc.spentMC) // M50: what this delegation cost
 				}
-				fmt.Fprintf(w, "    ↳ %s (%d iters%s%s)\n", statusStr, oc.iters, durStr, spendStr)
+				fmt.Fprintf(w, "    ↳ %s (%d iters%s%s)", statusStr, oc.iters, durStr, spendStr)
+				// One-line preview of what the sub-agent answered (M52), so the
+				// lead's arc shows the delegation's RESULT, not just its outcome.
+				if oc.answerPreview != "" {
+					fmt.Fprintf(w, ": %q", oc.answerPreview)
+				}
+				fmt.Fprintln(w)
 			}
 		default:
 			// Surface unknown kinds at minimal verbosity so a future

@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"net"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/agezt/agezt/kernel/event"
@@ -57,6 +58,11 @@ type runEntry struct {
 	// the spending run's correlation. Lets `agt runs stats` cost a run — and,
 	// via ParentCorrelation, cost a delegation.
 	SpentMicrocents int64
+	// AnswerPreview is a one-line excerpt of the run's final answer (M52),
+	// folded from the M51 task.completed `answer` field. Lets `agt runs show`
+	// show what a delegation RESULTED IN inline on its ↳ line, not just its
+	// status/cost. Empty for a run that didn't complete with text.
+	AnswerPreview string
 }
 
 // collectRuns walks the given kernel's journal once and folds
@@ -104,6 +110,9 @@ func (s *Server) collectRuns(k *runtime.Kernel) (map[string]*runEntry, error) {
 			entry.Completed = true
 			if iters := extractIters(e.Payload); iters > 0 {
 				entry.Iters = iters
+			}
+			if prev := extractAnswerPreview(e.Payload); prev != "" {
+				entry.AnswerPreview = prev
 			}
 		case event.KindTaskFailed:
 			entry, ok := runs[e.CorrelationID]
@@ -243,6 +252,7 @@ func (s *Server) handleRunsList(conn net.Conn, req Request) {
 			"iters":              r.Iters,
 			"parent_correlation": r.ParentCorrelation, // "" for top-level runs (M41)
 			"spent_mc":           r.SpentMicrocents,    // this run's spend in microcents (M50; 0 = none/unpriced)
+			"answer_preview":     r.AnswerPreview,      // one-line excerpt of the final answer (M52; "" if none)
 		})
 	}
 
@@ -539,6 +549,36 @@ func extractCostMicrocents(payload json.RawMessage) int64 {
 		return 0
 	}
 	return int64(p.Cost)
+}
+
+// answerPreviewRunes bounds the one-line answer excerpt folded into a run row
+// (M52). Short enough for a single inline ↳ line; the full answer is a
+// `agt runs show <child>` away.
+const answerPreviewRunes = 80
+
+// extractAnswerPreview pulls the M51 `answer` out of a task.completed payload
+// and returns a one-line excerpt (M52): newlines/tabs collapsed to single
+// spaces, trimmed, truncated to answerPreviewRunes with an ellipsis. Returns ""
+// on parse failure or an empty/whitespace answer so the renderer simply omits it.
+func extractAnswerPreview(payload json.RawMessage) string {
+	if len(payload) == 0 {
+		return ""
+	}
+	var p struct {
+		Answer string `json:"answer"`
+	}
+	if err := json.Unmarshal(payload, &p); err != nil {
+		return ""
+	}
+	one := strings.Join(strings.Fields(p.Answer), " ") // collapse all whitespace runs
+	if one == "" {
+		return ""
+	}
+	r := []rune(one)
+	if len(r) > answerPreviewRunes {
+		return string(r[:answerPreviewRunes]) + "…"
+	}
+	return one
 }
 
 // extractSpawnLink pulls child + parent correlation ids out of a
