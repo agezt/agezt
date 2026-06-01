@@ -821,11 +821,24 @@ func renderTaskArc(w io.Writer, corr string, summary map[string]any, events []ma
 	if intent != "" {
 		fmt.Fprintf(w, "intent     : %s\n", intent)
 	}
+	reason, _ := summary["reason"].(string)
 	switch status {
 	case "completed":
 		fmt.Fprintf(w, "status     : completed (%d iters, %s)\n", iters, fmtDuration(duration))
 	case "running":
 		fmt.Fprintf(w, "status     : running (no task.completed yet — abandoned?)\n")
+	case "failed":
+		// A failed run's arc must say WHY (M70): the reason is the first thing an
+		// operator wants, and it was silently dropped before. duration shown when
+		// the fold could compute it (FailedUnixMS − StartedUnixMS).
+		line := "status     : failed"
+		if reason != "" {
+			line += " (" + reason + ")"
+		}
+		if duration > 0 {
+			line += " after " + fmtDuration(duration)
+		}
+		fmt.Fprintln(w, line)
 	default:
 		fmt.Fprintf(w, "status     : %s\n", status)
 	}
@@ -927,6 +940,15 @@ func renderTaskArc(w io.Writer, corr string, summary map[string]any, events []ma
 			out := intOfStatus(payload["output_tokens"])
 			if in > 0 || out > 0 {
 				line += fmt.Sprintf(" (in=%d, out=%d tokens)", in, out)
+			}
+			fmt.Fprintln(w, line)
+		case "task.failed":
+			// The terminal failure, inline at the round it occurred (M70). The
+			// header summarises it; this marks WHERE in the arc the run died.
+			fr, _ := payload["reason"].(string)
+			line := "  task.failed"
+			if fr != "" {
+				line += ": " + fr
 			}
 			fmt.Fprintln(w, line)
 		case "policy.decision":

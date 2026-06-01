@@ -380,3 +380,30 @@ func TestRenderTaskArc_BudgetConsumedShowsCost(t *testing.T) {
 		t.Errorf("budget.consumed still rendered as generic kind; got:\n%s", s)
 	}
 }
+
+// TestRenderTaskArc_FailedRunShowsReason — a failed run's arc header states the
+// reason (and the body marks the task.failed event), instead of a bare
+// "status: failed" that drops the why (M70).
+func TestRenderTaskArc_FailedRunShowsReason(t *testing.T) {
+	summary := map[string]any{
+		"intent": "do thing", "status": "failed", "iters": float64(2),
+		"duration_ms": float64(1500), "reason": "max iterations exceeded",
+	}
+	events := []map[string]any{
+		{"kind": "llm.request", "seq": float64(1)},
+		{"kind": "task.failed", "seq": float64(2), "payload": map[string]any{
+			"reason": "max iterations exceeded",
+		}},
+	}
+	var buf bytes.Buffer
+	renderTaskArc(&buf, "run-FAIL", summary, events, nil)
+	s := buf.String()
+	for _, want := range []string{
+		"status     : failed (max iterations exceeded) after 1.5s",
+		"task.failed: max iterations exceeded",
+	} {
+		if !strings.Contains(s, want) {
+			t.Errorf("arc missing %q; got:\n%s", want, s)
+		}
+	}
+}

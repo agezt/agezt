@@ -21,6 +21,11 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   input/output excerpts. See `.project/PHASE-M68-ARC-HONESTY-REPORT.md`.
 
 ### Added
+- **Failure reason in the task arc** (SPEC-08, M70) — `agt runs show` now renders
+  a failed run's header as `status: failed (<reason>) after <duration>` and marks
+  the `task.failed` event inline, instead of a bare `status: failed` that dropped
+  the why. The reason comes from the same fold `agt runs list --failed` uses. See
+  `.project/PHASE-M70-ARC-FAILURE-REPORT.md`.
 - **Per-round budget in the task arc** (SPEC-08, M69) — `agt runs show` renders
   `budget.consumed` as `budget: <model> $<cost> (in=N, out=M tokens)` instead of
   a generic event line, so the arc shows WHERE a run's spend accrued round by
