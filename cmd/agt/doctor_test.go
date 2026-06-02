@@ -357,6 +357,34 @@ func TestNetguardCheckFromLog(t *testing.T) {
 	}
 }
 
+func TestRateLimitCheckFromStats(t *testing.T) {
+	// No throttling → OK.
+	if c := rateLimitCheckFromStats(map[string]any{"throttled": float64(0)}); c.Status != statusOK {
+		t.Errorf("no throttle: status = %v want OK", c.State)
+	}
+	// Missing key → OK (best-effort).
+	if c := rateLimitCheckFromStats(map[string]any{}); c.Status != statusOK {
+		t.Errorf("missing throttled: status = %v want OK", c.State)
+	}
+
+	// Throttling with cap/peak → WARN; detail carries the numbers.
+	w := rateLimitCheckFromStats(map[string]any{
+		"throttled": float64(12), "limit_per_min": float64(60), "worst_used": float64(75),
+	})
+	if w.Status != statusWarn {
+		t.Fatalf("throttled: status = %v want WARN", w.State)
+	}
+	if !strings.Contains(w.Detail, "12 request") || !strings.Contains(w.Detail, "cap 60/min") || !strings.Contains(w.Detail, "peak 75") {
+		t.Errorf("detail = %q want count+cap+peak", w.Detail)
+	}
+
+	// Throttling without a recorded cap → WARN, simpler detail.
+	w2 := rateLimitCheckFromStats(map[string]any{"throttled": float64(3)})
+	if w2.Status != statusWarn || strings.Contains(w2.Detail, "cap ") {
+		t.Errorf("no-cap throttle: status=%v detail=%q want WARN without a cap clause", w2.State, w2.Detail)
+	}
+}
+
 func TestTopFailingWebhook(t *testing.T) {
 	got := topFailingWebhook(map[string]any{
 		"u1": map[string]any{"delivered": float64(3), "failed": float64(1)},

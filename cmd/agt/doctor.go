@@ -159,6 +159,7 @@ func runDoctorChecks() []doctorCheck {
 	checks = append(checks, checkDisk(ctx, client))
 	checks = append(checks, checkExposure(status))
 	checks = append(checks, checkNetguard(ctx, client))
+	checks = append(checks, checkRateLimit(ctx, client))
 	checks = append(checks, checkChannels(status))
 	checks = append(checks, checkHalt(status))
 
@@ -443,11 +444,13 @@ func int64Of(v any) int64 {
 	return -1
 }
 
-// netguardLookbackMS is the window the doctor netguard check examines (24h). A
-// short window keeps the check actionable and self-clearing: an egress block from
-// last week that's already been reviewed shouldn't WARN forever, but a block in
-// the last day is worth a look right now.
-const netguardLookbackMS = int64(24 * 60 * 60 * 1000)
+// doctorRecentWindowMS is the look-back window for the log-folding security checks
+// (netguard M163, ratelimit M164). These events have no rate denominator (unlike
+// webhooks), so an all-time count would WARN forever after a single reviewed event.
+// A 24h window keeps the checks actionable and self-clearing: yesterday's egress
+// block or throttle is worth a look now; one from last week that was already
+// handled is not.
+const doctorRecentWindowMS = int64(24 * 60 * 60 * 1000)
 
 // checkNetguard warns when the egress guard has refused connections recently
 // (M163). A netguard.blocked event means a tool (http/browser) tried to reach an
@@ -458,7 +461,7 @@ const netguardLookbackMS = int64(24 * 60 * 60 * 1000)
 // no blocks, is an informational OK. Same shape as the webhooks/schedules checks.
 func checkNetguard(ctx context.Context, client *controlplane.Client) doctorCheck {
 	res, err := client.Call(ctx, controlplane.CmdNetguardLog, map[string]any{
-		"since_ms": float64(netguardLookbackMS),
+		"since_ms": float64(doctorRecentWindowMS),
 		"limit":    float64(200),
 	})
 	if err != nil {
@@ -494,6 +497,41 @@ func netguardCheckFromLog(res map[string]any) doctorCheck {
 	if target != "" {
 		hint = fmt.Sprintf("most recent: %s — review `agt netguard log` (allowlist a host, or an SSRF/injection attempt)", target)
 	}
+	return warn(name, detail, hint)
+}
+
+// checkRateLimit warns when callers have been throttled recently (M164). A
+// rate.limited event means a tenant exceeded its per-minute request cap (M14
+// quotas) and was refused — persistent throttling means a caller is undersized for
+// its workload, or something is hammering the daemon. Surfacing it lets the
+// operator raise the cap or pace the caller before it manifests as mysterious
+// failed runs. Best-effort: the call failing, or no throttling, is an
+// informational OK. Same shape as the netguard check.
+func checkRateLimit(ctx context.Context, client *controlplane.Client) doctorCheck {
+	res, err := client.Call(ctx, controlplane.CmdRateLimitStats, map[string]any{
+		"since_ms": float64(doctorRecentWindowMS),
+	})
+	if err != nil {
+		return ok("ratelimit", "throttle stats unavailable (—)")
+	}
+	return rateLimitCheckFromStats(res)
+}
+
+// rateLimitCheckFromStats is the pure verdict from a ratelimit-stats response —
+// split out so the logic is testable without a live daemon (M164).
+func rateLimitCheckFromStats(res map[string]any) doctorCheck {
+	const name = "ratelimit"
+	throttled := intOfStatus(res["throttled"])
+	if throttled <= 0 {
+		return ok(name, "no requests throttled in the last 24h")
+	}
+	limit := intOfStatus(res["limit_per_min"])
+	worst := intOfStatus(res["worst_used"])
+	detail := fmt.Sprintf("%d request(s) throttled in the last 24h", throttled)
+	if limit > 0 {
+		detail = fmt.Sprintf("%d request(s) throttled in the last 24h (cap %d/min, peak %d)", throttled, limit, worst)
+	}
+	hint := "a caller is exceeding its per-minute rate cap; raise the limit or pace the caller (`agt ratelimit log`)"
 	return warn(name, detail, hint)
 }
 

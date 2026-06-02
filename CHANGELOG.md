@@ -12,6 +12,14 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Rate-limit health check in `agt doctor`** (M164) — `agt doctor` now WARNs when
+  callers have been throttled in the last 24h: a `rate.limited` event means a tenant
+  exceeded its per-minute request cap (M14 quotas) and was refused. Persistent
+  throttling means a caller is undersized for its workload (or something is hammering
+  the daemon), and otherwise only manifests as mysterious failed runs. The detail
+  carries the count, the cap, and the peak observed rate. Reuses `CmdRateLimitStats`
+  (M106) over a self-clearing 24h window (shared with the netguard check). See
+  `.project/PHASE-M164-DOCTOR-RATELIMIT-REPORT.md`.
 - **Egress-guard health check in `agt doctor`** (M163) — `agt doctor` now WARNs when
   the netguard egress guard has refused connections in the last 24h: a
   `netguard.blocked` event means a tool (http/browser) tried to reach an
