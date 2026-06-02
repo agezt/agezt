@@ -78,7 +78,17 @@ type Server struct {
 	// operator can confirm what's listening without scrolling back to the boot
 	// banner (M141). Empty when no channel is configured.
 	channels []ChannelInfo
+
+	// channelSend delivers an operator-initiated outbound message through a named
+	// channel (M142), injected via SetChannelSender. Kept as a primitive func (not a
+	// channel.Channel) so this package never imports the channel plugins. Nil when no
+	// channel is configured; handleSend reports that as unavailable.
+	channelSend ChannelSender
 }
+
+// ChannelSender delivers text out a named channel kind to a channel/chat id. The
+// daemon wires it to the live channels' Send methods.
+type ChannelSender func(ctx context.Context, kind, channelID, text string) error
 
 // HTTPBinding describes one network-exposed HTTP server for the exposure check.
 type HTTPBinding struct {
@@ -102,6 +112,10 @@ type ChannelInfo struct {
 // SetChannels records the daemon's configured messaging channels so `agt status`
 // can report what's listening.
 func (s *Server) SetChannels(c []ChannelInfo) { s.channels = c }
+
+// SetChannelSender wires operator-initiated outbound (`agt send`) to the live
+// channels. Nil leaves `agt send` reporting "no channels configured".
+func (s *Server) SetChannelSender(send ChannelSender) { s.channelSend = send }
 
 // DiskFreeFunc returns the free (available) and total bytes for the filesystem
 // containing path (M131). The daemon injects a real implementation
@@ -522,6 +536,8 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.handlePulseResume(conn, req)
 	case CmdInbox:
 		s.handleInbox(conn, req)
+	case CmdSend:
+		s.handleSend(conn, req)
 	default:
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "unknown command: " + req.Cmd})
 	}

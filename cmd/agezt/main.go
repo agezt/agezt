@@ -718,6 +718,27 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// the same env the buildX functions consume.
 	srv.SetChannels(collectChannels())
 
+	// Wire operator-initiated outbound (`agt send`, M142) to the live channels.
+	// Built from the channels actually constructed above so a kind only sends when
+	// it's configured; senders journal channel.outbound via each channel's Send.
+	liveChannels := map[string]channel.Channel{}
+	if tgChan != nil {
+		liveChannels["telegram"] = tgChan
+	}
+	if slChan != nil {
+		liveChannels["slack"] = slChan
+	}
+	if dcChan != nil {
+		liveChannels["discord"] = dcChan
+	}
+	srv.SetChannelSender(func(sctx context.Context, kind, id, text string) error {
+		ch, ok := liveChannels[kind]
+		if !ok {
+			return fmt.Errorf("channel %q not configured", kind)
+		}
+		return ch.Send(sctx, channel.Outbound{ChannelID: id, Text: text, Priority: channel.PriorityNotify})
+	})
+
 	// Scheduled intents (autonomy) — fire operator-configured intents on a timer
 	// through the governed loop. Runs on the daemon ctx (halt/shutdown stop it).
 	// Off unless AGEZT_SCHEDULE is set.

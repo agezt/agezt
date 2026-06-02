@@ -128,6 +128,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return cmdReflect(args[1:], stdout, stderr)
 	case "inbox":
 		return cmdInbox(args[1:], stdout, stderr)
+	case "send":
+		return cmdSend(args[1:], stdout, stderr)
 	case "peers":
 		return cmdPeers(args[1:], stdout, stderr)
 	case "schedule":
@@ -234,6 +236,7 @@ func printHelp(w io.Writer) {
 	fmt.Fprintf(w, "  reflect run [--json]                  run a reflection pass (decays stale world-model entities)\n")
 	fmt.Fprintf(w, "  reflect show [--json]                 print the latest reflection report\n")
 	fmt.Fprintf(w, "  inbox [N] [--json]                    unified channel conversations (newest first)\n")
+	fmt.Fprintf(w, "  send --channel KIND --to ID <text>    push an outbound message through a channel\n")
 	fmt.Fprintf(w, "  vault status                          show vault encryption state + path\n")
 	fmt.Fprintf(w, "  vault encrypt                         migrate plaintext vault to encrypted (set AGEZT_VAULT_PASSPHRASE)\n")
 	fmt.Fprintf(w, "  vault decrypt                         migrate encrypted vault back to plaintext\n")

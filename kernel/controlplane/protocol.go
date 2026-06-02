@@ -804,6 +804,15 @@ const (
 	//            messages:[{direction,sender,text,ts_unix_ms,event_id}],
 	//            last_ts_unix_ms}, ...], count, channel? }
 	CmdInbox = "inbox"
+
+	// CmdSend delivers an operator-initiated outbound message through a configured
+	// channel (Telegram/Slack/Discord) — the manual egress complement to Pulse
+	// briefs and agent replies, for scripts/CI ("deploy done → notify Slack").
+	// Authenticated by the control plane (primary token), so no per-channel
+	// allowlist gate. The channel's own Send journals channel.outbound.
+	// Args: channel (kind, required), to (channel/chat id, required), text (required).
+	// Returns: { sent: true, channel, to }
+	CmdSend = "send"
 )
 
 // Request is the wire shape sent by the client.

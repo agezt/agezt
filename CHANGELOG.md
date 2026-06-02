@@ -12,6 +12,17 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **`agt send` — operator-initiated channel egress** (M142) — push a one-off message
+  out a configured channel: `agt send --channel discord --to D9 "deploy finished"`.
+  The manual complement to Pulse briefs and agent replies, so a script / CI / cron job
+  can notify a chat without driving the agent ("build green → ping Slack"). Routed
+  through the control plane (authenticated by the primary token, so no per-channel
+  allowlist gate — the caller already holds daemon authority) to the live channel's
+  `Send`, which journals `channel.outbound` — so the message shows up in
+  `agt inbox` / `agt why` like any other. An unconfigured channel kind is a clear
+  error. Wired via `Server.SetChannelSender` (a primitive func, so `kernel/controlplane`
+  still never imports the channel plugins). See
+  `.project/PHASE-M142-AGT-SEND-REPORT.md`.
 - **Configured channels in `agt status`** (M141) — the daemon now reports its
   messaging channels (Telegram, Slack, Discord) in `agt status`:
   `channels : telegram (inbound, allow 2), slack (inbound @127.0.0.1:8840, allow 1),
