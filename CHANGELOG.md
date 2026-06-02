@@ -12,6 +12,15 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Multi-turn conversation context for channels** (M144, SPEC-04 §1.4) — an inbound
+  chat message used to start a fresh, memory-less run, so "what's the capital of
+  France?" → "and Germany?" lost all thread. Now every channel (Telegram/Slack/
+  Discord) prepends a compact transcript of the recent conversation for that chat
+  (folded read-only from the journal, the same source as `agt inbox`) as the run
+  intent, so the agent answers follow-ups in context. Bounded by
+  `AGEZT_CHANNEL_HISTORY` messages (default 10; `0` disables; each message clipped),
+  and the first turn of a conversation runs the raw text unchanged. No new state, no
+  new event. See `.project/PHASE-M144-CHANNEL-CONTEXT-REPORT.md`.
 - **`notify` tool — proactive agent messaging** (M143) — a running agent can now
   send a short message to the operator over a configured channel MID-task ("I've
   started the long task, I'll report back"; a progress note; an alert) instead of

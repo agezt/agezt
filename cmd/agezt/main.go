@@ -850,6 +850,43 @@ func drainWait(active func() int, timeout time.Duration) bool {
 	return true
 }
 
+// defaultChannelHistory is the per-conversation context window (in messages) the
+// channels give the agent when AGEZT_CHANNEL_HISTORY is unset. Small enough to
+// bound token cost, large enough for genuine multi-turn chat. 0 disables.
+const defaultChannelHistory = 10
+
+// channelHistoryLimit reads AGEZT_CHANNEL_HISTORY (messages of prior conversation
+// to include as context); defaults to defaultChannelHistory, 0 disables, a
+// malformed/negative value falls back to the default.
+func channelHistoryLimit() int {
+	v := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "CHANNEL_HISTORY"))
+	if v == "" {
+		return defaultChannelHistory
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil || n < 0 {
+		return defaultChannelHistory
+	}
+	return n
+}
+
+// makeChannelHandler builds the inbound handler shared by every channel. It gives
+// the agent multi-turn context (M144): when prior conversation exists for this
+// (kind, channel id), it prepends a compact transcript so a follow-up like "and
+// tomorrow?" is understood, then runs the governed loop under the message's
+// correlation. With no prior context (or history disabled) it runs the raw
+// message text — unchanged first-turn behavior.
+func makeChannelHandler(k *kernelruntime.Kernel) channel.InboundHandler {
+	limit := channelHistoryLimit()
+	return func(hctx context.Context, msg channel.UnifiedMessage, corr string) (string, error) {
+		intent := msg.Text
+		if h := channel.ConversationHistory(k.Journal(), msg.ChannelKind, msg.ChannelID, limit); h != "" {
+			intent = h
+		}
+		return k.RunWith(hctx, corr, intent)
+	}
+}
+
 // buildTelegram constructs the in-process Telegram channel when
 // AGEZT_TELEGRAM_TOKEN is set, plus a Pulse brief sink that forwards briefs to
 // the allowlisted chats. Returns (nil, nil, "") when no token is configured.
@@ -868,9 +905,7 @@ func buildTelegram(ctx context.Context, k *kernelruntime.Kernel) (*telegram.Chan
 	chatIDs := splitNonEmpty(os.Getenv(brand.EnvPrefix + "TELEGRAM_CHAT_ID"))
 	allow := channel.NewAllowlist(chatIDs)
 
-	handler := func(hctx context.Context, msg channel.UnifiedMessage, corr string) (string, error) {
-		return k.RunWith(hctx, corr, msg.Text)
-	}
+	handler := makeChannelHandler(k)
 	ch := telegram.New(telegram.Config{
 		Token:     token,
 		BaseURL:   strings.TrimSpace(os.Getenv(brand.EnvPrefix + "TELEGRAM_API_BASE")), // empty → public Bot API
@@ -923,9 +958,7 @@ func buildSlack(ctx context.Context, k *kernelruntime.Kernel) (*slack.Channel, p
 	addr := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "SLACK_ADDR"))
 	channelIDs := splitNonEmpty(os.Getenv(brand.EnvPrefix + "SLACK_CHANNELS"))
 
-	handler := func(hctx context.Context, msg channel.UnifiedMessage, corr string) (string, error) {
-		return k.RunWith(hctx, corr, msg.Text)
-	}
+	handler := makeChannelHandler(k)
 	ch := slack.New(slack.Config{
 		Token:         token,
 		SigningSecret: secret,
@@ -985,9 +1018,7 @@ func buildDiscord(ctx context.Context, k *kernelruntime.Kernel) (*discord.Channe
 	addr := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "DISCORD_ADDR"))
 	channelIDs := splitNonEmpty(os.Getenv(brand.EnvPrefix + "DISCORD_CHANNELS"))
 
-	handler := func(hctx context.Context, msg channel.UnifiedMessage, corr string) (string, error) {
-		return k.RunWith(hctx, corr, msg.Text)
-	}
+	handler := makeChannelHandler(k)
 	ch := discord.New(discord.Config{
 		Token:         token,
 		PublicKey:     pubKey,
@@ -2507,6 +2538,23 @@ func newDemoMock() agent.Provider {
 			mock.ToolUse("call-2", "file", map[string]any{"op": "replace", "path": "notes.txt", "find": "draft", "replacement": "published"}),
 			mock.FinalText("[offline-mock] I wrote notes.txt and edited it in place: status is now 'published'."),
 		)
+	}
+	// Demo escape hatch: AGEZT_DEMO_ECHO=1 makes the mock ECHO the last user
+	// message back as the answer, so the exact intent the agent received is
+	// observable — used to prove the M144 channel-conversation transcript actually
+	// reaches the loop. Network-free; no scripted list.
+	if os.Getenv(brand.EnvPrefix+"DEMO_ECHO") == "1" {
+		p := mock.New()
+		p.Responder = func(req agent.CompletionRequest) agent.CompletionResponse {
+			last := ""
+			for _, m := range req.Messages {
+				if m.Role == agent.RoleUser {
+					last = m.Content
+				}
+			}
+			return mock.FinalText("[echo]\n" + last)
+		}
+		return p
 	}
 	// Demo escape hatch: AGEZT_DEMO_NOTIFY=1 scripts the agent to call the `notify`
 	// tool mid-run (M143) so the proactive-messaging path (agent → configured
