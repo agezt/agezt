@@ -318,6 +318,16 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   `.project/PHASE-M129-OBSERVABILITY-TENANT-FLAG-REPORT.md`.
 
 ### Fixed
+- **Plugin death-cause field made atomic — fixes a data race on plugin teardown
+  (security review HIGH)** (M178) — `Plugin.deathErr` (the recorded cause of a plugin's
+  death) was a plain `error` field written by the read-loop goroutine (`markDead`) and
+  `Close` while being read by callers in `callWithProgress` and `remoteTool.Invoke`
+  (plugin-host review H2). The `dead` flag is an `atomic.Bool`, but that does not
+  publish a *separate* plain field under Go's memory model, so a plugin that crashes
+  exactly as a caller enters `Invoke` is a genuine data race (a `go test -race`
+  failure, and on some architectures a torn interface read). It's now an
+  `atomic.Pointer[error]` accessed via `deathError()`/`setDeathErr()`. No behavior
+  change; closes the race. See `.project/PHASE-M178-PLUGIN-DEATHERR-RACE-REPORT.md`.
 - **Plugin stdout frame size bounded — a flooding plugin can't OOM the daemon
   (security review CRITICAL)** (M177) — the plugin host read one newline-delimited
   frame per loop off an untrusted child's stdout with `bufio.Reader.ReadBytes('\n')`,

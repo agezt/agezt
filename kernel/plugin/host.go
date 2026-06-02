@@ -153,8 +153,35 @@ type Plugin struct {
 	// dead is set when the read loop sees EOF or a fatal error.
 	// All subsequent operations fail fast with errors that name
 	// the cause (rather than hanging).
+	//
+	// deathErr is the cause, written by the read-loop goroutine
+	// (markDead) / Close and read by callers — so it MUST be accessed
+	// atomically, not as a plain field (M178). The `dead` flag alone
+	// does not publish a separate plain-error field under Go's memory
+	// model; an atomic.Pointer makes the cause's publication safe.
+	// Access via deathError(); store via setDeathErr().
 	dead     atomic.Bool
-	deathErr error
+	deathErr atomic.Pointer[error]
+}
+
+// deathError returns the recorded cause of the plugin's death, or nil
+// if it has not been set. Safe to call from any goroutine (M178).
+func (p *Plugin) deathError() error {
+	if e := p.deathErr.Load(); e != nil {
+		return *e
+	}
+	return nil
+}
+
+// setDeathErr atomically records (or clears, on err==nil) the death
+// cause. Storing a heap pointer to the interface value publishes it
+// safely to readers (M178).
+func (p *Plugin) setDeathErr(err error) {
+	if err == nil {
+		p.deathErr.Store(nil)
+		return
+	}
+	p.deathErr.Store(&err)
 }
 
 // Spawn launches the plugin process, sends initialize, and returns
@@ -384,7 +411,7 @@ func (p *Plugin) Close() error {
 		<-done
 	}
 	p.dead.Store(true)
-	p.deathErr = errors.New("plugin: closed")
+	p.setDeathErr(errors.New("plugin: closed"))
 	// Drain pending; readers see "plugin dead" via the death sentinel.
 	p.mu.Lock()
 	for id, ch := range p.pending {
@@ -417,7 +444,7 @@ func (p *Plugin) callWithProgress(
 	onProgress func(string),
 ) (json.RawMessage, error) {
 	if p.dead.Load() {
-		return nil, fmt.Errorf("plugin: dead: %w", p.deathErr)
+		return nil, fmt.Errorf("plugin: dead: %w", p.deathError())
 	}
 	id := "q-" + strconv.FormatInt(p.nextID.Add(1), 10)
 	ch := make(chan *Response, 1)
@@ -442,7 +469,7 @@ func (p *Plugin) callWithProgress(
 	select {
 	case resp, ok := <-ch:
 		if !ok {
-			return nil, fmt.Errorf("plugin: connection lost: %w", p.deathErr)
+			return nil, fmt.Errorf("plugin: connection lost: %w", p.deathError())
 		}
 		if resp.Error != "" {
 			return nil, errors.New(resp.Error)
@@ -654,7 +681,7 @@ func (p *Plugin) markDead(cause error) {
 	if !p.dead.CompareAndSwap(false, true) {
 		return
 	}
-	p.deathErr = cause
+	p.setDeathErr(cause)
 	p.mu.Lock()
 	for id, ch := range p.pending {
 		close(ch)
@@ -753,7 +780,7 @@ func (p *Plugin) respawn(ctx context.Context) error {
 	p.progress = make(map[string]func(string))
 	p.mu.Unlock()
 	p.dead.Store(false)
-	p.deathErr = nil
+	p.setDeathErr(nil)
 	p.nextID.Store(0)
 
 	// Stderr forwarder + read loop, mirroring Spawn.
@@ -806,7 +833,7 @@ func (r *remoteTool) Definition() agent.ToolDef { return r.def }
 func (r *remoteTool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, error) {
 	if !r.plugin.IsAlive() {
 		return agent.Result{}, fmt.Errorf("plugin: tool %q unavailable (plugin process is dead: %v)",
-			r.def.Name, r.plugin.deathErr)
+			r.def.Name, r.plugin.deathError())
 	}
 	res, err := r.plugin.Invoke(ctx, r.remoteName, raw)
 	if err != nil {
