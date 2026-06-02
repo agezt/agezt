@@ -728,6 +728,7 @@ const (
 	ctxKeyImages
 	ctxKeySystem
 	ctxKeyRunTimeout
+	ctxKeyTools
 )
 
 // WithImages returns a context carrying image-attachment references for the run
@@ -802,6 +803,40 @@ func runTimeoutFromCtx(ctx context.Context) time.Duration {
 		return v
 	}
 	return 0
+}
+
+// WithTools restricts the run started with this context to the named tools only
+// (a per-run allowlist). A non-nil slice — including an EMPTY one (no tools at all,
+// for a pure-reasoning / safe one-off run) — activates the restriction; passing it
+// is the only way to override, so an unrestricted run is simply one where this is
+// never called. Names not registered are ignored.
+func WithTools(ctx context.Context, allow []string) context.Context {
+	return context.WithValue(ctx, ctxKeyTools, allow)
+}
+
+// toolsFromCtx returns the per-run tool allowlist and whether one was set. ok=false
+// means "no restriction" (use all tools); ok=true with an empty/nil slice means
+// "no tools".
+func toolsFromCtx(ctx context.Context) ([]string, bool) {
+	v, ok := ctx.Value(ctxKeyTools).([]string)
+	return v, ok
+}
+
+// filterTools returns the subset of tools whose names are in allow (a registered
+// name not present is dropped; an allow name with no matching tool is ignored).
+// An empty/nil allow yields an empty map — no tools.
+func filterTools(tools map[string]agent.Tool, allow []string) map[string]agent.Tool {
+	keep := make(map[string]struct{}, len(allow))
+	for _, n := range allow {
+		keep[n] = struct{}{}
+	}
+	out := make(map[string]agent.Tool, len(keep))
+	for name, tool := range tools {
+		if _, ok := keep[name]; ok {
+			out[name] = tool
+		}
+	}
+	return out
 }
 
 func actorFromCtx(ctx context.Context) string {
@@ -1048,9 +1083,16 @@ func (k *Kernel) RunWith(ctx context.Context, corr, intent string) (string, erro
 		model = m
 	}
 
+	// Per-run tool restriction (WithTools): an allowlist (possibly empty = no
+	// tools) scopes what this run may call, without changing the kernel's tool set.
+	runTools := k.tools
+	if allow, ok := toolsFromCtx(runCtx); ok {
+		runTools = filterTools(k.tools, allow)
+	}
+
 	answer, err := agent.Run(runCtx, agent.LoopConfig{
 		Provider:      k.cfg.Provider,
-		Tools:         k.tools,
+		Tools:         runTools,
 		Bus:           k.bus,
 		Model:         model,
 		System:        system,

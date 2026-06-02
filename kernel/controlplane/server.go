@@ -996,6 +996,20 @@ func (s *Server) handleRun(ctx context.Context, conn net.Conn, req Request) {
 		}
 		ctx = runtime.WithRunTimeout(ctx, d)
 	}
+	// Per-run tool restriction (M158): a "tools" arg (present, possibly empty)
+	// scopes THIS run to the named tools only — an empty list = no tools at all
+	// (a safe, pure-reasoning run). Absent = unrestricted (all tools).
+	if toolsArg, ok := req.Args["tools"]; ok {
+		allow := []string{}
+		if list, ok := toolsArg.([]any); ok {
+			for _, v := range list {
+				if name, ok := v.(string); ok && strings.TrimSpace(name) != "" {
+					allow = append(allow, strings.TrimSpace(name))
+				}
+			}
+		}
+		ctx = runtime.WithTools(ctx, allow)
+	}
 
 	// Pre-generate the correlation ID so we can subscribe to this run's
 	// subject *before* starting it. No race; no missed events.

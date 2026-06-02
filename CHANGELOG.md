@@ -12,6 +12,16 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **`agt run --tools <csv>` / `--no-tools` — per-run tool restriction** (M158) — scope
+  a single run to a named subset of tools (`agt run --tools shell,file "..."`) or
+  disable tools entirely (`agt run --no-tools "what is 2+2"`) for a safe,
+  pure-reasoning query — without changing the daemon's tool set. A new
+  `runtime.WithTools` ctx override carries the allow-list; `RunWith` applies
+  `filterTools` to the kernel's tools just for that run. An empty allow-list (the
+  `--no-tools` case) is distinct from omitting the flag (full toolset): a model that
+  still calls a filtered-out tool gets `tool "X" is not available` fed back, exactly
+  like an unknown tool. Completes the per-run override family (`--model` / `--system`
+  / `--timeout` / `--tools`). See `.project/PHASE-M158-RUN-TOOLS-REPORT.md`.
 - **`agt run --quiet` / `-q`** (M156) — print ONLY the final answer (no per-event
   lines, no live token stream, no correlation/usage footer), so scripts can
   `agt run -q --file spec.md > answer.txt` and get clean output. `--json` still

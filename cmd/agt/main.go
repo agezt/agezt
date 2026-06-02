@@ -295,6 +295,8 @@ func cmdRun(args []string, stdout, stderr io.Writer) int {
 	system := ""
 	file := ""
 	timeout := ""
+	toolsSet := false
+	var toolsList []any
 	var images []string
 	var intentParts []string
 	for i := 0; i < len(args); i++ {
@@ -338,6 +340,26 @@ func cmdRun(args []string, stdout, stderr io.Writer) int {
 			timeout = args[i]
 		case strings.HasPrefix(a, "--timeout="):
 			timeout = strings.TrimPrefix(a, "--timeout=")
+		case a == "--no-tools":
+			toolsSet = true // empty list = no tools
+		case a == "--tools" || strings.HasPrefix(a, "--tools="):
+			var csv string
+			if a == "--tools" {
+				if i+1 >= len(args) {
+					fmt.Fprintf(stderr, "%s run: --tools needs a comma-separated list\n", brand.CLI)
+					return 2
+				}
+				i++
+				csv = args[i]
+			} else {
+				csv = strings.TrimPrefix(a, "--tools=")
+			}
+			toolsSet = true
+			for _, n := range strings.Split(csv, ",") {
+				if n = strings.TrimSpace(n); n != "" {
+					toolsList = append(toolsList, n)
+				}
+			}
 		case a == "--image":
 			// Attach an image to the run (M91). The daemon gates it against the
 			// model's vision capability before any provider call.
@@ -412,6 +434,15 @@ func cmdRun(args []string, stdout, stderr io.Writer) int {
 			imgs[i] = n
 		}
 		runArgs["images"] = imgs
+	}
+	// Per-run tool restriction (M158): --tools <csv> limits this run to the named
+	// tools; --no-tools disables tools entirely. An explicit empty allow-list
+	// (toolsSet with no names) is distinct from omitting the arg (full toolset).
+	if toolsSet {
+		if toolsList == nil {
+			toolsList = []any{}
+		}
+		runArgs["tools"] = toolsList
 	}
 
 	c := dial(stderr)
