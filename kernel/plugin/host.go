@@ -62,6 +62,19 @@ const DefaultMaxConcurrentCallbacks = 16
 // host/invoke callbacks already in flight (M181).
 var ErrTooManyCallbacks = errors.New("plugin: too many concurrent callbacks")
 
+// DefaultMaxAdvertisedTools caps how many tools a plugin may advertise
+// in its initialize result (M182). The frame-size bound (M177) limits
+// the raw initialize bytes, but ~1M tiny tool defs still fit in 16 MiB,
+// and each becomes a registry map entry + remoteTool wrapper at
+// registration — a memory blow-up at spawn. Real plugins advertise a
+// handful to a few dozen tools; 256 is generous while bounding the
+// blast radius. A plugin past the cap fails to spawn.
+const DefaultMaxAdvertisedTools = 256
+
+// ErrTooManyTools is returned by Spawn/Reload when a plugin advertises
+// more tools than Config.MaxAdvertisedTools (M182).
+var ErrTooManyTools = errors.New("plugin: advertised tool count exceeds max")
+
 // Config tunes a Plugin.
 type Config struct {
 	// Path to the plugin executable. Required.
@@ -86,6 +99,10 @@ type Config struct {
 	// host/invoke requests are rejected with ErrTooManyCallbacks
 	// instead of spawning unbounded goroutines.
 	MaxConcurrentCallbacks int
+	// MaxAdvertisedTools overrides DefaultMaxAdvertisedTools — the cap
+	// on how many tools a plugin may advertise at initialize (M182).
+	// A plugin exceeding it fails to spawn with ErrTooManyTools.
+	MaxAdvertisedTools int
 	// Logger receives stderr from the child (one line per call).
 	// Nil discards.
 	Logger func(line string)
@@ -234,6 +251,9 @@ func Spawn(ctx context.Context, cfg Config) (*Plugin, error) {
 	if cfg.MaxConcurrentCallbacks <= 0 {
 		cfg.MaxConcurrentCallbacks = DefaultMaxConcurrentCallbacks
 	}
+	if cfg.MaxAdvertisedTools <= 0 {
+		cfg.MaxAdvertisedTools = DefaultMaxAdvertisedTools
+	}
 	if cfg.PinnedHash != "" {
 		if err := VerifyPin(cfg.Path, cfg.PinnedHash); err != nil {
 			return nil, err
@@ -308,6 +328,10 @@ func Spawn(ctx context.Context, cfg Config) (*Plugin, error) {
 		_ = p.Close()
 		return nil, fmt.Errorf("plugin: parse initialize result: %w", err)
 	}
+	if err := capAdvertisedTools(initResult.Tools, cfg.MaxAdvertisedTools); err != nil {
+		_ = p.Close()
+		return nil, err
+	}
 	if len(cfg.AllowedTools) > 0 {
 		if err := verifyToolAllowlist(initResult.Tools, cfg.AllowedTools); err != nil {
 			_ = p.Close()
@@ -337,6 +361,16 @@ var ErrCallbacksDisabled = errors.New("plugin: host callbacks not enabled (opera
 // plugin author can tell "callbacks blanket-disabled" from
 // "callbacks enabled but this specific tool not in the allowlist."
 var ErrHostToolNotFound = errors.New("plugin: requested host tool not in allowlist")
+
+// capAdvertisedTools fails when a plugin advertises more tools than the
+// configured maximum (M182), so a hostile initialize result can't blow
+// up the registry. Returns a wrapped ErrTooManyTools naming the count.
+func capAdvertisedTools(advertised []ToolDef, max int) error {
+	if len(advertised) > max {
+		return fmt.Errorf("%w: %d > %d", ErrTooManyTools, len(advertised), max)
+	}
+	return nil
+}
 
 // verifyToolAllowlist checks every advertised tool is in allowed.
 // Plugin tool names are compared verbatim (no prefix munging) —
@@ -921,6 +955,10 @@ func (p *Plugin) respawn(ctx context.Context) error {
 	if err := json.Unmarshal(res, &initResult); err != nil {
 		_ = p.Close()
 		return fmt.Errorf("parse initialize result: %w", err)
+	}
+	if err := capAdvertisedTools(initResult.Tools, p.cfg.MaxAdvertisedTools); err != nil {
+		_ = p.Close()
+		return err
 	}
 	if len(p.cfg.AllowedTools) > 0 {
 		if err := verifyToolAllowlist(initResult.Tools, p.cfg.AllowedTools); err != nil {

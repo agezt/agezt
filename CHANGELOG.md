@@ -318,6 +318,14 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   `.project/PHASE-M129-OBSERVABILITY-TENANT-FLAG-REPORT.md`.
 
 ### Fixed
+- **Plugin advertised-tool count capped — a malicious initialize can't blow up the
+  registry (security review MEDIUM)** (M182) — the initialize result's `Tools` list was
+  taken verbatim with no count limit (plugin-host review M2). The M177 frame bound caps
+  the raw bytes, but ~1M tiny tool defs still fit in 16 MiB and each becomes a registry
+  map entry + `remoteTool` wrapper at registration — a memory blow-up at spawn. `Spawn`
+  and `Reload` now reject a plugin advertising more than `Config.MaxAdvertisedTools`
+  (default 256) with `ErrTooManyTools`, before any registration. See
+  `.project/PHASE-M182-PLUGIN-TOOL-CAP-REPORT.md`.
 - **Plugin host-callback fan-out bounded — a callback flood can't exhaust the daemon
   (security review MEDIUM)** (M181) — the read loop spawned `go handleCallback(f)` for
   every plugin-initiated `host/invoke` frame with no concurrency limit (plugin-host
