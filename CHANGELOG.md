@@ -318,6 +318,21 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   `.project/PHASE-M129-OBSERVABILITY-TENANT-FLAG-REPORT.md`.
 
 ### Fixed
+- **Egress-guard SSRF range hardening — closed a NAT64 metadata-credential bypass
+  (security review)** (M171) — an adversarial review of the netguard egress guard
+  (which stops the prompt-injectable http/browser tools from reaching cloud
+  metadata) confirmed its architecture is sound (it checks the *actually-dialed* IP
+  via `Dialer.Control`, re-checks every redirect hop, and fails closed on parse
+  errors) but found range-completeness gaps in `Allowed()`. **Critical:** a
+  NAT64-wrapped metadata address `64:ff9b::a9fe:a9fe` (= `169.254.169.254`) and the
+  IPv4-compatible `::a9fe:a9fe` fell through to *allowed*, reaching the metadata
+  service on IPv6-only/NAT64 cloud hosts → IAM credential theft. Also missing:
+  CGNAT `100.64.0.0/10`, the full `0.0.0.0/8` block (only exact `0.0.0.0` was
+  caught), and multicast/broadcast. `Allowed` now collapses IPv6-embedded-IPv4
+  forms (NAT64 + IPv4-compatible) to their v4 and classifies that, and blocks the
+  added ranges. IPv4-mapped `::ffff:`, all RFC1918, link-local, loopback, and the
+  opt-in flag scoping were confirmed already correct. See
+  `.project/PHASE-M171-NETGUARD-SSRF-REPORT.md`.
 - **Secret-redaction hardening — closed permanent-journal leak paths (security
   review)** (M170) — a security review of the redactor (the chokepoint before the
   append-only, hash-chained journal, where a miss is permanent and unscrubbable)

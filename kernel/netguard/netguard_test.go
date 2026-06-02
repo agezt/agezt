@@ -43,6 +43,40 @@ func TestAllowed_DefaultBlocksInternal(t *testing.T) {
 	}
 }
 
+// TestAllowed_SSRFBypassVectors — the encoding/range bypasses closed in M171.
+// Each MUST block by default; the NAT64/IPv4-compatible cases are the credential-
+// theft path (they wrap 169.254.169.254 = a9fe:a9fe in an IPv6 literal).
+func TestAllowed_SSRFBypassVectors(t *testing.T) {
+	g := netguard.New()
+	blocked := map[string]string{
+		"64:ff9b::a9fe:a9fe": "NAT64-wrapped metadata 169.254.169.254",
+		"::a9fe:a9fe":        "IPv4-compatible metadata 169.254.169.254",
+		"64:ff9b::7f00:1":    "NAT64-wrapped loopback 127.0.0.1",
+		"64:ff9b::a00:1":     "NAT64-wrapped private 10.0.0.1",
+		"100.64.0.1":         "CGNAT 100.64.0.0/10",
+		"100.127.255.255":    "CGNAT upper bound",
+		"0.0.0.1":            "0.0.0.0/8 reserved",
+		"255.255.255.255":    "limited broadcast",
+		"239.1.2.3":          "multicast",
+	}
+	for s, desc := range blocked {
+		ip := net.ParseIP(s)
+		if ip == nil {
+			t.Errorf("%s (%s) did not parse", s, desc)
+			continue
+		}
+		if ok, _ := g.Allowed(ip); ok {
+			t.Errorf("Allowed(%s) = true, want BLOCKED — %s", s, desc)
+		}
+	}
+	// A legit public CGNAT-adjacent and public v6 stay allowed (no over-block).
+	for _, s := range []string{"100.63.255.255" /* just below CGNAT */, "101.0.0.1", "2606:2800:220:1::1"} {
+		if ok, _ := g.Allowed(net.ParseIP(s)); !ok {
+			t.Errorf("Allowed(%s) = false, want allowed (public)", s)
+		}
+	}
+}
+
 func TestAllowed_OptIns(t *testing.T) {
 	if ok, _ := netguard.New(netguard.AllowLoopback()).Allowed(net.ParseIP("127.0.0.1")); !ok {
 		t.Error("AllowLoopback should permit 127.0.0.1")

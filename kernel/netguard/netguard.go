@@ -75,9 +75,21 @@ func (g *Guard) Allowed(ip net.IP) (bool, string) {
 	if ip == nil {
 		return false, "unparseable address"
 	}
+	// Collapse IPv6 forms that embed an IPv4 address — NAT64 (64:ff9b::/96) and the
+	// deprecated IPv4-compatible (::a.b.c.d) — down to that IPv4 and classify it.
+	// Otherwise a blocked v4 (above all the metadata IP 169.254.169.254) is
+	// smuggled past the v4 checks as an IPv6 literal, e.g.
+	// http://[64:ff9b::a9fe:a9fe]/ which a NAT64 gateway routes to the metadata
+	// service (M171). (IPv4-mapped ::ffff:a.b.c.d is already classified directly:
+	// net.IP's methods use To4 internally.)
+	if v4 := embeddedV4(ip); v4 != nil {
+		ip = v4
+	}
 	switch {
 	case ip.IsUnspecified():
 		return false, "unspecified address"
+	case isZeroBlock(ip):
+		return false, "reserved (0.0.0.0/8)"
 	case ip.IsLoopback():
 		if g.allowLoopback {
 			return true, ""
@@ -88,13 +100,73 @@ func (g *Guard) Allowed(ip net.IP) (bool, string) {
 			return true, ""
 		}
 		return false, "link-local (cloud metadata / autoconf)"
-	case ip.IsPrivate():
+	case ip.IsPrivate() || isCGNAT(ip):
 		if g.allowPrivate {
 			return true, ""
 		}
 		return false, "private network"
+	case ip.IsMulticast() || isV4Broadcast(ip):
+		return false, "multicast/broadcast"
 	}
 	return true, ""
+}
+
+// embeddedV4 returns the IPv4 address embedded in an IPv6 literal for the forms
+// that actually route to it — NAT64 (64:ff9b::/96) and IPv4-compatible (::/96) —
+// or nil when ip carries no such embedding. A plain IPv4 (or IPv4-mapped
+// ::ffff:a.b.c.d, which net.IP classifies directly via To4) returns nil. :: and
+// ::1 are excluded so they keep their own (unspecified/loopback) reasons.
+func embeddedV4(ip net.IP) net.IP {
+	if ip.To4() != nil {
+		return nil
+	}
+	v6 := ip.To16()
+	if v6 == nil {
+		return nil
+	}
+	// NAT64 well-known prefix 64:ff9b::/96.
+	if v6[0] == 0x00 && v6[1] == 0x64 && v6[2] == 0xff && v6[3] == 0x9b && allZero(v6[4:12]) {
+		return net.IPv4(v6[12], v6[13], v6[14], v6[15])
+	}
+	// IPv4-compatible ::/96 (first 96 bits zero), excluding :: and ::1.
+	if allZero(v6[:12]) {
+		v4 := net.IPv4(v6[12], v6[13], v6[14], v6[15])
+		if v4.Equal(net.IPv4zero) || v4.Equal(net.IPv4(0, 0, 0, 1)) {
+			return nil
+		}
+		return v4
+	}
+	return nil
+}
+
+func allZero(b []byte) bool {
+	for _, x := range b {
+		if x != 0 {
+			return false
+		}
+	}
+	return true
+}
+
+// isZeroBlock matches the whole 0.0.0.0/8 "this host on this network" range
+// (Linux routes it to local interfaces; 0.0.0.1 etc. are loopback-pivot aliases).
+// net.IP.IsUnspecified only matches the exact 0.0.0.0.
+func isZeroBlock(ip net.IP) bool {
+	v4 := ip.To4()
+	return v4 != nil && v4[0] == 0
+}
+
+// isCGNAT matches carrier-grade-NAT space 100.64.0.0/10, which net.IP.IsPrivate
+// does not cover but several cloud/overlay fabrics use internally.
+func isCGNAT(ip net.IP) bool {
+	v4 := ip.To4()
+	return v4 != nil && v4[0] == 100 && v4[1] >= 64 && v4[1] <= 127
+}
+
+// isV4Broadcast matches the limited broadcast 255.255.255.255.
+func isV4Broadcast(ip net.IP) bool {
+	v4 := ip.To4()
+	return v4 != nil && v4[0] == 255 && v4[1] == 255 && v4[2] == 255 && v4[3] == 255
 }
 
 // Control is a net.Dialer.Control hook. The dialer calls it after resolving the
