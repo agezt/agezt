@@ -27,6 +27,7 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/agezt/agezt/kernel/bus"
@@ -60,6 +61,10 @@ type Config struct {
 	Handler       channel.InboundHandler
 }
 
+// dedupCapacity bounds the replay-guard set (recent message keys). Slack events
+// are low-frequency; a few thousand entries covers the 5-minute window cheaply.
+const dedupCapacity = 4096
+
 // Channel is the Slack channel.
 type Channel struct {
 	token   string
@@ -71,6 +76,40 @@ type Channel struct {
 	bus     *bus.Bus
 	handler channel.InboundHandler
 	now     func() time.Time // injectable clock for signature freshness (tests)
+	dedup   *dedup           // replay guard: recently-processed message keys
+}
+
+// dedup is a small bounded set of recently-seen message keys. The HMAC signature
+// proves authenticity but its freshness window (5 min) still permits replay of a
+// captured signed body without the retry header; keying on the immutable message
+// ts gives exactly-once processing within that window. Bounded FIFO so it can't
+// grow without limit.
+type dedup struct {
+	mu   sync.Mutex
+	seen map[string]struct{}
+	ring []string
+	cap  int
+}
+
+func newDedup(capacity int) *dedup {
+	return &dedup{seen: make(map[string]struct{}, capacity), cap: capacity}
+}
+
+// seenBefore records key and reports whether it had already been seen.
+func (d *dedup) seenBefore(key string) bool {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if _, ok := d.seen[key]; ok {
+		return true
+	}
+	d.seen[key] = struct{}{}
+	d.ring = append(d.ring, key)
+	if len(d.ring) > d.cap {
+		old := d.ring[0]
+		d.ring = d.ring[1:]
+		delete(d.seen, old)
+	}
+	return false
 }
 
 // New builds a Channel from cfg.
@@ -93,6 +132,7 @@ func New(cfg Config) *Channel {
 		bus:     cfg.Bus,
 		handler: cfg.Handler,
 		now:     time.Now,
+		dedup:   newDedup(dedupCapacity),
 	}
 }
 
@@ -116,7 +156,7 @@ func (c *Channel) Start(ctx context.Context) error {
 		<-ctx.Done()
 		return nil
 	}
-	srv := &http.Server{Addr: c.addr, Handler: c.Handler()}
+	srv := &http.Server{Addr: c.addr, Handler: c.Handler(), ReadHeaderTimeout: 10 * time.Second}
 	go func() {
 		<-ctx.Done()
 		shutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -191,6 +231,12 @@ func (c *Channel) handleEvents(w http.ResponseWriter, r *http.Request) {
 	// message subtypes (edits, joins, channel_topic, bot_message) — replying to
 	// our own posts would loop.
 	if ev.Type != "message" || ev.BotID != "" || ev.Subtype != "" || ev.User == "" || ev.Text == "" {
+		return
+	}
+	// Replay guard: the signature's freshness window still permits replay of a
+	// captured signed body (without the retry header) within 5 minutes. Key on the
+	// immutable channel+ts so each message drives at most one run.
+	if c.dedup.seenBefore(ev.Channel + ":" + ev.TS) {
 		return
 	}
 	// Detach from the request context (which ends when we return the ACK); the
@@ -283,9 +329,20 @@ func (c *Channel) send(ctx context.Context, out channel.Outbound, corr string) e
 	if resp.StatusCode/100 != 2 {
 		return fmt.Errorf("slack chat.postMessage: status %d", resp.StatusCode)
 	}
+	// Slack returns HTTP 200 even on application errors ({"ok":false,"error":…}),
+	// so the body must be decoded and ok checked. A decode failure or ok=false is
+	// a FAILED send — don't journal it as delivered (the old code treated a
+	// malformed body as success).
 	var pm postMessageResp
-	if err := json.NewDecoder(io.LimitReader(resp.Body, maxBody)).Decode(&pm); err == nil && !pm.OK && pm.Error != "" {
-		return fmt.Errorf("slack chat.postMessage: %s", pm.Error)
+	if err := json.NewDecoder(io.LimitReader(resp.Body, maxBody)).Decode(&pm); err != nil {
+		return fmt.Errorf("slack chat.postMessage: decode response: %w", err)
+	}
+	if !pm.OK {
+		reason := pm.Error
+		if reason == "" {
+			reason = "ok=false"
+		}
+		return fmt.Errorf("slack chat.postMessage: %s", reason)
 	}
 	c.emitOutbound(out, corr)
 	return nil

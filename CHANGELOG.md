@@ -161,6 +161,32 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   `.project/PHASE-M129-OBSERVABILITY-TENANT-FLAG-REPORT.md`.
 
 ### Fixed
+- **Channel-arc hardening (code review)** (M145) — a focused quality pass over the
+  M138–M144 channel arc fixed several real issues found in review:
+  - **Boot-time data race**: the `notify` tool was written into the kernel's live
+    tool map AFTER the HTTP servers / channels began listening — a request in that
+    window could trigger a concurrent map read+write (fatal panic). The tool is now
+    registered before the kernel starts and Bind-wired (mutex-guarded) once channels
+    exist; the map is never written while the agent loop reads it.
+  - **Cross-user context bleed (privacy)**: `ConversationHistory` folded by
+    `(kind, channel_id)` only, so in a SHARED Slack/Discord channel one user's
+    messages leaked into another user's prompt. It now isolates per sender (a
+    sender's own inbound + the agent replies that share their run correlation).
+  - **Slack replay**: a captured signed event could be replayed (without the retry
+    header) within the 5-minute signature window and reprocessed. Added a bounded
+    seen-set keyed on the immutable channel+ts for exactly-once processing.
+  - **Slack send false-success**: a malformed/`ok:false` HTTP-200 body was treated as
+    delivered (and journaled `channel.outbound`). Now decode failure / `ok:false` is
+    a real error and is not journaled as sent.
+  - **`notify` partial failure**: a multi-recipient send that partially failed
+    returned success; it now flags `IsError` and names the failed recipients.
+  - **UTF-8-safe transcript clipping**: `clip` truncated on a byte boundary, which
+    could split a multibyte rune (emoji/CJK); now rune-aware.
+  - **Discord prompt selection**: the slash-command prompt is now taken from the
+    option explicitly named `prompt` (and only STRING options), not "first string
+    wins", so a reordered/extra option can't feed the agent the wrong field.
+  - **Slowloris**: the Slack/Discord webhook servers now set `ReadHeaderTimeout`.
+  See `.project/PHASE-M145-CHANNEL-ARC-HARDENING-REPORT.md`.
 - **Tenant self-observability authorization** (M128) — a tenant token was wrongly
   denied read-only access to its OWN isolated subsystems. Many tenant-routed
   observability handlers (memory / world / approvals / plan / provider-routing /

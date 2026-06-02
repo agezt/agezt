@@ -215,6 +215,32 @@ func runDaemon(stdout, stderr io.Writer) int {
 		return 1
 	}
 
+	// Proactive-messaging tool (`notify`, M143). Register it here — BEFORE the
+	// kernel (and its HTTP servers / channels) start — so the tool map is never
+	// written while the agent loop reads it (a fatal concurrent-map race otherwise).
+	// The sender needs the live channels (built after the kernel), so the tool is
+	// created unbound now and Bind-wired later. Decide registration from env: a
+	// channel kind contributes targets only when its token AND a non-empty allowlist
+	// are set, so a half-configured channel never advertises a tool that can't send.
+	notifyTargets := map[string][]string{}
+	for _, c := range []struct{ kind, tokenEnv, idsEnv string }{
+		{"telegram", "TELEGRAM_TOKEN", "TELEGRAM_CHAT_ID"},
+		{"slack", "SLACK_TOKEN", "SLACK_CHANNELS"},
+		{"discord", "DISCORD_TOKEN", "DISCORD_CHANNELS"},
+	} {
+		if strings.TrimSpace(os.Getenv(brand.EnvPrefix+c.tokenEnv)) == "" {
+			continue
+		}
+		if ids := splitNonEmpty(os.Getenv(brand.EnvPrefix + c.idsEnv)); len(ids) > 0 {
+			notifyTargets[c.kind] = ids
+		}
+	}
+	var notifyTool *notify.Tool
+	if len(notifyTargets) > 0 {
+		notifyTool = notify.New() // unbound; Bind wires the sender once channels exist
+		tools["notify"] = notifyTool
+	}
+
 	// OnReload is invoked by the control plane's `provider_reload`
 	// command (and `agt provider reload`). It re-reads the vault,
 	// re-runs primary-provider selection against the freshly-reloaded
@@ -741,23 +767,13 @@ func runDaemon(stdout, stderr io.Writer) int {
 	}
 	srv.SetChannelSender(channelSend)
 
-	// Register the proactive-messaging tool (`notify`, M143) so a running agent can
-	// message the operator mid-task. Destinations are pinned to each channel's
-	// configured allowlist (the agent supplies only text), so it can only ever talk
-	// to the operator's own chats. Registered into the live tool map (k.Tools()) at
-	// boot, before any run; skipped when no channel has a non-empty allowlist.
-	notifyTargets := map[string][]string{
-		"telegram": splitNonEmpty(os.Getenv(brand.EnvPrefix + "TELEGRAM_CHAT_ID")),
-		"slack":    splitNonEmpty(os.Getenv(brand.EnvPrefix + "SLACK_CHANNELS")),
-		"discord":  splitNonEmpty(os.Getenv(brand.EnvPrefix + "DISCORD_CHANNELS")),
-	}
-	for kind := range notifyTargets {
-		if _, live := liveChannels[kind]; !live {
-			delete(notifyTargets, kind)
-		}
-	}
-	if nt := notify.New(channelSend, notifyTargets); nt != nil {
-		k.Tools()["notify"] = nt
+	// Bind the proactive-messaging tool (`notify`, M143) to the live channels. The
+	// tool itself was registered into the tool map BEFORE the kernel started (see
+	// notifyTool below), so the map is never written while the agent loop reads it;
+	// Bind only wires the sender, synchronized against Invoke. Destinations stay
+	// pinned to each channel's configured allowlist (the agent supplies only text).
+	if notifyTool != nil {
+		notifyTool.Bind(channelSend, notifyTargets)
 		fmt.Fprintf(stdout, "  notify tool      : enabled (%d channel(s) the agent can ping)\n", len(notifyTargets))
 	}
 
@@ -880,7 +896,7 @@ func makeChannelHandler(k *kernelruntime.Kernel) channel.InboundHandler {
 	limit := channelHistoryLimit()
 	return func(hctx context.Context, msg channel.UnifiedMessage, corr string) (string, error) {
 		intent := msg.Text
-		if h := channel.ConversationHistory(k.Journal(), msg.ChannelKind, msg.ChannelID, limit); h != "" {
+		if h := channel.ConversationHistory(k.Journal(), msg.ChannelKind, msg.ChannelID, msg.Sender, limit); h != "" {
 			intent = h
 		}
 		return k.RunWith(hctx, corr, intent)

@@ -14,6 +14,15 @@
 // only ever talk to the operator's own chats. Gated by Edict CapNotify (allowed
 // by default; an operator can raise or deny it). The send is journaled as
 // channel.outbound by the underlying channel.
+//
+// Lifecycle: the daemon needs the live channels (built after the kernel) to wire
+// the sender, but the tool must be in the kernel's tool map BEFORE the kernel —
+// and its HTTP servers/channels — start, so the map is never written while the
+// agent loop reads it (which would be a fatal concurrent-map race). So the tool
+// is constructed unbound and registered up front, then Bind wires the sender
+// once channels exist. Bind/Invoke synchronize on a mutex, so a run that somehow
+// races boot sees either the unbound state (a clean "not configured" error) or
+// the bound state, never a torn read.
 package notify
 
 import (
@@ -22,6 +31,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/agezt/agezt/kernel/agent"
 )
@@ -30,33 +40,46 @@ import (
 // The daemon wires it to the live channels' Send methods.
 type Sender func(ctx context.Context, kind, channelID, text string) error
 
-// Tool implements agent.Tool. Constructed only when at least one channel has a
-// non-empty allowlist (see New); otherwise the tool is not registered.
+// Tool implements agent.Tool. Constructed unbound via New; the daemon calls Bind
+// once the live channels exist. Until bound, Invoke returns a clean error.
 type Tool struct {
+	mu      sync.RWMutex
 	send    Sender
 	targets map[string][]string // channel kind → operator's allowlisted ids
 }
 
-// New builds a notify Tool. targets maps each channel kind to the operator's
-// configured recipient ids; kinds with no ids are dropped. Returns nil when no
-// kind has any target (nothing to notify → tool disabled).
-func New(send Sender, targets map[string][]string) *Tool {
+// New returns an unbound notify Tool. Call Bind before runs begin to wire it to
+// the live channels.
+func New() *Tool { return &Tool{} }
+
+// Bind wires the tool to the channel sender and the operator's per-kind allowlist
+// ids. Kinds with no ids are dropped. Safe to call once at boot; synchronized
+// against Invoke. A nil send or empty targets leaves the tool effectively
+// disabled (Invoke reports it's not configured).
+func (t *Tool) Bind(send Sender, targets map[string][]string) {
 	pruned := map[string][]string{}
 	for kind, ids := range targets {
 		if len(ids) > 0 {
-			pruned[kind] = ids
+			pruned[kind] = append([]string(nil), ids...)
 		}
 	}
-	if send == nil || len(pruned) == 0 {
-		return nil
-	}
-	return &Tool{send: send, targets: pruned}
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.send = send
+	t.targets = pruned
+}
+
+// snapshot returns the current binding under a read lock.
+func (t *Tool) snapshot() (Sender, map[string][]string) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	return t.send, t.targets
 }
 
 // kinds returns the configured channel kinds, sorted.
-func (t *Tool) kinds() []string {
-	ks := make([]string, 0, len(t.targets))
-	for k := range t.targets {
+func kinds(targets map[string][]string) []string {
+	ks := make([]string, 0, len(targets))
+	for k := range targets {
 		ks = append(ks, k)
 	}
 	sort.Strings(ks)
@@ -64,10 +87,15 @@ func (t *Tool) kinds() []string {
 }
 
 func (t *Tool) Definition() agent.ToolDef {
+	_, targets := t.snapshot()
+	avail := strings.Join(kinds(targets), ", ")
+	if avail == "" {
+		avail = "(none configured yet)"
+	}
 	return agent.ToolDef{
 		Name: "notify",
 		Description: "Proactively send a short message to the operator over a configured chat channel " +
-			"(" + strings.Join(t.kinds(), ", ") + ") — e.g. progress on a long task, or an alert. " +
+			"(" + avail + ") — e.g. progress on a long task, or an alert. " +
 			"The message goes ONLY to the operator's pre-configured chats; you cannot choose arbitrary " +
 			"recipients. Use sparingly, for things worth interrupting for.",
 		InputSchema: json.RawMessage(`{
@@ -88,6 +116,11 @@ func (t *Tool) Definition() agent.ToolDef {
 }
 
 func (t *Tool) Invoke(ctx context.Context, input json.RawMessage) (agent.Result, error) {
+	send, targets := t.snapshot()
+	if send == nil || len(targets) == 0 {
+		return agent.Result{Output: "notify is not configured (no channel with an allowlist)", IsError: true}, nil
+	}
+
 	var in struct {
 		Text    string `json:"text"`
 		Channel string `json:"channel"`
@@ -101,21 +134,21 @@ func (t *Tool) Invoke(ctx context.Context, input json.RawMessage) (agent.Result,
 	}
 
 	// Resolve which channel kinds to deliver to.
-	var kinds []string
+	var deliver []string
 	if k := strings.ToLower(strings.TrimSpace(in.Channel)); k != "" {
-		if _, ok := t.targets[k]; !ok {
-			return agent.Result{Output: fmt.Sprintf("channel %q is not configured; available: %s", k, strings.Join(t.kinds(), ", ")), IsError: true}, nil
+		if _, ok := targets[k]; !ok {
+			return agent.Result{Output: fmt.Sprintf("channel %q is not configured; available: %s", k, strings.Join(kinds(targets), ", ")), IsError: true}, nil
 		}
-		kinds = []string{k}
+		deliver = []string{k}
 	} else {
-		kinds = t.kinds()
+		deliver = kinds(targets)
 	}
 
 	sent := 0
 	var errs []string
-	for _, kind := range kinds {
-		for _, id := range t.targets[kind] {
-			if err := t.send(ctx, kind, id, text); err != nil {
+	for _, kind := range deliver {
+		for _, id := range targets[kind] {
+			if err := send(ctx, kind, id, text); err != nil {
 				errs = append(errs, fmt.Sprintf("%s/%s: %v", kind, id, err))
 				continue
 			}
@@ -126,9 +159,12 @@ func (t *Tool) Invoke(ctx context.Context, input json.RawMessage) (agent.Result,
 	if sent == 0 {
 		return agent.Result{Output: "notify failed: " + strings.Join(errs, "; "), IsError: true}, nil
 	}
-	out := fmt.Sprintf("notified the operator (%d recipient(s) across %s)", sent, strings.Join(kinds, ", "))
+	out := fmt.Sprintf("notified the operator (%d recipient(s) across %s)", sent, strings.Join(deliver, ", "))
 	if len(errs) > 0 {
-		out += "; some deliveries failed: " + strings.Join(errs, "; ")
+		// Partial failure: surface it as an error result so the model (and any
+		// automation keying on IsError) doesn't treat a half-delivered alert as
+		// fully sent — the dangerous case for "I'll report back" messaging.
+		return agent.Result{Output: out + "; but some deliveries FAILED: " + strings.Join(errs, "; "), IsError: true}, nil
 	}
 	return agent.Result{Output: out}, nil
 }

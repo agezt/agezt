@@ -11,41 +11,46 @@ import (
 )
 
 type capture struct {
-	calls []string // "kind/id:text"
-	fail  bool
+	calls  []string // "kind/id:text"
+	fail   bool     // fail every send
+	failID string   // fail only sends to this id (partial failure)
 }
 
 func (c *capture) send(_ context.Context, kind, id, text string) error {
-	if c.fail {
+	if c.fail || (c.failID != "" && id == c.failID) {
 		return fmt.Errorf("boom")
 	}
 	c.calls = append(c.calls, kind+"/"+id+":"+text)
 	return nil
 }
 
-func TestNotify_New_DisabledWhenNoTargets(t *testing.T) {
-	cap := &capture{}
-	if tool := New(cap.send, nil); tool != nil {
-		t.Error("New with no targets should return nil (tool disabled)")
+// bound is a test helper: a fresh tool wired to cap with the given targets.
+func bound(cap *capture, targets map[string][]string) *Tool {
+	t := New()
+	t.Bind(cap.send, targets)
+	return t
+}
+
+func TestNotify_UnboundReportsNotConfigured(t *testing.T) {
+	tool := New() // never bound
+	res, _ := tool.Invoke(context.Background(), json.RawMessage(`{"text":"hi"}`))
+	if !res.IsError || !strings.Contains(res.Output, "not configured") {
+		t.Errorf("unbound notify should report not configured, got %+v", res)
 	}
-	// Only-empty kinds are pruned away → still nil.
-	if tool := New(cap.send, map[string][]string{"slack": {}}); tool != nil {
-		t.Error("New with only-empty targets should return nil")
-	}
-	if tool := New(nil, map[string][]string{"slack": {"C1"}}); tool != nil {
-		t.Error("New with nil sender should return nil")
+	// Binding with no targets is still "not configured".
+	tool.Bind((&capture{}).send, map[string][]string{"slack": {}})
+	res, _ = tool.Invoke(context.Background(), json.RawMessage(`{"text":"hi"}`))
+	if !res.IsError {
+		t.Errorf("binding with only-empty targets should stay disabled, got %+v", res)
 	}
 }
 
 func TestNotify_SendsToAllConfiguredTargets(t *testing.T) {
 	cap := &capture{}
-	tool := New(cap.send, map[string][]string{
+	tool := bound(cap, map[string][]string{
 		"slack":   {"C1", "C2"},
 		"discord": {"D1"},
 	})
-	if tool == nil {
-		t.Fatal("tool should be enabled")
-	}
 	res, err := tool.Invoke(context.Background(), json.RawMessage(`{"text":"hi team"}`))
 	if err != nil {
 		t.Fatalf("Invoke: %v", err)
@@ -65,15 +70,13 @@ func TestNotify_SendsToAllConfiguredTargets(t *testing.T) {
 
 func TestNotify_ChannelFilter(t *testing.T) {
 	cap := &capture{}
-	tool := New(cap.send, map[string][]string{"slack": {"C1"}, "discord": {"D1"}})
-	// Restrict to discord only.
+	tool := bound(cap, map[string][]string{"slack": {"C1"}, "discord": {"D1"}})
 	if _, err := tool.Invoke(context.Background(), json.RawMessage(`{"text":"x","channel":"discord"}`)); err != nil {
 		t.Fatalf("Invoke: %v", err)
 	}
 	if len(cap.calls) != 1 || !strings.HasPrefix(cap.calls[0], "discord/D1:") {
 		t.Errorf("channel filter should send only to discord, got %v", cap.calls)
 	}
-	// An unconfigured channel kind is an error, no send.
 	res, _ := tool.Invoke(context.Background(), json.RawMessage(`{"text":"x","channel":"telegram"}`))
 	if !res.IsError {
 		t.Error("unconfigured channel should yield an error result")
@@ -82,7 +85,7 @@ func TestNotify_ChannelFilter(t *testing.T) {
 
 func TestNotify_EmptyTextRejected(t *testing.T) {
 	cap := &capture{}
-	tool := New(cap.send, map[string][]string{"slack": {"C1"}})
+	tool := bound(cap, map[string][]string{"slack": {"C1"}})
 	res, _ := tool.Invoke(context.Background(), json.RawMessage(`{"text":"  "}`))
 	if !res.IsError {
 		t.Error("empty text should be an error")
@@ -94,20 +97,56 @@ func TestNotify_EmptyTextRejected(t *testing.T) {
 
 func TestNotify_AllSendsFailIsError(t *testing.T) {
 	cap := &capture{fail: true}
-	tool := New(cap.send, map[string][]string{"slack": {"C1"}})
+	tool := bound(cap, map[string][]string{"slack": {"C1"}})
 	res, _ := tool.Invoke(context.Background(), json.RawMessage(`{"text":"hi"}`))
 	if !res.IsError {
 		t.Error("a total delivery failure should be an error result")
 	}
 }
 
+func TestNotify_PartialFailureIsError(t *testing.T) {
+	// Two recipients, one fails: the result must flag IsError so automation
+	// doesn't read a half-delivered alert as fully sent.
+	cap := &capture{failID: "C2"}
+	tool := bound(cap, map[string][]string{"slack": {"C1", "C2"}})
+	res, _ := tool.Invoke(context.Background(), json.RawMessage(`{"text":"hi"}`))
+	if !res.IsError {
+		t.Errorf("partial delivery failure should be IsError; got %+v", res)
+	}
+	if !strings.Contains(res.Output, "FAILED") || !strings.Contains(res.Output, "C2") {
+		t.Errorf("partial failure should name the failed recipient; got %q", res.Output)
+	}
+	if len(cap.calls) != 1 { // C1 still delivered
+		t.Errorf("the succeeding recipient should still be sent; got %v", cap.calls)
+	}
+}
+
 func TestNotify_DefinitionListsKinds(t *testing.T) {
-	tool := New((&capture{}).send, map[string][]string{"slack": {"C1"}, "discord": {"D1"}})
+	tool := bound(&capture{}, map[string][]string{"slack": {"C1"}, "discord": {"D1"}})
 	def := tool.Definition()
 	if def.Name != "notify" {
 		t.Errorf("name = %q want notify", def.Name)
 	}
 	if !strings.Contains(def.Description, "discord") || !strings.Contains(def.Description, "slack") {
 		t.Errorf("description should list configured kinds; got %q", def.Description)
+	}
+}
+
+// TestNotify_BindIsolatesTargets ensures Bind copies the targets so a later
+// mutation of the caller's slice/map can't change what the tool delivers to.
+func TestNotify_BindIsolatesTargets(t *testing.T) {
+	cap := &capture{}
+	ids := []string{"C1"}
+	targets := map[string][]string{"slack": ids}
+	tool := New()
+	tool.Bind(cap.send, targets)
+	// Mutate the caller's data after Bind.
+	ids[0] = "HACKED"
+	targets["discord"] = []string{"D1"}
+	if _, err := tool.Invoke(context.Background(), json.RawMessage(`{"text":"hi"}`)); err != nil {
+		t.Fatalf("Invoke: %v", err)
+	}
+	if len(cap.calls) != 1 || !strings.HasPrefix(cap.calls[0], "slack/C1:") {
+		t.Errorf("Bind should snapshot targets; got %v", cap.calls)
 	}
 }

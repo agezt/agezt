@@ -13,6 +13,7 @@ package channel
 import (
 	"encoding/json"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/agezt/agezt/kernel/event"
 )
@@ -33,32 +34,31 @@ type histTurn struct {
 }
 
 // ConversationHistory returns a transcript of the last `limit` messages of the
-// (kind, channelID) conversation, oldest first, for use as the run intent. It
-// returns "" when limit <= 0, the id is empty, or there is no PRIOR context
-// (≤1 message — i.e. only the just-received message), so the caller falls back
-// to the raw message text and behavior is unchanged for the first turn.
+// caller's conversation in (kind, channelID), oldest first, for use as the run
+// intent. It returns "" when limit <= 0, the id is empty, or there is no PRIOR
+// context (≤1 message — i.e. only the just-received message), so the caller falls
+// back to the raw message text and behavior is unchanged for the first turn.
+//
+// Privacy in shared channels: a Slack/Discord channel can carry many users. The
+// fold isolates per sender — it includes only THIS sender's inbound messages and
+// the agent replies that share one of their run correlations — so one user's
+// messages never leak into another user's prompt. (sender == "" disables the
+// isolation, folding the whole channel; callers pass a real sender id.)
 //
 // The current inbound message is already journaled by the time a handler runs,
 // so it appears as the final `user:` line — the agent replies to it with the
 // preceding turns as context.
-func ConversationHistory(r EventRanger, kind, channelID string, limit int) string {
+func ConversationHistory(r EventRanger, kind, channelID, sender string, limit int) string {
 	if r == nil || limit <= 0 || channelID == "" {
 		return ""
 	}
 	var turns []histTurn
+	mine := map[string]bool{} // correlation ids of this sender's runs
 	_ = r.Range(func(e *event.Event) error {
-		var role string
-		switch e.Kind {
-		case event.KindChannelInbound:
-			role = "user"
-		case event.KindChannelOutbound:
-			role = "assistant"
-		default:
-			return nil
-		}
 		var p struct {
 			ChannelKind string `json:"channel_kind"`
 			ChannelID   string `json:"channel_id"`
+			Sender      string `json:"sender"`
 			Text        string `json:"text"`
 		}
 		if err := json.Unmarshal(e.Payload, &p); err != nil {
@@ -67,7 +67,24 @@ func ConversationHistory(r EventRanger, kind, channelID string, limit int) strin
 		if p.ChannelKind != kind || p.ChannelID != channelID || strings.TrimSpace(p.Text) == "" {
 			return nil
 		}
-		turns = append(turns, histTurn{role: role, text: clip(p.Text, maxHistoryCharsPerMsg)})
+		switch e.Kind {
+		case event.KindChannelInbound:
+			// Only this sender's own inbound (the privacy boundary).
+			if sender != "" && p.Sender != sender {
+				return nil
+			}
+			if e.CorrelationID != "" {
+				mine[e.CorrelationID] = true
+			}
+			turns = append(turns, histTurn{role: "user", text: clip(p.Text, maxHistoryCharsPerMsg)})
+		case event.KindChannelOutbound:
+			// Only replies to this sender's runs (paired by correlation), so a
+			// reply meant for another user isn't folded in.
+			if sender != "" && !mine[e.CorrelationID] {
+				return nil
+			}
+			turns = append(turns, histTurn{role: "assistant", text: clip(p.Text, maxHistoryCharsPerMsg)})
+		}
 		return nil
 	})
 
@@ -89,11 +106,18 @@ func ConversationHistory(r EventRanger, kind, channelID string, limit int) strin
 	return strings.TrimRight(b.String(), "\n")
 }
 
-// clip truncates s to at most n characters, appending an ellipsis marker when cut.
+// clip truncates s to at most n bytes on a rune boundary, appending an ellipsis
+// marker when cut. Rune-aware so a multibyte sequence (emoji/CJK, common in
+// chat) is never split into invalid UTF-8.
 func clip(s string, n int) string {
 	s = strings.TrimSpace(s)
 	if len(s) <= n {
 		return s
 	}
-	return s[:n] + "…"
+	// Back up to the start of the rune that contains byte n.
+	cut := n
+	for cut > 0 && !utf8.RuneStart(s[cut]) {
+		cut--
+	}
+	return s[:cut] + "…"
 }

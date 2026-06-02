@@ -124,6 +124,47 @@ func TestSlack_MessageDrivesAgentAndReplies(t *testing.T) {
 	}
 }
 
+func TestSlack_ReplayDeduped(t *testing.T) {
+	posted := make(chan map[string]any, 4)
+	api := slackAPI(t, posted)
+	defer api.Close()
+
+	var calls int32
+	c := New(Config{
+		SigningSecret: secret, Token: "xoxb-test", BaseURL: api.URL, HTTPClient: api.Client(),
+		Allowlist: channel.NewAllowlist([]string{"C1"}),
+		Handler: func(_ context.Context, _ channel.UnifiedMessage, _ string) (string, error) {
+			atomic.AddInt32(&calls, 1)
+			return "pong", nil
+		},
+	})
+
+	// The same signed message (same ts) delivered twice — e.g. a replay of a
+	// captured body — must drive the agent only once.
+	body := []byte(`{"type":"event_callback","event":{"type":"message","channel":"C1","user":"U1","text":"ping","ts":"1700000000.000200"}}`)
+	if rec := postEvent(t, c, body, false, ""); rec.Code != 200 {
+		t.Fatalf("first delivery code = %d want 200", rec.Code)
+	}
+	select {
+	case <-posted: // first reply delivered
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for the first reply")
+	}
+	// Replay.
+	if rec := postEvent(t, c, body, false, ""); rec.Code != 200 {
+		t.Fatalf("replay code = %d want 200 (still ACKed)", rec.Code)
+	}
+	select {
+	case m := <-posted:
+		t.Errorf("replay should not drive a second run, but got a reply: %v", m)
+	case <-time.After(300 * time.Millisecond):
+		// good — no second reply
+	}
+	if n := atomic.LoadInt32(&calls); n != 1 {
+		t.Errorf("handler ran %d time(s); a replayed message must run exactly once", n)
+	}
+}
+
 func TestSlack_IgnoresBotAndNonAllowlisted(t *testing.T) {
 	posted := make(chan map[string]any, 4)
 	api := slackAPI(t, posted)

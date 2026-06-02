@@ -146,7 +146,7 @@ func (c *Channel) Start(ctx context.Context) error {
 		<-ctx.Done()
 		return nil
 	}
-	srv := &http.Server{Addr: c.addr, Handler: c.Handler()}
+	srv := &http.Server{Addr: c.addr, Handler: c.Handler(), ReadHeaderTimeout: 10 * time.Second}
 	go func() {
 		<-ctx.Done()
 		shutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -201,19 +201,37 @@ func (in discordInteraction) senderID() string {
 	return ""
 }
 
-// text returns the first string option's value (the `prompt` of a slash
-// command), or "" when none is present.
+// optionTypeString is Discord's APPLICATION_COMMAND option type for a STRING
+// (https://discord.com/developers/docs/interactions/...): only these carry a
+// free-text value. Sub-command / group options (types 1, 2) nest their own
+// options and must not be mistaken for the prompt.
+const optionTypeString = 3
+
+// text returns the slash command's prompt. It prefers the option explicitly
+// named "prompt" (the registered command's text field) and only considers STRING
+// options, so a reordered or additional option can't silently feed the agent the
+// wrong field. Falls back to the first STRING option when none is named "prompt".
 func (in discordInteraction) text() string {
 	if in.Data == nil {
 		return ""
 	}
+	var fallback string
 	for _, o := range in.Data.Options {
+		if o.Type != optionTypeString {
+			continue
+		}
 		var s string
-		if err := json.Unmarshal(o.Value, &s); err == nil && s != "" {
+		if err := json.Unmarshal(o.Value, &s); err != nil || s == "" {
+			continue
+		}
+		if o.Name == "prompt" {
 			return s
 		}
+		if fallback == "" {
+			fallback = s
+		}
 	}
-	return ""
+	return fallback
 }
 
 func (c *Channel) handleInteractions(w http.ResponseWriter, r *http.Request) {
