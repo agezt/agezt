@@ -28,6 +28,7 @@ import (
 	"fmt"
 	"slices"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/agezt/agezt/kernel/agent"
@@ -136,9 +137,16 @@ type Governor struct {
 	rateWindow       string           // current rate window key (YYYY-MM-DDTHH:MM UTC)
 	callsThisWindow  int              // admitted calls in the current rate window
 
-	// Stable ordering for routing: primary chain + fallback chain.
+	// Stable ordering for routing: primary chain + fallback chain. Guarded by
+	// mu — Replace rebuilds them on the hot-reload path concurrently with
+	// Complete's routeChain/Providers reads.
 	primary  []*ProviderInfo
 	fallback []*ProviderInfo
+
+	// bus is the audit sink, latched atomically so SetBus (which the daemon
+	// calls after construction, and WithLimits siblings re-point) never races
+	// the lock-free publish read on the hot path.
+	bus atomic.Pointer[bus.Bus]
 }
 
 // New constructs a Governor over cfg. The registry must contain at least
@@ -157,6 +165,7 @@ func New(cfg Config) (*Governor, error) {
 		cfg.Now = time.Now
 	}
 	g := &Governor{cfg: cfg, spentByTaskToday: map[string]int64{}}
+	g.bus.Store(cfg.Bus) // may be nil; SetBus latches the real bus later
 	for _, p := range cfg.Registry.All() {
 		if p.IsFallback {
 			g.fallback = append(g.fallback, p)
@@ -184,17 +193,22 @@ func (g *Governor) Replace(info *ProviderInfo) error {
 	if err := g.cfg.Registry.Replace(info); err != nil {
 		return err
 	}
-	g.mu.Lock()
-	defer g.mu.Unlock()
-	g.primary = g.primary[:0]
-	g.fallback = g.fallback[:0]
+	// Build FRESH slices rather than truncating + re-appending into the live
+	// backing arrays: a concurrent routeChain/Providers that snapshotted the old
+	// slice header must keep seeing a consistent (old) backing array, not one
+	// being overwritten in place.
+	var primary, fallback []*ProviderInfo
 	for _, p := range g.cfg.Registry.All() {
 		if p.IsFallback {
-			g.fallback = append(g.fallback, p)
+			fallback = append(fallback, p)
 		} else {
-			g.primary = append(g.primary, p)
+			primary = append(primary, p)
 		}
 	}
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.primary = primary
+	g.fallback = fallback
 	return nil
 }
 
@@ -311,7 +325,13 @@ func (g *Governor) Complete(ctx context.Context, req agent.CompletionRequest) (*
 		return nil, fmt.Errorf("%w (used=%d, limit=%d/min)", ErrRateLimited, used, limit)
 	}
 
-	// Budget pre-check (don't even attempt if already past the ceiling).
+	// Budget pre-check (don't even attempt if already past the ceiling). This is
+	// a SOFT cap, not a hard reservation: the check and the later recordUsage are
+	// separate critical sections with the provider call in between, so N concurrent
+	// calls can all observe headroom, all proceed, and together overshoot the
+	// ceiling by up to (N-1) calls' worth. Acceptable for a $20/day-class cap with
+	// bounded per-call cost; if a hard cap is ever required, reserve estimated cost
+	// under the same lock as this check and reconcile the actual after the call.
 	if exceeded, spent, ceiling := g.budgetExceeded(); exceeded {
 		g.publish(event.Spec{
 			Subject: "governor.budget",
@@ -408,12 +428,11 @@ func (g *Governor) SpentMicrocents() int64 {
 
 // SetBus attaches a bus after construction. The daemon builds the
 // Governor before runtime.Open creates the kernel bus, so this lets the
-// wiring close the loop without circular-init gymnastics.
-//
-// MUST be called before the first Complete; the bus pointer is read
-// without a lock on the hot path.
+// wiring close the loop without circular-init gymnastics. The pointer is
+// latched atomically, so calling it concurrently with an in-flight Complete
+// (e.g. re-pointing a WithLimits sibling's bus) is race-free.
 func (g *Governor) SetBus(b *bus.Bus) {
-	g.cfg.Bus = b
+	g.bus.Store(b)
 }
 
 // DailyCeilingMicrocents returns the configured global daily cap (0 =
@@ -451,6 +470,8 @@ func (g *Governor) WithLimits(ceiling int64, ratePerMin int) (*Governor, error) 
 // Providers returns a snapshot of the routing chain (primary first,
 // fallback last). Used by the daemon banner.
 func (g *Governor) Providers() []*ProviderInfo {
+	g.mu.Lock()
+	defer g.mu.Unlock()
 	out := make([]*ProviderInfo, 0, len(g.primary)+len(g.fallback))
 	out = append(out, g.primary...)
 	out = append(out, g.fallback...)
@@ -479,14 +500,21 @@ func (g *Governor) Providers() []*ProviderInfo {
 // possible after a creds rotation that adds an OAuth refresh token),
 // the next Complete picks it up without re-running anything.
 func (g *Governor) routeChain(req agent.CompletionRequest) []*ProviderInfo {
+	// Snapshot the routing slices under the lock — Replace mutates them on the
+	// hot-reload path concurrently with Complete (which calls this unlocked).
+	g.mu.Lock()
 	primary := make([]*ProviderInfo, len(g.primary))
 	copy(primary, g.primary)
+	fallback := make([]*ProviderInfo, len(g.fallback))
+	copy(fallback, g.fallback)
+	g.mu.Unlock()
+
 	slices.SortStableFunc(primary, func(a, b *ProviderInfo) int {
 		return authModePriority(a.AuthMode) - authModePriority(b.AuthMode)
 	})
-	chain := make([]*ProviderInfo, 0, len(primary)+len(g.fallback))
+	chain := make([]*ProviderInfo, 0, len(primary)+len(fallback))
 	chain = append(chain, primary...)
-	chain = append(chain, g.fallback...)
+	chain = append(chain, fallback...)
 	// Per-task-type HARD pin (M1.kk) takes precedence — when a
 	// task type is in TaskRouteRequires, the chain is restricted
 	// to the listed providers (no fallback). A nil result from
@@ -725,10 +753,11 @@ func (g *Governor) rolloverIfNeededLocked() {
 }
 
 func (g *Governor) publish(spec event.Spec) {
-	if g.cfg.Bus == nil {
+	b := g.bus.Load()
+	if b == nil {
 		return
 	}
-	_, _ = g.cfg.Bus.Publish(spec)
+	_, _ = b.Publish(spec)
 }
 
 // shouldFallback decides whether to walk further down the provider chain.

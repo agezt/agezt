@@ -222,6 +222,23 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   `.project/PHASE-M129-OBSERVABILITY-TENANT-FLAG-REPORT.md`.
 
 ### Fixed
+- **Governor concurrency hardening (code review)** (M155) — a focused review of the
+  Governor (routing + spend + fallback) found two real concurrency bugs, now fixed:
+  - **Data race (Critical)**: `routeChain` and `Providers` read the `primary`/
+    `fallback` routing slices with no lock, while `Replace` (the credential-rotation
+    / hot-reload path) rebuilds them under the lock — a concurrent reload during an
+    in-flight `Complete` was an unsynchronized slice read/write that could mis-route
+    or nil-deref-panic the daemon. The readers now snapshot under the mutex, and
+    `Replace` builds fresh slices instead of truncating the live backing array.
+  - **Bus pointer tear (High)**: `SetBus` wrote `cfg.Bus` while `publish` read it
+    lock-free on the hot path; a `WithLimits` sibling re-pointing its bus mid-serve
+    could tear the pointer. The bus is now latched in an `atomic.Pointer`.
+  The review also confirmed the most cost-sensitive logic is correct (fallback
+  classification treats cancel/timeout/budget-exhaustion as terminal; daily/per-task
+  spend counters and the UTC rollover are consistently locked). The daily ceiling is
+  documented as the soft cap it is (concurrent in-flight calls can overshoot by a
+  bounded amount). A concurrency stress test guards it. See
+  `.project/PHASE-M155-GOVERNOR-HARDENING-REPORT.md`.
 - **`agt journal tail` no longer scans the whole journal** (M147) — the tail handler
   forward-walked every segment of the (append-only, full-retention) journal just to
   keep the last N events by seq — O(total), growing with the journal forever. A new

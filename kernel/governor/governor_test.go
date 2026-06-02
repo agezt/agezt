@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -66,6 +67,80 @@ func mustRegister(t *testing.T, r *governor.Registry, infos ...*governor.Provide
 		if err := r.Register(info); err != nil {
 			t.Fatalf("Register %s: %v", info.Name, err)
 		}
+	}
+}
+
+// TestGovernor_ConcurrentReplaceAndComplete exercises the hot-reload path
+// (Replace) concurrently with Complete / Providers / SetBus. With the C1/H2 fixes
+// (locked slice snapshots + atomic bus) this runs clean; before them it could
+// corrupt the routing slices (→ nil deref) or tear the bus pointer. Run with
+// -race to detect the races directly; without it, this still guards against the
+// corruption/panic mode. Every Complete must succeed — the chain always holds
+// both providers, so a torn snapshot yielding an empty/nil chain would surface.
+func TestGovernor_ConcurrentReplaceAndComplete(t *testing.T) {
+	b, _ := newBus(t)
+	r := governor.NewRegistry()
+	mustRegister(t, r,
+		&governor.ProviderInfo{Name: "p1", Provider: &fakeProvider{name: "p1", resp: okResp("m", 1, 1)}, AuthMode: governor.AuthAPIKey},
+		&governor.ProviderInfo{Name: "p2", Provider: &fakeProvider{name: "p2", resp: okResp("m", 1, 1)}, IsFallback: true},
+	)
+	g, err := governor.New(governor.Config{Registry: r, Bus: b})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	var wg sync.WaitGroup
+	var completeErr atomic.Value
+	stop := make(chan struct{})
+
+	wg.Add(1)
+	go func() { // hot-reload churn
+		defer wg.Done()
+		for {
+			select {
+			case <-stop:
+				return
+			default:
+				_ = g.Replace(&governor.ProviderInfo{Name: "p1", Provider: &fakeProvider{name: "p1", resp: okResp("m", 1, 1)}, AuthMode: governor.AuthAPIKey})
+			}
+		}
+	}()
+	wg.Add(1)
+	go func() { // bus re-point churn (H2)
+		defer wg.Done()
+		for {
+			select {
+			case <-stop:
+				return
+			default:
+				g.SetBus(b)
+			}
+		}
+	}()
+	for i := 0; i < 6; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for {
+				select {
+				case <-stop:
+					return
+				default:
+					if _, err := g.Complete(context.Background(), agent.CompletionRequest{Model: "m"}); err != nil {
+						completeErr.Store(err)
+					}
+					_ = g.Providers()
+				}
+			}
+		}()
+	}
+
+	time.Sleep(200 * time.Millisecond)
+	close(stop)
+	wg.Wait()
+
+	if e := completeErr.Load(); e != nil {
+		t.Fatalf("Complete failed under concurrent Replace (chain should always hold p1+p2): %v", e)
 	}
 }
 
