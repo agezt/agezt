@@ -12,6 +12,19 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **`notify` tool — proactive agent messaging** (M143) — a running agent can now
+  send a short message to the operator over a configured channel MID-task ("I've
+  started the long task, I'll report back"; a progress note; an alert) instead of
+  staying silent until the final reply — the Jarvis "keep me posted" capability.
+  Security (SPEC-04 §1.7): destinations are PINNED to the operator's own configured
+  allowlist — the agent supplies only the text (and optionally which channel kind),
+  never the recipient — so a prompt-injected agent can only ever message the
+  operator's own chats, not exfiltrate to arbitrary ids. Gated by Edict `CapNotify`
+  (allowed by default; operator can raise/deny like any capability); the send is
+  journaled as `channel.outbound` (visible in `agt inbox` / `agt why`). Registered
+  into the live tool map at boot when at least one channel has an allowlist; the mock
+  driver exercises it via `AGEZT_DEMO_NOTIFY=1`. See
+  `.project/PHASE-M143-NOTIFY-TOOL-REPORT.md`.
 - **`agt send` — operator-initiated channel egress** (M142) — push a one-off message
   out a configured channel: `agt send --channel discord --to D9 "deploy finished"`.
   The manual complement to Pulse briefs and agent replies, so a script / CI / cron job

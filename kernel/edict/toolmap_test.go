@@ -26,6 +26,8 @@ func TestCapabilityForToolCall(t *testing.T) {
 		{"http", `{"method":"GET","url":"https://x"}`, CapHTTPGet},
 		{"http", `{"method":"POST","url":"https://x"}`, CapHTTPPost},
 		{"http", `{"method":"  post  ","url":"https://x"}`, CapHTTPPost},
+		{"remote_run", `{"task":"x"}`, CapRemoteRun},
+		{"notify", `{"text":"hi"}`, CapNotify},
 		{"unknown-tool", `{}`, Capability("unknown-tool")},
 	}
 	for _, c := range cases {

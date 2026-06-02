@@ -59,6 +59,13 @@ const (
 	// node over its REST API, M8 mesh). It ships a task to an external node — an
 	// outward, side-effecting action — so it is Ask-first by default.
 	CapRemoteRun Capability = "remote_run"
+	// CapNotify gates the `notify` tool (M143): the agent proactively sends a short
+	// message to the operator over a configured channel mid-run. It is outward, but
+	// the destinations are pinned to the operator's OWN pre-configured allowlist —
+	// the agent supplies only the text, never the recipient — so there is no
+	// arbitrary-exfiltration surface. Allowed by default (the agent talking to its
+	// owner); an operator can still raise its level or deny it like any capability.
+	CapNotify Capability = "notify"
 )
 
 // TrustLevel encodes the trust ladder (DECISIONS F3).
@@ -324,6 +331,7 @@ func DefaultLevels() map[Capability]TrustLevel {
 		CapCoding:       LevelAskFirst, // external coding agent; isolated to a worktree, returns a diff
 		CapACPAgent:     LevelAskFirst, // external ACP agent; runs in its own sandbox, returns its answer
 		CapRemoteRun:    LevelAskFirst, // peer Agezt node; ships a task to an external node over REST
+		CapNotify:       LevelAllow,    // message the operator's own configured chats; recipient is config-pinned
 	}
 }
 
@@ -349,7 +357,7 @@ func AllCapabilities() []Capability {
 	caps := []Capability{
 		CapShell, CapFileRead, CapFileWrite, CapFileDelete, CapFileList,
 		CapHTTPGet, CapHTTPPost, CapProviderCall, CapDelegate, CapCoding,
-		CapACPAgent, CapRemoteRun,
+		CapACPAgent, CapRemoteRun, CapNotify,
 	}
 	slices.Sort(caps)
 	return caps

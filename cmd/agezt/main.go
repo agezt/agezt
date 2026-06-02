@@ -73,6 +73,7 @@ import (
 	"github.com/agezt/agezt/plugins/tools/coding"
 	filetool "github.com/agezt/agezt/plugins/tools/file"
 	httptool "github.com/agezt/agezt/plugins/tools/http"
+	"github.com/agezt/agezt/plugins/tools/notify"
 	"github.com/agezt/agezt/plugins/tools/peer"
 	"github.com/agezt/agezt/plugins/tools/shell"
 )
@@ -731,13 +732,34 @@ func runDaemon(stdout, stderr io.Writer) int {
 	if dcChan != nil {
 		liveChannels["discord"] = dcChan
 	}
-	srv.SetChannelSender(func(sctx context.Context, kind, id, text string) error {
+	channelSend := func(sctx context.Context, kind, id, text string) error {
 		ch, ok := liveChannels[kind]
 		if !ok {
 			return fmt.Errorf("channel %q not configured", kind)
 		}
 		return ch.Send(sctx, channel.Outbound{ChannelID: id, Text: text, Priority: channel.PriorityNotify})
-	})
+	}
+	srv.SetChannelSender(channelSend)
+
+	// Register the proactive-messaging tool (`notify`, M143) so a running agent can
+	// message the operator mid-task. Destinations are pinned to each channel's
+	// configured allowlist (the agent supplies only text), so it can only ever talk
+	// to the operator's own chats. Registered into the live tool map (k.Tools()) at
+	// boot, before any run; skipped when no channel has a non-empty allowlist.
+	notifyTargets := map[string][]string{
+		"telegram": splitNonEmpty(os.Getenv(brand.EnvPrefix + "TELEGRAM_CHAT_ID")),
+		"slack":    splitNonEmpty(os.Getenv(brand.EnvPrefix + "SLACK_CHANNELS")),
+		"discord":  splitNonEmpty(os.Getenv(brand.EnvPrefix + "DISCORD_CHANNELS")),
+	}
+	for kind := range notifyTargets {
+		if _, live := liveChannels[kind]; !live {
+			delete(notifyTargets, kind)
+		}
+	}
+	if nt := notify.New(channelSend, notifyTargets); nt != nil {
+		k.Tools()["notify"] = nt
+		fmt.Fprintf(stdout, "  notify tool      : enabled (%d channel(s) the agent can ping)\n", len(notifyTargets))
+	}
 
 	// Scheduled intents (autonomy) — fire operator-configured intents on a timer
 	// through the governed loop. Runs on the daemon ctx (halt/shutdown stop it).
@@ -2484,6 +2506,16 @@ func newDemoMock() agent.Provider {
 			mock.ToolUse("call-1", "file", map[string]any{"op": "write", "path": "notes.txt", "content": "status = draft\nowner = nobody\n"}),
 			mock.ToolUse("call-2", "file", map[string]any{"op": "replace", "path": "notes.txt", "find": "draft", "replacement": "published"}),
 			mock.FinalText("[offline-mock] I wrote notes.txt and edited it in place: status is now 'published'."),
+		)
+	}
+	// Demo escape hatch: AGEZT_DEMO_NOTIFY=1 scripts the agent to call the `notify`
+	// tool mid-run (M143) so the proactive-messaging path (agent → configured
+	// channel allowlist → channel.outbound) is observable offline. Requires a
+	// channel with an allowlist configured for the tool to be registered.
+	if os.Getenv(brand.EnvPrefix+"DEMO_NOTIFY") == "1" {
+		return mock.New(
+			mock.ToolUse("call-1", "notify", map[string]any{"text": "Starting the long task — I'll report back when it's done."}),
+			mock.FinalText("[offline-mock] I pinged you over the configured channel, then finished the task."),
 		)
 	}
 	// Demo escape hatch: AGEZT_DEMO_DELEGATE=1 scripts a single delegation so
