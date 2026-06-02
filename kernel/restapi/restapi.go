@@ -27,6 +27,7 @@ import (
 	"crypto/subtle"
 	"encoding/json"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/agezt/agezt/kernel/bus"
@@ -78,6 +79,20 @@ type Server struct {
 	// (the server answering at all proves liveness). Injected by the daemon so
 	// this package needs no kernel halt-state coupling.
 	readiness func() (ready bool, reason string)
+
+	// metrics, when set, supplies the gauges exposed at /metrics in Prometheus
+	// text format. Injected by the daemon (it has the kernel + governor); this
+	// package only formats. Nil → /metrics reports no samples.
+	metrics func() []Metric
+}
+
+// Metric is one Prometheus sample exposed at /metrics. Name is the suffix after
+// the `agezt_` prefix (e.g. "active_runs" → `agezt_active_runs`).
+type Metric struct {
+	Name  string
+	Help  string
+	Type  string // "gauge" or "counter"
+	Value float64
 }
 
 // New builds a Server. token gates every request; bus drives streaming;
@@ -100,6 +115,9 @@ func (s *Server) SetTenantAuthorizer(a TenantAuthorizer) { s.tenantAuth = a }
 // halted). When unset, /readyz reports ready.
 func (s *Server) SetReadiness(fn func() (ready bool, reason string)) { s.readiness = fn }
 
+// SetMetrics injects the gauge source for /metrics (Prometheus text format).
+func (s *Server) SetMetrics(fn func() []Metric) { s.metrics = fn }
+
 // bind resolves the Engine + bus for a request: the per-tenant pair when an
 // X-Agezt-Tenant header is present and a resolver is configured, else the
 // primary engine/bus.
@@ -121,6 +139,10 @@ func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", s.handleLive)
 	mux.HandleFunc("/readyz", s.handleReady)
+	// /metrics is token-authed: unlike liveness/readiness it exposes spend and
+	// activity volume (financially/operationally sensitive). Prometheus scrapes it
+	// with a bearer_token.
+	mux.HandleFunc("/metrics", s.auth(s.handleMetrics))
 	mux.HandleFunc("/api/v1/health", s.auth(s.handleHealth))
 	mux.HandleFunc("/api/v1/models", s.auth(s.handleModels))
 	mux.HandleFunc("/api/v1/runs", s.auth(s.handleRunsRoot))
@@ -161,6 +183,36 @@ func (s *Server) handleReady(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusServiceUnavailable, map[string]any{"status": "not_ready", "reason": reason})
+}
+
+// --- GET /metrics (token-authed, Prometheus text exposition) ---
+
+func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
+		methodNotAllowed(w, http.MethodGet)
+		return
+	}
+	var b strings.Builder
+	if s.metrics != nil {
+		for _, m := range s.metrics() {
+			name := "agezt_" + m.Name
+			if m.Help != "" {
+				b.WriteString("# HELP " + name + " " + m.Help + "\n")
+			}
+			typ := m.Type
+			if typ == "" {
+				typ = "gauge"
+			}
+			b.WriteString("# TYPE " + name + " " + typ + "\n")
+			// 'f' (not 'g') so large gauges like spend render as plain integers
+			// (1500000000), not scientific notation — both are valid Prometheus,
+			// but plain reads better in dashboards and ad-hoc curls.
+			b.WriteString(name + " " + strconv.FormatFloat(m.Value, 'f', -1, 64) + "\n")
+		}
+	}
+	w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte(b.String()))
 }
 
 func (s *Server) auth(next http.HandlerFunc) http.HandlerFunc {

@@ -12,6 +12,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Prometheus `/metrics` endpoint** (M135, SPEC-14 §9) — the REST API exposes the
+  daemon's operational gauges in Prometheus text format (up, halted, uptime,
+  active_runs, journal_head_seq/bytes, memory/world/skill counts, schedules,
+  pending_approvals, spend_today + budget ceiling, disk_free_bytes/ratio) so it can
+  be wired into Grafana/alerting. Token-authed (it exposes spend/activity; scrape
+  with a bearer_token), stdlib-only, all reads cheap (no per-scrape journal fold).
+  Pairs with the M134 health probes. See `.project/PHASE-M135-METRICS-REPORT.md`.
 - **Unauthenticated `/healthz` + `/readyz` probes** (M134, SPEC-14 §9) — the REST
   API now serves deployment-grade health endpoints with no token, so systemd
   watchdogs, container/k8s liveness+readiness probes, load balancers, and uptime

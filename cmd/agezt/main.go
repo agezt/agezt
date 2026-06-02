@@ -1214,6 +1214,73 @@ func buildRESTAPI(ctx context.Context, k *kernelruntime.Kernel, reg *tenant.Regi
 		}
 		return true, ""
 	})
+	// Prometheus /metrics (M135): expose the cheap in-memory operational gauges
+	// (same data as status/budget/disk) so the daemon can be wired into Grafana /
+	// alerting. All reads are O(1) or O(segments); no per-scrape journal fold.
+	rest.SetMetrics(func() []restapi.Metric {
+		boolf := func(b bool) float64 {
+			if b {
+				return 1
+			}
+			return 0
+		}
+		schedTotal, schedEnabled := 0, 0
+		if st := k.Schedules(); st != nil {
+			for _, e := range st.List() {
+				schedTotal++
+				if e.Enabled {
+					schedEnabled++
+				}
+			}
+		}
+		headSeq, _ := k.Journal().Head()
+		if headSeq < 0 {
+			headSeq = 0
+		}
+		var spent, ceiling int64
+		if gov, ok := k.Provider().(*governor.Governor); ok {
+			snap := gov.Snapshot()
+			spent, ceiling = snap.SpentMicrocents, snap.CeilingMicrocents
+		}
+		base := k.BaseDir()
+		var journalBytes int64
+		_ = filepath.Walk(filepath.Join(base, "journal"), func(_ string, info os.FileInfo, err error) error {
+			if err == nil && !info.IsDir() {
+				journalBytes += info.Size()
+			}
+			return nil
+		})
+		var diskFree, diskTotal uint64
+		if f, tot, err := pulse.DiskUsage(base); err == nil {
+			diskFree, diskTotal = f, tot
+		}
+		diskRatio := 0.0
+		if diskTotal > 0 {
+			diskRatio = float64(diskFree) / float64(diskTotal)
+		}
+		pending := 0
+		if ap := k.Approvals(); ap != nil {
+			pending = ap.PendingCount()
+		}
+		return []restapi.Metric{
+			{Name: "up", Help: "1 if the daemon is serving", Value: 1},
+			{Name: "halted", Help: "1 if the daemon is halted", Value: boolf(k.IsHalted())},
+			{Name: "uptime_seconds", Help: "seconds since the daemon started", Value: time.Since(k.StartTime()).Seconds()},
+			{Name: "active_runs", Help: "runs currently in flight", Value: float64(k.ActiveRuns())},
+			{Name: "journal_head_seq", Help: "latest journal sequence number", Value: float64(headSeq)},
+			{Name: "memory_records", Help: "live memory records", Value: float64(k.Memory().Count())},
+			{Name: "world_entities", Help: "live world-model entities", Value: float64(k.World().Count())},
+			{Name: "active_skills", Help: "active skills", Value: float64(k.Forge().Count())},
+			{Name: "schedules_total", Help: "scheduled intents", Value: float64(schedTotal)},
+			{Name: "schedules_enabled", Help: "enabled scheduled intents", Value: float64(schedEnabled)},
+			{Name: "pending_approvals", Help: "HITL approvals awaiting an operator", Value: float64(pending)},
+			{Name: "spend_today_microcents", Help: "today's spend in microcents ($1=1e9)", Value: float64(spent)},
+			{Name: "budget_ceiling_microcents", Help: "daily budget ceiling in microcents (0=unbounded)", Value: float64(ceiling)},
+			{Name: "journal_bytes", Help: "journal size on disk in bytes", Value: float64(journalBytes)},
+			{Name: "disk_free_bytes", Help: "free bytes on the journal filesystem", Value: float64(diskFree)},
+			{Name: "disk_free_ratio", Help: "free fraction of the journal filesystem (0..1)", Value: diskRatio},
+		}
+	})
 	if reg != nil {
 		// Tenant routing: an X-Agezt-Tenant header serves the request from that
 		// tenant's isolated kernel + bus (opened on demand).
