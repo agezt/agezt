@@ -12,6 +12,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **`agt run` reads intent from stdin or a file** (M151) — long or multi-line
+  prompts no longer have to be quoted on the command line: `agt run -` reads the
+  intent from stdin (`cat prompt.txt | agt run -`, heredocs, pipelines) and
+  `agt run --file <path>` reads it from a file. Precedence: `--file` → `-` (stdin) →
+  the joined positional text; all trimmed. A missing `--file` is a clear error. See
+  `.project/PHASE-M151-RUN-STDIN-FILE-REPORT.md`.
 - **Channel-health check in `agt doctor`** (M150) — `agt doctor` now WARNs when a
   messaging channel is **half-configured**: it has a listen addr but inbound is
   disabled (a Slack/Discord webhook channel set up with a token + addr but no

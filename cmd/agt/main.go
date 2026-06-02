@@ -150,7 +150,8 @@ func printHelp(w io.Writer) {
 	fmt.Fprintf(w, "key, and prints the exact command to start the daemon.\n")
 	fmt.Fprintf(w, "\n")
 	fmt.Fprintf(w, "Commands:\n")
-	fmt.Fprintf(w, "  run \"<intent>\" [--json] [--tenant <id>] [--model <id>] [--system <prompt>]   run an intent (--model/--system override this run only; JSON = ndjson stream)\n")
+	fmt.Fprintf(w, "  run \"<intent>\" | run - | run --file <path>   run an intent (read from arg, stdin via -, or a file)\n")
+	fmt.Fprintf(w, "      [--json] [--tenant <id>] [--model <id>] [--system <prompt>]   --model/--system override this run only; JSON = ndjson stream\n")
 	fmt.Fprintf(w, "  halt [--reason \"...\"] [--json]  freeze all in-flight runs (reason is journaled)\n")
 	fmt.Fprintf(w, "  resume [--reason \"...\"] [--json] clear the halt flag (reason is journaled)\n")
 	fmt.Fprintf(w, "  why <event_id> [--json|--payload]  list events sharing an event's correlation\n")
@@ -259,6 +260,30 @@ func dial(stderr io.Writer) *controlplane.Client {
 	return c
 }
 
+// resolveRunIntent resolves the run intent from positional parts, an optional
+// --file path, or stdin. Precedence: --file (read the file); else if the sole
+// positional argument is "-" read all of stdin (pipe convention); else the joined
+// positional text. All trimmed. Lets long/multi-line prompts come from a file or a
+// pipe instead of being quoted on the command line.
+func resolveRunIntent(parts []string, file string, stdin io.Reader) (string, error) {
+	if file != "" {
+		b, err := os.ReadFile(file)
+		if err != nil {
+			return "", fmt.Errorf("read --file %q: %w", file, err)
+		}
+		return strings.TrimSpace(string(b)), nil
+	}
+	joined := strings.TrimSpace(strings.Join(parts, " "))
+	if joined == "-" {
+		b, err := io.ReadAll(stdin)
+		if err != nil {
+			return "", fmt.Errorf("read intent from stdin: %w", err)
+		}
+		return strings.TrimSpace(string(b)), nil
+	}
+	return joined, nil
+}
+
 func cmdRun(args []string, stdout, stderr io.Writer) int {
 	// Strip flags early so they work in any position: `agt run "..." --json`
 	// or `agt run --json "..."` both compose. --tenant <id> routes the run to
@@ -267,6 +292,7 @@ func cmdRun(args []string, stdout, stderr io.Writer) int {
 	tenant := ""
 	model := ""
 	system := ""
+	file := ""
 	var images []string
 	var intentParts []string
 	for i := 0; i < len(args); i++ {
@@ -319,13 +345,26 @@ func cmdRun(args []string, stdout, stderr io.Writer) int {
 				return 2
 			}
 			images = append(images, filepath.Base(p))
+		case a == "--file":
+			if i+1 >= len(args) {
+				fmt.Fprintf(stderr, "%s run: --file needs a path\n", brand.CLI)
+				return 2
+			}
+			i++
+			file = args[i]
+		case strings.HasPrefix(a, "--file="):
+			file = strings.TrimPrefix(a, "--file=")
 		default:
 			intentParts = append(intentParts, a)
 		}
 	}
-	intent := strings.TrimSpace(strings.Join(intentParts, " "))
+	intent, err := resolveRunIntent(intentParts, file, os.Stdin)
+	if err != nil {
+		fmt.Fprintf(stderr, "%s run: %v\n", brand.CLI, err)
+		return 2
+	}
 	if intent == "" {
-		fmt.Fprintf(stderr, "%s run: intent required (quote it as one argument)\n", brand.CLI)
+		fmt.Fprintf(stderr, "%s run: intent required (quote it as one argument, pipe via `-`, or use --file)\n", brand.CLI)
 		return 2
 	}
 
