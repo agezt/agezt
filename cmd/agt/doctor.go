@@ -156,6 +156,7 @@ func runDoctorChecks() []doctorCheck {
 	checks = append(checks, checkWebhooks(ctx, client))
 	checks = append(checks, checkDisk(ctx, client))
 	checks = append(checks, checkExposure(status))
+	checks = append(checks, checkChannels(status))
 	checks = append(checks, checkHalt(status))
 
 	return checks
@@ -458,6 +459,45 @@ func checkExposure(status map[string]any) doctorCheck {
 			"the agent (shell/file/http tools) is exposed to the network, gated only by a token — bind to 127.0.0.1 and front it with a TLS reverse proxy, or restrict with a firewall")
 	}
 	return ok(name, fmt.Sprintf("%d HTTP server(s), all loopback-bound", len(servers)))
+}
+
+// checkChannels warns when a messaging channel (M141 status surface) is
+// half-configured: it has a listen addr but inbound is DISABLED — i.e. the
+// operator exposed an endpoint that will reject every event because the inbound
+// secret / public key is missing (a Slack/Discord webhook channel set up with a
+// token + addr but no AGEZT_*_SIGNING_SECRET / _PUBLIC_KEY). The boot banner shows
+// this once and `agt status` renders it as "outbound-only", but neither nags;
+// this makes it a persistent WARN in the go-to diagnostic. All-good / no-channels
+// is an OK. Pure function of the status snapshot (no extra round-trip).
+func checkChannels(status map[string]any) doctorCheck {
+	const name = "channels"
+	chans, _ := status["channels"].([]any)
+	if len(chans) == 0 {
+		return ok(name, "no messaging channels configured")
+	}
+	var halfConfigured []string
+	inbound := 0
+	for _, raw := range chans {
+		m, _ := raw.(map[string]any)
+		isIn, _ := m["inbound"].(bool)
+		addr, _ := m["addr"].(string)
+		if isIn {
+			inbound++
+		}
+		// A listen addr with inbound disabled = the endpoint is up but rejects
+		// everything (missing secret/key). An addr-less outbound-only channel is a
+		// deliberate, fine choice — not flagged.
+		if addr != "" && !isIn {
+			kind, _ := m["kind"].(string)
+			halfConfigured = append(halfConfigured, fmt.Sprintf("%s (%s)", kind, addr))
+		}
+	}
+	if len(halfConfigured) > 0 {
+		return warn(name,
+			fmt.Sprintf("%d channel(s) listening but inbound DISABLED: %s", len(halfConfigured), strings.Join(halfConfigured, ", ")),
+			"set the channel's signing secret / public key (AGEZT_SLACK_SIGNING_SECRET / AGEZT_DISCORD_PUBLIC_KEY) so inbound messages are accepted, or unset the addr to run outbound-only")
+	}
+	return ok(name, fmt.Sprintf("%d configured, %d can receive commands", len(chans), inbound))
 }
 
 // checkModelReadiness reports whether the daemon's configured model is fit

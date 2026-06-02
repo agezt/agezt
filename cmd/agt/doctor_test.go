@@ -314,6 +314,42 @@ func TestCheckExposure(t *testing.T) {
 	}
 }
 
+func TestCheckChannels(t *testing.T) {
+	mk := func(chans ...map[string]any) map[string]any {
+		arr := make([]any, len(chans))
+		for i, c := range chans {
+			arr[i] = c
+		}
+		return map[string]any{"channels": arr}
+	}
+
+	// A channel with a listen addr but inbound disabled → WARN, naming it.
+	w := checkChannels(mk(
+		map[string]any{"kind": "slack", "inbound": false, "addr": "127.0.0.1:8840", "allowlist": 1.0},
+		map[string]any{"kind": "telegram", "inbound": true, "addr": "", "allowlist": 1.0},
+	))
+	if w.Status != statusWarn {
+		t.Errorf("half-configured: status = %v want WARN", w.State)
+	}
+	if !strings.Contains(w.Detail, "slack") || strings.Contains(w.Detail, "telegram") {
+		t.Errorf("detail should name only the half-configured channel: %q", w.Detail)
+	}
+
+	// All healthy (inbound, or addr-less outbound-only) → OK.
+	good := checkChannels(mk(
+		map[string]any{"kind": "discord", "inbound": true, "addr": "127.0.0.1:8850", "allowlist": 2.0},
+		map[string]any{"kind": "slack", "inbound": false, "addr": "", "allowlist": 0.0}, // outbound-only by choice
+	))
+	if good.Status != statusOK {
+		t.Errorf("healthy: status = %v want OK; detail=%q", good.State, good.Detail)
+	}
+
+	// No channels → OK.
+	if none := checkChannels(map[string]any{}); none.Status != statusOK {
+		t.Errorf("no channels: status = %v want OK", none.State)
+	}
+}
+
 func TestDiskCheckFromStats(t *testing.T) {
 	// Plenty free → OK.
 	good := diskCheckFromStats(map[string]any{

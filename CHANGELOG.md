@@ -12,6 +12,15 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Channel-health check in `agt doctor`** (M150) — `agt doctor` now WARNs when a
+  messaging channel is **half-configured**: it has a listen addr but inbound is
+  disabled (a Slack/Discord webhook channel set up with a token + addr but no
+  signing secret / public key), so the endpoint is up yet silently rejects every
+  event. The boot banner shows this once and `agt status` renders it as
+  "outbound-only" (M141), but neither nags — now it's a persistent check in the
+  go-to diagnostic, naming the channel and the fix (the M137 status→doctor pairing).
+  All-healthy / no-channels is an OK; an addr-less outbound-only channel is a
+  deliberate choice, not flagged. See `.project/PHASE-M150-DOCTOR-CHANNELS-REPORT.md`.
 - **`agt run --system <prompt>` — per-run system-prompt override** (M149) — set a
   one-off persona/instruction for a single run (`agt run --system "You are a terse
   reviewer." "..."`) without changing `AGEZT_SYSTEM_PROMPT` or restarting. The
