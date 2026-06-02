@@ -475,6 +475,10 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// backgrounded `agt run &` (client still alive) is unaffected.
 	cancelOnDisconnect := strings.EqualFold(os.Getenv(brand.EnvPrefix+"CANCEL_ON_DISCONNECT"), "on")
 	srv.SetCancelOnDisconnect(cancelOnDisconnect)
+	// Disk-space health (M131): inject the cross-platform disk-usage probe so the
+	// disk handler / doctor check can report free space without controlplane
+	// importing kernel/pulse (same decoupling as SetPulse).
+	srv.SetDiskFree(pulse.DiskUsage)
 	cancelOnDisconnectDesc := "disabled (set " + brand.EnvPrefix + "CANCEL_ON_DISCONNECT=on)"
 	if cancelOnDisconnect {
 		cancelOnDisconnectDesc = "on (a dropped `agt run` client cancels its run)"

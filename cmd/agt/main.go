@@ -114,6 +114,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return cmdRuns(args[1:], stdout, stderr)
 	case "config":
 		return cmdConfig(args[1:], stdout, stderr)
+	case "disk":
+		return cmdDisk(args[1:], stdout, stderr)
 	case "memory":
 		return cmdMemory(args[1:], stdout, stderr)
 	case "world":

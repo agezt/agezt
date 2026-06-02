@@ -60,7 +60,21 @@ type Server struct {
 	// unaffected; only a genuinely-gone client (Ctrl-C / killed) cancels.
 	// Set once at startup via SetCancelOnDisconnect.
 	cancelOnDisconnect bool
+
+	// diskFree returns (free, total) bytes for the filesystem at a path,
+	// injected by the daemon via SetDiskFree (the daemon passes pulse.DiskUsage,
+	// so this package never imports kernel/pulse — the same decoupling as
+	// SetPulse). Nil when not wired; the disk handler reports it as unavailable.
+	diskFree DiskFreeFunc
 }
+
+// DiskFreeFunc returns the free (available) and total bytes for the filesystem
+// containing path (M131). The daemon injects a real implementation
+// (pulse.DiskUsage) so this package stays free of platform syscalls.
+type DiskFreeFunc func(path string) (free, total uint64, err error)
+
+// SetDiskFree injects the disk-usage probe used by the disk-space health check.
+func (s *Server) SetDiskFree(fn DiskFreeFunc) { s.diskFree = fn }
 
 // NewServer constructs a Server that will manage runtime files under
 // <baseDir>/runtime/ when Start is called.
@@ -427,6 +441,8 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.handleTenantToken(conn, req)
 	case CmdTenantStats:
 		s.handleTenantStats(conn, req)
+	case CmdDiskStats:
+		s.handleDiskStats(conn, req)
 	case CmdWorldAdd:
 		s.handleWorldAdd(conn, req)
 	case CmdWorldRelate:

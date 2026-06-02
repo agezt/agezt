@@ -12,6 +12,14 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Disk-space observability: `agt disk` + a doctor check** (M131) — the journal is
+  append-only and never shrinks, so on a small host (the $5-VPS deploy target) a
+  full disk is the classic silent outage: writes start failing and the daemon
+  stops recording. `agt disk` reports the journal's on-disk size and free space on
+  its filesystem; `agt doctor` now WARNs under 10% free and FAILs under 3% (the
+  journal will soon fail to write). The daemon reports its own disk via an injected
+  cross-platform probe (`pulse.DiskUsage`), keeping controlplane free of the pulse
+  import. See `.project/PHASE-M131-DISK-SPACE-REPORT.md`.
 - **`agt status` shows autonomy + actionable signals** (M130) — the at-a-glance
   dashboard now reports armed scheduled intents (`schedules : N (M enabled)`),
   pending HITL approvals (`approvals : K PENDING — answer with agt approvals`), and

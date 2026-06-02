@@ -154,6 +154,7 @@ func runDoctorChecks() []doctorCheck {
 	checks = append(checks, checkApprovals(ctx, client))
 	checks = append(checks, checkCatalog(ctx, client))
 	checks = append(checks, checkWebhooks(ctx, client))
+	checks = append(checks, checkDisk(ctx, client))
 	checks = append(checks, checkHalt(status))
 
 	return checks
@@ -368,6 +369,65 @@ func topFailingWebhook(raw any) string {
 		return ""
 	}
 	return worst
+}
+
+// diskWarnPct / diskCritPct are the free-space thresholds for the disk check
+// (M131). Below crit the journal is in imminent danger of failing to write
+// (append-only, never shrinks); below warn it's worth acting before that.
+const (
+	diskWarnPct = 10.0
+	diskCritPct = 3.0
+)
+
+// checkDisk warns when the filesystem holding the journal is running low (M131)
+// — the journal is append-only and grows forever, so on a small host a full disk
+// is the classic silent outage: writes start failing and the daemon can no
+// longer record what it does. Surfacing it in the go-to diagnostic catches it
+// before that. Best-effort: a daemon without the disk probe wired, or the call
+// failing, is an informational OK.
+func checkDisk(ctx context.Context, client *controlplane.Client) doctorCheck {
+	res, err := client.Call(ctx, controlplane.CmdDiskStats, nil)
+	if err != nil {
+		return ok("disk", "disk usage unavailable (—)")
+	}
+	return diskCheckFromStats(res)
+}
+
+// diskCheckFromStats is the pure verdict from a disk-stats response — split out
+// so the threshold logic is testable without a live daemon (M131).
+func diskCheckFromStats(res map[string]any) doctorCheck {
+	const name = "disk"
+	journal := intOfStatus(res["journal_bytes"])
+	avail, _ := res["disk_available"].(bool)
+	if !avail {
+		return ok(name, fmt.Sprintf("journal %s (free space unknown)", humanBytes(journal)))
+	}
+	free := intOfStatus(res["disk_free_bytes"])
+	pct, _ := res["disk_free_pct"].(float64)
+	detail := fmt.Sprintf("journal %s; disk %.0f%% free (%s)", humanBytes(journal), pct, humanBytes(free))
+	if pct < diskCritPct {
+		return fail(name, detail,
+			"disk almost full — the append-only journal will soon fail to write; free space now (archive with `agt journal export`, then prune)")
+	}
+	if pct < diskWarnPct {
+		return warn(name, detail,
+			"disk low and the journal only grows — archive a window with `agt journal export` and free space before it fills")
+	}
+	return ok(name, detail)
+}
+
+// humanBytes renders a byte count as B/KB/MB/GB/TB with one decimal (M131).
+func humanBytes(n int64) string {
+	const unit = 1024
+	if n < unit {
+		return fmt.Sprintf("%d B", n)
+	}
+	div, exp := int64(unit), 0
+	for x := n / unit; x >= unit; x /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.1f %cB", float64(n)/float64(div), "KMGTPE"[exp])
 }
 
 // checkModelReadiness reports whether the daemon's configured model is fit

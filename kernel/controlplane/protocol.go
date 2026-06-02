@@ -660,6 +660,13 @@ const (
 	// CmdTenantToken reveals an existing tenant's per-tenant credential.
 	// Args: id (required). Returns: { id, token }
 	CmdTenantToken = "tenant_token"
+	// CmdDiskStats reports the daemon's journal size on disk and the free/total
+	// bytes of the filesystem it lives on (M131) — the data behind `agt disk` and
+	// the doctor disk-space check. The journal is append-only, so a full disk is
+	// the classic silent outage. Returns: { base_dir, journal_bytes,
+	// disk_available (bool), disk_free_bytes, disk_total_bytes, disk_free_pct }.
+	CmdDiskStats = "disk_stats"
+
 	// CmdTenantStats aggregates per-tenant run activity (M126): for each tenant
 	// on disk it folds that tenant's own journal into run count / completed /
 	// failed / active / spend / last activity, plus grand totals — the

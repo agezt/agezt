@@ -279,6 +279,58 @@ func TestTopFailingWebhook(t *testing.T) {
 	}
 }
 
+func TestDiskCheckFromStats(t *testing.T) {
+	// Plenty free → OK.
+	good := diskCheckFromStats(map[string]any{
+		"journal_bytes": float64(5 << 20), "disk_available": true,
+		"disk_free_bytes": float64(50 << 30), "disk_free_pct": 50.0,
+	})
+	if good.Status != statusOK {
+		t.Errorf("50%% free: status = %v want OK", good.State)
+	}
+	// Low free → WARN.
+	low := diskCheckFromStats(map[string]any{
+		"journal_bytes": float64(1 << 30), "disk_available": true,
+		"disk_free_bytes": float64(5 << 30), "disk_free_pct": 7.0,
+	})
+	if low.Status != statusWarn {
+		t.Errorf("7%% free: status = %v want WARN", low.State)
+	}
+	// Critically low → FAIL.
+	crit := diskCheckFromStats(map[string]any{
+		"journal_bytes": float64(1 << 30), "disk_available": true,
+		"disk_free_bytes": float64(200 << 20), "disk_free_pct": 1.5,
+	})
+	if crit.Status != statusFail {
+		t.Errorf("1.5%% free: status = %v want FAIL", crit.State)
+	}
+	// No free-space probe → OK (informational, shows journal size).
+	unk := diskCheckFromStats(map[string]any{
+		"journal_bytes": float64(3 << 20), "disk_available": false,
+	})
+	if unk.Status != statusOK {
+		t.Errorf("unavailable: status = %v want OK", unk.State)
+	}
+}
+
+func TestHumanBytes(t *testing.T) {
+	cases := []struct {
+		n    int64
+		want string
+	}{
+		{0, "0 B"},
+		{512, "512 B"},
+		{1536, "1.5 KB"},
+		{5 << 20, "5.0 MB"},
+		{int64(2.5 * (1 << 30)), "2.5 GB"},
+	}
+	for _, c := range cases {
+		if got := humanBytes(c.n); got != c.want {
+			t.Errorf("humanBytes(%d) = %q want %q", c.n, got, c.want)
+		}
+	}
+}
+
 func TestCatalogCheckFromSync(t *testing.T) {
 	now := time.Date(2026, 6, 2, 12, 0, 0, 0, time.UTC)
 
