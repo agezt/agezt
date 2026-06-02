@@ -15,6 +15,7 @@ import (
 	"strings"
 
 	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/plugins/providers/internal/httpread"
 )
 
 // CompleteStream implements agent.StreamingProvider. It POSTs to the
@@ -90,7 +91,7 @@ func (p *Provider) CompleteStream(ctx context.Context, req agent.CompletionReque
 	defer httpResp.Body.Close()
 
 	if httpResp.StatusCode/100 != 2 {
-		raw, _ := io.ReadAll(httpResp.Body)
+		raw, _ := httpread.All(httpResp.Body, httpread.DefaultMaxResponseBytes)
 		return nil, &APIError{Status: httpResp.StatusCode, Body: string(raw)}
 	}
 

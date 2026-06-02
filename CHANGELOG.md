@@ -318,6 +318,16 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   `.project/PHASE-M129-OBSERVABILITY-TENANT-FLAG-REPORT.md`.
 
 ### Fixed
+- **Provider HTTP response bodies are bounded (openai family) — no OOM from a hostile
+  endpoint** (M189) — providers read the non-streaming response body with an unbounded
+  `io.ReadAll(httpResp.Body)`. A provider endpoint can be operator-configured to an
+  arbitrary URL (the openai-compat / custom-base-URL path that `compat` routes through
+  the openai impl), or be buggy/MITM'd, so a multi-gigabyte or never-ending body OOMs
+  the daemon. (The SSE streaming scanners were already bounded at 1 MiB/line.) Added a
+  shared `httpread.All` helper (cap 64 MiB → `ErrResponseTooLarge`) and wired it into the
+  openai provider's success and error read paths. The other six provider families roll
+  out the same helper as follow-ups. See
+  `.project/PHASE-M189-PROVIDER-RESPONSE-BOUND-REPORT.md`.
 - **Control-plane request read is bounded — no pre-auth memory-exhaustion DoS** (M188) —
   `handleConn` read the request line with an unbounded `bufio.ReadBytes('\n')`, and that
   read happens BEFORE authentication (the token is inside the request). So any local
