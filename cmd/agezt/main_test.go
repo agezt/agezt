@@ -4,6 +4,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"strings"
 	"testing"
 	"time"
@@ -15,6 +16,37 @@ import (
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
+
+// TestDeliverScheduled — a scheduled run's answer is broadcast to every configured
+// channel recipient, prefixed with the schedule id; empty answers are skipped (M152).
+func TestDeliverScheduled(t *testing.T) {
+	var calls []string // "kind/id:text"
+	send := func(_ context.Context, kind, id, text string) error {
+		calls = append(calls, kind+"/"+id+":"+text)
+		return nil
+	}
+	targets := map[string][]string{"slack": {"C1", "C2"}, "discord": {"D1"}}
+
+	n := deliverScheduled(context.Background(), send, targets, "morning-digest", "Here is your summary.")
+	if n != 3 {
+		t.Fatalf("delivered to %d recipients, want 3", n)
+	}
+	for _, c := range calls {
+		if !strings.Contains(c, "[scheduled: morning-digest]") || !strings.Contains(c, "Here is your summary.") {
+			t.Errorf("delivery missing id prefix or answer: %q", c)
+		}
+	}
+
+	// Empty answer → no delivery.
+	calls = nil
+	if n := deliverScheduled(context.Background(), send, targets, "x", "   "); n != 0 || len(calls) != 0 {
+		t.Errorf("empty answer should not deliver; n=%d calls=%v", n, calls)
+	}
+	// Nil sender → no panic, no delivery.
+	if n := deliverScheduled(context.Background(), nil, targets, "x", "hi"); n != 0 {
+		t.Errorf("nil sender should deliver nothing, got %d", n)
+	}
+}
 
 // TestCollectChannels — env-driven channel inventory for `agt status` (M141):
 // only token-set channels appear, and Inbound reflects whether a webhook channel

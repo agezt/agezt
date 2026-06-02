@@ -780,7 +780,16 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// Scheduled intents (autonomy) — fire operator-configured intents on a timer
 	// through the governed loop. Runs on the daemon ctx (halt/shutdown stop it).
 	// Off unless AGEZT_SCHEDULE is set.
-	if schedDesc := buildCadence(ctx, k, stdout); schedDesc != "" {
+	// AGEZT_SCHEDULE_NOTIFY=on (M152) delivers each scheduled run's answer to the
+	// operator's configured channels, so a proactive digest reaches them rather than
+	// only landing in the journal. Reuses the channel allowlists + sender.
+	var onScheduledAnswer func(context.Context, string, string)
+	if strings.TrimSpace(os.Getenv(brand.EnvPrefix+"SCHEDULE_NOTIFY")) == "on" && len(notifyTargets) > 0 {
+		onScheduledAnswer = func(dctx context.Context, id, answer string) {
+			deliverScheduled(dctx, channelSend, notifyTargets, id, answer)
+		}
+	}
+	if schedDesc := buildCadence(ctx, k, stdout, onScheduledAnswer); schedDesc != "" {
 		fmt.Fprintf(stdout, "  schedule         : %s\n", schedDesc)
 	} else {
 		fmt.Fprintf(stdout, "  schedule         : disabled (set AGEZT_SCHEDULE, e.g. \"1h=summarise new commits\")\n")
@@ -1732,7 +1741,33 @@ func delegationBanner(k *kernelruntime.Kernel) string {
 // `agt why` links the schedule to the run) and then runs the intent through the
 // normal governed loop. Returns the banner description; "" only when the env var
 // is unset and the store is empty.
-func buildCadence(ctx context.Context, k *kernelruntime.Kernel, stdout io.Writer) string {
+// deliverScheduled sends a scheduled run's answer to every configured channel
+// recipient (M152), prefixed with the schedule id so the operator knows which job
+// produced it. Empty answers are skipped. Returns the number of successful
+// deliveries (for testing). Channel kinds are iterated in sorted order for
+// deterministic delivery.
+func deliverScheduled(ctx context.Context, send func(context.Context, string, string, string) error, targets map[string][]string, id, answer string) int {
+	if strings.TrimSpace(answer) == "" || send == nil {
+		return 0
+	}
+	text := "[scheduled: " + id + "]\n" + answer
+	kinds := make([]string, 0, len(targets))
+	for k := range targets {
+		kinds = append(kinds, k)
+	}
+	sort.Strings(kinds)
+	sent := 0
+	for _, kind := range kinds {
+		for _, recip := range targets[kind] {
+			if send(ctx, kind, recip, text) == nil {
+				sent++
+			}
+		}
+	}
+	return sent
+}
+
+func buildCadence(ctx context.Context, k *kernelruntime.Kernel, stdout io.Writer, onAnswer func(ctx context.Context, id, answer string)) string {
 	store := k.Schedules()
 	if store == nil {
 		return ""
@@ -1764,7 +1799,14 @@ func buildCadence(ctx context.Context, k *kernelruntime.Kernel, stdout io.Writer
 			// can show a schedule's last outcome.
 			Payload: map[string]any{"schedule_id": id, "intent": intent, "model": model},
 		})
-		_, err := k.RunWith(kernelruntime.WithModel(runCtx, model), corr, intent)
+		ans, err := k.RunWith(kernelruntime.WithModel(runCtx, model), corr, intent)
+		// Deliver the scheduled run's answer to the operator's channels when
+		// AGEZT_SCHEDULE_NOTIFY is on (M152): a proactive morning digest reaches
+		// you instead of sitting silently in the journal. Only on success with a
+		// non-empty answer; off entirely when onAnswer is nil.
+		if err == nil && onAnswer != nil {
+			onAnswer(runCtx, id, ans)
+		}
 		return err
 	}
 	cadence.NewEngine(store, run, 0, stdout).Start(ctx)

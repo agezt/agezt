@@ -12,6 +12,14 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Scheduled runs can deliver their answer to a channel** (M152) — with
+  `AGEZT_SCHEDULE_NOTIFY=on`, each scheduled intent's answer is pushed to the
+  operator's configured channels (Telegram/Slack/Discord allowlists), prefixed with
+  the schedule id — so a "every morning, summarise new commits" job actually reaches
+  you instead of sitting silently in the journal. Closes the Jarvis proactive loop
+  (schedule → run → deliver) without the intent having to call `notify` itself.
+  Off by default; only successful, non-empty answers are sent; reuses the channel
+  sender + allowlists. See `.project/PHASE-M152-SCHEDULE-NOTIFY-REPORT.md`.
 - **`agt run` reads intent from stdin or a file** (M151) — long or multi-line
   prompts no longer have to be quoted on the command line: `agt run -` reads the
   intent from stdin (`cat prompt.txt | agt run -`, heredocs, pipelines) and
