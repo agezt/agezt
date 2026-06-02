@@ -7,25 +7,38 @@ import (
 	"fmt"
 	"io"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/controlplane"
 )
 
-// cmdInbox implements `agt inbox [N] [--json]` — the Unified Inbox
-// (SPEC-07 §4): channel conversations grouped by correlation, newest first.
+// cmdInbox implements `agt inbox [N] [--channel KIND] [--json]` — the Unified
+// Inbox (SPEC-07 §4): channel conversations grouped by correlation, newest first.
 func cmdInbox(args []string, stdout, stderr io.Writer) int {
 	asJSON := false
 	limit := 0
-	for _, a := range args {
+	channel := ""
+	for i := 0; i < len(args); i++ {
+		a := args[i]
 		switch {
 		case a == "--json":
 			asJSON = true
 		case a == "-h" || a == "--help":
-			fmt.Fprintf(stdout, "usage: %s inbox [N] [--json]\n", brand.CLI)
+			fmt.Fprintf(stdout, "usage: %s inbox [N] [--channel KIND] [--json]\n", brand.CLI)
 			fmt.Fprintf(stdout, "list the last N channel conversation threads (default 20)\n")
+			fmt.Fprintf(stdout, "  --channel KIND   only threads from this channel (telegram|slack|discord)\n")
 			return 0
+		case a == "--channel":
+			if i+1 >= len(args) {
+				fmt.Fprintf(stderr, "%s inbox: --channel needs a value\n", brand.CLI)
+				return 2
+			}
+			i++
+			channel = args[i]
+		case strings.HasPrefix(a, "--channel="):
+			channel = strings.TrimPrefix(a, "--channel=")
 		default:
 			if n, err := strconv.Atoi(a); err == nil && n > 0 {
 				limit = n
@@ -39,6 +52,9 @@ func cmdInbox(args []string, stdout, stderr io.Writer) int {
 	callArgs := map[string]any{}
 	if limit > 0 {
 		callArgs["limit"] = limit
+	}
+	if channel != "" {
+		callArgs["channel"] = channel
 	}
 	c := dial(stderr)
 	if c == nil {
@@ -57,7 +73,11 @@ func cmdInbox(args []string, stdout, stderr io.Writer) int {
 
 	threads, _ := res["threads"].([]any)
 	if len(threads) == 0 {
-		fmt.Fprintln(stdout, "inbox empty (no channel messages yet)")
+		if channel != "" {
+			fmt.Fprintf(stdout, "inbox empty (no %s messages yet)\n", channel)
+		} else {
+			fmt.Fprintln(stdout, "inbox empty (no channel messages yet)")
+		}
 		return 0
 	}
 	fmt.Fprintf(stdout, "%d thread(s):\n", len(threads))

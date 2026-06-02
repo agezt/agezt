@@ -60,6 +60,51 @@ func TestInboxGroupsByCorrelation(t *testing.T) {
 	}
 }
 
+func TestInboxFilterByChannel(t *testing.T) {
+	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+
+	// One thread per channel kind, each a single inbound.
+	for kind, id := range map[string]string{"telegram": "42", "slack": "C1", "discord": "D9"} {
+		_, _ = k.Bus().Publish(event.Spec{
+			Subject: "channel.inbound." + kind, Kind: event.KindChannelInbound,
+			Actor: "channel-" + kind, CorrelationID: "corr-" + kind,
+			Payload: map[string]any{"channel_kind": kind, "channel_id": id, "text": "hi from " + kind},
+		})
+	}
+
+	// Unfiltered: all three.
+	res, err := c.Call(context.Background(), controlplane.CmdInbox, nil)
+	if err != nil {
+		t.Fatalf("inbox: %v", err)
+	}
+	if threads, _ := res["threads"].([]any); len(threads) != 3 {
+		t.Fatalf("unfiltered should show 3 threads, got %d", len(threads))
+	}
+
+	// Filtered to discord (case-insensitive): exactly one, the discord thread.
+	res, err = c.Call(context.Background(), controlplane.CmdInbox, map[string]any{"channel": "DISCORD"})
+	if err != nil {
+		t.Fatalf("inbox(channel=discord): %v", err)
+	}
+	if res["channel"] != "discord" {
+		t.Errorf("echoed channel = %v want discord", res["channel"])
+	}
+	threads, _ := res["threads"].([]any)
+	if len(threads) != 1 {
+		t.Fatalf("discord filter should show 1 thread, got %d", len(threads))
+	}
+	th, _ := threads[0].(map[string]any)
+	if th["channel_kind"] != "discord" || th["channel_id"] != "D9" {
+		t.Errorf("wrong thread survived filter: %+v", th)
+	}
+
+	// A channel with no messages → empty.
+	res, _ = c.Call(context.Background(), controlplane.CmdInbox, map[string]any{"channel": "matrix"})
+	if threads, _ := res["threads"].([]any); len(threads) != 0 {
+		t.Errorf("unknown channel filter should be empty, got %d", len(threads))
+	}
+}
+
 func TestInboxNewestFirst(t *testing.T) {
 	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 	for _, id := range []string{"a", "b"} {

@@ -798,10 +798,11 @@ const (
 	// CmdInbox returns the Unified Inbox (SPEC-07 §4): channel.inbound /
 	// channel.outbound events folded into conversation threads grouped by
 	// correlation_id, newest activity first.
-	// Args: limit (optional; default 20, clamped 1..1000).
+	// Args: limit (optional; default 20, clamped 1..1000); channel (optional;
+	// case-insensitive channel-kind filter, e.g. "telegram"|"slack"|"discord").
 	// Returns: { threads: [{correlation_id, channel_kind, channel_id,
 	//            messages:[{direction,sender,text,ts_unix_ms,event_id}],
-	//            last_ts_unix_ms}, ...], count }
+	//            last_ts_unix_ms}, ...], count, channel? }
 	CmdInbox = "inbox"
 )
 

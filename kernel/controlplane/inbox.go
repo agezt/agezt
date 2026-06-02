@@ -13,6 +13,7 @@ import (
 	"encoding/json"
 	"net"
 	"sort"
+	"strings"
 
 	"github.com/agezt/agezt/kernel/event"
 )
@@ -50,6 +51,16 @@ func (s *Server) handleInbox(conn net.Conn, req Request) {
 	}
 	if limit > maxInboxLimit {
 		limit = maxInboxLimit
+	}
+
+	// Optional channel-kind filter (telegram | slack | discord | …). With several
+	// channels live, an operator scoping to one platform shouldn't wade through the
+	// rest. Normalized lowercase; empty means "all channels".
+	channelFilter := ""
+	if raw, ok := req.Args["channel"]; ok {
+		if v, ok := raw.(string); ok {
+			channelFilter = strings.ToLower(strings.TrimSpace(v))
+		}
 	}
 
 	threads := map[string]*inboxThread{}
@@ -105,7 +116,11 @@ func (s *Server) handleInbox(conn net.Conn, req Request) {
 
 	all := make([]*inboxThread, 0, len(order))
 	for _, k := range order {
-		all = append(all, threads[k])
+		th := threads[k]
+		if channelFilter != "" && strings.ToLower(th.ChannelKind) != channelFilter {
+			continue
+		}
+		all = append(all, th)
 	}
 	// Newest activity first; stable tie-break by correlation for determinism.
 	sort.SliceStable(all, func(i, j int) bool {
@@ -122,9 +137,9 @@ func (s *Server) handleInbox(conn net.Conn, req Request) {
 	for _, th := range all {
 		out = append(out, th)
 	}
-	s.writeResp(conn, Response{
-		ID:     req.ID,
-		Type:   RespResult,
-		Result: map[string]any{"threads": out, "count": len(out)},
-	})
+	result := map[string]any{"threads": out, "count": len(out)}
+	if channelFilter != "" {
+		result["channel"] = channelFilter
+	}
+	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: result})
 }

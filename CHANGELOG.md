@@ -12,6 +12,15 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **`agt inbox --channel KIND` filter** (M140, SPEC-07 §4) — with three duplex
+  channels now live (Telegram, Slack, Discord), the Unified Inbox mixes every
+  platform's threads together. `agt inbox --channel discord` (also `--channel=slack`,
+  case-insensitive) scopes the view to one channel kind, applied server-side over the
+  journal fold before the limit so `inbox 5 --channel slack` means "the last 5 Slack
+  threads", not "Slack threads among the last 5". The control-plane `inbox` command
+  gains an optional `channel` arg and echoes the applied filter back; an unmatched
+  filter returns an empty inbox with a kind-specific message. See
+  `.project/PHASE-M140-INBOX-CHANNEL-FILTER-REPORT.md`.
 - **Discord channel** (M139, SPEC-04 §1) — a third first-class duplex channel,
   stdlib-only (`net/http` + `crypto/ed25519`, no SDK, no Gateway WebSocket). Free-form
   Discord messages need the Gateway (a persistent WebSocket → a dependency); instead
