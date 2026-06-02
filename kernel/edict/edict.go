@@ -304,8 +304,28 @@ const RuntimeRulePrefix = "runtime["
 // IsRuntimeRule reports whether name belongs to a rule added at runtime
 // (and is therefore removable via RemoveHardDeny). Built-in and
 // AGEZT_EDICT_DENY rules return false — they are the immutable floor.
+//
+// The match is STRICT: exactly the shape AddHardDeny mints, `runtime[<digits>]`
+// (M174). A bare-prefix check (`runtime[…anything…`) would let a crafted name —
+// `runtime[`, `runtime[evil`, `runtime[]` — masquerade as removable and, should
+// such a name ever reach a floor rule (a refactor, a forged durable event), strip
+// it. Since this prefix is the load-bearing "tighten-but-never-loosen" invariant,
+// it is validated to the full canonical shape, not just the opening bracket.
 func IsRuntimeRule(name string) bool {
-	return strings.HasPrefix(name, RuntimeRulePrefix)
+	rest, ok := strings.CutPrefix(name, RuntimeRulePrefix)
+	if !ok {
+		return false
+	}
+	digits, ok := strings.CutSuffix(rest, "]")
+	if !ok || digits == "" {
+		return false
+	}
+	for _, r := range digits {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 // Levels returns a snapshot of the per-capability trust levels.

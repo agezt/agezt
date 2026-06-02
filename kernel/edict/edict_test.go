@@ -490,3 +490,28 @@ func TestDecide_HardDeny_EvasionVariants(t *testing.T) {
 		t.Errorf(`benign command should be allowed, got %+v`, o)
 	}
 }
+
+// TestIsRuntimeRule_StrictShape — only the canonical runtime[<digits>] shape that
+// AddHardDeny mints is treated as removable; spoofed/malformed names are not (M174).
+func TestIsRuntimeRule_StrictShape(t *testing.T) {
+	runtime := []string{`runtime[0]`, `runtime[7]`, `runtime[123]`}
+	for _, n := range runtime {
+		if !IsRuntimeRule(n) {
+			t.Errorf(`IsRuntimeRule(%q) = false, want true`, n)
+		}
+	}
+	notRuntime := []string{
+		`runtime[`, `runtime[evil`, `runtime[]`, `runtime[5x]`,
+		`runtime[ 5]`, `runtime[5] `, `operator[1]`, `rm-rf-root`, `mkfs`, ``,
+	}
+	for _, n := range notRuntime {
+		if IsRuntimeRule(n) {
+			t.Errorf(`IsRuntimeRule(%q) = true, want false (not a canonical runtime name)`, n)
+		}
+	}
+	// Behavioral: RemoveHardDeny refuses a spoofed runtime-looking name.
+	e := New(Options{})
+	if _, err := e.RemoveHardDeny(`runtime[evil`); err == nil {
+		t.Error(`RemoveHardDeny should reject a malformed runtime name`)
+	}
+}

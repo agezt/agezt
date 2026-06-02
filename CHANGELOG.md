@@ -318,6 +318,14 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   `.project/PHASE-M129-OBSERVABILITY-TENANT-FLAG-REPORT.md`.
 
 ### Fixed
+- **Strict `runtime[<digits>]` validation for removable policy rules (security
+  review follow-up)** (M174) — `IsRuntimeRule` — the load-bearing
+  "tighten-but-never-loosen" invariant that decides which hard-deny rules
+  `agt edict deny rm` may remove — was a bare prefix check, so a crafted name like
+  `runtime[evil` or `runtime[]` passed as "removable." It now validates the full
+  canonical shape `runtime[<digits>]` that `AddHardDeny` actually mints, so a
+  malformed/spoofed name can never masquerade as a runtime rule (defense-in-depth
+  from the M173 Edict review). See `.project/PHASE-M174-EDICT-RUNTIME-RULE-REPORT.md`.
 - **Policy hard-deny floor now matches the decoded action, not raw JSON (security
   review)** (M173) — an adversarial review of the Edict policy engine confirmed its
   core is sound (deny-before-ladder ordering, unknown-capability default-deny,
