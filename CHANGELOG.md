@@ -308,6 +308,19 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   `.project/PHASE-M129-OBSERVABILITY-TENANT-FLAG-REPORT.md`.
 
 ### Fixed
+- **Agent loop panic firewall — a misbehaving provider/tool can no longer crash the
+  daemon (code review)** (M168) — an independent review of the agent tool-loop (the
+  hottest path, just touched by M166) found that a provider returning `(nil, nil)` —
+  a contract violation an out-of-process, third-party plugin can easily commit on an
+  unexpected empty upstream body — dereferenced nil and **panicked the run goroutine,
+  which has no `recover()` → the whole daemon crashed, killing every concurrent
+  run**. Now `Run` guards a nil response (clean error) and wraps the loop in a panic
+  firewall: any panic from a provider or tool is recovered into `ErrPanic`, fails
+  just that one run, and is journaled as `task.failed(reason=panic)` (the message
+  preserved) — blast radius is one run, not the process. The review also confirmed
+  the M166 cost accounting, the once-only `task.failed` emitter, per-tool-timeout
+  context handling, and streaming/non-streaming `resp` consistency are all correct.
+  See `.project/PHASE-M168-AGENT-PANIC-FIREWALL-REPORT.md`.
 - **Per-run override args are type-validated, not silently mis-handled (code review)**
   (M161) — an independent review of the accreted run-submission path
   (`handleRun`, M148–M160) found that every per-run override

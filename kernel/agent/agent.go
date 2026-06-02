@@ -236,6 +236,11 @@ const DefaultMaxIdenticalToolCalls = 5
 // assistant message.
 var ErrMaxIter = errors.New("agent: max iterations exceeded")
 
+// ErrPanic wraps a panic recovered by Run's panic firewall (M168). It lets the
+// run fail cleanly (journaled task.failed, reason=panic) instead of crashing the
+// daemon goroutine. The original panic value rides in the wrapped error text.
+var ErrPanic = errors.New("agent: recovered panic")
+
 // ErrRunBudgetExceeded is returned by Run when a per-run cost cap
 // (LoopConfig.MaxRunCostMicrocents) is reached (M166). Terminal, like ErrMaxIter
 // — the run stops rather than the model adapting. failureReason tags it
@@ -347,6 +352,20 @@ func Run(ctx context.Context, cfg LoopConfig, userIntent string) (answer string,
 		})
 	}()
 
+	// Panic firewall (M168): the loop calls into providers and tools that may be
+	// third-party out-of-process plugins. A panic in any of them would otherwise
+	// unwind through this bare goroutine and crash the WHOLE daemon, killing every
+	// concurrent run. Recover it into a normal error so the blast radius is this
+	// one run: the panic message is captured in runErr (and thus journaled by the
+	// task.failed defer above, which runs AFTER this one — defers are LIFO, and
+	// this is registered last so it sets runErr first). Registered after
+	// task.received so a pre-run validation panic isn't double-counted as a run.
+	defer func() {
+		if r := recover(); r != nil {
+			runErr = fmt.Errorf("%w: %v", ErrPanic, r)
+		}
+	}()
+
 	messages := []Message{
 		{Role: RoleUser, Content: userIntent, Images: cfg.Images},
 	}
@@ -426,6 +445,14 @@ func Run(ctx context.Context, cfg LoopConfig, userIntent string) (answer string,
 				return "", fmt.Errorf("agent: provider %s: %w", cfg.Provider.Name(), err)
 			}
 			resp = r
+		}
+		// A provider must return a non-nil response with a nil error (the Provider
+		// contract). An out-of-process plugin is third-party code that can break
+		// that — e.g. (nil, nil) on an unexpected empty upstream body. Guard it:
+		// every field access below assumes a non-nil resp, and a nil deref here
+		// would panic the run (and, without a recover, the whole daemon).
+		if resp == nil {
+			return "", fmt.Errorf("agent: provider %s returned a nil response without an error", cfg.Provider.Name())
 		}
 
 		// 2c. llm.response
@@ -619,6 +646,7 @@ func Run(ctx context.Context, cfg LoopConfig, userIntent string) (answer string,
 // alongside in "error"). Operators and `agt runs` use the tag to group
 // failures without parsing free-form error text:
 //
+//	panic       — a provider/tool panicked; the firewall recovered it (M168).
 //	max_iters   — the loop exhausted MaxIter without a final answer.
 //	cost_budget — the per-run cost cap (MaxRunCostMicrocents) was reached (M166).
 //	canceled    — the context was cancelled (operator halt / shutdown).
@@ -630,6 +658,8 @@ func Run(ctx context.Context, cfg LoopConfig, userIntent string) (answer string,
 // ctx.Err() fallback covers the bare-return cancellation paths.
 func failureReason(ctx context.Context, err error) string {
 	switch {
+	case errors.Is(err, ErrPanic):
+		return "panic"
 	case errors.Is(err, ErrMaxIter):
 		return "max_iters"
 	case errors.Is(err, ErrRunBudgetExceeded):
