@@ -927,8 +927,12 @@ func (s *Server) handleRun(ctx context.Context, conn net.Conn, req Request) {
 	// same per-request routing the OpenAI-compatible API uses. Empty = the kernel
 	// default. effModel is the model this run will actually use; the capability
 	// gate below must judge it, not the daemon default.
-	modelOverride, _ := req.Args["model"].(string)
-	modelOverride = strings.TrimSpace(modelOverride)
+	modelRaw, _, merr := argString(req.Args, "model")
+	if merr != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: merr.Error()})
+		return
+	}
+	modelOverride := strings.TrimSpace(modelRaw)
 	effModel := k.Model()
 	if modelOverride != "" {
 		effModel = modelOverride
@@ -941,8 +945,12 @@ func (s *Server) handleRun(ctx context.Context, conn net.Conn, req Request) {
 	// active model is confirmed vision-capable (confirmed-or-reject), pre-flight,
 	// before any provider call. Enforced here at the submission boundary so the
 	// agent loop and message type stay untouched.
-	var imageRefs []string
-	if imgs, ok := req.Args["images"].([]any); ok && len(imgs) > 0 {
+	imageRefs, _, ierr := argStringList(req.Args, "images")
+	if ierr != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: ierr.Error()})
+		return
+	}
+	if len(imageRefs) > 0 {
 		var visionOK bool
 		if cat := k.Catalog(); cat != nil {
 			if _, m := cat.FindModel(effModel); m != nil {
@@ -957,7 +965,7 @@ func (s *Server) handleRun(ctx context.Context, conn net.Conn, req Request) {
 				Payload: map[string]any{
 					"model":            effModel,
 					"capability":       "vision",
-					"images_requested": len(imgs),
+					"images_requested": len(imageRefs),
 				},
 			})
 			s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: fmt.Sprintf(
@@ -967,13 +975,6 @@ func (s *Server) handleRun(ctx context.Context, conn net.Conn, req Request) {
 		}
 		// Gate passed (M93): carry the image refs into the run so they reach the
 		// initial user message and, in turn, the provider.
-		for _, v := range imgs {
-			if s, ok := v.(string); ok && s != "" {
-				imageRefs = append(imageRefs, s)
-			}
-		}
-	}
-	if len(imageRefs) > 0 {
 		ctx = runtime.WithImages(ctx, imageRefs)
 	}
 	// Route this run to the override model when given (M148); the loop reads it
@@ -982,56 +983,70 @@ func (s *Server) handleRun(ctx context.Context, conn net.Conn, req Request) {
 		ctx = runtime.WithModel(ctx, modelOverride)
 	}
 	// Per-run system-prompt override (M149): replace the base system prompt for
-	// this run only; memory/world/skill injection still layers on top.
-	if sys, _ := req.Args["system"].(string); strings.TrimSpace(sys) != "" {
-		ctx = runtime.WithSystem(ctx, sys)
+	// this run only; memory/world/skill injection still layers on top. Stored
+	// trimmed so the run, the operator, and the dry-run plan all agree.
+	sysRaw, _, serr := argString(req.Args, "system")
+	if serr != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: serr.Error()})
+		return
+	}
+	systemOverride := strings.TrimSpace(sysRaw)
+	if systemOverride != "" {
+		ctx = runtime.WithSystem(ctx, systemOverride)
 	}
 	// Per-run wall-clock timeout override (M154): bound THIS run without a
 	// daemon-wide cap. Parsed as a Go duration; a malformed value is a usage error.
-	if ts, _ := req.Args["timeout"].(string); strings.TrimSpace(ts) != "" {
-		d, derr := time.ParseDuration(strings.TrimSpace(ts))
-		if derr != nil || d <= 0 {
-			s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: fmt.Sprintf("invalid timeout %q (want a positive Go duration like 30s, 2m)", ts)})
+	timeoutRaw, _, terr := argString(req.Args, "timeout")
+	if terr != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: terr.Error()})
+		return
+	}
+	timeoutRaw = strings.TrimSpace(timeoutRaw)
+	if timeoutRaw != "" {
+		d, perr := time.ParseDuration(timeoutRaw)
+		if perr != nil || d <= 0 {
+			s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: fmt.Sprintf("invalid timeout %q (want a positive Go duration like 30s, 2m)", timeoutRaw)})
 			return
 		}
 		ctx = runtime.WithRunTimeout(ctx, d)
 	}
 	// Per-run tool restriction (M158): a "tools" arg (present, possibly empty)
 	// scopes THIS run to the named tools only — an empty list = no tools at all
-	// (a safe, pure-reasoning run). Absent = unrestricted (all tools).
-	if toolsArg, ok := req.Args["tools"]; ok {
-		allow := []string{}
-		if list, ok := toolsArg.([]any); ok {
-			for _, v := range list {
-				if name, ok := v.(string); ok && strings.TrimSpace(name) != "" {
-					allow = append(allow, strings.TrimSpace(name))
-				}
-			}
-		}
-		ctx = runtime.WithTools(ctx, allow)
+	// (a safe, pure-reasoning run). Absent = unrestricted (all tools). A present
+	// but non-array value is a usage error, NOT silently a zero-tool run.
+	toolsAllow, toolsSet, toerr := argStringList(req.Args, "tools")
+	if toerr != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: toerr.Error()})
+		return
+	}
+	if toolsSet {
+		ctx = runtime.WithTools(ctx, toolsAllow)
 	}
 
 	// Dry-run (M159): resolve exactly what this run WOULD do — effective model
 	// (and its catalog capabilities), the system-prompt source, the effective
 	// wall-clock timeout, and the precise tool set the agent loop would see after
 	// the per-run filter — then return that plan WITHOUT starting the run or
-	// spending a token. Placed after every override is parsed (so the plan
-	// reflects --model/--system/--timeout/--tools and passes the same vision gate),
-	// but before the run is subscribed/started.
-	if dr, _ := req.Args["dry_run"].(bool); dr {
+	// spending a token. Parsed from the SAME locals the real run uses (no
+	// re-reading req.Args), so the plan can never drift from what would execute.
+	// A mistyped dry_run is rejected here rather than silently executing the run.
+	dryRun, _, berr := argBool(req.Args, "dry_run")
+	if berr != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: berr.Error()})
+		return
+	}
+	if dryRun {
 		in := runPlanInput{
 			Intent:          intent,
 			Tenant:          tenantID,
 			Model:           effModel,
 			ModelOverridden: modelOverride != "",
 			SystemSet:       strings.TrimSpace(k.System()) != "",
+			SystemOverride:  systemOverride != "",
+			Timeout:         timeoutRaw,
 			DaemonTimeout:   k.MaxDuration(),
-		}
-		if sys, _ := req.Args["system"].(string); strings.TrimSpace(sys) != "" {
-			in.SystemOverride = true
-		}
-		if ts, _ := req.Args["timeout"].(string); strings.TrimSpace(ts) != "" {
-			in.Timeout = strings.TrimSpace(ts)
+			AllowSet:        toolsSet,
+			Allow:           toolsAllow,
 		}
 		if cat := k.Catalog(); cat != nil {
 			if _, m := cat.FindModel(effModel); m != nil {
@@ -1043,16 +1058,6 @@ func (s *Server) handleRun(ctx context.Context, conn net.Conn, req Request) {
 		}
 		for name := range k.Tools() {
 			in.AllToolNames = append(in.AllToolNames, name)
-		}
-		if toolsArg, ok := req.Args["tools"]; ok {
-			in.AllowSet = true
-			if list, ok := toolsArg.([]any); ok {
-				for _, v := range list {
-					if name, ok := v.(string); ok && strings.TrimSpace(name) != "" {
-						in.Allow = append(in.Allow, strings.TrimSpace(name))
-					}
-				}
-			}
 		}
 		s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: buildRunPlan(in)})
 		return

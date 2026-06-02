@@ -256,6 +256,20 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   `.project/PHASE-M129-OBSERVABILITY-TENANT-FLAG-REPORT.md`.
 
 ### Fixed
+- **Per-run override args are type-validated, not silently mis-handled (code review)**
+  (M161) — an independent review of the accreted run-submission path
+  (`handleRun`, M148–M160) found that every per-run override
+  (`model`/`system`/`timeout`/`tools`/`images`/`dry_run`) used a comma-ok type
+  assertion that collapsed "absent" and "present-but-wrong-type" into the same
+  zero value — turning a client-side typo into silent wrong behavior. The two
+  dangerous cases: a `dry_run` sent as the string `"true"` failed the `bool`
+  assertion and **executed the run for real** (spending tokens) the operator meant
+  only to preview; a `tools` sent as a bare string (not an array) silently scoped
+  the run to **zero tools**. New typed accessors (`argString`/`argBool`/
+  `argStringList`) distinguish absent from wrong-typed and return a usage error for
+  the latter; the override block now parses each arg **once** (reused by both the
+  real run and the dry-run plan, so the plan can't drift), and the `--system`
+  override is stored trimmed. See `.project/PHASE-M161-RUN-ARG-VALIDATION-REPORT.md`.
 - **Journal hardening: torn-line tolerance + rotation resilience (code review)**
   (M157) — a review of the event-sourcing foundation found two real bugs, now fixed:
   - **Torn final-line read (Critical)**: `Range` / `Tail` / `Verify` / recovery used
