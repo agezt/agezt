@@ -12,6 +12,14 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **`agt run` reports what the run cost** (M146) — a finished run now prints a
+  `usage:` line with the model, iteration count, and USD cost
+  (`usage: claude-sonnet-4-6 · 4 iteration(s) · $0.0123`), so an operator sees the
+  price of a run without a follow-up `agt runs show`. The fields (`model`, `iters`,
+  `spent_mc`) are folded from the journal via the same `collectRuns` path `agt runs`
+  uses (so the numbers agree) and added to the run result, so `agt run --json`
+  carries them too. Unpriced runs (e.g. the offline mock) omit the cost. See
+  `.project/PHASE-M146-RUN-USAGE-REPORT.md`.
 - **Multi-turn conversation context for channels** (M144, SPEC-04 §1.4) — an inbound
   chat message used to start a fresh, memory-less run, so "what's the capital of
   France?" → "and Germany?" lost all thread. Now every channel (Telegram/Slack/

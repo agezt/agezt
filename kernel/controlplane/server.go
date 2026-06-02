@@ -1033,14 +1033,24 @@ func (s *Server) handleRun(ctx context.Context, conn net.Conn, req Request) {
 				s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: r.err.Error()})
 				return
 			}
-			s.writeResp(conn, Response{
-				ID:   req.ID,
-				Type: RespResult,
-				Result: map[string]any{
-					"answer":         r.answer,
-					"correlation_id": corr,
-				},
-			})
+			result := map[string]any{
+				"answer":         r.answer,
+				"correlation_id": corr,
+			}
+			// Enrich with this run's cost/iters/model (M146) so `agt run` can report
+			// what the run cost without a second round-trip. Reuses the same journal
+			// fold as `agt runs` (so the numbers agree); best-effort — a fold error or
+			// an unpriced run (mock) just omits the fields.
+			if runs, ferr := s.collectRuns(k); ferr == nil {
+				if e := runs[corr]; e != nil {
+					result["iters"] = e.Iters
+					result["spent_mc"] = e.SpentMicrocents
+					if e.Model != "" {
+						result["model"] = e.Model
+					}
+				}
+			}
+			s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: result})
 			return
 		case <-ctx.Done():
 			return

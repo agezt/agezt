@@ -371,6 +371,21 @@ func cmdRun(args []string, stdout, stderr io.Writer) int {
 	ans, _ := result["answer"].(string)
 	fmt.Fprintf(stdout, "\n--- final answer ---\n%s\n", ans)
 	fmt.Fprintf(stdout, "(correlation_id: %s; use `%s why <event_id>` to walk the chain)\n", corr, brand.CLI)
+	// Usage summary (M146): model · iterations · cost, when the run journaled them
+	// (omitted for an unpriced run such as the offline mock).
+	var bits []string
+	if m, _ := result["model"].(string); m != "" {
+		bits = append(bits, m)
+	}
+	if it := intOfStatus(result["iters"]); it > 0 {
+		bits = append(bits, fmt.Sprintf("%d iteration(s)", it))
+	}
+	if mc := mcFromAny(result["spent_mc"]); mc > 0 {
+		bits = append(bits, fmtUSD(mc))
+	}
+	if len(bits) > 0 {
+		fmt.Fprintf(stdout, "usage: %s\n", strings.Join(bits, " · "))
+	}
 	return 0
 }
 

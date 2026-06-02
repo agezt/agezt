@@ -123,6 +123,27 @@ func TestRun_StreamsEventsAndResult(t *testing.T) {
 	}
 }
 
+// TestRun_ResultCarriesUsage — the run result is enriched with this run's folded
+// usage (M146): at least the iteration count, so `agt run` can report what the run
+// cost without a second round-trip.
+func TestRun_ResultCarriesUsage(t *testing.T) {
+	prov := mock.New(mock.FinalText("done"))
+	_, _, c, _ := startPair(t, prov)
+
+	res, err := c.Stream(context.Background(), controlplane.CmdRun,
+		map[string]any{"intent": "do the thing"}, nil)
+	if err != nil {
+		t.Fatalf("Stream: %v", err)
+	}
+	iters, ok := res["iters"]
+	if !ok {
+		t.Fatalf("run result missing folded usage (iters); got keys %v", res)
+	}
+	if intOf(iters) < 1 {
+		t.Errorf("iters = %v, want >= 1", iters)
+	}
+}
+
 func TestRun_WithToolCalls(t *testing.T) {
 	prov := mock.New(
 		mock.ToolUse("c1", "shell", map[string]string{"command": "echo via-cp"}),
