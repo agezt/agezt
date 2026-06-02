@@ -21,6 +21,7 @@ import (
 // time: which provider handled calls (routing.decision) and when the primary had
 // to fall back (provider.fallback).
 func cmdProviderLog(args []string, stdout, stderr io.Writer) int {
+	tenant, args := extractTenantFlag(args) // M129: a tenant's own provider routing
 	asJSON := false
 	fallbacksOnly := false
 	limit := 0
@@ -52,7 +53,7 @@ func cmdProviderLog(args []string, stdout, stderr io.Writer) int {
 			}
 			sinceMS = d.Milliseconds()
 		case a == "-h" || a == "--help":
-			fmt.Fprintf(stdout, "usage: %s provider log [N] [--fallbacks] [--since <dur>] [--json]\n", brand.CLI)
+			fmt.Fprintf(stdout, "usage: %s provider log [N] [--fallbacks] [--since <dur>] [--tenant <id>] [--json]\n", brand.CLI)
 			fmt.Fprintf(stdout, "show provider-routing activity (which provider handled calls, when it fell back)\n")
 			fmt.Fprintf(stdout, "  --fallbacks   only provider fallbacks (primary errored)\n")
 			fmt.Fprintf(stdout, "  --since <dur> only activity in the last <dur>\n")
@@ -83,7 +84,7 @@ func cmdProviderLog(args []string, stdout, stderr io.Writer) int {
 	if sinceMS > 0 {
 		callArgs["since_ms"] = sinceMS
 	}
-	res, err := c.Call(ctx, controlplane.CmdProviderLog, callArgs)
+	res, err := c.Call(ctx, controlplane.CmdProviderLog, withTenant(tenant, callArgs))
 	if err != nil {
 		fmt.Fprintf(stderr, "%s provider log: %v\n", brand.CLI, err)
 		return 1
@@ -141,6 +142,7 @@ func cmdProviderLog(args []string, stdout, stderr io.Writer) int {
 // (M90) — provider-routing reliability: routed calls, fallback rate,
 // calls-by-primary, fallbacks-by-failed-provider.
 func cmdProviderStats(args []string, stdout, stderr io.Writer) int {
+	tenant, args := extractTenantFlag(args) // M129: a tenant's own provider stats
 	asJSON := false
 	sinceMS := int64(0)
 	sinceLabel := ""
@@ -171,7 +173,7 @@ func cmdProviderStats(args []string, stdout, stderr io.Writer) int {
 			sinceMS = d.Milliseconds()
 			sinceLabel = d.String()
 		case a == "-h" || a == "--help":
-			fmt.Fprintf(stdout, "usage: %s provider stats [--since <dur>] [--json]\n", brand.CLI)
+			fmt.Fprintf(stdout, "usage: %s provider stats [--since <dur>] [--tenant <id>] [--json]\n", brand.CLI)
 			fmt.Fprintf(stdout, "aggregate provider routing: routed calls, fallback rate, calls-by-primary\n")
 			return 0
 		default:
@@ -190,7 +192,7 @@ func cmdProviderStats(args []string, stdout, stderr io.Writer) int {
 	if sinceMS > 0 {
 		callArgs["since_ms"] = sinceMS
 	}
-	res, err := c.Call(ctx, controlplane.CmdProviderStats, callArgs)
+	res, err := c.Call(ctx, controlplane.CmdProviderStats, withTenant(tenant, callArgs))
 	if err != nil {
 		fmt.Fprintf(stderr, "%s provider stats: %v\n", brand.CLI, err)
 		return 1
@@ -241,6 +243,7 @@ func cmdProviderStats(args []string, stdout, stderr io.Writer) int {
 // [--json]` (M92) — the capability-gating audit: requests blocked because the
 // model lacked a capability (tool_call/vision), and down-route remaps.
 func cmdProviderRejections(args []string, stdout, stderr io.Writer) int {
+	tenant, args := extractTenantFlag(args) // M129: a tenant's own capability rejections
 	asJSON := false
 	limit := 0
 	sinceMS := int64(0)
@@ -269,7 +272,7 @@ func cmdProviderRejections(args []string, stdout, stderr io.Writer) int {
 			}
 			sinceMS = d.Milliseconds()
 		case a == "-h" || a == "--help":
-			fmt.Fprintf(stdout, "usage: %s provider rejections [N] [--since <dur>] [--json]\n", brand.CLI)
+			fmt.Fprintf(stdout, "usage: %s provider rejections [N] [--since <dur>] [--tenant <id>] [--json]\n", brand.CLI)
 			fmt.Fprintf(stdout, "show capability-gating events: requests rejected (tool_call/vision) or rerouted\n")
 			return 0
 		default:
@@ -295,7 +298,7 @@ func cmdProviderRejections(args []string, stdout, stderr io.Writer) int {
 	if sinceMS > 0 {
 		callArgs["since_ms"] = sinceMS
 	}
-	res, err := c.Call(ctx, controlplane.CmdProviderRejections, callArgs)
+	res, err := c.Call(ctx, controlplane.CmdProviderRejections, withTenant(tenant, callArgs))
 	if err != nil {
 		fmt.Fprintf(stderr, "%s provider rejections: %v\n", brand.CLI, err)
 		return 1

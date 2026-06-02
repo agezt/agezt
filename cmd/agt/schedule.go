@@ -671,6 +671,7 @@ func cmdScheduleList(args []string, stdout, stderr io.Writer) int {
 // joined server-side from the schedule.fired events and the run outcomes (M54).
 // Drill into any firing with `agt runs show <correlation>`.
 func cmdScheduleFires(args []string, stdout, stderr io.Writer) int {
+	tenant, args := extractTenantFlag(args) // M129: a tenant's own schedule firings
 	asJSON := false
 	limit := 0
 	id := ""
@@ -731,7 +732,7 @@ func cmdScheduleFires(args []string, stdout, stderr io.Writer) int {
 		case strings.HasPrefix(a, "--status="):
 			status = strings.TrimPrefix(a, "--status=")
 		case a == "-h" || a == "--help":
-			fmt.Fprintf(stdout, "usage: %s schedule fires [N] [--id <sched>] [--status <s>|--failed] [--since <dur>] [--json]\n", brand.CLI)
+			fmt.Fprintf(stdout, "usage: %s schedule fires [N] [--id <sched>] [--status <s>|--failed] [--since <dur>] [--tenant <id>] [--json]\n", brand.CLI)
 			fmt.Fprintf(stdout, "show recent scheduled-run firings and their outcomes (status, duration, spend)\n")
 			fmt.Fprintf(stdout, "  --id <sched>   only this schedule's firings\n")
 			fmt.Fprintf(stdout, "  --status <s>   only firings with this status (completed|failed|running|abandoned)\n")
@@ -771,7 +772,7 @@ func cmdScheduleFires(args []string, stdout, stderr io.Writer) int {
 	if sinceMS > 0 {
 		callArgs["since_ms"] = sinceMS // M65: time window
 	}
-	res, err := c.Call(ctx, controlplane.CmdScheduleFires, callArgs)
+	res, err := c.Call(ctx, controlplane.CmdScheduleFires, withTenant(tenant, callArgs))
 	if err != nil {
 		fmt.Fprintf(stderr, "%s schedule fires: %v\n", brand.CLI, err)
 		return 1
@@ -820,6 +821,7 @@ func cmdScheduleFires(args []string, stdout, stderr io.Writer) int {
 // [--json]` — the autonomy analogue of `agt runs stats`, aggregating scheduled
 // firings: counts, success rate, and total spend (M57).
 func cmdScheduleStats(args []string, stdout, stderr io.Writer) int {
+	tenant, args := extractTenantFlag(args) // M129: a tenant's own schedule stats
 	asJSON := false
 	id := ""
 	sinceMS := int64(0)
@@ -860,7 +862,7 @@ func cmdScheduleStats(args []string, stdout, stderr io.Writer) int {
 			sinceMS = d.Milliseconds()
 			sinceLabel = d.String()
 		case a == "-h" || a == "--help":
-			fmt.Fprintf(stdout, "usage: %s schedule stats [--id <sched>] [--since <dur>] [--json]\n", brand.CLI)
+			fmt.Fprintf(stdout, "usage: %s schedule stats [--id <sched>] [--since <dur>] [--tenant <id>] [--json]\n", brand.CLI)
 			fmt.Fprintf(stdout, "aggregate scheduled-firing health: counts, success rate, total spend\n")
 			return 0
 		default:
@@ -882,7 +884,7 @@ func cmdScheduleStats(args []string, stdout, stderr io.Writer) int {
 	if sinceMS > 0 {
 		callArgs["since_ms"] = sinceMS
 	}
-	res, err := c.Call(ctx, controlplane.CmdScheduleStats, callArgs)
+	res, err := c.Call(ctx, controlplane.CmdScheduleStats, withTenant(tenant, callArgs))
 	if err != nil {
 		fmt.Fprintf(stderr, "%s schedule stats: %v\n", brand.CLI, err)
 		return 1

@@ -11,6 +11,14 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 
 ## [Unreleased]
 
+### Added
+- **`--tenant` on the observability CLIs** (M129) — `agt memory log`, `world log`,
+  `approvals log|stats`, `plan history|stats`, `provider log|stats|rejections`,
+  `schedule fires|stats`, and `warden log|stats` now accept `--tenant <id>`, so an
+  operator can inspect any tenant's own isolated subsystems and a tenant can read
+  its own via the CLI. The client half of the M128 daemon grant. See
+  `.project/PHASE-M129-OBSERVABILITY-TENANT-FLAG-REPORT.md`.
+
 ### Fixed
 - **Tenant self-observability authorization** (M128) — a tenant token was wrongly
   denied read-only access to its OWN isolated subsystems. Many tenant-routed

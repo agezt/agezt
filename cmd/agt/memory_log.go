@@ -19,6 +19,7 @@ import (
 // superseded). `memory list` shows the current records; this shows the history
 // of how they came to be: what the agent learned, forgot, and replaced.
 func cmdMemoryLog(args []string, stdout, stderr io.Writer) int {
+	tenant, args := extractTenantFlag(args) // M129: inspect a tenant's own memory
 	asJSON := false
 	limit := 0
 	op := ""
@@ -57,7 +58,7 @@ func cmdMemoryLog(args []string, stdout, stderr io.Writer) int {
 			}
 			sinceMS = d.Milliseconds()
 		case a == "-h" || a == "--help":
-			fmt.Fprintf(stdout, "usage: %s memory log [N] [--op written|forgotten|superseded] [--since <dur>] [--json]\n", brand.CLI)
+			fmt.Fprintf(stdout, "usage: %s memory log [N] [--op written|forgotten|superseded] [--since <dur>] [--tenant <id>] [--json]\n", brand.CLI)
 			fmt.Fprintf(stdout, "show the memory-operation timeline (what the agent learned, forgot, replaced)\n")
 			return 0
 		default:
@@ -86,7 +87,7 @@ func cmdMemoryLog(args []string, stdout, stderr io.Writer) int {
 	if sinceMS > 0 {
 		callArgs["since_ms"] = sinceMS
 	}
-	res, err := c.Call(ctx, controlplane.CmdMemoryLog, callArgs)
+	res, err := c.Call(ctx, controlplane.CmdMemoryLog, withTenant(tenant, callArgs))
 	if err != nil {
 		fmt.Fprintf(stderr, "%s memory log: %v\n", brand.CLI, err)
 		return 1

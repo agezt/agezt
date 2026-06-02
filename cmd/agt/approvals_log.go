@@ -20,6 +20,7 @@ import (
 // requests; this shows the HISTORY: what was asked, how it resolved, and who
 // decided. The human analogue of `agt edict log`.
 func cmdApprovalsLog(args []string, stdout, stderr io.Writer) int {
+	tenant, args := extractTenantFlag(args) // M129: inspect a tenant's own approvals
 	asJSON := false
 	deniedOnly := false
 	limit := 0
@@ -51,7 +52,7 @@ func cmdApprovalsLog(args []string, stdout, stderr io.Writer) int {
 			}
 			sinceMS = d.Milliseconds()
 		case a == "-h" || a == "--help":
-			fmt.Fprintf(stdout, "usage: %s approvals log [N] [--denied] [--since <dur>] [--json]\n", brand.CLI)
+			fmt.Fprintf(stdout, "usage: %s approvals log [N] [--denied] [--since <dur>] [--tenant <id>] [--json]\n", brand.CLI)
 			fmt.Fprintf(stdout, "show the HITL approval audit (requested → granted/denied/timeout, who decided)\n")
 			fmt.Fprintf(stdout, "  --denied      only denials and timeouts\n")
 			fmt.Fprintf(stdout, "  --since <dur> only approvals in the last <dur>\n")
@@ -82,7 +83,7 @@ func cmdApprovalsLog(args []string, stdout, stderr io.Writer) int {
 	if sinceMS > 0 {
 		callArgs["since_ms"] = sinceMS
 	}
-	res, err := c.Call(ctx, controlplane.CmdApprovalsLog, callArgs)
+	res, err := c.Call(ctx, controlplane.CmdApprovalsLog, withTenant(tenant, callArgs))
 	if err != nil {
 		fmt.Fprintf(stderr, "%s approvals log: %v\n", brand.CLI, err)
 		return 1
@@ -126,6 +127,7 @@ func cmdApprovalsLog(args []string, stdout, stderr io.Writer) int {
 // (M88) — the HITL approval aggregate (grant rate, denied-by-capability), the
 // human analogue of `agt edict stats`.
 func cmdApprovalsStats(args []string, stdout, stderr io.Writer) int {
+	tenant, args := extractTenantFlag(args) // M129: a tenant's own approval stats
 	asJSON := false
 	sinceMS := int64(0)
 	sinceLabel := ""
@@ -156,7 +158,7 @@ func cmdApprovalsStats(args []string, stdout, stderr io.Writer) int {
 			sinceMS = d.Milliseconds()
 			sinceLabel = d.String()
 		case a == "-h" || a == "--help":
-			fmt.Fprintf(stdout, "usage: %s approvals stats [--since <dur>] [--json]\n", brand.CLI)
+			fmt.Fprintf(stdout, "usage: %s approvals stats [--since <dur>] [--tenant <id>] [--json]\n", brand.CLI)
 			fmt.Fprintf(stdout, "aggregate HITL approvals: granted/denied/timeout, grant rate, denied-by-capability\n")
 			return 0
 		default:
@@ -175,7 +177,7 @@ func cmdApprovalsStats(args []string, stdout, stderr io.Writer) int {
 	if sinceMS > 0 {
 		callArgs["since_ms"] = sinceMS
 	}
-	res, err := c.Call(ctx, controlplane.CmdApprovalsStats, callArgs)
+	res, err := c.Call(ctx, controlplane.CmdApprovalsStats, withTenant(tenant, callArgs))
 	if err != nil {
 		fmt.Fprintf(stderr, "%s approvals stats: %v\n", brand.CLI, err)
 		return 1

@@ -20,6 +20,7 @@ import (
 // relations the agent observed, reinforced, and forgot. The world-model analogue
 // of `agt memory log`.
 func cmdWorldLog(args []string, stdout, stderr io.Writer) int {
+	tenant, args := extractTenantFlag(args) // M129: inspect a tenant's own world model
 	asJSON := false
 	limit := 0
 	kind := ""
@@ -58,7 +59,7 @@ func cmdWorldLog(args []string, stdout, stderr io.Writer) int {
 			}
 			sinceMS = d.Milliseconds()
 		case a == "-h" || a == "--help":
-			fmt.Fprintf(stdout, "usage: %s world log [N] [--kind entity|relation] [--since <dur>] [--json]\n", brand.CLI)
+			fmt.Fprintf(stdout, "usage: %s world log [N] [--kind entity|relation] [--since <dur>] [--tenant <id>] [--json]\n", brand.CLI)
 			fmt.Fprintf(stdout, "show the world-model operation timeline (entities/relations observed, reinforced, forgotten)\n")
 			return 0
 		default:
@@ -87,7 +88,7 @@ func cmdWorldLog(args []string, stdout, stderr io.Writer) int {
 	if sinceMS > 0 {
 		callArgs["since_ms"] = sinceMS
 	}
-	res, err := c.Call(ctx, controlplane.CmdWorldLog, callArgs)
+	res, err := c.Call(ctx, controlplane.CmdWorldLog, withTenant(tenant, callArgs))
 	if err != nil {
 		fmt.Fprintf(stderr, "%s world log: %v\n", brand.CLI, err)
 		return 1

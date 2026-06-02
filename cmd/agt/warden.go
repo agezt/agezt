@@ -38,6 +38,7 @@ func cmdWarden(args []string, stdout, stderr io.Writer) int {
 // [--json]` (M96) — the sandboxed-execution audit: what the OS warden ran, under
 // which profile, and whether it had to downgrade isolation or hit a limit.
 func cmdWardenLog(args []string, stdout, stderr io.Writer) int {
+	tenant, args := extractTenantFlag(args) // M129: a tenant's own sandbox audit
 	asJSON := false
 	issuesOnly := false
 	limit := 0
@@ -69,7 +70,7 @@ func cmdWardenLog(args []string, stdout, stderr io.Writer) int {
 			}
 			sinceMS = d.Milliseconds()
 		case a == "-h" || a == "--help":
-			fmt.Fprintf(stdout, "usage: %s warden log [N] [--issues] [--since <dur>] [--json]\n", brand.CLI)
+			fmt.Fprintf(stdout, "usage: %s warden log [N] [--issues] [--since <dur>] [--tenant <id>] [--json]\n", brand.CLI)
 			fmt.Fprintf(stdout, "show sandboxed executions (profile, exit, duration) + downgrades/limit breaches\n")
 			fmt.Fprintf(stdout, "  --issues      only profile downgrades and limit breaches\n")
 			fmt.Fprintf(stdout, "  --since <dur> only events in the last <dur>\n")
@@ -100,7 +101,7 @@ func cmdWardenLog(args []string, stdout, stderr io.Writer) int {
 	if sinceMS > 0 {
 		callArgs["since_ms"] = sinceMS
 	}
-	res, err := c.Call(ctx, controlplane.CmdWardenLog, callArgs)
+	res, err := c.Call(ctx, controlplane.CmdWardenLog, withTenant(tenant, callArgs))
 	if err != nil {
 		fmt.Fprintf(stderr, "%s warden log: %v\n", brand.CLI, err)
 		return 1
@@ -159,6 +160,7 @@ func cmdWardenLog(args []string, stdout, stderr io.Writer) int {
 // sandbox posture: how many executions, how often the warden had to downgrade
 // isolation, time-outs, limit breaches, and a by-effective-profile breakdown.
 func cmdWardenStats(args []string, stdout, stderr io.Writer) int {
+	tenant, args := extractTenantFlag(args) // M129: a tenant's own sandbox stats
 	asJSON := false
 	sinceMS := int64(0)
 	sinceLabel := ""
@@ -189,7 +191,7 @@ func cmdWardenStats(args []string, stdout, stderr io.Writer) int {
 			sinceMS = d.Milliseconds()
 			sinceLabel = d.String()
 		case a == "-h" || a == "--help":
-			fmt.Fprintf(stdout, "usage: %s warden stats [--since <dur>] [--json]\n", brand.CLI)
+			fmt.Fprintf(stdout, "usage: %s warden stats [--since <dur>] [--tenant <id>] [--json]\n", brand.CLI)
 			fmt.Fprintf(stdout, "aggregate sandbox posture: executions, downgrade rate, timeouts, limit breaches, by profile\n")
 			return 0
 		default:
@@ -208,7 +210,7 @@ func cmdWardenStats(args []string, stdout, stderr io.Writer) int {
 	if sinceMS > 0 {
 		callArgs["since_ms"] = sinceMS
 	}
-	res, err := c.Call(ctx, controlplane.CmdWardenStats, callArgs)
+	res, err := c.Call(ctx, controlplane.CmdWardenStats, withTenant(tenant, callArgs))
 	if err != nil {
 		fmt.Fprintf(stderr, "%s warden stats: %v\n", brand.CLI, err)
 		return 1

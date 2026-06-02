@@ -19,6 +19,7 @@ import (
 // it never shows in `agt runs list`; this lists those executions newest-first.
 // Drill into one with `agt runs show <correlation>` (M82).
 func cmdPlanHistory(args []string, stdout, stderr io.Writer) int {
+	tenant, args := extractTenantFlag(args) // M129: a tenant's own plan executions
 	asJSON := false
 	limit := 0
 	status := ""
@@ -37,7 +38,7 @@ func cmdPlanHistory(args []string, stdout, stderr io.Writer) int {
 			i++
 			status = args[i]
 		case a == "-h" || a == "--help":
-			fmt.Fprintf(stdout, "usage: %s plan history [N] [--status <s>|--failed] [--json]\n", brand.CLI)
+			fmt.Fprintf(stdout, "usage: %s plan history [N] [--status <s>|--failed] [--tenant <id>] [--json]\n", brand.CLI)
 			fmt.Fprintf(stdout, "list recent plan executions (name, status, nodes, duration), newest first\n")
 			fmt.Fprintf(stdout, "  --status <s>  only plans with this status (completed|failed|running)\n")
 			fmt.Fprintf(stdout, "  --failed      shorthand for --status failed\n")
@@ -66,7 +67,7 @@ func cmdPlanHistory(args []string, stdout, stderr io.Writer) int {
 	if status != "" {
 		callArgs["status"] = status
 	}
-	res, err := c.Call(ctx, controlplane.CmdPlanHistory, callArgs)
+	res, err := c.Call(ctx, controlplane.CmdPlanHistory, withTenant(tenant, callArgs))
 	if err != nil {
 		fmt.Fprintf(stderr, "%s plan history: %v\n", brand.CLI, err)
 		return 1
@@ -113,13 +114,14 @@ func cmdPlanHistory(args []string, stdout, stderr io.Writer) int {
 // `agt runs stats` (M84): aggregate plan-execution health (counts, success
 // rate, duration distribution).
 func cmdPlanStats(args []string, stdout, stderr io.Writer) int {
+	tenant, args := extractTenantFlag(args) // M129: a tenant's own plan stats
 	asJSON := false
 	for _, a := range args {
 		switch a {
 		case "--json":
 			asJSON = true
 		case "-h", "--help":
-			fmt.Fprintf(stdout, "usage: %s plan stats [--json]\n", brand.CLI)
+			fmt.Fprintf(stdout, "usage: %s plan stats [--tenant <id>] [--json]\n", brand.CLI)
 			fmt.Fprintf(stdout, "aggregate plan-execution health: total / completed / failed / running,\n")
 			fmt.Fprintf(stdout, "success rate, and plan-duration avg/min/p50/p95/max\n")
 			return 0
@@ -135,7 +137,7 @@ func cmdPlanStats(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdPlanStats, nil)
+	res, err := c.Call(ctx, controlplane.CmdPlanStats, withTenant(tenant, nil))
 	if err != nil {
 		fmt.Fprintf(stderr, "%s plan stats: %v\n", brand.CLI, err)
 		return 1
