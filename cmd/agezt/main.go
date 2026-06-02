@@ -1205,6 +1205,15 @@ func buildRESTAPI(ctx context.Context, k *kernelruntime.Kernel, reg *tenant.Regi
 		return ""
 	}
 	rest := restapi.New(kernelAPIEngine{k}, k.Bus(), token, brand.Version)
+	// Readiness probe (M134): /readyz reports not-ready while the daemon is
+	// halted, so a load balancer / k8s readiness probe pulls it from rotation
+	// without the process dying. Liveness (/healthz) stays up regardless.
+	rest.SetReadiness(func() (bool, string) {
+		if k.IsHalted() {
+			return false, "halted"
+		}
+		return true, ""
+	})
 	if reg != nil {
 		// Tenant routing: an X-Agezt-Tenant header serves the request from that
 		// tenant's isolated kernel + bus (opened on demand).

@@ -72,6 +72,12 @@ type Server struct {
 	// tenantAuth, when set, validates a per-tenant token against the tenant named
 	// in the X-Agezt-Tenant header. Nil means only the admin token authorizes.
 	tenantAuth TenantAuthorizer
+
+	// readiness, when set, reports whether the daemon can serve work right now
+	// (e.g. not halted) for the unauthenticated /readyz probe. Nil → always ready
+	// (the server answering at all proves liveness). Injected by the daemon so
+	// this package needs no kernel halt-state coupling.
+	readiness func() (ready bool, reason string)
 }
 
 // New builds a Server. token gates every request; bus drives streaming;
@@ -89,6 +95,11 @@ func (s *Server) SetTenantResolver(r TenantResolver) { s.resolve = r }
 // instead of the daemon admin token. The admin token still authorizes any tenant.
 func (s *Server) SetTenantAuthorizer(a TenantAuthorizer) { s.tenantAuth = a }
 
+// SetReadiness injects the readiness probe behind the unauthenticated /readyz
+// endpoint: it returns (false, reason) when the daemon can't serve work (e.g.
+// halted). When unset, /readyz reports ready.
+func (s *Server) SetReadiness(fn func() (ready bool, reason string)) { s.readiness = fn }
+
 // bind resolves the Engine + bus for a request: the per-tenant pair when an
 // X-Agezt-Tenant header is present and a resolver is configured, else the
 // primary engine/bus.
@@ -100,14 +111,56 @@ func (s *Server) bind(r *http.Request) (Engine, *bus.Bus, error) {
 	return s.resolve(tenant)
 }
 
-// Handler builds the mux; every route is token-authed.
+// Handler builds the mux. The /api/v1/* routes are token-authed; the /healthz
+// and /readyz probes are intentionally UNAUTHENTICATED so deployment tooling
+// (systemd watchdog, container/k8s liveness+readiness probes, load balancers,
+// uptime monitors) can check the daemon without a credential. They expose only
+// liveness/readiness — never version, model, or any run data (that stays behind
+// the authed /api/v1/health).
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
+	mux.HandleFunc("/healthz", s.handleLive)
+	mux.HandleFunc("/readyz", s.handleReady)
 	mux.HandleFunc("/api/v1/health", s.auth(s.handleHealth))
 	mux.HandleFunc("/api/v1/models", s.auth(s.handleModels))
 	mux.HandleFunc("/api/v1/runs", s.auth(s.handleRunsRoot))
 	mux.HandleFunc("/api/v1/runs/", s.auth(s.handleRunByID))
 	return mux
+}
+
+// --- GET /healthz (unauthenticated liveness) ---
+//
+// 200 as long as the HTTP server can answer — i.e. the process is alive and
+// serving. No kernel state, no sensitive fields. HEAD is supported for monitors
+// that probe with it.
+func (s *Server) handleLive(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
+		methodNotAllowed(w, http.MethodGet)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"status": "ok"})
+}
+
+// --- GET /readyz (unauthenticated readiness) ---
+//
+// 200 {"status":"ready"} when the daemon can serve work; 503
+// {"status":"not_ready","reason":...} otherwise (e.g. halted), so a load
+// balancer / readiness probe pulls it out of rotation while it's halted but the
+// process stays live.
+func (s *Server) handleReady(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
+		methodNotAllowed(w, http.MethodGet)
+		return
+	}
+	ready, reason := true, ""
+	if s.readiness != nil {
+		ready, reason = s.readiness()
+	}
+	if ready {
+		writeJSON(w, http.StatusOK, map[string]any{"status": "ready"})
+		return
+	}
+	writeJSON(w, http.StatusServiceUnavailable, map[string]any{"status": "not_ready", "reason": reason})
 }
 
 func (s *Server) auth(next http.HandlerFunc) http.HandlerFunc {

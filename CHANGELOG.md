@@ -12,6 +12,14 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Unauthenticated `/healthz` + `/readyz` probes** (M134, SPEC-14 §9) — the REST
+  API now serves deployment-grade health endpoints with no token, so systemd
+  watchdogs, container/k8s liveness+readiness probes, load balancers, and uptime
+  monitors can check the daemon. `/healthz` is liveness (200 while the process
+  serves). `/readyz` is readiness — 200 when serving, **503 while halted** (a load
+  balancer pulls it from rotation without the process dying). They expose only
+  liveness/readiness; version/model stay behind the authed `/api/v1/health`. See
+  `.project/PHASE-M134-HEALTH-PROBES-REPORT.md`.
 - **`agt changelog` — the system timeline** (M133, SPEC-08 §4.2) — a curated,
   tamper-evident fold of the journal showing only MATERIAL changes to the system
   (halt/resume, policy changes, skill lifecycle, reflection, catalog/provider sync,
