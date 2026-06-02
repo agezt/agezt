@@ -318,6 +318,17 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   `.project/PHASE-M129-OBSERVABILITY-TENANT-FLAG-REPORT.md`.
 
 ### Fixed
+- **mcpbridge bounds reads from untrusted MCP servers — no OOM via a flooding server**
+  (M185) — both MCP transports read newline-delimited frames from a peer the bridge
+  doesn't control (a spawned MCP server's stdout; a remote SSE event-stream) with a
+  plain `bufio` `ReadBytes`/`ReadString`, which grows without limit until a newline or
+  EOF. A hostile or buggy server that writes bytes but never emits `\n` (or one huge
+  line) OOM-kills the bridge process — the same class as the plugin-host C1 (M177), one
+  trust boundary out. Reads now go through a bounded `readBoundedLine` capped at 16 MiB;
+  the SSE transport additionally bounds the accumulated multi-line event `data` so a
+  server can't grow it without a dispatching blank line. Over-cap frames tear the
+  transport down (`onTransportDead`) instead of exhausting memory. See
+  `.project/PHASE-M185-MCPBRIDGE-FRAME-BOUND-REPORT.md`.
 - **Plugin teardown kills the whole process group — no orphaned grandchildren
   (security review MEDIUM)** (M184) — `Close` killed only the direct child, so any
   process a plugin forked (a shell wrapper, a Python subprocess) survived as an orphan

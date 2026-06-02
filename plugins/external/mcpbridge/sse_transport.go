@@ -181,16 +181,21 @@ func (t *sseTransport) readLoop(ctx context.Context) {
 	}
 
 	br := bufio.NewReader(resp.Body)
+	maxFrame := maxMCPFrameBytes // capture once (race-free vs test override)
 	var eventType, dataBuf string
 	for {
-		line, err := br.ReadString('\n')
+		// Bounded read (M185): the SSE body comes from an untrusted
+		// remote server; an unterminated or huge line must tear the
+		// stream down, not OOM the bridge.
+		lineBytes, err := readBoundedLine(br, maxFrame)
 		if err != nil {
-			// EOF or canceled context — both are normal terminations.
+			// EOF, canceled context, or an over-size frame — all
+			// terminate the stream.
 			t.signalEndpoint(fmt.Errorf("sse mcp: stream ended before endpoint event: %w", err))
 			t.deliver.onTransportDead(fmt.Errorf("sse stream ended: %w", err))
 			return
 		}
-		line = strings.TrimRight(line, "\r\n")
+		line := strings.TrimRight(string(lineBytes), "\r\n")
 		// Blank line dispatches the accumulated event.
 		if line == "" {
 			if dataBuf != "" {
@@ -216,6 +221,15 @@ func (t *sseTransport) readLoop(ctx context.Context) {
 		case "event":
 			eventType = value
 		case "data":
+			// Bound the accumulated event data (M185): a server that
+			// streams endless `data:` lines without a dispatching blank
+			// line would otherwise grow dataBuf without limit even though
+			// each individual line is under the per-line cap.
+			if len(dataBuf)+len(value)+1 > maxFrame {
+				t.signalEndpoint(errMCPFrameTooLarge)
+				t.deliver.onTransportDead(errMCPFrameTooLarge)
+				return
+			}
 			if dataBuf == "" {
 				dataBuf = value
 			} else {

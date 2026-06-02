@@ -75,8 +75,11 @@ func (t *stdioTransport) send(req jsonrpcReq) error {
 // readLoop pulls one Response per line and dispatches to deliver.
 // Runs until EOF or a fatal stdio error, then signals death once.
 func (t *stdioTransport) readLoop() {
+	maxFrame := maxMCPFrameBytes // capture once (race-free vs test override)
 	for {
-		line, err := t.stdout.ReadBytes('\n')
+		// Bounded read (M185): a hostile/buggy MCP server must not be
+		// able to OOM the bridge with an unterminated or huge frame.
+		line, err := readBoundedLine(t.stdout, maxFrame)
 		if err != nil {
 			t.deliver.onTransportDead(fmt.Errorf("read mcp stdout: %w", err))
 			return
