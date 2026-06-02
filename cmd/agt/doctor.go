@@ -407,11 +407,11 @@ func diskCheckFromStats(res map[string]any) doctorCheck {
 	detail := fmt.Sprintf("journal %s; disk %.0f%% free (%s)", humanBytes(journal), pct, humanBytes(free))
 	if pct < diskCritPct {
 		return fail(name, detail,
-			"disk almost full — the append-only journal will soon fail to write; free space now (archive with `agt journal export`, then prune)")
+			"disk almost full — the append-only journal will soon fail to write; archive with `agt backup` and move to a larger disk (the journal is full-retention; see `agt journal stats`)")
 	}
 	if pct < diskWarnPct {
 		return warn(name, detail,
-			"disk low and the journal only grows — archive a window with `agt journal export` and free space before it fills")
+			"disk low and the journal only grows (full retention) — archive with `agt backup` and plan a larger disk; `agt journal stats` shows what's filling it")
 	}
 	return ok(name, detail)
 }

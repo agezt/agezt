@@ -58,7 +58,7 @@ func cmdDisk(args []string, stdout, stderr io.Writer) int {
 		pct, _ := res["disk_free_pct"].(float64)
 		fmt.Fprintf(stdout, "disk     : %s free of %s (%.1f%%)\n", humanBytes(free), humanBytes(total), pct)
 		if pct < diskWarnPct {
-			fmt.Fprintf(stdout, "  ⚠ low free space — the journal grows append-only; archive with `%s journal export` and free space\n", brand.CLI)
+			fmt.Fprintf(stdout, "  ⚠ low free space — the journal grows append-only (full retention); archive with `%s backup` and plan a larger disk (`%s journal stats` shows what's filling it)\n", brand.CLI, brand.CLI)
 		}
 	} else {
 		fmt.Fprintf(stdout, "disk     : free space unavailable\n")

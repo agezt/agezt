@@ -433,8 +433,10 @@ func cmdJournal(args []string, stdout, stderr io.Writer) int {
 		return cmdJournalExport(args[1:], stdout, stderr)
 	case "import":
 		return cmdJournalImport(args[1:], stdout, stderr)
+	case "stats":
+		return cmdJournalStats(args[1:], stdout, stderr)
 	default:
-		fmt.Fprintf(stderr, "%s journal: unknown subcommand %q (verify|tail|grep|head|export|import)\n", brand.CLI, args[0])
+		fmt.Fprintf(stderr, "%s journal: unknown subcommand %q (verify|tail|grep|head|export|import|stats)\n", brand.CLI, args[0])
 		return 2
 	}
 }

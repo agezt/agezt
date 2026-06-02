@@ -660,6 +660,14 @@ const (
 	// CmdTenantToken reveals an existing tenant's per-tenant credential.
 	// Args: id (required). Returns: { id, token }
 	CmdTenantToken = "tenant_token"
+	// CmdJournalStats folds the journal into size/shape stats (M132): total event
+	// count, segment count, bytes on disk, a per-event-kind breakdown, and the
+	// oldest/newest event timestamps (the journal's time span). The journal is
+	// append-only and full-retention, so this answers "how big is it and WHAT is
+	// filling it" — the input to an archival decision. Returns: { events,
+	// segments, bytes, by_kind, oldest_unix_ms, newest_unix_ms }.
+	CmdJournalStats = "journal_stats"
+
 	// CmdDiskStats reports the daemon's journal size on disk and the free/total
 	// bytes of the filesystem it lives on (M131) — the data behind `agt disk` and
 	// the doctor disk-space check. The journal is append-only, so a full disk is

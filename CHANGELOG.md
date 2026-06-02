@@ -12,6 +12,14 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **`agt journal stats`** (M132) — the journal's size and shape: total events,
+  segment count, on-disk bytes, the time span it covers, and a per-event-kind
+  breakdown so an operator sees WHAT is filling it (neither `agt disk` nor `status`
+  showed this). The journal is append-only / full-retention (projections rebuild
+  from it on boot, so it isn't pruned in place); the disk-pressure remedy across
+  `agt disk` / `doctor` now correctly points at `agt backup` + a larger disk
+  instead of an unsafe in-place prune. See `.project/PHASE-M132-JOURNAL-STATS-REPORT.md`.
+
 - **Disk-space observability: `agt disk` + a doctor check** (M131) — the journal is
   append-only and never shrinks, so on a small host (the $5-VPS deploy target) a
   full disk is the classic silent outage: writes start failing and the daemon
