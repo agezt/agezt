@@ -279,6 +279,41 @@ func TestTopFailingWebhook(t *testing.T) {
 	}
 }
 
+func TestCheckExposure(t *testing.T) {
+	mk := func(servers ...map[string]any) map[string]any {
+		arr := make([]any, len(servers))
+		for i, s := range servers {
+			arr[i] = s
+		}
+		return map[string]any{"http_servers": arr}
+	}
+
+	// A non-loopback server → WARN, naming it.
+	w := checkExposure(mk(
+		map[string]any{"name": "rest api", "addr": "0.0.0.0:8800", "loopback": false},
+		map[string]any{"name": "web ui", "addr": "127.0.0.1:8787", "loopback": true},
+	))
+	if w.Status != statusWarn {
+		t.Errorf("exposed: status = %v want WARN", w.State)
+	}
+	if !strings.Contains(w.Detail, "rest api") || strings.Contains(w.Detail, "web ui") {
+		t.Errorf("detail should name only the exposed server: %q", w.Detail)
+	}
+
+	// All loopback → OK.
+	good := checkExposure(mk(
+		map[string]any{"name": "rest api", "addr": "127.0.0.1:8800", "loopback": true},
+	))
+	if good.Status != statusOK {
+		t.Errorf("all-loopback: status = %v want OK", good.State)
+	}
+
+	// No HTTP servers → OK.
+	if none := checkExposure(map[string]any{}); none.Status != statusOK {
+		t.Errorf("no servers: status = %v want OK", none.State)
+	}
+}
+
 func TestDiskCheckFromStats(t *testing.T) {
 	// Plenty free → OK.
 	good := diskCheckFromStats(map[string]any{

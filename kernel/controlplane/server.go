@@ -66,7 +66,24 @@ type Server struct {
 	// so this package never imports kernel/pulse — the same decoupling as
 	// SetPulse). Nil when not wired; the disk handler reports it as unavailable.
 	diskFree DiskFreeFunc
+
+	// httpBindings lists the daemon's network-exposed HTTP servers (web UI, REST
+	// API, OpenAI API) with whether each is loopback-bound, injected by the daemon
+	// via SetHTTPBindings. `agt status` surfaces them and the doctor exposure check
+	// (M137) warns on any non-loopback bind. Empty when no HTTP server is enabled.
+	httpBindings []HTTPBinding
 }
+
+// HTTPBinding describes one network-exposed HTTP server for the exposure check.
+type HTTPBinding struct {
+	Name     string // "web ui" | "rest api" | "openai api"
+	Addr     string // host:port the operator configured
+	Loopback bool   // true when bound to localhost only
+}
+
+// SetHTTPBindings records the daemon's enabled HTTP servers so `agt status` and
+// `agt doctor` can report whether any is reachable beyond localhost.
+func (s *Server) SetHTTPBindings(b []HTTPBinding) { s.httpBindings = b }
 
 // DiskFreeFunc returns the free (available) and total bytes for the filesystem
 // containing path (M131). The daemon injects a real implementation

@@ -671,6 +671,24 @@ func runDaemon(stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "  rest api         : disabled (set AGEZT_REST_ADDR, e.g. 127.0.0.1:8800)\n")
 	}
 
+	// Record the network-exposed HTTP servers (M137) so `agt status` and the
+	// doctor exposure check can flag a non-loopback bind — the agent reachable
+	// beyond localhost, gated only by a token. Built from the configured addrs;
+	// the per-server boot banner already warns once, this makes it persistent.
+	var httpBindings []controlplane.HTTPBinding
+	for _, b := range []struct{ name, env string }{
+		{"web ui", "WEB_ADDR"},
+		{"rest api", "REST_ADDR"},
+		{"openai api", "API_ADDR"},
+	} {
+		if addr := strings.TrimSpace(os.Getenv(brand.EnvPrefix + b.env)); addr != "" {
+			httpBindings = append(httpBindings, controlplane.HTTPBinding{
+				Name: b.name, Addr: addr, Loopback: isLoopback(addr),
+			})
+		}
+	}
+	srv.SetHTTPBindings(httpBindings)
+
 	// Scheduled intents (autonomy) — fire operator-configured intents on a timer
 	// through the governed loop. Runs on the daemon ctx (halt/shutdown stop it).
 	// Off unless AGEZT_SCHEDULE is set.

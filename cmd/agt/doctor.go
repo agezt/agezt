@@ -155,6 +155,7 @@ func runDoctorChecks() []doctorCheck {
 	checks = append(checks, checkCatalog(ctx, client))
 	checks = append(checks, checkWebhooks(ctx, client))
 	checks = append(checks, checkDisk(ctx, client))
+	checks = append(checks, checkExposure(status))
 	checks = append(checks, checkHalt(status))
 
 	return checks
@@ -428,6 +429,35 @@ func humanBytes(n int64) string {
 		exp++
 	}
 	return fmt.Sprintf("%.1f %cB", float64(n)/float64(div), "KMGTPE"[exp])
+}
+
+// checkExposure warns when a network-exposed HTTP server (web UI / REST / OpenAI
+// API) is bound beyond loopback (M137). Those surfaces drive the full agent loop
+// — shell/file/http tools — gated only by a bearer token, so a non-loopback bind
+// puts the agent on the network. The per-server boot banner warns once; this
+// makes it a persistent line in the go-to diagnostic. Reads the status snapshot,
+// so no extra round-trip. An all-loopback (or no-HTTP) daemon is an OK.
+func checkExposure(status map[string]any) doctorCheck {
+	const name = "network exposure"
+	servers, _ := status["http_servers"].([]any)
+	if len(servers) == 0 {
+		return ok(name, "no HTTP servers exposed (control plane is loopback-only)")
+	}
+	var exposed []string
+	for _, raw := range servers {
+		m, _ := raw.(map[string]any)
+		if lb, _ := m["loopback"].(bool); !lb {
+			n, _ := m["name"].(string)
+			a, _ := m["addr"].(string)
+			exposed = append(exposed, fmt.Sprintf("%s (%s)", n, a))
+		}
+	}
+	if len(exposed) > 0 {
+		return warn(name,
+			fmt.Sprintf("%d HTTP server(s) reachable beyond localhost: %s", len(exposed), strings.Join(exposed, ", ")),
+			"the agent (shell/file/http tools) is exposed to the network, gated only by a token — bind to 127.0.0.1 and front it with a TLS reverse proxy, or restrict with a firewall")
+	}
+	return ok(name, fmt.Sprintf("%d HTTP server(s), all loopback-bound", len(servers)))
 }
 
 // checkModelReadiness reports whether the daemon's configured model is fit

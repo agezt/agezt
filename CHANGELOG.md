@@ -12,6 +12,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Network-exposure check in `agt doctor` + `agt status`** (M137) — the web UI /
+  REST / OpenAI HTTP servers drive the full agent loop (shell/file/http tools) gated
+  only by a token, so a non-loopback bind puts the agent on the network. The daemon
+  warned once at boot; now `agt status` reports each HTTP server's bind + loopback
+  state, and `agt doctor` WARNs persistently when any is reachable beyond localhost,
+  naming it with the remediation. See `.project/PHASE-M137-EXPOSURE-CHECK-REPORT.md`.
 - **Graceful shutdown drain** (M136, SPEC-08 §3.1) — on `agt shutdown` / SIGTERM the
   daemon now flips `/readyz` to not-ready (`"draining"`) FIRST, so a load balancer /
   k8s readiness probe stops routing new traffic, then waits (bounded by

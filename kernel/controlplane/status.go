@@ -85,6 +85,17 @@ func (s *Server) handleStatus(conn net.Conn, req Request) {
 	if s.tenants != nil {
 		result["tenants"] = s.tenants.Count()
 	}
+	// Network-exposed HTTP servers (M137) — so `agt status` / the doctor exposure
+	// check can flag a non-loopback bind (the agent reachable beyond localhost).
+	if len(s.httpBindings) > 0 {
+		servers := make([]map[string]any, 0, len(s.httpBindings))
+		for _, b := range s.httpBindings {
+			servers = append(servers, map[string]any{
+				"name": b.Name, "addr": b.Addr, "loopback": b.Loopback,
+			})
+		}
+		result["http_servers"] = servers
+	}
 
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: result})
 }
