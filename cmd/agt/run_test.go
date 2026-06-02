@@ -53,6 +53,15 @@ func TestResolveRunIntent_MissingFileErrors(t *testing.T) {
 	}
 }
 
+func TestCmdRun_QuietFlagAccepted(t *testing.T) {
+	// -q is a recognized flag (not an "unexpected arg"): with no daemon the run
+	// fails at dial (exit 1), NOT at arg parsing (exit 2).
+	var out, errOut bytes.Buffer
+	if code := cmdRun([]string{"-q", "hello"}, &out, &errOut); code == 2 {
+		t.Errorf("-q should be accepted, got arg-error exit 2; stderr=%q", errOut.String())
+	}
+}
+
 func TestCmdRun_InvalidTimeout(t *testing.T) {
 	// A malformed --timeout is rejected (exit 2) before any daemon dial.
 	var out, errOut bytes.Buffer

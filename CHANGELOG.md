@@ -12,6 +12,11 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **`agt run --quiet` / `-q`** (M156) — print ONLY the final answer (no per-event
+  lines, no live token stream, no correlation/usage footer), so scripts can
+  `agt run -q --file spec.md > answer.txt` and get clean output. `--json` still
+  takes precedence for machine consumption. See
+  `.project/PHASE-M156-RUN-QUIET-REPORT.md`.
 - **`agt run --timeout <dur>` — per-run wall-clock timeout** (M154) — bound a single
   run (`agt run --timeout 30s "..."`) without setting the daemon-wide
   `AGEZT_RUN_TIMEOUT`. Completes the per-run override family (`--model` / `--system`

@@ -151,7 +151,7 @@ func printHelp(w io.Writer) {
 	fmt.Fprintf(w, "\n")
 	fmt.Fprintf(w, "Commands:\n")
 	fmt.Fprintf(w, "  run \"<intent>\" | run - | run --file <path>   run an intent (read from arg, stdin via -, or a file)\n")
-	fmt.Fprintf(w, "      [--json] [--tenant <id>] [--model <id>] [--system <prompt>] [--timeout <dur>]   per-run overrides; JSON = ndjson stream\n")
+	fmt.Fprintf(w, "      [--json|-q] [--tenant <id>] [--model <id>] [--system <prompt>] [--timeout <dur>]   per-run overrides; -q/--quiet = only the answer; JSON = ndjson stream\n")
 	fmt.Fprintf(w, "  halt [--reason \"...\"] [--json]  freeze all in-flight runs (reason is journaled)\n")
 	fmt.Fprintf(w, "  resume [--reason \"...\"] [--json] clear the halt flag (reason is journaled)\n")
 	fmt.Fprintf(w, "  why <event_id> [--json|--payload]  list events sharing an event's correlation\n")
@@ -289,6 +289,7 @@ func cmdRun(args []string, stdout, stderr io.Writer) int {
 	// or `agt run --json "..."` both compose. --tenant <id> routes the run to
 	// an isolated tenant's kernel (requires the daemon with AGEZT_MULTITENANT=on).
 	asJSON := false
+	quiet := false
 	tenant := ""
 	model := ""
 	system := ""
@@ -301,6 +302,8 @@ func cmdRun(args []string, stdout, stderr io.Writer) int {
 		switch {
 		case a == "--json":
 			asJSON = true
+		case a == "--quiet" || a == "-q":
+			quiet = true
 		case a == "--tenant":
 			if i+1 >= len(args) {
 				fmt.Fprintf(stderr, "%s run: --tenant needs an id\n", brand.CLI)
@@ -434,7 +437,13 @@ func cmdRun(args []string, stdout, stderr io.Writer) int {
 			inStream = false
 		}
 	}
+	// --quiet (M156): suppress the live token stream + per-event lines + the
+	// usage/correlation footer, printing ONLY the final answer — so scripts can
+	// `agt run -q --file spec.md > answer.txt` and get clean output.
 	result, err := c.Stream(ctx, controlplane.CmdRun, runArgs, func(ev *event.Event) {
+		if quiet {
+			return
+		}
 		if ev.Kind == event.KindLLMToken {
 			var p struct {
 				Text string `json:"text"`
@@ -459,6 +468,10 @@ func cmdRun(args []string, stdout, stderr io.Writer) int {
 	}
 	corr, _ := result["correlation_id"].(string)
 	ans, _ := result["answer"].(string)
+	if quiet {
+		fmt.Fprintln(stdout, ans)
+		return 0
+	}
 	fmt.Fprintf(stdout, "\n--- final answer ---\n%s\n", ans)
 	fmt.Fprintf(stdout, "(correlation_id: %s; use `%s why <event_id>` to walk the chain)\n", corr, brand.CLI)
 	// Usage summary (M146): model · iterations · cost, when the run journaled them
