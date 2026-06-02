@@ -314,6 +314,31 @@ func TestCheckExposure(t *testing.T) {
 	}
 }
 
+func TestBudgetCheckFromBudget(t *testing.T) {
+	// No ceiling → OK.
+	if c := budgetCheckFromBudget(map[string]any{"spent_mc": 1.0e9, "ceiling_mc": 0.0}); c.Status != statusOK {
+		t.Errorf("no ceiling: status = %v want OK", c.State)
+	}
+	// Well under → OK. ($5 of $20 = 25%)
+	mc := func(usd float64) float64 { return usd * 100 * 10_000_000 }
+	if c := budgetCheckFromBudget(map[string]any{"spent_mc": mc(5), "ceiling_mc": mc(20)}); c.Status != statusOK {
+		t.Errorf("25%%: status = %v want OK; detail=%q", c.State, c.Detail)
+	}
+	// Near the ceiling (≥90%) → WARN. ($19 of $20 = 95%)
+	near := budgetCheckFromBudget(map[string]any{"spent_mc": mc(19), "ceiling_mc": mc(20)})
+	if near.Status != statusWarn {
+		t.Errorf("95%%: status = %v want WARN", near.State)
+	}
+	if !strings.Contains(near.Detail, "near the daily ceiling") {
+		t.Errorf("95%% detail = %q want 'near the daily ceiling'", near.Detail)
+	}
+	// At/over the ceiling → WARN (reached). ($20 of $20)
+	reached := budgetCheckFromBudget(map[string]any{"spent_mc": mc(20), "ceiling_mc": mc(20)})
+	if reached.Status != statusWarn || !strings.Contains(reached.Detail, "ceiling reached") {
+		t.Errorf("100%%: status=%v detail=%q want WARN + 'ceiling reached'", reached.State, reached.Detail)
+	}
+}
+
 func TestCheckChannels(t *testing.T) {
 	mk := func(chans ...map[string]any) map[string]any {
 		arr := make([]any, len(chans))

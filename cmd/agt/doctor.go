@@ -152,6 +152,7 @@ func runDoctorChecks() []doctorCheck {
 	checks = append(checks, checkSandbox(ctx, client))
 	checks = append(checks, checkProvider(ctx, client))
 	checks = append(checks, checkApprovals(ctx, client))
+	checks = append(checks, checkBudget(ctx, client))
 	checks = append(checks, checkCatalog(ctx, client))
 	checks = append(checks, checkWebhooks(ctx, client))
 	checks = append(checks, checkDisk(ctx, client))
@@ -459,6 +460,44 @@ func checkExposure(status map[string]any) doctorCheck {
 			"the agent (shell/file/http tools) is exposed to the network, gated only by a token — bind to 127.0.0.1 and front it with a TLS reverse proxy, or restrict with a firewall")
 	}
 	return ok(name, fmt.Sprintf("%d HTTP server(s), all loopback-bound", len(servers)))
+}
+
+// budgetWarnPct is the daily-spend fraction (%) at which the doctor starts
+// warning — close enough to the ceiling that runs will soon be blocked.
+const budgetWarnPct = 90.0
+
+// checkBudget warns as the day's spend approaches (or reaches) the global daily
+// ceiling — runs fail terminally (no fallback) once the cap is hit, so an operator
+// wants warning before that, not a confusing "all providers failed" mid-run. Pure
+// logic in budgetCheckFromBudget; a failed/absent budget call is an informational
+// OK (never a false alarm).
+func checkBudget(ctx context.Context, client *controlplane.Client) doctorCheck {
+	res, err := client.Call(ctx, controlplane.CmdBudget, nil)
+	if err != nil {
+		return ok("budget", "unavailable ("+err.Error()+")")
+	}
+	return budgetCheckFromBudget(res)
+}
+
+func budgetCheckFromBudget(res map[string]any) doctorCheck {
+	const name = "budget"
+	spent := mcFromAny(res["spent_mc"])
+	ceiling := mcFromAny(res["ceiling_mc"])
+	if ceiling <= 0 {
+		return ok(name, fmt.Sprintf("%s spent today (no daily ceiling)", fmtUSD(spent)))
+	}
+	used := float64(spent) / float64(ceiling) * 100
+	detail := fmt.Sprintf("%s / %s today (%.0f%%)", fmtUSD(spent), fmtUSD(ceiling), used)
+	switch {
+	case spent >= ceiling:
+		return warn(name, detail+" — daily ceiling reached",
+			"new runs are blocked until the daily spend window resets at UTC midnight")
+	case used >= budgetWarnPct:
+		return warn(name, detail+" — near the daily ceiling",
+			"runs are blocked once the ceiling is hit (resets at UTC midnight); reduce usage to avoid mid-run failures")
+	default:
+		return ok(name, detail)
+	}
 }
 
 // checkChannels warns when a messaging channel (M141 status surface) is

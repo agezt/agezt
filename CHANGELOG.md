@@ -12,6 +12,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Budget-headroom check in `agt doctor`** (M153) — `agt doctor` now reports the
+  day's spend against the daily ceiling and WARNs as it nears (≥90%) or reaches the
+  cap. Once the ceiling is hit, runs fail terminally (no fallback), so an operator
+  wants the heads-up before a confusing mid-run "all providers failed", not after.
+  All-clear shows `$X / $Y today (Z%)`; no ceiling configured is an OK; a failed
+  budget call is an informational OK (never a false alarm). See
+  `.project/PHASE-M153-DOCTOR-BUDGET-REPORT.md`.
 - **Scheduled runs can deliver their answer to a channel** (M152) — with
   `AGEZT_SCHEDULE_NOTIFY=on`, each scheduled intent's answer is pushed to the
   operator's configured channels (Telegram/Slack/Discord allowlists), prefixed with
