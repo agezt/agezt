@@ -12,6 +12,15 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Egress-guard health check in `agt doctor`** (M163) — `agt doctor` now WARNs when
+  the netguard egress guard has refused connections in the last 24h: a
+  `netguard.blocked` event means a tool (http/browser) tried to reach an
+  internal/metadata address (e.g. `169.254.169.254`) and was stopped — a strong
+  SSRF / prompt-injection / exfiltration signal, or a legitimate host that needs
+  allowlisting. The hint names the most recent target (`tool→ip`). It's a WARN, not
+  a FAIL — the guard did its job — and self-clears after 24h of clean operation, so
+  a reviewed historical block doesn't alarm forever. Reuses `CmdNetguardLog` (M109);
+  no control-plane change. See `.project/PHASE-M163-DOCTOR-NETGUARD-REPORT.md`.
 - **Scheduled-run health check in `agt doctor`** (M162) — `agt doctor` now folds
   the autonomy axis into the single-pane diagnostic: it WARNs when an **enabled**
   schedule's most recent firing `failed` or was `abandoned`, naming the schedule in

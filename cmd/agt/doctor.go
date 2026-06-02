@@ -158,6 +158,7 @@ func runDoctorChecks() []doctorCheck {
 	checks = append(checks, checkSchedules(ctx, client))
 	checks = append(checks, checkDisk(ctx, client))
 	checks = append(checks, checkExposure(status))
+	checks = append(checks, checkNetguard(ctx, client))
 	checks = append(checks, checkChannels(status))
 	checks = append(checks, checkHalt(status))
 
@@ -440,6 +441,60 @@ func int64Of(v any) int64 {
 		return int64(f)
 	}
 	return -1
+}
+
+// netguardLookbackMS is the window the doctor netguard check examines (24h). A
+// short window keeps the check actionable and self-clearing: an egress block from
+// last week that's already been reviewed shouldn't WARN forever, but a block in
+// the last day is worth a look right now.
+const netguardLookbackMS = int64(24 * 60 * 60 * 1000)
+
+// checkNetguard warns when the egress guard has refused connections recently
+// (M163). A netguard.blocked event means a tool (http/browser) tried to reach an
+// internal/metadata address (e.g. 169.254.169.254) and was stopped — a strong
+// SSRF / prompt-injection / exfiltration signal, OR a legitimate host that needs
+// allowlisting. Either way the operator should look. This is a WARN, not a FAIL:
+// the guard did its job; the run was protected. Best-effort: the call failing, or
+// no blocks, is an informational OK. Same shape as the webhooks/schedules checks.
+func checkNetguard(ctx context.Context, client *controlplane.Client) doctorCheck {
+	res, err := client.Call(ctx, controlplane.CmdNetguardLog, map[string]any{
+		"since_ms": float64(netguardLookbackMS),
+		"limit":    float64(200),
+	})
+	if err != nil {
+		return ok("netguard", "egress log unavailable (—)")
+	}
+	return netguardCheckFromLog(res)
+}
+
+// netguardCheckFromLog is the pure verdict from a netguard-log response — split out
+// so the logic is testable without a live daemon (M163). Blocks arrive newest-first
+// (the handler sorts by ts desc), so blocks[0] is the most recent — surfaced in the
+// hint so the operator knows what to look at.
+func netguardCheckFromLog(res map[string]any) doctorCheck {
+	const name = "netguard"
+	blocks, _ := res["blocks"].([]any)
+	n := len(blocks)
+	if n == 0 {
+		return ok(name, "no egress blocked in the last 24h")
+	}
+	target := ""
+	if first, _ := blocks[0].(map[string]any); first != nil {
+		ip, _ := first["ip"].(string)
+		tool, _ := first["tool"].(string)
+		switch {
+		case ip != "" && tool != "":
+			target = tool + "→" + ip
+		case ip != "":
+			target = ip
+		}
+	}
+	detail := fmt.Sprintf("%d egress connection(s) blocked in the last 24h", n)
+	hint := "the guard prevented them — review `agt netguard log` (a host to allowlist, or an SSRF/injection attempt)"
+	if target != "" {
+		hint = fmt.Sprintf("most recent: %s — review `agt netguard log` (allowlist a host, or an SSRF/injection attempt)", target)
+	}
+	return warn(name, detail, hint)
 }
 
 // diskWarnPct / diskCritPct are the free-space thresholds for the disk check

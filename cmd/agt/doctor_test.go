@@ -319,6 +319,44 @@ func TestSchedulesCheckFromList(t *testing.T) {
 	}
 }
 
+func TestNetguardCheckFromLog(t *testing.T) {
+	// No blocks → OK.
+	if c := netguardCheckFromLog(map[string]any{"blocks": []any{}, "count": float64(0)}); c.Status != statusOK {
+		t.Errorf("no blocks: status = %v want OK", c.State)
+	}
+	// Missing key → OK (best-effort).
+	if c := netguardCheckFromLog(map[string]any{}); c.Status != statusOK {
+		t.Errorf("missing blocks: status = %v want OK", c.State)
+	}
+
+	// Blocks present → WARN; hint names the most recent target (newest-first).
+	w := netguardCheckFromLog(map[string]any{
+		"blocks": []any{
+			map[string]any{"ts_unix_ms": float64(200), "ip": "169.254.169.254", "tool": "http", "reason": "link-local"},
+			map[string]any{"ts_unix_ms": float64(100), "ip": "10.0.0.5", "tool": "browser.read", "reason": "private"},
+		},
+		"count": float64(2),
+	})
+	if w.Status != statusWarn {
+		t.Fatalf("blocks present: status = %v want WARN", w.State)
+	}
+	if !strings.Contains(w.Detail, "2 egress") {
+		t.Errorf("detail = %q want to mention the count", w.Detail)
+	}
+	if !strings.Contains(w.Hint, "http→169.254.169.254") {
+		t.Errorf("hint = %q want to name the most recent target", w.Hint)
+	}
+
+	// A block with no tool still names the ip.
+	w2 := netguardCheckFromLog(map[string]any{
+		"blocks": []any{map[string]any{"ip": "172.16.0.1"}},
+		"count":  float64(1),
+	})
+	if w2.Status != statusWarn || !strings.Contains(w2.Hint, "172.16.0.1") {
+		t.Errorf("ip-only: status=%v hint=%q want WARN naming the ip", w2.State, w2.Hint)
+	}
+}
+
 func TestTopFailingWebhook(t *testing.T) {
 	got := topFailingWebhook(map[string]any{
 		"u1": map[string]any{"delivered": float64(3), "failed": float64(1)},
