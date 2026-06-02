@@ -85,6 +85,26 @@ func cmdStatus(args []string, stdout, stderr io.Writer) int {
 	fmt.Fprintf(stdout, "  tools     : %d registered\n", toolCount)
 	fmt.Fprintf(stdout, "  journal   : head seq=%d\n", journalHead)
 
+	// Scheduled autonomy (M130): how many intents are armed, and how many enabled.
+	// Quiet when there are none so single-shot operators see no noise.
+	if sched, _ := res["schedules"].(map[string]any); sched != nil {
+		if total := intOfStatus(sched["total"]); total > 0 {
+			fmt.Fprintf(stdout, "  schedules : %d (%d enabled)\n", total, intOfStatus(sched["enabled"]))
+		}
+	}
+	// Tenants (M130) — only present when multi-tenancy is on.
+	if _, ok := res["tenants"]; ok {
+		fmt.Fprintf(stdout, "  tenants   : %d\n", intOfStatus(res["tenants"]))
+	}
+	// Pending HITL approvals (M130) — actionable: the operator is blocking a run.
+	// Always shown so "0 waiting" is explicit, with a nudge when any are pending.
+	pending := intOfStatus(res["pending_approvals"])
+	if pending > 0 {
+		fmt.Fprintf(stdout, "  approvals : %d PENDING — answer with `%s approvals`\n", pending, brand.CLI)
+	} else {
+		fmt.Fprintf(stdout, "  approvals : none pending\n")
+	}
+
 	// Delegation ceilings (M49) — make the M46–M48 governance legible: depth /
 	// fan-out / spend caps in effect, or "off" when the delegate tool is
 	// disabled. 0 fan-out / spend renders as "unbounded".

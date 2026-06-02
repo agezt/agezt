@@ -5,6 +5,7 @@ package controlplane_test
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/agent"
@@ -56,6 +57,60 @@ func TestStatus_ReturnsExpectedShape(t *testing.T) {
 	}
 	if enabled, _ := deleg["enabled"].(bool); enabled {
 		t.Errorf("delegation.enabled = true; want false when the delegate tool is off")
+	}
+
+	// Autonomy + actionable signals (M130): a fresh kernel has no schedules and
+	// no pending approvals, and — with no tenant registry — no tenants field.
+	sched, ok := res["schedules"].(map[string]any)
+	if !ok {
+		t.Fatalf("schedules missing or wrong type: %T", res["schedules"])
+	}
+	if got := intOf(sched["total"]); got != 0 {
+		t.Errorf("schedules.total = %d want 0 on a fresh kernel", got)
+	}
+	if got := intOf(res["pending_approvals"]); got != 0 {
+		t.Errorf("pending_approvals = %d want 0 on a fresh kernel", got)
+	}
+	if _, present := res["tenants"]; present {
+		t.Errorf("tenants field should be absent when multi-tenancy is disabled")
+	}
+}
+
+// TestStatus_SchedulesAndTenants — status reflects armed scheduled intents (M130)
+// and reports a tenant count when a registry is wired.
+func TestStatus_SchedulesAndTenants(t *testing.T) {
+	k, srv, c, dir := startPair(t, mock.New(mock.FinalText("ok")))
+	// Arm two schedules, one paused.
+	now := time.Now()
+	if _, err := k.Schedules().Add("daily report", time.Hour, "", "operator", now); err != nil {
+		t.Fatalf("Add schedule: %v", err)
+	}
+	e2, err := k.Schedules().Add("paused job", time.Hour, "", "operator", now)
+	if err != nil {
+		t.Fatalf("Add schedule 2: %v", err)
+	}
+	if _, err := k.Schedules().SetEnabled(e2.ID, false); err != nil {
+		t.Fatalf("SetEnabled: %v", err)
+	}
+	// Wire a tenant registry with one tenant.
+	reg := withTenants(t, srv, dir)
+	if _, err := reg.Acquire("acme", now); err != nil {
+		t.Fatalf("Acquire: %v", err)
+	}
+
+	res, err := c.Call(context.Background(), controlplane.CmdStatus, nil)
+	if err != nil {
+		t.Fatalf("Call: %v", err)
+	}
+	sched, _ := res["schedules"].(map[string]any)
+	if got := intOf(sched["total"]); got != 2 {
+		t.Errorf("schedules.total = %d want 2", got)
+	}
+	if got := intOf(sched["enabled"]); got != 1 {
+		t.Errorf("schedules.enabled = %d want 1 (one paused)", got)
+	}
+	if got := intOf(res["tenants"]); got != 1 {
+		t.Errorf("tenants = %d want 1", got)
 	}
 }
 

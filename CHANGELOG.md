@@ -12,6 +12,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **`agt status` shows autonomy + actionable signals** (M130) — the at-a-glance
+  dashboard now reports armed scheduled intents (`schedules : N (M enabled)`),
+  pending HITL approvals (`approvals : K PENDING — answer with agt approvals`), and
+  the tenant count when multi-tenancy is on. Scheduled autonomy and a blocking
+  approval queue were previously invisible until something tripped. Cheap in-memory
+  reads; quiet when there's nothing to show. See
+  `.project/PHASE-M130-STATUS-SIGNALS-REPORT.md`.
 - **`--tenant` on the observability CLIs** (M129) — `agt memory log`, `world log`,
   `approvals log|stats`, `plan history|stats`, `provider log|stats|rejections`,
   `schedule fires|stats`, and `warden log|stats` now accept `--tenant <id>`, so an

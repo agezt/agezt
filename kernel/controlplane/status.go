@@ -38,27 +38,53 @@ func (s *Server) handleStatus(conn net.Conn, req Request) {
 	// silent until a delegation tripped one. 0 fan-out / spend = unbounded.
 	dl := s.k.SubAgentLimits()
 
-	s.writeResp(conn, Response{
-		ID:   req.ID,
-		Type: RespResult,
-		Result: map[string]any{
-			"daemon":         brand.Version,
-			"protocol":       brand.ProtocolVersion,
-			"model":          s.k.Model(),
-			"uptime_seconds": uptimeSecs,
-			"halted":         s.k.IsHalted(),
-			"active_runs":    s.k.ActiveRuns(),
-			"tools":          len(s.k.Tools()),
-			"memory_records": s.k.Memory().Count(),
-			"world_entities": s.k.World().Count(),
-			"active_skills":  s.k.Forge().Count(),
-			"journal_head":   headSeq,
-			"delegation": map[string]any{
-				"enabled":              dl.Enabled,
-				"max_depth":            dl.MaxDepth,
-				"max_fanout":           dl.MaxFanout,
-				"max_spend_microcents": dl.MaxSpendMicrocents,
-			},
+	// Autonomy + actionable signals (M130): how many scheduled intents are armed
+	// (and how many enabled), and how many HITL approvals are waiting on the
+	// operator right now. Both are cheap in-memory reads. Scheduled autonomy and
+	// a blocking approval queue were invisible in the at-a-glance status until now.
+	schedTotal, schedEnabled := 0, 0
+	if sched := s.k.Schedules(); sched != nil {
+		for _, e := range sched.List() {
+			schedTotal++
+			if e.Enabled {
+				schedEnabled++
+			}
+		}
+	}
+	pendingApprovals := 0
+	if ap := s.k.Approvals(); ap != nil {
+		pendingApprovals = ap.PendingCount()
+	}
+
+	result := map[string]any{
+		"daemon":         brand.Version,
+		"protocol":       brand.ProtocolVersion,
+		"model":          s.k.Model(),
+		"uptime_seconds": uptimeSecs,
+		"halted":         s.k.IsHalted(),
+		"active_runs":    s.k.ActiveRuns(),
+		"tools":          len(s.k.Tools()),
+		"memory_records": s.k.Memory().Count(),
+		"world_entities": s.k.World().Count(),
+		"active_skills":  s.k.Forge().Count(),
+		"journal_head":   headSeq,
+		"schedules": map[string]any{
+			"total":   schedTotal,
+			"enabled": schedEnabled,
 		},
-	})
+		"pending_approvals": pendingApprovals,
+		"delegation": map[string]any{
+			"enabled":              dl.Enabled,
+			"max_depth":            dl.MaxDepth,
+			"max_fanout":           dl.MaxFanout,
+			"max_spend_microcents": dl.MaxSpendMicrocents,
+		},
+	}
+	// Tenant count only when multi-tenancy is enabled (M130) — a single-tenant
+	// daemon shouldn't show a tenant line at all.
+	if s.tenants != nil {
+		result["tenants"] = s.tenants.Count()
+	}
+
+	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: result})
 }
