@@ -3,10 +3,15 @@
 package controlplane
 
 import (
+	"fmt"
 	"sort"
 	"strings"
 	"time"
 )
+
+// smallContextThreshold mirrors catalog.Model.AgentWarnings: a context window
+// below this is flagged as a risk for long agent runs with memory + tools.
+const smallContextThreshold = 8192
 
 // runPlanInput carries the already-resolved primitives for a run, so buildRunPlan
 // can stay pure (no kernel/catalog handles) and table-testable. handleRun fills it
@@ -19,6 +24,7 @@ type runPlanInput struct {
 	ModelKnown      bool   // catalog knows the effective model
 	SupportsVision  bool   // catalog cap (meaningful only when ModelKnown)
 	SupportsTools   bool   // catalog tool_call cap (meaningful only when ModelKnown)
+	ContextLimit    int    // model's context window in tokens (0 = unknown)
 	SystemSet       bool   // a daemon-default system prompt is configured
 	SystemOverride  bool   // a per-run --system was given
 	Timeout         string // per-run timeout (raw, validated); "" if none
@@ -96,6 +102,32 @@ func buildRunPlan(in runPlanInput) map[string]any {
 		effective = []string{}
 	}
 
+	// Advisories (M160): preventive warnings a dry-run can surface before any
+	// token is spent. The point is to catch a run that resolves cleanly but would
+	// misbehave or be rejected at execution time.
+	var warnings []string
+	if !in.ModelKnown {
+		warnings = append(warnings, fmt.Sprintf(
+			"model %q is not in the catalog — its capabilities (vision, tool-use, "+
+				"context window) are unverified; a run may fail in ways a dry-run can't predict",
+			in.Model))
+	} else {
+		// Tool-use mismatch matters only when tools are actually enabled for this
+		// run — with --no-tools the model never needs to call anything.
+		if !in.SupportsTools && len(effective) > 0 {
+			warnings = append(warnings, fmt.Sprintf(
+				"model %q does not advertise tool-use (tool_call=false), but %d tool(s) are "+
+					"enabled — calls may be ignored; under AGEZT_MODEL_STRICT=on this run would "+
+					"be rejected before any provider call (see `agt provider check --caps`)",
+				in.Model, len(effective)))
+		}
+		if in.ContextLimit > 0 && in.ContextLimit < smallContextThreshold {
+			warnings = append(warnings, fmt.Sprintf(
+				"model %q has a small context window (%d tokens) — long runs with memory/tools "+
+					"may overflow it", in.Model, in.ContextLimit))
+		}
+	}
+
 	plan := map[string]any{
 		"dry_run":       true,
 		"intent":        in.Intent,
@@ -114,6 +146,9 @@ func buildRunPlan(in runPlanInput) map[string]any {
 	}
 	if len(dropped) > 0 {
 		plan["tools_dropped"] = dropped
+	}
+	if len(warnings) > 0 {
+		plan["warnings"] = warnings
 	}
 	return plan
 }

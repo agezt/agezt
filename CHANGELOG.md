@@ -12,6 +12,15 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **`agt run --dry-run` advisories** (M160) — the dry-run plan now carries a
+  `warnings` list of preventive advisories a run would otherwise hit only at
+  execution time: an effective model that isn't in the catalog (capabilities
+  unverified); a `tool_call=false` model with tools enabled (calls may be ignored,
+  and under `AGEZT_MODEL_STRICT=on` the run would be rejected pre-flight) — surfaced
+  only when tools are actually enabled, so `--no-tools` stays quiet; and a small
+  context window (<8192 tokens). Human output gains a `warnings:` section; `--json`
+  gains a `warnings` array (omitted when empty). See
+  `.project/PHASE-M160-DRY-RUN-ADVISORIES-REPORT.md`.
 - **`agt run --dry-run` — resolve the run plan without executing** (M159) — print
   exactly what a run WOULD do (effective model + its catalog capabilities, the
   system-prompt source, the effective wall-clock timeout, and the precise tool set

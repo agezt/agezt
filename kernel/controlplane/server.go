@@ -1038,6 +1038,7 @@ func (s *Server) handleRun(ctx context.Context, conn net.Conn, req Request) {
 				in.ModelKnown = true
 				in.SupportsVision = m.SupportsVision()
 				in.SupportsTools = m.ToolCall
+				in.ContextLimit = m.Limit.Context
 			}
 		}
 		for name := range k.Tools() {

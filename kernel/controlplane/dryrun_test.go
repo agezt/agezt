@@ -4,6 +4,7 @@ package controlplane
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 )
@@ -106,4 +107,72 @@ func TestBuildRunPlan_Sources(t *testing.T) {
 	if p["system_source"] != "daemon default" {
 		t.Errorf("system_source = %v, want daemon default", p["system_source"])
 	}
+}
+
+func warningsOf(p map[string]any) []string {
+	w, _ := p["warnings"].([]string)
+	return w
+}
+
+func hasWarningContaining(p map[string]any, substr string) bool {
+	for _, w := range warningsOf(p) {
+		if strings.Contains(w, substr) {
+			return true
+		}
+	}
+	return false
+}
+
+func TestBuildRunPlan_Warnings(t *testing.T) {
+	all := []string{"shell", "file"}
+
+	t.Run("unknown model warns", func(t *testing.T) {
+		p := buildRunPlan(runPlanInput{Model: "mystery", AllToolNames: all})
+		if !hasWarningContaining(p, "not in the catalog") {
+			t.Errorf("want unknown-model warning, got %v", warningsOf(p))
+		}
+	})
+
+	t.Run("tool_call=false with tools enabled warns", func(t *testing.T) {
+		p := buildRunPlan(runPlanInput{
+			Model: "notools", ModelKnown: true, SupportsTools: false, ContextLimit: 200000,
+			AllToolNames: all, // unrestricted → tools effective
+		})
+		if !hasWarningContaining(p, "does not advertise tool-use") {
+			t.Errorf("want tool-use warning, got %v", warningsOf(p))
+		}
+		if !hasWarningContaining(p, "AGEZT_MODEL_STRICT") {
+			t.Errorf("tool-use warning should mention strict mode, got %v", warningsOf(p))
+		}
+	})
+
+	t.Run("tool_call=false with --no-tools does NOT warn", func(t *testing.T) {
+		p := buildRunPlan(runPlanInput{
+			Model: "notools", ModelKnown: true, SupportsTools: false, ContextLimit: 200000,
+			AllToolNames: all, AllowSet: true, Allow: []string{}, // --no-tools
+		})
+		if hasWarningContaining(p, "does not advertise tool-use") {
+			t.Errorf("no tools enabled — should not warn about tool-use, got %v", warningsOf(p))
+		}
+	})
+
+	t.Run("small context warns", func(t *testing.T) {
+		p := buildRunPlan(runPlanInput{
+			Model: "tiny", ModelKnown: true, SupportsTools: true, ContextLimit: 4096,
+			AllToolNames: all,
+		})
+		if !hasWarningContaining(p, "small context window") {
+			t.Errorf("want small-context warning, got %v", warningsOf(p))
+		}
+	})
+
+	t.Run("healthy known model: no warnings, key omitted", func(t *testing.T) {
+		p := buildRunPlan(runPlanInput{
+			Model: "good", ModelKnown: true, SupportsTools: true, ContextLimit: 200000,
+			AllToolNames: all,
+		})
+		if _, ok := p["warnings"]; ok {
+			t.Errorf("healthy model should omit warnings key, got %v", p["warnings"])
+		}
+	})
 }

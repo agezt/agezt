@@ -623,6 +623,12 @@ func runDryRunMode(ctx context.Context, c *controlplane.Client, runArgs map[stri
 	if dropped := toStringSlice(plan["tools_dropped"]); len(dropped) > 0 {
 		fmt.Fprintf(stdout, "  tools dropped : %s (requested but not registered)\n", strings.Join(dropped, ", "))
 	}
+	if warns := toStringSlice(plan["warnings"]); len(warns) > 0 {
+		fmt.Fprintf(stdout, "\nwarnings:\n")
+		for _, w := range warns {
+			fmt.Fprintf(stdout, "  ! %s\n", w)
+		}
+	}
 	fmt.Fprintf(stdout, "\n(no run started, no tokens spent — drop --dry-run to execute)\n")
 	return 0
 }
