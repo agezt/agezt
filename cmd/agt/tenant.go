@@ -26,6 +26,8 @@ func cmdTenant(args []string, stdout, stderr io.Writer) int {
 		return cmdTenantByID(args[1:], stdout, stderr, "create", controlplane.CmdTenantCreate)
 	case "list", "ls":
 		return cmdTenantList(args[1:], stdout, stderr)
+	case "stats":
+		return cmdTenantStats(args[1:], stdout, stderr)
 	case "token":
 		return cmdTenantByID(args[1:], stdout, stderr, "token", controlplane.CmdTenantToken)
 	case "release", "close":
@@ -36,6 +38,7 @@ func cmdTenant(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "usage: %s tenant <subcommand>\n", brand.CLI)
 		fmt.Fprintf(stdout, "  create <id> [--json]    create / open an isolated tenant (prints its token)\n")
 		fmt.Fprintf(stdout, "  list [--json]           list tenants (id, open state, base dir)\n")
+		fmt.Fprintf(stdout, "  stats [--json]          per-tenant run count / spend / last activity (primary token)\n")
 		fmt.Fprintf(stdout, "  token <id> [--json]     reveal a tenant's per-tenant credential\n")
 		fmt.Fprintf(stdout, "  release <id> [--json]   close a tenant's kernel, keep its state on disk\n")
 		fmt.Fprintf(stdout, "  rm <id> [--json]        delete a tenant and ALL its state (destructive)\n")
@@ -92,6 +95,78 @@ func cmdTenantList(args []string, stdout, stderr io.Writer) int {
 		}
 		fmt.Fprintf(stdout, "  %-24s [%s]  %s\n", id, state, baseDir)
 	}
+	return 0
+}
+
+// cmdTenantStats implements `agt tenant stats [--json]` (M126) — the cross-tenant
+// usage view: per-tenant run count / completed / failed / active / spend / last
+// activity, plus grand totals, so the primary operator can see which tenant is
+// busy, spending, or failing. Requires the primary token (a tenant sees only its
+// own runs via `agt runs stats --tenant <id>`).
+func cmdTenantStats(args []string, stdout, stderr io.Writer) int {
+	asJSON := false
+	for _, a := range args {
+		switch a {
+		case "--json":
+			asJSON = true
+		case "-h", "--help":
+			fmt.Fprintf(stdout, "usage: %s tenant stats [--json]\n", brand.CLI)
+			fmt.Fprintf(stdout, "per-tenant run count, spend, and last activity across all tenants (primary token)\n")
+			return 0
+		default:
+			fmt.Fprintf(stderr, "%s tenant stats: unexpected arg %q\n", brand.CLI, a)
+			return 2
+		}
+	}
+	c := dial(stderr)
+	if c == nil {
+		return 1
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	res, err := c.Call(ctx, controlplane.CmdTenantStats, nil)
+	if err != nil {
+		fmt.Fprintf(stderr, "%s tenant stats: %v\n", brand.CLI, err)
+		return 1
+	}
+	if asJSON {
+		return encodeJSON(stdout, res)
+	}
+	rows, _ := res["tenants"].([]any)
+	if len(rows) == 0 {
+		fmt.Fprintf(stdout, "no tenants. Create one with `%s tenant create <id>`.\n", brand.CLI)
+		return 0
+	}
+	for _, raw := range rows {
+		m, _ := raw.(map[string]any)
+		id, _ := m["id"].(string)
+		if errMsg, _ := m["error"].(string); errMsg != "" {
+			fmt.Fprintf(stdout, "  %-24s [error: %s]\n", id, errMsg)
+			continue
+		}
+		runs := intOfStatus(m["runs"])
+		completed := intOfStatus(m["completed"])
+		failed := intOfStatus(m["failed"])
+		active := intOfStatus(m["active"])
+		spent := mcFromAny(m["spent_microcents"])
+		last := "—"
+		if ms := intOfStatus(m["last_activity_unix_ms"]); ms > 0 {
+			last = time.UnixMilli(int64(ms)).Format("2006-01-02 15:04")
+		}
+		line := fmt.Sprintf("  %-24s %d run(s)  (%d ok, %d failed, %d active)  last: %s",
+			id, runs, completed, failed, active, last)
+		if spent > 0 {
+			line += "  spend: " + fmtUSD(spent)
+		}
+		fmt.Fprintln(stdout, line)
+	}
+	totalRuns := intOfStatus(res["total_runs"])
+	totalSpent := mcFromAny(res["total_spent_microcents"])
+	footer := fmt.Sprintf("\n%d tenant(s), %d run(s) total", len(rows), totalRuns)
+	if totalSpent > 0 {
+		footer += ", " + fmtUSD(totalSpent) + " spent"
+	}
+	fmt.Fprintln(stdout, footer)
 	return 0
 }
 

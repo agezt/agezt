@@ -12,6 +12,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **`agt tenant stats`** (M126) — a cross-tenant usage view: per-tenant run count /
+  completed / failed / active / spend / last activity, plus grand totals, so the
+  primary operator can see which tenant is busy, spending, or failing (multitenancy
+  could create/list/remove tenants but offered no usage view). Folds each tenant's
+  own journal with the same `collectRuns` as `agt runs`; a tenant that was closed is
+  re-released afterward, so the read-only query leaves residency unchanged. Primary
+  token only. See `.project/PHASE-M126-TENANT-STATS-REPORT.md`.
 - **Cost-band filter for `agt runs list`** (M125) — `--min-cost <usd>` /
   `--max-cost <usd>` keep only runs whose spend falls in the band, so an operator
   can find "which runs blew the budget?" / "the expensive runs to optimize" after

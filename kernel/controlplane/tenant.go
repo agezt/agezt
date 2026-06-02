@@ -172,3 +172,89 @@ func (s *Server) handleTenantRemove(conn net.Conn, req Request) {
 	}
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"removed": removed}})
 }
+
+// handleTenantStats aggregates each tenant's own run activity into a cross-tenant
+// usage view (M126) — the primary operator can create/list/remove tenants but
+// otherwise has no way to see which tenant is active, spending, or failing. For
+// each tenant on disk it acquires the kernel (opening it on demand, as any
+// tenant-routed command does) and folds that tenant's journal with the same
+// collectRuns used by `agt runs`. A tenant that was CLOSED before the call is
+// released again afterward, so a read-only stats query doesn't silently leave
+// every tenant resident. Per-tenant failures (a corrupt journal) are reported in
+// that tenant's row rather than failing the whole command. Primary token only.
+func (s *Server) handleTenantStats(conn net.Conn, req Request) {
+	if s.tenants == nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "multi-tenancy is disabled (no tenant registry configured)"})
+		return
+	}
+	infos, err := s.tenants.List()
+	if err != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		return
+	}
+
+	rows := make([]map[string]any, 0, len(infos))
+	var totalRuns int
+	var totalSpent int64
+	for _, info := range infos {
+		k, err := s.kernelFor(info.ID)
+		if err != nil {
+			rows = append(rows, map[string]any{"id": info.ID, "error": err.Error()})
+			continue
+		}
+		runs, err := s.collectRuns(k)
+		if err != nil {
+			rows = append(rows, map[string]any{"id": info.ID, "error": err.Error()})
+			if !info.Open {
+				_, _ = s.tenants.Release(info.ID)
+			}
+			continue
+		}
+		var total, completed, failed, active int
+		var spent, lastMS int64
+		for _, r := range runs {
+			total++
+			spent += r.SpentMicrocents
+			for _, ts := range []int64{r.StartedUnixMS, r.CompletedUnixMS, r.FailedUnixMS} {
+				if ts > lastMS {
+					lastMS = ts
+				}
+			}
+			switch {
+			case r.Completed:
+				completed++
+			case r.Failed:
+				failed++
+			default:
+				active++ // running or abandoned
+			}
+		}
+		rows = append(rows, map[string]any{
+			"id":                    info.ID,
+			"runs":                  total,
+			"completed":             completed,
+			"failed":                failed,
+			"active":                active,
+			"spent_microcents":      spent,
+			"last_activity_unix_ms": lastMS,
+		})
+		totalRuns += total
+		totalSpent += spent
+		// Restore prior residency: a stats query shouldn't leave a tenant that
+		// was closed loaded in memory.
+		if !info.Open {
+			_, _ = s.tenants.Release(info.ID)
+		}
+	}
+
+	s.writeResp(conn, Response{
+		ID:   req.ID,
+		Type: RespResult,
+		Result: map[string]any{
+			"tenants":                rows,
+			"count":                  len(rows),
+			"total_runs":             totalRuns,
+			"total_spent_microcents": totalSpent,
+		},
+	})
+}

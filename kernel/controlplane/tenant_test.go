@@ -171,10 +171,72 @@ func TestTenantDisabledWithoutRegistry(t *testing.T) {
 	for _, cmd := range []string{
 		controlplane.CmdTenantCreate, controlplane.CmdTenantList,
 		controlplane.CmdTenantRelease, controlplane.CmdTenantRemove,
-		controlplane.CmdTenantToken,
+		controlplane.CmdTenantToken, controlplane.CmdTenantStats,
 	} {
 		if _, err := c.Call(ctx, cmd, map[string]any{"id": "alpha"}); err == nil {
 			t.Errorf("%s should error when multi-tenancy is disabled", cmd)
 		}
+	}
+}
+
+// TestTenantStats_AggregatesPerTenant — `tenant stats` folds each tenant's own
+// journal into a per-tenant run count (M126). alpha runs 1 task, beta runs 2;
+// the response attributes them correctly and the grand total is 3.
+func TestTenantStats_AggregatesPerTenant(t *testing.T) {
+	_, srv, c, _ := startPair(t, mock.New(mock.FinalText("primary")))
+	regRoot := t.TempDir()
+	reg, err := tenant.New(regRoot, func(id, baseDir string) (io.Closer, error) {
+		p := mock.New()
+		// Responder answers every request, so a tenant can run multiple tasks
+		// without exhausting a one-shot scripted response.
+		p.Responder = func(agent.CompletionRequest) agent.CompletionResponse {
+			return mock.FinalText("tenant-" + id)
+		}
+		return runtime.Open(runtime.Config{
+			BaseDir:  baseDir,
+			Provider: p,
+			Tools:    map[string]agent.Tool{},
+		})
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { reg.CloseAll() })
+	srv.SetTenants(reg)
+	ctx := context.Background()
+
+	run := func(tenantID, intent string) {
+		t.Helper()
+		if _, err := c.Stream(ctx, controlplane.CmdRun,
+			map[string]any{"intent": intent, "tenant": tenantID}, func(*event.Event) {}); err != nil {
+			t.Fatalf("run %s: %v", tenantID, err)
+		}
+	}
+	run("alpha", "a1")
+	run("beta", "b1")
+	run("beta", "b2")
+
+	res, err := c.Call(ctx, controlplane.CmdTenantStats, nil)
+	if err != nil {
+		t.Fatalf("tenant stats: %v", err)
+	}
+	byID := map[string]map[string]any{}
+	rows, _ := res["tenants"].([]any)
+	for _, raw := range rows {
+		m, _ := raw.(map[string]any)
+		id, _ := m["id"].(string)
+		byID[id] = m
+	}
+	if got := intOf(byID["alpha"]["runs"]); got != 1 {
+		t.Errorf("alpha runs = %d want 1 (row=%v)", got, byID["alpha"])
+	}
+	if got := intOf(byID["beta"]["runs"]); got != 2 {
+		t.Errorf("beta runs = %d want 2 (row=%v)", got, byID["beta"])
+	}
+	if got := intOf(byID["beta"]["completed"]); got != 2 {
+		t.Errorf("beta completed = %d want 2", got)
+	}
+	if got := intOf(res["total_runs"]); got != 3 {
+		t.Errorf("total_runs = %d want 3", got)
 	}
 }

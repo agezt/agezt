@@ -660,6 +660,14 @@ const (
 	// CmdTenantToken reveals an existing tenant's per-tenant credential.
 	// Args: id (required). Returns: { id, token }
 	CmdTenantToken = "tenant_token"
+	// CmdTenantStats aggregates per-tenant run activity (M126): for each tenant
+	// on disk it folds that tenant's own journal into run count / completed /
+	// failed / active / spend / last activity, plus grand totals — the
+	// cross-tenant usage view the primary operator otherwise lacks. Primary
+	// token only (a tenant sees only its own runs via `runs stats`). Returns:
+	// { tenants: [{id, runs, completed, failed, active, spent_microcents,
+	// last_activity_unix_ms}], count, total_runs, total_spent_microcents }
+	CmdTenantStats = "tenant_stats"
 
 	// World model (SPEC-05 §3). The journaled entity/relation graph behind
 	// `agt world`; writes go through the kernel's worldmodel.Graph so every
