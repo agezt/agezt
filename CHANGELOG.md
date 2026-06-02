@@ -12,6 +12,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Graceful shutdown drain** (M136, SPEC-08 §3.1) — on `agt shutdown` / SIGTERM the
+  daemon now flips `/readyz` to not-ready (`"draining"`) FIRST, so a load balancer /
+  k8s readiness probe stops routing new traffic, then waits (bounded by
+  `AGEZT_DRAIN_TIMEOUT`, default 15s) for in-flight runs to finish before halting
+  them — a rolling restart no longer kills work mid-flight. Set the timeout to 0 for
+  the old immediate-halt behavior. See `.project/PHASE-M136-GRACEFUL-DRAIN-REPORT.md`.
 - **Prometheus `/metrics` endpoint** (M135, SPEC-14 §9) — the REST API exposes the
   daemon's operational gauges in Prometheus text format (up, halted, uptime,
   active_runs, journal_head_seq/bytes, memory/world/skill counts, schedules,

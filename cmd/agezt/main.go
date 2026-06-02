@@ -35,6 +35,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -655,10 +656,16 @@ func runDaemon(stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "  webhooks         : disabled (set AGEZT_WEBHOOKS, e.g. https://host/hook|agent.>|secret)\n")
 	}
 
+	// draining flips true at shutdown so /readyz reports not-ready and the daemon
+	// drains in-flight runs before exiting (M136). Shared with buildRESTAPI's
+	// readiness probe; an atomic so the shutdown goroutine and the HTTP handler
+	// race cleanly.
+	var draining atomic.Bool
+
 	// Native REST API (P7-API-02) — first-party /api/v1 surface: submit runs
 	// (sync or SSE), inspect a run's journaled arc, health/models. Same governed
 	// loop as `agt run`. Off unless AGEZT_REST_ADDR is set; loopback + token.
-	if restDesc := buildRESTAPI(ctx, k, tenantReg, stdout); restDesc != "" {
+	if restDesc := buildRESTAPI(ctx, k, tenantReg, &draining, stdout); restDesc != "" {
 		fmt.Fprintf(stdout, "  rest api         : %s\n", restDesc)
 	} else {
 		fmt.Fprintf(stdout, "  rest api         : disabled (set AGEZT_REST_ADDR, e.g. 127.0.0.1:8800)\n")
@@ -700,14 +707,57 @@ func runDaemon(stdout, stderr io.Writer) int {
 	case <-srv.Shutdown():
 		fmt.Fprintf(stdout, "\n%s: shutting down (requested via %s shutdown)...\n", brand.Binary, brand.CLI)
 	}
+
+	// Graceful drain (M136): flip readiness to not-ready FIRST — /readyz now
+	// reports "draining", so a load balancer / k8s readiness probe stops routing
+	// new traffic here while the process stays alive. Then wait (bounded) for
+	// in-flight runs to finish before halting them, so a rolling restart doesn't
+	// kill work mid-flight. AGEZT_DRAIN_TIMEOUT tunes the wait (default 15s; 0 =
+	// no wait, the old immediate-halt behavior).
+	draining.Store(true)
+	drainTimeout := 15 * time.Second
+	if v := os.Getenv(brand.EnvPrefix + "DRAIN_TIMEOUT"); v != "" {
+		if d, err := time.ParseDuration(v); err == nil && d >= 0 {
+			drainTimeout = d
+		}
+	}
+	if k != nil && drainTimeout > 0 {
+		if n := k.ActiveRuns(); n > 0 {
+			fmt.Fprintf(stdout, "  draining: waiting up to %s for %d in-flight run(s)...\n", drainTimeout, n)
+			if drainWait(k.ActiveRuns, drainTimeout) {
+				fmt.Fprintf(stdout, "  drained: all in-flight runs completed\n")
+			} else {
+				fmt.Fprintf(stdout, "  drain timeout: %d run(s) still in flight — cancelling\n", k.ActiveRuns())
+			}
+		}
+	}
+
 	cancel()
-	// Give in-flight runs a moment to react to halt.
+	// Give any still-in-flight runs a moment to react to halt.
 	deadline := time.Now().Add(2 * time.Second)
 	for k != nil && !k.IsHalted() && time.Now().Before(deadline) {
 		k.Halt()
 		time.Sleep(50 * time.Millisecond)
 	}
 	return 0
+}
+
+// drainWait blocks until active() reports 0 (drained → true) or timeout elapses
+// (→ false), polling every 100ms. The graceful-shutdown helper (M136), extracted
+// so the wait logic is testable without standing up the whole daemon. timeout<=0
+// means "don't wait": true only if nothing is in flight already.
+func drainWait(active func() int, timeout time.Duration) bool {
+	if timeout <= 0 {
+		return active() == 0
+	}
+	deadline := time.Now().Add(timeout)
+	for active() > 0 {
+		if !time.Now().Before(deadline) {
+			return false
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	return true
 }
 
 // buildTelegram constructs the in-process Telegram channel when
@@ -1187,7 +1237,7 @@ func buildOpenAIAPI(ctx context.Context, k *kernelruntime.Kernel, reg *tenant.Re
 // buildRESTAPI starts the native REST resident when AGEZT_REST_ADDR is set,
 // mirroring buildOpenAIAPI's lifecycle (daemon ctx, graceful shutdown, minted
 // token, loopback warning). Returns the banner description or "".
-func buildRESTAPI(ctx context.Context, k *kernelruntime.Kernel, reg *tenant.Registry, stdout io.Writer) string {
+func buildRESTAPI(ctx context.Context, k *kernelruntime.Kernel, reg *tenant.Registry, draining *atomic.Bool, stdout io.Writer) string {
 	addr := os.Getenv(brand.EnvPrefix + "REST_ADDR")
 	if addr == "" {
 		return ""
@@ -1209,6 +1259,9 @@ func buildRESTAPI(ctx context.Context, k *kernelruntime.Kernel, reg *tenant.Regi
 	// halted, so a load balancer / k8s readiness probe pulls it from rotation
 	// without the process dying. Liveness (/healthz) stays up regardless.
 	rest.SetReadiness(func() (bool, string) {
+		if draining.Load() {
+			return false, "draining"
+		}
 		if k.IsHalted() {
 			return false, "halted"
 		}

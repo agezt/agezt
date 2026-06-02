@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/agent"
@@ -173,5 +174,39 @@ func TestRunScan_Orphans(t *testing.T) {
 func TestRunScan_Empty(t *testing.T) {
 	if got := newRunScan().orphans(); len(got) != 0 {
 		t.Errorf("empty scan should yield no orphans; got %v", got)
+	}
+}
+
+// TestDrainWait covers the graceful-shutdown drain helper (M136): it returns
+// promptly when nothing is in flight, waits and succeeds when runs finish, and
+// times out (false) when they don't.
+func TestDrainWait(t *testing.T) {
+	// Nothing in flight → drained immediately.
+	if !drainWait(func() int { return 0 }, time.Second) {
+		t.Errorf("drainWait with 0 active should return true")
+	}
+
+	// Active decrements to 0 across polls → drained true.
+	n := 3
+	if !drainWait(func() int {
+		if n > 0 {
+			n--
+		}
+		return n
+	}, 2*time.Second) {
+		t.Errorf("drainWait should return true once active reaches 0")
+	}
+
+	// Always busy + tiny timeout → drain times out (false).
+	if drainWait(func() int { return 5 }, 150*time.Millisecond) {
+		t.Errorf("drainWait should time out (false) when runs never finish")
+	}
+
+	// timeout<=0 means don't wait: false while busy, true when idle.
+	if drainWait(func() int { return 2 }, 0) {
+		t.Errorf("drainWait(_, 0) should be false while busy")
+	}
+	if !drainWait(func() int { return 0 }, 0) {
+		t.Errorf("drainWait(_, 0) should be true when idle")
 	}
 }
