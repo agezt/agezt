@@ -42,6 +42,24 @@ func TestArgBool(t *testing.T) {
 	}
 }
 
+func TestArgInt64(t *testing.T) {
+	args := map[string]any{"n": float64(1500), "s": "1500", "b": true}
+
+	if v, ok, err := argInt64(args, "n"); v != 1500 || !ok || err != nil {
+		t.Errorf("present number: got (%d,%v,%v)", v, ok, err)
+	}
+	if v, ok, err := argInt64(args, "missing"); v != 0 || ok || err != nil {
+		t.Errorf("absent: got (%d,%v,%v), want (0,false,nil)", v, ok, err)
+	}
+	// A numeric value sent as a string is a type error, not a silent 0.
+	if _, ok, err := argInt64(args, "s"); !ok || err == nil {
+		t.Errorf("string-as-number: got (ok=%v,err=%v), want (true, non-nil)", ok, err)
+	}
+	if _, _, err := argInt64(args, "b"); err == nil {
+		t.Error("bool-as-number: want error")
+	}
+}
+
 func TestArgStringList(t *testing.T) {
 	args := map[string]any{
 		"empty":    []any{},

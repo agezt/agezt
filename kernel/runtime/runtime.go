@@ -734,6 +734,7 @@ const (
 	ctxKeySystem
 	ctxKeyRunTimeout
 	ctxKeyTools
+	ctxKeyMaxCost
 )
 
 // WithImages returns a context carrying image-attachment references for the run
@@ -805,6 +806,25 @@ func WithRunTimeout(ctx context.Context, d time.Duration) context.Context {
 
 func runTimeoutFromCtx(ctx context.Context) time.Duration {
 	if v, ok := ctx.Value(ctxKeyRunTimeout).(time.Duration); ok {
+		return v
+	}
+	return 0
+}
+
+// WithMaxCost returns a context that caps the cumulative provider spend (in
+// USD-microcents) for the run started with it (M166) — the per-run cost analogue
+// of WithRunTimeout. mc <= 0 is a no-op (uncapped). Lets a single run be bounded
+// by money (`agt run --max-cost`) without a daemon-wide ceiling; the Governor's
+// daily ceiling still applies on top.
+func WithMaxCost(ctx context.Context, mc int64) context.Context {
+	if mc <= 0 {
+		return ctx
+	}
+	return context.WithValue(ctx, ctxKeyMaxCost, mc)
+}
+
+func maxCostFromCtx(ctx context.Context) int64 {
+	if v, ok := ctx.Value(ctxKeyMaxCost).(int64); ok {
 		return v
 	}
 	return 0
@@ -1096,17 +1116,19 @@ func (k *Kernel) RunWith(ctx context.Context, corr, intent string) (string, erro
 	}
 
 	answer, err := agent.Run(runCtx, agent.LoopConfig{
-		Provider:      k.cfg.Provider,
-		Tools:         runTools,
-		Bus:           k.bus,
-		Model:         model,
-		System:        system,
-		MaxIter:       k.cfg.MaxIter,
-		ToolTimeout:   k.cfg.ToolTimeout,
-		Actor:         actor,
-		CorrelationID: corr,
-		Policy:        k.policyHook,
-		Images:        imagesFromCtx(runCtx), // M93: image attachments (vision-gated upstream)
+		Provider:             k.cfg.Provider,
+		Tools:                runTools,
+		Bus:                  k.bus,
+		Model:                model,
+		System:               system,
+		MaxIter:              k.cfg.MaxIter,
+		ToolTimeout:          k.cfg.ToolTimeout,
+		Actor:                actor,
+		CorrelationID:        corr,
+		Policy:               k.policyHook,
+		Images:               imagesFromCtx(runCtx),  // M93: image attachments (vision-gated upstream)
+		MaxRunCostMicrocents: maxCostFromCtx(runCtx), // M166: per-run cost cap
+		CostFn:               governor.CostMicrocents,
 	}, intent)
 	if err != nil {
 		return answer, err

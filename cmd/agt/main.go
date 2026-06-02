@@ -23,6 +23,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -152,7 +153,7 @@ func printHelp(w io.Writer) {
 	fmt.Fprintf(w, "Commands:\n")
 	fmt.Fprintf(w, "  run \"<intent>\" | run - | run --file <path>   run an intent (read from arg, stdin via -, or a file)\n")
 	fmt.Fprintf(w, "      [--json|-q] [--tenant <id>] [--model <id>] [--system <prompt>] [--timeout <dur>]   per-run overrides; -q/--quiet = only the answer; JSON = ndjson stream\n")
-	fmt.Fprintf(w, "      [--tools <csv>|--no-tools] [--dry-run]   restrict this run's tools (see `tool list`); --dry-run resolves the plan without executing\n")
+	fmt.Fprintf(w, "      [--tools <csv>|--no-tools] [--dry-run] [--max-cost <usd>]   restrict tools / preview the plan / cap this run's spend\n")
 	fmt.Fprintf(w, "  halt [--reason \"...\"] [--json]  freeze all in-flight runs (reason is journaled)\n")
 	fmt.Fprintf(w, "  resume [--reason \"...\"] [--json] clear the halt flag (reason is journaled)\n")
 	fmt.Fprintf(w, "  why <event_id> [--json|--payload]  list events sharing an event's correlation\n")
@@ -299,6 +300,7 @@ func cmdRun(args []string, stdout, stderr io.Writer) int {
 	toolsSet := false
 	var toolsList []any
 	dryRun := false
+	maxCostMicrocents := int64(0)
 	var images []string
 	var intentParts []string
 	for i := 0; i < len(args); i++ {
@@ -344,6 +346,24 @@ func cmdRun(args []string, stdout, stderr io.Writer) int {
 			timeout = strings.TrimPrefix(a, "--timeout=")
 		case a == "--dry-run":
 			dryRun = true
+		case a == "--max-cost" || strings.HasPrefix(a, "--max-cost="):
+			var v string
+			if a == "--max-cost" {
+				if i+1 >= len(args) {
+					fmt.Fprintf(stderr, "%s run: --max-cost needs an amount (e.g. 0.50 or $0.50)\n", brand.CLI)
+					return 2
+				}
+				i++
+				v = args[i]
+			} else {
+				v = strings.TrimPrefix(a, "--max-cost=")
+			}
+			mc, perr := parseUSDToMicrocents(v)
+			if perr != nil {
+				fmt.Fprintf(stderr, "%s run: invalid --max-cost %q (want a positive dollar amount like 0.50 or $0.50)\n", brand.CLI, v)
+				return 2
+			}
+			maxCostMicrocents = mc
 		case a == "--no-tools":
 			toolsSet = true // empty list = no tools
 		case a == "--tools" || strings.HasPrefix(a, "--tools="):
@@ -453,6 +473,10 @@ func cmdRun(args []string, stdout, stderr io.Writer) int {
 	// without starting it or spending a token.
 	if dryRun {
 		runArgs["dry_run"] = true
+	}
+	// Per-run cost cap (M166): bound this run's spend. Sent in microcents.
+	if maxCostMicrocents > 0 {
+		runArgs["max_cost"] = float64(maxCostMicrocents)
 	}
 
 	c := dial(stderr)
@@ -631,6 +655,20 @@ func runDryRunMode(ctx context.Context, c *controlplane.Client, runArgs map[stri
 	}
 	fmt.Fprintf(stdout, "\n(no run started, no tokens spent — drop --dry-run to execute)\n")
 	return 0
+}
+
+// parseUSDToMicrocents converts a dollar amount ("0.50", "$0.50", "1") to
+// USD-microcents, the kernel's internal spend unit ($1 = 1e9 microcents, matching
+// governor.DefaultDailyCeilingMicrocents). Returns an error on a non-numeric or
+// non-positive amount, so `--max-cost 0` / garbage is a usage error rather than a
+// silently-uncapped run.
+func parseUSDToMicrocents(s string) (int64, error) {
+	s = strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(s), "$"))
+	usd, err := strconv.ParseFloat(s, 64)
+	if err != nil || usd <= 0 {
+		return 0, fmt.Errorf("invalid amount %q", s)
+	}
+	return int64(usd * 1_000_000_000), nil
 }
 
 // toStringSlice coerces a decoded JSON array (interface slice) to []string,

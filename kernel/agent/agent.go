@@ -186,6 +186,17 @@ type LoopConfig struct {
 	// Only set on a vision-capable run (gated upstream by M91); the loop
 	// puts them on the first user Message so the provider can encode them.
 	Images []string
+	// MaxRunCostMicrocents, when > 0, caps the cumulative provider spend for THIS
+	// run (M166) — the per-run cost analogue of MaxIter (round cap) and the per-run
+	// MaxDuration (wall-clock cap). After each model call the loop adds the call's
+	// cost (via CostFn) and, once the running total reaches the cap, terminates the
+	// run with ErrRunBudgetExceeded. 0 = uncapped. Has no effect without CostFn.
+	MaxRunCostMicrocents int64
+	// CostFn translates a model call's token usage to spend in microcents. Injected
+	// (rather than imported) so kernel/agent stays decoupled from kernel/governor's
+	// pricing; the kernel wires governor.CostMicrocents. nil disables cost
+	// accounting entirely (MaxRunCostMicrocents is then inert).
+	CostFn func(model string, inputTokens, outputTokens int) int64
 }
 
 // PolicyVerdict is the contract between the loop and the policy engine
@@ -224,6 +235,12 @@ const DefaultMaxIdenticalToolCalls = 5
 // ErrMaxIter is returned by Run when MaxIter rounds elapse without a final
 // assistant message.
 var ErrMaxIter = errors.New("agent: max iterations exceeded")
+
+// ErrRunBudgetExceeded is returned by Run when a per-run cost cap
+// (LoopConfig.MaxRunCostMicrocents) is reached (M166). Terminal, like ErrMaxIter
+// — the run stops rather than the model adapting. failureReason tags it
+// "cost_budget".
+var ErrRunBudgetExceeded = errors.New("agent: run cost budget exceeded")
 
 // ErrUnknownTool is returned when the model asks for a tool the loop does
 // not have registered.
@@ -343,6 +360,11 @@ func Run(ctx context.Context, cfg LoopConfig, userIntent string) (answer string,
 	// requested in this run, for the M116 loop guard.
 	callCounts := map[string]int{}
 
+	// spentMicrocents accumulates this run's provider spend for the per-run cost
+	// cap (M166). A local stack variable — no shared state, no lifecycle, no
+	// cleanup — so the cap adds zero concurrency surface.
+	var spentMicrocents int64
+
 	for iter := range cfg.MaxIter {
 		if err := ctx.Err(); err != nil {
 			return "", err
@@ -415,6 +437,22 @@ func Run(ctx context.Context, cfg LoopConfig, userIntent string) (answer string,
 			"tool_calls":  len(resp.Message.ToolCalls),
 		}); err != nil {
 			return "", fmt.Errorf("agent: publish llm.response: %w", err)
+		}
+
+		// Per-run cost cap (M166): add this call's spend and stop if the run has
+		// reached its cap. Like the daily ceiling, the check is post-call, so a run
+		// can overshoot by at most the call that crosses the line — bounded and
+		// predictable. The model the call billed under is the response's reported
+		// model, falling back to the requested one (same rule as the Governor).
+		if cfg.CostFn != nil && cfg.MaxRunCostMicrocents > 0 {
+			billed := resp.Usage.Model
+			if billed == "" {
+				billed = cfg.Model
+			}
+			spentMicrocents += cfg.CostFn(billed, resp.Usage.InputTokens, resp.Usage.OutputTokens)
+			if spentMicrocents >= cfg.MaxRunCostMicrocents {
+				return "", fmt.Errorf("%w (spent ~%d, cap %d microcents)", ErrRunBudgetExceeded, spentMicrocents, cfg.MaxRunCostMicrocents)
+			}
 		}
 
 		messages = append(messages, resp.Message)
@@ -581,10 +619,11 @@ func Run(ctx context.Context, cfg LoopConfig, userIntent string) (answer string,
 // alongside in "error"). Operators and `agt runs` use the tag to group
 // failures without parsing free-form error text:
 //
-//	max_iters — the loop exhausted MaxIter without a final answer.
-//	canceled  — the context was cancelled (operator halt / shutdown).
-//	timeout   — the context deadline elapsed (a future per-run timeout).
-//	error     — anything else (provider error, publish failure, …).
+//	max_iters   — the loop exhausted MaxIter without a final answer.
+//	cost_budget — the per-run cost cap (MaxRunCostMicrocents) was reached (M166).
+//	canceled    — the context was cancelled (operator halt / shutdown).
+//	timeout     — the context deadline elapsed (a per-run / daemon timeout).
+//	error       — anything else (provider error, publish failure, …).
 //
 // errors.Is is used so a wrapped provider error that ultimately carries
 // context.Canceled/DeadlineExceeded is still classified correctly; the
@@ -593,6 +632,8 @@ func failureReason(ctx context.Context, err error) string {
 	switch {
 	case errors.Is(err, ErrMaxIter):
 		return "max_iters"
+	case errors.Is(err, ErrRunBudgetExceeded):
+		return "cost_budget"
 	case errors.Is(err, context.Canceled) || ctx.Err() == context.Canceled:
 		return "canceled"
 	case errors.Is(err, context.DeadlineExceeded) || ctx.Err() == context.DeadlineExceeded:

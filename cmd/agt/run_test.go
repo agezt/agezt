@@ -82,3 +82,30 @@ func TestResolveRunIntent_Empty(t *testing.T) {
 		t.Errorf("empty input should yield empty intent, got %q", got)
 	}
 }
+
+// TestParseUSDToMicrocents — the --max-cost dollar parser (M166). $1 = 1e9
+// microcents (governor's internal unit); non-positive/garbage is an error so a
+// bad --max-cost is a usage error, never a silently-uncapped run.
+func TestParseUSDToMicrocents(t *testing.T) {
+	ok := []struct {
+		in   string
+		want int64
+	}{
+		{"1", 1_000_000_000},
+		{"0.50", 500_000_000},
+		{"$0.50", 500_000_000},
+		{" $2 ", 2_000_000_000},
+		{"0.001", 1_000_000},
+	}
+	for _, tc := range ok {
+		got, err := parseUSDToMicrocents(tc.in)
+		if err != nil || got != tc.want {
+			t.Errorf("parseUSDToMicrocents(%q) = (%d,%v), want (%d,nil)", tc.in, got, err, tc.want)
+		}
+	}
+	for _, bad := range []string{"", "0", "-1", "abc", "$", "1.2.3"} {
+		if _, err := parseUSDToMicrocents(bad); err == nil {
+			t.Errorf("parseUSDToMicrocents(%q) should error", bad)
+		}
+	}
+}

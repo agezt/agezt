@@ -45,6 +45,20 @@ func argBool(args map[string]any, key string) (bool, bool, error) {
 	return b, true, nil
 }
 
+// argInt64 extracts an integer arg. JSON numbers decode to float64, so that's the
+// accepted form (an integer-valued float); a non-numeric present value is an error.
+func argInt64(args map[string]any, key string) (int64, bool, error) {
+	v, present := args[key]
+	if !present {
+		return 0, false, nil
+	}
+	f, ok := v.(float64)
+	if !ok {
+		return 0, true, fmt.Errorf("args.%s must be a number", key)
+	}
+	return int64(f), true, nil
+}
+
 // argStringList extracts a JSON array of strings, trimming each element and
 // skipping empties. A present-but-non-array value is an error (not silently an
 // empty list — for `tools` that would scope the run to NO tools). A non-string

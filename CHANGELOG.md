@@ -12,6 +12,18 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **`agt run --max-cost <usd>` — per-run cost cap** (M166) — bound a single run's
+  cumulative provider spend (`agt run --max-cost 0.50 "…"`) without a daemon-wide
+  ceiling — the money analogue of `--timeout` (M154). The agent loop accumulates each
+  call's spend locally and, once the running total reaches the cap, terminates the
+  run with `task.failed(reason=cost_budget)` — bounded overshoot of at most one call,
+  exactly like the daily ceiling. Implemented as a local stack accumulator in the
+  loop fed by an injected `CostFn` (`governor.CostMicrocents`), so it adds **zero**
+  shared state or concurrency surface (no per-run map, no lifecycle). New
+  `runtime.WithMaxCost` ctx override + a `max_cost` run arg (microcents); the CLI
+  parses dollars (`$0.50` / `0.50`) and rejects a non-positive/garbage amount
+  client-side. The Governor's daily ceiling still applies on top. See
+  `.project/PHASE-M166-RUN-MAX-COST-REPORT.md`.
 - **`agt doctor --strict`** (M165) — exit non-zero on **warnings** too, not just
   failures. By default warnings are advisories (exit 0); `--strict` makes any WARN
   exit 1, so monitoring/CI can alert on the advisory-level security signals the

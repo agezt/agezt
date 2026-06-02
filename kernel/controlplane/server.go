@@ -1022,6 +1022,17 @@ func (s *Server) handleRun(ctx context.Context, conn net.Conn, req Request) {
 	if toolsSet {
 		ctx = runtime.WithTools(ctx, toolsAllow)
 	}
+	// Per-run cost cap (M166): bound THIS run's cumulative provider spend (in
+	// USD-microcents) without a daemon-wide ceiling. A malformed (non-numeric)
+	// value is a usage error; a non-positive value is treated as uncapped.
+	maxCost, _, mcerr := argInt64(req.Args, "max_cost")
+	if mcerr != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: mcerr.Error()})
+		return
+	}
+	if maxCost > 0 {
+		ctx = runtime.WithMaxCost(ctx, maxCost)
+	}
 
 	// Dry-run (M159): resolve exactly what this run WOULD do — effective model
 	// (and its catalog capabilities), the system-prompt source, the effective
