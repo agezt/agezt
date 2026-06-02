@@ -55,6 +55,16 @@ func (s *Server) handleEdictCompact(conn net.Conn, req Request) {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
 		return
 	}
+	// Bind the snapshot to the tamper-evident journal (M176): record its content
+	// hash in a policy.compacted event. At boot the snapshot is trusted only if its
+	// hash matches this (latest) journaled value, so a snapshot file edited to
+	// loosen policy can't be smuggled in — the journal is folded instead.
+	_, _ = k.Bus().Publish(event.Spec{
+		Subject: "policy.compacted",
+		Kind:    event.KindPolicyCompacted,
+		Actor:   "controlplane",
+		Payload: map[string]any{"through_seq": headSeq, "content_hash": snap.ContentHash()},
+	})
 	s.writeResp(conn, Response{
 		ID:   req.ID,
 		Type: RespResult,

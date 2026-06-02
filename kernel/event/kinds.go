@@ -81,6 +81,13 @@ const (
 	// run-time counterpart to the dry-run "will not bind" warning. Payload:
 	// {model, cap_microcents}.
 	KindBudgetCapInert Kind = "budget.cap_inert"
+	// KindPolicyCompacted records that the durable policy overlay was compacted to
+	// a snapshot (M176). Its payload {through_seq, content_hash} binds the on-disk
+	// snapshot to the tamper-evident journal: at boot the snapshot is trusted only
+	// if its content hash equals the latest journaled value, so a snapshot file
+	// edited to loosen policy (e.g. shell→L4) is rejected and the journal — the
+	// immutable source of truth — is folded instead.
+	KindPolicyCompacted Kind = "policy.compacted"
 	// KindNetguardBlocked records an outbound connection the egress guard
 	// refused at dial time (M109) — a tool (http/browser) tried to reach an
 	// internal/metadata address. An audit signal for SSRF / prompt-injection /
@@ -218,6 +225,7 @@ var knownKinds = map[Kind]struct{}{
 	KindBudgetExceeded:            {},
 	KindRateLimited:               {},
 	KindBudgetCapInert:            {},
+	KindPolicyCompacted:           {},
 	KindNetguardBlocked:           {},
 	KindCapabilityRejected:        {},
 	KindCapabilityRerouted:        {},

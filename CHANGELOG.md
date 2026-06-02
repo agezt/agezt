@@ -318,6 +318,17 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   `.project/PHASE-M129-OBSERVABILITY-TENANT-FLAG-REPORT.md`.
 
 ### Fixed
+- **Durable policy snapshot bound to the tamper-evident journal (security review
+  HIGH)** (M176) — the durable-policy compaction snapshot (`edict_overlay_snapshot.json`,
+  M95) was loaded as authoritative at boot with no integrity check, so an attacker who
+  could write that file could downgrade trust levels or drop deny rules at the next
+  restart — the snapshot, not the hash-chained journal, won (M173 review HIGH-1). Compact
+  now records the snapshot's SHA-256 content hash in a new `policy.compacted` journal
+  event, and boot trusts the snapshot ONLY when its hash matches the latest journaled
+  value; otherwise it ignores the snapshot and folds the journal (the source of truth) in
+  full. A tampered, corrupt, or pre-binding snapshot therefore cannot loosen policy —
+  it can only ever be a no-op fallback to the full replay (which stays equivalent, M95).
+  See `.project/PHASE-M176-EDICT-SNAPSHOT-INTEGRITY-REPORT.md`.
 - **Wider hard-deny floor: raw block-device writes, wipefs, poweroff (security
   review follow-up)** (M175) — the default hard-deny floor missed several
   catastrophic shell operations even in plain form (M173 MEDIUM-2). Added rules for

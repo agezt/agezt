@@ -48,3 +48,48 @@ func TestOverlaySnapshot_SaveLoad(t *testing.T) {
 		t.Errorf("loaded = %+v", out)
 	}
 }
+
+// TestOverlaySnapshot_ContentHash — the integrity binding (M176). The hash is
+// deterministic for equal content and changes when ANY field that affects policy
+// (through_seq, a change's level, a deny rule) is edited — so a snapshot file
+// tampered to loosen policy no longer matches its journaled policy.compacted hash.
+func TestOverlaySnapshot_ContentHash(t *testing.T) {
+	base := &OverlaySnapshot{
+		ThroughSeq: 7,
+		Changes: []PolicyChange{
+			{Action: "level.set", Capability: "shell", To: "L1"},
+			{Action: "deny.add", Name: "r1", Substring: "rm -rf"},
+		},
+	}
+	h := base.ContentHash()
+	if h == "" {
+		t.Fatal("ContentHash empty")
+	}
+	// Determinism: an independent, equal snapshot hashes identically.
+	same := &OverlaySnapshot{
+		ThroughSeq: 7,
+		Changes: []PolicyChange{
+			{Action: "level.set", Capability: "shell", To: "L1"},
+			{Action: "deny.add", Name: "r1", Substring: "rm -rf"},
+		},
+	}
+	if same.ContentHash() != h {
+		t.Errorf("hash not deterministic: %s vs %s", same.ContentHash(), h)
+	}
+
+	// Each mutation must change the hash.
+	mutators := map[string]func(*OverlaySnapshot){
+		"through_seq": func(s *OverlaySnapshot) { s.ThroughSeq = 8 },
+		"level":       func(s *OverlaySnapshot) { s.Changes[0].To = "L4" },
+		"capability":  func(s *OverlaySnapshot) { s.Changes[0].Capability = "net" },
+		"deny_substr": func(s *OverlaySnapshot) { s.Changes[1].Substring = "rm -rf /" },
+		"drop_change": func(s *OverlaySnapshot) { s.Changes = s.Changes[:1] },
+	}
+	for name, mut := range mutators {
+		cp := &OverlaySnapshot{ThroughSeq: base.ThroughSeq, Changes: append([]PolicyChange{}, base.Changes...)}
+		mut(cp)
+		if cp.ContentHash() == h {
+			t.Errorf("%s mutation did not change hash", name)
+		}
+	}
+}

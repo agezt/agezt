@@ -118,3 +118,58 @@ func TestEdictCompact_EquivalentToFullReplay(t *testing.T) {
 		t.Errorf("post-snapshot change lost: net=%v want L0", got.Levels["net"])
 	}
 }
+
+// TestEdictCompact_JournalsBindingHash — M176 integrity binding: after compaction
+// the on-disk snapshot is authoritative at boot, so it must be bound to the
+// tamper-evident journal. Compact must emit a policy.compacted event whose
+// content_hash equals the snapshot's ContentHash(); a snapshot file edited to
+// loosen policy then no longer matches the journaled hash and is rejected at boot.
+func TestEdictCompact_JournalsBindingHash(t *testing.T) {
+	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	pc := func(payload map[string]any) {
+		k.Bus().Publish(event.Spec{
+			Subject: "edict", Kind: event.KindPolicyChanged, Actor: "operator", Payload: payload,
+		})
+	}
+	pc(map[string]any{"action": "level.set", "capability": "shell", "to": "L1"})
+	pc(map[string]any{"action": "deny.add", "name": "r1", "substring": "rm -rf"})
+
+	if _, err := c.Call(context.Background(), controlplane.CmdEdictCompact, nil); err != nil {
+		t.Fatalf("compact: %v", err)
+	}
+	snap, err := edict.LoadOverlaySnapshot(filepath.Join(k.BaseDir(), "runtime", edict.OverlaySnapshotFile))
+	if err != nil || snap == nil {
+		t.Fatalf("snapshot load: (%v,%v)", snap, err)
+	}
+
+	// The latest journaled policy.compacted hash must match the on-disk snapshot.
+	var journaledHash string
+	_ = k.Journal().Range(func(e *event.Event) error {
+		if e.Kind == event.KindPolicyCompacted {
+			var p struct {
+				ContentHash string `json:"content_hash"`
+			}
+			if json.Unmarshal(e.Payload, &p) == nil && p.ContentHash != "" {
+				journaledHash = p.ContentHash
+			}
+		}
+		return nil
+	})
+	if journaledHash == "" {
+		t.Fatal("no policy.compacted event journaled by compact")
+	}
+	if got := snap.ContentHash(); got != journaledHash {
+		t.Errorf("binding hash mismatch: snapshot=%s journaled=%s", got, journaledHash)
+	}
+
+	// Tamper: an edited snapshot (loosened level) no longer matches the journal.
+	if len(snap.Changes) == 0 {
+		t.Fatal("snapshot has no changes to tamper")
+	}
+	tampered := *snap
+	tampered.Changes = append([]edict.PolicyChange{}, snap.Changes...)
+	tampered.Changes[0].To = "L4"
+	if tampered.ContentHash() == journaledHash {
+		t.Error("tampered snapshot still matches journaled hash; binding ineffective")
+	}
+}

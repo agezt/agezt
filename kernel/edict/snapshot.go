@@ -12,6 +12,8 @@ package edict
 // source of truth; the snapshot is a derived, regenerable projection.
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -58,6 +60,22 @@ func (o PolicyOverlay) ToChanges() []PolicyChange {
 		out = append(out, PolicyChange{Action: "deny.add", Name: r.Name, Substring: r.Substring, AppliesTo: applies})
 	}
 	return out
+}
+
+// ContentHash is a deterministic SHA-256 (hex) over the snapshot's meaning
+// (through_seq + changes). It binds the on-disk snapshot to a journaled
+// policy.compacted event (M176): the daemon trusts the snapshot at boot only if
+// this hash matches the latest journaled value, so an attacker who edits the
+// snapshot file to loosen policy changes the hash and is rejected. Deterministic
+// because OverlaySnapshot marshals with no maps (ThroughSeq + an ordered slice of
+// PolicyChange, each with an ordered AppliesTo) and ToChanges sorts its output.
+func (o *OverlaySnapshot) ContentHash() string {
+	b, err := json.Marshal(o)
+	if err != nil {
+		return ""
+	}
+	sum := sha256.Sum256(b)
+	return hex.EncodeToString(sum[:])
 }
 
 // LoadOverlaySnapshot reads a snapshot from path. Returns (nil, nil) when the
