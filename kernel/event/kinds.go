@@ -75,6 +75,12 @@ const (
 	KindProviderFallback Kind = "provider.fallback"
 	KindBudgetExceeded   Kind = "budget.exceeded"
 	KindRateLimited      Kind = "rate.limited"
+	// KindBudgetCapInert records that a per-run cost cap (--max-cost / M166) was
+	// set on a run whose effective model has no known pricing, so the cap can never
+	// trip (spend computes as $0). An advisory at run submission (M169) — the
+	// run-time counterpart to the dry-run "will not bind" warning. Payload:
+	// {model, cap_microcents}.
+	KindBudgetCapInert Kind = "budget.cap_inert"
 	// KindNetguardBlocked records an outbound connection the egress guard
 	// refused at dial time (M109) — a tool (http/browser) tried to reach an
 	// internal/metadata address. An audit signal for SSRF / prompt-injection /
@@ -211,6 +217,7 @@ var knownKinds = map[Kind]struct{}{
 	KindProviderFallback:          {},
 	KindBudgetExceeded:            {},
 	KindRateLimited:               {},
+	KindBudgetCapInert:            {},
 	KindNetguardBlocked:           {},
 	KindCapabilityRejected:        {},
 	KindCapabilityRerouted:        {},

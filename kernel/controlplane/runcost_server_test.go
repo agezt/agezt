@@ -10,6 +10,7 @@ import (
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
 
@@ -71,6 +72,44 @@ func TestRun_PerRunCostCap_EndToEnd(t *testing.T) {
 			map[string]any{"intent": "x", "max_cost": "lots"}, func(*event.Event) {})
 		if err == nil || !strings.Contains(err.Error(), "max_cost must be a number") {
 			t.Errorf("err = %v; want a max_cost type error", err)
+		}
+	})
+}
+
+// TestRun_CostCapInertAdvisory — a cost cap on an UNPRICED model journals a
+// budget.cap_inert advisory (the cap can't bind); on a PRICED model it does not (M169).
+func TestRun_CostCapInertAdvisory(t *testing.T) {
+	hasInert := func(k *runtime.Kernel) bool {
+		found := false
+		_ = k.Journal().Range(func(e *event.Event) error {
+			if e.Kind == event.KindBudgetCapInert {
+				found = true
+			}
+			return nil
+		})
+		return found
+	}
+
+	t.Run("unpriced model with a cap → advisory journaled", func(t *testing.T) {
+		// The offline mock is unpriced ("mock": {0,0} in the price table).
+		k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+		if _, err := c.Stream(context.Background(), controlplane.CmdRun,
+			map[string]any{"intent": "x", "max_cost": float64(500_000_000)}, func(*event.Event) {}); err != nil {
+			t.Fatalf("run errored: %v", err)
+		}
+		if !hasInert(k) {
+			t.Error("expected a budget.cap_inert advisory for an unpriced model")
+		}
+	})
+
+	t.Run("no cap → no advisory", func(t *testing.T) {
+		k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+		if _, err := c.Stream(context.Background(), controlplane.CmdRun,
+			map[string]any{"intent": "x"}, func(*event.Event) {}); err != nil {
+			t.Fatalf("run errored: %v", err)
+		}
+		if hasInert(k) {
+			t.Error("no cap set → no advisory expected")
 		}
 	})
 }

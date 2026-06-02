@@ -1059,6 +1059,7 @@ func (s *Server) handleRun(ctx context.Context, conn net.Conn, req Request) {
 			AllowSet:        toolsSet,
 			Allow:           toolsAllow,
 			MaxCostMC:       maxCost,
+			ModelPriced:     modelPriced(effModel), // authoritative (catalog → fallback table)
 		}
 		if cat := k.Catalog(); cat != nil {
 			if _, m := cat.FindModel(effModel); m != nil {
@@ -1066,7 +1067,6 @@ func (s *Server) handleRun(ctx context.Context, conn net.Conn, req Request) {
 				in.SupportsVision = m.SupportsVision()
 				in.SupportsTools = m.ToolCall
 				in.ContextLimit = m.Limit.Context
-				in.ModelPriced = m.Cost != nil
 			}
 		}
 		for name := range k.Tools() {
@@ -1085,6 +1085,22 @@ func (s *Server) handleRun(ctx context.Context, conn net.Conn, req Request) {
 		return
 	}
 	defer sub.Cancel()
+
+	// Cost-cap inert advisory (M169): a per-run cost cap can only trip if the run
+	// accrues PRICED spend. On a model with no known pricing (unknown to the catalog
+	// AND absent from the fallback table, or a free/local model) the spend computes
+	// as $0, so the cap never binds. Journal an advisory tied to this run's
+	// correlation so `agt why <run>` shows the guardrail was inert — the run-time
+	// counterpart to the dry-run "will not bind" warning. Best-effort.
+	if maxCost > 0 && !modelPriced(effModel) {
+		_, _ = k.Bus().Publish(event.Spec{
+			Subject:       "governor.budget",
+			Kind:          event.KindBudgetCapInert,
+			Actor:         "controlplane",
+			CorrelationID: corr,
+			Payload:       map[string]any{"model": effModel, "cap_microcents": maxCost},
+		})
+	}
 
 	type runResult struct {
 		answer string

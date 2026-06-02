@@ -4,6 +4,19 @@ package controlplane
 
 import "testing"
 
+// TestModelPriced — the authoritative "can a cost cap bind?" check (M169): priced
+// in the catalog/fallback table → true; free/local/unknown → false.
+func TestModelPriced(t *testing.T) {
+	if !modelPriced("claude-sonnet-4-6") {
+		t.Error("claude-sonnet-4-6 should be priced (fallback table)")
+	}
+	for _, free := range []string{"mock", "llama3.2", "totally-unknown-model"} {
+		if modelPriced(free) {
+			t.Errorf("%q should price to $0 (cap inert)", free)
+		}
+	}
+}
+
 func TestArgString(t *testing.T) {
 	args := map[string]any{"s": "hello", "n": float64(5), "b": true}
 

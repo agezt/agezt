@@ -7,6 +7,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/agezt/agezt/kernel/governor"
 )
 
 // smallContextThreshold mirrors catalog.Model.AgentWarnings: a context window
@@ -21,6 +23,16 @@ const microcentsPerUSD = 1_000_000_000
 // 500_000_000 → "$0.50"). Used for the dry-run cost-cap line/advisory.
 func formatMicrocentsUSD(mc int64) string {
 	return fmt.Sprintf("$%.2f", float64(mc)/microcentsPerUSD)
+}
+
+// modelPriced reports whether the Governor can price the model — i.e. whether a
+// per-run cost cap (--max-cost) could ever trip for it. This is the AUTHORITATIVE
+// check (catalog price → fallback table), unlike a catalog-only `m.Cost != nil`
+// test which misses fallback-table-priced or catalog-unknown models. A model that
+// prices to $0 (unknown, or free/local) can never exceed a positive cap. Probed
+// with 1 MTok in+out so any non-zero per-MTok rate registers.
+func modelPriced(model string) bool {
+	return governor.CostMicrocents(model, 1_000_000, 1_000_000) > 0
 }
 
 // runPlanInput carries the already-resolved primitives for a run, so buildRunPlan

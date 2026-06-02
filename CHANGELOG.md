@@ -12,6 +12,16 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Cost cap inert-on-unpriced detection, authoritative + run-time** (M169) — a
+  per-run `--max-cost` can only bind if the run accrues *priced* spend; on a model
+  with no known pricing (unknown to the catalog AND absent from the fallback table,
+  or a free/local model) the cap silently never trips. Detection is now authoritative
+  via `governor.CostMicrocents` (catalog → fallback), replacing the catalog-only
+  `m.Cost != nil` check that mis-classified fallback-priced or catalog-unknown models.
+  At run submission, a cap on an unpriced model journals a `budget.cap_inert` advisory
+  tied to the run's correlation (so `agt why <run>` shows the guardrail was inert);
+  `agt run --dry-run` reports it ahead of time. See
+  `.project/PHASE-M169-COST-CAP-INERT-REPORT.md`.
 - **`agt run --dry-run` shows the cost cap** (M167) — the dry-run plan now carries a
   `cost_cap` line (`$0.50 (per-run)` / `none`), completing the per-run override
   preview (model/system/timeout/tools/**cost**). It also advises when a `--max-cost`
