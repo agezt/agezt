@@ -166,6 +166,28 @@ func TestRun_ModelOverride(t *testing.T) {
 	}
 }
 
+// TestRun_SystemOverride — `agt run --system <prompt>` replaces the base system
+// prompt for this run only (M149): the provider sees the override.
+func TestRun_SystemOverride(t *testing.T) {
+	prov := mock.New(mock.FinalText("aye"))
+	var gotSystem string
+	prov.OnRequest = func(req agent.CompletionRequest) {
+		if req.System != "" {
+			gotSystem = req.System
+		}
+	}
+	_, _, c, _ := startPair(t, prov)
+
+	const sys = "You are a terse pirate."
+	if _, err := c.Stream(context.Background(), controlplane.CmdRun,
+		map[string]any{"intent": "hello", "system": sys}, nil); err != nil {
+		t.Fatalf("Stream: %v", err)
+	}
+	if !strings.Contains(gotSystem, sys) {
+		t.Errorf("provider system = %q, want it to contain the override %q", gotSystem, sys)
+	}
+}
+
 func TestRun_WithToolCalls(t *testing.T) {
 	prov := mock.New(
 		mock.ToolUse("c1", "shell", map[string]string{"command": "echo via-cp"}),

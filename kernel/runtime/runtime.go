@@ -726,6 +726,7 @@ const (
 	ctxKeyCorrelation
 	ctxKeyModel
 	ctxKeyImages
+	ctxKeySystem
 )
 
 // WithImages returns a context carrying image-attachment references for the run
@@ -760,6 +761,25 @@ func WithModel(ctx context.Context, model string) context.Context {
 
 func modelFromCtx(ctx context.Context) string {
 	if v, ok := ctx.Value(ctxKeyModel).(string); ok {
+		return v
+	}
+	return ""
+}
+
+// WithSystem returns a context that overrides the base system prompt for the run
+// started with it (M148-sibling). Empty is a no-op (the kernel's configured System
+// is used). The override REPLACES the configured System; memory/world/skill
+// injection still layer on top, so a one-off persona/instruction can be set per run
+// without losing what Agezt knows.
+func WithSystem(ctx context.Context, system string) context.Context {
+	if system == "" {
+		return ctx
+	}
+	return context.WithValue(ctx, ctxKeySystem, system)
+}
+
+func systemFromCtx(ctx context.Context) string {
+	if v, ok := ctx.Value(ctxKeySystem).(string); ok {
 		return v
 	}
 	return ""
@@ -951,7 +971,13 @@ func (k *Kernel) RunWith(ctx context.Context, corr, intent string) (string, erro
 	// system prompt so the model starts the task already knowing what
 	// Agezt remembers. The recall is journaled (memory.retrieved) under
 	// corr, so `agt why` shows exactly what knowledge was surfaced.
+	// Per-run system-prompt override (WithSystem): a one-off persona/instruction
+	// set for this run only; falls back to the kernel's configured System. Memory /
+	// world / skill injection below still layer on top.
 	system := k.cfg.System
+	if s := systemFromCtx(runCtx); s != "" {
+		system = s
+	}
 	if k.cfg.MemoryInject {
 		topK := k.cfg.MemoryTopK
 		if topK <= 0 {

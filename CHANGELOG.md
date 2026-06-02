@@ -12,6 +12,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **`agt run --system <prompt>` — per-run system-prompt override** (M149) — set a
+  one-off persona/instruction for a single run (`agt run --system "You are a terse
+  reviewer." "..."`) without changing `AGEZT_SYSTEM_PROMPT` or restarting. The
+  sibling of `--model` (M148): a new `runtime.WithSystem` ctx override that REPLACES
+  the configured base system prompt for that run, while memory / world / skill
+  injection still layer on top. Empty = the kernel default. See
+  `.project/PHASE-M149-RUN-SYSTEM-OVERRIDE-REPORT.md`.
 - **`agt run --model <id>` — per-run model override** (M148) — route a single run to
   a specific model (`agt run --model claude-opus-4-8 "hard one"` /
   `--model haiku "quick one"`) without restarting the daemon or changing

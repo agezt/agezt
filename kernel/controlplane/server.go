@@ -981,6 +981,11 @@ func (s *Server) handleRun(ctx context.Context, conn net.Conn, req Request) {
 	if modelOverride != "" {
 		ctx = runtime.WithModel(ctx, modelOverride)
 	}
+	// Per-run system-prompt override (M149): replace the base system prompt for
+	// this run only; memory/world/skill injection still layers on top.
+	if sys, _ := req.Args["system"].(string); strings.TrimSpace(sys) != "" {
+		ctx = runtime.WithSystem(ctx, sys)
+	}
 
 	// Pre-generate the correlation ID so we can subscribe to this run's
 	// subject *before* starting it. No race; no missed events.

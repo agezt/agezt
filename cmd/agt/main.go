@@ -150,7 +150,7 @@ func printHelp(w io.Writer) {
 	fmt.Fprintf(w, "key, and prints the exact command to start the daemon.\n")
 	fmt.Fprintf(w, "\n")
 	fmt.Fprintf(w, "Commands:\n")
-	fmt.Fprintf(w, "  run \"<intent>\" [--json] [--tenant <id>] [--model <id>]   run an intent end-to-end (--model routes this run to a specific model; JSON = ndjson stream)\n")
+	fmt.Fprintf(w, "  run \"<intent>\" [--json] [--tenant <id>] [--model <id>] [--system <prompt>]   run an intent (--model/--system override this run only; JSON = ndjson stream)\n")
 	fmt.Fprintf(w, "  halt [--reason \"...\"] [--json]  freeze all in-flight runs (reason is journaled)\n")
 	fmt.Fprintf(w, "  resume [--reason \"...\"] [--json] clear the halt flag (reason is journaled)\n")
 	fmt.Fprintf(w, "  why <event_id> [--json|--payload]  list events sharing an event's correlation\n")
@@ -266,6 +266,7 @@ func cmdRun(args []string, stdout, stderr io.Writer) int {
 	asJSON := false
 	tenant := ""
 	model := ""
+	system := ""
 	var images []string
 	var intentParts []string
 	for i := 0; i < len(args); i++ {
@@ -289,6 +290,15 @@ func cmdRun(args []string, stdout, stderr io.Writer) int {
 			model = args[i]
 		case strings.HasPrefix(a, "--model="):
 			model = strings.TrimPrefix(a, "--model=")
+		case a == "--system":
+			if i+1 >= len(args) {
+				fmt.Fprintf(stderr, "%s run: --system needs a prompt\n", brand.CLI)
+				return 2
+			}
+			i++
+			system = args[i]
+		case strings.HasPrefix(a, "--system="):
+			system = strings.TrimPrefix(a, "--system=")
 		case a == "--image":
 			// Attach an image to the run (M91). The daemon gates it against the
 			// model's vision capability before any provider call.
@@ -325,6 +335,9 @@ func cmdRun(args []string, stdout, stderr io.Writer) int {
 	}
 	if model = strings.TrimSpace(model); model != "" {
 		runArgs["model"] = model
+	}
+	if strings.TrimSpace(system) != "" {
+		runArgs["system"] = system
 	}
 	if len(images) > 0 {
 		imgs := make([]any, len(images))
