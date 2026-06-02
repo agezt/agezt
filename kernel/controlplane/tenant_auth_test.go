@@ -114,6 +114,38 @@ func TestTenantToken_ForbidsNonAllowlistedCmd(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "forbidden") {
 		t.Errorf("tenant token running halt should be forbidden; got %v", err)
 	}
+	// Cross-tenant usage stats (M126) and durable-policy compaction (a mutation)
+	// stay primary-only even after the M128 observability grant.
+	for _, cmd := range []string{controlplane.CmdTenantStats, controlplane.CmdEdictCompact} {
+		if _, err := c.Call(context.Background(), cmd, map[string]any{"tenant": "acme"}); err == nil || !strings.Contains(err.Error(), "forbidden") {
+			t.Errorf("%s should stay primary-only; got %v", cmd, err)
+		}
+	}
+}
+
+// TestTenantToken_AllowsOwnObservability — a tenant token may read its OWN
+// isolated subsystems' observability (M128). These read-only journal folds
+// (memory / world / approvals / plan / provider-routing / schedule / warden) were
+// tenant-routed via kernelFor but had been left out of the allowlist, so a tenant
+// was wrongly denied its own data. Each must now reach its handler (no "forbidden").
+func TestTenantToken_AllowsOwnObservability(t *testing.T) {
+	_, srv, _, dir := startPair(t, mock.New(mock.FinalText("ok")))
+	reg := withTenants(t, srv, dir)
+	tok := mustTenant(t, reg, "acme")
+	c := tenantClient(t, dir, tok)
+
+	for _, cmd := range []string{
+		controlplane.CmdMemoryLog, controlplane.CmdWorldLog,
+		controlplane.CmdApprovalsLog, controlplane.CmdApprovalsStats,
+		controlplane.CmdPlanHistory, controlplane.CmdPlanStats,
+		controlplane.CmdProviderLog, controlplane.CmdProviderStats, controlplane.CmdProviderRejections,
+		controlplane.CmdScheduleFires, controlplane.CmdScheduleStats,
+		controlplane.CmdWardenLog, controlplane.CmdWardenStats,
+	} {
+		if _, err := c.Call(context.Background(), cmd, map[string]any{"tenant": "acme"}); err != nil {
+			t.Errorf("tenant should observe its own %q; got %v", cmd, err)
+		}
+	}
 }
 
 // TestTenantToken_AllowsOwnRunStats — a tenant token may read its OWN run

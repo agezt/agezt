@@ -11,6 +11,18 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 
 ## [Unreleased]
 
+### Fixed
+- **Tenant self-observability authorization** (M128) — a tenant token was wrongly
+  denied read-only access to its OWN isolated subsystems. Many tenant-routed
+  observability handlers (memory / world / approvals / plan / provider-routing /
+  schedule-firing / warden logs+stats) fold the tenant's own journal via
+  `kernelFor(tenantOf(req))` but had been left out of the `tenantTokenAllows`
+  allowlist — an inconsistency vs. runs/tool/edict/webhook, which were allowed.
+  Audited each handler to confirm it reads only the tenant's kernel (no `s.k`
+  leak), then granted the 13 read-only commands. Cross-tenant `tenant_stats` and
+  durable-policy compaction stay primary-only; tests lock both directions. See
+  `.project/PHASE-M128-TENANT-OBSERVABILITY-AUTH-REPORT.md`.
+
 ### Added
 - **Complete the `agt config show` env inventory** (M127) — the config view's env
   presence map had silently rotted: 55 of the ~78 `AGEZT_*` vars the daemon reads
