@@ -318,6 +318,21 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   `.project/PHASE-M129-OBSERVABILITY-TENANT-FLAG-REPORT.md`.
 
 ### Fixed
+- **Policy hard-deny floor now matches the decoded action, not raw JSON (security
+  review)** (M173) — an adversarial review of the Edict policy engine confirmed its
+  core is sound (deny-before-ladder ordering, unknown-capability default-deny,
+  fail-closed `AskPrompt`, conservative tool→capability classification, concurrency)
+  but found a **Critical** bypass: the non-overridable hard-deny floor matched
+  substrings against the *raw JSON tool argument*, so the model (the actor the floor
+  exists to constrain) could evade `rm -rf /` etc. by padding whitespace
+  (`{"command":"rm  -rf /"}`) or JSON-escaping a byte (`/` for `/`, `m`
+  for `m`) — the decoded command was still destructive but the floor never fired.
+  `Decide` now matches each rule against the raw input PLUS every JSON-decoded string
+  value with whitespace collapsed, so escaped/padded variants normalize back to the
+  banned form and are denied. (Substring matching remains best-effort against
+  semantic rewrites like flag reordering; deeper findings — snapshot integrity, a
+  stricter `IsRuntimeRule`, a fuller floor list — are tracked for follow-ups.) See
+  `.project/PHASE-M173-EDICT-DENY-NORMALIZE-REPORT.md`.
 - **Vault KDF hardened to genuine PBKDF2-SHA256 (crypto review)** (M172) — a crypto
   review of the at-rest credential vault confirmed the disaster properties are
   correctly prevented (no GCM key+nonce reuse — fresh salt→key AND fresh nonce per

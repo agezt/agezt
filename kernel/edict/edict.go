@@ -21,6 +21,7 @@
 package edict
 
 import (
+	"encoding/json"
 	"fmt"
 	"maps"
 	"slices"
@@ -219,6 +220,56 @@ func (r HardDenyRule) matches(cap Capability, input string) bool {
 		return false
 	}
 	return strings.Contains(strings.ToLower(input), strings.ToLower(r.Substring))
+}
+
+// denyCandidates returns the set of strings the hard-deny floor should be matched
+// against for a tool input. It always includes the raw input (so prior behavior is
+// preserved), plus — when the input is JSON — each decoded string VALUE with its
+// whitespace collapsed. Decoding defeats JSON-escape evasion (`/` → `/`,
+// `rm` → `rm`) and the whitespace collapse defeats padding (`rm  -rf /` →
+// `rm -rf /`). Values are matched individually (not concatenated) so adjacent
+// fields can't form a spurious match. Non-JSON input contributes its own
+// whitespace-collapsed form (M173).
+func denyCandidates(input string) []string {
+	out := []string{input}
+	var v any
+	if err := json.Unmarshal([]byte(input), &v); err == nil {
+		var vals []string
+		collectJSONStrings(v, &vals)
+		for _, s := range vals {
+			if c := collapseWhitespace(s); c != "" && c != input {
+				out = append(out, c)
+			}
+		}
+	} else if c := collapseWhitespace(input); c != input {
+		out = append(out, c)
+	}
+	return out
+}
+
+// collectJSONStrings appends every string value reachable in a decoded JSON value
+// (objects, arrays, nested) to dst. Keys are ignored — only values carry the
+// model-chosen action text.
+func collectJSONStrings(v any, dst *[]string) {
+	switch t := v.(type) {
+	case string:
+		*dst = append(*dst, t)
+	case []any:
+		for _, e := range t {
+			collectJSONStrings(e, dst)
+		}
+	case map[string]any:
+		for _, e := range t {
+			collectJSONStrings(e, dst)
+		}
+	}
+}
+
+// collapseWhitespace replaces every run of whitespace (spaces, tabs, newlines)
+// with a single space and trims the ends, so padded/typeset variants of a command
+// normalize to the canonical spacing the floor rules use.
+func collapseWhitespace(s string) string {
+	return strings.Join(strings.Fields(s), " ")
 }
 
 // Options seed a new Engine.
@@ -420,16 +471,25 @@ func (e *Engine) Decide(cap Capability, input string) Outcome {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 
-	// 1. Hard-deny always wins.
+	// 1. Hard-deny always wins. Match against the decoded, normalized action — not
+	// just the raw JSON tool-arg text. The model picks the command string, so it
+	// could otherwise evade a floor rule by JSON-escaping a banned token
+	// (`{"command":"rm -rf /"}`) or by padding whitespace (`rm  -rf /`); both
+	// decode/normalize back to the banned form. denyCandidates returns the raw
+	// input (no regression) plus each JSON string value with whitespace collapsed
+	// (M173). A rule firing on ANY candidate denies.
+	candidates := denyCandidates(input)
 	for _, r := range e.hardDeny {
-		if r.matches(cap, input) {
-			return Outcome{
-				Decision:     DecisionDeny,
-				Capability:   cap,
-				Level:        LevelDeny,
-				Reason:       "hard-deny rule matched: " + r.Name,
-				HardDenied:   true,
-				HardDenyRule: r.Name,
+		for _, c := range candidates {
+			if r.matches(cap, c) {
+				return Outcome{
+					Decision:     DecisionDeny,
+					Capability:   cap,
+					Level:        LevelDeny,
+					Reason:       "hard-deny rule matched: " + r.Name,
+					HardDenied:   true,
+					HardDenyRule: r.Name,
+				}
 			}
 		}
 	}

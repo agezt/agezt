@@ -467,3 +467,26 @@ func TestCustomHardDenyList(t *testing.T) {
 		t.Errorf("custom rule should fire: %v", o)
 	}
 }
+
+// TestDecide_HardDeny_EvasionVariants — the floor must fire on the DECODED,
+// normalized action, not the raw JSON tool text (M173): JSON-escaped or
+// whitespace-padded variants of a banned command must still be hard-denied.
+func TestDecide_HardDeny_EvasionVariants(t *testing.T) {
+	e := New(Options{Levels: map[Capability]TrustLevel{CapShell: LevelAllow}})
+	// b is one backslash, to build JSON unicode escapes with no source ambiguity.
+	b := string(rune(92))
+	denied := []string{
+		`{"command":"rm -rf /"}`,
+		`{"command":"rm  -rf /"}`,             // double space collapses
+		`{"command":"rm -rf ` + b + `u002f"}`, // escape decodes to /
+		`{"command":"r` + b + `u006d -rf /"}`, // escape decodes to m
+	}
+	for _, in := range denied {
+		if o := e.Decide(CapShell, in); o.Decision != DecisionDeny || !o.HardDenied {
+			t.Errorf(`input %q should be hard-denied, got %+v`, in, o)
+		}
+	}
+	if o := e.Decide(CapShell, `{"command":"ls -la /tmp"}`); o.Decision != DecisionAllow {
+		t.Errorf(`benign command should be allowed, got %+v`, o)
+	}
+}
