@@ -318,6 +318,15 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   `.project/PHASE-M129-OBSERVABILITY-TENANT-FLAG-REPORT.md`.
 
 ### Fixed
+- **Control-plane request read is bounded — no pre-auth memory-exhaustion DoS** (M188) —
+  `handleConn` read the request line with an unbounded `bufio.ReadBytes('\n')`, and that
+  read happens BEFORE authentication (the token is inside the request). So any local
+  client that can reach the loopback control port could stream bytes without a newline
+  and drive the daemon to OOM — a pre-auth DoS, the same unbounded-read class as the
+  plugin host (M177) and mcpbridge (M185), on the control socket. The request is now
+  read through a bounded `readBoundedLine` capped at 16 MiB; an over-cap request gets a
+  `request too large` error and the connection is dropped. See
+  `.project/PHASE-M188-CONTROLPLANE-REQUEST-BOUND-REPORT.md`.
 - **Control-plane primary-token check is now constant-time (security review)** (M187) —
   the primary (admin) token — the daemon's most privileged credential, which authorizes
   every command on every tenant — was compared with a plain `req.Token != s.Token()` in

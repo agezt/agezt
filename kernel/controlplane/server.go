@@ -239,6 +239,38 @@ func (s *Server) tokenIsPrimary(presented string) bool {
 	return subtle.ConstantTimeCompare([]byte(presented), []byte(want)) == 1
 }
 
+// maxRequestBytes bounds a single control-plane request line (M188). The
+// request is read before authentication, so any local client reaching
+// the loopback port can stream bytes here; 16 MiB is far above any
+// legitimate command (even a large inline run prompt) while bounding a
+// pre-auth memory-exhaustion DoS.
+const maxRequestBytes = 16 << 20
+
+// errRequestTooLarge is returned when a request line exceeds maxRequestBytes.
+var errRequestTooLarge = errors.New("controlplane: request exceeds max size")
+
+// readBoundedLine reads one newline-delimited line from r, bounding the
+// total to max bytes (M188). It reads in buffer-sized ReadSlice chunks
+// (which return bufio.ErrBufferFull for a line longer than the reader's
+// buffer), copying each out before the next read so the returned slice is
+// stable, and returns errRequestTooLarge once the accumulated line would
+// exceed max — instead of allocating without bound. A trailing chunk with
+// io.EOF (stream ended mid-line) is returned with that error.
+func readBoundedLine(r *bufio.Reader, max int) ([]byte, error) {
+	var buf []byte
+	for {
+		chunk, err := r.ReadSlice('\n')
+		if len(buf)+len(chunk) > max {
+			return nil, errRequestTooLarge
+		}
+		buf = append(buf, chunk...)
+		if err == bufio.ErrBufferFull {
+			continue
+		}
+		return buf, err
+	}
+}
+
 // Stop closes the listener and removes the runtime files. Idempotent;
 // safe to call from cleanup hooks even when Start was driven by ctx.
 func (s *Server) Stop() error {
@@ -313,8 +345,17 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 	_ = conn.SetReadDeadline(time.Now().Add(10 * time.Minute))
 
 	reader := bufio.NewReader(conn)
-	line, err := reader.ReadBytes('\n')
+	// Bounded read (M188): the request line is read BEFORE authentication
+	// (the token is inside it), so any local client that can reach the
+	// loopback port can stream bytes here. A plain ReadBytes('\n') grows
+	// without limit until a newline, so a client that never sends one
+	// drives the daemon to OOM — a pre-auth DoS. Cap the request and
+	// reject anything larger.
+	line, err := readBoundedLine(reader, maxRequestBytes)
 	if err != nil {
+		if errors.Is(err, errRequestTooLarge) {
+			s.writeResp(conn, Response{Type: RespError, Error: "request too large"})
+		}
 		return
 	}
 	var req Request
