@@ -12,6 +12,16 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **`agt run --dry-run` — resolve the run plan without executing** (M159) — print
+  exactly what a run WOULD do (effective model + its catalog capabilities, the
+  system-prompt source, the effective wall-clock timeout, and the precise tool set
+  the agent loop would see after the `--tools`/`--no-tools` filter) and stop — no run
+  started, no tokens spent. Composes with every per-run override
+  (`--model`/`--system`/`--timeout`/`--tools`) and passes the same vision gate, so an
+  operator can confirm resolution (and spot a model that isn't in the catalog, or a
+  requested tool that isn't registered) before committing budget. `--json` emits the
+  raw plan object. Reuses `CmdRun` with a `dry_run` arg (no new protocol command).
+  See `.project/PHASE-M159-RUN-DRY-RUN-REPORT.md`.
 - **`agt run --tools <csv>` / `--no-tools` — per-run tool restriction** (M158) — scope
   a single run to a named subset of tools (`agt run --tools shell,file "..."`) or
   disable tools entirely (`agt run --no-tools "what is 2+2"`) for a safe,

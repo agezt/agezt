@@ -1011,6 +1011,52 @@ func (s *Server) handleRun(ctx context.Context, conn net.Conn, req Request) {
 		ctx = runtime.WithTools(ctx, allow)
 	}
 
+	// Dry-run (M159): resolve exactly what this run WOULD do — effective model
+	// (and its catalog capabilities), the system-prompt source, the effective
+	// wall-clock timeout, and the precise tool set the agent loop would see after
+	// the per-run filter — then return that plan WITHOUT starting the run or
+	// spending a token. Placed after every override is parsed (so the plan
+	// reflects --model/--system/--timeout/--tools and passes the same vision gate),
+	// but before the run is subscribed/started.
+	if dr, _ := req.Args["dry_run"].(bool); dr {
+		in := runPlanInput{
+			Intent:          intent,
+			Tenant:          tenantID,
+			Model:           effModel,
+			ModelOverridden: modelOverride != "",
+			SystemSet:       strings.TrimSpace(k.System()) != "",
+			DaemonTimeout:   k.MaxDuration(),
+		}
+		if sys, _ := req.Args["system"].(string); strings.TrimSpace(sys) != "" {
+			in.SystemOverride = true
+		}
+		if ts, _ := req.Args["timeout"].(string); strings.TrimSpace(ts) != "" {
+			in.Timeout = strings.TrimSpace(ts)
+		}
+		if cat := k.Catalog(); cat != nil {
+			if _, m := cat.FindModel(effModel); m != nil {
+				in.ModelKnown = true
+				in.SupportsVision = m.SupportsVision()
+				in.SupportsTools = m.ToolCall
+			}
+		}
+		for name := range k.Tools() {
+			in.AllToolNames = append(in.AllToolNames, name)
+		}
+		if toolsArg, ok := req.Args["tools"]; ok {
+			in.AllowSet = true
+			if list, ok := toolsArg.([]any); ok {
+				for _, v := range list {
+					if name, ok := v.(string); ok && strings.TrimSpace(name) != "" {
+						in.Allow = append(in.Allow, strings.TrimSpace(name))
+					}
+				}
+			}
+		}
+		s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: buildRunPlan(in)})
+		return
+	}
+
 	// Pre-generate the correlation ID so we can subscribe to this run's
 	// subject *before* starting it. No race; no missed events.
 	corr := k.NewCorrelation()

@@ -152,6 +152,7 @@ func printHelp(w io.Writer) {
 	fmt.Fprintf(w, "Commands:\n")
 	fmt.Fprintf(w, "  run \"<intent>\" | run - | run --file <path>   run an intent (read from arg, stdin via -, or a file)\n")
 	fmt.Fprintf(w, "      [--json|-q] [--tenant <id>] [--model <id>] [--system <prompt>] [--timeout <dur>]   per-run overrides; -q/--quiet = only the answer; JSON = ndjson stream\n")
+	fmt.Fprintf(w, "      [--tools <csv>|--no-tools] [--dry-run]   restrict this run's tools (see `tool list`); --dry-run resolves the plan without executing\n")
 	fmt.Fprintf(w, "  halt [--reason \"...\"] [--json]  freeze all in-flight runs (reason is journaled)\n")
 	fmt.Fprintf(w, "  resume [--reason \"...\"] [--json] clear the halt flag (reason is journaled)\n")
 	fmt.Fprintf(w, "  why <event_id> [--json|--payload]  list events sharing an event's correlation\n")
@@ -297,6 +298,7 @@ func cmdRun(args []string, stdout, stderr io.Writer) int {
 	timeout := ""
 	toolsSet := false
 	var toolsList []any
+	dryRun := false
 	var images []string
 	var intentParts []string
 	for i := 0; i < len(args); i++ {
@@ -340,6 +342,8 @@ func cmdRun(args []string, stdout, stderr io.Writer) int {
 			timeout = args[i]
 		case strings.HasPrefix(a, "--timeout="):
 			timeout = strings.TrimPrefix(a, "--timeout=")
+		case a == "--dry-run":
+			dryRun = true
 		case a == "--no-tools":
 			toolsSet = true // empty list = no tools
 		case a == "--tools" || strings.HasPrefix(a, "--tools="):
@@ -444,6 +448,12 @@ func cmdRun(args []string, stdout, stderr io.Writer) int {
 		}
 		runArgs["tools"] = toolsList
 	}
+	// Dry-run (M159): resolve and print what this run WOULD do — effective model,
+	// system source, timeout, and the exact tool set after the per-run filter —
+	// without starting it or spending a token.
+	if dryRun {
+		runArgs["dry_run"] = true
+	}
 
 	c := dial(stderr)
 	if c == nil {
@@ -451,6 +461,12 @@ func cmdRun(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), clientTimeout)
 	defer cancel()
+
+	// Dry-run (M159): a single non-streaming Call returns the resolved plan; no
+	// events, no run. Render it (or emit the raw JSON plan with --json).
+	if dryRun {
+		return runDryRunMode(ctx, c, runArgs, asJSON, stdout, stderr)
+	}
 
 	if asJSON {
 		return runJSONMode(ctx, c, runArgs, stdout, stderr)
@@ -550,6 +566,81 @@ func runJSONMode(ctx context.Context, c *controlplane.Client, runArgs map[string
 	}
 	_ = enc.Encode(map[string]any{"type": "result", "result": result})
 	return 0
+}
+
+// runDryRunMode implements `agt run --dry-run`: a single non-streaming Call
+// returns the resolved plan (what the run WOULD do) and nothing executes. With
+// --json the raw plan object is emitted; otherwise a compact human summary.
+func runDryRunMode(ctx context.Context, c *controlplane.Client, runArgs map[string]any, asJSON bool, stdout, stderr io.Writer) int {
+	plan, err := c.Call(ctx, controlplane.CmdRun, runArgs)
+	if err != nil {
+		if asJSON {
+			_ = json.NewEncoder(stdout).Encode(map[string]any{"type": "error", "error": err.Error()})
+		} else {
+			fmt.Fprintf(stderr, "%s run --dry-run: %v\n", brand.CLI, err)
+		}
+		return 1
+	}
+	if asJSON {
+		enc, _ := json.Marshal(plan)
+		fmt.Fprintf(stdout, "%s\n", enc)
+		return 0
+	}
+
+	str := func(k string) string { s, _ := plan[k].(string); return s }
+	fmt.Fprintf(stdout, "dry-run — this run would execute as:\n")
+	fmt.Fprintf(stdout, "  intent        : %s\n", str("intent"))
+	fmt.Fprintf(stdout, "  tenant        : %s\n", str("tenant"))
+	model := str("model")
+	if known, _ := plan["model_known"].(bool); known {
+		caps := []string{}
+		if v, _ := plan["supports_vision"].(bool); v {
+			caps = append(caps, "vision")
+		}
+		if v, _ := plan["supports_tools"].(bool); v {
+			caps = append(caps, "tool_call")
+		}
+		capStr := "no advertised caps"
+		if len(caps) > 0 {
+			capStr = strings.Join(caps, "+")
+		}
+		fmt.Fprintf(stdout, "  model         : %s (%s) [catalog: %s]\n", model, str("model_source"), capStr)
+	} else {
+		fmt.Fprintf(stdout, "  model         : %s (%s) [not in catalog]\n", model, str("model_source"))
+	}
+	fmt.Fprintf(stdout, "  system prompt : %s\n", str("system_source"))
+	fmt.Fprintf(stdout, "  timeout       : %s\n", str("timeout"))
+
+	tools := toStringSlice(plan["tools"])
+	switch str("tools_mode") {
+	case "all":
+		fmt.Fprintf(stdout, "  tools         : all (%d): %s\n", len(tools), strings.Join(tools, ", "))
+	case "restricted":
+		fmt.Fprintf(stdout, "  tools         : restricted (%d): %s\n", len(tools), strings.Join(tools, ", "))
+	default: // "none (--no-tools)"
+		fmt.Fprintf(stdout, "  tools         : none (--no-tools)\n")
+	}
+	if dropped := toStringSlice(plan["tools_dropped"]); len(dropped) > 0 {
+		fmt.Fprintf(stdout, "  tools dropped : %s (requested but not registered)\n", strings.Join(dropped, ", "))
+	}
+	fmt.Fprintf(stdout, "\n(no run started, no tokens spent — drop --dry-run to execute)\n")
+	return 0
+}
+
+// toStringSlice coerces a decoded JSON array (interface slice) to []string,
+// skipping non-string elements. Nil-safe.
+func toStringSlice(v any) []string {
+	list, ok := v.([]any)
+	if !ok {
+		return nil
+	}
+	out := make([]string, 0, len(list))
+	for _, e := range list {
+		if s, ok := e.(string); ok {
+			out = append(out, s)
+		}
+	}
+	return out
 }
 
 func cmdSimple(cmd string, args map[string]any, stdout, stderr io.Writer) int {

@@ -541,6 +541,11 @@ func (k *Kernel) BaseDir() string { return k.cfg.BaseDir }
 // Used by `agt config show`.
 func (k *Kernel) Model() string { return k.cfg.Model }
 
+// MaxDuration is the daemon-wide per-run wall-clock budget (M31), 0 if disabled.
+// Exposed so the control plane can report the effective timeout in `agt run
+// --dry-run` (M159) without reaching into the config.
+func (k *Kernel) MaxDuration() time.Duration { return k.cfg.MaxDuration }
+
 // SubAgentLimits reports the active delegation-governance ceilings (M46–M48)
 // for `agt status` (M49). Enabled mirrors whether the `delegate` tool is
 // registered; MaxDepth is the EFFECTIVE cap (defaulting to 1 when enabled and
