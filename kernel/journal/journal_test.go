@@ -40,6 +40,69 @@ func sequentialIDs() func() string {
 	}
 }
 
+func TestTail_ReturnsLastNInOrderAcrossSegments(t *testing.T) {
+	// Tiny segment threshold so the events spread across many segments — Tail
+	// must stitch the newest segments back together in seq order.
+	j := newTestJournal(t, 200)
+	const total = 50
+	for i := 0; i < total; i++ {
+		if _, err := j.Append(event.Spec{
+			Subject: fmt.Sprintf("ev.%d", i), Kind: event.KindTaskReceived, Actor: "kernel",
+		}); err != nil {
+			t.Fatalf("Append %d: %v", i, err)
+		}
+	}
+	// Confirm rotation actually happened (otherwise the test proves nothing).
+	if segs, _ := listSegments(j.dir); len(segs) < 3 {
+		t.Fatalf("expected multiple segments, got %d", len(segs))
+	}
+
+	got, err := j.Tail(5)
+	if err != nil {
+		t.Fatalf("Tail: %v", err)
+	}
+	if len(got) != 5 {
+		t.Fatalf("Tail(5) returned %d events, want 5", len(got))
+	}
+	// Last 5 are seqs 45..49, in order.
+	for i, e := range got {
+		wantSeq := int64(total - 5 + i)
+		if e.Seq != wantSeq {
+			t.Errorf("Tail[%d].Seq = %d, want %d (must be seq-ordered)", i, e.Seq, wantSeq)
+		}
+	}
+}
+
+func TestTail_EdgeCases(t *testing.T) {
+	j := newTestJournal(t, 0)
+	// Empty journal.
+	if got, err := j.Tail(10); err != nil || len(got) != 0 {
+		t.Fatalf("Tail on empty = (%v, %v), want ([], nil)", got, err)
+	}
+	for i := 0; i < 3; i++ {
+		if _, err := j.Append(event.Spec{Subject: "x", Kind: event.KindTaskReceived, Actor: "kernel"}); err != nil {
+			t.Fatalf("Append: %v", err)
+		}
+	}
+	// n <= 0 → nil.
+	if got, _ := j.Tail(0); got != nil {
+		t.Errorf("Tail(0) = %v, want nil", got)
+	}
+	// n larger than total → all, in order.
+	got, _ := j.Tail(100)
+	if len(got) != 3 || got[0].Seq != 0 || got[2].Seq != 2 {
+		t.Errorf("Tail(100) = %d events (seqs %v), want all 3 in order", len(got), seqsOf(got))
+	}
+}
+
+func seqsOf(evs []*event.Event) []int64 {
+	out := make([]int64, len(evs))
+	for i, e := range evs {
+		out[i] = e.Seq
+	}
+	return out
+}
+
 func TestAppend_ChainsAndPersists(t *testing.T) {
 	j := newTestJournal(t, 0)
 

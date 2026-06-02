@@ -219,6 +219,63 @@ func (j *Journal) Range(fn func(*event.Event) error) error {
 	return nil
 }
 
+// Tail returns the last n events in seq order, reading from the newest segment
+// backwards and stopping as soon as it has enough — so `journal tail` (and any
+// "recent events" view) costs O(events read) ≈ the last segment, not O(total).
+// For n <= 0 it returns nil. Fewer than n total events returns them all.
+//
+// Concurrency matches Range: no lock is held, so a Tail runs alongside Append
+// (it reads complete, fsync'd lines). The current segment may gain events during
+// the read; Tail reflects whatever was durably written when it reached EOF.
+func (j *Journal) Tail(n int) ([]*event.Event, error) {
+	if n <= 0 {
+		return nil, nil
+	}
+	segs, err := listSegments(j.dir)
+	if err != nil {
+		return nil, err
+	}
+	// Read segments newest→oldest, prepending each so the result stays in seq
+	// order, until we've gathered at least n events (or run out of segments).
+	var collected []*event.Event
+	for i := len(segs) - 1; i >= 0; i-- {
+		evs, err := readSegment(segs[i])
+		if err != nil {
+			return nil, err
+		}
+		collected = append(evs, collected...)
+		if len(collected) >= n {
+			break
+		}
+	}
+	if len(collected) > n {
+		collected = collected[len(collected)-n:]
+	}
+	return collected, nil
+}
+
+// readSegment scans one segment file fully into a slice of events, in order.
+func readSegment(s segment) ([]*event.Event, error) {
+	f, err := os.Open(s.path)
+	if err != nil {
+		return nil, fmt.Errorf("journal: open %s: %w", s.path, err)
+	}
+	defer f.Close()
+	var out []*event.Event
+	sc := newLineScanner(f)
+	for sc.Scan() {
+		ev, err := event.Decode(sc.Bytes())
+		if err != nil {
+			return nil, fmt.Errorf("journal: decode in %s: %w", s.path, err)
+		}
+		out = append(out, ev)
+	}
+	if err := sc.Err(); err != nil {
+		return nil, fmt.Errorf("journal: scan %s: %w", s.path, err)
+	}
+	return out, nil
+}
+
 // ErrChainBreak is returned by Verify and recovery scans when the chain is
 // inconsistent (bad hash, missing seq, or non-monotonic seq).
 var ErrChainBreak = errors.New("journal: chain break")

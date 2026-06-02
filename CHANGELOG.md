@@ -169,6 +169,14 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   `.project/PHASE-M129-OBSERVABILITY-TENANT-FLAG-REPORT.md`.
 
 ### Fixed
+- **`agt journal tail` no longer scans the whole journal** (M147) — the tail handler
+  forward-walked every segment of the (append-only, full-retention) journal just to
+  keep the last N events by seq — O(total), growing with the journal forever. A new
+  `Journal.Tail(n)` reads segments newest→oldest and stops as soon as it has N
+  events, so the cost is ≈ the last segment (where N is small), not the entire
+  history. Output is identical (last N in seq order); concurrency matches `Range`
+  (no lock, reads durable lines alongside `Append`). See
+  `.project/PHASE-M147-JOURNAL-TAIL-REPORT.md`.
 - **Channel-arc hardening (code review)** (M145) — a focused quality pass over the
   M138–M144 channel arc fixed several real issues found in review:
   - **Boot-time data race**: the `notify` tool was written into the kernel's live

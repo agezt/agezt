@@ -11,8 +11,6 @@ package controlplane
 
 import (
 	"net"
-
-	"github.com/agezt/agezt/kernel/event"
 )
 
 const (
@@ -67,21 +65,10 @@ func (s *Server) handleJournalTail(conn net.Conn, req Request) {
 	if headSeq < 0 {
 		headSeq = 0
 	}
-	// Compute the seq cutoff: only events with seq > cutoff make
-	// the tail. Forward-walking the whole journal and filtering by
-	// seq is O(total), but avoids buffering — Range yields events
-	// in order, so we just append once the cutoff is passed.
-	// Don't clamp to 0 here: journal seqs are 0-based, so when n >
-	// total events we want cutoff = -1 (which lets seq=0 through).
-	cutoff := headSeq - int64(n)
 
-	var tail []*event.Event
-	err := s.k.Journal().Range(func(e *event.Event) error {
-		if e.Seq > cutoff {
-			tail = append(tail, e)
-		}
-		return nil
-	})
+	// Read only the last n events (reverse segment read), not the whole journal —
+	// the tail of a multi-gigabyte journal shouldn't scan every segment.
+	tail, err := s.k.Journal().Tail(n)
 	if err != nil {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
 		return
