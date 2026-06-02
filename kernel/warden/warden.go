@@ -279,7 +279,20 @@ func (e *engine) Run(ctx context.Context, spec Spec) (*Result, error) {
 
 	cmd := exec.CommandContext(runCtx, spec.Argv[0], spec.Argv[1:]...)
 	cmd.Dir = spec.WorkDir
-	cmd.Env = spec.Env
+	// Honor the documented contract that a nil Env means an EMPTY
+	// environment (most restrictive), NOT inheritance (M186). Go's
+	// os/exec treats cmd.Env == nil as "inherit the parent's
+	// environment", which would leak the daemon's secrets (API keys,
+	// tokens, AWS_*, …) into an untrusted child — the exact opposite of
+	// what Spec.Env documents and what callers like pulse's probe runner
+	// (Env: nil) rely on. Translate nil to an explicit empty slice so the
+	// documented default is also the safe one. A caller that genuinely
+	// wants inheritance must pass os.Environ() explicitly.
+	if spec.Env == nil {
+		cmd.Env = []string{}
+	} else {
+		cmd.Env = spec.Env
+	}
 	cmd.WaitDelay = waitDelay
 
 	// M1.d: platform-specific pre-Start setup (sets SysProcAttr on

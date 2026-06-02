@@ -318,6 +318,17 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   `.project/PHASE-M129-OBSERVABILITY-TENANT-FLAG-REPORT.md`.
 
 ### Fixed
+- **Warden `nil` env no longer leaks the daemon environment into child processes
+  (security review HIGH)** (M186) — `Spec.Env` documents "Nil = empty environment (most
+  restrictive)", but the engine set `cmd.Env = spec.Env` directly, and Go's `os/exec`
+  treats `cmd.Env == nil` as *inherit the parent's environment*. So a warden run with a
+  nil Env actually ran the (untrusted) child with the **entire daemon environment** —
+  API keys, tokens, `AWS_*`, etc. — the exact opposite of the documented default. This
+  was live: pulse's probe runner (`observers.go`) passes `Env: nil` for
+  operator-configured probe commands. `Run` now translates a nil Env to an explicit
+  empty slice, so the documented default is also the safe one; a caller wanting
+  inheritance must pass `os.Environ()` explicitly. See
+  `.project/PHASE-M186-WARDEN-ENV-LEAK-REPORT.md`.
 - **mcpbridge bounds reads from untrusted MCP servers — no OOM via a flooding server**
   (M185) — both MCP transports read newline-delimited frames from a peer the bridge
   doesn't control (a spawned MCP server's stdout; a remote SSE event-stream) with a
