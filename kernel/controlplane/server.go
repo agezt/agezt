@@ -72,6 +72,12 @@ type Server struct {
 	// via SetHTTPBindings. `agt status` surfaces them and the doctor exposure check
 	// (M137) warns on any non-loopback bind. Empty when no HTTP server is enabled.
 	httpBindings []HTTPBinding
+
+	// channels lists the messaging channels the daemon has configured (Telegram,
+	// Slack, Discord), injected via SetChannels. `agt status` surfaces them so an
+	// operator can confirm what's listening without scrolling back to the boot
+	// banner (M141). Empty when no channel is configured.
+	channels []ChannelInfo
 }
 
 // HTTPBinding describes one network-exposed HTTP server for the exposure check.
@@ -84,6 +90,18 @@ type HTTPBinding struct {
 // SetHTTPBindings records the daemon's enabled HTTP servers so `agt status` and
 // `agt doctor` can report whether any is reachable beyond localhost.
 func (s *Server) SetHTTPBindings(b []HTTPBinding) { s.httpBindings = b }
+
+// ChannelInfo describes one configured messaging channel for `agt status`.
+type ChannelInfo struct {
+	Kind      string // "telegram" | "slack" | "discord"
+	Inbound   bool   // true when the channel can receive and act on commands
+	Addr      string // listen addr for webhook channels (slack/discord); empty otherwise
+	Allowlist int    // number of allowlisted chat/channel ids
+}
+
+// SetChannels records the daemon's configured messaging channels so `agt status`
+// can report what's listening.
+func (s *Server) SetChannels(c []ChannelInfo) { s.channels = c }
 
 // DiskFreeFunc returns the free (available) and total bytes for the filesystem
 // containing path (M131). The daemon injects a real implementation

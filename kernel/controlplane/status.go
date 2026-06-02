@@ -97,5 +97,18 @@ func (s *Server) handleStatus(conn net.Conn, req Request) {
 		result["http_servers"] = servers
 	}
 
+	// Configured messaging channels (M141) — Telegram / Slack / Discord. So an
+	// operator can confirm what's listening (and on what addr / allowlist) from the
+	// status dashboard rather than the boot banner. Omitted when none configured.
+	if len(s.channels) > 0 {
+		chans := make([]map[string]any, 0, len(s.channels))
+		for _, c := range s.channels {
+			chans = append(chans, map[string]any{
+				"kind": c.Kind, "inbound": c.Inbound, "addr": c.Addr, "allowlist": c.Allowlist,
+			})
+		}
+		result["channels"] = chans
+	}
+
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: result})
 }

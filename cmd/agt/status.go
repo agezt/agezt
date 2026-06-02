@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"strings"
 	"time"
 
 	"github.com/agezt/agezt/internal/brand"
@@ -84,6 +85,28 @@ func cmdStatus(args []string, stdout, stderr io.Writer) int {
 	fmt.Fprintf(stdout, "  runs      : %d active\n", activeRuns)
 	fmt.Fprintf(stdout, "  tools     : %d registered\n", toolCount)
 	fmt.Fprintf(stdout, "  journal   : head seq=%d\n", journalHead)
+
+	// Configured messaging channels (M141) — Telegram / Slack / Discord. Quiet
+	// when none configured so single-shot operators see no noise.
+	if chans, _ := res["channels"].([]any); len(chans) > 0 {
+		parts := make([]string, 0, len(chans))
+		for _, raw := range chans {
+			c, _ := raw.(map[string]any)
+			kind, _ := c["kind"].(string)
+			inbound, _ := c["inbound"].(bool)
+			addr, _ := c["addr"].(string)
+			allow := intOfStatus(c["allowlist"])
+			mode := "outbound-only"
+			if inbound {
+				mode = "inbound"
+				if addr != "" {
+					mode += " @" + addr
+				}
+			}
+			parts = append(parts, fmt.Sprintf("%s (%s, allow %d)", kind, mode, allow))
+		}
+		fmt.Fprintf(stdout, "  channels  : %s\n", strings.Join(parts, ", "))
+	}
 
 	// Scheduled autonomy (M130): how many intents are armed, and how many enabled.
 	// Quiet when there are none so single-shot operators see no noise.

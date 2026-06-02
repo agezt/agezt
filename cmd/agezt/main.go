@@ -713,6 +713,11 @@ func runDaemon(stdout, stderr io.Writer) int {
 	}
 	srv.SetHTTPBindings(httpBindings)
 
+	// Record the configured messaging channels (M141) so `agt status` can report
+	// what's listening — the per-channel boot banner scrolls past. Read-only from
+	// the same env the buildX functions consume.
+	srv.SetChannels(collectChannels())
+
 	// Scheduled intents (autonomy) — fire operator-configured intents on a timer
 	// through the governed loop. Runs on the daemon ctx (halt/shutdown stop it).
 	// Off unless AGEZT_SCHEDULE is set.
@@ -974,6 +979,43 @@ func buildDiscord(ctx context.Context, k *kernelruntime.Kernel) (*discord.Channe
 	default:
 		return ch, sink, fmt.Sprintf("interactions at %s%s, allowlist=%d channel(s)", addr, discord.InteractionsPath, len(channelIDs))
 	}
+}
+
+// collectChannels reports the configured messaging channels for `agt status`
+// (M141), read-only from the same env the buildX functions consume. A channel is
+// listed when its token is set; Inbound reflects whether it can actually receive
+// and act on commands (Telegram always can; Slack/Discord need a listen addr plus
+// the inbound secret/public key), so a half-configured webhook channel shows up
+// as outbound-only rather than silently looking active.
+func collectChannels() []controlplane.ChannelInfo {
+	env := func(suffix string) string { return strings.TrimSpace(os.Getenv(brand.EnvPrefix + suffix)) }
+	var out []controlplane.ChannelInfo
+	if env("TELEGRAM_TOKEN") != "" {
+		out = append(out, controlplane.ChannelInfo{
+			Kind:      "telegram",
+			Inbound:   true, // long-polls whenever a token is set
+			Allowlist: len(splitNonEmpty(os.Getenv(brand.EnvPrefix + "TELEGRAM_CHAT_ID"))),
+		})
+	}
+	if env("SLACK_TOKEN") != "" {
+		addr := env("SLACK_ADDR")
+		out = append(out, controlplane.ChannelInfo{
+			Kind:      "slack",
+			Inbound:   addr != "" && env("SLACK_SIGNING_SECRET") != "",
+			Addr:      addr,
+			Allowlist: len(splitNonEmpty(os.Getenv(brand.EnvPrefix + "SLACK_CHANNELS"))),
+		})
+	}
+	if env("DISCORD_TOKEN") != "" {
+		addr := env("DISCORD_ADDR")
+		out = append(out, controlplane.ChannelInfo{
+			Kind:      "discord",
+			Inbound:   addr != "" && env("DISCORD_PUBLIC_KEY") != "",
+			Addr:      addr,
+			Allowlist: len(splitNonEmpty(os.Getenv(brand.EnvPrefix + "DISCORD_CHANNELS"))),
+		})
+	}
+	return out
 }
 
 // combineSinks tees the configured channel brief sinks (Telegram, Slack, Discord)

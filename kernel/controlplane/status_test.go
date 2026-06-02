@@ -114,6 +114,42 @@ func TestStatus_SchedulesAndTenants(t *testing.T) {
 	}
 }
 
+// TestStatus_Channels — configured messaging channels are surfaced (M141), with
+// inbound/addr/allowlist, and omitted entirely when none are set.
+func TestStatus_Channels(t *testing.T) {
+	_, srv, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+
+	// None configured → no channels key at all.
+	res, err := c.Call(context.Background(), controlplane.CmdStatus, nil)
+	if err != nil {
+		t.Fatalf("Call: %v", err)
+	}
+	if _, ok := res["channels"]; ok {
+		t.Errorf("channels should be absent when none configured, got %v", res["channels"])
+	}
+
+	srv.SetChannels([]controlplane.ChannelInfo{
+		{Kind: "telegram", Inbound: true, Allowlist: 1},
+		{Kind: "discord", Inbound: false, Addr: "127.0.0.1:8850", Allowlist: 2},
+	})
+	res, err = c.Call(context.Background(), controlplane.CmdStatus, nil)
+	if err != nil {
+		t.Fatalf("Call: %v", err)
+	}
+	chans, _ := res["channels"].([]any)
+	if len(chans) != 2 {
+		t.Fatalf("channels len = %d want 2", len(chans))
+	}
+	tg, _ := chans[0].(map[string]any)
+	if tg["kind"] != "telegram" || tg["inbound"] != true || intOf(tg["allowlist"]) != 1 {
+		t.Errorf("telegram entry wrong: %+v", tg)
+	}
+	dc, _ := chans[1].(map[string]any)
+	if dc["kind"] != "discord" || dc["inbound"] != false || dc["addr"] != "127.0.0.1:8850" || intOf(dc["allowlist"]) != 2 {
+		t.Errorf("discord entry wrong: %+v", dc)
+	}
+}
+
 // TestStatus_DelegationCeilings — with the delegate tool on and the M46–M48 caps
 // set, status reports the effective ceilings: depth defaults to 1 (unset), and
 // the configured fan-out / spend caps are echoed (M49).

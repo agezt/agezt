@@ -12,6 +12,17 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Configured channels in `agt status`** (M141) — the daemon now reports its
+  messaging channels (Telegram, Slack, Discord) in `agt status`:
+  `channels : telegram (inbound, allow 2), slack (inbound @127.0.0.1:8840, allow 1),
+  discord (outbound-only, allow 3)`. Each channel shows whether it can receive
+  commands (`inbound` vs `outbound-only`), its listen addr (webhook channels), and
+  its allowlist size — so an operator confirms what's listening without scrolling
+  back to the boot banner. Crucially, a half-configured webhook channel (a listen
+  addr but no signing secret / public key) shows as `outbound-only`, surfacing a
+  silent misconfiguration. Injected via `Server.SetChannels` (the M137
+  `SetHTTPBindings` decoupling pattern); also in `agt status --json` under
+  `channels`. See `.project/PHASE-M141-CHANNELS-IN-STATUS-REPORT.md`.
 - **`agt inbox --channel KIND` filter** (M140, SPEC-07 §4) — with three duplex
   channels now live (Telegram, Slack, Discord), the Unified Inbox mixes every
   platform's threads together. `agt inbox --channel discord` (also `--channel=slack`,

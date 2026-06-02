@@ -16,6 +16,50 @@ import (
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
 
+// TestCollectChannels — env-driven channel inventory for `agt status` (M141):
+// only token-set channels appear, and Inbound reflects whether a webhook channel
+// is fully configured (addr + secret/public key) vs. half-configured.
+func TestCollectChannels(t *testing.T) {
+	// No tokens → empty.
+	if got := collectChannels(); len(got) != 0 {
+		t.Fatalf("no tokens should yield 0 channels, got %d", len(got))
+	}
+
+	t.Setenv(brand.EnvPrefix+"TELEGRAM_TOKEN", "tg")
+	t.Setenv(brand.EnvPrefix+"TELEGRAM_CHAT_ID", "111,222")
+	t.Setenv(brand.EnvPrefix+"SLACK_TOKEN", "xoxb")
+	t.Setenv(brand.EnvPrefix+"SLACK_ADDR", "127.0.0.1:8840")
+	// SLACK_SIGNING_SECRET intentionally unset → Slack inbound half-configured.
+	t.Setenv(brand.EnvPrefix+"SLACK_CHANNELS", "C1")
+	t.Setenv(brand.EnvPrefix+"DISCORD_TOKEN", "bot")
+	t.Setenv(brand.EnvPrefix+"DISCORD_ADDR", "127.0.0.1:8850")
+	t.Setenv(brand.EnvPrefix+"DISCORD_PUBLIC_KEY", "deadbeef")
+	t.Setenv(brand.EnvPrefix+"DISCORD_CHANNELS", "D1,D2,D3")
+
+	got := collectChannels()
+	if len(got) != 3 {
+		t.Fatalf("expected 3 channels, got %d: %+v", len(got), got)
+	}
+	type info struct {
+		inbound   bool
+		addr      string
+		allowlist int
+	}
+	by := map[string]info{}
+	for _, c := range got {
+		by[c.Kind] = info{c.Inbound, c.Addr, c.Allowlist}
+	}
+	if tg := by["telegram"]; !tg.inbound || tg.allowlist != 2 {
+		t.Errorf("telegram = %+v want inbound, allow 2", tg)
+	}
+	if sl := by["slack"]; sl.inbound || sl.addr != "127.0.0.1:8840" || sl.allowlist != 1 {
+		t.Errorf("slack = %+v want NOT inbound (no signing secret), addr set, allow 1", sl)
+	}
+	if dc := by["discord"]; !dc.inbound || dc.addr != "127.0.0.1:8850" || dc.allowlist != 3 {
+		t.Errorf("discord = %+v want inbound, addr set, allow 3", dc)
+	}
+}
+
 // TestDelegationBanner — the boot banner reflects the active delegation ceilings
 // (M58): "off" when disabled, the effective caps otherwise (M49 source).
 func TestDelegationBanner(t *testing.T) {
