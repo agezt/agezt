@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/agezt/agezt/internal/brand"
@@ -113,6 +115,22 @@ func mcFromAny(v any) int64 {
 func fmtUSD(microcents int64) string {
 	dollars := float64(microcents) / 1e9
 	return fmt.Sprintf("$%.4f", dollars)
+}
+
+// usdToMicrocents converts a dollar string ("0.01", "1.5", "$0.25") to int64
+// microcents — the inverse of fmtUSD's scale ($1 = 1e9 microcents). Rejects
+// negative or unparseable input. Used by cost filters that take a USD threshold
+// (M125), so an operator types dollars, not the internal microcents unit.
+func usdToMicrocents(s string) (int64, error) {
+	s = strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(s), "$"))
+	d, err := strconv.ParseFloat(s, 64)
+	if err != nil {
+		return 0, fmt.Errorf("want a dollar amount like 0.01, got %q", s)
+	}
+	if d < 0 {
+		return 0, fmt.Errorf("must be >= 0, got %q", s)
+	}
+	return int64(d*1e9 + 0.5), nil
 }
 
 // pct returns an integer-percent string ("47") for spent / cap.

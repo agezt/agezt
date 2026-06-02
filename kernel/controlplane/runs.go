@@ -229,6 +229,11 @@ func (s *Server) handleRunsList(conn net.Conn, req Request) {
 	// operator can find "which runs used claude-opus" in a multi-provider mix.
 	modelQuery, _ := req.Args["model"].(string)
 	modelQuery = strings.ToLower(modelQuery)
+	// Optional cost band (M125), in microcents: keep runs whose folded spend is
+	// >= min and (when set) <= max — "which runs cost at least $X / blew the
+	// budget". A run that never spent (0) is excluded once a positive min is set.
+	minCostMC := int64Arg(req.Args["min_cost_mc"])
+	maxCostMC := int64Arg(req.Args["max_cost_mc"])
 
 	// Tenant-scoped (M39): an empty tenant reads the primary journal; a named
 	// tenant reads its own isolated journal, so a tenant sees only its runs.
@@ -259,6 +264,13 @@ func (s *Server) handleRunsList(conn net.Conn, req Request) {
 		}
 		// Model substring filter (M123), also before the limit.
 		if modelQuery != "" && !strings.Contains(strings.ToLower(r.Model), modelQuery) {
+			continue
+		}
+		// Cost band (M125), also before the limit.
+		if minCostMC > 0 && r.SpentMicrocents < minCostMC {
+			continue
+		}
+		if maxCostMC > 0 && r.SpentMicrocents > maxCostMC {
 			continue
 		}
 		entries = append(entries, r)
@@ -656,6 +668,22 @@ func extractCostMicrocents(payload json.RawMessage) int64 {
 		return 0
 	}
 	return int64(p.Cost)
+}
+
+// int64Arg decodes a control-plane numeric arg to int64. JSON numbers arrive as
+// float64; an absent or non-numeric arg yields 0. Shared by the cost-band filter
+// (M125) and any other handler that takes an integer arg.
+func int64Arg(v any) int64 {
+	switch n := v.(type) {
+	case float64:
+		return int64(n)
+	case int64:
+		return n
+	case int:
+		return int64(n)
+	default:
+		return 0
+	}
 }
 
 // extractModel pulls the model name out of a budget.consumed payload (M123).

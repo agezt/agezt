@@ -12,6 +12,11 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Cost-band filter for `agt runs list`** (M125) — `--min-cost <usd>` /
+  `--max-cost <usd>` keep only runs whose spend falls in the band, so an operator
+  can find "which runs blew the budget?" / "the expensive runs to optimize" after
+  seeing the M124 by-model breakdown. New `usdToMicrocents` parser (the inverse of
+  `fmtUSD`). See `.project/PHASE-M125-RUNS-COST-FILTER-REPORT.md`.
 - **Per-model cost attribution in `agt runs stats`** (M124) — a `by model` block
   (and `by_model` in `--json`) breaks down run count + spend per model, sorted by
   spend, so "where is my money going across the provider mix?" is answered in the

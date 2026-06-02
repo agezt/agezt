@@ -932,6 +932,67 @@ func TestRunsStats_SpendDistribution(t *testing.T) {
 	}
 }
 
+// TestRunsList_CostBandFilter — `runs list` filters by a microcents cost band
+// (M125): min_cost_mc keeps runs that spent at least that much, max_cost_mc at
+// most. A free run (0 spend) drops out once a positive floor is set.
+func TestRunsList_CostBandFilter(t *testing.T) {
+	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	mkRun := func(corr string, mc int64) {
+		t.Helper()
+		_, _ = k.Bus().Publish(event.Spec{
+			Subject: "task", Kind: event.KindTaskReceived, Actor: "a",
+			CorrelationID: corr, Payload: map[string]string{"intent": "x"},
+		})
+		if mc > 0 {
+			_, _ = k.Bus().Publish(event.Spec{
+				Subject: "governor.budget", Kind: event.KindBudgetConsumed, Actor: "governor",
+				CorrelationID: corr, Payload: map[string]any{"cost_microcents": mc, "model": "m"},
+			})
+		}
+		_, _ = k.Bus().Publish(event.Spec{
+			Subject: "task", Kind: event.KindTaskCompleted, Actor: "a",
+			CorrelationID: corr, Payload: map[string]any{"iters": 1},
+		})
+	}
+	mkRun("cheap", 100)
+	mkRun("mid", 5_000)
+	mkRun("dear", 1_000_000)
+	mkRun("free", 0)
+
+	corrs := func(args map[string]any) map[string]bool {
+		t.Helper()
+		res, err := c.Call(context.Background(), controlplane.CmdRunsList, args)
+		if err != nil {
+			t.Fatalf("Call: %v", err)
+		}
+		rows, _ := res["runs"].([]any)
+		got := map[string]bool{}
+		for _, raw := range rows {
+			m, _ := raw.(map[string]any)
+			corr, _ := m["correlation_id"].(string)
+			got[corr] = true
+		}
+		return got
+	}
+
+	// Floor 1000mc → mid + dear, not cheap/free.
+	floor := corrs(map[string]any{"min_cost_mc": int64(1000)})
+	if !floor["mid"] || !floor["dear"] || floor["cheap"] || floor["free"] {
+		t.Errorf("min_cost_mc=1000 got %v want mid+dear only", floor)
+	}
+	// Band [1000, 100000] → mid only.
+	band := corrs(map[string]any{"min_cost_mc": int64(1000), "max_cost_mc": int64(100_000)})
+	if len(band) != 1 || !band["mid"] {
+		t.Errorf("band [1000,100000] got %v want mid only", band)
+	}
+	// Ceiling 100mc → cheap only (free has 0 spend, excluded by an implicit floor? no —
+	// max alone keeps free too). With only max=100, both cheap(100) and free(0) qualify.
+	ceil := corrs(map[string]any{"max_cost_mc": int64(100)})
+	if !ceil["cheap"] || !ceil["free"] || ceil["mid"] || ceil["dear"] {
+		t.Errorf("max_cost_mc=100 got %v want cheap+free", ceil)
+	}
+}
+
 // TestRunsStats_ByModel — runs stats attributes run count + spend per model
 // (M124), folded from each run's model (M123). Two opus runs (100+300mc) and one
 // haiku run (50mc) → by_model{opus:{runs:2, spent:400}, haiku:{runs:1, spent:50}}.

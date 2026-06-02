@@ -356,6 +356,8 @@ func cmdRunsList(args []string, stdout, stderr io.Writer) int {
 	status := ""
 	intent := ""
 	model := ""
+	minCostMC := int64(0)
+	maxCostMC := int64(0)
 	for i := 0; i < len(args); i++ {
 		a := args[i]
 		switch {
@@ -365,6 +367,38 @@ func cmdRunsList(args []string, stdout, stderr io.Writer) int {
 			tree = true
 		case a == "--failed":
 			status = "failed"
+		case a == "--min-cost" || strings.HasPrefix(a, "--min-cost="):
+			v := strings.TrimPrefix(a, "--min-cost=")
+			if a == "--min-cost" {
+				if i+1 >= len(args) {
+					fmt.Fprintf(stderr, "%s runs list: --min-cost needs a dollar amount\n", brand.CLI)
+					return 2
+				}
+				i++
+				v = args[i]
+			}
+			mc, err := usdToMicrocents(v)
+			if err != nil {
+				fmt.Fprintf(stderr, "%s runs list: --min-cost: %v\n", brand.CLI, err)
+				return 2
+			}
+			minCostMC = mc
+		case a == "--max-cost" || strings.HasPrefix(a, "--max-cost="):
+			v := strings.TrimPrefix(a, "--max-cost=")
+			if a == "--max-cost" {
+				if i+1 >= len(args) {
+					fmt.Fprintf(stderr, "%s runs list: --max-cost needs a dollar amount\n", brand.CLI)
+					return 2
+				}
+				i++
+				v = args[i]
+			}
+			mc, err := usdToMicrocents(v)
+			if err != nil {
+				fmt.Fprintf(stderr, "%s runs list: --max-cost: %v\n", brand.CLI, err)
+				return 2
+			}
+			maxCostMC = mc
 		case a == "--model":
 			if i+1 >= len(args) {
 				fmt.Fprintf(stderr, "%s runs list: --model needs a substring\n", brand.CLI)
@@ -409,6 +443,8 @@ func cmdRunsList(args []string, stdout, stderr io.Writer) int {
 			fmt.Fprintf(stdout, "  --failed          shorthand for --status failed\n")
 			fmt.Fprintf(stdout, "  --intent <substr> only runs whose intent contains <substr> (case-insensitive)\n")
 			fmt.Fprintf(stdout, "  --model <substr>  only runs whose model contains <substr> (case-insensitive)\n")
+			fmt.Fprintf(stdout, "  --min-cost <usd>  only runs that cost at least <usd> (e.g. 0.01)\n")
+			fmt.Fprintf(stdout, "  --max-cost <usd>  only runs that cost at most <usd>\n")
 			return 0
 		default:
 			n, err := strconv.Atoi(a)
@@ -442,6 +478,12 @@ func cmdRunsList(args []string, stdout, stderr io.Writer) int {
 	}
 	if model != "" {
 		callArgs["model"] = model // M123: filter by model substring
+	}
+	if minCostMC > 0 {
+		callArgs["min_cost_mc"] = minCostMC // M125: filter by cost floor
+	}
+	if maxCostMC > 0 {
+		callArgs["max_cost_mc"] = maxCostMC // M125: filter by cost ceiling
 	}
 	res, err := c.Call(ctx, controlplane.CmdRunsList, callArgs)
 	if err != nil {
