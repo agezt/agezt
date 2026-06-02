@@ -29,19 +29,25 @@ import (
 // degrades honestly rather than erroring out.
 //
 // Exit: 0 when nothing FAILed (warnings don't fail — they're advisories); 1
-// when any check FAILed; 2 on bad args. `--json` emits the machine form for CI.
+// when any check FAILed; 2 on bad args. With `--strict`, warnings also exit 1 —
+// so monitoring/CI can alert on advisory-level signals (a failing schedule, an
+// egress block, throttling). `--json` emits the machine form for CI.
 //
 // Reuses existing surfaces only: paths.BaseDir, controlplane.NewClient/Call,
 // CmdStatus, CmdJournalVerify. No new control-plane command, no new event kind.
 func cmdDoctor(args []string, stdout, stderr io.Writer) int {
 	asJSON := false
+	strict := false
 	for _, a := range args {
 		switch a {
 		case "--json":
 			asJSON = true
+		case "--strict":
+			strict = true
 		case "-h", "--help":
-			fmt.Fprintf(stdout, "usage: %s doctor [--json]\n", brand.CLI)
+			fmt.Fprintf(stdout, "usage: %s doctor [--json] [--strict]\n", brand.CLI)
 			fmt.Fprintf(stdout, "preflight health check: base dir, daemon, version skew, journal, tools\n")
+			fmt.Fprintf(stdout, "  --strict  exit non-zero on warnings too (not just failures)\n")
 			return 0
 		default:
 			fmt.Fprintf(stderr, "%s doctor: unexpected arg %q\n", brand.CLI, a)
@@ -52,9 +58,19 @@ func cmdDoctor(args []string, stdout, stderr io.Writer) int {
 	checks := runDoctorChecks()
 
 	if asJSON {
-		return renderDoctorJSON(checks, stdout)
+		return renderDoctorJSON(checks, strict, stdout)
 	}
-	return renderDoctorText(checks, stdout)
+	return renderDoctorText(checks, strict, stdout)
+}
+
+// doctorExitCode maps the worst check status to a process exit code. A FAIL is
+// always non-zero; a WARN is non-zero only under --strict (warnings are advisories
+// by default, but a monitoring/CI caller can opt into treating them as actionable).
+func doctorExitCode(worst checkStatus, strict bool) int {
+	if worst == statusFail || (strict && worst == statusWarn) {
+		return 1
+	}
+	return 0
 }
 
 // checkStatus is a tri-state result. Order matters: worst wins in a summary.
@@ -790,7 +806,7 @@ func checkHalt(status map[string]any) doctorCheck {
 	return ok(name, "running")
 }
 
-func renderDoctorText(checks []doctorCheck, stdout io.Writer) int {
+func renderDoctorText(checks []doctorCheck, strict bool, stdout io.Writer) int {
 	worst := statusOK
 	var nOK, nWarn, nFail int
 	fmt.Fprintf(stdout, "%s doctor:\n", brand.CLI)
@@ -813,29 +829,33 @@ func renderDoctorText(checks []doctorCheck, stdout io.Writer) int {
 	}
 	fmt.Fprintf(stdout, "\nsummary: %d ok, %d %s, %d failed\n",
 		nOK, nWarn, plural(nWarn, "warning", "warnings"), nFail)
-	if worst == statusFail {
-		return 1
+	// Under --strict, point out that the warnings are what produced the non-zero
+	// exit, so the operator isn't left wondering why a warning-only run "failed".
+	if strict && worst == statusWarn {
+		fmt.Fprintf(stdout, "strict: warnings treated as failures (exit 1)\n")
 	}
-	return 0
+	return doctorExitCode(worst, strict)
 }
 
-func renderDoctorJSON(checks []doctorCheck, stdout io.Writer) int {
+func renderDoctorJSON(checks []doctorCheck, strict bool, stdout io.Writer) int {
 	worst := statusOK
 	for _, c := range checks {
 		if c.Status > worst {
 			worst = c.Status
 		}
 	}
+	exit := doctorExitCode(worst, strict)
 	out := map[string]any{
 		"checks":  checks,
 		"healthy": worst != statusFail,
 		"worst":   worst.label(),
+		"strict":  strict,
+		// ok reflects the exit verdict under the chosen mode: false when this run
+		// will exit non-zero (a FAIL, or a WARN under --strict).
+		"ok": exit == 0,
 	}
 	enc := json.NewEncoder(stdout)
 	enc.SetIndent("", "  ")
 	_ = enc.Encode(out)
-	if worst == statusFail {
-		return 1
-	}
-	return 0
+	return exit
 }

@@ -53,38 +53,77 @@ func TestCheckBaseDir(t *testing.T) {
 	})
 }
 
-// TestDoctorSummaryExit verifies the exit-code contract: warnings don't fail,
-// a FAIL does.
+// TestDoctorSummaryExit verifies the exit-code contract: warnings don't fail by
+// default, a FAIL does, and --strict makes warnings fail too (M165).
 func TestDoctorSummaryExit(t *testing.T) {
 	cases := []struct {
 		name   string
 		checks []doctorCheck
+		strict bool
 		want   int
 	}{
-		{"all ok", []doctorCheck{ok("a", "x"), ok("b", "y")}, 0},
-		{"a warning", []doctorCheck{ok("a", "x"), warn("b", "y", "h")}, 0},
-		{"a failure", []doctorCheck{ok("a", "x"), fail("b", "y", "h")}, 1},
+		{"all ok", []doctorCheck{ok("a", "x"), ok("b", "y")}, false, 0},
+		{"a warning, lenient", []doctorCheck{ok("a", "x"), warn("b", "y", "h")}, false, 0},
+		{"a failure, lenient", []doctorCheck{ok("a", "x"), fail("b", "y", "h")}, false, 1},
+		{"all ok, strict", []doctorCheck{ok("a", "x"), ok("b", "y")}, true, 0},
+		{"a warning, strict", []doctorCheck{ok("a", "x"), warn("b", "y", "h")}, true, 1},
+		{"a failure, strict", []doctorCheck{ok("a", "x"), fail("b", "y", "h")}, true, 1},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			var out bytes.Buffer
-			if got := renderDoctorText(tc.checks, &out); got != tc.want {
+			if got := renderDoctorText(tc.checks, tc.strict, &out); got != tc.want {
 				t.Errorf("exit = %d want %d", got, tc.want)
 			}
 		})
 	}
 }
 
+// TestDoctorExitCode is the pure exit-code mapping (M165).
+func TestDoctorExitCode(t *testing.T) {
+	cases := []struct {
+		worst  checkStatus
+		strict bool
+		want   int
+	}{
+		{statusOK, false, 0},
+		{statusOK, true, 0},
+		{statusWarn, false, 0},
+		{statusWarn, true, 1},
+		{statusFail, false, 1},
+		{statusFail, true, 1},
+	}
+	for _, tc := range cases {
+		if got := doctorExitCode(tc.worst, tc.strict); got != tc.want {
+			t.Errorf("doctorExitCode(%s, strict=%v) = %d want %d", tc.worst.label(), tc.strict, got, tc.want)
+		}
+	}
+}
+
 func TestDoctorJSONShape(t *testing.T) {
 	var out bytes.Buffer
-	code := renderDoctorJSON([]doctorCheck{ok("a", "x"), fail("b", "y", "h")}, &out)
+	code := renderDoctorJSON([]doctorCheck{ok("a", "x"), fail("b", "y", "h")}, false, &out)
 	if code != 1 {
 		t.Errorf("a FAIL → exit 1, got %d", code)
 	}
 	s := out.String()
-	for _, want := range []string{`"healthy"`, `"checks"`, `"status": "FAIL"`, `"hint": "h"`} {
+	for _, want := range []string{`"healthy"`, `"checks"`, `"status": "FAIL"`, `"hint": "h"`, `"ok": false`} {
 		if !strings.Contains(s, want) {
 			t.Errorf("json missing %q in:\n%s", want, s)
+		}
+	}
+
+	// --strict: a WARN-only run reports ok=false and exits 1, but healthy stays
+	// true (healthy tracks FAILs only; ok tracks the strict-aware exit verdict).
+	var sout bytes.Buffer
+	scode := renderDoctorJSON([]doctorCheck{ok("a", "x"), warn("b", "y", "h")}, true, &sout)
+	if scode != 1 {
+		t.Errorf("strict WARN → exit 1, got %d", scode)
+	}
+	ss := sout.String()
+	for _, want := range []string{`"strict": true`, `"ok": false`, `"healthy": true`} {
+		if !strings.Contains(ss, want) {
+			t.Errorf("strict json missing %q in:\n%s", want, ss)
 		}
 	}
 }

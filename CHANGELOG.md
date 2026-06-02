@@ -12,6 +12,14 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **`agt doctor --strict`** (M165) — exit non-zero on **warnings** too, not just
+  failures. By default warnings are advisories (exit 0); `--strict` makes any WARN
+  exit 1, so monitoring/CI can alert on the advisory-level security signals the
+  recent checks surface (a failing schedule, an egress block, throttling) instead of
+  only hard failures. Text mode prints `strict: warnings treated as failures (exit
+  1)`; `--json` gains `strict` and an `ok` field (the strict-aware exit verdict),
+  while `healthy` still tracks FAILs only. See
+  `.project/PHASE-M165-DOCTOR-STRICT-REPORT.md`.
 - **Rate-limit health check in `agt doctor`** (M164) — `agt doctor` now WARNs when
   callers have been throttled in the last 24h: a `rate.limited` event means a tenant
   exceeded its per-minute request cap (M14 quotas) and was refused. Persistent
