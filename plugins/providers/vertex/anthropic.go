@@ -36,6 +36,7 @@ import (
 	"strings"
 
 	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/plugins/providers/internal/httpread"
 )
 
 const (
@@ -295,7 +296,7 @@ func (p *Provider) completeAnthropic(ctx context.Context, req agent.CompletionRe
 		return nil, fmt.Errorf("vertex: http: %w", err)
 	}
 	defer httpResp.Body.Close()
-	respBytes, err := io.ReadAll(httpResp.Body)
+	respBytes, err := httpread.All(httpResp.Body, httpread.DefaultMaxResponseBytes)
 	if err != nil {
 		return nil, fmt.Errorf("vertex: read body: %w", err)
 	}
@@ -340,7 +341,7 @@ func (p *Provider) completeStreamAnthropic(ctx context.Context, req agent.Comple
 	}
 	defer httpResp.Body.Close()
 	if httpResp.StatusCode/100 != 2 {
-		raw, _ := io.ReadAll(httpResp.Body)
+		raw, _ := httpread.All(httpResp.Body, httpread.DefaultMaxResponseBytes)
 		return nil, &APIError{Status: httpResp.StatusCode, Body: string(raw)}
 	}
 	return parseAnthropicSSE(httpResp.Body, model, onChunk)

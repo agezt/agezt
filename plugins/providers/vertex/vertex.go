@@ -29,13 +29,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/plugins/providers/internal/httpread"
 )
 
 const (
@@ -170,7 +170,7 @@ func (p *Provider) Complete(ctx context.Context, req agent.CompletionRequest) (*
 	}
 	defer httpResp.Body.Close()
 
-	respBytes, err := io.ReadAll(httpResp.Body)
+	respBytes, err := httpread.All(httpResp.Body, httpread.DefaultMaxResponseBytes)
 	if err != nil {
 		return nil, fmt.Errorf("vertex: read body: %w", err)
 	}

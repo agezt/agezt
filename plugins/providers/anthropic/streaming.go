@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/plugins/providers/internal/httpread"
 )
 
 // CompleteStream implements agent.StreamingProvider. It POSTs to the
@@ -81,7 +82,7 @@ func (p *Provider) CompleteStream(ctx context.Context, req agent.CompletionReque
 	if httpResp.StatusCode/100 != 2 {
 		// Non-2xx — read body for the journal, surface the same
 		// APIError type Complete uses so caller code paths converge.
-		raw, _ := io.ReadAll(httpResp.Body)
+		raw, _ := httpread.All(httpResp.Body, httpread.DefaultMaxResponseBytes)
 		return nil, &APIError{Status: httpResp.StatusCode, Body: string(raw)}
 	}
 

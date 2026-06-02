@@ -318,6 +318,14 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   `.project/PHASE-M129-OBSERVABILITY-TENANT-FLAG-REPORT.md`.
 
 ### Fixed
+- **Provider response bound rolled out to all remaining provider families** (M190) —
+  applied the M189 `httpread.All` cap to the non-streaming success reads and
+  streaming-error reads of the anthropic, bedrock, cohere, google, ollama, and vertex
+  providers (incl. vertex's OAuth token-exchange read), so no provider can OOM the
+  daemon with an oversized response body. Each provider's existing tests confirm no
+  regression on normal-size responses; a cross-dialect live test (anthropic) proves the
+  bound fires there too. Every provider's response read is now bounded. See
+  `.project/PHASE-M190-PROVIDER-RESPONSE-BOUND-ROLLOUT-REPORT.md`.
 - **Provider HTTP response bodies are bounded (openai family) — no OOM from a hostile
   endpoint** (M189) — providers read the non-streaming response body with an unbounded
   `io.ReadAll(httpResp.Body)`. A provider endpoint can be operator-configured to an

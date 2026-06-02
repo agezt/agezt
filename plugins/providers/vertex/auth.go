@@ -14,13 +14,14 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"os"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/agezt/agezt/plugins/providers/internal/httpread"
 )
 
 // Vertex auth: service-account JWT-bearer grant exchanged for an OAuth
@@ -234,7 +235,7 @@ func (ts *TokenSource) exchange(ctx context.Context) (token string, expiresIn in
 		return "", 0, fmt.Errorf("vertex: token exchange: %w", err)
 	}
 	defer resp.Body.Close()
-	raw, err := io.ReadAll(resp.Body)
+	raw, err := httpread.All(resp.Body, httpread.DefaultMaxResponseBytes)
 	if err != nil {
 		return "", 0, fmt.Errorf("vertex: read token response: %w", err)
 	}
