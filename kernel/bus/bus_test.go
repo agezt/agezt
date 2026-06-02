@@ -119,6 +119,45 @@ func TestRedactor_ScrubsBeforeJournal(t *testing.T) {
 	}
 }
 
+// TestRedactor_LiteralWithHTMLChars — a configured literal secret containing
+// &, <, or > must still be scrubbed before journaling (M170). Before the fix,
+// json.Marshal HTML-escaped these (& → &), so the literal scrubber — which
+// searches for the raw value — missed them and the secret was journaled forever.
+func TestRedactor_LiteralWithHTMLChars(t *testing.T) {
+	b := newTestBus(t)
+	r := redact.New()
+	const secret = "pw_a&b<c>d_verylongsecret_1234567890"
+	r.SetSecrets([]string{secret})
+	b.SetRedactor(r)
+
+	got, err := b.Publish(event.Spec{
+		Subject: "tool.result",
+		Kind:    event.KindToolResult,
+		Actor:   "agent-1",
+		Payload: map[string]any{"conn": "db://user:" + secret + "@host"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(got.Payload), secret) {
+		t.Fatalf("HTML-char secret leaked in returned payload: %s", got.Payload)
+	}
+	// And not the HTML-escaped form either (which is what the old bug left behind).
+	if strings.Contains(string(got.Payload), "a\\u0026b") {
+		t.Fatalf("HTML-escaped secret fragment leaked: %s", got.Payload)
+	}
+	if !strings.Contains(string(got.Payload), redact.Placeholder) {
+		t.Errorf("expected placeholder: %s", got.Payload)
+	}
+	// The journaled copy is clean and still hash-verifies.
+	_ = b.j.Range(func(e *event.Event) error {
+		if e.Kind == event.KindToolResult && strings.Contains(string(e.Payload), secret) {
+			t.Errorf("journaled payload leaks the HTML-char secret: %s", e.Payload)
+		}
+		return nil
+	})
+}
+
 // Without a redactor, payloads pass through untouched (default behavior).
 func TestRedactor_DisabledByDefault(t *testing.T) {
 	b := newTestBus(t)

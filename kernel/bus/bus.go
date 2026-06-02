@@ -26,6 +26,7 @@
 package bus
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -93,7 +94,18 @@ func (b *Bus) redactSpecLocked(spec event.Spec) event.Spec {
 		return spec
 	}
 	if spec.Payload != nil {
-		if raw, err := json.Marshal(spec.Payload); err == nil {
+		// Marshal WITHOUT HTML-escaping (M170): json.Marshal escapes < > & to
+		// < > &, which would hide those characters from the literal
+		// scrubber — a configured secret containing & / < / > (common in generated
+		// passwords and connection strings) would survive into the permanent
+		// journal. json.Encoder.SetEscapeHTML(false) keeps them literal so the
+		// scrubber sees the real bytes. Encode appends a newline; trim it so the
+		// stored payload is byte-identical to the marshaled form.
+		var buf bytes.Buffer
+		enc := json.NewEncoder(&buf)
+		enc.SetEscapeHTML(false)
+		if err := enc.Encode(spec.Payload); err == nil {
+			raw := bytes.TrimRight(buf.Bytes(), "\n")
 			spec.Payload = json.RawMessage(b.redactor.RedactBytes(raw))
 		}
 	}

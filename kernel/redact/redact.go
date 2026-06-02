@@ -52,18 +52,29 @@ type namedPattern struct {
 // safe. Order is irrelevant: matches are non-overlapping replacements.
 var namedPatterns = []namedPattern{
 	// OpenAI / Anthropic style keys: sk-…, sk-proj-…, sk-ant-… (the dash class
-	// makes the single rule cover the prefixed variants).
-	{"openai/anthropic-key", regexp.MustCompile(`sk-[A-Za-z0-9_-]{20,}`)},
-	// AWS access key id.
+	// makes the single rule cover the prefixed variants). The char class includes
+	// base64 chars (+/=) and "." so a token containing them is matched whole rather
+	// than truncated to a short prefix that then fails the {20,} length floor and
+	// leaks entirely (M170).
+	{"openai/anthropic-key", regexp.MustCompile(`sk-[A-Za-z0-9._+/=-]{20,}`)},
+	// AWS access key id (AKIA + 16 = the fixed 20-char id).
 	{"aws-access-key-id", regexp.MustCompile(`AKIA[0-9A-Z]{16}`)},
-	// GitHub tokens: ghp_, gho_, ghu_, ghs_, ghr_.
+	// GitHub classic tokens: ghp_, gho_, ghu_, ghs_, ghr_.
 	{"github-token", regexp.MustCompile(`gh[pousr]_[A-Za-z0-9]{36,}`)},
+	// GitHub fine-grained PATs: github_pat_… (M170).
+	{"github-fine-grained-pat", regexp.MustCompile(`github_pat_[A-Za-z0-9_]{30,}`)},
 	// Slack tokens: xoxb-, xoxa-, xoxp-, xoxr-, xoxs-.
 	{"slack-token", regexp.MustCompile(`xox[baprs]-[A-Za-z0-9-]{10,}`)},
-	// Google API key.
-	{"google-api-key", regexp.MustCompile(`AIza[0-9A-Za-z_-]{35}`)},
-	// Bearer tokens (Authorization headers, OAuth dumps).
-	{"bearer-token", regexp.MustCompile(`(?i)bearer\s+[A-Za-z0-9._-]{20,}`)},
+	// Google API key (AIza + ≥35; open-ended so a longer variant isn't left with a
+	// trailing tail unredacted — M170).
+	{"google-api-key", regexp.MustCompile(`AIza[0-9A-Za-z_-]{35,}`)},
+	// JWTs (header.payload.signature; both header and payload begin "eyJ", the
+	// base64url of '{"'). Routinely carry bearer credentials in logged traffic (M170).
+	{"jwt", regexp.MustCompile(`eyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+`)},
+	// Bearer tokens (Authorization headers, OAuth dumps). Same base64-inclusive
+	// char class as sk- so a standard-base64 access token (e.g. Google ya29.…) is
+	// matched whole, not missed (M170).
+	{"bearer-token", regexp.MustCompile(`(?i)bearer\s+[A-Za-z0-9._+/=-]{20,}`)},
 	// PEM private-key blocks (any type), body and delimiters.
 	{"pem-private-key", regexp.MustCompile(`(?s)-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----.*?-----END [A-Z0-9 ]*PRIVATE KEY-----`)},
 }

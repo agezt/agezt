@@ -318,6 +318,24 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   `.project/PHASE-M129-OBSERVABILITY-TENANT-FLAG-REPORT.md`.
 
 ### Fixed
+- **Secret-redaction hardening — closed permanent-journal leak paths (security
+  review)** (M170) — a security review of the redactor (the chokepoint before the
+  append-only, hash-chained journal, where a miss is permanent and unscrubbable)
+  found and fixed real leaks: (1) **HTML-escaping bypass (Critical)** — the bus
+  marshaled payloads with `json.Marshal`, which escapes `&`/`<`/`>` to `&`
+  etc., so the literal scrubber (searching for the *raw* value) missed any
+  configured secret containing those characters (common in generated passwords /
+  connection strings) and journaled it forever; the bus now marshals with
+  `SetEscapeHTML(false)`. (2) **Base64/OAuth token char-class gap (High)** — the
+  `sk-` and `bearer` patterns excluded `+` `/` `=`, so a standard-base64 token
+  (e.g. a Google `ya29.…` access token) broke the match below its length floor and
+  leaked *entirely*; the classes now include them. (3) **Missing patterns (High)** —
+  added JWT (`eyJ….eyJ….…`) and GitHub fine-grained PAT (`github_pat_…`) detectors;
+  widened the Google-key quantifier so a longer key isn't left with an unredacted
+  tail. The review confirmed the redactor is concurrency-safe, mutation-safe, has no
+  journal-write bypass, and no ReDoS. (A separate `[]byte`-payload base64 gap is
+  tracked for a structural-redaction follow-up.) See
+  `.project/PHASE-M170-REDACTION-HARDENING-REPORT.md`.
 - **Agent loop panic firewall — a misbehaving provider/tool can no longer crash the
   daemon (code review)** (M168) — an independent review of the agent tool-loop (the
   hottest path, just touched by M166) found that a provider returning `(nil, nil)` —

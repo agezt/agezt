@@ -36,6 +36,29 @@ func TestPatterns(t *testing.T) {
 	}
 }
 
+// TestPatterns_M170 covers the patterns hardened/added in M170: base64-bearing
+// sk-/bearer tokens (the char class now includes + / =), JWTs, and GitHub
+// fine-grained PATs. Before M170 the base64 tokens leaked ENTIRELY (a + or / cut
+// the match below the {20,} length floor, so nothing matched).
+func TestPatterns_M170(t *testing.T) {
+	r := redact.New()
+	cases := []struct{ name, in, secret string }{
+		{"sk-with-base64", "key sk-AbCd1234/EFgh5678+IJkl90==mnop done", "sk-AbCd1234/EFgh5678+IJkl90==mnop"},
+		{"bearer-base64-ya29", "Authorization: Bearer ya29.A0ARrda+B/Cdef==ghijklmnopqrst ok", "ya29.A0ARrda+B/Cdef==ghijklmnopqrst"},
+		{"jwt", "tok eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.SflKxwRJSMeKKF2QT4fwpMeJf36 end", "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.SflKxwRJSMeKKF2QT4fwpMeJf36"},
+		{"github-fine-grained-pat", "tok github_pat_11ABC23456789012345678_abcdefghijklmnopqrstuvwxyz end", "github_pat_11ABC23456789012345678_abcdefghijklmnopqrstuvwxyz"},
+	}
+	for _, c := range cases {
+		out := r.Redact(c.in)
+		if strings.Contains(out, c.secret) {
+			t.Errorf("%s: secret survived: %q -> %q", c.name, c.in, out)
+		}
+		if !strings.Contains(out, redact.Placeholder) {
+			t.Errorf("%s: expected placeholder in %q", c.name, out)
+		}
+	}
+}
+
 func TestPEMPrivateKey(t *testing.T) {
 	r := redact.New()
 	in := "before\n-----BEGIN RSA PRIVATE KEY-----\nMIIEdeadbeef\nlines\n-----END RSA PRIVATE KEY-----\nafter"
