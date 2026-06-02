@@ -318,6 +318,15 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   `.project/PHASE-M129-OBSERVABILITY-TENANT-FLAG-REPORT.md`.
 
 ### Fixed
+- **Plugin `Close` is now nil-safe on a half-started plugin (security review MEDIUM)**
+  (M183) — `Close` called `p.cmd.Wait()`/`p.cmd.Process.Kill()` and wrote a shutdown
+  request to `p.stdin` with no nil guard (plugin-host review M3). On a `Plugin` whose
+  child never finished starting (no `cmd`/`stdin`), that nil-panics. The path is not
+  currently reachable in production (`Spawn` returns before constructing the `Plugin`
+  on a start failure), but it's a latent footgun for future refactors. `Close` now
+  guards `stdin`, `cmd`, and `cmd.Process`, so it always marks the plugin dead and
+  drains pending waiters without panicking. See
+  `.project/PHASE-M183-PLUGIN-CLOSE-NIL-GUARD-REPORT.md`.
 - **Plugin advertised-tool count capped — a malicious initialize can't blow up the
   registry (security review MEDIUM)** (M182) — the initialize result's `Tools` list was
   taken verbatim with no count limit (plugin-host review M2). The M177 frame bound caps

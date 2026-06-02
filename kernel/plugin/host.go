@@ -469,15 +469,24 @@ func (p *Plugin) Close() error {
 	}
 	// Best-effort shutdown notification. If the write fails, the
 	// process is already gone or unreachable — proceed to kill.
-	_ = p.writeRequest(Request{ID: "end", Method: MethodShutdown})
+	// Guard a nil stdin so Close is safe on a Plugin that never
+	// finished starting (M183 / review M3).
+	if p.stdin != nil {
+		_ = p.writeRequest(Request{ID: "end", Method: MethodShutdown})
+	}
 
-	done := make(chan error, 1)
-	go func() { done <- p.cmd.Wait() }()
-	select {
-	case <-done:
-	case <-time.After(DefaultShutdownGrace):
-		_ = p.cmd.Process.Kill()
-		<-done
+	// Wait for the child to exit, killing it after the grace period.
+	// Skip entirely if there is no started process — p.cmd.Wait/Kill
+	// would nil-panic on a half-initialized Plugin (M183 / review M3).
+	if p.cmd != nil && p.cmd.Process != nil {
+		done := make(chan error, 1)
+		go func() { done <- p.cmd.Wait() }()
+		select {
+		case <-done:
+		case <-time.After(DefaultShutdownGrace):
+			_ = p.cmd.Process.Kill()
+			<-done
+		}
 	}
 	p.dead.Store(true)
 	p.setDeathErr(errors.New("plugin: closed"))
