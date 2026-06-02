@@ -1058,6 +1058,7 @@ func (s *Server) handleRun(ctx context.Context, conn net.Conn, req Request) {
 			DaemonTimeout:   k.MaxDuration(),
 			AllowSet:        toolsSet,
 			Allow:           toolsAllow,
+			MaxCostMC:       maxCost,
 		}
 		if cat := k.Catalog(); cat != nil {
 			if _, m := cat.FindModel(effModel); m != nil {
@@ -1065,6 +1066,7 @@ func (s *Server) handleRun(ctx context.Context, conn net.Conn, req Request) {
 				in.SupportsVision = m.SupportsVision()
 				in.SupportsTools = m.ToolCall
 				in.ContextLimit = m.Limit.Context
+				in.ModelPriced = m.Cost != nil
 			}
 		}
 		for name := range k.Tools() {

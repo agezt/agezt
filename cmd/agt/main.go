@@ -634,6 +634,7 @@ func runDryRunMode(ctx context.Context, c *controlplane.Client, runArgs map[stri
 	}
 	fmt.Fprintf(stdout, "  system prompt : %s\n", str("system_source"))
 	fmt.Fprintf(stdout, "  timeout       : %s\n", str("timeout"))
+	fmt.Fprintf(stdout, "  cost cap      : %s\n", str("cost_cap"))
 
 	tools := toStringSlice(plan["tools"])
 	switch str("tools_mode") {

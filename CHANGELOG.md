@@ -12,6 +12,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **`agt run --dry-run` shows the cost cap** (M167) — the dry-run plan now carries a
+  `cost_cap` line (`$0.50 (per-run)` / `none`), completing the per-run override
+  preview (model/system/timeout/tools/**cost**). It also advises when a `--max-cost`
+  is set against an **unpriced** model (unknown to the catalog, or free/local with no
+  cost): the cap can never trip there, so the dry-run warns "the cap will not bind"
+  rather than letting an operator believe a run is money-bounded when it isn't. See
+  `.project/PHASE-M167-DRY-RUN-COST-CAP-REPORT.md`.
 - **`agt run --max-cost <usd>` — per-run cost cap** (M166) — bound a single run's
   cumulative provider spend (`agt run --max-cost 0.50 "…"`) without a daemon-wide
   ceiling — the money analogue of `--timeout` (M154). The agent loop accumulates each

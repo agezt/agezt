@@ -123,6 +123,36 @@ func hasWarningContaining(p map[string]any, substr string) bool {
 	return false
 }
 
+func TestBuildRunPlan_CostCap(t *testing.T) {
+	// No cap → "none".
+	p := buildRunPlan(runPlanInput{Model: "m", ModelKnown: true, ModelPriced: true})
+	if p["cost_cap"] != "none" {
+		t.Errorf("no cap: cost_cap = %v want none", p["cost_cap"])
+	}
+
+	// Cap on a priced model → formatted, no warning.
+	p = buildRunPlan(runPlanInput{
+		Model: "claude", ModelKnown: true, ModelPriced: true, MaxCostMC: 500_000_000,
+	})
+	if p["cost_cap"] != "$0.50 (per-run)" {
+		t.Errorf("cost_cap = %v want $0.50 (per-run)", p["cost_cap"])
+	}
+	if hasWarningContaining(p, "will not bind") {
+		t.Errorf("priced model should not warn about binding: %v", warningsOf(p))
+	}
+
+	// Cap on an unpriced (catalog-known but no Cost) model → warns it won't bind.
+	p = buildRunPlan(runPlanInput{
+		Model: "freebie", ModelKnown: true, ModelPriced: false, SupportsTools: true, MaxCostMC: 100_000_000,
+	})
+	if p["cost_cap"] != "$0.10 (per-run)" {
+		t.Errorf("cost_cap = %v want $0.10 (per-run)", p["cost_cap"])
+	}
+	if !hasWarningContaining(p, "will not bind") {
+		t.Errorf("unpriced model with a cap should warn; got %v", warningsOf(p))
+	}
+}
+
 func TestBuildRunPlan_Warnings(t *testing.T) {
 	all := []string{"shell", "file"}
 

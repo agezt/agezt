@@ -13,6 +13,16 @@ import (
 // below this is flagged as a risk for long agent runs with memory + tools.
 const smallContextThreshold = 8192
 
+// microcentsPerUSD is the kernel's spend unit: $1 = 1e9 USD-microcents (matches
+// governor.DefaultDailyCeilingMicrocents and the CLI's --max-cost parser).
+const microcentsPerUSD = 1_000_000_000
+
+// formatMicrocentsUSD renders a microcent amount as a dollar string (e.g.
+// 500_000_000 → "$0.50"). Used for the dry-run cost-cap line/advisory.
+func formatMicrocentsUSD(mc int64) string {
+	return fmt.Sprintf("$%.2f", float64(mc)/microcentsPerUSD)
+}
+
 // runPlanInput carries the already-resolved primitives for a run, so buildRunPlan
 // can stay pure (no kernel/catalog handles) and table-testable. handleRun fills it
 // from the request args + kernel accessors when `dry_run` is set.
@@ -32,6 +42,8 @@ type runPlanInput struct {
 	AllToolNames    []string // the kernel's full toolset (names)
 	AllowSet        bool     // a "tools" arg was present (restriction in effect)
 	Allow           []string // requested tool names (the allow-list)
+	MaxCostMC       int64    // per-run cost cap in microcents (0 = none)
+	ModelPriced     bool     // catalog has a price for the effective model
 }
 
 // buildRunPlan resolves what a run WOULD do — effective model (and its catalog
@@ -64,6 +76,11 @@ func buildRunPlan(in runPlanInput) map[string]any {
 		timeout = in.Timeout + " (per-run)"
 	case in.DaemonTimeout > 0:
 		timeout = in.DaemonTimeout.String() + " (daemon default)"
+	}
+
+	costCap := "none"
+	if in.MaxCostMC > 0 {
+		costCap = formatMicrocentsUSD(in.MaxCostMC) + " (per-run)"
 	}
 
 	// Effective tool set. Absent allow-list = the full kernel toolset. A present
@@ -127,6 +144,16 @@ func buildRunPlan(in runPlanInput) map[string]any {
 					"may overflow it", in.Model, in.ContextLimit))
 		}
 	}
+	// A cost cap only binds if the run accrues priced spend. On an unpriced model
+	// (unknown to the catalog, or a free/local model with no cost) the cap can
+	// never trip — surface that so the operator isn't lulled into thinking a run is
+	// money-bounded when it isn't (M167).
+	if in.MaxCostMC > 0 && !in.ModelPriced {
+		warnings = append(warnings, fmt.Sprintf(
+			"--max-cost %s is set, but model %q has no known pricing — the cap will not bind "+
+				"(spend is computed as $0); `agt catalog sync` to load prices",
+			formatMicrocentsUSD(in.MaxCostMC), in.Model))
+	}
 
 	plan := map[string]any{
 		"dry_run":       true,
@@ -137,6 +164,7 @@ func buildRunPlan(in runPlanInput) map[string]any {
 		"model_known":   in.ModelKnown,
 		"system_source": systemSource,
 		"timeout":       timeout,
+		"cost_cap":      costCap,
 		"tools_mode":    toolsMode,
 		"tools":         effective,
 	}
