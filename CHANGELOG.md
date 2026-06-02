@@ -12,6 +12,14 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **`agt run --timeout <dur>` — per-run wall-clock timeout** (M154) — bound a single
+  run (`agt run --timeout 30s "..."`) without setting the daemon-wide
+  `AGEZT_RUN_TIMEOUT`. Completes the per-run override family (`--model` / `--system`
+  / `--timeout`): a new `runtime.WithRunTimeout` ctx override that takes precedence
+  over `Config.MaxDuration`; an overrun cancels with `DeadlineExceeded` →
+  `task.failed(reason=timeout)`, exactly like the daemon-wide cap. The CLI validates
+  the duration client-side and keeps the connection open at least as long as the run
+  may take. See `.project/PHASE-M154-RUN-TIMEOUT-REPORT.md`.
 - **Budget-headroom check in `agt doctor`** (M153) — `agt doctor` now reports the
   day's spend against the daily ceiling and WARNs as it nears (≥90%) or reaches the
   cap. Once the ceiling is hit, runs fail terminally (no fallback), so an operator

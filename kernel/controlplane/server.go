@@ -986,6 +986,16 @@ func (s *Server) handleRun(ctx context.Context, conn net.Conn, req Request) {
 	if sys, _ := req.Args["system"].(string); strings.TrimSpace(sys) != "" {
 		ctx = runtime.WithSystem(ctx, sys)
 	}
+	// Per-run wall-clock timeout override (M154): bound THIS run without a
+	// daemon-wide cap. Parsed as a Go duration; a malformed value is a usage error.
+	if ts, _ := req.Args["timeout"].(string); strings.TrimSpace(ts) != "" {
+		d, derr := time.ParseDuration(strings.TrimSpace(ts))
+		if derr != nil || d <= 0 {
+			s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: fmt.Sprintf("invalid timeout %q (want a positive Go duration like 30s, 2m)", ts)})
+			return
+		}
+		ctx = runtime.WithRunTimeout(ctx, d)
+	}
 
 	// Pre-generate the correlation ID so we can subscribe to this run's
 	// subject *before* starting it. No race; no missed events.

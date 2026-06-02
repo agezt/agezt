@@ -151,7 +151,7 @@ func printHelp(w io.Writer) {
 	fmt.Fprintf(w, "\n")
 	fmt.Fprintf(w, "Commands:\n")
 	fmt.Fprintf(w, "  run \"<intent>\" | run - | run --file <path>   run an intent (read from arg, stdin via -, or a file)\n")
-	fmt.Fprintf(w, "      [--json] [--tenant <id>] [--model <id>] [--system <prompt>]   --model/--system override this run only; JSON = ndjson stream\n")
+	fmt.Fprintf(w, "      [--json] [--tenant <id>] [--model <id>] [--system <prompt>] [--timeout <dur>]   per-run overrides; JSON = ndjson stream\n")
 	fmt.Fprintf(w, "  halt [--reason \"...\"] [--json]  freeze all in-flight runs (reason is journaled)\n")
 	fmt.Fprintf(w, "  resume [--reason \"...\"] [--json] clear the halt flag (reason is journaled)\n")
 	fmt.Fprintf(w, "  why <event_id> [--json|--payload]  list events sharing an event's correlation\n")
@@ -293,6 +293,7 @@ func cmdRun(args []string, stdout, stderr io.Writer) int {
 	model := ""
 	system := ""
 	file := ""
+	timeout := ""
 	var images []string
 	var intentParts []string
 	for i := 0; i < len(args); i++ {
@@ -325,6 +326,15 @@ func cmdRun(args []string, stdout, stderr io.Writer) int {
 			system = args[i]
 		case strings.HasPrefix(a, "--system="):
 			system = strings.TrimPrefix(a, "--system=")
+		case a == "--timeout":
+			if i+1 >= len(args) {
+				fmt.Fprintf(stderr, "%s run: --timeout needs a duration (e.g. 30s, 2m)\n", brand.CLI)
+				return 2
+			}
+			i++
+			timeout = args[i]
+		case strings.HasPrefix(a, "--timeout="):
+			timeout = strings.TrimPrefix(a, "--timeout=")
 		case a == "--image":
 			// Attach an image to the run (M91). The daemon gates it against the
 			// model's vision capability before any provider call.
@@ -378,6 +388,21 @@ func cmdRun(args []string, stdout, stderr io.Writer) int {
 	if strings.TrimSpace(system) != "" {
 		runArgs["system"] = system
 	}
+	// Per-run wall-clock timeout (M154): validated client-side for fast feedback,
+	// passed to the server which enforces it on the run.
+	clientTimeout := 15 * time.Minute
+	if timeout = strings.TrimSpace(timeout); timeout != "" {
+		d, perr := time.ParseDuration(timeout)
+		if perr != nil || d <= 0 {
+			fmt.Fprintf(stderr, "%s run: invalid --timeout %q (want a positive Go duration like 30s, 2m)\n", brand.CLI, timeout)
+			return 2
+		}
+		runArgs["timeout"] = timeout
+		// Keep the client connection open at least as long as the run may take.
+		if d+30*time.Second > clientTimeout {
+			clientTimeout = d + 30*time.Second
+		}
+	}
 	if len(images) > 0 {
 		imgs := make([]any, len(images))
 		for i, n := range images {
@@ -390,7 +415,7 @@ func cmdRun(args []string, stdout, stderr io.Writer) int {
 	if c == nil {
 		return 1
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), clientTimeout)
 	defer cancel()
 
 	if asJSON {

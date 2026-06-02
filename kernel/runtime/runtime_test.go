@@ -133,6 +133,32 @@ func TestRunWith_TimesOut(t *testing.T) {
 	}
 }
 
+// TestRunWith_PerRunTimeoutOverride — a per-run WithRunTimeout (M154) bounds a run
+// even when the daemon-wide MaxDuration is unset (0), cancelling with
+// DeadlineExceeded just like the config-level cap.
+func TestRunWith_PerRunTimeoutOverride(t *testing.T) {
+	k, err := runtime.Open(runtime.Config{
+		BaseDir:  t.TempDir(),
+		Provider: &blockingProvider{}, // never returns until ctx done
+		Tools:    map[string]agent.Tool{"shell": shell.New()},
+		// MaxDuration deliberately 0 — only the per-run override should bound it.
+	})
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	t.Cleanup(func() { k.Close() })
+
+	start := time.Now()
+	ctx := runtime.WithRunTimeout(context.Background(), 30*time.Millisecond)
+	_, runErr := k.RunWith(ctx, "to-corr", "hang forever")
+	if !errors.Is(runErr, context.DeadlineExceeded) {
+		t.Fatalf("got err=%v, want context.DeadlineExceeded from the per-run override", runErr)
+	}
+	if elapsed := time.Since(start); elapsed > time.Second {
+		t.Errorf("run took %v, want it cut off near the 30ms per-run deadline", elapsed)
+	}
+}
+
 // TestRunWith_HaltBeatsTimeout — with a per-run timeout armed, an explicit
 // Halt before the deadline still cancels with context.Canceled (not
 // DeadlineExceeded), so an operator halt stays distinguishable from a

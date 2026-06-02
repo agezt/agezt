@@ -3,6 +3,7 @@
 package main
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"strings"
@@ -49,6 +50,17 @@ func TestResolveRunIntent_File(t *testing.T) {
 func TestResolveRunIntent_MissingFileErrors(t *testing.T) {
 	if _, err := resolveRunIntent(nil, filepath.Join(t.TempDir(), "nope.txt"), strings.NewReader("")); err == nil {
 		t.Error("a missing --file should return an error")
+	}
+}
+
+func TestCmdRun_InvalidTimeout(t *testing.T) {
+	// A malformed --timeout is rejected (exit 2) before any daemon dial.
+	var out, errOut bytes.Buffer
+	if code := cmdRun([]string{"--timeout", "notaduration", "hi"}, &out, &errOut); code != 2 {
+		t.Errorf("invalid --timeout should be exit 2, got %d", code)
+	}
+	if !strings.Contains(errOut.String(), "invalid --timeout") {
+		t.Errorf("expected an 'invalid --timeout' error, got %q", errOut.String())
 	}
 }
 

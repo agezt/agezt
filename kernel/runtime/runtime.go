@@ -727,6 +727,7 @@ const (
 	ctxKeyModel
 	ctxKeyImages
 	ctxKeySystem
+	ctxKeyRunTimeout
 )
 
 // WithImages returns a context carrying image-attachment references for the run
@@ -783,6 +784,24 @@ func systemFromCtx(ctx context.Context) string {
 		return v
 	}
 	return ""
+}
+
+// WithRunTimeout returns a context that overrides the per-run wall-clock budget
+// for the run started with it (a per-run counterpart to Config.MaxDuration / M31).
+// d <= 0 is a no-op (the configured MaxDuration, if any, applies). Lets a single
+// run be bounded without a daemon-wide cap (`agt run --timeout`).
+func WithRunTimeout(ctx context.Context, d time.Duration) context.Context {
+	if d <= 0 {
+		return ctx
+	}
+	return context.WithValue(ctx, ctxKeyRunTimeout, d)
+}
+
+func runTimeoutFromCtx(ctx context.Context) time.Duration {
+	if v, ok := ctx.Value(ctxKeyRunTimeout).(time.Duration); ok {
+		return v
+	}
+	return 0
 }
 
 func actorFromCtx(ctx context.Context) string {
@@ -938,10 +957,17 @@ func (k *Kernel) RunWith(ctx context.Context, corr, intent string) (string, erro
 	// DeadlineExceeded (→ task.failed reason=timeout, M30), whereas the
 	// cancel stored in k.runs (invoked by Halt) cancels with Canceled
 	// (→ reason=canceled) — the two stay distinguishable. 0 = no cap.
+	// A per-run override (WithRunTimeout, e.g. `agt run --timeout`) takes
+	// precedence over the daemon-wide MaxDuration; either yields a deadline that
+	// cancels with DeadlineExceeded.
+	maxDur := k.cfg.MaxDuration
+	if d := runTimeoutFromCtx(ctx); d > 0 {
+		maxDur = d
+	}
 	var runCtx context.Context
 	var cancel context.CancelFunc
-	if k.cfg.MaxDuration > 0 {
-		runCtx, cancel = context.WithTimeout(ctx, k.cfg.MaxDuration)
+	if maxDur > 0 {
+		runCtx, cancel = context.WithTimeout(ctx, maxDur)
 	} else {
 		runCtx, cancel = context.WithCancel(ctx)
 	}
