@@ -259,6 +259,66 @@ func TestWebhookCheckFromStats(t *testing.T) {
 	}
 }
 
+func TestSchedulesCheckFromList(t *testing.T) {
+	mk := func(rows ...map[string]any) map[string]any {
+		arr := make([]any, len(rows))
+		for i, r := range rows {
+			arr[i] = r
+		}
+		return map[string]any{"schedules": arr, "count": float64(len(rows))}
+	}
+
+	// No schedules → OK.
+	if c := schedulesCheckFromList(map[string]any{"schedules": []any{}}); c.Status != statusOK {
+		t.Errorf("no schedules: status = %v want OK", c.State)
+	}
+
+	// An enabled schedule whose last firing failed → WARN, hint names it.
+	w := schedulesCheckFromList(mk(
+		map[string]any{"id": "morning", "enabled": true, "last_status": "completed", "last_fired_unix_ms": float64(100)},
+		map[string]any{"id": "nightly", "enabled": true, "last_status": "failed", "last_fired_unix_ms": float64(200)},
+	))
+	if w.Status != statusWarn {
+		t.Fatalf("a failed firing: status = %v want WARN", w.State)
+	}
+	if !strings.Contains(w.Hint, "nightly") {
+		t.Errorf("hint = %q want to name the failed schedule nightly", w.Hint)
+	}
+
+	// "abandoned" counts as a failure too; the most-recent failure wins the hint.
+	w2 := schedulesCheckFromList(mk(
+		map[string]any{"id": "old", "enabled": true, "last_status": "abandoned", "last_fired_unix_ms": float64(10)},
+		map[string]any{"id": "new", "enabled": true, "last_status": "failed", "last_fired_unix_ms": float64(99)},
+	))
+	if w2.Status != statusWarn || !strings.Contains(w2.Hint, "new") {
+		t.Errorf("abandoned+failed: status=%v hint=%q want WARN naming 'new'", w2.State, w2.Hint)
+	}
+
+	// A DISABLED schedule with a past failure is ignored (operator turned it off).
+	dis := schedulesCheckFromList(mk(
+		map[string]any{"id": "off", "enabled": false, "last_status": "failed", "last_fired_unix_ms": float64(5)},
+	))
+	if dis.Status != statusOK {
+		t.Errorf("disabled failed schedule: status = %v want OK", dis.State)
+	}
+
+	// Enabled, healthy last firing → OK.
+	good := schedulesCheckFromList(mk(
+		map[string]any{"id": "ok1", "enabled": true, "last_status": "completed", "last_fired_unix_ms": float64(1)},
+	))
+	if good.Status != statusOK {
+		t.Errorf("healthy: status = %v want OK", good.State)
+	}
+
+	// Enabled but never fired (no last_status) → healthy-by-default OK.
+	pending := schedulesCheckFromList(mk(
+		map[string]any{"id": "fresh", "enabled": true},
+	))
+	if pending.Status != statusOK {
+		t.Errorf("never-fired: status = %v want OK", pending.State)
+	}
+}
+
 func TestTopFailingWebhook(t *testing.T) {
 	got := topFailingWebhook(map[string]any{
 		"u1": map[string]any{"delivered": float64(3), "failed": float64(1)},

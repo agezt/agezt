@@ -155,6 +155,7 @@ func runDoctorChecks() []doctorCheck {
 	checks = append(checks, checkBudget(ctx, client))
 	checks = append(checks, checkCatalog(ctx, client))
 	checks = append(checks, checkWebhooks(ctx, client))
+	checks = append(checks, checkSchedules(ctx, client))
 	checks = append(checks, checkDisk(ctx, client))
 	checks = append(checks, checkExposure(status))
 	checks = append(checks, checkChannels(status))
@@ -372,6 +373,73 @@ func topFailingWebhook(raw any) string {
 		return ""
 	}
 	return worst
+}
+
+// checkSchedules warns when an enabled schedule's most recent firing failed
+// (M162). Scheduled runs are the autonomy axis: they fire unattended, so a run
+// that errors leaves no one watching — the failure sits silently in the journal
+// until someone thinks to run `agt schedule list`. Folding the last-firing
+// outcome into the go-to diagnostic surfaces broken automation proactively. Same
+// shape as the webhooks check. Best-effort: no schedules, or the call failing, is
+// an informational OK, never a FAIL.
+func checkSchedules(ctx context.Context, client *controlplane.Client) doctorCheck {
+	res, err := client.Call(ctx, controlplane.CmdScheduleList, nil)
+	if err != nil {
+		return ok("schedules", "schedule list unavailable (—)")
+	}
+	return schedulesCheckFromList(res)
+}
+
+// schedulesCheckFromList is the pure verdict from a schedule-list response — split
+// out so the failure logic is testable without a live daemon (M162). Only ENABLED
+// schedules count: a disabled one the operator turned off shouldn't raise an
+// alarm. A schedule that hasn't fired yet (no last_status) is healthy-by-default.
+func schedulesCheckFromList(res map[string]any) doctorCheck {
+	const name = "schedules"
+	rows, _ := res["schedules"].([]any)
+	if len(rows) == 0 {
+		return ok(name, "no schedules configured")
+	}
+	enabled := 0
+	var failedIDs []string
+	worst := "" // id of the most recently-failed schedule, for the hint
+	worstMS := int64(-1)
+	for _, r := range rows {
+		row, _ := r.(map[string]any)
+		if row == nil {
+			continue
+		}
+		if on, _ := row["enabled"].(bool); !on {
+			continue
+		}
+		enabled++
+		switch s, _ := row["last_status"].(string); s {
+		case "failed", "abandoned":
+			id, _ := row["id"].(string)
+			failedIDs = append(failedIDs, id)
+			if ms := int64Of(row["last_fired_unix_ms"]); ms >= worstMS {
+				worst, worstMS = id, ms
+			}
+		}
+	}
+	if len(failedIDs) == 0 {
+		if enabled == 0 {
+			return ok(name, fmt.Sprintf("%d schedule(s), none enabled", len(rows)))
+		}
+		return ok(name, fmt.Sprintf("%d enabled schedule(s), recent firings healthy", enabled))
+	}
+	detail := fmt.Sprintf("%d/%d enabled schedule(s) last firing failed", len(failedIDs), enabled)
+	hint := fmt.Sprintf("inspect with `agt schedule fires --id %s` (or `agt runs`)", worst)
+	return warn(name, detail, hint)
+}
+
+// int64Of coerces a decoded-JSON number (float64) to int64. Returns -1 for a
+// missing/non-numeric value so it sorts below any real timestamp.
+func int64Of(v any) int64 {
+	if f, ok := v.(float64); ok {
+		return int64(f)
+	}
+	return -1
 }
 
 // diskWarnPct / diskCritPct are the free-space thresholds for the disk check

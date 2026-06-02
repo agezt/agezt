@@ -12,6 +12,14 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Scheduled-run health check in `agt doctor`** (M162) — `agt doctor` now folds
+  the autonomy axis into the single-pane diagnostic: it WARNs when an **enabled**
+  schedule's most recent firing `failed` or was `abandoned`, naming the schedule in
+  the hint (`agt schedule fires --id <id>`). Scheduled runs fire unattended, so a
+  failing one otherwise sits silently in the journal until someone thinks to run
+  `agt schedule list`. A disabled schedule's past failure is ignored, and a
+  never-fired schedule is healthy-by-default. See
+  `.project/PHASE-M162-DOCTOR-SCHEDULES-REPORT.md`.
 - **`agt run --dry-run` advisories** (M160) — the dry-run plan now carries a
   `warnings` list of preventive advisories a run would otherwise hit only at
   execution time: an effective model that isn't in the catalog (capabilities
