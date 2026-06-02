@@ -6,6 +6,7 @@ import (
 	"bufio"
 	"context"
 	"crypto/rand"
+	"crypto/subtle"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -216,6 +217,28 @@ func (s *Server) Token() string {
 	return s.token
 }
 
+// tokenIsPrimary reports whether presented equals the primary (admin)
+// token, using a constant-time comparison (M187). The primary token is
+// the daemon's most privileged credential — it authorizes every command
+// on every tenant — so a plain `==`/`!=`, which returns as soon as the
+// first differing byte is found, leaks the token byte-by-byte to anyone
+// who can time the response. This matches the constant-time check the
+// tenant registry already uses (tenant.Registry.Authorize). Length
+// differences are revealed (the token is fixed-length hex, so length is
+// public anyway), but the secret content is compared in constant time.
+func (s *Server) tokenIsPrimary(presented string) bool {
+	want := s.Token()
+	// A blank presented or server token never authorizes (defense in
+	// depth, mirroring tenant.Registry.Authorize): subtle.ConstantTimeCompare
+	// of two empty strings returns 1, which would let an empty token match
+	// an as-yet-unset server token. Emptiness is not token-content, so this
+	// short-circuit leaks nothing secret.
+	if want == "" || presented == "" {
+		return false
+	}
+	return subtle.ConstantTimeCompare([]byte(presented), []byte(want)) == 1
+}
+
 // Stop closes the listener and removes the runtime files. Idempotent;
 // safe to call from cleanup hooks even when Start was driven by ctx.
 func (s *Server) Stop() error {
@@ -306,7 +329,7 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 	// to its own tenant. This completes M14 tenant isolation on the control
 	// side — a tenant manages its own runs/policy without the primary token,
 	// and cannot touch another tenant or daemon-global state.
-	if req.Token != s.Token() {
+	if !s.tokenIsPrimary(req.Token) {
 		reqTenant, _ := req.Args["tenant"].(string)
 		reqTenant = strings.TrimSpace(reqTenant)
 		if s.tenants == nil || reqTenant == "" || !s.tenants.Authorize(reqTenant, req.Token) {
@@ -673,7 +696,7 @@ func (s *Server) handleWhy(conn net.Conn, req Request) {
 // tenant named in (and pinned to) req.Args["tenant"]. So identity is a pure
 // read of req.Token vs the primary token — no new auth state.
 func (s *Server) handleWhoami(conn net.Conn, req Request) {
-	if req.Token == s.Token() {
+	if s.tokenIsPrimary(req.Token) {
 		s.writeResp(conn, Response{
 			ID:   req.ID,
 			Type: RespResult,

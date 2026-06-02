@@ -318,6 +318,16 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   `.project/PHASE-M129-OBSERVABILITY-TENANT-FLAG-REPORT.md`.
 
 ### Fixed
+- **Control-plane primary-token check is now constant-time (security review)** (M187) —
+  the primary (admin) token — the daemon's most privileged credential, which authorizes
+  every command on every tenant — was compared with a plain `req.Token != s.Token()` in
+  the auth gate (and `==` in `whoami`). Go's string comparison returns at the first
+  differing byte, leaking the token byte-by-byte to anyone who can time the response.
+  The *tenant* path was already hardened with `subtle.ConstantTimeCompare`; the
+  more-privileged primary path was not. Both sites now route through a `tokenIsPrimary`
+  helper using a constant-time comparison, with a blank-token guard (a blank presented
+  or unset server token never authorizes — `ConstantTimeCompare("","")` returns 1).
+  See `.project/PHASE-M187-CONTROLPLANE-CONSTANT-TIME-TOKEN-REPORT.md`.
 - **Warden `nil` env no longer leaks the daemon environment into child processes
   (security review HIGH)** (M186) — `Spec.Env` documents "Nil = empty environment (most
   restrictive)", but the engine set `cmd.Env = spec.Env` directly, and Go's `os/exec`
