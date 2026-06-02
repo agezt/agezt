@@ -15,6 +15,7 @@ package journal
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -408,16 +409,32 @@ func (j *Journal) writeAndSync(line []byte) error {
 	}
 	j.curBytes += int64(len(line))
 
+	// The event is now durable. Rotation is housekeeping for the NEXT write —
+	// a rotation failure must NOT fail this (already-committed) append, and must
+	// not wedge the journal. rotate() is atomic (opens the next segment before
+	// swapping), so on failure the current segment stays live and usable; it's
+	// just left slightly oversized and the next append retries rotation.
 	if j.curBytes >= j.segBytes {
-		if err := j.curFile.Close(); err != nil {
-			return fmt.Errorf("journal: close rotating segment: %w", err)
-		}
-		j.curIndex++
-		j.curBytes = 0
-		if err := j.openCurrent(false); err != nil {
-			return err
-		}
+		_ = j.rotate()
 	}
+	return nil
+}
+
+// rotate switches the active segment to the next index. It opens the new segment
+// BEFORE swapping, so a failed open leaves the current (oversized) segment intact
+// and the journal fully usable — never wedged with a closed handle (the prior
+// close-then-open order could strand j.curFile on a closed file). Caller holds
+// j.mu. A non-nil return leaves all state unchanged.
+func (j *Journal) rotate() error {
+	next, err := os.OpenFile(j.segmentPath(j.curIndex+1), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+	if err != nil {
+		return fmt.Errorf("journal: open next segment: %w", err)
+	}
+	old := j.curFile
+	j.curFile = next
+	j.curIndex++
+	j.curBytes = 0
+	_ = old.Close() // best-effort: the new segment is already the live one
 	return nil
 }
 
@@ -513,5 +530,27 @@ func newLineScanner(r io.Reader) *bufio.Scanner {
 	sc := bufio.NewScanner(r)
 	const max = 1 << 20 // 1 MiB per line — generous headroom for attachments
 	sc.Buffer(make([]byte, 64*1024), max)
+	sc.Split(scanCompleteLines)
 	return sc
+}
+
+// scanCompleteLines is like bufio.ScanLines but DISCARDS a trailing unterminated
+// line at EOF instead of yielding it as a token. Every durably-written journal
+// line ends in '\n' (writeAndSync appends it), so the only line ever missing its
+// newline is an in-flight append observed by a concurrent Range/Tail, or a crash
+// mid-write — neither is a committed record. Discarding it makes every reader
+// (Range/Tail/Verify) and recovery tolerant of a torn final line rather than
+// failing to JSON-decode a partial record. A torn line can only ever be the LAST
+// line of the current segment (appends are serialized), so a corrupt MIDDLE line
+// still surfaces as a decode error (it precedes a real '\n').
+func scanCompleteLines(data []byte, atEOF bool) (advance int, token []byte, err error) {
+	if i := bytes.IndexByte(data, '\n'); i >= 0 {
+		return i + 1, data[:i], nil
+	}
+	if atEOF {
+		// Remaining bytes carry no newline → an unterminated trailing line.
+		// Advance past it and emit nothing (do not surface it as a record).
+		return len(data), nil, nil
+	}
+	return 0, nil, nil // need more data to complete a line
 }

@@ -227,6 +227,24 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   `.project/PHASE-M129-OBSERVABILITY-TENANT-FLAG-REPORT.md`.
 
 ### Fixed
+- **Journal hardening: torn-line tolerance + rotation resilience (code review)**
+  (M157) — a review of the event-sourcing foundation found two real bugs, now fixed:
+  - **Torn final-line read (Critical)**: `Range` / `Tail` / `Verify` / recovery used
+    `bufio.Scanner`'s default split, which yields an unterminated trailing line as a
+    token — so an in-flight append (a concurrent reader, since the journal is on the
+    hot path) or a crash mid-write made them fail to JSON-decode a partial record and
+    error out a *healthy* journal. Every committed line ends in `\n`, so the scanner
+    now discards a trailing line that lacks one (only ever an in-flight/torn write,
+    never a committed record); a corrupt middle line still surfaces. This also makes
+    crash recovery boot cleanly past a half-written final event instead of refusing
+    to start.
+  - **Rotation wedge (High)**: a failed segment-open during rotation closed the old
+    segment first, stranding `curFile` on a closed handle and wedging all further
+    appends, while the just-written event was already durable (in-memory/on-disk
+    divergence). Rotation now opens the next segment BEFORE swapping (atomic; a
+    failure leaves the current segment live and usable), and a rotation failure no
+    longer fails an already-committed append. See
+    `.project/PHASE-M157-JOURNAL-HARDENING-REPORT.md`.
 - **Governor concurrency hardening (code review)** (M155) — a focused review of the
   Governor (routing + spend + fallback) found two real concurrency bugs, now fixed:
   - **Data race (Critical)**: `routeChain` and `Providers` read the `primary`/

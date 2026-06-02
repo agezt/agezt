@@ -73,6 +73,99 @@ func TestTail_ReturnsLastNInOrderAcrossSegments(t *testing.T) {
 	}
 }
 
+// TestReaders_TolerateTornFinalLine — a partial, unterminated final line (an
+// in-flight append observed by a concurrent reader, or a crash mid-write) must NOT
+// make Range/Tail fail; every committed line ends in '\n', so the torn tail is
+// discarded (C2 fix).
+func TestReaders_TolerateTornFinalLine(t *testing.T) {
+	j := newTestJournal(t, 0)
+	for i := 0; i < 3; i++ {
+		if _, err := j.Append(event.Spec{Subject: "x", Kind: event.KindTaskReceived, Actor: "k"}); err != nil {
+			t.Fatalf("Append: %v", err)
+		}
+	}
+	// Append a truncated JSON line (no trailing newline) directly to the segment,
+	// as a concurrent in-flight Append would momentarily leave visible.
+	segs, _ := listSegments(j.dir)
+	f, err := os.OpenFile(segs[len(segs)-1].path, os.O_WRONLY|os.O_APPEND, 0o644)
+	if err != nil {
+		t.Fatalf("open segment: %v", err)
+	}
+	_, _ = f.WriteString(`{"seq":99,"partial":`)
+	f.Close()
+
+	var n int
+	if err := j.Range(func(*event.Event) error { n++; return nil }); err != nil {
+		t.Fatalf("Range errored on a torn final line (should tolerate): %v", err)
+	}
+	if n != 3 {
+		t.Errorf("Range saw %d events, want 3 (the torn line must be discarded)", n)
+	}
+	tail, err := j.Tail(10)
+	if err != nil {
+		t.Fatalf("Tail errored on a torn final line: %v", err)
+	}
+	if len(tail) != 3 {
+		t.Errorf("Tail returned %d, want 3", len(tail))
+	}
+}
+
+// TestOpen_RecoversPastTornFinalLine — recovery must boot cleanly past a torn
+// final line (a crash mid-write), discarding it rather than refusing to start.
+func TestOpen_RecoversPastTornFinalLine(t *testing.T) {
+	dir := t.TempDir()
+	j, err := Open(dir, Options{Now: func() time.Time { return time.UnixMilli(1_700_000_000_000) }, IDGen: sequentialIDs()})
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	for i := 0; i < 3; i++ {
+		if _, err := j.Append(event.Spec{Subject: "x", Kind: event.KindTaskReceived, Actor: "k"}); err != nil {
+			t.Fatalf("Append: %v", err)
+		}
+	}
+	j.Close()
+
+	segs, _ := listSegments(dir)
+	f, _ := os.OpenFile(segs[len(segs)-1].path, os.O_WRONLY|os.O_APPEND, 0o644)
+	_, _ = f.WriteString(`{"seq":99,"partial":`)
+	f.Close()
+
+	j2, err := Open(dir, Options{})
+	if err != nil {
+		t.Fatalf("recovery failed on a torn final line (should tolerate): %v", err)
+	}
+	t.Cleanup(func() { j2.Close() })
+	if seq, _ := j2.Head(); seq != 2 {
+		t.Errorf("recovered head seq = %d, want 2 (3 committed events, torn line ignored)", seq)
+	}
+}
+
+// TestRotate_FailureDoesNotWedge — when rotation can't open the next segment, the
+// (already-durable) append must still succeed and the journal stay usable, rather
+// than stranding a closed handle and wedging all further appends (H2 fix).
+func TestRotate_FailureDoesNotWedge(t *testing.T) {
+	j := newTestJournal(t, 200) // tiny segments → rotation attempts
+	// Pre-create the next segment path so rotate()'s O_EXCL open fails every time.
+	if err := os.WriteFile(j.segmentPath(2), []byte("not a journal line"), 0o644); err != nil {
+		t.Fatalf("pre-create blocker: %v", err)
+	}
+	for i := 0; i < 20; i++ {
+		if _, err := j.Append(event.Spec{Subject: fmt.Sprintf("ev%d", i), Kind: event.KindTaskReceived, Actor: "k"}); err != nil {
+			t.Fatalf("Append %d failed — a rotation-open failure must not fail a committed append: %v", i, err)
+		}
+	}
+	if seq, _ := j.Head(); seq != 19 {
+		t.Errorf("head seq = %d, want 19 (all appends committed despite rotation failure)", seq)
+	}
+	var n int
+	if err := j.Range(func(*event.Event) error { n++; return nil }); err != nil {
+		t.Fatalf("Range: %v", err)
+	}
+	if n != 20 {
+		t.Errorf("Range saw %d events, want 20", n)
+	}
+}
+
 func TestTail_EdgeCases(t *testing.T) {
 	j := newTestJournal(t, 0)
 	// Empty journal.
