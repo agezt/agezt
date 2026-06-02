@@ -445,6 +445,8 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.handleDiskStats(conn, req)
 	case CmdJournalStats:
 		s.handleJournalStats(conn, req)
+	case CmdChangelog:
+		s.handleChangelog(conn, req)
 	case CmdWorldAdd:
 		s.handleWorldAdd(conn, req)
 	case CmdWorldRelate:

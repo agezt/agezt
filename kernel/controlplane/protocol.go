@@ -660,6 +660,16 @@ const (
 	// CmdTenantToken reveals an existing tenant's per-tenant credential.
 	// Args: id (required). Returns: { id, token }
 	CmdTenantToken = "tenant_token"
+	// CmdChangelog is the system timeline (SPEC-08 §4.2, M133): a curated,
+	// tamper-evident fold of the journal showing only MATERIAL changes to this
+	// system — halt/resume, policy changes, skill lifecycle (Forge), reflection,
+	// catalog/provider sync, pulse pause/resume — newest-first, each carrying its
+	// event id so `agt why` can explain it. Distinct from `journal tail` (raw, all
+	// kinds): the human-meaningful "what changed about my system, and when".
+	// Args: limit, since_ms. Returns: { entries: [{ts_unix_ms, kind, label,
+	// detail, event_id, correlation_id}], count }.
+	CmdChangelog = "changelog"
+
 	// CmdJournalStats folds the journal into size/shape stats (M132): total event
 	// count, segment count, bytes on disk, a per-event-kind breakdown, and the
 	// oldest/newest event timestamps (the journal's time span). The journal is

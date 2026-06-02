@@ -12,6 +12,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **`agt changelog` — the system timeline** (M133, SPEC-08 §4.2) — a curated,
+  tamper-evident fold of the journal showing only MATERIAL changes to the system
+  (halt/resume, policy changes, skill lifecycle, reflection, catalog/provider sync,
+  pulse pause/resume), newest-first, each carrying its event id so `agt why <id>`
+  can prove and explain it. Distinct from `journal tail` (raw, every kind): the
+  human-meaningful "what changed about my system, and when". See
+  `.project/PHASE-M133-SYSTEM-CHANGELOG-REPORT.md`.
 - **`agt journal stats`** (M132) — the journal's size and shape: total events,
   segment count, on-disk bytes, the time span it covers, and a per-event-kind
   breakdown so an operator sees WHAT is filling it (neither `agt disk` nor `status`
