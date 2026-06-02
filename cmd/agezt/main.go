@@ -62,6 +62,7 @@ import (
 	"github.com/agezt/agezt/kernel/warden"
 	"github.com/agezt/agezt/kernel/webhook"
 	"github.com/agezt/agezt/kernel/webui"
+	"github.com/agezt/agezt/plugins/channels/slack"
 	"github.com/agezt/agezt/plugins/channels/telegram"
 	"github.com/agezt/agezt/plugins/providers/anthropic"
 	"github.com/agezt/agezt/plugins/providers/compat"
@@ -606,11 +607,22 @@ func runDaemon(stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "  telegram         : disabled (set AGEZT_TELEGRAM_TOKEN)\n")
 	}
 
+	// Slack channel (SPEC-04 §1) — duplex when AGEZT_SLACK_TOKEN is set. Serves
+	// the Events API endpoint for inbound (HMAC-verified) and chat.postMessage for
+	// outbound; briefs tee to it like Telegram.
+	slChan, slSink, slDesc := buildSlack(ctx, k)
+	if slChan != nil {
+		go slChan.Start(ctx)
+		fmt.Fprintf(stdout, "  slack            : %s\n", slDesc)
+	} else {
+		fmt.Fprintf(stdout, "  slack            : disabled (set AGEZT_SLACK_TOKEN)\n")
+	}
+
 	// Pulse — the proactive heart (SPEC-03). On by default; the resident
 	// engine runs on the daemon ctx so `agt halt`/SIGTERM/`agt shutdown`
-	// stop it with everything else. AGEZT_PULSE=off disables it. When
-	// Telegram is configured, briefs tee to it (closes the Jarvis loop).
-	if eng, pulseDesc := buildPulse(k, ward, model, stdout, tgSink); eng != nil {
+	// stop it with everything else. AGEZT_PULSE=off disables it. When a channel
+	// is configured, briefs tee to it (closes the Jarvis loop).
+	if eng, pulseDesc := buildPulse(k, ward, model, stdout, combineSinks(tgSink, slSink)); eng != nil {
 		eng.Start(ctx)
 		srv.SetPulse(eng)
 		fmt.Fprintf(stdout, "  pulse            : %s\n", pulseDesc)
@@ -827,6 +839,85 @@ func buildTelegram(ctx context.Context, k *kernelruntime.Kernel) (*telegram.Chan
 		desc = "listening, NO allowlist (outbound-only; set AGEZT_TELEGRAM_CHAT_ID to allow commands)"
 	}
 	return ch, sink, desc
+}
+
+// buildSlack constructs the in-process Slack channel when AGEZT_SLACK_TOKEN is
+// set, plus a Pulse brief sink to the allowlisted channels. Returns (nil, nil,
+// "") when no token is configured.
+//
+//	AGEZT_SLACK_TOKEN           bot token (xoxb-…), required to enable
+//	AGEZT_SLACK_SIGNING_SECRET  app signing secret, required for inbound
+//	AGEZT_SLACK_ADDR            local addr to serve /slack/events (fronted by a
+//	                            tunnel/reverse proxy); empty → outbound-only
+//	AGEZT_SLACK_CHANNELS        comma-separated allowlist of channel ids that may
+//	                            drive the agent AND receive Pulse briefs
+//
+// The inbound handler runs the normal agent loop under the channel's correlation,
+// so `agt why`/`agt inbox` link the Slack message to the task.
+func buildSlack(ctx context.Context, k *kernelruntime.Kernel) (*slack.Channel, pulse.BriefSink, string) {
+	token := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "SLACK_TOKEN"))
+	if token == "" {
+		return nil, nil, ""
+	}
+	secret := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "SLACK_SIGNING_SECRET"))
+	addr := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "SLACK_ADDR"))
+	channelIDs := splitNonEmpty(os.Getenv(brand.EnvPrefix + "SLACK_CHANNELS"))
+
+	handler := func(hctx context.Context, msg channel.UnifiedMessage, corr string) (string, error) {
+		return k.RunWith(hctx, corr, msg.Text)
+	}
+	ch := slack.New(slack.Config{
+		Token:         token,
+		SigningSecret: secret,
+		Addr:          addr,
+		BaseURL:       strings.TrimSpace(os.Getenv(brand.EnvPrefix + "SLACK_API_BASE")), // empty → public Web API
+		Allowlist:     channel.NewAllowlist(channelIDs),
+		Bus:           k.Bus(),
+		Handler:       handler,
+	})
+
+	var sink pulse.BriefSink
+	if len(channelIDs) > 0 {
+		sink = pulse.SinkFunc(func(b pulse.Brief) error {
+			var firstErr error
+			for _, id := range channelIDs {
+				if err := ch.Send(ctx, channel.Outbound{ChannelID: id, Text: formatBrief(b), Priority: channel.PriorityNotify}); err != nil && firstErr == nil {
+					firstErr = err
+				}
+			}
+			return firstErr
+		})
+	}
+
+	switch {
+	case addr == "" && len(channelIDs) == 0:
+		return ch, sink, "outbound-only, NO allowlist (set AGEZT_SLACK_ADDR + AGEZT_SLACK_CHANNELS to receive commands)"
+	case addr == "":
+		return ch, sink, fmt.Sprintf("outbound-only, allowlist=%d channel(s) (set AGEZT_SLACK_ADDR to receive commands)", len(channelIDs))
+	case secret == "":
+		return ch, sink, "inbound DISABLED (set AGEZT_SLACK_SIGNING_SECRET); outbound only"
+	default:
+		return ch, sink, fmt.Sprintf("events at %s%s, allowlist=%d channel(s)", addr, slack.EventsPath, len(channelIDs))
+	}
+}
+
+// combineSinks tees the configured channel brief sinks (Telegram, Slack) into one
+// Pulse sink. Nil entries are dropped; returns nil when none are configured.
+func combineSinks(sinks ...pulse.BriefSink) pulse.BriefSink {
+	var live pulse.MultiSink
+	for _, s := range sinks {
+		if s != nil {
+			live = append(live, s)
+		}
+	}
+	switch len(live) {
+	case 0:
+		return nil
+	case 1:
+		return live[0]
+	default:
+		return live
+	}
 }
 
 // briefSink returns the Pulse sink: the log sink alone, or teed with extra

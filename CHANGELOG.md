@@ -12,6 +12,19 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Slack channel** (M138, SPEC-04 §1) — a second first-class duplex channel beyond
+  Telegram, stdlib-only (`net/http` + `crypto/hmac`, no SDK). Unlike Telegram's
+  long-poll, Slack pushes events, so the channel SERVES an Events API endpoint
+  (`POST /slack/events`): inbound is verified with Slack's HMAC-SHA256 request
+  signature + a 5-minute timestamp freshness window (replay protection), ACKed in
+  <3s, then the agent runs asynchronously and posts its reply via `chat.postMessage`.
+  An empty signing secret fails closed; a channel-id Allowlist gates who may drive
+  the agent; bot/self/subtype messages are ignored so the agent never loops on its
+  own posts; retries (`X-Slack-Retry-Num`) are ACKed but not reprocessed. Inbound and
+  outbound are journaled (`channel.inbound.slack` / `channel.outbound.slack`) so
+  `agt why` can reconstruct the exchange. Config via `AGEZT_SLACK_TOKEN` /
+  `_SIGNING_SECRET` / `_ADDR` / `_CHANNELS` / `_API_BASE`; the channel feeds Pulse
+  briefs through the shared sink. See `.project/PHASE-M138-SLACK-CHANNEL-REPORT.md`.
 - **Network-exposure check in `agt doctor` + `agt status`** (M137) — the web UI /
   REST / OpenAI HTTP servers drive the full agent loop (shell/file/http tools) gated
   only by a token, so a non-loopback bind puts the agent on the network. The daemon
