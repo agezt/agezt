@@ -132,8 +132,11 @@ type Plugin struct {
 	stdout *bufio.Reader
 
 	// pending tracks in-flight requests by id → response channel.
-	// Read/Write must hold mu; channel sends/recvs happen outside
-	// the lock to avoid head-of-line blocking.
+	// Map access holds mu. The read loop's terminal send is done UNDER
+	// mu and non-blocking (M179) so it can't race a teardown that
+	// closes the channel; the buffer (cap 1, single-use) guarantees the
+	// one legitimate response never blocks. The caller's receive is on
+	// its own channel and never holds mu.
 	pending map[string]chan *Response
 
 	// progress tracks per-request callbacks for streaming
@@ -538,6 +541,14 @@ func readFrame(r *bufio.Reader, max int) ([]byte, error) {
 // error. On exit, marks the plugin dead so subsequent calls fail
 // fast instead of blocking on the pending channel forever.
 func (p *Plugin) readLoop() {
+	// Defense-in-depth (M179): the read loop processes untrusted plugin
+	// output. Any unforeseen panic here must tear the plugin down, not
+	// crash the whole daemon — mark it dead so callers fail fast.
+	defer func() {
+		if r := recover(); r != nil {
+			p.markDead(fmt.Errorf("plugin: read loop panic: %v", r))
+		}
+	}()
 	for {
 		line, err := readFrame(p.stdout, p.cfg.MaxFrameBytes)
 		if err != nil {
@@ -588,15 +599,32 @@ func (p *Plugin) readLoop() {
 			}
 			continue
 		}
-		p.mu.Lock()
-		ch, ok := p.pending[f.ID]
-		p.mu.Unlock()
-		if !ok {
-			// Response with no waiter — likely a stale id after a
-			// timeout. Drop.
-			continue
-		}
-		ch <- &Response{ID: f.ID, Result: f.Result, Error: f.Error, Progress: f.Progress}
+		p.deliver(f)
+	}
+}
+
+// deliver routes a terminal response frame to its waiting caller. The
+// lookup AND the send happen UNDER p.mu, and the send is non-blocking
+// (M179). markDead/Close close pending channels under the same lock and
+// delete the id in the same critical section, so deliver and teardown
+// are mutually exclusive: the read loop can never send on a channel a
+// concurrent teardown just closed (which would panic this goroutine
+// and, unrecovered, crash the daemon). The channel is buffered (cap 1)
+// and single-use, so the one legitimate response always fits; a hostile
+// plugin that double-sends a terminal frame for one id hits `default`
+// and is dropped rather than blocking the loop while holding mu. A
+// frame with no waiter (stale id after a timeout) is silently dropped.
+func (p *Plugin) deliver(f inboundFrame) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	ch, ok := p.pending[f.ID]
+	if !ok {
+		return
+	}
+	select {
+	case ch <- &Response{ID: f.ID, Result: f.Result, Error: f.Error, Progress: f.Progress}:
+	default:
+		// Buffer already full (duplicate terminal frame) — drop.
 	}
 }
 

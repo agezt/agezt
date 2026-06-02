@@ -318,6 +318,19 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   `.project/PHASE-M129-OBSERVABILITY-TENANT-FLAG-REPORT.md`.
 
 ### Fixed
+- **Plugin response delivery is now race-safe — no send-on-closed-channel daemon crash
+  (security review HIGH)** (M179) — the plugin host's read loop delivered each terminal
+  response by sending on the caller's pending channel *outside* `p.mu`, while
+  `markDead`/`Close` close those channels *under* `p.mu` (plugin-host review H3). A
+  plugin that floods responses for in-flight ids while a `Reload`/`Close` runs could
+  interleave a `close(ch)` between the read loop's unlocked lookup and its send — a
+  send-on-closed-channel **panic** in the unrecovered read-loop goroutine, crashing the
+  daemon. Delivery (lookup + send) now happens together under `p.mu` and the send is
+  non-blocking, so it's mutually exclusive with teardown's close+delete and also drops a
+  malicious duplicate terminal frame instead of blocking. A defensive `recover` in the
+  read loop now turns any other unforeseen panic on the untrusted-input path into a
+  plugin teardown rather than a daemon crash. See
+  `.project/PHASE-M179-PLUGIN-DELIVER-RACE-REPORT.md`.
 - **Plugin death-cause field made atomic — fixes a data race on plugin teardown
   (security review HIGH)** (M178) — `Plugin.deathErr` (the recorded cause of a plugin's
   death) was a plain `error` field written by the read-loop goroutine (`markDead`) and
