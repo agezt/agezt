@@ -12,6 +12,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Complete the `agt config show` env inventory** (M127) — the config view's env
+  presence map had silently rotted: 55 of the ~78 `AGEZT_*` vars the daemon reads
+  (webhooks, multitenancy, schedules, telegram, sub-agents, peers, pulse, redaction,
+  timeouts, …) were missing, so an operator pasting `agt config show` into a bug
+  report saw an incomplete picture. Restored the full inventory and added a
+  self-enforcing guard test that scans `cmd/agezt` and fails if any read var is
+  absent, so it can't rot again. See `.project/PHASE-M127-CONFIG-ENV-INVENTORY-REPORT.md`.
 - **`agt tenant stats`** (M126) — a cross-tenant usage view: per-tenant run count /
   completed / failed / active / spend / last activity, plus grand totals, so the
   primary operator can see which tenant is busy, spending, or failing (multitenancy
