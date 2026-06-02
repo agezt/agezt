@@ -12,6 +12,24 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Discord channel** (M139, SPEC-04 §1) — a third first-class duplex channel,
+  stdlib-only (`net/http` + `crypto/ed25519`, no SDK, no Gateway WebSocket). Free-form
+  Discord messages need the Gateway (a persistent WebSocket → a dependency); instead
+  the channel drives the agent through Discord's HTTP **Interactions** endpoint (a
+  slash command like `/agezt prompt:<text>`). It SERVES `POST /discord/interactions`,
+  verifies Discord's **Ed25519** request signature over `(timestamp‖body)` with a
+  5-minute freshness window (an empty/invalid public key fails closed), replies to the
+  PING handshake, then for a command ACKs with a DEFERRED response in <3s ("Agezt is
+  thinking…"), runs the agent asynchronously, and delivers the answer via a follow-up
+  webhook (`webhooks/{app}/{token}`). A channel-id Allowlist gates who may drive the
+  agent — a non-allowlisted command gets an immediate ephemeral "not authorized" and
+  never runs. Outbound briefs (Pulse) post via the bot token to `channels/{id}/messages`.
+  Inbound/outbound are journaled (`channel.inbound.discord` / `channel.outbound.discord`)
+  for `agt why`. This proves the channel abstraction generalizes across signature
+  schemes: Telegram long-polls, Slack signs with HMAC-SHA256, Discord with Ed25519 —
+  the kernel sees only `UnifiedMessage`. Config via `AGEZT_DISCORD_TOKEN` /
+  `_PUBLIC_KEY` / `_APP_ID` / `_ADDR` / `_CHANNELS` / `_API_BASE`. See
+  `.project/PHASE-M139-DISCORD-CHANNEL-REPORT.md`.
 - **Slack channel** (M138, SPEC-04 §1) — a second first-class duplex channel beyond
   Telegram, stdlib-only (`net/http` + `crypto/hmac`, no SDK). Unlike Telegram's
   long-poll, Slack pushes events, so the channel SERVES an Events API endpoint

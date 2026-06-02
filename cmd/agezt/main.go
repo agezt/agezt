@@ -62,6 +62,7 @@ import (
 	"github.com/agezt/agezt/kernel/warden"
 	"github.com/agezt/agezt/kernel/webhook"
 	"github.com/agezt/agezt/kernel/webui"
+	"github.com/agezt/agezt/plugins/channels/discord"
 	"github.com/agezt/agezt/plugins/channels/slack"
 	"github.com/agezt/agezt/plugins/channels/telegram"
 	"github.com/agezt/agezt/plugins/providers/anthropic"
@@ -618,11 +619,22 @@ func runDaemon(stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "  slack            : disabled (set AGEZT_SLACK_TOKEN)\n")
 	}
 
+	// Discord channel (SPEC-04 §1) — duplex when AGEZT_DISCORD_TOKEN is set.
+	// Serves the Interactions endpoint for inbound slash commands (Ed25519-verified)
+	// and posts via the bot token for outbound; briefs tee to it like the others.
+	dcChan, dcSink, dcDesc := buildDiscord(ctx, k)
+	if dcChan != nil {
+		go dcChan.Start(ctx)
+		fmt.Fprintf(stdout, "  discord          : %s\n", dcDesc)
+	} else {
+		fmt.Fprintf(stdout, "  discord          : disabled (set AGEZT_DISCORD_TOKEN)\n")
+	}
+
 	// Pulse — the proactive heart (SPEC-03). On by default; the resident
 	// engine runs on the daemon ctx so `agt halt`/SIGTERM/`agt shutdown`
 	// stop it with everything else. AGEZT_PULSE=off disables it. When a channel
 	// is configured, briefs tee to it (closes the Jarvis loop).
-	if eng, pulseDesc := buildPulse(k, ward, model, stdout, combineSinks(tgSink, slSink)); eng != nil {
+	if eng, pulseDesc := buildPulse(k, ward, model, stdout, combineSinks(tgSink, slSink, dcSink)); eng != nil {
 		eng.Start(ctx)
 		srv.SetPulse(eng)
 		fmt.Fprintf(stdout, "  pulse            : %s\n", pulseDesc)
@@ -901,8 +913,71 @@ func buildSlack(ctx context.Context, k *kernelruntime.Kernel) (*slack.Channel, p
 	}
 }
 
-// combineSinks tees the configured channel brief sinks (Telegram, Slack) into one
-// Pulse sink. Nil entries are dropped; returns nil when none are configured.
+// buildDiscord constructs the in-process Discord channel when AGEZT_DISCORD_TOKEN
+// is set, plus a Pulse brief sink to the allowlisted channels. Returns
+// (nil, nil, "") when no token is configured.
+//
+//	AGEZT_DISCORD_TOKEN       bot token, required to enable
+//	AGEZT_DISCORD_PUBLIC_KEY  app public key (hex), required for inbound verification
+//	AGEZT_DISCORD_APP_ID      application id, required for follow-up replies
+//	AGEZT_DISCORD_ADDR        local addr to serve /discord/interactions (fronted by
+//	                          a tunnel/reverse proxy); empty → outbound-only
+//	AGEZT_DISCORD_CHANNELS    comma-separated allowlist of channel ids that may
+//	                          drive the agent AND receive Pulse briefs
+//
+// The inbound handler runs the normal agent loop under the channel's correlation,
+// so `agt why`/`agt inbox` link the Discord command to the task.
+func buildDiscord(ctx context.Context, k *kernelruntime.Kernel) (*discord.Channel, pulse.BriefSink, string) {
+	token := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "DISCORD_TOKEN"))
+	if token == "" {
+		return nil, nil, ""
+	}
+	pubKey := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "DISCORD_PUBLIC_KEY"))
+	appID := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "DISCORD_APP_ID"))
+	addr := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "DISCORD_ADDR"))
+	channelIDs := splitNonEmpty(os.Getenv(brand.EnvPrefix + "DISCORD_CHANNELS"))
+
+	handler := func(hctx context.Context, msg channel.UnifiedMessage, corr string) (string, error) {
+		return k.RunWith(hctx, corr, msg.Text)
+	}
+	ch := discord.New(discord.Config{
+		Token:         token,
+		PublicKey:     pubKey,
+		ApplicationID: appID,
+		Addr:          addr,
+		BaseURL:       strings.TrimSpace(os.Getenv(brand.EnvPrefix + "DISCORD_API_BASE")), // empty → public API
+		Allowlist:     channel.NewAllowlist(channelIDs),
+		Bus:           k.Bus(),
+		Handler:       handler,
+	})
+
+	var sink pulse.BriefSink
+	if len(channelIDs) > 0 {
+		sink = pulse.SinkFunc(func(b pulse.Brief) error {
+			var firstErr error
+			for _, id := range channelIDs {
+				if err := ch.Send(ctx, channel.Outbound{ChannelID: id, Text: formatBrief(b), Priority: channel.PriorityNotify}); err != nil && firstErr == nil {
+					firstErr = err
+				}
+			}
+			return firstErr
+		})
+	}
+
+	switch {
+	case addr == "" && len(channelIDs) == 0:
+		return ch, sink, "outbound-only, NO allowlist (set AGEZT_DISCORD_ADDR + AGEZT_DISCORD_CHANNELS to receive commands)"
+	case addr == "":
+		return ch, sink, fmt.Sprintf("outbound-only, allowlist=%d channel(s) (set AGEZT_DISCORD_ADDR to receive commands)", len(channelIDs))
+	case pubKey == "":
+		return ch, sink, "inbound DISABLED (set AGEZT_DISCORD_PUBLIC_KEY); outbound only"
+	default:
+		return ch, sink, fmt.Sprintf("interactions at %s%s, allowlist=%d channel(s)", addr, discord.InteractionsPath, len(channelIDs))
+	}
+}
+
+// combineSinks tees the configured channel brief sinks (Telegram, Slack, Discord)
+// into one Pulse sink. Nil entries are dropped; returns nil when none are configured.
 func combineSinks(sinks ...pulse.BriefSink) pulse.BriefSink {
 	var live pulse.MultiSink
 	for _, s := range sinks {
