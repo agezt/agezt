@@ -318,6 +318,19 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   `.project/PHASE-M129-OBSERVABILITY-TENANT-FLAG-REPORT.md`.
 
 ### Fixed
+- **Plugin stdout frame size bounded — a flooding plugin can't OOM the daemon
+  (security review CRITICAL)** (M177) — the plugin host read one newline-delimited
+  frame per loop off an untrusted child's stdout with `bufio.Reader.ReadBytes('\n')`,
+  which grows its buffer without limit until a newline or EOF. A buggy or hostile
+  plugin that writes bytes but never emits `\n` (or emits one pathologically large
+  line) drove the host to allocate unbounded and OOM-killed the whole daemon — one
+  plugin taking down every other plugin and the kernel, defeating the "kernel keeps
+  running" guarantee (plugin-host review C1). Reads now go through a bounded
+  `readFrame` (stdlib `ReadSlice` chunk-accumulation) capped at `Config.MaxFrameBytes`
+  (default 16 MiB); a frame past the cap tears the plugin down (`markDead`, in-flight
+  callers fail fast) instead of the daemon. The stderr path was already bounded (1 MiB
+  per line); this closes the matching stdout hole. See
+  `.project/PHASE-M177-PLUGIN-FRAME-BOUND-REPORT.md`.
 - **Durable policy snapshot bound to the tamper-evident journal (security review
   HIGH)** (M176) — the durable-policy compaction snapshot (`edict_overlay_snapshot.json`,
   M95) was loaded as authoritative at boot with no integrity check, so an attacker who

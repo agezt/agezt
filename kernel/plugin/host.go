@@ -31,6 +31,22 @@ const DefaultInvokeTimeout = 2 * time.Minute
 // to exit after sending shutdown before sending a kill signal.
 const DefaultShutdownGrace = 5 * time.Second
 
+// DefaultMaxFrameBytes bounds a single newline-delimited frame read
+// off a plugin's stdout (M177). The stream comes from an untrusted
+// child: without a cap, a plugin that writes bytes but never emits a
+// '\n' (or emits one pathologically large line) drives the host's
+// bufio reader to allocate without limit, OOM-killing the whole
+// daemon — one buggy/hostile plugin taking down every other plugin
+// and the kernel. 16 MiB is generous for legitimate JSON tool
+// results while still bounding the blast radius; a plugin that
+// exceeds it is torn down (markDead) rather than the daemon.
+const DefaultMaxFrameBytes = 16 << 20
+
+// errFrameTooLarge is the cause recorded when a plugin's stdout frame
+// exceeds Config.MaxFrameBytes. The plugin is marked dead; in-flight
+// callers fail fast instead of the daemon dying under memory pressure.
+var errFrameTooLarge = errors.New("plugin: stdout frame exceeds max size")
+
 // Config tunes a Plugin.
 type Config struct {
 	// Path to the plugin executable. Required.
@@ -45,6 +61,11 @@ type Config struct {
 	InitTimeout time.Duration
 	// InvokeTimeout overrides DefaultInvokeTimeout.
 	InvokeTimeout time.Duration
+	// MaxFrameBytes overrides DefaultMaxFrameBytes — the hard cap on a
+	// single newline-delimited stdout frame from the plugin (M177).
+	// A frame larger than this tears the plugin down rather than
+	// letting an untrusted child drive the host to OOM.
+	MaxFrameBytes int
 	// Logger receives stderr from the child (one line per call).
 	// Nil discards.
 	Logger func(line string)
@@ -148,6 +169,9 @@ func Spawn(ctx context.Context, cfg Config) (*Plugin, error) {
 	}
 	if cfg.InvokeTimeout <= 0 {
 		cfg.InvokeTimeout = DefaultInvokeTimeout
+	}
+	if cfg.MaxFrameBytes <= 0 {
+		cfg.MaxFrameBytes = DefaultMaxFrameBytes
 	}
 	if cfg.PinnedHash != "" {
 		if err := VerifyPin(cfg.Path, cfg.PinnedHash); err != nil {
@@ -456,6 +480,31 @@ type inboundFrame struct {
 	Progress string          `json:"progress,omitempty"`
 }
 
+// readFrame reads one newline-delimited frame from r, bounding the
+// total to max bytes (M177). It reads in buffer-sized chunks via
+// ReadSlice (which returns bufio.ErrBufferFull when a line is longer
+// than the reader's internal buffer); each chunk is copied out before
+// the next read, so the returned slice is stable. Once the accumulated
+// frame would exceed max, it returns errFrameTooLarge instead of
+// allocating further — so an untrusted plugin that never emits '\n'
+// (or emits a giant line) can't OOM the daemon. A trailing chunk with
+// io.EOF (stream ended mid-line) is returned with that error, matching
+// the prior ReadBytes('\n') behavior (the caller treats it as fatal).
+func readFrame(r *bufio.Reader, max int) ([]byte, error) {
+	var buf []byte
+	for {
+		chunk, err := r.ReadSlice('\n')
+		if len(buf)+len(chunk) > max {
+			return nil, errFrameTooLarge
+		}
+		buf = append(buf, chunk...)
+		if err == bufio.ErrBufferFull {
+			continue // line longer than the bufio buffer; keep reading
+		}
+		return buf, err
+	}
+}
+
 // readLoop pulls one frame per line off stdout, routes responses
 // to the waiting goroutine via the pending map, and dispatches
 // plugin-initiated host/invoke requests (M1.cb). Runs until EOF /
@@ -463,7 +512,7 @@ type inboundFrame struct {
 // fast instead of blocking on the pending channel forever.
 func (p *Plugin) readLoop() {
 	for {
-		line, err := p.stdout.ReadBytes('\n')
+		line, err := readFrame(p.stdout, p.cfg.MaxFrameBytes)
 		if err != nil {
 			p.markDead(fmt.Errorf("read stdout: %w", err))
 			return
