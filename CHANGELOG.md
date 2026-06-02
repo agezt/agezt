@@ -318,6 +318,18 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   `.project/PHASE-M129-OBSERVABILITY-TENANT-FLAG-REPORT.md`.
 
 ### Fixed
+- **Plugin host-callback fan-out bounded — a callback flood can't exhaust the daemon
+  (security review MEDIUM)** (M181) — the read loop spawned `go handleCallback(f)` for
+  every plugin-initiated `host/invoke` frame with no concurrency limit (plugin-host
+  review M1). A hostile plugin streaming callbacks as fast as the host reads them spawns
+  an unbounded number of goroutines, each running a curated host tool with up to
+  `InvokeTimeout` — goroutine/memory exhaustion plus amplification of whatever those
+  tools touch. Dispatch now acquires a slot from a per-plugin counting semaphore
+  (`Config.MaxConcurrentCallbacks`, default 16) non-blockingly: at the cap, the
+  callback is rejected inline with `ErrTooManyCallbacks` rather than queued or spawned,
+  so the read loop stays responsive and goroutines stay bounded under a flood. The
+  semaphore is created once and persists across reloads. See
+  `.project/PHASE-M181-PLUGIN-CALLBACK-LIMIT-REPORT.md`.
 - **Plugin correlation ids stay monotonic across reload — no response confusion
   (security review HIGH)** (M180) — `respawn` reset the per-plugin id counter with
   `p.nextID.Store(0)` on every `Reload`, so post-reload requests reused the same

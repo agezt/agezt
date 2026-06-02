@@ -47,6 +47,21 @@ const DefaultMaxFrameBytes = 16 << 20
 // callers fail fast instead of the daemon dying under memory pressure.
 var errFrameTooLarge = errors.New("plugin: stdout frame exceeds max size")
 
+// DefaultMaxConcurrentCallbacks bounds how many plugin→host callbacks
+// (host/invoke) run at once for a single plugin (M181). The plugin's
+// stdout is untrusted: without a cap, a plugin that streams host/invoke
+// frames as fast as the host reads them spawns an unbounded number of
+// goroutines, each running a host tool with up to InvokeTimeout —
+// goroutine/memory exhaustion plus amplification of whatever those tools
+// touch. Excess callbacks past the cap are rejected with
+// ErrTooManyCallbacks rather than queued, keeping the read loop
+// responsive and goroutines bounded.
+const DefaultMaxConcurrentCallbacks = 16
+
+// ErrTooManyCallbacks is returned to a plugin when it has too many
+// host/invoke callbacks already in flight (M181).
+var ErrTooManyCallbacks = errors.New("plugin: too many concurrent callbacks")
+
 // Config tunes a Plugin.
 type Config struct {
 	// Path to the plugin executable. Required.
@@ -66,6 +81,11 @@ type Config struct {
 	// A frame larger than this tears the plugin down rather than
 	// letting an untrusted child drive the host to OOM.
 	MaxFrameBytes int
+	// MaxConcurrentCallbacks overrides DefaultMaxConcurrentCallbacks —
+	// the cap on simultaneous plugin→host callbacks (M181). Excess
+	// host/invoke requests are rejected with ErrTooManyCallbacks
+	// instead of spawning unbounded goroutines.
+	MaxConcurrentCallbacks int
 	// Logger receives stderr from the child (one line per call).
 	// Nil discards.
 	Logger func(line string)
@@ -150,6 +170,14 @@ type Plugin struct {
 	// nextID is a monotonic counter used to mint correlation ids.
 	nextID atomic.Int64
 
+	// cbSem bounds concurrent plugin→host callbacks (M181). A buffered
+	// channel used as a counting semaphore: the read loop acquires a
+	// slot (non-blocking) before spawning handleCallback and the
+	// goroutine releases it on exit; a full channel means the cap is hit
+	// and the callback is rejected. Created once in Spawn and persists
+	// across Reload, so it bounds the plugin's whole lifetime.
+	cbSem chan struct{}
+
 	// tools is the snapshot returned by the most recent initialize.
 	tools []ToolDef
 
@@ -203,6 +231,9 @@ func Spawn(ctx context.Context, cfg Config) (*Plugin, error) {
 	if cfg.MaxFrameBytes <= 0 {
 		cfg.MaxFrameBytes = DefaultMaxFrameBytes
 	}
+	if cfg.MaxConcurrentCallbacks <= 0 {
+		cfg.MaxConcurrentCallbacks = DefaultMaxConcurrentCallbacks
+	}
 	if cfg.PinnedHash != "" {
 		if err := VerifyPin(cfg.Path, cfg.PinnedHash); err != nil {
 			return nil, err
@@ -238,6 +269,7 @@ func Spawn(ctx context.Context, cfg Config) (*Plugin, error) {
 		stdout:   bufio.NewReader(stdout),
 		pending:  make(map[string]chan *Response),
 		progress: make(map[string]func(string)),
+		cbSem:    make(chan struct{}, cfg.MaxConcurrentCallbacks),
 	}
 
 	// Drain stderr → Logger. Plugins log to stderr; the host
@@ -572,8 +604,15 @@ func (p *Plugin) readLoop() {
 		// the read loop from receiving the plugin's other replies.
 		// The dispatcher writes its own Response back via writeRequest-
 		// equivalent (writeResponse).
+		//
+		// Bounded fan-out (M181): acquire a callback slot (non-blocking)
+		// before spawning. A full semaphore means MaxConcurrentCallbacks
+		// are already in flight, so we reject this one inline rather than
+		// spawn an unbounded goroutine — keeps the read loop responsive
+		// and goroutines bounded under a host/invoke flood. The slot is
+		// released in handleCallback's defer.
 		if f.Method != "" {
-			go p.handleCallback(f)
+			p.dispatchCallback(f)
 			continue
 		}
 
@@ -628,6 +667,23 @@ func (p *Plugin) deliver(f inboundFrame) {
 	}
 }
 
+// dispatchCallback decides how to handle a plugin-initiated callback
+// frame under the concurrency cap (M181). It acquires a slot from the
+// bounded cbSem non-blockingly: on success it spawns handleCallback
+// (which releases the slot on exit); when the semaphore is full —
+// MaxConcurrentCallbacks already in flight — it rejects the callback
+// inline with ErrTooManyCallbacks instead of spawning an unbounded
+// goroutine. Keeping the acquire non-blocking means a host/invoke flood
+// can never stall the read loop nor exhaust goroutines/memory.
+func (p *Plugin) dispatchCallback(f inboundFrame) {
+	select {
+	case p.cbSem <- struct{}{}:
+		go p.handleCallback(f)
+	default:
+		p.rejectCallback(f, ErrTooManyCallbacks)
+	}
+}
+
 // handleCallback runs one plugin→host invoke (M1.cb). Routes to
 // the configured HostTools map; returns either the tool's output
 // or an error in the Response.Error field. Runs on its own
@@ -638,6 +694,9 @@ func (p *Plugin) deliver(f inboundFrame) {
 // Unknown methods get a clear error rather than silent drop so
 // the plugin author sees the typo.
 func (p *Plugin) handleCallback(f inboundFrame) {
+	// Release the callback slot acquired by the dispatcher (M181). This
+	// defer runs last (registered first), after the response is written.
+	defer func() { <-p.cbSem }()
 	resp := Response{ID: f.ID}
 	defer func() {
 		if err := p.writeResponse(resp); err != nil && p.cfg.Logger != nil {
@@ -682,6 +741,19 @@ func (p *Plugin) handleCallback(f inboundFrame) {
 		return
 	}
 	resp.Result = out
+}
+
+// rejectCallback writes an error Response for a callback the host
+// declined without running it (M181) — currently the over-capacity
+// case. Called inline on the read-loop goroutine (no goroutine spawned,
+// no semaphore slot held), so it must stay cheap: a single small write
+// via the stdin mutex. The plugin sees the error on its callback id
+// exactly as if a host tool had failed.
+func (p *Plugin) rejectCallback(f inboundFrame, cause error) {
+	resp := Response{ID: f.ID, Error: cause.Error()}
+	if err := p.writeResponse(resp); err != nil && p.cfg.Logger != nil {
+		p.cfg.Logger(fmt.Sprintf("plugin: write callback rejection: %v", err))
+	}
 }
 
 // writeResponse sends a Response back to the plugin. Used by the
