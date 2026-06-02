@@ -415,8 +415,19 @@ func DefaultHardDeny() []HardDenyRule {
 		{Name: "rm-rf-root", Substring: "rm -rf /", AppliesTo: []Capability{CapShell}},
 		{Name: "rm-rf-root-flag", Substring: "rm -rf --no-preserve-root", AppliesTo: []Capability{CapShell}},
 		{Name: "mkfs", Substring: "mkfs", AppliesTo: []Capability{CapShell}},
-		{Name: "dd-of-dev", Substring: "dd if=", AppliesTo: []Capability{CapShell}}, // dd ... of=/dev/sda*
+		{Name: "wipefs", Substring: "wipefs", AppliesTo: []Capability{CapShell}},    // wipe FS signatures
+		{Name: "dd-of-dev", Substring: "dd if=", AppliesTo: []Capability{CapShell}}, // dd reading a source (usual disk-write shape)
+		// dd/redirect writing to a RAW BLOCK DEVICE (M175). Keyed on of=/dev/<dev>
+		// for the common device families so a `dd of=/dev/sdb` with no `if=` is also
+		// caught — while the safe pseudo-devices (/dev/null, /dev/zero, /dev/random)
+		// are deliberately NOT matched, so benign `dd of=/dev/null` stays allowed.
+		{Name: "dd-of-sd", Substring: "of=/dev/sd", AppliesTo: []Capability{CapShell}},
+		{Name: "dd-of-nvme", Substring: "of=/dev/nvme", AppliesTo: []Capability{CapShell}},
+		{Name: "dd-of-vd", Substring: "of=/dev/vd", AppliesTo: []Capability{CapShell}},
+		{Name: "dd-of-xvd", Substring: "of=/dev/xvd", AppliesTo: []Capability{CapShell}}, // AWS Xen
+		{Name: "dd-of-mmcblk", Substring: "of=/dev/mmcblk", AppliesTo: []Capability{CapShell}},
 		{Name: "shutdown", Substring: "shutdown -", AppliesTo: []Capability{CapShell}},
+		{Name: "poweroff", Substring: "poweroff", AppliesTo: []Capability{CapShell}},
 		{Name: "reboot", Substring: "reboot", AppliesTo: []Capability{CapShell}},
 		{Name: "powershell-format", Substring: "format-volume", AppliesTo: []Capability{CapShell}},
 	}

@@ -318,6 +318,15 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   `.project/PHASE-M129-OBSERVABILITY-TENANT-FLAG-REPORT.md`.
 
 ### Fixed
+- **Wider hard-deny floor: raw block-device writes, wipefs, poweroff (security
+  review follow-up)** (M175) — the default hard-deny floor missed several
+  catastrophic shell operations even in plain form (M173 MEDIUM-2). Added rules for
+  writing `dd` output to a raw block device (`of=/dev/sd|nvme|vd|xvd|mmcblk` — so a
+  `dd of=/dev/sdb` with no `if=` is now caught), `wipefs`, and `poweroff`. The
+  device rules deliberately exclude the safe pseudo-devices, so benign
+  `dd of=/dev/null` / `echo … > /dev/null` stay allowed — important because the
+  floor has no override. Composes with M173 (decoded/normalized matching). See
+  `.project/PHASE-M175-EDICT-FLOOR-COVERAGE-REPORT.md`.
 - **Strict `runtime[<digits>]` validation for removable policy rules (security
   review follow-up)** (M174) — `IsRuntimeRule` — the load-bearing
   "tighten-but-never-loosen" invariant that decides which hard-deny rules

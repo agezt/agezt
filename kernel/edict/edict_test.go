@@ -515,3 +515,34 @@ func TestIsRuntimeRule_StrictShape(t *testing.T) {
 		t.Error(`RemoveHardDeny should reject a malformed runtime name`)
 	}
 }
+
+// TestDefaultHardDeny_DeviceAndPower — the M175 floor additions: raw block-device
+// writes, wipefs, and poweroff are denied, while benign pseudo-device and
+// disk-READ commands stay allowed (the floor has no override, so no false denies).
+func TestDefaultHardDeny_DeviceAndPower(t *testing.T) {
+	e := New(Options{Levels: map[Capability]TrustLevel{CapShell: LevelAllow}})
+	deny := []string{
+		`{"command":"dd if=/dev/zero of=/dev/sdb bs=1M"}`,
+		`{"command":"dd of=/dev/nvme0n1 bs=4M"}`, // no if=, still caught
+		`{"command":"dd of=/dev/vda if=/dev/zero"}`,
+		`{"command":"dd of=/dev/xvdf if=backup.img"}`,
+		`{"command":"wipefs -a /dev/sda"}`,
+		`{"command":"sudo poweroff"}`,
+	}
+	for _, in := range deny {
+		if o := e.Decide(CapShell, in); o.Decision != DecisionDeny || !o.HardDenied {
+			t.Errorf(`%q should be hard-denied, got %+v`, in, o)
+		}
+	}
+	// Benign: writing to /dev/null is the canonical no-op; must NOT be denied.
+	allow := []string{
+		`{"command":"dd of=/dev/null if=/dev/zero count=1"}`,
+		`{"command":"echo hello > /dev/null"}`,
+		`{"command":"cat /proc/cpuinfo"}`,
+	}
+	for _, in := range allow {
+		if o := e.Decide(CapShell, in); o.Decision != DecisionAllow {
+			t.Errorf(`%q should be allowed (no false deny), got %+v`, in, o)
+		}
+	}
+}
