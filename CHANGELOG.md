@@ -318,6 +318,16 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   `.project/PHASE-M129-OBSERVABILITY-TENANT-FLAG-REPORT.md`.
 
 ### Fixed
+- **Plugin teardown kills the whole process group — no orphaned grandchildren
+  (security review MEDIUM)** (M184) — `Close` killed only the direct child, so any
+  process a plugin forked (a shell wrapper, a Python subprocess) survived as an orphan
+  after teardown — a resource leak and a persistence/escape flavour for an untrusted
+  plugin (plugin-host review M4). The child is now placed in its own process group at
+  spawn (`makeChild`), and the force-kill path signals the whole group. Platform-split:
+  a real process group via `Setpgid` on Unix (the daemon's first-class target, killed
+  with a negative-pid `SIGKILL`); on Windows it remains a direct-child kill (reliable
+  whole-tree teardown there needs a Job Object, tracked as a follow-up). See
+  `.project/PHASE-M184-PLUGIN-PROCESS-GROUP-REPORT.md`.
 - **Plugin `Close` is now nil-safe on a half-started plugin (security review MEDIUM)**
   (M183) — `Close` called `p.cmd.Wait()`/`p.cmd.Process.Kill()` and wrote a shutdown
   request to `p.stdin` with no nil guard (plugin-host review M3). On a `Plugin` whose

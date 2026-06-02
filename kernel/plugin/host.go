@@ -484,7 +484,9 @@ func (p *Plugin) Close() error {
 		select {
 		case <-done:
 		case <-time.After(DefaultShutdownGrace):
-			_ = p.cmd.Process.Kill()
+			// Kill the whole process group (M184), so grandchildren the
+			// plugin forked are reaped too — not just the direct child.
+			killProcessTree(p.cmd)
 			<-done
 		}
 	}

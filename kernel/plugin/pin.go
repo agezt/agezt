@@ -18,7 +18,12 @@ import (
 // (the host's Spawn used to call osexec.Command inline; the wrapper
 // makes pin enforcement, future sandbox stubs, etc. easier to add).
 func makeChild(path string, args []string) *osexec.Cmd {
-	return osexec.Command(path, args...)
+	cmd := osexec.Command(path, args...)
+	// Put the child in its own process group so teardown can kill the
+	// whole tree, not just the direct child (M184). Platform-specific:
+	// a real process group on Unix, a no-op on Windows (see proc_*.go).
+	setProcessGroup(cmd)
+	return cmd
 }
 
 // VerifyPin checks that the file at path has BLAKE3-256 digest
