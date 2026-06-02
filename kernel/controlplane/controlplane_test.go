@@ -144,6 +144,28 @@ func TestRun_ResultCarriesUsage(t *testing.T) {
 	}
 }
 
+// TestRun_ModelOverride — `agt run --model <id>` routes the run to that model
+// (M148): the provider receives the overriding model id, not the kernel default.
+func TestRun_ModelOverride(t *testing.T) {
+	prov := mock.New(mock.FinalText("ok"))
+	var gotModel string
+	prov.OnRequest = func(req agent.CompletionRequest) {
+		if req.Model != "" {
+			gotModel = req.Model
+		}
+	}
+	_, _, c, _ := startPair(t, prov)
+
+	if _, err := c.Stream(context.Background(), controlplane.CmdRun,
+		map[string]any{"intent": "hi", "model": "custom-model-xyz"}, nil); err != nil {
+		t.Fatalf("Stream: %v", err)
+	}
+	// Stream blocks until the run finishes, so all Complete calls are done.
+	if gotModel != "custom-model-xyz" {
+		t.Errorf("provider saw model %q, want the override custom-model-xyz", gotModel)
+	}
+}
+
 func TestRun_WithToolCalls(t *testing.T) {
 	prov := mock.New(
 		mock.ToolUse("c1", "shell", map[string]string{"command": "echo via-cp"}),

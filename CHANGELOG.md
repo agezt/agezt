@@ -12,6 +12,14 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **`agt run --model <id>` — per-run model override** (M148) — route a single run to
+  a specific model (`agt run --model claude-opus-4-8 "hard one"` /
+  `--model haiku "quick one"`) without restarting the daemon or changing
+  `AGEZT_MODEL`. Reuses the same per-request routing the OpenAI-compatible API uses
+  (`runtime.WithModel` → the loop's `modelFromCtx`); empty = the kernel default. The
+  vision capability gate now judges the *effective* model (the override, not the
+  daemon default), so attaching an image to a vision-capable override model is no
+  longer wrongly rejected. See `.project/PHASE-M148-RUN-MODEL-OVERRIDE-REPORT.md`.
 - **`agt run` reports what the run cost** (M146) — a finished run now prints a
   `usage:` line with the model, iteration count, and USD cost
   (`usage: claude-sonnet-4-6 · 4 iteration(s) · $0.0123`), so an operator sees the

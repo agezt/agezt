@@ -922,6 +922,18 @@ func (s *Server) handleRun(ctx context.Context, conn net.Conn, req Request) {
 		return
 	}
 
+	// Per-run model override (M148): `agt run --model <id>` routes THIS run to a
+	// different model (a cheaper/bigger one) without restarting the daemon — the
+	// same per-request routing the OpenAI-compatible API uses. Empty = the kernel
+	// default. effModel is the model this run will actually use; the capability
+	// gate below must judge it, not the daemon default.
+	modelOverride, _ := req.Args["model"].(string)
+	modelOverride = strings.TrimSpace(modelOverride)
+	effModel := k.Model()
+	if modelOverride != "" {
+		effModel = modelOverride
+	}
+
 	// Vision capability gate (M91): a run carrying image attachments requires a
 	// model confirmed to accept image input. Unlike the M25 tool gate (which
 	// allows unknown models because many tolerate tool schemas), an image sent to
@@ -933,7 +945,7 @@ func (s *Server) handleRun(ctx context.Context, conn net.Conn, req Request) {
 	if imgs, ok := req.Args["images"].([]any); ok && len(imgs) > 0 {
 		var visionOK bool
 		if cat := k.Catalog(); cat != nil {
-			if _, m := cat.FindModel(k.Model()); m != nil {
+			if _, m := cat.FindModel(effModel); m != nil {
 				visionOK = m.SupportsVision()
 			}
 		}
@@ -943,14 +955,14 @@ func (s *Server) handleRun(ctx context.Context, conn net.Conn, req Request) {
 				Kind:    event.KindCapabilityRejected,
 				Actor:   "controlplane",
 				Payload: map[string]any{
-					"model":            k.Model(),
+					"model":            effModel,
 					"capability":       "vision",
 					"images_requested": len(imgs),
 				},
 			})
 			s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: fmt.Sprintf(
 				"model %q does not support vision (image input); attach images only to a vision-capable model (see `agt provider check --caps`)",
-				k.Model())})
+				effModel)})
 			return
 		}
 		// Gate passed (M93): carry the image refs into the run so they reach the
@@ -963,6 +975,11 @@ func (s *Server) handleRun(ctx context.Context, conn net.Conn, req Request) {
 	}
 	if len(imageRefs) > 0 {
 		ctx = runtime.WithImages(ctx, imageRefs)
+	}
+	// Route this run to the override model when given (M148); the loop reads it
+	// via modelFromCtx, the same path the OpenAI API uses.
+	if modelOverride != "" {
+		ctx = runtime.WithModel(ctx, modelOverride)
 	}
 
 	// Pre-generate the correlation ID so we can subscribe to this run's

@@ -150,7 +150,7 @@ func printHelp(w io.Writer) {
 	fmt.Fprintf(w, "key, and prints the exact command to start the daemon.\n")
 	fmt.Fprintf(w, "\n")
 	fmt.Fprintf(w, "Commands:\n")
-	fmt.Fprintf(w, "  run \"<intent>\" [--json] [--tenant <id>]   run an intent end-to-end (JSON = ndjson stream; --tenant routes to an isolated tenant)\n")
+	fmt.Fprintf(w, "  run \"<intent>\" [--json] [--tenant <id>] [--model <id>]   run an intent end-to-end (--model routes this run to a specific model; JSON = ndjson stream)\n")
 	fmt.Fprintf(w, "  halt [--reason \"...\"] [--json]  freeze all in-flight runs (reason is journaled)\n")
 	fmt.Fprintf(w, "  resume [--reason \"...\"] [--json] clear the halt flag (reason is journaled)\n")
 	fmt.Fprintf(w, "  why <event_id> [--json|--payload]  list events sharing an event's correlation\n")
@@ -265,6 +265,7 @@ func cmdRun(args []string, stdout, stderr io.Writer) int {
 	// an isolated tenant's kernel (requires the daemon with AGEZT_MULTITENANT=on).
 	asJSON := false
 	tenant := ""
+	model := ""
 	var images []string
 	var intentParts []string
 	for i := 0; i < len(args); i++ {
@@ -279,6 +280,15 @@ func cmdRun(args []string, stdout, stderr io.Writer) int {
 			}
 			i++
 			tenant = args[i]
+		case a == "--model":
+			if i+1 >= len(args) {
+				fmt.Fprintf(stderr, "%s run: --model needs a model id\n", brand.CLI)
+				return 2
+			}
+			i++
+			model = args[i]
+		case strings.HasPrefix(a, "--model="):
+			model = strings.TrimPrefix(a, "--model=")
 		case a == "--image":
 			// Attach an image to the run (M91). The daemon gates it against the
 			// model's vision capability before any provider call.
@@ -312,6 +322,9 @@ func cmdRun(args []string, stdout, stderr io.Writer) int {
 	runArgs := map[string]any{"intent": intent}
 	if tenant != "" {
 		runArgs["tenant"] = tenant
+	}
+	if model = strings.TrimSpace(model); model != "" {
+		runArgs["model"] = model
 	}
 	if len(images) > 0 {
 		imgs := make([]any, len(images))
