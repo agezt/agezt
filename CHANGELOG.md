@@ -318,6 +318,16 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   `.project/PHASE-M129-OBSERVABILITY-TENANT-FLAG-REPORT.md`.
 
 ### Fixed
+- **Plugin correlation ids stay monotonic across reload — no response confusion
+  (security review HIGH)** (M180) — `respawn` reset the per-plugin id counter with
+  `p.nextID.Store(0)` on every `Reload`, so post-reload requests reused the same
+  `q-1`, `q-2`, … ids as pre-reload ones (plugin-host review H4). A late or crafted
+  response carrying a reused id could then satisfy the wrong (new) request —
+  response/result confusion. The counter is now left untouched across a reload so it
+  climbs monotonically for the plugin's whole lifetime and an id is never reused. Also
+  corrected the `Reload` doc comment, which wrongly claimed it "holds `p.mu` for the
+  duration" (it relies on `Close` marking the old child dead before fresh state is
+  installed). See `.project/PHASE-M180-PLUGIN-RELOAD-IDS-REPORT.md`.
 - **Plugin response delivery is now race-safe — no send-on-closed-channel daemon crash
   (security review HIGH)** (M179) — the plugin host's read loop delivered each terminal
   response by sending on the caller's pending channel *outside* `p.mu`, while

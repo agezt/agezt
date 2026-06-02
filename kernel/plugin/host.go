@@ -743,7 +743,14 @@ func (p *Plugin) IsAlive() bool { return !p.dead.Load() }
 // either check fails — operators get a clean rollback rather than
 // a half-reloaded daemon.
 //
-// **Concurrency.** Reload holds p.mu for the duration. In-flight
+// **Concurrency.** Reload does NOT hold p.mu for its whole duration
+// (it can't: respawn's own initialize round-trip acquires p.mu).
+// Instead, Close marks the old plugin dead before respawn installs
+// fresh state, so a caller racing the reload either observes
+// dead==true and fails fast, or observes the live new child. The
+// correlation-id counter (p.nextID) stays monotonic across the swap
+// (M180), so even a late response from the old child cannot satisfy
+// a new request. In-flight
 // Invoke calls on the old child either complete (response arrives
 // before shutdown processes) or fail with the death sentinel —
 // either is observable to the caller, and the new child is
@@ -809,7 +816,12 @@ func (p *Plugin) respawn(ctx context.Context) error {
 	p.mu.Unlock()
 	p.dead.Store(false)
 	p.setDeathErr(nil)
-	p.nextID.Store(0)
+	// Deliberately do NOT reset p.nextID (M180): the correlation-id
+	// counter stays monotonic ACROSS reloads so an id is never reused.
+	// Resetting to 0 made post-reload ids (q-1, q-2, …) collide with
+	// pre-reload ones, so a late or crafted response carrying a reused
+	// id could satisfy the wrong request (response confusion). A
+	// monotonic counter makes that structurally impossible.
 
 	// Stderr forwarder + read loop, mirroring Spawn.
 	go func() {
