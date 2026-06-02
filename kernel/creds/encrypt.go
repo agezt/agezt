@@ -73,9 +73,21 @@ const (
 	// AlgorithmAESGCM is the cipher identifier; v2 only supports
 	// AES-256-GCM so the only check is "is it the expected value".
 	AlgorithmAESGCM = "aes-256-gcm"
-	// KDFIteratedHMAC is the KDF identifier; v2 only supports iterated
-	// HMAC-SHA256.
+	// KDFIteratedHMAC is the LEGACY KDF identifier (a keyed HMAC-SHA256 hash
+	// chain). Still accepted on decrypt so vaults written before M172 stay
+	// readable; new vaults use KDFPBKDF2.
 	KDFIteratedHMAC = "hmac-sha256-iter"
+	// KDFPBKDF2 is the current KDF: genuine PBKDF2-HMAC-SHA256 (M172). Unlike the
+	// legacy chain, it XOR-accumulates every round's HMAC output (the standard
+	// PBKDF2 construction), so it is a true PBKDF2-SHA256 derivation rather than an
+	// approximation. New saves and rotations write this id.
+	KDFPBKDF2 = "pbkdf2-hmac-sha256"
+
+	// KDFIterMinAccepted is the floor for an envelope's stored iteration count on
+	// decrypt (M172). v2 has always written KDFIterations (200000); anything far
+	// below that is malformed or an attempt to make a stolen vault cheap to crack,
+	// so refuse it. (The previous floor was 1000 — 200× below policy.)
+	KDFIterMinAccepted = 100000
 
 	// KDFIterations is the iteration count for key derivation.
 	// 200000 is enough to cost ~100ms on commodity hardware in 2026;
@@ -142,7 +154,7 @@ func encryptVault(plaintext map[string]string, passphrase string) ([]byte, error
 	if _, err := io.ReadFull(rand.Reader, salt); err != nil {
 		return nil, fmt.Errorf("creds: read salt: %w", err)
 	}
-	key := deriveKey([]byte(passphrase), salt, KDFIterations)
+	key := deriveKeyPBKDF2([]byte(passphrase), salt, KDFIterations)
 
 	block, err := aes.NewCipher(key)
 	if err != nil {
@@ -166,7 +178,7 @@ func encryptVault(plaintext map[string]string, passphrase string) ([]byte, error
 	env := encryptedEnvelope{
 		Schema:     SchemaEncrypted,
 		Encryption: AlgorithmAESGCM,
-		KDF:        KDFIteratedHMAC,
+		KDF:        KDFPBKDF2,
 		KDFIter:    KDFIterations,
 		KDFSalt:    base64.StdEncoding.EncodeToString(salt),
 		Nonce:      base64.StdEncoding.EncodeToString(nonce),
@@ -192,13 +204,13 @@ func decryptVault(raw []byte, passphrase string) (map[string]string, error) {
 	if env.Encryption != AlgorithmAESGCM {
 		return nil, fmt.Errorf("creds: unsupported encryption %q", env.Encryption)
 	}
-	if env.KDF != KDFIteratedHMAC {
+	if env.KDF != KDFPBKDF2 && env.KDF != KDFIteratedHMAC {
 		return nil, fmt.Errorf("creds: unsupported kdf %q", env.KDF)
 	}
-	if env.KDFIter < 1000 {
-		// A vault claiming <1000 iterations is either malformed or an
-		// adversary trying to make decryption cheap. Either way, refuse.
-		return nil, fmt.Errorf("creds: kdf_iter %d implausibly low", env.KDFIter)
+	if env.KDFIter < KDFIterMinAccepted {
+		// A vault claiming a low iteration count is either malformed or an
+		// adversary trying to make a stolen vault cheap to crack. Refuse.
+		return nil, fmt.Errorf("creds: kdf_iter %d implausibly low (min %d)", env.KDFIter, KDFIterMinAccepted)
 	}
 	salt, err := base64.StdEncoding.DecodeString(env.KDFSalt)
 	if err != nil {
@@ -212,7 +224,17 @@ func decryptVault(raw []byte, passphrase string) (map[string]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("creds: decode ciphertext: %w", err)
 	}
-	key := deriveKey([]byte(passphrase), salt, env.KDFIter)
+	// Dispatch on the envelope's KDF id so legacy vaults (hmac-sha256-iter, written
+	// before M172) still decrypt while new ones use PBKDF2.
+	var key []byte
+	switch env.KDF {
+	case KDFPBKDF2:
+		key = deriveKeyPBKDF2([]byte(passphrase), salt, env.KDFIter)
+	case KDFIteratedHMAC:
+		key = deriveKeyLegacyHMAC([]byte(passphrase), salt, env.KDFIter)
+	default:
+		return nil, fmt.Errorf("creds: unsupported kdf %q", env.KDF)
+	}
 
 	block, err := aes.NewCipher(key)
 	if err != nil {
@@ -235,28 +257,44 @@ func decryptVault(raw []byte, passphrase string) (map[string]string, error) {
 	return m, nil
 }
 
-// deriveKey runs `iter` rounds of HMAC-SHA256 with the passphrase as
-// the key and the prior digest as the input. The first round uses
-// the salt; subsequent rounds use the previous digest. This costs
-// O(iter) SHA-256 evaluations — defeats brute-force scans of
-// commodity-size password lists at iter≥100k.
+// deriveKeyPBKDF2 is PBKDF2-HMAC-SHA256 (RFC 8018), implemented with stdlib only
+// (x/crypto is excluded by the lean-deps policy). The derived key length (32) ==
+// the PRF output length (SHA-256, 32), so there is exactly one PBKDF2 block:
 //
-// **Why not PBKDF2.** Stdlib doesn't have PBKDF2 (lives in
-// golang.org/x/crypto, excluded by the lean-deps policy). The
-// construction below has the same asymptotic cost profile and the
-// same resistance to time-memory tradeoffs for our threat model.
-// It's NOT identical to PBKDF2 — don't use it for inter-tool key
-// portability, only for this vault's self-contained encrypt/decrypt
-// round trip.
-func deriveKey(passphrase, salt []byte, iter int) []byte {
+//	U_1 = HMAC(P, salt || INT32BE(1));  U_j = HMAC(P, U_{j-1});  DK = U_1 ⊕ … ⊕ U_iter
+//
+// The XOR accumulation over every round is what makes this a genuine PBKDF2
+// derivation (M172) rather than the legacy hash chain, which fed only the final
+// round's output forward. Verified against RFC published SHA-256 test vectors.
+func deriveKeyPBKDF2(passphrase, salt []byte, iter int) []byte {
+	mac := hmac.New(sha256.New, passphrase)
+	mac.Write(salt)
+	mac.Write([]byte{0, 0, 0, 1}) // INT32BE(1): the single block index
+	u := mac.Sum(nil)
+	dk := make([]byte, len(u))
+	copy(dk, u)
+	for i := 1; i < iter; i++ {
+		mac.Reset()
+		mac.Write(u)
+		u = mac.Sum(nil)
+		for j := range dk {
+			dk[j] ^= u[j]
+		}
+	}
+	return dk[:KeyBytes]
+}
+
+// deriveKeyLegacyHMAC is the pre-M172 KDF: a keyed HMAC-SHA256 hash chain (the
+// passphrase keys every round; the prior digest is the input; the salt seeds round
+// one). Retained ONLY to decrypt vaults written before M172 — new vaults use
+// deriveKeyPBKDF2. It costs O(iter) SHA-256 evaluations like PBKDF2 but, lacking
+// XOR accumulation, the final key depends only on the last round's output.
+func deriveKeyLegacyHMAC(passphrase, salt []byte, iter int) []byte {
 	d := salt
 	for range iter {
 		mac := hmac.New(sha256.New, passphrase)
 		mac.Write(d)
 		d = mac.Sum(nil)
 	}
-	// Truncate or extend to KeyBytes (AES-256 needs exactly 32).
-	// sha256 already returns 32, so this is a no-op; explicit slice
-	// for clarity.
 	return d[:KeyBytes]
 }

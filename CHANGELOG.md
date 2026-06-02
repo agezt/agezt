@@ -318,6 +318,19 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   `.project/PHASE-M129-OBSERVABILITY-TENANT-FLAG-REPORT.md`.
 
 ### Fixed
+- **Vault KDF hardened to genuine PBKDF2-SHA256 (crypto review)** (M172) — a crypto
+  review of the at-rest credential vault confirmed the disaster properties are
+  correctly prevented (no GCM key+nonce reuse — fresh salt→key AND fresh nonce per
+  save; auth tag verified; no plaintext staged to disk; `crypto/rand` throughout;
+  no algorithm-downgrade path) and found the custom KDF was a *sound* keyed
+  HMAC-SHA256 chain but **not** the PBKDF2-equivalent the header claimed — it lacked
+  PBKDF2's per-round XOR accumulation, a slight offline-cracking weakness. The KDF
+  is now genuine PBKDF2-HMAC-SHA256 (stdlib-only; verified against published RFC
+  test vectors incl. the 4096-iteration vector) under a new versioned id
+  `pbkdf2-hmac-sha256`; vaults written with the legacy `hmac-sha256-iter` KDF still
+  decrypt (dispatch on the envelope's `kdf`). Also raised the accepted
+  iteration-count floor from 1000 → 100000 (200× below the 200k policy was too
+  lax). See `.project/PHASE-M172-VAULT-PBKDF2-REPORT.md`.
 - **Egress-guard SSRF range hardening — closed a NAT64 metadata-credential bypass
   (security review)** (M171) — an adversarial review of the netguard egress guard
   (which stops the prompt-injectable http/browser tools from reaching cloud
