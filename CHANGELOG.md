@@ -32,6 +32,11 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   actor, input, timeout); `Client.Approve` / `Client.Deny` resolve one by id with
   a journaled reason. An embedding app can now build its own approval UI on top
   of the same HITL gate `agt approve` / `agt deny` use.
+- **SDK streamed-event helpers.** `sdk.TokenText`, `sdk.ToolCall`, and
+  `sdk.IsTerminal` decode the common cases from a `RunStream` callback's events
+  (the answer's text deltas, which tool the agent invoked, and the run's terminal
+  event) so a consumer renders live progress without hand-parsing event payloads
+  or importing kernel internals.
 
 ### Fixed
 - **A single oversized ACP message can no longer balloon memory.** Both the ACP
