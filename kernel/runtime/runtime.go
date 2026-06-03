@@ -34,6 +34,7 @@ import (
 	"github.com/agezt/agezt/kernel/scheduler"
 	"github.com/agezt/agezt/kernel/skill"
 	"github.com/agezt/agezt/kernel/state"
+	"github.com/agezt/agezt/kernel/tenantctx"
 	"github.com/agezt/agezt/kernel/ulid"
 	"github.com/agezt/agezt/kernel/warden"
 	"github.com/agezt/agezt/kernel/worldmodel"
@@ -67,6 +68,13 @@ type Config struct {
 	// Defaults to ~/.agezt when constructed via the daemon; tests can
 	// inject any directory.
 	BaseDir string
+
+	// TenantID is the id of the tenant this kernel serves, or "" for the primary
+	// (non-multi-tenant) kernel. When non-empty it is stamped onto every run's context
+	// (via tenantctx in RunWith) so tenant-aware tools — e.g. the mesh remote_run tool
+	// selecting a per-tenant peer set — can discover which tenant they are serving,
+	// regardless of whether the run was triggered over HTTP, a schedule, or a channel.
+	TenantID string
 
 	// Provider is the LLM provider the agent loop will drive.
 	Provider agent.Provider
@@ -1020,6 +1028,11 @@ func (k *Kernel) RunWith(ctx context.Context, corr, intent string) (string, erro
 	// A per-run override (WithRunTimeout, e.g. `agt run --timeout`) takes
 	// precedence over the daemon-wide MaxDuration; either yields a deadline that
 	// cancels with DeadlineExceeded.
+	// Stamp the tenant identity onto the run context so tenant-aware tools can read it
+	// (M219). No-op for the primary kernel (empty TenantID). Done before deriving runCtx
+	// so the value propagates through the timeout/cancel context to every tool call.
+	ctx = tenantctx.WithTenant(ctx, k.cfg.TenantID)
+
 	maxDur := k.cfg.MaxDuration
 	if d := runTimeoutFromCtx(ctx); d > 0 {
 		maxDur = d

@@ -12,6 +12,21 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Per-tenant mesh peer sets — the federated-mesh × multi-tenant capability** (M219) — the
+  `remote_run` mesh tool now routes a tenant's delegations against that tenant's **own** peer
+  set, configured via `AGEZT_TENANT_PEERS` (a JSON map `{"alpha":"nodeA=url|tok,…"}`, each value
+  an `AGEZT_PEERS`-style spec validated per tenant). This is the ROADMAP's v1.0 (M8)
+  intersection of "federated mesh" and "multi-tenant": tenant alpha and tenant beta can
+  federate to entirely different node sets. Implemented leak-safe by construction: tenant
+  identity is stamped onto every run's context by the **kernel** (new `runtime.Config.TenantID`,
+  injected via the new `kernel/tenantctx` package in `RunWith`) — not the HTTP layer — so it
+  covers *all* trigger paths uniformly (REST, OpenAI API, schedules, channels), and the tool's
+  `peersFor(ctx)` falls back to the **global** set for the primary or any tenant without an
+  override, **never** another tenant's. The discovery cache is keyed by peer URL so per-tenant
+  name collisions can't cross sets. Single-tenant deployments are unaffected (empty `TenantID`
+  ⇒ global peers, exactly as before). Cross-tenant isolation is covered by explicit tests
+  (a tenant's run never reaches another tenant's peers; an unknown tenant degrades to global).
+  See `.project/PHASE-M219-PER-TENANT-PEERS-REPORT.md`.
 - **`agt doctor` flags token-less mesh peers** (M214) — a peer configured as `name=url` with
   no `|token` means `remote_run` delegates tasks to that node **unauthenticated** — at odds
   with Agezt's "loopback + token only" posture, and easy to do by accident. `agt doctor` now

@@ -563,6 +563,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 			}
 			tcfg := cfg // copy the primary config value
 			tcfg.BaseDir = tdir
+			tcfg.TenantID = id   // stamp tenant identity onto every run's ctx (M219)
 			tcfg.Provider = tgov // isolated spend ledger + per-tenant ceiling
 			tcfg.Warden = nil    // fresh per-tenant warden (isolated HALT)
 			tcfg.Edict = nil     // fresh per-tenant policy engine
@@ -2432,14 +2433,28 @@ func buildTools(baseDir string, stderr io.Writer, ward warden.Engine) (map[strin
 	// remote_run — mesh delegation to a peer Agezt node over its REST API (M8).
 	// Registered only when AGEZT_PEERS is set (name=url|token,…). A malformed
 	// spec is a hard startup error so a misconfigured mesh is caught early.
-	if peerSpec := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "PEERS")); peerSpec != "" {
-		peers, err := peer.ParsePeers(peerSpec)
-		if err != nil {
-			return nil, nil, "", fmt.Errorf("AGEZT_PEERS: %w", err)
-		}
-		if pt := peer.New(peers); pt != nil {
-			out["remote_run"] = pt
-			registered = append(registered, fmt.Sprintf("remote_run(%d peer(s))", len(peers)))
+	{
+		peerSpec := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "PEERS"))
+		tenantSpec := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "TENANT_PEERS"))
+		if peerSpec != "" || tenantSpec != "" {
+			peers, err := peer.ParsePeers(peerSpec)
+			if err != nil {
+				return nil, nil, "", fmt.Errorf("AGEZT_PEERS: %w", err)
+			}
+			// Per-tenant peer sets (M219): a tenant's runs route against its own peers,
+			// falling back to the global set. Parsed/validated up front like AGEZT_PEERS.
+			tenantPeers, terr := peer.ParseTenantPeers(tenantSpec)
+			if terr != nil {
+				return nil, nil, "", fmt.Errorf("AGEZT_TENANT_PEERS: %w", terr)
+			}
+			if pt := peer.NewWithTenants(peers, tenantPeers); pt != nil {
+				out["remote_run"] = pt
+				if len(tenantPeers) > 0 {
+					registered = append(registered, fmt.Sprintf("remote_run(%d peer(s), %d tenant override(s))", len(peers), len(tenantPeers)))
+				} else {
+					registered = append(registered, fmt.Sprintf("remote_run(%d peer(s))", len(peers)))
+				}
+			}
 		}
 	}
 

@@ -30,6 +30,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/meshctx"
+	"github.com/agezt/agezt/kernel/tenantctx"
 )
 
 // DefaultTimeout caps one remote run.
@@ -68,24 +69,49 @@ type modelCacheEntry struct {
 // Tool implements agent.Tool. Constructed only when at least one peer is
 // configured; see New.
 type Tool struct {
-	Peers    map[string]Peer
-	Timeout  time.Duration
-	CacheTTL time.Duration // auto-routing discovery cache TTL; <=0 uses DefaultCacheTTL
-	post     poster
-	list     lister
-	now      func() time.Time // injectable clock for the cache (nil = time.Now)
+	Peers map[string]Peer
+	// TenantPeers maps a tenant id to that tenant's own peer set (M219). A run carrying
+	// a tenant id (stamped by its kernel via tenantctx) uses its tenant's set; a tenant
+	// with no entry — and the primary — falls back to Peers. The fallback is to the
+	// GLOBAL set, never another tenant's, so the mapping is leak-safe.
+	TenantPeers map[string]map[string]Peer
+	Timeout     time.Duration
+	CacheTTL    time.Duration // auto-routing discovery cache TTL; <=0 uses DefaultCacheTTL
+	post        poster
+	list        lister
+	now         func() time.Time // injectable clock for the cache (nil = time.Now)
 
 	mu    sync.Mutex
 	cache map[string]modelCacheEntry
 }
 
-// New builds a peer Tool from configured peers. Returns nil when none are
+// New builds a peer Tool from the global peer set. Returns nil when none are
 // configured (tool disabled).
 func New(peers map[string]Peer) *Tool {
-	if len(peers) == 0 {
+	return NewWithTenants(peers, nil)
+}
+
+// NewWithTenants builds a peer Tool with a global peer set plus optional per-tenant
+// overrides (M219). Returns nil only when BOTH are empty (tool disabled), so a
+// deployment that configures peers only per-tenant still gets the tool.
+func NewWithTenants(peers map[string]Peer, tenantPeers map[string]map[string]Peer) *Tool {
+	if len(peers) == 0 && len(tenantPeers) == 0 {
 		return nil
 	}
-	return &Tool{Peers: peers, post: httpPost, list: httpListModels, cache: map[string]modelCacheEntry{}}
+	return &Tool{Peers: peers, TenantPeers: tenantPeers, post: httpPost, list: httpListModels, cache: map[string]modelCacheEntry{}}
+}
+
+// peersFor returns the peer set this run should route against: the run's tenant's own
+// set when it has one, otherwise the global set. The fallback is always to the global
+// set — never another tenant's — so a misattributed or absent tenant id can only ever
+// degrade to the primary's peers, not leak a different tenant's (M219).
+func (t *Tool) peersFor(ctx context.Context) map[string]Peer {
+	if id := tenantctx.Tenant(ctx); id != "" {
+		if tp, ok := t.TenantPeers[id]; ok && len(tp) > 0 {
+			return tp
+		}
+	}
+	return t.Peers
 }
 
 // clock returns the Tool's time source (time.Now unless overridden for tests).
@@ -111,7 +137,9 @@ func (t *Tool) cachedModels(ctx context.Context, p Peer) ([]string, error) {
 	if t.cache == nil {
 		t.cache = map[string]modelCacheEntry{}
 	}
-	if e, ok := t.cache[p.Name]; ok && now.Sub(e.at) < ttl {
+	// Key the cache by URL, not name: across per-tenant peer sets the same name can
+	// point at different nodes, so a name key could return another peer's models (M219).
+	if e, ok := t.cache[p.URL]; ok && now.Sub(e.at) < ttl {
 		models := e.models
 		t.mu.Unlock()
 		return models, nil
@@ -123,7 +151,7 @@ func (t *Tool) cachedModels(ctx context.Context, p Peer) ([]string, error) {
 		return nil, err
 	}
 	t.mu.Lock()
-	t.cache[p.Name] = modelCacheEntry{models: models, at: now}
+	t.cache[p.URL] = modelCacheEntry{models: models, at: now}
 	t.mu.Unlock()
 	return models, nil
 }
@@ -136,7 +164,7 @@ func (t *Tool) Definition() agent.ToolDef {
 			"reports back. Use to hand work to a node with different capabilities, data access, or " +
 			"location. Optionally pin which model the peer should use with `model`; if you set " +
 			"`model` but omit `peer`, a peer that serves that model is chosen automatically. " +
-			"Available peers: " + t.peerNames() + ".",
+			"Available peers: " + peerNamesOf(t.Peers) + ".",
 		InputSchema: json.RawMessage(`{
   "type": "object",
   "properties": {
@@ -158,9 +186,12 @@ func (t *Tool) Definition() agent.ToolDef {
 	}
 }
 
-func (t *Tool) peerNames() string {
-	names := make([]string, 0, len(t.Peers))
-	for n := range t.Peers {
+// peerNamesOf renders a sorted, comma-joined list of peer names from a given set —
+// used both for the static tool description (global set) and for error messages scoped
+// to the run's effective set (M219).
+func peerNamesOf(peers map[string]Peer) string {
+	names := make([]string, 0, len(peers))
+	for n := range peers {
 		names = append(names, n)
 	}
 	sort.Strings(names)
@@ -285,23 +316,24 @@ func render(peerName, model, corr, answer string) string {
 // the primary, the rest are fallbacks used only if an earlier one is unreachable.
 // Otherwise it falls back to resolve (sole-peer / ambiguous-name rules).
 func (t *Tool) routeCandidates(ctx context.Context, name, model string) ([]Peer, error) {
-	if name == "" && model != "" && len(t.Peers) > 1 {
-		return t.serversForModel(ctx, model)
+	peers := t.peersFor(ctx) // the run's effective peer set (tenant override or global)
+	if name == "" && model != "" && len(peers) > 1 {
+		return t.serversForModel(ctx, peers, model)
 	}
-	p, err := t.resolve(name)
+	p, err := resolve(peers, name)
 	if err != nil {
 		return nil, err
 	}
 	return []Peer{p}, nil
 }
 
-// serversForModel returns every peer that lists the requested model, in name order
-// so the choice is deterministic. A peer that can't be reached for discovery is noted
-// but doesn't abort the search; if no peer serves the model, the error names which
-// peers were checked and which were unreachable.
-func (t *Tool) serversForModel(ctx context.Context, model string) ([]Peer, error) {
-	names := make([]string, 0, len(t.Peers))
-	for n := range t.Peers {
+// serversForModel returns every peer in the given set that lists the requested model,
+// in name order so the choice is deterministic. A peer that can't be reached for
+// discovery is noted but doesn't abort the search; if no peer serves the model, the
+// error names which peers were checked and which were unreachable.
+func (t *Tool) serversForModel(ctx context.Context, peers map[string]Peer, model string) ([]Peer, error) {
+	names := make([]string, 0, len(peers))
+	for n := range peers {
 		names = append(names, n)
 	}
 	sort.Strings(names)
@@ -309,7 +341,7 @@ func (t *Tool) serversForModel(ctx context.Context, model string) ([]Peer, error
 	var servers []Peer
 	var unreachable []string
 	for _, n := range names {
-		p := t.Peers[n]
+		p := peers[n]
 		models, err := t.cachedModels(ctx, p)
 		if err != nil {
 			unreachable = append(unreachable, n)
@@ -323,7 +355,7 @@ func (t *Tool) serversForModel(ctx context.Context, model string) ([]Peer, error
 		}
 	}
 	if len(servers) == 0 {
-		msg := fmt.Sprintf("remote_run: no configured peer serves model %q (checked: %s", model, t.peerNames())
+		msg := fmt.Sprintf("remote_run: no configured peer serves model %q (checked: %s", model, peerNamesOf(peers))
 		if len(unreachable) > 0 {
 			msg += "; unreachable: " + strings.Join(unreachable, ", ")
 		}
@@ -332,20 +364,20 @@ func (t *Tool) serversForModel(ctx context.Context, model string) ([]Peer, error
 	return servers, nil
 }
 
-// resolve picks the named peer, or the sole peer when name is empty.
-func (t *Tool) resolve(name string) (Peer, error) {
+// resolve picks the named peer from the given set, or the sole peer when name is empty.
+func resolve(peers map[string]Peer, name string) (Peer, error) {
 	name = strings.TrimSpace(name)
 	if name == "" {
-		if len(t.Peers) == 1 {
-			for _, p := range t.Peers {
+		if len(peers) == 1 {
+			for _, p := range peers {
 				return p, nil
 			}
 		}
-		return Peer{}, fmt.Errorf("remote_run: a peer name is required (configured: %s)", t.peerNames())
+		return Peer{}, fmt.Errorf("remote_run: a peer name is required (configured: %s)", peerNamesOf(peers))
 	}
-	p, ok := t.Peers[name]
+	p, ok := peers[name]
 	if !ok {
-		return Peer{}, fmt.Errorf("remote_run: unknown peer %q (configured: %s)", name, t.peerNames())
+		return Peer{}, fmt.Errorf("remote_run: unknown peer %q (configured: %s)", name, peerNamesOf(peers))
 	}
 	return p, nil
 }
@@ -445,6 +477,45 @@ func ParsePeers(spec string) (map[string]Peer, error) {
 		peers[name] = Peer{Name: name, URL: urlStr, Token: token}
 	}
 	return peers, nil
+}
+
+// ParseTenantPeers decodes the AGEZT_TENANT_PEERS spec (M219): a JSON object mapping a
+// tenant id to that tenant's own AGEZT_PEERS-style spec, e.g.
+//
+//	{"alpha":"nodeA=http://a:8800|tokA","beta":"nodeB=https://b:8800"}
+//
+// Each value is parsed with ParsePeers, so the same validation (URL scheme, duplicate
+// name) applies per tenant. A JSON object rather than per-tenant env vars keeps every
+// tenant id expressible (including ones with characters an env-var name can't hold).
+// Empty / whitespace-only spec → nil, no error. A tenant whose value parses to no peers
+// is dropped (it would just fall back to the global set anyway).
+func ParseTenantPeers(spec string) (map[string]map[string]Peer, error) {
+	spec = strings.TrimSpace(spec)
+	if spec == "" {
+		return nil, nil
+	}
+	var raw map[string]string
+	if err := json.Unmarshal([]byte(spec), &raw); err != nil {
+		return nil, fmt.Errorf("tenant peers: invalid JSON: %w", err)
+	}
+	out := map[string]map[string]Peer{}
+	for tenant, peerSpec := range raw {
+		tenant = strings.TrimSpace(tenant)
+		if tenant == "" {
+			return nil, fmt.Errorf("tenant peers: empty tenant id")
+		}
+		peers, err := ParsePeers(peerSpec)
+		if err != nil {
+			return nil, fmt.Errorf("tenant %q peers: %w", tenant, err)
+		}
+		if len(peers) > 0 {
+			out[tenant] = peers
+		}
+	}
+	if len(out) == 0 {
+		return nil, nil
+	}
+	return out, nil
 }
 
 // Describe renders a one-line banner summary of the peers (tokens redacted).
