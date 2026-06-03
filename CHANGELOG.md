@@ -12,6 +12,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Fixed
+- **A crashed daemon now gives an actionable CLI error, not "connection
+  refused".** When the daemon left a stale runtime address (it crashed but its
+  addr file remained), every `agt` command failed with a cryptic transport error,
+  unlike the clear "start the daemon" hint shown when it was never started. The
+  client now does a liveness probe and reports both cases the same way —
+  "daemon recorded but not responding … (re)start the daemon". A server-side
+  rejection (e.g. a bad token) is distinguished and not misreported as a crash.
 - **The ACP server reports the real product version to IDEs.** Its
   `agentInfo.version` was a hardcoded `"0.1.0"`, so an editor connecting to a
   v1.0.0 daemon over the Agent Client Protocol displayed "agezt 0.1.0".
