@@ -203,8 +203,16 @@ type vxContent struct {
 
 type vxPart struct {
 	Text             string              `json:"text,omitempty"`
+	InlineData       *vxInlineData       `json:"inlineData,omitempty"`
 	FunctionCall     *vxFunctionCall     `json:"functionCall,omitempty"`
 	FunctionResponse *vxFunctionResponse `json:"functionResponse,omitempty"`
+}
+
+// vxInlineData is an inline base64 blob part — how Gemini-on-Vertex's
+// generateContent API carries an image attachment (M245).
+type vxInlineData struct {
+	MimeType string `json:"mimeType"` // image/png, image/jpeg, image/gif, image/webp
+	Data     string `json:"data"`     // base64-encoded image bytes
 }
 
 type vxFunctionCall struct {
@@ -283,7 +291,16 @@ func canonicalToVertex(m agent.Message) (*vxContent, error) {
 	case agent.RoleSystem:
 		return nil, nil
 	case agent.RoleUser:
-		return &vxContent{Role: "user", Parts: []vxPart{{Text: m.Content}}}, nil
+		// Vision (M245): emit each image attachment (data: URL) as an inlineData
+		// part before the text part; skip non-data-URL entries.
+		parts := make([]vxPart, 0, len(m.Images)+1)
+		for _, img := range m.Images {
+			if mt, data, ok := parseImageDataURL(img); ok {
+				parts = append(parts, vxPart{InlineData: &vxInlineData{MimeType: mt, Data: data}})
+			}
+		}
+		parts = append(parts, vxPart{Text: m.Content})
+		return &vxContent{Role: "user", Parts: parts}, nil
 	case agent.RoleAssistant:
 		var parts []vxPart
 		if strings.TrimSpace(m.Content) != "" {

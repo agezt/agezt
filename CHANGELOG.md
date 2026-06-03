@@ -12,6 +12,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Fixed
+- **Vision now also works on Vertex AI — every first-party provider is now
+  covered.** Both Vertex encoders dropped image attachments: Anthropic-on-Vertex
+  now emits a `type=image` base64 block, and Gemini-on-Vertex now emits an
+  `inlineData` part, each before the text. With this, `agt run --image` reaches
+  the model on every built-in provider — Anthropic, OpenAI, Gemini, Bedrock, and
+  Vertex — plus the OpenAI-compatible vendors that wrap the OpenAI encoder.
 - **Vision now also works for Claude-on-Bedrock.** The Anthropic-on-Bedrock
   encoder (the largest Bedrock use case) has its own copy of the Messages-API
   content-block builder, which also dropped image attachments. It now emits a
