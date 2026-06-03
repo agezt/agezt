@@ -12,6 +12,14 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **`agt vault migrate` — upgrade an old encrypted vault to the current KDF.**
+  The operator-facing wiring for the credential-vault migration: inspects the
+  on-disk vault and, if it is encrypted with the legacy key-derivation or below
+  the current iteration policy, re-encrypts it in place at the current PBKDF2
+  policy. It is a no-op (with a clear notice) for a plaintext vault or one
+  already at the current policy, and requires `AGEZT_VAULT_PASSPHRASE` only when
+  an actual re-encryption is needed. Prints the before/after KDF and iteration
+  count and points to `agt provider reload`.
 - **Credential-vault migration (`creds.InspectVault` / `Store.MigrateEncryption`).**
   The first piece of the migrate tooling: detect an encrypted vault written with
   the legacy key-derivation (pre-PBKDF2) or below the current iteration policy,

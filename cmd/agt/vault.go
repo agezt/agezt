@@ -32,7 +32,7 @@ import (
 // any other vault edit.)
 func cmdVault(args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
-		fmt.Fprintf(stderr, "%s vault: subcommand required (status|encrypt|decrypt|rotate)\n", brand.CLI)
+		fmt.Fprintf(stderr, "%s vault: subcommand required (status|encrypt|decrypt|rotate|migrate)\n", brand.CLI)
 		return 2
 	}
 	switch args[0] {
@@ -44,13 +44,61 @@ func cmdVault(args []string, stdout, stderr io.Writer) int {
 		return cmdVaultDecrypt(stdout, stderr)
 	case "rotate":
 		return cmdVaultRotate(stdout, stderr)
+	case "migrate":
+		return cmdVaultMigrate(stdout, stderr)
 	case "-h", "--help", "help":
 		printVaultHelp(stdout)
 		return 0
 	default:
-		fmt.Fprintf(stderr, "%s vault: unknown subcommand %q (status|encrypt|decrypt|rotate)\n", brand.CLI, args[0])
+		fmt.Fprintf(stderr, "%s vault: unknown subcommand %q (status|encrypt|decrypt|rotate|migrate)\n", brand.CLI, args[0])
 		return 2
 	}
+}
+
+// cmdVaultMigrate upgrades an encrypted vault to the current key-derivation
+// policy (PBKDF2 at the current iteration count). It inspects the envelope
+// without the passphrase first, so the plaintext / absent / already-current
+// cases report clearly without demanding the secret; only an actual re-encrypt
+// needs AGEZT_VAULT_PASSPHRASE (M264).
+func cmdVaultMigrate(stdout, stderr io.Writer) int {
+	base, err := paths.BaseDir()
+	if err != nil {
+		fmt.Fprintf(stderr, "%s vault migrate: %v\n", brand.CLI, err)
+		return 1
+	}
+	store := creds.NewStore(base)
+
+	st, err := creds.InspectVault(store.Path)
+	if err != nil {
+		fmt.Fprintf(stderr, "%s vault migrate: %v\n", brand.CLI, err)
+		return 1
+	}
+	if !st.Encrypted {
+		fmt.Fprintf(stdout, "vault is not encrypted — nothing to migrate (`%s vault encrypt` to encrypt it)\n", brand.CLI)
+		return 0
+	}
+	if st.UpToDate {
+		fmt.Fprintf(stdout, "vault already at the current key-derivation policy (%s, %d iterations)\n", st.KDF, st.Iterations)
+		return 0
+	}
+	if strings.TrimSpace(os.Getenv(creds.PassphraseEnvVar)) == "" {
+		fmt.Fprintf(stderr, "%s vault migrate: %s must be set to re-encrypt (current KDF: %s)\n", brand.CLI, creds.PassphraseEnvVar, st.KDF)
+		return 2
+	}
+	migrated, before, err := store.MigrateEncryption()
+	if err != nil {
+		fmt.Fprintf(stderr, "%s vault migrate: %v\n", brand.CLI, err)
+		return 1
+	}
+	if !migrated {
+		fmt.Fprintf(stdout, "vault already up to date\n")
+		return 0
+	}
+	fmt.Fprintf(stdout, "vault migrated: %s\n", store.Path)
+	fmt.Fprintf(stdout, "  key derivation: %s → %s\n", before.KDF, creds.KDFPBKDF2)
+	fmt.Fprintf(stdout, "  iterations    : %d → %d\n", before.Iterations, creds.KDFIterations)
+	fmt.Fprintf(stdout, "run `%s provider reload` to reload the daemon with the upgraded file\n", brand.CLI)
+	return 0
 }
 
 func printVaultHelp(w io.Writer) {
@@ -61,6 +109,8 @@ func printVaultHelp(w io.Writer) {
 	fmt.Fprintf(w, "  decrypt    re-save encrypted vault as plaintext (needs AGEZT_VAULT_PASSPHRASE)\n")
 	fmt.Fprintf(w, "  rotate     re-encrypt under a new passphrase\n")
 	fmt.Fprintf(w, "             (needs both AGEZT_VAULT_PASSPHRASE *and* AGEZT_VAULT_PASSPHRASE_NEW)\n")
+	fmt.Fprintf(w, "  migrate    upgrade an old encrypted vault to the current key-derivation policy\n")
+	fmt.Fprintf(w, "             (re-encrypts a legacy/low-iteration vault; needs AGEZT_VAULT_PASSPHRASE)\n")
 	fmt.Fprintf(w, "\n")
 	fmt.Fprintf(w, "Encryption is automatic on every Save when AGEZT_VAULT_PASSPHRASE is set;\n")
 	fmt.Fprintf(w, "these subcommands force a re-save to migrate the existing file format.\n")

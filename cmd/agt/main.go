@@ -245,6 +245,7 @@ func printHelp(w io.Writer) {
 	fmt.Fprintf(w, "  vault status                          show vault encryption state + path\n")
 	fmt.Fprintf(w, "  vault encrypt                         migrate plaintext vault to encrypted (set AGEZT_VAULT_PASSPHRASE)\n")
 	fmt.Fprintf(w, "  vault decrypt                         migrate encrypted vault back to plaintext\n")
+	fmt.Fprintf(w, "  vault migrate                         upgrade an old encrypted vault to the current KDF policy\n")
 	fmt.Fprintf(w, "  version           show client version\n")
 	fmt.Fprintf(w, "  help              show this help\n")
 }
