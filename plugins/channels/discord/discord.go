@@ -28,6 +28,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/ed25519"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -173,14 +174,27 @@ type discordInteraction struct {
 }
 
 type discordData struct {
-	Name    string          `json:"name"`
-	Options []discordOption `json:"options"`
+	Name     string           `json:"name"`
+	Options  []discordOption  `json:"options"`
+	Resolved *discordResolved `json:"resolved"`
 }
 
 type discordOption struct {
 	Name  string          `json:"name"`
 	Type  int             `json:"type"`
 	Value json.RawMessage `json:"value"`
+}
+
+// discordResolved holds the full objects referenced by option values. An
+// ATTACHMENT option's value is an attachment id that indexes Attachments.
+type discordResolved struct {
+	Attachments map[string]discordAttachment `json:"attachments"`
+}
+
+type discordAttachment struct {
+	URL         string `json:"url"`          // public CDN url, no auth needed
+	ContentType string `json:"content_type"` // e.g. "image/png"
+	Filename    string `json:"filename"`
 }
 
 type discordMember struct {
@@ -207,6 +221,36 @@ func (in discordInteraction) senderID() string {
 // free-text value. Sub-command / group options (types 1, 2) nest their own
 // options and must not be mistaken for the prompt.
 const optionTypeString = 3
+
+// optionTypeAttachment is Discord's APPLICATION_COMMAND option type for an
+// ATTACHMENT: the option value is an attachment id resolved via
+// data.resolved.attachments (M249).
+const optionTypeAttachment = 11
+
+// imageAttachments returns the CDN urls + content types of attachment options
+// that resolve to an image. Only options the registered command declared as
+// ATTACHMENT are considered; a non-image attachment is ignored.
+func (in discordInteraction) imageAttachments() []discordAttachment {
+	if in.Data == nil || in.Data.Resolved == nil {
+		return nil
+	}
+	var out []discordAttachment
+	for _, o := range in.Data.Options {
+		if o.Type != optionTypeAttachment {
+			continue
+		}
+		var id string
+		if err := json.Unmarshal(o.Value, &id); err != nil || id == "" {
+			continue
+		}
+		att, ok := in.Data.Resolved.Attachments[id]
+		if !ok || att.URL == "" || !strings.HasPrefix(att.ContentType, "image/") {
+			continue
+		}
+		out = append(out, att)
+	}
+	return out
+}
 
 // text returns the slash command's prompt. It prefers the option explicitly
 // named "prompt" (the registered command's text field) and only considers STRING
@@ -286,7 +330,7 @@ func (c *Channel) handleCommand(w http.ResponseWriter, in discordInteraction) {
 		writeJSON(w, ephemeral("not authorized"))
 		return
 	}
-	if c.handler == nil || msg.Text == "" {
+	if c.handler == nil || (msg.Text == "" && len(in.imageAttachments()) == 0) {
 		writeJSON(w, ephemeral("nothing to do"))
 		return
 	}
@@ -296,7 +340,49 @@ func (c *Channel) handleCommand(w http.ResponseWriter, in discordInteraction) {
 	go c.runAndFollowUp(context.Background(), in, msg, corr)
 }
 
+// discordAttachMaxRaw bounds a downloaded attachment so the data: URL stays
+// within the control-plane request cap (16 MiB; base64 ≈ 4/3 × raw).
+const discordAttachMaxRaw = 12 << 20
+
+// fetchAttachmentDataURL downloads a Discord attachment (a public CDN url, no
+// auth) and returns it as an inline data: URL using the attachment's reported
+// content type (M249).
+func (c *Channel) fetchAttachmentDataURL(ctx context.Context, att discordAttachment) (string, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, att.URL, nil)
+	if err != nil {
+		return "", err
+	}
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode/100 != 2 {
+		return "", fmt.Errorf("discord attachment download: status %d", resp.StatusCode)
+	}
+	data, err := io.ReadAll(io.LimitReader(resp.Body, discordAttachMaxRaw+1))
+	if err != nil {
+		return "", err
+	}
+	if len(data) == 0 {
+		return "", fmt.Errorf("discord attachment download: empty")
+	}
+	if len(data) > discordAttachMaxRaw {
+		return "", fmt.Errorf("discord attachment exceeds %d bytes", discordAttachMaxRaw)
+	}
+	return "data:" + att.ContentType + ";base64," + base64.StdEncoding.EncodeToString(data), nil
+}
+
 func (c *Channel) runAndFollowUp(ctx context.Context, in discordInteraction, msg channel.UnifiedMessage, corr string) {
+	// Inbound image attachments (M249): fetch them now (after the fast ACK, so
+	// the download never risks the 3s interaction deadline) and attach as data:
+	// URLs so a vision model can see them. The allowlist was already enforced
+	// before this runs.
+	for _, att := range in.imageAttachments() {
+		if du, err := c.fetchAttachmentDataURL(ctx, att); err == nil && du != "" {
+			msg.Images = append(msg.Images, du)
+		}
+	}
 	reply, err := c.handler(ctx, msg, corr)
 	if err != nil {
 		reply = "sorry — that failed: " + err.Error()

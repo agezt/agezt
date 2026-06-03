@@ -12,6 +12,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Fixed
+- **An image attached to a Discord slash command now reaches a vision model —
+  inbound vision is complete across all three channels.** When a slash command
+  carries an `ATTACHMENT` image option, the channel resolves it via
+  `data.resolved.attachments`, downloads the CDN file after the fast interaction
+  ACK (so the 3-second deadline is never at risk), and forwards it as a `data:`
+  URL; an image-only command (no prompt text) is no longer rejected as "nothing
+  to do". Non-image attachments are ignored.
 - **An image shared in Slack now reaches a vision model.** Like the Telegram
   fix, the Slack channel ignored inbound file attachments. It now downloads each
   shared *image* file (`url_private`, authenticated with the bot token) as a
