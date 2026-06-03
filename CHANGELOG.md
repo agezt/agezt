@@ -12,6 +12,15 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **`agt doctor` flags a misconfigured mesh hop limit** (M213) — M211 made the mesh hop limit
+  tunable via `AGEZT_MESH_MAX_HOPS`, but an invalid value (a typo, a non-integer, out of the
+  `[1,64]` range) silently falls back to the default 8 with no signal — a quiet failure for a
+  safety-relevant setting. `agt doctor` now surfaces it: when the env is set, a valid override
+  is reported OK with its effective value (`delegation hop limit = N`), and an invalid one is a
+  WARN naming the bad value and the accepted range. Only shown when the env is set, so
+  single-node operators see no noise. New `meshctx.MaxHopsConfig()` reports the effective
+  limit, the raw value, and whether a set value was a valid override (the single source the
+  daemon and doctor share). See `.project/PHASE-M213-DOCTOR-HOP-CONFIG-REPORT.md`.
 - **A loop-refused tenant delegation is audited to that tenant's bus** (M212) — the M210
   `mesh.loop_refused` event always went to the *primary* bus, so when a delegated run that
   loops targeted a specific tenant (`X-Agezt-Tenant`), that tenant never saw its own mesh

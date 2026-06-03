@@ -17,6 +17,7 @@ import (
 	"github.com/agezt/agezt/internal/paths"
 	"github.com/agezt/agezt/kernel/catalog"
 	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/meshctx"
 	"github.com/agezt/agezt/plugins/tools/peer"
 )
 
@@ -180,9 +181,28 @@ func runDoctorChecks() []doctorCheck {
 	checks = append(checks, checkRateLimit(ctx, client))
 	checks = append(checks, checkChannels(status))
 	checks = append(checks, checkMesh())
+	// Mesh hop-limit config (M213): only surfaced when AGEZT_MESH_MAX_HOPS is set, so
+	// single-node operators see no noise. Flags a typo that would silently fall back.
+	if _, raw, _ := meshctx.MaxHopsConfig(); raw != "" {
+		checks = append(checks, checkMeshHopLimit())
+	}
 	checks = append(checks, checkHalt(status))
 
 	return checks
+}
+
+// checkMeshHopLimit validates an explicitly-set AGEZT_MESH_MAX_HOPS (M211/M213). A valid
+// override is reported OK with its effective value; an invalid one (non-integer, <1, or
+// past the cap) is a WARN — the daemon silently falls back to the default 8, so without
+// this an operator's typo in a safety-relevant setting would go unnoticed.
+func checkMeshHopLimit() doctorCheck {
+	eff, raw, valid := meshctx.MaxHopsConfig()
+	if valid {
+		return ok("mesh-hops", fmt.Sprintf("delegation hop limit = %d (AGEZT_MESH_MAX_HOPS)", eff))
+	}
+	return warn("mesh-hops",
+		fmt.Sprintf("AGEZT_MESH_MAX_HOPS=%q is invalid and ignored; using default %d", raw, eff),
+		fmt.Sprintf("set an integer in [1, %d]", meshctx.MaxConfigurableHops))
 }
 
 // checkMesh reports the health of the configured peer mesh (M8 / AGEZT_PEERS): each

@@ -73,3 +73,31 @@ func TestCheckMesh_MalformedSpec(t *testing.T) {
 		t.Errorf("detail = %q", c.Detail)
 	}
 }
+
+// TestCheckMeshHopLimit_ValidOverride: a valid AGEZT_MESH_MAX_HOPS is reported OK with
+// its effective value (M213).
+func TestCheckMeshHopLimit_ValidOverride(t *testing.T) {
+	t.Setenv("AGEZT_MESH_MAX_HOPS", "4")
+	c := checkMeshHopLimit()
+	if c.Status != statusOK {
+		t.Fatalf("valid override should be OK, got %s: %s", c.Status.label(), c.Detail)
+	}
+	if !strings.Contains(c.Detail, "= 4") {
+		t.Errorf("detail should report the effective limit: %q", c.Detail)
+	}
+}
+
+// TestCheckMeshHopLimit_InvalidWarns: an invalid AGEZT_MESH_MAX_HOPS (which the daemon
+// silently ignores) is surfaced as a WARN with a fix hint.
+func TestCheckMeshHopLimit_InvalidWarns(t *testing.T) {
+	for _, bad := range []string{"abc", "0", "-3", "9999"} {
+		t.Setenv("AGEZT_MESH_MAX_HOPS", bad)
+		c := checkMeshHopLimit()
+		if c.Status != statusWarn {
+			t.Errorf("%q should WARN, got %s", bad, c.Status.label())
+		}
+		if !strings.Contains(c.Detail, "invalid") || c.Hint == "" {
+			t.Errorf("%q: detail=%q hint=%q", bad, c.Detail, c.Hint)
+		}
+	}
+}

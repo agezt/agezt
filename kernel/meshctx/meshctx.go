@@ -43,16 +43,31 @@ const EnvMaxHops = "AGEZT_MESH_MAX_HOPS"
 // HopHeader is the HTTP header carrying the delegation hop count between nodes.
 const HopHeader = "X-Agezt-Mesh-Hop"
 
+// MaxConfigurableHops is the largest hop limit an operator may configure via EnvMaxHops.
+const MaxConfigurableHops = maxConfigurableHops
+
 // MaxHopsFromEnv returns the effective hop limit for this node: the EnvMaxHops override
-// when it is a valid integer in [1, maxConfigurableHops], otherwise the MaxHops default.
+// when it is a valid integer in [1, MaxConfigurableHops], otherwise the MaxHops default.
 // Each node enforces its own limit; the receiving node is authoritative.
 func MaxHopsFromEnv() int {
-	if v := strings.TrimSpace(os.Getenv(EnvMaxHops)); v != "" {
-		if n, err := strconv.Atoi(v); err == nil && n >= 1 && n <= maxConfigurableHops {
-			return n
-		}
+	eff, _, _ := MaxHopsConfig()
+	return eff
+}
+
+// MaxHopsConfig reports the effective hop limit, the raw EnvMaxHops value, and whether a
+// SET value is a valid override. When EnvMaxHops is unset, raw is "" and validOverride is
+// true (the default is in effect). When it is set but not an integer in
+// [1, MaxConfigurableHops], the default is returned with validOverride=false — so a caller
+// (e.g. `agt doctor`) can flag a typo that would otherwise silently fall back.
+func MaxHopsConfig() (effective int, raw string, validOverride bool) {
+	raw = strings.TrimSpace(os.Getenv(EnvMaxHops))
+	if raw == "" {
+		return MaxHops, "", true
 	}
-	return MaxHops
+	if n, err := strconv.Atoi(raw); err == nil && n >= 1 && n <= maxConfigurableHops {
+		return n, raw, true
+	}
+	return MaxHops, raw, false
 }
 
 type ctxKey struct{}
