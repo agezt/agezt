@@ -107,6 +107,10 @@ const (
 	// tool-capable alternative instead of being rejected (M37 down-routing).
 	// Payload: {from_model, to_model, capability, tools_requested}.
 	KindCapabilityRerouted Kind = "capability.rerouted"
+	// KindMeshLoopRefused records that a cross-node delegation (M8 mesh) was
+	// refused because its hop count exceeded the limit — a federation loop was
+	// stopped. Payload: {hop, max_hops}. (M210)
+	KindMeshLoopRefused Kind = "mesh.loop_refused"
 
 	// Warden (P1-WARD-*).
 	KindWardenExecuted          Kind = "warden.executed"

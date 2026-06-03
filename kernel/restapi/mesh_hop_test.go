@@ -8,7 +8,9 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/meshctx"
 )
 
@@ -62,5 +64,32 @@ func TestMeshHop_NoHeaderRuns(t *testing.T) {
 	rec := runsPost(s, "secret", `{"intent":"hi"}`, "")
 	if rec.Code != http.StatusOK {
 		t.Fatalf("no-header run should be 200, got %d", rec.Code)
+	}
+}
+
+// TestMeshHop_RefusalIsAudited: a refused federation loop publishes a
+// mesh.loop_refused event so it is visible in the journal / `agt pulse` (M210).
+func TestMeshHop_RefusalIsAudited(t *testing.T) {
+	eng := &fakeEngine{answer: "ok"}
+	s := newServer(t, eng, "secret")
+
+	sub, err := s.bus.Subscribe("mesh.>", 8)
+	if err != nil {
+		t.Fatalf("subscribe: %v", err)
+	}
+	defer sub.Cancel()
+
+	rec := runsPost(s, "secret", `{"intent":"hi"}`, strconv.Itoa(meshctx.MaxHops+1))
+	if rec.Code != http.StatusLoopDetected {
+		t.Fatalf("want 508, got %d", rec.Code)
+	}
+
+	select {
+	case ev := <-sub.C:
+		if ev.Kind != event.KindMeshLoopRefused {
+			t.Errorf("event kind = %q, want %q", ev.Kind, event.KindMeshLoopRefused)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("expected a mesh.loop_refused event, got none")
 	}
 }

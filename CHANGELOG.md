@@ -12,6 +12,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **A refused mesh delegation loop is now audited** (M210) — when the M209 hop guard refuses
+  an over-limit cross-node delegation, the REST handler now publishes a `mesh.loop_refused`
+  event (`{hop, max_hops}`) to the bus/journal, so a stopped federation loop is visible via
+  `agt pulse --kind mesh.loop_refused` / `agt journal` instead of being known only to the
+  rejected caller. Honors the kernel's "everything is an event" principle for a
+  safety-relevant action; best-effort (a nil bus is simply skipped). See
+  `.project/PHASE-M210-MESH-LOOP-EVENT-REPORT.md`.
 - **Mesh delegation loop guard — bounded cross-node hops** (M209) — a federated mesh could
   recurse forever: node A's `remote_run` delegates to B, B delegates back to A, and so on,
   each hop a real governed run that costs money and never terminates. Delegations now carry a
