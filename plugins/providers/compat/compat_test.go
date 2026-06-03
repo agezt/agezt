@@ -974,11 +974,12 @@ func TestBuild_MistralDefaultBaseURLWhenAPIEmpty(t *testing.T) {
 }
 
 func TestBuild_OpenAICompatibleEmptyAPIRefused(t *testing.T) {
-	// An openai-compatible entry with no api URL would silently
-	// inherit api.openai.com — wrong vendor. compat must refuse.
+	// An UNKNOWN openai-compatible vendor with no api URL would silently
+	// inherit api.openai.com — wrong vendor. compat must refuse. (Known
+	// vendors like groq are auto-filled now; see the M230 test below.)
 	entry := &catalog.Provider{
-		ID: "groq", NPM: "@ai-sdk/groq",
-		Env: []string{"GROQ_API_KEY"}, API: "",
+		ID: "somevendor", NPM: "@ai-sdk/openai-compatible",
+		Env: []string{"SOMEVENDOR_API_KEY"}, API: "",
 		Models: map[string]*catalog.Model{"m": {ID: "m"}},
 	}
 	_, _, err := compat.Build(entry, "m", func(string) string { return "k" })

@@ -11,6 +11,16 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 
 ## [Unreleased]
 
+### Added
+- **OpenAI-compatible vendors work with just an API key — no `custom.json` URL.**
+  Groq, xAI, Cerebras, Together, DeepInfra, Perplexity, Fireworks, and OpenRouter
+  are vendors agezt already classifies (`catalog.FamilyFromNPM`), but their base
+  URL had to be supplied by hand or the build was refused (to avoid silently
+  routing to `api.openai.com`). compat now carries each one's stable
+  OpenAI-compatible base URL, so configuring one of them needs only its key. An
+  explicit catalog `api` still wins, and an *unrecognised* compat vendor is still
+  refused with the `custom.json` hint.
+
 ### Security
 - **Plugin stderr is now redacted before it reaches the daemon log.** A
   third-party plugin's stderr is captured and written to the operator's log via

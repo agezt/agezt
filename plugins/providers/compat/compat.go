@@ -133,6 +133,15 @@ func Build(p *catalog.Provider, modelID string, lookup CredLookup) (agent.Provid
 	if base == "" {
 		base = defaultBaseURL(p.Family())
 	}
+	// For the well-known OpenAI-compatible vendors agezt already enumerates
+	// (catalog.FamilyFromNPM), carry their stable base URL too (M230) — so a
+	// `groq`/`xai`/`cerebras`/… provider works with just an API key, no
+	// custom.json URL entry. An explicit catalog `api` still wins (set above);
+	// this is only the empty-`api` fallback, and an unrecognised compat vendor
+	// still hits the guard below.
+	if base == "" && p.Family() == catalog.FamilyOpenAICompatible {
+		base = compatVendorBaseURL(p.NPM)
+	}
 	switch p.Family() {
 	case catalog.FamilyAnthropic:
 		ap := anthropic.New(apiKey)
@@ -163,8 +172,10 @@ func Build(p *catalog.Provider, modelID string, lookup CredLookup) (agent.Provid
 		//
 		// For openai-compatible specifically, refuse an empty `api`:
 		// the adapter's default endpoint points at api.openai.com,
-		// which would silently route Groq/xAI/etc. traffic to the
-		// wrong vendor. Operators set the URL via custom.json.
+		// which would silently route an unknown vendor's traffic to the
+		// wrong host. Known vendors (groq, xai, …) were already filled in
+		// above by compatVendorBaseURL; this catches the rest. Operators
+		// set the URL via custom.json.
 		if p.Family() == catalog.FamilyOpenAICompatible && strings.TrimSpace(base) == "" {
 			return nil, "", fmt.Errorf("%w: provider %q is openai-compatible but has no `api` URL in the catalog — add it via custom.json",
 				ErrFamilyUnsupported, p.ID)
@@ -475,11 +486,47 @@ func resolveBedrockCreds(p *catalog.Provider, lookup CredLookup) (bedrockAuth, e
 	return auth, nil
 }
 
+// compatVendorBaseURL returns the stable OpenAI-compatible v1 base URL for a
+// recognised vendor, keyed on the npm package the same way
+// catalog.FamilyFromNPM classifies it — so the URL table and the family table
+// agree on what counts as a known vendor. Returns "" for anything else, which
+// keeps the empty-`api` guard in Build active for genuinely-unknown
+// openai-compatible providers (M230).
+//
+// These URLs are the vendors' documented OpenAI-compatible roots. An operator
+// can always override via the catalog `api` field (custom.json), which takes
+// precedence, so a vendor that moves its endpoint is a one-line fix, not a
+// rebuild.
+func compatVendorBaseURL(npm string) string {
+	n := strings.TrimSpace(strings.ToLower(npm))
+	if n == "@openrouter/ai-sdk-provider" {
+		return "https://openrouter.ai/api/v1"
+	}
+	switch strings.TrimPrefix(n, "@ai-sdk/") {
+	case "groq":
+		return "https://api.groq.com/openai/v1"
+	case "xai":
+		return "https://api.x.ai/v1"
+	case "cerebras":
+		return "https://api.cerebras.ai/v1"
+	case "togetherai":
+		return "https://api.together.xyz/v1"
+	case "deepinfra":
+		return "https://api.deepinfra.com/v1/openai"
+	case "perplexity":
+		return "https://api.perplexity.ai"
+	case "fireworks":
+		return "https://api.fireworks.ai/inference/v1"
+	}
+	return ""
+}
+
 // defaultBaseURL returns the well-known base URL for a family when the
 // catalog's `api` field is empty. Only families with a single,
-// universally-correct host get a default — openai-compatible
-// (Groq/xAI/etc.) deliberately returns "" so the empty-api guard
-// fires rather than silently routing traffic to the wrong vendor.
+// universally-correct host get a default. The openai-compatible *family* has no
+// single host (many vendors share it), so it returns "" here — per-vendor URLs
+// come from compatVendorBaseURL instead, and a vendor with neither is caught by
+// the empty-api guard in Build.
 func defaultBaseURL(f catalog.Family) string {
 	switch f {
 	case catalog.FamilyAnthropic:
