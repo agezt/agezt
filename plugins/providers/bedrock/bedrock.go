@@ -332,14 +332,23 @@ type anthMessage struct {
 }
 
 type anthBlock struct {
-	Type       string          `json:"type"`
-	Text       string          `json:"text,omitempty"`
-	ID         string          `json:"id,omitempty"`
-	Name       string          `json:"name,omitempty"`
-	Input      json.RawMessage `json:"input,omitempty"`
-	ToolUseID  string          `json:"tool_use_id,omitempty"`
-	ResultBody string          `json:"content,omitempty"`
-	IsError    bool            `json:"is_error,omitempty"`
+	Type       string           `json:"type"`
+	Text       string           `json:"text,omitempty"`
+	ID         string           `json:"id,omitempty"`
+	Name       string           `json:"name,omitempty"`
+	Input      json.RawMessage  `json:"input,omitempty"`
+	ToolUseID  string           `json:"tool_use_id,omitempty"`
+	ResultBody string           `json:"content,omitempty"`
+	IsError    bool             `json:"is_error,omitempty"`
+	Source     *anthImageSource `json:"source,omitempty"` // type=image
+}
+
+// anthImageSource is the base64 payload of a type=image content block — how
+// Anthropic-on-Bedrock carries an image attachment (M244).
+type anthImageSource struct {
+	Type      string `json:"type"`       // always "base64"
+	MediaType string `json:"media_type"` // image/png | image/jpeg | image/gif | image/webp
+	Data      string `json:"data"`       // base64-encoded image bytes
 }
 
 type anthBedrockResponse struct {
@@ -380,15 +389,45 @@ func encodeAnthropicOnBedrockRequest(system string, msgs []agent.Message, tools 
 	return json.Marshal(wire)
 }
 
+// parseImageDataURL splits an RFC 2397 data: URL of the form
+// "data:<media-type>;base64,<payload>" into its media type and base64 payload,
+// returning ok=false for anything else (including a legacy bare filename),
+// which the caller skips. The CLI sends data: URLs (M241).
+func parseImageDataURL(s string) (mediaType, data string, ok bool) {
+	const prefix = "data:"
+	if !strings.HasPrefix(s, prefix) {
+		return "", "", false
+	}
+	meta, payload, found := strings.Cut(s[len(prefix):], ",")
+	if !found || !strings.HasSuffix(meta, ";base64") {
+		return "", "", false
+	}
+	mt := strings.TrimSuffix(meta, ";base64")
+	if mt == "" || payload == "" {
+		return "", "", false
+	}
+	return mt, payload, true
+}
+
 func canonicalToAnth(m agent.Message) (*anthMessage, error) {
 	switch m.Role {
 	case agent.RoleSystem:
 		return nil, nil
 	case agent.RoleUser:
-		return &anthMessage{
-			Role:    "user",
-			Content: []anthBlock{{Type: "text", Text: m.Content}},
-		}, nil
+		// Vision (M244): a user message may carry image attachments as RFC 2397
+		// data: URLs. Emit each as a type=image block before the text block. A
+		// non-data-URL entry (e.g. a legacy bare filename) is skipped.
+		blocks := make([]anthBlock, 0, len(m.Images)+1)
+		for _, img := range m.Images {
+			if mt, data, ok := parseImageDataURL(img); ok {
+				blocks = append(blocks, anthBlock{
+					Type:   "image",
+					Source: &anthImageSource{Type: "base64", MediaType: mt, Data: data},
+				})
+			}
+		}
+		blocks = append(blocks, anthBlock{Type: "text", Text: m.Content})
+		return &anthMessage{Role: "user", Content: blocks}, nil
 	case agent.RoleAssistant:
 		var blocks []anthBlock
 		if strings.TrimSpace(m.Content) != "" {

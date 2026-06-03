@@ -12,6 +12,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Fixed
+- **Vision now also works for Claude-on-Bedrock.** The Anthropic-on-Bedrock
+  encoder (the largest Bedrock use case) has its own copy of the Messages-API
+  content-block builder, which also dropped image attachments. It now emits a
+  `type=image` base64 block before the text block, matching the direct Anthropic
+  provider. Covers both Bedrock request paths (streaming and non-streaming share
+  the encoder).
 - **Vision now also works on the Gemini provider — completing the mainstream
   set.** The Google `generateContent` encoder (`canonicalToGemini`) now emits a
   user message's image attachments as `inlineData` parts (base64 + mimeType)
