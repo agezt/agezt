@@ -11,6 +11,15 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 
 ## [Unreleased]
 
+### Added
+- **`AGEZT_PLUGINS` paths may now be quoted to contain spaces.** A plugin path
+  or argument wrapped in single or double quotes keeps its spaces — necessary
+  for the common Windows case of a plugin installed under `C:/Program Files/...`
+  (`tool="C:/Program Files/agezt-tool.exe" --verbose`). Unquoted input still
+  splits on whitespace exactly as before, so the change is purely additive; an
+  unterminated quote is a startup error. (A path containing a comma still can't
+  be expressed — the comma is the entry separator.)
+
 ### Fixed
 - **`AGEZT_PLUGINS` duplicate prefix is now a hard startup error.** Parsing of
   the plugin spec moved into a testable `plugin.ParsePluginSpec`. Previously two

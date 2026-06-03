@@ -86,6 +86,72 @@ func TestParsePluginSpec_DuplicatePrefixRejected(t *testing.T) {
 	}
 }
 
+func TestParsePluginSpec_QuotedPathWithSpaces(t *testing.T) {
+	// The Windows case: a plugin under "Program Files".
+	got, err := ParsePluginSpec(`win="C:/Program Files/agezt-tool.exe" --verbose`)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("got %d entries, want 1", len(got))
+	}
+	if got[0].Path != "C:/Program Files/agezt-tool.exe" {
+		t.Errorf("path = %q, want the spaced path intact", got[0].Path)
+	}
+	if len(got[0].Args) != 1 || got[0].Args[0] != "--verbose" {
+		t.Errorf("args = %v, want [--verbose]", got[0].Args)
+	}
+}
+
+func TestParsePluginSpec_SingleQuotesAndQuotedArg(t *testing.T) {
+	got, err := ParsePluginSpec(`a=/opt/x 'two words' z`)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got[0].Path != "/opt/x" {
+		t.Errorf("path = %q", got[0].Path)
+	}
+	want := []string{"two words", "z"}
+	if strings.Join(got[0].Args, "|") != strings.Join(want, "|") {
+		t.Errorf("args = %v, want %v", got[0].Args, want)
+	}
+	// Single-quoted path with spaces.
+	got2, err := ParsePluginSpec(`b='/opt/my app/bin'`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got2[0].Path != "/opt/my app/bin" {
+		t.Errorf("path = %q, want '/opt/my app/bin'", got2[0].Path)
+	}
+}
+
+func TestParsePluginSpec_UnquotedSpacesStillSplit(t *testing.T) {
+	// Backward-compatibility: without quotes, spaces split as before.
+	got, err := ParsePluginSpec("a=/bin/x -v --depth 2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got[0].Path != "/bin/x" || strings.Join(got[0].Args, " ") != "-v --depth 2" {
+		t.Errorf("got %+v", got[0])
+	}
+}
+
+func TestParsePluginSpec_UnterminatedQuote(t *testing.T) {
+	if _, err := ParsePluginSpec(`a="/bin/unclosed`); err == nil {
+		t.Fatal("expected unterminated-quote error")
+	}
+	if _, err := ParsePluginSpec(`a="/bin/x"`); err != nil {
+		t.Fatalf("a balanced quote should be fine, got %v", err)
+	}
+}
+
+func TestParsePluginSpec_EmptyQuotedPathRejected(t *testing.T) {
+	// `prefix=""` parses to one empty field — still an empty path.
+	if _, err := ParsePluginSpec(`a=""`); err == nil {
+		t.Fatal("expected empty-path error for a=\"\"")
+	}
+}
+
 func TestParsePluginSpec_NoArgsHasEmptyArgs(t *testing.T) {
 	got, err := ParsePluginSpec("a=/bin/x")
 	if err != nil {
