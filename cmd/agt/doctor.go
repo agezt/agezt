@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/agezt/agezt/internal/paths"
 	"github.com/agezt/agezt/kernel/catalog"
 	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/plugins/tools/peer"
 )
 
 // cmdDoctor implements `agt doctor` — the zero-config-first-run preflight
@@ -177,9 +179,45 @@ func runDoctorChecks() []doctorCheck {
 	checks = append(checks, checkNetguard(ctx, client))
 	checks = append(checks, checkRateLimit(ctx, client))
 	checks = append(checks, checkChannels(status))
+	checks = append(checks, checkMesh())
 	checks = append(checks, checkHalt(status))
 
 	return checks
+}
+
+// checkMesh reports the health of the configured peer mesh (M8 / AGEZT_PEERS): each
+// peer's REST /api/v1/health is probed (reusing the `agt peers` check). All reachable
+// is OK; an unreachable peer is a WARN (the local node is fine, the mesh is degraded)
+// naming the down peers; a malformed AGEZT_PEERS is a WARN; no peers configured is an
+// informational OK (single-node). Tokens are never printed. It is independent of the
+// local daemon — a peer is reached over its own network surface (M207).
+func checkMesh() doctorCheck {
+	peers, err := peer.ParsePeers(os.Getenv(brand.EnvPrefix + "PEERS"))
+	if err != nil {
+		return warn("mesh", "AGEZT_PEERS is malformed: "+err.Error(),
+			"fix the spec: AGEZT_PEERS=\"name=url|token,…\"")
+	}
+	if len(peers) == 0 {
+		return ok("mesh", "no peers configured (single-node)")
+	}
+	names := make([]string, 0, len(peers))
+	for n := range peers {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+
+	var down []string
+	for _, n := range names {
+		if !checkPeer(peers[n]).Reachable {
+			down = append(down, n)
+		}
+	}
+	if len(down) == 0 {
+		return ok("mesh", fmt.Sprintf("%d peer(s) reachable: %s", len(peers), strings.Join(names, ", ")))
+	}
+	return warn("mesh",
+		fmt.Sprintf("%d/%d peer(s) unreachable: %s", len(down), len(peers), strings.Join(down, ", ")),
+		fmt.Sprintf("check the peer URLs/tokens and that those daemons are running; `%s peers` for detail", brand.CLI))
 }
 
 // checkSandbox warns when the OS warden has been silently downgrading isolation

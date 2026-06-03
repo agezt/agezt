@@ -12,6 +12,16 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **`agt doctor` gains a mesh-health check** (M207) — the operator's go-to pre-flight now
+  reports the configured peer mesh (`AGEZT_PEERS`): it probes each peer's REST
+  `/api/v1/health` (reusing the `agt peers` check) and reports all-reachable as OK, an
+  unreachable peer as WARN (the local node is fine, the mesh is degraded) naming the down
+  peers with a remediation hint, a malformed `AGEZT_PEERS` as WARN, and no-peers as an
+  informational OK (single-node). So a broken mesh surfaces in the one diagnostic operators
+  already run, instead of only at `remote_run` time. The check is independent of the local
+  daemon (each peer is reached over its own surface) and never prints tokens. Completes the
+  mesh thread's operability story alongside M204's `agt peers route`. See
+  `.project/PHASE-M207-DOCTOR-MESH-CHECK-REPORT.md`.
 - **`remote_run` auto-routing fails over to the next serving peer (fault tolerance)** (M206)
   — when auto-routing by model, the M203 router picked a single peer; if that node was down
   the whole delegation failed even though another peer could serve the model. The router now
