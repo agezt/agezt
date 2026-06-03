@@ -64,6 +64,46 @@ func TestScanSkillRegistry_Classifies(t *testing.T) {
 	}
 }
 
+// The index.json manifest `export --all` writes must not be mistaken for a
+// bundle by the directory scan (it is not a *.skill.json) — M273.
+func TestScanSkillRegistry_IgnoresIndex(t *testing.T) {
+	dir := t.TempDir()
+	writeBundleFile(t, dir, "good.skill.json", "diagnose-ci", "do it", skill.ContentID("diagnose-ci", "do it"))
+	idx := registryIndex{Tool: "agt", FormatVersion: 1, Skills: []indexSkill{{Name: "diagnose-ci", File: "good.skill.json"}}}
+	data, _ := json.MarshalIndent(idx, "", "  ")
+	if err := os.WriteFile(filepath.Join(dir, registryIndexName), data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	entries, err := scanSkillRegistry(dir)
+	if err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+	if len(entries) != 1 || entries[0].Name != "diagnose-ci" {
+		t.Errorf("entries = %+v, want only the bundle (index.json ignored)", entries)
+	}
+}
+
+// The registry index round-trips so the (future) remote consumer can rely on
+// its shape.
+func TestRegistryIndex_RoundTrips(t *testing.T) {
+	in := registryIndex{
+		Tool: "agt", FormatVersion: 1, GeneratedUnixMS: 123,
+		Skills: []indexSkill{{Name: "n", Version: "0.1.0", ID: "abc", Description: "d", File: "n-abc.skill.json"}},
+	}
+	data, err := json.Marshal(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out registryIndex
+	if err := json.Unmarshal(data, &out); err != nil {
+		t.Fatal(err)
+	}
+	if len(out.Skills) != 1 || out.Skills[0].File != "n-abc.skill.json" || out.Skills[0].ID != "abc" {
+		t.Errorf("round-trip = %+v, want the entry preserved", out)
+	}
+}
+
 func TestScanSkillRegistry_EmptyDir(t *testing.T) {
 	entries, err := scanSkillRegistry(t.TempDir())
 	if err != nil {

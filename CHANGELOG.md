@@ -12,6 +12,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **`agt skill export --all` now writes an `index.json` registry manifest.**
+  Alongside the per-skill bundle files, it writes an `index.json` listing every
+  published skill (name, version, id, description, file) — the manifest a static
+  HTTP host serves so a remote consumer can discover the registry without a
+  directory listing. The directory scan continues to ignore it (it is not a
+  `*.skill.json`), so a local `agt skill registry` view is unaffected.
 - **`agt skill export --all [--dir <dir>]` — publish your whole skill library.**
   Exports every skill to its own verifiable bundle file in a directory (one file
   per skill, filenames slugified from the skill name plus a short id so versions

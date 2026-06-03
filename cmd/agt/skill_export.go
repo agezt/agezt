@@ -137,6 +137,7 @@ func exportAllSkills(dir string, stdout, stderr io.Writer) int {
 	}
 
 	written, failed := 0, 0
+	index := make([]indexSkill, 0, len(rawSkills))
 	for _, raw := range rawSkills {
 		skillMap, ok := raw.(map[string]any)
 		if !ok {
@@ -159,17 +160,34 @@ func exportAllSkills(dir string, stdout, stderr io.Writer) int {
 			failed++
 			continue
 		}
-		path := filepath.Join(dir, safeSkillFilename(bundle.Skill.Name, bundle.Skill.ID))
-		if werr := os.WriteFile(path, data, 0o600); werr != nil {
-			fmt.Fprintf(stderr, "%s skill export: write %s: %v\n", brand.CLI, path, werr)
+		file := safeSkillFilename(bundle.Skill.Name, bundle.Skill.ID)
+		if werr := os.WriteFile(filepath.Join(dir, file), data, 0o600); werr != nil {
+			fmt.Fprintf(stderr, "%s skill export: write %s: %v\n", brand.CLI, filepath.Join(dir, file), werr)
 			failed++
 			continue
 		}
+		index = append(index, indexSkill{
+			Name: bundle.Skill.Name, Version: bundle.Skill.Version,
+			ID: bundle.Skill.ID, Description: bundle.Skill.Description, File: file,
+		})
 		written++
 	}
-	fmt.Fprintf(stdout, "exported %d skill(s) to %s\n", written, dir)
+
+	// Write the registry index — the manifest a static host serves so a remote
+	// consumer can discover the registry without a directory listing.
+	idx := registryIndex{
+		Tool: brand.CLI, FormatVersion: 1,
+		GeneratedUnixMS: time.Now().UnixMilli(), Skills: index,
+	}
+	idxData, _ := json.MarshalIndent(idx, "", "  ")
+	if werr := os.WriteFile(filepath.Join(dir, registryIndexName), idxData, 0o600); werr != nil {
+		fmt.Fprintf(stderr, "%s skill export: write index: %v\n", brand.CLI, werr)
+		failed++
+	}
+
+	fmt.Fprintf(stdout, "exported %d skill(s) to %s (+ %s)\n", written, dir, registryIndexName)
 	if failed > 0 {
-		fmt.Fprintf(stderr, "%s skill export: %d skill(s) could not be exported\n", brand.CLI, failed)
+		fmt.Fprintf(stderr, "%s skill export: %d item(s) could not be written\n", brand.CLI, failed)
 		return 1
 	}
 	fmt.Fprintf(stdout, "  browse: %s skill registry %s\n", brand.CLI, dir)

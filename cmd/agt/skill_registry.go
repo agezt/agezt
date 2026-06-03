@@ -14,6 +14,30 @@ import (
 	"github.com/agezt/agezt/internal/brand"
 )
 
+// registryIndexName is the manifest file `agt skill export --all` writes into a
+// registry directory and a remote consumer fetches to discover it.
+const registryIndexName = "index.json"
+
+// registryIndex is the manifest of a skill registry — what bundles it holds,
+// each pointing at its file. It lets a consumer browse a registry served over
+// plain static HTTP, where no directory listing is available.
+type registryIndex struct {
+	Tool            string       `json:"tool"`
+	FormatVersion   int          `json:"format_version"`
+	GeneratedUnixMS int64        `json:"generated_unix_ms"`
+	Skills          []indexSkill `json:"skills"`
+}
+
+// indexSkill is one entry in a registryIndex: the shareable metadata plus the
+// bundle's filename within the registry.
+type indexSkill struct {
+	Name        string `json:"name"`
+	Version     string `json:"version"`
+	ID          string `json:"id"`
+	Description string `json:"description,omitempty"`
+	File        string `json:"file"`
+}
+
 // registryEntry is one discovered skill bundle in a directory "registry" — the
 // discovery layer over the portable bundle format (M270). Verified is false when
 // the bundle's content address does not match its (name, body), so a tampered or
