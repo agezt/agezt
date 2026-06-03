@@ -12,6 +12,15 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Silent provider fallbacks are now visible.** When the governor falls back
+  from a primary provider to a backup (because the primary errored), it was only
+  recorded as a `provider.fallback` journal event — so a provider that fails on
+  every request (masked by the always-on mock fallback) was invisible without a
+  journal dig. `agt status` now shows a `fallbacks: N` line with the most recent
+  reason (quiet at zero), `agt doctor` raises a `provider-fallbacks` WARN, and
+  the Web UI Status panel carries the count — all folded from the same journal
+  events. This is exactly the signal that would have surfaced the dotted
+  tool-name 400 immediately.
 - **Web UI: a run-stats panel with an outcome bar.** Beside the per-run list, a
   Stats panel shows the aggregate (`agt runs stats`): run count, success rate,
   total spend, and a proportional horizontal bar of outcomes (completed green,

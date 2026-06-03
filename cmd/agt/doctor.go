@@ -200,6 +200,13 @@ func runDoctorChecks() []doctorCheck {
 	if c, show := checkMeshLoops(ctx, client); show {
 		checks = append(checks, c)
 	}
+	// Provider fallbacks (M280): a primary provider that errors on every request
+	// is masked by the always-on mock fallback — invisible without a journal dig
+	// (this is how the M279 dotted-tool-name 400 hid). Surface it here so a
+	// silently-degraded provider is caught at preflight.
+	if c, show := checkProviderFallbacks(ctx, client); show {
+		checks = append(checks, c)
+	}
 	// Per-tenant peer overrides (M227): only when AGEZT_TENANT_PEERS is set —
 	// validates the spec the daemon hard-fails on, so a typo is caught here
 	// rather than by a daemon that won't restart.
@@ -265,6 +272,31 @@ func meshLoopCheck(byKind map[string]any) (doctorCheck, bool) {
 	return warn("mesh-loops",
 		fmt.Sprintf("%d mesh delegation loop(s) refused (incoming hop limit exceeded)", n),
 		"a peer is delegating back into this node — check the federation topology for a cycle"), true
+}
+
+// checkProviderFallbacks folds the journal's per-kind counts for
+// provider.fallback events (M280) — how many times the governor fell back from a
+// primary provider to a backup. Reuses CmdJournalStats like checkMeshLoops.
+func checkProviderFallbacks(ctx context.Context, client *controlplane.Client) (doctorCheck, bool) {
+	res, err := client.Call(ctx, controlplane.CmdJournalStats, nil)
+	if err != nil {
+		return doctorCheck{}, false
+	}
+	byKind, _ := res["by_kind"].(map[string]any)
+	return providerFallbackCheck(byKind)
+}
+
+// providerFallbackCheck is the pure decision behind checkProviderFallbacks:
+// given the journal's per-kind event counts, warn when any provider fallback has
+// happened. Split out so it is unit-testable without a control-plane round-trip.
+func providerFallbackCheck(byKind map[string]any) (doctorCheck, bool) {
+	n := intOfStatus(byKind[string(event.KindProviderFallback)])
+	if n <= 0 {
+		return doctorCheck{}, false
+	}
+	return warn("provider-fallbacks",
+		fmt.Sprintf("%d provider fallback(s) — a primary provider errored and a backup served the run", n),
+		"if unexpected, the primary is misconfigured/incompatible (key, base URL, or tool/model support) — runs may be served by the mock; check `agt status` for the last reason"), true
 }
 
 // checkTenantPeers validates AGEZT_TENANT_PEERS — the per-tenant mesh peer

@@ -94,6 +94,20 @@ func cmdStatus(args []string, stdout, stderr io.Writer) int {
 	fmt.Fprintf(stdout, "  tools     : %d registered\n", toolCount)
 	fmt.Fprintf(stdout, "  journal   : head seq=%d\n", journalHead)
 
+	// Provider fallbacks (M280) — surface silent primary→backup fallbacks. Quiet
+	// at zero (the healthy case); when non-zero it flags that a provider has been
+	// erroring and the run was served by a backup (often the mock), which used to
+	// be invisible without a journal dig.
+	if fb, ok := res["provider_fallbacks"].(map[string]any); ok {
+		if n := intOfStatus(fb["count"]); n > 0 {
+			reason, _ := fb["last_reason"].(string)
+			fmt.Fprintf(stdout, "  fallbacks : %d  ⚠ a provider errored; runs served by a backup\n", n)
+			if strings.TrimSpace(reason) != "" {
+				fmt.Fprintf(stdout, "              last: %s\n", reason)
+			}
+		}
+	}
+
 	// Configured messaging channels (M141) — Telegram / Slack / Discord. Quiet
 	// when none configured so single-shot operators see no noise.
 	if chans, _ := res["channels"].([]any); len(chans) > 0 {
