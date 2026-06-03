@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/agezt/agezt/kernel/skill"
@@ -70,6 +71,37 @@ func TestScanSkillRegistry_EmptyDir(t *testing.T) {
 	}
 	if len(entries) != 0 {
 		t.Errorf("entries = %d, want 0 for an empty dir", len(entries))
+	}
+}
+
+// installFromRegistry resolves a name without dialing for the failure cases:
+// an absent name, an only-tampered name, and an ambiguous name (several verified
+// bundles) all error rather than installing the wrong thing (M271).
+func TestInstallFromRegistry_ResolutionErrors(t *testing.T) {
+	entries := []registryEntry{
+		{Name: "alpha", Version: "0.1.0", ID: "a1", Path: "a1.skill.json", Verified: true},
+		{Name: "alpha", Version: "0.2.0", ID: "a2", Path: "a2.skill.json", Verified: true},
+		{Name: "beta", Path: "beta.skill.json", Err: "not a skill bundle"},
+		{Name: "gamma", ID: "g1", Path: "gamma.skill.json", Verified: false}, // tampered
+	}
+
+	cases := []struct {
+		name string
+		want string // substring expected on stderr
+	}{
+		{"alpha", "ambiguous"},
+		{"gamma", "malformed/tampered"},
+		{"delta", "no verified bundle"},
+		{"beta", "malformed/tampered"}, // present but only as a parse error
+	}
+	for _, c := range cases {
+		var out, errb bytes.Buffer
+		if code := installFromRegistry(entries, c.name, &out, &errb); code != 1 {
+			t.Errorf("%s: exit = %d, want 1", c.name, code)
+		}
+		if !strings.Contains(errb.String(), c.want) {
+			t.Errorf("%s: stderr = %q, want %q", c.name, errb.String(), c.want)
+		}
 	}
 }
 

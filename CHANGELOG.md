@@ -12,6 +12,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **`agt skill registry <dir> --install <name>` — install a bundle by name.**
+  Resolves a skill name within a directory registry to exactly one verified
+  bundle and installs it (delegating to the same verify-then-import path as
+  `agt skill import`). Refuses an ambiguous name (several bundles share it —
+  e.g. different versions, listing each so the operator imports the one they mean
+  by path) and ignores tampered/malformed candidates. Completes the local
+  marketplace loop: export → share a directory → discover → install by name.
 - **`agt skill registry <dir>` — discover skill bundles in a directory.** The
   discovery layer of the skill marketplace: lists every `*.skill.json` bundle in
   a directory with its name, version, id, and description, verifying each one's
@@ -98,6 +105,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   SDK package document `Run`, `RunStream`, `Runs`, and approvals.
 
 ### Fixed
+- **`agt skill import` of a skill with no triggers/tools no longer errors.** The
+  CLI sent the optional `triggers` / `tools_required` args as an explicit JSON
+  `null` when the skill had none, which the daemon's strict array decoder
+  rejected ("must be an array"). Those args are now omitted when empty, so a
+  minimal skill (name + body only) imports cleanly. Surfaced while building
+  `agt skill registry --install`.
 - **Corrected stale references to now-shipped features.** `agt provider check
   --stream` printed "provider family X does not yet support streaming (M1.q only
   wires anthropic; others land in M1.q.x)" when a provider lacked a streaming

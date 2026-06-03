@@ -97,6 +97,23 @@ func TestSkillImportInstallsFreshDraft(t *testing.T) {
 	}
 }
 
+// A bundle with no triggers/tools omits those args entirely (rather than sending
+// null); import must accept the minimal name+body form (M271 regression guard).
+func TestSkillImportOmittedOptionalArgs(t *testing.T) {
+	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	res, err := c.Call(context.Background(), controlplane.CmdSkillImport, map[string]any{
+		"name":        "minimal",
+		"description": "no triggers, no tools",
+		"body":        "just do it",
+	})
+	if err != nil {
+		t.Fatalf("import with omitted optional args: %v", err)
+	}
+	if res["status"] != "draft" || res["id"] != skill.ContentID("minimal", "just do it") {
+		t.Errorf("result = %+v, want a draft at the right content address", res)
+	}
+}
+
 func TestSkillImportRequiresNameAndBody(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 	if _, err := c.Call(context.Background(), controlplane.CmdSkillImport, map[string]any{"name": "x"}); err == nil {

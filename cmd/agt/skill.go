@@ -52,7 +52,7 @@ func cmdSkill(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "  diff <id> [<id2>]             diff a skill's body vs its parent (or vs id2)\n")
 		fmt.Fprintf(stdout, "  export <id> [--out <file>]    write a portable, verifiable skill bundle\n")
 		fmt.Fprintf(stdout, "  import <bundle> [--json]      verify a bundle and install it as a draft\n")
-		fmt.Fprintf(stdout, "  registry <dir> [--json]      list the verifiable skill bundles in a directory\n")
+		fmt.Fprintf(stdout, "  registry <dir> [--install <name>]   list/install verifiable bundles in a directory\n")
 		return 0
 	default:
 		fmt.Fprintf(stderr, "%s skill: unknown subcommand %q (list|show|history|promote|quarantine|revert|diff|export|import|registry)\n", brand.CLI, args[0])

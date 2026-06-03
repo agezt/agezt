@@ -72,13 +72,21 @@ func cmdSkillImport(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdSkillImport, map[string]any{
-		"name":           bundle.Skill.Name,
-		"description":    bundle.Skill.Description,
-		"triggers":       bundle.Skill.Triggers,
-		"body":           bundle.Skill.Body,
-		"tools_required": bundle.Skill.ToolsRequired,
-	})
+	// Only send the optional list args when non-empty: a nil slice marshals to
+	// JSON null, which the server's strict array decoder rejects ("must be an
+	// array"). Omitting them leaves the optional fields unset, as intended.
+	callArgs := map[string]any{
+		"name":        bundle.Skill.Name,
+		"description": bundle.Skill.Description,
+		"body":        bundle.Skill.Body,
+	}
+	if len(bundle.Skill.Triggers) > 0 {
+		callArgs["triggers"] = bundle.Skill.Triggers
+	}
+	if len(bundle.Skill.ToolsRequired) > 0 {
+		callArgs["tools_required"] = bundle.Skill.ToolsRequired
+	}
+	res, err := c.Call(ctx, controlplane.CmdSkillImport, callArgs)
 	if err != nil {
 		fmt.Fprintf(stderr, "%s skill import: %v\n", brand.CLI, err)
 		return 1

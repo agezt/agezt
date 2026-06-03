@@ -76,6 +76,43 @@ func scanSkillRegistry(dir string) ([]registryEntry, error) {
 	return entries, nil
 }
 
+// installFromRegistry resolves a skill name within a scanned registry to exactly
+// one verified bundle and installs it by delegating to cmdSkillImport (which
+// re-verifies and dials the daemon). It refuses an ambiguous name (several
+// bundles share it — e.g. different versions) so the operator imports the one
+// they mean by path, and ignores unverified/malformed candidates (M271).
+func installFromRegistry(entries []registryEntry, name string, stdout, stderr io.Writer) int {
+	var matches []registryEntry
+	tampered := 0
+	for _, e := range entries {
+		if e.Name != name {
+			continue
+		}
+		if e.Err != "" || !e.Verified {
+			tampered++
+			continue
+		}
+		matches = append(matches, e)
+	}
+	switch len(matches) {
+	case 0:
+		if tampered > 0 {
+			fmt.Fprintf(stderr, "%s skill registry: %q has only malformed/tampered bundle(s) — refusing to install\n", brand.CLI, name)
+		} else {
+			fmt.Fprintf(stderr, "%s skill registry: no verified bundle named %q\n", brand.CLI, name)
+		}
+		return 1
+	case 1:
+		return cmdSkillImport([]string{matches[0].Path}, stdout, stderr)
+	default:
+		fmt.Fprintf(stderr, "%s skill registry: %q is ambiguous (%d bundles) — import the one you want by path:\n", brand.CLI, name, len(matches))
+		for _, e := range matches {
+			fmt.Fprintf(stderr, "  %s skill import %s   (v%s, %s)\n", brand.CLI, e.Path, e.Version, shortHash(e.ID))
+		}
+		return 1
+	}
+}
+
 // cmdSkillRegistry implements `agt skill registry <dir> [--json]` (M270) — the
 // discovery layer of the skill marketplace: list the verifiable bundles in a
 // directory so an operator can see what is available before importing one. Pure
@@ -83,15 +120,26 @@ func scanSkillRegistry(dir string) ([]registryEntry, error) {
 func cmdSkillRegistry(args []string, stdout, stderr io.Writer) int {
 	dir := ""
 	asJSON := false
+	install := ""
 	for i := 0; i < len(args); i++ {
 		a := args[i]
 		switch {
 		case a == "--json":
 			asJSON = true
+		case a == "--install":
+			if i+1 >= len(args) {
+				fmt.Fprintf(stderr, "%s skill registry: --install needs a skill name\n", brand.CLI)
+				return 2
+			}
+			i++
+			install = args[i]
+		case strings.HasPrefix(a, "--install="):
+			install = strings.TrimPrefix(a, "--install=")
 		case a == "-h" || a == "--help":
-			fmt.Fprintf(stdout, "usage: %s skill registry <dir> [--json]\n", brand.CLI)
+			fmt.Fprintf(stdout, "usage: %s skill registry <dir> [--json] [--install <name>]\n", brand.CLI)
 			fmt.Fprintf(stdout, "list the verifiable skill bundles (*.skill.json) in a directory\n")
-			fmt.Fprintf(stdout, "import one with: %s skill import <path>\n", brand.CLI)
+			fmt.Fprintf(stdout, "  --install <name>  install the named bundle from the registry as a draft\n")
+			fmt.Fprintf(stdout, "import one by path with: %s skill import <path>\n", brand.CLI)
 			return 0
 		case strings.HasPrefix(a, "-"):
 			fmt.Fprintf(stderr, "%s skill registry: unexpected flag %q\n", brand.CLI, a)
@@ -113,6 +161,10 @@ func cmdSkillRegistry(args []string, stdout, stderr io.Writer) int {
 	if err != nil {
 		fmt.Fprintf(stderr, "%s skill registry: %v\n", brand.CLI, err)
 		return 1
+	}
+
+	if install != "" {
+		return installFromRegistry(entries, install, stdout, stderr)
 	}
 
 	if asJSON {
