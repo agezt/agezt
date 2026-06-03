@@ -18,15 +18,42 @@
 // no header, so Hop returns 0 and the chain starts fresh.
 package meshctx
 
-import "context"
+import (
+	"context"
+	"os"
+	"strconv"
+	"strings"
+)
 
-// MaxHops bounds the length of a cross-node delegation chain. A run arriving with a
-// hop above this is refused. Real delegation chains are short; 8 is generous headroom
-// while still terminating a runaway loop quickly.
+// MaxHops is the DEFAULT bound on the length of a cross-node delegation chain. A run
+// arriving with a hop above the effective limit is refused. Real delegation chains are
+// short; 8 is generous headroom while still terminating a runaway loop quickly. The
+// effective limit is operator-tunable per node via EnvMaxHops (see MaxHopsFromEnv).
 const MaxHops = 8
+
+// maxConfigurableHops caps the operator override so a typo like "100000" can't defeat
+// the guard's purpose. Above this (or below 1, or unparseable) the default is used.
+const maxConfigurableHops = 64
+
+// EnvMaxHops is the env var that overrides MaxHops for this node. Hardcoded (rather
+// than brand.EnvPrefix+…) to keep this leaf package dependency-free; it matches the
+// AGEZT_ prefix and is registered in controlplane.configEnvVars for `agt config show`.
+const EnvMaxHops = "AGEZT_MESH_MAX_HOPS"
 
 // HopHeader is the HTTP header carrying the delegation hop count between nodes.
 const HopHeader = "X-Agezt-Mesh-Hop"
+
+// MaxHopsFromEnv returns the effective hop limit for this node: the EnvMaxHops override
+// when it is a valid integer in [1, maxConfigurableHops], otherwise the MaxHops default.
+// Each node enforces its own limit; the receiving node is authoritative.
+func MaxHopsFromEnv() int {
+	if v := strings.TrimSpace(os.Getenv(EnvMaxHops)); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n >= 1 && n <= maxConfigurableHops {
+			return n
+		}
+	}
+	return MaxHops
+}
 
 type ctxKey struct{}
 

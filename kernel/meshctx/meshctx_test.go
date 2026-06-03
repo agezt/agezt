@@ -4,6 +4,7 @@ package meshctx
 
 import (
 	"context"
+	"strconv"
 	"testing"
 )
 
@@ -27,5 +28,30 @@ func TestWithHop_RoundTrip(t *testing.T) {
 func TestWithHop_ClampsNegative(t *testing.T) {
 	if got := Hop(WithHop(context.Background(), -2)); got != 0 {
 		t.Errorf("negative hop should clamp to 0, got %d", got)
+	}
+}
+
+func TestMaxHopsFromEnv(t *testing.T) {
+	cases := []struct {
+		name, env string
+		want      int
+	}{
+		{"unset", "", MaxHops},
+		{"valid override", "3", 3},
+		{"valid min", "1", 1},
+		{"zero falls back", "0", MaxHops},
+		{"negative falls back", "-1", MaxHops},
+		{"over cap falls back", strconv.Itoa(maxConfigurableHops + 1), MaxHops},
+		{"at cap", strconv.Itoa(maxConfigurableHops), maxConfigurableHops},
+		{"garbage falls back", "abc", MaxHops},
+		{"whitespace trimmed", "  5  ", 5},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			t.Setenv(EnvMaxHops, c.env)
+			if got := MaxHopsFromEnv(); got != c.want {
+				t.Errorf("MaxHopsFromEnv(%q) = %d, want %d", c.env, got, c.want)
+			}
+		})
 	}
 }

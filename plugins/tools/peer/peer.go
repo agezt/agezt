@@ -183,10 +183,10 @@ func (t *Tool) Invoke(ctx context.Context, input json.RawMessage) (agent.Result,
 	// Mesh loop guard (M209): if this run is already at the hop limit, delegating
 	// further would push the peer past it (and be refused there). Refuse locally with a
 	// clear message rather than make a doomed round-trip. A non-delegated run is hop 0.
-	if hop := meshctx.Hop(ctx); hop >= meshctx.MaxHops {
+	if maxHops := meshctx.MaxHopsFromEnv(); meshctx.Hop(ctx) >= maxHops {
 		return agent.Result{Output: fmt.Sprintf(
 			"remote_run: mesh delegation hop limit (%d) reached — refusing to delegate further to avoid a federation loop",
-			meshctx.MaxHops), IsError: true}, nil
+			maxHops), IsError: true}, nil
 	}
 	model := strings.TrimSpace(in.Model)
 

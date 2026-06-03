@@ -323,7 +323,8 @@ func (s *Server) handleRunsRoot(w http.ResponseWriter, r *http.Request) {
 			hopIn = n
 		}
 	}
-	if hopIn > meshctx.MaxHops {
+	maxHops := meshctx.MaxHopsFromEnv()
+	if hopIn > maxHops {
 		// Audit the refusal so a stopped federation loop is visible in the journal /
 		// `agt pulse` (M210), not just to the rejected caller. Best-effort.
 		if s.bus != nil {
@@ -331,7 +332,7 @@ func (s *Server) handleRunsRoot(w http.ResponseWriter, r *http.Request) {
 				Subject: "mesh.loop",
 				Kind:    event.KindMeshLoopRefused,
 				Actor:   "restapi",
-				Payload: map[string]any{"hop": hopIn, "max_hops": meshctx.MaxHops},
+				Payload: map[string]any{"hop": hopIn, "max_hops": maxHops},
 			})
 		}
 		writeErr(w, http.StatusLoopDetected, "mesh_hop_limit",

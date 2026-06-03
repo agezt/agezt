@@ -67,6 +67,30 @@ func TestMeshHop_NoHeaderRuns(t *testing.T) {
 	}
 }
 
+// TestMeshHop_EnvOverrideTightens: with AGEZT_MESH_MAX_HOPS lowered, a hop that would
+// pass the default limit is refused at the configured one (M211).
+func TestMeshHop_EnvOverrideTightens(t *testing.T) {
+	t.Setenv(meshctx.EnvMaxHops, "2")
+	eng := &fakeEngine{answer: "ok"}
+	s := newServer(t, eng, "secret")
+
+	// hop 3 > configured 2 (but < default 8) → refused.
+	rec := runsPost(s, "secret", `{"intent":"hi"}`, "3")
+	if rec.Code != http.StatusLoopDetected {
+		t.Fatalf("hop 3 with limit 2 should be %d, got %d", http.StatusLoopDetected, rec.Code)
+	}
+	if eng.ranIntent != "" {
+		t.Error("an over-limit run must not execute")
+	}
+	// hop 2 == configured limit → still runs.
+	eng2 := &fakeEngine{answer: "ok"}
+	s2 := newServer(t, eng2, "secret")
+	rec2 := runsPost(s2, "secret", `{"intent":"hi"}`, "2")
+	if rec2.Code != http.StatusOK {
+		t.Fatalf("hop 2 at limit 2 should run, got %d", rec2.Code)
+	}
+}
+
 // TestMeshHop_RefusalIsAudited: a refused federation loop publishes a
 // mesh.loop_refused event so it is visible in the journal / `agt pulse` (M210).
 func TestMeshHop_RefusalIsAudited(t *testing.T) {

@@ -12,6 +12,14 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **The mesh hop limit is operator-tunable** (M211) — the M209 cross-node delegation bound
+  was a fixed 8. It is now configurable per node via `AGEZT_MESH_MAX_HOPS`: a deployment with
+  legitimately deeper delegation chains can raise it, and a tighter one can lower it. The
+  override is validated — only an integer in `[1, 64]` is honored; anything unset, zero,
+  negative, over the cap, or unparseable falls back to the default 8, so a typo can't silently
+  defeat the guard. The receiving node is authoritative (it enforces its own limit on inbound
+  hops), the env is registered in `agt config show`, and the refusal event (M210) reports the
+  effective `max_hops`. See `.project/PHASE-M211-MESH-MAXHOPS-CONFIG-REPORT.md`.
 - **A refused mesh delegation loop is now audited** (M210) — when the M209 hop guard refuses
   an over-limit cross-node delegation, the REST handler now publishes a `mesh.loop_refused`
   event (`{hop, max_hops}`) to the bus/journal, so a stopped federation loop is visible via
