@@ -12,6 +12,14 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **`agt skill registry <dir>` — discover skill bundles in a directory.** The
+  discovery layer of the skill marketplace: lists every `*.skill.json` bundle in
+  a directory with its name, version, id, and description, verifying each one's
+  content address offline. A tampered bundle is flagged `TAMPERED` and a
+  malformed file is flagged with its parse error (the command exits non-zero if
+  any bundle is bad), and each good entry prints the exact `agt skill import`
+  command to install it. `--json` for scripting. Pure offline file read; no
+  daemon needed.
 - **`agt skill import <bundle>` — install a skill from a portable bundle.** The
   read-back half of `agt skill export`: verify the bundle's content address
   *offline* (a tampered bundle is rejected before the daemon is contacted), then
