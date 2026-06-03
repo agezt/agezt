@@ -12,6 +12,17 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **`remote_run` can pin the peer's model — capability-aware delegation** (M202) — the mesh
+  delegation tool now accepts an optional `model` argument and forwards it to the peer's
+  `POST /api/v1/runs`, so the delegating node can ask a peer to route the handed-off task to
+  a *specific* model (one the peer can serve) instead of always falling back to the peer's
+  default. This is the dispatch half that pairs with M201's discovery (`agt peers models`
+  tells you which node serves a model; `remote_run {model}` sends the task there). The model
+  is forwarded only when pinned — an absent/blank model leaves the request body byte-for-byte
+  unchanged, so existing delegations behave exactly as before. The peer echoes the model it
+  actually routed to, which is now recorded in the result footer (`[peer=… model=…
+  correlation=…]`) for an auditable cross-node trail. See
+  `.project/PHASE-M202-REMOTE-RUN-MODEL-REPORT.md`.
 - **`agt peers models [<name>]` — mesh model discovery** (M201) — a new verb on the M8
   mesh command that fetches each configured peer's routable model set (and its default)
   from the peer's `GET /api/v1/models`, so an operator can see *which* node can serve a

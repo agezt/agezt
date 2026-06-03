@@ -69,7 +69,8 @@ func (t *Tool) Definition() agent.ToolDef {
 		Description: "Delegate a self-contained task to a PEER Agezt node and return its answer. " +
 			"The peer runs the task through its own governed agent loop (its tools, its policy) and " +
 			"reports back. Use to hand work to a node with different capabilities, data access, or " +
-			"location. Available peers: " + t.peerNames() + ".",
+			"location. Optionally pin which model the peer should use with `model` (the operator can " +
+			"list each peer's routable models). Available peers: " + t.peerNames() + ".",
 		InputSchema: json.RawMessage(`{
   "type": "object",
   "properties": {
@@ -80,6 +81,10 @@ func (t *Tool) Definition() agent.ToolDef {
     "task": {
       "type": "string",
       "description": "The complete, self-contained instruction for the peer node."
+    },
+    "model": {
+      "type": "string",
+      "description": "Optional. Pin the model the peer routes this task to (must be one the peer can serve). Omit to let the peer use its own default model."
     }
   },
   "required": ["task"]
@@ -98,8 +103,9 @@ func (t *Tool) peerNames() string {
 
 func (t *Tool) Invoke(ctx context.Context, input json.RawMessage) (agent.Result, error) {
 	var in struct {
-		Peer string `json:"peer"`
-		Task string `json:"task"`
+		Peer  string `json:"peer"`
+		Task  string `json:"task"`
+		Model string `json:"model"`
 	}
 	if err := json.Unmarshal(input, &in); err != nil {
 		return agent.Result{Output: "invalid input: " + err.Error(), IsError: true}, nil
@@ -108,6 +114,7 @@ func (t *Tool) Invoke(ctx context.Context, input json.RawMessage) (agent.Result,
 	if task == "" {
 		return agent.Result{Output: "task is required", IsError: true}, nil
 	}
+	model := strings.TrimSpace(in.Model)
 	peer, err := t.resolve(in.Peer)
 	if err != nil {
 		return agent.Result{Output: err.Error(), IsError: true}, nil
@@ -120,7 +127,14 @@ func (t *Tool) Invoke(ctx context.Context, input json.RawMessage) (agent.Result,
 	ctx, cancel := context.WithTimeout(ctx, to)
 	defer cancel()
 
-	body, _ := json.Marshal(map[string]string{"intent": task})
+	// Forward the model only when the caller pinned one; an absent/empty model lets
+	// the peer use its own default (the restapi runRequest falls back to it), so the
+	// default behaviour is byte-for-byte unchanged.
+	payload := map[string]string{"intent": task}
+	if model != "" {
+		payload["model"] = model
+	}
+	body, _ := json.Marshal(payload)
 	endpoint := strings.TrimRight(peer.URL, "/") + "/api/v1/runs"
 	status, respBody, err := t.post(ctx, endpoint, peer.Token, body)
 	if err != nil {
@@ -132,6 +146,7 @@ func (t *Tool) Invoke(ctx context.Context, input json.RawMessage) (agent.Result,
 		Status        string `json:"status"`
 		Answer        string `json:"answer"`
 		Error         string `json:"error"`
+		Model         string `json:"model"`
 	}
 	_ = json.Unmarshal(respBody, &resp)
 
@@ -147,10 +162,10 @@ func (t *Tool) Invoke(ctx context.Context, input json.RawMessage) (agent.Result,
 		return agent.Result{Output: out, IsError: true}, nil
 	}
 
-	return agent.Result{Output: render(peer.Name, resp.CorrelationID, resp.Answer)}, nil
+	return agent.Result{Output: render(peer.Name, resp.Model, resp.CorrelationID, resp.Answer)}, nil
 }
 
-func render(peerName, corr, answer string) string {
+func render(peerName, model, corr, answer string) string {
 	var b strings.Builder
 	a := strings.TrimSpace(answer)
 	if a == "" {
@@ -158,7 +173,13 @@ func render(peerName, corr, answer string) string {
 	} else {
 		b.WriteString(truncate(a, MaxAnswerBytes))
 	}
-	fmt.Fprintf(&b, "\n\n[peer=%s correlation=%s]", peerName, corr)
+	// The peer echoes the model it actually routed to; surface it so the delegating
+	// node's transcript records which remote model produced the answer.
+	if m := strings.TrimSpace(model); m != "" {
+		fmt.Fprintf(&b, "\n\n[peer=%s model=%s correlation=%s]", peerName, m, corr)
+	} else {
+		fmt.Fprintf(&b, "\n\n[peer=%s correlation=%s]", peerName, corr)
+	}
 	return b.String()
 }
 
