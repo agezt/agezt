@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/governor"
 )
 
@@ -35,6 +36,19 @@ func modelPriced(model string) bool {
 	return governor.CostMicrocents(model, 1_000_000, 1_000_000) > 0
 }
 
+// strictPricingPlan derives the dry-run's strict-pricing inputs from the
+// kernel's provider (M195): whether the daemon refuses unpriced models, and
+// whether the effective model has a KNOWN price (incl. known-free). Kept here
+// so server.go's handleRun needn't import governor. provider is k.Provider()
+// (an agent.Provider); a non-governor provider (test rig) reports not-strict.
+func strictPricingPlan(provider any, model string) (strict, hasPrice bool) {
+	hasPrice = governor.ModelIsPriced(model)
+	if gov, ok := provider.(*governor.Governor); ok {
+		strict = gov.StrictPricingEnabled()
+	}
+	return
+}
+
 // runPlanInput carries the already-resolved primitives for a run, so buildRunPlan
 // can stay pure (no kernel/catalog handles) and table-testable. handleRun fills it
 // from the request args + kernel accessors when `dry_run` is set.
@@ -55,7 +69,9 @@ type runPlanInput struct {
 	AllowSet        bool     // a "tools" arg was present (restriction in effect)
 	Allow           []string // requested tool names (the allow-list)
 	MaxCostMC       int64    // per-run cost cap in microcents (0 = none)
-	ModelPriced     bool     // catalog has a price for the effective model
+	ModelPriced     bool     // model prices to > $0 (a cap could trip) — catalog → fallback
+	StrictPricing   bool     // daemon refuses unpriced models (AGEZT_PRICING_STRICT)
+	ModelHasPrice   bool     // model has a KNOWN price entry (incl. known-free); != ModelPriced
 }
 
 // buildRunPlan resolves what a run WOULD do — effective model (and its catalog
@@ -155,6 +171,18 @@ func buildRunPlan(in runPlanInput) map[string]any {
 				"model %q has a small context window (%d tokens) — long runs with memory/tools "+
 					"may overflow it", in.Model, in.ContextLimit))
 		}
+	}
+	// Strict pricing (M195): when the daemon refuses unpriced models
+	// (AGEZT_PRICING_STRICT=on), a run on a model with no KNOWN price is rejected
+	// before any provider call. Surface that here so the operator learns it from a
+	// dry-run instead of a surprising "model has no known price" failure at submit.
+	// Uses ModelHasPrice (known incl. free), NOT ModelPriced (cost > 0) — a
+	// known-free model is priced and would NOT be refused.
+	if in.StrictPricing && in.Model != "" && !in.ModelHasPrice {
+		warnings = append(warnings, fmt.Sprintf(
+			"strict pricing is on (%sPRICING_STRICT) and model %q has no known price — this run "+
+				"would be REFUSED before any provider call; `agt catalog sync` to load prices, or "+
+				"unset the flag", brand.EnvPrefix, in.Model))
 	}
 	// A cost cap only binds if the run accrues priced spend. On an unpriced model
 	// (unknown to the catalog, or a free/local model with no cost) the cap can

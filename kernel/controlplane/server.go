@@ -1125,6 +1125,7 @@ func (s *Server) handleRun(ctx context.Context, conn net.Conn, req Request) {
 			MaxCostMC:       maxCost,
 			ModelPriced:     modelPriced(effModel), // authoritative (catalog → fallback table)
 		}
+		in.StrictPricing, in.ModelHasPrice = strictPricingPlan(k.Provider(), effModel)
 		if cat := k.Catalog(); cat != nil {
 			if _, m := cat.FindModel(effModel); m != nil {
 				in.ModelKnown = true

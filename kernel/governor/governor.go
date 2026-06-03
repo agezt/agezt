@@ -475,6 +475,13 @@ func (g *Governor) DailyCeilingMicrocents() int64 {
 	return g.cfg.DailyCeilingMicrocents
 }
 
+// StrictPricingEnabled reports whether unpriced models are refused (M195).
+// cfg is immutable after New, so this is a lock-free read — used by the
+// dry-run to predict whether a run on an unpriced model would be refused.
+func (g *Governor) StrictPricingEnabled() bool {
+	return g.cfg.StrictPricing
+}
+
 // WithDailyCeiling returns a sibling Governor that shares this one's
 // registry, routing config, and task budgets but keeps an INDEPENDENT
 // daily-spend ledger and its own global ceiling. The bus is inherited

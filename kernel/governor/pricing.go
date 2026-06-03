@@ -142,6 +142,16 @@ func priceForOk(model string) (modelPrice, bool) {
 	return modelPrice{}, false
 }
 
+// ModelIsPriced is the exported front-door for modelIsPriced (M195): it
+// reports whether the governor has a KNOWN price for the model — in the
+// catalog or the fallback table. A known-FREE model (local/mock, priced 0)
+// is priced (true); only a genuinely unknown model is not. Distinct from
+// `CostMicrocents(...) > 0`, which is false for known-free models too.
+// Used by the dry-run to predict whether StrictPricing would refuse a run.
+func ModelIsPriced(model string) bool {
+	return modelIsPriced(model)
+}
+
 // CostMicrocents is the exported front-door (M1.oo) for the
 // package's internal pricing math. Lets cross-package callers
 // (notably the planner's cost-estimate path) project spend

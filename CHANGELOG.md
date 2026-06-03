@@ -12,6 +12,14 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **`agt run --dry-run` warns when strict pricing would refuse the run** (M195) — with
+  `AGEZT_PRICING_STRICT=on`, a run on a model with no known price is refused before any
+  provider call; the dry-run now surfaces that ("…would be REFUSED before any provider
+  call; `agt catalog sync`…") so an operator learns it up front instead of from a
+  surprising submit-time failure — the same preventive-advisory pattern as the cost-cap
+  warnings (M167/M169). Correctly distinguishes a known-FREE model (priced 0, allowed)
+  from a genuinely unpriced one via the new exported `governor.ModelIsPriced`. See
+  `.project/PHASE-M195-DRYRUN-STRICT-PRICING-REPORT.md`.
 - **`AGEZT_PRICING_STRICT` env + `agt budget` spend-protection line** (M194) — makes the
   M193 strict-pricing gate operator-configurable (`AGEZT_PRICING_STRICT=on`, off by
   default, registered in `agt config show`) and surfaces the posture in `agt budget`:
