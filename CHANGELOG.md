@@ -11,6 +11,18 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 
 ## [Unreleased]
 
+### Added
+- **Public Go SDK (`github.com/agezt/agezt/sdk`).** A stable, ergonomic client
+  for embedding Agezt in Go programs: `sdk.Dial("")` connects to the local
+  daemon, and `Client.Run(ctx, intent, opts...)` / `Client.RunStream(...)` run an
+  intent through the same governed kernel loop as `agt run` — Edict, the journal,
+  cost governance — returning a typed `Result` (answer, correlation id, model,
+  iterations, cost in USD). Functional options cover model, tenant, system
+  prompt, timeout, tool allow-list, image attachments, and a per-run cost cap.
+  Callers no longer need to speak the control-plane wire protocol or import
+  kernel internals. First milestone of the SDK; further surfaces (events helper,
+  approvals, runs inspection) build on it.
+
 ### Fixed
 - **A single oversized ACP message can no longer balloon memory.** Both the ACP
   server (driven by an IDE) and the ACP client (driving an external agent) read
