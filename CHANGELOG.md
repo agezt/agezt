@@ -343,6 +343,16 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   `.project/PHASE-M129-OBSERVABILITY-TENANT-FLAG-REPORT.md`.
 
 ### Fixed
+- **Scheduler can't busy-loop on a corrupt interval (cadence review HIGH)** (M196) — the
+  cadence engine's `advance` computed the next run as `now + IntervalSec` with no floor,
+  and `OpenStore` loaded `schedules.json` without validation. `Add` rejects a
+  sub-minimum interval, but a hand-edited or corrupt file with `interval_sec: 0` (or
+  negative) would make the next run land on `now`/the past — so every ticker wake (10s)
+  finds it due and fires a run, forever. `advance` now floors the interval to
+  `MinInterval` (interval and window modes), and `OpenStore` repairs sub-minimum entries
+  on load (durable + visible in `agt schedule list`). A bad value degrades to the slowest
+  safe rate instead of hammering the daemon. See
+  `.project/PHASE-M196-CADENCE-INTERVAL-FLOOR-REPORT.md`.
 - **Deterministic longest-prefix price match (governor review HIGH)** (M192) — the
   fallback price-table prefix match returned the *first* key Go's randomized map
   iteration happened to hit, so a model id overlapping more than one key got a

@@ -80,6 +80,26 @@ type Entry struct {
 // Interval is the entry's firing period (interval mode only).
 func (e Entry) Interval() time.Duration { return time.Duration(e.IntervalSec) * time.Second }
 
+// usesInterval reports whether the entry's IntervalSec is load-bearing — true
+// for interval and windowed-interval modes, false for daily/once (which carry
+// IntervalSec == 0 legitimately).
+func (e Entry) usesInterval() bool { return e.Mode == ModeInterval || e.Mode == ModeWindow }
+
+// safeInterval is Interval clamped to MinInterval (M196). `advance` and the
+// window walker use it so a zero/negative IntervalSec — which Add rejects but a
+// hand-edited or corrupt schedules.json could carry — can never make the next
+// run land on `now` (or the past) and busy-loop the ticker into firing a run
+// every tick. A bad value degrades to the slowest safe rate instead.
+func (e Entry) safeInterval() time.Duration {
+	if iv := e.Interval(); iv >= MinInterval {
+		return iv
+	}
+	return MinInterval
+}
+
+// safeIntervalSec is safeInterval in whole seconds, for the window walker.
+func (e Entry) safeIntervalSec() int64 { return int64(e.safeInterval() / time.Second) }
+
 // Cadence renders the entry's schedule for display.
 func (e Entry) Cadence() string {
 	switch e.Mode {
@@ -154,9 +174,9 @@ func (e Entry) advance(now time.Time) int64 {
 	case ModeDaily:
 		return nextDaily(n, e.AtMinutes, e.Days).Unix()
 	case ModeWindow:
-		return nextWindowSlot(n, e.AtMinutes, e.EndMinutes, e.IntervalSec, e.Days).Unix()
+		return nextWindowSlot(n, e.AtMinutes, e.EndMinutes, e.safeIntervalSec(), e.Days).Unix()
 	}
-	return now.Add(e.Interval()).Unix()
+	return now.Add(e.safeInterval()).Unix()
 }
 
 // applyZone returns now converted into the IANA zone tz, or now unchanged when
@@ -352,6 +372,17 @@ func OpenStore(dir string) (*Store, error) {
 	if len(b) > 0 {
 		if err := json.Unmarshal(b, &s.entries); err != nil {
 			return nil, fmt.Errorf("cadence: parse %s: %w", s.path, err)
+		}
+		// Repair against a corrupt or hand-edited file (M196): an interval or
+		// window entry with a sub-minimum IntervalSec would advance the next run
+		// onto `now`/the past and busy-loop the ticker. Clamp to MinInterval so a
+		// bad value degrades to the slowest safe rate. `advance` floors defensively
+		// too, but repairing here makes the clamp durable and visible in
+		// `agt schedule list`.
+		for i := range s.entries {
+			if s.entries[i].usesInterval() && s.entries[i].Interval() < MinInterval {
+				s.entries[i].IntervalSec = int64(MinInterval / time.Second)
+			}
 		}
 	}
 	return s, nil
