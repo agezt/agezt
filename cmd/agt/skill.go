@@ -51,6 +51,7 @@ func cmdSkill(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "  revert <id> [--json]          archive + restore lineage parent\n")
 		fmt.Fprintf(stdout, "  diff <id> [<id2>]             diff a skill's body vs its parent (or vs id2)\n")
 		fmt.Fprintf(stdout, "  export <id> [--out <file>]    write a portable, verifiable skill bundle\n")
+		fmt.Fprintf(stdout, "  export --all [--dir <dir>]    export every skill into a directory registry\n")
 		fmt.Fprintf(stdout, "  import <bundle> [--json]      verify a bundle and install it as a draft\n")
 		fmt.Fprintf(stdout, "  registry <dir> [--install <name>]   list/install verifiable bundles in a directory\n")
 		return 0

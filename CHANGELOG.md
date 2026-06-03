@@ -12,6 +12,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **`agt skill export --all [--dir <dir>]` — publish your whole skill library.**
+  Exports every skill to its own verifiable bundle file in a directory (one file
+  per skill, filenames slugified from the skill name plus a short id so versions
+  never collide). The publisher side of the skill registry: a node exports its
+  skill library as a directory another node browses with `agt skill registry` and
+  installs from with `--install`.
 - **`agt skill registry <dir> --install <name>` — install a bundle by name.**
   Resolves a skill name within a directory registry to exactly one verified
   bundle and installs it (delegating to the same verify-then-import path as

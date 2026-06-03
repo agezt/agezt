@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -81,6 +82,100 @@ func verifySkillBundle(b skillBundle) error {
 	return nil
 }
 
+// safeSkillFilename builds a stable, filesystem-safe bundle filename from a
+// skill name and id: lowercased name with non-alphanumeric runs collapsed to a
+// dash, plus a short id so two versions of the same name never collide.
+func safeSkillFilename(name, id string) string {
+	var b strings.Builder
+	prevDash := false
+	for _, r := range strings.ToLower(strings.TrimSpace(name)) {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '.' || r == '_' {
+			b.WriteRune(r)
+			prevDash = false
+			continue
+		}
+		if !prevDash {
+			b.WriteByte('-')
+			prevDash = true
+		}
+	}
+	safe := strings.Trim(b.String(), "-")
+	if safe == "" {
+		safe = "skill"
+	}
+	short := id
+	if len(short) > 12 {
+		short = short[:12]
+	}
+	return fmt.Sprintf("%s-%s.skill.json", safe, short)
+}
+
+// exportAllSkills writes every skill to its own bundle file in dir (one
+// CmdSkillList call supplies the full records, bodies included). It is the
+// publisher side of the skill registry: a node exports its whole skill library
+// as a directory another node can browse with `agt skill registry`.
+func exportAllSkills(dir string, stdout, stderr io.Writer) int {
+	c := dial(stderr)
+	if c == nil {
+		return 1
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	res, err := c.Call(ctx, controlplane.CmdSkillList, nil)
+	if err != nil {
+		fmt.Fprintf(stderr, "%s skill export: %v\n", brand.CLI, err)
+		return 1
+	}
+	rawSkills, _ := res["skills"].([]any)
+	if len(rawSkills) == 0 {
+		fmt.Fprintf(stdout, "no skills to export\n")
+		return 0
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		fmt.Fprintf(stderr, "%s skill export: create %s: %v\n", brand.CLI, dir, err)
+		return 1
+	}
+
+	written, failed := 0, 0
+	for _, raw := range rawSkills {
+		skillMap, ok := raw.(map[string]any)
+		if !ok {
+			failed++
+			continue
+		}
+		bundle, berr := buildSkillBundle(skillMap, time.Now().UnixMilli())
+		if berr != nil {
+			fmt.Fprintf(stderr, "%s skill export: skip (%v)\n", brand.CLI, berr)
+			failed++
+			continue
+		}
+		if verr := verifySkillBundle(bundle); verr != nil {
+			fmt.Fprintf(stderr, "%s skill export: skip %q (%v)\n", brand.CLI, bundle.Skill.Name, verr)
+			failed++
+			continue
+		}
+		data, merr := json.MarshalIndent(bundle, "", "  ")
+		if merr != nil {
+			failed++
+			continue
+		}
+		path := filepath.Join(dir, safeSkillFilename(bundle.Skill.Name, bundle.Skill.ID))
+		if werr := os.WriteFile(path, data, 0o600); werr != nil {
+			fmt.Fprintf(stderr, "%s skill export: write %s: %v\n", brand.CLI, path, werr)
+			failed++
+			continue
+		}
+		written++
+	}
+	fmt.Fprintf(stdout, "exported %d skill(s) to %s\n", written, dir)
+	if failed > 0 {
+		fmt.Fprintf(stderr, "%s skill export: %d skill(s) could not be exported\n", brand.CLI, failed)
+		return 1
+	}
+	fmt.Fprintf(stdout, "  browse: %s skill registry %s\n", brand.CLI, dir)
+	return 0
+}
+
 // cmdSkillExport implements `agt skill export <id> [--out <file>]` (M268) — the
 // first piece of skill portability: fetch a skill from the daemon and write it
 // as a verifiable, shareable bundle (default stdout, or a file with --out). The
@@ -89,6 +184,8 @@ func verifySkillBundle(b skillBundle) error {
 func cmdSkillExport(args []string, stdout, stderr io.Writer) int {
 	id := ""
 	outPath := ""
+	all := false
+	dir := "."
 	for i := 0; i < len(args); i++ {
 		a := args[i]
 		switch {
@@ -101,10 +198,24 @@ func cmdSkillExport(args []string, stdout, stderr io.Writer) int {
 			outPath = args[i]
 		case strings.HasPrefix(a, "--out="):
 			outPath = strings.TrimPrefix(a, "--out=")
+		case a == "--all":
+			all = true
+		case a == "--dir":
+			if i+1 >= len(args) {
+				fmt.Fprintf(stderr, "%s skill export: --dir needs a directory\n", brand.CLI)
+				return 2
+			}
+			i++
+			dir = args[i]
+		case strings.HasPrefix(a, "--dir="):
+			dir = strings.TrimPrefix(a, "--dir=")
 		case a == "-h" || a == "--help":
 			fmt.Fprintf(stdout, "usage: %s skill export <id> [--out <file>]\n", brand.CLI)
+			fmt.Fprintf(stdout, "       %s skill export --all [--dir <dir>]\n", brand.CLI)
 			fmt.Fprintf(stdout, "write a portable, verifiable skill bundle (default: to stdout)\n")
 			fmt.Fprintf(stdout, "  --out <file>  write the bundle to a file instead of stdout\n")
+			fmt.Fprintf(stdout, "  --all         export every skill, one file per skill, into --dir\n")
+			fmt.Fprintf(stdout, "  --dir <dir>   target directory for --all (default: .)\n")
 			return 0
 		case strings.HasPrefix(a, "-"):
 			fmt.Fprintf(stderr, "%s skill export: unexpected flag %q\n", brand.CLI, a)
@@ -117,8 +228,15 @@ func cmdSkillExport(args []string, stdout, stderr io.Writer) int {
 			id = a
 		}
 	}
+	if all {
+		if id != "" {
+			fmt.Fprintf(stderr, "%s skill export: --all takes no id (it exports every skill)\n", brand.CLI)
+			return 2
+		}
+		return exportAllSkills(dir, stdout, stderr)
+	}
 	if id == "" {
-		fmt.Fprintf(stderr, "%s skill export: id required\n", brand.CLI)
+		fmt.Fprintf(stderr, "%s skill export: id required (or --all)\n", brand.CLI)
 		return 2
 	}
 

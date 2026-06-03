@@ -3,6 +3,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"strings"
 	"testing"
@@ -78,6 +79,42 @@ func TestVerifySkillBundle_RejectsTampered(t *testing.T) {
 	// Missing name/id are rejected too.
 	if err := verifySkillBundle(skillBundle{Skill: skillBundleBody{ID: "x"}}); err == nil {
 		t.Error("a bundle with no name should be rejected")
+	}
+}
+
+// safeSkillFilename collapses names to a filesystem-safe slug and appends a
+// short id so two versions of the same name never collide (M272).
+func TestSafeSkillFilename(t *testing.T) {
+	const id = "abcdef0123456789abcdef" // >12 chars
+	cases := []struct{ name, want string }{
+		{"diagnose CI failures", "diagnose-ci-failures-abcdef012345.skill.json"},
+		{"rollback@v2", "rollback-v2-abcdef012345.skill.json"},
+		{"deploy_service", "deploy_service-abcdef012345.skill.json"},
+		{"  Trim  Me  ", "trim-me-abcdef012345.skill.json"},
+		{"***", "skill-abcdef012345.skill.json"}, // no usable chars → "skill"
+	}
+	for _, c := range cases {
+		if got := safeSkillFilename(c.name, id); got != c.want {
+			t.Errorf("safeSkillFilename(%q) = %q, want %q", c.name, got, c.want)
+		}
+	}
+	// Same name + different id → different filenames (no collision).
+	a := safeSkillFilename("dup", "1111111111111111")
+	b := safeSkillFilename("dup", "2222222222222222")
+	if a == b {
+		t.Errorf("same name with different ids collided: %q", a)
+	}
+}
+
+// `--all` and a positional id are mutually exclusive; the error is reported
+// before any daemon dial.
+func TestCmdSkillExport_AllRejectsID(t *testing.T) {
+	var out, errb bytes.Buffer
+	if code := cmdSkillExport([]string{"someid", "--all"}, &out, &errb); code != 2 {
+		t.Errorf("exit = %d, want 2 for --all with an id", code)
+	}
+	if !strings.Contains(errb.String(), "--all takes no id") {
+		t.Errorf("stderr = %q, want an --all/id conflict message", errb.String())
 	}
 }
 
