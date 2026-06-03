@@ -62,6 +62,7 @@ func New(b *bus.Bus, client Caller, token string) *Server {
 var apiRoutes = map[string]string{
 	"/api/status":    controlplane.CmdStatus,
 	"/api/runs":      controlplane.CmdRunsList,
+	"/api/schedules": controlplane.CmdScheduleList,
 	"/api/memory":    controlplane.CmdMemoryList,
 	"/api/world":     controlplane.CmdWorldList,
 	"/api/skills":    controlplane.CmdSkillList,

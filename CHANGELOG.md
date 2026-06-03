@@ -12,6 +12,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Web UI: a live Schedules panel.** The dashboard now shows the configured
+  autonomous schedules (`agt schedule list` over the control plane) beside Runs —
+  each with its cadence (e.g. `every 5s`), the intent, a paused marker, and a
+  colour-coded chip for its last firing's outcome. It refreshes on every streamed
+  `schedule.*` event, so a schedule firing on its own appears live alongside the
+  run it produced in the Runs panel.
 - **Web UI: a live Runs panel.** The dashboard now shows the recent runs
   (`agt runs list` over the control plane) beside Status — each with a
   colour-coded status chip (completed green, failed/abandoned red, running

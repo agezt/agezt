@@ -72,6 +72,23 @@ func TestDashboardServedAtRoot(t *testing.T) {
 	if !strings.Contains(body, `data-panel="runs"`) || !strings.Contains(body, "runs:") {
 		t.Error("dashboard missing the Runs panel")
 	}
+	if !strings.Contains(body, `data-panel="schedules"`) || !strings.Contains(body, "schedules:") {
+		t.Error("dashboard missing the Schedules panel")
+	}
+}
+
+func TestSchedulesRouteProxiesScheduleList(t *testing.T) {
+	fc := &fakeCaller{result: map[string]any{"schedules": []any{}}}
+	s, _ := newServer(t, fc, "secret")
+	req := httptest.NewRequest(http.MethodGet, "/api/schedules?token=secret", nil)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d want 200", rec.Code)
+	}
+	if len(fc.calls) != 1 || fc.calls[0] != "schedule_list" {
+		t.Errorf("expected one schedule_list call, got %v", fc.calls)
+	}
 }
 
 func TestRunsRouteProxiesRunsList(t *testing.T) {
@@ -151,7 +168,7 @@ func TestAPIReadOnly(t *testing.T) {
 	// Every GET /api route must map to a read-only command — assert the proxy
 	// never issues anything outside the known read set.
 	readOnly := map[string]bool{
-		"status": true, "runs_list": true, "memory_list": true, "world_list": true,
+		"status": true, "runs_list": true, "schedule_list": true, "memory_list": true, "world_list": true,
 		"skill_list": true, "inbox": true, "reflect_show": true, "approvals": true,
 	}
 	for path := range apiRoutes {
