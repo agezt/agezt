@@ -12,6 +12,15 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **`agt peers models [<name>]` — mesh model discovery** (M201) — a new verb on the M8
+  mesh command that fetches each configured peer's routable model set (and its default)
+  from the peer's `GET /api/v1/models`, so an operator can see *which* node can serve a
+  given model before dispatching a `remote_run` — previously `agt peers` only reported a
+  health summary with a model *count*, not the actual ids. Queries all peers (sorted) or a
+  single named one; `--json` for scripting; exits non-zero if any queried peer is
+  unreachable. The response is bounded-read (1 MiB `io.LimitReader`, shared with the M200
+  health cap via the renamed `maxPeerResponseBytes`) and tokens are never printed. See
+  `.project/PHASE-M201-PEER-MODELS-DISCOVERY-REPORT.md`.
 - **`agt run --dry-run` warns when strict pricing would refuse the run** (M195) — with
   `AGEZT_PRICING_STRICT=on`, a run on a model with no known price is refused before any
   provider call; the dry-run now surfaces that ("…would be REFUSED before any provider

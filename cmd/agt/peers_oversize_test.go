@@ -13,7 +13,7 @@ import (
 
 // TestPeers_OversizedHealthBody proves `agt peers` bounds a peer's health
 // response: a peer that returns a health doc whose JSON value runs past
-// maxPeerHealthBytes is treated as unreachable (the read is cut off and the decode
+// maxPeerResponseBytes is treated as unreachable (the read is cut off and the decode
 // fails) instead of being ingested unbounded into the CLI's memory.
 //
 // The body is a single, valid-prefix JSON object with a giant `version` string. A
@@ -29,7 +29,7 @@ func TestPeers_OversizedHealthBody(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		// {"status":"ok","version":"xxxx…(2 MiB)…","model_count":1}
 		_, _ = w.Write([]byte(`{"status":"ok","version":"`))
-		huge := bytes.Repeat([]byte("x"), maxPeerHealthBytes+(1<<20))
+		huge := bytes.Repeat([]byte("x"), maxPeerResponseBytes+(1<<20))
 		_, _ = w.Write(huge)
 		_, _ = w.Write([]byte(`","model_count":1}`))
 	}))
