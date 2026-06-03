@@ -79,6 +79,14 @@ type writeRoute struct {
 	args []string
 }
 
+// readArgsRoutes are READ-only commands that take query arguments (unlike
+// apiRoutes, which proxy a parameterless read). They are served over GET — they
+// never mutate — and only the allowlisted args are forwarded. Used by the run
+// detail view, which fetches one run's events by correlation_id.
+var readArgsRoutes = map[string]writeRoute{
+	"/api/journal": {controlplane.CmdJournalGrep, []string{"correlation_id", "kind", "limit"}},
+}
+
 // writeRoutes is the operator-action allowlist: the big red button (halt),
 // its inverse (resume), and HITL approval resolution (decide). Each is
 // POST-only (see writeProxy).
@@ -100,6 +108,9 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/events", s.auth(s.handleEvents))
 	for path, cmd := range apiRoutes {
 		mux.HandleFunc(path, s.auth(s.proxy(cmd)))
+	}
+	for path, rr := range readArgsRoutes {
+		mux.HandleFunc(path, s.auth(s.readArgsProxy(rr)))
 	}
 	for path, wr := range writeRoutes {
 		mux.HandleFunc(path, s.auth(s.writeProxy(wr)))
@@ -205,6 +216,29 @@ func (s *Server) proxy(cmd string) http.HandlerFunc {
 		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 		defer cancel()
 		res, err := s.client.Call(ctx, cmd, nil)
+		if err != nil {
+			writeJSON(w, http.StatusBadGateway, map[string]any{"error": err.Error()})
+			return
+		}
+		writeJSON(w, http.StatusOK, res)
+	}
+}
+
+// readArgsProxy returns a GET handler for one allowlisted READ command that
+// takes query arguments. It forwards only the route's allowlisted args (so the
+// browser cannot pass arbitrary parameters) and relays the JSON result. Unlike
+// writeProxy it permits GET, because the command is read-only.
+func (s *Server) readArgsProxy(rr writeRoute) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		args := map[string]any{}
+		for _, k := range rr.args {
+			if v := strings.TrimSpace(r.URL.Query().Get(k)); v != "" {
+				args[k] = v
+			}
+		}
+		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+		defer cancel()
+		res, err := s.client.Call(ctx, rr.cmd, args)
 		if err != nil {
 			writeJSON(w, http.StatusBadGateway, map[string]any{"error": err.Error()})
 			return

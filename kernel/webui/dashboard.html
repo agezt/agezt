@@ -73,6 +73,23 @@
     background: var(--panel2); margin-bottom: 8px; }
   svg.wgraph { width: 100%; height: 240px; display: block; }
   svg.wgraph text { user-select: none; pointer-events: none; }
+  .item.click { cursor: pointer; }
+  .item.click:hover { background: var(--panel2); border-radius: 4px; }
+  .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: none;
+    align-items: flex-start; justify-content: center; z-index: 10; padding: 40px 16px; }
+  .modal-bg.show { display: flex; }
+  .modal { background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+    width: 100%; max-width: 780px; max-height: 80vh; overflow: auto; }
+  .modal > h2 { margin: 0; padding: 10px 14px; font-size: 13px; position: sticky; top: 0;
+    background: var(--panel2); border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 8px; }
+  .modal > h2 button { margin-left: auto; background: none; border: 1px solid var(--line);
+    color: var(--dim); border-radius: 4px; cursor: pointer; padding: 1px 8px; }
+  .modal .mbody { padding: 10px 14px; }
+  .arc { font-family: ui-monospace, monospace; font-size: 12px; }
+  .arc .ev { display: flex; gap: 8px; padding: 2px 0; border-bottom: 1px solid var(--panel2); white-space: nowrap; }
+  .arc .seq { color: var(--dim); min-width: 28px; text-align: right; }
+  .arc .kind { color: var(--accent); }
+  .arc .det { color: var(--dim); white-space: pre-wrap; }
 </style>
 </head>
 <body>
@@ -99,6 +116,13 @@
   <section class="panel"><h2>Approvals <button data-panel="approvals">↻</button></h2><div class="body" id="approvals"></div></section>
   <section class="panel"><h2>Inbox <button data-panel="inbox">↻</button></h2><div class="body" id="inbox"></div></section>
   <section class="panel"><h2>Reflection <button data-panel="reflect">↻</button></h2><div class="body" id="reflect"></div></section>
+</div>
+
+<div class="modal-bg" id="modalBg">
+  <div class="modal">
+    <h2 id="modalTitle">Run detail <button id="modalClose">✕</button></h2>
+    <div class="mbody" id="modalBody"></div>
+  </div>
 </div>
 
 <script>
@@ -297,7 +321,7 @@ const renderers = {
     const frag = document.createDocumentFragment();
     frag.appendChild(el("div", "count muted", rs.length + " run(s)"));
     return listInto(frag, rs, (r) => {
-      const row = el("div", "item");
+      const row = el("div", "item click");
       const st = r.status || "?";
       row.appendChild(statusChip(r.reason ? st + "·" + r.reason : st));
       if (r.parent_correlation) row.appendChild(muted("↳"));
@@ -307,6 +331,7 @@ const renderers = {
       if (r.iters != null) bits.push(r.iters + " it");
       if (r.spent_mc) bits.push("$" + (r.spent_mc / 1e9).toFixed(4));
       if (bits.length) row.appendChild(muted(bits.join(" · ")));
+      if (r.correlation_id) row.addEventListener("click", () => openRun(r));
       return row;
     }, "no runs yet");
   },
@@ -429,6 +454,67 @@ const renderers = {
     return pre(d);
   },
 };
+
+// ---- run detail modal (click a run → its event arc) ----
+const modalBg = document.getElementById("modalBg");
+const modalBody = document.getElementById("modalBody");
+const modalTitle = document.getElementById("modalTitle");
+const modalCloseBtn = document.getElementById("modalClose");
+
+function closeModal() { modalBg.classList.remove("show"); clear(modalBody); }
+modalCloseBtn.addEventListener("click", closeModal);
+modalBg.addEventListener("click", (e) => { if (e.target === modalBg) closeModal(); });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal(); });
+
+// arcDetail extracts a short, human line for a run event (tool name + result,
+// budget cost, final answer, failure reason) — best-effort over the payload.
+function arcDetail(ev) {
+  const p = ev.payload || ev.Payload || {};
+  switch (ev.kind) {
+    case "tool.invoked": return (p.tool || "") + (p.input ? " " + JSON.stringify(p.input).slice(0, 80) : "");
+    case "tool.result": return (p.tool || "") + (p.error ? " ✗ " : " ✓ ") + String(p.output || p.result || "").slice(0, 80);
+    case "budget.consumed": return (p.model || "") + (p.cost_microcents ? " $" + (p.cost_microcents / 1e9).toFixed(4) : "");
+    case "task.completed": return String(p.answer || "").slice(0, 120);
+    case "task.failed": return "reason: " + (p.reason || p.error || "");
+    case "llm.response": return p.text_chars != null ? p.text_chars + " chars" : "";
+    default: return ev.subject || "";
+  }
+}
+
+async function openRun(r) {
+  modalTitle.firstChild.textContent =
+    (r.status || "") + " · " + (r.intent || r.correlation_id) + " ";
+  clear(modalBody);
+  modalBody.appendChild(muted("loading run events…"));
+  modalBg.classList.add("show");
+  try {
+    const url = "/api/journal" + qs + "&correlation_id=" + encodeURIComponent(r.correlation_id);
+    const res = await fetch(url, { headers: { "Accept": "application/json" } });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const data = await res.json();
+    const evs = data.events || data.Events || [];
+    clear(modalBody);
+    const head = el("div", "count muted",
+      evs.length + " event(s) · " + (r.duration_ms != null ? r.duration_ms + "ms · " : "") +
+      (r.iters != null ? r.iters + " iters" : "") +
+      (r.spent_mc ? " · $" + (r.spent_mc / 1e9).toFixed(4) : ""));
+    modalBody.appendChild(head);
+    const arc = el("div", "arc");
+    for (const ev of evs) {
+      const row = el("div", "ev");
+      row.appendChild(el("span", "seq", ev.seq != null ? ev.seq : ""));
+      row.appendChild(el("span", "kind", ev.kind || ""));
+      const det = arcDetail(ev);
+      if (det) row.appendChild(el("span", "det", det));
+      arc.appendChild(row);
+    }
+    if (!evs.length) arc.appendChild(muted("no events found for this run"));
+    modalBody.appendChild(arc);
+  } catch (e) {
+    clear(modalBody);
+    modalBody.appendChild(el("span", "err", e.message));
+  }
+}
 
 // ---- operator actions (halt / resume) ----
 async function act(path, confirmMsg, btn) {

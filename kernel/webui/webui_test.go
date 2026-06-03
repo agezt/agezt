@@ -75,6 +75,32 @@ func TestDashboardServedAtRoot(t *testing.T) {
 	if !strings.Contains(body, `data-panel="schedules"`) || !strings.Contains(body, "schedules:") {
 		t.Error("dashboard missing the Schedules panel")
 	}
+	// Clicking a run opens a detail modal that fetches its event arc.
+	if !strings.Contains(body, "function openRun") || !strings.Contains(body, "/api/journal") {
+		t.Error("dashboard missing the run-detail modal wiring")
+	}
+}
+
+func TestJournalRouteForwardsCorrelationOnly(t *testing.T) {
+	fc := &fakeCaller{result: map[string]any{"events": []any{}}}
+	s, _ := newServer(t, fc, "secret")
+	// correlation_id is allowlisted; a stray param must be dropped.
+	req := httptest.NewRequest(http.MethodGet,
+		"/api/journal?token=secret&correlation_id=run-1&evil=rm", nil)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d want 200", rec.Code)
+	}
+	if len(fc.calls) != 1 || fc.calls[0] != "journal_grep" {
+		t.Fatalf("expected one journal_grep call, got %v", fc.calls)
+	}
+	if fc.lastArgs["correlation_id"] != "run-1" {
+		t.Errorf("correlation_id not forwarded: %v", fc.lastArgs)
+	}
+	if _, leaked := fc.lastArgs["evil"]; leaked {
+		t.Errorf("non-allowlisted arg leaked through: %v", fc.lastArgs)
+	}
 }
 
 func TestSchedulesRouteProxiesScheduleList(t *testing.T) {

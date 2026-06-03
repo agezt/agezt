@@ -12,6 +12,14 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Web UI: click a run for its event arc.** Each row in the Runs panel is now
+  clickable and opens a detail modal showing that run's full journaled arc —
+  every step in order (task.received, llm.request/response, policy.decision,
+  `tool.invoked` with its input, `tool.result` with ✓/✗ and output, per-call
+  budget, and the final answer or failure reason). It fetches the run's events
+  by `correlation_id` through a new read-only, arg-allowlisted `/api/journal`
+  route (GET, forwarding only `correlation_id`/`kind`/`limit`). Esc or a click
+  outside closes it.
 - **Web UI: a live Schedules panel.** The dashboard now shows the configured
   autonomous schedules (`agt schedule list` over the control plane) beside Runs —
   each with its cadence (e.g. `every 5s`), the intent, a paused marker, and a
