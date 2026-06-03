@@ -728,13 +728,25 @@ func (s *Store) RunNow(id string) (bool, error) {
 	return false, nil
 }
 
-// Due returns the entries whose next-run time has arrived, advancing each one's
-// next-run and last-run and persisting. Disabled entries are never due.
+// Due returns the entries whose next-run time has arrived. Disabled entries are
+// never due.
+//
+// Recurring entries (interval/daily/window) advance eagerly: their NextRunUnix is
+// moved to the next slot and persisted here, before the run launches. A crash
+// during the run therefore SKIPS that one slot (at-most-once), which self-corrects
+// at the next slot — re-running a stale recurring slot after a restart is more
+// disruptive than skipping it.
+//
+// One-shot entries (ModeOnce) are crash-safe (at-least-once): Due returns them but
+// does NOT remove or advance them. The entry stays in the store, enabled and due,
+// until its run COMPLETES, at which point the engine calls CompleteFiring to remove
+// it (M199). So a crash mid-run leaves the one-shot in place to re-fire on restart
+// instead of silently vanishing. The engine's in-flight guard (the running map)
+// prevents a duplicate fire across ticks while the single run is still going.
 func (s *Store) Due(now time.Time) []Entry {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	var due []Entry
-	var fired map[string]bool // one-shot entries to remove after firing
 	changed := false
 	for _, e := range s.entries {
 		if !e.Enabled {
@@ -743,31 +755,45 @@ func (s *Store) Due(now time.Time) []Entry {
 		if now.Unix() < e.NextRunUnix {
 			continue
 		}
-		e.LastRunUnix = now.Unix()
 		if e.Mode == ModeOnce {
-			if fired == nil {
-				fired = make(map[string]bool)
-			}
-			fired[e.ID] = true // self-removes; no next run
-		} else {
-			e.NextRunUnix = e.advance(now)
+			// Crash-safe one-shot: leave it untouched; removal is deferred to
+			// CompleteFiring after the run finishes.
+			due = append(due, *e)
+			continue
 		}
+		e.LastRunUnix = now.Unix()
+		e.NextRunUnix = e.advance(now)
 		changed = true
 		due = append(due, *e)
-	}
-	if len(fired) > 0 {
-		kept := s.entries[:0:0]
-		for _, e := range s.entries {
-			if !fired[e.ID] {
-				kept = append(kept, e)
-			}
-		}
-		s.entries = kept
 	}
 	if changed {
 		_ = s.save()
 	}
 	return due
+}
+
+// CompleteFiring is called by the engine after a fired entry's run has finished.
+// For a one-shot (ModeOnce) it removes the entry from the store and persists — this
+// is what makes one-shots crash-safe: the entry survives in the store (enabled and
+// due) for the entire duration of its run, so a crash before completion re-fires it
+// on restart, and it is removed only once the run has actually run to completion
+// (whether it succeeded or errored, so a permanently-failing one-shot cannot
+// retry-storm). For recurring entries this is a no-op: Due already advanced them.
+// Returns whether an entry was removed.
+func (s *Store) CompleteFiring(id string) (bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for i, e := range s.entries {
+		if e.ID != id {
+			continue
+		}
+		if e.Mode != ModeOnce {
+			return false, nil
+		}
+		s.entries = append(s.entries[:i], s.entries[i+1:]...)
+		return true, s.save()
+	}
+	return false, nil
 }
 
 // SyncEnv replaces all SourceEnv entries with the given jobs (idempotent across
@@ -894,6 +920,13 @@ func (e *Engine) fireDue(ctx context.Context, now time.Time) {
 			fmt.Fprintf(e.log, "schedule: firing %q (%s)\n", short(ent.Intent), ent.Cadence())
 			if err := e.run(ctx, ent.ID, ent.Intent, ent.Model); err != nil {
 				fmt.Fprintf(e.log, "schedule: %q failed: %v\n", short(ent.Intent), err)
+			}
+			// A one-shot is removed only after its run completes, so a crash mid-run
+			// leaves it in the store to re-fire on restart (M199). This runs before
+			// the deferred running.Delete, so no tick can re-fire it in the gap
+			// between removal and clearing the in-flight guard.
+			if _, err := e.store.CompleteFiring(ent.ID); err != nil {
+				fmt.Fprintf(e.log, "schedule: completing %q failed: %v\n", short(ent.Intent), err)
 			}
 		}()
 	}

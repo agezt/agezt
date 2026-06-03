@@ -343,6 +343,19 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   `.project/PHASE-M129-OBSERVABILITY-TENANT-FLAG-REPORT.md`.
 
 ### Fixed
+- **One-shot schedules are now crash-safe (at-least-once)** (M199) — a `once` schedule
+  (`agt schedule once …`) was removed from the store the instant `Store.Due` reported it as
+  due, *before* its run launched. A daemon crash in the run window therefore dropped the
+  one-shot silently: it never ran and was already gone from the store, so a restart could
+  not recover it. `Due` now leaves a one-shot in place (enabled and due) for the whole
+  duration of its run; the engine removes it via the new `Store.CompleteFiring` only after
+  the run completes (success or error, so a permanently-failing one-shot cannot retry-storm).
+  A crash mid-run thus re-fires the one-shot on restart instead of dropping it, and the
+  engine's in-flight guard still prevents a duplicate fire across ticks. Recurring
+  (interval/daily/window) schedules keep their deliberate at-most-once advance — a slot
+  missed across a crash self-corrects at the next slot, which is less disruptive than
+  re-running a stale recurring slot on restart. See
+  `.project/PHASE-M199-CRASH-SAFE-ONESHOT-REPORT.md`.
 - **HTTP request bodies are now bounded on the network-exposed API surfaces** (M198) — the
   REST control surface (`POST /api/v1/runs`) and the OpenAI-compatible surface
   (`/v1/chat/completions`, `/v1/responses`) decoded `r.Body` with `json.NewDecoder` and no

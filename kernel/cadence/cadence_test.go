@@ -411,7 +411,7 @@ func TestStore_Daily_SkipsDisallowedWeekdays(t *testing.T) {
 	}
 }
 
-func TestStore_Once_FiresOnceAndSelfRemoves(t *testing.T) {
+func TestStore_Once_FiresAndCompletes(t *testing.T) {
 	s := mustStore(t)
 	now := time.Date(2026, 5, 31, 8, 0, 0, 0, time.UTC)
 	at := time.Date(2026, 5, 31, 8, 30, 0, 0, time.UTC)
@@ -429,13 +429,25 @@ func TestStore_Once_FiresOnceAndSelfRemoves(t *testing.T) {
 	if len(s.Due(now)) != 0 {
 		t.Fatal("should not be due before its time")
 	}
-	// Fires at 08:30 and removes itself from the store.
+	// Fires at 08:30 — but is NOT removed by Due (crash-safe; removal is deferred
+	// to CompleteFiring after the run completes, M199).
 	due := s.Due(at.Add(time.Second))
 	if len(due) != 1 || due[0].ID != e.ID {
 		t.Fatalf("should fire once: %+v", due)
 	}
+	if s.Count() != 1 {
+		t.Errorf("one-shot must survive Due until its run completes, count = %d", s.Count())
+	}
+	// Still due until completed (this is why the engine's in-flight guard exists).
+	if len(s.Due(at.Add(time.Second))) != 1 {
+		t.Error("one-shot must stay due until CompleteFiring removes it")
+	}
+	// Completing the firing removes it.
+	if ok, err := s.CompleteFiring(e.ID); err != nil || !ok {
+		t.Fatalf("CompleteFiring: ok=%v err=%v", ok, err)
+	}
 	if s.Count() != 0 {
-		t.Errorf("one-shot should self-remove, count = %d", s.Count())
+		t.Errorf("after completion the one-shot is removed, count = %d", s.Count())
 	}
 	// Never fires again.
 	if len(s.Due(at.Add(2*time.Hour))) != 0 {
