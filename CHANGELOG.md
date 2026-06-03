@@ -12,6 +12,11 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Web UI: a run-stats panel with an outcome bar.** Beside the per-run list, a
+  Stats panel shows the aggregate (`agt runs stats`): run count, success rate,
+  total spend, and a proportional horizontal bar of outcomes (completed green,
+  running accent, failed red) — an at-a-glance read of fleet health. It refreshes
+  live on `task.*` events alongside the Runs panel.
 - **Web UI: click a run for its event arc.** Each row in the Runs panel is now
   clickable and opens a detail modal showing that run's full journaled arc —
   every step in order (task.received, llm.request/response, policy.decision,

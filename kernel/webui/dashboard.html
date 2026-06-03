@@ -73,6 +73,11 @@
     background: var(--panel2); margin-bottom: 8px; }
   svg.wgraph { width: 100%; height: 240px; display: block; }
   svg.wgraph text { user-select: none; pointer-events: none; }
+  .obar { display: flex; height: 10px; border-radius: 5px; overflow: hidden;
+    background: var(--panel2); margin: 8px 0; border: 1px solid var(--line); }
+  .oseg.ok { background: var(--good); }
+  .oseg.run { background: var(--accent); }
+  .oseg.bad { background: var(--bad); }
   .item.click { cursor: pointer; }
   .item.click:hover { background: var(--panel2); border-radius: 4px; }
   .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: none;
@@ -109,6 +114,7 @@
 
   <section class="panel"><h2>Status <button data-panel="status">↻</button></h2><div class="body" id="status"></div></section>
   <section class="panel"><h2>Runs <button data-panel="runs">↻</button></h2><div class="body" id="runs"></div></section>
+  <section class="panel"><h2>Stats <button data-panel="stats">↻</button></h2><div class="body" id="stats"></div></section>
   <section class="panel"><h2>Schedules <button data-panel="schedules">↻</button></h2><div class="body" id="schedules"></div></section>
   <section class="panel"><h2>World <button data-panel="world">↻</button></h2><div class="body" id="world"></div></section>
   <section class="panel"><h2>Skills <button data-panel="skills">↻</button></h2><div class="body" id="skills"></div></section>
@@ -148,6 +154,22 @@ function chip(text) { return el("span", "chip", text); }
 function statusChip(status) {
   const s = (status || "").toLowerCase().replace(/[^a-z]/g, "");
   return el("span", "chip s-" + s, status || "?");
+}
+// outcomeBar renders a flex bar of run outcomes (completed green, running accent,
+// failed red), each segment sized by its share. An all-zero bar stays empty.
+function outcomeBar(completed, failed, running) {
+  const bar = el("div", "obar");
+  const seg = (n, cls, label) => {
+    if (n <= 0) return;
+    const s = el("div", "oseg " + cls);
+    s.style.flexGrow = String(n);
+    s.title = label + ": " + n;
+    bar.appendChild(s);
+  };
+  seg(completed, "ok", "completed");
+  seg(running, "run", "running");
+  seg(failed, "bad", "failed");
+  return bar;
 }
 
 // --- SVG builders for the world node-link graph (same textContent discipline) ---
@@ -240,17 +262,17 @@ function addEvent(ev) {
 // periodic tick. Debounced per panel to coalesce bursts (a run emits several
 // events in a row).
 const _refreshTimers = {};
-function liveRefresh(kind) {
-  let panel = null;
-  if (kind.startsWith("task.")) panel = "runs";
-  else if (kind.startsWith("schedule.")) panel = "schedules";
-  else if (kind.startsWith("skill.")) panel = "skills";
-  else if (kind.startsWith("memory.")) panel = "memory";
-  else if (kind.startsWith("world.")) panel = "world";
-  else if (kind.startsWith("approval.") || kind === "tool.awaiting_approval") panel = "approvals";
-  if (!panel) return;
+function refreshSoon(panel) {
   clearTimeout(_refreshTimers[panel]);
   _refreshTimers[panel] = setTimeout(() => loadPanel(panel), 400);
+}
+function liveRefresh(kind) {
+  if (kind.startsWith("task.")) { refreshSoon("runs"); refreshSoon("stats"); }
+  else if (kind.startsWith("schedule.")) refreshSoon("schedules");
+  else if (kind.startsWith("skill.")) refreshSoon("skills");
+  else if (kind.startsWith("memory.")) refreshSoon("memory");
+  else if (kind.startsWith("world.")) refreshSoon("world");
+  else if (kind.startsWith("approval.") || kind === "tool.awaiting_approval") refreshSoon("approvals");
 }
 
 function connect() {
@@ -334,6 +356,21 @@ const renderers = {
       if (r.correlation_id) row.addEventListener("click", () => openRun(r));
       return row;
     }, "no runs yet");
+  },
+
+  stats: (d) => {
+    const frag = document.createDocumentFragment();
+    const total = d.total || 0;
+    frag.appendChild(kv([
+      ["runs", total],
+      ["success", d.terminal ? Math.round((d.success_rate || 0) * 100) + "%" : "—"],
+      ["spend", "$" + ((d.spent_microcents || 0) / 1e9).toFixed(4)],
+    ]));
+    frag.appendChild(outcomeBar(d.completed || 0, d.failed || 0, d.running || 0));
+    const parts = [(d.completed || 0) + " completed", (d.failed || 0) + " failed", (d.running || 0) + " running"];
+    if (d.abandoned) parts.push(d.abandoned + " abandoned");
+    frag.appendChild(el("div", "count muted", parts.join(" · ")));
+    return frag;
   },
 
   schedules: (d) => {
@@ -540,10 +577,10 @@ document.getElementById("resumeBtn").addEventListener("click", (e) =>
 document.querySelectorAll("button[data-panel]").forEach((b) =>
   b.addEventListener("click", () => loadPanel(b.dataset.panel)));
 connect();
-const PANELS = ["status", "runs", "schedules", "world", "skills", "memory", "approvals", "inbox", "reflect"];
+const PANELS = ["status", "runs", "stats", "schedules", "world", "skills", "memory", "approvals", "inbox", "reflect"];
 for (const p of PANELS) loadPanel(p);
 // Light periodic refresh of the cheap read panels (the feed is already live).
-setInterval(() => { for (const p of ["status", "runs", "schedules", "approvals"]) loadPanel(p); }, 10000);
+setInterval(() => { for (const p of ["status", "runs", "stats", "schedules", "approvals"]) loadPanel(p); }, 10000);
 </script>
 </body>
 </html>

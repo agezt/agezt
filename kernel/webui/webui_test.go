@@ -79,6 +79,23 @@ func TestDashboardServedAtRoot(t *testing.T) {
 	if !strings.Contains(body, "function openRun") || !strings.Contains(body, "/api/journal") {
 		t.Error("dashboard missing the run-detail modal wiring")
 	}
+	if !strings.Contains(body, `data-panel="stats"`) || !strings.Contains(body, "stats:") {
+		t.Error("dashboard missing the Stats panel")
+	}
+}
+
+func TestStatsRouteProxiesRunsStats(t *testing.T) {
+	fc := &fakeCaller{result: map[string]any{"total": 0}}
+	s, _ := newServer(t, fc, "secret")
+	req := httptest.NewRequest(http.MethodGet, "/api/stats?token=secret", nil)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d want 200", rec.Code)
+	}
+	if len(fc.calls) != 1 || fc.calls[0] != "runs_stats" {
+		t.Errorf("expected one runs_stats call, got %v", fc.calls)
+	}
 }
 
 func TestJournalRouteForwardsCorrelationOnly(t *testing.T) {
@@ -194,7 +211,7 @@ func TestAPIReadOnly(t *testing.T) {
 	// Every GET /api route must map to a read-only command — assert the proxy
 	// never issues anything outside the known read set.
 	readOnly := map[string]bool{
-		"status": true, "runs_list": true, "schedule_list": true, "memory_list": true, "world_list": true,
+		"status": true, "runs_list": true, "runs_stats": true, "schedule_list": true, "memory_list": true, "world_list": true,
 		"skill_list": true, "inbox": true, "reflect_show": true, "approvals": true,
 	}
 	for path := range apiRoutes {
