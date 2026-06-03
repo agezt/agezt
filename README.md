@@ -17,7 +17,7 @@ Agezt nodes** back — with capability-aware **auto-routing**, **failover**, and
 bounded delegation **loop guard** — and now each **tenant federates to its own
 peer set**; events push out via **HMAC-signed webhooks**. See
 [CHANGELOG.md](CHANGELOG.md).
-**Tests:** 1848 passing across 67 packages.
+**Tests:** 1848 passing across 68 packages.
 **Dependencies:** one (`lukechampine.com/blake3`) + one transitive.
 
 ## What you get

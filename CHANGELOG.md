@@ -37,6 +37,11 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   (the answer's text deltas, which tool the agent invoked, and the run's terminal
   event) so a consumer renders live progress without hand-parsing event payloads
   or importing kernel internals.
+- **SDK example program + godoc examples.** A runnable
+  `examples/agezt-run` connects to the daemon, streams a run live (printing the
+  answer as it generates and noting tool calls), then lists recent runs — a
+  copy-paste starting point for embedding Agezt. Godoc `Example` functions on the
+  SDK package document `Run`, `RunStream`, `Runs`, and approvals.
 
 ### Fixed
 - **A single oversized ACP message can no longer balloon memory.** Both the ACP
