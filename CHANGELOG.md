@@ -22,6 +22,10 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   refused with the `custom.json` hint.
 
 ### Security
+- **Redaction extended to the Perplexity (`pplx-…`) and Fireworks (`fw_…`) key
+  formats** — the two OpenAI-compatible vendors made first-class in this release
+  whose keys the earlier rule set didn't catch. (Cerebras `csk-…` is already
+  covered by the `sk-…` rule matching its substring.)
 - **Plugin stderr is now redacted before it reaches the daemon log.** A
   third-party plugin's stderr is captured and written to the operator's log via
   the plugin logger — a direct path the bus redactor (journaled events only)

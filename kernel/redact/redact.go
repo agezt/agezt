@@ -15,8 +15,9 @@
 //     mid-string and nested.
 //   - Patterns: high-confidence secret *formats* (OpenAI/Anthropic `sk-…`, AWS
 //     `AKIA…`, GitHub `ghp_…`, Slack `xox…`/`xapp-…`, Telegram bot tokens,
-//     Groq `gsk_…`, xAI `xai-…`, Google `AIza…`, bearer tokens, JWTs, PEM
-//     private-key blocks). These catch secrets the daemon was never told about.
+//     Groq `gsk_…`, xAI `xai-…`, Perplexity `pplx-…`, Fireworks `fw_…`,
+//     Google `AIza…`, bearer tokens, JWTs, PEM private-key blocks). These catch
+//     secrets the daemon was never told about.
 //
 // Redaction is a pure, deterministic function of (input, literal set): the same
 // input always yields the same output, so a redacted payload hashes stably and
@@ -78,6 +79,12 @@ var namedPatterns = []namedPattern{
 	{"groq-key", regexp.MustCompile(`gsk_[A-Za-z0-9]{20,}`)},
 	// xAI (Grok) API keys: xai-… — a first-class compat provider (M228).
 	{"xai-key", regexp.MustCompile(`xai-[A-Za-z0-9]{20,}`)},
+	// Perplexity API keys: pplx-… — a first-class compat provider (M231). The
+	// sk- rule doesn't cover it; Cerebras csk-… IS covered (its sk- substring
+	// matches), so only pplx-/fw_ needed adding.
+	{"perplexity-key", regexp.MustCompile(`pplx-[A-Za-z0-9]{20,}`)},
+	// Fireworks AI API keys: fw_… — a first-class compat provider (M231).
+	{"fireworks-key", regexp.MustCompile(`fw_[A-Za-z0-9]{20,}`)},
 	// Google API key (AIza + ≥35; open-ended so a longer variant isn't left with a
 	// trailing tail unredacted — M170).
 	{"google-api-key", regexp.MustCompile(`AIza[0-9A-Za-z_-]{35,}`)},
