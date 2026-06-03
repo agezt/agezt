@@ -172,7 +172,12 @@ func (p *Provider) Complete(ctx context.Context, req agent.CompletionRequest) (*
 	if httpResp.StatusCode/100 != 2 {
 		return nil, &APIError{Status: httpResp.StatusCode, Body: string(respBytes)}
 	}
-	return decodeResponse(respBytes)
+	resp, err := decodeResponse(respBytes)
+	if err != nil {
+		return nil, err
+	}
+	restoreToolCallNames(resp, reverseToolNames(req.Tools))
+	return resp, nil
 }
 
 // ----- dialect translation (canonical ↔ OpenAI Chat Completions) -----
@@ -279,6 +284,54 @@ type oaChoice struct {
 	FinishReason string    `json:"finish_reason"`
 }
 
+// sanitizeToolName conforms a tool name to OpenAI's required pattern
+// ^[a-zA-Z0-9_-]+$ by replacing every other rune with '_'. Agezt exposes dotted
+// tool names (e.g. "browser.read"); OpenAI and strict openai-compatible gateways
+// reject those with a 400 ("does not match pattern") — which the governor's mock
+// fallback would otherwise silently mask. The change is reversed on the response
+// via reverseToolNames, so a tool_call still routes to the real tool.
+func sanitizeToolName(name string) string {
+	var b strings.Builder
+	b.Grow(len(name))
+	for _, r := range name {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9', r == '_', r == '-':
+			b.WriteRune(r)
+		default:
+			b.WriteByte('_')
+		}
+	}
+	return b.String()
+}
+
+// reverseToolNames maps each tool's sanitized wire name back to its original.
+// Only names the sanitiser actually changes are included; nil when none change.
+func reverseToolNames(tools []agent.ToolDef) map[string]string {
+	var m map[string]string
+	for _, t := range tools {
+		if s := sanitizeToolName(t.Name); s != t.Name {
+			if m == nil {
+				m = make(map[string]string, 2)
+			}
+			m[s] = t.Name
+		}
+	}
+	return m
+}
+
+// restoreToolCallNames rewrites a response's tool-call names from their sanitized
+// wire form back to the original tool names, in place.
+func restoreToolCallNames(resp *agent.CompletionResponse, rev map[string]string) {
+	if resp == nil || len(rev) == 0 {
+		return
+	}
+	for i, tc := range resp.Message.ToolCalls {
+		if orig, ok := rev[tc.Name]; ok {
+			resp.Message.ToolCalls[i].Name = orig
+		}
+	}
+}
+
 func encodeRequest(model, system string, msgs []agent.Message, tools []agent.ToolDef, maxTok int) ([]byte, error) {
 	wire := oaRequest{
 		Model:     model,
@@ -306,7 +359,7 @@ func encodeRequest(model, system string, msgs []agent.Message, tools []agent.Too
 		wire.Tools = append(wire.Tools, oaTool{
 			Type: "function",
 			Function: oaToolFnDef{
-				Name:        t.Name,
+				Name:        sanitizeToolName(t.Name),
 				Description: t.Description,
 				Parameters:  params,
 			},
@@ -362,7 +415,7 @@ func canonicalToOA(m agent.Message) (*oaMessage, error) {
 				ID:   tc.ID,
 				Type: "function",
 				Function: oaToolCallFn{
-					Name:      tc.Name,
+					Name:      sanitizeToolName(tc.Name),
 					Arguments: string(args),
 				},
 			})

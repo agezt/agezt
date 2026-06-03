@@ -151,6 +151,19 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   SDK package document `Run`, `RunStream`, `Runs`, and approvals.
 
 ### Fixed
+- **OpenAI-compatible providers no longer reject every tool-bearing request.**
+  Agezt exposes a dotted tool name (`browser.read`), but OpenAI and strict
+  openai-compatible gateways require tool names to match `^[a-zA-Z0-9_-]+$` and
+  return a 400 ("does not match pattern") for the whole request. With the
+  always-on mock fallback catching that error, **every run against a real
+  OpenAI-compatible provider silently fell back to the mock** — invisible unless
+  you inspected `provider.fallback` in the journal. The openai adapter now
+  sanitises tool names on the wire (`browser.read` → `browser_read`, in both the
+  streaming and non-streaming request, and in assistant tool-call history) and
+  maps the name back on the response so the tool call still routes to the real
+  tool. Verified end-to-end against a live gateway (gpt-5.5): a multi-turn
+  tool-using run completed on the real provider with real token spend and **no**
+  fallback.
 - **`agt skill import` of a skill with no triggers/tools no longer errors.** The
   CLI sent the optional `triggers` / `tools_required` args as an explicit JSON
   `null` when the skill had none, which the daemon's strict array decoder

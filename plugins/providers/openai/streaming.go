@@ -95,7 +95,12 @@ func (p *Provider) CompleteStream(ctx context.Context, req agent.CompletionReque
 		return nil, &APIError{Status: httpResp.StatusCode, Body: string(raw)}
 	}
 
-	return parseStream(httpResp.Body, onChunk)
+	resp, err := parseStream(httpResp.Body, onChunk)
+	if err != nil {
+		return nil, err
+	}
+	restoreToolCallNames(resp, reverseToolNames(req.Tools))
+	return resp, nil
 }
 
 // encodeStreamRequest mirrors encodeRequest but flips stream=true
@@ -141,7 +146,7 @@ func encodeStreamRequest(model, system string, msgs []agent.Message, tools []age
 		wire.Tools = append(wire.Tools, oaTool{
 			Type: "function",
 			Function: oaToolFnDef{
-				Name:        t.Name,
+				Name:        sanitizeToolName(t.Name),
 				Description: t.Description,
 				Parameters:  params,
 			},
