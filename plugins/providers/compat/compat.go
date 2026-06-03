@@ -282,8 +282,14 @@ func Build(p *catalog.Provider, modelID string, lookup CredLookup) (agent.Provid
 		op.Model = modelID
 		return wrapNamed(p.ID, op), modelID, nil
 	default:
-		return nil, "", fmt.Errorf("%w: family=%q provider=%q (M1.n wired every catalog family — anthropic + ollama + openai + openai-compatible + google + mistral + cohere + azure + aws-bedrock + google-vertex. This branch should be unreachable for any models.dev catalog entry; if you see it, the catalog has a new family the wire layer doesn't recognise)",
-			ErrFamilyUnsupported, p.Family(), p.ID)
+		// Reached when a provider's npm package isn't classified by
+		// catalog.FamilyFromNPM (e.g. a new @ai-sdk/<vendor> package agezt
+		// doesn't enumerate yet — this is how DeepSeek and Moonshot looked
+		// before they were wired). Most such providers speak the OpenAI API,
+		// so point the operator at the generic-compat escape hatch rather than
+		// claiming the case is impossible.
+		return nil, "", fmt.Errorf("%w: provider %q has an unrecognised npm package (family=%q). If it speaks the OpenAI API (most do), set its npm to %q in custom.json to route it through the openai-compatible adapter",
+			ErrFamilyUnsupported, p.ID, p.Family(), "openai-compatible")
 	}
 }
 
@@ -519,6 +525,8 @@ func compatVendorBaseURL(npm string) string {
 		return "https://api.fireworks.ai/inference/v1"
 	case "deepseek":
 		return "https://api.deepseek.com/v1"
+	case "moonshotai":
+		return "https://api.moonshot.ai/v1"
 	}
 	return ""
 }

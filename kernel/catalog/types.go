@@ -122,7 +122,8 @@ func FamilyFromNPM(npm string) Family {
 		"deepinfra",
 		"perplexity",
 		"fireworks",
-		"deepseek":
+		"deepseek",
+		"moonshotai":
 		return FamilyOpenAICompatible
 	case "google", "google-generative-ai":
 		return FamilyGoogle

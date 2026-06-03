@@ -12,6 +12,14 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Fixed
+- **Moonshot AI (Kimi) now works**, and an unrecognised provider package fails
+  with an actionable error. Moonshot's official package (`@ai-sdk/moonshotai`)
+  hit the same dead end DeepSeek did — classified as an unknown family and
+  refused. It's now wired as OpenAI-compatible with its base URL
+  (`https://api.moonshot.ai/v1`). And the error for a genuinely-unknown package
+  no longer claims (falsely) that the case is "unreachable for any catalog entry";
+  it now tells the operator to set the provider's npm to `openai-compatible` in
+  `custom.json` if it speaks the OpenAI API — turning a dead end into a one-line fix.
 - **DeepSeek now works.** Its official package (`@ai-sdk/deepseek`) classified as
   an unknown family, so `compat.Build` refused it outright with "provider family
   not yet supported" — a vendor named in the README that couldn't actually be
