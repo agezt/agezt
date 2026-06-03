@@ -12,6 +12,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Fixed
+- **An empty or whitespace-only outbound message is now a no-op, not a failed
+  send.** Every channel's send path (Telegram, Discord incl. slash-command
+  follow-ups, Slack) returns early on blank text instead of POSTing it — the
+  platforms reject an empty message (Telegram 400 "message text is empty", Slack
+  "no_text"). This covers the proactive `Send` path (Pulse, `agt send`) — which
+  had no guard at all — and whitespace-only agent answers that the inbound reply
+  paths' exact-`""` check missed.
 - **Long messages to Telegram and Discord are no longer dropped.** A reply over
   the platform's per-message limit (Telegram 4096 UTF-16 code units, Discord 2000
   characters) was sent as a single oversize request, which the API rejects — so

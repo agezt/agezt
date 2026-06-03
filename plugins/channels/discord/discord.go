@@ -34,6 +34,7 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/agezt/agezt/kernel/bus"
@@ -345,6 +346,10 @@ func (c *Channel) verify(ts, sigHex string, body []byte) bool {
 const discordMaxChars = 2000
 
 func (c *Channel) Send(ctx context.Context, out channel.Outbound) error {
+	// Discord rejects an empty message; no-op rather than fail (M236).
+	if strings.TrimSpace(out.Text) == "" {
+		return nil
+	}
 	for _, chunk := range channel.SplitText(out.Text, discordMaxChars) {
 		body, _ := json.Marshal(map[string]any{"content": chunk})
 		req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.base+"/channels/"+out.ChannelID+"/messages", bytes.NewReader(body))
@@ -367,6 +372,9 @@ func (c *Channel) Send(ctx context.Context, out channel.Outbound) error {
 // follow-up webhook creates a new message — so a long slash-command answer is
 // delivered in sequence rather than rejected and lost.
 func (c *Channel) followUp(ctx context.Context, token, channelID, content, corr string) error {
+	if strings.TrimSpace(content) == "" {
+		return nil
+	}
 	for _, chunk := range channel.SplitText(content, discordMaxChars) {
 		body, _ := json.Marshal(map[string]any{"content": chunk})
 		req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.base+"/webhooks/"+c.appID+"/"+token, bytes.NewReader(body))

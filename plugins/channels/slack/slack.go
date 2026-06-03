@@ -27,6 +27,7 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -314,6 +315,11 @@ type postMessageResp struct {
 }
 
 func (c *Channel) send(ctx context.Context, out channel.Outbound, corr string) error {
+	// Slack rejects an empty message (errors with "no_text"); no-op rather than
+	// fail, covering the Send path and whitespace-only answers (M236).
+	if strings.TrimSpace(out.Text) == "" {
+		return nil
+	}
 	body, _ := json.Marshal(map[string]any{"channel": out.ChannelID, "text": out.Text})
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.base+"/chat.postMessage", bytes.NewReader(body))
 	if err != nil {

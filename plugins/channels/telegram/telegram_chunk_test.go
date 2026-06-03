@@ -44,6 +44,23 @@ func TestSend_ChunksOverLongMessage(t *testing.T) {
 	}
 }
 
+// An empty or whitespace-only message is a no-op, not a failed send (M236).
+func TestSend_EmptyIsNoOp(t *testing.T) {
+	fb := &fakeBotServer{}
+	srv := httptest.NewServer(fb.handler())
+	defer srv.Close()
+	c, _ := newTestChannel(t, srv, channel.Allowlist{}, nil)
+
+	for _, txt := range []string{"", "   ", "\n\t "} {
+		if err := c.Send(context.Background(), channel.Outbound{ChannelID: "7", Text: txt}); err != nil {
+			t.Fatalf("empty send should be a no-op (nil), got %v", err)
+		}
+	}
+	if fb.sentCount() != 0 {
+		t.Fatalf("empty/whitespace should send nothing, got %d sends", fb.sentCount())
+	}
+}
+
 // A short message is still a single send (no behaviour change for the common case).
 func TestSend_ShortMessageSingleCall(t *testing.T) {
 	fb := &fakeBotServer{}

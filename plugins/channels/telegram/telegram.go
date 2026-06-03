@@ -21,6 +21,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/agezt/agezt/kernel/bus"
@@ -227,6 +228,13 @@ const telegramMaxChars = 4096
 // send POSTs sendMessage (chunked to the platform limit) and journals
 // channel.outbound under corr.
 func (c *Channel) send(ctx context.Context, out channel.Outbound, corr string) error {
+	// An empty or whitespace-only message is rejected by Telegram (400
+	// "message text is empty"). Treat it as a no-op rather than a failed send —
+	// covers the Send path (Pulse, agt send) and whitespace-only agent answers
+	// the inbound reply guard's exact-"" check would miss (M236).
+	if strings.TrimSpace(out.Text) == "" {
+		return nil
+	}
 	endpoint := fmt.Sprintf("%s/bot%s/sendMessage", c.base, c.token)
 	for _, chunk := range channel.SplitText(out.Text, telegramMaxChars) {
 		body, _ := json.Marshal(map[string]any{"chat_id": out.ChannelID, "text": chunk})
