@@ -11,6 +11,21 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 
 ## [Unreleased]
 
+### Added
+- **Go plugin SDK** (`plugins/sdk`) — the official authoring kit for tool
+  plugins. `sdk.Serve(sdk.Tool{...})` implements the entire line-delimited JSON
+  protocol on the author's behalf: initialize/invoke/shutdown dispatch, frame
+  demux, goroutine-safe write serialisation, progress streaming (`Emit`),
+  host callbacks (`CallHost`), and panic containment (one bad call returns a
+  tool error instead of crashing the plugin). A plugin shrinks from the ~260
+  lines of hand-rolled protocol in `testdata/echoplugin` to just its tool
+  logic. The package is stdlib-only and imports no kernel package, preserving
+  the rule that plugins never compile against the daemon (DECISIONS B0). A
+  complete runnable example lives at `plugins/sdk/example/greet`; an
+  integration test compiles it and drives it through the real kernel plugin
+  host (initialize, invoke success/error, progress, host callback). First
+  post-1.0 step toward the polyglot SDK story (ROADMAP §5).
+
 ## [1.0.0] — 2026-06-03
 
 **Scale release (ROADMAP M8): "One Agezt across many nodes."** v1.0 fuses the v0.1.0 MVP
