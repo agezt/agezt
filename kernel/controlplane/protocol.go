@@ -771,6 +771,12 @@ const (
 	// Args: id (required). Returns: { id, restored }
 	CmdSkillRevert = "skill_revert"
 
+	// CmdSkillImport installs a skill from a portable bundle as a fresh DRAFT
+	// (via the Forge, so it is content-addressed, deduped, and journaled like
+	// any other authored skill). Args: name, body (required); description,
+	// triggers, tools_required (optional). Returns: { id, name, status, created }
+	CmdSkillImport = "skill_import"
+
 	// Reflection — meta-cognition (SPEC-05 §6).
 	//
 	// CmdReflectRun runs one reflection pass now: folds the journal, applies

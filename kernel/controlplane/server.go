@@ -588,6 +588,8 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.handleSkillQuarantine(conn, req)
 	case CmdSkillRevert:
 		s.handleSkillRevert(conn, req)
+	case CmdSkillImport:
+		s.handleSkillImport(conn, req)
 	case CmdReflectRun:
 		s.handleReflectRun(conn, req)
 	case CmdReflectShow:

@@ -144,6 +144,48 @@ func (s *Server) handleSkillRevert(conn net.Conn, req Request) {
 	})
 }
 
+// handleSkillImport installs a skill from a portable bundle (M269). It routes
+// through the Forge's Create, so the imported skill is content-addressed,
+// deduped against any identical existing skill, and journaled (skill.created) —
+// it arrives as a fresh DRAFT regardless of the source's lifecycle, never an
+// active skill, so an operator must still promote it before it injects into
+// runs.
+func (s *Server) handleSkillImport(conn net.Conn, req Request) {
+	name := stringArg(req.Args, "name")
+	body := stringArg(req.Args, "body")
+	if name == "" || body == "" {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.name and args.body required"})
+		return
+	}
+	triggers, _, terr := argStringList(req.Args, "triggers")
+	if terr != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: terr.Error()})
+		return
+	}
+	tools, _, toerr := argStringList(req.Args, "tools_required")
+	if toerr != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: toerr.Error()})
+		return
+	}
+	sk, created, err := s.k.Forge().Create("", skill.CreateSpec{
+		Name:          name,
+		Description:   stringArg(req.Args, "description"),
+		Triggers:      triggers,
+		Body:          body,
+		ToolsRequired: tools,
+	})
+	if err != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		return
+	}
+	s.writeResp(conn, Response{
+		ID: req.ID, Type: RespResult,
+		Result: map[string]any{
+			"id": sk.ID, "name": sk.Name, "status": string(sk.Status), "created": created,
+		},
+	})
+}
+
 func isSkillKind(k event.Kind) bool {
 	switch k {
 	case event.KindSkillCreated, event.KindSkillPromoted, event.KindSkillQuarantined,

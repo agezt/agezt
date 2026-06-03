@@ -17,7 +17,7 @@ import (
 // draft→shadow→active and can revert non-destructively.
 func cmdSkill(args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
-		fmt.Fprintf(stderr, "%s skill: subcommand required (list|show|history|promote|quarantine|revert|diff|export)\n", brand.CLI)
+		fmt.Fprintf(stderr, "%s skill: subcommand required (list|show|history|promote|quarantine|revert|diff|export|import)\n", brand.CLI)
 		return 2
 	}
 	switch args[0] {
@@ -37,6 +37,8 @@ func cmdSkill(args []string, stdout, stderr io.Writer) int {
 		return cmdSkillDiff(args[1:], stdout, stderr)
 	case "export":
 		return cmdSkillExport(args[1:], stdout, stderr)
+	case "import":
+		return cmdSkillImport(args[1:], stdout, stderr)
 	case "-h", "--help", "help":
 		fmt.Fprintf(stdout, "usage: %s skill <subcommand>\n", brand.CLI)
 		fmt.Fprintf(stdout, "  list [--json]                 list all skills + lifecycle state\n")
@@ -47,9 +49,10 @@ func cmdSkill(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "  revert <id> [--json]          archive + restore lineage parent\n")
 		fmt.Fprintf(stdout, "  diff <id> [<id2>]             diff a skill's body vs its parent (or vs id2)\n")
 		fmt.Fprintf(stdout, "  export <id> [--out <file>]    write a portable, verifiable skill bundle\n")
+		fmt.Fprintf(stdout, "  import <bundle> [--json]      verify a bundle and install it as a draft\n")
 		return 0
 	default:
-		fmt.Fprintf(stderr, "%s skill: unknown subcommand %q (list|show|history|promote|quarantine|revert|diff|export)\n", brand.CLI, args[0])
+		fmt.Fprintf(stderr, "%s skill: unknown subcommand %q (list|show|history|promote|quarantine|revert|diff|export|import)\n", brand.CLI, args[0])
 		return 2
 	}
 }

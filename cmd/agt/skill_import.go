@@ -1,0 +1,110 @@
+// SPDX-License-Identifier: MIT
+
+package main
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"os"
+	"strings"
+	"time"
+
+	"github.com/agezt/agezt/internal/brand"
+	"github.com/agezt/agezt/kernel/controlplane"
+)
+
+// cmdSkillImport implements `agt skill import <bundle>` (M269) — the read-back
+// half of `agt skill export`. It verifies the bundle's content address (so a
+// tampered bundle is rejected BEFORE it reaches the daemon), then installs the
+// skill via the Forge as a fresh DRAFT: it is content-addressed, deduped against
+// an identical existing skill, journaled, and never auto-active — the operator
+// promotes it (`agt skill promote`) to put it into the retrieval pool.
+func cmdSkillImport(args []string, stdout, stderr io.Writer) int {
+	bundlePath := ""
+	asJSON := false
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		switch {
+		case a == "--json":
+			asJSON = true
+		case a == "-h" || a == "--help":
+			fmt.Fprintf(stdout, "usage: %s skill import <bundle> [--json]\n", brand.CLI)
+			fmt.Fprintf(stdout, "verify a `%s skill export` bundle and install it as a fresh draft\n", brand.CLI)
+			fmt.Fprintf(stdout, "the daemon must be running; promote it with `%s skill promote <id>` to activate\n", brand.CLI)
+			return 0
+		case strings.HasPrefix(a, "-"):
+			fmt.Fprintf(stderr, "%s skill import: unexpected flag %q\n", brand.CLI, a)
+			return 2
+		default:
+			if bundlePath != "" {
+				fmt.Fprintf(stderr, "%s skill import: unexpected arg %q (one bundle path)\n", brand.CLI, a)
+				return 2
+			}
+			bundlePath = a
+		}
+	}
+	if bundlePath == "" {
+		fmt.Fprintf(stderr, "%s skill import: a bundle path is required\n", brand.CLI)
+		return 2
+	}
+
+	data, err := os.ReadFile(bundlePath)
+	if err != nil {
+		fmt.Fprintf(stderr, "%s skill import: read %s: %v\n", brand.CLI, bundlePath, err)
+		return 1
+	}
+	var bundle skillBundle
+	if err := json.Unmarshal(data, &bundle); err != nil {
+		fmt.Fprintf(stderr, "%s skill import: parse bundle: %v\n", brand.CLI, err)
+		return 1
+	}
+	// Verify the content address offline, before touching the daemon.
+	if err := verifySkillBundle(bundle); err != nil {
+		fmt.Fprintf(stderr, "%s skill import: bundle INVALID: %v\n", brand.CLI, err)
+		return 1
+	}
+
+	c := dial(stderr)
+	if c == nil {
+		return 1
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	res, err := c.Call(ctx, controlplane.CmdSkillImport, map[string]any{
+		"name":           bundle.Skill.Name,
+		"description":    bundle.Skill.Description,
+		"triggers":       bundle.Skill.Triggers,
+		"body":           bundle.Skill.Body,
+		"tools_required": bundle.Skill.ToolsRequired,
+	})
+	if err != nil {
+		fmt.Fprintf(stderr, "%s skill import: %v\n", brand.CLI, err)
+		return 1
+	}
+
+	if asJSON {
+		_ = encodeJSON(stdout, res)
+		return 0
+	}
+	gotID, _ := res["id"].(string)
+	created, _ := res["created"].(bool)
+	status, _ := res["status"].(string)
+	// The daemon re-derives the id from (name, body); it must match the bundle's
+	// claimed id, or the content address the operator verified is not what landed.
+	if gotID != "" && gotID != bundle.Skill.ID {
+		fmt.Fprintf(stderr, "%s skill import: installed id %s differs from bundle id %s\n", brand.CLI, gotID, bundle.Skill.ID)
+		return 1
+	}
+	verb := "already present (refreshed)"
+	if created {
+		verb = "installed as a new draft"
+	}
+	fmt.Fprintf(stdout, "skill %q %s\n", bundle.Skill.Name, verb)
+	fmt.Fprintf(stdout, "  id: %s  status: %s\n", shortHash(gotID), status)
+	if created {
+		fmt.Fprintf(stdout, "  promote it into the retrieval pool: %s skill promote %s\n", brand.CLI, gotID)
+	}
+	return 0
+}

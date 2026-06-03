@@ -12,6 +12,14 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **`agt skill import <bundle>` — install a skill from a portable bundle.** The
+  read-back half of `agt skill export`: verify the bundle's content address
+  *offline* (a tampered bundle is rejected before the daemon is contacted), then
+  install the skill via the Forge as a fresh **draft** — content-addressed,
+  deduped against an identical existing skill, and journaled like any authored
+  skill. An imported skill is never auto-active; the operator promotes it
+  (`agt skill promote`) to put it into the retrieval pool. New control-plane
+  command `skill_import`.
 - **`agt skill export <id>` — write a portable, verifiable skill bundle.** The
   first piece of skill portability (toward a skill marketplace): fetch a skill
   from the daemon and emit it as a self-contained JSON bundle (default stdout,

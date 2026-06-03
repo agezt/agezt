@@ -55,6 +55,55 @@ func TestSkillLifecycleOverControlPlane(t *testing.T) {
 	}
 }
 
+func TestSkillImportInstallsFreshDraft(t *testing.T) {
+	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	ctx := context.Background()
+
+	args := map[string]any{
+		"name":           "diagnose-ci",
+		"description":    "diagnose failing CI",
+		"triggers":       []any{"ci", "ops"},
+		"body":           "step one\nstep two",
+		"tools_required": []any{"shell"},
+	}
+	res, err := c.Call(ctx, controlplane.CmdSkillImport, args)
+	if err != nil {
+		t.Fatalf("import: %v", err)
+	}
+	// Arrives as a fresh DRAFT (never active), content-addressed, created=true.
+	if res["status"] != "draft" {
+		t.Errorf("status = %v, want draft", res["status"])
+	}
+	if created, _ := res["created"].(bool); !created {
+		t.Errorf("created = %v, want true for a first import", res["created"])
+	}
+	wantID := skill.ContentID("diagnose-ci", "step one\nstep two")
+	if res["id"] != wantID {
+		t.Errorf("id = %v, want content-address %s", res["id"], wantID)
+	}
+
+	// It really landed in the store as a non-active draft.
+	if got, found, _ := k.Forge().Get(wantID); !found || got.Active() {
+		t.Errorf("stored skill found=%v active=%v, want a stored draft", found, got.Active())
+	}
+
+	// Re-importing the same content dedupes (created=false).
+	res2, err := c.Call(ctx, controlplane.CmdSkillImport, args)
+	if err != nil {
+		t.Fatalf("re-import: %v", err)
+	}
+	if created, _ := res2["created"].(bool); created {
+		t.Errorf("re-import created = true, want false (content-address dedupe)")
+	}
+}
+
+func TestSkillImportRequiresNameAndBody(t *testing.T) {
+	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	if _, err := c.Call(context.Background(), controlplane.CmdSkillImport, map[string]any{"name": "x"}); err == nil {
+		t.Error("import without a body should error")
+	}
+}
+
 func TestSkillPromoteIllegalErrors(t *testing.T) {
 	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 	sk, _, _ := k.Forge().Create("seed", skill.CreateSpec{Name: "s", Body: "b"})
