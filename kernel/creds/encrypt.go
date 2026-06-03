@@ -49,8 +49,10 @@ package creds
 // **Format compatibility.** Plaintext vaults from M1.o load
 // unchanged (detected by absence of the `schema` field). Encrypted
 // vaults use a JSON envelope so future algorithm rotations can be
-// detected per-file. Operators migrate via the (deferred) `agt
-// vault encrypt` command or by setting the env var and saving once.
+// detected per-file. Operators encrypt a plaintext vault via `agt
+// vault encrypt` (or by setting the env var and saving once), and
+// upgrade an older encrypted vault to the current key-derivation
+// policy in place via `agt vault migrate`.
 
 import (
 	"crypto/aes"

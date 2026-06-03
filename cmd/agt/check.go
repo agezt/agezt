@@ -599,6 +599,17 @@ func runProbe(entry *catalog.Provider, lookup func(string) string) probeResult {
 	}
 }
 
+// streamingUnsupportedMessage explains that a resolved provider's adapter does
+// not implement streaming, so the operator can fall back to the plain check.
+// Every first-party provider family (anthropic, openai, google, bedrock,
+// vertex, cohere, ollama, and openai-compatible vendors) now streams, so this
+// is reached only by an adapter that genuinely lacks a streaming path — not the
+// stale "only anthropic is wired" state it once described.
+func streamingUnsupportedMessage(family string) string {
+	return fmt.Sprintf("%s: provider family %q does not implement streaming in this build — re-run `%s provider check` without --stream",
+		brand.CLI, family, brand.CLI)
+}
+
 // runStreamProbe issues the probe via the provider's streaming path
 // (agent.StreamingProvider) and renders incoming text chunks inline.
 // Errors out cleanly if the resolved provider doesn't implement
@@ -623,8 +634,7 @@ func runStreamProbe(entry *catalog.Provider, lookup func(string) string, stdout,
 
 	sp, ok := prov.(agent.StreamingProvider)
 	if !ok {
-		fmt.Fprintf(stderr, "%s: provider family %q does not yet support streaming (M1.q only wires anthropic; others land in M1.q.x)\n",
-			brand.CLI, entry.Family())
+		fmt.Fprintf(stderr, "%s\n", streamingUnsupportedMessage(string(entry.Family())))
 		return 2
 	}
 

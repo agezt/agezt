@@ -72,6 +72,14 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   SDK package document `Run`, `RunStream`, `Runs`, and approvals.
 
 ### Fixed
+- **Corrected stale references to now-shipped features.** `agt provider check
+  --stream` printed "provider family X does not yet support streaming (M1.q only
+  wires anthropic; others land in M1.q.x)" when a provider lacked a streaming
+  adapter — but every first-party family (anthropic, openai, google, bedrock,
+  vertex, cohere, ollama, openai-compatible) now streams, so the message was both
+  unreachable for real families and wrong; it now accurately points at re-running
+  without `--stream`. A credential-vault doc comment that called `agt vault
+  encrypt`/`migrate` "(deferred)" was likewise updated — both commands ship.
 - **A single oversized ACP message can no longer balloon memory.** Both the ACP
   server (driven by an IDE) and the ACP client (driving an external agent) read
   with a `json.Decoder`, which buffers a whole JSON value with no size limit — so
