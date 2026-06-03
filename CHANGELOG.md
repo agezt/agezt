@@ -12,6 +12,14 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Fixed
+- **Vision now also works on the Gemini provider — completing the mainstream
+  set.** The Google `generateContent` encoder (`canonicalToGemini`) now emits a
+  user message's image attachments as `inlineData` parts (base64 + mimeType)
+  before the text part, instead of dropping them. With this, all three first-
+  party providers — Anthropic, OpenAI, Gemini — deliver `agt run --image` to the
+  model, and the OpenAI-compatible `compat` vendors (Groq, xAI, DeepSeek, …)
+  inherit it through the OpenAI encoder. Covers both Gemini request paths
+  (streaming and non-streaming share the encoder).
 - **Vision now also works on the OpenAI provider.** Following the Anthropic fix,
   the OpenAI provider's `canonicalToOA` now emits a user message's image
   attachments as OpenAI's multimodal content-parts array (a `text` part followed

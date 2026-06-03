@@ -182,11 +182,19 @@ type geminiContent struct {
 }
 
 // geminiPart is a tagged-union content block. Only one field is
-// populated per part — Text, FunctionCall, or FunctionResponse.
+// populated per part — Text, InlineData, FunctionCall, or FunctionResponse.
 type geminiPart struct {
 	Text             string                  `json:"text,omitempty"`
+	InlineData       *geminiInlineData       `json:"inlineData,omitempty"`
 	FunctionCall     *geminiFunctionCall     `json:"functionCall,omitempty"`
 	FunctionResponse *geminiFunctionResponse `json:"functionResponse,omitempty"`
+}
+
+// geminiInlineData is an inline base64 blob part — how Gemini's generateContent
+// API carries an image attachment (M243).
+type geminiInlineData struct {
+	MimeType string `json:"mimeType"` // image/png, image/jpeg, image/gif, image/webp
+	Data     string `json:"data"`     // base64-encoded image bytes
 }
 
 type geminiFunctionCall struct {
@@ -265,6 +273,26 @@ func encodeRequest(system string, msgs []agent.Message, tools []agent.ToolDef, m
 	return json.Marshal(wire)
 }
 
+// parseImageDataURL splits an RFC 2397 data: URL of the form
+// "data:<media-type>;base64,<payload>" into its media type and base64 payload,
+// returning ok=false for anything else (including a legacy bare filename),
+// which the caller skips. The CLI sends data: URLs (M241).
+func parseImageDataURL(s string) (mediaType, data string, ok bool) {
+	const prefix = "data:"
+	if !strings.HasPrefix(s, prefix) {
+		return "", "", false
+	}
+	meta, payload, found := strings.Cut(s[len(prefix):], ",")
+	if !found || !strings.HasSuffix(meta, ";base64") {
+		return "", "", false
+	}
+	mt := strings.TrimSuffix(meta, ";base64")
+	if mt == "" || payload == "" {
+		return "", "", false
+	}
+	return mt, payload, true
+}
+
 func canonicalToGemini(m agent.Message) (*geminiContent, error) {
 	switch m.Role {
 	case agent.RoleSystem:
@@ -272,10 +300,18 @@ func canonicalToGemini(m agent.Message) (*geminiContent, error) {
 		// level; per-message system roles are ignored here.
 		return nil, nil
 	case agent.RoleUser:
-		return &geminiContent{
-			Role:  "user",
-			Parts: []geminiPart{{Text: m.Content}},
-		}, nil
+		// Vision (M243): a user message may carry image attachments as RFC 2397
+		// data: URLs. Emit each as an inlineData part before the text part. A
+		// non-data-URL entry (e.g. a legacy bare filename) has no deliverable
+		// payload and is skipped.
+		parts := make([]geminiPart, 0, len(m.Images)+1)
+		for _, img := range m.Images {
+			if mt, data, ok := parseImageDataURL(img); ok {
+				parts = append(parts, geminiPart{InlineData: &geminiInlineData{MimeType: mt, Data: data}})
+			}
+		}
+		parts = append(parts, geminiPart{Text: m.Content})
+		return &geminiContent{Role: "user", Parts: parts}, nil
 	case agent.RoleAssistant:
 		var parts []geminiPart
 		if strings.TrimSpace(m.Content) != "" {
