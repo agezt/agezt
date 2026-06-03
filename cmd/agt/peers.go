@@ -32,11 +32,12 @@ func cmdPeers(args []string, stdout, stderr io.Writer) int {
 		case a == "--json":
 			asJSON = true
 		case a == "-h" || a == "--help":
-			fmt.Fprintf(stdout, "usage: %s peers [list|models [<name>]] [--json]\n", brand.CLI)
+			fmt.Fprintf(stdout, "usage: %s peers [list | models [<name>] | route <model>] [--json]\n", brand.CLI)
 			fmt.Fprintf(stdout, "  list    configured peers (AGEZT_PEERS) + each one's REST /api/v1/health\n")
 			fmt.Fprintf(stdout, "  models  the models each peer can route (GET /api/v1/models); <name> filters to one\n")
+			fmt.Fprintf(stdout, "  route   which peer remote_run would auto-route a <model> to, and the fallback order\n")
 			return 0
-		case a == "list" || a == "models":
+		case a == "list" || a == "models" || a == "route":
 			verb = a
 		case strings.HasPrefix(a, "-"):
 			fmt.Fprintf(stderr, "%s peers: unknown flag %q\n", brand.CLI, a)
@@ -46,11 +47,15 @@ func cmdPeers(args []string, stdout, stderr io.Writer) int {
 				fmt.Fprintf(stderr, "%s peers: unexpected argument %q\n", brand.CLI, a)
 				return 2
 			}
-			name = a // a bare peer name (only meaningful for `models`)
+			name = a // a bare positional: a peer name (models) or a model id (route)
 		}
 	}
-	if name != "" && verb != "models" {
-		fmt.Fprintf(stderr, "%s peers: a peer name is only valid with `models`\n", brand.CLI)
+	if name != "" && verb != "models" && verb != "route" {
+		fmt.Fprintf(stderr, "%s peers: a positional argument is only valid with `models` or `route`\n", brand.CLI)
+		return 2
+	}
+	if verb == "route" && name == "" {
+		fmt.Fprintf(stderr, "%s peers route: a <model> is required\n", brand.CLI)
 		return 2
 	}
 
@@ -70,6 +75,9 @@ func cmdPeers(args []string, stdout, stderr io.Writer) int {
 
 	if verb == "models" {
 		return peersModels(peers, name, asJSON, stdout, stderr)
+	}
+	if verb == "route" {
+		return peersRoute(peers, name, asJSON, stdout, stderr)
 	}
 
 	names := make([]string, 0, len(peers))
@@ -269,4 +277,79 @@ func fetchPeerModels(p peer.Peer) peerModels {
 	out.Default = body.Default
 	out.Models = body.Models
 	return out
+}
+
+// peerRoute is one peer's standing for a routing query: whether it serves the
+// requested model, and whether it is the one remote_run would auto-route to.
+type peerRoute struct {
+	Name      string `json:"name"`
+	URL       string `json:"url"`
+	Reachable bool   `json:"reachable"`
+	Serves    bool   `json:"serves"`
+	Chosen    bool   `json:"chosen,omitempty"`
+	Error     string `json:"error,omitempty"`
+}
+
+// peersRoute runs `agt peers route <model>`: it shows which peer remote_run would
+// auto-route a task for <model> to, and the fallback order. It mirrors the tool's
+// selection exactly — peers are queried in name order and the first reachable one
+// that serves the model is "chosen" (M203). Exits 1 if no reachable peer serves it,
+// so it composes in scripts. Tokens are never printed.
+func peersRoute(peers map[string]peer.Peer, model string, asJSON bool, stdout, stderr io.Writer) int {
+	names := make([]string, 0, len(peers))
+	for n := range peers {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+
+	results := make([]peerRoute, 0, len(names))
+	chosen := ""
+	for _, n := range names {
+		pm := fetchPeerModels(peers[n])
+		e := peerRoute{Name: n, URL: peers[n].URL, Reachable: pm.Reachable, Error: pm.Error}
+		if pm.Reachable {
+			for _, m := range pm.Models {
+				if m == model {
+					e.Serves = true
+					break
+				}
+			}
+			if e.Serves && chosen == "" {
+				e.Chosen = true
+				chosen = n
+			}
+		}
+		results = append(results, e)
+	}
+
+	if asJSON {
+		b, _ := json.MarshalIndent(results, "", "  ")
+		fmt.Fprintln(stdout, string(b))
+		if chosen == "" {
+			return 1
+		}
+		return 0
+	}
+
+	if chosen != "" {
+		fmt.Fprintf(stdout, "model %q — would route to: %s\n", model, chosen)
+	} else {
+		fmt.Fprintf(stdout, "model %q — no reachable peer serves it\n", model)
+	}
+	for _, e := range results {
+		switch {
+		case !e.Reachable:
+			fmt.Fprintf(stdout, "  %-14s %s  UNREACHABLE: %s\n", e.Name, e.URL, e.Error)
+		case e.Chosen:
+			fmt.Fprintf(stdout, "  %-14s %s  serves (chosen)\n", e.Name, e.URL)
+		case e.Serves:
+			fmt.Fprintf(stdout, "  %-14s %s  serves (fallback)\n", e.Name, e.URL)
+		default:
+			fmt.Fprintf(stdout, "  %-14s %s  does not serve\n", e.Name, e.URL)
+		}
+	}
+	if chosen == "" {
+		return 1
+	}
+	return 0
 }

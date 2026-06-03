@@ -12,6 +12,15 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **`agt peers route <model>` — inspect mesh routing decisions** (M204) — a new verb that
+  shows which peer `remote_run` would auto-route a task for `<model>` to, and the fallback
+  order, *without* dispatching anything. It mirrors the tool's selection exactly (M203):
+  peers are queried in name order and the first reachable one that serves the model is marked
+  `chosen`, the other servers `fallback`, non-servers `does not serve`, and unreachable peers
+  are surfaced — so an operator can answer "why did my remote_run land on peer Y?" and verify
+  mesh wiring before running anything. Exits non-zero when no reachable peer serves the model;
+  `--json` for scripting. Completes the mesh routing trio: M201 discover → M203 auto-route →
+  M204 inspect. See `.project/PHASE-M204-PEERS-ROUTE-INSPECT-REPORT.md`.
 - **`remote_run` auto-routes to a peer that serves the requested model — cross-node routing**
   (M203) — when a `model` is given but no `peer` is named (and more than one peer is
   configured), the mesh tool now discovers each peer's routable models (`GET /api/v1/models`)
