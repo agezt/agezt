@@ -64,8 +64,10 @@ type Engine interface {
 	NewCorrelation() string
 	SubjectForRun(corr string) string
 	// RunModel runs the intent under the given correlation, honouring the
-	// requested model (empty → the kernel's configured default).
-	RunModel(ctx context.Context, corr, intent, model string) (string, error)
+	// requested model (empty → the kernel's configured default). images carries
+	// any attachment URLs parsed from a multimodal request (data: URLs or
+	// http(s) URLs); nil for a text-only run.
+	RunModel(ctx context.Context, corr, intent, model string, images []string) (string, error)
 	DefaultModel() string
 	ModelIDs() []string
 }
@@ -250,6 +252,46 @@ func (m chatMessage) text() string {
 	return ""
 }
 
+// images extracts image attachment URLs from a message's content parts. OpenAI
+// Chat Completions carries an image as {type:"image_url", image_url:{url:...}};
+// the url is a data: URL or an http(s) URL. Returns nil for string content or
+// a part list with no images.
+func (m chatMessage) images() []string {
+	if len(m.Content) == 0 {
+		return nil
+	}
+	var parts []struct {
+		Type     string `json:"type"`
+		ImageURL struct {
+			URL string `json:"url"`
+		} `json:"image_url"`
+	}
+	if json.Unmarshal(m.Content, &parts) != nil {
+		return nil
+	}
+	var urls []string
+	for _, p := range parts {
+		if p.Type == "image_url" && p.ImageURL.URL != "" {
+			urls = append(urls, p.ImageURL.URL)
+		}
+	}
+	return urls
+}
+
+// imagesFromMessages collects image attachment URLs from the user messages so a
+// multimodal chat completion forwards its images to the run; Agezt's providers
+// turn each into the model's native image input (M246). The kernel still gates
+// the model's vision capability at the provider call.
+func imagesFromMessages(msgs []chatMessage) []string {
+	var urls []string
+	for _, m := range msgs {
+		if strings.EqualFold(m.Role, "user") {
+			urls = append(urls, m.images()...)
+		}
+	}
+	return urls
+}
+
 func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		w.Header().Set("Allow", http.MethodPost)
@@ -261,9 +303,15 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	intent := intentFromMessages(req.Messages)
-	if intent == "" {
+	images := imagesFromMessages(req.Messages)
+	if intent == "" && len(images) == 0 {
 		writeErr(w, http.StatusBadRequest, "invalid_request_error", "no usable message content")
 		return
+	}
+	if intent == "" {
+		// Image-only request (image_url parts, no text). Give the model a
+		// minimal instruction so the run has an intent.
+		intent = "Describe the attached image(s)."
 	}
 	eng, b, err := s.bind(r)
 	if err != nil {
@@ -277,12 +325,12 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 
 	if req.Stream {
 		includeUsage := req.StreamOptions != nil && req.StreamOptions.IncludeUsage
-		s.streamChat(w, r, eng, b, intent, model, includeUsage)
+		s.streamChat(w, r, eng, b, intent, model, images, includeUsage)
 		return
 	}
 
 	corr := eng.NewCorrelation()
-	answer, err := eng.RunModel(r.Context(), corr, intent, model)
+	answer, err := eng.RunModel(r.Context(), corr, intent, model, images)
 	if err != nil {
 		writeErr(w, http.StatusBadGateway, "upstream_error", err.Error())
 		return
@@ -306,7 +354,7 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 // OpenAI chat.completion.chunk SSE frames. It subscribes to the run subject
 // BEFORE starting the run so no early token is missed (the same no-race pattern
 // the control plane's handleRun uses).
-func (s *Server) streamChat(w http.ResponseWriter, r *http.Request, eng Engine, b *bus.Bus, intent, model string, includeUsage bool) {
+func (s *Server) streamChat(w http.ResponseWriter, r *http.Request, eng Engine, b *bus.Bus, intent, model string, images []string, includeUsage bool) {
 	flusher, ok := w.(http.Flusher)
 	if !ok {
 		writeErr(w, http.StatusInternalServerError, "stream_unsupported", "streaming unsupported")
@@ -369,7 +417,7 @@ func (s *Server) streamChat(w http.ResponseWriter, r *http.Request, eng Engine, 
 	}
 	done := make(chan res, 1)
 	go func() {
-		_, err := eng.RunModel(r.Context(), corr, intent, model)
+		_, err := eng.RunModel(r.Context(), corr, intent, model, images)
 		done <- res{err}
 	}()
 

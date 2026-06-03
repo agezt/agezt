@@ -12,6 +12,16 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Fixed
+- **Agezt's OpenAI-compatible endpoint now accepts image input from clients.**
+  The `/v1/chat/completions` server flattened multimodal content to text and
+  silently dropped `image_url` parts, so a client sending a vision request to
+  Agezt-as-a-gateway got a text-only run — the mirror of the provider-side gap
+  just closed. It now parses `image_url` parts from user messages and forwards
+  the URLs to the run (which the providers turn into the model's native image
+  input), completing the round trip. An image-only message (no text) runs with a
+  default "describe the image" instruction instead of being rejected as empty;
+  a message with neither text nor image is still rejected. (Responses-API
+  `input_image` parts are a separate shape, still a follow-up.)
 - **Vision now also works on Vertex AI — every first-party provider is now
   covered.** Both Vertex encoders dropped image attachments: Anthropic-on-Vertex
   now emits a `type=image` base64 block, and Gemini-on-Vertex now emits an

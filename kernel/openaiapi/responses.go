@@ -61,7 +61,9 @@ func (s *Server) handleResponses(w http.ResponseWriter, r *http.Request) {
 	}
 
 	corr := eng.NewCorrelation()
-	answer, err := eng.RunModel(r.Context(), corr, intent, model)
+	// Responses-API image input (input_image parts) is not parsed yet; pass no
+	// images. Chat Completions multimodal input is wired (M246).
+	answer, err := eng.RunModel(r.Context(), corr, intent, model, nil)
 	if err != nil {
 		writeErr(w, http.StatusBadGateway, "upstream_error", err.Error())
 		return
@@ -179,7 +181,7 @@ func (s *Server) streamResponses(w http.ResponseWriter, r *http.Request, eng Eng
 	}
 	done := make(chan result, 1)
 	go func() {
-		ans, err := eng.RunModel(r.Context(), corr, intent, model)
+		ans, err := eng.RunModel(r.Context(), corr, intent, model, nil)
 		done <- result{ans, err}
 	}()
 

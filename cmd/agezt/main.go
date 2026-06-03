@@ -1272,9 +1272,15 @@ type kernelAPIEngine struct{ k *kernelruntime.Kernel }
 
 func (e kernelAPIEngine) NewCorrelation() string        { return e.k.NewCorrelation() }
 func (e kernelAPIEngine) SubjectForRun(c string) string { return e.k.SubjectForRun(c) }
-func (e kernelAPIEngine) RunModel(ctx context.Context, corr, intent, model string) (string, error) {
+func (e kernelAPIEngine) RunModel(ctx context.Context, corr, intent, model string, images []string) (string, error) {
 	// Honour the requested model for this run (empty → kernel default).
-	return e.k.RunWith(kernelruntime.WithModel(ctx, model), corr, intent)
+	ctx = kernelruntime.WithModel(ctx, model)
+	// Carry any multimodal attachments (M246) the same way the control plane
+	// does, so a vision request to the OpenAI-compatible API reaches the model.
+	if len(images) > 0 {
+		ctx = kernelruntime.WithImages(ctx, images)
+	}
+	return e.k.RunWith(ctx, corr, intent)
 }
 func (e kernelAPIEngine) DefaultModel() string { return e.k.Model() }
 func (e kernelAPIEngine) ModelIDs() []string {

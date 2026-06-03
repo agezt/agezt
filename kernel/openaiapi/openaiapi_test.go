@@ -26,15 +26,17 @@ type fakeEngine struct {
 	models    []string
 	ranIntent string
 	ranModel  string
+	ranImages []string
 }
 
 func (f *fakeEngine) NewCorrelation() string        { return "test-corr" }
 func (f *fakeEngine) SubjectForRun(c string) string { return "agent.agent-" + c + ".llm" }
 func (f *fakeEngine) DefaultModel() string          { return f.model }
 func (f *fakeEngine) ModelIDs() []string            { return f.models }
-func (f *fakeEngine) RunModel(_ context.Context, corr, intent, model string) (string, error) {
+func (f *fakeEngine) RunModel(_ context.Context, corr, intent, model string, images []string) (string, error) {
 	f.ranIntent = intent
 	f.ranModel = model
+	f.ranImages = images
 	for _, tok := range f.tokens {
 		_, _ = f.b.PublishStreaming(event.Spec{
 			Subject:       f.SubjectForRun(corr),

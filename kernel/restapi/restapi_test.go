@@ -33,7 +33,7 @@ func (f *fakeEngine) NewCorrelation() string        { return "run-test" }
 func (f *fakeEngine) SubjectForRun(c string) string { return "agent.agent-" + c + ".llm" }
 func (f *fakeEngine) DefaultModel() string          { return f.model }
 func (f *fakeEngine) ModelIDs() []string            { return f.models }
-func (f *fakeEngine) RunModel(_ context.Context, corr, intent, model string) (string, error) {
+func (f *fakeEngine) RunModel(_ context.Context, corr, intent, model string, _ []string) (string, error) {
 	f.ranIntent = intent
 	f.ranModel = model
 	for _, tok := range f.tokens {
