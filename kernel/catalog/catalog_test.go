@@ -110,6 +110,7 @@ func TestFamilyFromNPM(t *testing.T) {
 		"@ai-sdk/deepinfra":           catalog.FamilyOpenAICompatible,
 		"@ai-sdk/perplexity":          catalog.FamilyOpenAICompatible,
 		"@ai-sdk/fireworks":           catalog.FamilyOpenAICompatible,
+		"@ai-sdk/deepseek":            catalog.FamilyOpenAICompatible,
 		"@openrouter/ai-sdk-provider": catalog.FamilyOpenAICompatible,
 		"":                            catalog.FamilyUnknown,
 		"random-sdk":                  catalog.FamilyUnknown,

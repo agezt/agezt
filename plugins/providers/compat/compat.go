@@ -517,6 +517,8 @@ func compatVendorBaseURL(npm string) string {
 		return "https://api.perplexity.ai"
 	case "fireworks":
 		return "https://api.fireworks.ai/inference/v1"
+	case "deepseek":
+		return "https://api.deepseek.com/v1"
 	}
 	return ""
 }

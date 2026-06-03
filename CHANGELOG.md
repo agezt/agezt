@@ -11,6 +11,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 
 ## [Unreleased]
 
+### Fixed
+- **DeepSeek now works.** Its official package (`@ai-sdk/deepseek`) classified as
+  an unknown family, so `compat.Build` refused it outright with "provider family
+  not yet supported" — a vendor named in the README that couldn't actually be
+  used. It's now classified as OpenAI-compatible (its wire dialect) with its base
+  URL carried, so it works with just a `DEEPSEEK_API_KEY`.
+
 ### Added
 - **OpenAI-compatible vendors work with just an API key — no `custom.json` URL.**
   Groq, xAI, Cerebras, Together, DeepInfra, Perplexity, Fireworks, and OpenRouter
