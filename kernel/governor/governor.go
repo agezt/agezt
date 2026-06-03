@@ -109,6 +109,18 @@ type Config struct {
 	// requests pass regardless.
 	StrictModelCapabilities bool
 
+	// StrictPricing turns an unpriced model into a hard pre-flight error
+	// (M193). Off by default. When off, a model with no known price
+	// (missing from the catalog AND the fallback table) is charged $0, so
+	// it silently bypasses the daily/task budget — fail-open. When on, such
+	// a request is refused with ErrUnpricedModel BEFORE any provider call,
+	// so an operator can guarantee every billed call is accounted for.
+	// Known-FREE models (local/mock, present in the table at price 0) are
+	// still allowed — only genuinely unknown models are refused. An empty
+	// req.Model (provider picks its default) is not gated, since there is
+	// no model id to price ahead of the call.
+	StrictPricing bool
+
 	// DownRouteToolModels enables capability down-routing (M37): instead of
 	// rejecting a tools-bearing request to a known tool-incapable model
 	// (M25), the Governor REMAPS req.Model to a tool-capable alternative
@@ -222,6 +234,12 @@ var ErrBudgetExceeded = errors.New("governor: daily budget exceeded")
 // Wraps ErrBudgetExceeded so existing chain-walk logic that treats
 // budget-exhaustion as terminal (shouldFallback) catches both.
 var ErrTaskBudgetExceeded = fmt.Errorf("%w: task type", ErrBudgetExceeded)
+
+// ErrUnpricedModel is returned (only in StrictPricing mode, M193) when a
+// request names a model the governor has no price for. Without strict
+// pricing such a model is charged $0 and bypasses the budget; strict mode
+// refuses it before any provider call so all billed spend is accounted for.
+var ErrUnpricedModel = errors.New("governor: model has no known price (strict pricing)")
 
 // ErrRateLimited is returned when the per-minute call rate has been exceeded.
 // Distinct from ErrBudgetExceeded: a rate-limited caller has headroom in its
@@ -360,6 +378,22 @@ func (g *Governor) Complete(ctx context.Context, req agent.CompletionRequest) (*
 			return nil, fmt.Errorf("%w (task=%s, spent=%d, ceiling=%d microcents)",
 				ErrTaskBudgetExceeded, req.TaskType, spent, cap)
 		}
+	}
+
+	// Strict-pricing gate (M193): refuse a model the governor can't price
+	// BEFORE spending real money on it. Off by default; when on, an unpriced
+	// model (catalog + fallback table miss) would otherwise be charged $0 and
+	// silently bypass the budget. Known-free models (in the table at price 0)
+	// pass; an empty req.Model (provider default) is not gated.
+	if g.cfg.StrictPricing && req.Model != "" && !modelIsPriced(req.Model) {
+		g.publish(event.Spec{
+			Subject:       "governor.budget",
+			Kind:          event.KindBudgetUnpriced,
+			Actor:         "governor",
+			CorrelationID: req.CorrelationID,
+			Payload:       map[string]any{"model": req.Model},
+		})
+		return nil, fmt.Errorf("%w: %q", ErrUnpricedModel, req.Model)
 	}
 
 	chain := g.routeChain(req)

@@ -12,6 +12,16 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **`StrictPricing` governor mode — refuse unpriced models instead of charging $0
+  (governor review HIGH)** (M193) — by default a model with no known price (missing from
+  the catalog AND the fallback table) is charged $0, so it silently bypasses the daily and
+  per-task budgets (fail-open). The new opt-in `Config.StrictPricing` refuses such a
+  request with `ErrUnpricedModel` BEFORE any provider call (journaling a `budget.unpriced`
+  event), so an operator can guarantee every billed call is accounted for. Known-FREE
+  models (local/mock, priced 0 in the table) and an empty `req.Model` still pass — only
+  genuinely unknown models are refused. `priceFor` now distinguishes "found, price 0" from
+  "not found" via `priceForOk`/`modelIsPriced`. See
+  `.project/PHASE-M193-GOVERNOR-STRICT-PRICING-REPORT.md`.
 - **Cost cap inert-on-unpriced detection, authoritative + run-time** (M169) — a
   per-run `--max-cost` can only bind if the run accrues *priced* spend; on a model
   with no known pricing (unknown to the catalog AND absent from the fallback table,

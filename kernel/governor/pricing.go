@@ -85,19 +85,37 @@ var modelPriceTable = map[string]modelPrice{
 // entry — but the model name lands in budget.consumed so the operator
 // can see the gap.
 func priceFor(model string) modelPrice {
+	p, _ := priceForOk(model)
+	return p
+}
+
+// modelIsPriced reports whether the model has a KNOWN price entry — in the
+// live catalog or the fallback table (exact or longest-prefix). A model in
+// the table at price {0,0} (a local/free model) counts as PRICED; only a
+// genuinely unknown model is unpriced. Strict-pricing mode (M193) uses this
+// to refuse unpriced models that would otherwise be charged $0 and bypass
+// the budget.
+func modelIsPriced(model string) bool {
+	_, ok := priceForOk(model)
+	return ok
+}
+
+// priceForOk is priceFor plus a found flag, so callers can distinguish a
+// known-free model ({0,0}, found) from an unknown one ({0,0}, not found).
+func priceForOk(model string) (modelPrice, bool) {
 	if model == "" {
-		return modelPrice{}
+		return modelPrice{}, false
 	}
 	if c := liveCatalog.Load(); c != nil {
 		if _, m := c.FindModel(model); m != nil && m.Cost != nil {
 			return modelPrice{
 				InputMicrocentsPerMTok:  m.Cost.InputMicrocentsPerMTok(),
 				OutputMicrocentsPerMTok: m.Cost.OutputMicrocentsPerMTok(),
-			}
+			}, true
 		}
 	}
 	if p, ok := modelPriceTable[model]; ok {
-		return p
+		return p, true
 	}
 	// Prefix fallback for versioned suffixes (e.g. a new dated snapshot
 	// `claude-haiku-4-5-20260101` pricing like its base `claude-haiku-4-5`).
@@ -119,9 +137,9 @@ func priceFor(model string) modelPrice {
 		}
 	}
 	if bestLen >= 0 {
-		return best
+		return best, true
 	}
-	return modelPrice{}
+	return modelPrice{}, false
 }
 
 // CostMicrocents is the exported front-door (M1.oo) for the

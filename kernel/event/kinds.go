@@ -81,6 +81,11 @@ const (
 	// run-time counterpart to the dry-run "will not bind" warning. Payload:
 	// {model, cap_microcents}.
 	KindBudgetCapInert Kind = "budget.cap_inert"
+	// KindBudgetUnpriced records that strict-pricing mode (M193) refused a request
+	// because its model has no known price (catalog + fallback table miss). Without
+	// strict pricing such a model is charged $0, silently bypassing the budget; this
+	// event makes the refusal auditable. Payload: {model}.
+	KindBudgetUnpriced Kind = "budget.unpriced"
 	// KindPolicyCompacted records that the durable policy overlay was compacted to
 	// a snapshot (M176). Its payload {through_seq, content_hash} binds the on-disk
 	// snapshot to the tamper-evident journal: at boot the snapshot is trusted only
@@ -225,6 +230,7 @@ var knownKinds = map[Kind]struct{}{
 	KindBudgetExceeded:            {},
 	KindRateLimited:               {},
 	KindBudgetCapInert:            {},
+	KindBudgetUnpriced:            {},
 	KindPolicyCompacted:           {},
 	KindNetguardBlocked:           {},
 	KindCapabilityRejected:        {},
