@@ -12,6 +12,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Fixed
+- **The ACP server reports the real product version to IDEs.** Its
+  `agentInfo.version` was a hardcoded `"0.1.0"`, so an editor connecting to a
+  v1.0.0 daemon over the Agent Client Protocol displayed "agezt 0.1.0".
+  `agentInfo` now sources its name and version from `internal/brand`, so it
+  tracks the actual release (and won't drift on the next bump). The ACP
+  `protocolVersion` is unchanged — it's a separate, correctly-constant field.
 - **An empty or whitespace-only outbound message is now a no-op, not a failed
   send.** Every channel's send path (Telegram, Discord incl. slash-command
   follow-ups, Slack) returns early on blank text instead of POSTing it — the

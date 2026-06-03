@@ -20,6 +20,8 @@ import (
 	"fmt"
 	"io"
 	"sync"
+
+	"github.com/agezt/agezt/internal/brand"
 )
 
 // ProtocolVersion is the ACP version this server implements.
@@ -135,7 +137,10 @@ func (s *Server) handleInitialize(_ json.RawMessage) any {
 				"audio": false,
 			},
 		},
-		"agentInfo": map[string]any{"name": "agezt", "version": "0.1.0"},
+		// agentInfo is the agent's own identity reported to the IDE/client — the
+		// product name and version, distinct from protocolVersion above. Sourced
+		// from brand so it tracks the real release (was a stale "0.1.0" literal).
+		"agentInfo": map[string]any{"name": brand.Binary, "version": brand.Version},
 	}
 }
 

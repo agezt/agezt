@@ -8,6 +8,8 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+
+	"github.com/agezt/agezt/internal/brand"
 )
 
 // fakeRunner records the intent and optionally streams chunks before returning.
@@ -70,8 +72,12 @@ func TestInitialize(t *testing.T) {
 		t.Errorf("protocolVersion = %v", res["protocolVersion"])
 	}
 	info, _ := res["agentInfo"].(map[string]any)
-	if info["name"] != "agezt" {
-		t.Errorf("agentInfo.name = %v", info["name"])
+	if info["name"] != brand.Binary {
+		t.Errorf("agentInfo.name = %v, want %q", info["name"], brand.Binary)
+	}
+	// agentInfo.version must report the real product version, not a stale literal.
+	if info["version"] != brand.Version {
+		t.Errorf("agentInfo.version = %v, want %q (brand.Version)", info["version"], brand.Version)
 	}
 }
 
