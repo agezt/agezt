@@ -343,6 +343,16 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   `.project/PHASE-M129-OBSERVABILITY-TENANT-FLAG-REPORT.md`.
 
 ### Fixed
+- **`agt peers` bounds a peer's health response** (M200) — the mesh health check
+  (`checkPeer`) decoded a peer's `GET /api/v1/health` body with `json.NewDecoder(resp.Body)`
+  and no size cap, so a hostile or misconfigured peer could stream an unbounded body and
+  exhaust the operator's CLI — even though the sibling `remote_run` tool already bounds its
+  own peer responses to 1 MiB. The decode now reads through `io.LimitReader(resp.Body,
+  maxPeerHealthBytes)` (1 MiB, matching `remote_run`); an over-limit body is cut off and the
+  peer is reported unreachable with a decode error instead of being ingested. Completes the
+  bounded-read guarantee (plugin host M177, mcpbridge M185, control plane M188, HTTP APIs
+  M198) on the federation/mesh client surface. See
+  `.project/PHASE-M200-PEER-HEALTH-BOUND-REPORT.md`.
 - **One-shot schedules are now crash-safe (at-least-once)** (M199) — a `once` schedule
   (`agt schedule once …`) was removed from the store the instant `Store.Due` reported it as
   due, *before* its run launched. A daemon crash in the run window therefore dropped the

@@ -86,6 +86,11 @@ func cmdPeers(args []string, stdout, stderr io.Writer) int {
 	return 0
 }
 
+// maxPeerHealthBytes caps a peer's /api/v1/health response. A legitimate health
+// doc is a few bytes; the cap matches the remote_run tool's 1 MiB peer-response
+// limit so a hostile/misconfigured peer can't exhaust the CLI's memory (M200).
+const maxPeerHealthBytes = 1 << 20
+
 type peerHealth struct {
 	Name       string `json:"name"`
 	URL        string `json:"url"`
@@ -128,7 +133,10 @@ func checkPeer(p peer.Peer) peerHealth {
 		Version    string `json:"version"`
 		ModelCount int    `json:"model_count"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+	// Bound the response: a health doc is a few bytes, but a hostile or
+	// misconfigured peer could stream an unbounded body and exhaust the operator's
+	// CLI. Cap it like the remote_run tool does its own peer responses (M200).
+	if err := json.NewDecoder(io.LimitReader(resp.Body, maxPeerHealthBytes)).Decode(&body); err != nil {
 		out.Error = "bad health response: " + err.Error()
 		return out
 	}
