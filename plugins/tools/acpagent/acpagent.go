@@ -136,6 +136,13 @@ func (t *Tool) Invoke(ctx context.Context, input json.RawMessage) (agent.Result,
 
 	var answer strings.Builder
 	stop, err := client.Prompt(ctx, sid, task, func(chunk string) {
+		// Bound the in-memory accumulation: the result is truncated to
+		// MaxOutputBytes anyway, so a runaway agent streaming without end can't
+		// grow this without limit and OOM the daemon (M256). Overshoot is at most
+		// one message; whole chunks are appended so no UTF-8 rune is split.
+		if answer.Len() >= MaxOutputBytes {
+			return
+		}
 		answer.WriteString(chunk)
 	})
 	if err != nil {

@@ -12,6 +12,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Fixed
+- **A runaway ACP agent can no longer balloon the daemon's memory.** The
+  `acpagent` tool accumulated every streamed chunk into one buffer and only
+  truncated it to 60 KiB at the end — so an external agent that streamed without
+  end grew the buffer unbounded (and could OOM the daemon, taking every
+  concurrent run with it) before the timeout reaped it. Accumulation now stops at
+  the 60 KiB cap; the relayed answer is unchanged.
 - **Sending an image to a non-vision model via the API or a channel now fails
   fast with a clear message.** The control plane already pre-checked a run's
   model for vision capability before spending a provider call (M91), but the
