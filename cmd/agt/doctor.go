@@ -200,6 +200,12 @@ func runDoctorChecks() []doctorCheck {
 	if c, show := checkMeshLoops(ctx, client); show {
 		checks = append(checks, c)
 	}
+	// Per-tenant peer overrides (M227): only when AGEZT_TENANT_PEERS is set —
+	// validates the spec the daemon hard-fails on, so a typo is caught here
+	// rather than by a daemon that won't restart.
+	if c, show := checkTenantPeers(strings.TrimSpace(os.Getenv(brand.EnvPrefix + "TENANT_PEERS"))); show {
+		checks = append(checks, c)
+	}
 	checks = append(checks, checkHalt(status))
 
 	return checks
@@ -259,6 +265,70 @@ func meshLoopCheck(byKind map[string]any) (doctorCheck, bool) {
 	return warn("mesh-loops",
 		fmt.Sprintf("%d mesh delegation loop(s) refused (incoming hop limit exceeded)", n),
 		"a peer is delegating back into this node — check the federation topology for a cycle"), true
+}
+
+// checkTenantPeers validates AGEZT_TENANT_PEERS — the per-tenant mesh peer
+// overrides (M219) — and summarises what loaded (M227). The daemon parses this
+// up front and HARD-FAILS on a malformed spec, so a typo means the daemon
+// refuses to start; doctor reads the same env and surfaces the problem first.
+// It also gives the operator positive confirmation of which tenants have a
+// dedicated peer set (without it, a typo'd tenant name silently falls back to
+// the global peer set and there's no signal it happened).
+//
+// Only called when AGEZT_TENANT_PEERS is set (it's an advanced feature), so it
+// returns show=false on an empty spec to keep ordinary output quiet. Peer URLs
+// and tokens are never printed — only tenant names and peer counts.
+func checkTenantPeers(spec string) (doctorCheck, bool) {
+	if spec == "" {
+		return doctorCheck{}, false
+	}
+	tp, err := peer.ParseTenantPeers(spec)
+	if err != nil {
+		return fail("tenant-peers", "AGEZT_TENANT_PEERS is malformed: "+err.Error(),
+			"the daemon will refuse to start — fix the spec (JSON: {\"<tenant>\":\"name=url|token,…\"})"), true
+	}
+	// Tenants present in the spec but with an empty peer set are silently
+	// dropped by the parser — and so ignored by the daemon. Surface that: the
+	// override the operator wrote does nothing, and the tenant falls back to the
+	// global set with no other signal.
+	var raw map[string]string
+	var dropped []string
+	if json.Unmarshal([]byte(spec), &raw) == nil {
+		for tenant := range raw {
+			if tenant = strings.TrimSpace(tenant); tenant != "" {
+				if _, kept := tp[tenant]; !kept {
+					dropped = append(dropped, tenant)
+				}
+			}
+		}
+	}
+	sort.Strings(dropped)
+
+	names := make([]string, 0, len(tp))
+	for t := range tp {
+		names = append(names, t)
+	}
+	sort.Strings(names)
+	parts := make([]string, len(names))
+	for i, t := range names {
+		parts[i] = fmt.Sprintf("%s→%d peer(s)", t, len(tp[t]))
+	}
+
+	if len(dropped) > 0 {
+		loaded := "none"
+		if len(parts) > 0 {
+			loaded = strings.Join(parts, ", ")
+		}
+		return warn("tenant-peers",
+			fmt.Sprintf("loaded %d override(s) [%s]; ignored (empty peer set): %s",
+				len(tp), loaded, strings.Join(dropped, ", ")),
+			"give the ignored tenant(s) peers, or remove the empty entry"), true
+	}
+	if len(tp) == 0 {
+		return ok("tenant-peers", "no per-tenant peer overrides"), true
+	}
+	return ok("tenant-peers",
+		fmt.Sprintf("%d tenant override(s): %s", len(tp), strings.Join(parts, ", "))), true
 }
 
 // checkMeshHopLimit validates an explicitly-set AGEZT_MESH_MAX_HOPS (M211/M213). A valid

@@ -12,6 +12,14 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **`agt doctor` validates per-tenant peer overrides.** A new `tenant-peers`
+  check (shown only when `AGEZT_TENANT_PEERS` is set) validates the per-tenant
+  mesh peer sets (M219): a malformed spec — which the daemon hard-fails on — is
+  caught as a FAIL before a restart, a valid one is confirmed with a per-tenant
+  peer-count summary (no URLs or tokens printed), and a tenant whose peer set is
+  empty (silently dropped by the parser, so its override does nothing and it
+  falls back to the global set) is surfaced as a WARN that names it — a
+  misconfiguration nothing previously reported.
 - **`agt doctor` surfaces refused mesh delegation loops.** The M209 loop guard
   rejects an incoming cross-node run whose hop count exceeds the limit (508 Loop
   Detected) and journals a `mesh.loop_refused` event — but that signal was only
