@@ -12,6 +12,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **`agt backup inspect <file>` — read a backup bundle without restoring it.**
+  An offline inspection of a `agt backup` archive: shows the manifest (tool,
+  format, creation time, recorded journal head, included subtrees) and lists the
+  contained files with sizes, without unpacking. Flags any entry outside the
+  known include subtrees (a sign of a tampered or foreign archive) and exits
+  non-zero so a bad bundle is caught before a restore. `--json` for scripting.
+  The whole-home counterpart to `agt journal verify --bundle`.
 - **`agt vault status` surfaces the vault's key-derivation policy.** An
   encrypted vault's status now reports its KDF and iteration count and whether it
   is up to date — read from the envelope without the passphrase — so an operator
