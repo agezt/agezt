@@ -12,6 +12,17 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **`remote_run` auto-routes to a peer that serves the requested model — cross-node routing**
+  (M203) — when a `model` is given but no `peer` is named (and more than one peer is
+  configured), the mesh tool now discovers each peer's routable models (`GET /api/v1/models`)
+  and dispatches the task to a peer that serves that model, instead of erroring "a peer name
+  is required". Peers are queried in name order so the pick is deterministic; an unreachable
+  peer is skipped (not fatal); if no peer serves the model the error names what was checked
+  and what was unreachable. This is the automation layer over M201 (discovery) + M202 (model
+  pinning): the agent can now say "run this on `opus`" without knowing which node has it.
+  Naming a peer still bypasses discovery entirely (the explicit-dispatch path and single-peer
+  behaviour are unchanged), and discovery responses are bounded-read (1 MiB). See
+  `.project/PHASE-M203-REMOTE-RUN-AUTOROUTE-REPORT.md`.
 - **`remote_run` can pin the peer's model — capability-aware delegation** (M202) — the mesh
   delegation tool now accepts an optional `model` argument and forwards it to the peer's
   `POST /api/v1/runs`, so the delegating node can ask a peer to route the handed-off task to

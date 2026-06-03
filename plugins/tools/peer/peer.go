@@ -46,12 +46,18 @@ type Peer struct {
 // poster performs the HTTP POST to a peer; injectable for tests.
 type poster func(ctx context.Context, endpoint, token string, body []byte) (status int, respBody []byte, err error)
 
+// lister fetches a peer's routable model ids (GET /api/v1/models); injectable for
+// tests. Used only for auto-routing — picking a peer for a requested model when the
+// caller named none.
+type lister func(ctx context.Context, p Peer) (models []string, err error)
+
 // Tool implements agent.Tool. Constructed only when at least one peer is
 // configured; see New.
 type Tool struct {
 	Peers   map[string]Peer
 	Timeout time.Duration
 	post    poster
+	list    lister
 }
 
 // New builds a peer Tool from configured peers. Returns nil when none are
@@ -60,7 +66,7 @@ func New(peers map[string]Peer) *Tool {
 	if len(peers) == 0 {
 		return nil
 	}
-	return &Tool{Peers: peers, post: httpPost}
+	return &Tool{Peers: peers, post: httpPost, list: httpListModels}
 }
 
 func (t *Tool) Definition() agent.ToolDef {
@@ -69,8 +75,9 @@ func (t *Tool) Definition() agent.ToolDef {
 		Description: "Delegate a self-contained task to a PEER Agezt node and return its answer. " +
 			"The peer runs the task through its own governed agent loop (its tools, its policy) and " +
 			"reports back. Use to hand work to a node with different capabilities, data access, or " +
-			"location. Optionally pin which model the peer should use with `model` (the operator can " +
-			"list each peer's routable models). Available peers: " + t.peerNames() + ".",
+			"location. Optionally pin which model the peer should use with `model`; if you set " +
+			"`model` but omit `peer`, a peer that serves that model is chosen automatically. " +
+			"Available peers: " + t.peerNames() + ".",
 		InputSchema: json.RawMessage(`{
   "type": "object",
   "properties": {
@@ -115,10 +122,6 @@ func (t *Tool) Invoke(ctx context.Context, input json.RawMessage) (agent.Result,
 		return agent.Result{Output: "task is required", IsError: true}, nil
 	}
 	model := strings.TrimSpace(in.Model)
-	peer, err := t.resolve(in.Peer)
-	if err != nil {
-		return agent.Result{Output: err.Error(), IsError: true}, nil
-	}
 
 	to := t.Timeout
 	if to <= 0 {
@@ -126,6 +129,13 @@ func (t *Tool) Invoke(ctx context.Context, input json.RawMessage) (agent.Result,
 	}
 	ctx, cancel := context.WithTimeout(ctx, to)
 	defer cancel()
+
+	// Pick the peer. A named peer is used as-is; otherwise, when a model is requested
+	// and several peers are configured, auto-route to one that serves it (M203).
+	peer, err := t.selectPeer(ctx, strings.TrimSpace(in.Peer), model)
+	if err != nil {
+		return agent.Result{Output: err.Error(), IsError: true}, nil
+	}
 
 	// Forward the model only when the caller pinned one; an absent/empty model lets
 	// the peer use its own default (the restapi runRequest falls back to it), so the
@@ -183,6 +193,49 @@ func render(peerName, model, corr, answer string) string {
 	return b.String()
 }
 
+// selectPeer chooses which peer runs the task. A named peer wins outright. With no
+// name, if a model is requested AND more than one peer is configured, it auto-routes
+// to a peer that serves that model (M203); otherwise it falls back to resolve (the
+// sole-peer / ambiguous-name rules), preserving the prior behaviour exactly.
+func (t *Tool) selectPeer(ctx context.Context, name, model string) (Peer, error) {
+	if name == "" && model != "" && len(t.Peers) > 1 {
+		return t.resolvePeerForModel(ctx, model)
+	}
+	return t.resolve(name)
+}
+
+// resolvePeerForModel returns the sorted-first peer that lists the requested model.
+// Peers are queried in name order so the choice is deterministic. A peer that can't
+// be reached for discovery is noted but doesn't abort the search; if no peer serves
+// the model, the error names which peers were checked and which were unreachable.
+func (t *Tool) resolvePeerForModel(ctx context.Context, model string) (Peer, error) {
+	names := make([]string, 0, len(t.Peers))
+	for n := range t.Peers {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+
+	var unreachable []string
+	for _, n := range names {
+		p := t.Peers[n]
+		models, err := t.list(ctx, p)
+		if err != nil {
+			unreachable = append(unreachable, n)
+			continue
+		}
+		for _, m := range models {
+			if m == model {
+				return p, nil
+			}
+		}
+	}
+	msg := fmt.Sprintf("remote_run: no configured peer serves model %q (checked: %s", model, t.peerNames())
+	if len(unreachable) > 0 {
+		msg += "; unreachable: " + strings.Join(unreachable, ", ")
+	}
+	return Peer{}, fmt.Errorf("%s)", msg)
+}
+
 // resolve picks the named peer, or the sole peer when name is empty.
 func (t *Tool) resolve(name string) (Peer, error) {
 	name = strings.TrimSpace(name)
@@ -225,6 +278,35 @@ func httpPost(ctx context.Context, endpoint, token string, body []byte) (int, []
 	defer resp.Body.Close()
 	rb, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	return resp.StatusCode, rb, nil
+}
+
+// httpListModels is the default lister: GET {url}/api/v1/models, returning the
+// peer's routable model ids. The response is bounded-read (1 MiB) so a hostile peer
+// can't exhaust memory during auto-routing discovery.
+func httpListModels(ctx context.Context, p Peer) ([]string, error) {
+	endpoint := strings.TrimRight(p.URL, "/") + "/api/v1/models"
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return nil, err
+	}
+	if p.Token != "" {
+		req.Header.Set("Authorization", "Bearer "+p.Token)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("status %d", resp.StatusCode)
+	}
+	var body struct {
+		Models []string `json:"models"`
+	}
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&body); err != nil {
+		return nil, err
+	}
+	return body.Models, nil
 }
 
 // ParsePeers parses the AGEZT_PEERS spec: a comma-separated list of peers, each
