@@ -11,6 +11,18 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 
 ## [Unreleased]
 
+## [1.0.0] — 2026-06-03
+
+**Scale release (ROADMAP M8): "One Agezt across many nodes."** v1.0 fuses the v0.1.0 MVP
+with a **federated mesh** and **multi-tenant isolation** — the two halves the ROADMAP
+defines as v1.0. The mesh gained peer discovery (`agt peers models`), capability-aware
+auto-routing of `remote_run` by model with transport-fault failover, a bounded-TTL
+discovery cache, a delegation **loop guard** (hop-limited, tunable, audited, tenant-scoped),
+and `agt doctor` / `agt status` mesh observability; the env-spec parsers were hardened
+against silent misconfiguration; and finally **per-tenant peer sets** (M219) partition the
+mesh by tenant — leak-safe via kernel-stamped tenant identity. All work below was previously
+under `[Unreleased]`; it ships as v1.0.0.
+
 ### Added
 - **Per-tenant mesh peer sets — the federated-mesh × multi-tenant capability** (M219) — the
   `remote_run` mesh tool now routes a tenant's delegations against that tenant's **own** peer

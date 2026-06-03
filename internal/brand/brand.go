@@ -31,8 +31,9 @@ const (
 	ProtocolVersion = 1
 )
 
-// Version is the kernel semver, updated per release. v0.1.0 is the MVP
-// (ROADMAP §2.2): a usable Jarvis — kernel + journal + agent loop + real
-// providers + sandboxed tools + Telegram + Pulse + memory/world/skills/
-// reflection + Web UI, all journaled and reversible. See CHANGELOG.md.
-var Version = "0.1.0"
+// Version is the kernel semver, updated per release. v1.0.0 is the Scale
+// release (ROADMAP §3, M8): "One Agezt across many nodes" — the v0.1.0 MVP
+// plus a federated mesh (peer discovery, capability-aware routing, failover,
+// bounded delegation) and multi-tenant isolation, fused so each tenant
+// federates to its own peer set. See CHANGELOG.md.
+var Version = "1.0.0"

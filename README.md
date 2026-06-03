@@ -6,16 +6,17 @@
 > extends via in-process or out-of-process plugins.
 > **Autonomous, under your authority.**
 
-**Status:** **v0.1.0 — the MVP ships** (May 2026). A usable Jarvis: real
-providers (proven end-to-end), sandboxed tools, Telegram, Pulse, the
-memory / world-model / skills / reflection cognitive loop, and a Web UI —
-all journaled, content-addressed, and reversible. Since the MVP — **M11**
-(reach + delegate) and **M12** (full API surface + mesh): any **OpenAI client
-or IDE** can drive it (OpenAI **chat + responses** APIs, an **ACP** server, and
-a **native REST** `/api/v1`), it drives **external ACP agents** and **peer
-Agezt nodes** back (mesh), pushes events out via **HMAC-signed webhooks**, and
-`agt provider import` brings every key you already have online in one pass.
-See [CHANGELOG.md](CHANGELOG.md).
+**Status:** **v1.0.0 — Scale: "One Agezt across many nodes"** (June 2026). The
+v0.1.0 MVP — a usable Jarvis (real providers proven end-to-end, sandboxed tools,
+Telegram, Pulse, the memory / world-model / skills / reflection cognitive loop,
+and a Web UI, all journaled, content-addressed, and reversible) — now fused with
+a **federated mesh** and **multi-tenant isolation** (ROADMAP M8). Any **OpenAI
+client or IDE** can drive it (OpenAI **chat + responses** APIs, an **ACP** server,
+and a **native REST** `/api/v1`); it drives **external ACP agents** and **peer
+Agezt nodes** back — with capability-aware **auto-routing**, **failover**, and a
+bounded delegation **loop guard** — and now each **tenant federates to its own
+peer set**; events push out via **HMAC-signed webhooks**. See
+[CHANGELOG.md](CHANGELOG.md).
 **Tests:** 1693 passing across 64 packages.
 **Dependencies:** one (`lukechampine.com/blake3`) + one transitive.
 
