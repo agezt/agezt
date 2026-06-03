@@ -14,7 +14,8 @@
 //     provider keys from the creds store). Scrubbed wherever they appear, even
 //     mid-string and nested.
 //   - Patterns: high-confidence secret *formats* (OpenAI/Anthropic `sk-…`, AWS
-//     `AKIA…`, GitHub `ghp_…`, Slack `xox…`, Google `AIza…`, bearer tokens, PEM
+//     `AKIA…`, GitHub `ghp_…`, Slack `xox…`/`xapp-…`, Telegram bot tokens,
+//     Groq `gsk_…`, xAI `xai-…`, Google `AIza…`, bearer tokens, JWTs, PEM
 //     private-key blocks). These catch secrets the daemon was never told about.
 //
 // Redaction is a pure, deterministic function of (input, literal set): the same
@@ -65,6 +66,18 @@ var namedPatterns = []namedPattern{
 	{"github-fine-grained-pat", regexp.MustCompile(`github_pat_[A-Za-z0-9_]{30,}`)},
 	// Slack tokens: xoxb-, xoxa-, xoxp-, xoxr-, xoxs-.
 	{"slack-token", regexp.MustCompile(`xox[baprs]-[A-Za-z0-9-]{10,}`)},
+	// Slack app-level tokens: xapp-… (distinct from the xox… bot/user tokens
+	// above; agezt's Slack channel handles app tokens too — M228).
+	{"slack-app-token", regexp.MustCompile(`xapp-[0-9]+-[A-Za-z0-9-]{10,}`)},
+	// Telegram bot tokens (AGEZT_TELEGRAM_TOKEN): an 8–10 digit bot id, a colon,
+	// then a 35-char secret. agezt's Telegram channel handles these, so they can
+	// reach a log or the journal without this rule (M228).
+	{"telegram-bot-token", regexp.MustCompile(`[0-9]{8,10}:[A-Za-z0-9_-]{35}`)},
+	// Groq API keys: gsk_… — a first-class compat provider. The openai sk- rule
+	// does NOT cover these (gsk_ has no "sk-"), so they would otherwise leak (M228).
+	{"groq-key", regexp.MustCompile(`gsk_[A-Za-z0-9]{20,}`)},
+	// xAI (Grok) API keys: xai-… — a first-class compat provider (M228).
+	{"xai-key", regexp.MustCompile(`xai-[A-Za-z0-9]{20,}`)},
 	// Google API key (AIza + ≥35; open-ended so a longer variant isn't left with a
 	// trailing tail unredacted — M170).
 	{"google-api-key", regexp.MustCompile(`AIza[0-9A-Za-z_-]{35,}`)},

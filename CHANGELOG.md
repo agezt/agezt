@@ -11,6 +11,15 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 
 ## [Unreleased]
 
+### Security
+- **Secret redaction now covers the formats agezt's own integrations handle.**
+  Added high-confidence patterns for Telegram bot tokens (`<id>:<35-char>`, the
+  Telegram channel), Slack app-level tokens (`xapp-…`, complementing the existing
+  `xox…`), and Groq (`gsk_…`) and xAI (`xai-…`) API keys — both first-class compat
+  providers whose keys the broad `sk-…` rule did not match. Without these, such a
+  secret appearing in a log line, tool output, or journal payload would have gone
+  out in the clear. False-positive-guarded against ordinary text.
+
 ### Added
 - **`agt doctor` validates per-tenant peer overrides.** A new `tenant-peers`
   check (shown only when `AGEZT_TENANT_PEERS` is set) validates the per-tenant
