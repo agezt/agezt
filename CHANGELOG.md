@@ -12,6 +12,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Credential-vault migration (`creds.InspectVault` / `Store.MigrateEncryption`).**
+  The first piece of the migrate tooling: detect an encrypted vault written with
+  the legacy key-derivation (pre-PBKDF2) or below the current iteration policy,
+  and upgrade it in place by re-encrypting with the current KDF — passphrase and
+  secrets unchanged. `InspectVault` reports a vault's KDF/iterations and whether
+  it is up to date without needing the passphrase, so an operator can check
+  migration status at a glance. (CLI command wires this up next.)
 - **Public Go SDK (`github.com/agezt/agezt/sdk`).** A stable, ergonomic client
   for embedding Agezt in Go programs: `sdk.Dial("")` connects to the local
   daemon, and `Client.Run(ctx, intent, opts...)` / `Client.RunStream(...)` run an
