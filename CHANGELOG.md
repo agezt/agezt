@@ -318,6 +318,15 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   `.project/PHASE-M129-OBSERVABILITY-TENANT-FLAG-REPORT.md`.
 
 ### Fixed
+- **Deterministic longest-prefix price match (governor review HIGH)** (M192) — the
+  fallback price-table prefix match returned the *first* key Go's randomized map
+  iteration happened to hit, so a model id overlapping more than one key got a
+  **nondeterministic** price (different across boots) and could bind to a less-specific,
+  cheaper entry. The lookup now picks the **longest** matching key — deterministic (no
+  two distinct equal-length keys can both prefix the same string) and always the most
+  specific price. The live catalog path was already exact-match; this only affects the
+  bootstrap fallback table. See
+  `.project/PHASE-M192-GOVERNOR-PRICE-MATCH-REPORT.md`.
 - **Budget cost math is overflow/negative-safe — a hostile usage report can't disable
   the spend ceiling (governor review CRITICAL)** (M191) — `costMicrocents` computed
   `tokens × price/MTok` with raw int64 arithmetic on provider-reported token counts.

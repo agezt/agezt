@@ -99,11 +99,27 @@ func priceFor(model string) modelPrice {
 	if p, ok := modelPriceTable[model]; ok {
 		return p
 	}
+	// Prefix fallback for versioned suffixes (e.g. a new dated snapshot
+	// `claude-haiku-4-5-20260101` pricing like its base `claude-haiku-4-5`).
+	// Pick the LONGEST matching key (M192), not the first one Go's
+	// randomized map iteration happens to hit: returning the first match
+	// made the price of an overlapping name nondeterministic across boots
+	// — unacceptable for money math — and could bind a model to a less
+	// specific (cheaper) entry than the best available. Longest-prefix is
+	// deterministic (no two distinct keys of equal length can both prefix
+	// the same string) and always prefers the most specific price.
 	lower := strings.ToLower(model)
+	bestLen := -1
+	var best modelPrice
 	for k, v := range modelPriceTable {
-		if strings.HasPrefix(lower, strings.ToLower(k)) {
-			return v
+		lk := strings.ToLower(k)
+		if strings.HasPrefix(lower, lk) && len(lk) > bestLen {
+			bestLen = len(lk)
+			best = v
 		}
+	}
+	if bestLen >= 0 {
+		return best
 	}
 	return modelPrice{}
 }
