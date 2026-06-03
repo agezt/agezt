@@ -12,6 +12,14 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **`agt skill registry <url>` — browse and install from a remote registry.**
+  The registry command now accepts an http(s) URL: it fetches the `index.json`
+  manifest a publisher wrote with `agt skill export --all`, lists the available
+  skills, and with `--install <name>` fetches the named bundle and installs it
+  through the same content-address verification as a local import. Fetches are
+  bounded (20s timeout, 8 MiB cap) and an index entry's file name is validated to
+  be a plain filename (no traversal) before download. A static file host is all a
+  registry needs.
 - **`agt skill export --all` now writes an `index.json` registry manifest.**
   Alongside the per-skill bundle files, it writes an `index.json` listing every
   published skill (name, version, id, description, file) — the manifest a static

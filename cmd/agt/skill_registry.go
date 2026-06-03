@@ -160,9 +160,10 @@ func cmdSkillRegistry(args []string, stdout, stderr io.Writer) int {
 		case strings.HasPrefix(a, "--install="):
 			install = strings.TrimPrefix(a, "--install=")
 		case a == "-h" || a == "--help":
-			fmt.Fprintf(stdout, "usage: %s skill registry <dir> [--json] [--install <name>]\n", brand.CLI)
-			fmt.Fprintf(stdout, "list the verifiable skill bundles (*.skill.json) in a directory\n")
+			fmt.Fprintf(stdout, "usage: %s skill registry <dir|url> [--json] [--install <name>]\n", brand.CLI)
+			fmt.Fprintf(stdout, "list the verifiable skill bundles in a directory or a remote registry URL\n")
 			fmt.Fprintf(stdout, "  --install <name>  install the named bundle from the registry as a draft\n")
+			fmt.Fprintf(stdout, "a remote registry is an http(s) URL serving index.json + bundle files\n")
 			fmt.Fprintf(stdout, "import one by path with: %s skill import <path>\n", brand.CLI)
 			return 0
 		case strings.HasPrefix(a, "-"):
@@ -177,8 +178,14 @@ func cmdSkillRegistry(args []string, stdout, stderr io.Writer) int {
 		}
 	}
 	if dir == "" {
-		fmt.Fprintf(stderr, "%s skill registry: a directory is required\n", brand.CLI)
+		fmt.Fprintf(stderr, "%s skill registry: a directory or URL is required\n", brand.CLI)
 		return 2
+	}
+
+	// A remote registry (http/https URL) is discovered via its index.json
+	// manifest, since a static host offers no directory listing.
+	if isHTTPURL(dir) {
+		return remoteRegistry(dir, install, asJSON, stdout, stderr)
 	}
 
 	entries, err := scanSkillRegistry(dir)

@@ -55,12 +55,20 @@ func cmdSkillImport(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "%s skill import: read %s: %v\n", brand.CLI, bundlePath, err)
 		return 1
 	}
+	return importSkillBundleBytes(data, asJSON, stdout, stderr)
+}
+
+// importSkillBundleBytes parses raw bundle bytes, verifies the content address
+// OFFLINE (a tampered bundle is rejected before the daemon is dialed), then
+// installs it via CmdSkillImport and reports. Shared by the file path
+// (`agt skill import <bundle>`) and the remote registry install
+// (`agt skill registry <url> --install <name>`).
+func importSkillBundleBytes(data []byte, asJSON bool, stdout, stderr io.Writer) int {
 	var bundle skillBundle
 	if err := json.Unmarshal(data, &bundle); err != nil {
 		fmt.Fprintf(stderr, "%s skill import: parse bundle: %v\n", brand.CLI, err)
 		return 1
 	}
-	// Verify the content address offline, before touching the daemon.
 	if err := verifySkillBundle(bundle); err != nil {
 		fmt.Fprintf(stderr, "%s skill import: bundle INVALID: %v\n", brand.CLI, err)
 		return 1
