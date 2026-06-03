@@ -72,6 +72,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   out in the clear. False-positive-guarded against ordinary text.
 
 ### Added
+- **OpenAI streaming honours `stream_options.include_usage`.** When a chat
+  completions client sets it, the stream now ends with a usage-only chunk
+  (`choices: []` + a `usage` object) before `[DONE]`, matching OpenAI — so
+  cost-tracking clients and the OpenAI SDK get token counts from streamed runs.
+  Without the option, no usage chunk is emitted (OpenAI's default). Unknown
+  request fields are still ignored, so this is additive.
 - **`agt doctor` validates per-tenant peer overrides.** A new `tenant-peers`
   check (shown only when `AGEZT_TENANT_PEERS` is set) validates the per-tenant
   mesh peer sets (M219): a malformed spec — which the daemon hard-fails on — is

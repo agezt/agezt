@@ -202,9 +202,17 @@ func (s *Server) handleModels(w http.ResponseWriter, r *http.Request) {
 // --- /v1/chat/completions ---
 
 type chatRequest struct {
-	Model    string        `json:"model"`
-	Messages []chatMessage `json:"messages"`
-	Stream   bool          `json:"stream"`
+	Model         string         `json:"model"`
+	Messages      []chatMessage  `json:"messages"`
+	Stream        bool           `json:"stream"`
+	StreamOptions *streamOptions `json:"stream_options,omitempty"`
+}
+
+// streamOptions mirrors OpenAI's stream_options. IncludeUsage requests a final
+// usage-only chunk at the end of a stream (M237) — cost-tracking clients and the
+// OpenAI SDK rely on it when set.
+type streamOptions struct {
+	IncludeUsage bool `json:"include_usage"`
 }
 
 type chatMessage struct {
@@ -268,7 +276,8 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if req.Stream {
-		s.streamChat(w, r, eng, b, intent, model)
+		includeUsage := req.StreamOptions != nil && req.StreamOptions.IncludeUsage
+		s.streamChat(w, r, eng, b, intent, model, includeUsage)
 		return
 	}
 
@@ -297,7 +306,7 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 // OpenAI chat.completion.chunk SSE frames. It subscribes to the run subject
 // BEFORE starting the run so no early token is missed (the same no-race pattern
 // the control plane's handleRun uses).
-func (s *Server) streamChat(w http.ResponseWriter, r *http.Request, eng Engine, b *bus.Bus, intent, model string) {
+func (s *Server) streamChat(w http.ResponseWriter, r *http.Request, eng Engine, b *bus.Bus, intent, model string, includeUsage bool) {
 	flusher, ok := w.(http.Flusher)
 	if !ok {
 		writeErr(w, http.StatusInternalServerError, "stream_unsupported", "streaming unsupported")
@@ -328,6 +337,30 @@ func (s *Server) streamChat(w http.ResponseWriter, r *http.Request, eng Engine, 
 		flusher.Flush()
 	}
 
+	var full strings.Builder // accumulates the answer for the optional usage chunk
+	sendContent := func(txt string) {
+		full.WriteString(txt)
+		sendChunk(map[string]any{"content": txt}, nil)
+	}
+	// endStream writes the terminal finish chunk, then — if the client requested
+	// stream_options.include_usage — a usage-only chunk (choices:[] + usage, the
+	// OpenAI shape), then the [DONE] terminator (M237).
+	endStream := func(finish string) {
+		sendChunk(map[string]any{}, finish)
+		if includeUsage {
+			frame := map[string]any{
+				"id": id, "object": "chat.completion.chunk", "created": created, "model": model,
+				"choices": []map[string]any{},
+				"usage":   estimateUsage(intent, full.String()),
+			}
+			b, _ := json.Marshal(frame)
+			_, _ = w.Write([]byte("data: " + string(b) + "\n\n"))
+			flusher.Flush()
+		}
+		_, _ = w.Write([]byte("data: [DONE]\n\n"))
+		flusher.Flush()
+	}
+
 	// Opening role chunk.
 	sendChunk(map[string]any{"role": "assistant"}, nil)
 
@@ -347,13 +380,11 @@ func (s *Server) streamChat(w http.ResponseWriter, r *http.Request, eng Engine, 
 			return
 		case ev, ok := <-sub.C:
 			if !ok {
-				sendChunk(map[string]any{}, "stop")
-				_, _ = w.Write([]byte("data: [DONE]\n\n"))
-				flusher.Flush()
+				endStream("stop")
 				return
 			}
 			if txt := tokenText(ev); txt != "" {
-				sendChunk(map[string]any{"content": txt}, nil)
+				sendContent(txt)
 			}
 		case r := <-done:
 			// Drain any tokens still queued, then close the stream.
@@ -361,7 +392,7 @@ func (s *Server) streamChat(w http.ResponseWriter, r *http.Request, eng Engine, 
 				select {
 				case ev := <-sub.C:
 					if txt := tokenText(ev); txt != "" {
-						sendChunk(map[string]any{"content": txt}, nil)
+						sendContent(txt)
 					}
 				default:
 					drained = true
@@ -370,11 +401,9 @@ func (s *Server) streamChat(w http.ResponseWriter, r *http.Request, eng Engine, 
 			finish := "stop"
 			if r.err != nil {
 				finish = "error"
-				sendChunk(map[string]any{"content": "\n[error: " + r.err.Error() + "]"}, nil)
+				sendContent("\n[error: " + r.err.Error() + "]")
 			}
-			sendChunk(map[string]any{}, finish)
-			_, _ = w.Write([]byte("data: [DONE]\n\n"))
-			flusher.Flush()
+			endStream(finish)
 			return
 		}
 	}
