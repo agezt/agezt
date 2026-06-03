@@ -12,6 +12,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **`agt doctor` surfaces refused mesh delegation loops.** The M209 loop guard
+  rejects an incoming cross-node run whose hop count exceeds the limit (508 Loop
+  Detected) and journals a `mesh.loop_refused` event — but that signal was only
+  visible by digging through the journal. A new `mesh-loops` check folds the
+  journal's per-kind counts and WARNs when any loop has been refused (naming the
+  count, hinting at a federation-topology cycle). It stays silent when none have
+  occurred, so healthy and single-node output is unchanged. No new kernel state.
 - **`agt doctor` now pre-flights the plugin env-specs.** A new `plugins` check
   validates `AGEZT_PLUGINS` (and the optional `AGEZT_PLUGIN_PINS` /
   `AGEZT_PLUGIN_TOOLS`) using the same parsers the daemon runs at startup, so a

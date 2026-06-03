@@ -17,6 +17,7 @@ import (
 	"github.com/agezt/agezt/internal/paths"
 	"github.com/agezt/agezt/kernel/catalog"
 	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/meshctx"
 	"github.com/agezt/agezt/kernel/plugin"
 	"github.com/agezt/agezt/plugins/tools/peer"
@@ -193,6 +194,12 @@ func runDoctorChecks() []doctorCheck {
 	if _, raw, _ := meshctx.MaxHopsConfig(); raw != "" {
 		checks = append(checks, checkMeshHopLimit())
 	}
+	// Mesh loop-guard activity (M226): surfaced only when the local node has
+	// actually refused a delegation loop, so healthy/single-node output stays
+	// quiet. A non-zero count is a real signal worth investigating.
+	if c, show := checkMeshLoops(ctx, client); show {
+		checks = append(checks, c)
+	}
 	checks = append(checks, checkHalt(status))
 
 	return checks
@@ -217,6 +224,41 @@ func checkMeshAuth(peers map[string]peer.Peer) doctorCheck {
 		fmt.Sprintf("%d/%d peer(s) have no token — unauthenticated delegation: %s",
 			len(tokenless), len(peers), strings.Join(tokenless, ", ")),
 		"add a token: AGEZT_PEERS=\"name=url|token,…\"")
+}
+
+// checkMeshLoops reports how many cross-node delegation loops the local node
+// has refused (M226, surfacing the M209 loop guard). Each refusal is a
+// `mesh.loop_refused` journal event: a peer handed this node a run whose hop
+// count already exceeded the limit, so the REST API rejected it with 508 to
+// break a federation cycle. The count comes from the journal's per-kind fold
+// (CmdJournalStats), so this needs no new kernel state.
+//
+// Returns show=false (no line at all) when none have occurred — the healthy and
+// single-node case — to keep doctor output quiet. A non-zero count is a WARN:
+// the local node is fine (it correctly stopped the loop), but a peer delegating
+// back into it points at a federation-topology mistake worth fixing.
+func checkMeshLoops(ctx context.Context, client *controlplane.Client) (doctorCheck, bool) {
+	res, err := client.Call(ctx, controlplane.CmdJournalStats, nil)
+	if err != nil {
+		// Journal stats unavailable — stay silent; daemon-health checks above
+		// already cover a non-responsive control plane.
+		return doctorCheck{}, false
+	}
+	byKind, _ := res["by_kind"].(map[string]any)
+	return meshLoopCheck(byKind)
+}
+
+// meshLoopCheck is the pure decision behind checkMeshLoops: given the journal's
+// per-kind event counts, decide whether to surface a mesh-loop warning. Split
+// out so it is unit-testable without a control-plane round-trip.
+func meshLoopCheck(byKind map[string]any) (doctorCheck, bool) {
+	n := intOfStatus(byKind[string(event.KindMeshLoopRefused)])
+	if n <= 0 {
+		return doctorCheck{}, false
+	}
+	return warn("mesh-loops",
+		fmt.Sprintf("%d mesh delegation loop(s) refused (incoming hop limit exceeded)", n),
+		"a peer is delegating back into this node — check the federation topology for a cycle"), true
 }
 
 // checkMeshHopLimit validates an explicitly-set AGEZT_MESH_MAX_HOPS (M211/M213). A valid
