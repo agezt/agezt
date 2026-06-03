@@ -473,6 +473,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   `.project/PHASE-M129-OBSERVABILITY-TENANT-FLAG-REPORT.md`.
 
 ### Fixed
+- **A duplicate peer name in `AGEZT_PEERS` is now rejected** (M215) — `ParsePeers` keyed peers
+  by name and silently overwrote on a collision, so `AGEZT_PEERS="a=…,b=…,a=…"` parsed to TWO
+  peers, not three: a mesh node was silently lost, and a `remote_run` to the shadowed name hit
+  the wrong URL. A duplicate name is now a hard error (`peer "a" is defined more than once`),
+  caught at daemon startup like other malformed specs — so the misconfiguration surfaces
+  immediately instead of becoming a silent routing bug. Distinct names sharing a URL remain
+  valid. See `.project/PHASE-M215-PEER-DUP-NAME-REPORT.md`.
 - **`agt peers` bounds a peer's health response** (M200) — the mesh health check
   (`checkPeer`) decoded a peer's `GET /api/v1/health` body with `json.NewDecoder(resp.Body)`
   and no size cap, so a hostile or misconfigured peer could stream an unbounded body and

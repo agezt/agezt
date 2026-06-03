@@ -435,6 +435,13 @@ func ParsePeers(spec string) (map[string]Peer, error) {
 		if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
 			return nil, fmt.Errorf("peer %q: invalid URL %q (need http(s)://host…)", name, urlStr)
 		}
+		// A duplicate name would silently overwrite the earlier entry — you'd think
+		// you had N peers but the mesh would only know N-1, and `remote_run` to the
+		// shadowed name would hit the wrong node. Reject it so the misconfig is caught
+		// at startup, like other malformed specs (M215).
+		if _, dup := peers[name]; dup {
+			return nil, fmt.Errorf("peer %q is defined more than once", name)
+		}
 		peers[name] = Peer{Name: name, URL: urlStr, Token: token}
 	}
 	return peers, nil

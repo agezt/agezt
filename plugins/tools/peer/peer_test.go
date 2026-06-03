@@ -160,6 +160,22 @@ func TestParsePeers(t *testing.T) {
 	}
 }
 
+// TestParsePeers_RejectsDuplicateName ensures a duplicate peer name is a hard error
+// (it would otherwise silently overwrite, losing a mesh node) — M215.
+func TestParsePeers_RejectsDuplicateName(t *testing.T) {
+	_, err := ParsePeers("a=http://x:1,b=http://y:2,a=http://z:3")
+	if err == nil {
+		t.Fatal("a duplicate peer name should be rejected")
+	}
+	if !strings.Contains(err.Error(), "a") || !strings.Contains(err.Error(), "more than once") {
+		t.Errorf("error should name the duplicate: %v", err)
+	}
+	// Distinct names (even sharing a host) remain fine.
+	if _, err := ParsePeers("a=http://x:1,b=http://x:1"); err != nil {
+		t.Errorf("distinct names sharing a URL should be allowed: %v", err)
+	}
+}
+
 func TestDescribe_RedactsToken(t *testing.T) {
 	out := Describe(map[string]Peer{"a": {Name: "a", URL: "http://h:1", Token: "supersecret"}})
 	if strings.Contains(out, "supersecret") {
