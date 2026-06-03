@@ -22,6 +22,11 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   Callers no longer need to speak the control-plane wire protocol or import
   kernel internals. First milestone of the SDK; further surfaces (events helper,
   approvals, runs inspection) build on it.
+- **SDK run inspection (`Client.Runs`).** The SDK can now list recent agent runs
+  (newest first) as typed `RunInfo` values — correlation id, intent, status and
+  failure reason, parent (for sub-agents), start time and duration as
+  `time.Time` / `time.Duration`, iterations, cost in USD, and model — reading the
+  journal on the daemon without starting a run.
 
 ### Fixed
 - **A single oversized ACP message can no longer balloon memory.** Both the ACP
