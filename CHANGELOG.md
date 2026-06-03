@@ -12,6 +12,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Security
+- **Plugin stderr is now redacted before it reaches the daemon log.** A
+  third-party plugin's stderr is captured and written to the operator's log via
+  the plugin logger — a direct path the bus redactor (journaled events only)
+  never covered. A plugin that printed a secret (its own API key, etc.) leaked it
+  in the clear. Each line now passes through pattern-based redaction first; the
+  `[plugin:<name>]` prefix is preserved.
 - **Secret redaction now covers the formats agezt's own integrations handle.**
   Added high-confidence patterns for Telegram bot tokens (`<id>:<35-char>`, the
   Telegram channel), Slack app-level tokens (`xapp-…`, complementing the existing

@@ -2300,6 +2300,17 @@ func wireNetguardAudit(tools map[string]agent.Tool, b *bus.Bus) {
 	}
 }
 
+// pluginLogLine formats a plugin's stderr line for the daemon log, scrubbing
+// any secret of a known format it may have printed (M229). A third-party
+// plugin's stderr is untrusted output that lands directly in the operator's
+// logs — a path the bus redactor (which only covers journaled events) does not
+// touch. Pattern-based redaction is the right fit here: a plugin leaks its OWN
+// secrets, which the daemon doesn't hold as literals but whose formats (sk-,
+// Telegram, Groq, …) the built-in detectors catch.
+func pluginLogLine(r *redact.Redactor, prefix, line string) string {
+	return fmt.Sprintf("[plugin:%s] %s", prefix, r.Redact(line))
+}
+
 // buildTools registers the in-process tools. Each tool gets its own
 // configuration from env vars; defaults are safe (file tool scoped to a
 // per-instance workspace, http tool default-deny). The shell tool runs
@@ -2501,6 +2512,10 @@ func buildTools(baseDir string, stderr io.Writer, ward warden.Engine) (map[strin
 			return nil, nil, "", fmt.Errorf("AGEZT_PLUGINS: %w", err)
 		}
 		usedPrefixes := make([]string, 0, len(entries))
+		// Scrub secrets of known formats from plugin stderr before it reaches the
+		// daemon log (M229). Pattern-only (no literals) — a plugin leaks its own
+		// secrets, not the daemon's.
+		pluginRedactor := redact.New()
 
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
@@ -2511,7 +2526,7 @@ func buildTools(baseDir string, stderr io.Writer, ward warden.Engine) (map[strin
 				Path: e.Path,
 				Args: e.Args,
 				Logger: func(line string) {
-					fmt.Fprintf(stderr, "[plugin:%s] %s\n", prefix, line)
+					fmt.Fprintln(stderr, pluginLogLine(pluginRedactor, prefix, line))
 				},
 				PinnedHash:   pins[prefix],         // empty if no pin configured for this prefix
 				AllowedTools: allowedTools[prefix], // nil if no allowlist for this prefix
