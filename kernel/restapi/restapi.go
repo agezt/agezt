@@ -326,9 +326,16 @@ func (s *Server) handleRunsRoot(w http.ResponseWriter, r *http.Request) {
 	maxHops := meshctx.MaxHopsFromEnv()
 	if hopIn > maxHops {
 		// Audit the refusal so a stopped federation loop is visible in the journal /
-		// `agt pulse` (M210), not just to the rejected caller. Best-effort.
-		if s.bus != nil {
-			_, _ = s.bus.Publish(event.Spec{
+		// `agt pulse` (M210), not just to the rejected caller. Publish to the TARGET
+		// tenant's bus when the request names a resolvable tenant, so that tenant sees
+		// its own mesh refusals (M212); fall back to the primary bus otherwise. The 508
+		// is returned regardless — a bad tenant header does not change the outcome here.
+		auditBus := s.bus
+		if _, tb, err := s.bind(r); err == nil && tb != nil {
+			auditBus = tb
+		}
+		if auditBus != nil {
+			_, _ = auditBus.Publish(event.Spec{
 				Subject: "mesh.loop",
 				Kind:    event.KindMeshLoopRefused,
 				Actor:   "restapi",

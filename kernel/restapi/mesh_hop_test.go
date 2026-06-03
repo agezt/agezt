@@ -3,6 +3,7 @@
 package restapi
 
 import (
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -10,7 +11,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/journal"
 	"github.com/agezt/agezt/kernel/meshctx"
 )
 
@@ -115,5 +118,65 @@ func TestMeshHop_RefusalIsAudited(t *testing.T) {
 		}
 	case <-time.After(time.Second):
 		t.Fatal("expected a mesh.loop_refused event, got none")
+	}
+}
+
+// TestMeshHop_RefusalAuditedToTenantBus: a tenant-targeted run that is loop-refused
+// publishes its audit event to that TENANT's bus, not the primary one (M212), so a
+// tenant sees its own mesh refusals.
+func TestMeshHop_RefusalAuditedToTenantBus(t *testing.T) {
+	primary := &fakeEngine{answer: "ok"}
+	s := newServer(t, primary, "secret")
+
+	tj, err := journal.Open(t.TempDir(), journal.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	tbus := bus.New(tj)
+	t.Cleanup(func() { tbus.Close(); tj.Close() })
+	alpha := &fakeEngine{answer: "alpha", b: tbus}
+	s.SetTenantResolver(func(id string) (Engine, *bus.Bus, error) {
+		if id == "alpha" {
+			return alpha, tbus, nil
+		}
+		return nil, nil, errors.New("unknown tenant " + id)
+	})
+
+	// Subscribe on BOTH buses; only the tenant bus should receive the event.
+	tenantSub, err := tbus.Subscribe("mesh.>", 8)
+	if err != nil {
+		t.Fatalf("tenant subscribe: %v", err)
+	}
+	defer tenantSub.Cancel()
+	primarySub, err := s.bus.Subscribe("mesh.>", 8)
+	if err != nil {
+		t.Fatalf("primary subscribe: %v", err)
+	}
+	defer primarySub.Cancel()
+
+	r := httptest.NewRequest(http.MethodPost, "/api/v1/runs", strings.NewReader(`{"intent":"hi"}`))
+	r.Header.Set("Authorization", "Bearer secret")
+	r.Header.Set("X-Agezt-Tenant", "alpha")
+	r.Header.Set(meshctx.HopHeader, strconv.Itoa(meshctx.MaxHops+1))
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, r)
+	if rec.Code != http.StatusLoopDetected {
+		t.Fatalf("want 508, got %d", rec.Code)
+	}
+
+	select {
+	case ev := <-tenantSub.C:
+		if ev.Kind != event.KindMeshLoopRefused {
+			t.Errorf("tenant event kind = %q", ev.Kind)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("tenant bus should have received the refusal event")
+	}
+	// The primary bus must NOT have received it.
+	select {
+	case ev := <-primarySub.C:
+		t.Errorf("primary bus must not receive a tenant's refusal, got %q", ev.Kind)
+	case <-time.After(50 * time.Millisecond):
+		// expected: nothing on the primary bus
 	}
 }

@@ -12,6 +12,15 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **A loop-refused tenant delegation is audited to that tenant's bus** (M212) — the M210
+  `mesh.loop_refused` event always went to the *primary* bus, so when a delegated run that
+  loops targeted a specific tenant (`X-Agezt-Tenant`), that tenant never saw its own mesh
+  refusal on its pulse/journal — and it landed on the primary's instead, blurring the
+  isolation. The REST handler now resolves the target tenant's bus and publishes the audit
+  event there (falling back to the primary bus for a header-less or unknown-tenant request).
+  The `508` outcome is unchanged. This aligns the mesh loop-guard's observability with the
+  per-tenant isolation (M14/M38/M39) — the federated-mesh × multi-tenant intersection. See
+  `.project/PHASE-M212-MESH-LOOP-TENANT-BUS-REPORT.md`.
 - **The mesh hop limit is operator-tunable** (M211) — the M209 cross-node delegation bound
   was a fixed 8. It is now configurable per node via `AGEZT_MESH_MAX_HOPS`: a deployment with
   legitimately deeper delegation chains can raise it, and a tighter one can lower it. The
