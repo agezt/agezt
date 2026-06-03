@@ -632,7 +632,43 @@ func (t *Tool) resolve(rel string) (string, error) {
 		}
 		return resolved, nil
 	}
-	// New file: ensure its eventual location is in root.
+	// New file/dir: the target doesn't exist yet (EvalSymlinks would fail), so
+	// resolve the deepest ANCESTOR that does exist and verify its real location
+	// is inside root. A lexical-only check here would miss a symlinked parent
+	// directory — e.g. writing "link/new.txt" where "<root>/link" -> /etc would
+	// place the new file outside root (M253).
+	return t.resolveNewWithinRoot(clean, rel)
+}
+
+// resolveNewWithinRoot canonicalizes a not-yet-existing path by symlink-
+// resolving its deepest existing ancestor and confirming the result stays in
+// root, then re-appending the non-existent suffix (which has no symlinks).
+func (t *Tool) resolveNewWithinRoot(clean, rel string) (string, error) {
+	dir := filepath.Dir(clean)
+	suffix := filepath.Base(clean)
+	for {
+		if _, err := os.Lstat(dir); err == nil {
+			resolvedDir, err := filepath.EvalSymlinks(dir)
+			if err != nil {
+				return "", fmt.Errorf("resolve symlink: %w", err)
+			}
+			if !withinRoot(t.root, resolvedDir) {
+				return "", fmt.Errorf("%w: %s (parent resolves to %s)", ErrEscape, rel, resolvedDir)
+			}
+			final := filepath.Join(resolvedDir, suffix)
+			if !withinRoot(t.root, final) {
+				return "", fmt.Errorf("%w: %s", ErrEscape, rel)
+			}
+			return final, nil
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			break // reached the filesystem root without an existing ancestor
+		}
+		suffix = filepath.Join(filepath.Base(dir), suffix)
+		dir = parent
+	}
+	// No existing ancestor (root always exists, so this is a safety net).
 	if !withinRoot(t.root, clean) {
 		return "", fmt.Errorf("%w: %s", ErrEscape, rel)
 	}

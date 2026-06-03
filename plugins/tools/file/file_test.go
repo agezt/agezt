@@ -163,6 +163,33 @@ func TestContainment_SymlinkEscapeBlockedBothPaths(t *testing.T) {
 	invokeExpectErr(t, tool, fileInput{Op: "read", Path: link}, "escapes")
 }
 
+// Writing a NEW file through a symlinked parent directory must be refused — the
+// file would land outside root even though the target itself didn't exist yet
+// (M253).
+func TestContainment_NewFileUnderSymlinkedParentBlocked(t *testing.T) {
+	tool := newTool(t)
+	outside := t.TempDir()
+	link := filepath.Join(tool.Root(), "linkdir")
+	if err := os.Symlink(outside, link); err != nil {
+		t.Skipf("symlinks unavailable on this platform: %v", err)
+	}
+
+	invokeExpectErr(t, tool, fileInput{Op: "write", Path: "linkdir/escapee.txt", Content: "x"}, "escapes")
+	if _, err := os.Stat(filepath.Join(outside, "escapee.txt")); err == nil {
+		t.Error("file escaped the workspace via a symlinked parent directory")
+	}
+}
+
+// A genuinely new nested path inside root still succeeds (the M253 hardening
+// must not break legitimate writes that create parent directories).
+func TestContainment_NewNestedFileAllowed(t *testing.T) {
+	tool := newTool(t)
+	invoke(t, tool, fileInput{Op: "write", Path: "a/b/c.txt", Content: "ok"})
+	if got := invoke(t, tool, fileInput{Op: "read", Path: "a/b/c.txt"}); got != "ok" {
+		t.Errorf("nested new file read got %q", got)
+	}
+}
+
 func TestUnknownOp(t *testing.T) {
 	tool := newTool(t)
 	invokeExpectErr(t, tool, fileInput{Op: "fry"}, "unknown op")

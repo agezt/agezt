@@ -12,6 +12,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Fixed
+- **The `file` tool no longer lets a new file escape through a symlinked parent
+  directory.** Writing a not-yet-existing path (e.g. `linkdir/new.txt` where
+  `linkdir` is a symlink to a directory outside root) was checked only
+  lexically, so the new file could be created outside the workspace. The
+  containment check now symlink-resolves the deepest existing ancestor of a new
+  path and confirms it is inside root, while still allowing legitimate writes
+  that create parent directories.
 - **The `file` tool no longer lets an absolute path bypass its symlink
   containment.** A symlink inside the workspace root pointing outside it was
   correctly refused when reached by its relative path, but the absolute-path
