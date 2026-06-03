@@ -339,16 +339,23 @@ func (c *Channel) verify(ts, sigHex string, body []byte) bool {
 // Send implements channel.Channel: post a message to a channel via the bot token
 // (Pulse→Discord sink and out-of-band senders). Distinct from the interaction
 // follow-up path, which authenticates with the interaction token, not the bot.
+// discordMaxChars is Discord's per-message content limit (2000 characters). A
+// longer message is rejected, so a long answer is split into sequential
+// messages rather than lost (M234).
+const discordMaxChars = 2000
+
 func (c *Channel) Send(ctx context.Context, out channel.Outbound) error {
-	body, _ := json.Marshal(map[string]any{"content": out.Text})
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.base+"/channels/"+out.ChannelID+"/messages", bytes.NewReader(body))
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bot "+c.token)
-	if err := c.do(req); err != nil {
-		return err
+	for _, chunk := range channel.SplitText(out.Text, discordMaxChars) {
+		body, _ := json.Marshal(map[string]any{"content": chunk})
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.base+"/channels/"+out.ChannelID+"/messages", bytes.NewReader(body))
+		if err != nil {
+			return err
+		}
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", "Bot "+c.token)
+		if err := c.do(req); err != nil {
+			return err
+		}
 	}
 	c.emitOutbound(out, "")
 	return nil

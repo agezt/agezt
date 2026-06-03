@@ -219,22 +219,37 @@ func (c *Channel) Send(ctx context.Context, out channel.Outbound) error {
 	return c.send(ctx, out, "")
 }
 
-// send POSTs sendMessage and journals channel.outbound under corr.
+// telegramMaxChars is Telegram's per-message limit (4096 UTF-16 code units).
+// A longer sendMessage is rejected with 400, so a long answer is split into
+// sequential messages rather than lost (M234).
+const telegramMaxChars = 4096
+
+// send POSTs sendMessage (chunked to the platform limit) and journals
+// channel.outbound under corr.
 func (c *Channel) send(ctx context.Context, out channel.Outbound, corr string) error {
-	body, _ := json.Marshal(map[string]any{"chat_id": out.ChannelID, "text": out.Text})
 	endpoint := fmt.Sprintf("%s/bot%s/sendMessage", c.base, c.token)
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Content-Type", "application/json")
-	resp, err := c.client.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode/100 != 2 {
-		return fmt.Errorf("telegram sendMessage: status %d", resp.StatusCode)
+	for _, chunk := range channel.SplitText(out.Text, telegramMaxChars) {
+		body, _ := json.Marshal(map[string]any{"chat_id": out.ChannelID, "text": chunk})
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
+		if err != nil {
+			return err
+		}
+		req.Header.Set("Content-Type", "application/json")
+		resp, err := c.client.Do(req)
+		if err != nil {
+			return err
+		}
+		// Drain+close before the next iteration so the connection is reused.
+		err = func() error {
+			defer resp.Body.Close()
+			if resp.StatusCode/100 != 2 {
+				return fmt.Errorf("telegram sendMessage: status %d", resp.StatusCode)
+			}
+			return nil
+		}()
+		if err != nil {
+			return err
+		}
 	}
 	c.emitOutbound(out, corr)
 	return nil
