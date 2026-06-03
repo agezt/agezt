@@ -12,6 +12,11 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Web UI: a header warning badge for provider fallbacks.** When the status
+  reports a non-zero provider-fallback count, the dashboard shows a prominent red
+  `⚠ N fallbacks` chip in the header (with the last reason on hover), so a
+  silently-degraded provider is obvious at a glance rather than buried in the
+  Status panel. It clears itself when the count returns to zero.
 - **Silent provider fallbacks are now visible.** When the governor falls back
   from a primary provider to a backup (because the primary errored), it was only
   recorded as a `provider.fallback` journal event — so a provider that fails on

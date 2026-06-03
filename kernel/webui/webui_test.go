@@ -82,6 +82,10 @@ func TestDashboardServedAtRoot(t *testing.T) {
 	if !strings.Contains(body, `data-panel="stats"`) || !strings.Contains(body, "stats:") {
 		t.Error("dashboard missing the Stats panel")
 	}
+	// A non-zero provider-fallback count drives a header warning badge.
+	if !strings.Contains(body, `id="fbBadge"`) || !strings.Contains(body, "function updateFallbackBadge") {
+		t.Error("dashboard missing the provider-fallback badge wiring")
+	}
 }
 
 func TestStatsRouteProxiesRunsStats(t *testing.T) {

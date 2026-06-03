@@ -95,6 +95,8 @@
   .arc .seq { color: var(--dim); min-width: 28px; text-align: right; }
   .arc .kind { color: var(--accent); }
   .arc .det { color: var(--dim); white-space: pre-wrap; }
+  .fbbadge { color: #fff; background: var(--bad); border-radius: 12px; padding: 2px 10px;
+    font-size: 11px; font-weight: 600; cursor: help; }
 </style>
 </head>
 <body>
@@ -102,6 +104,7 @@
   <h1><b>agezt</b> · live monitor</h1>
   <button id="haltBtn" class="act danger" title="Freeze all in-flight runs">⏸ HALT</button>
   <button id="resumeBtn" class="act" title="Clear the halt flag">▶ Resume</button>
+  <span id="fbBadge" class="fbbadge" hidden></span>
   <span id="conn">connecting…</span>
 </header>
 
@@ -334,9 +337,30 @@ function listInto(frag, arr, fn, empty) {
   return frag;
 }
 
+// updateFallbackBadge drives the header warning chip from the status payload: a
+// non-zero provider-fallback count (a primary provider erroring, runs served by a
+// backup) is surfaced prominently instead of buried in the Status panel.
+function updateFallbackBadge(d) {
+  const badge = document.getElementById("fbBadge");
+  if (!badge) return;
+  const fb = (d && d.provider_fallbacks) || {};
+  const n = +fb.count || 0;
+  if (n > 0) {
+    badge.textContent = "⚠ " + n + " fallback" + (n === 1 ? "" : "s");
+    badge.title = "a provider errored; runs served by a backup"
+      + (fb.last_reason ? "\nlast: " + fb.last_reason : "");
+    badge.hidden = false;
+  } else {
+    badge.hidden = true;
+  }
+}
+
 const renderers = {
-  status: (d) => kv(Object.entries(d).map(([k, v]) =>
-    [k, typeof v === "object" ? JSON.stringify(v) : v])),
+  status: (d) => {
+    updateFallbackBadge(d);
+    return kv(Object.entries(d).map(([k, v]) =>
+      [k, typeof v === "object" ? JSON.stringify(v) : v]));
+  },
 
   runs: (d) => {
     const rs = d.runs || d.Runs || [];
