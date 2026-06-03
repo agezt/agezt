@@ -12,6 +12,16 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **`agt skill export <id>` — write a portable, verifiable skill bundle.** The
+  first piece of skill portability (toward a skill marketplace): fetch a skill
+  from the daemon and emit it as a self-contained JSON bundle (default stdout,
+  or a file with `--out`). The bundle carries only the skill's content fields —
+  name, description, triggers, body, required tools, version, lineage — never
+  instance-local state (status, metrics, timestamps, the producing event), so an
+  imported skill arrives fresh rather than inheriting the source's lifecycle.
+  Because a skill's id is content-addressed over (name, body), the bundle is
+  self-verifying: export refuses to emit a skill that does not match its own
+  address, and an importer can detect tampering before trusting it.
 - **`agt backup inspect <file>` — read a backup bundle without restoring it.**
   An offline inspection of a `agt backup` archive: shows the manifest (tool,
   format, creation time, recorded journal head, included subtrees) and lists the
