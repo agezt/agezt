@@ -12,6 +12,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **`agt doctor` flags token-less mesh peers** (M214) — a peer configured as `name=url` with
+  no `|token` means `remote_run` delegates tasks to that node **unauthenticated** — at odds
+  with Agezt's "loopback + token only" posture, and easy to do by accident. `agt doctor` now
+  reports the mesh auth posture (when peers are configured): all-tokened is OK, and any
+  token-less peer is a WARN naming it with a hint to add a token. WARN, not FAIL — a peer on a
+  trusted private network may legitimately need none — so it only fails `--strict`. Tokens
+  themselves are never printed. See `.project/PHASE-M214-DOCTOR-MESH-AUTH-REPORT.md`.
 - **`agt doctor` flags a misconfigured mesh hop limit** (M213) — M211 made the mesh hop limit
   tunable via `AGEZT_MESH_MAX_HOPS`, but an invalid value (a typo, a non-integer, out of the
   `[1,64]` range) silently falls back to the default 8 with no signal — a quiet failure for a

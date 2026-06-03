@@ -7,6 +7,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/agezt/agezt/plugins/tools/peer"
 )
 
 // TestCheckMesh_NoPeers: with no AGEZT_PEERS, the mesh check is an informational OK
@@ -71,6 +73,42 @@ func TestCheckMesh_MalformedSpec(t *testing.T) {
 	}
 	if !strings.Contains(c.Detail, "malformed") {
 		t.Errorf("detail = %q", c.Detail)
+	}
+}
+
+// TestCheckMeshAuth_AllTokened: every peer carrying a token is OK (M214).
+func TestCheckMeshAuth_AllTokened(t *testing.T) {
+	peers := map[string]peer.Peer{
+		"a": {Name: "a", URL: "http://a:1", Token: "t1"},
+		"b": {Name: "b", URL: "http://b:2", Token: "t2"},
+	}
+	c := checkMeshAuth(peers)
+	if c.Status != statusOK {
+		t.Fatalf("all-tokened should be OK, got %s: %s", c.Status.label(), c.Detail)
+	}
+	if !strings.Contains(c.Detail, "all 2 peer(s) authenticate") {
+		t.Errorf("detail = %q", c.Detail)
+	}
+}
+
+// TestCheckMeshAuth_TokenlessWarns: a token-less peer is a WARN naming it with a hint.
+func TestCheckMeshAuth_TokenlessWarns(t *testing.T) {
+	peers := map[string]peer.Peer{
+		"secure": {Name: "secure", URL: "http://a:1", Token: "t1"},
+		"open":   {Name: "open", URL: "http://b:2"}, // no token
+	}
+	c := checkMeshAuth(peers)
+	if c.Status != statusWarn {
+		t.Fatalf("a token-less peer should WARN, got %s: %s", c.Status.label(), c.Detail)
+	}
+	if !strings.Contains(c.Detail, "open") || !strings.Contains(c.Detail, "1/2") {
+		t.Errorf("detail should name the token-less peer: %q", c.Detail)
+	}
+	if strings.Contains(c.Detail, "secure") {
+		t.Errorf("a tokened peer must not be listed as token-less: %q", c.Detail)
+	}
+	if c.Hint == "" {
+		t.Error("a token-less WARN should carry a remediation hint")
 	}
 }
 

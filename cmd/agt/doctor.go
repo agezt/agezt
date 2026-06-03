@@ -181,6 +181,11 @@ func runDoctorChecks() []doctorCheck {
 	checks = append(checks, checkRateLimit(ctx, client))
 	checks = append(checks, checkChannels(status))
 	checks = append(checks, checkMesh())
+	// Mesh auth posture (M214): only when peers are configured. Flags a peer reached
+	// without a token — an unauthenticated cross-node delegation.
+	if peers, err := peer.ParsePeers(os.Getenv(brand.EnvPrefix + "PEERS")); err == nil && len(peers) > 0 {
+		checks = append(checks, checkMeshAuth(peers))
+	}
 	// Mesh hop-limit config (M213): only surfaced when AGEZT_MESH_MAX_HOPS is set, so
 	// single-node operators see no noise. Flags a typo that would silently fall back.
 	if _, raw, _ := meshctx.MaxHopsConfig(); raw != "" {
@@ -189,6 +194,27 @@ func runDoctorChecks() []doctorCheck {
 	checks = append(checks, checkHalt(status))
 
 	return checks
+}
+
+// checkMeshAuth flags peers configured without a Bearer token (M214). A token-less
+// peer means `remote_run` delegates to that node unauthenticated — at odds with the
+// "loopback + token only" posture. WARN (not FAIL): a peer on a trusted private
+// network may legitimately need no token, so this is a posture nudge, not a hard stop.
+func checkMeshAuth(peers map[string]peer.Peer) doctorCheck {
+	var tokenless []string
+	for name, p := range peers {
+		if p.Token == "" {
+			tokenless = append(tokenless, name)
+		}
+	}
+	if len(tokenless) == 0 {
+		return ok("mesh-auth", fmt.Sprintf("all %d peer(s) authenticate with a token", len(peers)))
+	}
+	sort.Strings(tokenless)
+	return warn("mesh-auth",
+		fmt.Sprintf("%d/%d peer(s) have no token — unauthenticated delegation: %s",
+			len(tokenless), len(peers), strings.Join(tokenless, ", ")),
+		"add a token: AGEZT_PEERS=\"name=url|token,…\"")
 }
 
 // checkMeshHopLimit validates an explicitly-set AGEZT_MESH_MAX_HOPS (M211/M213). A valid
