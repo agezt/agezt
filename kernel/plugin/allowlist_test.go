@@ -99,6 +99,19 @@ func TestParseToolAllowlistSpec_RejectsBadFormat(t *testing.T) {
 	}
 }
 
+// TestParseToolAllowlistSpec_RejectsDuplicatePrefix ensures a duplicate prefix is a
+// hard error (it would otherwise silently keep the last list, unexpectedly changing
+// what the plugin may advertise) — M216.
+func TestParseToolAllowlistSpec_RejectsDuplicatePrefix(t *testing.T) {
+	_, err := plugin.ParseToolAllowlistSpec("search=a+b,scrape=c,search=d")
+	if err == nil {
+		t.Fatal("a duplicate allowlist prefix should be rejected")
+	}
+	if !strings.Contains(err.Error(), "search") || !strings.Contains(err.Error(), "more than once") {
+		t.Errorf("error should name the duplicate prefix: %v", err)
+	}
+}
+
 // TestParseToolAllowlistSpec_Empty: whitespace-only → empty map,
 // no error (matches PinSpec behaviour).
 func TestParseToolAllowlistSpec_Empty(t *testing.T) {

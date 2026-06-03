@@ -138,6 +138,20 @@ func TestParsePinSpec_RejectsBadFormat(t *testing.T) {
 	}
 }
 
+// TestParsePinSpec_RejectsDuplicatePrefix ensures a duplicate prefix is a hard error
+// (it would otherwise silently keep the last pin, shadowing an intended one) — M216.
+func TestParsePinSpec_RejectsDuplicatePrefix(t *testing.T) {
+	a := strings.Repeat("a", 64)
+	b := strings.Repeat("b", 64)
+	_, err := plugin.ParsePinSpec("search=" + a + ",scrape=" + b + ",search=" + b)
+	if err == nil {
+		t.Fatal("a duplicate pin prefix should be rejected")
+	}
+	if !strings.Contains(err.Error(), "search") || !strings.Contains(err.Error(), "more than once") {
+		t.Errorf("error should name the duplicate prefix: %v", err)
+	}
+}
+
 // TestParsePinSpec_Empty / whitespace-only → empty map, no error.
 func TestParsePinSpec_Empty(t *testing.T) {
 	for _, c := range []string{"", "   ", ","} {

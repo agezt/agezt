@@ -473,6 +473,15 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   `.project/PHASE-M129-OBSERVABILITY-TENANT-FLAG-REPORT.md`.
 
 ### Fixed
+- **A duplicate prefix in the plugin pin / tool-allowlist specs is now rejected** (M216) — both
+  `ParsePinSpec` (`AGEZT_PLUGIN_PINS`, binary-hash integrity) and `ParseToolAllowlistSpec`
+  (`AGEZT_PLUGIN_TOOLS`, restricting what a plugin may advertise) keyed by prefix and silently
+  overwrote on a collision, so a typo'd or copy-pasted duplicate (`search=hashA,…,search=hashB`)
+  silently shadowed the operator's intended value — for *security* controls, where a lost pin
+  could admit the wrong binary or a lost allowlist could widen what a plugin exposes. A
+  duplicate prefix is now a hard error (`… for "search" is defined more than once`), caught at
+  startup like the other malformed-spec cases — the same class of fix as M215's duplicate peer
+  name. See `.project/PHASE-M216-PLUGIN-SPEC-DUP-PREFIX-REPORT.md`.
 - **A duplicate peer name in `AGEZT_PEERS` is now rejected** (M215) — `ParsePeers` keyed peers
   by name and silently overwrote on a collision, so `AGEZT_PEERS="a=…,b=…,a=…"` parsed to TWO
   peers, not three: a mesh node was silently lost, and a `remote_run` to the shadowed name hit

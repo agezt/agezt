@@ -54,6 +54,12 @@ func ParsePinSpec(spec string) (PinSpec, error) {
 		if !looksLikeBLAKE3Pin(pin) {
 			return nil, fmt.Errorf("plugin: pin for %q is not a 64-char lowercase hex BLAKE3-256 digest (got %q)", prefix, pin)
 		}
+		// A duplicate prefix would silently keep the last pin — for a binary-integrity
+		// control, an operator's intended hash being shadowed by a typo is a security
+		// hazard. Reject it so the misconfig surfaces at startup (M216).
+		if _, dup := out[prefix]; dup {
+			return nil, fmt.Errorf("plugin: pin for %q is defined more than once", prefix)
+		}
 		out[prefix] = pin
 	}
 	return out, nil
@@ -117,6 +123,12 @@ func ParseToolAllowlistSpec(spec string) (ToolAllowlistSpec, error) {
 		}
 		if len(tools) == 0 {
 			return nil, fmt.Errorf("plugin: tool-allowlist entry %q has empty tool list (unset the plugin instead of allow-listing nothing)", entry)
+		}
+		// A duplicate prefix would silently keep the last list, unexpectedly widening or
+		// narrowing what a plugin may advertise — reject it so the intended allowlist
+		// isn't lost to a typo (M216).
+		if _, dup := out[prefix]; dup {
+			return nil, fmt.Errorf("plugin: tool-allowlist for %q is defined more than once", prefix)
 		}
 		out[prefix] = tools
 	}
