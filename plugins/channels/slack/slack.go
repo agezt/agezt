@@ -314,13 +314,32 @@ type postMessageResp struct {
 	Error string `json:"error"`
 }
 
+// slackMaxChars is Slack's per-message text limit (40000 characters). A longer
+// message is rejected, so a long answer is split into sequential messages rather
+// than lost (M240) — same treatment as Telegram/Discord (M234/M235).
+const slackMaxChars = 40000
+
 func (c *Channel) send(ctx context.Context, out channel.Outbound, corr string) error {
 	// Slack rejects an empty message (errors with "no_text"); no-op rather than
 	// fail, covering the Send path and whitespace-only answers (M236).
 	if strings.TrimSpace(out.Text) == "" {
 		return nil
 	}
-	body, _ := json.Marshal(map[string]any{"channel": out.ChannelID, "text": out.Text})
+	for _, chunk := range channel.SplitText(out.Text, slackMaxChars) {
+		if err := c.postMessage(ctx, out.ChannelID, chunk); err != nil {
+			return err
+		}
+	}
+	c.emitOutbound(out, corr)
+	return nil
+}
+
+// postMessage delivers one chat.postMessage and verifies Slack's app-level ok.
+// Slack returns HTTP 200 even on application errors ({"ok":false,"error":…}), so
+// the body must be decoded and ok checked — a decode failure or ok=false is a
+// FAILED send, not a delivered one.
+func (c *Channel) postMessage(ctx context.Context, channelID, text string) error {
+	body, _ := json.Marshal(map[string]any{"channel": channelID, "text": text})
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.base+"/chat.postMessage", bytes.NewReader(body))
 	if err != nil {
 		return err
@@ -335,10 +354,6 @@ func (c *Channel) send(ctx context.Context, out channel.Outbound, corr string) e
 	if resp.StatusCode/100 != 2 {
 		return fmt.Errorf("slack chat.postMessage: status %d", resp.StatusCode)
 	}
-	// Slack returns HTTP 200 even on application errors ({"ok":false,"error":…}),
-	// so the body must be decoded and ok checked. A decode failure or ok=false is
-	// a FAILED send — don't journal it as delivered (the old code treated a
-	// malformed body as success).
 	var pm postMessageResp
 	if err := json.NewDecoder(io.LimitReader(resp.Body, maxBody)).Decode(&pm); err != nil {
 		return fmt.Errorf("slack chat.postMessage: decode response: %w", err)
@@ -350,7 +365,6 @@ func (c *Channel) send(ctx context.Context, out channel.Outbound, corr string) e
 		}
 		return fmt.Errorf("slack chat.postMessage: %s", reason)
 	}
-	c.emitOutbound(out, corr)
 	return nil
 }
 
