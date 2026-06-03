@@ -67,6 +67,25 @@ func TestDashboardServedAtRoot(t *testing.T) {
 	if !strings.Contains(body, "function worldGraph") {
 		t.Error("dashboard missing the world graph renderer")
 	}
+	// The Runs panel renders the live run list; guard its wiring (panel id +
+	// renderer) against a refactor dropping it.
+	if !strings.Contains(body, `data-panel="runs"`) || !strings.Contains(body, "runs:") {
+		t.Error("dashboard missing the Runs panel")
+	}
+}
+
+func TestRunsRouteProxiesRunsList(t *testing.T) {
+	fc := &fakeCaller{result: map[string]any{"runs": []any{}}}
+	s, _ := newServer(t, fc, "secret")
+	req := httptest.NewRequest(http.MethodGet, "/api/runs?token=secret", nil)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d want 200", rec.Code)
+	}
+	if len(fc.calls) != 1 || fc.calls[0] != "runs_list" {
+		t.Errorf("expected one runs_list call, got %v", fc.calls)
+	}
 }
 
 func TestAuthRequired(t *testing.T) {
@@ -132,7 +151,7 @@ func TestAPIReadOnly(t *testing.T) {
 	// Every GET /api route must map to a read-only command — assert the proxy
 	// never issues anything outside the known read set.
 	readOnly := map[string]bool{
-		"status": true, "memory_list": true, "world_list": true,
+		"status": true, "runs_list": true, "memory_list": true, "world_list": true,
 		"skill_list": true, "inbox": true, "reflect_show": true, "approvals": true,
 	}
 	for path := range apiRoutes {

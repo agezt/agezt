@@ -23,3 +23,7 @@ Thumbs.db
 .env.*
 *.env
 creds.json
+
+# Local demo artifacts (Playwright screenshots, browser MCP)
+.playwright-mcp/
+webui-*.png

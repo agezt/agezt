@@ -12,6 +12,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Web UI: a live Runs panel.** The dashboard now shows the recent runs
+  (`agt runs list` over the control plane) beside Status — each with a
+  colour-coded status chip (completed green, failed/abandoned red, running
+  accent), the intent, duration, iteration count, and spend. It refreshes on
+  every streamed `task.*` event (debounced), so a run appears the moment it
+  finishes, and sub-agent runs are marked with a `↳`. The same event-driven
+  refresh now also updates the Skills/Memory/World/Approvals panels live.
 - **`agt skill registry <url>` — browse and install from a remote registry.**
   The registry command now accepts an http(s) URL: it fetches the `index.json`
   manifest a publisher wrote with `agt skill export --all`, lists the available

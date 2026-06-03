@@ -65,6 +65,9 @@
   .item { margin: 3px 0; display: flex; gap: 6px; align-items: baseline; flex-wrap: wrap; }
   .chip { background: var(--panel2); border: 1px solid var(--line); border-radius: 12px;
     padding: 1px 9px; font-size: 11px; }
+  .chip.s-completed { color: var(--good); border-color: var(--good); }
+  .chip.s-failed, .chip.s-abandoned { color: var(--bad); border-color: var(--bad); }
+  .chip.s-running { color: var(--accent); border-color: var(--accent); }
   .count { margin-bottom: 6px; }
   .wgraph-wrap { border: 1px solid var(--line); border-radius: 6px;
     background: var(--panel2); margin-bottom: 8px; }
@@ -88,6 +91,7 @@
   </section>
 
   <section class="panel"><h2>Status <button data-panel="status">↻</button></h2><div class="body" id="status"></div></section>
+  <section class="panel"><h2>Runs <button data-panel="runs">↻</button></h2><div class="body" id="runs"></div></section>
   <section class="panel"><h2>World <button data-panel="world">↻</button></h2><div class="body" id="world"></div></section>
   <section class="panel"><h2>Skills <button data-panel="skills">↻</button></h2><div class="body" id="skills"></div></section>
   <section class="panel"><h2>Memory <button data-panel="memory">↻</button></h2><div class="body" id="memory"></div></section>
@@ -114,6 +118,12 @@ function clear(node) { while (node.firstChild) node.removeChild(node.firstChild)
 function setBody(id, node) { const b = document.getElementById(id); clear(b); b.appendChild(node); }
 function muted(text) { return el("span", "muted", text); }
 function chip(text) { return el("span", "chip", text); }
+// statusChip colours a run/skill status chip (completed=green, failed/abandoned=red,
+// running=accent) via a `s-<status>` class; unknown statuses stay neutral.
+function statusChip(status) {
+  const s = (status || "").toLowerCase().replace(/[^a-z]/g, "");
+  return el("span", "chip s-" + s, status || "?");
+}
 
 // --- SVG builders for the world node-link graph (same textContent discipline) ---
 const SVGNS = "http://www.w3.org/2000/svg";
@@ -197,6 +207,24 @@ function addEvent(ev) {
   while (feedBody.childElementCount > MAX_FEED) feedBody.removeChild(feedBody.lastChild);
   evCount++;
   evcount.textContent = evCount;
+  liveRefresh(ev.kind || "");
+}
+
+// liveRefresh re-fetches the panel a streamed event most affects, so a run
+// finishing or a skill changing shows up immediately rather than at the next
+// periodic tick. Debounced per panel to coalesce bursts (a run emits several
+// events in a row).
+const _refreshTimers = {};
+function liveRefresh(kind) {
+  let panel = null;
+  if (kind.startsWith("task.")) panel = "runs";
+  else if (kind.startsWith("skill.")) panel = "skills";
+  else if (kind.startsWith("memory.")) panel = "memory";
+  else if (kind.startsWith("world.")) panel = "world";
+  else if (kind.startsWith("approval.") || kind === "tool.awaiting_approval") panel = "approvals";
+  if (!panel) return;
+  clearTimeout(_refreshTimers[panel]);
+  _refreshTimers[panel] = setTimeout(() => loadPanel(panel), 400);
 }
 
 function connect() {
@@ -261,6 +289,25 @@ function listInto(frag, arr, fn, empty) {
 const renderers = {
   status: (d) => kv(Object.entries(d).map(([k, v]) =>
     [k, typeof v === "object" ? JSON.stringify(v) : v])),
+
+  runs: (d) => {
+    const rs = d.runs || d.Runs || [];
+    const frag = document.createDocumentFragment();
+    frag.appendChild(el("div", "count muted", rs.length + " run(s)"));
+    return listInto(frag, rs, (r) => {
+      const row = el("div", "item");
+      const st = r.status || "?";
+      row.appendChild(statusChip(r.reason ? st + "·" + r.reason : st));
+      if (r.parent_correlation) row.appendChild(muted("↳"));
+      row.appendChild(el("span", null, r.intent || r.correlation_id || ""));
+      const bits = [];
+      if (r.duration_ms != null) bits.push(r.duration_ms + "ms");
+      if (r.iters != null) bits.push(r.iters + " it");
+      if (r.spent_mc) bits.push("$" + (r.spent_mc / 1e9).toFixed(4));
+      if (bits.length) row.appendChild(muted(bits.join(" · ")));
+      return row;
+    }, "no runs yet");
+  },
 
   world: (d) => {
     const ents = d.entities || d.Entities || [];
@@ -391,10 +438,10 @@ document.getElementById("resumeBtn").addEventListener("click", (e) =>
 document.querySelectorAll("button[data-panel]").forEach((b) =>
   b.addEventListener("click", () => loadPanel(b.dataset.panel)));
 connect();
-const PANELS = ["status", "world", "skills", "memory", "approvals", "inbox", "reflect"];
+const PANELS = ["status", "runs", "world", "skills", "memory", "approvals", "inbox", "reflect"];
 for (const p of PANELS) loadPanel(p);
 // Light periodic refresh of the cheap read panels (the feed is already live).
-setInterval(() => { for (const p of ["status", "approvals"]) loadPanel(p); }, 10000);
+setInterval(() => { for (const p of ["status", "runs", "approvals"]) loadPanel(p); }, 10000);
 </script>
 </body>
 </html>
