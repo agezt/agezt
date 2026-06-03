@@ -18,6 +18,7 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -409,24 +410,28 @@ func cmdRun(args []string, stdout, stderr io.Writer) int {
 			}
 		case a == "--image":
 			// Attach an image to the run (M91). The daemon gates it against the
-			// model's vision capability before any provider call.
+			// model's vision capability before any provider call. The CLI reads
+			// the bytes here (the file lives on the operator's machine, not the
+			// daemon's) and forwards a self-describing data: URL (M241).
 			if i+1 >= len(args) {
 				fmt.Fprintf(stderr, "%s run: --image needs a path\n", brand.CLI)
 				return 2
 			}
 			i++
-			if _, err := os.Stat(args[i]); err != nil {
+			du, err := loadImageDataURL(args[i])
+			if err != nil {
 				fmt.Fprintf(stderr, "%s run: --image %q: %v\n", brand.CLI, args[i], err)
 				return 2
 			}
-			images = append(images, filepath.Base(args[i]))
+			images = append(images, du)
 		case strings.HasPrefix(a, "--image="):
 			p := strings.TrimPrefix(a, "--image=")
-			if _, err := os.Stat(p); err != nil {
+			du, err := loadImageDataURL(p)
+			if err != nil {
 				fmt.Fprintf(stderr, "%s run: --image %q: %v\n", brand.CLI, p, err)
 				return 2
 			}
-			images = append(images, filepath.Base(p))
+			images = append(images, du)
 		case a == "--file":
 			if i+1 >= len(args) {
 				fmt.Fprintf(stderr, "%s run: --file needs a path\n", brand.CLI)
@@ -584,6 +589,53 @@ func cmdRun(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "usage: %s\n", strings.Join(bits, " · "))
 	}
 	return 0
+}
+
+// imageMediaType maps a file extension to the IANA media type the vision
+// providers accept (Anthropic/OpenAI both support exactly this set). An
+// unknown extension returns ok=false so the caller can reject it with a clear
+// message rather than send an undeliverable attachment.
+func imageMediaType(path string) (string, bool) {
+	switch strings.ToLower(filepath.Ext(path)) {
+	case ".png":
+		return "image/png", true
+	case ".jpg", ".jpeg":
+		return "image/jpeg", true
+	case ".gif":
+		return "image/gif", true
+	case ".webp":
+		return "image/webp", true
+	}
+	return "", false
+}
+
+// loadImageDataURL reads an image file and returns it as an RFC 2397 data:
+// URL (data:<media-type>;base64,<bytes>). The CLI does the read because the
+// file lives on the operator's machine, not the daemon's — so only this
+// self-contained string crosses the control plane, and the daemon forwards it
+// verbatim to a vision-capable provider (M241). Previously only the basename
+// travelled, which no provider could resolve, so the image never reached the
+// model.
+func loadImageDataURL(path string) (string, error) {
+	mt, ok := imageMediaType(path)
+	if !ok {
+		return "", fmt.Errorf("unsupported image type %q (use .png, .jpg, .gif, or .webp)", filepath.Ext(path))
+	}
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	if len(b) == 0 {
+		return "", fmt.Errorf("image is empty")
+	}
+	// The control plane caps a single request at 16 MiB (server.go
+	// maxRequestBytes) and base64 inflates by ~4/3, so refuse early with a
+	// clear message instead of letting the daemon reject an oversized frame.
+	const maxRaw = 12 << 20
+	if len(b) > maxRaw {
+		return "", fmt.Errorf("image is %d bytes; the limit is %d (control-plane request cap)", len(b), maxRaw)
+	}
+	return "data:" + mt + ";base64," + base64.StdEncoding.EncodeToString(b), nil
 }
 
 // runJSONMode implements `agt run --json`. Output is one JSON

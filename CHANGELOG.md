@@ -12,6 +12,17 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Fixed
+- **`agt run --image` now actually sends the image to the model (Anthropic).**
+  The flag stat-checked the file, gated the run against the model's vision
+  capability, and journaled an attachment count — but only the *basename*
+  travelled to the daemon, which no provider could resolve, so the picture never
+  reached the model: vision was silently a no-op. The CLI now reads the bytes
+  (the file is on the operator's machine, not the daemon's), forwards a
+  self-describing `data:` URL, and the Anthropic provider emits it as a base64
+  `image` content block on both the streaming and non-streaming paths. Supported
+  types: png, jpeg, gif, webp; oversize files are refused client-side with a
+  clear message against the 16 MiB control-plane request cap. (OpenAI/Gemini
+  emission lands in follow-up milestones.)
 - **A crashed daemon now gives an actionable CLI error, not "connection
   refused".** When the daemon left a stale runtime address (it crashed but its
   addr file remained), every `agt` command failed with a cryptic transport error,

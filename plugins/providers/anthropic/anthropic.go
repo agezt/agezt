@@ -183,14 +183,22 @@ type anthMessage struct {
 // anthBlock is a single content block. Only one of Text / ToolUse /
 // ToolResult is populated per block; the wire format is a tagged union.
 type anthBlock struct {
-	Type       string          `json:"type"`
-	Text       string          `json:"text,omitempty"`
-	ID         string          `json:"id,omitempty"`          // tool_use
-	Name       string          `json:"name,omitempty"`        // tool_use
-	Input      json.RawMessage `json:"input,omitempty"`       // tool_use
-	ToolUseID  string          `json:"tool_use_id,omitempty"` // tool_result
-	ResultBody string          `json:"content,omitempty"`     // tool_result (string form)
-	IsError    bool            `json:"is_error,omitempty"`    // tool_result
+	Type       string           `json:"type"`
+	Text       string           `json:"text,omitempty"`
+	ID         string           `json:"id,omitempty"`          // tool_use
+	Name       string           `json:"name,omitempty"`        // tool_use
+	Input      json.RawMessage  `json:"input,omitempty"`       // tool_use
+	ToolUseID  string           `json:"tool_use_id,omitempty"` // tool_result
+	ResultBody string           `json:"content,omitempty"`     // tool_result (string form)
+	IsError    bool             `json:"is_error,omitempty"`    // tool_result
+	Source     *anthImageSource `json:"source,omitempty"`      // type=image
+}
+
+// anthImageSource is the base64 payload of a type=image content block (M241).
+type anthImageSource struct {
+	Type      string `json:"type"`       // always "base64"
+	MediaType string `json:"media_type"` // image/png | image/jpeg | image/gif | image/webp
+	Data      string `json:"data"`       // base64-encoded image bytes
 }
 
 type anthResponse struct {
@@ -234,6 +242,31 @@ func encodeRequest(model, system string, msgs []agent.Message, tools []agent.Too
 	return json.Marshal(wire)
 }
 
+// parseImageDataURL splits an RFC 2397 data: URL of the form
+// "data:<media-type>;base64,<payload>" into its media type and base64
+// payload. It returns ok=false for anything that is not a base64 image data
+// URL — including a legacy bare filename — which the caller skips. Only a
+// vision-capable run reaches a provider with images (the M91 gate), and the
+// CLI sends data URLs (M241).
+func parseImageDataURL(s string) (mediaType, data string, ok bool) {
+	const prefix = "data:"
+	if !strings.HasPrefix(s, prefix) {
+		return "", "", false
+	}
+	meta, payload, found := strings.Cut(s[len(prefix):], ",")
+	if !found {
+		return "", "", false
+	}
+	if !strings.HasSuffix(meta, ";base64") {
+		return "", "", false
+	}
+	mt := strings.TrimSuffix(meta, ";base64")
+	if mt == "" || payload == "" {
+		return "", "", false
+	}
+	return mt, payload, true
+}
+
 // canonicalToAnth converts one canonical Message into one Anthropic message.
 // Returns (nil, nil) when the message has no Anthropic representation
 // (e.g. role=system, which Anthropic carries as a top-level field).
@@ -242,10 +275,21 @@ func canonicalToAnth(m agent.Message) (*anthMessage, error) {
 	case agent.RoleSystem:
 		return nil, nil
 	case agent.RoleUser:
-		return &anthMessage{
-			Role:    "user",
-			Content: []anthBlock{{Type: "text", Text: m.Content}},
-		}, nil
+		// Vision (M241): a user message may carry image attachments as RFC 2397
+		// data: URLs. Emit each as an Anthropic type=image block BEFORE the text
+		// block (the order Anthropic recommends). A non-data-URL entry (e.g. a
+		// legacy bare filename) has no deliverable payload, so it is skipped.
+		blocks := make([]anthBlock, 0, len(m.Images)+1)
+		for _, img := range m.Images {
+			if mt, data, ok := parseImageDataURL(img); ok {
+				blocks = append(blocks, anthBlock{
+					Type:   "image",
+					Source: &anthImageSource{Type: "base64", MediaType: mt, Data: data},
+				})
+			}
+		}
+		blocks = append(blocks, anthBlock{Type: "text", Text: m.Content})
+		return &anthMessage{Role: "user", Content: blocks}, nil
 	case agent.RoleAssistant:
 		var blocks []anthBlock
 		if strings.TrimSpace(m.Content) != "" {
