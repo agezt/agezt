@@ -12,6 +12,15 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **`agt doctor` now pre-flights the plugin env-specs.** A new `plugins` check
+  validates `AGEZT_PLUGINS` (and the optional `AGEZT_PLUGIN_PINS` /
+  `AGEZT_PLUGIN_TOOLS`) using the same parsers the daemon runs at startup, so a
+  malformed spec — which makes the daemon *refuse to start* — is caught as a
+  FAIL before the operator restarts, rather than discovered by a daemon that
+  won't come back up. A pin or tool-allowlist entry whose prefix matches no
+  configured plugin is a WARN (stale config); a clean spec reports the plugin
+  count with pinned / allow-listed annotations. Reads only the environment; no
+  spawn.
 - **`AGEZT_PLUGINS` paths may now be quoted to contain spaces.** A plugin path
   or argument wrapped in single or double quotes keeps its spaces — necessary
   for the common Windows case of a plugin installed under `C:/Program Files/...`

@@ -18,6 +18,7 @@ import (
 	"github.com/agezt/agezt/kernel/catalog"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/meshctx"
+	"github.com/agezt/agezt/kernel/plugin"
 	"github.com/agezt/agezt/plugins/tools/peer"
 )
 
@@ -180,6 +181,7 @@ func runDoctorChecks() []doctorCheck {
 	checks = append(checks, checkNetguard(ctx, client))
 	checks = append(checks, checkRateLimit(ctx, client))
 	checks = append(checks, checkChannels(status))
+	checks = append(checks, checkPlugins())
 	checks = append(checks, checkMesh())
 	// Mesh auth posture (M214): only when peers are configured. Flags a peer reached
 	// without a token — an unauthenticated cross-node delegation.
@@ -229,6 +231,83 @@ func checkMeshHopLimit() doctorCheck {
 	return warn("mesh-hops",
 		fmt.Sprintf("AGEZT_MESH_MAX_HOPS=%q is invalid and ignored; using default %d", raw, eff),
 		fmt.Sprintf("set an integer in [1, %d]", meshctx.MaxConfigurableHops))
+}
+
+// checkPlugins validates the external-plugin env-specs (AGEZT_PLUGINS plus the
+// optional AGEZT_PLUGIN_PINS / AGEZT_PLUGIN_TOOLS) without spawning anything
+// (M225). The daemon parses these at startup and HARD-FAILS on a malformed
+// one — so a typo means the daemon refuses to restart. doctor reads the same
+// env the daemon would and surfaces the problem first:
+//
+//   - no AGEZT_PLUGINS → informational OK (no external plugins).
+//   - a malformed spec → FAIL, naming which env var and the parse error (this
+//     is startup-blocking, hence FAIL not WARN — unlike the mesh checks where
+//     the daemon degrades rather than refusing to start).
+//   - a valid spec whose pins/tools reference a prefix with no matching plugin
+//     → WARN (the daemon would warn about the stale entry at startup).
+//   - otherwise OK with the plugin count.
+//
+// It reads only the operator's environment; no running daemon is required.
+func checkPlugins() doctorCheck {
+	spec := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "PLUGINS"))
+	if spec == "" {
+		return ok("plugins", "no external plugins configured")
+	}
+	entries, err := plugin.ParsePluginSpec(spec)
+	if err != nil {
+		return fail("plugins", "AGEZT_PLUGINS is malformed: "+err.Error(),
+			"the daemon will refuse to start — fix the spec: AGEZT_PLUGINS=\"<prefix>=<path> [args],…\"")
+	}
+
+	prefixes := make([]string, len(entries))
+	for i, e := range entries {
+		prefixes[i] = e.Prefix
+	}
+
+	// Pins and tool-allowlists are parsed with the same hard-error semantics;
+	// a malformed one is equally startup-blocking.
+	var pins plugin.PinSpec
+	if pinSpec := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "PLUGIN_PINS")); pinSpec != "" {
+		pins, err = plugin.ParsePinSpec(pinSpec)
+		if err != nil {
+			return fail("plugins", "AGEZT_PLUGIN_PINS is malformed: "+err.Error(),
+				"the daemon will refuse to start — fix the spec: AGEZT_PLUGIN_PINS=\"<prefix>=<hash>,…\"")
+		}
+	}
+	var allowed plugin.ToolAllowlistSpec
+	if toolSpec := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "PLUGIN_TOOLS")); toolSpec != "" {
+		allowed, err = plugin.ParseToolAllowlistSpec(toolSpec)
+		if err != nil {
+			return fail("plugins", "AGEZT_PLUGIN_TOOLS is malformed: "+err.Error(),
+				"the daemon will refuse to start — fix the spec: AGEZT_PLUGIN_TOOLS=\"<prefix>=<tool>+<tool>,…\"")
+		}
+	}
+
+	// Stale pin/tool entries (a prefix with no matching plugin) are the daemon's
+	// startup WARNINGs — surface them here too so a typo'd prefix is caught.
+	var stale []string
+	for _, p := range pins.UnusedPins(prefixes) {
+		stale = append(stale, "pin:"+p)
+	}
+	for _, p := range allowed.Unused(prefixes) {
+		stale = append(stale, "tools:"+p)
+	}
+	if len(stale) > 0 {
+		sort.Strings(stale)
+		return warn("plugins",
+			fmt.Sprintf("%d plugin(s) configured, but these entries reference no plugin prefix: %s",
+				len(entries), strings.Join(stale, ", ")),
+			"fix the prefix or remove the stale AGEZT_PLUGIN_PINS/AGEZT_PLUGIN_TOOLS entry")
+	}
+
+	detail := fmt.Sprintf("%d plugin(s) configured", len(entries))
+	if len(pins) > 0 {
+		detail += fmt.Sprintf(", %d pinned", len(pins))
+	}
+	if len(allowed) > 0 {
+		detail += fmt.Sprintf(", %d allow-listed", len(allowed))
+	}
+	return ok("plugins", detail)
 }
 
 // checkMesh reports the health of the configured peer mesh (M8 / AGEZT_PEERS): each
