@@ -268,6 +268,32 @@ func TestParseSinks(t *testing.T) {
 	}
 }
 
+// TestParseSinks_RejectsBadSubjectFilter ensures a malformed subject filter is a hard
+// error at parse time — it would otherwise silently match nothing and deliver nothing
+// (M217).
+func TestParseSinks_RejectsBadSubjectFilter(t *testing.T) {
+	bad := []string{
+		"https://h/a|agent..tool", // empty token
+		"https://h/a|>.agent",     // '>' not last
+		"https://h/a|",            // empty filter is treated as default ">", so this is fine — covered below
+	}
+	// The first two are malformed; the third (empty after |) falls back to the default
+	// ">", which is valid — assert that distinction.
+	if _, err := ParseSinks(bad[0]); err == nil {
+		t.Errorf("%q: expected error for empty token", bad[0])
+	}
+	if _, err := ParseSinks(bad[1]); err == nil {
+		t.Errorf("%q: expected error for misplaced '>'", bad[1])
+	}
+	if sinks, err := ParseSinks(bad[2]); err != nil || len(sinks) != 1 || sinks[0].Subject != ">" {
+		t.Errorf("%q: empty filter should default to \">\": sinks=%+v err=%v", bad[2], sinks, err)
+	}
+	// A valid explicit filter still parses.
+	if _, err := ParseSinks("https://h/a|agent.*.tool"); err != nil {
+		t.Errorf("a valid subject filter should parse: %v", err)
+	}
+}
+
 func TestDescribe_RedactsSecret(t *testing.T) {
 	out := Describe([]Sink{{URL: "https://h/a", Subject: "agent.>", Secret: "supersecret"}})
 	if strings.Contains(out, "supersecret") {

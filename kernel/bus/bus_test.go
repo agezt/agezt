@@ -506,3 +506,18 @@ func TestPublishStreaming_RespectsPatternMatching(t *testing.T) {
 	case <-time.After(100 * time.Millisecond):
 	}
 }
+
+// TestValidatePattern checks the exported subject-pattern validator (M217): well-formed
+// patterns pass, and the malformed shapes parsePattern rejects are surfaced as errors.
+func TestValidatePattern(t *testing.T) {
+	for _, ok := range []string{">", "agent.>", "agent.*.tool", "a.b.c", "*"} {
+		if err := ValidatePattern(ok); err != nil {
+			t.Errorf("ValidatePattern(%q) = %v, want nil", ok, err)
+		}
+	}
+	for _, bad := range []string{"", "a..b", ">.a", "a.>.b"} {
+		if err := ValidatePattern(bad); err == nil {
+			t.Errorf("ValidatePattern(%q) = nil, want error", bad)
+		}
+	}
+}

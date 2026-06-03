@@ -308,6 +308,16 @@ func matches(pattern, subject []string) bool {
 	return false
 }
 
+// ValidatePattern reports whether p is a well-formed NATS-style subject pattern
+// (non-empty, no empty tokens, '>' only as the final token), returning ErrPattern-
+// wrapped detail otherwise. Exported so config parsers (e.g. webhook sink subject
+// filters) can reject a malformed pattern at startup instead of silently never
+// matching it at delivery time.
+func ValidatePattern(p string) error {
+	_, err := parsePattern(p)
+	return err
+}
+
 func parsePattern(p string) ([]string, error) {
 	if p == "" {
 		return nil, fmt.Errorf("%w: empty", ErrPattern)

@@ -473,6 +473,14 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   `.project/PHASE-M129-OBSERVABILITY-TENANT-FLAG-REPORT.md`.
 
 ### Fixed
+- **A malformed webhook subject filter is now rejected at parse time** (M217) — a sink in
+  `AGEZT_WEBHOOKS` (`url|subject|secret`) whose subject filter was not a well-formed NATS-style
+  pattern (an empty token like `agent..tool`, or `>` not last like `>.agent`) was silently
+  accepted — and then matched *nothing*, so the sink delivered no events with no error,
+  presenting as a baffling "my webhook never fires". `ParseSinks` now validates the filter via
+  the newly-exported `bus.ValidatePattern` and rejects a malformed one at startup with a clear
+  message. An empty filter still defaults to `>` (all events). See
+  `.project/PHASE-M217-WEBHOOK-SUBJECT-VALIDATION-REPORT.md`.
 - **A duplicate prefix in the plugin pin / tool-allowlist specs is now rejected** (M216) — both
   `ParsePinSpec` (`AGEZT_PLUGIN_PINS`, binary-hash integrity) and `ParseToolAllowlistSpec`
   (`AGEZT_PLUGIN_TOOLS`, restricting what a plugin may advertise) keyed by prefix and silently

@@ -263,6 +263,11 @@ func ParseSinks(spec string) ([]Sink, error) {
 		if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
 			return nil, fmt.Errorf("webhook: invalid URL %q (need http(s)://host…)", s.URL)
 		}
+		// A malformed subject filter never matches any event, so the sink would
+		// silently deliver nothing. Reject it at parse time instead (M217).
+		if err := bus.ValidatePattern(s.Subject); err != nil {
+			return nil, fmt.Errorf("webhook: invalid subject filter %q: %w", s.Subject, err)
+		}
 		sinks = append(sinks, s)
 	}
 	return sinks, nil
