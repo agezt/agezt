@@ -12,6 +12,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **`AGEZT_PRICING_STRICT` env + `agt budget` spend-protection line** (M194) — makes the
+  M193 strict-pricing gate operator-configurable (`AGEZT_PRICING_STRICT=on`, off by
+  default, registered in `agt config show`) and surfaces the posture in `agt budget`:
+  a `pricing  strict: …` / `pricing  lax: unpriced models are charged $0 (set …)` line
+  alongside the spend total, plus `strict_pricing` in `agt budget --json`. So an operator
+  can both turn the protection on and see at a glance whether unpriced models are refused
+  or silently free. See `.project/PHASE-M194-BUDGET-STRICT-PRICING-SURFACE-REPORT.md`.
 - **`StrictPricing` governor mode — refuse unpriced models instead of charging $0
   (governor review HIGH)** (M193) — by default a model with no known price (missing from
   the catalog AND the fallback table) is charged $0, so it silently bypasses the daily and

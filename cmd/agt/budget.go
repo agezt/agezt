@@ -74,6 +74,15 @@ func cmdBudget(args []string, stdout, stderr io.Writer) int {
 	}
 	fmt.Fprintln(stdout)
 
+	// Spend-protection posture (M194): whether unpriced models are refused or
+	// silently charged $0. The latter is a quiet budget-bypass surface, so it's
+	// worth showing alongside the spend line.
+	if strict, _ := res["strict_pricing"].(bool); strict {
+		fmt.Fprintln(stdout, "  pricing  strict: models with no known price are refused")
+	} else {
+		fmt.Fprintf(stdout, "  pricing  lax: unpriced models are charged $0 (set %sPRICING_STRICT=on to refuse)\n", brand.EnvPrefix)
+	}
+
 	rows, _ := res["per_task"].([]any)
 	if len(rows) == 0 {
 		fmt.Fprintln(stdout, "\n  no per-task-type caps configured (AGEZT_TASK_BUDGETS)")

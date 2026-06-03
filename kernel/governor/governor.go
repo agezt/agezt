@@ -754,6 +754,10 @@ type BudgetSnapshot struct {
 	SpentMicrocents   int64
 	CeilingMicrocents int64
 	PerTask           []TaskBudgetSnapshot
+	// StrictPricing reflects whether unpriced models are refused (M193/M194)
+	// rather than silently charged $0 — part of the operator's spend-protection
+	// posture surfaced by `agt budget`.
+	StrictPricing bool
 }
 
 // Snapshot returns a point-in-time copy of the governor's budget
@@ -770,6 +774,7 @@ func (g *Governor) Snapshot() BudgetSnapshot {
 		UTCDate:           g.today,
 		SpentMicrocents:   g.spentToday,
 		CeilingMicrocents: g.cfg.DailyCeilingMicrocents,
+		StrictPricing:     g.cfg.StrictPricing,
 	}
 	if len(g.cfg.TaskBudgets) > 0 {
 		snap.PerTask = make([]TaskBudgetSnapshot, 0, len(g.cfg.TaskBudgets))

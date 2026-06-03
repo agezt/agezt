@@ -51,10 +51,11 @@ func (s *Server) handleBudget(conn net.Conn, req Request) {
 		ID:   req.ID,
 		Type: RespResult,
 		Result: map[string]any{
-			"utc_date":   snap.UTCDate,
-			"spent_mc":   snap.SpentMicrocents,
-			"ceiling_mc": snap.CeilingMicrocents,
-			"per_task":   perTask,
+			"utc_date":       snap.UTCDate,
+			"spent_mc":       snap.SpentMicrocents,
+			"ceiling_mc":     snap.CeilingMicrocents,
+			"per_task":       perTask,
+			"strict_pricing": snap.StrictPricing,
 		},
 	})
 }
