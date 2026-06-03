@@ -15,6 +15,8 @@
 package acp
 
 import (
+	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -23,6 +25,36 @@ import (
 
 	"github.com/agezt/agezt/internal/brand"
 )
+
+// maxMessageBytes bounds a single ACP JSON-RPC message. ACP is newline-delimited
+// JSON (both ends write via json.Encoder, which appends a newline), so a bounded
+// line scanner enforces a per-message cap that json.Decoder would not — one
+// oversized message from a misbehaving peer can't balloon memory (M257).
+const maxMessageBytes = 8 << 20
+
+// newBoundedScanner returns a line scanner whose token (one JSON-RPC message)
+// is capped at maxMessageBytes; an over-cap line surfaces as bufio.ErrTooLong.
+func newBoundedScanner(r io.Reader) *bufio.Scanner {
+	sc := bufio.NewScanner(r)
+	sc.Buffer(make([]byte, 0, 64*1024), maxMessageBytes)
+	return sc
+}
+
+// scanMessage reads the next non-blank newline-delimited message from sc into v,
+// returning io.EOF at a clean end of stream.
+func scanMessage(sc *bufio.Scanner, v any) error {
+	for sc.Scan() {
+		line := bytes.TrimSpace(sc.Bytes())
+		if len(line) == 0 {
+			continue
+		}
+		return json.Unmarshal(line, v)
+	}
+	if err := sc.Err(); err != nil {
+		return err
+	}
+	return io.EOF
+}
 
 // ProtocolVersion is the ACP version this server implements.
 const ProtocolVersion = 1
@@ -38,7 +70,7 @@ type Runner interface {
 // Server speaks ACP over a reader/writer pair.
 type Server struct {
 	runner Runner
-	dec    *json.Decoder
+	sc     *bufio.Scanner
 	out    io.Writer
 	writeM sync.Mutex // serialize notifications vs responses on out
 
@@ -51,7 +83,7 @@ type Server struct {
 func New(runner Runner, in io.Reader, out io.Writer) *Server {
 	return &Server{
 		runner:   runner,
-		dec:      json.NewDecoder(in),
+		sc:       newBoundedScanner(in),
 		out:      out,
 		sessions: map[string]string{},
 	}
@@ -97,7 +129,7 @@ func (s *Server) Serve(ctx context.Context) error {
 			return err
 		}
 		var req request
-		if err := s.dec.Decode(&req); err != nil {
+		if err := scanMessage(s.sc, &req); err != nil {
 			if err == io.EOF {
 				return nil
 			}

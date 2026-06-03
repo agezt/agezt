@@ -12,6 +12,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Fixed
+- **A single oversized ACP message can no longer balloon memory.** Both the ACP
+  server (driven by an IDE) and the ACP client (driving an external agent) read
+  with a `json.Decoder`, which buffers a whole JSON value with no size limit — so
+  one giant message could exhaust memory. ACP is newline-delimited JSON, so both
+  now read with a line scanner capped at 8 MiB per message; an over-cap message
+  is rejected instead of buffered. Completes the previous fix, which bounded the
+  *accumulation* of streamed chunks but not a single huge one.
 - **A runaway ACP agent can no longer balloon the daemon's memory.** The
   `acpagent` tool accumulated every streamed chunk into one buffer and only
   truncated it to 60 KiB at the end — so an external agent that streamed without

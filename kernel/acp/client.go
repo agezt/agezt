@@ -3,6 +3,7 @@
 package acp
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -17,8 +18,8 @@ import (
 //
 // Usage is synchronous: one call at a time on a single goroutine.
 type Client struct {
-	enc    *json.Encoder // to the agent's stdin
-	dec    *json.Decoder // from the agent's stdout
+	enc    *json.Encoder  // to the agent's stdin
+	sc     *bufio.Scanner // from the agent's stdout (per-message bounded)
 	nextID int
 }
 
@@ -26,7 +27,7 @@ type Client struct {
 // stdout (we read responses/notifications), agentIn is its stdin (we write
 // requests).
 func NewClient(agentOut io.Reader, agentIn io.Writer) *Client {
-	return &Client{enc: json.NewEncoder(agentIn), dec: json.NewDecoder(agentOut)}
+	return &Client{enc: json.NewEncoder(agentIn), sc: newBoundedScanner(agentOut)}
 }
 
 // Initialize negotiates the protocol version. The agent's capabilities are
@@ -108,7 +109,7 @@ func (c *Client) call(ctx context.Context, method string, params any, onNotify f
 			Result json.RawMessage `json:"result"`
 			Error  *rpcError       `json:"error"`
 		}
-		if err := c.dec.Decode(&msg); err != nil {
+		if err := scanMessage(c.sc, &msg); err != nil {
 			return nil, fmt.Errorf("acp client: read %s: %w", method, err)
 		}
 		// Notification (no id, has method) → relay and keep reading.
