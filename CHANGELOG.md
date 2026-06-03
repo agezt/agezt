@@ -12,6 +12,16 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **`remote_run` auto-routing caches model discovery (bounded TTL)** (M205) — the M203
+  auto-router probed every candidate peer's `GET /api/v1/models` on *every* invocation; in a
+  busy agent loop that meant a fan-out of discovery requests per delegated task. The tool now
+  caches each peer's model list for a bounded TTL (`DefaultCacheTTL` = 60s), so repeated
+  auto-routes reuse the recent result instead of re-probing the mesh — model inventories
+  change rarely, and the TTL bounds staleness. Discovery errors are *not* cached (a transient
+  failure won't suppress a later retry), the cache is mutex-guarded with the network call made
+  outside the lock (no serialization of concurrent discoveries), and a named-peer dispatch
+  still skips discovery entirely. Behaviour is otherwise unchanged. See
+  `.project/PHASE-M205-DISCOVERY-CACHE-REPORT.md`.
 - **`agt peers route <model>` — inspect mesh routing decisions** (M204) — a new verb that
   shows which peer `remote_run` would auto-route a task for `<model>` to, and the fallback
   order, *without* dispatching anything. It mirrors the tool's selection exactly (M203):

@@ -24,6 +24,7 @@ import (
 	"net/url"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/agezt/agezt/kernel/agent"
@@ -31,6 +32,11 @@ import (
 
 // DefaultTimeout caps one remote run.
 const DefaultTimeout = 5 * time.Minute
+
+// DefaultCacheTTL is how long an auto-routing model-discovery result is reused
+// before a peer is re-probed. Model inventories change rarely, so a short TTL makes
+// repeated auto-routes cheap (no /models probe per call) while bounding staleness.
+const DefaultCacheTTL = 60 * time.Second
 
 // MaxAnswerBytes truncates a peer's answer so a runaway remote can't blow the
 // context budget.
@@ -51,13 +57,24 @@ type poster func(ctx context.Context, endpoint, token string, body []byte) (stat
 // caller named none.
 type lister func(ctx context.Context, p Peer) (models []string, err error)
 
+// modelCacheEntry is a cached model-discovery result for one peer.
+type modelCacheEntry struct {
+	models []string
+	at     time.Time
+}
+
 // Tool implements agent.Tool. Constructed only when at least one peer is
 // configured; see New.
 type Tool struct {
-	Peers   map[string]Peer
-	Timeout time.Duration
-	post    poster
-	list    lister
+	Peers    map[string]Peer
+	Timeout  time.Duration
+	CacheTTL time.Duration // auto-routing discovery cache TTL; <=0 uses DefaultCacheTTL
+	post     poster
+	list     lister
+	now      func() time.Time // injectable clock for the cache (nil = time.Now)
+
+	mu    sync.Mutex
+	cache map[string]modelCacheEntry
 }
 
 // New builds a peer Tool from configured peers. Returns nil when none are
@@ -66,7 +83,47 @@ func New(peers map[string]Peer) *Tool {
 	if len(peers) == 0 {
 		return nil
 	}
-	return &Tool{Peers: peers, post: httpPost, list: httpListModels}
+	return &Tool{Peers: peers, post: httpPost, list: httpListModels, cache: map[string]modelCacheEntry{}}
+}
+
+// clock returns the Tool's time source (time.Now unless overridden for tests).
+func (t *Tool) clock() time.Time {
+	if t.now != nil {
+		return t.now()
+	}
+	return time.Now()
+}
+
+// cachedModels returns a peer's model ids, reusing a recent discovery result within
+// the cache TTL so repeated auto-routes don't re-probe every peer. Errors are not
+// cached (a transient discovery failure shouldn't suppress a later retry). The
+// network call runs without the lock held so concurrent discoveries don't serialize.
+func (t *Tool) cachedModels(ctx context.Context, p Peer) ([]string, error) {
+	ttl := t.CacheTTL
+	if ttl <= 0 {
+		ttl = DefaultCacheTTL
+	}
+	now := t.clock()
+
+	t.mu.Lock()
+	if t.cache == nil {
+		t.cache = map[string]modelCacheEntry{}
+	}
+	if e, ok := t.cache[p.Name]; ok && now.Sub(e.at) < ttl {
+		models := e.models
+		t.mu.Unlock()
+		return models, nil
+	}
+	t.mu.Unlock()
+
+	models, err := t.list(ctx, p)
+	if err != nil {
+		return nil, err
+	}
+	t.mu.Lock()
+	t.cache[p.Name] = modelCacheEntry{models: models, at: now}
+	t.mu.Unlock()
+	return models, nil
 }
 
 func (t *Tool) Definition() agent.ToolDef {
@@ -218,7 +275,7 @@ func (t *Tool) resolvePeerForModel(ctx context.Context, model string) (Peer, err
 	var unreachable []string
 	for _, n := range names {
 		p := t.Peers[n]
-		models, err := t.list(ctx, p)
+		models, err := t.cachedModels(ctx, p)
 		if err != nil {
 			unreachable = append(unreachable, n)
 			continue
