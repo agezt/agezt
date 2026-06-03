@@ -12,6 +12,17 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Mesh delegation loop guard — bounded cross-node hops** (M209) — a federated mesh could
+  recurse forever: node A's `remote_run` delegates to B, B delegates back to A, and so on,
+  each hop a real governed run that costs money and never terminates. Delegations now carry a
+  hop count: `remote_run` forwards the current run's hop +1 in an `X-Agezt-Mesh-Hop` header,
+  and the receiving node's `POST /api/v1/runs` refuses a run past `meshctx.MaxHops` (8) with
+  `508 Loop Detected`, threading the hop into the run context so that node's own `remote_run`
+  forwards hop+1 in turn. The delegating tool also refuses locally once at the limit (no
+  doomed round-trip). A normal, non-delegated run (local `agt run`, schedule, channel) has no
+  header and starts the chain at 0, so nothing changes for single-node use. New
+  `kernel/meshctx` package carries the hop through the run context (which already threads from
+  the REST handler down to tool invocation). See `.project/PHASE-M209-MESH-LOOP-GUARD-REPORT.md`.
 - **`agt status` shows the configured peer mesh** (M208) — the live status overview now
   includes a `mesh` line listing the configured peers (`AGEZT_PEERS`) with their URLs, and a
   `mesh` array (name + URL) in `agt status --json`. It is a cheap client-side config snapshot

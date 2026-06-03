@@ -33,6 +33,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/meshctx"
 )
 
 // maxRequestBodyBytes caps an HTTP request body (M198). The API surfaces are
@@ -312,6 +313,23 @@ func (s *Server) handleRunsRoot(w http.ResponseWriter, r *http.Request) {
 		methodNotAllowed(w, http.MethodPost)
 		return
 	}
+	// Mesh delegation loop guard (M209): a run handed here from a peer's remote_run
+	// carries a hop count. Refuse one past the limit so a federated mesh can't recurse
+	// forever, and thread the hop into the run context so this node's own remote_run
+	// (if it fires) forwards hop+1 in turn. A run with no header starts the chain at 0.
+	hopIn := 0
+	if h := r.Header.Get(meshctx.HopHeader); h != "" {
+		if n, err := strconv.Atoi(h); err == nil && n > 0 {
+			hopIn = n
+		}
+	}
+	if hopIn > meshctx.MaxHops {
+		writeErr(w, http.StatusLoopDetected, "mesh_hop_limit",
+			"mesh delegation hop limit exceeded — refusing to avoid a federation loop")
+		return
+	}
+	r = r.WithContext(meshctx.WithHop(r.Context(), hopIn))
+
 	var req runRequest
 	r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodyBytes)
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {

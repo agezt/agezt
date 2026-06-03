@@ -23,11 +23,13 @@ import (
 	"net/http"
 	"net/url"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/meshctx"
 )
 
 // DefaultTimeout caps one remote run.
@@ -177,6 +179,14 @@ func (t *Tool) Invoke(ctx context.Context, input json.RawMessage) (agent.Result,
 	task := strings.TrimSpace(in.Task)
 	if task == "" {
 		return agent.Result{Output: "task is required", IsError: true}, nil
+	}
+	// Mesh loop guard (M209): if this run is already at the hop limit, delegating
+	// further would push the peer past it (and be refused there). Refuse locally with a
+	// clear message rather than make a doomed round-trip. A non-delegated run is hop 0.
+	if hop := meshctx.Hop(ctx); hop >= meshctx.MaxHops {
+		return agent.Result{Output: fmt.Sprintf(
+			"remote_run: mesh delegation hop limit (%d) reached — refusing to delegate further to avoid a federation loop",
+			meshctx.MaxHops), IsError: true}, nil
 	}
 	model := strings.TrimSpace(in.Model)
 
@@ -357,6 +367,9 @@ func httpPost(ctx context.Context, endpoint, token string, body []byte) (int, []
 	if token != "" {
 		req.Header.Set("Authorization", "Bearer "+token)
 	}
+	// Forward the delegation hop count +1 so the peer (and the chain beyond it) is
+	// bounded against federation loops (M209).
+	req.Header.Set(meshctx.HopHeader, strconv.Itoa(meshctx.Hop(ctx)+1))
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return 0, nil, err
