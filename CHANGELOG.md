@@ -12,6 +12,15 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Fixed
+- **Sending an image to a non-vision model via the API or a channel now fails
+  fast with a clear message.** The control plane already pre-checked a run's
+  model for vision capability before spending a provider call (M91), but the
+  OpenAI-compatible API and the chat channels call the run path directly and
+  bypassed that gate — so an image attached to a non-vision model produced a
+  cryptic downstream provider error (and a wasted call) instead of an actionable
+  one. Both paths now run the same confirmed-or-reject vision gate up front: an
+  unknown or known-non-vision model is refused with "model … does not support
+  vision (image input)".
 - **The `browser` tool's host allowlist is now enforced on redirects too.** Same
   gap as the `http` tool: the allowlist was checked only on the initial URL, so
   an allowlisted page that 302-redirected to an arbitrary external host would be

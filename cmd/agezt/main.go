@@ -902,6 +902,40 @@ func channelHistoryLimit() int {
 // tomorrow?" is understood, then runs the governed loop under the message's
 // correlation. With no prior context (or history disabled) it runs the raw
 // message text — unchanged first-turn behavior.
+// visionGate rejects an image-carrying run whose effective model is not a
+// confirmed vision-capable model, mirroring the control plane's M91 gate
+// (server.go) so the OpenAI API and channel run paths — which call RunWith
+// directly, bypassing that gate — give a clear pre-flight error instead of a
+// wasted provider call and a cryptic downstream failure (M255). Confirmed-or-
+// reject: an unknown or unpriced-but-known non-vision model is refused.
+func visionGate(k *kernelruntime.Kernel, model string, images []string) error {
+	return gateVisionWith(k.Catalog(), k.Model(), model, images)
+}
+
+// gateVisionWith is the pure core of visionGate (catalog + default model
+// injected, so it's testable without a live kernel). eff = model, or
+// defaultModel when model is empty. Confirmed-or-reject: an unknown or
+// known-but-non-vision model is refused when images are present.
+func gateVisionWith(cat *catalog.Catalog, defaultModel, model string, images []string) error {
+	if len(images) == 0 {
+		return nil
+	}
+	eff := model
+	if eff == "" {
+		eff = defaultModel
+	}
+	visionOK := false
+	if cat != nil {
+		if _, m := cat.FindModel(eff); m != nil {
+			visionOK = m.SupportsVision()
+		}
+	}
+	if !visionOK {
+		return fmt.Errorf("model %q does not support vision (image input); attach images only to a vision-capable model", eff)
+	}
+	return nil
+}
+
 func makeChannelHandler(k *kernelruntime.Kernel) channel.InboundHandler {
 	limit := channelHistoryLimit()
 	return func(hctx context.Context, msg channel.UnifiedMessage, corr string) (string, error) {
@@ -913,6 +947,11 @@ func makeChannelHandler(k *kernelruntime.Kernel) channel.InboundHandler {
 		// the control plane and OpenAI API do, so a photo sent to the bot reaches
 		// a vision model. An image with no caption gets a default instruction.
 		if len(msg.Images) > 0 {
+			// Pre-gate vision capability (M255) so a non-vision model gives a clear
+			// reply instead of a downstream provider error.
+			if err := visionGate(k, "", msg.Images); err != nil {
+				return "", err
+			}
 			hctx = kernelruntime.WithImages(hctx, msg.Images)
 			if strings.TrimSpace(intent) == "" {
 				intent = "Describe the attached image(s)."
@@ -1287,6 +1326,12 @@ func (e kernelAPIEngine) RunModel(ctx context.Context, corr, intent, model strin
 	// Carry any multimodal attachments (M246) the same way the control plane
 	// does, so a vision request to the OpenAI-compatible API reaches the model.
 	if len(images) > 0 {
+		// Pre-gate vision capability (M255): the API path bypasses the control
+		// plane's M91 gate, so reject a non-vision model here with a clear error
+		// rather than wasting a provider call.
+		if err := visionGate(e.k, model, images); err != nil {
+			return "", err
+		}
 		ctx = kernelruntime.WithImages(ctx, images)
 	}
 	return e.k.RunWith(ctx, corr, intent)
