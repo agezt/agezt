@@ -3,6 +3,8 @@
 package governor
 
 import (
+	"math"
+	"math/bits"
 	"strings"
 	"sync/atomic"
 
@@ -123,7 +125,39 @@ func CostMicrocents(model string, inputTokens, outputTokens int) int64 {
 //	cost_microcents = (input_tokens * input_mc_per_MTok + output * out_mc_per_MTok) / 1_000_000
 func costMicrocents(model string, inputTokens, outputTokens int) int64 {
 	p := priceFor(model)
-	totalMicromicrocents := int64(inputTokens)*p.InputMicrocentsPerMTok +
-		int64(outputTokens)*p.OutputMicrocentsPerMTok
+	// Token counts come from the (untrusted) provider usage response; a
+	// buggy or hostile endpoint can report negative or absurd values.
+	// Compute with saturation (M191): negatives are treated as 0 and any
+	// int64 overflow saturates to MaxInt64 instead of wrapping. This is
+	// fail-CLOSED — a nonsensical usage report yields a huge cost that
+	// trips the budget gate, never a negative cost that would credit the
+	// ledger and disable the daily ceiling.
+	totalMicromicrocents := saturatingAdd(
+		saturatingMul(inputTokens, p.InputMicrocentsPerMTok),
+		saturatingMul(outputTokens, p.OutputMicrocentsPerMTok),
+	)
 	return totalMicromicrocents / 1_000_000
+}
+
+// saturatingMul returns tokens * pricePerMTok clamped to [0, MaxInt64].
+// Non-positive tokens or price yield 0; a product that exceeds int64
+// saturates to MaxInt64 rather than wrapping negative.
+func saturatingMul(tokens int, pricePerMTok int64) int64 {
+	if tokens <= 0 || pricePerMTok <= 0 {
+		return 0
+	}
+	hi, lo := bits.Mul64(uint64(tokens), uint64(pricePerMTok))
+	if hi != 0 || lo > math.MaxInt64 {
+		return math.MaxInt64
+	}
+	return int64(lo)
+}
+
+// saturatingAdd returns a + b (both assumed >= 0) clamped to MaxInt64.
+func saturatingAdd(a, b int64) int64 {
+	sum := a + b
+	if sum < a { // overflowed (a, b are non-negative)
+		return math.MaxInt64
+	}
+	return sum
 }

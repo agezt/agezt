@@ -593,7 +593,21 @@ func (g *Governor) recordUsage(p *ProviderInfo, req agent.CompletionRequest, res
 	if model == "" {
 		model = req.Model
 	}
-	cost := costMicrocents(model, resp.Usage.InputTokens, resp.Usage.OutputTokens)
+	// Sanitize provider-reported token counts (M191): clamp negatives to
+	// 0 so a buggy/hostile usage response can't charge a NEGATIVE cost
+	// (which would credit the ledger and eventually disable the daily
+	// ceiling). Using the clamped values for BOTH the cost and the audit
+	// event keeps the journal honest too. The overflow case is handled by
+	// costMicrocents' saturating math.
+	inTok := resp.Usage.InputTokens
+	if inTok < 0 {
+		inTok = 0
+	}
+	outTok := resp.Usage.OutputTokens
+	if outTok < 0 {
+		outTok = 0
+	}
+	cost := costMicrocents(model, inTok, outTok)
 
 	g.mu.Lock()
 	g.rolloverIfNeededLocked()
@@ -616,8 +630,8 @@ func (g *Governor) recordUsage(p *ProviderInfo, req agent.CompletionRequest, res
 		Payload: map[string]any{
 			"provider":        p.Name,
 			"model":           model,
-			"input_tokens":    resp.Usage.InputTokens,
-			"output_tokens":   resp.Usage.OutputTokens,
+			"input_tokens":    inTok,
+			"output_tokens":   outTok,
 			"cost_microcents": cost,
 			"spent_today_mc":  spent,
 			"ceiling_mc":      g.cfg.DailyCeilingMicrocents,

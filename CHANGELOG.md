@@ -318,6 +318,19 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   `.project/PHASE-M129-OBSERVABILITY-TENANT-FLAG-REPORT.md`.
 
 ### Fixed
+- **Budget cost math is overflow/negative-safe — a hostile usage report can't disable
+  the spend ceiling (governor review CRITICAL)** (M191) — `costMicrocents` computed
+  `tokens × price/MTok` with raw int64 arithmetic on provider-reported token counts.
+  Those counts are untrusted (a `compat`/`ollama` endpoint can be operator-configured to
+  an arbitrary URL, and a buggy/hostile provider can report any value). Two ways this
+  broke the budget: a **negative** token count charged a negative cost — *crediting* the
+  ledger; and an **absurd** count (e.g. 2e9 output tokens × 7.5e9/MTok) overflowed int64
+  and **wrapped to a negative cost**. Either drove `spentToday` negative, after which the
+  daily-ceiling check (`spent >= ceiling`) stayed false for the rest of the day — the
+  budget gate silently disabled, agent free to overspend. Token counts are now clamped to
+  ≥0 (ledger and audit event) and the cost math saturates to `MaxInt64` on overflow
+  (fail-closed — an absurd report trips the ceiling immediately). See
+  `.project/PHASE-M191-GOVERNOR-COST-OVERFLOW-REPORT.md`.
 - **Provider response bound rolled out to all remaining provider families** (M190) —
   applied the M189 `httpread.All` cap to the non-streaming success reads and
   streaming-error reads of the anthropic, bedrock, cohere, google, ollama, and vertex
