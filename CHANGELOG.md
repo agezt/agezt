@@ -343,6 +343,17 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   `.project/PHASE-M129-OBSERVABILITY-TENANT-FLAG-REPORT.md`.
 
 ### Fixed
+- **HTTP request bodies are now bounded on the network-exposed API surfaces** (M198) — the
+  REST control surface (`POST /api/v1/runs`) and the OpenAI-compatible surface
+  (`/v1/chat/completions`, `/v1/responses`) decoded `r.Body` with `json.NewDecoder` and no
+  size cap, so an authenticated client could stream an unbounded body and force unbounded
+  memory growth — the HTTP analogue of the framed-read caps already applied to the plugin
+  host (M177), mcpbridge (M185), and control plane (M188). Each body is now wrapped in
+  `http.MaxBytesReader(w, r.Body, 16 MiB)`; an over-limit body is rejected with `413
+  Request Entity Too Large` (`request_too_large` / `invalid_request_error`) instead of
+  being read into memory, and normal requests are unaffected. Both surfaces are
+  post-authentication, so this is defense-in-depth against an authenticated DoS, not a
+  pre-auth hole. See `.project/PHASE-M198-HTTP-BODY-BOUND-REPORT.md`.
 - **Daily scheduling hardened against DST fall-back double-fire + regression coverage**
   (M197) — `nextDaily` now makes the "fire once per day" property EXPLICIT: on a fall-back
   day the wall-clock `at` time occurs twice, so a same-day (`i==0`) candidate at or before

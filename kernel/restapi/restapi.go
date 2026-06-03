@@ -26,6 +26,7 @@ import (
 	"context"
 	"crypto/subtle"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
@@ -33,6 +34,12 @@ import (
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/event"
 )
+
+// maxRequestBodyBytes caps an HTTP request body (M198). The API surfaces are
+// network-exposed and token-authed, but a token holder (or a compromised/buggy
+// client) must not be able to OOM the daemon with a giant JSON body. 16 MiB is
+// far above any legitimate run/chat request.
+const maxRequestBodyBytes = 16 << 20
 
 // Engine is the slice of the kernel this server drives. It is satisfied
 // structurally by the daemon's kernel adapter (the same one kernel/openaiapi
@@ -306,7 +313,14 @@ func (s *Server) handleRunsRoot(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req runRequest
+	r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodyBytes)
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		var mbe *http.MaxBytesError
+		if errors.As(err, &mbe) {
+			writeErr(w, http.StatusRequestEntityTooLarge, "request_too_large",
+				"request body exceeds the size limit")
+			return
+		}
 		writeErr(w, http.StatusBadRequest, "invalid_request", "invalid JSON body: "+err.Error())
 		return
 	}

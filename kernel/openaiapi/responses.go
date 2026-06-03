@@ -37,8 +37,7 @@ func (s *Server) handleResponses(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req responsesRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeErr(w, http.StatusBadRequest, "invalid_request_error", "invalid JSON body: "+err.Error())
+	if !decodeBody(w, r, &req) {
 		return
 	}
 	intent := intentFromResponsesInput(req)
