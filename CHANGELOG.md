@@ -12,6 +12,14 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **`agt status` shows the configured peer mesh** (M208) — the live status overview now
+  includes a `mesh` line listing the configured peers (`AGEZT_PEERS`) with their URLs, and a
+  `mesh` array (name + URL) in `agt status --json`. It is a cheap client-side config snapshot
+  — **no** health probe (that stays the job of `agt doctor` (M207) and `agt peers`), so
+  `status` remains fast even when a peer is down — and tokens are always redacted. Quiet when
+  single-node, so most operators see no extra noise. Pairs the mesh's *configuration* view
+  (status) with its *health* view (doctor/peers). See
+  `.project/PHASE-M208-STATUS-MESH-REPORT.md`.
 - **`agt doctor` gains a mesh-health check** (M207) — the operator's go-to pre-flight now
   reports the configured peer mesh (`AGEZT_PEERS`): it probes each peer's REST
   `/api/v1/health` (reusing the `agt peers` check) and reports all-reachable as OK, an

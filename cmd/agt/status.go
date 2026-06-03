@@ -7,11 +7,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"os"
+	"sort"
 	"strings"
 	"time"
 
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/plugins/tools/peer"
 )
 
 // cmdStatus implements `agt status` and `agt status --json`.
@@ -53,6 +56,11 @@ func cmdStatus(args []string, stdout, stderr io.Writer) int {
 		// skew without needing a second call).
 		res["client_version"] = brand.Version
 		res["client_protocol"] = brand.ProtocolVersion
+		// Mesh peers (M208) are a client-side config (AGEZT_PEERS), so augment here.
+		// Names + URLs only — tokens are never emitted.
+		if mesh := meshSummary(); len(mesh) > 0 {
+			res["mesh"] = mesh
+		}
 		enc := json.NewEncoder(stdout)
 		enc.SetIndent("", "  ")
 		_ = enc.Encode(res)
@@ -108,6 +116,13 @@ func cmdStatus(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "  channels  : %s\n", strings.Join(parts, ", "))
 	}
 
+	// Mesh peers (M208) — the configured federation (AGEZT_PEERS), client-side. A
+	// cheap config snapshot only (no health probe — that's `agt doctor` / `agt peers`);
+	// tokens are redacted. Quiet when single-node so most operators see no noise.
+	if peers, err := peer.ParsePeers(os.Getenv(brand.EnvPrefix + "PEERS")); err == nil && len(peers) > 0 {
+		fmt.Fprintf(stdout, "  mesh      : %s\n", peer.Describe(peers))
+	}
+
 	// Scheduled autonomy (M130): how many intents are armed, and how many enabled.
 	// Quiet when there are none so single-shot operators see no noise.
 	if sched, _ := res["schedules"].(map[string]any); sched != nil {
@@ -148,6 +163,27 @@ func cmdStatus(args []string, stdout, stderr io.Writer) int {
 		}
 	}
 	return 0
+}
+
+// meshSummary returns the configured peer mesh (AGEZT_PEERS) as name+url objects
+// for the `--json` output, sorted by name. Tokens are never included. Returns nil
+// when no peers are configured or the spec is malformed (the text path stays quiet
+// too). This is client-side config, not a health probe (M208).
+func meshSummary() []map[string]any {
+	peers, err := peer.ParsePeers(os.Getenv(brand.EnvPrefix + "PEERS"))
+	if err != nil || len(peers) == 0 {
+		return nil
+	}
+	names := make([]string, 0, len(peers))
+	for n := range peers {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+	out := make([]map[string]any, 0, len(peers))
+	for _, n := range names {
+		out = append(out, map[string]any{"name": n, "url": peers[n].URL})
+	}
+	return out
 }
 
 // intOfStatus mirrors mcFromAny/intOf — JSON decodes numbers as
