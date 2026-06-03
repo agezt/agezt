@@ -12,6 +12,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Fixed
+- **The Responses API (`/v1/responses`) now accepts image input too.** Chat
+  Completions already forwarded `image_url` parts (the prior change); the
+  Responses surface ignored its `input_image` parts (where `image_url` is a bare
+  string, a different shape). It now extracts them — tolerating both the string
+  and `{url}` object forms — and forwards them to the run, so vision input works
+  on both OpenAI-compatible endpoints. An image-only Responses input runs with a
+  default instruction.
 - **An image attached to a Discord slash command now reaches a vision model —
   inbound vision is complete across all three channels.** When a slash command
   carries an `ATTACHMENT` image option, the channel resolves it via

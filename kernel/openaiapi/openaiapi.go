@@ -278,6 +278,41 @@ func (m chatMessage) images() []string {
 	return urls
 }
 
+// inputImages extracts Responses-API `input_image` part URLs. There the
+// image_url field is a bare string (the documented Responses shape); some SDKs
+// send the Chat-style {url} object, so both are tolerated (M250). This is
+// distinct from images(), which reads Chat Completions' `image_url` parts.
+func (m chatMessage) inputImages() []string {
+	if len(m.Content) == 0 {
+		return nil
+	}
+	var parts []struct {
+		Type     string          `json:"type"`
+		ImageURL json.RawMessage `json:"image_url"`
+	}
+	if json.Unmarshal(m.Content, &parts) != nil {
+		return nil
+	}
+	var urls []string
+	for _, p := range parts {
+		if p.Type != "input_image" || len(p.ImageURL) == 0 {
+			continue
+		}
+		var s string
+		if json.Unmarshal(p.ImageURL, &s) == nil && s != "" {
+			urls = append(urls, s)
+			continue
+		}
+		var o struct {
+			URL string `json:"url"`
+		}
+		if json.Unmarshal(p.ImageURL, &o) == nil && o.URL != "" {
+			urls = append(urls, o.URL)
+		}
+	}
+	return urls
+}
+
 // imagesFromMessages collects image attachment URLs from the user messages so a
 // multimodal chat completion forwards its images to the run; Agezt's providers
 // turn each into the model's native image input (M246). The kernel still gates

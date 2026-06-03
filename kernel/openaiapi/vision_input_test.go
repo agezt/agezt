@@ -74,6 +74,69 @@ func TestChat_EmptyContentRejected(t *testing.T) {
 	}
 }
 
+// The Responses API forwards input_image parts (image_url is a bare string
+// there) to the run (M250).
+func TestResponses_ForwardsInputImage(t *testing.T) {
+	eng := &fakeEngine{model: "m", answer: "a dog"}
+	s := newAPIServer(t, eng, "secret")
+	du := "data:image/png;base64,QUJD"
+	body := `{"input":[{"role":"user","content":[` +
+		`{"type":"input_text","text":"what is this?"},` +
+		`{"type":"input_image","image_url":"` + du + `"}]}]}`
+	req := httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(body))
+	req.Header.Set("Authorization", "Bearer secret")
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	if len(eng.ranImages) != 1 || eng.ranImages[0] != du {
+		t.Errorf("ranImages=%v, want [%s]", eng.ranImages, du)
+	}
+	if eng.ranIntent != "what is this?" {
+		t.Errorf("ranIntent=%q, want %q", eng.ranIntent, "what is this?")
+	}
+}
+
+// An image-only Responses input (no input_text) runs with a default intent.
+func TestResponses_ImageOnlyInput(t *testing.T) {
+	eng := &fakeEngine{model: "m", answer: "ok"}
+	s := newAPIServer(t, eng, "secret")
+	du := "data:image/jpeg;base64,QQ=="
+	body := `{"input":[{"role":"user","content":[{"type":"input_image","image_url":"` + du + `"}]}]}`
+	req := httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(body))
+	req.Header.Set("Authorization", "Bearer secret")
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	if len(eng.ranImages) != 1 || eng.ranImages[0] != du {
+		t.Errorf("ranImages=%v, want [%s]", eng.ranImages, du)
+	}
+	if strings.TrimSpace(eng.ranIntent) == "" {
+		t.Error("image-only Responses input ran with an empty intent")
+	}
+}
+
+// inputImages tolerates both the bare-string and {url} object forms.
+func TestInputImages_BothShapes(t *testing.T) {
+	str := chatMessage{Role: "user", Content: json.RawMessage(`[{"type":"input_image","image_url":"data:image/png;base64,AA"}]`)}
+	if got := str.inputImages(); len(got) != 1 || got[0] != "data:image/png;base64,AA" {
+		t.Errorf("string form = %v", got)
+	}
+	obj := chatMessage{Role: "user", Content: json.RawMessage(`[{"type":"input_image","image_url":{"url":"data:image/png;base64,BB"}}]`)}
+	if got := obj.inputImages(); len(got) != 1 || got[0] != "data:image/png;base64,BB" {
+		t.Errorf("object form = %v", got)
+	}
+	none := chatMessage{Role: "user", Content: json.RawMessage(`[{"type":"input_text","text":"hi"}]`)}
+	if got := none.inputImages(); len(got) != 0 {
+		t.Errorf("text-only = %v, want none", got)
+	}
+}
+
 // imagesFromMessages pulls image_url parts from user messages only.
 func TestImagesFromMessages(t *testing.T) {
 	msgs := []chatMessage{

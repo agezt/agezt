@@ -41,9 +41,13 @@ func (s *Server) handleResponses(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	intent := intentFromResponsesInput(req)
-	if intent == "" {
+	images := imagesFromResponsesInput(req)
+	if intent == "" && len(images) == 0 {
 		writeErr(w, http.StatusBadRequest, "invalid_request_error", "no usable input content")
 		return
+	}
+	if intent == "" {
+		intent = "Describe the attached image(s)."
 	}
 	eng, b, err := s.bind(r)
 	if err != nil {
@@ -56,14 +60,12 @@ func (s *Server) handleResponses(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if req.Stream {
-		s.streamResponses(w, r, eng, b, intent, model)
+		s.streamResponses(w, r, eng, b, intent, model, images)
 		return
 	}
 
 	corr := eng.NewCorrelation()
-	// Responses-API image input (input_image parts) is not parsed yet; pass no
-	// images. Chat Completions multimodal input is wired (M246).
-	answer, err := eng.RunModel(r.Context(), corr, intent, model, nil)
+	answer, err := eng.RunModel(r.Context(), corr, intent, model, images)
 	if err != nil {
 		writeErr(w, http.StatusBadGateway, "upstream_error", err.Error())
 		return
@@ -78,6 +80,12 @@ func (s *Server) handleResponses(w http.ResponseWriter, r *http.Request) {
 // parsed as message items (content parts like {type:"input_text",text} flatten
 // via chatMessage.text, which reads the text field regardless of the part type).
 func intentFromResponsesInput(req responsesRequest) string {
+	return intentFromMessages(responsesMessages(req))
+}
+
+// responsesMessages builds the chatMessage list from a Responses request
+// (instructions + input), shared by the intent and image extractors.
+func responsesMessages(req responsesRequest) []chatMessage {
 	var msgs []chatMessage
 	if instr := strings.TrimSpace(req.Instructions); instr != "" {
 		msgs = append(msgs, chatMessage{Role: "system", Content: jsonString(instr)})
@@ -93,7 +101,20 @@ func intentFromResponsesInput(req responsesRequest) string {
 			}
 		}
 	}
-	return intentFromMessages(msgs)
+	return msgs
+}
+
+// imagesFromResponsesInput collects input_image attachment URLs from the user
+// items of a Responses request, so a multimodal Responses call forwards its
+// images to the run (M250).
+func imagesFromResponsesInput(req responsesRequest) []string {
+	var urls []string
+	for _, m := range responsesMessages(req) {
+		if strings.EqualFold(m.Role, "user") {
+			urls = append(urls, m.inputImages()...)
+		}
+	}
+	return urls
 }
 
 // responseObject builds a Responses API result object. status is "completed"
@@ -137,7 +158,7 @@ func responsesUsage(prompt, completion string) map[string]any {
 // streamResponses relays the run's llm.token events as the Responses SSE event
 // sequence. It subscribes BEFORE starting the run so no early token is missed
 // (the same no-race pattern as streamChat).
-func (s *Server) streamResponses(w http.ResponseWriter, r *http.Request, eng Engine, b *bus.Bus, intent, model string) {
+func (s *Server) streamResponses(w http.ResponseWriter, r *http.Request, eng Engine, b *bus.Bus, intent, model string, images []string) {
 	flusher, ok := w.(http.Flusher)
 	if !ok {
 		writeErr(w, http.StatusInternalServerError, "stream_unsupported", "streaming unsupported")
@@ -181,7 +202,7 @@ func (s *Server) streamResponses(w http.ResponseWriter, r *http.Request, eng Eng
 	}
 	done := make(chan result, 1)
 	go func() {
-		ans, err := eng.RunModel(r.Context(), corr, intent, model, nil)
+		ans, err := eng.RunModel(r.Context(), corr, intent, model, images)
 		done <- result{ans, err}
 	}()
 
