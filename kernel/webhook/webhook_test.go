@@ -294,6 +294,25 @@ func TestParseSinks_RejectsBadSubjectFilter(t *testing.T) {
 	}
 }
 
+// TestParseSinks_SecretWithPipe ensures an HMAC secret that contains '|' is preserved
+// intact rather than truncated at the first pipe (M218) — otherwise every signature
+// would mismatch at the receiver.
+func TestParseSinks_SecretWithPipe(t *testing.T) {
+	sinks, err := ParseSinks("https://h/a|agent.>|se|cr|et")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(sinks) != 1 {
+		t.Fatalf("got %d sinks", len(sinks))
+	}
+	if sinks[0].Secret != "se|cr|et" {
+		t.Errorf("secret = %q, want %q (full value after the 2nd pipe)", sinks[0].Secret, "se|cr|et")
+	}
+	if sinks[0].Subject != "agent.>" {
+		t.Errorf("subject = %q, want agent.>", sinks[0].Subject)
+	}
+}
+
 func TestDescribe_RedactsSecret(t *testing.T) {
 	out := Describe([]Sink{{URL: "https://h/a", Subject: "agent.>", Secret: "supersecret"}})
 	if strings.Contains(out, "supersecret") {

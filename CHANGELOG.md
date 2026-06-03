@@ -473,6 +473,14 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   `.project/PHASE-M129-OBSERVABILITY-TENANT-FLAG-REPORT.md`.
 
 ### Fixed
+- **A webhook HMAC secret containing `|` is no longer truncated** (M218) — `ParseSinks` split
+  each `url|subject|secret` entry on `|` with an unbounded `strings.Split`, so a secret that
+  itself contained a pipe (`…|subject|se|cr|et`) kept only the text up to the third `|` and
+  silently dropped the rest — corrupting the signing key so *every* delivery's HMAC signature
+  mismatched at the receiver, a silent delivery failure with no error to diagnose. The split
+  is now `SplitN(entry, "|", 3)`, so the secret field captures everything after the second
+  pipe intact. Found alongside the M217 subject-filter validation. See
+  `.project/PHASE-M218-WEBHOOK-SECRET-PIPE-REPORT.md`.
 - **A malformed webhook subject filter is now rejected at parse time** (M217) — a sink in
   `AGEZT_WEBHOOKS` (`url|subject|secret`) whose subject filter was not a well-formed NATS-style
   pattern (an empty token like `agent..tool`, or `>` not last like `>.agent`) was silently

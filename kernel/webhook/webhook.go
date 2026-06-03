@@ -250,7 +250,12 @@ func ParseSinks(spec string) ([]Sink, error) {
 		if entry == "" {
 			continue
 		}
-		parts := strings.Split(entry, "|")
+		// Bounded split (M218): the secret is the LAST field and an HMAC key may
+		// legitimately contain '|'. An unbounded Split would put only the text up to the
+		// third '|' into the secret and silently drop the rest, corrupting the key so
+		// every signature mismatches at the receiver — a silent delivery failure. SplitN
+		// with 3 keeps everything after the second '|' as the secret.
+		parts := strings.SplitN(entry, "|", 3)
 		s := Sink{Subject: ">"}
 		s.URL = strings.TrimSpace(parts[0])
 		if len(parts) > 1 && strings.TrimSpace(parts[1]) != "" {
