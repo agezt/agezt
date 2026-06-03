@@ -2490,29 +2490,26 @@ func buildTools(baseDir string, stderr io.Writer, ward warden.Engine) (map[strin
 			}
 			allowedTools = parsed
 		}
-		var usedPrefixes []string
+		// Parse the spec up front (M223). A malformed entry — missing
+		// '=', empty path, or a duplicate prefix — is a hard startup
+		// error, matching the pin/allowlist specs parsed just above. A
+		// repeated prefix used to spawn two processes whose tools then
+		// collided with a misleading "in-process version" warning;
+		// rejecting it surfaces the typo instead.
+		entries, err := plugin.ParsePluginSpec(spec)
+		if err != nil {
+			return nil, nil, "", fmt.Errorf("AGEZT_PLUGINS: %w", err)
+		}
+		usedPrefixes := make([]string, 0, len(entries))
 
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
-		for entry := range strings.SplitSeq(spec, ",") {
-			entry = strings.TrimSpace(entry)
-			if entry == "" {
-				continue
-			}
-			prefix, cmdLine, ok := strings.Cut(entry, "=")
-			if !ok {
-				fmt.Fprintf(stderr, "WARNING: AGEZT_PLUGINS entry %q missing '=' — expected '<prefix>=<path>'\n", entry)
-				continue
-			}
-			parts := strings.Fields(cmdLine)
-			if len(parts) == 0 {
-				fmt.Fprintf(stderr, "WARNING: AGEZT_PLUGINS entry %q has empty path\n", entry)
-				continue
-			}
+		for _, e := range entries {
+			prefix := e.Prefix
 			usedPrefixes = append(usedPrefixes, prefix)
 			cfg := plugin.Config{
-				Path: parts[0],
-				Args: parts[1:],
+				Path: e.Path,
+				Args: e.Args,
 				Logger: func(line string) {
 					fmt.Fprintf(stderr, "[plugin:%s] %s\n", prefix, line)
 				},
@@ -2521,7 +2518,7 @@ func buildTools(baseDir string, stderr io.Writer, ward warden.Engine) (map[strin
 			}
 			p, err := plugin.Spawn(ctx, cfg)
 			if err != nil {
-				fmt.Fprintf(stderr, "WARNING: plugin %q (%s) failed to start: %v\n", prefix, parts[0], err)
+				fmt.Fprintf(stderr, "WARNING: plugin %q (%s) failed to start: %v\n", prefix, e.Path, err)
 				continue
 			}
 			pluginTools := p.Tools(prefix + ".")
@@ -2541,8 +2538,8 @@ func buildTools(baseDir string, stderr io.Writer, ward warden.Engine) (map[strin
 			// conflict shadowed a tool they expected.
 			manifestEntries = append(manifestEntries, kernelruntime.PluginInfo{
 				Prefix:       prefix,
-				Path:         parts[0],
-				Args:         append([]string(nil), parts[1:]...),
+				Path:         e.Path,
+				Args:         append([]string(nil), e.Args...),
 				ToolCount:    loadedCount,
 				HashPinned:   pins[prefix] != "",
 				AllowedTools: append([]string(nil), allowedTools[prefix]...),

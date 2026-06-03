@@ -11,6 +11,19 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 
 ## [Unreleased]
 
+### Fixed
+- **`AGEZT_PLUGINS` duplicate prefix is now a hard startup error.** Parsing of
+  the plugin spec moved into a testable `plugin.ParsePluginSpec`. Previously two
+  entries sharing a prefix (`search=/a,search=/b`) both spawned, and the second
+  plugin's tools lost a name conflict to the first, emitting a misleading
+  "conflicts with in-process version" warning while a second process ran
+  unused. A repeated prefix is a config typo, not a request to run two plugins
+  under one namespace, so it is rejected at startup — matching the
+  already-strict `AGEZT_PLUGIN_PINS` / `AGEZT_PLUGIN_TOOLS` parsers. Malformed
+  entries (missing `=`, empty prefix, empty path) are likewise hard errors now
+  rather than silent warn-and-skip, so a typo can't leave the daemon quietly
+  running with fewer tools than configured.
+
 ### Added
 - **`agt plugin new <name>`** — a plugin scaffolder (the ROADMAP's
   `create-agezt-plugin`). It generates a complete, buildable Go tool plugin on
