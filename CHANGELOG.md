@@ -12,6 +12,15 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Fixed
+- **A photo sent to the Telegram bot now reaches a vision model.** Inbound
+  channel messages only carried text, so a user sending a picture (with or
+  without a caption) got a text-only run and the image was lost. The Telegram
+  channel now fetches the largest photo size (getFile → download, in the channel
+  where the bot token lives), forwards it as a `data:` URL on the unified
+  message, and the run threads it to the model via the same path the CLI and API
+  use. A photo's caption becomes the message text; an uncaptioned photo runs with
+  a default "describe the image" instruction. Photos from non-allowlisted senders
+  are never fetched. (Discord/Slack inbound attachments are follow-ups.)
 - **Agezt's OpenAI-compatible endpoint now accepts image input from clients.**
   The `/v1/chat/completions` server flattened multimodal content to text and
   silently dropped `image_url` parts, so a client sending a vision request to

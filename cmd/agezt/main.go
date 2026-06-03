@@ -909,6 +909,15 @@ func makeChannelHandler(k *kernelruntime.Kernel) channel.InboundHandler {
 		if h := channel.ConversationHistory(k.Journal(), msg.ChannelKind, msg.ChannelID, msg.Sender, limit); h != "" {
 			intent = h
 		}
+		// Inbound image attachments (M247): forward them to the run the same way
+		// the control plane and OpenAI API do, so a photo sent to the bot reaches
+		// a vision model. An image with no caption gets a default instruction.
+		if len(msg.Images) > 0 {
+			hctx = kernelruntime.WithImages(hctx, msg.Images)
+			if strings.TrimSpace(intent) == "" {
+				intent = "Describe the attached image(s)."
+			}
+		}
 		return k.RunWith(hctx, corr, intent)
 	}
 }

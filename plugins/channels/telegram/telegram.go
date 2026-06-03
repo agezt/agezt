@@ -16,10 +16,13 @@ package telegram
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -95,11 +98,22 @@ type tgUpdate struct {
 }
 
 type tgMessage struct {
-	MessageID int64   `json:"message_id"`
-	From      *tgUser `json:"from"`
-	Chat      tgChat  `json:"chat"`
-	Date      int64   `json:"date"`
-	Text      string  `json:"text"`
+	MessageID int64         `json:"message_id"`
+	From      *tgUser       `json:"from"`
+	Chat      tgChat        `json:"chat"`
+	Date      int64         `json:"date"`
+	Text      string        `json:"text"`
+	Caption   string        `json:"caption"` // a photo's text rides here, not in Text
+	Photo     []tgPhotoSize `json:"photo"`   // ascending sizes; the last is largest
+}
+
+// tgPhotoSize is one rendition of an inbound photo. Telegram sends several
+// sizes; the agent wants the largest for the clearest vision input.
+type tgPhotoSize struct {
+	FileID   string `json:"file_id"`
+	Width    int    `json:"width"`
+	Height   int    `json:"height"`
+	FileSize int    `json:"file_size"`
 }
 
 type tgUser struct {
@@ -181,17 +195,31 @@ func (c *Channel) handleInbound(ctx context.Context, m *tgMessage) {
 	if m.From != nil && m.From.Username != "" {
 		sender = m.From.Username
 	}
+	// A photo carries its text as a caption, not in Text.
+	text := m.Text
+	if text == "" {
+		text = m.Caption
+	}
 	msg := channel.UnifiedMessage{
 		ChannelKind:  "telegram",
 		ChannelID:    chatID,
 		Sender:       sender,
-		Text:         m.Text,
+		Text:         text,
 		PlatformTSMS: m.Date * 1000,
 		PlatformMeta: map[string]string{"message_id": strconv.FormatInt(m.MessageID, 10)},
 	}
 
 	corr := "chan-" + ulid.New()
 	allowed := c.allow.Allows(chatID)
+	// Inbound photo (M247): fetch the largest size as a data: URL so a vision
+	// model can see it. Only for allowlisted senders — never dereference a
+	// file reference from an unauthorized sender.
+	if allowed && len(m.Photo) > 0 {
+		largest := m.Photo[len(m.Photo)-1]
+		if du, err := c.fetchPhotoDataURL(ctx, largest.FileID); err == nil && du != "" {
+			msg.Images = []string{du}
+		}
+	}
 	c.emitInbound(msg, corr, allowed)
 
 	if !allowed {
@@ -212,6 +240,85 @@ func (c *Channel) handleInbound(ctx context.Context, m *tgMessage) {
 		return
 	}
 	_ = c.send(ctx, channel.Outbound{ChannelID: chatID, Text: reply, Priority: channel.PriorityNotify}, corr)
+}
+
+// tgPhotoMaxRaw bounds a downloaded photo so the resulting data: URL stays
+// within the control-plane request cap (16 MiB; base64 ≈ 4/3 × raw).
+const tgPhotoMaxRaw = 12 << 20
+
+// fetchPhotoDataURL resolves a Telegram photo file_id to an inline data: URL.
+// Telegram needs two calls: getFile to learn the file_path, then a download
+// from the /file/bot<token>/ endpoint. The bytes are read here in the channel
+// (the daemon holds the bot token, not the provider) and handed onward as a
+// self-describing data: URL the vision providers emit natively (M247).
+func (c *Channel) fetchPhotoDataURL(ctx context.Context, fileID string) (string, error) {
+	gf := fmt.Sprintf("%s/bot%s/getFile?file_id=%s", c.base, c.token, url.QueryEscape(fileID))
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, gf, nil)
+	if err != nil {
+		return "", err
+	}
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	var gfResp struct {
+		OK     bool `json:"ok"`
+		Result struct {
+			FilePath string `json:"file_path"`
+		} `json:"result"`
+	}
+	if err := func() error {
+		defer resp.Body.Close()
+		if resp.StatusCode/100 != 2 {
+			return fmt.Errorf("telegram getFile: status %d", resp.StatusCode)
+		}
+		return json.NewDecoder(resp.Body).Decode(&gfResp)
+	}(); err != nil {
+		return "", err
+	}
+	if !gfResp.OK || gfResp.Result.FilePath == "" {
+		return "", fmt.Errorf("telegram getFile: no file_path")
+	}
+
+	dl := fmt.Sprintf("%s/file/bot%s/%s", c.base, c.token, gfResp.Result.FilePath)
+	dreq, err := http.NewRequestWithContext(ctx, http.MethodGet, dl, nil)
+	if err != nil {
+		return "", err
+	}
+	dresp, err := c.client.Do(dreq)
+	if err != nil {
+		return "", err
+	}
+	defer dresp.Body.Close()
+	if dresp.StatusCode/100 != 2 {
+		return "", fmt.Errorf("telegram file download: status %d", dresp.StatusCode)
+	}
+	data, err := io.ReadAll(io.LimitReader(dresp.Body, tgPhotoMaxRaw+1))
+	if err != nil {
+		return "", err
+	}
+	if len(data) == 0 {
+		return "", fmt.Errorf("telegram file download: empty")
+	}
+	if len(data) > tgPhotoMaxRaw {
+		return "", fmt.Errorf("telegram photo exceeds %d bytes", tgPhotoMaxRaw)
+	}
+	return "data:" + tgMediaType(gfResp.Result.FilePath) + ";base64," + base64.StdEncoding.EncodeToString(data), nil
+}
+
+// tgMediaType maps a Telegram file_path extension to an image media type.
+// Telegram photos are JPEG; stickers/other uploads may differ.
+func tgMediaType(path string) string {
+	switch strings.ToLower(filepath.Ext(path)) {
+	case ".png":
+		return "image/png"
+	case ".gif":
+		return "image/gif"
+	case ".webp":
+		return "image/webp"
+	default:
+		return "image/jpeg"
+	}
 }
 
 // Send implements channel.Channel (used by the Pulse→Telegram sink and any
