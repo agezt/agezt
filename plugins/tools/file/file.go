@@ -602,25 +602,26 @@ func (t *Tool) resolve(rel string) (string, error) {
 	if rel == "" {
 		return "", errors.New("path required")
 	}
+	var clean string
 	if filepath.IsAbs(rel) {
-		// Allow only if the absolute path is inside root.
-		clean, err := filepath.Abs(rel)
+		c, err := filepath.Abs(rel)
 		if err != nil {
 			return "", fmt.Errorf("resolve abs: %w", err)
 		}
-		if !withinRoot(t.root, clean) {
-			return "", fmt.Errorf("%w: %s", ErrEscape, rel)
+		clean = c
+	} else {
+		c, err := filepath.Abs(filepath.Join(t.root, rel))
+		if err != nil {
+			return "", fmt.Errorf("resolve: %w", err)
 		}
-		return clean, nil
-	}
-
-	joined := filepath.Join(t.root, rel)
-	clean, err := filepath.Abs(joined)
-	if err != nil {
-		return "", fmt.Errorf("resolve: %w", err)
+		clean = c
 	}
 	// Resolve symlinks ONLY if the target exists; we need to allow writing
-	// to new files inside root without failing the symlink check.
+	// to new files inside root without failing the symlink check. This applies
+	// to BOTH relative and absolute in-root paths (M252): the absolute branch
+	// previously skipped symlink resolution, so a symlink inside root pointing
+	// outside root was blocked when reached by its relative path but slipped
+	// through when reached by its absolute path — a containment bypass.
 	if _, err := os.Lstat(clean); err == nil {
 		resolved, err := filepath.EvalSymlinks(clean)
 		if err != nil {

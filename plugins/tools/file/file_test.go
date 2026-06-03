@@ -139,6 +139,30 @@ func TestContainment_AllowsAbsoluteInsideRoot(t *testing.T) {
 	}
 }
 
+// A symlink inside root that points outside root must be refused whether it is
+// reached by its relative path or its absolute path. The absolute branch used
+// to skip the symlink check, letting the agent read the target (M252).
+func TestContainment_SymlinkEscapeBlockedBothPaths(t *testing.T) {
+	tool := newTool(t)
+
+	// A secret file OUTSIDE the workspace root.
+	outside := t.TempDir()
+	secret := filepath.Join(outside, "secret.txt")
+	if err := os.WriteFile(secret, []byte("top secret"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	// A symlink INSIDE root pointing at the outside secret.
+	link := filepath.Join(tool.Root(), "link")
+	if err := os.Symlink(secret, link); err != nil {
+		t.Skipf("symlinks unavailable on this platform: %v", err)
+	}
+
+	// Relative path to the symlink — blocked before and after.
+	invokeExpectErr(t, tool, fileInput{Op: "read", Path: "link"}, "escapes")
+	// Absolute path to the SAME symlink — must be blocked too (the bug).
+	invokeExpectErr(t, tool, fileInput{Op: "read", Path: link}, "escapes")
+}
+
 func TestUnknownOp(t *testing.T) {
 	tool := newTool(t)
 	invokeExpectErr(t, tool, fileInput{Op: "fry"}, "unknown op")

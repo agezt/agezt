@@ -12,6 +12,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Fixed
+- **The `file` tool no longer lets an absolute path bypass its symlink
+  containment.** A symlink inside the workspace root pointing outside it was
+  correctly refused when reached by its relative path, but the absolute-path
+  branch of the containment check skipped symlink resolution — so the same
+  symlink could be read/written via its absolute path, escaping the workspace.
+  Both branches now resolve symlinks and verify the real location is inside root.
 - **The `http` tool's host allowlist is now enforced on redirects, not just the
   first URL.** netguard already blocks internal/metadata IPs on every hop, but
   the host allowlist was checked only on the initial URL — so an allowlisted host
