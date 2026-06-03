@@ -12,6 +12,16 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **`agt plugin new <name>`** — a plugin scaffolder (the ROADMAP's
+  `create-agezt-plugin`). It generates a complete, buildable Go tool plugin on
+  top of the SDK: a gofmt-clean `main.go` with one example tool (the output is
+  run through `go/format`, so it is always valid, formatted Go), a `go.mod`
+  requiring the agezt SDK with a local-dev `replace` hint, a README with build
+  and `AGEZT_PLUGINS` wiring instructions, and a `.gitignore`. Refuses to write
+  into a non-empty directory. Flags: `--dir`, `--module`. Turns the SDK from
+  "copy the example by hand" into "one command to a working plugin" — verified
+  end-to-end by building a scaffolded plugin against the real SDK and driving
+  its protocol.
 - **Go plugin SDK** (`plugins/sdk`) — the official authoring kit for tool
   plugins. `sdk.Serve(sdk.Tool{...})` implements the entire line-delimited JSON
   protocol on the author's behalf: initialize/invoke/shutdown dispatch, frame

@@ -34,10 +34,12 @@ import (
 // hard "plugin pin mismatch" error rather than silent execution.
 func cmdPlugin(args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
-		fmt.Fprintf(stderr, "%s plugin: subcommand required (hash|list)\n", brand.CLI)
+		fmt.Fprintf(stderr, "%s plugin: subcommand required (new|hash|list)\n", brand.CLI)
 		return 2
 	}
 	switch args[0] {
+	case "new":
+		return cmdPluginNew(args[1:], stdout, stderr)
 	case "hash":
 		return cmdPluginHash(args[1:], stdout, stderr)
 	case "list":
@@ -45,12 +47,13 @@ func cmdPlugin(args []string, stdout, stderr io.Writer) int {
 	case "-h", "--help", "help":
 		fmt.Fprintf(stdout, "usage: %s plugin <subcommand>\n", brand.CLI)
 		fmt.Fprintf(stdout, "\n")
+		fmt.Fprintf(stdout, "  new <name>       scaffold a new Go tool plugin (SDK-based, buildable)\n")
 		fmt.Fprintf(stdout, "  hash <path>      print the BLAKE3-256 hex digest of a plugin binary\n")
 		fmt.Fprintf(stdout, "                   (use the output in AGEZT_PLUGIN_PINS=\"<prefix>=<hash>\")\n")
 		fmt.Fprintf(stdout, "  list [--json]    list the external plugins the daemon spawned at startup\n")
 		return 0
 	default:
-		fmt.Fprintf(stderr, "%s plugin: unknown subcommand %q (hash|list)\n", brand.CLI, args[0])
+		fmt.Fprintf(stderr, "%s plugin: unknown subcommand %q (new|hash|list)\n", brand.CLI, args[0])
 		return 2
 	}
 }

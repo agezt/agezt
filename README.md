@@ -17,7 +17,7 @@ Agezt nodes** back — with capability-aware **auto-routing**, **failover**, and
 bounded delegation **loop guard** — and now each **tenant federates to its own
 peer set**; events push out via **HMAC-signed webhooks**. See
 [CHANGELOG.md](CHANGELOG.md).
-**Tests:** 1713 passing across 66 packages.
+**Tests:** 1721 passing across 66 packages.
 **Dependencies:** one (`lukechampine.com/blake3`) + one transitive.
 
 ## What you get
@@ -273,7 +273,9 @@ The v1 substrate. Highlights:
   whole stdio JSON protocol (frame demux, write serialisation, progress via
   `Emit`, host callbacks via `CallHost`, panic containment) so a plugin is just
   its tool logic. Stdlib-only — imports no kernel package. See
-  `plugins/sdk/example/greet` for a complete runnable plugin
+  `plugins/sdk/example/greet` for a complete runnable plugin. Scaffold your own
+  with **`agt plugin new <name>`** — it generates a buildable SDK plugin
+  (gofmt-clean `main.go`, `go.mod`, README) ready to `go build` and wire
 
 **Binaries**
 - `cmd/agezt` — the daemon
@@ -282,7 +284,7 @@ The v1 substrate. Highlights:
 ## Verify
 
 ```bash
-make test     # 1713 tests, all green
+make test     # 1721 tests, all green
 make build    # produces bin/agezt + bin/agt
 make gen      # regenerate SDK types from the contract
 ```
