@@ -12,6 +12,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Fixed
+- **An image shared in Slack now reaches a vision model.** Like the Telegram
+  fix, the Slack channel ignored inbound file attachments. It now downloads each
+  shared *image* file (`url_private`, authenticated with the bot token) as a
+  `data:` URL and forwards it to the run; non-image files and files from
+  non-allowlisted channels are skipped. (Discord slash-command attachments are
+  the remaining inbound surface.)
 - **A photo sent to the Telegram bot now reaches a vision model.** Inbound
   channel messages only carried text, so a user sending a picture (with or
   without a caption) got a text-only run and the image was lost. The Telegram

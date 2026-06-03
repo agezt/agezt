@@ -21,6 +21,7 @@ import (
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -179,13 +180,22 @@ type slackEnvelope struct {
 }
 
 type slackEvent struct {
-	Type    string `json:"type"`    // "message"
-	Channel string `json:"channel"` // C…
-	User    string `json:"user"`    // U…
-	Text    string `json:"text"`
-	TS      string `json:"ts"`
-	BotID   string `json:"bot_id"`  // set when the message is from a bot
-	Subtype string `json:"subtype"` // set for edits/joins/bot_message/etc.
+	Type    string      `json:"type"`    // "message"
+	Channel string      `json:"channel"` // C…
+	User    string      `json:"user"`    // U…
+	Text    string      `json:"text"`
+	TS      string      `json:"ts"`
+	BotID   string      `json:"bot_id"`  // set when the message is from a bot
+	Subtype string      `json:"subtype"` // set for edits/joins/bot_message/etc.
+	Files   []slackFile `json:"files"`   // shared-file attachments
+}
+
+// slackFile is an inbound file attachment. url_private requires the bot token in
+// an Authorization header to download; mimetype tells us whether it's an image.
+type slackFile struct {
+	URLPrivate string `json:"url_private"`
+	Mimetype   string `json:"mimetype"`
+	Name       string `json:"name"`
 }
 
 func (c *Channel) handleEvents(w http.ResponseWriter, r *http.Request) {
@@ -258,6 +268,19 @@ func (c *Channel) process(ctx context.Context, ev slackEvent) {
 	}
 	corr := "chan-" + ulid.New()
 	allowed := c.allow.Allows(ev.Channel)
+	// Inbound image files (M248): fetch each shared image as a data: URL so a
+	// vision model can see it. Only for allowlisted senders — never download a
+	// file referenced by an unauthorized sender.
+	if allowed && len(ev.Files) > 0 {
+		for _, f := range ev.Files {
+			if !strings.HasPrefix(f.Mimetype, "image/") || f.URLPrivate == "" {
+				continue
+			}
+			if du, err := c.fetchFileDataURL(ctx, f.URLPrivate, f.Mimetype); err == nil && du != "" {
+				msg.Images = append(msg.Images, du)
+			}
+		}
+	}
 	c.emitInbound(msg, corr, allowed)
 
 	if !allowed {
@@ -369,6 +392,42 @@ func (c *Channel) postMessage(ctx context.Context, channelID, text string) error
 }
 
 // --- journaling ------------------------------------------------------------
+
+// slackFileMaxRaw bounds a downloaded file so the data: URL stays within the
+// control-plane request cap (16 MiB; base64 ≈ 4/3 × raw).
+const slackFileMaxRaw = 12 << 20
+
+// fetchFileDataURL downloads a Slack url_private attachment (which requires the
+// bot token in an Authorization header) and returns it as an inline data: URL.
+// The bytes are read here in the channel, where the token lives, and handed
+// onward as a self-describing data: URL the vision providers emit natively
+// (M248).
+func (c *Channel) fetchFileDataURL(ctx context.Context, urlPrivate, mimetype string) (string, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, urlPrivate, nil)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Authorization", "Bearer "+c.token)
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode/100 != 2 {
+		return "", fmt.Errorf("slack file download: status %d", resp.StatusCode)
+	}
+	data, err := io.ReadAll(io.LimitReader(resp.Body, slackFileMaxRaw+1))
+	if err != nil {
+		return "", err
+	}
+	if len(data) == 0 {
+		return "", fmt.Errorf("slack file download: empty")
+	}
+	if len(data) > slackFileMaxRaw {
+		return "", fmt.Errorf("slack file exceeds %d bytes", slackFileMaxRaw)
+	}
+	return "data:" + mimetype + ";base64," + base64.StdEncoding.EncodeToString(data), nil
+}
 
 func (c *Channel) emitInbound(msg channel.UnifiedMessage, corr string, allowed bool) {
 	if c.bus == nil {
