@@ -165,6 +165,15 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   SDK package document `Run`, `RunStream`, `Runs`, and approvals.
 
 ### Fixed
+- **The OpenAI-compatible API now reports real provider token usage.** The
+  `usage` block on `/v1/chat/completions` and `/v1/responses` was a rough
+  whitespace word-count estimate, so a cost-tracking client reading it got wildly
+  wrong numbers (e.g. `prompt_tokens: 8` for a run that actually consumed 1406).
+  The server now reports the real tokens the provider billed — summed across the
+  run's LLM calls, folded from the journal's `budget.consumed` events — falling
+  back to the estimate only when no usage was recorded (a free/local/mock model).
+  New optional `UsageReporter` engine capability; verified end-to-end against a
+  live gpt-5.5 gateway (`1406/11` vs the old `8/1`).
 - **OpenAI-compatible providers no longer reject every tool-bearing request.**
   Agezt exposes a dotted tool name (`browser.read`), but OpenAI and strict
   openai-compatible gateways require tool names to match `^[a-zA-Z0-9_-]+$` and

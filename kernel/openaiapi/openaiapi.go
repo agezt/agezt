@@ -72,6 +72,27 @@ type Engine interface {
 	ModelIDs() []string
 }
 
+// UsageReporter is an optional Engine capability: report the REAL provider token
+// usage for a completed run, summed across the run's LLM calls (folded from the
+// journal's budget.consumed events). When an Engine implements it, the API's
+// usage block reflects provider truth instead of the whitespace estimate. ok is
+// false when no usage was recorded (a free/local/mock model, or the run had no
+// priced call) — callers fall back to estimateUsage.
+type UsageReporter interface {
+	UsageFor(corr string) (promptTokens, completionTokens int, ok bool)
+}
+
+// chatUsage returns the usage block for a chat completion: the real provider
+// usage when the engine can report it, else the whitespace estimate.
+func chatUsage(eng Engine, corr, intent, answer string) map[string]any {
+	if ur, ok := eng.(UsageReporter); ok {
+		if pt, ct, ok := ur.UsageFor(corr); ok {
+			return map[string]any{"prompt_tokens": pt, "completion_tokens": ct, "total_tokens": pt + ct}
+		}
+	}
+	return estimateUsage(intent, answer)
+}
+
 // TenantResolver maps a tenant id to the Engine + bus that serve it. The daemon
 // injects one (backed by the tenant registry) when multi-tenancy is enabled.
 type TenantResolver func(tenant string) (Engine, *bus.Bus, error)
@@ -379,7 +400,7 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 			"message":       map[string]any{"role": "assistant", "content": answer},
 			"finish_reason": "stop",
 		}},
-		"usage": estimateUsage(intent, answer),
+		"usage": chatUsage(eng, corr, intent, answer),
 		// Agezt-specific: the correlation id so callers can `agt why` the run.
 		"agezt_correlation_id": corr,
 	})
@@ -434,7 +455,7 @@ func (s *Server) streamChat(w http.ResponseWriter, r *http.Request, eng Engine, 
 			frame := map[string]any{
 				"id": id, "object": "chat.completion.chunk", "created": created, "model": model,
 				"choices": []map[string]any{},
-				"usage":   estimateUsage(intent, full.String()),
+				"usage":   chatUsage(eng, corr, intent, full.String()),
 			}
 			b, _ := json.Marshal(frame)
 			_, _ = w.Write([]byte("data: " + string(b) + "\n\n"))

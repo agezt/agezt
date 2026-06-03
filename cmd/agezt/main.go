@@ -1336,6 +1336,36 @@ func (e kernelAPIEngine) RunModel(ctx context.Context, corr, intent, model strin
 	}
 	return e.k.RunWith(ctx, corr, intent)
 }
+
+// UsageFor implements openaiapi.UsageReporter (M282): sum the REAL provider
+// token usage for a run by folding its budget.consumed events (each LLM call the
+// governor priced). Returns ok=false when nothing was consumed (a free/local/
+// mock model) so the API falls back to its estimate instead of reporting 0/0.
+func (e kernelAPIEngine) UsageFor(corr string) (int, int, bool) {
+	in, out, found := 0, 0, false
+	_ = e.k.Journal().Range(func(ev *event.Event) error {
+		if ev.Kind != event.KindBudgetConsumed {
+			return nil
+		}
+		var p struct {
+			CorrelationID string `json:"correlation_id"`
+			InputTokens   int    `json:"input_tokens"`
+			OutputTokens  int    `json:"output_tokens"`
+		}
+		if json.Unmarshal(ev.Payload, &p) != nil || p.CorrelationID != corr {
+			return nil
+		}
+		in += p.InputTokens
+		out += p.OutputTokens
+		found = true
+		return nil
+	})
+	if !found || (in == 0 && out == 0) {
+		return 0, 0, false
+	}
+	return in, out, true
+}
+
 func (e kernelAPIEngine) DefaultModel() string { return e.k.Model() }
 func (e kernelAPIEngine) ModelIDs() []string {
 	cat := e.k.Catalog()

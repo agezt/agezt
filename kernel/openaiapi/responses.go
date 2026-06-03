@@ -71,7 +71,7 @@ func (s *Server) handleResponses(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := "resp_" + ulid.New()
-	writeJSON(w, http.StatusOK, responseObject(id, model, answer, intent, corr, "completed"))
+	writeJSON(w, http.StatusOK, responseObject(eng, id, model, answer, intent, corr, "completed"))
 }
 
 // intentFromResponsesInput collapses a Responses request into one intent by
@@ -120,7 +120,7 @@ func imagesFromResponsesInput(req responsesRequest) []string {
 // responseObject builds a Responses API result object. status is "completed"
 // for a finished run; the output carries one assistant message with an
 // output_text content part, and output_text mirrors it for SDK convenience.
-func responseObject(id, model, answer, intent, corr, status string) map[string]any {
+func responseObject(eng Engine, id, model, answer, intent, corr, status string) map[string]any {
 	msgID := "msg_" + ulid.New()
 	return map[string]any{
 		"id":         id,
@@ -139,7 +139,7 @@ func responseObject(id, model, answer, intent, corr, status string) map[string]a
 			}},
 		}},
 		"output_text": answer, // SDK convenience accessor
-		"usage":       responsesUsage(intent, answer),
+		"usage":       responsesUsageFor(eng, corr, intent, answer),
 		// Agezt-specific: the correlation id so callers can `agt why` the run.
 		"agezt_correlation_id": corr,
 	}
@@ -153,6 +153,17 @@ func responsesUsage(prompt, completion string) map[string]any {
 	return map[string]any{
 		"input_tokens": p, "output_tokens": c, "total_tokens": p + c,
 	}
+}
+
+// responsesUsageFor returns the real provider usage (Responses field names) when
+// the engine can report it, else the whitespace estimate.
+func responsesUsageFor(eng Engine, corr, prompt, completion string) map[string]any {
+	if ur, ok := eng.(UsageReporter); ok {
+		if pt, ct, ok := ur.UsageFor(corr); ok {
+			return map[string]any{"input_tokens": pt, "output_tokens": ct, "total_tokens": pt + ct}
+		}
+	}
+	return responsesUsage(prompt, completion)
 }
 
 // streamResponses relays the run's llm.token events as the Responses SSE event
@@ -239,7 +250,7 @@ func (s *Server) streamResponses(w http.ResponseWriter, r *http.Request, eng Eng
 		if res.err != nil {
 			status = "failed"
 		}
-		final := responseObject(respID, model, full.String(), intent, corr, status)
+		final := responseObject(eng, respID, model, full.String(), intent, corr, status)
 		if res.err != nil {
 			final["error"] = map[string]any{"message": res.err.Error(), "type": "upstream_error"}
 			send("response.failed", map[string]any{"response": final})
