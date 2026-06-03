@@ -12,6 +12,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **`agt vault status` surfaces the vault's key-derivation policy.** An
+  encrypted vault's status now reports its KDF and iteration count and whether it
+  is up to date — read from the envelope without the passphrase — so an operator
+  sees whether `agt vault migrate` is worth running before running it. A stale
+  vault gets a "migration: recommended" pointer; a plaintext vault shows no KDF
+  line.
 - **`agt vault migrate` — upgrade an old encrypted vault to the current KDF.**
   The operator-facing wiring for the credential-vault migration: inspects the
   on-disk vault and, if it is encrypted with the legacy key-derivation or below

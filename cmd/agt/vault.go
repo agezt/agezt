@@ -116,6 +116,25 @@ func printVaultHelp(w io.Writer) {
 	fmt.Fprintf(w, "these subcommands force a re-save to migrate the existing file format.\n")
 }
 
+// printVaultKDF surfaces a vault's key-derivation policy and whether it is up
+// to date, read from the envelope without needing the passphrase. It is a
+// no-op for a plaintext or unreadable vault. A stale vault gets a pointer at
+// `agt vault migrate` so the operator knows an upgrade is available before
+// running it.
+func printVaultKDF(stdout io.Writer, path string) {
+	st, err := creds.InspectVault(path)
+	if err != nil || !st.Encrypted {
+		return
+	}
+	fmt.Fprintf(stdout, "key deriv:   %s (%d iterations)\n", st.KDF, st.Iterations)
+	if st.UpToDate {
+		fmt.Fprintf(stdout, "migration:   up to date\n")
+	} else {
+		fmt.Fprintf(stdout, "migration:   recommended — run `%s vault migrate` to upgrade to %s/%d iterations\n",
+			brand.CLI, creds.KDFPBKDF2, creds.KDFIterations)
+	}
+}
+
 func cmdVaultStatus(stdout, stderr io.Writer) int {
 	base, err := paths.BaseDir()
 	if err != nil {
@@ -141,10 +160,12 @@ func cmdVaultStatus(stdout, stderr io.Writer) int {
 		}
 		fmt.Fprintf(stdout, "%sstatus:      %s\nentries:     %d\n",
 			pathInfo, state, len(store.Names()))
+		printVaultKDF(stdout, store.Path)
 	case creds.ErrPassphraseRequired:
 		fmt.Fprintf(stdout, "%sstatus:      encrypted (aes-256-gcm)\n",
 			pathInfo)
 		fmt.Fprintf(stdout, "entries:     unknown (set AGEZT_VAULT_PASSPHRASE and re-run to count)\n")
+		printVaultKDF(stdout, store.Path)
 		fmt.Fprintf(stdout, "hint:        export AGEZT_VAULT_PASSPHRASE=... before running %s commands\n", brand.Binary)
 	case creds.ErrWrongPassphrase:
 		fmt.Fprintf(stdout, "%sstatus:      encrypted (aes-256-gcm)\n",
