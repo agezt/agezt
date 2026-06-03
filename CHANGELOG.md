@@ -27,6 +27,11 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   failure reason, parent (for sub-agents), start time and duration as
   `time.Time` / `time.Duration`, iterations, cost in USD, and model — reading the
   journal on the daemon without starting a run.
+- **SDK human-in-the-loop approvals.** `Client.PendingApprovals` lists requests
+  awaiting a decision as typed `Approval` values (id, capability, tool, reason,
+  actor, input, timeout); `Client.Approve` / `Client.Deny` resolve one by id with
+  a journaled reason. An embedding app can now build its own approval UI on top
+  of the same HITL gate `agt approve` / `agt deny` use.
 
 ### Fixed
 - **A single oversized ACP message can no longer balloon memory.** Both the ACP
