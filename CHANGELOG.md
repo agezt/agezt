@@ -12,6 +12,14 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Fixed
+- **The `http` tool's host allowlist is now enforced on redirects, not just the
+  first URL.** netguard already blocks internal/metadata IPs on every hop, but
+  the host allowlist was checked only on the initial URL — so an allowlisted host
+  that returned a 302 to an arbitrary external host would send the follow-up
+  request (carrying any headers the agent set, including `Authorization`) to a
+  host the operator never allowed. The tool now re-checks the allowlist on each
+  redirect hop and caps the chain, closing an allowlist-bypass / header-leak via
+  open redirects.
 - **The Responses API (`/v1/responses`) now accepts image input too.** Chat
   Completions already forwarded `image_url` parts (the prior change); the
   Responses surface ignored its `input_image` parts (where `image_url` is a bare
