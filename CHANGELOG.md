@@ -19,7 +19,8 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   in-limit messages (breaking at newline/space boundaries where possible, with a
   hard cut for an unbroken run). A shared `channel.SplitText` does the splitting
   losslessly, counting UTF-16 code units so it's safe for both Telegram (counts
-  those) and platforms that count runes/code points.
+  those) and platforms that count runes/code points. Discord's slash-command
+  follow-up path (a long answer to a `/command`) is chunked the same way.
 - **Moonshot AI (Kimi) now works**, and an unrecognised provider package fails
   with an actionable error. Moonshot's official package (`@ai-sdk/moonshotai`)
   hit the same dead end DeepSeek did — classified as an unknown family and

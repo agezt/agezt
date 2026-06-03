@@ -363,15 +363,20 @@ func (c *Channel) Send(ctx context.Context, out channel.Outbound) error {
 
 // followUp delivers an interaction's answer via the follow-up webhook
 // (webhooks/{app}/{token}); the token in the URL authenticates, so no bot header.
+// Like Send, it chunks past Discord's 2000-char limit (M234) — each POST to the
+// follow-up webhook creates a new message — so a long slash-command answer is
+// delivered in sequence rather than rejected and lost.
 func (c *Channel) followUp(ctx context.Context, token, channelID, content, corr string) error {
-	body, _ := json.Marshal(map[string]any{"content": content})
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.base+"/webhooks/"+c.appID+"/"+token, bytes.NewReader(body))
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Content-Type", "application/json")
-	if err := c.do(req); err != nil {
-		return err
+	for _, chunk := range channel.SplitText(content, discordMaxChars) {
+		body, _ := json.Marshal(map[string]any{"content": chunk})
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.base+"/webhooks/"+c.appID+"/"+token, bytes.NewReader(body))
+		if err != nil {
+			return err
+		}
+		req.Header.Set("Content-Type", "application/json")
+		if err := c.do(req); err != nil {
+			return err
+		}
 	}
 	c.emitOutbound(channel.Outbound{ChannelID: channelID, Text: content, Priority: channel.PriorityNotify}, corr)
 	return nil
