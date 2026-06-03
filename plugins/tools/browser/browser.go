@@ -123,8 +123,27 @@ func (t *Tool) client() *stdhttp.Client {
 	if t.OnBlock != nil {
 		opts = append(opts, netguard.OnBlock(t.OnBlock))
 	}
-	return netguard.New(opts...).HTTPClient(DefaultTimeout)
+	c := netguard.New(opts...).HTTPClient(DefaultTimeout)
+	// Enforce the host allowlist on every redirect hop, not just the initial URL
+	// (M254, mirroring the http tool's M251 fix). netguard blocks internal IPs on
+	// each hop, but the host allowlist was checked only once — so an allowlisted
+	// page that 302-redirects to an arbitrary external host would be fetched
+	// anyway. Re-check per hop and cap the chain.
+	c.CheckRedirect = func(req *stdhttp.Request, via []*stdhttp.Request) error {
+		if len(via) >= maxRedirects {
+			return fmt.Errorf("browser: stopped after %d redirects", maxRedirects)
+		}
+		if !t.AllowAll && !hostAllowed(req.URL.Host, t.AllowedHosts) {
+			return fmt.Errorf("%w: %s (redirect target)", ErrHostDenied, req.URL.Host)
+		}
+		return nil
+	}
+	return c
 }
+
+// maxRedirects caps a single fetch's redirect chain. Matches Go's default; made
+// explicit because setting CheckRedirect replaces that default.
+const maxRedirects = 10
 
 // EnableCookies attaches a fresh in-memory cookie jar to the tool
 // (M1.mm). Wraps net/http/cookiejar so the daemon doesn't have to

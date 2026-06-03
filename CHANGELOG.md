@@ -12,6 +12,11 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Fixed
+- **The `browser` tool's host allowlist is now enforced on redirects too.** Same
+  gap as the `http` tool: the allowlist was checked only on the initial URL, so
+  an allowlisted page that 302-redirected to an arbitrary external host would be
+  fetched anyway (netguard still blocked internal IPs). The fetch client now
+  re-checks the allowlist on each redirect hop and caps the chain.
 - **The `file` tool no longer lets a new file escape through a symlinked parent
   directory.** Writing a not-yet-existing path (e.g. `linkdir/new.txt` where
   `linkdir` is a symlink to a directory outside root) was checked only
