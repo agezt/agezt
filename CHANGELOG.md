@@ -12,6 +12,17 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **`remote_run` auto-routing fails over to the next serving peer (fault tolerance)** (M206)
+  — when auto-routing by model, the M203 router picked a single peer; if that node was down
+  the whole delegation failed even though another peer could serve the model. The router now
+  considers *all* peers that serve the model (in name order) and, on a **transport** failure
+  (no HTTP response — the task provably never ran), falls back to the next one, surfacing an
+  error only when every serving peer is unreachable. Crucially, a peer that *responds* — even
+  with an error status — is **never** retried elsewhere, because it may already have executed
+  side effects; that failure is surfaced as-is. Named-peer and single-peer dispatch are
+  unchanged (no failover, original error message preserved). This gives the mesh genuine node
+  fault tolerance without risking double execution. See
+  `.project/PHASE-M206-AUTOROUTE-FAILOVER-REPORT.md`.
 - **`remote_run` auto-routing caches model discovery (bounded TTL)** (M205) — the M203
   auto-router probed every candidate peer's `GET /api/v1/models` on *every* invocation; in a
   busy agent loop that meant a fan-out of discovery requests per delegated task. The tool now

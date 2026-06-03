@@ -187,9 +187,10 @@ func (t *Tool) Invoke(ctx context.Context, input json.RawMessage) (agent.Result,
 	ctx, cancel := context.WithTimeout(ctx, to)
 	defer cancel()
 
-	// Pick the peer. A named peer is used as-is; otherwise, when a model is requested
-	// and several peers are configured, auto-route to one that serves it (M203).
-	peer, err := t.selectPeer(ctx, strings.TrimSpace(in.Peer), model)
+	// Pick the candidate peer(s). A named peer is the sole candidate; otherwise, when a
+	// model is requested and several peers are configured, auto-route across the peers
+	// that serve it in order (M203).
+	candidates, err := t.routeCandidates(ctx, strings.TrimSpace(in.Peer), model)
 	if err != nil {
 		return agent.Result{Output: err.Error(), IsError: true}, nil
 	}
@@ -202,34 +203,52 @@ func (t *Tool) Invoke(ctx context.Context, input json.RawMessage) (agent.Result,
 		payload["model"] = model
 	}
 	body, _ := json.Marshal(payload)
-	endpoint := strings.TrimRight(peer.URL, "/") + "/api/v1/runs"
-	status, respBody, err := t.post(ctx, endpoint, peer.Token, body)
-	if err != nil {
-		return agent.Result{Output: fmt.Sprintf("remote_run: POST %s failed: %v", endpoint, err), IsError: true}, nil
-	}
 
-	var resp struct {
-		CorrelationID string `json:"correlation_id"`
-		Status        string `json:"status"`
-		Answer        string `json:"answer"`
-		Error         string `json:"error"`
-		Model         string `json:"model"`
-	}
-	_ = json.Unmarshal(respBody, &resp)
-
-	if status < 200 || status >= 300 || resp.Status == "failed" {
-		msg := resp.Error
-		if msg == "" {
-			msg = fmt.Sprintf("status %d", status)
+	var tried []string
+	for i, peer := range candidates {
+		endpoint := strings.TrimRight(peer.URL, "/") + "/api/v1/runs"
+		status, respBody, perr := t.post(ctx, endpoint, peer.Token, body)
+		if perr != nil {
+			// Transport failure: no response means the task never ran on this peer, so
+			// it is safe to fall back to the next serving peer (M206). A peer that
+			// RESPONDS — even with an error status — is NOT retried elsewhere, since it
+			// may already have executed side effects.
+			tried = append(tried, peer.Name)
+			if i+1 < len(candidates) {
+				continue
+			}
+			if len(candidates) == 1 {
+				return agent.Result{Output: fmt.Sprintf("remote_run: POST %s failed: %v", endpoint, perr), IsError: true}, nil
+			}
+			return agent.Result{Output: fmt.Sprintf("remote_run: all %d peers serving %q unreachable (%s); last error: %v",
+				len(candidates), model, strings.Join(tried, ", "), perr), IsError: true}, nil
 		}
-		out := fmt.Sprintf("remote_run on peer %q failed: %s", peer.Name, msg)
-		if resp.CorrelationID != "" {
-			out += fmt.Sprintf(" (peer correlation: %s)", resp.CorrelationID)
-		}
-		return agent.Result{Output: out, IsError: true}, nil
-	}
 
-	return agent.Result{Output: render(peer.Name, resp.Model, resp.CorrelationID, resp.Answer)}, nil
+		var resp struct {
+			CorrelationID string `json:"correlation_id"`
+			Status        string `json:"status"`
+			Answer        string `json:"answer"`
+			Error         string `json:"error"`
+			Model         string `json:"model"`
+		}
+		_ = json.Unmarshal(respBody, &resp)
+
+		if status < 200 || status >= 300 || resp.Status == "failed" {
+			msg := resp.Error
+			if msg == "" {
+				msg = fmt.Sprintf("status %d", status)
+			}
+			out := fmt.Sprintf("remote_run on peer %q failed: %s", peer.Name, msg)
+			if resp.CorrelationID != "" {
+				out += fmt.Sprintf(" (peer correlation: %s)", resp.CorrelationID)
+			}
+			return agent.Result{Output: out, IsError: true}, nil
+		}
+
+		return agent.Result{Output: render(peer.Name, resp.Model, resp.CorrelationID, resp.Answer)}, nil
+	}
+	// routeCandidates returns a non-empty list or an error, so the loop always returns.
+	return agent.Result{Output: "remote_run: no candidate peer", IsError: true}, nil
 }
 
 func render(peerName, model, corr, answer string) string {
@@ -250,28 +269,34 @@ func render(peerName, model, corr, answer string) string {
 	return b.String()
 }
 
-// selectPeer chooses which peer runs the task. A named peer wins outright. With no
-// name, if a model is requested AND more than one peer is configured, it auto-routes
-// to a peer that serves that model (M203); otherwise it falls back to resolve (the
-// sole-peer / ambiguous-name rules), preserving the prior behaviour exactly.
-func (t *Tool) selectPeer(ctx context.Context, name, model string) (Peer, error) {
+// routeCandidates returns the ordered peer(s) the task may run on. A named peer is
+// the sole candidate. With no name, a requested model, and more than one peer, it
+// returns every peer that serves the model in name order (M203/M206) — the first is
+// the primary, the rest are fallbacks used only if an earlier one is unreachable.
+// Otherwise it falls back to resolve (sole-peer / ambiguous-name rules).
+func (t *Tool) routeCandidates(ctx context.Context, name, model string) ([]Peer, error) {
 	if name == "" && model != "" && len(t.Peers) > 1 {
-		return t.resolvePeerForModel(ctx, model)
+		return t.serversForModel(ctx, model)
 	}
-	return t.resolve(name)
+	p, err := t.resolve(name)
+	if err != nil {
+		return nil, err
+	}
+	return []Peer{p}, nil
 }
 
-// resolvePeerForModel returns the sorted-first peer that lists the requested model.
-// Peers are queried in name order so the choice is deterministic. A peer that can't
-// be reached for discovery is noted but doesn't abort the search; if no peer serves
-// the model, the error names which peers were checked and which were unreachable.
-func (t *Tool) resolvePeerForModel(ctx context.Context, model string) (Peer, error) {
+// serversForModel returns every peer that lists the requested model, in name order
+// so the choice is deterministic. A peer that can't be reached for discovery is noted
+// but doesn't abort the search; if no peer serves the model, the error names which
+// peers were checked and which were unreachable.
+func (t *Tool) serversForModel(ctx context.Context, model string) ([]Peer, error) {
 	names := make([]string, 0, len(t.Peers))
 	for n := range t.Peers {
 		names = append(names, n)
 	}
 	sort.Strings(names)
 
+	var servers []Peer
 	var unreachable []string
 	for _, n := range names {
 		p := t.Peers[n]
@@ -282,15 +307,19 @@ func (t *Tool) resolvePeerForModel(ctx context.Context, model string) (Peer, err
 		}
 		for _, m := range models {
 			if m == model {
-				return p, nil
+				servers = append(servers, p)
+				break
 			}
 		}
 	}
-	msg := fmt.Sprintf("remote_run: no configured peer serves model %q (checked: %s", model, t.peerNames())
-	if len(unreachable) > 0 {
-		msg += "; unreachable: " + strings.Join(unreachable, ", ")
+	if len(servers) == 0 {
+		msg := fmt.Sprintf("remote_run: no configured peer serves model %q (checked: %s", model, t.peerNames())
+		if len(unreachable) > 0 {
+			msg += "; unreachable: " + strings.Join(unreachable, ", ")
+		}
+		return nil, fmt.Errorf("%s)", msg)
 	}
-	return Peer{}, fmt.Errorf("%s)", msg)
+	return servers, nil
 }
 
 // resolve picks the named peer, or the sole peer when name is empty.
