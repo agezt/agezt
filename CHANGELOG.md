@@ -12,6 +12,15 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Fixed
+- **Vision now also works on the OpenAI provider.** Following the Anthropic fix,
+  the OpenAI provider's `canonicalToOA` now emits a user message's image
+  attachments as OpenAI's multimodal content-parts array (a `text` part followed
+  by one `image_url` part per attachment, carrying the `data:` URL OpenAI accepts
+  natively) instead of a text-only string. The message `content` field became
+  polymorphic (string or parts array) without disturbing the text path — a
+  tool-call-only assistant message still omits `content`, and a non-URL
+  attachment is skipped rather than sent as an invalid `image_url`. Covers both
+  the streaming and non-streaming request encoders.
 - **`agt run --image` now actually sends the image to the model (Anthropic).**
   The flag stat-checked the file, gated the run against the model's vision
   capability, and journaled an attachment count — but only the *basename*

@@ -186,11 +186,56 @@ type oaRequest struct {
 }
 
 type oaMessage struct {
-	Role       string       `json:"role"`
-	Content    string       `json:"content,omitempty"`
+	Role string `json:"role"`
+	// Content is OpenAI's polymorphic message content: a plain string for
+	// text-only messages (the common case, and the only form a response uses),
+	// or a []oaContentPart array when a user message carries images (vision,
+	// M242). Typed as any so one field marshals to either form; helpers
+	// oaTextOrNil / oaContentText keep the string path's omitempty semantics.
+	Content    any          `json:"content,omitempty"`
 	ToolCalls  []oaToolCall `json:"tool_calls,omitempty"`
 	ToolCallID string       `json:"tool_call_id,omitempty"`
 	Name       string       `json:"name,omitempty"`
+}
+
+// oaContentPart is one element of OpenAI's multimodal content array. A part is
+// either {type:"text",text:...} or {type:"image_url",image_url:{url:...}} where
+// url is a data: URL (OpenAI accepts those natively) or an http(s) URL (M242).
+type oaContentPart struct {
+	Type     string      `json:"type"`
+	Text     string      `json:"text,omitempty"`
+	ImageURL *oaImageURL `json:"image_url,omitempty"`
+}
+
+type oaImageURL struct {
+	URL string `json:"url"`
+}
+
+// oaTextOrNil returns nil for empty text so the "content" field is omitted
+// (preserving the pre-M242 omitempty wire shape for tool-call-only assistant
+// messages), and the string itself otherwise.
+func oaTextOrNil(s string) any {
+	if s == "" {
+		return nil
+	}
+	return s
+}
+
+// oaContentText extracts the string form of a decoded message content. A
+// response always uses the string form; anything else yields "".
+func oaContentText(v any) string {
+	s, _ := v.(string)
+	return s
+}
+
+// isImageURL reports whether an image attachment string is a URL OpenAI can
+// fetch or decode — a data: URL (what the CLI sends, M241) or an http(s) URL.
+// A bare filename or other unresolvable string is rejected so it is dropped
+// rather than sent as an invalid image_url.
+func isImageURL(s string) bool {
+	return strings.HasPrefix(s, "data:") ||
+		strings.HasPrefix(s, "https://") ||
+		strings.HasPrefix(s, "http://")
 }
 
 type oaToolCall struct {
@@ -283,9 +328,29 @@ func canonicalToOA(m agent.Message) (*oaMessage, error) {
 		}
 		return &oaMessage{Role: "system", Content: m.Content}, nil
 	case agent.RoleUser:
-		return &oaMessage{Role: "user", Content: m.Content}, nil
+		// Vision (M242): a user message may carry image attachments as URLs
+		// (the CLI sends RFC 2397 data: URLs). When present, switch to the
+		// multimodal content-parts array — text first, then one image_url part
+		// per deliverable URL. A non-URL entry (e.g. a legacy bare filename)
+		// has no valid url and is skipped.
+		var parts []oaContentPart
+		for _, img := range m.Images {
+			if !isImageURL(img) {
+				continue
+			}
+			parts = append(parts, oaContentPart{Type: "image_url", ImageURL: &oaImageURL{URL: img}})
+		}
+		if len(parts) == 0 {
+			return &oaMessage{Role: "user", Content: oaTextOrNil(m.Content)}, nil
+		}
+		content := make([]oaContentPart, 0, len(parts)+1)
+		if m.Content != "" {
+			content = append(content, oaContentPart{Type: "text", Text: m.Content})
+		}
+		content = append(content, parts...)
+		return &oaMessage{Role: "user", Content: content}, nil
 	case agent.RoleAssistant:
-		om := &oaMessage{Role: "assistant", Content: m.Content}
+		om := &oaMessage{Role: "assistant", Content: oaTextOrNil(m.Content)}
 		for _, tc := range m.ToolCalls {
 			args := tc.Input
 			if len(args) == 0 {
@@ -309,7 +374,7 @@ func canonicalToOA(m agent.Message) (*oaMessage, error) {
 		}
 		return &oaMessage{
 			Role:       "tool",
-			Content:    m.Content,
+			Content:    oaTextOrNil(m.Content),
 			ToolCallID: m.ToolCallID,
 		}, nil
 	default:
@@ -364,7 +429,7 @@ func decodeResponse(body []byte) (*agent.CompletionResponse, error) {
 	return &agent.CompletionResponse{
 		Message: agent.Message{
 			Role:      agent.RoleAssistant,
-			Content:   choice.Message.Content,
+			Content:   oaContentText(choice.Message.Content),
 			ToolCalls: toolCalls,
 		},
 		StopReason: stop,
