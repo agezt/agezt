@@ -241,9 +241,24 @@ func dayAllowed(wd time.Weekday, days int) bool {
 func nextDaily(now time.Time, atMinutes, days int) time.Time {
 	loc := now.Location()
 	y, m, d := now.Date()
+	nowMin := now.Hour()*60 + now.Minute()
 	for i := 0; i < 8; i++ {
 		cand := time.Date(y, m, d+i, atMinutes/60, atMinutes%60, 0, 0, loc)
-		if cand.After(now) && dayAllowed(cand.Weekday(), days) {
+		if !cand.After(now) {
+			continue
+		}
+		// DST fall-back guard (M197): on a fall-back day the wall-clock atMinutes
+		// occurs twice (e.g. 01:30 happens at both the DST and standard offset). The
+		// second occurrence is After(now) yet shares the just-fired now's wall clock,
+		// so without this guard the daily schedule fires AGAIN ~1h later. For today
+		// (i==0) require the slot to be strictly later in the day than now; the fold
+		// re-entry (same minutes-since-midnight) is rejected and we move to the next
+		// permitted day. In normal time this rejects nothing real — a same/earlier
+		// today slot already fails cand.After(now).
+		if i == 0 && atMinutes <= nowMin {
+			continue
+		}
+		if dayAllowed(cand.Weekday(), days) {
 			return cand
 		}
 	}

@@ -343,6 +343,16 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   `.project/PHASE-M129-OBSERVABILITY-TENANT-FLAG-REPORT.md`.
 
 ### Fixed
+- **Daily scheduling hardened against DST fall-back double-fire + regression coverage**
+  (M197) — `nextDaily` now makes the "fire once per day" property EXPLICIT: on a fall-back
+  day the wall-clock `at` time occurs twice, so a same-day (`i==0`) candidate at or before
+  `now`'s wall clock is skipped, advancing to the next permitted day. In practice Go
+  resolves an ambiguous wall time to the *earlier* offset, so the daily schedule does not
+  actually double-fire today — but that's an implicit runtime detail; the guard makes the
+  single-fire guarantee independent of how the platform/tzdata resolves the fold, and adds
+  the missing fall-back regression test (America/New_York 2026-11-01, daily at 01:30 → next
+  fire is 2026-11-02 01:30, ~25h later, never ~1h). See
+  `.project/PHASE-M197-CADENCE-DST-FALLBACK-REPORT.md`.
 - **Scheduler can't busy-loop on a corrupt interval (cadence review HIGH)** (M196) — the
   cadence engine's `advance` computed the next run as `now + IntervalSec` with no floor,
   and `OpenStore` loaded `schedules.json` without validation. `Add` rejects a
