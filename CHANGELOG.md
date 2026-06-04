@@ -12,6 +12,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **`agt pulse --text` shows live content.** The human event tail can now append a
+  one-line excerpt of each event's text — the streamed answer tokens and a
+  reasoning model's chain of thought — so an operator can watch *what* the agent is
+  producing live, not just event kinds. Off by default; the structured one-line
+  format is unchanged without the flag. This rounds out reasoning visibility:
+  reasoning now reaches editors (ACP), API clients (`reasoning_content`), and the
+  operator's own `agt pulse`.
 - **DeepSeek-R1 on Bedrock — with its reasoning.** `deepseek.r1-*` models (and
   regional profiles like `us.deepseek.r1-v1:0`) now work through Bedrock. The
   adapter renders DeepSeek's chat-template prompt and splits the model's chain of

@@ -49,6 +49,7 @@ func cmdPulse(args []string, stdout, stderr io.Writer) int {
 	var kinds []string
 	correlation := ""
 	asJSON := false
+	showText := false
 	since := int64(-1)
 	sinceTSMs := int64(-1)
 	until := int64(-1)
@@ -162,9 +163,17 @@ func cmdPulse(args []string, stdout, stderr io.Writer) int {
 			sinceTSMs = time.Now().Add(-dur).UnixMilli()
 		case "--json":
 			asJSON = true
+		case "--text", "-t":
+			// Append a one-line excerpt of each event's `text` payload (the
+			// streamed answer tokens and a reasoning model's chain of thought),
+			// so an operator can watch the live content — not just event kinds —
+			// in the human tail. Off by default; the structured one-line format
+			// is unchanged without it.
+			showText = true
 		case "-h", "--help":
-			fmt.Fprintf(stdout, "usage: %s pulse [--subject PATTERN] [--kind KIND]... [--correlation ID] [--since N] [--last DUR] [--json]\n", brand.CLI)
+			fmt.Fprintf(stdout, "usage: %s pulse [--subject PATTERN] [--kind KIND]... [--correlation ID] [--since N] [--last DUR] [--text] [--json]\n", brand.CLI)
 			fmt.Fprintf(stdout, "live tail of the daemon's event bus; Ctrl+C to exit\n")
+			fmt.Fprintf(stdout, "  --text            show a one-line excerpt of each event's text (streamed answer + reasoning)\n")
 			fmt.Fprintf(stdout, "  --since N         replay matching events with seq >= N before going live\n")
 			fmt.Fprintf(stdout, "  --last DUR        replay matching events from the last DUR (e.g. 5m, 1h30m) before going live\n")
 			fmt.Fprintf(stdout, "  --correlation ID  show only events on the given correlation chain (live counterpart to `agt why`)\n")
@@ -235,7 +244,7 @@ func cmdPulse(args []string, stdout, stderr io.Writer) int {
 		if asJSON {
 			renderEventJSON(stdout, ev)
 		} else {
-			renderEventHuman(stdout, ev)
+			renderEventHuman(stdout, ev, showText)
 		}
 	})
 	if err != nil {
@@ -252,7 +261,7 @@ func cmdPulse(args []string, stdout, stderr io.Writer) int {
 //
 // Kept tight so a 100-column terminal fits comfortably. The full
 // event JSON is available via `agt why <event_id>` for any line.
-func renderEventHuman(w io.Writer, ev *event.Event) {
+func renderEventHuman(w io.Writer, ev *event.Event, showText bool) {
 	ts := time.UnixMilli(ev.TSUnixMS)
 	if ev.TSUnixMS == 0 {
 		ts = time.Now()
@@ -264,13 +273,42 @@ func renderEventHuman(w io.Writer, ev *event.Event) {
 		// real journal sequence number.
 		seq = "seq=eph  "
 	}
-	fmt.Fprintf(w, "%s  %s  %-22s  subject=%s  actor=%s\n",
+	suffix := ""
+	if showText {
+		if excerpt := eventTextExcerpt(ev); excerpt != "" {
+			suffix = "  ▸ " + excerpt
+		}
+	}
+	fmt.Fprintf(w, "%s  %s  %-22s  subject=%s  actor=%s%s\n",
 		ts.Format("15:04:05.000"),
 		seq,
 		ev.Kind,
 		ev.Subject,
 		ev.Actor,
+		suffix,
 	)
+}
+
+// eventTextExcerpt returns a single-line, length-bounded excerpt of an event's
+// `text` payload field (the streamed answer tokens and a reasoning model's chain
+// of thought both carry it), for the `--text` view. Newlines/tabs collapse to
+// spaces so the tail stays one line per event; empty for events without text.
+func eventTextExcerpt(ev *event.Event) string {
+	if len(ev.Payload) == 0 {
+		return ""
+	}
+	var p struct {
+		Text string `json:"text"`
+	}
+	if json.Unmarshal(ev.Payload, &p) != nil || p.Text == "" {
+		return ""
+	}
+	s := strings.Join(strings.Fields(p.Text), " ") // collapse all whitespace runs
+	const max = 160
+	if len(s) > max {
+		s = s[:max] + "…"
+	}
+	return s
 }
 
 // renderEventJSON prints one JSON object per line. Useful for piping
