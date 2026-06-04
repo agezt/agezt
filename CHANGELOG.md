@@ -76,6 +76,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   OpenAI-compatible endpoints (Chat Completions + Responses).
 
 ### Fixed
+- **Bedrock Mistral/Cohere runs now report real token spend.** Those vendors'
+  response bodies carry no token counts, so the governor saw zero spend and
+  under-billed them. Agezt now overlays Bedrock's authoritative
+  `X-Amzn-Bedrock-Input-Token-Count` / `-Output-Token-Count` response headers onto
+  the usage when the decoded body has none — so cost accounting and per-run budget
+  caps work for every Bedrock vendor. Vendors that already report inline counts
+  (Anthropic, Nova, Meta-Llama, AI21 Jamba) keep their richer body-derived usage.
 - **Non-streaming reasoning is no longer dropped.** When a run used a provider's
   non-streaming path (no token streaming), a reasoning model's chain of thought
   was captured on the response but never published as an `llm.reasoning` event —

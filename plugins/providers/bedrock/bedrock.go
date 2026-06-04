@@ -34,6 +34,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -301,7 +302,40 @@ func (p *Provider) Complete(ctx context.Context, req agent.CompletionRequest) (*
 	if httpResp.StatusCode/100 != 2 {
 		return nil, &APIError{Status: httpResp.StatusCode, Body: string(respBytes)}
 	}
-	return decodeResp(respBytes, model)
+	resp, err := decodeResp(respBytes, model)
+	if err != nil {
+		return nil, err
+	}
+	// Bedrock reports the authoritative token counts in response headers for every
+	// InvokeModel call (M327). Vendors whose body carries no inline usage (Mistral,
+	// Cohere) would otherwise report zero spend to the governor — under-billing the
+	// run. Fill from the headers when the decoded usage is empty; vendors with
+	// inline counts (Anthropic, Nova, Meta-Llama, AI21 Jamba) keep their richer
+	// body-derived usage (e.g. Anthropic's cache-read/write breakdown).
+	if resp.Usage.InputTokens == 0 && resp.Usage.OutputTokens == 0 {
+		resp.Usage.InputTokens = headerTokenCount(httpResp.Header, "X-Amzn-Bedrock-Input-Token-Count")
+		resp.Usage.OutputTokens = headerTokenCount(httpResp.Header, "X-Amzn-Bedrock-Output-Token-Count")
+		if resp.Usage.Model == "" {
+			resp.Usage.Model = model
+		}
+	}
+	return resp, nil
+}
+
+// headerTokenCount reads a non-negative integer token count from a Bedrock
+// response header, returning 0 for a missing or unparseable value (so a quirky
+// proxy that strips or mangles the header degrades to "unknown spend" rather than
+// an error).
+func headerTokenCount(h http.Header, name string) int {
+	v := strings.TrimSpace(h.Get(name))
+	if v == "" {
+		return 0
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil || n < 0 {
+		return 0
+	}
+	return n
 }
 
 // ----- dialect translation (canonical ↔ Anthropic-on-Bedrock body) -----

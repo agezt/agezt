@@ -61,13 +61,11 @@ type mistralBedrockResponse struct {
 		} `json:"message"`
 		FinishReason string `json:"finish_reason"`
 	} `json:"choices"`
-	// Bedrock attaches token counts under a sibling header rather
-	// than inline. Bedrock-runtime returns input_tokens /
-	// output_tokens via `X-Amzn-Bedrock-Input-Token-Count` etc.
-	// — out of scope for the body decoder. Usage is set to zero
-	// here; the governor's accounting still works (counts as
-	// zero spend, which is wrong but harmless until we plumb the
-	// headers through). A future M1.tt.x can wire those.
+	// Bedrock attaches token counts in response headers
+	// (`X-Amzn-Bedrock-Input-Token-Count` / `-Output-Token-Count`)
+	// rather than inline in the Mistral body. The body decoder leaves
+	// Usage at zero; Complete overlays the header counts afterward
+	// (M327), so the governor sees real spend.
 }
 
 // encodeMistralOnBedrockRequest converts a canonical

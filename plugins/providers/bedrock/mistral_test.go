@@ -74,6 +74,66 @@ func TestComplete_MistralOnBedrockChatResponse(t *testing.T) {
 	}
 }
 
+// TestComplete_MistralOnBedrock_UsageFromHeaders (M327): Mistral's body carries
+// no token counts, so the governor would see zero spend. The Bedrock
+// X-Amzn-Bedrock-*-Token-Count response headers must be overlaid onto Usage.
+func TestComplete_MistralOnBedrock_UsageFromHeaders(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("X-Amzn-Bedrock-Input-Token-Count", "37")
+		w.Header().Set("X-Amzn-Bedrock-Output-Token-Count", "14")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"choices": []map[string]any{{
+				"message":       map[string]any{"role": "assistant", "content": "ok"},
+				"finish_reason": "stop",
+			}},
+		})
+	}))
+	defer srv.Close()
+	p := bedrock.New("t", "us-east-1")
+	p.Endpoint = srv.URL
+	resp, err := p.Complete(context.Background(), agent.CompletionRequest{
+		Model:    "mistral.mistral-large-2407-v1:0",
+		Messages: []agent.Message{{Role: agent.RoleUser, Content: "hi"}},
+	})
+	if err != nil {
+		t.Fatalf("Complete: %v", err)
+	}
+	if resp.Usage.InputTokens != 37 || resp.Usage.OutputTokens != 14 {
+		t.Errorf("usage = %d/%d, want 37/14 from headers", resp.Usage.InputTokens, resp.Usage.OutputTokens)
+	}
+	if resp.Usage.Model != "mistral.mistral-large-2407-v1:0" {
+		t.Errorf("usage.model = %q", resp.Usage.Model)
+	}
+}
+
+// TestComplete_InlineUsageNotOverriddenByHeaders (M327): a vendor with inline
+// body usage (Nova) must keep its body-derived counts even when the headers
+// disagree — the body is richer (and the header overlay only fills zeros).
+func TestComplete_InlineUsageNotOverriddenByHeaders(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("X-Amzn-Bedrock-Input-Token-Count", "999")
+		w.Header().Set("X-Amzn-Bedrock-Output-Token-Count", "999")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"output":     map[string]any{"message": map[string]any{"role": "assistant", "content": []map[string]any{{"text": "hi"}}}},
+			"stopReason": "end_turn",
+			"usage":      map[string]any{"inputTokens": 5, "outputTokens": 3},
+		})
+	}))
+	defer srv.Close()
+	p := bedrock.New("t", "us-east-1")
+	p.Endpoint = srv.URL
+	resp, err := p.Complete(context.Background(), agent.CompletionRequest{
+		Model:    "amazon.nova-pro-v1:0",
+		Messages: []agent.Message{{Role: agent.RoleUser, Content: "hi"}},
+	})
+	if err != nil {
+		t.Fatalf("Complete: %v", err)
+	}
+	if resp.Usage.InputTokens != 5 || resp.Usage.OutputTokens != 3 {
+		t.Errorf("usage = %d/%d, want inline 5/3 (headers must not override inline)", resp.Usage.InputTokens, resp.Usage.OutputTokens)
+	}
+}
+
 // TestComplete_MistralOnBedrock_LengthStop verifies finish_reason
 // "length" maps to canonical StopMaxTokens.
 func TestComplete_MistralOnBedrock_LengthStop(t *testing.T) {
