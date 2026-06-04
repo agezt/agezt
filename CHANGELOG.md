@@ -12,6 +12,10 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **`agt cache`.** The CLI counterpart of the Web UI Cache panel — prints the
+  prompt-cache savings (tokens served from / written to cache, and the dollars
+  saved versus the full input rate), `--since` windowable, `--tenant`-scoped,
+  `--json`. Reuses the `cache_stats` command, so CLI and Web UI agree.
 - **Prompt-cache savings aggregate + Web UI Cache panel.** A new `cache_stats`
   control-plane command folds `budget.consumed` events into how many prompt tokens
   were served from / written to the provider cache and how many microcents that

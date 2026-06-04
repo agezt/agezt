@@ -83,6 +83,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return cmdPlugin(args[1:], stdout, stderr)
 	case "budget":
 		return cmdBudget(args[1:], stdout, stderr)
+	case "cache":
+		return cmdCache(args[1:], stdout, stderr)
 	case "tool":
 		return cmdTool(args[1:], stdout, stderr)
 	case "status":

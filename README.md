@@ -17,7 +17,7 @@ Agezt nodes** back — with capability-aware **auto-routing**, **failover**, and
 bounded delegation **loop guard** — and now each **tenant federates to its own
 peer set**; events push out via **HMAC-signed webhooks**. See
 [CHANGELOG.md](CHANGELOG.md).
-**Tests:** 1904 passing across 68 packages.
+**Tests:** 1905 passing across 68 packages.
 **Dependencies:** one (`lukechampine.com/blake3`) + one transitive.
 
 ## What you get
@@ -35,6 +35,7 @@ agt pulse --correlation run-01H...                             — live tail of 
 agt pulse --since 0 --replay-rate 50                           — historical replay
 agt status                                                     — daemon health overview
 agt budget                                                     — spend vs daily / per-task caps
+agt cache                                                      — prompt-cache savings (tokens from cache + $ saved)
 agt tool list                                                  — in-process tools the model sees
 agt peers [--json]                                             — list peer nodes + check their REST health
 agt schedule add "<intent>" --every 1h | --at 09:30            — recurring/daily autonomous intent (list/rm/run/pause/resume)
@@ -287,7 +288,7 @@ The v1 substrate. Highlights:
 ## Verify
 
 ```bash
-make test     # 1904 tests, all green
+make test     # 1905 tests, all green
 make build    # produces bin/agezt + bin/agt
 make gen      # regenerate SDK types from the contract
 ```
