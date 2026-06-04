@@ -12,6 +12,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **DeepSeek-R1 on Bedrock — with its reasoning.** `deepseek.r1-*` models (and
+  regional profiles like `us.deepseek.r1-v1:0`) now work through Bedrock. The
+  adapter renders DeepSeek's chat-template prompt and splits the model's chain of
+  thought (the `<think>…</think>` block) from the answer, feeding the reasoning
+  into the same pipeline as every other reasoning model — so it surfaces in
+  `agt pulse`, the ACP thought-chunk relay, and the OpenAI-compatible API's
+  `reasoning_content`. Token usage comes from the Bedrock response headers.
 - **Amazon Nova models on Bedrock.** Agezt's Bedrock provider now speaks the Nova
   `messages-v1` body shape, so `amazon.nova-*` models (Micro / Lite / Pro /
   Premier) and their regional cross-inference profiles (`us.amazon.nova-*`, …)
