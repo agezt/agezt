@@ -148,5 +148,13 @@ func (s *Server) handleStatus(conn net.Conn, req Request) {
 		result["channels"] = chans
 	}
 
+	// AWS credential chain (M307): which keyless/ambient layer engaged (IRSA,
+	// SSO, assume-role, IMDS). So an operator on EKS can confirm IRSA is live
+	// from `agt status` instead of grepping the boot banner. Omitted when AWS
+	// credentials aren't configured.
+	if s.credChain != "" {
+		result["cred_chain"] = s.credChain
+	}
+
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: result})
 }

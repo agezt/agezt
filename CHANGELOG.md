@@ -22,6 +22,11 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   safe — GCM errors on a short ciphertext and PBKDF2 accepts any salt.)
 
 ### Added
+- **`agt status` now shows the resolved AWS credential chain.** Which keyless /
+  ambient layer engaged — IRSA/web-identity, SSO, assume-role, IMDS — is now in
+  the status round-trip (`aws creds : AWS chain: …`), so an operator on EKS can
+  confirm IRSA is live without grepping the boot banner. Quiet when AWS
+  credentials aren't configured.
 - **AWS Bedrock now supports IRSA / EKS Pod Identity (keyless web-identity
   credentials).** When the cluster injects the standard `AWS_WEB_IDENTITY_TOKEN_FILE`
   and `AWS_ROLE_ARN` env vars, Agezt automatically exchanges the projected OIDC

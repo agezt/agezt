@@ -741,6 +741,12 @@ func runDaemon(stdout, stderr io.Writer) int {
 	}
 	srv.SetHTTPBindings(httpBindings)
 
+	// Record the resolved AWS credential chain (M307) so `agt status` can report
+	// which keyless/ambient layer engaged (IRSA, SSO, assume-role, IMDS) — the
+	// boot banner's credentials line scrolls past, and on EKS an operator wants to
+	// confirm IRSA is live without grepping pod logs.
+	srv.SetCredChain(awsChainDesc)
+
 	// Record the configured messaging channels (M141) so `agt status` can report
 	// what's listening — the per-channel boot banner scrolls past. Read-only from
 	// the same env the buildX functions consume.

@@ -130,6 +130,14 @@ func cmdStatus(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "  channels  : %s\n", strings.Join(parts, ", "))
 	}
 
+	// AWS credential chain (M307) — which keyless/ambient layer engaged (IRSA,
+	// SSO, assume-role, IMDS). Quiet unless AWS credentials are configured, so
+	// operators not on AWS see no noise. Lets an EKS operator confirm IRSA is
+	// live from `agt status` rather than the boot banner.
+	if cc, _ := res["cred_chain"].(string); cc != "" {
+		fmt.Fprintf(stdout, "  aws creds : %s\n", cc)
+	}
+
 	// Mesh peers (M208) — the configured federation (AGEZT_PEERS), client-side. A
 	// cheap config snapshot only (no health probe — that's `agt doctor` / `agt peers`);
 	// tokens are redacted. Quiet when single-node so most operators see no noise.

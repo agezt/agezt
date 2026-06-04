@@ -85,6 +85,13 @@ type Server struct {
 	// channel.Channel) so this package never imports the channel plugins. Nil when no
 	// channel is configured; handleSend reports that as unavailable.
 	channelSend ChannelSender
+
+	// credChain is a short human-readable description of the resolved AWS
+	// credential chain (which keyless/ambient layers engaged — SSO, assume-role,
+	// IRSA/web-identity, IMDS), injected via SetCredChain (M307). `agt status`
+	// surfaces it so an operator on EKS can confirm IRSA actually engaged without
+	// grepping the boot banner. Empty when AWS credentials aren't in play.
+	credChain string
 }
 
 // ChannelSender delivers text out a named channel kind to a channel/chat id. The
@@ -117,6 +124,10 @@ func (s *Server) SetChannels(c []ChannelInfo) { s.channels = c }
 // SetChannelSender wires operator-initiated outbound (`agt send`) to the live
 // channels. Nil leaves `agt send` reporting "no channels configured".
 func (s *Server) SetChannelSender(send ChannelSender) { s.channelSend = send }
+
+// SetCredChain records the resolved AWS credential-chain description so
+// `agt status` can report which credential layer engaged (M307).
+func (s *Server) SetCredChain(desc string) { s.credChain = desc }
 
 // DiskFreeFunc returns the free (available) and total bytes for the filesystem
 // containing path (M131). The daemon injects a real implementation
