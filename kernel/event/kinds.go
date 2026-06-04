@@ -125,6 +125,12 @@ const (
 	// refused because its hop count exceeded the limit — a federation loop was
 	// stopped. Payload: {hop, max_hops}. (M210)
 	KindMeshLoopRefused Kind = "mesh.loop_refused"
+	// KindContextCompacted records that the agent loop trimmed its own context to
+	// stay under a budget before a provider call (SPEC-10 §3): the oldest tool
+	// OUTPUTS were elided to stubs while system + recent turns were protected.
+	// Makes the otherwise-invisible drop auditable. Payload: {elided, reclaimed_chars,
+	// context_chars_before, context_chars_after, budget}. (M393)
+	KindContextCompacted Kind = "context.compacted"
 
 	// Warden (P1-WARD-*).
 	KindWardenExecuted          Kind = "warden.executed"
@@ -260,6 +266,7 @@ var knownKinds = map[Kind]struct{}{
 	KindCapabilityRejected:        {},
 	KindCapabilityRerouted:        {},
 	KindCapabilityDegraded:        {},
+	KindContextCompacted:          {},
 	KindWardenExecuted:            {},
 	KindWardenProfileDowngraded:   {},
 	KindWardenLimitExceeded:       {},

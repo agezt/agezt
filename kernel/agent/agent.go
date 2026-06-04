@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/agezt/agezt/kernel/bus"
@@ -235,6 +236,63 @@ type LoopConfig struct {
 	// ArtifactThreshold is the byte size above which a tool output is offloaded.
 	// 0 with a non-nil Artifacts uses DefaultArtifactThreshold.
 	ArtifactThreshold int
+	// ContextBudget, when > 0, caps the assembled-context size (chars) the loop
+	// sends per call (SPEC-10 §3). Before each provider call, if the context
+	// exceeds the budget the loop elides the OLDEST tool outputs to stubs —
+	// system prompt and the most recent turns are always kept — and journals a
+	// context.compacted event. 0 disables (the historical full-history behaviour).
+	ContextBudget int
+	// ContextProtectLast is how many of the most-recent messages are never elided
+	// by budget compaction (the model needs its latest context intact). 0 uses
+	// DefaultContextProtectLast.
+	ContextProtectLast int
+}
+
+// DefaultContextProtectLast is how many trailing messages context compaction
+// never touches, so the model always keeps its most recent exchange whole.
+const DefaultContextProtectLast = 4
+
+// elidedStubPrefix marks a tool message whose output was dropped by context
+// compaction, so a later pass doesn't re-elide it (and an operator recognises it).
+const elidedStubPrefix = "[tool output elided to fit context budget"
+
+// compactMessages enforces a context budget (SPEC-10 §3) by eliding the OLDEST
+// tool-result outputs to short stubs until the assembled context fits, while
+// always preserving the system prompt, every non-tool message, and the most
+// recent protectLast messages. It returns the (possibly rewritten) message slice
+// plus how many outputs were elided and how many chars reclaimed. Pure: it copies
+// before mutating, so the caller's slice is untouched until it adopts the result.
+func compactMessages(system string, messages []Message, budget, protectLast int) (out []Message, elided, reclaimed int) {
+	if budget <= 0 {
+		return messages, 0, 0
+	}
+	total, _ := contextSize(system, messages)
+	if total <= budget {
+		return messages, 0, 0
+	}
+	if protectLast <= 0 {
+		protectLast = DefaultContextProtectLast
+	}
+	out = make([]Message, len(messages))
+	copy(out, messages)
+	limit := len(out) - protectLast // indices [0,limit) are elidable
+	for i := 0; i < limit && total > budget; i++ {
+		m := out[i]
+		if m.Role != RoleTool || m.Content == "" || strings.HasPrefix(m.Content, elidedStubPrefix) {
+			continue
+		}
+		orig := len(m.Content)
+		stub := fmt.Sprintf("%s: %d chars]", elidedStubPrefix, orig)
+		if len(stub) >= orig {
+			continue // already small — eliding wouldn't help
+		}
+		out[i].Content = stub
+		delta := orig - len(stub)
+		reclaimed += delta
+		total -= delta
+		elided++
+	}
+	return out, elided, reclaimed
 }
 
 // ArtifactPutter is the slice of a content-addressed store the loop needs to
@@ -497,6 +555,28 @@ func Run(ctx context.Context, cfg LoopConfig, userIntent string) (answer string,
 	for iter := range cfg.MaxIter {
 		if err := ctx.Err(); err != nil {
 			return "", err
+		}
+
+		// Context budgeting (SPEC-10 §3): before measuring/sending, trim the
+		// assembled context to fit ContextBudget by eliding the oldest tool
+		// outputs (system + recent turns protected). The drop is journaled so it
+		// is auditable, not silent. No-op when ContextBudget is 0.
+		if cfg.ContextBudget > 0 {
+			before, _ := contextSize(cfg.System, messages)
+			compacted, elided, reclaimed := compactMessages(cfg.System, messages, cfg.ContextBudget, cfg.ContextProtectLast)
+			if elided > 0 {
+				messages = compacted
+				after, _ := contextSize(cfg.System, messages)
+				if _, err := publish(event.KindContextCompacted, "context", map[string]any{
+					"elided":               elided,
+					"reclaimed_chars":      reclaimed,
+					"context_chars_before": before,
+					"context_chars_after":  after,
+					"budget":               cfg.ContextBudget,
+				}); err != nil {
+					return "", fmt.Errorf("agent: publish context.compacted: %w", err)
+				}
+			}
 		}
 
 		// 2a. llm.request — record what was sent: message count plus the

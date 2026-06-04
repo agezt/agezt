@@ -102,6 +102,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   valid UTF-8. (The journal's own answer truncation was already rune-safe.)
 
 ### Added
+- **Context budgeting keeps long runs within a size cap (SPEC-10 §3).** With
+  `AGEZT_CONTEXT_BUDGET` set, before each model call the agent loop trims its own
+  assembled context to fit: it elides the *oldest tool outputs* down to short
+  stubs (the system prompt and the most recent turns are always preserved) and
+  journals a `context.compacted` event (how many outputs elided, chars reclaimed,
+  size before/after). The model keeps acting on its recent context while a
+  many-step run stops growing without bound. Off by default (full history).
 - **The run-detail view flags offloaded tool outputs.** When a tool.result's
   output was offloaded to the artifact store, the web Live Monitor's run-detail
   card now shows it as `⤓ <N>B artifact <ref>…` and, expanded, the preview plus

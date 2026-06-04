@@ -238,6 +238,11 @@ type Config struct {
 	// 0 uses agent.DefaultArtifactThreshold.
 	ArtifactThreshold int
 
+	// ContextBudget caps the assembled-context size (chars) the agent loop sends
+	// per provider call (SPEC-10 §3); when exceeded the loop elides the oldest
+	// tool outputs and journals context.compacted. 0 disables (full history).
+	ContextBudget int
+
 	// OnReload is invoked by Kernel.Reload() AFTER the catalog snapshot
 	// has been refreshed from disk. The closure is supplied by the
 	// daemon and is expected to:
@@ -1195,6 +1200,7 @@ func (k *Kernel) RunWith(ctx context.Context, corr, intent string) (string, erro
 		CostFn:               governor.CostMicrocents,
 		Artifacts:            k.artifacts, // M390: offload oversized tool outputs (SPEC-04 §3.6)
 		ArtifactThreshold:    k.cfg.ArtifactThreshold,
+		ContextBudget:        k.cfg.ContextBudget, // M393: context budgeting (SPEC-10 §3)
 	}, intent)
 
 	// Attribute the run's outcome to the skills it activated, so an active skill

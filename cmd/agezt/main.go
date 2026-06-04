@@ -320,6 +320,18 @@ func runDaemon(stdout, stderr io.Writer) int {
 		}
 	}
 
+	// Context budget (SPEC-04 §3 / SPEC-10 §3): cap the assembled-context chars
+	// the loop sends per call; over-budget runs elide their oldest tool outputs.
+	// 0 (unset) = full history (current behaviour).
+	contextBudget := 0
+	if v := os.Getenv(brand.EnvPrefix + "CONTEXT_BUDGET"); v != "" {
+		if n, perr := strconv.Atoi(v); perr == nil && n > 0 {
+			contextBudget = n
+		} else {
+			fmt.Fprintf(stderr, "%s: %sCONTEXT_BUDGET: want a positive char count, got %q (ignored)\n", brand.Binary, brand.EnvPrefix, v)
+		}
+	}
+
 	cfg := kernelruntime.Config{
 		BaseDir:                    baseDir,
 		Provider:                   gov, // Governor implements agent.Provider
@@ -343,6 +355,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 		SkillForge:                 forgeOn,
 		SkillForgeMinTools:         4,
 		ArtifactThreshold:          artifactThreshold,
+		ContextBudget:              contextBudget,
 		SubAgentTool:               subAgentOn,
 		SubAgentMaxDepth:           subAgentDepth,
 		SubAgentMaxFanout:          subAgentFanout,
