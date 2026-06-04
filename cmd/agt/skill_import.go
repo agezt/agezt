@@ -121,7 +121,9 @@ func importSkillBundleBytes(data []byte, asJSON bool, stdout, stderr io.Writer) 
 	}
 	verb := "already present (refreshed)"
 	if created {
-		verb = "installed as a new draft"
+		// Status is normally draft, but auto-shadow (SPEC-05 §5.2) may have staged
+		// it on creation — report what actually landed.
+		verb = "installed as a new " + status
 	}
 	fmt.Fprintf(stdout, "skill %q %s\n", bundle.Skill.Name, verb)
 	fmt.Fprintf(stdout, "  id: %s  status: %s\n", shortHash(gotID), status)

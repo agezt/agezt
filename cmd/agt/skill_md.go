@@ -69,7 +69,9 @@ func importSkillMarkdownBytes(data []byte, asJSON bool, stdout, stderr io.Writer
 	status, _ := res["status"].(string)
 	verb := "already present (refreshed)"
 	if created {
-		verb = "installed as a new draft"
+		// Status is normally draft, but auto-shadow (SPEC-05 §5.2) may have staged
+		// it on creation — report what actually landed.
+		verb = "installed as a new " + status
 	}
 	fmt.Fprintf(stdout, "SKILL.md %q %s\n", md.Name, verb)
 	fmt.Fprintf(stdout, "  id: %s  status: %s\n", shortHash(gotID), status)

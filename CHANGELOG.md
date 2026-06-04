@@ -102,6 +102,14 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   valid UTF-8. (The journal's own answer truncation was already rune-safe.)
 
 ### Added
+- **`AGEZT_SKILL_AUTOSHADOW=on` auto-stages a well-formed draft skill to shadow.**
+  The first rung of the SPEC-05 §5.2 trust ladder: when a freshly-authored draft
+  passes a deterministic shadow-test (substantive body and a retrievable
+  description/triggers), it auto-advances `draft → shadow` on creation instead of
+  waiting for a manual `agt skill promote`, journaling `skill.promoted` with the
+  gate reason. Off by default (staging is a step toward production, so it's
+  opt-in); pairs with the on-by-default auto-quarantine demotion. `agt skill
+  import` now reports the status the skill actually landed in (draft or shadow).
 - **`AGEZT_CONTEXT_SUMMARIZE=1` summarises dropped tool outputs instead of
   stubbing them.** When context compaction elides an old tool output it normally
   leaves a short head-snippet stub; with this on, a bounded one-line *summary* of

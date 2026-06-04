@@ -31,6 +31,10 @@ type Forge struct {
 	// skill with a few failures is not yanked. aqMinFailures <= 0 disables it.
 	aqMinFailures int
 	aqFailureRate float64
+	// autoShadow, when true, auto-advances a freshly-created draft to shadow once
+	// it passes the deterministic ShadowTest (SPEC-05 §5.2 draft→shadow). Off by
+	// default — staging is a step toward production, so the operator opts in.
+	autoShadow bool
 }
 
 // DefaultAutoQuarantineMinFailures / Rate are the conservative defaults: a skill
@@ -57,6 +61,10 @@ func (f *Forge) SetAutoQuarantine(minFailures int, rate float64) {
 	f.aqMinFailures = minFailures
 	f.aqFailureRate = rate
 }
+
+// SetAutoShadow enables or disables draft→shadow auto-staging (SPEC-05 §5.2).
+// The daemon calls this from config; off by default.
+func (f *Forge) SetAutoShadow(on bool) { f.autoShadow = on }
 
 // ErrIllegalTransition is returned when a lifecycle edge isn't allowed.
 var ErrIllegalTransition = errors.New("skill: illegal lifecycle transition")
@@ -122,7 +130,28 @@ func (f *Forge) Create(corr string, spec CreateSpec) (Skill, bool, error) {
 	if err := f.store.Put(sk); err != nil {
 		return Skill{}, false, err
 	}
+	// Auto-stage a well-formed draft to shadow (SPEC-05 §5.2), when enabled. The
+	// returned skill reflects the post-staging status, so callers see "shadow".
+	f.maybeAutoShadow(corr, sk)
+	if cur, found, gerr := f.store.Get(sk.ID); gerr == nil && found {
+		sk = cur
+	}
 	return sk, true, nil
+}
+
+// maybeAutoShadow advances a freshly-created draft to shadow when auto-staging is
+// enabled and the draft passes the deterministic ShadowTest (SPEC-05 §5.2). Only
+// drafts are affected; the promotion is journaled with the gate reason and is
+// reversible via the normal lifecycle. Best-effort: a staging failure leaves the
+// skill a draft (no worse than auto-staging being off).
+func (f *Forge) maybeAutoShadow(corr string, sk Skill) {
+	if !f.autoShadow || sk.Status != StatusDraft {
+		return
+	}
+	if ok, _ := ShadowTest(sk); !ok {
+		return
+	}
+	_, _ = f.promoteWithReason(corr, sk.ID, "auto-shadow: shadow-test passed")
 }
 
 // lineageFor returns the ids of non-archived skills sharing name — the
@@ -151,6 +180,13 @@ func (f *Forge) lineageFor(name string) []string {
 // Promote advances a skill along draft→shadow→active (or un-quarantines back
 // to active), journaling skill.promoted. Returns the new status.
 func (f *Forge) Promote(corr, id string) (Status, error) {
+	return f.promoteWithReason(corr, id, "")
+}
+
+// promoteWithReason is Promote with an optional reason recorded on the event —
+// used by auto-staging (M399) to mark the gate that advanced the skill. An empty
+// reason omits the field, keeping a manual promote's payload unchanged.
+func (f *Forge) promoteWithReason(corr, id, reason string) (Status, error) {
 	sk, _, err := f.get(id)
 	if err != nil {
 		return "", err
@@ -168,9 +204,13 @@ func (f *Forge) Promote(corr, id string) (Status, error) {
 	if err := f.store.Put(sk); err != nil {
 		return "", err
 	}
-	f.publish(event.KindSkillPromoted, corr, map[string]any{
+	payload := map[string]any{
 		"id": id, "name": sk.Name, "from": string(from), "to": string(target),
-	})
+	}
+	if reason != "" {
+		payload["reason"] = reason
+	}
+	f.publish(event.KindSkillPromoted, corr, payload)
 	return target, nil
 }
 

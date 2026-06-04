@@ -512,6 +512,14 @@ func runDaemon(stdout, stderr io.Writer) int {
 		k.Forge().SetAutoQuarantine(0, 0)
 		autoQDesc = "off (set " + brand.EnvPrefix + "SKILL_AUTOQUARANTINE=on to enable)"
 	}
+	// Skill auto-shadow (SPEC-05 §5.2): off by default — staging a draft toward
+	// production is opt-in. When on, a freshly-authored draft that passes the
+	// deterministic shadow-test auto-advances to shadow. AGEZT_SKILL_AUTOSHADOW=on.
+	autoShadowDesc := "off (set " + brand.EnvPrefix + "SKILL_AUTOSHADOW=on to auto-stage drafts that pass the shadow-test)"
+	if strings.EqualFold(os.Getenv(brand.EnvPrefix+"SKILL_AUTOSHADOW"), "on") {
+		k.Forge().SetAutoShadow(true)
+		autoShadowDesc = "on (auto-advance a well-formed draft to shadow on creation)"
+	}
 	// Egress-block audit (M109): when the http/browser tools' guard refuses a
 	// dial, journal a netguard.blocked event so an operator can see attempted
 	// SSRF / metadata reads. Wired here because the tools are built before the
@@ -689,6 +697,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 	fmt.Fprintf(stdout, "  knowledge        : memory %s · world model %s (%d entities) · skills %s/forge %s (%d active)\n",
 		onOff(memOn), onOff(worldOn), k.World().Count(), onOff(skillOn), onOff(forgeOn), k.Forge().Count())
 	fmt.Fprintf(stdout, "  skill auto-quar. : %s\n", autoQDesc)
+	fmt.Fprintf(stdout, "  skill auto-shadow: %s\n", autoShadowDesc)
 
 	// Telegram channel (SPEC-04 §1) — duplex when AGEZT_TELEGRAM_TOKEN is
 	// set. Built before Pulse so its brief sink can tee with the log sink.
