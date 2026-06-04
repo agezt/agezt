@@ -93,6 +93,14 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   valid UTF-8. (The journal's own answer truncation was already rune-safe.)
 
 ### Added
+- **Import agentskills.io / ClawHub `SKILL.md` files.** `agt skill import` now
+  accepts a `.md` file written to the open agentskills.io standard (YAML-ish
+  frontmatter — name/description/triggers/tools_required — plus a Markdown body),
+  parses it with a dependency-free frontmatter reader, and installs it as a fresh
+  draft skill (content-addressed, journaled, never auto-active). The hundreds of
+  existing community skills load into Agezt without rewriting — and gain
+  versioning, shadow-testing, and reversibility on top (SPEC-13 §1.2). A Agezt
+  `.skill.json` export bundle still imports as before (content-address verified).
 - **`agt provider check --caps` advertises prompt caching.** The capability
   report (and its `--json` `prompt_cache` field) now shows whether a model
   supports prompt caching — derived from its catalog cache-read price, the same

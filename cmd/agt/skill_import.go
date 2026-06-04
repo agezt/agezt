@@ -30,8 +30,9 @@ func cmdSkillImport(args []string, stdout, stderr io.Writer) int {
 		case a == "--json":
 			asJSON = true
 		case a == "-h" || a == "--help":
-			fmt.Fprintf(stdout, "usage: %s skill import <bundle> [--json]\n", brand.CLI)
-			fmt.Fprintf(stdout, "verify a `%s skill export` bundle and install it as a fresh draft\n", brand.CLI)
+			fmt.Fprintf(stdout, "usage: %s skill import <bundle.skill.json | SKILL.md> [--json]\n", brand.CLI)
+			fmt.Fprintf(stdout, "install a skill as a fresh draft. A `%s skill export` bundle is content-address\n", brand.CLI)
+			fmt.Fprintf(stdout, "verified; a `.md` file is ingested as an agentskills.io/ClawHub SKILL.md.\n")
 			fmt.Fprintf(stdout, "the daemon must be running; promote it with `%s skill promote <id>` to activate\n", brand.CLI)
 			return 0
 		case strings.HasPrefix(a, "-"):
@@ -54,6 +55,11 @@ func cmdSkillImport(args []string, stdout, stderr io.Writer) int {
 	if err != nil {
 		fmt.Fprintf(stderr, "%s skill import: read %s: %v\n", brand.CLI, bundlePath, err)
 		return 1
+	}
+	// A `.md` file is an agentskills.io/ClawHub SKILL.md (SPEC-13 §1.2); anything
+	// else is a Agezt content-addressed export bundle.
+	if isSkillMarkdown(bundlePath) {
+		return importSkillMarkdownBytes(data, asJSON, stdout, stderr)
 	}
 	return importSkillBundleBytes(data, asJSON, stdout, stderr)
 }
