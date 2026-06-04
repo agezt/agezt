@@ -12,6 +12,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Web UI: the live event feed can be filtered by kind.** A `filter kind…` input
+  in the feed header hides every row whose event kind doesn't contain the typed
+  substring (e.g. `task.`, `tool.`, `provider.`), so an operator can focus a busy
+  firehose on one family. Purely client-side row toggling — switching or clearing
+  the filter is instant and never reconnects the stream — and new incoming events
+  respect the active filter as they arrive.
 - **Web UI: the provider-fallback badge is now clickable.** Clicking the header
   `⚠ N fallbacks` chip opens a modal listing the recent `provider.fallback`
   events — which provider failed, which backup took over, when, and why — so a

@@ -98,6 +98,11 @@
   .fbbadge { color: #fff; background: var(--bad); border-radius: 12px; padding: 2px 10px;
     font-size: 11px; font-weight: 600; cursor: pointer; }
   .fbbadge:hover { filter: brightness(1.12); }
+  #feedFilter { margin-left: auto; background: var(--panel2); color: var(--fg);
+    border: 1px solid var(--line); border-radius: 5px; font: inherit; font-size: 10px;
+    padding: 1px 7px; width: 120px; }
+  #feedFilter:focus { outline: none; border-color: var(--accent); }
+  #feed h2 #clearBtn { margin-left: 6px; }
 </style>
 </head>
 <body>
@@ -112,6 +117,7 @@
 <div class="grid">
   <section class="panel" id="feed">
     <h2>Event Feed <span class="muted" id="evcount">0</span>
+      <input id="feedFilter" placeholder="filter kind…" autocomplete="off" spellcheck="false">
       <button id="clearBtn">clear</button></h2>
     <div class="body" id="feedBody"></div>
   </section>
@@ -245,8 +251,19 @@ const evcount = document.getElementById("evcount");
 
 function clearFeed() { clear(feedBody); evCount = 0; evcount.textContent = "0"; }
 
+// feedFilter holds the current (lowercased) kind substring; "" = show all.
+// The feed stays the firehose; filtering only toggles row visibility, so
+// switching or clearing the filter is instant and never reconnects the stream.
+let feedFilter = "";
+function feedMatch(kind) { return !feedFilter || (kind || "").toLowerCase().includes(feedFilter); }
+function applyFeedFilter() {
+  for (const row of feedBody.children) row.hidden = !feedMatch(row.dataset.kind || "");
+}
+
 function addEvent(ev) {
   const row = el("div", "ev");
+  row.dataset.kind = ev.kind || "";
+  if (!feedMatch(ev.kind || "")) row.hidden = true;
   row.appendChild(el("span", "seq", ev.seq != null ? ev.seq : ""));
   const right = el("span");
   right.appendChild(el("span", "kind", ev.kind || ""));
@@ -639,6 +656,10 @@ async function act(path, confirmMsg, btn) {
 
 // ---- boot ----
 document.getElementById("clearBtn").addEventListener("click", clearFeed);
+document.getElementById("feedFilter").addEventListener("input", (e) => {
+  feedFilter = e.target.value.trim().toLowerCase();
+  applyFeedFilter();
+});
 document.getElementById("haltBtn").addEventListener("click", (e) =>
   act("/api/halt", "Freeze ALL in-flight runs?", e.currentTarget));
 document.getElementById("resumeBtn").addEventListener("click", (e) =>

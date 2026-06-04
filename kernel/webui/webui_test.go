@@ -90,6 +90,10 @@ func TestDashboardServedAtRoot(t *testing.T) {
 	if !strings.Contains(body, "function openFallbacks") || !strings.Contains(body, "provider.fallback") {
 		t.Error("dashboard missing the fallback-detail modal wiring")
 	}
+	// The event feed can be filtered by kind (client-side row toggling).
+	if !strings.Contains(body, `id="feedFilter"`) || !strings.Contains(body, "function applyFeedFilter") {
+		t.Error("dashboard missing the feed kind-filter wiring")
+	}
 }
 
 func TestStatsRouteProxiesRunsStats(t *testing.T) {
