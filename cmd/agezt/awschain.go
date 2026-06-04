@@ -16,16 +16,20 @@ package main
 //	AGEZT_AWS_ASSUME_ROLE_ARN         — call sts:AssumeRole using
 //	                                     the chain below as signing
 //	                                     creds (M1.vv).
+//	AWS_WEB_IDENTITY_TOKEN_FILE +     — IRSA / EKS Pod Identity:
+//	AWS_ROLE_ARN                        sts:AssumeRoleWithWebIdentity,
+//	                                     keyless, auto-detected (M1.ww).
 //
 // Lookup order:
 //   1. vault (agezt-managed; operator overrides everything)
 //   2. process env (`export FOO=...`)
-//   3. SSO portal     [opt-in via AGEZT_AWS_SSO_PROFILE]
-//   4. STS AssumeRole [opt-in via AGEZT_AWS_ASSUME_ROLE_ARN]
-//   5. AWS default chain (env / ~/.aws files / IMDS)
+//   3. SSO portal      [opt-in via AGEZT_AWS_SSO_PROFILE]
+//   4. STS AssumeRole  [opt-in via AGEZT_AWS_ASSUME_ROLE_ARN]
+//   5. Web identity    [auto via AWS_WEB_IDENTITY_TOKEN_FILE + AWS_ROLE_ARN]
+//   6. AWS default chain (env / ~/.aws files / IMDS)
 //
-// 3+4 are AWS-name-only lookups; they return "" for non-AWS_*
-// names so unrelated lookups fall through cleanly to 5.
+// 3–5 are AWS-name-only lookups; they return "" for non-AWS_*
+// names so unrelated lookups fall through cleanly to 6.
 
 import (
 	"os"
@@ -97,7 +101,29 @@ func buildAWSCredChain(vaultLookup func(string) string) (func(string) string, st
 		descParts = append(descParts, "assume_role="+shortArn(roleArn))
 	}
 
-	// 5: default chain (env / ~/.aws files / IMDS).
+	// 5: Web identity (IRSA / EKS Pod Identity). Auto-activates on the
+	// standard AWS_WEB_IDENTITY_TOKEN_FILE + AWS_ROLE_ARN env vars that
+	// EKS injects — no agezt-specific config, the SDK-native ambient path.
+	// Placed BEFORE the default chain so a pod assumes its OWN role rather
+	// than falling through to the node's IMDS instance-profile role.
+	if tokenFile := strings.TrimSpace(os.Getenv("AWS_WEB_IDENTITY_TOKEN_FILE")); tokenFile != "" {
+		if roleArn := strings.TrimSpace(os.Getenv("AWS_ROLE_ARN")); roleArn != "" {
+			region := strings.TrimSpace(os.Getenv("AWS_REGION"))
+			if region == "" {
+				region = strings.TrimSpace(os.Getenv("AWS_DEFAULT_REGION"))
+			}
+			params := creds.WebIdentityParams{
+				Region:          region,
+				RoleArn:         roleArn,
+				RoleSessionName: strings.TrimSpace(os.Getenv("AWS_ROLE_SESSION_NAME")),
+				TokenFile:       tokenFile,
+			}
+			layers = append(layers, creds.AWSWebIdentityLookup(params))
+			descParts = append(descParts, "web_identity="+shortArn(roleArn))
+		}
+	}
+
+	// 6: default chain (env / ~/.aws files / IMDS).
 	layers = append(layers, creds.AWSDefaultChain())
 
 	desc := "AWS chain: vault → env → default(file+IMDS)"

@@ -22,6 +22,14 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   safe — GCM errors on a short ciphertext and PBKDF2 accepts any salt.)
 
 ### Added
+- **AWS Bedrock now supports IRSA / EKS Pod Identity (keyless web-identity
+  credentials).** When the cluster injects the standard `AWS_WEB_IDENTITY_TOKEN_FILE`
+  and `AWS_ROLE_ARN` env vars, Agezt automatically exchanges the projected OIDC
+  token at STS (`AssumeRoleWithWebIdentity`) for temporary credentials — no static
+  access key, and a pod assumes its OWN role instead of the node's IMDS role. The
+  call is unsigned (the OIDC token is the proof of identity). Auto-detected, no
+  config; the boot banner reports `web_identity=<role>`. This is the AWS twin of
+  the Vertex GCE/GKE metadata support — keyless ambient credentials on both clouds.
 - **Vertex AI now supports ambient credentials via the GCE/GKE metadata server.**
   Set `GOOGLE_VERTEX_USE_METADATA=1` (instead of `GOOGLE_APPLICATION_CREDENTIALS`)
   to authenticate from the instance metadata server on Compute Engine, GKE with

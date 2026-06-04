@@ -29,10 +29,12 @@ package creds
 // lean-deps policy excludes it. The chain we implement here is
 // a strict subset of the SDK's behaviour — env (handled
 // elsewhere), shared file with profile selection, and IMDSv2 —
-// which is what 95% of operators actually need. SSO / web identity
-// / process / assume-role are not implemented; operators using
-// those should pass through environment variables that the SDK
-// or `aws configure` command emits.
+// which is what 95% of operators actually need. SSO (sso.go),
+// credential_process (above), assume-role (sts.go), and web identity
+// / IRSA (web_identity.go) ARE implemented on top of this base chain;
+// see cmd/agezt/awschain.go for how they compose. Only SAML federation
+// remains out of scope — operators using it should pass through
+// environment variables that the AWS CLI / SDK emits.
 //
 // **No retry / backoff.** The chain is consulted once per lookup
 // at daemon startup (and again on a hot reload). If IMDS times
