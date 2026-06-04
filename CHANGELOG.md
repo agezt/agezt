@@ -12,6 +12,10 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Web UI: the Schedules panel shows each entry's next-fire time.** Every
+  enabled schedule now renders `next <local date+time>` (from the same
+  `next_run_unix` the `agt schedule list` CLI already shows), so an operator can
+  see *when* autonomous work will next run, not just its cadence.
 - **Claude-on-Bedrock cache-token accounting.** The AWS Bedrock provider
   (streaming + non-streaming) now parses `cache_read_input_tokens` /
   `cache_creation_input_tokens` from Claude's usage — fixing the same under-count

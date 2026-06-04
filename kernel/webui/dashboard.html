@@ -542,6 +542,7 @@ const renderers = {
       row.appendChild(chip(s.cadence || s.mode || "?"));
       row.appendChild(el("span", null, s.intent || s.id || ""));
       if (s.enabled === false) row.appendChild(muted("(paused)"));
+      else if (s.next_run_unix) row.appendChild(muted("next " + fmtDateTime(s.next_run_unix * 1000)));
       if (s.last_status) row.appendChild(statusChip(s.last_status));
       return row;
     }, "no schedules");
@@ -718,6 +719,12 @@ async function openRun(r) {
 function fmtTime(ms) {
   if (!ms) return "";
   try { return new Date(ms).toLocaleTimeString(); } catch (e) { return ""; }
+}
+// fmtDateTime renders a unix-ms timestamp as a local date+time (a schedule's
+// next run can be days out, so the time alone isn't enough).
+function fmtDateTime(ms) {
+  if (!ms) return "";
+  try { return new Date(ms).toLocaleString(); } catch (e) { return ""; }
 }
 
 // openFallbacks shows the recent provider.fallback events behind the header

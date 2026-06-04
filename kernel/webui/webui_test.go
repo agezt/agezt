@@ -75,6 +75,10 @@ func TestDashboardServedAtRoot(t *testing.T) {
 	if !strings.Contains(body, `data-panel="schedules"`) || !strings.Contains(body, "schedules:") {
 		t.Error("dashboard missing the Schedules panel")
 	}
+	// The Schedules panel shows each entry's next-fire time.
+	if !strings.Contains(body, "next_run_unix") || !strings.Contains(body, "function fmtDateTime") {
+		t.Error("dashboard missing the schedule next-fire wiring")
+	}
 	// Clicking a run opens a detail modal that fetches its event arc.
 	if !strings.Contains(body, "function openRun") || !strings.Contains(body, "/api/journal") {
 		t.Error("dashboard missing the run-detail modal wiring")
