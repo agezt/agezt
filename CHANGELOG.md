@@ -46,6 +46,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   provider Agezt speaks — direct Anthropic, direct Gemini, Vertex Gemini, Vertex
   Claude, and openai-compatible DeepSeek-R1 — surfaces its reasoning uniformly.
   Off by default.
+- **Reasoning reaches the editor (ACP).** When Agezt runs as an ACP agent (`agt
+  acp`, e.g. inside Zed), a reasoning model's chain of thought is now relayed as
+  `agent_thought_chunk` session updates — distinct from the answer's
+  `agent_message_chunk` — so the editor renders it in its dedicated "thinking" UI.
+  Previously the reasoning was captured but dropped at the ACP boundary; only the
+  answer streamed through. Non-reasoning runs are unchanged.
 
 ### Fixed
 - **Ollama now honours the run's token cap.** `MaxTokens` is forwarded as

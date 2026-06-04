@@ -24,11 +24,11 @@ type peerRunner struct {
 	gotCwd  string
 }
 
-func (p *peerRunner) Prompt(_ context.Context, cwd, intent string, onChunk func(string)) (string, error) {
+func (p *peerRunner) Prompt(_ context.Context, cwd, intent string, onChunk func(acp.ChunkKind, string)) (string, error) {
 	p.gotTask = intent
 	p.gotCwd = cwd
 	for _, c := range p.chunks {
-		onChunk(c)
+		onChunk(acp.ChunkMessage, c)
 	}
 	return p.answer, p.err
 }

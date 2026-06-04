@@ -59,12 +59,27 @@ func scanMessage(sc *bufio.Scanner, v any) error {
 // ProtocolVersion is the ACP version this server implements.
 const ProtocolVersion = 1
 
+// ChunkKind distinguishes the two streamed content kinds the ACP protocol
+// renders differently: the assistant's answer vs. its reasoning / chain of
+// thought (M322). A reasoning model's thinking maps to ACP's
+// agent_thought_chunk (shown in the editor's "thinking" UI), the answer to
+// agent_message_chunk.
+type ChunkKind int
+
+const (
+	// ChunkMessage is an answer-text delta → agent_message_chunk.
+	ChunkMessage ChunkKind = iota
+	// ChunkThought is a reasoning delta (M322) → agent_thought_chunk.
+	ChunkThought
+)
+
 // Runner executes one prompt as an agent run. onChunk is called for each
-// streamed text delta; the returned string is the full final answer (used to
-// emit a single chunk when the provider did not stream). All work must pass
-// through the kernel's governed path.
+// streamed delta, tagged with its kind (answer vs. reasoning); the returned
+// string is the full final answer (used to emit a single chunk when the
+// provider did not stream). All work must pass through the kernel's governed
+// path.
 type Runner interface {
-	Prompt(ctx context.Context, cwd, intent string, onChunk func(text string)) (string, error)
+	Prompt(ctx context.Context, cwd, intent string, onChunk func(kind ChunkKind, text string)) (string, error)
 }
 
 // Server speaks ACP over a reader/writer pair.
@@ -223,13 +238,22 @@ func (s *Server) handlePrompt(ctx context.Context, params json.RawMessage) (any,
 	}
 
 	streamed := false
-	onChunk := func(text string) {
+	onChunk := func(kind ChunkKind, text string) {
 		if text == "" {
 			return
 		}
-		streamed = true
+		// Reasoning (M322) maps to ACP's agent_thought_chunk so editors render
+		// it in their "thinking" UI, distinct from the answer. It does NOT set
+		// `streamed` — that flag guards the non-streaming answer fallback, and a
+		// run that emitted only reasoning still needs its answer delivered.
+		update := "agent_message_chunk"
+		if kind == ChunkThought {
+			update = "agent_thought_chunk"
+		} else {
+			streamed = true
+		}
 		s.sendUpdate(p.SessionID, map[string]any{
-			"sessionUpdate": "agent_message_chunk",
+			"sessionUpdate": update,
 			"content":       map[string]any{"type": "text", "text": text},
 		})
 	}

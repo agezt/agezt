@@ -14,6 +14,7 @@ import (
 
 // fakeRunner records the intent and optionally streams chunks before returning.
 type fakeRunner struct {
+	thoughts  []string // reasoning chunks streamed before the answer (M322)
 	chunks    []string
 	answer    string
 	err       error
@@ -21,11 +22,14 @@ type fakeRunner struct {
 	gotCwd    string
 }
 
-func (f *fakeRunner) Prompt(_ context.Context, cwd, intent string, onChunk func(string)) (string, error) {
+func (f *fakeRunner) Prompt(_ context.Context, cwd, intent string, onChunk func(ChunkKind, string)) (string, error) {
 	f.gotIntent = intent
 	f.gotCwd = cwd
+	for _, th := range f.thoughts {
+		onChunk(ChunkThought, th)
+	}
 	for _, c := range f.chunks {
-		onChunk(c)
+		onChunk(ChunkMessage, c)
 	}
 	return f.answer, f.err
 }
@@ -130,6 +134,53 @@ func TestPromptStreamsChunksThenStop(t *testing.T) {
 	}
 	if runner.gotIntent != "hi there" || runner.gotCwd != "/proj" {
 		t.Errorf("runner saw intent=%q cwd=%q", runner.gotIntent, runner.gotCwd)
+	}
+}
+
+// A reasoning model's thought chunks must be delivered as agent_thought_chunk
+// session updates (M322), distinct from the answer's agent_message_chunk, so the
+// editor renders them in its "thinking" UI.
+func TestPromptStreamsThoughtChunks(t *testing.T) {
+	runner := &fakeRunner{
+		thoughts: []string{"hmm, ", "let me see"},
+		chunks:   []string{"42"},
+		answer:   "42",
+	}
+	out := run(t, runner,
+		map[string]any{"jsonrpc": "2.0", "id": 1, "method": "session/new",
+			"params": map[string]any{"cwd": "/proj", "mcpServers": []any{}}},
+		map[string]any{"jsonrpc": "2.0", "id": 2, "method": "session/prompt",
+			"params": map[string]any{
+				"sessionId": "sess-1",
+				"prompt":    []any{map[string]any{"type": "text", "text": "6*7?"}},
+			}},
+	)
+	var thoughts, messages int
+	var thoughtText, msgText string
+	for _, m := range out {
+		if m["method"] != "session/update" {
+			continue
+		}
+		p, _ := m["params"].(map[string]any)
+		up, _ := p["update"].(map[string]any)
+		content, _ := up["content"].(map[string]any)
+		text, _ := content["text"].(string)
+		switch up["sessionUpdate"] {
+		case "agent_thought_chunk":
+			thoughts++
+			thoughtText += text
+		case "agent_message_chunk":
+			messages++
+			msgText += text
+		default:
+			t.Errorf("unexpected update type %v", up["sessionUpdate"])
+		}
+	}
+	if thoughts != 2 || thoughtText != "hmm, let me see" {
+		t.Errorf("thought chunks: n=%d text=%q", thoughts, thoughtText)
+	}
+	if messages != 1 || msgText != "42" {
+		t.Errorf("message chunks: n=%d text=%q", messages, msgText)
 	}
 }
 

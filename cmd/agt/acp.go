@@ -74,20 +74,28 @@ type controlPlaneRunner struct {
 	tenant string // empty = primary kernel; else route the run to this tenant
 }
 
-func (r controlPlaneRunner) Prompt(ctx context.Context, cwd, intent string, onChunk func(string)) (string, error) {
+func (r controlPlaneRunner) Prompt(ctx context.Context, cwd, intent string, onChunk func(acp.ChunkKind, string)) (string, error) {
 	runArgs := map[string]any{"intent": intent}
 	if r.tenant != "" {
 		runArgs["tenant"] = r.tenant
 	}
 	res, err := r.c.Stream(ctx, controlplane.CmdRun, runArgs, func(ev *event.Event) {
-		if ev.Kind != event.KindLLMToken {
+		// Relay answer tokens as message chunks and reasoning deltas (M322) as
+		// thought chunks; the ACP server maps each to the matching sessionUpdate.
+		var kind acp.ChunkKind
+		switch ev.Kind {
+		case event.KindLLMToken:
+			kind = acp.ChunkMessage
+		case event.KindLLMReasoning:
+			kind = acp.ChunkThought
+		default:
 			return
 		}
 		var p struct {
 			Text string `json:"text"`
 		}
 		if json.Unmarshal(ev.Payload, &p) == nil && p.Text != "" {
-			onChunk(p.Text)
+			onChunk(kind, p.Text)
 		}
 	})
 	if err != nil {
