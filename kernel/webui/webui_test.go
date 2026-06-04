@@ -86,6 +86,10 @@ func TestDashboardServedAtRoot(t *testing.T) {
 	if !strings.Contains(body, `data-panel="budget"`) || !strings.Contains(body, "budget:") {
 		t.Error("dashboard missing the Budget panel")
 	}
+	// The Cache panel renders the prompt-cache savings aggregate.
+	if !strings.Contains(body, `data-panel="cache"`) || !strings.Contains(body, "cache:") {
+		t.Error("dashboard missing the Cache panel")
+	}
 	// A non-zero provider-fallback count drives a header warning badge.
 	if !strings.Contains(body, `id="fbBadge"`) || !strings.Contains(body, "function updateFallbackBadge") {
 		t.Error("dashboard missing the provider-fallback badge wiring")
@@ -163,6 +167,20 @@ func TestBudgetRouteProxiesBudget(t *testing.T) {
 	}
 	if len(fc.calls) != 1 || fc.calls[0] != "budget" {
 		t.Errorf("expected one budget call, got %v", fc.calls)
+	}
+}
+
+func TestCacheRouteProxiesCacheStats(t *testing.T) {
+	fc := &fakeCaller{result: map[string]any{"saved_microcents": 0}}
+	s, _ := newServer(t, fc, "secret")
+	req := httptest.NewRequest(http.MethodGet, "/api/cache?token=secret", nil)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d want 200", rec.Code)
+	}
+	if len(fc.calls) != 1 || fc.calls[0] != "cache_stats" {
+		t.Errorf("expected one cache_stats call, got %v", fc.calls)
 	}
 }
 
@@ -357,7 +375,7 @@ func TestAPIReadOnly(t *testing.T) {
 	// Every GET /api route must map to a read-only command — assert the proxy
 	// never issues anything outside the known read set.
 	readOnly := map[string]bool{
-		"status": true, "runs_list": true, "runs_stats": true, "budget": true, "provider_stats": true, "tool_stats": true, "schedule_list": true, "memory_list": true, "world_list": true,
+		"status": true, "runs_list": true, "runs_stats": true, "budget": true, "cache_stats": true, "provider_stats": true, "tool_stats": true, "schedule_list": true, "memory_list": true, "world_list": true,
 		"skill_list": true, "inbox": true, "reflect_show": true, "approvals": true,
 	}
 	for path := range apiRoutes {

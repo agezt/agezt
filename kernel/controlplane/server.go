@@ -448,6 +448,8 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.handleToolLog(conn, req)
 	case CmdToolStats:
 		s.handleToolStats(conn, req)
+	case CmdCacheStats:
+		s.handleCacheStats(conn, req)
 	case CmdStatus:
 		s.handleStatus(conn, req)
 	case CmdWardenLog:

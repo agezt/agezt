@@ -64,6 +64,7 @@ var apiRoutes = map[string]string{
 	"/api/runs":      controlplane.CmdRunsList,
 	"/api/stats":     controlplane.CmdRunsStats,
 	"/api/budget":    controlplane.CmdBudget,
+	"/api/cache":     controlplane.CmdCacheStats,
 	"/api/providers": controlplane.CmdProviderStats,
 	"/api/tools":     controlplane.CmdToolStats,
 	"/api/schedules": controlplane.CmdScheduleList,

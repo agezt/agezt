@@ -12,6 +12,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Prompt-cache savings aggregate + Web UI Cache panel.** A new `cache_stats`
+  control-plane command folds `budget.consumed` events into how many prompt tokens
+  were served from / written to the provider cache and how many microcents that
+  saved — the no-cache baseline (every input token at the full input rate) minus
+  the recorded cache-aware cost, summed per call. A Web UI Cache panel surfaces it
+  ($ saved, cache-read tokens, cache-write tokens, priced calls), the visible
+  payoff of the cache-aware cost accounting. Tenant-scoped, `--since`-windowable.
 - **Web UI: a Budget panel.** Shows the governor's daily spend snapshot — date,
   spent, ceiling (or "unlimited"), utilization %, strict-pricing flag, and any
   per-task caps with their spend — by proxying `budget` (the Web UI counterpart of

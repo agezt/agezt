@@ -369,6 +369,13 @@ const (
 	// (optional window). Returns: { total, errored, error_rate, by_tool: {tool →
 	// {calls, errors}}, tools, window_ms }
 	CmdToolStats = "tool_stats"
+	// CmdCacheStats aggregates prompt-cache usage + savings (M293) by folding
+	// budget.consumed events. Args: since_ms (optional window). Returns:
+	// { cached_input_tokens, cache_write_input_tokens, saved_microcents, calls,
+	// window_ms } where saved_microcents is the difference between the no-cache
+	// baseline (every input token at the full input rate) and the recorded
+	// cache-aware cost, summed per call.
+	CmdCacheStats = "cache_stats"
 
 	// CmdStateList enumerates namespaces and (optionally) keys in
 	// the kernel state store. State is normally invisible to
