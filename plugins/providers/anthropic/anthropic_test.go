@@ -194,3 +194,27 @@ func TestDecodeResponse_MapsStopReasons(t *testing.T) {
 		}
 	}
 }
+
+// TestDecodeResponse_CacheUsage verifies M290 cache-token accounting: Anthropic
+// reports input_tokens EXCLUDING cached prompt tokens, so the canonical Usage
+// must sum input + cache_read + cache_creation and mark cache_read as cached.
+func TestDecodeResponse_CacheUsage(t *testing.T) {
+	raw := []byte(`{"id":"x","role":"assistant","model":"m",
+		"content":[{"type":"text","text":"hi"}],"stop_reason":"end_turn",
+		"usage":{"input_tokens":100,"output_tokens":20,
+		"cache_read_input_tokens":900,"cache_creation_input_tokens":50}}`)
+	got, err := decodeResponse(raw)
+	if err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	// Total prompt = 100 fresh + 900 read + 50 creation = 1050.
+	if got.Usage.InputTokens != 1050 {
+		t.Errorf("InputTokens=%d want 1050 (fresh+read+creation)", got.Usage.InputTokens)
+	}
+	if got.Usage.CachedInputTokens != 900 {
+		t.Errorf("CachedInputTokens=%d want 900 (cache_read)", got.Usage.CachedInputTokens)
+	}
+	if got.Usage.OutputTokens != 20 {
+		t.Errorf("OutputTokens=%d want 20", got.Usage.OutputTokens)
+	}
+}

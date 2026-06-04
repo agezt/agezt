@@ -274,3 +274,29 @@ func TestCompleteStream_NilOnChunkRejected(t *testing.T) {
 // promise. Compile-time guard via _ assignment is more reliable than
 // a runtime test.
 var _ agent.StreamingProvider = (*Provider)(nil)
+
+// TestParseStream_CacheUsage covers the M290 cache-token mapping on the streaming
+// path: message_start carries cache_read/creation; the assembled Usage must sum
+// them into InputTokens and mark cache_read as cached.
+func TestParseStream_CacheUsage(t *testing.T) {
+	const stream = `event: message_start
+data: {"type":"message_start","message":{"id":"msg_c","type":"message","role":"assistant","model":"m","content":[],"usage":{"input_tokens":40,"output_tokens":1,"cache_read_input_tokens":600,"cache_creation_input_tokens":10}}}
+
+event: message_delta
+data: {"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":5}}
+
+event: message_stop
+data: {"type":"message_stop"}
+
+`
+	resp, err := parseStream(strings.NewReader(stream), func(c agent.Chunk) error { return nil })
+	if err != nil {
+		t.Fatalf("parseStream: %v", err)
+	}
+	if resp.Usage.InputTokens != 650 { // 40 + 600 + 10
+		t.Errorf("InputTokens=%d want 650", resp.Usage.InputTokens)
+	}
+	if resp.Usage.CachedInputTokens != 600 {
+		t.Errorf("CachedInputTokens=%d want 600", resp.Usage.CachedInputTokens)
+	}
+}

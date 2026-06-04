@@ -144,9 +144,24 @@ type anthVxResponse struct {
 	Content    []anthVxBlock `json:"content"`
 	StopReason string        `json:"stop_reason"`
 	Usage      struct {
-		InputTokens  int `json:"input_tokens"`
-		OutputTokens int `json:"output_tokens"`
+		InputTokens              int `json:"input_tokens"`
+		OutputTokens             int `json:"output_tokens"`
+		CacheReadInputTokens     int `json:"cache_read_input_tokens"`
+		CacheCreationInputTokens int `json:"cache_creation_input_tokens"`
 	} `json:"usage"`
+}
+
+// anthVxUsageToAgent maps Anthropic-on-Vertex split token counts to agent.Usage
+// (M290), mirroring the direct-Anthropic provider: input_tokens excludes cached
+// prompt tokens, so the real prompt is input + cache_read + cache_creation;
+// cache reads are marked cached (cheaper rate), cache-creation folds into input.
+func anthVxUsageToAgent(inputTokens, cacheRead, cacheCreation, outputTokens int, model string) agent.Usage {
+	return agent.Usage{
+		InputTokens:       inputTokens + cacheRead + cacheCreation,
+		CachedInputTokens: cacheRead,
+		OutputTokens:      outputTokens,
+		Model:             model,
+	}
 }
 
 func encodeAnthropicOnVertexRequest(system string, msgs []agent.Message, tools []agent.ToolDef, maxTok int, stream bool) ([]byte, error) {
@@ -295,11 +310,9 @@ func decodeAnthropicOnVertexResponse(body []byte, model string) (*agent.Completi
 			ToolCalls: toolCalls,
 		},
 		StopReason: stop,
-		Usage: agent.Usage{
-			InputTokens:  ar.Usage.InputTokens,
-			OutputTokens: ar.Usage.OutputTokens,
-			Model:        model,
-		},
+		Usage: anthVxUsageToAgent(
+			ar.Usage.InputTokens, ar.Usage.CacheReadInputTokens,
+			ar.Usage.CacheCreationInputTokens, ar.Usage.OutputTokens, model),
 	}, nil
 }
 
@@ -399,6 +412,8 @@ type anthStreamState struct {
 	openBlock     *anthOpenBlock
 	finishedTools []agent.ToolCall
 	inputTokens   int
+	cacheRead     int // cache_read_input_tokens (M290)
+	cacheCreation int // cache_creation_input_tokens (M290)
 	outputTokens  int
 	stopReason    string
 }
@@ -452,8 +467,10 @@ func dispatchAnthropicSSE(eventName, data string, st *anthStreamState, onChunk f
 		var f struct {
 			Message struct {
 				Usage struct {
-					InputTokens  int `json:"input_tokens"`
-					OutputTokens int `json:"output_tokens"`
+					InputTokens              int `json:"input_tokens"`
+					OutputTokens             int `json:"output_tokens"`
+					CacheReadInputTokens     int `json:"cache_read_input_tokens"`
+					CacheCreationInputTokens int `json:"cache_creation_input_tokens"`
 				} `json:"usage"`
 			} `json:"message"`
 		}
@@ -461,6 +478,8 @@ func dispatchAnthropicSSE(eventName, data string, st *anthStreamState, onChunk f
 			return fmt.Errorf("vertex: parse message_start: %w", err)
 		}
 		st.inputTokens = f.Message.Usage.InputTokens
+		st.cacheRead = f.Message.Usage.CacheReadInputTokens
+		st.cacheCreation = f.Message.Usage.CacheCreationInputTokens
 		if f.Message.Usage.OutputTokens > 0 {
 			st.outputTokens = f.Message.Usage.OutputTokens
 		}
@@ -610,10 +629,7 @@ func assembleAnthropicResponse(st *anthStreamState, model string) *agent.Complet
 			ToolCalls: st.finishedTools,
 		},
 		StopReason: stop,
-		Usage: agent.Usage{
-			InputTokens:  st.inputTokens,
-			OutputTokens: st.outputTokens,
-			Model:        model,
-		},
+		Usage: anthVxUsageToAgent(
+			st.inputTokens, st.cacheRead, st.cacheCreation, st.outputTokens, model),
 	}
 }

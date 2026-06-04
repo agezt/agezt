@@ -12,6 +12,14 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Anthropic cache-token accounting.** The Anthropic providers (direct +
+  Anthropic-on-Vertex, streaming and non-streaming) now parse
+  `cache_read_input_tokens` and `cache_creation_input_tokens`. Anthropic reports
+  `input_tokens` *excluding* cached prompt tokens, so the canonical usage now sums
+  all three — fixing an under-count where cached prompt tokens were billed at zero
+  — and marks cache reads as cached so they bill at the cheaper cache-read rate
+  (see cache-aware cost accounting below). Cache-creation tokens fold into the
+  input total (their write premium isn't modelled yet).
 - **Cache-aware cost accounting.** Prompt-cached input tokens are now billed at
   the model's cache-read rate instead of the full input rate. The openai (and
   compatible) provider parses `usage.prompt_tokens_details.cached_tokens` into a

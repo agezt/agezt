@@ -209,9 +209,28 @@ type anthResponse struct {
 	Model      string      `json:"model"`
 	StopReason string      `json:"stop_reason"`
 	Usage      struct {
-		InputTokens  int `json:"input_tokens"`
-		OutputTokens int `json:"output_tokens"`
+		InputTokens              int `json:"input_tokens"`
+		OutputTokens             int `json:"output_tokens"`
+		CacheReadInputTokens     int `json:"cache_read_input_tokens"`
+		CacheCreationInputTokens int `json:"cache_creation_input_tokens"`
 	} `json:"usage"`
+}
+
+// anthUsageToAgent maps Anthropic's split token counts to the canonical
+// agent.Usage (M290). Anthropic reports input_tokens EXCLUDING cached prompt
+// tokens, with cache_read_input_tokens and cache_creation_input_tokens reported
+// separately — so the real prompt size is their sum. Cache reads are marked
+// cached (billed at the cheaper cache-read rate, M289); cache-creation tokens
+// fold into the input total (billed at the input rate — the cache-write premium
+// is not modelled yet). Before this, the two cache counts were dropped, so
+// cached prompt tokens were billed at zero (an under-count when caching was on).
+func anthUsageToAgent(inputTokens, cacheRead, cacheCreation, outputTokens int, model string) agent.Usage {
+	return agent.Usage{
+		InputTokens:       inputTokens + cacheRead + cacheCreation,
+		CachedInputTokens: cacheRead,
+		OutputTokens:      outputTokens,
+		Model:             model,
+	}
 }
 
 func encodeRequest(model, system string, msgs []agent.Message, tools []agent.ToolDef, maxTok int) ([]byte, error) {
@@ -373,10 +392,8 @@ func decodeResponse(body []byte) (*agent.CompletionResponse, error) {
 			ToolCalls: toolCalls,
 		},
 		StopReason: stop,
-		Usage: agent.Usage{
-			InputTokens:  ar.Usage.InputTokens,
-			OutputTokens: ar.Usage.OutputTokens,
-			Model:        ar.Model,
-		},
+		Usage: anthUsageToAgent(
+			ar.Usage.InputTokens, ar.Usage.CacheReadInputTokens,
+			ar.Usage.CacheCreationInputTokens, ar.Usage.OutputTokens, ar.Model),
 	}, nil
 }

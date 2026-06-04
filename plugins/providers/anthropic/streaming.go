@@ -133,6 +133,8 @@ type streamState struct {
 	openBlock     *openBlock // currently-streaming block, if any
 	finishedTools []agent.ToolCall
 	inputTokens   int
+	cacheRead     int // cache_read_input_tokens (M290)
+	cacheCreation int // cache_creation_input_tokens (M290)
 	outputTokens  int
 	stopReason    string
 	model         string
@@ -213,8 +215,10 @@ func dispatchSSEFrame(eventName, data string, st *streamState, onChunk func(agen
 			Message struct {
 				Model string `json:"model"`
 				Usage struct {
-					InputTokens  int `json:"input_tokens"`
-					OutputTokens int `json:"output_tokens"`
+					InputTokens              int `json:"input_tokens"`
+					OutputTokens             int `json:"output_tokens"`
+					CacheReadInputTokens     int `json:"cache_read_input_tokens"`
+					CacheCreationInputTokens int `json:"cache_creation_input_tokens"`
 				} `json:"usage"`
 			} `json:"message"`
 		}
@@ -223,6 +227,8 @@ func dispatchSSEFrame(eventName, data string, st *streamState, onChunk func(agen
 		}
 		st.model = f.Message.Model
 		st.inputTokens = f.Message.Usage.InputTokens
+		st.cacheRead = f.Message.Usage.CacheReadInputTokens
+		st.cacheCreation = f.Message.Usage.CacheCreationInputTokens
 		// Some streams report partial output tokens here too.
 		if f.Message.Usage.OutputTokens > 0 {
 			st.outputTokens = f.Message.Usage.OutputTokens
@@ -385,10 +391,7 @@ func assembleResponse(st *streamState) *agent.CompletionResponse {
 			ToolCalls: st.finishedTools,
 		},
 		StopReason: stop,
-		Usage: agent.Usage{
-			InputTokens:  st.inputTokens,
-			OutputTokens: st.outputTokens,
-			Model:        st.model,
-		},
+		Usage: anthUsageToAgent(
+			st.inputTokens, st.cacheRead, st.cacheCreation, st.outputTokens, st.model),
 	}
 }
