@@ -34,3 +34,24 @@ func TestReadBoundedLine_Request(t *testing.T) {
 		t.Errorf("eof-mid-line: got %q err %v", g, err)
 	}
 }
+
+// TestReadBoundedLine_MultiChunkReassembly exercises the bufio.ErrBufferFull
+// accumulation path: a line LONGER than the reader's buffer but UNDER the cap
+// must be reassembled whole across multiple ReadSlice chunks, not truncated at
+// a buffer boundary. This is the trickiest branch of readBoundedLine (the
+// `continue` on ErrBufferFull, copying each chunk out so the returned slice is
+// stable) and the one a real >4 KiB control-plane request would hit.
+func TestReadBoundedLine_MultiChunkReassembly(t *testing.T) {
+	// 16-byte buffer (bufio's minimum) forces ReadSlice to return ErrBufferFull
+	// repeatedly for a 100-byte line; cap of 1024 leaves it well under the bound.
+	line := strings.Repeat("a", 100)
+	r := bufio.NewReaderSize(strings.NewReader(line+"\n"), 16)
+	got, err := readBoundedLine(r, 1024)
+	if err != nil {
+		t.Fatalf("multi-chunk line should reassemble cleanly, got err %v", err)
+	}
+	if string(got) != line+"\n" {
+		t.Errorf("reassembled line = %q (len %d), want the full %d-byte line + newline",
+			got, len(got), len(line))
+	}
+}
