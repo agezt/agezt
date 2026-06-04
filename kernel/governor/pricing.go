@@ -34,6 +34,11 @@ import (
 type modelPrice struct {
 	InputMicrocentsPerMTok  int64
 	OutputMicrocentsPerMTok int64
+	// CacheReadMicrocentsPerMTok is the price of a prompt-cached input token
+	// (0 when the model has no separate cache price → such tokens are billed at
+	// the full input rate). Only the fallback table's pay-models leave it 0; the
+	// live catalog populates it from cost.cache_read where present.
+	CacheReadMicrocentsPerMTok int64
 }
 
 // liveCatalog is the swap-in catalog source consulted before the
@@ -53,27 +58,30 @@ func SetCatalog(c *catalog.Catalog) {
 // catalog is absent OR doesn't contain the requested model. Numbers
 // are list prices at the project's knowledge cutoff and will drift —
 // run `agt catalog sync` to override.
+// Fallback entries carry only input/output rates (cache-read left 0 → cached
+// tokens bill at the input rate); the live catalog supplies cache-read prices.
 var modelPriceTable = map[string]modelPrice{
-	// Anthropic Claude (USD list per MTok, ×10^9 → microcents).
-	"claude-opus-4-7":           {1_500_000_000, 7_500_000_000},
-	"claude-opus-4-7[1m]":       {1_500_000_000, 7_500_000_000},
-	"claude-opus-4-6":           {1_500_000_000, 7_500_000_000},
-	"claude-sonnet-4-6":         {300_000_000, 1_500_000_000},
-	"claude-sonnet-4-5":         {300_000_000, 1_500_000_000},
-	"claude-haiku-4-5":          {80_000_000, 400_000_000},
-	"claude-haiku-4-5-20251001": {80_000_000, 400_000_000},
+	// Anthropic Claude (USD list per MTok, ×10^9 → microcents). Cache-read is
+	// Anthropic's 0.1× input list price (M289).
+	"claude-opus-4-7":           {InputMicrocentsPerMTok: 1_500_000_000, OutputMicrocentsPerMTok: 7_500_000_000, CacheReadMicrocentsPerMTok: 150_000_000},
+	"claude-opus-4-7[1m]":       {InputMicrocentsPerMTok: 1_500_000_000, OutputMicrocentsPerMTok: 7_500_000_000, CacheReadMicrocentsPerMTok: 150_000_000},
+	"claude-opus-4-6":           {InputMicrocentsPerMTok: 1_500_000_000, OutputMicrocentsPerMTok: 7_500_000_000, CacheReadMicrocentsPerMTok: 150_000_000},
+	"claude-sonnet-4-6":         {InputMicrocentsPerMTok: 300_000_000, OutputMicrocentsPerMTok: 1_500_000_000, CacheReadMicrocentsPerMTok: 30_000_000},
+	"claude-sonnet-4-5":         {InputMicrocentsPerMTok: 300_000_000, OutputMicrocentsPerMTok: 1_500_000_000, CacheReadMicrocentsPerMTok: 30_000_000},
+	"claude-haiku-4-5":          {InputMicrocentsPerMTok: 80_000_000, OutputMicrocentsPerMTok: 400_000_000, CacheReadMicrocentsPerMTok: 8_000_000},
+	"claude-haiku-4-5-20251001": {InputMicrocentsPerMTok: 80_000_000, OutputMicrocentsPerMTok: 400_000_000, CacheReadMicrocentsPerMTok: 8_000_000},
 
 	// Ollama / local models — always free.
-	"llama3.2": {0, 0},
-	"llama3.1": {0, 0},
-	"qwen2.5":  {0, 0},
-	"mistral":  {0, 0},
-	"phi3":     {0, 0},
-	"phi4":     {0, 0},
-	"gemma2":   {0, 0},
+	"llama3.2": {},
+	"llama3.1": {},
+	"qwen2.5":  {},
+	"mistral":  {},
+	"phi3":     {},
+	"phi4":     {},
+	"gemma2":   {},
 
 	// Mock provider — free.
-	"mock": {0, 0},
+	"mock": {},
 }
 
 // priceFor looks up a model's price.
@@ -109,8 +117,9 @@ func priceForOk(model string) (modelPrice, bool) {
 	if c := liveCatalog.Load(); c != nil {
 		if _, m := c.FindModel(model); m != nil && m.Cost != nil {
 			return modelPrice{
-				InputMicrocentsPerMTok:  m.Cost.InputMicrocentsPerMTok(),
-				OutputMicrocentsPerMTok: m.Cost.OutputMicrocentsPerMTok(),
+				InputMicrocentsPerMTok:     m.Cost.InputMicrocentsPerMTok(),
+				OutputMicrocentsPerMTok:    m.Cost.OutputMicrocentsPerMTok(),
+				CacheReadMicrocentsPerMTok: m.Cost.CacheReadMicrocentsPerMTok(),
 			}, true
 		}
 	}
@@ -178,6 +187,40 @@ func costMicrocents(model string, inputTokens, outputTokens int) int64 {
 	// ledger and disable the daily ceiling.
 	totalMicromicrocents := saturatingAdd(
 		saturatingMul(inputTokens, p.InputMicrocentsPerMTok),
+		saturatingMul(outputTokens, p.OutputMicrocentsPerMTok),
+	)
+	return totalMicromicrocents / 1_000_000
+}
+
+// costMicrocentsCached is the cache-aware billing path (M289): cachedTokens are a
+// SUBSET of inputTokens that hit the provider's prompt cache and bill at the
+// model's cache-read rate instead of the full input rate. The fresh (uncached)
+// remainder bills at the input rate, output at the output rate. Same saturating
+// integer math as costMicrocents.
+//
+//	cost = (input-cached)*input_rate + cached*cache_read_rate + output*output_rate
+//
+// A model with no separate cache price (CacheRead == 0) bills cached tokens at
+// the full input rate — conservative (never under-bill an unknown cache rate),
+// so the result is identical to costMicrocents for such models. With cachedTokens
+// == 0 the result is always identical to costMicrocents.
+func costMicrocentsCached(model string, inputTokens, cachedTokens, outputTokens int) int64 {
+	p := priceFor(model)
+	if cachedTokens < 0 {
+		cachedTokens = 0
+	}
+	if cachedTokens > inputTokens {
+		cachedTokens = inputTokens // cached is a subset of the prompt
+	}
+	cacheRate := p.CacheReadMicrocentsPerMTok
+	if cacheRate <= 0 {
+		cacheRate = p.InputMicrocentsPerMTok // no cache price → full input rate
+	}
+	totalMicromicrocents := saturatingAdd(
+		saturatingAdd(
+			saturatingMul(inputTokens-cachedTokens, p.InputMicrocentsPerMTok),
+			saturatingMul(cachedTokens, cacheRate),
+		),
 		saturatingMul(outputTokens, p.OutputMicrocentsPerMTok),
 	)
 	return totalMicromicrocents / 1_000_000

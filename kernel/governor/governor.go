@@ -648,7 +648,17 @@ func (g *Governor) recordUsage(p *ProviderInfo, req agent.CompletionRequest, res
 	if outTok < 0 {
 		outTok = 0
 	}
-	cost := costMicrocents(model, inTok, outTok)
+	// Prompt-cached input tokens (M289) bill at the model's cache-read rate.
+	// Clamp to [0, inTok] — cached is a subset of the prompt; a buggy endpoint
+	// claiming more cached than input must not credit the ledger.
+	cachedTok := resp.Usage.CachedInputTokens
+	if cachedTok < 0 {
+		cachedTok = 0
+	}
+	if cachedTok > inTok {
+		cachedTok = inTok
+	}
+	cost := costMicrocentsCached(model, inTok, cachedTok, outTok)
 
 	g.mu.Lock()
 	g.rolloverIfNeededLocked()
@@ -669,14 +679,15 @@ func (g *Governor) recordUsage(p *ProviderInfo, req agent.CompletionRequest, res
 		// no CorrelationID (e.g. an out-of-run governor call).
 		CorrelationID: req.CorrelationID,
 		Payload: map[string]any{
-			"provider":        p.Name,
-			"model":           model,
-			"input_tokens":    inTok,
-			"output_tokens":   outTok,
-			"cost_microcents": cost,
-			"spent_today_mc":  spent,
-			"ceiling_mc":      g.cfg.DailyCeilingMicrocents,
-			"correlation_id":  req.CorrelationID,
+			"provider":            p.Name,
+			"model":               model,
+			"input_tokens":        inTok,
+			"cached_input_tokens": cachedTok,
+			"output_tokens":       outTok,
+			"cost_microcents":     cost,
+			"spent_today_mc":      spent,
+			"ceiling_mc":          g.cfg.DailyCeilingMicrocents,
+			"correlation_id":      req.CorrelationID,
 		},
 	})
 }

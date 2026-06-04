@@ -272,9 +272,15 @@ type oaResponse struct {
 	Model   string     `json:"model"`
 	Choices []oaChoice `json:"choices"`
 	Usage   struct {
-		PromptTokens     int `json:"prompt_tokens"`
-		CompletionTokens int `json:"completion_tokens"`
-		TotalTokens      int `json:"total_tokens"`
+		PromptTokens        int `json:"prompt_tokens"`
+		CompletionTokens    int `json:"completion_tokens"`
+		TotalTokens         int `json:"total_tokens"`
+		PromptTokensDetails struct {
+			// CachedTokens is the subset of PromptTokens served from the
+			// provider's prompt cache (OpenAI + compatible gateways). Billed
+			// at the cache-read rate; threaded to agent.Usage.CachedInputTokens.
+			CachedTokens int `json:"cached_tokens"`
+		} `json:"prompt_tokens_details"`
 	} `json:"usage"`
 }
 
@@ -487,9 +493,10 @@ func decodeResponse(body []byte) (*agent.CompletionResponse, error) {
 		},
 		StopReason: stop,
 		Usage: agent.Usage{
-			InputTokens:  or.Usage.PromptTokens,
-			OutputTokens: or.Usage.CompletionTokens,
-			Model:        or.Model,
+			InputTokens:       or.Usage.PromptTokens,
+			CachedInputTokens: or.Usage.PromptTokensDetails.CachedTokens,
+			OutputTokens:      or.Usage.CompletionTokens,
+			Model:             or.Model,
 		},
 	}, nil
 }

@@ -12,6 +12,17 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Cache-aware cost accounting.** Prompt-cached input tokens are now billed at
+  the model's cache-read rate instead of the full input rate. The openai (and
+  compatible) provider parses `usage.prompt_tokens_details.cached_tokens` into a
+  new `agent.Usage.CachedInputTokens`; the governor bills
+  `(input−cached)·input_rate + cached·cache_read_rate + output·output_rate`
+  (cache-read sourced from the catalog's `cost.cache_read`, with the fallback
+  Claude prices carrying Anthropic's 0.1× cache-read list), and records
+  `cached_input_tokens` on `budget.consumed`. A model with no separate cache
+  price bills cached tokens at the full input rate (conservative — never
+  under-bills). Previously every cached token was charged at full input rate, so
+  cost was over-estimated for prompt-caching reasoning models.
 - **Web UI: the Tools panel drills into the per-call invocation log.** Clicking
   the panel opens a modal listing recent tool calls — tool name, ok/✗, latency,
   the input the agent passed, and the resulting output — via the read-only

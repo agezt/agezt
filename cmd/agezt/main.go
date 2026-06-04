@@ -2744,6 +2744,17 @@ func newDemoMock() agent.Provider {
 			mock.FinalText("[offline-mock] I wrote notes.txt and edited it in place: status is now 'published'."),
 		)
 	}
+	// Demo escape hatch: AGEZT_DEMO_CACHED=1 scripts one answer carrying synthetic
+	// usage where most of the prompt was prompt-cached (M289) on a priced model
+	// whose catalog entry has a cache_read price — so the Governor's cache-aware
+	// billing is observable offline: budget.consumed shows cached_input_tokens and
+	// a cost lower than charging every input token at the full rate.
+	if os.Getenv(brand.EnvPrefix+"DEMO_CACHED") == "1" {
+		return mock.New(mock.WithUsage(
+			mock.FinalText("[offline-mock] answered with a mostly-cached prompt."),
+			agent.Usage{InputTokens: 10000, CachedInputTokens: 9000, OutputTokens: 200, Model: "claude-sonnet-4-6"},
+		))
+	}
 	// Demo escape hatch: AGEZT_DEMO_ECHO=1 makes the mock ECHO the last user
 	// message back as the answer, so the exact intent the agent received is
 	// observable — used to prove the M144 channel-conversation transcript actually

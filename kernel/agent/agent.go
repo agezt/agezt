@@ -113,9 +113,13 @@ type CompletionResponse struct {
 // Usage carries per-call token accounting (cost translation lives in the
 // Governor at MVP time, SPEC-10; M0.5 just records the raw tokens).
 type Usage struct {
-	InputTokens  int    `json:"input_tokens,omitempty"`
-	OutputTokens int    `json:"output_tokens,omitempty"`
-	Model        string `json:"model,omitempty"`
+	InputTokens  int `json:"input_tokens,omitempty"`
+	OutputTokens int `json:"output_tokens,omitempty"`
+	// CachedInputTokens is the subset of InputTokens that hit the provider's
+	// prompt cache (0 when the provider reports none / doesn't support it).
+	// Billed at the model's cache-read rate; see governor.costMicrocentsCached.
+	CachedInputTokens int    `json:"cached_input_tokens,omitempty"`
+	Model             string `json:"model,omitempty"`
 }
 
 // Provider is implemented by anything that can drive a chat completion. For
