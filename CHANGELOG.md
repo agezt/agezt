@@ -12,6 +12,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Reliability
+- **`/metrics` is robust to an invalid metric name.** The REST `/metrics`
+  Prometheus endpoint now coerces each metric name to a valid Prometheus
+  identifier — a name containing a `.`, `-`, or space would otherwise emit a line
+  Prometheus can't parse, and a single malformed line breaks the **whole** scrape,
+  silently dropping every other metric. (Today's names are all valid; this keeps a
+  future metric definition from taking out observability wholesale.)
 - **A malformed channel message no longer crashes the daemon.** Inbound handling
   for the Telegram, Slack, and Discord channels — which process untrusted external
   messages on long-lived goroutines — now recovers from a panic and journals it as

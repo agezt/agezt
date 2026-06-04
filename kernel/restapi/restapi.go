@@ -203,7 +203,7 @@ func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {
 	var b strings.Builder
 	if s.metrics != nil {
 		for _, m := range s.metrics() {
-			name := "agezt_" + m.Name
+			name := promName("agezt_" + m.Name)
 			if m.Help != "" {
 				b.WriteString("# HELP " + name + " " + m.Help + "\n")
 			}
@@ -506,6 +506,34 @@ func (s *Server) handleRunByID(w http.ResponseWriter, r *http.Request) {
 }
 
 // --- helpers ---
+
+// promName coerces s to Prometheus's metric-name grammar
+// ([a-zA-Z_:][a-zA-Z0-9_:]*): any other byte becomes '_', and a leading digit is
+// prefixed with '_'. A metric whose name contained a '.', '-', or space would
+// otherwise emit a line Prometheus can't parse — and one malformed line breaks the
+// WHOLE scrape, silently dropping every other metric. Today's names are all valid;
+// this keeps a future bad metric definition from taking out observability wholesale.
+func promName(s string) string {
+	if s == "" {
+		return "_"
+	}
+	b := []byte(s)
+	for i := 0; i < len(b); i++ {
+		c := b[i]
+		switch {
+		case c >= 'a' && c <= 'z', c >= 'A' && c <= 'Z', c == '_', c == ':':
+			// valid anywhere
+		case c >= '0' && c <= '9':
+			// valid except as the first character (handled below)
+		default:
+			b[i] = '_'
+		}
+	}
+	if b[0] >= '0' && b[0] <= '9' {
+		return "_" + string(b) // a leading digit isn't allowed; prefix '_'
+	}
+	return string(b)
+}
 
 func methodNotAllowed(w http.ResponseWriter, allow string) {
 	w.Header().Set("Allow", allow)

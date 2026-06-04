@@ -3,6 +3,7 @@
 package restapi
 
 import (
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -56,5 +57,30 @@ func TestMetrics_NoSourceIsEmpty(t *testing.T) {
 	}
 	if strings.TrimSpace(rec.Body.String()) != "" {
 		t.Errorf("/metrics with no source should be empty, got %q", rec.Body.String())
+	}
+}
+
+func TestPromName_SanitizesToValidIdentifier(t *testing.T) {
+	// Prometheus metric names must match [a-zA-Z_:][a-zA-Z0-9_:]*. A name with a
+	// dot/dash/space would emit a line Prometheus can't parse, breaking the WHOLE
+	// scrape. promName coerces any such name to a valid identifier.
+	cases := map[string]string{
+		"agezt_up":            "agezt_up", // already valid → unchanged
+		"agezt_model.latency": "agezt_model_latency",
+		"agezt_tool-calls":    "agezt_tool_calls",
+		"agezt_a b":           "agezt_a_b",
+		"weird:name":          "weird:name", // ':' is valid in Prometheus names
+		"":                    "_",
+		"9lives":              "_9lives", // leading digit gets prefixed
+	}
+	identifier := regexp.MustCompile(`^[a-zA-Z_:][a-zA-Z0-9_:]*$`)
+	for in, want := range cases {
+		got := promName(in)
+		if got != want {
+			t.Errorf("promName(%q) = %q, want %q", in, got, want)
+		}
+		if !identifier.MatchString(got) {
+			t.Errorf("promName(%q) = %q is not a valid Prometheus identifier", in, got)
+		}
 	}
 }
