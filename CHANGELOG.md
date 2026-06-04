@@ -77,6 +77,15 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   binds to loopback by default, which limited exposure.)
 
 ### Fixed
+- **Governor routing/capability/budget events are now linked to their run.** The
+  Governor's per-call decision events — `routing.decision`, `provider.fallback`,
+  `rate.limited`, `budget.exceeded`, `capability.rerouted`, `capability.rejected`
+  — were emitted without a correlation id, so they were orphaned from the run
+  that triggered them: they didn't appear in the run timeline and `agt why
+  <event-id>` on one resolved nothing. They now carry the request's correlation
+  (matching `budget.consumed` and the new `capability.degraded`), so the full
+  routing/spend story for a run is reachable from `agt why` and the run-detail
+  view.
 - **Rune-safe display truncation (codebase-wide).** A shared `strutil.Ellipsis`
   helper now backs every text truncation that reaches a user or the model: the
   provider-fallback reason in `agt status`, generated-plan node snippets, and AWS

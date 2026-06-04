@@ -302,9 +302,10 @@ func (g *Governor) Complete(ctx context.Context, req agent.CompletionRequest) (*
 		if capable, known := g.cfg.ModelToolCapable(req.Model); known && !capable {
 			if alt, found := g.cfg.ToolCapableAlternative(req.Model); found && alt != req.Model {
 				g.publish(event.Spec{
-					Subject: "governor.capability",
-					Kind:    event.KindCapabilityRerouted,
-					Actor:   "governor",
+					Subject:       "governor.capability",
+					Kind:          event.KindCapabilityRerouted,
+					Actor:         "governor",
+					CorrelationID: req.CorrelationID,
 					Payload: map[string]any{
 						"from_model":      req.Model,
 						"to_model":        alt,
@@ -325,9 +326,10 @@ func (g *Governor) Complete(ctx context.Context, req agent.CompletionRequest) (*
 	if g.cfg.StrictModelCapabilities && g.cfg.ModelToolCapable != nil && len(req.Tools) > 0 {
 		if capable, known := g.cfg.ModelToolCapable(req.Model); known && !capable {
 			g.publish(event.Spec{
-				Subject: "governor.capability",
-				Kind:    event.KindCapabilityRejected,
-				Actor:   "governor",
+				Subject:       "governor.capability",
+				Kind:          event.KindCapabilityRejected,
+				Actor:         "governor",
+				CorrelationID: req.CorrelationID,
 				Payload: map[string]any{
 					"model":           req.Model,
 					"capability":      "tool_call",
@@ -366,10 +368,11 @@ func (g *Governor) Complete(ctx context.Context, req agent.CompletionRequest) (*
 	// counted; a blocked call never reaches a provider or the budget check.
 	if admitted, used, limit := g.admitRate(); !admitted {
 		g.publish(event.Spec{
-			Subject: "governor.rate",
-			Kind:    event.KindRateLimited,
-			Actor:   "governor",
-			Payload: map[string]any{"used": used, "limit_per_min": limit},
+			Subject:       "governor.rate",
+			Kind:          event.KindRateLimited,
+			Actor:         "governor",
+			CorrelationID: req.CorrelationID,
+			Payload:       map[string]any{"used": used, "limit_per_min": limit},
 		})
 		return nil, fmt.Errorf("%w (used=%d, limit=%d/min)", ErrRateLimited, used, limit)
 	}
@@ -383,10 +386,11 @@ func (g *Governor) Complete(ctx context.Context, req agent.CompletionRequest) (*
 	// under the same lock as this check and reconcile the actual after the call.
 	if exceeded, spent, ceiling := g.budgetExceeded(); exceeded {
 		g.publish(event.Spec{
-			Subject: "governor.budget",
-			Kind:    event.KindBudgetExceeded,
-			Actor:   "governor",
-			Payload: map[string]any{"spent_microcents": spent, "ceiling_microcents": ceiling},
+			Subject:       "governor.budget",
+			Kind:          event.KindBudgetExceeded,
+			Actor:         "governor",
+			CorrelationID: req.CorrelationID,
+			Payload:       map[string]any{"spent_microcents": spent, "ceiling_microcents": ceiling},
 		})
 		return nil, fmt.Errorf("%w (spent=%d, ceiling=%d microcents)", ErrBudgetExceeded, spent, ceiling)
 	}
@@ -396,9 +400,10 @@ func (g *Governor) Complete(ctx context.Context, req agent.CompletionRequest) (*
 	if req.TaskType != "" {
 		if exceeded, spent, cap := g.taskBudgetExceeded(req.TaskType); exceeded {
 			g.publish(event.Spec{
-				Subject: "governor.budget",
-				Kind:    event.KindBudgetExceeded,
-				Actor:   "governor",
+				Subject:       "governor.budget",
+				Kind:          event.KindBudgetExceeded,
+				Actor:         "governor",
+				CorrelationID: req.CorrelationID,
 				Payload: map[string]any{
 					"task_type":          req.TaskType,
 					"spent_microcents":   spent,
@@ -436,9 +441,10 @@ func (g *Governor) Complete(ctx context.Context, req agent.CompletionRequest) (*
 	// so operators using `agt pulse --kind routing.decision` can see
 	// which task-type overrides actually fired.
 	g.publish(event.Spec{
-		Subject: "governor.route",
-		Kind:    event.KindRoutingDecision,
-		Actor:   "governor",
+		Subject:       "governor.route",
+		Kind:          event.KindRoutingDecision,
+		Actor:         "governor",
+		CorrelationID: req.CorrelationID,
 		Payload: map[string]any{
 			"primary":    chain[0].Name,
 			"chain":      providerNames(chain),
@@ -468,9 +474,10 @@ func (g *Governor) Complete(ctx context.Context, req agent.CompletionRequest) (*
 		// Fall back to next in chain.
 		if i+1 < len(chain) {
 			g.publish(event.Spec{
-				Subject: "governor.fallback",
-				Kind:    event.KindProviderFallback,
-				Actor:   "governor",
+				Subject:       "governor.fallback",
+				Kind:          event.KindProviderFallback,
+				Actor:         "governor",
+				CorrelationID: req.CorrelationID,
 				Payload: map[string]any{
 					"failed": p.Name,
 					"next":   chain[i+1].Name,
