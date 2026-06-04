@@ -219,3 +219,39 @@ func TestDistillNonJSONIsNoOp(t *testing.T) {
 		t.Fatalf("non-JSON distill should be a clean no-op: ids=%d err=%v", len(ids), err)
 	}
 }
+
+func TestDistillInvalidTypeCoercedToSummary(t *testing.T) {
+	m, _ := newTestManager(t)
+	// A model returning a non-canonical type string must not drop the fact — it is
+	// stored as a SUMMARY rather than rejected (Distill is lossy-tolerant of the
+	// model's type vocabulary).
+	prov := fakeDistiller{body: `{"facts":[{"subject":"x","content":"a distilled note","type":"BOGUS_TYPE"}]}`}
+	ids, err := m.Distill(context.Background(), "run-t", prov, "model", "intent", "transcript")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ids) != 1 {
+		t.Fatalf("expected 1 stored fact, got %d", len(ids))
+	}
+	rec, ok, _ := m.Get(ids[0])
+	if !ok {
+		t.Fatal("stored record not found")
+	}
+	if rec.Type != TypeSummary {
+		t.Errorf("invalid type should coerce to %q, got %q", TypeSummary, rec.Type)
+	}
+}
+
+func TestDistillMalformedJSONObjectIsNoOp(t *testing.T) {
+	m, _ := newTestManager(t)
+	// Braces present but their contents aren't valid JSON — parseDistill must fail
+	// closed (a clean no-op), distinct from the no-braces non-JSON case. Guards the
+	// brace-scan from feeding garbage into json.Unmarshal and storing nothing/half.
+	ids, err := m.Distill(context.Background(), "c", fakeDistiller{body: "here you go: {facts: not, valid json,,}"}, "m", "i", "t")
+	if err != nil || len(ids) != 0 {
+		t.Fatalf("malformed JSON object should be a clean no-op: ids=%d err=%v", len(ids), err)
+	}
+	if n := m.Count(); n != 0 {
+		t.Errorf("nothing should be stored on malformed distill, Count=%d", n)
+	}
+}
