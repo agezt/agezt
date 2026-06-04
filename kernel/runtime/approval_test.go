@@ -39,13 +39,13 @@ func (p probeTool) Invoke(_ context.Context, _ json.RawMessage) (agent.Result, e
 // newApprovalKernel builds a kernel whose probe tool requires live approval:
 // the edict engine pins the "approvalprobe" capability to LevelAsk with
 // AskPolicy=AskPrompt, so a call routes through the approval.Registry.
-func newApprovalKernel(t *testing.T, prov agent.Provider, invoked *int32) (*runtime.Kernel, *approval.Registry) {
+func newApprovalKernel(t *testing.T, prov agent.Provider, invoked *int32, timeout time.Duration) (*runtime.Kernel, *approval.Registry) {
 	t.Helper()
 	eng := edict.New(edict.Options{
 		Levels:    map[edict.Capability]edict.TrustLevel{"approvalprobe": edict.LevelAsk},
 		AskPolicy: edict.AskPrompt,
 	})
-	reg := approval.New(approval.Config{Timeout: 5 * time.Second})
+	reg := approval.New(approval.Config{Timeout: timeout})
 	k, err := runtime.Open(runtime.Config{
 		BaseDir:   t.TempDir(),
 		Provider:  prov,
@@ -87,7 +87,7 @@ func TestRunWith_ApprovalGrantedRunsTool(t *testing.T) {
 		mock.ToolUse("c1", "approvalprobe", map[string]any{}),
 		mock.FinalText("done"),
 	)
-	k, reg := newApprovalKernel(t, prov, &invoked)
+	k, reg := newApprovalKernel(t, prov, &invoked, 5*time.Second)
 
 	type result struct {
 		ans string
@@ -132,7 +132,7 @@ func TestRunWith_ApprovalDeniedBlocksTool(t *testing.T) {
 		mock.ToolUse("c1", "approvalprobe", map[string]any{}),
 		mock.FinalText("done"),
 	)
-	k, reg := newApprovalKernel(t, prov, &invoked)
+	k, reg := newApprovalKernel(t, prov, &invoked, 5*time.Second)
 
 	type result struct {
 		ans string
@@ -162,5 +162,44 @@ func TestRunWith_ApprovalDeniedBlocksTool(t *testing.T) {
 	}
 	if n := atomic.LoadInt32(&invoked); n != 0 {
 		t.Errorf("denied tool ran %d times, want 0 (must be blocked)", n)
+	}
+}
+
+// TestRunWith_ApprovalTimeoutBlocksTool: if no operator ever decides, the approval
+// times out and the call fails CLOSED — the tool must not execute. This is the
+// security-critical default: an unattended Ask-class call is denied, not allowed.
+func TestRunWith_ApprovalTimeoutBlocksTool(t *testing.T) {
+	var invoked int32
+	prov := mock.New(
+		mock.ToolUse("c1", "approvalprobe", map[string]any{}),
+		mock.FinalText("done"),
+	)
+	// Short timeout, and we deliberately never Resolve — Submit returns
+	// DecisionTimeout, which policyHook maps to deny (fail closed).
+	k, _ := newApprovalKernel(t, prov, &invoked, 60*time.Millisecond)
+
+	type result struct {
+		ans string
+		err error
+	}
+	done := make(chan result, 1)
+	go func() {
+		ans, _, err := k.Run(context.Background(), "go")
+		done <- result{ans, err}
+	}()
+
+	select {
+	case r := <-done:
+		if r.err != nil {
+			t.Fatalf("Run: %v", r.err)
+		}
+		if r.ans != "done" {
+			t.Errorf("answer = %q, want done (run completes after the approval times out)", r.ans)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("run did not finish after the approval timed out")
+	}
+	if n := atomic.LoadInt32(&invoked); n != 0 {
+		t.Errorf("timed-out tool ran %d times, want 0 (must fail closed)", n)
 	}
 }
