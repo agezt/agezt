@@ -423,6 +423,8 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.handleWhoami(conn, req)
 	case CmdJournalVerify:
 		s.handleVerify(conn, req)
+	case CmdArtifactGet:
+		s.handleArtifactGet(conn, req)
 	case CmdApprovals:
 		s.handleApprovals(conn, req)
 	case CmdApprovalsLog:

@@ -438,6 +438,19 @@ const (
 	//   - truncated : bool    — true if the export hit the size cap.
 	CmdJournalExport = "journal_export"
 
+	// CmdArtifactGet fetches a content-addressed artifact (SPEC-04 §3.6) — the
+	// full bytes of a tool output the agent loop offloaded out of the journal
+	// (the tool.result event carries a raw_ref). The store re-verifies the bytes
+	// against the ref on read, so a corrupted blob is rejected.
+	//
+	// Args:
+	//   - ref : string — the 64-hex BLAKE3 content address (from a raw_ref).
+	// Returns:
+	//   - ref   : string — echoed.
+	//   - size  : int    — byte length.
+	//   - data  : string — base64-encoded bytes.
+	CmdArtifactGet = "artifact_get"
+
 	// CmdJournalGrep is the server-side filter sibling of
 	// CmdJournalTail. Today operators run `agt journal tail 10000
 	// --json | jq 'select(...)'` which loads the entire tail into

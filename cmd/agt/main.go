@@ -63,6 +63,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return cmdWhoami(args[1:], stdout, stderr)
 	case "journal":
 		return cmdJournal(args[1:], stdout, stderr)
+	case "artifact":
+		return cmdArtifact(args[1:], stdout, stderr)
 	case "approvals":
 		return cmdApprovals(args[1:], stdout, stderr)
 	case "approve":

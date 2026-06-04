@@ -102,6 +102,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   valid UTF-8. (The journal's own answer truncation was already rune-safe.)
 
 ### Added
+- **`agt artifact get <ref>` retrieves an offloaded tool output.** When a large
+  tool output was stored content-addressed (its `tool.result` carries a
+  `raw_ref`), `agt artifact get <ref>` fetches the full bytes back — to stdout or,
+  with `--out <file>`, to a file. The store re-verifies the bytes against the ref
+  on read, so a corrupted blob is reported rather than returned; a malformed or
+  unknown ref gives a clear error. Completes the SPEC-04 §3.6 round-trip
+  (offload → journal `raw_ref` → retrieve).
 - **Large tool outputs are offloaded to a content-addressed store, not inlined in
   the journal (SPEC-04 §3.6).** When a tool returns more than a threshold (8 KiB
   by default; `AGEZT_ARTIFACT_THRESHOLD` to tune), the agent loop stores the full
