@@ -6,8 +6,10 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 )
 
@@ -213,5 +215,79 @@ func TestRawMessage_Passthrough(t *testing.T) {
 	got, _, _ := s.Get("ns", "k")
 	if string(got) != string(raw) {
 		t.Errorf("RawMessage not stored as-is: got %s want %s", got, raw)
+	}
+}
+
+// TestValidateNamespace_EnforcedOnAllAccessors locks in that EVERY accessor —
+// not just Set — rejects a path-traversal / forbidden namespace. The ns is the
+// only caller-controlled component that becomes a filename (pathFor), so a read
+// path (Get/Keys) or Delete that skipped the guard would be a traversal hole.
+// This test fails closed if someone adds an accessor without validateNamespace.
+func TestValidateNamespace_EnforcedOnAllAccessors(t *testing.T) {
+	s, _ := openTest(t)
+	for _, ns := range []string{"", ".", "..", "../escape", "a/b", `a\b`} {
+		if _, _, err := s.Get(ns, "k"); !errors.Is(err, ErrInvalidNamespace) {
+			t.Errorf("Get(%q) err=%v, want ErrInvalidNamespace", ns, err)
+		}
+		if err := s.Delete(ns, "k"); !errors.Is(err, ErrInvalidNamespace) {
+			t.Errorf("Delete(%q) err=%v, want ErrInvalidNamespace", ns, err)
+		}
+		if _, err := s.Keys(ns); !errors.Is(err, ErrInvalidNamespace) {
+			t.Errorf("Keys(%q) err=%v, want ErrInvalidNamespace", ns, err)
+		}
+		if err := s.Set(ns, "k", "v"); !errors.Is(err, ErrInvalidNamespace) {
+			t.Errorf("Set(%q) err=%v, want ErrInvalidNamespace", ns, err)
+		}
+	}
+}
+
+// TestConcurrentAccess_RaceSafe hammers the store from many goroutines doing
+// Set / Get / Delete / Keys / Namespaces across several namespaces at once.
+// The FileStore is shared by the daemon's agent loop, scheduler, and planner,
+// so its RWMutex is load-bearing. Under `go test -race` (CI, where cgo is
+// available) this pins the absence of a data race; without the detector it
+// still exercises concurrent access and confirms the store stays self-
+// consistent (no panic/deadlock, every reported key remains Gettable).
+func TestConcurrentAccess_RaceSafe(t *testing.T) {
+	s, _ := openTest(t)
+	const workers = 16
+	const iters = 200
+	namespaces := []string{"agents", "config", "planner", "scheduler"}
+
+	var wg sync.WaitGroup
+	wg.Add(workers)
+	for w := 0; w < workers; w++ {
+		go func(id int) {
+			defer wg.Done()
+			ns := namespaces[id%len(namespaces)]
+			for i := 0; i < iters; i++ {
+				key := fmt.Sprintf("k-%d-%d", id, i%8)
+				if err := s.Set(ns, key, map[string]int{"v": i}); err != nil {
+					t.Errorf("Set: %v", err)
+					return
+				}
+				_, _, _ = s.Get(ns, key)
+				_, _ = s.Keys(ns)
+				_ = s.Namespaces()
+				if i%3 == 0 {
+					_ = s.Delete(ns, key)
+				}
+			}
+		}(w)
+	}
+	wg.Wait()
+
+	// Store must still be usable and self-consistent after the storm: every
+	// namespace's reported keys must each be Gettable.
+	for _, ns := range s.Namespaces() {
+		keys, err := s.Keys(ns)
+		if err != nil {
+			t.Fatalf("Keys(%q) after storm: %v", ns, err)
+		}
+		for _, k := range keys {
+			if _, ok, err := s.Get(ns, k); err != nil || !ok {
+				t.Errorf("Get(%q,%q) after storm: ok=%v err=%v", ns, k, ok, err)
+			}
+		}
 	}
 }
