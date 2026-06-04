@@ -106,6 +106,10 @@ func TestDashboardServedAtRoot(t *testing.T) {
 	if !strings.Contains(body, `data-panel="tools"`) || !strings.Contains(body, "tools:") {
 		t.Error("dashboard missing the Tools panel")
 	}
+	// The Tools panel drills into the per-call invocation log.
+	if !strings.Contains(body, "function openToolLog") || !strings.Contains(body, "/api/tool_log") {
+		t.Error("dashboard missing the tool-log modal wiring")
+	}
 }
 
 func TestStatsRouteProxiesRunsStats(t *testing.T) {
@@ -169,6 +173,29 @@ func TestToolsRouteProxiesToolStats(t *testing.T) {
 	}
 	if len(fc.calls) != 1 || fc.calls[0] != "tool_stats" {
 		t.Errorf("expected one tool_stats call, got %v", fc.calls)
+	}
+}
+
+func TestToolLogRouteForwardsLimit(t *testing.T) {
+	fc := &fakeCaller{result: map[string]any{"invocations": []any{}}}
+	s, _ := newServer(t, fc, "secret")
+	// The tool-log modal queries tool_log with limit; the limit arg is
+	// allowlisted and must reach tool_log, while a stray param is dropped.
+	req := httptest.NewRequest(http.MethodGet,
+		"/api/tool_log?token=secret&limit=40&evil=rm", nil)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d want 200", rec.Code)
+	}
+	if len(fc.calls) != 1 || fc.calls[0] != "tool_log" {
+		t.Fatalf("expected one tool_log call, got %v", fc.calls)
+	}
+	if fc.lastArgs["limit"] != "40" {
+		t.Errorf("limit not forwarded: %v", fc.lastArgs)
+	}
+	if _, leaked := fc.lastArgs["evil"]; leaked {
+		t.Errorf("non-allowlisted arg leaked through: %v", fc.lastArgs)
 	}
 }
 

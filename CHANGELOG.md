@@ -12,6 +12,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Web UI: the Tools panel drills into the per-call invocation log.** Clicking
+  the panel opens a modal listing recent tool calls — tool name, ok/✗, latency,
+  the input the agent passed, and the resulting output — via the read-only
+  `tool_log` route. So the aggregate "what tools are running, and are they
+  erroring" view now has a "what did the agent actually run, with what input"
+  companion (mirroring the Providers panel → routing-log pairing).
 - **Web UI: a Tools panel showing tool-execution health.** A new panel proxies
   `tool_stats` to show how many tool calls ran, the error rate, and a per-tool
   breakdown (calls, errors in red, average latency) — the execution analogue of

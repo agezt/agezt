@@ -469,14 +469,21 @@ const renderers = {
     ]));
     const byTool = d.by_tool || {};
     const names = Object.keys(byTool).sort((a, b) => (byTool[b].calls || 0) - (byTool[a].calls || 0));
-    frag.appendChild(el("div", "count muted", (d.tools || names.length) + " tool(s) used"));
+    const head = el("div", "count muted", (d.tools || names.length) + " tool(s) used");
+    if (names.length || total) {
+      head.appendChild(muted(" · click for invocation log"));
+      head.className = "count muted item click";
+      head.addEventListener("click", openToolLog);
+    }
+    frag.appendChild(head);
     listInto(frag, names, (n) => {
       const t = byTool[n] || {};
-      const row = el("div", "item");
+      const row = el("div", "item click");
       row.appendChild(chip(t.calls || 0));
       row.appendChild(el("span", null, n));
       if (t.errors) row.appendChild(el("span", "err", t.errors + " err"));
       if (t.avg_ms != null) row.appendChild(muted(t.avg_ms + "ms"));
+      row.addEventListener("click", openToolLog);
       return row;
     }, "no tool calls yet");
     return frag;
@@ -737,6 +744,41 @@ async function openProviderLog() {
       arc.appendChild(row);
     }
     if (!evs.length) arc.appendChild(muted("no routing decisions recorded"));
+    modalBody.appendChild(arc);
+  } catch (e) {
+    clear(modalBody);
+    modalBody.appendChild(el("span", "err", e.message));
+  }
+}
+
+// openToolLog shows the recent tool-invocation timeline behind the Tools panel:
+// each call's tool, ok/✗, latency, the input the agent passed, and the output —
+// "what did the agent actually run?". Reuses the modal shell + /api/tool_log.
+async function openToolLog() {
+  modalTitle.firstChild.textContent = "Tool invocation log ";
+  clear(modalBody);
+  modalBody.appendChild(muted("loading tool calls…"));
+  modalBg.classList.add("show");
+  try {
+    const url = "/api/tool_log" + qs + "&limit=40";
+    const res = await fetch(url, { headers: { "Accept": "application/json" } });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const data = await res.json();
+    const evs = data.invocations || data.Invocations || []; // already newest-first
+    clear(modalBody);
+    modalBody.appendChild(el("div", "count muted", evs.length + " tool call(s)"));
+    const arc = el("div", "arc");
+    for (const ev of evs) {
+      const row = el("div", "ev");
+      row.appendChild(el("span", "seq", fmtTime(ev.ts_unix_ms)));
+      const mark = ev.error ? " ✗" : " ✓";
+      const lat = ev.duration_ms ? " (" + ev.duration_ms + "ms)" : "";
+      row.appendChild(el("span", ev.error ? "err" : "kind", (ev.tool || "?") + mark + lat));
+      const det = [ev.input, ev.output].filter(Boolean).map((s) => String(s).slice(0, 100)).join(" → ");
+      if (det) row.appendChild(el("span", "det", det));
+      arc.appendChild(row);
+    }
+    if (!evs.length) arc.appendChild(muted("no tool calls recorded"));
     modalBody.appendChild(arc);
   } catch (e) {
     clear(modalBody);

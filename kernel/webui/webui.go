@@ -89,6 +89,7 @@ type writeRoute struct {
 var readArgsRoutes = map[string]writeRoute{
 	"/api/journal":      {controlplane.CmdJournalGrep, []string{"correlation_id", "kind", "limit"}},
 	"/api/provider_log": {controlplane.CmdProviderLog, []string{"limit", "fallbacks"}},
+	"/api/tool_log":     {controlplane.CmdToolLog, []string{"limit", "tool", "errors"}},
 }
 
 // writeRoutes is the operator-action allowlist: the big red button (halt),
