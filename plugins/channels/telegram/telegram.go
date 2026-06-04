@@ -18,6 +18,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -160,6 +161,21 @@ func (c *Channel) Start(ctx context.Context) error {
 	}
 }
 
+// scrubToken removes the bot token from an error message. http.Client.Do returns
+// a *url.Error whose text embeds the full request URL, and the Telegram API puts
+// the token in the URL path (/bot<token>/…) — so a transport failure (DNS,
+// refused, timeout) would otherwise carry the secret into any log/journal that
+// records the error. Applied at every Do() error return.
+func (c *Channel) scrubToken(err error) error {
+	if err == nil || c.token == "" {
+		return err
+	}
+	if msg := err.Error(); strings.Contains(msg, c.token) {
+		return errors.New(strings.ReplaceAll(msg, c.token, "<redacted>"))
+	}
+	return err
+}
+
 func (c *Channel) getUpdates(ctx context.Context) ([]tgUpdate, error) {
 	q := url.Values{}
 	q.Set("timeout", strconv.Itoa(c.pollSecs))
@@ -173,7 +189,7 @@ func (c *Channel) getUpdates(ctx context.Context) ([]tgUpdate, error) {
 	}
 	resp, err := c.client.Do(req)
 	if err != nil {
-		return nil, err
+		return nil, c.scrubToken(err)
 	}
 	defer resp.Body.Close()
 	var out getUpdatesResp
@@ -259,7 +275,7 @@ func (c *Channel) fetchPhotoDataURL(ctx context.Context, fileID string) (string,
 	}
 	resp, err := c.client.Do(req)
 	if err != nil {
-		return "", err
+		return "", c.scrubToken(err)
 	}
 	var gfResp struct {
 		OK     bool `json:"ok"`
@@ -287,7 +303,7 @@ func (c *Channel) fetchPhotoDataURL(ctx context.Context, fileID string) (string,
 	}
 	dresp, err := c.client.Do(dreq)
 	if err != nil {
-		return "", err
+		return "", c.scrubToken(err)
 	}
 	defer dresp.Body.Close()
 	if dresp.StatusCode/100 != 2 {
@@ -352,7 +368,7 @@ func (c *Channel) send(ctx context.Context, out channel.Outbound, corr string) e
 		req.Header.Set("Content-Type", "application/json")
 		resp, err := c.client.Do(req)
 		if err != nil {
-			return err
+			return c.scrubToken(err)
 		}
 		// Drain+close before the next iteration so the connection is reused.
 		err = func() error {

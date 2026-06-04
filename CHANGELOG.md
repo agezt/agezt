@@ -12,6 +12,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Security
+- **Telegram bot token no longer leaks into error messages.** The Telegram API
+  carries the bot token in the request URL path (`/bot<token>/…`), and Go's
+  `http.Client.Do` returns errors (`*url.Error`) that embed the full URL — so a
+  transport failure (DNS, refused, timeout) could carry the token into any log or
+  journal that recorded the error. Telegram channel errors are now scrubbed of the
+  token before they propagate.
 - **Constant-time web UI token check.** The web monitor's auth-token comparison
   used a plain `==`, a timing side-channel an attacker who can reach the web UI
   could use to recover the token byte-by-byte. It now uses

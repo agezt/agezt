@@ -213,3 +213,37 @@ func waitFor(t *testing.T, cond func() bool) {
 	}
 	t.Fatal("condition not met in time")
 }
+
+func TestTelegram_TransportErrorsRedactToken(t *testing.T) {
+	// http.Client.Do returns a *url.Error embedding the full request URL, and the
+	// Telegram API puts the bot token in the URL path (/bot<token>/…). A transport
+	// failure must NOT carry the token into the returned error (which could be
+	// logged/journalled). Point the channel at an unreachable address to force the
+	// transport error.
+	const secret = "123456:ABC-SECRET-BOT-TOKEN-do-not-leak"
+	j, err := journal.Open(t.TempDir(), journal.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { j.Close() })
+	b := bus.New(j)
+	t.Cleanup(b.Close)
+	c := New(Config{
+		Token:      secret,
+		BaseURL:    "http://127.0.0.1:1", // port 1 → connection refused
+		HTTPClient: &http.Client{Timeout: 2 * time.Second},
+		Allowlist:  channel.NewAllowlist(nil),
+		Bus:        b,
+	})
+
+	sendErr := c.Send(context.Background(), channel.Outbound{ChannelID: "123", Text: "hi"})
+	if sendErr == nil {
+		t.Fatal("expected a transport error sending to an unreachable host")
+	}
+	if strings.Contains(sendErr.Error(), secret) {
+		t.Errorf("Send error leaked the bot token: %q", sendErr.Error())
+	}
+	if !strings.Contains(sendErr.Error(), "<redacted>") {
+		t.Errorf("expected the token to be redacted in the error, got: %q", sendErr.Error())
+	}
+}
