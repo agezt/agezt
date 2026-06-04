@@ -934,8 +934,11 @@ func (e *Engine) fireDue(ctx context.Context, now time.Time) {
 
 func short(s string) string {
 	s = strings.TrimSpace(s)
-	if len(s) > 48 {
-		return s[:48] + "…"
+	// Truncate on a rune boundary (48 characters, not bytes) so a multi-byte
+	// rune — e.g. a Turkish ç/ş/ğ in a schedule intent — is never split into
+	// invalid UTF-8 in the log / `describe` output.
+	if r := []rune(s); len(r) > 48 {
+		return string(r[:48]) + "…"
 	}
 	return s
 }

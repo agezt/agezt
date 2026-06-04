@@ -11,6 +11,14 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 
 ## [Unreleased]
 
+### Fixed
+- **Rune-safe display truncation.** Two user-facing truncations — the schedule-
+  intent shortener in `agt schedule` / cadence logs and the coding tool's diff
+  output — sliced on a byte boundary, which could split a multi-byte UTF-8 rune
+  (e.g. a Turkish ç/ş/ğ) into invalid output. Both now cut on a rune boundary, so
+  truncated intents and diffs are always valid UTF-8. (The journal's own answer
+  truncation was already rune-safe.)
+
 ### Added
 - **Web UI: config inspector panel.** A new "Config" panel answers "what is this
   daemon actually running with?" — the resolved model, system-prompt-set flag,

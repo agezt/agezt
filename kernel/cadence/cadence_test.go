@@ -8,6 +8,7 @@ import (
 	"sync"
 	"testing"
 	"time"
+	"unicode/utf8"
 )
 
 func mustStore(t *testing.T) *Store {
@@ -737,5 +738,22 @@ func TestForecast_OnceAndZero(t *testing.T) {
 	// n <= 0 → nil.
 	if got := future.Forecast(from, 0); got != nil {
 		t.Errorf("n=0 should be nil, got %v", got)
+	}
+}
+
+func TestShort_RuneSafeOnMultiByteIntent(t *testing.T) {
+	// 60 Turkish 'ş' (U+015F, 2 bytes each) — byte-slicing at 48 would split the
+	// 24th-25th rune into invalid UTF-8. short must cut on a rune boundary.
+	in := strings.Repeat("ş", 60)
+	got := short(in)
+	if !utf8.ValidString(got) {
+		t.Fatalf("short produced invalid UTF-8: %q", got)
+	}
+	// 48 runes kept + the ellipsis rune.
+	if n := utf8.RuneCountInString(got); n != 49 {
+		t.Errorf("rune count = %d, want 49 (48 kept + ellipsis)", n)
+	}
+	if !strings.HasSuffix(got, "…") {
+		t.Errorf("truncated output should end with the ellipsis, got %q", got)
 	}
 }

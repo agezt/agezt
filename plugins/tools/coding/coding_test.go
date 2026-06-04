@@ -8,7 +8,27 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"unicode/utf8"
 )
+
+func TestTruncate_RuneSafeAtByteBoundary(t *testing.T) {
+	// Pad so that byte index `max` lands in the MIDDLE of a 2-byte rune: (max-1)
+	// ASCII bytes, then "ş" (U+015F, bytes C5 9F) — byte `max` is the 0x9F
+	// continuation byte. A raw s[:max] slice would leave a lone C5 (invalid UTF-8).
+	const max = 16
+	in := strings.Repeat("a", max-1) + "ş" + strings.Repeat("b", 10)
+	got := truncate(in, max)
+	if !utf8.ValidString(got) {
+		t.Fatalf("truncate produced invalid UTF-8 at a rune boundary: %q", got)
+	}
+	// The straddling rune is dropped whole; the kept prefix is the (max-1) a's.
+	if !strings.HasPrefix(got, strings.Repeat("a", max-1)+"\n… [truncated") {
+		t.Errorf("unexpected truncation result: %q", got)
+	}
+	if strings.ContainsRune(got, '�') {
+		t.Errorf("truncated output contains the replacement char (split rune): %q", got)
+	}
+}
 
 type call struct {
 	name string
