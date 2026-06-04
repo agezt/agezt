@@ -235,18 +235,40 @@ func (r HardDenyRule) matches(cap Capability, input string) bool {
 // fields can't form a spurious match. Non-JSON input contributes its own
 // whitespace-collapsed form (M173).
 func denyCandidates(input string) []string {
-	out := []string{input}
+	seen := map[string]struct{}{}
+	out := []string{}
+	add := func(s string) {
+		if s == "" {
+			return
+		}
+		if _, ok := seen[s]; ok {
+			return
+		}
+		seen[s] = struct{}{}
+		out = append(out, s)
+	}
+	add(input)
+	// The base strings to derive whitespace-normalised variants from: each
+	// decoded string value for JSON input (defeats JSON-escape evasion), else
+	// the raw input itself.
+	var bases []string
 	var v any
 	if err := json.Unmarshal([]byte(input), &v); err == nil {
-		var vals []string
-		collectJSONStrings(v, &vals)
-		for _, s := range vals {
-			if c := collapseWhitespace(s); c != "" && c != input {
-				out = append(out, c)
-			}
-		}
-	} else if c := collapseWhitespace(input); c != input {
-		out = append(out, c)
+		collectJSONStrings(v, &bases)
+	} else {
+		bases = []string{input}
+	}
+	for _, s := range bases {
+		// collapsed: padding evasion — `rm  -rf  /` → `rm -rf /` (matches the
+		// space-bearing floor rules like `rm -rf /`, `dd if=`).
+		add(collapseWhitespace(s))
+		// stripped: spacing evasion — `:(){ :|:& };:` → `:(){:|:&};:`. The
+		// canonical fork bomb carries spaces that survive collapse but are
+		// syntactically optional; stripping all whitespace catches every spacing
+		// variant against the no-space floor rules (fork-bomb, mkfs, reboot, …).
+		// Space-bearing rules can't match a stripped candidate, so this never
+		// weakens or duplicates their behaviour.
+		add(stripWhitespace(s))
 	}
 	return out
 }
@@ -274,6 +296,13 @@ func collectJSONStrings(v any, dst *[]string) {
 // normalize to the canonical spacing the floor rules use.
 func collapseWhitespace(s string) string {
 	return strings.Join(strings.Fields(s), " ")
+}
+
+// stripWhitespace removes every whitespace character, so spacing-variant
+// commands (notably the fork bomb `:(){ :|:& };:`, whose internal spaces are
+// syntactically optional) normalize to the no-space form the floor rules use.
+func stripWhitespace(s string) string {
+	return strings.Join(strings.Fields(s), "")
 }
 
 // Options seed a new Engine.

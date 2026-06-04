@@ -32,6 +32,14 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   with it. One malformed/edge-case request is contained to its own connection.
 
 ### Security
+- **Fork-bomb hard-deny no longer evades on whitespace.** The Edict hard-deny
+  floor (immutable, not raisable by trust level) stored the fork bomb as the
+  no-space form `:(){:|:&};:`, but the matcher only collapsed whitespace *runs*
+  to a single space — so the canonical, actually-valid fork bomb `:(){ :|:& };:`
+  (and its bash-wrapped / JSON-wrapped forms) survived and was **not** denied.
+  Hard-deny candidates now also include a fully whitespace-stripped form, so
+  every spacing variant normalizes onto the floor rule. Space-bearing rules
+  (`rm -rf /`, `dd if=`) are unaffected. Fail-closed.
 - **Connection-string passwords are now redacted.** The secret-redaction layer
   (applied to logs, tool output, and journal payloads) gained a high-confidence
   detector for the password in a `scheme://user:password@host` URI — Postgres,
