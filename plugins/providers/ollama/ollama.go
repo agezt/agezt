@@ -108,7 +108,7 @@ func (p *Provider) Complete(ctx context.Context, req agent.CompletionRequest) (*
 		model = DefaultModel
 	}
 
-	body, err := encodeRequest(model, req.System, req.Messages, req.Tools, req.MaxTokens)
+	body, err := encodeRequest(model, req.System, req.Messages, req.Tools, req.MaxTokens, req.JSONMode)
 	if err != nil {
 		return nil, fmt.Errorf("ollama: encode request: %w", err)
 	}
@@ -147,6 +147,7 @@ type ollamaRequest struct {
 	Messages []ollamaMessage `json:"messages"`
 	Tools    []ollamaTool    `json:"tools,omitempty"`
 	Options  map[string]any  `json:"options,omitempty"`
+	Format   string          `json:"format,omitempty"` // "json" → JSON mode (M311)
 }
 
 type ollamaMessage struct {
@@ -188,10 +189,13 @@ type ollamaResponse struct {
 	EvalCount       int `json:"eval_count"`
 }
 
-func encodeRequest(model, system string, msgs []agent.Message, tools []agent.ToolDef, maxTokens int) ([]byte, error) {
+func encodeRequest(model, system string, msgs []agent.Message, tools []agent.ToolDef, maxTokens int, jsonMode bool) ([]byte, error) {
 	out := ollamaRequest{
 		Model:  model,
 		Stream: false,
+	}
+	if jsonMode {
+		out.Format = "json" // Ollama's native JSON-mode switch (M311)
 	}
 	// Honour the run's token cap (M310): Ollama's equivalent of max_tokens is
 	// options.num_predict. Without this an Ollama run ignored MaxTokens that

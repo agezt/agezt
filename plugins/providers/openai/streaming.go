@@ -58,7 +58,7 @@ func (p *Provider) CompleteStream(ctx context.Context, req agent.CompletionReque
 		model = DefaultModel
 	}
 
-	body, err := encodeStreamRequest(model, req.System, req.Messages, req.Tools, req.MaxTokens)
+	body, err := encodeStreamRequest(model, req.System, req.Messages, req.Tools, req.MaxTokens, req.JSONMode)
 	if err != nil {
 		return nil, fmt.Errorf("openai: encode request: %w", err)
 	}
@@ -107,23 +107,25 @@ func (p *Provider) CompleteStream(ctx context.Context, req agent.CompletionReque
 // and adds stream_options.include_usage=true. Kept separate so the
 // non-streaming wire format stays byte-identical to what existing
 // tests verified.
-func encodeStreamRequest(model, system string, msgs []agent.Message, tools []agent.ToolDef, maxTok int) ([]byte, error) {
+func encodeStreamRequest(model, system string, msgs []agent.Message, tools []agent.ToolDef, maxTok int, jsonMode bool) ([]byte, error) {
 	type streamOptions struct {
 		IncludeUsage bool `json:"include_usage"`
 	}
 	type streamReq struct {
-		Model         string         `json:"model"`
-		Messages      []oaMessage    `json:"messages"`
-		Tools         []oaTool       `json:"tools,omitempty"`
-		MaxTokens     int            `json:"max_tokens,omitempty"`
-		Stream        bool           `json:"stream"`
-		StreamOptions *streamOptions `json:"stream_options,omitempty"`
+		Model          string            `json:"model"`
+		Messages       []oaMessage       `json:"messages"`
+		Tools          []oaTool          `json:"tools,omitempty"`
+		MaxTokens      int               `json:"max_tokens,omitempty"`
+		Stream         bool              `json:"stream"`
+		StreamOptions  *streamOptions    `json:"stream_options,omitempty"`
+		ResponseFormat *oaResponseFormat `json:"response_format,omitempty"`
 	}
 	wire := streamReq{
-		Model:         model,
-		Stream:        true,
-		MaxTokens:     maxTok,
-		StreamOptions: &streamOptions{IncludeUsage: true},
+		Model:          model,
+		Stream:         true,
+		MaxTokens:      maxTok,
+		StreamOptions:  &streamOptions{IncludeUsage: true},
+		ResponseFormat: jsonObjectFormat(jsonMode),
 	}
 	if strings.TrimSpace(system) != "" {
 		wire.Messages = append(wire.Messages, oaMessage{Role: "system", Content: system})

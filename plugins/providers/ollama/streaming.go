@@ -45,7 +45,7 @@ func (p *Provider) CompleteStream(ctx context.Context, req agent.CompletionReque
 		model = DefaultModel
 	}
 
-	body, err := encodeStreamRequest(model, req.System, req.Messages, req.Tools, req.MaxTokens)
+	body, err := encodeStreamRequest(model, req.System, req.Messages, req.Tools, req.MaxTokens, req.JSONMode)
 	if err != nil {
 		return nil, fmt.Errorf("ollama: encode request: %w", err)
 	}
@@ -80,10 +80,13 @@ func (p *Provider) CompleteStream(ctx context.Context, req agent.CompletionReque
 // encodeStreamRequest mirrors encodeRequest but flips stream=true.
 // Kept separate so the non-streaming wire format stays byte-identical
 // to what existing tests verified.
-func encodeStreamRequest(model, system string, msgs []agent.Message, tools []agent.ToolDef, maxTokens int) ([]byte, error) {
+func encodeStreamRequest(model, system string, msgs []agent.Message, tools []agent.ToolDef, maxTokens int, jsonMode bool) ([]byte, error) {
 	out := ollamaRequest{
 		Model:  model,
 		Stream: true,
+	}
+	if jsonMode {
+		out.Format = "json" // see encodeRequest (M311)
 	}
 	// Honour the run's token cap (M310) — see encodeRequest.
 	if maxTokens > 0 {

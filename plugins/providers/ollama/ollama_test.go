@@ -142,6 +142,7 @@ func TestEncodeRequest_RolesAndTools(t *testing.T) {
 		},
 		[]agent.ToolDef{{Name: "shell", Description: "run a command", InputSchema: json.RawMessage(`{"type":"object"}`)}},
 		0,
+		false,
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -168,7 +169,7 @@ func TestRoleTool_RequiresID(t *testing.T) {
 // TestEncodeRequest_MaxTokensAsNumPredict (M310): the run's token cap is
 // forwarded as Ollama's options.num_predict; 0 omits it (Ollama's own default).
 func TestEncodeRequest_MaxTokensAsNumPredict(t *testing.T) {
-	body, err := encodeRequest("llama3", "", []agent.Message{{Role: agent.RoleUser, Content: "hi"}}, nil, 256)
+	body, err := encodeRequest("llama3", "", []agent.Message{{Role: agent.RoleUser, Content: "hi"}}, nil, 256, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -186,7 +187,7 @@ func TestEncodeRequest_MaxTokensAsNumPredict(t *testing.T) {
 	}
 
 	// 0 → options omitted entirely (no behaviour change for uncapped runs).
-	body0, _ := encodeRequest("llama3", "", []agent.Message{{Role: agent.RoleUser, Content: "hi"}}, nil, 0)
+	body0, _ := encodeRequest("llama3", "", []agent.Message{{Role: agent.RoleUser, Content: "hi"}}, nil, 0, false)
 	if strings.Contains(string(body0), "num_predict") {
 		t.Errorf("maxTokens=0 must omit num_predict: %s", body0)
 	}

@@ -131,7 +131,7 @@ func (p *Provider) Complete(ctx context.Context, req agent.CompletionRequest) (*
 		model = DefaultModel
 	}
 
-	body, err := encodeRequest(model, req.System, req.Messages, req.Tools, req.MaxTokens)
+	body, err := encodeRequest(model, req.System, req.Messages, req.Tools, req.MaxTokens, req.JSONMode)
 	if err != nil {
 		return nil, fmt.Errorf("openai: encode request: %w", err)
 	}
@@ -183,11 +183,27 @@ func (p *Provider) Complete(ctx context.Context, req agent.CompletionRequest) (*
 // ----- dialect translation (canonical ↔ OpenAI Chat Completions) -----
 
 type oaRequest struct {
-	Model     string      `json:"model"`
-	Messages  []oaMessage `json:"messages"`
-	Tools     []oaTool    `json:"tools,omitempty"`
-	MaxTokens int         `json:"max_tokens,omitempty"`
-	Stream    bool        `json:"stream"`
+	Model          string            `json:"model"`
+	Messages       []oaMessage       `json:"messages"`
+	Tools          []oaTool          `json:"tools,omitempty"`
+	MaxTokens      int               `json:"max_tokens,omitempty"`
+	Stream         bool              `json:"stream"`
+	ResponseFormat *oaResponseFormat `json:"response_format,omitempty"`
+}
+
+// oaResponseFormat carries OpenAI's structured-output request (M311). type
+// "json_object" is the broadly-supported JSON mode; we don't send a schema
+// (json_schema) so openai-compatible vendors that only do json_object still work.
+type oaResponseFormat struct {
+	Type string `json:"type"` // "json_object"
+}
+
+// jsonObjectFormat is the shared response_format for JSON mode.
+func jsonObjectFormat(jsonMode bool) *oaResponseFormat {
+	if !jsonMode {
+		return nil
+	}
+	return &oaResponseFormat{Type: "json_object"}
 }
 
 type oaMessage struct {
@@ -338,11 +354,12 @@ func restoreToolCallNames(resp *agent.CompletionResponse, rev map[string]string)
 	}
 }
 
-func encodeRequest(model, system string, msgs []agent.Message, tools []agent.ToolDef, maxTok int) ([]byte, error) {
+func encodeRequest(model, system string, msgs []agent.Message, tools []agent.ToolDef, maxTok int, jsonMode bool) ([]byte, error) {
 	wire := oaRequest{
-		Model:     model,
-		Stream:    false,
-		MaxTokens: maxTok, // 0 → omitted via omitempty
+		Model:          model,
+		Stream:         false,
+		MaxTokens:      maxTok, // 0 → omitted via omitempty
+		ResponseFormat: jsonObjectFormat(jsonMode),
 	}
 	if strings.TrimSpace(system) != "" {
 		wire.Messages = append(wire.Messages, oaMessage{Role: "system", Content: system})

@@ -33,7 +33,7 @@ func TestSanitizeToolName(t *testing.T) {
 // never the raw dotted one.
 func TestEncodeRequestSanitizesToolNames(t *testing.T) {
 	tools := []agent.ToolDef{{Name: "browser.read", Description: "read a page"}}
-	body, err := encodeRequest("gpt-5.5", "sys", nil, tools, 100)
+	body, err := encodeRequest("gpt-5.5", "sys", nil, tools, 100, false)
 	if err != nil {
 		t.Fatal(err)
 	}

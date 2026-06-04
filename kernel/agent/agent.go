@@ -92,6 +92,14 @@ type CompletionRequest struct {
 	// event with the spending run's correlation (M47) so spend can be
 	// attributed per run / per delegation. Empty means "unattributed".
 	CorrelationID string
+	// JSONMode requests structured (JSON) output from the model — the
+	// "reliability over free-form parsing" path of SPEC-10 §2, used by
+	// callers that must parse the result (plan generation, classifications).
+	// Providers with a native JSON mode honour it (OpenAI response_format,
+	// Gemini responseMimeType, Ollama format=json); providers without one
+	// ignore it (the caller keeps its robust prompt-based parsing). Default
+	// false leaves every request byte-for-byte unchanged.
+	JSONMode bool
 }
 
 // StopReason is the canonical reason a Provider stopped emitting tokens.
