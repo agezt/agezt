@@ -65,6 +65,13 @@ type Chunk struct {
 	// input is complete. ID identifies which call; UIs can finalize
 	// any per-call progress widget here.
 	ToolUseStop string
+
+	// ReasoningDelta is the next slice of the model's reasoning / chain of
+	// thought (M317), for reasoning models that stream it separately from the
+	// answer (DeepSeek-R1 and compatible models' `reasoning_content`).
+	// Concatenating all ReasoningDelta values reconstructs the full reasoning.
+	// Empty for non-reasoning models and for tool/text chunks.
+	ReasoningDelta string
 }
 
 // IsEmpty reports whether the chunk carries no signal. Stream

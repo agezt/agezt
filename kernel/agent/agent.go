@@ -116,6 +116,13 @@ type CompletionResponse struct {
 	Message    Message // role=assistant; may contain ToolCalls
 	StopReason StopReason
 	Usage      Usage
+	// ReasoningContent is the model's reasoning / chain of thought, when a
+	// reasoning model returns it separately from the answer (M317; DeepSeek-R1
+	// and compatible models' `reasoning_content`). Empty for ordinary models.
+	// Surfaced live as ephemeral llm.reasoning events and as a char count on the
+	// durable llm.response event — the full text is not journaled (it can be very
+	// large, and the answer is what the audit chain needs).
+	ReasoningContent string
 }
 
 // Usage carries per-call token accounting (cost translation lives in the
@@ -442,6 +449,21 @@ func Run(ctx context.Context, cfg LoopConfig, userIntent string) (answer string,
 		if sp, ok := cfg.Provider.(StreamingProvider); ok {
 			tokenIter := iter
 			r, err := sp.CompleteStream(ctx, req, func(c Chunk) error {
+				// Reasoning delta (M317): stream a reasoning model's chain of
+				// thought as an ephemeral llm.reasoning event so it's visible
+				// live (agt pulse) without bloating the durable journal.
+				if c.ReasoningDelta != "" {
+					_, _ = cfg.Bus.PublishStreaming(event.Spec{
+						Subject:       subject("llm"),
+						Kind:          event.KindLLMReasoning,
+						Actor:         cfg.Actor,
+						CorrelationID: cfg.CorrelationID,
+						Payload: map[string]any{
+							"iter": tokenIter,
+							"text": c.ReasoningDelta,
+						},
+					})
+				}
 				if c.TextDelta == "" {
 					return nil
 				}
@@ -479,11 +501,12 @@ func Run(ctx context.Context, cfg LoopConfig, userIntent string) (answer string,
 
 		// 2c. llm.response
 		if _, err := publish(event.KindLLMResponse, "llm", map[string]any{
-			"iter":        iter,
-			"stop_reason": resp.StopReason,
-			"usage":       resp.Usage,
-			"text_chars":  len(resp.Message.Content),
-			"tool_calls":  len(resp.Message.ToolCalls),
+			"iter":            iter,
+			"stop_reason":     resp.StopReason,
+			"usage":           resp.Usage,
+			"text_chars":      len(resp.Message.Content),
+			"reasoning_chars": len(resp.ReasoningContent), // M317: reasoning size (content streamed separately)
+			"tool_calls":      len(resp.Message.ToolCalls),
 		}); err != nil {
 			return "", fmt.Errorf("agent: publish llm.response: %w", err)
 		}

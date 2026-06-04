@@ -349,3 +349,39 @@ func errorsAs(err error, target any) bool {
 	}
 	return false
 }
+
+// TestComplete_CapturesReasoningContent (M317): a DeepSeek-R1-style response with
+// message.reasoning_content surfaces on CompletionResponse.ReasoningContent,
+// separate from the answer.
+func TestComplete_CapturesReasoningContent(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"choices": []map[string]any{{
+				"index": 0,
+				"message": map[string]any{
+					"role":              "assistant",
+					"content":           "42",
+					"reasoning_content": "The user asks for the answer; it is 42.",
+				},
+				"finish_reason": "stop",
+			}},
+		})
+	}))
+	defer srv.Close()
+
+	p := openai.New("sk-test")
+	p.Endpoint = srv.URL
+	resp, err := p.Complete(context.Background(), agent.CompletionRequest{
+		Model:    "deepseek-reasoner",
+		Messages: []agent.Message{{Role: agent.RoleUser, Content: "answer?"}},
+	})
+	if err != nil {
+		t.Fatalf("Complete: %v", err)
+	}
+	if resp.ReasoningContent != "The user asks for the answer; it is 42." {
+		t.Errorf("ReasoningContent=%q", resp.ReasoningContent)
+	}
+	if resp.Message.Content != "42" {
+		t.Errorf("Content=%q (reasoning must not leak into the answer)", resp.Message.Content)
+	}
+}

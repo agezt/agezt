@@ -53,9 +53,10 @@ const (
 	KindToolResult  Kind = "tool.result"
 
 	// LLM/provider traffic (canonical, dialect-free; SPEC-15).
-	KindLLMRequest  Kind = "llm.request"
-	KindLLMResponse Kind = "llm.response"
-	KindLLMToken    Kind = "llm.token"
+	KindLLMRequest   Kind = "llm.request"
+	KindLLMResponse  Kind = "llm.response"
+	KindLLMToken     Kind = "llm.token"
+	KindLLMReasoning Kind = "llm.reasoning" // ephemeral: a reasoning-model chain-of-thought delta (M317)
 
 	// Control plane (P0-CTRL-*).
 	KindHalt   Kind = "halt"
@@ -224,6 +225,7 @@ var knownKinds = map[Kind]struct{}{
 	KindLLMRequest:                {},
 	KindLLMResponse:               {},
 	KindLLMToken:                  {},
+	KindLLMReasoning:              {},
 	KindHalt:                      {},
 	KindResume:                    {},
 	KindPolicyDecision:            {},

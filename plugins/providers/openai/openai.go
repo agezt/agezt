@@ -217,6 +217,20 @@ type oaMessage struct {
 	ToolCalls  []oaToolCall `json:"tool_calls,omitempty"`
 	ToolCallID string       `json:"tool_call_id,omitempty"`
 	Name       string       `json:"name,omitempty"`
+	// ReasoningContent / Reasoning carry a reasoning model's chain of thought
+	// (M317), present on responses from DeepSeek-R1 (`reasoning_content`) and some
+	// other openai-compatible reasoning gateways (`reasoning`). Response-only;
+	// never set on a request (omitempty keeps the request wire unchanged).
+	ReasoningContent string `json:"reasoning_content,omitempty"`
+	Reasoning        string `json:"reasoning,omitempty"`
+}
+
+// reasoningText returns whichever reasoning field the provider populated.
+func (m oaMessage) reasoningText() string {
+	if m.ReasoningContent != "" {
+		return m.ReasoningContent
+	}
+	return m.Reasoning
 }
 
 // oaContentPart is one element of OpenAI's multimodal content array. A part is
@@ -508,7 +522,8 @@ func decodeResponse(body []byte) (*agent.CompletionResponse, error) {
 			Content:   oaContentText(choice.Message.Content),
 			ToolCalls: toolCalls,
 		},
-		StopReason: stop,
+		ReasoningContent: choice.Message.reasoningText(), // M317: DeepSeek-R1 et al.
+		StopReason:       stop,
 		Usage: agent.Usage{
 			InputTokens:       or.Usage.PromptTokens,
 			CachedInputTokens: or.Usage.PromptTokensDetails.CachedTokens,

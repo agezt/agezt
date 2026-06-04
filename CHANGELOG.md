@@ -11,6 +11,14 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 
 ## [Unreleased]
 
+### Added
+- **Reasoning models' chain of thought is now captured.** For DeepSeek-R1 and
+  other openai-compatible reasoning models that return `reasoning_content`, the
+  reasoning streams live as ephemeral `llm.reasoning` events (visible in
+  `agt pulse`) and its size is recorded on the `llm.response` event — previously
+  it was discarded. The durable journal stays lean (the reasoning text isn't
+  persisted); ordinary models are unaffected.
+
 ### Fixed
 - **Ollama now honours the run's token cap.** `MaxTokens` is forwarded as
   Ollama's `options.num_predict`, so a local model respects the same output limit

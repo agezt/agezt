@@ -165,13 +165,14 @@ func encodeStreamRequest(model, system string, msgs []agent.Message, tools []age
 // across chunks (id and name only appear in the first chunk per
 // index).
 type streamState struct {
-	textParts    strings.Builder
-	tools        map[int]*openTool // index → open tool call
-	toolOrder    []int             // index order (preserves emit order for the response)
-	finishReason string
-	model        string
-	inputTokens  int
-	outputTokens int
+	textParts      strings.Builder
+	reasoningParts strings.Builder   // M317: accumulated reasoning (DeepSeek-R1 et al.)
+	tools          map[int]*openTool // index → open tool call
+	toolOrder      []int             // index order (preserves emit order for the response)
+	finishReason   string
+	model          string
+	inputTokens    int
+	outputTokens   int
 }
 
 type openTool struct {
@@ -222,9 +223,11 @@ func dispatchSSEFrame(data string, st *streamState, onChunk func(agent.Chunk) er
 		Choices []struct {
 			Index int `json:"index"`
 			Delta struct {
-				Role      string `json:"role"`
-				Content   string `json:"content"`
-				ToolCalls []struct {
+				Role             string `json:"role"`
+				Content          string `json:"content"`
+				ReasoningContent string `json:"reasoning_content"` // DeepSeek-R1 (M317)
+				Reasoning        string `json:"reasoning"`         // other compat gateways
+				ToolCalls        []struct {
 					Index    int    `json:"index"`
 					ID       string `json:"id"`
 					Type     string `json:"type"`
@@ -261,6 +264,20 @@ func dispatchSSEFrame(data string, st *streamState, onChunk func(agent.Chunk) er
 	choice := f.Choices[0]
 	if choice.FinishReason != "" {
 		st.finishReason = choice.FinishReason
+	}
+
+	// Reasoning delta (M317): DeepSeek-R1 streams its chain of thought in a
+	// separate reasoning_content field before the answer tokens.
+	if rd := choice.Delta.ReasoningContent; rd != "" {
+		st.reasoningParts.WriteString(rd)
+		if err := onChunk(agent.Chunk{ReasoningDelta: rd}); err != nil {
+			return err
+		}
+	} else if rd := choice.Delta.Reasoning; rd != "" {
+		st.reasoningParts.WriteString(rd)
+		if err := onChunk(agent.Chunk{ReasoningDelta: rd}); err != nil {
+			return err
+		}
 	}
 
 	if choice.Delta.Content != "" {
@@ -369,6 +386,7 @@ func assembleResponse(st *streamState) *agent.CompletionResponse {
 	}
 
 	return &agent.CompletionResponse{
+		ReasoningContent: st.reasoningParts.String(), // M317
 		Message: agent.Message{
 			Role:      agent.RoleAssistant,
 			Content:   st.textParts.String(),

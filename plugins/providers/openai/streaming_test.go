@@ -320,3 +320,43 @@ func TestCompleteStream_OAI_NilOnChunkRejected(t *testing.T) {
 
 // Compile-time guard — *Provider must satisfy StreamingProvider.
 var _ agent.StreamingProvider = (*Provider)(nil)
+
+// reasoning stream: a DeepSeek-R1-style stream that emits reasoning_content
+// deltas before the answer tokens (M317).
+const sampleOAIReasoningStream = `data: {"choices":[{"index":0,"delta":{"role":"assistant","reasoning_content":"Let me "},"finish_reason":null}]}
+
+data: {"choices":[{"index":0,"delta":{"reasoning_content":"think."},"finish_reason":null}]}
+
+data: {"choices":[{"index":0,"delta":{"content":"42"},"finish_reason":null}]}
+
+data: {"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}
+
+data: [DONE]
+`
+
+// TestParseStream_Reasoning (M317): reasoning_content deltas accumulate into the
+// response's ReasoningContent and surface as Chunk.ReasoningDelta, separate from
+// the answer text.
+func TestParseStream_Reasoning(t *testing.T) {
+	var reasoning, text strings.Builder
+	resp, err := parseStream(strings.NewReader(sampleOAIReasoningStream), func(c agent.Chunk) error {
+		reasoning.WriteString(c.ReasoningDelta)
+		text.WriteString(c.TextDelta)
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reasoning.String() != "Let me think." {
+		t.Errorf("streamed reasoning=%q want 'Let me think.'", reasoning.String())
+	}
+	if text.String() != "42" {
+		t.Errorf("streamed text=%q want '42'", text.String())
+	}
+	if resp.ReasoningContent != "Let me think." {
+		t.Errorf("resp.ReasoningContent=%q", resp.ReasoningContent)
+	}
+	if resp.Message.Content != "42" {
+		t.Errorf("resp.Content=%q (reasoning must not leak into the answer)", resp.Message.Content)
+	}
+}

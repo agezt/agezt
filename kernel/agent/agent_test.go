@@ -667,6 +667,7 @@ func (r *repeatingToolUseProvider) Complete(_ context.Context, _ agent.Completio
 // fragments through onChunk and returns the assembled response.
 type streamProv struct {
 	chunks     []string
+	reasoning  []string // M317: optional reasoning deltas emitted before the text
 	stopReason agent.StopReason
 	gotInvoked bool
 	gotIter    int
@@ -686,6 +687,11 @@ func (p *streamProv) Complete(ctx context.Context, req agent.CompletionRequest) 
 }
 
 func (p *streamProv) CompleteStream(ctx context.Context, req agent.CompletionRequest, onChunk func(agent.Chunk) error) (*agent.CompletionResponse, error) {
+	for _, r := range p.reasoning {
+		if err := onChunk(agent.Chunk{ReasoningDelta: r}); err != nil {
+			return nil, err
+		}
+	}
 	for i, c := range p.chunks {
 		if err := onChunk(agent.Chunk{TextDelta: c}); err != nil {
 			return nil, err
@@ -699,10 +705,66 @@ func (p *streamProv) CompleteStream(ctx context.Context, req agent.CompletionReq
 		stop = agent.StopEndTurn
 	}
 	return &agent.CompletionResponse{
-		Message:    agent.Message{Role: agent.RoleAssistant, Content: strings.Join(p.chunks, "")},
-		StopReason: stop,
-		Usage:      agent.Usage{InputTokens: 10, OutputTokens: 5},
+		Message:          agent.Message{Role: agent.RoleAssistant, Content: strings.Join(p.chunks, "")},
+		ReasoningContent: strings.Join(p.reasoning, ""),
+		StopReason:       stop,
+		Usage:            agent.Usage{InputTokens: 10, OutputTokens: 5},
 	}, nil
+}
+
+// TestRun_PublishesReasoningEvents (M317): a reasoning model's chain-of-thought
+// deltas are published as ephemeral llm.reasoning events (visible live, not
+// durably journaled), distinct from the answer's llm.token events.
+func TestRun_PublishesReasoningEvents(t *testing.T) {
+	b, _ := newTestBus(t)
+	prov := &streamProv{
+		chunks:     []string{"42"},
+		reasoning:  []string{"Let me ", "think."},
+		stopReason: agent.StopEndTurn,
+	}
+	sub, err := b.Subscribe(">", 64)
+	if err != nil {
+		t.Fatalf("Subscribe: %v", err)
+	}
+	defer sub.Cancel()
+
+	if _, err := agent.Run(context.Background(), agent.LoopConfig{
+		Provider: prov, Bus: b, Actor: "a", CorrelationID: "c",
+	}, "go"); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	deadline := time.After(time.Second)
+	var reasoning strings.Builder
+	gotResponse := false
+collect:
+	for {
+		select {
+		case ev := <-sub.C:
+			switch ev.Kind {
+			case event.KindLLMReasoning:
+				if !ev.IsEphemeral() {
+					t.Errorf("llm.reasoning must be ephemeral (Hash=\"\"): %+v", ev)
+				}
+				var p struct {
+					Text string `json:"text"`
+				}
+				_ = json.Unmarshal(ev.Payload, &p)
+				reasoning.WriteString(p.Text)
+			case event.KindLLMResponse:
+				gotResponse = true
+				break collect
+			}
+		case <-deadline:
+			break collect
+		}
+	}
+	if !gotResponse {
+		t.Fatal("never saw llm.response")
+	}
+	if reasoning.String() != "Let me think." {
+		t.Errorf("reassembled reasoning=%q want 'Let me think.'", reasoning.String())
+	}
 }
 
 func TestRun_UsesStreamingWhenAvailable(t *testing.T) {
