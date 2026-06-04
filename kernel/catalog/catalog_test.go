@@ -330,6 +330,28 @@ func TestSyncer_RejectsNon200(t *testing.T) {
 	}
 }
 
+func TestSyncer_RejectsOversizedBody(t *testing.T) {
+	// A misbehaving / hostile catalog source must not be able to OOM the daemon
+	// with a giant response: Sync caps the body at MaxSyncBytes via a LimitReader
+	// and rejects anything larger. The size gate runs BEFORE parsing, so filler
+	// bytes are rejected on size, not JSON validity.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(strings.Repeat("a", int(catalog.MaxSyncBytes)+1)))
+	}))
+	defer srv.Close()
+
+	syncer := catalog.NewSyncer()
+	syncer.URL = srv.URL
+	_, _, _, err := syncer.Sync(context.Background())
+	if err == nil {
+		t.Fatal("expected an error for an over-cap body")
+	}
+	if !strings.Contains(err.Error(), "exceeds") {
+		t.Errorf("error should be the size-cap rejection, got: %v", err)
+	}
+}
+
 // ---- discovery ----
 
 func TestDiscoverOllama_ParsesTags(t *testing.T) {
