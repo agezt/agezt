@@ -26,6 +26,7 @@ import (
 // Membership in this map is what makes an event part of the system changelog.
 var changelogKinds = map[event.Kind]string{
 	event.KindHalt:                      "system HALTED",
+	event.KindAnomalyDetected:           "anomaly auto-halt",
 	event.KindResume:                    "system resumed",
 	event.KindPolicyChanged:             "policy changed",
 	event.KindSkillCreated:              "skill created",

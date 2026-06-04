@@ -93,6 +93,10 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   valid UTF-8. (The journal's own answer truncation was already rune-safe.)
 
 ### Added
+- **Anomaly auto-halts appear in the system changelog.** `agt changelog` (the
+  tamper-evident system timeline, SPEC-08 §4.2) now surfaces a `system.anomaly`
+  event as "anomaly auto-halt" with its reason, alongside the `halt` it triggers
+  — so an operator sees *why* the daemon stopped itself, not just that it did.
 - **Anomaly auto-halt: a runaway circuit breaker.** A new always-on safety
   guard (SPEC-06 §5) watches the global tool-call rate across every run, channel,
   and Pulse; if it exceeds a ceiling within a window — the signature of a runaway

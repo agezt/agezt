@@ -11,6 +11,49 @@ import (
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
 
+// TestChangelog_IncludesAnomalyAutoHalt: the anomaly auto-halt circuit breaker
+// (SPEC-06 §5) is a material system change — the daemon halted ITSELF — and must
+// appear in the SPEC-08 §4.2 system timeline alongside the halt it triggers, with
+// its reason, so an operator can see WHY the system stopped (not just that it
+// did). Before, only the `halt` symptom was surfaced, never the anomaly cause.
+func TestChangelog_IncludesAnomalyAutoHalt(t *testing.T) {
+	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+
+	reason := "tool-call rate anomaly: 200 tool calls within 10s exceeds ceiling 120"
+	ev, err := k.Bus().Publish(event.Spec{
+		Subject: "system.anomaly", Kind: event.KindAnomalyDetected, Actor: "anomaly",
+		Payload: map[string]any{"signal": "tool_call_rate", "count": 200, "ceiling": 120, "reason": reason},
+	})
+	if err != nil {
+		t.Fatalf("publish anomaly: %v", err)
+	}
+
+	res, err := c.Call(context.Background(), controlplane.CmdChangelog, nil)
+	if err != nil {
+		t.Fatalf("Call: %v", err)
+	}
+	entries, _ := res["entries"].([]any)
+	var found map[string]any
+	for _, raw := range entries {
+		m, _ := raw.(map[string]any)
+		if kind, _ := m["kind"].(string); kind == "system.anomaly" {
+			found = m
+		}
+	}
+	if found == nil {
+		t.Fatalf("system.anomaly not in the changelog timeline: %v", entries)
+	}
+	if got, _ := found["label"].(string); got != "anomaly auto-halt" {
+		t.Errorf("label = %q want 'anomaly auto-halt'", got)
+	}
+	if got, _ := found["detail"].(string); got != reason {
+		t.Errorf("detail = %q want the anomaly reason %q", got, reason)
+	}
+	if got, _ := found["event_id"].(string); got != ev.ID {
+		t.Errorf("event_id = %q want %q (so `agt why` can explain it)", got, ev.ID)
+	}
+}
+
 // TestChangelog_FiltersToMaterialChanges — the system changelog folds only
 // material-change kinds (skill lifecycle, policy change, …) and ignores routine
 // events (task.received), newest-first, each labeled and carrying its event id
