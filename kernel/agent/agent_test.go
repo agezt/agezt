@@ -65,6 +65,50 @@ func TestRun_NoTools_OneShot(t *testing.T) {
 	}
 }
 
+// TestRun_LLMRequestRecordsContextSize (M372, SPEC-10 §3.5): the llm.request
+// event records the assembled context size and a per-role breakdown (including
+// the separately-sent system prompt) — the context-observability foundation for
+// "how big was the context and where did it come from".
+func TestRun_LLMRequestRecordsContextSize(t *testing.T) {
+	b, j := newTestBus(t)
+	const system = "you are a helpful assistant"
+	const task = "summarize the codebase"
+	if _, err := agent.Run(context.Background(), agent.LoopConfig{
+		Provider: mock.New(mock.FinalText("done")), Bus: b,
+		Actor: "agent-1", CorrelationID: "corr-ctx", System: system,
+	}, task); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	found := false
+	_ = j.Range(func(e *event.Event) error {
+		if e.Kind != event.KindLLMRequest {
+			return nil
+		}
+		found = true
+		var p struct {
+			ContextChars int            `json:"context_chars"`
+			ByRole       map[string]int `json:"context_by_role"`
+		}
+		if err := json.Unmarshal(e.Payload, &p); err != nil {
+			t.Fatalf("unmarshal llm.request: %v", err)
+		}
+		if p.ByRole["system"] != len(system) {
+			t.Errorf("context_by_role[system] = %d, want %d", p.ByRole["system"], len(system))
+		}
+		if p.ByRole["user"] != len(task) {
+			t.Errorf("context_by_role[user] = %d, want %d", p.ByRole["user"], len(task))
+		}
+		if p.ContextChars != len(system)+len(task) {
+			t.Errorf("context_chars = %d, want %d", p.ContextChars, len(system)+len(task))
+		}
+		return nil
+	})
+	if !found {
+		t.Fatal("no llm.request event was published")
+	}
+}
+
 // TestRun_TaskCompletedCarriesAnswer — the run's final text is journaled on
 // task.completed (M51) so `agt runs show` can display what the run produced.
 func TestRun_TaskCompletedCarriesAnswer(t *testing.T) {

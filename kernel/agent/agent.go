@@ -279,6 +279,35 @@ var ErrRunBudgetExceeded = errors.New("agent: run cost budget exceeded")
 // not have registered.
 var ErrUnknownTool = errors.New("agent: unknown tool")
 
+// contextSize measures the assembled context sent to the provider, by role
+// (SPEC-10 §3.5 context observability). It sums each message's text content plus
+// its tool-call argument JSON, grouped by role (system/user/assistant/tool), and
+// returns the total and the per-role breakdown. Image attachments are excluded —
+// they are a separate (vision) modality, not text context. Characters are a
+// deterministic, provider-agnostic proxy for context weight (~4 chars/token); the
+// goal is relative visibility into how big the context is and where it comes from
+// (the basis of the context inspector and "what was in its context?"), not exact
+// token billing — that lands on llm.response from the provider's real usage.
+func contextSize(system string, messages []Message) (total int, byRole map[string]int) {
+	byRole = make(map[string]int)
+	if len(system) > 0 {
+		// The system prompt is sent separately from the message list
+		// (CompletionRequest.System), but it is still context that occupies the
+		// window, so it counts under the "system" source.
+		byRole[string(RoleSystem)] = len(system)
+		total = len(system)
+	}
+	for _, m := range messages {
+		n := len(m.Content)
+		for _, tc := range m.ToolCalls {
+			n += len(tc.Input)
+		}
+		byRole[string(m.Role)] += n
+		total += n
+	}
+	return total, byRole
+}
+
 // maxJournaledAnswerRunes caps the answer text stored on task.completed (M51).
 // The full answer is always returned to the caller; only the journaled copy —
 // which lands in the append-only, hash-chained journal and is replayed on every
@@ -417,12 +446,19 @@ func Run(ctx context.Context, cfg LoopConfig, userIntent string) (answer string,
 			return "", err
 		}
 
-		// 2a. llm.request
+		// 2a. llm.request — record what was sent: message count plus the
+		// assembled context size, broken down by role (SPEC-10 §3.5 context
+		// observability — the foundation of the context inspector). Lets an
+		// operator see how big each call's context was and where it came from,
+		// the #1 driver of cost and "lost in the middle" quality loss.
+		ctxChars, ctxByRole := contextSize(cfg.System, messages)
 		if _, err := publish(event.KindLLMRequest, "llm", map[string]any{
-			"iter":     iter,
-			"messages": len(messages),
-			"model":    cfg.Model,
-			"tools":    len(tools),
+			"iter":            iter,
+			"messages":        len(messages),
+			"model":           cfg.Model,
+			"tools":           len(tools),
+			"context_chars":   ctxChars,
+			"context_by_role": ctxByRole,
 		}); err != nil {
 			return "", fmt.Errorf("agent: publish llm.request: %w", err)
 		}

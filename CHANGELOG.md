@@ -93,6 +93,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   valid UTF-8. (The journal's own answer truncation was already rune-safe.)
 
 ### Added
+- **Context size is recorded on every LLM call.** The `llm.request` journal
+  event now carries `context_chars` (the assembled context size) and
+  `context_by_role` (a per-source breakdown: system / user / assistant / tool) —
+  the SPEC-10 §3.5 context-observability foundation. An operator (or `agt why`)
+  can now see how big each call's context was and where it came from — the #1
+  driver of cost and "lost in the middle" quality loss. Image attachments are
+  excluded (a separate modality).
 - **Point-in-time restore: `agt restore --at <seq|timestamp> --to <dir>`.** The
   journal is a time machine — this replays the source home's journal up to a
   sequence or RFC3339 timestamp into a fresh `--to` home, "branching a recovered
