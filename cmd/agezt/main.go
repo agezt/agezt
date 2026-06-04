@@ -1326,9 +1326,12 @@ type kernelAPIEngine struct{ k *kernelruntime.Kernel }
 
 func (e kernelAPIEngine) NewCorrelation() string        { return e.k.NewCorrelation() }
 func (e kernelAPIEngine) SubjectForRun(c string) string { return e.k.SubjectForRun(c) }
-func (e kernelAPIEngine) RunModel(ctx context.Context, corr, intent, model string, images []string) (string, error) {
+func (e kernelAPIEngine) RunModel(ctx context.Context, corr, intent, model string, images []string, jsonMode bool) (string, error) {
 	// Honour the requested model for this run (empty → kernel default).
 	ctx = kernelruntime.WithModel(ctx, model)
+	// Structured-output request (M314): a client's response_format flows to the
+	// provider's CompletionRequest.JSONMode. No-op when false.
+	ctx = kernelruntime.WithJSONMode(ctx, jsonMode)
 	// Carry any multimodal attachments (M246) the same way the control plane
 	// does, so a vision request to the OpenAI-compatible API reaches the model.
 	if len(images) > 0 {

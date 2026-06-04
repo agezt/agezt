@@ -743,6 +743,7 @@ const (
 	ctxKeyRunTimeout
 	ctxKeyTools
 	ctxKeyMaxCost
+	ctxKeyJSONMode
 )
 
 // WithImages returns a context carrying image-attachment references for the run
@@ -761,6 +762,22 @@ func imagesFromCtx(ctx context.Context) []string {
 		return v
 	}
 	return nil
+}
+
+// WithJSONMode returns a context requesting structured (JSON) output for the run
+// started with it (M314). It flows into the agent loop's CompletionRequest.JSONMode,
+// so a provider with a native JSON mode constrains its output. false is a no-op.
+// Used by the OpenAI-compatible API to honour a client's response_format.
+func WithJSONMode(ctx context.Context, jsonMode bool) context.Context {
+	if !jsonMode {
+		return ctx
+	}
+	return context.WithValue(ctx, ctxKeyJSONMode, true)
+}
+
+func jsonModeFromCtx(ctx context.Context) bool {
+	v, _ := ctx.Value(ctxKeyJSONMode).(bool)
+	return v
 }
 
 // WithModel returns a context that overrides the model for the run started with
@@ -1139,8 +1156,9 @@ func (k *Kernel) RunWith(ctx context.Context, corr, intent string) (string, erro
 		Actor:                actor,
 		CorrelationID:        corr,
 		Policy:               k.policyHook,
-		Images:               imagesFromCtx(runCtx),  // M93: image attachments (vision-gated upstream)
-		MaxRunCostMicrocents: maxCostFromCtx(runCtx), // M166: per-run cost cap
+		Images:               imagesFromCtx(runCtx),   // M93: image attachments (vision-gated upstream)
+		JSONMode:             jsonModeFromCtx(runCtx), // M314: structured-output request
+		MaxRunCostMicrocents: maxCostFromCtx(runCtx),  // M166: per-run cost cap
 		CostFn:               governor.CostMicrocents,
 	}, intent)
 	if err != nil {

@@ -183,6 +183,10 @@ type LoopConfig struct {
 	ToolTimeout time.Duration
 	// MaxTokens passed to the provider per call. 0 → provider default.
 	MaxTokens int
+	// JSONMode requests structured (JSON) output on every provider call of the
+	// run (M314). Set by callers that need a machine-parseable result; a provider
+	// without a native JSON mode ignores it. Flows to CompletionRequest.JSONMode.
+	JSONMode bool
 	// MaxIdenticalToolCalls caps how many times the model may invoke the SAME
 	// (tool, input) within one run before the loop refuses to execute it again
 	// (M116). A model stuck retrying an identical failing/expensive call would
@@ -423,6 +427,7 @@ func Run(ctx context.Context, cfg LoopConfig, userIntent string) (answer string,
 			Tools:         tools,
 			MaxTokens:     cfg.MaxTokens,
 			CorrelationID: cfg.CorrelationID, // M47: attribute spend to this run
+			JSONMode:      cfg.JSONMode,      // M314: structured-output request
 		}
 		var resp *CompletionResponse
 		// Use the streaming path when the provider advertises it

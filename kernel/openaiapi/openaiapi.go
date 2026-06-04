@@ -66,8 +66,9 @@ type Engine interface {
 	// RunModel runs the intent under the given correlation, honouring the
 	// requested model (empty → the kernel's configured default). images carries
 	// any attachment URLs parsed from a multimodal request (data: URLs or
-	// http(s) URLs); nil for a text-only run.
-	RunModel(ctx context.Context, corr, intent, model string, images []string) (string, error)
+	// http(s) URLs); nil for a text-only run. jsonMode requests structured JSON
+	// output (M314), set from the request's response_format.
+	RunModel(ctx context.Context, corr, intent, model string, images []string, jsonMode bool) (string, error)
 	DefaultModel() string
 	ModelIDs() []string
 }
@@ -225,10 +226,23 @@ func (s *Server) handleModels(w http.ResponseWriter, r *http.Request) {
 // --- /v1/chat/completions ---
 
 type chatRequest struct {
-	Model         string         `json:"model"`
-	Messages      []chatMessage  `json:"messages"`
-	Stream        bool           `json:"stream"`
-	StreamOptions *streamOptions `json:"stream_options,omitempty"`
+	Model          string          `json:"model"`
+	Messages       []chatMessage   `json:"messages"`
+	Stream         bool            `json:"stream"`
+	StreamOptions  *streamOptions  `json:"stream_options,omitempty"`
+	ResponseFormat *chatRespFormat `json:"response_format,omitempty"`
+}
+
+// chatRespFormat is OpenAI's response_format request object. We honour
+// json_object and json_schema (both mean "structured JSON") by switching the
+// run to JSON mode (M314); "text" (or absent) is the default free-form output.
+type chatRespFormat struct {
+	Type string `json:"type"` // "text" | "json_object" | "json_schema"
+}
+
+// wantsJSON reports whether a response_format asks for structured JSON output.
+func (f *chatRespFormat) wantsJSON() bool {
+	return f != nil && (f.Type == "json_object" || f.Type == "json_schema")
 }
 
 // streamOptions mirrors OpenAI's stream_options. IncludeUsage requests a final
@@ -379,14 +393,16 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 		model = eng.DefaultModel()
 	}
 
+	jsonMode := req.ResponseFormat.wantsJSON() // M314: honour response_format
+
 	if req.Stream {
 		includeUsage := req.StreamOptions != nil && req.StreamOptions.IncludeUsage
-		s.streamChat(w, r, eng, b, intent, model, images, includeUsage)
+		s.streamChat(w, r, eng, b, intent, model, images, includeUsage, jsonMode)
 		return
 	}
 
 	corr := eng.NewCorrelation()
-	answer, err := eng.RunModel(r.Context(), corr, intent, model, images)
+	answer, err := eng.RunModel(r.Context(), corr, intent, model, images, jsonMode)
 	if err != nil {
 		writeErr(w, http.StatusBadGateway, "upstream_error", err.Error())
 		return
@@ -410,7 +426,7 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 // OpenAI chat.completion.chunk SSE frames. It subscribes to the run subject
 // BEFORE starting the run so no early token is missed (the same no-race pattern
 // the control plane's handleRun uses).
-func (s *Server) streamChat(w http.ResponseWriter, r *http.Request, eng Engine, b *bus.Bus, intent, model string, images []string, includeUsage bool) {
+func (s *Server) streamChat(w http.ResponseWriter, r *http.Request, eng Engine, b *bus.Bus, intent, model string, images []string, includeUsage, jsonMode bool) {
 	flusher, ok := w.(http.Flusher)
 	if !ok {
 		writeErr(w, http.StatusInternalServerError, "stream_unsupported", "streaming unsupported")
@@ -473,7 +489,7 @@ func (s *Server) streamChat(w http.ResponseWriter, r *http.Request, eng Engine, 
 	}
 	done := make(chan res, 1)
 	go func() {
-		_, err := eng.RunModel(r.Context(), corr, intent, model, images)
+		_, err := eng.RunModel(r.Context(), corr, intent, model, images, jsonMode)
 		done <- res{err}
 	}()
 

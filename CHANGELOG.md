@@ -33,8 +33,10 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   `generationConfig.responseMimeType: application/json` — the "reliability over
   free-form parsing" path from the spec. Now covers every provider with a native
   JSON mode. Default-off; providers without one ignore it. **Plan generation**
-  (SPEC-10's canonical case) now uses it, so a capable provider constrains the
-  plan to valid JSON. (OpenAI-API pass-through follows.)
+  (SPEC-10's canonical case) now uses it, and the **OpenAI-compatible API honours
+  a client's `response_format`** (`json_object` / `json_schema` → JSON mode on
+  the run), so an external client gets structured output from any capable
+  provider.
 - **Ollama now supports local vision models.** Image attachments are forwarded to
   Ollama as base64 in the chat `images` array, and auto-discovery marks multimodal
   models (llava, llama3.2-vision, moondream, …) image-capable so the vision gate

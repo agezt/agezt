@@ -23,7 +23,7 @@ func (m *meshEngine) NewCorrelation() string        { return "run-peer-1" }
 func (m *meshEngine) SubjectForRun(c string) string { return "agent.agent-" + c + ".llm" }
 func (m *meshEngine) DefaultModel() string          { return "peer-model" }
 func (m *meshEngine) ModelIDs() []string            { return []string{"peer-model"} }
-func (m *meshEngine) RunModel(_ context.Context, _, intent, _ string, _ []string) (string, error) {
+func (m *meshEngine) RunModel(_ context.Context, _, intent, _ string, _ []string, _ bool) (string, error) {
 	m.lastIntent = intent
 	return "peer handled: " + intent, nil
 }

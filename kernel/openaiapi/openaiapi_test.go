@@ -19,24 +19,26 @@ import (
 // fakeEngine implements Engine. RunWith publishes its tokens on the bus under
 // the run subject (exercising the real SSE path) then returns its answer.
 type fakeEngine struct {
-	b         *bus.Bus
-	answer    string
-	tokens    []string
-	model     string
-	models    []string
-	ranIntent string
-	ranModel  string
-	ranImages []string
+	b           *bus.Bus
+	answer      string
+	tokens      []string
+	model       string
+	models      []string
+	ranIntent   string
+	ranModel    string
+	ranImages   []string
+	ranJSONMode bool
 }
 
 func (f *fakeEngine) NewCorrelation() string        { return "test-corr" }
 func (f *fakeEngine) SubjectForRun(c string) string { return "agent.agent-" + c + ".llm" }
 func (f *fakeEngine) DefaultModel() string          { return f.model }
 func (f *fakeEngine) ModelIDs() []string            { return f.models }
-func (f *fakeEngine) RunModel(_ context.Context, corr, intent, model string, images []string) (string, error) {
+func (f *fakeEngine) RunModel(_ context.Context, corr, intent, model string, images []string, jsonMode bool) (string, error) {
 	f.ranIntent = intent
 	f.ranModel = model
 	f.ranImages = images
+	f.ranJSONMode = jsonMode
 	for _, tok := range f.tokens {
 		_, _ = f.b.PublishStreaming(event.Spec{
 			Subject:       f.SubjectForRun(corr),
@@ -376,5 +378,36 @@ func TestIntentFromMessages(t *testing.T) {
 	})
 	if got != "part one\npart two" {
 		t.Errorf("array content flatten = %q", got)
+	}
+}
+
+// TestChat_ResponseFormatJSONMode (M314): a client's response_format:{json_object}
+// flows to the run as JSON mode; absence leaves it off.
+func TestChat_ResponseFormatJSONMode(t *testing.T) {
+	post := func(body string) *fakeEngine {
+		eng := &fakeEngine{answer: "{}", model: "m"}
+		s := newAPIServer(t, eng, "secret")
+		r := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(body))
+		r.Header.Set("Authorization", "Bearer secret")
+		rec := httptest.NewRecorder()
+		s.Handler().ServeHTTP(rec, r)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("code=%d body=%s", rec.Code, rec.Body.String())
+		}
+		return eng
+	}
+
+	on := post(`{"model":"m","messages":[{"role":"user","content":"give me json"}],"response_format":{"type":"json_object"}}`)
+	if !on.ranJSONMode {
+		t.Error("response_format json_object should set JSON mode on the run")
+	}
+	off := post(`{"model":"m","messages":[{"role":"user","content":"hi"}]}`)
+	if off.ranJSONMode {
+		t.Error("no response_format must leave JSON mode off")
+	}
+	// json_schema also counts as structured.
+	sch := post(`{"model":"m","messages":[{"role":"user","content":"x"}],"response_format":{"type":"json_schema"}}`)
+	if !sch.ranJSONMode {
+		t.Error("response_format json_schema should set JSON mode")
 	}
 }

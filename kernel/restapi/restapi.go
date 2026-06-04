@@ -48,7 +48,7 @@ const maxRequestBodyBytes = 16 << 20
 type Engine interface {
 	NewCorrelation() string
 	SubjectForRun(corr string) string
-	RunModel(ctx context.Context, corr, intent, model string, images []string) (string, error)
+	RunModel(ctx context.Context, corr, intent, model string, images []string, jsonMode bool) (string, error)
 	DefaultModel() string
 	ModelIDs() []string
 	// EventsForCorrelation returns the journaled events of a run, in order.
@@ -382,7 +382,7 @@ func (s *Server) handleRunsRoot(w http.ResponseWriter, r *http.Request) {
 	}
 
 	corr := eng.NewCorrelation()
-	answer, err := eng.RunModel(r.Context(), corr, intent, model, nil)
+	answer, err := eng.RunModel(r.Context(), corr, intent, model, nil, false)
 	if err != nil {
 		writeJSON(w, http.StatusBadGateway, map[string]any{
 			"correlation_id": corr, "model": model, "status": "failed", "error": err.Error(),
@@ -432,7 +432,7 @@ func (s *Server) streamRun(w http.ResponseWriter, r *http.Request, eng Engine, b
 	}
 	done := make(chan result, 1)
 	go func() {
-		ans, err := eng.RunModel(r.Context(), corr, intent, model, nil)
+		ans, err := eng.RunModel(r.Context(), corr, intent, model, nil, false)
 		done <- result{ans, err}
 	}()
 
