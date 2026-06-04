@@ -62,6 +62,14 @@ type Provider struct {
 	BaseURL string
 	Model   string
 	HTTP    *http.Client
+	// ThinkingBudget enables Gemini "thinking" (2.5-series models) when
+	// non-zero (M319). A positive value caps the thinking tokens; -1 asks
+	// Gemini for a dynamic budget. Either way Agezt also sets
+	// includeThoughts so the thought summaries come back and land on the
+	// response's ReasoningContent (the M317 pipeline). 0 sends no
+	// thinkingConfig at all — the request wire is byte-identical to a
+	// non-thinking run, and the model's own default applies.
+	ThinkingBudget int
 }
 
 // New constructs a Provider with sensible defaults.
@@ -130,7 +138,7 @@ func (p *Provider) Complete(ctx context.Context, req agent.CompletionRequest) (*
 		model = DefaultModel
 	}
 
-	body, err := encodeRequest(req.System, req.Messages, req.Tools, req.MaxTokens, req.JSONMode)
+	body, err := encodeRequest(req.System, req.Messages, req.Tools, req.MaxTokens, req.JSONMode, p.ThinkingBudget)
 	if err != nil {
 		return nil, fmt.Errorf("google: encode request: %w", err)
 	}
@@ -173,8 +181,18 @@ type geminiRequest struct {
 }
 
 type geminiGenConfig struct {
-	MaxOutputTokens  int    `json:"maxOutputTokens,omitempty"`
-	ResponseMimeType string `json:"responseMimeType,omitempty"` // "application/json" → JSON mode (M312)
+	MaxOutputTokens  int                   `json:"maxOutputTokens,omitempty"`
+	ResponseMimeType string                `json:"responseMimeType,omitempty"` // "application/json" → JSON mode (M312)
+	ThinkingConfig   *geminiThinkingConfig `json:"thinkingConfig,omitempty"`   // M319
+}
+
+// geminiThinkingConfig is Gemini's per-request thinking control (M319,
+// 2.5-series models). IncludeThoughts asks the API to return the thought
+// summaries as parts flagged `thought:true`; ThinkingBudget caps the
+// thinking tokens (-1 = dynamic). Only emitted when the operator opts in.
+type geminiThinkingConfig struct {
+	IncludeThoughts bool `json:"includeThoughts"`
+	ThinkingBudget  int  `json:"thinkingBudget"`
 }
 
 type geminiContent struct {
@@ -186,6 +204,7 @@ type geminiContent struct {
 // populated per part — Text, InlineData, FunctionCall, or FunctionResponse.
 type geminiPart struct {
 	Text             string                  `json:"text,omitempty"`
+	Thought          bool                    `json:"thought,omitempty"` // M319: a thought-summary part (reasoning, not answer)
 	InlineData       *geminiInlineData       `json:"inlineData,omitempty"`
 	FunctionCall     *geminiFunctionCall     `json:"functionCall,omitempty"`
 	FunctionResponse *geminiFunctionResponse `json:"functionResponse,omitempty"`
@@ -236,9 +255,14 @@ type geminiUsageMetadata struct {
 	// CachedContentTokenCount is the subset of PromptTokenCount served from
 	// Gemini context caching (M294-cache). Billed at the cache-read rate.
 	CachedContentTokenCount int `json:"cachedContentTokenCount"`
+	// ThoughtsTokenCount is the thinking-token count (M319). Gemini reports
+	// it *separately* from CandidatesTokenCount (total = prompt + candidates
+	// + thoughts) but bills it at the output rate, so it's folded into
+	// Usage.OutputTokens on decode.
+	ThoughtsTokenCount int `json:"thoughtsTokenCount"`
 }
 
-func encodeRequest(system string, msgs []agent.Message, tools []agent.ToolDef, maxTok int, jsonMode bool) ([]byte, error) {
+func encodeRequest(system string, msgs []agent.Message, tools []agent.ToolDef, maxTok int, jsonMode bool, thinkingBudget int) ([]byte, error) {
 	wire := geminiRequest{}
 	if s := strings.TrimSpace(system); s != "" {
 		wire.SystemInstruction = &geminiContent{
@@ -271,10 +295,19 @@ func encodeRequest(system string, msgs []agent.Message, tools []agent.ToolDef, m
 		}
 		wire.Tools = []geminiTool{{FunctionDeclarations: decls}}
 	}
-	if maxTok > 0 || jsonMode {
+	if maxTok > 0 || jsonMode || thinkingBudget != 0 {
 		gc := &geminiGenConfig{MaxOutputTokens: maxTok}
 		if jsonMode {
 			gc.ResponseMimeType = "application/json"
+		}
+		if thinkingBudget != 0 {
+			// Opt-in (M319). includeThoughts so the summaries come back and
+			// land on ReasoningContent; the budget caps the thinking tokens
+			// (-1 = let Gemini decide dynamically).
+			gc.ThinkingConfig = &geminiThinkingConfig{
+				IncludeThoughts: true,
+				ThinkingBudget:  thinkingBudget,
+			}
 		}
 		wire.GenerationConfig = gc
 	}
@@ -384,8 +417,9 @@ func decodeResponse(body []byte, model string) (*agent.CompletionResponse, error
 	cand := gr.Candidates[0]
 
 	var (
-		textParts []string
-		toolCalls []agent.ToolCall
+		textParts      []string
+		reasoningParts []string
+		toolCalls      []agent.ToolCall
 	)
 	for i, part := range cand.Content.Parts {
 		switch {
@@ -401,6 +435,9 @@ func decodeResponse(body []byte, model string) (*agent.CompletionResponse, error
 				Name:  part.FunctionCall.Name,
 				Input: args,
 			})
+		case part.Thought && part.Text != "":
+			// A thought-summary part (M319) — reasoning, kept out of the answer.
+			reasoningParts = append(reasoningParts, part.Text)
 		case part.Text != "":
 			textParts = append(textParts, part.Text)
 		}
@@ -425,7 +462,9 @@ func decodeResponse(body []byte, model string) (*agent.CompletionResponse, error
 	if gr.UsageMetadata != nil {
 		usage.InputTokens = gr.UsageMetadata.PromptTokenCount
 		usage.CachedInputTokens = gr.UsageMetadata.CachedContentTokenCount
-		usage.OutputTokens = gr.UsageMetadata.CandidatesTokenCount
+		// Thinking tokens are billed as output but reported separately (M319);
+		// fold them in so OutputTokens reflects the true billable output.
+		usage.OutputTokens = gr.UsageMetadata.CandidatesTokenCount + gr.UsageMetadata.ThoughtsTokenCount
 	}
 
 	return &agent.CompletionResponse{
@@ -434,7 +473,8 @@ func decodeResponse(body []byte, model string) (*agent.CompletionResponse, error
 			Content:   strings.Join(textParts, ""),
 			ToolCalls: toolCalls,
 		},
-		StopReason: stop,
-		Usage:      usage,
+		StopReason:       stop,
+		Usage:            usage,
+		ReasoningContent: strings.Join(reasoningParts, ""),
 	}, nil
 }

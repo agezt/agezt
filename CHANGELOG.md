@@ -23,6 +23,14 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   provider requests extended thinking and captures Claude's chain of thought into
   the same reasoning pipeline (live `llm.reasoning` events). Off by default
   (thinking costs extra tokens).
+- **Gemini thinking** is supported (opt-in via
+  `AGEZT_GOOGLE_THINKING_BUDGET=<tokens>`; `-1` lets Gemini pick a dynamic
+  budget). When enabled, the Google provider requests thought summaries
+  (`includeThoughts`) and captures them into the same reasoning pipeline. Gemini
+  reports thinking tokens separately from answer tokens but bills them as output,
+  so they're folded into the run's output-token count for accurate cost. With
+  this, all three major reasoning families — DeepSeek-R1, Claude, Gemini — flow
+  through one pipeline. Off by default.
 
 ### Fixed
 - **Ollama now honours the run's token cap.** `MaxTokens` is forwarded as

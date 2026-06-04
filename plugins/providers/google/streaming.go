@@ -59,7 +59,7 @@ func (p *Provider) CompleteStream(ctx context.Context, req agent.CompletionReque
 		model = DefaultModel
 	}
 
-	body, err := encodeRequest(req.System, req.Messages, req.Tools, req.MaxTokens, req.JSONMode)
+	body, err := encodeRequest(req.System, req.Messages, req.Tools, req.MaxTokens, req.JSONMode, p.ThinkingBudget)
 	if err != nil {
 		return nil, fmt.Errorf("google: encode request: %w", err)
 	}
@@ -117,13 +117,15 @@ func (p *Provider) resolveStreamEndpoint(model string) string {
 
 // streamState accumulates everything needed for the final response.
 type streamState struct {
-	textParts    strings.Builder
-	toolCalls    []agent.ToolCall
-	finishReason string
-	model        string
-	inputTokens  int
-	cachedTokens int // cachedContentTokenCount (M294-cache)
-	outputTokens int
+	textParts      strings.Builder
+	reasoningParts strings.Builder // M319: thought-summary parts
+	toolCalls      []agent.ToolCall
+	finishReason   string
+	model          string
+	inputTokens    int
+	cachedTokens   int // cachedContentTokenCount (M294-cache)
+	outputTokens   int
+	thoughtsTokens int // thoughtsTokenCount (M319), billed as output
 }
 
 // parseStream consumes the SSE response body until EOF. Each
@@ -157,6 +159,7 @@ func parseStream(body io.Reader, model string, onChunk func(agent.Chunk) error) 
 			st.inputTokens = frame.UsageMetadata.PromptTokenCount
 			st.cachedTokens = frame.UsageMetadata.CachedContentTokenCount
 			st.outputTokens = frame.UsageMetadata.CandidatesTokenCount
+			st.thoughtsTokens = frame.UsageMetadata.ThoughtsTokenCount
 		}
 		if len(frame.Candidates) == 0 {
 			continue
@@ -167,6 +170,13 @@ func parseStream(body io.Reader, model string, onChunk func(agent.Chunk) error) 
 		}
 		for _, part := range cand.Content.Parts {
 			switch {
+			case part.Thought && part.Text != "":
+				// Thought-summary delta (M319): reasoning, surfaced on
+				// ReasoningDelta and kept out of the answer text.
+				st.reasoningParts.WriteString(part.Text)
+				if err := onChunk(agent.Chunk{ReasoningDelta: part.Text}); err != nil {
+					return nil, err
+				}
 			case part.Text != "":
 				st.textParts.WriteString(part.Text)
 				if err := onChunk(agent.Chunk{TextDelta: part.Text}); err != nil {
@@ -240,8 +250,9 @@ func assembleResponse(st *streamState) *agent.CompletionResponse {
 		Usage: agent.Usage{
 			InputTokens:       st.inputTokens,
 			CachedInputTokens: st.cachedTokens,
-			OutputTokens:      st.outputTokens,
+			OutputTokens:      st.outputTokens + st.thoughtsTokens, // thinking billed as output (M319)
 			Model:             st.model,
 		},
+		ReasoningContent: st.reasoningParts.String(),
 	}
 }

@@ -175,6 +175,16 @@ func Build(p *catalog.Provider, modelID string, lookup CredLookup) (agent.Provid
 		gp.BaseURL = base
 		gp.Endpoint = "" // force BaseURL-derived path
 		gp.Model = modelID
+		// Thinking (M319, 2.5-series): opt-in via AGEZT_GOOGLE_THINKING_BUDGET.
+		// Off by default (thinking costs extra tokens, billed as output). A
+		// positive value caps the thinking tokens; -1 asks Gemini for a
+		// dynamic budget. The summaries land on ReasoningContent + ephemeral
+		// llm.reasoning events (M317), same pipeline as DeepSeek-R1/Claude.
+		if v := strings.TrimSpace(envLookup(lookup, "AGEZT_GOOGLE_THINKING_BUDGET")); v != "" {
+			if n, err := strconv.Atoi(v); err == nil && n != 0 {
+				gp.ThinkingBudget = n
+			}
+		}
 		return wrapNamed(p.ID, gp), modelID, nil
 	case catalog.FamilyOpenAI, catalog.FamilyOpenAICompatible:
 		// One adapter, two families: real OpenAI and openai-compatible
