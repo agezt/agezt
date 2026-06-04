@@ -62,6 +62,12 @@ const (
 	KindHalt   Kind = "halt"
 	KindResume Kind = "resume"
 
+	// KindAnomalyDetected records the anomaly auto-halt circuit breaker tripping
+	// (SPEC-06 §5): a runaway signal (e.g. tool-call rate exceeding the ceiling
+	// within a window) that auto-engages a halt. Journaled so `agt why`/`agt
+	// journal` explain WHY the daemon halted itself.
+	KindAnomalyDetected Kind = "system.anomaly"
+
 	// Policy / Edict (P1-EDICT-*).
 	KindPolicyDecision Kind = "policy.decision"
 	// KindPolicyChanged records a runtime mutation of the policy engine's
@@ -231,6 +237,7 @@ var knownKinds = map[Kind]struct{}{
 	KindLLMToken:                  {},
 	KindLLMReasoning:              {},
 	KindHalt:                      {},
+	KindAnomalyDetected:           {},
 	KindResume:                    {},
 	KindPolicyDecision:            {},
 	KindPolicyChanged:             {},

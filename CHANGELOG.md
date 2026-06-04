@@ -85,6 +85,14 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   valid UTF-8. (The journal's own answer truncation was already rune-safe.)
 
 ### Added
+- **Anomaly auto-halt: a runaway circuit breaker.** A new always-on safety
+  guard (SPEC-06 §5) watches the global tool-call rate across every run, channel,
+  and Pulse; if it exceeds a ceiling within a window — the signature of a runaway
+  or looping agent — it auto-engages `halt` (cancelling in-flight runs, blocking
+  new ones) and journals a `system.anomaly` event explaining why. This is a
+  daemon-wide backstop above the per-run loop guard. On by default (>120 tool
+  calls / 10s); tune with `AGEZT_ANOMALY_MAX_TOOLCALLS` (0 disables) and
+  `AGEZT_ANOMALY_WINDOW`. The boot banner shows the active setting.
 - **`agt why` now shows causation provenance.** Alongside the events sharing a
   correlation, `agt why <event>` renders a "caused by (provenance, root first)"
   section that walks the `causation_id` chain back to the root cause — the

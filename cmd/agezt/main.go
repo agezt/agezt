@@ -42,6 +42,7 @@ import (
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/internal/paths"
 	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/anomaly"
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/cadence"
 	"github.com/agezt/agezt/kernel/catalog"
@@ -731,6 +732,11 @@ func runDaemon(stdout, stderr io.Writer) int {
 	} else {
 		fmt.Fprintf(stdout, "  webhooks         : disabled (set AGEZT_WEBHOOKS, e.g. https://host/hook|agent.>|secret)\n")
 	}
+
+	// Anomaly auto-halt (SPEC-06 §5): a global tool-call-rate circuit breaker
+	// that auto-halts the kernel if a runaway/looping agent floods tool calls.
+	// On by default; AGEZT_ANOMALY_MAX_TOOLCALLS=0 disables.
+	fmt.Fprintf(stdout, "  anomaly halt     : %s\n", buildAnomaly(ctx, k, stdout))
 
 	// draining flips true at shutdown so /readyz reports not-ready and the daemon
 	// drains in-flight runs before exiting (M136). Shared with buildRESTAPI's
@@ -1997,6 +2003,37 @@ func buildWebhooks(ctx context.Context, k *kernelruntime.Kernel, stdout io.Write
 	}
 	webhook.NewDispatcher(k.Bus(), sinks, stdout).Start(ctx)
 	return webhook.Describe(sinks)
+}
+
+// buildAnomaly starts the anomaly auto-halt circuit breaker (SPEC-06 §5). It
+// watches the global tool-call rate and auto-halts the kernel on a runaway
+// spike — a safety backstop above the per-run loop guard (M116). On by default;
+// AGEZT_ANOMALY_MAX_TOOLCALLS sets the ceiling (0 disables),
+// AGEZT_ANOMALY_WINDOW the measurement window. Returns a banner description.
+func buildAnomaly(ctx context.Context, k *kernelruntime.Kernel, stdout io.Writer) string {
+	max := 120 // ~12 tool calls/sec sustained — only a tight loop hits this
+	if v := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "ANOMALY_MAX_TOOLCALLS")); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n >= 0 {
+			max = n
+		}
+	}
+	window := 10 * time.Second
+	if v := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "ANOMALY_WINDOW")); v != "" {
+		if d, err := time.ParseDuration(v); err == nil && d > 0 {
+			window = d
+		}
+	}
+	if max <= 0 {
+		return "disabled (AGEZT_ANOMALY_MAX_TOOLCALLS=0)"
+	}
+	started := anomaly.Start(ctx, k.Bus(), anomaly.Config{MaxToolCalls: max, Window: window}, func(reason string) {
+		fmt.Fprintf(stdout, "  ⚠ anomaly auto-halt engaged: %s\n", reason)
+		k.HaltWith(reason)
+	})
+	if !started {
+		return "disabled"
+	}
+	return fmt.Sprintf("on (halt if >%d tool calls / %s; set AGEZT_ANOMALY_MAX_TOOLCALLS=0 to disable)", max, window)
 }
 
 // delegationBanner renders the active multi-agent delegation ceilings (M58) for
