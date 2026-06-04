@@ -55,7 +55,8 @@ func cmdWhy(args []string, stdout, stderr io.Writer) int {
 			tenant = strings.TrimPrefix(a, "--tenant=")
 		case a == "-h" || a == "--help":
 			fmt.Fprintf(stdout, "usage: %s why <event_id> [--tenant <id>] [--json|--payload]\n", brand.CLI)
-			fmt.Fprintf(stdout, "list every event sharing an event's correlation chain\n")
+			fmt.Fprintf(stdout, "list every event sharing an event's correlation chain,\n")
+			fmt.Fprintf(stdout, "plus its causation provenance (the chain that caused it, root first)\n")
 			fmt.Fprintf(stdout, "  --tenant <id>  trace a tenant's own events (needs that tenant's token)\n")
 			fmt.Fprintf(stdout, "  --json     dump the full events array (jq-friendly)\n")
 			fmt.Fprintf(stdout, "  --payload  render human-readable but include payload bodies\n")
@@ -91,6 +92,7 @@ func cmdWhy(args []string, stdout, stderr io.Writer) int {
 	}
 	events, _ := res["events"].([]any)
 	parent, _ := res["parent_correlation"].(string)
+	causation, _ := res["causation_chain"].([]any)
 
 	if asJSON {
 		// Re-wrap so the JSON output is self-describing — a bare
@@ -102,6 +104,7 @@ func cmdWhy(args []string, stdout, stderr io.Writer) int {
 			"correlation":        res["correlation"],
 			"parent_correlation": parent,
 			"events":             events,
+			"causation_chain":    causation,
 		}
 		enc := json.NewEncoder(stdout)
 		enc.SetIndent("", "  ")
@@ -116,6 +119,19 @@ func cmdWhy(args []string, stdout, stderr io.Writer) int {
 			m["seq"], m["kind"], m["subject"])
 		if withPayload {
 			renderPayload(stdout, m["payload"])
+		}
+	}
+	// Causation provenance (SPEC-01 §7.1): the chain of events that caused
+	// this one, oldest-first. This crosses correlation boundaries the list
+	// above cannot — e.g. a Pulse initiative back to the tick that originated
+	// it (a different correlation). Shown only when there's an edge beyond the
+	// event itself (len > 1); the daemon omits trivial single-event chains.
+	if len(causation) > 1 {
+		fmt.Fprintf(stdout, "\ncaused by (provenance, root first):\n")
+		for _, raw := range causation {
+			m, _ := raw.(map[string]any)
+			fmt.Fprintf(stdout, "  seq=%-4v kind=%-22v subject=%v\n",
+				m["seq"], m["kind"], m["subject"])
 		}
 	}
 	// Parent backlink (M42): this chain is a sub-agent's — point up to its

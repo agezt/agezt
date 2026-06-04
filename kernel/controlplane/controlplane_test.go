@@ -440,6 +440,52 @@ func TestWhy(t *testing.T) {
 	}
 }
 
+// TestWhy_CausationChainCrossesCorrelation (M364, SPEC-01 §7.1): CmdWhy now
+// returns a `causation_chain` that follows causation_id across correlation
+// boundaries — surfacing provenance the correlation-grouped `events` list
+// cannot. A Pulse-style tick and initiative are published under DIFFERENT
+// correlations, linked only by causation_id; the chain must reach the tick.
+func TestWhy_CausationChainCrossesCorrelation(t *testing.T) {
+	k, _, c, _ := startPair(t, mock.New(mock.FinalText("done")))
+
+	tick, err := k.Bus().Publish(event.Spec{
+		Subject: "pulse.tick", Kind: event.KindPulseTick, Actor: "pulse",
+		CorrelationID: "pulse-tick-cp", Payload: map[string]any{"beat": 1},
+	})
+	if err != nil {
+		t.Fatalf("publish tick: %v", err)
+	}
+	initiative, err := k.Bus().Publish(event.Spec{
+		Subject: "pulse.initiative", Kind: event.KindInitiativeTaken, Actor: "pulse",
+		CorrelationID: "pulse-delta-cp", CausationID: tick.ID, // different correlation, caused by the tick
+		Payload: map[string]any{"action": "demo"},
+	})
+	if err != nil {
+		t.Fatalf("publish initiative: %v", err)
+	}
+
+	res, err := c.Call(context.Background(), controlplane.CmdWhy, map[string]any{"event_id": initiative.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	chain, ok := res["causation_chain"].([]any)
+	if !ok || len(chain) != 2 {
+		t.Fatalf("causation_chain = %v (want 2 events: tick → initiative)", res["causation_chain"])
+	}
+	first, _ := chain[0].(map[string]any)
+	if id, _ := first["id"].(string); id != tick.ID {
+		t.Errorf("causation_chain[0].id=%v want tick %s (root-first)", first["id"], tick.ID)
+	}
+	// The correlation-grouped events list must NOT contain the tick — proving
+	// the causation chain is surfacing something `events` cannot.
+	events, _ := res["events"].([]any)
+	for _, raw := range events {
+		if m, _ := raw.(map[string]any); m["id"] == tick.ID {
+			t.Error("correlation events unexpectedly include the tick — gap precondition broken")
+		}
+	}
+}
+
 func TestJournalVerify(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("done")))
 	if _, err := c.Stream(context.Background(), controlplane.CmdRun, map[string]any{"intent": "x"}, nil); err != nil {

@@ -76,6 +76,15 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   valid UTF-8. (The journal's own answer truncation was already rune-safe.)
 
 ### Added
+- **`agt why` now shows causation provenance.** Alongside the events sharing a
+  correlation, `agt why <event>` renders a "caused by (provenance, root first)"
+  section that walks the `causation_id` chain back to the root cause — the
+  provenance graph SPEC-01 §7.1 describes. This crosses correlation boundaries
+  the correlation list cannot: e.g. a Pulse initiative carries its own
+  correlation but links to the originating tick (a different correlation) only
+  via `causation_id`, so the tick is now reachable. The chain is also in the
+  `--json` output (`causation_chain`). Read-only; the daemon omits trivial
+  single-event chains.
 - **Web UI: config inspector panel.** A new "Config" panel answers "what is this
   daemon actually running with?" — the resolved model, system-prompt-set flag,
   tool/plugin counts, ask-policy, base paths, and which `AGEZT_*` env vars are

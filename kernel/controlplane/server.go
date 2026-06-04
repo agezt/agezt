@@ -752,6 +752,18 @@ func (s *Server) handleWhy(conn net.Conn, req Request) {
 	if corr != "" {
 		parent = k.ParentOf(corr)
 	}
+	// Causation provenance (SPEC-01 §7.1): the chain of events linked by
+	// causation_id from the root cause down to this one, ordered oldest-first.
+	// Unlike the correlation grouping above, this crosses correlation
+	// boundaries — e.g. a Pulse initiative back to its originating tick, which
+	// carries a different correlation and is therefore absent from `events`.
+	// Best-effort: a failure here must not sink the whole why response.
+	causation := make([]any, 0, 4)
+	if chain, cErr := k.Causes(id); cErr == nil && len(chain) > 1 {
+		for _, e := range chain {
+			causation = append(causation, e)
+		}
+	}
 	s.writeResp(conn, Response{
 		ID:   req.ID,
 		Type: RespResult,
@@ -759,6 +771,7 @@ func (s *Server) handleWhy(conn net.Conn, req Request) {
 			"events":             out,
 			"correlation":        corr,
 			"parent_correlation": parent,
+			"causation_chain":    causation,
 		},
 	})
 }
