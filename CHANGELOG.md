@@ -11,6 +11,16 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 
 ## [Unreleased]
 
+### Fixed
+- **Credential vault: a corrupt or tampered vault file no longer crashes the
+  process.** `decryptVault` now validates the nonce length before calling
+  AES-GCM `Open` — Go's GCM *panics* (rather than returning an error) on a nonce
+  that isn't 12 bytes, so a vault whose `nonce` base64-decodes to the wrong length
+  (disk corruption, a truncated write, or deliberate tampering) would have crashed
+  the daemon/CLI instead of failing cleanly. It now returns a clear
+  "vault corrupt or tampered" error. (Ciphertext and salt lengths were already
+  safe — GCM errors on a short ciphertext and PBKDF2 accepts any salt.)
+
 ### Added
 - **Anthropic prompt caching now covers the system prompt too — across the whole
   Claude family.** The direct Anthropic provider, Claude-on-Bedrock, and

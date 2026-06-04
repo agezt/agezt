@@ -7,6 +7,7 @@ package creds
 // directly. Same convention as the bedrock SigV4 tests.
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"os"
 	"strings"
@@ -15,9 +16,9 @@ import (
 
 func TestEncryptDecrypt_RoundTrip(t *testing.T) {
 	plain := map[string]string{
-		"OPENAI_API_KEY":     "sk-test-1",
-		"ANTHROPIC_API_KEY":  "sk-ant-2",
-		"AWS_ACCESS_KEY_ID":  "AKID3",
+		"OPENAI_API_KEY":    "sk-test-1",
+		"ANTHROPIC_API_KEY": "sk-ant-2",
+		"AWS_ACCESS_KEY_ID": "AKID3",
 	}
 	const passphrase = "correct horse battery staple"
 
@@ -264,5 +265,30 @@ func writeFile(t *testing.T, path string, data []byte) {
 	t.Helper()
 	if err := os.WriteFile(path, data, 0600); err != nil {
 		t.Fatalf("writeFile: %v", err)
+	}
+}
+
+// TestDecrypt_BadNonceLengthErrorsNotPanic guards M303: a corrupt/tampered vault
+// whose nonce base64-decodes to the wrong length must fail cleanly, not panic
+// (Go's GCM panics on a nonce that isn't NonceSize() bytes).
+func TestDecrypt_BadNonceLengthErrorsNotPanic(t *testing.T) {
+	const pass = "correct horse battery staple"
+	envelope, err := encryptVault(map[string]string{"OPENAI_API_KEY": "sk-x"}, pass)
+	if err != nil {
+		t.Fatalf("encryptVault: %v", err)
+	}
+	var env encryptedEnvelope
+	if err := json.Unmarshal(envelope, &env); err != nil {
+		t.Fatalf("unmarshal envelope: %v", err)
+	}
+	// Replace the 12-byte nonce with a 5-byte one (still valid base64).
+	env.Nonce = base64.StdEncoding.EncodeToString([]byte("short"))
+	tampered, err := json.Marshal(env)
+	if err != nil {
+		t.Fatalf("marshal tampered: %v", err)
+	}
+	// Must return an error, not panic (the test harness fails on a panic).
+	if _, err := decryptVault(tampered, pass); err == nil {
+		t.Fatal("decryptVault accepted a wrong-length nonce; want a clean error")
 	}
 }

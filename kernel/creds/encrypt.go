@@ -222,6 +222,15 @@ func decryptVault(raw []byte, passphrase string) (map[string]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("creds: decode nonce: %w", err)
 	}
+	// Validate the nonce length BEFORE gcm.Open: Go's GCM panics (rather than
+	// erroring) on a nonce that isn't NonceSize() bytes. A corrupted, truncated,
+	// or tampered vault whose nonce base64-decodes to the wrong length would
+	// otherwise crash the process instead of failing cleanly. (Ciphertext length
+	// and salt length are safe — GCM errors on a short ciphertext, and PBKDF2
+	// accepts any salt.)
+	if len(nonce) != NonceBytes {
+		return nil, fmt.Errorf("creds: nonce length %d invalid (want %d) — vault corrupt or tampered", len(nonce), NonceBytes)
+	}
 	ciphertext, err := base64.StdEncoding.DecodeString(env.Ciphertext)
 	if err != nil {
 		return nil, fmt.Errorf("creds: decode ciphertext: %w", err)
