@@ -127,6 +127,96 @@ func TestResponses_Streaming(t *testing.T) {
 	}
 }
 
+// A reasoning model's chain of thought must surface on the non-streaming
+// Responses result as a `reasoning` output item (with a summary_text), prepended
+// before the assistant message, without leaking into the answer (M324).
+func TestResponses_NonStreaming_ReasoningItem(t *testing.T) {
+	eng := &fakeEngine{model: "m", answer: "42", reasoning: []string{"6*7 ", "= 42."}}
+	s := newAPIServer(t, eng, "secret")
+	body := `{"model":"m","input":"6*7?"}`
+	req := httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(body))
+	req.Header.Set("Authorization", "Bearer secret")
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	var out struct {
+		Output []struct {
+			Type    string `json:"type"`
+			Role    string `json:"role"`
+			Summary []struct {
+				Type string `json:"type"`
+				Text string `json:"text"`
+			} `json:"summary"`
+			Content []struct {
+				Text string `json:"text"`
+			} `json:"content"`
+		} `json:"output"`
+		OutputText string `json:"output_text"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+		t.Fatal(err)
+	}
+	if len(out.Output) != 2 {
+		t.Fatalf("expected reasoning + message items, got %+v", out.Output)
+	}
+	if out.Output[0].Type != "reasoning" || len(out.Output[0].Summary) != 1 ||
+		out.Output[0].Summary[0].Type != "summary_text" || out.Output[0].Summary[0].Text != "6*7 = 42." {
+		t.Errorf("reasoning item = %+v", out.Output[0])
+	}
+	if out.Output[1].Type != "message" || len(out.Output[1].Content) != 1 || out.Output[1].Content[0].Text != "42" {
+		t.Errorf("message item = %+v", out.Output[1])
+	}
+	if out.OutputText != "42" {
+		t.Errorf("output_text=%q (reasoning must not leak into the answer)", out.OutputText)
+	}
+}
+
+// A non-reasoning run must carry exactly one (message) output item — no reasoning
+// item — so the response stays byte-identical to before (M324).
+func TestResponses_NonStreaming_NoReasoningItemWhenAbsent(t *testing.T) {
+	eng := &fakeEngine{model: "m", answer: "hi"}
+	s := newAPIServer(t, eng, "secret")
+	body := `{"model":"m","input":"hi"}`
+	req := httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(body))
+	req.Header.Set("Authorization", "Bearer secret")
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+	if strings.Contains(rec.Body.String(), `"type":"reasoning"`) {
+		t.Errorf("no reasoning item expected for a non-reasoning run:\n%s", rec.Body.String())
+	}
+}
+
+// In streaming mode, reasoning must arrive as response.reasoning_summary_text
+// .delta/.done events and appear as a reasoning output item in the final
+// response.completed object (M324).
+func TestResponses_Streaming_Reasoning(t *testing.T) {
+	eng := &fakeEngine{model: "m", answer: "42", tokens: []string{"42"}, reasoning: []string{"6*7 ", "= 42."}}
+	s := newAPIServer(t, eng, "secret")
+	body := `{"model":"m","stream":true,"input":"6*7?"}`
+	req := httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(body))
+	req.Header.Set("Authorization", "Bearer secret")
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+	out := rec.Body.String()
+	for _, want := range []string{
+		"event: response.reasoning_summary_text.delta",
+		`"delta":"6*7 "`,
+		`"delta":"= 42."`,
+		"event: response.reasoning_summary_text.done",
+		`"type":"reasoning"`,
+		`"type":"summary_text"`,
+		`"text":"6*7 = 42."`,
+		`"delta":"42"`, // the answer still streams as output_text
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("stream missing %q in:\n%s", want, out)
+		}
+	}
+}
+
 func TestResponses_StreamingNonStreamProviderEmitsAnswerOnce(t *testing.T) {
 	// No tokens streamed → the answer should arrive as a single delta.
 	eng := &fakeEngine{model: "m", answer: "single shot"}

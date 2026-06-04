@@ -60,6 +60,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   many clients already render. Non-reasoning runs omit the field entirely (the
   response is byte-identical to before). With ACP above, the captured reasoning
   now reaches both of Agezt's external surfaces.
+- **Reasoning on the Responses API too.** The newer `/v1/responses` surface now
+  carries a reasoning model's chain of thought as a `reasoning` output item (with
+  a `summary_text`), and streams it as `response.reasoning_summary_text.delta` /
+  `.done` events — the Responses-API shape, distinct from the answer's
+  `output_text`. Non-reasoning runs are unchanged. Reasoning now spans both
+  OpenAI-compatible endpoints (Chat Completions + Responses).
 
 ### Fixed
 - **Ollama now honours the run's token cap.** `MaxTokens` is forwarded as

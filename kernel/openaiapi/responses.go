@@ -85,13 +85,15 @@ func (s *Server) handleResponses(w http.ResponseWriter, r *http.Request) {
 	}
 
 	corr := eng.NewCorrelation()
-	answer, err := eng.RunModel(r.Context(), corr, intent, model, images, jsonMode)
+	// Capture the run's reasoning (M324) the same way the chat handler does, so a
+	// reasoning model's chain of thought surfaces as a `reasoning` output item.
+	answer, reasoning, err := s.runCapturingReasoning(r, eng, b, corr, intent, model, images, jsonMode)
 	if err != nil {
 		writeErr(w, http.StatusBadGateway, "upstream_error", err.Error())
 		return
 	}
 	id := "resp_" + ulid.New()
-	writeJSON(w, http.StatusOK, responseObject(eng, id, model, answer, intent, corr, "completed"))
+	writeJSON(w, http.StatusOK, responseObject(eng, id, model, answer, reasoning, intent, corr, "completed"))
 }
 
 // intentFromResponsesInput collapses a Responses request into one intent by
@@ -140,24 +142,39 @@ func imagesFromResponsesInput(req responsesRequest) []string {
 // responseObject builds a Responses API result object. status is "completed"
 // for a finished run; the output carries one assistant message with an
 // output_text content part, and output_text mirrors it for SDK convenience.
-func responseObject(eng Engine, id, model, answer, intent, corr, status string) map[string]any {
+// When reasoning is non-empty (M324), a `reasoning` output item carrying the
+// chain-of-thought summary is prepended — the position and shape the OpenAI
+// Responses API uses for reasoning models.
+func responseObject(eng Engine, id, model, answer, reasoning, intent, corr, status string) map[string]any {
 	msgID := "msg_" + ulid.New()
-	return map[string]any{
-		"id":         id,
-		"object":     "response",
-		"created_at": time.Now().Unix(),
-		"model":      model,
-		"status":     status,
-		"output": []map[string]any{{
-			"id":   msgID,
-			"type": "message",
-			"role": "assistant",
-			"content": []map[string]any{{
-				"type":        "output_text",
-				"text":        answer,
-				"annotations": []any{},
+	output := make([]map[string]any, 0, 2)
+	if reasoning != "" {
+		output = append(output, map[string]any{
+			"id":   "rs_" + ulid.New(),
+			"type": "reasoning",
+			"summary": []map[string]any{{
+				"type": "summary_text",
+				"text": reasoning,
 			}},
+		})
+	}
+	output = append(output, map[string]any{
+		"id":   msgID,
+		"type": "message",
+		"role": "assistant",
+		"content": []map[string]any{{
+			"type":        "output_text",
+			"text":        answer,
+			"annotations": []any{},
 		}},
+	})
+	return map[string]any{
+		"id":          id,
+		"object":      "response",
+		"created_at":  time.Now().Unix(),
+		"model":       model,
+		"status":      status,
+		"output":      output,
 		"output_text": answer, // SDK convenience accessor
 		"usage":       responsesUsageFor(eng, corr, intent, answer),
 		// Agezt-specific: the correlation id so callers can `agt why` the run.
@@ -247,6 +264,21 @@ func (s *Server) streamResponses(w http.ResponseWriter, r *http.Request, eng Eng
 			"item_id": msgID, "output_index": 0, "content_index": 0, "delta": txt,
 		})
 	}
+	// Reasoning (M324): a reasoning model's chain of thought streams as
+	// response.reasoning_summary_text.delta events (the Responses-API convention),
+	// distinct from the answer's output_text deltas, and lands in the final
+	// response as a `reasoning` output item via responseObject.
+	reasoningID := "rs_" + ulid.New()
+	var reasoningBuf strings.Builder
+	emitReasoning := func(txt string) {
+		if txt == "" {
+			return
+		}
+		reasoningBuf.WriteString(txt)
+		send("response.reasoning_summary_text.delta", map[string]any{
+			"item_id": reasoningID, "output_index": 0, "summary_index": 0, "delta": txt,
+		})
+	}
 
 	ctx := r.Context()
 	finish := func(res result) {
@@ -255,9 +287,15 @@ func (s *Server) streamResponses(w http.ResponseWriter, r *http.Request, eng Eng
 			select {
 			case ev := <-sub.C:
 				emitDelta(tokenText(ev))
+				emitReasoning(reasoningText(ev))
 			default:
 				drained = true
 			}
+		}
+		if reasoningBuf.Len() > 0 {
+			send("response.reasoning_summary_text.done", map[string]any{
+				"item_id": reasoningID, "output_index": 0, "summary_index": 0, "text": reasoningBuf.String(),
+			})
 		}
 		// If nothing streamed (non-streaming provider), emit the answer once.
 		if full.Len() == 0 && res.answer != "" {
@@ -270,7 +308,7 @@ func (s *Server) streamResponses(w http.ResponseWriter, r *http.Request, eng Eng
 		if res.err != nil {
 			status = "failed"
 		}
-		final := responseObject(eng, respID, model, full.String(), intent, corr, status)
+		final := responseObject(eng, respID, model, full.String(), reasoningBuf.String(), intent, corr, status)
 		if res.err != nil {
 			final["error"] = map[string]any{"message": res.err.Error(), "type": "upstream_error"}
 			send("response.failed", map[string]any{"response": final})
@@ -291,6 +329,7 @@ func (s *Server) streamResponses(w http.ResponseWriter, r *http.Request, eng Eng
 				return
 			}
 			emitDelta(tokenText(ev))
+			emitReasoning(reasoningText(ev))
 		case res := <-done:
 			finish(res)
 			return
