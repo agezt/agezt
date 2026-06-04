@@ -61,6 +61,7 @@ func New(b *bus.Bus, client Caller, token string) *Server {
 // proxies. Read-only by construction: there is no path here that mutates.
 var apiRoutes = map[string]string{
 	"/api/status":    controlplane.CmdStatus,
+	"/api/config":    controlplane.CmdConfig,
 	"/api/runs":      controlplane.CmdRunsList,
 	"/api/stats":     controlplane.CmdRunsStats,
 	"/api/budget":    controlplane.CmdBudget,

@@ -101,6 +101,11 @@
     border-radius: 4px; white-space: pre-wrap; word-break: break-word; max-height: 260px; overflow: auto;
     color: var(--fg); font-size: 11px; }
   .arc .toolio.show { display: block; }
+  .envlist { display: flex; flex-wrap: wrap; gap: 4px; margin: 4px 0 8px; }
+  .envlist .tag { background: var(--panel2); color: var(--fg); border-radius: 4px;
+    padding: 1px 6px; font-size: 10px; font-family: var(--mono, monospace); }
+  .cfgpre { margin: 4px 0; padding: 6px 8px; background: var(--panel2); border-radius: 4px;
+    white-space: pre-wrap; word-break: break-word; max-height: 220px; overflow: auto; font-size: 11px; }
   .fbbadge { color: #fff; background: var(--bad); border-radius: 12px; padding: 2px 10px;
     font-size: 11px; font-weight: 600; cursor: pointer; }
   .fbbadge:hover { filter: brightness(1.12); }
@@ -129,6 +134,7 @@
   </section>
 
   <section class="panel"><h2>Status <button data-panel="status">↻</button></h2><div class="body" id="status"></div></section>
+  <section class="panel"><h2>Config <button data-panel="config">↻</button></h2><div class="body" id="config"></div></section>
   <section class="panel"><h2>Runs <button data-panel="runs">↻</button></h2><div class="body" id="runs"></div></section>
   <section class="panel"><h2>Stats <button data-panel="stats">↻</button></h2><div class="body" id="stats"></div></section>
   <section class="panel"><h2>Budget <button data-panel="budget">↻</button></h2><div class="body" id="budget"></div></section>
@@ -395,6 +401,33 @@ const renderers = {
     updateFallbackBadge(d);
     return kv(Object.entries(d).map(([k, v]) =>
       [k, typeof v === "object" ? JSON.stringify(v) : v]));
+  },
+
+  // config: the daemon's resolved config — "what is this daemon running with?".
+  // Privacy-safe by construction: env reports PRESENCE only (never values), and
+  // system_prompt_set is a bool (never the prompt text).
+  config: (d) => {
+    const frag = document.createDocumentFragment();
+    frag.appendChild(kv([
+      ["model", d.model || "—"],
+      ["system prompt", d.system_prompt_set ? "set" : "—"],
+      ["tools", d.tool_count != null ? d.tool_count : "—"],
+      ["plugins", d.plugin_count != null ? d.plugin_count : "—"],
+      ["ask policy", d.ask_policy || "—"],
+    ]));
+    const env = Object.keys(d.env || {}).filter((k) => d.env[k]).sort();
+    frag.appendChild(el("div", "count muted", env.length + " env var(s) set"));
+    if (env.length) {
+      const box = el("div", "envlist");
+      for (const k of env) box.appendChild(el("span", "tag", k));
+      frag.appendChild(box);
+    }
+    if (d.paths) {
+      frag.appendChild(el("div", "count muted", "paths"));
+      frag.appendChild(kv(Object.entries(d.paths).map(([k, v]) => [k, v])));
+    }
+    if (d.routing) frag.appendChild(el("pre", "cfgpre", JSON.stringify(d.routing, null, 2)));
+    return frag;
   },
 
   runs: (d) => {

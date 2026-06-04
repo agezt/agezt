@@ -12,6 +12,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Web UI: config inspector panel.** A new "Config" panel answers "what is this
+  daemon actually running with?" — the resolved model, system-prompt-set flag,
+  tool/plugin counts, ask-policy, base paths, and which `AGEZT_*` env vars are
+  set. Privacy-safe by construction: env vars are shown by **presence only**
+  (never their values), and the system prompt is a set/unset flag (never its
+  text). Backed by the existing `config` control-plane command (also available as
+  `agt config`); the web panel makes it visible without shelling in.
 - **Web UI: full tool I/O in run detail.** The run-detail modal's event arc now
   lets you expand any `tool.invoked` / `tool.result` row (▸/▾) to reveal the full,
   untruncated tool input (pretty-printed JSON) and output (or error) — the

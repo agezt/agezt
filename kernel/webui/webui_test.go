@@ -223,6 +223,26 @@ func TestToolsRouteProxiesToolStats(t *testing.T) {
 	}
 }
 
+func TestConfigRouteProxiesConfig(t *testing.T) {
+	// The config inspector surfaces the daemon's resolved config (paths, model,
+	// env PRESENCE only). It is a read-only proxy of the `config` command.
+	fc := &fakeCaller{result: map[string]any{
+		"model":      "mock",
+		"tool_count": 3,
+		"env":        map[string]any{"AGEZT_PROVIDER": true},
+	}}
+	s, _ := newServer(t, fc, "secret")
+	req := httptest.NewRequest(http.MethodGet, "/api/config?token=secret", nil)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d want 200", rec.Code)
+	}
+	if len(fc.calls) != 1 || fc.calls[0] != "config" {
+		t.Errorf("expected one config call, got %v", fc.calls)
+	}
+}
+
 func TestPolicyRouteProxiesEdictStats(t *testing.T) {
 	fc := &fakeCaller{result: map[string]any{"total": 0}}
 	s, _ := newServer(t, fc, "secret")
@@ -421,7 +441,7 @@ func TestAPIReadOnly(t *testing.T) {
 	// Every GET /api route must map to a read-only command — assert the proxy
 	// never issues anything outside the known read set.
 	readOnly := map[string]bool{
-		"status": true, "runs_list": true, "runs_stats": true, "budget": true, "cache_stats": true, "provider_stats": true, "tool_stats": true, "edict_stats": true, "schedule_list": true, "memory_list": true, "world_list": true,
+		"status": true, "config": true, "runs_list": true, "runs_stats": true, "budget": true, "cache_stats": true, "provider_stats": true, "tool_stats": true, "edict_stats": true, "schedule_list": true, "memory_list": true, "world_list": true,
 		"skill_list": true, "inbox": true, "reflect_show": true, "approvals": true,
 	}
 	for path := range apiRoutes {
