@@ -362,6 +362,128 @@ func TestGateNode_DeniedAbortsDownstream(t *testing.T) {
 	}
 }
 
+// TestGateNode_TimeoutAbortsDownstream locks in the fail-closed property
+// of a plan gate: if no operator answers within the approval timeout, the
+// gate must synthesise a deny (DecisionTimeout) so the plan aborts rather
+// than silently releasing the guarded branch. SPEC-06 §3.4: "Time-outs
+// default to deny." Nobody resolves the approval here.
+func TestGateNode_TimeoutAbortsDownstream(t *testing.T) {
+	b, j := newBus(t)
+	apr := approval.New(approval.Config{Bus: b, Timeout: 50 * time.Millisecond})
+	e := scheduler.New(scheduler.Config{Bus: b})
+
+	gate := &scheduler.GateNode{
+		NodeID: "gate", Approvals: apr, Capability: "plan.execute",
+	}
+	exec := &fakeNode{NodeID: "execute", Deps: []string{"gate"}, ResultOutput: "must-not-run"}
+	plan := scheduler.Plan{Nodes: []scheduler.Node{gate, exec}}
+
+	res, err := e.Run(context.Background(), plan, "")
+	if err == nil {
+		t.Fatal("expected plan failure after gate timeout")
+	}
+	if _, ok := res.Errors["gate"]; !ok {
+		t.Error("gate should be recorded as a failed node")
+	}
+	if _, ok := res.NodeResults["execute"]; ok {
+		t.Error("execute must not run after gate timeout (fail-closed)")
+	}
+	kinds := countKinds(t, j)
+	if kinds[event.KindApprovalTimeout] != 1 {
+		t.Errorf("approval.timeout count=%d want 1", kinds[event.KindApprovalTimeout])
+	}
+	if kinds[event.KindPlanFailed] != 1 {
+		t.Errorf("plan.failed count=%d want 1", kinds[event.KindPlanFailed])
+	}
+}
+
+// TestGateNode_CancelAbortsDownstream covers the third terminal outcome:
+// if the plan's context is cancelled while the gate is waiting for an
+// operator, the gate fails (DecisionCancel) and the guarded branch never
+// runs. This is the "operator walked away / daemon shutting down" path.
+func TestGateNode_CancelAbortsDownstream(t *testing.T) {
+	b, _ := newBus(t)
+	apr := approval.New(approval.Config{Bus: b, Timeout: 5 * time.Second})
+	e := scheduler.New(scheduler.Config{Bus: b})
+
+	gate := &scheduler.GateNode{
+		NodeID: "gate", Approvals: apr, Capability: "plan.execute",
+	}
+	exec := &fakeNode{NodeID: "execute", Deps: []string{"gate"}, ResultOutput: "must-not-run"}
+	plan := scheduler.Plan{Nodes: []scheduler.Node{gate, exec}}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	// Cancel once the gate is parked in the approval queue.
+	go func() {
+		deadline := time.Now().Add(time.Second)
+		for time.Now().Before(deadline) {
+			if apr.PendingCount() == 1 {
+				cancel()
+				return
+			}
+			time.Sleep(2 * time.Millisecond)
+		}
+		t.Errorf("approval never appeared in pending queue")
+	}()
+
+	res, err := e.Run(ctx, plan, "")
+	if err == nil {
+		t.Fatal("expected plan failure after gate cancel")
+	}
+	if _, ok := res.NodeResults["execute"]; ok {
+		t.Error("execute must not run after gate cancel")
+	}
+}
+
+// TestGateNode_NilApprovalsErrors locks in the misconfiguration guard: a
+// gate wired without an approval registry fails the plan rather than
+// silently passing (which would defeat the gate entirely).
+func TestGateNode_NilApprovalsErrors(t *testing.T) {
+	b, _ := newBus(t)
+	e := scheduler.New(scheduler.Config{Bus: b})
+
+	gate := &scheduler.GateNode{NodeID: "gate", Capability: "plan.execute"}
+	exec := &fakeNode{NodeID: "execute", Deps: []string{"gate"}, ResultOutput: "must-not-run"}
+	plan := scheduler.Plan{Nodes: []scheduler.Node{gate, exec}}
+
+	res, err := e.Run(context.Background(), plan, "")
+	if err == nil {
+		t.Fatal("expected plan failure: gate has no Approvals registry")
+	}
+	if _, ok := res.NodeResults["execute"]; ok {
+		t.Error("execute must not run when the gate is misconfigured")
+	}
+}
+
+// TestLoopNode_GuardsRejectBadConfig covers the two LoopNode guards: a
+// missing Runner and an empty intent both fail the node (and so the plan)
+// instead of panicking or running an empty agent loop.
+func TestLoopNode_GuardsRejectBadConfig(t *testing.T) {
+	t.Run("nil runner", func(t *testing.T) {
+		b, _ := newBus(t)
+		e := scheduler.New(scheduler.Config{Bus: b})
+		plan := scheduler.Plan{Nodes: []scheduler.Node{
+			&scheduler.LoopNode{NodeID: "do", Intent: "something"},
+		}}
+		if _, err := e.Run(context.Background(), plan, ""); err == nil {
+			t.Fatal("expected failure: LoopNode has no Runner")
+		}
+	})
+	t.Run("empty intent", func(t *testing.T) {
+		b, _ := newBus(t)
+		e := scheduler.New(scheduler.Config{Bus: b})
+		runner := func(ctx context.Context, intent, corr string) (string, error) {
+			return "ran", nil
+		}
+		plan := scheduler.Plan{Nodes: []scheduler.Node{
+			&scheduler.LoopNode{NodeID: "do", Runner: runner},
+		}}
+		if _, err := e.Run(context.Background(), plan, ""); err == nil {
+			t.Fatal("expected failure: LoopNode has empty intent")
+		}
+	})
+}
+
 // ---- LoopNode integration ----
 
 func TestLoopNode_DelegatesToRunner(t *testing.T) {
