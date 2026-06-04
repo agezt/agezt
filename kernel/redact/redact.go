@@ -99,6 +99,37 @@ var namedPatterns = []namedPattern{
 	{"pem-private-key", regexp.MustCompile(`(?s)-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----.*?-----END [A-Z0-9 ]*PRIVATE KEY-----`)},
 }
 
+// templatedPattern is a secret detector that preserves non-secret context
+// around the match instead of replacing the whole span. Used where the secret
+// is embedded in a larger, useful-to-keep token (a connection URI) and a
+// recognizable prefix/suffix should survive (SPEC-06 §4: "long tokens keep a
+// recognizable prefix/suffix"). repl is a regexp expansion template.
+type templatedPattern struct {
+	name string
+	re   *regexp.Regexp
+	repl string
+}
+
+// templatedPatterns run after the full-match patterns. Today: connection-string
+// passwords — the password in a `scheme://user:password@host` URI (Postgres,
+// MySQL, MongoDB, Redis, AMQP, …). RE2 has no lookbehind, so the scheme+user
+// prefix (group 1) and the `@` boundary (group 2) are captured and re-emitted;
+// only the password between them is masked, leaving `scheme://user:[REDACTED]@host`
+// — enough to diagnose which database/user without leaking the credential. The
+// user segment is optional (`redis://:pass@host`); a hostless `host:port` with
+// no `@` userinfo never matches (so a plain `host:5432/db` is left intact).
+var templatedPatterns = []templatedPattern{
+	{
+		name: "connection-string-password",
+		// password class includes '@' so a raw (un-encoded) '@' in the password
+		// is fully masked: the greedy match backtracks to the LAST '@' before the
+		// host/path, leaving scheme://user:[REDACTED]@host. '\s' stays excluded so
+		// two space-separated URIs on one line don't bleed into one match.
+		re:   regexp.MustCompile(`([a-zA-Z][a-zA-Z0-9+.-]*://[^:/?#\s@]*:)[^/?#\s]+(@)`),
+		repl: "${1}" + Placeholder + "${2}",
+	},
+}
+
 // patterns is the detector list used by Redact, derived from namedPatterns so
 // the labels and the redaction rules can never drift apart.
 var patterns = func() []*regexp.Regexp {
@@ -121,6 +152,11 @@ func MatchedCategories(s string) []string {
 	for _, np := range namedPatterns {
 		if np.re.MatchString(s) {
 			out = append(out, np.name)
+		}
+	}
+	for _, tp := range templatedPatterns {
+		if tp.re.MatchString(s) {
+			out = append(out, tp.name)
 		}
 	}
 	return out
@@ -180,6 +216,10 @@ func (r *Redactor) Redact(s string) string {
 	}
 	for _, p := range patterns {
 		s = p.ReplaceAllString(s, Placeholder)
+	}
+	// Context-preserving patterns: mask only the secret span, keep the rest.
+	for _, tp := range templatedPatterns {
+		s = tp.re.ReplaceAllString(s, tp.repl)
 	}
 	return s
 }

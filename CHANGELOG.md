@@ -32,6 +32,15 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   with it. One malformed/edge-case request is contained to its own connection.
 
 ### Security
+- **Connection-string passwords are now redacted.** The secret-redaction layer
+  (applied to logs, tool output, and journal payloads) gained a high-confidence
+  detector for the password in a `scheme://user:password@host` URI — Postgres,
+  MySQL, MongoDB, Redis, AMQP, and the like — which a tool dump, error message,
+  or config echo could otherwise leak. Only the password is masked
+  (`scheme://user:[REDACTED]@host`), preserving the scheme/user/host so an
+  operator can still tell which database leaked, per SPEC-06 §4. A raw `@` inside
+  the password is fully masked; a bare `host:port` with no userinfo is left
+  intact (no false positives). Surfaced in `agt redact test` diagnostics.
 - **Replay-window check hardened against integer overflow.** The Slack, Discord,
   and generic-webhook channels' inbound freshness check (which rejects a stale
   signed timestamp to block replay) computed the age as
