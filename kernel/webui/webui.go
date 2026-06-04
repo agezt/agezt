@@ -86,7 +86,8 @@ type writeRoute struct {
 // never mutate — and only the allowlisted args are forwarded. Used by the run
 // detail view, which fetches one run's events by correlation_id.
 var readArgsRoutes = map[string]writeRoute{
-	"/api/journal": {controlplane.CmdJournalGrep, []string{"correlation_id", "kind", "limit"}},
+	"/api/journal":      {controlplane.CmdJournalGrep, []string{"correlation_id", "kind", "limit"}},
+	"/api/provider_log": {controlplane.CmdProviderLog, []string{"limit", "fallbacks"}},
 }
 
 // writeRoutes is the operator-action allowlist: the big red button (halt),

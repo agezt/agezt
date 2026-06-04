@@ -98,6 +98,10 @@ func TestDashboardServedAtRoot(t *testing.T) {
 	if !strings.Contains(body, `data-panel="providers"`) || !strings.Contains(body, "providers:") {
 		t.Error("dashboard missing the Providers panel")
 	}
+	// The Providers panel drills into the per-call routing timeline.
+	if !strings.Contains(body, "function openProviderLog") || !strings.Contains(body, "/api/provider_log") {
+		t.Error("dashboard missing the provider routing-log modal wiring")
+	}
 }
 
 func TestStatsRouteProxiesRunsStats(t *testing.T) {
@@ -147,6 +151,29 @@ func TestProvidersRouteProxiesProviderStats(t *testing.T) {
 	}
 	if len(fc.calls) != 1 || fc.calls[0] != "provider_stats" {
 		t.Errorf("expected one provider_stats call, got %v", fc.calls)
+	}
+}
+
+func TestProviderLogRouteForwardsLimit(t *testing.T) {
+	fc := &fakeCaller{result: map[string]any{"events": []any{}}}
+	s, _ := newServer(t, fc, "secret")
+	// The routing-log modal queries provider_log with limit; the limit arg is
+	// allowlisted and must reach provider_log, while a stray param is dropped.
+	req := httptest.NewRequest(http.MethodGet,
+		"/api/provider_log?token=secret&limit=40&evil=rm", nil)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d want 200", rec.Code)
+	}
+	if len(fc.calls) != 1 || fc.calls[0] != "provider_log" {
+		t.Fatalf("expected one provider_log call, got %v", fc.calls)
+	}
+	if fc.lastArgs["limit"] != "40" {
+		t.Errorf("limit not forwarded: %v", fc.lastArgs)
+	}
+	if _, leaked := fc.lastArgs["evil"]; leaked {
+		t.Errorf("non-allowlisted arg leaked through: %v", fc.lastArgs)
 	}
 }
 

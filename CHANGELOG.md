@@ -12,6 +12,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Web UI: the Providers panel drills into the per-call routing timeline.**
+  Clicking the panel opens a modal listing recent routing decisions (which
+  provider was chosen + the fallback chain + task type) and provider fallbacks
+  (failed → next + reason), newest-first — via the read-only `provider_log` route.
+  So the aggregate "who served my traffic" view (added below) now has a "what
+  happened, call by call" companion.
 - **Web UI: a Providers panel showing the routing picture.** A new panel proxies
   `provider_stats` to show how many calls each provider actually served
   (`by_primary`), the total routed/fallback counts, the fallback rate, and a

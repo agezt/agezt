@@ -428,11 +428,18 @@ const renderers = {
     ]));
     const byPrimary = d.by_primary || {};
     const names = Object.keys(byPrimary).sort((a, b) => byPrimary[b] - byPrimary[a]);
-    frag.appendChild(el("div", "count muted", names.length + " provider(s) serving"));
+    const head = el("div", "count muted", names.length + " provider(s) serving");
+    if (names.length || routed) {
+      head.appendChild(muted(" · click for routing log"));
+      head.className = "count muted item click";
+      head.addEventListener("click", openProviderLog);
+    }
+    frag.appendChild(head);
     listInto(frag, names, (n) => {
-      const row = el("div", "item");
+      const row = el("div", "item click");
       row.appendChild(chip(byPrimary[n]));
       row.appendChild(el("span", null, n));
+      row.addEventListener("click", openProviderLog);
       return row;
     }, "no routing decisions yet");
     const fbBy = d.fallbacks_by_primary || {};
@@ -665,6 +672,45 @@ async function openFallbacks() {
       arc.appendChild(row);
     }
     if (!evs.length) arc.appendChild(muted("no provider fallbacks recorded"));
+    modalBody.appendChild(arc);
+  } catch (e) {
+    clear(modalBody);
+    modalBody.appendChild(el("span", "err", e.message));
+  }
+}
+
+// openProviderLog shows the recent per-call routing timeline behind the Providers
+// panel: each routing.decision (which provider was chosen + the fallback chain +
+// task type) and each provider.fallback (failed → next + reason), newest-first.
+// Reuses the modal shell and the read-only /api/provider_log route.
+async function openProviderLog() {
+  modalTitle.firstChild.textContent = "Provider routing log ";
+  clear(modalBody);
+  modalBody.appendChild(muted("loading routing events…"));
+  modalBg.classList.add("show");
+  try {
+    const url = "/api/provider_log" + qs + "&limit=40";
+    const res = await fetch(url, { headers: { "Accept": "application/json" } });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const data = await res.json();
+    const evs = data.events || data.Events || []; // already newest-first
+    clear(modalBody);
+    modalBody.appendChild(el("div", "count muted", evs.length + " routing event(s)"));
+    const arc = el("div", "arc");
+    for (const ev of evs) {
+      const row = el("div", "ev");
+      row.appendChild(el("span", "seq", fmtTime(ev.ts_unix_ms)));
+      if (ev.kind === "fallback") {
+        row.appendChild(el("span", "kind", "fallback " + (ev.failed || "?") + " → " + (ev.next || "?")));
+        if (ev.reason) row.appendChild(el("span", "det", ev.reason));
+      } else {
+        row.appendChild(el("span", "kind", "route → " + (ev.primary || "?")));
+        const det = [ev.task_type, ev.chain ? "chain: " + ev.chain : ""].filter(Boolean).join(" · ");
+        if (det) row.appendChild(el("span", "det", det));
+      }
+      arc.appendChild(row);
+    }
+    if (!evs.length) arc.appendChild(muted("no routing decisions recorded"));
     modalBody.appendChild(arc);
   } catch (e) {
     clear(modalBody);
