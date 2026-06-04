@@ -22,6 +22,10 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   safe — GCM errors on a short ciphertext and PBKDF2 accepts any salt.)
 
 ### Added
+- **`agt doctor` now confirms the AWS credential chain at preflight.** The
+  production-readiness check reports which keyless/ambient layer engaged, tagging
+  IRSA / SSO / assume-role with `[keyless: …]` — so a cloud deployment can be
+  verified in one pass alongside the sandbox/provider/exposure checks.
 - **`agt status` now shows the resolved AWS credential chain.** Which keyless /
   ambient layer engaged — IRSA/web-identity, SSO, assume-role, IMDS — is now in
   the status round-trip (`aws creds : AWS chain: …`), so an operator on EKS can

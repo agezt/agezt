@@ -618,3 +618,33 @@ func TestCatalogCheckFromSync(t *testing.T) {
 		t.Errorf("bad time: status=%v want OK", c.State)
 	}
 }
+
+// TestCheckCredentials — the doctor's AWS credential-chain line (M308): always
+// informational OK, with a keyless layer (IRSA / SSO / assume-role) called out.
+func TestCheckCredentials(t *testing.T) {
+	// Keyless IRSA layer → OK, highlighted.
+	c := checkCredentials(map[string]any{
+		"cred_chain": "AWS chain: vault → env → web_identity=EksRole → default(file+IMDS)",
+	})
+	if c.Status != statusOK {
+		t.Errorf("web identity: status=%v want OK", c.State)
+	}
+	if !strings.Contains(c.Detail, "keyless: web_identity") {
+		t.Errorf("web identity layer should be highlighted; detail=%q", c.Detail)
+	}
+	// Base chain (no opt-in) → OK, no keyless tag.
+	base := checkCredentials(map[string]any{
+		"cred_chain": "AWS chain: vault → env → default(file+IMDS)",
+	})
+	if base.Status != statusOK {
+		t.Errorf("base chain: status=%v want OK", base.State)
+	}
+	if strings.Contains(base.Detail, "keyless") {
+		t.Errorf("base chain must not claim a keyless layer; detail=%q", base.Detail)
+	}
+	// Absent → OK with the default-chain description (never a FAIL).
+	none := checkCredentials(map[string]any{})
+	if none.Status != statusOK {
+		t.Errorf("absent: status=%v want OK", none.State)
+	}
+}

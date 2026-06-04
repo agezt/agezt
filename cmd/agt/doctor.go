@@ -182,6 +182,7 @@ func runDoctorChecks() []doctorCheck {
 	checks = append(checks, checkNetguard(ctx, client))
 	checks = append(checks, checkRateLimit(ctx, client))
 	checks = append(checks, checkChannels(status))
+	checks = append(checks, checkCredentials(status))
 	checks = append(checks, checkPlugins())
 	checks = append(checks, checkMesh())
 	// Mesh auth posture (M214): only when peers are configured. Flags a peer reached
@@ -992,6 +993,28 @@ func budgetCheckFromBudget(res map[string]any) doctorCheck {
 // this once and `agt status` renders it as "outbound-only", but neither nags;
 // this makes it a persistent WARN in the go-to diagnostic. All-good / no-channels
 // is an OK. Pure function of the status snapshot (no extra round-trip).
+// checkCredentials surfaces the resolved AWS credential chain (M308) in the
+// preflight pane — the same description `agt status` shows, so an operator
+// deploying to EKS/cloud can confirm which keyless/ambient layer engaged
+// (IRSA/web-identity, SSO, assume-role) before running a workload. Always
+// informational OK: the chain always resolves to at least vault→env→file/IMDS,
+// and whether those actually hold credentials is a runtime fact the separate
+// provider check already covers. A keyless layer is called out explicitly
+// because that's the bit operators most want confirmed.
+func checkCredentials(status map[string]any) doctorCheck {
+	const name = "aws creds"
+	chain, _ := status["cred_chain"].(string)
+	if chain == "" {
+		return ok(name, "default chain (vault → env → ~/.aws → IMDS)")
+	}
+	for _, layer := range []string{"web_identity", "assume_role", "sso"} {
+		if strings.Contains(chain, layer+"=") {
+			return ok(name, chain+"  [keyless: "+layer+"]")
+		}
+	}
+	return ok(name, chain)
+}
+
 func checkChannels(status map[string]any) doctorCheck {
 	const name = "channels"
 	chans, _ := status["channels"].([]any)
