@@ -86,6 +86,10 @@ func TestDashboardServedAtRoot(t *testing.T) {
 	if !strings.Contains(body, `id="fbBadge"`) || !strings.Contains(body, "function updateFallbackBadge") {
 		t.Error("dashboard missing the provider-fallback badge wiring")
 	}
+	// Clicking the badge opens a modal listing recent provider.fallback events.
+	if !strings.Contains(body, "function openFallbacks") || !strings.Contains(body, "provider.fallback") {
+		t.Error("dashboard missing the fallback-detail modal wiring")
+	}
 }
 
 func TestStatsRouteProxiesRunsStats(t *testing.T) {
@@ -118,6 +122,32 @@ func TestJournalRouteForwardsCorrelationOnly(t *testing.T) {
 	}
 	if fc.lastArgs["correlation_id"] != "run-1" {
 		t.Errorf("correlation_id not forwarded: %v", fc.lastArgs)
+	}
+	if _, leaked := fc.lastArgs["evil"]; leaked {
+		t.Errorf("non-allowlisted arg leaked through: %v", fc.lastArgs)
+	}
+}
+
+func TestJournalRouteForwardsKind(t *testing.T) {
+	fc := &fakeCaller{result: map[string]any{"events": []any{}}}
+	s, _ := newServer(t, fc, "secret")
+	// The fallback-detail modal queries the journal by kind; the kind arg is
+	// allowlisted and must reach journal_grep, while a stray param is dropped.
+	req := httptest.NewRequest(http.MethodGet,
+		"/api/journal?token=secret&kind=provider.fallback&limit=30&evil=rm", nil)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d want 200", rec.Code)
+	}
+	if len(fc.calls) != 1 || fc.calls[0] != "journal_grep" {
+		t.Fatalf("expected one journal_grep call, got %v", fc.calls)
+	}
+	if fc.lastArgs["kind"] != "provider.fallback" {
+		t.Errorf("kind not forwarded: %v", fc.lastArgs)
+	}
+	if fc.lastArgs["limit"] != "30" {
+		t.Errorf("limit not forwarded: %v", fc.lastArgs)
 	}
 	if _, leaked := fc.lastArgs["evil"]; leaked {
 		t.Errorf("non-allowlisted arg leaked through: %v", fc.lastArgs)

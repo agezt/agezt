@@ -96,7 +96,8 @@
   .arc .kind { color: var(--accent); }
   .arc .det { color: var(--dim); white-space: pre-wrap; }
   .fbbadge { color: #fff; background: var(--bad); border-radius: 12px; padding: 2px 10px;
-    font-size: 11px; font-weight: 600; cursor: help; }
+    font-size: 11px; font-weight: 600; cursor: pointer; }
+  .fbbadge:hover { filter: brightness(1.12); }
 </style>
 </head>
 <body>
@@ -348,7 +349,8 @@ function updateFallbackBadge(d) {
   if (n > 0) {
     badge.textContent = "⚠ " + n + " fallback" + (n === 1 ? "" : "s");
     badge.title = "a provider errored; runs served by a backup"
-      + (fb.last_reason ? "\nlast: " + fb.last_reason : "");
+      + (fb.last_reason ? "\nlast: " + fb.last_reason : "")
+      + "\nclick for details";
     badge.hidden = false;
   } else {
     badge.hidden = true;
@@ -577,6 +579,49 @@ async function openRun(r) {
   }
 }
 
+// fmtTime renders an event's unix-ms timestamp as a local wall-clock time, or ""
+// when absent. Used by the fallback modal so each event shows when it happened.
+function fmtTime(ms) {
+  if (!ms) return "";
+  try { return new Date(ms).toLocaleTimeString(); } catch (e) { return ""; }
+}
+
+// openFallbacks shows the recent provider.fallback events behind the header
+// badge: which provider failed, which backup took over, when, and why. It reuses
+// the run-detail modal shell and the read-only /api/journal route (kind filter),
+// so a glance at the badge can drill straight into the underlying errors.
+async function openFallbacks() {
+  modalTitle.firstChild.textContent = "Provider fallbacks ";
+  clear(modalBody);
+  modalBody.appendChild(muted("loading fallback events…"));
+  modalBg.classList.add("show");
+  try {
+    const url = "/api/journal" + qs + "&kind=provider.fallback&limit=30";
+    const res = await fetch(url, { headers: { "Accept": "application/json" } });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const data = await res.json();
+    // journal_grep returns events oldest→newest; show the most recent first.
+    const evs = (data.events || data.Events || []).slice().reverse();
+    clear(modalBody);
+    modalBody.appendChild(el("div", "count muted", evs.length + " fallback event(s)"));
+    const arc = el("div", "arc");
+    for (const ev of evs) {
+      const p = ev.payload || ev.Payload || {};
+      const row = el("div", "ev");
+      row.appendChild(el("span", "seq", ev.seq != null ? ev.seq : ""));
+      row.appendChild(el("span", "kind", (p.failed || "?") + " → " + (p.next || "?")));
+      const det = [fmtTime(ev.ts_unix_ms), p.reason].filter(Boolean).join(" · ");
+      if (det) row.appendChild(el("span", "det", det));
+      arc.appendChild(row);
+    }
+    if (!evs.length) arc.appendChild(muted("no provider fallbacks recorded"));
+    modalBody.appendChild(arc);
+  } catch (e) {
+    clear(modalBody);
+    modalBody.appendChild(el("span", "err", e.message));
+  }
+}
+
 // ---- operator actions (halt / resume) ----
 async function act(path, confirmMsg, btn) {
   if (confirmMsg && !window.confirm(confirmMsg)) return;
@@ -598,6 +643,7 @@ document.getElementById("haltBtn").addEventListener("click", (e) =>
   act("/api/halt", "Freeze ALL in-flight runs?", e.currentTarget));
 document.getElementById("resumeBtn").addEventListener("click", (e) =>
   act("/api/resume", null, e.currentTarget));
+document.getElementById("fbBadge").addEventListener("click", openFallbacks);
 document.querySelectorAll("button[data-panel]").forEach((b) =>
   b.addEventListener("click", () => loadPanel(b.dataset.panel)));
 connect();

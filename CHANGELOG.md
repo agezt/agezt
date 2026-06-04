@@ -12,6 +12,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Web UI: the provider-fallback badge is now clickable.** Clicking the header
+  `⚠ N fallbacks` chip opens a modal listing the recent `provider.fallback`
+  events — which provider failed, which backup took over, when, and why — so a
+  glance at the badge can drill straight into the underlying errors. It reuses the
+  run-detail modal shell and the read-only `/api/journal` route (filtered by
+  `kind=provider.fallback`); no new endpoint.
 - **Web UI: a header warning badge for provider fallbacks.** When the status
   reports a non-zero provider-fallback count, the dashboard shows a prominent red
   `⚠ N fallbacks` chip in the header (with the last reason on hover), so a
