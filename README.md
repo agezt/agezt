@@ -55,7 +55,8 @@ agt approvals --json                                           — HITL queue (m
 
 with **9 provider families** (Anthropic, OpenAI + ~11 compatibles, Google
 direct + Vertex, Cohere, Mistral, Ollama, AWS Bedrock with bearer +
-SigV4 + STS-AssumeRole + SSO, Azure OpenAI) with **per-request model routing**
+SigV4 + STS-AssumeRole + SSO + IRSA/web-identity, Azure OpenAI) with
+**per-request model routing**
 (a request's `model` selects its provider), **all streaming**, **10 in-process
 tools** (`shell`, `file`, `http`, `browser.read`, plus `memory`, `world`,
 `delegate` for sub-agent fan-out, `coding` for worktree-isolated external
@@ -231,7 +232,9 @@ The v1 substrate. Highlights:
   `agt` ↔ `agezt`; includes operator visibility commands
   (`status`, `tool list`, `plugin list`, `budget`, `why --json/--payload`)
 - `creds` — credential vault, AES-256-GCM at rest, passphrase rotation,
-  pure-stdlib AWS chain (vault → env → SSO → STS-AssumeRole → default)
+  pure-stdlib AWS chain (vault → env → SSO → STS-AssumeRole → IRSA/web-identity
+  → ~/.aws + IMDS); keyless ambient credentials on EKS (IRSA) and — for Vertex —
+  GKE/GCE via the metadata server
 - `catalog` — models.dev integration; hot reload
 - `approval` — HITL queue (with `--json` for automation)
 - `edict` — declarative policy engine
@@ -243,11 +246,13 @@ The v1 substrate. Highlights:
   **streaming progress**, and **plugin→host callbacks**
 
 **Providers** (`plugins/providers/`)
-- `anthropic`, `openai`, `google`, `vertex` (Gemini + Anthropic on Vertex),
+- `anthropic`, `openai`, `google`, `vertex` (Gemini + Anthropic on Vertex;
+  service-account key **or** GKE/GCE metadata-server creds),
   `bedrock` (bearer + SigV4 + AI21 Jamba + Cohere + Llama + Mistral),
-  `cohere`, `ollama`, `compat` (OpenAI-compatible vendors: Groq, DeepSeek,
+  `cohere`, `ollama` (local, incl. **vision** models like llava/llama3.2-vision),
+  `compat` (OpenAI-compatible vendors: Groq, DeepSeek,
   xAI, OpenRouter, Together, ...), Azure OpenAI, Mistral. Every family
-  has working streaming.
+  has working streaming; image input on every multimodal-capable family.
 
 **Tools** (`plugins/tools/`)
 - `shell` — warden-isolated subprocess
