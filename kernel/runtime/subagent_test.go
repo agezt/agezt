@@ -387,3 +387,76 @@ func TestSubAgent_DisabledByDefault(t *testing.T) {
 		t.Error("delegate tool must not be present unless SubAgentTool is set")
 	}
 }
+
+// openSpendKernelDepth is openSpendKernel with a caller-chosen max depth, so a
+// sub-agent can itself delegate (depth >= 2) — needed to exercise the TRANSITIVE
+// spend accounting (a grandchild's spend counting toward an ancestor's cap).
+func openSpendKernelDepth(t *testing.T, prov agent.Provider, spendCapMC int64, depth int) *runtime.Kernel {
+	t.Helper()
+	reg := governor.NewRegistry()
+	if err := reg.Register(&governor.ProviderInfo{
+		Name: prov.Name(), Provider: prov, AuthMode: governor.AuthLocal,
+	}); err != nil {
+		t.Fatalf("register: %v", err)
+	}
+	g, err := governor.New(governor.Config{Registry: reg})
+	if err != nil {
+		t.Fatalf("governor.New: %v", err)
+	}
+	k, err := runtime.Open(runtime.Config{
+		BaseDir:                    t.TempDir(),
+		Provider:                   g,
+		Tools:                      map[string]agent.Tool{"shell": shell.New()},
+		Model:                      "claude-sonnet-4-6",
+		SubAgentTool:               true,
+		SubAgentMaxDepth:           depth,
+		SubAgentMaxSpendMicrocents: spendCapMC,
+	})
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	g.SetBus(k.Bus())
+	t.Cleanup(func() { k.Close() })
+	return k
+}
+
+// TestSubAgent_SpendGuardCountsTransitiveDescendants proves the M48 spend cap
+// sums spend over the FULL descendant tree, not just direct children — so the
+// cap can't be evaded by nesting delegation one level deeper. Structure (depth
+// 2): lead → child → grandchild. Each LLM call costs $0.0021.
+//
+//	child:      delegate-decision + final  = 2 calls = $0.0042
+//	grandchild: final                       = 1 call  = $0.0021
+//	lead's descendant total at its 2nd delegate = $0.0063
+//
+// With a $0.0050 cap the lead's 2nd delegation is REFUSED because the transitive
+// total ($0.0063) ≥ cap. A buggy direct-children-only sum ($0.0042 < $0.0050)
+// would have ADMITTED it — so the spawn count distinguishes correct from buggy:
+// correct → 2 spawns (child + grandchild), buggy → 3.
+func TestSubAgent_SpendGuardCountsTransitiveDescendants(t *testing.T) {
+	prov := mock.New(
+		withUsage(mock.ToolUse("c1", "delegate", map[string]any{"task": "t1"})),  // lead r1 → child
+		withUsage(mock.ToolUse("g1", "delegate", map[string]any{"task": "t1a"})), // child r1 → grandchild
+		withUsage(mock.FinalText("grandchild done")),                             // grandchild
+		withUsage(mock.FinalText("child done")),                                  // child r2
+		withUsage(mock.ToolUse("c2", "delegate", map[string]any{"task": "t2"})),  // lead r2 → REFUSED on transitive spend
+		withUsage(mock.FinalText("lead done")),                                   // lead final
+	)
+	k := openSpendKernelDepth(t, prov, 5_000_000, 2) // $0.0050 cap, depth 2
+	col := &collector{}
+	col.watch(k)
+
+	ans, _, err := k.Run(context.Background(), "nested spend")
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if ans != "lead done" {
+		t.Errorf("final answer = %q, want %q", ans, "lead done")
+	}
+	time.Sleep(50 * time.Millisecond)
+
+	if n := len(col.ofKind(event.KindSubAgentSpawned)); n != 2 {
+		t.Errorf("transitive spend guard: expected 2 spawns (child+grandchild; lead's 2nd "+
+			"delegate refused once grandchild spend is counted), got %d", n)
+	}
+}
