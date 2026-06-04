@@ -382,3 +382,42 @@ func TestGlob_ScopedAndErrors(t *testing.T) {
 	// Bad pattern errors.
 	invokeExpectErr(t, tool, fileInput{Op: "glob", Pattern: "[bad"}, "bad pattern")
 }
+
+// TestFile_EveryAdvertisedOpIsDispatched keeps the schema's op enum and the
+// Invoke switch in lockstep: every op the tool advertises must be handled (never
+// fall through to "unknown op"). Catches an enum/dispatch drift — e.g. advertising
+// an op with no case, or the stale package doc that listed only 4 of the 9 ops.
+func TestFile_EveryAdvertisedOpIsDispatched(t *testing.T) {
+	tool, err := New(t.TempDir())
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	// Extract the advertised op enum from the tool's own schema.
+	var schema struct {
+		Properties struct {
+			Op struct {
+				Enum []string `json:"enum"`
+			} `json:"op"`
+		} `json:"properties"`
+	}
+	if err := json.Unmarshal(tool.Definition().InputSchema, &schema); err != nil {
+		t.Fatalf("parse schema: %v", err)
+	}
+	ops := schema.Properties.Op.Enum
+	if len(ops) < 9 {
+		t.Fatalf("schema advertises only %d ops, expected the full surface (read/write/append/list/search/stat/delete/replace/glob)", len(ops))
+	}
+	for _, op := range ops {
+		raw, _ := json.Marshal(map[string]any{"op": op, "path": "x.txt", "pattern": "*"})
+		r, err := tool.Invoke(context.Background(), raw)
+		if err != nil {
+			t.Errorf("op %q: transport error %v", op, err)
+			continue
+		}
+		// The op may legitimately error (missing file, etc.) — but it must be
+		// DISPATCHED, never reported as an unknown op.
+		if r.IsError && strings.Contains(r.Output, "unknown op") {
+			t.Errorf("op %q is advertised in the schema but not dispatched: %q", op, r.Output)
+		}
+	}
+}

@@ -5,9 +5,11 @@
 // outside it (no `..` escape, no absolute paths outside root, no symlink
 // escape).
 //
-// Scope (M1.a): read, write, list, search. A future `patch` op (unified
-// diff) is deferred; for M1 the model can use write to rewrite a whole
-// file or append.
+// Ops: read, write, append, list, search, stat, delete, replace, glob.
+// `replace` does a surgical find/replace edit so the model need not rewrite a
+// whole file (M114). A unified-diff `patch` op is still deferred — `replace`
+// covers small edits. The advertised op enum and the dispatch switch are kept in
+// lockstep by TestFile_EveryAdvertisedOpIsDispatched.
 //
 // Containment policy: the root directory is resolved with filepath.Abs +
 // EvalSymlinks at New(); every requested path is resolved the same way
