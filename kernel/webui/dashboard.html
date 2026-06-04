@@ -763,6 +763,34 @@ function arcDetail(ev) {
       if (p.reason) s += " — " + String(p.reason).slice(0, 60);
       return s;
     }
+    case "routing.decision": {
+      // Which provider/model the Governor picked for this call (and the fallback
+      // chain behind it). M382 linked these to the run; surface them here.
+      let s = "routed → " + (p.primary || "?");
+      if (Array.isArray(p.chain) && p.chain.length > 1) s += " (chain: " + p.chain.join(", ") + ")";
+      if (p.task_model) s += " · " + p.task_model;
+      return s;
+    }
+    case "provider.fallback":
+      return "fallback " + (p.failed || "?") + " → " + (p.next || "?") +
+        (p.reason ? ": " + String(p.reason).slice(0, 60) : "");
+    case "capability.degraded":
+      // SPEC-15 §2.3: a silently-honoured downgrade (e.g. JSON mode on a
+      // non-native model). Worth seeing in the run, not just the journal.
+      return "⚠ " + (p.capability || "capability") + " degraded" +
+        (p.model ? " on " + p.model : "") + (p.reason ? " — " + String(p.reason).slice(0, 60) : "");
+    case "capability.rerouted":
+      return "rerouted " + (p.from_model || "?") + " → " + (p.to_model || "?") +
+        (p.capability ? " (" + p.capability + ")" : "");
+    case "capability.rejected":
+      return "✗ rejected — " + (p.model || "?") + " lacks " + (p.capability || "capability");
+    case "rate.limited":
+      return "rate-limited (used " + (p.used != null ? p.used : "?") + "/" + (p.limit_per_min != null ? p.limit_per_min : "?") + " per min)";
+    case "budget.exceeded": {
+      const spent = p.spent_microcents != null ? "$" + (p.spent_microcents / 1e9).toFixed(4) : "?";
+      const ceil = p.ceiling_microcents != null ? "$" + (p.ceiling_microcents / 1e9).toFixed(4) : "?";
+      return "budget exceeded" + (p.scope ? " (" + p.scope + ")" : "") + " " + spent + " / " + ceil;
+    }
     case "llm.response": return p.text_chars != null ? p.text_chars + " chars" : "";
     case "llm.request": {
       // Context inspector (SPEC-10 §3.5): how big was the context and from which

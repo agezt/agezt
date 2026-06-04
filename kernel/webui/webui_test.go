@@ -699,6 +699,23 @@ func TestDashboard_RendersIsolationCard(t *testing.T) {
 	}
 }
 
+// TestDashboard_RendersGovernorEvents locks in the run-detail rendering of the
+// Governor's per-call decision events (correlated to the run by M382). Without an
+// arcDetail case each renders as a bare kind line; this asserts each kind + the
+// payload fields it reads are present.
+func TestDashboard_RendersGovernorEvents(t *testing.T) {
+	src := string(dashboardHTML)
+	for _, marker := range []string{
+		"routing.decision", "provider.fallback", "capability.degraded",
+		"capability.rerouted", "capability.rejected", "rate.limited", "budget.exceeded",
+		"primary", "from_model", "to_model", "spent_microcents", "limit_per_min",
+	} {
+		if !strings.Contains(src, marker) {
+			t.Errorf("dashboard governor-event rendering missing %q — the run-detail surface regressed", marker)
+		}
+	}
+}
+
 // TestDashboard_RendersPolicyCard locks in the SPEC-12 §4 / SPEC-07 tool-call
 // "policy" leg: the run-detail arc must render policy.decision events (Edict's
 // per-tool-call verdict) instead of dropping them to a bare kind line. The

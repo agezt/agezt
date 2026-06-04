@@ -102,6 +102,14 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   valid UTF-8. (The journal's own answer truncation was already rune-safe.)
 
 ### Added
+- **The run-detail view now shows the Governor's routing/capability decisions.**
+  Now that those events are linked to their run, the web Live Monitor's run-detail
+  arc renders them instead of dropping them to bare kind lines: `routing.decision`
+  (which provider/model served the call + fallback chain), `provider.fallback`
+  (failed → next, with reason), `capability.degraded` (the silent JSON-mode
+  downgrade), `capability.rerouted` / `capability.rejected` (tool-use remap/reject),
+  `rate.limited`, and `budget.exceeded`. The full routing/spend story for a run is
+  now readable in one place.
 - **`agt journal export --scope task:<run-correlation>` — surgical per-run
   export.** Because every event is ID'd and causally linked, you can now "cut"
   a single run's (correlation's) event subgraph into a self-contained bundle
