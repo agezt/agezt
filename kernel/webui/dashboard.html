@@ -742,6 +742,14 @@ function arcDetail(ev) {
     case "task.completed": return String(p.answer || "").slice(0, 120);
     case "task.failed": return "reason: " + (p.reason || p.error || "");
     case "llm.response": return p.text_chars != null ? p.text_chars + " chars" : "";
+    case "llm.request": {
+      // Context inspector (SPEC-10 §3.5): how big was the context and from which
+      // source. Compact summary here; full per-role breakdown in arcFull.
+      if (p.context_chars == null) return p.messages != null ? p.messages + " msgs" : "";
+      const by = p.context_by_role || {};
+      const parts = Object.keys(by).sort().map(function (k) { return k + " " + by[k]; });
+      return p.context_chars + " ctx chars" + (parts.length ? " · " + parts.join(", ") : "");
+    }
     default: return ev.subject || "";
   }
 }
@@ -760,6 +768,17 @@ function arcFull(ev) {
     const out = p.output != null ? p.output : p.result;
     if (out == null || out === "") return "";
     return (p.error ? "error:\n" : "output:\n") + String(out);
+  }
+  if (ev.kind === "llm.request") {
+    // The context inspector: total assembled-context size and a per-source
+    // (role) breakdown for this call (SPEC-10 §3.5 / SPEC-07 context inspector).
+    if (p.context_chars == null) return "";
+    const by = p.context_by_role || {};
+    let s = "context: " + p.context_chars + " chars across " + (p.messages != null ? p.messages + " message(s)" : "the call") + "\n";
+    for (const k of Object.keys(by).sort()) {
+      s += "  " + (k + "         ").slice(0, 10) + ": " + by[k] + " chars\n";
+    }
+    return s;
   }
   return "";
 }

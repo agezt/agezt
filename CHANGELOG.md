@@ -93,6 +93,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   valid UTF-8. (The journal's own answer truncation was already rune-safe.)
 
 ### Added
+- **Web UI: context inspector in run detail.** Each `llm.request` row in the
+  run-detail arc now shows a compact context summary (`N ctx chars · system …,
+  user …`) and expands (▸/▾) to a full per-source breakdown — answering "how big
+  was the context and where did it come from" right in the Live Monitor
+  (SPEC-07 / SPEC-10 §3.5). Renders the `context_by_role` field added this
+  release; XSS-safe by construction (textContent only).
 - **Context size is recorded on every LLM call.** The `llm.request` journal
   event now carries `context_chars` (the assembled context size) and
   `context_by_role` (a per-source breakdown: system / user / assistant / tool) —

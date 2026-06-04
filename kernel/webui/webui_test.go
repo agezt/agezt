@@ -663,3 +663,18 @@ func TestDashboard_NoUnsafeDOMSinks(t *testing.T) {
 		}
 	}
 }
+
+// TestDashboard_RendersContextInspector locks in the SPEC-10 §3.5 / SPEC-07
+// context-inspector surface (M373): the run-detail arc must read the
+// llm.request event's context_chars + context_by_role and render the compact
+// "ctx chars" summary plus the expandable per-role breakdown. A refactor that
+// drops this rendering fails here. (The end-to-end behaviour is Playwright-
+// verified against a live daemon; this guards the wiring in the embedded HTML.)
+func TestDashboard_RendersContextInspector(t *testing.T) {
+	src := string(dashboardHTML)
+	for _, marker := range []string{"context_chars", "context_by_role", "ctx chars", "llm.request"} {
+		if !strings.Contains(src, marker) {
+			t.Errorf("dashboard context inspector missing %q — the SPEC-10 §3.5 surface regressed", marker)
+		}
+	}
+}
