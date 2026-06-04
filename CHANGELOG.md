@@ -12,12 +12,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Fixed
-- **Rune-safe display truncation.** Two user-facing truncations — the schedule-
-  intent shortener in `agt schedule` / cadence logs and the coding tool's diff
-  output — sliced on a byte boundary, which could split a multi-byte UTF-8 rune
-  (e.g. a Turkish ç/ş/ğ) into invalid output. Both now cut on a rune boundary, so
-  truncated intents and diffs are always valid UTF-8. (The journal's own answer
-  truncation was already rune-safe.)
+- **Rune-safe display truncation.** Three user-facing truncations — the schedule-
+  intent shortener in `agt schedule` / cadence logs, the coding tool's diff
+  output, and the **browser tool's extracted page text** sent to the model —
+  sliced on a byte boundary, which could split a multi-byte UTF-8 rune (e.g. a
+  Turkish ç/ş/ğ, or any non-English web page) into invalid output. All now cut on
+  a rune boundary, so truncated intents, diffs, and fetched web text are always
+  valid UTF-8. (The journal's own answer truncation was already rune-safe.)
 
 ### Added
 - **Web UI: config inspector panel.** A new "Config" panel answers "what is this

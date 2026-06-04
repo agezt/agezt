@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/agezt/agezt/plugins/tools/browser"
 )
@@ -345,4 +346,37 @@ func mustJSON(t *testing.T, v any) json.RawMessage {
 		t.Fatalf("marshal: %v", err)
 	}
 	return raw
+}
+
+func TestInvoke_TruncatesOnRuneBoundary(t *testing.T) {
+	// A page whose extracted text is all 2-byte runes ('ş', U+015F). With an ODD
+	// max_chars the byte cut necessarily lands mid-rune; byte-slicing would emit
+	// invalid UTF-8 to the model. The tool must back the cut up to a rune boundary.
+	page := "<html><body>" + strings.Repeat("ş", 1000) + "</body></html>"
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		_, _ = io.WriteString(w, page)
+	}))
+	defer srv.Close()
+
+	tool := browser.New()
+	tool.AllowAll = true
+	tool.HTTP = srv.Client()
+	tool.MaxChars = 51 // odd → guaranteed to fall inside a 2-byte rune
+	res, err := tool.Invoke(context.Background(), mustJSON(t, map[string]any{"url": srv.URL}))
+	if err != nil {
+		t.Fatalf("Invoke: %v", err)
+	}
+	var out map[string]any
+	_ = json.Unmarshal([]byte(res.Output), &out)
+	if v, _ := out["truncated_text"].(bool); !v {
+		t.Fatalf("expected truncated_text=true; out=%v", out)
+	}
+	text, _ := out["text"].(string)
+	if !utf8.ValidString(text) {
+		t.Errorf("truncated web text is not valid UTF-8 (split rune): %q", text)
+	}
+	if strings.ContainsRune(text, '�') {
+		t.Errorf("truncated web text contains the replacement char: %q", text)
+	}
 }

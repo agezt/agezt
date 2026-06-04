@@ -37,6 +37,7 @@ import (
 	"net/url"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/netguard"
@@ -263,7 +264,14 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, e
 	}
 	truncatedText := false
 	if len(text) > maxChars {
-		text = text[:maxChars]
+		// Back the cut up to a UTF-8 rune boundary so a multi-byte rune straddling
+		// maxChars — common in non-English page text — is dropped whole rather than
+		// split into invalid UTF-8 sent to the model.
+		cut := maxChars
+		for cut > 0 && !utf8.RuneStart(text[cut]) {
+			cut--
+		}
+		text = text[:cut]
 		truncatedText = true
 	}
 
