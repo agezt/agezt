@@ -14,6 +14,7 @@ import (
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/journal"
+	"github.com/agezt/agezt/kernel/meshctx"
 )
 
 // fakeEngine implements Engine. RunModel publishes its tokens on the bus under
@@ -27,15 +28,17 @@ type fakeEngine struct {
 	events    []*event.Event
 	ranIntent string
 	ranModel  string
+	ranHop    int // mesh hop observed in the Run context (M339)
 }
 
 func (f *fakeEngine) NewCorrelation() string        { return "run-test" }
 func (f *fakeEngine) SubjectForRun(c string) string { return "agent.agent-" + c + ".llm" }
 func (f *fakeEngine) DefaultModel() string          { return f.model }
 func (f *fakeEngine) ModelIDs() []string            { return f.models }
-func (f *fakeEngine) RunModel(_ context.Context, corr, intent, model string, _ []string, _ bool) (string, error) {
+func (f *fakeEngine) RunModel(ctx context.Context, corr, intent, model string, _ []string, _ bool) (string, error) {
 	f.ranIntent = intent
 	f.ranModel = model
+	f.ranHop = meshctx.Hop(ctx)
 	for _, tok := range f.tokens {
 		_, _ = f.b.PublishStreaming(event.Spec{
 			Subject:       f.SubjectForRun(corr),

@@ -70,6 +70,39 @@ func TestMeshHop_NoHeaderRuns(t *testing.T) {
 	}
 }
 
+// TestMeshHop_WithinLimitPropagatesIntoRunContext: a within-limit delegated hop is
+// threaded into the run's context so this node's OWN remote_run forwards hop+1 in
+// turn (otherwise the chain would reset to 0 at every node and never terminate). We
+// assert the engine observed the incoming hop via meshctx.Hop(ctx).
+func TestMeshHop_WithinLimitPropagatesIntoRunContext(t *testing.T) {
+	eng := &fakeEngine{answer: "ok"}
+	s := newServer(t, eng, "secret")
+
+	const incoming = 3 // < MaxHops, so it runs
+	rec := runsPost(s, "secret", `{"intent":"hi"}`, strconv.Itoa(incoming))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("within-limit hop should run (200), got %d", rec.Code)
+	}
+	if eng.ranHop != incoming {
+		t.Errorf("run context hop = %d, want %d (must propagate so remote_run forwards hop+1)", eng.ranHop, incoming)
+	}
+}
+
+// TestMeshHop_NoHeaderStartsChainAtZero: a local (non-delegated) run carries hop 0 in
+// its context, so a remote_run it spawns sends hop 1 — the chain starts fresh.
+func TestMeshHop_NoHeaderStartsChainAtZero(t *testing.T) {
+	eng := &fakeEngine{answer: "ok"}
+	s := newServer(t, eng, "secret")
+
+	rec := runsPost(s, "secret", `{"intent":"hi"}`, "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("no-header run should be 200, got %d", rec.Code)
+	}
+	if eng.ranHop != 0 {
+		t.Errorf("run context hop = %d, want 0 for a non-delegated run", eng.ranHop)
+	}
+}
+
 // TestMeshHop_EnvOverrideTightens: with AGEZT_MESH_MAX_HOPS lowered, a hop that would
 // pass the default limit is refused at the configured one (M211).
 func TestMeshHop_EnvOverrideTightens(t *testing.T) {
