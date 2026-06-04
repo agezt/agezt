@@ -246,12 +246,37 @@ func TestStartStopsOnContextCancel(t *testing.T) {
 	e, _ := newEngine(t, Config{Cadence: 5 * time.Millisecond})
 	ctx, cancel := context.WithCancel(context.Background())
 	e.Start(ctx)
+	// Let it beat a few times so we know it was actually running.
 	time.Sleep(25 * time.Millisecond)
+	if e.Status().Beats == 0 {
+		t.Fatal("engine never beat before cancel")
+	}
 	cancel()
-	time.Sleep(20 * time.Millisecond)
-	before := e.Status().Beats
-	time.Sleep(30 * time.Millisecond)
-	if e.Status().Beats != before {
-		t.Fatal("beats should stop advancing after ctx cancel")
+
+	// Wait for the loop goroutine to actually quiesce rather than assuming a
+	// fixed sleep is enough — under a loaded parallel test run, cancel
+	// propagation (and any in-flight tick) can outlast a short sleep, which is
+	// what made this test flaky. A cancelled engine stops within one cadence; a
+	// still-running one keeps incrementing. Poll until beats are stable across a
+	// window wider than the cadence, then confirm they stay frozen.
+	window := 4 * e.cadence
+	deadline := time.Now().Add(2 * time.Second)
+	var before int64
+	stable := false
+	for time.Now().Before(deadline) {
+		before = e.Status().Beats
+		time.Sleep(window)
+		if e.Status().Beats == before {
+			stable = true
+			break
+		}
+	}
+	if !stable {
+		t.Fatal("beats never stopped advancing after ctx cancel")
+	}
+	// Frozen for good: a longer wait yields no further beats.
+	time.Sleep(window)
+	if got := e.Status().Beats; got != before {
+		t.Fatalf("beats advanced from %d to %d after the engine should have stopped", before, got)
 	}
 }
