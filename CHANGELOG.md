@@ -37,7 +37,8 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   a client's `response_format`** (`json_object` / `json_schema` → JSON mode on
   the run), so an external client gets structured output from any capable
   provider. The **Responses API** honours it too (`text.format` or
-  `response_format`).
+  `response_format`). `agt provider check --caps` now reports `json mode` per
+  model so operators can see which providers support it natively.
 - **Ollama now supports local vision models.** Image attachments are forwarded to
   Ollama as base64 in the chat `images` array, and auto-discovery marks multimodal
   models (llava, llama3.2-vision, moondream, …) image-capable so the vision gate

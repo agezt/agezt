@@ -496,3 +496,28 @@ func TestDiscoverOllama_DetectsVisionModels(t *testing.T) {
 		t.Errorf("llama3.2:latest is text-only; SupportsVision should be false")
 	}
 }
+
+// TestFamilySupportsNativeJSONMode (M316): the families Agezt wires a native
+// JSON-mode switch for (M311/M312) report true; those that fall back to
+// prompt-instructed JSON report false.
+func TestFamilySupportsNativeJSONMode(t *testing.T) {
+	yes := []catalog.Family{
+		catalog.FamilyOpenAI, catalog.FamilyOpenAICompatible, catalog.FamilyMistral,
+		catalog.FamilyAzure, catalog.FamilyGoogle, catalog.FamilyGoogleVertex,
+		catalog.FamilyOllama,
+	}
+	for _, f := range yes {
+		if !catalog.FamilySupportsNativeJSONMode(f) {
+			t.Errorf("family %q should support native JSON mode", f)
+		}
+	}
+	no := []catalog.Family{
+		catalog.FamilyAnthropic, catalog.FamilyCohere, catalog.FamilyAWSBedrock,
+		catalog.FamilyUnknown,
+	}
+	for _, f := range no {
+		if catalog.FamilySupportsNativeJSONMode(f) {
+			t.Errorf("family %q should NOT report native JSON mode", f)
+		}
+	}
+}

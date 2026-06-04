@@ -143,6 +143,23 @@ func FamilyFromNPM(npm string) Family {
 	return FamilyUnknown
 }
 
+// FamilySupportsNativeJSONMode reports whether a provider family has a native
+// structured-output (JSON mode) switch that Agezt sends (M311/M312):
+// response_format for the OpenAI-shaped families, generationConfig.responseMimeType
+// for Gemini, format=json for Ollama. Families without one (Anthropic, Cohere,
+// the Anthropic-on-Bedrock path) ignore a JSON-mode request and rely on a
+// prompt-instructed-JSON fallback instead. (Family-level: the rare
+// Anthropic-on-Vertex case — claude-* models under google-vertex — is the one
+// exception this doesn't capture; it has no native JSON mode.)
+func FamilySupportsNativeJSONMode(f Family) bool {
+	switch f {
+	case FamilyOpenAI, FamilyOpenAICompatible, FamilyMistral, FamilyAzure,
+		FamilyGoogle, FamilyGoogleVertex, FamilyOllama:
+		return true
+	}
+	return false
+}
+
 // Family is the resolved Family for this provider, derived from NPM.
 func (p *Provider) Family() Family { return FamilyFromNPM(p.NPM) }
 
