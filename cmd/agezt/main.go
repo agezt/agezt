@@ -63,6 +63,7 @@ import (
 	"github.com/agezt/agezt/kernel/webhook"
 	"github.com/agezt/agezt/kernel/webui"
 	"github.com/agezt/agezt/plugins/channels/discord"
+	"github.com/agezt/agezt/plugins/channels/email"
 	"github.com/agezt/agezt/plugins/channels/slack"
 	"github.com/agezt/agezt/plugins/channels/telegram"
 	webhookchan "github.com/agezt/agezt/plugins/channels/webhook"
@@ -671,11 +672,21 @@ func runDaemon(stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "  webhook channel  : disabled (set AGEZT_WEBHOOK_SECRET + AGEZT_WEBHOOK_ADDR)\n")
 	}
 
+	// Email channel (SPEC-04 §1) — outbound-only over SMTP. Briefs/`agt send` mail
+	// the allowlisted recipients. Enabled when AGEZT_EMAIL_SMTP_ADDR is set.
+	emChan, emSink, emDesc := buildEmail(ctx, k)
+	if emChan != nil {
+		go emChan.Start(ctx)
+		fmt.Fprintf(stdout, "  email channel    : %s\n", emDesc)
+	} else {
+		fmt.Fprintf(stdout, "  email channel    : disabled (set AGEZT_EMAIL_SMTP_ADDR + AGEZT_EMAIL_FROM)\n")
+	}
+
 	// Pulse — the proactive heart (SPEC-03). On by default; the resident
 	// engine runs on the daemon ctx so `agt halt`/SIGTERM/`agt shutdown`
 	// stop it with everything else. AGEZT_PULSE=off disables it. When a channel
 	// is configured, briefs tee to it (closes the Jarvis loop).
-	if eng, pulseDesc := buildPulse(k, ward, model, stdout, combineSinks(tgSink, slSink, dcSink, whSink)); eng != nil {
+	if eng, pulseDesc := buildPulse(k, ward, model, stdout, combineSinks(tgSink, slSink, dcSink, whSink, emSink)); eng != nil {
 		eng.Start(ctx)
 		srv.SetPulse(eng)
 		fmt.Fprintf(stdout, "  pulse            : %s\n", pulseDesc)
@@ -780,6 +791,9 @@ func runDaemon(stdout, stderr io.Writer) int {
 	}
 	if whChan != nil {
 		liveChannels["webhook"] = whChan
+	}
+	if emChan != nil {
+		liveChannels["email"] = emChan
 	}
 	channelSend := func(sctx context.Context, kind, id, text string) error {
 		ch, ok := liveChannels[kind]
@@ -1151,6 +1165,57 @@ func buildWebhook(ctx context.Context, k *kernelruntime.Kernel) (*webhookchan.Ch
 	}
 }
 
+// buildEmail constructs the outbound email channel when AGEZT_EMAIL_SMTP_ADDR is
+// set. Returns (nil, nil, "") otherwise.
+//
+//	AGEZT_EMAIL_SMTP_ADDR   SMTP server host:port (e.g. smtp.example.com:587), enables
+//	AGEZT_EMAIL_FROM        sender address
+//	AGEZT_EMAIL_USERNAME    SMTP AUTH username (with PASSWORD); empty → no auth
+//	AGEZT_EMAIL_PASSWORD    SMTP AUTH password
+//	AGEZT_EMAIL_RECIPIENTS  comma-separated allowlist of recipient addresses that may
+//	                        be mailed (briefs + `agt send`)
+//
+// Outbound-only — there's no inbound email surface (IMAP/MX is out of scope).
+func buildEmail(ctx context.Context, k *kernelruntime.Kernel) (*email.Channel, pulse.BriefSink, string) {
+	addr := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "EMAIL_SMTP_ADDR"))
+	if addr == "" {
+		return nil, nil, ""
+	}
+	from := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "EMAIL_FROM"))
+	recipients := splitNonEmpty(os.Getenv(brand.EnvPrefix + "EMAIL_RECIPIENTS"))
+
+	ch := email.New(email.Config{
+		Addr:      addr,
+		From:      from,
+		Username:  strings.TrimSpace(os.Getenv(brand.EnvPrefix + "EMAIL_USERNAME")),
+		Password:  os.Getenv(brand.EnvPrefix + "EMAIL_PASSWORD"),
+		Allowlist: channel.NewAllowlist(recipients),
+		Bus:       k.Bus(),
+	})
+
+	var sink pulse.BriefSink
+	if len(recipients) > 0 {
+		sink = pulse.SinkFunc(func(b pulse.Brief) error {
+			var firstErr error
+			for _, id := range recipients {
+				if err := ch.Send(ctx, channel.Outbound{ChannelID: id, Text: formatBrief(b), Priority: channel.PriorityNotify}); err != nil && firstErr == nil {
+					firstErr = err
+				}
+			}
+			return firstErr
+		})
+	}
+
+	switch {
+	case from == "":
+		return ch, sink, "configured but NO from address (set AGEZT_EMAIL_FROM)"
+	case len(recipients) == 0:
+		return ch, sink, fmt.Sprintf("outbound via %s, NO recipients (set AGEZT_EMAIL_RECIPIENTS)", addr)
+	default:
+		return ch, sink, fmt.Sprintf("outbound via %s, %d recipient(s)", addr, len(recipients))
+	}
+}
+
 // buildDiscord constructs the in-process Discord channel when AGEZT_DISCORD_TOKEN
 // is set, plus a Pulse brief sink to the allowlisted channels. Returns
 // (nil, nil, "") when no token is configured.
@@ -1253,6 +1318,14 @@ func collectChannels() []controlplane.ChannelInfo {
 			Inbound:   addr != "" && env("WEBHOOK_SECRET") != "",
 			Addr:      addr,
 			Allowlist: len(splitNonEmpty(os.Getenv(brand.EnvPrefix + "WEBHOOK_CHANNELS"))),
+		})
+	}
+	if env("EMAIL_SMTP_ADDR") != "" {
+		out = append(out, controlplane.ChannelInfo{
+			Kind:      "email",
+			Inbound:   false, // outbound-only
+			Addr:      env("EMAIL_SMTP_ADDR"),
+			Allowlist: len(splitNonEmpty(os.Getenv(brand.EnvPrefix + "EMAIL_RECIPIENTS"))),
 		})
 	}
 	return out

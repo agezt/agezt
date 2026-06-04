@@ -12,6 +12,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Email channel (outbound).** Agezt can now deliver Pulse briefs and `agt send`
+  messages to operator inboxes over SMTP (stdlib `net/smtp`, no new dependency).
+  Enable with `AGEZT_EMAIL_SMTP_ADDR` + `AGEZT_EMAIL_FROM` (+
+  `AGEZT_EMAIL_USERNAME`/`_PASSWORD` for SMTP AUTH and `AGEZT_EMAIL_RECIPIENTS` for
+  the fail-closed recipient allowlist). Outbound-only — inbound email (IMAP/MX) is
+  out of scope. The recipient allowlist means a misconfigured brief can't mail
+  arbitrary addresses; credentials are never logged.
 - **Generic webhook channel.** A vendor-neutral inbound/outbound HTTP channel
   (SPEC-04): any external system can drive an Agezt agent by POSTing a signed JSON
   message (`{channel_id, sender, text, id, ts_ms}`) and receives the agent's reply
