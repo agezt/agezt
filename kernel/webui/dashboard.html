@@ -752,6 +752,17 @@ function arcDetail(ev) {
       if (p.argv0) s += " · " + String(p.argv0).slice(0, 40);
       return s;
     }
+    case "policy.decision": {
+      // Policy leg of the tool-call card (SPEC-12 §4): did Edict allow this call,
+      // and why. Denials / hard-denies / would-ask are the security-relevant
+      // cases an operator scans for. Full breakdown in arcFull.
+      const verb = p.allow ? "✓ allow" : (p.hard_denied ? "✗ HARD-DENY" : "✗ deny");
+      const cap = p.capability || p.tool || "";
+      let s = verb + (cap ? " " + cap : "");
+      if (p.would_ask) s += " · would-ask";
+      if (p.reason) s += " — " + String(p.reason).slice(0, 60);
+      return s;
+    }
     case "llm.response": return p.text_chars != null ? p.text_chars + " chars" : "";
     case "llm.request": {
       // Context inspector (SPEC-10 §3.5): how big was the context and from which
@@ -791,6 +802,17 @@ function arcFull(ev) {
     if (p.exit_code != null) s += "  exit code : " + p.exit_code + "\n";
     if (p.duration_ms != null) s += "  duration  : " + p.duration_ms + "ms\n";
     if (p.timed_out) s += "  timed out : yes\n";
+    return s;
+  }
+  if (ev.kind === "policy.decision") {
+    // The policy card (SPEC-12 §4 / SPEC-07 debug): Edict's verdict for this tool
+    // call. Every field is from the journal payload; rendered via textContent.
+    let s = "policy\n";
+    s += "  decision   : " + (p.allow ? "allow" : (p.hard_denied ? "hard-deny" : "deny")) + "\n";
+    if (p.capability) s += "  capability : " + p.capability + "\n";
+    if (p.tool) s += "  tool       : " + p.tool + "\n";
+    if (p.would_ask) s += "  would ask  : yes (Ask folded to Allow)\n";
+    if (p.reason) s += "  reason     : " + p.reason + "\n";
     return s;
   }
   if (ev.kind === "llm.request") {

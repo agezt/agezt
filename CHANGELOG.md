@@ -93,6 +93,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   valid UTF-8. (The journal's own answer truncation was already rune-safe.)
 
 ### Added
+- **The run-detail tool-call card now shows the policy verdict.** Edict journals
+  a `policy.decision` for every tool call (allow/deny, capability, reason,
+  whether it would have prompted, whether a hard-deny floor fired). The web Live
+  Monitor's run-detail arc renders it as a **policy** line (`✓ allow shell ·
+  would-ask — …` / `✗ HARD-DENY …`) with an expandable
+  decision/capability/reason block — the SPEC-12 §4 / SPEC-07 tool-call debug
+  "policy" view, alongside the isolation and input/output legs.
 - **Tool isolation now shows up in the run timeline (and `agt why`).** The shell
   tool runs commands through the Warden, which journals a `warden.executed` event
   (effective vs requested isolation profile, downgrade flag, exit code) — but it

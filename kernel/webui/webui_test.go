@@ -698,3 +698,21 @@ func TestDashboard_RendersIsolationCard(t *testing.T) {
 		}
 	}
 }
+
+// TestDashboard_RendersPolicyCard locks in the SPEC-12 §4 / SPEC-07 tool-call
+// "policy" leg: the run-detail arc must render policy.decision events (Edict's
+// per-tool-call verdict) instead of dropping them to a bare kind line. The
+// payload keys it reads are the policy.decision contract.
+func TestDashboard_RendersPolicyCard(t *testing.T) {
+	src := string(dashboardHTML)
+	for _, marker := range []string{
+		"policy.decision", // the arcDetail/arcFull case exists
+		"hard_denied",     // the hard-deny (immutable floor) case is distinguished
+		"would_ask",       // the Ask-folded-to-Allow disposition is surfaced
+		"capability",      // the capability/verdict subject is read
+	} {
+		if !strings.Contains(src, marker) {
+			t.Errorf("dashboard policy card missing %q — the SPEC-12 §4 tool-call policy surface regressed", marker)
+		}
+	}
+}
