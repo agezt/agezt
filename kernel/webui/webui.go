@@ -67,6 +67,7 @@ var apiRoutes = map[string]string{
 	"/api/cache":     controlplane.CmdCacheStats,
 	"/api/providers": controlplane.CmdProviderStats,
 	"/api/tools":     controlplane.CmdToolStats,
+	"/api/policy":    controlplane.CmdEdictStats,
 	"/api/schedules": controlplane.CmdScheduleList,
 	"/api/memory":    controlplane.CmdMemoryList,
 	"/api/world":     controlplane.CmdWorldList,
@@ -92,6 +93,7 @@ var readArgsRoutes = map[string]writeRoute{
 	"/api/journal":      {controlplane.CmdJournalGrep, []string{"correlation_id", "kind", "limit"}},
 	"/api/provider_log": {controlplane.CmdProviderLog, []string{"limit", "fallbacks"}},
 	"/api/tool_log":     {controlplane.CmdToolLog, []string{"limit", "tool", "errors"}},
+	"/api/policy_log":   {controlplane.CmdEdictLog, []string{"limit", "denied"}},
 }
 
 // writeRoutes is the operator-action allowlist: the big red button (halt),

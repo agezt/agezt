@@ -122,6 +122,13 @@ func TestDashboardServedAtRoot(t *testing.T) {
 	if !strings.Contains(body, "function openToolLog") || !strings.Contains(body, "/api/tool_log") {
 		t.Error("dashboard missing the tool-log modal wiring")
 	}
+	// The Policy panel renders the edict-decision aggregate + drills into the log.
+	if !strings.Contains(body, `data-panel="policy"`) || !strings.Contains(body, "policy:") {
+		t.Error("dashboard missing the Policy panel")
+	}
+	if !strings.Contains(body, "function openPolicyLog") || !strings.Contains(body, "/api/policy_log") {
+		t.Error("dashboard missing the policy-log modal wiring")
+	}
 }
 
 func TestStatsRouteProxiesRunsStats(t *testing.T) {
@@ -213,6 +220,41 @@ func TestToolsRouteProxiesToolStats(t *testing.T) {
 	}
 	if len(fc.calls) != 1 || fc.calls[0] != "tool_stats" {
 		t.Errorf("expected one tool_stats call, got %v", fc.calls)
+	}
+}
+
+func TestPolicyRouteProxiesEdictStats(t *testing.T) {
+	fc := &fakeCaller{result: map[string]any{"total": 0}}
+	s, _ := newServer(t, fc, "secret")
+	req := httptest.NewRequest(http.MethodGet, "/api/policy?token=secret", nil)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d want 200", rec.Code)
+	}
+	if len(fc.calls) != 1 || fc.calls[0] != "edict_stats" {
+		t.Errorf("expected one edict_stats call, got %v", fc.calls)
+	}
+}
+
+func TestPolicyLogRouteForwardsLimit(t *testing.T) {
+	fc := &fakeCaller{result: map[string]any{"decisions": []any{}}}
+	s, _ := newServer(t, fc, "secret")
+	req := httptest.NewRequest(http.MethodGet,
+		"/api/policy_log?token=secret&limit=40&evil=rm", nil)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d want 200", rec.Code)
+	}
+	if len(fc.calls) != 1 || fc.calls[0] != "edict_log" {
+		t.Fatalf("expected one edict_log call, got %v", fc.calls)
+	}
+	if fc.lastArgs["limit"] != "40" {
+		t.Errorf("limit not forwarded: %v", fc.lastArgs)
+	}
+	if _, leaked := fc.lastArgs["evil"]; leaked {
+		t.Errorf("non-allowlisted arg leaked through: %v", fc.lastArgs)
 	}
 }
 
@@ -379,7 +421,7 @@ func TestAPIReadOnly(t *testing.T) {
 	// Every GET /api route must map to a read-only command — assert the proxy
 	// never issues anything outside the known read set.
 	readOnly := map[string]bool{
-		"status": true, "runs_list": true, "runs_stats": true, "budget": true, "cache_stats": true, "provider_stats": true, "tool_stats": true, "schedule_list": true, "memory_list": true, "world_list": true,
+		"status": true, "runs_list": true, "runs_stats": true, "budget": true, "cache_stats": true, "provider_stats": true, "tool_stats": true, "edict_stats": true, "schedule_list": true, "memory_list": true, "world_list": true,
 		"skill_list": true, "inbox": true, "reflect_show": true, "approvals": true,
 	}
 	for path := range apiRoutes {

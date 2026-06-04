@@ -12,6 +12,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Web UI: a Policy panel.** Surfaces what the Edict policy engine is doing —
+  total decisions, allowed/denied (with hard-deny count), denial rate, and a
+  denied-by-capability breakdown — by proxying `edict_stats`. Clicking it opens a
+  modal with the recent decision log (allow / DENY / DENY(hard) per capability +
+  tool + reason), via `edict_log`. The Web UI counterpart of
+  `agt edict stats` / `agt edict log`; refreshes live off `policy.*` events.
 - **Web UI: the Schedules panel shows each entry's next-fire time.** Every
   enabled schedule now renders `next <local date+time>` (from the same
   `next_run_unix` the `agt schedule list` CLI already shows), so an operator can

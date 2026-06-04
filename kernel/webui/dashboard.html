@@ -129,6 +129,7 @@
   <section class="panel"><h2>Cache <button data-panel="cache">↻</button></h2><div class="body" id="cache"></div></section>
   <section class="panel"><h2>Providers <button data-panel="providers">↻</button></h2><div class="body" id="providers"></div></section>
   <section class="panel"><h2>Tools <button data-panel="tools">↻</button></h2><div class="body" id="tools"></div></section>
+  <section class="panel"><h2>Policy <button data-panel="policy">↻</button></h2><div class="body" id="policy"></div></section>
   <section class="panel"><h2>Schedules <button data-panel="schedules">↻</button></h2><div class="body" id="schedules"></div></section>
   <section class="panel"><h2>World <button data-panel="world">↻</button></h2><div class="body" id="world"></div></section>
   <section class="panel"><h2>Skills <button data-panel="skills">↻</button></h2><div class="body" id="skills"></div></section>
@@ -301,6 +302,7 @@ function liveRefresh(kind) {
   else if (kind.startsWith("world.")) refreshSoon("world");
   else if (kind === "tool.awaiting_approval") refreshSoon("approvals");
   else if (kind.startsWith("tool.")) refreshSoon("tools");
+  else if (kind.startsWith("policy.")) refreshSoon("policy");
   else if (kind.startsWith("approval.")) refreshSoon("approvals");
 }
 
@@ -530,6 +532,32 @@ const renderers = {
       row.addEventListener("click", openToolLog);
       return row;
     }, "no tool calls yet");
+    return frag;
+  },
+
+  policy: (d) => {
+    const frag = document.createDocumentFragment();
+    const total = d.total || 0;
+    const head = el("div", "count muted item click",
+      total + " decision(s)" + (total ? " · click for log" : ""));
+    if (total) head.addEventListener("click", openPolicyLog);
+    frag.appendChild(kv([
+      ["allowed", d.allowed || 0],
+      ["denied", (d.denied || 0) + (d.hard_denied ? " (" + d.hard_denied + " hard)" : "")],
+      ["denial rate", total ? Math.round((d.denial_rate || 0) * 100) + "%" : "—"],
+    ]));
+    frag.appendChild(head);
+    const byCap = d.denied_by_capability || {};
+    const names = Object.keys(byCap).sort((a, b) => byCap[b] - byCap[a]);
+    if (names.length) {
+      frag.appendChild(el("div", "count muted", "denied by capability:"));
+      for (const n of names) {
+        const row = el("div", "item");
+        row.appendChild(el("span", "chip s-failed", byCap[n]));
+        row.appendChild(el("span", null, n));
+        frag.appendChild(row);
+      }
+    }
     return frag;
   },
 
@@ -837,6 +865,41 @@ async function openToolLog() {
   }
 }
 
+// openPolicyLog shows the recent policy-decision timeline behind the Policy
+// panel: each capability check the Edict engine allowed or denied (with the
+// tool, capability, and reason), newest-first. Reuses the modal shell +
+// /api/policy_log.
+async function openPolicyLog() {
+  modalTitle.firstChild.textContent = "Policy decision log ";
+  clear(modalBody);
+  modalBody.appendChild(muted("loading decisions…"));
+  modalBg.classList.add("show");
+  try {
+    const url = "/api/policy_log" + qs + "&limit=40";
+    const res = await fetch(url, { headers: { "Accept": "application/json" } });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const data = await res.json();
+    const evs = data.decisions || data.Decisions || []; // already newest-first
+    clear(modalBody);
+    modalBody.appendChild(el("div", "count muted", evs.length + " decision(s)"));
+    const arc = el("div", "arc");
+    for (const ev of evs) {
+      const row = el("div", "ev");
+      row.appendChild(el("span", "seq", fmtTime(ev.ts_unix_ms)));
+      const verdict = ev.allow ? "allow" : (ev.hard_denied ? "DENY(hard)" : "DENY");
+      row.appendChild(el("span", ev.allow ? "kind" : "err",
+        verdict + " " + (ev.capability || "") + " " + (ev.tool || "")));
+      if (ev.reason) row.appendChild(el("span", "det", ev.reason));
+      arc.appendChild(row);
+    }
+    if (!evs.length) arc.appendChild(muted("no policy decisions recorded"));
+    modalBody.appendChild(arc);
+  } catch (e) {
+    clear(modalBody);
+    modalBody.appendChild(el("span", "err", e.message));
+  }
+}
+
 // ---- operator actions (halt / resume) ----
 async function act(path, confirmMsg, btn) {
   if (confirmMsg && !window.confirm(confirmMsg)) return;
@@ -866,7 +929,7 @@ document.getElementById("fbBadge").addEventListener("click", openFallbacks);
 document.querySelectorAll("button[data-panel]").forEach((b) =>
   b.addEventListener("click", () => loadPanel(b.dataset.panel)));
 connect();
-const PANELS = ["status", "runs", "stats", "budget", "cache", "providers", "tools", "schedules", "world", "skills", "memory", "approvals", "inbox", "reflect"];
+const PANELS = ["status", "runs", "stats", "budget", "cache", "providers", "tools", "policy", "schedules", "world", "skills", "memory", "approvals", "inbox", "reflect"];
 for (const p of PANELS) loadPanel(p);
 // Light periodic refresh of the cheap read panels (the feed is already live).
 setInterval(() => { for (const p of ["status", "runs", "stats", "budget", "schedules", "approvals"]) loadPanel(p); }, 10000);
