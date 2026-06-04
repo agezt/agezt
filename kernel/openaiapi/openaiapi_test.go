@@ -22,6 +22,7 @@ type fakeEngine struct {
 	b           *bus.Bus
 	answer      string
 	tokens      []string
+	reasoning   []string // llm.reasoning deltas to emit before the answer (M323)
 	model       string
 	models      []string
 	ranIntent   string
@@ -39,6 +40,15 @@ func (f *fakeEngine) RunModel(_ context.Context, corr, intent, model string, ima
 	f.ranModel = model
 	f.ranImages = images
 	f.ranJSONMode = jsonMode
+	for _, rt := range f.reasoning {
+		_, _ = f.b.PublishStreaming(event.Spec{
+			Subject:       f.SubjectForRun(corr),
+			Kind:          event.KindLLMReasoning,
+			Actor:         "agent-" + corr,
+			CorrelationID: corr,
+			Payload:       map[string]any{"text": rt},
+		})
+	}
 	for _, tok := range f.tokens {
 		_, _ = f.b.PublishStreaming(event.Spec{
 			Subject:       f.SubjectForRun(corr),
@@ -325,6 +335,81 @@ func TestChatCompletionStreaming(t *testing.T) {
 	}
 	if !strings.Contains(out, "data: [DONE]") {
 		t.Error("missing [DONE] terminator")
+	}
+}
+
+// A reasoning model's chain of thought (llm.reasoning events) must surface on the
+// non-streaming response as message.reasoning_content — the DeepSeek-R1 convention
+// — without leaking into the answer content (M323).
+func TestChatCompletionNonStreaming_ReasoningContent(t *testing.T) {
+	eng := &fakeEngine{model: "m", answer: "42", reasoning: []string{"6*7 ", "= 42."}}
+	s := newAPIServer(t, eng, "secret")
+	body := `{"model":"m","messages":[{"role":"user","content":"6*7?"}]}`
+	req := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(body))
+	req.Header.Set("Authorization", "Bearer secret")
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	var out struct {
+		Choices []struct {
+			Message struct {
+				Content          string `json:"content"`
+				ReasoningContent string `json:"reasoning_content"`
+			} `json:"message"`
+		} `json:"choices"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+		t.Fatal(err)
+	}
+	if len(out.Choices) != 1 {
+		t.Fatalf("choices=%+v", out.Choices)
+	}
+	if out.Choices[0].Message.ReasoningContent != "6*7 = 42." {
+		t.Errorf("reasoning_content=%q", out.Choices[0].Message.ReasoningContent)
+	}
+	if out.Choices[0].Message.Content != "42" {
+		t.Errorf("content=%q (reasoning must not leak into the answer)", out.Choices[0].Message.Content)
+	}
+}
+
+// A non-reasoning run must omit reasoning_content entirely (not an empty string a
+// client would have to special-case) — the response stays byte-identical to before.
+func TestChatCompletionNonStreaming_NoReasoningKeyWhenAbsent(t *testing.T) {
+	eng := &fakeEngine{model: "m", answer: "hi"}
+	s := newAPIServer(t, eng, "secret")
+	body := `{"model":"m","messages":[{"role":"user","content":"hi"}]}`
+	req := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(body))
+	req.Header.Set("Authorization", "Bearer secret")
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+	if strings.Contains(rec.Body.String(), "reasoning_content") {
+		t.Errorf("reasoning_content must be absent for non-reasoning runs:\n%s", rec.Body.String())
+	}
+}
+
+// In streaming mode, reasoning deltas must arrive as `reasoning_content` deltas,
+// distinct from the answer's `content` deltas (M323).
+func TestChatCompletionStreaming_ReasoningContent(t *testing.T) {
+	eng := &fakeEngine{model: "m", answer: "42", tokens: []string{"42"}, reasoning: []string{"6*7 ", "= 42."}}
+	s := newAPIServer(t, eng, "secret")
+	body := `{"model":"m","stream":true,"messages":[{"role":"user","content":"6*7?"}]}`
+	req := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(body))
+	req.Header.Set("Authorization", "Bearer secret")
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status=%d", rec.Code)
+	}
+	out := rec.Body.String()
+	if !strings.Contains(out, `"reasoning_content":"6*7 "`) || !strings.Contains(out, `"reasoning_content":"= 42."`) {
+		t.Errorf("missing reasoning_content deltas in:\n%s", out)
+	}
+	if !strings.Contains(out, `"content":"42"`) {
+		t.Errorf("missing answer content delta in:\n%s", out)
 	}
 }
 

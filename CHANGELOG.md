@@ -52,6 +52,14 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   `agent_message_chunk` — so the editor renders it in its dedicated "thinking" UI.
   Previously the reasoning was captured but dropped at the ACP boundary; only the
   answer streamed through. Non-reasoning runs are unchanged.
+- **Reasoning reaches OpenAI-compatible API clients.** When you point a client at
+  Agezt's OpenAI-compatible endpoint (`/v1/chat/completions`) and the model
+  reasons, its chain of thought is now surfaced as `reasoning_content` — on
+  `message.reasoning_content` for non-streaming responses and as
+  `delta.reasoning_content` chunks when streaming — the DeepSeek-R1 convention
+  many clients already render. Non-reasoning runs omit the field entirely (the
+  response is byte-identical to before). With ACP above, the captured reasoning
+  now reaches both of Agezt's external surfaces.
 
 ### Fixed
 - **Ollama now honours the run's token cap.** `MaxTokens` is forwarded as

@@ -402,10 +402,21 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 	}
 
 	corr := eng.NewCorrelation()
-	answer, err := eng.RunModel(r.Context(), corr, intent, model, images, jsonMode)
+	// Capture the run's reasoning (M323) the same way streamChat relays tokens:
+	// subscribe BEFORE the run so no early delta is missed, run in a goroutine,
+	// and accumulate llm.reasoning text live (the events are ephemeral, so a long
+	// chain of thought can exceed the buffer if only drained afterward). A failed
+	// subscription degrades to a plain run — reasoning is a bonus, never required.
+	answer, reasoning, err := s.runCapturingReasoning(r, eng, b, corr, intent, model, images, jsonMode)
 	if err != nil {
 		writeErr(w, http.StatusBadGateway, "upstream_error", err.Error())
 		return
+	}
+	message := map[string]any{"role": "assistant", "content": answer}
+	if reasoning != "" {
+		// DeepSeek-R1 convention: the chain of thought rides alongside the answer
+		// as `reasoning_content`, which compatible clients already render.
+		message["reasoning_content"] = reasoning
 	}
 	id := "chatcmpl-" + ulid.New()
 	writeJSON(w, http.StatusOK, map[string]any{
@@ -413,13 +424,69 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 		"model": model,
 		"choices": []map[string]any{{
 			"index":         0,
-			"message":       map[string]any{"role": "assistant", "content": answer},
+			"message":       message,
 			"finish_reason": "stop",
 		}},
 		"usage": chatUsage(eng, corr, intent, answer),
 		// Agezt-specific: the correlation id so callers can `agt why` the run.
 		"agezt_correlation_id": corr,
 	})
+}
+
+// runCapturingReasoning runs the model and, in parallel, accumulates the run's
+// llm.reasoning deltas (M323) so the non-streaming chat response can carry
+// `reasoning_content`. Mirrors streamChat's no-race subscribe-then-run pattern;
+// a subscription failure degrades gracefully to a plain run (empty reasoning).
+func (s *Server) runCapturingReasoning(r *http.Request, eng Engine, b *bus.Bus, corr, intent, model string, images []string, jsonMode bool) (answer, reasoning string, err error) {
+	type runRes struct {
+		answer string
+		err    error
+	}
+	done := make(chan runRes, 1)
+
+	sub, suberr := b.Subscribe(eng.SubjectForRun(corr), 1024)
+	if suberr == nil {
+		defer sub.Cancel()
+	}
+	go func() {
+		a, e := eng.RunModel(r.Context(), corr, intent, model, images, jsonMode)
+		done <- runRes{a, e}
+	}()
+
+	if suberr != nil {
+		rr := <-done // no subscription → run without reasoning capture
+		return rr.answer, "", rr.err
+	}
+
+	var rb strings.Builder
+	var rr runRes
+capture:
+	for {
+		select {
+		case ev, ok := <-sub.C:
+			if !ok {
+				rr = <-done
+				break capture
+			}
+			if rt := reasoningText(ev); rt != "" {
+				rb.WriteString(rt)
+			}
+		case rr = <-done:
+			// Drain any reasoning still queued before responding.
+			for drained := false; !drained; {
+				select {
+				case ev := <-sub.C:
+					if rt := reasoningText(ev); rt != "" {
+						rb.WriteString(rt)
+					}
+				default:
+					drained = true
+				}
+			}
+			break capture
+		}
+	}
+	return rr.answer, rb.String(), rr.err
 }
 
 // streamChat runs the intent and relays the kernel's llm.token events as
@@ -461,6 +528,12 @@ func (s *Server) streamChat(w http.ResponseWriter, r *http.Request, eng Engine, 
 	sendContent := func(txt string) {
 		full.WriteString(txt)
 		sendChunk(map[string]any{"content": txt}, nil)
+	}
+	// sendReasoning relays a reasoning delta as a `reasoning_content` delta (M323),
+	// the DeepSeek-R1 streaming convention. It does NOT feed `full` — reasoning is
+	// not the answer and must not pollute the usage chunk's content estimate.
+	sendReasoning := func(txt string) {
+		sendChunk(map[string]any{"reasoning_content": txt}, nil)
 	}
 	// endStream writes the terminal finish chunk, then — if the client requested
 	// stream_options.include_usage — a usage-only chunk (choices:[] + usage, the
@@ -506,6 +579,9 @@ func (s *Server) streamChat(w http.ResponseWriter, r *http.Request, eng Engine, 
 			if txt := tokenText(ev); txt != "" {
 				sendContent(txt)
 			}
+			if rt := reasoningText(ev); rt != "" {
+				sendReasoning(rt)
+			}
 		case r := <-done:
 			// Drain any tokens still queued, then close the stream.
 			for drained := false; !drained; {
@@ -513,6 +589,9 @@ func (s *Server) streamChat(w http.ResponseWriter, r *http.Request, eng Engine, 
 				case ev := <-sub.C:
 					if txt := tokenText(ev); txt != "" {
 						sendContent(txt)
+					}
+					if rt := reasoningText(ev); rt != "" {
+						sendReasoning(rt)
 					}
 				default:
 					drained = true
@@ -598,6 +677,24 @@ func writeErr(w http.ResponseWriter, code int, typ, msg string) {
 // as KindLLMToken with a {"text": "..."} payload (agent.go).
 func tokenText(ev *event.Event) string {
 	if ev == nil || ev.Kind != event.KindLLMToken || len(ev.Payload) == 0 {
+		return ""
+	}
+	var p struct {
+		Text string `json:"text"`
+	}
+	if json.Unmarshal(ev.Payload, &p) != nil {
+		return ""
+	}
+	return p.Text
+}
+
+// reasoningText returns the streamed reasoning delta carried by an llm.reasoning
+// event, or "" for any other event (M323). The kernel publishes a reasoning
+// model's chain of thought as KindLLMReasoning with a {"text": "..."} payload
+// (agent.go, M317). Exposed to OpenAI-compatible clients as `reasoning_content`,
+// the DeepSeek-R1 convention many such clients already understand.
+func reasoningText(ev *event.Event) string {
+	if ev == nil || ev.Kind != event.KindLLMReasoning || len(ev.Payload) == 0 {
 		return ""
 	}
 	var p struct {
