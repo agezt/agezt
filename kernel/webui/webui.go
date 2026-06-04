@@ -134,12 +134,27 @@ func (s *Server) Handler() http.Handler {
 // query or an Authorization: Bearer header.
 func (s *Server) auth(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		setSecurityHeaders(w)
 		if !s.authorized(r) {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
 		next(w, r)
 	}
+}
+
+// setSecurityHeaders applies defensive response headers to every web UI route
+// (set before the auth check so even 401s carry them). This is a control surface:
+//   - X-Frame-Options DENY — the dashboard has state-mutating controls
+//     (approve/halt/resume/decide), so framing is denied to block clickjacking.
+//   - Referrer-Policy no-referrer — the page URL carries the auth token in
+//     `?token=`, so the referrer is suppressed to keep it out of any Referer header.
+//   - X-Content-Type-Options nosniff — stop content-type sniffing/confusion.
+func setSecurityHeaders(w http.ResponseWriter) {
+	h := w.Header()
+	h.Set("X-Content-Type-Options", "nosniff")
+	h.Set("X-Frame-Options", "DENY")
+	h.Set("Referrer-Policy", "no-referrer")
 }
 
 func (s *Server) authorized(r *http.Request) bool {

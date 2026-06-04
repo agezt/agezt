@@ -613,3 +613,31 @@ func TestTokenMatch_ConstantTimeAcceptReject(t *testing.T) {
 		}
 	}
 }
+
+func TestSecurityHeadersOnEveryResponse(t *testing.T) {
+	// The web UI is a control surface (mutating buttons) whose URL carries the
+	// auth token in ?token=. Defensive headers must be present on both authorized
+	// and unauthorized responses.
+	s, _ := newServer(t, &fakeCaller{result: map[string]any{"ok": true}}, "secret")
+	want := map[string]string{
+		"X-Content-Type-Options": "nosniff",
+		"X-Frame-Options":        "DENY",
+		"Referrer-Policy":        "no-referrer",
+	}
+	for _, tc := range []struct {
+		name, url string
+	}{
+		{"authorized", "/api/status?token=secret"},
+		{"unauthorized", "/api/status?token=wrong"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			s.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, tc.url, nil))
+			for k, v := range want {
+				if got := rec.Header().Get(k); got != v {
+					t.Errorf("header %s = %q, want %q", k, got, v)
+				}
+			}
+		})
+	}
+}

@@ -12,6 +12,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Security
+- **Web UI defensive response headers.** Every web-monitor response now carries
+  `X-Frame-Options: DENY` (the dashboard has state-mutating controls — approve /
+  halt / resume — so framing is denied to block clickjacking), `Referrer-Policy:
+  no-referrer` (the page URL carries the auth token in `?token=`, so the referrer
+  is suppressed to keep it out of any `Referer` header), and
+  `X-Content-Type-Options: nosniff`.
 - **Telegram bot token no longer leaks into error messages.** The Telegram API
   carries the bot token in the request URL path (`/bot<token>/…`), and Go's
   `http.Client.Do` returns errors (`*url.Error`) that embed the full URL — so a
