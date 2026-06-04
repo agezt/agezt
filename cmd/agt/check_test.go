@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/catalog"
@@ -570,5 +571,22 @@ func TestRunCheckCapsAll_JSON(t *testing.T) {
 	}
 	if !byID["good"].ToolCall || !byID["good"].Vision || len(byID["good"].Warnings) != 0 {
 		t.Errorf("good should be tool+vision, no warnings: %+v", byID["good"])
+	}
+}
+
+func TestTruncate_RuneSafeCLIHelper(t *testing.T) {
+	// The cmd/agt truncate helper (used for intent/task/pulse/plan-node display)
+	// must be rune-safe: a CLI run list of a Turkish intent must never show a
+	// split ç/ş/ğ. 40 'ş' (80 bytes); cap 7 lands mid-rune.
+	got := truncate(strings.Repeat("ş", 40), 7)
+	if !utf8.ValidString(got) {
+		t.Fatalf("truncate produced invalid UTF-8: %q", got)
+	}
+	if strings.ContainsRune(got, '�') {
+		t.Errorf("truncate split a rune (replacement char present): %q", got)
+	}
+	// Under-cap ASCII is returned unchanged (no marker).
+	if got := truncate("short", 20); got != "short" {
+		t.Errorf("under-cap = %q, want unchanged", got)
 	}
 }

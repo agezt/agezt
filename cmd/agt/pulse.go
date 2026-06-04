@@ -304,11 +304,7 @@ func eventTextExcerpt(ev *event.Event) string {
 		return ""
 	}
 	s := strings.Join(strings.Fields(p.Text), " ") // collapse all whitespace runs
-	const max = 160
-	if len(s) > max {
-		s = s[:max] + "…"
-	}
-	return s
+	return truncate(s, 160)
 }
 
 // renderEventJSON prints one JSON object per line. Useful for piping

@@ -144,11 +144,7 @@ func nodeSummary(n planner.Node) string {
 	if body == "" {
 		return n.Kind
 	}
-	const maxLen = 60
-	if len(body) > maxLen {
-		body = body[:maxLen-1] + "…"
-	}
-	return n.Kind + ": " + body
+	return n.Kind + ": " + truncate(body, 59)
 }
 
 // mermaidLabel escapes characters that break Mermaid's quoted-label

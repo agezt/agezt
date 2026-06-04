@@ -549,9 +549,7 @@ func renderRunRow(w io.Writer, r map[string]any, base string, showParentTag bool
 	if intentDisplay == "" {
 		intentDisplay = "(no intent recorded)"
 	}
-	if len(intentDisplay) > 70 {
-		intentDisplay = intentDisplay[:69] + "…"
-	}
+	intentDisplay = truncate(intentDisplay, 69)
 
 	corrDisplay := corr
 	if showParentTag && parent != "" {
@@ -1187,9 +1185,7 @@ func renderTaskArc(w io.Writer, corr string, summary map[string]any, events []ma
 			// (M41) — instead of the generic "subagent.spawned (seq=N)" line.
 			child, _ := payload["child_correlation"].(string)
 			task, _ := payload["task"].(string)
-			if len(task) > 60 {
-				task = task[:59] + "…"
-			}
+			task = truncate(task, 59)
 			fmt.Fprintf(w, "  delegated → %s", child)
 			if task != "" {
 				fmt.Fprintf(w, "  (task: %s)", task)
