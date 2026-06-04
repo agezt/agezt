@@ -246,11 +246,22 @@ type LoopConfig struct {
 	// by budget compaction (the model needs its latest context intact). 0 uses
 	// DefaultContextProtectLast.
 	ContextProtectLast int
+	// ContextProtectFirst is how many of the EARLIEST messages budget compaction
+	// never elides, preserving the run's original grounding (the first task
+	// framing and discovery results) even as the oldest middle turns are dropped.
+	// 0 keeps the historical behaviour — elide strictly oldest-first, protecting
+	// only the tail. (M395)
+	ContextProtectFirst int
 }
 
 // DefaultContextProtectLast is how many trailing messages context compaction
 // never touches, so the model always keeps its most recent exchange whole.
 const DefaultContextProtectLast = 4
+
+// DefaultContextProtectFirst is how many leading messages context compaction
+// never touches by default. 0 means protect-first is opt-in: with it unset,
+// compaction elides strictly oldest-first and only the tail is shielded.
+const DefaultContextProtectFirst = 0
 
 // ContextCharsPerToken is the rough chars-per-token ratio used to translate a
 // model's token context window (catalog Limit.Context) into the char-denominated
@@ -279,11 +290,12 @@ const elidedStubPrefix = "[tool output elided to fit context budget"
 
 // compactMessages enforces a context budget (SPEC-10 §3) by eliding the OLDEST
 // tool-result outputs to short stubs until the assembled context fits, while
-// always preserving the system prompt, every non-tool message, and the most
-// recent protectLast messages. It returns the (possibly rewritten) message slice
-// plus how many outputs were elided and how many chars reclaimed. Pure: it copies
-// before mutating, so the caller's slice is untouched until it adopts the result.
-func compactMessages(system string, messages []Message, budget, protectLast int) (out []Message, elided, reclaimed int) {
+// always preserving the system prompt, every non-tool message, the most recent
+// protectLast messages, and the earliest protectFirst messages. It returns the
+// (possibly rewritten) message slice plus how many outputs were elided and how
+// many chars reclaimed. Pure: it copies before mutating, so the caller's slice
+// is untouched until it adopts the result.
+func compactMessages(system string, messages []Message, budget, protectLast, protectFirst int) (out []Message, elided, reclaimed int) {
 	if budget <= 0 {
 		return messages, 0, 0
 	}
@@ -294,10 +306,14 @@ func compactMessages(system string, messages []Message, budget, protectLast int)
 	if protectLast <= 0 {
 		protectLast = DefaultContextProtectLast
 	}
+	if protectFirst < 0 {
+		protectFirst = 0
+	}
 	out = make([]Message, len(messages))
 	copy(out, messages)
-	limit := len(out) - protectLast // indices [0,limit) are elidable
-	for i := 0; i < limit && total > budget; i++ {
+	limit := len(out) - protectLast // indices [start,limit) are elidable
+	start := protectFirst           // indices [0,start) are protected grounding
+	for i := start; i < limit && total > budget; i++ {
 		m := out[i]
 		if m.Role != RoleTool || m.Content == "" || strings.HasPrefix(m.Content, elidedStubPrefix) {
 			continue
@@ -584,7 +600,7 @@ func Run(ctx context.Context, cfg LoopConfig, userIntent string) (answer string,
 		// is auditable, not silent. No-op when ContextBudget is 0.
 		if cfg.ContextBudget > 0 {
 			before, _ := contextSize(cfg.System, messages)
-			compacted, elided, reclaimed := compactMessages(cfg.System, messages, cfg.ContextBudget, cfg.ContextProtectLast)
+			compacted, elided, reclaimed := compactMessages(cfg.System, messages, cfg.ContextBudget, cfg.ContextProtectLast, cfg.ContextProtectFirst)
 			if elided > 0 {
 				messages = compacted
 				after, _ := contextSize(cfg.System, messages)

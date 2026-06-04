@@ -247,6 +247,10 @@ type Config struct {
 	// ~4 chars/token). An unknown model leaves compaction off. An explicit
 	// ContextBudget always wins. (M394)
 	ContextBudgetAuto bool
+	// ContextProtectFirst is how many of the earliest messages context compaction
+	// never elides, preserving the run's original grounding. 0 keeps the default
+	// oldest-first behaviour (only the tail is shielded). (M395)
+	ContextProtectFirst int
 
 	// OnReload is invoked by Kernel.Reload() AFTER the catalog snapshot
 	// has been refreshed from disk. The closure is supplied by the
@@ -1215,7 +1219,8 @@ func (k *Kernel) RunWith(ctx context.Context, corr, intent string) (string, erro
 		CostFn:               governor.CostMicrocents,
 		Artifacts:            k.artifacts, // M390: offload oversized tool outputs (SPEC-04 §3.6)
 		ArtifactThreshold:    k.cfg.ArtifactThreshold,
-		ContextBudget:        ctxBudget, // M393/M394: context budgeting (SPEC-10 §3)
+		ContextBudget:        ctxBudget,                 // M393/M394: context budgeting (SPEC-10 §3)
+		ContextProtectFirst:  k.cfg.ContextProtectFirst, // M395: shield the earliest grounding
 	}, intent)
 
 	// Attribute the run's outcome to the skills it activated, so an active skill

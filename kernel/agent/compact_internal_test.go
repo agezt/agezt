@@ -23,11 +23,11 @@ func convo(toolBytes int, pairs int) []Message {
 
 func TestCompactMessages_DisabledAndUnderBudget(t *testing.T) {
 	msgs := convo(100, 3)
-	if out, el, rc := compactMessages("sys", msgs, 0, 0); el != 0 || rc != 0 || len(out) != len(msgs) {
+	if out, el, rc := compactMessages("sys", msgs, 0, 0, 0); el != 0 || rc != 0 || len(out) != len(msgs) {
 		t.Errorf("budget 0 must be a no-op, got elided=%d reclaimed=%d", el, rc)
 	}
 	// Budget far above the actual size → no elision.
-	if out, el, rc := compactMessages("sys", msgs, 1_000_000, 2); el != 0 || rc != 0 || len(out) != len(msgs) {
+	if out, el, rc := compactMessages("sys", msgs, 1_000_000, 2, 0); el != 0 || rc != 0 || len(out) != len(msgs) {
 		t.Errorf("under-budget must not elide, got elided=%d", el)
 	}
 }
@@ -37,7 +37,7 @@ func TestCompactMessages_ElidesOldestToolOutputsFirst(t *testing.T) {
 	msgs := convo(1000, 5)
 	before, _ := contextSize("sys", msgs)
 	budget := before - 2500 // must drop ~3 outputs' worth
-	out, elided, reclaimed := compactMessages("sys", msgs, budget, 2)
+	out, elided, reclaimed := compactMessages("sys", msgs, budget, 2, 0)
 
 	if elided == 0 {
 		t.Fatal("expected some elision")
@@ -77,9 +77,47 @@ func TestCompactMessages_NeverElidesNonTool(t *testing.T) {
 		{Role: RoleAssistant, Content: "final"},
 		bigToolMsg("call-2", 50),
 	}
-	out, _, _ := compactMessages("sys", msgs, 100, 0)
+	out, _, _ := compactMessages("sys", msgs, 100, 0, 0)
 	if strings.HasPrefix(out[0].Content, elidedStubPrefix) || strings.HasPrefix(out[1].Content, elidedStubPrefix) {
 		t.Error("user/assistant messages must never be elided")
+	}
+}
+
+// TestCompactMessages_ProtectsFirstGrounding: with protectFirst set, the earliest
+// tool output (the run's original grounding) is shielded even when the budget
+// forces eliding the middle. Compare to protectFirst=0 which elides oldest-first.
+func TestCompactMessages_ProtectsFirstGrounding(t *testing.T) {
+	// convo: [0]=user, then 5 (assistant,tool) pairs → tool indices 2,4,6,8,10.
+	msgs := convo(1000, 5)
+	before, _ := contextSize("sys", msgs)
+	budget := before - 2500 // forces dropping a few outputs
+
+	// Baseline: no first-protection elides the OLDEST tool output (index 2).
+	base, baseEl, _ := compactMessages("sys", msgs, budget, 2, 0)
+	if baseEl == 0 || !strings.HasPrefix(base[2].Content, elidedStubPrefix) {
+		t.Fatalf("baseline should elide oldest tool output (index 2); elided=%d", baseEl)
+	}
+
+	// With protectFirst=3, indices [0,3) are shielded → index-2 tool output stays
+	// whole, and elision starts from the next oldest tool output (index 4).
+	prot, protEl, _ := compactMessages("sys", msgs, budget, 2, 3)
+	if protEl == 0 {
+		t.Fatal("protect-first run should still elide the unprotected middle")
+	}
+	if strings.HasPrefix(prot[2].Content, elidedStubPrefix) {
+		t.Error("protectFirst must shield the earliest tool output (index 2), but it was elided")
+	}
+	if len(prot[2].Content) != 1000 {
+		t.Errorf("protected grounding output should be intact (1000 chars), got %d", len(prot[2].Content))
+	}
+	if !strings.HasPrefix(prot[4].Content, elidedStubPrefix) {
+		t.Error("the oldest UNprotected tool output (index 4) should be elided")
+	}
+	// Roles/ids still aligned (provider pairing stays valid).
+	for i := range prot {
+		if prot[i].Role != msgs[i].Role || prot[i].ToolCallID != msgs[i].ToolCallID {
+			t.Errorf("message %d role/tool-call-id changed under protect-first", i)
+		}
 	}
 }
 
@@ -100,8 +138,8 @@ func TestAutoContextBudgetChars(t *testing.T) {
 func TestCompactMessages_Idempotent(t *testing.T) {
 	msgs := convo(1000, 5)
 	before, _ := contextSize("sys", msgs)
-	out1, el1, _ := compactMessages("sys", msgs, before-2500, 1)
-	out2, el2, rc2 := compactMessages("sys", out1, before-2500, 1)
+	out1, el1, _ := compactMessages("sys", msgs, before-2500, 1, 0)
+	out2, el2, rc2 := compactMessages("sys", out1, before-2500, 1, 0)
 	if el2 != 0 || rc2 != 0 {
 		t.Errorf("re-compacting an already-compacted transcript must be a no-op, got elided=%d", el2)
 	}

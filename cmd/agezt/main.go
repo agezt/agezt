@@ -335,6 +335,18 @@ func runDaemon(stdout, stderr io.Writer) int {
 		}
 	}
 
+	// AGEZT_CONTEXT_PROTECT_FIRST=<n> shields the first n messages from context
+	// compaction so the run's original grounding survives even as the oldest
+	// middle turns are elided (SPEC-10 §3 / M395). 0 (unset) = oldest-first.
+	contextProtectFirst := 0
+	if v := os.Getenv(brand.EnvPrefix + "CONTEXT_PROTECT_FIRST"); v != "" {
+		if n, perr := strconv.Atoi(v); perr == nil && n >= 0 {
+			contextProtectFirst = n
+		} else {
+			fmt.Fprintf(stderr, "%s: %sCONTEXT_PROTECT_FIRST: want a non-negative count, got %q (ignored)\n", brand.Binary, brand.EnvPrefix, v)
+		}
+	}
+
 	cfg := kernelruntime.Config{
 		BaseDir:                    baseDir,
 		Provider:                   gov, // Governor implements agent.Provider
@@ -360,6 +372,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 		ArtifactThreshold:          artifactThreshold,
 		ContextBudget:              contextBudget,
 		ContextBudgetAuto:          contextBudgetAuto,
+		ContextProtectFirst:        contextProtectFirst,
 		SubAgentTool:               subAgentOn,
 		SubAgentMaxDepth:           subAgentDepth,
 		SubAgentMaxFanout:          subAgentFanout,

@@ -73,6 +73,66 @@ func TestRun_AutoContextBudgetFromCatalog(t *testing.T) {
 	}
 }
 
+// TestRun_ContextProtectFirstPlumbsThrough: with a tight explicit budget, a run
+// normally compacts; setting ContextProtectFirst high enough to shield every
+// elidable message suppresses that compaction — proving the field reaches the
+// loop (SPEC-10 §3 / M395). If it weren't plumbed (default 0) the run would still
+// compact, so the absence of context.compacted is the lock-in.
+func TestRun_ContextProtectFirstPlumbsThrough(t *testing.T) {
+	newProv := func() *mock.Provider {
+		return mock.New(
+			mock.ToolUse("c1", "dump", map[string]any{}),
+			mock.ToolUse("c2", "dump", map[string]any{}),
+			mock.ToolUse("c3", "dump", map[string]any{}),
+			mock.FinalText("done"),
+		)
+	}
+	tools := map[string]agent.Tool{"dump": dumpTool{out: strings.Repeat("Z", 2000)}}
+
+	compactedCount := func(k *runtime.Kernel) int {
+		n := 0
+		_ = k.Journal().Range(func(e *event.Event) error {
+			if e.Kind == event.KindContextCompacted {
+				n++
+			}
+			return nil
+		})
+		return n
+	}
+
+	// Control: tight budget, no first-protection → compacts.
+	kc, err := runtime.Open(runtime.Config{
+		BaseDir: t.TempDir(), Provider: newProv(), Model: "m",
+		ContextBudget: 200, Tools: tools,
+	})
+	if err != nil {
+		t.Fatalf("Open control: %v", err)
+	}
+	t.Cleanup(func() { kc.Close() })
+	if _, _, err := kc.Run(context.Background(), "dump"); err != nil {
+		t.Fatalf("Run control: %v", err)
+	}
+	if compactedCount(kc) == 0 {
+		t.Fatal("control with no protect-first should have compacted")
+	}
+
+	// Same tight budget, but shield the first 100 messages → nothing elidable.
+	kp, err := runtime.Open(runtime.Config{
+		BaseDir: t.TempDir(), Provider: newProv(), Model: "m",
+		ContextBudget: 200, ContextProtectFirst: 100, Tools: tools,
+	})
+	if err != nil {
+		t.Fatalf("Open protected: %v", err)
+	}
+	t.Cleanup(func() { kp.Close() })
+	if _, _, err := kp.Run(context.Background(), "dump"); err != nil {
+		t.Fatalf("Run protected: %v", err)
+	}
+	if got := compactedCount(kp); got != 0 {
+		t.Errorf("protect-first shielding all messages must suppress compaction, got %d", got)
+	}
+}
+
 // TestRun_AutoBudgetOffForUnknownModel: auto mode with a model absent from the
 // catalog leaves compaction off (no guessing a window) — no context.compacted.
 func TestRun_AutoBudgetOffForUnknownModel(t *testing.T) {

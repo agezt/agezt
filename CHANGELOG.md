@@ -102,6 +102,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   valid UTF-8. (The journal's own answer truncation was already rune-safe.)
 
 ### Added
+- **`AGEZT_CONTEXT_PROTECT_FIRST=<n>` shields the run's original grounding from
+  compaction.** When context budgeting elides oldest-first, the earliest tool
+  results — the discovery/setup outputs that grounded the run — are the first to
+  go. Setting this protects the first *n* messages so that framing survives even
+  as the oldest *middle* turns are dropped; the most recent turns are always kept
+  too. 0 (the default) keeps the historical strictly-oldest-first behaviour
+  (SPEC-10 §3).
 - **`AGEZT_CONTEXT_BUDGET=auto` derives the budget from the model's context
   window.** Instead of a fixed char count, `auto` sizes the context budget at half
   the resolved model's catalog context window (~4 chars/token) — so a small-window
