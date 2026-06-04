@@ -239,3 +239,31 @@ func TestGenerate_HonorsSystemOverride(t *testing.T) {
 		t.Errorf("system = %q, want %q", seenSystem, custom)
 	}
 }
+
+// captureProvider records the CompletionRequest the planner sends.
+type captureProvider struct {
+	gotJSONMode bool
+	resp        string
+}
+
+func (c *captureProvider) Name() string { return "capture" }
+func (c *captureProvider) Complete(_ context.Context, req agent.CompletionRequest) (*agent.CompletionResponse, error) {
+	c.gotJSONMode = req.JSONMode
+	return &agent.CompletionResponse{
+		Message:    agent.Message{Role: agent.RoleAssistant, Content: c.resp},
+		StopReason: agent.StopEndTurn,
+	}, nil
+}
+
+// TestGenerate_RequestsJSONMode (M313): plan generation is SPEC-10's canonical
+// structured-output case, so the planner asks the provider for JSON mode.
+func TestGenerate_RequestsJSONMode(t *testing.T) {
+	plan := `{"nodes":[{"id":"a","kind":"loop","intent":"x","deps":[]}]}`
+	cp := &captureProvider{resp: fencedJSON(plan)}
+	if _, _, err := planner.Generate(context.Background(), planner.Config{Provider: cp}, "do x"); err != nil {
+		t.Fatalf("Generate: %v", err)
+	}
+	if !cp.gotJSONMode {
+		t.Error("planner should request JSONMode for structured plan output (SPEC-10)")
+	}
+}

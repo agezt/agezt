@@ -141,6 +141,14 @@ func Generate(ctx context.Context, cfg Config, intent string) (rawJSON string, p
 		// the rest of the agent loop's calls. Default routing applies
 		// when the env var is unset.
 		TaskType: TaskType,
+		// Request structured output (M313) — plan generation is SPEC-10's
+		// canonical "reliability over free-form parsing" case: the response is
+		// parsed as JSON below. Providers with a native JSON mode (OpenAI &
+		// compatibles, Gemini, Ollama) constrain decoding to valid JSON; those
+		// without one (Anthropic) ignore the flag and the prompt's explicit
+		// JSON instruction still applies. Safe to set unconditionally — the
+		// prompt already names JSON (satisfying OpenAI's json_object precondition).
+		JSONMode: true,
 	}
 	resp, err := cfg.Provider.Complete(ctx, req)
 	if err != nil {
