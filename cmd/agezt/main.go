@@ -58,6 +58,7 @@ import (
 	"github.com/agezt/agezt/kernel/redact"
 	"github.com/agezt/agezt/kernel/restapi"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
+	"github.com/agezt/agezt/kernel/skill"
 	"github.com/agezt/agezt/kernel/tenant"
 	"github.com/agezt/agezt/kernel/ulid"
 	"github.com/agezt/agezt/kernel/warden"
@@ -452,6 +453,15 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// land in the journal. MUST happen before any Run is dispatched.
 	gov.SetBus(k.Bus())
 	ward.SetBus(k.Bus())
+	// Skill auto-quarantine (SPEC-05 §5): on by default — an active skill that
+	// repeatedly fails in production is pulled automatically (journaled, reversible
+	// with `agt skill promote`). AGEZT_SKILL_AUTOQUARANTINE=off disables it.
+	autoQDesc := fmt.Sprintf("on (pull active skill after ≥%d failures at ≥%.0f%% rate; set %sSKILL_AUTOQUARANTINE=off to disable)",
+		skill.DefaultAutoQuarantineMinFailures, skill.DefaultAutoQuarantineRate*100, brand.EnvPrefix)
+	if strings.EqualFold(os.Getenv(brand.EnvPrefix+"SKILL_AUTOQUARANTINE"), "off") {
+		k.Forge().SetAutoQuarantine(0, 0)
+		autoQDesc = "off (set " + brand.EnvPrefix + "SKILL_AUTOQUARANTINE=on to enable)"
+	}
 	// Egress-block audit (M109): when the http/browser tools' guard refuses a
 	// dial, journal a netguard.blocked event so an operator can see attempted
 	// SSRF / metadata reads. Wired here because the tools are built before the
@@ -628,6 +638,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 	fmt.Fprintf(stdout, "  recovery         : %s\n", recoveryDesc)
 	fmt.Fprintf(stdout, "  knowledge        : memory %s · world model %s (%d entities) · skills %s/forge %s (%d active)\n",
 		onOff(memOn), onOff(worldOn), k.World().Count(), onOff(skillOn), onOff(forgeOn), k.Forge().Count())
+	fmt.Fprintf(stdout, "  skill auto-quar. : %s\n", autoQDesc)
 
 	// Telegram channel (SPEC-04 §1) — duplex when AGEZT_TELEGRAM_TOKEN is
 	// set. Built before Pulse so its brief sink can tee with the log sink.

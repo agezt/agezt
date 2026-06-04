@@ -1125,6 +1125,7 @@ func (k *Kernel) RunWith(ctx context.Context, corr, intent string) (string, erro
 	// Skill activation: retrieve matching ACTIVE skills and prepend their
 	// bodies so the model plans with learned procedures (SPEC-05 §4.2, §7
 	// step 4). Activate journals skill.activated under corr for `agt why`.
+	var activatedSkillIDs []string
 	if k.cfg.SkillInject {
 		topK := k.cfg.SkillTopK
 		if topK <= 0 {
@@ -1132,6 +1133,9 @@ func (k *Kernel) RunWith(ctx context.Context, corr, intent string) (string, erro
 		}
 		if hits, err := k.forge.Activate(corr, intent, topK); err == nil && len(hits) > 0 {
 			system = injectSkills(system, hits)
+			for _, h := range hits {
+				activatedSkillIDs = append(activatedSkillIDs, h.Skill.ID)
+			}
 		}
 	}
 
@@ -1165,6 +1169,15 @@ func (k *Kernel) RunWith(ctx context.Context, corr, intent string) (string, erro
 		MaxRunCostMicrocents: maxCostFromCtx(runCtx),  // M166: per-run cost cap
 		CostFn:               governor.CostMicrocents,
 	}, intent)
+
+	// Attribute the run's outcome to the skills it activated, so an active skill
+	// that repeatedly fails in production is auto-quarantined (SPEC-05 §5). This
+	// is the production caller of RecordOutcome; best-effort bookkeeping that never
+	// changes the run result.
+	if k.forge != nil && len(activatedSkillIDs) > 0 {
+		k.forge.RecordOutcome(corr, activatedSkillIDs, err == nil)
+	}
+
 	if err != nil {
 		return answer, err
 	}

@@ -25,12 +25,37 @@ type Forge struct {
 	bus   *bus.Bus
 	// now is the clock, injectable for deterministic tests.
 	now func() time.Time
+	// Auto-quarantine thresholds (SPEC-05 §5): an ACTIVE skill whose failure
+	// record crosses BOTH a minimum failure COUNT and a failure RATE is pulled
+	// from production automatically. Conservative-by-design so a mostly-successful
+	// skill with a few failures is not yanked. aqMinFailures <= 0 disables it.
+	aqMinFailures int
+	aqFailureRate float64
 }
+
+// DefaultAutoQuarantineMinFailures / Rate are the conservative defaults: a skill
+// needs at least 3 failures AND a >=50% failure rate before it is auto-pulled.
+const (
+	DefaultAutoQuarantineMinFailures = 3
+	DefaultAutoQuarantineRate        = 0.5
+)
 
 // NewForge wires a Store to a bus. bus may be nil in store-only tests;
 // production callers always pass the kernel bus so transitions are auditable.
 func NewForge(store Store, b *bus.Bus) *Forge {
-	return &Forge{store: store, bus: b, now: time.Now}
+	return &Forge{
+		store: store, bus: b, now: time.Now,
+		aqMinFailures: DefaultAutoQuarantineMinFailures,
+		aqFailureRate: DefaultAutoQuarantineRate,
+	}
+}
+
+// SetAutoQuarantine tunes (or, with minFailures <= 0, disables) the failure-driven
+// auto-quarantine. The daemon calls this from config; tests use it to assert the
+// disabled path.
+func (f *Forge) SetAutoQuarantine(minFailures int, rate float64) {
+	f.aqMinFailures = minFailures
+	f.aqFailureRate = rate
 }
 
 // ErrIllegalTransition is returned when a lifecycle edge isn't allowed.
@@ -242,10 +267,11 @@ func (f *Forge) Activate(corr, intent string, limit int) ([]Scored, error) {
 	return hits, nil
 }
 
-// RecordOutcome bumps success/failure metrics for the given skill ids. Used by
-// callers that can attribute a run's outcome to the skills it activated (the
-// hook auto-quarantine will later read).
-func (f *Forge) RecordOutcome(ids []string, success bool) {
+// RecordOutcome bumps success/failure metrics for the given skill ids and, on a
+// failure, auto-quarantines a skill whose record has crossed the threshold
+// (SPEC-05 §5). The runtime calls it after a run with the skills that run
+// activated; corr ties any resulting skill.quarantined event back to that run.
+func (f *Forge) RecordOutcome(corr string, ids []string, success bool) {
 	for _, id := range ids {
 		sk, found, err := f.store.Get(id)
 		if err != nil || !found {
@@ -256,8 +282,35 @@ func (f *Forge) RecordOutcome(ids []string, success bool) {
 		} else {
 			sk.Metrics.Failures++
 		}
-		_ = f.store.Put(sk)
+		if err := f.store.Put(sk); err != nil {
+			continue
+		}
+		if !success {
+			f.maybeAutoQuarantine(corr, sk)
+		}
 	}
+}
+
+// maybeAutoQuarantine pulls an ACTIVE skill from production when its failure
+// record crosses the configured threshold (SPEC-05 §5: "pulled from production by
+// a regression or repeated failure"). Requires BOTH a minimum failure count and a
+// failure rate, so a few failures amid many successes don't yank a good skill.
+// Only ACTIVE skills are affected (shadow skills are still under evaluation); the
+// action is journaled and reversible (`agt skill promote` re-activates).
+func (f *Forge) maybeAutoQuarantine(corr string, sk Skill) {
+	if f.aqMinFailures <= 0 || sk.Status != StatusActive {
+		return
+	}
+	total := sk.Metrics.Successes + sk.Metrics.Failures
+	if total == 0 || sk.Metrics.Failures < f.aqMinFailures {
+		return
+	}
+	rate := float64(sk.Metrics.Failures) / float64(total)
+	if rate < f.aqFailureRate {
+		return
+	}
+	reason := fmt.Sprintf("auto-quarantine: %d/%d runs failed (%.0f%%)", sk.Metrics.Failures, total, rate*100)
+	_ = f.Quarantine(corr, sk.ID, reason)
 }
 
 // Get returns a single skill by id.

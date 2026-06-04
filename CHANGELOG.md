@@ -102,6 +102,16 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   valid UTF-8. (The journal's own answer truncation was already rune-safe.)
 
 ### Added
+- **Skills that repeatedly fail in production are auto-quarantined (SPEC-05 §5).**
+  A run now attributes its outcome (success/failure) to the active skills it
+  activated, and the Forge pulls a skill from production once it crosses a
+  conservative threshold — at least 3 failures AND a ≥50% failure rate — so a
+  good skill with the occasional failure is left alone. The pull is journaled
+  (`skill.quarantined` with an `auto-quarantine: N/M runs failed` reason, linked
+  to the failing run) and fully reversible (`agt skill promote` re-activates).
+  On by default; `AGEZT_SKILL_AUTOQUARANTINE=off` disables it. Until now skill
+  outcome metrics were never recorded in production and quarantine was
+  operator-only.
 - **The run-detail view now shows the Governor's routing/capability decisions.**
   Now that those events are linked to their run, the web Live Monitor's run-detail
   arc renders them instead of dropping them to bare kind lines: `routing.decision`
