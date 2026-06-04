@@ -12,6 +12,18 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Generic webhook channel.** A vendor-neutral inbound/outbound HTTP channel
+  (SPEC-04): any external system can drive an Agezt agent by POSTing a signed JSON
+  message (`{channel_id, sender, text, id, ts_ms}`) and receives the agent's reply
+  synchronously in the response — the generic counterpart to the Slack/Discord
+  channels, no platform SDK. Enable with `AGEZT_WEBHOOK_SECRET` +
+  `AGEZT_WEBHOOK_ADDR` (+ `AGEZT_WEBHOOK_CHANNELS` allowlist); set
+  `AGEZT_WEBHOOK_OUTBOUND_URL` for async/proactive delivery (Pulse briefs,
+  `agt send`). Security mirrors the other channels: HMAC-SHA256 signature
+  (`X-Agezt-Signature`, same scheme as outbound webhooks — empty secret fails
+  closed), a timestamp freshness window + id de-duplication for replay protection,
+  a fail-closed allowlist of channel ids, and bounded request bodies. The agent's
+  tool calls still pass through Edict.
 - **`agt pulse --text` shows live content.** The human event tail can now append a
   one-line excerpt of each event's text — the streamed answer tokens and a
   reasoning model's chain of thought — so an operator can watch *what* the agent is

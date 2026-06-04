@@ -65,6 +65,7 @@ import (
 	"github.com/agezt/agezt/plugins/channels/discord"
 	"github.com/agezt/agezt/plugins/channels/slack"
 	"github.com/agezt/agezt/plugins/channels/telegram"
+	webhookchan "github.com/agezt/agezt/plugins/channels/webhook"
 	"github.com/agezt/agezt/plugins/providers/anthropic"
 	"github.com/agezt/agezt/plugins/providers/compat"
 	"github.com/agezt/agezt/plugins/providers/mock"
@@ -658,11 +659,23 @@ func runDaemon(stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "  discord          : disabled (set AGEZT_DISCORD_TOKEN)\n")
 	}
 
+	// Generic webhook channel (SPEC-04 §1) — vendor-neutral duplex. Any external
+	// system POSTs a signed JSON message and gets the agent's reply synchronously;
+	// briefs/`agt send` tee to a configured outbound URL. Enabled when a secret
+	// (inbound) or an outbound URL is set.
+	whChan, whSink, whDesc := buildWebhook(ctx, k)
+	if whChan != nil {
+		go whChan.Start(ctx)
+		fmt.Fprintf(stdout, "  webhook channel  : %s\n", whDesc)
+	} else {
+		fmt.Fprintf(stdout, "  webhook channel  : disabled (set AGEZT_WEBHOOK_SECRET + AGEZT_WEBHOOK_ADDR)\n")
+	}
+
 	// Pulse — the proactive heart (SPEC-03). On by default; the resident
 	// engine runs on the daemon ctx so `agt halt`/SIGTERM/`agt shutdown`
 	// stop it with everything else. AGEZT_PULSE=off disables it. When a channel
 	// is configured, briefs tee to it (closes the Jarvis loop).
-	if eng, pulseDesc := buildPulse(k, ward, model, stdout, combineSinks(tgSink, slSink, dcSink)); eng != nil {
+	if eng, pulseDesc := buildPulse(k, ward, model, stdout, combineSinks(tgSink, slSink, dcSink, whSink)); eng != nil {
 		eng.Start(ctx)
 		srv.SetPulse(eng)
 		fmt.Fprintf(stdout, "  pulse            : %s\n", pulseDesc)
@@ -764,6 +777,9 @@ func runDaemon(stdout, stderr io.Writer) int {
 	}
 	if dcChan != nil {
 		liveChannels["discord"] = dcChan
+	}
+	if whChan != nil {
+		liveChannels["webhook"] = whChan
 	}
 	channelSend := func(sctx context.Context, kind, id, text string) error {
 		ch, ok := liveChannels[kind]
@@ -1074,6 +1090,67 @@ func buildSlack(ctx context.Context, k *kernelruntime.Kernel) (*slack.Channel, p
 	}
 }
 
+// buildWebhook constructs the vendor-neutral webhook channel. Enabled when an
+// inbound secret OR an outbound URL is configured. Returns (nil, nil, "") when
+// neither is set.
+//
+//	AGEZT_WEBHOOK_SECRET        HMAC-SHA256 signing key (enables signed inbound)
+//	AGEZT_WEBHOOK_ADDR          local addr to serve the inbound route (fronted by
+//	                            a tunnel/reverse proxy); empty → no inbound listener
+//	AGEZT_WEBHOOK_PATH          inbound route (default /webhook)
+//	AGEZT_WEBHOOK_CHANNELS      comma-separated allowlist of channel ids that may
+//	                            drive the agent AND receive Pulse briefs
+//	AGEZT_WEBHOOK_OUTBOUND_URL  where Send / briefs POST (signed); empty → inbound-only
+//
+// The inbound handler runs the normal agent loop under the channel's correlation,
+// so `agt why`/`agt inbox` link the webhook command to the task.
+func buildWebhook(ctx context.Context, k *kernelruntime.Kernel) (*webhookchan.Channel, pulse.BriefSink, string) {
+	secret := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "WEBHOOK_SECRET"))
+	outboundURL := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "WEBHOOK_OUTBOUND_URL"))
+	if secret == "" && outboundURL == "" {
+		return nil, nil, ""
+	}
+	addr := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "WEBHOOK_ADDR"))
+	path := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "WEBHOOK_PATH"))
+	channelIDs := splitNonEmpty(os.Getenv(brand.EnvPrefix + "WEBHOOK_CHANNELS"))
+
+	ch := webhookchan.New(webhookchan.Config{
+		Addr:        addr,
+		Path:        path,
+		Secret:      secret,
+		Allowlist:   channel.NewAllowlist(channelIDs),
+		OutboundURL: outboundURL,
+		Bus:         k.Bus(),
+		Handler:     makeChannelHandler(k),
+	})
+
+	var sink pulse.BriefSink
+	if outboundURL != "" && len(channelIDs) > 0 {
+		sink = pulse.SinkFunc(func(b pulse.Brief) error {
+			var firstErr error
+			for _, id := range channelIDs {
+				if err := ch.Send(ctx, channel.Outbound{ChannelID: id, Text: formatBrief(b), Priority: channel.PriorityNotify}); err != nil && firstErr == nil {
+					firstErr = err
+				}
+			}
+			return firstErr
+		})
+	}
+
+	switch {
+	case secret == "":
+		return ch, sink, fmt.Sprintf("outbound-only → %s, allowlist=%d (set AGEZT_WEBHOOK_SECRET + AGEZT_WEBHOOK_ADDR for inbound)", outboundURL, len(channelIDs))
+	case addr == "":
+		return ch, sink, fmt.Sprintf("inbound configured but not listening (set AGEZT_WEBHOOK_ADDR), allowlist=%d", len(channelIDs))
+	default:
+		p := path
+		if p == "" {
+			p = webhookchan.DefaultPath
+		}
+		return ch, sink, fmt.Sprintf("inbound at %s%s, allowlist=%d channel(s)", addr, p, len(channelIDs))
+	}
+}
+
 // buildDiscord constructs the in-process Discord channel when AGEZT_DISCORD_TOKEN
 // is set, plus a Pulse brief sink to the allowlisted channels. Returns
 // (nil, nil, "") when no token is configured.
@@ -1167,6 +1244,15 @@ func collectChannels() []controlplane.ChannelInfo {
 			Inbound:   addr != "" && env("DISCORD_PUBLIC_KEY") != "",
 			Addr:      addr,
 			Allowlist: len(splitNonEmpty(os.Getenv(brand.EnvPrefix + "DISCORD_CHANNELS"))),
+		})
+	}
+	if env("WEBHOOK_SECRET") != "" || env("WEBHOOK_OUTBOUND_URL") != "" {
+		addr := env("WEBHOOK_ADDR")
+		out = append(out, controlplane.ChannelInfo{
+			Kind:      "webhook",
+			Inbound:   addr != "" && env("WEBHOOK_SECRET") != "",
+			Addr:      addr,
+			Allowlist: len(splitNonEmpty(os.Getenv(brand.EnvPrefix + "WEBHOOK_CHANNELS"))),
 		})
 	}
 	return out
