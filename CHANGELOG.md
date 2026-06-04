@@ -93,6 +93,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   valid UTF-8. (The journal's own answer truncation was already rune-safe.)
 
 ### Added
+- **`agt provider check --caps` advertises prompt caching.** The capability
+  report (and its `--json` `prompt_cache` field) now shows whether a model
+  supports prompt caching — derived from its catalog cache-read price, the same
+  signal the cache-aware billing uses. Completes the SPEC-15 §1.2 advertised
+  capability set (tool-use / reasoning / vision / JSON-mode / prompt-caching);
+  free/local models report `no`.
 - **Web UI: context inspector in run detail.** Each `llm.request` row in the
   run-detail arc now shows a compact context summary (`N ctx chars · system …,
   user …`) and expands (▸/▾) to a full per-source breakdown — answering "how big

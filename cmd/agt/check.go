@@ -217,6 +217,7 @@ type jsonCaps struct {
 	Vision       bool     `json:"vision"`
 	Attachment   bool     `json:"attachment"`
 	JSONMode     bool     `json:"json_mode"`
+	PromptCache  bool     `json:"prompt_cache"`
 	InputModes   []string `json:"input_modalities,omitempty"`
 	OutputModes  []string `json:"output_modalities,omitempty"`
 	ContextLimit int      `json:"context_limit,omitempty"`
@@ -281,6 +282,7 @@ func runCheckCaps(cat *catalog.Catalog, flags checkFlags, stdout, stderr io.Writ
 		Vision:       model.SupportsVision(),
 		Attachment:   model.Attachment,
 		JSONMode:     catalog.FamilySupportsNativeJSONMode(entry.Family()),
+		PromptCache:  model.SupportsPromptCache(),
 		InputModes:   model.Modalities.Input,
 		OutputModes:  model.Modalities.Output,
 		ContextLimit: model.Limit.Context,
@@ -316,6 +318,7 @@ func emitCapsHuman(c jsonCaps, stdout io.Writer) {
 	fmt.Fprintf(stdout, "  vision (image)  : %s\n", yn(c.Vision))
 	fmt.Fprintf(stdout, "  attachments     : %s\n", yn(c.Attachment))
 	fmt.Fprintf(stdout, "  json mode       : %s\n", yn(c.JSONMode))
+	fmt.Fprintf(stdout, "  prompt caching  : %s\n", yn(c.PromptCache))
 	if len(c.InputModes) > 0 {
 		fmt.Fprintf(stdout, "  input modes     : %s\n", strings.Join(c.InputModes, ", "))
 	}
@@ -371,6 +374,7 @@ func runCheckCapsAll(cat *catalog.Catalog, flags checkFlags, stdout io.Writer) i
 			Vision:       model.SupportsVision(),
 			Attachment:   model.Attachment,
 			JSONMode:     catalog.FamilySupportsNativeJSONMode(entry.Family()),
+			PromptCache:  model.SupportsPromptCache(),
 			ContextLimit: model.Limit.Context,
 			Warnings:     model.AgentWarnings(),
 		})

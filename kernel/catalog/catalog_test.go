@@ -522,6 +522,24 @@ func TestDiscoverOllama_DetectsVisionModels(t *testing.T) {
 // TestFamilySupportsNativeJSONMode (M316): the families Agezt wires a native
 // JSON-mode switch for (M311/M312) report true; those that fall back to
 // prompt-instructed JSON report false.
+// TestModel_SupportsPromptCache (SPEC-15 §1.2 capability advertising): a model
+// advertises prompt caching exactly when it carries a separate cache-read price;
+// a priced-but-no-cache model and a free/local model (nil Cost) do not.
+func TestModel_SupportsPromptCache(t *testing.T) {
+	cached := &catalog.Model{ID: "c", Cost: &catalog.Cost{Input: 3.0, Output: 15.0, CacheRead: 0.30}}
+	if !cached.SupportsPromptCache() {
+		t.Error("a model with a cache_read price should advertise prompt caching")
+	}
+	noCache := &catalog.Model{ID: "n", Cost: &catalog.Cost{Input: 3.0, Output: 15.0}}
+	if noCache.SupportsPromptCache() {
+		t.Error("a priced model with no cache_read price must not advertise prompt caching")
+	}
+	free := &catalog.Model{ID: "f"} // nil Cost (local/self-hosted)
+	if free.SupportsPromptCache() {
+		t.Error("a free/local model (nil Cost) must not advertise prompt caching")
+	}
+}
+
 func TestFamilySupportsNativeJSONMode(t *testing.T) {
 	yes := []catalog.Family{
 		catalog.FamilyOpenAI, catalog.FamilyOpenAICompatible, catalog.FamilyMistral,

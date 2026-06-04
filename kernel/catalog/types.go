@@ -215,6 +215,15 @@ func (m *Model) SupportsVision() bool {
 	return m.SupportsModality("input", "image") || m.SupportsModality("input", "vision")
 }
 
+// SupportsPromptCache reports whether this model advertises prompt caching — the
+// signal Agezt's cache-aware billing uses (SPEC-15 §1.2 / SPEC-10 §2): a model
+// carries a separate cache-read price exactly when its provider caches stable
+// prompt prefixes (Anthropic, OpenAI auto-cache, Gemini, …). Free/local models
+// with no Cost block report false.
+func (m *Model) SupportsPromptCache() bool {
+	return m.Cost.CacheReadMicrocentsPerMTok() > 0
+}
+
 // AgentWarnings returns operator-facing advisories about a model's
 // fitness for the tool-driven agent loop. Empty slice = no concerns.
 // The headline check is tool-use: an agent that can't call tools can't

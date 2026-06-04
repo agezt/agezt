@@ -496,6 +496,51 @@ func TestRunCheckCaps_JSON(t *testing.T) {
 	}
 }
 
+// TestRunCheckCaps_PromptCacheAdvertised (M376, SPEC-15 §1.2): a model with a
+// cache-read price advertises prompt caching in `agt provider check --caps`; a
+// model without one does not — so the capability is visible, not just billed.
+func TestRunCheckCaps_PromptCacheAdvertised(t *testing.T) {
+	c := catalog.NewEmpty()
+	c.Providers["acme"] = &catalog.Provider{
+		ID: "acme", NPM: "@ai-sdk/anthropic", API: "https://a.test",
+		Models: map[string]*catalog.Model{
+			"cached": {ID: "cached", ToolCall: true,
+				Cost:  &catalog.Cost{Input: 3.0, Output: 15.0, CacheRead: 0.30},
+				Limit: catalog.Limit{Context: 200000}},
+			"plain": {ID: "plain", ToolCall: true,
+				Cost:  &catalog.Cost{Input: 3.0, Output: 15.0},
+				Limit: catalog.Limit{Context: 200000}},
+		},
+	}
+
+	get := func(model string) jsonCaps {
+		t.Helper()
+		t.Setenv("AGEZT_MODEL", model)
+		var out, errOut bytes.Buffer
+		runCheckCaps(c, checkFlags{providerID: "acme", jsonOut: true}, &out, &errOut)
+		var caps jsonCaps
+		if err := json.Unmarshal(out.Bytes(), &caps); err != nil {
+			t.Fatalf("json: %v\n%s", err, out.String())
+		}
+		return caps
+	}
+
+	if !get("cached").PromptCache {
+		t.Error("a model with a cache_read price must advertise prompt_cache=true")
+	}
+	if get("plain").PromptCache {
+		t.Error("a model without a cache_read price must report prompt_cache=false")
+	}
+
+	// Human output surfaces it too.
+	t.Setenv("AGEZT_MODEL", "cached")
+	var human, herr bytes.Buffer
+	runCheckCaps(c, checkFlags{providerID: "acme"}, &human, &herr)
+	if !strings.Contains(human.String(), "prompt caching  : yes") {
+		t.Errorf("human caps output missing 'prompt caching : yes':\n%s", human.String())
+	}
+}
+
 func TestRunCheckCaps_UnknownProvider(t *testing.T) {
 	var out, errOut bytes.Buffer
 	if code := runCheckCaps(capsCatalog(), checkFlags{providerID: "nope"}, &out, &errOut); code != 1 {
