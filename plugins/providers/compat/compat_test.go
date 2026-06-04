@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -435,6 +436,87 @@ func TestBuild_VertexFamilyRoutesToVertexWire(t *testing.T) {
 	}
 	if seen.authz != "Bearer ya29.test" {
 		t.Errorf("authz=%q", seen.authz)
+	}
+}
+
+// TestBuild_VertexFamilyRoutesClaudeToAnthropicWire (M330): the google-vertex
+// family also serves Anthropic-on-Vertex. A `claude-*` model id must route to the
+// Anthropic Messages body on the `:rawPredict` endpoint (not Gemini's
+// `:generateContent`) — proving the capability the package doc describes.
+func TestBuild_VertexFamilyRoutesClaudeToAnthropicWire(t *testing.T) {
+	tokenSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"access_token": "ya29.test", "expires_in": 3600, "token_type": "Bearer",
+		})
+	}))
+	defer tokenSrv.Close()
+
+	var seen struct {
+		path, authz string
+		body        map[string]any
+	}
+	apiSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seen.path = r.URL.Path
+		seen.authz = r.Header.Get("Authorization")
+		raw, _ := io.ReadAll(r.Body)
+		_ = json.Unmarshal(raw, &seen.body)
+		// Anthropic Messages response shape (what vertex/anthropic.go decodes).
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"content":     []map[string]any{{"type": "text", "text": "hi from claude on vertex"}},
+			"stop_reason": "end_turn",
+			"usage":       map[string]any{"input_tokens": 5, "output_tokens": 4},
+		})
+	}))
+	defer apiSrv.Close()
+
+	saJSON := genTestVertexSA(t, tokenSrv.URL)
+	saPath := writeTempFile(t, saJSON)
+
+	const model = "claude-opus-4-7@20251031"
+	entry := &catalog.Provider{
+		ID: "google-vertex", Name: "Google Vertex",
+		Env: []string{"GOOGLE_VERTEX_PROJECT", "GOOGLE_VERTEX_LOCATION", "GOOGLE_APPLICATION_CREDENTIALS"},
+		NPM: "@ai-sdk/google-vertex",
+		API: apiSrv.URL,
+		Models: map[string]*catalog.Model{
+			model: {ID: model},
+		},
+	}
+	prov, _, err := compat.Build(entry, model, func(name string) string {
+		switch name {
+		case "GOOGLE_APPLICATION_CREDENTIALS":
+			return saPath
+		case "GOOGLE_VERTEX_LOCATION":
+			return "us-central1"
+		case "GOOGLE_VERTEX_PROJECT":
+			return "my-proj"
+		}
+		return ""
+	})
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	resp, err := prov.Complete(context.Background(), agent.CompletionRequest{
+		Model:    model,
+		Messages: []agent.Message{{Role: agent.RoleUser, Content: "ping"}},
+	})
+	if err != nil {
+		t.Fatalf("Complete: %v", err)
+	}
+	if resp.Message.Content != "hi from claude on vertex" {
+		t.Errorf("content=%q", resp.Message.Content)
+	}
+	// Routed to the anthropic publisher + :rawPredict, NOT gemini :generateContent.
+	wantPath := "/v1/projects/my-proj/locations/us-central1/publishers/anthropic/models/" + model + ":rawPredict"
+	if seen.path != wantPath {
+		t.Errorf("path=%q want %q", seen.path, wantPath)
+	}
+	if seen.authz != "Bearer ya29.test" {
+		t.Errorf("authz=%q", seen.authz)
+	}
+	// Body is the Anthropic Messages shape (anthropic_version), not Gemini contents.
+	if _, ok := seen.body["anthropic_version"]; !ok {
+		t.Errorf("body should carry anthropic_version (Anthropic-on-Vertex wire): %+v", seen.body)
 	}
 }
 

@@ -40,8 +40,10 @@
 // desktop/CI, or the GCE/GKE instance metadata server
 // (GOOGLE_VERTEX_USE_METADATA=1) for ambient production credentials on
 // Compute Engine / GKE Workload Identity / Cloud Run. External/federated
-// ADC and Anthropic-on-Vertex (`@ai-sdk/google-vertex/anthropic`,
-// :rawPredict endpoint) remain unimplemented.
+// ADC remains unimplemented. Anthropic-on-Vertex (`claude-*` models via the
+// :rawPredict endpoint) IS supported: the vertex adapter dispatches on the
+// model id, so a claude-* model under the google-vertex family routes to the
+// Anthropic Messages body automatically.
 //
 // **Every family in the catalog is now wired.** Adding a new
 // downstream variant is one extra case branch + adapter; the daemon
@@ -229,9 +231,10 @@ func Build(p *catalog.Provider, modelID string, lookup CredLookup) (agent.Provid
 	case catalog.FamilyGoogleVertex:
 		// Vertex AI: Gemini body shape on the regional
 		// aiplatform.googleapis.com endpoint, authenticated by either a
-		// service-account JSON key or the GCE/GKE metadata server.
-		// `@ai-sdk/google-vertex/anthropic` (Anthropic-on-Vertex via
-		// :rawPredict) remains unimplemented.
+		// service-account JSON key or the GCE/GKE metadata server. The same
+		// adapter also serves Anthropic-on-Vertex: a `claude-*` model id makes
+		// vertex.Provider dispatch to the Anthropic Messages body on the
+		// :rawPredict endpoint (no separate family needed).
 		vc, err := resolveVertexCreds(p, lookup)
 		if err != nil {
 			return nil, "", err
