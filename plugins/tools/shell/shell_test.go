@@ -9,7 +9,62 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/agezt/agezt/kernel/bus"
+	"github.com/agezt/agezt/kernel/warden"
 )
+
+// fakeWarden returns a canned Result so the shell tool's output-combination
+// logic (stdout+stderr ordering, truncation marker, exit-code suffix) can be
+// exercised deterministically — a real command can't reliably produce a
+// truncated stream or a specific exit code with both stdout and stderr.
+type fakeWarden struct{ res *warden.Result }
+
+func (f *fakeWarden) Run(context.Context, warden.Spec) (*warden.Result, error) { return f.res, nil }
+func (f *fakeWarden) EffectiveProfile(p warden.Profile) warden.Profile         { return p }
+func (f *fakeWarden) SetBus(*bus.Bus)                                          {}
+
+func TestShell_CombinesStdoutThenStderr(t *testing.T) {
+	sh := NewWithWarden(&fakeWarden{res: &warden.Result{
+		ExitCode: 0, Stdout: []byte("out-data"), Stderr: []byte("err-data"),
+	}})
+	in, _ := json.Marshal(shellInput{Command: "x"})
+	r, err := sh.Invoke(context.Background(), in)
+	if err != nil || r.IsError {
+		t.Fatalf("unexpected: err=%v isErr=%v out=%q", err, r.IsError, r.Output)
+	}
+	if r.Output != "out-data\nerr-data" {
+		t.Errorf("combined output = %q, want stdout then stderr %q", r.Output, "out-data\nerr-data")
+	}
+}
+
+func TestShell_PrependsTruncationMarker(t *testing.T) {
+	sh := NewWithWarden(&fakeWarden{res: &warden.Result{
+		ExitCode: 0, Stdout: []byte("partial output"), Truncated: true,
+	}})
+	in, _ := json.Marshal(shellInput{Command: "x"})
+	r, _ := sh.Invoke(context.Background(), in)
+	if !strings.HasPrefix(r.Output, "[truncated to last 64 KiB]") {
+		t.Errorf("truncated output should be prefixed with the marker, got %q", r.Output)
+	}
+	if !strings.Contains(r.Output, "partial output") {
+		t.Errorf("truncated output should still carry the retained data, got %q", r.Output)
+	}
+}
+
+func TestShell_NonzeroExitAppendsCode(t *testing.T) {
+	sh := NewWithWarden(&fakeWarden{res: &warden.Result{
+		ExitCode: 3, Stdout: []byte("boom"),
+	}})
+	in, _ := json.Marshal(shellInput{Command: "x"})
+	r, _ := sh.Invoke(context.Background(), in)
+	if !r.IsError {
+		t.Error("nonzero exit should set IsError")
+	}
+	if !strings.Contains(r.Output, "[exit code 3]") {
+		t.Errorf("output should include the exit-code suffix, got %q", r.Output)
+	}
+}
 
 func TestShell_RunsCommand(t *testing.T) {
 	sh := New()
