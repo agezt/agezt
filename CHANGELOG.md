@@ -68,6 +68,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   OpenAI-compatible endpoints (Chat Completions + Responses).
 
 ### Fixed
+- **Non-streaming reasoning is no longer dropped.** When a run used a provider's
+  non-streaming path (no token streaming), a reasoning model's chain of thought
+  was captured on the response but never published as an `llm.reasoning` event —
+  so it was invisible to every consumer (`agt pulse`, the ACP thought-chunk relay,
+  the OpenAI API's `reasoning_content`); only its character count survived. The
+  loop now emits the reasoning as a single ephemeral event on the non-streaming
+  path too, so reasoning capture is uniform whether or not the provider streams.
 - **Ollama now honours the run's token cap.** `MaxTokens` is forwarded as
   Ollama's `options.num_predict`, so a local model respects the same output limit
   every cloud provider enforces — previously the cap was silently dropped on

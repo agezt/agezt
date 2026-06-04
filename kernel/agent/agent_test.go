@@ -767,6 +767,80 @@ collect:
 	}
 }
 
+// nonStreamReasoningProvider is a bare Provider (no CompleteStream) whose
+// non-streaming Complete returns reasoning whole, as a real non-streaming
+// reasoning-model call would.
+type nonStreamReasoningProvider struct {
+	answer    string
+	reasoning string
+}
+
+func (p *nonStreamReasoningProvider) Name() string { return "nonstream-reasoning" }
+func (p *nonStreamReasoningProvider) Complete(_ context.Context, _ agent.CompletionRequest) (*agent.CompletionResponse, error) {
+	return &agent.CompletionResponse{
+		Message:          agent.Message{Role: agent.RoleAssistant, Content: p.answer},
+		ReasoningContent: p.reasoning,
+		StopReason:       agent.StopEndTurn,
+		Usage:            agent.Usage{InputTokens: 10, OutputTokens: 5},
+	}, nil
+}
+
+// TestRun_PublishesReasoningEvents_NonStreaming (M325): a non-streaming provider
+// returns reasoning whole (no deltas), so the loop must emit it as a single
+// ephemeral llm.reasoning event — otherwise the chain of thought would be invisible
+// to every consumer (pulse, ACP, the OpenAI API) for non-streaming runs.
+func TestRun_PublishesReasoningEvents_NonStreaming(t *testing.T) {
+	b, _ := newTestBus(t)
+	prov := &nonStreamReasoningProvider{answer: "42", reasoning: "6*7 = 42."}
+	sub, err := b.Subscribe(">", 64)
+	if err != nil {
+		t.Fatalf("Subscribe: %v", err)
+	}
+	defer sub.Cancel()
+
+	if _, err := agent.Run(context.Background(), agent.LoopConfig{
+		Provider: prov, Bus: b, Actor: "a", CorrelationID: "c",
+	}, "go"); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	deadline := time.After(time.Second)
+	var reasoning strings.Builder
+	gotResponse, gotReasoningEvent := false, false
+collect:
+	for {
+		select {
+		case ev := <-sub.C:
+			switch ev.Kind {
+			case event.KindLLMReasoning:
+				gotReasoningEvent = true
+				if !ev.IsEphemeral() {
+					t.Errorf("llm.reasoning must be ephemeral (Hash=\"\"): %+v", ev)
+				}
+				var p struct {
+					Text string `json:"text"`
+				}
+				_ = json.Unmarshal(ev.Payload, &p)
+				reasoning.WriteString(p.Text)
+			case event.KindLLMResponse:
+				gotResponse = true
+				break collect
+			}
+		case <-deadline:
+			break collect
+		}
+	}
+	if !gotResponse {
+		t.Fatal("never saw llm.response")
+	}
+	if !gotReasoningEvent {
+		t.Fatal("non-streaming reasoning was not published as an llm.reasoning event")
+	}
+	if reasoning.String() != "6*7 = 42." {
+		t.Errorf("reasoning event text=%q want '6*7 = 42.'", reasoning.String())
+	}
+}
+
 func TestRun_UsesStreamingWhenAvailable(t *testing.T) {
 	b, _ := newTestBus(t)
 	prov := &streamProv{

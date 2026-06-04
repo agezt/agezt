@@ -489,6 +489,24 @@ func Run(ctx context.Context, cfg LoopConfig, userIntent string) (answer string,
 				return "", fmt.Errorf("agent: provider %s: %w", cfg.Provider.Name(), err)
 			}
 			resp = r
+			// A non-streaming provider returns the reasoning whole, with no deltas
+			// (M325). Emit it as one ephemeral llm.reasoning event so a reasoning
+			// model's chain of thought reaches the same consumers (agt pulse, the
+			// ACP thought-chunk relay, the OpenAI-compatible API's reasoning_content)
+			// that the streaming branch above already feeds live — otherwise only
+			// reasoning_chars on llm.response below would record that it existed.
+			if r != nil && r.ReasoningContent != "" {
+				_, _ = cfg.Bus.PublishStreaming(event.Spec{
+					Subject:       subject("llm"),
+					Kind:          event.KindLLMReasoning,
+					Actor:         cfg.Actor,
+					CorrelationID: cfg.CorrelationID,
+					Payload: map[string]any{
+						"iter": iter,
+						"text": r.ReasoningContent,
+					},
+				})
+			}
 		}
 		// A provider must return a non-nil response with a nil error (the Provider
 		// contract). An out-of-process plugin is third-party code that can break
