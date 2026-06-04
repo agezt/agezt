@@ -95,6 +95,12 @@
   .arc .seq { color: var(--dim); min-width: 28px; text-align: right; }
   .arc .kind { color: var(--accent); }
   .arc .det { color: var(--dim); white-space: pre-wrap; }
+  .arc .ev.expandable { cursor: pointer; }
+  .arc .ev .tog { color: var(--accent); min-width: 12px; }
+  .arc .toolio { display: none; margin: 2px 0 6px 40px; padding: 6px 8px; background: var(--panel2);
+    border-radius: 4px; white-space: pre-wrap; word-break: break-word; max-height: 260px; overflow: auto;
+    color: var(--fg); font-size: 11px; }
+  .arc .toolio.show { display: block; }
   .fbbadge { color: #fff; background: var(--bad); border-radius: 12px; padding: 2px 10px;
     font-size: 11px; font-weight: 600; cursor: pointer; }
   .fbbadge:hover { filter: brightness(1.12); }
@@ -707,6 +713,24 @@ function arcDetail(ev) {
   }
 }
 
+// arcFull returns the full, untruncated tool input/output for a tool event (for
+// the expandable tool-call-debug view), or "" for events without one. The 80-char
+// arcDetail line stays compact; this surfaces the complete payload on demand.
+function arcFull(ev) {
+  const p = ev.payload || ev.Payload || {};
+  if (ev.kind === "tool.invoked") {
+    if (p.input == null) return "";
+    try { return "input:\n" + JSON.stringify(typeof p.input === "string" ? JSON.parse(p.input) : p.input, null, 2); }
+    catch (_) { return "input:\n" + String(p.input); }
+  }
+  if (ev.kind === "tool.result") {
+    const out = p.output != null ? p.output : p.result;
+    if (out == null || out === "") return "";
+    return (p.error ? "error:\n" : "output:\n") + String(out);
+  }
+  return "";
+}
+
 async function openRun(r) {
   modalTitle.firstChild.textContent =
     (r.status || "") + " · " + (r.intent || r.correlation_id) + " ";
@@ -728,11 +752,25 @@ async function openRun(r) {
     const arc = el("div", "arc");
     for (const ev of evs) {
       const row = el("div", "ev");
+      const full = arcFull(ev);
+      // Tool events get an expandable block showing the complete input/output
+      // (SPEC-07 tool-call debug) — click the row to toggle it.
+      const tog = el("span", "tog", full ? "▸" : "");
+      row.appendChild(tog);
       row.appendChild(el("span", "seq", ev.seq != null ? ev.seq : ""));
       row.appendChild(el("span", "kind", ev.kind || ""));
       const det = arcDetail(ev);
       if (det) row.appendChild(el("span", "det", det));
       arc.appendChild(row);
+      if (full) {
+        row.classList.add("expandable");
+        const io = el("pre", "toolio", full);
+        row.addEventListener("click", () => {
+          const open = io.classList.toggle("show");
+          tog.textContent = open ? "▾" : "▸";
+        });
+        arc.appendChild(io);
+      }
     }
     if (!evs.length) arc.appendChild(muted("no events found for this run"));
     modalBody.appendChild(arc);

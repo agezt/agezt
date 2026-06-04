@@ -12,6 +12,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Web UI: full tool I/O in run detail.** The run-detail modal's event arc now
+  lets you expand any `tool.invoked` / `tool.result` row (▸/▾) to reveal the full,
+  untruncated tool input (pretty-printed JSON) and output (or error) — the
+  actionable half of debugging a run, straight from the browser instead of dropping
+  to `agt journal`. Non-tool rows are unchanged. (Assistant message *text* remains
+  unshown — it is deliberately not journalled; only tool I/O is.)
 - **Email channel (outbound).** Agezt can now deliver Pulse briefs and `agt send`
   messages to operator inboxes over SMTP (stdlib `net/smtp`, no new dependency).
   Enable with `AGEZT_EMAIL_SMTP_ADDR` + `AGEZT_EMAIL_FROM` (+
