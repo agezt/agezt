@@ -10,10 +10,21 @@ import (
 
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/catalog"
+	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
+
+// allowDump builds an Edict engine that permits the dump tool, so its full
+// (large) output actually reaches the transcript instead of a short policy
+// denial — otherwise the only elidable content is a fixed ~80-char denial
+// message and compaction can't reclaim against it.
+func allowDump() *edict.Engine {
+	return edict.New(edict.Options{
+		Levels: map[edict.Capability]edict.TrustLevel{"dump": edict.LevelAllow},
+	})
+}
 
 // dumpTool returns a fixed large output so context builds up across rounds.
 type dumpTool struct{ out string }
@@ -50,6 +61,7 @@ func TestRun_AutoContextBudgetFromCatalog(t *testing.T) {
 		Model:             "mockmodel",
 		Catalog:           cat,
 		ContextBudgetAuto: true,
+		Edict:             allowDump(),
 		Tools:             map[string]agent.Tool{"dump": dumpTool{out: strings.Repeat("Z", 2000)}},
 	})
 	if err != nil {
@@ -103,7 +115,7 @@ func TestRun_ContextProtectFirstPlumbsThrough(t *testing.T) {
 	// Control: tight budget, no first-protection → compacts.
 	kc, err := runtime.Open(runtime.Config{
 		BaseDir: t.TempDir(), Provider: newProv(), Model: "m",
-		ContextBudget: 200, Tools: tools,
+		ContextBudget: 200, Tools: tools, Edict: allowDump(),
 	})
 	if err != nil {
 		t.Fatalf("Open control: %v", err)
@@ -119,7 +131,7 @@ func TestRun_ContextProtectFirstPlumbsThrough(t *testing.T) {
 	// Same tight budget, but shield the first 100 messages → nothing elidable.
 	kp, err := runtime.Open(runtime.Config{
 		BaseDir: t.TempDir(), Provider: newProv(), Model: "m",
-		ContextBudget: 200, ContextProtectFirst: 100, Tools: tools,
+		ContextBudget: 200, ContextProtectFirst: 100, Tools: tools, Edict: allowDump(),
 	})
 	if err != nil {
 		t.Fatalf("Open protected: %v", err)
@@ -147,6 +159,7 @@ func TestRun_AutoBudgetOffForUnknownModel(t *testing.T) {
 		Model:             "stranger", // not in any catalog
 		Catalog:           catalog.NewEmpty(),
 		ContextBudgetAuto: true,
+		Edict:             allowDump(),
 		Tools:             map[string]agent.Tool{"dump": dumpTool{out: strings.Repeat("Z", 2000)}},
 	})
 	if err != nil {

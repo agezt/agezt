@@ -121,6 +121,59 @@ func TestCompactMessages_ProtectsFirstGrounding(t *testing.T) {
 	}
 }
 
+// TestCompactMessages_StubKeepsHeadPreview: an elided tool output's stub keeps a
+// short, single-line preview of the head of the dropped content (M397) so the
+// model retains a hint of what was there — not just a byte count. The stub still
+// starts with elidedStubPrefix (idempotency) and is smaller than the original.
+func TestCompactMessages_StubKeepsHeadPreview(t *testing.T) {
+	// A recognisable multi-line tool output so we can see the preview is extracted
+	// and that newlines are collapsed (the stub must stay single-line).
+	output := "FILE: deploy.yaml\nreplicas: 3\nimage: app:v2\n" + strings.Repeat("padding ", 200)
+	msgs := []Message{
+		{Role: RoleUser, Content: "inspect the deploy"},
+		{Role: RoleAssistant, Content: "reading"},
+		{Role: RoleTool, Content: output, ToolCallID: "c1"},
+		{Role: RoleAssistant, Content: "calling again"},
+		bigToolMsg("c2", 1000),
+		{Role: RoleAssistant, Content: "calling again"},
+		bigToolMsg("c3", 1000),
+	}
+	before, _ := contextSize("sys", msgs)
+	out, elided, _ := compactMessages("sys", msgs, before-1500, 2, 0)
+	if elided == 0 {
+		t.Fatal("expected the oldest tool output to be elided")
+	}
+	stub := out[2].Content
+	if !strings.HasPrefix(stub, elidedStubPrefix) {
+		t.Fatalf("stub lost its prefix (idempotency would break): %q", stub)
+	}
+	if !strings.Contains(stub, "FILE: deploy.yaml") {
+		t.Errorf("stub should keep a head preview of the dropped output, got %q", stub)
+	}
+	if strings.Contains(stub, "\n") {
+		t.Errorf("stub must stay single-line (newlines collapsed), got %q", stub)
+	}
+	if len(stub) >= len(output) {
+		t.Errorf("stub (%d) must be smaller than the original (%d)", len(stub), len(output))
+	}
+	// The preview is bounded — it must not echo the whole padded output back.
+	if len(stub) > elidedHeadSnippetChars+120 {
+		t.Errorf("stub too large (%d) — the preview should be bounded near %d chars", len(stub), elidedHeadSnippetChars)
+	}
+}
+
+func TestHeadSnippet(t *testing.T) {
+	if got := headSnippet("hello world", 80); got != "hello world" {
+		t.Errorf("short string should pass through, got %q", got)
+	}
+	if got := headSnippet("a\n\tb   c", 80); got != "a b c" {
+		t.Errorf("whitespace runs should collapse to single spaces, got %q", got)
+	}
+	if got := headSnippet(strings.Repeat("x", 100), 10); got != strings.Repeat("x", 10)+"…" {
+		t.Errorf("long string should truncate with ellipsis, got %q", got)
+	}
+}
+
 func TestAutoContextBudgetChars(t *testing.T) {
 	cases := map[int]int{
 		0:      0,      // unknown window → off

@@ -288,6 +288,24 @@ func AutoContextBudgetChars(contextTokens int) int {
 // compaction, so a later pass doesn't re-elide it (and an operator recognises it).
 const elidedStubPrefix = "[tool output elided to fit context budget"
 
+// elidedHeadSnippetChars bounds the extractive preview kept in an elision stub —
+// enough to recognise the dropped output, small enough that eliding still
+// reclaims meaningful space for any output worth eliding.
+const elidedHeadSnippetChars = 80
+
+// headSnippet returns the first n characters of s with internal whitespace runs
+// collapsed to single spaces, suffixed with "…" when truncated. It is the
+// extractive preview embedded in a compaction stub (M397): deterministic,
+// dependency-free, and single-line so it can't break the stub it sits in.
+func headSnippet(s string, n int) string {
+	collapsed := strings.Join(strings.Fields(s), " ")
+	r := []rune(collapsed)
+	if len(r) <= n {
+		return collapsed
+	}
+	return string(r[:n]) + "…"
+}
+
 // compactMessages enforces a context budget (SPEC-10 §3) by eliding the OLDEST
 // tool-result outputs to short stubs until the assembled context fits, while
 // always preserving the system prompt, every non-tool message, the most recent
@@ -319,7 +337,12 @@ func compactMessages(system string, messages []Message, budget, protectLast, pro
 			continue
 		}
 		orig := len(m.Content)
-		stub := fmt.Sprintf("%s: %d chars]", elidedStubPrefix, orig)
+		// Keep a short extractive preview of the head of the elided output so the
+		// model retains a hint of what was dropped (the file that was read, the
+		// command that ran) rather than a bare byte count — a deterministic,
+		// dependency-free stand-in for an LLM summary (SPEC-10 §3 / M397). %q keeps
+		// it single-line and escaped; the constant prefix preserves idempotency.
+		stub := fmt.Sprintf("%s: %d chars · head: %q]", elidedStubPrefix, orig, headSnippet(m.Content, elidedHeadSnippetChars))
 		if len(stub) >= orig {
 			continue // already small — eliding wouldn't help
 		}
