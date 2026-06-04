@@ -152,6 +152,10 @@ const (
 	// UnifiedMessage; the Unified Inbox folds these by correlation.
 	KindChannelInbound  Kind = "channel.inbound"
 	KindChannelOutbound Kind = "channel.outbound"
+	// KindChannelError records a recovered panic in inbound-message handling, so a
+	// malformed message that trips a handler bug stays diagnosable (`agt journal`)
+	// rather than vanishing into a silent recover.
+	KindChannelError Kind = "channel.error"
 
 	// Memory-lite (SPEC-05 §2; ROADMAP §2.3). The store is content-
 	// addressed and journaled so `agt why` can explain every belief.
@@ -260,6 +264,7 @@ var knownKinds = map[Kind]struct{}{
 	KindCatalogDiscoveryFailed:    {},
 	KindChannelInbound:            {},
 	KindChannelOutbound:           {},
+	KindChannelError:              {},
 	KindPulseTick:                 {},
 	KindObserverDelta:             {},
 	KindSalienceScored:            {},

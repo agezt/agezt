@@ -252,7 +252,7 @@ func (c *Channel) handleEvents(w http.ResponseWriter, r *http.Request) {
 	}
 	// Detach from the request context (which ends when we return the ACK); the
 	// async run uses a background context so it survives the HTTP response.
-	go c.process(context.Background(), ev)
+	go channel.Guard(c.bus, "slack", func() { c.process(context.Background(), ev) })
 }
 
 // process normalizes one message, enforces the allowlist, runs the handler, and

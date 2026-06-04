@@ -12,6 +12,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Reliability
+- **A malformed channel message no longer crashes the daemon.** Inbound handling
+  for the Telegram, Slack, and Discord channels — which process untrusted external
+  messages on long-lived goroutines — now recovers from a panic and journals it as
+  a `channel.error` event (visible in `agt journal`), instead of an unrecovered
+  panic taking down the whole daemon. (The webhook channel was already covered by
+  the stdlib HTTP server's per-request recovery.)
 - **A handler panic no longer crashes the daemon.** The control-plane's
   per-connection goroutine now recovers from a panic in any command handler and
   returns an `internal error` response to that caller, instead of an unrecovered

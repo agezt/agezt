@@ -337,7 +337,7 @@ func (c *Channel) handleCommand(w http.ResponseWriter, in discordInteraction) {
 	// Defer: Discord shows "Agezt is thinking…"; we follow up when the agent is
 	// done. Detach from the request context (it ends with this ACK).
 	writeJSON(w, map[string]any{"type": responseDeferred})
-	go c.runAndFollowUp(context.Background(), in, msg, corr)
+	go channel.Guard(c.bus, "discord", func() { c.runAndFollowUp(context.Background(), in, msg, corr) })
 }
 
 // discordAttachMaxRaw bounds a downloaded attachment so the data: URL stays

@@ -156,7 +156,7 @@ func (c *Channel) Start(ctx context.Context) error {
 			if u.Message == nil || u.Message.Text == "" {
 				continue
 			}
-			c.handleInbound(ctx, u.Message)
+			channel.Guard(c.bus, "telegram", func() { c.handleInbound(ctx, u.Message) })
 		}
 	}
 }
