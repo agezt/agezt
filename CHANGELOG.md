@@ -12,6 +12,11 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Web UI: a Budget panel.** Shows the governor's daily spend snapshot — date,
+  spent, ceiling (or "unlimited"), utilization %, strict-pricing flag, and any
+  per-task caps with their spend — by proxying `budget` (the Web UI counterpart of
+  `agt budget`). It refreshes live off `budget.*` events. The spend reflects the
+  cache-aware cost accounting (cached prompt tokens billed at the cache-read rate).
 - **Cache-write premium billing.** Prompt-cache *creation* tokens are now billed
   at the model's cache-write rate (a premium over input — Anthropic's 1.25×)
   rather than folded into the input rate. New `agent.Usage.CacheWriteInputTokens`

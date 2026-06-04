@@ -125,6 +125,7 @@
   <section class="panel"><h2>Status <button data-panel="status">↻</button></h2><div class="body" id="status"></div></section>
   <section class="panel"><h2>Runs <button data-panel="runs">↻</button></h2><div class="body" id="runs"></div></section>
   <section class="panel"><h2>Stats <button data-panel="stats">↻</button></h2><div class="body" id="stats"></div></section>
+  <section class="panel"><h2>Budget <button data-panel="budget">↻</button></h2><div class="body" id="budget"></div></section>
   <section class="panel"><h2>Providers <button data-panel="providers">↻</button></h2><div class="body" id="providers"></div></section>
   <section class="panel"><h2>Tools <button data-panel="tools">↻</button></h2><div class="body" id="tools"></div></section>
   <section class="panel"><h2>Schedules <button data-panel="schedules">↻</button></h2><div class="body" id="schedules"></div></section>
@@ -291,6 +292,7 @@ function refreshSoon(panel) {
 }
 function liveRefresh(kind) {
   if (kind.startsWith("task.")) { refreshSoon("runs"); refreshSoon("stats"); }
+  else if (kind.startsWith("budget.")) refreshSoon("budget");
   else if (kind.startsWith("provider.") || kind.startsWith("routing.")) refreshSoon("providers");
   else if (kind.startsWith("schedule.")) refreshSoon("schedules");
   else if (kind.startsWith("skill.")) refreshSoon("skills");
@@ -418,6 +420,32 @@ const renderers = {
     const parts = [(d.completed || 0) + " completed", (d.failed || 0) + " failed", (d.running || 0) + " running"];
     if (d.abandoned) parts.push(d.abandoned + " abandoned");
     frag.appendChild(el("div", "count muted", parts.join(" · ")));
+    return frag;
+  },
+
+  budget: (d) => {
+    if (d && d.error) return muted(d.error);
+    const frag = document.createDocumentFragment();
+    const spent = d.spent_mc || 0;
+    const ceil = d.ceiling_mc || 0;
+    frag.appendChild(kv([
+      ["date", d.utc_date || "—"],
+      ["spent", "$" + (spent / 1e9).toFixed(4)],
+      ["ceiling", ceil > 0 ? "$" + (ceil / 1e9).toFixed(4) : "unlimited"],
+      ["used", ceil > 0 ? Math.round((spent / ceil) * 100) + "%" : "—"],
+    ]));
+    if (d.strict_pricing) frag.appendChild(muted("strict pricing on"));
+    const pt = d.per_task || [];
+    if (pt.length) {
+      frag.appendChild(el("div", "count muted", pt.length + " per-task cap(s)"));
+      for (const r of pt) {
+        const row = el("div", "item");
+        row.appendChild(chip("$" + ((r.spent_mc || 0) / 1e9).toFixed(4)));
+        row.appendChild(el("span", null, r.task_type || "?"));
+        if (r.ceiling_mc) row.appendChild(muted("/ $" + (r.ceiling_mc / 1e9).toFixed(4) + " cap"));
+        frag.appendChild(row);
+      }
+    }
     return frag;
   },
 
@@ -815,10 +843,10 @@ document.getElementById("fbBadge").addEventListener("click", openFallbacks);
 document.querySelectorAll("button[data-panel]").forEach((b) =>
   b.addEventListener("click", () => loadPanel(b.dataset.panel)));
 connect();
-const PANELS = ["status", "runs", "stats", "providers", "tools", "schedules", "world", "skills", "memory", "approvals", "inbox", "reflect"];
+const PANELS = ["status", "runs", "stats", "budget", "providers", "tools", "schedules", "world", "skills", "memory", "approvals", "inbox", "reflect"];
 for (const p of PANELS) loadPanel(p);
 // Light periodic refresh of the cheap read panels (the feed is already live).
-setInterval(() => { for (const p of ["status", "runs", "stats", "schedules", "approvals"]) loadPanel(p); }, 10000);
+setInterval(() => { for (const p of ["status", "runs", "stats", "budget", "schedules", "approvals"]) loadPanel(p); }, 10000);
 </script>
 </body>
 </html>
