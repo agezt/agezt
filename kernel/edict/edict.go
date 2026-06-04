@@ -10,10 +10,11 @@
 //     rm -rf /, mkfs, shutdown/reboot, audit-disable attempts.
 //
 //  2. Trust ladder (DECISIONS F3) — per-capability level L0..L4.
-//     L0 deny · L1-L3 ask · L4 allow. M1 has no live approval routing, so
-//     "ask" levels are folded by the engine's AskPolicy: AskAllow (default)
-//     treats Ask as Allow + WouldAsk=true so the journal captures the
-//     would-have-been-prompt; AskDeny treats Ask as Deny (strict mode).
+//     L0 deny · L1-L3 ask · L4 allow. "Ask" levels are resolved by the
+//     engine's AskPolicy: AskAllow (default) treats Ask as Allow + WouldAsk=true
+//     so the journal captures the would-have-been-prompt; AskDeny treats Ask as
+//     Deny (strict mode); AskPrompt routes a live human approval via the
+//     runtime's approval.Registry, blocking the call until an operator decides.
 //
 // Every Decide call is intended to be journaled as a policy.decision event
 // by the runtime; the engine itself does not journal so it stays a pure,
