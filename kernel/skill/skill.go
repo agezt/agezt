@@ -52,7 +52,9 @@ const (
 	// StatusActive is in the retrieval/injection pool.
 	StatusActive Status = "active"
 	// StatusQuarantined was pulled from production by a regression or repeated
-	// failure (v1: operator-driven; auto-quarantine deferred).
+	// failure — operator-driven (`agt skill quarantine`) or automatic once an
+	// active skill crosses the failure threshold (M387, Forge.RecordOutcome).
+	// Quarantined skills are excluded from the retrieval pool (retrieve.go).
 	StatusQuarantined Status = "quarantined"
 	// StatusArchived is retired; retained for lineage/audit.
 	StatusArchived Status = "archived"
