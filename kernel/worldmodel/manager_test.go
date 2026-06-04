@@ -126,6 +126,52 @@ func TestRelateResolvesEndpointsAndJournals(t *testing.T) {
 	}
 }
 
+func TestRelateDeduplicatesAndReinforces(t *testing.T) {
+	g, j := newTestGraph(t)
+	_, _, _ = g.Upsert("c", UpsertSpec{Kind: KindProject, Name: "Lictor"})
+
+	first, err := g.Relate("c", "Lictor", VerbDependsOn, "go-stdlib")
+	if err != nil {
+		t.Fatalf("first relate: %v", err)
+	}
+	second, err := g.Relate("c", "Lictor", VerbDependsOn, "go-stdlib")
+	if err != nil {
+		t.Fatalf("second relate: %v", err)
+	}
+
+	// Same (from, verb, to) → same RelationID → ONE edge, not two. The graph must
+	// not accumulate duplicate relations when the model restates a known link.
+	if first.ID != second.ID {
+		t.Errorf("duplicate relate produced different IDs: %s vs %s", first.ID, second.ID)
+	}
+	rels, _ := g.Relations()
+	if len(rels) != 1 {
+		t.Fatalf("expected exactly 1 relation after a duplicate relate, got %d", len(rels))
+	}
+	// Weight is already at the clamp ceiling (1.0) from creation; reinforcing keeps
+	// it there rather than overflowing past the cap.
+	if second.Weight != 1.0 {
+		t.Errorf("reinforced weight = %v, want 1.0 (clamped)", second.Weight)
+	}
+	// CreatedMS is preserved across the reinforce; the second is a reinforce event.
+	if second.CreatedMS != first.CreatedMS {
+		t.Errorf("reinforce must preserve CreatedMS: first=%d second=%d", first.CreatedMS, second.CreatedMS)
+	}
+	if n := countKind(t, j, event.KindWorldRelationUpserted); n != 2 {
+		t.Errorf("expected 2 relation.upserted events (create + reinforce), got %d", n)
+	}
+}
+
+func TestRelateRejectsEmptyName(t *testing.T) {
+	g, _ := newTestGraph(t)
+	if _, err := g.Relate("c", "", VerbDependsOn, "x"); err != ErrEmptyName {
+		t.Errorf("empty from-name: err=%v, want ErrEmptyName", err)
+	}
+	if _, err := g.Relate("c", "x", VerbDependsOn, "   "); err != ErrEmptyName {
+		t.Errorf("blank to-name: err=%v, want ErrEmptyName", err)
+	}
+}
+
 func TestResolveJournalsRetrieved(t *testing.T) {
 	g, j := newTestGraph(t)
 	_, _, _ = g.Upsert("c", UpsertSpec{Kind: KindProject, Name: "Lictor", Aliases: []string{"the portfolio"}})
