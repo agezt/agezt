@@ -28,10 +28,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ### Added
 - **Structured output / JSON mode — provider request support.** A new
   `JSONMode` request flag makes OpenAI (and every OpenAI-compatible vendor, plus
-  Azure and Mistral) send `response_format: {type: json_object}`, and Ollama send
-  `format: "json"` — the "reliability over free-form parsing" path from the spec.
-  Default-off; providers without a native JSON mode ignore it. (Gemini family and
-  the internal consumers — planner, OpenAI-API pass-through — follow.)
+  Azure and Mistral) send `response_format: {type: json_object}`, Ollama send
+  `format: "json"`, and the Gemini family (Google direct + Vertex) send
+  `generationConfig.responseMimeType: application/json` — the "reliability over
+  free-form parsing" path from the spec. Now covers every provider with a native
+  JSON mode. Default-off; providers without one ignore it. (Internal consumers —
+  planner, OpenAI-API pass-through — follow.)
 - **Ollama now supports local vision models.** Image attachments are forwarded to
   Ollama as base64 in the chat `images` array, and auto-discovery marks multimodal
   models (llava, llama3.2-vision, moondream, …) image-capable so the vision gate

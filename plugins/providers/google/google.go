@@ -130,7 +130,7 @@ func (p *Provider) Complete(ctx context.Context, req agent.CompletionRequest) (*
 		model = DefaultModel
 	}
 
-	body, err := encodeRequest(req.System, req.Messages, req.Tools, req.MaxTokens)
+	body, err := encodeRequest(req.System, req.Messages, req.Tools, req.MaxTokens, req.JSONMode)
 	if err != nil {
 		return nil, fmt.Errorf("google: encode request: %w", err)
 	}
@@ -173,7 +173,8 @@ type geminiRequest struct {
 }
 
 type geminiGenConfig struct {
-	MaxOutputTokens int `json:"maxOutputTokens,omitempty"`
+	MaxOutputTokens  int    `json:"maxOutputTokens,omitempty"`
+	ResponseMimeType string `json:"responseMimeType,omitempty"` // "application/json" → JSON mode (M312)
 }
 
 type geminiContent struct {
@@ -237,7 +238,7 @@ type geminiUsageMetadata struct {
 	CachedContentTokenCount int `json:"cachedContentTokenCount"`
 }
 
-func encodeRequest(system string, msgs []agent.Message, tools []agent.ToolDef, maxTok int) ([]byte, error) {
+func encodeRequest(system string, msgs []agent.Message, tools []agent.ToolDef, maxTok int, jsonMode bool) ([]byte, error) {
 	wire := geminiRequest{}
 	if s := strings.TrimSpace(system); s != "" {
 		wire.SystemInstruction = &geminiContent{
@@ -270,8 +271,12 @@ func encodeRequest(system string, msgs []agent.Message, tools []agent.ToolDef, m
 		}
 		wire.Tools = []geminiTool{{FunctionDeclarations: decls}}
 	}
-	if maxTok > 0 {
-		wire.GenerationConfig = &geminiGenConfig{MaxOutputTokens: maxTok}
+	if maxTok > 0 || jsonMode {
+		gc := &geminiGenConfig{MaxOutputTokens: maxTok}
+		if jsonMode {
+			gc.ResponseMimeType = "application/json"
+		}
+		wire.GenerationConfig = gc
 	}
 	return json.Marshal(wire)
 }

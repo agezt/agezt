@@ -50,7 +50,7 @@ func TestEncodeGeminiOnVertex_InlineImageData(t *testing.T) {
 		Content: "what is this",
 		Images:  []string{"data:image/jpeg;base64," + b64},
 	}}
-	body, err := encodeRequest("", msgs, nil, 100)
+	body, err := encodeRequest("", msgs, nil, 100, false)
 	if err != nil {
 		t.Fatalf("encode: %v", err)
 	}
@@ -86,7 +86,7 @@ func TestEncodeOnVertex_SkipsNonDataURLImage(t *testing.T) {
 		t.Errorf("anthropic: want single text block, got %+v", b)
 	}
 
-	gb, err := encodeRequest("", msgs, nil, 100)
+	gb, err := encodeRequest("", msgs, nil, 100, false)
 	if err != nil {
 		t.Fatalf("gemini encode: %v", err)
 	}

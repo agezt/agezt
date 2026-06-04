@@ -146,7 +146,7 @@ func (p *Provider) Complete(ctx context.Context, req agent.CompletionRequest) (*
 		return p.completeAnthropic(ctx, req, model)
 	}
 
-	body, err := encodeRequest(req.System, req.Messages, req.Tools, req.MaxTokens)
+	body, err := encodeRequest(req.System, req.Messages, req.Tools, req.MaxTokens, req.JSONMode)
 	if err != nil {
 		return nil, fmt.Errorf("vertex: encode request: %w", err)
 	}
@@ -196,7 +196,8 @@ type vxRequest struct {
 }
 
 type vxGenConfig struct {
-	MaxOutputTokens int `json:"maxOutputTokens,omitempty"`
+	MaxOutputTokens  int    `json:"maxOutputTokens,omitempty"`
+	ResponseMimeType string `json:"responseMimeType,omitempty"` // "application/json" → JSON mode (M312)
 }
 
 type vxContent struct {
@@ -254,7 +255,7 @@ type vxUsageMetadata struct {
 	CachedContentTokenCount int `json:"cachedContentTokenCount"` // Gemini context cache (M294-cache)
 }
 
-func encodeRequest(system string, msgs []agent.Message, tools []agent.ToolDef, maxTok int) ([]byte, error) {
+func encodeRequest(system string, msgs []agent.Message, tools []agent.ToolDef, maxTok int, jsonMode bool) ([]byte, error) {
 	wire := vxRequest{}
 	if s := strings.TrimSpace(system); s != "" {
 		wire.SystemInstruction = &vxContent{Parts: []vxPart{{Text: s}}}
@@ -284,8 +285,12 @@ func encodeRequest(system string, msgs []agent.Message, tools []agent.ToolDef, m
 		}
 		wire.Tools = []vxTool{{FunctionDeclarations: decls}}
 	}
-	if maxTok > 0 {
-		wire.GenerationConfig = &vxGenConfig{MaxOutputTokens: maxTok}
+	if maxTok > 0 || jsonMode {
+		gc := &vxGenConfig{MaxOutputTokens: maxTok}
+		if jsonMode {
+			gc.ResponseMimeType = "application/json"
+		}
+		wire.GenerationConfig = gc
 	}
 	return json.Marshal(wire)
 }
