@@ -699,6 +699,20 @@ func TestDashboard_RendersIsolationCard(t *testing.T) {
 	}
 }
 
+// TestDashboard_RendersOffloadedArtifact locks in the SPEC-04 §3.6 surface: a
+// tool.result whose output was offloaded (carries raw_ref) shows it's an artifact
+// + how to fetch it, rather than just an empty/preview output.
+func TestDashboard_RendersOffloadedArtifact(t *testing.T) {
+	src := string(dashboardHTML)
+	for _, marker := range []string{
+		"raw_ref", "output_bytes", "artifact", "agt artifact get",
+	} {
+		if !strings.Contains(src, marker) {
+			t.Errorf("dashboard offloaded-artifact rendering missing %q — the SPEC-04 §3.6 surface regressed", marker)
+		}
+	}
+}
+
 // TestDashboard_RendersGovernorEvents locks in the run-detail rendering of the
 // Governor's per-call decision events (correlated to the run by M382). Without an
 // arcDetail case each renders as a bare kind line; this asserts each kind + the

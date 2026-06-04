@@ -102,6 +102,11 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   valid UTF-8. (The journal's own answer truncation was already rune-safe.)
 
 ### Added
+- **The run-detail view flags offloaded tool outputs.** When a tool.result's
+  output was offloaded to the artifact store, the web Live Monitor's run-detail
+  card now shows it as `⤓ <N>B artifact <ref>…` and, expanded, the preview plus
+  the ref and the exact `agt artifact get <ref>` command to recover the full
+  bytes — so an operator can tell an output was offloaded (not lost) and fetch it.
 - **`agt artifact get <ref>` retrieves an offloaded tool output.** When a large
   tool output was stored content-addressed (its `tool.result` carries a
   `raw_ref`), `agt artifact get <ref>` fetches the full bytes back — to stdout or,

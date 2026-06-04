@@ -737,7 +737,13 @@ function arcDetail(ev) {
   const p = ev.payload || ev.Payload || {};
   switch (ev.kind) {
     case "tool.invoked": return (p.tool || "") + (p.input ? " " + JSON.stringify(p.input).slice(0, 80) : "");
-    case "tool.result": return (p.tool || "") + (p.error ? " ✗ " : " ✓ ") + String(p.output || p.result || "").slice(0, 80);
+    case "tool.result": {
+      let s = (p.tool || "") + (p.error ? " ✗ " : " ✓ ") + String(p.output || p.result || "").slice(0, 80);
+      // Offloaded output (SPEC-04 §3.6): the full bytes live in the artifact
+      // store; the event carries a preview + raw_ref. Flag it + name the ref.
+      if (p.raw_ref) s += " ⤓ " + (p.output_bytes != null ? p.output_bytes + "B " : "") + "artifact " + String(p.raw_ref).slice(0, 12) + "…";
+      return s;
+    }
     case "budget.consumed": return (p.model || "") + (p.cost_microcents ? " $" + (p.cost_microcents / 1e9).toFixed(4) : "");
     case "task.completed": return String(p.answer || "").slice(0, 120);
     case "task.failed": return "reason: " + (p.reason || p.error || "");
@@ -816,8 +822,17 @@ function arcFull(ev) {
   }
   if (ev.kind === "tool.result") {
     const out = p.output != null ? p.output : p.result;
-    if (out == null || out === "") return "";
-    return (p.error ? "error:\n" : "output:\n") + String(out);
+    let s = "";
+    if (out != null && out !== "") s = (p.error ? "error:\n" : "output:\n") + String(out);
+    // Offloaded output (SPEC-04 §3.6): show the preview, then the ref + how to
+    // fetch the full bytes. textContent only — the ref is a 64-hex address.
+    if (p.raw_ref) {
+      if (s) s += "\n\n";
+      s += "⤓ output offloaded to the artifact store (" + (p.output_bytes != null ? p.output_bytes + " bytes" : "large") + ")\n";
+      s += "  ref   : " + p.raw_ref + "\n";
+      s += "  fetch : agt artifact get " + p.raw_ref;
+    }
+    return s;
   }
   if (ev.kind === "warden.executed") {
     // The isolation card (SPEC-12 §4 / SPEC-07 debug): requested vs effective
