@@ -31,6 +31,12 @@ func MaxJournalExportN() int { return maxJournalExportN }
 
 func (s *Server) handleJournalExport(conn net.Conn, req Request) {
 	cutoff := sinceCutoff(req.Args["since_ms"])
+	// Optional correlation scope (M383, SPEC-09 §3): a surgical "cut" of one run's
+	// (correlation's) event subgraph rather than a contiguous window. The result
+	// is intentionally non-contiguous — the CLI marks the bundle scoped and the
+	// offline verify path checks per-event integrity + scope membership instead of
+	// prev-hash continuity.
+	correlation, _ := req.Args["correlation"].(string)
 
 	headSeq, headHash := s.k.Journal().Head()
 	if headSeq < 0 {
@@ -42,6 +48,9 @@ func (s *Server) handleJournalExport(conn net.Conn, req Request) {
 	truncated := false
 	err := s.k.Journal().Range(func(e *event.Event) error {
 		if cutoff > 0 && e.TSUnixMS < cutoff {
+			return nil
+		}
+		if correlation != "" && e.CorrelationID != correlation {
 			return nil
 		}
 		if len(events) >= maxJournalExportN {
@@ -66,13 +75,14 @@ func (s *Server) handleJournalExport(conn net.Conn, req Request) {
 		ID:   req.ID,
 		Type: RespResult,
 		Result: map[string]any{
-			"events":    events,
-			"count":     len(events),
-			"first_seq": firstSeq,
-			"last_seq":  lastSeq,
-			"head_seq":  headSeq,
-			"head_hash": headHash,
-			"truncated": truncated,
+			"events":      events,
+			"count":       len(events),
+			"first_seq":   firstSeq,
+			"last_seq":    lastSeq,
+			"head_seq":    headSeq,
+			"head_hash":   headHash,
+			"truncated":   truncated,
+			"correlation": correlation,
 		},
 	})
 }

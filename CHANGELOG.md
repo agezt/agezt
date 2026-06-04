@@ -102,6 +102,16 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   valid UTF-8. (The journal's own answer truncation was already rune-safe.)
 
 ### Added
+- **`agt journal export --scope task:<run-correlation>` — surgical per-run
+  export.** Because every event is ID'd and causally linked, you can now "cut"
+  a single run's (correlation's) event subgraph into a self-contained bundle
+  instead of exporting the whole journal (SPEC-09 §3). A bare correlation id
+  works too. The cut is intentionally non-contiguous, so `agt journal verify
+  --bundle` re-verifies it offline by recomputing every event's BLAKE3 hash and
+  confirming each belongs to the scope's correlation (a foreign event smuggled
+  into the cut is rejected) — rather than the prev-hash continuity check used for
+  a full/windowed bundle. The other SPEC-09 §3 scopes (`agent:`/`tenant:`/
+  `skill:`/`memory:`) are rejected with a clear message until implemented.
 - **Silent JSON-mode capability degradation is now journaled.** When a run
   requests structured-output (JSON mode) but the resolved model belongs to a
   provider family with no native JSON switch, the provider quietly falls back to

@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/plugins/providers/mock"
@@ -93,5 +94,89 @@ func TestJournalExportSinceWindow(t *testing.T) {
 	}
 	if res.Count == 0 {
 		t.Errorf("60s window should include the just-created events, got 0")
+	}
+}
+
+// TestJournalExportScopedByCorrelation runs TWO tasks (two correlations), then
+// exports with a correlation filter and asserts the cut contains ONLY that run's
+// events — the SPEC-09 §3 "task" scope (M383). A surgical subgraph cut, not a
+// contiguous window.
+func TestJournalExportScopedByCorrelation(t *testing.T) {
+	// A Responder answers every run (two runs here), unlike a fixed scripted list.
+	prov := &mock.Provider{Responder: func(agent.CompletionRequest) agent.CompletionResponse {
+		return mock.FinalText("done")
+	}}
+	_, _, c, _ := startPair(t, prov)
+	for _, intent := range []string{"run one", "run two"} {
+		if _, err := c.Stream(context.Background(), controlplane.CmdRun,
+			map[string]any{"intent": intent}, nil); err != nil {
+			t.Fatalf("run %q: %v", intent, err)
+		}
+	}
+
+	// Full export first, to discover a real correlation id and the full count.
+	rawFull, err := c.CallRaw(context.Background(), controlplane.CmdJournalExport, nil)
+	if err != nil {
+		t.Fatalf("full export: %v", err)
+	}
+	var full struct {
+		Events []json.RawMessage `json:"events"`
+		Count  int               `json:"count"`
+	}
+	if err := json.Unmarshal(rawFull, &full); err != nil {
+		t.Fatalf("decode full: %v", err)
+	}
+	// Pick the correlation of the first task.received event.
+	target := ""
+	for _, raw := range full.Events {
+		e, derr := event.Decode(raw)
+		if derr != nil {
+			t.Fatalf("decode event: %v", derr)
+		}
+		if e.Kind == event.KindTaskReceived && e.CorrelationID != "" {
+			target = e.CorrelationID
+			break
+		}
+	}
+	if target == "" {
+		t.Fatal("no task.received with a correlation found")
+	}
+
+	// Scoped export.
+	rawScoped, err := c.CallRaw(context.Background(), controlplane.CmdJournalExport,
+		map[string]any{"correlation": target})
+	if err != nil {
+		t.Fatalf("scoped export: %v", err)
+	}
+	var scoped struct {
+		Events      []json.RawMessage `json:"events"`
+		Count       int               `json:"count"`
+		Correlation string            `json:"correlation"`
+	}
+	if err := json.Unmarshal(rawScoped, &scoped); err != nil {
+		t.Fatalf("decode scoped: %v", err)
+	}
+	if scoped.Correlation != target {
+		t.Errorf("result correlation = %q, want %q", scoped.Correlation, target)
+	}
+	if scoped.Count == 0 {
+		t.Fatal("scoped export returned 0 events")
+	}
+	if scoped.Count >= full.Count {
+		t.Errorf("scoped count %d should be < full count %d (run two excluded)", scoped.Count, full.Count)
+	}
+	// EVERY event in the cut must belong to the target correlation, and each must
+	// still hash-verify after the round-trip.
+	for i, raw := range scoped.Events {
+		e, derr := event.Decode(raw)
+		if derr != nil {
+			t.Fatalf("scoped event %d decode: %v", i, derr)
+		}
+		if e.CorrelationID != target {
+			t.Errorf("scoped event %d has correlation %q, want %q (foreign in cut)", i, e.CorrelationID, target)
+		}
+		if verr := e.VerifyHash(); verr != nil {
+			t.Errorf("scoped event %d hash invalid: %v", i, verr)
+		}
 	}
 }

@@ -38,6 +38,38 @@ type journalBundleManifest struct {
 	HeadHash      string `json:"head_hash"`
 	Truncated     bool   `json:"truncated,omitempty"`
 	SinceMS       int64  `json:"since_ms,omitempty"`
+	// Scope marks a surgical correlation "cut" (M383, SPEC-09 §3, e.g.
+	// "task:run-01..."). When set, the bundle is intentionally non-contiguous, so
+	// the verify path checks per-event integrity + scope membership instead of
+	// prev-hash continuity / completeness-to-head. Empty = a full/windowed bundle.
+	Scope string `json:"scope,omitempty"`
+}
+
+// scopeCorrelation maps a --scope spec to the correlation id it cuts. The
+// realizable scope today is one run/task = one correlation: "task:<corr>" or a
+// bare "<corr>". The other SPEC-09 §3 scopes (agent:/tenant:/skill:/memory:)
+// would group differently and are not yet supported — rejected with a clear
+// message rather than silently mis-cutting. Returns (correlation, label, ok).
+func scopeCorrelation(spec string) (correlation, label string, ok bool) {
+	spec = strings.TrimSpace(spec)
+	if spec == "" {
+		return "", "", false
+	}
+	if c, found := strings.CutPrefix(spec, "task:"); found {
+		c = strings.TrimSpace(c)
+		if c == "" {
+			return "", "", false
+		}
+		return c, "task:" + c, true
+	}
+	// Reject the not-yet-supported prefixes explicitly.
+	for _, p := range []string{"agent:", "tenant:", "skill:", "memory:", "order:"} {
+		if strings.HasPrefix(spec, p) {
+			return "", "", false
+		}
+	}
+	// A bare value is treated as a correlation id (the same as task:<corr>).
+	return spec, "task:" + spec, true
 }
 
 // journalExportResult mirrors the CmdJournalExport response. Events stay raw
@@ -59,9 +91,19 @@ type journalExportResult struct {
 func cmdJournalExport(args []string, stdout, stderr io.Writer) int {
 	outPath := ""
 	sinceMS := int64(0)
+	scopeSpec := ""
 	for i := 0; i < len(args); i++ {
 		a := args[i]
 		switch {
+		case a == "--scope":
+			if i+1 >= len(args) {
+				fmt.Fprintf(stderr, "%s journal export: --scope needs a value (e.g. task:<run-correlation>)\n", brand.CLI)
+				return 2
+			}
+			i++
+			scopeSpec = args[i]
+		case strings.HasPrefix(a, "--scope="):
+			scopeSpec = strings.TrimPrefix(a, "--scope=")
 		case a == "--out":
 			if i+1 >= len(args) {
 				fmt.Fprintf(stderr, "%s journal export: --out needs a file path\n", brand.CLI)
@@ -91,14 +133,27 @@ func cmdJournalExport(args []string, stdout, stderr io.Writer) int {
 			}
 			sinceMS = d.Milliseconds()
 		case a == "-h" || a == "--help":
-			fmt.Fprintf(stdout, "usage: %s journal export [--since <dur>] [--out <file>]\n", brand.CLI)
+			fmt.Fprintf(stdout, "usage: %s journal export [--since <dur>] [--scope task:<corr>] [--out <file>]\n", brand.CLI)
 			fmt.Fprintf(stdout, "export a complete, re-verifiable journal bundle (default: whole journal to stdout)\n")
-			fmt.Fprintf(stdout, "  --since <dur> only events in the last <dur> (e.g. 24h)\n")
-			fmt.Fprintf(stdout, "  --out <file>  write the bundle to a file instead of stdout\n")
+			fmt.Fprintf(stdout, "  --since <dur>      only events in the last <dur> (e.g. 24h)\n")
+			fmt.Fprintf(stdout, "  --scope task:<corr> only one run's (correlation's) event subgraph — a\n")
+			fmt.Fprintf(stdout, "                    surgical cut (SPEC-09 §3); a bare <corr> works too\n")
+			fmt.Fprintf(stdout, "  --out <file>      write the bundle to a file instead of stdout\n")
 			fmt.Fprintf(stdout, "verify later: %s journal verify --bundle <file>\n", brand.CLI)
 			return 0
 		default:
-			fmt.Fprintf(stderr, "%s journal export: unexpected arg %q (expected --since, --out)\n", brand.CLI, a)
+			fmt.Fprintf(stderr, "%s journal export: unexpected arg %q (expected --since, --scope, --out)\n", brand.CLI, a)
+			return 2
+		}
+	}
+
+	correlation, scopeLabel := "", ""
+	if scopeSpec != "" {
+		var ok bool
+		correlation, scopeLabel, ok = scopeCorrelation(scopeSpec)
+		if !ok {
+			fmt.Fprintf(stderr, "%s journal export: unsupported --scope %q; use task:<run-correlation> or a bare correlation id\n", brand.CLI, scopeSpec)
+			fmt.Fprintf(stderr, "  (agent:/tenant:/skill:/memory: scopes are not yet implemented)\n")
 			return 2
 		}
 	}
@@ -112,6 +167,9 @@ func cmdJournalExport(args []string, stdout, stderr io.Writer) int {
 	callArgs := map[string]any{}
 	if sinceMS > 0 {
 		callArgs["since_ms"] = sinceMS
+	}
+	if correlation != "" {
+		callArgs["correlation"] = correlation
 	}
 	raw, err := c.CallRaw(ctx, controlplane.CmdJournalExport, callArgs)
 	if err != nil {
@@ -137,6 +195,7 @@ func cmdJournalExport(args []string, stdout, stderr io.Writer) int {
 			HeadHash:      res.HeadHash,
 			Truncated:     res.Truncated,
 			SinceMS:       sinceMS,
+			Scope:         scopeLabel,
 		},
 		Events: res.Events,
 	}
@@ -155,7 +214,14 @@ func cmdJournalExport(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "%s journal export: write %s: %v\n", brand.CLI, outPath, err)
 		return 1
 	}
-	fmt.Fprintf(stdout, "exported %d event(s) (seq %d..%d) to %s\n", res.Count, res.FirstSeq, res.LastSeq, outPath)
+	if scopeLabel != "" {
+		fmt.Fprintf(stdout, "exported %d event(s) for scope %s to %s\n", res.Count, scopeLabel, outPath)
+		if res.Count == 0 {
+			fmt.Fprintf(stdout, "  note: no events matched that correlation (check `%s why <id>` / `%s runs` for the id)\n", brand.CLI, brand.CLI)
+		}
+	} else {
+		fmt.Fprintf(stdout, "exported %d event(s) (seq %d..%d) to %s\n", res.Count, res.FirstSeq, res.LastSeq, outPath)
+	}
 	if res.Truncated {
 		fmt.Fprintf(stdout, "  note: export hit the %d-event cap; narrow with --since for a complete window\n", controlplane.MaxJournalExportN())
 	}
@@ -217,6 +283,31 @@ func cmdJournalVerify(args []string, stdout, stderr io.Writer) int {
 		}
 		events = append(events, e)
 	}
+
+	// A scoped bundle (M383) is a non-contiguous correlation CUT: its events do
+	// not chain to each other (prev_hash points at events outside the cut) and do
+	// not reach the chain head. Verify per-event integrity + scope membership
+	// instead of prev-hash continuity / completeness-to-head.
+	if b.Manifest.Scope != "" {
+		correlation, _, ok := scopeCorrelation(b.Manifest.Scope)
+		if !ok {
+			fmt.Fprintf(stderr, "%s journal verify: bundle scope %q is malformed\n", brand.CLI, b.Manifest.Scope)
+			return 1
+		}
+		n, verr := verifyScopedBundleEvents(events, correlation)
+		if verr != nil {
+			fmt.Fprintf(stderr, "%s journal verify: scoped bundle INVALID (verified %d/%d): %v\n", brand.CLI, n, len(events), verr)
+			return 1
+		}
+		if b.Manifest.Count != 0 && b.Manifest.Count != len(events) {
+			fmt.Fprintf(stderr, "%s journal verify: bundle manifest count %d != %d actual events\n", brand.CLI, b.Manifest.Count, len(events))
+			return 1
+		}
+		fmt.Fprintf(stdout, "scoped bundle OK: %d event(s) verified for %s; chain head at export seq=%d hash=%s\n",
+			n, b.Manifest.Scope, b.Manifest.HeadSeq, shortHash(b.Manifest.HeadHash))
+		return 0
+	}
+
 	n, verr := verifyBundleEvents(events)
 	if verr != nil {
 		fmt.Fprintf(stderr, "%s journal verify: bundle INVALID (verified %d/%d): %v\n", brand.CLI, n, len(events), verr)
@@ -254,6 +345,27 @@ func verifyBundleEvents(events []*event.Event) (int, error) {
 		if i > 0 && e.PrevHash != events[i-1].Hash {
 			return i, fmt.Errorf("chain break before seq %d: prev_hash %s does not link to prior event hash %s",
 				e.Seq, shortHash(e.PrevHash), shortHash(events[i-1].Hash))
+		}
+	}
+	return len(events), nil
+}
+
+// verifyScopedBundleEvents re-verifies a correlation CUT (M383) offline. Unlike a
+// contiguous window, a cut's events do NOT chain to each other (their prev_hash
+// links into the full journal, not the cut), so continuity is not checked. What
+// IS checked: (1) every event's own BLAKE3 hash recomputes (no payload/field
+// tampering), and (2) every event belongs to the scope's correlation (no foreign
+// event smuggled into the cut). Together these prove the cut is untampered and
+// is exactly the named run's subgraph. Returns the count verified and the first
+// error.
+func verifyScopedBundleEvents(events []*event.Event, correlation string) (int, error) {
+	for i, e := range events {
+		if err := e.VerifyHash(); err != nil {
+			return i, fmt.Errorf("event %d (seq %d): %w", i, e.Seq, err)
+		}
+		if e.CorrelationID != correlation {
+			return i, fmt.Errorf("event %d (seq %d) has correlation %q, not the scope's %q (foreign event in cut)",
+				i, e.Seq, e.CorrelationID, correlation)
 		}
 	}
 	return len(events), nil
