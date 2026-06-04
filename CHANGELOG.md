@@ -32,6 +32,14 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   with it. One malformed/edge-case request is contained to its own connection.
 
 ### Security
+- **Replay-window check hardened against integer overflow.** The Slack, Discord,
+  and generic-webhook channels' inbound freshness check (which rejects a stale
+  signed timestamp to block replay) computed the age as
+  `time.Duration(delta) * time.Second`, which overflows int64 nanoseconds for a
+  timestamp ~300 years off and could wrap negative — passing the `> window` check.
+  It now compares in integer seconds/milliseconds, so no timestamp can bypass the
+  window via overflow. (Not previously exploitable — the timestamp is signed — but
+  a freshness backstop shouldn't depend on that.)
 - **Web UI defensive response headers.** Every web-monitor response now carries
   `X-Frame-Options: DENY` (the dashboard has state-mutating controls — approve /
   halt / resume — so framing is denied to block clickjacking), `Referrer-Policy:

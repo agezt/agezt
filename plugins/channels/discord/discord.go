@@ -408,7 +408,11 @@ func (c *Channel) verify(ts, sigHex string, body []byte) bool {
 	if delta < 0 {
 		delta = -delta
 	}
-	if time.Duration(delta)*time.Second > signatureWindow {
+	// Integer-seconds comparison: time.Duration(delta)*time.Second overflows int64
+	// nanoseconds for a far-off timestamp and could wrap negative (passing the
+	// `> window` check). Signed input makes this unreachable today; a freshness
+	// backstop shouldn't rely on that.
+	if delta > int64(signatureWindow/time.Second) {
 		return false
 	}
 	sig, err := hex.DecodeString(sigHex)

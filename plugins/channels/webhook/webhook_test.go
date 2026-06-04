@@ -132,6 +132,29 @@ func TestInbound_StaleTimestampRejected(t *testing.T) {
 	}
 }
 
+// TestInbound_OverflowTimestampRejected: a signed body whose ts_ms is ~300+ years
+// off makes the old `time.Duration(delta)*time.Millisecond` overflow int64
+// nanoseconds and wrap negative — which would PASS the `> window` check and bypass
+// replay protection. The integer-millisecond comparison rejects it as stale.
+// (Reachable only with a valid signature, which the test provides — a defense-in-
+// depth backstop that must not depend on the input being unforgeable.)
+func TestInbound_OverflowTimestampRejected(t *testing.T) {
+	const secret = "s"
+	now := time.Unix(1_700_000_000, 0) // fixed clock
+	c := New(Config{
+		Secret:    secret,
+		Allowlist: channel.NewAllowlist([]string{"room1"}),
+		Handler:   func(context.Context, channel.UnifiedMessage, string) (string, error) { return "ok", nil },
+		now:       func() time.Time { return now },
+	})
+	// delta = now_ms - ts_ms ≈ 1e13 ms (> 9.2e12), so delta*1e6 ns overflows int64.
+	tsMS := now.UnixMilli() - 10_000_000_000_000
+	rec := post(t, c, map[string]any{"channel_id": "room1", "text": "x", "ts_ms": tsMS}, secret, true)
+	if rec.Code != http.StatusUnauthorized {
+		t.Errorf("status=%d want 401 — an int64-overflow-far ts_ms must not bypass the freshness window", rec.Code)
+	}
+}
+
 // TestInbound_DedupesRepeatedID: a repeated message id within the window is not
 // re-run — the second delivery returns duplicate:true without invoking the agent.
 func TestInbound_DedupesRepeatedID(t *testing.T) {

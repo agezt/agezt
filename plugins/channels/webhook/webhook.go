@@ -196,7 +196,12 @@ func (c *Channel) handleInbound(w http.ResponseWriter, r *http.Request) {
 		if delta < 0 {
 			delta = -delta
 		}
-		if time.Duration(delta)*time.Millisecond > signatureWindow {
+		// Compare in integer milliseconds rather than converting to a Duration:
+		// time.Duration(delta)*time.Millisecond overflows int64 nanoseconds for a
+		// far-future/past timestamp and could wrap negative (which would pass the
+		// `> window` check). The timestamp is signed, so this isn't reachable today,
+		// but a freshness backstop shouldn't depend on that.
+		if delta > int64(signatureWindow/time.Millisecond) {
 			http.Error(w, "stale timestamp", http.StatusUnauthorized)
 			return
 		}
