@@ -93,6 +93,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   valid UTF-8. (The journal's own answer truncation was already rune-safe.)
 
 ### Added
+- **Point-in-time restore: `agt restore --at <seq|timestamp> --to <dir>`.** The
+  journal is a time machine — this replays the source home's journal up to a
+  sequence or RFC3339 timestamp into a fresh `--to` home, "branching a recovered
+  state" (SPEC-09 §5). Non-destructive: the source journal is opened read-only
+  and untouched; the cutoff prefix is chain-verified before write and the
+  resulting home is confirmed to boot. A cutoff past the head restores
+  everything; a target that already has a journal is refused.
 - **Anomaly auto-halts appear in the system changelog.** `agt changelog` (the
   tamper-evident system timeline, SPEC-08 §4.2) now surfaces a `system.anomaly`
   event as "anomaly auto-halt" with its reason, alongside the `halt` it triggers
