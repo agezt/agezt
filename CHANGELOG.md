@@ -93,6 +93,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   valid UTF-8. (The journal's own answer truncation was already rune-safe.)
 
 ### Added
+- **OpenAI-compatible `GET /v1/models/{id}` (retrieve model).** The OpenAI surface
+  already listed models at `GET /v1/models`; it now also answers a single-model
+  retrieve — what the official SDKs' `models.retrieve(id)` calls for capability
+  probing. A routable id (the default model or a catalog id, the same set the list
+  advertises) returns the model object; an unknown id returns a `404` with an
+  OpenAI-shaped error, so a client distinguishes "unknown model" from "endpoint
+  missing" (SPEC-15 §3 / SPEC-16 §1.1).
 - **Import agentskills.io / ClawHub `SKILL.md` files.** `agt skill import` now
   accepts a `.md` file written to the open agentskills.io standard (YAML-ish
   frontmatter — name/description/triggers/tools_required — plus a Markdown body),

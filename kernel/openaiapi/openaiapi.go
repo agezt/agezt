@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: MIT
 
 // Package openaiapi serves an OpenAI-compatible HTTP surface (ROADMAP P7-API-01,
-// SPEC-15 §3): POST /v1/chat/completions and GET /v1/models, so any OpenAI
-// client, SDK, or IDE can drive Agezt as if it were OpenAI. Every request runs
+// SPEC-15 §3): POST /v1/chat/completions, POST /v1/responses, GET /v1/models and
+// GET /v1/models/{id}, so any OpenAI client, SDK, or IDE can drive Agezt as if it
+// were OpenAI. Every request runs
 // through the same kernel tool-loop as `agt run` — so it passes through Edict,
 // the journal, and the budget exactly like any other run. It is NOT a
 // governance backdoor (P7-API-02 DoD).
@@ -24,7 +25,9 @@ import (
 	"crypto/subtle"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -150,6 +153,10 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/v1/chat/completions", s.auth(s.handleChat))
 	mux.HandleFunc("/v1/responses", s.auth(s.handleResponses))
 	mux.HandleFunc("/v1/models", s.auth(s.handleModels))
+	// OpenAI's "retrieve model" — GET /v1/models/{id}. The list route above is an
+	// EXACT match, so without this subtree handler a single-model GET (what the
+	// official SDKs' models.retrieve(id) issues for capability probing) would 404.
+	mux.HandleFunc("/v1/models/", s.auth(s.handleModelByID))
 	return mux
 }
 
@@ -221,6 +228,57 @@ func (s *Server) handleModels(w http.ResponseWriter, r *http.Request) {
 		add(id)
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"object": "list", "data": data})
+}
+
+// --- GET /v1/models/{id} (OpenAI "retrieve model") ---
+//
+// Answers the OpenAI shape: the model object when {id} is one the engine can
+// route (the same set /v1/models lists — default model + catalog ids), else a
+// 404 with an OpenAI-shaped error so a client distinguishes "unknown model"
+// from "route missing". The id may itself contain slashes (provider-prefixed
+// ids like "anthropic/claude-..."), so everything after the prefix is the id.
+func (s *Server) handleModelByID(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		w.Header().Set("Allow", http.MethodGet)
+		writeErr(w, http.StatusMethodNotAllowed, "method_not_allowed", "GET required")
+		return
+	}
+	id := strings.Trim(strings.TrimPrefix(r.URL.Path, "/v1/models/"), "/")
+	if decoded, err := url.PathUnescape(id); err == nil {
+		id = decoded
+	}
+	if id == "" {
+		writeErr(w, http.StatusNotFound, "invalid_request_error", "a model id is required: GET /v1/models/{id}")
+		return
+	}
+	eng, _, err := s.bind(r)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "invalid_request_error", err.Error())
+		return
+	}
+	if !modelRoutable(eng, id) {
+		writeErr(w, http.StatusNotFound, "invalid_request_error",
+			fmt.Sprintf("model %q does not exist or is not routable", id))
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"id": id, "object": "model", "created": 0, "owned_by": "agezt",
+	})
+}
+
+// modelRoutable reports whether id is in the set /v1/models advertises: the
+// engine's default model plus the catalog ids it can route. Kept in lockstep
+// with handleModels so a retrieve never disagrees with the list.
+func modelRoutable(eng Engine, id string) bool {
+	if id == eng.DefaultModel() {
+		return true
+	}
+	for _, m := range eng.ModelIDs() {
+		if m == id {
+			return true
+		}
+	}
+	return false
 }
 
 // --- /v1/chat/completions ---
