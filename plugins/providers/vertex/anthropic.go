@@ -47,6 +47,9 @@ const (
 	// DefaultAnthropicMaxTokens is what we send when the request leaves
 	// max_tokens at 0. Anthropic requires a non-zero max_tokens.
 	DefaultAnthropicMaxTokens = 4096
+	// MinAnthropicThinkingBudget is Anthropic's minimum extended-thinking
+	// budget_tokens (M321), same floor as the direct Anthropic adapter (M318).
+	MinAnthropicThinkingBudget = 1024
 )
 
 // isAnthropicModel reports whether the Vertex model id maps to the
@@ -103,7 +106,35 @@ type anthVertexRequest struct {
 	System           any             `json:"system,omitempty"`
 	Messages         []anthVxMessage `json:"messages"`
 	Tools            []anthVxTool    `json:"tools,omitempty"`
+	Thinking         *anthVxThinking `json:"thinking,omitempty"` // extended thinking (M321)
 	Stream           bool            `json:"stream,omitempty"`
+}
+
+// anthVxThinking is Anthropic-on-Vertex's extended-thinking request block
+// (M321), identical to the direct Anthropic adapter's (M318).
+type anthVxThinking struct {
+	Type         string `json:"type"`          // "enabled"
+	BudgetTokens int    `json:"budget_tokens"` // >= 1024, and < max_tokens
+}
+
+// anthVxThinkingConfig returns the thinking block + the max_tokens to use when
+// an extended-thinking budget is set (M321), mirroring the direct Anthropic
+// adapter's thinkingConfig: Anthropic requires max_tokens > budget_tokens and
+// budget >= 1024, so the budget is clamped up and max_tokens is bumped to leave
+// room for the answer. budget <= 0 → (nil, maxTok unchanged): thinking off,
+// wire byte-identical. (A negative "dynamic" budget — valid for Gemini — means
+// "off" here; Anthropic has no dynamic mode.)
+func anthVxThinkingConfig(budget, maxTok int) (*anthVxThinking, int) {
+	if budget <= 0 {
+		return nil, maxTok
+	}
+	if budget < MinAnthropicThinkingBudget {
+		budget = MinAnthropicThinkingBudget
+	}
+	if maxTok <= budget {
+		maxTok = budget + DefaultAnthropicMaxTokens // room for the answer beyond thinking
+	}
+	return &anthVxThinking{Type: "enabled", BudgetTokens: budget}, maxTok
 }
 
 // anthVxSystemBlock is the array form of the system prompt, carrying a
@@ -163,6 +194,7 @@ type anthVxMessage struct {
 type anthVxBlock struct {
 	Type       string             `json:"type"`
 	Text       string             `json:"text,omitempty"`
+	Thinking   string             `json:"thinking,omitempty"` // type=thinking content (M321)
 	ID         string             `json:"id,omitempty"`
 	Name       string             `json:"name,omitempty"`
 	Input      json.RawMessage    `json:"input,omitempty"`
@@ -209,13 +241,15 @@ func anthVxUsageToAgent(inputTokens, cacheRead, cacheCreation, outputTokens int,
 	}
 }
 
-func encodeAnthropicOnVertexRequest(system string, msgs []agent.Message, tools []agent.ToolDef, maxTok int, stream bool) ([]byte, error) {
+func encodeAnthropicOnVertexRequest(system string, msgs []agent.Message, tools []agent.ToolDef, maxTok, thinkingBudget int, stream bool) ([]byte, error) {
+	thinking, maxTok := anthVxThinkingConfig(thinkingBudget, maxTok)
 	wire := anthVertexRequest{
 		AnthropicVersion: AnthropicVertexVersion,
 		MaxTokens:        maxTok,
 		System:           buildVxSystem(system),
 		Stream:           stream,
 		Tools:            buildVxTools(tools),
+		Thinking:         thinking,
 	}
 	for _, m := range msgs {
 		am, err := canonicalToAnthVx(m)
@@ -314,13 +348,17 @@ func decodeAnthropicOnVertexResponse(body []byte, model string) (*agent.Completi
 		return nil, fmt.Errorf("vertex: parse anthropic response: %w", err)
 	}
 	var (
-		textParts []string
-		toolCalls []agent.ToolCall
+		textParts      []string
+		reasoningParts []string
+		toolCalls      []agent.ToolCall
 	)
 	for _, b := range ar.Content {
 		switch b.Type {
 		case "text":
 			textParts = append(textParts, b.Text)
+		case "thinking":
+			// Extended-thinking block (M321) → reasoning, kept out of the answer.
+			reasoningParts = append(reasoningParts, b.Thinking)
 		case "tool_use":
 			input := b.Input
 			if len(input) == 0 {
@@ -352,6 +390,7 @@ func decodeAnthropicOnVertexResponse(body []byte, model string) (*agent.Completi
 		Usage: anthVxUsageToAgent(
 			ar.Usage.InputTokens, ar.Usage.CacheReadInputTokens,
 			ar.Usage.CacheCreationInputTokens, ar.Usage.OutputTokens, model),
+		ReasoningContent: strings.Join(reasoningParts, ""),
 	}, nil
 }
 
@@ -364,7 +403,7 @@ func (p *Provider) completeAnthropic(ctx context.Context, req agent.CompletionRe
 	if maxTokens <= 0 {
 		maxTokens = DefaultAnthropicMaxTokens
 	}
-	body, err := encodeAnthropicOnVertexRequest(req.System, req.Messages, req.Tools, maxTokens, false)
+	body, err := encodeAnthropicOnVertexRequest(req.System, req.Messages, req.Tools, maxTokens, p.ThinkingBudget, false)
 	if err != nil {
 		return nil, fmt.Errorf("vertex: encode anthropic request: %w", err)
 	}
@@ -407,7 +446,7 @@ func (p *Provider) completeStreamAnthropic(ctx context.Context, req agent.Comple
 	if maxTokens <= 0 {
 		maxTokens = DefaultAnthropicMaxTokens
 	}
-	body, err := encodeAnthropicOnVertexRequest(req.System, req.Messages, req.Tools, maxTokens, true)
+	body, err := encodeAnthropicOnVertexRequest(req.System, req.Messages, req.Tools, maxTokens, p.ThinkingBudget, true)
 	if err != nil {
 		return nil, fmt.Errorf("vertex: encode anthropic request: %w", err)
 	}
@@ -447,14 +486,15 @@ func (p *Provider) completeStreamAnthropic(ctx context.Context, req agent.Comple
 // the other adapters' evolution.
 
 type anthStreamState struct {
-	textParts     strings.Builder
-	openBlock     *anthOpenBlock
-	finishedTools []agent.ToolCall
-	inputTokens   int
-	cacheRead     int // cache_read_input_tokens (M290)
-	cacheCreation int // cache_creation_input_tokens (M290)
-	outputTokens  int
-	stopReason    string
+	textParts      strings.Builder
+	reasoningParts strings.Builder // extended-thinking blocks (M321)
+	openBlock      *anthOpenBlock
+	finishedTools  []agent.ToolCall
+	inputTokens    int
+	cacheRead      int // cache_read_input_tokens (M290)
+	cacheCreation  int // cache_creation_input_tokens (M290)
+	outputTokens   int
+	stopReason     string
 }
 
 type anthOpenBlock struct {
@@ -527,11 +567,12 @@ func dispatchAnthropicSSE(eventName, data string, st *anthStreamState, onChunk f
 		var f struct {
 			Index        int `json:"index"`
 			ContentBlock struct {
-				Type  string          `json:"type"`
-				Text  string          `json:"text"`
-				ID    string          `json:"id"`
-				Name  string          `json:"name"`
-				Input json.RawMessage `json:"input"`
+				Type     string          `json:"type"`
+				Text     string          `json:"text"`
+				Thinking string          `json:"thinking"`
+				ID       string          `json:"id"`
+				Name     string          `json:"name"`
+				Input    json.RawMessage `json:"input"`
 			} `json:"content_block"`
 		}
 		if err := json.Unmarshal([]byte(data), &f); err != nil {
@@ -543,6 +584,15 @@ func dispatchAnthropicSSE(eventName, data string, st *anthStreamState, onChunk f
 			st.openBlock.textBuf.WriteString(f.ContentBlock.Text)
 			if f.ContentBlock.Text != "" {
 				if err := onChunk(agent.Chunk{TextDelta: f.ContentBlock.Text}); err != nil {
+					return err
+				}
+			}
+		case "thinking":
+			// Extended-thinking block (M321): accumulate into textBuf (routed
+			// to reasoningParts at block_stop) and surface as ReasoningDelta.
+			st.openBlock.textBuf.WriteString(f.ContentBlock.Thinking)
+			if f.ContentBlock.Thinking != "" {
+				if err := onChunk(agent.Chunk{ReasoningDelta: f.ContentBlock.Thinking}); err != nil {
 					return err
 				}
 			}
@@ -565,6 +615,7 @@ func dispatchAnthropicSSE(eventName, data string, st *anthStreamState, onChunk f
 			Delta struct {
 				Type        string `json:"type"`
 				Text        string `json:"text"`
+				Thinking    string `json:"thinking"`
 				PartialJSON string `json:"partial_json"`
 			} `json:"delta"`
 		}
@@ -579,6 +630,14 @@ func dispatchAnthropicSSE(eventName, data string, st *anthStreamState, onChunk f
 			st.openBlock.textBuf.WriteString(f.Delta.Text)
 			if f.Delta.Text != "" {
 				if err := onChunk(agent.Chunk{TextDelta: f.Delta.Text}); err != nil {
+					return err
+				}
+			}
+		case "thinking_delta":
+			// Extended-thinking delta (M321): accumulate + surface as ReasoningDelta.
+			st.openBlock.textBuf.WriteString(f.Delta.Thinking)
+			if f.Delta.Thinking != "" {
+				if err := onChunk(agent.Chunk{ReasoningDelta: f.Delta.Thinking}); err != nil {
 					return err
 				}
 			}
@@ -599,6 +658,8 @@ func dispatchAnthropicSSE(eventName, data string, st *anthStreamState, onChunk f
 		switch ob.kind {
 		case "text":
 			st.textParts.WriteString(ob.textBuf.String())
+		case "thinking":
+			st.reasoningParts.WriteString(ob.textBuf.String()) // M321
 		case "tool_use":
 			input := strings.TrimSpace(ob.inputBuf.String())
 			if input == "" {
@@ -670,5 +731,6 @@ func assembleAnthropicResponse(st *anthStreamState, model string) *agent.Complet
 		StopReason: stop,
 		Usage: anthVxUsageToAgent(
 			st.inputTokens, st.cacheRead, st.cacheCreation, st.outputTokens, model),
+		ReasoningContent: st.reasoningParts.String(), // M321
 	}
 }

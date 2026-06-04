@@ -37,6 +37,15 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   Language API and Vertex AI — with the same reasoning capture and output-token
   accounting. Separate env var because Vertex is a distinct billing/credential
   surface. Applies to native-Gemini models on Vertex; off by default.
+- **Claude extended thinking on Vertex AI** is supported as well. The same
+  `AGEZT_GOOGLE_VERTEX_THINKING_BUDGET` opt-in now drives extended thinking for
+  `claude-*` models served through Vertex (`:rawPredict` / `:streamRawPredict`),
+  with the budget clamped to Anthropic's 1024-token floor and `max_tokens` bumped
+  above it — matching the direct Anthropic adapter. Claude's chain of thought is
+  captured into the same reasoning pipeline. With this, *every* reasoning-capable
+  provider Agezt speaks — direct Anthropic, direct Gemini, Vertex Gemini, Vertex
+  Claude, and openai-compatible DeepSeek-R1 — surfaces its reasoning uniformly.
+  Off by default.
 
 ### Fixed
 - **Ollama now honours the run's token cap.** `MaxTokens` is forwarded as

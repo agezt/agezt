@@ -67,13 +67,15 @@ type Provider struct {
 	BaseURL string
 	Model   string
 	HTTP    *http.Client
-	// ThinkingBudget enables Gemini "thinking" (2.5-series) on Vertex when
-	// non-zero (M320), mirroring the Generative Language provider (M319): a
-	// positive value caps the thinking tokens, -1 asks for a dynamic budget,
-	// and Agezt sets includeThoughts so the summaries return on
-	// ReasoningContent. 0 sends no thinkingConfig (wire byte-identical).
-	// Applies to the native-Gemini path only — Anthropic-on-Vertex (claude-*)
-	// has its own request shape and is unaffected.
+	// ThinkingBudget enables reasoning on Vertex when non-zero. The two
+	// publishers interpret it per their own rules at encode time:
+	//   - native Gemini (M320): thinkingConfig.thinkingBudget — a positive cap,
+	//     or -1 for a dynamic budget; includeThoughts returns the summaries.
+	//   - Anthropic / claude-* (M321): thinking.budget_tokens — clamped up to
+	//     Anthropic's 1024 floor, with max_tokens bumped above it; a negative
+	//     ("dynamic", Gemini-only) value means off here.
+	// Either way the chain of thought lands on ReasoningContent (M317). 0 sends
+	// no thinking config at all — wire byte-identical to a non-thinking run.
 	ThinkingBudget int
 }
 
