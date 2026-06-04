@@ -107,9 +107,33 @@ type anthVertexRequest struct {
 }
 
 type anthVxTool struct {
-	Name        string          `json:"name"`
-	Description string          `json:"description,omitempty"`
-	InputSchema json.RawMessage `json:"input_schema"`
+	Name         string              `json:"name"`
+	Description  string              `json:"description,omitempty"`
+	InputSchema  json.RawMessage     `json:"input_schema"`
+	CacheControl *anthVxCacheControl `json:"cache_control,omitempty"`
+}
+
+// anthVxCacheControl marks a tool/content block as a prompt-cache breakpoint
+// (M300). Claude-on-Vertex caches the request prefix up to and including the
+// marked block; "ephemeral" is the 5-minute TTL tier.
+type anthVxCacheControl struct {
+	Type string `json:"type"` // "ephemeral"
+}
+
+// buildVxTools mirrors the direct-Anthropic provider (M299): it marks the LAST
+// tool with cache_control so Vertex caches the stable tools prefix that repeats
+// every agent-loop iteration. Vertex ignores the marker when the prefix is below
+// the minimum cacheable size, so it's safe to always set.
+func buildVxTools(tools []agent.ToolDef) []anthVxTool {
+	if len(tools) == 0 {
+		return nil
+	}
+	out := make([]anthVxTool, 0, len(tools))
+	for _, t := range tools {
+		out = append(out, anthVxTool{Name: t.Name, Description: t.Description, InputSchema: t.InputSchema})
+	}
+	out[len(out)-1].CacheControl = &anthVxCacheControl{Type: "ephemeral"}
+	return out
 }
 
 type anthVxMessage struct {
@@ -172,13 +196,7 @@ func encodeAnthropicOnVertexRequest(system string, msgs []agent.Message, tools [
 		MaxTokens:        maxTok,
 		System:           system,
 		Stream:           stream,
-	}
-	for _, t := range tools {
-		wire.Tools = append(wire.Tools, anthVxTool{
-			Name:        t.Name,
-			Description: t.Description,
-			InputSchema: t.InputSchema,
-		})
+		Tools:            buildVxTools(tools),
 	}
 	for _, m := range msgs {
 		am, err := canonicalToAnthVx(m)

@@ -321,9 +321,34 @@ type anthBedrockRequest struct {
 }
 
 type anthTool struct {
-	Name        string          `json:"name"`
-	Description string          `json:"description,omitempty"`
-	InputSchema json.RawMessage `json:"input_schema"`
+	Name         string            `json:"name"`
+	Description  string            `json:"description,omitempty"`
+	InputSchema  json.RawMessage   `json:"input_schema"`
+	CacheControl *anthCacheControl `json:"cache_control,omitempty"`
+}
+
+// anthCacheControl marks a tool/content block as a prompt-cache breakpoint
+// (M300). Claude-on-Bedrock caches the request prefix up to and including the
+// marked block; "ephemeral" is the 5-minute TTL tier.
+type anthCacheControl struct {
+	Type string `json:"type"` // "ephemeral"
+}
+
+// buildBedrockTools mirrors the direct-Anthropic provider (M299): it marks the
+// LAST tool with cache_control so Bedrock caches the stable tools prefix that
+// repeats every agent-loop iteration. Bedrock ignores the marker when the prefix
+// is below the minimum cacheable size, so it's safe to always set; cache reads
+// bill at ~0.1× input (M289-291/M296).
+func buildBedrockTools(tools []agent.ToolDef) []anthTool {
+	if len(tools) == 0 {
+		return nil
+	}
+	out := make([]anthTool, 0, len(tools))
+	for _, t := range tools {
+		out = append(out, anthTool{Name: t.Name, Description: t.Description, InputSchema: t.InputSchema})
+	}
+	out[len(out)-1].CacheControl = &anthCacheControl{Type: "ephemeral"}
+	return out
 }
 
 type anthMessage struct {
@@ -385,13 +410,7 @@ func encodeAnthropicOnBedrockRequest(system string, msgs []agent.Message, tools 
 		AnthropicVersion: AnthropicBedrockVersion,
 		MaxTokens:        maxTok,
 		System:           system,
-	}
-	for _, t := range tools {
-		wire.Tools = append(wire.Tools, anthTool{
-			Name:        t.Name,
-			Description: t.Description,
-			InputSchema: t.InputSchema,
-		})
+		Tools:            buildBedrockTools(tools),
 	}
 	for _, m := range msgs {
 		am, err := canonicalToAnth(m)

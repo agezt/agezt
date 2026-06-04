@@ -77,6 +77,10 @@ func TestComplete_AnthropicModelRoutesToRawPredict(t *testing.T) {
 		Model:    "claude-opus-4-7@20251031",
 		System:   "be terse",
 		Messages: []agent.Message{{Role: agent.RoleUser, Content: "ping"}},
+		Tools: []agent.ToolDef{
+			{Name: "first", InputSchema: json.RawMessage(`{"type":"object"}`)},
+			{Name: "last", InputSchema: json.RawMessage(`{"type":"object"}`)},
+		},
 	})
 	if err != nil {
 		t.Fatalf("Complete: %v", err)
@@ -106,6 +110,19 @@ func TestComplete_AnthropicModelRoutesToRawPredict(t *testing.T) {
 	// Verify the URL routed through the anthropic publisher path.
 	if !strings.Contains(seen.path, "publishers/anthropic/") {
 		t.Errorf("path = %q, want publishers/anthropic/", seen.path)
+	}
+	// M300: the last tool must carry cache_control: ephemeral (caches the tools
+	// prefix); earlier tools must not.
+	if toolsArr, _ := seen.body["tools"].([]any); len(toolsArr) == 2 {
+		if first, _ := toolsArr[0].(map[string]any); first["cache_control"] != nil {
+			t.Errorf("first tool must NOT carry cache_control")
+		}
+		last, _ := toolsArr[1].(map[string]any)
+		if cc, _ := last["cache_control"].(map[string]any); cc["type"] != "ephemeral" {
+			t.Errorf("last tool cache_control = %v want {type: ephemeral}", last["cache_control"])
+		}
+	} else {
+		t.Errorf("tools = %v, want 2", seen.body["tools"])
 	}
 	if !strings.Contains(seen.path, ":rawPredict") {
 		t.Errorf("path = %q, want :rawPredict suffix", seen.path)

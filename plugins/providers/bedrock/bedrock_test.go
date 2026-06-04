@@ -292,3 +292,44 @@ func TestComplete_BedrockCacheUsage(t *testing.T) {
 		t.Errorf("CacheWriteInputTokens=%d want 50", resp.Usage.CacheWriteInputTokens)
 	}
 }
+
+// TestEncode_PromptCacheMarksLastTool covers M300: Claude-on-Bedrock marks the
+// LAST tool with cache_control: ephemeral so Bedrock caches the stable tools
+// prefix; earlier tools carry no marker.
+func TestEncode_PromptCacheMarksLastTool(t *testing.T) {
+	var seen map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewDecoder(r.Body).Decode(&seen)
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"id": "m", "role": "assistant",
+			"content": []map[string]any{{"type": "text", "text": "ok"}}, "stop_reason": "end_turn",
+			"usage": map[string]any{"input_tokens": 1, "output_tokens": 1},
+		})
+	}))
+	defer srv.Close()
+
+	p := bedrock.New("t", "us-east-1")
+	p.Endpoint = srv.URL + "/model/anthropic.claude-opus-4-7/invoke"
+	if _, err := p.Complete(context.Background(), agent.CompletionRequest{
+		Model:    "anthropic.claude-opus-4-7",
+		Messages: []agent.Message{{Role: agent.RoleUser, Content: "ping"}},
+		Tools: []agent.ToolDef{
+			{Name: "first", InputSchema: json.RawMessage(`{"type":"object"}`)},
+			{Name: "last", InputSchema: json.RawMessage(`{"type":"object"}`)},
+		},
+	}); err != nil {
+		t.Fatalf("Complete: %v", err)
+	}
+	arr, _ := seen["tools"].([]any)
+	if len(arr) != 2 {
+		t.Fatalf("tools len=%d want 2", len(arr))
+	}
+	if first, _ := arr[0].(map[string]any); first["cache_control"] != nil {
+		t.Errorf("first tool must NOT carry cache_control")
+	}
+	last, _ := arr[1].(map[string]any)
+	cc, ok := last["cache_control"].(map[string]any)
+	if !ok || cc["type"] != "ephemeral" {
+		t.Errorf("last tool cache_control = %v want {type: ephemeral}", last["cache_control"])
+	}
+}

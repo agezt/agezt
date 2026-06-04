@@ -12,16 +12,16 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
-- **Anthropic prompt caching is now requested.** The Anthropic provider marks the
-  last tool definition with `cache_control: {type: ephemeral}`, so Anthropic
+- **Anthropic prompt caching is now requested — across the whole Claude family.**
+  The Anthropic provider (direct), Claude-on-Bedrock, and Claude-on-Vertex all mark
+  the last tool definition with `cache_control: {type: ephemeral}`, so the provider
   caches the stable tools prefix that repeats on every iteration of an agent loop.
-  Previously Agezt never sent a cache breakpoint, so Anthropic never cached and
-  the cache-token accounting (which only *reads* the response) always saw zero —
-  this is the request-side piece that makes those savings real (cache reads bill
-  at ~0.1× input; surfaced by `agt cache` / the Web UI Cache panel). Anthropic
+  Previously no encoder sent a cache breakpoint, so Anthropic never cached and the
+  cache-token accounting (which only *reads* the response) always saw zero — this
+  is the request-side piece that makes those savings real (cache reads bill at
+  ~0.1× input; surfaced by `agt cache` / the Web UI Cache panel). The provider
   silently ignores the marker when the prefix is below the minimum cacheable size,
-  so it's safe to always set. (OpenAI caches automatically; Bedrock/Vertex Claude
-  request-side caching is a follow-up.)
+  so it's safe to always set. (OpenAI caches automatically.)
 - **Web UI: a Policy panel.** Surfaces what the Edict policy engine is doing —
   total decisions, allowed/denied (with hard-deny count), denial rate, and a
   denied-by-capability breakdown — by proxying `edict_stats`. Clicking it opens a
