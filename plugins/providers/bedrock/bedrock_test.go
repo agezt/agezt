@@ -255,3 +255,40 @@ func TestComplete_APIError(t *testing.T) {
 		t.Errorf("status=%d", apiErr.Status)
 	}
 }
+
+// TestComplete_BedrockCacheUsage covers M296: Claude-on-Bedrock reports
+// input_tokens EXCLUDING cached prompt tokens, with cache_read/creation separate;
+// the canonical Usage sums all three and marks read as cached, creation as write.
+func TestComplete_BedrockCacheUsage(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"id": "m", "type": "message", "role": "assistant",
+			"content":     []map[string]any{{"type": "text", "text": "ok"}},
+			"stop_reason": "end_turn",
+			"usage": map[string]any{
+				"input_tokens": 100, "output_tokens": 20,
+				"cache_read_input_tokens": 900, "cache_creation_input_tokens": 50,
+			},
+		})
+	}))
+	defer srv.Close()
+
+	p := bedrock.New("t", "us-east-1")
+	p.Endpoint = srv.URL + "/model/anthropic.claude-opus-4-7/invoke"
+	resp, err := p.Complete(context.Background(), agent.CompletionRequest{
+		Model:    "anthropic.claude-opus-4-7",
+		Messages: []agent.Message{{Role: agent.RoleUser, Content: "ping"}},
+	})
+	if err != nil {
+		t.Fatalf("Complete: %v", err)
+	}
+	if resp.Usage.InputTokens != 1050 { // 100 + 900 + 50
+		t.Errorf("InputTokens=%d want 1050", resp.Usage.InputTokens)
+	}
+	if resp.Usage.CachedInputTokens != 900 {
+		t.Errorf("CachedInputTokens=%d want 900", resp.Usage.CachedInputTokens)
+	}
+	if resp.Usage.CacheWriteInputTokens != 50 {
+		t.Errorf("CacheWriteInputTokens=%d want 50", resp.Usage.CacheWriteInputTokens)
+	}
+}

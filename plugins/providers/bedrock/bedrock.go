@@ -358,9 +358,26 @@ type anthBedrockResponse struct {
 	Content    []anthBlock `json:"content"`
 	StopReason string      `json:"stop_reason"`
 	Usage      struct {
-		InputTokens  int `json:"input_tokens"`
-		OutputTokens int `json:"output_tokens"`
+		InputTokens              int `json:"input_tokens"`
+		OutputTokens             int `json:"output_tokens"`
+		CacheReadInputTokens     int `json:"cache_read_input_tokens"`
+		CacheCreationInputTokens int `json:"cache_creation_input_tokens"`
 	} `json:"usage"`
+}
+
+// anthBedrockUsageToAgent maps Claude-on-Bedrock's split token counts to the
+// canonical agent.Usage (M296), mirroring the direct-Anthropic provider:
+// input_tokens excludes cached prompt tokens, so the real prompt is
+// input + cache_read + cache_creation; cache reads are marked cached (cheaper
+// rate, M289), cache-creation as cache-write (the premium, M291).
+func anthBedrockUsageToAgent(inputTokens, cacheRead, cacheCreation, outputTokens int, model string) agent.Usage {
+	return agent.Usage{
+		InputTokens:           inputTokens + cacheRead + cacheCreation,
+		CachedInputTokens:     cacheRead,
+		CacheWriteInputTokens: cacheCreation,
+		OutputTokens:          outputTokens,
+		Model:                 model,
+	}
 }
 
 func encodeAnthropicOnBedrockRequest(system string, msgs []agent.Message, tools []agent.ToolDef, maxTok int) ([]byte, error) {
@@ -507,10 +524,8 @@ func decodeAnthropicOnBedrockResponse(body []byte, model string) (*agent.Complet
 			ToolCalls: toolCalls,
 		},
 		StopReason: stop,
-		Usage: agent.Usage{
-			InputTokens:  ar.Usage.InputTokens,
-			OutputTokens: ar.Usage.OutputTokens,
-			Model:        model,
-		},
+		Usage: anthBedrockUsageToAgent(
+			ar.Usage.InputTokens, ar.Usage.CacheReadInputTokens,
+			ar.Usage.CacheCreationInputTokens, ar.Usage.OutputTokens, model),
 	}, nil
 }

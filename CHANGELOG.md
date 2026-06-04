@@ -12,6 +12,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Claude-on-Bedrock cache-token accounting.** The AWS Bedrock provider
+  (streaming + non-streaming) now parses `cache_read_input_tokens` /
+  `cache_creation_input_tokens` from Claude's usage — fixing the same under-count
+  M290 fixed for direct Anthropic (Bedrock also reports `input_tokens` excluding
+  cached). Cache reads bill at the cache-read rate, creations at the cache-write
+  premium. Cache-token parsing now covers OpenAI/compat, Anthropic (direct +
+  Vertex + Bedrock), and Gemini (direct + Vertex).
 - **Gemini cache-token accounting.** The Google (direct) and Gemini-on-Vertex
   providers (streaming + non-streaming) now parse
   `usageMetadata.cachedContentTokenCount` into `agent.Usage.CachedInputTokens`, so
