@@ -67,6 +67,14 @@ type Provider struct {
 	BaseURL string
 	Model   string
 	HTTP    *http.Client
+	// ThinkingBudget enables Gemini "thinking" (2.5-series) on Vertex when
+	// non-zero (M320), mirroring the Generative Language provider (M319): a
+	// positive value caps the thinking tokens, -1 asks for a dynamic budget,
+	// and Agezt sets includeThoughts so the summaries return on
+	// ReasoningContent. 0 sends no thinkingConfig (wire byte-identical).
+	// Applies to the native-Gemini path only — Anthropic-on-Vertex (claude-*)
+	// has its own request shape and is unaffected.
+	ThinkingBudget int
 }
 
 // New constructs a Provider. ts may be nil at construction (set
@@ -146,7 +154,7 @@ func (p *Provider) Complete(ctx context.Context, req agent.CompletionRequest) (*
 		return p.completeAnthropic(ctx, req, model)
 	}
 
-	body, err := encodeRequest(req.System, req.Messages, req.Tools, req.MaxTokens, req.JSONMode)
+	body, err := encodeRequest(req.System, req.Messages, req.Tools, req.MaxTokens, req.JSONMode, p.ThinkingBudget)
 	if err != nil {
 		return nil, fmt.Errorf("vertex: encode request: %w", err)
 	}
@@ -196,8 +204,18 @@ type vxRequest struct {
 }
 
 type vxGenConfig struct {
-	MaxOutputTokens  int    `json:"maxOutputTokens,omitempty"`
-	ResponseMimeType string `json:"responseMimeType,omitempty"` // "application/json" → JSON mode (M312)
+	MaxOutputTokens  int               `json:"maxOutputTokens,omitempty"`
+	ResponseMimeType string            `json:"responseMimeType,omitempty"` // "application/json" → JSON mode (M312)
+	ThinkingConfig   *vxThinkingConfig `json:"thinkingConfig,omitempty"`   // M320
+}
+
+// vxThinkingConfig is Gemini-on-Vertex's per-request thinking control (M320,
+// 2.5-series). Mirrors plugins/providers/google's geminiThinkingConfig:
+// IncludeThoughts asks Vertex to return thought summaries as parts flagged
+// `thought:true`; ThinkingBudget caps the thinking tokens (-1 = dynamic).
+type vxThinkingConfig struct {
+	IncludeThoughts bool `json:"includeThoughts"`
+	ThinkingBudget  int  `json:"thinkingBudget"`
 }
 
 type vxContent struct {
@@ -207,6 +225,7 @@ type vxContent struct {
 
 type vxPart struct {
 	Text             string              `json:"text,omitempty"`
+	Thought          bool                `json:"thought,omitempty"` // M320: a thought-summary part (reasoning, not answer)
 	InlineData       *vxInlineData       `json:"inlineData,omitempty"`
 	FunctionCall     *vxFunctionCall     `json:"functionCall,omitempty"`
 	FunctionResponse *vxFunctionResponse `json:"functionResponse,omitempty"`
@@ -253,9 +272,13 @@ type vxUsageMetadata struct {
 	PromptTokenCount        int `json:"promptTokenCount"`
 	CandidatesTokenCount    int `json:"candidatesTokenCount"`
 	CachedContentTokenCount int `json:"cachedContentTokenCount"` // Gemini context cache (M294-cache)
+	// ThoughtsTokenCount is the thinking-token count (M320), reported
+	// separately from CandidatesTokenCount but billed at the output rate;
+	// folded into Usage.OutputTokens on decode.
+	ThoughtsTokenCount int `json:"thoughtsTokenCount"`
 }
 
-func encodeRequest(system string, msgs []agent.Message, tools []agent.ToolDef, maxTok int, jsonMode bool) ([]byte, error) {
+func encodeRequest(system string, msgs []agent.Message, tools []agent.ToolDef, maxTok int, jsonMode bool, thinkingBudget int) ([]byte, error) {
 	wire := vxRequest{}
 	if s := strings.TrimSpace(system); s != "" {
 		wire.SystemInstruction = &vxContent{Parts: []vxPart{{Text: s}}}
@@ -285,10 +308,18 @@ func encodeRequest(system string, msgs []agent.Message, tools []agent.ToolDef, m
 		}
 		wire.Tools = []vxTool{{FunctionDeclarations: decls}}
 	}
-	if maxTok > 0 || jsonMode {
+	if maxTok > 0 || jsonMode || thinkingBudget != 0 {
 		gc := &vxGenConfig{MaxOutputTokens: maxTok}
 		if jsonMode {
 			gc.ResponseMimeType = "application/json"
+		}
+		if thinkingBudget != 0 {
+			// Opt-in (M320). includeThoughts so the summaries return and land
+			// on ReasoningContent; the budget caps thinking tokens (-1 = dynamic).
+			gc.ThinkingConfig = &vxThinkingConfig{
+				IncludeThoughts: true,
+				ThinkingBudget:  thinkingBudget,
+			}
 		}
 		wire.GenerationConfig = gc
 	}
@@ -359,8 +390,9 @@ func decodeResponse(body []byte, model string) (*agent.CompletionResponse, error
 	cand := vr.Candidates[0]
 
 	var (
-		textParts []string
-		toolCalls []agent.ToolCall
+		textParts      []string
+		reasoningParts []string
+		toolCalls      []agent.ToolCall
 	)
 	for i, part := range cand.Content.Parts {
 		switch {
@@ -374,6 +406,9 @@ func decodeResponse(body []byte, model string) (*agent.CompletionResponse, error
 				Name:  part.FunctionCall.Name,
 				Input: args,
 			})
+		case part.Thought && part.Text != "":
+			// A thought-summary part (M320) — reasoning, kept out of the answer.
+			reasoningParts = append(reasoningParts, part.Text)
 		case part.Text != "":
 			textParts = append(textParts, part.Text)
 		}
@@ -398,7 +433,9 @@ func decodeResponse(body []byte, model string) (*agent.CompletionResponse, error
 	if vr.UsageMetadata != nil {
 		usage.InputTokens = vr.UsageMetadata.PromptTokenCount
 		usage.CachedInputTokens = vr.UsageMetadata.CachedContentTokenCount
-		usage.OutputTokens = vr.UsageMetadata.CandidatesTokenCount
+		// Thinking tokens are billed as output but reported separately (M320);
+		// fold them in so OutputTokens reflects the true billable output.
+		usage.OutputTokens = vr.UsageMetadata.CandidatesTokenCount + vr.UsageMetadata.ThoughtsTokenCount
 	}
 
 	return &agent.CompletionResponse{
@@ -407,7 +444,8 @@ func decodeResponse(body []byte, model string) (*agent.CompletionResponse, error
 			Content:   strings.Join(textParts, ""),
 			ToolCalls: toolCalls,
 		},
-		StopReason: stop,
-		Usage:      usage,
+		StopReason:       stop,
+		Usage:            usage,
+		ReasoningContent: strings.Join(reasoningParts, ""),
 	}, nil
 }

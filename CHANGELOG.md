@@ -31,6 +31,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   so they're folded into the run's output-token count for accurate cost. With
   this, all three major reasoning families — DeepSeek-R1, Claude, Gemini — flow
   through one pipeline. Off by default.
+- **Gemini thinking on Vertex AI** is supported too (opt-in via
+  `AGEZT_GOOGLE_VERTEX_THINKING_BUDGET=<tokens>`; `-1` for a dynamic budget), so
+  the thinking capability now spans *both* Gemini surfaces — the Generative
+  Language API and Vertex AI — with the same reasoning capture and output-token
+  accounting. Separate env var because Vertex is a distinct billing/credential
+  surface. Applies to native-Gemini models on Vertex; off by default.
 
 ### Fixed
 - **Ollama now honours the run's token cap.** `MaxTokens` is forwarded as

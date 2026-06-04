@@ -276,6 +276,15 @@ func Build(p *catalog.Provider, modelID string, lookup CredLookup) (agent.Provid
 		vp := vertex.New(ts, project, vc.location)
 		vp.BaseURL = strings.TrimSpace(p.API) // optional override
 		vp.Model = modelID
+		// Gemini thinking on Vertex (M320): opt-in via
+		// AGEZT_GOOGLE_VERTEX_THINKING_BUDGET (distinct from the Generative
+		// Language API's AGEZT_GOOGLE_THINKING_BUDGET — Vertex is a separate
+		// billing/credential surface). Native-Gemini path only; -1 = dynamic.
+		if v := strings.TrimSpace(envLookup(lookup, "AGEZT_GOOGLE_VERTEX_THINKING_BUDGET")); v != "" {
+			if n, err := strconv.Atoi(v); err == nil && n != 0 {
+				vp.ThinkingBudget = n
+			}
+		}
 		return wrapNamed(p.ID, vp), modelID, nil
 	case catalog.FamilyAWSBedrock:
 		// Bedrock M1.m: bearer-token auth + Anthropic body shape only.
