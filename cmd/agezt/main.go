@@ -324,11 +324,14 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// the loop sends per call; over-budget runs elide their oldest tool outputs.
 	// 0 (unset) = full history (current behaviour).
 	contextBudget := 0
+	contextBudgetAuto := false
 	if v := os.Getenv(brand.EnvPrefix + "CONTEXT_BUDGET"); v != "" {
-		if n, perr := strconv.Atoi(v); perr == nil && n > 0 {
+		if strings.EqualFold(v, "auto") {
+			contextBudgetAuto = true // derive from the model's catalog context window
+		} else if n, perr := strconv.Atoi(v); perr == nil && n > 0 {
 			contextBudget = n
 		} else {
-			fmt.Fprintf(stderr, "%s: %sCONTEXT_BUDGET: want a positive char count, got %q (ignored)\n", brand.Binary, brand.EnvPrefix, v)
+			fmt.Fprintf(stderr, "%s: %sCONTEXT_BUDGET: want a positive char count or \"auto\", got %q (ignored)\n", brand.Binary, brand.EnvPrefix, v)
 		}
 	}
 
@@ -356,6 +359,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 		SkillForgeMinTools:         4,
 		ArtifactThreshold:          artifactThreshold,
 		ContextBudget:              contextBudget,
+		ContextBudgetAuto:          contextBudgetAuto,
 		SubAgentTool:               subAgentOn,
 		SubAgentMaxDepth:           subAgentDepth,
 		SubAgentMaxFanout:          subAgentFanout,

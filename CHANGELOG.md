@@ -102,6 +102,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   valid UTF-8. (The journal's own answer truncation was already rune-safe.)
 
 ### Added
+- **`AGEZT_CONTEXT_BUDGET=auto` derives the budget from the model's context
+  window.** Instead of a fixed char count, `auto` sizes the context budget at half
+  the resolved model's catalog context window (~4 chars/token) — so a small-window
+  model compacts sooner and a large-window model later, automatically. A model the
+  catalog doesn't know leaves compaction off (no guessing). An explicit numeric
+  budget still wins (SPEC-10 §3 / SPEC-16 §3 `compress_at_fraction`).
 - **Context budgeting keeps long runs within a size cap (SPEC-10 §3).** With
   `AGEZT_CONTEXT_BUDGET` set, before each model call the agent loop trims its own
   assembled context to fit: it elides the *oldest tool outputs* down to short

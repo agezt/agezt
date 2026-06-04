@@ -252,6 +252,27 @@ type LoopConfig struct {
 // never touches, so the model always keeps its most recent exchange whole.
 const DefaultContextProtectLast = 4
 
+// ContextCharsPerToken is the rough chars-per-token ratio used to translate a
+// model's token context window (catalog Limit.Context) into the char-denominated
+// budget the loop measures. ~4 is the common English approximation; the budget is
+// a soft cap, not an exact token count, so an approximation is fine.
+const ContextCharsPerToken = 4
+
+// DefaultCompressFraction is the fraction of the model's context window at which
+// auto-budgeting starts compacting (SPEC-16 §3 compress_at_fraction). Half the
+// window leaves ample room for the model's own output + a safety margin.
+const DefaultCompressFraction = 0.5
+
+// AutoContextBudgetChars derives a char budget from a model's token context
+// window: compress at half the window, ~4 chars/token. Returns 0 for an unknown
+// (non-positive) window so the caller leaves compaction off rather than guessing.
+func AutoContextBudgetChars(contextTokens int) int {
+	if contextTokens <= 0 {
+		return 0
+	}
+	return int(float64(contextTokens) * ContextCharsPerToken * DefaultCompressFraction)
+}
+
 // elidedStubPrefix marks a tool message whose output was dropped by context
 // compaction, so a later pass doesn't re-elide it (and an operator recognises it).
 const elidedStubPrefix = "[tool output elided to fit context budget"

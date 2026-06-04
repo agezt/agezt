@@ -83,6 +83,20 @@ func TestCompactMessages_NeverElidesNonTool(t *testing.T) {
 	}
 }
 
+func TestAutoContextBudgetChars(t *testing.T) {
+	cases := map[int]int{
+		0:      0,      // unknown window → off
+		-5:     0,      // garbage → off
+		8192:   16384,  // 8K tokens → 8192*4*0.5
+		200000: 400000, // 200K tokens
+	}
+	for tokens, want := range cases {
+		if got := AutoContextBudgetChars(tokens); got != want {
+			t.Errorf("AutoContextBudgetChars(%d) = %d, want %d", tokens, got, want)
+		}
+	}
+}
+
 func TestCompactMessages_Idempotent(t *testing.T) {
 	msgs := convo(1000, 5)
 	before, _ := contextSize("sys", msgs)

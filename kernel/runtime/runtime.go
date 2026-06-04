@@ -242,6 +242,11 @@ type Config struct {
 	// per provider call (SPEC-10 §3); when exceeded the loop elides the oldest
 	// tool outputs and journals context.compacted. 0 disables (full history).
 	ContextBudget int
+	// ContextBudgetAuto, when true and ContextBudget is 0, derives a per-run
+	// budget from the resolved model's catalog context window (half the window,
+	// ~4 chars/token). An unknown model leaves compaction off. An explicit
+	// ContextBudget always wins. (M394)
+	ContextBudgetAuto bool
 
 	// OnReload is invoked by Kernel.Reload() AFTER the catalog snapshot
 	// has been refreshed from disk. The closure is supplied by the
@@ -1183,6 +1188,16 @@ func (k *Kernel) RunWith(ctx context.Context, corr, intent string) (string, erro
 		runTools = filterTools(k.tools, allow)
 	}
 
+	// Context budget (SPEC-10 §3): an explicit budget wins; otherwise, in auto
+	// mode, derive one from the resolved model's catalog context window. An
+	// unknown model leaves compaction off (0).
+	ctxBudget := k.cfg.ContextBudget
+	if ctxBudget == 0 && k.cfg.ContextBudgetAuto && k.catalog != nil {
+		if _, m := k.catalog.FindModel(model); m != nil {
+			ctxBudget = agent.AutoContextBudgetChars(m.Limit.Context)
+		}
+	}
+
 	answer, err := agent.Run(runCtx, agent.LoopConfig{
 		Provider:             k.cfg.Provider,
 		Tools:                runTools,
@@ -1200,7 +1215,7 @@ func (k *Kernel) RunWith(ctx context.Context, corr, intent string) (string, erro
 		CostFn:               governor.CostMicrocents,
 		Artifacts:            k.artifacts, // M390: offload oversized tool outputs (SPEC-04 §3.6)
 		ArtifactThreshold:    k.cfg.ArtifactThreshold,
-		ContextBudget:        k.cfg.ContextBudget, // M393: context budgeting (SPEC-10 §3)
+		ContextBudget:        ctxBudget, // M393/M394: context budgeting (SPEC-10 §3)
 	}, intent)
 
 	// Attribute the run's outcome to the skills it activated, so an active skill
