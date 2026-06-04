@@ -347,6 +347,12 @@ func runDaemon(stdout, stderr io.Writer) int {
 		}
 	}
 
+	// AGEZT_CONTEXT_SUMMARIZE=1 replaces the deterministic head-snippet stub of an
+	// elided tool output with a one-line abstractive summary from a bounded
+	// provider call (SPEC-10 §3 / M398). Off by default — it spends extra (cached,
+	// once-per-output) provider calls, so the operator opts in.
+	contextSummarize := os.Getenv(brand.EnvPrefix+"CONTEXT_SUMMARIZE") == "1"
+
 	cfg := kernelruntime.Config{
 		BaseDir:                    baseDir,
 		Provider:                   gov, // Governor implements agent.Provider
@@ -373,6 +379,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 		ContextBudget:              contextBudget,
 		ContextBudgetAuto:          contextBudgetAuto,
 		ContextProtectFirst:        contextProtectFirst,
+		ContextSummarize:           contextSummarize,
 		SubAgentTool:               subAgentOn,
 		SubAgentMaxDepth:           subAgentDepth,
 		SubAgentMaxFanout:          subAgentFanout,

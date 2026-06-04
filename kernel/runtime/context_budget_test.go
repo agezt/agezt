@@ -145,6 +145,53 @@ func TestRun_ContextProtectFirstPlumbsThrough(t *testing.T) {
 	}
 }
 
+// TestRun_ContextSummarizeEmbedsAbstractiveSummary: with ContextSummarize on, an
+// elided tool output's stub carries a one-line summary produced by a provider
+// call (routed through the same mock). The summary then flows back into a later
+// request's context — which the capturing mock observes — proving M398 wires end
+// to end (loop → makeElidedSummarizer → provider → stub → next request).
+func TestRun_ContextSummarizeEmbedsAbstractiveSummary(t *testing.T) {
+	const canned = "CANNED-SUMMARY-XYZ"
+	sawSummaryInContext := false
+	toolTurns := 0
+
+	prov := &mock.Provider{Responder: func(req agent.CompletionRequest) agent.CompletionResponse {
+		// A summarisation call is a single user message with the M398 prompt.
+		if len(req.Messages) == 1 && strings.HasPrefix(req.Messages[0].Content, "Summarize this tool output") {
+			return mock.FinalText(canned)
+		}
+		// Otherwise it's an agent-loop turn: did a prior elision's stub (carrying
+		// the canned summary) make it back into the context we were handed?
+		for _, m := range req.Messages {
+			if strings.Contains(m.Content, canned) {
+				sawSummaryInContext = true
+			}
+		}
+		if toolTurns < 3 {
+			toolTurns++
+			return mock.ToolUse("c", "dump", map[string]any{})
+		}
+		return mock.FinalText("done")
+	}}
+
+	k, err := runtime.Open(runtime.Config{
+		BaseDir: t.TempDir(), Provider: prov, Model: "m",
+		ContextBudget: 200, ContextSummarize: true, Edict: allowDump(),
+		Tools: map[string]agent.Tool{"dump": dumpTool{out: strings.Repeat("Z", 2000)}},
+	})
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	t.Cleanup(func() { k.Close() })
+
+	if _, _, err := k.Run(context.Background(), "dump"); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if !sawSummaryInContext {
+		t.Error("the abstractive summary should have replaced an elided stub and reached a later request's context")
+	}
+}
+
 // TestRun_AutoBudgetOffForUnknownModel: auto mode with a model absent from the
 // catalog leaves compaction off (no guessing a window) — no context.compacted.
 func TestRun_AutoBudgetOffForUnknownModel(t *testing.T) {

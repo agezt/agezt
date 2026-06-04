@@ -252,6 +252,15 @@ type LoopConfig struct {
 	// 0 keeps the historical behaviour — elide strictly oldest-first, protecting
 	// only the tail. (M395)
 	ContextProtectFirst int
+	// SummarizeElided, when non-nil, produces a one-line summary of a tool output
+	// being elided by budget compaction — an abstractive replacement for the
+	// deterministic head-snippet stub (M397), so the model keeps the *meaning* of
+	// the dropped output, not just its first characters. It is called at most once
+	// per distinct output (the loop caches by content) and only when compaction
+	// actually elides. A non-empty return is embedded in the stub; "" or an error
+	// falls back to the head snippet. nil (the default) keeps the head-snippet
+	// behaviour with zero extra provider calls. (M398, SPEC-10 §3)
+	SummarizeElided func(ctx context.Context, toolOutput string) (string, error)
 }
 
 // DefaultContextProtectLast is how many trailing messages context compaction
@@ -293,6 +302,11 @@ const elidedStubPrefix = "[tool output elided to fit context budget"
 // reclaims meaningful space for any output worth eliding.
 const elidedHeadSnippetChars = 80
 
+// elidedSummaryChars bounds the abstractive summary embedded in an elision stub
+// (M398). A touch longer than the head snippet — a summary earns the space — but
+// still capped so the stub stays small.
+const elidedSummaryChars = 160
+
 // headSnippet returns the first n characters of s with internal whitespace runs
 // collapsed to single spaces, suffixed with "…" when truncated. It is the
 // extractive preview embedded in a compaction stub (M397): deterministic,
@@ -313,7 +327,12 @@ func headSnippet(s string, n int) string {
 // (possibly rewritten) message slice plus how many outputs were elided and how
 // many chars reclaimed. Pure: it copies before mutating, so the caller's slice
 // is untouched until it adopts the result.
-func compactMessages(system string, messages []Message, budget, protectLast, protectFirst int) (out []Message, elided, reclaimed int) {
+//
+// summarize, when non-nil, is consulted for each elided output: a non-empty
+// return is embedded in the stub as an abstractive summary; "" falls back to the
+// deterministic head snippet. It keeps compactMessages testable (pass a
+// deterministic fake) while letting the loop wrap a cached provider call.
+func compactMessages(system string, messages []Message, budget, protectLast, protectFirst int, summarize func(string) string) (out []Message, elided, reclaimed int) {
 	if budget <= 0 {
 		return messages, 0, 0
 	}
@@ -337,12 +356,20 @@ func compactMessages(system string, messages []Message, budget, protectLast, pro
 			continue
 		}
 		orig := len(m.Content)
-		// Keep a short extractive preview of the head of the elided output so the
-		// model retains a hint of what was dropped (the file that was read, the
-		// command that ran) rather than a bare byte count — a deterministic,
-		// dependency-free stand-in for an LLM summary (SPEC-10 §3 / M397). %q keeps
-		// it single-line and escaped; the constant prefix preserves idempotency.
-		stub := fmt.Sprintf("%s: %d chars · head: %q]", elidedStubPrefix, orig, headSnippet(m.Content, elidedHeadSnippetChars))
+		// Prefer an abstractive one-line summary of the dropped output when a
+		// summarizer is wired (M398); otherwise keep a short extractive preview of
+		// the head (M397). Either way the model retains a hint of what was dropped
+		// rather than a bare byte count. %q keeps the inset single-line and escaped;
+		// the constant prefix preserves idempotency.
+		var stub string
+		if summarize != nil {
+			if s := strings.TrimSpace(summarize(m.Content)); s != "" {
+				stub = fmt.Sprintf("%s: %d chars · summary: %q]", elidedStubPrefix, orig, headSnippet(s, elidedSummaryChars))
+			}
+		}
+		if stub == "" {
+			stub = fmt.Sprintf("%s: %d chars · head: %q]", elidedStubPrefix, orig, headSnippet(m.Content, elidedHeadSnippetChars))
+		}
 		if len(stub) >= orig {
 			continue // already small — eliding wouldn't help
 		}
@@ -612,6 +639,26 @@ func Run(ctx context.Context, cfg LoopConfig, userIntent string) (answer string,
 	// cleanup — so the cap adds zero concurrency surface.
 	var spentMicrocents int64
 
+	// summarizeElided wraps cfg.SummarizeElided (M398) with a per-run cache keyed
+	// by the output so each distinct tool output is summarised at most once, and
+	// swallows ctx/errors into "" so compaction always falls back to the head
+	// snippet. nil when no summarizer is configured — zero extra provider calls.
+	var summarizeElided func(string) string
+	if cfg.SummarizeElided != nil {
+		summaryCache := map[string]string{}
+		summarizeElided = func(output string) string {
+			if s, ok := summaryCache[output]; ok {
+				return s
+			}
+			s, err := cfg.SummarizeElided(ctx, output)
+			if err != nil {
+				s = "" // fall back to the head snippet for this output
+			}
+			summaryCache[output] = s
+			return s
+		}
+	}
+
 	for iter := range cfg.MaxIter {
 		if err := ctx.Err(); err != nil {
 			return "", err
@@ -623,7 +670,7 @@ func Run(ctx context.Context, cfg LoopConfig, userIntent string) (answer string,
 		// is auditable, not silent. No-op when ContextBudget is 0.
 		if cfg.ContextBudget > 0 {
 			before, _ := contextSize(cfg.System, messages)
-			compacted, elided, reclaimed := compactMessages(cfg.System, messages, cfg.ContextBudget, cfg.ContextProtectLast, cfg.ContextProtectFirst)
+			compacted, elided, reclaimed := compactMessages(cfg.System, messages, cfg.ContextBudget, cfg.ContextProtectLast, cfg.ContextProtectFirst, summarizeElided)
 			if elided > 0 {
 				messages = compacted
 				after, _ := contextSize(cfg.System, messages)

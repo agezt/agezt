@@ -102,6 +102,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   valid UTF-8. (The journal's own answer truncation was already rune-safe.)
 
 ### Added
+- **`AGEZT_CONTEXT_SUMMARIZE=1` summarises dropped tool outputs instead of
+  stubbing them.** When context compaction elides an old tool output it normally
+  leaves a short head-snippet stub; with this on, a bounded one-line *summary* of
+  the output (from a cached, once-per-output provider call) is embedded instead,
+  so the model keeps the meaning of what was dropped, not just its first
+  characters. Off by default — it spends extra provider calls, so the operator
+  opts in. Only active when context budgeting is on (SPEC-10 §3).
 - **`AGEZT_CONTEXT_PROTECT_FIRST=<n>` shields the run's original grounding from
   compaction.** When context budgeting elides oldest-first, the earliest tool
   results — the discovery/setup outputs that grounded the run — are the first to

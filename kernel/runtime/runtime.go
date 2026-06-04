@@ -251,6 +251,12 @@ type Config struct {
 	// never elides, preserving the run's original grounding. 0 keeps the default
 	// oldest-first behaviour (only the tail is shielded). (M395)
 	ContextProtectFirst int
+	// ContextSummarize, when true, replaces the deterministic head-snippet stub of
+	// an elided tool output with a one-line abstractive summary produced by a
+	// bounded provider call (M398). Off by default — it spends extra (cached,
+	// once-per-output) provider calls, so the operator opts in. Only meaningful
+	// when context compaction is active (ContextBudget/Auto set).
+	ContextSummarize bool
 
 	// OnReload is invoked by Kernel.Reload() AFTER the catalog snapshot
 	// has been refreshed from disk. The closure is supplied by the
@@ -1202,6 +1208,13 @@ func (k *Kernel) RunWith(ctx context.Context, corr, intent string) (string, erro
 		}
 	}
 
+	// Abstractive summary of elided tool outputs (M398): opt-in, and only worth
+	// wiring when compaction is actually active for this run.
+	var summarizeElided func(context.Context, string) (string, error)
+	if k.cfg.ContextSummarize && (ctxBudget > 0 || k.cfg.ContextBudgetAuto) {
+		summarizeElided = makeElidedSummarizer(k.cfg.Provider, model, corr)
+	}
+
 	answer, err := agent.Run(runCtx, agent.LoopConfig{
 		Provider:             k.cfg.Provider,
 		Tools:                runTools,
@@ -1221,6 +1234,7 @@ func (k *Kernel) RunWith(ctx context.Context, corr, intent string) (string, erro
 		ArtifactThreshold:    k.cfg.ArtifactThreshold,
 		ContextBudget:        ctxBudget,                 // M393/M394: context budgeting (SPEC-10 §3)
 		ContextProtectFirst:  k.cfg.ContextProtectFirst, // M395: shield the earliest grounding
+		SummarizeElided:      summarizeElided,           // M398: abstractive summary of dropped outputs
 	}, intent)
 
 	// Attribute the run's outcome to the skills it activated, so an active skill
@@ -1251,6 +1265,43 @@ func (k *Kernel) RunWith(ctx context.Context, corr, intent string) (string, erro
 		k.maybeForge(runCtx, corr, intent, answer)
 	}
 	return answer, nil
+}
+
+// elidedSummaryMaxTokens bounds the abstractive summary call (M398): one short
+// line, so a small cap keeps the extra spend negligible and the latency low.
+const elidedSummaryMaxTokens = 64
+
+// elidedSummaryInputCap bounds how much of a dropped output is fed to the
+// summarizer — enough to summarise, while keeping the summary call's own input
+// (and therefore its cost) bounded regardless of how large the output was.
+const elidedSummaryInputCap = 8 << 10
+
+// makeElidedSummarizer builds the LoopConfig.SummarizeElided closure: a bounded,
+// single-shot provider call that condenses a dropped tool output to one line
+// (M398). It routes through the same provider (the Governor) as the run, so the
+// extra call is billed and attributed to the run via corr. Errors propagate; the
+// loop swallows them and falls back to the deterministic head snippet.
+func makeElidedSummarizer(provider agent.Provider, model, corr string) func(context.Context, string) (string, error) {
+	return func(ctx context.Context, output string) (string, error) {
+		in := output
+		if len(in) > elidedSummaryInputCap {
+			in = in[:elidedSummaryInputCap]
+		}
+		resp, err := provider.Complete(ctx, agent.CompletionRequest{
+			Model:         model,
+			CorrelationID: corr,
+			TaskType:      "summarize",
+			MaxTokens:     elidedSummaryMaxTokens,
+			Messages: []agent.Message{{
+				Role:    agent.RoleUser,
+				Content: "Summarize this tool output in one short line for an agent's working memory. Output only the summary.\n\n" + in,
+			}},
+		})
+		if err != nil {
+			return "", err
+		}
+		return strings.TrimSpace(resp.Message.Content), nil
+	}
 }
 
 // injectMemory prepends a compact "Relevant memory" block to the system

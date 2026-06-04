@@ -23,11 +23,11 @@ func convo(toolBytes int, pairs int) []Message {
 
 func TestCompactMessages_DisabledAndUnderBudget(t *testing.T) {
 	msgs := convo(100, 3)
-	if out, el, rc := compactMessages("sys", msgs, 0, 0, 0); el != 0 || rc != 0 || len(out) != len(msgs) {
+	if out, el, rc := compactMessages("sys", msgs, 0, 0, 0, nil); el != 0 || rc != 0 || len(out) != len(msgs) {
 		t.Errorf("budget 0 must be a no-op, got elided=%d reclaimed=%d", el, rc)
 	}
 	// Budget far above the actual size → no elision.
-	if out, el, rc := compactMessages("sys", msgs, 1_000_000, 2, 0); el != 0 || rc != 0 || len(out) != len(msgs) {
+	if out, el, rc := compactMessages("sys", msgs, 1_000_000, 2, 0, nil); el != 0 || rc != 0 || len(out) != len(msgs) {
 		t.Errorf("under-budget must not elide, got elided=%d", el)
 	}
 }
@@ -37,7 +37,7 @@ func TestCompactMessages_ElidesOldestToolOutputsFirst(t *testing.T) {
 	msgs := convo(1000, 5)
 	before, _ := contextSize("sys", msgs)
 	budget := before - 2500 // must drop ~3 outputs' worth
-	out, elided, reclaimed := compactMessages("sys", msgs, budget, 2, 0)
+	out, elided, reclaimed := compactMessages("sys", msgs, budget, 2, 0, nil)
 
 	if elided == 0 {
 		t.Fatal("expected some elision")
@@ -77,7 +77,7 @@ func TestCompactMessages_NeverElidesNonTool(t *testing.T) {
 		{Role: RoleAssistant, Content: "final"},
 		bigToolMsg("call-2", 50),
 	}
-	out, _, _ := compactMessages("sys", msgs, 100, 0, 0)
+	out, _, _ := compactMessages("sys", msgs, 100, 0, 0, nil)
 	if strings.HasPrefix(out[0].Content, elidedStubPrefix) || strings.HasPrefix(out[1].Content, elidedStubPrefix) {
 		t.Error("user/assistant messages must never be elided")
 	}
@@ -93,14 +93,14 @@ func TestCompactMessages_ProtectsFirstGrounding(t *testing.T) {
 	budget := before - 2500 // forces dropping a few outputs
 
 	// Baseline: no first-protection elides the OLDEST tool output (index 2).
-	base, baseEl, _ := compactMessages("sys", msgs, budget, 2, 0)
+	base, baseEl, _ := compactMessages("sys", msgs, budget, 2, 0, nil)
 	if baseEl == 0 || !strings.HasPrefix(base[2].Content, elidedStubPrefix) {
 		t.Fatalf("baseline should elide oldest tool output (index 2); elided=%d", baseEl)
 	}
 
 	// With protectFirst=3, indices [0,3) are shielded → index-2 tool output stays
 	// whole, and elision starts from the next oldest tool output (index 4).
-	prot, protEl, _ := compactMessages("sys", msgs, budget, 2, 3)
+	prot, protEl, _ := compactMessages("sys", msgs, budget, 2, 3, nil)
 	if protEl == 0 {
 		t.Fatal("protect-first run should still elide the unprotected middle")
 	}
@@ -139,7 +139,7 @@ func TestCompactMessages_StubKeepsHeadPreview(t *testing.T) {
 		bigToolMsg("c3", 1000),
 	}
 	before, _ := contextSize("sys", msgs)
-	out, elided, _ := compactMessages("sys", msgs, before-1500, 2, 0)
+	out, elided, _ := compactMessages("sys", msgs, before-1500, 2, 0, nil)
 	if elided == 0 {
 		t.Fatal("expected the oldest tool output to be elided")
 	}
@@ -159,6 +159,52 @@ func TestCompactMessages_StubKeepsHeadPreview(t *testing.T) {
 	// The preview is bounded — it must not echo the whole padded output back.
 	if len(stub) > elidedHeadSnippetChars+120 {
 		t.Errorf("stub too large (%d) — the preview should be bounded near %d chars", len(stub), elidedHeadSnippetChars)
+	}
+}
+
+// TestCompactMessages_AbstractiveSummary: when a summarizer is supplied, the
+// elision stub embeds the one-line summary instead of the head snippet (M398).
+// An empty summary falls back to the head snippet.
+func TestCompactMessages_AbstractiveSummary(t *testing.T) {
+	output := strings.Repeat("verbose log line; ", 200) // large, droppable
+	msgs := []Message{
+		{Role: RoleUser, Content: "do it"},
+		{Role: RoleAssistant, Content: "calling"},
+		{Role: RoleTool, Content: output, ToolCallID: "c1"},
+		{Role: RoleAssistant, Content: "calling"},
+		bigToolMsg("c2", 1000),
+		{Role: RoleAssistant, Content: "calling"},
+		bigToolMsg("c3", 1000),
+	}
+	before, _ := contextSize("sys", msgs)
+
+	calls := 0
+	summarize := func(s string) string {
+		calls++
+		return "the deploy log shows 3 healthy replicas"
+	}
+	out, elided, _ := compactMessages("sys", msgs, before-1500, 2, 0, summarize)
+	if elided == 0 {
+		t.Fatal("expected an elision")
+	}
+	stub := out[2].Content
+	if !strings.HasPrefix(stub, elidedStubPrefix) {
+		t.Fatalf("stub lost its prefix: %q", stub)
+	}
+	if !strings.Contains(stub, "summary:") || !strings.Contains(stub, "3 healthy replicas") {
+		t.Errorf("stub should embed the abstractive summary, got %q", stub)
+	}
+	if strings.Contains(stub, "head:") {
+		t.Errorf("with a non-empty summary the head snippet should not be used, got %q", stub)
+	}
+	if calls == 0 {
+		t.Error("summarizer should have been consulted for the elided output")
+	}
+
+	// Empty summary → fall back to the head snippet.
+	out2, _, _ := compactMessages("sys", msgs, before-1500, 2, 0, func(string) string { return "  " })
+	if !strings.Contains(out2[2].Content, "head:") {
+		t.Errorf("empty summary must fall back to the head snippet, got %q", out2[2].Content)
 	}
 }
 
@@ -191,8 +237,8 @@ func TestAutoContextBudgetChars(t *testing.T) {
 func TestCompactMessages_Idempotent(t *testing.T) {
 	msgs := convo(1000, 5)
 	before, _ := contextSize("sys", msgs)
-	out1, el1, _ := compactMessages("sys", msgs, before-2500, 1, 0)
-	out2, el2, rc2 := compactMessages("sys", out1, before-2500, 1, 0)
+	out1, el1, _ := compactMessages("sys", msgs, before-2500, 1, 0, nil)
+	out2, el2, rc2 := compactMessages("sys", out1, before-2500, 1, 0, nil)
 	if el2 != 0 || rc2 != 0 {
 		t.Errorf("re-compacting an already-compacted transcript must be a no-op, got elided=%d", el2)
 	}
