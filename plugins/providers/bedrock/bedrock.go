@@ -263,8 +263,11 @@ func (p *Provider) Complete(ctx context.Context, req agent.CompletionRequest) (*
 	case isAI21JambaModel(model):
 		body, err = encodeAI21JambaOnBedrockRequest(req.System, req.Messages, maxTokens)
 		decodeResp = decodeAI21JambaOnBedrockResponse
+	case isAmazonNovaModel(model):
+		body, err = encodeNovaOnBedrockRequest(req.System, req.Messages, maxTokens)
+		decodeResp = decodeNovaOnBedrockResponse
 	default:
-		return nil, fmt.Errorf("%w: model %q is not in a supported family (anthropic.*, mistral.*, cohere.*, meta.*, ai21.jamba.*; amazon Titan and AI21 J2 are intentionally unwired)",
+		return nil, fmt.Errorf("%w: model %q is not in a supported family (anthropic.*, mistral.*, cohere.*, meta.*, ai21.jamba.*, amazon.nova.*; legacy amazon Titan and AI21 J2 are intentionally unwired)",
 			ErrVendorUnsupported, model)
 	}
 	if err != nil {

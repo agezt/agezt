@@ -12,6 +12,14 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Amazon Nova models on Bedrock.** Agezt's Bedrock provider now speaks the Nova
+  `messages-v1` body shape, so `amazon.nova-*` models (Micro / Lite / Pro /
+  Premier) and their regional cross-inference profiles (`us.amazon.nova-*`, …)
+  work alongside the existing Anthropic, Mistral, Cohere, Meta-Llama, and AI21
+  Jamba families. Nova returns token counts inline, so the governor sees real
+  spend. The legacy `amazon.titan-*` text models stay intentionally unwired (Nova
+  is the current family). Chat-only — like the other non-Anthropic Bedrock
+  adapters, tool use is not wired on this path.
 - **Reasoning models' chain of thought is now captured.** For DeepSeek-R1 and
   other openai-compatible reasoning models that return `reasoning_content`, the
   reasoning streams live as ephemeral `llm.reasoning` events (visible in
