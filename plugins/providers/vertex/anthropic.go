@@ -100,10 +100,29 @@ func (p *Provider) ResolveAnthropicStreamEndpoint(model string) string {
 type anthVertexRequest struct {
 	AnthropicVersion string          `json:"anthropic_version"`
 	MaxTokens        int             `json:"max_tokens"`
-	System           string          `json:"system,omitempty"`
+	System           any             `json:"system,omitempty"`
 	Messages         []anthVxMessage `json:"messages"`
 	Tools            []anthVxTool    `json:"tools,omitempty"`
 	Stream           bool            `json:"stream,omitempty"`
+}
+
+// anthVxSystemBlock is the array form of the system prompt, carrying a
+// prompt-cache breakpoint (M302) so the stable system prompt is cached alongside
+// the tools.
+type anthVxSystemBlock struct {
+	Type         string              `json:"type"` // "text"
+	Text         string              `json:"text"`
+	CacheControl *anthVxCacheControl `json:"cache_control,omitempty"`
+}
+
+// buildVxSystem returns the system field: nil when empty (omitted), else a
+// one-element cache-marked block array (M302). Vertex caches the prefix
+// tools→system, so this caches tools AND system.
+func buildVxSystem(system string) any {
+	if system == "" {
+		return nil
+	}
+	return []anthVxSystemBlock{{Type: "text", Text: system, CacheControl: &anthVxCacheControl{Type: "ephemeral"}}}
 }
 
 type anthVxTool struct {
@@ -194,7 +213,7 @@ func encodeAnthropicOnVertexRequest(system string, msgs []agent.Message, tools [
 	wire := anthVertexRequest{
 		AnthropicVersion: AnthropicVertexVersion,
 		MaxTokens:        maxTok,
-		System:           system,
+		System:           buildVxSystem(system),
 		Stream:           stream,
 		Tools:            buildVxTools(tools),
 	}

@@ -12,13 +12,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
-- **Anthropic prompt caching now covers the system prompt too.** The direct
-  Anthropic provider sends the system prompt as a cache-marked block array (not a
+- **Anthropic prompt caching now covers the system prompt too — across the whole
+  Claude family.** The direct Anthropic provider, Claude-on-Bedrock, and
+  Claude-on-Vertex all send the system prompt as a cache-marked block array (not a
   bare string), adding a second cache breakpoint. Anthropic caches the prefix
   tools→system, so this caches the whole stable prefix of an agent loop (tools AND
   system), not just the tools — more of the repeated request hits the ~0.1× cache
-  read rate. An empty system prompt is omitted entirely (unchanged). (Bedrock /
-  Vertex Claude system-prompt caching is a follow-up.)
+  read rate. An empty system prompt is omitted entirely (unchanged).
 - **Anthropic prompt caching is now requested — across the whole Claude family.**
   The Anthropic provider (direct), Claude-on-Bedrock, and Claude-on-Vertex all mark
   the last tool definition with `cache_control: {type: ephemeral}`, so the provider

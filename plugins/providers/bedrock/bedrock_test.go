@@ -62,8 +62,17 @@ func TestComplete_AnthropicOnBedrockTextResponse(t *testing.T) {
 	if _, hasModel := seen.body["model"]; hasModel {
 		t.Errorf("body should NOT carry `model` field; got %v", seen.body["model"])
 	}
-	if seen.body["system"] != "be terse" {
-		t.Errorf("system=%v", seen.body["system"])
+	// M302: system is sent as a cache-marked block array (not a bare string).
+	sysArr, _ := seen.body["system"].([]any)
+	if len(sysArr) != 1 {
+		t.Fatalf("system=%v want a 1-element block array", seen.body["system"])
+	}
+	sb, _ := sysArr[0].(map[string]any)
+	if sb["text"] != "be terse" {
+		t.Errorf("system text=%v want 'be terse'", sb["text"])
+	}
+	if cc, _ := sb["cache_control"].(map[string]any); cc["type"] != "ephemeral" {
+		t.Errorf("system block missing cache_control: %v", sb)
 	}
 }
 

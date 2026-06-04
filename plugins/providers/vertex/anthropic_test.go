@@ -101,8 +101,17 @@ func TestComplete_AnthropicModelRoutesToRawPredict(t *testing.T) {
 	if _, ok := seen.body["model"]; ok {
 		t.Errorf("body must NOT contain `model` field (model goes in URL); got: %v", seen.body)
 	}
-	if seen.body["system"] != "be terse" {
-		t.Errorf("system = %v, want 'be terse'", seen.body["system"])
+	// M302: system is sent as a cache-marked block array (not a bare string).
+	if sysArr, _ := seen.body["system"].([]any); len(sysArr) == 1 {
+		sb, _ := sysArr[0].(map[string]any)
+		if sb["text"] != "be terse" {
+			t.Errorf("system text = %v, want 'be terse'", sb["text"])
+		}
+		if cc, _ := sb["cache_control"].(map[string]any); cc["type"] != "ephemeral" {
+			t.Errorf("system block missing cache_control: %v", sb)
+		}
+	} else {
+		t.Errorf("system = %v, want a 1-element block array", seen.body["system"])
 	}
 	if seen.body["max_tokens"] == nil {
 		t.Errorf("body missing max_tokens (should default to %d)", vertex.DefaultAnthropicMaxTokens)

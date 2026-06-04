@@ -315,9 +315,28 @@ func (p *Provider) Complete(ctx context.Context, req agent.CompletionRequest) (*
 type anthBedrockRequest struct {
 	AnthropicVersion string        `json:"anthropic_version"`
 	MaxTokens        int           `json:"max_tokens"`
-	System           string        `json:"system,omitempty"`
+	System           any           `json:"system,omitempty"`
 	Messages         []anthMessage `json:"messages"`
 	Tools            []anthTool    `json:"tools,omitempty"`
+}
+
+// anthSystemBlock is the array form of the system prompt, carrying a prompt-cache
+// breakpoint (M302) so the stable system prompt is cached alongside the tools.
+type anthSystemBlock struct {
+	Type         string            `json:"type"` // "text"
+	Text         string            `json:"text"`
+	CacheControl *anthCacheControl `json:"cache_control,omitempty"`
+}
+
+// buildBedrockSystem returns the system field: nil when empty (omitted), else a
+// one-element cache-marked block array (M302). Bedrock caches the prefix
+// tools→system, so this caches tools AND system, the whole stable agent-loop
+// prefix.
+func buildBedrockSystem(system string) any {
+	if system == "" {
+		return nil
+	}
+	return []anthSystemBlock{{Type: "text", Text: system, CacheControl: &anthCacheControl{Type: "ephemeral"}}}
 }
 
 type anthTool struct {
@@ -409,7 +428,7 @@ func encodeAnthropicOnBedrockRequest(system string, msgs []agent.Message, tools 
 	wire := anthBedrockRequest{
 		AnthropicVersion: AnthropicBedrockVersion,
 		MaxTokens:        maxTok,
-		System:           system,
+		System:           buildBedrockSystem(system),
 		Tools:            buildBedrockTools(tools),
 	}
 	for _, m := range msgs {
