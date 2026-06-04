@@ -232,6 +232,9 @@ type geminiUsageMetadata struct {
 	PromptTokenCount     int `json:"promptTokenCount"`
 	CandidatesTokenCount int `json:"candidatesTokenCount"`
 	TotalTokenCount      int `json:"totalTokenCount"`
+	// CachedContentTokenCount is the subset of PromptTokenCount served from
+	// Gemini context caching (M294-cache). Billed at the cache-read rate.
+	CachedContentTokenCount int `json:"cachedContentTokenCount"`
 }
 
 func encodeRequest(system string, msgs []agent.Message, tools []agent.ToolDef, maxTok int) ([]byte, error) {
@@ -416,6 +419,7 @@ func decodeResponse(body []byte, model string) (*agent.CompletionResponse, error
 	usage := agent.Usage{Model: model}
 	if gr.UsageMetadata != nil {
 		usage.InputTokens = gr.UsageMetadata.PromptTokenCount
+		usage.CachedInputTokens = gr.UsageMetadata.CachedContentTokenCount
 		usage.OutputTokens = gr.UsageMetadata.CandidatesTokenCount
 	}
 

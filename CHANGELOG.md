@@ -12,6 +12,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Gemini cache-token accounting.** The Google (direct) and Gemini-on-Vertex
+  providers (streaming + non-streaming) now parse
+  `usageMetadata.cachedContentTokenCount` into `agent.Usage.CachedInputTokens`, so
+  context-cached prompt tokens bill at the cache-read rate. Gemini's
+  `promptTokenCount` already includes the cached subset, so the input total is
+  unchanged. Extends the cache cost model to a third provider family (after
+  OpenAI/compat and Anthropic).
 - **`agt cache`.** The CLI counterpart of the Web UI Cache panel — prints the
   prompt-cache savings (tokens served from / written to cache, and the dollars
   saved versus the full input rate), `--since` windowable, `--tenant`-scoped,

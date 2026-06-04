@@ -129,6 +129,7 @@ type streamState struct {
 	finishReason string
 	model        string
 	inputTokens  int
+	cachedTokens int // cachedContentTokenCount (M294-cache)
 	outputTokens int
 }
 
@@ -158,6 +159,7 @@ func parseStream(body io.Reader, model string, onChunk func(agent.Chunk) error) 
 		}
 		if frame.UsageMetadata != nil {
 			st.inputTokens = frame.UsageMetadata.PromptTokenCount
+			st.cachedTokens = frame.UsageMetadata.CachedContentTokenCount
 			st.outputTokens = frame.UsageMetadata.CandidatesTokenCount
 		}
 		if len(frame.Candidates) == 0 {
@@ -236,9 +238,10 @@ func assembleResponse(st *streamState) *agent.CompletionResponse {
 		},
 		StopReason: stop,
 		Usage: agent.Usage{
-			InputTokens:  st.inputTokens,
-			OutputTokens: st.outputTokens,
-			Model:        st.model,
+			InputTokens:       st.inputTokens,
+			CachedInputTokens: st.cachedTokens,
+			OutputTokens:      st.outputTokens,
+			Model:             st.model,
 		},
 	}
 }

@@ -204,7 +204,7 @@ func TestComplete_HappyPathWithCachedToken(t *testing.T) {
 				"content":      map[string]any{"role": "model", "parts": []map[string]any{{"text": "hi from vertex"}}},
 				"finishReason": "STOP",
 			}},
-			"usageMetadata": map[string]any{"promptTokenCount": 2, "candidatesTokenCount": 3},
+			"usageMetadata": map[string]any{"promptTokenCount": 2, "candidatesTokenCount": 3, "cachedContentTokenCount": 1},
 		})
 	}))
 	defer apiSrv.Close()
@@ -226,6 +226,9 @@ func TestComplete_HappyPathWithCachedToken(t *testing.T) {
 	}
 	if resp.Message.Content != "hi from vertex" {
 		t.Errorf("content=%q", resp.Message.Content)
+	}
+	if resp.Usage.CachedInputTokens != 1 { // M294-cache: cachedContentTokenCount
+		t.Errorf("CachedInputTokens=%d want 1", resp.Usage.CachedInputTokens)
 	}
 	if resp.Usage.InputTokens != 2 || resp.Usage.OutputTokens != 3 {
 		t.Errorf("usage=%+v", resp.Usage)

@@ -303,3 +303,39 @@ func TestComplete_APIError(t *testing.T) {
 		t.Errorf("status=%d", apiErr.Status)
 	}
 }
+
+// TestComplete_CacheUsage covers M294-cache: Gemini's promptTokenCount includes
+// the cached subset, surfaced separately as cachedContentTokenCount → mapped to
+// Usage.CachedInputTokens (InputTokens stays the full prompt count).
+func TestComplete_CacheUsage(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"candidates": []map[string]any{{
+				"content":      map[string]any{"role": "model", "parts": []map[string]any{{"text": "ok"}}},
+				"finishReason": "STOP",
+			}},
+			"usageMetadata": map[string]any{
+				"promptTokenCount":        1000,
+				"candidatesTokenCount":    20,
+				"cachedContentTokenCount": 800,
+			},
+		})
+	}))
+	defer srv.Close()
+
+	p := google.New("k")
+	p.Endpoint = srv.URL + "/v1beta/models/gemini-1.5-flash:generateContent"
+	resp, err := p.Complete(context.Background(), agent.CompletionRequest{
+		Model:    "gemini-1.5-flash",
+		Messages: []agent.Message{{Role: agent.RoleUser, Content: "ping"}},
+	})
+	if err != nil {
+		t.Fatalf("Complete: %v", err)
+	}
+	if resp.Usage.InputTokens != 1000 {
+		t.Errorf("InputTokens=%d want 1000", resp.Usage.InputTokens)
+	}
+	if resp.Usage.CachedInputTokens != 800 {
+		t.Errorf("CachedInputTokens=%d want 800", resp.Usage.CachedInputTokens)
+	}
+}

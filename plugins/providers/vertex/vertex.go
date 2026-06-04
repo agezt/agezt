@@ -246,8 +246,9 @@ type vxCandidate struct {
 }
 
 type vxUsageMetadata struct {
-	PromptTokenCount     int `json:"promptTokenCount"`
-	CandidatesTokenCount int `json:"candidatesTokenCount"`
+	PromptTokenCount        int `json:"promptTokenCount"`
+	CandidatesTokenCount    int `json:"candidatesTokenCount"`
+	CachedContentTokenCount int `json:"cachedContentTokenCount"` // Gemini context cache (M294-cache)
 }
 
 func encodeRequest(system string, msgs []agent.Message, tools []agent.ToolDef, maxTok int) ([]byte, error) {
@@ -388,6 +389,7 @@ func decodeResponse(body []byte, model string) (*agent.CompletionResponse, error
 	usage := agent.Usage{Model: model}
 	if vr.UsageMetadata != nil {
 		usage.InputTokens = vr.UsageMetadata.PromptTokenCount
+		usage.CachedInputTokens = vr.UsageMetadata.CachedContentTokenCount
 		usage.OutputTokens = vr.UsageMetadata.CandidatesTokenCount
 	}
 
