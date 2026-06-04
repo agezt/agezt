@@ -157,8 +157,11 @@ type Outcome struct {
 	RequiresApproval bool
 }
 
-// AskPolicy controls how the engine handles Ask-class levels (L1..L3)
-// while live approval routing is not yet wired (lands in MVP).
+// AskPolicy controls how the engine resolves Ask-class levels (L1..L3): fold
+// them into Allow (unattended runs), fold them into Deny (strict), or flag them
+// for live human approval. The last is fully wired — AskPrompt sets
+// RequiresApproval and the runtime routes the call through approval.Registry,
+// blocking until an operator decides (see kernel/runtime policyHook).
 type AskPolicy int
 
 const (
