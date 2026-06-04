@@ -1082,6 +1082,10 @@ func (k *Kernel) RunWith(ctx context.Context, corr, intent string) (string, erro
 	runCtx = memory.WithCorrelation(runCtx, corr)
 	runCtx = worldmodel.WithCorrelation(runCtx, corr)
 	runCtx = skill.WithCorrelation(runCtx, corr)
+	// So warden-backed tools (shell) stamp this run's correlation onto their
+	// warden.executed events — making the isolation profile show up in the run's
+	// timeline and walkable by `agt why`.
+	runCtx = warden.WithCorrelation(runCtx, corr)
 
 	// Memory injection: recall relevant records and prepend them to the
 	// system prompt so the model starts the task already knowing what

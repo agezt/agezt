@@ -678,3 +678,23 @@ func TestDashboard_RendersContextInspector(t *testing.T) {
 		}
 	}
 }
+
+// TestDashboard_RendersIsolationCard locks in the SPEC-12 §4 / SPEC-07 tool-call
+// debug "isolation" view: the run-detail arc must render warden.executed events
+// (which carry the effective/requested profile + downgrade flag from the journal)
+// rather than dropping them to a bare kind line. The payload keys it reads are
+// the warden.executed contract — if either side renames a field this trips.
+func TestDashboard_RendersIsolationCard(t *testing.T) {
+	src := string(dashboardHTML)
+	for _, marker := range []string{
+		"warden.executed",   // the arcDetail/arcFull case exists
+		"profile_effective", // the effective isolation profile is read
+		"profile_requested", // the requested profile (for the downgrade delta)
+		"downgraded",        // the security-relevant downgrade flag is surfaced
+		"isolation",         // the human label
+	} {
+		if !strings.Contains(src, marker) {
+			t.Errorf("dashboard isolation card missing %q — the SPEC-12 §4 tool-call isolation surface regressed", marker)
+		}
+	}
+}

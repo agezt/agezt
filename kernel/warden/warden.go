@@ -457,3 +457,27 @@ func downgradeReason(req Profile) string {
 	}
 	return "unknown profile"
 }
+
+type ctxKey int
+
+const ctxKeyCorrelation ctxKey = iota
+
+// WithCorrelation returns a child context carrying corr so a tool that runs
+// commands through the warden (e.g. the shell tool) can stamp it onto Spec.
+// CorrelationID without threading the run id by hand. The runtime sets this on
+// every run's context; the resulting warden.executed / warden.profile_downgraded
+// events then carry the run correlation, so they appear in the run-detail
+// timeline and `agt why <id>` walks back through them. Without it the warden
+// events still record (just unlinked from a run).
+func WithCorrelation(ctx context.Context, corr string) context.Context {
+	return context.WithValue(ctx, ctxKeyCorrelation, corr)
+}
+
+// CorrelationFrom extracts the correlation id set by WithCorrelation, or "" if
+// none was set.
+func CorrelationFrom(ctx context.Context) string {
+	if v, ok := ctx.Value(ctxKeyCorrelation).(string); ok {
+		return v
+	}
+	return ""
+}

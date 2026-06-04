@@ -741,6 +741,17 @@ function arcDetail(ev) {
     case "budget.consumed": return (p.model || "") + (p.cost_microcents ? " $" + (p.cost_microcents / 1e9).toFixed(4) : "");
     case "task.completed": return String(p.answer || "").slice(0, 120);
     case "task.failed": return "reason: " + (p.reason || p.error || "");
+    case "warden.executed": {
+      // Isolation view (SPEC-12 §4 tool-call card / SPEC-07 debug): which warden
+      // profile the tool actually ran under, and whether it was downgraded from
+      // the requested one. The data is in the journal; surface it instead of a
+      // bare "warden.executed" line. Full requested/effective/exit in arcFull.
+      const eff = p.profile_effective || "?";
+      let s = "isolation " + eff;
+      if (p.downgraded) s += " ⚠ downgraded from " + (p.profile_requested || "?");
+      if (p.argv0) s += " · " + String(p.argv0).slice(0, 40);
+      return s;
+    }
     case "llm.response": return p.text_chars != null ? p.text_chars + " chars" : "";
     case "llm.request": {
       // Context inspector (SPEC-10 §3.5): how big was the context and from which
@@ -768,6 +779,19 @@ function arcFull(ev) {
     const out = p.output != null ? p.output : p.result;
     if (out == null || out === "") return "";
     return (p.error ? "error:\n" : "output:\n") + String(out);
+  }
+  if (ev.kind === "warden.executed") {
+    // The isolation card (SPEC-12 §4 / SPEC-07 debug): requested vs effective
+    // warden profile, downgrade flag, and the run facts. Every field is from the
+    // journal payload; rendered via textContent (el()) so it stays data, never code.
+    let s = "isolation\n";
+    s += "  requested : " + (p.profile_requested || "?") + "\n";
+    s += "  effective : " + (p.profile_effective || "?") + (p.downgraded ? "  ⚠ DOWNGRADED" : "") + "\n";
+    if (p.argv0) s += "  command   : " + p.argv0 + "\n";
+    if (p.exit_code != null) s += "  exit code : " + p.exit_code + "\n";
+    if (p.duration_ms != null) s += "  duration  : " + p.duration_ms + "ms\n";
+    if (p.timed_out) s += "  timed out : yes\n";
+    return s;
   }
   if (ev.kind === "llm.request") {
     // The context inspector: total assembled-context size and a per-source

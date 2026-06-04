@@ -93,6 +93,23 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   valid UTF-8. (The journal's own answer truncation was already rune-safe.)
 
 ### Added
+- **Tool isolation now shows up in the run timeline (and `agt why`).** The shell
+  tool runs commands through the Warden, which journals a `warden.executed` event
+  (effective vs requested isolation profile, downgrade flag, exit code) — but it
+  was emitted with an empty correlation id, so the event was orphaned from its
+  run: it never appeared in the run-detail view and `agt why` on it found
+  nothing. The shell tool now stamps the run correlation (read from its context)
+  onto the Warden Spec, so isolation events join their run. The web Live Monitor's
+  run-detail card renders them as an **isolation** line (`isolation none ⚠
+  downgraded from namespace …`) with an expandable requested/effective/exit/
+  duration block — the SPEC-12 §4 / SPEC-07 tool-call debug "isolation" view.
+
+### Fixed
+- **`warden.executed` / `warden.profile_downgraded` events were not linked to
+  their run.** They now carry the originating run's correlation id, so they show
+  in the run timeline and are reachable from `agt why <event-id>`.
+
+### Added
 - **OpenAI-compatible `GET /v1/models/{id}` (retrieve model).** The OpenAI surface
   already listed models at `GET /v1/models`; it now also answers a single-model
   retrieve — what the official SDKs' `models.retrieve(id)` calls for capability

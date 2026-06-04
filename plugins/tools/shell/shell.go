@@ -136,6 +136,10 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, e
 			MaxOutputBytes: MaxOutputBytes,
 		},
 		Actor: "tool.shell",
+		// Stamp the run correlation (set by the runtime on the tool ctx) so the
+		// warden.executed / profile_downgraded events land in this run's timeline
+		// and `agt why` can walk to them. Empty when run outside a kernel run.
+		CorrelationID: warden.CorrelationFrom(ctx),
 	})
 	if err != nil {
 		return agent.Result{

@@ -24,6 +24,45 @@ func (f *fakeWarden) Run(context.Context, warden.Spec) (*warden.Result, error) {
 func (f *fakeWarden) EffectiveProfile(p warden.Profile) warden.Profile         { return p }
 func (f *fakeWarden) SetBus(*bus.Bus)                                          {}
 
+// capturingWarden records the Spec it was asked to run, so a test can assert
+// what the shell tool put on it (e.g. the correlation id read from ctx).
+type capturingWarden struct{ got warden.Spec }
+
+func (c *capturingWarden) Run(_ context.Context, s warden.Spec) (*warden.Result, error) {
+	c.got = s
+	return &warden.Result{ExitCode: 0, Stdout: []byte("ok")}, nil
+}
+func (c *capturingWarden) EffectiveProfile(p warden.Profile) warden.Profile { return p }
+func (c *capturingWarden) SetBus(*bus.Bus)                                  {}
+
+// TestShell_StampsRunCorrelationOnSpec: the shell tool must copy the run
+// correlation from its ctx (set by the runtime via warden.WithCorrelation) onto
+// the warden Spec, so warden.executed lands in the run timeline and `agt why`
+// reaches it. Without it the isolation events are orphaned from the run.
+func TestShell_StampsRunCorrelationOnSpec(t *testing.T) {
+	cw := &capturingWarden{}
+	sh := NewWithWarden(cw)
+	in, _ := json.Marshal(shellInput{Command: "x"})
+
+	ctx := warden.WithCorrelation(context.Background(), "run-CORR-123")
+	if _, err := sh.Invoke(ctx, in); err != nil {
+		t.Fatalf("Invoke: %v", err)
+	}
+	if cw.got.CorrelationID != "run-CORR-123" {
+		t.Errorf("Spec.CorrelationID = %q, want the run correlation from ctx", cw.got.CorrelationID)
+	}
+
+	// No correlation on the ctx → empty, never a panic (e.g. a tool run outside a
+	// kernel run, like the CLI smoke path).
+	cw.got = warden.Spec{}
+	if _, err := sh.Invoke(context.Background(), in); err != nil {
+		t.Fatalf("Invoke (no corr): %v", err)
+	}
+	if cw.got.CorrelationID != "" {
+		t.Errorf("Spec.CorrelationID = %q, want empty with no ctx correlation", cw.got.CorrelationID)
+	}
+}
+
 func TestShell_CombinesStdoutThenStderr(t *testing.T) {
 	sh := NewWithWarden(&fakeWarden{res: &warden.Result{
 		ExitCode: 0, Stdout: []byte("out-data"), Stderr: []byte("err-data"),

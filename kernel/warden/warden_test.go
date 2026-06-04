@@ -16,6 +16,18 @@ import (
 	"github.com/agezt/agezt/kernel/warden"
 )
 
+// TestWithCorrelation_RoundTrips: the ctx helper a warden-backed tool uses to
+// pick up the run correlation round-trips, and defaults to "" when unset.
+func TestWithCorrelation_RoundTrips(t *testing.T) {
+	if got := warden.CorrelationFrom(context.Background()); got != "" {
+		t.Errorf("no-correlation ctx = %q, want empty", got)
+	}
+	ctx := warden.WithCorrelation(context.Background(), "run-abc")
+	if got := warden.CorrelationFrom(ctx); got != "run-abc" {
+		t.Errorf("CorrelationFrom = %q, want run-abc", got)
+	}
+}
+
 // ---- helpers ----
 
 func newBus(t *testing.T) (*bus.Bus, *journal.Journal) {
