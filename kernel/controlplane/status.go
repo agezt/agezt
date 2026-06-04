@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/internal/brand"
+	"github.com/agezt/agezt/internal/strutil"
 	"github.com/agezt/agezt/kernel/event"
 )
 
@@ -38,10 +39,7 @@ func (s *Server) countProviderFallbacks() (int, string) {
 		}
 		if json.Unmarshal(e.Payload, &p) == nil {
 			if r := p.Reason; r != "" {
-				if len(r) > 160 {
-					r = r[:160] + "…"
-				}
-				last = r
+				last = strutil.Ellipsis(r, 160, "…")
 			}
 		}
 		return nil

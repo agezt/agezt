@@ -51,6 +51,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/agezt/agezt/internal/strutil"
 	"github.com/agezt/agezt/kernel/creds/sigv4"
 )
 
@@ -181,7 +182,7 @@ func parseAssumeRoleResponse(resp *http.Response) (*AssumedCreds, error) {
 		// "InvalidClientTokenId").
 		excerpt := string(raw)
 		if len(excerpt) > 512 {
-			excerpt = excerpt[:512] + "..."
+			excerpt = strutil.Ellipsis(excerpt, 512, "...")
 		}
 		return nil, fmt.Errorf("sts assume-role: %s: %s", resp.Status, excerpt)
 	}

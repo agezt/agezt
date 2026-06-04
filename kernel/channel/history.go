@@ -13,8 +13,8 @@ package channel
 import (
 	"encoding/json"
 	"strings"
-	"unicode/utf8"
 
+	"github.com/agezt/agezt/internal/strutil"
 	"github.com/agezt/agezt/kernel/event"
 )
 
@@ -110,14 +110,5 @@ func ConversationHistory(r EventRanger, kind, channelID, sender string, limit in
 // marker when cut. Rune-aware so a multibyte sequence (emoji/CJK, common in
 // chat) is never split into invalid UTF-8.
 func clip(s string, n int) string {
-	s = strings.TrimSpace(s)
-	if len(s) <= n {
-		return s
-	}
-	// Back up to the start of the rune that contains byte n.
-	cut := n
-	for cut > 0 && !utf8.RuneStart(s[cut]) {
-		cut--
-	}
-	return s[:cut] + "…"
+	return strutil.Ellipsis(strings.TrimSpace(s), n, "…")
 }

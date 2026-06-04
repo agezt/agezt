@@ -12,6 +12,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Fixed
+- **Rune-safe display truncation (codebase-wide).** A shared `strutil.Ellipsis`
+  helper now backs every text truncation that reaches a user or the model: the
+  provider-fallback reason in `agt status`, generated-plan node snippets, and AWS
+  SSO/STS/web-identity error excerpts were all converted from byte slices to
+  rune-safe cuts (joining the schedule-intent, coding-diff, and browser-text fixes
+  below). No multi-byte UTF-8 rune (Turkish ç/ş/ğ, CJK, emoji, …) can be split
+  into invalid output anywhere.
 - **Rune-safe display truncation.** Three user-facing truncations — the schedule-
   intent shortener in `agt schedule` / cadence logs, the coding tool's diff
   output, and the **browser tool's extracted page text** sent to the model —

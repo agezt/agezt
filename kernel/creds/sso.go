@@ -41,6 +41,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/agezt/agezt/internal/strutil"
 	"github.com/agezt/agezt/kernel/creds/sigv4"
 )
 
@@ -198,7 +199,7 @@ func parseSSORoleCredentials(resp *http.Response) (*AssumedCreds, error) {
 	if resp.StatusCode != http.StatusOK {
 		excerpt := string(raw)
 		if len(excerpt) > 512 {
-			excerpt = excerpt[:512] + "..."
+			excerpt = strutil.Ellipsis(excerpt, 512, "...")
 		}
 		return nil, fmt.Errorf("sso: %s: %s", resp.Status, excerpt)
 	}

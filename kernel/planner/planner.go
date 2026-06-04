@@ -42,6 +42,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/agezt/agezt/internal/strutil"
 	"github.com/agezt/agezt/kernel/agent"
 )
 
@@ -353,10 +354,5 @@ func validateDAG(nodes []Node, ids map[string]struct{}) error {
 // Truncates so a verbose LLM doesn't dump a multi-kilobyte
 // response into the operator's terminal as part of an error.
 func snippet(s string) string {
-	const max = 200
-	s = strings.TrimSpace(s)
-	if len(s) <= max {
-		return s
-	}
-	return s[:max] + "..."
+	return strutil.Ellipsis(strings.TrimSpace(s), 200, "...")
 }

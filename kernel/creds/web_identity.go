@@ -42,6 +42,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/agezt/agezt/internal/strutil"
 	"github.com/agezt/agezt/kernel/creds/sigv4"
 )
 
@@ -140,7 +141,7 @@ func parseWebIdentityResponse(resp *http.Response) (*AssumedCreds, error) {
 	if resp.StatusCode != http.StatusOK {
 		excerpt := string(raw)
 		if len(excerpt) > 512 {
-			excerpt = excerpt[:512] + "..."
+			excerpt = strutil.Ellipsis(excerpt, 512, "...")
 		}
 		return nil, fmt.Errorf("sts web-identity: %s: %s", resp.Status, excerpt)
 	}
