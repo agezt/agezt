@@ -178,3 +178,30 @@ func TestResponses_AuthRequired(t *testing.T) {
 		t.Errorf("no token should be 401, got %d", rec.Code)
 	}
 }
+
+// TestResponses_JSONMode (M315): the Responses API honours structured output via
+// either text.format.type or a top-level response_format; absence leaves it off.
+func TestResponses_JSONMode(t *testing.T) {
+	post := func(body string) *fakeEngine {
+		eng := &fakeEngine{model: "m", answer: "{}"}
+		s := newAPIServer(t, eng, "secret")
+		req := httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(body))
+		req.Header.Set("Authorization", "Bearer secret")
+		rec := httptest.NewRecorder()
+		s.Handler().ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+		}
+		return eng
+	}
+
+	if e := post(`{"model":"m","input":"x","text":{"format":{"type":"json_object"}}}`); !e.ranJSONMode {
+		t.Error("text.format json_object should set JSON mode")
+	}
+	if e := post(`{"model":"m","input":"x","response_format":{"type":"json_schema"}}`); !e.ranJSONMode {
+		t.Error("top-level response_format json_schema should set JSON mode")
+	}
+	if e := post(`{"model":"m","input":"x"}`); e.ranJSONMode {
+		t.Error("no format → JSON mode must stay off")
+	}
+}

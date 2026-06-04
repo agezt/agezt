@@ -28,6 +28,24 @@ type responsesRequest struct {
 	Input        json.RawMessage `json:"input"`
 	Instructions string          `json:"instructions"`
 	Stream       bool            `json:"stream"`
+	// Structured output (M315): the Responses API carries it as
+	// text.format.type; some SDKs also send a top-level response_format. We
+	// honour either → JSON mode on the run.
+	Text           *responsesText  `json:"text,omitempty"`
+	ResponseFormat *chatRespFormat `json:"response_format,omitempty"`
+}
+
+type responsesText struct {
+	Format *chatRespFormat `json:"format,omitempty"`
+}
+
+// wantsJSON reports whether the request asks for structured JSON output via
+// either the Responses-API text.format or a top-level response_format.
+func (r *responsesRequest) wantsJSON() bool {
+	if r.ResponseFormat.wantsJSON() {
+		return true
+	}
+	return r.Text != nil && r.Text.Format.wantsJSON()
 }
 
 func (s *Server) handleResponses(w http.ResponseWriter, r *http.Request) {
@@ -59,13 +77,15 @@ func (s *Server) handleResponses(w http.ResponseWriter, r *http.Request) {
 		model = eng.DefaultModel()
 	}
 
+	jsonMode := req.wantsJSON() // M315: honour text.format / response_format
+
 	if req.Stream {
-		s.streamResponses(w, r, eng, b, intent, model, images)
+		s.streamResponses(w, r, eng, b, intent, model, images, jsonMode)
 		return
 	}
 
 	corr := eng.NewCorrelation()
-	answer, err := eng.RunModel(r.Context(), corr, intent, model, images, false)
+	answer, err := eng.RunModel(r.Context(), corr, intent, model, images, jsonMode)
 	if err != nil {
 		writeErr(w, http.StatusBadGateway, "upstream_error", err.Error())
 		return
@@ -169,7 +189,7 @@ func responsesUsageFor(eng Engine, corr, prompt, completion string) map[string]a
 // streamResponses relays the run's llm.token events as the Responses SSE event
 // sequence. It subscribes BEFORE starting the run so no early token is missed
 // (the same no-race pattern as streamChat).
-func (s *Server) streamResponses(w http.ResponseWriter, r *http.Request, eng Engine, b *bus.Bus, intent, model string, images []string) {
+func (s *Server) streamResponses(w http.ResponseWriter, r *http.Request, eng Engine, b *bus.Bus, intent, model string, images []string, jsonMode bool) {
 	flusher, ok := w.(http.Flusher)
 	if !ok {
 		writeErr(w, http.StatusInternalServerError, "stream_unsupported", "streaming unsupported")
@@ -213,7 +233,7 @@ func (s *Server) streamResponses(w http.ResponseWriter, r *http.Request, eng Eng
 	}
 	done := make(chan result, 1)
 	go func() {
-		ans, err := eng.RunModel(r.Context(), corr, intent, model, images, false)
+		ans, err := eng.RunModel(r.Context(), corr, intent, model, images, jsonMode)
 		done <- result{ans, err}
 	}()
 
