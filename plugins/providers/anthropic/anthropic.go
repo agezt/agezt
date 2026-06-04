@@ -220,16 +220,17 @@ type anthResponse struct {
 // agent.Usage (M290). Anthropic reports input_tokens EXCLUDING cached prompt
 // tokens, with cache_read_input_tokens and cache_creation_input_tokens reported
 // separately — so the real prompt size is their sum. Cache reads are marked
-// cached (billed at the cheaper cache-read rate, M289); cache-creation tokens
-// fold into the input total (billed at the input rate — the cache-write premium
-// is not modelled yet). Before this, the two cache counts were dropped, so
-// cached prompt tokens were billed at zero (an under-count when caching was on).
+// cached (billed at the cheaper cache-read rate, M289) and cache-creation as
+// cache-write (billed at the cache-write premium, M291). Before this, the two
+// cache counts were dropped, so cached prompt tokens were billed at zero (an
+// under-count when caching was on).
 func anthUsageToAgent(inputTokens, cacheRead, cacheCreation, outputTokens int, model string) agent.Usage {
 	return agent.Usage{
-		InputTokens:       inputTokens + cacheRead + cacheCreation,
-		CachedInputTokens: cacheRead,
-		OutputTokens:      outputTokens,
-		Model:             model,
+		InputTokens:           inputTokens + cacheRead + cacheCreation,
+		CachedInputTokens:     cacheRead,
+		CacheWriteInputTokens: cacheCreation,
+		OutputTokens:          outputTokens,
+		Model:                 model,
 	}
 }
 

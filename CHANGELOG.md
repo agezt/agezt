@@ -12,6 +12,16 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Cache-write premium billing.** Prompt-cache *creation* tokens are now billed
+  at the model's cache-write rate (a premium over input — Anthropic's 1.25×)
+  rather than folded into the input rate. New `agent.Usage.CacheWriteInputTokens`
+  + `catalog.Cost.cache_write` → `modelPrice.CacheWriteMicrocentsPerMTok`; the
+  governor bills `fresh·input + read·cache_read + write·cache_write + output` and
+  records `cache_write_input_tokens` on `budget.consumed`. The Anthropic providers
+  map `cache_creation_input_tokens` into the new field; the fallback Claude prices
+  carry the 1.25× cache-write list. A model with no cache-write price bills those
+  tokens at the input rate (conservative). Completes the cache cost model
+  (fresh / cache-read / cache-write / output).
 - **Anthropic cache-token accounting.** The Anthropic providers (direct +
   Anthropic-on-Vertex, streaming and non-streaming) now parse
   `cache_read_input_tokens` and `cache_creation_input_tokens`. Anthropic reports

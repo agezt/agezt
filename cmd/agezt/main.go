@@ -2752,7 +2752,7 @@ func newDemoMock() agent.Provider {
 	if os.Getenv(brand.EnvPrefix+"DEMO_CACHED") == "1" {
 		return mock.New(mock.WithUsage(
 			mock.FinalText("[offline-mock] answered with a mostly-cached prompt."),
-			agent.Usage{InputTokens: 10000, CachedInputTokens: 9000, OutputTokens: 200, Model: "claude-sonnet-4-6"},
+			agent.Usage{InputTokens: 10000, CachedInputTokens: 9000, CacheWriteInputTokens: 500, OutputTokens: 200, Model: "claude-sonnet-4-6"},
 		))
 	}
 	// Demo escape hatch: AGEZT_DEMO_ECHO=1 makes the mock ECHO the last user

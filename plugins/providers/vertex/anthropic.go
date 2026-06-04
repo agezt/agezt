@@ -154,13 +154,15 @@ type anthVxResponse struct {
 // anthVxUsageToAgent maps Anthropic-on-Vertex split token counts to agent.Usage
 // (M290), mirroring the direct-Anthropic provider: input_tokens excludes cached
 // prompt tokens, so the real prompt is input + cache_read + cache_creation;
-// cache reads are marked cached (cheaper rate), cache-creation folds into input.
+// cache reads are marked cached (cheaper rate), cache-creation as cache-write
+// (the cache-write premium, M291).
 func anthVxUsageToAgent(inputTokens, cacheRead, cacheCreation, outputTokens int, model string) agent.Usage {
 	return agent.Usage{
-		InputTokens:       inputTokens + cacheRead + cacheCreation,
-		CachedInputTokens: cacheRead,
-		OutputTokens:      outputTokens,
-		Model:             model,
+		InputTokens:           inputTokens + cacheRead + cacheCreation,
+		CachedInputTokens:     cacheRead,
+		CacheWriteInputTokens: cacheCreation,
+		OutputTokens:          outputTokens,
+		Model:                 model,
 	}
 }
 

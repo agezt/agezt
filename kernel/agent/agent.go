@@ -118,8 +118,13 @@ type Usage struct {
 	// CachedInputTokens is the subset of InputTokens that hit the provider's
 	// prompt cache (0 when the provider reports none / doesn't support it).
 	// Billed at the model's cache-read rate; see governor.costMicrocentsCached.
-	CachedInputTokens int    `json:"cached_input_tokens,omitempty"`
-	Model             string `json:"model,omitempty"`
+	CachedInputTokens int `json:"cached_input_tokens,omitempty"`
+	// CacheWriteInputTokens is the subset of InputTokens written into the
+	// provider's prompt cache this call (Anthropic's cache_creation_input_tokens;
+	// 0 for providers without a separate cache-write count). Billed at the
+	// model's cache-write rate (typically a premium over input).
+	CacheWriteInputTokens int    `json:"cache_write_input_tokens,omitempty"`
+	Model                 string `json:"model,omitempty"`
 }
 
 // Provider is implemented by anything that can drive a chat completion. For

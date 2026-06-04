@@ -39,6 +39,9 @@ type modelPrice struct {
 	// the full input rate). Only the fallback table's pay-models leave it 0; the
 	// live catalog populates it from cost.cache_read where present.
 	CacheReadMicrocentsPerMTok int64
+	// CacheWriteMicrocentsPerMTok is the price of a token written into the cache
+	// (0 → billed at the input rate). Populated from cost.cache_write.
+	CacheWriteMicrocentsPerMTok int64
 }
 
 // liveCatalog is the swap-in catalog source consulted before the
@@ -62,14 +65,14 @@ func SetCatalog(c *catalog.Catalog) {
 // tokens bill at the input rate); the live catalog supplies cache-read prices.
 var modelPriceTable = map[string]modelPrice{
 	// Anthropic Claude (USD list per MTok, ×10^9 → microcents). Cache-read is
-	// Anthropic's 0.1× input list price (M289).
-	"claude-opus-4-7":           {InputMicrocentsPerMTok: 1_500_000_000, OutputMicrocentsPerMTok: 7_500_000_000, CacheReadMicrocentsPerMTok: 150_000_000},
-	"claude-opus-4-7[1m]":       {InputMicrocentsPerMTok: 1_500_000_000, OutputMicrocentsPerMTok: 7_500_000_000, CacheReadMicrocentsPerMTok: 150_000_000},
-	"claude-opus-4-6":           {InputMicrocentsPerMTok: 1_500_000_000, OutputMicrocentsPerMTok: 7_500_000_000, CacheReadMicrocentsPerMTok: 150_000_000},
-	"claude-sonnet-4-6":         {InputMicrocentsPerMTok: 300_000_000, OutputMicrocentsPerMTok: 1_500_000_000, CacheReadMicrocentsPerMTok: 30_000_000},
-	"claude-sonnet-4-5":         {InputMicrocentsPerMTok: 300_000_000, OutputMicrocentsPerMTok: 1_500_000_000, CacheReadMicrocentsPerMTok: 30_000_000},
-	"claude-haiku-4-5":          {InputMicrocentsPerMTok: 80_000_000, OutputMicrocentsPerMTok: 400_000_000, CacheReadMicrocentsPerMTok: 8_000_000},
-	"claude-haiku-4-5-20251001": {InputMicrocentsPerMTok: 80_000_000, OutputMicrocentsPerMTok: 400_000_000, CacheReadMicrocentsPerMTok: 8_000_000},
+	// Anthropic's 0.1× input, cache-write 1.25× input list price (M289/M291).
+	"claude-opus-4-7":           {InputMicrocentsPerMTok: 1_500_000_000, OutputMicrocentsPerMTok: 7_500_000_000, CacheReadMicrocentsPerMTok: 150_000_000, CacheWriteMicrocentsPerMTok: 1_875_000_000},
+	"claude-opus-4-7[1m]":       {InputMicrocentsPerMTok: 1_500_000_000, OutputMicrocentsPerMTok: 7_500_000_000, CacheReadMicrocentsPerMTok: 150_000_000, CacheWriteMicrocentsPerMTok: 1_875_000_000},
+	"claude-opus-4-6":           {InputMicrocentsPerMTok: 1_500_000_000, OutputMicrocentsPerMTok: 7_500_000_000, CacheReadMicrocentsPerMTok: 150_000_000, CacheWriteMicrocentsPerMTok: 1_875_000_000},
+	"claude-sonnet-4-6":         {InputMicrocentsPerMTok: 300_000_000, OutputMicrocentsPerMTok: 1_500_000_000, CacheReadMicrocentsPerMTok: 30_000_000, CacheWriteMicrocentsPerMTok: 375_000_000},
+	"claude-sonnet-4-5":         {InputMicrocentsPerMTok: 300_000_000, OutputMicrocentsPerMTok: 1_500_000_000, CacheReadMicrocentsPerMTok: 30_000_000, CacheWriteMicrocentsPerMTok: 375_000_000},
+	"claude-haiku-4-5":          {InputMicrocentsPerMTok: 80_000_000, OutputMicrocentsPerMTok: 400_000_000, CacheReadMicrocentsPerMTok: 8_000_000, CacheWriteMicrocentsPerMTok: 100_000_000},
+	"claude-haiku-4-5-20251001": {InputMicrocentsPerMTok: 80_000_000, OutputMicrocentsPerMTok: 400_000_000, CacheReadMicrocentsPerMTok: 8_000_000, CacheWriteMicrocentsPerMTok: 100_000_000},
 
 	// Ollama / local models — always free.
 	"llama3.2": {},
@@ -117,9 +120,10 @@ func priceForOk(model string) (modelPrice, bool) {
 	if c := liveCatalog.Load(); c != nil {
 		if _, m := c.FindModel(model); m != nil && m.Cost != nil {
 			return modelPrice{
-				InputMicrocentsPerMTok:     m.Cost.InputMicrocentsPerMTok(),
-				OutputMicrocentsPerMTok:    m.Cost.OutputMicrocentsPerMTok(),
-				CacheReadMicrocentsPerMTok: m.Cost.CacheReadMicrocentsPerMTok(),
+				InputMicrocentsPerMTok:      m.Cost.InputMicrocentsPerMTok(),
+				OutputMicrocentsPerMTok:     m.Cost.OutputMicrocentsPerMTok(),
+				CacheReadMicrocentsPerMTok:  m.Cost.CacheReadMicrocentsPerMTok(),
+				CacheWriteMicrocentsPerMTok: m.Cost.CacheWriteMicrocentsPerMTok(),
 			}, true
 		}
 	}
@@ -192,36 +196,52 @@ func costMicrocents(model string, inputTokens, outputTokens int) int64 {
 	return totalMicromicrocents / 1_000_000
 }
 
-// costMicrocentsCached is the cache-aware billing path (M289): cachedTokens are a
-// SUBSET of inputTokens that hit the provider's prompt cache and bill at the
-// model's cache-read rate instead of the full input rate. The fresh (uncached)
-// remainder bills at the input rate, output at the output rate. Same saturating
-// integer math as costMicrocents.
+// costMicrocentsCached is the cache-aware billing path (M289/M291). cachedTokens
+// (prompt-cache reads) and writeTokens (prompt-cache creations) are SUBSETS of
+// inputTokens: reads bill at the cache-read rate, writes at the cache-write rate,
+// and the fresh remainder at the input rate. Same saturating integer math as
+// costMicrocents.
 //
-//	cost = (input-cached)*input_rate + cached*cache_read_rate + output*output_rate
+//	cost = fresh*input + cached*cache_read + write*cache_write + output*output
+//	fresh = input - cached - write
 //
-// A model with no separate cache price (CacheRead == 0) bills cached tokens at
-// the full input rate — conservative (never under-bill an unknown cache rate),
-// so the result is identical to costMicrocents for such models. With cachedTokens
-// == 0 the result is always identical to costMicrocents.
-func costMicrocentsCached(model string, inputTokens, cachedTokens, outputTokens int) int64 {
+// A subset with no separate price (CacheRead/CacheWrite == 0) bills at the full
+// input rate — conservative (never under-bill an unknown cache rate). With
+// cachedTokens == writeTokens == 0 the result is identical to costMicrocents.
+func costMicrocentsCached(model string, inputTokens, cachedTokens, writeTokens, outputTokens int) int64 {
 	p := priceFor(model)
 	if cachedTokens < 0 {
 		cachedTokens = 0
 	}
+	if writeTokens < 0 {
+		writeTokens = 0
+	}
+	// cached + write are subsets of the prompt; clamp their sum to inputTokens
+	// (a buggy/hostile report claiming more must not credit the ledger).
 	if cachedTokens > inputTokens {
-		cachedTokens = inputTokens // cached is a subset of the prompt
+		cachedTokens = inputTokens
+	}
+	if cachedTokens+writeTokens > inputTokens {
+		writeTokens = inputTokens - cachedTokens
 	}
 	cacheRate := p.CacheReadMicrocentsPerMTok
 	if cacheRate <= 0 {
-		cacheRate = p.InputMicrocentsPerMTok // no cache price → full input rate
+		cacheRate = p.InputMicrocentsPerMTok // no cache-read price → full input rate
 	}
+	writeRate := p.CacheWriteMicrocentsPerMTok
+	if writeRate <= 0 {
+		writeRate = p.InputMicrocentsPerMTok // no cache-write price → full input rate
+	}
+	fresh := inputTokens - cachedTokens - writeTokens
 	totalMicromicrocents := saturatingAdd(
 		saturatingAdd(
-			saturatingMul(inputTokens-cachedTokens, p.InputMicrocentsPerMTok),
+			saturatingMul(fresh, p.InputMicrocentsPerMTok),
 			saturatingMul(cachedTokens, cacheRate),
 		),
-		saturatingMul(outputTokens, p.OutputMicrocentsPerMTok),
+		saturatingAdd(
+			saturatingMul(writeTokens, writeRate),
+			saturatingMul(outputTokens, p.OutputMicrocentsPerMTok),
+		),
 	)
 	return totalMicromicrocents / 1_000_000
 }

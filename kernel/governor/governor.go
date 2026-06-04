@@ -648,9 +648,10 @@ func (g *Governor) recordUsage(p *ProviderInfo, req agent.CompletionRequest, res
 	if outTok < 0 {
 		outTok = 0
 	}
-	// Prompt-cached input tokens (M289) bill at the model's cache-read rate.
-	// Clamp to [0, inTok] — cached is a subset of the prompt; a buggy endpoint
-	// claiming more cached than input must not credit the ledger.
+	// Prompt-cache tokens bill at the cache-read (M289) / cache-write (M291)
+	// rates. Clamp to [0, inTok]; cached+write are subsets of the prompt, so a
+	// buggy endpoint claiming more must not credit the ledger (costMicrocentsCached
+	// re-clamps defensively too).
 	cachedTok := resp.Usage.CachedInputTokens
 	if cachedTok < 0 {
 		cachedTok = 0
@@ -658,7 +659,14 @@ func (g *Governor) recordUsage(p *ProviderInfo, req agent.CompletionRequest, res
 	if cachedTok > inTok {
 		cachedTok = inTok
 	}
-	cost := costMicrocentsCached(model, inTok, cachedTok, outTok)
+	writeTok := resp.Usage.CacheWriteInputTokens
+	if writeTok < 0 {
+		writeTok = 0
+	}
+	if cachedTok+writeTok > inTok {
+		writeTok = inTok - cachedTok
+	}
+	cost := costMicrocentsCached(model, inTok, cachedTok, writeTok, outTok)
 
 	g.mu.Lock()
 	g.rolloverIfNeededLocked()
@@ -679,15 +687,16 @@ func (g *Governor) recordUsage(p *ProviderInfo, req agent.CompletionRequest, res
 		// no CorrelationID (e.g. an out-of-run governor call).
 		CorrelationID: req.CorrelationID,
 		Payload: map[string]any{
-			"provider":            p.Name,
-			"model":               model,
-			"input_tokens":        inTok,
-			"cached_input_tokens": cachedTok,
-			"output_tokens":       outTok,
-			"cost_microcents":     cost,
-			"spent_today_mc":      spent,
-			"ceiling_mc":          g.cfg.DailyCeilingMicrocents,
-			"correlation_id":      req.CorrelationID,
+			"provider":                 p.Name,
+			"model":                    model,
+			"input_tokens":             inTok,
+			"cached_input_tokens":      cachedTok,
+			"cache_write_input_tokens": writeTok,
+			"output_tokens":            outTok,
+			"cost_microcents":          cost,
+			"spent_today_mc":           spent,
+			"ceiling_mc":               g.cfg.DailyCeilingMicrocents,
+			"correlation_id":           req.CorrelationID,
 		},
 	})
 }

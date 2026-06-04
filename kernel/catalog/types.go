@@ -265,6 +265,17 @@ func (c *Cost) CacheReadMicrocentsPerMTok() int64 {
 	return int64(c.CacheRead * 1_000_000_000)
 }
 
+// CacheWriteMicrocentsPerMTok is the prompt-cache write (creation) price in
+// USD-microcents per MTok (0 when the model has no separate cache-write price).
+// A token written into the cache is billed at this rate (typically a premium
+// over the input rate).
+func (c *Cost) CacheWriteMicrocentsPerMTok() int64 {
+	if c == nil {
+		return 0
+	}
+	return int64(c.CacheWrite * 1_000_000_000)
+}
+
 // Catalog is the in-memory union of every loaded source (api.json +
 // local.json + custom.json), with custom > local > api precedence
 // already applied. Safe to read concurrently; rebuild with Reload.

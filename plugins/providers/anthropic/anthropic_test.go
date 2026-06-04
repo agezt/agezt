@@ -214,6 +214,9 @@ func TestDecodeResponse_CacheUsage(t *testing.T) {
 	if got.Usage.CachedInputTokens != 900 {
 		t.Errorf("CachedInputTokens=%d want 900 (cache_read)", got.Usage.CachedInputTokens)
 	}
+	if got.Usage.CacheWriteInputTokens != 50 {
+		t.Errorf("CacheWriteInputTokens=%d want 50 (cache_creation)", got.Usage.CacheWriteInputTokens)
+	}
 	if got.Usage.OutputTokens != 20 {
 		t.Errorf("OutputTokens=%d want 20", got.Usage.OutputTokens)
 	}
