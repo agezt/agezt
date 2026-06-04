@@ -98,12 +98,12 @@ func encodeStreamRequest(model, system string, msgs []agent.Message, tools []age
 	type streamReq struct {
 		Model     string        `json:"model"`
 		MaxTokens int           `json:"max_tokens"`
-		System    string        `json:"system,omitempty"`
+		System    any           `json:"system,omitempty"`
 		Messages  []anthMessage `json:"messages"`
 		Tools     []anthTool    `json:"tools,omitempty"`
 		Stream    bool          `json:"stream"`
 	}
-	wire := streamReq{Model: model, MaxTokens: maxTok, System: system, Stream: true, Tools: buildAnthTools(tools)}
+	wire := streamReq{Model: model, MaxTokens: maxTok, System: buildAnthSystem(system), Stream: true, Tools: buildAnthTools(tools)}
 	for _, m := range msgs {
 		am, err := canonicalToAnth(m)
 		if err != nil {

@@ -39,8 +39,10 @@ func TestComplete_HappyPath_TextOnly(t *testing.T) {
 		if !strings.Contains(string(body), `"model":"test-model"`) {
 			t.Errorf("body missing model: %s", body)
 		}
-		if !strings.Contains(string(body), `"system":"sys"`) {
-			t.Errorf("body missing system: %s", body)
+		// M301: system is sent as a cache-marked block array, not a bare string.
+		if !strings.Contains(string(body), `"text":"sys"`) ||
+			!strings.Contains(string(body), `"cache_control":{"type":"ephemeral"}`) {
+			t.Errorf("body missing cache-marked system block: %s", body)
 		}
 		w.WriteHeader(200)
 		w.Write([]byte(`{
@@ -171,8 +173,22 @@ func TestEncodeRequest_SystemFieldRespected(t *testing.T) {
 	body, _ := encodeRequest("m", "you are precise", []agent.Message{
 		{Role: agent.RoleUser, Content: "hi"},
 	}, nil, 100)
-	if !strings.Contains(string(body), `"system":"you are precise"`) {
-		t.Errorf("missing system field: %s", body)
+	// M301: the system prompt is sent as a cache-marked block array so it is
+	// cached alongside the tools.
+	if !strings.Contains(string(body), `"text":"you are precise"`) {
+		t.Errorf("missing system text: %s", body)
+	}
+	if !strings.Contains(string(body), `"cache_control":{"type":"ephemeral"}`) {
+		t.Errorf("system block missing cache_control: %s", body)
+	}
+}
+
+// TestEncodeRequest_EmptySystemOmitted verifies an empty system prompt is omitted
+// entirely (no empty block array) so a system-less request is unchanged.
+func TestEncodeRequest_EmptySystemOmitted(t *testing.T) {
+	body, _ := encodeRequest("m", "", []agent.Message{{Role: agent.RoleUser, Content: "hi"}}, nil, 100)
+	if strings.Contains(string(body), `"system"`) {
+		t.Errorf("empty system must be omitted: %s", body)
 	}
 }
 

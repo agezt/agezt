@@ -160,13 +160,36 @@ func (p *Provider) Complete(ctx context.Context, req agent.CompletionRequest) (*
 
 // ----- dialect translation (canonical ↔ Anthropic) -----
 
-// anthRequest is the wire-shape of a Messages API request.
+// anthRequest is the wire-shape of a Messages API request. System is `any` so it
+// can be the plain-string form OR the block-array form that carries a prompt-cache
+// breakpoint (M301); buildAnthSystem picks the shape.
 type anthRequest struct {
 	Model     string        `json:"model"`
 	MaxTokens int           `json:"max_tokens"`
-	System    string        `json:"system,omitempty"`
+	System    any           `json:"system,omitempty"`
 	Messages  []anthMessage `json:"messages"`
 	Tools     []anthTool    `json:"tools,omitempty"`
+}
+
+// anthSystemBlock is one element of the array form of the system prompt — used
+// when caching so the (large, stable) system prompt carries a cache_control
+// breakpoint. Anthropic caches the prefix tools→system, so marking the system
+// block caches tools AND system, the whole stable prefix of an agent loop.
+type anthSystemBlock struct {
+	Type         string            `json:"type"` // "text"
+	Text         string            `json:"text"`
+	CacheControl *anthCacheControl `json:"cache_control,omitempty"`
+}
+
+// buildAnthSystem returns the system field: nil when empty (omitted), else a
+// one-element block array with a cache_control breakpoint (M301). Anthropic
+// accepts both the string and the array form; the array form lets the stable
+// system prompt be cached alongside the tools (cache reads bill at ~0.1× input).
+func buildAnthSystem(system string) any {
+	if system == "" {
+		return nil
+	}
+	return []anthSystemBlock{{Type: "text", Text: system, CacheControl: &anthCacheControl{Type: "ephemeral"}}}
 }
 
 type anthTool struct {
@@ -265,7 +288,7 @@ func encodeRequest(model, system string, msgs []agent.Message, tools []agent.Too
 	wire := anthRequest{
 		Model:     model,
 		MaxTokens: maxTok,
-		System:    system,
+		System:    buildAnthSystem(system),
 		Tools:     buildAnthTools(tools),
 	}
 	for _, m := range msgs {
