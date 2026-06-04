@@ -141,6 +141,7 @@ func TestEncodeRequest_RolesAndTools(t *testing.T) {
 			{Role: agent.RoleTool, ToolCallID: "c1", Content: "file1\nfile2"},
 		},
 		[]agent.ToolDef{{Name: "shell", Description: "run a command", InputSchema: json.RawMessage(`{"type":"object"}`)}},
+		0,
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -161,5 +162,32 @@ func TestRoleTool_RequiresID(t *testing.T) {
 	_, err := canonicalToOllama(agent.Message{Role: agent.RoleTool, Content: "x"})
 	if err == nil || !strings.Contains(err.Error(), "tool_call_id") {
 		t.Errorf("expected tool_call_id error; got %v", err)
+	}
+}
+
+// TestEncodeRequest_MaxTokensAsNumPredict (M310): the run's token cap is
+// forwarded as Ollama's options.num_predict; 0 omits it (Ollama's own default).
+func TestEncodeRequest_MaxTokensAsNumPredict(t *testing.T) {
+	body, err := encodeRequest("llama3", "", []agent.Message{{Role: agent.RoleUser, Content: "hi"}}, nil, 256)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var req struct {
+		Options map[string]any `json:"options"`
+	}
+	if err := json.Unmarshal(body, &req); err != nil {
+		t.Fatal(err)
+	}
+	if req.Options == nil || req.Options["num_predict"] == nil {
+		t.Fatalf("num_predict missing from options: %s", body)
+	}
+	if n, _ := req.Options["num_predict"].(float64); n != 256 {
+		t.Errorf("num_predict=%v want 256", req.Options["num_predict"])
+	}
+
+	// 0 → options omitted entirely (no behaviour change for uncapped runs).
+	body0, _ := encodeRequest("llama3", "", []agent.Message{{Role: agent.RoleUser, Content: "hi"}}, nil, 0)
+	if strings.Contains(string(body0), "num_predict") {
+		t.Errorf("maxTokens=0 must omit num_predict: %s", body0)
 	}
 }

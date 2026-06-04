@@ -12,6 +12,10 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Fixed
+- **Ollama now honours the run's token cap.** `MaxTokens` is forwarded as
+  Ollama's `options.num_predict`, so a local model respects the same output limit
+  every cloud provider enforces — previously the cap was silently dropped on
+  Ollama. Uncapped runs are unchanged.
 - **Credential vault: a corrupt or tampered vault file no longer crashes the
   process.** `decryptVault` now validates the nonce length before calling
   AES-GCM `Open` — Go's GCM *panics* (rather than returning an error) on a nonce

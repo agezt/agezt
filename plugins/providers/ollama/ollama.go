@@ -108,7 +108,7 @@ func (p *Provider) Complete(ctx context.Context, req agent.CompletionRequest) (*
 		model = DefaultModel
 	}
 
-	body, err := encodeRequest(model, req.System, req.Messages, req.Tools)
+	body, err := encodeRequest(model, req.System, req.Messages, req.Tools, req.MaxTokens)
 	if err != nil {
 		return nil, fmt.Errorf("ollama: encode request: %w", err)
 	}
@@ -188,10 +188,18 @@ type ollamaResponse struct {
 	EvalCount       int `json:"eval_count"`
 }
 
-func encodeRequest(model, system string, msgs []agent.Message, tools []agent.ToolDef) ([]byte, error) {
+func encodeRequest(model, system string, msgs []agent.Message, tools []agent.ToolDef, maxTokens int) ([]byte, error) {
 	out := ollamaRequest{
 		Model:  model,
 		Stream: false,
+	}
+	// Honour the run's token cap (M310): Ollama's equivalent of max_tokens is
+	// options.num_predict. Without this an Ollama run ignored MaxTokens that
+	// every cloud provider enforces — and the decoder already maps Ollama's
+	// done_reason=="length" to StopMaxTokens, so the cap was expected on the way
+	// back but never sent on the way out. 0 → omitted (Ollama's own default).
+	if maxTokens > 0 {
+		out.Options = map[string]any{"num_predict": maxTokens}
 	}
 	if system != "" {
 		out.Messages = append(out.Messages, ollamaMessage{Role: "system", Content: system})

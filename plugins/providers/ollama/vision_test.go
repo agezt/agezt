@@ -26,7 +26,7 @@ func TestEncodeRequest_VisionImagesAsRawBase64(t *testing.T) {
 			Role:    agent.RoleUser,
 			Content: "what is in this image?",
 			Images:  []string{dataURL, "https://example.com/cant-fetch.png", "legacy-bare.png"},
-		}}, nil)
+		}}, nil, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -63,7 +63,7 @@ func TestEncodeRequest_VisionImagesAsRawBase64(t *testing.T) {
 // unchanged.
 func TestEncodeRequest_NoImagesOmitsField(t *testing.T) {
 	body, err := encodeRequest("llama3", "",
-		[]agent.Message{{Role: agent.RoleUser, Content: "hi"}}, nil)
+		[]agent.Message{{Role: agent.RoleUser, Content: "hi"}}, nil, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
