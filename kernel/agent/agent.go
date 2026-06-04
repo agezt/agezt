@@ -225,6 +225,59 @@ type LoopConfig struct {
 	// pricing; the kernel wires governor.CostMicrocents. nil disables cost
 	// accounting entirely (MaxRunCostMicrocents is then inert).
 	CostFn func(model string, inputTokens, outputTokens int) int64
+	// Artifacts, when non-nil, offloads a tool output larger than
+	// ArtifactThreshold bytes into a content-addressed store, so the journaled
+	// tool.result carries a small preview + a raw_ref instead of the full bytes
+	// (SPEC-04 §3.6 / SPEC-01 §10.2). The MODEL still receives the complete
+	// output — only the journal event is slimmed. A Put failure falls back to
+	// inlining, so storage trouble never fails a run. nil disables offload.
+	Artifacts ArtifactPutter
+	// ArtifactThreshold is the byte size above which a tool output is offloaded.
+	// 0 with a non-nil Artifacts uses DefaultArtifactThreshold.
+	ArtifactThreshold int
+}
+
+// ArtifactPutter is the slice of a content-addressed store the loop needs to
+// offload large outputs. kernel/artifact.Store satisfies it. An interface keeps
+// kernel/agent decoupled from the storage package.
+type ArtifactPutter interface {
+	Put(data []byte) (ref string, err error)
+}
+
+// DefaultArtifactThreshold is the tool-output size above which the journal event
+// offloads to the artifact store (the model still sees the full output). 8 KiB
+// keeps ordinary results inline while bounding the event for big dumps.
+const DefaultArtifactThreshold = 8 << 10
+
+// artifactPreviewBytes is how much of an offloaded output stays inline on the
+// event as a human-readable preview.
+const artifactPreviewBytes = 512
+
+// offloadToolOutput decides how a tool output is represented ON THE EVENT. When a
+// store is configured and the output exceeds the threshold, it stores the full
+// bytes and returns a preview + ref + true; otherwise (no store, small output, or
+// a Put error) it returns the output unchanged and offloaded=false. It never
+// returns an error — offload is best-effort and must not fail the run.
+func offloadToolOutput(store ArtifactPutter, threshold int, output string) (eventOutput, rawRef string, fullBytes int, offloaded bool) {
+	fullBytes = len(output)
+	if store == nil {
+		return output, "", fullBytes, false
+	}
+	if threshold <= 0 {
+		threshold = DefaultArtifactThreshold
+	}
+	if fullBytes <= threshold {
+		return output, "", fullBytes, false
+	}
+	ref, err := store.Put([]byte(output))
+	if err != nil || ref == "" {
+		return output, "", fullBytes, false // fall back to inlining
+	}
+	preview := output
+	if len(preview) > artifactPreviewBytes {
+		preview = preview[:artifactPreviewBytes] + "…[offloaded; full output in artifact " + ref + "]"
+	}
+	return preview, ref, fullBytes, true
 }
 
 // PolicyVerdict is the contract between the loop and the policy engine
@@ -720,12 +773,21 @@ func Run(ctx context.Context, cfg LoopConfig, userIntent string) (answer string,
 				}
 			}
 
-			if _, err := publish(event.KindToolResult, "tool", map[string]any{
+			// Offload a large output out of the journal event (SPEC-04 §3.6 /
+			// SPEC-01 §10.2): the event carries a preview + raw_ref; the MODEL
+			// still gets the full output via the tool message below.
+			eventOutput, rawRef, fullBytes, offloaded := offloadToolOutput(cfg.Artifacts, cfg.ArtifactThreshold, result.Output)
+			resultPayload := map[string]any{
 				"tool":    tc.Name,
 				"call_id": tc.ID,
-				"output":  result.Output,
+				"output":  eventOutput,
 				"error":   result.IsError,
-			}); err != nil {
+			}
+			if offloaded {
+				resultPayload["raw_ref"] = rawRef
+				resultPayload["output_bytes"] = fullBytes
+			}
+			if _, err := publish(event.KindToolResult, "tool", resultPayload); err != nil {
 				return "", fmt.Errorf("agent: publish tool.result: %w", err)
 			}
 

@@ -308,6 +308,18 @@ func runDaemon(stdout, stderr io.Writer) int {
 		subAgentSpendCap = int64(usd * 1e9)
 	}
 
+	// Artifact offload threshold (SPEC-04 §3.6): tool outputs larger than this are
+	// stored content-addressed and the journal event carries a raw_ref + preview.
+	// Unset/invalid → the kernel default (agent.DefaultArtifactThreshold).
+	artifactThreshold := 0
+	if v := os.Getenv(brand.EnvPrefix + "ARTIFACT_THRESHOLD"); v != "" {
+		if n, perr := strconv.Atoi(v); perr == nil && n > 0 {
+			artifactThreshold = n
+		} else {
+			fmt.Fprintf(stderr, "%s: %sARTIFACT_THRESHOLD: want a positive byte count, got %q (using default)\n", brand.Binary, brand.EnvPrefix, v)
+		}
+	}
+
 	cfg := kernelruntime.Config{
 		BaseDir:                    baseDir,
 		Provider:                   gov, // Governor implements agent.Provider
@@ -330,6 +342,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 		SkillTopK:                  3,
 		SkillForge:                 forgeOn,
 		SkillForgeMinTools:         4,
+		ArtifactThreshold:          artifactThreshold,
 		SubAgentTool:               subAgentOn,
 		SubAgentMaxDepth:           subAgentDepth,
 		SubAgentMaxFanout:          subAgentFanout,

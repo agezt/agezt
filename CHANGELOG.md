@@ -102,6 +102,14 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   valid UTF-8. (The journal's own answer truncation was already rune-safe.)
 
 ### Added
+- **Large tool outputs are offloaded to a content-addressed store, not inlined in
+  the journal (SPEC-04 §3.6).** When a tool returns more than a threshold (8 KiB
+  by default; `AGEZT_ARTIFACT_THRESHOLD` to tune), the agent loop stores the full
+  output in `~/.agezt/artifacts/` keyed by its BLAKE3 hash and the journaled
+  `tool.result` carries a short preview + a `raw_ref` + `output_bytes` instead of
+  the whole blob — so the event log stays small while the output survives,
+  deduplicates, and is retrievable by ref. The model still receives the complete
+  output. Backed by the new `kernel/artifact` blob store.
 - **Skills that repeatedly fail in production are auto-quarantined (SPEC-05 §5).**
   A run now attributes its outcome (success/failure) to the active skills it
   activated, and the Forge pulls a skill from production once it crosses a

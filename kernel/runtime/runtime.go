@@ -22,6 +22,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/approval"
+	"github.com/agezt/agezt/kernel/artifact"
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/cadence"
 	"github.com/agezt/agezt/kernel/catalog"
@@ -231,6 +232,12 @@ type Config struct {
 	SkillForge         bool
 	SkillForgeMinTools int
 
+	// ArtifactThreshold is the tool-output byte size above which the agent loop
+	// offloads the output to the content-addressed artifact store and journals a
+	// raw_ref + preview instead of the full bytes (SPEC-04 §3.6 / SPEC-01 §10.2).
+	// 0 uses agent.DefaultArtifactThreshold.
+	ArtifactThreshold int
+
 	// OnReload is invoked by Kernel.Reload() AFTER the catalog snapshot
 	// has been refreshed from disk. The closure is supplied by the
 	// daemon and is expected to:
@@ -265,6 +272,7 @@ type Kernel struct {
 	worldDir  *worldmodel.FileStore
 	forge     *skill.Forge
 	skillDir  *skill.FileStore
+	artifacts *artifact.Store
 	reflect   *reflect.Engine
 	schedules *cadence.Store        // persistent scheduled-intents store (autonomy)
 	tools     map[string]agent.Tool // cfg.Tools + the memory/world tools (when enabled)
@@ -358,6 +366,18 @@ func Open(cfg Config) (*Kernel, error) {
 		return nil, fmt.Errorf("runtime: cadence: %w", err)
 	}
 
+	// Content-addressed artifact store (SPEC-04 §3.6): the agent loop offloads
+	// oversized tool outputs here so the journal stays small. Store-only — no bus.
+	artStore, err := artifact.Open(filepath.Join(cfg.BaseDir, "artifacts"))
+	if err != nil {
+		j.Close()
+		st.Close()
+		mstore.Close()
+		wstore.Close()
+		skstore.Close()
+		return nil, fmt.Errorf("runtime: artifacts: %w", err)
+	}
+
 	// Reflection holds no store of its own — it folds the journal and tunes
 	// the world graph, then journals its report (SPEC-05 §6). Default decay
 	// knobs; the daemon may override via the optional periodic trigger.
@@ -416,6 +436,7 @@ func Open(cfg Config) (*Kernel, error) {
 		worldDir:     wstore,
 		forge:        forge,
 		skillDir:     skstore,
+		artifacts:    artStore,
 		reflect:      reflectEng,
 		schedules:    schedStore,
 		tools:        effTools,
@@ -510,6 +531,10 @@ func (k *Kernel) World() *worldmodel.Graph { return k.world }
 // Forge returns the skill manager backing `agt skill`, run-time skill
 // activation, and post-run skill proposal. Always non-nil after Open.
 func (k *Kernel) Forge() *skill.Forge { return k.forge }
+
+// Artifacts returns the content-addressed artifact store (SPEC-04 §3.6), where
+// the loop offloads oversized tool outputs. Used by retrieval surfaces.
+func (k *Kernel) Artifacts() *artifact.Store { return k.artifacts }
 
 // Reflect returns the reflection engine backing `agt reflect` and the optional
 // periodic reflection trigger. Always non-nil after Open.
@@ -1168,6 +1193,8 @@ func (k *Kernel) RunWith(ctx context.Context, corr, intent string) (string, erro
 		JSONMode:             jsonModeFromCtx(runCtx), // M314: structured-output request
 		MaxRunCostMicrocents: maxCostFromCtx(runCtx),  // M166: per-run cost cap
 		CostFn:               governor.CostMicrocents,
+		Artifacts:            k.artifacts, // M390: offload oversized tool outputs (SPEC-04 §3.6)
+		ArtifactThreshold:    k.cfg.ArtifactThreshold,
 	}, intent)
 
 	// Attribute the run's outcome to the skills it activated, so an active skill
