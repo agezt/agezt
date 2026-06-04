@@ -94,6 +94,10 @@ func TestDashboardServedAtRoot(t *testing.T) {
 	if !strings.Contains(body, `id="feedFilter"`) || !strings.Contains(body, "function applyFeedFilter") {
 		t.Error("dashboard missing the feed kind-filter wiring")
 	}
+	// The Providers panel renders the provider-routing aggregate.
+	if !strings.Contains(body, `data-panel="providers"`) || !strings.Contains(body, "providers:") {
+		t.Error("dashboard missing the Providers panel")
+	}
 }
 
 func TestStatsRouteProxiesRunsStats(t *testing.T) {
@@ -129,6 +133,20 @@ func TestJournalRouteForwardsCorrelationOnly(t *testing.T) {
 	}
 	if _, leaked := fc.lastArgs["evil"]; leaked {
 		t.Errorf("non-allowlisted arg leaked through: %v", fc.lastArgs)
+	}
+}
+
+func TestProvidersRouteProxiesProviderStats(t *testing.T) {
+	fc := &fakeCaller{result: map[string]any{"routed": 0}}
+	s, _ := newServer(t, fc, "secret")
+	req := httptest.NewRequest(http.MethodGet, "/api/providers?token=secret", nil)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d want 200", rec.Code)
+	}
+	if len(fc.calls) != 1 || fc.calls[0] != "provider_stats" {
+		t.Errorf("expected one provider_stats call, got %v", fc.calls)
 	}
 }
 
@@ -249,7 +267,7 @@ func TestAPIReadOnly(t *testing.T) {
 	// Every GET /api route must map to a read-only command — assert the proxy
 	// never issues anything outside the known read set.
 	readOnly := map[string]bool{
-		"status": true, "runs_list": true, "runs_stats": true, "schedule_list": true, "memory_list": true, "world_list": true,
+		"status": true, "runs_list": true, "runs_stats": true, "provider_stats": true, "schedule_list": true, "memory_list": true, "world_list": true,
 		"skill_list": true, "inbox": true, "reflect_show": true, "approvals": true,
 	}
 	for path := range apiRoutes {

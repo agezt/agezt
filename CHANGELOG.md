@@ -12,6 +12,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Web UI: a Providers panel showing the routing picture.** A new panel proxies
+  `provider_stats` to show how many calls each provider actually served
+  (`by_primary`), the total routed/fallback counts, the fallback rate, and a
+  fallbacks-by-provider breakdown — so "which provider is handling my traffic, and
+  is any of it silently falling back?" is answerable at a glance. It refreshes
+  live off `routing.*` / `provider.*` events. Extends the fallback-observability
+  arc (status badge → fallback detail modal → this aggregate routing view).
 - **Web UI: the live event feed can be filtered by kind.** A `filter kind…` input
   in the feed header hides every row whose event kind doesn't contain the typed
   substring (e.g. `task.`, `tool.`, `provider.`), so an operator can focus a busy
