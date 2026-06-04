@@ -93,6 +93,17 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   valid UTF-8. (The journal's own answer truncation was already rune-safe.)
 
 ### Added
+- **Silent JSON-mode capability degradation is now journaled.** When a run
+  requests structured-output (JSON mode) but the resolved model belongs to a
+  provider family with no native JSON switch, the provider quietly falls back to
+  prompt-instructed JSON — previously with no record that the native path was
+  skipped. The Governor now emits a `capability.degraded` event (carrying the
+  model, `json_mode`, and the reason, linked to the run) so the downgrade is
+  visible in the journal and reachable from `agt why`. The request still proceeds
+  unchanged — this records the degradation, it does not block or reroute it
+  (SPEC-15 §2.3). Tool-use degradation was already journaled
+  (`capability.rejected` / `capability.rerouted`); this completes the pattern for
+  JSON mode.
 - **The run-detail tool-call card now shows the policy verdict.** Edict journals
   a `policy.decision` for every tool call (allow/deny, capability, reason,
   whether it would have prompted, whether a hard-deny floor fired). The web Live

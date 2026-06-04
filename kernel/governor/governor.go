@@ -136,6 +136,14 @@ type Config struct {
 	// Governor stays decoupled from kernel/catalog. Used only when
 	// DownRouteToolModels is on. Nil disables down-routing.
 	ToolCapableAlternative func(model string) (alt string, found bool)
+
+	// ModelJSONNative, when set, reports whether the given model id belongs to a
+	// provider family with a NATIVE structured-output (JSON mode) switch, and
+	// whether the model is known to the catalog at all. Injected by the daemon
+	// (backed by catalog.FamilySupportsNativeJSONMode) so the Governor stays
+	// decoupled from kernel/catalog. Used to journal capability.degraded when a
+	// JSON-mode request lands on a non-native model. Nil disables the check.
+	ModelJSONNative func(model string) (native, known bool)
 }
 
 // Governor is the per-task routing + budget layer.
@@ -328,6 +336,29 @@ func (g *Governor) Complete(ctx context.Context, req agent.CompletionRequest) (*
 			})
 			return nil, fmt.Errorf("%w: model %q (request carries %d tool(s))",
 				ErrModelLacksToolUse, req.Model, len(req.Tools))
+		}
+	}
+
+	// JSON-mode capability DEGRADATION (M381). A JSON-mode request to a provider
+	// family with no native structured-output switch is silently honoured by the
+	// provider via prompt-instructed JSON — but nothing recorded that the native
+	// path was skipped. Unlike tool-use this is NOT fatal and NOT rerouted: the
+	// request proceeds on the requested model. Journal it (only when the catalog
+	// KNOWS the model is non-native; an unknown model is never flagged) so the
+	// degradation is auditable in the run timeline and via `agt why`.
+	if req.JSONMode && g.cfg.ModelJSONNative != nil {
+		if native, known := g.cfg.ModelJSONNative(req.Model); known && !native {
+			g.publish(event.Spec{
+				Subject:       "governor.capability",
+				Kind:          event.KindCapabilityDegraded,
+				Actor:         "governor",
+				CorrelationID: req.CorrelationID,
+				Payload: map[string]any{
+					"model":      req.Model,
+					"capability": "json_mode",
+					"reason":     "model family has no native JSON mode; relying on prompt-instructed JSON",
+				},
+			})
 		}
 	}
 

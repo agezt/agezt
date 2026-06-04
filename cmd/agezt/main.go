@@ -2436,6 +2436,13 @@ func buildGovernor(cat *catalog.Catalog, lookup func(string) string) (*governor.
 			return m.ToolCall, true
 		},
 		ToolCapableAlternative: altFinder,
+		ModelJSONNative: func(model string) (bool, bool) {
+			p, m := cat.FindModel(model)
+			if p == nil || m == nil {
+				return false, false
+			}
+			return catalog.FamilySupportsNativeJSONMode(p.Family()), true
+		},
 	})
 	if err != nil {
 		return nil, "", "", err

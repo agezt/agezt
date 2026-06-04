@@ -114,6 +114,13 @@ const (
 	// tool-capable alternative instead of being rejected (M37 down-routing).
 	// Payload: {from_model, to_model, capability, tools_requested}.
 	KindCapabilityRerouted Kind = "capability.rerouted"
+	// KindCapabilityDegraded records that a requested capability was SILENTLY
+	// downgraded rather than rejected or rerouted: the request proceeds, but on
+	// a model that can't honour the feature natively (M381: a JSON-mode request
+	// to a provider family with no native structured-output switch, which falls
+	// back to prompt-instructed JSON). Makes the otherwise-invisible degradation
+	// auditable. Payload: {model, capability, reason}.
+	KindCapabilityDegraded Kind = "capability.degraded"
 	// KindMeshLoopRefused records that a cross-node delegation (M8 mesh) was
 	// refused because its hop count exceeded the limit — a federation loop was
 	// stopped. Payload: {hop, max_hops}. (M210)
@@ -252,6 +259,7 @@ var knownKinds = map[Kind]struct{}{
 	KindNetguardBlocked:           {},
 	KindCapabilityRejected:        {},
 	KindCapabilityRerouted:        {},
+	KindCapabilityDegraded:        {},
 	KindWardenExecuted:            {},
 	KindWardenProfileDowngraded:   {},
 	KindWardenLimitExceeded:       {},
