@@ -457,8 +457,79 @@ func TestBuild_VertexMissingCredsRefused(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "GOOGLE_APPLICATION_CREDENTIALS") {
 		t.Errorf("error should mention GOOGLE_APPLICATION_CREDENTIALS; got %v", err)
 	}
-	if err == nil || !strings.Contains(err.Error(), "M1.n.x") {
-		t.Errorf("error should name the ADC/workload-identity deferral; got %v", err)
+	if err == nil || !strings.Contains(err.Error(), "GOOGLE_VERTEX_USE_METADATA") {
+		t.Errorf("error should offer the metadata-server alternative; got %v", err)
+	}
+}
+
+// TestBuild_VertexMetadataAuth: with GOOGLE_VERTEX_USE_METADATA opted in and
+// no GOOGLE_VERTEX_PROJECT, Build wires the GCE/GKE metadata token source,
+// auto-fetches the project id from the same metadata server, and the resulting
+// provider sends the metadata-minted bearer token on the Vertex request. This
+// is the ambient/Workload-Identity production path end to end — no key file.
+func TestBuild_VertexMetadataAuth(t *testing.T) {
+	// One metadata server serving both the token and the project-id endpoint.
+	metaSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Metadata-Flavor") != "Google" {
+			t.Errorf("metadata request missing Metadata-Flavor:Google header (path %q)", r.URL.Path)
+		}
+		switch {
+		case strings.HasSuffix(r.URL.Path, "/instance/service-accounts/default/token"):
+			_, _ = w.Write([]byte(`{"access_token":"ya29.ambient","expires_in":3599,"token_type":"Bearer"}`))
+		case strings.HasSuffix(r.URL.Path, "/project/project-id"):
+			_, _ = w.Write([]byte("ambient-proj"))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer metaSrv.Close()
+
+	var seen struct{ path, authz string }
+	apiSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seen.path = r.URL.Path
+		seen.authz = r.Header.Get("Authorization")
+		_, _ = w.Write([]byte(`{"candidates":[{"content":{"role":"model","parts":[{"text":"hi from metadata"}]},"finishReason":"STOP"}],"usageMetadata":{"promptTokenCount":1,"candidatesTokenCount":2}}`))
+	}))
+	defer apiSrv.Close()
+
+	entry := &catalog.Provider{
+		ID: "google-vertex", Name: "Google Vertex",
+		Env:    []string{"GOOGLE_VERTEX_LOCATION", "GOOGLE_VERTEX_USE_METADATA", "GOOGLE_VERTEX_METADATA_URL"},
+		NPM:    "@ai-sdk/google-vertex",
+		API:    apiSrv.URL, // operator override so the URL builder hits our test server
+		Models: map[string]*catalog.Model{"gemini-1.5-flash": {ID: "gemini-1.5-flash"}},
+	}
+	prov, _, err := compat.Build(entry, "gemini-1.5-flash", func(name string) string {
+		switch name {
+		case "GOOGLE_VERTEX_USE_METADATA":
+			return "1"
+		case "GOOGLE_VERTEX_METADATA_URL":
+			return metaSrv.URL
+		case "GOOGLE_VERTEX_LOCATION":
+			return "us-central1"
+		}
+		return "" // deliberately no GOOGLE_APPLICATION_CREDENTIALS, no GOOGLE_VERTEX_PROJECT
+	})
+	if err != nil {
+		t.Fatalf("Build (metadata auth): %v", err)
+	}
+	resp, err := prov.Complete(context.Background(), agent.CompletionRequest{
+		Model:    "gemini-1.5-flash",
+		Messages: []agent.Message{{Role: agent.RoleUser, Content: "ping"}},
+	})
+	if err != nil {
+		t.Fatalf("Complete: %v", err)
+	}
+	if resp.Message.Content != "hi from metadata" {
+		t.Errorf("content=%q", resp.Message.Content)
+	}
+	// Project id was auto-fetched from the metadata server → appears in the path.
+	wantPath := "/v1/projects/ambient-proj/locations/us-central1/publishers/google/models/gemini-1.5-flash:generateContent"
+	if seen.path != wantPath {
+		t.Errorf("path=%q want %q (project auto-fetched from metadata)", seen.path, wantPath)
+	}
+	if seen.authz != "Bearer ya29.ambient" {
+		t.Errorf("authz=%q want 'Bearer ya29.ambient' (metadata-minted token)", seen.authz)
 	}
 }
 

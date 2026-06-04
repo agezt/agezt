@@ -41,9 +41,11 @@ import (
 //  5. Receive {access_token, expires_in, token_type:"Bearer"}.
 //  6. Cache the access token; refresh before expiry.
 //
-// Application Default Credentials, workload-identity-federation, and
-// the GCE metadata server are not implemented in M1.n — service-account
-// JSON is the desktop/CI use case. ADC lands in M1.n.x.
+// Application Default Credentials and workload-identity-federation
+// (external/federated IdPs) are not implemented — service-account JSON is
+// the desktop/CI path. The GCE/GKE instance metadata server (ambient
+// credentials: Compute Engine, GKE Workload Identity, Cloud Run) IS
+// supported — see MetadataTokenSource in metadata.go.
 
 const (
 	// CloudPlatformScope grants access to all Google Cloud APIs the
@@ -161,8 +163,16 @@ func signJWT(sa *ServiceAccountKey, key *rsa.PrivateKey, scope, aud string, now 
 	return signingInput + "." + b64url(sig), nil
 }
 
+// TokenMinter mints (and caches) OAuth access tokens for Vertex requests.
+// Both *TokenSource (service-account JWT-bearer grant) and
+// *MetadataTokenSource (GCE/GKE ambient credentials) satisfy it, so the
+// Provider can hold either without caring how the token was obtained.
+type TokenMinter interface {
+	Token(ctx context.Context) (string, error)
+}
+
 // TokenSource mints (and caches) OAuth2 access tokens for a service
-// account. Safe for concurrent use.
+// account. Safe for concurrent use. Implements TokenMinter.
 type TokenSource struct {
 	sa     *ServiceAccountKey
 	key    *rsa.PrivateKey

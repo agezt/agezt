@@ -50,8 +50,10 @@ const (
 
 // Provider is the in-process Vertex AI Provider.
 type Provider struct {
-	// TokenSource mints OAuth access tokens. Required.
-	TokenSource *TokenSource
+	// TokenSource mints OAuth access tokens — a service-account
+	// (*TokenSource) or the GCE/GKE metadata server
+	// (*MetadataTokenSource). Required.
+	TokenSource TokenMinter
 	// Project is the GCP project id (numeric or alias).
 	Project string
 	// Location is the Vertex region (e.g. "us-central1", "europe-west4").
@@ -68,8 +70,9 @@ type Provider struct {
 }
 
 // New constructs a Provider. ts may be nil at construction (set
-// later); Complete will error if it's still nil.
-func New(ts *TokenSource, project, location string) *Provider {
+// later); Complete will error if it's still nil. ts is any TokenMinter —
+// a service-account *TokenSource or a *MetadataTokenSource.
+func New(ts TokenMinter, project, location string) *Provider {
 	return &Provider{
 		TokenSource: ts,
 		Project:     project,

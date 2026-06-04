@@ -22,6 +22,14 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   safe — GCM errors on a short ciphertext and PBKDF2 accepts any salt.)
 
 ### Added
+- **Vertex AI now supports ambient credentials via the GCE/GKE metadata server.**
+  Set `GOOGLE_VERTEX_USE_METADATA=1` (instead of `GOOGLE_APPLICATION_CREDENTIALS`)
+  to authenticate from the instance metadata server on Compute Engine, GKE with
+  Workload Identity, or Cloud Run — short-lived rotating tokens, no static
+  service-account key file on disk (the production-recommended path). The project
+  id is auto-discovered from the same metadata server when `GOOGLE_VERTEX_PROJECT`
+  is unset; `GOOGLE_VERTEX_METADATA_URL` overrides the metadata base for a
+  proxy/sidecar. The service-account JSON path is unchanged.
 - **Regression tests lock in the provider empty-response guards.** Every provider
   decoder already rejects a response whose `choices`/`candidates` array is empty
   (a flaky proxy that truncates the body, or a Gemini safety block) rather than

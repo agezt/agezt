@@ -35,11 +35,13 @@
 // Meta, Amazon Titan, Cohere, AI21, DeepSeek on Bedrock) land in
 // M1.m.x.
 //
-// Vertex (M1.n) is service-account-OAuth-only (via
-// GOOGLE_APPLICATION_CREDENTIALS) with Gemini body shape only.
-// ADC / workload-identity / GCE metadata server and Anthropic-on-
-// Vertex (`@ai-sdk/google-vertex/anthropic`, :rawPredict endpoint)
-// land in M1.n.x.
+// Vertex speaks the Gemini body shape and authenticates two ways:
+// a service-account JSON key (GOOGLE_APPLICATION_CREDENTIALS) for
+// desktop/CI, or the GCE/GKE instance metadata server
+// (GOOGLE_VERTEX_USE_METADATA=1) for ambient production credentials on
+// Compute Engine / GKE Workload Identity / Cloud Run. External/federated
+// ADC and Anthropic-on-Vertex (`@ai-sdk/google-vertex/anthropic`,
+// :rawPredict endpoint) remain unimplemented.
 //
 // **Every family in the catalog is now wired.** Adding a new
 // downstream variant is one extra case branch + adapter; the daemon
@@ -205,32 +207,53 @@ func Build(p *catalog.Provider, modelID string, lookup CredLookup) (agent.Provid
 		cp.Model = modelID
 		return wrapNamed(p.ID, cp), modelID, nil
 	case catalog.FamilyGoogleVertex:
-		// Vertex AI: service-account OAuth + Gemini body shape, on
-		// the regional aiplatform.googleapis.com endpoint.
+		// Vertex AI: Gemini body shape on the regional
+		// aiplatform.googleapis.com endpoint, authenticated by either a
+		// service-account JSON key or the GCE/GKE metadata server.
 		// `@ai-sdk/google-vertex/anthropic` (Anthropic-on-Vertex via
-		// :rawPredict) lands in M1.n.x.
-		credsPath, project, location, err := resolveVertexCreds(p, lookup)
+		// :rawPredict) remains unimplemented.
+		vc, err := resolveVertexCreds(p, lookup)
 		if err != nil {
 			return nil, "", err
 		}
-		sa, err := vertex.LoadServiceAccountFile(credsPath)
-		if err != nil {
-			return nil, "", fmt.Errorf("%w: %v", ErrMissingCredentials, err)
+		var ts vertex.TokenMinter
+		project := vc.project
+		if vc.useMetadata {
+			// Ambient credentials: the platform's metadata server mints
+			// short-lived tokens — no key file on disk.
+			mts := vertex.NewMetadataTokenSource(vc.metadataURL, nil)
+			ts = mts
+			// Fill the project from the same metadata server when the
+			// operator didn't pin one (the fully ambient experience).
+			if project == "" {
+				id, perr := mts.ProjectID(context.Background())
+				if perr != nil {
+					return nil, "", fmt.Errorf("%w: vertex provider %q: no GOOGLE_VERTEX_PROJECT set and metadata project-id lookup failed: %v",
+						ErrMissingCredentials, p.ID, perr)
+				}
+				project = id
+			}
+		} else {
+			sa, err := vertex.LoadServiceAccountFile(vc.credsPath)
+			if err != nil {
+				return nil, "", fmt.Errorf("%w: %v", ErrMissingCredentials, err)
+			}
+			// Prefer the project_id baked into the SA JSON when the
+			// env-supplied project is empty.
+			if project == "" {
+				project = sa.ProjectID
+			}
+			if project == "" {
+				return nil, "", fmt.Errorf("%w: vertex provider %q needs a project (GOOGLE_VERTEX_PROJECT env or project_id in service-account JSON)",
+					ErrMissingCredentials, p.ID)
+			}
+			sats, err := vertex.NewTokenSource(sa, vertex.CloudPlatformScope, nil)
+			if err != nil {
+				return nil, "", fmt.Errorf("%w: %v", ErrMissingCredentials, err)
+			}
+			ts = sats
 		}
-		// Prefer the project_id baked into the SA JSON when the
-		// env-supplied project is empty.
-		if project == "" {
-			project = sa.ProjectID
-		}
-		if project == "" {
-			return nil, "", fmt.Errorf("%w: vertex provider %q needs a project (GOOGLE_VERTEX_PROJECT env or project_id in service-account JSON)",
-				ErrMissingCredentials, p.ID)
-		}
-		ts, err := vertex.NewTokenSource(sa, vertex.CloudPlatformScope, nil)
-		if err != nil {
-			return nil, "", fmt.Errorf("%w: %v", ErrMissingCredentials, err)
-		}
-		vp := vertex.New(ts, project, location)
+		vp := vertex.New(ts, project, vc.location)
 		vp.BaseURL = strings.TrimSpace(p.API) // optional override
 		vp.Model = modelID
 		return wrapNamed(p.ID, vp), modelID, nil
@@ -369,38 +392,71 @@ func resolveAzureCreds(p *catalog.Provider, lookup CredLookup) (resource, key st
 	return resource, key, nil
 }
 
-// resolveVertexCreds extracts the Vertex AI credentials from the
-// catalog entry's env list. M1.n supports service-account auth via
-// GOOGLE_APPLICATION_CREDENTIALS (path to a JSON key file). Workload
-// identity, ADC, and the GCE metadata server land in M1.n.x.
+// vertexCreds is the resolved Vertex AI auth + routing config. Exactly
+// one auth path is selected: service-account JSON (credsPath set) or the
+// GCE/GKE metadata server (useMetadata true).
+type vertexCreds struct {
+	credsPath   string // service-account JSON path (empty when useMetadata)
+	project     string // GOOGLE_VERTEX_PROJECT (may be empty — filled later)
+	location    string // GOOGLE_VERTEX_LOCATION (required)
+	useMetadata bool   // use the GCE/GKE metadata server for ambient creds
+	metadataURL string // GOOGLE_VERTEX_METADATA_URL override (empty → default)
+}
+
+// resolveVertexCreds extracts the Vertex AI credentials from the catalog
+// entry's env list. Two auth paths:
 //
-// Required env vars:
+//	GOOGLE_APPLICATION_CREDENTIALS — path to service-account JSON (desktop/CI)
+//	GOOGLE_VERTEX_USE_METADATA     — "1"/"true"/"on"/"yes" → GCE/GKE metadata
+//	                                 server (ambient/Workload-Identity creds)
 //
-//	GOOGLE_APPLICATION_CREDENTIALS — path to service-account JSON
-//	GOOGLE_VERTEX_LOCATION         — region (e.g. "us-central1")
+// Always required:
+//
+//	GOOGLE_VERTEX_LOCATION — region (e.g. "us-central1")
 //
 // Optional:
 //
-//	GOOGLE_VERTEX_PROJECT — falls back to project_id in the JSON file
-func resolveVertexCreds(p *catalog.Provider, lookup CredLookup) (credsPath, project, location string, err error) {
+//	GOOGLE_VERTEX_PROJECT      — falls back to the SA JSON project_id, or to
+//	                             the metadata server's project-id endpoint
+//	GOOGLE_VERTEX_METADATA_URL — override the metadata base URL (proxy/sidecar;
+//	                             implies metadata auth)
+func resolveVertexCreds(p *catalog.Provider, lookup CredLookup) (vertexCreds, error) {
 	if lookup == nil {
-		return "", "", "", fmt.Errorf("%w: vertex provider %q requires GOOGLE_APPLICATION_CREDENTIALS + GOOGLE_VERTEX_LOCATION env vars (%v)",
+		return vertexCreds{}, fmt.Errorf("%w: vertex provider %q requires GOOGLE_APPLICATION_CREDENTIALS (service-account JSON) or GOOGLE_VERTEX_USE_METADATA=1 (GCE/GKE), plus GOOGLE_VERTEX_LOCATION (%v)",
 			ErrMissingCredentials, p.ID, p.Env)
 	}
-	credsPath = strings.TrimSpace(lookup("GOOGLE_APPLICATION_CREDENTIALS"))
-	project = strings.TrimSpace(lookup("GOOGLE_VERTEX_PROJECT"))
-	location = strings.TrimSpace(lookup("GOOGLE_VERTEX_LOCATION"))
-	if credsPath == "" {
-		return "", "", "", fmt.Errorf("%w: vertex provider %q needs GOOGLE_APPLICATION_CREDENTIALS (path to service-account JSON; M1.n doesn't yet support ADC/workload-identity — those land in M1.n.x)",
+	vc := vertexCreds{
+		credsPath:   strings.TrimSpace(lookup("GOOGLE_APPLICATION_CREDENTIALS")),
+		project:     strings.TrimSpace(lookup("GOOGLE_VERTEX_PROJECT")),
+		location:    strings.TrimSpace(lookup("GOOGLE_VERTEX_LOCATION")),
+		useMetadata: isTruthy(lookup("GOOGLE_VERTEX_USE_METADATA")),
+		metadataURL: strings.TrimSpace(lookup("GOOGLE_VERTEX_METADATA_URL")),
+	}
+	// A metadata URL override implies metadata auth — operators pointing
+	// at a proxy/sidecar shouldn't also have to flip the boolean.
+	if vc.metadataURL != "" {
+		vc.useMetadata = true
+	}
+	if vc.credsPath == "" && !vc.useMetadata {
+		return vertexCreds{}, fmt.Errorf("%w: vertex provider %q needs GOOGLE_APPLICATION_CREDENTIALS (service-account JSON) or GOOGLE_VERTEX_USE_METADATA=1 for GCE/GKE ambient credentials",
 			ErrMissingCredentials, p.ID)
 	}
-	if location == "" {
-		return "", "", "", fmt.Errorf("%w: vertex provider %q needs GOOGLE_VERTEX_LOCATION (e.g. us-central1)",
+	if vc.location == "" {
+		return vertexCreds{}, fmt.Errorf("%w: vertex provider %q needs GOOGLE_VERTEX_LOCATION (e.g. us-central1)",
 			ErrMissingCredentials, p.ID)
 	}
-	// project may be empty here — compat will fall back to the
-	// project_id baked into the service-account JSON.
-	return credsPath, project, location, nil
+	return vc, nil
+}
+
+// isTruthy reports whether an env value means "on". Accepts the common
+// boolean spellings operators reach for (1/true/on/yes/enable), case- and
+// whitespace-insensitive. Empty or anything else is false.
+func isTruthy(v string) bool {
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case "1", "true", "on", "yes", "enable", "enabled":
+		return true
+	}
+	return false
 }
 
 // bedrockAuth carries whichever auth path the operator's environment
