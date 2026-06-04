@@ -679,6 +679,27 @@ func TestDashboard_RendersContextInspector(t *testing.T) {
 	}
 }
 
+// TestDashboard_RendersContextCompaction locks in the SPEC-10 §3 surface: a
+// context.compacted event (the loop trimmed its own context to fit the budget)
+// must render what was dropped — elided count, chars reclaimed, before/after,
+// budget — rather than a bare kind line. The payload keys are the agent loop's
+// context.compacted contract; a rename on either side trips this.
+func TestDashboard_RendersContextCompaction(t *testing.T) {
+	src := string(dashboardHTML)
+	for _, marker := range []string{
+		"context.compacted",    // the arcDetail/arcFull case exists
+		"elided",               // how many tool outputs were dropped
+		"reclaimed_chars",      // chars reclaimed
+		"context_chars_before", // size before
+		"context_chars_after",  // size after
+		"compacted",            // the human label
+	} {
+		if !strings.Contains(src, marker) {
+			t.Errorf("dashboard context-compaction rendering missing %q — the SPEC-10 §3 surface regressed", marker)
+		}
+	}
+}
+
 // TestDashboard_RendersIsolationCard locks in the SPEC-12 §4 / SPEC-07 tool-call
 // debug "isolation" view: the run-detail arc must render warden.executed events
 // (which carry the effective/requested profile + downgrade flag from the journal)

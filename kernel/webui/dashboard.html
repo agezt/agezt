@@ -797,6 +797,16 @@ function arcDetail(ev) {
       const ceil = p.ceiling_microcents != null ? "$" + (p.ceiling_microcents / 1e9).toFixed(4) : "?";
       return "budget exceeded" + (p.scope ? " (" + p.scope + ")" : "") + " " + spent + " / " + ceil;
     }
+    case "context.compacted": {
+      // Context management (SPEC-10 §3): the loop trimmed its own assembled
+      // context to fit the budget by eliding the oldest tool outputs. Surface
+      // what was dropped so the compaction is visible in the run, not silent.
+      let s = "✂ compacted: elided " + (p.elided != null ? p.elided : "?") + " tool output(s)";
+      if (p.reclaimed_chars != null) s += ", −" + p.reclaimed_chars + " chars";
+      if (p.context_chars_before != null && p.context_chars_after != null) s += " (" + p.context_chars_before + " → " + p.context_chars_after + ")";
+      if (p.budget != null) s += " · budget " + p.budget;
+      return s;
+    }
     case "llm.response": return p.text_chars != null ? p.text_chars + " chars" : "";
     case "llm.request": {
       // Context inspector (SPEC-10 §3.5): how big was the context and from which
@@ -856,6 +866,17 @@ function arcFull(ev) {
     if (p.tool) s += "  tool       : " + p.tool + "\n";
     if (p.would_ask) s += "  would ask  : yes (Ask folded to Allow)\n";
     if (p.reason) s += "  reason     : " + p.reason + "\n";
+    return s;
+  }
+  if (ev.kind === "context.compacted") {
+    // Context-management detail (SPEC-10 §3): the full before/after of a
+    // compaction pass. Every field is from the journal payload; textContent only.
+    let s = "context compaction\n";
+    if (p.elided != null) s += "  elided     : " + p.elided + " tool output(s)\n";
+    if (p.reclaimed_chars != null) s += "  reclaimed  : " + p.reclaimed_chars + " chars\n";
+    if (p.context_chars_before != null) s += "  before     : " + p.context_chars_before + " chars\n";
+    if (p.context_chars_after != null) s += "  after      : " + p.context_chars_after + " chars\n";
+    if (p.budget != null) s += "  budget     : " + p.budget + " chars\n";
     return s;
   }
   if (ev.kind === "llm.request") {
