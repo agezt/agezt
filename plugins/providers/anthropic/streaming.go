@@ -103,14 +103,7 @@ func encodeStreamRequest(model, system string, msgs []agent.Message, tools []age
 		Tools     []anthTool    `json:"tools,omitempty"`
 		Stream    bool          `json:"stream"`
 	}
-	wire := streamReq{Model: model, MaxTokens: maxTok, System: system, Stream: true}
-	for _, t := range tools {
-		wire.Tools = append(wire.Tools, anthTool{
-			Name:        t.Name,
-			Description: t.Description,
-			InputSchema: t.InputSchema,
-		})
-	}
+	wire := streamReq{Model: model, MaxTokens: maxTok, System: system, Stream: true, Tools: buildAnthTools(tools)}
 	for _, m := range msgs {
 		am, err := canonicalToAnth(m)
 		if err != nil {

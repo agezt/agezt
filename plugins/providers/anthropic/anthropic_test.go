@@ -221,3 +221,47 @@ func TestDecodeResponse_CacheUsage(t *testing.T) {
 		t.Errorf("OutputTokens=%d want 20", got.Usage.OutputTokens)
 	}
 }
+
+// TestEncodeRequest_PromptCacheMarksLastTool covers M299: the request marks the
+// LAST tool definition with cache_control: ephemeral so Anthropic caches the
+// stable tools prefix; tools before it carry no marker, and a tool-less request
+// has none at all.
+func TestEncodeRequest_PromptCacheMarksLastTool(t *testing.T) {
+	var seen map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewDecoder(r.Body).Decode(&seen)
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"id": "x", "role": "assistant",
+			"content": []map[string]any{{"type": "text", "text": "ok"}}, "stop_reason": "end_turn",
+			"usage": map[string]any{"input_tokens": 1, "output_tokens": 1},
+		})
+	}))
+	defer srv.Close()
+
+	p := New("k")
+	p.Endpoint = srv.URL
+	tools := []agent.ToolDef{
+		{Name: "first", InputSchema: json.RawMessage(`{"type":"object"}`)},
+		{Name: "last", InputSchema: json.RawMessage(`{"type":"object"}`)},
+	}
+	if _, err := p.Complete(context.Background(), agent.CompletionRequest{
+		Model:    "claude-sonnet-4-6",
+		Messages: []agent.Message{{Role: agent.RoleUser, Content: "ping"}},
+		Tools:    tools,
+	}); err != nil {
+		t.Fatalf("Complete: %v", err)
+	}
+	arr, _ := seen["tools"].([]any)
+	if len(arr) != 2 {
+		t.Fatalf("tools len=%d want 2", len(arr))
+	}
+	first, _ := arr[0].(map[string]any)
+	if _, has := first["cache_control"]; has {
+		t.Errorf("first tool must NOT carry cache_control")
+	}
+	last, _ := arr[1].(map[string]any)
+	cc, ok := last["cache_control"].(map[string]any)
+	if !ok || cc["type"] != "ephemeral" {
+		t.Errorf("last tool cache_control = %v want {type: ephemeral}", last["cache_control"])
+	}
+}

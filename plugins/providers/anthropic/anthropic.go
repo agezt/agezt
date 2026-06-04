@@ -170,9 +170,36 @@ type anthRequest struct {
 }
 
 type anthTool struct {
-	Name        string          `json:"name"`
-	Description string          `json:"description,omitempty"`
-	InputSchema json.RawMessage `json:"input_schema"`
+	Name         string            `json:"name"`
+	Description  string            `json:"description,omitempty"`
+	InputSchema  json.RawMessage   `json:"input_schema"`
+	CacheControl *anthCacheControl `json:"cache_control,omitempty"`
+}
+
+// anthCacheControl marks a content/tool block as a prompt-cache breakpoint
+// (M299). Anthropic caches the request prefix up to and including the marked
+// block; "ephemeral" is the 5-minute TTL tier.
+type anthCacheControl struct {
+	Type string `json:"type"` // "ephemeral"
+}
+
+// buildAnthTools converts canonical tool defs to Anthropic's wire shape and marks
+// the LAST tool with cache_control (M299). Anthropic caches the prefix up to and
+// including the marked block, so this caches the whole tools array — the large,
+// stable part of an agent loop's request that repeats every iteration. Anthropic
+// silently ignores the marker when the prefix is below the minimum cacheable size
+// (so it's safe to always set), and cache reads bill at ~0.1× input (M289-291),
+// turning the repeated tools into a real saving (surfaced by `agt cache`).
+func buildAnthTools(tools []agent.ToolDef) []anthTool {
+	if len(tools) == 0 {
+		return nil
+	}
+	out := make([]anthTool, 0, len(tools))
+	for _, t := range tools {
+		out = append(out, anthTool{Name: t.Name, Description: t.Description, InputSchema: t.InputSchema})
+	}
+	out[len(out)-1].CacheControl = &anthCacheControl{Type: "ephemeral"}
+	return out
 }
 
 type anthMessage struct {
@@ -239,13 +266,7 @@ func encodeRequest(model, system string, msgs []agent.Message, tools []agent.Too
 		Model:     model,
 		MaxTokens: maxTok,
 		System:    system,
-	}
-	for _, t := range tools {
-		wire.Tools = append(wire.Tools, anthTool{
-			Name:        t.Name,
-			Description: t.Description,
-			InputSchema: t.InputSchema,
-		})
+		Tools:     buildAnthTools(tools),
 	}
 	for _, m := range msgs {
 		am, err := canonicalToAnth(m)
