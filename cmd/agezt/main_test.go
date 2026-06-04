@@ -286,3 +286,35 @@ func TestDrainWait(t *testing.T) {
 		t.Errorf("drainWait(_, 0) should be true when idle")
 	}
 }
+
+func TestIsLoopback_ClassifiesExposureCorrectly(t *testing.T) {
+	// isLoopback drives the "reachable beyond localhost" exposure warning shown
+	// when the web UI / control plane / REST API binds to a public address. A
+	// regression that classified 0.0.0.0 or an empty host as loopback would
+	// silently suppress the warning and let an operator expose the daemon. Pin the
+	// security-critical cases.
+	loopback := []string{
+		"127.0.0.1:8800", "localhost:8800", "[::1]:8800",
+		"127.0.0.1", "127.0.0.53:8800", "::1",
+	}
+	exposed := []string{
+		"0.0.0.0:8800", // binds every interface — the classic mistake
+		":8800",        // empty host = every interface
+		"0.0.0.0",
+		"192.168.1.5:8800", // LAN
+		"10.0.0.1:8800",    // private
+		"203.0.113.7:8800", // public
+		"example.com:8800", // hostname (conservatively not loopback)
+		"",
+	}
+	for _, a := range loopback {
+		if !isLoopback(a) {
+			t.Errorf("isLoopback(%q) = false, want true (loopback-only bind)", a)
+		}
+	}
+	for _, a := range exposed {
+		if isLoopback(a) {
+			t.Errorf("isLoopback(%q) = true, want false (reachable beyond localhost)", a)
+		}
+	}
+}
