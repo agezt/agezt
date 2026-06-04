@@ -374,6 +374,12 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "bad request: " + err.Error()})
 		return
 	}
+	// Contain a panic in any command handler to THIS connection: an unrecovered
+	// panic in a goroutine crashes the whole process, taking down every in-flight
+	// run and channel. A single malformed/edge-case (but authed) request must not
+	// be a daemon-wide DoS — mirror net/http's per-request recover for the control
+	// plane's custom TCP protocol.
+	defer s.recoverConn(conn, req.ID)
 	// Authentication + authorization (M38). The primary (admin) token
 	// authorizes everything, on any tenant. Otherwise the request must name a
 	// tenant AND present that tenant's own token: the principal is then that
@@ -624,6 +630,17 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 
 func (s *Server) writeResp(conn net.Conn, resp Response) {
 	_ = writeResp(conn, resp)
+}
+
+// recoverConn is deferred per connection: it turns a panic in command handling
+// into an error response to the caller instead of an unrecovered goroutine panic
+// that would crash the daemon. Best-effort — if the connection is already broken
+// the error write is dropped; the load-bearing guarantee is that the process
+// survives so other connections, runs, and channels keep working.
+func (s *Server) recoverConn(conn net.Conn, reqID string) {
+	if r := recover(); r != nil {
+		s.writeResp(conn, Response{ID: reqID, Type: RespError, Error: "internal error"})
+	}
 }
 
 // writeResp is the underlying writer that *returns* its error.

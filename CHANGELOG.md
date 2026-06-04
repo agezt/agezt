@@ -11,6 +11,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 
 ## [Unreleased]
 
+### Reliability
+- **A handler panic no longer crashes the daemon.** The control-plane's
+  per-connection goroutine now recovers from a panic in any command handler and
+  returns an `internal error` response to that caller, instead of an unrecovered
+  panic that would take down the whole daemon — every in-flight run and channel
+  with it. One malformed/edge-case request is contained to its own connection.
+
 ### Security
 - **Web UI defensive response headers.** Every web-monitor response now carries
   `X-Frame-Options: DENY` (the dashboard has state-mutating controls — approve /
