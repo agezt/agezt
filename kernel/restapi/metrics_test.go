@@ -84,3 +84,24 @@ func TestPromName_SanitizesToValidIdentifier(t *testing.T) {
 		}
 	}
 }
+
+func TestPromHelp_EscapesBackslashAndNewline(t *testing.T) {
+	// Prometheus HELP must escape '\' and newline, else the single-line record
+	// breaks (a newline ends the line mid-description). Order matters: backslash
+	// is escaped first so the '\' we add for a newline isn't itself doubled.
+	cases := map[string]string{
+		"plain help":   "plain help",
+		"a\\b":         `a\\b`,         // a backslash → doubled
+		"line1\nline2": `line1\nline2`, // a newline → backslash-n
+		"c:\\x\nmore":  `c:\\x\nmore`,  // both, in one string
+	}
+	for in, want := range cases {
+		if got := promHelp(in); got != want {
+			t.Errorf("promHelp(%q) = %q, want %q", in, got, want)
+		}
+	}
+	// The escaped result never contains a raw newline (which would break the line).
+	if strings.Contains(promHelp("x\ny"), "\n") {
+		t.Error("promHelp left a raw newline in the output")
+	}
+}

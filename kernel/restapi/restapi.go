@@ -205,7 +205,7 @@ func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {
 		for _, m := range s.metrics() {
 			name := promName("agezt_" + m.Name)
 			if m.Help != "" {
-				b.WriteString("# HELP " + name + " " + m.Help + "\n")
+				b.WriteString("# HELP " + name + " " + promHelp(m.Help) + "\n")
 			}
 			typ := m.Type
 			if typ == "" {
@@ -533,6 +533,17 @@ func promName(s string) string {
 		return "_" + string(b) // a leading digit isn't allowed; prefix '_'
 	}
 	return string(b)
+}
+
+// promHelp escapes a metric HELP string per the Prometheus exposition format:
+// backslash and newline are the two characters that would otherwise break the
+// single-line `# HELP <name> <text>` record (a newline ends the line; an
+// unescaped backslash is invalid). Today's HELP strings are all single-line, so
+// this is robustness against a future multi-line/backslashed description.
+func promHelp(s string) string {
+	s = strings.ReplaceAll(s, `\`, `\\`)
+	s = strings.ReplaceAll(s, "\n", `\n`)
+	return s
 }
 
 func methodNotAllowed(w http.ResponseWriter, allow string) {
