@@ -256,6 +256,50 @@ func TestDurableBeforePublish(t *testing.T) {
 	}
 }
 
+// TestPublish_AppendFailureDoesNotDeliver locks in the fail-closed half of the
+// SPEC-02 §2.3 durable-before-publish invariant: if the journal append FAILS,
+// the event must NOT be delivered to any subscriber, and Publish must return the
+// error. Otherwise a subscriber could act on an event that was never persisted —
+// lost on the next crash, with no journal record to explain the action.
+//
+// The failure is injected by closing the journal out from under the (still-open)
+// bus: the next Append writes to a nil file handle and errors before any fan-out.
+func TestPublish_AppendFailureDoesNotDeliver(t *testing.T) {
+	dir := t.TempDir()
+	j, err := journal.Open(dir, journal.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	b := New(j)
+	defer b.Close()
+
+	sub, err := b.Subscribe(">", 4)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sub.Cancel()
+
+	// Make the durable append fail: close the journal (bus stays open).
+	if err := j.Close(); err != nil {
+		t.Fatalf("close journal: %v", err)
+	}
+
+	ev, err := b.Publish(event.Spec{Subject: "x", Kind: event.KindHalt, Actor: "kernel"})
+	if err == nil {
+		t.Fatal("Publish returned nil error after the journal append failed")
+	}
+	if ev != nil {
+		t.Errorf("Publish returned a non-nil event (%v) on append failure", ev)
+	}
+	// No subscriber may receive the un-persisted event.
+	select {
+	case got := <-sub.C:
+		t.Fatalf("subscriber received event %s though the durable append failed", got.ID)
+	case <-time.After(100 * time.Millisecond):
+		// expected: nothing delivered
+	}
+}
+
 func TestBackpressure_DropsAndCounts(t *testing.T) {
 	b := newTestBus(t)
 	// Tiny buffer; do not drain. The 2nd publish must drop.
