@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -639,5 +640,26 @@ func TestSecurityHeadersOnEveryResponse(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestDashboard_NoUnsafeDOMSinks(t *testing.T) {
+	// The dashboard renders server-supplied text (tool output, intents, fallback
+	// reasons) into the DOM. It is XSS-safe BY CONSTRUCTION — textContent /
+	// createElement only, never an HTML-injection sink. This test locks that
+	// invariant in: a future edit that introduces innerHTML-with-data (or another
+	// sink) fails here instead of silently shipping a stored-XSS vector.
+	src := string(dashboardHTML)
+	for _, sink := range []string{"insertAdjacentHTML", "document.write", "outerHTML"} {
+		if strings.Contains(src, sink) {
+			t.Errorf("dashboard uses unsafe DOM sink %q — render via textContent/el() instead", sink)
+		}
+	}
+	// innerHTML is permitted ONLY to clear a node (= "" / = ''). Any other
+	// assignment is an HTML-injection risk.
+	for _, m := range regexp.MustCompile(`innerHTML\s*=\s*([^;\n]*)`).FindAllStringSubmatch(src, -1) {
+		if v := strings.TrimSpace(m[1]); v != `""` && v != `''` {
+			t.Errorf("dashboard assigns innerHTML to %q — only clearing (= \"\") is allowed", v)
+		}
 	}
 }
