@@ -22,6 +22,14 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   safe — GCM errors on a short ciphertext and PBKDF2 accepts any salt.)
 
 ### Added
+- **Regression tests lock in the provider empty-response guards.** Every provider
+  decoder already rejects a response whose `choices`/`candidates` array is empty
+  (a flaky proxy that truncates the body, or a Gemini safety block) rather than
+  indexing `[0]` and panicking — but four of those guards (OpenAI, Google,
+  Vertex-Gemini, AI21-Jamba-on-Bedrock) had no test. They now do: an end-to-end
+  "empty array → clean error, never panic" test per provider, driven through the
+  public `Complete` via an `httptest` server, so a future refactor that drops a
+  guard fails loudly instead of regressing into a crash.
 - **Anthropic prompt caching now covers the system prompt too — across the whole
   Claude family.** The direct Anthropic provider, Claude-on-Bedrock, and
   Claude-on-Vertex all send the system prompt as a cache-marked block array (not a
