@@ -147,7 +147,7 @@ func TestEncodeRequest_TranslatesRoles(t *testing.T) {
 		{Role: agent.RoleAssistant, ToolCalls: []agent.ToolCall{{ID: "c1", Name: "shell", Input: json.RawMessage(`{"command":"ls"}`)}}},
 		{Role: agent.RoleTool, ToolCallID: "c1", Content: "file1\nfile2"},
 		{Role: agent.RoleAssistant, Content: "done"},
-	}, nil, 100)
+	}, nil, 100, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -172,7 +172,7 @@ func TestEncodeRequest_TranslatesRoles(t *testing.T) {
 func TestEncodeRequest_SystemFieldRespected(t *testing.T) {
 	body, _ := encodeRequest("m", "you are precise", []agent.Message{
 		{Role: agent.RoleUser, Content: "hi"},
-	}, nil, 100)
+	}, nil, 100, 0)
 	// M301: the system prompt is sent as a cache-marked block array so it is
 	// cached alongside the tools.
 	if !strings.Contains(string(body), `"text":"you are precise"`) {
@@ -186,7 +186,7 @@ func TestEncodeRequest_SystemFieldRespected(t *testing.T) {
 // TestEncodeRequest_EmptySystemOmitted verifies an empty system prompt is omitted
 // entirely (no empty block array) so a system-less request is unchanged.
 func TestEncodeRequest_EmptySystemOmitted(t *testing.T) {
-	body, _ := encodeRequest("m", "", []agent.Message{{Role: agent.RoleUser, Content: "hi"}}, nil, 100)
+	body, _ := encodeRequest("m", "", []agent.Message{{Role: agent.RoleUser, Content: "hi"}}, nil, 100, 0)
 	if strings.Contains(string(body), `"system"`) {
 		t.Errorf("empty system must be omitted: %s", body)
 	}

@@ -55,7 +55,16 @@ type Provider struct {
 	BaseURL string
 	Model   string
 	HTTP    *http.Client
+	// ThinkingBudget, when > 0, enables Claude extended thinking (M318) with this
+	// many reasoning tokens. The chain of thought is captured into
+	// CompletionResponse.ReasoningContent (M317). 0 disables it (default).
+	// Operator opt-in via AGEZT_ANTHROPIC_THINKING_BUDGET — thinking costs extra
+	// tokens, so it's off unless asked for. Clamped up to Anthropic's 1024 minimum.
+	ThinkingBudget int
 }
+
+// MinThinkingBudget is Anthropic's minimum extended-thinking budget_tokens.
+const MinThinkingBudget = 1024
 
 // New constructs a Provider with sensible defaults.
 func New(apiKey string) *Provider {
@@ -124,7 +133,7 @@ func (p *Provider) Complete(ctx context.Context, req agent.CompletionRequest) (*
 		maxTokens = DefaultMaxTokens
 	}
 
-	body, err := encodeRequest(model, req.System, req.Messages, req.Tools, maxTokens)
+	body, err := encodeRequest(model, req.System, req.Messages, req.Tools, maxTokens, p.ThinkingBudget)
 	if err != nil {
 		return nil, fmt.Errorf("anthropic: encode request: %w", err)
 	}
@@ -169,6 +178,31 @@ type anthRequest struct {
 	System    any           `json:"system,omitempty"`
 	Messages  []anthMessage `json:"messages"`
 	Tools     []anthTool    `json:"tools,omitempty"`
+	Thinking  *anthThinking `json:"thinking,omitempty"` // extended thinking (M318)
+}
+
+// anthThinking is Anthropic's extended-thinking request block.
+type anthThinking struct {
+	Type         string `json:"type"`          // "enabled"
+	BudgetTokens int    `json:"budget_tokens"` // >= 1024, and < max_tokens
+}
+
+// thinkingConfig returns the thinking block + the max_tokens to use when an
+// extended-thinking budget is set. Anthropic requires max_tokens > budget_tokens
+// (thinking tokens count toward the output allowance), and budget >= 1024, so we
+// clamp the budget up and ensure max_tokens leaves room for the answer on top.
+// budget <= 0 → (nil, maxTok unchanged): thinking off, wire byte-identical.
+func thinkingConfig(budget, maxTok int) (*anthThinking, int) {
+	if budget <= 0 {
+		return nil, maxTok
+	}
+	if budget < MinThinkingBudget {
+		budget = MinThinkingBudget
+	}
+	if maxTok <= budget {
+		maxTok = budget + DefaultMaxTokens // room for the answer beyond the thinking
+	}
+	return &anthThinking{Type: "enabled", BudgetTokens: budget}, maxTok
 }
 
 // anthSystemBlock is one element of the array form of the system prompt — used
@@ -242,6 +276,7 @@ type anthBlock struct {
 	ResultBody string           `json:"content,omitempty"`     // tool_result (string form)
 	IsError    bool             `json:"is_error,omitempty"`    // tool_result
 	Source     *anthImageSource `json:"source,omitempty"`      // type=image
+	Thinking   string           `json:"thinking,omitempty"`    // type=thinking (M318)
 }
 
 // anthImageSource is the base64 payload of a type=image content block (M241).
@@ -284,12 +319,14 @@ func anthUsageToAgent(inputTokens, cacheRead, cacheCreation, outputTokens int, m
 	}
 }
 
-func encodeRequest(model, system string, msgs []agent.Message, tools []agent.ToolDef, maxTok int) ([]byte, error) {
+func encodeRequest(model, system string, msgs []agent.Message, tools []agent.ToolDef, maxTok, thinkingBudget int) ([]byte, error) {
+	thinking, maxTok := thinkingConfig(thinkingBudget, maxTok)
 	wire := anthRequest{
 		Model:     model,
 		MaxTokens: maxTok,
 		System:    buildAnthSystem(system),
 		Tools:     buildAnthTools(tools),
+		Thinking:  thinking,
 	}
 	for _, m := range msgs {
 		am, err := canonicalToAnth(m)
@@ -400,13 +437,16 @@ func decodeResponse(body []byte) (*agent.CompletionResponse, error) {
 	}
 
 	var (
-		textParts []string
-		toolCalls []agent.ToolCall
+		textParts      []string
+		reasoningParts []string
+		toolCalls      []agent.ToolCall
 	)
 	for _, b := range ar.Content {
 		switch b.Type {
 		case "text":
 			textParts = append(textParts, b.Text)
+		case "thinking": // extended thinking (M318)
+			reasoningParts = append(reasoningParts, b.Thinking)
 		case "tool_use":
 			input := b.Input
 			if len(input) == 0 {
@@ -436,7 +476,8 @@ func decodeResponse(body []byte) (*agent.CompletionResponse, error) {
 			Content:   strings.Join(textParts, ""),
 			ToolCalls: toolCalls,
 		},
-		StopReason: stop,
+		ReasoningContent: strings.Join(reasoningParts, ""), // M318
+		StopReason:       stop,
 		Usage: anthUsageToAgent(
 			ar.Usage.InputTokens, ar.Usage.CacheReadInputTokens,
 			ar.Usage.CacheCreationInputTokens, ar.Usage.OutputTokens, ar.Model),

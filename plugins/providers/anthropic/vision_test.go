@@ -21,7 +21,7 @@ func TestEncodeRequest_ImageBlock(t *testing.T) {
 		Images:  []string{"data:image/png;base64," + b64},
 	}}
 
-	body, err := encodeRequest("claude-x", "", msgs, nil, 100)
+	body, err := encodeRequest("claude-x", "", msgs, nil, 100, 0)
 	if err != nil {
 		t.Fatalf("encodeRequest: %v", err)
 	}
@@ -62,7 +62,7 @@ func TestEncodeStreamRequest_ImageBlock(t *testing.T) {
 		Content: "what is this",
 		Images:  []string{"data:image/jpeg;base64," + b64},
 	}}
-	body, err := encodeStreamRequest("claude-x", "", msgs, nil, 100)
+	body, err := encodeStreamRequest("claude-x", "", msgs, nil, 100, 0)
 	if err != nil {
 		t.Fatalf("encodeStreamRequest: %v", err)
 	}
@@ -93,7 +93,7 @@ func TestEncodeRequest_SkipsNonDataURLImage(t *testing.T) {
 		Content: "hi",
 		Images:  []string{"photo.png"},
 	}}
-	body, err := encodeRequest("claude-x", "", msgs, nil, 100)
+	body, err := encodeRequest("claude-x", "", msgs, nil, 100, 0)
 	if err != nil {
 		t.Fatalf("encodeRequest: %v", err)
 	}

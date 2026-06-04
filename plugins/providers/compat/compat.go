@@ -57,6 +57,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/agezt/agezt/kernel/agent"
@@ -150,6 +151,15 @@ func Build(p *catalog.Provider, modelID string, lookup CredLookup) (agent.Provid
 		ap.BaseURL = base
 		ap.Endpoint = "" // force BaseURL-derived path
 		ap.Model = modelID
+		// Extended thinking (M318): opt-in via AGEZT_ANTHROPIC_THINKING_BUDGET.
+		// Off by default (thinking costs extra tokens); the chain of thought is
+		// captured into the response's ReasoningContent + ephemeral llm.reasoning
+		// events (M317).
+		if v := strings.TrimSpace(envLookup(lookup, "AGEZT_ANTHROPIC_THINKING_BUDGET")); v != "" {
+			if n, err := strconv.Atoi(v); err == nil && n > 0 {
+				ap.ThinkingBudget = n
+			}
+		}
 		return wrapNamed(p.ID, ap), modelID, nil
 	case catalog.FamilyOllama:
 		op := ollama.New()

@@ -54,7 +54,7 @@ func (p *Provider) CompleteStream(ctx context.Context, req agent.CompletionReque
 		maxTokens = DefaultMaxTokens
 	}
 
-	body, err := encodeStreamRequest(model, req.System, req.Messages, req.Tools, maxTokens)
+	body, err := encodeStreamRequest(model, req.System, req.Messages, req.Tools, maxTokens, p.ThinkingBudget)
 	if err != nil {
 		return nil, fmt.Errorf("anthropic: encode request: %w", err)
 	}
@@ -93,7 +93,7 @@ func (p *Provider) CompleteStream(ctx context.Context, req agent.CompletionReque
 // Kept separate (rather than adding a bool param to encodeRequest) so
 // the non-streaming wire format stays byte-identical to what M0.5
 // tests verified.
-func encodeStreamRequest(model, system string, msgs []agent.Message, tools []agent.ToolDef, maxTok int) ([]byte, error) {
+func encodeStreamRequest(model, system string, msgs []agent.Message, tools []agent.ToolDef, maxTok, thinkingBudget int) ([]byte, error) {
 	// Same shape as anthRequest plus the Stream field.
 	type streamReq struct {
 		Model     string        `json:"model"`
@@ -102,8 +102,10 @@ func encodeStreamRequest(model, system string, msgs []agent.Message, tools []age
 		Messages  []anthMessage `json:"messages"`
 		Tools     []anthTool    `json:"tools,omitempty"`
 		Stream    bool          `json:"stream"`
+		Thinking  *anthThinking `json:"thinking,omitempty"` // M318
 	}
-	wire := streamReq{Model: model, MaxTokens: maxTok, System: buildAnthSystem(system), Stream: true, Tools: buildAnthTools(tools)}
+	thinking, maxTok := thinkingConfig(thinkingBudget, maxTok)
+	wire := streamReq{Model: model, MaxTokens: maxTok, System: buildAnthSystem(system), Stream: true, Tools: buildAnthTools(tools), Thinking: thinking}
 	for _, m := range msgs {
 		am, err := canonicalToAnth(m)
 		if err != nil {
@@ -122,15 +124,16 @@ func encodeStreamRequest(model, system string, msgs []agent.Message, tools []age
 // streamState accumulates everything we need to assemble the final
 // CompletionResponse as SSE frames arrive.
 type streamState struct {
-	textParts     strings.Builder
-	openBlock     *openBlock // currently-streaming block, if any
-	finishedTools []agent.ToolCall
-	inputTokens   int
-	cacheRead     int // cache_read_input_tokens (M290)
-	cacheCreation int // cache_creation_input_tokens (M290)
-	outputTokens  int
-	stopReason    string
-	model         string
+	textParts      strings.Builder
+	reasoningParts strings.Builder // extended thinking (M318)
+	openBlock      *openBlock      // currently-streaming block, if any
+	finishedTools  []agent.ToolCall
+	inputTokens    int
+	cacheRead      int // cache_read_input_tokens (M290)
+	cacheCreation  int // cache_creation_input_tokens (M290)
+	outputTokens   int
+	stopReason     string
+	model          string
 }
 
 // openBlock tracks a content block while its deltas stream in. For
@@ -272,6 +275,7 @@ func dispatchSSEFrame(eventName, data string, st *streamState, onChunk func(agen
 				Type        string `json:"type"`
 				Text        string `json:"text"`
 				PartialJSON string `json:"partial_json"`
+				Thinking    string `json:"thinking"` // thinking_delta (M318)
 			} `json:"delta"`
 		}
 		if err := json.Unmarshal([]byte(data), &f); err != nil {
@@ -297,6 +301,13 @@ func dispatchSSEFrame(eventName, data string, st *streamState, onChunk func(agen
 					return err
 				}
 			}
+		case "thinking_delta": // extended thinking (M318)
+			st.openBlock.textBuf.WriteString(f.Delta.Thinking)
+			if f.Delta.Thinking != "" {
+				if err := onChunk(agent.Chunk{ReasoningDelta: f.Delta.Thinking}); err != nil {
+					return err
+				}
+			}
 		}
 
 	case "content_block_stop":
@@ -307,6 +318,8 @@ func dispatchSSEFrame(eventName, data string, st *streamState, onChunk func(agen
 		switch ob.kind {
 		case "text":
 			st.textParts.WriteString(ob.textBuf.String())
+		case "thinking": // extended thinking (M318): textBuf held the thinking deltas
+			st.reasoningParts.WriteString(ob.textBuf.String())
 		case "tool_use":
 			input := strings.TrimSpace(ob.inputBuf.String())
 			if input == "" {
@@ -383,7 +396,8 @@ func assembleResponse(st *streamState) *agent.CompletionResponse {
 			Content:   st.textParts.String(),
 			ToolCalls: st.finishedTools,
 		},
-		StopReason: stop,
+		ReasoningContent: st.reasoningParts.String(), // M318
+		StopReason:       stop,
 		Usage: anthUsageToAgent(
 			st.inputTokens, st.cacheRead, st.cacheCreation, st.outputTokens, st.model),
 	}

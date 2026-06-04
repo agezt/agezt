@@ -18,6 +18,11 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   `agt pulse`) and its size is recorded on the `llm.response` event — previously
   it was discarded. The durable journal stays lean (the reasoning text isn't
   persisted); ordinary models are unaffected.
+- **Claude extended thinking** is supported (opt-in via
+  `AGEZT_ANTHROPIC_THINKING_BUDGET=<tokens>`). When enabled, the Anthropic
+  provider requests extended thinking and captures Claude's chain of thought into
+  the same reasoning pipeline (live `llm.reasoning` events). Off by default
+  (thinking costs extra tokens).
 
 ### Fixed
 - **Ollama now honours the run's token cap.** `MaxTokens` is forwarded as
