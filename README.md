@@ -17,7 +17,7 @@ Agezt nodes** back — with capability-aware **auto-routing**, **failover**, and
 bounded delegation **loop guard** — and now each **tenant federates to its own
 peer set**; events push out via **HMAC-signed webhooks**. See
 [CHANGELOG.md](CHANGELOG.md).
-**Tests:** 1896 passing across 68 packages.
+**Tests:** 1897 passing across 68 packages.
 **Dependencies:** one (`lukechampine.com/blake3`) + one transitive.
 
 ## What you get
@@ -112,7 +112,7 @@ agt halt                  # freeze everything instantly
 
 If `AGEZT_WEB_ADDR` is set, the banner prints a tokenized URL — open it for a
 live event monitor (filterable by event kind), read panels (status / runs — click one for its full event
-arc / stats with an outcome bar / providers routing view / schedules / world / skills / memory / inbox /
+arc / stats with an outcome bar / providers routing view / tools / schedules / world / skills / memory / inbox /
 reflection, all refreshed live off the event stream), and operator controls
 (HALT, approve/deny, promote/forget). A provider-fallback warning badge appears
 when a primary provider is erroring — click it to see the underlying fallback
@@ -287,7 +287,7 @@ The v1 substrate. Highlights:
 ## Verify
 
 ```bash
-make test     # 1896 tests, all green
+make test     # 1897 tests, all green
 make build    # produces bin/agezt + bin/agt
 make gen      # regenerate SDK types from the contract
 ```

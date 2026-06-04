@@ -102,6 +102,10 @@ func TestDashboardServedAtRoot(t *testing.T) {
 	if !strings.Contains(body, "function openProviderLog") || !strings.Contains(body, "/api/provider_log") {
 		t.Error("dashboard missing the provider routing-log modal wiring")
 	}
+	// The Tools panel renders the tool-execution aggregate.
+	if !strings.Contains(body, `data-panel="tools"`) || !strings.Contains(body, "tools:") {
+		t.Error("dashboard missing the Tools panel")
+	}
 }
 
 func TestStatsRouteProxiesRunsStats(t *testing.T) {
@@ -151,6 +155,20 @@ func TestProvidersRouteProxiesProviderStats(t *testing.T) {
 	}
 	if len(fc.calls) != 1 || fc.calls[0] != "provider_stats" {
 		t.Errorf("expected one provider_stats call, got %v", fc.calls)
+	}
+}
+
+func TestToolsRouteProxiesToolStats(t *testing.T) {
+	fc := &fakeCaller{result: map[string]any{"total": 0}}
+	s, _ := newServer(t, fc, "secret")
+	req := httptest.NewRequest(http.MethodGet, "/api/tools?token=secret", nil)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d want 200", rec.Code)
+	}
+	if len(fc.calls) != 1 || fc.calls[0] != "tool_stats" {
+		t.Errorf("expected one tool_stats call, got %v", fc.calls)
 	}
 }
 
@@ -294,7 +312,7 @@ func TestAPIReadOnly(t *testing.T) {
 	// Every GET /api route must map to a read-only command — assert the proxy
 	// never issues anything outside the known read set.
 	readOnly := map[string]bool{
-		"status": true, "runs_list": true, "runs_stats": true, "provider_stats": true, "schedule_list": true, "memory_list": true, "world_list": true,
+		"status": true, "runs_list": true, "runs_stats": true, "provider_stats": true, "tool_stats": true, "schedule_list": true, "memory_list": true, "world_list": true,
 		"skill_list": true, "inbox": true, "reflect_show": true, "approvals": true,
 	}
 	for path := range apiRoutes {

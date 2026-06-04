@@ -126,6 +126,7 @@
   <section class="panel"><h2>Runs <button data-panel="runs">↻</button></h2><div class="body" id="runs"></div></section>
   <section class="panel"><h2>Stats <button data-panel="stats">↻</button></h2><div class="body" id="stats"></div></section>
   <section class="panel"><h2>Providers <button data-panel="providers">↻</button></h2><div class="body" id="providers"></div></section>
+  <section class="panel"><h2>Tools <button data-panel="tools">↻</button></h2><div class="body" id="tools"></div></section>
   <section class="panel"><h2>Schedules <button data-panel="schedules">↻</button></h2><div class="body" id="schedules"></div></section>
   <section class="panel"><h2>World <button data-panel="world">↻</button></h2><div class="body" id="world"></div></section>
   <section class="panel"><h2>Skills <button data-panel="skills">↻</button></h2><div class="body" id="skills"></div></section>
@@ -295,7 +296,9 @@ function liveRefresh(kind) {
   else if (kind.startsWith("skill.")) refreshSoon("skills");
   else if (kind.startsWith("memory.")) refreshSoon("memory");
   else if (kind.startsWith("world.")) refreshSoon("world");
-  else if (kind.startsWith("approval.") || kind === "tool.awaiting_approval") refreshSoon("approvals");
+  else if (kind === "tool.awaiting_approval") refreshSoon("approvals");
+  else if (kind.startsWith("tool.")) refreshSoon("tools");
+  else if (kind.startsWith("approval.")) refreshSoon("approvals");
 }
 
 function connect() {
@@ -453,6 +456,29 @@ const renderers = {
         frag.appendChild(row);
       }
     }
+    return frag;
+  },
+
+  tools: (d) => {
+    const frag = document.createDocumentFragment();
+    const total = d.total || 0;
+    frag.appendChild(kv([
+      ["calls", total],
+      ["errored", d.errored || 0],
+      ["error rate", total ? Math.round((d.error_rate || 0) * 100) + "%" : "—"],
+    ]));
+    const byTool = d.by_tool || {};
+    const names = Object.keys(byTool).sort((a, b) => (byTool[b].calls || 0) - (byTool[a].calls || 0));
+    frag.appendChild(el("div", "count muted", (d.tools || names.length) + " tool(s) used"));
+    listInto(frag, names, (n) => {
+      const t = byTool[n] || {};
+      const row = el("div", "item");
+      row.appendChild(chip(t.calls || 0));
+      row.appendChild(el("span", null, n));
+      if (t.errors) row.appendChild(el("span", "err", t.errors + " err"));
+      if (t.avg_ms != null) row.appendChild(muted(t.avg_ms + "ms"));
+      return row;
+    }, "no tool calls yet");
     return frag;
   },
 
@@ -747,7 +773,7 @@ document.getElementById("fbBadge").addEventListener("click", openFallbacks);
 document.querySelectorAll("button[data-panel]").forEach((b) =>
   b.addEventListener("click", () => loadPanel(b.dataset.panel)));
 connect();
-const PANELS = ["status", "runs", "stats", "providers", "schedules", "world", "skills", "memory", "approvals", "inbox", "reflect"];
+const PANELS = ["status", "runs", "stats", "providers", "tools", "schedules", "world", "skills", "memory", "approvals", "inbox", "reflect"];
 for (const p of PANELS) loadPanel(p);
 // Light periodic refresh of the cheap read panels (the feed is already live).
 setInterval(() => { for (const p of ["status", "runs", "stats", "schedules", "approvals"]) loadPanel(p); }, 10000);

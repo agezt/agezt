@@ -12,6 +12,11 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Web UI: a Tools panel showing tool-execution health.** A new panel proxies
+  `tool_stats` to show how many tool calls ran, the error rate, and a per-tool
+  breakdown (calls, errors in red, average latency) — the execution analogue of
+  the Stats/Providers aggregates, and the Web UI counterpart of `agt tool stats`.
+  It refreshes live off `tool.*` events.
 - **Web UI: the Providers panel drills into the per-call routing timeline.**
   Clicking the panel opens a modal listing recent routing decisions (which
   provider was chosen + the fallback chain + task type) and provider fallbacks
