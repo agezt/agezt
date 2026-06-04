@@ -452,3 +452,47 @@ func TestModel_AgentWarnings(t *testing.T) {
 		t.Errorf("small-context model should warn about context; got %v", w)
 	}
 }
+
+// TestDiscoverOllama_DetectsVisionModels (M309): a discovered multimodal model
+// (vision projector family clip/mllama, or a recognisable id) is marked
+// image-capable so the M91 vision gate lets attachments through; a text model
+// stays text-only.
+func TestDiscoverOllama_DetectsVisionModels(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/tags" {
+			http.NotFound(w, r)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"models": []map[string]any{
+				{"name": "llava:7b", "model": "llava:7b",
+					"details": map[string]any{"family": "llama", "families": []string{"llama", "clip"}}},
+				{"name": "llama3.2-vision:11b", "model": "llama3.2-vision:11b",
+					"details": map[string]any{"family": "mllama", "families": []string{"mllama"}}},
+				{"name": "moondream:latest", "model": "moondream:latest",
+					"details": map[string]any{"family": "phi2"}},
+				{"name": "llama3.2:latest", "model": "llama3.2:latest",
+					"details": map[string]any{"family": "llama", "families": []string{"llama"}}},
+			},
+		})
+	}))
+	defer srv.Close()
+
+	cat, err := catalog.DiscoverOllama(context.Background(), srv.URL)
+	if err != nil {
+		t.Fatalf("DiscoverOllama: %v", err)
+	}
+	p := cat.Providers[catalog.OllamaProviderID]
+	for _, id := range []string{"llava:7b", "llama3.2-vision:11b", "moondream:latest"} {
+		m := p.Models[id]
+		if m == nil || !m.SupportsVision() {
+			t.Errorf("%s should be vision-capable (SupportsVision=true)", id)
+		}
+		if m != nil && !m.Attachment {
+			t.Errorf("%s should have Attachment=true", id)
+		}
+	}
+	if m := p.Models["llama3.2:latest"]; m == nil || m.SupportsVision() {
+		t.Errorf("llama3.2:latest is text-only; SupportsVision should be false")
+	}
+}

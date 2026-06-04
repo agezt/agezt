@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -86,14 +87,26 @@ func DiscoverOllama(ctx context.Context, endpoint string) (*Catalog, error) {
 		if fam == "" && len(m.Details.Families) > 0 {
 			fam = m.Details.Families[0]
 		}
+		// Vision detection (M309): a local multimodal model (llava,
+		// llama3.2-vision, moondream, …) accepts image input. Ollama signals it
+		// via a vision projector in `details.families` ("clip"/"mllama") or a
+		// recognisable model id. Mark such models image-capable so the M91 vision
+		// gate lets attachments through to the (now image-forwarding) provider.
+		input := []string{"text"}
+		attachment := false
+		if ollamaModelHasVision(id, m.Details.Families) {
+			input = []string{"text", "image"}
+			attachment = true
+		}
 		provider.Models[id] = &Model{
 			ID:         id,
 			Name:       m.Name,
 			Family:     fam,
 			ToolCall:   true, // Ollama exposes tool-use uniformly
 			OpenWeight: true,
+			Attachment: attachment,
 			Modalities: Modalities{
-				Input:  []string{"text"},
+				Input:  input,
 				Output: []string{"text"},
 			},
 			// Cost: nil → free/local; matches our existing $0 semantics.
@@ -103,4 +116,26 @@ func DiscoverOllama(ctx context.Context, endpoint string) (*Catalog, error) {
 	cat := NewEmpty()
 	cat.Providers[provider.ID] = provider
 	return cat, nil
+}
+
+// ollamaModelHasVision reports whether a discovered Ollama model accepts image
+// input. Two signals: a vision projector family ("clip" — llava/bakllava;
+// "mllama" — llama3.2-vision) reported in `details.families`, or a recognisable
+// vision model id. Heuristic by necessity — Ollama's /api/tags has no explicit
+// modality field — but it covers the common local vision models; an operator can
+// always pin capabilities in custom.json for anything missed.
+func ollamaModelHasVision(id string, families []string) bool {
+	for _, f := range families {
+		switch strings.ToLower(strings.TrimSpace(f)) {
+		case "clip", "mllama":
+			return true
+		}
+	}
+	lid := strings.ToLower(id)
+	for _, marker := range []string{"llava", "vision", "moondream", "bakllava", "minicpm-v", "llama3.2-vision"} {
+		if strings.Contains(lid, marker) {
+			return true
+		}
+	}
+	return false
 }

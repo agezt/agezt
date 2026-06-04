@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/agezt/agezt/kernel/agent"
@@ -151,6 +152,7 @@ type ollamaRequest struct {
 type ollamaMessage struct {
 	Role       string           `json:"role"`
 	Content    string           `json:"content"`
+	Images     []string         `json:"images,omitempty"` // raw base64 image data (vision models, M309)
 	ToolCalls  []ollamaToolCall `json:"tool_calls,omitempty"`
 	ToolCallID string           `json:"tool_call_id,omitempty"`
 }
@@ -214,12 +216,43 @@ func encodeRequest(model, system string, msgs []agent.Message, tools []agent.Too
 	return json.Marshal(out)
 }
 
+// ollamaImageData extracts the raw base64 payload from an RFC 2397 data: URL
+// ("data:<media-type>;base64,<payload>"). Ollama's chat API wants the bare
+// base64 bytes — no data: prefix, no media type — so we drop the envelope.
+// Returns ok=false for anything that isn't a base64 image data URL (e.g. an
+// http(s) URL Ollama can't fetch, or a legacy bare filename), which the caller
+// skips. Mirrors the parseImageDataURL helpers in the cloud providers.
+func ollamaImageData(s string) (string, bool) {
+	const prefix = "data:"
+	if !strings.HasPrefix(s, prefix) {
+		return "", false
+	}
+	meta, payload, found := strings.Cut(s[len(prefix):], ",")
+	if !found || !strings.HasSuffix(meta, ";base64") || payload == "" {
+		return "", false
+	}
+	return payload, true
+}
+
 func canonicalToOllama(m agent.Message) (ollamaMessage, error) {
 	switch m.Role {
 	case agent.RoleSystem:
 		return ollamaMessage{Role: "system", Content: m.Content}, nil
 	case agent.RoleUser:
-		return ollamaMessage{Role: "user", Content: m.Content}, nil
+		om := ollamaMessage{Role: "user", Content: m.Content}
+		// Vision (M309): a user message may carry image attachments as RFC 2397
+		// data: URLs (what the CLI sends, M241). Ollama's chat API takes raw
+		// base64 image data in an `images` array — it sniffs the format itself,
+		// no media type — so extract the payload from each data: URL. Entries
+		// without a deliverable base64 payload (an http URL Ollama can't fetch,
+		// or a legacy bare filename) are skipped. Local vision models — llava,
+		// llama3.2-vision, moondream — read these.
+		for _, img := range m.Images {
+			if data, ok := ollamaImageData(img); ok {
+				om.Images = append(om.Images, data)
+			}
+		}
+		return om, nil
 	case agent.RoleAssistant:
 		om := ollamaMessage{Role: "assistant", Content: m.Content}
 		for _, tc := range m.ToolCalls {

@@ -22,6 +22,11 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   safe — GCM errors on a short ciphertext and PBKDF2 accepts any salt.)
 
 ### Added
+- **Ollama now supports local vision models.** Image attachments are forwarded to
+  Ollama as base64 in the chat `images` array, and auto-discovery marks multimodal
+  models (llava, llama3.2-vision, moondream, …) image-capable so the vision gate
+  lets attachments through — local, private image understanding with no cloud
+  provider. Text-only Ollama requests are unchanged.
 - **`agt doctor` now confirms the AWS credential chain at preflight.** The
   production-readiness check reports which keyless/ambient layer engaged, tagging
   IRSA / SSO / assume-role with `[keyless: …]` — so a cloud deployment can be
