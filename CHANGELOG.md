@@ -11,6 +11,14 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 
 ## [Unreleased]
 
+### Security
+- **Constant-time web UI token check.** The web monitor's auth-token comparison
+  used a plain `==`, a timing side-channel an attacker who can reach the web UI
+  could use to recover the token byte-by-byte. It now uses
+  `crypto/subtle.ConstantTimeCompare` for both the `?token=` query param and the
+  `Authorization: Bearer` header, matching the control-plane's gate. (The web UI
+  binds to loopback by default, which limited exposure.)
+
 ### Fixed
 - **Rune-safe display truncation (codebase-wide).** A shared `strutil.Ellipsis`
   helper now backs every text truncation that reaches a user or the model: the

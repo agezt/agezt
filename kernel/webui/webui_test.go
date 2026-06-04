@@ -597,3 +597,19 @@ func readDataLine(r *bufio.Reader) (string, error) {
 		}
 	}
 }
+
+func TestTokenMatch_ConstantTimeAcceptReject(t *testing.T) {
+	// Lock in the constant-time token gate: exact match accepts; any wrong value,
+	// a length-differing value, a prefix (the shape a timing attack probes), and
+	// the empty string all reject. (The comparison itself runs in constant time
+	// via crypto/subtle so the reject path can't be byte-by-byte guessed.)
+	s, _ := newServer(t, &fakeCaller{}, "s3cret-token")
+	if !s.tokenMatch("s3cret-token") {
+		t.Error("exact token must match")
+	}
+	for _, bad := range []string{"", "s3cret-toke", "s3cret-token-extra", "S3CRET-TOKEN", "wrong", "s"} {
+		if s.tokenMatch(bad) {
+			t.Errorf("tokenMatch(%q) accepted, want reject", bad)
+		}
+	}
+}

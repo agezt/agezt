@@ -24,6 +24,7 @@ package webui
 
 import (
 	"context"
+	"crypto/subtle"
 	_ "embed"
 	"encoding/json"
 	"net/http"
@@ -145,13 +146,21 @@ func (s *Server) authorized(r *http.Request) bool {
 	if s.token == "" {
 		return false // never serve without a configured token
 	}
-	if tok := r.URL.Query().Get("token"); tok == s.token {
+	if s.tokenMatch(r.URL.Query().Get("token")) {
 		return true
 	}
 	if h := r.Header.Get("Authorization"); strings.HasPrefix(h, "Bearer ") {
-		return strings.TrimPrefix(h, "Bearer ") == s.token
+		return s.tokenMatch(strings.TrimPrefix(h, "Bearer "))
 	}
 	return false
+}
+
+// tokenMatch compares a presented token against the configured one in CONSTANT
+// TIME, so an attacker who can reach the web UI can't recover the token
+// byte-by-byte by timing the auth check. Mirrors the control-plane's
+// subtle.ConstantTimeCompare gate (server.go). Caller guarantees s.token != "".
+func (s *Server) tokenMatch(presented string) bool {
+	return subtle.ConstantTimeCompare([]byte(presented), []byte(s.token)) == 1
 }
 
 // handleDashboard serves the embedded single-page dashboard at "/".
