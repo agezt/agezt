@@ -14,7 +14,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Agezt · Live Monitor</title>
-<style>
+<style nonce="__CSP_NONCE__">
   :root {
     --bg: #0b0e14; --panel: #131722; --panel2: #0f1320; --line: #1f2633;
     --fg: #c9d1d9; --dim: #6b7585; --accent: #58a6ff; --good: #3fb950;
@@ -159,7 +159,7 @@
   </div>
 </div>
 
-<script>
+<script nonce="__CSP_NONCE__">
 "use strict";
 const TOKEN = new URLSearchParams(location.search).get("token") || "";
 const qs = TOKEN ? "?token=" + encodeURIComponent(TOKEN) : "";

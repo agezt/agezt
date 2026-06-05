@@ -172,6 +172,19 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   with it. One malformed/edge-case request is contained to its own connection.
 
 ### Security
+- **The web dashboard sets a Content-Security-Policy with a per-response nonce.**
+  The operator dashboard is the highest-privilege browser surface (same-origin with
+  the token-authed, state-mutating control plane) and renders untrusted agent/tool/
+  transcript data. A full review found no XSS — the page is built entirely with
+  text-node DOM construction, no dynamic-HTML sink — but it shipped without a CSP.
+  It now sends `default-src 'none'; script-src 'nonce-…'; style-src 'nonce-…';
+  connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`
+  with a fresh `crypto/rand` nonce minted per request and substituted into the two
+  inline tags. A nonce (not `'unsafe-inline'`) means any injected inline script from
+  a future regression is refused for lacking the unpredictable value, and the
+  directives block injected external loads, cross-origin exfiltration, and framing.
+  Defense-in-depth on top of the existing nosniff / X-Frame-Options / no-referrer /
+  constant-time-token headers. (M435)
 - **The Azure provider URL escapes the deployment name and api-version.** The
   Azure OpenAI request URL was built by raw string concatenation, inserting the
   deployment/model id into the path unescaped. A value bearing a `?` terminated

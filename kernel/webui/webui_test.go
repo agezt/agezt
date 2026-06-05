@@ -798,3 +798,60 @@ func TestDashboard_RendersPolicyCard(t *testing.T) {
 		}
 	}
 }
+
+// cspNonceRe extracts the nonce from a script-src directive.
+var cspNonceRe = regexp.MustCompile(`script-src 'nonce-([^']+)'`)
+
+func TestDashboard_SetsCSPNonce(t *testing.T) {
+	s, _ := newServer(t, &fakeCaller{}, "secret")
+	req := httptest.NewRequest(http.MethodGet, "/?token=secret", nil)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+
+	csp := rec.Header().Get("Content-Security-Policy")
+	if csp == "" {
+		t.Fatal("dashboard response has no Content-Security-Policy header")
+	}
+	if !strings.Contains(csp, "default-src 'none'") {
+		t.Errorf("CSP missing default-src 'none': %q", csp)
+	}
+	m := cspNonceRe.FindStringSubmatch(csp)
+	if m == nil {
+		t.Fatalf("CSP has no script-src nonce: %q", csp)
+	}
+	nonce := m[1]
+
+	body := rec.Body.String()
+	// The placeholder must be fully substituted — a leftover would mean the
+	// inline script/style runs with a literal, guessable "nonce" (no protection).
+	if strings.Contains(body, "__CSP_NONCE__") {
+		t.Error("dashboard body still contains the __CSP_NONCE__ placeholder")
+	}
+	// Both the <script> and <style> tags must carry the SAME nonce as the header,
+	// or the browser refuses to run/apply them.
+	if !strings.Contains(body, `<script nonce="`+nonce+`">`) {
+		t.Error("script tag nonce does not match the CSP header nonce")
+	}
+	if !strings.Contains(body, `<style nonce="`+nonce+`">`) {
+		t.Error("style tag nonce does not match the CSP header nonce")
+	}
+}
+
+func TestDashboard_NoncePerRequest(t *testing.T) {
+	s, _ := newServer(t, &fakeCaller{}, "secret")
+	get := func() string {
+		req := httptest.NewRequest(http.MethodGet, "/?token=secret", nil)
+		rec := httptest.NewRecorder()
+		s.Handler().ServeHTTP(rec, req)
+		m := cspNonceRe.FindStringSubmatch(rec.Header().Get("Content-Security-Policy"))
+		if m == nil {
+			t.Fatal("no nonce in CSP")
+		}
+		return m[1]
+	}
+	// An unpredictable, per-response nonce is the whole point — a fixed nonce
+	// would let an injected inline script reuse it.
+	if a, b := get(), get(); a == b {
+		t.Errorf("nonce was reused across requests (%q) — it must be per-response", a)
+	}
+}

@@ -24,8 +24,10 @@ package webui
 
 import (
 	"context"
+	"crypto/rand"
 	"crypto/subtle"
 	_ "embed"
+	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"strings"
@@ -180,13 +182,47 @@ func (s *Server) tokenMatch(presented string) bool {
 }
 
 // handleDashboard serves the embedded single-page dashboard at "/".
+//
+// The page carries the only inline <script>/<style> in the surface, and it is
+// the highest-privilege browser context (same-origin with the token-authed,
+// state-mutating control plane). It is built entirely with textContent — no
+// innerHTML sink — so it has no current XSS, but a Content-Security-Policy with
+// a per-response nonce is set as defense-in-depth: `default-src 'none'` blocks
+// any injected external resource, `script-src 'nonce-…'` means only the genuine
+// inline block runs (an injected <script> from a future regression is refused
+// because it can't carry the unpredictable nonce), and `connect-src 'self'` /
+// `base-uri` / `form-action` / `frame-ancestors 'none'` close exfiltration and
+// pivot avenues. The nonce is minted per request and substituted into the two
+// tag placeholders so the header and the markup always agree.
 func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path != "/" {
 		http.NotFound(w, r)
 		return
 	}
+	nonce := newCSPNonce()
+	w.Header().Set("Content-Security-Policy",
+		"default-src 'none'; "+
+			"script-src 'nonce-"+nonce+"'; "+
+			"style-src 'nonce-"+nonce+"'; "+
+			"connect-src 'self'; "+
+			"img-src 'self' data:; "+
+			"base-uri 'none'; "+
+			"form-action 'none'; "+
+			"frame-ancestors 'none'")
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_, _ = w.Write(dashboardHTML)
+	body := strings.ReplaceAll(string(dashboardHTML), "__CSP_NONCE__", nonce)
+	_, _ = w.Write([]byte(body))
+}
+
+// newCSPNonce returns a fresh, unpredictable base64 nonce for the dashboard's
+// Content-Security-Policy. 16 bytes of crypto/rand is ample CSP-nonce entropy.
+// rand.Read never returns an error on the platforms we target; the zero-value
+// fallback only matters in the impossible error case and is still per-process
+// unique enough to not weaken a page that has no XSS sink to begin with.
+func newCSPNonce() string {
+	var b [16]byte
+	_, _ = rand.Read(b[:])
+	return base64.StdEncoding.EncodeToString(b[:])
 }
 
 // handleEvents streams the bus as Server-Sent Events. It subscribes to the
