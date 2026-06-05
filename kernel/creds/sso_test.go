@@ -77,6 +77,47 @@ func TestGetSSORoleCredentials_HappyPath(t *testing.T) {
 	}
 }
 
+// TestGetSSORoleCredentials_EscapesQueryParams pins M466: a role name with
+// characters that are special in a URL query (a legitimate IAM role name) must
+// reach the SSO portal intact. Raw concatenation would send "+" as a space and let
+// "&"/"=" corrupt the query.
+func TestGetSSORoleCredentials_EscapesQueryParams(t *testing.T) {
+	cacheDir := t.TempDir()
+	startURL := "https://acme-corp.awsapps.com/start"
+	writeSSOToken(t, cacheDir, startURL, "tok",
+		time.Date(2026, 5, 29, 13, 0, 0, 0, time.UTC))
+
+	const roleName = "My+Admin@2,Role"
+	const accountID = "000111222333"
+	var seenAccount, seenRole string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seenAccount = r.URL.Query().Get("account_id")
+		seenRole = r.URL.Query().Get("role_name")
+		expMs := time.Date(2026, 5, 29, 13, 30, 0, 0, time.UTC).UnixMilli()
+		fmt.Fprintf(w, `{"roleCredentials":{"accessKeyId":"A","secretAccessKey":"s","sessionToken":"t","expiration":%d}}`, expMs)
+	}))
+	defer srv.Close()
+
+	_, err := creds.GetSSORoleCredentials(context.Background(), creds.SSOParams{
+		StartURL:  startURL,
+		Region:    "us-east-1",
+		AccountID: accountID,
+		RoleName:  roleName,
+		CacheDir:  cacheDir,
+		Endpoint:  srv.URL,
+		Now:       func() time.Time { return time.Date(2026, 5, 29, 12, 0, 0, 0, time.UTC) },
+	})
+	if err != nil {
+		t.Fatalf("GetSSORoleCredentials: %v", err)
+	}
+	if seenRole != roleName {
+		t.Errorf("role_name reached the portal as %q, want %q (query not escaped)", seenRole, roleName)
+	}
+	if seenAccount != accountID {
+		t.Errorf("account_id = %q, want %q", seenAccount, accountID)
+	}
+}
+
 func TestGetSSORoleCredentials_RejectsExpiredToken(t *testing.T) {
 	cacheDir := t.TempDir()
 	startURL := "https://x.awsapps.com/start"

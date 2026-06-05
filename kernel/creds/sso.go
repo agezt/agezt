@@ -36,6 +36,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"sync"
@@ -162,13 +163,19 @@ func GetSSORoleCredentials(ctx context.Context, p SSOParams) (*AssumedCreds, err
 		return nil, fmt.Errorf("sso: cached token expired at %s (re-run `aws sso login`)", tok.ExpiresAt.Format(time.RFC3339))
 	}
 
-	url := ssoPortalEndpoint(p.Region, p.Endpoint) +
-		"/federation/credentials?account_id=" + p.AccountID +
-		"&role_name=" + p.RoleName
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	reqURL := ssoPortalEndpoint(p.Region, p.Endpoint) + "/federation/credentials"
+	req, err := http.NewRequestWithContext(ctx, "GET", reqURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("sso: build request: %w", err)
 	}
+	// Escape the query params: IAM role names legitimately contain characters that
+	// are special in a URL query (`+` decodes to space, `&`/`#`/`=` corrupt it), so
+	// raw concatenation would send a wrong role_name/account_id for those operators
+	// (STS already builds its form with url.Values). (M466)
+	q := url.Values{}
+	q.Set("account_id", p.AccountID)
+	q.Set("role_name", p.RoleName)
+	req.URL.RawQuery = q.Encode()
 	req.Header.Set("x-amz-sso_bearer_token", tok.AccessToken)
 
 	client := &http.Client{Timeout: credentialHTTPTimeout}

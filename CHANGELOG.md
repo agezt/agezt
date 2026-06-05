@@ -22,6 +22,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   forgotten only after it ages out of both generations, roughly doubling the
   remembered window with memory still bounded at 2×cap. (M457)
 
+### Fixed
+- **SSO credential requests now URL-escape the role name and account id.** The SSO
+  `GetRoleCredentials` query was built by raw string concatenation, so a role name
+  containing characters that are valid in IAM but special in a URL query (e.g. `+`,
+  which decodes to a space) was sent corrupted and the credential fetch failed for
+  those operators. The query is now built with `url.Values`. (M466)
+
 ### Reliability
 - **AWS credential fetches (SSO/STS/web-identity) no longer hang daemon startup on
   a stalled endpoint.** These paths used `http.DefaultClient` (no timeout) with a
