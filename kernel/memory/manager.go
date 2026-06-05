@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/agezt/agezt/kernel/agent"
@@ -26,6 +27,12 @@ type Manager struct {
 	// now is the clock, injectable for deterministic tests. Defaults to
 	// time.Now when constructed via NewManager.
 	now func() time.Time
+	// mu serialises the read-modify-write mutators (Remember/Forget/Supersede) so
+	// two concurrent writers — e.g. the agent loop and the auto-distiller both
+	// remembering a fact, or a reinforce racing a forget — cannot interleave their
+	// Get→Put pairs and lose an update (M421). The underlying Store guards each call
+	// individually but not the pair.
+	mu sync.Mutex
 }
 
 // NewManager wires a Store to a bus. bus may be nil in tests that only
@@ -70,6 +77,10 @@ func (m *Manager) Remember(corr string, spec RememberSpec) (Record, bool, error)
 	}
 	nowMS := m.now().UnixMilli()
 	id := ContentID(t, spec.Subject, spec.Content)
+
+	// Hold the lock across the Get→Put so a concurrent writer can't lose the update.
+	m.mu.Lock()
+	defer m.mu.Unlock()
 
 	existing, found, err := m.store.Get(id)
 	if err != nil {
@@ -156,6 +167,8 @@ func (m *Manager) Recall(corr, query string, limit int) ([]Scored, error) {
 // on disk and in the journal — recall excludes it, but it can be recovered
 // and the action is auditable/reversible. Returns false if id is unknown.
 func (m *Manager) Forget(corr, id string) (bool, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	rec, found, err := m.store.Get(id)
 	if err != nil {
 		return false, err
@@ -187,6 +200,10 @@ func (m *Manager) Supersede(corr, oldID string, spec RememberSpec) (Record, erro
 	if err != nil {
 		return Record{}, err
 	}
+	// Remember already released the lock; re-take it for the old-record Get→Put.
+	// Distinct critical section (different id), so no re-entrancy.
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	old, found, err := m.store.Get(oldID)
 	if err != nil {
 		return Record{}, err

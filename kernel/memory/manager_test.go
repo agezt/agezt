@@ -5,6 +5,7 @@ package memory
 import (
 	"context"
 	"encoding/json"
+	"sync"
 	"testing"
 	"time"
 
@@ -13,6 +14,76 @@ import (
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/journal"
 )
+
+// rmwProbe wraps a Store and tracks the maximum number of goroutines that are
+// simultaneously between a Get and its matching Put — i.e. overlapping
+// read-modify-write windows. The small sleep in Get widens the window so an
+// unserialised writer reliably overlaps. With the Manager's mutex held across
+// Get→Put, the max stays 1; without it, concurrent writers pile up (M421).
+type rmwProbe struct {
+	Store
+	mu       sync.Mutex
+	inFlight int
+	maxConc  int
+}
+
+func (p *rmwProbe) Get(id string) (Record, bool, error) {
+	p.mu.Lock()
+	p.inFlight++
+	if p.inFlight > p.maxConc {
+		p.maxConc = p.inFlight
+	}
+	p.mu.Unlock()
+	time.Sleep(2 * time.Millisecond) // widen the RMW window
+	return p.Store.Get(id)
+}
+
+func (p *rmwProbe) Put(r Record) error {
+	err := p.Store.Put(r)
+	p.mu.Lock()
+	p.inFlight--
+	p.mu.Unlock()
+	return err
+}
+
+func (p *rmwProbe) maxConcurrent() int {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.maxConc
+}
+
+// TestManager_SerializesConcurrentWrites: the Manager must hold a lock across each
+// mutator's Get→Put so two concurrent writers can't interleave and lose an update
+// (M421). Verified structurally: with the lock, no two RMW windows overlap.
+func TestManager_SerializesConcurrentWrites(t *testing.T) {
+	j, err := journal.Open(t.TempDir(), journal.Options{})
+	if err != nil {
+		t.Fatalf("journal.Open: %v", err)
+	}
+	b := bus.New(j)
+	t.Cleanup(func() { b.Close(); j.Close() })
+	base, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("memory.Open: %v", err)
+	}
+	probe := &rmwProbe{Store: base}
+	m := NewManager(probe, b)
+
+	const N = 8
+	var wg sync.WaitGroup
+	for i := 0; i < N; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, _, _ = m.Remember("c", RememberSpec{Subject: "s", Content: "same content"})
+		}()
+	}
+	wg.Wait()
+
+	if got := probe.maxConcurrent(); got != 1 {
+		t.Errorf("overlapping read-modify-write windows (maxConcurrent=%d, want 1): the Manager lock must serialize writes", got)
+	}
+}
 
 // fixedNow pins the manager clock in tests so recency and ids-by-time are
 // deterministic.

@@ -9,6 +9,7 @@ import (
 	"maps"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/agezt/agezt/kernel/agent"
@@ -27,6 +28,11 @@ type Graph struct {
 	// now is the clock, injectable for deterministic tests. Defaults to
 	// time.Now when constructed via NewGraph.
 	now func() time.Time
+	// mu serialises the read-modify-write mutators (Upsert/Relate/Forget/Decay) so a
+	// reinforce can't race a Decay (or another reinforce) and lose an update — e.g.
+	// Decay clobbering a just-refreshed weight (M421). The Store guards each call
+	// individually but not the Get→Put pair.
+	mu sync.Mutex
 }
 
 // NewGraph wires a Store to a bus. bus may be nil in tests that only exercise
@@ -63,6 +69,10 @@ func (g *Graph) Upsert(corr string, spec UpsertSpec) (Entity, bool, error) {
 	w = clampWeight(w)
 	nowMS := g.now().UnixMilli()
 	id := EntityID(kind, name)
+
+	// Hold the lock across the Get→Put so a concurrent reinforce/decay can't lose it.
+	g.mu.Lock()
+	defer g.mu.Unlock()
 
 	existing, found, err := g.store.GetEntity(id)
 	if err != nil {
@@ -128,6 +138,11 @@ func (g *Graph) Relate(corr, fromName string, verb Verb, toName string) (Relatio
 	v := NormalizeVerb(verb)
 	nowMS := g.now().UnixMilli()
 	id := RelationID(from, v, to)
+
+	// resolveOrCreate above may Upsert (self-locking); take the lock only now, for
+	// the relation Get→Put. Distinct critical section, so no re-entrancy.
+	g.mu.Lock()
+	defer g.mu.Unlock()
 
 	existing, found, err := g.store.GetRelation(id)
 	if err != nil {
@@ -258,6 +273,8 @@ func (g *Graph) Neighbors(entityID string) ([]Neighbor, error) {
 // The record stays on disk and in the journal — excluded from resolve/neighbors
 // but recoverable and auditable. Returns false if id is unknown.
 func (g *Graph) Forget(corr, id string) (bool, error) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
 	if e, found, err := g.store.GetEntity(id); err != nil {
 		return false, err
 	} else if found {

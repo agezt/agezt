@@ -12,6 +12,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Reliability
+- **Concurrent memory / world-model writes no longer lose updates.** The memory-lite
+  and world-model managers did their read-modify-write (`Get` → compute → `Put`) as
+  two separately-locked store calls, so two concurrent writers — the agent loop and
+  the auto-distiller both remembering a fact, or a reinforce racing the periodic decay
+  — could interleave and lose one update (a dropped reinforcement, or decay clobbering
+  a just-refreshed weight). Each mutator now holds a manager-level lock across the
+  whole Get→Put.
 - **A panicking scheduled run can no longer crash the daemon.** A fired schedule
   (cadence) runs a governed run and then delivers its answer over a channel plugin —
   the delivery executes after the agent loop's own recover returns, on the bare fire

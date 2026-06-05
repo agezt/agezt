@@ -47,6 +47,13 @@ func (g *Graph) Decay(corr string, opts DecayOptions) (int, error) {
 		floor = defaultDecayFloor
 	}
 
+	// Decay is a read-all-then-write-each maintenance pass; hold the lock for the
+	// whole pass so a concurrent Upsert/reinforce can't be clobbered by a write
+	// computed from a now-stale snapshot (M421). The graph is bounded and decay is
+	// periodic, so the coarse hold is acceptable per the store's write-volume contract.
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
 	all, err := g.store.AllEntities()
 	if err != nil {
 		return 0, err

@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -14,6 +15,75 @@ import (
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/journal"
 )
+
+// entityRMWProbe tracks the maximum number of overlapping GetEntity→PutEntity
+// windows (concurrent reinforces). With the Graph mutex held across Upsert's
+// Get→Put, the max stays 1; without it, concurrent writers overlap (M421).
+type entityRMWProbe struct {
+	Store
+	mu       sync.Mutex
+	inFlight int
+	maxConc  int
+}
+
+func (p *entityRMWProbe) GetEntity(id string) (Entity, bool, error) {
+	p.mu.Lock()
+	p.inFlight++
+	if p.inFlight > p.maxConc {
+		p.maxConc = p.inFlight
+	}
+	p.mu.Unlock()
+	time.Sleep(2 * time.Millisecond) // widen the RMW window
+	return p.Store.GetEntity(id)
+}
+
+func (p *entityRMWProbe) PutEntity(e Entity) error {
+	err := p.Store.PutEntity(e)
+	p.mu.Lock()
+	p.inFlight--
+	p.mu.Unlock()
+	return err
+}
+
+func (p *entityRMWProbe) maxConcurrent() int {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.maxConc
+}
+
+// TestGraph_SerializesConcurrentUpserts: the Graph must hold a lock across Upsert's
+// GetEntity→PutEntity so concurrent reinforces (or a reinforce racing Decay) can't
+// interleave and lose an update (M421). Verified structurally — no two RMW windows
+// overlap with the lock held.
+func TestGraph_SerializesConcurrentUpserts(t *testing.T) {
+	j, err := journal.Open(t.TempDir(), journal.Options{})
+	if err != nil {
+		t.Fatalf("journal.Open: %v", err)
+	}
+	b := bus.New(j)
+	t.Cleanup(func() { b.Close(); j.Close() })
+	base, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("worldmodel.Open: %v", err)
+	}
+	probe := &entityRMWProbe{Store: base}
+	g := NewGraph(probe, b)
+
+	const N = 8
+	var wg sync.WaitGroup
+	for i := 0; i < N; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, _, _ = g.Upsert("c", UpsertSpec{Kind: KindProject, Name: "Portfolio"})
+		}()
+	}
+	wg.Wait()
+
+	if got := probe.maxConcurrent(); got != 1 {
+		t.Errorf("overlapping read-modify-write windows (maxConcurrent=%d, want 1): the Graph lock must serialize writes", got)
+	}
+}
 
 var fixedNow = time.Unix(1_700_000_000, 0).UTC()
 
