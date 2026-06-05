@@ -25,9 +25,9 @@ const (
 )
 
 type runEntry struct {
-	CorrelationID   string
-	Intent          string
-	StartedUnixMS   int64
+	CorrelationID string
+	Intent        string
+	StartedUnixMS int64
 	// StartedSeq is the journal seq of the task.received event;
 	// used as a tie-break for the sort when two runs share the
 	// same TSUnixMS (the bus's wall-clock resolution is 1ms, so
@@ -321,9 +321,9 @@ func (s *Server) handleRunsList(conn net.Conn, req Request) {
 			"duration_ms":        duration,
 			"iters":              r.Iters,
 			"parent_correlation": r.ParentCorrelation, // "" for top-level runs (M41)
-			"spent_mc":           r.SpentMicrocents,    // this run's spend in microcents (M50; 0 = none/unpriced)
-			"model":              r.Model,              // primary (first-routed) model (M123; "" if unpriced/mock)
-			"answer_preview":     r.AnswerPreview,      // one-line excerpt of the final answer (M52; "" if none)
+			"spent_mc":           r.SpentMicrocents,   // this run's spend in microcents (M50; 0 = none/unpriced)
+			"model":              r.Model,             // primary (first-routed) model (M123; "" if unpriced/mock)
+			"answer_preview":     r.AnswerPreview,     // one-line excerpt of the final answer (M52; "" if none)
 		})
 	}
 

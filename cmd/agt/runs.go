@@ -788,7 +788,9 @@ type childOutcome struct {
 // shortcut for the most-common operator pattern: render the
 // task arc for the run that just finished (or is still running).
 // Replaces the awkward two-step
-//   `agt runs list 1 --json | jq -r '.runs[0].correlation_id' | xargs agt runs show`
+//
+//	`agt runs list 1 --json | jq -r '.runs[0].correlation_id' | xargs agt runs show`
+//
 // with a single command. Identical exit codes + rendering to
 // `runs show`; the only difference is "which correlation".
 func cmdRunsLast(args []string, stdout, stderr io.Writer) int {

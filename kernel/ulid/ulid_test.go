@@ -74,11 +74,11 @@ func TestValidate(t *testing.T) {
 		t.Errorf("fresh ULID failed validation: %v", err)
 	}
 	bad := []string{
-		"",                          // too short
-		strings.Repeat("0", 25),     // too short
-		strings.Repeat("0", 27),     // too long
-		strings.Repeat("L", 26),     // forbidden char
-		strings.Repeat("i", 26),     // lowercase forbidden char + lowercase ban
+		"",                            // too short
+		strings.Repeat("0", 25),       // too short
+		strings.Repeat("0", 27),       // too long
+		strings.Repeat("L", 26),       // forbidden char
+		strings.Repeat("i", 26),       // lowercase forbidden char + lowercase ban
 		strings.Repeat("0", 25) + "@", // invalid symbol
 	}
 	for _, s := range bad {

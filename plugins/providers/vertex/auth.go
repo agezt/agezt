@@ -63,12 +63,12 @@ const (
 // JSON key file we need. The full schema has more fields (client_id,
 // auth_uri, etc.) we don't use.
 type ServiceAccountKey struct {
-	Type         string `json:"type"`           // "service_account"
+	Type         string `json:"type"` // "service_account"
 	ProjectID    string `json:"project_id"`
 	PrivateKey   string `json:"private_key"`    // PEM-encoded RSA
 	PrivateKeyID string `json:"private_key_id"` // kid header
 	ClientEmail  string `json:"client_email"`
-	TokenURI     string `json:"token_uri"`      // typically https://oauth2.googleapis.com/token
+	TokenURI     string `json:"token_uri"` // typically https://oauth2.googleapis.com/token
 }
 
 // LoadServiceAccountFile reads + parses a service-account JSON key
@@ -174,11 +174,11 @@ type TokenMinter interface {
 // TokenSource mints (and caches) OAuth2 access tokens for a service
 // account. Safe for concurrent use. Implements TokenMinter.
 type TokenSource struct {
-	sa     *ServiceAccountKey
-	key    *rsa.PrivateKey
-	scope  string
-	http   *http.Client
-	now    func() time.Time
+	sa    *ServiceAccountKey
+	key   *rsa.PrivateKey
+	scope string
+	http  *http.Client
+	now   func() time.Time
 
 	mu        sync.Mutex
 	cached    string

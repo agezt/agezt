@@ -208,21 +208,21 @@ func (s *Store) Save() error {
 // vault under the new passphrase.
 //
 // Algorithm:
-//   1. Validate the new passphrase is non-empty (rejecting "" here
-//      prevents accidentally turning the vault plaintext without
-//      using `agt vault decrypt`).
-//   2. Re-encrypt the in-memory data under newPassphrase using the
-//      standard encrypt path (fresh salt + nonce per save — see
-//      encrypt.go's encryptVault).
-//   3. Atomic write (write-temp + rename) so a crash mid-rotation
-//      leaves either the old vault intact OR the new vault intact —
-//      never a half-written file. The temp file is removed on
-//      rename failure.
-//   4. Update the in-memory passphrase function so future Save calls
-//      use the new passphrase. This means once Rotate returns the
-//      Store is fully consistent — the caller doesn't need to update
-//      AGEZT_VAULT_PASSPHRASE in the process env for subsequent
-//      Saves to work.
+//  1. Validate the new passphrase is non-empty (rejecting "" here
+//     prevents accidentally turning the vault plaintext without
+//     using `agt vault decrypt`).
+//  2. Re-encrypt the in-memory data under newPassphrase using the
+//     standard encrypt path (fresh salt + nonce per save — see
+//     encrypt.go's encryptVault).
+//  3. Atomic write (write-temp + rename) so a crash mid-rotation
+//     leaves either the old vault intact OR the new vault intact —
+//     never a half-written file. The temp file is removed on
+//     rename failure.
+//  4. Update the in-memory passphrase function so future Save calls
+//     use the new passphrase. This means once Rotate returns the
+//     Store is fully consistent — the caller doesn't need to update
+//     AGEZT_VAULT_PASSPHRASE in the process env for subsequent
+//     Saves to work.
 //
 // Errors leave the on-disk file unchanged (the temp file is removed
 // on rename failure). The in-memory passphrase function is only

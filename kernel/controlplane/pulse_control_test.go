@@ -23,7 +23,7 @@ func (f *fakePulse) StatusMap() map[string]any {
 	defer f.mu.Unlock()
 	return map[string]any{"running": !f.paused, "paused": f.paused, "beats": int64(3), "dial": "balanced"}
 }
-func (f *fakePulse) Pause() { f.mu.Lock(); f.paused = true; f.mu.Unlock() }
+func (f *fakePulse) Pause()  { f.mu.Lock(); f.paused = true; f.mu.Unlock() }
 func (f *fakePulse) Resume() { f.mu.Lock(); f.paused = false; f.mu.Unlock() }
 
 func TestPulseStatusDisabledWhenNoEngine(t *testing.T) {

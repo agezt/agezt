@@ -117,9 +117,9 @@ type encryptedEnvelope struct {
 	Encryption string `json:"encryption"`
 	KDF        string `json:"kdf"`
 	KDFIter    int    `json:"kdf_iter"`
-	KDFSalt    string `json:"kdf_salt"`    // base64
-	Nonce      string `json:"nonce"`       // base64
-	Ciphertext string `json:"ciphertext"`  // base64
+	KDFSalt    string `json:"kdf_salt"`   // base64
+	Nonce      string `json:"nonce"`      // base64
+	Ciphertext string `json:"ciphertext"` // base64
 }
 
 // ErrPassphraseRequired is returned by Load when the vault file is

@@ -142,7 +142,9 @@ func parseTaskRoutesEnv(spec string) (TaskRoutes, error) {
 }
 
 // ParseTaskModelOverridesEnv decodes
+//
 //	"plan=claude-opus-4-7;salience=claude-haiku-4-5-20251001"
+//
 // into a TaskModelOverrides map. Each entry must be
 // `<task-type>=<model-id>`. Whitespace tolerated; later wins on
 // duplicate keys; empty value deletes a prior entry.
@@ -182,7 +184,9 @@ func ParseTaskModelOverridesEnv(spec string) (TaskModelOverrides, error) {
 func ParseTaskRoutesEnv(spec string) (TaskRoutes, error) { return parseTaskRoutesEnv(spec) }
 
 // ParseTaskBudgetsEnv decodes
+//
 //	"plan=100000;code=500000"
+//
 // into a map of task type → daily ceiling microcents (M1.zz).
 // Each entry must be `<task-type>=<positive integer microcents>`.
 // Zero or negative values are rejected at parse time so a typo

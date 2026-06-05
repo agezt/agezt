@@ -72,9 +72,9 @@ func TestExportedName(t *testing.T) {
 
 func TestRefTypeName(t *testing.T) {
 	cases := map[string]string{
-		"#/Event":           "Event",
-		"#/UnifiedMessage":  "UnifiedMessage",
-		"PlainName":         "PlainName",
+		"#/Event":          "Event",
+		"#/UnifiedMessage": "UnifiedMessage",
+		"PlainName":        "PlainName",
 	}
 	for in, want := range cases {
 		if got := refTypeName(in); got != want {
