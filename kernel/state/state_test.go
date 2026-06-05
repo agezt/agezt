@@ -291,3 +291,30 @@ func TestConcurrentAccess_RaceSafe(t *testing.T) {
 		}
 	}
 }
+
+// TestSet_InvalidRawMessageRejectedNoPoison: a Set of an invalid json.RawMessage
+// must be rejected up front and must NOT poison the namespace — before the fix the
+// bad entry stayed in the in-memory map, wedging every later Set to that namespace
+// and making Get return invalid JSON that diverged from disk (M426).
+func TestSet_InvalidRawMessageRejectedNoPoison(t *testing.T) {
+	s, _ := openTest(t)
+	if err := s.Set("ns", "good", map[string]int{"n": 1}); err != nil {
+		t.Fatalf("seed Set: %v", err)
+	}
+	// Invalid pre-serialized value → rejected.
+	if err := s.Set("ns", "poison", json.RawMessage("{not valid")); err == nil {
+		t.Fatal("Set of an invalid json.RawMessage should error")
+	}
+	// The namespace must still be usable: a later Set succeeds...
+	if err := s.Set("ns", "after", map[string]int{"n": 2}); err != nil {
+		t.Fatalf("namespace poisoned — later Set failed: %v", err)
+	}
+	// ...the poison key never landed...
+	if _, ok, _ := s.Get("ns", "poison"); ok {
+		t.Error("rejected value must not be stored")
+	}
+	// ...and the good values are intact and valid JSON.
+	if v, ok, _ := s.Get("ns", "good"); !ok || !json.Valid(v) {
+		t.Errorf("good value lost or invalid after rejected Set: ok=%v v=%s", ok, v)
+	}
+}

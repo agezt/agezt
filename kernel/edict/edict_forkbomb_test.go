@@ -52,6 +52,26 @@ func TestHardDeny_StrippingDoesNotBlockBenign(t *testing.T) {
 	}
 }
 
+// TestHardDeny_WordSplitNotFalselyDenied: ordinary prose whose words would, under
+// FULL whitespace stripping, collapse onto an alphabetic floor rule (mkfs/reboot/
+// poweroff/wipefs) must NOT be hard-denied — a hard-deny has no override, so a false
+// positive permanently blocks a legitimate command (M426). Punctuation-adjacent
+// stripping preserves these while still catching the punctuation-spaced fork bomb.
+func TestHardDeny_WordSplitNotFalselyDenied(t *testing.T) {
+	e := New(Options{})
+	allowed := []string{
+		"mk fs.go",                       // full-strip → "mkfs.go" → matched "mkfs"
+		"re boot the server politely",    // full-strip → "...reboot..." → matched "reboot"
+		"discuss power off mode here",    // full-strip → "...poweroff..." → matched "poweroff"
+		"wipe fs metadata in the readme", // full-strip → "...wipefs..." → matched "wipefs"
+	}
+	for _, in := range allowed {
+		if o := e.Decide(CapShell, in); o.HardDenied {
+			t.Errorf("word-split prose falsely hard-denied by %q: %q", o.HardDenyRule, in)
+		}
+	}
+}
+
 // TestHardDeny_SpaceBearingRulesStillFire: padding-normalisation for the
 // space-bearing floor rules (e.g. `rm -rf /`) must still work — the new stripped
 // candidate complements, never replaces, the collapsed one.

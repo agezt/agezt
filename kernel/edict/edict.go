@@ -28,6 +28,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"unicode"
 )
 
 // Capability identifies a class of action governed by policy. Capability
@@ -264,11 +265,13 @@ func denyCandidates(input string) []string {
 		add(collapseWhitespace(s))
 		// stripped: spacing evasion — `:(){ :|:& };:` → `:(){:|:&};:`. The
 		// canonical fork bomb carries spaces that survive collapse but are
-		// syntactically optional; stripping all whitespace catches every spacing
-		// variant against the no-space floor rules (fork-bomb, mkfs, reboot, …).
-		// Space-bearing rules can't match a stripped candidate, so this never
-		// weakens or duplicates their behaviour.
-		add(stripWhitespace(s))
+		// syntactically optional. Only whitespace ADJACENT TO PUNCTUATION is
+		// removed (M426): stripping ALL whitespace collapsed ordinary prose onto an
+		// alphabetic floor rule — `re boot the server` → `reboottheserver` matched
+		// `reboot`, `mk fs` → `mkfs`, etc. — a permanent, un-overridable false
+		// hard-deny. Punctuation-adjacent stripping still normalises the fork bomb
+		// (its spaces sit next to `{ | & ;`) without ever merging two words.
+		add(stripPunctAdjacentWhitespace(s))
 	}
 	return out
 }
@@ -298,11 +301,44 @@ func collapseWhitespace(s string) string {
 	return strings.Join(strings.Fields(s), " ")
 }
 
-// stripWhitespace removes every whitespace character, so spacing-variant
-// commands (notably the fork bomb `:(){ :|:& };:`, whose internal spaces are
-// syntactically optional) normalize to the no-space form the floor rules use.
-func stripWhitespace(s string) string {
-	return strings.Join(strings.Fields(s), "")
+// stripPunctAdjacentWhitespace removes a whitespace character only when it borders
+// a punctuation character (a non-space, non-alphanumeric rune) on either side, so a
+// spacing-variant fork bomb (`:(){ :|:& };:`, whose spaces sit next to `{ | & ;`)
+// normalizes to the no-space floor form WITHOUT ever merging two alphanumeric words.
+// Stripping ALL whitespace (the previous behaviour) collapsed ordinary prose like
+// `re boot the server` onto the `reboot` rule — an un-overridable false hard-deny
+// (M426). A space between two alphanumerics is preserved (kept as a single space).
+func stripPunctAdjacentWhitespace(s string) string {
+	rs := []rune(s)
+	isAlnum := func(r rune) bool { return unicode.IsLetter(r) || unicode.IsDigit(r) }
+	var b strings.Builder
+	b.Grow(len(s))
+	for i := 0; i < len(rs); i++ {
+		if !unicode.IsSpace(rs[i]) {
+			b.WriteRune(rs[i])
+			continue
+		}
+		var prev, next rune
+		for j := i - 1; j >= 0; j-- {
+			if !unicode.IsSpace(rs[j]) {
+				prev = rs[j]
+				break
+			}
+		}
+		for j := i + 1; j < len(rs); j++ {
+			if !unicode.IsSpace(rs[j]) {
+				next = rs[j]
+				break
+			}
+		}
+		prevPunct := prev != 0 && !isAlnum(prev)
+		nextPunct := next != 0 && !isAlnum(next)
+		if prevPunct || nextPunct {
+			continue // drop whitespace bordering punctuation
+		}
+		b.WriteRune(' ') // keep a single space between alphanumeric words
+	}
+	return b.String()
 }
 
 // Options seed a new Engine.

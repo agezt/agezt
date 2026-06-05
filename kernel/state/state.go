@@ -246,6 +246,15 @@ func atomicWrite(path string, data []byte) error {
 
 func toRawMessage(v any) (json.RawMessage, error) {
 	if rm, ok := v.(json.RawMessage); ok {
+		// Validate a pre-serialized value up front (M426): without this, an invalid
+		// RawMessage (e.g. a malformed plugin/tool result handed in via the passthrough
+		// path) is written into the in-memory map before snapshotLocked re-marshals the
+		// whole namespace and fails — leaving the bad entry resident, which wedges every
+		// subsequent Set to that namespace and makes Get return invalid JSON that
+		// diverges from disk. Rejecting it here keeps the map consistent with disk.
+		if !json.Valid(rm) {
+			return nil, fmt.Errorf("invalid json.RawMessage")
+		}
 		return rm, nil
 	}
 	return json.Marshal(v)

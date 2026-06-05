@@ -12,6 +12,20 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Reliability
+- **A bad pre-serialized value no longer poisons a state namespace.** `state.Set` of an
+  invalid `json.RawMessage` (e.g. a malformed plugin/tool result via the passthrough
+  path) wrote the bad bytes into the in-memory map before the atomic snapshot failed,
+  leaving the entry resident — which then made every subsequent `Set` to that namespace
+  fail and `Get` return invalid JSON diverging from disk, for the rest of the process.
+  The value is now validated before the map is touched, so a rejected write leaves the
+  namespace consistent.
+- **A hard-deny no longer false-positives on ordinary multi-word text.** To catch the
+  space-padded fork bomb, the Edict hard-deny matcher stripped *all* whitespace from the
+  command before substring-matching — which collapsed ordinary prose onto an alphabetic
+  floor rule (`re boot the server` → `reboot`, `mk fs` → `mkfs`, `power off` →
+  `poweroff`), permanently blocking a legitimate command with no override. It now strips
+  only whitespace adjacent to punctuation, still normalising the fork bomb (its spaces
+  sit next to `{ | & ;`) without ever merging two words.
 - **An empty catalog sync no longer wipes the working catalog.** A `catalog sync` that
   fetched a syntactically valid but provider-less payload (`null` or `{}` — e.g. a
   proxy/CDN returning HTTP 200) parsed without error and overwrote `api.json` with an
