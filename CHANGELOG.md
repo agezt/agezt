@@ -41,6 +41,11 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   behaviour, no busy-wait, no latency floor. (M472)
 
 ### Fixed
+- **Gemini tool results with control bytes no longer break the request.** The
+  Google provider built the tool-result JSON with `strconv.Quote` (a Go quoter), so a
+  control byte — notably the ANSI escape `\x1b` common in tool output — produced
+  invalid JSON, failing the whole request encode and wedging the agent loop on
+  Gemini. The result is now encoded with `encoding/json`. (M481)
 - **The email Subject header strips a bare carriage return.** The subject (first
   line of the outbound text) was cut only at `\n`, so a lone interior `\r` survived
   into the `Subject:` line — a header-injection foothold against lenient mail
