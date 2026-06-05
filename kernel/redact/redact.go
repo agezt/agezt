@@ -128,6 +128,18 @@ var templatedPatterns = []templatedPattern{
 		re:   regexp.MustCompile(`([a-zA-Z][a-zA-Z0-9+.-]*://[^:/?#\s@]*:)[^/?#\s]+(@)`),
 		repl: "${1}" + Placeholder + "${2}",
 	},
+	{
+		name: "aws-secret-access-key",
+		// The AWS *secret* access key (40 base64 chars) is the sensitive half of an
+		// AWS credential, but unlike the AKIA key id it has no fixed prefix — a bare
+		// 40-char base64 string is indistinguishable from a hash/id, so masking it
+		// globally would corrupt legitimate data. Key it to an
+		// aws_secret_access_key=… / : … assignment (the form it appears in in env
+		// dumps, configs, and tool output): the label survives, only the secret is
+		// masked (M418). Case- and separator-insensitive label; optional quotes.
+		re:   regexp.MustCompile(`(?i)(aws[_-]?secret[_-]?access[_-]?key["']?\s*[=:]\s*["']?)[A-Za-z0-9/+]{40}`),
+		repl: "${1}" + Placeholder,
+	},
 }
 
 // patterns is the detector list used by Redact, derived from namedPatterns so

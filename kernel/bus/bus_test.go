@@ -119,6 +119,50 @@ func TestRedactor_ScrubsBeforeJournal(t *testing.T) {
 	}
 }
 
+// TestRedactor_ScrubsStreamingDeltas — ephemeral streaming events (llm.token /
+// llm.reasoning) must be redacted before fan-out too (M418). They never hit the
+// journal, but they reach every subscriber (webhook dispatcher, pulse, web UI,
+// OpenAI relay), so a credential the model echoes mid-stream must not egress in the
+// clear. Before the fix, PublishStreaming skipped redaction entirely.
+func TestRedactor_ScrubsStreamingDeltas(t *testing.T) {
+	b := newTestBus(t)
+	r := redact.New()
+	r.SetSecrets([]string{"literal-tenant-key-xyz"})
+	b.SetRedactor(r)
+
+	sub, _ := b.Subscribe("llm.token", 4)
+	defer sub.Cancel()
+
+	got, err := b.PublishStreaming(event.Spec{
+		Subject: "llm.token",
+		Kind:    event.KindLLMToken,
+		Actor:   "agent-1",
+		Payload: map[string]any{"text": "the key is sk-abcdefghijklmnopqrstuvwx and literal-tenant-key-xyz"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !got.IsEphemeral() {
+		t.Error("streaming event should be ephemeral (Hash empty)")
+	}
+	if strings.Contains(string(got.Payload), "sk-abcdefghijklmnopqrstuvwx") ||
+		strings.Contains(string(got.Payload), "literal-tenant-key-xyz") {
+		t.Fatalf("streaming delta still carries a secret: %s", got.Payload)
+	}
+	if !strings.Contains(string(got.Payload), redact.Placeholder) {
+		t.Errorf("expected placeholder in redacted delta: %s", got.Payload)
+	}
+	// The subscriber receives the redacted event, not the raw one.
+	select {
+	case e := <-sub.C:
+		if strings.Contains(string(e.Payload), "sk-abcdefghijklmnopqrstuvwx") {
+			t.Errorf("subscriber received an unredacted streaming delta: %s", e.Payload)
+		}
+	default:
+		t.Error("subscriber did not receive the streaming event")
+	}
+}
+
 // TestRedactor_LiteralWithHTMLChars — a configured literal secret containing
 // &, <, or > must still be scrubbed before journaling (M170). Before the fix,
 // json.Marshal HTML-escaped these (& → &), so the literal scrubber — which

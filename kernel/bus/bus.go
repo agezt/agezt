@@ -226,6 +226,13 @@ func (b *Bus) Publish(spec event.Spec) (*event.Event, error) {
 // The CLI's `agt run` renderer special-cases ev.Kind==KindLLMToken
 // to print payload text inline.
 //
+// Secret redaction (M418): streaming deltas are scrubbed with the same redactor
+// as Publish before fan-out. They never hit the journal, but they DO reach every
+// subscriber — including the outbound webhook dispatcher (default `>` subject),
+// the pulse stream, the OpenAI-compat relay, and the web UI — so a credential the
+// model echoes mid-stream must not egress unredacted. Redaction is a pure
+// deterministic transform, harmless to display.
+//
 // Why not durable? Streaming a 5KB response can produce 200+ token
 // chunks. Persisting each as a chain-linked journal entry would
 // 5× the journal volume for no audit benefit; the assembled
@@ -237,6 +244,7 @@ func (b *Bus) PublishStreaming(spec event.Spec) (*event.Event, error) {
 	if b.closed {
 		return nil, ErrClosed
 	}
+	spec = b.redactSpecLocked(spec)
 	e, err := event.NewEphemeral(spec)
 	if err != nil {
 		return nil, err

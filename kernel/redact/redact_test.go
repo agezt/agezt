@@ -24,6 +24,9 @@ func TestPatterns(t *testing.T) {
 		{"slack", "xoxb-1234567890-abcdefghijkl note", "xoxb-1234567890-abcdefghijkl"},
 		{"google", "AIzaabcdefghijabcdefghijabcdefghijabcde g", "AIzaabcdefghijabcdefghijabcdefghijabcde"},
 		{"bearer", "Authorization: Bearer abcdefghijklmnopqrstuvwxyz12 ok", "abcdefghijklmnopqrstuvwxyz12"},
+		// M418: the AWS secret access key, keyed to its assignment label.
+		{"aws-secret", "aws_secret_access_key=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY here", "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"},
+		{"aws-secret-quoted", `AWS_SECRET_ACCESS_KEY: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"`, "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"},
 	}
 	for _, c := range cases {
 		out := r.Redact(c.in)
@@ -90,6 +93,17 @@ func TestLiterals_ShortAndEmptyIgnored(t *testing.T) {
 	in := "the word short appears here"
 	if out := r.Redact(in); out != in {
 		t.Errorf("short/empty literals must not redact: %q -> %q", in, out)
+	}
+}
+
+// TestAWSSecret_NotOverRedacted: a bare 40-char base64 string with no
+// aws_secret_access_key label (e.g. a hash/id) must be left intact — the AWS
+// secret-key rule is deliberately keyed to its assignment label (M418).
+func TestAWSSecret_NotOverRedacted(t *testing.T) {
+	r := redact.New()
+	in := "checksum wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY ok" // 40 base64 chars, no label
+	if out := r.Redact(in); out != in {
+		t.Errorf("a bare base64 string without the AWS label must not be redacted: %q -> %q", in, out)
 	}
 }
 

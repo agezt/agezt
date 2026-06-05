@@ -71,6 +71,19 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   with it. One malformed/edge-case request is contained to its own connection.
 
 ### Security
+- **Streaming LLM deltas are now secret-redacted before fan-out.** Token and
+  reasoning deltas (`llm.token` / `llm.reasoning`) were published on the ephemeral
+  streaming path, which skipped the redactor that the durable path applies. They never
+  reached the journal, but they were fanned out unredacted to every subscriber —
+  including the outbound webhook dispatcher (default `>` subject), the pulse stream,
+  the OpenAI-compat relay, and the web UI — so a credential the model echoed
+  mid-stream could egress in the clear. Streaming publishes now run through the same
+  redactor.
+- **The AWS secret access key is now redacted.** The redactor caught the AWS key *id*
+  (`AKIA…`, the non-secret half) but not the 40-char secret access key. It is now
+  scrubbed when it appears next to its `aws_secret_access_key=…` assignment label
+  (keyed to the label so a standalone base64 string — a hash or id — is never
+  mangled).
 - **Outbound webhooks are egress-guarded.** The webhook dispatcher (and `agt webhook
   test`) now route deliveries through the same netguard egress guard as the `http`/
   `browser` tools, so a configured sink can no longer reach loopback, RFC1918/ULA, or
