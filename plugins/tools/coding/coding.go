@@ -133,11 +133,18 @@ func (t *Tool) Invoke(ctx context.Context, input json.RawMessage) (agent.Result,
 	agentOut, agentErr := t.run(ctx, wt, agentEnv, shell, shellArg, t.Cmd)
 
 	// Stage everything and diff against HEAD — captures new, modified, and
-	// deleted files regardless of whether the agent staged anything.
-	if out, err := t.run(ctx, wt, nil, "git", "add", "-A"); err != nil {
+	// deleted files regardless of whether the agent staged anything. The agent run
+	// above may have exhausted ctx's deadline; staging+diffing on the same expired
+	// ctx would make exec.CommandContext fail with DeadlineExceeded WITHOUT running
+	// git, discarding the partial work a timed-out agent produced. Use a fresh
+	// bounded context (like the worktree-cleanup defer) so that work is still
+	// captured; the agent's timeout is surfaced via agentErr in renderResult.
+	gitCtx, cancelGit := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancelGit()
+	if out, err := t.run(gitCtx, wt, nil, "git", "add", "-A"); err != nil {
 		return agent.Result{Output: "git add failed: " + err.Error() + "\n" + out, IsError: true}, nil
 	}
-	diff, derr := t.run(ctx, wt, nil, "git", "diff", "--cached", "HEAD")
+	diff, derr := t.run(gitCtx, wt, nil, "git", "diff", "--cached", "HEAD")
 	if derr != nil {
 		return agent.Result{Output: "git diff failed: " + derr.Error(), IsError: true}, nil
 	}

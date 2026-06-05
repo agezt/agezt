@@ -34,6 +34,11 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   those operators. The query is now built with `url.Values`. (M466)
 
 ### Reliability
+- **The coding tool captures a timed-out agent's partial work instead of discarding
+  it.** The post-agent `git add`/`git diff` reused the request context, so if the
+  agent ran out the deadline those commands failed with "context deadline exceeded"
+  and the partial diff was lost. They now run on a fresh bounded context; the
+  agent's timeout is still reported alongside the diff. (M469)
 - **The file tool's `replace` edit is now atomic.** It opened the target with
   `O_TRUNC` (zeroing it) before writing the new content, so a partial write
   (ENOSPC, crash) left the file empty or half-written and the original was lost —

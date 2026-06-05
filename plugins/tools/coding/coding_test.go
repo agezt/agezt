@@ -118,6 +118,53 @@ func TestCoding_HappyPath_ReturnsDiff(t *testing.T) {
 	}
 }
 
+// TestCoding_PostAgentGitUsesFreshContext pins M469: when the agent run exhausts
+// the request deadline, the post-agent `git add`/`git diff` must still run (on a
+// fresh context) so the agent's partial work is captured, not discarded with a
+// "context deadline exceeded" error.
+func TestCoding_PostAgentGitUsesFreshContext(t *testing.T) {
+	var sawAdd, sawDiff bool
+	var addCtxErr, diffCtxErr error
+	tool := &Tool{Cmd: "echo hi", Repo: "/repo"}
+	tool.run = func(ctx context.Context, _ string, _ []string, name string, args ...string) (string, error) {
+		switch {
+		case name == "git" && args[0] == "rev-parse":
+			return ".git", nil
+		case name == "git" && args[0] == "worktree" && args[1] == "add":
+			return "", nil
+		case name == "git" && args[0] == "add":
+			sawAdd, addCtxErr = true, ctx.Err()
+			return "", nil
+		case name == "git" && args[0] == "diff":
+			sawDiff, diffCtxErr = true, ctx.Err()
+			return "diff --git a/x b/x\n", nil
+		case name == "git" && args[0] == "worktree" && args[1] == "remove":
+			return "", nil
+		default:
+			return "agent output", nil
+		}
+	}
+
+	// An already-cancelled request context simulates an agent that ran out the
+	// deadline.
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	in, _ := json.Marshal(map[string]string{"task": "x"})
+	res, err := tool.Invoke(ctx, in)
+	if err != nil {
+		t.Fatalf("Invoke: %v", err)
+	}
+	if !sawAdd || !sawDiff {
+		t.Fatalf("git add/diff not reached: add=%v diff=%v (output=%q)", sawAdd, sawDiff, res.Output)
+	}
+	if addCtxErr != nil {
+		t.Errorf("git add ran on an expired context (%v): a timed-out agent's partial work is discarded", addCtxErr)
+	}
+	if diffCtxErr != nil {
+		t.Errorf("git diff ran on an expired context (%v)", diffCtxErr)
+	}
+}
+
 func TestCoding_NoChanges(t *testing.T) {
 	tool, _ := fakeTool(t, "", nil) // empty diff
 	out := invoke(t, tool, "do nothing")
