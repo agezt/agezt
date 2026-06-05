@@ -4,6 +4,7 @@ package sdk
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"io"
@@ -324,6 +325,46 @@ func TestCallHost_HostError(t *testing.T) {
 func TestCallHost_OutsideHandler(t *testing.T) {
 	if _, err := CallHost(context.Background(), "x", nil); err == nil {
 		t.Fatal("expected error calling CallHost outside a handler")
+	}
+}
+
+func TestReadFrame_CapsOversizedFrame(t *testing.T) {
+	const max = 1024
+	// A frame larger than max with NO terminating newline: without the
+	// cap, readFrame would grow the buffer unbounded. With it, the read
+	// errors once the accumulated bytes exceed max.
+	huge := strings.Repeat("x", max*4) // no '\n'
+	_, err := readFrame(bufio.NewReader(strings.NewReader(huge)), max)
+	if err == nil {
+		t.Fatal("oversized frame should return an error, not grow unbounded")
+	}
+	if !strings.Contains(err.Error(), "exceeds") {
+		t.Errorf("error should report the cap, got %v", err)
+	}
+}
+
+func TestReadFrame_NormalFrameUnderCap(t *testing.T) {
+	const max = 1024
+	want := `{"id":"a","method":"initialize"}`
+	got, err := readFrame(bufio.NewReader(strings.NewReader(want+"\n")), max)
+	if err != nil {
+		t.Fatalf("under-cap frame: %v", err)
+	}
+	if strings.TrimRight(string(got), "\n") != want {
+		t.Errorf("frame=%q want %q", got, want)
+	}
+}
+
+func TestServeRW_BlankLinesSkipped(t *testing.T) {
+	// Stray blank lines must not emit a spurious empty-id error frame;
+	// the trailing shutdown ends the loop cleanly with no output.
+	var out bytes.Buffer
+	in := "\n  \n\n" + `{"id":"s","method":"shutdown"}` + "\n"
+	if err := ServeRW(context.Background(), strings.NewReader(in), &out, echoTool()); err != nil {
+		t.Fatalf("ServeRW: %v", err)
+	}
+	if out.Len() != 0 {
+		t.Errorf("blank lines produced output (expected none): %q", out.String())
 	}
 }
 

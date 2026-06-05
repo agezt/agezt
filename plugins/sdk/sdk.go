@@ -59,6 +59,7 @@ package sdk
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -68,6 +69,34 @@ import (
 	"sync"
 	"sync/atomic"
 )
+
+// maxFrameBytes bounds a single newline-delimited frame the SDK reads
+// from the host. Mirrors kernel/plugin's DefaultMaxFrameBytes (16 MiB).
+// bufio.Reader.ReadBytes/ReadSlice grow a single allocation until they
+// see '\n'; without a cap, a host that writes a frame with no terminating
+// newline — a corrupted pipe, or a partial write that never completes —
+// would make the plugin allocate without bound until it is OOM-killed.
+// 16 MiB is generous for legitimate JSON tool I/O.
+const maxFrameBytes = 16 << 20
+
+// readFrame reads one newline-terminated frame, capped at max bytes. An
+// over-cap frame returns an error rather than allocating without bound;
+// the caller treats it as terminal (clean exit) the same way the host
+// marks an over-cap plugin dead. Mirrors kernel/plugin.readFrame.
+func readFrame(r *bufio.Reader, max int) ([]byte, error) {
+	var buf []byte
+	for {
+		chunk, err := r.ReadSlice('\n')
+		if len(buf)+len(chunk) > max {
+			return nil, fmt.Errorf("sdk: host frame exceeds %d bytes", max)
+		}
+		buf = append(buf, chunk...)
+		if err == bufio.ErrBufferFull {
+			continue // line longer than the bufio buffer; keep reading
+		}
+		return buf, err
+	}
+}
 
 // Result is what a tool Handle returns to the agent. It mirrors the
 // host's InvokeResult.
@@ -226,10 +255,18 @@ func ServeRW(ctx context.Context, r io.Reader, w io.Writer, tools ...Tool) error
 		if err := ctx.Err(); err != nil {
 			return nil
 		}
-		line, err := dec.ReadBytes('\n')
+		line, err := readFrame(dec, maxFrameBytes)
 		if err != nil {
-			// EOF or read error: the host went away. Clean exit.
+			// EOF, read error, or an over-cap frame: the host went
+			// away or is misbehaving. Clean exit (an over-cap frame
+			// leaves the stream desynced, so we must not keep reading).
 			return nil
+		}
+		// A correct host never writes a blank line; skip stray ones so
+		// they don't produce a spurious empty-id error frame the host
+		// can't correlate.
+		if len(bytes.TrimSpace(line)) == 0 {
+			continue
 		}
 		var f frame
 		if err := json.Unmarshal(line, &f); err != nil {

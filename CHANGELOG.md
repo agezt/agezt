@@ -12,6 +12,14 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Reliability
+- **The plugin SDK caps the inbound frame read.** `plugins/sdk` read every
+  newline-delimited frame from the host with `bufio.Reader.ReadBytes('\n')` and no
+  size cap, so a frame with no terminating newline — a corrupted pipe or a partial
+  host write — would grow a single allocation until the plugin was OOM-killed. Every
+  other newline reader in the tree already caps (host side 16 MiB, mcpbridge 16 MiB,
+  acp 8 MiB); the SDK was the lone gap. It now reads through a capped `readFrame`
+  (16 MiB) mirroring `kernel/plugin.readFrame`, and skips stray blank lines so they
+  no longer emit a spurious empty-id error frame. (M433)
 - **Inbound channel HTTP servers are hardened against slow-loris.** The Slack, Discord,
   and webhook inbound servers set only `ReadHeaderTimeout`, so a client that finished the
   headers then dripped the request body one byte at a time held a handler goroutine and
