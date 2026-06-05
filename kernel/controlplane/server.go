@@ -619,6 +619,8 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.handleStandingSetEnabled(conn, req)
 	case CmdStandingRemove:
 		s.handleStandingRemove(conn, req)
+	case CmdStandingWhy:
+		s.handleStandingWhy(conn, req)
 	case CmdReflectRun:
 		s.handleReflectRun(conn, req)
 	case CmdReflectShow:

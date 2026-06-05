@@ -30,6 +30,8 @@ func cmdStanding(args []string, stdout, stderr io.Writer) int {
 		return cmdStandingSetEnabled(args[1:], stdout, stderr, true)
 	case "remove", "rm":
 		return cmdStandingRemove(args[1:], stdout, stderr)
+	case "why":
+		return cmdStandingWhy(args[1:], stdout, stderr)
 	case "-h", "--help", "help":
 		return standingUsage(stdout)
 	default:
@@ -46,6 +48,58 @@ func standingUsage(w io.Writer) int {
 	fmt.Fprintf(w, "  pause <id>                                     disable an order\n")
 	fmt.Fprintf(w, "  resume <id>                                    re-enable an order\n")
 	fmt.Fprintf(w, "  remove <id>                                    delete an order\n")
+	fmt.Fprintf(w, "  why <id> [--json]                              an order's life story (fires, pauses)\n")
+	return 0
+}
+
+func cmdStandingWhy(args []string, stdout, stderr io.Writer) int {
+	asJSON := false
+	var id string
+	for _, a := range args {
+		if a == "--json" {
+			asJSON = true
+		} else if id == "" {
+			id = a
+		}
+	}
+	if id == "" {
+		fmt.Fprintf(stderr, "%s standing why: an order id is required\n", brand.CLI)
+		return 2
+	}
+	c := dial(stderr)
+	if c == nil {
+		return 1
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	res, err := c.Call(ctx, controlplane.CmdStandingWhy, map[string]any{"id": id})
+	if err != nil {
+		fmt.Fprintf(stderr, "%s standing why: %v\n", brand.CLI, err)
+		return 1
+	}
+	if asJSON {
+		return encodeJSON(stdout, res)
+	}
+	events, _ := res["events"].([]any)
+	if len(events) == 0 {
+		fmt.Fprintln(stdout, "no events for this standing order")
+		return 0
+	}
+	fmt.Fprintf(stdout, "%d event(s):\n", len(events))
+	for _, raw := range events {
+		e, _ := raw.(map[string]any)
+		kind, _ := e["kind"].(string)
+		seq, _ := e["seq"].(float64)
+		p, _ := e["payload"].(map[string]any)
+		line := fmt.Sprintf("  seq=%d  %s", int(seq), kind)
+		if action, _ := p["action"].(string); action != "" {
+			line += " (" + action + ")"
+		}
+		if subj, _ := p["trigger_subject"].(string); subj != "" {
+			line += " ← " + subj
+		}
+		fmt.Fprintln(stdout, line)
+	}
 	return 0
 }
 

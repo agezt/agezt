@@ -113,11 +113,11 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   cron and/or event triggers, an initiative ceiling, and a briefing channel.
   `agt standing add --name … --cron "0 8 * * *" [--event "github.>"] [--plan …]
   [--mode inform_only|ask|act_or_ask] [--max-trust L2] [--channel telegram]`,
-  plus `list`, `pause`, `resume`, `remove`. Orders are persisted and every
+  plus `list`, `pause`, `resume`, `remove`, and `why <id>` (an order's life
+  story — every create/pause/resume/fire/remove). Orders are persisted and every
   mutation is journaled (`standing.created` / `standing.updated` /
-  `standing.removed`) and auditable. (The runner that fires triggers is layered
-  on next; this is the management surface.) The on-disk/wire form is JSON, not
-  the spec's YAML, to keep Agezt dependency-free.
+  `standing.removed` / `standing.fired`) and auditable. The on-disk/wire form is
+  JSON, not the spec's YAML, to keep Agezt dependency-free.
 - **Shadow skills auto-promote to active once they've proven out.** The final
   rung of the SPEC-05 §5.2 trust ladder: a shadow skill whose shadow-evaluations
   cross a gated win count + rate (default ≥3 helpful judgements at ≥50%) is

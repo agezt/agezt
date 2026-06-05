@@ -88,3 +88,47 @@ func TestStanding_CRUDRoundTrip(t *testing.T) {
 		}
 	}
 }
+
+// TestStanding_Why folds an order's life story: create + pause → at least the
+// created and updated events, scoped to that order id.
+func TestStanding_Why(t *testing.T) {
+	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	ctx := context.Background()
+
+	add, err := c.Call(ctx, controlplane.CmdStandingAdd, map[string]any{
+		"order": map[string]any{
+			"name":     "watch",
+			"triggers": []any{map[string]any{"type": "event", "subject": "github.>"}},
+		},
+	})
+	if err != nil {
+		t.Fatalf("add: %v", err)
+	}
+	o, _ := add["order"].(map[string]any)
+	id, _ := o["id"].(string)
+	if _, err := c.Call(ctx, controlplane.CmdStandingSetEnabled, map[string]any{"id": id, "enabled": false}); err != nil {
+		t.Fatalf("pause: %v", err)
+	}
+
+	why, err := c.Call(ctx, controlplane.CmdStandingWhy, map[string]any{"id": id})
+	if err != nil {
+		t.Fatalf("why: %v", err)
+	}
+	evs, _ := why["events"].([]any)
+	if len(evs) < 2 {
+		t.Fatalf("why returned %d events, want >= 2 (created + updated)", len(evs))
+	}
+	// Every returned event must be scoped to this order id.
+	for _, raw := range evs {
+		e, _ := raw.(map[string]any)
+		p, _ := e["payload"].(map[string]any)
+		if p["id"] != id {
+			t.Errorf("why returned an event for a different order: %v", p["id"])
+		}
+	}
+	// An unknown id yields no events.
+	none, _ := c.Call(ctx, controlplane.CmdStandingWhy, map[string]any{"id": "nope"})
+	if cnt, _ := none["count"].(float64); cnt != 0 {
+		t.Errorf("why for unknown id = %v events, want 0", cnt)
+	}
+}

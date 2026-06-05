@@ -804,6 +804,7 @@ const (
 	CmdStandingAdd        = "standing_add"
 	CmdStandingSetEnabled = "standing_set_enabled"
 	CmdStandingRemove     = "standing_remove"
+	CmdStandingWhy        = "standing_why" // fold the journal for one order's life story
 
 	// Reflection — meta-cognition (SPEC-05 §6).
 	//
