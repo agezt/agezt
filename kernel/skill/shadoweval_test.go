@@ -5,6 +5,7 @@ package skill
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/agezt/agezt/kernel/event"
@@ -101,6 +102,63 @@ func TestShadowEvaluate_NoProviderErrors(t *testing.T) {
 	f, _ := newTestForge(t)
 	if err := f.ShadowEvaluate(context.Background(), "c", nil, "m", "x", "y", 1); err == nil {
 		t.Error("ShadowEvaluate with a nil provider should error")
+	}
+}
+
+// TestRecordShadowOutcome_AutoPromotesAfterWins: a shadow skill that crosses the
+// win count + rate threshold is promoted to active automatically, journaling
+// skill.promoted with an auto-promote reason carrying the run correlation.
+func TestRecordShadowOutcome_AutoPromotesAfterWins(t *testing.T) {
+	f, j := newTestForge(t)
+	id := shadowSkill(t, f, "diagnose", "diagnose a red ci build")
+
+	// Two wins: below the min-win threshold (3) → still shadow.
+	f.RecordShadowOutcome("run-1", id, true)
+	f.RecordShadowOutcome("run-2", id, true)
+	if got := statusOf(t, f, id); got != StatusShadow {
+		t.Fatalf("after 2 wins status=%s, want still shadow", got)
+	}
+	// Third win crosses 3 wins @ 100% rate → auto-promoted to active.
+	f.RecordShadowOutcome("run-3", id, true)
+	if got := statusOf(t, f, id); got != StatusActive {
+		t.Fatalf("after 3 wins status=%s, want active", got)
+	}
+	corr, from, to, reason := lastPromoteEvent(j)
+	if from != "shadow" || to != "active" {
+		t.Errorf("promote event %s→%s, want shadow→active", from, to)
+	}
+	if !strings.Contains(reason, "auto-promote") {
+		t.Errorf("promote reason = %q, want an auto-promote reason", reason)
+	}
+	if corr != "run-3" {
+		t.Errorf("promote correlation = %q, want run-3", corr)
+	}
+}
+
+// TestRecordShadowOutcome_NoPromoteWhenMixedVerdicts: a shadow skill judged
+// unhelpful as often as helpful is below the rate threshold and stays shadow.
+func TestRecordShadowOutcome_NoPromoteWhenMixedVerdicts(t *testing.T) {
+	f, _ := newTestForge(t)
+	id := shadowSkill(t, f, "marginal", "a marginal ci helper")
+	f.RecordShadowOutcome("r", id, true)
+	f.RecordShadowOutcome("r", id, false)
+	f.RecordShadowOutcome("r", id, true)
+	f.RecordShadowOutcome("r", id, false) // 2/4 = 50%... wins=2 < min 3 anyway
+	if got := statusOf(t, f, id); got != StatusShadow {
+		t.Errorf("status=%s, want shadow (below win threshold)", got)
+	}
+}
+
+// TestRecordShadowOutcome_AutoPromoteDisabled: SetAutoPromote(0,…) disables it.
+func TestRecordShadowOutcome_AutoPromoteDisabled(t *testing.T) {
+	f, _ := newTestForge(t)
+	f.SetAutoPromote(0, 0)
+	id := shadowSkill(t, f, "stuck", "a stuck shadow skill")
+	for i := 0; i < 6; i++ {
+		f.RecordShadowOutcome("r", id, true)
+	}
+	if got := statusOf(t, f, id); got != StatusShadow {
+		t.Errorf("status=%s, want shadow (auto-promote disabled)", got)
 	}
 }
 

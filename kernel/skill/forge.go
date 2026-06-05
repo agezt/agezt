@@ -35,6 +35,13 @@ type Forge struct {
 	// it passes the deterministic ShadowTest (SPEC-05 §5.2 draft→shadow). Off by
 	// default — staging is a step toward production, so the operator opts in.
 	autoShadow bool
+	// Auto-promote thresholds (SPEC-05 §5.2 shadow→active, "N successful real uses,
+	// gated"): a SHADOW skill whose shadow-evaluation record crosses BOTH a minimum
+	// WIN count and a win RATE is promoted to active automatically. Conservative by
+	// design. apMinWins <= 0 disables it. Inert unless shadow evaluation (opt-in)
+	// is feeding wins, so this can default on without surprising anyone.
+	apMinWins int
+	apWinRate float64
 }
 
 // DefaultAutoQuarantineMinFailures / Rate are the conservative defaults: a skill
@@ -44,6 +51,14 @@ const (
 	DefaultAutoQuarantineRate        = 0.5
 )
 
+// DefaultAutoPromoteMinWins / Rate gate shadow→active auto-promotion: a shadow
+// skill needs at least 3 shadow-evaluation wins AND a >=50% win rate before it is
+// promoted to active. Mirrors the auto-quarantine thresholds.
+const (
+	DefaultAutoPromoteMinWins = 3
+	DefaultAutoPromoteRate    = 0.5
+)
+
 // NewForge wires a Store to a bus. bus may be nil in store-only tests;
 // production callers always pass the kernel bus so transitions are auditable.
 func NewForge(store Store, b *bus.Bus) *Forge {
@@ -51,6 +66,8 @@ func NewForge(store Store, b *bus.Bus) *Forge {
 		store: store, bus: b, now: time.Now,
 		aqMinFailures: DefaultAutoQuarantineMinFailures,
 		aqFailureRate: DefaultAutoQuarantineRate,
+		apMinWins:     DefaultAutoPromoteMinWins,
+		apWinRate:     DefaultAutoPromoteRate,
 	}
 }
 
@@ -65,6 +82,14 @@ func (f *Forge) SetAutoQuarantine(minFailures int, rate float64) {
 // SetAutoShadow enables or disables draft→shadow auto-staging (SPEC-05 §5.2).
 // The daemon calls this from config; off by default.
 func (f *Forge) SetAutoShadow(on bool) { f.autoShadow = on }
+
+// SetAutoPromote tunes (or, with minWins <= 0, disables) shadow→active
+// auto-promotion. The daemon calls this from config; tests use it to assert the
+// disabled path.
+func (f *Forge) SetAutoPromote(minWins int, rate float64) {
+	f.apMinWins = minWins
+	f.apWinRate = rate
+}
 
 // ErrIllegalTransition is returned when a lifecycle edge isn't allowed.
 var ErrIllegalTransition = errors.New("skill: illegal lifecycle transition")
@@ -434,6 +459,31 @@ func (f *Forge) RecordShadowOutcome(corr, id string, helped bool) {
 		"id": id, "name": sk.Name, "helped": helped,
 		"evals": sk.Metrics.ShadowEvals, "wins": sk.Metrics.ShadowWins,
 	})
+	if helped {
+		f.maybeAutoPromote(corr, sk)
+	}
+}
+
+// maybeAutoPromote promotes a SHADOW skill to active when its shadow-evaluation
+// record crosses the configured win threshold (SPEC-05 §5.2 shadow→active, "N
+// successful real uses, gated"). Requires BOTH a minimum win count and a win
+// rate, so a shadow skill judged unhelpful as often as not is not promoted. Only
+// shadow skills are affected; the promotion is journaled with the gate reason and
+// is reversible (auto-quarantine can later pull it if it regresses).
+func (f *Forge) maybeAutoPromote(corr string, sk Skill) {
+	if f.apMinWins <= 0 || sk.Status != StatusShadow {
+		return
+	}
+	if sk.Metrics.ShadowEvals == 0 || sk.Metrics.ShadowWins < f.apMinWins {
+		return
+	}
+	rate := float64(sk.Metrics.ShadowWins) / float64(sk.Metrics.ShadowEvals)
+	if rate < f.apWinRate {
+		return
+	}
+	reason := fmt.Sprintf("auto-promote: %d/%d shadow evals judged helpful (%.0f%%)",
+		sk.Metrics.ShadowWins, sk.Metrics.ShadowEvals, rate*100)
+	_, _ = f.promoteWithReason(corr, sk.ID, reason)
 }
 
 // Get returns a single skill by id.

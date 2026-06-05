@@ -102,6 +102,14 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   valid UTF-8. (The journal's own answer truncation was already rune-safe.)
 
 ### Added
+- **Shadow skills auto-promote to active once they've proven out.** The final
+  rung of the SPEC-05 §5.2 trust ladder: a shadow skill whose shadow-evaluations
+  cross a gated win count + rate (default ≥3 helpful judgements at ≥50%) is
+  promoted `shadow → active` automatically, journaling `skill.promoted` with the
+  reason. On by default but **inert unless `AGEZT_SKILL_SHADOWEVAL` is feeding
+  wins**; `AGEZT_SKILL_AUTOPROMOTE=off` disables it. Together with auto-shadow
+  (M399), shadow-eval (M400) and auto-quarantine (the demotion side), the
+  draft→shadow→active→quarantined lifecycle is now fully self-driving.
 - **`AGEZT_SKILL_SHADOWEVAL=on` evaluates shadow skills against completed runs.**
   The shadow rung of the SPEC-05 §5.2 trust ladder: after a successful run, the
   shadow skills relevant to that intent are judged — by a bounded, best-effort LLM

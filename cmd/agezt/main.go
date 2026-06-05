@@ -533,6 +533,14 @@ func runDaemon(stdout, stderr io.Writer) int {
 	if shadowEval {
 		shadowEvalDesc = "on (judge relevant shadow skills against each completed run)"
 	}
+	// Shadow→active auto-promotion (SPEC-05 §5.2): on by default, but inert unless
+	// shadow evaluation is feeding wins. AGEZT_SKILL_AUTOPROMOTE=off disables it.
+	autoPromoteDesc := fmt.Sprintf("on (promote a shadow skill after ≥%d helpful evals at ≥%.0f%% rate; set %sSKILL_AUTOPROMOTE=off to disable)",
+		skill.DefaultAutoPromoteMinWins, skill.DefaultAutoPromoteRate*100, brand.EnvPrefix)
+	if strings.EqualFold(os.Getenv(brand.EnvPrefix+"SKILL_AUTOPROMOTE"), "off") {
+		k.Forge().SetAutoPromote(0, 0)
+		autoPromoteDesc = "off (set " + brand.EnvPrefix + "SKILL_AUTOPROMOTE=on to enable)"
+	}
 	// Egress-block audit (M109): when the http/browser tools' guard refuses a
 	// dial, journal a netguard.blocked event so an operator can see attempted
 	// SSRF / metadata reads. Wired here because the tools are built before the
@@ -712,6 +720,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 	fmt.Fprintf(stdout, "  skill auto-quar. : %s\n", autoQDesc)
 	fmt.Fprintf(stdout, "  skill auto-shadow: %s\n", autoShadowDesc)
 	fmt.Fprintf(stdout, "  skill shadow-eval: %s\n", shadowEvalDesc)
+	fmt.Fprintf(stdout, "  skill auto-promo.: %s\n", autoPromoteDesc)
 
 	// Telegram channel (SPEC-04 §1) — duplex when AGEZT_TELEGRAM_TOKEN is
 	// set. Built before Pulse so its brief sink can tee with the log sink.
