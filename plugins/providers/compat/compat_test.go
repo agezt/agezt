@@ -13,6 +13,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -797,6 +798,68 @@ func TestBuild_AzureFamilyRoutesToOpenAIWireWithAzureURL(t *testing.T) {
 	}
 	if seen.apiKey != "az-secret" {
 		t.Errorf("api-key=%q want 'az-secret'", seen.apiKey)
+	}
+}
+
+func TestBuild_AzureDeploymentNameEscapedIntoURL(t *testing.T) {
+	// A deployment / model id carrying URL-significant characters must be
+	// percent-escaped into the path, not concatenated raw. A raw '?' would
+	// otherwise terminate the path and smuggle a query parameter ahead of
+	// the real api-version (M432). Use an id with '?' and a space.
+	const evilID = "dep ?injected=evil"
+	var seen struct {
+		path, query string
+	}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seen.path = r.URL.Path
+		seen.query = r.URL.RawQuery
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"choices": []map[string]any{{
+				"index":         0,
+				"message":       map[string]any{"role": "assistant", "content": "ok"},
+				"finish_reason": "stop",
+			}},
+			"usage": map[string]any{"prompt_tokens": 1, "completion_tokens": 1},
+		})
+	}))
+	defer srv.Close()
+
+	entry := &catalog.Provider{
+		ID: "azure", Name: "Azure",
+		Env: []string{"AZURE_RESOURCE_NAME", "AZURE_API_KEY"},
+		NPM: "@ai-sdk/azure",
+		API: srv.URL,
+		Models: map[string]*catalog.Model{
+			evilID: {ID: evilID},
+		},
+	}
+	prov, _, err := compat.Build(entry, evilID, func(name string) string {
+		if name == "AZURE_API_KEY" {
+			return "az-secret"
+		}
+		return ""
+	})
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	if _, err := prov.Complete(context.Background(), agent.CompletionRequest{
+		Model:    evilID,
+		Messages: []agent.Message{{Role: agent.RoleUser, Content: "ping"}},
+	}); err != nil {
+		t.Fatalf("Complete: %v", err)
+	}
+	// The whole id stays in the path (decoded by net/http), so the '?' did
+	// not start the query and the deployment segment is intact.
+	if seen.path != "/openai/deployments/"+evilID+"/chat/completions" {
+		t.Errorf("path=%q want the deployment escaped into the path", seen.path)
+	}
+	// The smuggled parameter must NOT appear; only api-version is present.
+	q, _ := url.ParseQuery(seen.query)
+	if q.Get("injected") != "" {
+		t.Errorf("query smuggled an injected param: %q", seen.query)
+	}
+	if q.Get("api-version") == "" {
+		t.Errorf("api-version missing from query: %q", seen.query)
 	}
 }
 

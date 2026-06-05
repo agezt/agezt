@@ -155,6 +155,15 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   with it. One malformed/edge-case request is contained to its own connection.
 
 ### Security
+- **The Azure provider URL escapes the deployment name and api-version.** The
+  Azure OpenAI request URL was built by raw string concatenation, inserting the
+  deployment/model id into the path unescaped. A value bearing a `?` terminated
+  the path early and smuggled a query parameter ahead of the real `api-version`
+  (and a space/`/`/`#` produced a malformed URL). Deployment names are normally
+  alphanumeric and gated by the model allowlist, so exploitation needs a
+  malicious/mistaken catalog entry — but it is also a correctness bug for any
+  legitimately punctuated name. The id now goes through `url.PathEscape` and the
+  api-version through `url.QueryEscape`; ordinary names are byte-identical. (M432)
 - **The file tool's `search`/`glob` can't read outside the workspace via a symlink.**
   `read`/`write`/`replace`/`stat`/`delete` resolve symlinks and reject targets outside
   the configured root, but `search` and `glob` walked the tree and read/enumerated every

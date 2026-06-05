@@ -59,6 +59,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -329,7 +330,12 @@ func Build(p *catalog.Provider, modelID string, lookup CredLookup) (agent.Provid
 			// override via AGEZT_AZURE_API_VERSION.
 			apiVersion = "2024-10-21"
 		}
-		fullURL := urlBase + "/openai/deployments/" + modelID + "/chat/completions?api-version=" + apiVersion
+		// Escape the deployment name into the path and the api-version into
+		// the query: a deployment id (or a catalog-supplied model id) bearing
+		// a space, '/', '?' or '#' would otherwise produce a malformed URL or
+		// smuggle an extra query parameter ahead of api-version. PathEscape
+		// keeps ordinary alphanumeric Azure names byte-identical.
+		fullURL := urlBase + "/openai/deployments/" + url.PathEscape(modelID) + "/chat/completions?api-version=" + url.QueryEscape(apiVersion)
 		op := openai.New(azKey)
 		op.Endpoint = fullURL // pinned: model+api-version+deployment baked in
 		op.AuthHeader = "api-key"
