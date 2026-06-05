@@ -408,6 +408,9 @@ func (g *Governor) Complete(ctx context.Context, req agent.CompletionRequest) (*
 	// ceiling by up to (N-1) calls' worth. Acceptable for a $20/day-class cap with
 	// bounded per-call cost; if a hard cap is ever required, reserve estimated cost
 	// under the same lock as this check and reconcile the actual after the call.
+	// (Reaffirmed as the intended design 2026-06: a hard cap would need a pessimistic
+	// pre-call cost estimate and could reject valid calls near the ceiling, which is
+	// the worse tradeoff for a bounded-overshoot daily cap.)
 	if exceeded, spent, ceiling := g.budgetExceeded(); exceeded {
 		g.publish(event.Spec{
 			Subject:       "governor.budget",
