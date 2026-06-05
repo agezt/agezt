@@ -102,6 +102,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   valid UTF-8. (The journal's own answer truncation was already rune-safe.)
 
 ### Added
+- **Standing orders now fire on events.** A standing order with an `event`
+  trigger launches its plan as a run when a journal event matches its subject
+  (NATS-style wildcards, e.g. `github.>`), bounded by the order's budget ceiling
+  and journaled as `standing.fired` (SPEC-16 §4). A per-order cooldown keeps an
+  event burst from launching a flood of runs, and lifecycle events never
+  self-trigger. (Cron triggers continue to run via the schedule engine.)
 - **`agt standing` — Chronos standing orders (persistent goals).** A new command
   to define and manage standing orders (SPEC-16 §4): named, pausable rules with
   cron and/or event triggers, an initiative ceiling, and a briefing channel.

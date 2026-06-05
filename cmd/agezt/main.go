@@ -59,6 +59,7 @@ import (
 	"github.com/agezt/agezt/kernel/restapi"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/skill"
+	"github.com/agezt/agezt/kernel/standing"
 	"github.com/agezt/agezt/kernel/tenant"
 	"github.com/agezt/agezt/kernel/ulid"
 	"github.com/agezt/agezt/kernel/warden"
@@ -830,6 +831,11 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// that auto-halts the kernel if a runaway/looping agent floods tool calls.
 	// On by default; AGEZT_ANOMALY_MAX_TOOLCALLS=0 disables.
 	fmt.Fprintf(stdout, "  anomaly halt     : %s\n", buildAnomaly(ctx, k, stdout))
+
+	// Chronos standing-order event-trigger runner (SPEC-16 §4): fires an order's
+	// plan when a journal event matches its event trigger. Cron triggers reuse the
+	// schedule engine. Always on (inert until orders with event triggers exist).
+	fmt.Fprintf(stdout, "  standing orders  : %s\n", buildStandingRunner(ctx, k))
 
 	// draining flips true at shutdown so /readyz reports not-ready and the daemon
 	// drains in-flight runs before exiting (M136). Shared with buildRESTAPI's
@@ -2127,6 +2133,36 @@ func buildAnomaly(ctx context.Context, k *kernelruntime.Kernel, stdout io.Writer
 		return "disabled"
 	}
 	return fmt.Sprintf("on (halt if >%d tool calls / %s; set AGEZT_ANOMALY_MAX_TOOLCALLS=0 to disable)", max, window)
+}
+
+// buildStandingRunner starts the event-trigger half of Chronos (SPEC-16 §4): when
+// a journal event matches an enabled order's event trigger, the order's plan is
+// launched as a run (bounded by its budget ceiling) and a standing.fired event is
+// journaled. Cron triggers are handled by the schedule engine, not here.
+func buildStandingRunner(ctx context.Context, k *kernelruntime.Kernel) string {
+	fire := func(fctx context.Context, o standing.Order, subject string) {
+		corr := k.NewCorrelation()
+		intent := strings.TrimSpace(o.Plan)
+		if intent == "" {
+			intent = o.Name
+		}
+		_, _ = k.Bus().Publish(event.Spec{
+			Subject:       "standing." + o.ID,
+			Kind:          event.KindStandingFired,
+			Actor:         "standing",
+			CorrelationID: corr,
+			Payload:       map[string]any{"id": o.ID, "name": o.Name, "trigger_subject": subject, "intent": intent},
+		})
+		rctx := fctx
+		if o.Initiative.BudgetPerRunMc > 0 {
+			rctx = kernelruntime.WithMaxCost(rctx, o.Initiative.BudgetPerRunMc)
+		}
+		_, _ = k.RunWith(rctx, corr, intent)
+	}
+	if !standing.StartRunner(ctx, k.Bus(), k.Standing(), standing.RunnerConfig{}, fire) {
+		return "disabled"
+	}
+	return fmt.Sprintf("on (event triggers; %d order(s) defined)", k.Standing().Count())
 }
 
 // delegationBanner renders the active multi-agent delegation ceilings (M58) for

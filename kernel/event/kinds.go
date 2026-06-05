@@ -207,6 +207,7 @@ const (
 	KindStandingCreated Kind = "standing.created"
 	KindStandingUpdated Kind = "standing.updated" // paused/resumed/edited
 	KindStandingRemoved Kind = "standing.removed"
+	KindStandingFired   Kind = "standing.fired" // a trigger matched → the order's plan was launched
 
 	// Reflection — meta-cognition (SPEC-05 §6). The system reviews its own
 	// behaviour from the journal and recalibrates; the report (observations,
@@ -319,6 +320,7 @@ var knownKinds = map[Kind]struct{}{
 	KindStandingCreated:           {},
 	KindStandingUpdated:           {},
 	KindStandingRemoved:           {},
+	KindStandingFired:             {},
 	KindReflectionCompleted:       {},
 	KindJournalSegmentRotated:     {},
 	KindWebhookDelivered:          {},
