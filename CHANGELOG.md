@@ -12,6 +12,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Reliability
+- **The provider streaming-response parsers are now fuzz-tested.** `FuzzParseStream`
+  in the openai, anthropic, google, cohere, and ollama providers feeds arbitrary
+  bytes to each `parseStream`, asserting it never panics or hangs on a malformed,
+  truncated, or hostile upstream (a MITM/buggy proxy) — a garbage stream must yield
+  a clean error, not crash the agent loop. ~17 M executions across the five found no
+  panic and no hang. (M449)
 - **The journal reopen path is now fuzz-tested against corrupt segments.**
   `FuzzJournalOpen` writes arbitrary bytes as a journal segment and exercises
   `Open`/`Range`/`Tail`/`Verify` — the custom torn-tail truncation, line-split, and
