@@ -353,6 +353,89 @@ func (f *Forge) maybeAutoQuarantine(corr string, sk Skill) {
 	_ = f.Quarantine(corr, sk.ID, reason)
 }
 
+// shadowJudgeSystem instructs the model to decide whether a shadow skill would
+// have helped a just-completed run (SPEC-05 §5.2). The verdict is a single word
+// so it parses robustly across providers; "be conservative" biases toward NO.
+const shadowJudgeSystem = `You evaluate whether a candidate "skill" (a reusable procedure) would have helped an agent complete a task it just finished.
+You are given the task intent, what actually happened, and the skill's instructions.
+Reply with exactly one word: YES if the skill's guidance would plausibly have improved or sped up the outcome, otherwise NO. Be conservative — reply NO if unsure.`
+
+// parseShadowVerdict reads the model's YES/NO leniently: helped only when the
+// first meaningful word is affirmative. Anything ambiguous or non-conforming
+// (e.g. the offline mock's canned text) defaults to false — conservative, so a
+// skill is never credited toward promotion on a vague answer.
+func parseShadowVerdict(text string) bool {
+	for _, line := range strings.Split(strings.ToLower(text), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		word := line
+		if i := strings.IndexFunc(line, func(r rune) bool {
+			return r == ' ' || r == '.' || r == ',' || r == ':' || r == '!' || r == ';'
+		}); i >= 0 {
+			word = line[:i]
+		}
+		return word == "yes" || word == "true"
+	}
+	return false
+}
+
+// ShadowEvaluate judges the shadow skills relevant to a just-completed run and
+// records the verdicts (SPEC-05 §5.2: shadow "runs alongside real execution
+// without affecting outcomes ... compared to what actually happened"). It runs
+// NO tools — the shadow skill is never executed, so evaluation cannot affect
+// outcomes; the model judges whether the skill WOULD have helped. Best-effort:
+// a provider error on one candidate is skipped, not fatal. limit bounds how many
+// shadow candidates are judged per run (cost control).
+func (f *Forge) ShadowEvaluate(ctx context.Context, corr string, provider agent.Provider, model, intent, outcome string, limit int) error {
+	if provider == nil {
+		return errors.New("skill: shadow eval requires a provider")
+	}
+	all, err := f.store.All()
+	if err != nil {
+		return err
+	}
+	for _, c := range RetrieveShadow(all, intent, limit, f.now().UnixMilli()) {
+		user := fmt.Sprintf("Task intent:\n%s\n\nWhat actually happened:\n%s\n\nCandidate skill %q:\n%s",
+			intent, outcome, c.Skill.Name, c.Skill.Body)
+		resp, cerr := provider.Complete(ctx, agent.CompletionRequest{
+			Model:         model,
+			System:        shadowJudgeSystem,
+			Messages:      []agent.Message{{Role: agent.RoleUser, Content: user}},
+			CorrelationID: corr,
+			TaskType:      "shadow-eval",
+			MaxTokens:     16,
+		})
+		if cerr != nil {
+			continue
+		}
+		f.RecordShadowOutcome(corr, c.Skill.ID, parseShadowVerdict(resp.Message.Content))
+	}
+	return nil
+}
+
+// RecordShadowOutcome bumps a shadow skill's evaluation counters and journals
+// skill.shadow_evaluated under the run's correlation. Only shadow skills are
+// affected. The shadow→active auto-promotion gate (M401) reads these counters.
+func (f *Forge) RecordShadowOutcome(corr, id string, helped bool) {
+	sk, found, err := f.store.Get(id)
+	if err != nil || !found || sk.Status != StatusShadow {
+		return
+	}
+	sk.Metrics.ShadowEvals++
+	if helped {
+		sk.Metrics.ShadowWins++
+	}
+	if err := f.store.Put(sk); err != nil {
+		return
+	}
+	f.publish(event.KindSkillShadowEval, corr, map[string]any{
+		"id": id, "name": sk.Name, "helped": helped,
+		"evals": sk.Metrics.ShadowEvals, "wins": sk.Metrics.ShadowWins,
+	})
+}
+
 // Get returns a single skill by id.
 func (f *Forge) Get(id string) (Skill, bool, error) { return f.store.Get(id) }
 

@@ -231,6 +231,13 @@ type Config struct {
 	SkillTopK          int
 	SkillForge         bool
 	SkillForgeMinTools int
+	// ShadowEval, when true, judges the shadow skills relevant to a completed run
+	// against what actually happened (SPEC-05 §5.2): an opt-in, best-effort LLM
+	// judgement per relevant shadow skill — it executes nothing, so it cannot
+	// affect outcomes — recorded as shadow_evals/shadow_wins for the (M401)
+	// shadow→active promotion gate. Off by default (it spends extra provider
+	// calls). Only meaningful when SkillForge/skills are in use.
+	ShadowEval bool
 
 	// ArtifactThreshold is the tool-output byte size above which the agent loop
 	// offloads the output to the content-addressed artifact store and journals a
@@ -1264,7 +1271,33 @@ func (k *Kernel) RunWith(ctx context.Context, corr, intent string) (string, erro
 	if k.cfg.SkillForge {
 		k.maybeForge(runCtx, corr, intent, answer)
 	}
+	// Shadow-evaluate relevant shadow skills against this completed run (SPEC-05
+	// §5.2). We're past the err!=nil early return, so the run succeeded — a failed
+	// run is a poor yardstick for "would it have helped".
+	if k.cfg.ShadowEval && k.forge != nil {
+		k.maybeShadowEval(runCtx, corr, intent, answer)
+	}
 	return answer, nil
+}
+
+// shadowEvalLimit bounds how many shadow candidates are judged per run, so the
+// extra (opt-in) provider calls stay bounded regardless of how many shadow
+// skills match the intent.
+const shadowEvalLimit = 2
+
+// maybeShadowEval judges the shadow skills relevant to a just-completed run
+// (SPEC-05 §5.2). Best-effort: a judge failure is journaled but never affects the
+// run, which has already returned its answer.
+func (k *Kernel) maybeShadowEval(ctx context.Context, corr, intent, answer string) {
+	if err := k.forge.ShadowEvaluate(ctx, corr, k.cfg.Provider, k.cfg.Model, intent, answer, shadowEvalLimit); err != nil {
+		_, _ = k.bus.Publish(event.Spec{
+			Subject:       "skill.shadow_eval_failed",
+			Kind:          event.KindSkillShadowEval,
+			Actor:         "forge",
+			CorrelationID: corr,
+			Payload:       map[string]any{"error": err.Error()},
+		})
+	}
 }
 
 // elidedSummaryMaxTokens bounds the abstractive summary call (M398): one short

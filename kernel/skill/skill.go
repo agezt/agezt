@@ -115,6 +115,13 @@ type Metrics struct {
 	Successes  int   `json:"successes"`
 	Failures   int   `json:"failures"`
 	LastUsedMS int64 `json:"last_used_ms,omitempty"`
+	// ShadowEvals / ShadowWins track shadow-evaluation outcomes (M400, SPEC-05
+	// §5.2) — how many times a shadow skill was judged against a completed run,
+	// and how many of those judged it would have helped. Kept separate from
+	// Successes/Failures (which are real production outcomes) so the shadow→active
+	// gate reads only its own evidence.
+	ShadowEvals int `json:"shadow_evals,omitempty"`
+	ShadowWins  int `json:"shadow_wins,omitempty"`
 }
 
 // Skill is one reusable, named procedure. JSON tags are stable so the on-disk

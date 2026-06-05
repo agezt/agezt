@@ -195,11 +195,12 @@ const (
 	// Forge — auditable self-improvement (SPEC-05 §5). Skill lifecycle is a
 	// journaled state machine so `agt skill history` and `agt why` explain
 	// every create/promote/quarantine, and revert is non-destructive.
-	KindSkillCreated     Kind = "skill.created"     // a draft skill authored (by Forge or operator)
-	KindSkillPromoted    Kind = "skill.promoted"    // draft→shadow→active (or un-quarantine)
-	KindSkillQuarantined Kind = "skill.quarantined" // pulled from production
-	KindSkillReverted    Kind = "skill.reverted"    // a reversal appended (never an edit)
-	KindSkillActivated   Kind = "skill.activated"   // active skills injected into a run's context
+	KindSkillCreated     Kind = "skill.created"          // a draft skill authored (by Forge or operator)
+	KindSkillPromoted    Kind = "skill.promoted"         // draft→shadow→active (or un-quarantine)
+	KindSkillQuarantined Kind = "skill.quarantined"      // pulled from production
+	KindSkillReverted    Kind = "skill.reverted"         // a reversal appended (never an edit)
+	KindSkillActivated   Kind = "skill.activated"        // active skills injected into a run's context
+	KindSkillShadowEval  Kind = "skill.shadow_evaluated" // a shadow skill judged against a completed run (M400)
 
 	// Reflection — meta-cognition (SPEC-05 §6). The system reviews its own
 	// behaviour from the journal and recalibrates; the report (observations,
@@ -308,6 +309,7 @@ var knownKinds = map[Kind]struct{}{
 	KindSkillQuarantined:          {},
 	KindSkillReverted:             {},
 	KindSkillActivated:            {},
+	KindSkillShadowEval:           {},
 	KindReflectionCompleted:       {},
 	KindJournalSegmentRotated:     {},
 	KindWebhookDelivered:          {},

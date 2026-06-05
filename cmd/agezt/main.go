@@ -353,6 +353,11 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// once-per-output) provider calls, so the operator opts in.
 	contextSummarize := os.Getenv(brand.EnvPrefix+"CONTEXT_SUMMARIZE") == "1"
 
+	// AGEZT_SKILL_SHADOWEVAL=on judges the shadow skills relevant to a completed
+	// run against what actually happened (SPEC-05 §5.2). Off by default — it spends
+	// extra provider calls per run, so the operator opts in.
+	shadowEval := strings.EqualFold(os.Getenv(brand.EnvPrefix+"SKILL_SHADOWEVAL"), "on")
+
 	cfg := kernelruntime.Config{
 		BaseDir:                    baseDir,
 		Provider:                   gov, // Governor implements agent.Provider
@@ -380,6 +385,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 		ContextBudgetAuto:          contextBudgetAuto,
 		ContextProtectFirst:        contextProtectFirst,
 		ContextSummarize:           contextSummarize,
+		ShadowEval:                 shadowEval,
 		SubAgentTool:               subAgentOn,
 		SubAgentMaxDepth:           subAgentDepth,
 		SubAgentMaxFanout:          subAgentFanout,
@@ -519,6 +525,13 @@ func runDaemon(stdout, stderr io.Writer) int {
 	if strings.EqualFold(os.Getenv(brand.EnvPrefix+"SKILL_AUTOSHADOW"), "on") {
 		k.Forge().SetAutoShadow(true)
 		autoShadowDesc = "on (auto-advance a well-formed draft to shadow on creation)"
+	}
+	// Shadow evaluation (SPEC-05 §5.2): off by default — judging shadow skills
+	// against completed runs spends extra provider calls, so the operator opts in.
+	// The flag is read into kernelruntime.Config above via shadowEval.
+	shadowEvalDesc := "off (set " + brand.EnvPrefix + "SKILL_SHADOWEVAL=on to judge shadow skills against completed runs)"
+	if shadowEval {
+		shadowEvalDesc = "on (judge relevant shadow skills against each completed run)"
 	}
 	// Egress-block audit (M109): when the http/browser tools' guard refuses a
 	// dial, journal a netguard.blocked event so an operator can see attempted
@@ -698,6 +711,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 		onOff(memOn), onOff(worldOn), k.World().Count(), onOff(skillOn), onOff(forgeOn), k.Forge().Count())
 	fmt.Fprintf(stdout, "  skill auto-quar. : %s\n", autoQDesc)
 	fmt.Fprintf(stdout, "  skill auto-shadow: %s\n", autoShadowDesc)
+	fmt.Fprintf(stdout, "  skill shadow-eval: %s\n", shadowEvalDesc)
 
 	// Telegram channel (SPEC-04 §1) — duplex when AGEZT_TELEGRAM_TOKEN is
 	// set. Built before Pulse so its brief sink can tee with the log sink.

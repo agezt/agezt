@@ -102,6 +102,14 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   valid UTF-8. (The journal's own answer truncation was already rune-safe.)
 
 ### Added
+- **`AGEZT_SKILL_SHADOWEVAL=on` evaluates shadow skills against completed runs.**
+  The shadow rung of the SPEC-05 §5.2 trust ladder: after a successful run, the
+  shadow skills relevant to that intent are judged — by a bounded, best-effort LLM
+  call — for whether they *would have helped*, recorded as `shadow_evals` /
+  `shadow_wins` on the skill and journaled as `skill.shadow_evaluated`. It runs no
+  tools and never executes the shadow skill, so evaluation cannot affect outcomes.
+  Off by default (it spends extra provider calls). The accumulated evidence feeds
+  the upcoming shadow→active auto-promotion gate.
 - **`AGEZT_SKILL_AUTOSHADOW=on` auto-stages a well-formed draft skill to shadow.**
   The first rung of the SPEC-05 §5.2 trust ladder: when a freshly-authored draft
   passes a deterministic shadow-test (substantive body and a retrievable

@@ -25,13 +25,30 @@ type Scored struct {
 // Mirrors memory.Search / worldmodel.Resolve so retrieval is consistent across
 // the three knowledge layers.
 func Retrieve(sks []Skill, intent string, limit int, nowMS int64) []Scored {
+	return retrieveMatching(sks, intent, limit, nowMS, Skill.Active)
+}
+
+// RetrieveShadow ranks the SHADOW skills in sks against an intent, using the same
+// scoring as Retrieve. Shadow skills are never injected into runs; this is the
+// candidate set for shadow-evaluation (M400) — the same relevance ranking
+// decides which shadow skills to evaluate against a completed run.
+func RetrieveShadow(sks []Skill, intent string, limit int, nowMS int64) []Scored {
+	return retrieveMatching(sks, intent, limit, nowMS, func(s Skill) bool {
+		return s.Status == StatusShadow
+	})
+}
+
+// retrieveMatching is the shared ranking core: it scores every skill the include
+// predicate admits — keyword overlap weighted by recency — and returns the top
+// `limit` deterministically.
+func retrieveMatching(sks []Skill, intent string, limit int, nowMS int64, include func(Skill) bool) []Scored {
 	qTokens := tokenize(intent)
 	out := make([]Scored, 0, len(sks))
 	if len(qTokens) == 0 {
 		return out
 	}
 	for _, sk := range sks {
-		if !sk.Active() {
+		if !include(sk) {
 			continue
 		}
 		overlap := keywordOverlap(qTokens, sk)
