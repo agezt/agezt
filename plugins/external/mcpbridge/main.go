@@ -302,7 +302,9 @@ func handleInvoke(w *bufio.Writer, mcp *mcpClient, req ageztRequest) {
 	// same name gets shadowed, which we accept as the cost of
 	// keeping the name short).
 	if p.Name == readResourceToolName {
-		var args struct{ URI string `json:"uri"` }
+		var args struct {
+			URI string `json:"uri"`
+		}
 		if err := json.Unmarshal(p.Input, &args); err != nil || args.URI == "" {
 			writeAgezt(w, ageztResponse{ID: req.ID, Error: "mcpbridge: read_resource needs {\"uri\":\"...\"}"})
 			return

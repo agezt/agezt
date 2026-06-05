@@ -68,7 +68,7 @@ func newSSETransport(ctx context.Context, sseURL string, deliver transportDelive
 		return nil, fmt.Errorf("sse mcp: bad URL %q: %w", sseURL, err)
 	}
 	t := &sseTransport{
-		httpClient:    &http.Client{
+		httpClient: &http.Client{
 			// No client-side timeout: the SSE stream is long-lived
 			// by design. Per-request POSTs use a fresh client below
 			// with their own context.
@@ -299,4 +299,3 @@ func (t *sseTransport) signalEndpoint(err error) {
 	t.endpointErr = err
 	close(t.endpointReady)
 }
-

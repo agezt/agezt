@@ -30,11 +30,11 @@ import (
 // captureDeliver records every transport callback so the test can
 // assert on them.
 type captureDeliver struct {
-	mu      sync.Mutex
-	resps   []*jsonrpcResp
-	notifs  [][]byte
-	dead    error
-	deadCh  chan struct{}
+	mu     sync.Mutex
+	resps  []*jsonrpcResp
+	notifs [][]byte
+	dead   error
+	deadCh chan struct{}
 }
 
 func newCaptureDeliver() *captureDeliver {
@@ -70,9 +70,9 @@ func (c *captureDeliver) onTransportDead(err error) {
 // reply onto `events` keyed by request id).
 type mockMCPServer struct {
 	srv          *httptest.Server
-	events       chan string         // SSE event lines to write
-	receivedPOST chan jsonrpcReq     // POSTs the test can inspect
-	endpointPath string              // POST URL path the server announces
+	events       chan string     // SSE event lines to write
+	receivedPOST chan jsonrpcReq // POSTs the test can inspect
+	endpointPath string          // POST URL path the server announces
 }
 
 func newMockMCPServer(t *testing.T) *mockMCPServer {
