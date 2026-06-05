@@ -53,6 +53,11 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   messages with a caption or photo. (M476)
 
 ### Reliability
+- **A duplicate live correlation id is rejected instead of corrupting the run
+  registry.** Two concurrent `RunWith` calls sharing one correlation id clobbered
+  `k.runs[corr]` — the second overwrote the first's cancel func and the first's
+  cleanup deleted the survivor's entry, leaving a run uncancellable by Halt. The
+  second call now returns an "already running" error. (M480)
 - **Concurrent catalog sync + discover no longer lose each other's metadata.** The
   `meta.json` sidecar was updated with an unsynchronized read-modify-write and a
   shared temp file, so a concurrent `catalog sync` + `catalog discover` could clobber

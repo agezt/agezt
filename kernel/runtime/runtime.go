@@ -1183,6 +1183,15 @@ func (k *Kernel) RunWith(ctx context.Context, corr, intent string) (string, erro
 		k.mu.Unlock()
 		return "", ErrHalted
 	}
+	// Reject a correlation that is already running: two concurrent RunWith calls
+	// sharing one id would clobber the run registry — the second's cancel overwrites
+	// the first's k.runs[corr], and the first's deferred delete then removes the
+	// second's entry, leaving a run uncancellable by Halt/CancelRun. The contract is
+	// one id per run; enforce it instead of silently corrupting the registry. (M480)
+	if _, running := k.runs[corr]; running {
+		k.mu.Unlock()
+		return "", fmt.Errorf("runtime: correlation %q is already running", corr)
+	}
 	// Per-run wall-clock budget (M31): when configured, the run context
 	// carries a deadline so a slow provider / blocking tool can't hang a
 	// run forever within a live session. The deadline cancels with
