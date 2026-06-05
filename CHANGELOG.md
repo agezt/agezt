@@ -12,6 +12,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Reliability
+- **A panicking Pulse observer can no longer crash the daemon.** The autonomous Pulse
+  engine ran its observers, salience scoring (incl. an optional LLM provider call), and
+  briefing sinks inline on a single resident goroutine with no panic recovery — so a
+  buggy observer, a panicking provider, or a misbehaving channel sink took down the
+  whole daemon. Each observer poll and the digest flush are now wrapped in a recover
+  backstop (the panic is journaled), matching the containment the standing-order and
+  schedule engines already had.
 - **A self-exiting plugin no longer leaks a zombie process.** The plugin host called
   `cmd.Wait()` only inside `Close()`, and `Close()` short-circuited once the plugin was
   marked dead — so a plugin that exited or crashed on its own (or was reloaded) was

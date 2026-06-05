@@ -4,6 +4,7 @@ package pulse
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
@@ -152,22 +153,48 @@ func (e *Engine) tickOnce(ctx context.Context) {
 	}
 
 	for _, obs := range e.observers {
-		deltas, err := obs.Poll(ctx)
-		if err != nil {
-			e.publish(event.KindObserverDelta, "pulse.observer."+obs.Name(), "pulse-"+ulid.New(), tickID, map[string]any{
-				"observer": obs.Name(),
-				"error":    err.Error(),
-			})
-			continue
-		}
-		for _, d := range deltas {
-			e.process(ctx, d, tickID)
-		}
+		e.safePoll(ctx, obs, tickID)
 	}
 
 	if n%int64(e.digestEvery) == 0 {
-		e.flushDigest()
+		e.safeFlushDigest()
 	}
+}
+
+// safePoll polls one observer and runs its deltas through the pipeline, recovering
+// from any panic so a buggy observer, a panicking provider in the salience refine, or
+// a panicking briefing sink can never crash the whole daemon (M423). The pulse loop
+// runs on a single resident goroutine with no recovering frame, so without this an
+// observer/provider/sink panic terminates the process — every channel, the control
+// plane, and all in-flight runs with it. Mirrors kernel/standing's safeFire and
+// kernel/cadence's fireOne. The panic is journaled so it stays diagnosable.
+func (e *Engine) safePoll(ctx context.Context, obs Observer, tickID string) {
+	defer func() {
+		if r := recover(); r != nil {
+			e.publish(event.KindObserverDelta, "pulse.observer."+obs.Name(), "pulse-"+ulid.New(), tickID, map[string]any{
+				"observer": obs.Name(),
+				"error":    fmt.Sprintf("panic (contained): %v", r),
+			})
+		}
+	}()
+	deltas, err := obs.Poll(ctx)
+	if err != nil {
+		e.publish(event.KindObserverDelta, "pulse.observer."+obs.Name(), "pulse-"+ulid.New(), tickID, map[string]any{
+			"observer": obs.Name(),
+			"error":    err.Error(),
+		})
+		return
+	}
+	for _, d := range deltas {
+		e.process(ctx, d, tickID)
+	}
+}
+
+// safeFlushDigest flushes the digest with the same panic containment as safePoll —
+// a panicking briefing sink in the periodic digest must not crash the daemon (M423).
+func (e *Engine) safeFlushDigest() {
+	defer func() { _ = recover() }()
+	e.flushDigest()
 }
 
 // process runs one delta through the remaining three stages.

@@ -4,6 +4,7 @@ package pulse
 
 import (
 	"context"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -278,5 +279,34 @@ func TestStartStopsOnContextCancel(t *testing.T) {
 	time.Sleep(window)
 	if got := e.Status().Beats; got != before {
 		t.Fatalf("beats advanced from %d to %d after the engine should have stopped", before, got)
+	}
+}
+
+// panicObserver panics on Poll — verifies the pulse loop contains an observer panic
+// instead of crashing the daemon (M423).
+type panicObserver struct{ name string }
+
+func (p *panicObserver) Name() string                          { return p.name }
+func (p *panicObserver) Poll(context.Context) ([]Delta, error) { panic("observer boom") }
+
+// TestTickOnce_ContainsObserverPanic: a panicking observer must not crash the daemon
+// (the pulse loop is a single resident goroutine with no recovering frame); the tick
+// completes and the panic is journaled (M423).
+func TestTickOnce_ContainsObserverPanic(t *testing.T) {
+	e, j := newEngine(t, Config{Observers: []Observer{&panicObserver{name: "boom"}}})
+	// Synchronous: without safePoll's recover this panics the test goroutine.
+	e.tickOnce(context.Background())
+	if countKind(t, j, event.KindPulseTick) != 1 {
+		t.Error("tick should still complete despite a panicking observer")
+	}
+	found := false
+	_ = j.Range(func(ev *event.Event) error {
+		if ev.Kind == event.KindObserverDelta && strings.Contains(string(ev.Payload), "panic (contained)") {
+			found = true
+		}
+		return nil
+	})
+	if !found {
+		t.Error("a contained observer panic should be journaled")
 	}
 }
