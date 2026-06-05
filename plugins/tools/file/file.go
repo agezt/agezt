@@ -24,6 +24,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -198,10 +199,12 @@ func (t *Tool) doRead(in fileInput) (agent.Result, error) {
 			return errResult("open: " + err.Error()), nil
 		}
 		defer f.Close()
-		buf := make([]byte, MaxReadBytes)
-		n, _ := f.Read(buf)
+		buf, rerr := readUpTo(f, MaxReadBytes)
+		if rerr != nil {
+			return errResult("read: " + rerr.Error()), nil
+		}
 		out := fmt.Sprintf("[file truncated: showing first %d of %d bytes]\n%s",
-			n, info.Size(), string(buf[:n]))
+			len(buf), info.Size(), string(buf))
 		return agent.Result{Output: out}, nil
 	}
 	data, err := os.ReadFile(p)
@@ -377,6 +380,21 @@ func (t *Tool) doReplace(in fileInput) (agent.Result, error) {
 	return agent.Result{
 		Output: fmt.Sprintf("replaced %d occurrence(s) in %s (%+d bytes)", count, in.Path, delta),
 	}, nil
+}
+
+// readUpTo reads up to max bytes from r, looping past short reads until the buffer
+// is full or the stream ends. A single (*os.File).Read may legitimately return
+// fewer bytes than requested, so a lone Read could return an unpredictably short
+// prefix while the caller claims to show "the first N bytes". EOF/UnexpectedEOF are
+// normal end-of-stream (a file shorter than max); any other error is surfaced
+// rather than silently presented as truncated content.
+func readUpTo(r io.Reader, max int) ([]byte, error) {
+	buf := make([]byte, max)
+	n, err := io.ReadFull(r, buf)
+	if err == io.EOF || err == io.ErrUnexpectedEOF {
+		err = nil
+	}
+	return buf[:n], err
 }
 
 // writeAll is indirected so tests can simulate a mid-write failure and confirm

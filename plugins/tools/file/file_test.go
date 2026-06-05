@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"testing/iotest"
 )
 
 func newTool(t *testing.T) *Tool {
@@ -488,5 +489,20 @@ func TestAtomicWriteFile_PreservesOriginalOnWriteFailure(t *testing.T) {
 		if strings.HasPrefix(e.Name(), ".agezt-write-") {
 			t.Errorf("temp file leaked after failed write: %s", e.Name())
 		}
+	}
+}
+
+// TestReadUpTo_FillsDespiteShortReads pins M470: the truncated-read path must fill
+// its buffer even when the underlying reader returns fewer bytes per Read than
+// requested (a single f.Read can return a short prefix). iotest.OneByteReader
+// returns one byte per Read — the worst case.
+func TestReadUpTo_FillsDespiteShortReads(t *testing.T) {
+	src := strings.Repeat("x", 5000)
+	got, err := readUpTo(iotest.OneByteReader(strings.NewReader(src)), 4096)
+	if err != nil {
+		t.Fatalf("readUpTo: %v", err)
+	}
+	if len(got) != 4096 {
+		t.Errorf("read %d bytes, want 4096 (short reads not handled — a single Read returned a short prefix)", len(got))
 	}
 }

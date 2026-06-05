@@ -34,6 +34,11 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   those operators. The query is now built with `url.Values`. (M466)
 
 ### Reliability
+- **The file tool's truncated read fills the preview and reports read errors.** The
+  "first N bytes" preview of a large file used a single `Read`, which may return
+  fewer bytes than requested, so the model could get a short prefix while the header
+  claimed N bytes; a read error was also silently swallowed. It now loops with
+  `io.ReadFull` and surfaces genuine errors. (M470)
 - **The coding tool captures a timed-out agent's partial work instead of discarding
   it.** The post-agent `git add`/`git diff` reused the request context, so if the
   agent ran out the deadline those commands failed with "context deadline exceeded"
