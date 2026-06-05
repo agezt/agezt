@@ -174,19 +174,23 @@ type Governor struct {
 	// response (which a client hammering the API could amplify). It is NOT used for
 	// billing or ceiling enforcement (that is spentToday); a miss/eviction simply
 	// falls back to the authoritative journal scan in the caller. Guarded by its
-	// own lock so it never touches the spend hot path.
-	usageMu sync.Mutex
-	usage   map[string]usageTokens
+	// own lock so it never touches the spend hot path. Two generations (live +
+	// previous) bound memory at 2×cap while never wiping a still-accumulating run's
+	// partial sum: see indexUsageTokens.
+	usageMu   sync.Mutex
+	usage     map[string]usageTokens
+	usagePrev map[string]usageTokens
 }
 
 // usageTokens is the summed input/output token count recorded for one correlation.
 type usageTokens struct{ in, out int }
 
-// usageIndexCap bounds the in-memory usage index. When it grows past this, the
-// whole index is dropped (a miss just costs a journal-scan fallback, never
-// correctness) — cheap and free of slice-growth pathology. 8192 covers far more
-// than any realistic in-flight set, so the common "usage for the run that just
-// finished" lookup is effectively always a hit.
+// usageIndexCap bounds each generation of the in-memory usage index. When the
+// live generation fills, it rotates to become the previous generation and a fresh
+// live map starts (total memory ≤ 2×cap), so an evicted correlation cleanly MISSES
+// (→ authoritative journal-scan fallback) instead of being served a partial sum.
+// 8192 covers far more than any realistic in-flight set, so the common "usage for
+// the run that just finished" lookup is effectively always a hit.
 const usageIndexCap = 8192
 
 // New constructs a Governor over cfg. The registry must contain at least
@@ -767,26 +771,44 @@ func (g *Governor) recordUsage(p *ProviderInfo, req agent.CompletionRequest, res
 // indexUsageTokens adds one call's token usage to the bounded best-effort
 // per-correlation index that backs UsageFor. Summed across a run's calls, exactly
 // as the journal fold does. Guarded by its own lock (never the spend hot path).
-// When the index grows past usageIndexCap it is dropped wholesale — a subsequent
-// miss costs only a journal-scan fallback, never correctness — which avoids any
-// slice-growth or eviction-bookkeeping pathology. Empty correlations are ignored.
+// Empty correlations are ignored.
+//
+// Memory is bounded by a two-generation rotation: writes land in the live map;
+// when it fills (usageIndexCap), it becomes the previous generation and a fresh
+// live map starts (total ≤ 2×cap). The critical property is that a still-running
+// correlation's partial sum is NEVER served as authoritative: a write for a corr
+// already in the previous generation MIGRATES that accumulated entry into the live
+// map before adding, so a hit always reflects the COMPLETE running sum. A corr is
+// dropped only when it ages out of BOTH generations untouched — then UsageFor
+// cleanly misses and the caller falls back to the authoritative journal scan.
+// (The earlier wholesale-drop could leave an in-flight run with a fresh zero entry
+// and then serve that PARTIAL sum with ok=true — a silent under-count on the API
+// usage field; this rotation removes that hazard.)
 func (g *Governor) indexUsageTokens(corr string, in, out int) {
 	if corr == "" {
 		return
 	}
 	g.usageMu.Lock()
 	defer g.usageMu.Unlock()
-	if g.usage == nil || len(g.usage) >= usageIndexCap {
-		// Lazily (re)create; the >= cap reset bounds memory. A run in flight when
-		// this fires loses its partial index entry, but UsageFor is only read after
-		// a run completes and then falls back to the journal — so no wrong sum is
-		// ever served.
+	if g.usage == nil {
 		g.usage = make(map[string]usageTokens, 64)
 	}
-	e := g.usage[corr]
+	e, live := g.usage[corr]
+	if !live {
+		// Consolidate any prior-generation accumulation so the live entry holds the
+		// complete running sum, never a partial.
+		if prev, hadPrev := g.usagePrev[corr]; hadPrev {
+			e = prev
+			delete(g.usagePrev, corr)
+		}
+	}
 	e.in += in
 	e.out += out
 	g.usage[corr] = e
+	if len(g.usage) >= usageIndexCap {
+		g.usagePrev = g.usage
+		g.usage = make(map[string]usageTokens, 64)
+	}
 }
 
 // UsageFor returns the summed input/output tokens recorded for corr from the
@@ -796,8 +818,15 @@ func (g *Governor) indexUsageTokens(corr string, in, out int) {
 func (g *Governor) UsageFor(corr string) (in, out int, ok bool) {
 	g.usageMu.Lock()
 	defer g.usageMu.Unlock()
-	e, ok := g.usage[corr]
-	return e.in, e.out, ok
+	// Live generation first, then the previous one. Migrate-on-write guarantees a
+	// correlation is never split across both, so the first hit is the complete sum.
+	if e, hit := g.usage[corr]; hit {
+		return e.in, e.out, true
+	}
+	if e, hit := g.usagePrev[corr]; hit {
+		return e.in, e.out, true
+	}
+	return 0, 0, false
 }
 
 // admitRate applies the per-minute fixed-window rate limit. It returns

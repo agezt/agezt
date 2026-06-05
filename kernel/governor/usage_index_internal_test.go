@@ -57,3 +57,36 @@ func TestUsageIndex_Bounded(t *testing.T) {
 		t.Error("usage index should retain the most-recent entries after a reset")
 	}
 }
+
+// TestUsageIndex_NoPartialSumAcrossRotation pins the load-bearing property of the
+// two-generation rotation: a still-running correlation that gets pushed out of the
+// live generation, then records again, must report its COMPLETE sum — never the
+// post-rotation partial served as authoritative. The earlier wholesale-drop failed
+// this: it wiped the live entry, then a later call in the same run created a fresh
+// zero-based entry, and UsageFor returned that under-count with ok=true (a silent
+// under-report on the API `usage` field instead of a clean miss → journal fallback).
+func TestUsageIndex_NoPartialSumAcrossRotation(t *testing.T) {
+	g := &Governor{}
+
+	// An in-flight run's first call.
+	g.indexUsageTokens("live", 100, 40)
+
+	// Enough other correlations to fill the live generation and force a rotation,
+	// pushing "live" into the previous generation.
+	for i := 0; i < usageIndexCap; i++ {
+		g.indexUsageTokens(fmt.Sprintf("other-%d", i), 1, 1)
+	}
+
+	// The SAME run records again: migrate-on-write must consolidate the prior sum.
+	g.indexUsageTokens("live", 5, 3)
+
+	if in, out, ok := g.UsageFor("live"); !ok || in != 105 || out != 43 {
+		t.Fatalf("UsageFor(live) = (%d,%d,%v), want (105,43,true) — a partial sum across a rotation is a silent token under-count", in, out, ok)
+	}
+
+	// A correlation that lives ONLY in the previous generation (never re-touched
+	// after the rotation) is still a hit with its full sum, not a miss.
+	if in, out, ok := g.UsageFor("other-0"); !ok || in != 1 || out != 1 {
+		t.Errorf("UsageFor(other-0) = (%d,%d,%v), want (1,1,true) — previous generation must still serve hits", in, out, ok)
+	}
+}

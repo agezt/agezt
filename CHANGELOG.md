@@ -12,6 +12,18 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Reliability
+- **The governor's usage index no longer under-reports tokens after a rotation.**
+  The in-memory per-correlation usage index (the fast path behind the API `usage`
+  reporting field) was dropped wholesale when it hit its cap. A run still in flight
+  when that fired lost its partial entry, and the same run's later calls then built
+  a fresh zero-based entry — so `UsageFor` returned that PARTIAL sum with `ok=true`,
+  a silent token under-count served as authoritative instead of a clean miss that
+  falls back to the journal. Replaced the wholesale drop with a two-generation
+  rotation (live + previous, memory ≤ 2×cap): a write for a correlation already in
+  the previous generation migrates its accumulated sum into the live map, so a hit
+  always reflects the complete running sum; a correlation is dropped only when it
+  ages out of both generations, then `UsageFor` cleanly misses. Reporting only;
+  billing/ceilings were always journal-authoritative and unaffected. (M456)
 - **The Anthropic streaming parser tolerates a malformed structural frame.** It
   aborted the whole stream on one bad SSE frame — discarding already-streamed
   tokens — where the other four providers (and this parser's own EOF handling) skip
