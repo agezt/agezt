@@ -23,6 +23,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   remembered window with memory still bounded at 2×cap. (M457)
 
 ### Reliability
+- **Cron-triggered standing orders no longer launch after shutdown begins.** The
+  cron ticker's `select` chooses at random when both cancellation and a tick are
+  ready, so during teardown a tick could still be picked and dispatch fresh order
+  goroutines — racing real work (a brief sent post-shutdown, a run touching a store
+  being closed) against shutdown. `tickCron` now fires nothing once its context is
+  cancelled, with a matching re-check in the ticker branch. (M458)
 - **The governor's usage index no longer under-reports tokens after a rotation.**
   The in-memory per-correlation usage index (the fast path behind the API `usage`
   reporting field) was dropped wholesale when it hit its cap. A run still in flight

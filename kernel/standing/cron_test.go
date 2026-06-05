@@ -65,6 +65,36 @@ func TestTickCron_FiresOncePerMinute(t *testing.T) {
 	}
 }
 
+// TestTickCron_DoesNotFireAfterContextCancel pins the shutdown gate: once ctx is
+// cancelled, a tick must launch NO order goroutines. The cron loop's select picks
+// at random between ctx.Done() and the ticker, so a tick can be chosen during
+// teardown; without the gate that tick would fire orders after shutdown began
+// (racing stores being closed). A matching schedule that fires under a live ctx
+// must fire NOTHING under a cancelled one.
+func TestTickCron_DoesNotFireAfterContextCancel(t *testing.T) {
+	s, _ := Open(t.TempDir())
+	_, _ = s.Add(Order{
+		Name:     "morning brief",
+		Triggers: []Trigger{{Type: TriggerCron, Schedule: "0 8 * * *"}},
+		Plan:     "brief me",
+	})
+	at := time.Date(2026, 6, 8, 8, 0, 0, 0, time.UTC)
+
+	// Sanity: a live context fires the matching order.
+	if fired := tickCron(context.Background(), s, at, map[string]int64{}, func(context.Context, Order, string) {}); len(fired) != 1 {
+		t.Fatalf("live ctx should fire the matching order, got %v", fired)
+	}
+
+	// A cancelled context must fire nothing — even with a fresh lastFired (so the
+	// once-per-minute dedup can't be what suppresses it) and a matching minute.
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	fireCount := 0
+	if fired := tickCron(ctx, s, at, map[string]int64{}, func(context.Context, Order, string) { fireCount++ }); len(fired) != 0 || fireCount != 0 {
+		t.Errorf("cancelled ctx must fire nothing, got fired=%v fireCount=%d — work launched during shutdown", fired, fireCount)
+	}
+}
+
 // TestTickCron_SkipsDisabled: a paused cron order never fires.
 func TestTickCron_SkipsDisabled(t *testing.T) {
 	s, _ := Open(t.TempDir())

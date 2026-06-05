@@ -22,6 +22,13 @@ func minuteStamp(t time.Time) int64 { return t.Unix() / 60 }
 // used by tests; the daemon ignores the return. fire is dispatched on its own
 // goroutine so a long run never stalls the ticker.
 func tickCron(ctx context.Context, store *Store, t time.Time, lastFired map[string]int64, fire FireFunc) []string {
+	// Shutdown gate: a select with both ctx.Done() and tk.C ready picks a case at
+	// random, so a tick can be chosen after cancellation has begun. Without this
+	// check that tick would launch fresh order goroutines during teardown (racing
+	// stores being closed, briefs sent post-shutdown). Fire nothing once ctx is done.
+	if ctx.Err() != nil {
+		return nil
+	}
 	stamp := minuteStamp(t)
 	var fired []string
 	orders := store.List()
@@ -70,6 +77,9 @@ func StartCron(ctx context.Context, store *Store, now func() time.Time, fire Fir
 			case <-ctx.Done():
 				return
 			case <-tk.C:
+				if ctx.Err() != nil {
+					return
+				}
 				tickCron(ctx, store, now(), lastFired, fire)
 			}
 		}
