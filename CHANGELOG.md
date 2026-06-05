@@ -23,6 +23,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   remembered window with memory still bounded at 2×cap. (M457)
 
 ### Security
+- **Known advisory: build with Go ≥ 1.26.4.** `govulncheck` flags two standard-library
+  CVEs reachable from Agezt under go1.26.3 — GO-2026-5039 (`net/textproto`, via the
+  email channel / journal MIME scan / mcpbridge) and GO-2026-5037 (`crypto/x509`, via
+  the slack listener). Both are fixed in the go1.26.4 toolchain; the fix is in the
+  compiler-shipped stdlib, so there is nothing to change in Agezt's code or
+  `go.mod`/`go.sum` — releases and CI should simply build with go ≥ 1.26.4, after
+  which `govulncheck ./...` reports zero. (M487)
 - **`gitleaks detect` is now clean (0, was 16) and the secret gate is enforceable.**
   The full-history scan reported 16 hits, all deliberate test fixtures (the
   `kernel/redact/*_test.go` redaction tests, `cmd/agezt/plugin_log_test.go`, and the
