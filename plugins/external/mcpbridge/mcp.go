@@ -38,6 +38,12 @@ type mcpClient struct {
 
 	nextID atomic.Int64
 	dead   atomic.Bool
+	// done is closed once by markDead to signal the connection died. Callers select
+	// on it instead of relying on their pending channel being closed — closing those
+	// from markDead raced the read goroutine's send (send-on-closed-channel panic that
+	// crashed the bridge); now the read goroutine's send is non-blocking and the
+	// pending channels are never closed (M428).
+	done chan struct{}
 
 	deathMu  sync.Mutex
 	deathErr error
@@ -61,7 +67,15 @@ func (m *mcpClient) onResponse(resp *jsonrpcResp) {
 		// Stale id (caller timed out and is no longer listening).
 		return
 	}
-	ch <- resp
+	// Non-blocking send (M428): the channel is cap-1 and single-use, so the one
+	// legitimate response always fits. A duplicate response carrying the same id (a
+	// buggy/hostile server) must NOT block this read goroutine — dropping it keeps the
+	// read loop alive instead of wedging every future call. The channel is never
+	// closed (markDead signals death via m.done), so this can't panic.
+	select {
+	case ch <- resp:
+	default:
+	}
 }
 
 // onNotification is the transport callback for id-less frames.
@@ -225,6 +239,7 @@ func (m *mcpClient) readResource(ctx context.Context, uri string) ([]mcpResource
 func newMCPClient(ctx context.Context, factory transportFactory, clientName, protoVersion string) (*mcpClient, error) {
 	m := &mcpClient{
 		pending: make(map[int64]chan *jsonrpcResp),
+		done:    make(chan struct{}),
 	}
 	tx, err := factory(ctx, m)
 	if err != nil {
@@ -377,6 +392,10 @@ func (m *mcpClient) call(ctx context.Context, method string, params json.RawMess
 			return nil, fmt.Errorf("%s: server error %d: %s", method, resp.Error.Code, resp.Error.Message)
 		}
 		return resp.Result, nil
+	case <-m.done:
+		// Connection died while we were waiting (markDead, M428). The pending
+		// channels are no longer closed, so this is how a waiting caller wakes.
+		return nil, fmt.Errorf("mcp connection lost: %w", m.deathError())
 	case <-ctx.Done():
 		// Best-effort cancellation notification (M1.jj — MCP v2 bridge).
 		// MCP 2024-11-05 has no cancellation; 2024-12+ adds
@@ -459,9 +478,12 @@ func (m *mcpClient) markDead(cause error) {
 		m.deathErr = cause
 	}
 	m.deathMu.Unlock()
+	// Signal death via the shared channel and clear pending WITHOUT closing the
+	// per-call channels — closing them raced the read goroutine's send and panicked
+	// the bridge (M428). Waiting callers wake on <-m.done.
+	close(m.done)
 	m.mu.Lock()
-	for id, ch := range m.pending {
-		close(ch)
+	for id := range m.pending {
 		delete(m.pending, id)
 	}
 	m.mu.Unlock()

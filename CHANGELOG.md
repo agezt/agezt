@@ -12,6 +12,14 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Reliability
+- **A misbehaving MCP server can no longer crash or wedge the MCP bridge.** Two fixes
+  to the JSON-RPC response path: (1) the bridge closed each pending-request channel when
+  the connection died, which raced the transport read goroutine's send — a server that
+  replied and then dropped its connection during teardown triggered a send-on-closed-
+  channel panic that crashed the bridge; death is now signalled via a shared channel and
+  the per-call channels are never closed. (2) a server sending two responses with the
+  same id blocked the read goroutine forever on a full channel, wedging every later call;
+  the delivery is now non-blocking (a duplicate is dropped).
 - **A bad pre-serialized value no longer poisons a state namespace.** `state.Set` of an
   invalid `json.RawMessage` (e.g. a malformed plugin/tool result via the passthrough
   path) wrote the bad bytes into the in-memory map before the atomic snapshot failed,
