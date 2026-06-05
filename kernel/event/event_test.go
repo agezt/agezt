@@ -241,3 +241,28 @@ func TestIsEphemeral_DurableIsFalse(t *testing.T) {
 		t.Error("durable event reported IsEphemeral=true")
 	}
 }
+
+// TestNew_CopiesRawMessagePayload pins M482: New must copy a json.RawMessage
+// payload, not alias the caller's slice. Otherwise a later mutation of the caller's
+// slice silently diverges the stored payload from the Hash computed over it,
+// breaking VerifyHash.
+func TestNew_CopiesRawMessagePayload(t *testing.T) {
+	raw := json.RawMessage(`{"k":"v"}`)
+	e, err := New(
+		Spec{Subject: "s", Kind: KindTaskReceived, Actor: "a", Payload: raw},
+		"01HQRSTUVWXYZ0123456789ABCD", 0, time.UnixMilli(1_700_000_000_000), GenesisHash,
+	)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	// Mutate the caller's slice after New computed the hash.
+	for i := range raw {
+		raw[i] = 'X'
+	}
+	if string(e.Payload) != `{"k":"v"}` {
+		t.Errorf("event payload aliased the caller's slice: %s", e.Payload)
+	}
+	if err := e.VerifyHash(); err != nil {
+		t.Errorf("VerifyHash failed after the caller mutated its slice: %v", err)
+	}
+}

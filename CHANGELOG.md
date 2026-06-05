@@ -58,6 +58,10 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   messages with a caption or photo. (M476)
 
 ### Reliability
+- **An event copies a `json.RawMessage` payload instead of aliasing the caller's
+  bytes.** The stored payload shared backing storage with the caller's slice, so a
+  later mutation of that slice could silently diverge the payload from the hash
+  computed over it and fail `VerifyHash`. The payload is now copied. (M482)
 - **A duplicate live correlation id is rejected instead of corrupting the run
   registry.** Two concurrent `RunWith` calls sharing one correlation id clobbered
   `k.runs[corr]` — the second overwrote the first's cancel func and the first's
