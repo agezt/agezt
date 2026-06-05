@@ -23,6 +23,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   remembered window with memory still bounded at 2×cap. (M457)
 
 ### Reliability
+- **A plugin call no longer stalls until its timeout when the plugin dies mid-
+  registration.** `callWithProgress` checked liveness lock-free, then registered its
+  response channel under the lock; a `Close`/`markDead` in between drained `pending`
+  before the channel was registered, so it was never closed and the caller blocked
+  until its ctx deadline. Liveness is now re-checked under the lock, making
+  registration and teardown mutually exclusive. (M464)
 - **Journal segment creation now fsyncs the parent directory.** Creating/rotating a
   segment fsync'd the file's contents but not the directory entry, so on power loss
   a freshly rotated segment (and its durable-before-publish records) could vanish

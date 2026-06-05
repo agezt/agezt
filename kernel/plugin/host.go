@@ -578,6 +578,17 @@ func (p *Plugin) callWithProgress(
 	id := "q-" + strconv.FormatInt(p.nextID.Add(1), 10)
 	ch := make(chan *Response, 1)
 	p.mu.Lock()
+	// Re-check liveness under the lock. The check above is lock-free, so a Close or
+	// markDead could mark the plugin dead and drain `pending` between it and here —
+	// and a registration that lands AFTER that drain would never be closed, leaving
+	// this caller blocked until its ctx deadline instead of failing fast (M464).
+	// markDead/Close set dead and drain under this same lock, so checking here makes
+	// registration and teardown mutually exclusive: either we register before the
+	// drain (and the drain then closes our channel), or we see dead and bail.
+	if p.dead.Load() {
+		p.mu.Unlock()
+		return nil, fmt.Errorf("plugin: dead: %w", p.deathError())
+	}
 	p.pending[id] = ch
 	if onProgress != nil {
 		p.progress[id] = onProgress

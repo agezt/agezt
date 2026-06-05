@@ -9,6 +9,7 @@ package plugin
 // the unrecovered read loop, crashes the whole daemon.
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"sync"
@@ -138,4 +139,48 @@ func TestDeliver_NotBlockedByStuckStdinWrite(t *testing.T) {
 		t.Fatal("deliver blocked by a stuck stdin write — read-loop/writer deadlock")
 	}
 	close(release)
+}
+
+// TestCallWithProgress_DeadDuringRegistrationFailsFast pins the M464 fix for the
+// registration TOCTOU: a caller that passes the lock-free liveness check, then has
+// the plugin marked dead and `pending` drained before it registers, must fail fast
+// (death error) — not register an orphan channel and block until its ctx deadline.
+// p.mu is the seam: holding it parks the caller exactly between the lock-free check
+// and the under-lock registration while we simulate a concurrent teardown.
+func TestCallWithProgress_DeadDuringRegistrationFailsFast(t *testing.T) {
+	p := newTestPlugin()
+	rel := make(chan struct{})
+	close(rel) // stdin writes return immediately
+	p.stdin = &blockingStdin{entered: make(chan struct{}, 1), release: rel}
+
+	p.mu.Lock() // park the caller at its under-lock registration
+
+	callDone := make(chan error, 1)
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		_, err := p.callWithProgress(ctx, "do", nil, nil)
+		callDone <- err
+	}()
+
+	// Let the caller pass its lock-free dead-check and block on p.mu.
+	time.Sleep(50 * time.Millisecond)
+
+	// Simulate Close/markDead running under the lock: mark dead and drain pending.
+	p.dead.Store(true)
+	p.setDeathErr(errors.New("closed mid-registration"))
+	for id, ch := range p.pending {
+		close(ch)
+		delete(p.pending, id)
+	}
+	p.mu.Unlock()
+
+	select {
+	case err := <-callDone:
+		if err == nil {
+			t.Fatal("expected a death error after a concurrent close, got nil")
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("callWithProgress blocked after a concurrent close: it registered an orphan channel (TOCTOU)")
+	}
 }
