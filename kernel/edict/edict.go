@@ -532,6 +532,17 @@ func ParseDenyRules(spec string) ([]HardDenyRule, error) {
 // text for hard-deny substring matching only. The runtime is responsible
 // for journaling the Outcome.
 func (e *Engine) Decide(cap Capability, input string) Outcome {
+	// No ceiling: LevelAllow (the max) clamps nothing, so behaviour is unchanged.
+	return e.DecideWithCeiling(cap, input, LevelAllow)
+}
+
+// DecideWithCeiling is Decide with a per-call trust ceiling (SPEC-16 §4
+// initiative.max_trust): the looked-up capability level is clamped to at most
+// `ceiling` before the level→decision mapping, so a normally auto-allowed (L4)
+// capability is downgraded to Ask (or, at ceiling L0, Deny) within a bounded
+// context like a standing order. The hard-deny floor and unknown-capability
+// default-deny are unaffected — a ceiling can only TIGHTEN, never loosen.
+func (e *Engine) DecideWithCeiling(cap Capability, input string, ceiling TrustLevel) Outcome {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 
@@ -572,6 +583,14 @@ func (e *Engine) Decide(cap Capability, input string) Outcome {
 		}
 	}
 
+	// 2b. Clamp to the per-call ceiling (SPEC-16 §4): autonomy within this context
+	// can be capped below the capability's configured level. Only ever tightens.
+	ceilNote := ""
+	if ceiling < lvl {
+		lvl = ceiling
+		ceilNote = fmt.Sprintf(" (clamped to ceiling %s)", ceiling)
+	}
+
 	// 3. Apply level → decision.
 	switch lvl {
 	case LevelDeny:
@@ -579,7 +598,7 @@ func (e *Engine) Decide(cap Capability, input string) Outcome {
 			Decision:   DecisionDeny,
 			Capability: cap,
 			Level:      lvl,
-			Reason:     "capability set to L0 (deny)",
+			Reason:     "capability set to L0 (deny)" + ceilNote,
 		}
 	case LevelAllow:
 		return Outcome{
@@ -595,7 +614,7 @@ func (e *Engine) Decide(cap Capability, input string) Outcome {
 				Decision:   DecisionDeny,
 				Capability: cap,
 				Level:      lvl,
-				Reason:     fmt.Sprintf("level %s requires approval; AskPolicy=AskDeny", lvl),
+				Reason:     fmt.Sprintf("level %s requires approval; AskPolicy=AskDeny", lvl) + ceilNote,
 			}
 		case AskPrompt:
 			return Outcome{
@@ -605,7 +624,7 @@ func (e *Engine) Decide(cap Capability, input string) Outcome {
 				Decision:         DecisionDeny,
 				Capability:       cap,
 				Level:            lvl,
-				Reason:           fmt.Sprintf("level %s; AskPolicy=AskPrompt → operator approval required", lvl),
+				Reason:           fmt.Sprintf("level %s; AskPolicy=AskPrompt → operator approval required", lvl) + ceilNote,
 				WouldAsk:         true,
 				RequiresApproval: true,
 			}
@@ -614,7 +633,7 @@ func (e *Engine) Decide(cap Capability, input string) Outcome {
 				Decision:   DecisionAllow,
 				Capability: cap,
 				Level:      lvl,
-				Reason:     fmt.Sprintf("level %s; AskPolicy=AskAllow (would prompt in MVP)", lvl),
+				Reason:     fmt.Sprintf("level %s; AskPolicy=AskAllow (would prompt in MVP)", lvl) + ceilNote,
 				WouldAsk:   true,
 			}
 		}

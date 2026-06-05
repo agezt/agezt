@@ -102,6 +102,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   valid UTF-8. (The journal's own answer truncation was already rune-safe.)
 
 ### Added
+- **Standing orders enforce their `max_trust` initiative ceiling.** A standing
+  order with `--max-trust L2` now caps autonomous action within its runs: a
+  capability that would normally auto-allow (L4) is clamped down to Ask — or, at
+  `L0`, denied — so a persistent goal can fire on its own but stay bounded
+  (SPEC-16 §4). The hard-deny floor and unknown-capability default-deny are
+  unaffected — the ceiling can only tighten, never loosen. (Edict gains
+  `DecideWithCeiling`; runs carry the ceiling via context.)
 - **Standing orders now fire on a cron schedule.** A standing order with a `cron`
   trigger (`"0 8 * * *"`, `"*/15 * * * *"`, `"0 8 * * 1-5"`, …) launches its plan
   on schedule — a stdlib 5-field cron matcher (no dependency) ticked every minute,

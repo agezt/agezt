@@ -2157,6 +2157,11 @@ func buildStandingRunner(ctx context.Context, k *kernelruntime.Kernel) string {
 		if o.Initiative.BudgetPerRunMc > 0 {
 			rctx = kernelruntime.WithMaxCost(rctx, o.Initiative.BudgetPerRunMc)
 		}
+		// Cap autonomous action at the order's max_trust ceiling (SPEC-16 §4): a
+		// normally auto-allowed tool is downgraded to Ask/Deny within this run.
+		if lvl, perr := edict.ParseTrustLevel(o.Initiative.MaxTrust); perr == nil {
+			rctx = kernelruntime.WithTrustCeiling(rctx, lvl)
+		}
 		_, _ = k.RunWith(rctx, corr, intent)
 	}
 	evOK := standing.StartRunner(ctx, k.Bus(), k.Standing(), standing.RunnerConfig{}, fire)

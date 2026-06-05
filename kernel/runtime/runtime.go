@@ -809,7 +809,12 @@ func (k *Kernel) RunPlan(ctx context.Context, plan scheduler.Plan, planID string
 // through to Submit and surfaces as DecisionCancel.
 func (k *Kernel) policyHook(ctx context.Context, tc agent.ToolCall) agent.PolicyVerdict {
 	cap := edict.CapabilityForToolCall(tc.Name, tc.Input)
-	out := k.edict.Decide(cap, string(tc.Input))
+	var out edict.Outcome
+	if ceiling, ok := trustCeilingFromCtx(ctx); ok {
+		out = k.edict.DecideWithCeiling(cap, string(tc.Input), ceiling) // SPEC-16 §4 initiative ceiling
+	} else {
+		out = k.edict.Decide(cap, string(tc.Input))
+	}
 
 	verdict := agent.PolicyVerdict{
 		Allow:      out.Decision == edict.DecisionAllow,
@@ -861,7 +866,25 @@ const (
 	ctxKeyTools
 	ctxKeyMaxCost
 	ctxKeyJSONMode
+	ctxKeyTrustCeiling
 )
+
+// WithTrustCeiling returns a context capping autonomous tool-use at `ceiling` for
+// the run started with it (SPEC-16 §4 initiative.max_trust). The policy hook
+// consults it so a normally auto-allowed capability is downgraded to Ask (or
+// Deny) within this run. ceiling >= LevelAllow is a no-op (no clamp). Used by the
+// Chronos standing-order runner to bound an order's autonomy.
+func WithTrustCeiling(ctx context.Context, ceiling edict.TrustLevel) context.Context {
+	if ceiling >= edict.LevelAllow {
+		return ctx
+	}
+	return context.WithValue(ctx, ctxKeyTrustCeiling, ceiling)
+}
+
+func trustCeilingFromCtx(ctx context.Context) (edict.TrustLevel, bool) {
+	v, ok := ctx.Value(ctxKeyTrustCeiling).(edict.TrustLevel)
+	return v, ok
+}
 
 // WithImages returns a context carrying image-attachment references for the run
 // started with it (M93). They flow into the agent loop's initial user message.
