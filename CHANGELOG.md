@@ -12,6 +12,14 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Reliability
+- **The AWS assume-role duration env var rejects negative/malformed values.**
+  `AGEZT_AWS_ASSUME_ROLE_DURATION_SECONDS` was parsed without a `>0` guard (the
+  lone duration parse in the daemon wiring missing one). `kernel/creds` substitutes
+  the AWS default (3600 s) only for an exact `0`, so a negative value (a typo'd
+  `-3600`) flowed verbatim into the STS `DurationSeconds` and was rejected with a
+  ValidationError at first credential resolution — a runtime failure of the whole
+  AWS chain rather than a graceful fallback. The value now degrades to the default
+  on any missing/zero/negative/malformed input. (M436)
 - **The ACP-agent bridge's timeout is now real, and teardown is bounded.** The
   `acp_agent` tool wrapped each delegated session in a 5-min `context.WithTimeout`,
   but the agent was spawned with `exec.Command` (not `CommandContext`) and teardown

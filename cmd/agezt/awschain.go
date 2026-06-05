@@ -83,12 +83,7 @@ func buildAWSCredChain(vaultLookup func(string) string) (func(string) string, st
 		if region == "" {
 			region = baseChain("AWS_DEFAULT_REGION")
 		}
-		duration := 0
-		if v := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "AWS_ASSUME_ROLE_DURATION_SECONDS")); v != "" {
-			if n, err := strconv.Atoi(v); err == nil {
-				duration = n
-			}
-		}
+		duration := parseAssumeRoleDurationSeconds(os.Getenv(brand.EnvPrefix + "AWS_ASSUME_ROLE_DURATION_SECONDS"))
 		params := creds.AssumeRoleParams{
 			Region:          region,
 			BaseCreds:       signingCreds,
@@ -131,6 +126,21 @@ func buildAWSCredChain(vaultLookup func(string) string) (func(string) string, st
 		desc = "AWS chain: vault → env → " + strings.Join(descParts, " → ") + " → default(file+IMDS)"
 	}
 	return creds.ChainLookup(layers...), desc
+}
+
+// parseAssumeRoleDurationSeconds parses the optional STS AssumeRole session
+// duration from its env string. A missing, malformed, zero, or NEGATIVE value
+// returns 0, which kernel/creds maps to the AWS default (3600s). The >0 guard
+// matters: kernel/creds/sts.go only substitutes the default for an exact 0, so
+// a negative (e.g. a typo'd "-3600") would otherwise be sent to STS verbatim and
+// rejected with a ValidationError at first credential resolution — a runtime
+// failure of the whole AWS chain instead of a graceful fallback. Mirrors the >0
+// guard every duration parse in main.go uses.
+func parseAssumeRoleDurationSeconds(v string) int {
+	if n, err := strconv.Atoi(strings.TrimSpace(v)); err == nil && n > 0 {
+		return n
+	}
+	return 0
 }
 
 // shortArn truncates the role ARN to the last path component so the

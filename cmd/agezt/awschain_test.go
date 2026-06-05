@@ -38,3 +38,28 @@ func TestBuildAWSCredChain_NoWebIdentityWithoutRoleArn(t *testing.T) {
 		t.Errorf("web_identity must not activate without AWS_ROLE_ARN; got %q", desc)
 	}
 }
+
+// TestParseAssumeRoleDurationSeconds: a missing/malformed/zero/negative value
+// degrades to 0 (→ AWS default 3600 in kernel/creds), never a negative that STS
+// rejects at runtime. The negative case is the bug this guards (M436).
+func TestParseAssumeRoleDurationSeconds(t *testing.T) {
+	cases := []struct {
+		in   string
+		want int
+	}{
+		{"", 0},            // unset → default
+		{"3600", 3600},     // valid
+		{"900", 900},       // valid (STS minimum)
+		{"  1200  ", 1200}, // trimmed
+		{"0", 0},           // explicit zero → default
+		{"-5", 0},          // NEGATIVE → default (was passed to STS verbatim)
+		{"-3600", 0},       // negative → default
+		{"abc", 0},         // malformed → default
+		{"12.5", 0},        // non-integer → default
+	}
+	for _, c := range cases {
+		if got := parseAssumeRoleDurationSeconds(c.in); got != c.want {
+			t.Errorf("parseAssumeRoleDurationSeconds(%q) = %d, want %d", c.in, got, c.want)
+		}
+	}
+}
