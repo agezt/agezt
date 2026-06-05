@@ -90,6 +90,17 @@ func StartRunner(ctx context.Context, b *bus.Bus, store *Store, cfg RunnerConfig
 	return true
 }
 
+// ScopedIntent grounds a fired order's run in what the order watches (SPEC-16 §4
+// scope.entities): when the order names scope entities, it prefixes the intent
+// with a one-line scope note so the agent knows the subject it is acting on. No
+// scope entities → the intent is returned unchanged.
+func ScopedIntent(o Order, intent string) string {
+	if len(o.ScopeEntities) == 0 {
+		return intent
+	}
+	return "Scope (what this standing order watches): " + strings.Join(o.ScopeEntities, ", ") + ".\n\n" + intent
+}
+
 // BriefText formats the briefing an order sends after a run, and reports whether
 // a briefing should be sent at all (SPEC-16 §4). A briefing is sent only when the
 // order names a channel AND the run produced a non-empty answer — an empty result

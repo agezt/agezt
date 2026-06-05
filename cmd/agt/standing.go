@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"strings"
 	"time"
 
 	"github.com/agezt/agezt/internal/brand"
@@ -44,7 +45,8 @@ func standingUsage(w io.Writer) int {
 	fmt.Fprintf(w, "usage: %s standing <list|add|pause|resume|remove>\n", brand.CLI)
 	fmt.Fprintf(w, "  list [--json]                                  show standing orders\n")
 	fmt.Fprintf(w, "  add --name N (--cron \"SCHED\" | --event SUBJ) [--plan TEXT]\n")
-	fmt.Fprintf(w, "      [--mode inform_only|ask|act_or_ask] [--max-trust L0..L4] [--budget USD] [--channel C]\n")
+	fmt.Fprintf(w, "      [--mode inform_only|ask|act_or_ask] [--max-trust L0..L4] [--budget USD]\n")
+	fmt.Fprintf(w, "      [--scope ent1,ent2] [--channel C]\n")
 	fmt.Fprintf(w, "  pause <id>                                     disable an order\n")
 	fmt.Fprintf(w, "  resume <id>                                    re-enable an order\n")
 	fmt.Fprintf(w, "  remove <id>                                    delete an order\n")
@@ -171,13 +173,18 @@ func initiativeMode(o map[string]any) string {
 }
 
 func cmdStandingAdd(args []string, stdout, stderr io.Writer) int {
-	var name, cron, event, plan, mode, maxTrust, channel, budget string
+	var name, cron, event, plan, mode, maxTrust, channel, budget, scope string
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
 		case "--name":
 			i++
 			if i < len(args) {
 				name = args[i]
+			}
+		case "--scope":
+			i++
+			if i < len(args) {
+				scope = args[i]
 			}
 		case "--budget":
 			i++
@@ -243,6 +250,17 @@ func cmdStandingAdd(args []string, stdout, stderr io.Writer) int {
 	order := map[string]any{"name": name, "triggers": triggers}
 	if plan != "" {
 		order["plan"] = plan
+	}
+	if scope != "" {
+		var ents []any
+		for _, e := range strings.Split(scope, ",") {
+			if e = strings.TrimSpace(e); e != "" {
+				ents = append(ents, e)
+			}
+		}
+		if len(ents) > 0 {
+			order["scope_entities"] = ents
+		}
 	}
 	if mode != "" || maxTrust != "" || budgetMc > 0 {
 		ini := map[string]any{}

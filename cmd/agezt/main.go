@@ -2164,6 +2164,9 @@ func buildStandingRunner(ctx context.Context, k *kernelruntime.Kernel, brief fun
 		if intent == "" {
 			intent = o.Name
 		}
+		// Ground the run in the order's scope (SPEC-16 §4): the agent is told what
+		// this standing order watches.
+		intent = standing.ScopedIntent(o, intent)
 		_, _ = k.Bus().Publish(event.Spec{
 			Subject:       "standing." + o.ID,
 			Kind:          event.KindStandingFired,

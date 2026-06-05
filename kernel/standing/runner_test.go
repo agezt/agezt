@@ -4,6 +4,7 @@ package standing_test
 
 import (
 	"context"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -52,6 +53,19 @@ func waitFor(t *testing.T, cond func() bool) bool {
 		time.Sleep(5 * time.Millisecond)
 	}
 	return false
+}
+
+// TestScopedIntent: an order with scope entities prefixes the intent with a scope
+// note; without scope the intent is unchanged.
+func TestScopedIntent(t *testing.T) {
+	scoped := standing.Order{Name: "watch", ScopeEntities: []string{"project:portfolio", "repo:agezt"}}
+	got := standing.ScopedIntent(scoped, "diagnose CI")
+	if !strings.Contains(got, "project:portfolio, repo:agezt") || !strings.HasSuffix(got, "diagnose CI") {
+		t.Errorf("scoped intent should name the entities and keep the plan, got %q", got)
+	}
+	if standing.ScopedIntent(standing.Order{Name: "x"}, "do it") != "do it" {
+		t.Error("no scope entities should leave the intent unchanged")
+	}
 }
 
 // TestBriefText: a briefing is produced only when the order names a channel AND

@@ -102,6 +102,10 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   valid UTF-8. (The journal's own answer truncation was already rune-safe.)
 
 ### Added
+- **`agt standing add --scope <ent1,ent2>` grounds an order's run in what it
+  watches.** A standing order's scope entities are now settable and, when the
+  order fires, prefixed to the run's intent so the agent knows the subject it is
+  acting on (SPEC-16 §4 scope.entities).
 - **`agt standing add --budget <USD>` caps a standing order's per-run spend.**
   The per-run cost ceiling (enforced when an order fires) is now settable from the
   CLI — e.g. `--budget 0.50` — closing the gap where the ceiling was enforced but
