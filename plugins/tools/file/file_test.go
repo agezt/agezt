@@ -5,6 +5,7 @@ package file
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -450,6 +451,42 @@ func TestFile_EveryAdvertisedOpIsDispatched(t *testing.T) {
 		// DISPATCHED, never reported as an unknown op.
 		if r.IsError && strings.Contains(r.Output, "unknown op") {
 			t.Errorf("op %q is advertised in the schema but not dispatched: %q", op, r.Output)
+		}
+	}
+}
+
+// TestAtomicWriteFile_PreservesOriginalOnWriteFailure pins M467: a write that
+// fails partway must NOT leave the original file truncated or destroyed. The
+// `replace`/`write` ops route through atomicWriteFile (temp + rename), so the
+// original survives until the complete new content is renamed into place.
+func TestAtomicWriteFile_PreservesOriginalOnWriteFailure(t *testing.T) {
+	dir := t.TempDir()
+	p := filepath.Join(dir, "data.txt")
+	if err := os.WriteFile(p, []byte("ORIGINAL-CONTENT"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	orig := writeAll
+	writeAll = func(*os.File, []byte) (int, error) { return 0, errors.New("simulated ENOSPC") }
+	defer func() { writeAll = orig }()
+
+	if err := atomicWriteFile(p, []byte("NEW-CONTENT-THAT-FAILS"), 0o644); err == nil {
+		t.Fatal("expected a write error")
+	}
+
+	got, err := os.ReadFile(p)
+	if err != nil {
+		t.Fatalf("original file unreadable after failed write: %v", err)
+	}
+	if string(got) != "ORIGINAL-CONTENT" {
+		t.Errorf("original damaged by a failed write: got %q, want ORIGINAL-CONTENT (write was not atomic)", got)
+	}
+
+	// No temp litter left behind.
+	ents, _ := os.ReadDir(dir)
+	for _, e := range ents {
+		if strings.HasPrefix(e.Name(), ".agezt-write-") {
+			t.Errorf("temp file leaked after failed write: %s", e.Name())
 		}
 	}
 }

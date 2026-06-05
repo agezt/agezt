@@ -30,6 +30,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   those operators. The query is now built with `url.Values`. (M466)
 
 ### Reliability
+- **The file tool's `replace` edit is now atomic.** It opened the target with
+  `O_TRUNC` (zeroing it) before writing the new content, so a partial write
+  (ENOSPC, crash) left the file empty or half-written and the original was lost —
+  for the op explicitly meant to be low-clobber. It now writes to a temp file and
+  renames it over the target, so the original survives intact until the complete
+  new content is in place; the symlink-refusal guard is preserved. (M467)
 - **AWS credential fetches (SSO/STS/web-identity) no longer hang daemon startup on
   a stalled endpoint.** These paths used `http.DefaultClient` (no timeout) with a
   background context (no deadline), so a black-holed STS/SSO endpoint could block

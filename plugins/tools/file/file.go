@@ -359,24 +359,60 @@ func (t *Tool) doReplace(in fileInput) (agent.Result, error) {
 		count = n
 		updated = strings.ReplaceAll(content, in.Find, in.Replacement)
 	}
-	// O_NOFOLLOW for the same TOCTOU reason as doWrite: refuse to follow a symlink
-	// swapped in at p between resolve() and this write. O_TRUNC since we rewrite the
-	// whole (already-existing) file; perms preserved from the original.
-	wf, err := os.OpenFile(p, os.O_WRONLY|os.O_TRUNC|oNoFollow, info.Mode().Perm())
-	if err != nil {
-		return errResult("write: " + err.Error()), nil
+	// Preserve the M440 guard — refuse to edit through a symlink swapped in at p
+	// after resolve() — then write ATOMICALLY (temp + rename) so a mid-write failure
+	// (ENOSPC, crash) can't truncate or destroy the original. `replace` is the
+	// low-clobber surgical-edit op; the prior O_TRUNC zeroed the file before the new
+	// bytes landed, so a partial write lost the user's data. rename never follows a
+	// symlink at p (it replaces the entry), so the write still cannot escape root.
+	if li, lerr := os.Lstat(p); lerr != nil {
+		return errResult("write: " + lerr.Error()), nil
+	} else if li.Mode()&os.ModeSymlink != 0 {
+		return errResult("write: refusing to follow symlink at " + in.Path), nil
 	}
-	if _, err := wf.WriteString(updated); err != nil {
-		wf.Close()
-		return errResult("write: " + err.Error()), nil
-	}
-	if err := wf.Close(); err != nil {
+	if err := atomicWriteFile(p, []byte(updated), info.Mode().Perm()); err != nil {
 		return errResult("write: " + err.Error()), nil
 	}
 	delta := len(updated) - len(content)
 	return agent.Result{
 		Output: fmt.Sprintf("replaced %d occurrence(s) in %s (%+d bytes)", count, in.Path, delta),
 	}, nil
+}
+
+// writeAll is indirected so tests can simulate a mid-write failure and confirm
+// atomicWriteFile leaves the original file intact.
+var writeAll = func(f *os.File, b []byte) (int, error) { return f.Write(b) }
+
+// atomicWriteFile writes data to path atomically: a fresh temp file in the same
+// directory is written, fsynced, and renamed over path. A mid-write failure
+// (ENOSPC, crash) therefore cannot truncate or destroy the existing file — the
+// original survives until the rename swaps in the complete new content. The temp
+// is created with O_EXCL (never a pre-existing symlink); rename does not follow a
+// symlink at path (it replaces the entry), so the write cannot escape the
+// directory. perm is applied to the result.
+func atomicWriteFile(path string, data []byte, perm os.FileMode) error {
+	dir := filepath.Dir(path)
+	tmp, err := os.CreateTemp(dir, ".agezt-write-*")
+	if err != nil {
+		return err
+	}
+	tmpName := tmp.Name()
+	defer os.Remove(tmpName) // no-op once the rename has moved it
+	if _, err := writeAll(tmp, data); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if err := tmp.Sync(); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	if err := os.Chmod(tmpName, perm); err != nil {
+		return err
+	}
+	return os.Rename(tmpName, path)
 }
 
 func (t *Tool) doList(in fileInput) (agent.Result, error) {
