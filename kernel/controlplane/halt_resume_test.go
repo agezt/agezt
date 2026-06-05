@@ -49,7 +49,7 @@ func TestHalt_RecordsReasonInJournal(t *testing.T) {
 			continue
 		}
 		found = true
-		payloadRaw, _ := e["payload"]
+		payloadRaw := e["payload"]
 		buf, _ := json.Marshal(payloadRaw)
 		if !strings.Contains(string(buf), reason) {
 			t.Errorf("kernel.halt payload missing reason; got %s", string(buf))
@@ -82,7 +82,7 @@ func TestHalt_NoReasonOmitsPayloadField(t *testing.T) {
 		if k, _ := e["kind"].(string); k != "halt" {
 			continue
 		}
-		payloadRaw, _ := e["payload"]
+		payloadRaw := e["payload"]
 		buf, _ := json.Marshal(payloadRaw)
 		if strings.Contains(string(buf), `"reason"`) {
 			t.Errorf("payload should omit reason field when unset; got %s", string(buf))
@@ -121,7 +121,7 @@ func TestResume_RecordsReason(t *testing.T) {
 			continue
 		}
 		found = true
-		payloadRaw, _ := e["payload"]
+		payloadRaw := e["payload"]
 		buf, _ := json.Marshal(payloadRaw)
 		if !strings.Contains(string(buf), reason) {
 			t.Errorf("resume payload missing reason; got %s", string(buf))

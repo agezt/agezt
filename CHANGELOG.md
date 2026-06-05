@@ -22,6 +22,17 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   forgotten only after it ages out of both generations, roughly doubling the
   remembered window with memory still bounded at 2×cap. (M457)
 
+### Code quality
+- **`staticcheck ./...` is now clean (0 findings, was 17).** Removed unnecessary
+  comma-ok discards on map reads in the control plane (`req.Args[k]` returns one
+  value — S1005 ×13 across edict/server/state + halt_resume test), converted an
+  identical-shape struct literal to a type conversion in the SDK (`invokeResult(out)`
+  — S1016), dropped a dead write in the budget test where the headroom value was
+  immediately overwritten (SA4006), removed an unused mock field (`gotIter` — U1000),
+  and merged a split var declaration in the netguard redirect test (S1021). All
+  no-op semantically (the SA4006 fix keeps the test asserting exactly what it meant);
+  full suite still green. `staticcheck` joins `go vet` as an enforceable gate. (M485)
+
 ### Fixed
 - **The peer tool truncates long answers on a UTF-8 rune boundary.** A peer answer
   over the size cap was cut at a raw byte offset, splitting a multi-byte rune and

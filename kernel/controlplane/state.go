@@ -13,7 +13,7 @@ import (
 )
 
 func (s *Server) handleStateList(conn net.Conn, req Request) {
-	nsRaw, _ := req.Args["namespace"]
+	nsRaw := req.Args["namespace"]
 	ns, _ := nsRaw.(string)
 	if ns == "" {
 		// No namespace → enumerate them all (sorted, courtesy of
@@ -53,9 +53,9 @@ func (s *Server) handleStateList(conn net.Conn, req Request) {
 }
 
 func (s *Server) handleStateGet(conn net.Conn, req Request) {
-	nsRaw, _ := req.Args["namespace"]
+	nsRaw := req.Args["namespace"]
 	ns, _ := nsRaw.(string)
-	keyRaw, _ := req.Args["key"]
+	keyRaw := req.Args["key"]
 	key, _ := keyRaw.(string)
 	if ns == "" || key == "" {
 		s.writeResp(conn, Response{

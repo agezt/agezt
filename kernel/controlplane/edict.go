@@ -87,13 +87,13 @@ func (s *Server) handleEdictShow(conn net.Conn, req Request) {
 // who've gotten used to reading policy.decision events get the
 // same vocabulary here.
 func (s *Server) handleEdictTest(conn net.Conn, req Request) {
-	capRaw, _ := req.Args["capability"]
+	capRaw := req.Args["capability"]
 	capStr, _ := capRaw.(string)
 	if capStr == "" {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.capability required"})
 		return
 	}
-	inputRaw, _ := req.Args["input"]
+	inputRaw := req.Args["input"]
 	input, _ := inputRaw.(string) // empty string is a valid probe
 
 	eng, _, ok := s.edictFor(conn, req)

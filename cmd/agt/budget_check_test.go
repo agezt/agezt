@@ -20,8 +20,9 @@ func TestEffectiveHeadroom(t *testing.T) {
 		t.Errorf("task binds: h=%d unl=%v, want 1e8,false", h, unl)
 	}
 
-	// All uncapped → unlimited.
-	h, unl = effectiveHeadroom([]budgetDim{{"global", 5, 0}, {"task:x", 1, 0}})
+	// All uncapped → unlimited. Headroom is meaningless when unlimited, so
+	// only the flag is asserted here.
+	_, unl = effectiveHeadroom([]budgetDim{{"global", 5, 0}, {"task:x", 1, 0}})
 	if !unl {
 		t.Errorf("all uncapped: unl=%v, want true", unl)
 	}

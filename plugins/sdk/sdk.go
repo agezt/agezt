@@ -348,7 +348,7 @@ func (s *session) runHandler(ctx context.Context, t Tool, id string, input json.
 	if err != nil {
 		return invokeResult{Output: err.Error(), IsError: true}
 	}
-	return invokeResult{Output: out.Output, IsError: out.IsError}
+	return invokeResult(out)
 }
 
 // Emit streams a human-readable progress line for the in-flight tool

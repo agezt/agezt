@@ -140,8 +140,7 @@ func TestHTTPClient_BlocksLoopbackByDefault(t *testing.T) {
 func TestHTTPClient_BlocksRedirectToInternal(t *testing.T) {
 	// Target the metadata endpoint via redirect. Loopback is allowed so the
 	// FIRST hop (the test server) connects; the redirect hop must be blocked.
-	var srv *httptest.Server
-	srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/redir" {
 			http.Redirect(w, r, "http://169.254.169.254/latest/meta-data/", http.StatusFound)
 			return
