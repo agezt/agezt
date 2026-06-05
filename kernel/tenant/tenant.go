@@ -83,11 +83,27 @@ func loadOrMintToken(dir string) (string, error) {
 	f, err := os.OpenFile(p, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
 	if err != nil {
 		if os.IsExist(err) {
-			b, rerr := os.ReadFile(p)
-			if rerr != nil {
-				return "", fmt.Errorf("tenant: read token: %w", rerr)
+			// The file exists. It is either a complete token, a concurrent minter
+			// mid-write (zero-length for a few µs between its O_EXCL create and its
+			// write), or a STALE zero-length file from a crash in that same window.
+			// Read with a brief retry to let a live writer finish; if it stays blank
+			// it's stale, so reclaim and re-mint rather than returning "" forever —
+			// an empty token file used to wedge the tenant permanently (every future
+			// call re-read "" and the O_EXCL re-mint failed with IsExist). (M474)
+			for attempt := 0; attempt < 50; attempt++ {
+				b, rerr := os.ReadFile(p)
+				if rerr != nil {
+					return "", fmt.Errorf("tenant: read token: %w", rerr)
+				}
+				if t := strings.TrimSpace(string(b)); t != "" {
+					return t, nil
+				}
+				time.Sleep(time.Millisecond)
 			}
-			return strings.TrimSpace(string(b)), nil
+			if rmErr := os.Remove(p); rmErr != nil {
+				return "", fmt.Errorf("tenant: reclaim blank token: %w", rmErr)
+			}
+			return loadOrMintToken(dir)
 		}
 		return "", fmt.Errorf("tenant: write token: %w", err)
 	}

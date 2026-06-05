@@ -41,6 +41,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   behaviour, no busy-wait, no latency floor. (M472)
 
 ### Reliability
+- **A blank tenant-token file no longer permanently wedges a tenant.** A crash
+  between creating the token file and writing it left a zero-length file, after
+  which every `Token()`/`Authorize()` re-read it as empty and the `O_EXCL` re-mint
+  failed — so the tenant returned a blank credential forever and could never
+  authenticate. A blank token file is now detected (after a brief retry for a live
+  concurrent writer) and re-minted. (M474)
 - **The credentials vault writes via a unique temp file.** `Save`/`Rotate` used a
   fixed `creds.json.tmp`; two concurrent `Save` calls (both under the read lock)
   could race on it and leave a torn, unloadable vault. Both now write to a unique
