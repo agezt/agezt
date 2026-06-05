@@ -352,6 +352,17 @@ func (s *Server) acceptLoop(ctx context.Context) {
 
 func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 	defer conn.Close()
+	// Contain a panic ANYWHERE in this connection's handling — including the
+	// pre-auth read/parse phase below — to THIS connection: an unrecovered panic
+	// in this goroutine crashes the whole process, taking down every in-flight run
+	// and channel. A single malformed/edge-case request must not be a daemon-wide
+	// DoS — mirror net/http's per-request recover for the control plane's custom
+	// TCP protocol. Deferred before parsing; recoverConn reads req.ID at panic time
+	// (empty before the request is parsed). Must be deferred directly so its
+	// recover() takes effect.
+	var req Request
+	defer s.recoverConn(conn, &req)
+
 	// Generous read deadline per request — runs can take minutes.
 	_ = conn.SetReadDeadline(time.Now().Add(10 * time.Minute))
 
@@ -369,17 +380,10 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		}
 		return
 	}
-	var req Request
 	if err := json.Unmarshal(line, &req); err != nil {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "bad request: " + err.Error()})
 		return
 	}
-	// Contain a panic in any command handler to THIS connection: an unrecovered
-	// panic in a goroutine crashes the whole process, taking down every in-flight
-	// run and channel. A single malformed/edge-case (but authed) request must not
-	// be a daemon-wide DoS — mirror net/http's per-request recover for the control
-	// plane's custom TCP protocol.
-	defer s.recoverConn(conn, req.ID)
 	// Authentication + authorization (M38). The primary (admin) token
 	// authorizes everything, on any tenant. Otherwise the request must name a
 	// tenant AND present that tenant's own token: the principal is then that
@@ -644,14 +648,23 @@ func (s *Server) writeResp(conn net.Conn, resp Response) {
 	_ = writeResp(conn, resp)
 }
 
-// recoverConn is deferred per connection: it turns a panic in command handling
+// recoverConn is deferred per connection: it turns a panic ANYWHERE in the
+// connection's handling — the pre-auth parse phase as well as command handling —
 // into an error response to the caller instead of an unrecovered goroutine panic
-// that would crash the daemon. Best-effort — if the connection is already broken
-// the error write is dropped; the load-bearing guarantee is that the process
-// survives so other connections, runs, and channels keep working.
-func (s *Server) recoverConn(conn net.Conn, reqID string) {
+// that would crash the daemon. It takes a *Request (not an id) and reads the id
+// at panic time so it can be deferred at the very top of handleConn, before the
+// request has been parsed; an early panic simply carries an empty id. Best-effort
+// — if the connection is already broken the error write is dropped; the
+// load-bearing guarantee is that the process survives so other connections, runs,
+// and channels keep working. recoverConn must be deferred DIRECTLY (not wrapped in
+// a closure) so its recover() actually stops the panic.
+func (s *Server) recoverConn(conn net.Conn, req *Request) {
 	if r := recover(); r != nil {
-		s.writeResp(conn, Response{ID: reqID, Type: RespError, Error: "internal error"})
+		var id string
+		if req != nil {
+			id = req.ID
+		}
+		s.writeResp(conn, Response{ID: id, Type: RespError, Error: "internal error"})
 	}
 }
 

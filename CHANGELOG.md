@@ -12,6 +12,14 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Reliability
+- **The control plane's panic guard now also covers the pre-auth parse phase.** The
+  per-connection `recover` was deferred only after the request was read and parsed,
+  so a panic during the bounded read or JSON unmarshal would have propagated out of
+  the connection goroutine and crashed the daemon. It is now deferred at the top of
+  the handler (reading the request id at panic time), containing the full
+  connection lifecycle — read, parse, auth, dispatch. Latent today (the stdlib JSON
+  decode doesn't panic) but a defense-in-depth gap on the daemon's pre-auth surface.
+  (M439)
 - **A hung scheduled run can no longer permanently stall its schedule.** Cadence
   guards against overlapping runs with an in-flight marker cleared when the firing
   returns — but the firing had no deadline, so a run that hung (a wedged provider/
