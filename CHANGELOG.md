@@ -221,6 +221,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   with it. One malformed/edge-case request is contained to its own connection.
 
 ### Security
+- **Inbound channel signature verification is now fuzz-tested for forgery
+  resistance.** `FuzzVerify` in the Slack (HMAC-SHA256), Discord (Ed25519), and
+  webhook (HMAC-SHA256) channels asserts the authenticity gate never panics, the
+  genuine signature is accepted, and — the load-bearing property — no signature
+  other than the authentic one is ever accepted (no forged-command injection).
+  Runs of ~2 M / ~2 M / ~3.7 M executions found no panic and no forgery. (M448)
 - **The control-plane pre-auth request parse is now fuzz-tested.** `FuzzRequestParse`
   drives `readBoundedLine` + the request unmarshal — the path that runs before the
   token is checked, so any local client feeds it bytes pre-auth. It asserts the
