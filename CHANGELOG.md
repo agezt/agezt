@@ -140,6 +140,15 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   with it. One malformed/edge-case request is contained to its own connection.
 
 ### Security
+- **The file tool's `search`/`glob` can't read outside the workspace via a symlink.**
+  `read`/`write`/`replace`/`stat`/`delete` resolve symlinks and reject targets outside
+  the configured root, but `search` and `glob` walked the tree and read/enumerated every
+  entry without re-checking symlinks — `WalkDir` reports a symlink-to-file as a regular
+  entry, so `os.ReadFile` followed it out of the workspace. A prompt-injected agent could
+  point an in-root symlink at `/etc/passwd` (or `…/.aws/credentials`) and `search` to
+  dump its contents — an arbitrary-file-read escape of the tool's sandbox. Both ops now
+  skip any entry whose resolved target leaves the root. (Also: `search`/`replace` now cap
+  the per-file size they read, so a multi-GB workspace file can't OOM the daemon.)
 - **Plugin pin verification can't be bypassed by a bare-name path.** A pinned plugin
   given as a bare name (`AGEZT_PLUGINS="t=mytool"`) was hashed via `os.Open` (CWD-
   relative) but executed via `$PATH` lookup — so the pin could verify one file while a

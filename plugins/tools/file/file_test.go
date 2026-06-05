@@ -163,6 +163,38 @@ func TestContainment_SymlinkEscapeBlockedBothPaths(t *testing.T) {
 	invokeExpectErr(t, tool, fileInput{Op: "read", Path: link}, "escapes")
 }
 
+// TestContainment_SearchGlobDoNotFollowSymlinkOutsideRoot: search/glob walk the
+// tree and must NOT read or enumerate an in-root symlink whose target is outside the
+// workspace — otherwise they are an arbitrary-file-read primitive that bypasses the
+// per-op resolve() containment (M427).
+func TestContainment_SearchGlobDoNotFollowSymlinkOutsideRoot(t *testing.T) {
+	tool := newTool(t)
+
+	outside := t.TempDir()
+	secret := filepath.Join(outside, "secret.txt")
+	if err := os.WriteFile(secret, []byte("TOPSECRET-NEEDLE"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(tool.Root(), "link.txt")
+	if err := os.Symlink(secret, link); err != nil {
+		t.Skipf("symlinks unavailable on this platform: %v", err)
+	}
+	// A legitimate in-root file so the walk has real content to scan.
+	if err := os.WriteFile(filepath.Join(tool.Root(), "real.txt"), []byte("hello world"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	// A leak shows up as a hit (the result JSON gains a "text" field carrying the
+	// matched line); the no-match result is count 0 / hits null. The "pattern" field
+	// always echoes the needle, so assert on the hit marker, not the raw needle.
+	if out := invoke(t, tool, fileInput{Op: "search", Pattern: "TOPSECRET-NEEDLE"}); strings.Contains(out, `"text"`) {
+		t.Errorf("search leaked out-of-root file content via an in-root symlink: %s", out)
+	}
+	if g := invoke(t, tool, fileInput{Op: "glob", Pattern: "*.txt"}); strings.Contains(g, "link.txt") {
+		t.Errorf("glob enumerated an out-of-root symlink entry: %s", g)
+	}
+}
+
 // Writing a NEW file through a symlinked parent directory must be refused — the
 // file would land outside root even though the target itself didn't exist yet
 // (M253).

@@ -44,6 +44,11 @@ const MaxListEntries = 1000
 // MaxSearchHits caps grep-style search results.
 const MaxSearchHits = 200
 
+// MaxScanBytes caps the size of a single file that search/replace will read whole
+// into memory, so an agent that grows a workspace file to gigabytes can't OOM the
+// daemon by grepping or replacing in it (M427). Generous for real source files.
+const MaxScanBytes = 8 * 1024 * 1024
+
 // Tool is the file tool implementation of agent.Tool.
 type Tool struct {
 	root string // absolute, symlink-resolved
@@ -330,6 +335,9 @@ func (t *Tool) doReplace(in fileInput) (agent.Result, error) {
 	if info.IsDir() {
 		return errResult("replace: " + in.Path + " is a directory"), nil
 	}
+	if info.Size() > MaxScanBytes {
+		return errResult(fmt.Sprintf("replace: file too large (%d bytes, max %d)", info.Size(), MaxScanBytes)), nil
+	}
 	data, err := os.ReadFile(p)
 	if err != nil {
 		return errResult("read: " + err.Error()), nil
@@ -453,8 +461,14 @@ func (t *Tool) doSearch(in fileInput) (agent.Result, error) {
 		if d.IsDir() {
 			return nil
 		}
+		if t.entryEscapesRoot(p, d) {
+			return nil // skip a symlink whose target leaves the workspace
+		}
 		if len(hits) >= cap {
 			return filepath.SkipAll
+		}
+		if info, ierr := d.Info(); ierr == nil && info.Size() > MaxScanBytes {
+			return nil // skip a file too large to scan safely
 		}
 		data, err := os.ReadFile(p)
 		if err != nil {
@@ -521,6 +535,9 @@ func (t *Tool) doGlob(in fileInput) (agent.Result, error) {
 		}
 		if d.IsDir() {
 			return nil
+		}
+		if t.entryEscapesRoot(p, d) {
+			return nil // don't leak the existence of out-of-root symlink targets
 		}
 		if len(matches) >= limit {
 			capped = true
@@ -679,6 +696,23 @@ func (t *Tool) resolveNewWithinRoot(clean, rel string) (string, error) {
 
 // withinRoot reports whether child is the root or a descendant of it. Both
 // arguments must be already-canonicalized absolute paths.
+// entryEscapesRoot reports whether a walked entry is a symlink whose real target
+// resolves outside the tool's root. WalkDir lstat-types entries (it never follows a
+// link), so a symlink-to-file passes the d.IsDir() check and a later os.ReadFile would
+// FOLLOW it out of the workspace — the per-op resolve() containment never runs during
+// a walk. search/glob must re-check each link or they become an arbitrary-file-read
+// primitive via an in-root symlink (M427). An unresolvable link is also skipped.
+func (t *Tool) entryEscapesRoot(p string, d fs.DirEntry) bool {
+	if d.Type()&fs.ModeSymlink == 0 {
+		return false
+	}
+	resolved, err := filepath.EvalSymlinks(p)
+	if err != nil {
+		return true
+	}
+	return !withinRoot(t.root, resolved)
+}
+
 func withinRoot(root, child string) bool {
 	rel, err := filepath.Rel(root, child)
 	if err != nil {
