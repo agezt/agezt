@@ -171,7 +171,7 @@ func GetSSORoleCredentials(ctx context.Context, p SSOParams) (*AssumedCreds, err
 	}
 	req.Header.Set("x-amz-sso_bearer_token", tok.AccessToken)
 
-	client := http.DefaultClient
+	client := &http.Client{Timeout: credentialHTTPTimeout}
 	if p.HTTP != nil {
 		if c, ok := p.HTTP.(*http.Client); ok {
 			client = c

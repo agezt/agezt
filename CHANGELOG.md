@@ -23,6 +23,11 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   remembered window with memory still bounded at 2×cap. (M457)
 
 ### Reliability
+- **AWS credential fetches (SSO/STS/web-identity) no longer hang daemon startup on
+  a stalled endpoint.** These paths used `http.DefaultClient` (no timeout) with a
+  background context (no deadline), so a black-holed STS/SSO endpoint could block
+  the credential chain — and thus daemon boot — indefinitely, unlike the IMDS path
+  which already bounds itself. Each now uses a 10 s-bounded client. (M465)
 - **A plugin call no longer stalls until its timeout when the plugin dies mid-
   registration.** `callWithProgress` checked liveness lock-free, then registered its
   response channel under the lock; a `Close`/`markDead` in between drained `pending`

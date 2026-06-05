@@ -113,7 +113,7 @@ func AssumeRoleWithWebIdentity(ctx context.Context, p WebIdentityParams) (*Assum
 	// NOTE: deliberately NOT SigV4-signed — the WebIdentityToken is the
 	// credential. This is the keyless property of IRSA.
 
-	client := http.DefaultClient
+	client := &http.Client{Timeout: credentialHTTPTimeout}
 	if p.HTTP != nil {
 		if c, ok := p.HTTP.(*http.Client); ok {
 			client = c

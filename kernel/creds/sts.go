@@ -55,6 +55,13 @@ import (
 	"github.com/agezt/agezt/kernel/creds/sigv4"
 )
 
+// credentialHTTPTimeout bounds each AWS credential-fetch HTTP call (SSO / STS /
+// web-identity). Without it these paths used http.DefaultClient (no timeout) with
+// a background context (no deadline), so a stalled or black-holed endpoint could
+// hang daemon startup indefinitely — unlike the IMDS path, which already bounds
+// itself. A var (not const) so tests can lower it. (M465)
+var credentialHTTPTimeout = 10 * time.Second
+
 // AssumeRoleParams configures a single AssumeRole call. Region is
 // the AWS region whose STS endpoint to call (also goes into the
 // SigV4 credential scope). BaseCreds are the long-lived signing
@@ -150,7 +157,7 @@ func AssumeRole(ctx context.Context, p AssumeRoleParams) (*AssumedCreds, error) 
 		return nil, fmt.Errorf("sts assume-role: sign: %w", err)
 	}
 
-	client := http.DefaultClient
+	client := &http.Client{Timeout: credentialHTTPTimeout}
 	if p.HTTP != nil {
 		if c, ok := p.HTTP.(*http.Client); ok {
 			client = c
