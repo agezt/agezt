@@ -40,6 +40,14 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   blocks on a buffered completion channel signalled by each finishing node. Same
   behaviour, no busy-wait, no latency floor. (M472)
 
+### Fixed
+- **Inbound Telegram photos and caption-only messages are no longer dropped.** The
+  long-poll loop dispatched only messages with non-empty `Text`, but a photo carries
+  its text in `Caption` (or none at all), so photo/caption-only messages were skipped
+  before reaching the handler — leaving the inbound-image (vision) path dead on the
+  live poll path even though the handler fully supported it. The gate now admits
+  messages with a caption or photo. (M476)
+
 ### Reliability
 - **The warden runner no longer swallows engine failures on a non-zero exit.** Its
   `cmd.Wait` error classification was gated on the exit code being 0, so a genuine

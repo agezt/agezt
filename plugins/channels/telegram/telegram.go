@@ -160,12 +160,21 @@ func (c *Channel) Start(ctx context.Context) error {
 		}
 		for _, u := range updates {
 			c.offset = u.UpdateID + 1
-			if u.Message == nil || u.Message.Text == "" {
+			if !dispatchable(u.Message) {
 				continue
 			}
 			channel.Guard(c.bus, "telegram", func() { c.handleInbound(ctx, u.Message) })
 		}
 	}
+}
+
+// dispatchable reports whether an inbound update carries content worth handling.
+// A photo rides its text in Caption (not Text) and may have no text at all, so
+// gating only on Text != "" silently dropped photo/caption-only messages before
+// they reached handleInbound — killing the inbound-image path (M247) on the live
+// poll loop, even though handleInbound fully supports it. (M476)
+func dispatchable(m *tgMessage) bool {
+	return m != nil && (m.Text != "" || m.Caption != "" || len(m.Photo) > 0)
 }
 
 // scrubToken removes the bot token from an error message. http.Client.Do returns

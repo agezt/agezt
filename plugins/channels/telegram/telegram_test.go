@@ -268,3 +268,26 @@ func TestGetUpdates_CapsOversizedResponse(t *testing.T) {
 		t.Fatal("getUpdates accepted an over-cap response — the body is not size-bounded")
 	}
 }
+
+// TestDispatchable_AdmitsPhotoAndCaption pins M476: the poll-loop gate must admit
+// photo-only and caption-only messages, not just messages with Text. A photo's
+// text rides in Caption and may be absent; gating on Text != "" dropped inbound
+// images (M247) before handleInbound — which is the only place that fetches them.
+func TestDispatchable_AdmitsPhotoAndCaption(t *testing.T) {
+	cases := []struct {
+		name string
+		m    *tgMessage
+		want bool
+	}{
+		{"nil", nil, false},
+		{"empty", &tgMessage{}, false},
+		{"text", &tgMessage{Text: "hi"}, true},
+		{"caption only", &tgMessage{Caption: "a caption"}, true},
+		{"photo only", &tgMessage{Photo: []tgPhotoSize{{FileID: "f"}}}, true},
+	}
+	for _, c := range cases {
+		if got := dispatchable(c.m); got != c.want {
+			t.Errorf("dispatchable(%s) = %v, want %v", c.name, got, c.want)
+		}
+	}
+}
