@@ -9,10 +9,29 @@ import (
 	"io"
 	"os"
 	osexec "os/exec"
+	"path/filepath"
 	"strings"
 
 	"lukechampine.com/blake3"
 )
+
+// resolvePluginPath resolves a bare-name plugin path (no path separator) to the
+// absolute file exec would run, via $PATH — so the pin hash (HashFile → os.Open,
+// CWD-relative) and the executed binary (exec.Command → $PATH lookup) are the SAME
+// file (M422). Without this, AGEZT_PLUGINS="t=mytool" could hash ./mytool while
+// executing $PATH/mytool, letting a pin guard the wrong binary. A path that already
+// contains a separator, or a bare name not found on $PATH, is returned unchanged
+// (exec and os.Open already agree on a separator path; an unresolvable name then
+// fails closed at Start/HashFile).
+func resolvePluginPath(path string) string {
+	if strings.ContainsRune(path, '/') || strings.ContainsRune(path, filepath.Separator) {
+		return path
+	}
+	if resolved, err := osexec.LookPath(path); err == nil {
+		return resolved
+	}
+	return path
+}
 
 // makeChild wraps osexec.Command to centralise the construction
 // (the host's Spawn used to call osexec.Command inline; the wrapper

@@ -12,6 +12,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Reliability
+- **A self-exiting plugin no longer leaks a zombie process.** The plugin host called
+  `cmd.Wait()` only inside `Close()`, and `Close()` short-circuited once the plugin was
+  marked dead — so a plugin that exited or crashed on its own (or was reloaded) was
+  never reaped, accumulating one zombie per death on Linux (a crash-looping or
+  repeatedly-reloaded plugin could exhaust the process table). A dedicated per-process
+  waiter now owns `cmd.Wait()` and reaps the child on every death path; `Close` waits
+  on (or forces) it without ever double-calling `Wait`.
 - **Concurrent memory / world-model writes no longer lose updates.** The memory-lite
   and world-model managers did their read-modify-write (`Get` → compute → `Put`) as
   two separately-locked store calls, so two concurrent writers — the agent loop and
@@ -97,6 +104,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   with it. One malformed/edge-case request is contained to its own connection.
 
 ### Security
+- **Plugin pin verification can't be bypassed by a bare-name path.** A pinned plugin
+  given as a bare name (`AGEZT_PLUGINS="t=mytool"`) was hashed via `os.Open` (CWD-
+  relative) but executed via `$PATH` lookup — so the pin could verify one file while a
+  different one ran. A bare name is now resolved to its absolute `$PATH` location once,
+  before both the hash check and exec, so the pinned bytes and the executed bytes are
+  the same file.
 - **Streaming LLM deltas are now secret-redacted before fan-out.** Token and
   reasoning deltas (`llm.token` / `llm.reasoning`) were published on the ephemeral
   streaming path, which skipped the redactor that the durable path applies. They never

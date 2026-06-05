@@ -168,6 +168,16 @@ type Plugin struct {
 	stdin  io.WriteCloser
 	stdout *bufio.Reader
 
+	// waitDone is closed by a dedicated per-process waiter goroutine once
+	// cmd.Wait() returns — i.e. the child has been reaped. It guarantees the
+	// process is reaped on ANY death path (self-exit, crash, kill), not only via
+	// Close (M422): markDead used to set dead without ever calling Wait, so a
+	// plugin that exited on its own became a zombie and Close's dead-check
+	// short-circuited the only Wait call site. The waiter is the single owner of
+	// cmd.Wait() — nothing else may call it, or Wait would error/race. Replaced on
+	// each (re)spawn; read under mu.
+	waitDone chan struct{}
+
 	// pending tracks in-flight requests by id → response channel.
 	// Map access holds mu. The read loop's terminal send is done UNDER
 	// mu and non-blocking (M179) so it can't race a teardown that
@@ -254,6 +264,9 @@ func Spawn(ctx context.Context, cfg Config) (*Plugin, error) {
 	if cfg.MaxAdvertisedTools <= 0 {
 		cfg.MaxAdvertisedTools = DefaultMaxAdvertisedTools
 	}
+	// Resolve a bare-name path the SAME way exec will, so the pin hash and the
+	// executed binary are the identical file (M422). See resolvePluginPath.
+	cfg.Path = resolvePluginPath(cfg.Path)
 	if cfg.PinnedHash != "" {
 		if err := VerifyPin(cfg.Path, cfg.PinnedHash); err != nil {
 			return nil, err
@@ -291,6 +304,8 @@ func Spawn(ctx context.Context, cfg Config) (*Plugin, error) {
 		progress: make(map[string]func(string)),
 		cbSem:    make(chan struct{}, cfg.MaxConcurrentCallbacks),
 	}
+	// Dedicated waiter: reap the child on whatever path it dies (M422).
+	p.waitDone = startWaiter(cmd)
 
 	// Drain stderr → Logger. Plugins log to stderr; the host
 	// forwards (or discards) each line.
@@ -460,34 +475,59 @@ func (p *Plugin) InvokeWithProgress(
 	return out, nil
 }
 
+// startWaiter launches the single goroutine that owns cmd.Wait() for a started
+// child, closing the returned channel once the process is reaped. It is what
+// guarantees reaping on every death path — self-exit, crash, or kill — not only via
+// Close (M422). Exactly one waiter exists per started process; nothing else may call
+// cmd.Wait() (a second call would error/race).
+func startWaiter(cmd *exec.Cmd) chan struct{} {
+	done := make(chan struct{})
+	go func() {
+		_ = cmd.Wait()
+		close(done)
+	}()
+	return done
+}
+
 // Close sends shutdown, gives the plugin DefaultShutdownGrace to
 // exit, then kills it. Idempotent — Close on an already-dead
 // plugin is a no-op.
 func (p *Plugin) Close() error {
-	if p.dead.Load() {
-		return nil
-	}
-	// Best-effort shutdown notification. If the write fails, the
-	// process is already gone or unreachable — proceed to kill.
-	// Guard a nil stdin so Close is safe on a Plugin that never
-	// finished starting (M183 / review M3).
-	if p.stdin != nil {
+	p.mu.Lock()
+	cmd := p.cmd
+	stdin := p.stdin
+	waitDone := p.waitDone
+	p.mu.Unlock()
+	alreadyDead := p.dead.Load()
+
+	// Best-effort shutdown notification to a still-live plugin. If the write fails,
+	// the process is already gone or unreachable — proceed to kill. Guard a nil
+	// stdin so Close is safe on a Plugin that never finished starting (M183).
+	if stdin != nil && !alreadyDead {
 		_ = p.writeRequest(Request{ID: "end", Method: MethodShutdown})
 	}
 
-	// Wait for the child to exit, killing it after the grace period.
-	// Skip entirely if there is no started process — p.cmd.Wait/Kill
-	// would nil-panic on a half-initialized Plugin (M183 / review M3).
-	if p.cmd != nil && p.cmd.Process != nil {
-		done := make(chan error, 1)
-		go func() { done <- p.cmd.Wait() }()
-		select {
-		case <-done:
-		case <-time.After(DefaultShutdownGrace):
-			// Kill the whole process group (M184), so grandchildren the
-			// plugin forked are reaped too — not just the direct child.
-			killProcessTree(p.cmd)
-			<-done
+	// Ensure the child is stopped AND reaped on every path (M422). The dedicated
+	// per-process waiter owns cmd.Wait(); here we only wait for it (giving a live
+	// plugin the grace period) or force it via a process-group kill. Idempotent: a
+	// second Close, or a Close after an abnormal markDead, finds waitDone already
+	// closed and the kill a no-op — never a double Wait. Skip when there is no
+	// started process (half-initialized Plugin, M183).
+	if cmd != nil && cmd.Process != nil && waitDone != nil {
+		if alreadyDead {
+			// markDead doesn't kill (it would race a concurrent Reload swapping
+			// p.cmd), so a plugin marked dead for an abnormal reason may still be
+			// alive — force teardown now, then let the waiter reap.
+			killProcessTree(cmd)
+			<-waitDone
+		} else {
+			select {
+			case <-waitDone:
+			case <-time.After(DefaultShutdownGrace):
+				// Kill the whole process group (M184) so grandchildren are reaped too.
+				killProcessTree(cmd)
+				<-waitDone
+			}
 		}
 	}
 	p.dead.Store(true)
@@ -924,12 +964,16 @@ func (p *Plugin) respawn(ctx context.Context) error {
 		return fmt.Errorf("start: %w", err)
 	}
 
+	// Dedicated waiter for the replacement child (M422). The previous child was
+	// already reaped by Reload→Close before this point.
+	waitDone := startWaiter(cmd)
 	p.mu.Lock()
 	p.cmd = cmd
 	p.stdin = stdin
 	p.stdout = bufio.NewReader(stdout)
 	p.pending = make(map[string]chan *Response)
 	p.progress = make(map[string]func(string))
+	p.waitDone = waitDone
 	p.mu.Unlock()
 	p.dead.Store(false)
 	p.setDeathErr(nil)
