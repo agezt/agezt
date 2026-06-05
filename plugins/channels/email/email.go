@@ -153,8 +153,11 @@ func subjectFor(out channel.Outbound) string {
 	case channel.PriorityNotify:
 		prefix = "Agezt [notify]"
 	}
+	// Cut at the first CR OR LF: the subject is the first line, and a bare CR left
+	// in the header would be a header-injection vector against lenient MTAs (a lone
+	// '\n'-only cut let an interior '\r' survive into the Subject line). (M479)
 	firstLine := out.Text
-	if i := strings.IndexByte(firstLine, '\n'); i >= 0 {
+	if i := strings.IndexAny(firstLine, "\r\n"); i >= 0 {
 		firstLine = firstLine[:i]
 	}
 	firstLine = strings.TrimSpace(firstLine)

@@ -105,6 +105,9 @@ func TestSubjectFor(t *testing.T) {
 		{"hello world", "", "Agezt: hello world"},
 		{"line1\nline2", string(channel.PriorityNotify), "Agezt [notify]: line1"},
 		{"   \n", "", "Agezt"},
+		// A bare CR must not survive into the Subject header (injection guard, M479).
+		{"Hello\rBcc: evil@example.com", "", "Agezt: Hello"},
+		{"first\r\nsecond", "", "Agezt: first"},
 	}
 	for _, c := range cases {
 		got := subjectFor(channel.Outbound{Text: c.text, Priority: channel.Priority(c.prio)})

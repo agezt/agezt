@@ -41,6 +41,10 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   behaviour, no busy-wait, no latency floor. (M472)
 
 ### Fixed
+- **The email Subject header strips a bare carriage return.** The subject (first
+  line of the outbound text) was cut only at `\n`, so a lone interior `\r` survived
+  into the `Subject:` line — a header-injection foothold against lenient mail
+  parsers. It is now cut at the first CR or LF. (M479)
 - **Inbound Telegram photos and caption-only messages are no longer dropped.** The
   long-poll loop dispatched only messages with non-empty `Text`, but a photo carries
   its text in `Caption` (or none at all), so photo/caption-only messages were skipped
