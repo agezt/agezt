@@ -12,6 +12,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Reliability
+- **The journal reopen path is now fuzz-tested against corrupt segments.**
+  `FuzzJournalOpen` writes arbitrary bytes as a journal segment and exercises
+  `Open`/`Range`/`Tail`/`Verify` — the custom torn-tail truncation, line-split, and
+  hash-chain parsing a crash or bit-rot can feed garbage. It asserts a corrupt
+  journal never crashes or hangs the daemon on startup (Open may reject it or
+  truncate the torn tail, but always terminates cleanly). A 45 s / ~91 K-execution
+  run found no panic and no hang. (M446)
 - **Per-response usage reporting no longer scans the whole journal.** The `usage`
   field of every OpenAI-compat reply was computed by a full-journal scan per
   request — O(journal) that grows unbounded over the daemon's life and that a
