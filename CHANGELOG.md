@@ -214,6 +214,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   with it. One malformed/edge-case request is contained to its own connection.
 
 ### Security
+- **The trust-ladder decision path is now fuzz-tested.** `FuzzDecide` hammers
+  `edict.Decide` — which JSON-decodes and whitespace-normalizes untrusted tool
+  input to match the hard-deny floor (the M173/M426 evasion surface). It asserts
+  the engine never panics, the hard-deny floor is un-overridable by any trust
+  ceiling, and a ceiling only ever tightens. A 45 s / 2.65 M-execution run found no
+  panic and no floor bypass. (M445)
 - **The secret-redaction path is now fuzz-tested.** Added the tree's first fuzz
   test (`FuzzRedact`) over the boundary that keeps credentials out of logs/the bus/
   transcripts: it asserts redaction never panics and never leaves an indexed secret
