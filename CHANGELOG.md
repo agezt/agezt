@@ -41,6 +41,11 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   behaviour, no busy-wait, no latency floor. (M472)
 
 ### Reliability
+- **The warden runner no longer swallows engine failures on a non-zero exit.** Its
+  `cmd.Wait` error classification was gated on the exit code being 0, so a genuine
+  non-`ExitError` failure (a failed launch, an I/O error, a `WaitDelay` abandonment
+  after a kill) that coincided with a non-zero exit was returned as success, hiding
+  it from the caller. Classification is now purely type-based. (M475)
 - **A blank tenant-token file no longer permanently wedges a tenant.** A crash
   between creating the token file and writing it left a zero-length file, after
   which every `Token()`/`Authorize()` re-read it as empty and the `O_EXCL` re-mint
