@@ -22,6 +22,16 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   forgotten only after it ages out of both generations, roughly doubling the
   remembered window with memory still bounded at 2×cap. (M457)
 
+### Security
+- **`gitleaks detect` is now clean (0, was 16) and the secret gate is enforceable.**
+  The full-history scan reported 16 hits, all deliberate test fixtures (the
+  `kernel/redact/*_test.go` redaction tests, `cmd/agezt/plugin_log_test.go`, and the
+  placeholder AWS creds in `kernel/creds/aws_test.go`) — no real secret is committed.
+  Standing noise made the gate useless (a future real leak would be indistinguishable),
+  so added `.gitleaks.toml` that keeps the full default ruleset (`useDefault`) and
+  allowlists *only* those three test paths. Any secret introduced in production code,
+  or in any other test, still trips the scan. (M486)
+
 ### Code quality
 - **`staticcheck ./...` is now clean (0 findings, was 17).** Removed unnecessary
   comma-ok discards on map reads in the control plane (`req.Args[k]` returns one

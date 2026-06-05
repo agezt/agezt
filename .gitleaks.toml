@@ -1,0 +1,32 @@
+# Agezt gitleaks configuration.
+#
+# Purpose: keep `gitleaks detect` at zero so it is an *enforceable* secret gate.
+# Without a baseline, the scan reports 16 hits that are all deliberate test
+# fixtures (fake, secret-shaped strings), which would bury a future REAL leak in
+# known noise. This config extends the default ruleset and allowlists only the
+# test files whose job is to contain such fixtures — never production code.
+#
+# Run:  gitleaks detect --no-banner --redact -s .
+# Expect: "no leaks found".
+
+title = "Agezt"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = """
+Test fixtures only. These files intentionally embed secret-shaped strings:
+  - kernel/redact/*_test.go      verify the redactor scrubs API keys / tokens / JWTs
+  - cmd/agezt/plugin_log_test.go verifies plugin-log lines redact provider keys
+  - kernel/creds/aws_test.go     placeholder AWS creds (AKIA1111…, secret1234…)
+                                 used to test credential-file / IMDS parsing
+All values are obviously synthetic; no real secret is committed. The allowlist is
+scoped to these test paths so any secret introduced anywhere in production code,
+or in any other test, still trips the scan.
+"""
+paths = [
+  '''kernel/redact/.*_test\.go$''',
+  '''cmd/agezt/plugin_log_test\.go$''',
+  '''kernel/creds/aws_test\.go$''',
+]
