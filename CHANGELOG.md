@@ -49,6 +49,14 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   messages with a caption or photo. (M476)
 
 ### Reliability
+- **`Kernel.Close()` closes every store even if one fails.** It returned on the
+  first store-close error, leaking the remaining handles — notably the journal's OS
+  file descriptor, which on Windows blocks re-opening the directory. It now closes
+  all stores and joins the errors. (M477)
+- **The auto context-budget path reads the catalog under the lock.** `RunWith` read
+  the `catalog` field directly while `ReloadCatalog` swaps it under the lock — a data
+  race when a run starts during a `catalog sync`. It now uses the locked `Catalog()`
+  accessor. (M477)
 - **The warden runner no longer swallows engine failures on a non-zero exit.** Its
   `cmd.Wait` error classification was gated on the exit code being 0, so a genuine
   non-`ExitError` failure (a failed launch, an I/O error, a `WaitDelay` abandonment
