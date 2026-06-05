@@ -5,6 +5,7 @@ package scheduler_test
 import (
 	"context"
 	"errors"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -620,5 +621,36 @@ func TestLoopNode_IntentFnReadsUpstream(t *testing.T) {
 	}
 	if res.NodeResults["execute"].Output != "given: summarize+ran+ran" {
 		t.Errorf("execute output=%q", res.NodeResults["execute"].Output)
+	}
+}
+
+// TestRun_DeepChainEventDrivenDriver exercises the event-driven driver across many
+// iterations: a 64-node linear chain completes one node at a time, so the driver
+// blocks on the done channel 64 times. A miscount (consuming too many/few signals)
+// would deadlock or terminate early; all 64 nodes must complete in order.
+func TestRun_DeepChainEventDrivenDriver(t *testing.T) {
+	b, _ := newBus(t)
+	e := scheduler.New(scheduler.Config{Bus: b})
+
+	const n = 64
+	nodes := make([]scheduler.Node, n)
+	for i := 0; i < n; i++ {
+		id := "n" + strconv.Itoa(i)
+		var deps []string
+		if i > 0 {
+			deps = []string{"n" + strconv.Itoa(i-1)}
+		}
+		nodes[i] = &fakeNode{NodeID: id, Deps: deps, ResultOutput: id}
+	}
+
+	res, err := e.Run(context.Background(), scheduler.Plan{Nodes: nodes}, "")
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if len(res.NodeResults) != n {
+		t.Fatalf("completed %d of %d nodes — event-driven driver lost or over-consumed a wakeup", len(res.NodeResults), n)
+	}
+	if got := res.NodeResults["n63"].Output; got != "n63" {
+		t.Errorf("last node result=%q want n63", got)
 	}
 }

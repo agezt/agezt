@@ -202,6 +202,10 @@ func (e *Executor) Run(ctx context.Context, plan Plan, correlationID string) (*P
 	}
 
 	sem := make(chan struct{}, maxParallel)
+	// done signals one node completion to the driver, replacing a 1 ms busy-wait
+	// poll. Buffered to the node count so a completing node never blocks sending
+	// (and a late send after the driver has moved on is simply discarded).
+	done := make(chan struct{}, len(plan.Nodes))
 	var wg sync.WaitGroup
 	runCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -293,6 +297,9 @@ func (e *Executor) Run(ctx context.Context, plan Plan, correlationID string) (*P
 		} else {
 			e.publishNodeCompleted(planID, node, res)
 		}
+		// Wake the driver to re-poll readiness (completed[id] is already recorded
+		// above). Buffered, so this never blocks.
+		done <- struct{}{}
 	}
 
 	// Drive the scheduler: launch every newly-ready node, then wait
@@ -313,10 +320,11 @@ func (e *Executor) Run(ctx context.Context, plan Plan, correlationID string) (*P
 			// pickReady was empty AND nothing is running → we're done.
 			break
 		}
-		// Brief poll until something completes; runNode's mu.Unlock
-		// is the actual wakeup. 1ms is well below DAG step latency
-		// and avoids touching wg internals.
-		time.Sleep(time.Millisecond)
+		// Block until at least one in-flight node completes, then re-poll
+		// readiness. Event-driven (no busy-wait, no scheduling-latency floor); the
+		// buffered channel and the inflight>0 guard guarantee a send is pending or
+		// coming, so this never deadlocks.
+		<-done
 	}
 	wg.Wait()
 

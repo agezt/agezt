@@ -33,6 +33,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   which decodes to a space) was sent corrupted and the credential fetch failed for
   those operators. The query is now built with `url.Values`. (M466)
 
+### Performance
+- **The plan scheduler's driver is event-driven instead of polling.** It busy-waited
+  with a 1 ms sleep while any node was in flight — spinning (lock + map scan) for the
+  whole duration of the longest node and capping scheduling latency at ~1 ms. It now
+  blocks on a buffered completion channel signalled by each finishing node. Same
+  behaviour, no busy-wait, no latency floor. (M472)
+
 ### Reliability
 - **The credentials vault writes via a unique temp file.** `Save`/`Rotate` used a
   fixed `creds.json.tmp`; two concurrent `Save` calls (both under the read lock)
