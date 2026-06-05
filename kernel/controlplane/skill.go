@@ -208,6 +208,7 @@ func skillView(sk skill.Skill) map[string]any {
 		"metrics": map[string]any{
 			"uses": sk.Metrics.Uses, "successes": sk.Metrics.Successes,
 			"failures": sk.Metrics.Failures, "last_used_ms": sk.Metrics.LastUsedMS,
+			"shadow_evals": sk.Metrics.ShadowEvals, "shadow_wins": sk.Metrics.ShadowWins,
 		},
 	}
 	if len(sk.Triggers) > 0 {

@@ -650,6 +650,11 @@ const renderers = {
       const row = el("div", "item");
       row.appendChild(chip(s.status || ""));
       row.appendChild(el("span", null, s.name || ""));
+      // Shadow skills show their evaluation progress toward auto-promotion
+      // (SPEC-05 §5.2 / M402): "shadow N/M" wins/evals. textContent only.
+      const m = s.metrics || {};
+      if (s.status === "shadow" && (m.shadow_evals || 0) > 0)
+        row.appendChild(el("span", "muted", " shadow " + (m.shadow_wins || 0) + "/" + m.shadow_evals));
       if (s.id) {
         if (s.status === "draft" || s.status === "shadow")
           row.appendChild(actBtn("promote", "ok", "/api/skill/promote", { id: s.id }, "skills"));

@@ -278,10 +278,33 @@ func renderSkillLine(sk map[string]any) string {
 	status, _ := sk["status"].(string)
 	name, _ := sk["name"].(string)
 	desc, _ := sk["description"].(string)
+	line := fmt.Sprintf("  %s [%s] %s", id, status, name)
 	if desc != "" {
-		return fmt.Sprintf("  %s [%s] %s — %s", id, status, name, desc)
+		line += " — " + desc
 	}
-	return fmt.Sprintf("  %s [%s] %s", id, status, name)
+	// For a shadow skill, surface its evaluation progress toward promotion
+	// (SPEC-05 §5.2 / M402): "· shadow <wins>/<evals>".
+	if status == "shadow" {
+		if ev, wins, ok := shadowProgress(sk); ok {
+			line += fmt.Sprintf("  · shadow %d/%d", wins, ev)
+		}
+	}
+	return line
+}
+
+// shadowProgress pulls the shadow-evaluation counters from a skill map's metrics,
+// reporting (evals, wins, present). Returns ok=false when no evaluations yet.
+func shadowProgress(sk map[string]any) (evals, wins int, ok bool) {
+	m, _ := sk["metrics"].(map[string]any)
+	if m == nil {
+		return 0, 0, false
+	}
+	ev, _ := m["shadow_evals"].(float64)
+	w, _ := m["shadow_wins"].(float64)
+	if ev == 0 {
+		return 0, 0, false
+	}
+	return int(ev), int(w), true
 }
 
 // renderSkillEventDetail summarizes a lifecycle event's payload for `history`.

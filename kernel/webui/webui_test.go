@@ -700,6 +700,18 @@ func TestDashboard_RendersContextCompaction(t *testing.T) {
 	}
 }
 
+// TestDashboard_RendersShadowProgress locks in the SPEC-05 §5.2 / M402 surface:
+// the Skills panel shows a shadow skill's evaluation progress toward
+// auto-promotion (shadow_wins / shadow_evals). A rename on either side trips it.
+func TestDashboard_RendersShadowProgress(t *testing.T) {
+	src := string(dashboardHTML)
+	for _, marker := range []string{"shadow_evals", "shadow_wins", "shadow \""} {
+		if !strings.Contains(src, marker) {
+			t.Errorf("dashboard shadow-progress rendering missing %q — the SPEC-05 §5.2 surface regressed", marker)
+		}
+	}
+}
+
 // TestDashboard_RendersIsolationCard locks in the SPEC-12 §4 / SPEC-07 tool-call
 // debug "isolation" view: the run-detail arc must render warden.executed events
 // (which carry the effective/requested profile + downgrade flag from the journal)
