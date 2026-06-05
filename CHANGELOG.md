@@ -214,6 +214,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   with it. One malformed/edge-case request is contained to its own connection.
 
 ### Security
+- **The secret-redaction path is now fuzz-tested.** Added the tree's first fuzz
+  test (`FuzzRedact`) over the boundary that keeps credentials out of logs/the bus/
+  transcripts: it asserts redaction never panics and never leaves an indexed secret
+  verbatim in the output. A 45 s / 1.5 M-execution run found no panic and no leak;
+  the one fuzzer-flagged case was a placeholder artifact (a secret that is a
+  substring of `[REDACTED]`), soundly excluded by redacting the bare secret as the
+  guard. Committed with its regression corpus. (M444)
 - **Telegram Bot API responses are size-capped.** `getUpdates` and `getFile`
   decoded the response body with no bound, so a buggy/compromised/MITM'd Bot API
   endpoint could stream an unbounded body and OOM the long-poll loop — the one HTTP
