@@ -24,15 +24,20 @@ type FireFunc func(ctx context.Context, o Order, triggerSubject string)
 type RunnerConfig struct {
 	// Cooldown is the per-order minimum gap between firings. <=0 uses the default.
 	Cooldown time.Duration
+	// Now is the clock used for the cooldown. nil → time.Now. Injectable for tests.
+	Now func() time.Time
 }
 
 // StartRunner wires the event-trigger half of Chronos onto the bus (SPEC-16 §4).
 // It subscribes to every event and, for each, fires every enabled standing order
 // whose event-trigger subject matches — subject to a per-order cooldown so an
-// event storm can't launch a flood of runs. Lifecycle events (standing.*) are
-// skipped so an order can never trigger itself. Returns false when it can't start
-// (nil bus/store/fire). The goroutine stops on ctx cancellation or bus close; a
-// panic in the loop is recovered so a runner bug never crashes the daemon.
+// event storm can't launch a flood of runs. The order's OWN lifecycle events
+// (standing.*) are skipped so a fire can't immediately re-trigger; a run's other
+// downstream events (task.*/tool.*/…) can still re-match a broadly-subscribed
+// order, but only after the cooldown elapses (so it's rate-bounded, not a tight
+// loop). Returns false when it can't start (nil bus/store/fire). The goroutine
+// stops on ctx cancellation or bus close; a panic in the loop is recovered so a
+// runner bug never crashes the daemon.
 //
 // Cron triggers are handled separately (they reuse kernel/cadence); this runner
 // is only the event-driven path.
@@ -43,6 +48,10 @@ func StartRunner(ctx context.Context, b *bus.Bus, store *Store, cfg RunnerConfig
 	cooldown := cfg.Cooldown
 	if cooldown <= 0 {
 		cooldown = DefaultRunnerCooldown
+	}
+	now := cfg.Now
+	if now == nil {
+		now = time.Now
 	}
 	sub, err := b.Subscribe(">", 256)
 	if err != nil {
@@ -63,12 +72,14 @@ func StartRunner(ctx context.Context, b *bus.Bus, store *Store, cfg RunnerConfig
 				if !ok {
 					return
 				}
-				// Never let an order's own lifecycle (or another order's) trigger a
-				// run — that's a self-amplifying loop the cooldown shouldn't have to
-				// absorb.
 				if strings.HasPrefix(ev.Subject, "standing.") {
 					continue
 				}
+				// Cooldown keys off the LOCAL monotonic clock, never the event's own
+				// TSUnixMS — an externally-sourced (webhook/mesh) event could carry a
+				// skewed/far-future timestamp that would otherwise permanently
+				// suppress or prematurely release the order.
+				nowMS := now().UnixMilli()
 				for _, o := range store.List() {
 					if !o.Enabled {
 						continue
@@ -76,10 +87,10 @@ func StartRunner(ctx context.Context, b *bus.Bus, store *Store, cfg RunnerConfig
 					if !matchesAnyEventTrigger(o, ev.Subject) {
 						continue
 					}
-					if ev.TSUnixMS-lastFireMS[o.ID] < cooldownMS {
+					if last, ok := lastFireMS[o.ID]; ok && nowMS-last < cooldownMS {
 						continue
 					}
-					lastFireMS[o.ID] = ev.TSUnixMS
+					lastFireMS[o.ID] = nowMS
 					ord := o
 					subj := ev.Subject
 					go fire(ctx, ord, subj)

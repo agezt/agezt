@@ -12,6 +12,17 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Reliability
+- **Standing orders never diverge from disk on a failed write.** The standing-order
+  store (Chronos) mutated its in-memory order *before* the durable JSON write in
+  `SetEnabled`/`Remove`; a transient write failure (full disk, permissions) left the
+  running view showing a pause/removal that never reached disk and would vanish on
+  reopen. Both now roll the in-memory mutation back when `save()` fails, so the live
+  view and the durable file stay identical.
+- **A standing order's event-trigger cooldown keys off the local clock.** The
+  per-order cooldown previously compared against the *event's* timestamp, so an
+  externally-sourced (webhook/mesh) event carrying a skewed or far-future timestamp
+  could permanently suppress — or prematurely release — the order. It now uses the
+  runner's own clock, immune to untrusted event timestamps.
 - **`/metrics` is robust to an invalid metric definition.** The REST `/metrics`
   Prometheus endpoint now coerces each metric name to a valid Prometheus
   identifier and escapes `HELP` text (backslash + newline) — a name containing a

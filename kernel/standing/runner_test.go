@@ -6,6 +6,7 @@ import (
 	"context"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -133,6 +134,42 @@ func TestRunner_SkipsDisabledAndLifecycle(t *testing.T) {
 	time.Sleep(50 * time.Millisecond)
 	if rec.count() != 0 {
 		t.Errorf("disabled order / lifecycle event must not fire (fired=%d)", rec.count())
+	}
+}
+
+// TestRunner_CooldownUsesInjectedClock: the cooldown keys off the runner's local
+// clock (not the event timestamp), so advancing the clock past the window lets the
+// order fire again, and not advancing holds it — M412 (BUG 4 fix).
+func TestRunner_CooldownUsesInjectedClock(t *testing.T) {
+	b := newBus(t)
+	s, _ := standing.Open(t.TempDir())
+	_, _ = s.Add(standing.Order{
+		Name:     "clocked",
+		Triggers: []standing.Trigger{{Type: standing.TriggerEvent, Subject: "github.>"}},
+	})
+	var clockMS atomic.Int64
+	clockMS.Store(1_000_000)
+	rec := &fireRec{}
+	standing.StartRunner(context.Background(), b, s, standing.RunnerConfig{
+		Cooldown: time.Minute,
+		Now:      func() time.Time { return time.UnixMilli(clockMS.Load()) },
+	}, rec.fn)
+
+	_, _ = b.Publish(event.Spec{Subject: "github.push", Kind: event.KindTaskReceived, Actor: "x"})
+	if !waitFor(t, func() bool { return rec.count() == 1 }) {
+		t.Fatalf("first event should fire, got %d", rec.count())
+	}
+	// Clock unchanged → within cooldown → no second fire.
+	_, _ = b.Publish(event.Spec{Subject: "github.push", Kind: event.KindTaskReceived, Actor: "x"})
+	time.Sleep(40 * time.Millisecond)
+	if rec.count() != 1 {
+		t.Fatalf("within cooldown (clock unchanged) should not re-fire, got %d", rec.count())
+	}
+	// Advance the local clock past the cooldown → next event fires again.
+	clockMS.Add(2 * 60 * 1000)
+	_, _ = b.Publish(event.Spec{Subject: "github.push", Kind: event.KindTaskReceived, Actor: "x"})
+	if !waitFor(t, func() bool { return rec.count() == 2 }) {
+		t.Errorf("after advancing the clock past cooldown the order should fire again, got %d", rec.count())
 	}
 }
 

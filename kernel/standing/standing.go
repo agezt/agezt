@@ -175,9 +175,13 @@ func (s *Store) SetEnabled(id string, enabled bool) (Order, error) {
 	defer s.mu.Unlock()
 	for _, o := range s.orders {
 		if o.ID == id {
+			// Roll back the in-memory mutation if the durable write fails, so the
+			// running view never diverges from disk on a transient save error.
+			prevEnabled, prevUpdated := o.Enabled, o.UpdatedMS
 			o.Enabled = enabled
 			o.UpdatedMS = s.now().UnixMilli()
 			if err := s.save(); err != nil {
+				o.Enabled, o.UpdatedMS = prevEnabled, prevUpdated
 				return Order{}, err
 			}
 			return *o, nil
@@ -192,8 +196,10 @@ func (s *Store) Remove(id string) (bool, error) {
 	defer s.mu.Unlock()
 	for i, o := range s.orders {
 		if o.ID == id {
-			s.orders = append(s.orders[:i], s.orders[i+1:]...)
+			removed := s.orders
+			s.orders = append(append([]*Order{}, s.orders[:i]...), s.orders[i+1:]...)
 			if err := s.save(); err != nil {
+				s.orders = removed // restore: disk write failed, keep the order
 				return false, err
 			}
 			return true, nil

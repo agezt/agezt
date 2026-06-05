@@ -3,6 +3,8 @@
 package standing
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -112,6 +114,41 @@ func TestStore_PreservesInitiative(t *testing.T) {
 	}
 	if got.Initiative.MaxTrust != "L2" || got.Initiative.Mode != InitiativeActOrAsk {
 		t.Errorf("initiative mode/trust not preserved: %+v", got.Initiative)
+	}
+}
+
+// TestStore_RollsBackOnSaveFailure: when the durable write fails, SetEnabled and
+// Remove must leave the in-memory view byte-identical to disk — never a state that
+// diverges from what survives a reopen (M412, BUG 5 fix). The failure is forced by
+// turning the atomic-write temp path into a directory so os.WriteFile errors.
+func TestStore_RollsBackOnSaveFailure(t *testing.T) {
+	dir := t.TempDir()
+	s, _ := Open(dir)
+	o, _ := s.Add(cronOrder("watch"))
+
+	// Make save() fail: the temp path WriteFile targets is now a directory.
+	tmp := filepath.Join(dir, "standing.json.tmp")
+	if err := os.Mkdir(tmp, 0o755); err != nil {
+		t.Fatalf("mkdir tmp: %v", err)
+	}
+
+	// SetEnabled must report the error AND not mutate the live order.
+	if _, err := s.SetEnabled(o.ID, false); err == nil {
+		t.Fatal("SetEnabled should error when the durable write fails")
+	}
+	if got, _ := s.Get(o.ID); !got.Enabled {
+		t.Error("SetEnabled must roll back Enabled when save fails")
+	}
+
+	// Remove must report the error AND keep the order present.
+	if removed, err := s.Remove(o.ID); err == nil || removed {
+		t.Errorf("Remove should error and not remove when save fails (removed=%v err=%v)", removed, err)
+	}
+	if _, ok := s.Get(o.ID); !ok {
+		t.Error("Remove must roll back (keep the order) when save fails")
+	}
+	if n := s.Count(); n != 1 {
+		t.Errorf("Count=%d after failed mutations, want 1 (no divergence)", n)
 	}
 }
 
