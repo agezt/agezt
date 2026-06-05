@@ -443,7 +443,7 @@ func TestAPIReadOnly(t *testing.T) {
 	// never issues anything outside the known read set.
 	readOnly := map[string]bool{
 		"status": true, "config": true, "runs_list": true, "runs_stats": true, "budget": true, "cache_stats": true, "provider_stats": true, "tool_stats": true, "edict_stats": true, "schedule_list": true, "memory_list": true, "world_list": true,
-		"skill_list": true, "inbox": true, "reflect_show": true, "approvals": true,
+		"skill_list": true, "standing_list": true, "inbox": true, "reflect_show": true, "approvals": true,
 	}
 	for path := range apiRoutes {
 		fc := &fakeCaller{result: map[string]any{"ok": true}}
@@ -696,6 +696,24 @@ func TestDashboard_RendersContextCompaction(t *testing.T) {
 	} {
 		if !strings.Contains(src, marker) {
 			t.Errorf("dashboard context-compaction rendering missing %q — the SPEC-10 §3 surface regressed", marker)
+		}
+	}
+}
+
+// TestDashboard_RendersStandingPanel locks in the SPEC-16 §4 / M406 surface: a
+// Standing panel that lists Chronos standing orders (name, enabled, triggers,
+// initiative mode). A rename of the panel id or the fields it reads trips this.
+func TestDashboard_RendersStandingPanel(t *testing.T) {
+	src := string(dashboardHTML)
+	for _, marker := range []string{
+		`data-panel="standing"`, // the panel + its refresh button
+		`id="standing"`,         // the panel body
+		"standing: (d)",         // the renderer
+		"enabled_count",         // the count it reads
+		"no standing orders",    // the empty state
+	} {
+		if !strings.Contains(src, marker) {
+			t.Errorf("dashboard standing panel missing %q — the SPEC-16 §4 surface regressed", marker)
 		}
 	}
 }

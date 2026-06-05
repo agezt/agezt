@@ -145,6 +145,7 @@
   <section class="panel"><h2>Schedules <button data-panel="schedules">↻</button></h2><div class="body" id="schedules"></div></section>
   <section class="panel"><h2>World <button data-panel="world">↻</button></h2><div class="body" id="world"></div></section>
   <section class="panel"><h2>Skills <button data-panel="skills">↻</button></h2><div class="body" id="skills"></div></section>
+  <section class="panel"><h2>Standing <button data-panel="standing">↻</button></h2><div class="body" id="standing"></div></section>
   <section class="panel"><h2>Memory <button data-panel="memory">↻</button></h2><div class="body" id="memory"></div></section>
   <section class="panel"><h2>Approvals <button data-panel="approvals">↻</button></h2><div class="body" id="approvals"></div></section>
   <section class="panel"><h2>Inbox <button data-panel="inbox">↻</button></h2><div class="body" id="inbox"></div></section>
@@ -310,6 +311,7 @@ function liveRefresh(kind) {
   else if (kind.startsWith("provider.") || kind.startsWith("routing.")) refreshSoon("providers");
   else if (kind.startsWith("schedule.")) refreshSoon("schedules");
   else if (kind.startsWith("skill.")) refreshSoon("skills");
+  else if (kind.startsWith("standing.")) refreshSoon("standing");
   else if (kind.startsWith("memory.")) refreshSoon("memory");
   else if (kind.startsWith("world.")) refreshSoon("world");
   else if (kind === "tool.awaiting_approval") refreshSoon("approvals");
@@ -664,6 +666,25 @@ const renderers = {
       }
       return row;
     }, "no skills");
+  },
+
+  standing: (d) => {
+    // Chronos standing orders (SPEC-16 §4): name, enabled chip, trigger count and
+    // initiative mode. Read-only; manage via `agt standing`. textContent only.
+    const orders = d.orders || d.Orders || [];
+    const frag = document.createDocumentFragment();
+    frag.appendChild(el("div", "count muted",
+      (d.enabled_count != null ? d.enabled_count + " enabled · " : "") + orders.length + " total"));
+    return listInto(frag, orders, (o) => {
+      const row = el("div", "item");
+      row.appendChild(chip(o.enabled ? "on" : "off"));
+      row.appendChild(el("span", null, o.name || o.id || ""));
+      const trigs = o.triggers || [];
+      if (trigs.length) row.appendChild(muted(trigs.length + " trigger(s)"));
+      const ini = o.initiative || {};
+      if (ini.mode) row.appendChild(muted(ini.mode));
+      return row;
+    }, "no standing orders");
   },
 
   memory: (d) => {

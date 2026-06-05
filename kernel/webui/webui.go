@@ -74,6 +74,7 @@ var apiRoutes = map[string]string{
 	"/api/memory":    controlplane.CmdMemoryList,
 	"/api/world":     controlplane.CmdWorldList,
 	"/api/skills":    controlplane.CmdSkillList,
+	"/api/standing":  controlplane.CmdStandingList,
 	"/api/inbox":     controlplane.CmdInbox,
 	"/api/reflect":   controlplane.CmdReflectShow,
 	"/api/approvals": controlplane.CmdApprovals,
