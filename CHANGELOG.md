@@ -12,6 +12,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Reliability
+- **Inbound channel HTTP servers are hardened against slow-loris.** The Slack, Discord,
+  and webhook inbound servers set only `ReadHeaderTimeout`, so a client that finished the
+  headers then dripped the request body one byte at a time held a handler goroutine and
+  connection open indefinitely (the body-size cap bounds bytes, not time) — exhausting
+  goroutines/FDs across many connections, before signature verification. They now also
+  set `ReadTimeout` (bounding the full body read) and `IdleTimeout`. (`WriteTimeout` stays
+  unset so a slow agent reply isn't cut off.)
 - **A misbehaving MCP server can no longer crash or wedge the MCP bridge.** Two fixes
   to the JSON-RPC response path: (1) the bridge closed each pending-request channel when
   the connection died, which raced the transport read goroutine's send — a server that

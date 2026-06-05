@@ -148,7 +148,7 @@ func (c *Channel) Start(ctx context.Context) error {
 		<-ctx.Done()
 		return nil
 	}
-	srv := &http.Server{Addr: c.addr, Handler: c.Handler(), ReadHeaderTimeout: 10 * time.Second}
+	srv := c.newHTTPServer()
 	go func() {
 		<-ctx.Done()
 		shutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -159,6 +159,19 @@ func (c *Channel) Start(ctx context.Context) error {
 		return err
 	}
 	return nil
+}
+
+// newHTTPServer builds the inbound HTTP server with slow-loris timeouts (M431):
+// ReadHeaderTimeout + ReadTimeout bound the header and body read so a client can't
+// hold a handler goroutine open by dripping bytes; IdleTimeout caps keep-alive idle.
+func (c *Channel) newHTTPServer() *http.Server {
+	return &http.Server{
+		Addr:              c.addr,
+		Handler:           c.Handler(),
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		IdleTimeout:       60 * time.Second,
+	}
 }
 
 // --- inbound (Interactions) -----------------------------------------------
