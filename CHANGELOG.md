@@ -205,6 +205,15 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   with it. One malformed/edge-case request is contained to its own connection.
 
 ### Security
+- **The file tool opens its write paths with O_NOFOLLOW (Unix).** `resolve()`
+  rejects out-of-root symlink targets, but for a not-yet-existing file there was a
+  narrow TOCTOU between the check and the `O_CREATE` open: a concurrent writer could
+  plant a symlink at the path and the open would follow it out of the workspace.
+  `doWrite` and `doReplace` now pass `O_NOFOLLOW`, so the open fails rather than
+  following a swapped-in symlink. Narrow (the file tool can't create symlinks
+  itself, so it needs a separate concurrent writer), but it definitively closes the
+  window and completes the M427 symlink-escape defense. No-op on non-Unix (POSIX
+  flag; Windows symlink creation is privileged). (M440)
 - **The web dashboard sets a Content-Security-Policy with a per-response nonce.**
   The operator dashboard is the highest-privilege browser surface (same-origin with
   the token-authed, state-mutating control plane) and renders untrusted agent/tool/

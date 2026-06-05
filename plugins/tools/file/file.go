@@ -286,7 +286,10 @@ func (t *Tool) doWrite(in fileInput, appendMode bool) (agent.Result, error) {
 	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
 		return errResult("mkdir parent: " + err.Error()), nil
 	}
-	flag := os.O_WRONLY | os.O_CREATE
+	// oNoFollow closes the narrow TOCTOU between resolve() and this open: a
+	// concurrent process could plant a symlink at p after the in-root check, and a
+	// plain O_CREATE would follow it out of the workspace (M427 follow-up).
+	flag := os.O_WRONLY | os.O_CREATE | oNoFollow
 	if appendMode {
 		flag |= os.O_APPEND
 	} else {
@@ -356,7 +359,18 @@ func (t *Tool) doReplace(in fileInput) (agent.Result, error) {
 		count = n
 		updated = strings.ReplaceAll(content, in.Find, in.Replacement)
 	}
-	if err := os.WriteFile(p, []byte(updated), info.Mode().Perm()); err != nil {
+	// O_NOFOLLOW for the same TOCTOU reason as doWrite: refuse to follow a symlink
+	// swapped in at p between resolve() and this write. O_TRUNC since we rewrite the
+	// whole (already-existing) file; perms preserved from the original.
+	wf, err := os.OpenFile(p, os.O_WRONLY|os.O_TRUNC|oNoFollow, info.Mode().Perm())
+	if err != nil {
+		return errResult("write: " + err.Error()), nil
+	}
+	if _, err := wf.WriteString(updated); err != nil {
+		wf.Close()
+		return errResult("write: " + err.Error()), nil
+	}
+	if err := wf.Close(); err != nil {
 		return errResult("write: " + err.Error()), nil
 	}
 	delta := len(updated) - len(content)
