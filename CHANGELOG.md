@@ -12,6 +12,15 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Reliability
+- **The ACP-agent bridge's timeout is now real, and teardown is bounded.** The
+  `acp_agent` tool wrapped each delegated session in a 5-min `context.WithTimeout`,
+  but the agent was spawned with `exec.Command` (not `CommandContext`) and teardown
+  ran only in a deferred `close()` after `Prompt` returned — so a silent or wedged
+  external agent parked the stdout read and `Invoke` blocked indefinitely; the
+  timeout never fired because nothing acted on the cancellation. `Invoke` now starts
+  a watcher that tears the transport down when ctx fires (unblocking the read), and
+  `close()` is idempotent (`sync.Once`) with a bounded post-kill wait so an
+  un-reapable child can't pin the caller. (M434)
 - **The plugin SDK caps the inbound frame read.** `plugins/sdk` read every
   newline-delimited frame from the host with `bufio.Reader.ReadBytes('\n')` and no
   size cap, so a frame with no terminating newline — a corrupted pipe or a partial

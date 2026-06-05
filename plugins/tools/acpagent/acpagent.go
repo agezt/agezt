@@ -25,6 +25,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/agezt/agezt/kernel/acp"
@@ -121,6 +122,18 @@ func (t *Tool) Invoke(ctx context.Context, input json.RawMessage) (agent.Result,
 	}
 	defer func() { _ = tr.close() }()
 
+	// A blocking ACP read (Initialize/NewSession/Prompt) does not observe
+	// ctx cancellation on its own — the agent is spawned with exec.Command,
+	// not CommandContext. Tear the transport down when ctx fires (the 5-min
+	// timeout above, or a caller cancel) so a silent or wedged external agent
+	// can't hold this call open past the deadline. close() is idempotent, so
+	// the deferred close is a no-op after this one; the watcher always wakes
+	// (cancel runs on return) and exits, so it does not leak.
+	go func() {
+		<-ctx.Done()
+		_ = tr.close()
+	}()
+
 	client := acp.NewClient(tr.out, tr.in)
 	if err := client.Initialize(ctx); err != nil {
 		return agent.Result{Output: "ACP initialize failed: " + err.Error(), IsError: true}, nil
@@ -202,20 +215,32 @@ func spawnAgent(ctx context.Context, cmdStr, cwd string) (*transport, error) {
 	if err := c.Start(); err != nil {
 		return nil, err
 	}
+	// close is idempotent (sync.Once): the Invoke deferred close and the
+	// ctx-cancel watcher may both call it. The post-kill wait is bounded so
+	// an un-reapable child (descendants holding the pipe, a stuck Wait) can't
+	// pin the caller forever.
+	var once sync.Once
+	var closeErr error
 	return &transport{
 		out: stdout,
 		in:  stdin,
 		close: func() error {
-			_ = stdin.Close() // EOF → graceful exit for a well-behaved agent
-			done := make(chan error, 1)
-			go func() { done <- c.Wait() }()
-			select {
-			case err := <-done:
-				return err
-			case <-time.After(5 * time.Second):
-				_ = c.Process.Kill()
-				return <-done
-			}
+			once.Do(func() {
+				_ = stdin.Close() // EOF → graceful exit for a well-behaved agent
+				done := make(chan error, 1)
+				go func() { done <- c.Wait() }()
+				select {
+				case closeErr = <-done:
+				case <-time.After(5 * time.Second):
+					_ = c.Process.Kill()
+					select {
+					case closeErr = <-done:
+					case <-time.After(5 * time.Second):
+						closeErr = fmt.Errorf("acpagent: process did not exit after kill")
+					}
+				}
+			})
+			return closeErr
 		},
 	}, nil
 }
