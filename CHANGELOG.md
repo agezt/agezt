@@ -23,6 +23,14 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   remembered window with memory still bounded at 2×cap. (M457)
 
 ### Reliability
+- **A failed journal fsync no longer wedges recovery with a duplicate sequence.**
+  When a line was written but its fsync failed (EIO/ENOSPC), the in-memory sequence
+  wasn't advanced — yet the line stayed in the segment, so the next append reused
+  that sequence and wrote a second line for it. On the next open the duplicate
+  tripped a chain break and the journal refused to boot (not a torn tail, so
+  unrecoverable). The failed line is now truncated back to the last committed size
+  (with a seek so emulated-O_APPEND platforms don't zero-fill the gap), and the
+  append fails closed. (M462)
 - **`controlplane.Server.Stop()` no longer hangs on in-flight streaming
   connections.** `Stop()` closed the listener but never cancelled the context its
   streaming handlers (run/pulse/plan) block on, nor closed accepted connections —

@@ -40,6 +40,60 @@ func sequentialIDs() func() string {
 	}
 }
 
+// TestAppend_FsyncFailureLeavesNoDuplicateSeq pins the fsync-failure recovery: a
+// failed fsync must not leave its line in the segment. Append advances seq/head
+// only on success, so a left-behind line would make the next append reuse the same
+// seq, producing two same-seq lines that trip ErrChainBreak and refuse to boot.
+func TestAppend_FsyncFailureLeavesNoDuplicateSeq(t *testing.T) {
+	dir := t.TempDir()
+	open := func() *Journal {
+		j, err := Open(dir, Options{
+			SegmentBytes: 1 << 20, // large: keep everything in one segment
+			Now:          func() time.Time { return time.UnixMilli(1_700_000_000_000) },
+			IDGen:        sequentialIDs(),
+		})
+		if err != nil {
+			t.Fatalf("Open: %v", err)
+		}
+		return j
+	}
+	spec := func() event.Spec {
+		return event.Spec{Subject: "x", Kind: event.KindTaskReceived, Actor: "kernel"}
+	}
+
+	j := open()
+	if _, err := j.Append(spec()); err != nil { // seq 0, committed
+		t.Fatalf("append 1: %v", err)
+	}
+
+	// Force the next fsync to fail.
+	orig := fsync
+	fsync = func(*os.File) error { return errors.New("simulated fsync EIO") }
+	if _, err := j.Append(spec()); err == nil {
+		fsync = orig
+		t.Fatal("expected the fsync failure to surface as an append error")
+	}
+	fsync = orig
+
+	// A subsequent append (fsync healthy again) must succeed without colliding —
+	// it reuses the seq the failed append did NOT commit (seqs are 0-indexed, so
+	// this is seq 1).
+	if _, err := j.Append(spec()); err != nil { // seq 1
+		t.Fatalf("append after recovered fsync: %v", err)
+	}
+	j.Close()
+
+	// Reopen: a leftover duplicate-seq line would trip ErrChainBreak here.
+	j2, err := Open(dir, Options{})
+	if err != nil {
+		t.Fatalf("reopen wedged by an un-truncated failed-fsync line: %v", err)
+	}
+	defer j2.Close()
+	if seq, _ := j2.Head(); seq != 1 {
+		t.Errorf("head seq = %d, want 1 (two committed events at seq 0 and 1; the failed append was truncated, not duplicated)", seq)
+	}
+}
+
 func TestTail_ReturnsLastNInOrderAcrossSegments(t *testing.T) {
 	// Tiny segment threshold so the events spread across many segments — Tail
 	// must stitch the newest segments back together in seq order.

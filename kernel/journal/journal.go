@@ -430,13 +430,32 @@ func (j *Journal) Verify() error {
 
 // ----- internal helpers -----
 
+// fsync is indirected so tests can simulate an fsync failure. It is the only
+// path that flushes a just-written line to stable storage.
+var fsync = (*os.File).Sync
+
 // writeAndSync writes the line to the current segment, fsyncs, and rotates
 // if the resulting size meets/exceeds segBytes. Caller holds j.mu.
 func (j *Journal) writeAndSync(line []byte) error {
 	if _, err := j.curFile.Write(line); err != nil {
 		return fmt.Errorf("journal: write: %w", err)
 	}
-	if err := j.curFile.Sync(); err != nil {
+	if err := fsync(j.curFile); err != nil {
+		// The line is now in the file, but Append advances seq/head only after we
+		// return nil — so it leaves nextSeq pointing at this seq. If we left the
+		// un-synced line in place, the NEXT append would reuse the same seq and the
+		// segment would hold two lines with that seq, tripping ErrChainBreak on the
+		// next Open (a permanent boot wedge). Truncate the un-synced line back to the
+		// last committed size so the file matches the in-memory chain; the caller
+		// treats the append as failed (fail-closed). curBytes is the committed size
+		// (it advances only after a successful sync) and the file is O_APPEND, so the
+		// next write resumes exactly at curBytes. Seek too: on platforms where
+		// O_APPEND is emulated (Windows) the handle's offset is left past the
+		// truncation point, so the next write would land beyond curBytes and the OS
+		// would zero-fill the gap — corrupting the segment. Seeking back keeps the
+		// resume offset consistent on every platform.
+		_ = j.curFile.Truncate(j.curBytes)
+		_, _ = j.curFile.Seek(j.curBytes, io.SeekStart)
 		return fmt.Errorf("journal: fsync: %w", err)
 	}
 	j.curBytes += int64(len(line))
