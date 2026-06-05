@@ -127,6 +127,14 @@ func printHelp(w io.Writer) {
 // runDaemon brings up the kernel + control plane, prints connection info
 // to stdout, and waits for SIGINT / SIGTERM.
 func runDaemon(stdout, stderr io.Writer) int {
+	// Honor a cgroup CPU quota (container `--cpus`, constrained host) by lowering
+	// GOMAXPROCS to match — the Go runtime is not cgroup-aware and would otherwise
+	// over-schedule against a fraction of a core (SPEC-11 §4). No-op off Linux,
+	// when no quota is set, or when GOMAXPROCS is explicit.
+	if note := applyAutoMaxProcs(); note != "" {
+		fmt.Fprintf(stdout, "%s: %s\n", brand.Binary, note)
+	}
+
 	baseDir, err := paths.BaseDir()
 	if err != nil {
 		fmt.Fprintf(stderr, "%s: %v\n", brand.Binary, err)

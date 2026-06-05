@@ -12,6 +12,15 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Reliability
+- **The daemon honors a cgroup CPU quota (GOMAXPROCS auto-adapts).** The Go runtime
+  is not cgroup-aware, so inside a `--cpus`-limited container or a constrained host
+  it defaulted `GOMAXPROCS` to the number of *host* cores and over-scheduled against
+  a fraction of a core — the "hot-loop a Pi" symptom SPEC-11 §4 calls out. At
+  startup the daemon now reads the cgroup v2 (`cpu.max`) / v1 (`cpu.cfs_*`) CPU
+  quota and lowers `GOMAXPROCS` to match (rounded up, clamped to host cores). It is
+  a no-op off Linux, when no quota is set, when the quota meets/exceeds the host
+  cores, or when `GOMAXPROCS` is set explicitly — it only ever lowers, never
+  overrides the operator. Stdlib-only (no automaxprocs dependency). (M437)
 - **The AWS assume-role duration env var rejects negative/malformed values.**
   `AGEZT_AWS_ASSUME_ROLE_DURATION_SECONDS` was parsed without a `>0` guard (the
   lone duration parse in the daemon wiring missing one). `kernel/creds` substitutes
