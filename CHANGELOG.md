@@ -41,6 +41,11 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   behaviour, no busy-wait, no latency floor. (M472)
 
 ### Fixed
+- **Vertex tool results with control bytes no longer break the request.** Vertex AI
+  uses the Gemini wire format and had the identical `strconv.Quote` defect as the
+  Google provider (M481) — a control byte such as ANSI `\x1b` produced invalid JSON
+  and wedged the agent loop on Vertex. The result is now encoded with
+  `encoding/json`. (M483)
 - **Gemini tool results with control bytes no longer break the request.** The
   Google provider built the tool-result JSON with `strconv.Quote` (a Go quoter), so a
   control byte — notably the ANSI escape `\x1b` common in tool output — produced
