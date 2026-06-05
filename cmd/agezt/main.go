@@ -1666,6 +1666,18 @@ func (e kernelAPIEngine) RunModel(ctx context.Context, corr, intent, model strin
 // governor priced). Returns ok=false when nothing was consumed (a free/local/
 // mock model) so the API falls back to its estimate instead of reporting 0/0.
 func (e kernelAPIEngine) UsageFor(corr string) (int, int, bool) {
+	// Fast path: the Governor keeps a bounded in-memory per-correlation usage
+	// index, so usage for a just-completed run is O(1) instead of an O(journal)
+	// scan per API response (which a client hammering the API could amplify into a
+	// DoS). The journal scan below stays the authoritative fallback for any
+	// correlation not in the bounded index, so the reported numbers are identical.
+	if ur, ok := e.k.Provider().(interface {
+		UsageFor(string) (int, int, bool)
+	}); ok {
+		if in, out, ok := ur.UsageFor(corr); ok && (in != 0 || out != 0) {
+			return in, out, true
+		}
+	}
 	in, out, found := 0, 0, false
 	_ = e.k.Journal().Range(func(ev *event.Event) error {
 		if ev.Kind != event.KindBudgetConsumed {

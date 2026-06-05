@@ -12,6 +12,15 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Reliability
+- **Per-response usage reporting no longer scans the whole journal.** The `usage`
+  field of every OpenAI-compat reply was computed by a full-journal scan per
+  request — O(journal) that grows unbounded over the daemon's life and that a
+  client hammering the API could amplify into a CPU/IO DoS. The Governor now keeps
+  a bounded in-memory per-correlation token index (recorded with the same counts
+  that go into `budget.consumed`), and usage lookup consults it first, falling back
+  to the journal scan on a miss — so the reported numbers are identical, the common
+  "just-finished run" case is O(1), and the index is reporting-only (never billing
+  or ceiling enforcement). (M443)
 - **The control plane's panic guard now also covers the pre-auth parse phase.** The
   per-connection `recover` was deferred only after the request was read and parsed,
   so a panic during the bounded read or JSON unmarshal would have propagated out of

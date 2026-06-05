@@ -167,7 +167,27 @@ type Governor struct {
 	// calls after construction, and WithLimits siblings re-point) never races
 	// the lock-free publish read on the hot path.
 	bus atomic.Pointer[bus.Bus]
+
+	// usage is a bounded, best-effort per-correlation token index that backs
+	// UsageFor — the fast path for the OpenAI-compat `usage` REPORTING field, so a
+	// just-completed run's usage is O(1) instead of an O(journal) scan per API
+	// response (which a client hammering the API could amplify). It is NOT used for
+	// billing or ceiling enforcement (that is spentToday); a miss/eviction simply
+	// falls back to the authoritative journal scan in the caller. Guarded by its
+	// own lock so it never touches the spend hot path.
+	usageMu sync.Mutex
+	usage   map[string]usageTokens
 }
+
+// usageTokens is the summed input/output token count recorded for one correlation.
+type usageTokens struct{ in, out int }
+
+// usageIndexCap bounds the in-memory usage index. When it grows past this, the
+// whole index is dropped (a miss just costs a journal-scan fallback, never
+// correctness) — cheap and free of slice-growth pathology. 8192 covers far more
+// than any realistic in-flight set, so the common "usage for the run that just
+// finished" lookup is effectively always a hit.
+const usageIndexCap = 8192
 
 // New constructs a Governor over cfg. The registry must contain at least
 // one provider.
@@ -715,6 +735,11 @@ func (g *Governor) recordUsage(p *ProviderInfo, req agent.CompletionRequest, res
 	spent := g.spentToday
 	g.mu.Unlock()
 
+	// Record into the best-effort usage index (reporting fast path) with the SAME
+	// token counts that go into budget.consumed below, so a fast-path hit equals
+	// the journal sum exactly.
+	g.indexUsageTokens(req.CorrelationID, inTok, outTok)
+
 	g.publish(event.Spec{
 		Subject: "governor.budget",
 		Kind:    event.KindBudgetConsumed,
@@ -737,6 +762,42 @@ func (g *Governor) recordUsage(p *ProviderInfo, req agent.CompletionRequest, res
 			"correlation_id":           req.CorrelationID,
 		},
 	})
+}
+
+// indexUsageTokens adds one call's token usage to the bounded best-effort
+// per-correlation index that backs UsageFor. Summed across a run's calls, exactly
+// as the journal fold does. Guarded by its own lock (never the spend hot path).
+// When the index grows past usageIndexCap it is dropped wholesale — a subsequent
+// miss costs only a journal-scan fallback, never correctness — which avoids any
+// slice-growth or eviction-bookkeeping pathology. Empty correlations are ignored.
+func (g *Governor) indexUsageTokens(corr string, in, out int) {
+	if corr == "" {
+		return
+	}
+	g.usageMu.Lock()
+	defer g.usageMu.Unlock()
+	if g.usage == nil || len(g.usage) >= usageIndexCap {
+		// Lazily (re)create; the >= cap reset bounds memory. A run in flight when
+		// this fires loses its partial index entry, but UsageFor is only read after
+		// a run completes and then falls back to the journal — so no wrong sum is
+		// ever served.
+		g.usage = make(map[string]usageTokens, 64)
+	}
+	e := g.usage[corr]
+	e.in += in
+	e.out += out
+	g.usage[corr] = e
+}
+
+// UsageFor returns the summed input/output tokens recorded for corr from the
+// bounded in-memory index, or ok=false when the correlation isn't present (the
+// caller then falls back to the authoritative journal scan). Best-effort fast
+// path for the API `usage` reporting field; never used for billing or ceilings.
+func (g *Governor) UsageFor(corr string) (in, out int, ok bool) {
+	g.usageMu.Lock()
+	defer g.usageMu.Unlock()
+	e, ok := g.usage[corr]
+	return e.in, e.out, ok
 }
 
 // admitRate applies the per-minute fixed-window rate limit. It returns
