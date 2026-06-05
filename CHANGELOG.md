@@ -240,6 +240,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   with it. One malformed/edge-case request is contained to its own connection.
 
 ### Security
+- **Advisory: build with Go 1.26.4+.** A `govulncheck ./...` scan flagged two
+  reachable standard-library vulnerabilities — GO-2026-5039 (net/textproto error
+  escaping, via the email/SMTP path) and GO-2026-5037 (crypto/x509 hostname
+  parsing) — both fixed in go1.26.4. They are stdlib-only (no source defect) and the
+  reachable paths are low-severity/largely not runtime-exercised, but the release
+  and CI toolchain should be pinned to go1.26.4 or later; re-run `govulncheck` there
+  to confirm clean. (M452)
 - **Inbound channel signature verification is now fuzz-tested for forgery
   resistance.** `FuzzVerify` in the Slack (HMAC-SHA256), Discord (Ed25519), and
   webhook (HMAC-SHA256) channels asserts the authenticity gate never panics, the
