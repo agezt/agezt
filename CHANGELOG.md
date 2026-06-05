@@ -102,6 +102,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   valid UTF-8. (The journal's own answer truncation was already rune-safe.)
 
 ### Added
+- **Standing orders now fire on a cron schedule.** A standing order with a `cron`
+  trigger (`"0 8 * * *"`, `"*/15 * * * *"`, `"0 8 * * 1-5"`, …) launches its plan
+  on schedule — a stdlib 5-field cron matcher (no dependency) ticked every minute,
+  firing each matching order at most once per minute and journaling
+  `standing.fired` (SPEC-16 §4). This is the canonical "brief me every morning"
+  path.
 - **Standing orders now fire on events.** A standing order with an `event`
   trigger launches its plan as a run when a journal event matches its subject
   (NATS-style wildcards, e.g. `github.>`), bounded by the order's budget ceiling

@@ -2159,10 +2159,12 @@ func buildStandingRunner(ctx context.Context, k *kernelruntime.Kernel) string {
 		}
 		_, _ = k.RunWith(rctx, corr, intent)
 	}
-	if !standing.StartRunner(ctx, k.Bus(), k.Standing(), standing.RunnerConfig{}, fire) {
+	evOK := standing.StartRunner(ctx, k.Bus(), k.Standing(), standing.RunnerConfig{}, fire)
+	cronOK := standing.StartCron(ctx, k.Standing(), nil, fire)
+	if !evOK && !cronOK {
 		return "disabled"
 	}
-	return fmt.Sprintf("on (event triggers; %d order(s) defined)", k.Standing().Count())
+	return fmt.Sprintf("on (event + cron triggers; %d order(s) defined)", k.Standing().Count())
 }
 
 // delegationBanner renders the active multi-agent delegation ceilings (M58) for
