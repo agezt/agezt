@@ -12,6 +12,15 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Reliability
+- **The Forge skill lifecycle is concurrency-safe and revert respects the state
+  machine.** Two fixes to the self-improvement engine: (1) it did its skill
+  read-modify-writes as separate store calls with no lock, so concurrent runs (each
+  run calls `Activate` then `RecordOutcome`, and the control plane is concurrent) could
+  lose a metric update or — worse — resurrect a just-quarantined skill to active by
+  writing back a stale snapshot; a manager-level mutex now serialises every mutator.
+  (2) `revert` force-set a lineage parent to active without checking the transition, so
+  it could resurrect a quarantined parent (or push a draft straight to active, skipping
+  the shadow gate); it now only restores a parent that may legally become active.
 - **A panicking Pulse observer can no longer crash the daemon.** The autonomous Pulse
   engine ran its observers, salience scoring (incl. an optional LLM provider call), and
   briefing sinks inline on a single resident goroutine with no panic recovery — so a

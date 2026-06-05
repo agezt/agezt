@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/agezt/agezt/kernel/agent"
@@ -25,6 +26,14 @@ type Forge struct {
 	bus   *bus.Bus
 	// now is the clock, injectable for deterministic tests.
 	now func() time.Time
+	// mu serialises the read-modify-write lifecycle mutators so two concurrent runs
+	// (each run calls Activate then RecordOutcome on the shared Forge, and the
+	// control plane serves connections concurrently) cannot interleave their Get→Put
+	// pairs — losing a metric update or, worse, resurrecting a just-quarantined skill
+	// to active by writing back a stale snapshot (M424). Mirrors kernel/memory.Manager.
+	// The exported mutators take it; the unexported helpers (promoteWithReason,
+	// quarantineLocked, maybeAuto*) assume it is already held.
+	mu sync.Mutex
 	// Auto-quarantine thresholds (SPEC-05 §5): an ACTIVE skill whose failure
 	// record crosses BOTH a minimum failure COUNT and a failure RATE is pulled
 	// from production automatically. Conservative-by-design so a mostly-successful
@@ -123,6 +132,9 @@ func (f *Forge) Create(corr string, spec CreateSpec) (Skill, bool, error) {
 	nowMS := f.now().UnixMilli()
 	id := ContentID(name, spec.Body)
 
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
 	if existing, found, err := f.store.Get(id); err != nil {
 		return Skill{}, false, err
 	} else if found {
@@ -205,6 +217,8 @@ func (f *Forge) lineageFor(name string) []string {
 // Promote advances a skill along draft→shadow→active (or un-quarantines back
 // to active), journaling skill.promoted. Returns the new status.
 func (f *Forge) Promote(corr, id string) (Status, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	return f.promoteWithReason(corr, id, "")
 }
 
@@ -242,6 +256,14 @@ func (f *Forge) promoteWithReason(corr, id, reason string) (Status, error) {
 // Quarantine pulls an active or shadow skill out of production, journaling
 // skill.quarantined with the reason.
 func (f *Forge) Quarantine(corr, id, reason string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.quarantineLocked(corr, id, reason)
+}
+
+// quarantineLocked is Quarantine's body; the caller must hold f.mu. Used directly by
+// maybeAutoQuarantine (already under the lock via RecordOutcome) to avoid re-locking.
+func (f *Forge) quarantineLocked(corr, id, reason string) error {
 	sk, _, err := f.get(id)
 	if err != nil {
 		return err
@@ -268,6 +290,8 @@ func (f *Forge) Quarantine(corr, id, reason string) error {
 // forward and emits skill.reverted. Returns the id of the restored parent (or
 // "" if none).
 func (f *Forge) Revert(corr, id string) (string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	sk, _, err := f.get(id)
 	if err != nil {
 		return "", err
@@ -291,6 +315,13 @@ func (f *Forge) Revert(corr, id string) (string, error) {
 		if !found || parent.Status == StatusArchived {
 			continue
 		}
+		// Respect the state machine: only restore a parent that may legally become
+		// active (already active, or shadow/quarantined → active). A draft parent
+		// must NOT be force-activated — that would skip the shadow gate (M424). Try
+		// the next-older lineage parent instead.
+		if parent.Status != StatusActive && !CanTransition(parent.Status, StatusActive) {
+			continue
+		}
 		parent.Status = StatusActive
 		parent.LastSeenMS = nowMS
 		if err := f.store.Put(parent); err != nil {
@@ -309,6 +340,8 @@ func (f *Forge) Revert(corr, id string) (string, error) {
 // (under corr) when anything matched, bumping each matched skill's use metrics
 // — so `agt why` shows which skills shaped a run. Returns the ranked results.
 func (f *Forge) Activate(corr, intent string, limit int) ([]Scored, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	all, err := f.store.All()
 	if err != nil {
 		return nil, err
@@ -337,6 +370,8 @@ func (f *Forge) Activate(corr, intent string, limit int) ([]Scored, error) {
 // (SPEC-05 §5). The runtime calls it after a run with the skills that run
 // activated; corr ties any resulting skill.quarantined event back to that run.
 func (f *Forge) RecordOutcome(corr string, ids []string, success bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	for _, id := range ids {
 		sk, found, err := f.store.Get(id)
 		if err != nil || !found {
@@ -375,7 +410,7 @@ func (f *Forge) maybeAutoQuarantine(corr string, sk Skill) {
 		return
 	}
 	reason := fmt.Sprintf("auto-quarantine: %d/%d runs failed (%.0f%%)", sk.Metrics.Failures, total, rate*100)
-	_ = f.Quarantine(corr, sk.ID, reason)
+	_ = f.quarantineLocked(corr, sk.ID, reason) // caller (RecordOutcome) holds f.mu
 }
 
 // shadowJudgeSystem instructs the model to decide whether a shadow skill would
@@ -444,6 +479,8 @@ func (f *Forge) ShadowEvaluate(ctx context.Context, corr string, provider agent.
 // skill.shadow_evaluated under the run's correlation. Only shadow skills are
 // affected. The shadow→active auto-promotion gate (M401) reads these counters.
 func (f *Forge) RecordShadowOutcome(corr, id string, helped bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	sk, found, err := f.store.Get(id)
 	if err != nil || !found || sk.Status != StatusShadow {
 		return
