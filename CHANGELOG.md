@@ -23,6 +23,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   remembered window with memory still bounded at 2×cap. (M457)
 
 ### Reliability
+- **`controlplane.Server.Stop()` no longer hangs on in-flight streaming
+  connections.** `Stop()` closed the listener but never cancelled the context its
+  streaming handlers (run/pulse/plan) block on, nor closed accepted connections —
+  so when `Stop()` was the shutdown trigger (rather than cancelling the Start ctx),
+  `wg.Wait()` blocked until the per-connection deadline. The server now cancels a
+  derived serving context on shutdown, releasing handlers promptly on either path.
+  (M461)
 - **A plugin can no longer deadlock its host slot by flooding stdout without
   draining stdin.** Host→plugin writes held the same mutex the read loop's response
   router needs, *across* the blocking write to the child's stdin. A plugin that sent

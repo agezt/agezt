@@ -35,8 +35,14 @@ type Server struct {
 	listener net.Listener
 	token    string
 	done     chan struct{}
-	stopOnce sync.Once
-	wg       sync.WaitGroup
+	// serveCancel cancels the context handed to acceptLoop/handleConn. It is
+	// derived from Start's ctx, so external ctx cancellation still propagates, but
+	// it is ALSO cancelled by initiateShutdown — so a direct Stop() releases
+	// in-flight streaming handlers (run/pulse) that block on ctx.Done() instead of
+	// leaving them to wait out the per-connection deadline (M461).
+	serveCancel context.CancelFunc
+	stopOnce    sync.Once
+	wg          sync.WaitGroup
 
 	// shutdownCh fires (close) when a client sends CmdShutdown. The
 	// daemon's main loop selects on this alongside SIGINT/SIGTERM so
@@ -184,6 +190,10 @@ func (s *Server) Start(ctx context.Context) error {
 	s.token = hex.EncodeToString(tokBytes)
 	s.listener = ln
 	s.done = make(chan struct{})
+	// Derive the serving context so both ctx cancellation AND a direct Stop()
+	// (which calls serveCancel via initiateShutdown) unblock streaming handlers.
+	serveCtx, serveCancel := context.WithCancel(ctx)
+	s.serveCancel = serveCancel
 
 	if err := s.writeRuntimeFiles(ln.Addr().String()); err != nil {
 		ln.Close()
@@ -194,7 +204,7 @@ func (s *Server) Start(ctx context.Context) error {
 	s.wg.Add(1)
 	go func() {
 		defer s.wg.Done()
-		s.acceptLoop(ctx)
+		s.acceptLoop(serveCtx)
 	}()
 	// React to ctx cancellation by initiating shutdown. This goroutine
 	// also exits when Stop is called directly (via s.done).
@@ -299,10 +309,16 @@ func (s *Server) initiateShutdown() error {
 		ln := s.listener
 		s.listener = nil
 		done := s.done
+		serveCancel := s.serveCancel
 		s.mu.Unlock()
 
 		if done != nil {
 			close(done)
+		}
+		// Release in-flight streaming handlers (run/pulse) blocking on ctx.Done(),
+		// so a direct Stop() doesn't have to wait out the per-connection deadline.
+		if serveCancel != nil {
+			serveCancel()
 		}
 		if ln != nil {
 			if err := ln.Close(); err != nil {
