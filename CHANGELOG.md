@@ -11,6 +11,17 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 
 ## [Unreleased]
 
+### Security
+- **The webhook replay guard no longer forgets every recent id at once.** The
+  dedup set of recently-seen message ids was cleared wholesale when it filled, so a
+  captured, validly-signed body could be replayed right after a flush and accepted
+  as new — within the freshness window when the client sends `ts_ms`, or
+  unconditionally when it doesn't (the freshness check only runs for a supplied
+  timestamp, so with none the dedup set is the sole replay guard). Replaced the
+  wholesale clear with a two-generation rotation (live + previous): a key is
+  forgotten only after it ages out of both generations, roughly doubling the
+  remembered window with memory still bounded at 2×cap. (M457)
+
 ### Reliability
 - **The governor's usage index no longer under-reports tokens after a rotation.**
   The in-memory per-correlation usage index (the fast path behind the API `usage`

@@ -182,6 +182,32 @@ func TestInbound_DedupesRepeatedID(t *testing.T) {
 	}
 }
 
+// TestDedup_ReplaySurvivesRotation pins the two-generation replay guard: an id
+// seen before the live set filled must STILL be caught as a replay after the set
+// rotates. The earlier wholesale clear forgot every id the instant the set filled,
+// so a captured signed body could replay through the freshness window (or, with no
+// client ts_ms, through the only replay guard there is).
+func TestDedup_ReplaySurvivesRotation(t *testing.T) {
+	d := newDedup(3)
+	for _, k := range []string{"a", "b", "c"} {
+		if d.seenBefore(k) {
+			t.Fatalf("%q should be new on first sight", k)
+		}
+	}
+	// A fourth distinct id fills past cap and triggers a rotation (live → prev).
+	if d.seenBefore("d") {
+		t.Fatal("d should be new")
+	}
+	// "a" was seen before the rotation; it must still be recognized as a replay.
+	if !d.seenBefore("a") {
+		t.Error("a was seen before the rotation; a replay must still be caught (not flushed wholesale)")
+	}
+	// A genuinely new id after the rotation is still new.
+	if d.seenBefore("z") {
+		t.Error("z is new; must not be a false-positive replay")
+	}
+}
+
 // TestSend_PostsSignedOutbound: Send POSTs a signed message to the configured
 // OutboundURL; with no URL it errors.
 func TestSend_PostsSignedOutbound(t *testing.T) {
