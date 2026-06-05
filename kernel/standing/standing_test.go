@@ -3,6 +3,7 @@
 package standing
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -114,6 +115,31 @@ func TestStore_PreservesInitiative(t *testing.T) {
 	}
 	if got.Initiative.MaxTrust != "L2" || got.Initiative.Mode != InitiativeActOrAsk {
 		t.Errorf("initiative mode/trust not preserved: %+v", got.Initiative)
+	}
+}
+
+// TestSafeFire_ContainsPanic: a panic while running a fired order must be
+// contained, not propagated — the runner and cron loop dispatch every order on its
+// own `go fire(...)` goroutine, where an uncovered panic would crash the whole
+// daemon (M413, the HIGH finding). safeFire is the backstop that makes the
+// package's documented no-crash guarantee true for ANY FireFunc.
+func TestSafeFire_ContainsPanic(t *testing.T) {
+	ran := false
+	panicky := func(_ context.Context, _ Order, _ string) {
+		ran = true
+		panic("boom from a fired order's plan")
+	}
+	// Called synchronously: if safeFire did not recover, this line would panic the
+	// test goroutine and fail the test.
+	safeFire(panicky)(context.Background(), Order{ID: "x", Name: "n"}, "subj")
+	if !ran {
+		t.Fatal("safeFire should still invoke the wrapped fire")
+	}
+	// A non-panicking fire runs normally through the wrapper.
+	ok := false
+	safeFire(func(_ context.Context, _ Order, _ string) { ok = true })(context.Background(), Order{}, "")
+	if !ok {
+		t.Error("safeFire should pass through a normal fire")
 	}
 }
 

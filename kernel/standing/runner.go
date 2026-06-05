@@ -53,6 +53,7 @@ func StartRunner(ctx context.Context, b *bus.Bus, store *Store, cfg RunnerConfig
 	if now == nil {
 		now = time.Now
 	}
+	fire = safeFire(fire) // contain a panicking order to its own goroutine
 	sub, err := b.Subscribe(">", 256)
 	if err != nil {
 		return false
@@ -122,6 +123,22 @@ func BriefText(o Order, answer string) (text string, ok bool) {
 		return "", false
 	}
 	return "[standing: " + o.Name + "]\n" + answer, true
+}
+
+// safeFire wraps a FireFunc so a panic while running a fired order is contained to
+// that order's goroutine rather than crashing the daemon. The event runner and the
+// cron loop both dispatch every order through this, which is what makes the
+// package's documented no-crash guarantee actually true: the loop's own recover()
+// sits on the loop goroutine, but each order runs on a separate `go fire(...)`
+// goroutine, and a panic there with no recovering frame terminates the whole
+// process. The daemon's FireFunc additionally recovers-and-journals (standing.error)
+// before a panic reaches here, so this is the universal backstop, not the primary
+// diagnostic path — but it guarantees containment for ANY FireFunc a caller passes.
+func safeFire(fire FireFunc) FireFunc {
+	return func(ctx context.Context, o Order, subject string) {
+		defer func() { _ = recover() }()
+		fire(ctx, o, subject)
+	}
 }
 
 // matchesAnyEventTrigger reports whether subject matches any of the order's event

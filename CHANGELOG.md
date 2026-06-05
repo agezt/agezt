@@ -12,6 +12,15 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Reliability
+- **A panicking standing order can no longer crash the daemon.** A fired order runs
+  its plan (provider/tool/plugin code) and then briefs over the network on a
+  dedicated `go fire(...)` goroutine. The event-runner and cron loops recovered only
+  on their *own* loop goroutine — not on the dispatched run — so a panic in any
+  tool/plugin reached by a triggered order took down the whole process (every
+  in-flight run and the control plane with it). Every dispatched order is now wrapped
+  in a recover backstop, and the daemon's run also recovers-and-journals a new
+  `standing.error` event (visible in `agt journal`) so the crash stays diagnosable
+  instead of vanishing. This makes the package's documented no-crash guarantee true.
 - **Standing orders never diverge from disk on a failed write.** The standing-order
   store (Chronos) mutated its in-memory order *before* the durable JSON write in
   `SetEnabled`/`Remove`; a transient write failure (full disk, permissions) left the

@@ -2159,6 +2159,22 @@ func buildAnomaly(ctx context.Context, k *kernelruntime.Kernel, stdout io.Writer
 // journaled. Cron triggers are handled by the schedule engine, not here.
 func buildStandingRunner(ctx context.Context, k *kernelruntime.Kernel, brief func(ctx context.Context, kind, text string)) string {
 	fire := func(fctx context.Context, o standing.Order, subject string) {
+		// A fired order launches a full governed run (provider/tool/plugin code) and
+		// then briefs over the network — any of which can panic. This goroutine is
+		// dispatched with a bare `go fire(...)` by the runner/cron loop, so its own
+		// recover() does NOT cover us; without this defer a single bad run would take
+		// down the whole daemon. Contain the panic to this order and journal it as a
+		// standing.error so it stays diagnosable (`agt journal`).
+		defer func() {
+			if r := recover(); r != nil {
+				_, _ = k.Bus().Publish(event.Spec{
+					Subject: "standing." + o.ID,
+					Kind:    event.KindStandingError,
+					Actor:   "standing",
+					Payload: map[string]any{"id": o.ID, "name": o.Name, "trigger_subject": subject, "panic": fmt.Sprintf("%v", r)},
+				})
+			}
+		}()
 		corr := k.NewCorrelation()
 		intent := strings.TrimSpace(o.Plan)
 		if intent == "" {

@@ -208,6 +208,10 @@ const (
 	KindStandingUpdated Kind = "standing.updated" // paused/resumed/edited
 	KindStandingRemoved Kind = "standing.removed"
 	KindStandingFired   Kind = "standing.fired" // a trigger matched → the order's plan was launched
+	// KindStandingError records a recovered panic while running a fired order, so a
+	// crash in one order's plan (a buggy tool/plugin reached via the run) stays
+	// diagnosable (`agt journal`) instead of taking down the whole daemon.
+	KindStandingError Kind = "standing.error"
 
 	// Reflection — meta-cognition (SPEC-05 §6). The system reviews its own
 	// behaviour from the journal and recalibrates; the report (observations,
@@ -321,6 +325,7 @@ var knownKinds = map[Kind]struct{}{
 	KindStandingUpdated:           {},
 	KindStandingRemoved:           {},
 	KindStandingFired:             {},
+	KindStandingError:             {},
 	KindReflectionCompleted:       {},
 	KindJournalSegmentRotated:     {},
 	KindWebhookDelivered:          {},

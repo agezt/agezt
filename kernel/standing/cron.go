@@ -57,6 +57,7 @@ func StartCron(ctx context.Context, store *Store, now func() time.Time, fire Fir
 	if now == nil {
 		now = time.Now
 	}
+	fire = safeFire(fire) // contain a panicking order to its own goroutine
 	lastFired := map[string]int64{}
 	go func() {
 		defer func() { _ = recover() }()
