@@ -221,6 +221,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   with it. One malformed/edge-case request is contained to its own connection.
 
 ### Security
+- **The control-plane pre-auth request parse is now fuzz-tested.** `FuzzRequestParse`
+  drives `readBoundedLine` + the request unmarshal — the path that runs before the
+  token is checked, so any local client feeds it bytes pre-auth. It asserts the
+  bounded reader never panics and never exceeds its byte cap (the pre-auth-OOM
+  guard) and that unmarshalling a complete line never panics. A 40 s / 7.9 M-execution
+  run found no panic. (M447)
 - **The trust-ladder decision path is now fuzz-tested.** `FuzzDecide` hammers
   `edict.Decide` — which JSON-decodes and whitespace-normalizes untrusted tool
   input to match the hard-deny floor (the M173/M426 evasion surface). It asserts
