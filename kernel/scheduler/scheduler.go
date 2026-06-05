@@ -240,9 +240,20 @@ func (e *Executor) Run(ctx context.Context, plan Plan, correlationID string) (*P
 		return ready
 	}
 
-	runNode := func(id string) {
+	runNode := func(id string, holdsSlot bool) {
 		defer wg.Done()
-		defer func() { <-sem }()
+		// Gate nodes block on a HUMAN decision, not on compute, so they must not
+		// occupy a worker-pool slot: otherwise a gate awaiting approval would
+		// starve unrelated ready nodes (with MaxParallel low, a single pending gate
+		// could stall the whole frontier for the entire approval window). Only
+		// compute nodes are bounded by the semaphore. Acquiring it here (inside the
+		// goroutine) rather than in the driver also means launching a node never
+		// blocks the driver, so a gate listed after a slot-bound compute node still
+		// starts immediately.
+		if holdsSlot {
+			sem <- struct{}{}
+			defer func() { <-sem }()
+		}
 
 		node := byID[id]
 		mu.Lock()
@@ -293,8 +304,7 @@ func (e *Executor) Run(ctx context.Context, plan Plan, correlationID string) (*P
 		ready := pickReady()
 		for _, id := range ready {
 			wg.Add(1)
-			sem <- struct{}{}
-			go runNode(id)
+			go runNode(id, byID[id].Kind() != KindGate)
 		}
 		mu.Lock()
 		inflight := len(started) - len(completed)

@@ -23,6 +23,14 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   remembered window with memory still bounded at 2×cap. (M457)
 
 ### Reliability
+- **Plan gate nodes no longer occupy a compute worker slot while awaiting
+  approval.** The scheduler's semaphore bounds compute parallelism, but a
+  `GateNode` blocking on a human decision consumed a slot for the whole approval
+  window — so with `MaxParallel` waiting gates (or one at `MaxParallel: 1`) no other
+  ready node could start until a human responded, stalling independent branches.
+  Gate nodes now skip the semaphore (they block only on approval), and the slot is
+  acquired inside the worker goroutine so launching a node never blocks the driver.
+  Compute parallelism is still bounded. (M459)
 - **Cron-triggered standing orders no longer launch after shutdown begins.** The
   cron ticker's `select` chooses at random when both cancellation and a tick are
   ready, so during teardown a tick could still be picked and dispatch fresh order

@@ -296,6 +296,83 @@ func TestRun_RejectsEmptyPlan(t *testing.T) {
 
 // ---- gate node integration ----
 
+// blockerNode is a compute node that signals on `entered` when it starts and then
+// holds its worker slot until `release` is closed — letting a test pin the only
+// slot and observe whether other nodes can still make progress.
+type blockerNode struct {
+	NodeID  string
+	Deps    []string
+	entered chan struct{}
+	release chan struct{}
+}
+
+func (n *blockerNode) ID() string             { return n.NodeID }
+func (*blockerNode) Kind() scheduler.NodeKind { return scheduler.KindLoop }
+func (n *blockerNode) DependsOn() []string    { return n.Deps }
+func (n *blockerNode) Run(ctx context.Context, _ scheduler.Inputs) (scheduler.Result, error) {
+	select {
+	case n.entered <- struct{}{}:
+	default:
+	}
+	select {
+	case <-n.release:
+	case <-ctx.Done():
+	}
+	return scheduler.Result{Output: "ran"}, nil
+}
+
+// TestGate_DoesNotConsumeComputeSlot pins that a gate awaiting human approval does
+// NOT occupy a worker-pool slot. With MaxParallel:1 a compute node holds the only
+// slot; the gate must still reach the approval queue while that slot is held. A
+// gate that required a slot would be stuck behind the full pool and never become
+// pending until the compute node finished — starving the approval for the whole
+// run. (The compute node here is what blocks, so this is deterministic regardless
+// of goroutine scheduling: only the blocker ever needs the slot.)
+func TestGate_DoesNotConsumeComputeSlot(t *testing.T) {
+	b, _ := newBus(t)
+	apr := approval.New(approval.Config{Bus: b, Timeout: 2 * time.Second})
+	e := scheduler.New(scheduler.Config{Bus: b})
+
+	entered := make(chan struct{}, 1)
+	release := make(chan struct{})
+	blocker := &blockerNode{NodeID: "a-blocker", entered: entered, release: release}
+	gate := &scheduler.GateNode{NodeID: "b-gate", Approvals: apr, Capability: "plan.execute", Description: "?"}
+	plan := scheduler.Plan{Nodes: []scheduler.Node{blocker, gate}, MaxParallel: 1}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{}, 1)
+	go func() { _, _ = e.Run(ctx, plan, ""); done <- struct{}{} }()
+
+	// The blocker compute node must occupy the only worker slot.
+	select {
+	case <-entered:
+	case <-time.After(time.Second):
+		close(release)
+		cancel()
+		<-done
+		t.Fatal("blocker compute node never ran (it should hold the only slot)")
+	}
+
+	// While the slot is held, the gate must still become pending — proving it does
+	// not require a compute slot.
+	pending := false
+	for deadline := time.Now().Add(500 * time.Millisecond); time.Now().Before(deadline); {
+		if apr.PendingCount() == 1 {
+			pending = true
+			break
+		}
+		time.Sleep(2 * time.Millisecond)
+	}
+	if !pending {
+		t.Error("gate did not become pending while a compute node held the only slot: it is waiting for a worker slot it shouldn't need")
+	}
+
+	// Teardown: release the blocker and cancel the run (unblocks the gate's wait).
+	close(release)
+	cancel()
+	<-done
+}
+
 func TestGateNode_GrantedReleasesDownstream(t *testing.T) {
 	b, _ := newBus(t)
 	apr := approval.New(approval.Config{Bus: b, Timeout: 2 * time.Second})
