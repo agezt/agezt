@@ -140,6 +140,61 @@ func TestOpen_RecoversPastTornFinalLine(t *testing.T) {
 	}
 }
 
+// TestAppendAfterTornLine_StaysReadable: after a crash leaves a torn (newline-less)
+// fragment at the segment tail, the FIRST append on reopen must not glue a new
+// record onto the fragment — the journal must stay fully readable and chain-
+// verifiable (M417). Before the fix, Open used the raw file size as the append
+// offset and O_APPEND wrote after the fragment, producing an undecodable line that
+// wedged Range/Verify/Open permanently.
+func TestAppendAfterTornLine_StaysReadable(t *testing.T) {
+	dir := t.TempDir()
+	open := func() *Journal {
+		j, err := Open(dir, Options{Now: func() time.Time { return time.UnixMilli(1_700_000_000_000) }, IDGen: sequentialIDs()})
+		if err != nil {
+			t.Fatalf("Open: %v", err)
+		}
+		return j
+	}
+	j := open()
+	for i := 0; i < 2; i++ {
+		if _, err := j.Append(event.Spec{Subject: "x", Kind: event.KindTaskReceived, Actor: "k"}); err != nil {
+			t.Fatalf("Append: %v", err)
+		}
+	}
+	j.Close()
+
+	// Simulate a crash mid-write: a newline-less fragment at the segment tail.
+	segs, _ := listSegments(dir)
+	f, _ := os.OpenFile(segs[len(segs)-1].path, os.O_WRONLY|os.O_APPEND, 0o644)
+	_, _ = f.WriteString(`{"seq":99,"partial":`)
+	f.Close()
+
+	// Reopen and append a real event over the torn tail.
+	j2 := open()
+	if _, err := j2.Append(event.Spec{Subject: "y", Kind: event.KindTaskCompleted, Actor: "k"}); err != nil {
+		t.Fatalf("append after torn tail: %v", err)
+	}
+	j2.Close()
+
+	// The journal must now be fully readable and chain-verifiable: 3 committed
+	// events, the torn fragment gone — not a wedged, undecodable segment.
+	j3 := open()
+	defer j3.Close()
+	if err := j3.Verify(); err != nil {
+		t.Fatalf("Verify after append-over-torn-tail: %v", err)
+	}
+	n := 0
+	if err := j3.Range(func(*event.Event) error { n++; return nil }); err != nil {
+		t.Fatalf("Range after append-over-torn-tail: %v", err)
+	}
+	if n != 3 {
+		t.Errorf("event count = %d, want 3 (2 committed + 1 appended; torn fragment dropped)", n)
+	}
+	if seq, _ := j3.Head(); seq != 2 {
+		t.Errorf("head seq = %d, want 2", seq)
+	}
+}
+
 // TestRotate_FailureDoesNotWedge — when rotation can't open the next segment, the
 // (already-durable) append must still succeed and the journal stay usable, rather
 // than stranding a closed handle and wedging all further appends (H2 fix).

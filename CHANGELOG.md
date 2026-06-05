@@ -12,6 +12,15 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Reliability
+- **A crash mid-write no longer corrupts the journal on the next append.** When a
+  crash left a torn (newline-less) fragment at the tail of the last segment, reopening
+  set the append offset to the raw file size and opened the segment `O_APPEND` — so
+  the first new event was written *after* the fragment, gluing a partial record onto a
+  whole one. The result was a line nothing could decode, which wedged
+  `Range`/`Verify`/reopen permanently — the source-of-truth log became unreadable.
+  On reopen the torn tail is now truncated to the end of the last complete line, so
+  the next append begins exactly where the last committed record ended. (Readers
+  already discarded the torn line; only the append path was affected.)
 - **A panicking standing order can no longer crash the daemon.** A fired order runs
   its plan (provider/tool/plugin code) and then briefs over the network on a
   dedicated `go fire(...)` goroutine. The event-runner and cron loops recovered only

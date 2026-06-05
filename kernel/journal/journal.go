@@ -124,12 +124,44 @@ func Open(dir string, opt Options) (*Journal, error) {
 			return nil, err
 		}
 	} else {
-		j.curBytes = info.Size()
+		// A crash mid-write can leave a torn (newline-less) fragment at the end of
+		// the last segment. Readers/recovery discard it (scanCompleteLines), but the
+		// next append uses O_APPEND and would write AFTER the fragment, gluing a new
+		// record onto the partial one — producing a line nothing can decode and
+		// wedging the journal permanently. Truncate to the end of the last complete
+		// line so the next append begins exactly where the last committed record
+		// ended (the invariant: append offset == end of last committed line).
+		good, err := lastCompleteOffset(last.path)
+		if err != nil {
+			return nil, err
+		}
+		if good != info.Size() {
+			if err := os.Truncate(last.path, good); err != nil {
+				return nil, fmt.Errorf("journal: truncate torn tail of %s: %w", last.path, err)
+			}
+		}
+		j.curBytes = good
 		if err := j.openCurrent(true); err != nil {
 			return nil, err
 		}
 	}
 	return j, nil
+}
+
+// lastCompleteOffset returns the byte length of the newline-terminated prefix of
+// the segment at path — i.e. the offset just past the last committed line. Any
+// bytes after that are a torn final line (a crash mid-write) and are not a
+// committed record. 0 means no complete line is present.
+func lastCompleteOffset(path string) (int64, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return 0, fmt.Errorf("journal: read %s: %w", path, err)
+	}
+	i := bytes.LastIndexByte(data, '\n')
+	if i < 0 {
+		return 0, nil
+	}
+	return int64(i + 1), nil
 }
 
 // Close flushes and closes the current segment.
