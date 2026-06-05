@@ -12,6 +12,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Reliability
+- **The Anthropic streaming parser tolerates a malformed structural frame.** It
+  aborted the whole stream on one bad SSE frame — discarding already-streamed
+  tokens — where the other four providers (and this parser's own EOF handling) skip
+  and continue. The four structural decoders now skip a frame that fails to parse
+  instead of aborting; a real provider `error` event still propagates. One corrupt
+  frame from a proxy no longer throws away a whole response. (M451)
 - **Async Slack/Discord inbound runs are cancelled on a clean shutdown.** They
   detached the agent run from the HTTP request (correct) to `context.Background()`,
   which is never cancelled — so on shutdown an in-flight run was killed by process

@@ -219,7 +219,11 @@ func dispatchSSEFrame(eventName, data string, st *streamState, onChunk func(agen
 			} `json:"message"`
 		}
 		if err := json.Unmarshal([]byte(data), &f); err != nil {
-			return fmt.Errorf("anthropic: parse message_start: %w", err)
+			// Tolerate a malformed structural frame: skip it and keep the stream
+			// going rather than aborting and discarding already-streamed tokens
+			// (matches the other providers and this parser's own EOF handling,
+			// lines ~199-202). A real provider "error" event still propagates. (M451)
+			return nil
 		}
 		st.model = f.Message.Model
 		st.inputTokens = f.Message.Usage.InputTokens
@@ -242,7 +246,7 @@ func dispatchSSEFrame(eventName, data string, st *streamState, onChunk func(agen
 			} `json:"content_block"`
 		}
 		if err := json.Unmarshal([]byte(data), &f); err != nil {
-			return fmt.Errorf("anthropic: parse content_block_start: %w", err)
+			return nil // tolerate a malformed frame — skip, don't abort the stream (M451)
 		}
 		st.openBlock = &openBlock{kind: f.ContentBlock.Type}
 		switch f.ContentBlock.Type {
@@ -279,7 +283,7 @@ func dispatchSSEFrame(eventName, data string, st *streamState, onChunk func(agen
 			} `json:"delta"`
 		}
 		if err := json.Unmarshal([]byte(data), &f); err != nil {
-			return fmt.Errorf("anthropic: parse content_block_delta: %w", err)
+			return nil // tolerate a malformed frame — skip, don't abort the stream (M451)
 		}
 		if st.openBlock == nil {
 			// Delta without a preceding _start — ignore rather than
@@ -346,7 +350,7 @@ func dispatchSSEFrame(eventName, data string, st *streamState, onChunk func(agen
 			} `json:"usage"`
 		}
 		if err := json.Unmarshal([]byte(data), &f); err != nil {
-			return fmt.Errorf("anthropic: parse message_delta: %w", err)
+			return nil // tolerate a malformed frame — skip, don't abort the stream (M451)
 		}
 		if f.Delta.StopReason != "" {
 			st.stopReason = f.Delta.StopReason
