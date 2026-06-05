@@ -12,6 +12,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Reliability
+- **HTTP surfaces are hardened against slow-loris connection exhaustion.** The web UI,
+  the OpenAI-compatible API, and the REST server were built with no HTTP timeouts, so a
+  client that dribbles request-header bytes (or never finishes the request line) could
+  pin a connection and goroutine indefinitely — exhausting file descriptors / memory
+  and wedging the surface. All three now set `ReadHeaderTimeout` and `IdleTimeout`
+  (`WriteTimeout` is deliberately left unset so long-lived SSE/streaming responses
+  aren't killed mid-flight). The control-plane TCP server already had a read deadline.
 - **A crash mid-write no longer corrupts the journal on the next append.** When a
   crash left a torn (newline-less) fragment at the tail of the last segment, reopening
   set the append offset to the raw file size and opened the segment `O_APPEND` — so

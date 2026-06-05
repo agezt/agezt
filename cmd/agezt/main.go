@@ -1550,6 +1550,30 @@ func onOff(b bool) string {
 // guaranteed consistent. Returns a banner description (the tokenized URL), or
 // "" when disabled.
 //
+// httpReadHeaderTimeout bounds how long a client may take to send request headers
+// — the standard slow-loris mitigation (M419). It is SSE-safe: it bounds only the
+// header read, not a long-lived streaming response body, so it applies uniformly to
+// the web UI (/events), the OpenAI-compat API (streaming completions), and the REST
+// server. A WriteTimeout would kill those streams, so it is deliberately NOT set.
+// httpIdleTimeout caps how long an idle keep-alive connection is held. (The
+// control-plane TCP server has its own read deadline; these cover the HTTP surfaces.)
+const (
+	httpReadHeaderTimeout = 10 * time.Second
+	httpIdleTimeout       = 120 * time.Second
+)
+
+// newGuardedHTTPServer builds an http.Server with the slow-loris timeouts applied
+// uniformly to every HTTP surface (web UI, OpenAI-compat API, REST). WriteTimeout is
+// intentionally left unset so long-lived SSE/streaming responses are not killed
+// mid-flight (M419).
+func newGuardedHTTPServer(h http.Handler) *http.Server {
+	return &http.Server{
+		Handler:           h,
+		ReadHeaderTimeout: httpReadHeaderTimeout,
+		IdleTimeout:       httpIdleTimeout,
+	}
+}
+
 //	AGEZT_WEB_ADDR  host:port to serve on (e.g. 127.0.0.1:8787); unset = off.
 //
 // We never bind 0.0.0.0 implicitly: the operator supplies the host, and the
@@ -1581,7 +1605,7 @@ func buildWebUI(ctx context.Context, k *kernelruntime.Kernel, baseDir string, st
 		fmt.Fprintf(stdout, "  web ui           : disabled (listen %s: %v)\n", addr, err)
 		return ""
 	}
-	srv := &http.Server{Handler: webui.New(k.Bus(), client, token).Handler()}
+	srv := newGuardedHTTPServer(webui.New(k.Bus(), client, token).Handler())
 	go func() {
 		if err := srv.Serve(ln); err != nil && err != http.ErrServerClosed {
 			fmt.Fprintf(stdout, "web ui server error: %v\n", err)
@@ -1946,7 +1970,7 @@ func buildOpenAIAPI(ctx context.Context, k *kernelruntime.Kernel, reg *tenant.Re
 		})
 		api.SetTenantAuthorizer(reg.Authorize)
 	}
-	srv := &http.Server{Handler: api.Handler()}
+	srv := newGuardedHTTPServer(api.Handler())
 	go func() {
 		if err := srv.Serve(ln); err != nil && err != http.ErrServerClosed {
 			fmt.Fprintf(stdout, "openai api server error: %v\n", err)
@@ -2082,7 +2106,7 @@ func buildRESTAPI(ctx context.Context, k *kernelruntime.Kernel, reg *tenant.Regi
 		})
 		rest.SetTenantAuthorizer(reg.Authorize)
 	}
-	srv := &http.Server{Handler: rest.Handler()}
+	srv := newGuardedHTTPServer(rest.Handler())
 	go func() {
 		if err := srv.Serve(ln); err != nil && err != http.ErrServerClosed {
 			fmt.Fprintf(stdout, "rest api server error: %v\n", err)
