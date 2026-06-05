@@ -401,6 +401,7 @@ func Restore(dir string, events []*event.Event) (headSeq int64, headHash string,
 		os.Remove(path)
 		return 0, "", fmt.Errorf("journal: close segment: %w", cerr)
 	}
+	_ = syncDir(dir) // persist the new segment's directory entry (power-loss safety)
 
 	last := events[len(events)-1]
 	return last.Seq, last.Hash, nil
@@ -433,6 +434,22 @@ func (j *Journal) Verify() error {
 // fsync is indirected so tests can simulate an fsync failure. It is the only
 // path that flushes a just-written line to stable storage.
 var fsync = (*os.File).Sync
+
+// syncDir fsyncs a directory so a newly created segment's directory entry is
+// durable, not just the file content — otherwise a freshly created/rotated segment
+// (and its durable-before-publish records) can vanish on power loss even though the
+// file was fsync'd. Indirected for tests. Best-effort at the call sites: a dir
+// fsync can legitimately fail on some platforms (e.g. a directory handle on
+// Windows), and that must not fail segment creation on the dev OS; the guarantee it
+// adds is for the Linux deploy target.
+var syncDir = func(dir string) error {
+	d, err := os.Open(dir)
+	if err != nil {
+		return err
+	}
+	defer d.Close()
+	return d.Sync()
+}
 
 // writeAndSync writes the line to the current segment, fsyncs, and rotates
 // if the resulting size meets/exceeds segBytes. Caller holds j.mu.
@@ -485,7 +502,8 @@ func (j *Journal) rotate() error {
 	j.curFile = next
 	j.curIndex++
 	j.curBytes = 0
-	_ = old.Close() // best-effort: the new segment is already the live one
+	_ = old.Close()    // best-effort: the new segment is already the live one
+	_ = syncDir(j.dir) // persist the new segment's directory entry (power-loss safety)
 	return nil
 }
 
@@ -504,6 +522,10 @@ func (j *Journal) openCurrent(appendMode bool) error {
 		return fmt.Errorf("journal: open %s: %w", path, err)
 	}
 	j.curFile = f
+	if !appendMode {
+		// A fresh segment was just created — persist its directory entry.
+		_ = syncDir(j.dir)
+	}
 	return nil
 }
 

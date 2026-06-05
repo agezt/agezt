@@ -23,6 +23,11 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   remembered window with memory still bounded at 2×cap. (M457)
 
 ### Reliability
+- **Journal segment creation now fsyncs the parent directory.** Creating/rotating a
+  segment fsync'd the file's contents but not the directory entry, so on power loss
+  a freshly rotated segment (and its durable-before-publish records) could vanish
+  even though the file was synced. The parent directory is now fsync'd (best-effort)
+  after a new segment is created in rotate/open/restore. (M463)
 - **A failed journal fsync no longer wedges recovery with a duplicate sequence.**
   When a line was written but its fsync failed (EIO/ENOSPC), the in-memory sequence
   wasn't advanced — yet the line stayed in the segment, so the next append reused

@@ -94,6 +94,29 @@ func TestAppend_FsyncFailureLeavesNoDuplicateSeq(t *testing.T) {
 	}
 }
 
+// TestRotate_FsyncsParentDir pins that creating a new segment via rotation fsyncs
+// the parent directory, so the new segment's directory entry (and its
+// durable-before-publish records) survives power loss, not just the file content.
+func TestRotate_FsyncsParentDir(t *testing.T) {
+	calls := 0
+	orig := syncDir
+	syncDir = func(string) error { calls++; return nil }
+	defer func() { syncDir = orig }()
+
+	// Small segments so each append rotates.
+	j := newTestJournal(t, 256)
+	calls = 0 // ignore the dir-sync from Open's initial segment
+
+	for i := 0; i < 5; i++ {
+		if _, err := j.Append(event.Spec{Subject: "x", Kind: event.KindTaskReceived, Actor: "k"}); err != nil {
+			t.Fatalf("append %d: %v", i, err)
+		}
+	}
+	if calls == 0 {
+		t.Error("rotation did not fsync the parent directory: a newly rotated segment can be lost on power loss")
+	}
+}
+
 func TestTail_ReturnsLastNInOrderAcrossSegments(t *testing.T) {
 	// Tiny segment threshold so the events spread across many segments — Tail
 	// must stitch the newest segments back together in seq order.
