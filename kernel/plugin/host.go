@@ -168,6 +168,15 @@ type Plugin struct {
 	stdin  io.WriteCloser
 	stdout *bufio.Reader
 
+	// writeMu serializes writes to the child's stdin, separate from mu. The
+	// blocking pipe write must NOT be held under mu: deliver (the read loop's
+	// response router) takes mu, so holding mu across a stuck write would let a
+	// plugin that floods stdout without draining its stdin wedge the read loop
+	// against the blocked writer — a host-slot deadlock (M460). Frames still can't
+	// interleave because writeMu serializes them; mu is taken only briefly to
+	// snapshot stdin (which respawn swaps).
+	writeMu sync.Mutex
+
 	// waitDone is closed by a dedicated per-process waiter goroutine once
 	// cmd.Wait() returns — i.e. the child has been reaped. It guarantees the
 	// process is reaped on ANY death path (self-exit, crash, kill), not only via
@@ -606,10 +615,25 @@ func (p *Plugin) writeRequest(req Request) error {
 		return fmt.Errorf("plugin: marshal request: %w", err)
 	}
 	raw = append(raw, '\n')
+	return p.writeFrame(raw, "request")
+}
+
+// writeFrame serializes a single newline-framed write to the child's stdin on
+// writeMu so frames never interleave, but does NOT hold mu across the blocking
+// pipe write — otherwise a plugin that floods stdout without draining its stdin
+// would wedge the read loop (deliver needs mu) against the stuck writer (M460).
+// stdin is snapshotted under mu because respawn swaps it.
+func (p *Plugin) writeFrame(raw []byte, kind string) error {
+	p.writeMu.Lock()
+	defer p.writeMu.Unlock()
 	p.mu.Lock()
-	defer p.mu.Unlock()
-	if _, err := p.stdin.Write(raw); err != nil {
-		return fmt.Errorf("plugin: write request: %w", err)
+	w := p.stdin
+	p.mu.Unlock()
+	if w == nil {
+		return fmt.Errorf("plugin: write %s: stdin closed", kind)
+	}
+	if _, err := w.Write(raw); err != nil {
+		return fmt.Errorf("plugin: write %s: %w", kind, err)
 	}
 	return nil
 }
@@ -851,12 +875,7 @@ func (p *Plugin) writeResponse(resp Response) error {
 		return fmt.Errorf("plugin: marshal response: %w", err)
 	}
 	raw = append(raw, '\n')
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	if _, err := p.stdin.Write(raw); err != nil {
-		return fmt.Errorf("plugin: write response: %w", err)
-	}
-	return nil
+	return p.writeFrame(raw, "response")
 }
 
 // markDead is called by readLoop on terminal errors. It records

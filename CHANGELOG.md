@@ -23,6 +23,15 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   remembered window with memory still bounded at 2×cap. (M457)
 
 ### Reliability
+- **A plugin can no longer deadlock its host slot by flooding stdout without
+  draining stdin.** Host→plugin writes held the same mutex the read loop's response
+  router needs, *across* the blocking write to the child's stdin. A plugin that sent
+  a callback then stopped reading its stdin made the host's response write block
+  while holding that mutex; the read loop then blocked routing the next frame,
+  stopped draining stdout, the child's stdout pipe filled, and the write never
+  completed — a permanent wedge leaking goroutines. Stdin writes now serialize on a
+  dedicated mutex and never hold the routing lock across the write, so the read loop
+  keeps draining and the cycle can't form. (M460)
 - **Plan gate nodes no longer occupy a compute worker slot while awaiting
   approval.** The scheduler's semaphore bounds compute parallelism, but a
   `GateNode` blocking on a human decision consumed a slot for the whole approval
