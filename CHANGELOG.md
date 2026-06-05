@@ -21,6 +21,16 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   in a recover backstop, and the daemon's run also recovers-and-journals a new
   `standing.error` event (visible in `agt journal`) so the crash stays diagnosable
   instead of vanishing. This makes the package's documented no-crash guarantee true.
+- **Standing-order bookkeeping maps no longer grow without bound.** The event and
+  cron runners track a per-order last-fire timestamp to enforce the cooldown /
+  once-per-minute dedup; entries for removed orders were never dropped, so a
+  long-lived daemon with order churn leaked memory in proportion to every order id
+  ever created. Both maps are now pruned to the live order set each pass.
+- **`agt standing add --budget` rejects an out-of-range or non-finite amount.** A
+  budget above ~$9.2e9 (or `Inf`/`NaN`) overflowed the `int64` microcents
+  conversion, whose result is undefined in Go — it could land as a small or negative
+  cap, silently mis-configuring the per-run spend guard. Such amounts are now
+  rejected with a clear error instead of stored.
 - **Standing orders never diverge from disk on a failed write.** The standing-order
   store (Chronos) mutated its in-memory order *before* the durable JSON write in
   `SetEnabled`/`Remove`; a transient write failure (full disk, permissions) left the

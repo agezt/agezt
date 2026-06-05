@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"strconv"
 	"strings"
 	"time"
@@ -136,10 +137,19 @@ func usdToMicrocents(s string) (int64, error) {
 	if err != nil {
 		return 0, fmt.Errorf("want a dollar amount like 0.01, got %q", s)
 	}
+	if math.IsNaN(d) || math.IsInf(d, 0) {
+		return 0, fmt.Errorf("want a finite dollar amount, got %q", s)
+	}
 	if d < 0 {
 		return 0, fmt.Errorf("must be >= 0, got %q", s)
 	}
-	return int64(d*1e9 + 0.5), nil
+	mc := d*1e9 + 0.5
+	// int64(float64) is undefined when the value overflows int64, so reject an
+	// out-of-range amount rather than storing a garbage (possibly negative) cap.
+	if mc >= math.MaxInt64 {
+		return 0, fmt.Errorf("amount too large, got %q", s)
+	}
+	return int64(mc), nil
 }
 
 // pct returns an integer-percent string ("47") for spent / cap.

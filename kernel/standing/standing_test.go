@@ -118,6 +118,26 @@ func TestStore_PreservesInitiative(t *testing.T) {
 	}
 }
 
+// TestPruneToLive: the runner/cron per-order bookkeeping maps must not grow
+// forever — an entry for an order that no longer exists is dropped, live entries
+// are kept intact, and there's no work when nothing is stale (M414).
+func TestPruneToLive(t *testing.T) {
+	m := map[string]int64{"a": 1, "b": 2, "gone": 3}
+	pruneToLive(m, []Order{{ID: "a"}, {ID: "b"}})
+	if _, ok := m["gone"]; ok {
+		t.Error("a removed order's entry should be pruned")
+	}
+	if len(m) != 2 || m["a"] != 1 || m["b"] != 2 {
+		t.Errorf("live entries must be kept intact, got %v", m)
+	}
+	// No stale entries (len(map) <= len(orders)) → untouched.
+	m2 := map[string]int64{"a": 1}
+	pruneToLive(m2, []Order{{ID: "a"}, {ID: "b"}})
+	if len(m2) != 1 || m2["a"] != 1 {
+		t.Errorf("no stale entries → map unchanged, got %v", m2)
+	}
+}
+
 // TestSafeFire_ContainsPanic: a panic while running a fired order must be
 // contained, not propagated — the runner and cron loop dispatch every order on its
 // own `go fire(...)` goroutine, where an uncovered panic would crash the whole

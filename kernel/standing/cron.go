@@ -24,7 +24,8 @@ func minuteStamp(t time.Time) int64 { return t.Unix() / 60 }
 func tickCron(ctx context.Context, store *Store, t time.Time, lastFired map[string]int64, fire FireFunc) []string {
 	stamp := minuteStamp(t)
 	var fired []string
-	for _, o := range store.List() {
+	orders := store.List()
+	for _, o := range orders {
 		if !o.Enabled {
 			continue
 		}
@@ -43,6 +44,7 @@ func tickCron(ctx context.Context, store *Store, t time.Time, lastFired map[stri
 			break
 		}
 	}
+	pruneToLive(lastFired, orders) // bound the dedup map to live orders
 	return fired
 }
 

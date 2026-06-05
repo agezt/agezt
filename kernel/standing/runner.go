@@ -81,7 +81,8 @@ func StartRunner(ctx context.Context, b *bus.Bus, store *Store, cfg RunnerConfig
 				// skewed/far-future timestamp that would otherwise permanently
 				// suppress or prematurely release the order.
 				nowMS := now().UnixMilli()
-				for _, o := range store.List() {
+				orders := store.List()
+				for _, o := range orders {
 					if !o.Enabled {
 						continue
 					}
@@ -96,6 +97,7 @@ func StartRunner(ctx context.Context, b *bus.Bus, store *Store, cfg RunnerConfig
 					subj := ev.Subject
 					go fire(ctx, ord, subj)
 				}
+				pruneToLive(lastFireMS, orders)
 			}
 		}
 	}()
@@ -123,6 +125,27 @@ func BriefText(o Order, answer string) (text string, ok bool) {
 		return "", false
 	}
 	return "[standing: " + o.Name + "]\n" + answer, true
+}
+
+// pruneToLive drops bookkeeping entries (last-fire timestamps) whose order id is no
+// longer present in orders, so the runner's and cron loop's per-order maps stay
+// bounded to the live order set instead of growing forever as orders are added and
+// removed over a long-lived daemon. Cheap: it only rebuilds the live-id set when the
+// map has actually outgrown the order list (the common no-churn case is a single
+// length comparison). Single-goroutine use — no locking.
+func pruneToLive(lastFire map[string]int64, orders []Order) {
+	if len(lastFire) <= len(orders) {
+		return
+	}
+	live := make(map[string]struct{}, len(orders))
+	for _, o := range orders {
+		live[o.ID] = struct{}{}
+	}
+	for id := range lastFire {
+		if _, ok := live[id]; !ok {
+			delete(lastFire, id)
+		}
+	}
 }
 
 // safeFire wraps a FireFunc so a panic while running a fired order is contained to

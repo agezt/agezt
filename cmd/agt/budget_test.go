@@ -19,6 +19,12 @@ func TestUsdToMicrocents(t *testing.T) {
 		{"-1", 0, false},  // negative rejected
 		{"abc", 0, false}, // non-numeric rejected
 		{"", 0, false},    // empty rejected
+		// M414: int64(float64) is undefined on overflow / non-finite — reject
+		// rather than store a garbage (possibly negative) cap.
+		{"99999999999", 0, false}, // ~1e11 USD → 1e20 mc overflows int64
+		{"1e30", 0, false},        // far past MaxInt64
+		{"Inf", 0, false},         // +Inf not finite
+		{"NaN", 0, false},         // NaN not finite
 	}
 	for _, c := range cases {
 		got, err := usdToMicrocents(c.in)
