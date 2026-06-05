@@ -146,6 +146,31 @@ func TestSupersedeLinksOld(t *testing.T) {
 	}
 }
 
+// TestReinforceDoesNotResurrectSuperseded: re-stating content that was explicitly
+// superseded must NOT make it active again — the supersession link must survive the
+// reinforce (M420). Before the fix, Remember rebuilt the record with SupersededBy=""
+// so both the old and the new version showed up as active.
+func TestReinforceDoesNotResurrectSuperseded(t *testing.T) {
+	m, _ := newTestManager(t)
+	old, _, _ := m.Remember("c", RememberSpec{Subject: "v", Content: "version 1"})
+	newRec, err := m.Supersede("c", old.ID, RememberSpec{Subject: "v", Content: "version 2"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Re-state the OLD content — the distiller routinely re-extracts old facts.
+	if _, _, err := m.Remember("c", RememberSpec{Subject: "v", Content: "version 1"}); err != nil {
+		t.Fatal(err)
+	}
+	got, _, _ := m.Get(old.ID)
+	if got.SupersededBy != newRec.ID {
+		t.Fatalf("reinforcing superseded content cleared the link: SupersededBy=%q, want %q", got.SupersededBy, newRec.ID)
+	}
+	active, _ := m.Active()
+	if len(active) != 1 || active[0].ID != newRec.ID {
+		t.Fatalf("only the new record should be active after re-stating superseded content, got %d active", len(active))
+	}
+}
+
 func TestRememberValidatesTypeAndContent(t *testing.T) {
 	m, _ := newTestManager(t)
 	if _, _, err := m.Remember("c", RememberSpec{Subject: "s", Content: "  "}); err != ErrEmptyContent {

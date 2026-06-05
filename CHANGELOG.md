@@ -12,6 +12,18 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Reliability
+- **A panicking scheduled run can no longer crash the daemon.** A fired schedule
+  (cadence) runs a governed run and then delivers its answer over a channel plugin —
+  the delivery executes after the agent loop's own recover returns, on the bare fire
+  goroutine. A panic there (a channel-plugin bug, a nil deref in delivery) took down
+  the whole process. Fired runs are now wrapped in a recover backstop and the
+  in-flight guard is always cleared, mirroring the standing-order containment.
+- **Re-stating a superseded memory/world-model fact no longer resurrects it.**
+  Reinforcing a record/entity (re-`Remember`/`Upsert` of content that was previously
+  *superseded*) rebuilt it without its supersession link, so both the stale fact and
+  its replacement became active again — and the auto-distiller, which re-extracts
+  facts every task, triggered this on its own. The supersession link is now preserved
+  across a reinforce, so a superseded fact stays inactive.
 - **HTTP surfaces are hardened against slow-loris connection exhaustion.** The web UI,
   the OpenAI-compatible API, and the REST server were built with no HTTP timeouts, so a
   client that dribbles request-header bytes (or never finishes the request line) could

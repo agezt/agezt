@@ -86,6 +86,9 @@ func (g *Graph) Upsert(corr string, spec UpsertSpec) (Entity, bool, error) {
 		e.Weight = clampWeight(existing.Weight + 0.1)
 		e.Aliases = mergeAliases(existing.Aliases, e.Aliases)
 		e.Attrs = mergeAttrs(existing.Attrs, spec.Attrs)
+		// Preserve a supersession link: reinforcing an entity that was explicitly
+		// superseded must not resurrect it as active (it has a designated successor).
+		e.SupersededBy = existing.SupersededBy
 		action = "reinforce"
 		if existing.Tombstoned {
 			action = "revive"

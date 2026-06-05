@@ -183,6 +183,32 @@ func TestStore_SyncEnv_ReplacesEnvKeepsOperator(t *testing.T) {
 	}
 }
 
+// TestEngine_FireOne_ContainsPanic: a panic in a fired run (or its post-run answer
+// delivery) must be contained, not crash the daemon — and the in-flight guard must
+// still be cleared so the schedule isn't wedged (M420). The agent loop recovers its
+// own panics, but channel delivery runs after that on the fire goroutine, so the
+// engine needs its own backstop (mirrors kernel/standing's safeFire).
+func TestEngine_FireOne_ContainsPanic(t *testing.T) {
+	s := mustStore(t)
+	base := time.Date(2026, 5, 30, 0, 0, 0, 0, time.UTC)
+	if _, err := s.Add("boom", time.Hour, "", SourceOperator, base); err != nil {
+		t.Fatal(err)
+	}
+	due := s.Due(base.Add(time.Hour + time.Second))
+	if len(due) != 1 {
+		t.Fatalf("expected 1 due entry, got %d", len(due))
+	}
+	e := NewEngine(s, func(ctx context.Context, id, intent, model string) error {
+		panic("kaboom from a fired schedule")
+	}, 0, nil)
+	e.running.Store(due[0].ID, struct{}{}) // as fireDue's LoadOrStore would
+	// Synchronous: without the recover in fireOne this panics the test goroutine.
+	e.fireOne(context.Background(), due[0])
+	if _, busy := e.running.Load(due[0].ID); busy {
+		t.Error("in-flight guard not cleared after a panicking run (schedule would wedge)")
+	}
+}
+
 func TestEngine_FireDue_FiresAndSkipsOverlap(t *testing.T) {
 	s := mustStore(t)
 	base := time.Date(2026, 5, 30, 0, 0, 0, 0, time.UTC)

@@ -96,6 +96,11 @@ func (m *Manager) Remember(corr string, spec RememberSpec) (Record, bool, error)
 		if existing.Tags != nil && rec.Tags == nil {
 			rec.Tags = existing.Tags
 		}
+		// Preserve a supersession link: re-stating content that was explicitly
+		// superseded must NOT silently resurrect it as active (it has a designated
+		// successor). Without this, rec.SupersededBy="" would overwrite the link and
+		// Active()/Recall would return the stale fact alongside its replacement.
+		rec.SupersededBy = existing.SupersededBy
 		action = "reinforce"
 		if existing.Tombstoned {
 			action = "revive"

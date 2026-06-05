@@ -62,6 +62,35 @@ func TestUpsertCreatesAndJournals(t *testing.T) {
 	}
 }
 
+// TestUpsertDoesNotResurrectSuperseded: reinforcing an entity that was superseded
+// must keep it inactive — the supersession link must survive the reinforce (M420).
+func TestUpsertDoesNotResurrectSuperseded(t *testing.T) {
+	g, _ := newTestGraph(t)
+	e, _, err := g.Upsert("c", UpsertSpec{Kind: KindProject, Name: "Portfolio"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Mark it superseded directly (no public graph-level Supersede).
+	e.SupersededBy = "successor-id"
+	if err := g.store.PutEntity(e); err != nil {
+		t.Fatal(err)
+	}
+	// Reinforce by upserting the same name again.
+	if _, _, err := g.Upsert("c", UpsertSpec{Kind: KindProject, Name: "Portfolio"}); err != nil {
+		t.Fatal(err)
+	}
+	got, found, _ := g.store.GetEntity(e.ID)
+	if !found {
+		t.Fatal("entity vanished")
+	}
+	if got.SupersededBy != "successor-id" {
+		t.Fatalf("reinforce cleared SupersededBy: %q, want successor-id", got.SupersededBy)
+	}
+	if got.Active() {
+		t.Fatal("a superseded entity must not become active after reinforce")
+	}
+}
+
 func TestUpsertReinforcesAndMergesAliases(t *testing.T) {
 	g, _ := newTestGraph(t)
 	first, _, _ := g.Upsert("c", UpsertSpec{Kind: KindProject, Name: "Lictor", Aliases: []string{"portfolio"}, Weight: 0.5})

@@ -915,20 +915,33 @@ func (e *Engine) fireDue(ctx context.Context, now time.Time) {
 			continue
 		}
 		ent := entry
-		go func() {
-			defer e.running.Delete(ent.ID)
-			fmt.Fprintf(e.log, "schedule: firing %q (%s)\n", short(ent.Intent), ent.Cadence())
-			if err := e.run(ctx, ent.ID, ent.Intent, ent.Model); err != nil {
-				fmt.Fprintf(e.log, "schedule: %q failed: %v\n", short(ent.Intent), err)
-			}
-			// A one-shot is removed only after its run completes, so a crash mid-run
-			// leaves it in the store to re-fire on restart (M199). This runs before
-			// the deferred running.Delete, so no tick can re-fire it in the gap
-			// between removal and clearing the in-flight guard.
-			if _, err := e.store.CompleteFiring(ent.ID); err != nil {
-				fmt.Fprintf(e.log, "schedule: completing %q failed: %v\n", short(ent.Intent), err)
-			}
-		}()
+		go e.fireOne(ctx, ent)
+	}
+}
+
+// fireOne runs one due entry and clears its in-flight guard. It recovers from any
+// panic so a buggy run — or, more realistically, a panic in the post-run answer
+// delivery over a channel plugin, which executes after RunWith's own recover has
+// returned, on this goroutine — can never crash the whole daemon. This mirrors the
+// containment guarantee kernel/standing makes via safeFire (M420). Synchronous so it
+// is directly testable.
+func (e *Engine) fireOne(ctx context.Context, ent Entry) {
+	defer e.running.Delete(ent.ID)
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Fprintf(e.log, "schedule: %q panicked (contained): %v\n", short(ent.Intent), r)
+		}
+	}()
+	fmt.Fprintf(e.log, "schedule: firing %q (%s)\n", short(ent.Intent), ent.Cadence())
+	if err := e.run(ctx, ent.ID, ent.Intent, ent.Model); err != nil {
+		fmt.Fprintf(e.log, "schedule: %q failed: %v\n", short(ent.Intent), err)
+	}
+	// A one-shot is removed only after its run completes, so a crash mid-run leaves
+	// it in the store to re-fire on restart (M199). This runs before the deferred
+	// running.Delete, so no tick can re-fire it in the gap between removal and
+	// clearing the in-flight guard.
+	if _, err := e.store.CompleteFiring(ent.ID); err != nil {
+		fmt.Fprintf(e.log, "schedule: completing %q failed: %v\n", short(ent.Intent), err)
 	}
 }
 
