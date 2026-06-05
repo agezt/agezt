@@ -18,6 +18,7 @@ import (
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/journal"
+	"github.com/agezt/agezt/kernel/netguard"
 )
 
 // capture is a thread-safe record of received webhook deliveries.
@@ -179,6 +180,52 @@ func TestDispatch_FailsAfterMaxAttempts(t *testing.T) {
 	_, _ = b.Publish(event.Spec{Subject: "agent.x.task", Kind: event.KindTaskCompleted, Actor: "a"})
 	waitFor(t, func() bool { return cap.count() == 3 }) // exactly MaxAttempts
 	waitFor(t, func() bool { return audit.has(event.KindWebhookFailed) })
+}
+
+// TestDispatch_EgressGuardBlocksInternalSink: with a netguard-guarded client
+// (default-deny internal, the daemon's default), a sink pointing at the loopback
+// httptest server is refused at dial time — the delivery fails (journaled) and the
+// server is never reached. This is the M416 egress hardening for outbound webhooks.
+func TestDispatch_EgressGuardBlocksInternalSink(t *testing.T) {
+	cap := &capture{}
+	srv := httptest.NewServer(cap.handler()) // binds to 127.0.0.1
+	defer srv.Close()
+
+	b := newBus(t)
+	audit := newAuditSink(t, b)
+	guarded := netguard.New().HTTPClient(DefaultTimeout) // default-deny loopback
+	d := NewDispatcher(b, []Sink{{URL: srv.URL, Subject: ">"}}, nil, WithClient(guarded))
+	d.MaxAttempts = 1
+	d.Backoff = func(int) time.Duration { return 0 }
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	d.Start(ctx)
+
+	_, _ = b.Publish(event.Spec{Subject: "agent.x.task", Kind: event.KindTaskCompleted, Actor: "a"})
+	waitFor(t, func() bool { return audit.has(event.KindWebhookFailed) })
+	if cap.count() != 0 {
+		t.Errorf("guarded client must not reach the loopback sink, got %d delivery(ies)", cap.count())
+	}
+}
+
+// TestDispatch_EgressGuardAllowsWhenOptedIn: an operator who opts loopback back in
+// (AGEZT_WEBHOOK_ALLOW_LOOPBACK → netguard.AllowLoopback) can deliver to an internal
+// sink again — the guard tightens by default but stays operator-relaxable.
+func TestDispatch_EgressGuardAllowsWhenOptedIn(t *testing.T) {
+	cap := &capture{}
+	srv := httptest.NewServer(cap.handler())
+	defer srv.Close()
+
+	b := newBus(t)
+	guarded := netguard.New(netguard.AllowLoopback()).HTTPClient(DefaultTimeout)
+	d := NewDispatcher(b, []Sink{{URL: srv.URL, Subject: ">"}}, nil, WithClient(guarded))
+	d.Backoff = func(int) time.Duration { return 0 }
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	d.Start(ctx)
+
+	_, _ = b.Publish(event.Spec{Subject: "agent.x.task", Kind: event.KindTaskCompleted, Actor: "a"})
+	waitFor(t, func() bool { return cap.count() == 1 })
 }
 
 func TestDispatch_NeverRedeliversWebhookEvents(t *testing.T) {

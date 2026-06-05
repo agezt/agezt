@@ -62,6 +62,14 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   with it. One malformed/edge-case request is contained to its own connection.
 
 ### Security
+- **Outbound webhooks are egress-guarded.** The webhook dispatcher (and `agt webhook
+  test`) now route deliveries through the same netguard egress guard as the `http`/
+  `browser` tools, so a configured sink can no longer reach loopback, RFC1918/ULA, or
+  the cloud-metadata endpoint (169.254.169.254) by default — closing a journal-
+  exfiltration / internal-POST gap in the SPEC-06 egress model. Operators who
+  legitimately deliver to an internal sink opt the range back in with
+  `AGEZT_WEBHOOK_ALLOW_LOOPBACK=1` / `AGEZT_WEBHOOK_ALLOW_PRIVATE=1` (the latter logs a
+  warning); the boot banner shows the effective `egress=` mode.
 - **OpenAI tool-name sanitisation can no longer misroute a tool call.** Dotted tool
   names (`browser.read`) are sanitised to OpenAI's `^[a-zA-Z0-9_-]+$` pattern on the
   wire, but the sanitiser is many-to-one — `browser.read` and `browser_read` both

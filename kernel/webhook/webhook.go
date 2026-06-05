@@ -70,20 +70,41 @@ type Dispatcher struct {
 	Backoff func(attempt int) time.Duration
 }
 
+// Option configures a Dispatcher at construction.
+type Option func(*Dispatcher)
+
+// WithClient sets the HTTP client used for delivery. The daemon passes a
+// netguard-guarded client so a configured sink cannot reach the host's internal
+// network / cloud-metadata endpoint (SPEC-06 egress model) unless the operator
+// opts that range back in. A nil client is ignored (the default is kept). Keeping
+// the guard in the caller leaves this package stdlib-only (no netguard import).
+func WithClient(c *http.Client) Option {
+	return func(d *Dispatcher) {
+		if c != nil {
+			d.client = c
+		}
+	}
+}
+
 // NewDispatcher builds a Dispatcher. b is both the event source (Subscribe) and,
 // via Publisher, the audit sink (Publish). log receives one line per delivery
-// result (nil = discard).
-func NewDispatcher(b *bus.Bus, sinks []Sink, log io.Writer) *Dispatcher {
+// result (nil = discard). By default deliveries use a plain DefaultTimeout client;
+// pass WithClient to supply a netguard-guarded one.
+func NewDispatcher(b *bus.Bus, sinks []Sink, log io.Writer, opts ...Option) *Dispatcher {
 	if log == nil {
 		log = io.Discard
 	}
-	return &Dispatcher{
+	d := &Dispatcher{
 		bus:    b,
 		pub:    b,
 		sinks:  sinks,
 		client: &http.Client{Timeout: DefaultTimeout},
 		log:    log,
 	}
+	for _, o := range opts {
+		o(d)
+	}
+	return d
 }
 
 // Start subscribes each sink and dispatches until ctx is done. One goroutine per

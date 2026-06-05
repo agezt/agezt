@@ -14,6 +14,7 @@ import (
 
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/netguard"
 	"github.com/agezt/agezt/kernel/webhook"
 )
 
@@ -134,11 +135,23 @@ func cmdWebhookTest(args []string, stdout, stderr io.Writer) int {
 		sinks = parsed
 	}
 
+	// Probe under the SAME egress guard the daemon's dispatcher uses (M416), so a
+	// test reflects what a real delivery will do: a sink pointing at loopback /
+	// RFC1918 / metadata is refused unless the operator opted that range in.
+	var guardOpts []netguard.Option
+	if os.Getenv(brand.EnvPrefix+"WEBHOOK_ALLOW_LOOPBACK") == "1" {
+		guardOpts = append(guardOpts, netguard.AllowLoopback())
+	}
+	if os.Getenv(brand.EnvPrefix+"WEBHOOK_ALLOW_PRIVATE") == "1" {
+		guardOpts = append(guardOpts, netguard.AllowPrivate())
+	}
+	probeClient := netguard.New(guardOpts...).HTTPClient(webhook.DefaultTimeout)
+
 	results := make([]webhook.ProbeResult, 0, len(sinks))
 	anyFail := false
 	for _, s := range sinks {
 		ctx, cancel := context.WithTimeout(context.Background(), webhook.DefaultTimeout+2*time.Second)
-		r := webhook.Probe(ctx, s, time.Now(), nil)
+		r := webhook.Probe(ctx, s, time.Now(), probeClient)
 		cancel()
 		results = append(results, r)
 		if !r.OK() {

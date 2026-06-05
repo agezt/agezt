@@ -52,6 +52,7 @@ import (
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/governor"
+	"github.com/agezt/agezt/kernel/netguard"
 	"github.com/agezt/agezt/kernel/openaiapi"
 	"github.com/agezt/agezt/kernel/plugin"
 	"github.com/agezt/agezt/kernel/pulse"
@@ -2118,8 +2119,28 @@ func buildWebhooks(ctx context.Context, k *kernelruntime.Kernel, stdout io.Write
 	if len(sinks) == 0 {
 		return ""
 	}
-	webhook.NewDispatcher(k.Bus(), sinks, stdout).Start(ctx)
-	return webhook.Describe(sinks)
+	// Egress guard (M416, SPEC-06): outbound webhook deliveries are subject to the
+	// same default-deny egress policy as the http/browser tools, so a configured
+	// sink cannot reach loopback / RFC1918 / the cloud-metadata endpoint. Operators
+	// who legitimately deliver to an internal sink opt the range back in.
+	var guardOpts []netguard.Option
+	egress := "guarded"
+	if os.Getenv(brand.EnvPrefix+"WEBHOOK_ALLOW_LOOPBACK") == "1" {
+		guardOpts = append(guardOpts, netguard.AllowLoopback())
+		egress = "loopback-ok"
+	}
+	if os.Getenv(brand.EnvPrefix+"WEBHOOK_ALLOW_PRIVATE") == "1" {
+		guardOpts = append(guardOpts, netguard.AllowPrivate())
+		if egress == "loopback-ok" {
+			egress = "loopback+private-ok"
+		} else {
+			egress = "private-ok"
+		}
+		fmt.Fprintln(stdout, "WARNING: AGEZT_WEBHOOK_ALLOW_PRIVATE=1 lets webhook sinks reach the private network.")
+	}
+	client := netguard.New(guardOpts...).HTTPClient(webhook.DefaultTimeout)
+	webhook.NewDispatcher(k.Bus(), sinks, stdout, webhook.WithClient(client)).Start(ctx)
+	return webhook.Describe(sinks) + " [egress=" + egress + "]"
 }
 
 // buildAnomaly starts the anomaly auto-halt circuit breaker (SPEC-06 §5). It

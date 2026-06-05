@@ -13,6 +13,9 @@ import (
 )
 
 func TestCmdWebhookTest_OKAndFail(t *testing.T) {
+	// The probe is egress-guarded (M416); these sinks are loopback httptest
+	// servers, so opt loopback in — exactly as an operator testing a local sink would.
+	t.Setenv(brand.EnvPrefix+"WEBHOOK_ALLOW_LOOPBACK", "1")
 	// A 2xx sink → exit 0.
 	good := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -57,6 +60,7 @@ func TestCmdWebhookTest_UsageErrors(t *testing.T) {
 }
 
 func TestCmdWebhookTest_FromEnv(t *testing.T) {
+	t.Setenv(brand.EnvPrefix+"WEBHOOK_ALLOW_LOOPBACK", "1") // loopback test sink (M416 egress guard)
 	good := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
