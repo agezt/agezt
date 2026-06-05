@@ -12,6 +12,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Reliability
+- **An empty catalog sync no longer wipes the working catalog.** A `catalog sync` that
+  fetched a syntactically valid but provider-less payload (`null` or `{}` — e.g. a
+  proxy/CDN returning HTTP 200) parsed without error and overwrote `api.json` with an
+  empty catalog, leaving the Governor with no models to route to (a self-inflicted
+  outage). Sync now treats a zero-provider result as a failure, so the prior catalog is
+  kept.
 - **The Forge skill lifecycle is concurrency-safe and revert respects the state
   machine.** Two fixes to the self-improvement engine: (1) it did its skill
   read-modify-writes as separate store calls with no lock, so concurrent runs (each

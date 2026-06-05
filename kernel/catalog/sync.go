@@ -95,6 +95,14 @@ func (s *Syncer) Sync(ctx context.Context) (raw []byte, cat *Catalog, res SyncRe
 	if err != nil {
 		return raw, nil, res, err
 	}
+	// A syntactically valid but empty payload (e.g. `null` or `{}` from a proxy/CDN
+	// returning 200) parses without error but carries zero providers. Treat that as a
+	// failure so the caller never overwrites a good api.json with an empty catalog —
+	// which would leave the Governor with no models to route to (a self-inflicted
+	// outage). Fail-safe: the prior catalog is kept (M425).
+	if len(cat.Providers) == 0 {
+		return raw, nil, res, fmt.Errorf("catalog: sync from %s returned no providers; refusing to overwrite the existing catalog", s.URL)
+	}
 	res.URL = s.URL
 	res.Bytes = len(raw)
 	res.ProviderCount = len(cat.Providers)
