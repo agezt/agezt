@@ -340,19 +340,51 @@ func sanitizeToolName(name string) string {
 	return b.String()
 }
 
-// reverseToolNames maps each tool's sanitized wire name back to its original.
-// Only names the sanitiser actually changes are included; nil when none change.
-func reverseToolNames(tools []agent.ToolDef) map[string]string {
-	var m map[string]string
+// wireToolNames computes the provider-facing ("wire") name for each tool, conformed
+// to OpenAI's ^[a-zA-Z0-9_-]+$ pattern, and guarantees the mapping is INJECTIVE:
+// when two distinct tool names sanitise to the same string (e.g. "browser.read" and
+// "browser_read" both → "browser_read"), the collision is broken with a
+// deterministic numeric suffix so no two tools are ever sent under the same wire
+// name. It returns fwd (original→wire, every tool) and rev (wire→original, only the
+// entries where wire differs from the original — an unchanged name routes to itself,
+// so it needs no reverse rewrite).
+//
+// Without this, reverseToolNames silently overwrote on collision (last writer wins,
+// non-deterministically by slice order) and encodeRequest shipped two function defs
+// with the SAME name; a provider tool_call could then route attacker- or
+// model-controlled arguments to the WRONG tool. The forward map is shared by both
+// encoders and the assistant-history replay so the wire names are consistent across
+// the whole request, and rev matches exactly what was sent.
+func wireToolNames(tools []agent.ToolDef) (fwd, rev map[string]string) {
+	fwd = make(map[string]string, len(tools))
+	used := make(map[string]bool, len(tools))
 	for _, t := range tools {
-		if s := sanitizeToolName(t.Name); s != t.Name {
-			if m == nil {
-				m = make(map[string]string, 2)
+		if _, dup := fwd[t.Name]; dup {
+			continue // duplicate tool name: one wire mapping is enough
+		}
+		base := sanitizeToolName(t.Name)
+		wire := base
+		for n := 2; used[wire]; n++ {
+			wire = base + "_" + strconv.Itoa(n)
+		}
+		used[wire] = true
+		fwd[t.Name] = wire
+		if wire != t.Name {
+			if rev == nil {
+				rev = make(map[string]string, 2)
 			}
-			m[s] = t.Name
+			rev[wire] = t.Name
 		}
 	}
-	return m
+	return fwd, rev
+}
+
+// reverseToolNames maps each tool's wire name back to its original (nil when none
+// differ). Derived from wireToolNames so it is collision-safe and matches exactly
+// the names encodeRequest/encodeStreamRequest put on the wire.
+func reverseToolNames(tools []agent.ToolDef) map[string]string {
+	_, rev := wireToolNames(tools)
+	return rev
 }
 
 // restoreToolCallNames rewrites a response's tool-call names from their sanitized
@@ -375,11 +407,12 @@ func encodeRequest(model, system string, msgs []agent.Message, tools []agent.Too
 		MaxTokens:      maxTok, // 0 → omitted via omitempty
 		ResponseFormat: jsonObjectFormat(jsonMode),
 	}
+	fwd, _ := wireToolNames(tools)
 	if strings.TrimSpace(system) != "" {
 		wire.Messages = append(wire.Messages, oaMessage{Role: "system", Content: system})
 	}
 	for _, m := range msgs {
-		om, err := canonicalToOA(m)
+		om, err := canonicalToOA(m, fwd)
 		if err != nil {
 			return nil, err
 		}
@@ -396,7 +429,7 @@ func encodeRequest(model, system string, msgs []agent.Message, tools []agent.Too
 		wire.Tools = append(wire.Tools, oaTool{
 			Type: "function",
 			Function: oaToolFnDef{
-				Name:        sanitizeToolName(t.Name),
+				Name:        fwd[t.Name],
 				Description: t.Description,
 				Parameters:  params,
 			},
@@ -407,8 +440,11 @@ func encodeRequest(model, system string, msgs []agent.Message, tools []agent.Too
 
 // canonicalToOA converts one canonical Message into one OpenAI Chat
 // Completions message. Returns (nil, nil) when the system message has
-// already been folded in via CompletionRequest.System.
-func canonicalToOA(m agent.Message) (*oaMessage, error) {
+// already been folded in via CompletionRequest.System. fwd maps original tool
+// names to their wire names so an assistant turn's replayed tool calls carry the
+// SAME (collision-safe) names as the current tool definitions; a name absent from
+// fwd (a tool no longer offered) falls back to a plain sanitisation.
+func canonicalToOA(m agent.Message, fwd map[string]string) (*oaMessage, error) {
 	switch m.Role {
 	case agent.RoleSystem:
 		// System is set once via CompletionRequest.System; per-message
@@ -448,11 +484,15 @@ func canonicalToOA(m agent.Message) (*oaMessage, error) {
 			}
 			// OpenAI expects arguments as a JSON-encoded *string*, not
 			// a nested object. We already have valid JSON bytes; cast.
+			name := sanitizeToolName(tc.Name)
+			if w, ok := fwd[tc.Name]; ok {
+				name = w
+			}
 			om.ToolCalls = append(om.ToolCalls, oaToolCall{
 				ID:   tc.ID,
 				Type: "function",
 				Function: oaToolCallFn{
-					Name:      sanitizeToolName(tc.Name),
+					Name:      name,
 					Arguments: string(args),
 				},
 			})

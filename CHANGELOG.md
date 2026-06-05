@@ -62,6 +62,17 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   with it. One malformed/edge-case request is contained to its own connection.
 
 ### Security
+- **OpenAI tool-name sanitisation can no longer misroute a tool call.** Dotted tool
+  names (`browser.read`) are sanitised to OpenAI's `^[a-zA-Z0-9_-]+$` pattern on the
+  wire, but the sanitiser is many-to-one — `browser.read` and `browser_read` both
+  became `browser_read`. The reverse map was built last-writer-wins, so two colliding
+  tools were sent under one (duplicate) function name and a returned `tool_call`
+  routed back to whichever tool overwrote the map — non-deterministically by slice
+  order, running model- or attacker-controlled arguments against the **wrong** tool.
+  Wire names are now computed by an injective mapping (deterministic numeric suffix on
+  collision), shared by the streaming and non-streaming encoders and the
+  assistant-history replay, so the reverse map is exact and every tool is sent under a
+  distinct, valid name.
 - **Fork-bomb hard-deny no longer evades on whitespace.** The Edict hard-deny
   floor (immutable, not raisable by trust level) stored the fork bomb as the
   no-space form `:(){:|:&};:`, but the matcher only collapsed whitespace *runs*

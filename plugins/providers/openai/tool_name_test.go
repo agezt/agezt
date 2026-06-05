@@ -46,6 +46,47 @@ func TestEncodeRequestSanitizesToolNames(t *testing.T) {
 	}
 }
 
+// Two distinct tool names that sanitise to the SAME wire name must get distinct
+// wire names (injective mapping), so a returned tool_call routes back to the right
+// tool instead of being silently misrouted to whichever overwrote the reverse map
+// (M415). "browser.read" and "browser_read" both naively → "browser_read".
+func TestWireToolNames_CollisionIsInjective(t *testing.T) {
+	tools := []agent.ToolDef{{Name: "browser.read"}, {Name: "browser_read"}}
+	fwd, rev := wireToolNames(tools)
+
+	// Forward map must be injective: the two tools get different wire names.
+	if fwd["browser.read"] == fwd["browser_read"] {
+		t.Fatalf("collision not broken: both → %q", fwd["browser.read"])
+	}
+	// Every wire name must be a valid OpenAI tool name.
+	for orig, wire := range fwd {
+		if sanitizeToolName(wire) != wire {
+			t.Errorf("wire name %q (for %q) is not OpenAI-valid", wire, orig)
+		}
+	}
+	// Round-trip: a tool_call returned under each wire name maps back to its
+	// own original — never the other tool.
+	for orig, wire := range fwd {
+		got := orig
+		if o, ok := rev[wire]; ok {
+			got = o
+		}
+		if got != orig {
+			t.Errorf("round-trip %q→%q→%q lost identity", orig, wire, got)
+		}
+	}
+
+	// The encoded request must carry two DISTINCT function names (a duplicate
+	// name is itself an invalid request to strict gateways).
+	body, err := encodeRequest("m", "", nil, tools, 0, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n := strings.Count(string(body), `"browser_read"`); n != 1 {
+		t.Errorf("expected exactly one bare \"browser_read\" wire name, got %d: %s", n, body)
+	}
+}
+
 // A tool_call the model returns under the sanitised name is mapped back to the
 // original, so the kernel routes it to the real tool.
 func TestRestoreToolCallNames(t *testing.T) {

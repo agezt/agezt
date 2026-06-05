@@ -127,11 +127,12 @@ func encodeStreamRequest(model, system string, msgs []agent.Message, tools []age
 		StreamOptions:  &streamOptions{IncludeUsage: true},
 		ResponseFormat: jsonObjectFormat(jsonMode),
 	}
+	fwd, _ := wireToolNames(tools)
 	if strings.TrimSpace(system) != "" {
 		wire.Messages = append(wire.Messages, oaMessage{Role: "system", Content: system})
 	}
 	for _, m := range msgs {
-		om, err := canonicalToOA(m)
+		om, err := canonicalToOA(m, fwd)
 		if err != nil {
 			return nil, err
 		}
@@ -148,7 +149,7 @@ func encodeStreamRequest(model, system string, msgs []agent.Message, tools []age
 		wire.Tools = append(wire.Tools, oaTool{
 			Type: "function",
 			Function: oaToolFnDef{
-				Name:        sanitizeToolName(t.Name),
+				Name:        fwd[t.Name],
 				Description: t.Description,
 				Parameters:  params,
 			},
