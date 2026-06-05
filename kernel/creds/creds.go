@@ -187,17 +187,40 @@ func (s *Store) Save() error {
 		raw = out
 	}
 
-	tmp := s.Path + ".tmp"
-	if err := os.WriteFile(tmp, raw, 0600); err != nil {
+	return atomicWriteVault(s.Path, raw)
+}
+
+// atomicWriteVault writes data to path atomically: a UNIQUE temp file in the same
+// directory (os.CreateTemp), fsynced, then renamed over path and forced to 0600.
+// A unique temp name — rather than a fixed "<path>.tmp" — so two concurrent Save()
+// calls (both holding only the read lock) can't race on the same temp file and
+// corrupt each other's write (M471). 0600 is re-applied because rename can widen
+// perms (Windows ignores Unix mode bits).
+func atomicWriteVault(path string, data []byte) error {
+	tmp, err := os.CreateTemp(filepath.Dir(path), ".creds-*.tmp")
+	if err != nil {
 		return fmt.Errorf("creds: write tmp: %w", err)
 	}
-	if err := os.Rename(tmp, s.Path); err != nil {
-		_ = os.Remove(tmp)
+	tmpName := tmp.Name()
+	defer os.Remove(tmpName) // no-op once the rename has moved it
+	if _, err := tmp.Write(data); err != nil {
+		_ = tmp.Close()
+		return fmt.Errorf("creds: write tmp: %w", err)
+	}
+	if err := tmp.Sync(); err != nil {
+		_ = tmp.Close()
+		return fmt.Errorf("creds: sync tmp: %w", err)
+	}
+	if err := tmp.Close(); err != nil {
+		return fmt.Errorf("creds: close tmp: %w", err)
+	}
+	if err := os.Chmod(tmpName, 0600); err != nil {
+		return fmt.Errorf("creds: chmod tmp: %w", err)
+	}
+	if err := os.Rename(tmpName, path); err != nil {
 		return fmt.Errorf("creds: rename: %w", err)
 	}
-	// Re-apply 0600 in case umask or platform-default opened it wider
-	// on rename (Windows in particular ignores Unix mode bits).
-	_ = os.Chmod(s.Path, 0600)
+	_ = os.Chmod(path, 0600)
 	return nil
 }
 
@@ -247,15 +270,9 @@ func (s *Store) Rotate(newPassphrase string) error {
 	if err != nil {
 		return fmt.Errorf("creds: rotate encrypt: %w", err)
 	}
-	tmp := s.Path + ".tmp"
-	if err := os.WriteFile(tmp, raw, 0600); err != nil {
-		return fmt.Errorf("creds: rotate write tmp: %w", err)
+	if err := atomicWriteVault(s.Path, raw); err != nil {
+		return fmt.Errorf("creds: rotate: %w", err)
 	}
-	if err := os.Rename(tmp, s.Path); err != nil {
-		_ = os.Remove(tmp)
-		return fmt.Errorf("creds: rotate rename: %w", err)
-	}
-	_ = os.Chmod(s.Path, 0600)
 	// In-memory passphrase function now points at the new value so
 	// subsequent Save() calls don't need the env var updated.
 	s.passphraseFn = func() string { return newPassphrase }

@@ -34,6 +34,10 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   those operators. The query is now built with `url.Values`. (M466)
 
 ### Reliability
+- **The credentials vault writes via a unique temp file.** `Save`/`Rotate` used a
+  fixed `creds.json.tmp`; two concurrent `Save` calls (both under the read lock)
+  could race on it and leave a torn, unloadable vault. Both now write to a unique
+  temp (and fsync) before renaming. (M471)
 - **The file tool's truncated read fills the preview and reports read errors.** The
   "first N bytes" preview of a large file used a single `Read`, which may return
   fewer bytes than requested, so the model could get a short prefix while the header
