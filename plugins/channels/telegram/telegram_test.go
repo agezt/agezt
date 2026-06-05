@@ -247,3 +247,24 @@ func TestTelegram_TransportErrorsRedactToken(t *testing.T) {
 		t.Errorf("expected the token to be redacted in the error, got: %q", sendErr.Error())
 	}
 }
+
+// TestGetUpdates_CapsOversizedResponse: a getUpdates response larger than
+// tgAPIMaxResponseBytes is truncated by the io.LimitReader so the JSON decode
+// fails (returns an error) instead of buffering an unbounded body — a buggy,
+// compromised, or MITM'd Bot API endpoint can't OOM the daemon's long-poll loop.
+func TestGetUpdates_CapsOversizedResponse(t *testing.T) {
+	// A valid-prefix JSON whose total size exceeds the cap: an 8 MiB string field
+	// makes the body run past tgAPIMaxResponseBytes, so the capped reader returns
+	// a truncated (unterminated) JSON and Decode errors.
+	big := strings.Repeat("A", tgAPIMaxResponseBytes)
+	body := `{"ok":true,"result":[{"update_id":1,"message":{"message_id":1,"text":"` + big + `"}}]}`
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = io.WriteString(w, body)
+	}))
+	defer srv.Close()
+
+	c := New(Config{Token: "T", BaseURL: srv.URL, HTTPClient: srv.Client()})
+	if _, err := c.getUpdates(context.Background()); err == nil {
+		t.Fatal("getUpdates accepted an over-cap response — the body is not size-bounded")
+	}
+}

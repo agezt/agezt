@@ -205,6 +205,11 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   with it. One malformed/edge-case request is contained to its own connection.
 
 ### Security
+- **Telegram Bot API responses are size-capped.** `getUpdates` and `getFile`
+  decoded the response body with no bound, so a buggy/compromised/MITM'd Bot API
+  endpoint could stream an unbounded body and OOM the long-poll loop — the one HTTP
+  response class in the tree without the size cap the rest uniformly applies. Both
+  now decode through an 8 MiB `io.LimitReader`. (M441)
 - **The file tool opens its write paths with O_NOFOLLOW (Unix).** `resolve()`
   rejects out-of-root symlink targets, but for a not-yet-existing file there was a
   narrow TOCTOU between the check and the `O_CREATE` open: a concurrent writer could

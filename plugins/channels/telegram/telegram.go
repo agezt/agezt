@@ -37,6 +37,13 @@ import (
 // DefaultBaseURL is the public Bot API root.
 const DefaultBaseURL = "https://api.telegram.org"
 
+// tgAPIMaxResponseBytes bounds a Telegram Bot API JSON response (getUpdates /
+// getFile) so a buggy, compromised, or MITM'd endpoint can't stream an unbounded
+// body and OOM the daemon. 8 MiB is far above any legitimate getUpdates batch.
+// Mirrors the size cap every other HTTP response in the tree already carries; the
+// photo download has its own (tgPhotoMaxRaw).
+const tgAPIMaxResponseBytes = 8 << 20
+
 // Config constructs a Channel.
 type Config struct {
 	Token           string
@@ -193,7 +200,7 @@ func (c *Channel) getUpdates(ctx context.Context) ([]tgUpdate, error) {
 	}
 	defer resp.Body.Close()
 	var out getUpdatesResp
-	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+	if err := json.NewDecoder(io.LimitReader(resp.Body, tgAPIMaxResponseBytes)).Decode(&out); err != nil {
 		return nil, err
 	}
 	if !out.OK {
@@ -288,7 +295,7 @@ func (c *Channel) fetchPhotoDataURL(ctx context.Context, fileID string) (string,
 		if resp.StatusCode/100 != 2 {
 			return fmt.Errorf("telegram getFile: status %d", resp.StatusCode)
 		}
-		return json.NewDecoder(resp.Body).Decode(&gfResp)
+		return json.NewDecoder(io.LimitReader(resp.Body, tgAPIMaxResponseBytes)).Decode(&gfResp)
 	}(); err != nil {
 		return "", err
 	}
