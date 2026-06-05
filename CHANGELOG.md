@@ -63,6 +63,10 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   messages with a caption or photo. (M476)
 
 ### Reliability
+- **Bedrock-Mistral responses are always tagged with the assistant role.** The
+  adapter copied the role from the wire, but OpenAI-shaped backends often omit it,
+  leaving the canonical role empty and misclassifying the turn. It now hard-codes the
+  assistant role like every sibling adapter. (M484)
 - **An event copies a `json.RawMessage` payload instead of aliasing the caller's
   bytes.** The stored payload shared backing storage with the caller's slice, so a
   later mutation of that slice could silently diverge the payload from the hash
