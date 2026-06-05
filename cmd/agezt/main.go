@@ -832,11 +832,6 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// On by default; AGEZT_ANOMALY_MAX_TOOLCALLS=0 disables.
 	fmt.Fprintf(stdout, "  anomaly halt     : %s\n", buildAnomaly(ctx, k, stdout))
 
-	// Chronos standing-order event-trigger runner (SPEC-16 §4): fires an order's
-	// plan when a journal event matches its event trigger. Cron triggers reuse the
-	// schedule engine. Always on (inert until orders with event triggers exist).
-	fmt.Fprintf(stdout, "  standing orders  : %s\n", buildStandingRunner(ctx, k))
-
 	// draining flips true at shutdown so /readyz reports not-ready and the daemon
 	// drains in-flight runs before exiting (M136). Shared with buildRESTAPI's
 	// readiness probe; an atomic so the shutdown goroutine and the HTTP handler
@@ -936,6 +931,29 @@ func runDaemon(stdout, stderr io.Writer) int {
 	} else {
 		fmt.Fprintf(stdout, "  schedule         : disabled (set AGEZT_SCHEDULE, e.g. \"1h=summarise new commits\")\n")
 	}
+
+	// Chronos standing-order runner (SPEC-16 §4): fires an order's plan on its
+	// event/cron triggers, bounded by its budget + trust ceiling, then briefs the
+	// result to the order's configured channel. Wired here (after channelSend +
+	// notifyTargets) so briefing can reuse the channel allowlists + sender.
+	// briefTargets is the recipient allowlist per channel kind for standing-order
+	// briefings: the notify channels (telegram/slack/discord) plus the outbound
+	// webhook's allowlist, so an order's `--channel webhook` reaches it too.
+	briefTargets := map[string][]string{}
+	for kind, ids := range notifyTargets {
+		briefTargets[kind] = ids
+	}
+	if _, ok := liveChannels["webhook"]; ok {
+		if wh := splitNonEmpty(os.Getenv(brand.EnvPrefix + "WEBHOOK_CHANNELS")); len(wh) > 0 {
+			briefTargets["webhook"] = wh
+		}
+	}
+	standingBrief := func(bctx context.Context, kind, text string) {
+		for _, recip := range briefTargets[kind] {
+			_ = channelSend(bctx, kind, recip, text)
+		}
+	}
+	fmt.Fprintf(stdout, "  standing orders  : %s\n", buildStandingRunner(ctx, k, standingBrief))
 
 	fmt.Fprintf(stdout, "  client commands  : %s run | halt | resume | why <id> | journal verify\n", brand.CLI)
 	fmt.Fprintf(stdout, "Press Ctrl+C to stop.\n")
@@ -2139,7 +2157,7 @@ func buildAnomaly(ctx context.Context, k *kernelruntime.Kernel, stdout io.Writer
 // a journal event matches an enabled order's event trigger, the order's plan is
 // launched as a run (bounded by its budget ceiling) and a standing.fired event is
 // journaled. Cron triggers are handled by the schedule engine, not here.
-func buildStandingRunner(ctx context.Context, k *kernelruntime.Kernel) string {
+func buildStandingRunner(ctx context.Context, k *kernelruntime.Kernel, brief func(ctx context.Context, kind, text string)) string {
 	fire := func(fctx context.Context, o standing.Order, subject string) {
 		corr := k.NewCorrelation()
 		intent := strings.TrimSpace(o.Plan)
@@ -2162,7 +2180,11 @@ func buildStandingRunner(ctx context.Context, k *kernelruntime.Kernel) string {
 		if lvl, perr := edict.ParseTrustLevel(o.Initiative.MaxTrust); perr == nil {
 			rctx = kernelruntime.WithTrustCeiling(rctx, lvl)
 		}
-		_, _ = k.RunWith(rctx, corr, intent)
+		answer, _ := k.RunWith(rctx, corr, intent)
+		// Brief the result to the order's configured channel (SPEC-16 §4 briefing).
+		if text, ok := standing.BriefText(o, answer); ok && brief != nil {
+			brief(fctx, o.BriefingChan, text)
+		}
 	}
 	evOK := standing.StartRunner(ctx, k.Bus(), k.Standing(), standing.RunnerConfig{}, fire)
 	cronOK := standing.StartCron(ctx, k.Standing(), nil, fire)

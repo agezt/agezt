@@ -90,6 +90,18 @@ func StartRunner(ctx context.Context, b *bus.Bus, store *Store, cfg RunnerConfig
 	return true
 }
 
+// BriefText formats the briefing an order sends after a run, and reports whether
+// a briefing should be sent at all (SPEC-16 §4). A briefing is sent only when the
+// order names a channel AND the run produced a non-empty answer — an empty result
+// is nothing to report. The text is prefixed with the order name so the operator
+// knows which standing goal spoke.
+func BriefText(o Order, answer string) (text string, ok bool) {
+	if strings.TrimSpace(o.BriefingChan) == "" || strings.TrimSpace(answer) == "" {
+		return "", false
+	}
+	return "[standing: " + o.Name + "]\n" + answer, true
+}
+
 // matchesAnyEventTrigger reports whether subject matches any of the order's event
 // triggers (NATS-style wildcards). Cron triggers are ignored here.
 func matchesAnyEventTrigger(o Order, subject string) bool {

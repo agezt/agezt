@@ -102,6 +102,11 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   valid UTF-8. (The journal's own answer truncation was already rune-safe.)
 
 ### Added
+- **Standing orders brief their result to a channel.** When a standing order
+  fires and its run produces an answer, the result is delivered to the order's
+  configured `--channel` (telegram/slack/discord/webhook), prefixed with the
+  order name, reusing the same channel allowlists + sender as scheduled-run
+  notifications (SPEC-16 §4). No channel, or an empty answer, sends nothing.
 - **Standing orders enforce their `max_trust` initiative ceiling.** A standing
   order with `--max-trust L2` now caps autonomous action within its runs: a
   capability that would normally auto-allow (L4) is clamped down to Ask — or, at

@@ -54,6 +54,23 @@ func waitFor(t *testing.T, cond func() bool) bool {
 	return false
 }
 
+// TestBriefText: a briefing is produced only when the order names a channel AND
+// the run produced a non-empty answer; the text is prefixed with the order name.
+func TestBriefText(t *testing.T) {
+	withChan := standing.Order{Name: "morning brief", BriefingChan: "webhook"}
+	if text, ok := standing.BriefText(withChan, "all green"); !ok || text != "[standing: morning brief]\nall green" {
+		t.Errorf("BriefText = %q, %v; want the prefixed text + true", text, ok)
+	}
+	// No channel → no briefing.
+	if _, ok := standing.BriefText(standing.Order{Name: "x"}, "answer"); ok {
+		t.Error("no channel should yield no briefing")
+	}
+	// Empty answer → no briefing (nothing to report).
+	if _, ok := standing.BriefText(withChan, "   "); ok {
+		t.Error("empty answer should yield no briefing")
+	}
+}
+
 // TestRunner_FiresOnMatchingEvent: an enabled event-triggered order fires when a
 // matching event is published; a non-matching event does not.
 func TestRunner_FiresOnMatchingEvent(t *testing.T) {
