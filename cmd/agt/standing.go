@@ -44,7 +44,7 @@ func standingUsage(w io.Writer) int {
 	fmt.Fprintf(w, "usage: %s standing <list|add|pause|resume|remove>\n", brand.CLI)
 	fmt.Fprintf(w, "  list [--json]                                  show standing orders\n")
 	fmt.Fprintf(w, "  add --name N (--cron \"SCHED\" | --event SUBJ) [--plan TEXT]\n")
-	fmt.Fprintf(w, "      [--mode inform_only|ask|act_or_ask] [--max-trust L0..L4] [--channel C]\n")
+	fmt.Fprintf(w, "      [--mode inform_only|ask|act_or_ask] [--max-trust L0..L4] [--budget USD] [--channel C]\n")
 	fmt.Fprintf(w, "  pause <id>                                     disable an order\n")
 	fmt.Fprintf(w, "  resume <id>                                    re-enable an order\n")
 	fmt.Fprintf(w, "  remove <id>                                    delete an order\n")
@@ -171,13 +171,18 @@ func initiativeMode(o map[string]any) string {
 }
 
 func cmdStandingAdd(args []string, stdout, stderr io.Writer) int {
-	var name, cron, event, plan, mode, maxTrust, channel string
+	var name, cron, event, plan, mode, maxTrust, channel, budget string
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
 		case "--name":
 			i++
 			if i < len(args) {
 				name = args[i]
+			}
+		case "--budget":
+			i++
+			if i < len(args) {
+				budget = args[i]
 			}
 		case "--cron":
 			i++
@@ -225,12 +230,32 @@ func cmdStandingAdd(args []string, stdout, stderr io.Writer) int {
 	if event != "" {
 		triggers = append(triggers, map[string]any{"type": "event", "subject": event})
 	}
+	var budgetMc int64
+	if budget != "" {
+		mc, berr := usdToMicrocents(budget)
+		if berr != nil {
+			fmt.Fprintf(stderr, "%s standing add: --budget: %v\n", brand.CLI, berr)
+			return 2
+		}
+		budgetMc = mc
+	}
+
 	order := map[string]any{"name": name, "triggers": triggers}
 	if plan != "" {
 		order["plan"] = plan
 	}
-	if mode != "" || maxTrust != "" {
-		order["initiative"] = map[string]any{"mode": mode, "max_trust": maxTrust}
+	if mode != "" || maxTrust != "" || budgetMc > 0 {
+		ini := map[string]any{}
+		if mode != "" {
+			ini["mode"] = mode
+		}
+		if maxTrust != "" {
+			ini["max_trust"] = maxTrust
+		}
+		if budgetMc > 0 {
+			ini["budget_per_run_mc"] = budgetMc
+		}
+		order["initiative"] = ini
 	}
 	if channel != "" {
 		order["briefing_channel"] = channel

@@ -88,6 +88,33 @@ func TestStore_PauseResumeRemove(t *testing.T) {
 	}
 }
 
+// TestStore_PreservesInitiative: the initiative ceiling (mode, max_trust, budget)
+// round-trips through Add → Get → reopen, so the budget cap M404 enforces is
+// actually persisted from what the operator set.
+func TestStore_PreservesInitiative(t *testing.T) {
+	dir := t.TempDir()
+	s1, _ := Open(dir)
+	o, err := s1.Add(Order{
+		Name:       "capped",
+		Triggers:   []Trigger{{Type: TriggerCron, Schedule: "0 8 * * *"}},
+		Initiative: Initiative{Mode: InitiativeActOrAsk, MaxTrust: "L2", BudgetPerRunMc: 1_000_000_000},
+	})
+	if err != nil {
+		t.Fatalf("Add: %v", err)
+	}
+	s2, _ := Open(dir)
+	got, ok := s2.Get(o.ID)
+	if !ok {
+		t.Fatal("order did not persist")
+	}
+	if got.Initiative.BudgetPerRunMc != 1_000_000_000 {
+		t.Errorf("budget = %d, want 1e9 microcents ($1)", got.Initiative.BudgetPerRunMc)
+	}
+	if got.Initiative.MaxTrust != "L2" || got.Initiative.Mode != InitiativeActOrAsk {
+		t.Errorf("initiative mode/trust not preserved: %+v", got.Initiative)
+	}
+}
+
 // TestStore_Persists: orders survive a reopen (durable JSON file).
 func TestStore_Persists(t *testing.T) {
 	dir := t.TempDir()

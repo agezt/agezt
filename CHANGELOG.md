@@ -102,6 +102,10 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   valid UTF-8. (The journal's own answer truncation was already rune-safe.)
 
 ### Added
+- **`agt standing add --budget <USD>` caps a standing order's per-run spend.**
+  The per-run cost ceiling (enforced when an order fires) is now settable from the
+  CLI — e.g. `--budget 0.50` — closing the gap where the ceiling was enforced but
+  had no way to be configured (SPEC-16 §4 initiative.budget_per_run).
 - **Standing orders brief their result to a channel.** When a standing order
   fires and its run produces an answer, the result is delivered to the order's
   configured `--channel` (telegram/slack/discord/webhook), prefixed with the
