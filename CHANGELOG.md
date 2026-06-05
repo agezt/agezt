@@ -12,6 +12,14 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Reliability
+- **A hung scheduled run can no longer permanently stall its schedule.** Cadence
+  guards against overlapping runs with an in-flight marker cleared when the firing
+  returns — but the firing had no deadline, so a run that hung (a wedged provider/
+  tool ignoring its own bounds) left the marker set forever and that schedule never
+  fired again, silently, until a restart. Each firing now carries a backstop
+  deadline (default 1 h, `AGEZT_SCHEDULE_RUN_TIMEOUT` to override; `0`/`off`
+  disables): a ctx-respecting run is cancelled at the deadline, the marker clears,
+  and the schedule recovers on its next slot. (M438)
 - **The daemon honors a cgroup CPU quota (GOMAXPROCS auto-adapts).** The Go runtime
   is not cgroup-aware, so inside a `--cpus`-limited container or a constrained host
   it defaulted `GOMAXPROCS` to the number of *host* cores and over-scheduled against

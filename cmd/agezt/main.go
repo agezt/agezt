@@ -2359,7 +2359,20 @@ func buildCadence(ctx context.Context, k *kernelruntime.Kernel, stdout io.Writer
 		}
 		return err
 	}
-	cadence.NewEngine(store, run, 0, stdout).Start(ctx)
+	eng := cadence.NewEngine(store, run, 0, stdout)
+	// Backstop each firing with a deadline so a single hung run can't permanently
+	// stall its schedule (its in-flight guard would never clear). Default 1h is
+	// generous for any reasonable agentic run; AGEZT_SCHEDULE_RUN_TIMEOUT overrides
+	// (a value of 0/"off" disables the backstop). Must be set before Start.
+	eng.RunTimeout = time.Hour
+	if v := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "SCHEDULE_RUN_TIMEOUT")); v != "" {
+		if strings.EqualFold(v, "off") || v == "0" {
+			eng.RunTimeout = 0
+		} else if d, err := time.ParseDuration(v); err == nil && d > 0 {
+			eng.RunTimeout = d
+		}
+	}
+	eng.Start(ctx)
 
 	entries := store.List()
 	if len(entries) == 0 {

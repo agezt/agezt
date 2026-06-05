@@ -863,6 +863,15 @@ type Engine struct {
 	res   time.Duration
 	log   io.Writer
 
+	// RunTimeout is a backstop deadline applied to each firing's RunFunc context.
+	// Zero means no deadline (the historical behavior). Without it, a single run
+	// that hangs (a wedged provider/tool that ignores its own bounds) never lets
+	// fireOne return, so its in-flight guard in `running` is never cleared and that
+	// entry NEVER fires again — a silent, permanent stall of one schedule. With it
+	// set, a ctx-respecting run is cancelled at the deadline, fireOne returns, the
+	// guard clears, and the schedule recovers on its next slot. Set before Start.
+	RunTimeout time.Duration
+
 	running sync.Map // entry ID -> struct{} while a run is in flight
 	mu      sync.Mutex
 	started bool
@@ -933,7 +942,13 @@ func (e *Engine) fireOne(ctx context.Context, ent Entry) {
 		}
 	}()
 	fmt.Fprintf(e.log, "schedule: firing %q (%s)\n", short(ent.Intent), ent.Cadence())
-	if err := e.run(ctx, ent.ID, ent.Intent, ent.Model); err != nil {
+	runCtx := ctx
+	if e.RunTimeout > 0 {
+		var cancel context.CancelFunc
+		runCtx, cancel = context.WithTimeout(ctx, e.RunTimeout)
+		defer cancel()
+	}
+	if err := e.run(runCtx, ent.ID, ent.Intent, ent.Model); err != nil {
 		fmt.Fprintf(e.log, "schedule: %q failed: %v\n", short(ent.Intent), err)
 	}
 	// A one-shot is removed only after its run completes, so a crash mid-run leaves

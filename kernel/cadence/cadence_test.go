@@ -209,6 +209,45 @@ func TestEngine_FireOne_ContainsPanic(t *testing.T) {
 	}
 }
 
+func TestEngine_RunTimeoutClearsInflightGuard(t *testing.T) {
+	s := mustStore(t)
+	base := time.Date(2026, 5, 30, 0, 0, 0, 0, time.UTC)
+	if _, err := s.Add("hangs", time.Hour, "", SourceOperator, base); err != nil {
+		t.Fatal(err)
+	}
+	due := s.Due(base.Add(time.Hour + time.Second))
+	if len(due) != 1 {
+		t.Fatalf("expected 1 due entry, got %d", len(due))
+	}
+
+	// A ctx-respecting run that would otherwise block ~forever. The RunTimeout
+	// backstop must cancel its context so fireOne returns and clears the guard —
+	// otherwise this schedule would be permanently stalled (its ID stays in
+	// `running` and no later tick can re-fire it).
+	ran := make(chan struct{})
+	e := NewEngine(s, func(ctx context.Context, id, intent, model string) error {
+		close(ran)
+		<-ctx.Done() // respects cancellation; without a deadline, hangs
+		return ctx.Err()
+	}, 0, nil)
+	e.RunTimeout = 50 * time.Millisecond
+	e.running.Store(due[0].ID, struct{}{}) // as fireDue's LoadOrStore would
+
+	done := make(chan struct{})
+	go func() { e.fireOne(context.Background(), due[0]); close(done) }()
+
+	<-ran
+	select {
+	case <-done:
+		// fireOne returned — the backstop bounded the hung run.
+	case <-time.After(5 * time.Second):
+		t.Fatal("fireOne did not return — RunTimeout failed to bound a hung run")
+	}
+	if _, busy := e.running.Load(due[0].ID); busy {
+		t.Error("in-flight guard not cleared after the run timed out (schedule would wedge)")
+	}
+}
+
 func TestEngine_FireDue_FiresAndSkipsOverlap(t *testing.T) {
 	s := mustStore(t)
 	base := time.Date(2026, 5, 30, 0, 0, 0, 0, time.UTC)
