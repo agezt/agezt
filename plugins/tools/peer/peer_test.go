@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
 func invoke(t *testing.T, tool *Tool, input map[string]string) (string, bool) {
@@ -183,5 +184,23 @@ func TestDescribe_RedactsToken(t *testing.T) {
 	}
 	if !strings.Contains(out, "(token)") {
 		t.Errorf("token-authed peer should be marked: %s", out)
+	}
+}
+
+func TestTruncate_RuneSafeAtByteBoundary(t *testing.T) {
+	// Pad so byte index `max` lands in the middle of a 2-byte rune: (max-1) ASCII
+	// bytes then "ş" (U+015F = C5 9F); byte `max` is the 0x9F continuation byte. A
+	// raw s[:max] would leave a lone C5 (invalid UTF-8).
+	const max = 16
+	in := strings.Repeat("a", max-1) + "ş" + strings.Repeat("b", 10)
+	got := truncate(in, max)
+	if !utf8.ValidString(got) {
+		t.Fatalf("truncate produced invalid UTF-8 at a rune boundary: %q", got)
+	}
+	if strings.ContainsRune(got, '�') {
+		t.Errorf("truncated output contains the replacement char (split rune): %q", got)
+	}
+	if !strings.HasPrefix(got, strings.Repeat("a", max-1)+"\n… [truncated") {
+		t.Errorf("unexpected truncation result: %q", got)
 	}
 }

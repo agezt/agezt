@@ -23,6 +23,10 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   remembered window with memory still bounded at 2×cap. (M457)
 
 ### Fixed
+- **The peer tool truncates long answers on a UTF-8 rune boundary.** A peer answer
+  over the size cap was cut at a raw byte offset, splitting a multi-byte rune and
+  emitting invalid UTF-8 to the model. It now backs up to a rune boundary, matching
+  the browser and coding tools. (M468)
 - **SSO credential requests now URL-escape the role name and account id.** The SSO
   `GetRoleCredentials` query was built by raw string concatenation, so a role name
   containing characters that are valid in IAM but special in a URL query (e.g. `+`,
