@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/agezt/agezt/kernel/catalog"
@@ -559,5 +560,52 @@ func TestFamilySupportsNativeJSONMode(t *testing.T) {
 		if catalog.FamilySupportsNativeJSONMode(f) {
 			t.Errorf("family %q should NOT report native JSON mode", f)
 		}
+	}
+}
+
+// TestStore_MetaSaveUsesUniqueTemp pins the M478 unique-temp fix: a catalog write
+// must not depend on a fixed "<file>.tmp" name (two concurrent writes to one target
+// raced on it). Occupying the old fixed temp path with a directory would break a
+// fixed-name write; a unique name is unaffected.
+func TestStore_MetaSaveUsesUniqueTemp(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// Occupy the OLD fixed temp path for meta.json.
+	if err := os.Mkdir(filepath.Join(dir, "meta.json.tmp"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	s := catalog.NewStore(dir)
+	if err := s.SaveMeta(catalog.Meta{APISourceURL: "u"}); err != nil {
+		t.Fatalf("SaveMeta must not depend on the fixed <file>.tmp name: %v", err)
+	}
+	if m, _ := s.LoadMeta(); m.APISourceURL != "u" {
+		t.Errorf("meta round-trip failed: %q", m.APISourceURL)
+	}
+}
+
+// TestStore_ConcurrentSaveNoLostMetaField pins the M478 lost-update fix: a concurrent
+// SaveAPI + SaveLocal (disjoint meta fields) must preserve BOTH. The serialized
+// read-modify-write guarantees it; the old unsynchronized RMW could clobber one.
+func TestStore_ConcurrentSaveNoLostMetaField(t *testing.T) {
+	dir := t.TempDir()
+	s := catalog.NewStore(dir)
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() { defer wg.Done(); _ = s.SaveAPI([]byte(fixtureAPI), "api-source") }()
+	go func() { defer wg.Done(); _ = s.SaveLocal(catalog.NewEmpty(), "local-source") }()
+	wg.Wait()
+
+	m, err := s.LoadMeta()
+	if err != nil {
+		t.Fatalf("LoadMeta: %v", err)
+	}
+	if m.APISourceURL != "api-source" {
+		t.Errorf("API source lost by concurrent meta update: %q", m.APISourceURL)
+	}
+	if m.LocalSource != "local-source" {
+		t.Errorf("Local source lost by concurrent meta update: %q", m.LocalSource)
 	}
 }

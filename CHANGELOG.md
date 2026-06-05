@@ -49,6 +49,11 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   messages with a caption or photo. (M476)
 
 ### Reliability
+- **Concurrent catalog sync + discover no longer lose each other's metadata.** The
+  `meta.json` sidecar was updated with an unsynchronized read-modify-write and a
+  shared temp file, so a concurrent `catalog sync` + `catalog discover` could clobber
+  one side's timestamps/source. Meta updates are now serialized and each catalog file
+  is written via a unique temp. (M478)
 - **`Kernel.Close()` closes every store even if one fails.** It returned on the
   first store-close error, leaking the remaining handles — notably the journal's OS
   file descriptor, which on Windows blocks re-opening the directory. It now closes

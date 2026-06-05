@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 )
 
@@ -35,6 +36,11 @@ type Meta struct {
 // Store is the on-disk catalog directory.
 type Store struct {
 	Dir string
+	// metaMu serializes the read-modify-write of meta.json. SaveAPI and SaveLocal
+	// each load meta, mutate disjoint fields, and save; the control plane runs them
+	// in separate goroutines, so without serialization a concurrent sync+discover
+	// loses one side's update (last writer wins on the whole struct). (M478)
+	metaMu sync.Mutex
 }
 
 // NewStore returns a Store rooted at dir. Creates the directory if
@@ -79,20 +85,19 @@ func (s *Store) SaveAPI(raw []byte, sourceURL string) error {
 	if err := atomicWrite(filepath.Join(s.Dir, FileAPI), raw, 0o644); err != nil {
 		return err
 	}
-	meta, _ := s.LoadMeta()
-	meta.APISyncedAt = time.Now().UTC()
-	meta.APISourceURL = sourceURL
-	meta.APIBytes = len(raw)
-	c, _ := ParseAPIFile(raw)
-	if c != nil {
-		meta.ProviderCount = len(c.Providers)
-		mc := 0
-		for _, p := range c.Providers {
-			mc += len(p.Models)
+	return s.updateMeta(func(meta *Meta) {
+		meta.APISyncedAt = time.Now().UTC()
+		meta.APISourceURL = sourceURL
+		meta.APIBytes = len(raw)
+		if c, _ := ParseAPIFile(raw); c != nil {
+			meta.ProviderCount = len(c.Providers)
+			mc := 0
+			for _, p := range c.Providers {
+				mc += len(p.Models)
+			}
+			meta.ModelCount = mc
 		}
-		meta.ModelCount = mc
-	}
-	return s.SaveMeta(meta)
+	})
 }
 
 // SaveLocal writes the auto-discovered catalog fragment to local.json,
@@ -109,10 +114,10 @@ func (s *Store) SaveLocal(c *Catalog, source string) error {
 	if err := atomicWrite(filepath.Join(s.Dir, FileLocal), raw, 0o644); err != nil {
 		return err
 	}
-	meta, _ := s.LoadMeta()
-	meta.LocalSyncedAt = time.Now().UTC()
-	meta.LocalSource = source
-	return s.SaveMeta(meta)
+	return s.updateMeta(func(meta *Meta) {
+		meta.LocalSyncedAt = time.Now().UTC()
+		meta.LocalSource = source
+	})
 }
 
 // LoadMeta returns the sidecar or a zero-valued Meta if absent.
@@ -131,8 +136,25 @@ func (s *Store) LoadMeta() (Meta, error) {
 	return m, nil
 }
 
-// SaveMeta writes the sidecar.
+// updateMeta performs a serialized read-modify-write of the meta sidecar: it loads
+// the current meta under metaMu, applies fn, and writes it back, so concurrent
+// SaveAPI/SaveLocal updates to disjoint fields don't lose each other.
+func (s *Store) updateMeta(fn func(*Meta)) error {
+	s.metaMu.Lock()
+	defer s.metaMu.Unlock()
+	m, _ := s.LoadMeta()
+	fn(&m)
+	return s.saveMetaLocked(m)
+}
+
+// SaveMeta writes the sidecar (serialized against concurrent meta updates).
 func (s *Store) SaveMeta(m Meta) error {
+	s.metaMu.Lock()
+	defer s.metaMu.Unlock()
+	return s.saveMetaLocked(m)
+}
+
+func (s *Store) saveMetaLocked(m Meta) error {
 	if err := s.ensureDir(); err != nil {
 		return err
 	}
@@ -147,12 +169,26 @@ func (s *Store) ensureDir() error {
 	return os.MkdirAll(s.Dir, 0o755)
 }
 
-// atomicWrite writes via tmp + rename so a crash mid-write leaves the
-// previous file intact rather than a truncated half-write.
+// atomicWrite writes via a UNIQUE temp + rename so a crash mid-write leaves the
+// previous file intact, and two concurrent writes to the same target can't race on
+// a shared "<path>.tmp" (one renaming a half-written temp the other is still
+// writing). (M478)
 func atomicWrite(path string, data []byte, mode os.FileMode) error {
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, data, mode); err != nil {
+	tmp, err := os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+".*.tmp")
+	if err != nil {
 		return err
 	}
-	return os.Rename(tmp, path)
+	tmpName := tmp.Name()
+	defer os.Remove(tmpName) // no-op once renamed
+	if _, err := tmp.Write(data); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	if err := os.Chmod(tmpName, mode); err != nil {
+		return err
+	}
+	return os.Rename(tmpName, path)
 }
