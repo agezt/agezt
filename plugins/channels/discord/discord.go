@@ -97,6 +97,11 @@ type Channel struct {
 	bus     *bus.Bus
 	handler channel.InboundHandler
 	now     func() time.Time // injectable clock for signature freshness (tests)
+	// baseCtx is the daemon-lifetime context: async inbound runs detach from the
+	// short-lived HTTP request context but stay tied to baseCtx so a clean shutdown
+	// cancels them after the drain window instead of leaving them to be killed by
+	// process exit. Start sets it; New defaults it to context.Background.
+	baseCtx context.Context
 }
 
 // New builds a Channel from cfg. An unparseable/short public key leaves
@@ -125,6 +130,7 @@ func New(cfg Config) *Channel {
 		bus:     cfg.Bus,
 		handler: cfg.Handler,
 		now:     time.Now,
+		baseCtx: context.Background(),
 	}
 }
 
@@ -144,6 +150,7 @@ func (c *Channel) Handler() http.Handler {
 // Pulse briefs still work); Start blocks until ctx is done so the daemon's
 // lifecycle is uniform.
 func (c *Channel) Start(ctx context.Context) error {
+	c.baseCtx = ctx // async inbound runs follow daemon lifetime, not the request
 	if c.addr == "" {
 		<-ctx.Done()
 		return nil
@@ -350,7 +357,7 @@ func (c *Channel) handleCommand(w http.ResponseWriter, in discordInteraction) {
 	// Defer: Discord shows "Agezt is thinking…"; we follow up when the agent is
 	// done. Detach from the request context (it ends with this ACK).
 	writeJSON(w, map[string]any{"type": responseDeferred})
-	go channel.Guard(c.bus, "discord", func() { c.runAndFollowUp(context.Background(), in, msg, corr) })
+	go channel.Guard(c.bus, "discord", func() { c.runAndFollowUp(c.baseCtx, in, msg, corr) })
 }
 
 // discordAttachMaxRaw bounds a downloaded attachment so the data: URL stays

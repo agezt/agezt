@@ -12,6 +12,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Reliability
+- **Async Slack/Discord inbound runs are cancelled on a clean shutdown.** They
+  detached the agent run from the HTTP request (correct) to `context.Background()`,
+  which is never cancelled — so on shutdown an in-flight run was killed by process
+  exit rather than stopped cleanly. They now detach to the daemon-lifetime context:
+  unchanged during normal operation and the drain window (the daemon ctx is
+  cancelled only after the drain), but a straggler past the drain timeout now gets a
+  clean cancellation instead of an abrupt kill. (M450)
 - **The provider streaming-response parsers are now fuzz-tested.** `FuzzParseStream`
   in the openai, anthropic, google, cohere, and ollama providers feeds arbitrary
   bytes to each `parseStream`, asserting it never panics or hangs on a malformed,

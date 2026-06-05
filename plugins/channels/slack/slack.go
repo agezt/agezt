@@ -79,6 +79,13 @@ type Channel struct {
 	handler channel.InboundHandler
 	now     func() time.Time // injectable clock for signature freshness (tests)
 	dedup   *dedup           // replay guard: recently-processed message keys
+	// baseCtx is the daemon-lifetime context: async inbound runs detach from the
+	// short-lived HTTP request context (the handler returns immediately) but stay
+	// tied to baseCtx so a clean shutdown cancels them after the drain window
+	// instead of leaving them to be killed by process exit. Start sets it; New
+	// defaults it to context.Background so a handler driven directly in tests still
+	// works.
+	baseCtx context.Context
 }
 
 // dedup is a small bounded set of recently-seen message keys. The HMAC signature
@@ -135,6 +142,7 @@ func New(cfg Config) *Channel {
 		handler: cfg.Handler,
 		now:     time.Now,
 		dedup:   newDedup(dedupCapacity),
+		baseCtx: context.Background(),
 	}
 }
 
@@ -154,6 +162,7 @@ func (c *Channel) Handler() http.Handler {
 // channel is outbound-only (Send / Pulse briefs still work); Start blocks until
 // ctx is done so the daemon's lifecycle is uniform.
 func (c *Channel) Start(ctx context.Context) error {
+	c.baseCtx = ctx // async inbound runs follow daemon lifetime, not the request
 	if c.addr == "" {
 		<-ctx.Done()
 		return nil
@@ -266,7 +275,7 @@ func (c *Channel) handleEvents(w http.ResponseWriter, r *http.Request) {
 	}
 	// Detach from the request context (which ends when we return the ACK); the
 	// async run uses a background context so it survives the HTTP response.
-	go channel.Guard(c.bus, "slack", func() { c.process(context.Background(), ev) })
+	go channel.Guard(c.bus, "slack", func() { c.process(c.baseCtx, ev) })
 }
 
 // process normalizes one message, enforces the allowlist, runs the handler, and
