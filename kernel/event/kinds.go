@@ -202,6 +202,12 @@ const (
 	KindSkillActivated   Kind = "skill.activated"        // active skills injected into a run's context
 	KindSkillShadowEval  Kind = "skill.shadow_evaluated" // a shadow skill judged against a completed run (M400)
 
+	// Chronos standing orders (SPEC-16 §4) — persistent goals; their lifecycle
+	// is journaled so the changelog / `agt standing` can explain them.
+	KindStandingCreated Kind = "standing.created"
+	KindStandingUpdated Kind = "standing.updated" // paused/resumed/edited
+	KindStandingRemoved Kind = "standing.removed"
+
 	// Reflection — meta-cognition (SPEC-05 §6). The system reviews its own
 	// behaviour from the journal and recalibrates; the report (observations,
 	// adjustments applied, advisory proposals) is itself journaled.
@@ -310,6 +316,9 @@ var knownKinds = map[Kind]struct{}{
 	KindSkillReverted:             {},
 	KindSkillActivated:            {},
 	KindSkillShadowEval:           {},
+	KindStandingCreated:           {},
+	KindStandingUpdated:           {},
+	KindStandingRemoved:           {},
 	KindReflectionCompleted:       {},
 	KindJournalSegmentRotated:     {},
 	KindWebhookDelivered:          {},

@@ -34,6 +34,7 @@ import (
 	"github.com/agezt/agezt/kernel/reflect"
 	"github.com/agezt/agezt/kernel/scheduler"
 	"github.com/agezt/agezt/kernel/skill"
+	"github.com/agezt/agezt/kernel/standing"
 	"github.com/agezt/agezt/kernel/state"
 	"github.com/agezt/agezt/kernel/tenantctx"
 	"github.com/agezt/agezt/kernel/ulid"
@@ -299,6 +300,7 @@ type Kernel struct {
 	worldDir  *worldmodel.FileStore
 	forge     *skill.Forge
 	skillDir  *skill.FileStore
+	standing  *standing.Store
 	artifacts *artifact.Store
 	reflect   *reflect.Engine
 	schedules *cadence.Store        // persistent scheduled-intents store (autonomy)
@@ -405,6 +407,16 @@ func Open(cfg Config) (*Kernel, error) {
 		return nil, fmt.Errorf("runtime: artifacts: %w", err)
 	}
 
+	ststore, err := standing.Open(filepath.Join(cfg.BaseDir, "standing"))
+	if err != nil {
+		j.Close()
+		st.Close()
+		mstore.Close()
+		wstore.Close()
+		skstore.Close()
+		return nil, fmt.Errorf("runtime: standing: %w", err)
+	}
+
 	// Reflection holds no store of its own — it folds the journal and tunes
 	// the world graph, then journals its report (SPEC-05 §6). Default decay
 	// knobs; the daemon may override via the optional periodic trigger.
@@ -463,6 +475,7 @@ func Open(cfg Config) (*Kernel, error) {
 		worldDir:     wstore,
 		forge:        forge,
 		skillDir:     skstore,
+		standing:     ststore,
 		artifacts:    artStore,
 		reflect:      reflectEng,
 		schedules:    schedStore,
@@ -562,6 +575,58 @@ func (k *Kernel) Forge() *skill.Forge { return k.forge }
 // Artifacts returns the content-addressed artifact store (SPEC-04 §3.6), where
 // the loop offloads oversized tool outputs. Used by retrieval surfaces.
 func (k *Kernel) Artifacts() *artifact.Store { return k.artifacts }
+
+// Standing returns the Chronos standing-order store (SPEC-16 §4), backing
+// `agt standing`. Always non-nil after Open.
+func (k *Kernel) Standing() *standing.Store { return k.standing }
+
+// AddStanding validates and persists a standing order, journaling
+// standing.created so the lifecycle is auditable (SPEC-16 §4).
+func (k *Kernel) AddStanding(o standing.Order) (standing.Order, error) {
+	saved, err := k.standing.Add(o)
+	if err != nil {
+		return standing.Order{}, err
+	}
+	_, _ = k.bus.Publish(event.Spec{
+		Subject: "standing." + saved.ID, Kind: event.KindStandingCreated, Actor: "standing",
+		Payload: map[string]any{"id": saved.ID, "name": saved.Name, "triggers": len(saved.Triggers)},
+	})
+	return saved, nil
+}
+
+// SetStandingEnabled pauses/resumes a standing order, journaling standing.updated.
+func (k *Kernel) SetStandingEnabled(id string, enabled bool) (standing.Order, error) {
+	o, err := k.standing.SetEnabled(id, enabled)
+	if err != nil {
+		return standing.Order{}, err
+	}
+	state := "paused"
+	if enabled {
+		state = "resumed"
+	}
+	_, _ = k.bus.Publish(event.Spec{
+		Subject: "standing." + id, Kind: event.KindStandingUpdated, Actor: "standing",
+		Payload: map[string]any{"id": id, "name": o.Name, "enabled": enabled, "action": state},
+	})
+	return o, nil
+}
+
+// RemoveStanding deletes a standing order, journaling standing.removed when it
+// existed. Returns whether it existed.
+func (k *Kernel) RemoveStanding(id string) (bool, error) {
+	o, _ := k.standing.Get(id)
+	ok, err := k.standing.Remove(id)
+	if err != nil {
+		return false, err
+	}
+	if ok {
+		_, _ = k.bus.Publish(event.Spec{
+			Subject: "standing." + id, Kind: event.KindStandingRemoved, Actor: "standing",
+			Payload: map[string]any{"id": id, "name": o.Name},
+		})
+	}
+	return ok, nil
+}
 
 // Reflect returns the reflection engine backing `agt reflect` and the optional
 // periodic reflection trigger. Always non-nil after Open.

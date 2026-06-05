@@ -611,6 +611,14 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.handleSkillRevert(conn, req)
 	case CmdSkillImport:
 		s.handleSkillImport(conn, req)
+	case CmdStandingList:
+		s.handleStandingList(conn, req)
+	case CmdStandingAdd:
+		s.handleStandingAdd(conn, req)
+	case CmdStandingSetEnabled:
+		s.handleStandingSetEnabled(conn, req)
+	case CmdStandingRemove:
+		s.handleStandingRemove(conn, req)
 	case CmdReflectRun:
 		s.handleReflectRun(conn, req)
 	case CmdReflectShow:

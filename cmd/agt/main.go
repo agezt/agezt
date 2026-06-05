@@ -131,6 +131,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return cmdWorld(args[1:], stdout, stderr)
 	case "skill":
 		return cmdSkill(args[1:], stdout, stderr)
+	case "standing":
+		return cmdStanding(args[1:], stdout, stderr)
 	case "reflect":
 		return cmdReflect(args[1:], stdout, stderr)
 	case "inbox":

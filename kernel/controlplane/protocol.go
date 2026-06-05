@@ -797,6 +797,14 @@ const (
 	// triggers, tools_required (optional). Returns: { id, name, status, created }
 	CmdSkillImport = "skill_import"
 
+	// Chronos standing orders (SPEC-16 §4) — persistent-goal CRUD behind
+	// `agt standing`. Add: args.order (object). SetEnabled: args{id, enabled}.
+	// Remove: args.id. List: no args. Every mutation is journaled (standing.*).
+	CmdStandingList       = "standing_list"
+	CmdStandingAdd        = "standing_add"
+	CmdStandingSetEnabled = "standing_set_enabled"
+	CmdStandingRemove     = "standing_remove"
+
 	// Reflection — meta-cognition (SPEC-05 §6).
 	//
 	// CmdReflectRun runs one reflection pass now: folds the journal, applies
