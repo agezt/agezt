@@ -97,3 +97,33 @@ func TestSplitText_NonPositiveLimit(t *testing.T) {
 		t.Errorf("limit 0 should return text unsplit, got %v", got)
 	}
 }
+
+// TestSplitText_NeverEmptyPiece pins the empty-buffer cut guard. When a single
+// character is wider than the limit (e.g. a 2-unit emoji at limit 1) the char can't
+// be made to fit, so SplitText emits it as its own over-limit piece — but it must
+// never emit an EMPTY piece, which would make a channel send a blank message (some
+// platforms reject those). The `len(cur) > 0` guard on the cut is what prevents a cut
+// against an empty buffer; mutation testing (M511) showed `> 0 → >= 0` survived because
+// no test used a sub-character limit (the emoji test uses limit 4, where each char
+// fits). Under the mutant `SplitText("😀😀", 1)` yields a leading "" piece.
+func TestSplitText_NeverEmptyPiece(t *testing.T) {
+	cases := []struct {
+		text  string
+		limit int
+	}{
+		{"😀😀", 1},    // each emoji is 2 units, limit 1 — char wider than the limit
+		{"ab😀cd", 1}, // mix of fitting and over-wide chars
+		{"日本", 1},    // CJK, each 1 unit but exercises the same path at limit boundaries
+	}
+	for _, c := range cases {
+		got := SplitText(c.text, c.limit)
+		for i, p := range got {
+			if p == "" {
+				t.Errorf("SplitText(%q, %d): piece %d is empty (would send a blank message)", c.text, c.limit, i)
+			}
+		}
+		if strings.Join(got, "") != c.text {
+			t.Errorf("SplitText(%q, %d): rejoin mismatch", c.text, c.limit)
+		}
+	}
+}

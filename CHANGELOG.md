@@ -53,6 +53,15 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   build matrix to the verification battery. (M488)
 
 ### Code quality
+- **Mutation testing pinned the channel splitter's empty-piece guard.** `go-mutesting`
+  on `kernel/channel` showed `SplitText`'s cut trigger (`units+ru > limit && len(cur) > 0`)
+  was unpinned at the empty-buffer guard — no test used a limit smaller than a single
+  character, so `len(cur) > 0 → >= 0` survived. Under it `SplitText("😀😀", 1)` emits a
+  blank leading chunk (a channel would send an empty message). Added
+  `TestSplitText_NeverEmptyPiece` (sub-character limits → no empty piece, lossless rejoin).
+  The package's security core (fail-closed Allowlist, per-sender history isolation) was
+  already solid; remaining survivors are equivalent. Twenty-second package in the
+  mutation pass. (M511)
 - **Mutation testing pinned the webhook 2xx success-window upper edge.** `go-mutesting`
   on `kernel/webhook` showed the delivery success test (`status >= 200 && status < 300`,
   duplicated in `ProbeResult.OK`) was unpinned at its upper edge — tests covered 200 and
