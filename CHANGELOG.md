@@ -61,6 +61,18 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   build matrix to the verification battery. (M488)
 
 ### Code quality
+- **Mutation-hardened the acpagent output cap (untrusted external-agent relay).**
+  `plugins/tools/acpagent` relays a streamed answer from an *untrusted external ACP agent*
+  and bounds it twice so a runaway peer can't OOM the daemon (M256): an in-stream
+  accumulation guard (`answer.Len() >= MaxOutputBytes`) and the final `truncate`
+  (`len(s) <= max`). The existing runaway test allowed "a chunk or two" of slack and no
+  test fed `truncate` a string of length exactly `max`, so both inclusive edges survived
+  (`>= → >` appends one chunk past the cap; `<= → <` tears a `truncated 0 bytes` footer onto
+  output that exactly fits). Added `TestACPAgent_RunawayGuard_StopsExactlyAtCap` (streams
+  exactly the cap + one chunk → result is exactly the cap, no footer) and
+  `TestTruncate_InclusiveMaxBoundary`; negative control kills both. Same inclusive-max
+  DoS-guard idiom as plugin readFrame (M509), control-plane readBoundedLine (M531), and
+  mcpbridge (M538). No code change. (M542)
 - **Verified the federation loop guard's client side (peer tool).** The mesh delegation
   loop guard (M209) has two sides; M513 pinned the server (restapi refuses an inbound run
   past the hop limit). This verifies the client: the `peer` remote_run tool refuses to

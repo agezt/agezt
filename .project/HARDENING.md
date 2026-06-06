@@ -14,7 +14,7 @@ project requires; once ratified, "100% hardened" = "every PASS criterion holds, 
 MEASURED criterion meets its floor, and every exception is environment-bound or
 by-design (not a defect)."
 
-All commands run from the repo root. Last measured: 2026-06-06, HEAD at the M541 commit —
+All commands run from the repo root. Last measured: 2026-06-06, HEAD at the M542 commit —
 full re-verify battery (gofmt/vet/staticcheck/gitleaks/cross-compile/tests/16 fuzz targets)
 re-run green tree-wide after the M490–M533 arc (mutation pass at 35 packages + control-plane
 security primitives; see § Mutation testing detail).
@@ -51,7 +51,7 @@ is a subprocess-spawning plugin-host daemon; those platforms have no process mod
 | `go test ./...` = 0 | **PASS** (CI: test, 3 OSes) |
 | Race detector | **PASS** — CI runs `go test -race` (cgo/linux); offline has no C compiler, so CI is the validator |
 | Fuzzing | **PASS** — 16 fuzz targets cover every untrusted/external/binary parser (M444–M454); all 16 actively re-run clean, no crashers (M496; re-verified M533 after the M509–M532 arc). Run capped at `GOMAXPROCS=3` to avoid pegging the CPU. |
-| Mutation testing, highest-stakes packages | **MEASURED** (floor: every *non-equivalent* mutant killed) across **39 packages** (incl. plugins/ tools + mcpbridge) + the controlplane primary-token gate. Per-package detail in [§ Mutation testing detail](#mutation-testing-detail). Genuine gaps closed where present; the rest verified solid. Residual survivors are error-message / equivalent mutants (unkillable by definition). |
+| Mutation testing, highest-stakes packages | **MEASURED** (floor: every *non-equivalent* mutant killed) across **40 packages** (incl. plugins/ tools + mcpbridge) + the controlplane primary-token gate. Per-package detail in [§ Mutation testing detail](#mutation-testing-detail). Genuine gaps closed where present; the rest verified solid. Residual survivors are error-message / equivalent mutants (unkillable by definition). |
 
 ### 5. Defect surface
 | Criterion | State |
@@ -116,6 +116,7 @@ by existing tests (survivors equivalent); no test added.
 | providers (anthropic/openai) | M539 | usage/billing token math verified solid (anthropic sum of separate cache fields; openai direct mapping) -- completes the cost-accounting sweep |
 | plugins/channels (×5) | M540 | inbound auth gates **verified solid** -- every channel's allowlist gate (telegram/discord/slack/webhook/email) killed by negative control; signature verifiers fuzzed (M533) |
 | plugins/tools/peer | M541 | federation loop guard client side **verified solid** (refuse-at-hop-limit + hop+1 forward); both sides now done (server M513) |
+| plugins/tools/acpagent | M542 | untrusted external-agent output cap: in-stream accumulation guard (`>= MaxOutputBytes`) + final `truncate` (`<= max`) inclusive edges pinned (4th copy of the bounded-output DoS idiom, after M509/M531/M538) |
 
 ## Verdict against the rubric
 Every PASS criterion holds; the one MEASURED criterion (mutation) meets its stated
