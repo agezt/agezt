@@ -223,9 +223,14 @@ func TestToolLog_SlowFilter(t *testing.T) {
 	// Fast call: invoked+result back-to-back (~0ms).
 	toolInvoked(k, "fast", "shell", "a")
 	toolResult(k, "fast", "shell", "ok", false)
-	// Slow call: ~20ms between invoked and result.
+	// Slow call: a clearly-slow gap between invoked and result. The margin is
+	// generous on purpose — the "fast" call's span must stay below the filter floor
+	// even on a slow CI runner with coarse (~15ms on Windows) timer granularity,
+	// and the slow call's span must stay above it. So 100ms slow vs a 50ms floor,
+	// not 20ms vs 10ms (which flaked: a back-to-back "fast" call measured ≥10ms on
+	// a Windows runner and was wrongly counted as slow).
 	toolInvoked(k, "slow", "http", "b")
-	time.Sleep(20 * time.Millisecond)
+	time.Sleep(100 * time.Millisecond)
 	toolResult(k, "slow", "http", "ok", false)
 
 	// No floor → both.
@@ -237,9 +242,10 @@ func TestToolLog_SlowFilter(t *testing.T) {
 		t.Fatalf("unfiltered = %d want 2", len(got))
 	}
 
-	// 10ms floor → only the slow one.
+	// 50ms floor → only the slow one (well above the fast call's jitter, well below
+	// the slow call's 100ms span).
 	res, err := c.Call(context.Background(), controlplane.CmdToolLog,
-		map[string]any{"slow_ms": int64(10)})
+		map[string]any{"slow_ms": int64(50)})
 	if err != nil {
 		t.Fatal(err)
 	}
