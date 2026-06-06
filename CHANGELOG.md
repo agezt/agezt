@@ -53,6 +53,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   build matrix to the verification battery. (M488)
 
 ### Code quality
+- **Mutation testing pinned memory's first-writer-wins record provenance.** `go-mutesting`
+  on `kernel/memory` showed the reinforce path's provenance preservation (`rec.SourceEvent
+  = existing.SourceEvent` + the `ev != nil && rec.SourceEvent == ""` guard) was unpinned —
+  the test only checks creation sets provenance, so two mutants (dropping the copy;
+  `&&`→`||`) that overwrite a record's origin event with the latest mention survived. Added
+  `provenance_test.go` (re-remember preserves the original SourceEvent), mirroring
+  worldmodel M503. Sixteenth package in the mutation pass. (M505)
 - **Mutation testing pinned approval's default-timeout guard.** `go-mutesting` on
   `kernel/approval` showed `New`'s `if timeout <= 0 { timeout = DefaultTimeout }` was
   unpinned — every test passes an explicit Timeout, so a `<=`→`<` regression (leaving an
