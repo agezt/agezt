@@ -192,18 +192,18 @@ func TestRun_ParallelBranchesRunConcurrently(t *testing.T) {
 		},
 		MaxParallel: 4,
 	}
-	start := time.Now()
 	_, err := e.Run(context.Background(), plan, "")
-	dur := time.Since(start)
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
+	// max-in-flight directly observes how many nodes ran simultaneously, so
+	// >=3 IS the proof that a/b/c fanned out concurrently — deterministic and
+	// independent of machine speed. (A wall-clock duration bound was removed: it
+	// flaked on slow/loaded CI runners where overhead pushed a genuinely-parallel
+	// run past the threshold — e.g. 327ms on a Windows runner — without telling us
+	// anything maxInflight doesn't already prove.)
 	if maxIn.Load() < 3 {
 		t.Errorf("max-in-flight=%d; expected >=3 (parallel a/b/c)", maxIn.Load())
-	}
-	// Serialized worst case ≈ 5×50=250ms. Parallel should be ≈ 3×50=150ms.
-	if dur > 220*time.Millisecond {
-		t.Errorf("dur=%s; expected ≈150ms (fan-out parallel)", dur)
 	}
 }
 
