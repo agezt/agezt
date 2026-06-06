@@ -35,9 +35,9 @@ flow, leave **0 panics**, **0 error-level journal events**, and shut down cleanl
 | Native REST (`/api/v1`) | **PASS** | M550: POST /api/v1/runs → completed, answer returned (token-authed) | 2026-06-07 |
 | Web UI | **PASS** | M550: `/?token=` → 200, `/` → 401 (auth enforced) | 2026-06-07 |
 | ACP server | **PASS** | M551: `agt acp` stdio initialize handshake → JSON-RPC result (agentInfo agezt 1.0.0, protocolVersion 1) | 2026-06-07 |
-| Outbound webhooks (HMAC) | TODO | `AGEZT_WEBHOOK_*` sink | — |
+| Outbound webhooks (HMAC) | **PASS** | M552: `AGEZT_WEBHOOKS` sink received all 6 journal events of a run, **every delivery `sig_valid=true`** (HMAC-SHA256), 0 invalid; egress guard correctly blocks loopback until `WEBHOOK_ALLOW_LOOPBACK=1` | 2026-06-07 |
 | Out-of-process plugin + MCP bridge | TODO | testdata echoplugin / mcp | — |
-| DAG scheduler + HITL gates | **PARTIAL** | M551: `schedule add`/`list` → next-fire computed; HITL approvals path pending | 2026-06-07 |
+| DAG scheduler + HITL gates | **PASS** | M551 schedule add/list+next-fire; M552 HITL: file-edit run blocked on real approval.requested (file.write L2), `agt approve` → granted → tool.invoked → tool.result → file written → run completed; 0 panics (deny is the symmetric path, unit-covered M504) | 2026-06-07 |
 | Mesh peer delegation | TODO | two-node `remote_run` | — |
 | Multi-tenant isolation | **PASS** | M551: `tenant create/list/token`, run routed to acme, primary journal stays seq=0 (isolated) | 2026-06-07 |
 | Pulse engine | **PASS** | M551: `pulse status` running, dial=balanced; `budget` tracking | 2026-06-07 |
