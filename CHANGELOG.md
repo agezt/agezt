@@ -61,6 +61,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   build matrix to the verification battery. (M488)
 
 ### Code quality
+- **Mutation testing pinned meshctx's MaxHopsConfig diagnostic returns.** Every test went
+  through `MaxHopsFromEnv`, which discards the `raw` and `validOverride` returns of
+  `MaxHopsConfig`, so those were unpinned — all three `validOverride` results could flip
+  undetected. `validOverride=false` is what `agt doctor` uses to flag a typo'd hop-limit
+  override that silently fell back; a stuck-true flag would hide the misconfiguration.
+  Added `TestMaxHopsConfig_RawAndValidity` (all three returns across unset/valid/over-cap/
+  zero/garbage/whitespace). Thirty-first package in the mutation pass. (M521)
 - **Mutation testing pinned reflect's proposal-rule thresholds.** `kernel/reflect`'s
   `proposals` gates three advisory rules on inclusive thresholds, but the existing tests
   fire them only well past the edge, so `ApprovalsDenied-ApprovalsGranted >= denyExcess` and

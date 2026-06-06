@@ -14,8 +14,8 @@ project requires; once ratified, "100% hardened" = "every PASS criterion holds, 
 MEASURED criterion meets its floor, and every exception is environment-bound or
 by-design (not a defect)."
 
-All commands run from the repo root. Last measured: 2026-06-06, HEAD at the M520 commit
-(mutation pass at 30 packages; see § Mutation testing detail).
+All commands run from the repo root. Last measured: 2026-06-06, HEAD at the M521 commit
+(mutation pass at 31 packages; see § Mutation testing detail).
 
 ## Rubric
 
@@ -49,7 +49,7 @@ is a subprocess-spawning plugin-host daemon; those platforms have no process mod
 | `go test ./...` = 0 | **PASS** (CI: test, 3 OSes) |
 | Race detector | **PASS** — CI runs `go test -race` (cgo/linux); offline has no C compiler, so CI is the validator |
 | Fuzzing | **PASS** — 16 fuzz targets cover every untrusted/external/binary parser (M444–M454); all 16 actively re-run clean, no crashers (M496). Run capped at `GOMAXPROCS=3` to avoid pegging the CPU. |
-| Mutation testing, highest-stakes packages | **MEASURED** (floor: every *non-equivalent* mutant killed) across **30 packages** + the controlplane primary-token gate. Per-package detail in [§ Mutation testing detail](#mutation-testing-detail). Genuine gaps closed where present; the rest verified solid. Residual survivors are error-message / equivalent mutants (unkillable by definition). |
+| Mutation testing, highest-stakes packages | **MEASURED** (floor: every *non-equivalent* mutant killed) across **31 packages** + the controlplane primary-token gate. Per-package detail in [§ Mutation testing detail](#mutation-testing-detail). Genuine gaps closed where present; the rest verified solid. Residual survivors are error-message / equivalent mutants (unkillable by definition). |
 
 ### 5. Defect surface
 | Criterion | State |
@@ -101,6 +101,7 @@ by existing tests (survivors equivalent); no test added.
 | ulid | M518 | decodeChar inverse-of-alphabet (P–T/W–Z offsets, J/K/M/N/V values feed Timestamp); encode bit-shifts equivalent |
 | artifact | M519 | **verified solid** (validRef + corrupt-check + dedup + sharding all killed; 31 survivors equivalent error-path) |
 | reflect | M520 | proposal-rule inclusive thresholds (autonomy denyExcess, tasks ≥50% failure); brief rule already pinned |
+| meshctx | M521 | MaxHopsConfig raw + validOverride returns (doctor's typo flag); effective-limit bounds already solid |
 | controlplane | — | primary-token auth gate **verified solid** (out-of-band) |
 
 ## Verdict against the rubric

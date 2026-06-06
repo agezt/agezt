@@ -55,3 +55,36 @@ func TestMaxHopsFromEnv(t *testing.T) {
 		})
 	}
 }
+
+// TestMaxHopsConfig_RawAndValidity pins the full MaxHopsConfig contract — the raw value
+// and the validOverride flag, not just the effective limit. MaxHopsFromEnv (the only
+// caller the other test exercises) discards both, so mutation testing (M521) left the
+// validOverride results unpinned: `agt doctor` relies on validOverride=false to flag a
+// typo'd override (e.g. "100") that silently fell back to the default — if that flag were
+// stuck true, the operator would believe a rejected setting had taken effect.
+func TestMaxHopsConfig_RawAndValidity(t *testing.T) {
+	cases := []struct {
+		name, env string
+		wantEff   int
+		wantRaw   string
+		wantValid bool
+	}{
+		{"unset", "", MaxHops, "", true},
+		{"valid", "3", 3, "3", true},
+		{"at cap", strconv.Itoa(maxConfigurableHops), maxConfigurableHops, strconv.Itoa(maxConfigurableHops), true},
+		{"over cap falls back, flagged invalid", "100", MaxHops, "100", false},
+		{"zero falls back, flagged invalid", "0", MaxHops, "0", false},
+		{"garbage falls back, flagged invalid", "abc", MaxHops, "abc", false},
+		{"whitespace trimmed in raw", "  5  ", 5, "5", true},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			t.Setenv(EnvMaxHops, c.env)
+			eff, raw, valid := MaxHopsConfig()
+			if eff != c.wantEff || raw != c.wantRaw || valid != c.wantValid {
+				t.Errorf("MaxHopsConfig() = (%d, %q, %v), want (%d, %q, %v)",
+					eff, raw, valid, c.wantEff, c.wantRaw, c.wantValid)
+			}
+		})
+	}
+}
