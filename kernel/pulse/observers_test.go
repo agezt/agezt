@@ -130,6 +130,49 @@ func TestDiskObserverCriticalWhenVeryLow(t *testing.T) {
 	}
 }
 
+// TestDiskObserver_ThresholdEdges pins the two inclusive disk thresholds at their exact
+// edges, which the other disk tests only cross well clear of (5% vs a 10% floor; 2% vs the
+// 5% critical line). Mutation testing (M525) showed `freePct < minPct → <=` and
+// `freePct < minPct/2 → <=` both survived: free space sitting *exactly* on the floor is
+// still OK (not low), and exactly on the half-floor is High, not Critical.
+func TestDiskObserver_ThresholdEdges(t *testing.T) {
+	// Exactly at minPct (10% free, floor 10) must NOT be low → no transition from the
+	// 50% baseline, so no delta. Under `<=` it would wrongly fire disk_low.
+	t.Run("exactly at floor is not low", func(t *testing.T) {
+		free := []uint64{50, 10} // 50% baseline, then exactly 10% free
+		usage := func(string) (uint64, uint64, error) {
+			f := free[0]
+			free = free[1:]
+			return f, 100, nil
+		}
+		o := NewDiskObserver("/", 10, usage)
+		_, _ = o.Poll(context.Background()) // baseline (not low)
+		if d, _ := o.Poll(context.Background()); len(d) != 0 {
+			t.Fatalf("free%% exactly at the floor must not be low, got %+v", d)
+		}
+	})
+
+	// A transition into low at exactly minPct/2 (5% free, floor 10) is High, not Critical.
+	// Under `<=` it would escalate to Critical.
+	t.Run("exactly at half-floor is high not critical", func(t *testing.T) {
+		free := []uint64{50, 5} // 50% baseline, then exactly 5% (== minPct/2)
+		usage := func(string) (uint64, uint64, error) {
+			f := free[0]
+			free = free[1:]
+			return f, 100, nil
+		}
+		o := NewDiskObserver("/", 10, usage)
+		_, _ = o.Poll(context.Background()) // baseline
+		d, _ := o.Poll(context.Background())
+		if len(d) != 1 || d[0].Kind != "disk_low" {
+			t.Fatalf("crossing to 5%% free should emit disk_low: %+v", d)
+		}
+		if got := d[0].Severity(); got != SevHigh {
+			t.Errorf("free%% exactly at minPct/2 must be High, not %v", got)
+		}
+	})
+}
+
 func TestParseProbeSpec(t *testing.T) {
 	name, argv, ok := ParseProbeSpec("name=ci;argv=make test")
 	if !ok || name != "ci" || len(argv) != 2 || argv[0] != "make" {
