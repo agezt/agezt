@@ -61,6 +61,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   build matrix to the verification battery. (M488)
 
 ### Code quality
+- **Verified the federation loop guard's client side (peer tool).** The mesh delegation
+  loop guard (M209) has two sides; M513 pinned the server (restapi refuses an inbound run
+  past the hop limit). This verifies the client: the `peer` remote_run tool refuses to
+  delegate at `Hop(ctx) >= maxHops` and forwards `hop+1`. Negative control killed the guard
+  `>= → >`, the increment `+1 → +0` (a non-incrementing hop = unbounded chain), and `+1 → +2`.
+  The two sides are consistent (no off-by-one). The cross-node runaway protection is now
+  verified end to end. No code change. (M541)
 - **Verified all inbound channel authorization gates.** Every channel (telegram, discord,
   slack, webhook, email) gates "who may drive the agent" on the verified
   `kernel/channel.Allowlist` (M511), fail-closed. Negative control on each gate
