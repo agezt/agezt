@@ -61,6 +61,15 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   build matrix to the verification battery. (M488)
 
 ### Code quality
+- **Mutation-tested the web UI — security surface verified solid.** `kernel/webui` (the
+  only kernel package not yet mutation-assessed) serves the operator dashboard + token-authed
+  JSON API/SSE over loopback. `go-mutesting` scored 0.578 (52/90 killed); every one of the 38
+  survivors was classified and **none touches the security surface** — the token gate,
+  constant-time compare, per-route arg allowlist, and path guard are all killed by existing
+  tests. Survivors are equivalent (unasserted tuning constants: read timeout, SSE buffer,
+  heartbeat, nonce length) or cosmetic error-path (DetectContentType-equivalent header Sets,
+  BadGateway error bodies, SSE-loop teardown). Completes kernel mutation coverage. No code
+  change. (M545)
 - **Mutation-hardened the notify tool's empty-kind prune.** `Bind` drops any channel kind
   with no allowlisted recipients (`len(ids) > 0`) so an unusable kind is never advertised to
   the model. The test bound an empty kind and asserted only `IsError` — but the correct

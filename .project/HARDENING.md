@@ -14,7 +14,7 @@ project requires; once ratified, "100% hardened" = "every PASS criterion holds, 
 MEASURED criterion meets its floor, and every exception is environment-bound or
 by-design (not a defect)."
 
-All commands run from the repo root. Last measured: 2026-06-06, HEAD at the M544 commit —
+All commands run from the repo root. Last measured: 2026-06-06, HEAD at the M545 commit —
 full re-verify battery (gofmt/vet/staticcheck/gitleaks/cross-compile/tests/16 fuzz targets)
 re-run green tree-wide after the M490–M533 arc (mutation pass at 35 packages + control-plane
 security primitives; see § Mutation testing detail).
@@ -51,7 +51,7 @@ is a subprocess-spawning plugin-host daemon; those platforms have no process mod
 | `go test ./...` = 0 | **PASS** (CI: test, 3 OSes) |
 | Race detector | **PASS** — CI runs `go test -race` (cgo/linux); offline has no C compiler, so CI is the validator |
 | Fuzzing | **PASS** — 16 fuzz targets cover every untrusted/external/binary parser (M444–M454); all 16 actively re-run clean, no crashers (M496; re-verified M533 after the M509–M532 arc). Run capped at `GOMAXPROCS=3` to avoid pegging the CPU. |
-| Mutation testing, highest-stakes packages | **MEASURED** (floor: every *non-equivalent* mutant killed) across **42 packages** (incl. plugins/ tools + mcpbridge) + the controlplane primary-token gate. Per-package detail in [§ Mutation testing detail](#mutation-testing-detail). Genuine gaps closed where present; the rest verified solid. Residual survivors are error-message / equivalent mutants (unkillable by definition). |
+| Mutation testing, highest-stakes packages | **MEASURED** (floor: every *non-equivalent* mutant killed) across **43 packages** (incl. plugins/ tools + mcpbridge) + the controlplane primary-token gate. Per-package detail in [§ Mutation testing detail](#mutation-testing-detail). Genuine gaps closed where present; the rest verified solid. Residual survivors are error-message / equivalent mutants (unkillable by definition). |
 
 ### 5. Defect surface
 | Criterion | State |
@@ -119,6 +119,7 @@ by existing tests (survivors equivalent); no test added.
 | plugins/tools/acpagent | M542 | untrusted external-agent output cap: in-stream accumulation guard (`>= MaxOutputBytes`) + final `truncate` (`<= max`) inclusive edges pinned (4th copy of the bounded-output DoS idiom, after M509/M531/M538) |
 | plugins/tools/browser | M543 | one-level wildcard SSRF deny pinned (`*.example.com` must reject multi-level `a.b.example.com` via the dot-count guard); browser-specific (stricter than http's any-depth M536). Truncation caps + redirect cap verified covered |
 | plugins/tools/notify | M544 | empty-id channel-kind prune pinned (`len(ids) > 0`: a kind with no recipients stays "not configured", not advertised-but-undeliverable); partial-failure/channel-filter/isolation already covered. Completes the plugins/tools sweep (coding verified covered: rune-safe truncate tested) |
+| webui | M545 | **verified solid** (go-mutesting 0.578, 52/90): security surface — token gate, ConstantTimeCompare, per-route arg allowlist, path guard — fully killed; all 38 survivors equivalent (unasserted tuning constants) or cosmetic error-path (DetectContentType-equivalent header Sets, BadGateway bodies, SSE teardown). Completes kernel mutation coverage |
 
 ## Verdict against the rubric
 Every PASS criterion holds; the one MEASURED criterion (mutation) meets its stated
