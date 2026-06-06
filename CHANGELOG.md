@@ -53,6 +53,11 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   build matrix to the verification battery. (M488)
 
 ### Code quality
+- **Mutation testing pinned approval's default-timeout guard.** `go-mutesting` on
+  `kernel/approval` showed `New`'s `if timeout <= 0 { timeout = DefaultTimeout }` was
+  unpinned — every test passes an explicit Timeout, so a `<=`→`<` regression (leaving an
+  unset/zero Timeout at 0, which auto-denies every approval instantly) survived. Added a
+  white-box `TestNew_DefaultsUnsetTimeout`. Fifteenth package in the mutation pass. (M504)
 - **Mutation testing pinned worldmodel's first-writer-wins entity provenance.**
   `go-mutesting` on `kernel/worldmodel` showed `Upsert`'s `ev != nil && e.SourceEvent ==
   ""` (set the origin event once) was unpinned for re-observation — a `&&`→`||` regression
