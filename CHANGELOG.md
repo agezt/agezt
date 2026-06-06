@@ -61,6 +61,14 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   build matrix to the verification battery. (M488)
 
 ### Code quality
+- **Mutation-hardened `strutil.Ellipsis` against the non-positive-max panic edge.** The
+  daemon-wide rune-safe truncation helper documents "a non-positive maxBytes yields just the
+  marker — never a panic", but its test exercised only `0` and `-5` with a non-empty string.
+  go-mutesting surfaced that `maxBytes == -1` and the empty-string + negative cap are
+  untested: mutating the `cut < 0` clamp or the `cut > 0` rune-backing loop bound leaves
+  `cut` negative and panics on `s[:cut]` / `s[0]`. Added `Ellipsis(_, -1, …)` and
+  `Ellipsis("", -1/-3, …)` assertions (kills 4 genuine survivors; the other 2 are equivalent
+  no-ops at `cut == 0`, confirmed). First `internal/` mutation target. No code change. (M546)
 - **Mutation-tested the web UI — security surface verified solid.** `kernel/webui` (the
   only kernel package not yet mutation-assessed) serves the operator dashboard + token-authed
   JSON API/SSE over loopback. `go-mutesting` scored 0.578 (52/90 killed); every one of the 38
