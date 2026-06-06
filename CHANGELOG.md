@@ -53,6 +53,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   build matrix to the verification battery. (M488)
 
 ### Code quality
+- **Active fuzz robustness pass — all 16 targets re-run clean.** Rather than rely on
+  the historical "clean" claim, every fuzz target (controlplane request parse, redact,
+  edict decide, journal open, catalog, openai-compat content, governor pricing, the
+  three channel signature verifiers, and six provider stream parsers) was re-executed
+  under bounded time: all exit 0, no crashers written. Fuzz/test runs are now capped at
+  `GOMAXPROCS=3` to avoid saturating the CPU. (M496)
 - **Mutation testing pinned the warden's blank-argv0 rejection.** `go-mutesting` on
   `kernel/warden` (the command sandbox) showed the second half of the empty-Argv guard
   (`spec.Argv[0] == ""`) was unpinned — the existing test only covered nil Argv, so the

@@ -47,7 +47,7 @@ is a subprocess-spawning plugin-host daemon; those platforms have no process mod
 |---|---|
 | `go test ./...` = 0 | **PASS** (CI: test, 3 OSes) |
 | Race detector | **PASS** — CI runs `go test -race` (cgo/linux); offline has no C compiler, so CI is the validator |
-| Fuzzing | **PASS** — 16 fuzz targets cover every untrusted/external/binary parser (M444–M454) |
+| Fuzzing | **PASS** — 16 fuzz targets cover every untrusted/external/binary parser (M444–M454); all 16 actively re-run clean, no crashers (M496). Run capped at `GOMAXPROCS=3` to avoid pegging the CPU. |
 | Mutation testing, highest-stakes packages | **MEASURED** (floor: every *non-equivalent* mutant killed) across SEVEN packages: redact (0.575→0.725, gaps closed M490); journal (rotation-accounting + Tail-trim gaps closed M491); edict (whitespace-normalizer gap closed M492; authz core + toolmap verified); netguard (SSRF core verified solid M493); event (hash-chain verified solid — `h.Write(prevBytes)` equivalent since Canonical carries prev_hash); creds (legacy KDF pinned + PBKDF2 strengthened M494); warden (blank-argv0 rejection pinned M495; capBuffer memory-bound exemplary). Genuine gaps closed where present; the rest verified solid. Residual survivors are error-message / equivalent mutants (unkillable by definition). |
 
 ### 5. Defect surface
