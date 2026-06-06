@@ -53,6 +53,16 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   build matrix to the verification battery. (M488)
 
 ### Code quality
+- **Mutation testing pinned the edict whitespace-normalizer contract.** `go-mutesting`
+  on `kernel/edict` (the policy engine) showed the backward (left-side) scan in
+  `stripPunctAdjacentWhitespace` — which strips spacing-evasion from hard-deny floor
+  rules — was never exercised: the fork-bomb tests cover it only via `Decide`, and every
+  optional space in `:(){ :|:& };:` has punctuation on its right, so the forward scan
+  alone normalizes it. A left-only-punctuation variant could evade a floor rule if the
+  backward scan regressed. Added `strip_whitespace_test.go` pinning the documented
+  either-side contract (left-punct, right-punct, word-preservation, forward bound, fork
+  bomb), with a manual negative control for both the backward-scan and forward-bound
+  mutants. The toolmap and TrustLevel survivors were verified equivalent (no gap). (M492)
 - **Mutation testing pinned two journal integrity gaps (rotation accounting, Tail
   trim).** `go-mutesting` on `kernel/journal` showed the existing rotation tests use
   tiny segment thresholds where one line already rotates, so a `curBytes += `→`=`
