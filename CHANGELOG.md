@@ -61,6 +61,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   build matrix to the verification battery. (M488)
 
 ### Code quality
+- **Mutation testing pinned tenantctx's empty-id no-op as context identity.** `WithTenant`'s
+  early `return ctx` for an empty id could be dropped — falling through to
+  `WithValue(ctx, key, "")` — and `Tenant` still returns `""`, so the value-only test
+  couldn't tell them apart. The contract is "returned unchanged"; the mutant allocates a
+  wrapper on every untenanted (primary-kernel) run. Strengthened `TestWithTenant_EmptyIsNoOp`
+  to assert identity (`WithTenant(base,"") == base`), taking the package to a full mutation
+  kill. Thirty-second package in the mutation pass. (M522)
 - **Mutation testing pinned meshctx's MaxHopsConfig diagnostic returns.** Every test went
   through `MaxHopsFromEnv`, which discards the `raw` and `validOverride` returns of
   `MaxHopsConfig`, so those were unpinned — all three `validOverride` results could flip
