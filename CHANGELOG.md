@@ -61,6 +61,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   build matrix to the verification battery. (M488)
 
 ### Code quality
+- **Mutation-hardened the MCP-bridge frame cap.** `plugins/external/mcpbridge`'s
+  `readBoundedLine` (M185) caps a frame from an untrusted MCP server (stdio/SSE); the tests
+  covered under-max and over-max floods but no frame exactly on the cap, so `> max → >= max`
+  survived — a legitimate max-size payload (e.g. 16 MiB) torn down as "frame too large".
+  Added `TestReadBoundedLine_ExactlyMaxAccepted`. This is the third copy of the identical
+  bounded-read DoS guard (plugin readFrame M509, control-plane readBoundedLine M531), all
+  now pinned. (M538)
 - **Mutation-hardened the shell tool's negative-timeout fallback.** `plugins/tools/shell`
   delegates execution to warden (verified M495); its own timeout precedence
   (`in.TimeoutMS > 0`) was unpinned at negatives, so `> 0 → != 0` survived — a malformed
