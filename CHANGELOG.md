@@ -39,6 +39,19 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   allowlists *only* those three test paths. Any secret introduced in production code,
   or in any other test, still trips the scan. (M486)
 
+### Fixed
+- **`DiskUsage` no longer breaks the FreeBSD build, and the daemon builds on every
+  supportable OS.** `kernel/pulse/diskusage_unix.go` was tagged `//go:build !windows`
+  (claiming all non-Windows platforms) but multiplied `syscall.Statfs_t.Bavail` —
+  which is `uint64` on Linux/Darwin yet `int64` on FreeBSD — by a `uint64`, a compile
+  error, so `GOOS=freebsd go build ./...` failed. Widened every operand to `uint64`
+  explicitly, narrowed the constraint to `linux || darwin || freebsd` (the
+  `syscall.Statfs` family), and added a `diskusage_other.go` fallback that returns a
+  tolerated "not supported" error for the rest (OpenBSD names the fields differently;
+  NetBSD has no `syscall.Statfs` and we stay stdlib-only). Cross-compile matrix is now
+  green for linux/darwin/windows/freebsd (+ openbsd/netbsd compile). Found by adding a
+  build matrix to the verification battery. (M488)
+
 ### Code quality
 - **`staticcheck ./...` is now clean (0 findings, was 17).** Removed unnecessary
   comma-ok discards on map reads in the control plane (`req.Args[k]` returns one
