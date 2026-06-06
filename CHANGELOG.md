@@ -61,6 +61,14 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   build matrix to the verification battery. (M488)
 
 ### Code quality
+- **Mutation-hardened the notify tool's empty-kind prune.** `Bind` drops any channel kind
+  with no allowlisted recipients (`len(ids) > 0`) so an unusable kind is never advertised to
+  the model. The test bound an empty kind and asserted only `IsError` — but the correct
+  "not configured" outcome and the mutant's wrong "notify failed (zero recipients)" outcome
+  are both `IsError`, so `> 0 → >= 0` survived. Strengthened
+  `TestNotify_UnboundReportsNotConfigured` to require the precise "not configured" message
+  and that no send was attempted; negative control killed. Completes the `plugins/tools/`
+  mutation sweep (coding verified covered). No code change. (M544)
 - **Mutation-hardened the browser tool's one-level wildcard (SSRF allowlist).**
   `plugins/tools/browser`'s host allowlist (an SSRF boundary, re-checked per redirect hop)
   matches `*.example.com` exactly one label deep via a dot-count guard

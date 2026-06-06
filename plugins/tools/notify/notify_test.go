@@ -37,11 +37,21 @@ func TestNotify_UnboundReportsNotConfigured(t *testing.T) {
 	if !res.IsError || !strings.Contains(res.Output, "not configured") {
 		t.Errorf("unbound notify should report not configured, got %+v", res)
 	}
-	// Binding with no targets is still "not configured".
-	tool.Bind((&capture{}).send, map[string][]string{"slack": {}})
+	// Binding with no targets is still "not configured": Bind prunes every kind
+	// whose id list is empty (len(ids) > 0), so a kind with no allowlisted
+	// recipients leaves the tool disabled rather than advertised-but-undeliverable.
+	// Assert the precise "not configured" outcome (not merely IsError): without the
+	// prune the empty kind survives and Invoke instead proceeds to a "notify failed"
+	// delivery against zero recipients — a different, wrong result that would still
+	// be IsError. Also require no send was attempted.
+	cap := &capture{}
+	tool.Bind(cap.send, map[string][]string{"slack": {}})
 	res, _ = tool.Invoke(context.Background(), json.RawMessage(`{"text":"hi"}`))
-	if !res.IsError {
-		t.Errorf("binding with only-empty targets should stay disabled, got %+v", res)
+	if !res.IsError || !strings.Contains(res.Output, "not configured") {
+		t.Errorf("binding with only-empty targets should stay disabled (not configured), got %+v", res)
+	}
+	if len(cap.calls) != 0 {
+		t.Errorf("an empty-id kind must be pruned, not delivered to; got sends %v", cap.calls)
 	}
 }
 
