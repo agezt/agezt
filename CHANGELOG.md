@@ -53,6 +53,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   build matrix to the verification battery. (M488)
 
 ### Code quality
+- **Mutation testing pinned catalog's cross-provider down-route tie-break.** `go-mutesting`
+  on `kernel/catalog` showed `ToolCapableAlternativeAmong`'s cross-provider selection
+  (`ctx > bestCtx || (ctx == bestCtx && id < bestID)`) was unpinned — the cross tests only
+  covered largest-context, never equal context across providers, so the tie-break direction
+  and the context comparison could flip undetected (non-deterministic / wrong down-route).
+  Added `TestToolCapableAlternativeAmong_TieBreaksByIDAcrossProviders` (two arrangements).
+  Nineteenth package in the mutation pass. (M508)
 - **Mutation testing pinned standing's cron dom/dow OR rule.** `go-mutesting` on
   `kernel/standing` showed `matchesCron`'s classic both-restricted day rule
   (`domMatch || dowMatch`) was unpinned — every existing case left day-of-month as `*`,
