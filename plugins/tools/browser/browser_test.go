@@ -335,6 +335,16 @@ func TestInvoke_WildcardHostMatch(t *testing.T) {
 	if err != nil && strings.Contains(err.Error(), "host not in allowlist") {
 		t.Errorf("wildcard didn't match api.example.com: %v", err)
 	}
+	// Multi-level subdomain must be DENIED: "*.example.com" is one-level only, so
+	// "a.b.example.com" (which shares the suffix but has an extra label) must not
+	// match. This pins the dot-count guard
+	// (Count(host,".") == Count(pattern,".")) — without it the suffix check alone
+	// would admit arbitrarily deep subdomains, widening the SSRF allowlist beyond
+	// the one level the operator wrote.
+	_, err = tool.Invoke(context.Background(), mustJSON(t, map[string]any{"url": "https://a.b.example.com/"}))
+	if err == nil || !strings.Contains(err.Error(), "host not in allowlist") {
+		t.Errorf("multi-level a.b.example.com should be denied by one-level *.example.com; err=%v", err)
+	}
 }
 
 // ---- helper ----

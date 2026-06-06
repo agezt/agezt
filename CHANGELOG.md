@@ -61,6 +61,15 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   build matrix to the verification battery. (M488)
 
 ### Code quality
+- **Mutation-hardened the browser tool's one-level wildcard (SSRF allowlist).**
+  `plugins/tools/browser`'s host allowlist (an SSRF boundary, re-checked per redirect hop)
+  matches `*.example.com` exactly one label deep via a dot-count guard
+  (`Count(host,".") == Count(pattern,".")`) — stricter than the http tool's any-depth
+  wildcard. The test covered apex-denied and one-level-allowed but not a multi-level
+  subdomain, so removing the dot-count guard left every test green while `a.b.example.com`
+  would match `*.example.com` — silently widening a one-level allowlist to arbitrary depth.
+  Extended `TestInvoke_WildcardHostMatch` to require `a.b.example.com` be denied; negative
+  control (guard → constant true) is killed. No code change. (M543)
 - **Mutation-hardened the acpagent output cap (untrusted external-agent relay).**
   `plugins/tools/acpagent` relays a streamed answer from an *untrusted external ACP agent*
   and bounds it twice so a runaway peer can't OOM the daemon (M256): an in-stream
