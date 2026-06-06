@@ -53,6 +53,16 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   build matrix to the verification battery. (M488)
 
 ### Code quality
+- **CI now enforces the cleaned gates.** Added a `lint` job (`gofmt -l`,
+  `staticcheck ./...`, `govulncheck ./...`) and a `secrets` job (`gitleaks` over full
+  history with the `.gitleaks.toml` baseline) to `ci.yml`, and added `freebsd/amd64`
+  to the cross-build matrix (buildable as of M488). The static-analysis, secret-scan,
+  vulnerability, formatting, and FreeBSD-build cleanliness from M485–M488 is now
+  enforced on every push/PR instead of being a point-in-time snapshot. The full
+  golangci-lint correctness sweep (bodyclose/nilerr/ineffassign/unconvert/gocritic/
+  noctx/unparam/prealloc) surfaced no genuine defect — the nilerr hits are the
+  tool-result convention and the deliberate skip-malformed-on-journal-fold idiom.
+  (M489)
 - **`staticcheck ./...` is now clean (0 findings, was 17).** Removed unnecessary
   comma-ok discards on map reads in the control plane (`req.Args[k]` returns one
   value — S1005 ×13 across edict/server/state + halt_resume test), converted an

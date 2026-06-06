@@ -83,6 +83,7 @@ jobs:
           - { goos: darwin,  goarch: amd64 }
           - { goos: darwin,  goarch: arm64 }
           - { goos: windows, goarch: amd64 }
+          - { goos: freebsd, goarch: amd64 }
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -110,3 +111,52 @@ jobs:
           go-version: stable
       - name: Verify every module is in tools/depscheck/allowlist.txt
         run: go run ./tools/depscheck
+
+  lint:
+    # Static-analysis gates driven clean in M485/M487. gofmt + staticcheck are
+    # zero-tolerance; govulncheck catches new advisories (the toolchain is the
+    # latest stable, which carries the patched stdlib).
+    name: lint (gofmt, staticcheck, govulncheck)
+    runs-on: ubuntu-latest
+    env:
+      CGO_ENABLED: '0'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          check-latest: true
+      - name: gofmt (no diff)
+        run: |
+          out="$(gofmt -l .)"
+          if [ -n "$out" ]; then
+            echo "::error::gofmt found unformatted files:"
+            echo "$out"
+            exit 1
+          fi
+      - name: staticcheck
+        run: |
+          go install honnef.co/go/tools/cmd/staticcheck@latest
+          "$(go env GOPATH)/bin/staticcheck" ./...
+      - name: govulncheck
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          "$(go env GOPATH)/bin/govulncheck" ./...
+
+  secrets:
+    # Secret scan, baselined to zero in M486. The full git history is scanned
+    # (fetch-depth: 0); .gitleaks.toml at the repo root keeps the default ruleset
+    # and allowlists only the known secret-shaped test fixtures.
+    name: secrets (gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+      - name: gitleaks
+        run: |
+          go install github.com/gitleaks/gitleaks/v8@latest
+          "$(go env GOPATH)/bin/gitleaks" detect --no-banner --redact -s .
