@@ -14,7 +14,7 @@ project requires; once ratified, "100% hardened" = "every PASS criterion holds, 
 MEASURED criterion meets its floor, and every exception is environment-bound or
 by-design (not a defect)."
 
-All commands run from the repo root. Last measured: 2026-06-06, HEAD at the M525 commit
+All commands run from the repo root. Last measured: 2026-06-06, HEAD at the M526 commit
 (mutation pass at 33 packages; see § Mutation testing detail).
 
 ## Rubric
@@ -103,7 +103,7 @@ by existing tests (survivors equivalent); no test added.
 | reflect | M520 | proposal-rule inclusive thresholds (autonomy denyExcess, tasks ≥50% failure); brief rule already pinned |
 | meshctx | M521 | MaxHopsConfig raw + validOverride returns (doctor's typo flag); effective-limit bounds already solid |
 | tenantctx | M522 | empty-id no-op is context identity (not a wrapper); full kill (1.0) |
-| pulse | M523-525 | salience band edges + novelty-TTL edge + DiskObserver floor/critical thresholds; Route matrix already solid |
+| pulse | M523-526 | salience bands + novelty-TTL + DiskObserver thresholds + QuietHours.Active window edges; Route matrix already solid |
 | controlplane | — | primary-token auth gate **verified solid** (out-of-band) |
 
 ## Verdict against the rubric

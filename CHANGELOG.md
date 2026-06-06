@@ -67,7 +67,7 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   could each weaken to `>` — a score landing exactly on a band edge would silently drop a
   notch (alert→notify, notify→digest, digest→drop). Added
   `TestDispositionForValue_BandBoundaries` (each edge + just-below). `Route` was already
-  exhaustively tested. Thirty-third package in the mutation pass; the salience novelty-TTL upper edge and the DiskObserver floor/critical thresholds were pinned in follow-ups. (M523, M524, M525)
+  exhaustively tested. Thirty-third package in the mutation pass; the salience novelty-TTL edge, DiskObserver thresholds, and QuietHours.Active window edges were pinned in follow-ups. (M523-M526)
 - **Mutation testing pinned tenantctx's empty-id no-op as context identity.** `WithTenant`'s
   early `return ctx` for an empty id could be dropped — falling through to
   `WithValue(ctx, key, "")` — and `Tenant` still returns `""`, so the value-only test

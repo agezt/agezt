@@ -198,3 +198,38 @@ func TestParseQuietHours(t *testing.T) {
 		t.Fatal("garbage should disable")
 	}
 }
+
+// TestQuietHours_Active pins QuietHours.Active at every edge of both branches. The only
+// prior coverage is one wrap-window check (2am in, noon out), so the entire normal
+// (Start<End) branch and the exact hour edges went unpinned — mutation testing (M526)
+// left `h >= Start → h > Start` and `h < End → h <= End` alive on BOTH the normal and
+// wrap branches. The window is inclusive of Start and exclusive of End.
+func TestQuietHours_Active(t *testing.T) {
+	cases := []struct {
+		name string
+		q    QuietHours
+		hour int
+		want bool
+	}{
+		{"disabled is never active", QuietHours{Enabled: false, Start: 22, End: 7}, 2, false},
+		// Normal window 9..17 (Start < End): inclusive 9, exclusive 17.
+		{"normal: at start (inclusive)", QuietHours{Enabled: true, Start: 9, End: 17}, 9, true},
+		{"normal: mid", QuietHours{Enabled: true, Start: 9, End: 17}, 16, true},
+		{"normal: at end (exclusive)", QuietHours{Enabled: true, Start: 9, End: 17}, 17, false},
+		{"normal: before start", QuietHours{Enabled: true, Start: 9, End: 17}, 8, false},
+		{"normal: after end", QuietHours{Enabled: true, Start: 9, End: 17}, 20, false},
+		// Wrap window 22..7 (Start > End): inclusive 22, exclusive 7.
+		{"wrap: at start (inclusive)", QuietHours{Enabled: true, Start: 22, End: 7}, 22, true},
+		{"wrap: just after midnight", QuietHours{Enabled: true, Start: 22, End: 7}, 0, true},
+		{"wrap: just before end", QuietHours{Enabled: true, Start: 22, End: 7}, 6, true},
+		{"wrap: at end (exclusive)", QuietHours{Enabled: true, Start: 22, End: 7}, 7, false},
+		{"wrap: daytime gap", QuietHours{Enabled: true, Start: 22, End: 7}, 12, false},
+		// Degenerate Start==End → never active.
+		{"start==end is never active", QuietHours{Enabled: true, Start: 9, End: 9}, 9, false},
+	}
+	for _, c := range cases {
+		if got := c.q.Active(mustTime(c.hour)); got != c.want {
+			t.Errorf("%s: Active(%02d:00) = %v, want %v", c.name, c.hour, got, c.want)
+		}
+	}
+}
