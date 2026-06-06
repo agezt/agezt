@@ -61,6 +61,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   build matrix to the verification battery. (M488)
 
 ### Code quality
+- **Verified the control-plane tenant command-allowlist (privilege boundary).** Extended the
+  M529 control-plane verification to the second auth primitive, `tenantTokenAllows` (the
+  deny-by-default list of commands a scoped tenant token may run). Both directions are killed
+  by the existing integration tests: the allow case `true → false` fails
+  `TestTenantToken_Authorizes…/AllowsOwn…`, and the dangerous default `false → true` (a tenant
+  able to run admin commands) fails `TestTenantToken_ForbidsNonAllowlistedCmd`. The privilege
+  boundary is genuinely pinned; no code change. (M530)
 - **Mutation-verified the control-plane primary-token auth gate (rigorous).** `controlplane`
   is too large (~10k LOC) for a whole-package `go-mutesting` run, so its security core,
   `tokenIsPrimary` (constant-time admin-token check, M187), was verified by hand-applied
