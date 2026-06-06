@@ -61,6 +61,15 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   build matrix to the verification battery. (M488)
 
 ### Code quality
+- **Verified all inbound channel authorization gates.** Every channel (telegram, discord,
+  slack, webhook, email) gates "who may drive the agent" on the verified
+  `kernel/channel.Allowlist` (M511), fail-closed. Negative control on each gate
+  (`if !allowed → if allowed`, which would let a non-allowlisted sender drive the agent and
+  refuse the allowlisted one) is killed in all five suites; telegram's unauthorized-photo
+  -fetch guard (`allowed &&`) is killed too. Signature verifiers (discord Ed25519, slack
+  signing secret, webhook HMAC) are separately fuzzed (M533). Completes the
+  authorization-surface verification alongside the control-plane (M529/M530) and REST/OpenAI
+  (M513) token gates. No code change. (M540)
 - **Verified provider usage/billing token math (cost-accounting sweep).** Completing the
   surface where M517 found a real money bug: the provider-side token→usage extraction that
   feeds every cost calc. anthropic sums three separate fields

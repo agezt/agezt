@@ -14,7 +14,7 @@ project requires; once ratified, "100% hardened" = "every PASS criterion holds, 
 MEASURED criterion meets its floor, and every exception is environment-bound or
 by-design (not a defect)."
 
-All commands run from the repo root. Last measured: 2026-06-06, HEAD at the M539 commit —
+All commands run from the repo root. Last measured: 2026-06-06, HEAD at the M540 commit —
 full re-verify battery (gofmt/vet/staticcheck/gitleaks/cross-compile/tests/16 fuzz targets)
 re-run green tree-wide after the M490–M533 arc (mutation pass at 35 packages + control-plane
 security primitives; see § Mutation testing detail).
@@ -114,6 +114,7 @@ by existing tests (survivors equivalent); no test added.
 | plugins/tools/shell | M537 | execution delegates to warden (verified M495); negative timeout_ms must fall back to default (can't disable the timeout guard) |
 | plugins/external/mcpbridge | M538 | readBoundedLine MCP-frame cap inclusive edge (3rd copy of the bounded-read DoS guard, after M509/M531) |
 | providers (anthropic/openai) | M539 | usage/billing token math verified solid (anthropic sum of separate cache fields; openai direct mapping) -- completes the cost-accounting sweep |
+| plugins/channels (×5) | M540 | inbound auth gates **verified solid** -- every channel's allowlist gate (telegram/discord/slack/webhook/email) killed by negative control; signature verifiers fuzzed (M533) |
 
 ## Verdict against the rubric
 Every PASS criterion holds; the one MEASURED criterion (mutation) meets its stated
