@@ -61,6 +61,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   build matrix to the verification battery. (M488)
 
 ### Code quality
+- **Mutation-hardened the http tool's request-body cap.** `plugins/tools/http`'s SSRF core
+  (host-allowlist exact + `*.subdomain` wildcard, scheme/method limits, netguard egress,
+  per-redirect-hop re-check) is verified solid by negative control; the genuine gap was the
+  inclusive body cap — `TestBodyTooLarge` used `Max+1`, so `len(body) > Max → >=` survived
+  (a body of exactly 256 KiB wrongly rejected). Added `TestBodyExactlyAtMax`. Same class as
+  the plugin readFrame (M509) / control-plane readBoundedLine (M531) guards. (M536)
 - **Mutation testing reached the `plugins/` tree (file tool).** The plugin tree (tools,
   channels, providers) had been fuzzed but never mutation-tested. First target
   `plugins/tools/file`: its path-containment security core (`withinRoot`/`resolve` — no

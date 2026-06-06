@@ -273,3 +273,27 @@ var errTransport = &transportErr{}
 type transportErr struct{}
 
 func (*transportErr) Error() string { return "rejected by test transport" }
+
+// TestBodyExactlyAtMax pins the inclusive request-body cap: a body of exactly
+// MaxRequestBodyBytes is accepted (the guard `len(in.Body) > MaxRequestBodyBytes` rejects
+// only strictly-over). TestBodyTooLarge uses MaxRequestBodyBytes+1, so the exact-limit
+// edge was unpinned — mutation testing (M536) showed `> → >=` would reject a max-size
+// body. Same inclusive-max class as the plugin readFrame (M509) and control-plane
+// readBoundedLine (M531) guards.
+func TestBodyExactlyAtMax(t *testing.T) {
+	srv := httptest.NewServer(stdhttp.HandlerFunc(func(w stdhttp.ResponseWriter, r *stdhttp.Request) {
+		_, _ = io.ReadAll(r.Body)
+		w.WriteHeader(200)
+	}))
+	defer srv.Close()
+	u, _ := url.Parse(srv.URL)
+	tool := New()
+	tool.AllowLoopback = true
+	tool.AllowedHosts = []string{u.Hostname()}
+
+	body := strings.Repeat("x", MaxRequestBodyBytes) // exactly the cap
+	out, isErr := invoke(t, tool, httpInput{Method: "POST", URL: srv.URL, Body: body})
+	if isErr || strings.Contains(out, "too large") {
+		t.Errorf("a body of exactly MaxRequestBodyBytes must be accepted (inclusive cap); out=%s isErr=%v", out, isErr)
+	}
+}
