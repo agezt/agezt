@@ -40,6 +40,14 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   or in any other test, still trips the scan. (M486)
 
 ### Fixed
+- **Plugin `Reload` no longer lets the dying read loop mark the fresh child dead.** `Reload`
+  tore down the old child (`Close`) then reused the struct in `respawn`, but never joined the
+  old `readLoop` goroutine. That goroutine, on the closed old pipe, called `markDead("read
+  stdout: file already closed")`; if it landed after `respawn` reset `dead`/`deathErr`, it
+  marked the *new* child dead and `initialize` failed with a phantom `connection lost`
+  (intermittent; only the race detector's scheduling exposed it). Added a per-loop `readDone`
+  channel and made `Reload` wait for the old loop to exit before respawn — also closing a
+  lock-free `p.stdout` read/reassign data race. Found via the CI race job. (M561)
 - **OpenAI-compatible `/v1/chat/completions` streaming no longer drops the answer for a
   non-streaming provider.** `streamChat` relays the kernel's `llm.token` events as content
   deltas, but a provider that implements `Complete` without `CompleteStream` (non-streaming)

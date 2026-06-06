@@ -187,6 +187,16 @@ type Plugin struct {
 	// each (re)spawn; read under mu.
 	waitDone chan struct{}
 
+	// readDone is closed by readLoop when it returns. Reload waits on the OLD
+	// child's readDone before respawn reuses this struct, so a late markDead from
+	// the dying loop (e.g. "read stdout: file already closed" when Close shuts the
+	// old pipe) can't clobber the freshly-reset liveness state of the NEW child,
+	// and the old loop can't read p.stdout while respawn reassigns it (M560).
+	// Each readLoop closes the channel it was started with, not the field, so a
+	// respawn that replaces the field never makes a loop close the wrong one.
+	// Replaced on each (re)spawn; read under mu.
+	readDone chan struct{}
+
 	// pending tracks in-flight requests by id → response channel.
 	// Map access holds mu. The read loop's terminal send is done UNDER
 	// mu and non-blocking (M179) so it can't race a teardown that
@@ -315,6 +325,8 @@ func Spawn(ctx context.Context, cfg Config) (*Plugin, error) {
 	}
 	// Dedicated waiter: reap the child on whatever path it dies (M422).
 	p.waitDone = startWaiter(cmd)
+	readDone := make(chan struct{})
+	p.readDone = readDone
 
 	// Drain stderr → Logger. Plugins log to stderr; the host
 	// forwards (or discards) each line.
@@ -336,7 +348,7 @@ func Spawn(ctx context.Context, cfg Config) (*Plugin, error) {
 
 	// Read loop. Pulls Response lines off stdout, dispatches to the
 	// waiting Invoke caller via the pending map.
-	go p.readLoop()
+	go p.readLoop(readDone)
 
 	// Send initialize and wait for the tool list.
 	initCtx, cancel := context.WithTimeout(ctx, cfg.InitTimeout)
@@ -692,7 +704,11 @@ func readFrame(r *bufio.Reader, max int) ([]byte, error) {
 // plugin-initiated host/invoke requests (M1.cb). Runs until EOF /
 // error. On exit, marks the plugin dead so subsequent calls fail
 // fast instead of blocking on the pending channel forever.
-func (p *Plugin) readLoop() {
+func (p *Plugin) readLoop(done chan struct{}) {
+	// Signal exit so Reload can join this goroutine before respawn reuses the
+	// struct (M560). Closes the channel it was STARTED with — never the current
+	// p.readDone field, which a concurrent respawn may already have replaced.
+	defer close(done)
 	// Defense-in-depth (M179): the read loop processes untrusted plugin
 	// output. Any unforeseen panic here must tear the plugin down, not
 	// crash the whole daemon — mark it dead so callers fail fast.
@@ -955,7 +971,20 @@ func (p *Plugin) Reload(ctx context.Context) error {
 	// Step 2: shut the existing child down. Best-effort — even on
 	// failure, proceed to spawn the replacement (the old child is
 	// still going to be killed by Close's grace timer).
+	p.mu.Lock()
+	oldReadDone := p.readDone
+	p.mu.Unlock()
 	_ = p.Close()
+	// Join the old read loop before respawn reuses the struct (M560). Close reaps
+	// the process, which shuts the old stdout pipe, so the loop's readFrame errors
+	// and it returns promptly. Without this wait its trailing markDead ("read
+	// stdout: file already closed") could land AFTER respawn resets p.dead/
+	// deathErr — marking the brand-new child dead and failing initialize with a
+	// phantom "connection lost". Bounded: the loop always closes its channel via
+	// defer, even on panic.
+	if oldReadDone != nil {
+		<-oldReadDone
+	}
 
 	// Step 3: spawn a replacement using the same config. We bypass
 	// the package-level Spawn function so we can mutate `p` in place
@@ -997,6 +1026,7 @@ func (p *Plugin) respawn(ctx context.Context) error {
 	// Dedicated waiter for the replacement child (M422). The previous child was
 	// already reaped by Reload→Close before this point.
 	waitDone := startWaiter(cmd)
+	readDone := make(chan struct{})
 	p.mu.Lock()
 	p.cmd = cmd
 	p.stdin = stdin
@@ -1004,6 +1034,7 @@ func (p *Plugin) respawn(ctx context.Context) error {
 	p.pending = make(map[string]chan *Response)
 	p.progress = make(map[string]func(string))
 	p.waitDone = waitDone
+	p.readDone = readDone
 	p.mu.Unlock()
 	p.dead.Store(false)
 	p.setDeathErr(nil)
@@ -1027,7 +1058,7 @@ func (p *Plugin) respawn(ctx context.Context) error {
 			p.cfg.Logger("stderr scanner: " + err.Error())
 		}
 	}()
-	go p.readLoop()
+	go p.readLoop(readDone)
 
 	initCtx, cancel := context.WithTimeout(ctx, p.cfg.InitTimeout)
 	defer cancel()
