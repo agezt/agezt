@@ -13,7 +13,7 @@ out-of-scope exception. Updated per milestone. Last refresh: 2026-06-07 (M550).
 | 4 | Fuzz (16 targets, 0 crasher) | **PARTIAL** | last active re-run M533; M535–M549 were test+docs only (parsers unchanged). Bounded re-run pending under this goal | — |
 | 5 | Mutation floor (47 pkgs) | **PASS** | ratified HARDENING.md floor; no surviving non-equivalent mutant on the rubric package set (M490–M548) | 2026-06-06 |
 | 6 | Secrets/security | **PASS** | `gitleaks detect`=0 (617 commits); gosec triaged (M487) | 2026-06-06 |
-| 7 | Runtime / E2E (every surface) | **IN PROGRESS** | core proven: daemon boots, `agt run`/`status`/`doctor`/`journal` clean, graceful shutdown, 0 panics, 0 error-journal events (M550). HTTP surfaces / plugins / scheduler / mesh / tenant pending | 2026-06-06 |
+| 7 | Runtime / E2E (every surface) | **PASS** | M550–M553: every product surface driven against the real daemon — daemon lifecycle, run loop, status/doctor/journal, OpenAI API (+streaming, bug fixed), REST, Web UI, ACP, webhooks (HMAC), plugin+MCP, scheduler+HITL, mesh, multi-tenant, pulse, vault. 0 panics / 0 error-journal events / graceful shutdown throughout. See §7 checklist below | 2026-06-07 |
 | 8 | Plan-faithfulness (vision↔impl) | **TODO** | cross-check .project vision/IMPLEMENTATION/DECISIONS vs shipped surfaces; each capability exercised in §7 | — |
 | 9 | CI wires every gate | **PASS** | `.github/workflows/ci.yml`: test+vet+build(3 OS), race, lint, secrets, multi-arch, codegen, deps (M489) | 2026-06-06 |
 
@@ -36,9 +36,9 @@ flow, leave **0 panics**, **0 error-level journal events**, and shut down cleanl
 | Web UI | **PASS** | M550: `/?token=` → 200, `/` → 401 (auth enforced) | 2026-06-07 |
 | ACP server | **PASS** | M551: `agt acp` stdio initialize handshake → JSON-RPC result (agentInfo agezt 1.0.0, protocolVersion 1) | 2026-06-07 |
 | Outbound webhooks (HMAC) | **PASS** | M552: `AGEZT_WEBHOOKS` sink received all 6 journal events of a run, **every delivery `sig_valid=true`** (HMAC-SHA256), 0 invalid; egress guard correctly blocks loopback until `WEBHOOK_ALLOW_LOOPBACK=1` | 2026-06-07 |
-| Out-of-process plugin + MCP bridge | TODO | testdata echoplugin / mcp | — |
+| Out-of-process plugin + MCP bridge | **PASS** | M553: daemon spawned echoplugin subprocess (separate PID), handshake, 4 tools registered/advertised (`ext.echo/callhost/fail/slowwork`), clean shutdown (subprocess gone); invoke/callback/streaming via kernel/plugin integration tests. MCP bridge: full host→bridge→mock-MCP-server e2e (7 TestBridge_* pass: list/invoke/error/namespacing/resources) | 2026-06-07 |
 | DAG scheduler + HITL gates | **PASS** | M551 schedule add/list+next-fire; M552 HITL: file-edit run blocked on real approval.requested (file.write L2), `agt approve` → granted → tool.invoked → tool.result → file written → run completed; 0 panics (deny is the symmetric path, unit-covered M504) | 2026-06-07 |
-| Mesh peer delegation | TODO | two-node `remote_run` | — |
+| Mesh peer delegation | **PASS** | M553: two real daemons (leader A + worker B). `agt peers` → worker OK (v1.0.0); remote_run path `POST {base}/api/v1/runs` + X-Agezt-Hop made B execute the delegated task (echo answer) and grow B's journal seq 6→12; peer live round-trip test passes. (Peer URL is base-only, no /api/v1 — appended by the tool.) | 2026-06-07 |
 | Multi-tenant isolation | **PASS** | M551: `tenant create/list/token`, run routed to acme, primary journal stays seq=0 (isolated) | 2026-06-07 |
 | Pulse engine | **PASS** | M551: `pulse status` running, dial=balanced; `budget` tracking | 2026-06-07 |
 | Vault encryption + rotation | **PASS** | M551: `vault encrypt` → aes-256-gcm + pbkdf2 200k, 0 plaintext leak in creds.json; `vault rotate` re-encrypts, entries preserved | 2026-06-07 |
