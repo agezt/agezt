@@ -53,6 +53,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   build matrix to the verification battery. (M488)
 
 ### Code quality
+- **Mutation testing pinned runtime's foldRunTools correlation isolation.** `go-mutesting`
+  on `kernel/runtime` showed the memory-distillation fold's filter (`e.CorrelationID !=
+  corr || e.Kind != KindToolResult`) was unpinned — a `||`→`&&` regression folds other
+  runs' tool results into a run's distilled memory transcript (cross-run contamination).
+  Added `foldruntools_internal_test.go`. The `WithTrustCeiling` survivor was verified
+  equivalent. Twelfth package in the mutation pass. (M501)
 - **Mutation testing pinned the cadence due-check firing boundary.** `go-mutesting` on
   `kernel/cadence` (the scheduler) showed `Due`'s `now < NextRunUnix → skip` boundary was
   unpinned: the existing test probes `now < nextRun` and `now = nextRun+1s` but never the
