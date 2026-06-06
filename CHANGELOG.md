@@ -53,6 +53,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   build matrix to the verification battery. (M488)
 
 ### Code quality
+- **Mutation testing verified the anomaly circuit breaker solid (no gap).** A hand-applied
+  negative control on every meaningful operator in `kernel/anomaly` — the trip boundary
+  `count > max`, the window sign/prune bound/inclusive `.Before`, the `Enabled` gate, and
+  the monitor's tool-kind filter, trip latch, and start gate — confirmed each is killed by
+  the existing tests. The 23 go-mutesting survivors are equivalent mutants. No code change;
+  recorded as verified solid (like netguard/event). Twenty-third package in the mutation
+  pass. (M512)
 - **Mutation testing pinned the channel splitter's empty-piece guard.** `go-mutesting`
   on `kernel/channel` showed `SplitText`'s cut trigger (`units+ru > limit && len(cur) > 0`)
   was unpinned at the empty-buffer guard — no test used a limit smaller than a single
