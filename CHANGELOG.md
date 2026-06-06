@@ -61,6 +61,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   build matrix to the verification battery. (M488)
 
 ### Code quality
+- **Mutation testing reached the `plugins/` tree (file tool).** The plugin tree (tools,
+  channels, providers) had been fuzzed but never mutation-tested. First target
+  `plugins/tools/file`: its path-containment security core (`withinRoot`/`resolve` — no
+  `..`/symlink escape) is verified solid by negative control, and a usability edge was
+  pinned — a single-line read range (`start == end`, "read lines 5-5") was wrongly
+  rejected because `end < start → <=` survived (no test sat on `start == end`). Added a
+  `[3,3]` case to `TestRead_LineRange`. (M535)
 - **Full rubric re-verification after the hardening arc.** Re-ran the complete
   offline-verifiable battery tree-wide after 44 commits: gofmt (committed LF blobs) clean,
   `go vet ./...` 0, `staticcheck ./...` clean, `gitleaks` no leaks (602 commits scanned),

@@ -14,7 +14,7 @@ project requires; once ratified, "100% hardened" = "every PASS criterion holds, 
 MEASURED criterion meets its floor, and every exception is environment-bound or
 by-design (not a defect)."
 
-All commands run from the repo root. Last measured: 2026-06-06, HEAD at the M534 commit —
+All commands run from the repo root. Last measured: 2026-06-06, HEAD at the M535 commit —
 full re-verify battery (gofmt/vet/staticcheck/gitleaks/cross-compile/tests/16 fuzz targets)
 re-run green tree-wide after the M490–M533 arc (mutation pass at 35 packages + control-plane
 security primitives; see § Mutation testing detail).
@@ -51,7 +51,7 @@ is a subprocess-spawning plugin-host daemon; those platforms have no process mod
 | `go test ./...` = 0 | **PASS** (CI: test, 3 OSes) |
 | Race detector | **PASS** — CI runs `go test -race` (cgo/linux); offline has no C compiler, so CI is the validator |
 | Fuzzing | **PASS** — 16 fuzz targets cover every untrusted/external/binary parser (M444–M454); all 16 actively re-run clean, no crashers (M496; re-verified M533 after the M509–M532 arc). Run capped at `GOMAXPROCS=3` to avoid pegging the CPU. |
-| Mutation testing, highest-stakes packages | **MEASURED** (floor: every *non-equivalent* mutant killed) across **35 packages** + the controlplane primary-token gate. Per-package detail in [§ Mutation testing detail](#mutation-testing-detail). Genuine gaps closed where present; the rest verified solid. Residual survivors are error-message / equivalent mutants (unkillable by definition). |
+| Mutation testing, highest-stakes packages | **MEASURED** (floor: every *non-equivalent* mutant killed) across **36 packages** (incl. the first plugins/ target) + the controlplane primary-token gate. Per-package detail in [§ Mutation testing detail](#mutation-testing-detail). Genuine gaps closed where present; the rest verified solid. Residual survivors are error-message / equivalent mutants (unkillable by definition). |
 
 ### 5. Defect surface
 | Criterion | State |
@@ -109,6 +109,7 @@ by existing tests (survivors equivalent); no test added.
 | openaiapi | M527 | word-count usage fallback total (p+c); request/parse/auth surface already solid (fuzz + 7 test files) |
 | agent | M528 | per-run cost-cap inclusive boundary (spent >= cap); loop guard + max-iter already edge-pinned |
 | controlplane | M529-532 | auth primitives + DoS guard verified/pinned by negative control: tokenIsPrimary (constant-time), tenantTokenAllows (tenant privilege allowlist, both directions), readBoundedLine request-size cap (M531), runs cost-band floor inclusive edge (M532). ~10k LOC, 71 test files; command handlers not exhaustively mutation-tested (intractable at scale) |
+| plugins/tools/file | M535 | path-containment core (withinRoot/resolve, no ../symlink escape) verified solid; single-line read-range edge pinned. First plugins/ mutation target (tree was fuzzed-only) |
 
 ## Verdict against the rubric
 Every PASS criterion holds; the one MEASURED criterion (mutation) meets its stated
