@@ -3,7 +3,7 @@
 Live PASS/FAIL ledger for the ratified goal. Each criterion records its state, the
 last evidence command, and the date. "PASS" = re-verified green by running the
 command shown. Goal is MET when every row is PASS or a documented env-bound /
-out-of-scope exception. Updated per milestone. Last refresh: 2026-06-07 (M555).
+out-of-scope exception. Updated per milestone. Last refresh: 2026-06-07 (M556).
 
 | # | Criterion | State | Last evidence (command) | Date |
 |---|---|---|---|---|
@@ -16,6 +16,14 @@ out-of-scope exception. Updated per milestone. Last refresh: 2026-06-07 (M555).
 | 7 | Runtime / E2E (every surface) | **PASS** | M550–M553: every product surface driven against the real daemon — daemon lifecycle, run loop, status/doctor/journal, OpenAI API (+streaming, bug fixed), REST, Web UI, ACP, webhooks (HMAC), plugin+MCP, scheduler+HITL, mesh, multi-tenant, pulse, vault. 0 panics / 0 error-journal events / graceful shutdown throughout. See §7 checklist below | 2026-06-07 |
 | 8 | Plan-faithfulness (vision↔impl) | **PASS (v1.0.0 scope)** | M554: every capability the README/v1.0.0 claims is present + exercised in §7; the IMPLEMENTATION.md full-project Phase 4–9 has deferred items documented out-of-scope below (future roadmap, not v1.0 defects) | 2026-06-07 |
 | 9 | CI wires every gate | **PASS** | `.github/workflows/ci.yml`: test+vet+build(3 OS), race, lint, secrets, multi-arch, codegen, deps (M489) | 2026-06-06 |
+
+## Reproducing the runtime/E2E proof
+The §7 verification is codified as a runnable artifact: `scripts/e2e-smoke.sh`
+(`make e2e`). It boots the real daemon (keyless echo mock) and asserts, in one run:
+control-plane loop, doctor + journal-chain verify, OpenAI chat (non-stream **and**
+streaming with the M550 content-delta guard), native REST, auth/input-validation
+(401/400/413), 10-way concurrency, halt→refuse→resume, graceful shutdown with 0
+panics. Exit 0 = the zero-defect surface holds. Last run: **PASS** (2026-06-07, M556).
 
 ## Environment-bound / out-of-scope (do NOT block DONE)
 - **govulncheck**: 0 requires go ≥ 1.26.4 (offline toolchain is 1.26.3 → 2 stdlib CVEs, toolchain-only fix). CI builds with patched `stable`.
