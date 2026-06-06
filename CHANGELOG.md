@@ -53,6 +53,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   build matrix to the verification battery. (M488)
 
 ### Code quality
+- **Mutation testing pinned the cadence due-check firing boundary.** `go-mutesting` on
+  `kernel/cadence` (the scheduler) showed `Due`'s `now < NextRunUnix → skip` boundary was
+  unpinned: the existing test probes `now < nextRun` and `now = nextRun+1s` but never the
+  exact instant, so a `<` → `<=` regression (delaying every entry by one tick) survived.
+  Added `TestStore_Due_FiresAtExactScheduledTime` (now == NextRunUnix is due). Eleventh
+  package in the mutation pass. (M500)
 - **Mutation testing pinned the bus subject-matcher over-delivery edge.** `go-mutesting`
   on `kernel/bus` (the event backbone) showed `matches` only required the *subject* to be
   fully consumed, not the *pattern*: dropping the `pi == len(pattern)` half let a pattern
