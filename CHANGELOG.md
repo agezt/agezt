@@ -61,6 +61,14 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   build matrix to the verification battery. (M488)
 
 ### Code quality
+- **Mutation-verified the control-plane primary-token auth gate (rigorous).** `controlplane`
+  is too large (~10k LOC) for a whole-package `go-mutesting` run, so its security core,
+  `tokenIsPrimary` (constant-time admin-token check, M187), was verified by hand-applied
+  negative control: `want == "" → !=`, `presented == "" → !=`, and `ConstantTimeCompare(...)
+  == 1 → != 1` are all killed by `auth_test.go`; the `|| → &&` guard survivor is equivalent
+  (ConstantTimeCompare's length-mismatch and the both-empty case make `&&` behave
+  identically). Upgrades the prior informal "verified out-of-band" note to a reproducible
+  result. No code change. (M529)
 - **Mutation testing pinned the agent per-run cost cap boundary.** `kernel/agent`'s per-run
   spend cap (M166) terminates at `spentMicrocents >= cap`, but `runcost_test.go` only spends
   strictly over the cap (2000 vs 1500), never exactly at it, so `>= → >` survived — a run
