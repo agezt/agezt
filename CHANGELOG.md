@@ -53,6 +53,14 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   build matrix to the verification battery. (M488)
 
 ### Code quality
+- **Mutation testing pinned the ACP prompt-flattening block selection.** Every `kernel/acp`
+  test sent a single `{"type":"text"}` block, so `flattenPrompt`'s newline join and its
+  lenient `b.Type == "" && b.Text != ""` branch were unpinned — `== → !=`, `!= → ==`, and
+  `&& → ||` all changed which content blocks were folded into the intent undetected (a
+  non-text/image block's text could leak in; an omitted-type text block could be dropped).
+  Added `TestFlattenPrompt_BlockSelection` (multi-block: text/typeless/image/empty/text →
+  `"one\ntwo\nthree"`). The JSON-RPC notification + auth paths are defended-in-depth
+  (equivalent survivors). Twenty-fifth package in the mutation pass. (M514)
 - **Mutation testing pinned the REST mesh hop-limit loop guard.** The federation loop
   guard in `kernel/restapi` (`hopIn > maxHops` → 508 Loop Detected, M209) had no
   REST-layer test, so `> maxHops → >= maxHops` (refuse a run at exactly the limit) and
