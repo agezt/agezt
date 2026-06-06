@@ -98,3 +98,21 @@ func TestChatUsage_FallsBackToEstimate(t *testing.T) {
 		t.Errorf("non-reporter prompt_tokens = %v, want the estimate", u2["prompt_tokens"])
 	}
 }
+
+// TestEstimateUsage_WordCount pins the word-count usage fallback used when the engine is
+// not a UsageReporter (no real provider token counts). usage_test.go's main test uses a
+// UsageReporter engine, so it exercises chatUsage's `pt + ct` path, never estimateUsage —
+// leaving its `total_tokens: p + c` arithmetic unpinned (mutation M527 showed `+ → *` and
+// `+ → -` survived). prompt/completion are the whitespace-field counts; total is their sum.
+func TestEstimateUsage_WordCount(t *testing.T) {
+	u := estimateUsage("one two three", "four five")
+	if got, _ := u["prompt_tokens"].(int); got != 3 {
+		t.Errorf("prompt_tokens = %v, want 3", u["prompt_tokens"])
+	}
+	if got, _ := u["completion_tokens"].(int); got != 2 {
+		t.Errorf("completion_tokens = %v, want 2", u["completion_tokens"])
+	}
+	if got, _ := u["total_tokens"].(int); got != 5 { // 3 + 2 — pins the sum, not a product/difference
+		t.Errorf("total_tokens = %v, want 5 (prompt+completion)", u["total_tokens"])
+	}
+}

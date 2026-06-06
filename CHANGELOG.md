@@ -61,6 +61,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   build matrix to the verification battery. (M488)
 
 ### Code quality
+- **Mutation testing pinned openaiapi's word-count usage fallback.** `estimateUsage` (used
+  when the engine reports no real provider token counts) had its `total_tokens: p + c`
+  arithmetic unpinned — the main usage test uses a `UsageReporter` engine, hitting
+  `chatUsage`'s `pt + ct` instead, so `+ → *` and `+ → -` survived (a wrong usage/billing
+  total for clients relying on the heuristic). Added a direct `TestEstimateUsage_WordCount`.
+  The request/parse/auth surface was already well covered (fuzz + 7 test files). Thirty-fourth
+  package in the mutation pass. (M527)
 - **Mutation testing pinned pulse's salience disposition-band boundaries.** `kernel/pulse`'s
   `dispositionForValue` (LLM score → Alert/Notify/Digest/Drop band) was exercised only
   indirectly, never at its exact thresholds, so `v >= 0.85`, `v >= 0.45`, and `v >= 0.20`

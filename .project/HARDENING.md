@@ -14,8 +14,8 @@ project requires; once ratified, "100% hardened" = "every PASS criterion holds, 
 MEASURED criterion meets its floor, and every exception is environment-bound or
 by-design (not a defect)."
 
-All commands run from the repo root. Last measured: 2026-06-06, HEAD at the M526 commit
-(mutation pass at 33 packages; see § Mutation testing detail).
+All commands run from the repo root. Last measured: 2026-06-06, HEAD at the M527 commit
+(mutation pass at 34 packages; see § Mutation testing detail).
 
 ## Rubric
 
@@ -49,7 +49,7 @@ is a subprocess-spawning plugin-host daemon; those platforms have no process mod
 | `go test ./...` = 0 | **PASS** (CI: test, 3 OSes) |
 | Race detector | **PASS** — CI runs `go test -race` (cgo/linux); offline has no C compiler, so CI is the validator |
 | Fuzzing | **PASS** — 16 fuzz targets cover every untrusted/external/binary parser (M444–M454); all 16 actively re-run clean, no crashers (M496). Run capped at `GOMAXPROCS=3` to avoid pegging the CPU. |
-| Mutation testing, highest-stakes packages | **MEASURED** (floor: every *non-equivalent* mutant killed) across **33 packages** + the controlplane primary-token gate. Per-package detail in [§ Mutation testing detail](#mutation-testing-detail). Genuine gaps closed where present; the rest verified solid. Residual survivors are error-message / equivalent mutants (unkillable by definition). |
+| Mutation testing, highest-stakes packages | **MEASURED** (floor: every *non-equivalent* mutant killed) across **34 packages** + the controlplane primary-token gate. Per-package detail in [§ Mutation testing detail](#mutation-testing-detail). Genuine gaps closed where present; the rest verified solid. Residual survivors are error-message / equivalent mutants (unkillable by definition). |
 
 ### 5. Defect surface
 | Criterion | State |
@@ -104,6 +104,7 @@ by existing tests (survivors equivalent); no test added.
 | meshctx | M521 | MaxHopsConfig raw + validOverride returns (doctor's typo flag); effective-limit bounds already solid |
 | tenantctx | M522 | empty-id no-op is context identity (not a wrapper); full kill (1.0) |
 | pulse | M523-526 | salience bands + novelty-TTL + DiskObserver thresholds + QuietHours.Active window edges; Route matrix already solid |
+| openaiapi | M527 | word-count usage fallback total (p+c); request/parse/auth surface already solid (fuzz + 7 test files) |
 | controlplane | — | primary-token auth gate **verified solid** (out-of-band) |
 
 ## Verdict against the rubric
