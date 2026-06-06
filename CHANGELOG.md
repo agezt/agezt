@@ -53,6 +53,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   build matrix to the verification battery. (M488)
 
 ### Code quality
+- **Mutation testing pinned the plugin host's frame-size boundary.** `go-mutesting` on
+  `kernel/plugin` showed `readFrame`'s OOM-flood guard (`len(buf)+len(chunk) > max`) was
+  unpinned — `frame_test.go` covered under-max, over-max, and EOF, but never a frame
+  sitting exactly on the inclusive limit, so `> → >=` survived (a maximum-size frame
+  wrongly rejected as `errFrameTooLarge`). Added `TestReadFrame_ExactlyMaxAccepted`
+  (exactly `max` accepted, `max+1` rejected). Twentieth package in the mutation pass. (M509)
 - **Mutation testing pinned catalog's cross-provider down-route tie-break.** `go-mutesting`
   on `kernel/catalog` showed `ToolCapableAlternativeAmong`'s cross-provider selection
   (`ctx > bestCtx || (ctx == bestCtx && id < bestID)`) was unpinned — the cross tests only

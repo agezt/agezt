@@ -86,3 +86,26 @@ func TestReadFrame_EOFMidLine(t *testing.T) {
 		t.Errorf("got %q want %q", got, "partial")
 	}
 }
+
+// TestReadFrame_ExactlyMaxAccepted pins the inclusive boundary of the OOM guard: a
+// frame whose total length (including the trailing newline) is EXACTLY max is accepted;
+// max+1 is rejected. The existing tests cover only under-max and over-max, so the
+// `len(buf)+len(chunk) > max` boundary was unpinned — mutation testing (M509) showed
+// `>` could weaken to `>=` (rejecting a frame that exactly fills the limit) undetected.
+func TestReadFrame_ExactlyMaxAccepted(t *testing.T) {
+	const max = 64
+
+	exact := strings.Repeat("a", max-1) + "\n" // 64 bytes total, including newline
+	got, err := readFrame(bufio.NewReader(strings.NewReader(exact)), max)
+	if err != nil {
+		t.Fatalf("frame of exactly max=%d bytes: unexpected err %v (the limit is inclusive)", max, err)
+	}
+	if len(got) != max {
+		t.Errorf("frame len = %d, want %d", len(got), max)
+	}
+
+	over := strings.Repeat("a", max) + "\n" // max+1 bytes total
+	if _, err := readFrame(bufio.NewReader(strings.NewReader(over)), max); !errors.Is(err, errFrameTooLarge) {
+		t.Errorf("frame of max+1 bytes: err = %v, want errFrameTooLarge", err)
+	}
+}
