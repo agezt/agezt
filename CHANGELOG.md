@@ -61,6 +61,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   build matrix to the verification battery. (M488)
 
 ### Code quality
+- **Mutation testing pinned pulse's salience disposition-band boundaries.** `kernel/pulse`'s
+  `dispositionForValue` (LLM score → Alert/Notify/Digest/Drop band) was exercised only
+  indirectly, never at its exact thresholds, so `v >= 0.85`, `v >= 0.45`, and `v >= 0.20`
+  could each weaken to `>` — a score landing exactly on a band edge would silently drop a
+  notch (alert→notify, notify→digest, digest→drop). Added
+  `TestDispositionForValue_BandBoundaries` (each edge + just-below). `Route` was already
+  exhaustively tested. Thirty-third package in the mutation pass. (M523)
 - **Mutation testing pinned tenantctx's empty-id no-op as context identity.** `WithTenant`'s
   early `return ctx` for an empty id could be dropped — falling through to
   `WithValue(ctx, key, "")` — and `Tenant` still returns `""`, so the value-only test

@@ -35,6 +35,33 @@ func mediumDelta(summary string) Delta {
 	return Delta{Source: "probe:ci", Kind: "probe_failed", Summary: summary} // severity defaults to medium
 }
 
+// TestDispositionForValue_BandBoundaries pins the inclusive LLM-score → disposition band
+// edges. The salience/route tests exercise dispositions directly or via the relevance
+// boost, never dispositionForValue at its exact thresholds, so mutation testing (M523)
+// left `v >= 0.85`, `v >= 0.45`, and `v >= 0.20` each able to weaken to `>` — a score
+// landing exactly on a band edge would drop a notch (an alert silently demoted to a
+// notify, a notify to a digest, a digest dropped entirely).
+func TestDispositionForValue_BandBoundaries(t *testing.T) {
+	cases := []struct {
+		v    float64
+		want Disposition
+	}{
+		{1.0, DispAlert},
+		{0.85, DispAlert}, // exact alert edge
+		{0.84, DispNotify},
+		{0.45, DispNotify}, // exact notify edge
+		{0.44, DispDigest},
+		{0.20, DispDigest}, // exact digest edge
+		{0.19, DispDrop},
+		{0.0, DispDrop},
+	}
+	for _, c := range cases {
+		if got := dispositionForValue(c.v); got != c.want {
+			t.Errorf("dispositionForValue(%.2f) = %v, want %v", c.v, got, c.want)
+		}
+	}
+}
+
 func TestSalienceRelevanceBoostLiftsBand(t *testing.T) {
 	base := newSalience(nil)
 	boosted := newSalience(fakeRelevance{known: []string{"Lictor"}})
