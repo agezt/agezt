@@ -53,6 +53,15 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   build matrix to the verification battery. (M488)
 
 ### Code quality
+- **Mutation testing hardened the redactor's test suite (score 0.575 → 0.725).**
+  `go-mutesting` on `kernel/redact` (the secret-scrubbing chokepoint) found 17
+  surviving mutants; 6 were genuine test gaps — nothing pinned the exactly-8-char
+  literal length floor, that a leading too-short/duplicate value must not abort the
+  registration loop, or the longest-first ordering that fully scrubs a secret which is
+  a prefix of another. Added four tests (`redact_m490_test.go`); each would fail on a
+  one-token regression that silently leaks a secret. The remaining 11 survivors are
+  equivalent mutants (identical observable behaviour), so every non-equivalent mutant
+  is now killed. (M490)
 - **CI now enforces the cleaned gates.** Added a `lint` job (`gofmt -l`,
   `staticcheck ./...`, `govulncheck ./...`) and a `secrets` job (`gitleaks` over full
   history with the `.gitleaks.toml` baseline) to `ci.yml`, and added `freebsd/amd64`
