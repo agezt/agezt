@@ -3,7 +3,7 @@
 Live PASS/FAIL ledger for the ratified goal. Each criterion records its state, the
 last evidence command, and the date. "PASS" = re-verified green by running the
 command shown. Goal is MET when every row is PASS or a documented env-bound /
-out-of-scope exception. Updated per milestone. Last refresh: 2026-06-07 (M556).
+out-of-scope exception. Updated per milestone. Last refresh: 2026-06-07 (M557).
 
 | # | Criterion | State | Last evidence (command) | Date |
 |---|---|---|---|---|
@@ -76,4 +76,5 @@ flow, leave **0 panics**, **0 error-level journal events**, and shut down cleanl
 | Vault encryption + rotation | **PASS** | M551: `vault encrypt` → aes-256-gcm + pbkdf2 200k, 0 plaintext leak in creds.json; `vault rotate` re-encrypts, entries preserved | 2026-06-07 |
 | Warden (OS-permitting) | N/A-Win | Linux prlimit; Windows facade=none (journaled downgrade) | — |
 | Deeper flows (delegate/loop-guard/SSRF/cache/vision) | **PASS** | M555: all demo-scripted flows complete; loop-guard fires gracefully, SSRF egress guard refuses metadata fetch; 0 panics | 2026-06-07 |
+| Multi-tenant HTTP auth + data isolation | **PASS** | M557: per-tenant token matrix — cross-tenant=401, admin=any, tenant-token-can't-drive-primary=401; separate journal dirs per tenant; 0 panics | 2026-06-07 |
 | Error/edge/concurrency/lifecycle | **PASS** | M555: 401/400/413 input validation; 10 concurrent runs all 200; halt→refuse→resume; journal chain `ok:true` after ~73 events; graceful shutdown under load; 0 panics | 2026-06-07 |
