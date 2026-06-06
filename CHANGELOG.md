@@ -40,6 +40,15 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   or in any other test, still trips the scan. (M486)
 
 ### Fixed
+- **OpenAI-compatible `/v1/chat/completions` streaming no longer drops the answer for a
+  non-streaming provider.** `streamChat` relays the kernel's `llm.token` events as content
+  deltas, but a provider that implements `Complete` without `CompleteStream` (non-streaming)
+  emits no token events — so a `stream:true` request served by such a provider returned only
+  the `role` + `stop` chunks and silently dropped the answer, while the same provider via
+  non-stream chat returned it. `/v1/responses` already guarded this (`full.Len() == 0` →
+  emit the assembled answer); chat/completions now does the same. Found by driving the real
+  daemon end-to-end with the echo mock (the new runtime/E2E acceptance dimension). Verified
+  by unit negative control + e2e (the content delta now appears). (M550)
 - **`FormatUSD` no longer drops the minus sign on sub-dollar negative amounts.**
   `planner.FormatUSD` abs-ed the fractional part to handle negatives, but for an amount
   whose magnitude is under $1 the whole-dollar part is `0`, so the sign lived only in the
