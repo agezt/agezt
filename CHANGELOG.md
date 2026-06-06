@@ -61,6 +61,10 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   build matrix to the verification battery. (M488)
 
 ### Code quality
+- **Re-verified all 16 fuzz targets clean.** Every untrusted/external/binary parser (7 kernel
+  + 9 plugin: provider stream parsers, channel HMAC verifiers, AWS event-stream framing) was
+  re-fuzzed (`GOMAXPROCS=3`, 8s/target) after the M509–M532 arc — no crashers, no new corpus
+  seeds. Re-validates the M496 baseline with a current measurement. (M533)
 - **Mutation-pinned the `runs list` cost-band floor edge.** The cost-band filter (M125) keeps
   runs spending `≥ min and ≤ max`, but `TestRunsList_CostBandFilter` tested the ceiling at its
   exact edge (a 100-spend run kept against `max=100`) while testing the floor only strictly

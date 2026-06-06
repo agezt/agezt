@@ -14,7 +14,7 @@ project requires; once ratified, "100% hardened" = "every PASS criterion holds, 
 MEASURED criterion meets its floor, and every exception is environment-bound or
 by-design (not a defect)."
 
-All commands run from the repo root. Last measured: 2026-06-06, HEAD at the M532 commit
+All commands run from the repo root. Last measured: 2026-06-06, HEAD at the M533 commit
 (mutation pass at 35 packages; see § Mutation testing detail).
 
 ## Rubric
@@ -48,7 +48,7 @@ is a subprocess-spawning plugin-host daemon; those platforms have no process mod
 |---|---|
 | `go test ./...` = 0 | **PASS** (CI: test, 3 OSes) |
 | Race detector | **PASS** — CI runs `go test -race` (cgo/linux); offline has no C compiler, so CI is the validator |
-| Fuzzing | **PASS** — 16 fuzz targets cover every untrusted/external/binary parser (M444–M454); all 16 actively re-run clean, no crashers (M496). Run capped at `GOMAXPROCS=3` to avoid pegging the CPU. |
+| Fuzzing | **PASS** — 16 fuzz targets cover every untrusted/external/binary parser (M444–M454); all 16 actively re-run clean, no crashers (M496; re-verified M533 after the M509–M532 arc). Run capped at `GOMAXPROCS=3` to avoid pegging the CPU. |
 | Mutation testing, highest-stakes packages | **MEASURED** (floor: every *non-equivalent* mutant killed) across **35 packages** + the controlplane primary-token gate. Per-package detail in [§ Mutation testing detail](#mutation-testing-detail). Genuine gaps closed where present; the rest verified solid. Residual survivors are error-message / equivalent mutants (unkillable by definition). |
 
 ### 5. Defect surface
