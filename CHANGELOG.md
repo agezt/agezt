@@ -61,6 +61,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   build matrix to the verification battery. (M488)
 
 ### Code quality
+- **Hardening rubric ratified — "harden Agezt to 100%" goal MET.** The project owner ratified
+  `.project/HARDENING.md` as-is (2026-06-06) as the binding definition of "100% hardened".
+  Against that definition every PASS criterion holds and the MEASURED mutation floor (every
+  non-equivalent mutant killed) is met across 47 packages; the sole exception (offline
+  govulncheck) is environment-bound and remediated in CI. The full static re-verify battery
+  (gofmt/vet/staticcheck/build/cross-compile/gitleaks/tests) was re-run green tree-wide at the
+  arc HEAD. Closes the M490–M549 hardening arc. (M549)
 - **Pinned the Slack replay-guard dedup eviction boundary.** The Slack channel drops replayed
   events via a bounded recently-seen-keys set that evicts the oldest key once the ring exceeds
   capacity (so an event flood can't grow it unbounded). The integration replay test never

@@ -8,11 +8,13 @@ re-runnable, CI-enforced rubric, and records the **current measured state** agai
 each criterion. It converts a subjective goal into a checklist whose pass/fail is
 decidable by running commands, not by judgement.
 
-It is offered for **ratification**: the criteria and thresholds below are a proposal.
-Tighten them (e.g. raise a mutation floor, add a target OS) or relax them as the
-project requires; once ratified, "100% hardened" = "every PASS criterion holds, every
-MEASURED criterion meets its floor, and every exception is environment-bound or
-by-design (not a defect)."
+**RATIFIED** by the project owner (ersinkoc@gmail.com) on 2026-06-06 as the binding
+definition of "100% hardened" for Agezt, as-is. Per that definition —
+"every PASS criterion holds, every MEASURED criterion meets its floor, and every
+exception is environment-bound or by-design (not a defect)" — the criteria and
+thresholds below are now the accepted standard (not a proposal). They may still be
+tightened (e.g. raise a mutation floor, add a target OS) in a future revision; any
+such change re-opens measurement against the new bar.
 
 All commands run from the repo root. Last measured: 2026-06-06, HEAD at the M548 commit —
 static re-verify battery (gofmt staged-blobs tree-wide, `go vet ./...`, `staticcheck ./...`,
@@ -135,6 +137,15 @@ floor (non-equivalent mutants killed on the highest-stakes packages); the single
 documented exception (govulncheck under the offline toolchain) is environment-bound
 with a one-line remediation already wired into CI. **Against this rubric, the
 offline-actionable hardening surface is complete.**
+
+### Goal status: MET (2026-06-06)
+With the rubric ratified as-is, "harden Agezt to 100%" is satisfied by its own
+binding definition: every PASS criterion holds and the MEASURED mutation floor is
+met across 47 packages, with the sole exception (offline govulncheck) environment-
+bound and remediated in CI. The arc that produced this state runs M490–M549
+(see the per-milestone PHASE reports under `.project/` and CHANGELOG `[Unreleased]`).
+Re-opening the goal requires tightening a threshold above (a deliberate revision),
+which re-measures against the new bar.
 
 ## Honest limits (these are not "incompleteness," they are the boundary)
 - **govulncheck**: 0 requires building with go ≥ 1.26.4, not fetchable in the offline
