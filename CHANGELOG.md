@@ -61,6 +61,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   build matrix to the verification battery. (M488)
 
 ### Code quality
+- **Pinned the Slack replay-guard dedup eviction boundary.** The Slack channel drops replayed
+  events via a bounded recently-seen-keys set that evicts the oldest key once the ring exceeds
+  capacity (so an event flood can't grow it unbounded). The integration replay test never
+  inserts enough keys to reach the eviction branch, so `len(ring) > cap → >= cap` (shrinks the
+  window) and evicting the wrong slot (`ring[0] → ring[1]`, desyncing `ring` and `seen`) both
+  survived. Added `TestSlack_DedupEvictsOldestPastCap` (unit, cap 3); negative control kills
+  both (dropping `delete(seen,old)` doesn't compile). No code change. (M548)
 - **Pinned the inbound media-download size caps on all three media channels.** Telegram,
   Discord, and Slack each download an attachment from an untrusted source and inline it for a
   vision model, bounded by `io.ReadAll(io.LimitReader(body, MaxRaw+1))` then `if len > MaxRaw`.

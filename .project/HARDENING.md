@@ -14,7 +14,7 @@ project requires; once ratified, "100% hardened" = "every PASS criterion holds, 
 MEASURED criterion meets its floor, and every exception is environment-bound or
 by-design (not a defect)."
 
-All commands run from the repo root. Last measured: 2026-06-06, HEAD at the M547 commit —
+All commands run from the repo root. Last measured: 2026-06-06, HEAD at the M548 commit —
 full re-verify battery (gofmt/vet/staticcheck/gitleaks/cross-compile/tests/16 fuzz targets)
 re-run green tree-wide after the M490–M533 arc (mutation pass at 35 packages + control-plane
 security primitives; see § Mutation testing detail).
@@ -122,6 +122,7 @@ by existing tests (survivors equivalent); no test added.
 | webui | M545 | **verified solid** (go-mutesting 0.578, 52/90): security surface — token gate, ConstantTimeCompare, per-route arg allowlist, path guard — fully killed; all 38 survivors equivalent (unasserted tuning constants) or cosmetic error-path (DetectContentType-equivalent header Sets, BadGateway bodies, SSE teardown). Completes kernel mutation coverage |
 | internal/strutil | M546 | Ellipsis non-positive-max panic edge pinned (`maxBytes == -1` + empty-string negative cap → marker, never `s[:-1]`/`s[0]` panic; 4 genuine survivors killed, 2 equivalent no-ops at cut==0). First internal/ target |
 | plugins/channels media fetch (×3) | M547 | inbound media-download size caps pinned (telegram/discord/slack): inclusive boundary `> MaxRaw` AND the load-bearing `LimitReader(_, MaxRaw+1)` (drop the +1 → oversized body silently accepted-truncated). 6 mutants killed. Read-bounded cousin of M509/M531/M538/M542 |
+| plugins/channels/slack (dedup) | M548 | replay-guard eviction boundary pinned (`len(ring) > cap` + evict-oldest `ring[0]`): the bounded-set memory guard that the integration replay test never reaches. 2 mutants killed (delete-removal doesn't compile) |
 
 ## Verdict against the rubric
 Every PASS criterion holds; the one MEASURED criterion (mutation) meets its stated
