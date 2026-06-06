@@ -53,6 +53,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   build matrix to the verification battery. (M488)
 
 ### Code quality
+- **Mutation testing pinned tenant List's spurious-entry exclusion.** `go-mutesting` on
+  `kernel/tenant` showed `List`'s `!e.IsDir() || !ValidID(name)` filter was unpinned (the
+  existing test only creates valid tenants) — a `||`→`&&` regression would surface a stray
+  file or an invalid-named directory as a "tenant". Added
+  `TestRegistry_ListExcludesSpuriousRootEntries`. The `Authorize` auth gate's survivor was
+  verified equivalent (the constant-time compare rejects an empty token regardless).
+  Thirteenth package in the mutation pass. (M502)
 - **Mutation testing pinned runtime's foldRunTools correlation isolation.** `go-mutesting`
   on `kernel/runtime` showed the memory-distillation fold's filter (`e.CorrelationID !=
   corr || e.Kind != KindToolResult`) was unpinned — a `||`→`&&` regression folds other
