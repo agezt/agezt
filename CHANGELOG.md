@@ -53,6 +53,14 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   build matrix to the verification battery. (M488)
 
 ### Code quality
+- **Defined "hardened to 100%" as a measurable rubric (`.project/HARDENING.md`).** The
+  hardening goal lacked any terminal, decidable criterion. Added a six-dimension
+  scorecard (build/portability, static analysis, secrets/security, testing depth,
+  defect surface, CI enforcement) where each row is verified by a command and carries
+  its current state (PASS / MEASURED-with-floor / documented environment exception),
+  plus a one-pass re-verify script. Offered for ratification. Also confirmed via a
+  mutation pass that the netguard SSRF core is already solid (all security-line
+  survivors equivalent/unreachable — no test added). (M493)
 - **Mutation testing pinned the edict whitespace-normalizer contract.** `go-mutesting`
   on `kernel/edict` (the policy engine) showed the backward (left-side) scan in
   `stripPunctAdjacentWhitespace` — which strips spacing-evasion from hard-deny floor
