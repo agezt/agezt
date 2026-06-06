@@ -61,6 +61,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   build matrix to the verification battery. (M488)
 
 ### Code quality
+- **Full rubric re-verification after the hardening arc.** Re-ran the complete
+  offline-verifiable battery tree-wide after 44 commits: gofmt (committed LF blobs) clean,
+  `go vet ./...` 0, `staticcheck ./...` clean, `gitleaks` no leaks (602 commits scanned),
+  cross-compile green for linux/{amd64,arm64} + darwin/arm64 + windows/amd64 + freebsd/amd64,
+  full `go test ./...` 0, and all 16 fuzz targets clean (M533). Every PASS dimension of the
+  six-criterion rubric holds with a current measurement; `go.mod`/`go.sum` unchanged across
+  the arc. No code change. (M534)
 - **Re-verified all 16 fuzz targets clean.** Every untrusted/external/binary parser (7 kernel
   + 9 plugin: provider stream parsers, channel HMAC verifiers, AWS event-stream framing) was
   re-fuzzed (`GOMAXPROCS=3`, 8s/target) after the M509–M532 arc — no crashers, no new corpus

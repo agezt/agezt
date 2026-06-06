@@ -14,8 +14,10 @@ project requires; once ratified, "100% hardened" = "every PASS criterion holds, 
 MEASURED criterion meets its floor, and every exception is environment-bound or
 by-design (not a defect)."
 
-All commands run from the repo root. Last measured: 2026-06-06, HEAD at the M533 commit
-(mutation pass at 35 packages; see § Mutation testing detail).
+All commands run from the repo root. Last measured: 2026-06-06, HEAD at the M534 commit —
+full re-verify battery (gofmt/vet/staticcheck/gitleaks/cross-compile/tests/16 fuzz targets)
+re-run green tree-wide after the M490–M533 arc (mutation pass at 35 packages + control-plane
+security primitives; see § Mutation testing detail).
 
 ## Rubric
 
