@@ -53,6 +53,14 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   build matrix to the verification battery. (M488)
 
 ### Code quality
+- **Mutation testing pinned the scheduler's plan correlation-id generation.**
+  `go-mutesting` on `kernel/scheduler` (score 0.774, highest assessed) showed the
+  auto-generated plan correlation id (`"plan-"+ulid`, used as `PlanResult.PlanID` and
+  stamped on every plan/node journal event) could be removed undetected — many tests
+  pass an empty id but none asserted the generated one, so an auto-correlated plan run
+  would emit events with an empty correlation id, breaking `agt why` / audit
+  correlation. Added `correlation_test.go` (generates when empty, preserves when
+  provided). Ninth package in the mutation pass. (M498)
 - **Mutation testing pinned the governor's spend-enforcement boundary.** `go-mutesting`
   on `kernel/governor` (the per-day/per-task spend ceiling) showed both `spentToday >=
   ceiling` and `spent >= cap` were unpinned at the exact boundary — the existing budget
