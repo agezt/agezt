@@ -15,9 +15,14 @@ MEASURED criterion meets its floor, and every exception is environment-bound or
 by-design (not a defect)."
 
 All commands run from the repo root. Last measured: 2026-06-06, HEAD at the M548 commit —
-full re-verify battery (gofmt/vet/staticcheck/gitleaks/cross-compile/tests/16 fuzz targets)
-re-run green tree-wide after the M490–M533 arc (mutation pass at 35 packages + control-plane
-security primitives; see § Mutation testing detail).
+static re-verify battery (gofmt staged-blobs tree-wide, `go vet ./...`, `staticcheck ./...`,
+`go build ./...`, cross-compile linux/arm64 + windows/amd64, `gitleaks detect`, full
+`go test ./...`) re-run green tree-wide after the M490–M548 arc. The mutation pass now spans
+47 packages (kernel — all packages incl. webui — plus controlplane security primitives,
+internal/strutil, every plugins/tools tool, mcpbridge, the channel auth gates + media
+size caps + slack dedup, and the primary providers); see § Mutation testing detail. The 16
+fuzz targets were last actively re-run at M533; the M535–M548 arc added only tests and docs
+(no production-code change), so the fuzz/parser behavior they cover is unchanged.
 
 ## Rubric
 
