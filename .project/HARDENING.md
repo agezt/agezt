@@ -14,8 +14,8 @@ project requires; once ratified, "100% hardened" = "every PASS criterion holds, 
 MEASURED criterion meets its floor, and every exception is environment-bound or
 by-design (not a defect)."
 
-All commands run from the repo root. Last measured: 2026-06-06, HEAD at the M518 commit
-(mutation pass at 28 packages; see § Mutation testing detail).
+All commands run from the repo root. Last measured: 2026-06-06, HEAD at the M519 commit
+(mutation pass at 29 packages; see § Mutation testing detail).
 
 ## Rubric
 
@@ -49,7 +49,7 @@ is a subprocess-spawning plugin-host daemon; those platforms have no process mod
 | `go test ./...` = 0 | **PASS** (CI: test, 3 OSes) |
 | Race detector | **PASS** — CI runs `go test -race` (cgo/linux); offline has no C compiler, so CI is the validator |
 | Fuzzing | **PASS** — 16 fuzz targets cover every untrusted/external/binary parser (M444–M454); all 16 actively re-run clean, no crashers (M496). Run capped at `GOMAXPROCS=3` to avoid pegging the CPU. |
-| Mutation testing, highest-stakes packages | **MEASURED** (floor: every *non-equivalent* mutant killed) across **28 packages** + the controlplane primary-token gate. Per-package detail in [§ Mutation testing detail](#mutation-testing-detail). Genuine gaps closed where present; the rest verified solid. Residual survivors are error-message / equivalent mutants (unkillable by definition). |
+| Mutation testing, highest-stakes packages | **MEASURED** (floor: every *non-equivalent* mutant killed) across **29 packages** + the controlplane primary-token gate. Per-package detail in [§ Mutation testing detail](#mutation-testing-detail). Genuine gaps closed where present; the rest verified solid. Residual survivors are error-message / equivalent mutants (unkillable by definition). |
 
 ### 5. Defect surface
 | Criterion | State |
@@ -99,6 +99,7 @@ by existing tests (survivors equivalent); no test added.
 | state | M515 | namespace allowlist char-range edges; traversal guard already solid |
 | planner | M517 | **real bug fixed**: FormatUSD dropped the sign on sub-dollar negatives (`-$0.50`→`$0.5000`); DAG validation already solid (score 0.731) |
 | ulid | M518 | decodeChar inverse-of-alphabet (P–T/W–Z offsets, J/K/M/N/V values feed Timestamp); encode bit-shifts equivalent |
+| artifact | M519 | **verified solid** (validRef + corrupt-check + dedup + sharding all killed; 31 survivors equivalent error-path) |
 | controlplane | — | primary-token auth gate **verified solid** (out-of-band) |
 
 ## Verdict against the rubric

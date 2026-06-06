@@ -61,6 +61,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   build matrix to the verification battery. (M488)
 
 ### Code quality
+- **Mutation testing verified the artifact content-addressed store solid (no gap).** A
+  hand-applied negative control on every meaningful operator in `kernel/artifact` — the
+  `validRef` path-traversal guard (length + all four hex range edges + the De Morgan
+  reject structure), `Get`'s corrupt-detection compare, `Put`'s dedup skip, and `pathFor`'s
+  shard width — confirmed each is killed by the existing tests. The 31 go-mutesting
+  survivors are equivalent (error-path cleanup / `fmt.Errorf` wrapping removals). No code
+  change; recorded as verified solid (like anomaly/netguard). Twenty-ninth package. (M519)
 - **Mutation testing pinned ULID's decode table as the alphabet's inverse.** `kernel/ulid`'s
   `decodeChar` is only exercised on the few characters in the fixed test vectors, so most of
   its return values were unpinned — the `P–T` (+22) and `W–Z` (+28) offsets and the
