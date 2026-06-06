@@ -61,6 +61,11 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   build matrix to the verification battery. (M488)
 
 ### Code quality
+- **Mutation-pinned the `runs list` cost-band floor edge.** The cost-band filter (M125) keeps
+  runs spending `≥ min and ≤ max`, but `TestRunsList_CostBandFilter` tested the ceiling at its
+  exact edge (a 100-spend run kept against `max=100`) while testing the floor only strictly
+  below a run's spend — so `SpentMicrocents < minCostMC → <=` survived, silently dropping a
+  run that spent exactly its `--min-cost`. Extended the test with an exact-floor case. (M532)
 - **Mutation-pinned the control-plane request-size limit boundary.** `readBoundedLine` (the
   M188 pre-auth DoS guard) caps a request line at `len(buf)+len(chunk) > max`, inclusive, but
   the tests covered only under-cap and a flood well over it (and the fuzz invariant only

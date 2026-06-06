@@ -991,6 +991,18 @@ func TestRunsList_CostBandFilter(t *testing.T) {
 	if !ceil["cheap"] || !ceil["free"] || ceil["mid"] || ceil["dear"] {
 		t.Errorf("max_cost_mc=100 got %v want cheap+free", ceil)
 	}
+	// The floor is INCLUSIVE (≥ min): a run that spent EXACTLY the floor is kept. The
+	// asserts above only test floors strictly below a run's spend (1000 vs 5000/1M), so
+	// the `SpentMicrocents < minCostMC` edge was unpinned — `< → <=` would drop a run that
+	// spent exactly its floor (M532). The ceiling's inclusive edge is already covered above
+	// (cheap spent exactly 100 == the max).
+	exactFloor := corrs(map[string]any{"min_cost_mc": int64(100)})
+	if !exactFloor["cheap"] {
+		t.Errorf("min_cost_mc=100 must include the run that spent exactly 100 (inclusive floor); got %v", exactFloor)
+	}
+	if exactFloor["free"] {
+		t.Errorf("min_cost_mc=100 must exclude the free (0-spend) run; got %v", exactFloor)
+	}
 }
 
 // TestRunsStats_ByModel — runs stats attributes run count + spend per model

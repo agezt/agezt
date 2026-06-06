@@ -14,7 +14,7 @@ project requires; once ratified, "100% hardened" = "every PASS criterion holds, 
 MEASURED criterion meets its floor, and every exception is environment-bound or
 by-design (not a defect)."
 
-All commands run from the repo root. Last measured: 2026-06-06, HEAD at the M531 commit
+All commands run from the repo root. Last measured: 2026-06-06, HEAD at the M532 commit
 (mutation pass at 35 packages; see § Mutation testing detail).
 
 ## Rubric
@@ -106,7 +106,7 @@ by existing tests (survivors equivalent); no test added.
 | pulse | M523-526 | salience bands + novelty-TTL + DiskObserver thresholds + QuietHours.Active window edges; Route matrix already solid |
 | openaiapi | M527 | word-count usage fallback total (p+c); request/parse/auth surface already solid (fuzz + 7 test files) |
 | agent | M528 | per-run cost-cap inclusive boundary (spent >= cap); loop guard + max-iter already edge-pinned |
-| controlplane | M529-531 | auth primitives + DoS guard verified/pinned by negative control: tokenIsPrimary (constant-time), tenantTokenAllows (tenant privilege allowlist, both directions), readBoundedLine inclusive request-size cap (M531). ~10k LOC, 71 test files; command handlers not exhaustively mutation-tested (intractable at scale) |
+| controlplane | M529-532 | auth primitives + DoS guard verified/pinned by negative control: tokenIsPrimary (constant-time), tenantTokenAllows (tenant privilege allowlist, both directions), readBoundedLine request-size cap (M531), runs cost-band floor inclusive edge (M532). ~10k LOC, 71 test files; command handlers not exhaustively mutation-tested (intractable at scale) |
 
 ## Verdict against the rubric
 Every PASS criterion holds; the one MEASURED criterion (mutation) meets its stated
