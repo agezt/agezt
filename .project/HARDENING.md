@@ -14,7 +14,8 @@ project requires; once ratified, "100% hardened" = "every PASS criterion holds, 
 MEASURED criterion meets its floor, and every exception is environment-bound or
 by-design (not a defect)."
 
-All commands run from the repo root. Last measured: 2026-06-06, HEAD at the M493 commit.
+All commands run from the repo root. Last measured: 2026-06-06, HEAD at the M515 commit
+(mutation pass at 26 packages; see § Mutation testing detail).
 
 ## Rubric
 
@@ -48,7 +49,7 @@ is a subprocess-spawning plugin-host daemon; those platforms have no process mod
 | `go test ./...` = 0 | **PASS** (CI: test, 3 OSes) |
 | Race detector | **PASS** — CI runs `go test -race` (cgo/linux); offline has no C compiler, so CI is the validator |
 | Fuzzing | **PASS** — 16 fuzz targets cover every untrusted/external/binary parser (M444–M454); all 16 actively re-run clean, no crashers (M496). Run capped at `GOMAXPROCS=3` to avoid pegging the CPU. |
-| Mutation testing, highest-stakes packages | **MEASURED** (floor: every *non-equivalent* mutant killed) across TWENTY-SIX packages: redact (0.575→0.725, gaps closed M490); journal (rotation-accounting + Tail-trim gaps closed M491); edict (whitespace-normalizer gap closed M492; authz core + toolmap verified); netguard (SSRF core verified solid M493); event (hash-chain verified solid — `h.Write(prevBytes)` equivalent since Canonical carries prev_hash); creds (legacy KDF pinned + PBKDF2 strengthened M494); warden (blank-argv0 rejection pinned M495; capBuffer memory-bound exemplary); governor (spend-enforcement boundary pinned M497); scheduler (plan correlation-id generation pinned M498; score 0.774, highest assessed); bus (subject-matcher over-delivery edge pinned M499 — a pattern longer than the subject must not match); cadence (due-check firing boundary pinned M500 — an entry fires at exactly its scheduled instant, now == NextRunUnix is due); runtime (foldRunTools correlation isolation pinned M501 — a run's distilled memory must not fold other runs' tool results; WithTrustCeiling survivor verified equivalent); tenant (List spurious-entry exclusion pinned M502; Authorize auth gate verified robust — survivors equivalent); worldmodel (first-writer-wins entity provenance pinned M503; remaining survivors are float scoring/decay thresholds, equivalent or brittle); approval (default-timeout guard pinned M504 — unset Timeout must default to 5m, not auto-deny instantly; grant/deny resolution well-tested); memory (first-writer-wins record provenance pinned M505, same pattern as worldmodel); skill (auto-quarantine failure-rate threshold pinned M506 — a skill at exactly the rate must quarantine; state machine + forge well-tested); standing (cron dom/dow OR-when-both-restricted rule pinned M507 — match if EITHER day field matches); catalog (cross-provider down-route tie-break pinned M508 — equal context across providers → lowest model id, deterministic; single-provider tie-break already covered); plugin (readFrame inclusive max-size boundary pinned M509 — a frame exactly filling the OOM-flood limit must be accepted, not rejected; `>` could weaken to `>=` undetected); webhook (2xx success-window upper edge pinned M510 — status 300 must be a failed delivery, not delivered; `< 300` could weaken to `<= 300` undetected in both the deliver path and `ProbeResult.OK`); channel (SplitText empty-buffer cut guard pinned M511 — a single character wider than the limit must emit no empty chunk; `len(cur) > 0` could weaken to `>= 0`. Allowlist + per-sender history isolation already solid; other survivors equivalent); anomaly (circuit breaker verified solid M512 — every meaningful mutant killed by hand-applied negative control: the trip boundary `count > max`, window sign/prune/inclusive `.Before`, Enabled gate, and the monitor's tool-kind filter/latch/start-gate; the 23 go-mutesting survivors are equivalent); restapi (mesh federation hop-limit guard pinned M513 — `hopIn > maxHops` 508 refusal had no REST-layer test; a run at exactly the limit must proceed, one past must be refused, so `> → >=` and `> → <` both survived. Token-auth core separately verified solid: constant-time compare, empty-token fail-closed, per-tenant gate all killed); acp (flattenPrompt multi-block selection pinned M514 — the lenient `b.Type == "" && b.Text != ""` branch and newline join were untested since every test used a single text block; `==`/`!=`/`&&` mutants flipped which blocks fold into the intent. JSON-RPC notification + auth paths defended-in-depth, equivalent survivors); state (namespace allowlist char-range edges pinned M515 — valid `z`/`Z`/`A`/`9` were unpinned so `<= → <`/`>= → >` could silently reject a valid identifier; traversal rejections + M426 poison guard already solid). Plus the controlplane primary-token auth gate verified solid out-of-band. Genuine gaps closed where present; the rest verified solid. Residual survivors are error-message / equivalent mutants (unkillable by definition). |
+| Mutation testing, highest-stakes packages | **MEASURED** (floor: every *non-equivalent* mutant killed) across **26 packages** + the controlplane primary-token gate. Per-package detail in [§ Mutation testing detail](#mutation-testing-detail). Genuine gaps closed where present; the rest verified solid. Residual survivors are error-message / equivalent mutants (unkillable by definition). |
 
 ### 5. Defect surface
 | Criterion | State |
@@ -60,6 +61,43 @@ is a subprocess-spawning plugin-host daemon; those platforms have no process mod
 | Criterion | State |
 |---|---|
 | Every gate above runs on push/PR | **PASS** — `.github/workflows/ci.yml`: test+vet+build (3 OS), race, lint (gofmt+staticcheck+govulncheck), secrets (gitleaks), multi-arch (incl. freebsd), codegen-in-sync, deps-check (M489) |
+
+## Mutation testing detail
+Per-package result of the mutation pass (`go-mutesting`, run inside each package dir,
+`GOMAXPROCS=3`). "Pinned" = a genuine non-equivalent survivor was found and a test added
+that kills it (verified by hand-applied negative control: apply mutant → test FAILs →
+restore → re-pass). "Verified solid" = every meaningful operator mutant is already killed
+by existing tests (survivors equivalent); no test added.
+
+| Pkg | M### | Gap pinned / verdict |
+|---|---|---|
+| redact | M490 | leak-scan gaps closed (score 0.575→0.725) |
+| journal | M491 | rotation-accounting + Tail-trim boundaries |
+| edict | M492 | whitespace normalizer; authz core + toolmap verified |
+| netguard | M493 | SSRF core **verified solid** |
+| event | — | hash-chain **verified solid** (`h.Write(prevBytes)` equivalent) |
+| creds | M494 | legacy KDF pinned; PBKDF2 strengthened |
+| warden | M495 | blank-argv0 rejection; capBuffer memory-bound exemplary |
+| governor | M497 | spend-enforcement boundary |
+| scheduler | M498 | plan correlation-id generation (score 0.774, highest) |
+| bus | M499 | subject-matcher over-delivery (pattern longer than subject) |
+| cadence | M500 | due-check fires at exactly NextRunUnix (`now == due`) |
+| runtime | M501 | foldRunTools cross-run isolation; WithTrustCeiling equivalent |
+| tenant | M502 | List spurious-entry exclusion; Authorize verified robust |
+| worldmodel | M503 | first-writer-wins entity provenance; float thresholds equivalent |
+| approval | M504 | unset Timeout defaults to 5m (not instant auto-deny) |
+| memory | M505 | first-writer-wins record provenance |
+| skill | M506 | auto-quarantine at exactly the failure-rate threshold |
+| standing | M507 | cron dom/dow OR-when-both-restricted rule |
+| catalog | M508 | cross-provider down-route tie-break (equal ctx → lowest id) |
+| plugin | M509 | readFrame inclusive max-size (frame == max accepted) |
+| webhook | M510 | 2xx upper edge (status 300 is a failure; deliver + `OK()`) |
+| channel | M511 | SplitText never emits an empty chunk; isolation already solid |
+| anomaly | M512 | circuit breaker **verified solid** (all meaningful mutants killed) |
+| restapi | M513 | mesh hop-limit 508 boundary; token-auth core verified solid |
+| acp | M514 | flattenPrompt multi-block selection; JSON-RPC paths defended-in-depth |
+| state | M515 | namespace allowlist char-range edges; traversal guard already solid |
+| controlplane | — | primary-token auth gate **verified solid** (out-of-band) |
 
 ## Verdict against the rubric
 Every PASS criterion holds; the one MEASURED criterion (mutation) meets its stated
