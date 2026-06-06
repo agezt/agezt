@@ -61,6 +61,16 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   build matrix to the verification battery. (M488)
 
 ### Code quality
+- **Pinned the inbound media-download size caps on all three media channels.** Telegram,
+  Discord, and Slack each download an attachment from an untrusted source and inline it for a
+  vision model, bounded by `io.ReadAll(io.LimitReader(body, MaxRaw+1))` then `if len > MaxRaw`.
+  The happy-path image tests use tiny bodies, so two mutation points survived per channel: the
+  inclusive boundary (`> MaxRaw → >= MaxRaw`, which would reject a legitimate exactly-max
+  upload) and — more dangerously — the load-bearing `+1` (`LimitReader(_, MaxRaw+1) → MaxRaw`,
+  which would let an oversized body read as exactly MaxRaw and slip through silently truncated,
+  defeating the DoS guard). Added a `Test*SizeCapBoundary` per channel (exactly-max accepted,
+  max+1 rejected); negative control kills all six. Same read-bounded idiom family as M509/M531/
+  M538/M542. No code change. (M547)
 - **Mutation-hardened `strutil.Ellipsis` against the non-positive-max panic edge.** The
   daemon-wide rune-safe truncation helper documents "a non-positive maxBytes yields just the
   marker — never a panic", but its test exercised only `0` and `-5` with a non-empty string.
