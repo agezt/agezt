@@ -61,6 +61,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   build matrix to the verification battery. (M488)
 
 ### Code quality
+- **Mutation-hardened the shell tool's negative-timeout fallback.** `plugins/tools/shell`
+  delegates execution to warden (verified M495); its own timeout precedence
+  (`in.TimeoutMS > 0`) was unpinned at negatives, so `> 0 → != 0` survived — a malformed
+  negative `timeout_ms` would be forwarded as a negative duration to warden, which can read
+  as "no deadline" and silently disable the timeout runaway-guard. Added
+  `TestShell_NegativeTimeoutMSFallsBackToDefault`. (M537)
 - **Mutation-hardened the http tool's request-body cap.** `plugins/tools/http`'s SSRF core
   (host-allowlist exact + `*.subdomain` wildcard, scheme/method limits, netguard egress,
   per-redirect-hop re-check) is verified solid by negative control; the genuine gap was the

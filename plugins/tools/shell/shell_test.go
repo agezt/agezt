@@ -197,3 +197,20 @@ func TestShell_Definition(t *testing.T) {
 		t.Errorf("schema missing 'command' field")
 	}
 }
+
+// TestShell_NegativeTimeoutMSFallsBackToDefault pins that only a POSITIVE timeout_ms
+// overrides the default — a malformed negative value must NOT be passed through as a
+// negative duration to warden (which could disable the timeout runaway-guard). The guard
+// `in.TimeoutMS > 0` was unpinned at negatives (mutation M537: `> 0 → != 0` would forward
+// a negative timeout_ms).
+func TestShell_NegativeTimeoutMSFallsBackToDefault(t *testing.T) {
+	cw := &capturingWarden{}
+	sh := NewWithWarden(cw)
+	in, _ := json.Marshal(shellInput{Command: "x", TimeoutMS: -1})
+	if _, err := sh.Invoke(context.Background(), in); err != nil {
+		t.Fatalf("Invoke: %v", err)
+	}
+	if cw.got.Limits.Timeout != DefaultTimeout {
+		t.Errorf("a negative timeout_ms must fall back to DefaultTimeout, got %v", cw.got.Limits.Timeout)
+	}
+}
