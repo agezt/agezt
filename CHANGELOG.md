@@ -61,6 +61,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   build matrix to the verification battery. (M488)
 
 ### Code quality
+- **Mutation testing pinned reflect's proposal-rule thresholds.** `kernel/reflect`'s
+  `proposals` gates three advisory rules on inclusive thresholds, but the existing tests
+  fire them only well past the edge, so `ApprovalsDenied-ApprovalsGranted >= denyExcess` and
+  `TasksFailed*2 >= TasksStarted` (the ≥50%-failure rule) could each weaken `>= → >`
+  undetected — a deny-excess or failure batch *exactly* at the trigger point would stop
+  being proposed. Added `TestProposals_ExactThresholds` (fires at the threshold, silent one
+  below). Thirtieth package in the mutation pass. (M520)
 - **Mutation testing verified the artifact content-addressed store solid (no gap).** A
   hand-applied negative control on every meaningful operator in `kernel/artifact` — the
   `validRef` path-traversal guard (length + all four hex range edges + the De Morgan

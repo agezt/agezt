@@ -108,6 +108,41 @@ func TestProposalsFireAtThresholds(t *testing.T) {
 	}
 }
 
+// TestProposals_ExactThresholds pins the inclusive boundary of the two rules that the
+// existing tests only exercise clear of their thresholds. TestProposalsFireAtThresholds
+// fires the autonomy rule with a denied-granted excess of 3 against DenyExcess 2, and the
+// tasks rule at 75% failure — both well past the `>=` edge — so mutation testing (M520)
+// left `>= → >` alive on `ApprovalsDenied-ApprovalsGranted >= denyExcess` and on
+// `TasksFailed*2 >= TasksStarted` (the ≥50%-failure rule). Each rule must fire at exactly
+// its threshold and stay silent one step below.
+func TestProposals_ExactThresholds(t *testing.T) {
+	e := &Engine{cfg: Config{BriefVolume: 8, DenyExcess: 3}}
+	has := func(ps []Proposal, area string) bool {
+		for _, p := range ps {
+			if p.Area == area {
+				return true
+			}
+		}
+		return false
+	}
+
+	// Autonomy: denied-granted >= denyExcess(3). Exactly 3 fires; 2 is silent.
+	if !has(e.proposals(Observations{ApprovalsDenied: 5, ApprovalsGranted: 2}), "autonomy") {
+		t.Error("autonomy: denied-granted == denyExcess (3) must fire")
+	}
+	if has(e.proposals(Observations{ApprovalsDenied: 4, ApprovalsGranted: 2}), "autonomy") {
+		t.Error("autonomy: denied-granted == denyExcess-1 (2) must be silent")
+	}
+
+	// Tasks: failed*2 >= started (a ≥50% failure rate). Exactly 50% fires; under doesn't.
+	if !has(e.proposals(Observations{TasksFailed: 2, TasksStarted: 4}), "tasks") {
+		t.Error("tasks: exactly 50% failure (failed*2 == started) must fire")
+	}
+	if has(e.proposals(Observations{TasksFailed: 2, TasksStarted: 5}), "tasks") {
+		t.Error("tasks: under 50% (failed*2 < started) must be silent")
+	}
+}
+
 func TestProposalsSilentBelowThreshold(t *testing.T) {
 	e, b, _, _ := newTestEngine(t, Config{})
 	emit(t, b, event.KindBriefingSent, 1)
