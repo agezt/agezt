@@ -53,6 +53,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   build matrix to the verification battery. (M488)
 
 ### Code quality
+- **Mutation testing pinned the bus subject-matcher over-delivery edge.** `go-mutesting`
+  on `kernel/bus` (the event backbone) showed `matches` only required the *subject* to be
+  fully consumed, not the *pattern*: dropping the `pi == len(pattern)` half let a pattern
+  with more tokens than the subject wrongly match (`matches("a.b.c","a.b") → true`), so a
+  subscriber to a more-specific subject would receive shorter events (over-delivery). The
+  existing table had no longer-pattern-than-subject case; added three. Tenth package in
+  the mutation pass. (M499)
 - **Mutation testing pinned the scheduler's plan correlation-id generation.**
   `go-mutesting` on `kernel/scheduler` (score 0.774, highest assessed) showed the
   auto-generated plan correlation id (`"plan-"+ulid`, used as `PlanResult.PlanID` and

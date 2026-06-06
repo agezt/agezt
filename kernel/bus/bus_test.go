@@ -235,6 +235,13 @@ func TestPatternMatching(t *testing.T) {
 		{"agent.>", "task.received", false},
 		{">", "anything.at.all", true},
 		{">", "x", true},
+		// Pattern has MORE tokens than the subject (subject is a prefix of the
+		// pattern): must NOT match — the matcher requires the pattern to be fully
+		// consumed too, not just the subject. Otherwise a subscriber to a more
+		// specific subject would receive shorter ones (over-delivery).
+		{"agent.spawned.detail", "agent.spawned", false}, // literal, longer pattern
+		{"agent.*.tool", "agent.01H", false},             // wildcard, longer pattern
+		{"a.b.c", "a.b", false},                          // generic prefix case
 	}
 	for _, c := range cases {
 		tokens, err := parsePattern(c.pattern)
