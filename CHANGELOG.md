@@ -61,6 +61,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   build matrix to the verification battery. (M488)
 
 ### Code quality
+- **Mutation-pinned the control-plane request-size limit boundary.** `readBoundedLine` (the
+  M188 pre-auth DoS guard) caps a request line at `len(buf)+len(chunk) > max`, inclusive, but
+  the tests covered only under-cap and a flood well over it (and the fuzz invariant only
+  checks `len <= max`), so `> → >=` survived — a request exactly filling the cap wrongly
+  rejected as too large. Same shape as the plugin readFrame gap (M509). Added
+  `TestReadBoundedLine_ExactlyMaxAccepted`. (M531)
 - **Verified the control-plane tenant command-allowlist (privilege boundary).** Extended the
   M529 control-plane verification to the second auth primitive, `tenantTokenAllows` (the
   deny-by-default list of commands a scoped tenant token may run). Both directions are killed

@@ -55,3 +55,24 @@ func TestReadBoundedLine_MultiChunkReassembly(t *testing.T) {
 			got, len(got), len(line))
 	}
 }
+
+// TestReadBoundedLine_ExactlyMaxAccepted pins the inclusive upper bound of the M188
+// pre-auth DoS guard: a request whose length (including the trailing newline) is EXACTLY
+// max is accepted — the limit is inclusive — while max+1 is rejected. The existing tests
+// cover only under-cap and a flood well over it, so `len(buf)+len(chunk) > max` was unpinned
+// at the boundary (mutation M531: `> → >=` would reject a request that exactly fills the cap).
+func TestReadBoundedLine_ExactlyMaxAccepted(t *testing.T) {
+	const max = 64
+	exact := strings.Repeat("a", max-1) + "\n" // 64 bytes total, including the newline
+	got, err := readBoundedLine(bufio.NewReader(strings.NewReader(exact)), max)
+	if err != nil {
+		t.Fatalf("a request of exactly max=%d bytes must be accepted (inclusive limit), got err %v", max, err)
+	}
+	if len(got) != max {
+		t.Errorf("got %d bytes, want %d", len(got), max)
+	}
+	over := strings.Repeat("a", max) + "\n" // max+1 bytes total
+	if _, err := readBoundedLine(bufio.NewReader(strings.NewReader(over)), max); !errors.Is(err, errRequestTooLarge) {
+		t.Errorf("a request of max+1 bytes must be rejected, got err %v", err)
+	}
+}
