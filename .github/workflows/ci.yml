@@ -180,6 +180,11 @@ jobs:
         with:
           go-version: stable
       - name: gitleaks
+        # Install from the module's canonical path. gitleaks moved GitHub orgs
+        # (zricethezav → gitleaks) but its go.mod still declares the module as
+        # github.com/zricethezav/gitleaks/v8, so `go install github.com/gitleaks/
+        # gitleaks/v8@latest` fails with a module-path mismatch. Use the declared
+        # path. (M559: this is the path gitleaks@latest actually resolves under.)
         run: |
-          go install github.com/gitleaks/gitleaks/v8@latest
+          go install github.com/zricethezav/gitleaks/v8@latest
           "$(go env GOPATH)/bin/gitleaks" detect --no-banner --redact -s .
