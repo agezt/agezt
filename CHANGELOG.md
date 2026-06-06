@@ -53,6 +53,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   build matrix to the verification battery. (M488)
 
 ### Code quality
+- **Mutation testing pinned the warden's blank-argv0 rejection.** `go-mutesting` on
+  `kernel/warden` (the command sandbox) showed the second half of the empty-Argv guard
+  (`spec.Argv[0] == ""`) was unpinned — the existing test only covered nil Argv, so the
+  `spec.Argv[0] == "" → false` mutant survived, which would let a blank command reach
+  `exec.CommandContext(ctx, "", …)`. Added `TestRun_RejectsBlankArgv0`. capBuffer (the
+  output memory bound) was found exemplary; remaining survivors are equivalent/config
+  mutants. Seventh package in the mutation pass. (M495)
 - **Mutation testing pinned the legacy vault KDF (and strengthened PBKDF2).**
   `go-mutesting` on `kernel/creds` showed `deriveKeyLegacyHMAC` was unpinned — every
   test exercising it round-trips with the same function, so removing `mac.Write(d)`
