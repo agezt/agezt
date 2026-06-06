@@ -53,6 +53,15 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   build matrix to the verification battery. (M488)
 
 ### Code quality
+- **Mutation testing pinned two journal integrity gaps (rotation accounting, Tail
+  trim).** `go-mutesting` on `kernel/journal` showed the existing rotation tests use
+  tiny segment thresholds where one line already rotates, so a `curBytes += `→`=`
+  regression (segments never rotating for normal events → unbounded growth) went
+  undetected; and the cross-segment Tail test gathers exactly n, so the
+  `collected[len-n:]` trim line never ran. Added `mutation_internal_test.go` with a
+  self-calibrating accumulation-rotation test and a Tail-trim test. The journal's
+  score is dominated by low-value error-message mutants, so the headline number moved
+  little, but both real behavioral gaps are now killed. (M491)
 - **Mutation testing hardened the redactor's test suite (score 0.575 → 0.725).**
   `go-mutesting` on `kernel/redact` (the secret-scrubbing chokepoint) found 17
   surviving mutants; 6 were genuine test gaps — nothing pinned the exactly-8-char
