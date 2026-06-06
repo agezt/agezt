@@ -61,6 +61,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   build matrix to the verification battery. (M488)
 
 ### Code quality
+- **Mutation testing pinned the agent per-run cost cap boundary.** `kernel/agent`'s per-run
+  spend cap (M166) terminates at `spentMicrocents >= cap`, but `runcost_test.go` only spends
+  strictly over the cap (2000 vs 1500), never exactly at it, so `>= → >` survived — a run
+  spending exactly its budget would run one more over-budget round before being caught. Added
+  `TestRun_PerRunCostCap_ExactlyAtCap`. The loop guard and max-iter were already edge-pinned.
+  Thirty-fifth package in the mutation pass. (M528)
 - **Mutation testing pinned openaiapi's word-count usage fallback.** `estimateUsage` (used
   when the engine reports no real provider token counts) had its `total_tokens: p + c`
   arithmetic unpinned — the main usage test uses a `UsageReporter` engine, hitting
