@@ -61,6 +61,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   build matrix to the verification battery. (M488)
 
 ### Code quality
+- **Mutation testing pinned ULID's decode table as the alphabet's inverse.** `kernel/ulid`'s
+  `decodeChar` is only exercised on the few characters in the fixed test vectors, so most of
+  its return values were unpinned — the `P–T` (+22) and `W–Z` (+28) offsets and the
+  `J`/`K`/`M`/`N`/`V` mappings could each be off by one, silently corrupting `Timestamp()`
+  for any ULID whose timestamp encodes those chars. Added `TestDecodeChar_InverseOfAlphabet`
+  (`decodeChar(alphabet[i]) == i` for all i; Crockford exclusions I/L/O/U rejected, not
+  aliased). Twenty-eighth package in the mutation pass. (M518)
 - **Mutation testing pinned the state namespace allowlist edges.** `kernel/state`'s
   `validateNamespace` (the only path-traversal guard) was tested for rejections and for
   low-edge valid chars, but no valid namespace used the far range edges, so `c <= 'z'`,
