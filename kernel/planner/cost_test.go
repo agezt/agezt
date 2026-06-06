@@ -74,6 +74,12 @@ func TestFormatUSD(t *testing.T) {
 		{500_000_000, "$0.5000"},   // 50¢
 		{1_234_500_000, "$1.2345"}, // $1.2345
 		{100_000, "$0.0001"},       // 0.01¢ rounded to display
+		// Negatives must keep their sign. A sub-dollar negative (whole == 0) is the
+		// regression case: the sign lives only in the fractional part, so an abs that
+		// didn't record the sign printed "-$0.50" as "$0.5000" (M517).
+		{-500_000_000, "$-0.5000"},   // sub-dollar negative — sign must survive
+		{-1_234_500_000, "$-1.2345"}, // whole-dollar negative
+		{-100_000, "$-0.0001"},       // smallest displayable negative
 	}
 	for _, c := range cases {
 		if got := planner.FormatUSD(c.mc); got != c.want {

@@ -40,6 +40,14 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   or in any other test, still trips the scan. (M486)
 
 ### Fixed
+- **`FormatUSD` no longer drops the minus sign on sub-dollar negative amounts.**
+  `planner.FormatUSD` abs-ed the fractional part to handle negatives, but for an amount
+  whose magnitude is under $1 the whole-dollar part is `0`, so the sign lived only in the
+  fraction — abs-ing it without recording the sign printed `-$0.50` as `"$0.5000"`. Now the
+  sign is captured up front and re-applied as a prefix, so `FormatUSD(-500_000_000)` is
+  `"$-0.5000"`. Latent today (all callers pass non-negative cost sums) but the exported
+  contract is now correct. Found while triaging a surviving mutant on the abs guard during
+  the `kernel/planner` mutation pass (score 0.731). (M517)
 - **`DiskUsage` no longer breaks the FreeBSD build, and the daemon builds on every
   supportable OS.** `kernel/pulse/diskusage_unix.go` was tagged `//go:build !windows`
   (claiming all non-Windows platforms) but multiplied `syscall.Statfs_t.Bavail` —
