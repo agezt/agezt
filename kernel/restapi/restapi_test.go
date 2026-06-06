@@ -350,3 +350,38 @@ func TestRunsRoot_RejectsGET(t *testing.T) {
 		t.Errorf("GET on /runs should be 405, got %d", rec.Code)
 	}
 }
+
+// TestSubmitRun_MeshHopLimit pins the federation loop guard (M209): a run arriving
+// with a mesh hop count above this node's limit is refused with 508 Loop Detected,
+// while a run at EXACTLY the limit is still accepted (the bound is inclusive) and its
+// hop threads into the run context. The hop limit is the classic off-by-one surface
+// and had no REST-layer test at all, so mutation testing (M513) left both
+// `hopIn > maxHops → >= maxHops` (would refuse a run at the limit) and `→ < maxHops`
+// (would stop refusing the loop entirely — a federation could recurse forever) alive.
+func TestSubmitRun_MeshHopLimit(t *testing.T) {
+	t.Setenv(meshctx.EnvMaxHops, "2") // deterministic limit, independent of the default
+	if got := meshctx.MaxHopsFromEnv(); got != 2 {
+		t.Fatalf("setup: maxHops = %d, want 2", got)
+	}
+	submit := func(hop string) (int, *fakeEngine) {
+		eng := &fakeEngine{model: "m", answer: "ok"}
+		s := newServer(t, eng, "secret")
+		r := httptest.NewRequest(http.MethodPost, "/api/v1/runs", strings.NewReader(`{"intent":"hi"}`))
+		r.Header.Set("Authorization", "Bearer secret")
+		r.Header.Set(meshctx.HopHeader, hop)
+		rec := httptest.NewRecorder()
+		s.Handler().ServeHTTP(rec, r)
+		return rec.Code, eng
+	}
+
+	// One past the limit (3 > 2) → refused with 508.
+	if code, _ := submit("3"); code != http.StatusLoopDetected {
+		t.Errorf("hop 3 (limit 2): status = %d, want %d (508 loop detected)", code, http.StatusLoopDetected)
+	}
+	// Exactly at the limit (2) → accepted, and the hop threads into the run context.
+	if code, eng := submit("2"); code != http.StatusOK {
+		t.Errorf("hop 2 (limit 2, inclusive): status = %d, want 200", code)
+	} else if eng.ranHop != 2 {
+		t.Errorf("hop not threaded into the run context: ranHop = %d, want 2", eng.ranHop)
+	}
+}

@@ -53,6 +53,14 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   build matrix to the verification battery. (M488)
 
 ### Code quality
+- **Mutation testing pinned the REST mesh hop-limit loop guard.** The federation loop
+  guard in `kernel/restapi` (`hopIn > maxHops` → 508 Loop Detected, M209) had no
+  REST-layer test, so `> maxHops → >= maxHops` (refuse a run at exactly the limit) and
+  `→ < maxHops` (never refuse — a federated mesh could recurse unbounded) both survived.
+  Added `TestSubmitRun_MeshHopLimit` (hop>limit → 508; hop==limit → 200 and threaded into
+  the run). The token-auth core was separately verified solid (constant-time compare,
+  empty-token fail-closed, per-tenant gate all killed). Twenty-fourth package in the
+  mutation pass. (M513)
 - **Mutation testing verified the anomaly circuit breaker solid (no gap).** A hand-applied
   negative control on every meaningful operator in `kernel/anomaly` — the trip boundary
   `count > max`, the window sign/prune bound/inclusive `.Before`, the `Enabled` gate, and
