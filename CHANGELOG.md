@@ -53,6 +53,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   build matrix to the verification battery. (M488)
 
 ### Code quality
+- **Mutation testing pinned standing's cron dom/dow OR rule.** `go-mutesting` on
+  `kernel/standing` showed `matchesCron`'s classic both-restricted day rule
+  (`domMatch || dowMatch`) was unpinned — every existing case left day-of-month as `*`,
+  so a `||`→`&&` regression (requiring both DOM and DOW to match instead of either, the
+  wrong cron semantics) survived. Extended `TestMatchesCron` with both-restricted cases
+  (`0 8 13 * 5` matching on the 13th and on Fridays). Eighteenth package in the mutation
+  pass. (M507)
 - **Mutation testing pinned skill's auto-quarantine failure-rate threshold.** `go-mutesting`
   on `kernel/skill` showed `maybeAutoQuarantine`'s `if rate < f.aqFailureRate` was unpinned
   at the boundary — the tests drive 100% and ~23% rates, never exactly the threshold, so a
