@@ -34,12 +34,12 @@ flow, leave **0 panics**, **0 error-level journal events**, and shut down cleanl
 | OpenAI API (`/v1` models + chat + responses + streaming) | **PASS** | M550: /v1/models list, chat/completions echo+usage, /v1/responses, SSE streaming (incl. the non-streaming-provider fix), auth 401 on bad key | 2026-06-07 |
 | Native REST (`/api/v1`) | **PASS** | M550: POST /api/v1/runs → completed, answer returned (token-authed) | 2026-06-07 |
 | Web UI | **PASS** | M550: `/?token=` → 200, `/` → 401 (auth enforced) | 2026-06-07 |
-| ACP server | TODO | `agt acp` stdio | — |
+| ACP server | **PASS** | M551: `agt acp` stdio initialize handshake → JSON-RPC result (agentInfo agezt 1.0.0, protocolVersion 1) | 2026-06-07 |
 | Outbound webhooks (HMAC) | TODO | `AGEZT_WEBHOOK_*` sink | — |
 | Out-of-process plugin + MCP bridge | TODO | testdata echoplugin / mcp | — |
-| DAG scheduler + HITL gates | TODO | `agt plan` / approvals | — |
+| DAG scheduler + HITL gates | **PARTIAL** | M551: `schedule add`/`list` → next-fire computed; HITL approvals path pending | 2026-06-07 |
 | Mesh peer delegation | TODO | two-node `remote_run` | — |
-| Multi-tenant isolation | TODO | `AGEZT_MULTITENANT=on` | — |
-| Pulse engine | TODO | `agt pulse status` | — |
-| Vault encryption + rotation | TODO | `agt vault` | — |
+| Multi-tenant isolation | **PASS** | M551: `tenant create/list/token`, run routed to acme, primary journal stays seq=0 (isolated) | 2026-06-07 |
+| Pulse engine | **PASS** | M551: `pulse status` running, dial=balanced; `budget` tracking | 2026-06-07 |
+| Vault encryption + rotation | **PASS** | M551: `vault encrypt` → aes-256-gcm + pbkdf2 200k, 0 plaintext leak in creds.json; `vault rotate` re-encrypts, entries preserved | 2026-06-07 |
 | Warden (OS-permitting) | N/A-Win | Linux prlimit; Windows facade=none (journaled downgrade) | — |
