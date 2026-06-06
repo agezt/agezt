@@ -53,6 +53,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   build matrix to the verification battery. (M488)
 
 ### Code quality
+- **Mutation testing pinned the webhook 2xx success-window upper edge.** `go-mutesting`
+  on `kernel/webhook` showed the delivery success test (`status >= 200 && status < 300`,
+  duplicated in `ProbeResult.OK`) was unpinned at its upper edge — tests covered 200 and
+  500 but never 299 vs 300, so `< 300 → <= 300` survived on both copies (a status 300,
+  which Go does not auto-follow, wrongly counted as delivered instead of retried/failed).
+  Added `status_boundary_test.go`: an OK table over 199–500 and a dispatch test asserting
+  a 300 is journaled `webhook.failed`. Twenty-first package in the mutation pass. (M510)
 - **Mutation testing pinned the plugin host's frame-size boundary.** `go-mutesting` on
   `kernel/plugin` showed `readFrame`'s OOM-flood guard (`len(buf)+len(chunk) > max`) was
   unpinned — `frame_test.go` covered under-max, over-max, and EOF, but never a frame
