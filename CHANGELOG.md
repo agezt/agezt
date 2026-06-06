@@ -61,6 +61,15 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   build matrix to the verification battery. (M488)
 
 ### Code quality
+- **Verified provider usage/billing token math (cost-accounting sweep).** Completing the
+  surface where M517 found a real money bug: the provider-side token→usage extraction that
+  feeds every cost calc. anthropic sums three separate fields
+  (`input + cache_read + cache_creation`) — negative control killed dropping either cache
+  term and the `+ → -` flip (both streaming + non-streaming tests assert distinct per-term
+  values); openai is a direct mapping (`prompt_tokens` already includes the cached subset),
+  asserted with concrete values. Both solid. The full money path (governor CostMicrocents,
+  agent cost cap, openaiapi estimateUsage, planner FormatUSD, provider usage) is now covered.
+  No code change. (M539)
 - **Mutation-hardened the MCP-bridge frame cap.** `plugins/external/mcpbridge`'s
   `readBoundedLine` (M185) caps a frame from an untrusted MCP server (stdio/SSE); the tests
   covered under-max and over-max floods but no frame exactly on the cap, so `> max → >= max`
