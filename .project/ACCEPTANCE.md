@@ -3,7 +3,7 @@
 Live PASS/FAIL ledger for the ratified goal. Each criterion records its state, the
 last evidence command, and the date. "PASS" = re-verified green by running the
 command shown. Goal is MET when every row is PASS or a documented env-bound /
-out-of-scope exception. Updated per milestone. Last refresh: 2026-06-07 (M557).
+out-of-scope exception. Updated per milestone. Last refresh: 2026-06-07 (M558).
 
 | # | Criterion | State | Last evidence (command) | Date |
 |---|---|---|---|---|
@@ -15,7 +15,7 @@ out-of-scope exception. Updated per milestone. Last refresh: 2026-06-07 (M557).
 | 6 | Secrets/security | **PASS** | `gitleaks detect`=0 (617 commits); gosec triaged (M487) | 2026-06-06 |
 | 7 | Runtime / E2E (every surface) | **PASS** | M550–M553: every product surface driven against the real daemon — daemon lifecycle, run loop, status/doctor/journal, OpenAI API (+streaming, bug fixed), REST, Web UI, ACP, webhooks (HMAC), plugin+MCP, scheduler+HITL, mesh, multi-tenant, pulse, vault. 0 panics / 0 error-journal events / graceful shutdown throughout. See §7 checklist below | 2026-06-07 |
 | 8 | Plan-faithfulness (vision↔impl) | **PASS (v1.0.0 scope)** | M554: every capability the README/v1.0.0 claims is present + exercised in §7; the IMPLEMENTATION.md full-project Phase 4–9 has deferred items documented out-of-scope below (future roadmap, not v1.0 defects) | 2026-06-07 |
-| 9 | CI wires every gate | **PASS** | `.github/workflows/ci.yml`: test+vet+build(3 OS), race, lint, secrets, multi-arch, codegen, deps (M489) | 2026-06-06 |
+| 9 | CI wires every gate | **PASS** | `.github/workflows/ci.yml`: test+vet+build(3 OS), race, lint, secrets, multi-arch, codegen, deps (M489) + **e2e smoke job** (M558: boots the real daemon, runs `scripts/e2e-smoke.sh`) | 2026-06-07 |
 
 ## Reproducing the runtime/E2E proof
 The §7 verification is codified as a runnable artifact: `scripts/e2e-smoke.sh`

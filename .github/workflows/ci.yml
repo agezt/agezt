@@ -45,6 +45,29 @@ jobs:
           go-version: stable
       - run: go test -race ./...
 
+  e2e:
+    # Runtime/E2E gate: boot the real daemon and smoke every core product surface
+    # end-to-end (keyless echo mock) — control-plane loop, OpenAI chat incl.
+    # streaming, native REST, auth/input-validation (401/400/413), concurrency,
+    # halt→resume, graceful shutdown with 0 panics. Catches regressions that unit
+    # tests miss (e.g. M550, where streaming dropped a non-streaming provider's
+    # answer). See scripts/e2e-smoke.sh.
+    name: e2e smoke (linux)
+    runs-on: ubuntu-latest
+    env:
+      CGO_ENABLED: '0'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+      - name: Build binaries
+        run: |
+          go build -o /tmp/agezt ./cmd/agezt
+          go build -o /tmp/agt ./cmd/agt
+      - name: E2E smoke (real daemon, every core surface)
+        run: bash scripts/e2e-smoke.sh /tmp/agezt /tmp/agt
+
   codegen-in-sync:
     name: codegen-in-sync
     runs-on: ubuntu-latest
