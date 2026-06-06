@@ -53,6 +53,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   build matrix to the verification battery. (M488)
 
 ### Code quality
+- **Mutation testing pinned skill's auto-quarantine failure-rate threshold.** `go-mutesting`
+  on `kernel/skill` showed `maybeAutoQuarantine`'s `if rate < f.aqFailureRate` was unpinned
+  at the boundary — the tests drive 100% and ~23% rates, never exactly the threshold, so a
+  `<`→`<=` regression (a skill at exactly the failure rate escaping quarantine) survived.
+  Added `TestRecordOutcome_QuarantinesAtExactFailureRate` (3 successes then 3 failures →
+  exactly 50% → quarantined). Seventeenth package in the mutation pass. (M506)
 - **Mutation testing pinned memory's first-writer-wins record provenance.** `go-mutesting`
   on `kernel/memory` showed the reinforce path's provenance preservation (`rec.SourceEvent
   = existing.SourceEvent` + the `ev != nil && rec.SourceEvent == ""` guard) was unpinned —
