@@ -53,6 +53,16 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   build matrix to the verification battery. (M488)
 
 ### Code quality
+- **Mutation testing pinned the legacy vault KDF (and strengthened PBKDF2).**
+  `go-mutesting` on `kernel/creds` showed `deriveKeyLegacyHMAC` was unpinned — every
+  test exercising it round-trips with the same function, so removing `mac.Write(d)`
+  from the keyed-hash chain survived. The legacy KDF is frozen (it decrypts pre-M172
+  vaults), so an undetected change makes those vaults unreadable. Added
+  `kdf_known_answer_internal_test.go`: a golden-digest test for the legacy KDF
+  (independent reimplementation) and a cross-check of `deriveKeyPBKDF2` against the
+  stdlib `crypto/pbkdf2` (Go 1.24+, authoritative, no module dep added) covering
+  empty/unicode cases. Completes the six-package mutation pass (redact/journal/edict/
+  netguard/event/creds): genuine gaps closed where present, the rest verified solid. (M494)
 - **Defined "hardened to 100%" as a measurable rubric (`.project/HARDENING.md`).** The
   hardening goal lacked any terminal, decidable criterion. Added a six-dimension
   scorecard (build/portability, static analysis, secrets/security, testing depth,
