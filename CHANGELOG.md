@@ -53,6 +53,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   build matrix to the verification battery. (M488)
 
 ### Code quality
+- **Mutation testing pinned the governor's spend-enforcement boundary.** `go-mutesting`
+  on `kernel/governor` (the per-day/per-task spend ceiling) showed both `spentToday >=
+  ceiling` and `spent >= cap` were unpinned at the exact boundary — the existing budget
+  tests overshoot (first call blows past the cap), so the `>=` → `>` mutants survived (a
+  regression allowing one extra call once spend reaches the ceiling). Added
+  `budget_boundary_internal_test.go` pinning spend == ceiling/cap → blocked and
+  ceiling-1 → allowed. Eighth package in the mutation pass. (M497)
 - **Active fuzz robustness pass — all 16 targets re-run clean.** Rather than rely on
   the historical "clean" claim, every fuzz target (controlplane request parse, redact,
   edict decide, journal open, catalog, openai-compat content, governor pricing, the
