@@ -53,6 +53,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   build matrix to the verification battery. (M488)
 
 ### Code quality
+- **Mutation testing pinned worldmodel's first-writer-wins entity provenance.**
+  `go-mutesting` on `kernel/worldmodel` showed `Upsert`'s `ev != nil && e.SourceEvent ==
+  ""` (set the origin event once) was unpinned for re-observation — a `&&`→`||` regression
+  overwrites SourceEvent on every later mention (last-writer), losing the origin used for
+  audit/causation. Added `provenance_test.go` (re-observe preserves the original
+  SourceEvent). Fourteenth package in the mutation pass. (M503)
 - **Mutation testing pinned tenant List's spurious-entry exclusion.** `go-mutesting` on
   `kernel/tenant` showed `List`'s `!e.IsDir() || !ValidID(name)` filter was unpinned (the
   existing test only creates valid tenants) — a `||`→`&&` regression would surface a stray
