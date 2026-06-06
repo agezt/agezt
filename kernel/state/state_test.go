@@ -198,7 +198,15 @@ func TestValidateNamespace(t *testing.T) {
 			t.Errorf("Set(%q) got err=%v, want ErrInvalidNamespace", ns, err)
 		}
 	}
-	good := []string{"agents", "config", "agent_01H", "ns-with-dash", "ns.with.dot"}
+	good := []string{
+		"agents", "config", "agent_01H", "ns-with-dash", "ns.with.dot",
+		// Exercise every far edge of the allowlist char ranges (M515): a-z, A-Z, 0-9.
+		// The names above only hit the low edges ('a', '0') and mid-range letters, so
+		// the upper bounds (`c <= 'z'`, `c <= 'Z'`, `c <= '9'`) and the upper-range
+		// lower bound (`c >= 'A'`) went unpinned — a namespace using 'z'/'Z'/'A'/'9'
+		// would be wrongly rejected under a `<= → <` / `>= → >` mutation, undetected.
+		"azAZ09",
+	}
 	for _, ns := range good {
 		if err := s.Set(ns, "k", "v"); err != nil {
 			t.Errorf("Set(%q) unexpected err=%v", ns, err)

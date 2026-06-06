@@ -53,6 +53,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   build matrix to the verification battery. (M488)
 
 ### Code quality
+- **Mutation testing pinned the state namespace allowlist edges.** `kernel/state`'s
+  `validateNamespace` (the only path-traversal guard) was tested for rejections and for
+  low-edge valid chars, but no valid namespace used the far range edges, so `c <= 'z'`,
+  `c <= 'Z'`, `c >= 'A'`, and `c <= '9'` could each weaken (`<= → <`, `>= → >`) and
+  silently reject a valid identifier (`z`/`Z`/`A`/`9`) undetected. Added `"azAZ09"` to the
+  accepted-namespace cases. Traversal rejections + the M426 poison guard were already
+  solid. Twenty-sixth package in the mutation pass. (M515)
 - **Mutation testing pinned the ACP prompt-flattening block selection.** Every `kernel/acp`
   test sent a single `{"type":"text"}` block, so `flattenPrompt`'s newline join and its
   lenient `b.Type == "" && b.Text != ""` branch were unpinned — `== → !=`, `!= → ==`, and
