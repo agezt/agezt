@@ -12,7 +12,7 @@ GEN_PKG  := gen
 
 export CGO_ENABLED := 0
 
-.PHONY: all help gen frontend-build build install run test vet fmt lint clean check deps-check
+.PHONY: all help gen frontend-build frontend-test build install run test vet fmt lint clean check deps-check
 
 all: build ## (default) build all binaries
 
@@ -23,6 +23,9 @@ gen: $(GEN_FILE) ## regenerate SDK types from the contract
 
 frontend-build: ## build the React Web UI → kernel/webui/dist (committed, go:embed)
 	cd frontend && npm ci && npm run build
+
+frontend-test: ## unit-test the Web UI logic (Vitest)
+	cd frontend && npm ci && npm test
 
 $(GEN_FILE): $(CONTRACT) tools/jsonschemagen/main.go
 	@mkdir -p $(dir $(GEN_FILE))
