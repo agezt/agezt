@@ -18,7 +18,15 @@ the standard library.
 
 ## CI / build
 
-*None.* GitHub Actions provides the runtime; no extra modules are pulled.
+*None (Go).* GitHub Actions provides the runtime; no extra Go modules are pulled.
+
+The Web UI (`frontend/`, decision A4) is a React + Vite app whose **npm**
+dependencies are a build-time concern only: Vite compiles them into the static
+bundle committed at `kernel/webui/dist/`, which the daemon `go:embed`s. None of
+them are Go modules — `go.mod`/`go.sum` and `tools/depscheck/allowlist.txt` are
+untouched, and `go:embed` is stdlib — so the core "justified-minimal Go deps"
+posture is unaffected. npm deps live under `frontend/package.json` and are out of
+scope for this table (they ship no runtime Go code; Node is never run at runtime).
 
 ---
 

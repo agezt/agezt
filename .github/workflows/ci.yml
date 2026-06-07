@@ -92,6 +92,29 @@ jobs:
             exit 1
           fi
 
+  frontend-dist-in-sync:
+    name: frontend-dist-in-sync
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: frontend/.nvmrc
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Build the Web UI bundle
+        run: |
+          cd frontend
+          npm ci
+          npm run build
+      - name: Verify no drift
+        run: |
+          if ! git diff --exit-code -- kernel/webui/dist/; then
+            echo "::error::kernel/webui/dist/ is out of sync with frontend/ sources."
+            echo "Run \`make frontend-build\` and commit the result."
+            exit 1
+          fi
+
   multi-arch:
     name: cross-build (${{ matrix.goos }}/${{ matrix.goarch }})
     runs-on: ubuntu-latest

@@ -12,7 +12,7 @@ GEN_PKG  := gen
 
 export CGO_ENABLED := 0
 
-.PHONY: all help gen build install run test vet fmt lint clean check deps-check
+.PHONY: all help gen frontend-build build install run test vet fmt lint clean check deps-check
 
 all: build ## (default) build all binaries
 
@@ -20,6 +20,9 @@ help: ## show this help
 	@awk 'BEGIN {FS = ":.*?## "}; /^[a-zA-Z_-]+:.*?## / {printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
 gen: $(GEN_FILE) ## regenerate SDK types from the contract
+
+frontend-build: ## build the React Web UI → kernel/webui/dist (committed, go:embed)
+	cd frontend && npm ci && npm run build
 
 $(GEN_FILE): $(CONTRACT) tools/jsonschemagen/main.go
 	@mkdir -p $(dir $(GEN_FILE))

@@ -7,9 +7,9 @@ import (
 	"context"
 	"errors"
 	"io"
+	"io/fs"
 	"net/http"
 	"net/http/httptest"
-	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -62,7 +62,9 @@ func newServer(t *testing.T, client Caller, token string) (*Server, *bus.Bus) {
 	return New(b, client, token), b
 }
 
-func TestDashboardServedAtRoot(t *testing.T) {
+// The embedded React SPA is served at "/": index.html with a #root mount and a
+// reference to the hashed JS bundle under /assets/.
+func TestSPAIndexServedAtRoot(t *testing.T) {
 	s, _ := newServer(t, &fakeCaller{}, "secret")
 	req := httptest.NewRequest(http.MethodGet, "/?token=secret", nil)
 	rec := httptest.NewRecorder()
@@ -74,77 +76,127 @@ func TestDashboardServedAtRoot(t *testing.T) {
 	if ct := rec.Header().Get("Content-Type"); !strings.HasPrefix(ct, "text/html") {
 		t.Errorf("content-type = %q want text/html", ct)
 	}
-	if !strings.Contains(rec.Body.String(), "live monitor") {
-		t.Error("dashboard body missing expected marker")
-	}
-	// The world panel ships a node-link graph renderer; guard against a refactor
-	// silently dropping it (the backend feeds it via the /api/world `edges` key).
 	body := rec.Body.String()
-	if !strings.Contains(body, "function worldGraph") {
-		t.Error("dashboard missing the world graph renderer")
+	if !strings.Contains(body, `id="root"`) {
+		t.Error("index.html missing the React #root mount")
 	}
-	// The Runs panel renders the live run list; guard its wiring (panel id +
-	// renderer) against a refactor dropping it.
-	if !strings.Contains(body, `data-panel="runs"`) || !strings.Contains(body, "runs:") {
-		t.Error("dashboard missing the Runs panel")
+	if !strings.Contains(body, "/assets/") {
+		t.Error("index.html missing a hashed /assets/ bundle reference")
 	}
-	if !strings.Contains(body, `data-panel="schedules"`) || !strings.Contains(body, "schedules:") {
-		t.Error("dashboard missing the Schedules panel")
+}
+
+// index.html must be no-cache so a daemon upgrade (new asset hashes) isn't masked
+// by a stale shell pointing at assets that no longer exist.
+func TestIndexHTMLNoLongCache(t *testing.T) {
+	s, _ := newServer(t, &fakeCaller{}, "secret")
+	req := httptest.NewRequest(http.MethodGet, "/?token=secret", nil)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+	if cc := rec.Header().Get("Cache-Control"); !strings.Contains(cc, "no-cache") {
+		t.Errorf("index.html Cache-Control = %q want no-cache", cc)
 	}
-	// The Schedules panel shows each entry's next-fire time.
-	if !strings.Contains(body, "next_run_unix") || !strings.Contains(body, "function fmtDateTime") {
-		t.Error("dashboard missing the schedule next-fire wiring")
+}
+
+// A client-side deep link (e.g. /runs after navigation + refresh) must serve the
+// SPA shell, not 404 — the app routes client-side.
+func TestSPADeepLinkServesIndex(t *testing.T) {
+	s, _ := newServer(t, &fakeCaller{}, "secret")
+	req := httptest.NewRequest(http.MethodGet, "/runs?token=secret", nil)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("deep link status = %d want 200", rec.Code)
 	}
-	// Clicking a run opens a detail modal that fetches its event arc.
-	if !strings.Contains(body, "function openRun") || !strings.Contains(body, "/api/journal") {
-		t.Error("dashboard missing the run-detail modal wiring")
+	if !strings.Contains(rec.Body.String(), `id="root"`) {
+		t.Error("deep link did not serve the SPA shell")
 	}
-	if !strings.Contains(body, `data-panel="stats"`) || !strings.Contains(body, "stats:") {
-		t.Error("dashboard missing the Stats panel")
+}
+
+// The hashed bundle is served under /assets/ with a long immutable cache and an
+// explicit, OS-independent Content-Type.
+func TestSPAAssetsServed(t *testing.T) {
+	s, _ := newServer(t, &fakeCaller{}, "secret")
+	name := firstAsset(t, s)
+	req := httptest.NewRequest(http.MethodGet, "/assets/"+name+"?token=secret", nil)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("asset status = %d want 200", rec.Code)
 	}
-	// The Budget panel renders the governor spend snapshot.
-	if !strings.Contains(body, `data-panel="budget"`) || !strings.Contains(body, "budget:") {
-		t.Error("dashboard missing the Budget panel")
+	if cc := rec.Header().Get("Cache-Control"); !strings.Contains(cc, "immutable") {
+		t.Errorf("asset Cache-Control = %q want immutable", cc)
 	}
-	// The Cache panel renders the prompt-cache savings aggregate.
-	if !strings.Contains(body, `data-panel="cache"`) || !strings.Contains(body, "cache:") {
-		t.Error("dashboard missing the Cache panel")
+	// .js must be served as JS (not text/plain) or the browser refuses it under
+	// nosniff — the Windows mime-registry bug this code guards against.
+	if strings.HasSuffix(name, ".js") {
+		if ct := rec.Header().Get("Content-Type"); !strings.Contains(ct, "javascript") {
+			t.Errorf("js asset Content-Type = %q want javascript", ct)
+		}
 	}
-	// A non-zero provider-fallback count drives a header warning badge.
-	if !strings.Contains(body, `id="fbBadge"`) || !strings.Contains(body, "function updateFallbackBadge") {
-		t.Error("dashboard missing the provider-fallback badge wiring")
+}
+
+// The bundle is PUBLIC: the browser loads it as a subresource of index.html and
+// cannot attach the token, so /assets/* must serve without one. (The data
+// surfaces — /events, /api/* — stay token-gated; see TestAuthRequired.)
+func TestSPAAssetsArePublic(t *testing.T) {
+	s, _ := newServer(t, &fakeCaller{}, "secret")
+	name := firstAsset(t, s)
+	req := httptest.NewRequest(http.MethodGet, "/assets/"+name, nil) // no token
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Errorf("no-token asset status = %d want 200 (assets are public)", rec.Code)
 	}
-	// Clicking the badge opens a modal listing recent provider.fallback events.
-	if !strings.Contains(body, "function openFallbacks") || !strings.Contains(body, "provider.fallback") {
-		t.Error("dashboard missing the fallback-detail modal wiring")
+	// Security headers still apply to public assets.
+	if csp := rec.Header().Get("Content-Security-Policy"); csp == "" {
+		t.Error("public asset missing Content-Security-Policy header")
 	}
-	// The event feed can be filtered by kind (client-side row toggling).
-	if !strings.Contains(body, `id="feedFilter"`) || !strings.Contains(body, "function applyFeedFilter") {
-		t.Error("dashboard missing the feed kind-filter wiring")
+}
+
+// The CSP is now static (no per-request nonce): it admits the external bundle via
+// script-src 'self' and carries no nonce.
+func TestSPACSPIsStaticNoNonce(t *testing.T) {
+	s, _ := newServer(t, &fakeCaller{}, "secret")
+	req := httptest.NewRequest(http.MethodGet, "/?token=secret", nil)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+	csp := rec.Header().Get("Content-Security-Policy")
+	if !strings.Contains(csp, "script-src 'self'") {
+		t.Errorf("CSP missing script-src 'self': %q", csp)
 	}
-	// The Providers panel renders the provider-routing aggregate.
-	if !strings.Contains(body, `data-panel="providers"`) || !strings.Contains(body, "providers:") {
-		t.Error("dashboard missing the Providers panel")
+	if !strings.Contains(csp, "default-src 'none'") {
+		t.Errorf("CSP missing default-src 'none': %q", csp)
 	}
-	// The Providers panel drills into the per-call routing timeline.
-	if !strings.Contains(body, "function openProviderLog") || !strings.Contains(body, "/api/provider_log") {
-		t.Error("dashboard missing the provider routing-log modal wiring")
+	if strings.Contains(csp, "nonce-") || strings.Contains(csp, "__CSP_NONCE__") {
+		t.Errorf("CSP unexpectedly carries a nonce: %q", csp)
 	}
-	// The Tools panel renders the tool-execution aggregate.
-	if !strings.Contains(body, `data-panel="tools"`) || !strings.Contains(body, "tools:") {
-		t.Error("dashboard missing the Tools panel")
+}
+
+// The embedded bundle must actually be present (index.html + ≥1 asset) — the
+// cross-OS safety net that doesn't depend on byte-reproducibility of the build.
+func TestEmbeddedDistPresent(t *testing.T) {
+	s, _ := newServer(t, &fakeCaller{}, "secret")
+	if _, err := fs.Stat(s.dist, "index.html"); err != nil {
+		t.Fatalf("embedded dist missing index.html: %v", err)
 	}
-	// The Tools panel drills into the per-call invocation log.
-	if !strings.Contains(body, "function openToolLog") || !strings.Contains(body, "/api/tool_log") {
-		t.Error("dashboard missing the tool-log modal wiring")
+	if firstAsset(t, s) == "" {
+		t.Fatal("embedded dist has no assets/* file")
 	}
-	// The Policy panel renders the edict-decision aggregate + drills into the log.
-	if !strings.Contains(body, `data-panel="policy"`) || !strings.Contains(body, "policy:") {
-		t.Error("dashboard missing the Policy panel")
+}
+
+// firstAsset returns the name of one file under dist/assets/ in the embed.FS.
+func firstAsset(t *testing.T, s *Server) string {
+	t.Helper()
+	entries, err := fs.ReadDir(s.dist, "assets")
+	if err != nil {
+		t.Fatalf("read embedded assets/: %v", err)
 	}
-	if !strings.Contains(body, "function openPolicyLog") || !strings.Contains(body, "/api/policy_log") {
-		t.Error("dashboard missing the policy-log modal wiring")
+	for _, e := range entries {
+		if !e.IsDir() {
+			return e.Name()
+		}
 	}
+	return ""
 }
 
 func TestStatsRouteProxiesRunsStats(t *testing.T) {
@@ -659,219 +711,6 @@ func TestSecurityHeadersOnEveryResponse(t *testing.T) {
 	}
 }
 
-func TestDashboard_NoUnsafeDOMSinks(t *testing.T) {
-	// The dashboard renders server-supplied text (tool output, intents, fallback
-	// reasons) into the DOM. It is XSS-safe BY CONSTRUCTION — textContent /
-	// createElement only, never an HTML-injection sink. This test locks that
-	// invariant in: a future edit that introduces innerHTML-with-data (or another
-	// sink) fails here instead of silently shipping a stored-XSS vector.
-	src := string(dashboardHTML)
-	for _, sink := range []string{"insertAdjacentHTML", "document.write", "outerHTML"} {
-		if strings.Contains(src, sink) {
-			t.Errorf("dashboard uses unsafe DOM sink %q — render via textContent/el() instead", sink)
-		}
-	}
-	// innerHTML is permitted ONLY to clear a node (= "" / = ''). Any other
-	// assignment is an HTML-injection risk.
-	for _, m := range regexp.MustCompile(`innerHTML\s*=\s*([^;\n]*)`).FindAllStringSubmatch(src, -1) {
-		if v := strings.TrimSpace(m[1]); v != `""` && v != `''` {
-			t.Errorf("dashboard assigns innerHTML to %q — only clearing (= \"\") is allowed", v)
-		}
-	}
-}
-
-// TestDashboard_RendersContextInspector locks in the SPEC-10 §3.5 / SPEC-07
-// context-inspector surface (M373): the run-detail arc must read the
-// llm.request event's context_chars + context_by_role and render the compact
-// "ctx chars" summary plus the expandable per-role breakdown. A refactor that
-// drops this rendering fails here. (The end-to-end behaviour is Playwright-
-// verified against a live daemon; this guards the wiring in the embedded HTML.)
-func TestDashboard_RendersContextInspector(t *testing.T) {
-	src := string(dashboardHTML)
-	for _, marker := range []string{"context_chars", "context_by_role", "ctx chars", "llm.request"} {
-		if !strings.Contains(src, marker) {
-			t.Errorf("dashboard context inspector missing %q — the SPEC-10 §3.5 surface regressed", marker)
-		}
-	}
-}
-
-// TestDashboard_RendersContextCompaction locks in the SPEC-10 §3 surface: a
-// context.compacted event (the loop trimmed its own context to fit the budget)
-// must render what was dropped — elided count, chars reclaimed, before/after,
-// budget — rather than a bare kind line. The payload keys are the agent loop's
-// context.compacted contract; a rename on either side trips this.
-func TestDashboard_RendersContextCompaction(t *testing.T) {
-	src := string(dashboardHTML)
-	for _, marker := range []string{
-		"context.compacted",    // the arcDetail/arcFull case exists
-		"elided",               // how many tool outputs were dropped
-		"reclaimed_chars",      // chars reclaimed
-		"context_chars_before", // size before
-		"context_chars_after",  // size after
-		"compacted",            // the human label
-	} {
-		if !strings.Contains(src, marker) {
-			t.Errorf("dashboard context-compaction rendering missing %q — the SPEC-10 §3 surface regressed", marker)
-		}
-	}
-}
-
-// TestDashboard_RendersStandingPanel locks in the SPEC-16 §4 / M406 surface: a
-// Standing panel that lists Chronos standing orders (name, enabled, triggers,
-// initiative mode). A rename of the panel id or the fields it reads trips this.
-func TestDashboard_RendersStandingPanel(t *testing.T) {
-	src := string(dashboardHTML)
-	for _, marker := range []string{
-		`data-panel="standing"`, // the panel + its refresh button
-		`id="standing"`,         // the panel body
-		"standing: (d)",         // the renderer
-		"enabled_count",         // the count it reads
-		"no standing orders",    // the empty state
-	} {
-		if !strings.Contains(src, marker) {
-			t.Errorf("dashboard standing panel missing %q — the SPEC-16 §4 surface regressed", marker)
-		}
-	}
-}
-
-// TestDashboard_RendersShadowProgress locks in the SPEC-05 §5.2 / M402 surface:
-// the Skills panel shows a shadow skill's evaluation progress toward
-// auto-promotion (shadow_wins / shadow_evals). A rename on either side trips it.
-func TestDashboard_RendersShadowProgress(t *testing.T) {
-	src := string(dashboardHTML)
-	for _, marker := range []string{"shadow_evals", "shadow_wins", "shadow \""} {
-		if !strings.Contains(src, marker) {
-			t.Errorf("dashboard shadow-progress rendering missing %q — the SPEC-05 §5.2 surface regressed", marker)
-		}
-	}
-}
-
-// TestDashboard_RendersIsolationCard locks in the SPEC-12 §4 / SPEC-07 tool-call
-// debug "isolation" view: the run-detail arc must render warden.executed events
-// (which carry the effective/requested profile + downgrade flag from the journal)
-// rather than dropping them to a bare kind line. The payload keys it reads are
-// the warden.executed contract — if either side renames a field this trips.
-func TestDashboard_RendersIsolationCard(t *testing.T) {
-	src := string(dashboardHTML)
-	for _, marker := range []string{
-		"warden.executed",   // the arcDetail/arcFull case exists
-		"profile_effective", // the effective isolation profile is read
-		"profile_requested", // the requested profile (for the downgrade delta)
-		"downgraded",        // the security-relevant downgrade flag is surfaced
-		"isolation",         // the human label
-	} {
-		if !strings.Contains(src, marker) {
-			t.Errorf("dashboard isolation card missing %q — the SPEC-12 §4 tool-call isolation surface regressed", marker)
-		}
-	}
-}
-
-// TestDashboard_RendersOffloadedArtifact locks in the SPEC-04 §3.6 surface: a
-// tool.result whose output was offloaded (carries raw_ref) shows it's an artifact
-// + how to fetch it, rather than just an empty/preview output.
-func TestDashboard_RendersOffloadedArtifact(t *testing.T) {
-	src := string(dashboardHTML)
-	for _, marker := range []string{
-		"raw_ref", "output_bytes", "artifact", "agt artifact get",
-	} {
-		if !strings.Contains(src, marker) {
-			t.Errorf("dashboard offloaded-artifact rendering missing %q — the SPEC-04 §3.6 surface regressed", marker)
-		}
-	}
-}
-
-// TestDashboard_RendersGovernorEvents locks in the run-detail rendering of the
-// Governor's per-call decision events (correlated to the run by M382). Without an
-// arcDetail case each renders as a bare kind line; this asserts each kind + the
-// payload fields it reads are present.
-func TestDashboard_RendersGovernorEvents(t *testing.T) {
-	src := string(dashboardHTML)
-	for _, marker := range []string{
-		"routing.decision", "provider.fallback", "capability.degraded",
-		"capability.rerouted", "capability.rejected", "rate.limited", "budget.exceeded",
-		"primary", "from_model", "to_model", "spent_microcents", "limit_per_min",
-	} {
-		if !strings.Contains(src, marker) {
-			t.Errorf("dashboard governor-event rendering missing %q — the run-detail surface regressed", marker)
-		}
-	}
-}
-
-// TestDashboard_RendersPolicyCard locks in the SPEC-12 §4 / SPEC-07 tool-call
-// "policy" leg: the run-detail arc must render policy.decision events (Edict's
-// per-tool-call verdict) instead of dropping them to a bare kind line. The
-// payload keys it reads are the policy.decision contract.
-func TestDashboard_RendersPolicyCard(t *testing.T) {
-	src := string(dashboardHTML)
-	for _, marker := range []string{
-		"policy.decision", // the arcDetail/arcFull case exists
-		"hard_denied",     // the hard-deny (immutable floor) case is distinguished
-		"would_ask",       // the Ask-folded-to-Allow disposition is surfaced
-		"capability",      // the capability/verdict subject is read
-	} {
-		if !strings.Contains(src, marker) {
-			t.Errorf("dashboard policy card missing %q — the SPEC-12 §4 tool-call policy surface regressed", marker)
-		}
-	}
-}
-
-// cspNonceRe extracts the nonce from a script-src directive.
-var cspNonceRe = regexp.MustCompile(`script-src 'nonce-([^']+)'`)
-
-func TestDashboard_SetsCSPNonce(t *testing.T) {
-	s, _ := newServer(t, &fakeCaller{}, "secret")
-	req := httptest.NewRequest(http.MethodGet, "/?token=secret", nil)
-	rec := httptest.NewRecorder()
-	s.Handler().ServeHTTP(rec, req)
-
-	csp := rec.Header().Get("Content-Security-Policy")
-	if csp == "" {
-		t.Fatal("dashboard response has no Content-Security-Policy header")
-	}
-	if !strings.Contains(csp, "default-src 'none'") {
-		t.Errorf("CSP missing default-src 'none': %q", csp)
-	}
-	m := cspNonceRe.FindStringSubmatch(csp)
-	if m == nil {
-		t.Fatalf("CSP has no script-src nonce: %q", csp)
-	}
-	nonce := m[1]
-
-	body := rec.Body.String()
-	// The placeholder must be fully substituted — a leftover would mean the
-	// inline script/style runs with a literal, guessable "nonce" (no protection).
-	if strings.Contains(body, "__CSP_NONCE__") {
-		t.Error("dashboard body still contains the __CSP_NONCE__ placeholder")
-	}
-	// Both the <script> and <style> tags must carry the SAME nonce as the header,
-	// or the browser refuses to run/apply them.
-	if !strings.Contains(body, `<script nonce="`+nonce+`">`) {
-		t.Error("script tag nonce does not match the CSP header nonce")
-	}
-	if !strings.Contains(body, `<style nonce="`+nonce+`">`) {
-		t.Error("style tag nonce does not match the CSP header nonce")
-	}
-}
-
-func TestDashboard_NoncePerRequest(t *testing.T) {
-	s, _ := newServer(t, &fakeCaller{}, "secret")
-	get := func() string {
-		req := httptest.NewRequest(http.MethodGet, "/?token=secret", nil)
-		rec := httptest.NewRecorder()
-		s.Handler().ServeHTTP(rec, req)
-		m := cspNonceRe.FindStringSubmatch(rec.Header().Get("Content-Security-Policy"))
-		if m == nil {
-			t.Fatal("no nonce in CSP")
-		}
-		return m[1]
-	}
-	// An unpredictable, per-response nonce is the whole point — a fixed nonce
-	// would let an injected inline script reuse it.
-	if a, b := get(), get(); a == b {
-		t.Errorf("nonce was reused across requests (%q) — it must be per-response", a)
-	}
-}
-
 // ---- Flow Studio ----
 
 // Generate forwards intent + model from the JSON body and drops anything else.
@@ -1046,23 +885,5 @@ func TestFlowStatsProxiesPlanStats(t *testing.T) {
 	}
 	if len(fc.calls) != 1 || fc.calls[0] != "plan_stats" {
 		t.Errorf("expected one plan_stats call, got %v", fc.calls)
-	}
-}
-
-// The dashboard ships the Flow Studio panel + its renderer/wiring; guard against
-// a refactor silently dropping it.
-func TestDashboardHasFlowStudio(t *testing.T) {
-	s, _ := newServer(t, &fakeCaller{}, "secret")
-	req := httptest.NewRequest(http.MethodGet, "/?token=secret", nil)
-	rec := httptest.NewRecorder()
-	s.Handler().ServeHTTP(rec, req)
-	body := rec.Body.String()
-	for _, marker := range []string{
-		`id="flow"`, "function planDag", "function postJSON",
-		"/api/plan/generate", "/api/plan/run",
-	} {
-		if !strings.Contains(body, marker) {
-			t.Errorf("dashboard missing Flow Studio marker %q", marker)
-		}
 	}
 }

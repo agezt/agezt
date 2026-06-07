@@ -1,0 +1,4 @@
+# The committed Vite bundle is the go:embed source and the CI in-sync check
+# diffs it byte-for-byte. Keep Git from rewriting EOLs on it (a CRLF rewrite on
+# Windows checkouts would make the diff spuriously dirty).
+kernel/webui/dist/** -text

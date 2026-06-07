@@ -1,15 +1,17 @@
 // SPDX-License-Identifier: MIT
 
-// Package webui serves the Agezt Web UI v1 (SPEC-07): a server-rendered,
-// SSE-driven dashboard over the journal/bus. It is the stdlib-first MVP cut of
-// SPEC-07's React surfaces — net/http + html/template + embed, no build chain
-// — faithful to §0 ("one event truth, many views; the UI never holds
-// authoritative state, it subscribes and renders") and §5.2 ("Live Monitor
-// driven entirely by events — the journal is the telemetry").
+// Package webui serves the Agezt Web UI (SPEC-07, decision A4): a React 19 +
+// Vite single-page app, built to static assets and go:embed-ded into the daemon
+// (see embed.go) — one binary, no Node at runtime, and no Go dependency added.
+// The Go side here is the thin server: it serves the embedded bundle and proxies
+// the same control-plane commands + bus stream the SPA renders. Faithful to §0
+// ("one event truth, many views; the UI never holds authoritative state, it
+// subscribes and renders") and §5.2 ("Live Monitor driven entirely by events").
 //
-// It holds no state. Two data paths, both reusing what already exists:
+// It holds no state. Three data paths, all reusing what already exists:
+//   - the SPA is the embedded Vite bundle (index.html + hashed /assets/*);
 //   - the live event feed subscribes to the kernel bus (the same ">" stream the
-//     daemon tees to stdout);
+//     daemon tees to stdout) over SSE at /events;
 //   - every read panel proxies a control-plane command through the same Client
 //     `agt` uses, so the CLI and the Web UI are guaranteed-consistent views and
 //     no query logic is duplicated.
@@ -24,11 +26,10 @@ package webui
 
 import (
 	"context"
-	"crypto/rand"
 	"crypto/subtle"
-	_ "embed"
-	"encoding/base64"
 	"encoding/json"
+	"io"
+	"io/fs"
 	"net/http"
 	"strings"
 	"time"
@@ -37,9 +38,6 @@ import (
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/event"
 )
-
-//go:embed dashboard.html
-var dashboardHTML []byte
 
 // Caller is the API the dashboard proxies to — satisfied by
 // *controlplane.Client. An interface keeps webui testable without a live
@@ -62,12 +60,20 @@ type Server struct {
 	bus    *bus.Bus
 	client Caller
 	token  string
+	dist   fs.FS // the built SPA bundle (embed dist/, sub-rooted)
 }
 
 // New builds a Server. token gates every request; bus drives the live feed;
-// client proxies read commands.
+// client proxies read commands. The embedded SPA bundle is sub-rooted so the
+// FileServer serves dist/ contents at the URL root.
 func New(b *bus.Bus, client Caller, token string) *Server {
-	return &Server{bus: b, client: client, token: token}
+	sub, err := fs.Sub(distFS, "dist")
+	if err != nil {
+		// dist is embedded at compile time; a failure here is a build defect, not
+		// a runtime condition. Fall back to the raw FS so the server still starts.
+		sub = distFS
+	}
+	return &Server{bus: b, client: client, token: token, dist: sub}
 }
 
 // apiRoutes maps each GET /api path to the read-only control-plane command it
@@ -157,7 +163,14 @@ const planRunTimeout = 30 * time.Minute
 // Handler builds the mux. Every route is wrapped in token auth.
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/", s.auth(s.handleDashboard))
+	mux.HandleFunc("/", s.auth(s.handleSPA))
+	// The hashed bundle and favicon are PUBLIC: the browser loads them as
+	// subresources of index.html and cannot attach the ?token= (only fetch /
+	// EventSource, which the SPA controls, can). They carry no secrets (compiled
+	// UI code). The data surfaces — /events and every /api/* — stay token-gated,
+	// so an unauthenticated visitor gets the shell but no data.
+	mux.HandleFunc("/assets/", s.secure(s.handleAssets()))
+	mux.HandleFunc("/favicon.ico", s.secure(handleFavicon))
 	mux.HandleFunc("/events", s.auth(s.handleEvents))
 	for path, cmd := range apiRoutes {
 		mux.HandleFunc(path, s.auth(s.proxy(cmd)))
@@ -175,18 +188,27 @@ func (s *Server) Handler() http.Handler {
 	return mux
 }
 
-// auth wraps a handler with token checking. The browser passes the token in the
-// query string (EventSource can't set headers); API callers may use either the
-// query or an Authorization: Bearer header.
-func (s *Server) auth(next http.HandlerFunc) http.HandlerFunc {
+// secure applies the defensive response headers (CSP et al.) to a handler but
+// does NOT require a token. Used for public, secret-free static subresources
+// (the bundle + favicon) that the browser must be able to load without a token.
+func (s *Server) secure(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		setSecurityHeaders(w)
+		next(w, r)
+	}
+}
+
+// auth wraps a handler with security headers + token checking. The browser
+// passes the token in the query string (EventSource can't set headers); API
+// callers may use either the query or an Authorization: Bearer header.
+func (s *Server) auth(next http.HandlerFunc) http.HandlerFunc {
+	return s.secure(func(w http.ResponseWriter, r *http.Request) {
 		if !s.authorized(r) {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
 		next(w, r)
-	}
+	})
 }
 
 // setSecurityHeaders applies defensive response headers to every web UI route
@@ -196,11 +218,29 @@ func (s *Server) auth(next http.HandlerFunc) http.HandlerFunc {
 //   - Referrer-Policy no-referrer — the page URL carries the auth token in
 //     `?token=`, so the referrer is suppressed to keep it out of any Referer header.
 //   - X-Content-Type-Options nosniff — stop content-type sniffing/confusion.
+//   - Content-Security-Policy (static): the SPA loads only external, same-origin
+//     hashed JS/CSS, so `script-src 'self'` admits the genuine bundle and refuses
+//     any inline/injected script — STRICTER than the old per-nonce scheme (which
+//     existed to allow one inline block). `style-src 'self' 'unsafe-inline'` is
+//     required because React Flow / Radix inject runtime inline styles (measured
+//     transforms) that can't be hashed at build time; 'unsafe-inline' on
+//     style-src enables no code execution. `connect-src 'self'` confines fetch +
+//     EventSource to the daemon; the rest closes framing/exfil/pivot avenues.
 func setSecurityHeaders(w http.ResponseWriter) {
 	h := w.Header()
 	h.Set("X-Content-Type-Options", "nosniff")
 	h.Set("X-Frame-Options", "DENY")
 	h.Set("Referrer-Policy", "no-referrer")
+	h.Set("Content-Security-Policy",
+		"default-src 'none'; "+
+			"script-src 'self'; "+
+			"style-src 'self' 'unsafe-inline'; "+
+			"connect-src 'self'; "+
+			"img-src 'self' data:; "+
+			"font-src 'self' data:; "+
+			"base-uri 'none'; "+
+			"form-action 'none'; "+
+			"frame-ancestors 'none'")
 }
 
 func (s *Server) authorized(r *http.Request) bool {
@@ -224,48 +264,82 @@ func (s *Server) tokenMatch(presented string) bool {
 	return subtle.ConstantTimeCompare([]byte(presented), []byte(s.token)) == 1
 }
 
-// handleDashboard serves the embedded single-page dashboard at "/".
-//
-// The page carries the only inline <script>/<style> in the surface, and it is
-// the highest-privilege browser context (same-origin with the token-authed,
-// state-mutating control plane). It is built entirely with textContent — no
-// innerHTML sink — so it has no current XSS, but a Content-Security-Policy with
-// a per-response nonce is set as defense-in-depth: `default-src 'none'` blocks
-// any injected external resource, `script-src 'nonce-…'` means only the genuine
-// inline block runs (an injected <script> from a future regression is refused
-// because it can't carry the unpredictable nonce), and `connect-src 'self'` /
-// `base-uri` / `form-action` / `frame-ancestors 'none'` close exfiltration and
-// pivot avenues. The nonce is minted per request and substituted into the two
-// tag placeholders so the header and the markup always agree.
-func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Path != "/" {
-		http.NotFound(w, r)
+// handleSPA serves the embedded React single-page app. The hashed JS/CSS live
+// under /assets/ (see handleAssets); this serves index.html at "/" and for any
+// other non-API, non-asset path (client-side deep links like /runs), so a
+// refresh on a sub-view re-loads the app rather than 404-ing. index.html is
+// served no-cache so a daemon upgrade (new asset hashes) is picked up
+// immediately rather than showing a stale shell that points at gone assets.
+func (s *Server) handleSPA(w http.ResponseWriter, _ *http.Request) {
+	body, err := fs.ReadFile(s.dist, "index.html")
+	if err != nil {
+		http.Error(w, "web ui bundle missing", http.StatusInternalServerError)
 		return
 	}
-	nonce := newCSPNonce()
-	w.Header().Set("Content-Security-Policy",
-		"default-src 'none'; "+
-			"script-src 'nonce-"+nonce+"'; "+
-			"style-src 'nonce-"+nonce+"'; "+
-			"connect-src 'self'; "+
-			"img-src 'self' data:; "+
-			"base-uri 'none'; "+
-			"form-action 'none'; "+
-			"frame-ancestors 'none'")
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	body := strings.ReplaceAll(string(dashboardHTML), "__CSP_NONCE__", nonce)
-	_, _ = w.Write([]byte(body))
+	w.Header().Set("Cache-Control", "no-cache")
+	_, _ = w.Write(body)
 }
 
-// newCSPNonce returns a fresh, unpredictable base64 nonce for the dashboard's
-// Content-Security-Policy. 16 bytes of crypto/rand is ample CSP-nonce entropy.
-// rand.Read never returns an error on the platforms we target; the zero-value
-// fallback only matters in the impossible error case and is still per-process
-// unique enough to not weaken a page that has no XSS sink to begin with.
-func newCSPNonce() string {
-	var b [16]byte
-	_, _ = rand.Read(b[:])
-	return base64.StdEncoding.EncodeToString(b[:])
+// handleAssets serves the content-hashed bundle under /assets/ straight from the
+// embedded FS. Hashes make each file immutable, so it gets a long immutable
+// cache; a missing asset 404s rather than falling through to the SPA shell. The
+// Content-Type is set EXPLICITLY by extension rather than via the stdlib's
+// mime.TypeByExtension, which on Windows reads the registry and can return
+// text/plain for .css (browsers then refuse the stylesheet under nosniff).
+func (s *Server) handleAssets() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		name := strings.TrimPrefix(r.URL.Path, "/")
+		f, err := s.dist.Open(name)
+		if err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		defer f.Close()
+		st, err := f.Stat()
+		if err != nil || st.IsDir() {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", contentType(name))
+		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+		if rs, ok := f.(io.ReadSeeker); ok {
+			http.ServeContent(w, r, name, st.ModTime(), rs)
+			return
+		}
+		_, _ = io.Copy(w, f)
+	}
+}
+
+// handleFavicon serves the SPA's icon from the bundle if present, else 204 (so a
+// browser's automatic /favicon.ico probe doesn't 404/401-noise the console).
+func handleFavicon(w http.ResponseWriter, _ *http.Request) {
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// contentType maps a bundle filename to a stable MIME type, independent of the
+// host OS mime registry (see handleAssets).
+func contentType(name string) string {
+	switch {
+	case strings.HasSuffix(name, ".js"), strings.HasSuffix(name, ".mjs"):
+		return "text/javascript; charset=utf-8"
+	case strings.HasSuffix(name, ".css"):
+		return "text/css; charset=utf-8"
+	case strings.HasSuffix(name, ".html"):
+		return "text/html; charset=utf-8"
+	case strings.HasSuffix(name, ".json"), strings.HasSuffix(name, ".map"):
+		return "application/json"
+	case strings.HasSuffix(name, ".svg"):
+		return "image/svg+xml"
+	case strings.HasSuffix(name, ".woff2"):
+		return "font/woff2"
+	case strings.HasSuffix(name, ".woff"):
+		return "font/woff"
+	case strings.HasSuffix(name, ".png"):
+		return "image/png"
+	default:
+		return "application/octet-stream"
+	}
 }
 
 // handleEvents streams the bus as Server-Sent Events. It subscribes to the
