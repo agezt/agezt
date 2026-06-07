@@ -17,7 +17,7 @@ Agezt nodes** back — with capability-aware **auto-routing**, **failover**, and
 bounded delegation **loop guard** — and now each **tenant federates to its own
 peer set**; events push out via **HMAC-signed webhooks**. See
 [CHANGELOG.md](CHANGELOG.md).
-**Tests:** 2463 passing across 80 packages.
+**Tests:** 2473 passing across 80 packages.
 **Dependencies:** one (`lukechampine.com/blake3`) + one transitive.
 
 ## What you get
@@ -197,6 +197,7 @@ agt catalog sync [--local]             refresh models.dev (offline-capable)
 agt memory … / agt world … / agt skill …   the cognitive loop (add/list/forget/…)
 agt reflect run                        review behaviour, decay stale knowledge
 agt approvals / approve / deny         the HITL queue
+agt send --channel … / agt ha …        push a message · control Home Assistant
 agt why <id> --payload                 walk the audit chain
 agt halt / resume / shutdown           stop · resume · graceful exit
 ```
