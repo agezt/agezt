@@ -391,7 +391,16 @@ func canonicalToGemini(m agent.Message) (*geminiContent, error) {
 		// surrogate. Real callers that need name fidelity should
 		// route through the tool registry. See ADR-???; tracked in
 		// SPEC-15 "tool-result name binding".
-		resp := json.RawMessage(`{"result":` + strconv.Quote(m.Content) + `}`)
+		// Build the {"result": ...} object with encoding/json, NOT strconv.Quote:
+		// strconv.Quote is a GO string-literal quoter, so a control byte (NUL, ESC
+		// \x1b common in terminal/ANSI tool output, etc.) becomes a Go-only \xNN
+		// escape that is INVALID JSON — which makes the whole request fail to encode
+		// and wedges the agent loop on Gemini for any tool output containing one. (M481)
+		quoted, err := json.Marshal(m.Content)
+		if err != nil {
+			return nil, fmt.Errorf("google: encode tool result: %w", err)
+		}
+		resp := json.RawMessage(`{"result":` + string(quoted) + `}`)
 		return &geminiContent{
 			Role: "user",
 			Parts: []geminiPart{{

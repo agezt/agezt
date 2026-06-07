@@ -38,6 +38,9 @@ run: build ## build, then run the agezt daemon in the foreground
 test: gen ## run unit tests
 	$(GO) test $(GOFLAGS) ./...
 
+e2e: build ## boot the real daemon and smoke every core surface end-to-end
+	bash scripts/e2e-smoke.sh $(BIN_DIR)/agezt $(BIN_DIR)/agt
+
 vet: gen ## run go vet
 	$(GO) vet ./...
 

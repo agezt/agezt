@@ -118,7 +118,11 @@ func decodeMistralOnBedrockResponse(body []byte, model string) (*agent.Completio
 	}
 	return &agent.CompletionResponse{
 		Message: agent.Message{
-			Role:    agent.Role(ch.Message.Role),
+			// Hard-code the assistant role rather than trusting the upstream value:
+			// an OpenAI-shaped backend often omits message.role on the response, which
+			// would leave the canonical role empty and misclassify the turn for
+			// downstream role switches. Every sibling adapter does the same. (M484)
+			Role:    agent.RoleAssistant,
 			Content: ch.Message.Content,
 		},
 		StopReason: stop,

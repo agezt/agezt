@@ -495,19 +495,26 @@ func Open(cfg Config) (*Kernel, error) {
 func (k *Kernel) Close() error {
 	k.Halt() // cancel any in-flight runs first
 	k.bus.Close()
-	if err := k.state.Close(); err != nil {
-		return err
+	// Close every store even if an earlier one errors — the previous short-circuit
+	// returned on the first error and leaked the remaining handles, notably the
+	// journal's OS file descriptor (a held handle blocks a re-Open of the dir on
+	// Windows). errors.Join reports all failures. (M477)
+	return closeAll(
+		k.state.Close,
+		k.memoryDir.Close,
+		k.worldDir.Close,
+		k.skillDir.Close,
+		k.journal.Close,
+	)
+}
+
+// closeAll invokes every close func (none skipped) and joins their errors.
+func closeAll(closers ...func() error) error {
+	errs := make([]error, 0, len(closers))
+	for _, c := range closers {
+		errs = append(errs, c())
 	}
-	if err := k.memoryDir.Close(); err != nil {
-		return err
-	}
-	if err := k.worldDir.Close(); err != nil {
-		return err
-	}
-	if err := k.skillDir.Close(); err != nil {
-		return err
-	}
-	return k.journal.Close()
+	return errors.Join(errs...)
 }
 
 // Journal exposes the underlying journal for read-only inspection (used by
@@ -1176,6 +1183,15 @@ func (k *Kernel) RunWith(ctx context.Context, corr, intent string) (string, erro
 		k.mu.Unlock()
 		return "", ErrHalted
 	}
+	// Reject a correlation that is already running: two concurrent RunWith calls
+	// sharing one id would clobber the run registry — the second's cancel overwrites
+	// the first's k.runs[corr], and the first's deferred delete then removes the
+	// second's entry, leaving a run uncancellable by Halt/CancelRun. The contract is
+	// one id per run; enforce it instead of silently corrupting the registry. (M480)
+	if _, running := k.runs[corr]; running {
+		k.mu.Unlock()
+		return "", fmt.Errorf("runtime: correlation %q is already running", corr)
+	}
 	// Per-run wall-clock budget (M31): when configured, the run context
 	// carries a deadline so a slow provider / blocking tool can't hang a
 	// run forever within a live session. The deadline cancels with
@@ -1297,9 +1313,15 @@ func (k *Kernel) RunWith(ctx context.Context, corr, intent string) (string, erro
 	// mode, derive one from the resolved model's catalog context window. An
 	// unknown model leaves compaction off (0).
 	ctxBudget := k.cfg.ContextBudget
-	if ctxBudget == 0 && k.cfg.ContextBudgetAuto && k.catalog != nil {
-		if _, m := k.catalog.FindModel(model); m != nil {
-			ctxBudget = agent.AutoContextBudgetChars(m.Limit.Context)
+	if ctxBudget == 0 && k.cfg.ContextBudgetAuto {
+		// Read the catalog through the locked accessor: ReloadCatalog swaps the
+		// k.catalog field under k.mu, and this hot path runs concurrently with an
+		// operator's `catalog sync`/`provider reload`, so a direct field read here is
+		// a data race (no happens-before, possible stale/torn read). (M477)
+		if cat := k.Catalog(); cat != nil {
+			if _, m := cat.FindModel(model); m != nil {
+				ctxBudget = agent.AutoContextBudgetChars(m.Limit.Context)
+			}
 		}
 	}
 

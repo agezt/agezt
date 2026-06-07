@@ -220,3 +220,43 @@ func TestStore_AtomicWrite_NoTempLeftover(t *testing.T) {
 		}
 	}
 }
+
+// TestStore_SaveUsesUniqueTemp pins M471: Save must not depend on a fixed
+// "<path>.tmp" name. The fixed name was the root cause of corruption when two
+// concurrent Save() calls (both under the read lock) raced on the same temp file —
+// one renaming a partially-written temp while another was still writing it. A
+// unique temp per Save removes the collision. We prove the fixed name is no longer
+// used by occupying it with a directory: a fixed-name write would fail; a unique
+// name is unaffected.
+func TestStore_SaveUsesUniqueTemp(t *testing.T) {
+	dir := t.TempDir()
+	// Occupy the OLD fixed temp path so a fixed-name temp write cannot succeed.
+	if err := os.Mkdir(filepath.Join(dir, "creds.json.tmp"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+
+	s := creds.NewStore(dir)
+	_ = s.Load()
+	if err := s.Set("KEY", "secret-value"); err != nil {
+		t.Fatalf("Set: %v", err)
+	}
+	if err := s.Save(); err != nil {
+		t.Fatalf("Save must not depend on the fixed <path>.tmp name (it is taken): %v", err)
+	}
+
+	// The vault round-trips cleanly.
+	s2 := creds.NewStore(dir)
+	if err := s2.Load(); err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if got := s2.Get("KEY"); got != "secret-value" {
+		t.Errorf("KEY=%q want secret-value", got)
+	}
+	// No unique temp litter left behind.
+	entries, _ := os.ReadDir(dir)
+	for _, e := range entries {
+		if strings.HasPrefix(e.Name(), ".creds-") {
+			t.Errorf("unique temp file leaked: %s", e.Name())
+		}
+	}
+}

@@ -22,6 +22,485 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   forgotten only after it ages out of both generations, roughly doubling the
   remembered window with memory still bounded at 2×cap. (M457)
 
+### Security
+- **Known advisory: build with Go ≥ 1.26.4.** `govulncheck` flags two standard-library
+  CVEs reachable from Agezt under go1.26.3 — GO-2026-5039 (`net/textproto`, via the
+  email channel / journal MIME scan / mcpbridge) and GO-2026-5037 (`crypto/x509`, via
+  the slack listener). Both are fixed in the go1.26.4 toolchain; the fix is in the
+  compiler-shipped stdlib, so there is nothing to change in Agezt's code or
+  `go.mod`/`go.sum` — releases and CI should simply build with go ≥ 1.26.4, after
+  which `govulncheck ./...` reports zero. (M487)
+- **`gitleaks detect` is now clean (0, was 16) and the secret gate is enforceable.**
+  The full-history scan reported 16 hits, all deliberate test fixtures (the
+  `kernel/redact/*_test.go` redaction tests, `cmd/agezt/plugin_log_test.go`, and the
+  placeholder AWS creds in `kernel/creds/aws_test.go`) — no real secret is committed.
+  Standing noise made the gate useless (a future real leak would be indistinguishable),
+  so added `.gitleaks.toml` that keeps the full default ruleset (`useDefault`) and
+  allowlists *only* those three test paths. Any secret introduced in production code,
+  or in any other test, still trips the scan. (M486)
+
+### Fixed
+- **Plugin `Reload` no longer lets the dying read loop mark the fresh child dead.** `Reload`
+  tore down the old child (`Close`) then reused the struct in `respawn`, but never joined the
+  old `readLoop` goroutine. That goroutine, on the closed old pipe, called `markDead("read
+  stdout: file already closed")`; if it landed after `respawn` reset `dead`/`deathErr`, it
+  marked the *new* child dead and `initialize` failed with a phantom `connection lost`
+  (intermittent; only the race detector's scheduling exposed it). Added a per-loop `readDone`
+  channel and made `Reload` wait for the old loop to exit before respawn — also closing a
+  lock-free `p.stdout` read/reassign data race. Found via the CI race job. (M561)
+- **OpenAI-compatible `/v1/chat/completions` streaming no longer drops the answer for a
+  non-streaming provider.** `streamChat` relays the kernel's `llm.token` events as content
+  deltas, but a provider that implements `Complete` without `CompleteStream` (non-streaming)
+  emits no token events — so a `stream:true` request served by such a provider returned only
+  the `role` + `stop` chunks and silently dropped the answer, while the same provider via
+  non-stream chat returned it. `/v1/responses` already guarded this (`full.Len() == 0` →
+  emit the assembled answer); chat/completions now does the same. Found by driving the real
+  daemon end-to-end with the echo mock (the new runtime/E2E acceptance dimension). Verified
+  by unit negative control + e2e (the content delta now appears). (M550)
+- **`FormatUSD` no longer drops the minus sign on sub-dollar negative amounts.**
+  `planner.FormatUSD` abs-ed the fractional part to handle negatives, but for an amount
+  whose magnitude is under $1 the whole-dollar part is `0`, so the sign lived only in the
+  fraction — abs-ing it without recording the sign printed `-$0.50` as `"$0.5000"`. Now the
+  sign is captured up front and re-applied as a prefix, so `FormatUSD(-500_000_000)` is
+  `"$-0.5000"`. Latent today (all callers pass non-negative cost sums) but the exported
+  contract is now correct. Found while triaging a surviving mutant on the abs guard during
+  the `kernel/planner` mutation pass (score 0.731). (M517)
+- **`DiskUsage` no longer breaks the FreeBSD build, and the daemon builds on every
+  supportable OS.** `kernel/pulse/diskusage_unix.go` was tagged `//go:build !windows`
+  (claiming all non-Windows platforms) but multiplied `syscall.Statfs_t.Bavail` —
+  which is `uint64` on Linux/Darwin yet `int64` on FreeBSD — by a `uint64`, a compile
+  error, so `GOOS=freebsd go build ./...` failed. Widened every operand to `uint64`
+  explicitly, narrowed the constraint to `linux || darwin || freebsd` (the
+  `syscall.Statfs` family), and added a `diskusage_other.go` fallback that returns a
+  tolerated "not supported" error for the rest (OpenBSD names the fields differently;
+  NetBSD has no `syscall.Statfs` and we stay stdlib-only). Cross-compile matrix is now
+  green for linux/darwin/windows/freebsd (+ openbsd/netbsd compile). Found by adding a
+  build matrix to the verification battery. (M488)
+
+### Code quality
+- **Hardening rubric ratified — "harden Agezt to 100%" goal MET.** The project owner ratified
+  `.project/HARDENING.md` as-is (2026-06-06) as the binding definition of "100% hardened".
+  Against that definition every PASS criterion holds and the MEASURED mutation floor (every
+  non-equivalent mutant killed) is met across 47 packages; the sole exception (offline
+  govulncheck) is environment-bound and remediated in CI. The full static re-verify battery
+  (gofmt/vet/staticcheck/build/cross-compile/gitleaks/tests) was re-run green tree-wide at the
+  arc HEAD. Closes the M490–M549 hardening arc. (M549)
+- **Pinned the Slack replay-guard dedup eviction boundary.** The Slack channel drops replayed
+  events via a bounded recently-seen-keys set that evicts the oldest key once the ring exceeds
+  capacity (so an event flood can't grow it unbounded). The integration replay test never
+  inserts enough keys to reach the eviction branch, so `len(ring) > cap → >= cap` (shrinks the
+  window) and evicting the wrong slot (`ring[0] → ring[1]`, desyncing `ring` and `seen`) both
+  survived. Added `TestSlack_DedupEvictsOldestPastCap` (unit, cap 3); negative control kills
+  both (dropping `delete(seen,old)` doesn't compile). No code change. (M548)
+- **Pinned the inbound media-download size caps on all three media channels.** Telegram,
+  Discord, and Slack each download an attachment from an untrusted source and inline it for a
+  vision model, bounded by `io.ReadAll(io.LimitReader(body, MaxRaw+1))` then `if len > MaxRaw`.
+  The happy-path image tests use tiny bodies, so two mutation points survived per channel: the
+  inclusive boundary (`> MaxRaw → >= MaxRaw`, which would reject a legitimate exactly-max
+  upload) and — more dangerously — the load-bearing `+1` (`LimitReader(_, MaxRaw+1) → MaxRaw`,
+  which would let an oversized body read as exactly MaxRaw and slip through silently truncated,
+  defeating the DoS guard). Added a `Test*SizeCapBoundary` per channel (exactly-max accepted,
+  max+1 rejected); negative control kills all six. Same read-bounded idiom family as M509/M531/
+  M538/M542. No code change. (M547)
+- **Mutation-hardened `strutil.Ellipsis` against the non-positive-max panic edge.** The
+  daemon-wide rune-safe truncation helper documents "a non-positive maxBytes yields just the
+  marker — never a panic", but its test exercised only `0` and `-5` with a non-empty string.
+  go-mutesting surfaced that `maxBytes == -1` and the empty-string + negative cap are
+  untested: mutating the `cut < 0` clamp or the `cut > 0` rune-backing loop bound leaves
+  `cut` negative and panics on `s[:cut]` / `s[0]`. Added `Ellipsis(_, -1, …)` and
+  `Ellipsis("", -1/-3, …)` assertions (kills 4 genuine survivors; the other 2 are equivalent
+  no-ops at `cut == 0`, confirmed). First `internal/` mutation target. No code change. (M546)
+- **Mutation-tested the web UI — security surface verified solid.** `kernel/webui` (the
+  only kernel package not yet mutation-assessed) serves the operator dashboard + token-authed
+  JSON API/SSE over loopback. `go-mutesting` scored 0.578 (52/90 killed); every one of the 38
+  survivors was classified and **none touches the security surface** — the token gate,
+  constant-time compare, per-route arg allowlist, and path guard are all killed by existing
+  tests. Survivors are equivalent (unasserted tuning constants: read timeout, SSE buffer,
+  heartbeat, nonce length) or cosmetic error-path (DetectContentType-equivalent header Sets,
+  BadGateway error bodies, SSE-loop teardown). Completes kernel mutation coverage. No code
+  change. (M545)
+- **Mutation-hardened the notify tool's empty-kind prune.** `Bind` drops any channel kind
+  with no allowlisted recipients (`len(ids) > 0`) so an unusable kind is never advertised to
+  the model. The test bound an empty kind and asserted only `IsError` — but the correct
+  "not configured" outcome and the mutant's wrong "notify failed (zero recipients)" outcome
+  are both `IsError`, so `> 0 → >= 0` survived. Strengthened
+  `TestNotify_UnboundReportsNotConfigured` to require the precise "not configured" message
+  and that no send was attempted; negative control killed. Completes the `plugins/tools/`
+  mutation sweep (coding verified covered). No code change. (M544)
+- **Mutation-hardened the browser tool's one-level wildcard (SSRF allowlist).**
+  `plugins/tools/browser`'s host allowlist (an SSRF boundary, re-checked per redirect hop)
+  matches `*.example.com` exactly one label deep via a dot-count guard
+  (`Count(host,".") == Count(pattern,".")`) — stricter than the http tool's any-depth
+  wildcard. The test covered apex-denied and one-level-allowed but not a multi-level
+  subdomain, so removing the dot-count guard left every test green while `a.b.example.com`
+  would match `*.example.com` — silently widening a one-level allowlist to arbitrary depth.
+  Extended `TestInvoke_WildcardHostMatch` to require `a.b.example.com` be denied; negative
+  control (guard → constant true) is killed. No code change. (M543)
+- **Mutation-hardened the acpagent output cap (untrusted external-agent relay).**
+  `plugins/tools/acpagent` relays a streamed answer from an *untrusted external ACP agent*
+  and bounds it twice so a runaway peer can't OOM the daemon (M256): an in-stream
+  accumulation guard (`answer.Len() >= MaxOutputBytes`) and the final `truncate`
+  (`len(s) <= max`). The existing runaway test allowed "a chunk or two" of slack and no
+  test fed `truncate` a string of length exactly `max`, so both inclusive edges survived
+  (`>= → >` appends one chunk past the cap; `<= → <` tears a `truncated 0 bytes` footer onto
+  output that exactly fits). Added `TestACPAgent_RunawayGuard_StopsExactlyAtCap` (streams
+  exactly the cap + one chunk → result is exactly the cap, no footer) and
+  `TestTruncate_InclusiveMaxBoundary`; negative control kills both. Same inclusive-max
+  DoS-guard idiom as plugin readFrame (M509), control-plane readBoundedLine (M531), and
+  mcpbridge (M538). No code change. (M542)
+- **Verified the federation loop guard's client side (peer tool).** The mesh delegation
+  loop guard (M209) has two sides; M513 pinned the server (restapi refuses an inbound run
+  past the hop limit). This verifies the client: the `peer` remote_run tool refuses to
+  delegate at `Hop(ctx) >= maxHops` and forwards `hop+1`. Negative control killed the guard
+  `>= → >`, the increment `+1 → +0` (a non-incrementing hop = unbounded chain), and `+1 → +2`.
+  The two sides are consistent (no off-by-one). The cross-node runaway protection is now
+  verified end to end. No code change. (M541)
+- **Verified all inbound channel authorization gates.** Every channel (telegram, discord,
+  slack, webhook, email) gates "who may drive the agent" on the verified
+  `kernel/channel.Allowlist` (M511), fail-closed. Negative control on each gate
+  (`if !allowed → if allowed`, which would let a non-allowlisted sender drive the agent and
+  refuse the allowlisted one) is killed in all five suites; telegram's unauthorized-photo
+  -fetch guard (`allowed &&`) is killed too. Signature verifiers (discord Ed25519, slack
+  signing secret, webhook HMAC) are separately fuzzed (M533). Completes the
+  authorization-surface verification alongside the control-plane (M529/M530) and REST/OpenAI
+  (M513) token gates. No code change. (M540)
+- **Verified provider usage/billing token math (cost-accounting sweep).** Completing the
+  surface where M517 found a real money bug: the provider-side token→usage extraction that
+  feeds every cost calc. anthropic sums three separate fields
+  (`input + cache_read + cache_creation`) — negative control killed dropping either cache
+  term and the `+ → -` flip (both streaming + non-streaming tests assert distinct per-term
+  values); openai is a direct mapping (`prompt_tokens` already includes the cached subset),
+  asserted with concrete values. Both solid. The full money path (governor CostMicrocents,
+  agent cost cap, openaiapi estimateUsage, planner FormatUSD, provider usage) is now covered.
+  No code change. (M539)
+- **Mutation-hardened the MCP-bridge frame cap.** `plugins/external/mcpbridge`'s
+  `readBoundedLine` (M185) caps a frame from an untrusted MCP server (stdio/SSE); the tests
+  covered under-max and over-max floods but no frame exactly on the cap, so `> max → >= max`
+  survived — a legitimate max-size payload (e.g. 16 MiB) torn down as "frame too large".
+  Added `TestReadBoundedLine_ExactlyMaxAccepted`. This is the third copy of the identical
+  bounded-read DoS guard (plugin readFrame M509, control-plane readBoundedLine M531), all
+  now pinned. (M538)
+- **Mutation-hardened the shell tool's negative-timeout fallback.** `plugins/tools/shell`
+  delegates execution to warden (verified M495); its own timeout precedence
+  (`in.TimeoutMS > 0`) was unpinned at negatives, so `> 0 → != 0` survived — a malformed
+  negative `timeout_ms` would be forwarded as a negative duration to warden, which can read
+  as "no deadline" and silently disable the timeout runaway-guard. Added
+  `TestShell_NegativeTimeoutMSFallsBackToDefault`. (M537)
+- **Mutation-hardened the http tool's request-body cap.** `plugins/tools/http`'s SSRF core
+  (host-allowlist exact + `*.subdomain` wildcard, scheme/method limits, netguard egress,
+  per-redirect-hop re-check) is verified solid by negative control; the genuine gap was the
+  inclusive body cap — `TestBodyTooLarge` used `Max+1`, so `len(body) > Max → >=` survived
+  (a body of exactly 256 KiB wrongly rejected). Added `TestBodyExactlyAtMax`. Same class as
+  the plugin readFrame (M509) / control-plane readBoundedLine (M531) guards. (M536)
+- **Mutation testing reached the `plugins/` tree (file tool).** The plugin tree (tools,
+  channels, providers) had been fuzzed but never mutation-tested. First target
+  `plugins/tools/file`: its path-containment security core (`withinRoot`/`resolve` — no
+  `..`/symlink escape) is verified solid by negative control, and a usability edge was
+  pinned — a single-line read range (`start == end`, "read lines 5-5") was wrongly
+  rejected because `end < start → <=` survived (no test sat on `start == end`). Added a
+  `[3,3]` case to `TestRead_LineRange`. (M535)
+- **Full rubric re-verification after the hardening arc.** Re-ran the complete
+  offline-verifiable battery tree-wide after 44 commits: gofmt (committed LF blobs) clean,
+  `go vet ./...` 0, `staticcheck ./...` clean, `gitleaks` no leaks (602 commits scanned),
+  cross-compile green for linux/{amd64,arm64} + darwin/arm64 + windows/amd64 + freebsd/amd64,
+  full `go test ./...` 0, and all 16 fuzz targets clean (M533). Every PASS dimension of the
+  six-criterion rubric holds with a current measurement; `go.mod`/`go.sum` unchanged across
+  the arc. No code change. (M534)
+- **Re-verified all 16 fuzz targets clean.** Every untrusted/external/binary parser (7 kernel
+  + 9 plugin: provider stream parsers, channel HMAC verifiers, AWS event-stream framing) was
+  re-fuzzed (`GOMAXPROCS=3`, 8s/target) after the M509–M532 arc — no crashers, no new corpus
+  seeds. Re-validates the M496 baseline with a current measurement. (M533)
+- **Mutation-pinned the `runs list` cost-band floor edge.** The cost-band filter (M125) keeps
+  runs spending `≥ min and ≤ max`, but `TestRunsList_CostBandFilter` tested the ceiling at its
+  exact edge (a 100-spend run kept against `max=100`) while testing the floor only strictly
+  below a run's spend — so `SpentMicrocents < minCostMC → <=` survived, silently dropping a
+  run that spent exactly its `--min-cost`. Extended the test with an exact-floor case. (M532)
+- **Mutation-pinned the control-plane request-size limit boundary.** `readBoundedLine` (the
+  M188 pre-auth DoS guard) caps a request line at `len(buf)+len(chunk) > max`, inclusive, but
+  the tests covered only under-cap and a flood well over it (and the fuzz invariant only
+  checks `len <= max`), so `> → >=` survived — a request exactly filling the cap wrongly
+  rejected as too large. Same shape as the plugin readFrame gap (M509). Added
+  `TestReadBoundedLine_ExactlyMaxAccepted`. (M531)
+- **Verified the control-plane tenant command-allowlist (privilege boundary).** Extended the
+  M529 control-plane verification to the second auth primitive, `tenantTokenAllows` (the
+  deny-by-default list of commands a scoped tenant token may run). Both directions are killed
+  by the existing integration tests: the allow case `true → false` fails
+  `TestTenantToken_Authorizes…/AllowsOwn…`, and the dangerous default `false → true` (a tenant
+  able to run admin commands) fails `TestTenantToken_ForbidsNonAllowlistedCmd`. The privilege
+  boundary is genuinely pinned; no code change. (M530)
+- **Mutation-verified the control-plane primary-token auth gate (rigorous).** `controlplane`
+  is too large (~10k LOC) for a whole-package `go-mutesting` run, so its security core,
+  `tokenIsPrimary` (constant-time admin-token check, M187), was verified by hand-applied
+  negative control: `want == "" → !=`, `presented == "" → !=`, and `ConstantTimeCompare(...)
+  == 1 → != 1` are all killed by `auth_test.go`; the `|| → &&` guard survivor is equivalent
+  (ConstantTimeCompare's length-mismatch and the both-empty case make `&&` behave
+  identically). Upgrades the prior informal "verified out-of-band" note to a reproducible
+  result. No code change. (M529)
+- **Mutation testing pinned the agent per-run cost cap boundary.** `kernel/agent`'s per-run
+  spend cap (M166) terminates at `spentMicrocents >= cap`, but `runcost_test.go` only spends
+  strictly over the cap (2000 vs 1500), never exactly at it, so `>= → >` survived — a run
+  spending exactly its budget would run one more over-budget round before being caught. Added
+  `TestRun_PerRunCostCap_ExactlyAtCap`. The loop guard and max-iter were already edge-pinned.
+  Thirty-fifth package in the mutation pass. (M528)
+- **Mutation testing pinned openaiapi's word-count usage fallback.** `estimateUsage` (used
+  when the engine reports no real provider token counts) had its `total_tokens: p + c`
+  arithmetic unpinned — the main usage test uses a `UsageReporter` engine, hitting
+  `chatUsage`'s `pt + ct` instead, so `+ → *` and `+ → -` survived (a wrong usage/billing
+  total for clients relying on the heuristic). Added a direct `TestEstimateUsage_WordCount`.
+  The request/parse/auth surface was already well covered (fuzz + 7 test files). Thirty-fourth
+  package in the mutation pass. (M527)
+- **Mutation testing pinned pulse's salience disposition-band boundaries.** `kernel/pulse`'s
+  `dispositionForValue` (LLM score → Alert/Notify/Digest/Drop band) was exercised only
+  indirectly, never at its exact thresholds, so `v >= 0.85`, `v >= 0.45`, and `v >= 0.20`
+  could each weaken to `>` — a score landing exactly on a band edge would silently drop a
+  notch (alert→notify, notify→digest, digest→drop). Added
+  `TestDispositionForValue_BandBoundaries` (each edge + just-below). `Route` was already
+  exhaustively tested. Thirty-third package in the mutation pass; the salience novelty-TTL edge, DiskObserver thresholds, and QuietHours.Active window edges were pinned in follow-ups. (M523-M526)
+- **Mutation testing pinned tenantctx's empty-id no-op as context identity.** `WithTenant`'s
+  early `return ctx` for an empty id could be dropped — falling through to
+  `WithValue(ctx, key, "")` — and `Tenant` still returns `""`, so the value-only test
+  couldn't tell them apart. The contract is "returned unchanged"; the mutant allocates a
+  wrapper on every untenanted (primary-kernel) run. Strengthened `TestWithTenant_EmptyIsNoOp`
+  to assert identity (`WithTenant(base,"") == base`), taking the package to a full mutation
+  kill. Thirty-second package in the mutation pass. (M522)
+- **Mutation testing pinned meshctx's MaxHopsConfig diagnostic returns.** Every test went
+  through `MaxHopsFromEnv`, which discards the `raw` and `validOverride` returns of
+  `MaxHopsConfig`, so those were unpinned — all three `validOverride` results could flip
+  undetected. `validOverride=false` is what `agt doctor` uses to flag a typo'd hop-limit
+  override that silently fell back; a stuck-true flag would hide the misconfiguration.
+  Added `TestMaxHopsConfig_RawAndValidity` (all three returns across unset/valid/over-cap/
+  zero/garbage/whitespace). Thirty-first package in the mutation pass. (M521)
+- **Mutation testing pinned reflect's proposal-rule thresholds.** `kernel/reflect`'s
+  `proposals` gates three advisory rules on inclusive thresholds, but the existing tests
+  fire them only well past the edge, so `ApprovalsDenied-ApprovalsGranted >= denyExcess` and
+  `TasksFailed*2 >= TasksStarted` (the ≥50%-failure rule) could each weaken `>= → >`
+  undetected — a deny-excess or failure batch *exactly* at the trigger point would stop
+  being proposed. Added `TestProposals_ExactThresholds` (fires at the threshold, silent one
+  below). Thirtieth package in the mutation pass. (M520)
+- **Mutation testing verified the artifact content-addressed store solid (no gap).** A
+  hand-applied negative control on every meaningful operator in `kernel/artifact` — the
+  `validRef` path-traversal guard (length + all four hex range edges + the De Morgan
+  reject structure), `Get`'s corrupt-detection compare, `Put`'s dedup skip, and `pathFor`'s
+  shard width — confirmed each is killed by the existing tests. The 31 go-mutesting
+  survivors are equivalent (error-path cleanup / `fmt.Errorf` wrapping removals). No code
+  change; recorded as verified solid (like anomaly/netguard). Twenty-ninth package. (M519)
+- **Mutation testing pinned ULID's decode table as the alphabet's inverse.** `kernel/ulid`'s
+  `decodeChar` is only exercised on the few characters in the fixed test vectors, so most of
+  its return values were unpinned — the `P–T` (+22) and `W–Z` (+28) offsets and the
+  `J`/`K`/`M`/`N`/`V` mappings could each be off by one, silently corrupting `Timestamp()`
+  for any ULID whose timestamp encodes those chars. Added `TestDecodeChar_InverseOfAlphabet`
+  (`decodeChar(alphabet[i]) == i` for all i; Crockford exclusions I/L/O/U rejected, not
+  aliased). Twenty-eighth package in the mutation pass. (M518)
+- **Mutation testing pinned the state namespace allowlist edges.** `kernel/state`'s
+  `validateNamespace` (the only path-traversal guard) was tested for rejections and for
+  low-edge valid chars, but no valid namespace used the far range edges, so `c <= 'z'`,
+  `c <= 'Z'`, `c >= 'A'`, and `c <= '9'` could each weaken (`<= → <`, `>= → >`) and
+  silently reject a valid identifier (`z`/`Z`/`A`/`9`) undetected. Added `"azAZ09"` to the
+  accepted-namespace cases. Traversal rejections + the M426 poison guard were already
+  solid. Twenty-sixth package in the mutation pass. (M515)
+- **Mutation testing pinned the ACP prompt-flattening block selection.** Every `kernel/acp`
+  test sent a single `{"type":"text"}` block, so `flattenPrompt`'s newline join and its
+  lenient `b.Type == "" && b.Text != ""` branch were unpinned — `== → !=`, `!= → ==`, and
+  `&& → ||` all changed which content blocks were folded into the intent undetected (a
+  non-text/image block's text could leak in; an omitted-type text block could be dropped).
+  Added `TestFlattenPrompt_BlockSelection` (multi-block: text/typeless/image/empty/text →
+  `"one\ntwo\nthree"`). The JSON-RPC notification + auth paths are defended-in-depth
+  (equivalent survivors). Twenty-fifth package in the mutation pass. (M514)
+- **Mutation testing pinned the REST mesh hop-limit loop guard.** The federation loop
+  guard in `kernel/restapi` (`hopIn > maxHops` → 508 Loop Detected, M209) had no
+  REST-layer test, so `> maxHops → >= maxHops` (refuse a run at exactly the limit) and
+  `→ < maxHops` (never refuse — a federated mesh could recurse unbounded) both survived.
+  Added `TestSubmitRun_MeshHopLimit` (hop>limit → 508; hop==limit → 200 and threaded into
+  the run). The token-auth core was separately verified solid (constant-time compare,
+  empty-token fail-closed, per-tenant gate all killed). Twenty-fourth package in the
+  mutation pass. (M513)
+- **Mutation testing verified the anomaly circuit breaker solid (no gap).** A hand-applied
+  negative control on every meaningful operator in `kernel/anomaly` — the trip boundary
+  `count > max`, the window sign/prune bound/inclusive `.Before`, the `Enabled` gate, and
+  the monitor's tool-kind filter, trip latch, and start gate — confirmed each is killed by
+  the existing tests. The 23 go-mutesting survivors are equivalent mutants. No code change;
+  recorded as verified solid (like netguard/event). Twenty-third package in the mutation
+  pass. (M512)
+- **Mutation testing pinned the channel splitter's empty-piece guard.** `go-mutesting`
+  on `kernel/channel` showed `SplitText`'s cut trigger (`units+ru > limit && len(cur) > 0`)
+  was unpinned at the empty-buffer guard — no test used a limit smaller than a single
+  character, so `len(cur) > 0 → >= 0` survived. Under it `SplitText("😀😀", 1)` emits a
+  blank leading chunk (a channel would send an empty message). Added
+  `TestSplitText_NeverEmptyPiece` (sub-character limits → no empty piece, lossless rejoin).
+  The package's security core (fail-closed Allowlist, per-sender history isolation) was
+  already solid; remaining survivors are equivalent. Twenty-second package in the
+  mutation pass. (M511)
+- **Mutation testing pinned the webhook 2xx success-window upper edge.** `go-mutesting`
+  on `kernel/webhook` showed the delivery success test (`status >= 200 && status < 300`,
+  duplicated in `ProbeResult.OK`) was unpinned at its upper edge — tests covered 200 and
+  500 but never 299 vs 300, so `< 300 → <= 300` survived on both copies (a status 300,
+  which Go does not auto-follow, wrongly counted as delivered instead of retried/failed).
+  Added `status_boundary_test.go`: an OK table over 199–500 and a dispatch test asserting
+  a 300 is journaled `webhook.failed`. Twenty-first package in the mutation pass. (M510)
+- **Mutation testing pinned the plugin host's frame-size boundary.** `go-mutesting` on
+  `kernel/plugin` showed `readFrame`'s OOM-flood guard (`len(buf)+len(chunk) > max`) was
+  unpinned — `frame_test.go` covered under-max, over-max, and EOF, but never a frame
+  sitting exactly on the inclusive limit, so `> → >=` survived (a maximum-size frame
+  wrongly rejected as `errFrameTooLarge`). Added `TestReadFrame_ExactlyMaxAccepted`
+  (exactly `max` accepted, `max+1` rejected). Twentieth package in the mutation pass. (M509)
+- **Mutation testing pinned catalog's cross-provider down-route tie-break.** `go-mutesting`
+  on `kernel/catalog` showed `ToolCapableAlternativeAmong`'s cross-provider selection
+  (`ctx > bestCtx || (ctx == bestCtx && id < bestID)`) was unpinned — the cross tests only
+  covered largest-context, never equal context across providers, so the tie-break direction
+  and the context comparison could flip undetected (non-deterministic / wrong down-route).
+  Added `TestToolCapableAlternativeAmong_TieBreaksByIDAcrossProviders` (two arrangements).
+  Nineteenth package in the mutation pass. (M508)
+- **Mutation testing pinned standing's cron dom/dow OR rule.** `go-mutesting` on
+  `kernel/standing` showed `matchesCron`'s classic both-restricted day rule
+  (`domMatch || dowMatch`) was unpinned — every existing case left day-of-month as `*`,
+  so a `||`→`&&` regression (requiring both DOM and DOW to match instead of either, the
+  wrong cron semantics) survived. Extended `TestMatchesCron` with both-restricted cases
+  (`0 8 13 * 5` matching on the 13th and on Fridays). Eighteenth package in the mutation
+  pass. (M507)
+- **Mutation testing pinned skill's auto-quarantine failure-rate threshold.** `go-mutesting`
+  on `kernel/skill` showed `maybeAutoQuarantine`'s `if rate < f.aqFailureRate` was unpinned
+  at the boundary — the tests drive 100% and ~23% rates, never exactly the threshold, so a
+  `<`→`<=` regression (a skill at exactly the failure rate escaping quarantine) survived.
+  Added `TestRecordOutcome_QuarantinesAtExactFailureRate` (3 successes then 3 failures →
+  exactly 50% → quarantined). Seventeenth package in the mutation pass. (M506)
+- **Mutation testing pinned memory's first-writer-wins record provenance.** `go-mutesting`
+  on `kernel/memory` showed the reinforce path's provenance preservation (`rec.SourceEvent
+  = existing.SourceEvent` + the `ev != nil && rec.SourceEvent == ""` guard) was unpinned —
+  the test only checks creation sets provenance, so two mutants (dropping the copy;
+  `&&`→`||`) that overwrite a record's origin event with the latest mention survived. Added
+  `provenance_test.go` (re-remember preserves the original SourceEvent), mirroring
+  worldmodel M503. Sixteenth package in the mutation pass. (M505)
+- **Mutation testing pinned approval's default-timeout guard.** `go-mutesting` on
+  `kernel/approval` showed `New`'s `if timeout <= 0 { timeout = DefaultTimeout }` was
+  unpinned — every test passes an explicit Timeout, so a `<=`→`<` regression (leaving an
+  unset/zero Timeout at 0, which auto-denies every approval instantly) survived. Added a
+  white-box `TestNew_DefaultsUnsetTimeout`. Fifteenth package in the mutation pass. (M504)
+- **Mutation testing pinned worldmodel's first-writer-wins entity provenance.**
+  `go-mutesting` on `kernel/worldmodel` showed `Upsert`'s `ev != nil && e.SourceEvent ==
+  ""` (set the origin event once) was unpinned for re-observation — a `&&`→`||` regression
+  overwrites SourceEvent on every later mention (last-writer), losing the origin used for
+  audit/causation. Added `provenance_test.go` (re-observe preserves the original
+  SourceEvent). Fourteenth package in the mutation pass. (M503)
+- **Mutation testing pinned tenant List's spurious-entry exclusion.** `go-mutesting` on
+  `kernel/tenant` showed `List`'s `!e.IsDir() || !ValidID(name)` filter was unpinned (the
+  existing test only creates valid tenants) — a `||`→`&&` regression would surface a stray
+  file or an invalid-named directory as a "tenant". Added
+  `TestRegistry_ListExcludesSpuriousRootEntries`. The `Authorize` auth gate's survivor was
+  verified equivalent (the constant-time compare rejects an empty token regardless).
+  Thirteenth package in the mutation pass. (M502)
+- **Mutation testing pinned runtime's foldRunTools correlation isolation.** `go-mutesting`
+  on `kernel/runtime` showed the memory-distillation fold's filter (`e.CorrelationID !=
+  corr || e.Kind != KindToolResult`) was unpinned — a `||`→`&&` regression folds other
+  runs' tool results into a run's distilled memory transcript (cross-run contamination).
+  Added `foldruntools_internal_test.go`. The `WithTrustCeiling` survivor was verified
+  equivalent. Twelfth package in the mutation pass. (M501)
+- **Mutation testing pinned the cadence due-check firing boundary.** `go-mutesting` on
+  `kernel/cadence` (the scheduler) showed `Due`'s `now < NextRunUnix → skip` boundary was
+  unpinned: the existing test probes `now < nextRun` and `now = nextRun+1s` but never the
+  exact instant, so a `<` → `<=` regression (delaying every entry by one tick) survived.
+  Added `TestStore_Due_FiresAtExactScheduledTime` (now == NextRunUnix is due). Eleventh
+  package in the mutation pass. (M500)
+- **Mutation testing pinned the bus subject-matcher over-delivery edge.** `go-mutesting`
+  on `kernel/bus` (the event backbone) showed `matches` only required the *subject* to be
+  fully consumed, not the *pattern*: dropping the `pi == len(pattern)` half let a pattern
+  with more tokens than the subject wrongly match (`matches("a.b.c","a.b") → true`), so a
+  subscriber to a more-specific subject would receive shorter events (over-delivery). The
+  existing table had no longer-pattern-than-subject case; added three. Tenth package in
+  the mutation pass. (M499)
+- **Mutation testing pinned the scheduler's plan correlation-id generation.**
+  `go-mutesting` on `kernel/scheduler` (score 0.774, highest assessed) showed the
+  auto-generated plan correlation id (`"plan-"+ulid`, used as `PlanResult.PlanID` and
+  stamped on every plan/node journal event) could be removed undetected — many tests
+  pass an empty id but none asserted the generated one, so an auto-correlated plan run
+  would emit events with an empty correlation id, breaking `agt why` / audit
+  correlation. Added `correlation_test.go` (generates when empty, preserves when
+  provided). Ninth package in the mutation pass. (M498)
+- **Mutation testing pinned the governor's spend-enforcement boundary.** `go-mutesting`
+  on `kernel/governor` (the per-day/per-task spend ceiling) showed both `spentToday >=
+  ceiling` and `spent >= cap` were unpinned at the exact boundary — the existing budget
+  tests overshoot (first call blows past the cap), so the `>=` → `>` mutants survived (a
+  regression allowing one extra call once spend reaches the ceiling). Added
+  `budget_boundary_internal_test.go` pinning spend == ceiling/cap → blocked and
+  ceiling-1 → allowed. Eighth package in the mutation pass. (M497)
+- **Active fuzz robustness pass — all 16 targets re-run clean.** Rather than rely on
+  the historical "clean" claim, every fuzz target (controlplane request parse, redact,
+  edict decide, journal open, catalog, openai-compat content, governor pricing, the
+  three channel signature verifiers, and six provider stream parsers) was re-executed
+  under bounded time: all exit 0, no crashers written. Fuzz/test runs are now capped at
+  `GOMAXPROCS=3` to avoid saturating the CPU. (M496)
+- **Mutation testing pinned the warden's blank-argv0 rejection.** `go-mutesting` on
+  `kernel/warden` (the command sandbox) showed the second half of the empty-Argv guard
+  (`spec.Argv[0] == ""`) was unpinned — the existing test only covered nil Argv, so the
+  `spec.Argv[0] == "" → false` mutant survived, which would let a blank command reach
+  `exec.CommandContext(ctx, "", …)`. Added `TestRun_RejectsBlankArgv0`. capBuffer (the
+  output memory bound) was found exemplary; remaining survivors are equivalent/config
+  mutants. Seventh package in the mutation pass. (M495)
+- **Mutation testing pinned the legacy vault KDF (and strengthened PBKDF2).**
+  `go-mutesting` on `kernel/creds` showed `deriveKeyLegacyHMAC` was unpinned — every
+  test exercising it round-trips with the same function, so removing `mac.Write(d)`
+  from the keyed-hash chain survived. The legacy KDF is frozen (it decrypts pre-M172
+  vaults), so an undetected change makes those vaults unreadable. Added
+  `kdf_known_answer_internal_test.go`: a golden-digest test for the legacy KDF
+  (independent reimplementation) and a cross-check of `deriveKeyPBKDF2` against the
+  stdlib `crypto/pbkdf2` (Go 1.24+, authoritative, no module dep added) covering
+  empty/unicode cases. Completes the six-package mutation pass (redact/journal/edict/
+  netguard/event/creds): genuine gaps closed where present, the rest verified solid. (M494)
+- **Defined "hardened to 100%" as a measurable rubric (`.project/HARDENING.md`).** The
+  hardening goal lacked any terminal, decidable criterion. Added a six-dimension
+  scorecard (build/portability, static analysis, secrets/security, testing depth,
+  defect surface, CI enforcement) where each row is verified by a command and carries
+  its current state (PASS / MEASURED-with-floor / documented environment exception),
+  plus a one-pass re-verify script. Offered for ratification. Also confirmed via a
+  mutation pass that the netguard SSRF core is already solid (all security-line
+  survivors equivalent/unreachable — no test added). (M493)
+- **Mutation testing pinned the edict whitespace-normalizer contract.** `go-mutesting`
+  on `kernel/edict` (the policy engine) showed the backward (left-side) scan in
+  `stripPunctAdjacentWhitespace` — which strips spacing-evasion from hard-deny floor
+  rules — was never exercised: the fork-bomb tests cover it only via `Decide`, and every
+  optional space in `:(){ :|:& };:` has punctuation on its right, so the forward scan
+  alone normalizes it. A left-only-punctuation variant could evade a floor rule if the
+  backward scan regressed. Added `strip_whitespace_test.go` pinning the documented
+  either-side contract (left-punct, right-punct, word-preservation, forward bound, fork
+  bomb), with a manual negative control for both the backward-scan and forward-bound
+  mutants. The toolmap and TrustLevel survivors were verified equivalent (no gap). (M492)
+- **Mutation testing pinned two journal integrity gaps (rotation accounting, Tail
+  trim).** `go-mutesting` on `kernel/journal` showed the existing rotation tests use
+  tiny segment thresholds where one line already rotates, so a `curBytes += `→`=`
+  regression (segments never rotating for normal events → unbounded growth) went
+  undetected; and the cross-segment Tail test gathers exactly n, so the
+  `collected[len-n:]` trim line never ran. Added `mutation_internal_test.go` with a
+  self-calibrating accumulation-rotation test and a Tail-trim test. The journal's
+  score is dominated by low-value error-message mutants, so the headline number moved
+  little, but both real behavioral gaps are now killed. (M491)
+- **Mutation testing hardened the redactor's test suite (score 0.575 → 0.725).**
+  `go-mutesting` on `kernel/redact` (the secret-scrubbing chokepoint) found 17
+  surviving mutants; 6 were genuine test gaps — nothing pinned the exactly-8-char
+  literal length floor, that a leading too-short/duplicate value must not abort the
+  registration loop, or the longest-first ordering that fully scrubs a secret which is
+  a prefix of another. Added four tests (`redact_m490_test.go`); each would fail on a
+  one-token regression that silently leaks a secret. The remaining 11 survivors are
+  equivalent mutants (identical observable behaviour), so every non-equivalent mutant
+  is now killed. (M490)
+- **CI now enforces the cleaned gates.** Added a `lint` job (`gofmt -l`,
+  `staticcheck ./...`, `govulncheck ./...`) and a `secrets` job (`gitleaks` over full
+  history with the `.gitleaks.toml` baseline) to `ci.yml`, and added `freebsd/amd64`
+  to the cross-build matrix (buildable as of M488). The static-analysis, secret-scan,
+  vulnerability, formatting, and FreeBSD-build cleanliness from M485–M488 is now
+  enforced on every push/PR instead of being a point-in-time snapshot. The full
+  golangci-lint correctness sweep (bodyclose/nilerr/ineffassign/unconvert/gocritic/
+  noctx/unparam/prealloc) surfaced no genuine defect — the nilerr hits are the
+  tool-result convention and the deliberate skip-malformed-on-journal-fold idiom.
+  (M489)
+- **`staticcheck ./...` is now clean (0 findings, was 17).** Removed unnecessary
+  comma-ok discards on map reads in the control plane (`req.Args[k]` returns one
+  value — S1005 ×13 across edict/server/state + halt_resume test), converted an
+  identical-shape struct literal to a type conversion in the SDK (`invokeResult(out)`
+  — S1016), dropped a dead write in the budget test where the headroom value was
+  immediately overwritten (SA4006), removed an unused mock field (`gotIter` — U1000),
+  and merged a split var declaration in the netguard redirect test (S1021). All
+  no-op semantically (the SA4006 fix keeps the test asserting exactly what it meant);
+  full suite still green. `staticcheck` joins `go vet` as an enforceable gate. (M485)
+
 ### Fixed
 - **The peer tool truncates long answers on a UTF-8 rune boundary.** A peer answer
   over the size cap was cut at a raw byte offset, splitting a multi-byte rune and
@@ -33,7 +512,77 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   which decodes to a space) was sent corrupted and the credential fetch failed for
   those operators. The query is now built with `url.Values`. (M466)
 
+### Performance
+- **The plan scheduler's driver is event-driven instead of polling.** It busy-waited
+  with a 1 ms sleep while any node was in flight — spinning (lock + map scan) for the
+  whole duration of the longest node and capping scheduling latency at ~1 ms. It now
+  blocks on a buffered completion channel signalled by each finishing node. Same
+  behaviour, no busy-wait, no latency floor. (M472)
+
+### Fixed
+- **Vertex tool results with control bytes no longer break the request.** Vertex AI
+  uses the Gemini wire format and had the identical `strconv.Quote` defect as the
+  Google provider (M481) — a control byte such as ANSI `\x1b` produced invalid JSON
+  and wedged the agent loop on Vertex. The result is now encoded with
+  `encoding/json`. (M483)
+- **Gemini tool results with control bytes no longer break the request.** The
+  Google provider built the tool-result JSON with `strconv.Quote` (a Go quoter), so a
+  control byte — notably the ANSI escape `\x1b` common in tool output — produced
+  invalid JSON, failing the whole request encode and wedging the agent loop on
+  Gemini. The result is now encoded with `encoding/json`. (M481)
+- **The email Subject header strips a bare carriage return.** The subject (first
+  line of the outbound text) was cut only at `\n`, so a lone interior `\r` survived
+  into the `Subject:` line — a header-injection foothold against lenient mail
+  parsers. It is now cut at the first CR or LF. (M479)
+- **Inbound Telegram photos and caption-only messages are no longer dropped.** The
+  long-poll loop dispatched only messages with non-empty `Text`, but a photo carries
+  its text in `Caption` (or none at all), so photo/caption-only messages were skipped
+  before reaching the handler — leaving the inbound-image (vision) path dead on the
+  live poll path even though the handler fully supported it. The gate now admits
+  messages with a caption or photo. (M476)
+
 ### Reliability
+- **Bedrock-Mistral responses are always tagged with the assistant role.** The
+  adapter copied the role from the wire, but OpenAI-shaped backends often omit it,
+  leaving the canonical role empty and misclassifying the turn. It now hard-codes the
+  assistant role like every sibling adapter. (M484)
+- **An event copies a `json.RawMessage` payload instead of aliasing the caller's
+  bytes.** The stored payload shared backing storage with the caller's slice, so a
+  later mutation of that slice could silently diverge the payload from the hash
+  computed over it and fail `VerifyHash`. The payload is now copied. (M482)
+- **A duplicate live correlation id is rejected instead of corrupting the run
+  registry.** Two concurrent `RunWith` calls sharing one correlation id clobbered
+  `k.runs[corr]` — the second overwrote the first's cancel func and the first's
+  cleanup deleted the survivor's entry, leaving a run uncancellable by Halt. The
+  second call now returns an "already running" error. (M480)
+- **Concurrent catalog sync + discover no longer lose each other's metadata.** The
+  `meta.json` sidecar was updated with an unsynchronized read-modify-write and a
+  shared temp file, so a concurrent `catalog sync` + `catalog discover` could clobber
+  one side's timestamps/source. Meta updates are now serialized and each catalog file
+  is written via a unique temp. (M478)
+- **`Kernel.Close()` closes every store even if one fails.** It returned on the
+  first store-close error, leaking the remaining handles — notably the journal's OS
+  file descriptor, which on Windows blocks re-opening the directory. It now closes
+  all stores and joins the errors. (M477)
+- **The auto context-budget path reads the catalog under the lock.** `RunWith` read
+  the `catalog` field directly while `ReloadCatalog` swaps it under the lock — a data
+  race when a run starts during a `catalog sync`. It now uses the locked `Catalog()`
+  accessor. (M477)
+- **The warden runner no longer swallows engine failures on a non-zero exit.** Its
+  `cmd.Wait` error classification was gated on the exit code being 0, so a genuine
+  non-`ExitError` failure (a failed launch, an I/O error, a `WaitDelay` abandonment
+  after a kill) that coincided with a non-zero exit was returned as success, hiding
+  it from the caller. Classification is now purely type-based. (M475)
+- **A blank tenant-token file no longer permanently wedges a tenant.** A crash
+  between creating the token file and writing it left a zero-length file, after
+  which every `Token()`/`Authorize()` re-read it as empty and the `O_EXCL` re-mint
+  failed — so the tenant returned a blank credential forever and could never
+  authenticate. A blank token file is now detected (after a brief retry for a live
+  concurrent writer) and re-minted. (M474)
+- **The credentials vault writes via a unique temp file.** `Save`/`Rotate` used a
+  fixed `creds.json.tmp`; two concurrent `Save` calls (both under the read lock)
+  could race on it and leave a torn, unloadable vault. Both now write to a unique
+  temp (and fsync) before renaming. (M471)
 - **The file tool's truncated read fills the preview and reports read errors.** The
   "first N bytes" preview of a large file used a single `Read`, which may return
   fewer bytes than requested, so the model could get a short prefix while the header

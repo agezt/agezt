@@ -139,6 +139,24 @@ func TestStore_Due_AdvancesAndPersists(t *testing.T) {
 	}
 }
 
+// An entry must fire AT its scheduled instant, not one tick later: Due treats
+// now == NextRunUnix as due (the check is `now < NextRunUnix → skip`, i.e.
+// now >= NextRunUnix → due). TestStore_Due_AdvancesAndPersists only probes
+// now < nextRun and now = nextRun+1s, leaving the exact boundary unpinned — a
+// `<` → `<=` regression (delaying every entry by one tick) would pass it.
+// Mutation testing (M500) confirmed that survivor.
+func TestStore_Due_FiresAtExactScheduledTime(t *testing.T) {
+	s := mustStore(t)
+	base := time.Date(2026, 5, 30, 0, 0, 0, 0, time.UTC)
+	e, _ := s.Add("x", time.Hour, "", SourceOperator, base) // next = base+1h
+
+	// now == NextRunUnix exactly → must be due.
+	due := s.Due(base.Add(time.Hour))
+	if len(due) != 1 || due[0].ID != e.ID {
+		t.Fatalf("entry must be due at exactly its scheduled time (now == NextRunUnix); got %d due", len(due))
+	}
+}
+
 func TestStore_RunNow_MakesDue(t *testing.T) {
 	s := mustStore(t)
 	now := time.Now()

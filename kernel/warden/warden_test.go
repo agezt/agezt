@@ -5,6 +5,7 @@ package warden_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"runtime"
 	"strings"
 	"testing"
@@ -129,6 +130,20 @@ func TestRun_RejectsEmptyArgv(t *testing.T) {
 	_, err := e.Run(context.Background(), warden.Spec{Profile: warden.ProfileNone})
 	if err == nil {
 		t.Fatal("expected ErrBadSpec for empty Argv")
+	}
+}
+
+// TestRun_RejectsBlankArgv0 pins the SECOND half of the empty-Argv guard
+// (`spec.Argv[0] == ""`): a one-element argv holding a blank program name must be
+// rejected, not handed to exec with an empty binary path. The nil-Argv test above
+// only exercises the `len(Argv) == 0` branch, so without this the blank-argv0
+// check could regress unnoticed (mutation testing, M495, confirmed that mutant
+// survived).
+func TestRun_RejectsBlankArgv0(t *testing.T) {
+	e := warden.New(nil)
+	_, err := e.Run(context.Background(), warden.Spec{Argv: []string{""}, Profile: warden.ProfileNone})
+	if !errors.Is(err, warden.ErrBadSpec) {
+		t.Fatalf("Run with a blank argv[0] = %v, want ErrBadSpec", err)
 	}
 }
 

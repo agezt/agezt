@@ -88,6 +88,31 @@ func TestValidate(t *testing.T) {
 	}
 }
 
+// TestDecodeChar_InverseOfAlphabet pins that decodeChar is the exact inverse of
+// crockfordAlphabet: every alphabet character decodes back to its own index. The
+// existing tests only decode the handful of characters that appear in their fixed
+// timestamp vectors, so most of decodeChar's return values were unpinned — mutation
+// testing (M518) showed the P–T (+22) and W–Z (+28) offsets and the individual
+// J/K/M/N/V mappings could each be off by one undetected, which would silently
+// corrupt Timestamp() for any ULID whose 48-bit timestamp encodes those characters.
+func TestDecodeChar_InverseOfAlphabet(t *testing.T) {
+	for i := range len(crockfordAlphabet) {
+		c := crockfordAlphabet[i]
+		v, ok := decodeChar(c)
+		if !ok || v != i {
+			t.Errorf("decodeChar(%q) = (%d, %v), want (%d, true)", c, v, ok, i)
+		}
+	}
+	// Crockford's excluded letters (I, L, O, U) and other symbols must be rejected,
+	// never silently aliased to a digit — a ULID using them is invalid input, not a
+	// typo to coerce. (Index/value here is irrelevant; only the rejection matters.)
+	for _, c := range []byte("ILOUilou-@/. ") {
+		if v, ok := decodeChar(c); ok {
+			t.Errorf("decodeChar(%q) accepted as %d, want rejected", c, v)
+		}
+	}
+}
+
 func TestConcurrentSafe(t *testing.T) {
 	const goroutines = 16
 	const per = 200

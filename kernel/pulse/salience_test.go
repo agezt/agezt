@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/agezt/agezt/kernel/state"
 )
 
 // fakeRelevance matches any text containing one of its known subjects.
@@ -33,6 +35,59 @@ func newSalience(rel Relevance) *Salience {
 
 func mediumDelta(summary string) Delta {
 	return Delta{Source: "probe:ci", Kind: "probe_failed", Summary: summary} // severity defaults to medium
+}
+
+// TestSeenRecently_TTLBoundary pins the novelty-window upper edge: an entry whose age is
+// exactly noveltyTTL is STALE (not suppressed), while one a millisecond younger is still
+// suppressed. The engine novelty test only proves an immediate repeat is suppressed, so
+// `age < noveltyTTL` was unpinned at the edge — mutation testing (M524) showed `< → <=`
+// survived (an entry exactly at the TTL age would be wrongly kept-suppressed, a
+// one-millisecond off-by-one that delays re-surfacing a recurring issue).
+func TestSeenRecently_TTLBoundary(t *testing.T) {
+	st, err := state.Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("state.Open: %v", err)
+	}
+	base := time.Unix(1_700_000_000, 0)
+	now := base
+	s := &Salience{state: st, noveltyTTL: 30 * time.Minute, now: func() time.Time { return now }}
+	s.MarkSeen("issue-1") // recorded at base
+
+	now = base.Add(30 * time.Minute) // age == TTL exactly
+	if s.seenRecently("issue-1") {
+		t.Error("an entry exactly at the TTL age must be stale (not suppressed)")
+	}
+	now = base.Add(30*time.Minute - time.Millisecond) // age == TTL-1ms
+	if !s.seenRecently("issue-1") {
+		t.Error("an entry a millisecond under the TTL age must still be suppressed")
+	}
+}
+
+// TestDispositionForValue_BandBoundaries pins the inclusive LLM-score → disposition band
+// edges. The salience/route tests exercise dispositions directly or via the relevance
+// boost, never dispositionForValue at its exact thresholds, so mutation testing (M523)
+// left `v >= 0.85`, `v >= 0.45`, and `v >= 0.20` each able to weaken to `>` — a score
+// landing exactly on a band edge would drop a notch (an alert silently demoted to a
+// notify, a notify to a digest, a digest dropped entirely).
+func TestDispositionForValue_BandBoundaries(t *testing.T) {
+	cases := []struct {
+		v    float64
+		want Disposition
+	}{
+		{1.0, DispAlert},
+		{0.85, DispAlert}, // exact alert edge
+		{0.84, DispNotify},
+		{0.45, DispNotify}, // exact notify edge
+		{0.44, DispDigest},
+		{0.20, DispDigest}, // exact digest edge
+		{0.19, DispDrop},
+		{0.0, DispDrop},
+	}
+	for _, c := range cases {
+		if got := dispositionForValue(c.v); got != c.want {
+			t.Errorf("dispositionForValue(%.2f) = %v, want %v", c.v, got, c.want)
+		}
+	}
 }
 
 func TestSalienceRelevanceBoostLiftsBand(t *testing.T) {

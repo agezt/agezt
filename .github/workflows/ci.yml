@@ -45,6 +45,29 @@ jobs:
           go-version: stable
       - run: go test -race ./...
 
+  e2e:
+    # Runtime/E2E gate: boot the real daemon and smoke every core product surface
+    # end-to-end (keyless echo mock) — control-plane loop, OpenAI chat incl.
+    # streaming, native REST, auth/input-validation (401/400/413), concurrency,
+    # halt→resume, graceful shutdown with 0 panics. Catches regressions that unit
+    # tests miss (e.g. M550, where streaming dropped a non-streaming provider's
+    # answer). See scripts/e2e-smoke.sh.
+    name: e2e smoke (linux)
+    runs-on: ubuntu-latest
+    env:
+      CGO_ENABLED: '0'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+      - name: Build binaries
+        run: |
+          go build -o /tmp/agezt ./cmd/agezt
+          go build -o /tmp/agt ./cmd/agt
+      - name: E2E smoke (real daemon, every core surface)
+        run: bash scripts/e2e-smoke.sh /tmp/agezt /tmp/agt
+
   codegen-in-sync:
     name: codegen-in-sync
     runs-on: ubuntu-latest
@@ -83,6 +106,7 @@ jobs:
           - { goos: darwin,  goarch: amd64 }
           - { goos: darwin,  goarch: arm64 }
           - { goos: windows, goarch: amd64 }
+          - { goos: freebsd, goarch: amd64 }
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -110,3 +134,57 @@ jobs:
           go-version: stable
       - name: Verify every module is in tools/depscheck/allowlist.txt
         run: go run ./tools/depscheck
+
+  lint:
+    # Static-analysis gates driven clean in M485/M487. gofmt + staticcheck are
+    # zero-tolerance; govulncheck catches new advisories (the toolchain is the
+    # latest stable, which carries the patched stdlib).
+    name: lint (gofmt, staticcheck, govulncheck)
+    runs-on: ubuntu-latest
+    env:
+      CGO_ENABLED: '0'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          check-latest: true
+      - name: gofmt (no diff)
+        run: |
+          out="$(gofmt -l .)"
+          if [ -n "$out" ]; then
+            echo "::error::gofmt found unformatted files:"
+            echo "$out"
+            exit 1
+          fi
+      - name: staticcheck
+        run: |
+          go install honnef.co/go/tools/cmd/staticcheck@latest
+          "$(go env GOPATH)/bin/staticcheck" ./...
+      - name: govulncheck
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          "$(go env GOPATH)/bin/govulncheck" ./...
+
+  secrets:
+    # Secret scan, baselined to zero in M486. The full git history is scanned
+    # (fetch-depth: 0); .gitleaks.toml at the repo root keeps the default ruleset
+    # and allowlists only the known secret-shaped test fixtures.
+    name: secrets (gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+      - name: gitleaks
+        # Install from the module's canonical path. gitleaks moved GitHub orgs
+        # (zricethezav → gitleaks) but its go.mod still declares the module as
+        # github.com/zricethezav/gitleaks/v8, so `go install github.com/gitleaks/
+        # gitleaks/v8@latest` fails with a module-path mismatch. Use the declared
+        # path. (M559: this is the path gitleaks@latest actually resolves under.)
+        run: |
+          go install github.com/zricethezav/gitleaks/v8@latest
+          "$(go env GOPATH)/bin/gitleaks" detect --no-banner --redact -s .

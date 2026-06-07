@@ -359,16 +359,30 @@ func (e *engine) Run(ctx context.Context, spec Spec) (*Result, error) {
 
 	e.publishExecuted(spec, res)
 
-	if err != nil && !res.TimedOut && res.ExitCode == 0 {
-		// exec.ExitError is *not* an engine-level failure; the process
-		// ran. Only return an error for "failed to launch".
-		var ee *exec.ExitError
-		if errors.As(err, &ee) {
-			return res, nil
-		}
-		return res, fmt.Errorf("warden: exec %q: %w", spec.Argv[0], err)
+	if cerr := classifyWaitErr(err, res.TimedOut, spec.Argv[0]); cerr != nil {
+		return res, cerr
 	}
 	return res, nil
+}
+
+// classifyWaitErr decides whether a cmd.Wait error is an engine-level failure to
+// surface, or a normal process outcome to absorb into Result. A nil error or a
+// timed-out run is normal (the timeout is reported via Result.TimedOut). An
+// *exec.ExitError means the process ran — a non-zero exit is the caller's to
+// interpret via Result.ExitCode — so it is absorbed. Anything else (failed launch,
+// I/O error, WaitDelay abandonment after a kill) is a genuine engine failure and is
+// returned. The earlier guard also required Result.ExitCode == 0, which wrongly
+// SWALLOWED a non-ExitError failure whenever it coincided with a non-zero exit code
+// (the common case for a killed/abandoned process), hiding it from the caller. (M475)
+func classifyWaitErr(err error, timedOut bool, argv0 string) error {
+	if err == nil || timedOut {
+		return nil
+	}
+	var ee *exec.ExitError
+	if errors.As(err, &ee) {
+		return nil
+	}
+	return fmt.Errorf("warden: exec %q: %w", argv0, err)
 }
 
 func (e *engine) publishExecuted(spec Spec, res *Result) {

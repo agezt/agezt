@@ -714,7 +714,6 @@ type streamProv struct {
 	reasoning  []string // M317: optional reasoning deltas emitted before the text
 	stopReason agent.StopReason
 	gotInvoked bool
-	gotIter    int
 	chunkErr   error // when non-nil, returned from onChunk on first call
 }
 

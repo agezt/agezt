@@ -64,4 +64,21 @@ func TestEllipsis_NonPositiveMax(t *testing.T) {
 	if got := Ellipsis("abc", -5, "…"); got != "…" {
 		t.Errorf("negative max = %q, want just the marker", got)
 	}
+	// maxBytes == -1 is the awkward edge: it's the value one-below the cut<0
+	// clamp, and an over-eager mutation of either the clamp (cut < 0) or the
+	// rune-backing loop bound (cut > 0) would leave cut negative and panic on
+	// s[:cut]. The documented contract is "non-positive maxBytes yields just the
+	// marker" — for ANY input, never a panic.
+	if got := Ellipsis("abc", -1, "…"); got != "…" {
+		t.Errorf("max -1 = %q, want just the marker", got)
+	}
+	// Empty string with a negative cap drives cut to 0 and then into the
+	// rune-backing loop; a mutated loop bound (cut >= 0 / true / cut > -1) would
+	// index s[0] on an empty string and panic. The clamp must keep s[:0] safe.
+	if got := Ellipsis("", -1, "…"); got != "…" {
+		t.Errorf("empty string, max -1 = %q, want just the marker", got)
+	}
+	if got := Ellipsis("", -3, "x"); got != "x" {
+		t.Errorf("empty string, max -3 = %q, want just the marker", got)
+	}
 }

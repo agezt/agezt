@@ -28,9 +28,14 @@ func TestMatchesCron(t *testing.T) {
 		{"0 8 * * 7", time.Date(2026, 6, 7, 8, 0, 0, 0, time.UTC), true}, // Sunday=7
 		{"0 8 8 6 *", mon0800, true},                                     // June 8
 		{"0 8 9 6 *", mon0800, false},                                    // June 9
-		{"bad", mon0800, false},                                          // malformed
-		{"0 8 * *", mon0800, false},                                      // 4 fields
-		{"99 8 * * *", mon0800, false},                                   // out of range
+		// dom AND dow both restricted → classic cron OR rule: match if EITHER.
+		// June 12 2026 is Friday, June 13 is Saturday (June 7 is Sunday, above).
+		{"0 8 13 * 5", time.Date(2026, 6, 13, 8, 0, 0, 0, time.UTC), true},  // the 13th (Sat): dom matches
+		{"0 8 13 * 5", time.Date(2026, 6, 12, 8, 0, 0, 0, time.UTC), true},  // Friday the 12th: dow matches
+		{"0 8 13 * 5", time.Date(2026, 6, 10, 8, 0, 0, 0, time.UTC), false}, // Wed the 10th: neither
+		{"bad", mon0800, false},        // malformed
+		{"0 8 * *", mon0800, false},    // 4 fields
+		{"99 8 * * *", mon0800, false}, // out of range
 	}
 	for _, c := range cases {
 		if got := matchesCron(c.spec, c.t); got != c.want {

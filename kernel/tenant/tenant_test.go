@@ -381,3 +381,42 @@ func readAll(t *testing.T, dir string) string {
 	}
 	return b.String()
 }
+
+// TestRegistry_HealsBlankTokenFile pins M474: a zero-length token file (left by a
+// crash between the O_EXCL create and the write) must NOT wedge the tenant. Before
+// the fix, every Token() re-read "" and the O_EXCL re-mint failed with IsExist, so
+// the tenant returned an empty token forever.
+func TestRegistry_HealsBlankTokenFile(t *testing.T) {
+	o := newFakeOpener()
+	reg, err := tenant.New(t.TempDir(), o.open)
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Unix(1780000000, 0)
+
+	tn, err := reg.Acquire("alpha", now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tn.Token == "" {
+		t.Fatal("acquired token is empty")
+	}
+
+	// Simulate the crash artifact: truncate the token file to zero length.
+	tokPath := filepath.Join(tn.BaseDir, ".tenant-token")
+	if err := os.WriteFile(tokPath, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := reg.Token("alpha")
+	if err != nil {
+		t.Fatalf("Token after blank file: %v", err)
+	}
+	if got == "" {
+		t.Fatal("Token returned empty after a blank token file — tenant wedged (no self-heal)")
+	}
+	// The healed token is stable on subsequent reads.
+	if again, _ := reg.Token("alpha"); again != got {
+		t.Errorf("healed token not stable: %q vs %q", got, again)
+	}
+}

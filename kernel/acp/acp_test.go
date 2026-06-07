@@ -244,3 +244,24 @@ func TestNotificationGetsNoReply(t *testing.T) {
 		t.Errorf("notification should yield no reply, got %v", out)
 	}
 }
+
+// TestFlattenPrompt_BlockSelection pins how a multi-block prompt is flattened into one
+// intent. Every other test sends a single {"type":"text"} block, so three properties of
+// flattenPrompt were unpinned and survived mutation (M514): (1) blocks join with a
+// newline; (2) a block with the type field OMITTED but text present is treated as text
+// (lenient parse for clients that don't set type); (3) a non-text typed block (e.g.
+// image) is ignored even when it carries a text field, and an empty-type/empty-text block
+// adds nothing. The branch `b.Type == "" && b.Text != ""` is the load-bearing condition:
+// `== → !=`, `!= → ==`, and `&& → ||` all changed which blocks were selected undetected.
+func TestFlattenPrompt_BlockSelection(t *testing.T) {
+	got := flattenPrompt([]contentBlock{
+		{Type: "text", Text: "one"},
+		{Type: "", Text: "two"},          // type omitted but text present → included
+		{Type: "image", Text: "ignored"}, // non-text typed block → excluded despite text
+		{Type: "", Text: ""},             // empty type AND empty text → contributes nothing
+		{Type: "text", Text: "three"},
+	})
+	if want := "one\ntwo\nthree"; got != want {
+		t.Errorf("flattenPrompt = %q, want %q", got, want)
+	}
+}

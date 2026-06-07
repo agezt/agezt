@@ -366,7 +366,15 @@ func canonicalToVertex(m agent.Message) (*vxContent, error) {
 			return nil, errors.New("vertex: role=tool requires tool_call_id")
 		}
 		// Surrogate name binding — same caveat as plugins/providers/google.
-		resp := json.RawMessage(`{"result":` + strconv.Quote(m.Content) + `}`)
+		// Build the {"result": ...} object with encoding/json, NOT strconv.Quote:
+		// strconv.Quote emits Go-only \xNN escapes for control bytes (ANSI \x1b in
+		// tool output, NUL, …) that are invalid JSON, which would fail the request
+		// encode and wedge the agent loop on Vertex. (M483; same class as M481)
+		quoted, err := json.Marshal(m.Content)
+		if err != nil {
+			return nil, fmt.Errorf("vertex: encode tool result: %w", err)
+		}
+		resp := json.RawMessage(`{"result":` + string(quoted) + `}`)
 		return &vxContent{
 			Role: "user",
 			Parts: []vxPart{{

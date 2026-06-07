@@ -338,6 +338,36 @@ func TestChatCompletionStreaming(t *testing.T) {
 	}
 }
 
+// A non-streaming provider (one that satisfies Complete but not StreamingProvider,
+// so the run emits NO llm.token events) must still deliver its answer over a
+// stream:true request — as a single content delta — rather than silently dropping
+// it. Without the fallback, such a request returns only role + stop and the answer
+// is lost, even though the same provider via non-stream chat returns it. (tokens
+// is empty here, mirroring a provider with no native stream.)
+func TestChatCompletionStreaming_NonStreamingProviderStillSendsAnswer(t *testing.T) {
+	eng := &fakeEngine{model: "m", answer: "the whole answer", tokens: nil}
+	s := newAPIServer(t, eng, "secret")
+	body := `{"model":"m","stream":true,"messages":[{"role":"user","content":"hi"}]}`
+	req := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(body))
+	req.Header.Set("Authorization", "Bearer secret")
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status=%d", rec.Code)
+	}
+	out := rec.Body.String()
+	if !strings.Contains(out, `"content":"the whole answer"`) {
+		t.Errorf("non-streaming provider's answer was dropped from the stream:\n%s", out)
+	}
+	if !strings.Contains(out, `"finish_reason":"stop"`) {
+		t.Error("missing stop chunk")
+	}
+	if !strings.Contains(out, "data: [DONE]") {
+		t.Error("missing [DONE] terminator")
+	}
+}
+
 // A reasoning model's chain of thought (llm.reasoning events) must surface on the
 // non-streaming response as message.reasoning_content — the DeepSeek-R1 convention
 // — without leaking into the answer content (M323).

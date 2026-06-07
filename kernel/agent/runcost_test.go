@@ -60,6 +60,25 @@ func TestRun_PerRunCostCap_Terminates(t *testing.T) {
 	}
 }
 
+// TestRun_PerRunCostCap_ExactlyAtCap — the per-run cost cap is INCLUSIVE: a run whose
+// spend lands exactly on the cap stops with ErrRunBudgetExceeded, not one round later.
+// The other cap tests spend strictly over the cap (2000 vs 1500), so `spent >= cap` was
+// unpinned at the boundary — mutation testing (M528) showed `>= → >` survived, which would
+// let a run spend exactly its budget and then run one more (over-budget) round.
+func TestRun_PerRunCostCap_ExactlyAtCap(t *testing.T) {
+	b, _ := newTestBus(t)
+	prov := mock.New(mock.WithUsage(mock.FinalText("done"),
+		agent.Usage{InputTokens: 1000, OutputTokens: 500, Model: "mock"})) // 1500 tokens → 1500 microcents
+	_, err := agent.Run(context.Background(), agent.LoopConfig{
+		Provider: prov, Bus: b, Actor: "agent-1", CorrelationID: "corr-exact",
+		MaxRunCostMicrocents: 1500, // spend == cap exactly → inclusive → exceeded
+		CostFn:               sumCost,
+	}, "exact task")
+	if !errors.Is(err, agent.ErrRunBudgetExceeded) {
+		t.Fatalf("spend exactly at the cap must exceed (inclusive), got err=%v", err)
+	}
+}
+
 // TestRun_PerRunCostCap_UnderBudget — a run that stays under the cap completes
 // normally (M166).
 func TestRun_PerRunCostCap_UnderBudget(t *testing.T) {

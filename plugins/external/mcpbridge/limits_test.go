@@ -63,6 +63,28 @@ func TestReadBoundedLine_OverflowRejected(t *testing.T) {
 	}
 }
 
+// TestReadBoundedLine_ExactlyMaxAccepted pins the inclusive upper bound: a frame whose
+// total length (including the trailing newline) is EXACTLY max is accepted, while max+1 is
+// rejected. The other tests cover under-max and over-max floods, so the
+// `len(buf)+len(chunk) > max` edge was unpinned — mutation testing (M538) showed `> → >=`
+// would reject a frame that exactly fills the cap (same class as plugin readFrame M509 and
+// control-plane readBoundedLine M531).
+func TestReadBoundedLine_ExactlyMaxAccepted(t *testing.T) {
+	const max = 64
+	exact := strings.Repeat("a", max-1) + "\n" // 64 bytes total, including the newline
+	got, err := readBoundedLine(bufio.NewReader(strings.NewReader(exact)), max)
+	if err != nil {
+		t.Fatalf("a frame of exactly max=%d bytes must be accepted (inclusive limit), got err %v", max, err)
+	}
+	if len(got) != max {
+		t.Errorf("got %d bytes, want %d", len(got), max)
+	}
+	over := strings.Repeat("a", max) + "\n" // max+1 bytes
+	if _, err := readBoundedLine(bufio.NewReader(strings.NewReader(over)), max); !errors.Is(err, errMCPFrameTooLarge) {
+		t.Errorf("a frame of max+1 bytes must be rejected, got err %v", err)
+	}
+}
+
 func TestReadBoundedLine_EOFMidLine(t *testing.T) {
 	r := bufio.NewReader(strings.NewReader("partial"))
 	got, err := readBoundedLine(r, 1024)

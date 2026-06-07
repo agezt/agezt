@@ -494,3 +494,41 @@ func TestKernel_Reload_NilOnReloadIsCatalogOnly(t *testing.T) {
 		t.Error("providersReloaded=true but OnReload was nil")
 	}
 }
+
+// TestRunWith_RejectsDuplicateCorrelation pins M480: a second RunWith sharing a
+// live run's correlation id must be rejected, not silently clobber the run
+// registry (which would leave a run uncancellable by Halt/CancelRun).
+func TestRunWith_RejectsDuplicateCorrelation(t *testing.T) {
+	started := make(chan struct{}, 1)
+	release := make(chan struct{})
+	prov := mock.New(mock.FinalText("done"))
+	prov.OnRequest = func(agent.CompletionRequest) {
+		select {
+		case started <- struct{}{}:
+		default:
+		}
+		<-release // hold the first run in-flight
+	}
+	k := newKernel(t, prov)
+
+	done := make(chan struct{})
+	go func() { _, _ = k.RunWith(context.Background(), "dup", "first"); close(done) }()
+
+	select {
+	case <-started:
+	case <-time.After(2 * time.Second):
+		close(release)
+		t.Fatal("first run never reached the provider")
+	}
+
+	// The first run is registered and in-flight; a second RunWith with the same id
+	// must be refused.
+	_, err := k.RunWith(context.Background(), "dup", "second")
+	if err == nil || !strings.Contains(err.Error(), "already running") {
+		close(release)
+		t.Fatalf("duplicate correlation must be rejected, got err=%v", err)
+	}
+
+	close(release)
+	<-done
+}

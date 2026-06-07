@@ -130,6 +130,49 @@ func TestDiskObserverCriticalWhenVeryLow(t *testing.T) {
 	}
 }
 
+// TestDiskObserver_ThresholdEdges pins the two inclusive disk thresholds at their exact
+// edges, which the other disk tests only cross well clear of (5% vs a 10% floor; 2% vs the
+// 5% critical line). Mutation testing (M525) showed `freePct < minPct → <=` and
+// `freePct < minPct/2 → <=` both survived: free space sitting *exactly* on the floor is
+// still OK (not low), and exactly on the half-floor is High, not Critical.
+func TestDiskObserver_ThresholdEdges(t *testing.T) {
+	// Exactly at minPct (10% free, floor 10) must NOT be low → no transition from the
+	// 50% baseline, so no delta. Under `<=` it would wrongly fire disk_low.
+	t.Run("exactly at floor is not low", func(t *testing.T) {
+		free := []uint64{50, 10} // 50% baseline, then exactly 10% free
+		usage := func(string) (uint64, uint64, error) {
+			f := free[0]
+			free = free[1:]
+			return f, 100, nil
+		}
+		o := NewDiskObserver("/", 10, usage)
+		_, _ = o.Poll(context.Background()) // baseline (not low)
+		if d, _ := o.Poll(context.Background()); len(d) != 0 {
+			t.Fatalf("free%% exactly at the floor must not be low, got %+v", d)
+		}
+	})
+
+	// A transition into low at exactly minPct/2 (5% free, floor 10) is High, not Critical.
+	// Under `<=` it would escalate to Critical.
+	t.Run("exactly at half-floor is high not critical", func(t *testing.T) {
+		free := []uint64{50, 5} // 50% baseline, then exactly 5% (== minPct/2)
+		usage := func(string) (uint64, uint64, error) {
+			f := free[0]
+			free = free[1:]
+			return f, 100, nil
+		}
+		o := NewDiskObserver("/", 10, usage)
+		_, _ = o.Poll(context.Background()) // baseline
+		d, _ := o.Poll(context.Background())
+		if len(d) != 1 || d[0].Kind != "disk_low" {
+			t.Fatalf("crossing to 5%% free should emit disk_low: %+v", d)
+		}
+		if got := d[0].Severity(); got != SevHigh {
+			t.Errorf("free%% exactly at minPct/2 must be High, not %v", got)
+		}
+	})
+}
+
 func TestParseProbeSpec(t *testing.T) {
 	name, argv, ok := ParseProbeSpec("name=ci;argv=make test")
 	if !ok || name != "ci" || len(argv) != 2 || argv[0] != "make" {
@@ -153,5 +196,40 @@ func TestParseQuietHours(t *testing.T) {
 	}
 	if ParseQuietHours("garbage").Enabled {
 		t.Fatal("garbage should disable")
+	}
+}
+
+// TestQuietHours_Active pins QuietHours.Active at every edge of both branches. The only
+// prior coverage is one wrap-window check (2am in, noon out), so the entire normal
+// (Start<End) branch and the exact hour edges went unpinned — mutation testing (M526)
+// left `h >= Start → h > Start` and `h < End → h <= End` alive on BOTH the normal and
+// wrap branches. The window is inclusive of Start and exclusive of End.
+func TestQuietHours_Active(t *testing.T) {
+	cases := []struct {
+		name string
+		q    QuietHours
+		hour int
+		want bool
+	}{
+		{"disabled is never active", QuietHours{Enabled: false, Start: 22, End: 7}, 2, false},
+		// Normal window 9..17 (Start < End): inclusive 9, exclusive 17.
+		{"normal: at start (inclusive)", QuietHours{Enabled: true, Start: 9, End: 17}, 9, true},
+		{"normal: mid", QuietHours{Enabled: true, Start: 9, End: 17}, 16, true},
+		{"normal: at end (exclusive)", QuietHours{Enabled: true, Start: 9, End: 17}, 17, false},
+		{"normal: before start", QuietHours{Enabled: true, Start: 9, End: 17}, 8, false},
+		{"normal: after end", QuietHours{Enabled: true, Start: 9, End: 17}, 20, false},
+		// Wrap window 22..7 (Start > End): inclusive 22, exclusive 7.
+		{"wrap: at start (inclusive)", QuietHours{Enabled: true, Start: 22, End: 7}, 22, true},
+		{"wrap: just after midnight", QuietHours{Enabled: true, Start: 22, End: 7}, 0, true},
+		{"wrap: just before end", QuietHours{Enabled: true, Start: 22, End: 7}, 6, true},
+		{"wrap: at end (exclusive)", QuietHours{Enabled: true, Start: 22, End: 7}, 7, false},
+		{"wrap: daytime gap", QuietHours{Enabled: true, Start: 22, End: 7}, 12, false},
+		// Degenerate Start==End → never active.
+		{"start==end is never active", QuietHours{Enabled: true, Start: 9, End: 9}, 9, false},
+	}
+	for _, c := range cases {
+		if got := c.q.Active(mustTime(c.hour)); got != c.want {
+			t.Errorf("%s: Active(%02d:00) = %v, want %v", c.name, c.hour, got, c.want)
+		}
 	}
 }

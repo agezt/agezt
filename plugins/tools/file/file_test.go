@@ -369,6 +369,18 @@ func TestRead_LineRange(t *testing.T) {
 	if !strings.Contains(out, "L4") || !strings.Contains(out, "L5") || strings.Contains(out, "L3") {
 		t.Errorf("start-only window wrong: %q", out)
 	}
+
+	// Single-line range [3,3] — start == end is a VALID one-line window, not an error.
+	// The error tests below only cover end < start; the start==end edge of the
+	// `end < start` guard was unpinned (mutation M535: `< → <=` would reject a
+	// single-line read as "end before start").
+	out = invoke(t, tool, fileInput{Op: "read", Path: "n.txt", StartLine: 3, EndLine: 3})
+	if !strings.Contains(out, "[lines 3-3]") || !strings.Contains(out, "L3") {
+		t.Errorf("single-line range [3,3] should return exactly L3: %q", out)
+	}
+	if strings.Contains(out, "L2") || strings.Contains(out, "L4") {
+		t.Errorf("single-line range [3,3] leaked neighbours: %q", out)
+	}
 }
 
 func TestRead_LineRange_Errors(t *testing.T) {

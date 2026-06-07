@@ -616,12 +616,13 @@ func (s *Server) streamChat(w http.ResponseWriter, r *http.Request, eng Engine, 
 	sendChunk(map[string]any{"role": "assistant"}, nil)
 
 	type res struct {
+		ans string
 		err error
 	}
 	done := make(chan res, 1)
 	go func() {
-		_, err := eng.RunModel(r.Context(), corr, intent, model, images, jsonMode)
-		done <- res{err}
+		ans, err := eng.RunModel(r.Context(), corr, intent, model, images, jsonMode)
+		done <- res{ans, err}
 	}()
 
 	ctx := r.Context()
@@ -659,6 +660,16 @@ func (s *Server) streamChat(w http.ResponseWriter, r *http.Request, eng Engine, 
 			if r.err != nil {
 				finish = "error"
 				sendContent("\n[error: " + r.err.Error() + "]")
+			} else if full.Len() == 0 && r.ans != "" {
+				// Defensive: the run produced an answer but emitted no llm.token
+				// events — i.e. the provider is non-streaming (it satisfies
+				// Complete but not StreamingProvider, e.g. a provider without a
+				// native stream). Without this, a stream:true request to such a
+				// provider would return only the role + stop chunks and silently
+				// drop the answer, while the same provider via non-stream chat
+				// returns it. Emit the assembled answer as one content delta so the
+				// streamed and non-streamed paths agree.
+				sendContent(r.ans)
 			}
 			endStream(finish)
 			return

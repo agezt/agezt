@@ -234,7 +234,10 @@ func marshalPayload(p any) (json.RawMessage, error) {
 		return nil, nil
 	}
 	if rm, ok := p.(json.RawMessage); ok {
-		return rm, nil
+		// Copy: returning the caller's slice directly would let a later mutation of
+		// it silently diverge e.Payload from the Hash already computed over these
+		// bytes, breaking VerifyHash on a journal round-trip. (M482)
+		return append(json.RawMessage(nil), rm...), nil
 	}
 	return json.Marshal(p)
 }

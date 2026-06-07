@@ -757,7 +757,7 @@ func (s *Server) handleResume(conn net.Conn, req Request) {
 }
 
 func (s *Server) handleWhy(conn net.Conn, req Request) {
-	idAny, _ := req.Args["event_id"]
+	idAny := req.Args["event_id"]
 	id, _ := idAny.(string)
 	if id == "" {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.event_id required"})
@@ -1016,11 +1016,11 @@ func (s *Server) handlePlan(ctx context.Context, conn net.Conn, req Request) {
 }
 
 func (s *Server) handleDecide(conn net.Conn, req Request) {
-	idAny, _ := req.Args["id"]
+	idAny := req.Args["id"]
 	id, _ := idAny.(string)
-	decAny, _ := req.Args["decision"]
+	decAny := req.Args["decision"]
 	dec, _ := decAny.(string)
-	reasonAny, _ := req.Args["reason"]
+	reasonAny := req.Args["reason"]
 	reason, _ := reasonAny.(string)
 
 	if id == "" {
@@ -1054,7 +1054,7 @@ func (s *Server) handleDecide(conn net.Conn, req Request) {
 func (s *Server) SetCancelOnDisconnect(on bool) { s.cancelOnDisconnect = on }
 
 func (s *Server) handleRun(ctx context.Context, conn net.Conn, req Request) {
-	intentAny, _ := req.Args["intent"]
+	intentAny := req.Args["intent"]
 	intent, _ := intentAny.(string)
 	intent = strings.TrimSpace(intent)
 	if intent == "" {

@@ -161,3 +161,36 @@ func TestToolCapableAlternativeAmong_PicksLargestEligibleCross(t *testing.T) {
 		t.Errorf("alt = %q (ok=%v), want m2 (largest cross-provider)", alt, ok)
 	}
 }
+
+// TestToolCapableAlternativeAmong_TieBreaksByIDAcrossProviders — when two eligible
+// cross-providers each offer a tool-capable model of EQUAL context, the lowest model
+// id wins, deterministically (independent of provider order). The existing cross tests
+// only cover largest-context, leaving the cross-provider tie-break (types.go Pass 2)
+// unpinned; mutation testing (M508) showed the `id < bestID` tie-break and the
+// `ctx > bestCtx` comparison could flip undetected. Two arrangements (lowest id in the
+// earlier vs the later provider) pin both directions.
+func TestToolCapableAlternativeAmong_TieBreaksByIDAcrossProviders(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		models map[string]map[string]*catalog.Model
+	}{
+		{"lowest-id-in-earlier-provider", map[string]map[string]*catalog.Model{
+			"acme": {"mini": {ID: "mini", ToolCall: false, Limit: catalog.Limit{Context: 8000}}},
+			"p1":   {"alpha": {ID: "alpha", ToolCall: true, Limit: catalog.Limit{Context: 64000}}},
+			"p2":   {"zeta": {ID: "zeta", ToolCall: true, Limit: catalog.Limit{Context: 64000}}},
+		}},
+		{"lowest-id-in-later-provider", map[string]map[string]*catalog.Model{
+			"acme": {"mini": {ID: "mini", ToolCall: false, Limit: catalog.Limit{Context: 8000}}},
+			"p1":   {"zeta": {ID: "zeta", ToolCall: true, Limit: catalog.Limit{Context: 64000}}},
+			"p2":   {"alpha": {ID: "alpha", ToolCall: true, Limit: catalog.Limit{Context: 64000}}},
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c := catMulti(tc.models)
+			alt, ok := c.ToolCapableAlternativeAmong("mini", allEligible)
+			if !ok || alt != "alpha" {
+				t.Errorf("alt = %q (ok=%v), want alpha (equal context across providers -> lowest id)", alt, ok)
+			}
+		})
+	}
+}

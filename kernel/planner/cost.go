@@ -99,12 +99,18 @@ func EstimateCost(plan Plan, model string, estimator CostEstimator) (CostEstimat
 // microcents internals.
 func FormatUSD(microcents int64) string {
 	// 1 USD = 100 cents = 100 * 10_000_000 microcents = 1e9 microcents.
-	whole := microcents / 1_000_000_000
-	frac := microcents % 1_000_000_000
-	if frac < 0 {
-		frac = -frac
+	// Take the sign once, up front: a sub-dollar negative (|amount| < $1) has
+	// whole == 0, so the sign lives only in the fractional part — abs-ing that
+	// without recording the sign would drop the leading '-' and print a negative
+	// amount as positive.
+	sign := ""
+	if microcents < 0 {
+		sign = "-"
+		microcents = -microcents
 	}
-	// 4-decimal display: divide frac by 100_000 to get hundredths of a cent.
-	dec := frac / 100_000
-	return fmt.Sprintf("$%d.%04d", whole, dec)
+	whole := microcents / 1_000_000_000
+	// 4-decimal display: divide the sub-dollar remainder by 100_000 to get
+	// ten-thousandths of a dollar.
+	dec := (microcents % 1_000_000_000) / 100_000
+	return fmt.Sprintf("$%s%d.%04d", sign, whole, dec)
 }
