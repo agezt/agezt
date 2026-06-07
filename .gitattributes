@@ -1,4 +1,6 @@
-# The committed Vite bundle is the go:embed source and the CI in-sync check
-# diffs it byte-for-byte. Keep Git from rewriting EOLs on it (a CRLF rewrite on
-# Windows checkouts would make the diff spuriously dirty).
-kernel/webui/dist/** -text
+# The Web UI is built on Windows but rebuilt on Linux in CI (frontend-dist-in-sync
+# diffs the committed bundle byte-for-byte). Force LF everywhere in the frontend
+# and the committed bundle so a Windows checkout never rewrites EOLs — otherwise
+# the committed dist (CRLF) differs from a Linux rebuild (LF) and the gate fails.
+frontend/** text=auto eol=lf
+kernel/webui/dist/** text eol=lf
