@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agezt"
+version = "1.0.0"
+description = "Official Python client for the Agezt agentic OS REST API (/api/v1)."
+readme = "README.md"
+requires-python = ">=3.9"
+license = "MIT"
+authors = [{ name = "Agezt" }]
+keywords = ["agezt", "agent", "llm", "ai", "automation"]
+# Standard-library only — no runtime dependencies, mirroring Agezt's
+# stdlib-first ethos. The client uses urllib + json from the stdlib.
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/agezt/agezt"
+Source = "https://github.com/agezt/agezt/tree/main/sdk/python"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["agezt*"]

@@ -12,6 +12,14 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Official Python SDK** (`sdk/python`, `pip install agezt`). A standard-library-only
+  client for the daemon's REST API (`/api/v1`) — `Client(base_url, token)` with
+  `health()`, `models()`, `run()` (blocking), `run_stream()` (Server-Sent Events →
+  `start`/`token`/`done`/`error`), and `get_run()`; bearer-token auth, optional
+  `tenant` for multi-tenant daemons; non-2xx raises `APIError`. No third-party
+  dependencies (urllib + json), and the tests are `unittest` against a stdlib
+  http.server mock, so CI runs them with no `pip install`. Realizes the Python
+  half of decision A4's "SDKs in Go/TS/Python/Rust". (M571)
 - **WhatsApp is now a messaging channel** (Meta WhatsApp Cloud API) — the eighth
   channel. `plugins/channels/whatsapp` serves Meta's inbound webhook: the GET
   verification handshake (echoes `hub.challenge` when `hub.verify_token` matches)

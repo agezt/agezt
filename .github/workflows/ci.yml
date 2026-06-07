@@ -115,6 +115,20 @@ jobs:
             exit 1
           fi
 
+  python-sdk:
+    name: python-sdk
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      # The SDK and its tests are standard-library only — no pip install needed.
+      - name: Test the Python SDK
+        run: |
+          cd sdk/python
+          python -m unittest discover -s tests
+
   multi-arch:
     name: cross-build (${{ matrix.goos }}/${{ matrix.goarch }})
     runs-on: ubuntu-latest
