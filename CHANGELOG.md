@@ -12,6 +12,16 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **`agt ha` — an operator-facing Home Assistant client.** `agt ha states
+  [entity_id]` reads entity state (all as `entity_id = state` lines, or one as
+  pretty JSON), `agt ha services` lists the service registry as sorted
+  `domain.service` names (the introspection an operator uses to populate
+  `AGEZT_HOMEASSISTANT_TOOL_SERVICES`), and `agt ha call <domain.service>
+  [--entity id] [--data '<json>']` calls a service. It reads
+  `AGEZT_HOMEASSISTANT_URL`/`_TOKEN` and talks to HA directly (no daemon needed)
+  — the operator complement to the agent-facing `homeassistant` tool (M575):
+  full access by the operator's own authority, where the tool stays fail-closed
+  behind allowlists. `--json` prints raw responses; `net/http` only. (M578)
 - **The Web UI's Runs view now shows structured run-detail cards.** Expanding a
   run no longer dumps a flat event list first — it renders a summary (status,
   model, iterations, token in/out + cached, cost, duration) derived from the
