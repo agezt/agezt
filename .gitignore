@@ -20,6 +20,11 @@ __pycache__/
 /sdk/python/build/
 /sdk/python/dist/
 
+# typescript SDK deps + build output (the npm package is built in CI / on publish;
+# package-lock.json IS committed so `npm ci` is reproducible)
+/sdk/typescript/node_modules/
+/sdk/typescript/dist/
+
 # agent working notes + local agent config — never committed
 next.md
 .claude/
