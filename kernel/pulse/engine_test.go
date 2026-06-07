@@ -247,8 +247,14 @@ func TestStartStopsOnContextCancel(t *testing.T) {
 	e, _ := newEngine(t, Config{Cadence: 5 * time.Millisecond})
 	ctx, cancel := context.WithCancel(context.Background())
 	e.Start(ctx)
-	// Let it beat a few times so we know it was actually running.
-	time.Sleep(25 * time.Millisecond)
+	// Wait until it has actually beat at least once, rather than assuming a fixed
+	// sleep is long enough: a loaded Windows CI runner can starve the ticker
+	// goroutine past any short fixed sleep (the flake). Poll with a generous
+	// deadline — a running engine beats within a cadence or two.
+	beatDeadline := time.Now().Add(2 * time.Second)
+	for e.Status().Beats == 0 && time.Now().Before(beatDeadline) {
+		time.Sleep(e.cadence)
+	}
 	if e.Status().Beats == 0 {
 		t.Fatal("engine never beat before cancel")
 	}
