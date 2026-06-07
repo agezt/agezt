@@ -68,6 +68,7 @@ import (
 	"github.com/agezt/agezt/kernel/webui"
 	"github.com/agezt/agezt/plugins/channels/discord"
 	"github.com/agezt/agezt/plugins/channels/email"
+	"github.com/agezt/agezt/plugins/channels/matrix"
 	"github.com/agezt/agezt/plugins/channels/slack"
 	"github.com/agezt/agezt/plugins/channels/telegram"
 	webhookchan "github.com/agezt/agezt/plugins/channels/webhook"
@@ -786,11 +787,23 @@ func runDaemon(stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "  email channel    : disabled (set AGEZT_EMAIL_SMTP_ADDR + AGEZT_EMAIL_FROM)\n")
 	}
 
+	// Matrix channel (SPEC-04 §1) — duplex over the open Matrix Client-Server API
+	// when AGEZT_MATRIX_HOMESERVER + AGEZT_MATRIX_TOKEN are set. Long-polls /sync
+	// for inbound and PUTs m.room.message for outbound; briefs tee to the
+	// allowlisted rooms like the others.
+	mxChan, mxSink, mxDesc := buildMatrix(ctx, k)
+	if mxChan != nil {
+		go mxChan.Start(ctx)
+		fmt.Fprintf(stdout, "  matrix channel   : %s\n", mxDesc)
+	} else {
+		fmt.Fprintf(stdout, "  matrix channel   : disabled (set AGEZT_MATRIX_HOMESERVER + AGEZT_MATRIX_TOKEN)\n")
+	}
+
 	// Pulse — the proactive heart (SPEC-03). On by default; the resident
 	// engine runs on the daemon ctx so `agt halt`/SIGTERM/`agt shutdown`
 	// stop it with everything else. AGEZT_PULSE=off disables it. When a channel
 	// is configured, briefs tee to it (closes the Jarvis loop).
-	if eng, pulseDesc := buildPulse(k, ward, model, stdout, combineSinks(tgSink, slSink, dcSink, whSink, emSink)); eng != nil {
+	if eng, pulseDesc := buildPulse(k, ward, model, stdout, combineSinks(tgSink, slSink, dcSink, whSink, emSink, mxSink)); eng != nil {
 		eng.Start(ctx)
 		srv.SetPulse(eng)
 		fmt.Fprintf(stdout, "  pulse            : %s\n", pulseDesc)
@@ -903,6 +916,9 @@ func runDaemon(stdout, stderr io.Writer) int {
 	}
 	if emChan != nil {
 		liveChannels["email"] = emChan
+	}
+	if mxChan != nil {
+		liveChannels["matrix"] = mxChan
 	}
 	channelSend := func(sctx context.Context, kind, id, text string) error {
 		ch, ok := liveChannels[kind]
@@ -1409,6 +1425,49 @@ func buildDiscord(ctx context.Context, k *kernelruntime.Kernel) (*discord.Channe
 	}
 }
 
+// buildMatrix constructs the in-process Matrix channel when AGEZT_MATRIX_HOMESERVER
+// and AGEZT_MATRIX_TOKEN are set, plus a Pulse brief sink to the allowlisted rooms.
+// Returns (nil, nil, "") when unconfigured. Mirrors buildTelegram: long-polls /sync
+// for inbound, PUTs m.room.message for outbound.
+func buildMatrix(ctx context.Context, k *kernelruntime.Kernel) (*matrix.Channel, pulse.BriefSink, string) {
+	homeserver := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "MATRIX_HOMESERVER"))
+	token := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "MATRIX_TOKEN"))
+	if homeserver == "" || token == "" {
+		return nil, nil, ""
+	}
+	roomIDs := splitNonEmpty(os.Getenv(brand.EnvPrefix + "MATRIX_ROOMS"))
+
+	handler := makeChannelHandler(k)
+	ch := matrix.New(matrix.Config{
+		Homeserver: homeserver,
+		Token:      token,
+		Allowlist:  channel.NewAllowlist(roomIDs),
+		Bus:        k.Bus(),
+		Handler:    handler,
+	})
+
+	// Pulse briefs → the allowlisted rooms. Nil sink when no room configured (the
+	// bot can still receive commands once a room is allowlisted).
+	var sink pulse.BriefSink
+	if len(roomIDs) > 0 {
+		sink = pulse.SinkFunc(func(b pulse.Brief) error {
+			var firstErr error
+			for _, id := range roomIDs {
+				if err := ch.Send(ctx, channel.Outbound{ChannelID: id, Text: formatBrief(b), Priority: channel.PriorityNotify}); err != nil && firstErr == nil {
+					firstErr = err
+				}
+			}
+			return firstErr
+		})
+	}
+
+	desc := fmt.Sprintf("listening, allowlist=%d room(s)", len(roomIDs))
+	if len(roomIDs) == 0 {
+		desc = "listening, NO allowlist (outbound-only; set AGEZT_MATRIX_ROOMS to allow commands)"
+	}
+	return ch, sink, desc
+}
+
 // collectChannels reports the configured messaging channels for `agt status`
 // (M141), read-only from the same env the buildX functions consume. A channel is
 // listed when its token is set; Inbound reflects whether it can actually receive
@@ -1458,6 +1517,14 @@ func collectChannels() []controlplane.ChannelInfo {
 			Inbound:   false, // outbound-only
 			Addr:      env("EMAIL_SMTP_ADDR"),
 			Allowlist: len(splitNonEmpty(os.Getenv(brand.EnvPrefix + "EMAIL_RECIPIENTS"))),
+		})
+	}
+	if env("MATRIX_HOMESERVER") != "" && env("MATRIX_TOKEN") != "" {
+		out = append(out, controlplane.ChannelInfo{
+			Kind:      "matrix",
+			Inbound:   true, // long-polls /sync whenever configured
+			Addr:      env("MATRIX_HOMESERVER"),
+			Allowlist: len(splitNonEmpty(os.Getenv(brand.EnvPrefix + "MATRIX_ROOMS"))),
 		})
 	}
 	return out
