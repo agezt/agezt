@@ -72,6 +72,7 @@ import (
 	"github.com/agezt/agezt/plugins/channels/matrix"
 	"github.com/agezt/agezt/plugins/channels/slack"
 	"github.com/agezt/agezt/plugins/channels/sms"
+	"github.com/agezt/agezt/plugins/channels/teams"
 	"github.com/agezt/agezt/plugins/channels/telegram"
 	webhookchan "github.com/agezt/agezt/plugins/channels/webhook"
 	"github.com/agezt/agezt/plugins/channels/whatsapp"
@@ -838,11 +839,22 @@ func runDaemon(stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "  homeassistant ch : disabled (set AGEZT_HOMEASSISTANT_URL + AGEZT_HOMEASSISTANT_TOKEN)\n")
 	}
 
+	// Teams channel (SPEC-04 §1) — outbound to Microsoft Teams Incoming Webhooks
+	// when AGEZT_TEAMS_WEBHOOKS is set (name=url,name2=url2). Briefs/`agt send`
+	// post a card to the named Teams channel. Outbound-only.
+	tmChan, tmSink, tmDesc := buildTeams(ctx, k)
+	if tmChan != nil {
+		go tmChan.Start(ctx)
+		fmt.Fprintf(stdout, "  teams channel    : %s\n", tmDesc)
+	} else {
+		fmt.Fprintf(stdout, "  teams channel    : disabled (set AGEZT_TEAMS_WEBHOOKS=name=url,...)\n")
+	}
+
 	// Pulse — the proactive heart (SPEC-03). On by default; the resident
 	// engine runs on the daemon ctx so `agt halt`/SIGTERM/`agt shutdown`
 	// stop it with everything else. AGEZT_PULSE=off disables it. When a channel
 	// is configured, briefs tee to it (closes the Jarvis loop).
-	if eng, pulseDesc := buildPulse(k, ward, model, stdout, combineSinks(tgSink, slSink, dcSink, whSink, emSink, mxSink, smSink, waSink, haSink)); eng != nil {
+	if eng, pulseDesc := buildPulse(k, ward, model, stdout, combineSinks(tgSink, slSink, dcSink, whSink, emSink, mxSink, smSink, waSink, haSink, tmSink)); eng != nil {
 		eng.Start(ctx)
 		srv.SetPulse(eng)
 		fmt.Fprintf(stdout, "  pulse            : %s\n", pulseDesc)
@@ -967,6 +979,9 @@ func runDaemon(stdout, stderr io.Writer) int {
 	}
 	if haChan != nil {
 		liveChannels["homeassistant"] = haChan
+	}
+	if tmChan != nil {
+		liveChannels["teams"] = tmChan
 	}
 	channelSend := func(sctx context.Context, kind, id, text string) error {
 		ch, ok := liveChannels[kind]
@@ -1682,6 +1697,33 @@ func buildHomeAssistant(ctx context.Context, k *kernelruntime.Kernel) (*homeassi
 	return ch, sink, desc
 }
 
+// buildTeams constructs the outbound Microsoft Teams channel when
+// AGEZT_TEAMS_WEBHOOKS is set. Pulse briefs + `agt send` post a card to the named
+// Teams Incoming Webhooks.
+//
+//	AGEZT_TEAMS_WEBHOOKS  name=url,name2=url2 — named Teams Incoming Webhook URLs;
+//	                      `agt send --channel teams --to <name>` selects one.
+func buildTeams(ctx context.Context, k *kernelruntime.Kernel) (*teams.Channel, pulse.BriefSink, string) {
+	hooks := parseNamedWebhooks(strings.TrimSpace(os.Getenv(brand.EnvPrefix + "TEAMS_WEBHOOKS")))
+	if len(hooks) == 0 {
+		return nil, nil, ""
+	}
+	ch := teams.New(teams.Config{Webhooks: hooks, Bus: k.Bus()})
+
+	names := ch.Names()
+	sink := pulse.SinkFunc(func(b pulse.Brief) error {
+		var firstErr error
+		for _, name := range names {
+			if err := ch.Send(ctx, channel.Outbound{ChannelID: name, Text: formatBrief(b), Priority: channel.PriorityNotify}); err != nil && firstErr == nil {
+				firstErr = err
+			}
+		}
+		return firstErr
+	})
+
+	return ch, sink, fmt.Sprintf("outbound → %d Teams webhook(s)", len(names))
+}
+
 // collectChannels reports the configured messaging channels for `agt status`
 // (M141), read-only from the same env the buildX functions consume. A channel is
 // listed when its token is set; Inbound reflects whether it can actually receive
@@ -1766,6 +1808,36 @@ func collectChannels() []controlplane.ChannelInfo {
 			Addr:      env("HOMEASSISTANT_URL"),
 			Allowlist: len(splitNonEmpty(os.Getenv(brand.EnvPrefix + "HOMEASSISTANT_SERVICES"))),
 		})
+	}
+	if env("TEAMS_WEBHOOKS") != "" {
+		out = append(out, controlplane.ChannelInfo{
+			Kind:      "teams",
+			Inbound:   false, // outbound-only (incoming webhooks)
+			Allowlist: len(parseNamedWebhooks(env("TEAMS_WEBHOOKS"))),
+		})
+	}
+	return out
+}
+
+// parseNamedWebhooks parses a "name=url,name2=url2" spec into a name→url map.
+// Each entry splits on the FIRST '=' (URLs may contain '='); blank names/urls
+// are dropped.
+func parseNamedWebhooks(spec string) map[string]string {
+	out := map[string]string{}
+	for _, entry := range strings.Split(spec, ",") {
+		entry = strings.TrimSpace(entry)
+		if entry == "" {
+			continue
+		}
+		eq := strings.IndexByte(entry, '=')
+		if eq <= 0 {
+			continue
+		}
+		name := strings.TrimSpace(entry[:eq])
+		url := strings.TrimSpace(entry[eq+1:])
+		if name != "" && url != "" {
+			out[name] = url
+		}
 	}
 	return out
 }
