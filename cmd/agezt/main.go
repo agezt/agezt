@@ -68,6 +68,7 @@ import (
 	"github.com/agezt/agezt/kernel/webui"
 	"github.com/agezt/agezt/plugins/channels/discord"
 	"github.com/agezt/agezt/plugins/channels/email"
+	"github.com/agezt/agezt/plugins/channels/homeassistant"
 	"github.com/agezt/agezt/plugins/channels/matrix"
 	"github.com/agezt/agezt/plugins/channels/slack"
 	"github.com/agezt/agezt/plugins/channels/sms"
@@ -825,11 +826,23 @@ func runDaemon(stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "  whatsapp channel : disabled (set AGEZT_WHATSAPP_APP_SECRET + AGEZT_WHATSAPP_ACCESS_TOKEN)\n")
 	}
 
+	// Home Assistant channel (SPEC-04 §1) — outbound to HA's notify API when
+	// AGEZT_HOMEASSISTANT_URL + AGEZT_HOMEASSISTANT_TOKEN are set. Briefs/`agt send`
+	// land as phone pushes / TTS / persistent notifications on the allowlisted
+	// notify services. Outbound-only (drive FROM HA via the webhook channel).
+	haChan, haSink, haDesc := buildHomeAssistant(ctx, k)
+	if haChan != nil {
+		go haChan.Start(ctx)
+		fmt.Fprintf(stdout, "  homeassistant ch : %s\n", haDesc)
+	} else {
+		fmt.Fprintf(stdout, "  homeassistant ch : disabled (set AGEZT_HOMEASSISTANT_URL + AGEZT_HOMEASSISTANT_TOKEN)\n")
+	}
+
 	// Pulse — the proactive heart (SPEC-03). On by default; the resident
 	// engine runs on the daemon ctx so `agt halt`/SIGTERM/`agt shutdown`
 	// stop it with everything else. AGEZT_PULSE=off disables it. When a channel
 	// is configured, briefs tee to it (closes the Jarvis loop).
-	if eng, pulseDesc := buildPulse(k, ward, model, stdout, combineSinks(tgSink, slSink, dcSink, whSink, emSink, mxSink, smSink, waSink)); eng != nil {
+	if eng, pulseDesc := buildPulse(k, ward, model, stdout, combineSinks(tgSink, slSink, dcSink, whSink, emSink, mxSink, smSink, waSink, haSink)); eng != nil {
 		eng.Start(ctx)
 		srv.SetPulse(eng)
 		fmt.Fprintf(stdout, "  pulse            : %s\n", pulseDesc)
@@ -951,6 +964,9 @@ func runDaemon(stdout, stderr io.Writer) int {
 	}
 	if waChan != nil {
 		liveChannels["whatsapp"] = waChan
+	}
+	if haChan != nil {
+		liveChannels["homeassistant"] = haChan
 	}
 	channelSend := func(sctx context.Context, kind, id, text string) error {
 		ch, ok := liveChannels[kind]
@@ -1623,6 +1639,49 @@ func buildWhatsApp(ctx context.Context, k *kernelruntime.Kernel) (*whatsapp.Chan
 	}
 }
 
+// buildHomeAssistant constructs the outbound Home Assistant channel when
+// AGEZT_HOMEASSISTANT_URL + AGEZT_HOMEASSISTANT_TOKEN are set. Pulse briefs +
+// `agt send` go to the allowlisted notify services (AGEZT_HOMEASSISTANT_SERVICES).
+//
+//	AGEZT_HOMEASSISTANT_URL       HA base, e.g. http://homeassistant.local:8123
+//	AGEZT_HOMEASSISTANT_TOKEN     long-lived access token
+//	AGEZT_HOMEASSISTANT_SERVICES  comma-separated notify service allowlist
+//	                              (e.g. mobile_app_phone,persistent_notification)
+func buildHomeAssistant(ctx context.Context, k *kernelruntime.Kernel) (*homeassistant.Channel, pulse.BriefSink, string) {
+	baseURL := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "HOMEASSISTANT_URL"))
+	token := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "HOMEASSISTANT_TOKEN"))
+	if baseURL == "" || token == "" {
+		return nil, nil, ""
+	}
+	services := splitNonEmpty(os.Getenv(brand.EnvPrefix + "HOMEASSISTANT_SERVICES"))
+
+	ch := homeassistant.New(homeassistant.Config{
+		BaseURL:   baseURL,
+		Token:     token,
+		Allowlist: channel.NewAllowlist(services),
+		Bus:       k.Bus(),
+	})
+
+	var sink pulse.BriefSink
+	if len(services) > 0 {
+		sink = pulse.SinkFunc(func(b pulse.Brief) error {
+			var firstErr error
+			for _, svc := range services {
+				if err := ch.Send(ctx, channel.Outbound{ChannelID: svc, Text: formatBrief(b), Priority: channel.PriorityNotify}); err != nil && firstErr == nil {
+					firstErr = err
+				}
+			}
+			return firstErr
+		})
+	}
+
+	desc := fmt.Sprintf("outbound → %s, allowlist=%d service(s)", baseURL, len(services))
+	if len(services) == 0 {
+		desc = fmt.Sprintf("outbound → %s, NO allowlist (set AGEZT_HOMEASSISTANT_SERVICES to notify)", baseURL)
+	}
+	return ch, sink, desc
+}
+
 // collectChannels reports the configured messaging channels for `agt status`
 // (M141), read-only from the same env the buildX functions consume. A channel is
 // listed when its token is set; Inbound reflects whether it can actually receive
@@ -1698,6 +1757,14 @@ func collectChannels() []controlplane.ChannelInfo {
 			Inbound:   addr != "", // inbound webhook served when an addr is set
 			Addr:      addr,
 			Allowlist: len(splitNonEmpty(os.Getenv(brand.EnvPrefix + "WHATSAPP_NUMBERS"))),
+		})
+	}
+	if env("HOMEASSISTANT_URL") != "" && env("HOMEASSISTANT_TOKEN") != "" {
+		out = append(out, controlplane.ChannelInfo{
+			Kind:      "homeassistant",
+			Inbound:   false, // outbound-only (notify API)
+			Addr:      env("HOMEASSISTANT_URL"),
+			Allowlist: len(splitNonEmpty(os.Getenv(brand.EnvPrefix + "HOMEASSISTANT_SERVICES"))),
 		})
 	}
 	return out

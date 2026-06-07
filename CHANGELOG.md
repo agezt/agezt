@@ -12,6 +12,18 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Home Assistant is now an (outbound) channel** — the ninth channel, turning the
+  agentic OS into a voice in your home. `plugins/channels/homeassistant` delivers
+  Pulse briefs and `agt send` to a Home Assistant instance via its REST notify API
+  (`POST {base}/api/services/notify/{service}`, long-lived bearer token,
+  `{"message": …}`). The message's `channel_id` is the HA notify SERVICE name
+  (e.g. `mobile_app_phone`, `persistent_notification`, `tts`), so a brief can land
+  as a phone push, a TTS announcement, or a dashboard notification; an Allowlist
+  (`AGEZT_HOMEASSISTANT_SERVICES`) is fail-closed. `net/http` only — no dependency.
+  Outbound-only (drive Agezt *from* Home Assistant via the generic webhook
+  channel). Wired as `buildHomeAssistant` (`AGEZT_HOMEASSISTANT_URL` +
+  `AGEZT_HOMEASSISTANT_TOKEN`), surfaced via `agt status`; `agt send --channel
+  homeassistant --to <service>` pushes one off. (M573)
 - **Official TypeScript SDK** (`sdk/typescript`, `@agezt/sdk`). A
   zero-runtime-dependency client for the daemon's REST API (`/api/v1`) built on the
   platform `fetch` (Node 18+ and browsers): `new Client(baseUrl, token, {timeoutMs,
