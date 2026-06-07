@@ -49,6 +49,30 @@ arc = c.get_run(result.correlation_id)
 print(arc["count"], "events")
 ```
 
+## Asyncio
+
+`AsyncClient` mirrors `Client` method-for-method, but every call is awaitable
+and never blocks the event loop (the blocking HTTP work runs in a thread
+executor; the streaming run is delivered to `async for` through an
+`asyncio.Queue`). Still standard-library only.
+
+```python
+import asyncio
+from agezt import AsyncClient
+
+async def main():
+    async with AsyncClient("http://127.0.0.1:8800", token="<token>") as c:
+        print((await c.health())["version"])
+        result = await c.run("summarise the latest commits")
+        print(result.answer)
+
+        async for ev in c.run_stream("write a haiku about Go"):
+            if ev.event == "token":
+                print(ev.data.get("text", ""), end="", flush=True)
+
+asyncio.run(main())
+```
+
 ## API
 
 | Method | REST endpoint | Returns |
@@ -61,6 +85,8 @@ print(arc["count"], "events")
 
 `Client(base_url, token, timeout=30, tenant=None)` — pass `tenant` to target an
 isolated tenant (sent as the `X-Agezt-Tenant` header) on a multi-tenant daemon.
+`AsyncClient` takes the same arguments and exposes the same methods as
+coroutines (`await c.run(...)`, `async for ev in c.run_stream(...)`).
 
 Non-2xx responses raise `agezt.APIError` (`.status`, `.type`, `.message`).
 

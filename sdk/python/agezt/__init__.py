@@ -15,10 +15,33 @@ governance) — over plain HTTP with a bearer token. Standard library only.
     for ev in c.run_stream("write a haiku about Go"):
         if ev.event == "token":
             print(ev.data.get("text", ""), end="", flush=True)
+
+There is also an asyncio client with the same surface — every call is awaitable
+and never blocks the event loop::
+
+    import asyncio
+    from agezt import AsyncClient
+
+    async def main():
+        async with AsyncClient("http://127.0.0.1:8800", token="…") as c:
+            print((await c.run("summarise the latest commits")).answer)
+            async for ev in c.run_stream("write a haiku about Go"):
+                if ev.event == "token":
+                    print(ev.data.get("text", ""), end="", flush=True)
+
+    asyncio.run(main())
 """
 
+from .aio import AsyncClient
 from .client import Client, RunResult, StreamEvent
 from .errors import AgeztError, APIError
 
-__all__ = ["Client", "RunResult", "StreamEvent", "AgeztError", "APIError"]
+__all__ = [
+    "Client",
+    "AsyncClient",
+    "RunResult",
+    "StreamEvent",
+    "AgeztError",
+    "APIError",
+]
 __version__ = "1.0.0"

@@ -12,6 +12,15 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **The Python SDK now has an asyncio client.** `AsyncClient` (`from agezt import
+  AsyncClient`) mirrors the synchronous `Client` method-for-method, but every call
+  is awaitable and never blocks the event loop — `await c.run(...)`,
+  `async for ev in c.run_stream(...)`, plus `health`/`models`/`get_run` and
+  `async with` support. Still standard-library only (no aiohttp): the blocking
+  HTTP work runs in a thread executor and the streaming run is bridged to an async
+  iterator through an `asyncio.Queue`, reusing the sync client's request building,
+  error mapping, and SSE parsing verbatim. 7 new `unittest` tests
+  (`IsolatedAsyncioTestCase`) against the same stdlib http.server mock. (M576)
 - **Home Assistant is now a control TOOL**, not just an outbound channel — the
   agent can READ smart-home entity state and ACTUATE the house from inside a run.
   `plugins/tools/homeassistant` exposes two operations over the HA REST API:
