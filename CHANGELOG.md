@@ -12,6 +12,20 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Official Rust SDK** (`sdk/rust`, crate `agezt`). A zero-runtime-dependency
+  client for the daemon's REST API (`/api/v1`) — `Client::new(base_url, token)`
+  with `health()`, `models()`, `run()` (blocking), `run_stream()` (an
+  `Iterator<Item = Result<StreamEvent>>` over Server-Sent Events →
+  `start`/`token`/`done`/`error`), and `get_run()`; bearer-token auth, optional
+  `.with_tenant()` for multi-tenant daemons and `.with_timeout()`; non-2xx becomes
+  `Error::Api`, transport failures `Error::Transport`. **Standard library only** —
+  a tiny built-in HTTP/1.1 client and JSON codec stand in for `reqwest`/`serde`
+  (plain `http://`; front with a TLS proxy for `https`), so there is nothing to
+  fetch and `#![forbid(unsafe_code)]` holds. Tests run a mock daemon on a
+  `std::net::TcpListener` (Content-Length JSON + chunked SSE) — no third-party
+  HTTP server or test framework — exercising the real transport path; CI runs
+  `cargo fmt --check` + `cargo test`. Completes the Rust quarter of decision A4's
+  "SDKs in Go/TS/Python/Rust" — all four SDKs are now shipped. (M582)
 - **The Web UI test suite now includes component/DOM tests.** Building on the
   Vitest logic suite, `@testing-library/react` + `jsdom` cover the presentational
   components (`Badge`/`statusVariant`, `JsonView`/`KeyValue`/`Muted`/`ErrorText`)

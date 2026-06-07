@@ -25,6 +25,9 @@ __pycache__/
 /sdk/typescript/node_modules/
 /sdk/typescript/dist/
 
+# rust SDK build output (Cargo.lock IS committed so cargo builds are reproducible)
+/sdk/rust/target/
+
 # agent working notes + local agent config — never committed
 next.md
 .claude/

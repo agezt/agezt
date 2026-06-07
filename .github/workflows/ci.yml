@@ -163,6 +163,25 @@ jobs:
           npm ci
           npm test
 
+  rust-sdk:
+    name: rust-sdk
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      # The SDK has zero runtime dependencies (std only), so there is nothing to
+      # fetch — `cargo test` compiles the crate + the TcpListener-mock integration
+      # tests and runs them. `cargo fmt --check` enforces formatting, mirroring
+      # the Go gofmt gate (Rust's toolchain ships rustfmt, so unlike black/prettier
+      # for the Py/TS SDKs it costs nothing extra here).
+      - name: Format + test the Rust SDK
+        run: |
+          cd sdk/rust
+          cargo fmt --check
+          cargo test --verbose
+
   multi-arch:
     name: cross-build (${{ matrix.goos }}/${{ matrix.goarch }})
     runs-on: ubuntu-latest
