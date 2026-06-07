@@ -12,6 +12,23 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Home Assistant is now a control TOOL**, not just an outbound channel — the
+  agent can READ smart-home entity state and ACTUATE the house from inside a run.
+  `plugins/tools/homeassistant` exposes two operations over the HA REST API:
+  `get_states` (GET `/api/states[/{entity_id}]`) and `call_service`
+  (POST `/api/services/{domain}/{service}`). It shares the channel's
+  `AGEZT_HOMEASSISTANT_URL`/`_TOKEN` (same instance) but is gated by its OWN
+  fail-closed allowlists — `AGEZT_HOMEASSISTANT_TOOL_READ` (which entities are
+  readable; a bulk read is filtered to it, so a prompt-injected agent can't
+  enumerate the house) and `AGEZT_HOMEASSISTANT_TOOL_SERVICES` (which services
+  are callable; `domain.*` and `*` wildcards, `…_ALLOW_ALL_SERVICES=1` to
+  bypass). The two axes map to distinct Edict capabilities,
+  `homeassistant.read` (Allow by default — reads are low-risk) and
+  `homeassistant.call` (Ask-first — actuating the physical world warrants
+  confirmation). The HA host is operator-pinned config (the agent never supplies
+  it), so there is no SSRF surface. The tool registers only when URL+token AND an
+  allowlist are set, so the outbound notify channel can be configured without
+  auto-exposing an actionable surface. `net/http` only — no dependency. (M575)
 - **Microsoft Teams is now an (outbound) channel** — the tenth channel.
   `plugins/channels/teams` delivers Pulse briefs and `agt send` to Teams via
   Incoming Webhooks (POST a `MessageCard` to the per-channel webhook URL). Because

@@ -47,6 +47,18 @@ func CapabilityForToolCall(toolName string, input json.RawMessage) Capability {
 		return CapRemoteRun
 	case "notify":
 		return CapNotify
+	case "homeassistant":
+		var p struct {
+			Operation string `json:"operation"`
+		}
+		_ = json.Unmarshal(input, &p)
+		if strings.EqualFold(strings.TrimSpace(p.Operation), "call_service") {
+			return CapHomeAssistantCall
+		}
+		// get_states (and anything unrecognised) is the read axis: the low-risk
+		// default, so an unparsed/garbled call lands on the more-restrictive-to-
+		// escalate read capability rather than silently gaining actuation.
+		return CapHomeAssistantRead
 	case "http":
 		var p struct {
 			Method string `json:"method"`
