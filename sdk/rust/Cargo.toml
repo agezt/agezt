@@ -1,0 +1,20 @@
+[package]
+name = "agezt"
+version = "1.0.0"
+edition = "2021"
+rust-version = "1.70"
+description = "Official Rust client for the Agezt agentic OS REST API (/api/v1). Standard library only."
+license = "MIT"
+repository = "https://github.com/agezt/agezt"
+documentation = "https://docs.rs/agezt"
+readme = "README.md"
+keywords = ["agezt", "agent", "llm", "ai", "sdk"]
+categories = ["api-bindings"]
+
+# Zero runtime dependencies — std only, mirroring the Python (urllib+json) and
+# TypeScript (platform fetch) SDKs and the project's stdlib-first ethos.
+[dependencies]
+
+[lib]
+name = "agezt"
+path = "src/lib.rs"
