@@ -114,6 +114,25 @@
     padding: 1px 7px; width: 120px; }
   #feedFilter:focus { outline: none; border-color: var(--accent); }
   #feed h2 #clearBtn { margin-left: 6px; }
+  /* Flow Studio: full-width plan authoring + DAG. */
+  #flow { grid-column: 1 / -1; }
+  .flowrow { display: flex; gap: 8px; margin-bottom: 8px; }
+  .flowrow input { flex: 1; min-width: 0; background: var(--panel2); color: var(--fg);
+    border: 1px solid var(--line); border-radius: 5px; font: inherit; padding: 4px 8px; }
+  .flowrow input:focus, #flowJSON:focus { outline: none; border-color: var(--accent); }
+  #flowModel { flex: 0 0 130px; }
+  .flowcols { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 900px) { .flowcols { grid-template-columns: 1fr; } }
+  .flowlbl { color: var(--dim); font-size: 11px; margin: 6px 0 4px; display: flex; gap: 8px; align-items: center; }
+  #flowJSON { width: 100%; height: 200px; resize: vertical; background: var(--panel2);
+    color: var(--fg); border: 1px solid var(--line); border-radius: 6px;
+    font: 12px/1.4 var(--mono); padding: 8px; }
+  svg.pdag { width: 100%; height: 260px; display: block; }
+  svg.pdag text { user-select: none; pointer-events: none; }
+  .pnode rect, .pnode polygon { transition: fill .2s ease, stroke .2s ease; }
+  .pnode.running rect, .pnode.running polygon { stroke: var(--accent); fill: #14233b; }
+  .pnode.done rect, .pnode.done polygon { stroke: var(--good); fill: #122417; }
+  .pnode.failed rect, .pnode.failed polygon { stroke: var(--bad); fill: #2a1414; }
 </style>
 </head>
 <body>
@@ -126,6 +145,33 @@
 </header>
 
 <div class="grid">
+  <section class="panel" id="flow">
+    <h2>Flow Studio <span id="flowMsg" class="muted"></span></h2>
+    <div class="body">
+      <div class="flowrow">
+        <input id="flowIntent" placeholder="describe a task to plan… e.g. audit my repo for secrets and propose fixes" autocomplete="off">
+        <input id="flowModel" placeholder="model (optional)" autocomplete="off" spellcheck="false">
+        <button class="act" id="flowGen">Generate</button>
+      </div>
+      <div class="flowcols">
+        <div>
+          <div class="flowlbl">Plan JSON <button class="act mini" id="flowFmt">format</button></div>
+          <textarea id="flowJSON" spellcheck="false" placeholder="generated plan appears here — editable, then Refine or Run"></textarea>
+          <div class="flowrow">
+            <input id="flowFeedback" placeholder="refine: describe a change… e.g. add an approval gate before deploy" autocomplete="off">
+            <button class="act" id="flowRefine">Refine</button>
+            <button class="act ok" id="flowRun">▶ Run</button>
+          </div>
+        </div>
+        <div>
+          <div class="flowlbl">Diagram <span class="muted">loop = box · gate = hexagon</span></div>
+          <div class="wgraph-wrap" id="flowDag"></div>
+          <div class="flowlbl">Recent plans <button class="act mini" id="flowHistBtn">↻</button></div>
+          <div id="flowHistory"></div>
+        </div>
+      </div>
+    </div>
+  </section>
   <section class="panel" id="feed">
     <h2>Event Feed <span class="muted" id="evcount">0</span>
       <input id="feedFilter" placeholder="filter kind…" autocomplete="off" spellcheck="false">
@@ -294,6 +340,7 @@ function addEvent(ev) {
   evCount++;
   evcount.textContent = evCount;
   liveRefresh(ev.kind || "");
+  flowOnEvent(ev);
 }
 
 // liveRefresh re-fetches the panel a streamed event most affects, so a run
@@ -1141,6 +1188,238 @@ async function act(path, confirmMsg, btn) {
   }
 }
 
+// ---- Flow Studio (visual plan authoring + run) ----
+// A plan is authored (Generate from intent → editable JSON → Refine), drawn as
+// a DAG, then Run. The DAG is built with the same textContent/SVG discipline as
+// worldGraph (no innerHTML), so it inherits the page CSP. Live node state comes
+// from the SSE feed: node.*/plan.* events recolour the matching node in place —
+// the UI never holds authoritative state, it subscribes and renders.
+const flowIntent = document.getElementById("flowIntent");
+const flowModel = document.getElementById("flowModel");
+const flowJSON = document.getElementById("flowJSON");
+const flowFeedback = document.getElementById("flowFeedback");
+const flowRunBtn = document.getElementById("flowRun");
+const dagNodeEls = {}; // node id → <g> element, for live recolouring
+
+function flowSetMsg(text, isErr) {
+  const m = document.getElementById("flowMsg");
+  m.textContent = text || "";
+  m.className = isErr ? "err" : "muted";
+}
+function flowBusy(on, text) {
+  document.getElementById("flowGen").disabled = on;
+  document.getElementById("flowRefine").disabled = on;
+  if (text) flowSetMsg(text);
+}
+
+// postJSON issues a mutating Flow Studio action with a JSON body (large values —
+// a whole plan, a multi-line intent — that wouldn't fit a query string). The
+// token rides the query string (the body carries only command args).
+async function postJSON(path, body) {
+  const res = await fetch(path + qs, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body || {}),
+  });
+  if (!res.ok) {
+    let msg = "HTTP " + res.status;
+    try { const j = await res.json(); if (j.error) msg = j.error; } catch (e) {}
+    throw new Error(msg);
+  }
+  return res.json();
+}
+
+function prettyJSON(s) {
+  try { return JSON.stringify(JSON.parse(s), null, 2); } catch (e) { return s || ""; }
+}
+function clip(s, n) { s = String(s == null ? "" : s); return s.length > n ? s.slice(0, n - 1) + "…" : s; }
+
+// planDag lays a plan out top-down by dependency depth (longest-path layering,
+// cycle-safe via a bounded relaxation) and returns an <svg>, or null when there
+// is nothing to draw. Loop nodes are rounded rects; gate nodes are hexagons so
+// HITL stops stand out. Each node's <g> is recorded in dagNodeEls for live
+// recolouring during a run.
+const PDAG_MAX = 60;
+function planDag(plan) {
+  const nodes = (plan && Array.isArray(plan.nodes) ? plan.nodes : [])
+    .filter((n) => n && n.id).slice(0, PDAG_MAX);
+  if (!nodes.length) return null;
+  const byId = {};
+  nodes.forEach((n) => { byId[n.id] = n; });
+  const depth = {};
+  nodes.forEach((n) => { depth[n.id] = 0; });
+  // Relax depth = max(dep depth)+1; bounded by node count so a cycle in an
+  // edited plan can't loop forever (it just draws flat — Run will reject it).
+  for (let pass = 0; pass < nodes.length; pass++) {
+    let changed = false;
+    for (const n of nodes) {
+      for (const d of (n.deps || [])) {
+        if (byId[d] === undefined) continue;
+        if (depth[n.id] < depth[d] + 1) { depth[n.id] = depth[d] + 1; changed = true; }
+      }
+    }
+    if (!changed) break;
+  }
+  const layers = [];
+  for (const n of nodes) { (layers[depth[n.id]] = layers[depth[n.id]] || []).push(n); }
+  const NW = 150, NH = 38, GX = 26, GY = 46;
+  const cols = layers.reduce((m, l) => Math.max(m, (l || []).length), 0);
+  const W = Math.max(cols * NW + (cols + 1) * GX, 200);
+  const H = layers.length * NH + (layers.length + 1) * GY;
+  const pos = {};
+  layers.forEach((layer, li) => {
+    if (!layer) return;
+    const rowW = layer.length * NW + (layer.length - 1) * GX;
+    const x0 = (W - rowW) / 2;
+    layer.forEach((n, i) => { pos[n.id] = { x: x0 + i * (NW + GX), y: GY + li * (NH + GY) }; });
+  });
+
+  const svg = svgEl("svg", { class: "pdag", viewBox: "0 0 " + W + " " + H,
+    preserveAspectRatio: "xMidYMin meet" });
+  const defs = svgEl("defs");
+  const marker = svgEl("marker", { id: "pd-arrow", markerWidth: 8, markerHeight: 8,
+    refX: 7, refY: 3, orient: "auto", markerUnits: "strokeWidth" });
+  marker.appendChild(svgEl("path", { d: "M0,0 L6,3 L0,6 Z", fill: "#6b7585" }));
+  defs.appendChild(marker);
+  svg.appendChild(defs);
+
+  for (const n of nodes) {
+    for (const d of (n.deps || [])) {
+      const a = pos[d], b = pos[n.id];
+      if (!a || !b) continue;
+      svg.appendChild(svgEl("line", {
+        x1: a.x + NW / 2, y1: a.y + NH, x2: b.x + NW / 2, y2: b.y - 2,
+        stroke: "#2b3446", "stroke-width": 1.2, "marker-end": "url(#pd-arrow)" }));
+    }
+  }
+  for (const n of nodes) {
+    const p = pos[n.id];
+    const g = svgEl("g", { class: "pnode" });
+    g.setAttribute("transform", "translate(" + p.x + "," + p.y + ")");
+    if (n.kind === "gate") {
+      const c = 12;
+      const pts = [c + ",0", (NW - c) + ",0", NW + "," + (NH / 2),
+        (NW - c) + "," + NH, c + "," + NH, "0," + (NH / 2)].join(" ");
+      g.appendChild(svgEl("polygon", { points: pts, fill: "#1a1410", stroke: "#d29922", "stroke-width": 1.4 }));
+    } else {
+      g.appendChild(svgEl("rect", { x: 0, y: 0, width: NW, height: NH, rx: 7,
+        fill: "#131722", stroke: "#58a6ff", "stroke-width": 1.4 }));
+    }
+    const idt = svgEl("text", { x: NW / 2, y: 16, "text-anchor": "middle",
+      "font-size": 11, fill: "#c9d1d9", "font-weight": 600 });
+    idt.textContent = clip(n.id, 20);
+    g.appendChild(idt);
+    const body = n.intent || n.description || "";
+    const sub = svgEl("text", { x: NW / 2, y: 29, "text-anchor": "middle", "font-size": 9, fill: "#6b7585" });
+    sub.textContent = clip((n.kind || "?") + (body ? ": " + body : ""), 26);
+    g.appendChild(sub);
+    const tt = svgEl("title");
+    tt.textContent = (n.kind || "?") + " " + n.id + (body ? "\n" + body : "");
+    g.appendChild(tt);
+    svg.appendChild(g);
+    dagNodeEls[n.id] = g;
+  }
+  return svg;
+}
+
+function flowRenderDag() {
+  const wrap = document.getElementById("flowDag");
+  clear(wrap);
+  for (const k in dagNodeEls) delete dagNodeEls[k];
+  let plan;
+  try { plan = JSON.parse(flowJSON.value); } catch (e) { wrap.appendChild(muted("invalid JSON — fix to preview")); return; }
+  const svg = planDag(plan);
+  wrap.appendChild(svg || muted("no nodes to draw"));
+}
+let _flowRedrawT;
+function flowRedrawSoon() { clearTimeout(_flowRedrawT); _flowRedrawT = setTimeout(flowRenderDag, 350); }
+
+function setNodeState(id, state) {
+  const g = dagNodeEls[id];
+  if (!g) return;
+  g.setAttribute("class", "pnode" + (state ? " " + state : ""));
+}
+// flowOnEvent recolours DAG nodes from the live SSE feed. node.* carry node_id
+// in their payload; plan.started clears prior highlights for a fresh run.
+function flowOnEvent(ev) {
+  const k = ev.kind || "";
+  if (k === "plan.started") { for (const id in dagNodeEls) setNodeState(id, ""); flowSetMsg("running…"); return; }
+  if (k === "plan.completed") { flowSetMsg("completed ✓"); flowLoadHistory(); return; }
+  if (k === "plan.failed") { flowSetMsg("plan failed ✗", true); flowLoadHistory(); return; }
+  if (!k.startsWith("node.")) return;
+  const nid = ev.payload && ev.payload.node_id;
+  if (!nid) return;
+  if (k === "node.started") setNodeState(nid, "running");
+  else if (k === "node.completed") setNodeState(nid, "done");
+  else if (k === "node.failed") setNodeState(nid, "failed");
+}
+
+async function flowGenerate() {
+  const intent = flowIntent.value.trim();
+  if (!intent) { flowSetMsg("enter an intent first", true); return; }
+  flowBusy(true, "generating…");
+  try {
+    const body = { intent };
+    const m = flowModel.value.trim(); if (m) body.model = m;
+    const data = await postJSON("/api/plan/generate", body);
+    flowJSON.value = prettyJSON(data.plan_json);
+    flowRenderDag();
+    flowSetMsg("generated " + (data.node_count != null ? data.node_count : "?") + " node(s)");
+  } catch (e) { flowSetMsg(e.message, true); }
+  finally { flowBusy(false); }
+}
+async function flowRefine() {
+  const planJson = flowJSON.value.trim();
+  const feedback = flowFeedback.value.trim();
+  if (!planJson) { flowSetMsg("nothing to refine", true); return; }
+  if (!feedback) { flowSetMsg("enter a refine instruction", true); return; }
+  flowBusy(true, "refining…");
+  try {
+    const body = { plan_json: planJson, feedback };
+    const m = flowModel.value.trim(); if (m) body.model = m;
+    const data = await postJSON("/api/plan/refine", body);
+    flowJSON.value = prettyJSON(data.plan_json);
+    flowRenderDag();
+    flowSetMsg("refined → " + (data.node_count != null ? data.node_count : "?") + " node(s)");
+    flowFeedback.value = "";
+  } catch (e) { flowSetMsg(e.message, true); }
+  finally { flowBusy(false); }
+}
+async function flowRun() {
+  const planJson = flowJSON.value.trim();
+  if (!planJson) { flowSetMsg("nothing to run", true); return; }
+  flowRenderDag(); // ensure node elements exist for live recolouring
+  flowRunBtn.disabled = true; flowRunBtn.textContent = "running…";
+  flowSetMsg("starting run…");
+  try {
+    await postJSON("/api/plan/run", { plan_json: planJson });
+    flowSetMsg("run finished ✓");
+  } catch (e) { flowSetMsg("run: " + e.message, true); }
+  finally { flowRunBtn.disabled = false; flowRunBtn.textContent = "▶ Run"; flowLoadHistory(); }
+}
+async function flowLoadHistory() {
+  const wrap = document.getElementById("flowHistory");
+  clear(wrap); wrap.appendChild(muted("loading…"));
+  try {
+    const res = await fetch("/api/plan_history" + qs + "&limit=8", { headers: { "Accept": "application/json" } });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const data = await res.json();
+    const plans = data.plans || [];
+    clear(wrap);
+    if (!plans.length) { wrap.appendChild(muted("no plan runs yet")); return; }
+    for (const p of plans) {
+      const row = el("div", "item");
+      row.appendChild(statusChip(p.status));
+      row.appendChild(el("span", null, p.plan_name || p.correlation_id || "plan"));
+      const meta = [];
+      if (p.node_count != null) meta.push(p.node_count + " nodes");
+      if (p.duration_ms) meta.push(p.duration_ms + "ms");
+      if (meta.length) row.appendChild(muted(meta.join(" · ")));
+      wrap.appendChild(row);
+    }
+  } catch (e) { clear(wrap); wrap.appendChild(el("span", "err", e.message)); }
+}
+
 // ---- boot ----
 document.getElementById("clearBtn").addEventListener("click", clearFeed);
 document.getElementById("feedFilter").addEventListener("input", (e) => {
@@ -1154,6 +1433,14 @@ document.getElementById("resumeBtn").addEventListener("click", (e) =>
 document.getElementById("fbBadge").addEventListener("click", openFallbacks);
 document.querySelectorAll("button[data-panel]").forEach((b) =>
   b.addEventListener("click", () => loadPanel(b.dataset.panel)));
+// Flow Studio wiring.
+document.getElementById("flowGen").addEventListener("click", flowGenerate);
+document.getElementById("flowRefine").addEventListener("click", flowRefine);
+flowRunBtn.addEventListener("click", flowRun);
+document.getElementById("flowFmt").addEventListener("click", () => { flowJSON.value = prettyJSON(flowJSON.value); flowRenderDag(); });
+document.getElementById("flowHistBtn").addEventListener("click", flowLoadHistory);
+flowJSON.addEventListener("input", flowRedrawSoon);
+flowLoadHistory();
 connect();
 const PANELS = ["status", "runs", "stats", "budget", "cache", "providers", "tools", "policy", "schedules", "world", "skills", "memory", "approvals", "inbox", "reflect"];
 for (const p of PANELS) loadPanel(p);

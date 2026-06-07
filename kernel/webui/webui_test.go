@@ -36,6 +36,21 @@ func (f *fakeCaller) Call(_ context.Context, cmd string, args map[string]any) (m
 	return f.result, nil
 }
 
+// Stream records the streamed command like Call but routes through the Stream
+// path (used by Flow Studio's plan run). onEvent is exercised once so a
+// regression that drops event relaying is observable.
+func (f *fakeCaller) Stream(_ context.Context, cmd string, args map[string]any, onEvent func(*event.Event)) (map[string]any, error) {
+	f.calls = append(f.calls, cmd)
+	f.lastArgs = args
+	if f.err != nil {
+		return nil, f.err
+	}
+	if onEvent != nil {
+		onEvent(&event.Event{Kind: event.KindNodeStarted})
+	}
+	return f.result, nil
+}
+
 func newServer(t *testing.T, client Caller, token string) (*Server, *bus.Bus) {
 	t.Helper()
 	j, err := journal.Open(t.TempDir(), journal.Options{})
@@ -444,6 +459,7 @@ func TestAPIReadOnly(t *testing.T) {
 	readOnly := map[string]bool{
 		"status": true, "config": true, "runs_list": true, "runs_stats": true, "budget": true, "cache_stats": true, "provider_stats": true, "tool_stats": true, "edict_stats": true, "schedule_list": true, "memory_list": true, "world_list": true,
 		"skill_list": true, "standing_list": true, "inbox": true, "reflect_show": true, "approvals": true,
+		"plan_stats": true,
 	}
 	for path := range apiRoutes {
 		fc := &fakeCaller{result: map[string]any{"ok": true}}
@@ -853,5 +869,200 @@ func TestDashboard_NoncePerRequest(t *testing.T) {
 	// would let an injected inline script reuse it.
 	if a, b := get(), get(); a == b {
 		t.Errorf("nonce was reused across requests (%q) — it must be per-response", a)
+	}
+}
+
+// ---- Flow Studio ----
+
+// Generate forwards intent + model from the JSON body and drops anything else.
+func TestFlowGenerateForwardsBodyKeys(t *testing.T) {
+	fc := &fakeCaller{result: map[string]any{"plan_json": "{}", "node_count": 0}}
+	s, _ := newServer(t, fc, "secret")
+	body := `{"intent":"ship the release","model":"sonnet","evil":"rm -rf"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/plan/generate?token=secret",
+		strings.NewReader(body))
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d want 200", rec.Code)
+	}
+	if len(fc.calls) != 1 || fc.calls[0] != "plan_generate" {
+		t.Fatalf("expected one plan_generate call, got %v", fc.calls)
+	}
+	if fc.lastArgs["intent"] != "ship the release" || fc.lastArgs["model"] != "sonnet" {
+		t.Errorf("body keys not forwarded: %v", fc.lastArgs)
+	}
+	if _, leaked := fc.lastArgs["evil"]; leaked {
+		t.Errorf("non-allowlisted body key leaked through: %v", fc.lastArgs)
+	}
+}
+
+// Refine forwards plan_json + feedback (the large-body case that motivates a
+// JSON body over query args).
+func TestFlowRefineForwardsBodyKeys(t *testing.T) {
+	fc := &fakeCaller{result: map[string]any{"plan_json": "{}", "node_count": 1}}
+	s, _ := newServer(t, fc, "secret")
+	body := `{"plan_json":"{\"nodes\":[]}","feedback":"add a gate"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/plan/refine?token=secret",
+		strings.NewReader(body))
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d want 200", rec.Code)
+	}
+	if len(fc.calls) != 1 || fc.calls[0] != "plan_refine" {
+		t.Fatalf("expected one plan_refine call, got %v", fc.calls)
+	}
+	if fc.lastArgs["plan_json"] != `{"nodes":[]}` || fc.lastArgs["feedback"] != "add a gate" {
+		t.Errorf("body keys not forwarded: %v", fc.lastArgs)
+	}
+}
+
+// The JSON-body routes are POST-only: a GET (prefetch, <img>) must never invoke
+// the LLM.
+func TestFlowGenerateRejectsGet(t *testing.T) {
+	fc := &fakeCaller{}
+	s, _ := newServer(t, fc, "secret")
+	req := httptest.NewRequest(http.MethodGet, "/api/plan/generate?token=secret", nil)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("status = %d want 405", rec.Code)
+	}
+	if len(fc.calls) != 0 {
+		t.Errorf("a GET must not reach the control plane, got %v", fc.calls)
+	}
+}
+
+// A malformed body is rejected before the control plane is touched.
+func TestFlowGenerateRejectsBadBody(t *testing.T) {
+	fc := &fakeCaller{}
+	s, _ := newServer(t, fc, "secret")
+	req := httptest.NewRequest(http.MethodPost, "/api/plan/generate?token=secret",
+		strings.NewReader("not json"))
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d want 400", rec.Code)
+	}
+	if len(fc.calls) != 0 {
+		t.Errorf("a bad body must not reach the control plane, got %v", fc.calls)
+	}
+}
+
+// An over-cap body is refused (the MaxBytesReader guard), not buffered whole.
+func TestFlowGenerateRejectsOversizedBody(t *testing.T) {
+	fc := &fakeCaller{}
+	s, _ := newServer(t, fc, "secret")
+	huge := `{"intent":"` + strings.Repeat("a", jsonBodyMax+1) + `"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/plan/generate?token=secret",
+		strings.NewReader(huge))
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d want 400 (body over cap)", rec.Code)
+	}
+	if len(fc.calls) != 0 {
+		t.Errorf("an oversized body must not reach the control plane, got %v", fc.calls)
+	}
+}
+
+// Run drives CmdPlan through Stream (not Call) and forwards only plan_json.
+func TestFlowRunStreamsPlan(t *testing.T) {
+	fc := &fakeCaller{result: map[string]any{"plan_id": "plan-1", "node_outputs": map[string]any{}}}
+	s, _ := newServer(t, fc, "secret")
+	body := `{"plan_json":"{\"nodes\":[{\"id\":\"a\",\"kind\":\"loop\"}]}","evil":"x"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/plan/run?token=secret",
+		strings.NewReader(body))
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d want 200", rec.Code)
+	}
+	if len(fc.calls) != 1 || fc.calls[0] != "plan" {
+		t.Fatalf("expected one plan (stream) call, got %v", fc.calls)
+	}
+	if _, leaked := fc.lastArgs["evil"]; leaked {
+		t.Errorf("non-allowlisted body key leaked through: %v", fc.lastArgs)
+	}
+	if !strings.Contains(rec.Body.String(), "plan_id") {
+		t.Errorf("terminal result not relayed: %s", rec.Body.String())
+	}
+}
+
+func TestFlowRunRejectsGet(t *testing.T) {
+	fc := &fakeCaller{}
+	s, _ := newServer(t, fc, "secret")
+	req := httptest.NewRequest(http.MethodGet, "/api/plan/run?token=secret", nil)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("status = %d want 405", rec.Code)
+	}
+	if len(fc.calls) != 0 {
+		t.Errorf("a GET must not start a plan run, got %v", fc.calls)
+	}
+}
+
+// Plan reads proxy through the read-arg / parameterless routes.
+func TestFlowHistoryForwardsLimit(t *testing.T) {
+	fc := &fakeCaller{result: map[string]any{"plans": []any{}}}
+	s, _ := newServer(t, fc, "secret")
+	req := httptest.NewRequest(http.MethodGet,
+		"/api/plan_history?token=secret&limit=5&status=failed&evil=x", nil)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d want 200", rec.Code)
+	}
+	if len(fc.calls) != 1 || fc.calls[0] != "plan_history" {
+		t.Fatalf("expected one plan_history call, got %v", fc.calls)
+	}
+	if fc.lastArgs["limit"] != "5" || fc.lastArgs["status"] != "failed" {
+		t.Errorf("args not forwarded: %v", fc.lastArgs)
+	}
+	if _, leaked := fc.lastArgs["evil"]; leaked {
+		t.Errorf("non-allowlisted arg leaked through: %v", fc.lastArgs)
+	}
+}
+
+func TestFlowStatsProxiesPlanStats(t *testing.T) {
+	fc := &fakeCaller{result: map[string]any{"total": 0}}
+	s, _ := newServer(t, fc, "secret")
+	req := httptest.NewRequest(http.MethodGet, "/api/plan_stats?token=secret", nil)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d want 200", rec.Code)
+	}
+	if len(fc.calls) != 1 || fc.calls[0] != "plan_stats" {
+		t.Errorf("expected one plan_stats call, got %v", fc.calls)
+	}
+}
+
+// The dashboard ships the Flow Studio panel + its renderer/wiring; guard against
+// a refactor silently dropping it.
+func TestDashboardHasFlowStudio(t *testing.T) {
+	s, _ := newServer(t, &fakeCaller{}, "secret")
+	req := httptest.NewRequest(http.MethodGet, "/?token=secret", nil)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+	body := rec.Body.String()
+	for _, marker := range []string{
+		`id="flow"`, "function planDag", "function postJSON",
+		"/api/plan/generate", "/api/plan/run",
+	} {
+		if !strings.Contains(body, marker) {
+			t.Errorf("dashboard missing Flow Studio marker %q", marker)
+		}
 	}
 }

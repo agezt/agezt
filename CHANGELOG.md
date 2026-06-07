@@ -12,6 +12,22 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Flow Studio: author, visualise, and run plans from the Web UI.** The
+  dashboard gains a full-width panel that turns the existing plan toolchain
+  (`plan generate` / `refine` / `run` / `history`) into a visual surface: type an
+  intent and Generate, edit the resulting plan JSON inline, see it drawn as a
+  dependency DAG (loop nodes as boxes, gate nodes as hexagons), Refine with a
+  natural-language instruction, then Run — watching each node recolour live
+  (amber → running, green → done, red → failed) as `node.*`/`plan.*` events
+  arrive on the SSE feed. The DAG is laid out top-down by dependency depth and
+  rendered as inline SVG with the page's textContent-only discipline, so it
+  inherits the strict CSP (no external script, no innerHTML sink) — no build
+  chain, no new dependency. Backend: two JSON-body routes (`/api/plan/generate`,
+  `/api/plan/refine`) for payloads too large for a query string, a streaming
+  `/api/plan/run` that drives `CmdPlan` to completion while the browser watches
+  progress live, and read routes `/api/plan_history` + `/api/plan_stats`. Same
+  allowlist discipline as the rest of the surface: POST-only mutations, a body
+  size cap, and only named keys ever reach the control plane. (M564)
 - **Matrix is now a first-class messaging channel** (sixth, after Telegram, Slack,
   Discord, webhook, and email). A new `plugins/channels/matrix` adapter speaks the
   Matrix Client-Server API v3 over `net/http` only — no SDK, no new dependency. It

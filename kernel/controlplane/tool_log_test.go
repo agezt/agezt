@@ -216,42 +216,66 @@ func TestToolLog_ReportsLatency(t *testing.T) {
 }
 
 // TestToolLog_SlowFilter — --slow keeps only calls at/above the latency floor
-// (M73). Two calls are published with controlled invoked→result spans by
-// stamping events through the bus back-to-back vs after a sleep.
+// (M73). One fast call (invoked+result back-to-back) and one slow call (a gap
+// between them); the floor is then chosen RELATIVE to the two calls' actually-
+// measured spans, not an absolute magic number.
+//
+// History: earlier cuts used a fixed floor (10ms, then 50ms) and assumed the
+// back-to-back "fast" call's span stayed below it. Both flaked on Windows CI —
+// a stalled runner can space two consecutive Publish calls ≥50ms apart, so the
+// fast call measured "slow" and was wrongly counted. There is no timestamp
+// injection seam (Bus.Publish / Journal.Append stamp time.Now themselves), so
+// instead of fighting absolute jitter we read the real measured spans and put
+// the floor strictly between them. That keeps exactly the slow call regardless
+// of absolute timer granularity — the only way it fails is if the fast call's
+// span exceeds the slow call's (a >120ms stall landing precisely between the
+// fast pair), which we detect and skip rather than report as a false failure.
 func TestToolLog_SlowFilter(t *testing.T) {
 	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
-	// Fast call: invoked+result back-to-back (~0ms).
+	// Fast call: invoked+result back-to-back (~0ms, modulo scheduler jitter).
 	toolInvoked(k, "fast", "shell", "a")
 	toolResult(k, "fast", "shell", "ok", false)
-	// Slow call: a clearly-slow gap between invoked and result. The margin is
-	// generous on purpose — the "fast" call's span must stay below the filter floor
-	// even on a slow CI runner with coarse (~15ms on Windows) timer granularity,
-	// and the slow call's span must stay above it. So 100ms slow vs a 50ms floor,
-	// not 20ms vs 10ms (which flaked: a back-to-back "fast" call measured ≥10ms on
-	// a Windows runner and was wrongly counted as slow).
+	// Slow call: a clearly-slow gap, wide enough to dominate the fast call's jitter.
 	toolInvoked(k, "slow", "http", "b")
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(120 * time.Millisecond)
 	toolResult(k, "slow", "http", "ok", false)
 
-	// No floor → both.
+	// No floor → both, and learn each call's ACTUAL measured span.
 	all, err := c.Call(context.Background(), controlplane.CmdToolLog, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got, _ := all["invocations"].([]any); len(got) != 2 {
+	got, _ := all["invocations"].([]any)
+	if len(got) != 2 {
 		t.Fatalf("unfiltered = %d want 2", len(got))
 	}
+	durByTool := map[string]int64{}
+	for _, iv := range got {
+		m, _ := iv.(map[string]any)
+		tool, _ := m["tool"].(string)
+		d, _ := m["duration_ms"].(float64)
+		durByTool[tool] = int64(d)
+	}
+	dFast, dSlow := durByTool["shell"], durByTool["http"]
+	if dSlow <= dFast {
+		t.Skipf("environment too noisy to separate spans (fast=%dms slow=%dms)", dFast, dSlow)
+	}
 
-	// 50ms floor → only the slow one (well above the fast call's jitter, well below
-	// the slow call's 100ms span).
+	// Floor strictly between the two observed spans → keeps only the slow call,
+	// deterministically, independent of absolute timer jitter.
+	floor := dFast + (dSlow-dFast)/2
+	if floor <= dFast {
+		floor = dFast + 1
+	}
 	res, err := c.Call(context.Background(), controlplane.CmdToolLog,
-		map[string]any{"slow_ms": int64(50)})
+		map[string]any{"slow_ms": floor})
 	if err != nil {
 		t.Fatal(err)
 	}
 	slow, _ := res["invocations"].([]any)
 	if len(slow) != 1 {
-		t.Fatalf("slow-filtered = %d want 1", len(slow))
+		t.Fatalf("slow-filtered = %d want 1 (floor=%dms, fast=%dms, slow=%dms)",
+			len(slow), floor, dFast, dSlow)
 	}
 	m, _ := slow[0].(map[string]any)
 	if m["tool"] != "http" {
