@@ -11,6 +11,25 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 
 ## [Unreleased]
 
+### Changed
+- **The Web UI is now a React 19 + Vite single-page app, built and embedded into
+  the daemon** (decision A4; the previous hand-rolled server-rendered dashboard
+  was the MVP cut). The bundle is built with Vite (React, Tailwind CSS v4,
+  shadcn/Radix primitives, lucide-react, React Flow, dark/light, responsive) into
+  `kernel/webui/dist` and `go:embed`-ded — so it ships in the single Go binary
+  with **no Node at runtime and no new Go dependency** (`go:embed` is stdlib;
+  `go.mod` unchanged). The Go server is now the thin static+proxy layer: it serves
+  the embedded bundle (index.html no-cache, hashed `/assets/*` immutable + public
+  so the browser can load subresources, with explicit OS-independent MIME types)
+  and keeps every data surface — SSE `/events` and all `/api/*` — token-gated. The
+  per-request CSP nonce is replaced by a static, stricter policy (`script-src
+  'self'` admits only the hashed bundle, no inline script at all). This PR ships
+  the SPA shell + live event feed, Status, Runs (+ event-arc detail), Budget, and
+  **Flow Studio rebuilt on React Flow** (the plan DAG with live node recolour);
+  the remaining read panels render through a generic view and are ported to
+  bespoke React views in follow-ups. Reproducible-build CI gate
+  (`frontend-dist-in-sync`) keeps the committed bundle in step with the source. (M566)
+
 ### Added
 - **Flow Studio: author, visualise, and run plans from the Web UI.** The
   dashboard gains a full-width panel that turns the existing plan toolchain
