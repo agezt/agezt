@@ -17,7 +17,7 @@ Agezt nodes** back — with capability-aware **auto-routing**, **failover**, and
 bounded delegation **loop guard** — and now each **tenant federates to its own
 peer set**; events push out via **HMAC-signed webhooks**. See
 [CHANGELOG.md](CHANGELOG.md).
-**Tests:** 2448 passing across 79 packages.
+**Tests:** 2463 passing across 80 packages.
 **Dependencies:** one (`lukechampine.com/blake3`) + one transitive.
 
 ## What you get
@@ -57,11 +57,12 @@ with **9 provider families** (Anthropic, OpenAI + ~11 compatibles, Google
 direct + Vertex, Cohere, Mistral, Ollama, AWS Bedrock with bearer +
 SigV4 + STS-AssumeRole + SSO + IRSA/web-identity, Azure OpenAI) with
 **per-request model routing**
-(a request's `model` selects its provider), **all streaming**, **10 in-process
+(a request's `model` selects its provider), **all streaming**, **11 in-process
 tools** (`shell`, `file`, `http`, `browser.read`, plus `memory`, `world`,
 `delegate` for sub-agent fan-out, `coding` for worktree-isolated external
-coding agents, `acp_agent` to drive external ACP agents, and `remote_run` to
-delegate to peer Agezt nodes), an
+coding agents, `acp_agent` to drive external ACP agents, `remote_run` to
+delegate to peer Agezt nodes, and `homeassistant` to read entity state and
+control the smart home), an
 **OpenAI-compatible `/v1` API** (chat completions + responses) and an
 **ACP server** so any OpenAI client or IDE can drive it, a **native REST
 `/api/v1`** (submit + inspect runs) for first-party clients,
@@ -272,8 +273,14 @@ The v1 substrate. Highlights:
   API (`/api/v1/runs`); the peer runs it through its own governed loop and
   reports back with its correlation id. The mesh primitive — cooperating
   nodes. Off unless `AGEZT_PEERS` (`name=url|token,…`) is set
+- `homeassistant` — read smart-home entity state (`get_states`) and call
+  Home Assistant services (`call_service`) to control the house (lights,
+  climate, locks, …). Fail-closed on two axes: a read-entity allowlist
+  (`AGEZT_HOMEASSISTANT_TOOL_READ`) and a service allowlist
+  (`AGEZT_HOMEASSISTANT_TOOL_SERVICES`), mapped to distinct Edict capabilities
+  (`homeassistant.read` = Allow, `homeassistant.call` = Ask-first). Off unless
+  the HA URL/token and at least one allowlist are set
 
-**External plugins** (`plugins/external/`)
 - `mcpbridge` — Model Context Protocol bridge, both stdio and HTTP+SSE
   transports
 

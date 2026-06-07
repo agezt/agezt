@@ -69,6 +69,16 @@ const (
 	// arbitrary-exfiltration surface. Allowed by default (the agent talking to its
 	// owner); an operator can still raise its level or deny it like any capability.
 	CapNotify Capability = "notify"
+	// CapHomeAssistantRead gates the `homeassistant` tool's get_states operation:
+	// reading smart-home entity state. Read-only and filtered to an entity
+	// allowlist, so Allow by default — the agent can answer "is the light on?"
+	// without a prompt for every read.
+	CapHomeAssistantRead Capability = "homeassistant.read"
+	// CapHomeAssistantCall gates the `homeassistant` tool's call_service operation:
+	// ACTUATING the physical world (lights, locks, climate). Ask-first by default —
+	// turning something on/off in the operator's home warrants confirmation, even
+	// though it is already constrained to a service allowlist.
+	CapHomeAssistantCall Capability = "homeassistant.call"
 )
 
 // TrustLevel encodes the trust ladder (DECISIONS F3).
@@ -472,6 +482,9 @@ func DefaultLevels() map[Capability]TrustLevel {
 		CapACPAgent:     LevelAskFirst, // external ACP agent; runs in its own sandbox, returns its answer
 		CapRemoteRun:    LevelAskFirst, // peer Agezt node; ships a task to an external node over REST
 		CapNotify:       LevelAllow,    // message the operator's own configured chats; recipient is config-pinned
+
+		CapHomeAssistantRead: LevelAllow,    // read entity state; low risk, allowlist-filtered
+		CapHomeAssistantCall: LevelAskFirst, // actuate the physical world; confirm before acting
 	}
 }
 
@@ -509,6 +522,7 @@ func AllCapabilities() []Capability {
 		CapShell, CapFileRead, CapFileWrite, CapFileDelete, CapFileList,
 		CapHTTPGet, CapHTTPPost, CapProviderCall, CapDelegate, CapCoding,
 		CapACPAgent, CapRemoteRun, CapNotify,
+		CapHomeAssistantRead, CapHomeAssistantCall,
 	}
 	slices.Sort(caps)
 	return caps

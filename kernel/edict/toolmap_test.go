@@ -28,6 +28,10 @@ func TestCapabilityForToolCall(t *testing.T) {
 		{"http", `{"method":"  post  ","url":"https://x"}`, CapHTTPPost},
 		{"remote_run", `{"task":"x"}`, CapRemoteRun},
 		{"notify", `{"text":"hi"}`, CapNotify},
+		{"homeassistant", `{"operation":"get_states","entity_id":"light.x"}`, CapHomeAssistantRead},
+		{"homeassistant", `{"operation":"call_service","domain":"light","service":"turn_on"}`, CapHomeAssistantCall},
+		{"homeassistant", `{"operation":"  CALL_SERVICE  "}`, CapHomeAssistantCall},
+		{"homeassistant", `{}`, CapHomeAssistantRead}, // unparsed/absent op → read (low-risk default)
 		{"unknown-tool", `{}`, Capability("unknown-tool")},
 	}
 	for _, c := range cases {

@@ -83,6 +83,7 @@ import (
 	"github.com/agezt/agezt/plugins/tools/browser"
 	"github.com/agezt/agezt/plugins/tools/coding"
 	filetool "github.com/agezt/agezt/plugins/tools/file"
+	hatool "github.com/agezt/agezt/plugins/tools/homeassistant"
 	httptool "github.com/agezt/agezt/plugins/tools/http"
 	"github.com/agezt/agezt/plugins/tools/notify"
 	"github.com/agezt/agezt/plugins/tools/peer"
@@ -3377,6 +3378,35 @@ func buildTools(baseDir string, stderr io.Writer, ward warden.Engine) (map[strin
 		}
 	}
 
+	// homeassistant — read entity state + call services on the operator's Home
+	// Assistant. Shares the channel's AGEZT_HOMEASSISTANT_URL/_TOKEN (same
+	// instance), but is gated by its OWN allowlists so the outbound notify channel
+	// can be configured without auto-exposing an actionable control surface:
+	//   AGEZT_HOMEASSISTANT_TOOL_READ      — entity read allowlist (get_states)
+	//   AGEZT_HOMEASSISTANT_TOOL_SERVICES  — service call allowlist (call_service)
+	//   AGEZT_HOMEASSISTANT_TOOL_ALLOW_ALL_SERVICES=1 — bypass the service allowlist (DANGEROUS)
+	// Both allowlists are fail-closed; the tool registers only when URL+TOKEN are
+	// set AND at least one axis is enabled (so bare channel config exposes nothing).
+	{
+		haURL := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "HOMEASSISTANT_URL"))
+		haTok := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "HOMEASSISTANT_TOKEN"))
+		read := splitNonEmpty(os.Getenv(brand.EnvPrefix + "HOMEASSISTANT_TOOL_READ"))
+		services := splitNonEmpty(os.Getenv(brand.EnvPrefix + "HOMEASSISTANT_TOOL_SERVICES"))
+		if os.Getenv(brand.EnvPrefix+"HOMEASSISTANT_TOOL_ALLOW_ALL_SERVICES") == "1" {
+			services = append(services, "*")
+			fmt.Fprintln(stderr, "WARNING: AGEZT_HOMEASSISTANT_TOOL_ALLOW_ALL_SERVICES=1 lets the agent call ANY Home Assistant service.")
+		}
+		if haURL != "" && haTok != "" && (len(read) > 0 || len(services) > 0) {
+			hat := hatool.New()
+			hat.BaseURL = haURL
+			hat.Token = haTok
+			hat.ReadEntities = read
+			hat.AllowedServices = services
+			out["homeassistant"] = hat
+			registered = append(registered, "homeassistant("+hat.Capabilities()+")")
+		}
+	}
+
 	// remote_run — mesh delegation to a peer Agezt node over its REST API (M8).
 	// Registered only when AGEZT_PEERS is set (name=url|token,…). A malformed
 	// spec is a hard startup error so a misconfigured mesh is caught early.
@@ -3626,6 +3656,22 @@ func newDemoMock() agent.Provider {
 		return mock.New(
 			mock.ToolUse("call-1", "notify", map[string]any{"text": "Starting the long task — I'll report back when it's done."}),
 			mock.FinalText("[offline-mock] I pinged you over the configured channel, then finished the task."),
+		)
+	}
+	// Demo escape hatch: AGEZT_DEMO_HOMEASSISTANT=1 scripts the agent to actuate a
+	// service and then read a state via the `homeassistant` tool, so the smart-home
+	// control path (agent → service/read allowlist → HA REST API) is observable
+	// offline. Requires AGEZT_HOMEASSISTANT_URL/_TOKEN + a TOOL allowlist for the
+	// tool to be registered (point the URL at a mock HA to smoke it network-free).
+	if os.Getenv(brand.EnvPrefix+"DEMO_HOMEASSISTANT") == "1" {
+		return mock.New(
+			mock.ToolUse("call-1", "homeassistant", map[string]any{
+				"operation": "call_service", "domain": "light", "service": "turn_off", "entity_id": "light.living_room",
+			}),
+			mock.ToolUse("call-2", "homeassistant", map[string]any{
+				"operation": "get_states", "entity_id": "light.living_room",
+			}),
+			mock.FinalText("[offline-mock] I turned the living-room light off and confirmed its state."),
 		)
 	}
 	// Demo escape hatch: AGEZT_DEMO_DELEGATE=1 scripts a single delegation so
