@@ -12,6 +12,15 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **The Web UI's Runs view now updates expanded runs live.** An expanded run
+  subscribes to the journal SSE stream and folds matching events into its arc, so
+  the detail cards (status, tool calls, iterations, tokens) update as the agent
+  works — the same live pattern Flow Studio uses for node recolour. The fetched
+  snapshot and live events are merged by journal seq (`mergeEvents`, dedup), so an
+  event delivered by both paths is never double-counted, and an event arriving
+  before the fetch resolves is not lost. The `subscribe` callback is now stable
+  (memoized in the events provider) so consumers don't re-subscribe on every
+  event. (M580)
 - **The Web UI now has a unit-test suite (Vitest) and a CI gate.** The React app
   had zero automated tests — every change relied on manual browser smoke. The
   run-detail derivation logic is extracted to a pure `lib/rundetail.ts`

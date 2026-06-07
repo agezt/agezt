@@ -1,5 +1,6 @@
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useRef,
@@ -59,12 +60,14 @@ export function EventsProvider({ children }: { children: ReactNode }) {
     return () => src.close();
   }, []);
 
-  const subscribe = (fn: (e: AgentEvent) => void) => {
+  // Stable across renders (the listener set is a ref), so consumers can use it
+  // as a useEffect dependency without re-subscribing on every incoming event.
+  const subscribe = useCallback((fn: (e: AgentEvent) => void) => {
     listeners.current.add(fn);
     return () => {
       listeners.current.delete(fn);
     };
-  };
+  }, []);
 
   return <Ctx.Provider value={{ events, connected, subscribe }}>{children}</Ctx.Provider>;
 }
