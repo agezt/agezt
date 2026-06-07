@@ -11,6 +11,18 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 
 ## [Unreleased]
 
+### Added
+- **Web UI: all remaining panels ported to bespoke React views.** Following the
+  React rebuild (M566), the panels that shipped as a generic JSON fallback are now
+  first-class React views: Config, Cache, Providers, Tools, Policy, Schedules,
+  World, Skills, Standing, Memory, Inbox, Reflection, and Approvals. Providers /
+  Tools / Policy gain inline "log" drill-downs (lazy-fetched `*_log` routes);
+  World renders a React Flow node-link graph of the world model; Skills (promote /
+  quarantine / revert), Memory (forget), World (forget), and Approvals (approve /
+  deny) wire the existing mutating routes to action buttons. Pure-frontend: the Go
+  routes were already in place, so no server change — the bundle is rebuilt and
+  recommitted. The phased Web-UI migration (M566) is now complete. (M567)
+
 ### Changed
 - **The Web UI is now a React 19 + Vite single-page app, built and embedded into
   the daemon** (decision A4; the previous hand-rolled server-rendered dashboard

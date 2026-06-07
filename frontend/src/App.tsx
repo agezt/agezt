@@ -30,7 +30,19 @@ import { Status } from "@/views/Status";
 import { Runs } from "@/views/Runs";
 import { Budget } from "@/views/Budget";
 import { FlowStudio } from "@/views/FlowStudio";
-import { GenericPanel } from "@/views/GenericPanel";
+import { Config } from "@/views/Config";
+import { Cache } from "@/views/Cache";
+import { Providers } from "@/views/Providers";
+import { Tools } from "@/views/Tools";
+import { Policy } from "@/views/Policy";
+import { Schedules } from "@/views/Schedules";
+import { World } from "@/views/World";
+import { Skills } from "@/views/Skills";
+import { Standing } from "@/views/Standing";
+import { Memory } from "@/views/Memory";
+import { Inbox } from "@/views/Inbox";
+import { Reflect } from "@/views/Reflect";
+import { Approvals } from "@/views/Approvals";
 
 interface NavItem {
   id: string;
@@ -39,29 +51,25 @@ interface NavItem {
   render: ComponentType;
 }
 
-function panel(title: string, path: string): ComponentType {
-  return () => <GenericPanel title={title} path={path} />;
-}
-
 const NAV: NavItem[] = [
   { id: "flow", label: "Flow Studio", icon: Workflow, render: FlowStudio },
   { id: "overview", label: "Overview", icon: LayoutDashboard, render: Status },
   { id: "runs", label: "Runs", icon: ListTree, render: Runs },
   { id: "budget", label: "Budget", icon: Wallet, render: Budget },
   { id: "feed", label: "Event Feed", icon: Radio, render: EventFeed },
-  { id: "config", label: "Config", icon: Settings, render: panel("Config", "/api/config") },
-  { id: "cache", label: "Cache", icon: Database, render: panel("Cache", "/api/cache") },
-  { id: "providers", label: "Providers", icon: Cpu, render: panel("Providers", "/api/providers") },
-  { id: "tools", label: "Tools", icon: Wrench, render: panel("Tools", "/api/tools") },
-  { id: "policy", label: "Policy", icon: Shield, render: panel("Policy", "/api/policy") },
-  { id: "schedules", label: "Schedules", icon: CalendarClock, render: panel("Schedules", "/api/schedules") },
-  { id: "world", label: "World", icon: Network, render: panel("World", "/api/world") },
-  { id: "skills", label: "Skills", icon: Sparkles, render: panel("Skills", "/api/skills") },
-  { id: "standing", label: "Standing", icon: Anchor, render: panel("Standing", "/api/standing") },
-  { id: "memory", label: "Memory", icon: Brain, render: panel("Memory", "/api/memory") },
-  { id: "inbox", label: "Inbox", icon: InboxIcon, render: panel("Inbox", "/api/inbox") },
-  { id: "reflect", label: "Reflection", icon: Brain, render: panel("Reflection", "/api/reflect") },
-  { id: "approvals", label: "Approvals", icon: CheckSquare, render: panel("Approvals", "/api/approvals") },
+  { id: "config", label: "Config", icon: Settings, render: Config },
+  { id: "cache", label: "Cache", icon: Database, render: Cache },
+  { id: "providers", label: "Providers", icon: Cpu, render: Providers },
+  { id: "tools", label: "Tools", icon: Wrench, render: Tools },
+  { id: "policy", label: "Policy", icon: Shield, render: Policy },
+  { id: "schedules", label: "Schedules", icon: CalendarClock, render: Schedules },
+  { id: "world", label: "World", icon: Network, render: World },
+  { id: "skills", label: "Skills", icon: Sparkles, render: Skills },
+  { id: "standing", label: "Standing", icon: Anchor, render: Standing },
+  { id: "memory", label: "Memory", icon: Brain, render: Memory },
+  { id: "inbox", label: "Inbox", icon: InboxIcon, render: Inbox },
+  { id: "reflect", label: "Reflection", icon: Brain, render: Reflect },
+  { id: "approvals", label: "Approvals", icon: CheckSquare, render: Approvals },
 ];
 
 export default function App() {
