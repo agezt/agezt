@@ -11,6 +11,22 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 
 ## [Unreleased]
 
+### Added
+- **Matrix is now a first-class messaging channel** (sixth, after Telegram, Slack,
+  Discord, webhook, and email). A new `plugins/channels/matrix` adapter speaks the
+  Matrix Client-Server API v3 over `net/http` only — no SDK, no new dependency. It
+  long-polls `GET /_matrix/client/v3/sync` (resuming from a `since` cursor, priming
+  past backlog on start), dispatches inbound `m.room.message` / `m.text` events
+  through the shared `channel.Guard`, and replies via
+  `PUT /_matrix/client/v3/rooms/{id}/send/m.room.message/{txn}` with a fresh ulid
+  transaction id per chunk. Self-messages are skipped by resolving the bot's own
+  MXID through `/account/whoami` (no echo loop). Rooms are gated by a fail-closed
+  `channel.Allowlist`; long replies are split with `channel.SplitText`; the bearer
+  token is scrubbed from errors. Wired into the daemon as `buildMatrix` — gated on
+  `AGEZT_MATRIX_HOMESERVER` + `AGEZT_MATRIX_TOKEN`, allowlist via
+  `AGEZT_MATRIX_ROOMS` — and surfaced through `agt status` and the config snapshot.
+  Text-only for now; image/file events are a documented follow-up. (M563)
+
 ### Security
 - **The webhook replay guard no longer forgets every recent id at once.** The
   dedup set of recently-seen message ids was cleared wholesale when it filled, so a
