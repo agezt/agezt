@@ -12,6 +12,14 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **The Web UI now has a unit-test suite (Vitest) and a CI gate.** The React app
+  had zero automated tests — every change relied on manual browser smoke. The
+  run-detail derivation logic is extracted to a pure `lib/rundetail.ts`
+  (`deriveDetail` folds a journaled event arc into the summary + tool-call
+  breakdown) and covered by Vitest alongside the `format`/`utils` helpers (19
+  tests). A new `frontend-test` CI job (`npm ci && npm test`) runs them on every
+  push, and `make frontend-test` runs them locally. Dev-only tooling — Vitest is
+  not bundled into the embedded `dist`, and adds zero Go modules. (M579)
 - **`agt ha` — an operator-facing Home Assistant client.** `agt ha states
   [entity_id]` reads entity state (all as `entity_id = state` lines, or one as
   pretty JSON), `agt ha services` lists the service registry as sorted

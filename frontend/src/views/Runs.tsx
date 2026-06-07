@@ -8,6 +8,7 @@ import { Badge, statusVariant } from "@/components/ui/badge";
 import { KeyValue, Muted, ErrorText } from "@/components/JsonView";
 import { fmtTime, clip } from "@/lib/utils";
 import { money } from "@/lib/format";
+import { deriveDetail, num, type ToolCall } from "@/lib/rundetail";
 import type { AgentEvent } from "@/lib/events";
 
 interface Run {
@@ -16,111 +17,6 @@ interface Run {
   intent?: string;
   duration_ms?: number;
   started_unix_ms?: number;
-}
-
-// One tool call, assembled across the policy.decision / tool.invoked /
-// tool.result events that share a call_id.
-interface ToolCall {
-  callId: string;
-  tool: string;
-  capability?: string;
-  allow?: boolean;
-  hardDenied?: boolean;
-  error?: boolean;
-  output?: string;
-}
-
-// RunDetail is the structured summary derived from a run's journaled event arc —
-// the UI computes it, the kernel stays the source of truth (the raw events are
-// always available below).
-interface RunDetail {
-  model?: string;
-  iterations: number;
-  inputTokens: number;
-  outputTokens: number;
-  cachedTokens: number;
-  costMicrocents: number;
-  hasBudget: boolean;
-  status?: string;
-  answer?: string;
-  toolCalls: ToolCall[];
-}
-
-function num(v: unknown): number {
-  const n = Number(v);
-  return Number.isFinite(n) ? n : 0;
-}
-
-function deriveDetail(arc: AgentEvent[]): RunDetail {
-  const d: RunDetail = {
-    iterations: 0,
-    inputTokens: 0,
-    outputTokens: 0,
-    cachedTokens: 0,
-    costMicrocents: 0,
-    hasBudget: false,
-    toolCalls: [],
-  };
-  const byCall = new Map<string, ToolCall>();
-  const call = (id: string): ToolCall => {
-    let c = byCall.get(id);
-    if (!c) {
-      c = { callId: id, tool: "" };
-      byCall.set(id, c);
-    }
-    return c;
-  };
-  // Process oldest→newest so later events (results) win over earlier (invoked).
-  const sorted = [...arc].sort((a, b) => num(a.seq) - num(b.seq));
-  for (const e of sorted) {
-    const p = e.payload || {};
-    switch (e.kind) {
-      case "llm.request":
-      case "llm.response":
-        d.iterations = Math.max(d.iterations, num(p.iter) + 1);
-        if (p.model) d.model = String(p.model);
-        break;
-      case "budget.consumed":
-        d.hasBudget = true;
-        d.costMicrocents += num(p.cost_microcents);
-        d.inputTokens += num(p.input_tokens);
-        d.outputTokens += num(p.output_tokens);
-        d.cachedTokens += num(p.cached_input_tokens);
-        if (p.model && !d.model) d.model = String(p.model);
-        break;
-      case "policy.decision": {
-        const c = call(String(p.call_id || ""));
-        if (p.tool) c.tool = String(p.tool);
-        if (p.capability) c.capability = String(p.capability);
-        c.allow = !!p.allow;
-        c.hardDenied = !!p.hard_denied;
-        break;
-      }
-      case "tool.invoked": {
-        const c = call(String(p.call_id || ""));
-        if (p.tool) c.tool = String(p.tool);
-        break;
-      }
-      case "tool.result": {
-        const c = call(String(p.call_id || ""));
-        if (p.tool) c.tool = String(p.tool);
-        c.error = !!p.error;
-        if (p.output != null) c.output = String(p.output);
-        break;
-      }
-      case "task.completed":
-        d.status = "completed";
-        if (p.answer != null) d.answer = String(p.answer);
-        break;
-      case "task.failed":
-        d.status = "failed";
-        if (p.error != null) d.answer = String(p.error);
-        break;
-    }
-  }
-  // Drop the synthetic empty-id bucket if nothing real landed in it.
-  d.toolCalls = [...byCall.values()].filter((c) => c.callId !== "" || c.tool !== "");
-  return d;
 }
 
 function ToolCallRow({ c }: { c: ToolCall }) {
