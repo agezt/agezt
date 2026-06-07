@@ -12,6 +12,15 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **The Web UI's Runs view now shows structured run-detail cards.** Expanding a
+  run no longer dumps a flat event list first — it renders a summary (status,
+  model, iterations, token in/out + cached, cost, duration) derived from the
+  run's journaled arc, a **Tool calls** breakdown (each call's tool, the Edict
+  **capability** it exercised, an allowed / denied / hard-denied verdict, an
+  error flag, and an output preview), and the **final answer** (or error). The
+  raw event timeline is still one click away under a collapsible "raw events"
+  toggle. Pure frontend — the kernel stays the source of truth; the UI only
+  derives the view from the same `/api/journal` arc it already had. (M577)
 - **The Python SDK now has an asyncio client.** `AsyncClient` (`from agezt import
   AsyncClient`) mirrors the synchronous `Client` method-for-method, but every call
   is awaitable and never blocks the event loop — `await c.run(...)`,
