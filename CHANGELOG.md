@@ -12,6 +12,15 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Microsoft Teams is now an (outbound) channel** — the tenth channel.
+  `plugins/channels/teams` delivers Pulse briefs and `agt send` to Teams via
+  Incoming Webhooks (POST a `MessageCard` to the per-channel webhook URL). Because
+  Teams webhooks are per-channel, the channel holds a NAMED map of webhooks
+  (`AGEZT_TEAMS_WEBHOOKS=general=https://…,alerts=https://…`); the message's
+  `channel_id` selects which one (`agt send --channel teams --to general …`), and
+  an unknown name is refused (fail-closed). `net/http` only — no dependency.
+  Outbound-only (inbound needs the Bot Framework, a follow-up). Wired as
+  `buildTeams`, surfaced via `agt status`. (M574)
 - **Home Assistant is now an (outbound) channel** — the ninth channel, turning the
   agentic OS into a voice in your home. `plugins/channels/homeassistant` delivers
   Pulse briefs and `agt send` to a Home Assistant instance via its REST notify API
