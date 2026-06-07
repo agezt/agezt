@@ -11,6 +11,15 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 
 ## [Unreleased]
 
+### Fixed
+- **Pulse stops promptly on context cancel.** The heartbeat loop's `select` raced
+  `ctx.Done()` against the ticker: when both were ready, Go's uniform-random
+  choice could keep firing beats after cancel until the draw happened to land on
+  `ctx.Done()` — surfacing as a flaky `TestStartStopsOnContextCancel` on loaded
+  CI runners ("beats advanced after the engine should have stopped"). The tick
+  branch now re-checks `ctx.Err()` and returns, so a cancelled engine stops within
+  at most one in-flight tick. (M568)
+
 ### Added
 - **Web UI: all remaining panels ported to bespoke React views.** Following the
   React rebuild (M566), the panels that shipped as a generic JSON fallback are now

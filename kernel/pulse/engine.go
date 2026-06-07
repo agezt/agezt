@@ -124,6 +124,14 @@ func (e *Engine) Start(ctx context.Context) {
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
+				// When ctx is cancelled AND a tick is ready, select picks a case at
+				// random — so a fast ticker could keep firing beats after cancel
+				// until the random draw lands on ctx.Done(). Re-check here so a
+				// cancelled engine stops promptly (at most one in-flight tick) rather
+				// than racing the scheduler.
+				if ctx.Err() != nil {
+					return
+				}
 				if e.IsPaused() {
 					continue
 				}
