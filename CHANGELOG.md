@@ -12,6 +12,19 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **WhatsApp is now a messaging channel** (Meta WhatsApp Cloud API) — the eighth
+  channel. `plugins/channels/whatsapp` serves Meta's inbound webhook: the GET
+  verification handshake (echoes `hub.challenge` when `hub.verify_token` matches)
+  and POST deliveries authenticated with `X-Hub-Signature-256`
+  (sha256=HMAC-SHA256 of the raw body under the app secret; empty secret fails
+  closed). An allowlisted sender number drives the agent; since WhatsApp has no
+  synchronous reply, the answer is sent back as a fresh Graph API message
+  (`POST /{PhoneNumberID}/messages`, Bearer access token, `channel.SplitText` for
+  long text). A retried delivery is de-duped on the message id. `net/http` +
+  stdlib crypto only — no Meta SDK, no new dependency. Wired as `buildWhatsApp`
+  (`AGEZT_WHATSAPP_APP_SECRET` + `AGEZT_WHATSAPP_ACCESS_TOKEN`, inbound on
+  `AGEZT_WHATSAPP_ADDR`, outbound via `AGEZT_WHATSAPP_PHONE_NUMBER_ID`, allowlist
+  `AGEZT_WHATSAPP_NUMBERS`) and surfaced via `agt status`. (M570)
 - **SMS is now a messaging channel** (Twilio Programmable Messaging) — the seventh
   channel. `plugins/channels/sms` serves an inbound Twilio webhook and authenticates
   every request with the `X-Twilio-Signature` header (base64 HMAC-SHA1 over the

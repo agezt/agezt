@@ -73,6 +73,7 @@ import (
 	"github.com/agezt/agezt/plugins/channels/sms"
 	"github.com/agezt/agezt/plugins/channels/telegram"
 	webhookchan "github.com/agezt/agezt/plugins/channels/webhook"
+	"github.com/agezt/agezt/plugins/channels/whatsapp"
 	"github.com/agezt/agezt/plugins/providers/anthropic"
 	"github.com/agezt/agezt/plugins/providers/compat"
 	"github.com/agezt/agezt/plugins/providers/mock"
@@ -812,11 +813,23 @@ func runDaemon(stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "  sms channel      : disabled (set AGEZT_SMS_ACCOUNT_SID + AGEZT_SMS_AUTH_TOKEN)\n")
 	}
 
+	// WhatsApp channel (SPEC-04 §1) — duplex over Meta's WhatsApp Cloud API when
+	// AGEZT_WHATSAPP_APP_SECRET + AGEZT_WHATSAPP_ACCESS_TOKEN are set. Inbound is a
+	// signed Meta webhook (needs AGEZT_WHATSAPP_ADDR); outbound goes via the Graph
+	// API (needs AGEZT_WHATSAPP_PHONE_NUMBER_ID); briefs tee to the allowlist.
+	waChan, waSink, waDesc := buildWhatsApp(ctx, k)
+	if waChan != nil {
+		go waChan.Start(ctx)
+		fmt.Fprintf(stdout, "  whatsapp channel : %s\n", waDesc)
+	} else {
+		fmt.Fprintf(stdout, "  whatsapp channel : disabled (set AGEZT_WHATSAPP_APP_SECRET + AGEZT_WHATSAPP_ACCESS_TOKEN)\n")
+	}
+
 	// Pulse — the proactive heart (SPEC-03). On by default; the resident
 	// engine runs on the daemon ctx so `agt halt`/SIGTERM/`agt shutdown`
 	// stop it with everything else. AGEZT_PULSE=off disables it. When a channel
 	// is configured, briefs tee to it (closes the Jarvis loop).
-	if eng, pulseDesc := buildPulse(k, ward, model, stdout, combineSinks(tgSink, slSink, dcSink, whSink, emSink, mxSink, smSink)); eng != nil {
+	if eng, pulseDesc := buildPulse(k, ward, model, stdout, combineSinks(tgSink, slSink, dcSink, whSink, emSink, mxSink, smSink, waSink)); eng != nil {
 		eng.Start(ctx)
 		srv.SetPulse(eng)
 		fmt.Fprintf(stdout, "  pulse            : %s\n", pulseDesc)
@@ -935,6 +948,9 @@ func runDaemon(stdout, stderr io.Writer) int {
 	}
 	if smChan != nil {
 		liveChannels["sms"] = smChan
+	}
+	if waChan != nil {
+		liveChannels["whatsapp"] = waChan
 	}
 	channelSend := func(sctx context.Context, kind, id, text string) error {
 		ch, ok := liveChannels[kind]
@@ -1546,6 +1562,67 @@ func buildSMS(ctx context.Context, k *kernelruntime.Kernel) (*sms.Channel, pulse
 	}
 }
 
+// buildWhatsApp constructs the WhatsApp Cloud API channel when
+// AGEZT_WHATSAPP_APP_SECRET + AGEZT_WHATSAPP_ACCESS_TOKEN are set. Inbound (signed
+// Meta webhook) is served when AGEZT_WHATSAPP_ADDR is also set; outbound + Pulse
+// briefs to the allowlisted numbers need AGEZT_WHATSAPP_PHONE_NUMBER_ID.
+//
+//	AGEZT_WHATSAPP_APP_SECRET       Meta app secret (required; signs inbound)
+//	AGEZT_WHATSAPP_ACCESS_TOKEN     Graph API bearer token (required; outbound)
+//	AGEZT_WHATSAPP_PHONE_NUMBER_ID  business phone-number id (outbound endpoint)
+//	AGEZT_WHATSAPP_VERIFY_TOKEN     token echoed in Meta's GET verify handshake
+//	AGEZT_WHATSAPP_ADDR             host:port for the inbound webhook (inbound)
+//	AGEZT_WHATSAPP_PATH             inbound route (default /whatsapp)
+//	AGEZT_WHATSAPP_NUMBERS          comma-separated allowlist of sender numbers
+func buildWhatsApp(ctx context.Context, k *kernelruntime.Kernel) (*whatsapp.Channel, pulse.BriefSink, string) {
+	appSecret := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "WHATSAPP_APP_SECRET"))
+	accessToken := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "WHATSAPP_ACCESS_TOKEN"))
+	if appSecret == "" || accessToken == "" {
+		return nil, nil, ""
+	}
+	phoneID := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "WHATSAPP_PHONE_NUMBER_ID"))
+	verifyToken := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "WHATSAPP_VERIFY_TOKEN"))
+	addr := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "WHATSAPP_ADDR"))
+	path := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "WHATSAPP_PATH"))
+	numbers := splitNonEmpty(os.Getenv(brand.EnvPrefix + "WHATSAPP_NUMBERS"))
+
+	ch := whatsapp.New(whatsapp.Config{
+		Addr:          addr,
+		Path:          path,
+		VerifyToken:   verifyToken,
+		AppSecret:     appSecret,
+		AccessToken:   accessToken,
+		PhoneNumberID: phoneID,
+		Allowlist:     channel.NewAllowlist(numbers),
+		Bus:           k.Bus(),
+		Handler:       makeChannelHandler(k),
+	})
+
+	var sink pulse.BriefSink
+	if phoneID != "" && len(numbers) > 0 {
+		sink = pulse.SinkFunc(func(b pulse.Brief) error {
+			var firstErr error
+			for _, id := range numbers {
+				if err := ch.Send(ctx, channel.Outbound{ChannelID: id, Text: formatBrief(b), Priority: channel.PriorityNotify}); err != nil && firstErr == nil {
+					firstErr = err
+				}
+			}
+			return firstErr
+		})
+	}
+
+	switch {
+	case addr == "":
+		return ch, sink, fmt.Sprintf("outbound-only (set AGEZT_WHATSAPP_ADDR for inbound), allowlist=%d number(s)", len(numbers))
+	default:
+		p := path
+		if p == "" {
+			p = whatsapp.DefaultPath
+		}
+		return ch, sink, fmt.Sprintf("inbound at %s%s, allowlist=%d number(s)", addr, p, len(numbers))
+	}
+}
+
 // collectChannels reports the configured messaging channels for `agt status`
 // (M141), read-only from the same env the buildX functions consume. A channel is
 // listed when its token is set; Inbound reflects whether it can actually receive
@@ -1612,6 +1689,15 @@ func collectChannels() []controlplane.ChannelInfo {
 			Inbound:   addr != "", // inbound webhook served when an addr is set
 			Addr:      addr,
 			Allowlist: len(splitNonEmpty(os.Getenv(brand.EnvPrefix + "SMS_NUMBERS"))),
+		})
+	}
+	if env("WHATSAPP_APP_SECRET") != "" && env("WHATSAPP_ACCESS_TOKEN") != "" {
+		addr := env("WHATSAPP_ADDR")
+		out = append(out, controlplane.ChannelInfo{
+			Kind:      "whatsapp",
+			Inbound:   addr != "", // inbound webhook served when an addr is set
+			Addr:      addr,
+			Allowlist: len(splitNonEmpty(os.Getenv(brand.EnvPrefix + "WHATSAPP_NUMBERS"))),
 		})
 	}
 	return out
