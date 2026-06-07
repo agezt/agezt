@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { deriveDetail, num } from "@/lib/rundetail";
+import { deriveDetail, num, mergeEvents } from "@/lib/rundetail";
 import type { AgentEvent } from "@/lib/events";
 
 // A realistic HA-tool run arc (mirrors what /api/journal returns), deliberately
@@ -88,5 +88,34 @@ describe("num", () => {
     expect(num(undefined)).toBe(0);
     expect(num("nope")).toBe(0);
     expect(num(null)).toBe(0);
+  });
+});
+
+describe("mergeEvents", () => {
+  it("dedups by seq when a live event repeats the fetched snapshot", () => {
+    const snap: AgentEvent[] = [
+      { seq: 1, kind: "llm.request" },
+      { seq: 2, kind: "tool.invoked" },
+    ];
+    const live: AgentEvent[] = [
+      { seq: 2, kind: "tool.invoked" }, // duplicate of snapshot
+      { seq: 3, kind: "tool.result" }, // new
+    ];
+    const merged = mergeEvents(snap, live);
+    expect(merged.map((e) => e.seq)).toEqual([1, 2, 3]);
+  });
+
+  it("preserves seq 0 (a real first event) and dedups by id when seq is absent", () => {
+    const merged = mergeEvents(
+      [{ seq: 0, kind: "task.received" }, { id: "x", kind: "a" }],
+      [{ id: "x", kind: "a" }, { id: "y", kind: "b" }],
+    );
+    expect(merged).toHaveLength(3);
+    expect(merged.some((e) => e.seq === 0)).toBe(true);
+  });
+
+  it("returns the snapshot unchanged when there are no live events", () => {
+    const snap: AgentEvent[] = [{ seq: 1, kind: "a" }];
+    expect(mergeEvents(snap, [])).toEqual(snap);
   });
 });

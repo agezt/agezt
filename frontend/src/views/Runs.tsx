@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { RefreshCw, ChevronRight, ChevronDown, Wrench, ShieldCheck, ShieldX } from "lucide-react";
 import { usePanel } from "@/lib/usePanel";
 import { getJSON } from "@/lib/api";
@@ -8,8 +8,8 @@ import { Badge, statusVariant } from "@/components/ui/badge";
 import { KeyValue, Muted, ErrorText } from "@/components/JsonView";
 import { fmtTime, clip } from "@/lib/utils";
 import { money } from "@/lib/format";
-import { deriveDetail, num, type ToolCall } from "@/lib/rundetail";
-import type { AgentEvent } from "@/lib/events";
+import { deriveDetail, num, mergeEvents, type ToolCall } from "@/lib/rundetail";
+import { useEvents, type AgentEvent } from "@/lib/events";
 
 interface Run {
   correlation_id?: string;
@@ -98,25 +98,40 @@ function RunDetailCards({ arc, run }: { arc: AgentEvent[]; run: Run }) {
 }
 
 function RunRow({ run }: { run: Run }) {
+  const { subscribe } = useEvents();
   const [open, setOpen] = useState(false);
   const [arc, setArc] = useState<AgentEvent[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [rawOpen, setRawOpen] = useState(false);
+  const fetched = useRef(false);
 
-  async function toggle() {
-    const next = !open;
-    setOpen(next);
-    if (next && !arc && run.correlation_id) {
-      try {
-        const dat = await getJSON<{ events?: AgentEvent[] }>("/api/journal", {
-          correlation_id: run.correlation_id,
-          limit: "500",
-        });
-        setArc(dat.events || []);
-      } catch (e) {
-        setErr((e as Error).message);
-      }
-    }
+  // Fetch the journaled snapshot once, the first time the row is opened. Merge
+  // (not overwrite) so any live events that arrived before the fetch resolved
+  // are kept.
+  useEffect(() => {
+    if (!open || fetched.current || !run.correlation_id) return;
+    fetched.current = true;
+    getJSON<{ events?: AgentEvent[] }>("/api/journal", {
+      correlation_id: run.correlation_id,
+      limit: "500",
+    })
+      .then((dat) => setArc((prev) => mergeEvents(prev || [], dat.events || [])))
+      .catch((e) => setErr((e as Error).message));
+  }, [open, run.correlation_id]);
+
+  // While open, fold the live journal stream into this run's arc so the cards
+  // (status, tool calls, tokens) update as the agent works — the same live
+  // pattern Flow Studio uses for node recolour.
+  useEffect(() => {
+    if (!open || !run.correlation_id) return;
+    return subscribe((e: AgentEvent) => {
+      if (e.correlation_id !== run.correlation_id) return;
+      setArc((prev) => mergeEvents(prev || [], [e]));
+    });
+  }, [open, run.correlation_id, subscribe]);
+
+  function toggle() {
+    setOpen((v) => !v);
   }
 
   return (

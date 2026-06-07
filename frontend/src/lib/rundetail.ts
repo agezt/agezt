@@ -33,6 +33,24 @@ export function num(v: unknown): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+// mergeEvents unions two event lists, de-duplicating by journal seq (falling
+// back to event id). Used to fold live SSE events into a run's fetched snapshot
+// without double-counting an event delivered by both paths. Order is not
+// guaranteed; deriveDetail and the raw-event view sort by seq themselves.
+export function mergeEvents(a: AgentEvent[], b: AgentEvent[]): AgentEvent[] {
+  const seen = new Set<string>();
+  const out: AgentEvent[] = [];
+  for (const e of [...a, ...b]) {
+    const key = e.seq != null ? "s" + e.seq : e.id != null ? "i" + e.id : "";
+    if (key) {
+      if (seen.has(key)) continue;
+      seen.add(key);
+    }
+    out.push(e);
+  }
+  return out;
+}
+
 // deriveDetail folds a run's journaled event arc into a RunDetail. Pure (no
 // React), so it is unit-tested directly. Events are processed oldest→newest by
 // seq, so later events (e.g. tool.result) win over earlier (tool.invoked), and
