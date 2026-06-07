@@ -1,6 +1,11 @@
 @import "tailwindcss";
 @import "@xyflow/react/dist/style.css";
 
+/* Keep test files out of the production CSS scan: Tailwind v4 auto-detects every
+   source file, so class strings that appear only in *.test.tsx assertions must
+   not leak into (or churn) the shipped bundle. */
+@source not "./**/*.test.{ts,tsx}";
+
 /* Class-based dark mode: `.dark` on <html> toggles the palette. */
 @custom-variant dark (&:is(.dark *));
 

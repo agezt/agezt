@@ -12,6 +12,15 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **The Web UI test suite now includes component/DOM tests.** Building on the
+  Vitest logic suite, `@testing-library/react` + `jsdom` cover the presentational
+  components (`Badge`/`statusVariant`, `JsonView`/`KeyValue`/`Muted`/`ErrorText`)
+  — they render to a real DOM and assert output (6 tests; 28 total). Component
+  tests opt into jsdom per-file (`// @vitest-environment jsdom`) so the pure-logic
+  tests stay on the fast node environment. Test files are excluded from Tailwind's
+  content scan (`@source not "*.test.{ts,tsx}"`) so class strings used only in
+  assertions never leak into the shipped CSS — the committed `dist` is unchanged.
+  Dev-only; zero Go modules, zero runtime deps. (M581)
 - **The Web UI's Runs view now updates expanded runs live.** An expanded run
   subscribes to the journal SSE stream and folds matching events into its arc, so
   the detail cards (status, tool calls, iterations, tokens) update as the agent
