@@ -11,6 +11,21 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 
 ## [Unreleased]
 
+### Added
+- **SMS is now a messaging channel** (Twilio Programmable Messaging) — the seventh
+  channel. `plugins/channels/sms` serves an inbound Twilio webhook and authenticates
+  every request with the `X-Twilio-Signature` header (base64 HMAC-SHA1 over the
+  request URL + sorted POST params, keyed by the account auth token; empty token
+  fails closed, so no unsigned inbound). An allowlisted sender number drives the
+  agent and the reply comes back synchronously as TwiML
+  (`<Response><Message>…</Message></Response>`); a retried `MessageSid` is de-duped.
+  Proactive messages (Pulse briefs, `agt send`) go out via the Twilio Messages REST
+  API (Basic auth, `channel.SplitText` for long bodies). `net/http` + stdlib crypto
+  only — no Twilio SDK, no new dependency. Wired as `buildSMS`
+  (`AGEZT_SMS_ACCOUNT_SID` + `AGEZT_SMS_AUTH_TOKEN`, inbound on `AGEZT_SMS_ADDR`,
+  outbound from `AGEZT_SMS_FROM`, allowlist `AGEZT_SMS_NUMBERS`) and surfaced via
+  `agt status` + the config snapshot. (M569)
+
 ### Fixed
 - **Pulse stops promptly on context cancel.** The heartbeat loop's `select` raced
   `ctx.Done()` against the ticker: when both were ready, Go's uniform-random

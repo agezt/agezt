@@ -70,6 +70,7 @@ import (
 	"github.com/agezt/agezt/plugins/channels/email"
 	"github.com/agezt/agezt/plugins/channels/matrix"
 	"github.com/agezt/agezt/plugins/channels/slack"
+	"github.com/agezt/agezt/plugins/channels/sms"
 	"github.com/agezt/agezt/plugins/channels/telegram"
 	webhookchan "github.com/agezt/agezt/plugins/channels/webhook"
 	"github.com/agezt/agezt/plugins/providers/anthropic"
@@ -799,11 +800,23 @@ func runDaemon(stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "  matrix channel   : disabled (set AGEZT_MATRIX_HOMESERVER + AGEZT_MATRIX_TOKEN)\n")
 	}
 
+	// SMS channel (SPEC-04 §1) — duplex over Twilio Programmable Messaging when
+	// AGEZT_SMS_ACCOUNT_SID + AGEZT_SMS_AUTH_TOKEN are set. Inbound is a signed
+	// Twilio webhook (needs AGEZT_SMS_ADDR); outbound texts go via the REST API
+	// (needs AGEZT_SMS_FROM); briefs tee to the allowlisted numbers.
+	smChan, smSink, smDesc := buildSMS(ctx, k)
+	if smChan != nil {
+		go smChan.Start(ctx)
+		fmt.Fprintf(stdout, "  sms channel      : %s\n", smDesc)
+	} else {
+		fmt.Fprintf(stdout, "  sms channel      : disabled (set AGEZT_SMS_ACCOUNT_SID + AGEZT_SMS_AUTH_TOKEN)\n")
+	}
+
 	// Pulse — the proactive heart (SPEC-03). On by default; the resident
 	// engine runs on the daemon ctx so `agt halt`/SIGTERM/`agt shutdown`
 	// stop it with everything else. AGEZT_PULSE=off disables it. When a channel
 	// is configured, briefs tee to it (closes the Jarvis loop).
-	if eng, pulseDesc := buildPulse(k, ward, model, stdout, combineSinks(tgSink, slSink, dcSink, whSink, emSink, mxSink)); eng != nil {
+	if eng, pulseDesc := buildPulse(k, ward, model, stdout, combineSinks(tgSink, slSink, dcSink, whSink, emSink, mxSink, smSink)); eng != nil {
 		eng.Start(ctx)
 		srv.SetPulse(eng)
 		fmt.Fprintf(stdout, "  pulse            : %s\n", pulseDesc)
@@ -919,6 +932,9 @@ func runDaemon(stdout, stderr io.Writer) int {
 	}
 	if mxChan != nil {
 		liveChannels["matrix"] = mxChan
+	}
+	if smChan != nil {
+		liveChannels["sms"] = smChan
 	}
 	channelSend := func(sctx context.Context, kind, id, text string) error {
 		ch, ok := liveChannels[kind]
@@ -1468,6 +1484,68 @@ func buildMatrix(ctx context.Context, k *kernelruntime.Kernel) (*matrix.Channel,
 	return ch, sink, desc
 }
 
+// buildSMS constructs the Twilio SMS channel when AGEZT_SMS_ACCOUNT_SID +
+// AGEZT_SMS_AUTH_TOKEN are set. Inbound (signed Twilio webhook) is served when
+// AGEZT_SMS_ADDR is also set; outbound texts + Pulse briefs to the allowlisted
+// numbers (AGEZT_SMS_NUMBERS) need AGEZT_SMS_FROM.
+//
+//	AGEZT_SMS_ACCOUNT_SID  Twilio Account SID  (required)
+//	AGEZT_SMS_AUTH_TOKEN   Twilio auth token   (required; signs inbound + REST)
+//	AGEZT_SMS_FROM         Twilio number to send from, E.164 (outbound)
+//	AGEZT_SMS_ADDR         host:port for the inbound webhook (inbound)
+//	AGEZT_SMS_PATH         inbound route (default /sms)
+//	AGEZT_SMS_PUBLIC_URL   exact public URL Twilio POSTs to (signature check behind a tunnel)
+//	AGEZT_SMS_NUMBERS      comma-separated allowlist of sender numbers
+func buildSMS(ctx context.Context, k *kernelruntime.Kernel) (*sms.Channel, pulse.BriefSink, string) {
+	sid := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "SMS_ACCOUNT_SID"))
+	token := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "SMS_AUTH_TOKEN"))
+	if sid == "" || token == "" {
+		return nil, nil, ""
+	}
+	from := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "SMS_FROM"))
+	addr := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "SMS_ADDR"))
+	path := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "SMS_PATH"))
+	publicURL := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "SMS_PUBLIC_URL"))
+	numbers := splitNonEmpty(os.Getenv(brand.EnvPrefix + "SMS_NUMBERS"))
+
+	ch := sms.New(sms.Config{
+		Addr:       addr,
+		Path:       path,
+		AccountSID: sid,
+		AuthToken:  token,
+		From:       from,
+		PublicURL:  publicURL,
+		Allowlist:  channel.NewAllowlist(numbers),
+		Bus:        k.Bus(),
+		Handler:    makeChannelHandler(k),
+	})
+
+	// Pulse briefs → the allowlisted numbers (needs an outbound From).
+	var sink pulse.BriefSink
+	if from != "" && len(numbers) > 0 {
+		sink = pulse.SinkFunc(func(b pulse.Brief) error {
+			var firstErr error
+			for _, id := range numbers {
+				if err := ch.Send(ctx, channel.Outbound{ChannelID: id, Text: formatBrief(b), Priority: channel.PriorityNotify}); err != nil && firstErr == nil {
+					firstErr = err
+				}
+			}
+			return firstErr
+		})
+	}
+
+	switch {
+	case addr == "":
+		return ch, sink, fmt.Sprintf("outbound-only (set AGEZT_SMS_ADDR for inbound), allowlist=%d number(s)", len(numbers))
+	default:
+		p := path
+		if p == "" {
+			p = sms.DefaultPath
+		}
+		return ch, sink, fmt.Sprintf("inbound at %s%s, allowlist=%d number(s)", addr, p, len(numbers))
+	}
+}
+
 // collectChannels reports the configured messaging channels for `agt status`
 // (M141), read-only from the same env the buildX functions consume. A channel is
 // listed when its token is set; Inbound reflects whether it can actually receive
@@ -1525,6 +1603,15 @@ func collectChannels() []controlplane.ChannelInfo {
 			Inbound:   true, // long-polls /sync whenever configured
 			Addr:      env("MATRIX_HOMESERVER"),
 			Allowlist: len(splitNonEmpty(os.Getenv(brand.EnvPrefix + "MATRIX_ROOMS"))),
+		})
+	}
+	if env("SMS_ACCOUNT_SID") != "" && env("SMS_AUTH_TOKEN") != "" {
+		addr := env("SMS_ADDR")
+		out = append(out, controlplane.ChannelInfo{
+			Kind:      "sms",
+			Inbound:   addr != "", // inbound webhook served when an addr is set
+			Addr:      addr,
+			Allowlist: len(splitNonEmpty(os.Getenv(brand.EnvPrefix + "SMS_NUMBERS"))),
 		})
 	}
 	return out
