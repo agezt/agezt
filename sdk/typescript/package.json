@@ -1,0 +1,27 @@
+{
+  "name": "@agezt/sdk",
+  "version": "1.0.0",
+  "description": "Official TypeScript/JavaScript client for the Agezt agentic OS REST API (/api/v1).",
+  "license": "MIT",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": ["dist", "README.md"],
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "tsc -p tsconfig.json && node --test dist/test/client.test.js"
+  },
+  "keywords": ["agezt", "agent", "llm", "ai", "automation", "sdk"],
+  "repository": { "type": "git", "url": "https://github.com/agezt/agezt", "directory": "sdk/typescript" },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.7.2"
+  }
+}

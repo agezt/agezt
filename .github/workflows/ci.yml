@@ -129,6 +129,24 @@ jobs:
           cd sdk/python
           python -m unittest discover -s tests
 
+  typescript-sdk:
+    name: typescript-sdk
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: sdk/typescript/package-lock.json
+      # Only devDep is TypeScript; the SDK itself has zero runtime deps. `npm test`
+      # type-checks + compiles (tsc) then runs the node:test suite.
+      - name: Test the TypeScript SDK
+        run: |
+          cd sdk/typescript
+          npm ci
+          npm test
+
   multi-arch:
     name: cross-build (${{ matrix.goos }}/${{ matrix.goarch }})
     runs-on: ubuntu-latest

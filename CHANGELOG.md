@@ -12,6 +12,15 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Official TypeScript SDK** (`sdk/typescript`, `@agezt/sdk`). A
+  zero-runtime-dependency client for the daemon's REST API (`/api/v1`) built on the
+  platform `fetch` (Node 18+ and browsers): `new Client(baseUrl, token, {timeoutMs,
+  tenant})` with `health()`, `models()`, `run()`, `runStream()` (an
+  `AsyncGenerator` over Server-Sent Events → `start`/`token`/`done`/`error`), and
+  `getRun()`; bearer-token auth; non-2xx throws `APIError`. The only dev dependency
+  is TypeScript; tests use the Node built-in runner (`node:test`) against a
+  `node:http` mock — no third-party test framework. Completes the TS half of
+  decision A4's SDK set. (M572)
 - **Official Python SDK** (`sdk/python`, `pip install agezt`). A standard-library-only
   client for the daemon's REST API (`/api/v1`) — `Client(base_url, token)` with
   `health()`, `models()`, `run()` (blocking), `run_stream()` (Server-Sent Events →
