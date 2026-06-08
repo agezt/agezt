@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 import { money } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Markdown } from "@/components/Markdown";
 import {
   streamRun,
   foldChatFrame,
@@ -225,12 +226,18 @@ function AssistantBubble({ turn }: { turn: ChatTurn }) {
             <Loader2 className="size-4 animate-spin" /> thinking…
           </div>
         ) : (
-          text && (
+          text &&
+          // While streaming, render plain text (an unclosed code fence would
+          // otherwise swallow the rest mid-stream); once the answer is final,
+          // render it as Markdown.
+          (streaming ? (
             <div className="text-sm leading-relaxed text-foreground whitespace-pre-wrap break-words">
               {text}
-              {streaming && <span className="ml-0.5 inline-block h-4 w-1.5 animate-pulse bg-accent align-text-bottom" />}
+              <span className="ml-0.5 inline-block h-4 w-1.5 animate-pulse bg-accent align-text-bottom" />
             </div>
-          )
+          ) : (
+            <Markdown source={text} className="text-sm text-foreground" />
+          ))
         )}
 
         {turn.status === "error" && (

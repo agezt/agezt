@@ -12,6 +12,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Markdown rendering in Chat** — finished agent answers now render as Markdown
+  (fenced code blocks, inline code, bold/italic, bullet & numbered lists,
+  headings) instead of flat pre-wrapped text, so code and structure are legible.
+  A tiny, dependency-free, unit-tested parser (`lib/markdown.ts`) emits an AST
+  that a React component renders as plain escaped elements — no raw-HTML path, so
+  it's XSS-safe under the strict CSP. Streaming text stays plain until the answer
+  is final (an unclosed code fence can't swallow mid-stream output).
 - **Activity live monitor** — a Web UI view answering "is anything running right
   now, and what is it doing?". Seeds the in-flight runs from `/api/runs`, then
   folds the event firehose so each run's current step ("calling shell",
