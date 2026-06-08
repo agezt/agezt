@@ -313,6 +313,7 @@ type Kernel struct {
 	halted bool
 	runs   map[string]context.CancelFunc // correlation_id → cancel
 	fanout map[string]int                // spawning correlation_id → sub-agents spawned (M46 fan-out bound)
+	steers map[string]*runControl        // correlation_id → live-steering control surface (M608)
 
 	startTime time.Time // wall-clock at Open() — powers `agt status` uptime
 }
@@ -482,6 +483,7 @@ func Open(cfg Config) (*Kernel, error) {
 		tools:        effTools,
 		runs:         make(map[string]context.CancelFunc),
 		fanout:       make(map[string]int),
+		steers:       make(map[string]*runControl),
 		startTime:    time.Now(),
 	}
 	if subTool != nil {
@@ -1218,12 +1220,18 @@ func (k *Kernel) RunWith(ctx context.Context, corr, intent string) (string, erro
 		runCtx, cancel = context.WithCancel(ctx)
 	}
 	k.runs[corr] = cancel
+	// Live-steering control surface (M608): registered for the run's whole
+	// lifetime so an operator can pause/step/inject from another goroutine. Wired
+	// into the agent loop via LoopConfig.Steer below.
+	rc := newRunControl()
+	k.steers[corr] = rc
 	k.mu.Unlock()
 
 	defer func() {
 		k.mu.Lock()
 		delete(k.runs, corr)
 		delete(k.fanout, corr) // release this run's fan-out tally (M46)
+		delete(k.steers, corr) // release the steering control (M608)
 		k.mu.Unlock()
 		cancel()
 	}()
@@ -1352,7 +1360,18 @@ func (k *Kernel) RunWith(ctx context.Context, corr, intent string) (string, erro
 		ContextBudget:        ctxBudget,                 // M393/M394: context budgeting (SPEC-10 §3)
 		ContextProtectFirst:  k.cfg.ContextProtectFirst, // M395: shield the earliest grounding
 		SummarizeElided:      summarizeElided,           // M398: abstractive summary of dropped outputs
+		Steer:                rc,                        // M608: live operator steering
 	}, intent)
+
+	// Deregister the steering control the instant the agent loop returns — BEFORE
+	// the post-run work below (skill-outcome attribution, memory distillation,
+	// which itself makes an LLM call). The outer defer also deletes it, but that
+	// runs only after all post-processing; without this an operator pausing/
+	// steering in that window would get a false success against a loop that has
+	// already finished and will never Drain again (M608). delete is idempotent.
+	k.mu.Lock()
+	delete(k.steers, corr)
+	k.mu.Unlock()
 
 	// Attribute the run's outcome to the skills it activated, so an active skill
 	// that repeatedly fails in production is auto-quarantined (SPEC-05 §5). This

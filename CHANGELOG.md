@@ -12,6 +12,22 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Live run steering — fly a running agent from the cockpit.** You can now grab
+  the controls of an in-flight agent without cancelling it: **pause** it at the
+  next iteration boundary, **single-step** one iteration at a time, **resume**,
+  or **inject a directive** that the agent folds into its very next prompt and
+  acts on. The agent loop consults a per-run control surface at each iteration
+  boundary (so a pause lands at a safe point — the in-flight model call and tool
+  results settle first), and a paused run still honours halt/cancel/timeout, so
+  steering never makes a run un-killable. Drive it from the **Web UI** (a "Steer
+  this run" panel in the Activity drill-in, with Pause/Step/Resume and a directive
+  box) or the **CLI** (`agt runs pause|resume|step|steer <correlation> [text]`).
+  Every action is journaled (`run.paused` / `run.resumed` / `run.stepped`, and
+  `run.steered` when the directive takes effect) so the run's timeline shows
+  exactly when and how an operator intervened. Tenant tokens may steer their own
+  runs (same posture as cancel). Verified end-to-end against a live reasoning
+  model: a paused agent, redirected mid-run, abandoned its original plan and
+  carried out the injected instruction.
 - **Adjust the daily spend ceiling at runtime — from the CLI or the Web UI.** The
   global budget cap was fixed at daemon start (`AGEZT_DAILY_CEILING`); changing it
   meant a restart. The governor now takes a runtime override

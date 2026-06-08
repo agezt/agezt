@@ -618,6 +618,54 @@ func TestBudgetSetForwardsCeiling(t *testing.T) {
 	}
 }
 
+// Live steering (M608): POST /api/run/steer forwards the allowlisted
+// correlation + directive and drops anything else.
+func TestRunSteerForwardsArgs(t *testing.T) {
+	fc := &fakeCaller{result: map[string]any{"correlation": "run-7", "accepted": true}}
+	s, _ := newServer(t, fc, "secret")
+	req := httptest.NewRequest(http.MethodPost,
+		"/api/run/steer?token=secret&correlation=run-7&directive=focus+on+X&evil=1", nil)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d want 200", rec.Code)
+	}
+	if len(fc.calls) != 1 || fc.calls[0] != "run_steer" {
+		t.Fatalf("expected one CmdRunSteer call, got %v", fc.calls)
+	}
+	if fc.lastArgs["correlation"] != "run-7" || fc.lastArgs["directive"] != "focus on X" {
+		t.Errorf("args not forwarded: %v", fc.lastArgs)
+	}
+	if _, leaked := fc.lastArgs["evil"]; leaked {
+		t.Error("non-allowlisted arg leaked into the steer call")
+	}
+}
+
+// The pause/resume/step routes each forward only the correlation and map to the
+// right command.
+func TestRunControlRoutesMapToCommands(t *testing.T) {
+	for _, tc := range []struct{ path, cmd string }{
+		{"/api/run/pause", "run_pause"},
+		{"/api/run/resume", "run_resume"},
+		{"/api/run/step", "run_step"},
+	} {
+		fc := &fakeCaller{result: map[string]any{"ok": true}}
+		s, _ := newServer(t, fc, "secret")
+		req := httptest.NewRequest(http.MethodPost, tc.path+"?token=secret&correlation=run-3", nil)
+		rec := httptest.NewRecorder()
+		s.Handler().ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Errorf("%s status = %d want 200", tc.path, rec.Code)
+		}
+		if len(fc.calls) != 1 || fc.calls[0] != tc.cmd {
+			t.Errorf("%s issued %v want [%s]", tc.path, fc.calls, tc.cmd)
+		}
+		if fc.lastArgs["correlation"] != "run-3" {
+			t.Errorf("%s did not forward correlation: %v", tc.path, fc.lastArgs)
+		}
+	}
+}
+
 // Cancel is a mutation — GET must be refused so a prefetch/crawler can't cancel
 // a run.
 func TestCancelRunRejectsGet(t *testing.T) {

@@ -99,6 +99,16 @@ const (
 	// prev_ceiling_mc, spent_today_mc}. Distinct from budget.exceeded (the cap
 	// tripping) — this is the cap itself being moved.
 	KindBudgetCeilingSet Kind = "budget.ceiling_set"
+	// Live run steering (M608) — the operator "flies" a running agent from the
+	// cockpit. KindRunPaused/Resumed/Stepped record the control actions (emitted
+	// by the kernel the instant the operator acts); KindRunSteered records the
+	// loop actually folding an injected directive into the next prompt (emitted
+	// by the agent loop at the iteration boundary where it takes effect).
+	// Payloads carry {correlation_id} and, for steered, {directive, iter}.
+	KindRunPaused  Kind = "run.paused"
+	KindRunResumed Kind = "run.resumed"
+	KindRunStepped Kind = "run.stepped"
+	KindRunSteered Kind = "run.steered"
 	// KindPolicyCompacted records that the durable policy overlay was compacted to
 	// a snapshot (M176). Its payload {through_seq, content_hash} binds the on-disk
 	// snapshot to the tamper-evident journal: at boot the snapshot is trusted only
@@ -280,6 +290,10 @@ var knownKinds = map[Kind]struct{}{
 	KindBudgetCapInert:            {},
 	KindBudgetUnpriced:            {},
 	KindBudgetCeilingSet:          {},
+	KindRunPaused:                 {},
+	KindRunResumed:                {},
+	KindRunStepped:                {},
+	KindRunSteered:                {},
 	KindPolicyCompacted:           {},
 	KindNetguardBlocked:           {},
 	KindCapabilityRejected:        {},

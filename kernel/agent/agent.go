@@ -261,6 +261,32 @@ type LoopConfig struct {
 	// falls back to the head snippet. nil (the default) keeps the head-snippet
 	// behaviour with zero extra provider calls. (M398, SPEC-10 §3)
 	SummarizeElided func(ctx context.Context, toolOutput string) (string, error)
+
+	// Steer, when non-nil, is the per-run live-steering control surface (M608).
+	// At the top of each iteration the loop calls Steer.Wait (blocking while the
+	// operator has paused the run) and then folds any operator-injected
+	// directives from Steer.Drain into the conversation as fresh user turns — so
+	// an operator can redirect or pause/step a running agent from the cockpit
+	// without cancelling it. nil (the default) disables steering with zero
+	// overhead. Implementations must be safe for concurrent use: the operator
+	// drives them from another goroutine while the loop runs.
+	Steer Steerer
+}
+
+// Steerer is the optional per-run control surface the loop consults at the top
+// of every iteration (M608). It lets an operator fly a running agent — inject
+// guidance, pause, single-step, resume — without cancelling it. The kernel
+// supplies the live implementation (kernel/runtime); tests can supply a fake.
+type Steerer interface {
+	// Wait blocks while the run is paused and returns when it is resumed,
+	// single-stepped, or ctx is done. It returns ctx.Err() if the context ends
+	// while waiting (so a paused run still honours halt/cancel/timeout), and nil
+	// otherwise. When the run is not paused it returns immediately.
+	Wait(ctx context.Context) error
+	// Drain returns and clears any directives the operator has injected since the
+	// last call, in submission order. The loop appends each as a user turn before
+	// the next model call. Returns nil when none are pending.
+	Drain() []string
 }
 
 // DefaultContextProtectLast is how many trailing messages context compaction
@@ -461,6 +487,11 @@ const DefaultMaxIdenticalToolCalls = 5
 // ErrMaxIter is returned by Run when MaxIter rounds elapse without a final
 // assistant message.
 var ErrMaxIter = errors.New("agent: max iterations exceeded")
+
+// steeringPrefix labels an operator-injected directive (M608) so the model
+// understands the new user turn is live guidance from the human operator, not a
+// continuation of the original task — letting it re-prioritise accordingly.
+const steeringPrefix = "[operator steering] "
 
 // ErrPanic wraps a panic recovered by Run's panic firewall (M168). It lets the
 // run fail cleanly (journaled task.failed, reason=panic) instead of crashing the
@@ -671,6 +702,27 @@ func Run(ctx context.Context, cfg LoopConfig, userIntent string) (answer string,
 	for iter := range cfg.MaxIter {
 		if err := ctx.Err(); err != nil {
 			return "", err
+		}
+
+		// Live steering (M608): honour an operator pause at this safe boundary
+		// (the in-flight call + tool results of the previous iteration are already
+		// settled), then fold any injected directives into the conversation as
+		// fresh user turns so the model acts on them next. Wait returns ctx.Err()
+		// if the run is cancelled/halted/timed-out while paused, so steering never
+		// makes a run un-killable. nil Steer skips this entirely.
+		if cfg.Steer != nil {
+			if err := cfg.Steer.Wait(ctx); err != nil {
+				return "", err
+			}
+			for _, d := range cfg.Steer.Drain() {
+				messages = append(messages, Message{Role: RoleUser, Content: steeringPrefix + d})
+				if _, err := publish(event.KindRunSteered, "steer", map[string]any{
+					"iter":      iter,
+					"directive": d,
+				}); err != nil {
+					return "", fmt.Errorf("agent: publish run.steered: %w", err)
+				}
+			}
 		}
 
 		// Context budgeting (SPEC-10 §3): before measuring/sending, trim the
