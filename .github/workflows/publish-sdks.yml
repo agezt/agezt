@@ -1,0 +1,100 @@
+# SPDX-License-Identifier: MIT
+# Publish the official client SDKs (Python → PyPI, TypeScript → npm, Rust →
+# crates.io). Each job ALWAYS builds + dry-run-packages its SDK (so the workflow
+# validates packaging even before any secret exists); it PUBLISHES only when its
+# registry token secret is present, and skips cleanly otherwise.
+#
+# To enable publishing, add these repository secrets:
+#   PYPI_API_TOKEN          a PyPI API token (https://pypi.org/manage/account/token/)
+#   NPM_TOKEN               an npm automation token (https://www.npmjs.com/settings/.../tokens)
+#   CARGO_REGISTRY_TOKEN    a crates.io API token (https://crates.io/settings/tokens)
+#
+# Then either publish a GitHub release (this runs automatically) or trigger it
+# manually from the Actions tab (workflow_dispatch). Registries reject a duplicate
+# version, so re-running after a successful publish fails safely.
+
+name: Publish SDKs
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  pypi:
+    name: python → PyPI
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Build sdist + wheel (dry-run validates packaging)
+        run: |
+          cd sdk/python
+          python -m pip install --upgrade build twine
+          python -m build
+          python -m twine check dist/*
+      - name: Publish to PyPI (only if the token is set)
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+        run: |
+          cd sdk/python
+          if [ -z "$TWINE_PASSWORD" ]; then
+            echo "PYPI_API_TOKEN not set — built + checked only, skipping publish."
+            exit 0
+          fi
+          python -m twine upload --non-interactive dist/*
+
+  npm:
+    name: typescript → npm
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          registry-url: 'https://registry.npmjs.org'
+          cache: npm
+          cache-dependency-path: sdk/typescript/package-lock.json
+      - name: Build + pack (dry-run validates packaging)
+        run: |
+          cd sdk/typescript
+          npm ci
+          npm run build
+          npm pack --dry-run
+      - name: Publish to npm (only if the token is set)
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          cd sdk/typescript
+          if [ -z "$NODE_AUTH_TOKEN" ]; then
+            echo "NPM_TOKEN not set — built + packed only, skipping publish."
+            exit 0
+          fi
+          npm publish --access public
+
+  crates:
+    name: rust → crates.io
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Package (dry-run validates packaging)
+        run: |
+          cd sdk/rust
+          cargo package
+      - name: Publish to crates.io (only if the token is set)
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: |
+          cd sdk/rust
+          if [ -z "$CARGO_REGISTRY_TOKEN" ]; then
+            echo "CARGO_REGISTRY_TOKEN not set — packaged only, skipping publish."
+            exit 0
+          fi
+          cargo publish
