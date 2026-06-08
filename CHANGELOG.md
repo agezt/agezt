@@ -12,6 +12,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **⌘K command palette — reach everything instantly.** Press ⌘K / Ctrl+K (or the
+  header button) anywhere to fuzzy-search every view and quick action, navigate
+  with the keyboard (↑/↓, Enter, Esc), and jump straight there. Results are
+  grouped (Go to / Action) and fuzzy-ranked (label-substring beats subsequence).
+  Actions include Halt / Resume / Toggle theme. With 24 views, this is the fast
+  path to all of them. (M617)
 - **Live Stream — a colour-coded, filterable event console.** The Event Feed is
   now the daemon's full nervous system, observable: every journal event is
   categorised (task / llm / tool / policy / budget / steer / provider / context /
