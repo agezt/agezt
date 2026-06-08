@@ -73,7 +73,7 @@ const NAV: NavItem[] = [
   { id: "runs", label: "Runs", icon: ListTree, render: Runs },
   { id: "system", label: "System", icon: Settings, render: Status },
   { id: "budget", label: "Budget", icon: Wallet, render: Budget },
-  { id: "feed", label: "Event Feed", icon: Radio, render: EventFeed },
+  { id: "feed", label: "Live Stream", icon: Radio, render: EventFeed },
   { id: "config", label: "Config", icon: Settings, render: Config },
   { id: "cache", label: "Cache", icon: Database, render: Cache },
   { id: "providers", label: "Providers", icon: Cpu, render: Providers },

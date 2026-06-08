@@ -12,6 +12,14 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Live Stream — a colour-coded, filterable event console.** The Event Feed is
+  now the daemon's full nervous system, observable: every journal event is
+  categorised (task / llm / tool / policy / budget / steer / provider / context /
+  knowledge / system) with a fixed hue, shown in a dense terminal-style stream.
+  Toggle categories on/off (each chip shows a live count), free-text search across
+  kind/subject/actor/correlation, click a correlation to filter to one run, pause
+  to freeze the view while reading, and click any row to expand its full payload
+  as a structured key/value table. Failure/denial kinds are highlighted. (M616)
 - **Agents — a live multi-agent delegation graph.** A new view visualises a run
   and its sub-agent fan-out as an interactive node graph (React Flow): the lead
   agent at the top, each delegated sub-agent below it, connected by animated
