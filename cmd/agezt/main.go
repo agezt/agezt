@@ -3025,6 +3025,20 @@ func buildPulse(k *kernelruntime.Kernel, ward warden.Engine, model string, stdou
 			}
 		}
 	}
+	// Self-health observer (M628): the daemon watches its OWN run/tool
+	// reliability and briefs the operator when its health transitions
+	// (healthy↔degraded↔critical) — proactive self-monitoring, not just the
+	// reactive Analyst. On by default (the whole point is to watch unprompted);
+	// AGEZT_PULSE_HEALTH=off disables it, =<float> overrides the tool-error-rate
+	// degrade threshold (default 0.30).
+	if hv := os.Getenv(brand.EnvPrefix + "PULSE_HEALTH"); !strings.EqualFold(hv, "off") {
+		degradeAt := 0.0 // observer falls back to its default
+		if f, err := strconv.ParseFloat(hv, 64); err == nil && f > 0 {
+			degradeAt = f
+		}
+		obs = append(obs, pulse.NewHealthObserver(healthStatFromJournal(k), degradeAt, 0))
+		parts = append(parts, "self:health")
+	}
 	useLLM := strings.EqualFold(os.Getenv(brand.EnvPrefix+"PULSE_LLM"), "on")
 
 	eng := pulse.New(pulse.Config{
@@ -3046,6 +3060,46 @@ func buildPulse(k *kernelruntime.Kernel, ward warden.Engine, model string, stdou
 		observers = strings.Join(parts, ",")
 	}
 	return eng, fmt.Sprintf("dial=%s cadence=%s observers=[%s]", dial, cadence, observers)
+}
+
+// healthStatFromJournal returns a pulse.HealthStatFunc that samples the
+// daemon's recent reliability from the tail of its own journal: tool.invoked /
+// tool.result(error) for tool reliability, and task.completed / task.failed for
+// run reliability. It reads only the last healthWindow events so the scan is
+// cheap and the assessment reflects RECENT behaviour, not all-time history.
+func healthStatFromJournal(k *kernelruntime.Kernel) pulse.HealthStatFunc {
+	const healthWindow = 2000
+	return func(context.Context) (pulse.HealthStat, error) {
+		j := k.Journal()
+		if j == nil {
+			return pulse.HealthStat{}, nil
+		}
+		evs, err := j.Tail(healthWindow)
+		if err != nil {
+			return pulse.HealthStat{}, err
+		}
+		var st pulse.HealthStat
+		for _, e := range evs {
+			switch e.Kind {
+			case event.KindToolInvoked:
+				st.ToolCalls++
+			case event.KindToolResult:
+				var p struct {
+					Error bool `json:"error"`
+				}
+				_ = json.Unmarshal(e.Payload, &p)
+				if p.Error {
+					st.ToolErrors++
+				}
+			case event.KindTaskCompleted:
+				st.Runs++
+			case event.KindTaskFailed:
+				st.Runs++
+				st.FailedRuns++
+			}
+		}
+		return st, nil
+	}
 }
 
 // buildGovernor constructs the routing layer: one primary provider
