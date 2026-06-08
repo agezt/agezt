@@ -33,6 +33,7 @@ var autonomyKinds = map[event.Kind]struct{ category, verb string }{
 	event.KindSkillQuarantined: {"skill", "a skill was quarantined"},
 	event.KindSkillReverted:    {"skill", "a skill change was reverted"},
 	event.KindBriefingSent:     {"pulse", "a briefing was sent"},
+	event.KindBoardPosted:      {"board", "an agent posted to the board"},
 }
 
 // handleAutonomyFeed serves CmdAutonomyFeed: a curated, newest-first timeline of
@@ -131,6 +132,13 @@ func autonomyDetail(e *event.Event) string {
 		}
 	case event.KindBriefingSent:
 		return str("subject")
+	case event.KindBoardPosted:
+		if topic := str("topic"); topic != "" {
+			if from := str("from"); from != "" {
+				return topic + " · from " + from
+			}
+			return topic
+		}
 	}
 	return ""
 }

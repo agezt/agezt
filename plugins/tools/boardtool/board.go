@@ -33,11 +33,19 @@ type boardStore interface {
 	Topics() map[string]int
 }
 
+// PostNotifier is called after a successful post so the host can journal a
+// board.posted event (M656) — the primitive that lets one agent's post wake
+// another agent (a standing order triggered on "board.<topic>"). Kept as a plain
+// closure so this plugin stays free of the kernel bus/event packages and is
+// trivially testable. corr is the posting run's correlation id (may be empty).
+type PostNotifier func(topic, from, text, corr string)
+
 // Tool implements agent.Tool. Created unbound via New(); Bind opens the store.
 type Tool struct {
-	mu    sync.RWMutex
-	store boardStore
-	now   func() int64
+	mu     sync.RWMutex
+	store  boardStore
+	now    func() int64
+	notify PostNotifier
 }
 
 // New returns an unbound board tool.
@@ -63,12 +71,21 @@ func (t *Tool) bindStore(b boardStore) {
 	t.mu.Unlock()
 }
 
-func (t *Tool) current() (boardStore, func() int64) {
+// OnPost registers a notifier invoked after each successful post (M656). The
+// daemon wires this to journal a board.posted event so standing orders can react
+// to board messages. Safe to leave unset (posts simply aren't journaled then).
+func (t *Tool) OnPost(fn PostNotifier) {
+	t.mu.Lock()
+	t.notify = fn
+	t.mu.Unlock()
+}
+
+func (t *Tool) current() (boardStore, func() int64, PostNotifier) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	now := t.now
 	if now == nil {
 		now = func() int64 { return time.Now().UnixMilli() }
 	}
-	return t.store, now
+	return t.store, now, t.notify
 }
