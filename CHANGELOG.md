@@ -12,6 +12,10 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Prompt-cache savings view.** The Cache view now leads with the dollars saved
+  by prompt caching, the priced-call count it covers, cache read/write token
+  tiles, and a read-vs-write token-split bar — so the cost benefit of caching is
+  legible at a glance. (M623)
 - **Skills library.** The Skills view is now a card library: each learned
   procedure shows its status (active / shadow / draft / quarantined, colour-coded),
   name, version, description, triggers, required tools, shadow/usage metrics and
