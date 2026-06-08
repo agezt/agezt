@@ -141,6 +141,151 @@ func TestSteerRun_PauseInjectResume(t *testing.T) {
 	}
 }
 
+// subDelegateSteerProvider drives a two-run conversation: the LEAD delegates
+// once; the CHILD loops on the tick tool until it sees an operator-steering
+// directive, then ends. Roles are told apart by the first user message — the
+// child's delegated task is prefixed CHILD-TASK.
+type subDelegateSteerProvider struct{}
+
+func (subDelegateSteerProvider) Name() string { return "sub-steer" }
+
+func (subDelegateSteerProvider) Complete(_ context.Context, req agent.CompletionRequest) (*agent.CompletionResponse, error) {
+	var firstUser string
+	for _, m := range req.Messages {
+		if m.Role == agent.RoleUser {
+			firstUser = m.Content
+			break
+		}
+	}
+	if strings.HasPrefix(strings.TrimSpace(firstUser), "CHILD-TASK") {
+		// Child path: end once steered, else keep ticking.
+		for _, m := range req.Messages {
+			if strings.Contains(m.Content, "[operator steering] finish now") {
+				return &agent.CompletionResponse{
+					Message:    agent.Message{Role: agent.RoleAssistant, Content: "child-steered-done"},
+					StopReason: agent.StopEndTurn,
+				}, nil
+			}
+		}
+		return &agent.CompletionResponse{
+			Message:    agent.Message{Role: agent.RoleAssistant, ToolCalls: []agent.ToolCall{{ID: "t", Name: "tick", Input: json.RawMessage(`{}`)}}},
+			StopReason: agent.StopToolUse,
+		}, nil
+	}
+	// Lead path: delegate once, then finish after the child's answer returns.
+	for _, m := range req.Messages {
+		if m.Role == agent.RoleTool {
+			return &agent.CompletionResponse{
+				Message:    agent.Message{Role: agent.RoleAssistant, Content: "lead-done"},
+				StopReason: agent.StopEndTurn,
+			}, nil
+		}
+	}
+	return &agent.CompletionResponse{
+		Message:    agent.Message{Role: agent.RoleAssistant, ToolCalls: []agent.ToolCall{{ID: "d", Name: "delegate", Input: json.RawMessage(`{"task":"CHILD-TASK loop until steered"}`)}}},
+		StopReason: agent.StopToolUse,
+	}, nil
+}
+
+// TestSteerRun_SubAgentIndividuallySteerable proves an INDIVIDUAL sub-agent
+// (not just the top-level lead) can be paused / steered / resumed from the
+// cockpit (M631): the steering control is registered under the child's own
+// correlation, so the per-run control API reaches into the delegation tree.
+func TestSteerRun_SubAgentIndividuallySteerable(t *testing.T) {
+	k, err := runtime.Open(runtime.Config{
+		BaseDir:          t.TempDir(),
+		Provider:         subDelegateSteerProvider{},
+		Tools:            map[string]agent.Tool{"tick": tickTool{}},
+		SubAgentTool:     true,
+		SubAgentMaxDepth: 1,
+		MaxIter:          500, // headroom so timing can't exhaust the child loop
+	})
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	t.Cleanup(func() { k.Close() })
+
+	col := &collector{}
+	col.watch(k)
+
+	leadCorr := k.NewCorrelation()
+	done := make(chan struct {
+		ans string
+		err error
+	}, 1)
+	go func() {
+		ans, e := k.RunWith(context.Background(), leadCorr, "lead-task: delegate then report")
+		done <- struct {
+			ans string
+			err error
+		}{ans, e}
+	}()
+
+	// Wait for the sub-agent to spawn and capture its correlation.
+	childCorr := ""
+	for deadline := time.Now().Add(3 * time.Second); time.Now().Before(deadline) && childCorr == ""; {
+		for _, e := range col.ofKind(event.KindSubAgentSpawned) {
+			var p struct {
+				Child string `json:"child_correlation"`
+			}
+			_ = json.Unmarshal(e.Payload, &p)
+			if p.Child != "" {
+				childCorr = p.Child
+			}
+		}
+		if childCorr == "" {
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
+	if childCorr == "" {
+		t.Fatal("sub-agent never spawned")
+	}
+	if childCorr == leadCorr {
+		t.Fatal("child correlation must differ from the lead")
+	}
+
+	// The SUB-AGENT — addressed by its own correlation — must be steerable.
+	if !k.PauseRun(childCorr) {
+		t.Fatal("PauseRun returned false for the live sub-agent (control not registered?)")
+	}
+	if paused, _, ok := k.RunControlState(childCorr); !ok || !paused {
+		t.Fatalf("sub-agent RunControlState = (paused=%v ok=%v), want paused & ok", paused, ok)
+	}
+	if !k.SteerRun(childCorr, "finish now") {
+		t.Fatal("SteerRun returned false for the live sub-agent")
+	}
+	if !k.ResumeRun(childCorr) {
+		t.Fatal("ResumeRun returned false for the paused sub-agent")
+	}
+
+	select {
+	case r := <-done:
+		if r.err != nil {
+			t.Fatalf("run errored: %v", r.err)
+		}
+		if r.ans != "lead-done" {
+			t.Errorf("answer = %q want lead-done", r.ans)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("steered sub-agent run did not finish")
+	}
+
+	// pause/steer/resume must be journaled under the CHILD correlation — proving
+	// the control surface (and its audit) is the sub-agent's, not the lead's.
+	kinds := map[event.Kind]bool{}
+	_ = k.Journal().Range(func(e *event.Event) error {
+		if e.CorrelationID == childCorr {
+			kinds[e.Kind] = true
+		}
+		return nil
+	})
+	for _, want := range []event.Kind{event.KindRunPaused, event.KindRunSteered, event.KindRunResumed} {
+		if !kinds[want] {
+			t.Errorf("missing %s event on the SUB-AGENT timeline", want)
+		}
+	}
+}
+
 // TestSteerRun_UnknownReturnsFalse: steering a non-existent run is a no-op
 // reporting false, never a panic.
 func TestSteerRun_UnknownReturnsFalse(t *testing.T) {

@@ -164,11 +164,23 @@ func (k *Kernel) runSubAgent(ctx context.Context, task string) (string, error) {
 	childCorr := k.NewCorrelation()
 	actor := "subagent-" + childCorr
 
-	// This child may itself delegate; release its own fan-out tally when it
-	// returns so the map doesn't accumulate across a long-lived kernel.
+	// Live-steering control surface for the sub-agent (M631): registered under
+	// the child's own correlation so an operator can pause / single-step / steer
+	// / resume an INDIVIDUAL sub-agent from the cockpit — reaching into the
+	// delegation tree, not just the top-level lead (M608 only wired RunWith).
+	// Wired into the child loop via LoopConfig.Steer below.
+	rc := newRunControl()
+	k.mu.Lock()
+	k.steers[childCorr] = rc
+	k.mu.Unlock()
+
+	// This child may itself delegate; release its own fan-out tally and steering
+	// control when it returns so the maps don't accumulate across a long-lived
+	// kernel.
 	defer func() {
 		k.mu.Lock()
 		delete(k.fanout, childCorr)
+		delete(k.steers, childCorr)
 		k.mu.Unlock()
 	}()
 
@@ -216,6 +228,7 @@ func (k *Kernel) runSubAgent(ctx context.Context, task string) (string, error) {
 		Actor:         actor,
 		CorrelationID: childCorr,
 		Policy:        k.policyHook,
+		Steer:         rc, // M631: individual sub-agent steering
 	}, task)
 	if err != nil {
 		return "", fmt.Errorf("sub-agent %s: %w", childCorr, err)
