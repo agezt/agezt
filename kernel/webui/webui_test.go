@@ -572,6 +572,45 @@ func TestHaltPOSTIssuesCommand(t *testing.T) {
 	}
 }
 
+// The Activity monitor's per-run Cancel button: POST /api/cancel_run forwards
+// the allowlisted correlation and nothing else.
+func TestCancelRunForwardsCorrelation(t *testing.T) {
+	fc := &fakeCaller{result: map[string]any{"correlation": "run-9", "cancelled": true}}
+	s, _ := newServer(t, fc, "secret")
+	req := httptest.NewRequest(http.MethodPost,
+		"/api/cancel_run?token=secret&correlation=run-9&evil=x", nil)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d want 200", rec.Code)
+	}
+	if len(fc.calls) != 1 || fc.calls[0] != "cancel_run" {
+		t.Fatalf("expected one CmdCancelRun call, got %v", fc.calls)
+	}
+	if fc.lastArgs["correlation"] != "run-9" {
+		t.Errorf("correlation not forwarded: %v", fc.lastArgs)
+	}
+	if _, leaked := fc.lastArgs["evil"]; leaked {
+		t.Error("non-allowlisted arg leaked into the cancel call")
+	}
+}
+
+// Cancel is a mutation — GET must be refused so a prefetch/crawler can't cancel
+// a run.
+func TestCancelRunRejectsGet(t *testing.T) {
+	fc := &fakeCaller{}
+	s, _ := newServer(t, fc, "secret")
+	req := httptest.NewRequest(http.MethodGet, "/api/cancel_run?token=secret&correlation=r1", nil)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("status = %d want 405", rec.Code)
+	}
+	if len(fc.calls) != 0 {
+		t.Errorf("a GET must not cancel a run, got %v", fc.calls)
+	}
+}
+
 func TestDecidePassesAllowlistedArgs(t *testing.T) {
 	fc := &fakeCaller{result: map[string]any{"ok": true}}
 	s, _ := newServer(t, fc, "secret")

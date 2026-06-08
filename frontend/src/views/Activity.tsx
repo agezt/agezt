@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
-import { Activity as ActivityIcon, RefreshCw, Cpu, CheckCircle2, XCircle, CornerDownRight } from "lucide-react";
+import { Activity as ActivityIcon, RefreshCw, Cpu, CheckCircle2, XCircle, CornerDownRight, Ban } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { money } from "@/lib/format";
-import { getJSON } from "@/lib/api";
+import { getJSON, postAction } from "@/lib/api";
 import { useEvents } from "@/lib/events";
 import { Button } from "@/components/ui/button";
 import {
@@ -23,6 +23,25 @@ export function Activity() {
   const [state, setState] = useState<ActivityState>({});
   const [now, setNow] = useState(() => Date.now());
   const [seeding, setSeeding] = useState(true);
+  const [cancelling, setCancelling] = useState<Record<string, boolean>>({});
+
+  // Cancel one in-flight run (the targeted alternative to the global Halt). The
+  // daemon emits task.failed(reason=canceled), which the firehose fold turns
+  // into a failed row — so we just fire the request and mark the button busy.
+  async function cancelRun(corr: string) {
+    setCancelling((c) => ({ ...c, [corr]: true }));
+    try {
+      await postAction("/api/cancel_run", { correlation: corr });
+    } catch (e) {
+      window.alert(`cancel failed: ${(e as Error).message}`);
+    } finally {
+      setCancelling((c) => {
+        const next = { ...c };
+        delete next[corr];
+        return next;
+      });
+    }
+  }
 
   async function seed() {
     setSeeding(true);
@@ -100,11 +119,11 @@ export function Activity() {
         <div className="space-y-2">
           {tree.map((node) => (
             <div key={node.run.corr} className="space-y-1.5">
-              <RunRow run={node.run} now={now} />
+              <RunRow run={node.run} now={now} onCancel={cancelRun} cancelling={!!cancelling[node.run.corr]} />
               {node.children.length > 0 && (
                 <div className="ml-4 space-y-1.5 border-l border-border pl-3">
                   {node.children.map((c) => (
-                    <RunRow key={c.corr} run={c} now={now} child />
+                    <RunRow key={c.corr} run={c} now={now} onCancel={cancelRun} cancelling={!!cancelling[c.corr]} child />
                   ))}
                 </div>
               )}
@@ -144,7 +163,19 @@ function Stat({
   );
 }
 
-function RunRow({ run, now, child }: { run: ActiveRun; now: number; child?: boolean }) {
+function RunRow({
+  run,
+  now,
+  child,
+  onCancel,
+  cancelling,
+}: {
+  run: ActiveRun;
+  now: number;
+  child?: boolean;
+  onCancel?: (corr: string) => void;
+  cancelling?: boolean;
+}) {
   const live = run.status === "running";
   const elapsed = (live ? now : run.endedMs || now) - (run.startedMs || now);
   return (
@@ -194,6 +225,16 @@ function RunRow({ run, now, child }: { run: ActiveRun; now: number; child?: bool
           )}
         </div>
       </div>
+      {live && onCancel && (
+        <button
+          onClick={() => onCancel(run.corr)}
+          disabled={cancelling}
+          title="Cancel this run"
+          className="mt-0.5 inline-flex shrink-0 items-center gap-1 rounded-md border border-border px-2 py-1 text-xs text-muted transition-colors hover:border-bad hover:text-bad disabled:opacity-50"
+        >
+          <Ban className="size-3.5" /> {cancelling ? "…" : "Cancel"}
+        </button>
+      )}
     </div>
   );
 }
