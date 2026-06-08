@@ -12,6 +12,19 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Capability catalog — what the agent can do, and under what policy.** A new
+  view shows the agent's full tool surface: every registered tool with its
+  description, the Edict **capability** that governs it (its primary axis —
+  `file.write`, `http.post`, `web.search`, …), the **current trust level**
+  (L0–L4, colour-coded, editable in Policy), and live usage (calls / errors /
+  unused). Until now the operator could only see tools *after* they were called
+  (the usage-based Tools view); the catalog makes the whole capability surface
+  observable up front. Backed by enriching the existing tool inventory
+  (`CmdToolList`) with each tool's capability (via `CapabilityForToolCall` with a
+  representative input) and exposing it as a read route (`/api/tools_catalog`),
+  joined client-side with the policy levels and usage stats. Verified live: all 9
+  tools rendered with correct capabilities, levels and usage, 0 console errors.
+  (M637)
 - **Alerts view — what the daemon flagged on its own.** A new view surfaces the
   daemon's PROACTIVE signals as a focused, severity-ranked feed — distinct from
   the raw event firehose: pulse observer deltas (the M628 self-health monitor's
