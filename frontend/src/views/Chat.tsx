@@ -14,6 +14,7 @@ import {
   Copy,
   Check,
   Brain,
+  Plus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { money } from "@/lib/format";
@@ -41,13 +42,36 @@ interface BotMsg {
 }
 type Msg = UserMsg | BotMsg;
 
+// The conversation is persisted to localStorage so a reload (or a daemon
+// restart, or closing the tab) doesn't lose your history. Bumped suffix if the
+// stored shape ever changes incompatibly.
+const THREAD_KEY = "agezt.chat.thread.v1";
+
+function loadThread(): Msg[] {
+  try {
+    const raw = localStorage.getItem(THREAD_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as Msg[];
+    if (!Array.isArray(parsed)) return [];
+    // A turn that was mid-stream when the page closed can't resume — mark it
+    // interrupted rather than leaving a spinner that never resolves.
+    return parsed.map((m) =>
+      m.role === "assistant" && m.turn?.status === "streaming"
+        ? { role: "assistant", turn: { ...m.turn, status: "error", error: m.turn.error || "interrupted" } }
+        : m,
+    );
+  } catch {
+    return [];
+  }
+}
+
 // Chat is the humane front door to the agent: a conversational thread where you
 // type an intent and watch the governed loop answer live — streaming text, the
 // tool calls it made (with the policy verdict), and the final answer with its
 // cost. It drives the same CmdRun as the CLI, so what you see here is exactly
 // what the daemon did.
 export function Chat() {
-  const [messages, setMessages] = useState<Msg[]>([]);
+  const [messages, setMessages] = useState<Msg[]>(loadThread);
   const [input, setInput] = useState("");
   const [model, setModel] = useState("");
   const [activeModel, setActiveModel] = useState("");
@@ -65,6 +89,29 @@ export function Chat() {
   const abortRef = useRef<AbortController | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
+
+  // Persist the thread (skip while a turn is mid-stream — a half-folded turn
+  // would restore as "interrupted"; we save the settled state on completion).
+  useEffect(() => {
+    if (busy) return;
+    try {
+      if (messages.length === 0) localStorage.removeItem(THREAD_KEY);
+      else localStorage.setItem(THREAD_KEY, JSON.stringify(messages));
+    } catch {
+      /* storage full/unavailable — history is best-effort */
+    }
+  }, [messages, busy]);
+
+  function newChat() {
+    if (busy) abortRef.current?.abort();
+    setMessages([]);
+    setInput("");
+    try {
+      localStorage.removeItem(THREAD_KEY);
+    } catch {
+      /* best-effort */
+    }
+  }
 
   // Pin the thread to the bottom as content streams in.
   useEffect(() => {
@@ -140,6 +187,21 @@ export function Chat() {
 
   return (
     <div className="mx-auto flex h-full max-w-3xl flex-col">
+      {messages.length > 0 && (
+        <div className="flex items-center justify-between border-b border-border pb-2">
+          <span className="text-xs text-muted">
+            {messages.filter((m) => m.role === "user").length} message
+            {messages.filter((m) => m.role === "user").length === 1 ? "" : "s"} · saved locally
+          </span>
+          <button
+            onClick={newChat}
+            title="Start a new conversation (clears this thread)"
+            className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs text-muted transition-colors hover:border-accent hover:text-foreground"
+          >
+            <Plus className="size-3.5" /> New chat
+          </button>
+        </div>
+      )}
       <div ref={scrollRef} className="min-h-0 flex-1 overflow-auto">
         {messages.length === 0 ? <EmptyState onPick={setInput} /> : (
           <div className="space-y-4 py-2">
