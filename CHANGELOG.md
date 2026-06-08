@@ -12,6 +12,19 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Voice input (speech-to-text)** — drive the agent by talking. `kernel/stt` is a
+  minimal client for the OpenAI-compatible `/v1/audio/transcriptions` endpoint
+  (spoken by OpenAI, Groq, and a local whisper.cpp server alike), `net/http` only,
+  no dependency. Two CLI surfaces turn audio into text and optionally feed it
+  straight to the governed loop: **`agt transcribe <file> [--run]`** (a recorded
+  file) and **`agt listen [--seconds N] [--run]`** (the microphone). Microphone
+  capture has no portable Go path without a CGO audio library, so — like the
+  tunnel — Agezt drives an operator-chosen recorder via `AGEZT_VOICE_RECORD_CMD`
+  (with `{seconds}` / `{out}` placeholders; e.g. `arecord` on Linux, `ffmpeg` on
+  macOS/Windows), keeping the one-dependency promise. Configured with
+  `AGEZT_STT_API_URL` (default OpenAI), `AGEZT_STT_API_KEY` (or `OPENAI_API_KEY`),
+  and `AGEZT_STT_MODEL` (default `whisper-1`). A daemon HTTP upload endpoint
+  (`POST /v1/audio/transcriptions`) is a documented follow-up. (M587)
 - **Public tunnels** — expose a local Agezt HTTP service (the Web UI, else the REST
   API) to the public internet by supervising a tunnel binary. `kernel/tunnel`
   spawns `cloudflared` or `ngrok` (built-in presets) — or any custom command

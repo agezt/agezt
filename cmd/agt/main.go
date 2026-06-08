@@ -141,6 +141,10 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return cmdSend(args[1:], stdout, stderr)
 	case "ha":
 		return cmdHA(args[1:], stdout, stderr)
+	case "transcribe":
+		return cmdTranscribe(args[1:], stdout, stderr)
+	case "listen":
+		return cmdListen(args[1:], stdout, stderr)
 	case "peers":
 		return cmdPeers(args[1:], stdout, stderr)
 	case "schedule":
@@ -251,6 +255,8 @@ func printHelp(w io.Writer) {
 	fmt.Fprintf(w, "  inbox [N] [--json]                    unified channel conversations (newest first)\n")
 	fmt.Fprintf(w, "  send --channel KIND --to ID <text>    push an outbound message through a channel\n")
 	fmt.Fprintf(w, "  ha <states|services|call>             operator-facing Home Assistant client\n")
+	fmt.Fprintf(w, "  transcribe <file> [--run]             speech-to-text an audio file (→ agent with --run)\n")
+	fmt.Fprintf(w, "  listen [--seconds N] [--run]          record the mic, transcribe it (→ agent with --run)\n")
 	fmt.Fprintf(w, "  vault status                          show vault encryption state + path\n")
 	fmt.Fprintf(w, "  vault encrypt                         migrate plaintext vault to encrypted (set AGEZT_VAULT_PASSPHRASE)\n")
 	fmt.Fprintf(w, "  vault decrypt                         migrate encrypted vault back to plaintext\n")
