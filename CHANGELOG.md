@@ -22,6 +22,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   state renders cleanly, 0 console errors. (M640)
 
 ### Added
+- **Grant/restrict a capability from the catalog.** The Capability catalog's
+  trust-level badge is now an editable dropdown (L0 deny … L4 allow): change a
+  tool's level right where you see what it does and it posts to the same
+  `/api/edict/set_level` the Policy view uses — so observing the agent's
+  capability surface and governing it happen in one place. Verified live (default
+  policy): setting `shell` to L0 persisted (confirmed via `edict_show`), restoring
+  to L2 worked, 0 console errors. (M641)
 - **Reflection view — the system reasoning about itself.** The Reflection panel,
   previously a raw-JSON dump, is now a proper view of the daemon's self-reflection
   pass: observation tiles (events folded, tasks done/failed, briefs, approvals,
