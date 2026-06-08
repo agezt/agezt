@@ -12,6 +12,14 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Agents — a live multi-agent delegation graph.** A new view visualises a run
+  and its sub-agent fan-out as an interactive node graph (React Flow): the lead
+  agent at the top, each delegated sub-agent below it, connected by animated
+  edges, every node coloured by status and showing its model, iteration count and
+  spend. Pick any lead run; whole-tree totals (agent count, depth, tree spend) sit
+  up top; it refreshes live as sub-agents spawn and finish. Tidy-tree layout
+  derived client-side from `/api/runs` (`parent_correlation` links). Verified
+  against a real 1→3 fan-out. (M615)
 - **Insights — an analytics cockpit with charts.** A new view turns the runs
   history into a visual dashboard: headline tiles (runs, total spend, success
   rate, avg duration, avg iterations), a cumulative-spend area chart over time, a
