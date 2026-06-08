@@ -12,6 +12,17 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Alerts view — what the daemon flagged on its own.** A new view surfaces the
+  daemon's PROACTIVE signals as a focused, severity-ranked feed — distinct from
+  the raw event firehose: pulse observer deltas (the M628 self-health monitor's
+  degradations/recoveries, carrying their severity), the briefings pulse decided
+  to send, run failures, blocked egress, budget/rate trips, and halts. Each alert
+  shows its level (critical/warning/info, colour-coded), origin, message and time,
+  with level-filter chips and counts; alerts accumulate in their own rolling list
+  (longer-lived than the 300-event stream). This completes the self-monitoring
+  loop: M628 made the daemon notice problems unprompted, and now there's a place
+  in the UI that shows what it noticed. Verified live: an emergency halt surfaced
+  instantly as a critical alert, 0 console errors. (M636)
 - **Schedules cockpit — see and manage what fires unattended, incl. the agent's
   own.** The Schedules view is now a management surface, not a read-only list:
   every scheduled intent shows its origin (an **agent**-scheduled run — created

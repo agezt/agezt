@@ -19,6 +19,7 @@ import {
   CalendarClock,
   Network,
   Sparkles,
+  Bell,
   Anchor,
   Brain,
   Inbox as InboxIcon,
@@ -39,6 +40,7 @@ import { Chat } from "@/views/Chat";
 import { Activity } from "@/views/Activity";
 import { Mission } from "@/views/Mission";
 import { Analyst } from "@/views/Analyst";
+import { Alerts } from "@/views/Alerts";
 import { Search as SearchView } from "@/views/Search";
 import { Replay } from "@/views/Replay";
 import { Agents } from "@/views/Agents";
@@ -74,6 +76,7 @@ const NAV: NavItem[] = [
   { id: "activity", label: "Activity", icon: ActivityIcon, render: Activity },
   { id: "mission", label: "Mission Control", icon: Radar, render: Mission },
   { id: "analyst", label: "Analyst", icon: Sparkles, render: Analyst },
+  { id: "alerts", label: "Alerts", icon: Bell, render: Alerts },
   { id: "replay", label: "Replay", icon: Clapperboard, render: Replay },
   { id: "agents", label: "Agents", icon: Waypoints, render: Agents },
   { id: "flow", label: "Flow Studio", icon: Workflow, render: FlowStudio },
