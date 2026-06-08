@@ -90,6 +90,7 @@ import (
 	httptool "github.com/agezt/agezt/plugins/tools/http"
 	"github.com/agezt/agezt/plugins/tools/notify"
 	"github.com/agezt/agezt/plugins/tools/peer"
+	"github.com/agezt/agezt/plugins/tools/runstool"
 	scheduletool "github.com/agezt/agezt/plugins/tools/schedule"
 	"github.com/agezt/agezt/plugins/tools/shell"
 	"github.com/agezt/agezt/plugins/tools/websearch"
@@ -290,6 +291,12 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// Always available — the schedule store is the kernel's and always exists.
 	scheduleTool := scheduletool.New()
 	tools["schedule"] = scheduleTool
+
+	// Run-introspection tool (`runs`, M644): the agent recalls its OWN past runs
+	// from the journal. Registered now, Bound to the live journal after the kernel
+	// opens. Always available — the journal is the kernel's and always exists.
+	runsTool := runstool.New()
+	tools["runs"] = runsTool
 
 	// OnReload is invoked by the control plane's `provider_reload`
 	// command (and `agt provider reload`). It re-reads the vault,
@@ -1082,6 +1089,11 @@ func runDaemon(stdout, stderr io.Writer) int {
 	if sched := k.Schedules(); sched != nil {
 		scheduleTool.Bind(sched)
 		fmt.Fprintf(stdout, "  schedule tool    : enabled (the agent can schedule its own future runs)\n")
+	}
+
+	// Bind the run-introspection tool to the live journal (M644).
+	if j := k.Journal(); j != nil {
+		runsTool.Bind(j)
 	}
 
 	// Scheduled intents (autonomy) — fire operator-configured intents on a timer
