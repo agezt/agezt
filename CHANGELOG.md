@@ -12,6 +12,21 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Proactive self-monitoring — the daemon watches its OWN health.** A new pulse
+  observer (`self:health`) samples the daemon's recent reliability from its own
+  journal — tool-error rate (`tool.invoked` vs `tool.result` errors) and
+  run-failure rate (`task.completed` vs `task.failed`) — and, when that health
+  *transitions* between healthy / degraded / critical, emits a Delta that flows
+  through the existing pulse pipeline (salience → initiative → briefing) and is
+  delivered over whatever channels are wired. This turns the system's
+  self-observation (the reactive Analyst, which answers when asked) into proactive
+  self-monitoring (it tells you, unprompted, the moment its health changes). Edge-
+  triggered, so it never floods: the first poll is a silent baseline, unchanged
+  levels stay silent, and a thin sample can't manufacture an alert (min-sample
+  guard). On by default; `AGEZT_PULSE_HEALTH=off` disables it, `=<float>` overrides
+  the tool-error-rate degrade threshold (default 0.30). Verified live: a burst of
+  failing tool calls produced the alert *"daemon health healthy → degraded: tool
+  errors 4/12 (33%), run failures 0/11 (0%)"* with no operator prompt. (M628)
 - **`web_search` tool — the agent can now DISCOVER, not just fetch.** A new
   in-process tool runs a keyword query against a public engine (DuckDuckGo's
   no-JS HTML endpoint, keyless) and returns the top results as structured
