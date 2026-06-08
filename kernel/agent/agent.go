@@ -1004,10 +1004,10 @@ func Run(ctx context.Context, cfg LoopConfig, userIntent string) (answer string,
 					// it can adapt; the run keeps going. The per-run deadline
 					// (M31) and operator/M32 cancellation, by contrast, fail
 					// the run — distinguished below by checking the PARENT ctx.
-					toolCtx := ctx
+					toolCtx := WithCorrelation(ctx, cfg.CorrelationID)
 					var toolCancel context.CancelFunc
 					if cfg.ToolTimeout > 0 {
-						toolCtx, toolCancel = context.WithTimeout(ctx, cfg.ToolTimeout)
+						toolCtx, toolCancel = context.WithTimeout(toolCtx, cfg.ToolTimeout)
 					}
 					r, invokeErr := tool.Invoke(toolCtx, tc.Input)
 					// Capture whether the tool's OWN per-call deadline fired

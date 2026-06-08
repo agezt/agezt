@@ -119,6 +119,13 @@ const (
 	// other. A local shared note-store like memory — low risk, Allow by
 	// default (M647).
 	CapBoard Capability = "board"
+	// CapSkill gates the `skill` tool: the agent modifying ITSELF — authoring,
+	// promoting, and retiring its own reusable procedures through Forge. A genuine
+	// self-modification grant (a learned, active skill shapes future planning), but
+	// every transition is journaled and reversible (`agt skill revert`) and a new
+	// skill starts as a draft outside the retrieval pool — so ask-first by
+	// default (M648).
+	CapSkill Capability = "skill"
 )
 
 // TrustLevel encodes the trust ladder (DECISIONS F3).
@@ -543,6 +550,7 @@ func DefaultLevels() map[Capability]TrustLevel {
 		CapRunsRead:    LevelAllow,    // local read of the agent's own run history; low risk
 		CapStanding:    LevelAskFirst, // L2 strongest autonomy grant; the agent sets up unattended trigger-driven behaviour
 		CapBoard:       LevelAllow,    // local shared message board between agents; low risk
+		CapSkill:       LevelAskFirst, // self-modification: the agent authoring/promoting its own skills
 	}
 }
 
@@ -581,7 +589,7 @@ func AllCapabilities() []Capability {
 		CapHTTPGet, CapHTTPPost, CapProviderCall, CapDelegate, CapCoding,
 		CapACPAgent, CapRemoteRun, CapNotify,
 		CapHomeAssistantRead, CapHomeAssistantCall,
-		CapBrowserRead, CapMemory, CapWorld, CapWebSearch, CapSchedule, CapRunsRead, CapStanding, CapBoard,
+		CapBrowserRead, CapMemory, CapWorld, CapWebSearch, CapSchedule, CapRunsRead, CapStanding, CapBoard, CapSkill,
 	}
 	slices.Sort(caps)
 	return caps

@@ -12,6 +12,26 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **`skill` tool — agents modify themselves.** A new in-process tool lets an agent
+  author, inspect, promote, and retire its OWN reusable procedures through Forge —
+  the same journaled, reversible skill state machine the `agt skill` CLI drives.
+  `op=learn` distills a procedure the agent just worked out into a named,
+  content-addressed skill (a draft); `op=list` / `op=show` inspect them; `op=promote`
+  advances a skill toward the active retrieval pool (draft→shadow→active) so future
+  runs pull it automatically; `op=retire` quarantines one that's gone wrong. This is
+  the self-modification primitive — agents get better over time by capturing what
+  they learn — kept honest: every transition is a hash-chained event carrying the
+  authoring run's correlation, a new skill starts as a draft OUTSIDE the pool, and
+  any change is undoable (`agt skill revert`). Gated by a new `skill` capability
+  (ask-first — a genuine self-modification grant). Verified live with the real
+  provider: a run authored a `summarize-pr` skill and promoted it draft→shadow; the
+  journaled `skill.created` event carried that run's `correlation_id`, and the
+  operator CLI (`agt skill list`) saw it.
+- **Tools can attribute their side effects to the run that caused them.** The agent
+  loop now wraps each tool invocation's context with the run's correlation id
+  (`agent.WithCorrelation` / `CorrelationFromContext`), so a tool that mutates
+  kernel state — the `skill` tool authoring a procedure — journals under the
+  originating run without threading the id through its input schema. (M648)
 - **`board` tool — agents talk to each other.** A new in-process tool gives every
   agent on the daemon a shared, persistent, topic-addressed message board:
   `op=post` leaves a message on a topic (with an optional `from` role), `op=read`
