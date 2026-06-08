@@ -25,6 +25,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   the Chat renders progressively.
 
 ### Added
+- **Structured-data widgets in Chat.** A ` ```json ` or ` ```widget ` fenced block
+  whose body is valid JSON is rendered by shape rather than as raw text: an array
+  of objects becomes a table (union-of-keys columns), an object a key/value card,
+  an array of scalars a list — recursively, depth-bounded, with a raw-JSON
+  fallback. So an agent can emit a data array and the UI shows the right view
+  automatically. Plain escaped React throughout (CSP-safe).
 - **Chat history persists.** The conversation is saved to `localStorage`, so a
   reload, a daemon restart, or closing the tab no longer loses your thread — it's
   restored on next open. A "New chat" button clears it; a turn that was mid-stream
