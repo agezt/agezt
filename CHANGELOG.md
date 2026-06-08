@@ -12,6 +12,9 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Deep-linkable views.** The active view is now reflected in the URL hash
+  (`#agents`, `#insights`, …), so every view is bookmarkable, survives a reload,
+  and the browser back/forward buttons move between views. (M624)
 - **Prompt-cache savings view.** The Cache view now leads with the dollars saved
   by prompt caching, the priced-call count it covers, cache read/write token
   tiles, and a read-vs-write token-split bar — so the cost benefit of caching is
