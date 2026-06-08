@@ -13,6 +13,45 @@ export function Markdown({ source, className }: { source: string; className?: st
         switch (b.t) {
           case "code":
             return <CodeBlock key={i} code={b.v} lang={b.lang} />;
+          case "table":
+            return (
+              <div key={i} className="my-2 overflow-x-auto rounded-lg border border-border">
+                <table className="w-full border-collapse text-xs">
+                  <thead>
+                    <tr className="bg-panel/70">
+                      {b.header.map((h, j) => (
+                        <th
+                          key={j}
+                          className="border-b border-border px-2.5 py-1.5 text-left font-semibold text-foreground"
+                        >
+                          {renderInline(parseInline(h))}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {b.rows.map((row, r) => (
+                      <tr key={r} className={r % 2 ? "bg-panel/20" : ""}>
+                        {row.map((c, j) => (
+                          <td key={j} className="border-t border-border px-2.5 py-1.5 align-top">
+                            {renderInline(parseInline(c))}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            );
+          case "quote":
+            return (
+              <blockquote
+                key={i}
+                className="my-2 border-l-2 border-accent/50 pl-3 italic text-muted whitespace-pre-wrap break-words"
+              >
+                {renderInline(parseInline(b.v))}
+              </blockquote>
+            );
           case "ul":
             return (
               <ul key={i} className="my-1.5 list-disc space-y-0.5 pl-5">

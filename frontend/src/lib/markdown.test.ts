@@ -54,6 +54,22 @@ describe("parseMarkdown", () => {
     ]);
   });
 
+  it("parses a GFM table into header + rows (with alignment colons)", () => {
+    const md = "| Step | Result |\n|------|:------:|\n| 1 | ok |\n| 2 | done |";
+    expect(parseMarkdown(md)).toEqual([
+      { t: "table", header: ["Step", "Result"], rows: [["1", "ok"], ["2", "done"]] },
+    ]);
+  });
+
+  it("does not treat a lone pipe line (no separator) as a table", () => {
+    const blocks = parseMarkdown("a | b is not a table");
+    expect(blocks).toEqual([{ t: "p", v: "a | b is not a table" }]);
+  });
+
+  it("parses a blockquote, stripping the markers", () => {
+    expect(parseMarkdown("> note one\n> note two")).toEqual([{ t: "quote", v: "note one\nnote two" }]);
+  });
+
   it("joins wrapped lines into one paragraph and splits on blank lines", () => {
     const blocks = parseMarkdown("line one\nline two\n\nnext para");
     expect(blocks).toEqual([
