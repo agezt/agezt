@@ -17,6 +17,8 @@ export type Block =
   | { t: "ul"; items: string[] }
   | { t: "ol"; items: string[] }
   | { t: "h"; level: number; v: string }
+  | { t: "table"; header: string[]; rows: string[][] }
+  | { t: "quote"; v: string }
   | { t: "p"; v: string };
 
 // Earliest-match of `code`, **strong**, *em* (code first so `*` inside code is
@@ -45,6 +47,19 @@ export function parseInline(s: string): Inline[] {
 const HEADING_RE = /^(#{1,6})\s+(.*)$/;
 const UL_RE = /^\s*[-*]\s+(.*)$/;
 const OL_RE = /^\s*\d+\.\s+(.*)$/;
+const QUOTE_RE = /^\s*>\s?(.*)$/;
+// A GFM table separator row: pipe-delimited cells of dashes with optional
+// alignment colons, e.g. |---|:--:|---:|  (at least one dash per cell).
+const TABLE_SEP_RE = /^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$/;
+
+// splitRow splits a GFM table row into trimmed cells, dropping the optional
+// outer pipes.
+function splitRow(line: string): string[] {
+  let s = line.trim();
+  if (s.startsWith("|")) s = s.slice(1);
+  if (s.endsWith("|")) s = s.slice(0, -1);
+  return s.split("|").map((c) => c.trim());
+}
 
 export function parseMarkdown(src: string): Block[] {
   const lines = (src || "").replace(/\r\n/g, "\n").split("\n");
@@ -86,6 +101,33 @@ export function parseMarkdown(src: string): Block[] {
     if (h) {
       flushPara();
       blocks.push({ t: "h", level: h[1].length, v: h[2].trim() });
+      continue;
+    }
+
+    // GFM table: a header row of cells followed by a |---|---| separator.
+    if (line.includes("|") && i + 1 < lines.length && TABLE_SEP_RE.test(lines[i + 1])) {
+      flushPara();
+      const header = splitRow(line);
+      i += 2; // consume header + separator
+      const rows: string[][] = [];
+      while (i < lines.length && lines[i].includes("|") && lines[i].trim() !== "") {
+        rows.push(splitRow(lines[i]));
+        i++;
+      }
+      i--; // step back; the for-loop advances
+      blocks.push({ t: "table", header, rows });
+      continue;
+    }
+
+    if (QUOTE_RE.test(line)) {
+      flushPara();
+      const quoted: string[] = [];
+      while (i < lines.length && QUOTE_RE.test(lines[i])) {
+        quoted.push(lines[i].match(QUOTE_RE)![1]);
+        i++;
+      }
+      i--;
+      blocks.push({ t: "quote", v: quoted.join("\n") });
       continue;
     }
 

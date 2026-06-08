@@ -25,6 +25,16 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   the Chat renders progressively.
 
 ### Added
+- **Markdown tables + blockquotes in Chat.** Agent answers routinely include GFM
+  tables; the renderer didn't parse them, so they showed as raw `| … |` pipes.
+  The dependency-free markdown parser now handles GFM tables (header + alignment
+  separator + rows) — rendered as a real, styled `<table>` (header bg, row
+  striping, horizontal scroll) — and blockquotes. Still XSS/CSP-safe (plain
+  escaped React elements, no raw HTML).
+- **Active model shown in the Chat composer.** The model field now displays the
+  daemon's active model (e.g. `deepseek-v4-pro`) as its placeholder, so you always
+  know which model you're talking to — and a typo in the override is obvious
+  against it.
 - **Reasoning (chain-of-thought) in Chat.** A reasoning model (deepseek-reasoner /
   -v4, o-series, Claude thinking) streams its chain of thought as `llm.reasoning`
   deltas separately from the answer; the Chat now folds and shows it — a live

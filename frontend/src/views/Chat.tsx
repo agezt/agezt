@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { money } from "@/lib/format";
+import { getJSON } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Markdown } from "@/components/Markdown";
@@ -49,7 +50,18 @@ export function Chat() {
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [model, setModel] = useState("");
+  const [activeModel, setActiveModel] = useState("");
   const [busy, setBusy] = useState(false);
+
+  // The daemon's default model — shown so you always know which model you're
+  // talking to (and a typo in the override field is obvious against it).
+  useEffect(() => {
+    getJSON<{ model?: string }>("/api/config")
+      .then((c) => setActiveModel(String(c.model || "")))
+      .catch(() => {
+        /* config momentarily unavailable — the field just shows "default" */
+      });
+  }, []);
   const abortRef = useRef<AbortController | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
@@ -164,8 +176,9 @@ export function Chat() {
           <input
             value={model}
             onChange={(e) => setModel(e.target.value)}
-            placeholder="default"
-            className="h-6 w-40 rounded border border-border bg-panel px-2 text-xs outline-none placeholder:text-muted/60 focus-visible:border-accent"
+            placeholder={activeModel || "default"}
+            title={activeModel ? `active model: ${activeModel}` : undefined}
+            className="h-6 w-44 rounded border border-border bg-panel px-2 text-xs outline-none placeholder:text-muted/60 focus-visible:border-accent"
           />
           <span className="ml-auto">runs through the governed loop · same as the CLI</span>
         </div>
