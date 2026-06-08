@@ -70,6 +70,7 @@ import (
 	"github.com/agezt/agezt/plugins/channels/email"
 	"github.com/agezt/agezt/plugins/channels/homeassistant"
 	"github.com/agezt/agezt/plugins/channels/matrix"
+	signalchan "github.com/agezt/agezt/plugins/channels/signal"
 	"github.com/agezt/agezt/plugins/channels/slack"
 	"github.com/agezt/agezt/plugins/channels/sms"
 	"github.com/agezt/agezt/plugins/channels/teams"
@@ -851,11 +852,23 @@ func runDaemon(stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "  teams channel    : disabled (set AGEZT_TEAMS_WEBHOOKS=name=url,...)\n")
 	}
 
+	// Signal channel (SPEC-04 §1) — duplex via an operator-run signal-cli-rest-api
+	// when AGEZT_SIGNAL_API_URL + AGEZT_SIGNAL_NUMBER are set. Long-polls
+	// /v1/receive for inbound and POSTs /v2/send for outbound; briefs tee to the
+	// allowlisted numbers like the others.
+	sgChan, sgSink, sgDesc := buildSignal(ctx, k)
+	if sgChan != nil {
+		go sgChan.Start(ctx)
+		fmt.Fprintf(stdout, "  signal channel   : %s\n", sgDesc)
+	} else {
+		fmt.Fprintf(stdout, "  signal channel   : disabled (set AGEZT_SIGNAL_API_URL + AGEZT_SIGNAL_NUMBER)\n")
+	}
+
 	// Pulse — the proactive heart (SPEC-03). On by default; the resident
 	// engine runs on the daemon ctx so `agt halt`/SIGTERM/`agt shutdown`
 	// stop it with everything else. AGEZT_PULSE=off disables it. When a channel
 	// is configured, briefs tee to it (closes the Jarvis loop).
-	if eng, pulseDesc := buildPulse(k, ward, model, stdout, combineSinks(tgSink, slSink, dcSink, whSink, emSink, mxSink, smSink, waSink, haSink, tmSink)); eng != nil {
+	if eng, pulseDesc := buildPulse(k, ward, model, stdout, combineSinks(tgSink, slSink, dcSink, whSink, emSink, mxSink, smSink, waSink, haSink, tmSink, sgSink)); eng != nil {
 		eng.Start(ctx)
 		srv.SetPulse(eng)
 		fmt.Fprintf(stdout, "  pulse            : %s\n", pulseDesc)
@@ -983,6 +996,9 @@ func runDaemon(stdout, stderr io.Writer) int {
 	}
 	if tmChan != nil {
 		liveChannels["teams"] = tmChan
+	}
+	if sgChan != nil {
+		liveChannels["signal"] = sgChan
 	}
 	channelSend := func(sctx context.Context, kind, id, text string) error {
 		ch, ok := liveChannels[kind]
@@ -1725,6 +1741,65 @@ func buildTeams(ctx context.Context, k *kernelruntime.Kernel) (*teams.Channel, p
 	return ch, sink, fmt.Sprintf("outbound → %d Teams webhook(s)", len(names))
 }
 
+// buildSignal constructs the in-process Signal channel when AGEZT_SIGNAL_API_URL
+// and AGEZT_SIGNAL_NUMBER are set, plus a Pulse brief sink to the allowlisted
+// numbers. Returns (nil, nil, "") when unconfigured. Talks to an operator-run
+// signal-cli-rest-api: long-polls /v1/receive for inbound, POSTs /v2/send for
+// outbound (mirrors buildMatrix).
+//
+//	AGEZT_SIGNAL_API_URL     signal-cli-rest-api base URL (required), e.g. http://127.0.0.1:8080
+//	AGEZT_SIGNAL_NUMBER      the registered Signal number this bot is, E.164 (required)
+//	AGEZT_SIGNAL_RECIPIENTS  comma-separated allowlist of sender numbers (+ brief recipients)
+//	AGEZT_SIGNAL_TOKEN       optional bearer token (a reverse proxy fronting the API)
+//	AGEZT_SIGNAL_POLL_SECS   /v1/receive long-poll seconds (default 10)
+func buildSignal(ctx context.Context, k *kernelruntime.Kernel) (*signalchan.Channel, pulse.BriefSink, string) {
+	apiURL := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "SIGNAL_API_URL"))
+	number := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "SIGNAL_NUMBER"))
+	if apiURL == "" || number == "" {
+		return nil, nil, ""
+	}
+	recipients := splitNonEmpty(os.Getenv(brand.EnvPrefix + "SIGNAL_RECIPIENTS"))
+	token := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "SIGNAL_TOKEN"))
+	poll := 0
+	if v := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "SIGNAL_POLL_SECS")); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			poll = n
+		}
+	}
+
+	ch := signalchan.New(signalchan.Config{
+		APIURL:          apiURL,
+		Number:          number,
+		Token:           token,
+		Allowlist:       channel.NewAllowlist(recipients),
+		Bus:             k.Bus(),
+		Handler:         makeChannelHandler(k),
+		PollTimeoutSecs: poll,
+	})
+
+	// Pulse briefs → the allowlisted numbers. Nil sink when none configured (the
+	// bot can still receive commands once a number is allowlisted, and operators
+	// can still `agt send --channel signal --to <number>`).
+	var sink pulse.BriefSink
+	if len(recipients) > 0 {
+		sink = pulse.SinkFunc(func(b pulse.Brief) error {
+			var firstErr error
+			for _, id := range recipients {
+				if err := ch.Send(ctx, channel.Outbound{ChannelID: id, Text: formatBrief(b), Priority: channel.PriorityNotify}); err != nil && firstErr == nil {
+					firstErr = err
+				}
+			}
+			return firstErr
+		})
+	}
+
+	desc := fmt.Sprintf("listening, allowlist=%d number(s)", len(recipients))
+	if len(recipients) == 0 {
+		desc = "listening, NO allowlist (outbound-only; set AGEZT_SIGNAL_RECIPIENTS to allow commands)"
+	}
+	return ch, sink, desc
+}
+
 // collectChannels reports the configured messaging channels for `agt status`
 // (M141), read-only from the same env the buildX functions consume. A channel is
 // listed when its token is set; Inbound reflects whether it can actually receive
@@ -1815,6 +1890,14 @@ func collectChannels() []controlplane.ChannelInfo {
 			Kind:      "teams",
 			Inbound:   false, // outbound-only (incoming webhooks)
 			Allowlist: len(parseNamedWebhooks(env("TEAMS_WEBHOOKS"))),
+		})
+	}
+	if env("SIGNAL_API_URL") != "" && env("SIGNAL_NUMBER") != "" {
+		out = append(out, controlplane.ChannelInfo{
+			Kind:      "signal",
+			Inbound:   true, // long-polls /v1/receive whenever configured
+			Addr:      env("SIGNAL_API_URL"),
+			Allowlist: len(splitNonEmpty(os.Getenv(brand.EnvPrefix + "SIGNAL_RECIPIENTS"))),
 		})
 	}
 	return out
