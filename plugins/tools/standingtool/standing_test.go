@@ -70,6 +70,35 @@ func TestCreateEvent_PassesValidationAndPersists(t *testing.T) {
 	}
 }
 
+func TestCreateEvent_AssureBudget(t *testing.T) {
+	tool, st := newTool(t)
+	out, isErr := invoke(t, tool, map[string]any{
+		"op": "create_event", "name": "must-fix", "subject": "task.failed",
+		"plan": "Diagnose and fix the failure.", "assure": 3,
+	})
+	if isErr {
+		t.Fatalf("unexpected error: %v", out)
+	}
+	if out["assure"].(float64) != 3 {
+		t.Errorf("order view assure = %v, want 3", out["assure"])
+	}
+	// The budget must persist on the stored order so the fire path can read it.
+	got := st.List()[0]
+	if got.Assure != 3 {
+		t.Errorf("stored Assure = %d, want 3", got.Assure)
+	}
+}
+
+func TestCreate_NegativeAssureClampedToZero(t *testing.T) {
+	tool, st := newTool(t)
+	invoke(t, tool, map[string]any{
+		"op": "create_cron", "name": "n", "schedule": "0 9 * * *", "plan": "p", "assure": -5,
+	})
+	if got := st.List()[0]; got.Assure != 0 {
+		t.Errorf("negative assure should clamp to 0, got %d", got.Assure)
+	}
+}
+
 func TestCreateCron_PassesValidation(t *testing.T) {
 	tool, st := newTool(t)
 	out, isErr := invoke(t, tool, map[string]any{

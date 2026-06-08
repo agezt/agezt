@@ -65,6 +65,7 @@ func (t *Tool) Definition() agent.ToolDef {
     "subject":  {"type":"string", "description":"For create_event: the journal event subject to trigger on (e.g. \"task.failed\", \"observer.delta\")."},
     "schedule": {"type":"string", "description":"For create_cron: a 5-field cron expression (e.g. \"0 9 * * *\")."},
     "mode":     {"type":"string", "enum":["inform_only","ask","act_or_ask"], "description":"Autonomy when it fires. Default ask (confirm before acting)."},
+    "assure":   {"type":"integer", "description":"Optional do-it-for-sure budget: if > 0, each firing runs, verifies it was actually completed, and retries the gap up to this many attempts. Use it for orders whose task must definitely get done."},
     "id":       {"type":"string", "description":"For remove: the standing order id."}
   }
 }`),
@@ -78,6 +79,7 @@ type input struct {
 	Subject  string `json:"subject"`
 	Schedule string `json:"schedule"`
 	Mode     string `json:"mode"`
+	Assure   int    `json:"assure"`
 	ID       string `json:"id"`
 }
 
@@ -144,12 +146,14 @@ func (t *Tool) create(in input, trig standing.Trigger) (agent.Result, error) {
 	if mode == "" {
 		mode = standing.InitiativeAsk // conservative default: confirm before acting
 	}
+	assure := max(in.Assure, 0)
 	o := standing.Order{
 		Name:       name,
 		Enabled:    true,
 		Triggers:   []standing.Trigger{trig},
 		Initiative: standing.Initiative{Mode: mode},
 		Plan:       strings.TrimSpace(in.Plan),
+		Assure:     assure,
 	}
 	saved, err := t.host.AddStanding(o)
 	if err != nil {
@@ -172,10 +176,14 @@ func orderView(o standing.Order) map[string]any {
 		}
 		trigs = append(trigs, m)
 	}
-	return map[string]any{
+	v := map[string]any{
 		"id": o.ID, "name": o.Name, "enabled": o.Enabled,
 		"mode": string(o.Initiative.Mode), "triggers": trigs, "plan": o.Plan,
 	}
+	if o.Assure > 0 {
+		v["assure"] = o.Assure
+	}
+	return v
 }
 
 func okJSON(v any) agent.Result {

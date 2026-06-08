@@ -2921,7 +2921,16 @@ func buildStandingRunner(ctx context.Context, k *kernelruntime.Kernel, brief fun
 		if lvl, perr := edict.ParseTrustLevel(o.Initiative.MaxTrust); perr == nil {
 			rctx = kernelruntime.WithTrustCeiling(rctx, lvl)
 		}
-		answer, _ := k.RunWith(rctx, corr, intent)
+		// Do-it-for-sure firings (M655): when the order carries an assure budget,
+		// each firing runs-verifies-retries until the plan is judged complete (or
+		// the budget is spent) — symmetric with assured schedules, so an
+		// event/cron-triggered order actually gets its task done.
+		var answer string
+		if o.Assure > 0 {
+			answer, _, _ = k.RunAssured(rctx, corr, intent, o.Assure)
+		} else {
+			answer, _ = k.RunWith(rctx, corr, intent)
+		}
 		// Brief the result to the order's configured channel (SPEC-16 §4 briefing).
 		if text, ok := standing.BriefText(o, answer); ok && brief != nil {
 			brief(fctx, o.BriefingChan, text)
