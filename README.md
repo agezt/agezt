@@ -60,9 +60,11 @@ with **9 provider families** (Anthropic, OpenAI + ~11 compatibles, Google
 direct + Vertex, Cohere, Mistral, Ollama, AWS Bedrock with bearer +
 SigV4 + STS-AssumeRole + SSO + IRSA/web-identity, Azure OpenAI) with
 **per-request model routing**
-(a request's `model` selects its provider), **all streaming**, **11 in-process
-tools** (`shell`, `file`, `http`, `browser.read`, plus `memory`, `world`,
-`delegate` for sub-agent fan-out, `coding` for worktree-isolated external
+(a request's `model` selects its provider), **all streaming**, **in-process
+tools** (`shell`, `file`, `http`, `browser.read`, `web_search` to DISCOVER
+pages via a keyless search engine, `schedule` so the agent can arrange its OWN
+future runs, plus `memory`, `world`, `delegate` for sub-agent fan-out, `notify`
+to message the operator's channels, `coding` for worktree-isolated external
 coding agents, `acp_agent` to drive external ACP agents, `remote_run` to
 delegate to peer Agezt nodes, and `homeassistant` to read entity state and
 control the smart home), an
@@ -137,10 +139,18 @@ final answer with its real cost), an
 in-flight runs with their current step, iteration, elapsed time and spend,
 delegated sub-agents nested under the lead run, all folded live off the event
 firehose), a
-live event monitor (filterable by event kind), read panels (status / runs — click one for its full event
-arc / stats with an outcome bar / budget / cache savings / providers routing view / tools / policy / schedules / world / skills / memory / inbox /
-reflection, all refreshed live off the event stream), and operator controls
-(HALT, approve/deny, promote/forget). A provider-fallback warning badge appears
+live event monitor (filterable by event kind); a real-time **Mission Control**
+(rolling per-second rates incl. delegations) and an **AI Analyst** that reasons
+about the running system; an **Alerts** feed of the daemon's own proactive
+signals (with a header bell visible from every view); a **Catalog** of the
+agent's full capability surface (tool → governing capability → trust level,
+editable inline); a multi-agent **Agents** graph where any node opens its steer
+cockpit; read panels (status / runs — click one for its full event arc / stats
+with an outcome bar / budget / cache savings / providers routing view / tools /
+policy / world / skills / memory / inbox); and management cockpits for
+**Schedules**, **Standing orders** and **Reflection**, all refreshed live off
+the event stream, plus operator controls (HALT, approve/deny, pause/steer a
+specific run or sub-agent, promote/forget). A provider-fallback warning badge appears
 when a primary provider is erroring — click it to see the underlying fallback
 events. Localhost-bound and token-authed.
 
@@ -297,8 +307,15 @@ The v1 substrate. Highlights:
 - `file` — scoped to `AGEZT_WORKSPACE`
 - `http` — GET/POST with host allowlist
 - `browser.read` — fetch + HTML→text extraction, opt-in cookie jar
+- `web_search` — keyword search against a keyless public engine (DuckDuckGo);
+  returns `{title, url, snippet}` so the agent can DISCOVER a URL, then read it
+  with `http`/`browser.read`. SSRF-guarded, fail-soft
+- `schedule` — the agent arranges its OWN future runs in the cadence store
+  (once after a delay / recurring / daily); a scheduled intent fires later
+  through the full governed loop. Tagged `source=agent` for operator visibility
 - `delegate` — spawn a bounded sub-agent for a focused subtask (multi-agent
-  fan-out); depth-bounded, journaled, each sub-action gated through Edict
+  fan-out); depth- AND tree-total-bounded, individually steerable, journaled,
+  each sub-action gated through Edict
 - `coding` — delegate a coding task to an external agent (Claude Code / Codex /
   Aider / any command) in an isolated git worktree; returns the diff, never
   merges. Off unless `AGEZT_CODING_CMD` is set
