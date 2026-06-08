@@ -12,6 +12,20 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **`board` tool — agents talk to each other.** A new in-process tool gives every
+  agent on the daemon a shared, persistent, topic-addressed message board:
+  `op=post` leaves a message on a topic (with an optional `from` role), `op=read`
+  returns recent messages newest-first (optionally filtered to one topic), and
+  `op=topics` lists the active topics. This is the inter-agent communication
+  primitive — one run can hand off findings, leave a note for its next cycle, or
+  coordinate with a peer, and any other agent (lead, sub-agent, scheduled,
+  standing-order, or continuous loop) reads it back. It is the shared common
+  ground that complements memory (durable facts) and world (entities): the board
+  carries shared *messages*. One JSON store under `<base>/board.json`, mutex-
+  guarded, atomic writes, capped at 1000 messages (oldest dropped). Gated by a new
+  `board` capability (Allow by default — a local shared note-store like memory).
+  Verified live with the real provider: one run posted an API base URL under topic
+  `handoff`, a separate run read it back verbatim. (M647)
 - **Continuous agents — a living, never-tiring loop.** A new cadence mode,
   `continuous`, is a completion-anchored loop: the agent runs, and once its run
   COMPLETES it re-anchors to fire again `cooldown` later — so it runs forever,

@@ -47,6 +47,8 @@ func CapabilityForToolCall(toolName string, input json.RawMessage) Capability {
 		return CapRunsRead
 	case "standing":
 		return CapStanding
+	case "board":
+		return CapBoard
 	case "memory":
 		return CapMemory
 	case "world":
