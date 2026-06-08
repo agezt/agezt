@@ -157,6 +157,17 @@ type Governor struct {
 	rateWindow       string           // current rate window key (YYYY-MM-DDTHH:MM UTC)
 	callsThisWindow  int              // admitted calls in the current rate window
 
+	// ceilingOverride is the operator's runtime-adjusted daily cap (M607),
+	// set via SetDailyCeiling from the control plane / Web UI. When
+	// ceilingOverridden is true it supersedes cfg.DailyCeilingMicrocents for
+	// ALL enforcement and reporting (effectiveCeilingLocked); when false the
+	// static config value stands. Guarded by mu — it is read on the spend hot
+	// path (budgetExceeded) and in Snapshot, exactly where the config value was
+	// read before. 0 is a legal override meaning "unlimited", which is why a
+	// separate bool (not a -1 sentinel) distinguishes "no override set".
+	ceilingOverride   int64
+	ceilingOverridden bool
+
 	// Stable ordering for routing: primary chain + fallback chain. Guarded by
 	// mu — Replace rebuilds them on the hot-reload path concurrently with
 	// Complete's routeChain/Providers reads.
@@ -582,10 +593,56 @@ func (g *Governor) SetBus(b *bus.Bus) {
 	g.bus.Store(b)
 }
 
-// DailyCeilingMicrocents returns the configured global daily cap (0 =
-// unlimited). Used by the daemon to derive per-tenant ceilings.
+// DailyCeilingMicrocents returns the EFFECTIVE global daily cap (0 =
+// unlimited) — the runtime override if an operator has set one, else the
+// configured value. Used by the daemon to derive per-tenant ceilings and by
+// `agt budget`. Takes the lock (not hot-path) so it observes a live override.
 func (g *Governor) DailyCeilingMicrocents() int64 {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	return g.effectiveCeilingLocked()
+}
+
+// effectiveCeilingLocked returns the daily ceiling enforcement and reporting
+// should use: the operator's runtime override when set (M607), otherwise the
+// static config value. Caller holds g.mu.
+func (g *Governor) effectiveCeilingLocked() int64 {
+	if g.ceilingOverridden {
+		return g.ceilingOverride
+	}
 	return g.cfg.DailyCeilingMicrocents
+}
+
+// SetDailyCeiling adjusts the global daily spend cap at runtime (M607) — the
+// operator's "ayarla" knob, reachable from the control plane and the Web UI
+// cockpit. A negative value is clamped to 0 (unlimited). The new ceiling takes
+// effect immediately for the next budget pre-check; spend already booked today
+// is unaffected, so lowering the cap below today's spend simply blocks further
+// calls until UTC rollover. Returns the effective ceiling now in force and
+// emits a budget.ceiling_set audit event. Per-tenant sibling governors created
+// by WithLimits keep their own (separately settable) ceilings.
+func (g *Governor) SetDailyCeiling(microcents int64) int64 {
+	if microcents < 0 {
+		microcents = 0
+	}
+	g.mu.Lock()
+	prev := g.effectiveCeilingLocked()
+	g.ceilingOverride = microcents
+	g.ceilingOverridden = true
+	spent := g.spentToday
+	g.mu.Unlock()
+
+	g.publish(event.Spec{
+		Subject: "governor.budget",
+		Kind:    event.KindBudgetCeilingSet,
+		Actor:   "operator",
+		Payload: map[string]any{
+			"ceiling_mc":      microcents,
+			"prev_ceiling_mc": prev,
+			"spent_today_mc":  spent,
+		},
+	})
+	return microcents
 }
 
 // StrictPricingEnabled reports whether unpriced models are refused (M195).
@@ -788,6 +845,7 @@ func (g *Governor) recordUsage(p *ProviderInfo, req agent.CompletionRequest, res
 		g.spentByTaskToday[req.TaskType] += cost
 	}
 	spent := g.spentToday
+	ceiling := g.effectiveCeilingLocked()
 	g.mu.Unlock()
 
 	// Record into the best-effort usage index (reporting fast path) with the SAME
@@ -813,7 +871,7 @@ func (g *Governor) recordUsage(p *ProviderInfo, req agent.CompletionRequest, res
 			"output_tokens":            outTok,
 			"cost_microcents":          cost,
 			"spent_today_mc":           spent,
-			"ceiling_mc":               g.cfg.DailyCeilingMicrocents,
+			"ceiling_mc":               ceiling,
 			"correlation_id":           req.CorrelationID,
 		},
 	})
@@ -906,10 +964,11 @@ func (g *Governor) budgetExceeded() (bool, int64, int64) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	g.rolloverIfNeededLocked()
-	if g.cfg.DailyCeilingMicrocents <= 0 {
+	ceiling := g.effectiveCeilingLocked()
+	if ceiling <= 0 {
 		return false, g.spentToday, 0
 	}
-	return g.spentToday >= g.cfg.DailyCeilingMicrocents, g.spentToday, g.cfg.DailyCeilingMicrocents
+	return g.spentToday >= ceiling, g.spentToday, ceiling
 }
 
 // taskBudgetExceeded reports whether the per-task-type ceiling for
@@ -979,7 +1038,7 @@ func (g *Governor) Snapshot() BudgetSnapshot {
 	snap := BudgetSnapshot{
 		UTCDate:           g.today,
 		SpentMicrocents:   g.spentToday,
-		CeilingMicrocents: g.cfg.DailyCeilingMicrocents,
+		CeilingMicrocents: g.effectiveCeilingLocked(),
 		StrictPricing:     g.cfg.StrictPricing,
 	}
 	if len(g.cfg.TaskBudgets) > 0 {

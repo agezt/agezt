@@ -595,6 +595,29 @@ func TestCancelRunForwardsCorrelation(t *testing.T) {
 	}
 }
 
+// The Budget view's runtime ceiling control (M607): POST /api/budget_set
+// forwards the allowlisted ceiling_mc and nothing else.
+func TestBudgetSetForwardsCeiling(t *testing.T) {
+	fc := &fakeCaller{result: map[string]any{"ceiling_mc": 2_000_000_000}}
+	s, _ := newServer(t, fc, "secret")
+	req := httptest.NewRequest(http.MethodPost,
+		"/api/budget_set?token=secret&ceiling_mc=2000000000&evil=x", nil)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d want 200", rec.Code)
+	}
+	if len(fc.calls) != 1 || fc.calls[0] != "budget_set" {
+		t.Fatalf("expected one CmdBudgetSet call, got %v", fc.calls)
+	}
+	if fc.lastArgs["ceiling_mc"] != "2000000000" {
+		t.Errorf("ceiling_mc not forwarded: %v", fc.lastArgs)
+	}
+	if _, leaked := fc.lastArgs["evil"]; leaked {
+		t.Error("non-allowlisted arg leaked into the budget_set call")
+	}
+}
+
 // Cancel is a mutation — GET must be refused so a prefetch/crawler can't cancel
 // a run.
 func TestCancelRunRejectsGet(t *testing.T) {

@@ -481,6 +481,8 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.handlePlanRefine(ctx, conn, req)
 	case CmdBudget:
 		s.handleBudget(conn, req)
+	case CmdBudgetSet:
+		s.handleBudgetSet(conn, req)
 	case CmdToolList:
 		s.handleToolList(conn, req)
 	case CmdToolLog:

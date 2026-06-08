@@ -93,6 +93,12 @@ const (
 	// strict pricing such a model is charged $0, silently bypassing the budget; this
 	// event makes the refusal auditable. Payload: {model}.
 	KindBudgetUnpriced Kind = "budget.unpriced"
+	// KindBudgetCeilingSet records that an operator adjusted the global daily
+	// spend ceiling at runtime (M607) via the control plane / Web UI cockpit —
+	// the audit trail for the "ayarla" knob. Payload: {ceiling_mc,
+	// prev_ceiling_mc, spent_today_mc}. Distinct from budget.exceeded (the cap
+	// tripping) — this is the cap itself being moved.
+	KindBudgetCeilingSet Kind = "budget.ceiling_set"
 	// KindPolicyCompacted records that the durable policy overlay was compacted to
 	// a snapshot (M176). Its payload {through_seq, content_hash} binds the on-disk
 	// snapshot to the tamper-evident journal: at boot the snapshot is trusted only
@@ -273,6 +279,7 @@ var knownKinds = map[Kind]struct{}{
 	KindRateLimited:               {},
 	KindBudgetCapInert:            {},
 	KindBudgetUnpriced:            {},
+	KindBudgetCeilingSet:          {},
 	KindPolicyCompacted:           {},
 	KindNetguardBlocked:           {},
 	KindCapabilityRejected:        {},

@@ -116,6 +116,15 @@ const (
 	// No args.
 	CmdBudget = "budget"
 
+	// CmdBudgetSet adjusts the governor's global daily spend ceiling at
+	// runtime (M607) — the operator "ayarla" knob behind the Web UI cockpit's
+	// budget control. Arg: ceiling_mc (int microcents; 0 = unlimited, negative
+	// clamped to 0). Returns the post-set snapshot (same shape as CmdBudget) so
+	// the caller can render the new state without a follow-up read. Mutating,
+	// so it is POST-only on the Web UI write-route allowlist and audited via a
+	// budget.ceiling_set event.
+	CmdBudgetSet = "budget_set"
+
 	// CmdToolList returns the in-process tool inventory the agent
 	// loop will advertise to the model. Sister command to
 	// CmdCatalogList (providers) — operators frequently want to

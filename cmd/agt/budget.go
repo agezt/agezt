@@ -26,15 +26,19 @@ func cmdBudget(args []string, stdout, stderr io.Writer) int {
 	if len(args) > 0 && args[0] == "check" {
 		return cmdBudgetCheck(args[1:], stdout, stderr)
 	}
+	if len(args) > 0 && args[0] == "set" {
+		return cmdBudgetSet(args[1:], stdout, stderr)
+	}
 	asJSON := false
 	for _, a := range args {
 		switch a {
 		case "--json":
 			asJSON = true
 		case "-h", "--help":
-			fmt.Fprintf(stdout, "usage: %s budget [check] [--json]\n", brand.CLI)
+			fmt.Fprintf(stdout, "usage: %s budget [check|set] [--json]\n", brand.CLI)
 			fmt.Fprintf(stdout, "show current-day spend vs daily ceiling + per-task-type caps\n")
 			fmt.Fprintf(stdout, "  check [--task-type <t>]  report remaining headroom before a run (exit 3 if exhausted)\n")
+			fmt.Fprintf(stdout, "  set <amount|0|off>       adjust the global daily ceiling at runtime ($, 0/off = unlimited)\n")
 			return 0
 		default:
 			fmt.Fprintf(stderr, "%s budget: unexpected arg %q\n", brand.CLI, a)
@@ -97,6 +101,81 @@ func cmdBudget(args []string, stdout, stderr io.Writer) int {
 		cap := mcFromAny(r["ceiling_mc"])
 		fmt.Fprintf(stdout, "    %-16s %s / %s (%s%%)\n",
 			tt, fmtUSD(s), fmtUSD(cap), pct(s, cap))
+	}
+	return 0
+}
+
+// cmdBudgetSet implements `agt budget set <amount>` (M607): adjust the global
+// daily spend ceiling at runtime. The amount is an operator-facing DOLLAR value
+// ("25", "$1.50") converted to microcents; "0" or "off" sets unlimited. Prints
+// the post-set snapshot so the operator immediately sees the new ceiling. The
+// primary token is required (the control plane forbids tenant tokens here).
+func cmdBudgetSet(args []string, stdout, stderr io.Writer) int {
+	asJSON := false
+	var amount string
+	for _, a := range args {
+		switch {
+		case a == "--json":
+			asJSON = true
+		case a == "-h" || a == "--help":
+			fmt.Fprintf(stdout, "usage: %s budget set <amount|0|off> [--json]\n", brand.CLI)
+			fmt.Fprintf(stdout, "adjust the global daily spend ceiling at runtime\n")
+			fmt.Fprintf(stdout, "  <amount>  dollars, e.g. 25 or $1.50\n")
+			fmt.Fprintf(stdout, "  0 | off   remove the ceiling (unlimited)\n")
+			return 0
+		case strings.HasPrefix(a, "-"):
+			fmt.Fprintf(stderr, "%s budget set: unexpected flag %q\n", brand.CLI, a)
+			return 2
+		case amount == "":
+			amount = a
+		default:
+			fmt.Fprintf(stderr, "%s budget set: unexpected arg %q\n", brand.CLI, a)
+			return 2
+		}
+	}
+	if amount == "" {
+		fmt.Fprintf(stderr, "%s budget set: missing amount (e.g. %s budget set 25, or 0/off for unlimited)\n", brand.CLI, brand.CLI)
+		return 2
+	}
+
+	var ceilingMC int64
+	if amount == "off" || amount == "unlimited" {
+		ceilingMC = 0
+	} else {
+		mc, err := usdToMicrocents(amount)
+		if err != nil {
+			fmt.Fprintf(stderr, "%s budget set: %v\n", brand.CLI, err)
+			return 2
+		}
+		ceilingMC = mc
+	}
+
+	c := dial(stderr)
+	if c == nil {
+		return 1
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	res, err := c.Call(ctx, controlplane.CmdBudgetSet, map[string]any{"ceiling_mc": ceilingMC})
+	if err != nil {
+		fmt.Fprintf(stderr, "%s budget set: %v\n", brand.CLI, err)
+		return 1
+	}
+
+	if asJSON {
+		enc := json.NewEncoder(stdout)
+		enc.SetIndent("", "  ")
+		_ = enc.Encode(res)
+		return 0
+	}
+
+	ceiling := mcFromAny(res["ceiling_mc"])
+	spent := mcFromAny(res["spent_mc"])
+	if ceiling > 0 {
+		fmt.Fprintf(stdout, "daily ceiling set to %s (spent %s today, %s%%)\n",
+			fmtUSD(ceiling), fmtUSD(spent), pct(spent, ceiling))
+	} else {
+		fmt.Fprintf(stdout, "daily ceiling removed — unlimited spend (spent %s today)\n", fmtUSD(spent))
 	}
 	return 0
 }
