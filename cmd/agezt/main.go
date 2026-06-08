@@ -90,6 +90,7 @@ import (
 	httptool "github.com/agezt/agezt/plugins/tools/http"
 	"github.com/agezt/agezt/plugins/tools/notify"
 	"github.com/agezt/agezt/plugins/tools/peer"
+	scheduletool "github.com/agezt/agezt/plugins/tools/schedule"
 	"github.com/agezt/agezt/plugins/tools/shell"
 	"github.com/agezt/agezt/plugins/tools/websearch"
 )
@@ -282,6 +283,13 @@ func runDaemon(stdout, stderr io.Writer) int {
 		notifyTool = notify.New() // unbound; Bind wires the sender once channels exist
 		tools["notify"] = notifyTool
 	}
+
+	// Self-scheduling tool (`schedule`, M634): the agent arranges its OWN future
+	// runs in the daemon's cadence store. Registered here (before the kernel
+	// starts, like notify) and Bound to the live store after the kernel opens.
+	// Always available — the schedule store is the kernel's and always exists.
+	scheduleTool := scheduletool.New()
+	tools["schedule"] = scheduleTool
 
 	// OnReload is invoked by the control plane's `provider_reload`
 	// command (and `agt provider reload`). It re-reads the vault,
@@ -1066,6 +1074,14 @@ func runDaemon(stdout, stderr io.Writer) int {
 	if notifyTool != nil {
 		notifyTool.Bind(channelSend, notifyTargets)
 		fmt.Fprintf(stdout, "  notify tool      : enabled (%d channel(s) the agent can ping)\n", len(notifyTargets))
+	}
+
+	// Bind the self-scheduling tool to the live cadence store (M634), now that the
+	// kernel (and its store) exist. The store is the same one the schedule engine
+	// ticks, so an agent-created schedule fires like any operator-added one.
+	if sched := k.Schedules(); sched != nil {
+		scheduleTool.Bind(sched)
+		fmt.Fprintf(stdout, "  schedule tool    : enabled (the agent can schedule its own future runs)\n")
 	}
 
 	// Scheduled intents (autonomy) — fire operator-configured intents on a timer
