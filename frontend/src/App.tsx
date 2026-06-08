@@ -94,12 +94,34 @@ const NAV: NavItem[] = [
   { id: "approvals", label: "Approvals", icon: CheckSquare, render: Approvals },
 ];
 
+// viewFromHash reads a valid view id from the URL hash (#agents → "agents"),
+// falling back to chat so a stale/empty hash never blanks the app.
+function viewFromHash(): string {
+  const id = location.hash.replace(/^#\/?/, "");
+  return NAV.some((n) => n.id === id) ? id : "chat";
+}
+
 export default function App() {
-  const [active, setActive] = useState("chat");
+  const [active, setActiveRaw] = useState(viewFromHash);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const { connected } = useEvents();
   const current = NAV.find((n) => n.id === active) || NAV[0];
   const View = current.render;
+
+  // Deep-linkable views: setActive also reflects into the URL hash, so views are
+  // bookmarkable and the browser back/forward buttons move between them.
+  const setActive = (id: string) => {
+    setActiveRaw(id);
+    if (location.hash.replace(/^#\/?/, "") !== id) location.hash = id;
+  };
+  // Sync when the hash changes externally (back/forward, manual edit).
+  useEffect(() => {
+    function onHash() {
+      setActiveRaw(viewFromHash());
+    }
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
 
   // ⌘K / Ctrl+K opens the command palette from anywhere.
   useEffect(() => {
