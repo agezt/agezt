@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/board"
 )
 
 // Definition implements agent.Tool.
@@ -96,7 +97,7 @@ func (t *Tool) Invoke(_ context.Context, raw json.RawMessage) (agent.Result, err
 	}
 }
 
-func msgView(m Message) map[string]any {
+func msgView(m board.Message) map[string]any {
 	v := map[string]any{"topic": m.Topic, "text": m.Text}
 	if m.From != "" {
 		v["from"] = m.From

@@ -665,6 +665,8 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.handleInbox(conn, req)
 	case CmdSend:
 		s.handleSend(conn, req)
+	case CmdBoardRead:
+		s.handleBoardRead(conn, req)
 	default:
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "unknown command: " + req.Cmd})
 	}

@@ -5,17 +5,50 @@ package boardtool
 import (
 	"context"
 	"encoding/json"
+	"sort"
 	"testing"
+
+	"github.com/agezt/agezt/kernel/board"
 )
+
+// fakeStore is an in-memory boardStore so the tool's op → store mapping is
+// asserted without touching disk (the store itself is tested in kernel/board).
+type fakeStore struct {
+	msgs []board.Message
+}
+
+func (f *fakeStore) Post(topic, from, text string, nowMS int64) (board.Message, error) {
+	m := board.Message{Topic: topic, From: from, Text: text, TSMS: nowMS}
+	f.msgs = append(f.msgs, m)
+	return m, nil
+}
+
+func (f *fakeStore) Read(topic string, limit int) []board.Message {
+	out := make([]board.Message, 0, len(f.msgs))
+	for _, m := range f.msgs {
+		if topic == "" || m.Topic == topic {
+			out = append(out, m)
+		}
+	}
+	sort.SliceStable(out, func(i, j int) bool { return out[i].TSMS > out[j].TSMS })
+	if limit > 0 && len(out) > limit {
+		out = out[:limit]
+	}
+	return out
+}
+
+func (f *fakeStore) Topics() map[string]int {
+	c := map[string]int{}
+	for _, m := range f.msgs {
+		c[m.Topic]++
+	}
+	return c
+}
 
 func newTool(t *testing.T) *Tool {
 	t.Helper()
-	st, err := Open(t.TempDir())
-	if err != nil {
-		t.Fatalf("Open: %v", err)
-	}
 	tool := New()
-	tool.bindStore(st)
+	tool.bindStore(&fakeStore{})
 	var clock int64 = 1000
 	tool.now = func() int64 { clock += 10; return clock } // monotonically increasing
 	return tool
@@ -42,11 +75,9 @@ func TestDefinitionValid(t *testing.T) {
 
 func TestPostThenRead_SharedAcrossCalls(t *testing.T) {
 	tool := newTool(t)
-	// One "agent" posts...
 	if _, isErr := invoke(t, tool, map[string]any{"op": "post", "topic": "findings", "from": "researcher", "text": "Go site is go.dev"}); isErr {
 		t.Fatal("post errored")
 	}
-	// ...another reads it back (same shared store).
 	out, isErr := invoke(t, tool, map[string]any{"op": "read", "topic": "findings"})
 	if isErr {
 		t.Fatal("read errored")
@@ -54,8 +85,7 @@ func TestPostThenRead_SharedAcrossCalls(t *testing.T) {
 	if out["count"].(float64) != 1 {
 		t.Fatalf("read count = %v, want 1", out["count"])
 	}
-	msgs := out["messages"].([]any)
-	m := msgs[0].(map[string]any)
+	m := out["messages"].([]any)[0].(map[string]any)
 	if m["text"] != "Go site is go.dev" || m["from"] != "researcher" || m["topic"] != "findings" {
 		t.Errorf("message folded wrong: %+v", m)
 	}
@@ -67,7 +97,6 @@ func TestRead_NewestFirst_AndTopicFilter(t *testing.T) {
 	invoke(t, tool, map[string]any{"op": "post", "topic": "b", "text": "other-topic"})
 	invoke(t, tool, map[string]any{"op": "post", "topic": "a", "text": "second"})
 
-	// Topic filter: only topic "a", newest first.
 	out, _ := invoke(t, tool, map[string]any{"op": "read", "topic": "a"})
 	msgs := out["messages"].([]any)
 	if len(msgs) != 2 {
@@ -77,10 +106,20 @@ func TestRead_NewestFirst_AndTopicFilter(t *testing.T) {
 		t.Errorf("newest-first wrong: %v", msgs[0])
 	}
 
-	// No filter: all three.
 	all, _ := invoke(t, tool, map[string]any{"op": "read"})
 	if all["count"].(float64) != 3 {
 		t.Errorf("unfiltered count = %v, want 3", all["count"])
+	}
+}
+
+func TestReadLimitClamped(t *testing.T) {
+	tool := newTool(t)
+	for i := 0; i < 5; i++ {
+		invoke(t, tool, map[string]any{"op": "post", "topic": "t", "text": "m"})
+	}
+	out, _ := invoke(t, tool, map[string]any{"op": "read", "limit": 2})
+	if out["count"].(float64) != 2 {
+		t.Errorf("limit not honored: %v", out["count"])
 	}
 }
 
@@ -93,19 +132,6 @@ func TestTopics(t *testing.T) {
 	topics := out["topics"].(map[string]any)
 	if topics["x"].(float64) != 2 || topics["y"].(float64) != 1 {
 		t.Errorf("topic counts wrong: %+v", topics)
-	}
-}
-
-func TestPersistence(t *testing.T) {
-	dir := t.TempDir()
-	st1, _ := Open(dir)
-	if _, err := st1.Post("t", "", "durable", 100); err != nil {
-		t.Fatal(err)
-	}
-	// Reopen → message survives.
-	st2, _ := Open(dir)
-	if got := st2.Read("t", 10); len(got) != 1 || got[0].Text != "durable" {
-		t.Fatalf("message did not persist: %+v", got)
 	}
 }
 

@@ -872,6 +872,15 @@ const (
 	// Args: channel (kind, required), to (channel/chat id, required), text (required).
 	// Returns: { sent: true, channel, to }
 	CmdSend = "send"
+
+	// CmdBoardRead surfaces the shared inter-agent message board (kernel/board,
+	// M647) so the Web UI can show agents talking to each other. Read-only: the
+	// board is written by the `board` tool, never the control plane.
+	// Args: topic (optional; case-insensitive exact filter); limit (optional;
+	// default 50, clamped 1..500).
+	// Returns: { messages: [{topic, from?, text, ts_unix_ms}], topics: {name:count},
+	//            count }
+	CmdBoardRead = "board_read"
 )
 
 // Request is the wire shape sent by the client.
