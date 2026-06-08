@@ -115,6 +115,10 @@ type writeRoute struct {
 // detail view, which fetches one run's events by correlation_id.
 var readArgsRoutes = map[string]writeRoute{
 	"/api/journal":      {controlplane.CmdJournalGrep, []string{"correlation_id", "kind", "limit"}},
+	// Historical journal search (M618): the full CmdJournalGrep filter set —
+	// free-text pattern plus kind/subject/actor/correlation — over all history,
+	// powering the Search view. Read-only, like every readArgsRoute.
+	"/api/journal_search": {controlplane.CmdJournalGrep, []string{"pattern", "kind", "subject", "actor", "correlation_id", "limit"}},
 	"/api/provider_log": {controlplane.CmdProviderLog, []string{"limit", "fallbacks"}},
 	"/api/tool_log":     {controlplane.CmdToolLog, []string{"limit", "tool", "errors"}},
 	"/api/policy_log":   {controlplane.CmdEdictLog, []string{"limit", "denied"}},

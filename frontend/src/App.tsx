@@ -36,6 +36,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { EventFeed } from "@/components/EventFeed";
 import { Chat } from "@/views/Chat";
 import { Activity } from "@/views/Activity";
+import { Search as SearchView } from "@/views/Search";
 import { Replay } from "@/views/Replay";
 import { Agents } from "@/views/Agents";
 import { Dashboard } from "@/views/Dashboard";
@@ -77,6 +78,7 @@ const NAV: NavItem[] = [
   { id: "system", label: "System", icon: Settings, render: Status },
   { id: "budget", label: "Budget", icon: Wallet, render: Budget },
   { id: "feed", label: "Live Stream", icon: Radio, render: EventFeed },
+  { id: "search", label: "Search", icon: Search, render: SearchView },
   { id: "config", label: "Config", icon: Settings, render: Config },
   { id: "cache", label: "Cache", icon: Database, render: Cache },
   { id: "providers", label: "Providers", icon: Cpu, render: Providers },
