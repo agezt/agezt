@@ -5,6 +5,7 @@ package shell
 import (
 	"context"
 	"encoding/json"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
@@ -121,6 +122,34 @@ func TestShell_RunsCommand(t *testing.T) {
 	}
 	if !strings.Contains(r.Output, "hello") {
 		t.Errorf("output missing 'hello': %q", r.Output)
+	}
+}
+
+// TestShell_WorkDir runs in a configured directory so the shell and file tools
+// can be made to agree on "here" (M609). Uses the platform's print-CWD command.
+func TestShell_WorkDir(t *testing.T) {
+	dir := t.TempDir()
+	sh := New()
+	sh.WorkDir = dir
+	cmd := "pwd"
+	if runtime.GOOS == "windows" {
+		cmd = "cd"
+	}
+	in, _ := json.Marshal(shellInput{Command: cmd})
+	r, err := sh.Invoke(context.Background(), in)
+	if err != nil {
+		t.Fatalf("Invoke: %v", err)
+	}
+	if r.IsError {
+		t.Fatalf("unexpected IsError; output=%s", r.Output)
+	}
+	// Resolve both sides through EvalSymlinks: t.TempDir on macOS is under
+	// /var → /private/var, and `pwd` reports the resolved form.
+	wantAbs, _ := filepath.EvalSymlinks(dir)
+	got := strings.TrimSpace(r.Output)
+	gotAbs, _ := filepath.EvalSymlinks(got)
+	if !strings.EqualFold(gotAbs, wantAbs) && !strings.EqualFold(got, dir) {
+		t.Errorf("shell ran in %q, want WorkDir %q", got, dir)
 	}
 }
 
