@@ -12,6 +12,22 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Signal is now a messaging channel** (via signal-cli-rest-api) — the eleventh
+  channel. `plugins/channels/signal` is a duplex channel that talks to an
+  operator-run [signal-cli-rest-api](https://github.com/bbernhard/signal-cli-rest-api)
+  server: it long-polls `GET /v1/receive/{number}` for inbound messages and POSTs
+  `/v2/send` for outbound replies + Pulse briefs, mirroring the Matrix channel.
+  An allowlisted sender number (`AGEZT_SIGNAL_RECIPIENTS`) drives the agent; the
+  account's own number is skipped so a reply never re-enters the loop, and
+  non-allowlisted senders are told once, fail-closed. The API URL is
+  operator-pinned (`AGEZT_SIGNAL_API_URL`), so there is no SSRF surface; an
+  optional bearer token (`AGEZT_SIGNAL_TOKEN`) covers a reverse proxy fronting the
+  API (signal-cli-rest-api is itself unauthenticated). A defensive poll-rate floor
+  means a server that doesn't honour `?timeout=` is never busy-spun. `net/http`
+  only — no Signal SDK, no new dependency. Wired as `buildSignal`
+  (`AGEZT_SIGNAL_API_URL` + `AGEZT_SIGNAL_NUMBER` required; `AGEZT_SIGNAL_RECIPIENTS`
+  allowlist, `AGEZT_SIGNAL_TOKEN`, `AGEZT_SIGNAL_POLL_SECS` optional), surfaced in
+  `agt status` and `agt send --channel signal`. (M584)
 - **The Web UI now has a real browser end-to-end test in CI.** A Playwright suite
   (`frontend/e2e/webui.spec.ts`) drives the actual `go:embed`-ded production SPA in
   headless Chromium against a live keyless demo daemon: it asserts the shell + live

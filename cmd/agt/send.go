@@ -26,7 +26,7 @@ func cmdSend(args []string, stdout, stderr io.Writer) int {
 		case a == "-h" || a == "--help":
 			fmt.Fprintf(stdout, "usage: %s send --channel KIND --to ID <text...>\n", brand.CLI)
 			fmt.Fprintf(stdout, "push an outbound message through a configured channel\n")
-			fmt.Fprintf(stdout, "  --channel KIND   telegram | slack | discord | webhook | email | matrix | sms | whatsapp | homeassistant\n")
+			fmt.Fprintf(stdout, "  --channel KIND   telegram | slack | discord | webhook | email | matrix | sms | whatsapp | homeassistant | teams | signal\n")
 			fmt.Fprintf(stdout, "  --to ID          chat/channel id to deliver to\n")
 			return 0
 		case a == "--channel":
