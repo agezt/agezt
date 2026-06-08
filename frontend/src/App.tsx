@@ -38,6 +38,7 @@ import { postAction } from "@/lib/api";
 import { useEvents } from "@/lib/events";
 import { CommandPalette } from "@/components/CommandPalette";
 import { AlertBell } from "@/components/AlertBell";
+import { Vitals } from "@/components/Vitals";
 import type { CommandItem } from "@/lib/commands";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { EventFeed } from "@/components/EventFeed";
@@ -279,6 +280,7 @@ export default function App() {
     <div className="flex h-full flex-col">
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} items={commands} />
       <Header connected={connected} onOpenPalette={() => setPaletteOpen(true)} />
+      <Vitals onNavigate={setActive} />
       <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
         {/* Nav: horizontal scroll on small screens, grouped sidebar on lg+. */}
         <nav className="flex shrink-0 gap-1 overflow-x-auto border-b border-border p-2 lg:w-56 lg:flex-col lg:gap-0.5 lg:overflow-y-auto lg:border-b-0 lg:border-r">
