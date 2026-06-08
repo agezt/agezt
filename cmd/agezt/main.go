@@ -62,6 +62,7 @@ import (
 	"github.com/agezt/agezt/kernel/skill"
 	"github.com/agezt/agezt/kernel/standing"
 	"github.com/agezt/agezt/kernel/tenant"
+	"github.com/agezt/agezt/kernel/tunnel"
 	"github.com/agezt/agezt/kernel/ulid"
 	"github.com/agezt/agezt/kernel/warden"
 	"github.com/agezt/agezt/kernel/webhook"
@@ -892,6 +893,16 @@ func runDaemon(stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "  web ui           : %s\n", webDesc)
 	} else {
 		fmt.Fprintf(stdout, "  web ui           : disabled (set AGEZT_WEB_ADDR, e.g. 127.0.0.1:8787)\n")
+	}
+
+	// Tunnel (SPEC-07) — expose a local HTTP service (the Web UI, else the REST
+	// API) to the public internet via a supervised cloudflared/ngrok/custom binary.
+	// Off unless AGEZT_TUNNEL or AGEZT_TUNNEL_CMD is set; the operator opts in
+	// explicitly since this makes the service publicly reachable.
+	if tunDesc := buildTunnel(ctx, stdout); tunDesc != "" {
+		fmt.Fprintf(stdout, "  tunnel           : %s\n", tunDesc)
+	} else {
+		fmt.Fprintf(stdout, "  tunnel           : disabled (set AGEZT_TUNNEL=cloudflared|ngrok or AGEZT_TUNNEL_CMD)\n")
 	}
 
 	// OpenAI-compatible API (P7-API-01) — POST /v1/chat/completions,
@@ -2095,6 +2106,68 @@ func buildWebUI(ctx context.Context, k *kernelruntime.Kernel, baseDir string, st
 		desc += "  [WARNING: not loopback — reachable beyond localhost]"
 	}
 	return desc
+}
+
+// buildTunnel starts a public tunnel to a local HTTP service when AGEZT_TUNNEL
+// (cloudflared|ngrok) or AGEZT_TUNNEL_CMD (a custom command) is set. It targets
+// AGEZT_TUNNEL_TARGET, else the Web UI addr, else the REST addr. The supervised
+// binary's public URL is printed to the daemon log once it connects. Returns ""
+// (disabled) when no tunnel is configured.
+//
+//	AGEZT_TUNNEL         provider preset: cloudflared | ngrok
+//	AGEZT_TUNNEL_CMD     explicit command (whitespace-split), overrides the preset
+//	AGEZT_TUNNEL_TARGET  local URL to expose (default: the Web UI, else REST, addr)
+func buildTunnel(ctx context.Context, stdout io.Writer) string {
+	provider := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "TUNNEL"))
+	cmdStr := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "TUNNEL_CMD"))
+	if provider == "" && cmdStr == "" {
+		return ""
+	}
+
+	target := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "TUNNEL_TARGET"))
+	if target == "" {
+		if web := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "WEB_ADDR")); web != "" {
+			target = addrToURL(web)
+		} else if rest := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "REST_ADDR")); rest != "" {
+			target = addrToURL(rest)
+		}
+	}
+
+	cfg := tunnel.Config{
+		Provider:  provider,
+		TargetURL: target,
+		OnURL: func(u string) {
+			fmt.Fprintf(stdout, "  tunnel public URL: %s  [the service is now reachable on the public internet]\n", u)
+		},
+	}
+	if cmdStr != "" {
+		cfg.Command = strings.Fields(cmdStr)
+	}
+
+	tun, err := tunnel.New(cfg)
+	if err != nil {
+		fmt.Fprintf(stdout, "  tunnel           : disabled (%v)\n", err)
+		return ""
+	}
+	go tun.Start(ctx)
+
+	what := "custom command"
+	if cmdStr == "" {
+		what = provider
+	}
+	desc := fmt.Sprintf("%s → exposing %s (public URL prints here once connected)", what, target)
+	if target == "" {
+		desc = fmt.Sprintf("%s (custom command; no local target derived)", what)
+	}
+	return desc
+}
+
+// addrToURL turns a listen addr (host:port, or :port) into a loopback http URL.
+func addrToURL(addr string) string {
+	if strings.HasPrefix(addr, ":") {
+		addr = "127.0.0.1" + addr
+	}
+	return "http://" + addr
 }
 
 // kernelAPIEngine adapts *kernelruntime.Kernel to openaiapi.Engine: it adds
