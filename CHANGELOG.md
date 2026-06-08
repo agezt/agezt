@@ -12,6 +12,10 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Copy button on Chat code blocks** — fenced code in an agent answer now has a
+  hover Copy button (and a language label), so the command or snippet it hands you
+  is one click to the clipboard. Uses the async Clipboard API; no-ops silently if
+  the context can't write.
 - **Per-run Cancel in the Activity monitor** — each in-flight run now has a
   **Cancel** button (the targeted alternative to the global Halt): it issues
   `CmdCancelRun` for that one correlation, leaving every other run and the kernel

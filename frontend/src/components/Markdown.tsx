@@ -1,4 +1,5 @@
-import { Fragment } from "react";
+import { Fragment, useState } from "react";
+import { Check, Copy } from "lucide-react";
 import { parseInline, parseMarkdown, type Inline } from "@/lib/markdown";
 
 // Markdown renders an agent answer from the tiny AST in lib/markdown. Every leaf
@@ -11,14 +12,7 @@ export function Markdown({ source, className }: { source: string; className?: st
       {blocks.map((b, i) => {
         switch (b.t) {
           case "code":
-            return (
-              <pre
-                key={i}
-                className="my-2 overflow-auto rounded-md border border-border bg-panel/70 p-2.5 font-mono text-[12px] leading-snug"
-              >
-                <code>{b.v}</code>
-              </pre>
-            );
+            return <CodeBlock key={i} code={b.v} lang={b.lang} />;
           case "ul":
             return (
               <ul key={i} className="my-1.5 list-disc space-y-0.5 pl-5">
@@ -51,6 +45,41 @@ export function Markdown({ source, className }: { source: string; className?: st
             );
         }
       })}
+    </div>
+  );
+}
+
+// CodeBlock renders a fenced block with a hover Copy button — the snippet/command
+// an agent hands you is usually the thing you want to grab, so make it one click.
+function CodeBlock({ code, lang }: { code: string; lang: string }) {
+  const [copied, setCopied] = useState(false);
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1200);
+    } catch {
+      /* clipboard unavailable (non-secure context) — silently no-op */
+    }
+  }
+  return (
+    <div className="group relative my-2">
+      <pre className="overflow-auto rounded-md border border-border bg-panel/70 p-2.5 font-mono text-[12px] leading-snug">
+        <code>{code}</code>
+      </pre>
+      {lang && (
+        <span className="pointer-events-none absolute left-2 top-1 select-none text-[10px] uppercase tracking-wide text-muted/60">
+          {lang}
+        </span>
+      )}
+      <button
+        onClick={copy}
+        title={copied ? "Copied" : "Copy"}
+        className="absolute right-1.5 top-1.5 inline-flex items-center gap-1 rounded border border-border bg-card px-1.5 py-0.5 text-[11px] text-muted opacity-0 transition-opacity hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100"
+      >
+        {copied ? <Check className="size-3 text-good" /> : <Copy className="size-3" />}
+        {copied ? "Copied" : "Copy"}
+      </button>
     </div>
   );
 }
