@@ -34,6 +34,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   the Chat renders progressively.
 
 ### Added
+- **Cockpit dashboard (Overview).** The Overview is now a live cockpit instead of a
+  raw status dump: at-a-glance tiles for running / completed / failed / success
+  rate, a budget gauge (today's spend vs the daily ceiling), the active model with
+  avg iterations and sub-agent delegations, spend-by-model, and a live event
+  ticker — refreshed on a timer and nudged by run start/end events. The raw daemon
+  self-report moves to a "System" view.
 - **Tool results render as widgets.** When a tool call's output is JSON (file.list,
   http, shell, …), the Chat now shows it as a DataView widget — a table for an
   array, a key/value card for an object — instead of a wall of raw braces. Non-JSON

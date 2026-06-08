@@ -30,6 +30,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { EventFeed } from "@/components/EventFeed";
 import { Chat } from "@/views/Chat";
 import { Activity } from "@/views/Activity";
+import { Dashboard } from "@/views/Dashboard";
 import { Status } from "@/views/Status";
 import { Runs } from "@/views/Runs";
 import { Budget } from "@/views/Budget";
@@ -59,8 +60,9 @@ const NAV: NavItem[] = [
   { id: "chat", label: "Chat", icon: MessageSquare, render: Chat },
   { id: "activity", label: "Activity", icon: ActivityIcon, render: Activity },
   { id: "flow", label: "Flow Studio", icon: Workflow, render: FlowStudio },
-  { id: "overview", label: "Overview", icon: LayoutDashboard, render: Status },
+  { id: "overview", label: "Overview", icon: LayoutDashboard, render: Dashboard },
   { id: "runs", label: "Runs", icon: ListTree, render: Runs },
+  { id: "system", label: "System", icon: Settings, render: Status },
   { id: "budget", label: "Budget", icon: Wallet, render: Budget },
   { id: "feed", label: "Event Feed", icon: Radio, render: EventFeed },
   { id: "config", label: "Config", icon: Settings, render: Config },
