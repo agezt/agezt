@@ -12,6 +12,14 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **System health dashboard.** The System view (formerly a raw `/api/status`
+  JSON dump) is now a proper vitals board: a big Operational / HALTED banner with
+  model, uptime and daemon version; live counter tiles (active runs, pending
+  approvals, journal head, tools, memory records, world entities, active skills,
+  schedules); and detail cards for delegation limits, the HTTP surface, the
+  credential chain, and provider routing (with the most recent fallback reason
+  surfaced as a warning). Refreshes on a timer and on halt/resume/run events.
+  (M619)
 - **Journal Search — find any past event across all history.** Where the Live
   Stream shows the present, the new Search view queries the *whole* journal
   server-side (`journal_grep`): filter by free-text pattern plus
