@@ -12,6 +12,17 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Chat view (the humane front door)** — a conversational Web UI to actually
+  *talk to* the agent, now the default view. Type an intent and watch the
+  governed loop answer live: streaming text (token deltas from real providers),
+  the tool calls it made rendered as inline chips with their policy verdict
+  (allowed / denied) and expandable output, the final answer, and the run's real
+  cost (model · iterations · spend). It drives the same `CmdRun` as the CLI, so
+  what you see is exactly what the daemon did. Backed by a new SSE streaming
+  proxy (`POST /api/run`) that forwards each loop event to the browser inline,
+  plus a pure, unit-tested fold (`lib/chat.ts`) turning the event stream into the
+  message model. Light + dark, responsive, zero console errors under the strict
+  CSP.
 - **Voice input (speech-to-text)** — drive the agent by talking. `kernel/stt` is a
   minimal client for the OpenAI-compatible `/v1/audio/transcriptions` endpoint
   (spoken by OpenAI, Groq, and a local whisper.cpp server alike), `net/http` only,

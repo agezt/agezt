@@ -130,6 +130,9 @@ agt halt                  # freeze everything instantly
 ```
 
 If `AGEZT_WEB_ADDR` is set, the banner prints a tokenized URL — open it for a
+**Chat** view (the default: type an intent and watch the governed loop answer
+live — streaming text, the tool calls it made with their policy verdict, and the
+final answer with its real cost), a
 live event monitor (filterable by event kind), read panels (status / runs — click one for its full event
 arc / stats with an outcome bar / budget / cache savings / providers routing view / tools / policy / schedules / world / skills / memory / inbox /
 reflection, all refreshed live off the event stream), and operator controls
