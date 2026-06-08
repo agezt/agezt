@@ -12,6 +12,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Per-run Cancel in the Activity monitor** — each in-flight run now has a
+  **Cancel** button (the targeted alternative to the global Halt): it issues
+  `CmdCancelRun` for that one correlation, leaving every other run and the kernel
+  untouched. The daemon emits `task.failed(reason=canceled)`, which the live fold
+  turns into a failed row. Exposed as a POST-only, correlation-allowlisted
+  `/api/cancel_run` write route.
 - **Multi-turn Chat continuity** — the Chat view now carries conversation context:
   each message is sent with the prior turns as `history`, which the `/api/run`
   proxy folds (with the new turn) into one transcript intent before running the
