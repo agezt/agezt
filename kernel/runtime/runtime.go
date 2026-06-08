@@ -25,6 +25,7 @@ import (
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/approval"
 	"github.com/agezt/agezt/kernel/artifact"
+	"github.com/agezt/agezt/kernel/assure"
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/cadence"
 	"github.com/agezt/agezt/kernel/catalog"
@@ -1211,6 +1212,61 @@ func (k *Kernel) Run(ctx context.Context, intent string) (string, string, error)
 	corr := k.NewCorrelation()
 	ans, err := k.RunWith(ctx, corr, intent)
 	return ans, corr, err
+}
+
+// assureVerifyMaxTokens bounds the verifier completion — it only emits a tiny
+// JSON verdict, so a small cap keeps the completion check cheap.
+const assureVerifyMaxTokens = 400
+
+// RunAssured is the "do-it-for-sure" loop (M651): it runs the intent, asks a
+// verifier whether the task was actually accomplished, and retries with the gap
+// fed back — up to maxAttempts, stopping the moment the task is judged complete.
+// Every attempt reuses corr (they run sequentially and never overlap), so the
+// whole objective streams and journals under one correlation id. Returns the
+// final answer and the loop result (attempts, completion, per-attempt history).
+func (k *Kernel) RunAssured(ctx context.Context, corr, intent string, maxAttempts int) (string, assure.Result, error) {
+	res, err := assure.Until(ctx, intent, maxAttempts,
+		func(ctx context.Context, _ int, task string) (string, error) {
+			return k.RunWith(ctx, corr, task)
+		},
+		func(ctx context.Context, task, answer string) (assure.Verdict, error) {
+			return k.verifyCompletion(ctx, corr, task, answer)
+		},
+	)
+	return res.Answer, res, err
+}
+
+// verifyCompletion asks the provider whether answer fully accomplishes task,
+// parsing a strict-JSON verdict and journaling it under corr so `agt why` shows
+// why an assured run retried or stopped. An unparseable verdict is treated as
+// "not complete" (the bounded loop tries again rather than declaring a false
+// success).
+func (k *Kernel) verifyCompletion(ctx context.Context, corr, task, answer string) (assure.Verdict, error) {
+	prompt := "You are a strict completion checker. Given a TASK and the ANSWER an agent produced, decide whether the answer FULLY accomplishes the task with nothing important left undone. Be skeptical: a plan or a promise to do it is NOT completion.\n\n" +
+		"Reply with ONLY a JSON object and no other text: {\"complete\": true|false, \"gap\": \"<concise description of what is still missing; empty string if complete>\"}.\n\n" +
+		"TASK:\n" + task + "\n\nANSWER:\n" + answer
+	resp, err := k.cfg.Provider.Complete(ctx, agent.CompletionRequest{
+		Model:         k.cfg.Model,
+		CorrelationID: corr,
+		TaskType:      "verify",
+		MaxTokens:     assureVerifyMaxTokens,
+		Messages:      []agent.Message{{Role: agent.RoleUser, Content: prompt}},
+	})
+	if err != nil {
+		return assure.Verdict{}, err
+	}
+	v, ok := assure.ParseVerdict(resp.Message.Content)
+	if !ok {
+		v = assure.Verdict{Complete: false, Gap: "verifier reply was not valid JSON"}
+	}
+	_, _ = k.bus.Publish(event.Spec{
+		Subject:       "agent.agent-" + corr + ".assure",
+		Kind:          event.KindAssureVerdict,
+		Actor:         "assure",
+		CorrelationID: corr,
+		Payload:       map[string]any{"complete": v.Complete, "gap": v.Gap},
+	})
+	return v, nil
 }
 
 // RunWith executes one tool-loop using the supplied correlation ID.

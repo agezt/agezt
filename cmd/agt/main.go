@@ -31,6 +31,7 @@ import (
 
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/internal/paths"
+	"github.com/agezt/agezt/kernel/assure"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/event"
 )
@@ -168,6 +169,7 @@ func printHelp(w io.Writer) {
 	fmt.Fprintf(w, "  run \"<intent>\" | run - | run --file <path>   run an intent (read from arg, stdin via -, or a file)\n")
 	fmt.Fprintf(w, "      [--json|-q] [--tenant <id>] [--model <id>] [--system <prompt>] [--timeout <dur>]   per-run overrides; -q/--quiet = only the answer; JSON = ndjson stream\n")
 	fmt.Fprintf(w, "      [--tools <csv>|--no-tools] [--dry-run] [--max-cost <usd>]   restrict tools / preview the plan / cap this run's spend\n")
+	fmt.Fprintf(w, "      [--assure[=<n>]]   do-it-for-sure: run, verify it's actually done, retry the gap up to n attempts (default 3)\n")
 	fmt.Fprintf(w, "  halt [--reason \"...\"] [--json]  freeze all in-flight runs (reason is journaled)\n")
 	fmt.Fprintf(w, "  resume [--reason \"...\"] [--json] clear the halt flag (reason is journaled)\n")
 	fmt.Fprintf(w, "  why <event_id> [--json|--payload]  list events sharing an event's correlation\n")
@@ -341,6 +343,7 @@ func cmdRun(args []string, stdout, stderr io.Writer) int {
 	var toolsList []any
 	dryRun := false
 	maxCostMicrocents := int64(0)
+	assureAttempts := int64(0) // 0 = single pass; >0 = "do-it-for-sure" retry budget
 	var images []string
 	var intentParts []string
 	for i := 0; i < len(args); i++ {
@@ -386,6 +389,16 @@ func cmdRun(args []string, stdout, stderr io.Writer) int {
 			timeout = strings.TrimPrefix(a, "--timeout=")
 		case a == "--dry-run":
 			dryRun = true
+		case a == "--assure":
+			assureAttempts = int64(assure.DefaultMaxAttempts)
+		case strings.HasPrefix(a, "--assure="):
+			v := strings.TrimPrefix(a, "--assure=")
+			n, perr := strconv.Atoi(v)
+			if perr != nil || n < 1 {
+				fmt.Fprintf(stderr, "%s run: invalid --assure %q (want a positive integer of attempts)\n", brand.CLI, v)
+				return 2
+			}
+			assureAttempts = int64(n)
 		case a == "--max-cost" || strings.HasPrefix(a, "--max-cost="):
 			var v string
 			if a == "--max-cost" {
@@ -521,6 +534,11 @@ func cmdRun(args []string, stdout, stderr io.Writer) int {
 	// Per-run cost cap (M166): bound this run's spend. Sent in microcents.
 	if maxCostMicrocents > 0 {
 		runArgs["max_cost"] = float64(maxCostMicrocents)
+	}
+	// "Do-it-for-sure" (M651): run, verify completion, retry the gap — up to this
+	// many attempts. The daemon runs the loop and streams every attempt's events.
+	if assureAttempts > 0 {
+		runArgs["assure"] = float64(assureAttempts)
 	}
 
 	c := dial(stderr)

@@ -12,6 +12,22 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **"Do-it-for-sure" — run, verify, retry until actually done (`agt run --assure`).**
+  A new reliability loop: instead of a single pass, an assured run executes the
+  task, asks a strict verifier whether it was FULLY accomplished (a plan or a
+  promise doesn't count), and if not, retries with the verifier's gap fed back —
+  up to N attempts (default 3, max 10), stopping the moment it's judged complete.
+  This is the "when I write something, definitely do it, and repeat as needed"
+  primitive. The loop core is a pure, fully-tested `kernel/assure` package (run +
+  verify closures); the kernel supplies a governed `RunWith` and a provider-backed
+  completion judge. Every attempt reuses one correlation id (sequential, never
+  overlapping) so the whole objective streams and journals as one run, and each
+  completion check emits a `assure.verdict` event ({complete, gap}) so `agt why`
+  shows exactly why it retried or stopped. Exposed as `agt run --assure[=<n>]`;
+  available to any run surface through the `assure` arg on the run command.
+  Verified live with the real provider: an assured run completed and journaled a
+  `complete:true` verdict; the retry/exhaust/clamp/parse paths are covered by the
+  pure package's unit tests. (M651)
 - **Continuous-loop heartbeat — see the living organism breathe.** Every cadence
   entry now carries a `Fires` counter, incremented once per completed firing at
   the universal `CompleteFiring` hook (so it never double-counts an in-flight

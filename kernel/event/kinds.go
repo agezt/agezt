@@ -250,6 +250,12 @@ const (
 	// firing is journaled so `agt journal grep schedule` shows what the system
 	// did on its own and `agt why` links the firing to the resulting run.
 	KindScheduleFired Kind = "schedule.fired"
+
+	// KindAssureVerdict is journaled by the "do-it-for-sure" loop after each
+	// attempt's completion check (M651): it carries the attempt number, whether
+	// the verifier judged the task complete, and the remaining gap if not — so
+	// `agt why` can show why an assured run retried (or stopped).
+	KindAssureVerdict Kind = "assure.verdict"
 )
 
 // IsKnown reports whether k is one of the kinds defined in this file. Useful
@@ -352,4 +358,5 @@ var knownKinds = map[Kind]struct{}{
 	KindWebhookDelivered:          {},
 	KindWebhookFailed:             {},
 	KindScheduleFired:             {},
+	KindAssureVerdict:             {},
 }
