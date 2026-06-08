@@ -11,6 +11,21 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 
 ## [Unreleased]
 
+### Added
+- **`standing` tool — agents create their own event-triggered agents.** A new
+  in-process tool lets the agent set up its OWN autonomous, trigger-driven agents
+  (Chronos standing orders): `op=create_event` makes one that fires its plan
+  whenever a matching journal event is published (e.g. trigger on `task.failed`);
+  `op=create_cron` on a cron schedule; plus `list` / `remove`. This is the
+  agents-create-agents primitive for the EVENT/cron axis, symmetric with the
+  `schedule` tool (the time axis) — so the agent can now arrange reactive
+  ("when X happens, do Y") *and* recurring unattended behaviour itself, each
+  firing through the full governed loop and visible in the Standing cockpit.
+  Conservative `ask` initiative by default; governed by a new ask-first
+  `standing` capability. Verified live: the agent created a `task.failed` →
+  "investigate the failure" order that persisted in the store. Tool count
+  16 → 17. (M645)
+
 ### Fixed
 - **Inbox view never rendered conversations.** The unified Inbox read the wrong
   payload key (`items`) while the control plane returns `threads`, so it always

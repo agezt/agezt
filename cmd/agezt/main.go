@@ -93,6 +93,7 @@ import (
 	"github.com/agezt/agezt/plugins/tools/runstool"
 	scheduletool "github.com/agezt/agezt/plugins/tools/schedule"
 	"github.com/agezt/agezt/plugins/tools/shell"
+	standingtool "github.com/agezt/agezt/plugins/tools/standingtool"
 	"github.com/agezt/agezt/plugins/tools/websearch"
 )
 
@@ -297,6 +298,12 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// opens. Always available — the journal is the kernel's and always exists.
 	runsTool := runstool.New()
 	tools["runs"] = runsTool
+
+	// Standing-order tool (`standing`, M645): the agent creates its OWN autonomous,
+	// trigger-driven agents (event/cron). Registered now, Bound to the kernel after
+	// it opens (the kernel satisfies the tool's journaled standing-CRUD surface).
+	standingToolInst := standingtool.New()
+	tools["standing"] = standingToolInst
 
 	// OnReload is invoked by the control plane's `provider_reload`
 	// command (and `agt provider reload`). It re-reads the vault,
@@ -1095,6 +1102,10 @@ func runDaemon(stdout, stderr io.Writer) int {
 	if j := k.Journal(); j != nil {
 		runsTool.Bind(j)
 	}
+
+	// Bind the standing-order tool to the kernel (M645) — it satisfies the tool's
+	// journaled AddStanding / RemoveStanding / Standing() surface.
+	standingToolInst.Bind(k)
 
 	// Scheduled intents (autonomy) — fire operator-configured intents on a timer
 	// through the governed loop. Runs on the daemon ctx (halt/shutdown stop it).
