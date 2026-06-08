@@ -12,6 +12,19 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **The Web UI now has a real browser end-to-end test in CI.** A Playwright suite
+  (`frontend/e2e/webui.spec.ts`) drives the actual `go:embed`-ded production SPA in
+  headless Chromium against a live keyless demo daemon: it asserts the shell + live
+  SSE indicator render, navigation between views works, the Overview shows real
+  daemon status, a submitted run renders as an expandable run-detail card (proving
+  the journal → cards pipeline, M577/M580), the World panel mounts, and there are
+  **zero console errors under the strict CSP** (the M566 regression guard, now
+  automated). A reusable harness (`scripts/webui-e2e.sh`, `make webui-e2e`) boots
+  the daemon, seeds a run, and resolves the tokenized Web UI URL from its log; a new
+  CI job **`webui-e2e`** (20th… now 21st check) builds the binaries, installs the
+  browser, and runs it. Dev-only: `@playwright/test` is a devDependency, the e2e
+  specs are excluded from Tailwind's content scan (`@source not "../e2e/**"`) and
+  from Vitest's `include`, so the committed `dist` is byte-for-byte unchanged. (M583)
 - **Official Rust SDK** (`sdk/rust`, crate `agezt`). A zero-runtime-dependency
   client for the daemon's REST API (`/api/v1`) — `Client::new(base_url, token)`
   with `health()`, `models()`, `run()` (blocking), `run_stream()` (an
