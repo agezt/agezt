@@ -11,6 +11,16 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 
 ## [Unreleased]
 
+### Fixed
+- **Inbox view never rendered conversations.** The unified Inbox read the wrong
+  payload key (`items`) while the control plane returns `threads`, so it always
+  showed empty even with channel traffic. Rewrote it as a proper unified-
+  conversation view: each channel thread (Telegram/Slack/Discord/email/…) folded
+  newest-first, with messages marked inbound (from the operator) vs outbound
+  (from the agent) in a chat layout, live-nudged on `channel.*` events. Verified
+  live against the real `/api/inbox` payload (`{threads:[],count:0}`): the empty
+  state renders cleanly, 0 console errors. (M640)
+
 ### Added
 - **Reflection view — the system reasoning about itself.** The Reflection panel,
   previously a raw-JSON dump, is now a proper view of the daemon's self-reflection
