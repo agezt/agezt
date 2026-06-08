@@ -12,6 +12,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Drill into a run from the Activity monitor** — each run in the live monitor is
+  now expandable: click it to see the full detail — status / model / iterations /
+  tokens / cost, every tool call it made with its policy verdict and output, and
+  the final answer — fetched from the journal and folded live as the agent works.
+  The detail renderer (`components/RunDetail.tsx`) is now shared with the Runs
+  view, so the historical list and the live monitor render a run identically.
 - **Copy button on Chat code blocks** — fenced code in an agent answer now has a
   hover Copy button (and a language label), so the command or snippet it hands you
   is one click to the clipboard. Uses the async Clipboard API; no-ops silently if
