@@ -5,6 +5,7 @@ import {
   Clapperboard,
   Workflow,
   LayoutDashboard,
+  BarChart3,
   ListTree,
   Wallet,
   Radio,
@@ -33,6 +34,7 @@ import { Chat } from "@/views/Chat";
 import { Activity } from "@/views/Activity";
 import { Replay } from "@/views/Replay";
 import { Dashboard } from "@/views/Dashboard";
+import { Insights } from "@/views/Insights";
 import { Status } from "@/views/Status";
 import { Runs } from "@/views/Runs";
 import { Budget } from "@/views/Budget";
@@ -64,6 +66,7 @@ const NAV: NavItem[] = [
   { id: "replay", label: "Replay", icon: Clapperboard, render: Replay },
   { id: "flow", label: "Flow Studio", icon: Workflow, render: FlowStudio },
   { id: "overview", label: "Overview", icon: LayoutDashboard, render: Dashboard },
+  { id: "insights", label: "Insights", icon: BarChart3, render: Insights },
   { id: "runs", label: "Runs", icon: ListTree, render: Runs },
   { id: "system", label: "System", icon: Settings, render: Status },
   { id: "budget", label: "Budget", icon: Wallet, render: Budget },
