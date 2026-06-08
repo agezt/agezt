@@ -12,6 +12,11 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Skills library.** The Skills view is now a card library: each learned
+  procedure shows its status (active / shadow / draft / quarantined, colour-coded),
+  name, version, description, triggers, required tools, shadow/usage metrics and
+  age, with the full procedure body expandable inline and promote / quarantine /
+  revert controls per card. (M622)
 - **Memory browser.** The Memory view is now a searchable knowledge board: each
   durable fact is a card showing its type, subject, content, confidence, age and
   tags, sorted newest-first, with live free-text search across
