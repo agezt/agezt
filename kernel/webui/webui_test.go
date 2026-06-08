@@ -511,7 +511,7 @@ func TestAPIReadOnly(t *testing.T) {
 	readOnly := map[string]bool{
 		"status": true, "config": true, "runs_list": true, "runs_stats": true, "budget": true, "cache_stats": true, "provider_stats": true, "tool_stats": true, "edict_stats": true, "schedule_list": true, "memory_list": true, "world_list": true,
 		"skill_list": true, "standing_list": true, "inbox": true, "reflect_show": true, "approvals": true,
-		"plan_stats": true,
+		"plan_stats": true, "edict_show": true,
 	}
 	for path := range apiRoutes {
 		fc := &fakeCaller{result: map[string]any{"ok": true}}
@@ -615,6 +615,58 @@ func TestBudgetSetForwardsCeiling(t *testing.T) {
 	}
 	if _, leaked := fc.lastArgs["evil"]; leaked {
 		t.Error("non-allowlisted arg leaked into the budget_set call")
+	}
+}
+
+// Policy control center (M610): the edict mutation routes forward only their
+// allowlisted args and map to the right command, so an operator can grant/deny
+// capabilities from the cockpit.
+func TestEdictControlRoutes(t *testing.T) {
+	for _, tc := range []struct {
+		path, cmd string
+		query     string
+		wantArgs  map[string]string
+	}{
+		{"/api/edict/set_level", "edict_set_level", "capability=browser.read&level=L4&evil=x",
+			map[string]string{"capability": "browser.read", "level": "L4"}},
+		{"/api/edict/set_mode", "edict_set_mode", "mode=allow", map[string]string{"mode": "allow"}},
+		{"/api/edict/deny_add", "edict_deny_add", "rule=secret", map[string]string{"rule": "secret"}},
+		{"/api/edict/deny_rm", "edict_deny_rm", "name=runtime%5B0%5D", map[string]string{"name": "runtime[0]"}},
+	} {
+		fc := &fakeCaller{result: map[string]any{"ok": true}}
+		s, _ := newServer(t, fc, "secret")
+		req := httptest.NewRequest(http.MethodPost, tc.path+"?token=secret&"+tc.query, nil)
+		rec := httptest.NewRecorder()
+		s.Handler().ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Errorf("%s status = %d want 200", tc.path, rec.Code)
+		}
+		if len(fc.calls) != 1 || fc.calls[0] != tc.cmd {
+			t.Errorf("%s issued %v want [%s]", tc.path, fc.calls, tc.cmd)
+		}
+		for k, v := range tc.wantArgs {
+			if fc.lastArgs[k] != v {
+				t.Errorf("%s arg %s = %v want %q", tc.path, k, fc.lastArgs[k], v)
+			}
+		}
+		if _, leaked := fc.lastArgs["evil"]; leaked {
+			t.Errorf("%s leaked a non-allowlisted arg", tc.path)
+		}
+	}
+}
+
+// The edict_show read route proxies the parameterless show command (GET).
+func TestEdictShowRoute(t *testing.T) {
+	fc := &fakeCaller{result: map[string]any{"levels": map[string]any{}, "ask_policy": "allow"}}
+	s, _ := newServer(t, fc, "secret")
+	req := httptest.NewRequest(http.MethodGet, "/api/edict_show?token=secret", nil)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d want 200", rec.Code)
+	}
+	if len(fc.calls) != 1 || fc.calls[0] != "edict_show" {
+		t.Errorf("expected one edict_show call, got %v", fc.calls)
 	}
 }
 
