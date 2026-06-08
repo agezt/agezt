@@ -12,6 +12,17 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Grant or restrict tool capabilities from the cockpit — no restart.** The Web
+  UI Policy view was read-only (decision stats + log); enabling a default-denied
+  capability meant editing env vars and restarting. It is now a control center:
+  every governed capability shows its current trust level (L0 deny … L4 allow) in
+  a dropdown you can change live, the engine-wide ask mode (allow/prompt/deny) is
+  a selector, and runtime hard-deny rules can be removed. Changes post the
+  existing `edict_set_level` / `edict_set_mode` / `edict_deny_*` control-plane
+  commands, are journaled as `policy.changed`, and persist in the durable policy
+  overlay (survive restart). Verified end-to-end: flipping `http.post` L1→L4 from
+  the UI took effect on the live daemon (CLI-confirmed) and landed in the overlay.
+  (M610)
 - **The agent now knows its host — no more blind `ls` on Windows.** Every run's
   system prompt gains a concise *runtime environment* preamble: the host OS/arch,
   the exact shell the shell tool uses (with command-style guidance — native
