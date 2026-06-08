@@ -12,6 +12,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Journal Search — find any past event across all history.** Where the Live
+  Stream shows the present, the new Search view queries the *whole* journal
+  server-side (`journal_grep`): filter by free-text pattern plus
+  kind / actor / correlation, and every match renders in the same colour-coded,
+  payload-expandable rows as the live console. The Web UI's `/api/journal` route
+  gained a `journal_search` sibling exposing the full grep filter set
+  (pattern/kind/subject/actor/correlation/limit). (M618)
 - **⌘K command palette — reach everything instantly.** Press ⌘K / Ctrl+K (or the
   header button) anywhere to fuzzy-search every view and quick action, navigate
   with the keyboard (↑/↓, Enter, Esc), and jump straight there. Results are

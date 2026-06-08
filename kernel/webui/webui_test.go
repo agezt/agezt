@@ -392,6 +392,35 @@ func TestProviderLogRouteForwardsLimit(t *testing.T) {
 	}
 }
 
+// The Search view (M618): /api/journal_search forwards the full grep filter set
+// (free-text pattern + kind/subject/actor/correlation/limit) and drops anything
+// else.
+func TestJournalSearchForwardsFullFilterSet(t *testing.T) {
+	fc := &fakeCaller{result: map[string]any{"events": []any{}}}
+	s, _ := newServer(t, fc, "secret")
+	req := httptest.NewRequest(http.MethodGet,
+		"/api/journal_search?token=secret&pattern=denied&kind=policy.decision&actor=agent-1&subject=governor&correlation_id=run-9&limit=50&evil=rm", nil)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d want 200", rec.Code)
+	}
+	if len(fc.calls) != 1 || fc.calls[0] != "journal_grep" {
+		t.Fatalf("expected one journal_grep call, got %v", fc.calls)
+	}
+	for k, want := range map[string]string{
+		"pattern": "denied", "kind": "policy.decision", "actor": "agent-1",
+		"subject": "governor", "correlation_id": "run-9", "limit": "50",
+	} {
+		if fc.lastArgs[k] != want {
+			t.Errorf("%s not forwarded: got %v want %q", k, fc.lastArgs[k], want)
+		}
+	}
+	if _, leaked := fc.lastArgs["evil"]; leaked {
+		t.Error("non-allowlisted arg leaked through journal_search")
+	}
+}
+
 func TestJournalRouteForwardsKind(t *testing.T) {
 	fc := &fakeCaller{result: map[string]any{"events": []any{}}}
 	s, _ := newServer(t, fc, "secret")
