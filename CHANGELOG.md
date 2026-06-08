@@ -12,6 +12,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Providers & Tools monitors.** The Providers and Tools views (formerly plain
+  stat panels) are now live monitoring dashboards. Providers: routed / fallback /
+  fallback-rate tiles, a routes-by-provider bar breakdown with each provider's
+  fallback share, and a colour-coded routing-activity log. Tools: calls / errored
+  / error-rate tiles, a per-tool usage breakdown where each bar splits success vs
+  error share (with calls · errors · avg latency), and a colour-coded invocation
+  log. Both refresh on a timer and on the relevant live events. (M620)
 - **System health dashboard.** The System view (formerly a raw `/api/status`
   JSON dump) is now a proper vitals board: a big Operational / HALTED banner with
   model, uptime and daemon version; live counter tiles (active runs, pending
