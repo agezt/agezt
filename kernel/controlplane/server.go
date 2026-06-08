@@ -1196,6 +1196,15 @@ func (s *Server) handleRun(ctx context.Context, conn net.Conn, req Request) {
 		ctx = runtime.WithMaxCost(ctx, maxCost)
 	}
 
+	// Assured run (M651): when assure > 0, run the "do-it-for-sure" loop — run,
+	// verify completion, retry with the gap fed back — up to that many attempts,
+	// instead of a single pass. A malformed value is a usage error.
+	assureN, _, acerr := argInt64(req.Args, "assure")
+	if acerr != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: acerr.Error()})
+		return
+	}
+
 	// Dry-run (M159): resolve exactly what this run WOULD do — effective model
 	// (and its catalog capabilities), the system-prompt source, the effective
 	// wall-clock timeout, and the precise tool set the agent loop would see after
@@ -1271,6 +1280,11 @@ func (s *Server) handleRun(ctx context.Context, conn net.Conn, req Request) {
 	}
 	resultCh := make(chan runResult, 1)
 	go func() {
+		if assureN > 0 {
+			ans, _, err := k.RunAssured(ctx, corr, intent, int(assureN))
+			resultCh <- runResult{ans, err}
+			return
+		}
 		ans, err := k.RunWith(ctx, corr, intent)
 		resultCh <- runResult{ans, err}
 	}()
