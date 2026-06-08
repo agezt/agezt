@@ -65,6 +65,19 @@ describe("foldChatFrame", () => {
     expect(turnText(t)).toBe("[echo]\nhello");
   });
 
+  it("accumulates a reasoning model's chain of thought separately from the answer", () => {
+    const t = fold([
+      { kind: "open" },
+      { kind: "llm.reasoning", payload: { text: "Let me think… " } },
+      { kind: "llm.reasoning", payload: { text: "the number was 42." } },
+      { kind: "llm.token", payload: { text: "It's 42." } },
+      { kind: "task.completed", payload: { answer: "It's 42." } },
+      { kind: "done", result: { answer: "It's 42." } },
+    ]);
+    expect(t.reasoning).toBe("Let me think… the number was 42.");
+    expect(turnText(t)).toBe("It's 42."); // reasoning is NOT the answer
+  });
+
   it("marks the turn errored when the loop fails mid-stream", () => {
     const t = fold([{ kind: "open" }, { kind: "error", error: "budget exhausted" }]);
     expect(t.status).toBe("error");

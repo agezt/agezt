@@ -25,6 +25,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   the Chat renders progressively.
 
 ### Added
+- **Reasoning (chain-of-thought) in Chat.** A reasoning model (deepseek-reasoner /
+  -v4, o-series, Claude thinking) streams its chain of thought as `llm.reasoning`
+  deltas separately from the answer; the Chat now folds and shows it — a live
+  "Thinking…" block while the model reasons, which collapses to an expandable
+  "Reasoning" toggle once the answer begins. Previously these deltas reached the
+  browser but were dropped.
 - **Copy a whole answer in Chat** — finished agent replies now have a Copy button
   next to their meta line, copying the full answer to the clipboard (complements
   the per-code-block copy).
