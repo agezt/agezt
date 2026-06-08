@@ -49,6 +49,12 @@ const (
 	ModeDaily    = "daily"
 	ModeOnce     = "once"   // fire exactly once at NextRunUnix, then self-remove
 	ModeWindow   = "window" // fire every IntervalSec, but only within a daily time window
+	// ModeContinuous is a completion-anchored loop (M646): the entry fires, and
+	// once its run COMPLETES it re-anchors NextRunUnix to (completion + cooldown)
+	// — so it runs again `cooldown` after each cycle ends, never overlapping (the
+	// engine's in-flight guard), forever. A living, never-tiring agent. IntervalSec
+	// carries the cooldown.
+	ModeContinuous = "continuous"
 )
 
 // AllDays is the day-mask meaning "every day" (all seven bits set); the zero
@@ -83,7 +89,9 @@ func (e Entry) Interval() time.Duration { return time.Duration(e.IntervalSec) * 
 // usesInterval reports whether the entry's IntervalSec is load-bearing — true
 // for interval and windowed-interval modes, false for daily/once (which carry
 // IntervalSec == 0 legitimately).
-func (e Entry) usesInterval() bool { return e.Mode == ModeInterval || e.Mode == ModeWindow }
+func (e Entry) usesInterval() bool {
+	return e.Mode == ModeInterval || e.Mode == ModeWindow || e.Mode == ModeContinuous
+}
 
 // safeInterval is Interval clamped to MinInterval (M196). `advance` and the
 // window walker use it so a zero/negative IntervalSec — which Add rejects but a
@@ -115,6 +123,8 @@ func (e Entry) Cadence() string {
 		return out
 	case ModeOnce:
 		return "once at " + time.Unix(e.NextRunUnix, 0).Format("2006-01-02 15:04")
+	case ModeContinuous:
+		return "continuous · " + e.safeInterval().String() + " cooldown"
 	case ModeWindow:
 		w := fmt.Sprintf("every %s %02d:%02d-%02d:%02d", e.Interval(),
 			e.AtMinutes/60, e.AtMinutes%60, e.EndMinutes/60, e.EndMinutes%60)
@@ -515,6 +525,41 @@ func (s *Store) AddOnce(intent string, at time.Time, model, source string, now t
 	return *e, nil
 }
 
+// AddContinuous creates a completion-anchored continuous entry (M646): it fires
+// immediately, then re-fires `cooldown` after each run COMPLETES, forever, never
+// overlapping — a living, never-tiring agent. cooldown is clamped to MinInterval.
+func (s *Store) AddContinuous(intent string, cooldown time.Duration, model, source string, now time.Time) (Entry, error) {
+	intent = strings.TrimSpace(intent)
+	if intent == "" {
+		return Entry{}, fmt.Errorf("cadence: intent is required")
+	}
+	if cooldown < MinInterval {
+		cooldown = MinInterval
+	}
+	if source == "" {
+		source = SourceOperator
+	}
+	e := &Entry{
+		ID:          "sched-" + ulid.New(),
+		Intent:      intent,
+		Mode:        ModeContinuous,
+		IntervalSec: int64(cooldown / time.Second),
+		Model:       strings.TrimSpace(model),
+		Source:      source,
+		Enabled:     true,
+		CreatedUnix: now.Unix(),
+		NextRunUnix: now.Unix(), // due immediately — start living right away
+	}
+	s.mu.Lock()
+	s.entries = append(s.entries, e)
+	err := s.save()
+	s.mu.Unlock()
+	if err != nil {
+		return Entry{}, err
+	}
+	return *e, nil
+}
+
 // SetEnabled enables or disables an entry (pause/resume without deleting).
 // Returns whether the entry exists.
 func (s *Store) SetEnabled(id string, enabled bool) (bool, error) {
@@ -755,9 +800,11 @@ func (s *Store) Due(now time.Time) []Entry {
 		if now.Unix() < e.NextRunUnix {
 			continue
 		}
-		if e.Mode == ModeOnce {
-			// Crash-safe one-shot: leave it untouched; removal is deferred to
-			// CompleteFiring after the run finishes.
+		if e.Mode == ModeOnce || e.Mode == ModeContinuous {
+			// Crash-safe one-shot AND completion-anchored continuous: leave
+			// NextRunUnix untouched here. The engine's in-flight guard stops a
+			// second fire while the run is live, and CompleteFiring re-anchors a
+			// continuous entry forward (or removes a one-shot) once it finishes.
 			due = append(due, *e)
 			continue
 		}
@@ -780,18 +827,27 @@ func (s *Store) Due(now time.Time) []Entry {
 // (whether it succeeded or errored, so a permanently-failing one-shot cannot
 // retry-storm). For recurring entries this is a no-op: Due already advanced them.
 // Returns whether an entry was removed.
-func (s *Store) CompleteFiring(id string) (bool, error) {
+func (s *Store) CompleteFiring(id string, now time.Time) (bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for i, e := range s.entries {
 		if e.ID != id {
 			continue
 		}
-		if e.Mode != ModeOnce {
+		switch e.Mode {
+		case ModeOnce:
+			s.entries = append(s.entries[:i], s.entries[i+1:]...)
+			return true, s.save()
+		case ModeContinuous:
+			// Completion-anchored loop: schedule the next cycle `cooldown` after
+			// this run finished, so cycles never overlap and the agent runs
+			// forever with a steady breather between cycles (M646).
+			s.entries[i].LastRunUnix = now.Unix()
+			s.entries[i].NextRunUnix = now.Add(e.safeInterval()).Unix()
+			return false, s.save()
+		default:
 			return false, nil
 		}
-		s.entries = append(s.entries[:i], s.entries[i+1:]...)
-		return true, s.save()
 	}
 	return false, nil
 }
@@ -955,7 +1011,7 @@ func (e *Engine) fireOne(ctx context.Context, ent Entry) {
 	// it in the store to re-fire on restart (M199). This runs before the deferred
 	// running.Delete, so no tick can re-fire it in the gap between removal and
 	// clearing the in-flight guard.
-	if _, err := e.store.CompleteFiring(ent.ID); err != nil {
+	if _, err := e.store.CompleteFiring(ent.ID, time.Now()); err != nil {
 		fmt.Fprintf(e.log, "schedule: completing %q failed: %v\n", short(ent.Intent), err)
 	}
 }

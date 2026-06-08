@@ -29,7 +29,7 @@ func TestStore_CompleteFiring_RecurringIsNoOp(t *testing.T) {
 	now := time.Date(2026, 5, 31, 8, 0, 0, 0, time.UTC)
 	e, _ := s.Add("hourly", time.Hour, "", SourceOperator, now)
 
-	ok, err := s.CompleteFiring(e.ID)
+	ok, err := s.CompleteFiring(e.ID, time.Now())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -39,7 +39,7 @@ func TestStore_CompleteFiring_RecurringIsNoOp(t *testing.T) {
 	if s.Count() != 1 {
 		t.Errorf("recurring entry must remain, count = %d", s.Count())
 	}
-	if ok, _ := s.CompleteFiring("does-not-exist"); ok {
+	if ok, _ := s.CompleteFiring("does-not-exist", time.Now()); ok {
 		t.Error("CompleteFiring on an unknown id must return false")
 	}
 }

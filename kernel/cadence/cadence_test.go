@@ -527,7 +527,7 @@ func TestStore_Once_FiresAndCompletes(t *testing.T) {
 		t.Error("one-shot must stay due until CompleteFiring removes it")
 	}
 	// Completing the firing removes it.
-	if ok, err := s.CompleteFiring(e.ID); err != nil || !ok {
+	if ok, err := s.CompleteFiring(e.ID, time.Now()); err != nil || !ok {
 		t.Fatalf("CompleteFiring: ok=%v err=%v", ok, err)
 	}
 	if s.Count() != 0 {
