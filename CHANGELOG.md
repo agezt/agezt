@@ -12,6 +12,14 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Analyst — the daemon reasons about itself.** A new AI observability view:
+  ask a natural-language question about the running system and it gathers a live
+  snapshot (run stats, per-tool error rates, cache savings, recent runs) and asks
+  the daemon's own model to analyse it and answer — citing the real numbers, with
+  the model's reasoning streamed and the reply rendered as Markdown (tables,
+  recommendations). Reasons purely from the snapshot (no tool calls). Suggested
+  questions seed it (health summary, tool failures, spend drivers, anomalies).
+  (M626)
 - **Mission Control — real-time telemetry terminal.** A new view folds the live
   event firehose into per-second buckets over a rolling 60-second window and
   renders the daemon's pulse as live rates with animated sparklines: a full-width

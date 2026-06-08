@@ -38,6 +38,7 @@ import { EventFeed } from "@/components/EventFeed";
 import { Chat } from "@/views/Chat";
 import { Activity } from "@/views/Activity";
 import { Mission } from "@/views/Mission";
+import { Analyst } from "@/views/Analyst";
 import { Search as SearchView } from "@/views/Search";
 import { Replay } from "@/views/Replay";
 import { Agents } from "@/views/Agents";
@@ -72,6 +73,7 @@ const NAV: NavItem[] = [
   { id: "chat", label: "Chat", icon: MessageSquare, render: Chat },
   { id: "activity", label: "Activity", icon: ActivityIcon, render: Activity },
   { id: "mission", label: "Mission Control", icon: Radar, render: Mission },
+  { id: "analyst", label: "Analyst", icon: Sparkles, render: Analyst },
   { id: "replay", label: "Replay", icon: Clapperboard, render: Replay },
   { id: "agents", label: "Agents", icon: Waypoints, render: Agents },
   { id: "flow", label: "Flow Studio", icon: Workflow, render: FlowStudio },
