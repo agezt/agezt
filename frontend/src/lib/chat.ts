@@ -34,6 +34,7 @@ export interface ChatTool {
 export interface ChatTurn {
   status: "streaming" | "done" | "error";
   streamedText: string; // accumulated llm.token deltas (real providers)
+  reasoning: string; // accumulated llm.reasoning deltas (a reasoning model's chain of thought)
   answer?: string; // authoritative final answer (task.completed / done)
   tools: ChatTool[];
   model?: string;
@@ -44,7 +45,7 @@ export interface ChatTurn {
 }
 
 export function newTurn(): ChatTurn {
-  return { status: "streaming", streamedText: "", tools: [], iters: 0, costMicrocents: 0 };
+  return { status: "streaming", streamedText: "", reasoning: "", tools: [], iters: 0, costMicrocents: 0 };
 }
 
 // foldChatFrame is the pure reducer at the heart of the Chat view: (turn, frame)
@@ -68,6 +69,11 @@ export function foldChatFrame(prev: ChatTurn, f: ChatFrame): ChatTurn {
       break;
     case "llm.token":
       if (p.text != null) t.streamedText += String(p.text);
+      break;
+    case "llm.reasoning":
+      // A reasoning model (deepseek-reasoner/-v4, o-series, Claude thinking)
+      // streams its chain of thought separately from the answer content.
+      if (p.text != null) t.reasoning += String(p.text);
       break;
     case "llm.request":
     case "llm.response":

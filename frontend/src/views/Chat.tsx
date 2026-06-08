@@ -13,6 +13,7 @@ import {
   AlertTriangle,
   Copy,
   Check,
+  Brain,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { money } from "@/lib/format";
@@ -225,7 +226,7 @@ function MessageRow({ msg }: { msg: Msg }) {
 function AssistantBubble({ turn }: { turn: ChatTurn }) {
   const text = turnText(turn);
   const streaming = turn.status === "streaming";
-  const thinking = streaming && !text && turn.tools.length === 0;
+  const thinking = streaming && !text && turn.tools.length === 0 && !turn.reasoning;
 
   return (
     <div className="flex gap-2">
@@ -233,6 +234,8 @@ function AssistantBubble({ turn }: { turn: ChatTurn }) {
         <Sparkles className="size-4" />
       </div>
       <div className="min-w-0 flex-1 space-y-2">
+        {turn.reasoning && <ReasoningBlock text={turn.reasoning} live={streaming && !text} />}
+
         {turn.tools.length > 0 && (
           <div className="space-y-1.5">
             {turn.tools.map((c) => (
@@ -274,6 +277,37 @@ function AssistantBubble({ turn }: { turn: ChatTurn }) {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+// ReasoningBlock shows a reasoning model's chain of thought: expanded and live
+// while the model is still thinking (before any answer text), collapsible once
+// the answer arrives — so it's visible but never in the way.
+function ReasoningBlock({ text, live }: { text: string; live: boolean }) {
+  const [open, setOpen] = useState(false);
+  const show = live || open;
+  return (
+    <div className="rounded-lg border border-border bg-panel/40 text-xs">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-full items-center gap-1.5 px-2.5 py-1.5 text-left text-muted hover:text-foreground"
+      >
+        {live ? (
+          <Loader2 className="size-3.5 shrink-0 animate-spin" />
+        ) : show ? (
+          <ChevronDown className="size-3.5 shrink-0" />
+        ) : (
+          <ChevronRight className="size-3.5 shrink-0" />
+        )}
+        <Brain className="size-3.5 shrink-0" />
+        <span>{live ? "Thinking…" : "Reasoning"}</span>
+      </button>
+      {show && (
+        <div className="max-h-48 overflow-auto whitespace-pre-wrap break-words border-t border-border px-2.5 py-1.5 font-mono text-[11px] leading-snug text-muted">
+          {text}
+        </div>
+      )}
     </div>
   );
 }
