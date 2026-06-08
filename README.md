@@ -17,7 +17,8 @@ Agezt nodes** back — with capability-aware **auto-routing**, **failover**, and
 bounded delegation **loop guard** — and now each **tenant federates to its own
 peer set**; events push out via **HMAC-signed webhooks**. See
 [CHANGELOG.md](CHANGELOG.md).
-**Tests:** 2473 passing across 80 packages (+ 19 Web UI unit tests via Vitest).
+**Tests:** 2596 passing across 82 packages (+ 28 Web UI unit/component tests via
+Vitest and a Playwright browser E2E that drives the embedded SPA against a live daemon).
 **Dependencies:** one (`lukechampine.com/blake3`) + one transitive.
 
 ## What you get
@@ -42,6 +43,8 @@ agt schedule add "<intent>" --every 1h | --at 09:30            — recurring/dai
 agt tenant create <id> / list / token <id> / rm <id>           — manage isolated tenants + reveal per-tenant token (daemon AGEZT_MULTITENANT=on)
 agt run "<intent>" --tenant <id>  ·  HTTP: X-Agezt-Tenant: <id> — route a run to a tenant's kernel (REST/OpenAI APIs + agt acp --tenant; auth with that tenant's token; isolated journal)
 agt plugin list                                                — external plugins loaded
+agt plugin registry <url> --install <name>                     — install a plugin from a registry (download + BLAKE3-verify; prints the env to enable)
+agt skill registry <url> --install <name>                      — install a skill from a remote registry (content-address verified)
 agt edict show / edict test shell "rm -rf /"                   — view + preflight policy decisions
 agt state list / state get <ns> <key>                          — read kernel state store
 agt journal tail 50 --json                                     — snapshot of recent events
@@ -77,6 +80,16 @@ control the smart home), an
 restart, a **vault encrypted at rest** with AES-256-GCM and **passphrase
 rotation**, and a **Linux warden** with `prlimit64`-enforced CPU/mem/FD
 limits and process-group SIGKILL.
+
+It reaches you on **eleven messaging channels** (Telegram, Slack, Discord, Matrix,
+SMS, WhatsApp, Signal, email, Microsoft Teams, Home Assistant, and generic
+webhooks) — inbound messages drive the agent (allowlisted, fail-closed; the
+account's own messages skipped so a reply never loops), outbound carries replies and
+Pulse briefs; **official client SDKs** in **Python** (sync + asyncio), **TypeScript**,
+and **Rust** wrap the REST API; a **plugin/skill marketplace** (`agt plugin
+registry` / `agt skill registry`) installs from a remote catalog with **BLAKE3
+verification**; and a supervised **public tunnel** (cloudflared/ngrok/custom) can
+expose the Web UI or REST API to the internet on demand.
 
 ## Quick start
 
@@ -159,6 +172,17 @@ run's full journaled event arc; plus `GET /api/v1/health` and
 curl -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
   -d '{"intent":"what is this project?"}' http://127.0.0.1:8800/api/v1/runs
 ```
+
+**Or use an official client SDK.** Dependency-light clients wrap `/api/v1` —
+`health` / `models` / `run` / `run_stream` (SSE) / `get_run`, bearer auth,
+multi-tenant aware — in **Python** (`pip install agezt`; sync `Client` + asyncio
+`AsyncClient`), **TypeScript** (`@agezt/sdk`, zero runtime deps over `fetch`), and
+**Rust** (the `agezt` crate, standard-library only). See [`sdk/`](sdk/).
+
+**Expose it to the internet when you need to.** Set `AGEZT_TUNNEL=cloudflared`
+(or `ngrok`, or `AGEZT_TUNNEL_CMD=<command>`) and the daemon supervises the tunnel
+binary, prints the public URL, and tears it down on exit — opt-in, so nothing is
+public unless you ask.
 
 **Let it act on its own schedule.** The daemon runs intents on a recurring timer
 through the same governed loop — the timer companion to Pulse's event-driven
