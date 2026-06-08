@@ -12,6 +12,18 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Standing-orders cockpit — govern what the daemon does unprompted.** The
+  Standing view is now a management surface, not a read-only list: each Chronos
+  standing order (a persistent goal that fires on a cron schedule or a matching
+  journal event and acts at its initiative level) shows its status, autonomy
+  mode, plan, and its triggers — visually distinguished as event (⚡ subject) vs
+  cron (🕐 schedule) — with pause-resume / remove controls. Backed by two new
+  token-gated webui write routes (`/api/standing/{enable,remove}`) over the
+  existing control-plane handlers; `handleStandingSetEnabled` now also accepts
+  the webui's string transport for the `enabled` flag (mirroring the schedule
+  fix). Verified live: an event-triggered (`observer.delta`) and a cron
+  (`0 9 * * *`) order rendered with correct trigger badges, Pause flipped the
+  status, and Remove deleted each through the UI — 0 console errors. (M638)
 - **Capability catalog — what the agent can do, and under what policy.** A new
   view shows the agent's full tool surface: every registered tool with its
   description, the Edict **capability** that governs it (its primary axis —

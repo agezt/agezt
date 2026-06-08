@@ -70,7 +70,15 @@ func (s *Server) handleStandingSetEnabled(conn net.Conn, req Request) {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.id required"})
 		return
 	}
-	enabled, _ := req.Args["enabled"].(bool)
+	// Accept enabled as a bool (CLI/JSON) or a "true"/"false"/"1"/"0" string
+	// (the webui query-arg transport carries every value as a string).
+	enabled := false
+	switch v := req.Args["enabled"].(type) {
+	case bool:
+		enabled = v
+	case string:
+		enabled = strings.EqualFold(v, "true") || v == "1"
+	}
 	o, err := s.k.SetStandingEnabled(id, enabled)
 	if err != nil {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
