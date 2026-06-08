@@ -5,6 +5,7 @@ import {
   Clapperboard,
   Waypoints,
   Radar,
+  Waves,
   Workflow,
   LayoutDashboard,
   BarChart3,
@@ -42,6 +43,7 @@ import { EventFeed } from "@/components/EventFeed";
 import { Chat } from "@/views/Chat";
 import { Activity } from "@/views/Activity";
 import { Mission } from "@/views/Mission";
+import { Autonomy } from "@/views/Autonomy";
 import { Analyst } from "@/views/Analyst";
 import { Alerts } from "@/views/Alerts";
 import { Search as SearchView } from "@/views/Search";
@@ -80,6 +82,7 @@ const NAV: NavItem[] = [
   { id: "chat", label: "Chat", icon: MessageSquare, render: Chat },
   { id: "activity", label: "Activity", icon: ActivityIcon, render: Activity },
   { id: "mission", label: "Mission Control", icon: Radar, render: Mission },
+  { id: "autonomy", label: "Autonomy", icon: Waves, render: Autonomy },
   { id: "analyst", label: "Analyst", icon: Sparkles, render: Analyst },
   { id: "alerts", label: "Alerts", icon: Bell, render: Alerts },
   { id: "replay", label: "Replay", icon: Clapperboard, render: Replay },

@@ -98,6 +98,7 @@ var apiRoutes = map[string]string{
 	"/api/standing":   controlplane.CmdStandingList,
 	"/api/inbox":      controlplane.CmdInbox,
 	"/api/board":      controlplane.CmdBoardRead,
+	"/api/autonomy":   controlplane.CmdAutonomyFeed,
 	"/api/reflect":    controlplane.CmdReflectShow,
 	"/api/approvals":  controlplane.CmdApprovals,
 	"/api/plan_stats": controlplane.CmdPlanStats,

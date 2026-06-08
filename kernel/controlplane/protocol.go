@@ -873,6 +873,15 @@ const (
 	// Returns: { sent: true, channel, to }
 	CmdSend = "send"
 
+	// CmdAutonomyFeed returns a curated, newest-first timeline of the daemon's
+	// self-directed activity (schedules and standing orders firing, skill
+	// lifecycle, completion checks, briefings), folded from the journal so the
+	// Web UI can show the living organism acting on its own (M653). Read-only.
+	// Args: limit (optional; default 60, clamped 1..200).
+	// Returns: { items: [{seq, ts_unix_ms, kind, category, title, correlation_id,
+	//            detail?}], count }
+	CmdAutonomyFeed = "autonomy_feed"
+
 	// CmdBoardRead surfaces the shared inter-agent message board (kernel/board,
 	// M647) so the Web UI can show agents talking to each other. Read-only: the
 	// board is written by the `board` tool, never the control plane.
