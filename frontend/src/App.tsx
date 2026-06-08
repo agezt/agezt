@@ -2,6 +2,7 @@ import { useState, type ComponentType } from "react";
 import {
   MessageSquare,
   Activity as ActivityIcon,
+  Clapperboard,
   Workflow,
   LayoutDashboard,
   ListTree,
@@ -30,6 +31,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { EventFeed } from "@/components/EventFeed";
 import { Chat } from "@/views/Chat";
 import { Activity } from "@/views/Activity";
+import { Replay } from "@/views/Replay";
 import { Dashboard } from "@/views/Dashboard";
 import { Status } from "@/views/Status";
 import { Runs } from "@/views/Runs";
@@ -59,6 +61,7 @@ interface NavItem {
 const NAV: NavItem[] = [
   { id: "chat", label: "Chat", icon: MessageSquare, render: Chat },
   { id: "activity", label: "Activity", icon: ActivityIcon, render: Activity },
+  { id: "replay", label: "Replay", icon: Clapperboard, render: Replay },
   { id: "flow", label: "Flow Studio", icon: Workflow, render: FlowStudio },
   { id: "overview", label: "Overview", icon: LayoutDashboard, render: Dashboard },
   { id: "runs", label: "Runs", icon: ListTree, render: Runs },
