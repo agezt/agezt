@@ -1,5 +1,5 @@
 import { useEffect, useReducer, useRef } from "react";
-import { Radar, Zap, Coins, Wrench, Brain, Activity } from "lucide-react";
+import { Radar, Zap, Coins, Wrench, Brain, Activity, Waypoints } from "lucide-react";
 import { useEvents } from "@/lib/events";
 import { money } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -70,7 +70,7 @@ export function Mission() {
       </div>
 
       {/* Live metric cards */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
         <Metric
           icon={Brain}
           label="LLM calls/s"
@@ -99,6 +99,13 @@ export function Mission() {
           value={t.toolsPerSec.toFixed(2)}
           now={now.tools}
           series={arr.map((b) => b.tools)}
+        />
+        <Metric
+          icon={Waypoints}
+          label={`delegations/${WINDOW}s`}
+          value={t.subagentsTotal.toLocaleString()}
+          now={now.subagents}
+          series={arr.map((b) => b.subagents)}
         />
       </div>
     </div>
