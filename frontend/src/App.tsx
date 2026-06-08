@@ -1,5 +1,6 @@
 import { useState, type ComponentType } from "react";
 import {
+  MessageSquare,
   Workflow,
   LayoutDashboard,
   ListTree,
@@ -26,6 +27,7 @@ import { postAction } from "@/lib/api";
 import { useEvents } from "@/lib/events";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { EventFeed } from "@/components/EventFeed";
+import { Chat } from "@/views/Chat";
 import { Status } from "@/views/Status";
 import { Runs } from "@/views/Runs";
 import { Budget } from "@/views/Budget";
@@ -52,6 +54,7 @@ interface NavItem {
 }
 
 const NAV: NavItem[] = [
+  { id: "chat", label: "Chat", icon: MessageSquare, render: Chat },
   { id: "flow", label: "Flow Studio", icon: Workflow, render: FlowStudio },
   { id: "overview", label: "Overview", icon: LayoutDashboard, render: Status },
   { id: "runs", label: "Runs", icon: ListTree, render: Runs },
@@ -73,7 +76,7 @@ const NAV: NavItem[] = [
 ];
 
 export default function App() {
-  const [active, setActive] = useState("flow");
+  const [active, setActive] = useState("chat");
   const { connected } = useEvents();
   const current = NAV.find((n) => n.id === active) || NAV[0];
   const View = current.render;

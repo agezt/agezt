@@ -185,7 +185,61 @@ func (s *Server) Handler() http.Handler {
 		mux.HandleFunc(path, s.auth(s.jsonProxy(jr)))
 	}
 	mux.HandleFunc("/api/plan/run", s.auth(s.planRunProxy()))
+	mux.HandleFunc("/api/run", s.auth(s.runStreamProxy()))
 	return mux
+}
+
+// runStreamProxy is the Chat view's send button: it runs a free-text intent
+// through the governed loop (controlplane.CmdRun) and streams the agent's events
+// — llm tokens, tool calls, the final answer — straight to the browser as SSE, so
+// the conversation renders live (like any chat UI). Unlike planRunProxy (which
+// relays only a terminal result, leaning on the /events firehose), here each event
+// IS the chat payload, so it's forwarded inline.
+func (s *Server) runStreamProxy() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		flusher, ok := w.(http.Flusher)
+		if !ok {
+			http.Error(w, "streaming unsupported", http.StatusInternalServerError)
+			return
+		}
+		args, ok := s.decodeAllowedBody(w, r, []string{"intent", "model"})
+		if !ok {
+			return
+		}
+		if intent, _ := args["intent"].(string); strings.TrimSpace(intent) == "" {
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "intent is required"})
+			return
+		}
+
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.Header().Set("Cache-Control", "no-cache")
+		w.Header().Set("Connection", "keep-alive")
+		w.WriteHeader(http.StatusOK)
+		write := func(obj any) {
+			b, _ := json.Marshal(obj)
+			_, _ = w.Write([]byte("data: "))
+			_, _ = w.Write(b)
+			_, _ = w.Write([]byte("\n\n"))
+			flusher.Flush()
+		}
+		write(map[string]any{"kind": "open"})
+
+		ctx, cancel := context.WithTimeout(r.Context(), planRunTimeout)
+		defer cancel()
+		res, err := s.client.Stream(ctx, controlplane.CmdRun, args, func(ev *event.Event) {
+			write(map[string]any{
+				"kind":           string(ev.Kind),
+				"subject":        ev.Subject,
+				"payload":        ev.Payload,
+				"correlation_id": ev.CorrelationID,
+			})
+		})
+		if err != nil {
+			write(map[string]any{"kind": "error", "error": err.Error()})
+			return
+		}
+		write(map[string]any{"kind": "done", "result": res})
+	}
 }
 
 // secure applies the defensive response headers (CSP et al.) to a handler but

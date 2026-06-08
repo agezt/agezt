@@ -873,6 +873,97 @@ func TestFlowHistoryForwardsLimit(t *testing.T) {
 	}
 }
 
+// The Chat view's send button: POST /api/run must stream the agent's events
+// inline as SSE — an `open` frame, every event the loop emits forwarded verbatim,
+// then a terminal `done` frame carrying the result — so the conversation renders
+// live in the browser.
+func TestRunStreamForwardsEventsInline(t *testing.T) {
+	fc := &fakeCaller{result: map[string]any{"answer": "hi there", "iters": float64(1)}}
+	s, _ := newServer(t, fc, "secret")
+	body := `{"intent":"say hi","model":"demo","evil":"x"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/run?token=secret", strings.NewReader(body))
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d want 200", rec.Code)
+	}
+	if ct := rec.Header().Get("Content-Type"); !strings.HasPrefix(ct, "text/event-stream") {
+		t.Errorf("content-type = %q want text/event-stream", ct)
+	}
+	if len(fc.calls) != 1 || fc.calls[0] != "run" {
+		t.Fatalf("expected one run (stream) call, got %v", fc.calls)
+	}
+	if fc.lastArgs["intent"] != "say hi" || fc.lastArgs["model"] != "demo" {
+		t.Errorf("intent/model not forwarded: %v", fc.lastArgs)
+	}
+	if _, leaked := fc.lastArgs["evil"]; leaked {
+		t.Errorf("non-allowlisted body key leaked through: %v", fc.lastArgs)
+	}
+	out := rec.Body.String()
+	// open frame, the inline-forwarded loop event, and the terminal result.
+	if !strings.Contains(out, `"kind":"open"`) {
+		t.Errorf("missing open frame: %s", out)
+	}
+	if !strings.Contains(out, string(event.KindNodeStarted)) {
+		t.Errorf("loop event not forwarded inline: %s", out)
+	}
+	if !strings.Contains(out, `"kind":"done"`) || !strings.Contains(out, "hi there") {
+		t.Errorf("terminal result not relayed: %s", out)
+	}
+}
+
+// An empty intent is a no-op the UI should reject before spending a run.
+func TestRunStreamRequiresIntent(t *testing.T) {
+	fc := &fakeCaller{}
+	s, _ := newServer(t, fc, "secret")
+	req := httptest.NewRequest(http.MethodPost, "/api/run?token=secret",
+		strings.NewReader(`{"intent":"   "}`))
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d want 400", rec.Code)
+	}
+	if len(fc.calls) != 0 {
+		t.Errorf("a blank intent must not start a run, got %v", fc.calls)
+	}
+}
+
+// When the loop itself errors, the failure must reach the browser as an inline
+// `error` frame on the open stream (headers are already flushed), not a 500.
+func TestRunStreamRelaysLoopError(t *testing.T) {
+	fc := &fakeCaller{err: errors.New("budget exhausted")}
+	s, _ := newServer(t, fc, "secret")
+	req := httptest.NewRequest(http.MethodPost, "/api/run?token=secret",
+		strings.NewReader(`{"intent":"go"}`))
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d want 200 (stream already open)", rec.Code)
+	}
+	out := rec.Body.String()
+	if !strings.Contains(out, `"kind":"error"`) || !strings.Contains(out, "budget exhausted") {
+		t.Errorf("loop error not relayed inline: %s", out)
+	}
+}
+
+func TestRunStreamRejectsGet(t *testing.T) {
+	fc := &fakeCaller{}
+	s, _ := newServer(t, fc, "secret")
+	req := httptest.NewRequest(http.MethodGet, "/api/run?token=secret", nil)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("status = %d want 405", rec.Code)
+	}
+	if len(fc.calls) != 0 {
+		t.Errorf("a GET must not start a run, got %v", fc.calls)
+	}
+}
+
 func TestFlowStatsProxiesPlanStats(t *testing.T) {
 	fc := &fakeCaller{result: map[string]any{"total": 0}}
 	s, _ := newServer(t, fc, "secret")
