@@ -49,12 +49,21 @@ export function Chat() {
   const [busy, setBusy] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const taRef = useRef<HTMLTextAreaElement>(null);
 
   // Pin the thread to the bottom as content streams in.
   useEffect(() => {
     const el = scrollRef.current;
     if (el) el.scrollTop = el.scrollHeight;
   }, [messages]);
+
+  // Grow the composer with its content (up to max-h-40 = 160px), then scroll.
+  useEffect(() => {
+    const el = taRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = Math.min(el.scrollHeight, 160) + "px";
+  }, [input]);
 
   // Replace the trailing assistant turn (the one currently streaming).
   function updateLastTurn(fn: (t: ChatTurn) => ChatTurn) {
@@ -129,12 +138,13 @@ export function Chat() {
       <div className="border-t border-border pt-3">
         <div className="flex items-end gap-2">
           <textarea
+            ref={taRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={onKeyDown}
             rows={1}
             placeholder="Ask the agent to do something…  (Enter to send, Shift+Enter for a new line)"
-            className="max-h-40 min-h-[2.5rem] flex-1 resize-none rounded-lg border border-border bg-panel px-3 py-2 text-sm outline-none placeholder:text-muted focus-visible:border-accent"
+            className="max-h-40 min-h-[2.5rem] flex-1 resize-none overflow-y-auto rounded-lg border border-border bg-panel px-3 py-2 text-sm outline-none placeholder:text-muted focus-visible:border-accent"
           />
           {busy ? (
             <Button variant="danger" size="icon" onClick={stop} title="Stop">
