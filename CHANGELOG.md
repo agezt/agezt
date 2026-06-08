@@ -12,6 +12,14 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Always-visible vitals strip — glanceable monitoring from every view.** A thin
+  live strip under the header shows the system's pulse — in-flight runs (with a
+  pulsing dot when active), today's spend, enabled schedules, active skills, and,
+  when they need attention, pending approvals and a prominent HALTED badge — so the
+  operator no longer has to be on Mission Control to see how the daemon is doing.
+  Each chip deep-links to its view; polls `/api/status` + `/api/budget` every 5s.
+  Verified live: the strip rendered on every view, a chip click deep-linked to
+  Budget, zero console errors. (M659)
 - **Config reads like a settings panel.** The Config view's flat chip cloud of
   ~90 possible `AGEZT_*` settings is now bucketed into labelled, counted cards —
   Provider & Model, Channels, Interfaces, Autonomy & Learning, Security & Policy,
