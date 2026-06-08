@@ -12,6 +12,10 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Memory browser.** The Memory view is now a searchable knowledge board: each
+  durable fact is a card showing its type, subject, content, confidence, age and
+  tags, sorted newest-first, with live free-text search across
+  subject/content/type/tags and one-click forget. (M621)
 - **Providers & Tools monitors.** The Providers and Tools views (formerly plain
   stat panels) are now live monitoring dashboards. Providers: routed / fallback /
   fallback-rate tiles, a routes-by-provider bar breakdown with each provider's
