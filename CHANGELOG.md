@@ -11,6 +11,22 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 
 ## [Unreleased]
 
+### Fixed
+- **`browser.read`, `memory`, and `world` were silently un-grantable — now
+  first-class.** These three tools mapped to capabilities the policy engine never
+  registered, so every call hit the unknown-capability default-deny — and worse,
+  they couldn't even be granted (the policy control center / `agt edict level`
+  reject unknown capabilities), so `AGEZT_ALLOW_ALL` *still* left them denied.
+  They're now proper capabilities with sensible defaults (`browser.read` L2 like
+  `http.get`; `memory`/`world` L4), listed in the Policy view and grantable at
+  runtime. Verified: `browser.read https://example.com` now succeeds (200) where
+  it was permanently denied. (M613)
+- **`AGEZT_ALLOW_ALL` now truly covers everything, including future tools.** Added
+  an `UnknownAllow` engine option (set under the master switch) so a capability
+  with no configured level is allowed rather than default-denied — so a plugin
+  tool introducing a brand-new capability is covered too. The hard-deny
+  catastrophe rails still fire first. (M613)
+
 ### Added
 - **Flight recorder — scrub and replay any run, step by step.** A new Replay view
   turns a run's journaled event arc into a playable timeline: pick a run, then

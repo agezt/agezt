@@ -79,6 +79,22 @@ const (
 	// turning something on/off in the operator's home warrants confirmation, even
 	// though it is already constrained to a service allowlist.
 	CapHomeAssistantCall Capability = "homeassistant.call"
+
+	// CapBrowserRead gates the `browser.read` tool: fetching a web page and
+	// returning its visible text. A network read, so ask-first by default (folds
+	// to allow under AskAllow) — symmetric with CapHTTPGet; the tool's own host
+	// allowlist is the second gate. Previously UNREGISTERED, which made
+	// browser.read permanently default-denied and ungrantable via the policy
+	// surface (M613).
+	CapBrowserRead Capability = "browser.read"
+	// CapMemory gates the `memory` tool: persisting/recalling durable knowledge
+	// in the operator's own local store. Low risk, Allow by default. Previously
+	// unregistered → default-denied (M613).
+	CapMemory Capability = "memory"
+	// CapWorld gates the `world` tool: reading/growing the local world-model
+	// graph. Low risk, Allow by default. Previously unregistered → default-denied
+	// (M613).
+	CapWorld Capability = "world"
 )
 
 // TrustLevel encodes the trust ladder (DECISIONS F3).
@@ -361,15 +377,23 @@ type Options struct {
 	HardDeny []HardDenyRule
 	// AskPolicy chooses how to fold L1..L3. Default: AskAllow.
 	AskPolicy AskPolicy
+	// UnknownAllow flips the default for a capability with no configured level
+	// from default-DENY to allow (M613). Off by default (secure-default: an
+	// unknown capability is refused). The daemon sets it under AGEZT_ALLOW_ALL so
+	// "allow everything" truly covers capabilities not in DefaultLevels —
+	// including ones a future plugin tool introduces — not just the known set.
+	// Hard-deny rules still apply first, so the catastrophe rails hold.
+	UnknownAllow bool
 }
 
 // Engine is the policy decision engine. Safe for concurrent use.
 type Engine struct {
-	mu        sync.RWMutex
-	levels    map[Capability]TrustLevel
-	hardDeny  []HardDenyRule
-	askPolicy AskPolicy
-	rtSeq     int // monotonic counter naming runtime-added hard-deny rules
+	mu           sync.RWMutex
+	levels       map[Capability]TrustLevel
+	hardDeny     []HardDenyRule
+	askPolicy    AskPolicy
+	unknownAllow bool // M613: treat unconfigured capabilities as allow, not deny
+	rtSeq        int  // monotonic counter naming runtime-added hard-deny rules
 }
 
 // RuntimeRulePrefix names rules added at runtime via AddHardDeny. The
@@ -458,9 +482,10 @@ func New(opt Options) *Engine {
 		hd = DefaultHardDeny()
 	}
 	return &Engine{
-		levels:    levels,
-		hardDeny:  hd,
-		askPolicy: opt.AskPolicy,
+		levels:       levels,
+		hardDeny:     hd,
+		askPolicy:    opt.AskPolicy,
+		unknownAllow: opt.UnknownAllow,
 	}
 }
 
@@ -485,6 +510,10 @@ func DefaultLevels() map[Capability]TrustLevel {
 
 		CapHomeAssistantRead: LevelAllow,    // read entity state; low risk, allowlist-filtered
 		CapHomeAssistantCall: LevelAskFirst, // actuate the physical world; confirm before acting
+
+		CapBrowserRead: LevelAskFirst, // L2 network read, symmetric with http.get; host allowlist is the 2nd gate
+		CapMemory:      LevelAllow,    // local knowledge store; low risk
+		CapWorld:       LevelAllow,    // local world-model graph; low risk
 	}
 }
 
@@ -523,6 +552,7 @@ func AllCapabilities() []Capability {
 		CapHTTPGet, CapHTTPPost, CapProviderCall, CapDelegate, CapCoding,
 		CapACPAgent, CapRemoteRun, CapNotify,
 		CapHomeAssistantRead, CapHomeAssistantCall,
+		CapBrowserRead, CapMemory, CapWorld,
 	}
 	slices.Sort(caps)
 	return caps
@@ -622,15 +652,21 @@ func (e *Engine) DecideWithCeiling(cap Capability, input string, ceiling TrustLe
 	// 2. Look up the trust level for this capability.
 	lvl, ok := e.levels[cap]
 	if !ok {
-		// Unknown capability: default-deny (the strict reading of B0c +
-		// secure-defaults). The user must explicitly grant a level via
-		// Options.Levels to use a new capability.
-		return Outcome{
-			Decision:   DecisionDeny,
-			Capability: cap,
-			Level:      LevelDeny,
-			Reason:     fmt.Sprintf("no trust level configured for %q (default-deny)", cap),
+		// Unknown capability. Default-deny is the strict, secure default (the
+		// user must explicitly grant a level). But under UnknownAllow (M613, set
+		// by AGEZT_ALLOW_ALL) an unconfigured capability is treated as L4 so
+		// "allow everything" covers tools whose capability isn't in DefaultLevels
+		// — including future plugin tools. Hard-deny already ran above, so the
+		// catastrophe rails still hold.
+		if !e.unknownAllow {
+			return Outcome{
+				Decision:   DecisionDeny,
+				Capability: cap,
+				Level:      LevelDeny,
+				Reason:     fmt.Sprintf("no trust level configured for %q (default-deny)", cap),
+			}
 		}
+		lvl = LevelAllow
 	}
 
 	// 2b. Clamp to the per-call ceiling (SPEC-16 §4): autonomy within this context
