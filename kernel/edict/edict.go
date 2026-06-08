@@ -95,6 +95,11 @@ const (
 	// graph. Low risk, Allow by default. Previously unregistered → default-denied
 	// (M613).
 	CapWorld Capability = "world"
+	// CapWebSearch gates the `web_search` tool: running a keyword query against a
+	// public search engine and returning result titles/URLs/snippets. A network
+	// read with no operator-controlled target host (the engine is fixed), so it
+	// is ask-first by default — symmetric with CapBrowserRead/CapHTTPGet (M627).
+	CapWebSearch Capability = "web.search"
 )
 
 // TrustLevel encodes the trust ladder (DECISIONS F3).
@@ -514,6 +519,7 @@ func DefaultLevels() map[Capability]TrustLevel {
 		CapBrowserRead: LevelAskFirst, // L2 network read, symmetric with http.get; host allowlist is the 2nd gate
 		CapMemory:      LevelAllow,    // local knowledge store; low risk
 		CapWorld:       LevelAllow,    // local world-model graph; low risk
+		CapWebSearch:   LevelAskFirst, // L2 network read; engine host is fixed, query is the only operator input
 	}
 }
 
@@ -552,7 +558,7 @@ func AllCapabilities() []Capability {
 		CapHTTPGet, CapHTTPPost, CapProviderCall, CapDelegate, CapCoding,
 		CapACPAgent, CapRemoteRun, CapNotify,
 		CapHomeAssistantRead, CapHomeAssistantCall,
-		CapBrowserRead, CapMemory, CapWorld,
+		CapBrowserRead, CapMemory, CapWorld, CapWebSearch,
 	}
 	slices.Sort(caps)
 	return caps
