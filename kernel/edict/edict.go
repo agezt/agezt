@@ -100,6 +100,11 @@ const (
 	// read with no operator-controlled target host (the engine is fixed), so it
 	// is ask-first by default — symmetric with CapBrowserRead/CapHTTPGet (M627).
 	CapWebSearch Capability = "web.search"
+	// CapSchedule gates the `schedule` tool: the agent arranging its OWN future
+	// runs (one-shot / recurring / daily) in the daemon's cadence store. A
+	// genuine autonomy grant — a scheduled intent fires later through the full
+	// governed loop — so it is ask-first by default (M634).
+	CapSchedule Capability = "schedule"
 )
 
 // TrustLevel encodes the trust ladder (DECISIONS F3).
@@ -520,6 +525,7 @@ func DefaultLevels() map[Capability]TrustLevel {
 		CapMemory:      LevelAllow,    // local knowledge store; low risk
 		CapWorld:       LevelAllow,    // local world-model graph; low risk
 		CapWebSearch:   LevelAskFirst, // L2 network read; engine host is fixed, query is the only operator input
+		CapSchedule:    LevelAskFirst, // L2 autonomy grant; a scheduled intent runs later through the governed loop
 	}
 }
 
@@ -558,7 +564,7 @@ func AllCapabilities() []Capability {
 		CapHTTPGet, CapHTTPPost, CapProviderCall, CapDelegate, CapCoding,
 		CapACPAgent, CapRemoteRun, CapNotify,
 		CapHomeAssistantRead, CapHomeAssistantCall,
-		CapBrowserRead, CapMemory, CapWorld, CapWebSearch,
+		CapBrowserRead, CapMemory, CapWorld, CapWebSearch, CapSchedule,
 	}
 	slices.Sort(caps)
 	return caps

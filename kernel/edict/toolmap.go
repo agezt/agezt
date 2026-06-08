@@ -41,6 +41,8 @@ func CapabilityForToolCall(toolName string, input json.RawMessage) Capability {
 		return CapBrowserRead
 	case "web_search":
 		return CapWebSearch
+	case "schedule":
+		return CapSchedule
 	case "memory":
 		return CapMemory
 	case "world":

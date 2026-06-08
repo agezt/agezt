@@ -12,6 +12,17 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **`schedule` tool — the agent schedules its own future work.** A new
+  in-process tool lets the agent arrange future runs in the daemon's persistent
+  cadence store: one-shot after a delay (`op=in`), recurring interval
+  (`op=every`), daily at a wall-clock time (`op=daily`, optional weekday spec),
+  plus `list` / `remove`. A scheduled intent fires later as a fresh run through
+  the full governed loop — the autonomy primitive that turns "ask me again later"
+  into "I'll handle it then." Schedules it creates are tagged `source=agent` so an
+  operator sees and can prune them (`agt schedule list`). Governed by a new
+  ask-first `schedule` capability; allowed under `AGEZT_ALLOW_ALL`. Verified live
+  end-to-end with the real provider: the agent scheduled a one-shot, and ~40s
+  later it fired autonomously (`schedule.fired` → a new run). (M634)
 - **Live delegation activity in Mission Control.** The real-time telemetry
   terminal now folds `subagent.spawned` into its per-second buckets and shows a
   fifth live metric — `delegations/60s` — with its own sparkline, so multi-agent
