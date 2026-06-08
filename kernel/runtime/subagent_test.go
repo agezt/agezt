@@ -329,6 +329,106 @@ func TestSubAgent_FanoutUnboundedByDefault(t *testing.T) {
 	}
 }
 
+func TestSubAgent_TotalGuard_BoundsWholeTreeAcrossDepths(t *testing.T) {
+	// SubAgentMaxTotal=2 caps the TOTAL sub-agents in one delegation tree across
+	// ALL depths — unlike fan-out, which only bounds one spawner's breadth. With
+	// depth allowed to 3, the lead spawns child A (total→1), child A spawns
+	// grandchild A1 (total→2, a level-2 spawn counting against the same root),
+	// then child A's SECOND delegate is refused because the tree total is full.
+	// The script is consumed depth-first (delegate blocks on its child):
+	prov := mock.New(
+		mock.ToolUse("l1", "delegate", map[string]any{"task": "A"}),  // lead → child A (spawn 1)
+		mock.ToolUse("a1", "delegate", map[string]any{"task": "A1"}), // child A → grandchild A1 (spawn 2)
+		mock.FinalText("leaf done"),                                  // grandchild A1
+		mock.ToolUse("a2", "delegate", map[string]any{"task": "A2"}), // child A 2nd delegate — REFUSED (total=2)
+		mock.FinalText("child A done"),                               // child A final after the refusal
+		mock.FinalText("lead done"),                                  // lead final
+	)
+	k, err := runtime.Open(runtime.Config{
+		BaseDir:          t.TempDir(),
+		Provider:         prov,
+		Tools:            map[string]agent.Tool{"shell": shell.New()},
+		SubAgentTool:     true,
+		SubAgentMaxDepth: 3, // deep nesting allowed; the TOTAL cap is what bounds the tree
+		SubAgentMaxTotal: 2,
+	})
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	t.Cleanup(func() { k.Close() })
+
+	col := &collector{}
+	col.watch(k)
+
+	ans, _, err := k.Run(context.Background(), "go deep")
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if ans != "lead done" {
+		t.Errorf("final answer = %q, want %q (lead completes despite the refusal)", ans, "lead done")
+	}
+	time.Sleep(50 * time.Millisecond)
+
+	// Exactly 2 spawns: child A (depth 1) and grandchild A1 (depth 2). The third
+	// attempt — a SECOND-level spawner — is refused by the tree-wide total, proving
+	// the cap aggregates across depths rather than per-spawner.
+	if n := len(col.ofKind(event.KindSubAgentSpawned)); n != 2 {
+		t.Errorf("total guard: expected 2 spawns across the tree (3rd refused), got %d", n)
+	}
+	// And the grandchild really was at depth 2 — i.e. this exercised depth>1.
+	var sawDepth2 bool
+	for _, e := range col.ofKind(event.KindSubAgentSpawned) {
+		var pl struct {
+			Depth int `json:"depth"`
+		}
+		_ = json.Unmarshal(e.Payload, &pl)
+		if pl.Depth == 2 {
+			sawDepth2 = true
+		}
+	}
+	if !sawDepth2 {
+		t.Error("expected a depth-2 spawn (grandchild) — the multi-level path was not exercised")
+	}
+}
+
+func TestSubAgent_TotalUnboundedByDefault(t *testing.T) {
+	// SubAgentMaxTotal=0 (the default) keeps the historical behaviour: a deep
+	// tree may hold as many sub-agents as it asks for. Lead → child A → grandchild
+	// A1, then child A spawns a second grandchild A2 — three spawns, none refused.
+	prov := mock.New(
+		mock.ToolUse("l1", "delegate", map[string]any{"task": "A"}),  // lead → child A
+		mock.ToolUse("a1", "delegate", map[string]any{"task": "A1"}), // child A → grandchild A1
+		mock.FinalText("leaf 1"),                                     // grandchild A1
+		mock.ToolUse("a2", "delegate", map[string]any{"task": "A2"}), // child A → grandchild A2
+		mock.FinalText("leaf 2"),                                     // grandchild A2
+		mock.FinalText("child A done"),                               // child A final
+		mock.FinalText("lead done"),                                  // lead final
+	)
+	k, err := runtime.Open(runtime.Config{
+		BaseDir:          t.TempDir(),
+		Provider:         prov,
+		Tools:            map[string]agent.Tool{"shell": shell.New()},
+		SubAgentTool:     true,
+		SubAgentMaxDepth: 3, // no total cap
+	})
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	t.Cleanup(func() { k.Close() })
+
+	col := &collector{}
+	col.watch(k)
+
+	if _, _, err := k.Run(context.Background(), "go deep"); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	time.Sleep(50 * time.Millisecond)
+
+	if n := len(col.ofKind(event.KindSubAgentSpawned)); n != 3 {
+		t.Errorf("unbounded total: expected 3 spawns, got %d", n)
+	}
+}
+
 func TestWithModel_OverridesPerRun(t *testing.T) {
 	// A run started with runtime.WithModel makes the provider see that model in
 	// CompletionRequest.Model — the basis for per-request model selection.

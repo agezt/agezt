@@ -134,6 +134,16 @@ type Config struct {
 	// the time each child returns), so it needs no in-memory tally. 0 (the
 	// default) means unbounded; the daemon is the single enable point.
 	SubAgentMaxSpendMicrocents int64
+	// SubAgentMaxTotal caps the TOTAL number of sub-agents in one delegation
+	// TREE — every descendant of a root run summed across all depths, not just
+	// one spawner's breadth (SubAgentMaxFanout) or one lead's direct children.
+	// This is the rail that makes depth>1 healthy: with depth D and fan-out F a
+	// tree can hold up to F^D leaves, so a per-spawner fan-out cap alone doesn't
+	// bound the whole tree's size. The (N+1)th spawn ANYWHERE in the tree is
+	// refused with a tool error the spawning agent adapts to. Counted in-memory
+	// per root correlation, released when the root run ends. 0 (the default)
+	// means unbounded; the daemon is the single enable point. (M629)
+	SubAgentMaxTotal int
 
 	// Edict is the policy engine that gates each tool call. If nil, a
 	// default engine (edict.New(edict.Options{})) is constructed — the
@@ -328,6 +338,7 @@ type Kernel struct {
 	halted bool
 	runs   map[string]context.CancelFunc // correlation_id → cancel
 	fanout map[string]int                // spawning correlation_id → sub-agents spawned (M46 fan-out bound)
+	tree   map[string]int                // root correlation_id → total sub-agents in the tree (M629 total bound)
 	steers map[string]*runControl        // correlation_id → live-steering control surface (M608)
 
 	startTime time.Time // wall-clock at Open() — powers `agt status` uptime
@@ -498,6 +509,7 @@ func Open(cfg Config) (*Kernel, error) {
 		tools:        effTools,
 		runs:         make(map[string]context.CancelFunc),
 		fanout:       make(map[string]int),
+		tree:         make(map[string]int),
 		steers:       make(map[string]*runControl),
 		startTime:    time.Now(),
 	}
@@ -706,6 +718,7 @@ type SubAgentLimits struct {
 	MaxDepth           int
 	MaxFanout          int
 	MaxSpendMicrocents int64
+	MaxTotal           int
 }
 
 // SubAgentLimits returns the effective delegation ceilings (M49).
@@ -715,6 +728,7 @@ func (k *Kernel) SubAgentLimits() SubAgentLimits {
 		MaxDepth:           k.cfg.SubAgentMaxDepth,
 		MaxFanout:          k.cfg.SubAgentMaxFanout,
 		MaxSpendMicrocents: k.cfg.SubAgentMaxSpendMicrocents,
+		MaxTotal:           k.cfg.SubAgentMaxTotal,
 	}
 	if l.Enabled && l.MaxDepth <= 0 {
 		l.MaxDepth = 1 // effective default, matching runSubAgent
@@ -891,7 +905,19 @@ const (
 	ctxKeyMaxCost
 	ctxKeyJSONMode
 	ctxKeyTrustCeiling
+	ctxKeyRoot
 )
+
+// rootFromCtx returns the correlation of the ROOT run of a delegation tree (the
+// top-level lead), propagated to every descendant so a tree-wide cap can be
+// attributed to the whole tree rather than a single spawner. Empty when not in
+// a delegated context.
+func rootFromCtx(ctx context.Context) string {
+	if v, ok := ctx.Value(ctxKeyRoot).(string); ok {
+		return v
+	}
+	return ""
+}
 
 // WithTrustCeiling returns a context capping autonomous tool-use at `ceiling` for
 // the run started with it (SPEC-16 §4 initiative.max_trust). The policy hook
@@ -1246,6 +1272,7 @@ func (k *Kernel) RunWith(ctx context.Context, corr, intent string) (string, erro
 		k.mu.Lock()
 		delete(k.runs, corr)
 		delete(k.fanout, corr) // release this run's fan-out tally (M46)
+		delete(k.tree, corr)   // release this tree's total sub-agent tally (M629)
 		delete(k.steers, corr) // release the steering control (M608)
 		k.mu.Unlock()
 		cancel()

@@ -124,6 +124,30 @@ func (k *Kernel) runSubAgent(ctx context.Context, task string) (string, error) {
 		k.mu.Unlock()
 	}
 
+	// Tree-total bound (M629): depth caps how DEEP and fan-out caps how WIDE at
+	// one level, but a depth-D, fan-out-F tree can still hold up to F^D agents —
+	// neither cap bounds the WHOLE tree's size. This caps the total sub-agents
+	// across every depth of one delegation tree, attributed to the root run's
+	// correlation. The root is the top-level lead (rootFromCtx is empty at depth
+	// 0, so the lead's own correlation seeds the root); every descendant inherits
+	// it via childCtx below, so a spawn three levels down still counts against
+	// the same root. 0 = unbounded. The tally is released when the root run ends
+	// (RunWith's defer deletes k.tree[corr]).
+	rootCorr := rootFromCtx(ctx)
+	if rootCorr == "" {
+		rootCorr = parentCorr // this spawner is the tree root
+	}
+	if maxTotal := k.cfg.SubAgentMaxTotal; maxTotal > 0 && rootCorr != "" {
+		k.mu.Lock()
+		n := k.tree[rootCorr]
+		if n >= maxTotal {
+			k.mu.Unlock()
+			return "", fmt.Errorf("max sub-agent total %d reached for this delegation tree", maxTotal)
+		}
+		k.tree[rootCorr] = n + 1
+		k.mu.Unlock()
+	}
+
 	// Spend cap (M48): once this run's sub-agents have collectively spent past
 	// SubAgentMaxSpendMicrocents, refuse further delegations — the cost analogue
 	// of the fan-out count cap above. The tally is read from the journal, which
@@ -172,6 +196,9 @@ func (k *Kernel) runSubAgent(ctx context.Context, task string) (string, error) {
 	childCtx := context.WithValue(ctx, ctxKeyDepth, depth+1)
 	childCtx = context.WithValue(childCtx, ctxKeyActor, actor)
 	childCtx = context.WithValue(childCtx, ctxKeyCorrelation, childCorr)
+	// Carry the tree root to every descendant so the M629 total cap is attributed
+	// to the whole tree, not re-seeded at each level.
+	childCtx = context.WithValue(childCtx, ctxKeyRoot, rootCorr)
 
 	system := subAgentSystem
 	if k.cfg.System != "" {

@@ -12,6 +12,18 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Deep multi-agent delegation, made safe — a tree-wide total cap.** Sub-agent
+  nesting beyond one level (`AGEZT_SUBAGENT_DEPTH>1`) was already possible, but a
+  depth-D, fan-out-F tree can hold up to Fᴰ agents and neither the per-spawner
+  fan-out cap nor the per-lead spend cap bounds the *whole tree's size*. New
+  `AGEZT_SUBAGENT_MAX_TOTAL` caps the total number of sub-agents across every
+  depth of one delegation tree (attributed to the root run, propagated to every
+  descendant), refusing the (N+1)th spawn *anywhere* in the tree with a tool
+  error the spawning agent adapts to — the rail that makes depth>1 healthy. The
+  cap is surfaced in the boot banner, `agt status`, and the control-plane status
+  payload (`delegation.max_total`). Verified live: a real two-level tree
+  (coordinator → sub-coordinator → leaf) completed correctly with depth-1 and
+  depth-2 spawns both journaled. (M629)
 - **Proactive self-monitoring — the daemon watches its OWN health.** A new pulse
   observer (`self:health`) samples the daemon's recent reliability from its own
   journal — tool-error rate (`tool.invoked` vs `tool.result` errors) and

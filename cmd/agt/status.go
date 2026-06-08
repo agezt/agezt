@@ -180,8 +180,12 @@ func cmdStatus(args []string, stdout, stderr io.Writer) int {
 			if sp := mcFromAny(deleg["max_spend_microcents"]); sp > 0 {
 				spend = "≤" + fmtUSD(sp)
 			}
-			fmt.Fprintf(stdout, "  delegation: depth≤%d, fan-out %s, spend %s\n",
-				intOfStatus(deleg["max_depth"]), fanout, spend)
+			total := "unbounded"
+			if t := intOfStatus(deleg["max_total"]); t > 0 {
+				total = fmt.Sprintf("≤%d", t)
+			}
+			fmt.Fprintf(stdout, "  delegation: depth≤%d, fan-out %s, total %s, spend %s\n",
+				intOfStatus(deleg["max_depth"]), fanout, total, spend)
 		}
 	}
 	return 0
