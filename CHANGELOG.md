@@ -12,6 +12,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Mission Control — real-time telemetry terminal.** A new view folds the live
+  event firehose into per-second buckets over a rolling 60-second window and
+  renders the daemon's pulse as live rates with animated sparklines: a full-width
+  activity waveform (now / peak / avg events-per-second) plus LLM calls/s,
+  tokens/s, spend/s and tool-calls/s cards, each updating every second as the
+  system works. Unlike the snapshot-based Dashboard/Insights, these are rolling
+  rates computed continuously client-side from the stream. (M625)
 - **Deep-linkable views.** The active view is now reflected in the URL hash
   (`#agents`, `#insights`, …), so every view is bookmarkable, survives a reload,
   and the browser back/forward buttons move between views. (M624)
