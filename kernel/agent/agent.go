@@ -634,6 +634,15 @@ func Run(ctx context.Context, cfg LoopConfig, userIntent string) (answer string,
 	// requested in this run, for the M116 loop guard.
 	callCounts := map[string]int{}
 
+	// toolDenials tracks how many times each tool has been refused by policy
+	// this run. Once a tool reaches maxToolDenials (or is hard-denied even once)
+	// it is dropped from the set offered to the model on later iterations — so
+	// the model stops burning iterations (and tokens) requesting a call the
+	// policy will always refuse (M605). The M116 guard only catches an identical
+	// (tool,input) repeat; this catches the same tool tried with new inputs.
+	toolDenials := map[string]int{}
+	const maxToolDenials = 2
+
 	// spentMicrocents accumulates this run's provider spend for the per-run cost
 	// cap (M166). A local stack variable — no shared state, no lifecycle, no
 	// cleanup — so the cap adds zero concurrency surface.
@@ -686,6 +695,21 @@ func Run(ctx context.Context, cfg LoopConfig, userIntent string) (answer string,
 			}
 		}
 
+		// Offer only the tools the policy hasn't repeatedly refused this run
+		// (M605). A no-op until a tool crosses the denial threshold, so the
+		// common case allocates nothing.
+		offered := tools
+		if len(toolDenials) > 0 {
+			filtered := make([]ToolDef, 0, len(tools))
+			for _, t := range tools {
+				if toolDenials[t.Name] >= maxToolDenials {
+					continue
+				}
+				filtered = append(filtered, t)
+			}
+			offered = filtered
+		}
+
 		// 2a. llm.request — record what was sent: message count plus the
 		// assembled context size, broken down by role (SPEC-10 §3.5 context
 		// observability — the foundation of the context inspector). Lets an
@@ -696,7 +720,7 @@ func Run(ctx context.Context, cfg LoopConfig, userIntent string) (answer string,
 			"iter":            iter,
 			"messages":        len(messages),
 			"model":           cfg.Model,
-			"tools":           len(tools),
+			"tools":           len(offered),
 			"context_chars":   ctxChars,
 			"context_by_role": ctxByRole,
 		}); err != nil {
@@ -707,7 +731,7 @@ func Run(ctx context.Context, cfg LoopConfig, userIntent string) (answer string,
 			Model:         cfg.Model,
 			System:        cfg.System,
 			Messages:      messages,
-			Tools:         tools,
+			Tools:         offered,
 			MaxTokens:     cfg.MaxTokens,
 			CorrelationID: cfg.CorrelationID, // M47: attribute spend to this run
 			JSONMode:      cfg.JSONMode,      // M314: structured-output request
@@ -895,6 +919,13 @@ func Run(ctx context.Context, cfg LoopConfig, userIntent string) (answer string,
 
 			var result Result
 			if !verdict.Allow {
+				// Count the refusal so a tool that's hard-denied (never allowed)
+				// or repeatedly refused is dropped from later iterations (M605).
+				if verdict.HardDenied {
+					toolDenials[tc.Name] = maxToolDenials
+				} else {
+					toolDenials[tc.Name]++
+				}
 				result = Result{
 					Output:  "tool call denied by policy: " + verdict.Reason,
 					IsError: true,

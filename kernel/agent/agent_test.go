@@ -294,6 +294,52 @@ func TestRun_PolicyDeny_SkipsToolInvoke(t *testing.T) {
 	}
 }
 
+// M605: a tool the policy hard-denies is dropped from the set offered to the
+// model on the next iteration — so the model can't keep burning iterations on a
+// call that will always be refused. Observable via llm.request's "tools" count:
+// it should fall from 1 (shell offered) to 0 (shell dropped after the denial).
+func TestRun_HardDeniedTool_DroppedFromLaterOffers(t *testing.T) {
+	b, j := newTestBus(t)
+	prov := mock.New(
+		mock.ToolUse("c1", "shell", map[string]string{"command": "echo nope"}),
+		mock.FinalText("ok, proceeding without it"),
+	)
+	denyShell := func(_ context.Context, _ agent.ToolCall) agent.PolicyVerdict {
+		return agent.PolicyVerdict{Allow: false, Capability: "shell", Reason: "denied", HardDenied: true}
+	}
+	if _, err := agent.Run(context.Background(), agent.LoopConfig{
+		Provider:      prov,
+		Tools:         map[string]agent.Tool{"shell": shell.New()},
+		Bus:           b,
+		Actor:         "agent-drop",
+		CorrelationID: "corr-drop",
+		Policy:        denyShell,
+	}, "run shell"); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	var toolCounts []int
+	_ = j.Range(func(e *event.Event) error {
+		if e.Kind == event.KindLLMRequest {
+			var p struct {
+				Tools int `json:"tools"`
+			}
+			_ = json.Unmarshal(e.Payload, &p)
+			toolCounts = append(toolCounts, p.Tools)
+		}
+		return nil
+	})
+	if len(toolCounts) < 2 {
+		t.Fatalf("expected >=2 llm.request events, got %v", toolCounts)
+	}
+	if toolCounts[0] != 1 {
+		t.Errorf("first iteration should offer the shell tool (1), got %d", toolCounts[0])
+	}
+	if last := toolCounts[len(toolCounts)-1]; last != 0 {
+		t.Errorf("after a hard deny the shell tool should be dropped (0 offered), got %d", last)
+	}
+}
+
 func TestRun_UnknownTool_RecordedNotFatal(t *testing.T) {
 	b, _ := newTestBus(t)
 	prov := mock.New(
