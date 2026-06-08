@@ -12,6 +12,14 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Activity live monitor** — a Web UI view answering "is anything running right
+  now, and what is it doing?". Seeds the in-flight runs from `/api/runs`, then
+  folds the event firehose so each run's current step ("calling shell",
+  "thinking · iter 2"), iteration count, elapsed time and spend update in real
+  time. Delegated **sub-agents** are nested under the lead run that spawned them
+  (from `subagent.spawned`), so the operator can see the background fleet. A
+  pure, unit-tested fold (`lib/activity.ts`) drives the whole state machine.
+  Second nav item, after Chat.
 - **Chat view (the humane front door)** — a conversational Web UI to actually
   *talk to* the agent, now the default view. Type an intent and watch the
   governed loop answer live: streaming text (token deltas from real providers),
