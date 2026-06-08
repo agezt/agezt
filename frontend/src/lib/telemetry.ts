@@ -13,10 +13,11 @@ export interface Bucket {
   tokensIn: number;
   tokensOut: number;
   costMc: number;
+  subagents: number; // sub-agents spawned this second (delegation activity)
 }
 
 export function emptyBucket(): Bucket {
-  return { events: 0, llm: 0, tools: 0, tokensIn: 0, tokensOut: 0, costMc: 0 };
+  return { events: 0, llm: 0, tools: 0, tokensIn: 0, tokensOut: 0, costMc: 0, subagents: 0 };
 }
 
 // addEvent folds one event's contribution into a bucket, returning a new bucket
@@ -28,6 +29,7 @@ export function addEvent(b: Bucket, e: AgentEvent): Bucket {
   nb.events += 1;
   if (k.startsWith("llm.")) nb.llm += 1;
   if (k === "tool.invoked") nb.tools += 1;
+  if (k === "subagent.spawned") nb.subagents += 1;
   if (k === "budget.consumed") {
     nb.tokensIn += num(p.input_tokens);
     nb.tokensOut += num(p.output_tokens);
@@ -45,6 +47,7 @@ export interface Telemetry {
   tokensPerSec: number;
   costPerSecMc: number;
   peakEvents: number; // busiest single second in the window
+  subagentsTotal: number; // sub-agents spawned over the whole window
 }
 
 // summarize reduces a window of per-second buckets into rolling rates. Rates are
@@ -58,12 +61,14 @@ export function summarize(buckets: Bucket[]): Telemetry {
   let tokens = 0;
   let cost = 0;
   let peak = 0;
+  let subagents = 0;
   for (const b of buckets) {
     events += b.events;
     llm += b.llm;
     tools += b.tools;
     tokens += b.tokensIn + b.tokensOut;
     cost += b.costMc;
+    subagents += b.subagents;
     if (b.events > peak) peak = b.events;
   }
   return {
@@ -75,5 +80,6 @@ export function summarize(buckets: Bucket[]): Telemetry {
     tokensPerSec: tokens / n,
     costPerSecMc: cost / n,
     peakEvents: peak,
+    subagentsTotal: subagents,
   };
 }

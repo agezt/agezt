@@ -17,6 +17,15 @@ describe("addEvent", () => {
     expect(b.tools).toBe(1);
   });
 
+  it("counts sub-agent spawns (delegation activity)", () => {
+    let b = emptyBucket();
+    b = addEvent(b, ev("subagent.spawned"));
+    b = addEvent(b, ev("subagent.spawned"));
+    b = addEvent(b, ev("tool.invoked"));
+    expect(b.subagents).toBe(2);
+    expect(b.events).toBe(3);
+  });
+
   it("accumulates tokens and cost from budget.consumed", () => {
     let b = emptyBucket();
     b = addEvent(b, ev("budget.consumed", { input_tokens: 100, output_tokens: 20, cost_microcents: 5_000_000 }));
@@ -38,8 +47,8 @@ describe("addEvent", () => {
 describe("summarize", () => {
   it("averages rates over the bucket window and finds the peak second", () => {
     const buckets: Bucket[] = [
-      { events: 10, llm: 6, tools: 2, tokensIn: 100, tokensOut: 20, costMc: 1_000_000 },
-      { events: 2, llm: 1, tools: 0, tokensIn: 0, tokensOut: 0, costMc: 0 },
+      { events: 10, llm: 6, tools: 2, tokensIn: 100, tokensOut: 20, costMc: 1_000_000, subagents: 2 },
+      { events: 2, llm: 1, tools: 0, tokensIn: 0, tokensOut: 0, costMc: 0, subagents: 1 },
     ];
     const t = summarize(buckets);
     expect(t.windowSec).toBe(2);
@@ -48,6 +57,7 @@ describe("summarize", () => {
     expect(t.tokensPerSec).toBe(60); // (120) / 2
     expect(t.costPerSecMc).toBe(500_000);
     expect(t.peakEvents).toBe(10);
+    expect(t.subagentsTotal).toBe(3); // 2 + 1 summed over the window
   });
 
   it("is safe on an empty window (no divide-by-zero)", () => {

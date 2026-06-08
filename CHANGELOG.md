@@ -12,6 +12,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Live delegation activity in Mission Control.** The real-time telemetry
+  terminal now folds `subagent.spawned` into its per-second buckets and shows a
+  fifth live metric — `delegations/60s` — with its own sparkline, so multi-agent
+  fan-out is visible as it happens, not just in the after-the-fact Agents graph.
+  When a deep tree runs, the card climbs with every sub-agent spawned. Verified
+  live: a two-level delegation produced `delegations/60s: 2`, 0 console errors.
+  (M633)
 - **Click any agent in the delegation graph to fly it.** Nodes in the Agents
   delegation graph are now clickable: selecting one (lead or any sub-agent, at any
   depth) opens a side cockpit panel with that agent's full live detail — status,
