@@ -12,6 +12,17 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Assured standing orders — every trigger type is now do-it-for-sure.** The
+  `standing` tool takes an optional `assure` budget on `create_event`/`create_cron`:
+  when set, each firing of the order runs the do-it-for-sure loop (run → verify →
+  retry the gap) up to that many attempts. Combined with M651 (interactive) and
+  M654 (scheduled/continuous), EVERY way a task can start — you typing it, a timer,
+  a forever-loop, a journal event, a cron — can now be made to definitely finish.
+  Implemented as an `Assure` field on the standing Order that the event/cron fire
+  path reads to choose `RunAssured` vs `RunWith`; surfaced in `standing_list` and
+  the Standing cockpit as an `assured N×` badge. Verified live with the real
+  provider: an assured cron order fired and each firing emitted a `complete:true`
+  verdict (proving RunAssured); covered by standing-tool unit tests. (M655)
 - **Assured autonomous loops — do-it-for-sure, unattended.** The `schedule` tool now
   takes an optional `assure` budget on `in`/`every`/`daily`/`continuous`: when set,
   EACH firing runs the do-it-for-sure loop (run → verify completion → retry the gap)

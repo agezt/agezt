@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Anchor, RefreshCw, Pause, Play, Trash2, Clock, Zap } from "lucide-react";
+import { Anchor, RefreshCw, Pause, Play, Trash2, Clock, Zap, ShieldCheck } from "lucide-react";
 import { getJSON, postAction } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,7 @@ interface Order {
   triggers?: Trigger[];
   initiative?: { mode?: string };
   plan?: string;
+  assure?: number;
 }
 
 // Standing is the autonomy cockpit for Chronos standing orders: persistent goals
@@ -96,6 +97,15 @@ export function Standing() {
                   {o.initiative?.mode && (
                     <span className="rounded bg-panel px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted">
                       {o.initiative.mode}
+                    </span>
+                  )}
+                  {(o.assure ?? 0) > 0 && (
+                    <span
+                      className="inline-flex items-center gap-1 rounded-full bg-good/10 px-1.5 py-0.5 text-[10px] font-semibold text-good"
+                      title={`do-it-for-sure: each firing verifies completion and retries up to ${o.assure}×`}
+                    >
+                      <ShieldCheck className="size-3" />
+                      assured {o.assure}×
                     </span>
                   )}
                   <div className="ml-auto flex items-center gap-1.5">

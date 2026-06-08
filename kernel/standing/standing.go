@@ -80,6 +80,12 @@ type Order struct {
 	BriefingMin   string     `json:"briefing_disposition_min,omitempty"` // drop|digest|notify|alert
 	BriefingChan  string     `json:"briefing_channel,omitempty"`
 	Plan          string     `json:"plan,omitempty"` // optional explicit plan/intent template
+	// Assure, when > 0, makes each firing "do-it-for-sure": the order's plan runs,
+	// a verifier checks it was actually accomplished, and it retries the gap up to
+	// this many attempts (M655). 0 = a single pass (the default). The fire path
+	// (cmd/agezt) reads this to choose RunAssured vs RunWith — symmetric with the
+	// schedule tool's assure budget for the time axis.
+	Assure        int        `json:"assure,omitempty"`
 	CreatedMS     int64      `json:"created_ms"`
 	UpdatedMS     int64      `json:"updated_ms"`
 }
