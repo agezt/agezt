@@ -1,0 +1,75 @@
+import type { AgentEvent } from "@/lib/events";
+
+// Alerts: the daemon's PROACTIVE signals — what it flagged on its own, distinct
+// from the raw event firehose. Pulse observer deltas (e.g. the self-health
+// monitor), the briefings pulse decided to send, run failures, blocked egress,
+// budget/rate trips, and halts. Pure + unit-tested; the view owns the rolling
+// list and the live subscription.
+
+export type AlertLevel = "critical" | "warning" | "info";
+
+export interface Alert {
+  level: AlertLevel;
+  title: string;
+  detail: string;
+  source: string; // short origin label (e.g. "self:health", "pulse", "egress")
+}
+
+// LEVEL_ORDER ranks severity for sorting/filtering (higher = more severe).
+export const LEVEL_ORDER: Record<AlertLevel, number> = { info: 0, warning: 1, critical: 2 };
+
+function str(v: unknown): string {
+  return v == null ? "" : String(v);
+}
+
+// classifyAlert maps an event to an Alert, or null when the event is not a
+// proactive signal worth surfacing. Kept deliberately narrow: the Alerts view is
+// "what should I look at", not the whole stream.
+export function classifyAlert(e: AgentEvent): Alert | null {
+  const k = (e.kind || "").toLowerCase();
+  const p: any = e.payload || {};
+
+  switch (k) {
+    case "observer.delta": {
+      // A pulse observer detected a meaningful change (self-health, disk, CI…).
+      const sev = String(p.hints?.severity || "").toLowerCase();
+      const level: AlertLevel = sev === "critical" ? "critical" : sev === "high" ? "warning" : "info";
+      return {
+        level,
+        title: str(p.summary) || str(p.kind) || "observed change",
+        detail: "",
+        source: str(p.source) || "pulse",
+      };
+    }
+    case "briefing.sent": {
+      // Pulse decided this was worth telling the operator.
+      const disp = String(p.disposition || "").toLowerCase();
+      const level: AlertLevel = disp === "alert" ? "warning" : "info";
+      return { level, title: str(p.title) || "briefing", detail: str(p.body), source: "pulse" };
+    }
+    case "task.failed":
+      return { level: "warning", title: "run failed", detail: str(p.reason) || str(p.error), source: "run" };
+    case "netguard.blocked":
+      return {
+        level: "warning",
+        title: "egress blocked",
+        detail: [str(p.ip), str(p.reason)].filter(Boolean).join(" — "),
+        source: str(p.tool) || "egress",
+      };
+    case "budget.exceeded":
+      return { level: "critical", title: "budget ceiling exceeded", detail: "", source: "budget" };
+    case "rate.limited":
+      return { level: "warning", title: "provider rate-limited", detail: str(p.provider), source: "provider" };
+    case "halt":
+      return { level: "critical", title: "daemon halted", detail: str(p.reason), source: "kernel" };
+    case "capability.rejected":
+      return { level: "info", title: "capability rejected", detail: str(p.capability), source: "policy" };
+    default:
+      return null;
+  }
+}
+
+// isAlert is the boolean form used to filter a stream.
+export function isAlert(e: AgentEvent): boolean {
+  return classifyAlert(e) !== null;
+}
