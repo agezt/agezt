@@ -25,6 +25,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   the Chat renders progressively.
 
 ### Added
+- **Multiple conversations in Chat (sidebar).** The Chat is now multi-thread,
+  ChatGPT-style: a sidebar lists past conversations (auto-titled from the first
+  message, newest first), click to switch, "New chat" starts a fresh one, and each
+  is deleteable. All persisted to localStorage; the previous single-thread history
+  is migrated into the first conversation, so nothing is lost. (On small screens
+  the list is hidden and a New-chat button stays in the thread header.)
 - **Cleaner math in Chat.** LaTeX math delimiters (`\( … \)`, `\[ … \]`) that a
   model emits are stripped so the expression reads as plain text (e.g. `2b = 0.10`)
   instead of literal backslash-brackets. Applied only to inline text, never to
