@@ -244,6 +244,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 			lv[c] = edict.LevelAllow
 		}
 		edictOpts.Levels = lv
+		edictOpts.UnknownAllow = true // also allow capabilities not in the known set (M613)
 		askPolicyDesc += "; ALLOW_ALL (every capability L4)"
 		fmt.Fprintln(stderr, "WARNING: AGEZT_ALLOW_ALL=1 — every capability is set to allow (L4). Not for production; restrict via the Policy view or unset to restore defaults.")
 	}

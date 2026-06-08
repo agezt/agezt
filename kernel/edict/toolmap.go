@@ -37,6 +37,12 @@ func CapabilityForToolCall(toolName string, input json.RawMessage) Capability {
 			return CapFileDelete
 		}
 		return Capability("file." + p.Op)
+	case "browser.read":
+		return CapBrowserRead
+	case "memory":
+		return CapMemory
+	case "world":
+		return CapWorld
 	case "delegate":
 		return CapDelegate
 	case "coding":
