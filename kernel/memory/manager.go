@@ -144,10 +144,22 @@ func (m *Manager) Remember(corr string, spec RememberSpec) (Record, bool, error)
 // knowledge was surfaced for a task. Returns the ranked results (possibly
 // empty).
 func (m *Manager) Recall(corr, query string, limit int) ([]Scored, error) {
+	return m.RecallScoped(corr, query, limit, "")
+}
+
+// RecallScoped is Recall restricted to a caller's visibility: shared records
+// (no scope tag) are ALWAYS surfaced; a record private to some scope is surfaced
+// only when that same scope is requested. An empty scope therefore sees shared
+// memory only — which is what the daemon's automatic pre-run recall uses, so a
+// run never inherits another agent's private notes (M652). This is the per-agent
+// layer over the one shared brain: agents share most knowledge but can keep some
+// notes to themselves by naming a scope.
+func (m *Manager) RecallScoped(corr, query string, limit int, scope string) ([]Scored, error) {
 	all, err := m.store.All()
 	if err != nil {
 		return nil, err
 	}
+	all = filterScope(all, scope)
 	hits := Search(all, query, limit, m.now().UnixMilli())
 	if len(hits) > 0 {
 		ids := make([]string, 0, len(hits))
@@ -323,7 +335,8 @@ const toolInputSchema = `{
     "type":    {"type": "string", "enum": ["FACT","SUMMARY","RELATION","PREFERENCE","OBSERVATION"], "description": "memory type (remember; default FACT)"},
     "query":   {"type": "string", "description": "search text (recall)"},
     "limit":   {"type": "integer", "description": "max results (recall; default 5)"},
-    "id":      {"type": "string", "description": "record id (forget)"}
+    "id":      {"type": "string", "description": "record id (forget)"},
+    "scope":   {"type": "string", "description": "optional private namespace, e.g. your role like \"researcher\". On remember: keep this note private to that scope. On recall: also surface that scope's private notes. Shared memory (no scope) is ALWAYS visible; another scope's private notes never are. Omit for shared memory."}
   },
   "required": ["action"]
 }`
@@ -336,6 +349,7 @@ type toolInput struct {
 	Query   string `json:"query"`
 	Limit   int    `json:"limit"`
 	ID      string `json:"id"`
+	Scope   string `json:"scope"`
 }
 
 // memoryTool is the in-process agent.Tool that lets the agent remember,
@@ -353,7 +367,9 @@ func (t memoryTool) Definition() agent.ToolDef {
 		Description: "Persist and retrieve durable knowledge across tasks. " +
 			"action=remember stores a fact (subject, content); " +
 			"action=recall searches stored memory (query); " +
-			"action=forget tombstones a record (id).",
+			"action=forget tombstones a record (id). " +
+			"Memory is shared with every agent by default; pass an optional scope " +
+			"(e.g. your role) to keep a note private to that scope and to recall it.",
 		InputSchema: json.RawMessage(toolInputSchema),
 	}
 }
@@ -382,7 +398,7 @@ func (t memoryTool) Invoke(ctx context.Context, input json.RawMessage) (agent.Re
 		if limit <= 0 {
 			limit = 5
 		}
-		hits, err := t.mgr.Recall(corr, in.Query, limit)
+		hits, err := t.mgr.RecallScoped(corr, in.Query, limit, strings.TrimSpace(in.Scope))
 		if err != nil {
 			return agent.Result{Output: "recall failed: " + err.Error(), IsError: true}, nil
 		}
@@ -401,10 +417,34 @@ func (t memoryTool) Invoke(ctx context.Context, input json.RawMessage) (agent.Re
 	}
 }
 
-// Tags adapts the tool input to a tag map. The schema doesn't expose tags to
-// the model (keeps the surface small); tool writes are tagged source=agent so
-// they are distinguishable from operator and distilled writes.
-func (in toolInput) Tags() map[string]string { return map[string]string{"source": "agent"} }
+// Tags adapts the tool input to a tag map. Tool writes are tagged source=agent so
+// they are distinguishable from operator and distilled writes; an optional scope
+// tag makes the note private to that namespace (recall only surfaces it when the
+// same scope is requested) — the per-agent layer over shared memory (M652).
+func (in toolInput) Tags() map[string]string {
+	t := map[string]string{"source": "agent"}
+	if s := strings.TrimSpace(in.Scope); s != "" {
+		t["scope"] = s
+	}
+	return t
+}
+
+// filterScope drops records private to a scope other than the requested one.
+// A record is visible when it carries no scope tag (shared) or its scope equals
+// the caller's. Returns a new slice; the input is not mutated.
+func filterScope(recs []Record, scope string) []Record {
+	out := make([]Record, 0, len(recs))
+	for _, r := range recs {
+		rs := ""
+		if r.Tags != nil {
+			rs = r.Tags["scope"]
+		}
+		if rs == "" || rs == scope {
+			out = append(out, r)
+		}
+	}
+	return out
+}
 
 func renderHits(hits []Scored) string {
 	if len(hits) == 0 {
@@ -413,7 +453,11 @@ func renderHits(hits []Scored) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "%d relevant memor%s:\n", len(hits), plural(len(hits)))
 	for _, h := range hits {
-		fmt.Fprintf(&b, "- [%s] %s: %s\n", h.Record.Type, h.Record.Subject, h.Record.Content)
+		scope := ""
+		if h.Record.Tags != nil && h.Record.Tags["scope"] != "" {
+			scope = " (scope: " + h.Record.Tags["scope"] + ")"
+		}
+		fmt.Fprintf(&b, "- [%s] %s: %s%s\n", h.Record.Type, h.Record.Subject, h.Record.Content, scope)
 	}
 	return strings.TrimRight(b.String(), "\n")
 }
