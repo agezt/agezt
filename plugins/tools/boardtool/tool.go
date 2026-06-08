@@ -44,12 +44,12 @@ type input struct {
 }
 
 // Invoke implements agent.Tool.
-func (t *Tool) Invoke(_ context.Context, raw json.RawMessage) (agent.Result, error) {
+func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, error) {
 	var in input
 	if err := json.Unmarshal(raw, &in); err != nil {
 		return agent.Result{}, fmt.Errorf("board: parse input: %w", err)
 	}
-	st, nowFn := t.current()
+	st, nowFn, notify := t.current()
 	if st == nil {
 		return errResult("the board is not available on this daemon"), nil
 	}
@@ -65,6 +65,11 @@ func (t *Tool) Invoke(_ context.Context, raw json.RawMessage) (agent.Result, err
 		m, err := st.Post(in.Topic, in.From, in.Text, nowFn())
 		if err != nil {
 			return errResult(err.Error()), nil
+		}
+		// Journal the post so standing orders can react to it (M656). corr ties
+		// the board.posted event to the run that posted (CorrelationFromContext).
+		if notify != nil {
+			notify(m.Topic, m.From, m.Text, agent.CorrelationFromContext(ctx))
 		}
 		return okJSON(map[string]any{"posted": msgView(m)}), nil
 

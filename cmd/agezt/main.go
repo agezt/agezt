@@ -1127,6 +1127,22 @@ func runDaemon(stdout, stderr io.Writer) int {
 	if err := boardToolInst.Bind(filepath.Join(baseDir, "board")); err != nil {
 		fmt.Fprintf(stderr, "%s: board tool unavailable: %v\n", brand.Binary, err)
 	} else {
+		// Journal each post as a board.posted event under subject "board.<topic>"
+		// (M656), so a standing order can trigger on a topic and one agent's post
+		// wakes another. The posting run's correlation ties the event into `agt why`.
+		boardToolInst.OnPost(func(topic, from, text, corr string) {
+			payload := map[string]any{"topic": topic, "chars": len(text)}
+			if from != "" {
+				payload["from"] = from
+			}
+			_, _ = k.Bus().Publish(event.Spec{
+				Subject:       "board." + boardSubjectSlug(topic),
+				Kind:          event.KindBoardPosted,
+				Actor:         "board",
+				CorrelationID: corr,
+				Payload:       payload,
+			})
+		})
 		fmt.Fprintf(stdout, "  board tool       : enabled (agents share a persistent message board)\n")
 	}
 
@@ -3609,6 +3625,31 @@ func pluginLogLine(r *redact.Redactor, prefix, line string) string {
 // buildTools registers the in-process tools. Each tool gets its own
 // configuration from env vars; defaults are safe (file tool scoped to a
 // per-instance workspace, http tool default-deny). The shell tool runs
+// boardSubjectSlug sanitises a board topic into one subject segment (M656):
+// lowercased, with any run of characters that aren't [a-z0-9_-] collapsed to a
+// single dash, so "Acil Müdahale!" → "acil-m-dahale" and the event subject
+// "board.<slug>" stays a single, well-formed segment a standing trigger can match.
+// An empty/all-symbol topic degrades to "untopiced" so the subject is never
+// "board." with a trailing dot.
+func boardSubjectSlug(topic string) string {
+	var b strings.Builder
+	lastDash := false
+	for _, r := range strings.ToLower(strings.TrimSpace(topic)) {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '_' || r == '-' {
+			b.WriteRune(r)
+			lastDash = false
+		} else if !lastDash {
+			b.WriteByte('-')
+			lastDash = true
+		}
+	}
+	s := strings.Trim(b.String(), "-")
+	if s == "" {
+		return "untopiced"
+	}
+	return s
+}
+
 // every command through the supplied Warden engine.
 // workspaceRoot resolves the directory the file and shell tools share:
 // $AGEZT_WORKSPACE, or <baseDir>/workspace by default. Used by buildTools (to

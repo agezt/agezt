@@ -8,6 +8,7 @@ import (
 	"sort"
 	"testing"
 
+	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/board"
 )
 
@@ -146,6 +147,35 @@ func TestBadInputs(t *testing.T) {
 		if _, isErr := invoke(t, tool, c); !isErr {
 			t.Errorf("expected error for %v", c)
 		}
+	}
+}
+
+func TestPost_NotifiesWithCorrelation(t *testing.T) {
+	tool := newTool(t)
+	var got struct{ topic, from, text, corr string }
+	calls := 0
+	tool.OnPost(func(topic, from, text, corr string) {
+		calls++
+		got.topic, got.from, got.text, got.corr = topic, from, text, corr
+	})
+	ctx := agent.WithCorrelation(context.Background(), "run-42")
+	raw, _ := json.Marshal(map[string]any{"op": "post", "topic": "handoff", "from": "ci", "text": "build green"})
+	if _, err := tool.Invoke(ctx, raw); err != nil {
+		t.Fatalf("Invoke: %v", err)
+	}
+	if calls != 1 || got.topic != "handoff" || got.from != "ci" || got.text != "build green" || got.corr != "run-42" {
+		t.Errorf("notifier got %+v (calls=%d), want handoff/ci/build green/run-42", got, calls)
+	}
+}
+
+func TestRead_DoesNotNotify(t *testing.T) {
+	tool := newTool(t)
+	calls := 0
+	tool.OnPost(func(_, _, _, _ string) { calls++ })
+	invoke(t, tool, map[string]any{"op": "read"})
+	invoke(t, tool, map[string]any{"op": "topics"})
+	if calls != 0 {
+		t.Errorf("only posts should notify, got %d", calls)
 	}
 }
 

@@ -12,6 +12,19 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Board posts wake agents — the inter-agent reaction loop closes.** Posting to the
+  shared board now emits a journaled `board.posted` event under subject
+  `board.<topic>`, so a standing order can trigger on a topic (e.g.
+  `create_event subject="board.acil-mudahale"`, or `board.*` for all of them). One
+  agent's post now WAKES another agent, who reads it and acts — the genuine
+  "agents talk to each other," not just a shared notebook. The board tool stays free
+  of the kernel bus via a plain `OnPost` notifier closure the daemon wires to
+  publish under the posting run's correlation; the topic is slugified into one
+  subject segment. Board activity also now shows in the Autonomy feed (a `board`
+  category with `topic · from role`). Verified live with the real provider: agent-A
+  posted to `relay-test`; a standing order triggered on `board.relay-test` woke,
+  read the message, and posted a confirmation to `relay-ack` — the whole chain
+  (post → fired → reply) visible in the Autonomy feed. (M656)
 - **Assured standing orders — every trigger type is now do-it-for-sure.** The
   `standing` tool takes an optional `assure` budget on `create_event`/`create_cron`:
   when set, each firing of the order runs the do-it-for-sure loop (run → verify →

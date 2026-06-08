@@ -318,3 +318,20 @@ func TestIsLoopback_ClassifiesExposureCorrectly(t *testing.T) {
 		}
 	}
 }
+
+func TestBoardSubjectSlug(t *testing.T) {
+	cases := map[string]string{
+		"handoff":          "handoff",
+		"Acil Müdahale!":   "acil-m-dahale", // non-ascii + symbols collapse to dashes
+		"gunluk-brifing":   "gunluk-brifing",
+		"  spaced  topic ": "spaced-topic",
+		"a.b.c":            "a-b-c", // dots can't appear inside a subject segment
+		"":                 "untopiced",
+		"!!!":              "untopiced",
+	}
+	for in, want := range cases {
+		if got := boardSubjectSlug(in); got != want {
+			t.Errorf("boardSubjectSlug(%q) = %q, want %q", in, got, want)
+		}
+	}
+}

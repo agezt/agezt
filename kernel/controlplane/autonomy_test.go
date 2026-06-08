@@ -27,6 +27,8 @@ func TestAutonomyDetail(t *testing.T) {
 		{"assure complete", ev(event.KindAssureVerdict, map[string]any{"complete": true}), "complete: true"},
 		{"assure gap", ev(event.KindAssureVerdict, map[string]any{"complete": false, "gap": "no tests"}), "gap: no tests"},
 		{"briefing subject", ev(event.KindBriefingSent, map[string]any{"subject": "morning digest"}), "morning digest"},
+		{"board topic+from", ev(event.KindBoardPosted, map[string]any{"topic": "acil-mudahale", "from": "watcher"}), "acil-mudahale · from watcher"},
+		{"board topic only", ev(event.KindBoardPosted, map[string]any{"topic": "general"}), "general"},
 		{"empty payload", &event.Event{Kind: event.KindScheduleFired}, ""},
 	}
 	for _, c := range cases {

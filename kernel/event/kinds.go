@@ -256,6 +256,13 @@ const (
 	// the verifier judged the task complete, and the remaining gap if not — so
 	// `agt why` can show why an assured run retried (or stopped).
 	KindAssureVerdict Kind = "assure.verdict"
+
+	// KindBoardPosted is published when an agent posts to the shared message board
+	// (M656). Its subject is "board.<topic>", so a standing order can trigger on a
+	// specific topic (e.g. "board.acil-mudahale") or all of them ("board.*") — the
+	// primitive that lets one agent's post WAKE another agent. Payload carries the
+	// topic, the optional from-role, and the message length.
+	KindBoardPosted Kind = "board.posted"
 )
 
 // IsKnown reports whether k is one of the kinds defined in this file. Useful
@@ -359,4 +366,5 @@ var knownKinds = map[Kind]struct{}{
 	KindWebhookFailed:             {},
 	KindScheduleFired:             {},
 	KindAssureVerdict:             {},
+	KindBoardPosted:               {},
 }

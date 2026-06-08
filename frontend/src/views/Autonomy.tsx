@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Waves, RefreshCw, CalendarClock, Anchor, ShieldCheck, Sparkles, Radio } from "lucide-react";
+import { Waves, RefreshCw, CalendarClock, Anchor, ShieldCheck, Sparkles, Radio, MessagesSquare } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { getJSON } from "@/lib/api";
 import { cn, fmtTime } from "@/lib/utils";
@@ -28,6 +28,7 @@ const catMeta: Record<string, { icon: LucideIcon; tone: string }> = {
   assure: { icon: ShieldCheck, tone: "text-good" },
   skill: { icon: Sparkles, tone: "text-accent" },
   pulse: { icon: Radio, tone: "text-muted" },
+  board: { icon: MessagesSquare, tone: "text-accent" },
 };
 
 // Autonomy is the "living organism" pane: a curated, newest-first timeline of
