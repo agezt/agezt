@@ -93,12 +93,19 @@ export function buildDelegationTree(runs: RunNode[], rootId: string): Delegation
   return { nodes, edges, count: nodes.length, totalSpentMc, maxDepth };
 }
 
-// pickDefaultRoot chooses the run to show first: the newest run that actually
-// has sub-agents (the most interesting tree), else the newest run overall.
+// pickDefaultRoot chooses the run to show first: the newest TRUE ROOT (a run
+// with no parent) that actually delegated — the most interesting full tree —
+// else the newest root, else the newest run overall.
+//
+// It must restrict to roots: with depth>1 an intermediate sub-agent also "has
+// kids", but it isn't a selectable lead (the dropdown lists roots only). Picking
+// one would root the graph mid-tree and desync it from the selector — the bug
+// this guards against. At depth≤1 only leads had children, so it never showed.
 export function pickDefaultRoot(runs: RunNode[]): string | undefined {
   const hasKids = new Set<string>();
   for (const r of runs) if (r.parent) hasKids.add(r.parent);
   // runs arrive newest-first from /api/runs; preserve that order.
-  const withKids = runs.find((r) => hasKids.has(r.id));
-  return (withKids || runs[0])?.id;
+  const roots = runs.filter((r) => !r.parent);
+  const rootWithKids = roots.find((r) => hasKids.has(r.id));
+  return (rootWithKids || roots[0] || runs[0])?.id;
 }

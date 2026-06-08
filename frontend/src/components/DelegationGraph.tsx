@@ -21,6 +21,7 @@ type DelegationData = {
   iters: number;
   spentMc: number;
   root: boolean;
+  depth: number;
 };
 type DelegationRFNode = Node<DelegationData, "agent">;
 
@@ -51,6 +52,13 @@ function AgentNodeView({ data }: NodeProps<DelegationRFNode>) {
         <span className="text-[10px] font-semibold uppercase tracking-wider text-muted">
           {data.root ? "lead" : "sub-agent"}
         </span>
+        {/* Depth badge: at depth>1 a sub-agent is itself a delegator, so the
+            level is what tells a deep tree apart from a flat fan-out. */}
+        {!data.root && (
+          <span className="rounded-sm bg-accent/15 px-1 text-[9px] font-semibold tabular-nums text-accent">
+            L{data.depth}
+          </span>
+        )}
         <span className="ml-auto text-[10px] tabular-nums text-muted">{data.status || "—"}</span>
       </div>
       <div className="mt-1 line-clamp-2 text-xs font-medium leading-snug">{clip(data.title, 80)}</div>
@@ -84,6 +92,7 @@ export function DelegationGraph({ runs, rootId }: { runs: RunNode[]; rootId: str
         iters: Number(n.iters || 0),
         spentMc: Number(n.spentMc || 0),
         root: n.root,
+        depth: n.depth,
       },
     }));
     const edges: Edge[] = t.edges.map((e, i) => ({
