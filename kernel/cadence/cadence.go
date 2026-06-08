@@ -81,6 +81,12 @@ type Entry struct {
 	CreatedUnix int64  `json:"created_unix"`
 	LastRunUnix int64  `json:"last_run_unix,omitempty"`
 	NextRunUnix int64  `json:"next_run_unix"`
+	// Fires counts completed firings — the heartbeat of the entry. For a
+	// continuous loop it is the number of cycles the loop has lived through; for
+	// a recurring entry, how many times it has run. Incremented once per run at
+	// CompleteFiring (after the run finishes), so it never double-counts an
+	// in-flight cycle.
+	Fires int64 `json:"fires,omitempty"`
 }
 
 // Interval is the entry's firing period (interval mode only).
@@ -841,12 +847,17 @@ func (s *Store) CompleteFiring(id string, now time.Time) (bool, error) {
 		case ModeContinuous:
 			// Completion-anchored loop: schedule the next cycle `cooldown` after
 			// this run finished, so cycles never overlap and the agent runs
-			// forever with a steady breather between cycles (M646).
+			// forever with a steady breather between cycles (M646). Count the cycle
+			// just lived — this is the loop's heartbeat (M650).
+			s.entries[i].Fires++
 			s.entries[i].LastRunUnix = now.Unix()
 			s.entries[i].NextRunUnix = now.Add(e.safeInterval()).Unix()
 			return false, s.save()
 		default:
-			return false, nil
+			// Recurring (interval/daily/window): Due already advanced NextRunUnix
+			// before the run; here we only record that a firing completed (M650).
+			s.entries[i].Fires++
+			return false, s.save()
 		}
 	}
 	return false, nil

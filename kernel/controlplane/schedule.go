@@ -213,7 +213,7 @@ func (s *Server) handleScheduleList(conn net.Conn, req Request) {
 			"at_minutes": e.AtMinutes, "end_minutes": e.EndMinutes, "days": e.Days, "tz": e.TZ, "cadence": e.Cadence(),
 			"model": e.Model, "source": e.Source, "enabled": e.Enabled,
 			"created_unix": e.CreatedUnix, "last_run_unix": e.LastRunUnix,
-			"next_run_unix": e.NextRunUnix,
+			"next_run_unix": e.NextRunUnix, "fires": e.Fires,
 		}
 		if lf, ok := latest[e.ID]; ok {
 			row["last_status"] = lf.status
