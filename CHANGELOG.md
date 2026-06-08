@@ -25,6 +25,10 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   the Chat renders progressively.
 
 ### Added
+- **Cleaner math in Chat.** LaTeX math delimiters (`\( … \)`, `\[ … \]`) that a
+  model emits are stripped so the expression reads as plain text (e.g. `2b = 0.10`)
+  instead of literal backslash-brackets. Applied only to inline text, never to
+  code blocks.
 - **Structured-data widgets in Chat.** A ` ```json ` or ` ```widget ` fenced block
   whose body is valid JSON is rendered by shape rather than as raw text: an array
   of objects becomes a table (union-of-keys columns), an object a key/value card,

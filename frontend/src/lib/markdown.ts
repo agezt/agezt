@@ -26,9 +26,19 @@ export type Block =
 // literal). Non-greedy, single-line spans.
 const INLINE_RE = /(`[^`]+`|\*\*[^*]+\*\*|\*[^*]+\*)/;
 
-export function parseInline(s: string): Inline[] {
+// Strip LaTeX math delimiters (\( … \), \[ … \]) so a model's math reads as the
+// plain expression instead of literal backslash-brackets. Applied only to
+// inline (paragraph/cell/heading/list) text — never to code blocks, which don't
+// pass through here — so a backslash in code is untouched.
+function stripMathDelimiters(s: string): string {
+  return s
+    .replace(/\\\[\s*([\s\S]*?)\s*\\\]/g, (_, x) => x)
+    .replace(/\\\(\s*([\s\S]*?)\s*\\\)/g, (_, x) => x);
+}
+
+export function parseInline(input: string): Inline[] {
   const out: Inline[] = [];
-  let rest = s;
+  let rest = stripMathDelimiters(input);
   while (rest.length > 0) {
     const m = rest.match(INLINE_RE);
     if (!m || m.index == null) {

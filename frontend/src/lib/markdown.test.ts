@@ -22,6 +22,13 @@ describe("parseInline", () => {
   it("returns a single text token when there's no markup", () => {
     expect(parseInline("just words")).toEqual([{ t: "text", v: "just words" }]);
   });
+
+  it("strips LaTeX math delimiters, keeping the expression", () => {
+    expect(parseInline("so \\( 2b = 0.10 \\) gives the answer")).toEqual([
+      { t: "text", v: "so 2b = 0.10 gives the answer" },
+    ]);
+    expect(parseInline("\\[ E = mc^2 \\]")).toEqual([{ t: "text", v: "E = mc^2" }]);
+  });
 });
 
 describe("parseMarkdown", () => {
