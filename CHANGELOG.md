@@ -12,6 +12,18 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Public tunnels** — expose a local Agezt HTTP service (the Web UI, else the REST
+  API) to the public internet by supervising a tunnel binary. `kernel/tunnel`
+  spawns `cloudflared` or `ngrok` (built-in presets) — or any custom command
+  (`AGEZT_TUNNEL_CMD`) — pointed at the local address, scans its output for the
+  public URL it advertises, prints that URL to the daemon log, restarts it with
+  capped exponential backoff if it drops, and tears the whole process tree down on
+  shutdown. Off unless `AGEZT_TUNNEL=cloudflared|ngrok` or `AGEZT_TUNNEL_CMD` is set
+  (the operator opts in explicitly, since this makes the service publicly
+  reachable); the target defaults to the Web UI addr, else REST, or
+  `AGEZT_TUNNEL_TARGET`. Wrapping the providers' battle-tested rendezvous servers
+  keeps the daemon's one-dependency promise — `os/exec` + stdlib only, no new
+  dependency, with a process-group teardown mirroring the plugin host. (M586)
 - **A plugin registry/marketplace** — `agt plugin registry <dir|url> [--install
   <name>]`. Completes the marketplace alongside the existing remote *skill*
   registry (`agt skill registry`): browse a registry's plugins (an `index.json`
