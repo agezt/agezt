@@ -12,6 +12,19 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Continuous agents — a living, never-tiring loop.** A new cadence mode,
+  `continuous`, is a completion-anchored loop: the agent runs, and once its run
+  COMPLETES it re-anchors to fire again `cooldown` later — so it runs forever,
+  one cycle after another, never overlapping (the engine's in-flight guard) and
+  carrying its memory + journal across cycles. The system can now keep a worker
+  perpetually alive ("watch the world and act"), not just fire on a fixed clock.
+  Exposed through the `schedule` tool (`op=continuous`, `cooldown`) so the agent
+  can start one itself; it shows in the Schedules cockpit as `continuous · Ns
+  cooldown` and is paused/removed like any schedule (the off-switch). The cooldown
+  is floored to 1s so it can't busy-loop the daemon; per-cycle cost rides the
+  daily budget ceiling. Verified live: the agent started a 15s-cooldown loop that
+  fired 3 times over ~50s, each cycle `last: completed` → `next` re-anchored.
+  (M646)
 - **`standing` tool — agents create their own event-triggered agents.** A new
   in-process tool lets the agent set up its OWN autonomous, trigger-driven agents
   (Chronos standing orders): `op=create_event` makes one that fires its plan

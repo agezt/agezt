@@ -41,6 +41,12 @@ func (f *fakeStore) AddOnce(intent string, at time.Time, model, source string, n
 	f.added = append(f.added, e)
 	return e, nil
 }
+func (f *fakeStore) AddContinuous(intent string, cooldown time.Duration, model, source string, now time.Time) (cadence.Entry, error) {
+	f.lastIntv = cooldown
+	e := cadence.Entry{ID: "cont1", Intent: intent, Mode: cadence.ModeContinuous, IntervalSec: int64(cooldown / time.Second), Source: source, Enabled: true, NextRunUnix: now.Unix()}
+	f.added = append(f.added, e)
+	return e, nil
+}
 func (f *fakeStore) Remove(id string) (bool, error) { f.removed = id; return f.removeOK, nil }
 func (f *fakeStore) List() []cadence.Entry          { return f.entries }
 
@@ -101,6 +107,30 @@ func TestOpEvery_Interval(t *testing.T) {
 	}
 	if f.lastIntv != time.Hour {
 		t.Errorf("interval = %v, want 1h", f.lastIntv)
+	}
+}
+
+func TestOpContinuous_Loop(t *testing.T) {
+	f := &fakeStore{}
+	out, isErr := invoke(t, newTool(f), map[string]any{"op": "continuous", "cooldown": "30s", "intent": "watch the world"})
+	if isErr {
+		t.Fatalf("unexpected error: %v", out)
+	}
+	if len(f.added) != 1 || f.added[0].Mode != cadence.ModeContinuous {
+		t.Fatalf("AddContinuous not called: %+v", f.added)
+	}
+	if f.lastIntv != 30*time.Second {
+		t.Errorf("cooldown = %v, want 30s", f.lastIntv)
+	}
+	if f.added[0].Source != "agent" {
+		t.Errorf("source = %q, want agent", f.added[0].Source)
+	}
+}
+
+func TestOpContinuous_BadCooldown(t *testing.T) {
+	f := &fakeStore{}
+	if _, isErr := invoke(t, newTool(f), map[string]any{"op": "continuous", "cooldown": "nope", "intent": "x"}); !isErr {
+		t.Error("a bad cooldown should be an error")
 	}
 }
 

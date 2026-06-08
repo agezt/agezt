@@ -32,6 +32,7 @@ type store interface {
 	Add(intent string, interval time.Duration, model, source string, now time.Time) (cadence.Entry, error)
 	AddDaily(intent string, atMinutes, days int, tz, model, source string, now time.Time) (cadence.Entry, error)
 	AddOnce(intent string, at time.Time, model, source string, now time.Time) (cadence.Entry, error)
+	AddContinuous(intent string, cooldown time.Duration, model, source string, now time.Time) (cadence.Entry, error)
 	Remove(id string) (bool, error)
 	List() []cadence.Entry
 }
@@ -77,10 +78,11 @@ func (t *Tool) Definition() agent.ToolDef {
   "type": "object",
   "required": ["op"],
   "properties": {
-    "op":       {"type":"string", "enum":["in","every","daily","list","remove"], "description":"in=one-shot after a delay; every=recurring interval; daily=at a wall-clock time; list; remove."},
-    "intent":   {"type":"string", "description":"The task to run at the scheduled time (for in/every/daily)."},
+    "op":       {"type":"string", "enum":["in","every","daily","continuous","list","remove"], "description":"in=one-shot after a delay; every=recurring interval; daily=at a wall-clock time; continuous=a never-ending loop that re-runs after each run finishes; list; remove."},
+    "intent":   {"type":"string", "description":"The task to run at the scheduled time (for in/every/daily/continuous)."},
     "delay":    {"type":"string", "description":"For op=in: how far out, e.g. \"30m\", \"2h\", \"24h\"."},
     "interval": {"type":"string", "description":"For op=every: the firing period, e.g. \"1h\", \"15m\"."},
+    "cooldown": {"type":"string", "description":"For op=continuous: the breather between cycles, e.g. \"30s\", \"5m\". The loop runs forever; pause/remove it to stop."},
     "at":       {"type":"string", "description":"For op=daily: wall-clock time \"HH:MM\" (24h, daemon local time)."},
     "days":     {"type":"string", "description":"For op=daily (optional): which days, e.g. \"mon-fri\", \"weekends\". Default every day."},
     "model":    {"type":"string", "description":"Optional model override for the scheduled run."},
@@ -95,6 +97,7 @@ type input struct {
 	Intent   string `json:"intent"`
 	Delay    string `json:"delay"`
 	Interval string `json:"interval"`
+	Cooldown string `json:"cooldown"`
 	At       string `json:"at"`
 	Days     string `json:"days"`
 	Model    string `json:"model"`
@@ -137,6 +140,17 @@ func (t *Tool) Invoke(_ context.Context, raw json.RawMessage) (agent.Result, err
 			return errResult(err.Error()), nil
 		}
 		return okEntry("scheduled recurring", e), nil
+
+	case "continuous":
+		d, err := time.ParseDuration(in.Cooldown)
+		if err != nil || d <= 0 {
+			return errResult(`op=continuous needs a positive "cooldown" like "30s" or "5m"`), nil
+		}
+		e, err := st.AddContinuous(in.Intent, d, in.Model, source, now)
+		if err != nil {
+			return errResult(err.Error()), nil
+		}
+		return okEntry("started a continuous loop (runs forever; pause/remove to stop)", e), nil
 
 	case "daily":
 		mins, ok := parseHHMM(in.At)
