@@ -34,6 +34,7 @@ import (
 // so the inventory can no longer silently rot.
 var configEnvVars = []string{
 	"AGEZT_ACP_AGENT_CMD",
+	"AGEZT_ALLOW_ALL",
 	"AGEZT_ANOMALY_MAX_TOOLCALLS",
 	"AGEZT_ANOMALY_WINDOW",
 	"AGEZT_API_ADDR",

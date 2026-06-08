@@ -12,6 +12,18 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **`AGEZT_ALLOW_ALL=1` — one switch to allow everything.** For a single-operator
+  dev box where the safe-by-default gating is just friction, this master switch
+  sets *every* governed capability to L4 (allow) and opens the http/browser tools
+  to any host (including loopback and the private network) — so no tool call is
+  denied or prompts. Off by default (the project stays safe-by-default for
+  everyone else); a loud startup banner makes it impossible to enable silently.
+  The built-in catastrophe hard-deny rails (fork-bomb, `dd` to a raw device)
+  deliberately remain — they guard against self-destruction, not normal tool use,
+  and are no-ops on Windows. Restrict later from the Policy view or by unsetting
+  the flag. Verified: with it on, every capability reports L4 and a real
+  `http GET https://example.com` succeeds (200) where it was previously
+  hard-denied. (M611)
 - **Grant or restrict tool capabilities from the cockpit — no restart.** The Web
   UI Policy view was read-only (decision stats + log); enabling a default-denied
   capability meant editing env vars and restarting. It is now a control center:
