@@ -21,6 +21,8 @@ type fakeStore struct {
 	removed  string
 	removeOK bool
 	entries  []cadence.Entry
+	lastAssureID string
+	lastAssureN  int
 }
 
 func (f *fakeStore) Add(intent string, interval time.Duration, model, source string, now time.Time) (cadence.Entry, error) {
@@ -49,6 +51,17 @@ func (f *fakeStore) AddContinuous(intent string, cooldown time.Duration, model, 
 }
 func (f *fakeStore) Remove(id string) (bool, error) { f.removed = id; return f.removeOK, nil }
 func (f *fakeStore) List() []cadence.Entry          { return f.entries }
+
+func (f *fakeStore) SetAssure(id string, n int) (bool, error) {
+	f.lastAssureID, f.lastAssureN = id, n
+	for i := range f.added {
+		if f.added[i].ID == id {
+			f.added[i].Assure = n
+			return true, nil
+		}
+	}
+	return false, nil
+}
 
 // fixedNow pins the clock so the one-shot's absolute fire time is assertable.
 var fixedNow = time.Date(2026, 6, 8, 12, 0, 0, 0, time.UTC)
@@ -124,6 +137,29 @@ func TestOpContinuous_Loop(t *testing.T) {
 	}
 	if f.added[0].Source != "agent" {
 		t.Errorf("source = %q, want agent", f.added[0].Source)
+	}
+}
+
+func TestAssure_StampedOnCreate(t *testing.T) {
+	// op=continuous with assure=2 must SetAssure on the created entry (M654).
+	f := &fakeStore{}
+	out, isErr := invoke(t, newTool(f), map[string]any{"op": "continuous", "cooldown": "30s", "intent": "be sure", "assure": 2})
+	if isErr {
+		t.Fatalf("unexpected error: %v", out)
+	}
+	if f.lastAssureID != f.added[0].ID || f.lastAssureN != 2 {
+		t.Errorf("SetAssure(id=%q,n=%d), want (%q,2)", f.lastAssureID, f.lastAssureN, f.added[0].ID)
+	}
+	if out["assure"].(float64) != 2 {
+		t.Errorf("entry view should report assure=2, got %v", out["assure"])
+	}
+}
+
+func TestAssure_OmittedWhenZero(t *testing.T) {
+	f := &fakeStore{}
+	invoke(t, newTool(f), map[string]any{"op": "every", "interval": "1h", "intent": "x"})
+	if f.lastAssureN != 0 || f.lastAssureID != "" {
+		t.Errorf("no assure arg should not call SetAssure, got (%q,%d)", f.lastAssureID, f.lastAssureN)
 	}
 }
 

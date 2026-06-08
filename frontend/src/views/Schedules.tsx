@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { CalendarClock, RefreshCw, Play, Pause, Trash2, Bot, Heart, Infinity as InfinityIcon } from "lucide-react";
+import { CalendarClock, RefreshCw, Play, Pause, Trash2, Bot, Heart, Infinity as InfinityIcon, ShieldCheck } from "lucide-react";
 import { getJSON, postAction } from "@/lib/api";
 import { cn, fmtDateTime } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -16,6 +16,7 @@ interface Sched {
   next_run_unix?: number;
   last_status?: string;
   fires?: number;
+  assure?: number;
 }
 
 // sourceTone colours the origin badge: an agent-scheduled run (the agent used
@@ -117,6 +118,15 @@ export function Schedules() {
                     >
                       <Heart className="size-3 animate-pulse fill-current" />
                       {s.fires ?? 0}
+                    </span>
+                  )}
+                  {(s.assure ?? 0) > 0 && (
+                    <span
+                      className="inline-flex items-center gap-1 rounded-full bg-good/10 px-1.5 py-0.5 text-[10px] font-semibold text-good"
+                      title={`do-it-for-sure: each firing verifies completion and retries up to ${s.assure}×`}
+                    >
+                      <ShieldCheck className="size-3" />
+                      assured {s.assure}×
                     </span>
                   )}
                   {s.enabled === false && <span className="text-[10px] text-muted">(paused)</span>}

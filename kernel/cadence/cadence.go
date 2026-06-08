@@ -87,6 +87,11 @@ type Entry struct {
 	// CompleteFiring (after the run finishes), so it never double-counts an
 	// in-flight cycle.
 	Fires int64 `json:"fires,omitempty"`
+	// Assure, when > 0, makes each firing "do-it-for-sure": the firing runs, a
+	// verifier checks the task was actually accomplished, and it retries the gap
+	// up to this many attempts (M654). 0 = a single pass (the default). The fire
+	// path (cmd/agezt) reads this to choose RunAssured vs RunWith.
+	Assure int `json:"assure,omitempty"`
 }
 
 // Interval is the entry's firing period (interval mode only).
@@ -859,6 +864,25 @@ func (s *Store) CompleteFiring(id string, now time.Time) (bool, error) {
 			s.entries[i].Fires++
 			return false, s.save()
 		}
+	}
+	return false, nil
+}
+
+// SetAssure sets an entry's do-it-for-sure attempt budget (M654): n > 0 makes
+// each firing run-verify-retry up to n times; n <= 0 clears it back to a single
+// pass. Returns whether an entry with that id existed.
+func (s *Store) SetAssure(id string, n int) (bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for i := range s.entries {
+		if s.entries[i].ID != id {
+			continue
+		}
+		if n < 0 {
+			n = 0
+		}
+		s.entries[i].Assure = n
+		return true, s.save()
 	}
 	return false, nil
 }

@@ -3022,7 +3022,18 @@ func buildCadence(ctx context.Context, k *kernelruntime.Kernel, stdout io.Writer
 			// can show a schedule's last outcome.
 			Payload: map[string]any{"schedule_id": id, "intent": intent, "model": model},
 		})
-		ans, err := k.RunWith(kernelruntime.WithModel(runCtx, model), corr, intent)
+		mctx := kernelruntime.WithModel(runCtx, model)
+		// Do-it-for-sure firings (M654): when the entry carries an assure budget,
+		// each firing runs-verifies-retries until the task is judged complete (or
+		// the budget is spent), so an unattended schedule/continuous loop actually
+		// gets its task done rather than firing once and hoping.
+		var ans string
+		var err error
+		if ent, ok := store.Get(id); ok && ent.Assure > 0 {
+			ans, _, err = k.RunAssured(mctx, corr, intent, ent.Assure)
+		} else {
+			ans, err = k.RunWith(mctx, corr, intent)
+		}
 		// Deliver the scheduled run's answer to the operator's channels when
 		// AGEZT_SCHEDULE_NOTIFY is on (M152): a proactive morning digest reaches
 		// you instead of sitting silently in the journal. Only on success with a

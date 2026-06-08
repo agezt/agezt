@@ -96,6 +96,35 @@ func TestRecurring_FiresCounted(t *testing.T) {
 	}
 }
 
+// TestSetAssure sets, clears, and rejects-unknown the do-it-for-sure budget (M654).
+func TestSetAssure(t *testing.T) {
+	s := mustStore(t)
+	e, err := s.AddContinuous("be sure", 30*time.Second, SourceOperator, "", time.Unix(1, 0))
+	if err != nil {
+		t.Fatalf("AddContinuous: %v", err)
+	}
+	if e.Assure != 0 {
+		t.Fatalf("fresh entry should have no assure budget, got %d", e.Assure)
+	}
+	if ok, err := s.SetAssure(e.ID, 3); err != nil || !ok {
+		t.Fatalf("SetAssure: ok=%v err=%v", ok, err)
+	}
+	if got, _ := s.Get(e.ID); got.Assure != 3 {
+		t.Errorf("Assure = %d, want 3", got.Assure)
+	}
+	// A negative value clears it.
+	if _, err := s.SetAssure(e.ID, -1); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := s.Get(e.ID); got.Assure != 0 {
+		t.Errorf("negative SetAssure should clear, got %d", got.Assure)
+	}
+	// Unknown id reports not-found.
+	if ok, _ := s.SetAssure("nope", 2); ok {
+		t.Error("SetAssure on unknown id should report false")
+	}
+}
+
 // TestContinuous_CooldownFloored: a sub-second cooldown is clamped to MinInterval
 // so a continuous agent can't busy-loop the daemon.
 func TestContinuous_CooldownFloored(t *testing.T) {

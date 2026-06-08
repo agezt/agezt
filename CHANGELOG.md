@@ -12,6 +12,19 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Assured autonomous loops — do-it-for-sure, unattended.** The `schedule` tool now
+  takes an optional `assure` budget on `in`/`every`/`daily`/`continuous`: when set,
+  EACH firing runs the do-it-for-sure loop (run → verify completion → retry the gap)
+  up to that many attempts, instead of firing once and hoping. So a continuous or
+  scheduled task that "must get done" actually does — the unattended organism is now
+  reliable, not just interactive `agt run --assure`. Implemented as a per-entry
+  `Assure` field on the cadence store (new `SetAssure`) that the fire path reads to
+  choose `RunAssured` vs `RunWith`; surfaced in `schedule_list`, the agent's own
+  `op=list`, and the Schedules cockpit as an `assured N×` badge. Verified live with
+  the real provider: an assured continuous loop's autonomous firings each emitted a
+  `complete:true` verdict (proving they ran the assured loop, not a single pass),
+  and the cockpit showed the badge — covered by cadence + schedule-tool unit
+  tests. (M654)
 - **Autonomy view — watch the organism act on its own.** A new Web UI pane shows a
   curated, newest-first timeline of the daemon's SELF-DIRECTED activity: schedules
   and standing orders firing, skills learned/promoted/quarantined, do-it-for-sure
