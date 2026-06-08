@@ -12,6 +12,18 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Schedules cockpit — see and manage what fires unattended, incl. the agent's
+  own.** The Schedules view is now a management surface, not a read-only list:
+  every scheduled intent shows its origin (an **agent**-scheduled run — created
+  via the M634 `schedule` tool — is badged distinctly from operator/env ones,
+  with an agent count in the header), its cadence, next fire and last outcome,
+  plus **run-now / pause-resume / remove** controls. Backed by three new
+  token-gated webui write routes (`/api/schedule/{remove,run,enable}`) over the
+  existing control-plane handlers; `handleScheduleEnable` now also accepts the
+  webui's string transport for the `enabled` flag. Verified live: an
+  agent-scheduled (`every 2h`) and an operator (`daily 08:00`) schedule rendered
+  with correct origin badges, and Remove deleted each through the UI — 0 console
+  errors. (M635)
 - **`schedule` tool — the agent schedules its own future work.** A new
   in-process tool lets the agent arrange future runs in the daemon's persistent
   cadence store: one-shot after a delay (`op=in`), recurring interval

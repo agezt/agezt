@@ -147,6 +147,9 @@ var writeRoutes = map[string]writeRoute{
 	"/api/skill/promote":    {controlplane.CmdSkillPromote, []string{"id"}},
 	"/api/skill/quarantine": {controlplane.CmdSkillQuarantine, []string{"id", "reason"}},
 	"/api/skill/revert":     {controlplane.CmdSkillRevert, []string{"id"}},
+	"/api/schedule/remove":  {controlplane.CmdScheduleRemove, []string{"id"}},
+	"/api/schedule/run":     {controlplane.CmdScheduleRun, []string{"id"}},
+	"/api/schedule/enable":  {controlplane.CmdScheduleEnable, []string{"id", "enabled"}},
 }
 
 // jsonRoutes are mutating commands invoked with a JSON request BODY rather than

@@ -4,6 +4,7 @@ package controlplane
 
 import (
 	"net"
+	"strings"
 	"time"
 
 	"github.com/agezt/agezt/kernel/cadence"
@@ -70,7 +71,15 @@ func (s *Server) handleScheduleEnable(conn net.Conn, req Request) {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.id required"})
 		return
 	}
-	enabled, _ := req.Args["enabled"].(bool)
+	// Accept enabled as a bool (CLI/JSON transport) or a "true"/"false"/"1"/"0"
+	// string (webui query-arg transport, which carries every value as a string).
+	enabled := false
+	switch v := req.Args["enabled"].(type) {
+	case bool:
+		enabled = v
+	case string:
+		enabled = strings.EqualFold(v, "true") || v == "1"
+	}
 	ok, err := s.k.Schedules().SetEnabled(id, enabled)
 	if err != nil {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
