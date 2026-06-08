@@ -1,4 +1,4 @@
-import { useState, type ComponentType } from "react";
+import { useEffect, useMemo, useState, type ComponentType } from "react";
 import {
   MessageSquare,
   Activity as ActivityIcon,
@@ -24,11 +24,14 @@ import {
   CheckSquare,
   Pause,
   Play,
+  Search,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { postAction } from "@/lib/api";
 import { useEvents } from "@/lib/events";
+import { CommandPalette } from "@/components/CommandPalette";
+import type { CommandItem } from "@/lib/commands";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { EventFeed } from "@/components/EventFeed";
 import { Chat } from "@/views/Chat";
@@ -91,13 +94,62 @@ const NAV: NavItem[] = [
 
 export default function App() {
   const [active, setActive] = useState("chat");
+  const [paletteOpen, setPaletteOpen] = useState(false);
   const { connected } = useEvents();
   const current = NAV.find((n) => n.id === active) || NAV[0];
   const View = current.render;
 
+  // ⌘K / Ctrl+K opens the command palette from anywhere.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setPaletteOpen((o) => !o);
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  const commands = useMemo<CommandItem[]>(() => {
+    const views: CommandItem[] = NAV.map((n) => ({
+      id: `view-${n.id}`,
+      label: n.label,
+      group: "Go to",
+      run: () => setActive(n.id),
+    }));
+    const actions: CommandItem[] = [
+      {
+        id: "act-halt",
+        label: "Halt all runs",
+        group: "Action",
+        keywords: "freeze stop emergency",
+        run: () => {
+          if (window.confirm("Freeze ALL in-flight runs?")) postAction("/api/halt").catch(() => {});
+        },
+      },
+      {
+        id: "act-resume",
+        label: "Resume",
+        group: "Action",
+        keywords: "unpause continue",
+        run: () => postAction("/api/resume").catch(() => {}),
+      },
+      {
+        id: "act-theme",
+        label: "Toggle theme",
+        group: "Action",
+        keywords: "dark light appearance",
+        run: () => document.documentElement.classList.toggle("dark"),
+      },
+    ];
+    return [...views, ...actions];
+  }, []);
+
   return (
     <div className="flex h-full flex-col">
-      <Header connected={connected} />
+      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} items={commands} />
+      <Header connected={connected} onOpenPalette={() => setPaletteOpen(true)} />
       <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
         {/* Nav: horizontal scroll on small screens, sidebar on lg+. */}
         <nav className="flex shrink-0 gap-1 overflow-x-auto border-b border-border p-2 lg:w-52 lg:flex-col lg:overflow-y-auto lg:border-b-0 lg:border-r">
@@ -123,7 +175,7 @@ export default function App() {
   );
 }
 
-function Header({ connected }: { connected: boolean }) {
+function Header({ connected, onOpenPalette }: { connected: boolean; onOpenPalette: () => void }) {
   const [busy, setBusy] = useState(false);
   async function act(path: string, confirmMsg?: string) {
     if (confirmMsg && !window.confirm(confirmMsg)) return;
@@ -150,6 +202,14 @@ function Header({ connected }: { connected: boolean }) {
         ● {connected ? "live" : "disconnected"}
       </span>
       <div className="ml-auto flex items-center gap-2">
+        <button
+          onClick={onOpenPalette}
+          className="hidden h-8 items-center gap-1.5 rounded-md border border-border px-2.5 text-xs text-muted transition-colors hover:border-accent hover:text-foreground sm:inline-flex"
+          title="Command palette"
+        >
+          <Search className="size-3.5" />
+          <kbd className="rounded border border-border px-1 text-[10px]">⌘K</kbd>
+        </button>
         <button
           onClick={() => act("/api/halt", "Freeze ALL in-flight runs?")}
           disabled={busy}
