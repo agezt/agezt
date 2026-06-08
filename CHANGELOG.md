@@ -25,6 +25,11 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   the Chat renders progressively.
 
 ### Added
+- **Chat history persists.** The conversation is saved to `localStorage`, so a
+  reload, a daemon restart, or closing the tab no longer loses your thread — it's
+  restored on next open. A "New chat" button clears it; a turn that was mid-stream
+  when the page closed is restored as "interrupted" rather than a spinner that
+  never resolves.
 - **Markdown tables + blockquotes in Chat.** Agent answers routinely include GFM
   tables; the renderer didn't parse them, so they showed as raw `| … |` pipes.
   The dependency-free markdown parser now handles GFM tables (header + alignment
