@@ -12,6 +12,16 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Visual widget kit + a dashboard Overview — gauges, sparklines, bars, not tables.**
+  A new dependency-free (pure SVG/CSS) widget kit — `Ring` (circular progress
+  gauge), `Sparkline` (live line+area), `BarRow` (ranked horizontal bar) — themed
+  with the app's color tokens. The Overview/Cockpit is rebuilt around it: success
+  rate, budget-used, and active-schedules now read as **rings**; a **live activity
+  sparkline** (driven by journal-head growth, events/5s) shows the system's pulse
+  as a shape; and spend-by-model is **ranked bars** instead of a list. The widgets
+  are reusable, so other views can adopt the same visual language. Verified live:
+  a 97% success ring, the budget/schedule gauges, the live sparkline, and the
+  spend bar all rendered with correct colors and zero console errors. (M660)
 - **Always-visible vitals strip — glanceable monitoring from every view.** A thin
   live strip under the header shows the system's pulse — in-flight runs (with a
   pulsing dot when active), today's spend, enabled schedules, active skills, and,

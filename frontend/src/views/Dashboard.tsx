@@ -1,11 +1,12 @@
-import { useEffect, useState } from "react";
-import { Activity, RefreshCw, Cpu, Wallet, ListTree, Network, Radio } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Activity, RefreshCw, Cpu, Wallet, ListTree, Network, Radio, CalendarClock, Gauge } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { money } from "@/lib/format";
 import { getJSON } from "@/lib/api";
 import { useEvents } from "@/lib/events";
 import { Button } from "@/components/ui/button";
 import { fmtTime } from "@/lib/utils";
+import { Ring, Sparkline, BarRow } from "@/components/Widgets";
 
 interface Stats {
   total?: number;
@@ -24,17 +25,20 @@ interface Budget {
   strict_pricing?: boolean;
 }
 
+const MAX_SERIES = 32;
+
 // Dashboard is the cockpit: every key gauge of the running system at a glance —
-// what's running now, today's throughput and success rate, spend against the
-// ceiling, the active model, per-model cost, and a live event ticker — refreshed
-// on a timer and nudged by the live event stream. One screen to see, understand,
-// and monitor the whole daemon.
+// throughput and success rate as rings, today's spend against the ceiling, a live
+// activity sparkline driven by the journal head, per-model cost as bars, and a
+// live event ticker. One screen to see, understand, and monitor the whole daemon.
 export function Dashboard() {
   const { events, connected } = useEvents();
   const [stats, setStats] = useState<Stats | null>(null);
   const [budget, setBudget] = useState<Budget | null>(null);
   const [status, setStatus] = useState<Record<string, any> | null>(null);
+  const [series, setSeries] = useState<number[]>([]);
   const [loading, setLoading] = useState(false);
+  const lastHead = useRef<number | null>(null);
 
   async function refresh() {
     setLoading(true);
@@ -45,7 +49,16 @@ export function Dashboard() {
     ]);
     if (s.status === "fulfilled") setStats(s.value);
     if (b.status === "fulfilled") setBudget(b.value);
-    if (st.status === "fulfilled") setStatus(st.value);
+    if (st.status === "fulfilled") {
+      setStatus(st.value);
+      // Activity rate = growth of the journal head between samples (events/tick).
+      const head = Number(st.value.journal_head ?? 0);
+      if (lastHead.current !== null) {
+        const delta = Math.max(0, head - lastHead.current);
+        setSeries((prev) => [...prev, delta].slice(-MAX_SERIES));
+      }
+      lastHead.current = head;
+    }
     setLoading(false);
   }
 
@@ -67,6 +80,10 @@ export function Dashboard() {
   const pctUsed = ceiling > 0 ? Math.min(100, (spent / ceiling) * 100) : 0;
   const model = (status?.model as string) || "—";
   const byModel = stats?.by_model ? Object.entries(stats.by_model) : [];
+  const maxModelSpend = Math.max(1, ...byModel.map(([, v]) => v.spent_microcents ?? 0));
+  const successPct = stats?.total ? Math.round((stats.success_rate ?? 0) * 100) : 0;
+  const schedTotal = Number(status?.schedules?.total ?? 0);
+  const schedEnabled = Number(status?.schedules?.enabled ?? 0);
 
   return (
     <div className="space-y-4">
@@ -82,64 +99,80 @@ export function Dashboard() {
         </Button>
       </div>
 
-      {/* Run gauges */}
+      {/* Gauges + live activity */}
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <GaugeCard>
+          <Ring
+            pct={successPct}
+            center={stats?.total ? `${successPct}%` : "—"}
+            label="success rate"
+            tone={successPct >= 90 ? "good" : successPct >= 70 ? "warn" : "bad"}
+          />
+        </GaugeCard>
+        <GaugeCard>
+          <Ring
+            pct={pctUsed}
+            center={ceiling > 0 ? `${Math.round(pctUsed)}%` : money(spent)}
+            label={ceiling > 0 ? "budget used" : "spent today"}
+            tone={pctUsed > 85 ? "bad" : pctUsed > 60 ? "warn" : "good"}
+          />
+        </GaugeCard>
+        <GaugeCard>
+          <Ring
+            pct={schedTotal > 0 ? (schedEnabled / schedTotal) * 100 : 0}
+            center={`${schedEnabled}`}
+            label={`of ${schedTotal} schedules`}
+            tone="accent"
+          />
+        </GaugeCard>
+        <div className="rounded-lg border border-border bg-card p-3">
+          <div className="mb-1 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted">
+            <Gauge className="size-3.5" /> Activity
+          </div>
+          <Sparkline data={series} tone="accent" height={56} />
+          <div className="mt-1 text-[11px] text-muted">
+            {series.length >= 2 ? `${series[series.length - 1]} events/5s` : "collecting…"}
+          </div>
+        </div>
+      </div>
+
+      {/* Run counters */}
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         <Tile icon={ListTree} label="running now" value={stats?.running ?? 0} tone="accent" pulse={(stats?.running ?? 0) > 0} />
         <Tile icon={ListTree} label="completed" value={stats?.completed ?? 0} tone="good" />
         <Tile icon={ListTree} label="failed" value={stats?.failed ?? 0} tone={(stats?.failed ?? 0) > 0 ? "bad" : "muted"} />
-        <Tile
-          icon={Activity}
-          label="success rate"
-          value={stats?.total ? `${Math.round((stats.success_rate ?? 0) * 100)}%` : "—"}
-          tone="muted"
-        />
+        <Tile icon={CalendarClock} label="active skills" value={status?.active_skills ?? 0} tone="muted" />
       </div>
 
-      {/* Budget + model + throughput */}
-      <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
-        <Card title="Budget (today)" icon={Wallet}>
-          <div className="flex items-baseline gap-2">
-            <span className="text-2xl font-semibold tabular-nums">{money(spent)}</span>
-            <span className="text-xs text-muted">{ceiling > 0 ? `of ${money(ceiling)} ceiling` : "no ceiling"}</span>
-          </div>
-          {ceiling > 0 && (
-            <div className="mt-2 h-2 overflow-hidden rounded-full bg-panel">
-              <div
-                className={cn("h-full rounded-full", pctUsed > 85 ? "bg-bad" : pctUsed > 60 ? "bg-accent" : "bg-good")}
-                style={{ width: `${pctUsed}%` }}
-              />
-            </div>
-          )}
-          <div className="mt-1.5 text-xs text-muted">
-            {budget?.strict_pricing ? "strict pricing on" : "strict pricing off"}
-          </div>
-        </Card>
-
+      {/* Model + spend breakdown */}
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
         <Card title="Active model" icon={Cpu}>
           <div className="truncate text-lg font-semibold">{model}</div>
           <div className="mt-1 text-xs text-muted">avg {stats?.avg_iters ? stats.avg_iters.toFixed(1) : "—"} iters/run</div>
           <div className="mt-1 text-xs text-muted">
             {stats?.delegations ? `${stats.delegations} sub-agent delegation(s)` : "no delegations"}
           </div>
+          <div className="mt-1 text-xs text-muted">{budget?.strict_pricing ? "strict pricing on" : "strict pricing off"}</div>
         </Card>
 
         <Card title="Spend by model" icon={Network}>
           {byModel.length === 0 ? (
             <span className="text-xs text-muted">no spend yet</span>
           ) : (
-            <ul className="space-y-1 text-xs">
+            <div className="space-y-1.5">
               {byModel
                 .sort((a, b) => (b[1].spent_microcents ?? 0) - (a[1].spent_microcents ?? 0))
                 .slice(0, 5)
                 .map(([m, v]) => (
-                  <li key={m} className="flex items-center justify-between gap-2">
-                    <span className="truncate text-muted">{m}</span>
-                    <span className="shrink-0 tabular-nums">
-                      {money(v.spent_microcents ?? 0)} · {v.runs ?? 0} run{(v.runs ?? 0) === 1 ? "" : "s"}
-                    </span>
-                  </li>
+                  <BarRow
+                    key={m}
+                    label={m}
+                    value={v.spent_microcents ?? 0}
+                    max={maxModelSpend}
+                    display={`${money(v.spent_microcents ?? 0)} · ${v.runs ?? 0}`}
+                  />
                 ))}
-            </ul>
+            </div>
           )}
         </Card>
       </div>
@@ -167,6 +200,10 @@ export function Dashboard() {
       </div>
     </div>
   );
+}
+
+function GaugeCard({ children }: { children: React.ReactNode }) {
+  return <div className="flex items-center justify-center rounded-lg border border-border bg-card p-3">{children}</div>;
 }
 
 function Tile({
