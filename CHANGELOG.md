@@ -12,6 +12,9 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Copy a whole answer in Chat** — finished agent replies now have a Copy button
+  next to their meta line, copying the full answer to the clipboard (complements
+  the per-code-block copy).
 - **Drill into a run from the Activity monitor** — each run in the live monitor is
   now expandable: click it to see the full detail — status / model / iterations /
   tokens / cost, every tool call it made with its policy verdict and output, and

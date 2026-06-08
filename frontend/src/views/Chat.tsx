@@ -11,6 +11,8 @@ import {
   User,
   Sparkles,
   AlertTriangle,
+  Copy,
+  Check,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { money } from "@/lib/format";
@@ -265,7 +267,12 @@ function AssistantBubble({ turn }: { turn: ChatTurn }) {
           </div>
         )}
 
-        {turn.status === "done" && <TurnMeta turn={turn} />}
+        {turn.status === "done" && (
+          <div className="flex items-center gap-3">
+            <TurnMeta turn={turn} />
+            {text && <CopyAnswer text={text} />}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -278,6 +285,31 @@ function TurnMeta({ turn }: { turn: ChatTurn }) {
   if (turn.costMicrocents) parts.push(money(turn.costMicrocents));
   if (parts.length === 0) return null;
   return <div className="text-xs text-muted">{parts.join(" · ")}</div>;
+}
+
+// CopyAnswer copies the agent's full reply — the whole answer is often what you
+// want to paste elsewhere, not just a code block within it.
+function CopyAnswer({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1200);
+    } catch {
+      /* clipboard unavailable — silently no-op */
+    }
+  }
+  return (
+    <button
+      onClick={copy}
+      title={copied ? "Copied" : "Copy answer"}
+      className="inline-flex items-center gap-1 text-xs text-muted transition-colors hover:text-foreground"
+    >
+      {copied ? <Check className="size-3 text-good" /> : <Copy className="size-3" />}
+      {copied ? "Copied" : "Copy"}
+    </button>
+  );
 }
 
 function ToolChip({ c }: { c: ChatTool }) {
