@@ -12,6 +12,18 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **`web_search` tool — the agent can now DISCOVER, not just fetch.** A new
+  in-process tool runs a keyword query against a public engine (DuckDuckGo's
+  no-JS HTML endpoint, keyless) and returns the top results as structured
+  `{title, url, snippet}` records — closing the gap where the agent could fetch a
+  URL it was handed (http / browser.read) but couldn't *find* one. Keyless (no
+  operator secret), SSRF-guarded (the same netguard egress guard that refuses
+  internal/metadata addresses), and fail-soft: a flaky search or an empty page
+  returns an empty result set with a note, never a hard error that fails a run.
+  Governed by a new `web.search` capability (L2, ask-first — the engine host is
+  fixed, the query is the only operator input); allowed under `AGEZT_ALLOW_ALL`.
+  Verified end-to-end against the live daemon: the model called `web_search`,
+  the policy gate decided `web.search`, and it returned the correct URL. (M627)
 - **Analyst — the daemon reasons about itself.** A new AI observability view:
   ask a natural-language question about the running system and it gathers a live
   snapshot (run stats, per-tool error rates, cache savings, recent runs) and asks

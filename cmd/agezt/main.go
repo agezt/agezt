@@ -91,6 +91,7 @@ import (
 	"github.com/agezt/agezt/plugins/tools/notify"
 	"github.com/agezt/agezt/plugins/tools/peer"
 	"github.com/agezt/agezt/plugins/tools/shell"
+	"github.com/agezt/agezt/plugins/tools/websearch"
 )
 
 func main() {
@@ -3430,6 +3431,9 @@ func wireNetguardAudit(tools map[string]agent.Tool, b *bus.Bus) {
 	if br, ok := tools["browser"].(*browser.Tool); ok {
 		br.OnBlock = publish("browser")
 	}
+	if ws, ok := tools["web_search"].(*websearch.Tool); ok {
+		ws.OnBlock = publish("web_search")
+	}
 }
 
 // pluginLogLine formats a plugin's stderr line for the daemon log, scrubbing
@@ -3572,6 +3576,20 @@ func buildTools(baseDir string, stderr io.Writer, ward warden.Engine) (map[strin
 	} else {
 		registered = append(registered, fmt.Sprintf("browser.read(hosts=%d)", len(br.AllowedHosts)))
 	}
+
+	// web_search — keyword search against a public engine, returning result
+	// titles/URLs/snippets. The capability that lets the agent DISCOVER a URL
+	// (then fetch it with http/browser.read), not just fetch one it was handed.
+	// The engine host is fixed, so there's no host allowlist; the egress guard
+	// still refuses internal/metadata addresses (relaxed under ALLOW_ALL for
+	// parity with the other network tools). Always registered — no secret needed.
+	ws := websearch.New()
+	if allowAll {
+		ws.AllowLoopback = true
+		ws.AllowPrivate = true
+	}
+	out["web_search"] = ws
+	registered = append(registered, "web_search(duckduckgo)")
 
 	// coding — external coding-agent bridge (P6-CODE). Registered only when
 	// AGEZT_CODING_CMD is set (the command that runs Claude Code / Codex / Aider
