@@ -34,7 +34,7 @@ import (
 // hard "plugin pin mismatch" error rather than silent execution.
 func cmdPlugin(args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
-		fmt.Fprintf(stderr, "%s plugin: subcommand required (new|hash|list)\n", brand.CLI)
+		fmt.Fprintf(stderr, "%s plugin: subcommand required (new|hash|list|registry)\n", brand.CLI)
 		return 2
 	}
 	switch args[0] {
@@ -44,6 +44,8 @@ func cmdPlugin(args []string, stdout, stderr io.Writer) int {
 		return cmdPluginHash(args[1:], stdout, stderr)
 	case "list":
 		return cmdPluginList(args[1:], stdout, stderr)
+	case "registry":
+		return cmdPluginRegistry(args[1:], stdout, stderr)
 	case "-h", "--help", "help":
 		fmt.Fprintf(stdout, "usage: %s plugin <subcommand>\n", brand.CLI)
 		fmt.Fprintf(stdout, "\n")
@@ -51,9 +53,11 @@ func cmdPlugin(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "  hash <path>      print the BLAKE3-256 hex digest of a plugin binary\n")
 		fmt.Fprintf(stdout, "                   (use the output in AGEZT_PLUGIN_PINS=\"<prefix>=<hash>\")\n")
 		fmt.Fprintf(stdout, "  list [--json]    list the external plugins the daemon spawned at startup\n")
+		fmt.Fprintf(stdout, "  registry <dir|url> [--install <name>]   browse/install plugins from a\n")
+		fmt.Fprintf(stdout, "                   registry (download + BLAKE3-verify; prints the env to enable)\n")
 		return 0
 	default:
-		fmt.Fprintf(stderr, "%s plugin: unknown subcommand %q (new|hash|list)\n", brand.CLI, args[0])
+		fmt.Fprintf(stderr, "%s plugin: unknown subcommand %q (new|hash|list|registry)\n", brand.CLI, args[0])
 		return 2
 	}
 }

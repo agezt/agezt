@@ -12,6 +12,20 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **A plugin registry/marketplace** — `agt plugin registry <dir|url> [--install
+  <name>]`. Completes the marketplace alongside the existing remote *skill*
+  registry (`agt skill registry`): browse a registry's plugins (an `index.json`
+  listing per-platform binaries, each pinned by its BLAKE3-256 digest), then
+  install one — the installer picks the build for the running OS/arch, downloads
+  it (bounded, from a directory or an `http(s)` URL), **verifies its BLAKE3 against
+  the index pin before writing anything** (a mismatch is refused and nothing lands
+  on disk), stages it under `<base>/plugins` (or `--dir`), and prints the exact
+  `AGEZT_PLUGINS` + `AGEZT_PLUGIN_PINS` lines to enable it. It never edits the
+  daemon's environment or loads anything: a plugin runs only when the operator
+  wires it in, so "install" is "fetch + verify + stage", under the operator's
+  authority. Untrusted index filenames are validated (no path traversal). Reuses
+  the daemon's BLAKE3 pin code (`plugin.HashBytes` / `LooksLikePin`); `net/http`
+  only, no new dependency. (M585)
 - **Signal is now a messaging channel** (via signal-cli-rest-api) — the eleventh
   channel. `plugins/channels/signal` is a duplex channel that talks to an
   operator-run [signal-cli-rest-api](https://github.com/bbernhard/signal-cli-rest-api)

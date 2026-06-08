@@ -118,6 +118,22 @@ func HashFile(path string) (string, error) {
 	return hex.EncodeToString(sum), nil
 }
 
+// HashBytes returns the lowercase-hex BLAKE3-256 digest of data. The in-memory
+// sibling of HashFile, for verifying a downloaded plugin binary against its index
+// pin BEFORE it is written to the operator's plugin directory.
+func HashBytes(data []byte) string {
+	h := blake3.New(32, nil)
+	_, _ = h.Write(data)
+	return hex.EncodeToString(h.Sum(nil))
+}
+
+// LooksLikePin reports whether s is a well-formed BLAKE3-256 pin (64-char
+// lowercase hex). Exported so the `agt plugin registry` installer can reject a
+// malformed pin in an untrusted index before downloading anything.
+func LooksLikePin(s string) bool {
+	return looksLikeBLAKE3Pin(strings.ToLower(strings.TrimSpace(s)))
+}
+
 // ErrPinMismatch is wrapped in the error VerifyPin returns when the
 // computed hash doesn't match the operator-supplied pin. Distinct
 // sentinel so the daemon can produce a tailored stderr message
