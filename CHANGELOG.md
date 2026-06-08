@@ -12,6 +12,17 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Depth-aware delegation graph + deep-tree root fix.** The Agents view's
+  delegation graph now tags each sub-agent with its nesting level (`L1`, `L2`, …)
+  so a deep tree reads at a glance — a depth-2 worker is visibly distinct from a
+  depth-1 one. While verifying this against a real two-level tree, fixed a
+  depth>1 bug: `pickDefaultRoot` selected the newest run that *has* children, but
+  with nesting an intermediate sub-agent also has children — so it could root the
+  graph mid-tree on a node that isn't even in the lead selector, desyncing the
+  view and hiding the true lead. It now restricts to true roots (no parent).
+  Verified live: the coordinator → sub-coordinator (L1) → leaf (L2) tree renders
+  whole (agents 3, depth 2) with the selector and graph in agreement, 0 console
+  errors. (M630)
 - **Deep multi-agent delegation, made safe — a tree-wide total cap.** Sub-agent
   nesting beyond one level (`AGEZT_SUBAGENT_DEPTH>1`) was already possible, but a
   depth-D, fan-out-F tree can hold up to Fᴰ agents and neither the per-spawner
