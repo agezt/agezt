@@ -34,6 +34,7 @@ import { cn } from "@/lib/utils";
 import { postAction } from "@/lib/api";
 import { useEvents } from "@/lib/events";
 import { CommandPalette } from "@/components/CommandPalette";
+import { AlertBell } from "@/components/AlertBell";
 import type { CommandItem } from "@/lib/commands";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { EventFeed } from "@/components/EventFeed";
@@ -237,6 +238,7 @@ function Header({ connected, onOpenPalette }: { connected: boolean; onOpenPalett
         ● {connected ? "live" : "disconnected"}
       </span>
       <div className="ml-auto flex items-center gap-2">
+        <AlertBell />
         <button
           onClick={onOpenPalette}
           className="hidden h-8 items-center gap-1.5 rounded-md border border-border px-2.5 text-xs text-muted transition-colors hover:border-accent hover:text-foreground sm:inline-flex"
