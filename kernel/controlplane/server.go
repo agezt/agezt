@@ -535,6 +535,14 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.handleRunsStats(conn, req)
 	case CmdCancelRun:
 		s.handleCancelRun(conn, req)
+	case CmdRunPause:
+		s.handleRunPause(conn, req)
+	case CmdRunResume:
+		s.handleRunResume(conn, req)
+	case CmdRunStep:
+		s.handleRunStep(conn, req)
+	case CmdRunSteer:
+		s.handleRunSteer(conn, req)
 	case CmdConfig:
 		s.handleConfig(conn, req)
 	case CmdJournalGrep:

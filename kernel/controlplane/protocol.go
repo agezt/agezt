@@ -582,6 +582,21 @@ const (
 	//                   (already finished / never existed / wrong id)
 	CmdCancelRun = "cancel_run"
 
+	// Live run steering (M608) — fly a running agent without cancelling it.
+	// Each targets one live run by correlation id and is tenant-routable (an
+	// operator may steer their own tenant's runs, like CmdCancelRun). All four
+	// take {correlation, tenant?} and return {correlation, ok}; CmdRunSteer also
+	// takes {directive} and returns {accepted}.
+	//   - CmdRunPause  : park the agent at its next iteration boundary.
+	//   - CmdRunResume : let a paused agent run freely again.
+	//   - CmdRunStep   : advance exactly one iteration then re-pause.
+	//   - CmdRunSteer  : inject an operator directive that the loop folds into
+	//                    the next prompt (emits run.steered when it takes effect).
+	CmdRunPause  = "run_pause"
+	CmdRunResume = "run_resume"
+	CmdRunStep   = "run_step"
+	CmdRunSteer  = "run_steer"
+
 	// Memory-lite (ROADMAP §2.3). The content-addressed, journaled
 	// knowledge store the agent reads as injected context. These give
 	// operators a read/write path without shelling into the data dir.

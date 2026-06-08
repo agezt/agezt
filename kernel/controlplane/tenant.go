@@ -68,6 +68,7 @@ func (s *Server) SetTenants(r *tenant.Registry) { s.tenants = r }
 func tenantTokenAllows(cmd string) bool {
 	switch cmd {
 	case CmdRun, CmdCancelRun,
+		CmdRunPause, CmdRunResume, CmdRunStep, CmdRunSteer, // live steering of own runs (M608)
 		CmdRunsList, CmdRunsStats, CmdWhy, CmdWhoami, CmdToolLog, CmdToolStats, CmdCacheStats,
 		CmdRateLimitLog, CmdRateLimitStats, CmdNetguardLog,
 		CmdWebhookLog, CmdWebhookStats,
