@@ -12,6 +12,15 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **The agent now knows its host — no more blind `ls` on Windows.** Every run's
+  system prompt gains a concise *runtime environment* preamble: the host OS/arch,
+  the exact shell the shell tool uses (with command-style guidance — native
+  Windows `dir`/`type`/`copy` vs POSIX `ls`/`cat`/`cp`), the shared workspace
+  directory, the date, and the tools available this run. Before this, on a
+  Windows box the model reflexively tried `ls`/`cat`/`more`, burned iterations on
+  "not recognized" errors, then adapted; now it uses the right commands from the
+  first call (a verified 6+-iteration trial-and-error run dropped to 4 clean
+  iterations). On by default; `AGEZT_ENV_INJECT=off` disables it. (M609)
 - **Live run steering — fly a running agent from the cockpit.** You can now grab
   the controls of an in-flight agent without cancelling it: **pause** it at the
   next iteration boundary, **single-step** one iteration at a time, **resume**,
@@ -42,6 +51,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   sibling governors keep their own separately-settable ceilings.
 
 ### Fixed
+- **The shell and file tools now agree on "here".** The shell tool ran in the
+  daemon's process CWD while the file tool was scoped to the workspace root, so an
+  agent's `dir`/`ls` (shell) and `file read x` (file) saw *different* directories
+  — every `file read` of a file the agent had just listed via shell failed "cannot
+  find the file." The shell tool now runs in the same workspace root as the file
+  tool. Verified end-to-end: shell `cd` and the file tool now resolve identical
+  paths, and cross-tool file reads succeed. (M609)
 - **The agent stops burning iterations on policy-denied tools.** The loop offered
   the model *every* registered tool, even ones the policy would always refuse
   (e.g. a default-denied `browser.read`), so the model could waste several

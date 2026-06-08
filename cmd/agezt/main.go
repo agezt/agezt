@@ -293,6 +293,10 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// disables post-run proposal.
 	skillOn := !strings.EqualFold(os.Getenv(brand.EnvPrefix+"SKILLS"), "off")
 	forgeOn := !strings.EqualFold(os.Getenv(brand.EnvPrefix+"FORGE"), "off")
+	// Host-environment preamble (M609): on by default — the model needs to know
+	// its OS/shell/workspace to act correctly (esp. on Windows). AGEZT_ENV_INJECT=off
+	// disables it for operators who pin everything via a custom system prompt.
+	envInjectOn := !strings.EqualFold(os.Getenv(brand.EnvPrefix+"ENV_INJECT"), "off")
 	// Multi-agent delegation (P6-MULTI-01): the `delegate` tool lets a lead
 	// agent spawn bounded sub-agents. On by default; AGEZT_SUBAGENT=off disables
 	// it, AGEZT_SUBAGENT_DEPTH sets how deep delegation may nest (default 1).
@@ -395,6 +399,8 @@ func runDaemon(stdout, stderr io.Writer) int {
 		WorldInject:                worldOn,
 		WorldTool:                  worldOn,
 		WorldTopK:                  5,
+		EnvironmentInject:          envInjectOn,
+		WorkspaceRoot:              workspaceRoot(baseDir),
 		SkillInject:                skillOn,
 		SkillTopK:                  3,
 		SkillForge:                 forgeOn,
@@ -3423,6 +3429,17 @@ func pluginLogLine(r *redact.Redactor, prefix, line string) string {
 // configuration from env vars; defaults are safe (file tool scoped to a
 // per-instance workspace, http tool default-deny). The shell tool runs
 // every command through the supplied Warden engine.
+// workspaceRoot resolves the directory the file and shell tools share:
+// $AGEZT_WORKSPACE, or <baseDir>/workspace by default. Used by buildTools (to
+// scope the tools) and by the kernel Config (to tell the model where it is via
+// the M609 environment preamble), so the two never drift.
+func workspaceRoot(baseDir string) string {
+	if ws := os.Getenv(brand.EnvPrefix + "WORKSPACE"); ws != "" {
+		return ws
+	}
+	return filepath.Join(baseDir, "workspace")
+}
+
 func buildTools(baseDir string, stderr io.Writer, ward warden.Engine) (map[string]agent.Tool, []kernelruntime.PluginInfo, string, error) {
 	out := map[string]agent.Tool{}
 	var registered []string
@@ -3432,17 +3449,21 @@ func buildTools(baseDir string, stderr io.Writer, ward warden.Engine) (map[strin
 	// AGEZT_PLUGINS entries are configured.
 	var manifestEntries []kernelruntime.PluginInfo
 
+	// Workspace root — both the file tool (scoped to it) and the shell tool (runs
+	// in it, M609) use this so `dir`/`ls` (shell) and `file read x` (file) agree
+	// on what "here" is.
+	wsRoot := workspaceRoot(baseDir)
+
 	// shell — always registered, routed through Warden. Effective
 	// isolation profile depends on host OS (M1.c: always ProfileNone
-	// with the request journaled as a downgrade on non-Linux).
-	out["shell"] = shell.NewWithWarden(ward)
+	// with the request journaled as a downgrade on non-Linux). Runs in the
+	// shared workspace root (M609) so it sees the same files as the file tool.
+	sh := shell.NewWithWarden(ward)
+	sh.WorkDir = wsRoot
+	out["shell"] = sh
 	registered = append(registered, "shell(warden=requested-namespace)")
 
-	// file — scoped to $AGEZT_WORKSPACE (default <baseDir>/workspace).
-	wsRoot := os.Getenv(brand.EnvPrefix + "WORKSPACE")
-	if wsRoot == "" {
-		wsRoot = filepath.Join(baseDir, "workspace")
-	}
+	// file — scoped to the same workspace root.
 	ft, err := filetool.New(wsRoot)
 	if err != nil {
 		return nil, nil, "", fmt.Errorf("file tool: %w", err)

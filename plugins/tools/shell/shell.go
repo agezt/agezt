@@ -56,6 +56,13 @@ type Tool struct {
 	// "needs isolation" tool per SPEC-06 §2). On non-Linux this
 	// downgrades to ProfileNone with a journal event.
 	Profile warden.Profile
+	// WorkDir is the working directory commands run in. Empty inherits the
+	// daemon's process CWD. The daemon sets this to the file tool's workspace
+	// root so the shell and file tools agree on what "here" is — otherwise an
+	// agent's `dir`/`ls` (shell, daemon CWD) and `file read x` (file tool,
+	// workspace root) see different directories, which is deeply confusing
+	// (M609).
+	WorkDir string
 }
 
 // New returns a Tool with platform defaults and a no-bus Warden engine.
@@ -131,6 +138,7 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, e
 	res, err := w.Run(ctx, warden.Spec{
 		Profile: profile,
 		Argv:    []string{shellBin, shellArg, in.Command},
+		WorkDir: t.WorkDir, // M609: run where the file tool operates (empty = inherit CWD)
 		Limits: warden.Limits{
 			Timeout:        timeout,
 			MaxOutputBytes: MaxOutputBytes,
@@ -176,6 +184,13 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, e
 	}
 	return agent.Result{Output: string(combined)}, nil
 }
+
+// ShellHint reports the shell binary and command flag this tool will use on
+// the current host (e.g. "cmd","/C" on Windows, "sh","-c" elsewhere). The
+// runtime's host-environment preamble (M609) calls it so the model is told the
+// EXACT shell — including an operator's override — rather than guessing from
+// GOOS. Part of the implicit "shell hinter" interface the runtime looks for.
+func (t *Tool) ShellHint() (string, string) { return t.resolveShell() }
 
 func (t *Tool) resolveShell() (string, string) {
 	if t.Shell != "" {

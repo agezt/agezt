@@ -16,6 +16,8 @@ import (
 	"fmt"
 	"maps"
 	"path/filepath"
+	stdruntime "runtime"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -239,6 +241,19 @@ type Config struct {
 	// shadow→active promotion gate. Off by default (it spends extra provider
 	// calls). Only meaningful when SkillForge/skills are in use.
 	ShadowEval bool
+
+	// EnvironmentInject, when true, prepends a concise "runtime environment"
+	// preamble to the system prompt for every run (M609): the host OS/arch, the
+	// shell the shell tool uses, the shared workspace directory, today's date,
+	// and the available tools. Without it the model flies blind about its host —
+	// e.g. it tries `ls`/`cat` on a Windows box where the shell is `cmd`, burning
+	// iterations on "not recognized" errors before adapting. The preamble is
+	// derived fresh per run (cfg.Now) so the date is always current.
+	EnvironmentInject bool
+	// WorkspaceRoot is the absolute directory the file and shell tools both
+	// operate in. Surfaced to the model by the environment preamble so it
+	// references the right path. Empty omits the workspace line.
+	WorkspaceRoot string
 
 	// ArtifactThreshold is the tool-output byte size above which the agent loop
 	// offloads the output to the content-addressed artifact store and journals a
@@ -1317,6 +1332,15 @@ func (k *Kernel) RunWith(ctx context.Context, corr, intent string) (string, erro
 		runTools = filterTools(k.tools, allow)
 	}
 
+	// Host-environment preamble (M609): prepend OS/arch, the shell the shell tool
+	// uses, the shared workspace dir, the date, and THIS run's tools — so the
+	// model acts correctly on this host instead of guessing. Injected last (after
+	// memory/world/skills and after runTools is resolved) so it sits at the top of
+	// the system prompt and reflects any per-run tool restriction.
+	if k.cfg.EnvironmentInject {
+		system = injectEnvironment(system, k.cfg.WorkspaceRoot, runTools, time.Now())
+	}
+
 	// Context budget (SPEC-10 §3): an explicit budget wins; otherwise, in auto
 	// mode, derive one from the resolved model's catalog context window. An
 	// unknown model leaves compaction off (0).
@@ -1516,6 +1540,95 @@ func injectSkills(system string, hits []skill.Scored) string {
 		b.WriteString(system)
 	}
 	return b.String()
+}
+
+// shellHinter is the optional interface a shell-like tool implements to tell the
+// environment preamble the EXACT interpreter it runs (binary + flag), so the
+// guidance reflects an operator's shell override rather than a GOOS guess.
+type shellHinter interface{ ShellHint() (string, string) }
+
+// injectEnvironment prepends a concise host-environment preamble to the system
+// prompt (M609): OS/arch, the shell the shell tool uses (with command-style
+// guidance so the model doesn't try `ls` on Windows), the shared workspace dir,
+// the date, and the run's available tools. This is the single highest-leverage
+// fix for blind trial-and-error tool use on non-Unix hosts. `now` is passed in
+// for deterministic tests.
+func injectEnvironment(system, workspaceRoot string, tools map[string]agent.Tool, now time.Time) string {
+	var b strings.Builder
+	b.WriteString("## Runtime environment\n")
+	b.WriteString("You run on a real host — act for THIS environment, do not assume Unix.\n")
+	fmt.Fprintf(&b, "- OS / arch: %s / %s\n", stdruntime.GOOS, stdruntime.GOARCH)
+
+	// Shell line: prefer the shell tool's own hint (honours overrides); fall back
+	// to the GOOS default the shell tool would pick.
+	shellBin, shellArg := defaultShellHint()
+	if t, ok := tools["shell"]; ok {
+		if h, ok := t.(shellHinter); ok {
+			shellBin, shellArg = h.ShellHint()
+		}
+	}
+	fmt.Fprintf(&b, "- Shell tool runs commands via `%s %s`. %s\n", shellBin, shellArg, shellGuidance(shellBin))
+
+	if workspaceRoot != "" {
+		fmt.Fprintf(&b, "- Working directory (shell + file tools both operate here): %s\n", workspaceRoot)
+	}
+	fmt.Fprintf(&b, "- Today: %s\n", now.Format("2006-01-02"))
+
+	if len(tools) > 0 {
+		names := make([]string, 0, len(tools))
+		for name := range tools {
+			names = append(names, name)
+		}
+		slices.Sort(names)
+		b.WriteString("- Tools available this run:\n")
+		for _, name := range names {
+			fmt.Fprintf(&b, "  - %s — %s\n", name, firstSentence(tools[name].Definition().Description))
+		}
+	}
+	b.WriteString("Some capabilities require operator approval and may be denied; if a call is denied, adapt your approach rather than repeating it.\n")
+
+	if system != "" {
+		b.WriteString("\n")
+		b.WriteString(system)
+	}
+	return b.String()
+}
+
+// defaultShellHint mirrors the shell tool's platform default for callers that
+// can't reach the live tool (e.g. tools map without a shell). cmd on Windows,
+// sh elsewhere — kept in sync with plugins/tools/shell.resolveShell.
+func defaultShellHint() (string, string) {
+	if stdruntime.GOOS == "windows" {
+		return "cmd", "/C"
+	}
+	return "sh", "-c"
+}
+
+// shellGuidance returns one line of command-style advice keyed off the shell
+// binary, so the model uses native commands (the #1 source of wasted iterations
+// on Windows was the model reflexively trying `ls`/`cat`/`rm`).
+func shellGuidance(shellBin string) string {
+	switch strings.ToLower(filepath.Base(shellBin)) {
+	case "cmd", "cmd.exe":
+		return "Use native Windows commands (dir, type, copy, del, move, findstr) — NOT ls/cat/rm/cp/mv/grep. Chain with `&&`."
+	case "powershell", "powershell.exe", "pwsh", "pwsh.exe":
+		return "Use PowerShell cmdlets (Get-ChildItem, Get-Content, Copy-Item, Remove-Item) or their aliases."
+	default:
+		return "Use standard POSIX commands (ls, cat, grep, rm). Chain with `&&`."
+	}
+}
+
+// firstSentence trims a tool description to its first sentence (or first line),
+// keeping the environment preamble compact when a tool has a long description.
+func firstSentence(s string) string {
+	s = strings.TrimSpace(s)
+	if i := strings.IndexByte(s, '\n'); i >= 0 {
+		s = s[:i]
+	}
+	if i := strings.Index(s, ". "); i >= 0 {
+		s = s[:i+1]
+	}
+	return strings.TrimSpace(s)
 }
 
 // maybeForge folds the run's journal by correlation, and if the run made at
