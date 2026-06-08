@@ -15,6 +15,7 @@ import {
   Database,
   Cpu,
   Wrench,
+  Boxes,
   Shield,
   CalendarClock,
   Network,
@@ -54,6 +55,7 @@ import { Config } from "@/views/Config";
 import { Cache } from "@/views/Cache";
 import { Providers } from "@/views/Providers";
 import { Tools } from "@/views/Tools";
+import { Catalog } from "@/views/Catalog";
 import { Policy } from "@/views/Policy";
 import { Schedules } from "@/views/Schedules";
 import { World } from "@/views/World";
@@ -91,6 +93,7 @@ const NAV: NavItem[] = [
   { id: "cache", label: "Cache", icon: Database, render: Cache },
   { id: "providers", label: "Providers", icon: Cpu, render: Providers },
   { id: "tools", label: "Tools", icon: Wrench, render: Tools },
+  { id: "catalog", label: "Catalog", icon: Boxes, render: Catalog },
   { id: "policy", label: "Policy", icon: Shield, render: Policy },
   { id: "schedules", label: "Schedules", icon: CalendarClock, render: Schedules },
   { id: "world", label: "World", icon: Network, render: World },
