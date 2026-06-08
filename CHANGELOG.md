@@ -12,6 +12,15 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Fixed
+- **The agent stops burning iterations on policy-denied tools.** The loop offered
+  the model *every* registered tool, even ones the policy would always refuse
+  (e.g. a default-denied `browser.read`), so the model could waste several
+  iterations — and tokens — requesting calls that get denied. The loop now drops a
+  tool from the set offered to the model once the policy has refused it (hard-deny
+  once, or any deny twice) in a run. The M116 guard only caught an identical
+  (tool,input) repeat; this catches the same tool retried with new inputs.
+  Observed with a real reasoning model: the offered-tool count fell 7→6 right after
+  two `browser.read` denials, ending the retries.
 - **Live token streaming now works with real providers.** The agent loop streams
   token/reasoning deltas only when its provider satisfies `agent.StreamingProvider`,
   but every real run goes through the `Governor` (routing + fallback + budget),
