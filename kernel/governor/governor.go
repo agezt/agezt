@@ -297,13 +297,17 @@ func (e *ErrNoProviders) Error() string {
 
 func (e *ErrNoProviders) Unwrap() error { return e.Last }
 
-// Complete implements agent.Provider. It performs routing + fallback +
-// budget accounting; the agent tool-loop sees a single Provider.
+// preflightAndRoute runs every pre-call gate (task/down-route model remap,
+// capability + strict-pricing gates, rate-limit and budget pre-checks) against
+// req — mutating it in place where a gate remaps the model — then resolves and
+// announces the provider chain. Shared by Complete and CompleteStream so the
+// governed call is byte-for-byte identical whether or not the response streams.
+// Returns the routed chain, or a non-nil error if any gate refuses the call.
 //
 // Routing hints can be smuggled via the request: not exposed at the
 // agent.Provider boundary in M1.b. The future Planner will pass options
 // through a richer interface.
-func (g *Governor) Complete(ctx context.Context, req agent.CompletionRequest) (*agent.CompletionResponse, error) {
+func (g *Governor) preflightAndRoute(req *agent.CompletionRequest) ([]*ProviderInfo, error) {
 	// Per-task-type model override (M1.ll). Mutates the request's
 	// Model field before any downstream sees it — providers, audit
 	// events, and usage accounting all observe the overridden model
@@ -459,7 +463,7 @@ func (g *Governor) Complete(ctx context.Context, req agent.CompletionRequest) (*
 		return nil, fmt.Errorf("%w: %q", ErrUnpricedModel, req.Model)
 	}
 
-	chain := g.routeChain(req)
+	chain := g.routeChain(*req)
 	if len(chain) == 0 {
 		return nil, errors.New("governor: no eligible providers")
 	}
@@ -480,6 +484,15 @@ func (g *Governor) Complete(ctx context.Context, req agent.CompletionRequest) (*
 		},
 	})
 
+	return chain, nil
+}
+
+// runChain executes req against the routed provider chain, recording usage on
+// the first success and falling back on retryable errors. callOne performs the
+// actual provider call for one chain entry — Complete passes the non-streaming
+// call, CompleteStream the streaming one — so routing, fallback and usage
+// accounting are identical for both.
+func (g *Governor) runChain(ctx context.Context, req agent.CompletionRequest, chain []*ProviderInfo, callOne func(*ProviderInfo) (*agent.CompletionResponse, error)) (*agent.CompletionResponse, error) {
 	tried := make([]string, 0, len(chain))
 	var lastErr error
 	for i, p := range chain {
@@ -487,7 +500,7 @@ func (g *Governor) Complete(ctx context.Context, req agent.CompletionRequest) (*
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		resp, err := p.Provider.Complete(ctx, req)
+		resp, err := callOne(p)
 		if err == nil {
 			g.recordUsage(p, req, resp)
 			return resp, nil
@@ -514,6 +527,41 @@ func (g *Governor) Complete(ctx context.Context, req agent.CompletionRequest) (*
 		}
 	}
 	return nil, &ErrNoProviders{Tried: tried, Last: lastErr}
+}
+
+// Complete implements agent.Provider: the full pre-call gate set, routing and
+// fallback over the non-streaming provider call. The agent tool-loop sees a
+// single Provider.
+func (g *Governor) Complete(ctx context.Context, req agent.CompletionRequest) (*agent.CompletionResponse, error) {
+	chain, err := g.preflightAndRoute(&req)
+	if err != nil {
+		return nil, err
+	}
+	return g.runChain(ctx, req, chain, func(p *ProviderInfo) (*agent.CompletionResponse, error) {
+		return p.Provider.Complete(ctx, req)
+	})
+}
+
+// CompleteStream implements agent.StreamingProvider so the GOVERNED provider
+// streams token/reasoning deltas to the loop (M1.q.y) instead of collapsing to
+// a single response — through the exact same routing, fallback, budget and usage
+// path as Complete. Before this, the governor (which every real run goes
+// through) only satisfied agent.Provider, so the loop's streaming branch never
+// engaged and the Web UI Chat never streamed live with a real provider. A chain
+// entry that isn't itself streaming-capable (e.g. the offline mock fallback) is
+// called non-streaming and simply yields no deltas; the assembled response still
+// flows back unchanged.
+func (g *Governor) CompleteStream(ctx context.Context, req agent.CompletionRequest, onChunk func(agent.Chunk) error) (*agent.CompletionResponse, error) {
+	chain, err := g.preflightAndRoute(&req)
+	if err != nil {
+		return nil, err
+	}
+	return g.runChain(ctx, req, chain, func(p *ProviderInfo) (*agent.CompletionResponse, error) {
+		if sp, ok := p.Provider.(agent.StreamingProvider); ok {
+			return sp.CompleteStream(ctx, req, onChunk)
+		}
+		return p.Provider.Complete(ctx, req)
+	})
 }
 
 // SpentMicrocents returns the total spend for the current UTC day so far.

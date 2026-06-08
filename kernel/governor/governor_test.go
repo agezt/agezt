@@ -1123,3 +1123,120 @@ func TestStrictCapabilities_AllowsToolCapableModel(t *testing.T) {
 		t.Errorf("tool-capable model should pass; got %v", err)
 	}
 }
+
+// streamingFake implements both agent.Provider and agent.StreamingProvider,
+// emitting a fixed list of text deltas on the streaming path.
+type streamingFake struct {
+	fakeProvider
+	deltas []string
+}
+
+func (p *streamingFake) CompleteStream(ctx context.Context, _ agent.CompletionRequest, onChunk func(agent.Chunk) error) (*agent.CompletionResponse, error) {
+	p.calls.Add(1)
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if p.err != nil {
+		return nil, p.err
+	}
+	for _, d := range p.deltas {
+		if err := onChunk(agent.Chunk{TextDelta: d}); err != nil {
+			return nil, err
+		}
+	}
+	return p.resp, nil
+}
+
+// The crux of the streaming bug (M597): the governor MUST satisfy
+// agent.StreamingProvider, otherwise the agent loop's streaming branch never
+// engages for any real run (every run goes through the governor) and the Web UI
+// Chat never streams live.
+var _ agent.StreamingProvider = (*governor.Governor)(nil)
+
+// CompleteStream routes through a streaming-capable provider, forwards its
+// deltas to onChunk, and returns the assembled response.
+func TestGovernor_CompleteStreamForwardsDeltas(t *testing.T) {
+	b, _ := newBus(t)
+	r := governor.NewRegistry()
+	sf := &streamingFake{fakeProvider: fakeProvider{name: "p1", resp: okResp("m", 10, 5)}, deltas: []string{"Hel", "lo"}}
+	mustRegister(t, r, &governor.ProviderInfo{Name: "p1", Provider: sf, AuthMode: governor.AuthAPIKey})
+	g, err := governor.New(governor.Config{Registry: r, Bus: b})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	var got string
+	resp, err := g.CompleteStream(context.Background(), agent.CompletionRequest{Model: "m"}, func(c agent.Chunk) error {
+		got += c.TextDelta
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("CompleteStream: %v", err)
+	}
+	if got != "Hello" {
+		t.Errorf("forwarded deltas = %q want %q", got, "Hello")
+	}
+	if resp == nil || resp.Message.Content != "ok from m" {
+		t.Errorf("assembled response = %+v", resp)
+	}
+	if n := sf.calls.Load(); n != 1 {
+		t.Errorf("provider calls = %d want 1", n)
+	}
+}
+
+// A chain entry that is NOT streaming-capable (e.g. the offline mock fallback)
+// is called non-streaming: no deltas, but the response still flows back — so
+// streaming degrades gracefully instead of breaking the run.
+func TestGovernor_CompleteStreamNonStreamingProviderCompletes(t *testing.T) {
+	b, _ := newBus(t)
+	r := governor.NewRegistry()
+	fp := &fakeProvider{name: "p1", resp: okResp("m", 1, 1)} // no CompleteStream
+	mustRegister(t, r, &governor.ProviderInfo{Name: "p1", Provider: fp, AuthMode: governor.AuthAPIKey})
+	g, err := governor.New(governor.Config{Registry: r, Bus: b})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	deltas := 0
+	resp, err := g.CompleteStream(context.Background(), agent.CompletionRequest{Model: "m"}, func(agent.Chunk) error {
+		deltas++
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("CompleteStream: %v", err)
+	}
+	if resp == nil || resp.Message.Content != "ok from m" {
+		t.Errorf("response = %+v", resp)
+	}
+	if deltas != 0 {
+		t.Errorf("non-streaming provider yielded %d deltas, want 0", deltas)
+	}
+}
+
+// Streaming uses the SAME routing+fallback path as Complete: a retryable error
+// from the streaming primary falls back to the next chain entry.
+func TestGovernor_CompleteStreamFallsBack(t *testing.T) {
+	b, _ := newBus(t)
+	r := governor.NewRegistry()
+	primary := &streamingFake{fakeProvider: fakeProvider{name: "p1", err: errors.New("upstream 503")}, deltas: []string{"x"}}
+	fallback := &fakeProvider{name: "p2", resp: okResp("m2", 1, 1)}
+	mustRegister(t, r,
+		&governor.ProviderInfo{Name: "p1", Provider: primary, AuthMode: governor.AuthAPIKey},
+		&governor.ProviderInfo{Name: "p2", Provider: fallback, IsFallback: true},
+	)
+	g, err := governor.New(governor.Config{Registry: r, Bus: b})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	resp, err := g.CompleteStream(context.Background(), agent.CompletionRequest{Model: "m"}, func(agent.Chunk) error { return nil })
+	if err != nil {
+		t.Fatalf("CompleteStream: %v", err)
+	}
+	if resp == nil || resp.Message.Content != "ok from m2" {
+		t.Errorf("expected fallback response, got %+v", resp)
+	}
+	if primary.calls.Load() != 1 || fallback.calls.Load() != 1 {
+		t.Errorf("calls: primary=%d fallback=%d (want 1,1)", primary.calls.Load(), fallback.calls.Load())
+	}
+}

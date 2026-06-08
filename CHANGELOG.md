@@ -11,6 +11,19 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 
 ## [Unreleased]
 
+### Fixed
+- **Live token streaming now works with real providers.** The agent loop streams
+  token/reasoning deltas only when its provider satisfies `agent.StreamingProvider`,
+  but every real run goes through the `Governor` (routing + fallback + budget),
+  which implemented only `agent.Provider` — so the streaming branch never engaged
+  and the Web UI Chat (and `agt run`) collapsed each answer into one chunk instead
+  of streaming it live. The Governor now implements `CompleteStream`, routing the
+  streaming call through the exact same pre-flight gates, fallback chain and usage
+  accounting as `Complete` (a non-streaming chain entry, e.g. the offline mock
+  fallback, degrades gracefully to no deltas). Verified against real DeepSeek: a
+  run that previously emitted 0 `llm.token` events now streams 90+ per answer, and
+  the Chat renders progressively.
+
 ### Added
 - **Copy a whole answer in Chat** — finished agent replies now have a Copy button
   next to their meta line, copying the full answer to the clipboard (complements
