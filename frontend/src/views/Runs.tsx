@@ -1,15 +1,12 @@
-import { useEffect, useRef, useState } from "react";
-import { RefreshCw, ChevronRight, ChevronDown, Wrench, ShieldCheck, ShieldX } from "lucide-react";
+import { useState } from "react";
+import { RefreshCw, ChevronRight, ChevronDown } from "lucide-react";
 import { usePanel } from "@/lib/usePanel";
-import { getJSON } from "@/lib/api";
 import { Card, CardHeader, CardTitle, CardBody } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge, statusVariant } from "@/components/ui/badge";
-import { KeyValue, Muted, ErrorText } from "@/components/JsonView";
-import { fmtTime, clip } from "@/lib/utils";
-import { money } from "@/lib/format";
-import { deriveDetail, num, mergeEvents, type ToolCall } from "@/lib/rundetail";
-import { useEvents, type AgentEvent } from "@/lib/events";
+import { Muted, ErrorText } from "@/components/JsonView";
+import { fmtTime } from "@/lib/utils";
+import { RunDetailLoader } from "@/components/RunDetail";
 
 interface Run {
   correlation_id?: string;
@@ -19,125 +16,12 @@ interface Run {
   started_unix_ms?: number;
 }
 
-function ToolCallRow({ c }: { c: ToolCall }) {
-  return (
-    <li className="flex items-center gap-2 py-0.5">
-      <Wrench className="size-3.5 shrink-0 text-muted" />
-      <span className="font-medium">{c.tool || "tool"}</span>
-      {c.capability && <Badge variant="accent">{c.capability}</Badge>}
-      {c.allow === false ? (
-        <Badge variant="bad">
-          <ShieldX className="mr-1 size-3" />
-          {c.hardDenied ? "hard-denied" : "denied"}
-        </Badge>
-      ) : (
-        <Badge variant="good">
-          <ShieldCheck className="mr-1 size-3" />
-          allowed
-        </Badge>
-      )}
-      {c.error && <Badge variant="bad">error</Badge>}
-      {c.output && <span className="truncate text-muted">{clip(c.output, 100)}</span>}
-    </li>
-  );
-}
-
-function RunDetailCards({ arc, run }: { arc: AgentEvent[]; run: Run }) {
-  const d = deriveDetail(arc);
-  const status = d.status || run.status;
-  return (
-    <div className="space-y-3">
-      <KeyValue
-        pairs={[
-          ["status", <Badge variant={statusVariant(status)}>{status || "?"}</Badge>],
-          ["model", d.model || <Muted>—</Muted>],
-          ["iterations", d.iterations || <Muted>—</Muted>],
-          [
-            "tokens",
-            d.hasBudget ? (
-              <span>
-                {d.inputTokens.toLocaleString()} in / {d.outputTokens.toLocaleString()} out
-                {d.cachedTokens ? ` (${d.cachedTokens.toLocaleString()} cached)` : ""}
-              </span>
-            ) : (
-              <Muted>—</Muted>
-            ),
-          ],
-          ["cost", d.hasBudget ? money(d.costMicrocents) : <Muted>—</Muted>],
-          ["duration", run.duration_ms ? `${run.duration_ms}ms` : <Muted>—</Muted>],
-        ]}
-      />
-
-      <div>
-        <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted">
-          Tool calls ({d.toolCalls.length})
-        </div>
-        {d.toolCalls.length ? (
-          <ul>
-            {d.toolCalls.map((c, i) => (
-              <ToolCallRow key={c.callId || i} c={c} />
-            ))}
-          </ul>
-        ) : (
-          <Muted>no tool calls</Muted>
-        )}
-      </div>
-
-      {d.answer && (
-        <div>
-          <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted">
-            {status === "failed" ? "Error" : "Final answer"}
-          </div>
-          <p className="whitespace-pre-wrap break-words rounded-md border border-border bg-panel p-2 text-xs">
-            {clip(d.answer, 600)}
-          </p>
-        </div>
-      )}
-    </div>
-  );
-}
-
 function RunRow({ run }: { run: Run }) {
-  const { subscribe } = useEvents();
   const [open, setOpen] = useState(false);
-  const [arc, setArc] = useState<AgentEvent[] | null>(null);
-  const [err, setErr] = useState<string | null>(null);
-  const [rawOpen, setRawOpen] = useState(false);
-  const fetched = useRef(false);
-
-  // Fetch the journaled snapshot once, the first time the row is opened. Merge
-  // (not overwrite) so any live events that arrived before the fetch resolved
-  // are kept.
-  useEffect(() => {
-    if (!open || fetched.current || !run.correlation_id) return;
-    fetched.current = true;
-    getJSON<{ events?: AgentEvent[] }>("/api/journal", {
-      correlation_id: run.correlation_id,
-      limit: "500",
-    })
-      .then((dat) => setArc((prev) => mergeEvents(prev || [], dat.events || [])))
-      .catch((e) => setErr((e as Error).message));
-  }, [open, run.correlation_id]);
-
-  // While open, fold the live journal stream into this run's arc so the cards
-  // (status, tool calls, tokens) update as the agent works — the same live
-  // pattern Flow Studio uses for node recolour.
-  useEffect(() => {
-    if (!open || !run.correlation_id) return;
-    return subscribe((e: AgentEvent) => {
-      if (e.correlation_id !== run.correlation_id) return;
-      setArc((prev) => mergeEvents(prev || [], [e]));
-    });
-  }, [open, run.correlation_id, subscribe]);
-
-  function toggle() {
-    setOpen((v) => !v);
-  }
-
   return (
     <div className="border-b border-border/60">
       <button
-        onClick={toggle}
+        onClick={() => setOpen((v) => !v)}
         className="flex w-full items-center gap-2 px-1 py-1.5 text-left hover:bg-panel"
       >
         {open ? <ChevronDown className="size-4 shrink-0" /> : <ChevronRight className="size-4 shrink-0" />}
@@ -149,38 +33,7 @@ function RunRow({ run }: { run: Run }) {
       </button>
       {open && (
         <div className="px-7 pb-3 pt-1 text-sm">
-          {err ? (
-            <ErrorText>{err}</ErrorText>
-          ) : arc ? (
-            <>
-              <RunDetailCards arc={arc} run={run} />
-              <button
-                onClick={() => setRawOpen((v) => !v)}
-                className="mt-2 flex items-center gap-1 text-xs text-muted hover:text-foreground"
-              >
-                {rawOpen ? <ChevronDown className="size-3" /> : <ChevronRight className="size-3" />}
-                raw events ({arc.length})
-              </button>
-              {rawOpen &&
-                (arc.length ? (
-                  <ul className="mt-1 space-y-0.5 text-xs">
-                    {[...arc]
-                      .sort((a, b) => num(a.seq) - num(b.seq))
-                      .map((e, i) => (
-                        <li key={e.id || i} className="flex gap-2">
-                          <span className="text-muted">{fmtTime(e.ts_unix_ms)}</span>
-                          <span className="text-accent">{e.kind}</span>
-                          <span className="truncate text-muted">{e.subject}</span>
-                        </li>
-                      ))}
-                  </ul>
-                ) : (
-                  <Muted>no events</Muted>
-                ))}
-            </>
-          ) : (
-            <Muted>loading…</Muted>
-          )}
+          <RunDetailLoader correlationId={run.correlation_id} status={run.status} durationMs={run.duration_ms} />
         </div>
       )}
     </div>

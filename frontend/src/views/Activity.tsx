@@ -1,10 +1,21 @@
 import { useEffect, useState } from "react";
-import { Activity as ActivityIcon, RefreshCw, Cpu, CheckCircle2, XCircle, CornerDownRight, Ban } from "lucide-react";
+import {
+  Activity as ActivityIcon,
+  RefreshCw,
+  Cpu,
+  CheckCircle2,
+  XCircle,
+  CornerDownRight,
+  Ban,
+  ChevronRight,
+  ChevronDown,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { money } from "@/lib/format";
 import { getJSON, postAction } from "@/lib/api";
 import { useEvents } from "@/lib/events";
 import { Button } from "@/components/ui/button";
+import { RunDetailLoader } from "@/components/RunDetail";
 import {
   seedFromRuns,
   foldActivityEvent,
@@ -176,64 +187,80 @@ function RunRow({
   onCancel?: (corr: string) => void;
   cancelling?: boolean;
 }) {
+  const [open, setOpen] = useState(false);
   const live = run.status === "running";
   const elapsed = (live ? now : run.endedMs || now) - (run.startedMs || now);
   return (
-    <div
-      className={cn(
-        "flex items-start gap-2.5 rounded-lg border bg-card px-3 py-2",
-        live ? "border-accent/40" : "border-border",
-      )}
-    >
-      <div className="mt-0.5 shrink-0">
-        {run.status === "running" ? (
-          <span className="block size-2.5 animate-pulse rounded-full bg-accent" />
-        ) : run.status === "completed" ? (
-          <CheckCircle2 className="size-4 text-good" />
-        ) : (
-          <XCircle className="size-4 text-bad" />
+    <div className={cn("rounded-lg border bg-card", live ? "border-accent/40" : "border-border")}>
+      <div className="flex items-start gap-2.5 px-3 py-2">
+        <button
+          onClick={() => setOpen((v) => !v)}
+          className="flex min-w-0 flex-1 items-start gap-2.5 text-left"
+          title={open ? "Hide detail" : "Show tool calls & answer"}
+        >
+          <span className="mt-0.5 shrink-0">
+            {run.status === "running" ? (
+              <span className="block size-2.5 animate-pulse rounded-full bg-accent" />
+            ) : run.status === "completed" ? (
+              <CheckCircle2 className="size-4 text-good" />
+            ) : (
+              <XCircle className="size-4 text-bad" />
+            )}
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="flex items-center gap-1.5">
+              {open ? (
+                <ChevronDown className="size-3.5 shrink-0 text-muted" />
+              ) : (
+                <ChevronRight className="size-3.5 shrink-0 text-muted" />
+              )}
+              {child && <CornerDownRight className="size-3.5 shrink-0 text-muted" />}
+              <span className="truncate text-sm font-medium">
+                {run.intent || <span className="text-muted">(no intent)</span>}
+              </span>
+            </span>
+            <span className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted">
+              <span className={cn(live && "text-accent")}>{run.activity}</span>
+              <span>·</span>
+              <span className="tabular-nums">{fmtElapsed(elapsed)}</span>
+              {run.iters > 0 && (
+                <>
+                  <span>·</span>
+                  <span>
+                    {run.iters} iter{run.iters === 1 ? "" : "s"}
+                  </span>
+                </>
+              )}
+              {run.spentMc > 0 && (
+                <>
+                  <span>·</span>
+                  <span>{money(run.spentMc)}</span>
+                </>
+              )}
+              {child && (
+                <>
+                  <span>·</span>
+                  <span className="text-accent/80">sub-agent</span>
+                </>
+              )}
+            </span>
+          </span>
+        </button>
+        {live && onCancel && (
+          <button
+            onClick={() => onCancel(run.corr)}
+            disabled={cancelling}
+            title="Cancel this run"
+            className="mt-0.5 inline-flex shrink-0 items-center gap-1 rounded-md border border-border px-2 py-1 text-xs text-muted transition-colors hover:border-bad hover:text-bad disabled:opacity-50"
+          >
+            <Ban className="size-3.5" /> {cancelling ? "…" : "Cancel"}
+          </button>
         )}
       </div>
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
-          {child && <CornerDownRight className="size-3.5 shrink-0 text-muted" />}
-          <span className="truncate text-sm font-medium">{run.intent || <span className="text-muted">(no intent)</span>}</span>
+      {open && (
+        <div className="border-t border-border px-3 py-2 text-sm">
+          <RunDetailLoader correlationId={run.corr} status={run.status} />
         </div>
-        <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted">
-          <span className={cn(live && "text-accent")}>{run.activity}</span>
-          <span>·</span>
-          <span className="tabular-nums">{fmtElapsed(elapsed)}</span>
-          {run.iters > 0 && (
-            <>
-              <span>·</span>
-              <span>
-                {run.iters} iter{run.iters === 1 ? "" : "s"}
-              </span>
-            </>
-          )}
-          {run.spentMc > 0 && (
-            <>
-              <span>·</span>
-              <span>{money(run.spentMc)}</span>
-            </>
-          )}
-          {child && (
-            <>
-              <span>·</span>
-              <span className="text-accent/80">sub-agent</span>
-            </>
-          )}
-        </div>
-      </div>
-      {live && onCancel && (
-        <button
-          onClick={() => onCancel(run.corr)}
-          disabled={cancelling}
-          title="Cancel this run"
-          className="mt-0.5 inline-flex shrink-0 items-center gap-1 rounded-md border border-border px-2 py-1 text-xs text-muted transition-colors hover:border-bad hover:text-bad disabled:opacity-50"
-        >
-          <Ban className="size-3.5" /> {cancelling ? "…" : "Cancel"}
-        </button>
       )}
     </div>
   );
