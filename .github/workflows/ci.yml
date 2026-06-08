@@ -131,6 +131,35 @@ jobs:
           npm ci
           npm test
 
+  webui-e2e:
+    name: webui-e2e
+    runs-on: ubuntu-latest
+    env:
+      CGO_ENABLED: '0'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: frontend/.nvmrc
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Build binaries
+        run: |
+          go build -o /tmp/agezt ./cmd/agezt
+          go build -o /tmp/agt ./cmd/agt
+      # The SPA tested is the committed go:embed bundle in kernel/webui/dist —
+      # no `npm run build` here; we drive what actually ships.
+      - name: Install Web UI deps + Playwright browser
+        run: |
+          cd frontend
+          npm ci
+          npx playwright install --with-deps chromium
+      - name: Web UI e2e (real daemon, headless browser)
+        run: bash scripts/webui-e2e.sh /tmp/agezt /tmp/agt
+
   python-sdk:
     name: python-sdk
     runs-on: ubuntu-latest

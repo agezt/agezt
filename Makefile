@@ -12,7 +12,7 @@ GEN_PKG  := gen
 
 export CGO_ENABLED := 0
 
-.PHONY: all help gen frontend-build frontend-test build install run test vet fmt lint clean check deps-check
+.PHONY: all help gen frontend-build frontend-test webui-e2e build install run test vet fmt lint clean check deps-check
 
 all: build ## (default) build all binaries
 
@@ -26,6 +26,10 @@ frontend-build: ## build the React Web UI → kernel/webui/dist (committed, go:e
 
 frontend-test: ## unit-test the Web UI logic (Vitest)
 	cd frontend && npm ci && npm test
+
+webui-e2e: build ## drive the embedded Web UI in a headless browser (Playwright)
+	cd frontend && npm ci && npx playwright install --with-deps chromium
+	bash scripts/webui-e2e.sh $(BIN_DIR)/agezt $(BIN_DIR)/agt
 
 $(GEN_FILE): $(CONTRACT) tools/jsonschemagen/main.go
 	@mkdir -p $(dir $(GEN_FILE))
