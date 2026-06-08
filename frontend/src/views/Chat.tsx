@@ -15,6 +15,7 @@ import {
   Check,
   Brain,
   Plus,
+  Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { money } from "@/lib/format";
@@ -31,38 +32,22 @@ import {
   type ChatTool,
   type ChatHistoryTurn,
 } from "@/lib/chat";
+import {
+  loadStore,
+  saveStore,
+  activeMessages,
+  withActiveMessages,
+  startConversation,
+  deleteConversation,
+  type Msg,
+  type Store,
+} from "@/lib/conversations";
 
-interface UserMsg {
-  role: "user";
-  text: string;
-}
-interface BotMsg {
-  role: "assistant";
-  turn: ChatTurn;
-}
-type Msg = UserMsg | BotMsg;
-
-// The conversation is persisted to localStorage so a reload (or a daemon
-// restart, or closing the tab) doesn't lose your history. Bumped suffix if the
-// stored shape ever changes incompatibly.
-const THREAD_KEY = "agezt.chat.thread.v1";
-
-function loadThread(): Msg[] {
-  try {
-    const raw = localStorage.getItem(THREAD_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw) as Msg[];
-    if (!Array.isArray(parsed)) return [];
-    // A turn that was mid-stream when the page closed can't resume — mark it
-    // interrupted rather than leaving a spinner that never resolves.
-    return parsed.map((m) =>
-      m.role === "assistant" && m.turn?.status === "streaming"
-        ? { role: "assistant", turn: { ...m.turn, status: "error", error: m.turn.error || "interrupted" } }
-        : m,
-    );
-  } catch {
-    return [];
-  }
+// A unique id for a new conversation (localhost is a secure context, so
+// crypto.randomUUID is available; a timestamp+random fallback covers the rest).
+function genId(): string {
+  if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID();
+  return "c-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 }
 
 // Chat is the humane front door to the agent: a conversational thread where you
@@ -71,11 +56,26 @@ function loadThread(): Msg[] {
 // cost. It drives the same CmdRun as the CLI, so what you see here is exactly
 // what the daemon did.
 export function Chat() {
-  const [messages, setMessages] = useState<Msg[]>(loadThread);
+  const [store, setStore] = useState<Store>(() => loadStore(genId, Date.now()));
   const [input, setInput] = useState("");
   const [model, setModel] = useState("");
   const [activeModel, setActiveModel] = useState("");
   const [busy, setBusy] = useState(false);
+  const abortRef = useRef<AbortController | null>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const taRef = useRef<HTMLTextAreaElement>(null);
+
+  // The active conversation's messages, and a setMessages shim that routes any
+  // update back into that conversation in the store — so every existing call
+  // site (send, updateLastTurn) works unchanged.
+  const messages = activeMessages(store);
+  const setMessages = (updater: Msg[] | ((prev: Msg[]) => Msg[])) => {
+    setStore((s) => {
+      const prev = activeMessages(s);
+      const next = typeof updater === "function" ? (updater as (p: Msg[]) => Msg[])(prev) : updater;
+      return withActiveMessages(s, next, Date.now());
+    });
+  };
 
   // The daemon's default model — shown so you always know which model you're
   // talking to (and a typo in the override field is obvious against it).
@@ -86,31 +86,30 @@ export function Chat() {
         /* config momentarily unavailable — the field just shows "default" */
       });
   }, []);
-  const abortRef = useRef<AbortController | null>(null);
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const taRef = useRef<HTMLTextAreaElement>(null);
 
-  // Persist the thread (skip while a turn is mid-stream — a half-folded turn
-  // would restore as "interrupted"; we save the settled state on completion).
+  // Persist the store (skip while a turn is mid-stream — a half-folded turn
+  // would restore as "interrupted"; the settled store is saved on completion).
   useEffect(() => {
     if (busy) return;
-    try {
-      if (messages.length === 0) localStorage.removeItem(THREAD_KEY);
-      else localStorage.setItem(THREAD_KEY, JSON.stringify(messages));
-    } catch {
-      /* storage full/unavailable — history is best-effort */
-    }
-  }, [messages, busy]);
+    saveStore(store);
+  }, [store, busy]);
 
   function newChat() {
     if (busy) abortRef.current?.abort();
-    setMessages([]);
+    setStore((s) => startConversation(s, genId, Date.now()));
     setInput("");
-    try {
-      localStorage.removeItem(THREAD_KEY);
-    } catch {
-      /* best-effort */
-    }
+  }
+
+  function selectConversation(id: string) {
+    if (id === store.activeId) return;
+    if (busy) abortRef.current?.abort();
+    setStore((s) => ({ ...s, activeId: id }));
+    setInput("");
+  }
+
+  function removeConversation(id: string) {
+    if (busy && id === store.activeId) abortRef.current?.abort();
+    setStore((s) => deleteConversation(s, id, genId, Date.now()));
   }
 
   // Pin the thread to the bottom as content streams in.
@@ -186,33 +185,71 @@ export function Chat() {
   }
 
   return (
-    <div className="mx-auto flex h-full max-w-3xl flex-col">
-      {messages.length > 0 && (
-        <div className="flex items-center justify-between border-b border-border pb-2">
-          <span className="text-xs text-muted">
-            {messages.filter((m) => m.role === "user").length} message
-            {messages.filter((m) => m.role === "user").length === 1 ? "" : "s"} · saved locally
-          </span>
-          <button
-            onClick={newChat}
-            title="Start a new conversation (clears this thread)"
-            className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs text-muted transition-colors hover:border-accent hover:text-foreground"
-          >
-            <Plus className="size-3.5" /> New chat
-          </button>
-        </div>
-      )}
-      <div ref={scrollRef} className="min-h-0 flex-1 overflow-auto">
-        {messages.length === 0 ? <EmptyState onPick={setInput} /> : (
-          <div className="space-y-4 py-2">
-            {messages.map((m, i) => (
-              <MessageRow key={i} msg={m} />
+    <div className="flex h-full gap-3">
+      {/* Conversation list — past threads, ChatGPT-style (desktop). */}
+      <aside className="hidden w-52 shrink-0 flex-col border-r border-border pr-3 md:flex">
+        <button
+          onClick={newChat}
+          className="mb-2 inline-flex items-center justify-center gap-1.5 rounded-md border border-border px-2 py-1.5 text-xs transition-colors hover:border-accent hover:text-foreground"
+        >
+          <Plus className="size-3.5" /> New chat
+        </button>
+        <div className="min-h-0 flex-1 space-y-0.5 overflow-auto">
+          {[...store.conversations]
+            .sort((a, b) => b.updatedAt - a.updatedAt)
+            .map((c) => (
+              <div
+                key={c.id}
+                className={cn(
+                  "group flex items-center gap-1 rounded-md px-2 py-1.5 text-xs transition-colors",
+                  c.id === store.activeId ? "bg-accent/15 text-accent" : "text-muted hover:bg-panel",
+                )}
+              >
+                <button onClick={() => selectConversation(c.id)} className="min-w-0 flex-1 truncate text-left">
+                  {c.title || "New chat"}
+                </button>
+                <button
+                  onClick={() => removeConversation(c.id)}
+                  title="Delete conversation"
+                  className="shrink-0 opacity-0 transition-opacity hover:text-bad group-hover:opacity-100"
+                >
+                  <Trash2 className="size-3.5" />
+                </button>
+              </div>
             ))}
+        </div>
+      </aside>
+
+      {/* Active thread + composer. */}
+      <div className="mx-auto flex h-full min-w-0 max-w-3xl flex-1 flex-col">
+        {/* Small screens have no sidebar — keep a New chat affordance here. */}
+        {messages.length > 0 && (
+          <div className="flex items-center justify-between border-b border-border pb-2 md:hidden">
+            <span className="text-xs text-muted">
+              {messages.filter((m) => m.role === "user").length} message
+              {messages.filter((m) => m.role === "user").length === 1 ? "" : "s"}
+            </span>
+            <button
+              onClick={newChat}
+              className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs text-muted transition-colors hover:border-accent hover:text-foreground"
+            >
+              <Plus className="size-3.5" /> New chat
+            </button>
           </div>
         )}
-      </div>
+        <div ref={scrollRef} className="min-h-0 flex-1 overflow-auto">
+          {messages.length === 0 ? (
+            <EmptyState onPick={setInput} />
+          ) : (
+            <div className="space-y-4 py-2">
+              {messages.map((m, i) => (
+                <MessageRow key={i} msg={m} />
+              ))}
+            </div>
+          )}
+        </div>
 
-      <div className="border-t border-border pt-3">
+        <div className="border-t border-border pt-3">
         <div className="flex items-end gap-2">
           <textarea
             ref={taRef}
@@ -243,6 +280,7 @@ export function Chat() {
             className="h-6 w-44 rounded border border-border bg-panel px-2 text-xs outline-none placeholder:text-muted/60 focus-visible:border-accent"
           />
           <span className="ml-auto">runs through the governed loop · same as the CLI</span>
+        </div>
         </div>
       </div>
     </div>
