@@ -12,6 +12,20 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Per-agent memory scope — shared brain, private notes.** The `memory` tool now
+  takes an optional `scope` (e.g. an agent's role): a remembered note tagged with
+  a scope stays private to it, and recall surfaces shared records (no scope) PLUS
+  the requested scope's own — never another scope's private notes. Memory is
+  shared by default, so agents keep using one common brain; the scope is the
+  per-agent layer the vision called for ("each agent has SOME of its own data but
+  shares the main memory"). The daemon's automatic pre-run recall uses the empty
+  (shared-only) view, so a run can never inherit an unrelated agent's private
+  notes. Implemented as a tag (`scope=<name>`) over the existing store — no new
+  store, fully backward-compatible — via a new `Manager.RecallScoped`; recalled
+  private records are annotated `(scope: …)` and the Memory view already shows the
+  tag as a chip. Verified live with the real provider: an agent stored a note
+  scoped to `researcher`; recall under `researcher` returned it, recall under
+  `writer` returned nothing; the visibility rules are covered by unit tests. (M652)
 - **"Do-it-for-sure" — run, verify, retry until actually done (`agt run --assure`).**
   A new reliability loop: instead of a single pass, an assured run executes the
   task, asks a strict verifier whether it was FULLY accomplished (a plan or a
