@@ -23,6 +23,7 @@ import { getJSON } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Markdown } from "@/components/Markdown";
+import { ToolOutput } from "@/components/DataView";
 import {
   streamRun,
   foldChatFrame,
@@ -488,11 +489,7 @@ function ToolChip({ c }: { c: ChatTool }) {
         )}
         {c.error && <Badge variant="bad">error</Badge>}
       </button>
-      {open && c.output && (
-        <pre className="overflow-auto border-t border-border px-2.5 py-1.5 font-mono text-[11px] leading-snug text-muted">
-          {c.output}
-        </pre>
-      )}
+      {open && c.output && <ToolOutput text={c.output} />}
     </div>
   );
 }

@@ -39,6 +39,30 @@ function Cell({ value, depth }: { value: unknown; depth: number }) {
   return <DataView data={value} depth={depth + 1} />;
 }
 
+// ToolOutput renders a tool result: if it's JSON (an object or array), show it as
+// a DataView widget; otherwise keep the raw text. So a file.list / http / shell
+// JSON result reads as a table or card instead of a wall of braces.
+export function ToolOutput({ text }: { text: string }) {
+  let data: unknown;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    data = undefined;
+  }
+  if (Array.isArray(data) || isPlainObject(data)) {
+    return (
+      <div className="border-t border-border px-2.5 py-1.5">
+        <DataView data={data} />
+      </div>
+    );
+  }
+  return (
+    <pre className="overflow-auto border-t border-border px-2.5 py-1.5 font-mono text-[11px] leading-snug text-muted">
+      {text}
+    </pre>
+  );
+}
+
 export function DataView({ data, depth = 0 }: { data: unknown; depth?: number }) {
   // Array of objects → table.
   if (Array.isArray(data) && data.length > 0 && data.every(isPlainObject)) {

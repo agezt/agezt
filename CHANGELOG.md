@@ -25,6 +25,10 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   the Chat renders progressively.
 
 ### Added
+- **Tool results render as widgets.** When a tool call's output is JSON (file.list,
+  http, shell, …), the Chat now shows it as a DataView widget — a table for an
+  array, a key/value card for an object — instead of a wall of raw braces. Non-JSON
+  output stays as plain text.
 - **Multiple conversations in Chat (sidebar).** The Chat is now multi-thread,
   ChatGPT-style: a sidebar lists past conversations (auto-titled from the first
   message, newest first), click to switch, "New chat" starts a fresh one, and each
