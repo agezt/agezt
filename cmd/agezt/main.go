@@ -230,7 +230,24 @@ func runDaemon(stdout, stderr io.Writer) int {
 		hardDeny = append(hardDeny, extra...)
 		askPolicyDesc += fmt.Sprintf("; +%d operator deny rule(s)", len(extra))
 	}
-	edictEng := edict.New(edict.Options{AskPolicy: askPolicy, HardDeny: hardDeny})
+	edictOpts := edict.Options{AskPolicy: askPolicy, HardDeny: hardDeny}
+	// Master permissive switch (M611): AGEZT_ALLOW_ALL=1 sets EVERY governed
+	// capability to L4 (allow) so nothing is denied or prompts — a single-operator
+	// dev convenience ("default everything allowed, restrict later"). The built-in
+	// catastrophe hard-deny rails (fork-bomb, dd-to-raw-device) deliberately stay,
+	// since they guard against self-destruction rather than gate normal tools, and
+	// are no-ops on Windows anyway. Loud banner so this is never silent.
+	permissive := os.Getenv(brand.EnvPrefix+"ALLOW_ALL") == "1"
+	if permissive {
+		lv := make(map[edict.Capability]edict.TrustLevel, len(edict.AllCapabilities()))
+		for _, c := range edict.AllCapabilities() {
+			lv[c] = edict.LevelAllow
+		}
+		edictOpts.Levels = lv
+		askPolicyDesc += "; ALLOW_ALL (every capability L4)"
+		fmt.Fprintln(stderr, "WARNING: AGEZT_ALLOW_ALL=1 — every capability is set to allow (L4). Not for production; restrict via the Policy view or unset to restore defaults.")
+	}
+	edictEng := edict.New(edictOpts)
 
 	tools, pluginManifest, toolsDesc, err := buildTools(baseDir, stderr, ward)
 	if err != nil {
@@ -3481,18 +3498,24 @@ func buildTools(baseDir string, stderr io.Writer, ward warden.Engine) (map[strin
 			}
 		}
 	}
-	if os.Getenv(brand.EnvPrefix+"HTTP_ALLOW_ALL") == "1" {
+	// Master permissive switch (M611): AGEZT_ALLOW_ALL=1 implies the full open
+	// posture for the network tools too — any host, including loopback and the
+	// private network — so "everything allowed" really means everything.
+	allowAll := os.Getenv(brand.EnvPrefix+"ALLOW_ALL") == "1"
+	if allowAll || os.Getenv(brand.EnvPrefix+"HTTP_ALLOW_ALL") == "1" {
 		ht.AllowAll = true
-		fmt.Fprintln(stderr, "WARNING: AGEZT_HTTP_ALLOW_ALL=1 disables the http host allowlist.")
+		if !allowAll {
+			fmt.Fprintln(stderr, "WARNING: AGEZT_HTTP_ALLOW_ALL=1 disables the http host allowlist.")
+		}
 	}
 	// Egress guard (M16): by default the http tool refuses internal/metadata
 	// addresses even for allowlisted/AllowAll hosts. Relax per range for local use.
 	egress := "guarded"
-	if os.Getenv(brand.EnvPrefix+"HTTP_ALLOW_LOOPBACK") == "1" {
+	if allowAll || os.Getenv(brand.EnvPrefix+"HTTP_ALLOW_LOOPBACK") == "1" {
 		ht.AllowLoopback = true
 		egress = "loopback-ok"
 	}
-	if os.Getenv(brand.EnvPrefix+"HTTP_ALLOW_PRIVATE") == "1" {
+	if allowAll || os.Getenv(brand.EnvPrefix+"HTTP_ALLOW_PRIVATE") == "1" {
 		ht.AllowPrivate = true
 		if egress == "loopback-ok" {
 			egress = "loopback+private-ok"
@@ -3519,16 +3542,18 @@ func buildTools(baseDir string, stderr io.Writer, ward warden.Engine) (map[strin
 			}
 		}
 	}
-	if os.Getenv(brand.EnvPrefix+"BROWSER_ALLOW_ALL") == "1" {
+	if allowAll || os.Getenv(brand.EnvPrefix+"BROWSER_ALLOW_ALL") == "1" {
 		br.AllowAll = true
-		fmt.Fprintln(stderr, "WARNING: AGEZT_BROWSER_ALLOW_ALL=1 disables the browser host allowlist.")
+		if !allowAll {
+			fmt.Fprintln(stderr, "WARNING: AGEZT_BROWSER_ALLOW_ALL=1 disables the browser host allowlist.")
+		}
 	}
 	// Egress guard (M16): browser.read refuses internal/metadata addresses by
 	// default, even for allowlisted/AllowAll hosts. Relax per range for local use.
-	if os.Getenv(brand.EnvPrefix+"BROWSER_ALLOW_LOOPBACK") == "1" {
+	if allowAll || os.Getenv(brand.EnvPrefix+"BROWSER_ALLOW_LOOPBACK") == "1" {
 		br.AllowLoopback = true
 	}
-	if os.Getenv(brand.EnvPrefix+"BROWSER_ALLOW_PRIVATE") == "1" {
+	if allowAll || os.Getenv(brand.EnvPrefix+"BROWSER_ALLOW_PRIVATE") == "1" {
 		br.AllowPrivate = true
 		fmt.Fprintln(stderr, "WARNING: AGEZT_BROWSER_ALLOW_PRIVATE=1 lets browser.read reach the private network.")
 	}
