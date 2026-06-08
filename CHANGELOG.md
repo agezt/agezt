@@ -22,6 +22,15 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   state renders cleanly, 0 console errors. (M640)
 
 ### Added
+- **Global alert bell — proactive signals visible from every view.** The header
+  now carries an alert indicator (on every panel) that counts the daemon's
+  warning/critical signals as they stream — self-health degradations, run
+  failures, halts, blocked egress — using the same classifier as the Alerts view.
+  It pulses red on a critical, shows an amber/red count badge, and clicking it
+  jumps to Alerts and clears the count (an acknowledge). So a problem is no longer
+  invisible unless you happen to be on the Alerts tab. Verified live: a halt
+  raised the badge to "1" while on the Overview panel, and clicking it navigated
+  to Alerts and reset, 0 console errors. (M642)
 - **Grant/restrict a capability from the catalog.** The Capability catalog's
   trust-level badge is now an editable dropdown (L0 deny … L4 allow): change a
   tool's level right where you see what it does and it posts to the same
