@@ -12,6 +12,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Config reads like a settings panel.** The Config view's flat chip cloud of
+  ~90 possible `AGEZT_*` settings is now bucketed into labelled, counted cards —
+  Provider & Model, Channels, Interfaces, Autonomy & Learning, Security & Policy,
+  Tools & Plugins, Other — so the daemon's configuration is scannable at a glance
+  instead of an undifferentiated wall. Frontend-only; the prefix (`AGEZT_`) is
+  dropped on the chips for readability. Verified live with zero console errors. (M658)
 - **Grouped, collapsible navigation — the console reads as a map, not a wall.** The
   ~30 Web UI views are now organised into six labelled sidebar sections — Converse,
   Monitor, Agents, Automation, Knowledge, System — instead of one flat list.
