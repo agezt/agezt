@@ -121,6 +121,70 @@ func TestBudget_NonGovernorProviderErrorsCleanly(t *testing.T) {
 	}
 }
 
+// TestBudgetSet_AdjustsCeilingAndReturnsSnapshot exercises the runtime
+// "ayarla" knob (M607): CmdBudgetSet changes the global ceiling and returns the
+// post-set snapshot, and a follow-up CmdBudget reads the new value back — proof
+// the override is live for both enforcement and reporting.
+func TestBudgetSet_AdjustsCeilingAndReturnsSnapshot(t *testing.T) {
+	gov := makeGovernor(t, nil)
+	_, _, c, _ := startPair(t, gov)
+
+	// Raise to $2.50.
+	res, err := c.Call(context.Background(), controlplane.CmdBudgetSet, map[string]any{"ceiling_mc": 2_500_000_000})
+	if err != nil {
+		t.Fatalf("budget_set: %v", err)
+	}
+	if got := mcOf(res["ceiling_mc"]); got != 2_500_000_000 {
+		t.Errorf("post-set ceiling_mc = %d want 2_500_000_000", got)
+	}
+	// Read back via the independent read path.
+	res2, err := c.Call(context.Background(), controlplane.CmdBudget, nil)
+	if err != nil {
+		t.Fatalf("budget: %v", err)
+	}
+	if got := mcOf(res2["ceiling_mc"]); got != 2_500_000_000 {
+		t.Errorf("read-back ceiling_mc = %d want 2_500_000_000", got)
+	}
+	if gov.DailyCeilingMicrocents() != 2_500_000_000 {
+		t.Errorf("governor effective ceiling = %d want 2_500_000_000", gov.DailyCeilingMicrocents())
+	}
+
+	// Set to 0 (unlimited).
+	if _, err := c.Call(context.Background(), controlplane.CmdBudgetSet, map[string]any{"ceiling_mc": 0}); err != nil {
+		t.Fatalf("budget_set 0: %v", err)
+	}
+	if gov.DailyCeilingMicrocents() != 0 {
+		t.Errorf("effective ceiling after set-0 = %d want 0 (unlimited)", gov.DailyCeilingMicrocents())
+	}
+}
+
+// TestBudgetSet_AcceptsStringArg covers the Web UI path: the query-string write
+// proxy forwards ceiling_mc as a STRING, so the handler must coerce it.
+func TestBudgetSet_AcceptsStringArg(t *testing.T) {
+	gov := makeGovernor(t, nil)
+	_, _, c, _ := startPair(t, gov)
+	res, err := c.Call(context.Background(), controlplane.CmdBudgetSet, map[string]any{"ceiling_mc": "750000000"})
+	if err != nil {
+		t.Fatalf("budget_set string arg: %v", err)
+	}
+	if got := mcOf(res["ceiling_mc"]); got != 750_000_000 {
+		t.Errorf("ceiling_mc from string = %d want 750_000_000", got)
+	}
+}
+
+// TestBudgetSet_RejectsMissingAndBadArgs: a missing or non-numeric ceiling_mc
+// is a clear error, not a silent no-op or a panic.
+func TestBudgetSet_RejectsMissingAndBadArgs(t *testing.T) {
+	gov := makeGovernor(t, nil)
+	_, _, c, _ := startPair(t, gov)
+	if _, err := c.Call(context.Background(), controlplane.CmdBudgetSet, nil); err == nil {
+		t.Error("expected error when ceiling_mc is absent")
+	}
+	if _, err := c.Call(context.Background(), controlplane.CmdBudgetSet, map[string]any{"ceiling_mc": "abc"}); err == nil {
+		t.Error("expected error when ceiling_mc is non-numeric")
+	}
+}
+
 // mcOf is a helper that accepts the float64 / int64 ambiguity of
 // JSON-decoded numbers. Mirrors the cmd/agt/budget.go helper.
 func mcOf(v any) int64 {

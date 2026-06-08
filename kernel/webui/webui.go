@@ -127,6 +127,7 @@ var writeRoutes = map[string]writeRoute{
 	"/api/halt":             {controlplane.CmdHalt, []string{"reason"}},
 	"/api/resume":           {controlplane.CmdResume, []string{"reason"}},
 	"/api/cancel_run":       {controlplane.CmdCancelRun, []string{"correlation"}},
+	"/api/budget_set":       {controlplane.CmdBudgetSet, []string{"ceiling_mc"}},
 	"/api/decide":           {controlplane.CmdDecide, []string{"id", "decision", "reason"}},
 	"/api/memory/forget":    {controlplane.CmdMemoryForget, []string{"id"}},
 	"/api/world/forget":     {controlplane.CmdWorldForget, []string{"id"}},

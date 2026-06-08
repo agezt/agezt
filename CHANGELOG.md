@@ -11,6 +11,20 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 
 ## [Unreleased]
 
+### Added
+- **Adjust the daily spend ceiling at runtime — from the CLI or the Web UI.** The
+  global budget cap was fixed at daemon start (`AGEZT_DAILY_CEILING`); changing it
+  meant a restart. The governor now takes a runtime override
+  (`SetDailyCeiling`) that supersedes the configured value for *all* enforcement
+  and reporting, exposed as the `budget_set` control-plane command. Operators set
+  it with `agt budget set <amount>` (dollars; `0`/`off` = unlimited) or from the
+  Web UI's Budget panel — a dollar input, quick presets ($5/$20/$50/$100), and an
+  Unlimited button, with the spend gauge updating live against the new ceiling.
+  Every change emits a `budget.ceiling_set` audit event. The control plane forbids
+  tenant tokens here (the global ceiling is primary-token-only). Lowering the cap
+  below today's spend simply blocks further calls until UTC rollover; per-tenant
+  sibling governors keep their own separately-settable ceilings.
+
 ### Fixed
 - **The agent stops burning iterations on policy-denied tools.** The loop offered
   the model *every* registered tool, even ones the policy would always refuse
