@@ -12,6 +12,15 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Grouped, collapsible navigation — the console reads as a map, not a wall.** The
+  ~30 Web UI views are now organised into six labelled sidebar sections — Converse,
+  Monitor, Agents, Automation, Knowledge, System — instead of one flat list.
+  Sections collapse/expand (with a rotating chevron), the collapsed state persists
+  across reloads (localStorage), and the section holding the current view always
+  stays open so the active page is never hidden. The command palette (⌘K) groups
+  views by the same sections, so search and the sidebar share one mental model.
+  Verified live: the grouped sidebar rendered, collapse/expand worked, and the
+  active group stayed visible — zero console errors. (M657)
 - **Board posts wake agents — the inter-agent reaction loop closes.** Posting to the
   shared board now emits a journaled `board.posted` event under subject
   `board.<topic>`, so a standing order can trigger on a topic (e.g.
