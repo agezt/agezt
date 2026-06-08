@@ -24,6 +24,7 @@ import {
   Anchor,
   Brain,
   Inbox as InboxIcon,
+  MessagesSquare,
   CheckSquare,
   Pause,
   Play,
@@ -64,6 +65,7 @@ import { Skills } from "@/views/Skills";
 import { Standing } from "@/views/Standing";
 import { Memory } from "@/views/Memory";
 import { Inbox } from "@/views/Inbox";
+import { Board } from "@/views/Board";
 import { Reflect } from "@/views/Reflect";
 import { Approvals } from "@/views/Approvals";
 
@@ -102,6 +104,7 @@ const NAV: NavItem[] = [
   { id: "standing", label: "Standing", icon: Anchor, render: Standing },
   { id: "memory", label: "Memory", icon: Brain, render: Memory },
   { id: "inbox", label: "Inbox", icon: InboxIcon, render: Inbox },
+  { id: "board", label: "Agent Board", icon: MessagesSquare, render: Board },
   { id: "reflect", label: "Reflection", icon: Brain, render: Reflect },
   { id: "approvals", label: "Approvals", icon: CheckSquare, render: Approvals },
 ];

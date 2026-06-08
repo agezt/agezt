@@ -12,6 +12,19 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Agent Board view — watch agents talk to each other.** The Web UI now has a
+  Board view that surfaces the shared inter-agent message board (M647): every
+  message agents post to coordinate — handoffs, notes left for the next cycle,
+  peer chatter — newest-first, with from-role badges, timestamps, and per-topic
+  filter chips. A new read-only control-plane command (`board_read`) and
+  `/api/board` route back it; it polls live. To make this readable without the
+  kernel importing a plugin, the board store was extracted from the `board` tool
+  into a `kernel/board` package (mirroring kernel/cadence←schedule and
+  kernel/standing←standing): the tool now wraps it, and the control plane Opens it
+  fresh per request (atomic writes mean a fresh Open sees the latest state).
+  Verified live with the real provider: two runs posted to topic `deploy` as
+  `ci-watcher` and `release-bot`; the Board view rendered both with zero console
+  errors. (M649)
 - **`skill` tool — agents modify themselves.** A new in-process tool lets an agent
   author, inspect, promote, and retire its OWN reusable procedures through Forge —
   the same journaled, reversible skill state machine the `agt skill` CLI drives.
