@@ -4,6 +4,7 @@ import {
   Activity as ActivityIcon,
   Clapperboard,
   Waypoints,
+  Radar,
   Workflow,
   LayoutDashboard,
   BarChart3,
@@ -36,6 +37,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { EventFeed } from "@/components/EventFeed";
 import { Chat } from "@/views/Chat";
 import { Activity } from "@/views/Activity";
+import { Mission } from "@/views/Mission";
 import { Search as SearchView } from "@/views/Search";
 import { Replay } from "@/views/Replay";
 import { Agents } from "@/views/Agents";
@@ -69,6 +71,7 @@ interface NavItem {
 const NAV: NavItem[] = [
   { id: "chat", label: "Chat", icon: MessageSquare, render: Chat },
   { id: "activity", label: "Activity", icon: ActivityIcon, render: Activity },
+  { id: "mission", label: "Mission Control", icon: Radar, render: Mission },
   { id: "replay", label: "Replay", icon: Clapperboard, render: Replay },
   { id: "agents", label: "Agents", icon: Waypoints, render: Agents },
   { id: "flow", label: "Flow Studio", icon: Workflow, render: FlowStudio },
