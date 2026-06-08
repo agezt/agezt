@@ -12,6 +12,15 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Click any agent in the delegation graph to fly it.** Nodes in the Agents
+  delegation graph are now clickable: selecting one (lead or any sub-agent, at any
+  depth) opens a side cockpit panel with that agent's full live detail — status,
+  model, tokens, cost, its tool calls and answer — and, for a still-running
+  agent, the pause / step / steer / resume controls (the same `RunDetailLoader`
+  the Runs view uses). Combined with M631 this means an operator can watch a deep
+  tree and reach into it to pause or redirect a *specific* worker, all from the
+  graph. The selected node is ring-highlighted; the panel closes back to the full
+  graph. Verified live with 0 console errors. (M632)
 - **Steer an individual sub-agent — the cockpit reaches into the tree.** Live
   steering (pause / single-step / inject directive / resume, M608) was wired only
   for the top-level lead; sub-agents ran un-steerable. Now every sub-agent
