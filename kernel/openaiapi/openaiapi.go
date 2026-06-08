@@ -26,6 +26,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -120,6 +121,17 @@ type Server struct {
 	// tenantAuth, when set, validates a per-tenant token against the tenant named
 	// in the X-Agezt-Tenant header. Nil means only the admin token authorizes.
 	tenantAuth TenantAuthorizer
+
+	// transcriber, when set, backs POST /v1/audio/transcriptions. Nil means the
+	// route reports "not configured" (no STT endpoint is wired).
+	transcriber Transcriber
+}
+
+// Transcriber turns uploaded audio into text — satisfied by *stt.Client. Lets the
+// OpenAI-compatible API expose /v1/audio/transcriptions without importing the STT
+// package (kept dependency-light + testable with a fake).
+type Transcriber interface {
+	Transcribe(ctx context.Context, filename string, audio []byte) (string, error)
 }
 
 // New builds a Server. token gates every request; bus drives streaming.
@@ -135,6 +147,10 @@ func (s *Server) SetTenantResolver(r TenantResolver) { s.resolve = r }
 // tenant (X-Agezt-Tenant header) may authorize with that tenant's own token
 // instead of the daemon admin token. The admin token still authorizes any tenant.
 func (s *Server) SetTenantAuthorizer(a TenantAuthorizer) { s.tenantAuth = a }
+
+// SetTranscriber wires the speech-to-text backend for POST
+// /v1/audio/transcriptions. Without it, that route reports "not configured".
+func (s *Server) SetTranscriber(t Transcriber) { s.transcriber = t }
 
 // bind resolves the Engine + bus for a request: the per-tenant pair when an
 // X-Agezt-Tenant header is present and a resolver is configured, else the
@@ -157,7 +173,55 @@ func (s *Server) Handler() http.Handler {
 	// EXACT match, so without this subtree handler a single-model GET (what the
 	// official SDKs' models.retrieve(id) issues for capability probing) would 404.
 	mux.HandleFunc("/v1/models/", s.auth(s.handleModelByID))
+	mux.HandleFunc("/v1/audio/transcriptions", s.auth(s.handleTranscription))
 	return mux
+}
+
+// audioMaxBytes bounds an uploaded audio body (OpenAI's own cap is 25 MiB).
+const audioMaxBytes = 25 << 20
+
+// handleTranscription implements POST /v1/audio/transcriptions — the
+// OpenAI-compatible speech-to-text upload. It reads the multipart `file`, hands
+// it to the configured STT backend, and returns `{"text": …}`, so any OpenAI
+// audio client can upload to Agezt and get a transcript (the "HTTP upload" voice
+// source, complementing `agt transcribe` and `agt listen`).
+func (s *Server) handleTranscription(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.Header().Set("Allow", http.MethodPost)
+		writeErr(w, http.StatusMethodNotAllowed, "method_not_allowed", "POST required")
+		return
+	}
+	if s.transcriber == nil {
+		writeErr(w, http.StatusNotImplemented, "not_configured",
+			"speech-to-text is not configured: set AGEZT_STT_API_URL + AGEZT_STT_API_KEY")
+		return
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, audioMaxBytes)
+	if err := r.ParseMultipartForm(audioMaxBytes); err != nil {
+		writeErr(w, http.StatusBadRequest, "invalid_request_error", "expected multipart/form-data with a 'file' field: "+err.Error())
+		return
+	}
+	f, hdr, err := r.FormFile("file")
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "invalid_request_error", "missing 'file' form field")
+		return
+	}
+	defer f.Close()
+	audio, err := io.ReadAll(f)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "invalid_request_error", "read upload: "+err.Error())
+		return
+	}
+	filename := hdr.Filename
+	if filename == "" {
+		filename = "audio.wav"
+	}
+	text, err := s.transcriber.Transcribe(r.Context(), filename, audio)
+	if err != nil {
+		writeErr(w, http.StatusBadGateway, "stt_error", err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"text": text})
 }
 
 func (s *Server) auth(next http.HandlerFunc) http.HandlerFunc {

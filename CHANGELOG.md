@@ -23,8 +23,11 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   (with `{seconds}` / `{out}` placeholders; e.g. `arecord` on Linux, `ffmpeg` on
   macOS/Windows), keeping the one-dependency promise. Configured with
   `AGEZT_STT_API_URL` (default OpenAI), `AGEZT_STT_API_KEY` (or `OPENAI_API_KEY`),
-  and `AGEZT_STT_MODEL` (default `whisper-1`). A daemon HTTP upload endpoint
-  (`POST /v1/audio/transcriptions`) is a documented follow-up. (M587)
+  and `AGEZT_STT_MODEL` (default `whisper-1`). The daemon's OpenAI-compatible API
+  also gains **`POST /v1/audio/transcriptions`** (token-gated) when STT is
+  configured, so any OpenAI audio client can upload a clip to Agezt and get a
+  transcript — the third voice source, alongside the file and microphone CLIs.
+  (M587)
 - **Public tunnels** — expose a local Agezt HTTP service (the Web UI, else the REST
   API) to the public internet by supervising a tunnel binary. `kernel/tunnel`
   spawns `cloudflared` or `ngrok` (built-in presets) — or any custom command

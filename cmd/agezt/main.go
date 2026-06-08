@@ -61,6 +61,7 @@ import (
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/skill"
 	"github.com/agezt/agezt/kernel/standing"
+	"github.com/agezt/agezt/kernel/stt"
 	"github.com/agezt/agezt/kernel/tenant"
 	"github.com/agezt/agezt/kernel/tunnel"
 	"github.com/agezt/agezt/kernel/ulid"
@@ -2525,6 +2526,20 @@ func buildOpenAIAPI(ctx context.Context, k *kernelruntime.Kernel, reg *tenant.Re
 			return kernelAPIEngine{tk}, tk.Bus(), nil
 		})
 		api.SetTenantAuthorizer(reg.Authorize)
+	}
+	// Speech-to-text upload (POST /v1/audio/transcriptions) — wired when an STT
+	// endpoint is configured (a key, or a custom URL for a local whisper server).
+	sttKey := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "STT_API_KEY"))
+	if sttKey == "" {
+		sttKey = strings.TrimSpace(os.Getenv("OPENAI_API_KEY"))
+	}
+	sttURL := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "STT_API_URL"))
+	if sttKey != "" || sttURL != "" {
+		api.SetTranscriber(stt.New(stt.Config{
+			APIURL: sttURL,
+			APIKey: sttKey,
+			Model:  strings.TrimSpace(os.Getenv(brand.EnvPrefix + "STT_MODEL")),
+		}))
 	}
 	srv := newGuardedHTTPServer(api.Handler())
 	go func() {
