@@ -12,6 +12,16 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Steer an individual sub-agent — the cockpit reaches into the tree.** Live
+  steering (pause / single-step / inject directive / resume, M608) was wired only
+  for the top-level lead; sub-agents ran un-steerable. Now every sub-agent
+  registers its own steering control under its own correlation, so the per-run
+  control API (`/api/run/{pause,resume,step,steer}`) — and therefore the existing
+  Runs-view cockpit, which lists sub-agent runs and shows `SteerControls` for any
+  live one — can pause or redirect a *specific* worker deep in a delegation tree,
+  not just the lead. The pause/steer/resume events are journaled under the
+  sub-agent's own timeline. Verified with a live two-run test that pauses, steers,
+  and resumes a running sub-agent addressed by its own correlation. (M631)
 - **Depth-aware delegation graph + deep-tree root fix.** The Agents view's
   delegation graph now tags each sub-agent with its nesting level (`L1`, `L2`, …)
   so a deep tree reads at a glance — a depth-2 worker is visibly distinct from a
