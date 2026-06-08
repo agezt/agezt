@@ -913,6 +913,55 @@ func TestRunStreamForwardsEventsInline(t *testing.T) {
 	}
 }
 
+// Multi-turn continuity: when the Chat view sends prior `history`, the proxy
+// folds it with the new turn into one transcript intent (the same convo mapping
+// the OpenAI API uses) and the control plane only ever sees the resolved intent
+// — never the raw history.
+func TestRunStreamFoldsHistoryIntoTranscript(t *testing.T) {
+	fc := &fakeCaller{result: map[string]any{"answer": "it was 7"}}
+	s, _ := newServer(t, fc, "secret")
+	body := `{"intent":"what was it?","history":[` +
+		`{"role":"user","text":"remember 7"},` +
+		`{"role":"assistant","text":"Got it, 7."}` +
+		`]}`
+	req := httptest.NewRequest(http.MethodPost, "/api/run?token=secret", strings.NewReader(body))
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d want 200", rec.Code)
+	}
+	if len(fc.calls) != 1 || fc.calls[0] != "run" {
+		t.Fatalf("expected one run call, got %v", fc.calls)
+	}
+	gotIntent, _ := fc.lastArgs["intent"].(string)
+	want := "User: remember 7\nAssistant: Got it, 7.\nUser: what was it?"
+	if gotIntent != want {
+		t.Errorf("folded intent =\n%q\nwant\n%q", gotIntent, want)
+	}
+	if _, leaked := fc.lastArgs["history"]; leaked {
+		t.Errorf("history must not reach the control plane: %v", fc.lastArgs)
+	}
+}
+
+// With no history, the intent passes through verbatim (the single-shot path is
+// unchanged — the first message in a thread behaves exactly as before).
+func TestRunStreamNoHistoryIsVerbatim(t *testing.T) {
+	fc := &fakeCaller{result: map[string]any{"answer": "hi"}}
+	s, _ := newServer(t, fc, "secret")
+	req := httptest.NewRequest(http.MethodPost, "/api/run?token=secret",
+		strings.NewReader(`{"intent":"just hello"}`))
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d want 200", rec.Code)
+	}
+	if got, _ := fc.lastArgs["intent"].(string); got != "just hello" {
+		t.Errorf("intent = %q, want verbatim", got)
+	}
+}
+
 // An empty intent is a no-op the UI should reject before spending a run.
 func TestRunStreamRequiresIntent(t *testing.T) {
 	fc := &fakeCaller{}
