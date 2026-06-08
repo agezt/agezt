@@ -12,6 +12,15 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Multi-turn Chat continuity** — the Chat view now carries conversation context:
+  each message is sent with the prior turns as `history`, which the `/api/run`
+  proxy folds (with the new turn) into one transcript intent before running the
+  governed loop, so the agent answers with the whole conversation in view. The
+  collapse is the new shared `kernel/convo` package — the *same* mapping the
+  OpenAI-compatible API uses (refactored to call it), so both surfaces render
+  prior turns identically. A lone first message still passes through verbatim;
+  history is capped (most-recent 40 turns) and never reaches the control plane as
+  anything but the resolved intent.
 - **Markdown rendering in Chat** — finished agent answers now render as Markdown
   (fenced code blocks, inline code, bold/italic, bullet & numbered lists,
   headings) instead of flat pre-wrapped text, so code and structure are legible.

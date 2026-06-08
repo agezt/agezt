@@ -33,6 +33,7 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/bus"
+	"github.com/agezt/agezt/kernel/convo"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/ulid"
 )
@@ -741,44 +742,17 @@ func (s *Server) streamChat(w http.ResponseWriter, r *http.Request, eng Engine, 
 	}
 }
 
-// intentFromMessages collapses an OpenAI message list into one Agezt intent.
-// A single user turn becomes that text verbatim; multi-turn conversations are
-// rendered as a labelled transcript. System messages are surfaced as leading
-// guidance (the kernel still applies its own system prompt around this).
+// intentFromMessages collapses an OpenAI message list into one Agezt intent via
+// the shared convo mapping, so this API and the Web UI Chat view render prior
+// turns identically. A single user turn becomes that text verbatim; multi-turn
+// conversations are rendered as a labelled transcript with system guidance
+// hoisted to the front (the kernel still applies its own system prompt around it).
 func intentFromMessages(msgs []chatMessage) string {
-	var systems, convo []string
-	soleUser := ""
-	userTurns := 0
+	turns := make([]convo.Turn, 0, len(msgs))
 	for _, m := range msgs {
-		t := m.text()
-		if t == "" {
-			continue
-		}
-		switch strings.ToLower(m.Role) {
-		case "system", "developer":
-			systems = append(systems, t)
-		case "user":
-			userTurns++
-			soleUser = t
-			convo = append(convo, "User: "+t)
-		case "assistant":
-			convo = append(convo, "Assistant: "+t)
-		default:
-			convo = append(convo, t)
-		}
+		turns = append(turns, convo.Turn{Role: m.Role, Text: m.text()})
 	}
-	var b strings.Builder
-	if len(systems) > 0 {
-		b.WriteString(strings.Join(systems, "\n"))
-		b.WriteString("\n\n")
-	}
-	// Single user turn → clean intent (no transcript labels).
-	if userTurns == 1 && len(convo) == 1 {
-		b.WriteString(soleUser)
-		return strings.TrimSpace(b.String())
-	}
-	b.WriteString(strings.Join(convo, "\n"))
-	return strings.TrimSpace(b.String())
+	return convo.TranscriptIntent(turns)
 }
 
 // estimateUsage gives a rough whitespace-token count so clients that read the

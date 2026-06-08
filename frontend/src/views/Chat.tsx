@@ -24,6 +24,7 @@ import {
   turnText,
   type ChatTurn,
   type ChatTool,
+  type ChatHistoryTurn,
 } from "@/lib/chat";
 
 interface UserMsg {
@@ -70,6 +71,13 @@ export function Chat() {
   async function send() {
     const intent = input.trim();
     if (!intent || busy) return;
+    // Prior turns become the conversation history sent with this run, so the
+    // agent has multi-turn context (the server folds them into the intent).
+    const history: ChatHistoryTurn[] = messages
+      .map((m): ChatHistoryTurn =>
+        m.role === "user" ? { role: "user", text: m.text } : { role: "assistant", text: turnText(m.turn) },
+      )
+      .filter((t) => t.text.trim() !== "");
     setInput("");
     setBusy(true);
     setMessages((m) => [...m, { role: "user", text: intent }, { role: "assistant", turn: newTurn() }]);
@@ -78,7 +86,7 @@ export function Chat() {
     abortRef.current = ctrl;
     try {
       await streamRun(
-        { intent, model: model.trim() || undefined },
+        { intent, model: model.trim() || undefined, history: history.length ? history : undefined },
         (f) => updateLastTurn((t) => foldChatFrame(t, f)),
         ctrl.signal,
       );

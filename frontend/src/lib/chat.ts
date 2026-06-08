@@ -162,8 +162,16 @@ export function parseSSEChunk(buffer: string): { frames: ChatFrame[]; rest: stri
 // proxy and folds the SSE response, invoking onFrame for each frame as it lands.
 // Rejects (before any frame) on a non-stream error response so the composer can
 // surface it; honors `signal` so a navigation/abort tears the request down.
+// One prior turn sent back to the daemon for multi-turn continuity. The server
+// folds these (with the new intent) into a transcript intent — the same convo
+// mapping the OpenAI API uses.
+export interface ChatHistoryTurn {
+  role: "user" | "assistant";
+  text: string;
+}
+
 export async function streamRun(
-  body: { intent: string; model?: string },
+  body: { intent: string; model?: string; history?: ChatHistoryTurn[] },
   onFrame: (f: ChatFrame) => void,
   signal?: AbortSignal,
 ): Promise<void> {

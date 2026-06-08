@@ -36,6 +36,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/convo"
 	"github.com/agezt/agezt/kernel/event"
 )
 
@@ -202,13 +203,26 @@ func (s *Server) runStreamProxy() http.HandlerFunc {
 			http.Error(w, "streaming unsupported", http.StatusInternalServerError)
 			return
 		}
-		args, ok := s.decodeAllowedBody(w, r, []string{"intent", "model"})
+		args, ok := s.decodeAllowedBody(w, r, []string{"intent", "model", "history"})
 		if !ok {
 			return
 		}
-		if intent, _ := args["intent"].(string); strings.TrimSpace(intent) == "" {
+		intent, _ := args["intent"].(string)
+		if strings.TrimSpace(intent) == "" {
 			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "intent is required"})
 			return
+		}
+		// Multi-turn continuity (M591): the Chat view sends the prior turns as
+		// `history`; fold them with this turn into one transcript intent — the
+		// same convo mapping the OpenAI-compatible API uses — so the governed loop
+		// (single-intent by design) sees the whole conversation. `history` is
+		// dropped from the args the control plane receives; CmdRun only ever sees
+		// the resolved intent.
+		turns := historyTurns(args["history"])
+		delete(args, "history")
+		if len(turns) > 0 {
+			turns = append(turns, convo.Turn{Role: "user", Text: intent})
+			args["intent"] = convo.TranscriptIntent(turns)
 		}
 
 		w.Header().Set("Content-Type", "text/event-stream")
@@ -240,6 +254,40 @@ func (s *Server) runStreamProxy() http.HandlerFunc {
 		}
 		write(map[string]any{"kind": "done", "result": res})
 	}
+}
+
+// maxHistoryTurns bounds how many prior turns the Chat view can fold into one
+// run's intent, so a long thread can't grow the intent without limit. The most
+// recent turns are kept (the tail carries the live context).
+const maxHistoryTurns = 40
+
+// historyTurns parses the optional `history` body field — a JSON array of
+// {role, text} objects (as decoded into []any of map[string]any) — into convo
+// turns, skipping malformed/blank entries and keeping only the most recent
+// maxHistoryTurns. Returns nil when there is no usable history (the single-shot
+// path, unchanged).
+func historyTurns(raw any) []convo.Turn {
+	list, ok := raw.([]any)
+	if !ok || len(list) == 0 {
+		return nil
+	}
+	turns := make([]convo.Turn, 0, len(list))
+	for _, item := range list {
+		m, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		role, _ := m["role"].(string)
+		text, _ := m["text"].(string)
+		if strings.TrimSpace(role) == "" || strings.TrimSpace(text) == "" {
+			continue
+		}
+		turns = append(turns, convo.Turn{Role: role, Text: text})
+	}
+	if len(turns) > maxHistoryTurns {
+		turns = turns[len(turns)-maxHistoryTurns:]
+	}
+	return turns
 }
 
 // secure applies the defensive response headers (CSP et al.) to a handler but
