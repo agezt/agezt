@@ -349,6 +349,17 @@ func runDaemon(stdout, stderr io.Writer) int {
 		}
 		subAgentSpendCap = int64(usd * 1e9)
 	}
+	// AGEZT_SUBAGENT_MAX_TOTAL caps the total number of sub-agents in one
+	// delegation TREE across all depths (M629) — the rail that makes
+	// AGEZT_SUBAGENT_DEPTH>1 safe, since depth×fan-out alone can't bound a
+	// tree's overall size. 0 / absent = unbounded; a positive value refuses the
+	// (N+1)th spawn anywhere in the tree.
+	subAgentTotal := 0
+	if v := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "SUBAGENT_MAX_TOTAL")); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			subAgentTotal = n
+		}
+	}
 
 	// Artifact offload threshold (SPEC-04 §3.6): tool outputs larger than this are
 	// stored content-addressed and the journal event carries a raw_ref + preview.
@@ -434,6 +445,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 		SubAgentMaxDepth:           subAgentDepth,
 		SubAgentMaxFanout:          subAgentFanout,
 		SubAgentMaxSpendMicrocents: subAgentSpendCap,
+		SubAgentMaxTotal:           subAgentTotal,
 	}
 	// Per-run wall-clock timeout (M31): AGEZT_RUN_TIMEOUT=<duration> caps how
 	// long a single run may take inside a live session. Off by default (only
@@ -2871,7 +2883,11 @@ func delegationBanner(k *kernelruntime.Kernel) string {
 	if l.MaxSpendMicrocents > 0 {
 		spend = fmt.Sprintf("$%.4f", float64(l.MaxSpendMicrocents)/1e9)
 	}
-	return fmt.Sprintf("depth≤%d, fan-out %s, spend %s", l.MaxDepth, fanout, spend)
+	total := "unbounded"
+	if l.MaxTotal > 0 {
+		total = fmt.Sprintf("≤%d", l.MaxTotal)
+	}
+	return fmt.Sprintf("depth≤%d, fan-out %s, total %s, spend %s", l.MaxDepth, fanout, total, spend)
 }
 
 // buildCadence starts the scheduled-intents resident when AGEZT_SCHEDULE is set.

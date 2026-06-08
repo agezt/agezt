@@ -114,6 +114,7 @@ func (s *Server) handleStatus(conn net.Conn, req Request) {
 			"max_depth":            dl.MaxDepth,
 			"max_fanout":           dl.MaxFanout,
 			"max_spend_microcents": dl.MaxSpendMicrocents,
+			"max_total":            dl.MaxTotal,
 		},
 	}
 	// Tenant count only when multi-tenancy is enabled (M130) — a single-tenant
