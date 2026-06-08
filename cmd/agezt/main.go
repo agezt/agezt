@@ -94,6 +94,7 @@ import (
 	"github.com/agezt/agezt/plugins/tools/runstool"
 	scheduletool "github.com/agezt/agezt/plugins/tools/schedule"
 	"github.com/agezt/agezt/plugins/tools/shell"
+	skilltool "github.com/agezt/agezt/plugins/tools/skilltool"
 	standingtool "github.com/agezt/agezt/plugins/tools/standingtool"
 	"github.com/agezt/agezt/plugins/tools/websearch"
 )
@@ -312,6 +313,12 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// the kernel opens.
 	boardToolInst := boardtool.New()
 	tools["board"] = boardToolInst
+
+	// Skill tool (`skill`, M648): the agent modifies ITSELF — authoring, promoting,
+	// and retiring its own reusable procedures through Forge. Registered now, Bound
+	// to the kernel's Forge after it opens.
+	skillToolInst := skilltool.New()
+	tools["skill"] = skillToolInst
 
 	// OnReload is invoked by the control plane's `provider_reload`
 	// command (and `agt provider reload`). It re-reads the vault,
@@ -1121,6 +1128,13 @@ func runDaemon(stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "%s: board tool unavailable: %v\n", brand.Binary, err)
 	} else {
 		fmt.Fprintf(stdout, "  board tool       : enabled (agents share a persistent message board)\n")
+	}
+
+	// Bind the skill tool to the kernel's Forge (M648), so the agent can author and
+	// manage its OWN skills through the same journaled, reversible state machine.
+	if fg := k.Forge(); fg != nil {
+		skillToolInst.Bind(fg)
+		fmt.Fprintf(stdout, "  skill tool       : enabled (the agent can author and manage its own skills)\n")
 	}
 
 	// Scheduled intents (autonomy) — fire operator-configured intents on a timer
