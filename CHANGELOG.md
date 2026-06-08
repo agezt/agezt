@@ -12,6 +12,15 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Flight recorder — scrub and replay any run, step by step.** A new Replay view
+  turns a run's journaled event arc into a playable timeline: pick a run, then
+  scrub or hit play to move a cursor through every moment — LLM rounds, tool calls
+  and their results, policy decisions, operator steering, spend — with the
+  *cumulative* state (iteration, tokens in/out, spend, tool-call count) shown for
+  the exact point you're parked on. Click any step to jump, choose 1×/2×/4×
+  playback, and watch an in-flight run record itself live (newest run selected by
+  default, live events folded in) then rewind it. Pure client-side derivation over
+  the existing journal — the kernel stays the source of truth. (M612)
 - **`AGEZT_ALLOW_ALL=1` — one switch to allow everything.** For a single-operator
   dev box where the safe-by-default gating is just friction, this master switch
   sets *every* governed capability to L4 (allow) and opens the http/browser tools
