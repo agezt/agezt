@@ -33,6 +33,7 @@ type store interface {
 	AddDaily(intent string, atMinutes, days int, tz, model, source string, now time.Time) (cadence.Entry, error)
 	AddOnce(intent string, at time.Time, model, source string, now time.Time) (cadence.Entry, error)
 	AddContinuous(intent string, cooldown time.Duration, model, source string, now time.Time) (cadence.Entry, error)
+	SetAssure(id string, n int) (bool, error)
 	Remove(id string) (bool, error)
 	List() []cadence.Entry
 }
@@ -86,6 +87,7 @@ func (t *Tool) Definition() agent.ToolDef {
     "at":       {"type":"string", "description":"For op=daily: wall-clock time \"HH:MM\" (24h, daemon local time)."},
     "days":     {"type":"string", "description":"For op=daily (optional): which days, e.g. \"mon-fri\", \"weekends\". Default every day."},
     "model":    {"type":"string", "description":"Optional model override for the scheduled run."},
+    "assure":   {"type":"integer", "description":"Optional do-it-for-sure budget for in/every/daily/continuous: if > 0, each firing runs, verifies it was actually completed, and retries the gap up to this many attempts. Use it for tasks that must definitely get done."},
     "id":       {"type":"string", "description":"For op=remove: the schedule id to delete."}
   }
 }`),
@@ -102,9 +104,23 @@ type input struct {
 	Days     string `json:"days"`
 	Model    string `json:"model"`
 	ID       string `json:"id"`
+	Assure   int    `json:"assure"`
 }
 
 const source = "agent" // marks schedules the agent created, for operator visibility
+
+// applyAssure stamps a do-it-for-sure budget onto a freshly created entry, so
+// each firing runs-verifies-retries up to n attempts (M654). Best-effort: a
+// SetAssure failure leaves the entry a single-pass schedule (no worse than
+// assure being unset). Returns the entry with Assure reflected for display.
+func applyAssure(st store, e cadence.Entry, n int) cadence.Entry {
+	if n > 0 {
+		if _, err := st.SetAssure(e.ID, n); err == nil {
+			e.Assure = n
+		}
+	}
+	return e
+}
 
 // Invoke implements agent.Tool.
 func (t *Tool) Invoke(_ context.Context, raw json.RawMessage) (agent.Result, error) {
@@ -128,7 +144,7 @@ func (t *Tool) Invoke(_ context.Context, raw json.RawMessage) (agent.Result, err
 		if err != nil {
 			return errResult(err.Error()), nil
 		}
-		return okEntry("scheduled once", e), nil
+		return okEntry("scheduled once", applyAssure(st, e, in.Assure)), nil
 
 	case "every":
 		d, err := time.ParseDuration(in.Interval)
@@ -139,7 +155,7 @@ func (t *Tool) Invoke(_ context.Context, raw json.RawMessage) (agent.Result, err
 		if err != nil {
 			return errResult(err.Error()), nil
 		}
-		return okEntry("scheduled recurring", e), nil
+		return okEntry("scheduled recurring", applyAssure(st, e, in.Assure)), nil
 
 	case "continuous":
 		d, err := time.ParseDuration(in.Cooldown)
@@ -150,7 +166,7 @@ func (t *Tool) Invoke(_ context.Context, raw json.RawMessage) (agent.Result, err
 		if err != nil {
 			return errResult(err.Error()), nil
 		}
-		return okEntry("started a continuous loop (runs forever; pause/remove to stop)", e), nil
+		return okEntry("started a continuous loop (runs forever; pause/remove to stop)", applyAssure(st, e, in.Assure)), nil
 
 	case "daily":
 		mins, ok := parseHHMM(in.At)
@@ -169,7 +185,7 @@ func (t *Tool) Invoke(_ context.Context, raw json.RawMessage) (agent.Result, err
 		if err != nil {
 			return errResult(err.Error()), nil
 		}
-		return okEntry("scheduled daily", e), nil
+		return okEntry("scheduled daily", applyAssure(st, e, in.Assure)), nil
 
 	case "remove":
 		if in.ID == "" {
@@ -225,6 +241,9 @@ func entryView(e cadence.Entry) map[string]any {
 	}
 	if e.Fires > 0 {
 		v["fires"] = e.Fires
+	}
+	if e.Assure > 0 {
+		v["assure"] = e.Assure
 	}
 	return v
 }
