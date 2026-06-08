@@ -223,6 +223,9 @@ func entryView(e cadence.Entry) map[string]any {
 	if e.NextRunUnix > 0 {
 		v["next_run"] = time.Unix(e.NextRunUnix, 0).Format(time.RFC3339)
 	}
+	if e.Fires > 0 {
+		v["fires"] = e.Fires
+	}
 	return v
 }
 

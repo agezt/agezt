@@ -12,6 +12,18 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Continuous-loop heartbeat — see the living organism breathe.** Every cadence
+  entry now carries a `Fires` counter, incremented once per completed firing at
+  the universal `CompleteFiring` hook (so it never double-counts an in-flight
+  cycle). For a continuous loop this is the number of cycles it has lived through;
+  for a recurring schedule, how many times it has run. The Schedules cockpit
+  surfaces it: continuous loops get an `∞` cadence mark and a pulsing-heart
+  `alive — N cycles` badge, and any schedule that has fired shows a quiet run
+  count. The agent's own `schedule` `op=list` reports `fires` too. This makes the
+  "never-tiring" loop concrete and observable instead of an invisible background
+  goroutine. Verified live with the real provider: a 5s-cooldown continuous loop
+  climbed to 5 cycles in ~35s, the cockpit rendered the live heartbeat with zero
+  console errors, and the loop was removable from the cockpit/CLI. (M650)
 - **Agent Board view — watch agents talk to each other.** The Web UI now has a
   Board view that surfaces the shared inter-agent message board (M647): every
   message agents post to coordinate — handoffs, notes left for the next cycle,

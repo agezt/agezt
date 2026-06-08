@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { CalendarClock, RefreshCw, Play, Pause, Trash2, Bot } from "lucide-react";
+import { CalendarClock, RefreshCw, Play, Pause, Trash2, Bot, Heart, Infinity as InfinityIcon } from "lucide-react";
 import { getJSON, postAction } from "@/lib/api";
 import { cn, fmtDateTime } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,7 @@ interface Sched {
   enabled?: boolean;
   next_run_unix?: number;
   last_status?: string;
+  fires?: number;
 }
 
 // sourceTone colours the origin badge: an agent-scheduled run (the agent used
@@ -95,7 +96,10 @@ export function Schedules() {
             {items.map((s) => (
               <li key={s.id} className="rounded-lg border border-border bg-card p-3">
                 <div className="flex items-center gap-2">
-                  <Badge>{s.cadence || s.mode || "?"}</Badge>
+                  <Badge>
+                    {s.mode === "continuous" && <InfinityIcon className="mr-1 inline size-3 align-[-1px]" />}
+                    {s.cadence || s.mode || "?"}
+                  </Badge>
                   <span
                     className={cn(
                       "inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider",
@@ -106,6 +110,15 @@ export function Schedules() {
                     {s.source === "agent" && <Bot className="size-3" />}
                     {s.source || "?"}
                   </span>
+                  {s.mode === "continuous" && s.enabled !== false && (
+                    <span
+                      className="inline-flex items-center gap-1 rounded-full bg-bad/10 px-1.5 py-0.5 text-[10px] font-semibold text-bad"
+                      title={`alive — ${s.fires ?? 0} cycle${s.fires === 1 ? "" : "s"} completed`}
+                    >
+                      <Heart className="size-3 animate-pulse fill-current" />
+                      {s.fires ?? 0}
+                    </span>
+                  )}
                   {s.enabled === false && <span className="text-[10px] text-muted">(paused)</span>}
                   {s.last_status && <Badge variant={statusVariant(s.last_status)}>{s.last_status}</Badge>}
                   <div className="ml-auto flex items-center gap-1.5">
@@ -140,6 +153,9 @@ export function Schedules() {
                   {s.enabled !== false && s.next_run_unix ? (
                     <span>next {fmtDateTime(s.next_run_unix * 1000)}</span>
                   ) : null}
+                  {s.mode !== "continuous" && (s.fires ?? 0) > 0 && (
+                    <span>{s.fires} run{s.fires === 1 ? "" : "s"}</span>
+                  )}
                   <span className="font-mono opacity-70">{s.id}</span>
                 </div>
               </li>
