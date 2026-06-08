@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
-import { Network, RefreshCw } from "lucide-react";
+import { Network, RefreshCw, X } from "lucide-react";
 import { getJSON } from "@/lib/api";
 import { useEvents } from "@/lib/events";
 import { money } from "@/lib/format";
-import { cn } from "@/lib/utils";
+import { cn, clip } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Muted, ErrorText } from "@/components/JsonView";
 import { DelegationGraph } from "@/components/DelegationGraph";
+import { RunDetailLoader } from "@/components/RunDetail";
 import { buildDelegationTree, pickDefaultRoot, type RunNode } from "@/lib/delegation";
 
 interface ApiRun {
@@ -39,6 +40,7 @@ export function Agents() {
   const { events } = useEvents();
   const [runs, setRuns] = useState<ApiRun[] | null>(null);
   const [sel, setSel] = useState<string>("");
+  const [picked, setPicked] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -77,6 +79,10 @@ export function Agents() {
   // Runs that are roots (no parent) — the selectable lead runs.
   const roots = useMemo(() => nodes.filter((n) => !n.parent), [nodes]);
 
+  // The agent whose steer cockpit is open (a node click). Cleared when it leaves
+  // the current tree (e.g. the operator switches leads).
+  const pickedNode = useMemo(() => tree?.nodes.find((n) => n.id === picked) || null, [tree, picked]);
+
   return (
     <div className="flex h-full min-h-0 flex-col gap-3">
       <div className="flex flex-wrap items-center gap-2">
@@ -85,7 +91,10 @@ export function Agents() {
         </h2>
         <select
           value={sel}
-          onChange={(e) => setSel(e.target.value)}
+          onChange={(e) => {
+            setSel(e.target.value);
+            setPicked(null);
+          }}
           className="h-8 max-w-[55%] flex-1 rounded-md border border-border bg-panel px-2 text-xs outline-none focus:border-accent"
         >
           {roots.length === 0 && <option value="">no runs yet</option>}
@@ -116,8 +125,34 @@ export function Agents() {
       ) : roots.length === 0 ? (
         <Muted>no runs yet — start one from Chat or the CLI</Muted>
       ) : (
-        <div className="min-h-0 flex-1 overflow-hidden rounded-lg border border-border bg-card">
-          {sel && <DelegationGraph runs={nodes} rootId={sel} />}
+        <div className="flex min-h-0 flex-1 flex-col gap-3 lg:flex-row">
+          <div className="min-h-0 flex-1 overflow-hidden rounded-lg border border-border bg-card">
+            {sel && (
+              <DelegationGraph runs={nodes} rootId={sel} onSelect={setPicked} selectedId={picked ?? undefined} />
+            )}
+          </div>
+          {pickedNode && (
+            <aside className="min-h-0 overflow-auto rounded-lg border border-border bg-card p-3 lg:w-96 lg:shrink-0">
+              <div className="mb-2 flex items-start gap-2">
+                <div className="min-w-0 flex-1">
+                  <div className="text-[10px] font-semibold uppercase tracking-wider text-muted">
+                    {pickedNode.root ? "lead" : `sub-agent · L${pickedNode.depth}`}
+                  </div>
+                  <div className="truncate text-xs font-medium" title={pickedNode.intent || pickedNode.id}>
+                    {clip(pickedNode.intent || pickedNode.id, 80)}
+                  </div>
+                </div>
+                <button
+                  onClick={() => setPicked(null)}
+                  className="shrink-0 rounded-md border border-border p-1 text-muted hover:border-accent hover:text-foreground"
+                  title="Close"
+                >
+                  <X className="size-3.5" />
+                </button>
+              </div>
+              <RunDetailLoader correlationId={pickedNode.id} status={pickedNode.status} />
+            </aside>
+          )}
         </div>
       )}
     </div>

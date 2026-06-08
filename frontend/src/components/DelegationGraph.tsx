@@ -22,6 +22,7 @@ type DelegationData = {
   spentMc: number;
   root: boolean;
   depth: number;
+  selected: boolean;
 };
 type DelegationRFNode = Node<DelegationData, "agent">;
 
@@ -42,7 +43,8 @@ function AgentNodeView({ data }: NodeProps<DelegationRFNode>) {
   return (
     <div
       className={[
-        "w-[190px] rounded-lg border-2 bg-card px-3 py-2 text-left transition-colors",
+        "w-[190px] cursor-pointer rounded-lg border-2 bg-card px-3 py-2 text-left transition-colors hover:border-accent",
+        data.selected ? "ring-2 ring-accent ring-offset-1 ring-offset-card" : "",
         statusRing[data.status] || "border-border",
       ].join(" ")}
     >
@@ -77,14 +79,26 @@ const nodeTypes = { agent: AgentNodeView };
 
 // DelegationGraph renders a run and its sub-agent fan-out as a live node graph:
 // who delegated to whom, each agent's status, model, iterations and spend. A
-// magnificent way to watch a multi-agent run unfold.
-export function DelegationGraph({ runs, rootId }: { runs: RunNode[]; rootId: string }) {
+// magnificent way to watch a multi-agent run unfold. Click a node to select that
+// agent (the caller opens its steer cockpit).
+export function DelegationGraph({
+  runs,
+  rootId,
+  onSelect,
+  selectedId,
+}: {
+  runs: RunNode[];
+  rootId: string;
+  onSelect?: (id: string) => void;
+  selectedId?: string;
+}) {
   const { nodes, edges } = useMemo(() => {
     const t = buildDelegationTree(runs, rootId);
     const nodes: DelegationRFNode[] = t.nodes.map((n) => ({
       id: n.id,
       type: "agent",
       position: { x: n.x, y: n.y },
+      selected: n.id === selectedId,
       data: {
         title: n.intent || n.id,
         status: n.status || "",
@@ -93,6 +107,7 @@ export function DelegationGraph({ runs, rootId }: { runs: RunNode[]; rootId: str
         spentMc: Number(n.spentMc || 0),
         root: n.root,
         depth: n.depth,
+        selected: n.id === selectedId,
       },
     }));
     const edges: Edge[] = t.edges.map((e, i) => ({
@@ -104,7 +119,7 @@ export function DelegationGraph({ runs, rootId }: { runs: RunNode[]; rootId: str
       animated: true,
     }));
     return { nodes, edges };
-  }, [runs, rootId]);
+  }, [runs, rootId, selectedId]);
 
   if (nodes.length === 0) {
     return <div className="flex h-full items-center justify-center text-muted">no run selected</div>;
@@ -118,6 +133,7 @@ export function DelegationGraph({ runs, rootId }: { runs: RunNode[]; rootId: str
       proOptions={{ hideAttribution: true }}
       nodesConnectable={false}
       elementsSelectable={false}
+      onNodeClick={(_, node) => onSelect?.(node.id)}
       minZoom={0.2}
     >
       <Background gap={16} color="var(--border)" />
