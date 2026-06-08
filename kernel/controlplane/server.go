@@ -667,6 +667,8 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.handleSend(conn, req)
 	case CmdBoardRead:
 		s.handleBoardRead(conn, req)
+	case CmdAutonomyFeed:
+		s.handleAutonomyFeed(conn, req)
 	default:
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "unknown command: " + req.Cmd})
 	}

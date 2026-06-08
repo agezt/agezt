@@ -12,6 +12,18 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Autonomy view — watch the organism act on its own.** A new Web UI pane shows a
+  curated, newest-first timeline of the daemon's SELF-DIRECTED activity: schedules
+  and standing orders firing, skills learned/promoted/quarantined, do-it-for-sure
+  completion checks, and pulse briefings — each with a category, a concrete detail
+  (the intent, the skill name, `complete: true`/the gap), and a timestamp, with
+  per-category filter chips. Unlike the raw Live Stream it keeps ONLY proactive
+  milestones (reactive llm/tool/policy plumbing is excluded), so the operator sees
+  their Jarvis living unprompted in one place. Backed by a new read-only
+  `autonomy_feed` control-plane command (folds the journal over a curated kind set)
+  and `/api/autonomy`. Verified live with the real provider: the feed rendered 19
+  self-directed events across schedule/standing/assure/skill/pulse categories with
+  working filters and zero console errors. (M653)
 - **Per-agent memory scope — shared brain, private notes.** The `memory` tool now
   takes an optional `scope` (e.g. an agent's role): a remembered note tagged with
   a scope stays private to it, and recall surfaces shared records (no scope) PLUS
