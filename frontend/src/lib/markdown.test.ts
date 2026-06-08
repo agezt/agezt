@@ -34,6 +34,19 @@ describe("parseMarkdown", () => {
     ]);
   });
 
+  it("turns a ```json fence of valid JSON into a data widget block", () => {
+    const md = '```json\n[{"a":1},{"a":2}]\n```';
+    expect(parseMarkdown(md)).toEqual([{ t: "json", data: [{ a: 1 }, { a: 2 }] }]);
+  });
+
+  it("treats a ```widget fence the same way", () => {
+    expect(parseMarkdown('```widget\n{"k":"v"}\n```')).toEqual([{ t: "json", data: { k: "v" } }]);
+  });
+
+  it("falls back to a code block when a ```json fence isn't valid JSON", () => {
+    expect(parseMarkdown("```json\nnot json\n```")).toEqual([{ t: "code", lang: "json", v: "not json" }]);
+  });
+
   it("keeps an unterminated fence as a code block (doesn't crash)", () => {
     const blocks = parseMarkdown("```\nstill open");
     expect(blocks).toEqual([{ t: "code", lang: "", v: "still open" }]);

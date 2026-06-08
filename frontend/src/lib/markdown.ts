@@ -14,6 +14,7 @@ export type Inline =
 
 export type Block =
   | { t: "code"; lang: string; v: string }
+  | { t: "json"; data: unknown } // a ```json / ```widget fence → rendered as a data widget
   | { t: "ul"; items: string[] }
   | { t: "ol"; items: string[] }
   | { t: "h"; level: number; v: string }
@@ -88,7 +89,18 @@ export function parseMarkdown(src: string): Block[] {
         i++;
       }
       // i now sits on the closing fence (or past end if unterminated).
-      blocks.push({ t: "code", lang, v: body.join("\n") });
+      // A ```json / ```widget fence holding valid JSON becomes a data widget
+      // (table / key-value / list, chosen by shape); anything else stays code.
+      const bodyStr = body.join("\n");
+      if ((lang === "json" || lang === "widget") && bodyStr.trim() !== "") {
+        try {
+          blocks.push({ t: "json", data: JSON.parse(bodyStr) });
+          continue;
+        } catch {
+          /* not valid JSON — fall through to a normal code block */
+        }
+      }
+      blocks.push({ t: "code", lang, v: bodyStr });
       continue;
     }
 

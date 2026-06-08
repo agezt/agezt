@@ -1,6 +1,7 @@
 import { Fragment, useState } from "react";
 import { Check, Copy } from "lucide-react";
 import { parseInline, parseMarkdown, type Inline } from "@/lib/markdown";
+import { DataView } from "@/components/DataView";
 
 // Markdown renders an agent answer from the tiny AST in lib/markdown. Every leaf
 // is plain React text (React escapes it) — there is no raw-HTML path — so it is
@@ -13,6 +14,8 @@ export function Markdown({ source, className }: { source: string; className?: st
         switch (b.t) {
           case "code":
             return <CodeBlock key={i} code={b.v} lang={b.lang} />;
+          case "json":
+            return <DataView key={i} data={b.data} />;
           case "table":
             return (
               <div key={i} className="my-2 overflow-x-auto rounded-lg border border-border">
