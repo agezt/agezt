@@ -11,6 +11,15 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 
 ## [Unreleased]
 
+### Added
+- **Insights — an analytics cockpit with charts.** A new view turns the runs
+  history into a visual dashboard: headline tiles (runs, total spend, success
+  rate, avg duration, avg iterations), a cumulative-spend area chart over time, a
+  run-outcomes bar (completed/failed/running), and a per-model spend breakdown.
+  All derived client-side from `/api/runs` with dependency-free, theme-aware
+  inline-SVG/flex charts (no chart library, CSP-clean), refreshed on a timer and
+  nudged when a run finishes. (M614)
+
 ### Fixed
 - **`browser.read`, `memory`, and `world` were silently un-grantable — now
   first-class.** These three tools mapped to capabilities the policy engine never
