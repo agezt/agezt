@@ -12,6 +12,17 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Reflection view — the system reasoning about itself.** The Reflection panel,
+  previously a raw-JSON dump, is now a proper view of the daemon's self-reflection
+  pass: observation tiles (events folded, tasks done/failed, briefs, approvals,
+  skills, world entities), the world-model salience decay it applied (the one
+  safe auto-adjustment), and the advisory **proposals** it derived — recalibrations
+  it suggests but never auto-applies, each with its area, observation and
+  suggestion. A "Run now" button triggers a fresh pass (new `/api/reflect/run`
+  write route over the existing deterministic, offline reflect engine). Verified
+  live: a pass folded 508 events into the tiles (21 done / 1 failed / 1 brief / 3
+  entities) and rendered "nothing to recalibrate — balanced", 0 console errors.
+  (M639)
 - **Standing-orders cockpit — govern what the daemon does unprompted.** The
   Standing view is now a management surface, not a read-only list: each Chronos
   standing order (a persistent goal that fires on a cron schedule or a matching
