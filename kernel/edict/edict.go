@@ -105,6 +105,10 @@ const (
 	// genuine autonomy grant — a scheduled intent fires later through the full
 	// governed loop — so it is ask-first by default (M634).
 	CapSchedule Capability = "schedule"
+	// CapRunsRead gates the `runs` tool: the agent reading its OWN past runs from
+	// the journal (recent runs / stats / search). A read of local activity the
+	// operator already owns — low risk, Allow by default (M644).
+	CapRunsRead Capability = "runs.read"
 )
 
 // TrustLevel encodes the trust ladder (DECISIONS F3).
@@ -526,6 +530,7 @@ func DefaultLevels() map[Capability]TrustLevel {
 		CapWorld:       LevelAllow,    // local world-model graph; low risk
 		CapWebSearch:   LevelAskFirst, // L2 network read; engine host is fixed, query is the only operator input
 		CapSchedule:    LevelAskFirst, // L2 autonomy grant; a scheduled intent runs later through the governed loop
+		CapRunsRead:    LevelAllow,    // local read of the agent's own run history; low risk
 	}
 }
 
@@ -564,7 +569,7 @@ func AllCapabilities() []Capability {
 		CapHTTPGet, CapHTTPPost, CapProviderCall, CapDelegate, CapCoding,
 		CapACPAgent, CapRemoteRun, CapNotify,
 		CapHomeAssistantRead, CapHomeAssistantCall,
-		CapBrowserRead, CapMemory, CapWorld, CapWebSearch, CapSchedule,
+		CapBrowserRead, CapMemory, CapWorld, CapWebSearch, CapSchedule, CapRunsRead,
 	}
 	slices.Sort(caps)
 	return caps

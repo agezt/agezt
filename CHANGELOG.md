@@ -22,6 +22,19 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   state renders cleanly, 0 console errors. (M640)
 
 ### Added
+- **`runs` tool — the agent recalls its OWN past work.** A new in-process tool
+  lets the agent introspect its own run history by folding the daemon's journal:
+  `op=recent` lists recent top-level runs (intent, status, cost, when), `op=stats`
+  gives aggregate totals (completed/failed/success-rate/spend), `op=search` finds
+  past runs whose intent matches a query. The self-knowledge primitive that
+  complements `memory` (deliberate facts) and `world` (entities): the agent can
+  see what it has actually *done*, not just what it chose to remember — so it can
+  check "have I looked into this already?" or report on its activity. Sub-agent
+  runs are folded out (operator-facing leads only); governed by a low-risk
+  `runs.read` capability (Allow by default). Verified live: asked to report its
+  history, the agent called `runs` and returned its real stats (18 completed,
+  100% success) and correctly listed its 3 most recent runs by intent. Tool count
+  15 → 16. (M644)
 - **Global alert bell — proactive signals visible from every view.** The header
   now carries an alert indicator (on every panel) that counts the daemon's
   warning/critical signals as they stream — self-health degradations, run
