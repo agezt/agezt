@@ -109,6 +109,11 @@ const (
 	// the journal (recent runs / stats / search). A read of local activity the
 	// operator already owns — low risk, Allow by default (M644).
 	CapRunsRead Capability = "runs.read"
+	// CapStanding gates the `standing` tool: the agent creating its OWN autonomous,
+	// trigger-driven agents (Chronos standing orders that fire a plan on a cron
+	// schedule or a matching event). The strongest autonomy grant — it sets up
+	// unattended behaviour — so ask-first by default (M645).
+	CapStanding Capability = "standing"
 )
 
 // TrustLevel encodes the trust ladder (DECISIONS F3).
@@ -531,6 +536,7 @@ func DefaultLevels() map[Capability]TrustLevel {
 		CapWebSearch:   LevelAskFirst, // L2 network read; engine host is fixed, query is the only operator input
 		CapSchedule:    LevelAskFirst, // L2 autonomy grant; a scheduled intent runs later through the governed loop
 		CapRunsRead:    LevelAllow,    // local read of the agent's own run history; low risk
+		CapStanding:    LevelAskFirst, // L2 strongest autonomy grant; the agent sets up unattended trigger-driven behaviour
 	}
 }
 
@@ -569,7 +575,7 @@ func AllCapabilities() []Capability {
 		CapHTTPGet, CapHTTPPost, CapProviderCall, CapDelegate, CapCoding,
 		CapACPAgent, CapRemoteRun, CapNotify,
 		CapHomeAssistantRead, CapHomeAssistantCall,
-		CapBrowserRead, CapMemory, CapWorld, CapWebSearch, CapSchedule, CapRunsRead,
+		CapBrowserRead, CapMemory, CapWorld, CapWebSearch, CapSchedule, CapRunsRead, CapStanding,
 	}
 	slices.Sort(caps)
 	return caps
