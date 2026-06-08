@@ -114,6 +114,11 @@ const (
 	// schedule or a matching event). The strongest autonomy grant — it sets up
 	// unattended behaviour — so ask-first by default (M645).
 	CapStanding Capability = "standing"
+	// CapBoard gates the `board` tool: agents posting to and reading from the
+	// shared, persistent message board so they can coordinate and talk to each
+	// other. A local shared note-store like memory — low risk, Allow by
+	// default (M647).
+	CapBoard Capability = "board"
 )
 
 // TrustLevel encodes the trust ladder (DECISIONS F3).
@@ -537,6 +542,7 @@ func DefaultLevels() map[Capability]TrustLevel {
 		CapSchedule:    LevelAskFirst, // L2 autonomy grant; a scheduled intent runs later through the governed loop
 		CapRunsRead:    LevelAllow,    // local read of the agent's own run history; low risk
 		CapStanding:    LevelAskFirst, // L2 strongest autonomy grant; the agent sets up unattended trigger-driven behaviour
+		CapBoard:       LevelAllow,    // local shared message board between agents; low risk
 	}
 }
 
@@ -575,7 +581,7 @@ func AllCapabilities() []Capability {
 		CapHTTPGet, CapHTTPPost, CapProviderCall, CapDelegate, CapCoding,
 		CapACPAgent, CapRemoteRun, CapNotify,
 		CapHomeAssistantRead, CapHomeAssistantCall,
-		CapBrowserRead, CapMemory, CapWorld, CapWebSearch, CapSchedule, CapRunsRead, CapStanding,
+		CapBrowserRead, CapMemory, CapWorld, CapWebSearch, CapSchedule, CapRunsRead, CapStanding, CapBoard,
 	}
 	slices.Sort(caps)
 	return caps

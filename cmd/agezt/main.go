@@ -83,6 +83,7 @@ import (
 	"github.com/agezt/agezt/plugins/providers/compat"
 	"github.com/agezt/agezt/plugins/providers/mock"
 	"github.com/agezt/agezt/plugins/tools/acpagent"
+	boardtool "github.com/agezt/agezt/plugins/tools/boardtool"
 	"github.com/agezt/agezt/plugins/tools/browser"
 	"github.com/agezt/agezt/plugins/tools/coding"
 	filetool "github.com/agezt/agezt/plugins/tools/file"
@@ -304,6 +305,13 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// it opens (the kernel satisfies the tool's journaled standing-CRUD surface).
 	standingToolInst := standingtool.New()
 	tools["standing"] = standingToolInst
+
+	// Board tool (`board`, M647): the shared, persistent message board every agent
+	// can post to and read from, so they can coordinate and talk to each other.
+	// Registered now, Bound to its on-disk store under the daemon base dir after
+	// the kernel opens.
+	boardToolInst := boardtool.New()
+	tools["board"] = boardToolInst
 
 	// OnReload is invoked by the control plane's `provider_reload`
 	// command (and `agt provider reload`). It re-reads the vault,
@@ -1106,6 +1114,14 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// Bind the standing-order tool to the kernel (M645) — it satisfies the tool's
 	// journaled AddStanding / RemoveStanding / Standing() surface.
 	standingToolInst.Bind(k)
+
+	// Bind the shared message board to its on-disk store under the base dir (M647),
+	// so every agent on this daemon posts to and reads from one common board.
+	if err := boardToolInst.Bind(filepath.Join(baseDir, "board")); err != nil {
+		fmt.Fprintf(stderr, "%s: board tool unavailable: %v\n", brand.Binary, err)
+	} else {
+		fmt.Fprintf(stdout, "  board tool       : enabled (agents share a persistent message board)\n")
+	}
 
 	// Scheduled intents (autonomy) — fire operator-configured intents on a timer
 	// through the governed loop. Runs on the daemon ctx (halt/shutdown stop it).
