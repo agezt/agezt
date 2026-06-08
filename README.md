@@ -17,7 +17,7 @@ Agezt nodes** back — with capability-aware **auto-routing**, **failover**, and
 bounded delegation **loop guard** — and now each **tenant federates to its own
 peer set**; events push out via **HMAC-signed webhooks**. See
 [CHANGELOG.md](CHANGELOG.md).
-**Tests:** 2596 passing across 82 packages (+ 28 Web UI unit/component tests via
+**Tests:** 2607 passing across 83 packages (+ 28 Web UI unit/component tests via
 Vitest and a Playwright browser E2E that drives the embedded SPA against a live daemon).
 **Dependencies:** one (`lukechampine.com/blake3`) + one transitive.
 
@@ -88,8 +88,11 @@ account's own messages skipped so a reply never loops), outbound carries replies
 Pulse briefs; **official client SDKs** in **Python** (sync + asyncio), **TypeScript**,
 and **Rust** wrap the REST API; a **plugin/skill marketplace** (`agt plugin
 registry` / `agt skill registry`) installs from a remote catalog with **BLAKE3
-verification**; and a supervised **public tunnel** (cloudflared/ngrok/custom) can
-expose the Web UI or REST API to the internet on demand.
+verification**; a supervised **public tunnel** (cloudflared/ngrok/custom) can
+expose the Web UI or REST API to the internet on demand; and you can **talk to it**
+— `agt transcribe <file>` and `agt listen` turn audio (a file or the microphone)
+into text via any OpenAI-compatible speech-to-text endpoint and feed it to the
+agent.
 
 ## Quick start
 
@@ -222,6 +225,8 @@ agt memory … / agt world … / agt skill …   the cognitive loop (add/list/fo
 agt reflect run                        review behaviour, decay stale knowledge
 agt approvals / approve / deny         the HITL queue
 agt send --channel … / agt ha …        push a message · control Home Assistant
+agt transcribe <file> --run            speech-to-text a file → drive the agent
+agt listen --seconds 10 --run          record the mic → transcribe → drive the agent
 agt why <id> --payload                 walk the audit chain
 agt halt / resume / shutdown           stop · resume · graceful exit
 ```
