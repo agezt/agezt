@@ -1,27 +1,139 @@
-import { Panel, Row } from "@/components/Panel";
-import { Muted } from "@/components/JsonView";
-import { ActionButton } from "@/components/ActionButton";
+import { useEffect, useMemo, useState } from "react";
+import { Brain, RefreshCw, Search, Trash2 } from "lucide-react";
+import { getJSON, postAction } from "@/lib/api";
+import { cn, fmtTime } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { Muted, ErrorText } from "@/components/JsonView";
 
+interface MemRecord {
+  id?: string;
+  type?: string;
+  subject?: string;
+  content?: string;
+  confidence?: number;
+  created_ms?: number;
+  last_seen_ms?: number;
+  source_event?: string;
+  tags?: Record<string, string>;
+}
+
+// Memory is the knowledge browser: every durable fact the agent has stored —
+// searchable by subject/content/tag, each card showing its type, confidence,
+// age and source, with one-click forget.
 export function Memory() {
+  const [records, setRecords] = useState<MemRecord[] | null>(null);
+  const [q, setQ] = useState("");
+  const [err, setErr] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [busy, setBusy] = useState<string | null>(null);
+
+  async function reload() {
+    setLoading(true);
+    try {
+      const d = await getJSON<{ records?: MemRecord[] }>("/api/memory");
+      setRecords(d.records || []);
+      setErr(null);
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  }
+  useEffect(() => {
+    reload();
+  }, []);
+
+  async function forget(id: string) {
+    setBusy(id);
+    try {
+      await postAction("/api/memory/forget", { id });
+      await reload();
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  const f = q.trim().toLowerCase();
+  const shown = useMemo(() => {
+    const list = [...(records || [])].sort((a, b) => (b.created_ms || 0) - (a.created_ms || 0));
+    if (!f) return list;
+    return list.filter((r) =>
+      `${r.subject} ${r.content} ${r.type} ${Object.values(r.tags || {}).join(" ")}`.toLowerCase().includes(f),
+    );
+  }, [records, f]);
+
   return (
-    <Panel<Record<string, any>> title="Memory" path="/api/memory">
-      {(d, reload) => {
-        const ms = d.records || (Array.isArray(d) ? d : []);
-        return ms.length ? (
-          ms.map((m: any, i: number) => (
-            <Row key={m.id || i}>
-              <span>{m.content || m.subject || m.text || JSON.stringify(m)}</span>
-              {m.id ? (
-                <span className="ml-auto">
-                  <ActionButton label="forget" variant="danger" path="/api/memory/forget" params={{ id: m.id }} onDone={reload} />
-                </span>
-              ) : null}
-            </Row>
-          ))
-        ) : (
-          <Muted>no memories</Muted>
-        );
-      }}
-    </Panel>
+    <div className="flex h-full min-h-0 flex-col gap-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <h2 className="flex items-center gap-2 text-sm font-semibold">
+          <Brain className="size-4 text-accent" /> Memory
+        </h2>
+        {records && <span className="text-xs text-muted">{shown.length}/{records.length}</span>}
+        <div className="relative ml-auto">
+          <Search className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted" />
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="search memories…"
+            className="h-7 w-48 rounded-md border border-border bg-panel pl-7 pr-2 text-xs outline-none focus:border-accent"
+          />
+        </div>
+        <Button variant="ghost" size="sm" onClick={reload} disabled={loading}>
+          <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
+        </Button>
+      </div>
+
+      {err ? (
+        <ErrorText>{err}</ErrorText>
+      ) : !records ? (
+        <Muted>loading…</Muted>
+      ) : shown.length === 0 ? (
+        <Muted>{records.length === 0 ? "no memories yet" : "no memories match"}</Muted>
+      ) : (
+        <div className="min-h-0 flex-1 overflow-auto">
+          <ul className="grid grid-cols-1 gap-2 lg:grid-cols-2">
+            {shown.map((r, i) => (
+              <li key={r.id || i} className="rounded-lg border border-border bg-card p-3">
+                <div className="mb-1 flex items-center gap-2">
+                  {r.type && (
+                    <span className="rounded bg-accent/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-accent">
+                      {r.type}
+                    </span>
+                  )}
+                  <span className="truncate text-sm font-semibold">{r.subject || "—"}</span>
+                  <div className="ml-auto flex items-center gap-2">
+                    {r.confidence != null && (
+                      <span className="text-[10px] tabular-nums text-muted">conf {Math.round((r.confidence || 0) * 100)}%</span>
+                    )}
+                    {r.id && (
+                      <button
+                        onClick={() => forget(r.id!)}
+                        disabled={busy === r.id}
+                        title="Forget this memory"
+                        className="text-muted transition-colors hover:text-bad disabled:opacity-50"
+                      >
+                        <Trash2 className="size-3.5" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <p className="whitespace-pre-wrap break-words text-xs text-foreground/85">{r.content}</p>
+                <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-muted">
+                  {r.created_ms ? <span>{fmtTime(r.created_ms)}</span> : null}
+                  {r.tags &&
+                    Object.entries(r.tags).map(([k, v]) => (
+                      <span key={k} className="rounded-full bg-panel px-1.5 py-0.5">
+                        {k}:{v}
+                      </span>
+                    ))}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
   );
 }
