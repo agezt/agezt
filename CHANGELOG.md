@@ -12,6 +12,17 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Full snapshot export — a complete record of the daemon's brain.** The Backup view gains a
+  third, **read-only** card: **Export snapshot** gathers *everything* customizable — persona,
+  prompts, routing, standing orders, schedules, memory and the world model — into one
+  `agezt-snapshot.json` for backup, audit, or planning a migration. It's deliberately export-only
+  (restoring autonomy/knowledge in bulk is safety-sensitive and stays a per-domain action), and a
+  failing section degrades to empty rather than failing the whole export. A toast reports the
+  counts. Tests cover `fetchFullSnapshot` (gathers every read endpoint; world relations fall back
+  to `edges`; a rejected section → empty, not a throw) and `snapshotCounts`. Verified live on an
+  isolated daemon seeded with a persona, a routing chain, a standing order, a memory and a world
+  entity: the exported snapshot contained all of them (`persona ✓ · 1 chain · 1 standing · 1
+  memory · 1 entity`) with the read-only note — 0 console errors. (M741)
 - **Backup view now shows what you're backing up — and what it isn't.** The Backup & Restore view
   (M739) gained a live **summary** of the daemon configuration (e.g. "persona set · 2 prompts · 1
   routing chain"), refreshed on load and after an import, so you can see what an export will

@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Archive, Download, Upload, Palette, Server, Info } from "lucide-react";
+import { Archive, Download, Upload, Palette, Server, Info, Camera } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useUI } from "@/components/ui/feedback";
 import { downloadText } from "@/lib/export";
 import { exportAppearance, parseAppearanceJSON, applyAppearanceBundle } from "@/lib/appearance";
 import { parseConfigBundle, fetchConfigBundle, applyConfigBundle } from "@/lib/configbackup";
+import { fetchFullSnapshot, snapshotCounts } from "@/lib/snapshot";
 
 // configSummary describes what a daemon-config bundle currently holds — shown so you
 // know what you're about to export (and what an import will replace).
@@ -25,7 +26,7 @@ export function Backup() {
   const ui = useUI();
   const appearanceRef = useRef<HTMLInputElement>(null);
   const configRef = useRef<HTMLInputElement>(null);
-  const [busy, setBusy] = useState<"config-export" | "config-import" | null>(null);
+  const [busy, setBusy] = useState<"config-export" | "config-import" | "snapshot" | null>(null);
   const [summary, setSummary] = useState<string | null>(null);
 
   const refreshSummary = useCallback(async () => {
@@ -60,6 +61,19 @@ export function Backup() {
       downloadText("agezt-config.json", JSON.stringify(await fetchConfigBundle(), null, 2), "application/json");
     } catch (e) {
       ui.toast(`Export failed: ${(e as Error).message}`, "error");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function exportSnapshot() {
+    setBusy("snapshot");
+    try {
+      const snap = await fetchFullSnapshot();
+      downloadText("agezt-snapshot.json", JSON.stringify(snap, null, 2), "application/json");
+      ui.toast(`Snapshot: ${snapshotCounts(snap)}`, "success");
+    } catch (e) {
+      ui.toast(`Snapshot failed: ${(e as Error).message}`, "error");
     } finally {
       setBusy(null);
     }
@@ -148,6 +162,24 @@ export function Backup() {
           </Button>
           <Button size="sm" variant="ghost" onClick={() => configRef.current?.click()} disabled={busy === "config-import"}>
             <Upload className="size-3.5" /> Import
+          </Button>
+        </div>
+      </div>
+
+      <div className="rounded-lg border border-border bg-card p-3">
+        <h3 className="flex items-center gap-2 text-sm font-semibold">
+          <Camera className="size-4 text-accent" /> Full snapshot
+          <span className="rounded bg-panel px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted">
+            read-only
+          </span>
+        </h3>
+        <p className="mt-1 text-xs text-muted">
+          A complete record of everything customizable — persona, prompts, routing, standing orders, schedules, memory and
+          the world model — in one file, for backup, audit or planning a migration. Export-only: restoring is per-domain.
+        </p>
+        <div className="mt-2 flex items-center gap-2">
+          <Button size="sm" variant="ghost" onClick={exportSnapshot} disabled={busy === "snapshot"}>
+            <Download className="size-3.5" /> Export snapshot
           </Button>
         </div>
       </div>
