@@ -12,6 +12,17 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Find a node in a big world model — entity search.** The World view gains a **filter entities**
+  box (appearing once there are more than four entities) that narrows the entity list as you type,
+  matching on **name, kind, or alias** (case-insensitive) with a live `matched/total` count. As the
+  agent's knowledge graph grows to dozens of people, projects, repos and systems, scrolling to find one
+  became the bottleneck — Memory already had search (M732-era), World didn't; now it does. Purely
+  client-side over the loaded set; the graph and kind-breakdown still show the whole world (the filter
+  scopes the scannable list, mirroring the Memory view's filter). Unit-tested (the pure `entityMatches`
+  helper matches name/kind/alias and treats an empty query as match-all; the input filters the list and
+  shows the count, only renders past four entities, and a non-matching query shows a graceful hint).
+  Verified live on an isolated daemon: seeded 5 entities → typing `repo` showed `2/5`, a non-matching
+  query showed "no entities match" with `0/5`; 0 console errors. (M774)
 - **A record of every approval decision — the HITL audit trail.** The Approvals view showed only
   *pending* requests (approve / deny); it had no memory of what you'd already decided. It now carries a
   **Decision history** section below the pending list: every capability the agent has asked permission

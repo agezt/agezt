@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { Globe, Plus, RefreshCw, Pencil, Save, X, Download, Upload } from "lucide-react";
+import { Globe, Plus, RefreshCw, Pencil, Save, X, Download, Upload, Search } from "lucide-react";
 import { Panel, Row, Count } from "@/components/Panel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -87,14 +87,28 @@ export function parseWorldJSON(text: string): {
   return { entities, relations };
 }
 
+// entityMatches tests an entity against a lowercased query over its name, kind, and
+// aliases — so you can find a node in a large graph by any of the ways you might know it.
+export function entityMatches(e: any, q: string): boolean {
+  if (!q) return true;
+  const hay = [e.name, e.kind, ...(Array.isArray(e.aliases) ? e.aliases : [])]
+    .filter((s) => typeof s === "string")
+    .join(" ")
+    .toLowerCase();
+  return hay.includes(q);
+}
+
 export function World() {
   const ui = useUI();
   const fileRef = useRef<HTMLInputElement>(null);
+  const [q, setQ] = useState("");
   return (
     <Panel<Record<string, any>> title="World" path="/api/world">
       {(d, reload) => {
         const ents = d.entities || [];
         const edges = d.edges || [];
+        const query = q.trim().toLowerCase();
+        const shown = query ? ents.filter((e: any) => entityMatches(e, query)) : ents;
         const rels = d.relations ?? d.relation_count ?? edges.length;
         // Relations store their endpoints by entity id; resolve to names for display.
         const nameById: Record<string, string> = {};
@@ -209,14 +223,34 @@ export function World() {
                 })}
               </div>
             )}
-            {ents.length ? (
-              ents.map((e: any, i: number) => <EntityRow key={e.id || i} entity={e} onChanged={reload} />)
-            ) : (
+            {/* Find an entity in a large graph by name, kind, or alias (M774). */}
+            {ents.length > 4 && (
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted" />
+                <input
+                  value={q}
+                  onChange={(e) => setQ(e.target.value)}
+                  placeholder="filter entities…"
+                  aria-label="Filter entities"
+                  className="h-8 w-full rounded-md border border-border bg-panel pl-7 pr-2 text-xs text-foreground outline-none focus-visible:border-accent"
+                />
+                {query && (
+                  <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted">
+                    {shown.length}/{ents.length}
+                  </span>
+                )}
+              </div>
+            )}
+            {ents.length === 0 ? (
               <EmptyState
                 icon={Globe}
                 title="No entities yet"
                 hint="The agent builds its world model as it learns about people, projects and systems — it'll fill in here."
               />
+            ) : shown.length === 0 ? (
+              <Muted>no entities match “{q.trim()}”</Muted>
+            ) : (
+              shown.map((e: any, i: number) => <EntityRow key={e.id || i} entity={e} onChanged={reload} />)
             )}
           </>
         );
