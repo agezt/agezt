@@ -3,6 +3,7 @@ import { Sparkles, RefreshCw, ChevronRight, ChevronDown, Check, ShieldX, Undo2 }
 import { getJSON, postAction } from "@/lib/api";
 import { cn, fmtTime } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { useUI, type ConfirmOptions } from "@/components/ui/feedback";
 import { Muted, ErrorText } from "@/components/JsonView";
 
 interface Skill {
@@ -29,6 +30,7 @@ const statusTone: Record<string, string> = {
 // description, triggers, required tools, shadow/usage metrics and the full
 // procedure body (expandable), plus its promote / quarantine / revert controls.
 export function Skills() {
+  const ui = useUI();
   const [skills, setSkills] = useState<Skill[] | null>(null);
   const [active, setActive] = useState<number | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -53,13 +55,15 @@ export function Skills() {
     reload();
   }, []);
 
-  async function act(id: string, path: string) {
+  async function act(id: string, path: string, opts?: { confirm?: ConfirmOptions; success?: string }) {
+    if (opts?.confirm && !(await ui.confirm(opts.confirm))) return;
     setBusy(id);
     try {
       await postAction(path, { id });
+      if (opts?.success) ui.toast(opts.success, "success");
       await reload();
     } catch (e) {
-      setErr((e as Error).message);
+      ui.toast((e as Error).message, "error");
     } finally {
       setBusy(null);
     }
@@ -104,12 +108,54 @@ export function Skills() {
                   {s.version != null && <span className="text-[10px] text-muted">v{s.version}</span>}
                   <div className="ml-auto flex shrink-0 gap-1">
                     {(s.status === "draft" || s.status === "shadow") && s.id && (
-                      <IconBtn label="promote" tone="good" icon={Check} busy={busy === s.id} onClick={() => act(s.id!, "/api/skill/promote")} />
+                      <IconBtn
+                        label="promote"
+                        tone="good"
+                        icon={Check}
+                        busy={busy === s.id}
+                        onClick={() => act(s.id!, "/api/skill/promote", { success: "Skill promoted to active" })}
+                      />
                     )}
                     {s.status === "active" && s.id && (
-                      <IconBtn label="quarantine" tone="bad" icon={ShieldX} busy={busy === s.id} onClick={() => act(s.id!, "/api/skill/quarantine")} />
+                      <IconBtn
+                        label="quarantine"
+                        tone="bad"
+                        icon={ShieldX}
+                        busy={busy === s.id}
+                        onClick={() =>
+                          act(s.id!, "/api/skill/quarantine", {
+                            confirm: {
+                              title: "Quarantine this skill?",
+                              message: s.name
+                                ? `“${s.name}” will stop being used until you reinstate it.`
+                                : "This skill will stop being used until you reinstate it.",
+                              confirmLabel: "Quarantine",
+                              danger: true,
+                            },
+                            success: "Skill quarantined",
+                          })
+                        }
+                      />
                     )}
-                    {s.id && <IconBtn label="revert" tone="muted" icon={Undo2} busy={busy === s.id} onClick={() => act(s.id!, "/api/skill/revert")} />}
+                    {s.id && (
+                      <IconBtn
+                        label="revert"
+                        tone="muted"
+                        icon={Undo2}
+                        busy={busy === s.id}
+                        onClick={() =>
+                          act(s.id!, "/api/skill/revert", {
+                            confirm: {
+                              title: "Revert this skill?",
+                              message: "The most recent change to this skill will be rolled back.",
+                              confirmLabel: "Revert",
+                              danger: true,
+                            },
+                            success: "Skill reverted",
+                          })
+                        }
+                      />
+                    )}
                   </div>
                 </div>
 

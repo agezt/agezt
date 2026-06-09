@@ -12,6 +12,21 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Every destructive action now confirms, and every action speaks via toast.**
+  Building on the new feedback layer, the irreversible controls across the console
+  now raise a danger confirm-modal before acting — forgetting a memory, removing a
+  standing order or schedule, quarantining or reverting a skill, and removing a
+  policy deny-rule each name exactly what will happen ("`sabah-brifingi` will stop
+  firing and be permanently deleted") with a red confirm button. Reversible actions
+  (pause/resume, run-now, promote, trust-level changes, ask-mode) now surface a
+  success toast instead of silently reloading, and any action failure is an error
+  toast rather than replacing the whole view with an error banner — so the list
+  stays put and the operator always gets clear, in-app feedback. The feedback layer
+  itself gained a unit-test suite (toast show/dismiss; confirm resolve-true /
+  cancel / Escape). Verified live against the real provider on the owner's real
+  standing orders: Remove → confirm modal with the order-specific message →
+  Cancel left all five orders intact; pause→resume surfaced its toast and returned
+  the order to active. 132 frontend tests pass, zero console errors. (M670)
 - **No more native browser dialogs — every message is a toast, every confirm a
   modal.** The console no longer falls back to `alert()`/`confirm()`: a small
   self-contained feedback layer (`UIProvider`/`useUI()`) exposes `toast(text, kind)`

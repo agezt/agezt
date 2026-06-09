@@ -3,6 +3,7 @@ import { CalendarClock, RefreshCw, Play, Pause, Trash2, Bot, Heart, Infinity as 
 import { getJSON, postAction } from "@/lib/api";
 import { cn, fmtDateTime } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { useUI, type ConfirmOptions } from "@/components/ui/feedback";
 import { Badge, statusVariant } from "@/components/ui/badge";
 import { Muted, ErrorText } from "@/components/JsonView";
 
@@ -32,6 +33,7 @@ function sourceTone(src?: string): string {
 // — with its cadence, next fire, last outcome and origin, plus run-now /
 // pause-resume / remove controls so you can manage what fires unattended.
 export function Schedules() {
+  const ui = useUI();
   const [items, setItems] = useState<Sched[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -56,13 +58,20 @@ export function Schedules() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function act(id: string, path: string, params?: Record<string, string>) {
+  async function act(
+    id: string,
+    path: string,
+    params?: Record<string, string>,
+    opts?: { confirm?: ConfirmOptions; success?: string },
+  ) {
+    if (opts?.confirm && !(await ui.confirm(opts.confirm))) return;
     setBusy(id);
     try {
       await postAction(path, { id, ...params });
+      if (opts?.success) ui.toast(opts.success, "success");
       await reload();
     } catch (e) {
-      setErr((e as Error).message);
+      ui.toast((e as Error).message, "error");
     } finally {
       setBusy(null);
     }
@@ -133,7 +142,7 @@ export function Schedules() {
                   {s.last_status && <Badge variant={statusVariant(s.last_status)}>{s.last_status}</Badge>}
                   <div className="ml-auto flex items-center gap-1.5">
                     <button
-                      onClick={() => act(s.id, "/api/schedule/run")}
+                      onClick={() => act(s.id, "/api/schedule/run", undefined, { success: "Schedule triggered" })}
                       disabled={busy === s.id}
                       title="Run now"
                       className="text-muted transition-colors hover:text-accent disabled:opacity-50"
@@ -141,7 +150,11 @@ export function Schedules() {
                       <Play className="size-3.5" />
                     </button>
                     <button
-                      onClick={() => act(s.id, "/api/schedule/enable", { enabled: s.enabled === false ? "true" : "false" })}
+                      onClick={() =>
+                        act(s.id, "/api/schedule/enable", { enabled: s.enabled === false ? "true" : "false" }, {
+                          success: s.enabled === false ? "Schedule resumed" : "Schedule paused",
+                        })
+                      }
                       disabled={busy === s.id}
                       title={s.enabled === false ? "Resume" : "Pause"}
                       className="text-muted transition-colors hover:text-foreground disabled:opacity-50"
@@ -149,7 +162,19 @@ export function Schedules() {
                       {s.enabled === false ? <Play className="size-3.5" /> : <Pause className="size-3.5" />}
                     </button>
                     <button
-                      onClick={() => act(s.id, "/api/schedule/remove")}
+                      onClick={() =>
+                        act(s.id, "/api/schedule/remove", undefined, {
+                          confirm: {
+                            title: "Remove this schedule?",
+                            message: s.intent
+                              ? `“${s.intent}” will stop firing and be permanently deleted.`
+                              : "This schedule will stop firing and be permanently deleted.",
+                            confirmLabel: "Remove",
+                            danger: true,
+                          },
+                          success: "Schedule removed",
+                        })
+                      }
                       disabled={busy === s.id}
                       title="Remove"
                       className="text-muted transition-colors hover:text-bad disabled:opacity-50"

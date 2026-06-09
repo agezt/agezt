@@ -3,6 +3,7 @@ import { Brain, RefreshCw, Search, Trash2 } from "lucide-react";
 import { getJSON, postAction } from "@/lib/api";
 import { cn, fmtTime } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { useUI } from "@/components/ui/feedback";
 import { Muted, ErrorText } from "@/components/JsonView";
 import { BreakdownBar } from "@/components/Widgets";
 
@@ -22,6 +23,7 @@ interface MemRecord {
 // searchable by subject/content/tag, each card showing its type, confidence,
 // age and source, with one-click forget.
 export function Memory() {
+  const ui = useUI();
   const [records, setRecords] = useState<MemRecord[] | null>(null);
   const [q, setQ] = useState("");
   const [err, setErr] = useState<string | null>(null);
@@ -44,13 +46,21 @@ export function Memory() {
     reload();
   }, []);
 
-  async function forget(id: string) {
+  async function forget(id: string, subject?: string) {
+    const ok = await ui.confirm({
+      title: "Forget this memory?",
+      message: subject ? `“${subject}” will be permanently removed.` : "This memory will be permanently removed.",
+      confirmLabel: "Forget",
+      danger: true,
+    });
+    if (!ok) return;
     setBusy(id);
     try {
       await postAction("/api/memory/forget", { id });
+      ui.toast("Memory forgotten", "success");
       await reload();
     } catch (e) {
-      setErr((e as Error).message);
+      ui.toast(`forget failed: ${(e as Error).message}`, "error");
     } finally {
       setBusy(null);
     }
@@ -118,7 +128,7 @@ export function Memory() {
                     )}
                     {r.id && (
                       <button
-                        onClick={() => forget(r.id!)}
+                        onClick={() => forget(r.id!, r.subject)}
                         disabled={busy === r.id}
                         title="Forget this memory"
                         className="text-muted transition-colors hover:text-bad disabled:opacity-50"
