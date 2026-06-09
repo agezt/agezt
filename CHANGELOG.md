@@ -12,6 +12,18 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Forget a single relation in the world model.** The World view now lists each relation
+  (`from —verb→ to`, with the entity ids resolved to names) below the graph, each with a **forget**
+  control — so you can prune one wrong or stale edge without removing the entities it connects.
+  Previously you could add and re-relate entities but only remove whole entities; a bad relation had
+  no per-edge undo. No new backend: the existing `/api/world/forget` already tombstones a relation
+  when given its id (the world graph's `Forget` handles both entities and relations), so this is
+  purely the missing UI. `World` is unit-tested for it (the relations list renders with resolved
+  names; the relation's forget posts `/api/world/forget` with the edge id; ResizeObserver polyfilled
+  for the React-Flow graph under jsdom). Verified live on an isolated daemon: seeded 2 entities + 1
+  relation, clicked the relation's **forget** → relations dropped 1→0 while the **2 entities were
+  preserved**, toast "Relation forgotten"; 0 console errors. Completes world-model CRUD: entities
+  (add/edit/forget) and relations (relate/forget). (M766)
 - **Run a standing order on demand.** Each standing-order row gains a **Run now** (⚡) control that
   fires the order immediately, *ignoring its cron/event triggers* — the sibling of schedule "run now"
   and pulse "beat now". Use it to test an order you just wrote, or to trigger one whose moment hasn't
