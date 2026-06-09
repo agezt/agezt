@@ -12,6 +12,20 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Dry-run a policy decision from the Policy view ("why is this blocked?").** The capability-policy
+  card gains a **Test a decision** panel: pick a capability, type an optional input (e.g. a shell
+  command), and the edict engine reports the verdict it *would* return — **ALLOW**, **ASK** (the call
+  is permitted but would pause for an approval prompt), **DENY**, or **DENY · hard** with the name of
+  the matching hard-deny rule — plus the trust level and the engine's reason. It's read-only
+  (`eng.Decide` mutates nothing), so it's the safe way to understand an existing block or to check a
+  deny rule's effect before/after adding one — it pairs directly with the add-deny-rule control right
+  above it. New read-only route `/api/edict/test` (capability + input). `PolicyTestForm` and the
+  verdict-folding helper are unit-tested (ALLOW with level; hard DENY names the rule; ASK when the
+  call would pause for approval; surfaces a probe error). Verified live on an isolated daemon: probing
+  `shell` with `echo hi` showed **ASK** (L2, would-prompt); with `dd if=/dev/zero of=/dev/sda` showed
+  **DENY · hard** citing the built-in `dd-of-dev` rule; and after adding a runtime deny rule for a
+  substring, re-probing a matching input flipped to **DENY · hard** citing the new runtime rule —
+  the tester reflects live policy, including just-added rules; 0 console errors. (M753)
 - **Restore a full snapshot — back up and rebuild the whole agent from one file.** The Backup view's
   Full-snapshot card was export-only (M741); it gains **Restore snapshot**. A snapshot bundles
   everything customizable — persona, prompts, routing, standing orders, schedules, memory and the
