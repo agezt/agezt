@@ -60,6 +60,35 @@ test.describe("Agezt Web UI — embedded SPA against a real daemon", () => {
       page.getByRole("heading", { level: 2, name: "World" }),
     ).toBeVisible();
 
+    const nav = page.getByRole("navigation");
+
+    // --- Autonomy: the proactive-heartbeat controls render + work -------
+    // (M743 pause/resume, M756 beat-now, M757 cadence, M758 dial, M761 flush).
+    // Pulse is on by default in the demo daemon, so the steering controls render.
+    await nav.getByRole("button", { name: "Autonomy" }).click();
+    await expect(page.getByRole("heading", { level: 2, name: "Autonomy" })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Beat now/ })).toBeVisible();
+    await expect(page.getByLabel("Heartbeat cadence")).toBeVisible();
+    await expect(page.getByLabel("Proactivity dial")).toBeVisible();
+    // "Beat now" drives the on-demand-heartbeat route end to end (the zero-console-
+    // errors guard below also covers it).
+    await page.getByRole("button", { name: /Beat now/ }).click();
+
+    // --- Policy: the decision + secret-redaction testers mount ----------
+    // (M753 policy dry-run, M754 redaction check).
+    await nav.getByRole("button", { name: "Policy" }).click();
+    await expect(page.getByRole("heading", { level: 2, name: "Capability policy" })).toBeVisible();
+    await expect(page.getByText("test a decision")).toBeVisible();
+    await expect(page.getByRole("heading", { level: 2, name: "Secret redaction" })).toBeVisible();
+
+    // --- Search: the journal's tamper-evident hash chain verifies clean -
+    // (M759 integrity verify). The seeded run wrote hash-linked events.
+    await nav.getByRole("button", { name: "Search" }).click();
+    const verify = page.getByRole("button", { name: /verify integrity/ });
+    await expect(verify).toBeVisible();
+    await verify.click();
+    await expect(page.getByText("chain intact")).toBeVisible();
+
     expect(errors, `console errors:\n${errors.join("\n")}`).toEqual([]);
   });
 });
