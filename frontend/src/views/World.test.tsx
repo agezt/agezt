@@ -12,7 +12,7 @@ vi.mock("@/lib/api", () => ({
   postAction: (...a: unknown[]) => postAction(...a),
 }));
 
-import { WorldAddForm, WorldRelateForm, WorldEditForm } from "@/views/World";
+import { WorldAddForm, WorldRelateForm, WorldEditForm, parseWorldJSON } from "@/views/World";
 import { UIProvider } from "@/components/ui/feedback";
 
 function withUI(node: ReactNode) {
@@ -25,6 +25,56 @@ beforeEach(() => {
   postJSON.mockResolvedValue({ id: "ent-1" });
   postAction.mockReset();
   postAction.mockResolvedValue({ id: "rel-1" });
+});
+
+describe("parseWorldJSON (M751)", () => {
+  const exported = {
+    version: 1,
+    world: {
+      entities: [
+        { id: "e-alice", kind: "person", name: "Alice", weight: 3, created_ms: 1, aliases: ["al"], attrs: { role: "owner" } },
+        { id: "e-proj", kind: "project", name: "AGEZT", last_seen_ms: 9 },
+        { id: "e-empty", name: "  " }, // nameless → dropped
+      ],
+      edges: [
+        { id: "r-1", from: "e-alice", verb: "owns", to: "e-proj", weight: 2 },
+        { id: "r-2", from: "e-alice", verb: "missing_target", to: "e-ghost" }, // unresolved target → kept as raw id
+      ],
+    },
+  };
+
+  it("reads the {world:{…}} wrapper and the bare {entities,edges} shape", () => {
+    expect(parseWorldJSON(JSON.stringify(exported)).entities).toHaveLength(2);
+    expect(parseWorldJSON(JSON.stringify(exported.world)).entities).toHaveLength(2);
+  });
+
+  it("keeps name/kind/aliases/attrs and drops kernel id/weight/timestamps", () => {
+    const { entities } = parseWorldJSON(JSON.stringify(exported));
+    expect(entities[0]).toEqual({ name: "Alice", kind: "person", aliases: ["al"], attrs: { role: "owner" } });
+    expect(entities[0]).not.toHaveProperty("id");
+    expect(entities[0]).not.toHaveProperty("weight");
+    expect(entities[1]).toEqual({ name: "AGEZT", kind: "project" });
+  });
+
+  it("resolves relation endpoints from entity ids back to names", () => {
+    const { relations } = parseWorldJSON(JSON.stringify(exported));
+    // First edge resolves both ids → names; second keeps the raw id for the unknown target.
+    expect(relations[0]).toEqual({ from: "Alice", verb: "owns", to: "AGEZT" });
+    expect(relations[1]).toEqual({ from: "Alice", verb: "missing_target", to: "e-ghost" });
+  });
+
+  it("treats from/to as names when no matching id exists (hand-written file)", () => {
+    const { relations } = parseWorldJSON(
+      JSON.stringify({ entities: [{ name: "Bob" }, { name: "Carol" }], edges: [{ from: "Bob", verb: "knows", to: "Carol" }] }),
+    );
+    expect(relations[0]).toEqual({ from: "Bob", verb: "knows", to: "Carol" });
+  });
+
+  it("throws on invalid JSON, a shape with no entities array, or no valid entities", () => {
+    expect(() => parseWorldJSON("nope")).toThrow();
+    expect(() => parseWorldJSON('{"foo":1}')).toThrow(/entities array/);
+    expect(() => parseWorldJSON('{"entities":[{}]}')).toThrow(/no valid entities/);
+  });
 });
 
 describe("WorldAddForm", () => {
