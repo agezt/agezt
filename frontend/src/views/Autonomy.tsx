@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Waves, RefreshCw, CalendarClock, Anchor, ShieldCheck, Sparkles, Radio, MessagesSquare, Play, Pause, Heart, Zap } from "lucide-react";
+import { Waves, RefreshCw, CalendarClock, Anchor, ShieldCheck, Sparkles, Radio, MessagesSquare, Play, Pause, Heart, Zap, Eye, Plus } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { getJSON, postAction } from "@/lib/api";
 import { useUI } from "@/components/ui/feedback";
@@ -188,6 +188,9 @@ export function PulseControl() {
   const [st, setSt] = useState<PulseStatus | null>(null);
   const [busy, setBusy] = useState(false);
   const [beating, setBeating] = useState(false);
+  const [showWatch, setShowWatch] = useState(false);
+  const [watchPath, setWatchPath] = useState("");
+  const [watchPct, setWatchPct] = useState("10");
 
   async function load() {
     try {
@@ -268,6 +271,21 @@ export function PulseControl() {
     }
   }
 
+  // Add a disk watch (M767): the agent will alert when free space on a path drops
+  // below the threshold. Takes effect on the next beat.
+  async function addWatch() {
+    if (!watchPath.trim()) return;
+    try {
+      const r = await postAction<{ observer?: string }>("/api/pulse/watch", { path: watchPath.trim(), min_pct: watchPct });
+      ui.toast(`Now watching ${r?.observer || watchPath.trim()} — alerts under ${watchPct}% free`, "success");
+      setWatchPath("");
+      setShowWatch(false);
+      await load();
+    } catch (e) {
+      ui.toast((e as Error).message, "error");
+    }
+  }
+
   if (!st) return null;
   if (!st.enabled) {
     return (
@@ -280,7 +298,8 @@ export function PulseControl() {
   const paused = !!st.paused;
   const curSec = st.cadence_ms ? Math.round(st.cadence_ms / 1000) : 0;
   return (
-    <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-card px-3 py-2">
+    <div className="space-y-2 rounded-lg border border-border bg-card px-3 py-2">
+      <div className="flex flex-wrap items-center gap-2">
       <Heart className={cn("size-4", paused ? "text-muted" : "animate-pulse fill-current text-bad")} />
       <span className="text-sm font-semibold">Proactive heartbeat</span>
       <span
@@ -340,6 +359,44 @@ export function PulseControl() {
         {busy ? <RefreshCw className="size-3.5 animate-spin" /> : paused ? <Play className="size-3.5" /> : <Pause className="size-3.5" />}
         {paused ? "Resume" : "Pause"}
       </Button>
+      </div>
+
+      {/* Add a disk watch (M767) */}
+      <div className="flex flex-wrap items-center gap-1.5 border-t border-border/60 pt-2 text-[11px] text-muted">
+        <button
+          onClick={() => setShowWatch((v) => !v)}
+          className="inline-flex items-center gap-1 text-accent/80 transition-colors hover:text-accent"
+          title="Have the agent watch a disk and alert when it's low on space"
+        >
+          <Eye className="size-3" /> {showWatch ? "cancel" : "watch a disk"}
+        </button>
+        {showWatch && (
+          <>
+            <input
+              value={watchPath}
+              onChange={(e) => setWatchPath(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") addWatch(); }}
+              placeholder="path (e.g. / or C:\\)"
+              aria-label="Watch disk path"
+              className="h-7 w-40 rounded-md border border-border bg-panel px-2 font-mono text-xs text-foreground outline-none focus-visible:border-accent"
+            />
+            <span>alert under</span>
+            <input
+              type="number"
+              min={1}
+              max={99}
+              value={watchPct}
+              onChange={(e) => setWatchPct(e.target.value)}
+              aria-label="Watch min percent free"
+              className="h-7 w-16 rounded-md border border-border bg-panel px-2 text-xs text-foreground outline-none focus-visible:border-accent"
+            />
+            <span>% free</span>
+            <Button size="sm" onClick={addWatch} disabled={!watchPath.trim()}>
+              <Plus className="size-3.5" /> Watch
+            </Button>
+          </>
+        )}
+      </div>
     </div>
   );
 }

@@ -110,6 +110,19 @@ describe("PulseControl", () => {
     expect(sel.value).toBe("balanced");
   });
 
+  it("adds a disk watch via /api/pulse/watch (M767)", async () => {
+    postAction.mockResolvedValue({ added: true, observer: "disk:/data" });
+    getJSON.mockResolvedValue({ enabled: true, paused: false, beats: 2, cadence_ms: 60000 });
+    render(withUI(<PulseControl />));
+    // The form is collapsed until "watch a disk" is clicked.
+    expect(screen.queryByLabelText("Watch disk path")).toBeNull();
+    fireEvent.click(await screen.findByRole("button", { name: /watch a disk/ }));
+    fireEvent.change(screen.getByLabelText("Watch disk path"), { target: { value: "/data" } });
+    fireEvent.change(screen.getByLabelText("Watch min percent free"), { target: { value: "15" } });
+    fireEvent.click(screen.getByRole("button", { name: /Watch/ }));
+    await waitFor(() => expect(postAction).toHaveBeenCalledWith("/api/pulse/watch", { path: "/data", min_pct: "15" }));
+  });
+
   it("shows a Flush digest button only when items are held, and flushes them (M761)", async () => {
     postAction.mockResolvedValue({ flushed: 3 });
     getJSON.mockResolvedValue({ enabled: true, paused: false, beats: 5, cadence_ms: 60000, digest_pending: 3 });

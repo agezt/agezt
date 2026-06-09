@@ -191,6 +191,24 @@ func TestFlushDigestDeliversAndClears(t *testing.T) {
 	}
 }
 
+// TestAddObserverIsPolledNextBeat: a runtime-added observer (M767) appears in Status
+// and is polled on the next beat.
+func TestAddObserverIsPolledNextBeat(t *testing.T) {
+	e, j := newEngine(t, Config{}) // no initial observers
+	obs := &fakeObserver{name: "disk:/test", deltas: []Delta{{Source: "s", Kind: "k", Summary: "x", Hints: map[string]string{"severity": "high"}}}}
+
+	if name := e.AddObserver(obs); name != "disk:/test" {
+		t.Fatalf("AddObserver returned %q", name)
+	}
+	if got := e.Status().Observers; len(got) != 1 || got[0] != "disk:/test" {
+		t.Fatalf("Status observers = %v, want [disk:/test]", got)
+	}
+	e.tickOnce(context.Background())
+	if countKind(t, j, event.KindSalienceScored) < 1 {
+		t.Fatal("the runtime-added observer should have been polled on the next beat")
+	}
+}
+
 func TestTickEmitsFullChain(t *testing.T) {
 	sink := &capturingSink{}
 	obs := &fakeObserver{name: "fake", deltas: []Delta{{

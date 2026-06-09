@@ -144,6 +144,20 @@ func TestPulseStatusPauseResumeWithEngine(t *testing.T) {
 		t.Fatalf("flush should have called the engine once, got %d", fp.flushed)
 	}
 
+	// SetDiskWatch + pulse_watch (M767): the wired callback builds + names the observer.
+	srv.SetDiskWatch(func(path string, minPct float64) (string, bool) { return "disk:" + path, minPct > 0 })
+	wres, err := c.Call(ctx, controlplane.CmdPulseWatch, map[string]any{"path": "/data", "min_pct": 10})
+	if err != nil {
+		t.Fatalf("pulse_watch: %v", err)
+	}
+	if name, _ := wres["observer"].(string); name != "disk:/data" {
+		t.Fatalf("expected observer disk:/data, got %v", wres["observer"])
+	}
+	// An out-of-range threshold is rejected.
+	if _, err := c.Call(ctx, controlplane.CmdPulseWatch, map[string]any{"path": "/data", "min_pct": 150}); err == nil {
+		t.Error("min_pct of 150 should be rejected")
+	}
+
 	// Persistence (M760): cadence + dial are written to the config store so they
 	// survive restart (buildPulse reads these env vars, overlaid from the store).
 	store := settings.NewStore(baseDir)

@@ -973,6 +973,11 @@ func runDaemon(stdout, stderr io.Writer) int {
 	if eng, pulseDesc := buildPulse(k, ward, model, stdout, combineSinks(tgSink, slSink, dcSink, whSink, emSink, mxSink, smSink, waSink, haSink, tmSink, sgSink)); eng != nil {
 		eng.Start(ctx)
 		srv.SetPulse(eng)
+		// Runtime disk watches (M767): build the observer here (the daemon owns the
+		// DiskUsage func) and register it on the live engine.
+		srv.SetDiskWatch(func(path string, minPct float64) (string, bool) {
+			return eng.AddObserver(pulse.NewDiskObserver(path, minPct, pulse.DiskUsage)), true
+		})
 		fmt.Fprintf(stdout, "  pulse            : %s\n", pulseDesc)
 	} else {
 		fmt.Fprintf(stdout, "  pulse            : disabled (AGEZT_PULSE=off)\n")

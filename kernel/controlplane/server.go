@@ -62,6 +62,12 @@ type Server struct {
 	// the id is unknown. Nil until wired; the handler reports that.
 	standingFire func(id string) bool
 
+	// diskWatch adds a pulse disk-space observer at runtime (M767), injected by
+	// the daemon via SetDiskWatch (the daemon constructs the observer with its
+	// DiskUsage func, keeping this package decoupled from kernel/pulse). Returns
+	// the observer name + ok. Nil when pulse is disabled; the handler reports that.
+	diskWatch func(path string, minPct float64) (string, bool)
+
 	// tenants is the optional multi-tenant registry, injected by the daemon
 	// via SetTenants. Nil unless multi-tenancy is enabled; the tenant handlers
 	// report "disabled" rather than dereferencing it.
@@ -725,6 +731,8 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.handlePulseDial(conn, req)
 	case CmdPulseFlush:
 		s.handlePulseFlush(conn, req)
+	case CmdPulseWatch:
+		s.handlePulseWatch(conn, req)
 	case CmdInbox:
 		s.handleInbox(conn, req)
 	case CmdSend:
