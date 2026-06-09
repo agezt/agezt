@@ -167,6 +167,9 @@ var writeRoutes = map[string]writeRoute{
 	// Pulse pause/resume (M743): the proactive-heartbeat master switch. No args.
 	"/api/pulse/pause":  {controlplane.CmdPulsePause, nil},
 	"/api/pulse/resume": {controlplane.CmdPulseResume, nil},
+	// Reload catalog + providers in place (M745): apply credential/catalog changes
+	// without a daemon restart. No args.
+	"/api/provider/reload": {controlplane.CmdProviderReload, nil},
 	"/api/cancel_run":       {controlplane.CmdCancelRun, []string{"correlation"}},
 	"/api/budget_set":       {controlplane.CmdBudgetSet, []string{"ceiling_mc"}},
 	"/api/run/pause":        {controlplane.CmdRunPause, []string{"correlation"}},
