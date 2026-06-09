@@ -36,7 +36,13 @@ export function getTheme(): Theme {
 // toggleTheme flips dark/light, applies it, and notifies every subscriber, so both
 // the header button and the command palette re-render in lockstep.
 export function toggleTheme(): void {
-  current = current === "dark" ? "light" : "dark";
+  setTheme(current === "dark" ? "light" : "dark");
+}
+
+// setTheme sets a specific theme (used by appearance import). No-op if unchanged.
+export function setTheme(theme: Theme): void {
+  if (theme === current) return;
+  current = theme;
   applyTheme();
   for (const l of listeners) l();
 }

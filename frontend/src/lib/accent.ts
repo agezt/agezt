@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useSyncExternalStore } from "react";
 
 // Accent theming (M716): the UI's accent colour is the one brand knob that makes
 // the console feel "yours". We customize only the HUE — lightness and chroma stay
@@ -47,24 +47,38 @@ export function applyAccentHue(hue: number): void {
   else root.style.setProperty("--accent-hue", String(hue));
 }
 
+// Shared store: a single current hue + subscribers, so the header picker and any
+// external setter (appearance import) stay in lockstep — like lib/theme. (The old
+// per-hook useState meant an import couldn't update the picker's highlighted swatch.)
+let currentHue = loadAccentHue();
+const listeners = new Set<() => void>();
+
+// saveAccentHue persists, applies, and notifies — the one setter everything uses.
 export function saveAccentHue(hue: number): void {
+  currentHue = hue;
   try {
     localStorage.setItem(KEY, String(hue));
   } catch {
     /* storage unavailable — appearance is best-effort */
   }
   applyAccentHue(hue);
+  for (const l of listeners) l();
+}
+
+export function getAccentHue(): number {
+  return currentHue;
 }
 
 // useAccent is the component-facing hook: current hue + a setter that persists and
-// applies immediately.
+// applies immediately, re-rendering every consumer on change.
 export function useAccent() {
-  const [hue, setHue] = useState<number>(() => loadAccentHue());
-  return {
-    hue,
-    setHue: (h: number) => {
-      setHue(h);
-      saveAccentHue(h);
+  const hue = useSyncExternalStore(
+    (cb) => {
+      listeners.add(cb);
+      return () => listeners.delete(cb);
     },
-  };
+    getAccentHue,
+    getAccentHue,
+  );
+  return { hue, setHue: saveAccentHue };
 }

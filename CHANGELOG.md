@@ -12,6 +12,20 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Portable console appearance — back up & restore your look.** Your per-device console look
+  (theme, accent hue, console name) can now be **exported** to a file and **imported** on another
+  browser or machine, from the ⌘K palette ("Export / Import appearance settings"). The bundle is a
+  small `{version, appearance:{theme, accentHue, consoleName}}` JSON; import keeps only recognised,
+  valid fields (a foreign or garbage file can't poison the look, and an unusable file shows
+  "Import failed" without changing anything). As part of this, **accent and console-name were
+  refactored to the same shared-store pattern as theme** (`useSyncExternalStore`), so an import now
+  updates the header's accent picker and rename control **live, without a reload** — the old
+  per-hook state would have left them stale. Tests cover the bundle (`parseAppearanceJSON` shapes,
+  wrapper, field validation, hue normalisation, error cases; export/apply round-trip). Verified
+  live on an isolated daemon: exported the default look, imported a crafted `light / hue 150 /
+  "Jarvis"` bundle — theme, accent **and** the header name updated instantly — then re-imported the
+  default to revert, all live; a malformed file surfaced "Import failed" and left the look
+  untouched; 0 console errors. (M735)
 - **⌘K: open a run.** The command palette's placeholder long promised "…open a run", but only
   views and actions were listed. Now the palette includes your **recent runs** (refreshed each
   time it opens): pick one and it jumps to the Runs view, **expands that run's detail and scrolls

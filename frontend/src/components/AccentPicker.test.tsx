@@ -2,8 +2,12 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import { AccentPicker } from "@/components/AccentPicker";
+import { saveAccentHue, DEFAULT_HUE } from "@/lib/accent";
 
 beforeEach(() => {
+  // Accent is a shared module store (so external setters stay in sync); reset it to
+  // the default between tests, then clear storage so persistence assertions start clean.
+  saveAccentHue(DEFAULT_HUE);
   localStorage.clear();
   document.documentElement.style.removeProperty("--accent-hue");
 });
@@ -20,7 +24,7 @@ describe("AccentPicker", () => {
   });
 
   it("marks the active accent as pressed", () => {
-    localStorage.setItem("agezt-accent-hue", "150");
+    saveAccentHue(150); // set via the shared store (what the component now reads)
     render(<AccentPicker />);
     fireEvent.click(screen.getByLabelText("Accent colour"));
     expect(screen.getByLabelText("Green").getAttribute("aria-pressed")).toBe("true");
