@@ -2,10 +2,10 @@ import { useEffect, useState } from "react";
 import { Wrench, RefreshCw, Activity, AlertTriangle } from "lucide-react";
 import { getJSON } from "@/lib/api";
 import { useEvents } from "@/lib/events";
-import { pct } from "@/lib/format";
 import { cn, clip, fmtTime } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Muted, ErrorText } from "@/components/JsonView";
+import { Ring } from "@/components/Widgets";
 
 interface ToolStat {
   calls?: number;
@@ -71,6 +71,7 @@ export function Tools() {
   const byTool = stats?.by_tool || {};
   const tools = Object.entries(byTool).sort((a, b) => (b[1].calls || 0) - (a[1].calls || 0));
   const maxCalls = Math.max(1, ...tools.map(([, t]) => t.calls || 0));
+  const errPct = Math.round((stats?.error_rate ?? 0) * 100);
 
   return (
     <div className="space-y-4">
@@ -89,10 +90,17 @@ export function Tools() {
         <Muted>loading…</Muted>
       ) : (
         <>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <div className="flex items-center justify-center rounded-lg border border-border bg-card p-3">
+              <Ring
+                pct={errPct}
+                center={stats.total ? `${errPct}%` : "—"}
+                label="error rate"
+                tone={!stats.total ? "muted" : errPct === 0 ? "good" : errPct < 10 ? "warn" : "bad"}
+              />
+            </div>
             <Tile icon={Activity} label="calls" value={(stats.total ?? 0).toLocaleString()} tone="accent" />
             <Tile icon={AlertTriangle} label="errored" value={stats.errored ?? 0} tone={(stats.errored ?? 0) > 0 ? "bad" : "muted"} />
-            <Tile icon={AlertTriangle} label="error rate" value={pct(stats.error_rate, stats.total)} tone="muted" />
             <Tile icon={Wrench} label="tools used" value={stats.tools ?? tools.length} tone="muted" />
           </div>
 
