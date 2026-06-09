@@ -12,6 +12,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Budget view goes visual — spend ring + per-task bars.** The Budget cockpit now
+  leads with a circular spend gauge (today's spend as a % of the daily ceiling,
+  green/amber/red, or ∞ when uncapped) beside the figures, and the per-task-type
+  caps are rendered as used-vs-cap bars instead of a flat table — while keeping the
+  runtime ceiling control (input + $5/$20/$50/$100 presets + Unlimited). Reuses the
+  M660 widget kit. Verified live with zero console errors. (M662)
 - **Health cockpit — the daemon's vital signs at a glance.** A new Monitor view
   reads system health as gauges and sparklines: success-rate, error-rate, and
   provider-fallback rings (green/amber/red by threshold), uptime, a live activity
