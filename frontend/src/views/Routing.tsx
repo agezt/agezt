@@ -1,0 +1,219 @@
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Route, RefreshCw, Save, ArrowUp, ArrowDown, X, Plus, Zap } from "lucide-react";
+import { getJSON, postJSON } from "@/lib/api";
+import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { ErrorText } from "@/components/JsonView";
+import { SkeletonList } from "@/components/ui/skeleton";
+import { useUI } from "@/components/ui/feedback";
+import { ModelPicker } from "@/components/ModelPicker";
+
+// Routing lets you give each agentic job (task type) its own ORDERED model chain:
+// a primary model plus fallback models tried in turn (each routes to its serving
+// provider). It drives the governor's per-task model fallback (M703) — edits apply
+// live and persist. The main chat loop is "chat"; delegated sub-agents are
+// "delegate"; the rest are the daemon's internal jobs (plan, verify, …).
+
+const TASK_HELP: Record<string, string> = {
+  chat: "The main chat / agent loop.",
+  plan: "Planning a multi-step task.",
+  code: "Code-generation steps.",
+  verify: "Checking whether a task is complete.",
+  summarize: "Compressing context / eliding tool output.",
+  salience: "Scoring memory salience.",
+  distill: "Distilling tool outputs into facts.",
+  forge: "Authoring new skills.",
+  "shadow-eval": "Judging shadow skills.",
+  delegate: "Delegated sub-agents (the delegate tool).",
+};
+
+interface RoutingResp {
+  task_types?: string[];
+  chains?: Record<string, string[]>;
+}
+
+export function Routing() {
+  const { toast } = useUI();
+  const [taskTypes, setTaskTypes] = useState<string[]>([]);
+  const [chains, setChains] = useState<Record<string, string[]>>({});
+  const [saved, setSaved] = useState<Record<string, string[]>>({});
+  const [err, setErr] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const reload = useCallback(async () => {
+    setLoading(true);
+    try {
+      const r = await getJSON<RoutingResp>("/api/routing");
+      setTaskTypes(r.task_types || []);
+      setChains(r.chains || {});
+      setSaved(r.chains || {});
+      setErr(null);
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    reload();
+  }, [reload]);
+
+  // The union of known task types and any custom ones already configured.
+  const rows = useMemo(() => {
+    const set = new Set<string>([...taskTypes, ...Object.keys(chains)]);
+    return [...set].sort((a, b) => {
+      const ia = taskTypes.indexOf(a);
+      const ib = taskTypes.indexOf(b);
+      if (ia >= 0 && ib >= 0) return ia - ib;
+      if (ia >= 0) return -1;
+      if (ib >= 0) return 1;
+      return a.localeCompare(b);
+    });
+  }, [taskTypes, chains]);
+
+  const dirty = useMemo(() => JSON.stringify(chains) !== JSON.stringify(saved), [chains, saved]);
+
+  function setChain(task: string, models: string[]) {
+    setChains((c) => {
+      const next = { ...c };
+      if (models.length === 0) delete next[task];
+      else next[task] = models;
+      return next;
+    });
+  }
+  const addModel = (task: string, id: string) => {
+    if (!id) return;
+    const cur = chains[task] || [];
+    if (cur.includes(id)) {
+      toast(`${id} is already in the ${task} chain`, "info");
+      return;
+    }
+    setChain(task, [...cur, id]);
+  };
+  const removeAt = (task: string, i: number) => setChain(task, (chains[task] || []).filter((_, j) => j !== i));
+  const move = (task: string, i: number, dir: -1 | 1) => {
+    const cur = [...(chains[task] || [])];
+    const j = i + dir;
+    if (j < 0 || j >= cur.length) return;
+    [cur[i], cur[j]] = [cur[j], cur[i]];
+    setChain(task, cur);
+  };
+
+  async function save() {
+    setSaving(true);
+    try {
+      const r = await postJSON<{ unknown_models?: string[]; task_count?: number }>("/api/routing/set", { chains });
+      setSaved(chains);
+      if (r.unknown_models?.length) {
+        toast(`Saved — but ${r.unknown_models.length} model(s) aren't in the catalog: ${r.unknown_models.join(", ")}`, "info");
+      } else {
+        toast(`Routing saved (${r.task_count ?? 0} task chain${r.task_count === 1 ? "" : "s"})`, "success");
+      }
+    } catch (e) {
+      toast((e as Error).message, "error");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <h2 className="flex items-center gap-2 text-sm font-semibold">
+          <Route className="size-4 text-accent" /> Routing
+        </h2>
+        <span className="text-xs text-muted">per-task model chains</span>
+        <div className="ml-auto flex items-center gap-2">
+          <Button size="sm" onClick={save} disabled={!dirty || saving} title="Save routing">
+            {saving ? <RefreshCw className="size-3.5 animate-spin" /> : <Save className="size-3.5" />} Save
+          </Button>
+          <Button variant="ghost" size="sm" onClick={reload} disabled={loading} title="Reload">
+            <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
+          </Button>
+        </div>
+      </div>
+
+      <p className="text-xs text-muted">
+        Give each agentic job its own ordered model chain: the <span className="text-foreground/80">primary</span> model
+        is tried first, then each <span className="text-foreground/80">fallback</span> in turn (each routes to its keyed
+        provider). Leave a task empty to use the daemon default. Changes apply live and persist.
+      </p>
+
+      {err ? (
+        <ErrorText>{err}</ErrorText>
+      ) : loading && !rows.length ? (
+        <SkeletonList count={6} lines={2} />
+      ) : (
+        <div className="space-y-2">
+          {rows.map((task) => (
+            <ChainRow
+              key={task}
+              task={task}
+              models={chains[task] || []}
+              onAdd={(id) => addModel(task, id)}
+              onRemove={(i) => removeAt(task, i)}
+              onMove={(i, d) => move(task, i, d)}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ChainRow({
+  task,
+  models,
+  onAdd,
+  onRemove,
+  onMove,
+}: {
+  task: string;
+  models: string[];
+  onAdd: (id: string) => void;
+  onRemove: (i: number) => void;
+  onMove: (i: number, dir: -1 | 1) => void;
+}) {
+  return (
+    <div className="rounded-lg border border-border bg-card p-3">
+      <div className="mb-2 flex items-baseline gap-2">
+        <h3 className="font-mono text-sm font-semibold text-foreground">{task}</h3>
+        <span className="text-[11px] text-muted">{TASK_HELP[task] || "Custom task type."}</span>
+        {models.length === 0 && <span className="ml-auto text-[10px] uppercase tracking-wide text-muted">daemon default</span>}
+      </div>
+
+      {models.length > 0 && (
+        <ol className="mb-2 space-y-1">
+          {models.map((m, i) => (
+            <li key={`${m}-${i}`} className="flex items-center gap-2 rounded-md border border-border/60 bg-panel/40 px-2 py-1 text-xs">
+              {i === 0 ? (
+                <span className="inline-flex items-center gap-0.5 rounded bg-accent/15 px-1.5 py-0.5 text-[9px] font-medium uppercase text-accent">
+                  <Zap className="size-2.5" /> primary
+                </span>
+              ) : (
+                <span className="rounded bg-panel px-1.5 py-0.5 text-[9px] font-medium uppercase text-muted">fallback {i}</span>
+              )}
+              <span className="min-w-0 flex-1 truncate font-mono text-foreground/90">{m}</span>
+              <button onClick={() => onMove(i, -1)} disabled={i === 0} className="text-muted transition-colors hover:text-foreground disabled:opacity-30" title="Move up">
+                <ArrowUp className="size-3.5" />
+              </button>
+              <button onClick={() => onMove(i, 1)} disabled={i === models.length - 1} className="text-muted transition-colors hover:text-foreground disabled:opacity-30" title="Move down">
+                <ArrowDown className="size-3.5" />
+              </button>
+              <button onClick={() => onRemove(i)} className="text-muted transition-colors hover:text-bad" title="Remove">
+                <X className="size-3.5" />
+              </button>
+            </li>
+          ))}
+        </ol>
+      )}
+
+      <div className="flex items-center gap-1.5 text-[11px] text-muted">
+        <Plus className="size-3" />
+        <ModelPicker value="" activeModel={models.length ? "add a fallback model" : "add the primary model"} onChange={onAdd} />
+      </div>
+    </div>
+  );
+}

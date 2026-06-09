@@ -12,6 +12,22 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Routing view — edit each task's model chain from the Web UI.** A new
+  **System → Routing** view turns the M703 per-task fallback chains into a visual
+  editor: one card per task type (`chat`, `plan`, `code`, `verify`, `summarize`,
+  `salience`, `distill`, `forge`, `shadow-eval`, `delegate`, plus any custom ones),
+  each showing its **ordered model chain** — a `primary` badge then numbered
+  `fallback` rows — built with the keyed-only `ModelPicker` plus per-model
+  reorder (up/down) and remove controls. An empty task reads "daemon default".
+  **Save** posts the whole map to `POST /api/routing/set` (which applies live and
+  persists), is disabled until you make a change, and toasts the result (flagging
+  any models not in the catalog). Component tests cover row rendering, chain
+  display, reorder, remove, and the save payload. Verified live (isolated daemon):
+  rows render for all 10 task types; pre-set chains (env + saved) render with the
+  right primary/fallbacks; reorder→Save persisted `["gpt-4o","deepseek-chat"]` and
+  survived a reload; 0 console errors. Also hardened: API JSON responses now send
+  `Cache-Control: no-store` (`writeJSON`), so a browser can never serve a stale
+  cached body after a mutation. (M704)
 - **Per-task model fallback chains — different models, with different fallbacks,
   per agentic job.** The governor can now run each task type through an *ordered
   chain of models* (`AGEZT_TASK_MODEL_CHAINS="chat=claude-opus-4-7,gpt-5,deepseek-chat;

@@ -40,6 +40,19 @@ func TestRoutingSetRoute_ForwardsChains(t *testing.T) {
 	}
 }
 
+func TestAPIResponsesAreNoStore(t *testing.T) {
+	// API JSON is live daemon state; a stale browser cache must never resurrect an
+	// old body after a mutation (the bug that masked saved routing chains on reload).
+	fc := &fakeCaller{result: map[string]any{"chains": map[string]any{}, "task_types": []any{"chat"}}}
+	s, _ := newServer(t, fc, "secret")
+	req := httptest.NewRequest(http.MethodGet, "/api/routing?token=secret", nil)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+	if got := rec.Header().Get("Cache-Control"); got != "no-store" {
+		t.Fatalf("Cache-Control = %q, want no-store", got)
+	}
+}
+
 func TestRoutingSetRoute_RejectsGET(t *testing.T) {
 	fc := &fakeCaller{result: map[string]any{"ok": true}}
 	s, _ := newServer(t, fc, "secret")
