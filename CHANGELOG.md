@@ -12,6 +12,15 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Premium motion + a live "working" pulse in Chat.** The console now feels alive:
+  every view fades and rises in on navigation (a keyed remount + a soft cubic-bezier
+  transition), chat messages ease in as they arrive, and while the agent is working
+  Chat shows a pulsing indicator with what it's doing right now ("running shell…",
+  "thinking…") and a ticking elapsed timer — so a run feels like watching a powerful
+  agent at work instead of a static spinner. All motion honors the OS
+  `prefers-reduced-motion` setting (no decorative animation for users who ask for
+  less). Verified live: view transitions, message ease-in, and a streaming run with
+  tool chips + the live timer all worked with zero console errors. (M668)
 - **Policy shows the security posture at a glance.** The Capability policy view now
   opens with a trust-level distribution bar — a stacked, semantically-colored
   breakdown from L0 (deny, red) through L4 (allow, green) with a count chip per

@@ -244,7 +244,9 @@ export function Chat() {
           ) : (
             <div className="space-y-4 py-2">
               {messages.map((m, i) => (
-                <MessageRow key={i} msg={m} />
+                <div key={i} className="msg-in">
+                  <MessageRow msg={m} />
+                </div>
               ))}
             </div>
           )}
@@ -340,7 +342,13 @@ function MessageRow({ msg }: { msg: Msg }) {
 function AssistantBubble({ turn }: { turn: ChatTurn }) {
   const text = turnText(turn);
   const streaming = turn.status === "streaming";
-  const thinking = streaming && !text && turn.tools.length === 0 && !turn.reasoning;
+  // The most recent tool that hasn't produced output yet is the one in flight.
+  const running = streaming ? [...turn.tools].reverse().find((t) => !t.output && t.allow !== false) : undefined;
+  // Show the live working indicator during the pre-answer phase whenever a tool
+  // is actually running (the satisfying "watch it work" moment), or when there's
+  // no reasoning stream to stand in for it. While a reasoning model is only
+  // thinking (no tool yet), its own live "Thinking…" header covers it.
+  const working = streaming && !text && (!!running || !turn.reasoning);
 
   return (
     <div className="flex gap-2">
@@ -358,10 +366,8 @@ function AssistantBubble({ turn }: { turn: ChatTurn }) {
           </div>
         )}
 
-        {thinking ? (
-          <div className="flex items-center gap-2 text-sm text-muted">
-            <Loader2 className="size-4 animate-spin" /> thinking…
-          </div>
+        {working ? (
+          <WorkingIndicator running={running?.tool} />
         ) : (
           text &&
           // While streaming, render plain text (an unclosed code fence would
@@ -391,6 +397,27 @@ function AssistantBubble({ turn }: { turn: ChatTurn }) {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+// WorkingIndicator is the live "the agent is working" pulse: a soft pulsing dot,
+// what it's doing right now (running a specific tool, or thinking), and a ticking
+// elapsed timer — so a run feels alive and you can see the agent at work rather
+// than staring at a static spinner.
+function WorkingIndicator({ running }: { running?: string }) {
+  const [elapsed, setElapsed] = useState(0);
+  useEffect(() => {
+    const start = Date.now();
+    const id = window.setInterval(() => setElapsed((Date.now() - start) / 1000), 100);
+    return () => window.clearInterval(id);
+  }, []);
+  const label = running ? `running ${running}…` : "thinking…";
+  return (
+    <div className="flex items-center gap-2 text-sm text-muted">
+      <span className="work-pulse size-2.5 rounded-full bg-accent" />
+      <span>{label}</span>
+      <span className="tabular-nums text-xs text-muted/70">{elapsed.toFixed(1)}s</span>
     </div>
   );
 }
