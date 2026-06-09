@@ -3,6 +3,7 @@ import { Boxes, RefreshCw } from "lucide-react";
 import { getJSON, postAction } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { useUI } from "@/components/ui/feedback";
 import { Muted, ErrorText } from "@/components/JsonView";
 import { joinCatalog, levelTone, type CatalogTool, type CatalogRow, type ToolUsage } from "@/lib/catalog";
 
@@ -15,6 +16,7 @@ const LEVELS = ["L0", "L1", "L2", "L3", "L4"];
 // (granted/restricted at runtime via Policy), and how much it's been used. The
 // "what can my agent do, and under what policy" view — fully observable.
 export function Catalog() {
+  const ui = useUI();
   const [rows, setRows] = useState<CatalogRow[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -49,9 +51,10 @@ export function Catalog() {
     setBusy(capability);
     try {
       await postAction("/api/edict/set_level", { capability, level });
+      ui.toast(`${capability} → ${level}`, "success");
       await reload();
     } catch (e) {
-      setErr((e as Error).message);
+      ui.toast((e as Error).message, "error");
     } finally {
       setBusy(null);
     }

@@ -3,6 +3,7 @@ import { RefreshCw, ShieldCheck, Trash2 } from "lucide-react";
 import { Panel, Stats, Row, Count } from "@/components/Panel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { useUI, type ConfirmOptions } from "@/components/ui/feedback";
 import { LogDetail } from "@/components/LogDetail";
 import { getJSON, postAction } from "@/lib/api";
 import { byDescValue, pct } from "@/lib/format";
@@ -81,6 +82,7 @@ function LevelSummary({ levels }: { levels: [string, string][] }) {
 // engine-wide ask mode and the hard-deny list are editable too. The decision
 // stats + log stay below for context.
 export function Policy() {
+  const ui = useUI();
   const [show, setShow] = useState<EdictShow | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -102,14 +104,20 @@ export function Policy() {
     reload();
   }, [reload]);
 
-  async function act(key: string, path: string, params: Record<string, string>) {
+  async function act(
+    key: string,
+    path: string,
+    params: Record<string, string>,
+    opts?: { confirm?: ConfirmOptions; success?: string },
+  ) {
+    if (opts?.confirm && !(await ui.confirm(opts.confirm))) return;
     setBusy(key);
-    setErr(null);
     try {
       await postAction(path, params);
+      if (opts?.success) ui.toast(opts.success, "success");
       await reload();
     } catch (e) {
-      setErr((e as Error).message);
+      ui.toast((e as Error).message, "error");
     } finally {
       setBusy(null);
     }
@@ -131,7 +139,7 @@ export function Policy() {
               <select
                 value={show?.ask_policy || "allow"}
                 disabled={busy === "mode"}
-                onChange={(e) => act("mode", "/api/edict/set_mode", { mode: e.target.value })}
+                onChange={(e) => act("mode", "/api/edict/set_mode", { mode: e.target.value }, { success: `Ask mode → ${e.target.value}` })}
                 className="h-7 rounded-md border border-border bg-panel px-1.5 text-xs outline-none focus:border-accent disabled:opacity-50"
               >
                 {MODES.map((m) => (
@@ -164,7 +172,7 @@ export function Policy() {
                 <select
                   value={lvl}
                   disabled={busy === cap}
-                  onChange={(e) => act(cap, "/api/edict/set_level", { capability: cap, level: e.target.value })}
+                  onChange={(e) => act(cap, "/api/edict/set_level", { capability: cap, level: e.target.value }, { success: `${cap} → ${e.target.value}` })}
                   className={cn(
                     "ml-auto h-7 rounded-md border bg-card px-1.5 text-xs tabular-nums outline-none focus:border-accent disabled:opacity-50",
                     levelTone(lvl),
@@ -200,7 +208,17 @@ export function Policy() {
                   {/* Only runtime-added rules (named runtime[N]) are removable. */}
                   {r.name.startsWith("runtime") && (
                     <button
-                      onClick={() => act(r.name, "/api/edict/deny_rm", { name: r.name })}
+                      onClick={() =>
+                        act(r.name, "/api/edict/deny_rm", { name: r.name }, {
+                          confirm: {
+                            title: "Remove this deny rule?",
+                            message: `“${r.name}” will be deleted — this loosens the security policy.`,
+                            confirmLabel: "Remove",
+                            danger: true,
+                          },
+                          success: "Deny rule removed",
+                        })
+                      }
                       disabled={busy === r.name}
                       title="Remove this runtime deny rule"
                       className="ml-auto text-muted transition-colors hover:text-bad disabled:opacity-50"

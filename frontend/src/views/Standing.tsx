@@ -3,6 +3,7 @@ import { Anchor, RefreshCw, Pause, Play, Trash2, Clock, Zap, ShieldCheck } from 
 import { getJSON, postAction } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { useUI, type ConfirmOptions } from "@/components/ui/feedback";
 import { Badge } from "@/components/ui/badge";
 import { Muted, ErrorText } from "@/components/JsonView";
 
@@ -27,6 +28,7 @@ interface Order {
 // plan, with pause-resume / remove controls — so the operator can see and govern
 // what the daemon does unprompted.
 export function Standing() {
+  const ui = useUI();
   const [orders, setOrders] = useState<Order[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -51,13 +53,20 @@ export function Standing() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function act(id: string, path: string, params?: Record<string, string>) {
+  async function act(
+    id: string,
+    path: string,
+    params?: Record<string, string>,
+    opts?: { confirm?: ConfirmOptions; success?: string },
+  ) {
+    if (opts?.confirm && !(await ui.confirm(opts.confirm))) return;
     setBusy(id);
     try {
       await postAction(path, { id, ...params });
+      if (opts?.success) ui.toast(opts.success, "success");
       await reload();
     } catch (e) {
-      setErr((e as Error).message);
+      ui.toast((e as Error).message, "error");
     } finally {
       setBusy(null);
     }
@@ -110,7 +119,11 @@ export function Standing() {
                   )}
                   <div className="ml-auto flex items-center gap-1.5">
                     <button
-                      onClick={() => act(o.id, "/api/standing/enable", { enabled: o.enabled ? "false" : "true" })}
+                      onClick={() =>
+                        act(o.id, "/api/standing/enable", { enabled: o.enabled ? "false" : "true" }, {
+                          success: o.enabled ? "Order paused" : "Order resumed",
+                        })
+                      }
                       disabled={busy === o.id}
                       title={o.enabled ? "Pause" : "Resume"}
                       className="text-muted transition-colors hover:text-foreground disabled:opacity-50"
@@ -118,7 +131,19 @@ export function Standing() {
                       {o.enabled ? <Pause className="size-3.5" /> : <Play className="size-3.5" />}
                     </button>
                     <button
-                      onClick={() => act(o.id, "/api/standing/remove")}
+                      onClick={() =>
+                        act(o.id, "/api/standing/remove", undefined, {
+                          confirm: {
+                            title: "Remove this standing order?",
+                            message: o.name
+                              ? `“${o.name}” will stop firing and be permanently deleted.`
+                              : "This standing order will stop firing and be permanently deleted.",
+                            confirmLabel: "Remove",
+                            danger: true,
+                          },
+                          success: "Standing order removed",
+                        })
+                      }
                       disabled={busy === o.id}
                       title="Remove"
                       className="text-muted transition-colors hover:text-bad disabled:opacity-50"
