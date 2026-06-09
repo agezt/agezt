@@ -154,6 +154,8 @@ var readArgsRoutes = map[string]writeRoute{
 	// Provider keyring list (M700): labels + active + last-4 for one env var.
 	// Read-only — values never leave the daemon.
 	"/api/provider/keys": {controlplane.CmdProviderKeyList, []string{"env"}},
+	// Forecast a schedule's next fire times (M744): id + how many. Read-only preview.
+	"/api/schedule/test": {controlplane.CmdScheduleTest, []string{"id", "count"}},
 }
 
 // writeRoutes is the operator-action allowlist: the big red button (halt),

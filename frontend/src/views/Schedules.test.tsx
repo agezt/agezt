@@ -11,12 +11,17 @@ vi.mock("@/lib/api", () => ({
   postAction: (...a: unknown[]) => postAction(...a),
 }));
 
-import { NewScheduleForm } from "@/views/Schedules";
+import { NewScheduleForm, Schedules } from "@/views/Schedules";
+import { UIProvider } from "@/components/ui/feedback";
+import type { ReactNode } from "react";
+
+const withUI = (node: ReactNode) => <UIProvider>{node}</UIProvider>;
 
 afterEach(cleanup);
 beforeEach(() => {
   postJSON.mockReset();
   postJSON.mockResolvedValue({ id: "sch-1" });
+  getJSON.mockReset();
 });
 
 describe("NewScheduleForm", () => {
@@ -102,5 +107,41 @@ describe("NewScheduleForm (edit mode, M728)", () => {
     render(<NewScheduleForm editId="sch-7" initialIntent="x" onCreated={onCreated} onError={() => {}} />);
     fireEvent.click(screen.getByRole("button", { name: /Save changes/ }));
     await waitFor(() => expect(onCreated).toHaveBeenCalled());
+  });
+});
+
+describe("Schedules fire-time preview (M744)", () => {
+  const sched = {
+    id: "sch-9",
+    intent: "morning brief",
+    cadence: "daily at 09:00",
+    mode: "daily",
+    enabled: true,
+    next_run_unix: 1893456000,
+  };
+
+  it("toggles a forecast of next fire times from /api/schedule/test", async () => {
+    getJSON.mockImplementation((path: string) => {
+      if (path === "/api/schedules") return Promise.resolve({ schedules: [sched] });
+      if (path === "/api/schedule/test")
+        return Promise.resolve({ forecasts: [{ unix: 1893456000 }, { unix: 1893542400 }] });
+      return Promise.resolve({});
+    });
+    render(withUI(<Schedules />));
+    await waitFor(() => expect(screen.getByText("morning brief")).toBeTruthy());
+
+    // Open the forecast.
+    fireEvent.click(screen.getByRole("button", { name: "next fires" }));
+    await waitFor(() =>
+      expect(getJSON).toHaveBeenCalledWith("/api/schedule/test", { id: "sch-9", count: "5" }),
+    );
+    // Two forecast rows render (numbered).
+    await waitFor(() => expect(screen.getByText("1.")).toBeTruthy());
+    expect(screen.getByText("2.")).toBeTruthy();
+
+    // Toggle hides it.
+    expect(screen.getByRole("button", { name: "hide fires" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "hide fires" }));
+    await waitFor(() => expect(screen.queryByText("1.")).toBeNull());
   });
 });
