@@ -12,6 +12,15 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Chat keeps running when you leave it.** The chat engine (conversation store,
+  the live streaming loop, and its AbortController) was lifted into a `ChatProvider`
+  mounted above the view router, so navigating to another screen mid-run no longer
+  aborts it — the run keeps folding into the conversation and persists on
+  completion, and is there, finished, when you come back. The Chat view is now a
+  consumer of `useChat()`; all existing behavior (conversation list, retry,
+  smart-scroll, copy, model picker) is preserved. Verified live: sent a tool-using
+  run, navigated away mid-stream, and returned to find the completed answer (3 tool
+  calls + summary) waiting — zero console errors. (M677)
 - **A real model picker in Chat.** The raw model-override text box is replaced by a
   searchable, capability-aware picker: it reads the full provider→model catalog
   (newly exposed at `/api/catalog`) and lists every model grouped by provider —
