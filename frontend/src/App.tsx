@@ -323,7 +323,10 @@ export default function App() {
           })}
         </nav>
         <main className="min-h-0 flex-1 overflow-auto p-3">
-          <View />
+          {/* Keyed remount so each view fades + rises in on navigation. */}
+          <div key={active} className="view-enter h-full">
+            <View />
+          </div>
         </main>
       </div>
     </div>

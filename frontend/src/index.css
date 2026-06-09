@@ -74,3 +74,63 @@ body {
 .react-flow__attribution {
   display: none;
 }
+
+/* --- Motion: subtle, premium, and reduced-motion aware ------------------- */
+
+/* Views fade + rise in when navigated to, so moving around the console feels
+   smooth and intentional rather than a hard cut. Keyed remount in App.tsx
+   re-triggers it on every view change. */
+@keyframes view-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.view-enter {
+  animation: view-in 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Chat messages ease in as they arrive. */
+@keyframes msg-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.msg-in {
+  animation: msg-in 0.2s ease-out;
+}
+
+/* A soft pulsing ring for the "agent is working" indicator. */
+@keyframes work-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.45;
+    transform: scale(0.82);
+  }
+}
+.work-pulse {
+  animation: work-pulse 1.1s ease-in-out infinite;
+}
+
+/* Honor the OS "reduce motion" setting — no decorative animation for users who
+   ask for less. */
+@media (prefers-reduced-motion: reduce) {
+  .view-enter,
+  .msg-in,
+  .work-pulse {
+    animation: none;
+  }
+}
