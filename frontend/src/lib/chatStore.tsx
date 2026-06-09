@@ -14,6 +14,8 @@ import {
   saveStore,
   activeMessages,
   withActiveMessages,
+  activePersona,
+  withActivePersona,
   startConversation,
   deleteConversation,
   type Msg,
@@ -75,6 +77,10 @@ export interface ChatEngine {
    *  the conversation still shows the clean `intent` as the user's message. */
   send: (intent: string, context?: string) => void;
   retry: () => void;
+  /** This conversation's persona override (system prompt), "" when it uses the
+   *  daemon's global persona. Set it to make a single thread act as something else. */
+  conversationPersona: string;
+  setConversationPersona: (persona: string) => void;
   /** Edit the user message at `index` and re-run from there: replace its text,
    *  drop every later message, and stream a fresh answer with the prior history. */
   editAndResend: (index: number, text: string) => void;
@@ -170,8 +176,14 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     const ctrl = new AbortController();
     abortRef.current = ctrl;
     try {
+      const persona = activePersona(store).trim();
       await streamRun(
-        { intent, model: modelRef.current.trim() || undefined, history: history.length ? history : undefined },
+        {
+          intent,
+          model: modelRef.current.trim() || undefined,
+          history: history.length ? history : undefined,
+          system: persona || undefined, // per-conversation persona override (M711)
+        },
         (f) => updateLastTurn((t) => foldChatFrame(t, f)),
         ctrl.signal,
       );
@@ -231,6 +243,10 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     void streamIntent(t, history);
   }
 
+  function setConversationPersona(persona: string) {
+    setStore((s) => withActivePersona(s, persona.trim(), Date.now()));
+  }
+
   function stop() {
     abortRef.current?.abort();
   }
@@ -261,6 +277,8 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     send,
     retry,
     editAndResend,
+    conversationPersona: activePersona(store),
+    setConversationPersona,
     stop,
     newChat,
     selectConversation,

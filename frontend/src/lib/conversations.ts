@@ -18,6 +18,9 @@ export interface Conversation {
   title: string;
   messages: Msg[];
   updatedAt: number;
+  // Optional per-conversation persona (system-prompt override, M711): when set,
+  // every run in THIS thread uses it instead of the daemon's global persona.
+  persona?: string;
 }
 
 export interface Store {
@@ -93,6 +96,23 @@ export function saveStore(store: Store): void {
 // activeMessages returns the active conversation's messages (empty if none).
 export function activeMessages(store: Store): Msg[] {
   return store.conversations.find((c) => c.id === store.activeId)?.messages ?? [];
+}
+
+// activePersona returns the active conversation's persona override ("" if none).
+export function activePersona(store: Store): string {
+  return store.conversations.find((c) => c.id === store.activeId)?.persona ?? "";
+}
+
+// withActivePersona returns a new store with the active conversation's persona
+// override set (empty string clears it). Pure — safe for React state.
+export function withActivePersona(store: Store, persona: string, now: number): Store {
+  const p = persona.trim();
+  return {
+    ...store,
+    conversations: store.conversations.map((c) =>
+      c.id === store.activeId ? { ...c, persona: p || undefined, updatedAt: now } : c,
+    ),
+  };
 }
 
 // withActiveMessages returns a new store with the active conversation's messages

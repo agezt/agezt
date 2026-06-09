@@ -24,6 +24,7 @@ import {
   VolumeX,
   CornerDownRight,
   Pencil,
+  Bot,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { money } from "@/lib/format";
@@ -49,7 +50,7 @@ import type { Msg } from "@/lib/conversations";
 // cost. The engine (store, streaming, model) lives in ChatProvider so a run keeps
 // going when you leave the view; this component is the full-screen UI over it.
 export function Chat() {
-  const { store, messages, busy, model, setModel, activeModel, send, retry, editAndResend, stop, newChat, selectConversation, removeConversation } =
+  const { store, messages, busy, model, setModel, activeModel, send, retry, editAndResend, conversationPersona, setConversationPersona, stop, newChat, selectConversation, removeConversation } =
     useChat();
   const [input, setInput] = useState("");
   // pinned = the thread is stuck to the bottom (auto-scrolls on new content).
@@ -322,6 +323,7 @@ export function Chat() {
         <div className="mt-1.5 flex items-center gap-2 px-1 text-xs text-muted">
           <span>model</span>
           <ModelPicker value={model} onChange={setModel} activeModel={activeModel} />
+          <ConversationPersona value={conversationPersona} onChange={setConversationPersona} />
           {speechSupported() && (
             <button
               onClick={toggleAutoSpeak}
@@ -647,6 +649,82 @@ function ReasoningBlock({ text, live }: { text: string; live: boolean }) {
         <div className="max-h-48 overflow-auto whitespace-pre-wrap break-words border-t border-border px-2.5 py-1.5 font-mono text-[11px] leading-snug text-muted">
           {text}
         </div>
+      )}
+    </div>
+  );
+}
+
+// ConversationPersona is a per-thread persona override (M711): a small composer
+// control that, when set, makes every run in THIS conversation act with a custom
+// system prompt instead of the daemon's global persona. A dot marks an active
+// override; clicking opens an inline editor with Save / Clear.
+export function ConversationPersona({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState(value);
+  const active = value.trim().length > 0;
+
+  function openEditor() {
+    setDraft(value);
+    setOpen(true);
+  }
+  function save() {
+    onChange(draft.trim());
+    setOpen(false);
+  }
+  function clear() {
+    onChange("");
+    setDraft("");
+    setOpen(false);
+  }
+
+  return (
+    <div className="relative">
+      <button
+        onClick={open ? () => setOpen(false) : openEditor}
+        title={active ? "This conversation has a custom persona" : "Set a persona for this conversation"}
+        className={cn(
+          "inline-flex items-center gap-1 rounded px-1.5 py-0.5 transition-colors hover:text-foreground",
+          active ? "text-accent" : "text-muted",
+        )}
+      >
+        <Bot className="size-3.5" />
+        <span>persona{active ? "" : ": default"}</span>
+        {active && <span className="size-1.5 rounded-full bg-accent" />}
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-20" onClick={() => setOpen(false)} />
+          <div className="absolute bottom-full left-0 z-30 mb-1.5 w-80 rounded-lg border border-border bg-card p-2 shadow-xl shadow-black/30">
+            <div className="mb-1.5 text-[11px] text-muted">
+              Persona for <span className="text-foreground/80">this conversation</span> — overrides the global persona
+              for every run here. Leave empty to use the default.
+            </div>
+            <textarea
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              autoFocus
+              spellCheck={false}
+              aria-label="Conversation persona"
+              placeholder="e.g. You are a senior Go reviewer. Be blunt and specific…"
+              className="h-28 w-full resize-none rounded-md border border-border bg-panel p-2 font-mono text-xs text-foreground outline-none placeholder:text-muted/60 focus-visible:border-accent"
+            />
+            <div className="mt-1.5 flex items-center justify-end gap-1.5">
+              <button
+                onClick={clear}
+                disabled={!active && !draft.trim()}
+                className="rounded-md px-2 py-1 text-xs text-muted transition-colors hover:text-foreground disabled:opacity-40"
+              >
+                Clear
+              </button>
+              <button
+                onClick={save}
+                className="rounded-md bg-accent px-2 py-1 text-xs font-medium text-white transition-opacity hover:opacity-90"
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </>
       )}
     </div>
   );
