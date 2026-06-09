@@ -12,6 +12,26 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Config Center schema is now extensible — skills/plugins register their own
+  config.** The schema was hardcoded in `kernel/settings/schema.go`; it's now a
+  **registry** (`kernel/settings/registry.go`) that merges the compiled-in built-in
+  sections with on-disk sections dropped into `<baseDir>/schemas/*.json` — the same
+  disk-merge pattern as the model catalog. A skill or plugin can "drop" a schema
+  section (id, name, typed fields) and it appears in the Config Center immediately,
+  reading/writing through the existing store (non-secret) + vault (secret) plumbing.
+  **Safety by construction:** registered fields must be namespaced (`AGEZT_*`) and
+  may **not** shadow a built-in env (e.g. `AGEZT_ALLOW_ALL`) — collisions are
+  rejected on write and defensively dropped on read, so a skill can only configure
+  *its own* namespace and built-in always wins. New control-plane commands
+  `config_schema_register` (validates + persists a section) and
+  `config_schema_unregister` (removes the schema, leaves stored values untouched),
+  surfaced as `POST /api/config/schema/{register,unregister}`. Registered fields are
+  restart-class (read at the plugin's own startup); only built-in provider/model
+  stay live. Verified live (isolated daemon): a namespaced section registered and
+  appeared in `/api/config/schema` with its `source`; a section shadowing
+  `AGEZT_ALLOW_ALL` and a non-namespaced `OPENAI_KEY` were both rejected; a
+  registered non-secret wrote to `config.json` and a registered secret went to the
+  vault with the value never returned. (M695)
 - **Config Center UI — edit settings from the console, no `.env` by hand.** The
   visible half of M693: a new **Config Center** view (under *System*) renders
   schema-driven forms section by section (Provider & Model, Telegram, Email/SMTP,

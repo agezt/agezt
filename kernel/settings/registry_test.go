@@ -1,0 +1,153 @@
+// SPDX-License-Identifier: MIT
+
+package settings
+
+import (
+	"encoding/json"
+	"os"
+	"path/filepath"
+	"testing"
+)
+
+func sampleSection() Section {
+	return Section{
+		ID:   "weather-skill",
+		Name: "Weather Skill",
+		Help: "API access for the weather skill.",
+		Fields: []Field{
+			{Env: "AGEZT_X_WEATHER_API_KEY", Label: "API key", Type: TypePassword, Secret: true},
+			{Env: "AGEZT_X_WEATHER_UNITS", Label: "Units", Type: TypeSelect, Options: []string{"metric", "imperial"}},
+		},
+	}
+}
+
+func TestRegistry_RegisterAndMerge(t *testing.T) {
+	dir := t.TempDir()
+	r := NewRegistry(dir)
+
+	// Built-in only to start.
+	if got := len(r.Registered()); got != 0 {
+		t.Fatalf("expected 0 registered, got %d", got)
+	}
+	base := len(r.Sections())
+	if base == 0 {
+		t.Fatal("expected built-in sections")
+	}
+
+	if err := r.Register(sampleSection()); err != nil {
+		t.Fatalf("register: %v", err)
+	}
+	// File landed under schemas/<id>.json.
+	if _, err := os.Stat(filepath.Join(dir, SchemaDir, "weather-skill.json")); err != nil {
+		t.Fatalf("schema file not written: %v", err)
+	}
+
+	secs := r.Sections()
+	if len(secs) != base+1 {
+		t.Fatalf("expected %d sections, got %d", base+1, len(secs))
+	}
+	last := secs[len(secs)-1]
+	if last.ID != "weather-skill" || last.Source != "weather-skill" {
+		t.Fatalf("registered section not tagged: id=%q source=%q", last.ID, last.Source)
+	}
+	// Registered fields are forced to restart-apply.
+	for _, f := range last.Fields {
+		if f.Apply != ApplyRestart {
+			t.Errorf("field %s apply=%q, want restart", f.Env, f.Apply)
+		}
+	}
+	// FieldByEnv finds a registered field.
+	if f, ok := r.FieldByEnv("AGEZT_X_WEATHER_API_KEY"); !ok || !f.Secret {
+		t.Errorf("FieldByEnv registered secret: ok=%v secret=%v", ok, f.Secret)
+	}
+}
+
+func TestRegistry_Unregister(t *testing.T) {
+	dir := t.TempDir()
+	r := NewRegistry(dir)
+	if err := r.Register(sampleSection()); err != nil {
+		t.Fatalf("register: %v", err)
+	}
+	removed, err := r.Unregister("weather-skill")
+	if err != nil || !removed {
+		t.Fatalf("unregister: removed=%v err=%v", removed, err)
+	}
+	if got := len(r.Registered()); got != 0 {
+		t.Fatalf("expected 0 after unregister, got %d", got)
+	}
+	// Unregistering a missing id is not an error.
+	removed, err = r.Unregister("nope")
+	if err != nil || removed {
+		t.Fatalf("unregister missing: removed=%v err=%v", removed, err)
+	}
+}
+
+func TestRegistry_RejectsShadowingBuiltin(t *testing.T) {
+	r := NewRegistry(t.TempDir())
+	sec := sampleSection()
+	sec.Fields = append(sec.Fields, Field{Env: "AGEZT_ALLOW_ALL", Label: "pwn", Type: TypeBool})
+	if err := r.Register(sec); err == nil {
+		t.Fatal("expected register to reject a field shadowing AGEZT_ALLOW_ALL")
+	}
+}
+
+func TestRegistry_RejectsBadInput(t *testing.T) {
+	r := NewRegistry(t.TempDir())
+	cases := map[string]Section{
+		"bad id":            {ID: "Bad Id", Name: "x", Fields: []Field{{Env: "AGEZT_X_A", Type: TypeText}}},
+		"no fields":         {ID: "empty", Name: "x"},
+		"non-namespaced":    {ID: "ns", Name: "x", Fields: []Field{{Env: "OPENAI_KEY", Type: TypeText}}},
+		"not agezt prefix":  {ID: "ns2", Name: "x", Fields: []Field{{Env: "AGEZTX", Type: TypeText}}},
+		"unknown type":      {ID: "ty", Name: "x", Fields: []Field{{Env: "AGEZT_X_A", Type: "wat"}}},
+		"select no options": {ID: "se", Name: "x", Fields: []Field{{Env: "AGEZT_X_A", Type: TypeSelect}}},
+		"dup env":           {ID: "dup", Name: "x", Fields: []Field{{Env: "AGEZT_X_A", Type: TypeText}, {Env: "AGEZT_X_A", Type: TypeText}}},
+	}
+	for name, sec := range cases {
+		if err := r.Register(sec); err == nil {
+			t.Errorf("%s: expected rejection", name)
+		}
+	}
+}
+
+// A hand-edited file that sneaks a colliding/non-namespaced field past Register
+// must still have that field dropped at read time (built-in wins).
+func TestRegistry_SectionsDropsColliding(t *testing.T) {
+	dir := t.TempDir()
+	schemas := filepath.Join(dir, SchemaDir)
+	if err := os.MkdirAll(schemas, 0755); err != nil {
+		t.Fatal(err)
+	}
+	sec := Section{
+		ID:   "sneaky",
+		Name: "Sneaky",
+		Fields: []Field{
+			{Env: "AGEZT_X_OK", Label: "ok", Type: TypeText},
+			{Env: "AGEZT_ALLOW_ALL", Label: "pwn", Type: TypeBool}, // collides with built-in
+			{Env: "OPENAI_KEY", Label: "escape", Type: TypeText},   // not namespaced
+		},
+	}
+	raw, _ := json.MarshalIndent(sec, "", "  ")
+	if err := os.WriteFile(filepath.Join(schemas, "sneaky.json"), raw, 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	r := NewRegistry(dir)
+	var found *Section
+	for _, s := range r.Sections() {
+		if s.ID == "sneaky" {
+			cp := s
+			found = &cp
+		}
+	}
+	if found == nil {
+		t.Fatal("sneaky section missing")
+	}
+	if len(found.Fields) != 1 || found.Fields[0].Env != "AGEZT_X_OK" {
+		t.Fatalf("expected only AGEZT_X_OK to survive, got %+v", found.Fields)
+	}
+	// And it never shadowed the real built-in: AGEZT_ALLOW_ALL still resolves to
+	// the built-in bool field, not the sneaky registered one.
+	if f, ok := r.FieldByEnv("AGEZT_ALLOW_ALL"); !ok || f.Type != TypeBool {
+		t.Errorf("AGEZT_ALLOW_ALL did not resolve to the built-in: ok=%v field=%+v", ok, f)
+	}
+}
