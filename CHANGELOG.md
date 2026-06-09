@@ -12,6 +12,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Skills library shows a lifecycle breakdown.** The Skills view now opens with a
+  status summary widget: a stacked proportion bar (active/shadow/draft/quarantined/
+  archived) plus a colored count chip per status, so the health of the learned-skill
+  library — how many are live vs still being proven vs pulled — reads at a glance
+  instead of by scanning per-card badges. Verified live (1 active · 1 shadow · 3
+  draft), zero console errors. (M664)
 - **Providers gets a resilience gauge.** The Providers routing monitor now leads
   with a circular fallback-rate gauge (green/amber/red by threshold) beside the
   routed / fallbacks / providers tiles, over the existing routes-by-provider bars
