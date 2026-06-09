@@ -24,6 +24,7 @@ type PulseController interface {
 	Resume()
 	Beat()
 	SetCadence(d time.Duration) time.Duration
+	SetDial(dial string) string
 }
 
 // SetPulse wires the live engine. Safe to call once after construction,
@@ -91,4 +92,16 @@ func (s *Server) handlePulseCadence(conn net.Conn, req Request) {
 	}
 	applied := s.pulse.SetCadence(time.Duration(secs * float64(time.Second)))
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"cadence_ms": applied.Milliseconds()}})
+}
+
+// handlePulseDial changes the proactivity dial live (M757/M758): quiet/balanced/chatty.
+// An unknown value is normalized to balanced. Returns the applied dial.
+func (s *Server) handlePulseDial(conn net.Conn, req Request) {
+	if s.pulse == nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "pulse is disabled (AGEZT_PULSE=off)"})
+		return
+	}
+	dial, _ := req.Args["dial"].(string)
+	applied := s.pulse.SetDial(dial)
+	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"dial": applied}})
 }

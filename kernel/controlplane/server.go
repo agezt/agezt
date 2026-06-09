@@ -713,6 +713,8 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.handlePulseBeat(conn, req)
 	case CmdPulseCadence:
 		s.handlePulseCadence(conn, req)
+	case CmdPulseDial:
+		s.handlePulseDial(conn, req)
 	case CmdInbox:
 		s.handleInbox(conn, req)
 	case CmdSend:

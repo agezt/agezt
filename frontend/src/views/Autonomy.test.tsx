@@ -93,6 +93,22 @@ describe("PulseControl", () => {
     expect(sel.value).toBe(""); // the synthetic "current" option
     expect(screen.getByText(/45s \(current\)/)).toBeTruthy();
   });
+
+  it("changes the proactivity dial live via /api/pulse/dial (M758)", async () => {
+    getJSON.mockResolvedValue({ enabled: true, paused: false, beats: 1, cadence_ms: 60000, dial: "balanced" });
+    render(withUI(<PulseControl />));
+    const sel = (await screen.findByLabelText("Proactivity dial")) as HTMLSelectElement;
+    expect(sel.value).toBe("balanced");
+    fireEvent.change(sel, { target: { value: "chatty" } });
+    await waitFor(() => expect(postAction).toHaveBeenCalledWith("/api/pulse/dial", { dial: "chatty" }));
+  });
+
+  it("defaults the dial selector to balanced when status omits it", async () => {
+    getJSON.mockResolvedValue({ enabled: true, paused: false, beats: 0, cadence_ms: 60000 });
+    render(withUI(<PulseControl />));
+    const sel = (await screen.findByLabelText("Proactivity dial")) as HTMLSelectElement;
+    expect(sel.value).toBe("balanced");
+  });
 });
 
 describe("cadenceLabel (M757)", () => {

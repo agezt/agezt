@@ -147,6 +147,24 @@ func TestSetCadenceChangesAndClamps(t *testing.T) {
 	}
 }
 
+// TestSetDialChangesAndNormalizes: SetDial updates the dial Status reports and
+// normalizes an unknown value to balanced (M758).
+func TestSetDialChangesAndNormalizes(t *testing.T) {
+	e, _ := newEngine(t, Config{Dial: DialBalanced})
+	if applied := e.SetDial("chatty"); applied != "chatty" {
+		t.Fatalf("applied %q", applied)
+	}
+	if got := e.Status().Dial; got != "chatty" {
+		t.Fatalf("Status should report the new dial, got %q", got)
+	}
+	if applied := e.SetDial("nonsense"); applied != "balanced" {
+		t.Fatalf("an unknown dial should normalize to balanced, got %q", applied)
+	}
+	if got := e.Status().Dial; got != "balanced" {
+		t.Fatalf("Status dial after normalize: %q", got)
+	}
+}
+
 func TestTickEmitsFullChain(t *testing.T) {
 	sink := &capturingSink{}
 	obs := &fakeObserver{name: "fake", deltas: []Delta{{

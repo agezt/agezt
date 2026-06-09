@@ -12,6 +12,22 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Tune the proactivity dial live — how chatty the agent is.** The Autonomy view's heartbeat control
+  gains a dial selector — **quiet** (only alerts/actions reach you), **balanced** (notifications and
+  up), **chatty** (digests surface too) — that changes how much the agent surfaces from its
+  proactive loop, **immediately**, without a restart (previously fixed by `AGEZT_PULSE_DIAL`). Pair it
+  with the cadence selector to make the agent attentive-and-chatty while you work, or
+  slow-and-quiet otherwise. Applied safely: `Engine.SetDial` normalizes unknown values to balanced
+  and writes under the same mutex the delivery decision reads the dial through (the one hot-path read
+  was moved under the lock), so a live change never races a scoring decision. Runtime-only (resets to
+  the configured default on restart). Full stack: `Engine.SetDial` → new `CmdPulseDial` →
+  `/api/pulse/dial`. Tested at every layer — engine (changes the dial Status reports; normalizes a
+  bogus value to balanced), control-plane (the dial arg reaches the engine and echoes back), and UI
+  (the selector posts `/api/pulse/dial`; defaults to balanced when status omits it). Verified live on
+  an isolated daemon: the selector drove the engine balanced → **chatty** → **quiet** (each confirmed
+  via `/api/pulse`), and after a page reload the selector still read `quiet` — reflecting the live
+  engine state; 0 console errors. With pause/resume (M743), beat-now (M756) and cadence (M757), the
+  proactive heartbeat is now fully steerable from the console. (M758)
 - **Tune the heartbeat cadence live — how often the agent checks in.** The Autonomy view's heartbeat
   control gains a cadence selector (10s / 30s / 1m / 5m / 15m / 1h) that retunes the proactive loop
   **immediately**, without a restart — previously the interval was fixed at startup by

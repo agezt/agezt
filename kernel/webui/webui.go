@@ -183,6 +183,8 @@ var writeRoutes = map[string]writeRoute{
 	"/api/pulse/beat": {controlplane.CmdPulseBeat, nil},
 	// Change the heartbeat interval live (M757): seconds → clamped cadence. Runtime-only.
 	"/api/pulse/cadence": {controlplane.CmdPulseCadence, []string{"seconds"}},
+	// Change the proactivity dial live (M758): quiet|balanced|chatty. Runtime-only.
+	"/api/pulse/dial": {controlplane.CmdPulseDial, []string{"dial"}},
 	// Reload catalog + providers in place (M745): apply credential/catalog changes
 	// without a daemon restart. No args.
 	"/api/provider/reload": {controlplane.CmdProviderReload, nil},

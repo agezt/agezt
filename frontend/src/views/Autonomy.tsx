@@ -160,7 +160,12 @@ interface PulseStatus {
   observers?: number;
   cadence_ms?: number;
   last_tick_ms?: number;
+  dial?: string;
 }
+
+// The proactivity dial (M758): how much reaches you — quiet (alerts only), balanced
+// (notify and up), chatty (digests too).
+const DIALS = ["quiet", "balanced", "chatty"];
 
 // Cadence presets for live retuning (M757), in seconds — how often the agent checks in.
 const CADENCE_PRESETS = [10, 30, 60, 300, 900, 3600];
@@ -238,6 +243,17 @@ export function PulseControl() {
     }
   }
 
+  // Dial (M758): change how proactive/chatty the agent is, live (quiet/balanced/chatty).
+  async function setDial(dial: string) {
+    try {
+      await postAction("/api/pulse/dial", { dial });
+      ui.toast(`Proactivity dial → ${dial}`, "success");
+      await load();
+    } catch (e) {
+      ui.toast((e as Error).message, "error");
+    }
+  }
+
   if (!st) return null;
   if (!st.enabled) {
     return (
@@ -266,7 +282,22 @@ export function PulseControl() {
         {st.observers != null ? ` · ${st.observers} observer${st.observers === 1 ? "" : "s"}` : ""}
         {st.last_tick_ms ? ` · last ${fmtTime(st.last_tick_ms)}` : ""}
       </span>
-      <label className="ml-auto flex items-center gap-1 text-[11px] text-muted" title="How often the agent checks in (live; resets to the default on restart)">
+      <label className="ml-auto flex items-center gap-1 text-[11px] text-muted" title="How proactive the agent is (quiet=alerts only, chatty=digests too)">
+        dial
+        <select
+          value={DIALS.includes(st.dial || "") ? st.dial : "balanced"}
+          onChange={(e) => setDial(e.target.value)}
+          aria-label="Proactivity dial"
+          className="h-7 rounded-md border border-border bg-panel px-1.5 text-xs outline-none focus:border-accent"
+        >
+          {DIALS.map((d) => (
+            <option key={d} value={d}>
+              {d}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="flex items-center gap-1 text-[11px] text-muted" title="How often the agent checks in (live; resets to the default on restart)">
         every
         <select
           value={CADENCE_PRESETS.includes(curSec) ? String(curSec) : ""}
