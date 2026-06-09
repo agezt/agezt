@@ -12,6 +12,17 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Create standing orders from the Web UI.** The Standing view was read-only for
+  creation — you could pause/resume/remove orders, but *defining* one (what the daemon
+  does autonomously) needed the CLI (`agt standing add`). Now a **New order** button opens
+  an inline form: name, a trigger (a cron **schedule** or an **event** subject), the
+  **plan** the agent runs each time, and an **autonomy** level (inform-only / ask / act-or-ask).
+  Submitting posts the order to the existing `standing_add` command (newly exposed as
+  `POST /api/standing/add`), and it appears in the list immediately. Tests cover the
+  form (validation gating, cron vs event payload shape, plan + initiative, error
+  surfacing). Verified live (a **fresh isolated** daemon — never the real home): created
+  an order via the form → it persisted with a real id, cron trigger, plan, and
+  `act_or_ask` mode → rendered in the list, 0 console errors. (M714)
 - **Prompt library — save your own chat shortcuts.** A new **System → Prompts** view lets
   you define named, reusable prompts (a title + the text to send) — "Daily standup",
   "Review the diff", whatever you run often. They're saved **daemon-side** (a small JSON
