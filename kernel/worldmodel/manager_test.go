@@ -182,6 +182,49 @@ func TestUpsertReinforcesAndMergesAliases(t *testing.T) {
 	}
 }
 
+func TestEditEntity(t *testing.T) {
+	g, _ := newTestGraph(t)
+	e, _, _ := g.Upsert("c", UpsertSpec{
+		Kind: KindPerson, Name: "Ada", Aliases: []string{"the boss"}, Attrs: map[string]string{"brief": "morning", "tz": "UTC"},
+	})
+
+	// Edit replaces aliases + attrs wholesale: drop "the boss", change brief,
+	// remove tz, add a new attr.
+	upd, ok, err := g.EditEntity("c", e.ID, []string{"ada k"}, map[string]string{"brief": "evening, terse", "role": "owner"})
+	if err != nil || !ok {
+		t.Fatalf("EditEntity: ok=%v err=%v", ok, err)
+	}
+	if upd.ID != e.ID || upd.Name != "Ada" || upd.Kind != KindPerson {
+		t.Errorf("identity must be preserved: %+v", upd)
+	}
+	if len(upd.Aliases) != 1 || upd.Aliases[0] != "ada k" {
+		t.Errorf("aliases should be replaced, got %v", upd.Aliases)
+	}
+	if upd.Attrs["brief"] != "evening, terse" || upd.Attrs["role"] != "owner" {
+		t.Errorf("attrs not set: %v", upd.Attrs)
+	}
+	if _, ok := upd.Attrs["tz"]; ok {
+		t.Errorf("removed attr 'tz' should be gone, got %v", upd.Attrs)
+	}
+
+	// Persisted: a fresh Get sees the edit.
+	got, found, _ := g.Get(e.ID)
+	if !found || got.Attrs["brief"] != "evening, terse" || len(got.Aliases) != 1 {
+		t.Errorf("edit not persisted: %+v found=%v", got, found)
+	}
+
+	// Editing to empty clears both (omitempty → nil).
+	cleared, ok, _ := g.EditEntity("c", e.ID, nil, nil)
+	if !ok || cleared.Aliases != nil || cleared.Attrs != nil {
+		t.Errorf("clearing should null aliases/attrs, got aliases=%v attrs=%v", cleared.Aliases, cleared.Attrs)
+	}
+
+	// Unknown id → (false, nil).
+	if _, ok, err := g.EditEntity("c", "deadbeef", nil, nil); ok || err != nil {
+		t.Errorf("edit unknown id = ok:%v err:%v, want false,nil", ok, err)
+	}
+}
+
 func TestForgetRevive(t *testing.T) {
 	g, _ := newTestGraph(t)
 	e, _, _ := g.Upsert("c", UpsertSpec{Kind: KindProject, Name: "Lictor"})

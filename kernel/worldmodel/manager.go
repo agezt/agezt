@@ -121,6 +121,35 @@ func (g *Graph) Upsert(corr string, spec UpsertSpec) (Entity, bool, error) {
 	return e, !found, nil
 }
 
+// EditEntity replaces an existing entity's aliases and attrs with the supplied
+// values — the full editable state, so an alias or attr can be REMOVED (unlike
+// Upsert, which only ever merges new values in). Identity (id/kind/name), weight,
+// provenance and timestamps are preserved; LastSeenMS is refreshed. Journals
+// world.entity.upserted with action "edit". Returns the updated entity and whether
+// the id existed (false + nil error when unknown). A tombstoned/superseded entity
+// keeps those flags — editing doesn't revive it (Upsert does that).
+func (g *Graph) EditEntity(corr, id string, aliases []string, attrs map[string]string) (Entity, bool, error) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	e, found, err := g.store.GetEntity(id)
+	if err != nil {
+		return Entity{}, false, err
+	}
+	if !found {
+		return Entity{}, false, nil
+	}
+	e.Aliases = normalizeAliases(aliases)
+	e.Attrs = normalizeAttrs(attrs)
+	e.LastSeenMS = g.now().UnixMilli()
+	g.publish(event.KindWorldEntityUpserted, corr, map[string]any{
+		"action": "edit", "id": e.ID, "kind": string(e.Kind), "name": e.Name, "weight": e.Weight,
+	})
+	if err := g.store.PutEntity(e); err != nil {
+		return Entity{}, false, err
+	}
+	return e, true, nil
+}
+
 // Relate asserts a directed relation between two entities named fromName and
 // toName. Each endpoint is resolved against existing entities by exact
 // name/alias; an unknown endpoint is created as a topic entity so a relation
@@ -398,6 +427,27 @@ func normalizeAliases(in []string) []string {
 
 func mergeAliases(existing, incoming []string) []string {
 	return normalizeAliases(append(append([]string{}, existing...), incoming...))
+}
+
+// normalizeAttrs trims keys/values and drops empties, returning nil for an empty
+// map so a cleared attr set round-trips as "no attrs" (matching the omitempty tag).
+func normalizeAttrs(in map[string]string) map[string]string {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make(map[string]string, len(in))
+	for k, v := range in {
+		k = strings.TrimSpace(k)
+		v = strings.TrimSpace(v)
+		if k == "" || v == "" {
+			continue
+		}
+		out[k] = v
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 func mergeAttrs(existing, incoming map[string]string) map[string]string {

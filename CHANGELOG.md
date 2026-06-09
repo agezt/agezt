@@ -12,6 +12,24 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Edit a world-model entity's aliases & attributes from the UI.** The world model could gain
+  entities (M721) and relations (M722) from the console, but its per-entity knowledge —
+  **aliases** (phrases that resolve to it) and **attributes** (preferences/habits/constraints like
+  `brief: "morning, terse"`) — was append-only via re-add, so a stale alias or attr could never be
+  removed. Each entity row now has an **Edit** (pencil) control that opens an inline editor:
+  aliases as a comma-separated field, attributes as add/remove key/value rows. Save **replaces**
+  both wholesale, so removals stick. Identity (kind/name) is content-addressed and immutable, so
+  it's not editable here. New full-stack path: `worldmodel.Graph.EditEntity(corr, id, aliases,
+  attrs)` replaces aliases/attrs (preserving id/kind/name/weight/provenance, refreshing
+  last-seen, journaling `world.entity.upserted` action "edit"); control-plane `world_edit`; webui
+  `/api/world/edit` jsonRoute. Tests at every layer: graph EditEntity (replaces, removes a dropped
+  attr, clears to nil, ErrNotFound→false), control-plane round-trip (get reflects the replaced
+  state; unknown id → `updated:false`), and the UI form (prefill, split/trim/drop-blank on save,
+  add/remove attr rows). Verified live on an isolated daemon: seeded `Ada` with aliases
+  `[the boss]` + attrs `{brief:morning, tz:UTC}`, then in the UI replaced aliases → `[ada k, the
+  lead]`, changed `brief`, **removed** `tz`, added `role:owner`; re-`GET /api/world` confirmed the
+  entity (same id) now holds exactly the new aliases + `{brief:"evening, terse", role:"owner"}` —
+  `tz` gone — 0 console errors. (M730)
 - **Edit a standing order from the UI.** Standing orders could be created from the console
   (M714) but changing one still meant remove-and-recreate. Each order row now has an **Edit**
   (pencil) control that opens an inline editor for the human-tunable fields — **name**, **plan**,
