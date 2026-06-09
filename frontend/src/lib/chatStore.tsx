@@ -16,6 +16,8 @@ import {
   withActiveMessages,
   activePersona,
   withActivePersona,
+  activeConvModel,
+  withActiveConvModel,
   startConversation,
   deleteConversation,
   type Msg,
@@ -105,15 +107,14 @@ export function useChat(): ChatEngine {
 export function ChatProvider({ children }: { children: React.ReactNode }) {
   const { subscribe } = useEvents();
   const [store, setStore] = useState<Store>(() => loadStore(genId, Date.now()));
-  const [model, setModel] = useState("");
+  // The model is a per-conversation override (M712): each thread remembers its own
+  // (derived from the store, so switching threads switches the model). "" = default.
+  const model = activeConvModel(store);
+  const setModel = (m: string) => setStore((s) => withActiveConvModel(s, m, Date.now()));
   const [activeModel, setActiveModel] = useState("");
   const [busy, setBusy] = useState(false);
   const [learned, setLearned] = useState<Record<string, LearnedMem[]>>({});
   const abortRef = useRef<AbortController | null>(null);
-  // model is read inside the async stream closure; keep a ref so an override
-  // chosen mid-session is always current without re-binding the engine.
-  const modelRef = useRef(model);
-  modelRef.current = model;
 
   const messages = activeMessages(store);
   const setMessages = (updater: Msg[] | ((prev: Msg[]) => Msg[])) => {
@@ -180,7 +181,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       await streamRun(
         {
           intent,
-          model: modelRef.current.trim() || undefined,
+          model: activeConvModel(store).trim() || undefined, // per-conversation model (M712)
           history: history.length ? history : undefined,
           system: persona || undefined, // per-conversation persona override (M711)
         },
