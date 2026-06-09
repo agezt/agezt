@@ -914,6 +914,9 @@ const (
 	// CmdPulseCadence changes the heartbeat interval live. Args: seconds.
 	// Clamped to a sane range; returns { cadence_ms }. Runtime-only.
 	CmdPulseCadence = "pulse_cadence"
+	// CmdPulseDial changes the proactivity dial live. Args: dial
+	// (quiet|balanced|chatty). Returns { dial }. Runtime-only.
+	CmdPulseDial = "pulse_dial"
 
 	// CmdInbox returns the Unified Inbox (SPEC-07 §4): channel.inbound /
 	// channel.outbound events folded into conversation threads grouped by

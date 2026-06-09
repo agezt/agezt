@@ -19,6 +19,7 @@ type fakePulse struct {
 	paused  bool
 	beats   int
 	cadence time.Duration
+	dial    string
 }
 
 func (f *fakePulse) StatusMap() map[string]any {
@@ -34,6 +35,12 @@ func (f *fakePulse) SetCadence(d time.Duration) time.Duration {
 	f.cadence = d
 	f.mu.Unlock()
 	return d
+}
+func (f *fakePulse) SetDial(dial string) string {
+	f.mu.Lock()
+	f.dial = dial
+	f.mu.Unlock()
+	return dial
 }
 
 func TestPulseStatusDisabledWhenNoEngine(t *testing.T) {
@@ -103,5 +110,17 @@ func TestPulseStatusPauseResumeWithEngine(t *testing.T) {
 	}
 	if fp.cadence != 45*time.Second {
 		t.Fatalf("expected engine cadence 45s, got %v", fp.cadence)
+	}
+
+	// SetDial (M758) reaches the engine and echoes the applied dial.
+	res, err = c.Call(ctx, controlplane.CmdPulseDial, map[string]any{"dial": "chatty"})
+	if err != nil {
+		t.Fatalf("dial: %v", err)
+	}
+	if got, _ := res["dial"].(string); got != "chatty" {
+		t.Fatalf("expected dial chatty, got %v", res["dial"])
+	}
+	if fp.dial != "chatty" {
+		t.Fatalf("expected engine dial chatty, got %q", fp.dial)
 	}
 }

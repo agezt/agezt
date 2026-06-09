@@ -211,6 +211,19 @@ func (e *Engine) SetCadence(d time.Duration) time.Duration {
 	return d
 }
 
+// SetDial changes the proactivity dial live (M758): quiet (only alerts reach you),
+// balanced (notify and up), or chatty (digests too). An unknown value normalizes to
+// balanced (ParseDial). Takes effect on the next delta; returns the applied dial.
+// Runtime-only — resets to the configured default on restart.
+func (e *Engine) SetDial(s string) string {
+	nd := ParseDial(s)
+	e.mu.Lock()
+	e.dial = nd
+	e.sal.dial = nd
+	e.mu.Unlock()
+	return string(nd)
+}
+
 // tickOnce executes a single heartbeat: publish the tick, poll observers, and
 // run each delta through salience → initiative → briefing. Exposed for
 // deterministic tests (drive beats without a real ticker).
@@ -299,7 +312,12 @@ func (e *Engine) process(ctx context.Context, d Delta, tickID string) {
 		return
 	}
 
-	delivery := Route(e.dial, sc.Disposition, e.quiet.Active(e.now()))
+	// Read the dial under the lock — SetDial (M758) can change it live from the
+	// control-plane goroutine while this scoring runs on the pulse loop.
+	e.mu.Lock()
+	dial := e.dial
+	e.mu.Unlock()
+	delivery := Route(dial, sc.Disposition, e.quiet.Active(e.now()))
 	if delivery == DeliverDrop {
 		return
 	}
