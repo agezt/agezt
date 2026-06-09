@@ -1,12 +1,17 @@
 import { useEffect, useState } from "react";
-import { Inbox as InboxIcon, RefreshCw, ArrowDownLeft, ArrowUpRight } from "lucide-react";
-import { getJSON } from "@/lib/api";
+import { Inbox as InboxIcon, RefreshCw, ArrowDownLeft, ArrowUpRight, Send, Plus, X } from "lucide-react";
+import { getJSON, postAction } from "@/lib/api";
 import { useEvents } from "@/lib/events";
 import { cn, fmtTime } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ErrorText } from "@/components/JsonView";
 import { SkeletonList } from "@/components/ui/skeleton";
+import { useUI } from "@/components/ui/feedback";
+
+// COMMON_CHANNELS pre-fills the kind picker with the channels the daemon can carry;
+// the field stays free-text so an unlisted kind still works.
+const COMMON_CHANNELS = ["telegram", "slack", "discord", "webhook", "email", "sms", "whatsapp", "matrix", "teams"];
 
 interface Message {
   direction?: string; // "in" | "out"
@@ -29,9 +34,13 @@ interface Thread {
 // Previously this view read the wrong payload key and never rendered.
 export function Inbox() {
   const { events } = useEvents();
+  const ui = useUI();
   const [threads, setThreads] = useState<Thread[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [showSend, setShowSend] = useState(false);
+  // Prefill the composer with a thread's channel+id when you click "reply".
+  const [prefill, setPrefill] = useState<{ channel: string; to: string } | null>(null);
 
   async function reload() {
     setLoading(true);
@@ -64,10 +73,35 @@ export function Inbox() {
           <InboxIcon className="size-4 text-accent" /> Inbox
         </h2>
         <span className="text-xs text-muted">{threads ? `${threads.length} conversation(s)` : ""}</span>
-        <Button variant="ghost" size="sm" className="ml-auto" onClick={reload} disabled={loading} title="Reload">
+        <Button
+          size="sm"
+          className="ml-auto"
+          onClick={() => {
+            setPrefill(null);
+            setShowSend((v) => !v);
+          }}
+          title="Send a message via a channel"
+        >
+          {showSend ? <X className="size-3.5" /> : <Send className="size-3.5" />} Send message
+        </Button>
+        <Button variant="ghost" size="sm" onClick={reload} disabled={loading} title="Reload">
           <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
         </Button>
       </div>
+
+      {showSend && (
+        <SendMessageForm
+          key={prefill ? `${prefill.channel}:${prefill.to}` : "blank"}
+          initial={prefill}
+          onSent={(channel, to) => {
+            setShowSend(false);
+            setPrefill(null);
+            ui.toast(`Message sent via ${channel} → ${to}`, "success");
+            void reload();
+          }}
+          onError={(m) => ui.toast(m, "error")}
+        />
+      )}
 
       {err ? (
         <ErrorText>{err}</ErrorText>
@@ -85,6 +119,18 @@ export function Inbox() {
               <div className="mb-2 flex items-center gap-2">
                 <Badge>{th.channel_kind || "?"}</Badge>
                 {th.channel_id && <span className="truncate text-xs text-muted">{th.channel_id}</span>}
+                {th.channel_kind && th.channel_id && (
+                  <button
+                    onClick={() => {
+                      setPrefill({ channel: th.channel_kind!, to: th.channel_id! });
+                      setShowSend(true);
+                    }}
+                    className="text-[11px] text-accent/80 transition-colors hover:text-accent"
+                    title="Reply on this channel"
+                  >
+                    reply
+                  </button>
+                )}
                 <span className="ml-auto text-[10px] tabular-nums text-muted">
                   {th.last_ts_unix_ms ? fmtTime(th.last_ts_unix_ms) : ""}
                 </span>
@@ -114,6 +160,85 @@ export function Inbox() {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+// SendMessageForm sends an outbound message through a configured channel (M747) —
+// reply to a Telegram/Slack/… conversation, or proactively ping a recipient, from
+// the console. channel + to + text post to the send command; the daemon refuses if
+// no channel of that kind is configured. `initial` prefills from a thread's "reply".
+export function SendMessageForm({
+  initial,
+  onSent,
+  onError,
+}: {
+  initial?: { channel: string; to: string } | null;
+  onSent: (channel: string, to: string) => void;
+  onError: (msg: string) => void;
+}) {
+  const [channel, setChannel] = useState(initial?.channel ?? "telegram");
+  const [to, setTo] = useState(initial?.to ?? "");
+  const [text, setText] = useState("");
+  const [sending, setSending] = useState(false);
+
+  const valid = channel.trim() !== "" && to.trim() !== "" && text.trim() !== "";
+
+  async function send() {
+    if (!valid) return;
+    setSending(true);
+    try {
+      await postAction("/api/send", { channel: channel.trim().toLowerCase(), to: to.trim(), text: text.trim() });
+      onSent(channel.trim().toLowerCase(), to.trim());
+    } catch (e) {
+      onError((e as Error).message);
+    } finally {
+      setSending(false);
+    }
+  }
+
+  return (
+    <div className="rounded-lg border border-accent/30 bg-card p-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <label className="flex flex-col gap-1 text-[11px] text-muted">
+          Channel
+          <input
+            value={channel}
+            onChange={(e) => setChannel(e.target.value)}
+            list="send-channel-kinds"
+            aria-label="Send channel"
+            className="h-8 w-32 rounded-md border border-border bg-panel px-2 text-sm outline-none focus-visible:border-accent"
+          />
+          <datalist id="send-channel-kinds">
+            {COMMON_CHANNELS.map((c) => (
+              <option key={c} value={c} />
+            ))}
+          </datalist>
+        </label>
+        <label className="flex min-w-0 flex-1 flex-col gap-1 text-[11px] text-muted">
+          To (recipient / chat id)
+          <input
+            value={to}
+            onChange={(e) => setTo(e.target.value)}
+            placeholder="e.g. a chat id or @handle"
+            aria-label="Send recipient"
+            className="h-8 min-w-0 rounded-md border border-border bg-panel px-2 text-sm outline-none focus-visible:border-accent"
+          />
+        </label>
+      </div>
+      <textarea
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        placeholder="Message to send…"
+        aria-label="Send message text"
+        className="mt-2 h-20 w-full resize-y rounded-md border border-border bg-panel p-2 text-sm outline-none placeholder:text-muted/60 focus-visible:border-accent"
+      />
+      <div className="mt-2 flex items-center justify-between">
+        <span className="text-[10px] text-muted">Sends via a configured channel; the daemon refuses if that channel isn’t set up.</span>
+        <Button size="sm" onClick={send} disabled={!valid || sending}>
+          {sending ? <RefreshCw className="size-3.5 animate-spin" /> : <Plus className="size-3.5" />} Send
+        </Button>
+      </div>
     </div>
   );
 }
