@@ -8,11 +8,13 @@ import { EmptyState } from "@/components/ui/empty";
 import { ActionButton } from "@/components/ActionButton";
 import { WorldGraph } from "@/components/WorldGraph";
 import { BreakdownBar } from "@/components/Widgets";
-import { postJSON } from "@/lib/api";
+import { postJSON, postAction } from "@/lib/api";
 import { useUI } from "@/components/ui/feedback";
 
 // The entity kinds the world model recognises — offered when teaching it one.
 const WORLD_KINDS = ["person", "project", "repo", "org", "account", "device", "channel", "topic", "task"];
+// The relation verbs the world model recognises.
+const WORLD_VERBS = ["relates_to", "owns", "depends_on", "member_of", "prefers", "assigned_to", "derived_from"];
 
 // kindBreakdown counts entities by kind for the breakdown bar.
 function kindBreakdown(ents: any[]): { label: string; count: number }[] {
@@ -34,6 +36,7 @@ export function World() {
               {ents.length} entities · {rels} relations
             </Count>
             <WorldAddForm onAdded={reload} />
+            {ents.length >= 2 && <WorldRelateForm names={ents.map((e: any) => e.name).filter(Boolean)} onRelated={reload} />}
 
             {ents.length > 0 && <BreakdownBar segments={kindBreakdown(ents)} />}
             {ents.length >= 2 && (
@@ -134,6 +137,55 @@ export function WorldAddForm({ onAdded }: { onAdded: () => void }) {
       />
       <Button size="sm" onClick={add} disabled={!valid || submitting} title="Add entity">
         {submitting ? <RefreshCw className="size-3.5 animate-spin" /> : <Plus className="size-3.5" />} Add entity
+      </Button>
+    </div>
+  );
+}
+
+// WorldRelateForm connects two entities with a verb (M722) — building the knowledge
+// GRAPH from the UI, not just its nodes. from/verb/to post to world_relate.
+export function WorldRelateForm({ names, onRelated }: { names: string[]; onRelated: () => void }) {
+  const { toast } = useUI();
+  const [from, setFrom] = useState(names[0] || "");
+  const [verb, setVerb] = useState("relates_to");
+  const [to, setTo] = useState(names[1] || "");
+  const [submitting, setSubmitting] = useState(false);
+  const valid = from !== "" && to !== "" && from !== to;
+
+  async function relate() {
+    if (!valid) return;
+    setSubmitting(true);
+    try {
+      await postAction("/api/world/relate", { from, verb, to });
+      toast(`${from} ${verb.replace(/_/g, " ")} ${to}`, "success");
+      onRelated();
+    } catch (e) {
+      toast((e as Error).message, "error");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="mb-2 flex flex-wrap items-center gap-1.5 text-xs">
+      <span className="text-muted">relate</span>
+      <select value={from} onChange={(e) => setFrom(e.target.value)} aria-label="Relation from" className="h-8 min-w-0 max-w-[10rem] rounded-md border border-border bg-panel px-1.5 outline-none focus-visible:border-accent">
+        {names.map((n) => (
+          <option key={n} value={n}>{n}</option>
+        ))}
+      </select>
+      <select value={verb} onChange={(e) => setVerb(e.target.value)} aria-label="Relation verb" className="h-8 rounded-md border border-border bg-panel px-1.5 outline-none focus-visible:border-accent">
+        {WORLD_VERBS.map((v) => (
+          <option key={v} value={v}>{v.replace(/_/g, " ")}</option>
+        ))}
+      </select>
+      <select value={to} onChange={(e) => setTo(e.target.value)} aria-label="Relation to" className="h-8 min-w-0 max-w-[10rem] rounded-md border border-border bg-panel px-1.5 outline-none focus-visible:border-accent">
+        {names.map((n) => (
+          <option key={n} value={n}>{n}</option>
+        ))}
+      </select>
+      <Button size="sm" variant="ghost" onClick={relate} disabled={!valid || submitting} title="Relate entities">
+        {submitting ? <RefreshCw className="size-3.5 animate-spin" /> : <Plus className="size-3.5" />} Relate
       </Button>
     </div>
   );
