@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { Search as SearchIcon, Loader2, GitBranch, ShieldCheck, ShieldAlert, ShieldQuestion } from "lucide-react";
+import { Search as SearchIcon, Loader2, GitBranch, ShieldCheck, ShieldAlert, ShieldQuestion, Download } from "lucide-react";
 import { getJSON } from "@/lib/api";
+import { downloadText } from "@/lib/export";
 import type { AgentEvent } from "@/lib/events";
 import { categoryOf, isErrorKind } from "@/lib/eventmeta";
 import { cn, fmtTime } from "@/lib/utils";
@@ -51,6 +52,7 @@ export function Search() {
           <SearchIcon className="size-4 text-accent" /> Journal search
         </h2>
         <JournalIntegrity />
+        <JournalExport />
       </div>
 
       {/* Filters */}
@@ -174,6 +176,73 @@ export function JournalIntegrity() {
         <ShieldQuestion className="size-3" />
       )}
       {state === "ok" ? "chain intact" : state === "bad" ? "chain broken" : state === "checking" ? "verifying…" : "verify integrity"}
+    </button>
+  );
+}
+
+interface JournalExportResult {
+  events?: unknown[];
+  count?: number;
+  first_seq?: number;
+  last_seq?: number;
+  head_seq?: number;
+  head_hash?: string;
+  truncated?: boolean;
+}
+
+// journalExportBundle wraps the daemon's export payload into a self-describing,
+// offline-verifiable file (M772): the chain head travels with the events so the bundle
+// can be re-checked with `agt journal verify --bundle <file>`.
+export function journalExportBundle(data: JournalExportResult): string {
+  return JSON.stringify(
+    {
+      version: 1,
+      kind: "agezt-journal-export",
+      head_seq: data.head_seq ?? -1,
+      head_hash: data.head_hash ?? "",
+      first_seq: data.first_seq ?? -1,
+      last_seq: data.last_seq ?? -1,
+      count: data.count ?? (data.events?.length ?? 0),
+      truncated: !!data.truncated,
+      events: data.events ?? [],
+    },
+    null,
+    2,
+  );
+}
+
+// JournalExport downloads an integrity-attested journal bundle (M772) — the audit log
+// itself, the one thing the per-domain exports (chat/standing/schedules/memory/world)
+// couldn't yet give you. Every event ships with its hash and the chain head, so the file
+// re-verifies offline. Pairs with JournalIntegrity (M759): verify in place, or take a
+// signed copy with you.
+export function JournalExport() {
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState("");
+
+  async function run() {
+    setBusy(true);
+    setNote("");
+    try {
+      const data = await getJSON<JournalExportResult>("/api/journal/export");
+      downloadText("agezt-journal.json", journalExportBundle(data), "application/json");
+      setNote(`${data.count ?? data.events?.length ?? 0} events${data.truncated ? " (truncated)" : ""}`);
+    } catch (e) {
+      setNote((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <button
+      onClick={run}
+      disabled={busy}
+      title={note || "Download an integrity-attested journal bundle (re-verifiable offline)"}
+      className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-0.5 text-[11px] text-muted transition-colors hover:text-foreground disabled:opacity-60"
+    >
+      {busy ? <Loader2 className="size-3 animate-spin" /> : <Download className="size-3" />}
+      {busy ? "exporting…" : "export journal"}
     </button>
   );
 }
