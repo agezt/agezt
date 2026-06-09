@@ -12,6 +12,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Memory & World show a category breakdown.** A new reusable `BreakdownBar` widget
+  (a single stacked proportion bar in cohesive accent shades + a count chip per
+  category) now tops the Memory view (records by type — FACT/PREFERENCE/…) and the
+  World view (entities by kind), so the shape of what the agent knows reads at a
+  glance instead of only a header count. Verified live: Memory rendered "4 FACT · 3
+  PREFERENCE" with the stacked bar, zero console errors. (M665)
 - **Skills library shows a lifecycle breakdown.** The Skills view now opens with a
   status summary widget: a stacked proportion bar (active/shadow/draft/quarantined/
   archived) plus a colored count chip per status, so the health of the learned-skill

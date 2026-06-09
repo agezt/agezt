@@ -3,6 +3,14 @@ import { Badge } from "@/components/ui/badge";
 import { Muted } from "@/components/JsonView";
 import { ActionButton } from "@/components/ActionButton";
 import { WorldGraph } from "@/components/WorldGraph";
+import { BreakdownBar } from "@/components/Widgets";
+
+// kindBreakdown counts entities by kind for the breakdown bar.
+function kindBreakdown(ents: any[]): { label: string; count: number }[] {
+  const c: Record<string, number> = {};
+  for (const e of ents) c[e.kind || "entity"] = (c[e.kind || "entity"] || 0) + 1;
+  return Object.entries(c).map(([label, count]) => ({ label, count }));
+}
 
 export function World() {
   return (
@@ -16,6 +24,7 @@ export function World() {
             <Count>
               {ents.length} entities · {rels} relations
             </Count>
+            {ents.length > 0 && <BreakdownBar segments={kindBreakdown(ents)} />}
             {ents.length >= 2 && (
               <div className="h-72 overflow-hidden rounded-md border border-border bg-panel">
                 <WorldGraph entities={ents} edges={edges} />
