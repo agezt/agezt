@@ -12,8 +12,15 @@ vi.mock("@/lib/api", () => ({
   postAction: (...a: unknown[]) => postAction(...a),
 }));
 
-import { WorldAddForm, WorldRelateForm, WorldEditForm, parseWorldJSON } from "@/views/World";
+import { World, WorldAddForm, WorldRelateForm, WorldEditForm, parseWorldJSON } from "@/views/World";
 import { UIProvider } from "@/components/ui/feedback";
+
+// WorldGraph (React Flow / @xyflow) needs ResizeObserver, which jsdom lacks.
+globalThis.ResizeObserver ||= class {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+} as unknown as typeof ResizeObserver;
 
 function withUI(node: ReactNode) {
   return <UIProvider>{node}</UIProvider>;
@@ -25,6 +32,33 @@ beforeEach(() => {
   postJSON.mockResolvedValue({ id: "ent-1" });
   postAction.mockReset();
   postAction.mockResolvedValue({ id: "rel-1" });
+});
+
+describe("World relations list (M766)", () => {
+  it("lists relations with id→name-resolved endpoints and forgets one via /api/world/forget", async () => {
+    getJSON.mockResolvedValue({
+      entities: [
+        { id: "e1", name: "Alice", kind: "person" },
+        { id: "e2", name: "AGEZT", kind: "project" },
+      ],
+      edges: [{ id: "r1", from: "e1", verb: "owns", to: "e2" }],
+      relation_count: 1,
+    });
+    postAction.mockResolvedValue({ forgotten: true });
+    render(withUI(<World />));
+
+    await waitFor(() => expect(screen.getByText("Relations (1)")).toBeTruthy());
+    // The edge's entity ids resolved to names (the relation row shows the verb between
+    // them); "owns" also appears in the relate-form dropdown, so assert via the list label.
+    expect(screen.getAllByText("AGEZT").length).toBeGreaterThan(0);
+
+    // The relations list renders before the entity rows, so the first "forget" is the
+    // relation's. Clicking it opens the confirm modal; confirming posts world/forget.
+    fireEvent.click(screen.getAllByRole("button", { name: "forget" })[0]);
+    await waitFor(() => expect(screen.getByRole("button", { name: "Forget" })).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: "Forget" }));
+    await waitFor(() => expect(postAction).toHaveBeenCalledWith("/api/world/forget", { id: "r1" }));
+  });
 });
 
 describe("parseWorldJSON (M751)", () => {

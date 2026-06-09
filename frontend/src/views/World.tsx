@@ -96,6 +96,9 @@ export function World() {
         const ents = d.entities || [];
         const edges = d.edges || [];
         const rels = d.relations ?? d.relation_count ?? edges.length;
+        // Relations store their endpoints by entity id; resolve to names for display.
+        const nameById: Record<string, string> = {};
+        for (const e of ents) if (e.id) nameById[e.id] = e.name;
 
         function exportWorld() {
           downloadText(
@@ -172,6 +175,38 @@ export function World() {
             {ents.length >= 2 && (
               <div className="h-72 overflow-hidden rounded-md border border-border bg-panel">
                 <WorldGraph entities={ents} edges={edges} />
+              </div>
+            )}
+            {edges.length > 0 && (
+              <div className="space-y-1">
+                <div className="text-[11px] font-semibold uppercase tracking-wider text-muted">Relations ({edges.length})</div>
+                {edges.map((r: any, i: number) => {
+                  const from = nameById[r.from] || r.from;
+                  const to = nameById[r.to] || r.to;
+                  return (
+                    <div key={r.id || i} className="flex items-center gap-2 rounded-md border border-border/60 bg-panel/40 px-2.5 py-1 text-xs">
+                      <span className="font-medium text-foreground/80">{from}</span>
+                      <span className="font-mono text-[10px] text-accent">{r.verb}</span>
+                      <span className="font-medium text-foreground/80">{to}</span>
+                      <div className="ml-auto">
+                        <ActionButton
+                          label="forget"
+                          variant="danger"
+                          path="/api/world/forget"
+                          params={{ id: r.id }}
+                          onDone={reload}
+                          confirm={{
+                            title: "Forget this relation?",
+                            message: `“${from} ${r.verb} ${to}” will be removed from the world model.`,
+                            confirmLabel: "Forget",
+                            danger: true,
+                          }}
+                          success="Relation forgotten"
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
             {ents.length ? (
