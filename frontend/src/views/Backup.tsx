@@ -5,7 +5,7 @@ import { useUI } from "@/components/ui/feedback";
 import { downloadText } from "@/lib/export";
 import { exportAppearance, parseAppearanceJSON, applyAppearanceBundle } from "@/lib/appearance";
 import { parseConfigBundle, fetchConfigBundle, applyConfigBundle } from "@/lib/configbackup";
-import { fetchFullSnapshot, snapshotCounts } from "@/lib/snapshot";
+import { fetchFullSnapshot, snapshotCounts, parseSnapshotJSON, applyFullSnapshot } from "@/lib/snapshot";
 
 // configSummary describes what a daemon-config bundle currently holds — shown so you
 // know what you're about to export (and what an import will replace).
@@ -26,7 +26,8 @@ export function Backup() {
   const ui = useUI();
   const appearanceRef = useRef<HTMLInputElement>(null);
   const configRef = useRef<HTMLInputElement>(null);
-  const [busy, setBusy] = useState<"config-export" | "config-import" | "snapshot" | null>(null);
+  const snapshotRef = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState<"config-export" | "config-import" | "snapshot" | "snapshot-import" | null>(null);
   const [summary, setSummary] = useState<string | null>(null);
 
   const refreshSummary = useCallback(async () => {
@@ -79,6 +80,35 @@ export function Backup() {
     }
   }
 
+  // Restoring a whole snapshot writes across every domain — and standing/schedules are
+  // additive (re-adding duplicates), so this is gated behind an explicit confirm that
+  // spells out the counts and the additive caveat. Best for seeding a fresh daemon.
+  async function importSnapshotFile(file: File) {
+    let snap;
+    try {
+      snap = parseSnapshotJSON(await file.text());
+    } catch (e) {
+      ui.toast(`Restore failed: ${(e as Error).message}`, "error");
+      return;
+    }
+    const ok = await ui.confirm({
+      title: "Restore this snapshot?",
+      message: `This will restore: ${snapshotCounts(snap)}. Persona, prompts and routing are replaced; standing orders and schedules are ADDED (re-importing onto a daemon that already has them creates duplicates); memory and the world model dedupe. Best for seeding a fresh daemon.`,
+      confirmLabel: "Restore",
+    });
+    if (!ok) return;
+    setBusy("snapshot-import");
+    try {
+      const applied = await applyFullSnapshot(snap);
+      ui.toast(applied.length ? `Restored: ${applied.join(" · ")}` : "Nothing to restore", applied.length ? "success" : "error");
+      void refreshSummary();
+    } catch (e) {
+      ui.toast(`Restore failed: ${(e as Error).message}`, "error");
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function importConfigFile(file: File) {
     setBusy("config-import");
     try {
@@ -122,6 +152,18 @@ export function Backup() {
         onChange={(e) => {
           const f = e.target.files?.[0];
           if (f) void importConfigFile(f);
+          e.target.value = "";
+        }}
+      />
+      <input
+        ref={snapshotRef}
+        type="file"
+        accept="application/json,.json"
+        className="hidden"
+        aria-hidden="true"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) void importSnapshotFile(f);
           e.target.value = "";
         }}
       />
@@ -169,24 +211,26 @@ export function Backup() {
       <div className="rounded-lg border border-border bg-card p-3">
         <h3 className="flex items-center gap-2 text-sm font-semibold">
           <Camera className="size-4 text-accent" /> Full snapshot
-          <span className="rounded bg-panel px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted">
-            read-only
-          </span>
         </h3>
         <p className="mt-1 text-xs text-muted">
           A complete record of everything customizable — persona, prompts, routing, standing orders, schedules, memory and
-          the world model — in one file, for backup, audit or planning a migration. Export-only: restoring is per-domain.
+          the world model — in one file. Export it for backup or migration; <span className="text-foreground/70">Restore</span> replays
+          every section onto this daemon. Persona/prompts/routing are replaced; standing &amp; schedules are added; memory &amp; the
+          world model dedupe. Best for seeding a fresh daemon.
         </p>
         <div className="mt-2 flex items-center gap-2">
           <Button size="sm" variant="ghost" onClick={exportSnapshot} disabled={busy === "snapshot"}>
             <Download className="size-3.5" /> Export snapshot
           </Button>
+          <Button size="sm" variant="ghost" onClick={() => snapshotRef.current?.click()} disabled={busy === "snapshot-import"}>
+            <Upload className="size-3.5" /> Restore snapshot
+          </Button>
         </div>
       </div>
 
       <p className="text-[11px] text-muted">
-        Scope: the config bundle covers <span className="text-foreground/70">persona, prompts and routing</span> only.
-        Standing orders, schedules, memory and the world model aren’t included — manage those from their own views. The
+        The config bundle covers <span className="text-foreground/70">persona, prompts and routing</span>; the full snapshot
+        adds standing orders, schedules, memory and the world model — a complete, restorable backup of the whole agent. The
         same Export/Import actions are also in the command palette (<kbd className="rounded border border-border px-1">⌘K</kbd>).
       </p>
     </div>
