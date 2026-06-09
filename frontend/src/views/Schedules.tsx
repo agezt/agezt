@@ -5,8 +5,9 @@ import { cn, fmtDateTime } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useUI, type ConfirmOptions } from "@/components/ui/feedback";
 import { SkeletonList } from "@/components/ui/skeleton";
+import { EmptyState } from "@/components/ui/empty";
 import { Badge, statusVariant } from "@/components/ui/badge";
-import { Muted, ErrorText } from "@/components/JsonView";
+import { ErrorText } from "@/components/JsonView";
 
 interface Sched {
   id: string;
@@ -100,7 +101,16 @@ export function Schedules() {
       ) : !items ? (
         <SkeletonList count={4} lines={2} />
       ) : items.length === 0 ? (
-        <Muted>no schedules — the agent can add one with the schedule tool, or use `agt schedule add`</Muted>
+        <EmptyState
+          icon={CalendarClock}
+          title="No schedules yet"
+          hint={
+            <>
+              The agent can schedule its own future work with the <code className="rounded bg-panel px-1 py-0.5">schedule</code>{" "}
+              tool, or you can add one with <code className="rounded bg-panel px-1 py-0.5">agt schedule add</code>.
+            </>
+          }
+        />
       ) : (
         <div className="min-h-0 flex-1 overflow-auto">
           <ul className="space-y-2">

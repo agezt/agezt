@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
 import { Boxes, RefreshCw } from "lucide-react";
+import { EmptyState } from "@/components/ui/empty";
 import { getJSON, postAction } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useUI } from "@/components/ui/feedback";
 import { SkeletonGrid } from "@/components/ui/skeleton";
-import { Muted, ErrorText } from "@/components/JsonView";
+import { ErrorText } from "@/components/JsonView";
 import { joinCatalog, levelTone, type CatalogTool, type CatalogRow, type ToolUsage } from "@/lib/catalog";
 
 // The edict trust ladder (L0 deny … L4 allow). Mirrors the Policy view so a
@@ -78,7 +79,7 @@ export function Catalog() {
       ) : !rows ? (
         <SkeletonGrid count={6} lines={1} />
       ) : rows.length === 0 ? (
-        <Muted>no tools registered</Muted>
+        <EmptyState icon={Boxes} title="No tools registered" hint="No capabilities are wired into this agent's runtime yet." />
       ) : (
         <div className="min-h-0 flex-1 overflow-auto">
           <ul className="grid grid-cols-1 gap-2 lg:grid-cols-2">

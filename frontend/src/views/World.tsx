@@ -1,6 +1,8 @@
+import { Globe } from "lucide-react";
 import { Panel, Row, Count } from "@/components/Panel";
 import { Badge } from "@/components/ui/badge";
 import { Muted } from "@/components/JsonView";
+import { EmptyState } from "@/components/ui/empty";
 import { ActionButton } from "@/components/ActionButton";
 import { WorldGraph } from "@/components/WorldGraph";
 import { BreakdownBar } from "@/components/Widgets";
@@ -38,13 +40,32 @@ export function World() {
                   {e.weight != null ? <Muted>w={e.weight}</Muted> : null}
                   {e.id ? (
                     <span className="ml-auto">
-                      <ActionButton label="forget" variant="danger" path="/api/world/forget" params={{ id: e.id }} onDone={reload} />
+                      <ActionButton
+                        label="forget"
+                        variant="danger"
+                        path="/api/world/forget"
+                        params={{ id: e.id }}
+                        onDone={reload}
+                        confirm={{
+                          title: "Forget this entity?",
+                          message: e.name
+                            ? `“${e.name}” and its relations will be permanently removed from the world model.`
+                            : "This entity and its relations will be permanently removed from the world model.",
+                          confirmLabel: "Forget",
+                          danger: true,
+                        }}
+                        success="Entity forgotten"
+                      />
                     </span>
                   ) : null}
                 </Row>
               ))
             ) : (
-              <Muted>no entities</Muted>
+              <EmptyState
+                icon={Globe}
+                title="No entities yet"
+                hint="The agent builds its world model as it learns about people, projects and systems — it'll fill in here."
+              />
             )}
           </>
         );

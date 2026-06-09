@@ -5,8 +5,9 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useUI, type ConfirmOptions } from "@/components/ui/feedback";
 import { SkeletonList } from "@/components/ui/skeleton";
+import { EmptyState } from "@/components/ui/empty";
 import { Badge } from "@/components/ui/badge";
-import { Muted, ErrorText } from "@/components/JsonView";
+import { ErrorText } from "@/components/JsonView";
 
 interface Trigger {
   type?: string;
@@ -95,7 +96,16 @@ export function Standing() {
       ) : !orders ? (
         <SkeletonList count={4} lines={2} />
       ) : orders.length === 0 ? (
-        <Muted>no standing orders — add one with `agt standing add --name N (--cron … | --event …)`</Muted>
+        <EmptyState
+          icon={Anchor}
+          title="No standing orders yet"
+          hint={
+            <>
+              Standing orders are persistent goals the daemon pursues on a trigger. Add one with{" "}
+              <code className="rounded bg-panel px-1 py-0.5">agt standing add --name N (--cron … | --event …)</code>.
+            </>
+          }
+        />
       ) : (
         <div className="min-h-0 flex-1 overflow-auto">
           <ul className="space-y-2">

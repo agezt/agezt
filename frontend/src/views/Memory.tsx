@@ -5,6 +5,7 @@ import { cn, fmtTime } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useUI } from "@/components/ui/feedback";
 import { SkeletonGrid } from "@/components/ui/skeleton";
+import { EmptyState } from "@/components/ui/empty";
 import { Muted, ErrorText } from "@/components/JsonView";
 import { BreakdownBar } from "@/components/Widgets";
 
@@ -109,7 +110,15 @@ export function Memory() {
       ) : !records ? (
         <SkeletonGrid count={6} />
       ) : shown.length === 0 ? (
-        <Muted>{records.length === 0 ? "no memories yet" : "no memories match"}</Muted>
+        records.length === 0 ? (
+          <EmptyState
+            icon={Brain}
+            title="No memories yet"
+            hint="As the agent works, it distills durable facts and preferences here — searchable and one-click to forget."
+          />
+        ) : (
+          <Muted>no memories match “{q.trim()}”</Muted>
+        )
       ) : (
         <div className="min-h-0 flex-1 space-y-2 overflow-auto">
           {byType.length > 0 && <BreakdownBar segments={byType} />}
