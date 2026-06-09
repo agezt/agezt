@@ -12,6 +12,18 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Prompt library — save your own chat shortcuts.** A new **System → Prompts** view lets
+  you define named, reusable prompts (a title + the text to send) — "Daily standup",
+  "Review the diff", whatever you run often. They're saved **daemon-side** (a small JSON
+  file, not one browser's localStorage), so they follow you across browsers, and they
+  show up as one-click launch chips in the Chat's empty state (replacing the generic
+  examples once you've added any); clicking one drops its text into the composer. New
+  control-plane commands `prompts_get` / `prompts_set` (`GET /api/prompts`,
+  `POST /api/prompts/set`) back it; blank rows are dropped and fields length-capped.
+  Tests: the control plane round-trips the library (drops blanks); the view loads / adds
+  / saves (trimmed) / deletes; the Chat empty state renders saved prompts. Verified live
+  (isolated daemon): defined a prompt → it persisted → appeared as a launch chip in chat
+  → clicking it filled the composer, 0 console errors. (M713)
 - **Per-conversation model — each chat thread remembers its own.** The composer's model
   picker is now scoped to the active conversation: pick a model in one thread and it
   sticks to *that* thread (persists, survives reload); a new chat starts back at the

@@ -72,6 +72,10 @@ const (
 	// run. Get returns the content (owner-facing); Set: args{system} → live + persisted.
 	CmdPersonaGet = "persona_get"
 	CmdPersonaSet = "persona_set"
+	// Prompt library (M713): the owner's saved chat prompts (reusable workflows).
+	// Daemon-persisted; purely a Chat-composer convenience.
+	CmdPromptsGet = "prompts_get"
+	CmdPromptsSet = "prompts_set"
 	// CmdProviderLog lists recent provider-routing activity (M89) — a timeline of
 	// routing.decision + provider.fallback events (which provider handled calls,
 	// when the primary fell back). Args: limit, fallbacks (bool — only fallbacks),
