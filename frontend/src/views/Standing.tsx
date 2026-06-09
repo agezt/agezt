@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Anchor, RefreshCw, Pause, Play, Trash2, Clock, Zap, ShieldCheck, Plus, X, Pencil, Save } from "lucide-react";
 import { getJSON, postAction, postJSON } from "@/lib/api";
-import { cn } from "@/lib/utils";
+import { cn, fmtTime } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useUI, type ConfirmOptions } from "@/components/ui/feedback";
 import { SkeletonList } from "@/components/ui/skeleton";
@@ -23,6 +23,18 @@ interface Order {
   plan?: string;
   assure?: number;
 }
+interface WhyEvent {
+  seq?: number;
+  kind?: string;
+  ts_unix_ms?: number;
+  payload?: Record<string, unknown>;
+}
+
+// kindLabel turns a standing.* event kind into a short human label for the history.
+function kindLabel(kind?: string): string {
+  const k = (kind || "").replace(/^standing\./, "");
+  return k || "event";
+}
 
 // Standing is the autonomy cockpit for Chronos standing orders: persistent goals
 // that fire on a trigger (a cron schedule or a matching journal event) and act
@@ -37,6 +49,21 @@ export function Standing() {
   const [busy, setBusy] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  // Order life-story (M746): the order id whose journal history is shown + events.
+  const [history, setHistory] = useState<{ id: string; events: WhyEvent[] } | null>(null);
+
+  async function toggleHistory(id: string) {
+    if (history?.id === id) {
+      setHistory(null);
+      return;
+    }
+    try {
+      const d = await getJSON<{ events?: WhyEvent[] }>("/api/standing/why", { id });
+      setHistory({ id, events: d.events || [] });
+    } catch (e) {
+      ui.toast((e as Error).message, "error");
+    }
+  }
 
   async function reload() {
     setLoading(true);
@@ -208,7 +235,31 @@ export function Standing() {
                   ))}
                 </div>
                 {o.plan && <p className="mt-1.5 line-clamp-2 text-xs text-foreground/80">{o.plan}</p>}
-                <div className="mt-1 font-mono text-[10px] text-muted opacity-70">{o.id}</div>
+                <div className="mt-1 flex items-center gap-3 text-[10px]">
+                  <button onClick={() => toggleHistory(o.id)} className="text-accent/80 transition-colors hover:text-accent" title="Show this order's life story from the journal">
+                    {history?.id === o.id ? "hide history" : "history"}
+                  </button>
+                  <span className="font-mono text-muted opacity-70">{o.id}</span>
+                </div>
+                {history?.id === o.id && (
+                  <ol className="mt-1.5 space-y-0.5 rounded-md border border-border/60 bg-panel/40 p-2 text-[11px]">
+                    {history.events.length === 0 ? (
+                      <li className="text-muted">no journal events for this order yet</li>
+                    ) : (
+                      history.events.map((ev, i) => (
+                        <li key={ev.seq ?? i} className="flex items-center gap-2">
+                          <span className="rounded bg-panel px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-accent">
+                            {kindLabel(ev.kind)}
+                          </span>
+                          {typeof ev.payload?.action === "string" && (
+                            <span className="text-foreground/80">{ev.payload.action as string}</span>
+                          )}
+                          <span className="ml-auto font-mono text-[10px] text-muted">{fmtTime(ev.ts_unix_ms)}</span>
+                        </li>
+                      ))
+                    )}
+                  </ol>
+                )}
                 {editingId === o.id && (
                   <div className="mt-2">
                     <EditOrderForm

@@ -12,6 +12,15 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **See a standing order's life story.** Each standing-order row now has a **history** toggle that
+  folds the journal for that order — every `standing.*` event it produced: created, paused/resumed,
+  each firing, removed — into a compact timeline (event kind + action + time). It's the audit trail
+  for the agent's autonomous behavior, so you can answer "when did this fire, and when did I pause
+  it?" without the CLI (`agt standing why`). Backed by the existing `standing_why` command via a new
+  read-only `/api/standing/why` route. Tests cover the toggle (fetches `/api/standing/why` with the
+  id, renders the event kinds + action labels, hides on a second click). Verified live on an isolated
+  daemon: created a test order and paused it, then the UI history showed **CREATED** and **UPDATED
+  (paused)** with timestamps — 0 console errors. (M746)
 - **Reload providers without restarting the daemon.** The Providers view gains a **Reload** action
   (next to Refresh) that re-reads credentials and the model catalog **in place** — so a key change
   or catalog update takes effect without bouncing the daemon. It reports how many providers
