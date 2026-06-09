@@ -11,7 +11,7 @@ vi.mock("@/lib/api", () => ({
   postAction: (...a: unknown[]) => postAction(...a),
 }));
 
-import { NewOrderForm, EditOrderForm, Standing } from "@/views/Standing";
+import { NewOrderForm, EditOrderForm, Standing, parseStandingJSON } from "@/views/Standing";
 import { UIProvider } from "@/components/ui/feedback";
 import type { ReactNode } from "react";
 
@@ -179,5 +179,36 @@ describe("Standing order history (M746)", () => {
     // Toggle hides it.
     fireEvent.click(screen.getByRole("button", { name: "hide history" }));
     await waitFor(() => expect(screen.queryByText("created")).toBeNull());
+  });
+});
+
+describe("parseStandingJSON (M748)", () => {
+  const order = (name: string) => ({ name, triggers: [{ type: "cron", schedule: "0 8 * * *" }], plan: "x" });
+
+  it("reads a bare array, a {standing:[…]} and a {orders:[…]} wrapper", () => {
+    expect(parseStandingJSON(JSON.stringify([order("a")]))).toHaveLength(1);
+    expect(parseStandingJSON(JSON.stringify({ standing: [order("b")] }))).toHaveLength(1);
+    expect(parseStandingJSON(JSON.stringify({ version: 1, orders: [order("c")] }))).toHaveLength(1);
+  });
+
+  it("strips kernel-assigned id/timestamps but keeps the declarative shape", () => {
+    const out = parseStandingJSON(
+      JSON.stringify([{ ...order("watch"), id: "x", enabled: true, created_ms: 1, updated_ms: 2, initiative: { mode: "ask" } }]),
+    );
+    expect(out[0]).toEqual({ name: "watch", triggers: [{ type: "cron", schedule: "0 8 * * *" }], plan: "x", initiative: { mode: "ask" } });
+    expect(out[0]).not.toHaveProperty("id");
+    expect(out[0]).not.toHaveProperty("created_ms");
+  });
+
+  it("drops entries missing a name or triggers", () => {
+    const out = parseStandingJSON(JSON.stringify([order("ok"), { name: "no-trigger" }, { triggers: [{ type: "cron", schedule: "x" }] }]));
+    expect(out).toHaveLength(1);
+    expect(out[0].name).toBe("ok");
+  });
+
+  it("throws on invalid JSON, a non-array shape, or nothing valid", () => {
+    expect(() => parseStandingJSON("nope")).toThrow();
+    expect(() => parseStandingJSON('{"foo":1}')).toThrow(/expected an array/);
+    expect(() => parseStandingJSON("[{}]")).toThrow(/no valid orders/);
   });
 });

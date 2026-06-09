@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
-import { Anchor, RefreshCw, Pause, Play, Trash2, Clock, Zap, ShieldCheck, Plus, X, Pencil, Save } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Anchor, RefreshCw, Pause, Play, Trash2, Clock, Zap, ShieldCheck, Plus, X, Pencil, Save, Download, Upload } from "lucide-react";
 import { getJSON, postAction, postJSON } from "@/lib/api";
 import { cn, fmtTime } from "@/lib/utils";
+import { downloadText } from "@/lib/export";
 import { Button } from "@/components/ui/button";
 import { useUI, type ConfirmOptions } from "@/components/ui/feedback";
 import { SkeletonList } from "@/components/ui/skeleton";
@@ -34,6 +35,40 @@ interface WhyEvent {
 function kindLabel(kind?: string): string {
   const k = (kind || "").replace(/^standing\./, "");
   return k || "event";
+}
+
+// parseStandingJSON normalises an exported standing-orders file into an array of
+// order objects ready to re-add. Accepts a bare array, a {standing:[…]} wrapper, or
+// a {orders:[…]} wrapper (the list shape). Keeps only entries with a name and at
+// least one trigger (what the daemon validates), stripping kernel-assigned fields
+// (id/timestamps) so a re-add mints fresh ones. Throws on bad JSON / nothing valid.
+export function parseStandingJSON(text: string): Record<string, unknown>[] {
+  const data = JSON.parse(text);
+  const arr = Array.isArray(data)
+    ? data
+    : Array.isArray((data as { standing?: unknown[] })?.standing)
+      ? (data as { standing: unknown[] }).standing
+      : Array.isArray((data as { orders?: unknown[] })?.orders)
+        ? (data as { orders: unknown[] }).orders
+        : null;
+  if (!arr) throw new Error("expected an array of orders (or a {standing:[…]} / {orders:[…]} wrapper)");
+  const out: Record<string, unknown>[] = [];
+  for (const raw of arr) {
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) continue;
+    const o = raw as Record<string, unknown>;
+    const name = typeof o.name === "string" ? o.name.trim() : "";
+    const triggers = Array.isArray(o.triggers) ? o.triggers : [];
+    if (!name || triggers.length === 0) continue;
+    // Drop kernel-assigned identity/lifecycle fields; keep the declarative shape.
+    const { id, enabled, created_ms, updated_ms, ...rest } = o;
+    void id;
+    void enabled;
+    void created_ms;
+    void updated_ms;
+    out.push({ ...rest, name, triggers });
+  }
+  if (out.length === 0) throw new Error("no valid orders (each needs a name and at least one trigger) found");
+  return out;
 }
 
 // Standing is the autonomy cockpit for Chronos standing orders: persistent goals
@@ -104,6 +139,33 @@ export function Standing() {
   }
 
   const enabledCount = orders?.filter((o) => o.enabled).length ?? 0;
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  function exportOrders() {
+    downloadText("agezt-standing.json", JSON.stringify({ version: 1, standing: orders ?? [] }, null, 2), "application/json");
+  }
+
+  // Restore standing orders from a file: re-add each (the daemon mints fresh ids and
+  // validates). Note it ADDS — importing onto a daemon that already has them creates
+  // duplicates; that's why this lives behind an explicit Import action.
+  async function importOrders(file: File) {
+    try {
+      const list = parseStandingJSON(await file.text());
+      let added = 0;
+      for (const order of list) {
+        try {
+          await postJSON("/api/standing/add", { order });
+          added++;
+        } catch {
+          /* skip an order the daemon rejects; keep importing the rest */
+        }
+      }
+      ui.toast(`Imported ${added}/${list.length} standing order${list.length === 1 ? "" : "s"}`, added ? "success" : "error");
+      void reload();
+    } catch (e) {
+      ui.toast(`Import failed: ${(e as Error).message}`, "error");
+    }
+  }
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3">
@@ -115,7 +177,25 @@ export function Standing() {
           {orders ? `${orders.length} total` : ""}
           {orders && orders.length > 0 && <span className="text-good"> · {enabledCount} active</span>}
         </span>
-        <Button size="sm" className="ml-auto" onClick={() => setShowForm((v) => !v)} title="Create a standing order">
+        <input
+          ref={fileRef}
+          type="file"
+          accept="application/json,.json"
+          className="hidden"
+          aria-hidden="true"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) void importOrders(f);
+            e.target.value = "";
+          }}
+        />
+        <Button variant="ghost" size="sm" className="ml-auto" onClick={() => fileRef.current?.click()} title="Import standing orders from a file">
+          <Upload className="size-3.5" /> Import
+        </Button>
+        <Button variant="ghost" size="sm" onClick={exportOrders} disabled={!orders || orders.length === 0} title="Export standing orders to a file">
+          <Download className="size-3.5" /> Export
+        </Button>
+        <Button size="sm" onClick={() => setShowForm((v) => !v)} title="Create a standing order">
           {showForm ? <X className="size-3.5" /> : <Plus className="size-3.5" />} New order
         </Button>
         <Button variant="ghost" size="sm" onClick={reload} disabled={loading} title="Reload">
