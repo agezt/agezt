@@ -4,6 +4,7 @@ import { getJSON, postAction } from "@/lib/api";
 import { cn, fmtTime } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useUI } from "@/components/ui/feedback";
+import { SkeletonGrid } from "@/components/ui/skeleton";
 import { Muted, ErrorText } from "@/components/JsonView";
 import { BreakdownBar } from "@/components/Widgets";
 
@@ -106,7 +107,7 @@ export function Memory() {
       {err ? (
         <ErrorText>{err}</ErrorText>
       ) : !records ? (
-        <Muted>loading…</Muted>
+        <SkeletonGrid count={6} />
       ) : shown.length === 0 ? (
         <Muted>{records.length === 0 ? "no memories yet" : "no memories match"}</Muted>
       ) : (

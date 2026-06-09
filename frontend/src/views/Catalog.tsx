@@ -4,6 +4,7 @@ import { getJSON, postAction } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useUI } from "@/components/ui/feedback";
+import { SkeletonGrid } from "@/components/ui/skeleton";
 import { Muted, ErrorText } from "@/components/JsonView";
 import { joinCatalog, levelTone, type CatalogTool, type CatalogRow, type ToolUsage } from "@/lib/catalog";
 
@@ -75,7 +76,7 @@ export function Catalog() {
       {err ? (
         <ErrorText>{err}</ErrorText>
       ) : !rows ? (
-        <Muted>loading…</Muted>
+        <SkeletonGrid count={6} lines={1} />
       ) : rows.length === 0 ? (
         <Muted>no tools registered</Muted>
       ) : (
