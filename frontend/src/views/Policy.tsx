@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
-import { RefreshCw, ShieldCheck, Trash2, Plus, FlaskConical } from "lucide-react";
+import { RefreshCw, ShieldCheck, Trash2, Plus, FlaskConical, EyeOff } from "lucide-react";
 import { Panel, Stats, Row, Count } from "@/components/Panel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useUI, type ConfirmOptions } from "@/components/ui/feedback";
 import { LogDetail } from "@/components/LogDetail";
-import { getJSON, postAction } from "@/lib/api";
+import { getJSON, postAction, postJSON } from "@/lib/api";
 import { byDescValue, pct } from "@/lib/format";
 import { cn, fmtTime } from "@/lib/utils";
 
@@ -244,6 +244,9 @@ export function Policy() {
         {levels.length > 0 && <PolicyTestForm capabilities={levels.map(([cap]) => cap)} />}
       </div>
 
+      {/* Secret redaction check (M754) */}
+      <RedactionCheckForm />
+
       {/* Decision stats + log (existing read-only view) */}
       <Panel<Record<string, any>> title="Decisions" path="/api/policy">
         {(d) => {
@@ -463,6 +466,90 @@ export function PolicyTestForm({ capabilities }: { capabilities: string[] }) {
             </span>
           )}
           {result.reason && <span className="truncate text-muted">{result.reason}</span>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+interface RedactResult {
+  enabled?: boolean;
+  would_redact?: boolean;
+  redacted?: string;
+  categories?: string[];
+  literal_hit?: boolean;
+}
+
+// RedactionCheckForm dry-runs the LIVE secret redactor (M754): paste text and see
+// whether the scrubber that guards outbound content (logs, channel messages, prompts)
+// would redact it — and into which categories (api_key, jwt, …) or as a configured
+// secret literal. Read-only, and the probe text rides the POST body (not a URL) so the
+// secret never lands in an access log; the response returns only the REDACTED form and
+// category names, never the matched secret. Lets an operator confirm "my key won't leak."
+export function RedactionCheckForm() {
+  const [text, setText] = useState("");
+  const [result, setResult] = useState<RedactResult | null>(null);
+  const [running, setRunning] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function run() {
+    if (!text.trim()) return;
+    setRunning(true);
+    try {
+      setResult(await postJSON<RedactResult>("/api/redact/test", { text }));
+      setErr(null);
+    } catch (e) {
+      setErr((e as Error).message);
+      setResult(null);
+    } finally {
+      setRunning(false);
+    }
+  }
+
+  return (
+    <div className="rounded-lg border border-border bg-card p-3">
+      <div className="mb-2 flex items-center gap-2">
+        <EyeOff className="size-4 text-accent" />
+        <h2 className="text-sm font-semibold">Secret redaction</h2>
+        <span className="text-xs text-muted">check what the scrubber catches before it leaves the daemon</span>
+      </div>
+      <textarea
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        placeholder="Paste text to test — e.g. a log line or message that might carry a key…"
+        aria-label="Redaction test text"
+        className="h-20 w-full resize-y rounded-md border border-border bg-panel p-2 font-mono text-xs outline-none placeholder:text-muted/60 focus-visible:border-accent"
+      />
+      <div className="mt-2 flex items-center justify-between gap-2">
+        <span className="text-[10px] text-muted">The probe text is sent in the request body (never a URL) and the response shows only the redacted form.</span>
+        <Button size="sm" variant="ghost" onClick={run} disabled={!text.trim() || running} title="Test redaction">
+          {running ? <RefreshCw className="size-3.5 animate-spin" /> : <EyeOff className="size-3.5" />} Check
+        </Button>
+      </div>
+
+      {err && <div className="mt-1.5 text-xs text-bad">{err}</div>}
+      {result && (
+        <div className="mt-2 space-y-1.5">
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            {!result.enabled ? (
+              <Badge variant="bad">redactor OFF</Badge>
+            ) : result.would_redact ? (
+              <Badge variant="good">would redact</Badge>
+            ) : (
+              <Badge>no match</Badge>
+            )}
+            {result.categories?.map((c) => (
+              <span key={c} className="rounded bg-panel px-1.5 py-0.5 font-mono text-[10px] text-accent">
+                {c}
+              </span>
+            ))}
+            {result.literal_hit && <span className="text-[10px] text-muted">matched a configured secret literal</span>}
+          </div>
+          {result.would_redact && (
+            <pre className="overflow-x-auto whitespace-pre-wrap break-words rounded-md border border-border/70 bg-panel/40 p-2 font-mono text-[11px] text-foreground/85">
+              {result.redacted}
+            </pre>
+          )}
         </div>
       )}
     </div>

@@ -267,6 +267,11 @@ var jsonRoutes = map[string]writeRoute{
 	// JSON body is needed. Lands as a draft (auto-staged to shadow if well-formed) —
 	// never auto-active; promote via the normal lifecycle controls.
 	"/api/skill/import": {controlplane.CmdSkillImport, []string{"name", "description", "triggers", "body", "tools_required"}},
+	// Dry-run the secret redactor (M754): does the LIVE scrubber redact this text,
+	// and into which categories? Read-only, but carried in the JSON BODY (not a query
+	// arg) so the sensitive probe text never lands in a URL / access log. The response
+	// returns only the REDACTED form + category names, never the matched secret.
+	"/api/redact/test": {controlplane.CmdRedactTest, []string{"text"}},
 }
 
 // planRoute is the streaming "run this plan" action (Flow Studio's Run button).
