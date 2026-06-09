@@ -51,8 +51,9 @@ func (t *Tool) Definition() agent.ToolDef {
     "op": {"type": "string", "enum": ["schema", "get", "set", "register", "unregister"], "description": "The operation to perform."},
     "name": {"type": "string", "description": "For get/set: the AGEZT_* env-var name (e.g. AGEZT_X_WEATHER_API_KEY)."},
     "value": {"type": "string", "description": "For set: the value to store (empty string clears the setting)."},
-    "section": {"type": "object", "description": "For register: a schema section {id, name, help?, fields:[{env, label, type, secret?, required?, help?, options?}]}. Field env names must match AGEZT_[A-Z0-9_]+."},
-    "id": {"type": "string", "description": "For unregister: the registered section id."}
+    "section": {"type": "object", "description": "For register: a schema section {id, name, help?, locked?, fields:[{env, label, type, secret?, required?, help?, options?, read_only?, locked?}]}. Field env names must match AGEZT_[A-Z0-9_]+. read_only fields can't be set; locked fields can't be cleared; a locked section can't be unregistered without force."},
+    "id": {"type": "string", "description": "For unregister: the registered section id."},
+    "force": {"type": "boolean", "description": "For unregister: remove even a locked (system-approved) section."}
   }
 }`),
 	}
@@ -64,6 +65,7 @@ type input struct {
 	Value   string          `json:"value,omitempty"`
 	Section json.RawMessage `json:"section,omitempty"`
 	ID      string          `json:"id,omitempty"`
+	Force   bool            `json:"force,omitempty"`
 }
 
 // Invoke implements agent.Tool.
@@ -148,9 +150,15 @@ func (t *Tool) doSet(in input) (agent.Result, error) {
 	if !ok {
 		return errf("unknown setting %q", name), nil
 	}
+	if field.ReadOnly {
+		return errf("%s is read-only and cannot be changed", name), nil
+	}
 	value := strings.TrimSpace(in.Value)
 	if err := settings.Validate(field, value); err != nil {
 		return errf("%s", err.Error()), nil
+	}
+	if field.Locked && value == "" {
+		return errf("%s is locked and cannot be cleared", name), nil
 	}
 	if field.Secret {
 		vault := creds.NewStore(t.baseDir)
@@ -209,7 +217,7 @@ func (t *Tool) doUnregister(in input) (agent.Result, error) {
 	if id == "" {
 		return errf("id required"), nil
 	}
-	removed, err := t.registry().Unregister(id)
+	removed, err := t.registry().Unregister(id, in.Force)
 	if err != nil {
 		return errf("%s", err.Error()), nil
 	}

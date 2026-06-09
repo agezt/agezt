@@ -469,11 +469,15 @@ func cmdConfigSchemaRegister(args []string, stdout, stderr io.Writer) int {
 // values are left untouched).
 func cmdConfigSchemaUnregister(args []string, stdout, stderr io.Writer) int {
 	var id string
+	force := false
 	for _, a := range args {
 		switch a {
 		case "-h", "--help":
-			fmt.Fprintf(stdout, "usage: %s config schema unregister <id>\n", brand.CLI)
+			fmt.Fprintf(stdout, "usage: %s config schema unregister <id> [--force]\n", brand.CLI)
+			fmt.Fprintf(stdout, "  --force   remove even a locked (system-approved) section\n")
 			return 0
+		case "--force":
+			force = true
 		default:
 			if id != "" {
 				fmt.Fprintf(stderr, "%s config schema unregister: unexpected arg %q\n", brand.CLI, a)
@@ -492,7 +496,7 @@ func cmdConfigSchemaUnregister(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdConfigSchemaUnregister, map[string]any{"id": id})
+	res, err := c.Call(ctx, controlplane.CmdConfigSchemaUnregister, map[string]any{"id": id, "force": force})
 	if err != nil {
 		fmt.Fprintf(stderr, "%s config schema unregister: %v\n", brand.CLI, err)
 		return 1

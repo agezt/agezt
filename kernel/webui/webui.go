@@ -194,7 +194,7 @@ var jsonRoutes = map[string]writeRoute{
 	// Schema registry write (M695): register/unregister a skill/plugin-contributed
 	// schema section. Register forwards the whole `section` object; unregister an id.
 	"/api/config/schema/register":   {controlplane.CmdConfigSchemaRegister, []string{"section"}},
-	"/api/config/schema/unregister": {controlplane.CmdConfigSchemaUnregister, []string{"id"}},
+	"/api/config/schema/unregister": {controlplane.CmdConfigSchemaUnregister, []string{"id", "force"}},
 }
 
 // planRoute is the streaming "run this plan" action (Flow Studio's Run button).

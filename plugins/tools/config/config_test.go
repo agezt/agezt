@@ -87,6 +87,54 @@ func TestConfigTool_RejectsBadOps(t *testing.T) {
 	}
 }
 
+func TestConfigTool_ReadOnlyAndLocked(t *testing.T) {
+	dir := t.TempDir()
+	tool := New(dir)
+	section := map[string]any{
+		"id":   "sysmanaged",
+		"name": "System Managed",
+		"fields": []map[string]any{
+			{"env": "AGEZT_X_SYS_RO", "label": "Read only", "type": "text", "read_only": true},
+			{"env": "AGEZT_X_SYS_LOCKED", "label": "Locked", "type": "text", "locked": true},
+		},
+	}
+	if _, isErr := invoke(t, tool, map[string]any{"op": "register", "section": section}); isErr {
+		t.Fatal("register failed")
+	}
+	// read-only: any set is refused.
+	if out, isErr := invoke(t, tool, map[string]any{"op": "set", "name": "AGEZT_X_SYS_RO", "value": "x"}); !isErr || !strings.Contains(out, "read-only") {
+		t.Errorf("read-only set should fail: out=%q isErr=%v", out, isErr)
+	}
+	// locked: updating to a value is fine...
+	if _, isErr := invoke(t, tool, map[string]any{"op": "set", "name": "AGEZT_X_SYS_LOCKED", "value": "v1"}); isErr {
+		t.Error("locked set to a value should succeed")
+	}
+	// ...but clearing it is refused.
+	if out, isErr := invoke(t, tool, map[string]any{"op": "set", "name": "AGEZT_X_SYS_LOCKED", "value": ""}); !isErr || !strings.Contains(out, "locked") {
+		t.Errorf("locked clear should fail: out=%q isErr=%v", out, isErr)
+	}
+}
+
+func TestConfigTool_LockedSectionForce(t *testing.T) {
+	dir := t.TempDir()
+	tool := New(dir)
+	section := map[string]any{
+		"id":     "sys-section",
+		"name":   "Sys Section",
+		"locked": true,
+		"fields": []map[string]any{{"env": "AGEZT_X_S_A", "label": "A", "type": "text"}},
+	}
+	if _, isErr := invoke(t, tool, map[string]any{"op": "register", "section": section}); isErr {
+		t.Fatal("register failed")
+	}
+	if out, isErr := invoke(t, tool, map[string]any{"op": "unregister", "id": "sys-section"}); !isErr || !strings.Contains(out, "locked") {
+		t.Errorf("locked section unregister should fail without force: out=%q isErr=%v", out, isErr)
+	}
+	if out, isErr := invoke(t, tool, map[string]any{"op": "unregister", "id": "sys-section", "force": true}); isErr || !strings.Contains(out, "unregistered") {
+		t.Errorf("force unregister should succeed: out=%q isErr=%v", out, isErr)
+	}
+}
+
 func TestConfigTool_GetSetBuiltin(t *testing.T) {
 	t.Setenv("AGEZT_MODEL", "") // ignore any ambient env so get reads the store
 	dir := t.TempDir()

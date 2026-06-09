@@ -120,6 +120,44 @@ describe("ConfigCenter view", () => {
     await waitFor(() => expect(screen.getByText("No settings match")).toBeTruthy());
   });
 
+  it("renders read-only fields non-editable and locked fields without a Clear button", async () => {
+    getJSON.mockImplementation((path: string) => {
+      if (path === "/api/config/schema")
+        return Promise.resolve({
+          sections: [
+            {
+              id: "sys",
+              name: "System Managed",
+              source: "sys",
+              fields: [
+                { env: "AGEZT_X_RO", label: "Read only", type: "text", secret: false, required: false, apply: "restart", read_only: true },
+                { env: "AGEZT_X_LOCKED", label: "Locked secret", type: "password", secret: true, required: false, apply: "restart", locked: true },
+              ],
+            },
+          ],
+        });
+      if (path === "/api/config/values")
+        return Promise.resolve({
+          fields: [
+            { env: "AGEZT_X_RO", secret: false, env_pinned: false, set: true, value: "system-value" },
+            { env: "AGEZT_X_LOCKED", secret: true, env_pinned: false, set: true },
+          ],
+        });
+      return Promise.reject(new Error("unexpected " + path));
+    });
+    render(withUI(<ConfigCenter />));
+    await waitFor(() => expect(sectionHeading("System Managed")).toBeTruthy());
+
+    // Read-only: value displayed, "read-only" chip, but NOT an editable input.
+    expect(screen.getByText("read-only")).toBeTruthy();
+    expect(screen.getByText("system-value")).toBeTruthy();
+    expect(screen.queryByDisplayValue("system-value")).toBeNull();
+
+    // Locked secret: a "locked" chip and no Clear button.
+    expect(screen.getByText("locked")).toBeTruthy();
+    expect(screen.queryByTitle("Clear (remove from vault)")).toBeNull();
+  });
+
   it("never shows a secret value — only presence", async () => {
     mockFetch();
     const { container } = render(withUI(<ConfigCenter />));

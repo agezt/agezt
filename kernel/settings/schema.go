@@ -41,6 +41,12 @@ type Field struct {
 	Help     string    `json:"help,omitempty"`
 	Apply    Apply     `json:"apply"`
 	Options  []string  `json:"options,omitempty"` // for TypeSelect
+	// ReadOnly: shown in the Config Center but NOT editable there (system-managed).
+	// The server rejects any config_set for it; the UI renders it read-only.
+	ReadOnly bool `json:"read_only,omitempty"`
+	// Locked: the value may be changed but never CLEARED/removed ("silinemez").
+	// The server rejects a config_set with an empty value; the UI hides Clear.
+	Locked bool `json:"locked,omitempty"`
 }
 
 // Section groups related fields for the Config Center UI. Source records where
@@ -51,6 +57,11 @@ type Section struct {
 	Name   string  `json:"name"`
 	Help   string  `json:"help,omitempty"`
 	Source string  `json:"source,omitempty"`
+	// Locked: a system-approved section that cannot be unregistered through the
+	// normal path (config_schema_unregister / the `config` tool) — only with an
+	// explicit operator force, or by deleting the file. Built-in sections are
+	// always permanent regardless of this flag.
+	Locked bool    `json:"locked,omitempty"`
 	Fields []Field `json:"fields"`
 }
 

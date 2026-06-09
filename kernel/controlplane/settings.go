@@ -86,11 +86,19 @@ func (s *Server) handleConfigSet(conn net.Conn, req Request) {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "unknown setting " + name})
 		return
 	}
+	if field.ReadOnly {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: name + " is read-only and cannot be changed from the Config Center"})
+		return
+	}
 	if err := settings.Validate(field, value); err != nil {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
 		return
 	}
 	value = strings.TrimSpace(value)
+	if field.Locked && value == "" {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: name + " is locked and cannot be cleared"})
+		return
+	}
 
 	if field.Secret {
 		vault := creds.NewStore(s.baseDir)
@@ -184,7 +192,8 @@ func (s *Server) handleConfigSchemaRegister(conn net.Conn, req Request) {
 
 // handleConfigSchemaUnregister removes a registered schema section by id. The
 // section's stored VALUES (config.json / vault) are left untouched; only the
-// schema is removed, so the Config Center stops showing the section.
+// schema is removed, so the Config Center stops showing the section. A Locked
+// (system-approved) section is refused unless args.force is truthy.
 func (s *Server) handleConfigSchemaUnregister(conn net.Conn, req Request) {
 	id, _ := req.Args["id"].(string)
 	id = strings.TrimSpace(id)
@@ -192,7 +201,8 @@ func (s *Server) handleConfigSchemaUnregister(conn net.Conn, req Request) {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.id required"})
 		return
 	}
-	existed, err := settings.NewRegistry(s.baseDir).Unregister(id)
+	force, _ := req.Args["force"].(bool)
+	existed, err := settings.NewRegistry(s.baseDir).Unregister(id, force)
 	if err != nil {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
 		return

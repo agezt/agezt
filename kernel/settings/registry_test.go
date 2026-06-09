@@ -68,7 +68,7 @@ func TestRegistry_Unregister(t *testing.T) {
 	if err := r.Register(sampleSection()); err != nil {
 		t.Fatalf("register: %v", err)
 	}
-	removed, err := r.Unregister("weather-skill")
+	removed, err := r.Unregister("weather-skill", false)
 	if err != nil || !removed {
 		t.Fatalf("unregister: removed=%v err=%v", removed, err)
 	}
@@ -76,9 +76,27 @@ func TestRegistry_Unregister(t *testing.T) {
 		t.Fatalf("expected 0 after unregister, got %d", got)
 	}
 	// Unregistering a missing id is not an error.
-	removed, err = r.Unregister("nope")
+	removed, err = r.Unregister("nope", false)
 	if err != nil || removed {
 		t.Fatalf("unregister missing: removed=%v err=%v", removed, err)
+	}
+}
+
+func TestRegistry_LockedSectionNeedsForce(t *testing.T) {
+	r := NewRegistry(t.TempDir())
+	sec := sampleSection()
+	sec.ID = "locked-skill"
+	sec.Locked = true
+	if err := r.Register(sec); err != nil {
+		t.Fatalf("register: %v", err)
+	}
+	// Without force the locked section is refused.
+	if removed, err := r.Unregister("locked-skill", false); err == nil || removed {
+		t.Fatalf("expected locked section to refuse unregister: removed=%v err=%v", removed, err)
+	}
+	// With force it goes.
+	if removed, err := r.Unregister("locked-skill", true); err != nil || !removed {
+		t.Fatalf("force unregister: removed=%v err=%v", removed, err)
 	}
 }
 

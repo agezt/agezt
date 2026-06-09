@@ -12,6 +12,21 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Config Center fields can be read-only, locked, or system-approved.** Three new
+  schema flags make some settings safe from accidental change: a **read-only** field
+  (`read_only`) is shown but the server rejects any write to it (system-managed); a
+  **locked** field (`locked`) can be updated but never *cleared* (a `config_set` with
+  an empty value is refused — "silinemez"); and a **locked section** (`Section.locked`)
+  is system-approved — it can't be unregistered through the normal path (the
+  `config` tool / `agt config schema unregister` / the API) unless an operator passes
+  **force** (`--force`), so a skill can't silently tear itself out yet an operator can
+  always override. Enforced uniformly in the control plane, the `config` agent tool,
+  and the CLI; the Config Center UI renders read-only fields non-editable (lock + a
+  "read-only" chip), and locked fields with a "locked" chip and no Clear button.
+  Verified live (isolated daemon): setting a read-only field was refused; a locked
+  field accepted an update but refused a clear; a locked section refused unregister
+  until `--force`; the UI rendered both the read-only and locked treatments with 0
+  console errors. (M698)
 - **Config Center UI redesign — grouped nav, search, and skill/plugin provenance.**
   The Config Center now reflects the dynamic schema (M695): sections are grouped
   into **Core / Channels / Skills & Plugins** with a sticky left section-nav
