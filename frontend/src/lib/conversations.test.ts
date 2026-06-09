@@ -16,7 +16,10 @@ import {
   withActiveConvModel,
   togglePinned,
   sortConversations,
+  filterConversations,
+  conversationText,
   type Store,
+  type Conversation,
   type Msg,
 } from "@/lib/conversations";
 
@@ -164,6 +167,44 @@ describe("store mutations", () => {
     s = togglePinned(s, a);
     expect(s.conversations.find((c) => c.id === a)!.pinned).toBe(false);
     expect(sortConversations(s.conversations)[0].id).toBe(b);
+  });
+
+  it("filterConversations matches title and message text; empty query is a passthrough", () => {
+    const botTurn = (text: string): Msg => ({
+      role: "assistant",
+      turn: { status: "done", streamedText: text, reasoning: "", tools: [], iters: 1, costMicrocents: 0 },
+    });
+    const convs: Conversation[] = [
+      { id: "a", title: "Deploy notes", messages: [userMsg("how do I ship")], updatedAt: 3 },
+      { id: "b", title: "Random chat", messages: [userMsg("hi"), botTurn("the kubernetes rollout is green")], updatedAt: 2 },
+      { id: "c", title: "Groceries", messages: [userMsg("milk and eggs")], updatedAt: 1 },
+    ];
+    // Empty query → unchanged (same array contents).
+    expect(filterConversations(convs, "  ").map((c) => c.id)).toEqual(["a", "b", "c"]);
+    // Title match.
+    expect(filterConversations(convs, "deploy").map((c) => c.id)).toEqual(["a"]);
+    // User-message match.
+    expect(filterConversations(convs, "EGGS").map((c) => c.id)).toEqual(["c"]); // case-insensitive
+    // Assistant-reply match (searches the streamed text, not just titles).
+    expect(filterConversations(convs, "kubernetes").map((c) => c.id)).toEqual(["b"]);
+    // No match → empty.
+    expect(filterConversations(convs, "zzz")).toEqual([]);
+  });
+
+  it("conversationText folds title + user + assistant text, lower-cased", () => {
+    const c: Conversation = {
+      id: "x",
+      title: "My Title",
+      messages: [
+        { role: "user", text: "Hello THERE" },
+        { role: "assistant", turn: { status: "done", streamedText: "General Kenobi", reasoning: "", tools: [], iters: 1, costMicrocents: 0 } },
+      ],
+      updatedAt: 1,
+    };
+    const t = conversationText(c);
+    expect(t).toContain("my title");
+    expect(t).toContain("hello there");
+    expect(t).toContain("general kenobi");
   });
 
   it("deleteConversation activates a remaining one, or seeds fresh when last", () => {

@@ -174,6 +174,26 @@ export function togglePinned(store: Store, id: string): Store {
   };
 }
 
+// conversationText concatenates a conversation's searchable text: its title plus
+// every message — user prompts and the assistant's streamed reply — lower-cased,
+// so the sidebar filter matches on what was actually said, not just the title.
+export function conversationText(c: Conversation): string {
+  const parts: string[] = [c.title || ""];
+  for (const m of c.messages) {
+    parts.push(m.role === "user" ? m.text : m.turn.streamedText || "");
+  }
+  return parts.join(" ").toLowerCase();
+}
+
+// filterConversations keeps conversations whose title or any message matches the
+// (trimmed, lower-cased) query. An empty query returns the list unchanged, so the
+// caller can pass it through unconditionally.
+export function filterConversations(conversations: Conversation[], query: string): Conversation[] {
+  const q = query.trim().toLowerCase();
+  if (!q) return conversations;
+  return conversations.filter((c) => conversationText(c).includes(q));
+}
+
 // sortConversations orders the sidebar: pinned first, then most-recently-updated.
 export function sortConversations(conversations: Conversation[]): Conversation[] {
   return [...conversations].sort(

@@ -27,6 +27,7 @@ import {
   Bot,
   Download,
   Pin,
+  Search,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { money } from "@/lib/format";
@@ -45,7 +46,7 @@ const AUTOSPEAK_KEY = "agezt.chat.autospeak";
 import { turnText, type ChatTurn, type ChatTool, type TimelineItem } from "@/lib/chat";
 import { useChat } from "@/lib/chatStore";
 import { buildContext, type AttachRef } from "@/lib/attach";
-import { sortConversations, type Msg } from "@/lib/conversations";
+import { sortConversations, filterConversations, type Msg } from "@/lib/conversations";
 import { conversationToMarkdown, slugify, downloadText } from "@/lib/export";
 
 // Chat is the humane front door to the agent: a conversational thread where you
@@ -57,6 +58,8 @@ export function Chat() {
   const { store, messages, busy, model, setModel, activeModel, send, retry, editAndResend, conversationPersona, setConversationPersona, stop, newChat, selectConversation, removeConversation, renameConversation, togglePin } =
     useChat();
   const [input, setInput] = useState("");
+  // convFilter filters the conversation sidebar by title/message text (M732).
+  const [convFilter, setConvFilter] = useState("");
   // pinned = the thread is stuck to the bottom (auto-scrolls on new content).
   // It flips to false when you scroll up to read scrollback, so a live stream
   // never yanks you back down mid-read; a "jump to latest" button restores it.
@@ -191,19 +194,46 @@ export function Chat() {
         >
           <Plus className="size-3.5" /> New chat
         </button>
-        <div className="min-h-0 flex-1 space-y-0.5 overflow-auto">
-          {sortConversations(store.conversations).map((c) => (
-            <ConversationItem
-              key={c.id}
-              title={c.title || "New chat"}
-              active={c.id === store.activeId}
-              pinned={!!c.pinned}
-              onSelect={() => selectConversation(c.id)}
-              onRemove={() => removeConversation(c.id)}
-              onRename={(t) => renameConversation(c.id, t)}
-              onTogglePin={() => togglePin(c.id)}
+        {store.conversations.length > 1 && (
+          <div className="relative mb-2">
+            <Search className="pointer-events-none absolute left-2 top-1/2 size-3 -translate-y-1/2 text-muted" />
+            <input
+              value={convFilter}
+              onChange={(e) => setConvFilter(e.target.value)}
+              placeholder="Search chats…"
+              aria-label="Search conversations"
+              className="h-7 w-full rounded-md border border-border bg-panel pl-7 pr-6 text-xs outline-none focus:border-accent"
             />
-          ))}
+            {convFilter && (
+              <button
+                onClick={() => setConvFilter("")}
+                aria-label="Clear conversation search"
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 text-muted transition-colors hover:text-foreground"
+              >
+                <X className="size-3" />
+              </button>
+            )}
+          </div>
+        )}
+        <div className="min-h-0 flex-1 space-y-0.5 overflow-auto">
+          {(() => {
+            const shown = sortConversations(filterConversations(store.conversations, convFilter));
+            if (shown.length === 0) {
+              return <p className="px-2 py-3 text-center text-[11px] text-muted">No chats match “{convFilter.trim()}”</p>;
+            }
+            return shown.map((c) => (
+              <ConversationItem
+                key={c.id}
+                title={c.title || "New chat"}
+                active={c.id === store.activeId}
+                pinned={!!c.pinned}
+                onSelect={() => selectConversation(c.id)}
+                onRemove={() => removeConversation(c.id)}
+                onRename={(t) => renameConversation(c.id, t)}
+                onTogglePin={() => togglePin(c.id)}
+              />
+            ));
+          })()}
         </div>
       </aside>
 
