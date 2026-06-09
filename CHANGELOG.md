@@ -12,6 +12,21 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Export & re-import memories (knowledge backup / bulk seed).** The Memory view gains **Export**
+  (downloads `agezt-memory.json` — `{version:1, memory:[…]}`) and **Import** (re-adds each fact via
+  the existing `memory_add`). Import accepts a bare array, a `{memory:[…]}` or a `{records:[…]}`
+  wrapper; keeps only entries with content (what the daemon requires), carrying optional
+  subject/type/confidence and upper-casing the type; drops kernel-assigned identity/lifecycle fields
+  (`id`/timestamps/`source_event`/`tags`). Because memory is **content-addressed**, re-importing a
+  fact the agent already knows **dedupes rather than duplicating** — so import here is naturally
+  idempotent (unlike standing/schedules, where re-import adds). Reports `added/total`. This makes the
+  agent's learned knowledge portable: back it up, move it between machines, or seed a fresh daemon
+  with a curated fact set. `parseMemoryJSON` is unit-tested (every wrapper shape; keeps
+  content+optional fields, upper-cases type; omits empty confidence/subject/type; drops contentless
+  entries; throws on bad input). Verified live on a fresh isolated daemon (0 memories): importing a
+  4-entry file created exactly 3 facts (the contentless one dropped, toast "Imported 3/3"); a second
+  import of the same file kept the count at 3 (content-addressed dedup — no duplicates); Export then
+  re-downloaded that exact shape; 0 console errors. (M750)
 - **Export & re-import schedules (autonomy backup / bulk seed, sibling of standing import).**
   The Schedules view gains **Export** (downloads `agezt-schedules.json` — `{version:1, schedules:[…]}`)
   and **Import** (re-adds each via the existing `schedule_add`). Import rebuilds each cadence from the

@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
-import { Brain, RefreshCw, Search, Trash2, Plus, X, Pencil, Save } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Brain, RefreshCw, Search, Trash2, Plus, X, Pencil, Save, Download, Upload } from "lucide-react";
 import { getJSON, postAction, postJSON } from "@/lib/api";
+import { downloadText } from "@/lib/export";
 import { cn, fmtTime } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useUI } from "@/components/ui/feedback";
@@ -21,6 +22,39 @@ interface MemRecord {
   tags?: Record<string, string>;
 }
 
+// parseMemoryJSON normalises an exported memory file into a list of re-addable
+// `memory_add` arg objects. Accepts a bare array, a {memory:[…]} or a {records:[…]}
+// wrapper (the list shape). Keeps only entries with content (what the daemon
+// requires), carrying optional subject/type/confidence; drops kernel-assigned
+// identity/lifecycle fields (id/timestamps/source_event/tags) so a re-add stores
+// fresh — though memory is content-addressed, so re-importing the same fact dedupes
+// rather than duplicating. Throws on bad JSON / nothing valid.
+export function parseMemoryJSON(text: string): Record<string, unknown>[] {
+  const data = JSON.parse(text);
+  const arr = Array.isArray(data)
+    ? data
+    : Array.isArray((data as { memory?: unknown[] })?.memory)
+      ? (data as { memory: unknown[] }).memory
+      : Array.isArray((data as { records?: unknown[] })?.records)
+        ? (data as { records: unknown[] }).records
+        : null;
+  if (!arr) throw new Error("expected an array of memories (or a {memory:[…]} / {records:[…]} wrapper)");
+  const out: Record<string, unknown>[] = [];
+  for (const raw of arr) {
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) continue;
+    const r = raw as Record<string, unknown>;
+    const content = typeof r.content === "string" ? r.content.trim() : "";
+    if (!content) continue;
+    const args: Record<string, unknown> = { content };
+    if (typeof r.subject === "string" && r.subject.trim()) args.subject = r.subject.trim();
+    if (typeof r.type === "string" && r.type.trim()) args.type = r.type.trim().toUpperCase();
+    if (typeof r.confidence === "number" && r.confidence > 0) args.confidence = r.confidence;
+    out.push(args);
+  }
+  if (out.length === 0) throw new Error("no valid memories (each needs content) found");
+  return out;
+}
+
 // Memory is the knowledge browser: every durable fact the agent has stored —
 // searchable by subject/content/tag, each card showing its type, confidence,
 // age and source, with one-click forget.
@@ -33,6 +67,33 @@ export function Memory() {
   const [busy, setBusy] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  function exportMemory() {
+    downloadText("agezt-memory.json", JSON.stringify({ version: 1, memory: records ?? [] }, null, 2), "application/json");
+  }
+
+  // Restore memories from a file: re-add each via memory_add. Memory is
+  // content-addressed, so re-importing a fact the agent already knows dedupes
+  // (no duplicate) — import is naturally idempotent, unlike standing/schedules.
+  async function importMemory(file: File) {
+    try {
+      const list = parseMemoryJSON(await file.text());
+      let added = 0;
+      for (const args of list) {
+        try {
+          await postJSON("/api/memory/add", args);
+          added++;
+        } catch {
+          /* skip one the daemon rejects; keep importing the rest */
+        }
+      }
+      ui.toast(`Imported ${added}/${list.length} memor${list.length === 1 ? "y" : "ies"}`, added ? "success" : "error");
+      void reload();
+    } catch (e) {
+      ui.toast(`Import failed: ${(e as Error).message}`, "error");
+    }
+  }
 
   async function reload() {
     setLoading(true);
@@ -104,6 +165,24 @@ export function Memory() {
         </div>
         <Button size="sm" onClick={() => setShowForm((v) => !v)} title="Teach the agent a fact">
           {showForm ? <X className="size-3.5" /> : <Plus className="size-3.5" />} Teach
+        </Button>
+        <input
+          ref={fileRef}
+          type="file"
+          accept="application/json,.json"
+          className="hidden"
+          aria-hidden="true"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) void importMemory(f);
+            e.target.value = "";
+          }}
+        />
+        <Button variant="ghost" size="sm" onClick={() => fileRef.current?.click()} title="Import memories from a file">
+          <Upload className="size-3.5" /> Import
+        </Button>
+        <Button variant="ghost" size="sm" onClick={exportMemory} disabled={!records || records.length === 0} title="Export memories to a file">
+          <Download className="size-3.5" /> Export
         </Button>
         <Button variant="ghost" size="sm" onClick={reload} disabled={loading}>
           <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
