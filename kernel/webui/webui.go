@@ -173,6 +173,8 @@ var writeRoutes = map[string]writeRoute{
 	// Reload catalog + providers in place (M745): apply credential/catalog changes
 	// without a daemon restart. No args.
 	"/api/provider/reload": {controlplane.CmdProviderReload, nil},
+	// Send an outbound message via a configured channel (M747): channel + to + text.
+	"/api/send": {controlplane.CmdSend, []string{"channel", "to", "text"}},
 	"/api/cancel_run":       {controlplane.CmdCancelRun, []string{"correlation"}},
 	"/api/budget_set":       {controlplane.CmdBudgetSet, []string{"ceiling_mc"}},
 	"/api/run/pause":        {controlplane.CmdRunPause, []string{"correlation"}},

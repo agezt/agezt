@@ -12,6 +12,18 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Send a message through a channel from the console.** The Inbox view gains a **Send message**
+  composer — pick a channel (Telegram/Slack/Discord/webhook/…), a recipient, and text — and each
+  channel thread gets a **reply** shortcut that prefills the composer with that thread's channel +
+  id. Posts to the existing `send` command via a new `/api/send` route; the daemon refuses cleanly
+  when no channel of that kind is configured, and the form surfaces that message. So you can answer
+  a Telegram/Slack conversation, or proactively ping a recipient, without the CLI. Tests cover the
+  form (Send gated on channel+to+text; lower-cases the channel and trims; prefill from a reply;
+  surfaces the "no channels configured" error). Verified live, fully isolated end-to-end: an
+  outbound **webhook** channel on the test daemon pointed at a local listener I controlled — sending
+  "hello from the console UI" via the form delivered exactly that payload to the listener
+  (`{channel_id:"ops-room", text:"…"}`) and journaled `channel.outbound.webhook`; 0 console errors.
+  (M747)
 - **See a standing order's life story.** Each standing-order row now has a **history** toggle that
   folds the journal for that order — every `standing.*` event it produced: created, paused/resumed,
   each firing, removed — into a compact timeline (event kind + action + time). It's the audit trail
