@@ -214,3 +214,41 @@ describe("WorldEditForm (M730)", () => {
     );
   });
 });
+
+describe("World entity search (M774)", () => {
+  it("entityMatches matches on name, kind, or alias (case-insensitive)", async () => {
+    const { entityMatches } = await import("@/views/World");
+    const e = { name: "AGEZT", kind: "project", aliases: ["the daemon"] };
+    expect(entityMatches(e, "agezt")).toBe(true);
+    expect(entityMatches(e, "project")).toBe(true);
+    expect(entityMatches(e, "daemon")).toBe(true);
+    expect(entityMatches(e, "nope")).toBe(false);
+    expect(entityMatches(e, "")).toBe(true); // empty query matches all
+  });
+
+  it("filters the entity list and shows a match count (only when >4 entities)", async () => {
+    getJSON.mockResolvedValue({
+      entities: [
+        { id: "e1", name: "Alice", kind: "person" },
+        { id: "e2", name: "Bob", kind: "person" },
+        { id: "e3", name: "AGEZT", kind: "project" },
+        { id: "e4", name: "kernel", kind: "repo" },
+        { id: "e5", name: "webui", kind: "repo" },
+      ],
+      edges: [],
+      relation_count: 0,
+    });
+    render(withUI(<World />));
+    const input = await screen.findByLabelText("Filter entities");
+    // No count chip until a query is entered.
+    expect(screen.queryByText("2/5")).toBeNull();
+    // Filter to the repos → the match count reflects 2 of 5 (entity names also appear as
+    // <option>s in the relate-form dropdown, so the count chip is the unambiguous signal).
+    fireEvent.change(input, { target: { value: "repo" } });
+    await waitFor(() => expect(screen.getByText("2/5")).toBeTruthy());
+    // A non-matching query shows the empty hint and a 0/5 count.
+    fireEvent.change(input, { target: { value: "zzz" } });
+    await waitFor(() => expect(screen.getByText(/no entities match/)).toBeTruthy());
+    expect(screen.getByText("0/5")).toBeTruthy();
+  });
+});
