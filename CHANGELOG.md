@@ -12,6 +12,16 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **⌘K: open a run.** The command palette's placeholder long promised "…open a run", but only
+  views and actions were listed. Now the palette includes your **recent runs** (refreshed each
+  time it opens): pick one and it jumps to the Runs view, **expands that run's detail and scrolls
+  it into view** — so you can go from "what was that run?" to its full timeline without hunting.
+  Implemented with a small shared focus store (`lib/runfocus`, `useSyncExternalStore`) that the
+  palette sets and the Runs view consumes once (clearing it so a later manual collapse sticks);
+  the targeted row is briefly tinted. Tests cover the focus store (set/clear/no-op, subscriber
+  notifications). Verified live on an isolated daemon: seeded a "diagnose the flux capacitor" run,
+  opened ⌘K from another view, the "Open run → diagnose the flux capacitor" command appeared, and
+  selecting it navigated to Runs with that run expanded — 0 console errors. (M734)
 - **⌘K: "New chat", and a theme toggle that actually sticks.** The command palette gains a
   **New chat** action — start a fresh thread and jump to the chat from anywhere, no mouse. And
   the palette's **Toggle theme** is fixed: it previously just flipped the `dark` class directly,

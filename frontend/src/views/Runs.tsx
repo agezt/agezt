@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { RefreshCw, ChevronRight, ChevronDown, ListTree } from "lucide-react";
 import { usePanel } from "@/lib/usePanel";
 import { Card, CardHeader, CardTitle, CardBody } from "@/components/ui/card";
@@ -6,8 +6,9 @@ import { Button } from "@/components/ui/button";
 import { Badge, statusVariant } from "@/components/ui/badge";
 import { ErrorText } from "@/components/JsonView";
 import { EmptyState } from "@/components/ui/empty";
-import { fmtTime } from "@/lib/utils";
+import { cn, fmtTime } from "@/lib/utils";
 import { RunDetailLoader } from "@/components/RunDetail";
+import { useRunFocus, clearRunFocus } from "@/lib/runfocus";
 
 interface Run {
   correlation_id?: string;
@@ -17,10 +18,22 @@ interface Run {
   started_unix_ms?: number;
 }
 
-function RunRow({ run }: { run: Run }) {
+function RunRow({ run, focus }: { run: Run; focus?: string | null }) {
   const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const isFocus = !!focus && focus === run.correlation_id;
+
+  // When the ⌘K palette (or any deep-link) targets this run, expand it, scroll it
+  // into view, and consume the focus so a later manual collapse isn't re-opened.
+  useEffect(() => {
+    if (!isFocus) return;
+    setOpen(true);
+    ref.current?.scrollIntoView?.({ block: "center", behavior: "smooth" });
+    clearRunFocus();
+  }, [isFocus]);
+
   return (
-    <div className="border-b border-border/60">
+    <div ref={ref} className={cn("border-b border-border/60", isFocus && "bg-accent/5")}>
       <button
         onClick={() => setOpen((v) => !v)}
         className="flex w-full items-center gap-2 px-1 py-1.5 text-left hover:bg-panel"
@@ -44,6 +57,7 @@ function RunRow({ run }: { run: Run }) {
 export function Runs() {
   const { data, error, loading, reload } = usePanel<{ runs?: Run[] }>("/api/runs");
   const runs = data?.runs || [];
+  const focus = useRunFocus();
   return (
     <Card className="h-full">
       <CardHeader>
@@ -56,7 +70,7 @@ export function Runs() {
         {error ? (
           <ErrorText>{error}</ErrorText>
         ) : runs.length ? (
-          runs.map((r, i) => <RunRow key={r.correlation_id || i} run={r} />)
+          runs.map((r, i) => <RunRow key={r.correlation_id || i} run={r} focus={focus} />)
         ) : (
           <EmptyState icon={ListTree} title="No runs yet" hint="Completed and in-flight runs will be listed here — start one from Chat or the CLI." />
         )}
