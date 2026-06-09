@@ -75,6 +75,9 @@ export interface ChatEngine {
    *  the conversation still shows the clean `intent` as the user's message. */
   send: (intent: string, context?: string) => void;
   retry: () => void;
+  /** Edit the user message at `index` and re-run from there: replace its text,
+   *  drop every later message, and stream a fresh answer with the prior history. */
+  editAndResend: (index: number, text: string) => void;
   stop: () => void;
   newChat: () => void;
   selectConversation: (id: string) => void;
@@ -213,6 +216,21 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     void streamIntent(intent, history);
   }
 
+  // editAndResend rewrites a past user message and re-runs the conversation from
+  // that point: drop everything after the edited message (the old answer and any
+  // later turns no longer apply), then stream a fresh turn with the history that
+  // preceded it. The common "fix the ask without retyping the rest" affordance.
+  function editAndResend(index: number, text: string) {
+    if (busy) return;
+    const t = text.trim();
+    if (!t) return;
+    const msg = messages[index];
+    if (!msg || msg.role !== "user") return;
+    const history = buildHistory(messages.slice(0, index));
+    setMessages((prev) => [...prev.slice(0, index), { role: "user", text: t }, { role: "assistant", turn: newTurn() }]);
+    void streamIntent(t, history);
+  }
+
   function stop() {
     abortRef.current?.abort();
   }
@@ -242,6 +260,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     activeModel,
     send,
     retry,
+    editAndResend,
     stop,
     newChat,
     selectConversation,
