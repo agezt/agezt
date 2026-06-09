@@ -12,6 +12,21 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Export the audit journal — take a signed copy with you.** The Search view's header gains an
+  **export journal** button next to *verify integrity* (M759): one click downloads
+  `agezt-journal.json` — an integrity-attested bundle of every journal event with its hash, plus the
+  chain head at export time, so the file **re-verifies offline** (`agt journal verify --bundle`). This
+  is the audit log itself — the one thing the per-domain exports (chat, standing, schedules, memory,
+  world) and the config/snapshot bundles couldn't yet give you; now the agent's complete
+  tamper-evident activity record is portable for archival, compliance, or disaster recovery. Wires the
+  existing read-only `CmdJournalExport` (`journal_export`) to a new `/api/journal/export` route; no new
+  backend. The bundle is self-describing (`{version, kind: "agezt-journal-export", head_seq, head_hash,
+  first_seq, last_seq, count, truncated, events}`). Unit-tested (the pure `journalExportBundle` helper
+  wraps the payload with the chain head; the button posts to `/api/journal/export`, downloads
+  `agezt-journal.json` as `application/json`, and reports the event count; an error surfaces in the
+  button title). Verified live on an isolated daemon: seeded a few writes → clicked **export journal**
+  → the browser downloaded a valid bundle (`version 1`, `kind agezt-journal-export`, 64-char BLAKE3
+  head hash, every event hash-stamped) and the button showed the event count; 0 console errors. (M772)
 - **See what the agent can do — the tool inventory.** The Tools view now leads with an **Available
   tools** card: the agent's full in-process capability inventory — every tool it advertises to the
   model, with its description — not just the ones that happen to have been called. Each tool shows a

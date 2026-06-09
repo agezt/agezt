@@ -4,11 +4,16 @@ import { render, screen, cleanup, fireEvent, waitFor } from "@testing-library/re
 
 const getJSON = vi.fn();
 vi.mock("@/lib/api", () => ({ getJSON: (...a: unknown[]) => getJSON(...a) }));
+const downloadText = vi.fn();
+vi.mock("@/lib/export", () => ({ downloadText: (...a: unknown[]) => downloadText(...a) }));
 
-import { CausationTrace, JournalIntegrity } from "@/views/Search";
+import { CausationTrace, JournalIntegrity, JournalExport, journalExportBundle } from "@/views/Search";
 
 afterEach(cleanup);
-beforeEach(() => getJSON.mockReset());
+beforeEach(() => {
+  getJSON.mockReset();
+  downloadText.mockReset();
+});
 
 describe("JournalIntegrity (M759)", () => {
   it("reports an intact chain after a successful verify", async () => {
@@ -88,5 +93,36 @@ describe("CausationTrace (M755)", () => {
     render(<CausationTrace eventId="nope" />);
     fireEvent.click(screen.getByRole("button", { name: /trace cause/ }));
     await waitFor(() => expect(screen.getByText("event not found")).toBeTruthy());
+  });
+});
+
+describe("JournalExport (M772)", () => {
+  it("wraps the export payload into a self-describing, offline-verifiable bundle", () => {
+    const bundle = JSON.parse(
+      journalExportBundle({ events: [{ seq: 1 }, { seq: 2 }], count: 2, head_seq: 2, head_hash: "abc", first_seq: 1, last_seq: 2 }),
+    );
+    expect(bundle.version).toBe(1);
+    expect(bundle.kind).toBe("agezt-journal-export");
+    expect(bundle.head_hash).toBe("abc");
+    expect(bundle.count).toBe(2);
+    expect(bundle.events).toHaveLength(2);
+  });
+
+  it("downloads the journal bundle on click and reports the event count", async () => {
+    getJSON.mockResolvedValue({ events: [{ seq: 1 }], count: 1, head_seq: 1, head_hash: "h" });
+    render(<JournalExport />);
+    fireEvent.click(screen.getByRole("button", { name: /export journal/ }));
+    await waitFor(() => expect(getJSON).toHaveBeenCalledWith("/api/journal/export"));
+    await waitFor(() => expect(downloadText).toHaveBeenCalled());
+    expect(downloadText.mock.calls[0][0]).toBe("agezt-journal.json");
+    expect(downloadText.mock.calls[0][2]).toBe("application/json");
+    await waitFor(() => expect(screen.getByRole("button").getAttribute("title")).toBe("1 events"));
+  });
+
+  it("surfaces an export error in the button title", async () => {
+    getJSON.mockRejectedValueOnce(new Error("journal locked"));
+    render(<JournalExport />);
+    fireEvent.click(screen.getByRole("button", { name: /export journal/ }));
+    await waitFor(() => expect(screen.getByRole("button").getAttribute("title")).toBe("journal locked"));
   });
 });
