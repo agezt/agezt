@@ -12,6 +12,14 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Import/export your prompt library.** The Prompts view gains **Export** (download the
+  library as JSON) and **Import** (load a JSON file — a bare array or a `{prompts:[…]}`
+  wrapper — merging new entries into the editor, skipping exact duplicates, for you to
+  review and Save). Share a curated set of prompts, back them up, or move them between
+  daemons. The parser is pure and forgiving (trims, drops invalid rows, clear errors on
+  bad JSON / empty result) and unit-tested; the round-trip was verified live — imported a
+  two-prompt file into the editor → Save persisted them, and Export produced a valid
+  `agezt-prompts.json` array, 0 console errors. (M724)
 - **Export a chat as Markdown.** An **export** button in the chat composer bar downloads
   the current conversation as a clean Markdown transcript — `## You` / `## Agent` turns
   with the answer text (and the model as a footnote), named from the thread title. Archive
