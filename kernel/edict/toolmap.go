@@ -69,6 +69,18 @@ func CapabilityForToolCall(toolName string, input json.RawMessage) Capability {
 		return CapRemoteRun
 	case "notify":
 		return CapNotify
+	case "config":
+		var p struct {
+			Op string `json:"op"`
+		}
+		_ = json.Unmarshal(input, &p)
+		switch strings.ToLower(strings.TrimSpace(p.Op)) {
+		case "set", "register", "unregister":
+			return CapConfigWrite
+		}
+		// schema/get (and anything unrecognised) is the read axis — the low-risk
+		// default, so a garbled call lands on read rather than silently gaining write.
+		return CapConfigRead
 	case "homeassistant":
 		var p struct {
 			Operation string `json:"operation"`

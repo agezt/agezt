@@ -88,6 +88,7 @@ import (
 	"github.com/agezt/agezt/plugins/tools/browser"
 	"github.com/agezt/agezt/plugins/tools/codeexec"
 	"github.com/agezt/agezt/plugins/tools/coding"
+	configtool "github.com/agezt/agezt/plugins/tools/config"
 	filetool "github.com/agezt/agezt/plugins/tools/file"
 	hatool "github.com/agezt/agezt/plugins/tools/homeassistant"
 	httptool "github.com/agezt/agezt/plugins/tools/http"
@@ -615,6 +616,12 @@ func runDaemon(stdout, stderr io.Writer) int {
 		return 1
 	}
 	defer k.Close()
+
+	// Bind the kernel into the config tool now that it exists, so live-apply
+	// fields (provider/model) rebuild the provider in place via Reload().
+	if ct, ok := tools["config"].(*configtool.Tool); ok {
+		ct.SetKernel(k)
+	}
 
 	// Wire the bus into the Governor and the Warden so their events
 	// land in the journal. MUST happen before any Run is dispatched.
@@ -3796,6 +3803,13 @@ func buildTools(baseDir string, stderr io.Writer, ward warden.Engine) (map[strin
 	}
 	out["file"] = ft
 	registered = append(registered, "file(root="+ft.Root()+")")
+
+	// config — the agent's window into the Config Center: read/write/register
+	// settings (same registry + vault as the `agt config` CLI and HTTP routes).
+	// The kernel is bound after runtime.Open (see bindConfigTool) so live-apply
+	// fields (provider/model) can rebuild the provider in place.
+	out["config"] = configtool.New(baseDir)
+	registered = append(registered, "config()")
 
 	// http — default-deny; allowed hosts via $AGEZT_HTTP_ALLOWED_HOSTS
 	// (comma-separated). $AGEZT_HTTP_ALLOW_ALL=1 bypasses (DANGEROUS).
