@@ -12,6 +12,21 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Check the secret redactor from the Policy view ("will my key leak?").** The Policy view gains a
+  **Secret redaction** card: paste any text — a log line, a message, a snippet — and the **live**
+  secret-scrubber (the one that guards outbound content: logs, channel messages, prompts) reports
+  whether it would redact it, into which categories (`aws-access-key-id`, `github-token`, `jwt`,
+  `bearer-token`, …), or as a configured secret literal, and shows the **masked** result. The probe
+  text rides the **POST body, never a URL** — so a real secret you're testing never lands in an
+  access log — and the response returns only the redacted form and category names, never the matched
+  secret. So an operator can confirm "my credential won't escape" with confidence. New route
+  `/api/redact/test` (JSON body). `RedactionCheckForm` is unit-tested (redaction with categories;
+  no-match; configured-literal hit; redactor-disabled warning; Check gated on input). Verified live
+  on an isolated daemon: a line containing the synthetic AWS example key `AKIAIOSFODNN7EXAMPLE`
+  reported **would redact** with category `aws-access-key-id` and a `[REDACTED]` preview (the key
+  never echoed back); benign text reported **no match**; 0 console errors. Together with the policy
+  decision tester (M753), the Policy view now dry-runs both safety axes — capability gating and
+  secret redaction. (M754)
 - **Dry-run a policy decision from the Policy view ("why is this blocked?").** The capability-policy
   card gains a **Test a decision** panel: pick a capability, type an optional input (e.g. a shell
   command), and the edict engine reports the verdict it *would* return — **ALLOW**, **ASK** (the call
