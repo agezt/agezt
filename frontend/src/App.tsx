@@ -52,6 +52,7 @@ import { useUI, type ConfirmOptions } from "@/components/ui/feedback";
 type ConfirmRequest = ConfirmOptions;
 import type { CommandItem } from "@/lib/commands";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { AccentPicker } from "@/components/AccentPicker";
 import { EventFeed } from "@/components/EventFeed";
 import { Chat } from "@/views/Chat";
 import { Activity } from "@/views/Activity";
@@ -436,6 +437,7 @@ function Header({ connected, onOpenPalette }: { connected: boolean; onOpenPalett
         >
           <Play className="size-4" /> Resume
         </button>
+        <AccentPicker />
         <ThemeToggle />
       </div>
     </header>

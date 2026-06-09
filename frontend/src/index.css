@@ -17,7 +17,8 @@
   --panel: oklch(0.965 0.002 260);
   --muted: oklch(0.5 0.012 260);
   --border: oklch(0.9 0.005 260);
-  --accent: oklch(0.58 0.17 255);
+  /* The accent hue is customizable (M716); lightness/chroma stay per-theme. */
+  --accent: oklch(0.58 0.17 var(--accent-hue, 255));
   --good: oklch(0.62 0.15 150);
   --warn: oklch(0.7 0.14 80);
   --bad: oklch(0.6 0.21 25);
@@ -30,7 +31,7 @@
   --panel: oklch(0.195 0.013 260);
   --muted: oklch(0.62 0.015 260);
   --border: oklch(0.29 0.015 260);
-  --accent: oklch(0.7 0.15 255);
+  --accent: oklch(0.7 0.15 var(--accent-hue, 255));
   --good: oklch(0.72 0.16 150);
   --warn: oklch(0.78 0.15 80);
   --bad: oklch(0.68 0.2 25);

@@ -12,6 +12,15 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Pick your accent colour.** A palette button in the header opens a swatch popover to
+  recolour the whole console — ten accent hues (blue, violet, rose, amber, green, teal,
+  …). It shifts only the accent *hue*, so the theme's per-mode lightness/chroma are
+  preserved and the accent stays legible in both dark and light. The choice is stored
+  locally (appearance is a per-device preference) and applied to `:root` before first
+  paint, so there's no flash on reload. Tests cover the hue store (load/save/apply,
+  default fallback, corrupt-value handling) and the picker (recolour + persist + active
+  state). Verified live: picking Green shifted `--accent` from hue 255 → 150 (lightness
+  and chroma unchanged), persisted, and re-applied after a reload — 0 console errors. (M716)
 - **Create schedules from the Web UI.** Like standing orders, the Schedules view could
   run/pause/remove but not *create* — adding a scheduled intent needed `agt schedule add`.
   A **New schedule** button now opens an inline form: the intent to run plus a timing —
