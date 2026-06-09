@@ -12,6 +12,22 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Model-chain fallbacks are now observable.** Configuring a per-task model chain
+  (M703/M704) is only half the loop — you also need to *see* it firing. The governor
+  already emitted a `governor.fallback` event when a chain advanced primary→fallback
+  model, but it was conflated with provider-level fallbacks and invisible per task.
+  Now: the model-chain fallback event carries its `task_type`; `agt status` (and the
+  Health view) split the two dimensions into **`provider_fallbacks`** (provider→provider)
+  and **`model_fallbacks`** (model→model) instead of one inflated count; `agt provider
+  stats` no longer counts model-chain fallbacks in the provider fallback rate, and
+  `agt provider log` shows the model hop + task type for them; and the **Routing view**
+  shows a per-task activity line — "N fallbacks, last `deepseek-chat → gpt-4o` (reason)"
+  — so you can watch a chain actually working. Tests: governor emits the scoped,
+  task-attributed event; the control plane separates the two dimensions and attributes
+  model-chain fallbacks to their task; the Routing view renders the activity line.
+  Verified live (isolated daemon): `/api/routing` carries `activity`, `/api/status`
+  splits the two counts, the Routing view renders the populated fallback line and the
+  Health view shows distinct "provider fb" / "model fb" tiles, 0 console errors. (M706)
 - **Per-sub-agent model — delegate to a worker on its own model.** The `delegate`
   tool now accepts optional `model` and `task_type` inputs: the lead can spawn a
   sub-agent on a *different* model than its own (e.g. a cheaper model for grunt

@@ -4,11 +4,13 @@ package governor_test
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sync/atomic"
 	"testing"
 
 	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/governor"
 )
 
@@ -34,7 +36,7 @@ func (p *modelAwareProvider) Complete(_ context.Context, req agent.CompletionReq
 // whole attempt fails (every provider for it errors), the governor retries with
 // the next model in the chain (which routes to its own provider).
 func TestTaskModelChain_FallsBackToNextModel(t *testing.T) {
-	b, _ := newBus(t)
+	b, j := newBus(t)
 	r := governor.NewRegistry()
 	// alpha is routed for model-a but model-a is "down" (ok is empty → errors).
 	alpha := &modelAwareProvider{name: "alpha", ok: map[string]bool{}}
@@ -65,6 +67,35 @@ func TestTaskModelChain_FallsBackToNextModel(t *testing.T) {
 	}
 	if alpha.calls.Load() == 0 {
 		t.Error("alpha (model-a) should have been tried first")
+	}
+
+	// The fallback is observable: a model-chain-scoped governor.fallback event,
+	// attributable to the task type, naming the failed→next model (M706).
+	var found bool
+	_ = j.Range(func(e *event.Event) error {
+		if e.Kind != event.KindProviderFallback {
+			return nil
+		}
+		var p struct {
+			FailedModel string `json:"failed_model"`
+			NextModel   string `json:"next_model"`
+			Scope       string `json:"scope"`
+			TaskType    string `json:"task_type"`
+		}
+		if json.Unmarshal(e.Payload, &p) != nil || p.Scope != "model-chain" {
+			return nil
+		}
+		found = true
+		if p.FailedModel != "model-a" || p.NextModel != "model-b" {
+			t.Errorf("fallback hop = %q→%q, want model-a→model-b", p.FailedModel, p.NextModel)
+		}
+		if p.TaskType != "chat" {
+			t.Errorf("fallback task_type = %q, want chat", p.TaskType)
+		}
+		return nil
+	})
+	if !found {
+		t.Error("expected a model-chain-scoped governor.fallback event")
 	}
 }
 

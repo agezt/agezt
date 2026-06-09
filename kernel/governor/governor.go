@@ -640,6 +640,7 @@ func (g *Governor) completeChained(req agent.CompletionRequest, runOne func(agen
 					"next_model":   models[i+1],
 					"reason":       err.Error(),
 					"scope":        "model-chain",
+					"task_type":    req.TaskType,
 				},
 			})
 		}

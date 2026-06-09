@@ -61,8 +61,15 @@ func (s *Server) handleProviderStats(conn net.Conn, req Request) {
 		case event.KindProviderFallback:
 			var p struct {
 				Failed string `json:"failed"`
+				Scope  string `json:"scope"`
 			}
 			_ = json.Unmarshal(e.Payload, &p)
+			// Model-chain fallbacks (M706, scope="model-chain") are a different
+			// dimension (model→model, surfaced in the Routing view); don't conflate
+			// them into the provider fallback rate, which measures provider→provider.
+			if p.Scope == "model-chain" {
+				return nil
+			}
 			fallbacks++
 			if p.Failed != "" {
 				fallbackByFailed[p.Failed]++
@@ -225,6 +232,7 @@ func (s *Server) handleProviderLog(conn net.Conn, req Request) {
 		primary, chain, taskType string
 		// fallback fields
 		failed, next, reason string
+		scope                string // "" provider | "model-chain" (M706)
 	}
 	events := make([]provEvent, 0)
 	if err := k.Journal().Range(func(e *event.Event) error {
@@ -247,12 +255,23 @@ func (s *Server) handleProviderLog(conn net.Conn, req Request) {
 				primary: p.Primary, chain: strings.Join(p.Chain, ","), taskType: p.TaskType,
 			})
 		case event.KindProviderFallback:
-			var p struct{ Failed, Next, Reason string }
+			var p struct {
+				Failed, Next, Reason string
+				FailedModel          string `json:"failed_model"`
+				NextModel            string `json:"next_model"`
+				Scope                string `json:"scope"`
+				TaskType             string `json:"task_type"`
+			}
 			_ = json.Unmarshal(e.Payload, &p)
-			events = append(events, provEvent{
-				ts: e.TSUnixMS, seq: e.Seq, kind: "fallback",
-				failed: p.Failed, next: p.Next, reason: p.Reason,
-			})
+			// Model-chain fallbacks (M706) name the failed/next MODEL, not provider;
+			// normalise into the same failed/next fields so the timeline shows the hop.
+			ev := provEvent{ts: e.TSUnixMS, seq: e.Seq, kind: "fallback", reason: p.Reason, scope: p.Scope}
+			if p.Scope == "model-chain" {
+				ev.failed, ev.next, ev.taskType = p.FailedModel, p.NextModel, p.TaskType
+			} else {
+				ev.failed, ev.next = p.Failed, p.Next
+			}
+			events = append(events, ev)
 		}
 		return nil
 	}); err != nil {
@@ -281,6 +300,12 @@ func (s *Server) handleProviderLog(conn net.Conn, req Request) {
 			row["failed"] = e.failed
 			row["next"] = e.next
 			row["reason"] = e.reason
+			if e.scope != "" {
+				row["scope"] = e.scope
+			}
+			if e.scope == "model-chain" {
+				row["task_type"] = e.taskType
+			}
 		}
 		out = append(out, row)
 	}

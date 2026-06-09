@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { HeartPulse, RefreshCw, Clock, ShieldAlert, Brain, Network, Sparkles, ListTree, Pause, CheckSquare } from "lucide-react";
+import { HeartPulse, RefreshCw, Clock, ShieldAlert, Brain, Network, Sparkles, ListTree, Pause, CheckSquare, Route } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getJSON } from "@/lib/api";
@@ -16,6 +16,7 @@ interface Status {
   world_entities?: number;
   active_skills?: number;
   provider_fallbacks?: { count?: number; last_reason?: string };
+  model_fallbacks?: { count?: number; last_reason?: string };
 }
 interface Stats {
   total?: number;
@@ -153,10 +154,11 @@ export function Health() {
       </div>
 
       {/* Footprint + attention */}
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-7">
         <Tile icon={ListTree} label="running" value={st?.active_runs ?? 0} pulse={(st?.active_runs ?? 0) > 0} tone="accent" />
         <Tile icon={CheckSquare} label="approvals" value={st?.pending_approvals ?? 0} tone={(st?.pending_approvals ?? 0) > 0 ? "warn" : "muted"} />
-        <Tile icon={ShieldAlert} label="fallbacks" value={st?.provider_fallbacks?.count ?? 0} tone={(st?.provider_fallbacks?.count ?? 0) > 0 ? "warn" : "muted"} />
+        <Tile icon={ShieldAlert} label="provider fb" value={st?.provider_fallbacks?.count ?? 0} tone={(st?.provider_fallbacks?.count ?? 0) > 0 ? "warn" : "muted"} />
+        <Tile icon={Route} label="model fb" value={st?.model_fallbacks?.count ?? 0} tone={(st?.model_fallbacks?.count ?? 0) > 0 ? "warn" : "muted"} />
         <Tile icon={Brain} label="memory" value={st?.memory_records ?? 0} tone="muted" />
         <Tile icon={Network} label="entities" value={st?.world_entities ?? 0} tone="muted" />
         <Tile icon={Sparkles} label="skills" value={st?.active_skills ?? 0} tone="muted" />

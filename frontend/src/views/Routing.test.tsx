@@ -24,6 +24,9 @@ const ROUTING = {
   chains: {
     chat: ["claude-opus", "gpt-5", "deepseek-chat"],
   },
+  activity: {
+    chat: { fallbacks: 2, last_failed: "claude-opus", last_next: "gpt-5", last_reason: "anthropic: 529 overloaded" },
+  },
 };
 
 afterEach(cleanup);
@@ -52,6 +55,14 @@ describe("Routing view", () => {
     expect(screen.getByText("fallback 2")).toBeTruthy();
     expect(screen.getByText("gpt-5")).toBeTruthy();
     expect(screen.getByText("deepseek-chat")).toBeTruthy();
+  });
+
+  it("surfaces model-chain fallback activity for a task", async () => {
+    render(withUI(<Routing />));
+    await waitFor(() => expect(screen.getByText("claude-opus")).toBeTruthy());
+    expect(screen.getByText("2 fallbacks")).toBeTruthy();
+    expect(screen.getByText(/claude-opus → gpt-5/)).toBeTruthy();
+    expect(screen.getByText(/529 overloaded/)).toBeTruthy();
   });
 
   it("marks empty task types as daemon default", async () => {
