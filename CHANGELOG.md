@@ -12,6 +12,18 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **The model picker shows only providers you can run.** Everywhere you change the
+  model — including the Chat composer — the picker now lists **only keyed providers**
+  by default (those with an API key, plus keyless local providers like Ollama), so
+  you're not scrolling past 130+ models you can't call. A footer toggle reveals all
+  providers on demand (e.g. to pick a model before adding its key), and an empty
+  state points you to add a key in Models. This also fixes the underlying
+  `credentialed` flag: `/api/catalog` now reports a provider as keyed when its key is
+  in the **vault** (where provider keys, including the M700 keyring, live) — not just
+  the process env — so vault-stored keys correctly light up the keyed badge and the
+  picker. Verified live (isolated daemon, real catalog): with one provider keyed via
+  the keyring, the Chat picker showed just that provider (+ keyless locals) with
+  “Show all (135 more)”, 0 console errors. (M702)
 - **Manage provider API keys from the Models view.** The Models view now lets you
   add, switch, and remove keys per provider without the CLI: expand a provider and
   an **API keys** panel lists its keys (label + active marker + last-4 fingerprint —
