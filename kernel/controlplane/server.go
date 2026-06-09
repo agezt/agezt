@@ -743,6 +743,8 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.handlePulseProbe(conn, req)
 	case CmdPulseUnwatch:
 		s.handlePulseUnwatch(conn, req)
+	case CmdPulseQuiet:
+		s.handlePulseQuiet(conn, req)
 	case CmdInbox:
 		s.handleInbox(conn, req)
 	case CmdSend:

@@ -21,6 +21,7 @@ type fakePulse struct {
 	beats   int
 	cadence time.Duration
 	dial    string
+	quiet   string
 	flushed int
 	removed string
 }
@@ -44,6 +45,12 @@ func (f *fakePulse) SetDial(dial string) string {
 	f.dial = dial
 	f.mu.Unlock()
 	return dial
+}
+func (f *fakePulse) SetQuietHours(spec string) string {
+	f.mu.Lock()
+	f.quiet = spec
+	f.mu.Unlock()
+	return spec
 }
 func (f *fakePulse) FlushDigest() int {
 	f.mu.Lock()
@@ -139,6 +146,18 @@ func TestPulseStatusPauseResumeWithEngine(t *testing.T) {
 		t.Fatalf("expected engine dial chatty, got %q", fp.dial)
 	}
 
+	// SetQuietHours (M770) reaches the engine and is persisted.
+	res, err = c.Call(ctx, controlplane.CmdPulseQuiet, map[string]any{"hours": "22-7"})
+	if err != nil {
+		t.Fatalf("quiet: %v", err)
+	}
+	if got, _ := res["quiet"].(string); got != "22-7" {
+		t.Fatalf("expected quiet 22-7, got %v", res["quiet"])
+	}
+	if fp.quiet != "22-7" {
+		t.Fatalf("expected engine quiet 22-7, got %q", fp.quiet)
+	}
+
 	// FlushDigest (M761) reaches the engine and returns the count flushed.
 	res, err = c.Call(ctx, controlplane.CmdPulseFlush, nil)
 	if err != nil {
@@ -212,5 +231,8 @@ func TestPulseStatusPauseResumeWithEngine(t *testing.T) {
 	}
 	if v, ok := store.Get("AGEZT_PULSE_DIAL"); !ok || v != "chatty" {
 		t.Fatalf("dial not persisted: %q (ok=%v)", v, ok)
+	}
+	if v, ok := store.Get("AGEZT_PULSE_QUIET_HOURS"); !ok || v != "22-7" {
+		t.Fatalf("quiet hours not persisted: %q (ok=%v)", v, ok)
 	}
 }

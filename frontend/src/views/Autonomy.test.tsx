@@ -150,6 +150,23 @@ describe("PulseControl", () => {
     await waitFor(() => expect(postAction).toHaveBeenCalledWith("/api/pulse/unwatch", { name: "probe:ci" }));
   });
 
+  it("sets quiet hours via /api/pulse/quiet (M770)", async () => {
+    getJSON.mockResolvedValue({ enabled: true, paused: false, beats: 1, cadence_ms: 60000, quiet: { enabled: false } });
+    render(withUI(<PulseControl />));
+    const input = await screen.findByLabelText("Quiet hours window");
+    fireEvent.change(input, { target: { value: "22-7" } });
+    fireEvent.click(screen.getByRole("button", { name: "Set" }));
+    await waitFor(() => expect(postAction).toHaveBeenCalledWith("/api/pulse/quiet", { hours: "22-7" }));
+  });
+
+  it("shows the active quiet window and clears it (M770)", async () => {
+    getJSON.mockResolvedValue({ enabled: true, paused: false, beats: 1, cadence_ms: 60000, quiet: { enabled: true, start: 22, end: 7, spec: "22-7" } });
+    render(withUI(<PulseControl />));
+    await waitFor(() => expect(screen.getByText("22:00–07:00")).toBeTruthy());
+    fireEvent.click(screen.getByLabelText("Clear quiet hours"));
+    await waitFor(() => expect(postAction).toHaveBeenCalledWith("/api/pulse/quiet", { hours: "" }));
+  });
+
   it("shows a Flush digest button only when items are held, and flushes them (M761)", async () => {
     postAction.mockResolvedValue({ flushed: 3 });
     getJSON.mockResolvedValue({ enabled: true, paused: false, beats: 5, cadence_ms: 60000, digest_pending: 3 });

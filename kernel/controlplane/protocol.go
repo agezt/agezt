@@ -929,6 +929,9 @@ const (
 	// CmdPulseUnwatch removes runtime-added watches by observer name (M769) — the
 	// inverse of pulse_watch/pulse_probe. Args: name. Returns { removed }.
 	CmdPulseUnwatch = "pulse_unwatch"
+	// CmdPulseQuiet sets the quiet-hours window live (M770). Args: hours ("START-END"
+	// 24h, e.g. "22-7"; empty disables). Returns { quiet } (the applied spec).
+	CmdPulseQuiet = "pulse_quiet"
 
 	// CmdInbox returns the Unified Inbox (SPEC-07 §4): channel.inbound /
 	// channel.outbound events folded into conversation threads grouped by
