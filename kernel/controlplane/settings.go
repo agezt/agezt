@@ -11,6 +11,7 @@ package controlplane
 // read at startup, so the response says "restart to apply".
 
 import (
+	"encoding/json"
 	"net"
 	"os"
 	"strings"
@@ -20,10 +21,12 @@ import (
 )
 
 // handleConfigSchema returns the editable configuration surface (sections +
-// fields) the Config Center renders forms from.
+// fields) the Config Center renders forms from — the built-in schema merged with
+// any skill/plugin-registered sections from <baseDir>/schemas/*.json.
 func (s *Server) handleConfigSchema(conn net.Conn, req Request) {
+	reg := settings.NewRegistry(s.baseDir)
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{
-		"sections": settings.Schema(),
+		"sections": reg.Sections(),
 	}})
 }
 
@@ -36,9 +39,10 @@ func (s *Server) handleConfigValues(conn net.Conn, req Request) {
 	_ = store.Load() // missing file = empty; not fatal
 	vault := creds.NewStore(s.baseDir)
 	_ = vault.Load()
+	reg := settings.NewRegistry(s.baseDir)
 
 	out := make([]map[string]any, 0, 32)
-	for _, sec := range settings.Schema() {
+	for _, sec := range reg.Sections() {
 		for _, f := range sec.Fields {
 			pinned := s.configEnvPinned[f.Env]
 			entry := map[string]any{
@@ -77,7 +81,7 @@ func (s *Server) handleConfigSet(conn net.Conn, req Request) {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.name required"})
 		return
 	}
-	field, ok := settings.FieldByEnv(name)
+	field, ok := settings.NewRegistry(s.baseDir).FieldByEnv(name)
 	if !ok {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "unknown setting " + name})
 		return
@@ -145,4 +149,55 @@ func (s *Server) handleConfigSet(conn net.Conn, req Request) {
 		result["applied"] = "restart"
 	}
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: result})
+}
+
+// handleConfigSchemaRegister persists a skill/plugin-contributed schema section to
+// <baseDir>/schemas/<id>.json. The section is validated (slug id, namespaced
+// AGEZT_* fields, no shadowing of a built-in setting); on success it appears in
+// the Config Center immediately. The arg `section` is the JSON section object.
+func (s *Server) handleConfigSchemaRegister(conn net.Conn, req Request) {
+	raw, ok := req.Args["section"]
+	if !ok {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.section required"})
+		return
+	}
+	// The section arrives as decoded JSON (map[string]any); round-trip it into the
+	// typed Section so validation sees the real shape.
+	blob, err := json.Marshal(raw)
+	if err != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "encode section: " + err.Error()})
+		return
+	}
+	var sec settings.Section
+	if err := json.Unmarshal(blob, &sec); err != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "decode section: " + err.Error()})
+		return
+	}
+	if err := settings.NewRegistry(s.baseDir).Register(sec); err != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		return
+	}
+	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{
+		"id": sec.ID, "registered": true, "applied": "restart",
+	}})
+}
+
+// handleConfigSchemaUnregister removes a registered schema section by id. The
+// section's stored VALUES (config.json / vault) are left untouched; only the
+// schema is removed, so the Config Center stops showing the section.
+func (s *Server) handleConfigSchemaUnregister(conn net.Conn, req Request) {
+	id, _ := req.Args["id"].(string)
+	id = strings.TrimSpace(id)
+	if id == "" {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.id required"})
+		return
+	}
+	existed, err := settings.NewRegistry(s.baseDir).Unregister(id)
+	if err != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		return
+	}
+	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{
+		"id": id, "removed": existed,
+	}})
 }

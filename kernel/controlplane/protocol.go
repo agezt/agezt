@@ -845,6 +845,10 @@ const (
 	CmdConfigSchema = "config_schema"
 	CmdConfigValues = "config_values"
 	CmdConfigSet    = "config_set"
+	// Schema registry (M695): skills/plugins register their own config sections
+	// into <baseDir>/schemas/*.json. Register: args{section}; Unregister: args{id}.
+	CmdConfigSchemaRegister   = "config_schema_register"
+	CmdConfigSchemaUnregister = "config_schema_unregister"
 
 	// Reflection — meta-cognition (SPEC-05 §6).
 	//

@@ -3718,7 +3718,9 @@ func sttTranscriberFromEnv() *stt.Client {
 // show read-only. AGEZT_CONFIG=off disables the bridge entirely.
 func injectConfig(baseDir string, vault *creds.Store, stdout io.Writer) map[string]bool {
 	pinned := map[string]bool{}
-	for _, sec := range settings.Schema() {
+	// Pin across the FULL merged surface (built-in + registered) so a skill's
+	// registered field is also marked read-only when the operator pins it in .env.
+	for _, sec := range settings.NewRegistry(baseDir).Sections() {
 		for _, f := range sec.Fields {
 			if os.Getenv(f.Env) != "" {
 				pinned[f.Env] = true

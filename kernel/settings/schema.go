@@ -43,24 +43,38 @@ type Field struct {
 	Options  []string  `json:"options,omitempty"` // for TypeSelect
 }
 
-// Section groups related fields for the Config Center UI.
+// Section groups related fields for the Config Center UI. Source records where
+// the section came from — "builtin" for the compiled-in core config, or the
+// registered schema's id for a skill/plugin-contributed section (see registry.go).
 type Section struct {
 	ID     string  `json:"id"`
 	Name   string  `json:"name"`
 	Help   string  `json:"help,omitempty"`
+	Source string  `json:"source,omitempty"`
 	Fields []Field `json:"fields"`
 }
 
-// Schema returns the editable configuration surface — the typed, grouped,
-// secret-flagged description the Config Center renders forms from and the server
-// validates against. Every Env here is an existing AGEZT_* var already consumed
-// at startup, so editing it (via the config store / vault + startup injection)
-// changes real behaviour.
+// SourceBuiltin marks the compiled-in core configuration sections.
+const SourceBuiltin = "builtin"
+
+// Schema returns the built-in editable configuration surface. Kept for
+// back-compat and as the seed for the Registry (registry.go), which merges
+// these compiled-in sections with on-disk skill/plugin-registered ones.
 func Schema() []Section {
+	return builtinSections()
+}
+
+// builtinSections is the typed, grouped, secret-flagged description the Config
+// Center renders forms from and the server validates against. Every Env here is
+// an existing AGEZT_* var already consumed at startup, so editing it (via the
+// config store / vault + startup injection) changes real behaviour. Each section
+// is tagged Source = SourceBuiltin so the UI can tell core config apart from
+// skill/plugin-registered sections.
+func builtinSections() []Section {
 	pw := func(env, label, help string) Field {
 		return Field{Env: env, Label: label, Type: TypePassword, Secret: true, Apply: ApplyRestart, Help: help}
 	}
-	return []Section{
+	secs := []Section{
 		{
 			ID: "provider", Name: "Provider & Model",
 			Help: "The active LLM provider and model. Applies live (the provider is rebuilt without a restart).",
@@ -136,6 +150,10 @@ func Schema() []Section {
 			},
 		},
 	}
+	for i := range secs {
+		secs[i].Source = SourceBuiltin
+	}
+	return secs
 }
 
 // FieldByEnv returns the schema field for an env-var name, and whether it's known.

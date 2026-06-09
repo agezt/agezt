@@ -191,6 +191,10 @@ var jsonRoutes = map[string]writeRoute{
 	// Config Center write (M693): set one setting (non-secret → config store,
 	// secret → vault). POST-only; only name+value are forwarded.
 	"/api/config/set": {controlplane.CmdConfigSet, []string{"name", "value"}},
+	// Schema registry write (M695): register/unregister a skill/plugin-contributed
+	// schema section. Register forwards the whole `section` object; unregister an id.
+	"/api/config/schema/register":   {controlplane.CmdConfigSchemaRegister, []string{"section"}},
+	"/api/config/schema/unregister": {controlplane.CmdConfigSchemaUnregister, []string{"id"}},
 }
 
 // planRoute is the streaming "run this plan" action (Flow Studio's Run button).
