@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ComponentType } from "react";
+import { useEffect, useMemo, useRef, useState, type ComponentType } from "react";
 import {
   MessageSquare,
   Activity as ActivityIcon,
@@ -55,6 +55,8 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { toggleTheme } from "@/lib/theme";
 import { useChat } from "@/lib/chatStore";
 import { focusRun } from "@/lib/runfocus";
+import { exportAppearance, parseAppearanceJSON, applyAppearanceBundle } from "@/lib/appearance";
+import { downloadText } from "@/lib/export";
 import { AccentPicker } from "@/components/AccentPicker";
 import { ConsoleName } from "@/components/ConsoleName";
 import { EventFeed } from "@/components/EventFeed";
@@ -236,6 +238,18 @@ export default function App() {
   const ui = useUI();
   const current = NAV.find((n) => n.id === active) || NAV[0];
   const View = current.render;
+  // Hidden input behind the ⌘K "Import appearance" command.
+  const appearanceFileRef = useRef<HTMLInputElement>(null);
+
+  async function importAppearanceFile(file: File) {
+    try {
+      const bundle = parseAppearanceJSON(await file.text());
+      applyAppearanceBundle(bundle);
+      ui.toast(`Appearance imported (${Object.keys(bundle).join(", ")})`, "success");
+    } catch (e) {
+      ui.toast(`Import failed: ${(e as Error).message}`, "error");
+    }
+  }
 
   const toggleGroup = (id: string) => {
     setCollapsed((c) => {
@@ -349,6 +363,20 @@ export default function App() {
         keywords: "dark light appearance",
         run: () => toggleTheme(),
       },
+      {
+        id: "act-appearance-export",
+        label: "Export appearance settings",
+        group: "Action",
+        keywords: "backup theme accent console name download settings",
+        run: () => downloadText("agezt-appearance.json", JSON.stringify(exportAppearance(), null, 2), "application/json"),
+      },
+      {
+        id: "act-appearance-import",
+        label: "Import appearance settings",
+        group: "Action",
+        keywords: "restore theme accent console name upload settings",
+        run: () => appearanceFileRef.current?.click(),
+      },
     ];
     // Recent runs → "Open run …" — jump straight to a run's detail from ⌘K.
     const runCmds: CommandItem[] = recentRuns.map((r) => ({
@@ -368,6 +396,18 @@ export default function App() {
   return (
     <div className="flex h-full flex-col">
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} items={commands} />
+      <input
+        ref={appearanceFileRef}
+        type="file"
+        accept="application/json,.json"
+        className="hidden"
+        aria-hidden="true"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) void importAppearanceFile(f);
+          e.target.value = "";
+        }}
+      />
       <MiniChat hidden={active === "chat"} onExpand={() => setActive("chat")} />
       <Header connected={connected} onOpenPalette={() => setPaletteOpen(true)} />
       <Vitals onNavigate={setActive} />

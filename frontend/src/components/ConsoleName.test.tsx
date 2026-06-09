@@ -2,10 +2,15 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import { ConsoleName } from "@/components/ConsoleName";
+import { saveConsoleName, DEFAULT_NAME } from "@/lib/brand";
 
 beforeEach(() => {
   localStorage.clear();
   document.title = "";
+  // Console name is a shared module store (so external setters stay in sync); reset
+  // it between tests since the singleton carries state across them.
+  saveConsoleName(DEFAULT_NAME);
+  localStorage.clear();
 });
 afterEach(cleanup);
 
