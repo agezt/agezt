@@ -568,13 +568,16 @@ function CopyAnswer({ text }: { text: string }) {
 function ToolChip({ c }: { c: ChatTool }) {
   const [open, setOpen] = useState(false);
   const denied = c.allow === false;
+  // The chip is expandable whenever there's a trace to show — the arguments it
+  // was called with and/or the result it returned.
+  const hasDetail = !!c.input || !!c.output;
   return (
     <div className="rounded-lg border border-border bg-panel/60 text-xs">
       <button
-        onClick={() => setOpen((o) => !o)}
-        className="flex w-full items-center gap-2 px-2.5 py-1.5 text-left"
+        onClick={() => hasDetail && setOpen((o) => !o)}
+        className={cn("flex w-full items-center gap-2 px-2.5 py-1.5 text-left", !hasDetail && "cursor-default")}
       >
-        {c.output ? (
+        {hasDetail ? (
           open ? <ChevronDown className="size-3.5 text-muted" /> : <ChevronRight className="size-3.5 text-muted" />
         ) : (
           <Wrench className="size-3.5 text-muted" />
@@ -594,7 +597,24 @@ function ToolChip({ c }: { c: ChatTool }) {
         )}
         {c.error && <Badge variant="bad">error</Badge>}
       </button>
-      {open && c.output && <ToolOutput text={c.output} />}
+      {open && hasDetail && (
+        <div className="border-t border-border">
+          {c.input && (
+            <div>
+              <div className="px-2.5 pt-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted">Arguments</div>
+              <ToolOutput text={c.input} />
+            </div>
+          )}
+          {c.output && (
+            <div>
+              <div className="px-2.5 pt-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted">
+                {c.error ? "Error" : "Result"}
+              </div>
+              <ToolOutput text={c.output} />
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

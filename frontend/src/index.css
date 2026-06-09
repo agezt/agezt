@@ -75,6 +75,33 @@ body {
   display: none;
 }
 
+/* --- Scrollbars: thin, rounded, themed (the OS defaults look out of place in a
+   dark console). WebKit gets a styled track+thumb; Firefox uses the standard
+   thin scrollbar with matching colors. The thumb lifts to the accent on hover. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background-color: color-mix(in oklch, var(--muted) 45%, transparent);
+  border-radius: 9999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background-color: color-mix(in oklch, var(--accent) 70%, transparent);
+}
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
 /* --- Motion: subtle, premium, and reduced-motion aware ------------------- */
 
 /* Views fade + rise in when navigated to, so moving around the console feels

@@ -25,6 +25,7 @@ export interface ChatTool {
   allow?: boolean;
   hardDenied?: boolean;
   error?: boolean;
+  input?: string; // the tool's arguments (JSON), captured from tool.invoked
   output?: string;
 }
 
@@ -95,6 +96,9 @@ export function foldChatFrame(prev: ChatTurn, f: ChatFrame): ChatTurn {
     case "tool.invoked": {
       const c = tool(String(p.call_id || ""));
       if (p.tool) c.tool = String(p.tool);
+      // The agent loop forwards the tool's arguments as `input` (json.RawMessage):
+      // it may land as an object or a pre-stringified JSON string. Keep a string.
+      if (p.input != null) c.input = typeof p.input === "string" ? p.input : JSON.stringify(p.input);
       break;
     }
     case "tool.result": {

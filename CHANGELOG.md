@@ -12,6 +12,15 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Chat now shows the full tool trace, and the whole console gets proper
+  scrollbars.** Every tool call in a chat answer is expandable to its **Arguments**
+  (the JSON the agent passed) and its **Result** (or error) — rendered as readable
+  widgets, not walls of braces — so even after a reply you can audit exactly which
+  tool ran, with what, and what came back. The arguments were already on the wire;
+  the fold now keeps them. The browser's default scrollbars are replaced app-wide
+  with thin, rounded, theme-colored ones (accent on hover; Firefox `scrollbar-width`
+  too). Verified live against the real provider (a `file.list` call showed its
+  `op: list` args and the workspace listing table), zero console errors. (M675)
 - **Humane Chat: retry, smart auto-scroll, copy feedback.** A failed or stopped
   chat turn now shows a one-click **Retry** that re-runs the same intent with the
   same prior context. The thread no longer yanks you to the bottom while you read
