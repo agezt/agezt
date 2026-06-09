@@ -44,3 +44,39 @@ func TestSandboxFileRouteForwardsProjectAndFile(t *testing.T) {
 		t.Error("non-allowlisted arg leaked into the sandbox_file call")
 	}
 }
+
+// /api/sandbox/delete is a POST-only mutation forwarding the project arg.
+func TestSandboxDeleteRouteForwardsProject(t *testing.T) {
+	fc := &fakeCaller{result: map[string]any{"deleted": "calc"}}
+	s, _ := newServer(t, fc, "secret")
+	req := httptest.NewRequest(http.MethodPost, "/api/sandbox/delete?token=secret&project=calc&evil=x", nil)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d want 200", rec.Code)
+	}
+	if len(fc.calls) != 1 || fc.calls[0] != "sandbox_delete" {
+		t.Fatalf("expected one sandbox_delete call, got %v", fc.calls)
+	}
+	if fc.lastArgs["project"] != "calc" {
+		t.Errorf("project not forwarded: %v", fc.lastArgs)
+	}
+	if _, leaked := fc.lastArgs["evil"]; leaked {
+		t.Error("non-allowlisted arg leaked into the delete call")
+	}
+}
+
+// A GET to the delete route must NOT issue the command (mutations are POST-only).
+func TestSandboxDeleteRejectsGET(t *testing.T) {
+	fc := &fakeCaller{result: map[string]any{"ok": true}}
+	s, _ := newServer(t, fc, "secret")
+	req := httptest.NewRequest(http.MethodGet, "/api/sandbox/delete?token=secret&project=calc", nil)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusMethodNotAllowed {
+		t.Errorf("GET delete = %d want 405", rec.Code)
+	}
+	if len(fc.calls) != 0 {
+		t.Errorf("GET must not issue a delete, got %v", fc.calls)
+	}
+}

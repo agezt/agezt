@@ -834,8 +834,9 @@ const (
 	// code_exec tool under <baseDir>/sandbox/projects. List: no args, returns each
 	// persistent project with its files (name, bytes, modified). File: args{project,
 	// file}, returns one file's content (capped), path-confined to the projects dir.
-	CmdSandboxList = "sandbox_list"
-	CmdSandboxFile = "sandbox_file"
+	CmdSandboxList   = "sandbox_list"
+	CmdSandboxFile   = "sandbox_file"
+	CmdSandboxDelete = "sandbox_delete" // remove one project dir (operator cleanup); path-confined
 
 	// Reflection — meta-cognition (SPEC-05 §6).
 	//

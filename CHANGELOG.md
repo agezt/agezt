@@ -12,6 +12,16 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Sandbox view: download files and delete projects.** The Sandbox page is now a
+  management surface, not just a viewer: every file has a **download** button (saves
+  the artifact straight from the browser), and every project has a **delete** button
+  that removes it after a danger-styled confirm. Delete is operator-only and
+  path-confined server-side — a new `sandbox_delete` command can only remove a direct
+  child of the projects directory (traversal and nested paths are rejected), so it
+  can never touch anything outside `<baseDir>/sandbox/projects`. Verified live
+  (isolated daemon): seeded two projects, deleted one through the UI (confirm → gone
+  from disk, sibling untouched), with the download buttons present and 0 console
+  errors. (M688)
 - **`code_exec` cross-runtime parity is now enforced by a live test.** A new
   smoke test actually runs each detected runtime (Python, Node, Deno) end-to-end
   and asserts the two properties that must hold identically for all of them: clean

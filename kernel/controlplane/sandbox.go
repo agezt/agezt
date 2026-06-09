@@ -146,6 +146,34 @@ func (s *Server) handleSandboxFile(conn net.Conn, req Request) {
 	}})
 }
 
+// handleSandboxDelete removes one project directory — operator-initiated cleanup
+// of agent-built work. Path-confined: the target must be a direct child of the
+// projects dir (a single project), never the root itself or a nested path.
+func (s *Server) handleSandboxDelete(conn net.Conn, req Request) {
+	project, _ := req.Args["project"].(string)
+	if strings.TrimSpace(project) == "" {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.project required"})
+		return
+	}
+	root := s.sandboxProjectsDir()
+	dir, ok := confineUnder(root, project)
+	if !ok || filepath.Dir(dir) != filepath.Clean(root) {
+		// Must be exactly <root>/<segment>; reject traversal and nested paths.
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "illegal project name"})
+		return
+	}
+	info, err := os.Stat(dir)
+	if err != nil || !info.IsDir() {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "no such project"})
+		return
+	}
+	if err := os.RemoveAll(dir); err != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "delete: " + err.Error()})
+		return
+	}
+	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"deleted": project}})
+}
+
 // confineUnder joins an untrusted relative path to root and confirms the result
 // stays inside root (rejecting "..", absolute paths, and Windows drive-relative
 // escapes). Returns the cleaned absolute path on success.

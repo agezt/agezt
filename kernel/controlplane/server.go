@@ -653,6 +653,8 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.handleSandboxList(conn, req)
 	case CmdSandboxFile:
 		s.handleSandboxFile(conn, req)
+	case CmdSandboxDelete:
+		s.handleSandboxDelete(conn, req)
 	case CmdStandingWhy:
 		s.handleStandingWhy(conn, req)
 	case CmdReflectRun:
