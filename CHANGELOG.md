@@ -11,6 +11,19 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 
 ## [Unreleased]
 
+### Changed
+- **Live heartbeat tuning now survives restart.** The cadence (M757) and dial (M758) changes made from
+  the Autonomy view were runtime-only — they reset to the `AGEZT_PULSE_*` defaults whenever the daemon
+  restarted. They're now **persisted to the config store** (the same mechanism behind the Config
+  Center and routing chains): when you change the cadence or dial, the new value is written as
+  `AGEZT_PULSE_CADENCE` / `AGEZT_PULSE_DIAL`, and since the config store is overlaid onto the
+  environment at startup before `buildPulse` reads it, the change becomes the new default. So "check
+  in every 5 minutes, stay chatty" sticks across restarts — set it once. Persistence is best-effort
+  (a store write failure never fails the live change, which already took effect). Asserted in the
+  control-plane test (cadence + dial land in the store), and verified live with a real restart: set
+  cadence 300s + dial chatty via the API, killed and restarted the daemon with no env overrides, and
+  it came back up at **cadence 300s / dial chatty**. (M760)
+
 ### Added
 - **Verify the journal's tamper-evident hash chain from the console.** The Journal-search view gains a
   **verify integrity** button: one click walks the append-only journal server-side and confirms its
