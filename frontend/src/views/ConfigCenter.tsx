@@ -48,6 +48,8 @@ interface Field {
   help?: string;
   apply: "live" | "restart";
   options?: string[];
+  read_only?: boolean; // system-managed: shown but not editable here
+  locked?: boolean; // value may change but never be cleared
 }
 interface Section {
   id: string;
@@ -297,6 +299,9 @@ function FieldRow({
   toast: (text: string, kind?: "success" | "error" | "info") => void;
 }) {
   const pinned = !!entry?.env_pinned;
+  const readOnly = !!field.read_only;
+  const managed = pinned || readOnly; // not editable in the Config Center
+  const locked = !!field.locked; // editable, but cannot be cleared/removed
   const isSet = !!entry?.set;
   const original = field.secret ? "" : entry?.value ?? "";
   const [draft, setDraft] = useState(original);
@@ -352,6 +357,11 @@ function FieldRow({
               <RotateCw className="size-2.5" /> restart
             </span>
           )}
+          {locked && !managed && (
+            <span className="inline-flex items-center gap-0.5 rounded bg-amber-500/15 px-1 text-[9px] font-medium uppercase text-amber-300" title="Locked — can be changed but not cleared">
+              <Lock className="size-2.5" /> locked
+            </span>
+          )}
         </div>
         <code className="text-[10px] text-muted">{field.env.replace(/^AGEZT_/, "")}</code>
         {field.help && <p className="text-[10px] leading-snug text-muted">{field.help}</p>}
@@ -359,25 +369,25 @@ function FieldRow({
 
       <div className="flex flex-col gap-1">
         <div className="flex items-center gap-1.5">
-          {pinned ? (
-            <PinnedValue field={field} entry={entry} />
+          {managed ? (
+            <ManagedValue field={field} entry={entry} chip={pinned ? "env" : "read-only"} />
           ) : (
             <FieldInput field={field} value={draft} setValue={setDraft} isSet={isSet} disabled={busy} onEnter={() => dirty && save(draft)} />
           )}
 
-          {!pinned && (
+          {!managed && (
             <Button size="sm" variant={dirty ? "default" : "ghost"} disabled={!dirty || busy} onClick={() => save(draft)} title="Save">
               {busy ? <RefreshCw className="size-3.5 animate-spin" /> : <Save className="size-3.5" />}
             </Button>
           )}
-          {!pinned && field.secret && isSet && (
+          {!managed && !locked && field.secret && isSet && (
             <Button size="sm" variant="ghost" disabled={busy} onClick={() => save("", { cleared: true })} title="Clear (remove from vault)">
               <Trash2 className="size-3.5 text-bad" />
             </Button>
           )}
         </div>
 
-        {field.secret && !pinned && (
+        {field.secret && !managed && (
           <span className={cn("inline-flex items-center gap-1 text-[10px]", isSet ? "text-good" : "text-muted")}>
             {isSet ? (
               <>
@@ -393,19 +403,21 @@ function FieldRow({
   );
 }
 
-// PinnedValue renders an env-pinned field read-only: the real environment owns it.
-function PinnedValue({ field, entry }: { field: Field; entry?: ValueEntry }) {
+// ManagedValue renders a non-editable field read-only — either env-pinned (the
+// real environment owns it, chip "env") or schema read-only (system-managed, chip
+// "read-only"). Secrets show presence text instead of the value.
+function ManagedValue({ field, entry, chip }: { field: Field; entry?: ValueEntry; chip: string }) {
   return (
     <div className="flex h-8 w-full items-center gap-1.5 rounded-md border border-dashed border-border bg-panel/50 px-2.5 text-xs text-muted">
       <Lock className="size-3 shrink-0" />
       {field.secret ? (
-        <span>set in environment</span>
+        <span>{entry?.set ? "set (managed)" : "not set"}</span>
       ) : (
         <span className="truncate font-mono" title={entry?.value}>
           {entry?.value || "—"}
         </span>
       )}
-      <span className="ml-auto rounded bg-card px-1 text-[9px] uppercase tracking-wide">env</span>
+      <span className="ml-auto rounded bg-card px-1 text-[9px] uppercase tracking-wide">{chip}</span>
     </div>
   );
 }

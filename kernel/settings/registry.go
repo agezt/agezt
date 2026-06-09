@@ -158,17 +158,27 @@ func (r *Registry) Register(sec Section) error {
 	return atomicWrite(filepath.Join(r.dir, sec.ID+".json"), raw)
 }
 
-// Unregister removes a registered section by id; reports whether it existed.
-func (r *Registry) Unregister(id string) (bool, error) {
+// Unregister removes a registered section by id; reports whether it existed. A
+// section marked Locked (system-approved) is refused unless force is true — so a
+// skill can't be silently torn out, but an operator can always override (or just
+// delete the file). Built-in sections have no file here and are never removable.
+func (r *Registry) Unregister(id string, force bool) (bool, error) {
 	if !slugPattern.MatchString(id) {
 		return false, fmt.Errorf("settings: invalid section id %q", id)
 	}
 	path := filepath.Join(r.dir, id+".json")
-	if _, err := os.Stat(path); err != nil {
+	raw, err := os.ReadFile(path)
+	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return false, nil
 		}
 		return false, err
+	}
+	if !force {
+		var sec Section
+		if json.Unmarshal(raw, &sec) == nil && sec.Locked {
+			return false, fmt.Errorf("settings: section %q is locked (system-approved) — pass force to remove", id)
+		}
 	}
 	if err := os.Remove(path); err != nil {
 		return false, fmt.Errorf("settings: remove %s: %w", id, err)
