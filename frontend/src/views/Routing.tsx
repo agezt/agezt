@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Route, RefreshCw, Save, ArrowUp, ArrowDown, X, Plus, Zap, CornerDownRight } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Route, RefreshCw, Save, ArrowUp, ArrowDown, X, Plus, Zap, CornerDownRight, Download, Upload } from "lucide-react";
 import { getJSON, postJSON } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -7,6 +7,26 @@ import { ErrorText } from "@/components/JsonView";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { useUI } from "@/components/ui/feedback";
 import { ModelPicker } from "@/components/ModelPicker";
+import { downloadText } from "@/lib/export";
+
+// parseChainsJSON normalises an imported routing file into a {task: [models]} map,
+// tolerating either a bare map or a {chains:{…}} wrapper. Keeps only string model
+// ids and drops empty chains; throws on bad JSON or a shape that yields nothing.
+export function parseChainsJSON(text: string): Record<string, string[]> {
+  const data = JSON.parse(text);
+  const obj = data && typeof data.chains === "object" && data.chains ? data.chains : data;
+  if (!obj || typeof obj !== "object" || Array.isArray(obj)) {
+    throw new Error("expected an object {task: [models]} (or a {chains:{…}} wrapper)");
+  }
+  const out: Record<string, string[]> = {};
+  for (const [task, v] of Object.entries(obj)) {
+    if (!Array.isArray(v)) continue;
+    const models = v.filter((m): m is string => typeof m === "string" && m.trim() !== "").map((m) => m.trim());
+    if (task.trim() && models.length) out[task.trim()] = models;
+  }
+  if (Object.keys(out).length === 0) throw new Error("no valid task→models chains found in the file");
+  return out;
+}
 
 // Routing lets you give each agentic job (task type) its own ORDERED model chain:
 // a primary model plus fallback models tried in turn (each routes to its serving
@@ -50,6 +70,7 @@ export function Routing() {
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -129,14 +150,47 @@ export function Routing() {
     }
   }
 
+  function exportChains() {
+    downloadText("agezt-routing.json", JSON.stringify({ chains }, null, 2), "application/json");
+  }
+
+  async function onImportFile(file: File) {
+    try {
+      const imported = parseChainsJSON(await file.text());
+      // Merge: imported task chains override existing ones, for review then Save.
+      setChains((cur) => ({ ...cur, ...imported }));
+      toast(`Imported ${Object.keys(imported).length} chain(s) — review and Save`, "success");
+    } catch (e) {
+      toast(`Import failed: ${(e as Error).message}`, "error");
+    }
+  }
+
   return (
     <div className="space-y-4">
+      <input
+        ref={fileRef}
+        type="file"
+        accept="application/json,.json"
+        className="hidden"
+        aria-hidden="true"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) void onImportFile(f);
+          e.target.value = "";
+        }}
+      />
       <div className="flex flex-wrap items-center gap-2">
         <h2 className="flex items-center gap-2 text-sm font-semibold">
           <Route className="size-4 text-accent" /> Routing
         </h2>
         <span className="text-xs text-muted">per-task model chains</span>
         <div className="ml-auto flex items-center gap-2">
+          <Button variant="ghost" size="sm" onClick={() => fileRef.current?.click()} title="Import routing from a JSON file">
+            <Upload className="size-3.5" /> Import
+          </Button>
+          <Button variant="ghost" size="sm" onClick={exportChains} disabled={Object.keys(chains).length === 0} title="Export routing to a JSON file">
+            <Download className="size-3.5" /> Export
+          </Button>
           <Button size="sm" onClick={save} disabled={!dirty || saving} title="Save routing">
             {saving ? <RefreshCw className="size-3.5 animate-spin" /> : <Save className="size-3.5" />} Save
           </Button>

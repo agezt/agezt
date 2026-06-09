@@ -12,6 +12,19 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Import/export routing chains.** The Routing view (per-task model fallback chains, M703)
+  now has **Export** and **Import** buttons, so a tuned routing config is portable between
+  daemons. Export downloads `agezt-routing.json` (`{chains:{task:[models]}}`); Import reads
+  such a file, **merges** its task chains over the current ones (per task: imported wins) and
+  leaves them staged for review so you Save deliberately. `parseChainsJSON` tolerates either a
+  bare `{task:[models]}` map or a `{chains:{…}}` wrapper, trims keys/models, drops blanks and
+  non-strings, and throws a readable error on bad JSON or a shape that yields nothing. Tests
+  cover the parser (both shapes, trimming, empty-chain drop, invalid-JSON / non-object / nothing-
+  valid errors) and the view (import merges over existing and Save posts the merged chains; a bad
+  file surfaces "Import failed" without mutating the chains). Verified live on an isolated daemon
+  seeded with `chat=demo-a,demo-b; code=demo-c`: Export produced that exact file, Import of a
+  `{chat:[imp-x,imp-y], plan:[imp-z]}` file merged to `chat=imp-x,imp-y / code=demo-c / plan=imp-z`,
+  and Save persisted+applied it live (re-`GET /api/routing` confirmed), 0 console errors. (M727)
 - **Pin chat conversations.** Hovering a thread in the sidebar now reveals a pin; pinned
   threads sort to the top (above by-recency), with the pin shown persistently and tinted.
   Pinning is metadata, not activity, so it doesn't bump the thread's recency. Tests cover
