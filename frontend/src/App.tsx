@@ -40,6 +40,9 @@ import { useEvents } from "@/lib/events";
 import { CommandPalette } from "@/components/CommandPalette";
 import { AlertBell } from "@/components/AlertBell";
 import { Vitals } from "@/components/Vitals";
+import { useUI, type ConfirmOptions } from "@/components/ui/feedback";
+
+type ConfirmRequest = ConfirmOptions;
 import type { CommandItem } from "@/lib/commands";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { EventFeed } from "@/components/EventFeed";
@@ -202,6 +205,7 @@ export default function App() {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>(loadCollapsed);
   const { connected } = useEvents();
+  const ui = useUI();
   const current = NAV.find((n) => n.id === active) || NAV[0];
   const View = current.render;
 
@@ -257,8 +261,21 @@ export default function App() {
         label: "Halt all runs",
         group: "Action",
         keywords: "freeze stop emergency",
-        run: () => {
-          if (window.confirm("Freeze ALL in-flight runs?")) postAction("/api/halt").catch(() => {});
+        run: async () => {
+          const ok = await ui.confirm({
+            title: "Freeze all in-flight runs?",
+            message: "Every running and queued run is paused until you resume.",
+            confirmLabel: "Halt",
+            danger: true,
+          });
+          if (ok) {
+            try {
+              await postAction("/api/halt");
+              ui.toast("All runs halted", "success");
+            } catch (e) {
+              ui.toast((e as Error).message, "error");
+            }
+          }
         },
       },
       {
@@ -266,7 +283,10 @@ export default function App() {
         label: "Resume",
         group: "Action",
         keywords: "unpause continue",
-        run: () => postAction("/api/resume").catch(() => {}),
+        run: () =>
+          postAction("/api/resume")
+            .then(() => ui.toast("Resumed", "success"))
+            .catch((e) => ui.toast((e as Error).message, "error")),
       },
       {
         id: "act-theme",
@@ -277,7 +297,8 @@ export default function App() {
       },
     ];
     return [...views, ...actions];
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ui]);
 
   return (
     <div className="flex h-full flex-col">
@@ -335,13 +356,15 @@ export default function App() {
 
 function Header({ connected, onOpenPalette }: { connected: boolean; onOpenPalette: () => void }) {
   const [busy, setBusy] = useState(false);
-  async function act(path: string, confirmMsg?: string) {
-    if (confirmMsg && !window.confirm(confirmMsg)) return;
+  const ui = useUI();
+  async function act(path: string, opts?: { confirm?: ConfirmRequest; success?: string }) {
+    if (opts?.confirm && !(await ui.confirm(opts.confirm))) return;
     setBusy(true);
     try {
       await postAction(path);
+      if (opts?.success) ui.toast(opts.success, "success");
     } catch (e) {
-      window.alert(`${path}: ${(e as Error).message}`);
+      ui.toast(`${path}: ${(e as Error).message}`, "error");
     } finally {
       setBusy(false);
     }
@@ -370,14 +393,24 @@ function Header({ connected, onOpenPalette }: { connected: boolean; onOpenPalett
           <kbd className="rounded border border-border px-1 text-[10px]">⌘K</kbd>
         </button>
         <button
-          onClick={() => act("/api/halt", "Freeze ALL in-flight runs?")}
+          onClick={() =>
+            act("/api/halt", {
+              confirm: {
+                title: "Freeze all in-flight runs?",
+                message: "Every running and queued run is paused until you resume. Use this to stop the daemon fast.",
+                confirmLabel: "Halt",
+                danger: true,
+              },
+              success: "All runs halted",
+            })
+          }
           disabled={busy}
           className="inline-flex h-8 items-center gap-1.5 rounded-md border border-bad px-3 text-sm text-bad transition-colors hover:bg-bad hover:text-white disabled:opacity-50"
         >
           <Pause className="size-4" /> Halt
         </button>
         <button
-          onClick={() => act("/api/resume")}
+          onClick={() => act("/api/resume", { success: "Resumed" })}
           disabled={busy}
           className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-3 text-sm transition-colors hover:border-accent disabled:opacity-50"
         >
