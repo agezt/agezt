@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import { Cpu, RefreshCw, Route, GitFork } from "lucide-react";
-import { getJSON } from "@/lib/api";
+import { Cpu, RefreshCw, Route, GitFork, RotateCw } from "lucide-react";
+import { getJSON, postAction } from "@/lib/api";
 import { useEvents } from "@/lib/events";
+import { useUI } from "@/components/ui/feedback";
 import { cn, fmtTime } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Muted, ErrorText } from "@/components/JsonView";
@@ -31,10 +32,36 @@ interface LogEvent {
 // colour-coded routing log.
 export function Providers() {
   const { events } = useEvents();
+  const ui = useUI();
   const [stats, setStats] = useState<Stats | null>(null);
   const [log, setLog] = useState<LogEvent[]>([]);
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [reloading, setReloading] = useState(false);
+
+  // Re-read credentials + catalog on the daemon, in place (M745) — apply a key or
+  // provider change without restarting. Distinct from Refresh, which only re-fetches
+  // these stats. Surfaces the daemon's note when it could only refresh the catalog.
+  async function reloadProviders() {
+    setReloading(true);
+    try {
+      const r = await postAction<{ providers_reloaded?: boolean; provider_count?: number; note?: string }>(
+        "/api/provider/reload",
+        {},
+      );
+      ui.toast(
+        r.note
+          ? r.note
+          : `Providers reloaded${r.provider_count != null ? ` — ${r.provider_count} provider${r.provider_count === 1 ? "" : "s"}` : ""}`,
+        r.providers_reloaded ? "success" : "info",
+      );
+      await reload();
+    } catch (e) {
+      ui.toast((e as Error).message, "error");
+    } finally {
+      setReloading(false);
+    }
+  }
 
   async function reload() {
     setLoading(true);
@@ -79,7 +106,10 @@ export function Providers() {
         <h2 className="flex items-center gap-2 text-sm font-semibold">
           <Cpu className="size-4 text-accent" /> Providers
         </h2>
-        <Button variant="ghost" size="sm" className="ml-auto" onClick={reload} disabled={loading}>
+        <Button variant="ghost" size="sm" className="ml-auto" onClick={reloadProviders} disabled={reloading} title="Re-read credentials & catalog without restarting the daemon">
+          <RotateCw className={cn("size-3.5", reloading && "animate-spin")} /> Reload
+        </Button>
+        <Button variant="ghost" size="sm" onClick={reload} disabled={loading} title="Re-fetch these stats">
           <RefreshCw className={cn("size-3.5", loading && "animate-spin")} /> Refresh
         </Button>
       </div>

@@ -12,6 +12,15 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Reload providers without restarting the daemon.** The Providers view gains a **Reload** action
+  (next to Refresh) that re-reads credentials and the model catalog **in place** — so a key change
+  or catalog update takes effect without bouncing the daemon. It reports how many providers
+  reloaded, and surfaces the daemon's note when only the catalog could be refreshed (`OnReload`
+  not configured → restart needed for new creds). Distinct from **Refresh**, which only re-fetches
+  the view's stats. Backed by the existing `provider_reload` command via a new `/api/provider/reload`
+  route. Tests cover the success, note, and error paths. Verified live on an isolated daemon: the
+  button posted `/api/provider/reload` and the daemon reported `providers_reloaded: true` with a
+  toast — 0 console errors. (M745)
 - **Preview a schedule's next fire times.** Each non-continuous schedule row now has a **next
   fires** toggle that forecasts when it will actually run — the next 5 fire times, computed by the
   daemon from the cadence — so you can sanity-check "daily at 09:00" or a cron before trusting it.
