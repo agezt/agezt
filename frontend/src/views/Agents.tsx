@@ -5,7 +5,9 @@ import { useEvents } from "@/lib/events";
 import { money } from "@/lib/format";
 import { cn, clip } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Muted, ErrorText } from "@/components/JsonView";
+import { ErrorText } from "@/components/JsonView";
+import { SkeletonList } from "@/components/ui/skeleton";
+import { EmptyState } from "@/components/ui/empty";
 import { DelegationGraph } from "@/components/DelegationGraph";
 import { RunDetailLoader } from "@/components/RunDetail";
 import { buildDelegationTree, pickDefaultRoot, type RunNode } from "@/lib/delegation";
@@ -121,9 +123,13 @@ export function Agents() {
       {err ? (
         <ErrorText>{err}</ErrorText>
       ) : !runs ? (
-        <Muted>loading…</Muted>
+        <SkeletonList count={3} lines={1} />
       ) : roots.length === 0 ? (
-        <Muted>no runs yet — start one from Chat or the CLI</Muted>
+        <EmptyState
+          icon={Network}
+          title="No agent runs yet"
+          hint="Start a run from Chat or the CLI — when it delegates to sub-agents, the delegation tree appears here."
+        />
       ) : (
         <div className="flex min-h-0 flex-1 flex-col gap-3 lg:flex-row">
           <div className="min-h-0 flex-1 overflow-hidden rounded-lg border border-border bg-card">

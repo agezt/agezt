@@ -5,7 +5,8 @@ import { cn, fmtTime } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useUI, type ConfirmOptions } from "@/components/ui/feedback";
 import { SkeletonList } from "@/components/ui/skeleton";
-import { Muted, ErrorText } from "@/components/JsonView";
+import { EmptyState } from "@/components/ui/empty";
+import { ErrorText } from "@/components/JsonView";
 
 interface Skill {
   id?: string;
@@ -92,7 +93,16 @@ export function Skills() {
       ) : !skills ? (
         <SkeletonList count={4} lines={2} />
       ) : skills.length === 0 ? (
-        <Muted>no skills learned yet — the agent learns them with the `skill` tool</Muted>
+        <EmptyState
+          icon={Sparkles}
+          title="No skills learned yet"
+          hint={
+            <>
+              Skills are reusable procedures the agent distills from successful runs — it learns them with the{" "}
+              <code className="rounded bg-panel px-1 py-0.5">skill</code> tool, then proves them in shadow before they go active.
+            </>
+          }
+        />
       ) : (
         <div className="min-h-0 flex-1 space-y-2 overflow-auto">
           <StatusSummary skills={skills} />

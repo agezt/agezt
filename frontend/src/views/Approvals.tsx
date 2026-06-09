@@ -1,6 +1,7 @@
+import { ShieldCheck } from "lucide-react";
 import { Panel, Row, Count } from "@/components/Panel";
 import { Badge } from "@/components/ui/badge";
-import { Muted } from "@/components/JsonView";
+import { EmptyState } from "@/components/ui/empty";
 import { ActionButton } from "@/components/ActionButton";
 
 export function Approvals() {
@@ -18,14 +19,18 @@ export function Approvals() {
                   <span>{a.reason || a.tool_name || a.id || ""}</span>
                   {a.id ? (
                     <span className="ml-auto flex gap-1">
-                      <ActionButton label="approve" variant="good" path="/api/decide" params={{ id: a.id, decision: "grant" }} onDone={reload} />
-                      <ActionButton label="deny" variant="danger" path="/api/decide" params={{ id: a.id, decision: "deny" }} onDone={reload} />
+                      <ActionButton label="approve" variant="good" path="/api/decide" params={{ id: a.id, decision: "grant" }} onDone={reload} success="Request approved" />
+                      <ActionButton label="deny" variant="danger" path="/api/decide" params={{ id: a.id, decision: "deny" }} onDone={reload} success="Request denied" />
                     </span>
                   ) : null}
                 </Row>
               ))
             ) : (
-              <Muted>nothing awaiting approval</Muted>
+              <EmptyState
+                icon={ShieldCheck}
+                title="Nothing awaiting approval"
+                hint="When the agent hits a capability gated by your ask policy, the request will appear here for you to approve or deny."
+              />
             )}
           </>
         );

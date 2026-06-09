@@ -1,10 +1,11 @@
 import { useState } from "react";
-import { RefreshCw, ChevronRight, ChevronDown } from "lucide-react";
+import { RefreshCw, ChevronRight, ChevronDown, ListTree } from "lucide-react";
 import { usePanel } from "@/lib/usePanel";
 import { Card, CardHeader, CardTitle, CardBody } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge, statusVariant } from "@/components/ui/badge";
-import { Muted, ErrorText } from "@/components/JsonView";
+import { ErrorText } from "@/components/JsonView";
+import { EmptyState } from "@/components/ui/empty";
 import { fmtTime } from "@/lib/utils";
 import { RunDetailLoader } from "@/components/RunDetail";
 
@@ -57,7 +58,7 @@ export function Runs() {
         ) : runs.length ? (
           runs.map((r, i) => <RunRow key={r.correlation_id || i} run={r} />)
         ) : (
-          <Muted>no runs yet</Muted>
+          <EmptyState icon={ListTree} title="No runs yet" hint="Completed and in-flight runs will be listed here — start one from Chat or the CLI." />
         )}
       </CardBody>
     </Card>

@@ -12,6 +12,16 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Designed empty states instead of bare "no X yet" lines.** Empty views now show
+  a friendly dashed-card `EmptyState` — a soft icon, a title, and a hint that tells
+  the operator how to fill it (e.g. Schedules explains the `schedule` tool and
+  `agt schedule add`) — across Memory, World, Standing, Schedules, Skills, Catalog,
+  Agents, Runs and Approvals. As part of this, `ActionButton` (the World *forget* /
+  Approvals *approve*/*deny* control) was brought onto the shared feedback layer:
+  destructive uses now raise the confirm-modal (World *forget* asks before
+  permanently removing an entity and its relations) and every outcome is a toast
+  instead of an inline label swap. Verified live (Schedules empty state rendered
+  with its icon + CLI hints), 140 frontend tests pass, zero console errors. (M672)
 - **Skeleton loaders replace bare "loading…" text.** The list and grid views
   (Memory, Standing, Schedules, Skills, Catalog) now render content-shaped skeleton
   placeholders — card outlines with a soft shimmer sweeping across them — while they
