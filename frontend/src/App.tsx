@@ -41,7 +41,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { postAction } from "@/lib/api";
+import { postAction, getJSON } from "@/lib/api";
 import { useEvents } from "@/lib/events";
 import { CommandPalette } from "@/components/CommandPalette";
 import { MiniChat } from "@/components/MiniChat";
@@ -54,6 +54,7 @@ import type { CommandItem } from "@/lib/commands";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { toggleTheme } from "@/lib/theme";
 import { useChat } from "@/lib/chatStore";
+import { focusRun } from "@/lib/runfocus";
 import { AccentPicker } from "@/components/AccentPicker";
 import { ConsoleName } from "@/components/ConsoleName";
 import { EventFeed } from "@/components/EventFeed";
@@ -227,6 +228,9 @@ export default function App() {
   const [active, setActiveRaw] = useState(viewFromHash);
   const { newChat } = useChat();
   const [paletteOpen, setPaletteOpen] = useState(false);
+  // Recent runs offered as ⌘K "Open run" commands (fulfils the palette's promise).
+  // Refreshed whenever the palette opens so the list is current without polling.
+  const [recentRuns, setRecentRuns] = useState<{ correlation_id?: string; intent?: string; status?: string }[]>([]);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>(loadCollapsed);
   const { connected } = useEvents();
   const ui = useUI();
@@ -271,6 +275,22 @@ export default function App() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
+
+  // Refresh the recent-runs list each time the palette opens, so "Open run …"
+  // commands reflect what just happened. Best-effort — a fetch failure just leaves
+  // the previous list (or none).
+  useEffect(() => {
+    if (!paletteOpen) return;
+    let live = true;
+    getJSON<{ runs?: { correlation_id?: string; intent?: string; status?: string }[] }>("/api/runs")
+      .then((d) => {
+        if (live) setRecentRuns((d.runs || []).filter((r) => r.correlation_id).slice(0, 8));
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [paletteOpen]);
 
   const commands = useMemo<CommandItem[]>(() => {
     const views: CommandItem[] = NAV.map((n) => ({
@@ -330,9 +350,20 @@ export default function App() {
         run: () => toggleTheme(),
       },
     ];
-    return [...views, ...actions];
+    // Recent runs → "Open run …" — jump straight to a run's detail from ⌘K.
+    const runCmds: CommandItem[] = recentRuns.map((r) => ({
+      id: `run-${r.correlation_id}`,
+      label: r.intent?.trim() || r.correlation_id || "run",
+      group: "Open run",
+      keywords: `run ${r.status || ""} ${r.correlation_id || ""}`,
+      run: () => {
+        focusRun(r.correlation_id!);
+        setActive("runs");
+      },
+    }));
+    return [...views, ...actions, ...runCmds];
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ui, newChat]);
+  }, [ui, newChat, recentRuns]);
 
   return (
     <div className="flex h-full flex-col">
