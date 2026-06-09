@@ -52,6 +52,8 @@ import { useUI, type ConfirmOptions } from "@/components/ui/feedback";
 type ConfirmRequest = ConfirmOptions;
 import type { CommandItem } from "@/lib/commands";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { toggleTheme } from "@/lib/theme";
+import { useChat } from "@/lib/chatStore";
 import { AccentPicker } from "@/components/AccentPicker";
 import { ConsoleName } from "@/components/ConsoleName";
 import { EventFeed } from "@/components/EventFeed";
@@ -223,6 +225,7 @@ function loadCollapsed(): Record<string, boolean> {
 
 export default function App() {
   const [active, setActiveRaw] = useState(viewFromHash);
+  const { newChat } = useChat();
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>(loadCollapsed);
   const { connected } = useEvents();
@@ -278,6 +281,16 @@ export default function App() {
     }));
     const actions: CommandItem[] = [
       {
+        id: "act-new-chat",
+        label: "New chat",
+        group: "Action",
+        keywords: "conversation thread compose ask message",
+        run: () => {
+          newChat();
+          setActive("chat");
+        },
+      },
+      {
         id: "act-halt",
         label: "Halt all runs",
         group: "Action",
@@ -314,12 +327,12 @@ export default function App() {
         label: "Toggle theme",
         group: "Action",
         keywords: "dark light appearance",
-        run: () => document.documentElement.classList.toggle("dark"),
+        run: () => toggleTheme(),
       },
     ];
     return [...views, ...actions];
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ui]);
+  }, [ui, newChat]);
 
   return (
     <div className="flex h-full flex-col">
