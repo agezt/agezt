@@ -12,6 +12,16 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Add hard-deny rules from the Policy view.** The capability policy already let you set
+  per-capability trust levels, the ask mode, and *remove* runtime deny rules — but
+  *adding* a hard-deny rule (the safety floor that blocks any tool call whose input
+  contains a substring) needed the CLI. An inline **add deny rule** form now lets you
+  type a substring and optionally scope it to one capability (`<cap>:substring`);
+  submitting posts to the existing `edict_deny_add` command and it applies live. Adding a
+  rule only tightens policy. Tests cover the form (validation gate, bare vs scoped rule
+  spec, error surfacing). Verified live (isolated daemon): added `rm -rf /` → the
+  hard-deny count rose, the rule landed as a removable `runtime[1]` entry (all
+  capabilities) with its remove control present, 0 console errors. (M717)
 - **Pick your accent colour.** A palette button in the header opens a swatch popover to
   recolour the whole console — ten accent hues (blue, violet, rose, amber, green, teal,
   …). It shifts only the accent *hue*, so the theme's per-mode lightness/chroma are
