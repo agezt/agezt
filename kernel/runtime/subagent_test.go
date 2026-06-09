@@ -472,6 +472,149 @@ func TestWithModel_OverridesPerRun(t *testing.T) {
 	}
 }
 
+func TestSubAgent_ModelOverride(t *testing.T) {
+	// delegate with an explicit model runs the sub-agent on THAT model, while the
+	// lead keeps the daemon default — per-sub-agent model selection (M705). The
+	// spawn event records the chosen model + task_type for observability.
+	prov := mock.New(
+		mock.ToolUse("c1", "delegate", map[string]any{"task": "do it", "model": "child-model", "task_type": "code"}),
+		mock.FinalText("child done"), // child's run (on child-model)
+		mock.FinalText("lead done"),  // lead's final (on lead-default)
+	)
+	var mu sync.Mutex
+	var models []string
+	prov.OnRequest = func(req agent.CompletionRequest) {
+		mu.Lock()
+		models = append(models, req.Model)
+		mu.Unlock()
+	}
+	k, err := runtime.Open(runtime.Config{
+		BaseDir:          t.TempDir(),
+		Provider:         prov,
+		Model:            "lead-default",
+		Tools:            map[string]agent.Tool{"shell": shell.New()},
+		SubAgentTool:     true,
+		SubAgentMaxDepth: 1,
+	})
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	t.Cleanup(func() { k.Close() })
+
+	col := &collector{}
+	col.watch(k)
+
+	ans, _, err := k.Run(context.Background(), "go")
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if ans != "lead done" {
+		t.Errorf("final = %q, want %q", ans, "lead done")
+	}
+	time.Sleep(50 * time.Millisecond)
+
+	mu.Lock()
+	seen := append([]string(nil), models...)
+	mu.Unlock()
+	var sawChild, sawLead bool
+	for _, m := range seen {
+		switch m {
+		case "child-model":
+			sawChild = true
+		case "lead-default":
+			sawLead = true
+		}
+	}
+	if !sawChild {
+		t.Errorf("child should run on its override model; models seen = %v", seen)
+	}
+	if !sawLead {
+		t.Errorf("lead should keep the daemon default; models seen = %v", seen)
+	}
+
+	// The spawn event records the model + task_type the sub-agent ran with.
+	spawns := col.ofKind(event.KindSubAgentSpawned)
+	if len(spawns) != 1 {
+		t.Fatalf("expected 1 spawn, got %d", len(spawns))
+	}
+	var pl struct {
+		Model    string `json:"model"`
+		TaskType string `json:"task_type"`
+	}
+	if err := json.Unmarshal(spawns[0].Payload, &pl); err != nil {
+		t.Fatal(err)
+	}
+	if pl.Model != "child-model" {
+		t.Errorf("spawn model = %q, want child-model", pl.Model)
+	}
+	if pl.TaskType != "code" {
+		t.Errorf("spawn task_type = %q, want code", pl.TaskType)
+	}
+}
+
+func TestSubAgent_ModelDefaults(t *testing.T) {
+	// A bare delegate (no model / task_type) behaves exactly as before: the
+	// sub-agent inherits the daemon default model and the task_type defaults to
+	// "delegate".
+	prov := mock.New(
+		mock.ToolUse("c1", "delegate", map[string]any{"task": "do it"}),
+		mock.FinalText("child done"),
+		mock.FinalText("lead done"),
+	)
+	var mu sync.Mutex
+	var models []string
+	prov.OnRequest = func(req agent.CompletionRequest) {
+		mu.Lock()
+		models = append(models, req.Model)
+		mu.Unlock()
+	}
+	k, err := runtime.Open(runtime.Config{
+		BaseDir:          t.TempDir(),
+		Provider:         prov,
+		Model:            "lead-default",
+		Tools:            map[string]agent.Tool{"shell": shell.New()},
+		SubAgentTool:     true,
+		SubAgentMaxDepth: 1,
+	})
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	t.Cleanup(func() { k.Close() })
+
+	col := &collector{}
+	col.watch(k)
+
+	if _, _, err := k.Run(context.Background(), "go"); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	time.Sleep(50 * time.Millisecond)
+
+	mu.Lock()
+	for _, m := range models {
+		if m != "lead-default" {
+			t.Errorf("no override → every request should use lead-default, saw %q (all: %v)", m, models)
+			break
+		}
+	}
+	mu.Unlock()
+
+	spawns := col.ofKind(event.KindSubAgentSpawned)
+	if len(spawns) != 1 {
+		t.Fatalf("expected 1 spawn, got %d", len(spawns))
+	}
+	var pl struct {
+		Model    string `json:"model"`
+		TaskType string `json:"task_type"`
+	}
+	_ = json.Unmarshal(spawns[0].Payload, &pl)
+	if pl.Model != "lead-default" {
+		t.Errorf("spawn model = %q, want lead-default", pl.Model)
+	}
+	if pl.TaskType != "delegate" {
+		t.Errorf("spawn task_type = %q, want the \"delegate\" default", pl.TaskType)
+	}
+}
+
 func TestSubAgent_DisabledByDefault(t *testing.T) {
 	// Without SubAgentTool, the delegate tool is absent.
 	k, err := runtime.Open(runtime.Config{

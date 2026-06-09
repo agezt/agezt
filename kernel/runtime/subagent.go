@@ -38,7 +38,7 @@ const subAgentSystem = "You are a focused sub-agent spawned to complete ONE dele
 // wired to k.runSubAgent after the kernel is constructed (the tool is built
 // during Open before *Kernel exists).
 type subAgentTool struct {
-	run func(ctx context.Context, task string) (string, error)
+	run func(ctx context.Context, task, model, taskType string) (string, error)
 }
 
 func newSubAgentTool() *subAgentTool { return &subAgentTool{} }
@@ -49,13 +49,24 @@ func (t *subAgentTool) Definition() agent.ToolDef {
 		Description: "Delegate a focused subtask to a fresh sub-agent that works " +
 			"autonomously (its own tool-loop) and returns a concise result. Use this " +
 			"to parallelise independent subtasks or isolate a self-contained piece of " +
-			"work. Issue multiple delegate calls in one turn to fan out concurrently.",
+			"work. Issue multiple delegate calls in one turn to fan out concurrently. " +
+			"Optionally pick the sub-agent's model (otherwise the daemon default) and/or " +
+			"its routing task type (defaults to \"delegate\"); a configured routing chain " +
+			"for that task type provides the fallback models.",
 		InputSchema: json.RawMessage(`{
   "type": "object",
   "properties": {
     "task": {
       "type": "string",
       "description": "The complete, self-contained instruction for the sub-agent. Include all context it needs; it does not see this conversation."
+    },
+    "model": {
+      "type": "string",
+      "description": "Optional model id for the sub-agent (e.g. a cheaper or stronger model than the lead). Omit to use the daemon default."
+    },
+    "task_type": {
+      "type": "string",
+      "description": "Optional routing task type for the sub-agent (e.g. \"code\", \"plan\"); its configured model chain supplies the fallbacks. Defaults to \"delegate\"."
     }
   },
   "required": ["task"]
@@ -65,7 +76,9 @@ func (t *subAgentTool) Definition() agent.ToolDef {
 
 func (t *subAgentTool) Invoke(ctx context.Context, input json.RawMessage) (agent.Result, error) {
 	var in struct {
-		Task string `json:"task"`
+		Task     string `json:"task"`
+		Model    string `json:"model"`
+		TaskType string `json:"task_type"`
 	}
 	if err := json.Unmarshal(input, &in); err != nil {
 		return agent.Result{Output: "invalid input: " + err.Error(), IsError: true}, nil
@@ -73,7 +86,7 @@ func (t *subAgentTool) Invoke(ctx context.Context, input json.RawMessage) (agent
 	if t.run == nil {
 		return agent.Result{Output: "sub-agent runner not wired", IsError: true}, nil
 	}
-	out, err := t.run(ctx, in.Task)
+	out, err := t.run(ctx, in.Task, in.Model, in.TaskType)
 	if err != nil {
 		// Surface as a tool error so the lead agent can adapt, not crash.
 		return agent.Result{Output: "delegation failed: " + err.Error(), IsError: true}, nil
@@ -85,10 +98,23 @@ func (t *subAgentTool) Invoke(ctx context.Context, input json.RawMessage) (agent
 // child correlation, bounded by SubAgentMaxDepth. The spawn is journaled under
 // the PARENT correlation (carrying the child correlation) so `agt why <parent>`
 // shows the delegation; the child's own steps live under the child correlation.
-func (k *Kernel) runSubAgent(ctx context.Context, task string) (string, error) {
+func (k *Kernel) runSubAgent(ctx context.Context, task, model, taskType string) (string, error) {
 	task = strings.TrimSpace(task)
 	if task == "" {
 		return "", errors.New("task required")
+	}
+	// Per-sub-agent model (M705): an explicit model overrides the daemon default
+	// for this delegation; an explicit task_type selects the routing chain whose
+	// models provide the fallbacks (defaulting to "delegate"). Both are optional —
+	// a bare delegate behaves exactly as before.
+	model = strings.TrimSpace(model)
+	taskType = strings.TrimSpace(taskType)
+	if taskType == "" {
+		taskType = "delegate"
+	}
+	subModel := k.cfg.Model
+	if model != "" {
+		subModel = model
 	}
 	if k.IsHalted() {
 		return "", ErrHalted
@@ -200,6 +226,8 @@ func (k *Kernel) runSubAgent(ctx context.Context, task string) (string, error) {
 			"child_correlation": childCorr,
 			"depth":             depth + 1,
 			"parent":            parentCorr,
+			"model":             subModel,
+			"task_type":         taskType,
 		},
 	})
 
@@ -221,7 +249,8 @@ func (k *Kernel) runSubAgent(ctx context.Context, task string) (string, error) {
 		Provider:      k.cfg.Provider,
 		Tools:         k.tools,
 		Bus:           k.bus,
-		Model:         k.cfg.Model,
+		Model:         subModel,
+		TaskType:      taskType, // M705: route the sub-agent (chain supplies fallbacks)
 		System:        system,
 		MaxIter:       k.cfg.MaxIter,
 		ToolTimeout:   k.cfg.ToolTimeout,
