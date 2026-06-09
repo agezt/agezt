@@ -53,6 +53,7 @@ type ConfirmRequest = ConfirmOptions;
 import type { CommandItem } from "@/lib/commands";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { AccentPicker } from "@/components/AccentPicker";
+import { ConsoleName } from "@/components/ConsoleName";
 import { EventFeed } from "@/components/EventFeed";
 import { Chat } from "@/views/Chat";
 import { Activity } from "@/views/Activity";
@@ -392,9 +393,7 @@ function Header({ connected, onOpenPalette }: { connected: boolean; onOpenPalett
   }
   return (
     <header className="flex items-center gap-3 border-b border-border bg-panel px-4 py-2">
-      <h1 className="text-sm font-semibold tracking-wide">
-        <span className="text-accent">agezt</span> · console
-      </h1>
+      <ConsoleName />
       <span
         className={cn(
           "ml-1 inline-flex items-center gap-1 text-xs",
