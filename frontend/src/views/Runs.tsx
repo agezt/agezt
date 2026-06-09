@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { RefreshCw, ChevronRight, ChevronDown, ListTree } from "lucide-react";
+import { RefreshCw, ChevronRight, ChevronDown, ListTree, Search } from "lucide-react";
 import { usePanel } from "@/lib/usePanel";
 import { Card, CardHeader, CardTitle, CardBody } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -54,10 +54,21 @@ function RunRow({ run, focus }: { run: Run; focus?: string | null }) {
   );
 }
 
+// runMatches tests a run against a lowercased query over its intent, status, and
+// correlation id — so you can pin down a run by what it was doing, how it ended, or its
+// id. Typing "failed" surfaces every failed run, "deploy" every deploy, and so on.
+export function runMatches(r: Run, q: string): boolean {
+  if (!q) return true;
+  return `${r.intent || ""} ${r.status || ""} ${r.correlation_id || ""}`.toLowerCase().includes(q);
+}
+
 export function Runs() {
   const { data, error, loading, reload } = usePanel<{ runs?: Run[] }>("/api/runs");
   const runs = data?.runs || [];
   const focus = useRunFocus();
+  const [q, setQ] = useState("");
+  const query = q.trim().toLowerCase();
+  const shown = query ? runs.filter((r) => runMatches(r, query)) : runs;
   return (
     <Card className="h-full">
       <CardHeader>
@@ -67,12 +78,32 @@ export function Runs() {
         </Button>
       </CardHeader>
       <CardBody>
+        {/* Find a run by intent, status (e.g. "failed"), or id once the list grows. */}
+        {runs.length > 4 && (
+          <div className="relative mb-2">
+            <Search className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted" />
+            <input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="filter runs…"
+              aria-label="Filter runs"
+              className="h-8 w-full rounded-md border border-border bg-panel pl-7 pr-12 text-xs text-foreground outline-none focus-visible:border-accent"
+            />
+            {query && (
+              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted">
+                {shown.length}/{runs.length}
+              </span>
+            )}
+          </div>
+        )}
         {error ? (
           <ErrorText>{error}</ErrorText>
-        ) : runs.length ? (
-          runs.map((r, i) => <RunRow key={r.correlation_id || i} run={r} focus={focus} />)
-        ) : (
+        ) : runs.length === 0 ? (
           <EmptyState icon={ListTree} title="No runs yet" hint="Completed and in-flight runs will be listed here — start one from Chat or the CLI." />
+        ) : shown.length === 0 ? (
+          <p className="px-1 py-2 text-xs text-muted">no runs match “{q.trim()}”</p>
+        ) : (
+          shown.map((r, i) => <RunRow key={r.correlation_id || i} run={r} focus={focus} />)
         )}
       </CardBody>
     </Card>
