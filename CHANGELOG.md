@@ -12,6 +12,16 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Tests
+- **End-to-end browser coverage for this session's console controls.** Extended the headless-browser
+  E2E gate (`scripts/webui-e2e.sh`, real daemon + go:embed-ded production SPA) — which previously
+  smoked the shell, Overview, Runs and World — to also drive the new control surfaces against a live
+  daemon: the **Autonomy** heartbeat controls render and **Beat now** fires; the **Policy** view's
+  *Capability policy* + *test a decision* + *Secret redaction* panels mount; and **Search**'s
+  **verify integrity** validates the journal's hash chain to "chain intact". All under the same
+  zero-console-errors / strict-CSP guard. Validated by mirroring the exact spec selectors against a
+  real demo daemon (all assertions resolved; 0 console errors). This is the browser-level complement
+  to the HTTP route-wiring tests (M763) — together they cover the new surface from the DOM down to the
+  control-plane command. (M764)
 - **HTTP-layer route-wiring tests for this session's console controls.** Hardened the new Web UI
   routes with committed integration tests (run in the frontend/Go CI gate, no browser needed) that
   drive the actual HTTP handler and assert each path maps to the right control-plane command,
