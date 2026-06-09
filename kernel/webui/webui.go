@@ -56,13 +56,26 @@ type Caller interface {
 	Stream(ctx context.Context, cmd string, args map[string]any, onEvent func(*event.Event)) (map[string]any, error)
 }
 
+// Transcriber turns uploaded audio into text — the speech-to-text backend behind
+// the chat mic button. Satisfied by *stt.Client (the same one the OpenAI-API
+// surface uses). Optional: when nil, /api/transcribe reports "not configured".
+type Transcriber interface {
+	Transcribe(ctx context.Context, filename string, audio []byte) (string, error)
+}
+
 // Server is the Web UI HTTP surface.
 type Server struct {
-	bus    *bus.Bus
-	client Caller
-	token  string
-	dist   fs.FS // the built SPA bundle (embed dist/, sub-rooted)
+	bus         *bus.Bus
+	client      Caller
+	token       string
+	dist        fs.FS       // the built SPA bundle (embed dist/, sub-rooted)
+	transcriber Transcriber // optional STT backend for /api/transcribe (nil = not configured)
 }
+
+// SetTranscriber wires the speech-to-text backend for POST /api/transcribe
+// (the chat mic button). Without it, that route reports "not configured" so the
+// UI can degrade gracefully. Called once at startup, before Handler().
+func (s *Server) SetTranscriber(t Transcriber) { s.transcriber = t }
 
 // New builds a Server. token gates every request; bus drives the live feed;
 // client proxies read commands. The embedded SPA bundle is sub-rooted so the
@@ -216,6 +229,7 @@ func (s *Server) Handler() http.Handler {
 	}
 	mux.HandleFunc("/api/plan/run", s.auth(s.planRunProxy()))
 	mux.HandleFunc("/api/run", s.auth(s.runStreamProxy()))
+	mux.HandleFunc("/api/transcribe", s.auth(s.handleTranscribe))
 	return mux
 }
 

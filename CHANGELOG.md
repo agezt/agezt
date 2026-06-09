@@ -12,6 +12,20 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Voice input in the chat — talk to your agent.** A microphone button in the
+  Chat composer records a short voice message, transcribes it via the daemon's
+  speech-to-text backend, and drops the text into the input for you to review and
+  send. It reuses the existing STT client (the same one `agt transcribe` and the
+  OpenAI-API surface use) behind a new token-gated `POST /api/transcribe` webui
+  route (multipart upload, 25 MiB cap). Wired automatically when an STT endpoint is
+  configured (`AGEZT_STT_API_KEY`, optionally `AGEZT_STT_API_URL` for a local
+  Whisper / `AGEZT_STT_MODEL`); when it isn't, the route returns a clear "not
+  configured" and the mic degrades gracefully (a friendly toast, never a silent
+  failure). The daemon banner shows `voice input: enabled` when active. Verified
+  live (isolated daemon) against a stand-in STT endpoint: a multipart clip POSTed to
+  `/api/transcribe` round-tripped through the real webui → STT client → backend and
+  returned the transcript; the mic button renders in the composer and handles a
+  no-microphone environment without errors. (M689)
 - **Sandbox view: download files and delete projects.** The Sandbox page is now a
   management surface, not just a viewer: every file has a **download** button (saves
   the artifact straight from the browser), and every project has a **delete** button
