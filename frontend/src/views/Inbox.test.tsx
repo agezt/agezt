@@ -8,11 +8,17 @@ vi.mock("@/lib/api", () => ({
   getJSON: (...a: unknown[]) => getJSON(...a),
   postAction: (...a: unknown[]) => postAction(...a),
 }));
+// Avoid the SSE EventSource (not in jsdom): stub the events hook.
+vi.mock("@/lib/events", () => ({
+  useEvents: () => ({ events: [], connected: true, subscribe: () => () => {} }),
+}));
 
-import { SendMessageForm } from "@/views/Inbox";
+import { SendMessageForm, Inbox, threadMatches } from "@/views/Inbox";
+import { UIProvider } from "@/components/ui/feedback";
 
 afterEach(cleanup);
 beforeEach(() => {
+  getJSON.mockReset();
   postAction.mockReset();
   postAction.mockResolvedValue({ sent: true });
 });
@@ -54,5 +60,51 @@ describe("SendMessageForm (M747)", () => {
     fireEvent.change(screen.getByLabelText("Send message text"), { target: { value: "hi" } });
     fireEvent.click(screen.getByRole("button", { name: /^Send$/ }));
     await waitFor(() => expect(onError).toHaveBeenCalledWith(expect.stringMatching(/no channels configured/)));
+  });
+});
+
+describe("Inbox conversation search (M776)", () => {
+  it("threadMatches matches channel kind/id and message sender/text (case-insensitive)", () => {
+    const th = {
+      correlation_id: "c1",
+      channel_kind: "telegram",
+      channel_id: "98765",
+      messages: [{ direction: "in", sender: "Ada", text: "ship the release" }],
+    };
+    expect(threadMatches(th, "telegram")).toBe(true);
+    expect(threadMatches(th, "98765")).toBe(true);
+    expect(threadMatches(th, "ada")).toBe(true);
+    expect(threadMatches(th, "release")).toBe(true);
+    expect(threadMatches(th, "nope")).toBe(false);
+    expect(threadMatches(th, "")).toBe(true);
+  });
+
+  it("filters conversations and shows a count once there are more than four", async () => {
+    const mk = (id: string, kind: string, text: string) => ({
+      correlation_id: id,
+      channel_kind: kind,
+      channel_id: id,
+      messages: [{ direction: "in", sender: "x", text }],
+    });
+    getJSON.mockResolvedValue({
+      threads: [
+        mk("t1", "telegram", "ship the release"),
+        mk("t2", "slack", "review the diff"),
+        mk("t3", "discord", "standup notes"),
+        mk("t4", "telegram", "lunch?"),
+        mk("t5", "email", "invoice attached"),
+      ],
+    });
+    render(
+      <UIProvider>
+        <Inbox />
+      </UIProvider>,
+    );
+    const input = await screen.findByLabelText("Filter conversations");
+    expect(screen.queryByText("1/5")).toBeNull();
+    fireEvent.change(input, { target: { value: "slack" } });
+    await waitFor(() => expect(screen.getByText("1/5")).toBeTruthy());
+    fireEvent.change(input, { target: { value: "zzz" } });
+    await waitFor(() => expect(screen.getByText(/no conversations match/)).toBeTruthy());
   });
 });

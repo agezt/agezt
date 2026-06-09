@@ -12,6 +12,17 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Search the inbox — find a conversation fast.** The Inbox view gains a **filter conversations**
+  box (appearing once there are more than four threads) that narrows the channel threads as you type,
+  matching on **channel kind, contact id, or any message's sender or text**, with a live `matched/total`
+  count. As channel chatter (Telegram, Slack, Discord, email, …) piles up, finding the thread where
+  something was said — or every thread with one contact — beats scrolling. Purely client-side over the
+  loaded threads, completing search parity across the browse-heavy views (Memory, World, Runs, Inbox).
+  Unit-tested (the pure `threadMatches` helper matches channel kind/id and message sender/text
+  case-insensitively; rendering the full Inbox with five threads, the input filters with a count, only
+  appears past four threads, and a non-matching query shows a hint). Live regression smoke on an
+  isolated daemon: the view rendered cleanly and the filter stayed hidden on an empty inbox; 0 console
+  errors. (M776)
 - **Filter the run history — find that one run fast.** The Runs view gains a **filter runs** box
   (appearing once there are more than four runs) that narrows the list as you type, matching on the
   run's **intent, status, or correlation id** with a live `matched/total` count. Typing `failed`

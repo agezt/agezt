@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Inbox as InboxIcon, RefreshCw, ArrowDownLeft, ArrowUpRight, Send, Plus, X } from "lucide-react";
+import { Inbox as InboxIcon, RefreshCw, ArrowDownLeft, ArrowUpRight, Send, Plus, X, Search } from "lucide-react";
 import { getJSON, postAction } from "@/lib/api";
 import { useEvents } from "@/lib/events";
 import { cn, fmtTime } from "@/lib/utils";
@@ -27,6 +27,22 @@ interface Thread {
   last_ts_unix_ms?: number;
 }
 
+// threadMatches tests a thread against a lowercased query over its channel kind, channel
+// id, and the sender + text of its messages — so you can find a conversation by who it's
+// with, which channel it's on, or something that was said in it (M776).
+export function threadMatches(th: Thread, q: string): boolean {
+  if (!q) return true;
+  const parts = [th.channel_kind, th.channel_id];
+  for (const m of th.messages || []) {
+    parts.push(m.sender, m.text);
+  }
+  return parts
+    .filter((s): s is string => typeof s === "string")
+    .join(" ")
+    .toLowerCase()
+    .includes(q);
+}
+
 // Inbox is the unified conversation view (SPEC-07): every channel thread —
 // Telegram, Slack, Discord, email, … — folded from the journal's
 // channel.inbound/outbound events into one place, newest activity first, with
@@ -39,6 +55,7 @@ export function Inbox() {
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [showSend, setShowSend] = useState(false);
+  const [q, setQ] = useState("");
   // Prefill the composer with a thread's channel+id when you click "reply".
   const [prefill, setPrefill] = useState<{ channel: string; to: string } | null>(null);
 
@@ -103,6 +120,25 @@ export function Inbox() {
         />
       )}
 
+      {/* Find a conversation by channel, contact, or something that was said. */}
+      {threads && threads.length > 4 && (
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted" />
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="filter conversations…"
+            aria-label="Filter conversations"
+            className="h-8 w-full rounded-md border border-border bg-panel pl-7 pr-12 text-xs text-foreground outline-none focus-visible:border-accent"
+          />
+          {q.trim() && (
+            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted">
+              {threads.filter((th) => threadMatches(th, q.trim().toLowerCase())).length}/{threads.length}
+            </span>
+          )}
+        </div>
+      )}
+
       {err ? (
         <ErrorText>{err}</ErrorText>
       ) : !threads ? (
@@ -114,7 +150,11 @@ export function Inbox() {
         </div>
       ) : (
         <div className="min-h-0 flex-1 space-y-3 overflow-auto">
-          {threads.map((th) => (
+          {(() => {
+            const query = q.trim().toLowerCase();
+            const shown = query ? threads.filter((th) => threadMatches(th, query)) : threads;
+            if (shown.length === 0) return <p className="px-1 py-2 text-xs text-muted">no conversations match “{q.trim()}”</p>;
+            return shown.map((th) => (
             <div key={th.correlation_id} className="rounded-lg border border-border bg-card p-3">
               <div className="mb-2 flex items-center gap-2">
                 <Badge>{th.channel_kind || "?"}</Badge>
@@ -157,7 +197,8 @@ export function Inbox() {
                 })}
               </ul>
             </div>
-          ))}
+            ));
+          })()}
         </div>
       )}
     </div>
