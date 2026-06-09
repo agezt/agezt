@@ -911,6 +911,9 @@ const (
 	// CmdPulseBeat triggers one on-demand heartbeat ("think now"). No args.
 	// Fires even when paused. Returns { triggered: true }.
 	CmdPulseBeat = "pulse_beat"
+	// CmdPulseCadence changes the heartbeat interval live. Args: seconds.
+	// Clamped to a sane range; returns { cadence_ms }. Runtime-only.
+	CmdPulseCadence = "pulse_cadence"
 
 	// CmdInbox returns the Unified Inbox (SPEC-07 §4): channel.inbound /
 	// channel.outbound events folded into conversation threads grouped by

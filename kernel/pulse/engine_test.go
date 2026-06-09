@@ -126,6 +126,27 @@ func TestBeatFiresEvenWhenPaused(t *testing.T) {
 	}
 }
 
+// TestSetCadenceChangesAndClamps: SetCadence updates the interval Status reports and
+// clamps out-of-range values to [minCadence, maxCadence] (M757).
+func TestSetCadenceChangesAndClamps(t *testing.T) {
+	e, _ := newEngine(t, Config{Cadence: time.Hour})
+	if got := e.Status().CadenceMS; got != time.Hour.Milliseconds() {
+		t.Fatalf("initial cadence: %d", got)
+	}
+	if applied := e.SetCadence(30 * time.Second); applied != 30*time.Second {
+		t.Fatalf("applied %v", applied)
+	}
+	if got := e.Status().CadenceMS; got != 30_000 {
+		t.Fatalf("Status should reflect the new cadence, got %d", got)
+	}
+	if e.SetCadence(time.Millisecond) != minCadence {
+		t.Fatal("a too-small cadence should clamp to minCadence")
+	}
+	if e.SetCadence(48*time.Hour) != maxCadence {
+		t.Fatal("a too-large cadence should clamp to maxCadence")
+	}
+}
+
 func TestTickEmitsFullChain(t *testing.T) {
 	sink := &capturingSink{}
 	obs := &fakeObserver{name: "fake", deltas: []Delta{{

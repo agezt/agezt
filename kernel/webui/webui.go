@@ -181,6 +181,8 @@ var writeRoutes = map[string]writeRoute{
 	"/api/pulse/resume": {controlplane.CmdPulseResume, nil},
 	// Trigger one on-demand heartbeat (M756): the operator's "think now". No args.
 	"/api/pulse/beat": {controlplane.CmdPulseBeat, nil},
+	// Change the heartbeat interval live (M757): seconds → clamped cadence. Runtime-only.
+	"/api/pulse/cadence": {controlplane.CmdPulseCadence, []string{"seconds"}},
 	// Reload catalog + providers in place (M745): apply credential/catalog changes
 	// without a daemon restart. No args.
 	"/api/provider/reload": {controlplane.CmdProviderReload, nil},

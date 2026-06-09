@@ -12,6 +12,21 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Tune the heartbeat cadence live — how often the agent checks in.** The Autonomy view's heartbeat
+  control gains a cadence selector (10s / 30s / 1m / 5m / 15m / 1h) that retunes the proactive loop
+  **immediately**, without a restart — previously the interval was fixed at startup by
+  `AGEZT_PULSE_CADENCE`. Make the agent more attentive when you're actively working, or back off to
+  stay quiet, on the fly. The change is applied safely: `Engine.SetCadence` clamps to a sane range
+  ([5s, 24h]) and signals the Start loop to `ticker.Reset` to the new interval, so it never races a
+  beat; a non-preset current value is shown as the selected option. Runtime-only (resets to the
+  configured default on restart, like pause state). Full stack: `Engine.SetCadence` → new
+  `CmdPulseCadence` → `/api/pulse/cadence`. Tested at every layer — engine (changes the interval
+  Status reports; clamps out-of-range values), control-plane (the seconds arg reaches the engine as a
+  duration; returns the applied `cadence_ms`), and UI (the selector posts `/api/pulse/cadence`; a
+  non-preset cadence renders as a "(current)" option; `cadenceLabel` formatting). Verified live on an
+  isolated daemon starting at a 1h cadence: selecting **10s** dropped `cadence_ms` to 10000
+  immediately, and **a beat then fired ~13s later** (beats 0→1) — proving the ticker genuinely reset
+  to the new interval (the original 1h would have produced nothing); 0 console errors. (M757)
 - **"Beat now" — trigger one proactive heartbeat on demand.** The Autonomy view's heartbeat control
   gains a **Beat now** button: instead of waiting for the cadence (often 60s+), the operator can tell
   the agent to *think now* — poll its observers, score what changed, and raise an initiative if

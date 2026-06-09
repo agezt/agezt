@@ -162,10 +162,21 @@ interface PulseStatus {
   last_tick_ms?: number;
 }
 
+// Cadence presets for live retuning (M757), in seconds — how often the agent checks in.
+const CADENCE_PRESETS = [10, 30, 60, 300, 900, 3600];
+
+// cadenceLabel formats a second count as a compact human interval (10s, 5m, 1h).
+export function cadenceLabel(sec: number): string {
+  if (sec < 60) return `${sec}s`;
+  if (sec < 3600) return `${Math.round(sec / 60)}m`;
+  return `${Math.round(sec / 3600)}h`;
+}
+
 // PulseControl surfaces the proactive heartbeat — the engine that drives the daemon's
-// self-directed work — with its live status and a pause/resume master switch (M743).
-// Pausing suppresses new beats (in-flight work finishes); the daemon goes reactive-only
-// until resumed. Previously this was reachable only via `agt pulse` on the CLI.
+// self-directed work — with its live status and a pause/resume master switch (M743),
+// an on-demand "beat now" (M756), and a live cadence selector (M757). Pausing
+// suppresses new beats (in-flight work finishes); the daemon goes reactive-only until
+// resumed. Previously this was reachable only via `agt pulse` on the CLI.
 export function PulseControl() {
   const ui = useUI();
   const [st, setSt] = useState<PulseStatus | null>(null);
@@ -215,6 +226,18 @@ export function PulseControl() {
     }
   }
 
+  // Retune (M757): change how often the agent checks in, live. Runtime-only — resets
+  // to the configured default on restart.
+  async function setCadence(seconds: string) {
+    try {
+      await postAction("/api/pulse/cadence", { seconds });
+      ui.toast(`Heartbeat now every ${cadenceLabel(Number(seconds))}`, "success");
+      await load();
+    } catch (e) {
+      ui.toast((e as Error).message, "error");
+    }
+  }
+
   if (!st) return null;
   if (!st.enabled) {
     return (
@@ -225,7 +248,7 @@ export function PulseControl() {
   }
 
   const paused = !!st.paused;
-  const cadence = st.cadence_ms ? `${Math.round(st.cadence_ms / 1000)}s` : "—";
+  const curSec = st.cadence_ms ? Math.round(st.cadence_ms / 1000) : 0;
   return (
     <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-card px-3 py-2">
       <Heart className={cn("size-4", paused ? "text-muted" : "animate-pulse fill-current text-bad")} />
@@ -239,11 +262,27 @@ export function PulseControl() {
         {paused ? "paused" : "running"}
       </span>
       <span className="text-[11px] text-muted">
-        {st.beats ?? 0} beat{st.beats === 1 ? "" : "s"} · every {cadence}
+        {st.beats ?? 0} beat{st.beats === 1 ? "" : "s"}
         {st.observers != null ? ` · ${st.observers} observer${st.observers === 1 ? "" : "s"}` : ""}
         {st.last_tick_ms ? ` · last ${fmtTime(st.last_tick_ms)}` : ""}
       </span>
-      <Button size="sm" variant="ghost" className="ml-auto" onClick={beatNow} disabled={beating} title="Trigger one heartbeat now (think now)">
+      <label className="ml-auto flex items-center gap-1 text-[11px] text-muted" title="How often the agent checks in (live; resets to the default on restart)">
+        every
+        <select
+          value={CADENCE_PRESETS.includes(curSec) ? String(curSec) : ""}
+          onChange={(e) => setCadence(e.target.value)}
+          aria-label="Heartbeat cadence"
+          className="h-7 rounded-md border border-border bg-panel px-1.5 text-xs outline-none focus:border-accent"
+        >
+          {!CADENCE_PRESETS.includes(curSec) && curSec > 0 && <option value="">{cadenceLabel(curSec)} (current)</option>}
+          {CADENCE_PRESETS.map((s) => (
+            <option key={s} value={s}>
+              {cadenceLabel(s)}
+            </option>
+          ))}
+        </select>
+      </label>
+      <Button size="sm" variant="ghost" onClick={beatNow} disabled={beating} title="Trigger one heartbeat now (think now)">
         {beating ? <RefreshCw className="size-3.5 animate-spin" /> : <Zap className="size-3.5" />}
         Beat now
       </Button>
