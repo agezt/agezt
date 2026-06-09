@@ -12,6 +12,16 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Health cockpit — the daemon's vital signs at a glance.** A new Monitor view
+  reads system health as gauges and sparklines: success-rate, error-rate, and
+  provider-fallback rings (green/amber/red by threshold), uptime, a live activity
+  pulse (journal-head growth, events/5s), a knowledge footprint row (running,
+  approvals, fallbacks, memory, entities, skills), and a fallbacks-by-provider
+  breakdown bar with the last reason. Built entirely on the M660 widget kit over
+  existing read APIs (`/api/status`, `/api/stats`, `/api/providers`) — no backend
+  change. Verified live: the rings rendered (97% success / 0% error / 2%
+  fallbacks), the footprint tiles and the mock-fallback bar showed, zero console
+  errors. (M661)
 - **Visual widget kit + a dashboard Overview — gauges, sparklines, bars, not tables.**
   A new dependency-free (pure SVG/CSS) widget kit — `Ring` (circular progress
   gauge), `Sparkline` (live line+area), `BarRow` (ranked horizontal bar) — themed
