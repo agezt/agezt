@@ -237,6 +237,9 @@ var jsonRoutes = map[string]writeRoute{
 	// Add a world-model entity (M721): name + kind (+ optional aliases/attrs, which
 	// are arrays/objects, so the JSON body is needed).
 	"/api/world/add": {controlplane.CmdWorldAdd, []string{"name", "kind", "aliases", "attrs"}},
+	// Edit a world-model entity's aliases/attrs in place (M730): id + the full
+	// editable state (arrays/objects, so the JSON body is needed).
+	"/api/world/edit": {controlplane.CmdWorldEdit, []string{"id", "aliases", "attrs"}},
 }
 
 // planRoute is the streaming "run this plan" action (Flow Studio's Run button).

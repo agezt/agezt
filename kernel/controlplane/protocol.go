@@ -771,6 +771,13 @@ const (
 	// Returns: { id, created (bool), kind, name }
 	CmdWorldAdd = "world_add"
 
+	// CmdWorldEdit replaces an existing entity's aliases and attrs in place (M730)
+	// — the full editable state, so an alias/attr can be removed (Upsert only
+	// merges). Identity (id/kind/name) and weight are preserved.
+	// Args: id (required), aliases ([string], optional), attrs ({k:v}, optional).
+	// Returns: { updated (bool), id, kind, name }
+	CmdWorldEdit = "world_edit"
+
 	// CmdWorldRelate asserts a directed relation between two entities named
 	// from/to (endpoints auto-created as topics if unknown).
 	// Args: from (required), verb (optional; default relates_to), to (required).

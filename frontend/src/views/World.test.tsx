@@ -12,7 +12,7 @@ vi.mock("@/lib/api", () => ({
   postAction: (...a: unknown[]) => postAction(...a),
 }));
 
-import { WorldAddForm, WorldRelateForm } from "@/views/World";
+import { WorldAddForm, WorldRelateForm, WorldEditForm } from "@/views/World";
 import { UIProvider } from "@/components/ui/feedback";
 
 function withUI(node: ReactNode) {
@@ -79,5 +79,54 @@ describe("WorldRelateForm", () => {
     render(withUI(<WorldRelateForm names={["Solo"]} onRelated={() => {}} />));
     // Only one name → from and to both "Solo" → invalid.
     expect((screen.getByRole("button", { name: /Relate/ }) as HTMLButtonElement).disabled).toBe(true);
+  });
+});
+
+describe("WorldEditForm (M730)", () => {
+  const entity = {
+    id: "ent-42",
+    kind: "person",
+    name: "Ada",
+    aliases: ["the boss"],
+    attrs: { brief: "morning", tz: "UTC" },
+  };
+
+  it("prefills aliases and attribute rows from the entity", () => {
+    render(withUI(<WorldEditForm entity={entity} onSaved={() => {}} />));
+    expect((screen.getByLabelText("Edit entity aliases") as HTMLInputElement).value).toBe("the boss");
+    expect((screen.getByLabelText("Attribute key 1") as HTMLInputElement).value).toBe("brief");
+    expect((screen.getByLabelText("Attribute value 1") as HTMLInputElement).value).toBe("morning");
+    expect((screen.getByLabelText("Attribute key 2") as HTMLInputElement).value).toBe("tz");
+  });
+
+  it("posts the replaced aliases + attrs (split, trimmed, blanks dropped) to world/edit", async () => {
+    const onSaved = vi.fn();
+    render(withUI(<WorldEditForm entity={entity} onSaved={onSaved} />));
+    fireEvent.change(screen.getByLabelText("Edit entity aliases"), { target: { value: " ada k ,  , the lead " } });
+    // Change brief, blank out tz's value (should be dropped).
+    fireEvent.change(screen.getByLabelText("Attribute value 1"), { target: { value: "evening, terse" } });
+    fireEvent.change(screen.getByLabelText("Attribute value 2"), { target: { value: "  " } });
+    fireEvent.click(screen.getByRole("button", { name: /Save/ }));
+    await waitFor(() =>
+      expect(postJSON).toHaveBeenCalledWith("/api/world/edit", {
+        id: "ent-42",
+        aliases: ["ada k", "the lead"],
+        attrs: { brief: "evening, terse" },
+      }),
+    );
+    await waitFor(() => expect(onSaved).toHaveBeenCalled());
+  });
+
+  it("adds and removes attribute rows", async () => {
+    render(withUI(<WorldEditForm entity={{ id: "e1", name: "X", attrs: {} }} onSaved={() => {}} />));
+    // No rows yet → the empty hint shows.
+    expect(screen.getByText(/add a preference or constraint/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /add attribute/ }));
+    fireEvent.change(screen.getByLabelText("Attribute key 1"), { target: { value: "role" } });
+    fireEvent.change(screen.getByLabelText("Attribute value 1"), { target: { value: "owner" } });
+    fireEvent.click(screen.getByRole("button", { name: /Save/ }));
+    await waitFor(() =>
+      expect(postJSON).toHaveBeenCalledWith("/api/world/edit", { id: "e1", aliases: [], attrs: { role: "owner" } }),
+    );
   });
 });

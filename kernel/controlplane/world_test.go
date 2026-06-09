@@ -59,6 +59,66 @@ func TestWorldAddResolveNeighbors(t *testing.T) {
 	}
 }
 
+// TestWorldEdit edits an entity's aliases/attrs in place over the control plane
+// (M730): add with attrs → edit (replace aliases, change/remove/add attrs) → get
+// reflects the new state; an unknown id reports updated:false.
+func TestWorldEdit(t *testing.T) {
+	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	ctx := context.Background()
+
+	add, err := c.Call(ctx, controlplane.CmdWorldAdd, map[string]any{
+		"name": "Ada", "kind": "person",
+		"aliases": []any{"the boss"},
+		"attrs":   map[string]any{"brief": "morning", "tz": "UTC"},
+	})
+	if err != nil {
+		t.Fatalf("add: %v", err)
+	}
+	id, _ := add["id"].(string)
+	if id == "" {
+		t.Fatalf("add returned no id: %v", add)
+	}
+
+	edit, err := c.Call(ctx, controlplane.CmdWorldEdit, map[string]any{
+		"id":      id,
+		"aliases": []any{"ada k"},
+		"attrs":   map[string]any{"brief": "evening, terse", "role": "owner"},
+	})
+	if err != nil {
+		t.Fatalf("edit: %v", err)
+	}
+	if up, _ := edit["updated"].(bool); !up {
+		t.Fatalf("edit should report updated=true: %v", edit)
+	}
+
+	// Get reflects the replaced state.
+	got, err := c.Call(ctx, controlplane.CmdWorldGet, map[string]any{"id": id})
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	ent, _ := got["entity"].(map[string]any)
+	attrs, _ := ent["attrs"].(map[string]any)
+	if attrs["brief"] != "evening, terse" || attrs["role"] != "owner" {
+		t.Errorf("attrs not edited: %v", attrs)
+	}
+	if _, ok := attrs["tz"]; ok {
+		t.Errorf("removed attr tz should be gone: %v", attrs)
+	}
+	aliases, _ := ent["aliases"].([]any)
+	if len(aliases) != 1 || aliases[0] != "ada k" {
+		t.Errorf("aliases not replaced: %v", aliases)
+	}
+
+	// Unknown id → updated:false, not an error.
+	miss, err := c.Call(ctx, controlplane.CmdWorldEdit, map[string]any{"id": "deadbeef"})
+	if err != nil {
+		t.Fatalf("edit unknown id errored: %v", err)
+	}
+	if up, _ := miss["updated"].(bool); up {
+		t.Error("editing an unknown id should report updated=false")
+	}
+}
+
 func TestWorldAddRejectsEmptyName(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 	if _, err := c.Call(context.Background(), controlplane.CmdWorldAdd, map[string]any{"kind": "project"}); err == nil {

@@ -619,6 +619,8 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.handleChangelog(conn, req)
 	case CmdWorldAdd:
 		s.handleWorldAdd(conn, req)
+	case CmdWorldEdit:
+		s.handleWorldEdit(conn, req)
 	case CmdWorldRelate:
 		s.handleWorldRelate(conn, req)
 	case CmdWorldResolve:

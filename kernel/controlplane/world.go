@@ -56,6 +56,47 @@ func (s *Server) handleWorldAdd(conn net.Conn, req Request) {
 	})
 }
 
+func (s *Server) handleWorldEdit(conn net.Conn, req Request) {
+	id, _ := req.Args["id"].(string)
+	if id == "" {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.id required"})
+		return
+	}
+	var aliases []string
+	if raw, ok := req.Args["aliases"].([]any); ok {
+		for _, a := range raw {
+			if sv, ok := a.(string); ok {
+				aliases = append(aliases, sv)
+			}
+		}
+	}
+	var attrs map[string]string
+	if raw, ok := req.Args["attrs"].(map[string]any); ok {
+		attrs = make(map[string]string, len(raw))
+		for k, v := range raw {
+			if sv, ok := v.(string); ok {
+				attrs[k] = sv
+			}
+		}
+	}
+	e, ok, err := s.k.World().EditEntity("", id, aliases, attrs)
+	if err != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		return
+	}
+	if !ok {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"updated": false}})
+		return
+	}
+	s.writeResp(conn, Response{
+		ID:   req.ID,
+		Type: RespResult,
+		Result: map[string]any{
+			"updated": true, "id": e.ID, "kind": string(e.Kind), "name": e.Name,
+		},
+	})
+}
+
 func (s *Server) handleWorldRelate(conn net.Conn, req Request) {
 	from, _ := req.Args["from"].(string)
 	to, _ := req.Args["to"].(string)
