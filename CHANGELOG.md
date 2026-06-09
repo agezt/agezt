@@ -12,6 +12,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Export a chat as Markdown.** An **export** button in the chat composer bar downloads
+  the current conversation as a clean Markdown transcript — `## You` / `## Agent` turns
+  with the answer text (and the model as a footnote), named from the thread title. Archive
+  a chat, share it, or paste it elsewhere. The serialiser is pure (tested: headings, model
+  footnote, empty-answer marker, title/slug fallback); the download is a standard Blob +
+  anchor. Verified live: after a turn, export produced `what-is-the-capital-of-france.md`
+  with the right `#`/`## You`/`## Agent` structure and the user's text, 0 console errors. (M723)
 - **Relate world-model entities from the UI.** Building on adding entities (M721), you can
   now connect two of them: a compact **relate** control (from · verb · to) appears once
   there are at least two entities, with the world model's relation verbs (relates_to,

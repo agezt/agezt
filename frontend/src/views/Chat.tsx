@@ -25,6 +25,7 @@ import {
   CornerDownRight,
   Pencil,
   Bot,
+  Download,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { money } from "@/lib/format";
@@ -44,6 +45,7 @@ import { turnText, type ChatTurn, type ChatTool, type TimelineItem } from "@/lib
 import { useChat } from "@/lib/chatStore";
 import { buildContext, type AttachRef } from "@/lib/attach";
 import type { Msg } from "@/lib/conversations";
+import { conversationToMarkdown, slugify, downloadText } from "@/lib/export";
 
 // Chat is the humane front door to the agent: a conversational thread where you
 // type an intent and watch the governed loop answer live — streaming text, the
@@ -315,6 +317,20 @@ export function Chat() {
           <span>model</span>
           <ModelPicker value={model} onChange={setModel} activeModel={activeModel} />
           <ConversationPersona value={conversationPersona} onChange={setConversationPersona} />
+          {messages.length > 0 && (
+            <button
+              onClick={() => {
+                const title =
+                  store.conversations.find((c) => c.id === store.activeId)?.title || "Conversation";
+                downloadText(`${slugify(title)}.md`, conversationToMarkdown(title, messages));
+              }}
+              title="Export this conversation as Markdown"
+              className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-muted transition-colors hover:text-foreground"
+            >
+              <Download className="size-3.5" />
+              <span>export</span>
+            </button>
+          )}
           {speechSupported() && (
             <button
               onClick={toggleAutoSpeak}
