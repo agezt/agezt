@@ -9,6 +9,8 @@ import {
   startConversation,
   deleteConversation,
   activeMessages,
+  activePersona,
+  withActivePersona,
   type Store,
   type Msg,
 } from "@/lib/conversations";
@@ -88,6 +90,27 @@ describe("store mutations", () => {
     expect(s2.conversations).toHaveLength(2);
     expect(s2.activeId).not.toBe(s1.activeId);
     expect(activeMessages(s2)).toEqual([]); // new one is empty
+  });
+
+  it("withActivePersona sets and clears the active conversation's persona", () => {
+    let s = loadStore(genId, 1);
+    expect(activePersona(s)).toBe(""); // none by default
+    s = withActivePersona(s, "  act as a reviewer  ", 2);
+    expect(activePersona(s)).toBe("act as a reviewer"); // trimmed
+    // Clearing drops the field entirely (no empty-string persisted).
+    s = withActivePersona(s, "", 3);
+    expect(activePersona(s)).toBe("");
+    expect(s.conversations.find((c) => c.id === s.activeId)!.persona).toBeUndefined();
+  });
+
+  it("persona is per-conversation, not global", () => {
+    let s = withActiveMessages(loadStore(genId, 1), [userMsg("a")], 2);
+    s = withActivePersona(s, "persona A", 3);
+    const firstId = s.activeId;
+    s = startConversation(s, genId, 4); // new active thread
+    expect(activePersona(s)).toBe(""); // the new thread has no persona
+    // The first thread still holds its own.
+    expect(s.conversations.find((c) => c.id === firstId)!.persona).toBe("persona A");
   });
 
   it("deleteConversation activates a remaining one, or seeds fresh when last", () => {

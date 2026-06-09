@@ -240,7 +240,7 @@ export function buildHistory(msgs: import("@/lib/conversations").Msg[]): ChatHis
 }
 
 export async function streamRun(
-  body: { intent: string; model?: string; history?: ChatHistoryTurn[] },
+  body: { intent: string; model?: string; history?: ChatHistoryTurn[]; system?: string },
   onFrame: (f: ChatFrame) => void,
   signal?: AbortSignal,
 ): Promise<void> {

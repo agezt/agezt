@@ -12,6 +12,18 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Per-conversation persona — make one chat thread act as something else.** The Chat
+  composer now has a **persona** control: set a system-prompt override for *this
+  conversation only* (e.g. "You are a terse Go reviewer"), and every run in that thread
+  uses it instead of the daemon's global persona. A dot marks an active override; it's
+  stored per-conversation (persists in the thread, survives reload) and is independent
+  across threads — different conversations, different personalities. It rides the run's
+  existing per-run `system` override (the control plane already supported it; the Web UI
+  run proxy now forwards `system`, and memory/world/skill context still layers on top).
+  Tests cover the per-conversation store helpers (set/clear/trim, isolation) and the
+  composer control (edit/save/clear, active indicator). Verified live (isolated daemon):
+  set a thread persona → the `/api/run` request carried `system` = that persona → it
+  persisted across a reload, 0 console errors. (M711)
 - **Edit your agent's persona (system prompt) from the UI — live.** A new **System →
   Persona** view shows and edits the default system prompt that frames every run — your
   Jarvis's personality, priorities, and house rules. Previously this was a startup-only
