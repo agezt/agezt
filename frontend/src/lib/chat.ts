@@ -180,6 +180,18 @@ export interface ChatHistoryTurn {
   text: string;
 }
 
+// buildHistory turns prior thread messages into the history payload sent with a
+// run, so the agent has multi-turn context. Empty turns are dropped. Shared by
+// send() (full thread) and retry() (thread up to the failed intent). Msg is
+// imported as a type only, so there's no runtime cycle with conversations.ts.
+export function buildHistory(msgs: import("@/lib/conversations").Msg[]): ChatHistoryTurn[] {
+  return msgs
+    .map((m): ChatHistoryTurn =>
+      m.role === "user" ? { role: "user", text: m.text } : { role: "assistant", text: turnText(m.turn) },
+    )
+    .filter((t) => t.text.trim() !== "");
+}
+
 export async function streamRun(
   body: { intent: string; model?: string; history?: ChatHistoryTurn[] },
   onFrame: (f: ChatFrame) => void,

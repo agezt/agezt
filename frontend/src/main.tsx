@@ -4,12 +4,15 @@ import "./index.css";
 import App from "./App";
 import { EventsProvider } from "@/lib/events";
 import { UIProvider } from "@/components/ui/feedback";
+import { ChatProvider } from "@/lib/chatStore";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <UIProvider>
       <EventsProvider>
-        <App />
+        <ChatProvider>
+          <App />
+        </ChatProvider>
       </EventsProvider>
     </UIProvider>
   </StrictMode>,

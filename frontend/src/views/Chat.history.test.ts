@@ -1,7 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from "vitest";
-import { buildHistory } from "@/views/Chat";
-import { newTurn, type ChatTurn } from "@/lib/chat";
+import { buildHistory, newTurn, type ChatTurn } from "@/lib/chat";
 import type { Msg } from "@/lib/conversations";
 
 // A done assistant turn carrying answer text (turnText reads `answer` when done).

@@ -21,117 +21,31 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { money } from "@/lib/format";
-import { getJSON } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { useUI } from "@/components/ui/feedback";
 import { Badge } from "@/components/ui/badge";
 import { Markdown } from "@/components/Markdown";
 import { ToolOutput } from "@/components/DataView";
 import { ModelPicker } from "@/components/ModelPicker";
-import {
-  streamRun,
-  foldChatFrame,
-  newTurn,
-  turnText,
-  type ChatTurn,
-  type ChatTool,
-  type ChatHistoryTurn,
-} from "@/lib/chat";
-import {
-  loadStore,
-  saveStore,
-  activeMessages,
-  withActiveMessages,
-  startConversation,
-  deleteConversation,
-  type Msg,
-  type Store,
-} from "@/lib/conversations";
-
-// A unique id for a new conversation (localhost is a secure context, so
-// crypto.randomUUID is available; a timestamp+random fallback covers the rest).
-function genId(): string {
-  if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID();
-  return "c-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
-}
-
-// buildHistory turns prior thread messages into the history payload sent with a
-// run, so the agent has multi-turn context. Empty turns are dropped. Shared by
-// send() (full thread) and retry() (thread up to the failed intent).
-export function buildHistory(msgs: Msg[]): ChatHistoryTurn[] {
-  return msgs
-    .map((m): ChatHistoryTurn =>
-      m.role === "user" ? { role: "user", text: m.text } : { role: "assistant", text: turnText(m.turn) },
-    )
-    .filter((t) => t.text.trim() !== "");
-}
+import { turnText, type ChatTurn, type ChatTool } from "@/lib/chat";
+import { useChat } from "@/lib/chatStore";
+import type { Msg } from "@/lib/conversations";
 
 // Chat is the humane front door to the agent: a conversational thread where you
 // type an intent and watch the governed loop answer live — streaming text, the
 // tool calls it made (with the policy verdict), and the final answer with its
-// cost. It drives the same CmdRun as the CLI, so what you see here is exactly
-// what the daemon did.
+// cost. The engine (store, streaming, model) lives in ChatProvider so a run keeps
+// going when you leave the view; this component is the full-screen UI over it.
 export function Chat() {
-  const ui = useUI();
-  const [store, setStore] = useState<Store>(() => loadStore(genId, Date.now()));
+  const { store, messages, busy, model, setModel, activeModel, send, retry, stop, newChat, selectConversation, removeConversation } =
+    useChat();
   const [input, setInput] = useState("");
-  const [model, setModel] = useState("");
-  const [activeModel, setActiveModel] = useState("");
-  const [busy, setBusy] = useState(false);
   // pinned = the thread is stuck to the bottom (auto-scrolls on new content).
   // It flips to false when you scroll up to read scrollback, so a live stream
   // never yanks you back down mid-read; a "jump to latest" button restores it.
   const [pinned, setPinned] = useState(true);
-  const abortRef = useRef<AbortController | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
-
-  // The active conversation's messages, and a setMessages shim that routes any
-  // update back into that conversation in the store — so every existing call
-  // site (send, updateLastTurn) works unchanged.
-  const messages = activeMessages(store);
-  const setMessages = (updater: Msg[] | ((prev: Msg[]) => Msg[])) => {
-    setStore((s) => {
-      const prev = activeMessages(s);
-      const next = typeof updater === "function" ? (updater as (p: Msg[]) => Msg[])(prev) : updater;
-      return withActiveMessages(s, next, Date.now());
-    });
-  };
-
-  // The daemon's default model — shown so you always know which model you're
-  // talking to (and a typo in the override field is obvious against it).
-  useEffect(() => {
-    getJSON<{ model?: string }>("/api/config")
-      .then((c) => setActiveModel(String(c.model || "")))
-      .catch(() => {
-        /* config momentarily unavailable — the field just shows "default" */
-      });
-  }, []);
-
-  // Persist the store (skip while a turn is mid-stream — a half-folded turn
-  // would restore as "interrupted"; the settled store is saved on completion).
-  useEffect(() => {
-    if (busy) return;
-    saveStore(store);
-  }, [store, busy]);
-
-  function newChat() {
-    if (busy) abortRef.current?.abort();
-    setStore((s) => startConversation(s, genId, Date.now()));
-    setInput("");
-  }
-
-  function selectConversation(id: string) {
-    if (id === store.activeId) return;
-    if (busy) abortRef.current?.abort();
-    setStore((s) => ({ ...s, activeId: id }));
-    setInput("");
-  }
-
-  function removeConversation(id: string) {
-    if (busy && id === store.activeId) abortRef.current?.abort();
-    setStore((s) => deleteConversation(s, id, genId, Date.now()));
-  }
 
   // Pin the thread to the bottom as content streams in — but only while pinned,
   // so scrolling up to read history during a live stream isn't disrupted.
@@ -161,80 +75,26 @@ export function Chat() {
     el.style.height = Math.min(el.scrollHeight, 160) + "px";
   }, [input]);
 
-  // Replace the trailing assistant turn (the one currently streaming).
-  function updateLastTurn(fn: (t: ChatTurn) => ChatTurn) {
-    setMessages((prev) => {
-      const next = prev.slice();
-      const last = next[next.length - 1];
-      if (last && last.role === "assistant") {
-        next[next.length - 1] = { role: "assistant", turn: fn(last.turn) };
-      }
-      return next;
-    });
-  }
-
-  // streamIntent runs one intent against the governed loop, folding frames into
-  // the trailing assistant turn (which the caller must have just appended).
-  async function streamIntent(intent: string, history: ChatHistoryTurn[]) {
+  // Submit the composer: pin to bottom, clear the box, hand the intent to the
+  // engine (which appends the turns and streams).
+  function doSend() {
+    const t = input.trim();
+    if (!t || busy) return;
     setPinned(true);
-    setBusy(true);
-    const ctrl = new AbortController();
-    abortRef.current = ctrl;
-    try {
-      await streamRun(
-        { intent, model: model.trim() || undefined, history: history.length ? history : undefined },
-        (f) => updateLastTurn((t) => foldChatFrame(t, f)),
-        ctrl.signal,
-      );
-    } catch (e) {
-      if (ctrl.signal.aborted) {
-        updateLastTurn((t) => ({ ...t, status: "error", error: "stopped" }));
-      } else {
-        updateLastTurn((t) => ({ ...t, status: "error", error: (e as Error).message }));
-      }
-    } finally {
-      abortRef.current = null;
-      setBusy(false);
-    }
-  }
-
-  async function send() {
-    const intent = input.trim();
-    if (!intent || busy) return;
-    const history = buildHistory(messages);
     setInput("");
-    setMessages((m) => [...m, { role: "user", text: intent }, { role: "assistant", turn: newTurn() }]);
-    await streamIntent(intent, history);
+    send(t);
   }
 
-  // retry re-runs the most recent user intent after a failed turn: it drops the
-  // errored assistant turn, re-appends a fresh one, and streams again with the
-  // same prior history — so a transient failure is one click to recover from.
-  async function retry() {
-    if (busy) return;
-    let userIdx = -1;
-    for (let i = messages.length - 1; i >= 0; i--) {
-      if (messages[i].role === "user") {
-        userIdx = i;
-        break;
-      }
-    }
-    if (userIdx < 0) return;
-    const intent = (messages[userIdx] as Msg & { role: "user" }).text;
-    const history = buildHistory(messages.slice(0, userIdx));
-    setMessages((prev) => [...prev.slice(0, userIdx + 1), { role: "assistant", turn: newTurn() }]);
-    await streamIntent(intent, history);
-  }
-
-  function stop() {
-    abortRef.current?.abort();
+  function startNewChat() {
+    newChat();
+    setInput("");
   }
 
   function onKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     // Enter sends; Shift+Enter inserts a newline (ChatGPT/Claude convention).
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      send();
+      doSend();
     }
   }
 
@@ -243,7 +103,7 @@ export function Chat() {
       {/* Conversation list — past threads, ChatGPT-style (desktop). */}
       <aside className="hidden w-52 shrink-0 flex-col border-r border-border pr-3 md:flex">
         <button
-          onClick={newChat}
+          onClick={startNewChat}
           className="mb-2 inline-flex items-center justify-center gap-1.5 rounded-md border border-border px-2 py-1.5 text-xs transition-colors hover:border-accent hover:text-foreground"
         >
           <Plus className="size-3.5" /> New chat
@@ -284,7 +144,7 @@ export function Chat() {
               {messages.filter((m) => m.role === "user").length === 1 ? "" : "s"}
             </span>
             <button
-              onClick={newChat}
+              onClick={startNewChat}
               className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs text-muted transition-colors hover:border-accent hover:text-foreground"
             >
               <Plus className="size-3.5" /> New chat
@@ -336,7 +196,7 @@ export function Chat() {
               <Square className="size-4" />
             </Button>
           ) : (
-            <Button variant="accent" size="icon" onClick={send} disabled={!input.trim()} title="Send">
+            <Button variant="accent" size="icon" onClick={doSend} disabled={!input.trim()} title="Send">
               <Send className="size-4" />
             </Button>
           )}
