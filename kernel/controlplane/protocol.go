@@ -917,6 +917,8 @@ const (
 	// CmdPulseDial changes the proactivity dial live. Args: dial
 	// (quiet|balanced|chatty). Returns { dial }. Runtime-only.
 	CmdPulseDial = "pulse_dial"
+	// CmdPulseFlush delivers held digest items now. No args. Returns { flushed }.
+	CmdPulseFlush = "pulse_flush"
 
 	// CmdInbox returns the Unified Inbox (SPEC-07 §4): channel.inbound /
 	// channel.outbound events folded into conversation threads grouped by

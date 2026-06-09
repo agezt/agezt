@@ -281,11 +281,18 @@ func (e *Engine) safePoll(ctx context.Context, obs Observer, tickID string) {
 	}
 }
 
+// FlushDigest delivers any accumulated digest items immediately (M761) instead of
+// waiting for the periodic flush (every digestEvery beats) — "surface what you've been
+// holding". Returns the number of items flushed (0 if the digest was empty). Safe to
+// call from any goroutine: the digest is swapped under the lock, so a concurrent
+// periodic flush can't double-deliver.
+func (e *Engine) FlushDigest() int { return e.safeFlushDigest() }
+
 // safeFlushDigest flushes the digest with the same panic containment as safePoll —
 // a panicking briefing sink in the periodic digest must not crash the daemon (M423).
-func (e *Engine) safeFlushDigest() {
+func (e *Engine) safeFlushDigest() (n int) {
 	defer func() { _ = recover() }()
-	e.flushDigest()
+	return e.flushDigest()
 }
 
 // process runs one delta through the remaining three stages.
@@ -352,19 +359,20 @@ func (e *Engine) process(ctx context.Context, d Delta, tickID string) {
 
 // flushDigest coalesces accumulated digest items into one brief and delivers
 // it (SPEC-03 §6.2). No-op when empty.
-func (e *Engine) flushDigest() {
+func (e *Engine) flushDigest() int {
 	e.mu.Lock()
 	items := e.digest
 	e.digest = nil
 	e.mu.Unlock()
 	if len(items) == 0 {
-		return
+		return 0
 	}
 	b := composeDigest(items)
 	corr := "pulse-" + ulid.New()
 	b.CorrelationID = corr
 	_ = e.sink.Deliver(b)
 	e.publish(event.KindBriefingSent, "pulse.briefing", corr, "", briefPayload(b))
+	return len(items)
 }
 
 // publish is the journaling helper: durable-before-publish through the bus,

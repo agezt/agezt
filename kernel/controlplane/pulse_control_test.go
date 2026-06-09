@@ -21,6 +21,7 @@ type fakePulse struct {
 	beats   int
 	cadence time.Duration
 	dial    string
+	flushed int
 }
 
 func (f *fakePulse) StatusMap() map[string]any {
@@ -42,6 +43,12 @@ func (f *fakePulse) SetDial(dial string) string {
 	f.dial = dial
 	f.mu.Unlock()
 	return dial
+}
+func (f *fakePulse) FlushDigest() int {
+	f.mu.Lock()
+	f.flushed++
+	f.mu.Unlock()
+	return 2 // pretend two items were held
 }
 
 func TestPulseStatusDisabledWhenNoEngine(t *testing.T) {
@@ -123,6 +130,18 @@ func TestPulseStatusPauseResumeWithEngine(t *testing.T) {
 	}
 	if fp.dial != "chatty" {
 		t.Fatalf("expected engine dial chatty, got %q", fp.dial)
+	}
+
+	// FlushDigest (M761) reaches the engine and returns the count flushed.
+	res, err = c.Call(ctx, controlplane.CmdPulseFlush, nil)
+	if err != nil {
+		t.Fatalf("flush: %v", err)
+	}
+	if n, _ := res["flushed"].(float64); n != 2 {
+		t.Fatalf("expected flushed 2, got %v", res["flushed"])
+	}
+	if fp.flushed != 1 {
+		t.Fatalf("flush should have called the engine once, got %d", fp.flushed)
 	}
 
 	// Persistence (M760): cadence + dial are written to the config store so they

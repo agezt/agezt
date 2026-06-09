@@ -161,6 +161,7 @@ interface PulseStatus {
   cadence_ms?: number;
   last_tick_ms?: number;
   dial?: string;
+  digest_pending?: number;
 }
 
 // The proactivity dial (M758): how much reaches you — quiet (alerts only), balanced
@@ -254,6 +255,19 @@ export function PulseControl() {
     }
   }
 
+  // Flush digest (M761): deliver the briefs the pulse is holding now, instead of
+  // waiting for the periodic flush.
+  async function flushDigest() {
+    try {
+      const r = await postAction<{ flushed?: number }>("/api/pulse/flush", {});
+      const n = r?.flushed ?? 0;
+      ui.toast(n > 0 ? `Flushed ${n} held brief${n === 1 ? "" : "s"}` : "Nothing held in the digest", n > 0 ? "success" : "info");
+      await load();
+    } catch (e) {
+      ui.toast((e as Error).message, "error");
+    }
+  }
+
   if (!st) return null;
   if (!st.enabled) {
     return (
@@ -313,6 +327,11 @@ export function PulseControl() {
           ))}
         </select>
       </label>
+      {(st.digest_pending ?? 0) > 0 && (
+        <Button size="sm" variant="ghost" onClick={flushDigest} title="Deliver the briefs the agent is holding in its digest now">
+          <MessagesSquare className="size-3.5" /> Flush digest ({st.digest_pending})
+        </Button>
+      )}
       <Button size="sm" variant="ghost" onClick={beatNow} disabled={beating} title="Trigger one heartbeat now (think now)">
         {beating ? <RefreshCw className="size-3.5 animate-spin" /> : <Zap className="size-3.5" />}
         Beat now
