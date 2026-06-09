@@ -126,6 +126,13 @@ const (
 	// skill starts as a draft outside the retrieval pool — so ask-first by
 	// default (M648).
 	CapSkill Capability = "skill"
+	// CapIntrospect gates the `introspect` tool: the agent reading the daemon's
+	// OWN live state in one call — health overview (uptime, halted, active runs,
+	// counts), plus detailed listings of schedules and standing orders. A
+	// read-only reflection of state the operator already owns, no mutation and no
+	// network — low risk, Allow by default (M682), so a "summarise AGEZT's health"
+	// task can actually see everything instead of guessing.
+	CapIntrospect Capability = "introspect"
 )
 
 // TrustLevel encodes the trust ladder (DECISIONS F3).
@@ -551,6 +558,7 @@ func DefaultLevels() map[Capability]TrustLevel {
 		CapStanding:    LevelAskFirst, // L2 strongest autonomy grant; the agent sets up unattended trigger-driven behaviour
 		CapBoard:       LevelAllow,    // local shared message board between agents; low risk
 		CapSkill:       LevelAskFirst, // self-modification: the agent authoring/promoting its own skills
+		CapIntrospect:  LevelAllow,    // local read of the daemon's own live state; no mutation, no network — low risk
 	}
 }
 
@@ -590,6 +598,7 @@ func AllCapabilities() []Capability {
 		CapACPAgent, CapRemoteRun, CapNotify,
 		CapHomeAssistantRead, CapHomeAssistantCall,
 		CapBrowserRead, CapMemory, CapWorld, CapWebSearch, CapSchedule, CapRunsRead, CapStanding, CapBoard, CapSkill,
+		CapIntrospect,
 	}
 	slices.Sort(caps)
 	return caps

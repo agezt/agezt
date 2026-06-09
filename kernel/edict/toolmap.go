@@ -51,6 +51,8 @@ func CapabilityForToolCall(toolName string, input json.RawMessage) Capability {
 		return CapBoard
 	case "skill":
 		return CapSkill
+	case "introspect":
+		return CapIntrospect
 	case "memory":
 		return CapMemory
 	case "world":

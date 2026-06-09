@@ -12,6 +12,21 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **The agent can introspect the daemon's OWN live state.** A new read-only
+  `introspect` tool gives the agent everything it needs to report on AGEZT itself in
+  one call: `op=overview` (default) returns the at-a-glance health snapshot —
+  version, model, uptime, halted, active runs, registered tools, memory/world/skill
+  counts, journal head, schedule & standing-order & pending-approval counts,
+  provider-fallback health, and delegation ceilings (the same shape `agt status`
+  assembles); `op=schedules` and `op=standing` list the time- and event/cron-driven
+  autonomy in detail. Before this, the granular tools (memory/world/runs/skill) each
+  read one slice, so "give me AGEZT's health report every morning at 9" had nowhere
+  to see the whole system and the agent would resort to guessing. Governed by a new
+  `introspect` capability, Allow by default (local, no mutation, no network).
+  Verified live (isolated daemon, real DeepSeek): a "health report" task invoked
+  `introspect` across all three ops in ~1ms each and produced an accurate report —
+  version, model, the exact seeded standing order, delegation — with the policy
+  allowing it at L4 without a prompt. (M682)
 - **Chat answers read as a timeline.** A turn's tool calls are no longer bunched
   above the text — the fold now records a chronological `timeline` of text runs and
   tool calls, and the bubble renders them in the order they happened: *"Let me
