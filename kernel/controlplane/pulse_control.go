@@ -13,7 +13,22 @@ import (
 	"net"
 	"strconv"
 	"time"
+
+	"github.com/agezt/agezt/kernel/settings"
 )
+
+// persistPulseSetting writes a live pulse setting to the config store (M760) so it
+// survives restart: buildPulse reads these env vars at startup, and the config store
+// is overlaid onto the environment first, so a persisted value becomes the new default.
+// Best-effort — a store failure never fails the live change, which already took effect.
+func (s *Server) persistPulseSetting(name, value string) {
+	store := settings.NewStore(s.baseDir)
+	if err := store.Load(); err != nil {
+		return
+	}
+	store.Set(name, value)
+	_ = store.Save()
+}
 
 // PulseController is the slice of the Pulse engine the control plane needs.
 // kernel/pulse.Engine satisfies it (StatusMap/Pause/Resume/Beat/SetCadence); the
@@ -91,6 +106,7 @@ func (s *Server) handlePulseCadence(conn net.Conn, req Request) {
 		return
 	}
 	applied := s.pulse.SetCadence(time.Duration(secs * float64(time.Second)))
+	s.persistPulseSetting("AGEZT_PULSE_CADENCE", applied.String())
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"cadence_ms": applied.Milliseconds()}})
 }
 
@@ -103,5 +119,6 @@ func (s *Server) handlePulseDial(conn net.Conn, req Request) {
 	}
 	dial, _ := req.Args["dial"].(string)
 	applied := s.pulse.SetDial(dial)
+	s.persistPulseSetting("AGEZT_PULSE_DIAL", applied)
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"dial": applied}})
 }

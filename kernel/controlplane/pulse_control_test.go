@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/settings"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
 
@@ -62,7 +63,7 @@ func TestPulsePauseDisabledErrors(t *testing.T) {
 }
 
 func TestPulseStatusPauseResumeWithEngine(t *testing.T) {
-	_, srv, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	_, srv, c, baseDir := startPair(t, mock.New(mock.FinalText("ok")))
 	fp := &fakePulse{}
 	srv.SetPulse(fp)
 	ctx := context.Background()
@@ -122,5 +123,18 @@ func TestPulseStatusPauseResumeWithEngine(t *testing.T) {
 	}
 	if fp.dial != "chatty" {
 		t.Fatalf("expected engine dial chatty, got %q", fp.dial)
+	}
+
+	// Persistence (M760): cadence + dial are written to the config store so they
+	// survive restart (buildPulse reads these env vars, overlaid from the store).
+	store := settings.NewStore(baseDir)
+	if err := store.Load(); err != nil {
+		t.Fatalf("load store: %v", err)
+	}
+	if v, ok := store.Get("AGEZT_PULSE_CADENCE"); !ok || v != (45 * time.Second).String() {
+		t.Fatalf("cadence not persisted: %q (ok=%v)", v, ok)
+	}
+	if v, ok := store.Get("AGEZT_PULSE_DIAL"); !ok || v != "chatty" {
+		t.Fatalf("dial not persisted: %q (ok=%v)", v, ok)
 	}
 }
