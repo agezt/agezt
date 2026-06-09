@@ -12,6 +12,21 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **A record of every approval decision — the HITL audit trail.** The Approvals view showed only
+  *pending* requests (approve / deny); it had no memory of what you'd already decided. It now carries a
+  **Decision history** section below the pending list: every capability the agent has asked permission
+  for, joined with its outcome — **granted** (green ✓), **denied** (red ✕), or **timeout** (clock) —
+  with who/what resolved it and when. The pending requests stay in the panel above; the history shows
+  only resolved decisions, so you can review what the agent was allowed to do, what was refused, and
+  trust the boundary because it's auditable. Wires the existing read-only `CmdApprovalsLog`
+  (`approvals_log`) — which folds `approval.requested` together with the terminal
+  granted/denied/timeout event — to a new `/api/approvals_log` route; no new backend. Unit-tested (the
+  history lists resolved decisions with the right status badge, **excludes still-pending rows** that
+  live in the panel above, counts only resolved entries, and shows `resolved_by`; an empty log renders
+  a graceful empty state). Verified live on an isolated daemon: the new section, its route, and the
+  empty state rendered correctly (a populated history needs real gated runs to generate — that
+  rendering is covered by the unit tests, as with the causation-chain (M755) and broken-chain (M759)
+  paths); 0 console errors. (M773)
 - **Export the audit journal — take a signed copy with you.** The Search view's header gains an
   **export journal** button next to *verify integrity* (M759): one click downloads
   `agezt-journal.json` — an integrity-attested bundle of every journal event with its hash, plus the
