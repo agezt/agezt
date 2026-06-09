@@ -117,6 +117,8 @@ var apiRoutes = map[string]string{
 	"/api/approvals":     controlplane.CmdApprovals,
 	"/api/plan_stats":    controlplane.CmdPlanStats,
 	"/api/sandbox":       controlplane.CmdSandboxList,
+	"/api/config/schema": controlplane.CmdConfigSchema,
+	"/api/config/values": controlplane.CmdConfigValues,
 }
 
 // writeRoute is a mutating control-plane command exposed over POST. args lists
@@ -186,6 +188,9 @@ var writeRoutes = map[string]writeRoute{
 var jsonRoutes = map[string]writeRoute{
 	"/api/plan/generate": {controlplane.CmdPlanGenerate, []string{"intent", "model"}},
 	"/api/plan/refine":   {controlplane.CmdPlanRefine, []string{"plan_json", "feedback", "model"}},
+	// Config Center write (M693): set one setting (non-secret → config store,
+	// secret → vault). POST-only; only name+value are forwarded.
+	"/api/config/set": {controlplane.CmdConfigSet, []string{"name", "value"}},
 }
 
 // planRoute is the streaming "run this plan" action (Flow Studio's Run button).

@@ -12,6 +12,27 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Config Center backend — schema-driven config without hand-editing `.env`.**
+  The foundation for configuring *everything* (SMTP, Telegram, API keys, …) from
+  one place. A new `kernel/settings` package adds a **config store**
+  (`<baseDir>/config.json`, non-secret `AGEZT_*` values, atomic 0600, account-keyed
+  internally so multi-account nests cleanly later) and a typed **schema registry**
+  (`Section`→`Field{Env,Label,Type,Secret,Required,Apply,Options}`) that drives both
+  the forms and server-side validation. Secrets keep living in the encrypted **vault**
+  (`creds.json`) — a `secret:true` field writes there, never to `config.json`, and is
+  **never echoed back** (presence-only). At boot the daemon **injects** store + vault
+  entries into the process env *only where the real env doesn't already set them*, so
+  the existing ~170 `os.Getenv` consumers are untouched and explicit `.env`/shell env
+  always wins (env-pinned fields are reported read-only). New control-plane commands
+  `config_schema` / `config_values` / `config_set` (the last reports
+  `applied: live|restart` — provider/model apply live via `Reload()`, channels/SMTP
+  save with "restart to apply") and webui routes `/api/config/{schema,values,set}`.
+  `AGEZT_CONFIG=off` disables injection. Verified live (isolated daemon): a non-secret
+  wrote to `config.json` and round-tripped; a fake secret landed in the vault with the
+  value never returned by any GET; restart injected 3 settings from `config.json`
+  (banner `config store : 3 setting(s) applied`); and an un-pinned live field returned
+  `applied: live` exercising the `os.Setenv`+`Reload()` path. Backend only — the UI is
+  the next increment. (M693)
 - **`code_exec` JS/TS packages via Deno — clean, no install step.** Deno resolves
   `import x from "npm:pkg"` itself (caching under the sandbox's scrubbed HOME), so
   agents can use any npm package in TypeScript/JavaScript with no install phase —

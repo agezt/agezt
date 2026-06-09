@@ -61,6 +61,12 @@ type Server struct {
 	// report "disabled" rather than dereferencing it.
 	tenants *tenant.Registry
 
+	// configEnvPinned marks config env vars set in the real process environment at
+	// startup (before the config-store injection). The Config Center shows these
+	// read-only because the real env overrides the store (M693). Set via
+	// SetConfigEnvPinned; nil-safe.
+	configEnvPinned map[string]bool
+
 	// cancelOnDisconnect, when true, makes a streaming CmdRun cancel its run
 	// if the client connection drops before the run finishes (M35). Off by
 	// default so a backgrounded `agt run &` (whose client stays alive) is
@@ -655,6 +661,12 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.handleSandboxFile(conn, req)
 	case CmdSandboxDelete:
 		s.handleSandboxDelete(conn, req)
+	case CmdConfigSchema:
+		s.handleConfigSchema(conn, req)
+	case CmdConfigValues:
+		s.handleConfigValues(conn, req)
+	case CmdConfigSet:
+		s.handleConfigSet(conn, req)
 	case CmdStandingWhy:
 		s.handleStandingWhy(conn, req)
 	case CmdReflectRun:
@@ -1072,6 +1084,12 @@ func (s *Server) handleDecide(conn net.Conn, req Request) {
 // client connection drops (M35). Called once at startup by the daemon when
 // AGEZT_CANCEL_ON_DISCONNECT=on. Off by default.
 func (s *Server) SetCancelOnDisconnect(on bool) { s.cancelOnDisconnect = on }
+
+// SetConfigEnvPinned records which config env vars were set in the real process
+// environment at startup (before the config-store injection), so the Config
+// Center can mark them read-only — the real env wins over an edit (M693). Called
+// once at startup; nil-safe (an unset map reads as "nothing pinned").
+func (s *Server) SetConfigEnvPinned(pinned map[string]bool) { s.configEnvPinned = pinned }
 
 func (s *Server) handleRun(ctx context.Context, conn net.Conn, req Request) {
 	intentAny := req.Args["intent"]
