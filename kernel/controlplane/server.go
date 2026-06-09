@@ -671,6 +671,14 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.handleConfigSchemaRegister(conn, req)
 	case CmdConfigSchemaUnregister:
 		s.handleConfigSchemaUnregister(conn, req)
+	case CmdProviderKeyList:
+		s.handleProviderKeyList(conn, req)
+	case CmdProviderKeyAdd:
+		s.handleProviderKeyAdd(conn, req)
+	case CmdProviderKeyActivate:
+		s.handleProviderKeyActivate(conn, req)
+	case CmdProviderKeyRemove:
+		s.handleProviderKeyRemove(conn, req)
 	case CmdStandingWhy:
 		s.handleStandingWhy(conn, req)
 	case CmdReflectRun:

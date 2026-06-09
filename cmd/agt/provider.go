@@ -29,6 +29,8 @@ func cmdProvider(args []string, stdout, stderr io.Writer) int {
 	switch args[0] {
 	case "creds":
 		return cmdProviderCreds(args[1:], stdout, stderr)
+	case "keys":
+		return cmdProviderKeys(args[1:], stdout, stderr)
 	case "check":
 		return cmdProviderCheck(args[1:], stdout, stderr)
 	case "log":
@@ -46,7 +48,7 @@ func cmdProvider(args []string, stdout, stderr io.Writer) int {
 	case "cost":
 		return cmdProviderCost(args[1:], stdout, stderr)
 	default:
-		fmt.Fprintf(stderr, "%s provider: unknown subcommand %q (creds, check, cost, log, reload, setup, import)\n", brand.CLI, args[0])
+		fmt.Fprintf(stderr, "%s provider: unknown subcommand %q (creds, keys, check, cost, log, reload, setup, import)\n", brand.CLI, args[0])
 		return 2
 	}
 }
