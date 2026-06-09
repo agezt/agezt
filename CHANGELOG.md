@@ -12,6 +12,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Policy shows the security posture at a glance.** The Capability policy view now
+  opens with a trust-level distribution bar — a stacked, semantically-colored
+  breakdown from L0 (deny, red) through L4 (allow, green) with a count chip per
+  level — so the operator can read how locked-down vs autonomous the agent is
+  without scanning every capability row. Verified live (24 L4 / fully-allowed dev
+  setup → a full green bar), zero console errors. (M667)
 - **Tools & Cache get hero gauges.** The Tools monitor now leads with an error-rate
   ring (green/amber/red) beside the call/error/tools tiles, over the existing
   per-tool usage bars and invocation log; the Cache view gains a cache-reads-share
