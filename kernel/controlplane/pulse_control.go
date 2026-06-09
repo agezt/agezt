@@ -42,6 +42,7 @@ type PulseController interface {
 	SetCadence(d time.Duration) time.Duration
 	SetDial(dial string) string
 	FlushDigest() int
+	RemoveObserver(name string) int
 }
 
 // SetPulse wires the live engine. Safe to call once after construction,
@@ -174,6 +175,25 @@ func (s *Server) handlePulseProbe(conn net.Conn, req Request) {
 		return
 	}
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"added": true, "observer": obs}})
+}
+
+// handlePulseUnwatch removes runtime-added watches by observer name (M769) — the
+// inverse of handlePulseWatch/handlePulseProbe. Startup observers (self:health and any
+// AGEZT_PULSE_* probes) are never removed; the engine only drops observers it was given
+// via AddObserver. Returns how many were dropped (0 if the name matched nothing
+// removable). Takes effect on the next beat.
+func (s *Server) handlePulseUnwatch(conn net.Conn, req Request) {
+	if s.pulse == nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "pulse is disabled (AGEZT_PULSE=off)"})
+		return
+	}
+	name, _ := req.Args["name"].(string)
+	if name == "" {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.name required"})
+		return
+	}
+	removed := s.pulse.RemoveObserver(name)
+	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"removed": removed}})
 }
 
 // handlePulseDial changes the proactivity dial live (M757/M758): quiet/balanced/chatty.

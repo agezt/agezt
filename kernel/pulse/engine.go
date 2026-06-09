@@ -75,6 +75,12 @@ type Engine struct {
 	lastTickMS int64
 	started    time.Time
 	digest     []Brief
+
+	// removable tracks which observers were added at runtime (M767/M768) and so may be
+	// removed again (M769). Keyed by the observer instance — all three observer types are
+	// pointers, hence comparable — so a runtime "system:disk" watch can be removed without
+	// touching a startup disk observer that happens to share the same Name().
+	removable map[Observer]bool
 }
 
 // New builds an Engine, filling defaults.
@@ -111,6 +117,7 @@ func New(cfg Config) *Engine {
 		digestEvery: digestEvery,
 		beat:        make(chan struct{}, 1),
 		retune:      make(chan struct{}, 1),
+		removable:   map[Observer]bool{},
 		started:     now(),
 		sal: &Salience{
 			state:      cfg.State,
@@ -262,8 +269,33 @@ func (e *Engine) tickOnce(ctx context.Context) {
 func (e *Engine) AddObserver(o Observer) string {
 	e.mu.Lock()
 	e.observers = append(e.observers, o)
+	e.removable[o] = true
 	e.mu.Unlock()
 	return o.Name()
+}
+
+// RemoveObserver removes runtime-added observers whose Name() matches (M769) — the
+// inverse of AddObserver, so a console-added disk or command watch can be stopped
+// without restarting the daemon. Only observers registered via AddObserver are
+// removable; startup observers (self:health and any AGEZT_PULSE_* probes) are never
+// removed, even on a name collision. Returns how many were dropped (0 if none matched
+// or the name belongs only to a permanent observer). Takes effect on the next beat
+// (tickOnce snapshots the slice under this same lock).
+func (e *Engine) RemoveObserver(name string) int {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	kept := e.observers[:0:0]
+	removed := 0
+	for _, o := range e.observers {
+		if o.Name() == name && e.removable[o] {
+			delete(e.removable, o)
+			removed++
+			continue
+		}
+		kept = append(kept, o)
+	}
+	e.observers = kept
+	return removed
 }
 
 // safePoll polls one observer and runs its deltas through the pipeline, recovering
@@ -423,6 +455,7 @@ type Status struct {
 	Paused        bool     `json:"paused"`
 	Beats         int64    `json:"beats"`
 	Observers     []string `json:"observers"`
+	Removable     []string `json:"removable"`
 	Dial          string   `json:"dial"`
 	CadenceMS     int64    `json:"cadence_ms"`
 	LastTickMS    int64    `json:"last_tick_ms"`
@@ -434,14 +467,23 @@ func (e *Engine) Status() Status {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	names := make([]string, 0, len(e.observers))
+	removable := make([]string, 0, len(e.removable))
+	seenRemovable := map[string]bool{}
 	for _, o := range e.observers {
 		names = append(names, o.Name())
+		// A removable observer's name is reported once even if several share it (all the
+		// disk watches register as "system:disk"); RemoveObserver(name) drops them together.
+		if e.removable[o] && !seenRemovable[o.Name()] {
+			seenRemovable[o.Name()] = true
+			removable = append(removable, o.Name())
+		}
 	}
 	return Status{
 		Running:       !e.paused,
 		Paused:        e.paused,
 		Beats:         e.ticks,
 		Observers:     names,
+		Removable:     removable,
 		Dial:          string(e.dial),
 		CadenceMS:     e.cadence.Milliseconds(),
 		LastTickMS:    e.lastTickMS,
@@ -460,6 +502,7 @@ func (e *Engine) StatusMap() map[string]any {
 		"paused":         s.Paused,
 		"beats":          s.Beats,
 		"observers":      s.Observers,
+		"removable":      s.Removable,
 		"dial":           s.Dial,
 		"cadence_ms":     s.CadenceMS,
 		"last_tick_ms":   s.LastTickMS,

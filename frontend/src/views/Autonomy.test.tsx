@@ -32,7 +32,7 @@ describe("PulseControl", () => {
   });
 
   it("shows running status with beats + observers, a cadence selector and a Pause button", async () => {
-    getJSON.mockResolvedValue({ enabled: true, running: true, paused: false, beats: 12, cadence_ms: 30000, observers: 3 });
+    getJSON.mockResolvedValue({ enabled: true, running: true, paused: false, beats: 12, cadence_ms: 30000, observers: ["self:health", "system:disk", "probe:ci"] });
     render(withUI(<PulseControl />));
     await waitFor(() => expect(screen.getByText("running")).toBeTruthy());
     expect(screen.getByText(/12 beats · 3 observers/)).toBeTruthy();
@@ -132,6 +132,22 @@ describe("PulseControl", () => {
     fireEvent.change(screen.getByLabelText("Probe command"), { target: { value: "make test" } });
     fireEvent.click(screen.getByRole("button", { name: /Watch/ }));
     await waitFor(() => expect(postAction).toHaveBeenCalledWith("/api/pulse/probe", { name: "ci", command: "make test" }));
+  });
+
+  it("lists observers and removes a runtime-added watch via /api/pulse/unwatch (M769)", async () => {
+    getJSON.mockResolvedValue({
+      enabled: true, paused: false, beats: 2, cadence_ms: 60000,
+      observers: ["self:health", "probe:ci"], removable: ["probe:ci"],
+    });
+    render(withUI(<PulseControl />));
+    // Both observers are listed; only the runtime-added one offers a remove control.
+    await waitFor(() => expect(screen.getByText("self:health")).toBeTruthy());
+    expect(screen.getByText("probe:ci")).toBeTruthy();
+    expect(screen.queryByLabelText("Stop watching self:health")).toBeNull();
+    fireEvent.click(screen.getByLabelText("Stop watching probe:ci"));
+    // Confirm the modal, then it posts the unwatch.
+    fireEvent.click(await screen.findByRole("button", { name: "Stop watching" }));
+    await waitFor(() => expect(postAction).toHaveBeenCalledWith("/api/pulse/unwatch", { name: "probe:ci" }));
   });
 
   it("shows a Flush digest button only when items are held, and flushes them (M761)", async () => {

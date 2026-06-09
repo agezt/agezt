@@ -194,6 +194,8 @@ var writeRoutes = map[string]writeRoute{
 	"/api/pulse/watch": {controlplane.CmdPulseWatch, []string{"path", "min_pct"}},
 	// Add a command-probe watch at runtime (M768): run command each beat, alert on flip.
 	"/api/pulse/probe": {controlplane.CmdPulseProbe, []string{"name", "command"}},
+	// Remove a runtime-added watch by observer name (M769): the inverse of watch/probe.
+	"/api/pulse/unwatch": {controlplane.CmdPulseUnwatch, []string{"name"}},
 	// Reload catalog + providers in place (M745): apply credential/catalog changes
 	// without a daemon restart. No args.
 	"/api/provider/reload": {controlplane.CmdProviderReload, nil},
