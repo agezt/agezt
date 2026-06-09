@@ -35,6 +35,7 @@ import {
   FlaskConical,
   SlidersHorizontal,
   Layers,
+  Route as RouteIcon,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -73,6 +74,7 @@ import { Providers } from "@/views/Providers";
 import { Tools } from "@/views/Tools";
 import { Catalog } from "@/views/Catalog";
 import { Models } from "@/views/Models";
+import { Routing } from "@/views/Routing";
 import { Policy } from "@/views/Policy";
 import { Schedules } from "@/views/Schedules";
 import { World } from "@/views/World";
@@ -169,6 +171,7 @@ const NAV_GROUPS: NavGroup[] = [
       { id: "config", label: "Config", icon: Settings, render: Config },
       { id: "providers", label: "Providers", icon: Cpu, render: Providers },
       { id: "models", label: "Models", icon: Layers, render: Models },
+      { id: "routing", label: "Routing", icon: RouteIcon, render: Routing },
       { id: "tools", label: "Tools", icon: Wrench, render: Tools },
       { id: "catalog", label: "Catalog", icon: Boxes, render: Catalog },
       { id: "policy", label: "Policy", icon: Shield, render: Policy },

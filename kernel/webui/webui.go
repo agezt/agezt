@@ -711,6 +711,10 @@ func (s *Server) planRunProxy() http.HandlerFunc {
 
 func writeJSON(w http.ResponseWriter, code int, v any) {
 	w.Header().Set("Content-Type", "application/json")
+	// API payloads are live daemon state — never let a browser serve a stale
+	// cached body after a mutation (no Cache-Control otherwise invites heuristic
+	// caching, e.g. /api/routing showing an old chain after a save+reload).
+	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(code)
 	_ = json.NewEncoder(w).Encode(v)
 }
