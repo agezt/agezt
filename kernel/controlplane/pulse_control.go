@@ -111,6 +111,43 @@ func (s *Server) handlePulseCadence(conn net.Conn, req Request) {
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"cadence_ms": applied.Milliseconds()}})
 }
 
+// SetDiskWatch wires the runtime disk-watch path (M767). The daemon injects a closure
+// that builds a pulse disk observer (with its DiskUsage func) and registers it on the
+// engine, so the control plane stays decoupled from kernel/pulse.
+func (s *Server) SetDiskWatch(fn func(path string, minPct float64) (string, bool)) { s.diskWatch = fn }
+
+// handlePulseWatch adds a disk-space watch to the proactive heartbeat at runtime
+// (M767): the agent will alert when free space on `path` drops below `min_pct`. The
+// new observer takes effect on the next beat.
+func (s *Server) handlePulseWatch(conn net.Conn, req Request) {
+	if s.diskWatch == nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "watches are unavailable (pulse is disabled)"})
+		return
+	}
+	path, _ := req.Args["path"].(string)
+	if path == "" {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.path required"})
+		return
+	}
+	var pct float64
+	switch v := req.Args["min_pct"].(type) {
+	case float64:
+		pct = v
+	case string:
+		pct, _ = strconv.ParseFloat(v, 64)
+	}
+	if pct <= 0 || pct >= 100 {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.min_pct must be between 0 and 100"})
+		return
+	}
+	name, ok := s.diskWatch(path, pct)
+	if !ok {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "could not add the watch"})
+		return
+	}
+	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"added": true, "observer": name}})
+}
+
 // handlePulseDial changes the proactivity dial live (M757/M758): quiet/balanced/chatty.
 // An unknown value is normalized to balanced. Returns the applied dial.
 func (s *Server) handlePulseDial(conn net.Conn, req Request) {

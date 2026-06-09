@@ -232,24 +232,38 @@ func (e *Engine) tickOnce(ctx context.Context) {
 	e.ticks++
 	n := e.ticks
 	e.lastTickMS = e.now().UnixMilli()
+	// Snapshot the observers under the lock — AddObserver (M767) can append from the
+	// control-plane goroutine while this beat iterates them.
+	obs := make([]Observer, len(e.observers))
+	copy(obs, e.observers)
 	e.mu.Unlock()
 
 	tickEv, _ := e.publish(event.KindPulseTick, "pulse.tick", "pulse-"+ulid.New(), "", map[string]any{
 		"beat":      n,
-		"observers": len(e.observers),
+		"observers": len(obs),
 	})
 	tickID := ""
 	if tickEv != nil {
 		tickID = tickEv.ID
 	}
 
-	for _, obs := range e.observers {
-		e.safePoll(ctx, obs, tickID)
+	for _, o := range obs {
+		e.safePoll(ctx, o, tickID)
 	}
 
 	if n%int64(e.digestEvery) == 0 {
 		e.safeFlushDigest()
 	}
+}
+
+// AddObserver registers a new observer at runtime (M767) — e.g. an operator adding a
+// disk watch from the console. Appended under the lock; the next beat picks it up
+// (tickOnce snapshots the slice under the same lock). Returns the observer's name.
+func (e *Engine) AddObserver(o Observer) string {
+	e.mu.Lock()
+	e.observers = append(e.observers, o)
+	e.mu.Unlock()
+	return o.Name()
 }
 
 // safePoll polls one observer and runs its deltas through the pipeline, recovering

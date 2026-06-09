@@ -920,6 +920,9 @@ const (
 	CmdPulseDial = "pulse_dial"
 	// CmdPulseFlush delivers held digest items now. No args. Returns { flushed }.
 	CmdPulseFlush = "pulse_flush"
+	// CmdPulseWatch adds a disk-space watch at runtime. Args: path, min_pct.
+	// Returns { added, observer }.
+	CmdPulseWatch = "pulse_watch"
 
 	// CmdInbox returns the Unified Inbox (SPEC-07 §4): channel.inbound /
 	// channel.outbound events folded into conversation threads grouped by

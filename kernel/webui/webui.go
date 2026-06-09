@@ -190,6 +190,8 @@ var writeRoutes = map[string]writeRoute{
 	"/api/pulse/dial": {controlplane.CmdPulseDial, []string{"dial"}},
 	// Flush held digest items now (M761): deliver what the pulse is holding. No args.
 	"/api/pulse/flush": {controlplane.CmdPulseFlush, nil},
+	// Add a disk-space watch at runtime (M767): alert when free space on path < min_pct.
+	"/api/pulse/watch": {controlplane.CmdPulseWatch, []string{"path", "min_pct"}},
 	// Reload catalog + providers in place (M745): apply credential/catalog changes
 	// without a daemon restart. No args.
 	"/api/provider/reload": {controlplane.CmdProviderReload, nil},

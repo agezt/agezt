@@ -12,6 +12,20 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Tell the agent to watch a disk, live.** The Autonomy view's heartbeat card gains a **watch a
+  disk** control: give it a path and a free-space threshold, and the agent starts watching it on the
+  next beat — alerting (per the dial) when free space drops below the threshold. Previously the
+  proactive observers (disk, CI probe, self-health) were fixed at startup by `AGEZT_PULSE_*` env
+  vars; now you can add a watch from the console without a restart. `Engine.AddObserver` registers it
+  under the lock — and `tickOnce` now snapshots the observer slice under that same lock, so a
+  live-added watch never races a beat. The control plane stays decoupled from `kernel/pulse`: the
+  daemon injects a closure (`SetDiskWatch`) that builds the disk observer with its own `DiskUsage`
+  func. New route `/api/pulse/watch` (path + min_pct, validated 0–100). Tested at every layer —
+  engine (a runtime-added observer shows in Status and is polled on the next beat), control-plane
+  (the wired callback names the observer; an out-of-range threshold is rejected), and UI (the
+  collapsible form posts `/api/pulse/watch`). Verified live on an isolated daemon: the observer set
+  went from `[self:health]` to `[self:health, system:disk]` after adding a watch from the UI — the
+  new watch is now part of the live heartbeat; 0 console errors. (M767)
 - **Forget a single relation in the world model.** The World view now lists each relation
   (`from —verb→ to`, with the entity ids resolved to names) below the graph, each with a **forget**
   control — so you can prune one wrong or stale edge without removing the entities it connects.
