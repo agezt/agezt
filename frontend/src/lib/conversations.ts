@@ -24,6 +24,8 @@ export interface Conversation {
   // Optional per-conversation model (M712): the model id this thread runs on
   // ("" / undefined = the daemon default). Each thread remembers its own.
   model?: string;
+  // Pinned threads (M726) sort to the top of the sidebar, above by-recency.
+  pinned?: boolean;
 }
 
 export interface Store {
@@ -159,6 +161,24 @@ export function renameConversation(store: Store, id: string, title: string, now:
       c.id === id ? { ...c, title: title.trim() || deriveTitle(c.messages), updatedAt: now } : c,
     ),
   };
+}
+
+// togglePinned flips a conversation's pinned flag (M726). Pinned threads sort to
+// the top of the sidebar; clearing the flag returns it to recency order. Pinning is
+// metadata, not activity, so updatedAt is left untouched (pinning an old thread
+// doesn't make it "recent").
+export function togglePinned(store: Store, id: string): Store {
+  return {
+    ...store,
+    conversations: store.conversations.map((c) => (c.id === id ? { ...c, pinned: !c.pinned } : c)),
+  };
+}
+
+// sortConversations orders the sidebar: pinned first, then most-recently-updated.
+export function sortConversations(conversations: Conversation[]): Conversation[] {
+  return [...conversations].sort(
+    (a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0) || b.updatedAt - a.updatedAt,
+  );
 }
 
 // startConversation adds a fresh empty conversation and makes it active. If the
