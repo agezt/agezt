@@ -11,6 +11,8 @@ import {
   activeMessages,
   activePersona,
   withActivePersona,
+  activeConvModel,
+  withActiveConvModel,
   type Store,
   type Msg,
 } from "@/lib/conversations";
@@ -111,6 +113,22 @@ describe("store mutations", () => {
     expect(activePersona(s)).toBe(""); // the new thread has no persona
     // The first thread still holds its own.
     expect(s.conversations.find((c) => c.id === firstId)!.persona).toBe("persona A");
+  });
+
+  it("withActiveConvModel sets and clears the active conversation's model, per thread", () => {
+    let s = loadStore(genId, 1);
+    expect(activeConvModel(s)).toBe(""); // daemon default by default
+    s = withActiveConvModel(s, " deepseek-chat ", 2);
+    expect(activeConvModel(s)).toBe("deepseek-chat"); // trimmed
+    const firstId = s.activeId;
+
+    s = startConversation(withActiveMessages(s, [userMsg("hi")], 3), genId, 4);
+    expect(activeConvModel(s)).toBe(""); // new thread defaults
+    expect(s.conversations.find((c) => c.id === firstId)!.model).toBe("deepseek-chat"); // first keeps its own
+
+    s = withActiveConvModel(s, "", 5);
+    expect(activeConvModel(s)).toBe("");
+    expect(s.conversations.find((c) => c.id === s.activeId)!.model).toBeUndefined();
   });
 
   it("deleteConversation activates a remaining one, or seeds fresh when last", () => {

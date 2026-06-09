@@ -12,6 +12,15 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Per-conversation model — each chat thread remembers its own.** The composer's model
+  picker is now scoped to the active conversation: pick a model in one thread and it
+  sticks to *that* thread (persists, survives reload); a new chat starts back at the
+  daemon default, and switching threads switches the model shown. Different conversations
+  can run on different models — cheap model here, strong model there — without re-picking
+  each time. (Previously the model choice was a single global setting shared by every
+  thread.) Verified live (isolated daemon): set thread A to a model → its `/api/run`
+  carried that model; a fresh thread B sent no override (daemon default); switching back
+  to A restored its model — 0 console errors. (M712)
 - **Per-conversation persona — make one chat thread act as something else.** The Chat
   composer now has a **persona** control: set a system-prompt override for *this
   conversation only* (e.g. "You are a terse Go reviewer"), and every run in that thread

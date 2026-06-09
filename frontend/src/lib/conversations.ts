@@ -21,6 +21,9 @@ export interface Conversation {
   // Optional per-conversation persona (system-prompt override, M711): when set,
   // every run in THIS thread uses it instead of the daemon's global persona.
   persona?: string;
+  // Optional per-conversation model (M712): the model id this thread runs on
+  // ("" / undefined = the daemon default). Each thread remembers its own.
+  model?: string;
 }
 
 export interface Store {
@@ -111,6 +114,23 @@ export function withActivePersona(store: Store, persona: string, now: number): S
     ...store,
     conversations: store.conversations.map((c) =>
       c.id === store.activeId ? { ...c, persona: p || undefined, updatedAt: now } : c,
+    ),
+  };
+}
+
+// activeConvModel returns the active conversation's model override ("" if none).
+export function activeConvModel(store: Store): string {
+  return store.conversations.find((c) => c.id === store.activeId)?.model ?? "";
+}
+
+// withActiveConvModel returns a new store with the active conversation's model
+// override set (empty string clears it → daemon default). Pure.
+export function withActiveConvModel(store: Store, model: string, now: number): Store {
+  const m = model.trim();
+  return {
+    ...store,
+    conversations: store.conversations.map((c) =>
+      c.id === store.activeId ? { ...c, model: m || undefined, updatedAt: now } : c,
     ),
   };
 }
