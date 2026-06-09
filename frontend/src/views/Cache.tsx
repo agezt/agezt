@@ -6,6 +6,7 @@ import { money } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Muted, ErrorText } from "@/components/JsonView";
+import { Ring } from "@/components/Widgets";
 
 interface CacheData {
   cached_input_tokens?: number;
@@ -82,21 +83,29 @@ export function Cache() {
             <Tile icon={Hash} label="priced calls" value={(d.calls ?? 0).toLocaleString()} />
           </div>
 
-          {/* Read vs write split */}
+          {/* Read vs write split, with a read-share gauge */}
           {total > 0 ? (
-            <div className="rounded-lg border border-border bg-card p-3">
-              <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted">Cache token split</div>
-              <div className="flex h-2.5 overflow-hidden rounded-full bg-panel">
-                <div className="h-full bg-good" style={{ width: `${(reads / total) * 100}%` }} title={`reads: ${reads}`} />
-                <div className="h-full bg-accent" style={{ width: `${(writes / total) * 100}%` }} title={`writes: ${writes}`} />
-              </div>
-              <div className="mt-1.5 flex gap-4 text-xs text-muted">
-                <span className="inline-flex items-center gap-1">
-                  <span className="size-2 rounded-full bg-good" /> reads {Math.round((reads / total) * 100)}%
-                </span>
-                <span className="inline-flex items-center gap-1">
-                  <span className="size-2 rounded-full bg-accent" /> writes {Math.round((writes / total) * 100)}%
-                </span>
+            <div className="flex flex-col items-center gap-4 rounded-lg border border-border bg-card p-3 sm:flex-row">
+              <Ring
+                pct={(reads / total) * 100}
+                center={`${Math.round((reads / total) * 100)}%`}
+                label="cache reads"
+                tone="good"
+              />
+              <div className="min-w-0 flex-1">
+                <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted">Cache token split</div>
+                <div className="flex h-2.5 overflow-hidden rounded-full bg-panel">
+                  <div className="h-full bg-good" style={{ width: `${(reads / total) * 100}%` }} title={`reads: ${reads}`} />
+                  <div className="h-full bg-accent" style={{ width: `${(writes / total) * 100}%` }} title={`writes: ${writes}`} />
+                </div>
+                <div className="mt-1.5 flex gap-4 text-xs text-muted">
+                  <span className="inline-flex items-center gap-1">
+                    <span className="size-2 rounded-full bg-good" /> reads {reads.toLocaleString()} ({Math.round((reads / total) * 100)}%)
+                  </span>
+                  <span className="inline-flex items-center gap-1">
+                    <span className="size-2 rounded-full bg-accent" /> writes {writes.toLocaleString()} ({Math.round((writes / total) * 100)}%)
+                  </span>
+                </div>
               </div>
             </div>
           ) : (

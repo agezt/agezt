@@ -12,6 +12,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Tools & Cache get hero gauges.** The Tools monitor now leads with an error-rate
+  ring (green/amber/red) beside the call/error/tools tiles, over the existing
+  per-tool usage bars and invocation log; the Cache view gains a cache-reads-share
+  ring beside the read/write token split. Reuses the M660 widget kit. Verified live:
+  Tools rendered a 19% error-rate gauge over real per-tool data (shell 12 err, file
+  3 err), zero console errors. (M666)
 - **Memory & World show a category breakdown.** A new reusable `BreakdownBar` widget
   (a single stacked proportion bar in cohesive accent shades + a count chip per
   category) now tops the Memory view (records by type — FACT/PREFERENCE/…) and the
