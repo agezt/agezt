@@ -11,6 +11,17 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 
 ## [Unreleased]
 
+### Changed
+- **First load now respects your OS light/dark preference.** The console defaulted to dark
+  regardless of your system setting; it now honours `prefers-color-scheme` on first run (when you
+  haven't picked a theme yet), so a light-mode OS opens a light console. Your explicit toggle still
+  wins and persists from then on, overriding the OS preference. Implemented cleanly by making
+  `applyTheme` DOM-only (it no longer persisted the default, which would have locked the OS-derived
+  value into storage before you chose) — only an explicit toggle/import persists. Verified live
+  with emulated `prefers-color-scheme`: OS-light → light console, OS-dark → dark console (neither
+  written to storage), and a toggle to light survived a reload under OS-dark (explicit choice
+  wins); 0 console errors. (M742)
+
 ### Added
 - **Full snapshot export — a complete record of the daemon's brain.** The Backup view gains a
   third, **read-only** card: **Export snapshot** gathers *everything* customizable — persona,

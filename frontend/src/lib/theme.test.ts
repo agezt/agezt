@@ -25,11 +25,14 @@ describe("theme store", () => {
     expect(document.documentElement.classList.contains("dark")).toBe(before === "dark");
   });
 
-  it("applyTheme reflects the current theme onto the DOM and storage", () => {
+  it("applyTheme reflects the current theme onto the DOM (DOM-only, no persistence)", () => {
+    localStorage.clear();
     document.documentElement.classList.remove("dark");
     applyTheme();
     expect(document.documentElement.classList.contains("dark")).toBe(getTheme() === "dark");
-    expect(localStorage.getItem("agezt-theme")).toBe(getTheme());
+    // applyTheme must NOT persist — only an explicit setTheme/toggle does (so a first-run
+    // OS-derived default isn't locked into storage before the user chooses).
+    expect(localStorage.getItem("agezt-theme")).toBeNull();
   });
 
   it("notifies subscribers on toggle (single source of truth for header + palette)", () => {
