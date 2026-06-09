@@ -4,6 +4,7 @@ import { getJSON, postAction } from "@/lib/api";
 import { cn, fmtDateTime } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useUI, type ConfirmOptions } from "@/components/ui/feedback";
+import { SkeletonList } from "@/components/ui/skeleton";
 import { Badge, statusVariant } from "@/components/ui/badge";
 import { Muted, ErrorText } from "@/components/JsonView";
 
@@ -97,7 +98,7 @@ export function Schedules() {
       {err ? (
         <ErrorText>{err}</ErrorText>
       ) : !items ? (
-        <Muted>loading…</Muted>
+        <SkeletonList count={4} lines={2} />
       ) : items.length === 0 ? (
         <Muted>no schedules — the agent can add one with the schedule tool, or use `agt schedule add`</Muted>
       ) : (

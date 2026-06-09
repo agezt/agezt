@@ -4,6 +4,7 @@ import { getJSON, postAction } from "@/lib/api";
 import { cn, fmtTime } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useUI, type ConfirmOptions } from "@/components/ui/feedback";
+import { SkeletonList } from "@/components/ui/skeleton";
 import { Muted, ErrorText } from "@/components/JsonView";
 
 interface Skill {
@@ -89,7 +90,7 @@ export function Skills() {
       {err ? (
         <ErrorText>{err}</ErrorText>
       ) : !skills ? (
-        <Muted>loading…</Muted>
+        <SkeletonList count={4} lines={2} />
       ) : skills.length === 0 ? (
         <Muted>no skills learned yet — the agent learns them with the `skill` tool</Muted>
       ) : (

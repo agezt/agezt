@@ -165,6 +165,28 @@ body {
   animation: modal-in 0.18s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+/* Skeleton loaders: a muted block with a soft shimmer sweeping across it, so a
+   loading view looks alive and previews the shape of what's coming. */
+@keyframes skeleton-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+.skeleton {
+  background-color: var(--panel);
+  background-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    color-mix(in oklch, var(--muted) 22%, transparent) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.4s ease-in-out infinite;
+}
+
 /* Honor the OS "reduce motion" setting — no decorative animation for users who
    ask for less. */
 @media (prefers-reduced-motion: reduce) {
@@ -173,7 +195,8 @@ body {
   .work-pulse,
   .toast-in,
   .modal-overlay,
-  .modal-in {
+  .modal-in,
+  .skeleton {
     animation: none;
   }
 }

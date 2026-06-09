@@ -12,6 +12,15 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Skeleton loaders replace bare "loading…" text.** The list and grid views
+  (Memory, Standing, Schedules, Skills, Catalog) now render content-shaped skeleton
+  placeholders — card outlines with a soft shimmer sweeping across them — while they
+  fetch, instead of a lone "loading…" line. The view looks alive and previews the
+  shape of what's coming, so navigating feels instant even on a cold load. A new
+  `Skeleton`/`SkeletonCard`/`SkeletonList`/`SkeletonGrid` kit (pure CSS shimmer,
+  `prefers-reduced-motion` aware) backs it, with a unit-test suite. Verified live by
+  holding the Memory fetch open: 30 shimmer blocks rendered while pending, 0 after
+  the data arrived, zero console errors. (M671)
 - **Every destructive action now confirms, and every action speaks via toast.**
   Building on the new feedback layer, the irreversible controls across the console
   now raise a danger confirm-modal before acting — forgetting a memory, removing a

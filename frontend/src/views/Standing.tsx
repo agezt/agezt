@@ -4,6 +4,7 @@ import { getJSON, postAction } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useUI, type ConfirmOptions } from "@/components/ui/feedback";
+import { SkeletonList } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Muted, ErrorText } from "@/components/JsonView";
 
@@ -92,7 +93,7 @@ export function Standing() {
       {err ? (
         <ErrorText>{err}</ErrorText>
       ) : !orders ? (
-        <Muted>loading…</Muted>
+        <SkeletonList count={4} lines={2} />
       ) : orders.length === 0 ? (
         <Muted>no standing orders — add one with `agt standing add --name N (--cron … | --event …)`</Muted>
       ) : (
