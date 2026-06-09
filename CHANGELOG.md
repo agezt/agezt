@@ -12,6 +12,22 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Per-task model fallback chains — different models, with different fallbacks,
+  per agentic job.** The governor can now run each task type through an *ordered
+  chain of models* (`AGEZT_TASK_MODEL_CHAINS="chat=claude-opus-4-7,gpt-5,deepseek-chat;
+  code=gpt-5,…"`): it tries the primary model (routed to its serving provider), and
+  on a fallback-eligible failure of that whole attempt it moves to the **next model**
+  — true model-level fallback, where before "fallback" only switched providers under
+  one fixed model. A chain supersedes the single `TASK_MODEL_OVERRIDES` for that task;
+  with no chain configured, routing is byte-for-byte unchanged. The main chat loop now
+  tags its runs `"chat"` (via the new `LoopConfig.TaskType` → `CompletionRequest.TaskType`),
+  so it's a first-class routing target. Chains are **editable live and hot-reloaded**
+  (`SetTaskModelChains`) through new control-plane commands `routing_get`/`routing_set`
+  (`GET /api/routing`, `POST /api/routing/set`), and persist to the config store so
+  edits survive a restart. Verified live (isolated daemon): set a chain → it applied
+  live, persisted, and survived a restart; unit tests prove the primary→fallback model
+  hand-off, "primary wins stops", no-chain == current behaviour, and the hot-swap. The
+  Routing UI and per-sub-agent model selection are the next increments. (M703)
 - **The model picker shows only providers you can run.** Everywhere you change the
   model — including the Chat composer — the picker now lists **only keyed providers**
   by default (those with an API key, plus keyless local providers like Ollama), so

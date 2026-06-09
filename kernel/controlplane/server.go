@@ -679,6 +679,10 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.handleProviderKeyActivate(conn, req)
 	case CmdProviderKeyRemove:
 		s.handleProviderKeyRemove(conn, req)
+	case CmdRoutingGet:
+		s.handleRoutingGet(conn, req)
+	case CmdRoutingSet:
+		s.handleRoutingSet(conn, req)
 	case CmdStandingWhy:
 		s.handleStandingWhy(conn, req)
 	case CmdReflectRun:

@@ -64,6 +64,10 @@ const (
 	CmdProviderKeyAdd      = "provider_key_add"      // args: env, label, value, active?
 	CmdProviderKeyActivate = "provider_key_activate" // args: env, label
 	CmdProviderKeyRemove   = "provider_key_remove"   // args: env, label
+	// Per-task model routing (M703): view/edit the governor's per-task-type model
+	// fallback chains. Set: args{chains} → live + persisted.
+	CmdRoutingGet = "routing_get"
+	CmdRoutingSet = "routing_set"
 	// CmdProviderLog lists recent provider-routing activity (M89) — a timeline of
 	// routing.decision + provider.fallback events (which provider handled calls,
 	// when the primary fell back). Args: limit, fallbacks (bool — only fallbacks),

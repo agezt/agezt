@@ -3419,6 +3419,18 @@ func buildGovernor(cat *catalog.Catalog, lookup func(string) string) (*governor.
 		taskModels = parsed
 	}
 
+	// Per-task-type model fallback CHAINS (M703): task → ordered model ids tried
+	// in turn. Supersedes TASK_MODEL_OVERRIDES for the same task. Editable live
+	// via the Routing UI / control plane (persisted back into this env var).
+	var taskModelChains governor.TaskModelChains
+	if spec := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "TASK_MODEL_CHAINS")); spec != "" {
+		parsed, err := governor.ParseTaskModelChainsEnv(spec)
+		if err != nil {
+			return nil, "", "", fmt.Errorf("AGEZT_TASK_MODEL_CHAINS: %w", err)
+		}
+		taskModelChains = parsed
+	}
+
 	// Per-task-type daily budget caps (M1.zz). Layered on top of
 	// DAILY_CEILING; both must pass for a call to proceed.
 	var taskBudgets map[string]int64
@@ -3469,6 +3481,7 @@ func buildGovernor(cat *catalog.Catalog, lookup func(string) string) (*governor.
 		TaskRoutes:              taskRoutes,
 		TaskRouteRequires:       taskRequires,
 		TaskModelOverrides:      taskModels,
+		TaskModelChains:         taskModelChains,
 		TaskBudgets:             taskBudgets,
 		StrictModelCapabilities: strictCaps,
 		StrictPricing:           strictPricing,
