@@ -8,6 +8,7 @@ import {
   withActiveMessages,
   startConversation,
   deleteConversation,
+  renameConversation,
   activeMessages,
   activePersona,
   withActivePersona,
@@ -129,6 +130,19 @@ describe("store mutations", () => {
     s = withActiveConvModel(s, "", 5);
     expect(activeConvModel(s)).toBe("");
     expect(s.conversations.find((c) => c.id === s.activeId)!.model).toBeUndefined();
+  });
+
+  it("renameConversation sets a manual title; blank restores the derived one", () => {
+    let s = withActiveMessages(loadStore(genId, 1), [userMsg("how do I deploy the thing")], 2);
+    const id = s.activeId;
+    s = renameConversation(s, id, "  Deploy notes  ", 3);
+    expect(s.conversations.find((c) => c.id === id)!.title).toBe("Deploy notes"); // trimmed
+    // A custom title sticks across new messages (no longer "New chat").
+    s = withActiveMessages(s, [...activeMessages(s), userMsg("more")], 4);
+    expect(s.conversations.find((c) => c.id === id)!.title).toBe("Deploy notes");
+    // Clearing restores the message-derived title.
+    s = renameConversation(s, id, "   ", 5);
+    expect(s.conversations.find((c) => c.id === id)!.title).toBe("how do I deploy the thing");
   });
 
   it("deleteConversation activates a remaining one, or seeds fresh when last", () => {
