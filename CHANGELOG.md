@@ -11,6 +11,16 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 
 ## [Unreleased]
 
+### Fixed
+- **`code_exec` Python output is clean on Windows.** The sandbox resolved the
+  Python interpreter via `python3` first, which on Windows is usually the Microsoft
+  Store shim (`…\WindowsApps\python3.exe`) — it could trigger the Store auto-
+  installer mid-run and wrap the program's real output in "Installing Python…" /
+  "Extracting…" chatter (and made a trivial run take ~5 s). Detection now prefers a
+  real `python.exe` on Windows (the usual `python3`-first order is kept elsewhere),
+  and the scrubbed env sets `PYLAUNCHER_ALLOW_INSTALL=0` as a backstop. A trivial
+  Python run is now clean output in ~30 ms. (M685)
+
 ### Added
 - **Every run's tool calls are now fully inspectable in the Runs view.** A tool-call
   row in a run's detail used to show only a clipped snippet of the result; it now
