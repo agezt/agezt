@@ -195,6 +195,12 @@ type LoopConfig struct {
 	// run (M314). Set by callers that need a machine-parseable result; a provider
 	// without a native JSON mode ignores it. Flows to CompletionRequest.JSONMode.
 	JSONMode bool
+	// TaskType is the per-run routing hint (M703) carried into every
+	// CompletionRequest of the run, so the Governor's per-task-type model
+	// chains / overrides / routes apply. The main chat loop sets "chat";
+	// delegated sub-agents set "delegate" (or a per-delegation type). Empty →
+	// no hint (default routing).
+	TaskType string
 	// MaxIdenticalToolCalls caps how many times the model may invoke the SAME
 	// (tool, input) within one run before the loop refuses to execute it again
 	// (M116). A model stuck retrying an identical failing/expensive call would
@@ -785,6 +791,7 @@ func Run(ctx context.Context, cfg LoopConfig, userIntent string) (answer string,
 			Messages:      messages,
 			Tools:         offered,
 			MaxTokens:     cfg.MaxTokens,
+			TaskType:      cfg.TaskType,      // M703: per-task model routing hint
 			CorrelationID: cfg.CorrelationID, // M47: attribute spend to this run
 			JSONMode:      cfg.JSONMode,      // M314: structured-output request
 		}

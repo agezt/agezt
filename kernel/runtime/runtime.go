@@ -1452,6 +1452,7 @@ func (k *Kernel) RunWith(ctx context.Context, corr, intent string) (string, erro
 		Tools:                runTools,
 		Bus:                  k.bus,
 		Model:                model,
+		TaskType:             "chat", // M703: main agent loop → "chat" routing target
 		System:               system,
 		MaxIter:              k.cfg.MaxIter,
 		ToolTimeout:          k.cfg.ToolTimeout,

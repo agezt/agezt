@@ -64,6 +64,13 @@ type Config struct {
 	// req's TaskType matches a configured override (M1.ll). See
 	// kernel/governor/routes.go for semantics.
 	TaskModelOverrides TaskModelOverrides
+	// TaskModelChains is the per-task-type ORDERED model fallback chain
+	// (M703): task type → [primary model, fallback model, …]. When set for a
+	// task, the governor tries each model in turn (each routing to its serving
+	// provider), falling back model→model — superseding TaskModelOverrides for
+	// that task. Seeds the runtime-mutable chains (SetTaskModelChains). See
+	// kernel/governor/routes.go.
+	TaskModelChains TaskModelChains
 	// TaskRouteRequires is the per-task-type *hard* pin (M1.kk).
 	// When a TaskType matches, the chain is RESTRICTED to the
 	// listed providers (no fallback to others). Use when policy
@@ -174,6 +181,12 @@ type Governor struct {
 	primary  []*ProviderInfo
 	fallback []*ProviderInfo
 
+	// taskModelChains is the runtime-mutable per-task-type model fallback chain
+	// (M703), seeded from cfg.TaskModelChains and swapped live by
+	// SetTaskModelChains (the control plane / Routing UI). Guarded by mu — read
+	// as a snapshot in the Complete/CompleteStream chain loop.
+	taskModelChains map[string][]string
+
 	// bus is the audit sink, latched atomically so SetBus (which the daemon
 	// calls after construction, and WithLimits siblings re-point) never races
 	// the lock-free publish read on the hot path.
@@ -220,6 +233,7 @@ func New(cfg Config) (*Governor, error) {
 		cfg.Now = time.Now
 	}
 	g := &Governor{cfg: cfg, spentByTaskToday: map[string]int64{}}
+	g.taskModelChains = copyStringSliceMap(cfg.TaskModelChains)
 	g.bus.Store(cfg.Bus) // may be nil; SetBus latches the real bus later
 	for _, p := range cfg.Registry.All() {
 		if p.IsFallback {
@@ -324,9 +338,18 @@ func (g *Governor) preflightAndRoute(req *agent.CompletionRequest) ([]*ProviderI
 	// events, and usage accounting all observe the overridden model
 	// id. The original model is recoverable from the operator's
 	// config (it's a static mapping) so we don't store it.
+	//
+	// A configured model CHAIN (M703) supersedes the single override for that
+	// task type: completeChained has already set req.Model to the chain's
+	// current model, so we must NOT clobber it here.
 	if len(g.cfg.TaskModelOverrides) > 0 && req.TaskType != "" {
-		if newModel, ok := g.cfg.TaskModelOverrides[req.TaskType]; ok {
-			req.Model = newModel
+		g.mu.Lock()
+		_, hasChain := g.taskModelChains[req.TaskType]
+		g.mu.Unlock()
+		if !hasChain {
+			if newModel, ok := g.cfg.TaskModelOverrides[req.TaskType]; ok {
+				req.Model = newModel
+			}
 		}
 	}
 
@@ -544,12 +567,14 @@ func (g *Governor) runChain(ctx context.Context, req agent.CompletionRequest, ch
 // fallback over the non-streaming provider call. The agent tool-loop sees a
 // single Provider.
 func (g *Governor) Complete(ctx context.Context, req agent.CompletionRequest) (*agent.CompletionResponse, error) {
-	chain, err := g.preflightAndRoute(&req)
-	if err != nil {
-		return nil, err
-	}
-	return g.runChain(ctx, req, chain, func(p *ProviderInfo) (*agent.CompletionResponse, error) {
-		return p.Provider.Complete(ctx, req)
+	return g.completeChained(req, func(r agent.CompletionRequest) (*agent.CompletionResponse, error) {
+		chain, err := g.preflightAndRoute(&r)
+		if err != nil {
+			return nil, err
+		}
+		return g.runChain(ctx, r, chain, func(p *ProviderInfo) (*agent.CompletionResponse, error) {
+			return p.Provider.Complete(ctx, r)
+		})
 	})
 }
 
@@ -563,16 +588,94 @@ func (g *Governor) Complete(ctx context.Context, req agent.CompletionRequest) (*
 // called non-streaming and simply yields no deltas; the assembled response still
 // flows back unchanged.
 func (g *Governor) CompleteStream(ctx context.Context, req agent.CompletionRequest, onChunk func(agent.Chunk) error) (*agent.CompletionResponse, error) {
-	chain, err := g.preflightAndRoute(&req)
-	if err != nil {
-		return nil, err
-	}
-	return g.runChain(ctx, req, chain, func(p *ProviderInfo) (*agent.CompletionResponse, error) {
-		if sp, ok := p.Provider.(agent.StreamingProvider); ok {
-			return sp.CompleteStream(ctx, req, onChunk)
+	return g.completeChained(req, func(r agent.CompletionRequest) (*agent.CompletionResponse, error) {
+		chain, err := g.preflightAndRoute(&r)
+		if err != nil {
+			return nil, err
 		}
-		return p.Provider.Complete(ctx, req)
+		return g.runChain(ctx, r, chain, func(p *ProviderInfo) (*agent.CompletionResponse, error) {
+			if sp, ok := p.Provider.(agent.StreamingProvider); ok {
+				return sp.CompleteStream(ctx, r, onChunk)
+			}
+			return p.Provider.Complete(ctx, r)
+		})
 	})
+}
+
+// completeChained runs req across its task type's model fallback chain (M703),
+// if any: it tries each model in order via runOne (the full preflight + provider
+// chain), and on a fallback-eligible failure of one model's WHOLE attempt it
+// moves to the NEXT MODEL. With no chain configured it calls runOne once with req
+// unchanged — byte-for-byte the pre-M703 single-model path. Terminal errors
+// (context cancel, budget exhaustion) stop the walk immediately.
+//
+// Note: each model re-runs preflight (rate/budget pre-checks), so a request that
+// actually falls back consumes one rate-window slot per model TRIED — acceptable
+// for a soft burst cap, and only on the rare provider-failure path.
+func (g *Governor) completeChained(req agent.CompletionRequest, runOne func(agent.CompletionRequest) (*agent.CompletionResponse, error)) (*agent.CompletionResponse, error) {
+	models := g.modelChainFor(req.TaskType)
+	if len(models) == 0 {
+		return runOne(req)
+	}
+	var lastErr error
+	for i, m := range models {
+		attempt := req
+		attempt.Model = m
+		resp, err := runOne(attempt)
+		if err == nil {
+			return resp, nil
+		}
+		lastErr = err
+		if !shouldFallback(err) {
+			return nil, err
+		}
+		if i+1 < len(models) {
+			g.publish(event.Spec{
+				Subject:       "governor.fallback",
+				Kind:          event.KindProviderFallback,
+				Actor:         "governor",
+				CorrelationID: req.CorrelationID,
+				Payload: map[string]any{
+					"failed_model": m,
+					"next_model":   models[i+1],
+					"reason":       err.Error(),
+					"scope":        "model-chain",
+				},
+			})
+		}
+	}
+	return nil, lastErr
+}
+
+// modelChainFor returns a copy of the configured model fallback chain for the
+// task type, or nil if none. Read under mu (SetTaskModelChains may swap it).
+func (g *Governor) modelChainFor(taskType string) []string {
+	if taskType == "" {
+		return nil
+	}
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	src := g.taskModelChains[taskType]
+	if len(src) == 0 {
+		return nil
+	}
+	return slices.Clone(src)
+}
+
+// SetTaskModelChains atomically replaces the per-task-type model fallback chains
+// (M703) — the hot-reload path from the control plane / Routing UI. A nil/empty
+// map clears all chains (routing reverts to single-model + provider fallback).
+func (g *Governor) SetTaskModelChains(chains map[string][]string) {
+	g.mu.Lock()
+	g.taskModelChains = copyStringSliceMap(chains)
+	g.mu.Unlock()
+}
+
+// TaskModelChainsView returns a copy of the effective per-task-type model chains.
+func (g *Governor) TaskModelChainsView() map[string][]string {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	return copyStringSliceMap(g.taskModelChains)
 }
 
 // SpentMicrocents returns the total spend for the current UTC day so far.

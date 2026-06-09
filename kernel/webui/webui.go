@@ -119,6 +119,8 @@ var apiRoutes = map[string]string{
 	"/api/sandbox":       controlplane.CmdSandboxList,
 	"/api/config/schema": controlplane.CmdConfigSchema,
 	"/api/config/values": controlplane.CmdConfigValues,
+	// Per-task model routing (M703): the effective chains + known task types.
+	"/api/routing": controlplane.CmdRoutingGet,
 }
 
 // writeRoute is a mutating control-plane command exposed over POST. args lists
@@ -210,6 +212,9 @@ var jsonRoutes = map[string]writeRoute{
 	// Provider keyring add (M700): the value is a secret, so it travels in the
 	// POST body (not a query arg). env+label+value(+active).
 	"/api/provider/keys/add": {controlplane.CmdProviderKeyAdd, []string{"env", "label", "value", "active"}},
+	// Per-task model routing (M703): replace the model chains. `chains` is an
+	// object {task: [models]} too large/structured for a query arg.
+	"/api/routing/set": {controlplane.CmdRoutingSet, []string{"chains"}},
 }
 
 // planRoute is the streaming "run this plan" action (Flow Studio's Run button).

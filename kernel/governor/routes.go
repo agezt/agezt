@@ -183,6 +183,36 @@ func ParseTaskModelOverridesEnv(spec string) (TaskModelOverrides, error) {
 // understands.
 func ParseTaskRoutesEnv(spec string) (TaskRoutes, error) { return parseTaskRoutesEnv(spec) }
 
+// TaskModelChains maps a task-type hint to an ORDERED list of model ids to try
+// in turn (M703): the primary model first, then each fallback model. Unlike
+// TaskModelOverrides (a single model id) + provider fallback (same model on
+// another provider), a chain falls back model→model — each model routes to the
+// provider that serves it (via applyModelRoute), so a failure of the whole
+// primary-model attempt moves to the NEXT MODEL. This is true model-level
+// fallback ("different fallback models per task").
+//
+//	AGEZT_TASK_MODEL_CHAINS="chat=claude-opus-4-7,gpt-5,deepseek-chat;code=gpt-5,claude-opus-4-7"
+//
+// A chain SUPERSEDES TaskModelOverrides for the same task type (the chain is the
+// authoritative model selection). Same syntax/semantics as AGEZT_TASK_ROUTES:
+// whitespace trimmed, empty entries skipped, later wins on duplicate keys, an
+// empty value deletes a prior entry.
+type TaskModelChains map[string][]string
+
+// ParseTaskModelChainsEnv decodes a `AGEZT_TASK_MODEL_CHAINS` spec into a
+// TaskModelChains map. The list values are MODEL ids (not provider names).
+func ParseTaskModelChainsEnv(spec string) (TaskModelChains, error) {
+	routes, err := parseTaskRoutesEnv(spec)
+	if err != nil {
+		// Re-label the error so it reads about models, not routes.
+		return nil, fmt.Errorf("governor: task-model-chain: %w", err)
+	}
+	if routes == nil {
+		return nil, nil
+	}
+	return TaskModelChains(routes), nil
+}
+
 // ParseTaskBudgetsEnv decodes
 //
 //	"plan=100000;code=500000"
