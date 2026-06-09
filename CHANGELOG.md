@@ -11,6 +11,20 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 
 ## [Unreleased]
 
+### Added
+- **Sandbox view: see what your agents built.** A new **Sandbox** page (under
+  Agents) surfaces the persistent projects agents create with the `code_exec` tool
+  under `<baseDir>/sandbox/projects`: each project lists its files (with sizes and
+  last-modified), and clicking a file shows its full contents inline. So the work
+  agents do "in the background" — code, data, whatever they build and iterate on —
+  is visible and inspectable instead of buried on disk. Backed by two read-only,
+  path-confined control-plane commands (`sandbox_list` / `sandbox_file`) exposed at
+  `/api/sandbox` and `/api/sandbox_file`; file reads are capped at 256 KiB and can
+  never escape the projects directory (traversal is rejected server-side). Verified
+  live (isolated daemon, real DeepSeek): an agent built a `demo-scraper` project
+  with `util.py` + `main.py`; the view listed it, expanded to the files, and
+  rendered `main.py`'s contents — 0 console errors. (M686)
+
 ### Fixed
 - **`code_exec` Python output is clean on Windows.** The sandbox resolved the
   Python interpreter via `python3` first, which on Windows is usually the Microsoft

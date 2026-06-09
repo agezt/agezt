@@ -80,29 +80,30 @@ func New(b *bus.Bus, client Caller, token string) *Server {
 // apiRoutes maps each GET /api path to the read-only control-plane command it
 // proxies. Read-only by construction: there is no path here that mutates.
 var apiRoutes = map[string]string{
-	"/api/status":     controlplane.CmdStatus,
-	"/api/config":     controlplane.CmdConfig,
-	"/api/runs":       controlplane.CmdRunsList,
-	"/api/stats":      controlplane.CmdRunsStats,
-	"/api/budget":     controlplane.CmdBudget,
-	"/api/cache":      controlplane.CmdCacheStats,
-	"/api/providers":  controlplane.CmdProviderStats,
-	"/api/catalog":    controlplane.CmdCatalogList,
-	"/api/tools":      controlplane.CmdToolStats,
+	"/api/status":        controlplane.CmdStatus,
+	"/api/config":        controlplane.CmdConfig,
+	"/api/runs":          controlplane.CmdRunsList,
+	"/api/stats":         controlplane.CmdRunsStats,
+	"/api/budget":        controlplane.CmdBudget,
+	"/api/cache":         controlplane.CmdCacheStats,
+	"/api/providers":     controlplane.CmdProviderStats,
+	"/api/catalog":       controlplane.CmdCatalogList,
+	"/api/tools":         controlplane.CmdToolStats,
 	"/api/tools_catalog": controlplane.CmdToolList,
 	"/api/policy":        controlplane.CmdEdictStats,
-	"/api/edict_show": controlplane.CmdEdictShow,
-	"/api/schedules":  controlplane.CmdScheduleList,
-	"/api/memory":     controlplane.CmdMemoryList,
-	"/api/world":      controlplane.CmdWorldList,
-	"/api/skills":     controlplane.CmdSkillList,
-	"/api/standing":   controlplane.CmdStandingList,
-	"/api/inbox":      controlplane.CmdInbox,
-	"/api/board":      controlplane.CmdBoardRead,
-	"/api/autonomy":   controlplane.CmdAutonomyFeed,
-	"/api/reflect":    controlplane.CmdReflectShow,
-	"/api/approvals":  controlplane.CmdApprovals,
-	"/api/plan_stats": controlplane.CmdPlanStats,
+	"/api/edict_show":    controlplane.CmdEdictShow,
+	"/api/schedules":     controlplane.CmdScheduleList,
+	"/api/memory":        controlplane.CmdMemoryList,
+	"/api/world":         controlplane.CmdWorldList,
+	"/api/skills":        controlplane.CmdSkillList,
+	"/api/standing":      controlplane.CmdStandingList,
+	"/api/inbox":         controlplane.CmdInbox,
+	"/api/board":         controlplane.CmdBoardRead,
+	"/api/autonomy":      controlplane.CmdAutonomyFeed,
+	"/api/reflect":       controlplane.CmdReflectShow,
+	"/api/approvals":     controlplane.CmdApprovals,
+	"/api/plan_stats":    controlplane.CmdPlanStats,
+	"/api/sandbox":       controlplane.CmdSandboxList,
 }
 
 // writeRoute is a mutating control-plane command exposed over POST. args lists
@@ -118,13 +119,15 @@ type writeRoute struct {
 // never mutate — and only the allowlisted args are forwarded. Used by the run
 // detail view, which fetches one run's events by correlation_id.
 var readArgsRoutes = map[string]writeRoute{
-	"/api/journal":      {controlplane.CmdJournalGrep, []string{"correlation_id", "kind", "limit"}},
+	"/api/journal": {controlplane.CmdJournalGrep, []string{"correlation_id", "kind", "limit"}},
 	// Historical journal search (M618): the full CmdJournalGrep filter set —
 	// free-text pattern plus kind/subject/actor/correlation — over all history,
 	// powering the Search view. Read-only, like every readArgsRoute.
 	"/api/journal_search": {controlplane.CmdJournalGrep, []string{"pattern", "kind", "subject", "actor", "correlation_id", "limit"}},
-	"/api/provider_log": {controlplane.CmdProviderLog, []string{"limit", "fallbacks"}},
-	"/api/tool_log":     {controlplane.CmdToolLog, []string{"limit", "tool", "errors"}},
+	"/api/provider_log":   {controlplane.CmdProviderLog, []string{"limit", "fallbacks"}},
+	"/api/tool_log":       {controlplane.CmdToolLog, []string{"limit", "tool", "errors"}},
+	// Read one sandbox project file's content (M686), path-confined server-side.
+	"/api/sandbox_file": {controlplane.CmdSandboxFile, []string{"project", "file"}},
 	"/api/policy_log":   {controlplane.CmdEdictLog, []string{"limit", "denied"}},
 	"/api/plan_history": {controlplane.CmdPlanHistory, []string{"limit", "status"}},
 }

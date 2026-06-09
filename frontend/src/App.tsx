@@ -32,6 +32,7 @@ import {
   Play,
   Search,
   ChevronDown,
+  FlaskConical,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -78,6 +79,7 @@ import { Inbox } from "@/views/Inbox";
 import { Board } from "@/views/Board";
 import { Reflect } from "@/views/Reflect";
 import { Approvals } from "@/views/Approvals";
+import { Sandbox } from "@/views/Sandbox";
 
 interface NavItem {
   id: string;
@@ -128,6 +130,7 @@ const NAV_GROUPS: NavGroup[] = [
     label: "Agents",
     items: [
       { id: "agents", label: "Agents", icon: Waypoints, render: Agents },
+      { id: "sandbox", label: "Sandbox", icon: FlaskConical, render: Sandbox },
       { id: "flow", label: "Flow Studio", icon: Workflow, render: FlowStudio },
       { id: "replay", label: "Replay", icon: Clapperboard, render: Replay },
       { id: "analyst", label: "Analyst", icon: Sparkles, render: Analyst },
