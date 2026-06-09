@@ -68,6 +68,10 @@ const (
 	// fallback chains. Set: args{chains} → live + persisted.
 	CmdRoutingGet = "routing_get"
 	CmdRoutingSet = "routing_set"
+	// Agent persona (M710): view/edit the default system prompt that frames every
+	// run. Get returns the content (owner-facing); Set: args{system} → live + persisted.
+	CmdPersonaGet = "persona_get"
+	CmdPersonaSet = "persona_set"
 	// CmdProviderLog lists recent provider-routing activity (M89) — a timeline of
 	// routing.decision + provider.fallback events (which provider handled calls,
 	// when the primary fell back). Args: limit, fallbacks (bool — only fallbacks),

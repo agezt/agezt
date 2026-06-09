@@ -683,6 +683,10 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.handleRoutingGet(conn, req)
 	case CmdRoutingSet:
 		s.handleRoutingSet(conn, req)
+	case CmdPersonaGet:
+		s.handlePersonaGet(conn, req)
+	case CmdPersonaSet:
+		s.handlePersonaSet(conn, req)
 	case CmdStandingWhy:
 		s.handleStandingWhy(conn, req)
 	case CmdReflectRun:
