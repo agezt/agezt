@@ -2232,7 +2232,15 @@ func buildWebUI(ctx context.Context, k *kernelruntime.Kernel, baseDir string, st
 		fmt.Fprintf(stdout, "  web ui           : disabled (listen %s: %v)\n", addr, err)
 		return ""
 	}
-	srv := newGuardedHTTPServer(webui.New(k.Bus(), client, token).Handler())
+	wsrv := webui.New(k.Bus(), client, token)
+	// Wire speech-to-text for the chat mic button (M689) when an STT endpoint is
+	// configured. Guard on the concrete pointer so a nil never becomes a non-nil
+	// interface (which would make /api/transcribe think STT is configured).
+	if t := sttTranscriberFromEnv(); t != nil {
+		wsrv.SetTranscriber(t)
+		fmt.Fprintf(stdout, "  voice input      : enabled (chat mic → speech-to-text)\n")
+	}
+	srv := newGuardedHTTPServer(wsrv.Handler())
 	go func() {
 		if err := srv.Serve(ln); err != nil && err != http.ErrServerClosed {
 			fmt.Fprintf(stdout, "web ui server error: %v\n", err)
@@ -2673,17 +2681,9 @@ func buildOpenAIAPI(ctx context.Context, k *kernelruntime.Kernel, reg *tenant.Re
 	}
 	// Speech-to-text upload (POST /v1/audio/transcriptions) — wired when an STT
 	// endpoint is configured (a key, or a custom URL for a local whisper server).
-	sttKey := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "STT_API_KEY"))
-	if sttKey == "" {
-		sttKey = strings.TrimSpace(os.Getenv("OPENAI_API_KEY"))
-	}
-	sttURL := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "STT_API_URL"))
-	if sttKey != "" || sttURL != "" {
-		api.SetTranscriber(stt.New(stt.Config{
-			APIURL: sttURL,
-			APIKey: sttKey,
-			Model:  strings.TrimSpace(os.Getenv(brand.EnvPrefix + "STT_MODEL")),
-		}))
+	// Same source of truth as the Web UI mic button (M689).
+	if t := sttTranscriberFromEnv(); t != nil {
+		api.SetTranscriber(t)
 	}
 	srv := newGuardedHTTPServer(api.Handler())
 	go func() {
@@ -3677,6 +3677,28 @@ func boardSubjectSlug(topic string) string {
 // $AGEZT_WORKSPACE, or <baseDir>/workspace by default. Used by buildTools (to
 // scope the tools) and by the kernel Config (to tell the model where it is via
 // the M609 environment preamble), so the two never drift.
+// sttTranscriberFromEnv builds the speech-to-text client from AGEZT_STT_* (or a
+// fallback OPENAI_API_KEY), or returns nil when no STT endpoint is configured.
+// Shared by the Web UI mic button (/api/transcribe, M689) and the OpenAI-
+// compatible /v1/audio/transcriptions route — one place decides "is STT on?".
+// Returns the concrete *stt.Client so callers can nil-check the pointer before
+// handing it to a Set*Transcriber (avoiding a typed-nil interface).
+func sttTranscriberFromEnv() *stt.Client {
+	key := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "STT_API_KEY"))
+	if key == "" {
+		key = strings.TrimSpace(os.Getenv("OPENAI_API_KEY"))
+	}
+	url := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "STT_API_URL"))
+	if key == "" && url == "" {
+		return nil
+	}
+	return stt.New(stt.Config{
+		APIURL: url,
+		APIKey: key,
+		Model:  strings.TrimSpace(os.Getenv(brand.EnvPrefix + "STT_MODEL")),
+	})
+}
+
 func workspaceRoot(baseDir string) string {
 	if ws := os.Getenv(brand.EnvPrefix + "WORKSPACE"); ws != "" {
 		return ws

@@ -30,6 +30,7 @@ import { Markdown } from "@/components/Markdown";
 import { ToolOutput } from "@/components/DataView";
 import { ModelPicker } from "@/components/ModelPicker";
 import { AttachPicker } from "@/components/AttachPicker";
+import { MicButton } from "@/components/MicButton";
 import { turnText, type ChatTurn, type ChatTool, type TimelineItem } from "@/lib/chat";
 import { useChat } from "@/lib/chatStore";
 import { buildContext, type AttachRef } from "@/lib/attach";
@@ -234,6 +235,10 @@ export function Chat() {
           >
             <Paperclip className="size-4" />
           </Button>
+          <MicButton
+            onText={(t) => setInput((cur) => (cur.trim() ? cur.trimEnd() + " " : "") + t)}
+            disabled={busy}
+          />
           <textarea
             ref={taRef}
             value={input}
