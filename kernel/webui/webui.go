@@ -188,6 +188,8 @@ var writeRoutes = map[string]writeRoute{
 	"/api/pulse/cadence": {controlplane.CmdPulseCadence, []string{"seconds"}},
 	// Change the proactivity dial live (M758): quiet|balanced|chatty. Runtime-only.
 	"/api/pulse/dial": {controlplane.CmdPulseDial, []string{"dial"}},
+	// Flush held digest items now (M761): deliver what the pulse is holding. No args.
+	"/api/pulse/flush": {controlplane.CmdPulseFlush, nil},
 	// Reload catalog + providers in place (M745): apply credential/catalog changes
 	// without a daemon restart. No args.
 	"/api/provider/reload": {controlplane.CmdProviderReload, nil},

@@ -40,6 +40,7 @@ type PulseController interface {
 	Beat()
 	SetCadence(d time.Duration) time.Duration
 	SetDial(dial string) string
+	FlushDigest() int
 }
 
 // SetPulse wires the live engine. Safe to call once after construction,
@@ -121,4 +122,15 @@ func (s *Server) handlePulseDial(conn net.Conn, req Request) {
 	applied := s.pulse.SetDial(dial)
 	s.persistPulseSetting("AGEZT_PULSE_DIAL", applied)
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"dial": applied}})
+}
+
+// handlePulseFlush delivers any held digest items immediately (M761) instead of
+// waiting for the periodic flush. Returns how many items were flushed.
+func (s *Server) handlePulseFlush(conn net.Conn, req Request) {
+	if s.pulse == nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "pulse is disabled (AGEZT_PULSE=off)"})
+		return
+	}
+	n := s.pulse.FlushDigest()
+	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"flushed": n}})
 }

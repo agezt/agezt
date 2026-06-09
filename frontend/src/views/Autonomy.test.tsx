@@ -109,6 +109,22 @@ describe("PulseControl", () => {
     const sel = (await screen.findByLabelText("Proactivity dial")) as HTMLSelectElement;
     expect(sel.value).toBe("balanced");
   });
+
+  it("shows a Flush digest button only when items are held, and flushes them (M761)", async () => {
+    postAction.mockResolvedValue({ flushed: 3 });
+    getJSON.mockResolvedValue({ enabled: true, paused: false, beats: 5, cadence_ms: 60000, digest_pending: 3 });
+    render(withUI(<PulseControl />));
+    const btn = await screen.findByRole("button", { name: /Flush digest \(3\)/ });
+    fireEvent.click(btn);
+    await waitFor(() => expect(postAction).toHaveBeenCalledWith("/api/pulse/flush", {}));
+  });
+
+  it("hides the Flush digest button when the digest is empty", async () => {
+    getJSON.mockResolvedValue({ enabled: true, paused: false, beats: 5, cadence_ms: 60000, digest_pending: 0 });
+    render(withUI(<PulseControl />));
+    await screen.findByLabelText("Proactivity dial");
+    expect(screen.queryByRole("button", { name: /Flush digest/ })).toBeNull();
+  });
 });
 
 describe("cadenceLabel (M757)", () => {

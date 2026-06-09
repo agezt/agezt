@@ -11,6 +11,21 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 
 ## [Unreleased]
 
+### Added
+- **Flush the pulse digest on demand.** When the proactivity dial holds lower-priority observations
+  back for the periodic digest (delivered every N beats), the Autonomy view now shows a **Flush
+  digest (N)** button — but only when items are actually held — that delivers them immediately
+  instead of waiting. Pairs with the dial: set it chatty/balanced to accumulate a digest, then
+  surface it whenever you want to catch up. `Engine.FlushDigest` composes and delivers the held
+  briefs, clears the digest, journals the briefing, and returns how many it flushed (0 if empty);
+  it's concurrency-safe (the digest is swapped under the lock, so a manual flush can't double-deliver
+  with the periodic one). Full stack: `Engine.FlushDigest` → new `CmdPulseFlush` → `/api/pulse/flush`.
+  Tested at every layer — engine (a seeded digest is delivered, cleared, journaled once, and the
+  count returned; an empty flush returns 0), control-plane (the call reaches the engine and returns
+  the count), and UI (the button shows only when `digest_pending > 0` and posts `/api/pulse/flush`).
+  Verified live on an isolated daemon: `POST /api/pulse/flush` on an empty digest returned
+  `{flushed: 0}` (the populated flush-and-clear path is covered by the engine unit test). (M761)
+
 ### Changed
 - **Live heartbeat tuning now survives restart.** The cadence (M757) and dial (M758) changes made from
   the Autonomy view were runtime-only — they reset to the `AGEZT_PULSE_*` defaults whenever the daemon

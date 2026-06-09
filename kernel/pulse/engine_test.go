@@ -165,6 +165,32 @@ func TestSetDialChangesAndNormalizes(t *testing.T) {
 	}
 }
 
+// TestFlushDigestDeliversAndClears: FlushDigest (M761) composes + delivers the held
+// items, clears the digest, journals a briefing, and returns the count; an empty
+// flush is a no-op returning 0.
+func TestFlushDigestDeliversAndClears(t *testing.T) {
+	sink := &capturingSink{}
+	e, j := newEngine(t, Config{Sink: sink})
+	// Seed the digest directly (white-box) — two held briefs.
+	e.digest = []Brief{{Title: "a", Body: "x"}, {Title: "b", Body: "y"}}
+
+	if n := e.FlushDigest(); n != 2 {
+		t.Fatalf("expected 2 flushed, got %d", n)
+	}
+	if len(e.digest) != 0 {
+		t.Fatalf("digest should be cleared, got %d", len(e.digest))
+	}
+	if sink.count() != 1 {
+		t.Fatalf("flush should deliver one composed digest brief, got %d", sink.count())
+	}
+	if countKind(t, j, event.KindBriefingSent) != 1 {
+		t.Fatal("flush should journal exactly one briefing.sent")
+	}
+	if n := e.FlushDigest(); n != 0 {
+		t.Fatalf("flushing an empty digest should return 0, got %d", n)
+	}
+}
+
 func TestTickEmitsFullChain(t *testing.T) {
 	sink := &capturingSink{}
 	obs := &fakeObserver{name: "fake", deltas: []Delta{{
