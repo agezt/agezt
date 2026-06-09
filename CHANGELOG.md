@@ -11,6 +11,20 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 
 ## [Unreleased]
 
+### Added
+- **Pause/resume the proactive heartbeat from the UI.** Pulse — the resident heartbeat that drives
+  the daemon's self-directed work (SPEC-03) — was controllable only via `agt pulse` on the CLI.
+  The Autonomy view now leads with a **Proactive heartbeat** panel showing live status
+  (running/paused, beats, cadence, observers, last tick) and a **Pause / Resume** master switch:
+  pausing suppresses new beats (in-flight work finishes) so the daemon goes reactive-only until
+  resumed. When Pulse is disabled on the daemon (`AGEZT_PULSE=off`) the panel says so instead.
+  New routes: `/api/pulse` (read), `/api/pulse/pause` + `/api/pulse/resume` (added to the read-only
+  proxy allowlist test). Tests cover the panel (disabled state; running status with beats/cadence/
+  observers; pause posts `/api/pulse/pause` and re-reads; resume posts `/api/pulse/resume`).
+  Verified live on an isolated daemon with Pulse on: the panel showed it running, and a UI
+  pause→resume cycle flipped the daemon's `paused` state true→false (confirmed via `GET /api/pulse`),
+  with the badge tracking it — 0 console errors. (M743)
+
 ### Changed
 - **First load now respects your OS light/dark preference.** The console defaulted to dark
   regardless of your system setting; it now honours `prefers-color-scheme` on first run (when you

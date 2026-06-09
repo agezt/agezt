@@ -123,6 +123,8 @@ var apiRoutes = map[string]string{
 	"/api/routing": controlplane.CmdRoutingGet,
 	"/api/persona": controlplane.CmdPersonaGet,
 	"/api/prompts": controlplane.CmdPromptsGet,
+	// Pulse — the proactive heartbeat status (running/paused/beats/cadence) (M743).
+	"/api/pulse": controlplane.CmdPulseStatus,
 }
 
 // writeRoute is a mutating control-plane command exposed over POST. args lists
@@ -160,6 +162,9 @@ var readArgsRoutes = map[string]writeRoute{
 var writeRoutes = map[string]writeRoute{
 	"/api/halt":             {controlplane.CmdHalt, []string{"reason"}},
 	"/api/resume":           {controlplane.CmdResume, []string{"reason"}},
+	// Pulse pause/resume (M743): the proactive-heartbeat master switch. No args.
+	"/api/pulse/pause":  {controlplane.CmdPulsePause, nil},
+	"/api/pulse/resume": {controlplane.CmdPulseResume, nil},
 	"/api/cancel_run":       {controlplane.CmdCancelRun, []string{"correlation"}},
 	"/api/budget_set":       {controlplane.CmdBudgetSet, []string{"ceiling_mc"}},
 	"/api/run/pause":        {controlplane.CmdRunPause, []string{"correlation"}},
