@@ -12,6 +12,17 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Revise a skill from the UI.** Authoring skills landed in M736; now each skill card has a
+  **revise** (pencil) control that reopens the author form prefilled with that skill's
+  name/description/body/triggers/tools. Because the skill store is content-addressed and
+  versioned, saving a changed body posts under the same name and creates a **new version**
+  (lineage tracked) that lands as a draft and goes through promotion again — the current version
+  is untouched until you promote, so editing a live skill is always safe (an unchanged body
+  dedupes to a no-op). The action reads "Save as new version" in revise mode. Tests cover revise
+  mode (prefill, relabelled action, posts the revised body under the same name). Verified live on
+  an isolated daemon: authored `tidy-workspace`, revised its body via the pencil → `agt skill
+  list` showed two `tidy-workspace` records (the new version alongside the original, both drafts,
+  0 active) — 0 console errors. (M737)
 - **Author a skill from the UI.** Skills — the agent's reusable procedures — could only be born
   from the agent distilling a successful run; the Skills view let you promote/quarantine/revert
   them but not **create** one. There's now an **Author skill** form: name + body (the procedure)

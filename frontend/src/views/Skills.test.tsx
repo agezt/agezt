@@ -69,3 +69,38 @@ describe("AuthorSkillForm", () => {
     await waitFor(() => expect(onError).toHaveBeenCalledWith("empty body"));
   });
 });
+
+describe("AuthorSkillForm (revise mode, M737)", () => {
+  const initial = {
+    name: "deploy-release",
+    description: "release flow",
+    body: "old steps",
+    triggers: ["deploy", "ship"],
+    tools_required: ["shell"],
+  };
+
+  it("prefills from the skill and labels the action Save as new version", () => {
+    render(<AuthorSkillForm initial={initial} onCreated={() => {}} onError={() => {}} />);
+    expect((screen.getByLabelText("Skill name") as HTMLInputElement).value).toBe("deploy-release");
+    expect((screen.getByLabelText("Skill body") as HTMLTextAreaElement).value).toBe("old steps");
+    expect((screen.getByLabelText("Skill triggers") as HTMLInputElement).value).toBe("deploy, ship");
+    expect((screen.getByLabelText("Skill tools required") as HTMLInputElement).value).toBe("shell");
+    expect(screen.queryByRole("button", { name: /Create skill/ })).toBeNull();
+    expect(screen.getByRole("button", { name: /Save as new version/ })).toBeTruthy();
+  });
+
+  it("posts the revised body under the same name (a new version)", async () => {
+    render(<AuthorSkillForm initial={initial} onCreated={() => {}} onError={() => {}} />);
+    fireEvent.change(screen.getByLabelText("Skill body"), { target: { value: "new improved steps" } });
+    fireEvent.click(screen.getByRole("button", { name: /Save as new version/ }));
+    await waitFor(() =>
+      expect(postJSON).toHaveBeenCalledWith("/api/skill/import", {
+        name: "deploy-release",
+        body: "new improved steps",
+        description: "release flow",
+        triggers: ["deploy", "ship"],
+        tools_required: ["shell"],
+      }),
+    );
+  });
+});

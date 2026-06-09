@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Sparkles, RefreshCw, ChevronRight, ChevronDown, Check, ShieldX, Undo2, Plus, X } from "lucide-react";
+import { Sparkles, RefreshCw, ChevronRight, ChevronDown, Check, ShieldX, Undo2, Plus, X, Pencil } from "lucide-react";
 import { getJSON, postAction, postJSON } from "@/lib/api";
 import { cn, fmtTime } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -40,6 +40,7 @@ export function Skills() {
   const [busy, setBusy] = useState<string | null>(null);
   const [open, setOpen] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const [editSkill, setEditSkill] = useState<Skill | null>(null);
 
   async function reload() {
     setLoading(true);
@@ -84,8 +85,16 @@ export function Skills() {
             {skills.length} total
           </span>
         )}
-        <Button size="sm" className="ml-auto" onClick={() => setShowForm((v) => !v)} title="Author a skill">
-          {showForm ? <X className="size-3.5" /> : <Plus className="size-3.5" />} Author skill
+        <Button
+          size="sm"
+          className="ml-auto"
+          onClick={() => {
+            setEditSkill(null);
+            setShowForm((v) => !(v && !editSkill));
+          }}
+          title="Author a skill"
+        >
+          {showForm && !editSkill ? <X className="size-3.5" /> : <Plus className="size-3.5" />} Author skill
         </Button>
         <Button variant="ghost" size="sm" onClick={reload} disabled={loading}>
           <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
@@ -94,9 +103,12 @@ export function Skills() {
 
       {showForm && (
         <AuthorSkillForm
+          key={editSkill?.id || "new"}
+          initial={editSkill ?? undefined}
           onCreated={(name, status) => {
             setShowForm(false);
-            ui.toast(`Skill “${name}” created (${status})`, "success");
+            setEditSkill(null);
+            ui.toast(editSkill ? `Saved new version of “${name}” (${status})` : `Skill “${name}” created (${status})`, "success");
             void reload();
           }}
           onError={(m) => ui.toast(m, "error")}
@@ -133,6 +145,17 @@ export function Skills() {
                   <span className="truncate text-sm font-semibold">{s.name || "—"}</span>
                   {s.version != null && <span className="text-[10px] text-muted">v{s.version}</span>}
                   <div className="ml-auto flex shrink-0 gap-1">
+                    {s.id && s.body && (
+                      <IconBtn
+                        label="revise"
+                        tone="muted"
+                        icon={Pencil}
+                        onClick={() => {
+                          setEditSkill(s);
+                          setShowForm(true);
+                        }}
+                      />
+                    )}
                     {(s.status === "draft" || s.status === "shadow") && s.id && (
                       <IconBtn
                         label="promote"
@@ -283,7 +306,7 @@ function IconBtn({
   label: string;
   tone: "good" | "bad" | "muted";
   icon: typeof Check;
-  busy: boolean;
+  busy?: boolean;
   onClick: () => void;
 }) {
   const c = { good: "border-good text-good hover:bg-good", bad: "border-bad text-bad hover:bg-bad", muted: "border-border text-muted hover:border-accent" }[tone];
@@ -308,15 +331,21 @@ function IconBtn({
 export function AuthorSkillForm({
   onCreated,
   onError,
+  initial,
 }: {
   onCreated: (name: string, status: string) => void;
   onError: (msg: string) => void;
+  // When provided (revise/clone a card, M737), the form prefills from this skill.
+  // Re-authoring the same name with a changed body creates a NEW version (lineage
+  // tracked); an unchanged body dedupes (a no-op), so revising is always safe.
+  initial?: { name?: string; description?: string; body?: string; triggers?: string[]; tools_required?: string[] };
 }) {
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [triggers, setTriggers] = useState("");
-  const [tools, setTools] = useState("");
-  const [body, setBody] = useState("");
+  const editing = !!initial;
+  const [name, setName] = useState(initial?.name ?? "");
+  const [description, setDescription] = useState(initial?.description ?? "");
+  const [triggers, setTriggers] = useState((initial?.triggers ?? []).join(", "));
+  const [tools, setTools] = useState((initial?.tools_required ?? []).join(", "));
+  const [body, setBody] = useState(initial?.body ?? "");
   const [submitting, setSubmitting] = useState(false);
 
   const valid = name.trim() !== "" && body.trim() !== "";
@@ -405,12 +434,22 @@ export function AuthorSkillForm({
       </div>
 
       <p className="mt-2 text-[10px] text-muted">
-        New skills land as a <span className="text-foreground/80">draft</span> (auto-staged to shadow if well-formed) —
-        promote it to active from its card once you trust it.
+        {editing ? (
+          <>
+            Saving with a changed body creates a new <span className="text-foreground/80">version</span> of this skill — it
+            lands as a draft and goes through promotion again; the current version is untouched until you promote.
+          </>
+        ) : (
+          <>
+            New skills land as a <span className="text-foreground/80">draft</span> (auto-staged to shadow if well-formed) —
+            promote it to active from its card once you trust it.
+          </>
+        )}
       </p>
       <div className="mt-2 flex items-center justify-end">
         <Button size="sm" onClick={create} disabled={!valid || submitting}>
-          {submitting ? <RefreshCw className="size-3.5 animate-spin" /> : <Plus className="size-3.5" />} Create skill
+          {submitting ? <RefreshCw className="size-3.5 animate-spin" /> : <Plus className="size-3.5" />}{" "}
+          {editing ? "Save as new version" : "Create skill"}
         </Button>
       </div>
     </div>
