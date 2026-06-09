@@ -5,6 +5,7 @@ import { useEvents } from "@/lib/events";
 import { cn, clip, fmtTime } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Muted, ErrorText } from "@/components/JsonView";
+import { SkeletonList } from "@/components/ui/skeleton";
 import { Ring } from "@/components/Widgets";
 
 interface ToolStat {
@@ -87,7 +88,7 @@ export function Tools() {
       {err ? (
         <ErrorText>{err}</ErrorText>
       ) : !stats ? (
-        <Muted>loading…</Muted>
+        <SkeletonList count={3} lines={1} />
       ) : (
         <>
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">

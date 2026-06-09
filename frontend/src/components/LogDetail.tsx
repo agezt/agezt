@@ -2,6 +2,7 @@ import { useState, type ReactNode } from "react";
 import { getJSON } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Muted, ErrorText } from "@/components/JsonView";
+import { SkeletonList } from "@/components/ui/skeleton";
 
 // LogDetail is the shared "click for log" drill-down: a toggle that lazily
 // fetches a *_log route and renders each entry. Mirrors the old dashboard's
@@ -44,7 +45,7 @@ export function LogDetail<T = any>({
         (err ? (
           <ErrorText>{err}</ErrorText>
         ) : rows === null ? (
-          <Muted>loading…</Muted>
+          <SkeletonList count={2} lines={1} />
         ) : rows.length === 0 ? (
           <Muted>no entries</Muted>
         ) : (

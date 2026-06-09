@@ -3,7 +3,8 @@ import { RefreshCw } from "lucide-react";
 import { usePanel } from "@/lib/usePanel";
 import { Card, CardHeader, CardTitle, CardBody } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Muted, ErrorText } from "@/components/JsonView";
+import { SkeletonList } from "@/components/ui/skeleton";
+import { ErrorText } from "@/components/JsonView";
 
 // Panel is the shared read-view shell: it fetches a /api route, shows a refresh
 // button + loading/error states, and hands the data (plus a reload fn, for
@@ -37,7 +38,7 @@ export function Panel<T = any>({
         ) : data != null ? (
           children(data, reload)
         ) : (
-          <Muted>loading…</Muted>
+          <SkeletonList count={3} lines={2} />
         )}
       </CardBody>
     </Card>

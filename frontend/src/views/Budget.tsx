@@ -6,7 +6,8 @@ import { money } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { Card, CardHeader, CardTitle, CardBody } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Muted, ErrorText } from "@/components/JsonView";
+import { ErrorText } from "@/components/JsonView";
+import { SkeletonList } from "@/components/ui/skeleton";
 import { Ring, BarRow } from "@/components/Widgets";
 
 interface BudgetData {
@@ -181,7 +182,7 @@ export function Budget() {
             )}
           </>
         ) : (
-          <Muted>loading…</Muted>
+          <SkeletonList count={3} lines={2} />
         )}
       </CardBody>
     </Card>

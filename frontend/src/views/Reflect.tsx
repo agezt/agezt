@@ -4,6 +4,7 @@ import { getJSON, postAction } from "@/lib/api";
 import { cn, fmtDateTime } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Muted, ErrorText } from "@/components/JsonView";
+import { SkeletonList } from "@/components/ui/skeleton";
 
 interface Observations {
   window_events?: number;
@@ -95,7 +96,7 @@ export function Reflect() {
           <span className="text-sm">no reflection yet — run one to fold the journal into insights</span>
         </div>
       ) : !report ? (
-        <Muted>loading…</Muted>
+        <SkeletonList count={3} lines={2} />
       ) : (
         <div className="min-h-0 flex-1 space-y-4 overflow-auto">
           {/* Observation tiles */}
