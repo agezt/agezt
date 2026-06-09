@@ -152,7 +152,9 @@ policy / world / skills / memory / inbox); and management cockpits for
 the event stream, plus operator controls (HALT, approve/deny, pause/steer a
 specific run or sub-agent, promote/forget). A provider-fallback warning badge appears
 when a primary provider is erroring — click it to see the underlying fallback
-events. Localhost-bound and token-authed.
+events. Localhost-bound and token-authed. See **[docs/CONSOLE.md](docs/CONSOLE.md)** for
+a guided tour of the views and operator controls (steering the proactive heartbeat,
+backup & restore, the policy/redaction testers, journal-integrity verify, and more).
 
 **Drive Agezt from any OpenAI client.** Set `AGEZT_API_ADDR=127.0.0.1:8799` and
 the daemon serves an OpenAI-compatible API (`POST /v1/chat/completions`,
