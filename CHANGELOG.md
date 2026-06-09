@@ -12,6 +12,15 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Backup view now shows what you're backing up — and what it isn't.** The Backup & Restore view
+  (M739) gained a live **summary** of the daemon configuration (e.g. "persona set · 2 prompts · 1
+  routing chain"), refreshed on load and after an import, so you can see what an export will
+  capture and what an import just replaced. It also gained an explicit **scope note**: the config
+  bundle covers persona/prompts/routing only — standing orders, schedules, memory and the world
+  model are *not* included (manage those from their own views), preventing a false "this is a full
+  backup" assumption. Tests cover the `configSummary` helper (populated, empty, singular/plural
+  nouns). Verified live: with a seeded persona + 2 prompts + 1 chain, the view showed exactly
+  "persona set · 2 prompts · 1 routing chain" and the scope note rendered — 0 console errors. (M740)
 - **A discoverable Backup & Restore view.** The appearance (M735) and daemon-config (M738)
   export/import features were powerful but lived only behind ⌘K — invisible unless you knew the
   commands. There's now a **System → Backup** view with two cards (Appearance; Daemon
