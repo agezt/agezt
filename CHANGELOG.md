@@ -12,6 +12,16 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Create schedules from the Web UI.** Like standing orders, the Schedules view could
+  run/pause/remove but not *create* — adding a scheduled intent needed `agt schedule add`.
+  A **New schedule** button now opens an inline form: the intent to run plus a timing —
+  **every N** minutes/hours, **daily at** a time, or **once at** a moment — which posts to
+  the existing `schedule_add` command (newly exposed as `POST /api/schedule/add`, numeric
+  timings carried in the JSON body so they keep their types). Tests cover each mode's
+  payload (`interval_sec` / `at_minutes`+`days` / `once_at_unix`), the validation gate,
+  and error surfacing. Verified live (fresh isolated daemon): created a daily 08:30
+  schedule via the form → it persisted with the right `at_minutes`, a computed next-run,
+  and rendered in the list, 0 console errors. (M715)
 - **Create standing orders from the Web UI.** The Standing view was read-only for
   creation — you could pause/resume/remove orders, but *defining* one (what the daemon
   does autonomously) needed the CLI (`agt standing add`). Now a **New order** button opens
