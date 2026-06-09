@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { money } from "@/lib/format";
+import { getJSON } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { useUI } from "@/components/ui/feedback";
 import { Badge } from "@/components/ui/badge";
@@ -345,13 +346,27 @@ export function Chat() {
   );
 }
 
+const DEFAULT_EXAMPLES = [
+  "What can you do?",
+  "Summarize my recent runs",
+  "Turn off the living room light",
+  "What's the weather in Istanbul?",
+];
+
 function EmptyState({ onPick }: { onPick: (s: string) => void }) {
-  const examples = [
-    "What can you do?",
-    "Summarize my recent runs",
-    "Turn off the living room light",
-    "What's the weather in Istanbul?",
-  ];
+  // Saved prompts (M713) replace the generic examples once the owner defines any —
+  // their own reusable workflows, one click to launch. Falls back to examples.
+  const [prompts, setPrompts] = useState<{ title: string; text: string }[]>([]);
+  useEffect(() => {
+    getJSON<{ prompts?: { title: string; text: string }[] }>("/api/prompts")
+      .then((r) => setPrompts(r.prompts || []))
+      .catch(() => {
+        /* prompts are optional — fall back to the examples */
+      });
+  }, []);
+  const hasSaved = prompts.length > 0;
+  const chips = hasSaved ? prompts : DEFAULT_EXAMPLES.map((text) => ({ title: text, text }));
+
   return (
     <div className="flex h-full flex-col items-center justify-center gap-4 text-center">
       <div className="flex size-12 items-center justify-center rounded-2xl bg-accent/15 text-accent">
@@ -363,17 +378,19 @@ function EmptyState({ onPick }: { onPick: (s: string) => void }) {
           Type an intent and watch it run — streaming answer, live tool calls, real cost.
         </p>
       </div>
-      <div className="flex flex-wrap justify-center gap-2">
-        {examples.map((ex) => (
+      <div className="flex max-w-2xl flex-wrap justify-center gap-2">
+        {chips.map((p, i) => (
           <button
-            key={ex}
-            onClick={() => onPick(ex)}
+            key={`${p.title}-${i}`}
+            onClick={() => onPick(p.text)}
+            title={hasSaved ? p.text : undefined}
             className="rounded-full border border-border px-3 py-1 text-xs text-muted transition-colors hover:border-accent hover:text-foreground"
           >
-            {ex}
+            {p.title}
           </button>
         ))}
       </div>
+      {hasSaved && <p className="text-[11px] text-muted/70">your saved prompts · manage in System → Prompts</p>}
     </div>
   );
 }

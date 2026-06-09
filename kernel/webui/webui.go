@@ -122,6 +122,7 @@ var apiRoutes = map[string]string{
 	// Per-task model routing (M703): the effective chains + known task types.
 	"/api/routing": controlplane.CmdRoutingGet,
 	"/api/persona": controlplane.CmdPersonaGet,
+	"/api/prompts": controlplane.CmdPromptsGet,
 }
 
 // writeRoute is a mutating control-plane command exposed over POST. args lists
@@ -217,6 +218,7 @@ var jsonRoutes = map[string]writeRoute{
 	// object {task: [models]} too large/structured for a query arg.
 	"/api/routing/set": {controlplane.CmdRoutingSet, []string{"chains"}},
 	"/api/persona/set": {controlplane.CmdPersonaSet, []string{"system"}},
+	"/api/prompts/set": {controlplane.CmdPromptsSet, []string{"prompts"}},
 }
 
 // planRoute is the streaming "run this plan" action (Flow Studio's Run button).
