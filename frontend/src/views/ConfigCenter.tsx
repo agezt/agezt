@@ -1,19 +1,41 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { SlidersHorizontal, RefreshCw, Lock, Save, Trash2, Zap, RotateCw, Check } from "lucide-react";
+import {
+  SlidersHorizontal,
+  RefreshCw,
+  Lock,
+  Save,
+  Trash2,
+  Zap,
+  RotateCw,
+  Check,
+  Search,
+  Puzzle,
+  Cpu,
+  Send,
+  Mail,
+  MessageSquare,
+  Network,
+  Gauge,
+  Shield,
+  type LucideIcon,
+} from "lucide-react";
 import { getJSON, postJSON } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { EmptyState } from "@/components/ui/empty";
 import { ErrorText } from "@/components/JsonView";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { useUI } from "@/components/ui/feedback";
 
 // The Config Center is the editable companion to the read-only Config view:
 // schema-driven forms (one section per channel/area) backed by the daemon's
-// config store + vault. Secrets are write-only — the value is never returned,
-// only "set / not set"; env-pinned fields (set in the real .env/shell) are shown
-// read-only because the process env always wins over the store. Each save reports
-// whether it applied live (provider/model) or needs a restart.
+// config store + vault. The schema is dynamic — built-in sections plus any a
+// skill/plugin has registered (M695) — so this view groups sections into Core /
+// Channels / Skills & Plugins, offers a sticky section nav and a search filter,
+// and badges registered sections by their provenance. Secrets stay write-only
+// (presence only, never the value); env-pinned fields are read-only because the
+// real .env wins. Each save reports live (provider/model) vs restart.
 
 type FieldType = "text" | "password" | "number" | "bool" | "csv" | "select";
 
@@ -31,6 +53,7 @@ interface Section {
   id: string;
   name: string;
   help?: string;
+  source?: string;
   fields: Field[];
 }
 interface ValueEntry {
@@ -48,12 +71,45 @@ interface SetResult {
   reload_error?: string;
 }
 
+type Category = "Core" | "Channels" | "Skills & Plugins";
+const CATEGORY_ORDER: Category[] = ["Core", "Channels", "Skills & Plugins"];
+const CHANNEL_IDS = new Set(["telegram", "email", "slack", "discord"]);
+
+function isRegistered(sec: Section): boolean {
+  return !!sec.source && sec.source !== "builtin";
+}
+function categoryOf(sec: Section): Category {
+  if (isRegistered(sec)) return "Skills & Plugins";
+  if (CHANNEL_IDS.has(sec.id)) return "Channels";
+  return "Core";
+}
+
+const SECTION_ICONS: Record<string, LucideIcon> = {
+  provider: Cpu,
+  telegram: Send,
+  email: Mail,
+  slack: MessageSquare,
+  discord: MessageSquare,
+  interfaces: Network,
+  limits: Gauge,
+  security: Shield,
+};
+function iconFor(sec: Section): LucideIcon {
+  if (isRegistered(sec)) return Puzzle;
+  return SECTION_ICONS[sec.id] ?? SlidersHorizontal;
+}
+
+function sectionDomID(id: string): string {
+  return `cfg-section-${id}`;
+}
+
 export function ConfigCenter() {
   const { toast } = useUI();
   const [sections, setSections] = useState<Section[] | null>(null);
   const [values, setValues] = useState<Record<string, ValueEntry>>({});
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [query, setQuery] = useState("");
 
   const loadValues = useCallback(async () => {
     const v = await getJSON<{ fields?: ValueEntry[] }>("/api/config/values");
@@ -81,9 +137,34 @@ export function ConfigCenter() {
 
   const setCount = useMemo(() => Object.values(values).filter((v) => v.set).length, [values]);
 
+  // Filter fields by the search query (env or label substring); drop emptied sections.
+  const q = query.trim().toLowerCase();
+  const filtered = useMemo(() => {
+    if (!sections) return [];
+    if (!q) return sections;
+    return sections
+      .map((sec) => ({
+        ...sec,
+        fields: sec.fields.filter((f) => f.env.toLowerCase().includes(q) || f.label.toLowerCase().includes(q)),
+      }))
+      .filter((sec) => sec.fields.length > 0);
+  }, [sections, q]);
+
+  // Group the (filtered) sections into ordered categories.
+  const grouped = useMemo(() => {
+    const g: Record<string, Section[]> = {};
+    for (const sec of filtered) (g[categoryOf(sec)] ||= []).push(sec);
+    return g;
+  }, [filtered]);
+
+  const jumpTo = (id: string) => {
+    const el = typeof document !== "undefined" ? document.getElementById(sectionDomID(id)) : null;
+    el?.scrollIntoView?.({ behavior: "smooth", block: "start" });
+  };
+
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <h2 className="flex items-center gap-2 text-sm font-semibold">
           <SlidersHorizontal className="size-4 text-accent" /> Config Center
         </h2>
@@ -92,7 +173,17 @@ export function ConfigCenter() {
             {setCount} of {Object.keys(values).length} configured
           </span>
         )}
-        <Button variant="ghost" size="sm" className="ml-auto" onClick={reload} disabled={loading}>
+        <div className="relative ml-auto">
+          <Search className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted" />
+          <Input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search settings…"
+            className="h-8 w-44 pl-7 sm:w-56"
+            aria-label="Search settings"
+          />
+        </div>
+        <Button variant="ghost" size="sm" onClick={reload} disabled={loading}>
           <RefreshCw className={cn("size-3.5", loading && "animate-spin")} /> Refresh
         </Button>
       </div>
@@ -100,19 +191,55 @@ export function ConfigCenter() {
       <p className="text-xs text-muted">
         Edit settings without touching <code className="rounded bg-panel px-1">.env</code>. Secrets are stored encrypted
         and never shown back — only “set / not set”. Fields pinned by the environment are read-only (the real{" "}
-        <code className="rounded bg-panel px-1">.env</code> wins). Provider &amp; model apply live; everything else needs a
-        restart.
+        <code className="rounded bg-panel px-1">.env</code> wins). Provider &amp; model apply live; everything else needs
+        a restart. Skills &amp; plugins can register their own sections.
       </p>
 
       {err ? (
         <ErrorText>{err}</ErrorText>
       ) : !sections ? (
         <SkeletonList count={4} lines={2} />
+      ) : filtered.length === 0 ? (
+        <EmptyState icon={Search} title="No settings match" hint={`Nothing matches “${query}”. Clear the search to see all sections.`} />
       ) : (
-        <div className="space-y-3">
-          {sections.map((sec) => (
-            <SectionCard key={sec.id} section={sec} values={values} onSaved={loadValues} toast={toast} />
-          ))}
+        <div className="grid gap-4 lg:grid-cols-[12rem_1fr]">
+          {/* Sticky section nav (desktop only). */}
+          <nav className="hidden self-start lg:sticky lg:top-2 lg:block">
+            <div className="space-y-3">
+              {CATEGORY_ORDER.filter((c) => grouped[c]?.length).map((cat) => (
+                <div key={cat}>
+                  <div className="mb-1 px-2 text-[10px] font-semibold uppercase tracking-wider text-muted">{cat}</div>
+                  <div className="space-y-0.5">
+                    {grouped[cat].map((sec) => {
+                      const Icon = iconFor(sec);
+                      return (
+                        <button
+                          key={sec.id}
+                          onClick={() => jumpTo(sec.id)}
+                          className="flex w-full items-center gap-2 rounded-md px-2 py-1 text-left text-xs text-foreground/80 transition-colors hover:bg-card hover:text-foreground"
+                        >
+                          <Icon className="size-3.5 shrink-0 text-muted" />
+                          <span className="truncate">{sec.name}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </nav>
+
+          {/* Sections, grouped by category. */}
+          <div className="min-w-0 space-y-5">
+            {CATEGORY_ORDER.filter((c) => grouped[c]?.length).map((cat) => (
+              <section key={cat} className="space-y-3">
+                <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted">{cat}</h3>
+                {grouped[cat].map((sec) => (
+                  <SectionCard key={sec.id} section={sec} values={values} onSaved={loadValues} toast={toast} />
+                ))}
+              </section>
+            ))}
+          </div>
         </div>
       )}
     </div>
@@ -130,10 +257,23 @@ function SectionCard({
   onSaved: () => Promise<void>;
   toast: (text: string, kind?: "success" | "error" | "info") => void;
 }) {
+  const Icon = iconFor(section);
+  const registered = isRegistered(section);
   return (
-    <div className="rounded-lg border border-border bg-card p-3">
+    <div id={sectionDomID(section.id)} className="scroll-mt-2 rounded-lg border border-border bg-card p-3">
       <div className="mb-2">
-        <h3 className="text-xs font-semibold uppercase tracking-wider text-accent">{section.name}</h3>
+        <div className="flex items-center gap-2">
+          <Icon className={cn("size-4", registered ? "text-violet-400" : "text-accent")} />
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-foreground">{section.name}</h3>
+          {registered && (
+            <span
+              className="inline-flex items-center gap-1 rounded bg-violet-500/15 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-violet-300"
+              title={`Registered by ${section.source}`}
+            >
+              <Puzzle className="size-2.5" /> registered
+            </span>
+          )}
+        </div>
         {section.help && <p className="mt-0.5 text-[11px] text-muted">{section.help}</p>}
       </div>
       <div className="space-y-3">
