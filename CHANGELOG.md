@@ -12,6 +12,15 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Humane Chat: retry, smart auto-scroll, copy feedback.** A failed or stopped
+  chat turn now shows a one-click **Retry** that re-runs the same intent with the
+  same prior context. The thread no longer yanks you to the bottom while you read
+  scrollback during a live stream — it only auto-follows when you're already at the
+  bottom, and a "Jump to latest" pill brings you back. Copy failures now surface a
+  toast instead of silently no-op'ing. The send path was refactored around a shared
+  `streamIntent`/`buildHistory` core (the latter unit-tested). Verified live against
+  the real provider: streaming answer, stop→Retry, and the jump pill all worked with
+  zero console errors. (M674)
 - **Skeleton loading is now universal.** The shared `Panel` shell and every
   remaining custom view (System health, Tools, Cache, Providers, Budget, Autonomy,
   Board, Inbox, Reflection, Insights, Replay) plus the run-detail and log drill-down

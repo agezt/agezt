@@ -16,11 +16,14 @@ import {
   Brain,
   Plus,
   Trash2,
+  RotateCcw,
+  ArrowDown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { money } from "@/lib/format";
 import { getJSON } from "@/lib/api";
 import { Button } from "@/components/ui/button";
+import { useUI } from "@/components/ui/feedback";
 import { Badge } from "@/components/ui/badge";
 import { Markdown } from "@/components/Markdown";
 import { ToolOutput } from "@/components/DataView";
@@ -51,17 +54,33 @@ function genId(): string {
   return "c-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 }
 
+// buildHistory turns prior thread messages into the history payload sent with a
+// run, so the agent has multi-turn context. Empty turns are dropped. Shared by
+// send() (full thread) and retry() (thread up to the failed intent).
+export function buildHistory(msgs: Msg[]): ChatHistoryTurn[] {
+  return msgs
+    .map((m): ChatHistoryTurn =>
+      m.role === "user" ? { role: "user", text: m.text } : { role: "assistant", text: turnText(m.turn) },
+    )
+    .filter((t) => t.text.trim() !== "");
+}
+
 // Chat is the humane front door to the agent: a conversational thread where you
 // type an intent and watch the governed loop answer live — streaming text, the
 // tool calls it made (with the policy verdict), and the final answer with its
 // cost. It drives the same CmdRun as the CLI, so what you see here is exactly
 // what the daemon did.
 export function Chat() {
+  const ui = useUI();
   const [store, setStore] = useState<Store>(() => loadStore(genId, Date.now()));
   const [input, setInput] = useState("");
   const [model, setModel] = useState("");
   const [activeModel, setActiveModel] = useState("");
   const [busy, setBusy] = useState(false);
+  // pinned = the thread is stuck to the bottom (auto-scrolls on new content).
+  // It flips to false when you scroll up to read scrollback, so a live stream
+  // never yanks you back down mid-read; a "jump to latest" button restores it.
+  const [pinned, setPinned] = useState(true);
   const abortRef = useRef<AbortController | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
@@ -113,11 +132,25 @@ export function Chat() {
     setStore((s) => deleteConversation(s, id, genId, Date.now()));
   }
 
-  // Pin the thread to the bottom as content streams in.
+  // Pin the thread to the bottom as content streams in — but only while pinned,
+  // so scrolling up to read history during a live stream isn't disrupted.
   useEffect(() => {
     const el = scrollRef.current;
+    if (el && pinned) el.scrollTop = el.scrollHeight;
+  }, [messages, pinned]);
+
+  // Track whether the user is near the bottom; that's what keeps the thread
+  // pinned. A ~80px slack means "close enough" counts as pinned.
+  function onScroll() {
+    const el = scrollRef.current;
+    if (!el) return;
+    setPinned(el.scrollHeight - el.scrollTop - el.clientHeight < 80);
+  }
+  function jumpToLatest() {
+    const el = scrollRef.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [messages]);
+    setPinned(true);
+  }
 
   // Grow the composer with its content (up to max-h-40 = 160px), then scroll.
   useEffect(() => {
@@ -139,20 +172,11 @@ export function Chat() {
     });
   }
 
-  async function send() {
-    const intent = input.trim();
-    if (!intent || busy) return;
-    // Prior turns become the conversation history sent with this run, so the
-    // agent has multi-turn context (the server folds them into the intent).
-    const history: ChatHistoryTurn[] = messages
-      .map((m): ChatHistoryTurn =>
-        m.role === "user" ? { role: "user", text: m.text } : { role: "assistant", text: turnText(m.turn) },
-      )
-      .filter((t) => t.text.trim() !== "");
-    setInput("");
+  // streamIntent runs one intent against the governed loop, folding frames into
+  // the trailing assistant turn (which the caller must have just appended).
+  async function streamIntent(intent: string, history: ChatHistoryTurn[]) {
+    setPinned(true);
     setBusy(true);
-    setMessages((m) => [...m, { role: "user", text: intent }, { role: "assistant", turn: newTurn() }]);
-
     const ctrl = new AbortController();
     abortRef.current = ctrl;
     try {
@@ -171,6 +195,34 @@ export function Chat() {
       abortRef.current = null;
       setBusy(false);
     }
+  }
+
+  async function send() {
+    const intent = input.trim();
+    if (!intent || busy) return;
+    const history = buildHistory(messages);
+    setInput("");
+    setMessages((m) => [...m, { role: "user", text: intent }, { role: "assistant", turn: newTurn() }]);
+    await streamIntent(intent, history);
+  }
+
+  // retry re-runs the most recent user intent after a failed turn: it drops the
+  // errored assistant turn, re-appends a fresh one, and streams again with the
+  // same prior history — so a transient failure is one click to recover from.
+  async function retry() {
+    if (busy) return;
+    let userIdx = -1;
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].role === "user") {
+        userIdx = i;
+        break;
+      }
+    }
+    if (userIdx < 0) return;
+    const intent = (messages[userIdx] as Msg & { role: "user" }).text;
+    const history = buildHistory(messages.slice(0, userIdx));
+    setMessages((prev) => [...prev.slice(0, userIdx + 1), { role: "assistant", turn: newTurn() }]);
+    await streamIntent(intent, history);
   }
 
   function stop() {
@@ -238,17 +290,32 @@ export function Chat() {
             </button>
           </div>
         )}
-        <div ref={scrollRef} className="min-h-0 flex-1 overflow-auto">
-          {messages.length === 0 ? (
-            <EmptyState onPick={setInput} />
-          ) : (
-            <div className="space-y-4 py-2">
-              {messages.map((m, i) => (
-                <div key={i} className="msg-in">
-                  <MessageRow msg={m} />
-                </div>
-              ))}
-            </div>
+        <div className="relative min-h-0 flex-1">
+          <div ref={scrollRef} onScroll={onScroll} className="h-full overflow-auto">
+            {messages.length === 0 ? (
+              <EmptyState onPick={setInput} />
+            ) : (
+              <div className="space-y-4 py-2">
+                {messages.map((m, i) => {
+                  const isLast = i === messages.length - 1;
+                  const canRetry = isLast && !busy && m.role === "assistant" && m.turn.status === "error";
+                  return (
+                    <div key={i} className="msg-in">
+                      <MessageRow msg={m} onRetry={canRetry ? retry : undefined} />
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+          {!pinned && messages.length > 0 && (
+            <button
+              onClick={jumpToLatest}
+              title="Jump to latest"
+              className="absolute bottom-3 left-1/2 inline-flex -translate-x-1/2 items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5 text-xs shadow-lg shadow-black/20 transition-colors hover:border-accent hover:text-accent"
+            >
+              <ArrowDown className="size-3.5" /> Jump to latest
+            </button>
           )}
         </div>
 
@@ -323,7 +390,7 @@ function EmptyState({ onPick }: { onPick: (s: string) => void }) {
   );
 }
 
-function MessageRow({ msg }: { msg: Msg }) {
+function MessageRow({ msg, onRetry }: { msg: Msg; onRetry?: () => void }) {
   if (msg.role === "user") {
     return (
       <div className="flex justify-end gap-2">
@@ -336,10 +403,10 @@ function MessageRow({ msg }: { msg: Msg }) {
       </div>
     );
   }
-  return <AssistantBubble turn={msg.turn} />;
+  return <AssistantBubble turn={msg.turn} onRetry={onRetry} />;
 }
 
-function AssistantBubble({ turn }: { turn: ChatTurn }) {
+function AssistantBubble({ turn, onRetry }: { turn: ChatTurn; onRetry?: () => void }) {
   const text = turnText(turn);
   const streaming = turn.status === "streaming";
   // The most recent tool that hasn't produced output yet is the one in flight.
@@ -384,9 +451,19 @@ function AssistantBubble({ turn }: { turn: ChatTurn }) {
         )}
 
         {turn.status === "error" && (
-          <div className="flex items-start gap-2 rounded-lg border border-bad/40 bg-bad/10 px-3 py-2 text-sm text-bad">
-            <AlertTriangle className="mt-0.5 size-4 shrink-0" />
-            <span className="break-words">{turn.error || "the run failed"}</span>
+          <div className="space-y-2">
+            <div className="flex items-start gap-2 rounded-lg border border-bad/40 bg-bad/10 px-3 py-2 text-sm text-bad">
+              <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+              <span className="break-words">{turn.error || "the run failed"}</span>
+            </div>
+            {onRetry && (
+              <button
+                onClick={onRetry}
+                className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1 text-xs text-muted transition-colors hover:border-accent hover:text-accent"
+              >
+                <RotateCcw className="size-3.5" /> Retry
+              </button>
+            )}
           </div>
         )}
 
@@ -465,6 +542,7 @@ function TurnMeta({ turn }: { turn: ChatTurn }) {
 // CopyAnswer copies the agent's full reply — the whole answer is often what you
 // want to paste elsewhere, not just a code block within it.
 function CopyAnswer({ text }: { text: string }) {
+  const ui = useUI();
   const [copied, setCopied] = useState(false);
   async function copy() {
     try {
@@ -472,7 +550,7 @@ function CopyAnswer({ text }: { text: string }) {
       setCopied(true);
       window.setTimeout(() => setCopied(false), 1200);
     } catch {
-      /* clipboard unavailable — silently no-op */
+      ui.toast("Couldn't copy — clipboard unavailable", "error");
     }
   }
   return (
