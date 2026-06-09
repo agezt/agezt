@@ -6,6 +6,7 @@ import {
   Waypoints,
   Radar,
   Waves,
+  HeartPulse,
   Workflow,
   LayoutDashboard,
   BarChart3,
@@ -46,6 +47,7 @@ import { Chat } from "@/views/Chat";
 import { Activity } from "@/views/Activity";
 import { Mission } from "@/views/Mission";
 import { Autonomy } from "@/views/Autonomy";
+import { Health } from "@/views/Health";
 import { Analyst } from "@/views/Analyst";
 import { Alerts } from "@/views/Alerts";
 import { Search as SearchView } from "@/views/Search";
@@ -107,6 +109,7 @@ const NAV_GROUPS: NavGroup[] = [
     label: "Monitor",
     items: [
       { id: "mission", label: "Mission Control", icon: Radar, render: Mission },
+      { id: "health", label: "Health", icon: HeartPulse, render: Health },
       { id: "activity", label: "Activity", icon: ActivityIcon, render: Activity },
       { id: "autonomy", label: "Autonomy", icon: Waves, render: Autonomy },
       { id: "alerts", label: "Alerts", icon: Bell, render: Alerts },
