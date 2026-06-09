@@ -12,6 +12,18 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Models view — browse the LLM catalog and sync it from models.dev in one click.**
+  The first piece of the dedicated provider/models area: a new **Models** view (under
+  *System*) lists every provider and model the daemon knows about — context window,
+  input/output price, tool-call/reasoning capabilities, and a **keyed / no-key** badge
+  per provider — with a search box across providers and models. A **Sync models**
+  button pulls `models.dev/api.json` server-side (the same path as `agt catalog sync`),
+  saves and hot-reloads the catalog, and toasts the result; the view shows when it was
+  last synced and from where. New `POST /api/catalog/sync` route (jsonProxy, 120 s for
+  the network fetch) → the existing `catalog_sync` command — no new sync logic.
+  Verified live (isolated daemon, real models.dev): the button/route synced 0 → 140
+  providers / 5153 models (2.2 MB in ~180 ms) and the view rendered the catalog with
+  search, capability badges, and the last-synced line, 0 console errors. (M699)
 - **Config Center fields can be read-only, locked, or system-approved.** Three new
   schema flags make some settings safe from accidental change: a **read-only** field
   (`read_only`) is shown but the server rejects any write to it (system-managed); a

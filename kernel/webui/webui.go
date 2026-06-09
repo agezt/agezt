@@ -195,6 +195,11 @@ var jsonRoutes = map[string]writeRoute{
 	// schema section. Register forwards the whole `section` object; unregister an id.
 	"/api/config/schema/register":   {controlplane.CmdConfigSchemaRegister, []string{"section"}},
 	"/api/config/schema/unregister": {controlplane.CmdConfigSchemaUnregister, []string{"id", "force"}},
+	// Models catalog sync (M699): pull models.dev/api.json server-side, save +
+	// hot-reload the catalog. POST (it mutates + hits the network) with the longer
+	// jsonProxy timeout; `url` optionally overrides the source. No body needed —
+	// the Sync button posts {}.
+	"/api/catalog/sync": {controlplane.CmdCatalogSync, []string{"url"}},
 }
 
 // planRoute is the streaming "run this plan" action (Flow Studio's Run button).
