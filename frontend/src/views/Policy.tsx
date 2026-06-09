@@ -30,6 +30,51 @@ function levelTone(level: string): string {
   return "text-accent border-accent/40";
 }
 
+// LEVEL_BAR colours the trust-level distribution from locked-down (L0, red) to
+// fully autonomous (L4, green), so the security posture reads at a glance.
+const LEVEL_BAR: Record<string, { bar: string; text: string }> = {
+  L0: { bar: "bg-bad", text: "text-bad" },
+  L1: { bar: "bg-amber-500", text: "text-amber-500" },
+  L2: { bar: "bg-amber-500/70", text: "text-amber-500" },
+  L3: { bar: "bg-accent", text: "text-accent" },
+  L4: { bar: "bg-good", text: "text-good" },
+};
+const LEVEL_FLOW = ["L0", "L1", "L2", "L3", "L4"] as const;
+
+// LevelSummary shows how the governed capabilities spread across the trust ladder
+// — a stacked bar from deny (L0) to allow (L4) plus a count chip per level — so the
+// operator can see the overall security posture without reading every row.
+function LevelSummary({ levels }: { levels: [string, string][] }) {
+  const counts: Record<string, number> = {};
+  for (const [, lvl] of levels) counts[lvl] = (counts[lvl] || 0) + 1;
+  const present = LEVEL_FLOW.filter((l) => counts[l] > 0);
+  const total = levels.length || 1;
+  if (present.length === 0) return null;
+  return (
+    <div className="mb-3 rounded-md border border-border/70 bg-panel/40 p-2.5">
+      <div className="flex h-2 overflow-hidden rounded-full bg-panel">
+        {present.map((l) => (
+          <div
+            key={l}
+            className={cn("h-full transition-[width] duration-500", LEVEL_BAR[l].bar)}
+            style={{ width: `${(counts[l] / total) * 100}%` }}
+            title={`${counts[l]} at ${l}`}
+          />
+        ))}
+      </div>
+      <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px]">
+        {present.map((l) => (
+          <span key={l} className="inline-flex items-center gap-1.5">
+            <span className={cn("size-2 rounded-full", LEVEL_BAR[l].bar)} />
+            <span className={cn("font-semibold tabular-nums", LEVEL_BAR[l].text)}>{counts[l]}</span>
+            <span className="text-muted">{l}</span>
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // Policy is the capability control center: it SHOWS each governed capability's
 // current trust level and lets the operator GRANT or restrict it at runtime
 // (M610) — the "approve" knob. Changing a level posts /api/edict/set_level; the
@@ -107,6 +152,8 @@ export function Policy() {
         {levels.length === 0 ? (
           <div className="text-xs text-muted">{loading ? "loading…" : "no governed capabilities"}</div>
         ) : (
+          <>
+          <LevelSummary levels={levels} />
           <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
             {levels.map(([cap, lvl]) => (
               <div
@@ -132,6 +179,7 @@ export function Policy() {
               </div>
             ))}
           </div>
+          </>
         )}
 
         {/* Hard-deny rules */}
