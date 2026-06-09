@@ -12,6 +12,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Preview a schedule's next fire times.** Each non-continuous schedule row now has a **next
+  fires** toggle that forecasts when it will actually run — the next 5 fire times, computed by the
+  daemon from the cadence — so you can sanity-check "daily at 09:00" or a cron before trusting it.
+  Backed by the existing `schedule_test` command via a new read-only `/api/schedule/test` query
+  route. Tests cover the interaction (toggling fetches `/api/schedule/test` with the id, renders
+  the numbered times, and hides on a second click). Verified live on an isolated daemon: a "daily
+  at 09:00" schedule forecasted the next five 09:00 fires (6/10–6/14) — 0 console errors. (M744)
 - **Pause/resume the proactive heartbeat from the UI.** Pulse — the resident heartbeat that drives
   the daemon's self-directed work (SPEC-03) — was controllable only via `agt pulse` on the CLI.
   The Autonomy view now leads with a **Proactive heartbeat** panel showing live status

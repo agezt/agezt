@@ -42,6 +42,21 @@ export function Schedules() {
   const [busy, setBusy] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  // Fire-time preview (M744): the schedule id whose next fires are shown + the times.
+  const [forecast, setForecast] = useState<{ id: string; times: number[] } | null>(null);
+
+  async function previewFires(id: string) {
+    if (forecast?.id === id) {
+      setForecast(null);
+      return;
+    }
+    try {
+      const d = await getJSON<{ forecasts?: { unix: number }[] }>("/api/schedule/test", { id, count: "5" });
+      setForecast({ id, times: (d.forecasts || []).map((f) => f.unix) });
+    } catch (e) {
+      ui.toast((e as Error).message, "error");
+    }
+  }
 
   async function reload() {
     setLoading(true);
@@ -229,8 +244,27 @@ export function Schedules() {
                   {s.mode !== "continuous" && (s.fires ?? 0) > 0 && (
                     <span>{s.fires} run{s.fires === 1 ? "" : "s"}</span>
                   )}
+                  {s.mode !== "continuous" && (
+                    <button onClick={() => previewFires(s.id)} className="text-accent/80 transition-colors hover:text-accent" title="Preview the next fire times">
+                      {forecast?.id === s.id ? "hide fires" : "next fires"}
+                    </button>
+                  )}
                   <span className="font-mono opacity-70">{s.id}</span>
                 </div>
+                {forecast?.id === s.id && (
+                  <ol className="mt-1.5 space-y-0.5 rounded-md border border-border/60 bg-panel/40 p-2 text-[11px]">
+                    {forecast.times.length === 0 ? (
+                      <li className="text-muted">no upcoming fires (paused, past one-shot, or no matching times)</li>
+                    ) : (
+                      forecast.times.map((t, i) => (
+                        <li key={i} className="flex items-center gap-2">
+                          <span className="w-4 text-right tabular-nums text-muted">{i + 1}.</span>
+                          <span className="text-foreground/85">{fmtDateTime(t * 1000)}</span>
+                        </li>
+                      ))
+                    )}
+                  </ol>
+                )}
                 {editingId === s.id && (
                   <div className="mt-2">
                     <NewScheduleForm
