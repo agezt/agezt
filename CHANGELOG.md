@@ -12,6 +12,18 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Edit a schedule from the UI.** Creating schedules from the console landed in M715, but
+  changing one still meant the CLI. Each schedule row now has an **Edit** (pencil) control that
+  opens an inline editor — the same form as create, prefilled with the current intent — letting
+  you rewrite the intent and re-pick the cadence (every N / daily at / once at), then **Save
+  changes**. It posts to the existing `schedule_edit` command (`/api/schedule/edit` jsonRoute, so
+  numeric timing args keep their types), which updates the intent and replaces the cadence in
+  place. The backend already supported this; only the surface was missing. Tests cover edit mode
+  (intent prefilled, action labelled "Save changes", posts `schedule/edit` with the id + new
+  intent + cadence, calls back on success). Verified live on an isolated daemon: a seeded
+  "original briefing intent / every 30m" schedule, edited in the UI to "edited briefing intent /
+  daily at 06:15", persisted (re-`GET /api/schedules` showed the new intent + `daily at 06:15`,
+  same id), 0 console errors. (M728)
 - **Import/export routing chains.** The Routing view (per-task model fallback chains, M703)
   now has **Export** and **Import** buttons, so a tuned routing config is portable between
   daemons. Export downloads `agezt-routing.json` (`{chains:{task:[models]}}`); Import reads
