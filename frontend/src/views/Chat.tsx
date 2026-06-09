@@ -27,6 +27,7 @@ import { useUI } from "@/components/ui/feedback";
 import { Badge } from "@/components/ui/badge";
 import { Markdown } from "@/components/Markdown";
 import { ToolOutput } from "@/components/DataView";
+import { ModelPicker } from "@/components/ModelPicker";
 import {
   streamRun,
   foldChatFrame,
@@ -342,13 +343,7 @@ export function Chat() {
         </div>
         <div className="mt-1.5 flex items-center gap-2 px-1 text-xs text-muted">
           <span>model</span>
-          <input
-            value={model}
-            onChange={(e) => setModel(e.target.value)}
-            placeholder={activeModel || "default"}
-            title={activeModel ? `active model: ${activeModel}` : undefined}
-            className="h-6 w-44 rounded border border-border bg-panel px-2 text-xs outline-none placeholder:text-muted/60 focus-visible:border-accent"
-          />
+          <ModelPicker value={model} onChange={setModel} activeModel={activeModel} />
           <span className="ml-auto">runs through the governed loop · same as the CLI</span>
         </div>
         </div>
