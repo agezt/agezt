@@ -71,7 +71,9 @@ export interface ChatEngine {
   model: string; // "" = daemon default
   setModel: (m: string) => void;
   activeModel: string; // the daemon's configured default (a hint)
-  send: (intent: string) => void;
+  /** Send a message. `context`, when given, is prepended to the run intent only —
+   *  the conversation still shows the clean `intent` as the user's message. */
+  send: (intent: string, context?: string) => void;
   retry: () => void;
   stop: () => void;
   newChat: () => void;
@@ -182,12 +184,14 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  function send(intent: string) {
+  function send(intent: string, context?: string) {
     const t = intent.trim();
     if (!t || busy) return;
     const history = buildHistory(messages);
+    // The conversation records the clean intent; the run receives the attachment
+    // context (if any) prepended, so the user's bubble stays uncluttered.
     setMessages((m) => [...m, { role: "user", text: t }, { role: "assistant", turn: newTurn() }]);
-    void streamIntent(t, history);
+    void streamIntent(context ? `${context}\n\n---\n\n${t}` : t, history);
   }
 
   // retry re-runs the most recent user intent after a failed turn: drop the

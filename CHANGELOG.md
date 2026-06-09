@@ -12,6 +12,16 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Attach a skill, memory, or past run as context.** A paperclip in the Chat
+  composer opens a picker over the existing skill/memory/run lists; the items you
+  choose stack as chips above the textarea and are folded into a context preamble in
+  front of your next message — so you can say "what does the attached skill do?" or
+  ground a question in a stored memory or an earlier run, without the daemon losing
+  its own system prompt. The conversation still shows your clean message; only the
+  run receives the preamble. Verified live: attached the real `setup-agent-team`
+  skill and asked what it does — the agent answered accurately in one iteration with
+  no tool call (it could only know from the injected context), the bubble stayed
+  clean, and the chip cleared on send. Zero console errors. (M680)
 - **Chat shows what the agent learned — and lets you forget it.** When a run records
   a memory (the daemon's post-run distillation, or the agent using its memory tool),
   the Chat surfaces it under the answer as a "🧠 learned" chip (type + subject),
