@@ -48,6 +48,11 @@ export interface ChatTurn {
   model?: string;
   iters: number;
   costMicrocents: number;
+  // Model-chain fallbacks (M703/M706): each hop the per-task chain took when a
+  // model failed (from → next). Present only when a fallback actually fired, so
+  // the chat can show "this answer came from a fallback model" — model is the one
+  // that ultimately answered.
+  fallbacks?: { from: string; to: string }[];
   error?: string;
   correlationId?: string;
 }
@@ -107,6 +112,15 @@ export function foldChatFrame(prev: ChatTurn, f: ChatFrame): ChatTurn {
     case "budget.consumed":
       t.costMicrocents += num(p.cost_microcents);
       if (p.model && !t.model) t.model = String(p.model);
+      break;
+    case "provider.fallback":
+      // Only model-chain fallbacks are user-meaningful (a different MODEL answered);
+      // provider→provider fallbacks are infra noise and stay out of the chat.
+      if (p.scope === "model-chain") {
+        const from = String(p.failed_model || "");
+        const to = String(p.next_model || "");
+        if (from && to) t.fallbacks = [...(t.fallbacks ?? []), { from, to }];
+      }
       break;
     case "policy.decision": {
       const c = tool(String(p.call_id || ""));

@@ -22,6 +22,7 @@ import {
   Paperclip,
   Volume2,
   VolumeX,
+  CornerDownRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { money } from "@/lib/format";
@@ -435,6 +436,8 @@ function AssistantBubble({ turn, onRetry }: { turn: ChatTurn; onRetry?: () => vo
 
         {working && <WorkingIndicator running={runningTool?.tool} />}
 
+        {turn.fallbacks && turn.fallbacks.length > 0 && <FallbackNote hops={turn.fallbacks} />}
+
         {turn.status === "error" && (
           <div className="space-y-2">
             <div className="flex items-start gap-2 rounded-lg border border-bad/40 bg-bad/10 px-3 py-2 text-sm text-bad">
@@ -514,6 +517,22 @@ function ReasoningBlock({ text, live }: { text: string; live: boolean }) {
           {text}
         </div>
       )}
+    </div>
+  );
+}
+
+// FallbackNote shows when the per-task model chain (M703) had to fall back: the
+// primary model failed and a later model in the chain answered. It makes the
+// routing you configured observable right where it matters — so when a different
+// model answers, you know why, not just that the model name changed.
+export function FallbackNote({ hops }: { hops: { from: string; to: string }[] }) {
+  // Collapse consecutive hops into one path: a→b, b→c ⇒ a → b → c.
+  const path: string[] = hops.length ? [hops[0].from, ...hops.map((h) => h.to)] : [];
+  return (
+    <div className="flex flex-wrap items-center gap-1.5 rounded-md border border-warn/30 bg-warn/5 px-2 py-1 text-xs text-warn">
+      <CornerDownRight className="size-3.5 shrink-0" />
+      <span className="font-medium">{hops.length === 1 ? "fell back" : `fell back ${hops.length}×`}</span>
+      <span className="font-mono text-foreground/70">{path.join(" → ")}</span>
     </div>
   );
 }
