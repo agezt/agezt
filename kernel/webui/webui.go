@@ -216,9 +216,10 @@ var jsonRoutes = map[string]writeRoute{
 	"/api/provider/keys/add": {controlplane.CmdProviderKeyAdd, []string{"env", "label", "value", "active"}},
 	// Per-task model routing (M703): replace the model chains. `chains` is an
 	// object {task: [models]} too large/structured for a query arg.
-	"/api/routing/set": {controlplane.CmdRoutingSet, []string{"chains"}},
-	"/api/persona/set": {controlplane.CmdPersonaSet, []string{"system"}},
-	"/api/prompts/set": {controlplane.CmdPromptsSet, []string{"prompts"}},
+	"/api/routing/set":  {controlplane.CmdRoutingSet, []string{"chains"}},
+	"/api/persona/set":  {controlplane.CmdPersonaSet, []string{"system"}},
+	"/api/prompts/set":  {controlplane.CmdPromptsSet, []string{"prompts"}},
+	"/api/standing/add": {controlplane.CmdStandingAdd, []string{"order"}},
 }
 
 // planRoute is the streaming "run this plan" action (Flow Studio's Run button).

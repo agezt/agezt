@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { Anchor, RefreshCw, Pause, Play, Trash2, Clock, Zap, ShieldCheck } from "lucide-react";
-import { getJSON, postAction } from "@/lib/api";
+import { Anchor, RefreshCw, Pause, Play, Trash2, Clock, Zap, ShieldCheck, Plus, X } from "lucide-react";
+import { getJSON, postAction, postJSON } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useUI, type ConfirmOptions } from "@/components/ui/feedback";
@@ -35,6 +35,7 @@ export function Standing() {
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
+  const [showForm, setShowForm] = useState(false);
 
   async function reload() {
     setLoading(true);
@@ -86,10 +87,24 @@ export function Standing() {
           {orders ? `${orders.length} total` : ""}
           {orders && orders.length > 0 && <span className="text-good"> · {enabledCount} active</span>}
         </span>
-        <Button variant="ghost" size="sm" className="ml-auto" onClick={reload} disabled={loading} title="Reload">
+        <Button size="sm" className="ml-auto" onClick={() => setShowForm((v) => !v)} title="Create a standing order">
+          {showForm ? <X className="size-3.5" /> : <Plus className="size-3.5" />} New order
+        </Button>
+        <Button variant="ghost" size="sm" onClick={reload} disabled={loading} title="Reload">
           <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
         </Button>
       </div>
+
+      {showForm && (
+        <NewOrderForm
+          onCreated={(name) => {
+            setShowForm(false);
+            ui.toast(`Standing order “${name}” created`, "success");
+            void reload();
+          }}
+          onError={(m) => ui.toast(m, "error")}
+        />
+      )}
 
       {err ? (
         <ErrorText>{err}</ErrorText>
@@ -101,8 +116,9 @@ export function Standing() {
           title="No standing orders yet"
           hint={
             <>
-              Standing orders are persistent goals the daemon pursues on a trigger. Add one with{" "}
-              <code className="rounded bg-panel px-1 py-0.5">agt standing add --name N (--cron … | --event …)</code>.
+              Standing orders are persistent goals the daemon pursues on a trigger. Hit{" "}
+              <span className="font-medium text-foreground/80">New order</span> above to create one — or use{" "}
+              <code className="rounded bg-panel px-1 py-0.5">agt standing add</code>.
             </>
           }
         />
@@ -186,6 +202,122 @@ export function Standing() {
           </ul>
         </div>
       )}
+    </div>
+  );
+}
+
+// NewOrderForm builds and submits a standing order from the UI — so defining what
+// the daemon does autonomously no longer needs the CLI. Captures the essentials
+// (name, trigger, plan, autonomy mode); the control plane validates and persists.
+export function NewOrderForm({
+  onCreated,
+  onError,
+}: {
+  onCreated: (name: string) => void;
+  onError: (msg: string) => void;
+}) {
+  const [name, setName] = useState("");
+  const [triggerType, setTriggerType] = useState<"cron" | "event">("cron");
+  const [triggerValue, setTriggerValue] = useState("");
+  const [plan, setPlan] = useState("");
+  const [mode, setMode] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  const valid = name.trim() !== "" && triggerValue.trim() !== "";
+
+  async function create() {
+    if (!valid) return;
+    const trigger =
+      triggerType === "cron"
+        ? { type: "cron", schedule: triggerValue.trim() }
+        : { type: "event", subject: triggerValue.trim() };
+    const order: Record<string, unknown> = { name: name.trim(), triggers: [trigger] };
+    if (plan.trim()) order.plan = plan.trim();
+    if (mode) order.initiative = { mode };
+
+    setSubmitting(true);
+    try {
+      await postJSON("/api/standing/add", { order });
+      onCreated(name.trim());
+    } catch (e) {
+      onError((e as Error).message);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="rounded-lg border border-accent/30 bg-card p-3">
+      <div className="grid gap-2 sm:grid-cols-2">
+        <label className="flex flex-col gap-1 text-[11px] text-muted">
+          Name
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="e.g. Morning briefing"
+            aria-label="Order name"
+            className="rounded-md border border-border bg-panel px-2 py-1 text-sm text-foreground outline-none focus-visible:border-accent"
+          />
+        </label>
+        <label className="flex flex-col gap-1 text-[11px] text-muted">
+          Autonomy
+          <select
+            value={mode}
+            onChange={(e) => setMode(e.target.value)}
+            aria-label="Initiative mode"
+            className="rounded-md border border-border bg-panel px-2 py-1 text-sm text-foreground outline-none focus-visible:border-accent"
+          >
+            <option value="">default (inform only)</option>
+            <option value="inform_only">inform only</option>
+            <option value="ask">ask first</option>
+            <option value="act_or_ask">act, or ask if unsure</option>
+          </select>
+        </label>
+      </div>
+
+      <div className="mt-2 flex flex-col gap-1 text-[11px] text-muted">
+        Trigger
+        <div className="flex items-center gap-1.5">
+          <div className="inline-flex overflow-hidden rounded-md border border-border">
+            {(["cron", "event"] as const).map((t) => (
+              <button
+                key={t}
+                onClick={() => setTriggerType(t)}
+                className={cn(
+                  "px-2 py-1 text-xs transition-colors",
+                  triggerType === t ? "bg-accent/15 text-accent" : "text-muted hover:text-foreground",
+                )}
+              >
+                {t === "cron" ? "schedule" : "event"}
+              </button>
+            ))}
+          </div>
+          <input
+            value={triggerValue}
+            onChange={(e) => setTriggerValue(e.target.value)}
+            placeholder={triggerType === "cron" ? "cron, e.g. 0 9 * * *" : "event subject, e.g. run.failed"}
+            aria-label="Trigger value"
+            className="min-w-0 flex-1 rounded-md border border-border bg-panel px-2 py-1 font-mono text-sm text-foreground outline-none focus-visible:border-accent"
+          />
+        </div>
+      </div>
+
+      <label className="mt-2 flex flex-col gap-1 text-[11px] text-muted">
+        Plan
+        <textarea
+          value={plan}
+          onChange={(e) => setPlan(e.target.value)}
+          placeholder="What the agent should do each time this fires…"
+          aria-label="Order plan"
+          className="h-20 w-full resize-y rounded-md border border-border bg-panel p-2 text-sm text-foreground outline-none placeholder:text-muted/60 focus-visible:border-accent"
+        />
+      </label>
+
+      <div className="mt-2 flex items-center justify-end gap-2">
+        <Button size="sm" onClick={create} disabled={!valid || submitting}>
+          {submitting ? <RefreshCw className="size-3.5 animate-spin" /> : <Plus className="size-3.5" />} Create order
+        </Button>
+      </div>
     </div>
   );
 }
