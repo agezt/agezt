@@ -12,6 +12,23 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Export & re-import the world model (knowledge-graph backup / bulk seed).** The World view gains
+  **Export** (downloads `agezt-world.json` — `{version:1, world:{entities:[…], edges:[…]}}`) and
+  **Import** (re-adds entities via `world_add`, then relations via `world_relate`). Import accepts
+  the `{world:{…}}` wrapper or the bare `{entities, edges}` shape; entities keep
+  name(+kind/aliases/attrs) and drop kernel `id`/`weight`/timestamps/lineage. Because relations are
+  stored by entity **id** but `world_relate` takes **names**, import resolves each edge's from/to id
+  back to a name via the file's own entity list (falling back to the raw value, so a hand-written
+  file that uses names also works). Both entities (content-addressed by kind+name) and relations
+  (by from/verb/to) **dedupe on re-import** — so importing a world the agent already knows is
+  idempotent. Reports `entities + relations` imported. This makes the agent's whole knowledge graph
+  portable: back it up, move it, or seed a fresh daemon. `parseWorldJSON` is unit-tested (both
+  wrapper shapes; keeps entity fields, drops kernel ones; resolves edge ids→names; treats from/to as
+  names when no id matches; throws on bad input). Verified live on a fresh isolated daemon (0
+  entities): importing a 4-entity / 2-edge file created exactly 3 entities (aliases+attrs preserved,
+  nameless dropped) and 2 relations correctly resolved (`Alice owns AGEZT`, `AGEZT depends_on repo`),
+  toast "Imported 3/3 entities + 2/2 relations"; a second import kept the counts at 3 entities / 2
+  relations (content-addressed dedup); Export re-downloaded that exact shape; 0 console errors. (M751)
 - **Export & re-import memories (knowledge backup / bulk seed).** The Memory view gains **Export**
   (downloads `agezt-memory.json` — `{version:1, memory:[…]}`) and **Import** (re-adds each fact via
   the existing `memory_add`). Import accepts a bare array, a `{memory:[…]}` or a `{records:[…]}`

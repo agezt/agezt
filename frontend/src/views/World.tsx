@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Globe, Plus, RefreshCw, Pencil, Save, X } from "lucide-react";
+import { useRef, useState } from "react";
+import { Globe, Plus, RefreshCw, Pencil, Save, X, Download, Upload } from "lucide-react";
 import { Panel, Row, Count } from "@/components/Panel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,7 @@ import { ActionButton } from "@/components/ActionButton";
 import { WorldGraph } from "@/components/WorldGraph";
 import { BreakdownBar } from "@/components/Widgets";
 import { postJSON, postAction } from "@/lib/api";
+import { downloadText } from "@/lib/export";
 import { useUI } from "@/components/ui/feedback";
 
 // The entity kinds the world model recognises — offered when teaching it one.
@@ -23,18 +24,147 @@ function kindBreakdown(ents: any[]): { label: string; count: number }[] {
   return Object.entries(c).map(([label, count]) => ({ label, count }));
 }
 
+// parseWorldJSON normalises an exported world file into re-addable entity
+// (`world_add`) and relation (`world_relate`) arg lists. Accepts a {world:{entities,
+// edges}} wrapper or the bare list shape ({entities, edges}). Entities keep
+// name(+kind/aliases/attrs), dropping kernel id/weight/timestamps/lineage. Relations
+// in the export reference entities by ID, so they're resolved back to names via the
+// file's own entity list (falling back to the raw value, so a hand-written file using
+// names also works). Throws on bad JSON / no valid entities.
+export function parseWorldJSON(text: string): {
+  entities: Record<string, unknown>[];
+  relations: Record<string, unknown>[];
+} {
+  const data = JSON.parse(text);
+  const obj = data && typeof data === "object" && !Array.isArray(data) ? (data as Record<string, unknown>) : null;
+  const world =
+    obj && obj.world && typeof obj.world === "object" && !Array.isArray(obj.world)
+      ? (obj.world as Record<string, unknown>)
+      : obj;
+  const rawEnts = Array.isArray(world?.entities) ? (world!.entities as unknown[]) : null;
+  if (!rawEnts) throw new Error("expected a world with an entities array ({entities:[…], edges:[…]})");
+
+  const idToName = new Map<string, string>();
+  const entities: Record<string, unknown>[] = [];
+  for (const raw of rawEnts) {
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) continue;
+    const e = raw as Record<string, unknown>;
+    const name = typeof e.name === "string" ? e.name.trim() : "";
+    if (!name) continue;
+    if (typeof e.id === "string" && e.id) idToName.set(e.id, name);
+    const ent: Record<string, unknown> = { name };
+    if (typeof e.kind === "string" && e.kind.trim()) ent.kind = e.kind.trim();
+    if (Array.isArray(e.aliases)) {
+      const al = (e.aliases as unknown[]).filter((a): a is string => typeof a === "string" && a.trim() !== "");
+      if (al.length) ent.aliases = al;
+    }
+    if (e.attrs && typeof e.attrs === "object" && !Array.isArray(e.attrs)) {
+      const attrs: Record<string, string> = {};
+      for (const [k, v] of Object.entries(e.attrs as Record<string, unknown>)) if (typeof v === "string") attrs[k] = v;
+      if (Object.keys(attrs).length) ent.attrs = attrs;
+    }
+    entities.push(ent);
+  }
+  if (entities.length === 0) throw new Error("no valid entities (each needs a name) found");
+
+  const rawEdges = Array.isArray(world?.edges)
+    ? (world!.edges as unknown[])
+    : Array.isArray(world?.relations)
+      ? (world!.relations as unknown[])
+      : [];
+  const relations: Record<string, unknown>[] = [];
+  for (const raw of rawEdges) {
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) continue;
+    const r = raw as Record<string, unknown>;
+    const fromRaw = typeof r.from === "string" ? r.from : "";
+    const toRaw = typeof r.to === "string" ? r.to : "";
+    const verb = typeof r.verb === "string" ? r.verb.trim() : "";
+    const from = idToName.get(fromRaw) ?? fromRaw; // export stores ids → resolve to names
+    const to = idToName.get(toRaw) ?? toRaw;
+    if (!from || !to || !verb) continue;
+    relations.push({ from, verb, to });
+  }
+  return { entities, relations };
+}
+
 export function World() {
+  const ui = useUI();
+  const fileRef = useRef<HTMLInputElement>(null);
   return (
     <Panel<Record<string, any>> title="World" path="/api/world">
       {(d, reload) => {
         const ents = d.entities || [];
         const edges = d.edges || [];
         const rels = d.relations ?? d.relation_count ?? edges.length;
+
+        function exportWorld() {
+          downloadText(
+            "agezt-world.json",
+            JSON.stringify({ version: 1, world: { entities: ents, edges } }, null, 2),
+            "application/json",
+          );
+        }
+
+        // Restore a world: re-add entities (world_add), then relations (world_relate).
+        // Both are content-addressed (entity by kind+name, relation by from/verb/to), so
+        // re-importing a world the agent already knows dedupes — import is idempotent.
+        async function importWorld(file: File) {
+          try {
+            const { entities, relations } = parseWorldJSON(await file.text());
+            let ne = 0;
+            for (const e of entities) {
+              try {
+                await postJSON("/api/world/add", e);
+                ne++;
+              } catch {
+                /* skip one the daemon rejects; keep going */
+              }
+            }
+            let nr = 0;
+            for (const r of relations) {
+              try {
+                await postAction("/api/world/relate", r as Record<string, string>);
+                nr++;
+              } catch {
+                /* a relation whose endpoints didn't resolve is skipped */
+              }
+            }
+            const relPart = relations.length ? ` + ${nr}/${relations.length} relation${relations.length === 1 ? "" : "s"}` : "";
+            ui.toast(
+              `Imported ${ne}/${entities.length} entit${entities.length === 1 ? "y" : "ies"}${relPart}`,
+              ne || nr ? "success" : "error",
+            );
+            void reload();
+          } catch (e) {
+            ui.toast(`Import failed: ${(e as Error).message}`, "error");
+          }
+        }
+
         return (
           <>
-            <Count>
-              {ents.length} entities · {rels} relations
-            </Count>
+            <div className="flex items-center gap-2">
+              <Count>
+                {ents.length} entities · {rels} relations
+              </Count>
+              <input
+                ref={fileRef}
+                type="file"
+                accept="application/json,.json"
+                className="hidden"
+                aria-hidden="true"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) void importWorld(f);
+                  e.target.value = "";
+                }}
+              />
+              <Button variant="ghost" size="sm" className="ml-auto" onClick={() => fileRef.current?.click()} title="Import a world from a file">
+                <Upload className="size-3.5" /> Import
+              </Button>
+              <Button variant="ghost" size="sm" onClick={exportWorld} disabled={ents.length === 0} title="Export the world to a file">
+                <Download className="size-3.5" /> Export
+              </Button>
+            </div>
             <WorldAddForm onAdded={reload} />
             {ents.length >= 2 && <WorldRelateForm names={ents.map((e: any) => e.name).filter(Boolean)} onRelated={reload} />}
 
