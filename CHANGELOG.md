@@ -12,6 +12,26 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Restore a full snapshot — back up and rebuild the whole agent from one file.** The Backup view's
+  Full-snapshot card was export-only (M741); it gains **Restore snapshot**. A snapshot bundles
+  everything customizable — persona, prompts, routing, standing orders, schedules, memory and the
+  world model — and Restore replays each section through the **same per-domain importers** the
+  individual views use (M748–M751): config (persona/prompts/routing) is **replaced**; standing &
+  schedules are **added** (additive — re-restoring onto a populated daemon duplicates them); memory &
+  the world model are content-addressed so they **dedupe**. Restore is gated behind an explicit
+  confirm that spells out the per-section counts and the additive caveat — it's meant for **seeding a
+  fresh daemon or migrating to a new machine**. Each section is best-effort (one failing section never
+  aborts the rest); the result toast reports exactly what landed. `parseSnapshotJSON` (validate +
+  normalise, tolerating missing sections, throws on an empty snapshot) and `applyFullSnapshot`
+  (replays config + the four domains, returns a summary) are unit-tested, including that it posts the
+  right per-domain payloads (config /set calls, standing/schedule/memory adds, world entities then a
+  relation resolved id→name). Verified live on a fresh isolated daemon (every domain empty):
+  restoring one snapshot file populated **all seven sections** at once — persona + 1 prompt + 1
+  routing chain + 1 standing order (`RESTORED-briefing`) + 1 schedule (`RESTORED-ping`, every 15m) +
+  1 memory + 2 entities + 1 relation (`Alice owns AGEZT`, resolved id→name); toast "Restored: config
+  (persona+prompts+routing) · 1/1 standing · 1/1 schedules · 1/1 memories · 2/2 entities + 1
+  relations"; 0 console errors. This completes the backup/restore story: per-domain
+  export/import **plus** a single whole-agent snapshot that round-trips. (M752)
 - **Export & re-import the world model (knowledge-graph backup / bulk seed).** The World view gains
   **Export** (downloads `agezt-world.json` — `{version:1, world:{entities:[…], edges:[…]}}`) and
   **Import** (re-adds entities via `world_add`, then relations via `world_relate`). Import accepts
