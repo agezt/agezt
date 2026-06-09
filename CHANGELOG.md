@@ -12,6 +12,23 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Tell the agent to watch a command, live.** The Autonomy heartbeat card's watch control gains a
+  second mode — **watch a command** — alongside the disk watch (M767). Give it a name and a shell
+  command (e.g. `ci` / `make test`) and the agent runs that command each beat, alerting (per the
+  dial) when its pass/fail result *flips* — so you can point it at your CI, a build, a health check,
+  or any exit-code probe and be told only when the state changes. Reuses the same live-observer
+  infrastructure as the disk watch: `Engine.AddObserver` registers a `NewProbeObserver` (named
+  `probe:<name>`) under the lock, and the daemon injects a `SetProbeWatch` closure that builds the
+  probe with the warden + state store, keeping the control plane decoupled from `kernel/pulse`. The
+  command is split into argv server-side; an empty name or command is rejected. New route
+  `/api/pulse/probe` (name + command) → new `CmdPulseProbe`. Tested at every layer — control-plane
+  (the wired callback splits the command into argv and names the observer `probe:ci`; a missing
+  command is rejected) and UI (the **a command** toggle reveals the form, which posts
+  `/api/pulse/probe` with `{name, command}`). Verified live on an isolated daemon: the observer set
+  went from `[self:health]` to `[self:health, probe:ci]` after adding a command watch from the
+  UI — the probe is now part of the live heartbeat; 0 console errors. With the disk watch (M767),
+  the proactive observer set — once fixed at startup by `AGEZT_PULSE_*` — is now fully editable from
+  the console without a restart. (M768)
 - **Tell the agent to watch a disk, live.** The Autonomy view's heartbeat card gains a **watch a
   disk** control: give it a path and a free-space threshold, and the agent starts watching it on the
   next beat — alerting (per the dial) when free space drops below the threshold. Previously the

@@ -923,6 +923,9 @@ const (
 	// CmdPulseWatch adds a disk-space watch at runtime. Args: path, min_pct.
 	// Returns { added, observer }.
 	CmdPulseWatch = "pulse_watch"
+	// CmdPulseProbe adds a command-probe watch at runtime. Args: name, command.
+	// Returns { added, observer }.
+	CmdPulseProbe = "pulse_probe"
 
 	// CmdInbox returns the Unified Inbox (SPEC-07 §4): channel.inbound /
 	// channel.outbound events folded into conversation threads grouped by
