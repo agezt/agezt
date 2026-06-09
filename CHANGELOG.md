@@ -12,6 +12,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Launch saved prompts mid-conversation.** Saved prompts (M713) were only reachable from
+  the chat's empty state — once a thread had messages, you couldn't quick-insert one. The
+  composer now has a **prompts** menu (hidden when you have none): open it and pick a saved
+  prompt to drop its text into the composer, any time. Tests cover the launcher (renders
+  nothing when empty; lists prompts and inserts the picked text, closing after). Verified
+  live: mid-conversation, the launcher inserted a saved prompt's text into the composer, 0
+  console errors. (M725)
 - **Import/export your prompt library.** The Prompts view gains **Export** (download the
   library as JSON) and **Import** (load a JSON file — a bare array or a `{prompts:[…]}`
   wrapper — merging new entries into the editor, skipping exact duplicates, for you to

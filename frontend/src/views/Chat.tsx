@@ -317,6 +317,7 @@ export function Chat() {
           <span>model</span>
           <ModelPicker value={model} onChange={setModel} activeModel={activeModel} />
           <ConversationPersona value={conversationPersona} onChange={setConversationPersona} />
+          <PromptLauncher onPick={(text) => setInput((cur) => (cur.trim() ? cur.trimEnd() + "\n" : "") + text)} />
           {messages.length > 0 && (
             <button
               onClick={() => {
@@ -834,6 +835,65 @@ export function ConversationPersona({ value, onChange }: { value: string; onChan
             </div>
           </div>
         </>
+      )}
+    </div>
+  );
+}
+
+// PromptLauncher makes the saved prompt library (M713) reachable anywhere in a
+// chat, not just the empty state (M725): a button that opens a menu of your saved
+// prompts; picking one drops its text into the composer. Hidden when you have none.
+export function PromptLauncher({ onPick }: { onPick: (text: string) => void }) {
+  const [prompts, setPrompts] = useState<{ title: string; text: string }[]>([]);
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    getJSON<{ prompts?: { title: string; text: string }[] }>("/api/prompts")
+      .then((r) => setPrompts(r.prompts || []))
+      .catch(() => {
+        /* prompts are optional */
+      });
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    function onDown(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    window.addEventListener("mousedown", onDown);
+    return () => window.removeEventListener("mousedown", onDown);
+  }, [open]);
+
+  if (prompts.length === 0) return null;
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        title="Insert a saved prompt"
+        aria-label="Insert a saved prompt"
+        className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-muted transition-colors hover:text-foreground"
+      >
+        <Sparkles className="size-3.5" />
+        <span>prompts</span>
+      </button>
+      {open && (
+        <div className="absolute bottom-full left-0 z-30 mb-1.5 max-h-64 w-64 overflow-auto rounded-lg border border-border bg-card p-1 shadow-xl shadow-black/30">
+          {prompts.map((p, i) => (
+            <button
+              key={`${p.title}-${i}`}
+              onClick={() => {
+                onPick(p.text);
+                setOpen(false);
+              }}
+              title={p.text}
+              className="block w-full truncate rounded px-2 py-1.5 text-left text-xs text-foreground/90 transition-colors hover:bg-panel"
+            >
+              {p.title}
+            </button>
+          ))}
+        </div>
       )}
     </div>
   );
