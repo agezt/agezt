@@ -830,6 +830,13 @@ const (
 	CmdStandingRemove     = "standing_remove"
 	CmdStandingWhy        = "standing_why" // fold the journal for one order's life story
 
+	// Sandbox projects (M686) — read-only inspection of what agents BUILT with the
+	// code_exec tool under <baseDir>/sandbox/projects. List: no args, returns each
+	// persistent project with its files (name, bytes, modified). File: args{project,
+	// file}, returns one file's content (capped), path-confined to the projects dir.
+	CmdSandboxList = "sandbox_list"
+	CmdSandboxFile = "sandbox_file"
+
 	// Reflection — meta-cognition (SPEC-05 §6).
 	//
 	// CmdReflectRun runs one reflection pass now: folds the journal, applies
