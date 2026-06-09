@@ -651,6 +651,8 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.handleStandingList(conn, req)
 	case CmdStandingAdd:
 		s.handleStandingAdd(conn, req)
+	case CmdStandingEdit:
+		s.handleStandingEdit(conn, req)
 	case CmdStandingSetEnabled:
 		s.handleStandingSetEnabled(conn, req)
 	case CmdStandingRemove:

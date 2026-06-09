@@ -196,6 +196,36 @@ func (s *Store) SetEnabled(id string, enabled bool) (Order, error) {
 	return Order{}, ErrNotFound
 }
 
+// Update applies edits to an order's mutable fields via mutate, re-validates the
+// result, and persists it. Identity and lifecycle fields the caller must not edit
+// here — ID, CreatedMS, and Enabled (which has its own SetEnabled setter) — are
+// preserved regardless of what mutate does; UpdatedMS is bumped. On a validation
+// or save failure the in-memory order is rolled back so the running view never
+// diverges from disk. Returns the updated order, or ErrNotFound for an unknown id.
+func (s *Store) Update(id string, mutate func(*Order)) (Order, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, o := range s.orders {
+		if o.ID == id {
+			snapshot := *o
+			mutate(o)
+			// Protect identity + lifecycle fields from the mutator.
+			o.ID, o.CreatedMS, o.Enabled = snapshot.ID, snapshot.CreatedMS, snapshot.Enabled
+			o.UpdatedMS = s.now().UnixMilli()
+			if err := Validate(*o); err != nil {
+				*o = snapshot
+				return Order{}, err
+			}
+			if err := s.save(); err != nil {
+				*o = snapshot
+				return Order{}, err
+			}
+			return *o, nil
+		}
+	}
+	return Order{}, ErrNotFound
+}
+
 // Remove deletes an order. Returns whether it existed.
 func (s *Store) Remove(id string) (bool, error) {
 	s.mu.Lock()

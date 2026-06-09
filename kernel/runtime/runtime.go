@@ -650,6 +650,25 @@ func (k *Kernel) SetStandingEnabled(id string, enabled bool) (standing.Order, er
 	return o, nil
 }
 
+// UpdateStanding edits a standing order's mutable fields via mutate, journaling
+// standing.updated (action "edited") on success. Identity/lifecycle fields are
+// protected by the store. Returns the updated order and whether the id existed
+// (false + nil error for an unknown id, mirroring the schedule-edit path).
+func (k *Kernel) UpdateStanding(id string, mutate func(*standing.Order)) (standing.Order, bool, error) {
+	o, err := k.standing.Update(id, mutate)
+	if errors.Is(err, standing.ErrNotFound) {
+		return standing.Order{}, false, nil
+	}
+	if err != nil {
+		return standing.Order{}, false, err
+	}
+	_, _ = k.bus.Publish(event.Spec{
+		Subject: "standing." + id, Kind: event.KindStandingUpdated, Actor: "standing",
+		Payload: map[string]any{"id": id, "name": o.Name, "action": "edited"},
+	})
+	return o, true, nil
+}
+
 // RemoveStanding deletes a standing order, journaling standing.removed when it
 // existed. Returns whether it existed.
 func (k *Kernel) RemoveStanding(id string) (bool, error) {

@@ -89,6 +89,79 @@ func TestStanding_CRUDRoundTrip(t *testing.T) {
 	}
 }
 
+// TestStanding_Edit edits an order's mutable fields over the control plane (M729):
+// add → edit name/plan/mode/assure → list shows the edit, the journal records a
+// standing.updated, and editing an unknown id reports updated:false.
+func TestStanding_Edit(t *testing.T) {
+	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	ctx := context.Background()
+
+	add, err := c.Call(ctx, controlplane.CmdStandingAdd, map[string]any{
+		"order": map[string]any{
+			"name":       "watch",
+			"triggers":   []any{map[string]any{"type": "cron", "schedule": "0 8 * * *"}},
+			"plan":       "old plan",
+			"initiative": map[string]any{"mode": "act_or_ask", "max_trust": "L2"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("standing_add: %v", err)
+	}
+	id, _ := add["order"].(map[string]any)["id"].(string)
+
+	edit, err := c.Call(ctx, controlplane.CmdStandingEdit, map[string]any{
+		"id": id, "name": "renamed", "plan": "new plan", "mode": "ask", "assure": float64(2),
+	})
+	if err != nil {
+		t.Fatalf("standing_edit: %v", err)
+	}
+	if up, _ := edit["updated"].(bool); !up {
+		t.Fatalf("edit should report updated=true: %v", edit)
+	}
+	eo, _ := edit["order"].(map[string]any)
+	if eo["name"] != "renamed" || eo["plan"] != "new plan" {
+		t.Errorf("edited fields not reflected: %v", eo)
+	}
+	if init, _ := eo["initiative"].(map[string]any); init["mode"] != "ask" {
+		t.Errorf("mode not edited: %v", eo["initiative"])
+	}
+	if as, _ := eo["assure"].(float64); int(as) != 2 {
+		t.Errorf("assure = %v, want 2", eo["assure"])
+	}
+	// Identity preserved.
+	if eo["id"] != id {
+		t.Errorf("id changed on edit: %v != %v", eo["id"], id)
+	}
+
+	// List reflects the persisted edit.
+	list, _ := c.Call(ctx, controlplane.CmdStandingList, nil)
+	orders, _ := list["orders"].([]any)
+	if len(orders) != 1 || orders[0].(map[string]any)["name"] != "renamed" {
+		t.Errorf("list does not show the edit: %v", list)
+	}
+
+	// A standing.updated event is journaled.
+	n := 0
+	_ = k.Journal().Range(func(e *event.Event) error {
+		if e.Kind == event.KindStandingUpdated {
+			n++
+		}
+		return nil
+	})
+	if n == 0 {
+		t.Error("edit was not journaled as standing.updated")
+	}
+
+	// Editing an unknown id reports updated:false (not an error).
+	miss, err := c.Call(ctx, controlplane.CmdStandingEdit, map[string]any{"id": "nope", "name": "x"})
+	if err != nil {
+		t.Fatalf("edit unknown id errored: %v", err)
+	}
+	if up, _ := miss["updated"].(bool); up {
+		t.Error("editing an unknown id should report updated=false")
+	}
+}
+
 // TestStanding_Why folds an order's life story: create + pause → at least the
 // created and updated events, scoped to that order id.
 func TestStanding_Why(t *testing.T) {

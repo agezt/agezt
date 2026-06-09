@@ -12,6 +12,23 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Edit a standing order from the UI.** Standing orders could be created from the console
+  (M714) but changing one still meant remove-and-recreate. Each order row now has an **Edit**
+  (pencil) control that opens an inline editor for the human-tunable fields — **name**, **plan**,
+  **autonomy mode**, and the **assure** (do-it-for-sure retry) budget — and **Save changes**
+  applies them in place. Triggers, observers and scope are left as-is (this is "tune what it
+  does", not "re-wire when it fires"); pause/resume keeps its own control. New full-stack path:
+  `standing.Store.Update(id, mutate)` re-validates and rolls back on failure while protecting
+  identity/lifecycle fields (id, created, enabled); `Kernel.UpdateStanding` journals
+  `standing.updated` (action "edited"); control-plane `standing_edit` applies any subset of the
+  fields; webui `/api/standing/edit` jsonRoute (numeric `assure` keeps its type). Tests at every
+  layer: store Update (applies edits, protects identity, rolls back an invalid edit, persists,
+  ErrNotFound for unknown id), control-plane round-trip (edit reflected in list + journaled,
+  unknown id → `updated:false`), and the UI form (prefill, posts the full state with the id,
+  Save disabled on empty name, negative assure clamped to 0, error surfaced). Verified live on an
+  isolated daemon (seeded one **test** order — never the owner's real orders): edited name → plan
+  → mode (ask→inform_only) → assure (0→2) in the UI, all four persisted in place (re-`GET
+  /api/standing` + `agt standing list` confirmed, same id, count unchanged), 0 console errors. (M729)
 - **Edit a schedule from the UI.** Creating schedules from the console landed in M715, but
   changing one still meant the CLI. Each schedule row now has an **Edit** (pencil) control that
   opens an inline editor — the same form as create, prefilled with the current intent — letting
