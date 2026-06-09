@@ -14,17 +14,34 @@ import (
 	"github.com/agezt/agezt/kernel/warden"
 )
 
-// fakeWarden captures the Spec it was handed and returns a scripted Result, so
+// fakeWarden captures every Spec it was handed and returns scripted Results, so
 // the tool's argv/env/workdir building and result rendering are testable without
 // actually running an interpreter. Satisfies warden.Engine.
 type fakeWarden struct {
-	last   warden.Spec
-	result warden.Result
+	last    warden.Spec
+	all     []warden.Spec
+	result  warden.Result   // default result
+	results []warden.Result // consumed in order (per call), then falls back to result
+	calls   int
 }
 
 func (f *fakeWarden) Run(_ context.Context, s warden.Spec) (*warden.Result, error) {
 	f.last = s
-	r := f.result
+	f.all = append(f.all, s)
+	// Simulate `pip install --target <dir>` creating its target dir, so the
+	// PYTHONPATH wiring (which keys on the dir existing) is exercised.
+	for i, a := range s.Argv {
+		if a == "--target" && i+1 < len(s.Argv) {
+			_ = os.MkdirAll(s.Argv[i+1], 0o755)
+		}
+	}
+	var r warden.Result
+	if f.calls < len(f.results) {
+		r = f.results[f.calls]
+	} else {
+		r = f.result
+	}
+	f.calls++
 	r.RequestedProfile = s.Profile
 	if r.EffectiveProfile == "" {
 		r.EffectiveProfile = warden.ProfileNone
@@ -198,6 +215,96 @@ func TestRendering_NonZeroAndTimeout(t *testing.T) {
 	out2, isErr2 := run(t, tl2, map[string]any{"language": "node", "code": "while(true){}"})
 	if !isErr2 || !strings.Contains(out2, "timed out") {
 		t.Errorf("timeout render wrong: isErr=%v out=%q", isErr2, out2)
+	}
+}
+
+func TestPackages_InstallThenRunWithPythonpath(t *testing.T) {
+	tl, fw := newTool(t, map[string]string{LangPython: "/usr/bin/python3"}, true)
+	out, isErr := run(t, tl, map[string]any{
+		"language": "python", "code": "import requests", "packages": []any{"requests", "beautifulsoup4"},
+	})
+	if isErr {
+		t.Fatalf("unexpected error: %s", out)
+	}
+	if len(fw.all) != 2 {
+		t.Fatalf("want 2 warden runs (install + program), got %d", len(fw.all))
+	}
+	// First run is the pip install into <dir>/.deps with both packages.
+	inst := strings.Join(fw.all[0].Argv, " ")
+	for _, want := range []string{"/usr/bin/python3", "-m pip install", "--target", ".deps", "requests", "beautifulsoup4"} {
+		if !strings.Contains(inst, want) {
+			t.Errorf("install argv missing %q: %s", want, inst)
+		}
+	}
+	// Second run is the program, with PYTHONPATH pointing at the deps dir.
+	prog := fw.all[1]
+	if prog.Argv[len(prog.Argv)-1] != "main.py" {
+		t.Errorf("second run should be the program: %v", prog.Argv)
+	}
+	if !strings.Contains(strings.Join(prog.Env, "\n"), "PYTHONPATH=") {
+		t.Errorf("program env should carry PYTHONPATH:\n%s", strings.Join(prog.Env, "\n"))
+	}
+}
+
+func TestPackages_RejectedForNonPython(t *testing.T) {
+	tl, fw := newTool(t, map[string]string{LangDeno: "/usr/bin/deno"}, true)
+	out, isErr := run(t, tl, map[string]any{"language": "deno", "code": "x", "packages": []any{"cheerio"}})
+	if !isErr || !strings.Contains(out, "only supported for python") {
+		t.Errorf("packages on deno should be rejected: isErr=%v out=%q", isErr, out)
+	}
+	if len(fw.all) != 0 {
+		t.Errorf("nothing should run when packages are rejected, got %d runs", len(fw.all))
+	}
+}
+
+func TestPackages_InstallFailureShortCircuits(t *testing.T) {
+	tl, fw := newTool(t, map[string]string{LangPython: "/usr/bin/python3"}, true)
+	// First run (install) fails; the program must NOT run.
+	fw.results = []warden.Result{{ExitCode: 1, Stderr: []byte("No matching distribution found for nope")}}
+	out, isErr := run(t, tl, map[string]any{"language": "python", "code": "print(1)", "packages": []any{"nope"}})
+	if !isErr || !strings.Contains(out, "pip install failed") {
+		t.Errorf("install failure should surface: isErr=%v out=%q", isErr, out)
+	}
+	if len(fw.all) != 1 {
+		t.Errorf("program must not run after a failed install; got %d runs", len(fw.all))
+	}
+}
+
+func TestPackages_RejectsFlagInjection(t *testing.T) {
+	tl, fw := newTool(t, map[string]string{LangPython: "/usr/bin/python3"}, true)
+	for _, bad := range []any{"--index-url=http://evil", "-rrequirements.txt", "foo bar"} {
+		out, isErr := run(t, tl, map[string]any{"language": "python", "code": "x", "packages": []any{bad}})
+		if !isErr || !strings.Contains(out, "illegal package") {
+			t.Errorf("package %v should be rejected: isErr=%v out=%q", bad, isErr, out)
+		}
+	}
+	if len(fw.all) != 0 {
+		t.Errorf("a rejected package list must run nothing, got %d", len(fw.all))
+	}
+}
+
+func TestPackages_NetDisabledBlocksInstall(t *testing.T) {
+	tl, _ := newTool(t, map[string]string{LangPython: "/usr/bin/python3"}, false) // NetEnabled=false
+	out, isErr := run(t, tl, map[string]any{"language": "python", "code": "x", "packages": []any{"requests"}})
+	if !isErr || !strings.Contains(out, "network is disabled") {
+		t.Errorf("install with net disabled should error: isErr=%v out=%q", isErr, out)
+	}
+}
+
+func TestProject_DepsPersistAcrossCalls(t *testing.T) {
+	tl, fw := newTool(t, map[string]string{LangPython: "/usr/bin/python3"}, true)
+	// Pre-create the project's .deps (as a prior install would have).
+	depsDir := filepath.Join(tl.SandboxRoot, "projects", "scraper", pyDepsName)
+	if err := os.MkdirAll(depsDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// A later call with NO packages still gets PYTHONPATH for the persisted deps.
+	run(t, tl, map[string]any{"language": "python", "code": "import requests", "project": "scraper"})
+	if len(fw.all) != 1 {
+		t.Fatalf("want 1 run (no install), got %d", len(fw.all))
+	}
+	if !strings.Contains(strings.Join(fw.all[0].Env, "\n"), "PYTHONPATH="+depsDir) {
+		t.Errorf("persisted project deps should be on PYTHONPATH:\n%s", strings.Join(fw.all[0].Env, "\n"))
 	}
 }
 

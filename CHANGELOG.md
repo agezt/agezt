@@ -12,6 +12,20 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **`code_exec` can install Python packages — real scraping & data work.** Pass
+  `packages` (e.g. `["requests","beautifulsoup4"]`) and the tool pip-installs them
+  before running your code, so `import requests` / `pandas` / `bs4` just work. In a
+  **project** the deps install into a persistent `.deps` dir and stay available
+  across calls (a second call needn't reinstall); in an ephemeral run they're
+  discarded with it. Installs run through the same warden isolation (scrubbed env,
+  confined to the work dir, time-bounded) with network, and a failed install
+  short-circuits so code never runs against a half-installed environment. Package
+  names are validated to block pip-flag injection (no leading `-`, no whitespace).
+  Python-only — for Deno/JS, import npm packages inline (`import x from "npm:…"`).
+  Verified live (isolated daemon, real PyPI): installed `six` into a project and
+  imported it (1.17.0); a second call with no packages still imported it (43 ms, no
+  reinstall); and `import requests; requests.get("https://example.com")` returned
+  `RESULT 200 528`. (M691)
 - **The agent can talk back — voice output in the chat.** The other half of the
   voice loop (M689 was the mic): a **speak** toggle in the composer reads each
   completed answer aloud, and every answer has its own **Speak / Stop** button to

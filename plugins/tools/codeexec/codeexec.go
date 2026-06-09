@@ -121,7 +121,8 @@ func (t *Tool) Definition() agent.ToolDef {
 	desc := "Write and run code, then read its output. Languages: " + strings.Join(langs, ", ") +
 		". Each call runs in its own scratch directory; pass a `project` name to keep a " +
 		"persistent directory you can revisit and extend across calls (write more files, re-run). " +
-		"Use `files` to drop extra source files alongside the entrypoint. " + netLine +
+		"Use `files` to drop extra source files alongside the entrypoint, and `packages` to pip-install " +
+		"Python dependencies (they persist in a project). " + netLine +
 		". The daemon's secrets are never visible to your code. Good for computation, scraping, " +
 		"data processing, and building small programs. Returns combined stdout+stderr (truncated to 256 KiB)."
 
@@ -134,6 +135,7 @@ func (t *Tool) Definition() agent.ToolDef {
     "stdin": {"type":"string", "description":"Optional input; written to stdin.txt in the working dir for your code to read."},
     "project": {"type":"string", "description":"Optional persistent project name. Reuse the same name across calls to keep and extend a working directory."},
     "files": {"type":"object", "description":"Optional extra files to write before running, as {\"relative/name\": \"content\"}."},
+    "packages": {"type":"array", "items":{"type":"string"}, "description":"Python only: pip packages to install before running, e.g. [\"requests\",\"beautifulsoup4\"]. In a project they persist across calls. For Deno/JS import npm packages inline instead: import x from \"npm:cheerio\"."},
     "timeout_ms": {"type":"integer", "description":"Per-call timeout in ms (default 120000, max 600000)."},
     "allow_net": {"type":"boolean", "description":"Deno only: grant network (default true). Ignored if the daemon has network disabled."}
   }
@@ -152,6 +154,7 @@ type input struct {
 	Stdin     string            `json:"stdin,omitempty"`
 	Project   string            `json:"project,omitempty"`
 	Files     map[string]string `json:"files,omitempty"`
+	Packages  []string          `json:"packages,omitempty"`
 	TimeoutMS int64             `json:"timeout_ms,omitempty"`
 	AllowNet  *bool             `json:"allow_net,omitempty"`
 }
@@ -213,14 +216,6 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, e
 		_ = os.WriteFile(filepath.Join(dir, "stdin.txt"), []byte(in.Stdin), 0o600)
 	}
 
-	timeout := DefaultTimeout
-	if in.TimeoutMS > 0 {
-		timeout = time.Duration(in.TimeoutMS) * time.Millisecond
-	}
-	if timeout > MaxTimeout {
-		timeout = MaxTimeout
-	}
-
 	profile := t.Profile
 	if profile == "" {
 		profile = warden.ProfileNamespace
@@ -230,11 +225,56 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, e
 		w = warden.New(nil)
 	}
 
+	// Install dependencies before running (Python only). They land in <dir>/.deps,
+	// so a project's installs persist across calls and an ephemeral run's are
+	// discarded with it. A failed install short-circuits — we never run code
+	// against a half-installed environment.
+	depsDir := filepath.Join(dir, pyDepsName)
+	if len(in.Packages) > 0 {
+		if lang != LangPython {
+			return errResult(`packages are only supported for python; for deno/JS, import npm packages inline instead, e.g. import x from "npm:cheerio"`), nil
+		}
+		if !t.NetEnabled {
+			return errResult("cannot install packages: network is disabled on this daemon (AGEZT_SANDBOX_NO_NET=1)"), nil
+		}
+		pkgs, perr := validatePackages(in.Packages)
+		if perr != nil {
+			return errResult(perr.Error()), nil
+		}
+		if len(pkgs) > 0 {
+			ires, ierr := pipInstall(ctx, w, interp, dir, depsDir, pkgs, profile)
+			if ierr != nil {
+				return errResult("pip install failed: " + ierr.Error()), nil
+			}
+			if ires.ExitCode != 0 {
+				return errResult(fmt.Sprintf("pip install failed (exit %d):\n%s", ires.ExitCode, installTail(ires))), nil
+			}
+		}
+	}
+
+	timeout := DefaultTimeout
+	if in.TimeoutMS > 0 {
+		timeout = time.Duration(in.TimeoutMS) * time.Millisecond
+	}
+	if timeout > MaxTimeout {
+		timeout = MaxTimeout
+	}
+
+	// The program's environment: scrubbed, plus PYTHONPATH pointing at any
+	// installed deps (present whenever a project — or this call — installed
+	// packages), so `import requests` resolves.
+	env := scrubEnv(dir)
+	if lang == LangPython {
+		if _, serr := os.Stat(depsDir); serr == nil {
+			env = append(env, "PYTHONPATH="+depsDir)
+		}
+	}
+
 	res, err := w.Run(ctx, warden.Spec{
 		Profile: profile,
 		Argv:    buildArgv(interp, lang, entry, dir, allowNet),
 		WorkDir: dir,
-		Env:     scrubEnv(dir),
+		Env:     env,
 		Limits: warden.Limits{
 			Timeout:           timeout,
 			MaxOutputBytes:    MaxOutputBytes,
