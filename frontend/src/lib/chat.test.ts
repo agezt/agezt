@@ -13,7 +13,7 @@ const arc: ChatFrame[] = [
   { kind: "llm.token", payload: { iter: 0, text: "Turning " } },
   { kind: "llm.token", payload: { iter: 0, text: "it off…" } },
   { kind: "policy.decision", payload: { call_id: "c1", tool: "homeassistant", capability: "homeassistant.call", allow: true } },
-  { kind: "tool.invoked", payload: { call_id: "c1", tool: "homeassistant" } },
+  { kind: "tool.invoked", payload: { call_id: "c1", tool: "homeassistant", input: { entity: "light.living_room", action: "turn_off" } } },
   { kind: "tool.result", payload: { call_id: "c1", tool: "homeassistant", output: "light.turn_off ok", error: false } },
   { kind: "budget.consumed", payload: { model: "demo", cost_microcents: 4200 } },
   { kind: "task.completed", payload: { answer: "Done — the light is off." } },
@@ -41,6 +41,16 @@ describe("foldChatFrame", () => {
     expect(c.allow).toBe(true);
     expect(c.error).toBe(false);
     expect(c.output).toBe("light.turn_off ok");
+    // The tool's arguments (object payload) are folded as stringified JSON.
+    expect(c.input).toBe('{"entity":"light.living_room","action":"turn_off"}');
+  });
+
+  it("keeps a pre-stringified tool input as-is", () => {
+    const t = fold([
+      { kind: "open" },
+      { kind: "tool.invoked", payload: { call_id: "c2", tool: "shell", input: '{"cmd":"ls"}' } },
+    ]);
+    expect(t.tools[0].input).toBe('{"cmd":"ls"}');
   });
 
   it("prefers the authoritative answer over intermediate text once done", () => {
