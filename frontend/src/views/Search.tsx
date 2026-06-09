@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Search as SearchIcon, Loader2 } from "lucide-react";
+import { Search as SearchIcon, Loader2, GitBranch } from "lucide-react";
 import { getJSON } from "@/lib/api";
 import type { AgentEvent } from "@/lib/events";
 import { categoryOf, isErrorKind } from "@/lib/eventmeta";
@@ -114,6 +114,7 @@ export function Search() {
                         <span>{e.correlation_id || "—"}</span>
                       </div>
                       {e.payload != null ? <DataView data={e.payload} /> : <span className="text-[11px] text-muted">no payload</span>}
+                      {e.id && <CausationTrace eventId={e.id} />}
                     </div>
                   )}
                 </li>
@@ -122,6 +123,92 @@ export function Search() {
           </ul>
         )}
       </div>
+    </div>
+  );
+}
+
+interface WhyResult {
+  events?: AgentEvent[];
+  correlation?: string;
+  parent_correlation?: string;
+  causation_chain?: AgentEvent[];
+}
+
+// CausationTrace answers "why did this happen?" for a single journal event (M755).
+// It calls /api/why, which walks the causation_id links from the ROOT CAUSE down to
+// this event — crossing correlation boundaries the journal-search filters can't (e.g.
+// a heartbeat tick → the initiative it spawned → the run that acted). The chain is
+// shown oldest-first (root → this); a sub-agent's parent run is surfaced too. Loaded
+// on demand (one click) so browsing results stays cheap.
+export function CausationTrace({ eventId }: { eventId: string }) {
+  const [data, setData] = useState<WhyResult | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [shown, setShown] = useState(false);
+
+  async function toggle() {
+    if (shown) {
+      setShown(false);
+      return;
+    }
+    setShown(true);
+    if (data || loading) return; // already loaded
+    setLoading(true);
+    try {
+      setData(await getJSON<WhyResult>("/api/why", { event_id: eventId }));
+      setErr(null);
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const chain = data?.causation_chain ?? [];
+
+  return (
+    <div className="mt-2 border-t border-border/40 pt-1.5">
+      <button
+        onClick={toggle}
+        className="inline-flex items-center gap-1 text-[11px] text-accent/80 transition-colors hover:text-accent"
+        title="Trace what caused this event"
+      >
+        <GitBranch className="size-3" /> {shown ? "hide cause" : "trace cause"}
+        {loading && <Loader2 className="size-3 animate-spin" />}
+      </button>
+      {shown && !loading && (
+        <div className="mt-1.5">
+          {err ? (
+            <span className="text-[11px] text-bad">{err}</span>
+          ) : chain.length > 0 ? (
+            <ol className="space-y-0.5">
+              {chain.map((c, i) => {
+                const cat = categoryOf(c.kind);
+                const isLast = i === chain.length - 1;
+                return (
+                  <li key={c.id || i} className="flex items-center gap-2 text-[11px]">
+                    <span className="w-4 shrink-0 text-right tabular-nums text-muted">{i === 0 ? "root" : i + 1}</span>
+                    <span className="size-1.5 shrink-0 rounded-full" style={{ background: cat.color }} />
+                    <span className="shrink-0 font-medium" style={{ color: cat.color }}>
+                      {c.kind}
+                    </span>
+                    <span className="min-w-0 flex-1 truncate text-foreground/70">{c.subject}</span>
+                    {isLast && <span className="shrink-0 text-[9px] uppercase tracking-wider text-accent">this</span>}
+                    <span className="shrink-0 tabular-nums text-muted">{fmtTime(c.ts_unix_ms)}</span>
+                  </li>
+                );
+              })}
+            </ol>
+          ) : (
+            <span className="text-[11px] text-muted">no upstream cause recorded — this event is a root cause</span>
+          )}
+          {data?.parent_correlation && (
+            <div className="mt-1 text-[10px] text-muted">
+              part of a sub-agent run · parent <span className="font-mono text-foreground/70">{data.parent_correlation.slice(-8)}</span>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
