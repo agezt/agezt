@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { RefreshCw, ShieldCheck, Trash2 } from "lucide-react";
+import { RefreshCw, ShieldCheck, Trash2, Plus } from "lucide-react";
 import { Panel, Stats, Row, Count } from "@/components/Panel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -230,6 +230,14 @@ export function Policy() {
               ))}
             </ul>
           )}
+          <DenyAddForm
+            capabilities={levels.map(([cap]) => cap)}
+            onAdded={(rule) => {
+              ui.toast(`Deny rule added — “${rule}” is now blocked`, "success");
+              void reload();
+            }}
+            onError={(m) => ui.toast(m, "error")}
+          />
         </div>
       </div>
 
@@ -278,6 +286,75 @@ export function Policy() {
           );
         }}
       </Panel>
+    </div>
+  );
+}
+
+// DenyAddForm adds a runtime hard-deny rule from the UI (M717) — the safety floor
+// that blocks any tool call whose input contains a substring, optionally scoped to
+// one capability. Adding a rule only tightens policy. It builds the deny-rule spec
+// ("substring" or "<capability>:substring") and posts it to edict_deny_add.
+export function DenyAddForm({
+  capabilities,
+  onAdded,
+  onError,
+}: {
+  capabilities: string[];
+  onAdded: (rule: string) => void;
+  onError: (msg: string) => void;
+}) {
+  const [substring, setSubstring] = useState("");
+  const [scope, setScope] = useState(""); // "" = all capabilities
+  const [submitting, setSubmitting] = useState(false);
+
+  const valid = substring.trim() !== "";
+
+  async function add() {
+    if (!valid) return;
+    const s = substring.trim();
+    const rule = scope ? `${scope}:${s}` : s;
+    setSubmitting(true);
+    try {
+      await postAction("/api/edict/deny_add", { rule });
+      setSubstring("");
+      setScope("");
+      onAdded(rule);
+    } catch (e) {
+      onError((e as Error).message);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-1.5 border-t border-border pt-2">
+      <span className="text-[11px] text-muted">add deny rule</span>
+      <select
+        value={scope}
+        onChange={(e) => setScope(e.target.value)}
+        aria-label="Deny rule capability scope"
+        className="h-7 rounded-md border border-border bg-panel px-1.5 text-xs outline-none focus:border-accent"
+      >
+        <option value="">all capabilities</option>
+        {capabilities.map((c) => (
+          <option key={c} value={c}>
+            {c}
+          </option>
+        ))}
+      </select>
+      <input
+        value={substring}
+        onChange={(e) => setSubstring(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") add();
+        }}
+        placeholder="substring to block (e.g. rm -rf)"
+        aria-label="Deny rule substring"
+        className="h-7 min-w-0 flex-1 rounded-md border border-border bg-panel px-2 font-mono text-xs outline-none focus:border-accent"
+      />
+      <Button size="sm" onClick={add} disabled={!valid || submitting} title="Add deny rule">
+        {submitting ? <RefreshCw className="size-3.5 animate-spin" /> : <Plus className="size-3.5" />} Add
+      </Button>
     </div>
   );
 }
