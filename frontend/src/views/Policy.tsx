@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { RefreshCw, ShieldCheck, Trash2, Plus } from "lucide-react";
+import { RefreshCw, ShieldCheck, Trash2, Plus, FlaskConical } from "lucide-react";
 import { Panel, Stats, Row, Count } from "@/components/Panel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -239,6 +239,9 @@ export function Policy() {
             onError={(m) => ui.toast(m, "error")}
           />
         </div>
+
+        {/* Dry-run a decision (M753) */}
+        {levels.length > 0 && <PolicyTestForm capabilities={levels.map(([cap]) => cap)} />}
       </div>
 
       {/* Decision stats + log (existing read-only view) */}
@@ -355,6 +358,113 @@ export function DenyAddForm({
       <Button size="sm" onClick={add} disabled={!valid || submitting} title="Add deny rule">
         {submitting ? <RefreshCw className="size-3.5 animate-spin" /> : <Plus className="size-3.5" />} Add
       </Button>
+    </div>
+  );
+}
+
+interface EdictDecision {
+  decision?: string; // "allow" | "deny"
+  capability?: string;
+  level?: string; // "L0".."L4"
+  reason?: string;
+  hard_denied?: boolean;
+  hard_deny_rule?: string;
+  would_ask?: boolean;
+  requires_approval?: boolean;
+}
+
+// effectiveOutcome folds the raw decision into the operator-facing verdict: a hard
+// deny, a plain deny, an ask (the call is allowed but would pause for approval), or a
+// clean allow — each with a tone for the badge.
+function effectiveOutcome(d: EdictDecision): { label: string; tone: "bad" | "accent" | "good" } {
+  if (d.hard_denied) return { label: "DENY · hard", tone: "bad" };
+  if (d.decision === "deny" && !d.requires_approval) return { label: "DENY", tone: "bad" };
+  if (d.requires_approval || d.would_ask) return { label: "ASK", tone: "accent" };
+  return { label: "ALLOW", tone: "good" };
+}
+
+// PolicyTestForm dry-runs a policy decision (M753): pick a capability and an optional
+// input, and the edict engine reports whether the agent would be allowed, asked, or
+// denied — and via which hard-deny rule. Read-only (eng.Decide mutates nothing), so
+// it's the safe way to understand "why is this blocked?" or to check a deny rule's
+// effect before/after adding it. Pairs with DenyAddForm above.
+export function PolicyTestForm({ capabilities }: { capabilities: string[] }) {
+  const [capability, setCapability] = useState(capabilities[0] ?? "");
+  const [input, setInput] = useState("");
+  const [result, setResult] = useState<EdictDecision | null>(null);
+  const [running, setRunning] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  // Keep the picker valid if the capability list arrives/changes after mount.
+  useEffect(() => {
+    if (!capability && capabilities[0]) setCapability(capabilities[0]);
+  }, [capabilities, capability]);
+
+  async function run() {
+    if (!capability) return;
+    setRunning(true);
+    try {
+      const d = await getJSON<EdictDecision>("/api/edict/test", { capability, input });
+      setResult(d);
+      setErr(null);
+    } catch (e) {
+      setErr((e as Error).message);
+      setResult(null);
+    } finally {
+      setRunning(false);
+    }
+  }
+
+  const outcome = result ? effectiveOutcome(result) : null;
+
+  return (
+    <div className="mt-3 border-t border-border pt-2">
+      <div className="flex flex-wrap items-center gap-1.5">
+        <span className="inline-flex items-center gap-1 text-[11px] text-muted">
+          <FlaskConical className="size-3 text-accent" /> test a decision
+        </span>
+        <select
+          value={capability}
+          onChange={(e) => setCapability(e.target.value)}
+          aria-label="Test capability"
+          className="h-7 rounded-md border border-border bg-panel px-1.5 font-mono text-xs outline-none focus:border-accent"
+        >
+          {capabilities.map((c) => (
+            <option key={c} value={c}>
+              {c}
+            </option>
+          ))}
+        </select>
+        <input
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") run();
+          }}
+          placeholder="input to probe (e.g. rm -rf /)"
+          aria-label="Test input"
+          className="h-7 min-w-0 flex-1 rounded-md border border-border bg-panel px-2 font-mono text-xs outline-none focus:border-accent"
+        />
+        <Button size="sm" variant="ghost" onClick={run} disabled={!capability || running} title="Dry-run this decision">
+          {running ? <RefreshCw className="size-3.5 animate-spin" /> : <FlaskConical className="size-3.5" />} Test
+        </Button>
+      </div>
+
+      {err && <div className="mt-1.5 text-xs text-bad">{err}</div>}
+      {outcome && result && (
+        <div className="mt-1.5 flex flex-wrap items-center gap-2 rounded-md border border-border/70 bg-panel/40 px-2.5 py-1.5 text-xs">
+          <Badge variant={outcome.tone === "bad" ? "bad" : outcome.tone === "good" ? "good" : "default"}>
+            {outcome.label}
+          </Badge>
+          {result.level && <span className={cn("rounded border px-1.5 py-0.5 text-[10px] font-semibold tabular-nums", levelTone(result.level))}>{result.level}</span>}
+          {result.hard_denied && result.hard_deny_rule && (
+            <span className="text-muted">
+              rule <span className="font-mono text-foreground/80">{result.hard_deny_rule}</span>
+            </span>
+          )}
+          {result.reason && <span className="truncate text-muted">{result.reason}</span>}
+        </div>
+      )}
     </div>
   );
 }

@@ -159,6 +159,10 @@ var readArgsRoutes = map[string]writeRoute{
 	// A standing order's life story (M746): every standing.* journal event for it —
 	// created, paused/resumed, each firing, removed. Read-only provenance.
 	"/api/standing/why": {controlplane.CmdStandingWhy, []string{"id"}},
+	// Dry-run a policy decision (M753): "if the agent asked to do <capability> with
+	// <input>, would the edict engine allow / ask / deny it, and via which rule?".
+	// Read-only — eng.Decide mutates nothing.
+	"/api/edict/test": {controlplane.CmdEdictTest, []string{"capability", "input"}},
 }
 
 // writeRoutes is the operator-action allowlist: the big red button (halt),
