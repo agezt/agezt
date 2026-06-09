@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { CalendarClock, RefreshCw, Play, Pause, Trash2, Bot, Heart, Infinity as InfinityIcon, ShieldCheck, Plus, X } from "lucide-react";
+import { CalendarClock, RefreshCw, Play, Pause, Trash2, Bot, Heart, Infinity as InfinityIcon, ShieldCheck, Plus, X, Pencil } from "lucide-react";
 import { getJSON, postAction, postJSON } from "@/lib/api";
 import { cn, fmtDateTime } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -41,6 +41,7 @@ export function Schedules() {
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   async function reload() {
     setLoading(true);
@@ -188,6 +189,17 @@ export function Schedules() {
                       {s.enabled === false ? <Play className="size-3.5" /> : <Pause className="size-3.5" />}
                     </button>
                     <button
+                      onClick={() => setEditingId((cur) => (cur === s.id ? null : s.id))}
+                      disabled={busy === s.id}
+                      title={editingId === s.id ? "Close editor" : "Edit"}
+                      className={cn(
+                        "transition-colors disabled:opacity-50",
+                        editingId === s.id ? "text-accent" : "text-muted hover:text-accent",
+                      )}
+                    >
+                      <Pencil className="size-3.5" />
+                    </button>
+                    <button
                       onClick={() =>
                         act(s.id, "/api/schedule/remove", undefined, {
                           confirm: {
@@ -219,6 +231,20 @@ export function Schedules() {
                   )}
                   <span className="font-mono opacity-70">{s.id}</span>
                 </div>
+                {editingId === s.id && (
+                  <div className="mt-2">
+                    <NewScheduleForm
+                      editId={s.id}
+                      initialIntent={s.intent}
+                      onCreated={() => {
+                        setEditingId(null);
+                        ui.toast("Schedule updated", "success");
+                        void reload();
+                      }}
+                      onError={(m) => ui.toast(m, "error")}
+                    />
+                  </div>
+                )}
               </li>
             ))}
           </ul>
@@ -228,19 +254,27 @@ export function Schedules() {
   );
 }
 
-// NewScheduleForm creates a scheduled intent from the UI (M715) — recurring or
-// one-shot — so arranging unattended work no longer needs the CLI. It captures the
-// common timings (every N, daily at a time, once at a moment) and posts to the
-// schedule_add command, which picks its branch by which timing arg is present.
+// NewScheduleForm creates OR edits a scheduled intent from the UI (M715 create;
+// M728 edit) — recurring or one-shot — so managing unattended work no longer needs
+// the CLI. It captures the common timings (every N, daily at a time, once at a
+// moment) and posts to schedule_add / schedule_edit, which pick the cadence branch
+// by which timing arg is present. When `editId` is set the form prefills the intent,
+// posts an edit (the id rides along), and the button reads "Save changes".
 export function NewScheduleForm({
   onCreated,
   onError,
+  editId,
+  initialIntent,
 }: {
   onCreated: () => void;
   onError: (msg: string) => void;
+  // When set, the form edits this schedule instead of creating a new one (M728).
+  editId?: string;
+  initialIntent?: string;
 }) {
   type Mode = "interval" | "daily" | "once";
-  const [intent, setIntent] = useState("");
+  const editing = !!editId;
+  const [intent, setIntent] = useState(initialIntent ?? "");
   const [mode, setMode] = useState<Mode>("interval");
   const [everyN, setEveryN] = useState("30");
   const [everyUnit, setEveryUnit] = useState<"minutes" | "hours">("minutes");
@@ -258,6 +292,7 @@ export function NewScheduleForm({
   async function create() {
     if (!valid) return;
     const args: Record<string, unknown> = { intent: intent.trim() };
+    if (editing) args.id = editId;
     if (mode === "interval") {
       args.interval_sec = intervalSec;
     } else if (mode === "daily") {
@@ -271,7 +306,7 @@ export function NewScheduleForm({
     }
     setSubmitting(true);
     try {
-      await postJSON("/api/schedule/add", args);
+      await postJSON(editing ? "/api/schedule/edit" : "/api/schedule/add", args);
       onCreated();
     } catch (e) {
       onError((e as Error).message);
@@ -353,9 +388,15 @@ export function NewScheduleForm({
         </div>
       </div>
 
+      {editing && (
+        <p className="mt-2 text-[10px] text-muted">
+          Editing changes the intent and replaces the cadence with the timing chosen above.
+        </p>
+      )}
       <div className="mt-2 flex items-center justify-end">
         <Button size="sm" onClick={create} disabled={!valid || submitting}>
-          {submitting ? <RefreshCw className="size-3.5 animate-spin" /> : <Plus className="size-3.5" />} Create schedule
+          {submitting ? <RefreshCw className="size-3.5 animate-spin" /> : <Plus className="size-3.5" />}{" "}
+          {editing ? "Save changes" : "Create schedule"}
         </Button>
       </div>
     </div>

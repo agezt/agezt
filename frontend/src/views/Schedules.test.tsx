@@ -71,3 +71,36 @@ describe("NewScheduleForm", () => {
     await waitFor(() => expect(onError).toHaveBeenCalledWith("bad schedule"));
   });
 });
+
+describe("NewScheduleForm (edit mode, M728)", () => {
+  it("prefills the intent and labels the action Save changes", () => {
+    render(<NewScheduleForm editId="sch-7" initialIntent="old intent" onCreated={() => {}} onError={() => {}} />);
+    expect((screen.getByLabelText("Schedule intent") as HTMLTextAreaElement).value).toBe("old intent");
+    // The create label is gone; the edit label is shown.
+    expect(screen.queryByRole("button", { name: /Create schedule/ })).toBeNull();
+    expect(screen.getByRole("button", { name: /Save changes/ })).toBeTruthy();
+  });
+
+  it("posts to schedule/edit with the id and the new intent + cadence", async () => {
+    render(<NewScheduleForm editId="sch-7" initialIntent="old intent" onCreated={() => {}} onError={() => {}} />);
+    fireEvent.change(screen.getByLabelText("Schedule intent"), { target: { value: "new intent" } });
+    fireEvent.click(screen.getByRole("button", { name: "daily at…" }));
+    fireEvent.change(screen.getByLabelText("Daily time"), { target: { value: "06:15" } });
+    fireEvent.click(screen.getByRole("button", { name: /Save changes/ }));
+    await waitFor(() =>
+      expect(postJSON).toHaveBeenCalledWith("/api/schedule/edit", {
+        id: "sch-7",
+        intent: "new intent",
+        at_minutes: 375,
+        days: 0,
+      }),
+    );
+  });
+
+  it("calls onCreated after a successful edit", async () => {
+    const onCreated = vi.fn();
+    render(<NewScheduleForm editId="sch-7" initialIntent="x" onCreated={onCreated} onError={() => {}} />);
+    fireEvent.click(screen.getByRole("button", { name: /Save changes/ }));
+    await waitFor(() => expect(onCreated).toHaveBeenCalled());
+  });
+});
