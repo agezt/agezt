@@ -6,6 +6,7 @@ import (
 	"context"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/plugins/providers/mock"
@@ -14,9 +15,10 @@ import (
 // fakePulse is a stand-in PulseController so the control-plane tests don't
 // need a live engine.
 type fakePulse struct {
-	mu     sync.Mutex
-	paused bool
-	beats  int
+	mu      sync.Mutex
+	paused  bool
+	beats   int
+	cadence time.Duration
 }
 
 func (f *fakePulse) StatusMap() map[string]any {
@@ -27,6 +29,12 @@ func (f *fakePulse) StatusMap() map[string]any {
 func (f *fakePulse) Pause()  { f.mu.Lock(); f.paused = true; f.mu.Unlock() }
 func (f *fakePulse) Resume() { f.mu.Lock(); f.paused = false; f.mu.Unlock() }
 func (f *fakePulse) Beat()   { f.mu.Lock(); f.beats++; f.mu.Unlock() }
+func (f *fakePulse) SetCadence(d time.Duration) time.Duration {
+	f.mu.Lock()
+	f.cadence = d
+	f.mu.Unlock()
+	return d
+}
 
 func TestPulseStatusDisabledWhenNoEngine(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
@@ -75,5 +83,25 @@ func TestPulseStatusPauseResumeWithEngine(t *testing.T) {
 	}
 	if fp.paused {
 		t.Fatal("resume should have resumed the engine")
+	}
+
+	// Beat (M756) reaches the engine.
+	if _, err := c.Call(ctx, controlplane.CmdPulseBeat, nil); err != nil {
+		t.Fatalf("beat: %v", err)
+	}
+	if fp.beats != 1 {
+		t.Fatalf("beat should have triggered one beat, got %d", fp.beats)
+	}
+
+	// SetCadence (M757) reaches the engine with the seconds converted to a duration.
+	res, err = c.Call(ctx, controlplane.CmdPulseCadence, map[string]any{"seconds": 45})
+	if err != nil {
+		t.Fatalf("cadence: %v", err)
+	}
+	if ms, _ := res["cadence_ms"].(float64); ms != 45000 {
+		t.Fatalf("expected cadence_ms 45000, got %v", res["cadence_ms"])
+	}
+	if fp.cadence != 45*time.Second {
+		t.Fatalf("expected engine cadence 45s, got %v", fp.cadence)
 	}
 }

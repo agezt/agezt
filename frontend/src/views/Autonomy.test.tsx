@@ -10,7 +10,7 @@ vi.mock("@/lib/api", () => ({
   postAction: (...a: unknown[]) => postAction(...a),
 }));
 
-import { PulseControl } from "@/views/Autonomy";
+import { PulseControl, cadenceLabel } from "@/views/Autonomy";
 import { UIProvider } from "@/components/ui/feedback";
 
 function withUI(node: ReactNode) {
@@ -31,11 +31,13 @@ describe("PulseControl", () => {
     await waitFor(() => expect(screen.getByText(/Pulse is disabled/)).toBeTruthy());
   });
 
-  it("shows running status with beats + cadence and a Pause button", async () => {
+  it("shows running status with beats + observers, a cadence selector and a Pause button", async () => {
     getJSON.mockResolvedValue({ enabled: true, running: true, paused: false, beats: 12, cadence_ms: 30000, observers: 3 });
     render(withUI(<PulseControl />));
     await waitFor(() => expect(screen.getByText("running")).toBeTruthy());
-    expect(screen.getByText(/12 beats · every 30s · 3 observers/)).toBeTruthy();
+    expect(screen.getByText(/12 beats · 3 observers/)).toBeTruthy();
+    // Cadence moved into a live selector (M757); 30s is a preset → selected.
+    expect((screen.getByLabelText("Heartbeat cadence") as HTMLSelectElement).value).toBe("30");
     expect(screen.getByRole("button", { name: /Pause/ })).toBeTruthy();
   });
 
@@ -72,5 +74,31 @@ describe("PulseControl", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: /Beat now/ })).toBeTruthy());
     fireEvent.click(screen.getByRole("button", { name: /Beat now/ }));
     await waitFor(() => expect(postAction).toHaveBeenCalledWith("/api/pulse/beat", {}));
+  });
+
+  it("changes the cadence live via /api/pulse/cadence (M757)", async () => {
+    getJSON.mockResolvedValue({ enabled: true, paused: false, beats: 4, cadence_ms: 60000 });
+    render(withUI(<PulseControl />));
+    const sel = await screen.findByLabelText("Heartbeat cadence");
+    // Current 60s maps to the "1m" preset being selected.
+    expect((sel as HTMLSelectElement).value).toBe("60");
+    fireEvent.change(sel, { target: { value: "300" } });
+    await waitFor(() => expect(postAction).toHaveBeenCalledWith("/api/pulse/cadence", { seconds: "300" }));
+  });
+
+  it("shows a non-preset cadence as the current option", async () => {
+    getJSON.mockResolvedValue({ enabled: true, paused: false, beats: 0, cadence_ms: 45000 }); // 45s, not a preset
+    render(withUI(<PulseControl />));
+    const sel = (await screen.findByLabelText("Heartbeat cadence")) as HTMLSelectElement;
+    expect(sel.value).toBe(""); // the synthetic "current" option
+    expect(screen.getByText(/45s \(current\)/)).toBeTruthy();
+  });
+});
+
+describe("cadenceLabel (M757)", () => {
+  it("formats seconds as compact intervals", () => {
+    expect(cadenceLabel(10)).toBe("10s");
+    expect(cadenceLabel(300)).toBe("5m");
+    expect(cadenceLabel(3600)).toBe("1h");
   });
 });

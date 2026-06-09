@@ -64,6 +64,11 @@ type Engine struct {
 	// is pending coalesce.
 	beat chan struct{}
 
+	// retune signals the Start loop to reset its ticker after a live cadence change
+	// (M757). It's just a wakeup; the new interval is read from e.cadence under mu, so
+	// the latest value always wins even if several changes coalesce.
+	retune chan struct{}
+
 	mu         sync.Mutex
 	paused     bool
 	ticks      int64
@@ -105,6 +110,7 @@ func New(cfg Config) *Engine {
 		now:         now,
 		digestEvery: digestEvery,
 		beat:        make(chan struct{}, 1),
+		retune:      make(chan struct{}, 1),
 		started:     now(),
 		sal: &Salience{
 			state:      cfg.State,
@@ -152,6 +158,13 @@ func (e *Engine) Start(ctx context.Context) {
 					return
 				}
 				e.tickOnce(ctx)
+			case <-e.retune:
+				// Live cadence change (M757): reset the ticker to the new interval. The
+				// value is read from e.cadence under mu, so the latest SetCadence wins.
+				e.mu.Lock()
+				c := e.cadence
+				e.mu.Unlock()
+				ticker.Reset(c)
 			}
 		}
 	}()
@@ -168,6 +181,34 @@ func (e *Engine) Beat() {
 	case e.beat <- struct{}{}:
 	default: // one already pending — coalesce
 	}
+}
+
+// Cadence bounds for live retuning (M757): fast enough to be responsive, slow
+// enough not to hammer providers; never zero (which would busy-spin the ticker).
+const (
+	minCadence = 5 * time.Second
+	maxCadence = 24 * time.Hour
+)
+
+// SetCadence changes the heartbeat interval live (M757), clamped to [5s, 24h], and
+// returns the applied value. It takes effect on the next beat — the Start loop resets
+// its ticker. Runtime-only: like pause state, it resets to the configured default
+// (AGEZT_PULSE_CADENCE) when the daemon restarts.
+func (e *Engine) SetCadence(d time.Duration) time.Duration {
+	if d < minCadence {
+		d = minCadence
+	}
+	if d > maxCadence {
+		d = maxCadence
+	}
+	e.mu.Lock()
+	e.cadence = d
+	e.mu.Unlock()
+	select {
+	case e.retune <- struct{}{}:
+	default: // a retune is already pending; it'll read the latest e.cadence
+	}
+	return d
 }
 
 // tickOnce executes a single heartbeat: publish the tick, poll observers, and

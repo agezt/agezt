@@ -9,16 +9,21 @@ package controlplane
 // handlers answer "disabled" rather than erroring, so `agt pulse status`
 // is always safe to call.
 
-import "net"
+import (
+	"net"
+	"strconv"
+	"time"
+)
 
 // PulseController is the slice of the Pulse engine the control plane needs.
-// kernel/pulse.Engine satisfies it (StatusMap/Pause/Resume); the daemon
-// injects the live engine so this package never imports kernel/pulse.
+// kernel/pulse.Engine satisfies it (StatusMap/Pause/Resume/Beat/SetCadence); the
+// daemon injects the live engine so this package never imports kernel/pulse.
 type PulseController interface {
 	StatusMap() map[string]any
 	Pause()
 	Resume()
 	Beat()
+	SetCadence(d time.Duration) time.Duration
 }
 
 // SetPulse wires the live engine. Safe to call once after construction,
@@ -63,4 +68,27 @@ func (s *Server) handlePulseBeat(conn net.Conn, req Request) {
 	}
 	s.pulse.Beat()
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"triggered": true}})
+}
+
+// handlePulseCadence changes the heartbeat interval live (M757). seconds may arrive
+// as a number (CLI/JSON) or a string (webui query arg). Returns the applied cadence
+// (clamped by the engine to a sane range).
+func (s *Server) handlePulseCadence(conn net.Conn, req Request) {
+	if s.pulse == nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "pulse is disabled (AGEZT_PULSE=off)"})
+		return
+	}
+	var secs float64
+	switch v := req.Args["seconds"].(type) {
+	case float64:
+		secs = v
+	case string:
+		secs, _ = strconv.ParseFloat(v, 64)
+	}
+	if secs <= 0 {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.seconds must be > 0"})
+		return
+	}
+	applied := s.pulse.SetCadence(time.Duration(secs * float64(time.Second)))
+	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"cadence_ms": applied.Milliseconds()}})
 }
