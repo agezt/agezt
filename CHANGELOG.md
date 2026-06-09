@@ -12,6 +12,18 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Every run's tool calls are now fully inspectable in the Runs view.** A tool-call
+  row in a run's detail used to show only a clipped snippet of the result; it now
+  expands (like the Chat view's tool chips) to reveal the full **Arguments** the
+  tool was called with and its complete **Result/Error**. This matters most for
+  **autonomous runs** — scheduled, standing-order, and board-triggered — which never
+  appear in the Chat view: when a standing order runs `code_exec` or `shell` at 3am
+  you can now see exactly what code/command it ran and what came back, without
+  digging through raw events. The run-detail fold now captures the `tool.invoked`
+  arguments (they were already on the journaled event, just discarded). Verified live
+  (isolated daemon, real DeepSeek): a `code_exec` run's row expanded to show the
+  Python source (`for i in range(1,6): print(...)`) and the squares output, 0 console
+  errors. (M684)
 - **Agents can write and run code in a sandboxed workspace.** A new `code_exec`
   tool lets the agent author a real program — Python, JavaScript/Node, or
   TypeScript/Deno — run it, read the output, and iterate: the "build whatever's
