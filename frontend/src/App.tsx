@@ -33,6 +33,7 @@ import {
   Search,
   ChevronDown,
   FlaskConical,
+  SlidersHorizontal,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -65,6 +66,7 @@ import { Runs } from "@/views/Runs";
 import { Budget } from "@/views/Budget";
 import { FlowStudio } from "@/views/FlowStudio";
 import { Config } from "@/views/Config";
+import { ConfigCenter } from "@/views/ConfigCenter";
 import { Cache } from "@/views/Cache";
 import { Providers } from "@/views/Providers";
 import { Tools } from "@/views/Tools";
@@ -161,6 +163,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { id: "overview", label: "Overview", icon: LayoutDashboard, render: Dashboard },
       { id: "system", label: "System", icon: Settings, render: Status },
+      { id: "configcenter", label: "Config Center", icon: SlidersHorizontal, render: ConfigCenter },
       { id: "config", label: "Config", icon: Settings, render: Config },
       { id: "providers", label: "Providers", icon: Cpu, render: Providers },
       { id: "tools", label: "Tools", icon: Wrench, render: Tools },
