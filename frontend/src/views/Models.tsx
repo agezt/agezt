@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Layers, RefreshCw, DownloadCloud, KeyRound, ChevronRight, Search, Zap, Brain } from "lucide-react";
-import { getJSON, postJSON } from "@/lib/api";
+import { Layers, RefreshCw, DownloadCloud, KeyRound, ChevronRight, Search, Zap, Brain, Plus, Trash2, Check } from "lucide-react";
+import { getJSON, postJSON, postAction } from "@/lib/api";
 import { cn, fmtDateTime } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -42,6 +42,20 @@ interface CatalogResp {
   api_synced_at?: string;
   api_source_url?: string;
   provider_count?: number;
+}
+interface KeyInfo {
+  label: string;
+  active: boolean;
+  last4: string;
+}
+
+// providerKeyEnv picks the provider's API-key env var (the keyring target) from
+// its env list — preferring a *_API_KEY / *_KEY / *_TOKEN name, else the first.
+// Returns null for providers with no credential env (e.g. local Ollama).
+function providerKeyEnv(p: Provider): string | null {
+  const envs = p.env || [];
+  if (!envs.length) return null;
+  return envs.find((e) => /(_API_KEY|_KEY|_TOKEN)$/i.test(e)) || envs[0];
 }
 
 // RFC3339 → millis, treating the Go zero time (year <= 1) as "never".
@@ -177,7 +191,13 @@ export function Models() {
       ) : (
         <div className="space-y-2">
           {filtered.map((p) => (
-            <ProviderCard key={p.id} provider={p} open={!!open[p.id] || !!q} onToggle={() => setOpen((o) => ({ ...o, [p.id]: !o[p.id] }))} />
+            <ProviderCard
+              key={p.id}
+              provider={p}
+              open={!!open[p.id] || !!q}
+              onToggle={() => setOpen((o) => ({ ...o, [p.id]: !o[p.id] }))}
+              onChanged={reload}
+            />
           ))}
         </div>
       )}
@@ -185,8 +205,19 @@ export function Models() {
   );
 }
 
-function ProviderCard({ provider, open, onToggle }: { provider: Provider; open: boolean; onToggle: () => void }) {
+function ProviderCard({
+  provider,
+  open,
+  onToggle,
+  onChanged,
+}: {
+  provider: Provider;
+  open: boolean;
+  onToggle: () => void;
+  onChanged: () => void;
+}) {
   const models = provider.models || [];
+  const keyEnv = providerKeyEnv(provider);
   return (
     <div className="rounded-lg border border-border bg-card">
       <button onClick={onToggle} className="flex w-full items-center gap-2 px-3 py-2.5 text-left">
@@ -206,6 +237,11 @@ function ProviderCard({ provider, open, onToggle }: { provider: Provider; open: 
           {models.length || provider.model_count || 0} model{(models.length || provider.model_count) === 1 ? "" : "s"}
         </span>
       </button>
+      {open && keyEnv && (
+        <div className="border-t border-border/60 p-3">
+          <KeyManager env={keyEnv} onChanged={onChanged} />
+        </div>
+      )}
       {open && models.length > 0 && (
         <div className="border-t border-border/60">
           <table className="w-full text-xs">
@@ -247,6 +283,148 @@ function ProviderCard({ provider, open, onToggle }: { provider: Provider; open: 
           </table>
         </div>
       )}
+    </div>
+  );
+}
+
+// KeyManager lists the keys stored for one provider env var and lets the operator
+// add another, switch the active one, or remove one — "store many, pick active".
+// Values are write-only: existing keys show only a last-4 fingerprint; the add
+// field is a password input. Lazy-loads when its provider card is expanded.
+function KeyManager({ env, onChanged }: { env: string; onChanged: () => void }) {
+  const { toast } = useUI();
+  const [keys, setKeys] = useState<KeyInfo[] | null>(null);
+  const [label, setLabel] = useState("");
+  const [value, setValue] = useState("");
+  const [makeActive, setMakeActive] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  const load = useCallback(async () => {
+    try {
+      const r = await getJSON<{ keys?: KeyInfo[] }>("/api/provider/keys", { env });
+      setKeys(r.keys || []);
+    } catch (e) {
+      toast((e as Error).message, "error");
+      setKeys([]);
+    }
+  }, [env, toast]);
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  async function add() {
+    if (!label.trim() || !value.trim()) return;
+    setBusy(true);
+    try {
+      await postJSON("/api/provider/keys/add", { env, label: label.trim(), value, active: makeActive });
+      toast(`Added key “${label.trim()}”${makeActive ? " (now active)" : ""}`, "success");
+      setLabel("");
+      setValue("");
+      setMakeActive(false);
+      await load();
+      onChanged();
+    } catch (e) {
+      toast((e as Error).message, "error");
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function activate(l: string) {
+    setBusy(true);
+    try {
+      await postAction("/api/provider/keys/activate", { env, label: l });
+      toast(`“${l}” is now the active key`, "success");
+      await load();
+      onChanged();
+    } catch (e) {
+      toast((e as Error).message, "error");
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function remove(l: string) {
+    setBusy(true);
+    try {
+      await postAction("/api/provider/keys/remove", { env, label: l });
+      toast(`Removed key “${l}”`, "success");
+      await load();
+      onChanged();
+    } catch (e) {
+      toast((e as Error).message, "error");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted">
+        <KeyRound className="size-3" /> API keys
+        <code className="rounded bg-panel px-1 font-mono text-[10px] normal-case tracking-normal text-foreground/70">{env}</code>
+      </div>
+
+      {keys === null ? (
+        <p className="text-[11px] text-muted">Loading…</p>
+      ) : keys.length === 0 ? (
+        <p className="text-[11px] text-muted">No keys yet — add one below.</p>
+      ) : (
+        <ul className="space-y-1">
+          {keys.map((k) => (
+            <li key={k.label} className="flex items-center gap-2 rounded-md border border-border/60 bg-panel/40 px-2 py-1 text-xs">
+              {k.active ? (
+                <span className="inline-flex items-center gap-1 rounded bg-good/15 px-1.5 py-0.5 text-[9px] font-medium uppercase text-good" title="Active key">
+                  <Check className="size-2.5" /> active
+                </span>
+              ) : (
+                <button
+                  onClick={() => activate(k.label)}
+                  disabled={busy}
+                  className="rounded border border-border px-1.5 py-0.5 text-[9px] font-medium uppercase text-muted transition-colors hover:text-foreground disabled:opacity-50"
+                  title="Make this the active key"
+                >
+                  activate
+                </button>
+              )}
+              <span className="font-medium text-foreground">{k.label}</span>
+              <span className="font-mono text-[10px] text-muted">{k.last4}</span>
+              <button
+                onClick={() => remove(k.label)}
+                disabled={busy}
+                className="ml-auto text-muted transition-colors hover:text-bad disabled:opacity-50"
+                title="Remove this key"
+              >
+                <Trash2 className="size-3.5" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <div className="flex flex-wrap items-center gap-1.5 pt-1">
+        <Input
+          value={label}
+          onChange={(e) => setLabel(e.target.value)}
+          placeholder="label (e.g. work)"
+          className="h-7 w-28 text-xs"
+          aria-label="New key label"
+        />
+        <Input
+          type="password"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          placeholder="key value"
+          autoComplete="new-password"
+          className="h-7 w-44 font-mono text-xs"
+          aria-label="New key value"
+        />
+        <label className="flex items-center gap-1 text-[10px] text-muted">
+          <input type="checkbox" checked={makeActive} onChange={(e) => setMakeActive(e.target.checked)} className="size-3 accent-accent" />
+          make active
+        </label>
+        <Button size="sm" onClick={add} disabled={busy || !label.trim() || !value.trim()} title="Add key">
+          <Plus className="size-3.5" /> Add
+        </Button>
+      </div>
     </div>
   );
 }

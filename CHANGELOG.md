@@ -12,6 +12,17 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Manage provider API keys from the Models view.** The Models view now lets you
+  add, switch, and remove keys per provider without the CLI: expand a provider and
+  an **API keys** panel lists its keys (label + active marker + last-4 fingerprint —
+  never the value), with an inline form to add another (label + value + "make
+  active") and per-key **activate** / remove. It drives the M700 keyring routes, so
+  switching the active key reloads the provider in place. Also fixes provider env
+  vars that start with a digit (e.g. models.dev's `302AI_API_KEY`), which the
+  keyring validation previously rejected (a 502 when that provider's keys loaded).
+  Verified live (isolated daemon, real models.dev catalog): added a key through the
+  form → it appeared with its fingerprint and the CLI confirmed it landed in the
+  vault; the digit-first provider's keyring now loads cleanly. (M701)
 - **Several API keys per provider — store many, pick the active one.** You can now
   hold more than one key for a provider (e.g. a work and a personal `OPENAI_API_KEY`)
   and switch which is live. Each key is stored encrypted in the vault under
