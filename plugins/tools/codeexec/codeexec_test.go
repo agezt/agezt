@@ -103,6 +103,27 @@ func TestDeno_PermissionFlags_NetOnOff(t *testing.T) {
 	}
 }
 
+func TestPythonCandidates_PrefersRealPythonOnWindows(t *testing.T) {
+	// On Windows, `python` (a real install) must be tried before `python3` (the
+	// Store shim that can trigger the auto-installer and pollute output).
+	if got := pythonCandidates("windows"); len(got) != 2 || got[0] != "python" || got[1] != "python3" {
+		t.Errorf("windows candidates = %v, want [python python3]", got)
+	}
+	// Elsewhere `python3` is canonical and tried first.
+	if got := pythonCandidates("linux"); len(got) != 2 || got[0] != "python3" {
+		t.Errorf("linux candidates = %v, want [python3 python]", got)
+	}
+}
+
+func TestEnv_DisablesPyLauncherAutoInstall(t *testing.T) {
+	t.Setenv("PATH", "/usr/bin")
+	tl, fw := newTool(t, map[string]string{LangPython: "/usr/bin/python3"}, true)
+	run(t, tl, map[string]any{"language": "python", "code": "x"})
+	if !strings.Contains(strings.Join(fw.last.Env, "\n"), "PYLAUNCHER_ALLOW_INSTALL=0") {
+		t.Errorf("env should disable the py-launcher auto-installer:\n%s", strings.Join(fw.last.Env, "\n"))
+	}
+}
+
 func TestEnv_ScrubsSecrets(t *testing.T) {
 	t.Setenv("AGEZT_API_KEY", "super-secret")
 	t.Setenv("DEEPSEEK_API_KEY", "sk-leak")

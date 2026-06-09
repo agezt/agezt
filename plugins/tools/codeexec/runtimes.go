@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 )
@@ -22,7 +23,7 @@ const (
 // interpreter resolves are returned — the tool exposes exactly what can run.
 func DetectRuntimes() map[string]string {
 	out := map[string]string{}
-	if p := lookAny("python3", "python"); p != "" {
+	if p := lookAny(pythonCandidates(runtime.GOOS)...); p != "" {
 		out[LangPython] = p
 	}
 	if p := lookAny("node"); p != "" {
@@ -32,6 +33,20 @@ func DetectRuntimes() map[string]string {
 		out[LangDeno] = p
 	}
 	return out
+}
+
+// pythonCandidates is the interpreter-name preference order for the host OS. On
+// Windows we try `python` (a real install, e.g. C:\PythonXX\python.exe) BEFORE
+// `python3`, because `python3` there is usually the Microsoft Store shim
+// (…\WindowsApps\python3.exe) which can trigger the Store auto-installer mid-run
+// and pollute the program's output with "Installing Python…" chatter. Elsewhere
+// `python3` is the canonical name and `python` may be absent or python2, so we
+// keep the usual order.
+func pythonCandidates(goos string) []string {
+	if goos == "windows" {
+		return []string{"python", "python3"}
+	}
+	return []string{"python3", "python"}
 }
 
 func lookAny(names ...string) string {
@@ -125,7 +140,8 @@ func scrubEnv(dir string) []string {
 		"TMPDIR="+dir,
 		"TEMP="+dir,
 		"TMP="+dir,
-		"PYTHONDONTWRITEBYTECODE=1", // no __pycache__ litter in the work dir
+		"PYTHONDONTWRITEBYTECODE=1",  // no __pycache__ litter in the work dir
+		"PYLAUNCHER_ALLOW_INSTALL=0", // never let the Windows py launcher auto-install Python mid-run
 	)
 	return out
 }
