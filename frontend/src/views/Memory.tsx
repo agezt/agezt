@@ -4,6 +4,7 @@ import { getJSON, postAction } from "@/lib/api";
 import { cn, fmtTime } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Muted, ErrorText } from "@/components/JsonView";
+import { BreakdownBar } from "@/components/Widgets";
 
 interface MemRecord {
   id?: string;
@@ -55,6 +56,13 @@ export function Memory() {
     }
   }
 
+  // byType drives the breakdown bar (over ALL records, not the filtered view).
+  const byType = useMemo(() => {
+    const c: Record<string, number> = {};
+    for (const r of records || []) c[(r.type || "FACT").toUpperCase()] = (c[(r.type || "FACT").toUpperCase()] || 0) + 1;
+    return Object.entries(c).map(([label, count]) => ({ label, count }));
+  }, [records]);
+
   const f = q.trim().toLowerCase();
   const shown = useMemo(() => {
     const list = [...(records || [])].sort((a, b) => (b.created_ms || 0) - (a.created_ms || 0));
@@ -92,7 +100,8 @@ export function Memory() {
       ) : shown.length === 0 ? (
         <Muted>{records.length === 0 ? "no memories yet" : "no memories match"}</Muted>
       ) : (
-        <div className="min-h-0 flex-1 overflow-auto">
+        <div className="min-h-0 flex-1 space-y-2 overflow-auto">
+          {byType.length > 0 && <BreakdownBar segments={byType} />}
           <ul className="grid grid-cols-1 gap-2 lg:grid-cols-2">
             {shown.map((r, i) => (
               <li key={r.id || i} className="rounded-lg border border-border bg-card p-3">
