@@ -908,6 +908,9 @@ const (
 	CmdPulsePause = "pulse_pause"
 	// CmdPulseResume re-enables beats. No args. Returns { paused: false }.
 	CmdPulseResume = "pulse_resume"
+	// CmdPulseBeat triggers one on-demand heartbeat ("think now"). No args.
+	// Fires even when paused. Returns { triggered: true }.
+	CmdPulseBeat = "pulse_beat"
 
 	// CmdInbox returns the Unified Inbox (SPEC-07 §4): channel.inbound /
 	// channel.outbound events folded into conversation threads grouped by

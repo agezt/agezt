@@ -12,6 +12,21 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **"Beat now" — trigger one proactive heartbeat on demand.** The Autonomy view's heartbeat control
+  gains a **Beat now** button: instead of waiting for the cadence (often 60s+), the operator can tell
+  the agent to *think now* — poll its observers, score what changed, and raise an initiative if
+  warranted — immediately. It even fires **while the heartbeat is paused** (an explicit one-off
+  override, distinct from resuming the cadence), so you can keep autonomy off and still ask for a
+  single check-in. The beat runs on the engine's own loop goroutine, **serialized with the cadence
+  ticks so it never races a scheduled beat**; the request is non-blocking (coalesced if one's already
+  pending) and the resulting observations/initiatives surface in the feed asynchronously, like any
+  tick. Full stack: `Engine.Beat()` (a buffered channel the Start loop selects on) → new
+  `CmdPulseBeat` → `/api/pulse/beat`. Tested at every layer — engine (Beat drives a tick with the
+  ticker quiesced; fires even when paused), control-plane (the fake records the call), and the UI
+  (`Beat now` posts `/api/pulse/beat`; present even when paused). Verified live on an isolated daemon
+  with the cadence pinned to 1h (so only the click can beat): clicking **Beat now** took beats 0→1
+  and journaled one `pulse.tick`; after pausing, a second click still fired (beats 1→2, paused stayed
+  true); 0 console errors. (M756)
 - **Trace why an event happened, from Journal search.** Expanding any event in the Journal-search
   results now offers a **trace cause** affordance that walks the event's **causation chain** — the
   `causation_id` links from the **root cause** down to this event, ordered oldest-first. Unlike the

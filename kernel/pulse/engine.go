@@ -58,6 +58,12 @@ type Engine struct {
 
 	digestEvery int
 
+	// beat carries on-demand "think now" requests (M756) into the Start loop, so a
+	// manual beat runs on the same goroutine as the cadence ticks — never racing one.
+	// Buffered (1) so a request is accepted without blocking; extra requests while one
+	// is pending coalesce.
+	beat chan struct{}
+
 	mu         sync.Mutex
 	paused     bool
 	ticks      int64
@@ -98,6 +104,7 @@ func New(cfg Config) *Engine {
 		sink:        sink,
 		now:         now,
 		digestEvery: digestEvery,
+		beat:        make(chan struct{}, 1),
 		started:     now(),
 		sal: &Salience{
 			state:      cfg.State,
@@ -136,9 +143,31 @@ func (e *Engine) Start(ctx context.Context) {
 					continue
 				}
 				e.tickOnce(ctx)
+			case <-e.beat:
+				// On-demand beat (M756): an explicit operator "think now". Runs on this
+				// same goroutine, so it never races a scheduled tick. Fires even when
+				// paused — the operator asked for one beat, distinct from resuming the
+				// cadence — but still stops if the daemon is shutting down.
+				if ctx.Err() != nil {
+					return
+				}
+				e.tickOnce(ctx)
 			}
 		}
 	}()
+}
+
+// Beat requests a single on-demand heartbeat (M756) — the operator's "think now".
+// It's non-blocking: the request is handed to the Start loop, which runs the beat on
+// its own goroutine (serialized with cadence ticks, so no race). The resulting
+// observations/initiatives surface asynchronously, exactly like a scheduled tick.
+// A no-op if a manual beat is already pending (coalesced) or if Start never ran
+// (the control plane reports Pulse as disabled in that case).
+func (e *Engine) Beat() {
+	select {
+	case e.beat <- struct{}{}:
+	default: // one already pending — coalesce
+	}
 }
 
 // tickOnce executes a single heartbeat: publish the tick, poll observers, and

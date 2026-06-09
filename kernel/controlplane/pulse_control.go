@@ -18,6 +18,7 @@ type PulseController interface {
 	StatusMap() map[string]any
 	Pause()
 	Resume()
+	Beat()
 }
 
 // SetPulse wires the live engine. Safe to call once after construction,
@@ -50,4 +51,16 @@ func (s *Server) handlePulseResume(conn net.Conn, req Request) {
 	}
 	s.pulse.Resume()
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"paused": false}})
+}
+
+// handlePulseBeat triggers one on-demand heartbeat (M756) — "think now". Returns as
+// soon as the beat is queued; the observations/initiatives it produces surface in the
+// autonomy feed asynchronously, like a scheduled tick. Fires even when paused.
+func (s *Server) handlePulseBeat(conn net.Conn, req Request) {
+	if s.pulse == nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "pulse is disabled (AGEZT_PULSE=off)"})
+		return
+	}
+	s.pulse.Beat()
+	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"triggered": true}})
 }
