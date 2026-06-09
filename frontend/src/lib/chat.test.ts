@@ -45,6 +45,35 @@ describe("foldChatFrame", () => {
     expect(c.input).toBe('{"entity":"light.living_room","action":"turn_off"}');
   });
 
+  it("records model-chain fallback hops, ignoring provider-level fallbacks", () => {
+    const t = fold([
+      { kind: "open" },
+      { kind: "llm.request", payload: { iter: 0, model: "deepseek-chat" } },
+      // provider→provider fallback: infra noise, must NOT show in chat.
+      { kind: "provider.fallback", payload: { failed: "deepseek", next: "openrouter", reason: "503" } },
+      // model→model fallback: the chain moved to the next model.
+      { kind: "provider.fallback", payload: { scope: "model-chain", failed_model: "deepseek-chat", next_model: "gpt-4o", reason: "503" } },
+      { kind: "done", result: { answer: "ok", model: "gpt-4o", iters: 1, spent_mc: 10 } },
+    ]);
+    expect(t.fallbacks).toEqual([{ from: "deepseek-chat", to: "gpt-4o" }]);
+    expect(t.model).toBe("gpt-4o"); // the model that ultimately answered
+  });
+
+  it("chains multiple model-chain fallback hops in order", () => {
+    const t = fold([
+      { kind: "provider.fallback", payload: { scope: "model-chain", failed_model: "a", next_model: "b" } },
+      { kind: "provider.fallback", payload: { scope: "model-chain", failed_model: "b", next_model: "c" } },
+    ]);
+    expect(t.fallbacks).toEqual([
+      { from: "a", to: "b" },
+      { from: "b", to: "c" },
+    ]);
+  });
+
+  it("leaves fallbacks undefined when none fired", () => {
+    expect(fold(arc).fallbacks).toBeUndefined();
+  });
+
   it("keeps a pre-stringified tool input as-is", () => {
     const t = fold([
       { kind: "open" },

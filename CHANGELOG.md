@@ -12,6 +12,18 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Chat shows when an answer came from a fallback model.** Now that the main chat
+  loop routes through its per-task model chain (M703), an answer can come from a
+  *fallback* model when the primary fails. The chat turn surfaces this inline — a
+  small "fell back · `deepseek-chat → gpt-4o`" note above the answer's meta — so when
+  a different model name appears you know *why*, not just that it changed. Only
+  model→model (model-chain) fallbacks show; provider→provider fallbacks stay infra
+  noise. The run stream already carries the `provider.fallback` event; the chat turn
+  reducer now folds it (chaining consecutive hops into one path) and the bubble
+  renders it. Tests: the fold records model-chain hops and ignores provider ones; the
+  note renders single + multi-hop. Verified live (isolated daemon): a chat run whose
+  stream carries a model-chain fallback renders the answer, the "fell back" note with
+  the hop, and the answering model in the meta — 0 console errors. (M707)
 - **Model-chain fallbacks are now observable.** Configuring a per-task model chain
   (M703/M704) is only half the loop — you also need to *see* it firing. The governor
   already emitted a `governor.fallback` event when a chain advanced primary→fallback
