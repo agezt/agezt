@@ -978,6 +978,11 @@ func runDaemon(stdout, stderr io.Writer) int {
 		srv.SetDiskWatch(func(path string, minPct float64) (string, bool) {
 			return eng.AddObserver(pulse.NewDiskObserver(path, minPct, pulse.DiskUsage)), true
 		})
+		// Runtime command-probe watches (M768): the agent runs the command each beat
+		// (warden-gated, like any shell call) and alerts when its pass/fail flips.
+		srv.SetProbeWatch(func(name string, argv []string) (string, bool) {
+			return eng.AddObserver(pulse.NewProbeObserver(name, argv, ward, k.State())), true
+		})
 		fmt.Fprintf(stdout, "  pulse            : %s\n", pulseDesc)
 	} else {
 		fmt.Fprintf(stdout, "  pulse            : disabled (AGEZT_PULSE=off)\n")

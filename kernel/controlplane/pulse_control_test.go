@@ -158,6 +158,25 @@ func TestPulseStatusPauseResumeWithEngine(t *testing.T) {
 		t.Error("min_pct of 150 should be rejected")
 	}
 
+	// SetProbeWatch + pulse_probe (M768): the command is split into argv and the
+	// wired callback names the observer.
+	var probeArgv []string
+	srv.SetProbeWatch(func(name string, argv []string) (string, bool) { probeArgv = argv; return "probe:" + name, true })
+	pres, err := c.Call(ctx, controlplane.CmdPulseProbe, map[string]any{"name": "ci", "command": "make test"})
+	if err != nil {
+		t.Fatalf("pulse_probe: %v", err)
+	}
+	if obs, _ := pres["observer"].(string); obs != "probe:ci" {
+		t.Fatalf("expected observer probe:ci, got %v", pres["observer"])
+	}
+	if len(probeArgv) != 2 || probeArgv[0] != "make" || probeArgv[1] != "test" {
+		t.Fatalf("command not split into argv: %v", probeArgv)
+	}
+	// Missing command is rejected.
+	if _, err := c.Call(ctx, controlplane.CmdPulseProbe, map[string]any{"name": "ci"}); err == nil {
+		t.Error("probe with no command should be rejected")
+	}
+
 	// Persistence (M760): cadence + dial are written to the config store so they
 	// survive restart (buildPulse reads these env vars, overlaid from the store).
 	store := settings.NewStore(baseDir)

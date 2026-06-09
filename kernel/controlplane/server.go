@@ -68,6 +68,12 @@ type Server struct {
 	// the observer name + ok. Nil when pulse is disabled; the handler reports that.
 	diskWatch func(path string, minPct float64) (string, bool)
 
+	// probeWatch adds a pulse command-probe observer at runtime (M768): the agent
+	// runs the command each beat and alerts on red↔green transitions. Injected by
+	// the daemon via SetProbeWatch (it builds the warden-gated observer). Nil when
+	// pulse is disabled.
+	probeWatch func(name string, argv []string) (string, bool)
+
 	// tenants is the optional multi-tenant registry, injected by the daemon
 	// via SetTenants. Nil unless multi-tenancy is enabled; the tenant handlers
 	// report "disabled" rather than dereferencing it.
@@ -733,6 +739,8 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.handlePulseFlush(conn, req)
 	case CmdPulseWatch:
 		s.handlePulseWatch(conn, req)
+	case CmdPulseProbe:
+		s.handlePulseProbe(conn, req)
 	case CmdInbox:
 		s.handleInbox(conn, req)
 	case CmdSend:

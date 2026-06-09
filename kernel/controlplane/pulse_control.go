@@ -12,6 +12,7 @@ package controlplane
 import (
 	"net"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/agezt/agezt/kernel/settings"
@@ -146,6 +147,33 @@ func (s *Server) handlePulseWatch(conn net.Conn, req Request) {
 		return
 	}
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"added": true, "observer": name}})
+}
+
+// SetProbeWatch wires the runtime command-probe path (M768). The daemon injects a
+// closure that builds a warden-gated probe observer and registers it on the engine.
+func (s *Server) SetProbeWatch(fn func(name string, argv []string) (string, bool)) { s.probeWatch = fn }
+
+// handlePulseProbe adds a command-probe watch to the heartbeat at runtime (M768): the
+// agent runs `command` each beat and alerts when its pass/fail flips (e.g. watch CI or
+// a build). The command runs through the warden, like any agent shell call.
+func (s *Server) handlePulseProbe(conn net.Conn, req Request) {
+	if s.probeWatch == nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "watches are unavailable (pulse is disabled)"})
+		return
+	}
+	name, _ := req.Args["name"].(string)
+	command, _ := req.Args["command"].(string)
+	argv := strings.Fields(command)
+	if name == "" || len(argv) == 0 {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.name and args.command required"})
+		return
+	}
+	obs, ok := s.probeWatch(name, argv)
+	if !ok {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "could not add the probe"})
+		return
+	}
+	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"added": true, "observer": obs}})
 }
 
 // handlePulseDial changes the proactivity dial live (M757/M758): quiet/balanced/chatty.

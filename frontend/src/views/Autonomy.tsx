@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Waves, RefreshCw, CalendarClock, Anchor, ShieldCheck, Sparkles, Radio, MessagesSquare, Play, Pause, Heart, Zap, Eye, Plus } from "lucide-react";
+import { Waves, RefreshCw, CalendarClock, Anchor, ShieldCheck, Sparkles, Radio, MessagesSquare, Play, Pause, Heart, Zap, Eye, Plus, Activity } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { getJSON, postAction } from "@/lib/api";
 import { useUI } from "@/components/ui/feedback";
@@ -188,9 +188,11 @@ export function PulseControl() {
   const [st, setSt] = useState<PulseStatus | null>(null);
   const [busy, setBusy] = useState(false);
   const [beating, setBeating] = useState(false);
-  const [showWatch, setShowWatch] = useState(false);
+  const [watchKind, setWatchKind] = useState<"" | "disk" | "probe">("");
   const [watchPath, setWatchPath] = useState("");
   const [watchPct, setWatchPct] = useState("10");
+  const [probeName, setProbeName] = useState("");
+  const [probeCmd, setProbeCmd] = useState("");
 
   async function load() {
     try {
@@ -279,7 +281,23 @@ export function PulseControl() {
       const r = await postAction<{ observer?: string }>("/api/pulse/watch", { path: watchPath.trim(), min_pct: watchPct });
       ui.toast(`Now watching ${r?.observer || watchPath.trim()} — alerts under ${watchPct}% free`, "success");
       setWatchPath("");
-      setShowWatch(false);
+      setWatchKind("");
+      await load();
+    } catch (e) {
+      ui.toast((e as Error).message, "error");
+    }
+  }
+
+  // Add a command-probe watch (M768): the agent runs the command each beat and alerts
+  // when its pass/fail flips — e.g. watch CI or a build.
+  async function addProbe() {
+    if (!probeName.trim() || !probeCmd.trim()) return;
+    try {
+      const r = await postAction<{ observer?: string }>("/api/pulse/probe", { name: probeName.trim(), command: probeCmd.trim() });
+      ui.toast(`Now watching ${r?.observer || probeName.trim()} — alerts when it flips`, "success");
+      setProbeName("");
+      setProbeCmd("");
+      setWatchKind("");
       await load();
     } catch (e) {
       ui.toast((e as Error).message, "error");
@@ -361,16 +379,24 @@ export function PulseControl() {
       </Button>
       </div>
 
-      {/* Add a disk watch (M767) */}
+      {/* Add a watch — disk (M767) or command-probe (M768) */}
       <div className="flex flex-wrap items-center gap-1.5 border-t border-border/60 pt-2 text-[11px] text-muted">
+        <span className="text-muted">watch:</span>
         <button
-          onClick={() => setShowWatch((v) => !v)}
-          className="inline-flex items-center gap-1 text-accent/80 transition-colors hover:text-accent"
+          onClick={() => setWatchKind((v) => (v === "disk" ? "" : "disk"))}
+          className={cn("inline-flex items-center gap-1 transition-colors", watchKind === "disk" ? "text-accent" : "text-accent/80 hover:text-accent")}
           title="Have the agent watch a disk and alert when it's low on space"
         >
-          <Eye className="size-3" /> {showWatch ? "cancel" : "watch a disk"}
+          <Eye className="size-3" /> a disk
         </button>
-        {showWatch && (
+        <button
+          onClick={() => setWatchKind((v) => (v === "probe" ? "" : "probe"))}
+          className={cn("inline-flex items-center gap-1 transition-colors", watchKind === "probe" ? "text-accent" : "text-accent/80 hover:text-accent")}
+          title="Have the agent run a command each beat and alert when its pass/fail flips (e.g. CI, a build)"
+        >
+          <Activity className="size-3" /> a command
+        </button>
+        {watchKind === "disk" && (
           <>
             <input
               value={watchPath}
@@ -378,9 +404,9 @@ export function PulseControl() {
               onKeyDown={(e) => { if (e.key === "Enter") addWatch(); }}
               placeholder="path (e.g. / or C:\\)"
               aria-label="Watch disk path"
-              className="h-7 w-40 rounded-md border border-border bg-panel px-2 font-mono text-xs text-foreground outline-none focus-visible:border-accent"
+              className="h-7 w-36 rounded-md border border-border bg-panel px-2 font-mono text-xs text-foreground outline-none focus-visible:border-accent"
             />
-            <span>alert under</span>
+            <span>under</span>
             <input
               type="number"
               min={1}
@@ -388,10 +414,32 @@ export function PulseControl() {
               value={watchPct}
               onChange={(e) => setWatchPct(e.target.value)}
               aria-label="Watch min percent free"
-              className="h-7 w-16 rounded-md border border-border bg-panel px-2 text-xs text-foreground outline-none focus-visible:border-accent"
+              className="h-7 w-14 rounded-md border border-border bg-panel px-2 text-xs text-foreground outline-none focus-visible:border-accent"
             />
             <span>% free</span>
             <Button size="sm" onClick={addWatch} disabled={!watchPath.trim()}>
+              <Plus className="size-3.5" /> Watch
+            </Button>
+          </>
+        )}
+        {watchKind === "probe" && (
+          <>
+            <input
+              value={probeName}
+              onChange={(e) => setProbeName(e.target.value)}
+              placeholder="name (e.g. ci)"
+              aria-label="Probe name"
+              className="h-7 w-24 rounded-md border border-border bg-panel px-2 text-xs text-foreground outline-none focus-visible:border-accent"
+            />
+            <input
+              value={probeCmd}
+              onChange={(e) => setProbeCmd(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") addProbe(); }}
+              placeholder="command (e.g. make test)"
+              aria-label="Probe command"
+              className="h-7 w-44 rounded-md border border-border bg-panel px-2 font-mono text-xs text-foreground outline-none focus-visible:border-accent"
+            />
+            <Button size="sm" onClick={addProbe} disabled={!probeName.trim() || !probeCmd.trim()}>
               <Plus className="size-3.5" /> Watch
             </Button>
           </>
