@@ -631,6 +631,14 @@ const (
 	// Returns: { id, created (bool), type, subject }
 	CmdMemoryAdd = "memory_add"
 
+	// CmdMemorySupersede revises a record (M731): stores a new record and links
+	// the old one's superseded_by to it (soft update — history retained, recall
+	// uses the new one). The model-correct "edit" for a content-addressed store.
+	// Args: old_id (required) + the new record fields (content required, subject/
+	// type/confidence/tags optional, as CmdMemoryAdd).
+	// Returns: { new_id, old_id, superseded (bool), type, subject }
+	CmdMemorySupersede = "memory_supersede"
+
 	// CmdMemoryList returns active (non-tombstoned, non-superseded)
 	// records, newest activity first. No args.
 	// Returns: { records: [...], count }

@@ -56,6 +56,59 @@ func (s *Server) handleMemoryAdd(conn net.Conn, req Request) {
 	})
 }
 
+// handleMemorySupersede revises a record (M731): stores a new one and links the
+// old record's superseded_by to it (soft update — the old record is retained, recall
+// uses the new one). Memory is content-addressed so an in-place edit is impossible;
+// supersession is the model-correct "edit". Reviving to identical content is a no-op
+// (the new id equals the old) and reported as superseded:false.
+func (s *Server) handleMemorySupersede(conn net.Conn, req Request) {
+	oldID, _ := req.Args["old_id"].(string)
+	if oldID == "" {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.old_id required"})
+		return
+	}
+	content, _ := req.Args["content"].(string)
+	if content == "" {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.content required"})
+		return
+	}
+	subject, _ := req.Args["subject"].(string)
+	typ, _ := req.Args["type"].(string)
+	conf, _ := req.Args["confidence"].(float64)
+
+	tags := map[string]string{"source": "operator"}
+	if raw, ok := req.Args["tags"].(map[string]any); ok {
+		for k, v := range raw {
+			if sv, ok := v.(string); ok {
+				tags[k] = sv
+			}
+		}
+	}
+
+	rec, err := s.k.Memory().Supersede("", oldID, memory.RememberSpec{
+		Type:       memory.Type(typ),
+		Subject:    subject,
+		Content:    content,
+		Tags:       tags,
+		Confidence: conf,
+	})
+	if err != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		return
+	}
+	s.writeResp(conn, Response{
+		ID:   req.ID,
+		Type: RespResult,
+		Result: map[string]any{
+			"new_id":     rec.ID,
+			"old_id":     oldID,
+			"superseded": rec.ID != oldID,
+			"type":       string(rec.Type),
+			"subject":    rec.Subject,
+		},
+	})
+}
+
 func (s *Server) handleMemoryList(conn net.Conn, req Request) {
 	recs, err := s.k.Memory().Active()
 	if err != nil {

@@ -11,7 +11,7 @@ vi.mock("@/lib/api", () => ({
   postAction: (...a: unknown[]) => postAction(...a),
 }));
 
-import { TeachFactForm } from "@/views/Memory";
+import { TeachFactForm, ReviseFactForm } from "@/views/Memory";
 
 afterEach(cleanup);
 beforeEach(() => {
@@ -56,5 +56,53 @@ describe("TeachFactForm", () => {
     fireEvent.change(screen.getByLabelText("Memory content"), { target: { value: "x" } });
     fireEvent.click(screen.getByRole("button", { name: /Remember it/ }));
     await waitFor(() => expect(onError).toHaveBeenCalledWith("nope"));
+  });
+});
+
+describe("ReviseFactForm (M731)", () => {
+  const record = {
+    id: "mem-9",
+    type: "preference",
+    subject: "Owner tz",
+    content: "Owner is in UTC",
+    confidence: 0.9,
+  };
+
+  it("prefills subject, content and type (upper-cased) from the record", () => {
+    render(<ReviseFactForm record={record} onRevised={() => {}} onError={() => {}} />);
+    expect((screen.getByLabelText("Revise memory subject") as HTMLInputElement).value).toBe("Owner tz");
+    expect((screen.getByLabelText("Revise memory content") as HTMLTextAreaElement).value).toBe("Owner is in UTC");
+    expect((screen.getByLabelText("Revise memory type") as HTMLSelectElement).value).toBe("PREFERENCE");
+  });
+
+  it("posts memory/supersede with old_id, trimmed content, and the carried confidence", async () => {
+    const onRevised = vi.fn();
+    render(<ReviseFactForm record={record} onRevised={onRevised} onError={() => {}} />);
+    fireEvent.change(screen.getByLabelText("Revise memory content"), { target: { value: "  Owner is in Istanbul, UTC+3  " } });
+    fireEvent.click(screen.getByRole("button", { name: /Save revision/ }));
+    await waitFor(() =>
+      expect(postJSON).toHaveBeenCalledWith("/api/memory/supersede", {
+        old_id: "mem-9",
+        content: "Owner is in Istanbul, UTC+3",
+        subject: "Owner tz",
+        type: "PREFERENCE",
+        confidence: 0.9,
+      }),
+    );
+    await waitFor(() => expect(onRevised).toHaveBeenCalled());
+  });
+
+  it("disables Save when content is cleared", () => {
+    render(<ReviseFactForm record={record} onRevised={() => {}} onError={() => {}} />);
+    fireEvent.change(screen.getByLabelText("Revise memory content"), { target: { value: "   " } });
+    expect((screen.getByRole("button", { name: /Save revision/ }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("surfaces a revise error", async () => {
+    postJSON.mockRejectedValueOnce(new Error("boom"));
+    const onError = vi.fn();
+    render(<ReviseFactForm record={record} onRevised={() => {}} onError={onError} />);
+    fireEvent.click(screen.getByRole("button", { name: /Save revision/ }));
+    await waitFor(() => expect(onError).toHaveBeenCalledWith("boom"));
   });
 });
