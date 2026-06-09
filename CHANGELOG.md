@@ -12,6 +12,21 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Export & re-import standing orders (autonomy backup / bulk seed).** The Standing-orders view
+  gains **Export** (downloads `agezt-standing.json` — `{version:1, standing:[…]}`) and **Import**
+  (reads such a file and re-adds each order). Import normalises flexibly — a bare array, a
+  `{standing:[…]}`, or a `{orders:[…]}` wrapper — keeps only entries the daemon will accept (a name
+  + at least one trigger), and strips kernel-assigned identity/lifecycle fields (`id`, `enabled`,
+  `created_ms`, `updated_ms`) so each re-add mints a fresh order. Import is additive (re-importing
+  onto a daemon that already has the orders duplicates them — hence an explicit action, not auto),
+  posts each order to the existing `/api/standing/add`, and reports `added/total` so a partial
+  failure is visible. This makes the agent's autonomous standing orders portable: back them up,
+  move them between machines, or bulk-seed a fresh daemon from a curated file. `parseStandingJSON`
+  is unit-tested (every wrapper shape; strips kernel fields; drops nameless/triggerless entries;
+  throws on bad JSON / a non-array / nothing valid). Verified live on a fresh isolated daemon
+  (0 standing orders to start): importing a 2-order file created exactly `RESTORED-briefing`
+  (cron, initiative `ask`) and `RESTORED-watch` (event-triggered) with fresh ids; 0 console errors.
+  (M748)
 - **Send a message through a channel from the console.** The Inbox view gains a **Send message**
   composer — pick a channel (Telegram/Slack/Discord/webhook/…), a recipient, and text — and each
   channel thread gets a **reply** shortcut that prefills the composer with that thread's channel +
