@@ -23,6 +23,7 @@ import {
   Volume2,
   VolumeX,
   CornerDownRight,
+  Pencil,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { money } from "@/lib/format";
@@ -48,7 +49,7 @@ import type { Msg } from "@/lib/conversations";
 // cost. The engine (store, streaming, model) lives in ChatProvider so a run keeps
 // going when you leave the view; this component is the full-screen UI over it.
 export function Chat() {
-  const { store, messages, busy, model, setModel, activeModel, send, retry, stop, newChat, selectConversation, removeConversation } =
+  const { store, messages, busy, model, setModel, activeModel, send, retry, editAndResend, stop, newChat, selectConversation, removeConversation } =
     useChat();
   const [input, setInput] = useState("");
   // pinned = the thread is stuck to the bottom (auto-scrolls on new content).
@@ -246,6 +247,7 @@ export function Chat() {
                         msg={m}
                         onRetry={canRetry ? retry : undefined}
                         onRegenerate={canRegenerate ? retry : undefined}
+                        onEdit={!busy && m.role === "user" ? (text) => editAndResend(i, text) : undefined}
                       />
                     </div>
                   );
@@ -378,16 +380,94 @@ function MessageRow({
   msg,
   onRetry,
   onRegenerate,
+  onEdit,
 }: {
   msg: Msg;
   onRetry?: () => void;
   onRegenerate?: () => void;
+  onEdit?: (text: string) => void;
 }) {
   if (msg.role === "user") {
+    return <UserBubble text={msg.text} onEdit={onEdit} />;
+  }
+  return <AssistantBubble turn={msg.turn} onRetry={onRetry} onRegenerate={onRegenerate} />;
+}
+
+// UserBubble renders one user message, with an inline edit affordance: a pencil
+// (shown on hover) switches the bubble to a textarea so you can refine the ask
+// and re-run from that point — Enter / Save submits, Esc / Cancel restores. The
+// edit handler is absent while a run is in flight, so the pencil simply hides.
+export function UserBubble({ text, onEdit }: { text: string; onEdit?: (text: string) => void }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(text);
+  const ref = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (editing) {
+      const el = ref.current;
+      if (el) {
+        el.focus();
+        el.setSelectionRange(el.value.length, el.value.length);
+        el.style.height = "auto";
+        el.style.height = `${el.scrollHeight}px`;
+      }
+    }
+  }, [editing]);
+
+  function begin() {
+    setDraft(text);
+    setEditing(true);
+  }
+  function cancel() {
+    setEditing(false);
+    setDraft(text);
+  }
+  function save() {
+    const t = draft.trim();
+    if (!t || !onEdit) return cancel();
+    setEditing(false);
+    if (t !== text) onEdit(t);
+  }
+  function onKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      save();
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      cancel();
+    }
+  }
+
+  if (editing) {
     return (
       <div className="flex justify-end gap-2">
-        <div className="max-w-[85%] rounded-2xl rounded-br-sm bg-accent/15 px-3.5 py-2 text-sm text-foreground whitespace-pre-wrap break-words">
-          {msg.text}
+        <div className="w-full max-w-[85%] rounded-2xl rounded-br-sm border border-accent/40 bg-accent/10 p-2">
+          <textarea
+            ref={ref}
+            value={draft}
+            onChange={(e) => {
+              setDraft(e.target.value);
+              e.target.style.height = "auto";
+              e.target.style.height = `${e.target.scrollHeight}px`;
+            }}
+            onKeyDown={onKeyDown}
+            aria-label="Edit message"
+            className="max-h-60 w-full resize-none bg-transparent text-sm text-foreground outline-none"
+          />
+          <div className="mt-1.5 flex items-center justify-end gap-1.5">
+            <button
+              onClick={cancel}
+              className="rounded-md px-2 py-1 text-xs text-muted transition-colors hover:text-foreground"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={save}
+              className="rounded-md bg-accent px-2 py-1 text-xs font-medium text-white transition-opacity hover:opacity-90"
+            >
+              Save & run
+            </button>
+          </div>
         </div>
         <div className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full bg-panel text-muted">
           <User className="size-4" />
@@ -395,7 +475,26 @@ function MessageRow({
       </div>
     );
   }
-  return <AssistantBubble turn={msg.turn} onRetry={onRetry} onRegenerate={onRegenerate} />;
+
+  return (
+    <div className="group flex items-start justify-end gap-2">
+      {onEdit && (
+        <button
+          onClick={begin}
+          title="Edit & re-run"
+          className="mt-1 shrink-0 self-center text-muted opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100"
+        >
+          <Pencil className="size-3.5" />
+        </button>
+      )}
+      <div className="max-w-[85%] rounded-2xl rounded-br-sm bg-accent/15 px-3.5 py-2 text-sm text-foreground whitespace-pre-wrap break-words">
+        {text}
+      </div>
+      <div className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full bg-panel text-muted">
+        <User className="size-4" />
+      </div>
+    </div>
+  );
 }
 
 function AssistantBubble({

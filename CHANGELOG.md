@@ -12,6 +12,17 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Edit a chat message and re-run from there.** Hovering a user message in the Chat
+  reveals a pencil; clicking it turns the bubble into an inline editor (Enter / "Save &
+  run" to submit, Esc / Cancel to restore). Submitting rewrites that message, **drops
+  every later turn** (the old answer and any following exchange no longer apply), and
+  streams a fresh answer using only the history that preceded it — the "fix the ask
+  without retyping the rest" affordance. An unchanged edit is a no-op; the pencil hides
+  while a run is in flight. Engine: `editAndResend(index, text)` reuses the same history
+  fold as send/retry. Tests cover the bubble's edit/submit/cancel/unchanged paths.
+  Verified live (isolated daemon): editing the first of two messages truncated the later
+  turn and re-ran from the edit — 2 user bubbles → 1, the edited text shown, the dropped
+  message gone, 0 console errors. (M709)
 - **Regenerate a chat answer.** Completed assistant answers now have a **Regenerate**
   action (next to Copy / Speak) that re-runs the same intent and replaces the answer —
   the staple chat affordance that was previously only available as "Retry" after a
