@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Search as SearchIcon, Loader2, GitBranch } from "lucide-react";
+import { Search as SearchIcon, Loader2, GitBranch, ShieldCheck, ShieldAlert, ShieldQuestion } from "lucide-react";
 import { getJSON } from "@/lib/api";
 import type { AgentEvent } from "@/lib/events";
 import { categoryOf, isErrorKind } from "@/lib/eventmeta";
@@ -46,9 +46,12 @@ export function Search() {
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3">
-      <h2 className="flex items-center gap-2 text-sm font-semibold">
-        <SearchIcon className="size-4 text-accent" /> Journal search
-      </h2>
+      <div className="flex items-center gap-2">
+        <h2 className="flex items-center gap-2 text-sm font-semibold">
+          <SearchIcon className="size-4 text-accent" /> Journal search
+        </h2>
+        <JournalIntegrity />
+      </div>
 
       {/* Filters */}
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
@@ -124,6 +127,54 @@ export function Search() {
         )}
       </div>
     </div>
+  );
+}
+
+// JournalIntegrity verifies the journal's tamper-evident hash chain on demand (M759).
+// The journal is the daemon's append-only source of truth (SPEC-08 §4.2); each entry
+// is hash-linked to the previous, so any edit/deletion breaks the chain. One click
+// walks it server-side (CmdJournalVerify) and reports intact (✓) or, if a link is
+// broken, the failure — the audit guarantee made visible and checkable.
+export function JournalIntegrity() {
+  const [state, setState] = useState<"idle" | "checking" | "ok" | "bad">("idle");
+  const [msg, setMsg] = useState("");
+
+  async function verify() {
+    setState("checking");
+    setMsg("");
+    try {
+      await getJSON("/api/journal/verify");
+      setState("ok");
+    } catch (e) {
+      setState("bad");
+      setMsg((e as Error).message);
+    }
+  }
+
+  const cls =
+    state === "ok"
+      ? "border-good/40 text-good"
+      : state === "bad"
+        ? "border-bad/40 text-bad"
+        : "border-border text-muted hover:text-foreground";
+  return (
+    <button
+      onClick={verify}
+      disabled={state === "checking"}
+      title={state === "bad" ? msg : "Verify the journal's tamper-evident hash chain"}
+      className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] transition-colors disabled:opacity-60 ${cls}`}
+    >
+      {state === "checking" ? (
+        <Loader2 className="size-3 animate-spin" />
+      ) : state === "ok" ? (
+        <ShieldCheck className="size-3" />
+      ) : state === "bad" ? (
+        <ShieldAlert className="size-3" />
+      ) : (
+        <ShieldQuestion className="size-3" />
+      )}
+      {state === "ok" ? "chain intact" : state === "bad" ? "chain broken" : state === "checking" ? "verifying…" : "verify integrity"}
+    </button>
   );
 }
 

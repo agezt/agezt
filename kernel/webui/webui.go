@@ -125,6 +125,9 @@ var apiRoutes = map[string]string{
 	"/api/prompts": controlplane.CmdPromptsGet,
 	// Pulse — the proactive heartbeat status (running/paused/beats/cadence) (M743).
 	"/api/pulse": controlplane.CmdPulseStatus,
+	// Journal integrity (M759): verify the tamper-evident hash chain. Returns
+	// { ok: true } when intact, or errors describing the break. Read-only.
+	"/api/journal/verify": controlplane.CmdJournalVerify,
 }
 
 // writeRoute is a mutating control-plane command exposed over POST. args lists

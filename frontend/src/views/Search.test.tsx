@@ -5,10 +5,29 @@ import { render, screen, cleanup, fireEvent, waitFor } from "@testing-library/re
 const getJSON = vi.fn();
 vi.mock("@/lib/api", () => ({ getJSON: (...a: unknown[]) => getJSON(...a) }));
 
-import { CausationTrace } from "@/views/Search";
+import { CausationTrace, JournalIntegrity } from "@/views/Search";
 
 afterEach(cleanup);
 beforeEach(() => getJSON.mockReset());
+
+describe("JournalIntegrity (M759)", () => {
+  it("reports an intact chain after a successful verify", async () => {
+    getJSON.mockResolvedValue({ ok: true });
+    render(<JournalIntegrity />);
+    expect(screen.getByRole("button", { name: /verify integrity/ })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /verify integrity/ }));
+    await waitFor(() => expect(getJSON).toHaveBeenCalledWith("/api/journal/verify"));
+    await waitFor(() => expect(screen.getByText("chain intact")).toBeTruthy());
+  });
+
+  it("reports a broken chain (and surfaces the error in the title) on failure", async () => {
+    getJSON.mockRejectedValueOnce(new Error("hash mismatch at seq 42"));
+    render(<JournalIntegrity />);
+    fireEvent.click(screen.getByRole("button", { name: /verify integrity/ }));
+    await waitFor(() => expect(screen.getByText("chain broken")).toBeTruthy());
+    expect(screen.getByRole("button").getAttribute("title")).toBe("hash mismatch at seq 42");
+  });
+});
 
 describe("CausationTrace (M755)", () => {
   it("loads /api/why on demand and renders the causal chain root→this", async () => {

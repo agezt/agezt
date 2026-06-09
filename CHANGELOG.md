@@ -12,6 +12,18 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Verify the journal's tamper-evident hash chain from the console.** The Journal-search view gains a
+  **verify integrity** button: one click walks the append-only journal server-side and confirms its
+  hash chain is intact — or, if any entry was edited or deleted, reports the break. The journal is the
+  daemon's source of truth (SPEC-08 §4.2): every entry is hash-linked to the previous, so this makes
+  that audit guarantee *visible and checkable* — the button turns green ("chain intact") on success
+  and red ("chain broken", with the failure in its tooltip) if the chain is compromised. New
+  read-only route `/api/journal/verify` → existing `CmdJournalVerify`; added to the `TestAPIReadOnly`
+  allowlist so the GET-is-read-only invariant still holds. `JournalIntegrity` is unit-tested (intact
+  after a successful verify; broken state surfacing the error). Verified live on an isolated daemon:
+  clicking **verify integrity** validated the running daemon's real journal and showed **chain
+  intact**; 0 console errors. From the unexposed-command survey (`agt journal verify` was CLI-only).
+  (M759)
 - **Tune the proactivity dial live — how chatty the agent is.** The Autonomy view's heartbeat control
   gains a dial selector — **quiet** (only alerts/actions reach you), **balanced** (notifications and
   up), **chatty** (digests surface too) — that changes how much the agent surfaces from its
