@@ -18,9 +18,10 @@ import (
 )
 
 // providerEnvPattern constrains a keyring target to a provider-style env var
-// (UPPER_SNAKE). The AGEZT_ namespace is the Config Center's; provider creds live
-// outside it (OPENAI_API_KEY, ANTHROPIC_API_KEY, …), so reject AGEZT_ here.
-var providerEnvPattern = regexp.MustCompile(`^[A-Z][A-Z0-9_]*$`)
+// (UPPER_SNAKE, may start with a digit — models.dev has e.g. 302AI_API_KEY). The
+// AGEZT_ namespace is the Config Center's; provider creds live outside it
+// (OPENAI_API_KEY, ANTHROPIC_API_KEY, …), so reject AGEZT_ here.
+var providerEnvPattern = regexp.MustCompile(`^[A-Z0-9][A-Z0-9_]*$`)
 
 // keyEnv validates and returns the env-var name from req.Args["env"].
 func keyEnv(req Request) (string, bool) {

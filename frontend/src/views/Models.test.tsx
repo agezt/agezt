@@ -5,9 +5,11 @@ import type { ReactNode } from "react";
 
 const getJSON = vi.fn();
 const postJSON = vi.fn();
+const postAction = vi.fn();
 vi.mock("@/lib/api", () => ({
   getJSON: (...a: unknown[]) => getJSON(...a),
   postJSON: (...a: unknown[]) => postJSON(...a),
+  postAction: (...a: unknown[]) => postAction(...a),
 }));
 
 import { Models } from "@/views/Models";
@@ -43,6 +45,7 @@ afterEach(cleanup);
 beforeEach(() => {
   getJSON.mockReset();
   postJSON.mockReset();
+  postAction.mockReset();
   getJSON.mockResolvedValue(CATALOG);
 });
 
@@ -87,5 +90,86 @@ describe("Models view", () => {
     getJSON.mockResolvedValue({ ...CATALOG, api_synced_at: "0001-01-01T00:00:00Z" });
     render(withUI(<Models />));
     await waitFor(() => expect(screen.getByText(/Never synced/)).toBeTruthy());
+  });
+});
+
+describe("Models key management", () => {
+  const KEYED = {
+    ...CATALOG,
+    providers: [
+      {
+        id: "openai",
+        name: "OpenAI",
+        credentialed: true,
+        env: ["OPENAI_API_KEY"],
+        model_count: 1,
+        models: [{ id: "gpt-4o", context: 128000 }],
+      },
+    ],
+  };
+
+  function mockWithKeys(keys: any[]) {
+    getJSON.mockImplementation((path: string) => {
+      if (path === "/api/catalog") return Promise.resolve(KEYED);
+      if (path === "/api/provider/keys") return Promise.resolve({ env: "OPENAI_API_KEY", keys });
+      return Promise.reject(new Error("unexpected " + path));
+    });
+  }
+
+  it("lists a provider's keys (label + fingerprint, never the value) on expand", async () => {
+    mockWithKeys([
+      { label: "work", active: true, last4: "…1111" },
+      { label: "personal", active: false, last4: "…2222" },
+    ]);
+    render(withUI(<Models />));
+    await waitFor(() => expect(screen.getByText("OpenAI")).toBeTruthy());
+    fireEvent.click(screen.getByText("OpenAI"));
+
+    await waitFor(() => expect(getJSON).toHaveBeenCalledWith("/api/provider/keys", { env: "OPENAI_API_KEY" }));
+    expect(screen.getByText("work")).toBeTruthy();
+    expect(screen.getByText("…1111")).toBeTruthy();
+    expect(screen.getByText("personal")).toBeTruthy();
+    // Active key shows "active"; the inactive one offers "activate".
+    expect(screen.getByText("active")).toBeTruthy();
+    expect(screen.getByText("activate")).toBeTruthy();
+  });
+
+  it("adds a new key via the add form", async () => {
+    mockWithKeys([{ label: "work", active: true, last4: "…1111" }]);
+    postJSON.mockResolvedValueOnce({ added: true, active_changed: false });
+    render(withUI(<Models />));
+    await waitFor(() => expect(screen.getByText("OpenAI")).toBeTruthy());
+    fireEvent.click(screen.getByText("OpenAI"));
+    await waitFor(() => expect(screen.getByLabelText("New key label")).toBeTruthy());
+
+    fireEvent.change(screen.getByLabelText("New key label"), { target: { value: "personal" } });
+    fireEvent.change(screen.getByLabelText("New key value"), { target: { value: "sk-secret-xyz" } });
+    fireEvent.click(screen.getByRole("button", { name: /Add/ }));
+
+    await waitFor(() =>
+      expect(postJSON).toHaveBeenCalledWith("/api/provider/keys/add", {
+        env: "OPENAI_API_KEY",
+        label: "personal",
+        value: "sk-secret-xyz",
+        active: false,
+      }),
+    );
+  });
+
+  it("activates an inactive key", async () => {
+    mockWithKeys([
+      { label: "work", active: true, last4: "…1111" },
+      { label: "personal", active: false, last4: "…2222" },
+    ]);
+    postAction.mockResolvedValueOnce({ active: true });
+    render(withUI(<Models />));
+    await waitFor(() => expect(screen.getByText("OpenAI")).toBeTruthy());
+    fireEvent.click(screen.getByText("OpenAI"));
+    await waitFor(() => expect(screen.getByText("activate")).toBeTruthy());
+
+    fireEvent.click(screen.getByText("activate"));
+    await waitFor(() =>
+      expect(postAction).toHaveBeenCalledWith("/api/provider/keys/activate", { env: "OPENAI_API_KEY", label: "personal" }),
+    );
   });
 });
