@@ -16,6 +16,7 @@ import (
 type fakePulse struct {
 	mu     sync.Mutex
 	paused bool
+	beats  int
 }
 
 func (f *fakePulse) StatusMap() map[string]any {
@@ -25,6 +26,7 @@ func (f *fakePulse) StatusMap() map[string]any {
 }
 func (f *fakePulse) Pause()  { f.mu.Lock(); f.paused = true; f.mu.Unlock() }
 func (f *fakePulse) Resume() { f.mu.Lock(); f.paused = false; f.mu.Unlock() }
+func (f *fakePulse) Beat()   { f.mu.Lock(); f.beats++; f.mu.Unlock() }
 
 func TestPulseStatusDisabledWhenNoEngine(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))

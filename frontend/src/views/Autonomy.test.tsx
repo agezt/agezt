@@ -57,4 +57,20 @@ describe("PulseControl", () => {
     fireEvent.click(screen.getByRole("button", { name: /Resume/ }));
     await waitFor(() => expect(postAction).toHaveBeenCalledWith("/api/pulse/resume", {}));
   });
+
+  it("triggers an on-demand heartbeat via /api/pulse/beat (M756)", async () => {
+    getJSON.mockResolvedValue({ enabled: true, paused: false, beats: 7, cadence_ms: 30000 });
+    render(withUI(<PulseControl />));
+    await waitFor(() => expect(screen.getByRole("button", { name: /Beat now/ })).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: /Beat now/ }));
+    await waitFor(() => expect(postAction).toHaveBeenCalledWith("/api/pulse/beat", {}));
+  });
+
+  it("offers Beat now even while paused (explicit override)", async () => {
+    getJSON.mockResolvedValue({ enabled: true, paused: true, beats: 0, cadence_ms: 30000 });
+    render(withUI(<PulseControl />));
+    await waitFor(() => expect(screen.getByRole("button", { name: /Beat now/ })).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: /Beat now/ }));
+    await waitFor(() => expect(postAction).toHaveBeenCalledWith("/api/pulse/beat", {}));
+  });
 });

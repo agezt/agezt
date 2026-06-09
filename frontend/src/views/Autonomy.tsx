@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Waves, RefreshCw, CalendarClock, Anchor, ShieldCheck, Sparkles, Radio, MessagesSquare, Play, Pause, Heart } from "lucide-react";
+import { Waves, RefreshCw, CalendarClock, Anchor, ShieldCheck, Sparkles, Radio, MessagesSquare, Play, Pause, Heart, Zap } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { getJSON, postAction } from "@/lib/api";
 import { useUI } from "@/components/ui/feedback";
@@ -170,6 +170,7 @@ export function PulseControl() {
   const ui = useUI();
   const [st, setSt] = useState<PulseStatus | null>(null);
   const [busy, setBusy] = useState(false);
+  const [beating, setBeating] = useState(false);
 
   async function load() {
     try {
@@ -195,6 +196,22 @@ export function PulseControl() {
       ui.toast((e as Error).message, "error");
     } finally {
       setBusy(false);
+    }
+  }
+
+  // Beat now (M756): fire one heartbeat on demand — the agent checks its observers and
+  // may raise an initiative immediately, without waiting for the cadence. Works even
+  // while paused (an explicit one-off override). Results surface in the feed.
+  async function beatNow() {
+    setBeating(true);
+    try {
+      await postAction("/api/pulse/beat", {});
+      ui.toast("Heartbeat triggered — the agent is checking in now", "success");
+      setTimeout(load, 1500);
+    } catch (e) {
+      ui.toast((e as Error).message, "error");
+    } finally {
+      setBeating(false);
     }
   }
 
@@ -226,7 +243,11 @@ export function PulseControl() {
         {st.observers != null ? ` · ${st.observers} observer${st.observers === 1 ? "" : "s"}` : ""}
         {st.last_tick_ms ? ` · last ${fmtTime(st.last_tick_ms)}` : ""}
       </span>
-      <Button size="sm" variant={paused ? "default" : "ghost"} className="ml-auto" onClick={toggle} disabled={busy} title={paused ? "Resume the heartbeat" : "Pause the heartbeat"}>
+      <Button size="sm" variant="ghost" className="ml-auto" onClick={beatNow} disabled={beating} title="Trigger one heartbeat now (think now)">
+        {beating ? <RefreshCw className="size-3.5 animate-spin" /> : <Zap className="size-3.5" />}
+        Beat now
+      </Button>
+      <Button size="sm" variant={paused ? "default" : "ghost"} onClick={toggle} disabled={busy} title={paused ? "Resume the heartbeat" : "Pause the heartbeat"}>
         {busy ? <RefreshCw className="size-3.5 animate-spin" /> : paused ? <Play className="size-3.5" /> : <Pause className="size-3.5" />}
         {paused ? "Resume" : "Pause"}
       </Button>

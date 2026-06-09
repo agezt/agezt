@@ -78,6 +78,54 @@ func countKind(t *testing.T, j *journal.Journal, k event.Kind) int {
 
 // --- tests ----------------------------------------------------------------
 
+// waitForTicks polls until at least n pulse.tick events are journaled or the
+// deadline passes — used to observe Beat() driving an async tick on the Start loop.
+func waitForTicks(t *testing.T, j *journal.Journal, n int) int {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if got := countKind(t, j, event.KindPulseTick); got >= n {
+			return got
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	return countKind(t, j, event.KindPulseTick)
+}
+
+// TestBeatTriggersOnDemandTick: with a long cadence (so the periodic ticker never
+// fires in the test window), Beat() alone drives a heartbeat on the Start loop (M756).
+func TestBeatTriggersOnDemandTick(t *testing.T) {
+	obs := &fakeObserver{name: "f", deltas: []Delta{{Source: "s", Kind: "k", Summary: "x", Hints: map[string]string{"severity": "high"}}}}
+	e, j := newEngine(t, Config{Observers: []Observer{obs}, Cadence: time.Hour, Sink: &capturingSink{}})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	e.Start(ctx)
+
+	if got := countKind(t, j, event.KindPulseTick); got != 0 {
+		t.Fatalf("expected 0 ticks before Beat, got %d", got)
+	}
+	e.Beat()
+	if got := waitForTicks(t, j, 1); got < 1 {
+		t.Fatalf("expected >=1 tick after Beat, got %d", got)
+	}
+}
+
+// TestBeatFiresEvenWhenPaused: an explicit Beat() is an operator override that runs
+// one heartbeat even while the cadence is paused (M756).
+func TestBeatFiresEvenWhenPaused(t *testing.T) {
+	obs := &fakeObserver{name: "f"}
+	e, j := newEngine(t, Config{Observers: []Observer{obs}, Cadence: time.Hour})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	e.Start(ctx)
+	e.Pause()
+
+	e.Beat()
+	if got := waitForTicks(t, j, 1); got < 1 {
+		t.Fatalf("Beat() should fire a tick even when paused, got %d ticks", got)
+	}
+}
+
 func TestTickEmitsFullChain(t *testing.T) {
 	sink := &capturingSink{}
 	obs := &fakeObserver{name: "fake", deltas: []Delta{{
