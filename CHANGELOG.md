@@ -12,6 +12,25 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Export & re-import schedules (autonomy backup / bulk seed, sibling of standing import).**
+  The Schedules view gains **Export** (downloads `agezt-schedules.json` — `{version:1, schedules:[…]}`)
+  and **Import** (re-adds each via the existing `schedule_add`). Import rebuilds each cadence from the
+  stored mode — interval (`interval_sec`), daily (`at_minutes`+`days`+`tz`), window
+  (`window_start`/`window_end`+`interval_sec`+`days`+`tz`) or one-shot (`once_at_unix`) — and drops
+  kernel identity/runtime fields (`id`/`source`/`enabled`/`fires`/…) so each re-add mints a fresh
+  entry. Continuous schedules are agent-managed (no `schedule_add` path) and are skipped; entries
+  without an intent or a valid cadence are dropped. Additive (re-import duplicates — an explicit
+  action), reports `added/total`. Makes the agent's scheduled autonomy portable alongside standing
+  orders. `parseSchedulesJSON` is unit-tested (every mode → correct add-args; carries `model`; skips
+  continuous/intentless/invalid; wrapper shapes; throws on bad input).
+  - **Fix surfaced by the round-trip:** the `/api/schedule/add` route allow-list omitted
+    `window_start`/`window_end` (the create form never offered window mode, so it was latent), which
+    silently collapsed an imported **window** schedule into a plain interval. Added both keys — window
+    schedules now create faithfully from the UI/import. Verified live on a fresh isolated daemon (0
+    schedules to start): importing a 6-entry file created exactly 4 — `RESTORED-ping` (interval),
+    `RESTORED-brief` (daily 09:30 Europe/Istanbul), `RESTORED-window` (**every 30m 09:00–17:00**, bounds
+    preserved post-fix) and `RESTORED-once` — skipping the continuous and the intentless entry; Export
+    then re-downloaded that exact shape (window bounds intact); 0 console errors. (M749)
 - **Export & re-import standing orders (autonomy backup / bulk seed).** The Standing-orders view
   gains **Export** (downloads `agezt-standing.json` — `{version:1, standing:[…]}`) and **Import**
   (reads such a file and re-adds each order). Import normalises flexibly — a bare array, a

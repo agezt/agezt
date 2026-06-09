@@ -11,7 +11,7 @@ vi.mock("@/lib/api", () => ({
   postAction: (...a: unknown[]) => postAction(...a),
 }));
 
-import { NewScheduleForm, Schedules } from "@/views/Schedules";
+import { NewScheduleForm, Schedules, parseSchedulesJSON } from "@/views/Schedules";
 import { UIProvider } from "@/components/ui/feedback";
 import type { ReactNode } from "react";
 
@@ -107,6 +107,71 @@ describe("NewScheduleForm (edit mode, M728)", () => {
     render(<NewScheduleForm editId="sch-7" initialIntent="x" onCreated={onCreated} onError={() => {}} />);
     fireEvent.click(screen.getByRole("button", { name: /Save changes/ }));
     await waitFor(() => expect(onCreated).toHaveBeenCalled());
+  });
+});
+
+describe("parseSchedulesJSON (M749)", () => {
+  it("reads a bare array and a {schedules:[…]} wrapper", () => {
+    const row = { id: "x", intent: "ping", mode: "", interval_sec: 900, source: "operator", enabled: true };
+    expect(parseSchedulesJSON(JSON.stringify([row]))).toHaveLength(1);
+    expect(parseSchedulesJSON(JSON.stringify({ version: 1, schedules: [row] }))).toHaveLength(1);
+  });
+
+  it("rebuilds interval args (mode '' → interval_sec), dropping kernel fields", () => {
+    const out = parseSchedulesJSON(
+      JSON.stringify([{ id: "x", source: "agent", enabled: false, fires: 4, intent: "ping", mode: "", interval_sec: 900 }]),
+    );
+    expect(out[0]).toEqual({ intent: "ping", interval_sec: 900 });
+  });
+
+  it("rebuilds daily args (at_minutes + days + tz)", () => {
+    const out = parseSchedulesJSON(
+      JSON.stringify([{ intent: "brief", mode: "daily", at_minutes: 570, days: 0, tz: "Europe/Istanbul" }]),
+    );
+    expect(out[0]).toEqual({ intent: "brief", at_minutes: 570, days: 0, tz: "Europe/Istanbul" });
+  });
+
+  it("rebuilds window args (at_minutes→window_start, end_minutes→window_end, interval_sec)", () => {
+    const out = parseSchedulesJSON(
+      JSON.stringify([{ intent: "watch", mode: "window", at_minutes: 540, end_minutes: 1020, interval_sec: 1800, days: 0 }]),
+    );
+    expect(out[0]).toEqual({ intent: "watch", window_start: 540, window_end: 1020, interval_sec: 1800, days: 0 });
+  });
+
+  it("rebuilds once args from once_at_unix, falling back to next_run_unix", () => {
+    expect(parseSchedulesJSON(JSON.stringify([{ intent: "deploy", mode: "once", once_at_unix: 1893456000 }]))[0]).toEqual({
+      intent: "deploy",
+      once_at_unix: 1893456000,
+    });
+    expect(parseSchedulesJSON(JSON.stringify([{ intent: "deploy", mode: "once", next_run_unix: 1893456000 }]))[0]).toEqual({
+      intent: "deploy",
+      once_at_unix: 1893456000,
+    });
+  });
+
+  it("keeps an explicit model and carries it across cadence kinds", () => {
+    const out = parseSchedulesJSON(JSON.stringify([{ intent: "x", mode: "", interval_sec: 60, model: "deepseek-chat" }]));
+    expect(out[0]).toEqual({ intent: "x", interval_sec: 60, model: "deepseek-chat" });
+  });
+
+  it("skips continuous (agent-managed, no add path), intentless and invalid-cadence entries", () => {
+    const out = parseSchedulesJSON(
+      JSON.stringify([
+        { intent: "keep", mode: "", interval_sec: 60 },
+        { intent: "alive", mode: "continuous", interval_sec: 60 },
+        { mode: "", interval_sec: 60 }, // no intent
+        { intent: "zero", mode: "", interval_sec: 0 }, // invalid interval
+        { intent: "noonce", mode: "once" }, // once with no fire time
+      ]),
+    );
+    expect(out).toHaveLength(1);
+    expect(out[0]).toEqual({ intent: "keep", interval_sec: 60 });
+  });
+
+  it("throws on invalid JSON, a non-array shape, or nothing re-addable", () => {
+    expect(() => parseSchedulesJSON("nope")).toThrow();
+    expect(() => parseSchedulesJSON('{"foo":1}')).toThrow(/expected an array/);
+    expect(() => parseSchedulesJSON("[{}]")).toThrow(/no re-addable schedules/);
   });
 });
 
