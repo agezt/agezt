@@ -12,6 +12,15 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Relate world-model entities from the UI.** Building on adding entities (M721), you can
+  now connect two of them: a compact **relate** control (from · verb · to) appears once
+  there are at least two entities, with the world model's relation verbs (relates_to,
+  owns, depends_on, member_of, prefers, assigned_to, derived_from). It posts to the
+  existing `world_relate` command (newly exposed as `POST /api/world/relate`) — so the
+  knowledge *graph*, not just its nodes, is buildable from the UI. Tests cover the form
+  (default from/verb/to payload, chosen values, self-relation disabled). Verified live
+  (isolated daemon, two seeded entities): related "Ada **owns** agezt" → an edge with verb
+  `owns` appeared (0 → 1), 0 console errors. (M722)
 - **Add world-model entities from the UI.** The World view (people, projects, repos,
   devices the agent knows about) was read + forget only. An inline **add entity** form now
   lets you teach it one directly: a name and a kind (person / project / repo / org /

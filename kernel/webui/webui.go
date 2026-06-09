@@ -169,6 +169,7 @@ var writeRoutes = map[string]writeRoute{
 	"/api/decide":           {controlplane.CmdDecide, []string{"id", "decision", "reason"}},
 	"/api/memory/forget":    {controlplane.CmdMemoryForget, []string{"id"}},
 	"/api/world/forget":     {controlplane.CmdWorldForget, []string{"id"}},
+	"/api/world/relate":     {controlplane.CmdWorldRelate, []string{"from", "verb", "to"}},
 	"/api/sandbox/delete":   {controlplane.CmdSandboxDelete, []string{"project"}},
 	"/api/edict/set_level":  {controlplane.CmdEdictSetLevel, []string{"capability", "level"}},
 	"/api/edict/set_mode":   {controlplane.CmdEdictSetMode, []string{"mode"}},

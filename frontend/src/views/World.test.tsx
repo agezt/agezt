@@ -12,7 +12,7 @@ vi.mock("@/lib/api", () => ({
   postAction: (...a: unknown[]) => postAction(...a),
 }));
 
-import { WorldAddForm } from "@/views/World";
+import { WorldAddForm, WorldRelateForm } from "@/views/World";
 import { UIProvider } from "@/components/ui/feedback";
 
 function withUI(node: ReactNode) {
@@ -23,6 +23,8 @@ afterEach(cleanup);
 beforeEach(() => {
   postJSON.mockReset();
   postJSON.mockResolvedValue({ id: "ent-1" });
+  postAction.mockReset();
+  postAction.mockResolvedValue({ id: "rel-1" });
 });
 
 describe("WorldAddForm", () => {
@@ -48,5 +50,34 @@ describe("WorldAddForm", () => {
     fireEvent.change(screen.getByLabelText("Entity kind"), { target: { value: "repo" } });
     fireEvent.click(screen.getByRole("button", { name: /Add entity/ }));
     await waitFor(() => expect(postJSON).toHaveBeenCalledWith("/api/world/add", { name: "agezt", kind: "repo" }));
+  });
+});
+
+describe("WorldRelateForm", () => {
+  it("defaults to the first two entities and a relates_to verb, posting them", async () => {
+    const onRelated = vi.fn();
+    render(withUI(<WorldRelateForm names={["Ada", "agezt"]} onRelated={onRelated} />));
+    fireEvent.click(screen.getByRole("button", { name: /Relate/ }));
+    await waitFor(() =>
+      expect(postAction).toHaveBeenCalledWith("/api/world/relate", { from: "Ada", verb: "relates_to", to: "agezt" }),
+    );
+    await waitFor(() => expect(onRelated).toHaveBeenCalled());
+  });
+
+  it("honours chosen from/verb/to", async () => {
+    render(withUI(<WorldRelateForm names={["Ada", "agezt", "Acme"]} onRelated={() => {}} />));
+    fireEvent.change(screen.getByLabelText("Relation from"), { target: { value: "Ada" } });
+    fireEvent.change(screen.getByLabelText("Relation verb"), { target: { value: "owns" } });
+    fireEvent.change(screen.getByLabelText("Relation to"), { target: { value: "agezt" } });
+    fireEvent.click(screen.getByRole("button", { name: /Relate/ }));
+    await waitFor(() =>
+      expect(postAction).toHaveBeenCalledWith("/api/world/relate", { from: "Ada", verb: "owns", to: "agezt" }),
+    );
+  });
+
+  it("disables Relate when from and to are the same", () => {
+    render(withUI(<WorldRelateForm names={["Solo"]} onRelated={() => {}} />));
+    // Only one name → from and to both "Solo" → invalid.
+    expect((screen.getByRole("button", { name: /Relate/ }) as HTMLButtonElement).disabled).toBe(true);
   });
 });
