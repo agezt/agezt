@@ -19,6 +19,7 @@ import {
   RotateCcw,
   ArrowDown,
   X,
+  Paperclip,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { money } from "@/lib/format";
@@ -28,8 +29,10 @@ import { Badge } from "@/components/ui/badge";
 import { Markdown } from "@/components/Markdown";
 import { ToolOutput } from "@/components/DataView";
 import { ModelPicker } from "@/components/ModelPicker";
+import { AttachPicker } from "@/components/AttachPicker";
 import { turnText, type ChatTurn, type ChatTool } from "@/lib/chat";
 import { useChat } from "@/lib/chatStore";
+import { buildContext, type AttachRef } from "@/lib/attach";
 import type { Msg } from "@/lib/conversations";
 
 // Chat is the humane front door to the agent: a conversational thread where you
@@ -45,6 +48,10 @@ export function Chat() {
   // It flips to false when you scroll up to read scrollback, so a live stream
   // never yanks you back down mid-read; a "jump to latest" button restores it.
   const [pinned, setPinned] = useState(true);
+  // Attachments staged for the next message: existing skills/memories/runs to
+  // hand the agent as context. Cleared once the message is sent.
+  const [attached, setAttached] = useState<AttachRef[]>([]);
+  const [attachOpen, setAttachOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
 
@@ -77,13 +84,22 @@ export function Chat() {
   }, [input]);
 
   // Submit the composer: pin to bottom, clear the box, hand the intent to the
-  // engine (which appends the turns and streams).
+  // engine with any attached context (skills/memories/runs) prepended.
   function doSend() {
     const t = input.trim();
     if (!t || busy) return;
     setPinned(true);
     setInput("");
-    send(t);
+    const ctx = buildContext(attached);
+    setAttached([]);
+    send(t, ctx);
+  }
+
+  function addAttachment(ref: AttachRef) {
+    setAttached((prev) => (prev.some((r) => r.id === ref.id) ? prev : [...prev, ref]));
+  }
+  function removeAttachment(id: string) {
+    setAttached((prev) => prev.filter((r) => r.id !== id));
   }
 
   function startNewChat() {
@@ -101,6 +117,13 @@ export function Chat() {
 
   return (
     <div className="flex h-full gap-3">
+      {attachOpen && (
+        <AttachPicker
+          selectedIds={new Set(attached.map((r) => r.id))}
+          onPick={addAttachment}
+          onClose={() => setAttachOpen(false)}
+        />
+      )}
       {/* Conversation list — past threads, ChatGPT-style (desktop). */}
       <aside className="hidden w-52 shrink-0 flex-col border-r border-border pr-3 md:flex">
         <button
@@ -182,7 +205,35 @@ export function Chat() {
         </div>
 
         <div className="border-t border-border pt-3">
+        {/* Staged attachments — existing skills/memories/runs handed to the agent
+            as context for the next message. */}
+        {attached.length > 0 && (
+          <div className="mb-2 flex flex-wrap gap-1.5">
+            {attached.map((r) => (
+              <span
+                key={r.id}
+                className="inline-flex items-center gap-1 rounded-full border border-accent/40 bg-accent/10 px-2 py-0.5 text-[11px] text-accent"
+                title={r.content}
+              >
+                <span className="font-semibold uppercase tracking-wider opacity-70">{r.kind}</span>
+                <span className="max-w-[14rem] truncate">{r.label}</span>
+                <button onClick={() => removeAttachment(r.id)} title="Remove" className="hover:text-bad">
+                  <X className="size-3" />
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
         <div className="flex items-end gap-2">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setAttachOpen(true)}
+            title="Attach a skill, memory, or past run"
+            className={cn(attached.length > 0 && "text-accent")}
+          >
+            <Paperclip className="size-4" />
+          </Button>
           <textarea
             ref={taRef}
             value={input}
