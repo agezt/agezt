@@ -68,6 +68,9 @@ function ModelModal({
   const [cat, setCat] = useState<ModelCatalog | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [q, setQ] = useState("");
+  // Default to only providers that have an API key — you can only run those — with
+  // an opt-in to reveal the rest (e.g. to pick a model before adding its key).
+  const [keyedOnly, setKeyedOnly] = useState(true);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -85,10 +88,10 @@ function ModelModal({
       .catch((e) => setErr((e as Error).message));
   }, []);
 
-  const groups = useMemo(() => {
-    const all = flattenModels(cat);
-    return groupByProvider(filterModels(all, q));
-  }, [cat, q]);
+  const allGroups = useMemo(() => groupByProvider(filterModels(flattenModels(cat), q)), [cat, q]);
+  const keyedGroups = useMemo(() => allGroups.filter((g) => g.credentialed), [allGroups]);
+  const groups = keyedOnly ? keyedGroups : allGroups;
+  const hiddenCount = allGroups.length - keyedGroups.length;
 
   const total = useMemo(() => flattenModels(cat).length, [cat]);
 
@@ -132,7 +135,19 @@ function ModelModal({
           ) : !cat ? (
             <div className="px-3 py-6 text-center text-xs text-muted">loading catalog…</div>
           ) : groups.length === 0 ? (
-            <div className="px-3 py-6 text-center text-xs text-muted">no models match “{q}”</div>
+            keyedOnly && hiddenCount > 0 ? (
+              <div className="px-3 py-6 text-center text-xs text-muted">
+                No providers have an API key yet.
+                <br />
+                Add one in <span className="text-foreground/80">Models</span>, or{" "}
+                <button onClick={() => setKeyedOnly(false)} className="text-accent underline-offset-2 hover:underline">
+                  show all {hiddenCount} providers
+                </button>
+                .
+              </div>
+            ) : (
+              <div className="px-3 py-6 text-center text-xs text-muted">no models match “{q}”</div>
+            )
           ) : (
             groups.map((g) => (
               <div key={g.providerId} className="mt-1">
@@ -148,6 +163,23 @@ function ModelModal({
             ))
           )}
         </div>
+
+        {/* Footer: keyed-only toggle. Only providers with a key can actually run,
+            so the picker defaults to those; reveal the rest on demand. */}
+        {cat && (keyedOnly ? hiddenCount > 0 : true) && (
+          <div className="flex items-center justify-between border-t border-border px-3 py-1.5 text-[10px] text-muted">
+            <span className="inline-flex items-center gap-1">
+              <KeyRound className="size-3 text-good" />
+              {keyedOnly ? "Keyed providers only" : "All providers"}
+            </span>
+            <button
+              onClick={() => setKeyedOnly((v) => !v)}
+              className="text-accent transition-colors hover:text-accent/80"
+            >
+              {keyedOnly ? `Show all (${hiddenCount} more)` : "Show keyed only"}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -11,6 +11,7 @@ import (
 
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/catalog"
+	"github.com/agezt/agezt/kernel/creds"
 	"github.com/agezt/agezt/kernel/event"
 )
 
@@ -83,6 +84,17 @@ func (s *Server) handleCatalogSync(ctx context.Context, conn net.Conn, req Reque
 // Used by `agt catalog list` and by future `agt provider list`.
 func (s *Server) handleCatalogList(conn net.Conn, req Request) {
 	cat := s.k.Catalog()
+	// A provider is "credentialed" if a key exists for it in the process env OR the
+	// vault — provider keys (incl. the M700 keyring) live in the vault, so checking
+	// os.Getenv alone would miss them and mark keyed providers as un-keyed.
+	vault := creds.NewStore(s.baseDir)
+	_ = vault.Load()
+	credLookup := func(name string) string {
+		if v := os.Getenv(name); v != "" {
+			return v
+		}
+		return vault.Get(name)
+	}
 	providers := make([]map[string]any, 0, len(cat.Providers))
 	for _, p := range cat.ProviderList() {
 		models := make([]map[string]any, 0, len(p.Models))
@@ -118,7 +130,7 @@ func (s *Server) handleCatalogList(conn net.Conn, req Request) {
 			"api":          p.API,
 			"doc":          p.Doc,
 			"env":          p.Env,
-			"credentialed": p.HasCredentials(os.Getenv),
+			"credentialed": p.HasCredentials(credLookup),
 			"model_count":  len(p.Models),
 			"models":       models,
 		})
