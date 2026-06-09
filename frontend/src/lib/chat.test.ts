@@ -53,6 +53,47 @@ describe("foldChatFrame", () => {
     expect(t.tools[0].input).toBe('{"cmd":"ls"}');
   });
 
+  it("records a chronological timeline of text runs and tool calls", () => {
+    const tl = fold(arc).timeline ?? [];
+    // The model said "Turning it off…" and THEN called the tool — that order is
+    // preserved: one text run, then the tool ref.
+    expect(tl.map((it) => it.kind)).toEqual(["text", "tool"]);
+    const txt = tl[0];
+    expect(txt.kind === "text" && txt.text).toBe("Turning it off…");
+    const t1 = tl[1];
+    expect(t1.kind === "tool" && t1.callId).toBe("c1");
+  });
+
+  it("interleaves text before and after a tool call in order", () => {
+    const t = fold([
+      { kind: "open" },
+      { kind: "llm.token", payload: { text: "Let me check. " } },
+      { kind: "tool.invoked", payload: { call_id: "x", tool: "shell", input: "{}" } },
+      { kind: "tool.result", payload: { call_id: "x", tool: "shell", output: "ok" } },
+      { kind: "llm.token", payload: { text: "Done." } },
+      { kind: "done", result: { answer: "Done." } },
+    ]);
+    expect(t.timeline).toEqual([
+      { kind: "text", text: "Let me check. " },
+      { kind: "tool", callId: "x" },
+      { kind: "text", text: "Done." },
+    ]);
+  });
+
+  it("adds the final answer as a closing text run when no tokens streamed", () => {
+    const t = fold([
+      { kind: "open" },
+      { kind: "tool.invoked", payload: { call_id: "y", tool: "shell", input: "{}" } },
+      { kind: "tool.result", payload: { call_id: "y", tool: "shell", output: "done" } },
+      { kind: "task.completed", payload: { answer: "All set." } },
+      { kind: "done", result: { answer: "All set." } },
+    ]);
+    expect(t.timeline).toEqual([
+      { kind: "tool", callId: "y" },
+      { kind: "text", text: "All set." },
+    ]);
+  });
+
   it("prefers the authoritative answer over intermediate text once done", () => {
     const t = fold(arc);
     expect(t.status).toBe("done");

@@ -29,6 +29,12 @@ export interface ChatTool {
   output?: string;
 }
 
+// A TimelineItem is one entry in the chronological record of a turn: a run of
+// assistant text, or a tool call (referenced by call_id, looked up in tools[]).
+// The Chat renders these in order so tool calls and the text between them read as
+// a timeline — what happened, when — instead of all tools bunched above the text.
+export type TimelineItem = { kind: "text"; text: string } | { kind: "tool"; callId: string };
+
 // ChatTurn is the assistant's evolving response to one user intent. The Chat
 // view folds frames into it live, so streaming tokens, tool chips and the final
 // answer all render as they arrive.
@@ -38,6 +44,7 @@ export interface ChatTurn {
   reasoning: string; // accumulated llm.reasoning deltas (a reasoning model's chain of thought)
   answer?: string; // authoritative final answer (task.completed / done)
   tools: ChatTool[];
+  timeline?: TimelineItem[]; // chronological interleave of text runs + tool calls (absent on turns restored from older storage)
   model?: string;
   iters: number;
   costMicrocents: number;
@@ -46,7 +53,7 @@ export interface ChatTurn {
 }
 
 export function newTurn(): ChatTurn {
-  return { status: "streaming", streamedText: "", reasoning: "", tools: [], iters: 0, costMicrocents: 0 };
+  return { status: "streaming", streamedText: "", reasoning: "", tools: [], timeline: [], iters: 0, costMicrocents: 0 };
 }
 
 // foldChatFrame is the pure reducer at the heart of the Chat view: (turn, frame)
@@ -54,22 +61,38 @@ export function newTurn(): ChatTurn {
 // a render sees a fresh object. Field names mirror deriveDetail's fold so the
 // chat and the Runs detail agree on how an event arc reads.
 export function foldChatFrame(prev: ChatTurn, f: ChatFrame): ChatTurn {
-  const t: ChatTurn = { ...prev, tools: prev.tools.map((c) => ({ ...c })) };
+  // `line` is the working timeline array (always defined here; the field is
+  // optional only so turns restored from older storage can lack it).
+  const line: TimelineItem[] = (prev.timeline ?? []).map((it) => ({ ...it }));
+  const t: ChatTurn = { ...prev, tools: prev.tools.map((c) => ({ ...c })), timeline: line };
   const p = f.payload || {};
   const tool = (id: string): ChatTool => {
     let c = t.tools.find((x) => x.callId === id);
     if (!c) {
       c = { callId: id, tool: "" };
       t.tools.push(c);
+      // First time we see this call → record its place in the timeline, so it
+      // renders chronologically between the surrounding text runs.
+      line.push({ kind: "tool", callId: id });
     }
     return c;
+  };
+  // Append streamed text to the trailing text run (or open a new one if the last
+  // timeline entry is a tool) — this is what interleaves text with tool calls.
+  const appendText = (s: string) => {
+    const last = line[line.length - 1];
+    if (last && last.kind === "text") last.text += s;
+    else line.push({ kind: "text", text: s });
   };
 
   switch (f.kind) {
     case "open":
       break;
     case "llm.token":
-      if (p.text != null) t.streamedText += String(p.text);
+      if (p.text != null) {
+        t.streamedText += String(p.text);
+        appendText(String(p.text));
+      }
       break;
     case "llm.reasoning":
       // A reasoning model (deepseek-reasoner/-v4, o-series, Claude thinking)
@@ -133,6 +156,16 @@ export function foldChatFrame(prev: ChatTurn, f: ChatFrame): ChatTurn {
 
   // Drop the synthetic empty-id bucket if no real tool ever landed in it.
   t.tools = t.tools.filter((c) => c.callId !== "" || c.tool !== "");
+  // Keep the timeline consistent: only tool refs that survive in tools[], and no
+  // empty text runs.
+  const ids = new Set(t.tools.map((c) => c.callId));
+  let kept = line.filter((it) => (it.kind === "tool" ? ids.has(it.callId) : it.text !== ""));
+  // A provider that streamed no tokens carries its answer only in `answer` — add
+  // it as the closing text run so the timeline still shows the final answer.
+  if (t.status === "done" && t.answer && !kept.some((it) => it.kind === "text")) {
+    kept = [...kept, { kind: "text", text: t.answer }];
+  }
+  t.timeline = kept;
   return t;
 }
 
