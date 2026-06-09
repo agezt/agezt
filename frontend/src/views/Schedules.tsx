@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
-import { CalendarClock, RefreshCw, Play, Pause, Trash2, Bot, Heart, Infinity as InfinityIcon, ShieldCheck, Plus, X, Pencil } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { CalendarClock, RefreshCw, Play, Pause, Trash2, Bot, Heart, Infinity as InfinityIcon, ShieldCheck, Plus, X, Pencil, Download, Upload } from "lucide-react";
 import { getJSON, postAction, postJSON } from "@/lib/api";
+import { downloadText } from "@/lib/export";
 import { cn, fmtDateTime } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useUI, type ConfirmOptions } from "@/components/ui/feedback";
@@ -30,6 +31,65 @@ function sourceTone(src?: string): string {
   return "bg-panel text-muted";
 }
 
+// parseSchedulesJSON normalises an exported schedules file into a list of
+// re-addable `schedule_add` arg objects. Accepts a bare array or a {schedules:[…]}
+// wrapper (the list shape). For each entry it rebuilds the cadence args from the
+// stored mode — interval (interval_sec), daily (at_minutes+days+tz), window
+// (window_start/end+interval_sec+days+tz) or once (once_at_unix) — dropping kernel
+// identity/runtime fields (id/source/enabled/fires/…). Continuous schedules are
+// agent-managed and have no `schedule_add` path, so they're skipped. Keeps only
+// entries with an intent and a valid cadence; throws on bad JSON / nothing valid.
+export function parseSchedulesJSON(text: string): Record<string, unknown>[] {
+  const data = JSON.parse(text);
+  const arr = Array.isArray(data)
+    ? data
+    : Array.isArray((data as { schedules?: unknown[] })?.schedules)
+      ? (data as { schedules: unknown[] }).schedules
+      : null;
+  if (!arr) throw new Error("expected an array of schedules (or a {schedules:[…]} wrapper)");
+  const out: Record<string, unknown>[] = [];
+  for (const raw of arr) {
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) continue;
+    const s = raw as Record<string, unknown>;
+    const intent = typeof s.intent === "string" ? s.intent.trim() : "";
+    if (!intent) continue;
+    const num = (k: string) => (typeof s[k] === "number" ? (s[k] as number) : undefined);
+    const mode = typeof s.mode === "string" ? s.mode : "";
+    const args: Record<string, unknown> = { intent };
+    if (typeof s.model === "string" && s.model) args.model = s.model;
+    if (mode === "once") {
+      const at = num("once_at_unix") ?? num("next_run_unix");
+      if (!at) continue; // a one-shot with no fire time can't be re-added
+      args.once_at_unix = at;
+    } else if (mode === "daily") {
+      const at = num("at_minutes");
+      if (at === undefined) continue;
+      args.at_minutes = at;
+      args.days = num("days") ?? 0;
+      if (typeof s.tz === "string" && s.tz) args.tz = s.tz;
+    } else if (mode === "window") {
+      const start = num("at_minutes");
+      const end = num("end_minutes");
+      const sec = num("interval_sec");
+      if (start === undefined || end === undefined || !sec) continue;
+      args.window_start = start;
+      args.window_end = end;
+      args.interval_sec = sec;
+      args.days = num("days") ?? 0;
+      if (typeof s.tz === "string" && s.tz) args.tz = s.tz;
+    } else if (mode === "" || mode === "interval") {
+      const sec = num("interval_sec");
+      if (!sec || sec < 1) continue;
+      args.interval_sec = sec;
+    } else {
+      continue; // continuous / unknown mode — no schedule_add path
+    }
+    out.push(args);
+  }
+  if (out.length === 0) throw new Error("no re-addable schedules (each needs an intent and a valid cadence) found");
+  return out;
+}
+
 // Schedules is the autonomy cockpit: every scheduled intent — whether an
 // operator added it, an AGEZT_SCHEDULE env job, or the AGENT scheduled it itself
 // — with its cadence, next fire, last outcome and origin, plus run-now /
@@ -44,6 +104,33 @@ export function Schedules() {
   const [editingId, setEditingId] = useState<string | null>(null);
   // Fire-time preview (M744): the schedule id whose next fires are shown + the times.
   const [forecast, setForecast] = useState<{ id: string; times: number[] } | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  function exportSchedules() {
+    downloadText("agezt-schedules.json", JSON.stringify({ version: 1, schedules: items ?? [] }, null, 2), "application/json");
+  }
+
+  // Restore schedules from a file: re-add each via schedule_add (the daemon mints
+  // fresh ids and validates). ADDS — importing onto a daemon that already has them
+  // creates duplicates; hence the explicit Import action.
+  async function importSchedules(file: File) {
+    try {
+      const list = parseSchedulesJSON(await file.text());
+      let added = 0;
+      for (const args of list) {
+        try {
+          await postJSON("/api/schedule/add", args);
+          added++;
+        } catch {
+          /* skip one the daemon rejects; keep importing the rest */
+        }
+      }
+      ui.toast(`Imported ${added}/${list.length} schedule${list.length === 1 ? "" : "s"}`, added ? "success" : "error");
+      void reload();
+    } catch (e) {
+      ui.toast(`Import failed: ${(e as Error).message}`, "error");
+    }
+  }
 
   async function previewFires(id: string) {
     if (forecast?.id === id) {
@@ -110,6 +197,24 @@ export function Schedules() {
         </span>
         <Button size="sm" className="ml-auto" onClick={() => setShowForm((v) => !v)} title="Create a schedule">
           {showForm ? <X className="size-3.5" /> : <Plus className="size-3.5" />} New schedule
+        </Button>
+        <input
+          ref={fileRef}
+          type="file"
+          accept="application/json,.json"
+          className="hidden"
+          aria-hidden="true"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) void importSchedules(f);
+            e.target.value = "";
+          }}
+        />
+        <Button variant="ghost" size="sm" onClick={() => fileRef.current?.click()} title="Import schedules from a file">
+          <Upload className="size-3.5" /> Import
+        </Button>
+        <Button variant="ghost" size="sm" onClick={exportSchedules} disabled={!items || items.length === 0} title="Export schedules to a file">
+          <Download className="size-3.5" /> Export
         </Button>
         <Button variant="ghost" size="sm" onClick={reload} disabled={loading} title="Reload">
           <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />

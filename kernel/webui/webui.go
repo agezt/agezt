@@ -242,7 +242,7 @@ var jsonRoutes = map[string]writeRoute{
 	// Create a schedule (M715): intent + a timing mode. Numeric timing args (e.g.
 	// interval_sec, at_minutes, once_at_unix) ride the JSON body so they keep their
 	// types — a query arg would stringify them.
-	"/api/schedule/add": {controlplane.CmdScheduleAdd, []string{"intent", "model", "interval_sec", "at_minutes", "days", "tz", "once_at_unix"}},
+	"/api/schedule/add": {controlplane.CmdScheduleAdd, []string{"intent", "model", "interval_sec", "at_minutes", "days", "tz", "once_at_unix", "window_start", "window_end"}},
 	// Edit an existing schedule (M728): id + any subset of intent/model and at most
 	// one cadence change. Numeric timing args ride the JSON body to keep their types.
 	"/api/schedule/edit": {controlplane.CmdScheduleEdit, []string{"id", "intent", "model", "interval_sec", "at_minutes", "days", "tz", "once_at_unix", "window_start", "window_end"}},
