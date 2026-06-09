@@ -237,9 +237,16 @@ export function Chat() {
                 {messages.map((m, i) => {
                   const isLast = i === messages.length - 1;
                   const canRetry = isLast && !busy && m.role === "assistant" && m.turn.status === "error";
+                  // Regenerate a completed answer (re-run the same intent, replacing
+                  // this turn) — the staple chat affordance, reusing retry's logic.
+                  const canRegenerate = isLast && !busy && m.role === "assistant" && m.turn.status === "done";
                   return (
                     <div key={i} className="msg-in">
-                      <MessageRow msg={m} onRetry={canRetry ? retry : undefined} />
+                      <MessageRow
+                        msg={m}
+                        onRetry={canRetry ? retry : undefined}
+                        onRegenerate={canRegenerate ? retry : undefined}
+                      />
                     </div>
                   );
                 })}
@@ -367,7 +374,15 @@ function EmptyState({ onPick }: { onPick: (s: string) => void }) {
   );
 }
 
-function MessageRow({ msg, onRetry }: { msg: Msg; onRetry?: () => void }) {
+function MessageRow({
+  msg,
+  onRetry,
+  onRegenerate,
+}: {
+  msg: Msg;
+  onRetry?: () => void;
+  onRegenerate?: () => void;
+}) {
   if (msg.role === "user") {
     return (
       <div className="flex justify-end gap-2">
@@ -380,10 +395,18 @@ function MessageRow({ msg, onRetry }: { msg: Msg; onRetry?: () => void }) {
       </div>
     );
   }
-  return <AssistantBubble turn={msg.turn} onRetry={onRetry} />;
+  return <AssistantBubble turn={msg.turn} onRetry={onRetry} onRegenerate={onRegenerate} />;
 }
 
-function AssistantBubble({ turn, onRetry }: { turn: ChatTurn; onRetry?: () => void }) {
+function AssistantBubble({
+  turn,
+  onRetry,
+  onRegenerate,
+}: {
+  turn: ChatTurn;
+  onRetry?: () => void;
+  onRegenerate?: () => void;
+}) {
   const text = turnText(turn);
   const streaming = turn.status === "streaming";
   // Turns restored from older storage have no `timeline` — fall back to the prior
@@ -460,6 +483,15 @@ function AssistantBubble({ turn, onRetry }: { turn: ChatTurn; onRetry?: () => vo
             <TurnMeta turn={turn} />
             {text && <CopyAnswer text={text} />}
             {text && <SpeakAnswer text={text} />}
+            {onRegenerate && (
+              <button
+                onClick={onRegenerate}
+                title="Regenerate this answer"
+                className="inline-flex items-center gap-1 text-xs text-muted transition-colors hover:text-foreground"
+              >
+                <RotateCcw className="size-3" /> Regenerate
+              </button>
+            )}
           </div>
         )}
 

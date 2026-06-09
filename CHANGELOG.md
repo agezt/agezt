@@ -12,6 +12,15 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Regenerate a chat answer.** Completed assistant answers now have a **Regenerate**
+  action (next to Copy / Speak) that re-runs the same intent and replaces the answer —
+  the staple chat affordance that was previously only available as "Retry" after a
+  *failed* turn. It reuses the existing retry path (drop the trailing assistant turn,
+  re-stream the last user intent with the same prior history), so it replaces just that
+  answer without duplicating your message. Pairs with the per-task model picker: change
+  the model in the composer, hit Regenerate, and the answer comes back from the new
+  model. Verified live (isolated daemon): Regenerate shows on a done turn, issues exactly
+  one fresh run, and leaves the single user message intact — 0 console errors. (M708)
 - **Chat shows when an answer came from a fallback model.** Now that the main chat
   loop routes through its per-task model chain (M703), an answer can come from a
   *fallback* model when the primary fails. The chat turn surfaces this inline — a
