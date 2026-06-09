@@ -12,7 +12,7 @@ vi.mock("@/lib/api", () => ({
   postAction: (...a: unknown[]) => postAction(...a),
 }));
 
-import { Routing } from "@/views/Routing";
+import { Routing, parseChainsJSON } from "@/views/Routing";
 import { UIProvider } from "@/components/ui/feedback";
 
 function withUI(node: ReactNode) {
@@ -115,5 +115,79 @@ describe("Routing view", () => {
 
     fireEvent.click(screen.getAllByTitle("Remove")[0]);
     await waitFor(() => expect((screen.getByRole("button", { name: /Save/ }) as HTMLButtonElement).disabled).toBe(false));
+  });
+});
+
+describe("parseChainsJSON", () => {
+  it("accepts a bare {task: [models]} map", () => {
+    expect(parseChainsJSON('{"chat":["a","b"],"code":["c"]}')).toEqual({ chat: ["a", "b"], code: ["c"] });
+  });
+
+  it("unwraps a {chains:{…}} export wrapper", () => {
+    expect(parseChainsJSON('{"chains":{"chat":["a"]}}')).toEqual({ chat: ["a"] });
+  });
+
+  it("trims keys/models and drops blanks and non-strings", () => {
+    expect(parseChainsJSON('{" chat ":["  a  ","",null,3,"b"]}')).toEqual({ chat: ["a", "b"] });
+  });
+
+  it("drops tasks whose chain ends up empty", () => {
+    expect(parseChainsJSON('{"chat":["a"],"plan":[],"code":["","  "]}')).toEqual({ chat: ["a"] });
+  });
+
+  it("throws on invalid JSON", () => {
+    expect(() => parseChainsJSON("not json")).toThrow();
+  });
+
+  it("throws on a non-object / array shape", () => {
+    expect(() => parseChainsJSON('["a","b"]')).toThrow(/expected an object/);
+    expect(() => parseChainsJSON("42")).toThrow(/expected an object/);
+  });
+
+  it("throws when nothing valid remains", () => {
+    expect(() => parseChainsJSON('{"chat":[],"plan":["",null]}')).toThrow(/no valid/);
+  });
+});
+
+describe("Routing import/export", () => {
+  it("imports a chains file, merging over existing chains for review", async () => {
+    render(withUI(<Routing />));
+    await waitFor(() => expect(screen.getByText("chat")).toBeTruthy());
+
+    // A file overriding chat and adding a new code chain.
+    const file = new File([JSON.stringify({ chains: { chat: ["x", "y"], code: ["z"] } })], "agezt-routing.json", {
+      type: "application/json",
+    });
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    fireEvent.change(input, { target: { files: [file] } });
+
+    // Merged chains render: the imported chat models and the new code model.
+    await waitFor(() => expect(screen.getByText("x")).toBeTruthy());
+    expect(screen.getByText("y")).toBeTruthy();
+    expect(screen.getByText("z")).toBeTruthy();
+    // The old chat models are gone (chat was overridden, not appended).
+    expect(screen.queryByText("claude-opus")).toBeNull();
+
+    // Save posts the merged result.
+    postJSON.mockResolvedValueOnce({ saved: true, task_count: 2 });
+    fireEvent.click(screen.getByRole("button", { name: /Save/ }));
+    await waitFor(() =>
+      expect(postJSON).toHaveBeenCalledWith("/api/routing/set", {
+        chains: { chat: ["x", "y"], code: ["z"] },
+      }),
+    );
+  });
+
+  it("reports a bad import file without changing the chains", async () => {
+    render(withUI(<Routing />));
+    await waitFor(() => expect(screen.getByText("claude-opus")).toBeTruthy());
+
+    const file = new File(["not json"], "bad.json", { type: "application/json" });
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    fireEvent.change(input, { target: { files: [file] } });
+
+    await waitFor(() => expect(screen.getByText(/Import failed/)).toBeTruthy());
+    // Original chain intact.
+    expect(screen.getByText("claude-opus")).toBeTruthy();
   });
 });
