@@ -12,6 +12,18 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Config Center UI redesign — grouped nav, search, and skill/plugin provenance.**
+  The Config Center now reflects the dynamic schema (M695): sections are grouped
+  into **Core / Channels / Skills & Plugins** with a sticky left section-nav
+  (click to jump), a **search box** that filters fields across every section by
+  name/env, per-section icons, and a violet **“registered”** badge (with a puzzle
+  icon and "registered by …" tooltip) on any section a skill or plugin contributed.
+  All the M694 field behaviour is preserved — per-field Save, live/restart badges,
+  secret masking + Clear, env-pinned read-only. Verified live (isolated daemon,
+  fake values, `localStorage` cleared, off the chat view): a skill-registered
+  "Weather Skill" section appeared under Skills & Plugins with its provenance badge;
+  search filtered down to just it; saving its registered field round-tripped to
+  `config.json`; 0 console errors. (M697)
 - **Skills can read/write/register config — `agt config` CLI + a `config` tool.**
   The skill-facing half of the extensible Config Center (M695). The agent (and the
   skills it runs) can now configure things directly: a built-in **`config` agent

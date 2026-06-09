@@ -24,15 +24,26 @@ const SCHEMA = {
       id: "provider",
       name: "Provider & Model",
       help: "Applies live.",
-      fields: [{ env: "AGEZT_MODEL", label: "Model", type: "text", secret: false, required: false, apply: "live" }],
+      source: "builtin",
+      fields: [
+        { env: "AGEZT_PROVIDER", label: "Provider", type: "text", secret: false, required: false, apply: "live" },
+        { env: "AGEZT_MODEL", label: "Model", type: "text", secret: false, required: false, apply: "live" },
+      ],
     },
     {
       id: "telegram",
       name: "Telegram",
+      source: "builtin",
       fields: [
         { env: "AGEZT_TELEGRAM_TOKEN", label: "Bot token", type: "password", secret: true, required: false, apply: "restart" },
         { env: "AGEZT_TELEGRAM_CHAT_ID", label: "Allowed chat IDs", type: "csv", secret: false, required: false, apply: "restart" },
       ],
+    },
+    {
+      id: "weather-skill",
+      name: "Weather Skill",
+      source: "weather-skill",
+      fields: [{ env: "AGEZT_X_WEATHER_UNITS", label: "Units", type: "text", secret: false, required: false, apply: "restart" }],
     },
   ],
 };
@@ -40,9 +51,11 @@ const SCHEMA = {
 function valuesPayload(over: Record<string, any> = {}) {
   return {
     fields: [
+      { env: "AGEZT_PROVIDER", secret: false, env_pinned: false, set: false, value: "", ...over.AGEZT_PROVIDER },
       { env: "AGEZT_MODEL", secret: false, env_pinned: false, set: true, value: "deepseek-chat", ...over.AGEZT_MODEL },
       { env: "AGEZT_TELEGRAM_TOKEN", secret: true, env_pinned: false, set: true, ...over.AGEZT_TELEGRAM_TOKEN },
       { env: "AGEZT_TELEGRAM_CHAT_ID", secret: false, env_pinned: false, set: false, value: "", ...over.AGEZT_TELEGRAM_CHAT_ID },
+      { env: "AGEZT_X_WEATHER_UNITS", secret: false, env_pinned: false, set: false, value: "", ...over.AGEZT_X_WEATHER_UNITS },
     ],
   };
 }
@@ -55,6 +68,10 @@ function mockFetch(values = valuesPayload()) {
   });
 }
 
+// Section names appear in BOTH the sticky nav (buttons) and the section cards
+// (headings); assert on the heading so the query is unambiguous.
+const sectionHeading = (name: string) => screen.getByRole("heading", { name });
+
 afterEach(cleanup);
 beforeEach(() => {
   getJSON.mockReset();
@@ -62,20 +79,51 @@ beforeEach(() => {
 });
 
 describe("ConfigCenter view", () => {
-  it("renders sections and a field input from the schema", async () => {
+  it("renders sections grouped with a field input from the schema", async () => {
     mockFetch();
     render(withUI(<ConfigCenter />));
-    await waitFor(() => expect(screen.getByText("Provider & Model")).toBeTruthy());
-    expect(screen.getByText("Telegram")).toBeTruthy();
+    await waitFor(() => expect(sectionHeading("Provider & Model")).toBeTruthy());
+    expect(sectionHeading("Telegram")).toBeTruthy();
+    // Category headings exist.
+    expect(sectionHeading("Core")).toBeTruthy();
+    expect(sectionHeading("Channels")).toBeTruthy();
     // Non-secret value is pre-filled.
     expect((screen.getByDisplayValue("deepseek-chat") as HTMLInputElement).value).toBe("deepseek-chat");
+  });
+
+  it("groups a registered section under Skills & Plugins with a provenance badge", async () => {
+    mockFetch();
+    render(withUI(<ConfigCenter />));
+    await waitFor(() => expect(sectionHeading("Weather Skill")).toBeTruthy());
+    expect(sectionHeading("Skills & Plugins")).toBeTruthy();
+    expect(screen.getByText("registered")).toBeTruthy();
+  });
+
+  it("filters fields by the search query", async () => {
+    mockFetch();
+    render(withUI(<ConfigCenter />));
+    await waitFor(() => expect(sectionHeading("Telegram")).toBeTruthy());
+
+    fireEvent.change(screen.getByLabelText("Search settings"), { target: { value: "weather" } });
+
+    // Only the matching section survives; the others drop out.
+    await waitFor(() => expect(screen.queryByRole("heading", { name: "Telegram" })).toBeNull());
+    expect(sectionHeading("Weather Skill")).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Provider & Model" })).toBeNull();
+  });
+
+  it("shows an empty state when nothing matches the search", async () => {
+    mockFetch();
+    render(withUI(<ConfigCenter />));
+    await waitFor(() => expect(sectionHeading("Telegram")).toBeTruthy());
+    fireEvent.change(screen.getByLabelText("Search settings"), { target: { value: "zzz-nomatch" } });
+    await waitFor(() => expect(screen.getByText("No settings match")).toBeTruthy());
   });
 
   it("never shows a secret value — only presence", async () => {
     mockFetch();
     const { container } = render(withUI(<ConfigCenter />));
-    await waitFor(() => expect(screen.getByText("Bot token")).toBeTruthy());
-    // The secret input is a password field, empty, with a "set" hint.
+    await waitFor(() => expect(sectionHeading("Telegram")).toBeTruthy());
     const pw = container.querySelector('input[type="password"]') as HTMLInputElement;
     expect(pw).toBeTruthy();
     expect(pw.value).toBe("");
@@ -90,7 +138,6 @@ describe("ConfigCenter view", () => {
 
     const input = screen.getByDisplayValue("deepseek-chat") as HTMLInputElement;
     fireEvent.change(input, { target: { value: "deepseek-reasoner" } });
-    // Save via Enter.
     fireEvent.keyDown(input, { key: "Enter" });
 
     await waitFor(() =>
@@ -103,7 +150,6 @@ describe("ConfigCenter view", () => {
     mockFetch(valuesPayload({ AGEZT_MODEL: { env_pinned: true, value: "gpt-4o", set: true } }));
     const { container } = render(withUI(<ConfigCenter />));
     await waitFor(() => expect(screen.getByText("env")).toBeTruthy());
-    // The pinned model has no editable text input bearing its value.
     expect(screen.queryByDisplayValue("gpt-4o")).toBeNull();
     expect(container.textContent).toContain("gpt-4o");
   });
@@ -112,7 +158,7 @@ describe("ConfigCenter view", () => {
     mockFetch();
     postJSON.mockResolvedValueOnce({ env: "AGEZT_TELEGRAM_TOKEN", saved: true, applied: "restart" });
     render(withUI(<ConfigCenter />));
-    await waitFor(() => expect(screen.getByText("Bot token")).toBeTruthy());
+    await waitFor(() => expect(sectionHeading("Telegram")).toBeTruthy());
 
     fireEvent.click(screen.getByTitle("Clear (remove from vault)"));
     await waitFor(() =>
