@@ -38,6 +38,7 @@ import { cn } from "@/lib/utils";
 import { postAction } from "@/lib/api";
 import { useEvents } from "@/lib/events";
 import { CommandPalette } from "@/components/CommandPalette";
+import { MiniChat } from "@/components/MiniChat";
 import { AlertBell } from "@/components/AlertBell";
 import { Vitals } from "@/components/Vitals";
 import { useUI, type ConfirmOptions } from "@/components/ui/feedback";
@@ -303,6 +304,7 @@ export default function App() {
   return (
     <div className="flex h-full flex-col">
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} items={commands} />
+      <MiniChat hidden={active === "chat"} onExpand={() => setActive("chat")} />
       <Header connected={connected} onOpenPalette={() => setPaletteOpen(true)} />
       <Vitals onNavigate={setActive} />
       <div className="flex min-h-0 flex-1 flex-col lg:flex-row">

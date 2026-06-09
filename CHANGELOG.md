@@ -12,6 +12,15 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **A mini-chat on every screen.** A floating launcher (bottom-right, hidden only on
+  the full Chat view) pops open a compact thread bound to the *same* active
+  conversation as the full Chat — so you can ask the agent from anywhere without
+  losing your place, watch it work (a pulse on the launcher marks an in-flight run
+  even when closed), and pop out to the full view for the complete tool trace. Built
+  on the shared `ChatProvider`, so the mini and full views are always in sync.
+  Verified live: opened it on the Cockpit, sent a message, got the reply, then
+  expanded — the same thread was waiting in the full Chat; zero console errors.
+  (M678)
 - **Chat keeps running when you leave it.** The chat engine (conversation store,
   the live streaming loop, and its AbortController) was lifted into a `ChatProvider`
   mounted above the view router, so navigating to another screen mid-run no longer
