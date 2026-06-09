@@ -11,12 +11,17 @@ vi.mock("@/lib/api", () => ({
   postAction: (...a: unknown[]) => postAction(...a),
 }));
 
-import { NewOrderForm, EditOrderForm } from "@/views/Standing";
+import { NewOrderForm, EditOrderForm, Standing } from "@/views/Standing";
+import { UIProvider } from "@/components/ui/feedback";
+import type { ReactNode } from "react";
+
+const withUI = (node: ReactNode) => <UIProvider>{node}</UIProvider>;
 
 afterEach(cleanup);
 beforeEach(() => {
   postJSON.mockReset();
   postJSON.mockResolvedValue({ order: { id: "so-1" } });
+  getJSON.mockReset();
 });
 
 describe("NewOrderForm", () => {
@@ -137,5 +142,42 @@ describe("EditOrderForm (M729)", () => {
     render(<EditOrderForm order={order} onSaved={() => {}} onError={onError} />);
     fireEvent.click(screen.getByRole("button", { name: /Save changes/ }));
     await waitFor(() => expect(onError).toHaveBeenCalledWith("invalid mode"));
+  });
+});
+
+describe("Standing order history (M746)", () => {
+  const order = {
+    id: "so-9",
+    name: "Morning briefing",
+    enabled: true,
+    triggers: [{ type: "cron", schedule: "0 8 * * *" }],
+    initiative: { mode: "ask" },
+  };
+
+  it("toggles the order's life story from /api/standing/why", async () => {
+    getJSON.mockImplementation((path: string) => {
+      if (path === "/api/standing") return Promise.resolve({ orders: [order] });
+      if (path === "/api/standing/why")
+        return Promise.resolve({
+          events: [
+            { seq: 1, kind: "standing.created", ts_unix_ms: 1893456000000, payload: {} },
+            { seq: 2, kind: "standing.updated", ts_unix_ms: 1893456100000, payload: { action: "paused" } },
+          ],
+        });
+      return Promise.resolve({});
+    });
+    render(withUI(<Standing />));
+    await waitFor(() => expect(screen.getByText("Morning briefing")).toBeTruthy());
+
+    fireEvent.click(screen.getByRole("button", { name: "history" }));
+    await waitFor(() => expect(getJSON).toHaveBeenCalledWith("/api/standing/why", { id: "so-9" }));
+    // Event kinds render (stripped of the "standing." prefix) + the action label.
+    await waitFor(() => expect(screen.getByText("created")).toBeTruthy());
+    expect(screen.getByText("updated")).toBeTruthy();
+    expect(screen.getByText("paused")).toBeTruthy();
+
+    // Toggle hides it.
+    fireEvent.click(screen.getByRole("button", { name: "hide history" }));
+    await waitFor(() => expect(screen.queryByText("created")).toBeNull());
   });
 });

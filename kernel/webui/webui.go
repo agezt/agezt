@@ -156,6 +156,9 @@ var readArgsRoutes = map[string]writeRoute{
 	"/api/provider/keys": {controlplane.CmdProviderKeyList, []string{"env"}},
 	// Forecast a schedule's next fire times (M744): id + how many. Read-only preview.
 	"/api/schedule/test": {controlplane.CmdScheduleTest, []string{"id", "count"}},
+	// A standing order's life story (M746): every standing.* journal event for it —
+	// created, paused/resumed, each firing, removed. Read-only provenance.
+	"/api/standing/why": {controlplane.CmdStandingWhy, []string{"id"}},
 }
 
 // writeRoutes is the operator-action allowlist: the big red button (halt),
