@@ -5,7 +5,8 @@ import { useEvents } from "@/lib/events";
 import { cn, fmtTime } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Muted, ErrorText } from "@/components/JsonView";
+import { ErrorText } from "@/components/JsonView";
+import { SkeletonList } from "@/components/ui/skeleton";
 
 interface Message {
   direction?: string; // "in" | "out"
@@ -71,7 +72,7 @@ export function Inbox() {
       {err ? (
         <ErrorText>{err}</ErrorText>
       ) : !threads ? (
-        <Muted>loading…</Muted>
+        <SkeletonList count={4} lines={1} />
       ) : threads.length === 0 ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-2 text-muted">
           <InboxIcon className="size-8 opacity-40" />

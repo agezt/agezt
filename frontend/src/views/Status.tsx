@@ -20,6 +20,7 @@ import { useEvents } from "@/lib/events";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Muted, ErrorText } from "@/components/JsonView";
+import { SkeletonList } from "@/components/ui/skeleton";
 
 interface StatusData {
   daemon?: string;
@@ -106,7 +107,7 @@ export function Status() {
       {err ? (
         <ErrorText>{err}</ErrorText>
       ) : !data ? (
-        <Muted>loading…</Muted>
+        <SkeletonList count={3} lines={2} />
       ) : (
         <>
           {/* Operational banner */}

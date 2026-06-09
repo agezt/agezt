@@ -4,6 +4,7 @@ import { getJSON } from "@/lib/api";
 import { cn, fmtTime } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Muted, ErrorText } from "@/components/JsonView";
+import { SkeletonList } from "@/components/ui/skeleton";
 
 interface Msg {
   topic: string;
@@ -102,7 +103,7 @@ export function Board() {
       {err ? (
         <ErrorText>{err}</ErrorText>
       ) : !data ? (
-        <Muted>loading…</Muted>
+        <SkeletonList count={4} lines={2} />
       ) : messages.length === 0 ? (
         <Muted>
           no messages yet — agents talk here with the `board` tool (post a note on a topic, read each

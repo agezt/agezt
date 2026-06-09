@@ -14,6 +14,7 @@ import {
 import { getJSON, postAction } from "@/lib/api";
 import { Badge, statusVariant } from "@/components/ui/badge";
 import { KeyValue, Muted, ErrorText } from "@/components/JsonView";
+import { SkeletonList } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { fmtTime, clip } from "@/lib/utils";
 import { money } from "@/lib/format";
@@ -260,7 +261,7 @@ export function RunDetailLoader({
   }, [correlationId, subscribe]);
 
   if (err) return <ErrorText>{err}</ErrorText>;
-  if (!arc) return <Muted>loading…</Muted>;
+  if (!arc) return <SkeletonList count={2} lines={2} />;
   return (
     <>
       {correlationId && runIsLive(arc) && <SteerControls correlationId={correlationId} arc={arc} />}

@@ -5,6 +5,7 @@ import { getJSON } from "@/lib/api";
 import { cn, fmtTime } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Muted, ErrorText } from "@/components/JsonView";
+import { SkeletonList } from "@/components/ui/skeleton";
 
 interface Item {
   seq: number;
@@ -115,7 +116,7 @@ export function Autonomy() {
       {err ? (
         <ErrorText>{err}</ErrorText>
       ) : !feed ? (
-        <Muted>loading…</Muted>
+        <SkeletonList count={4} lines={2} />
       ) : items.length === 0 ? (
         <Muted>
           nothing autonomous yet — when a schedule or standing order fires, a skill is learned, or a

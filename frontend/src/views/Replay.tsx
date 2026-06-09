@@ -6,7 +6,8 @@ import { mergeEvents } from "@/lib/rundetail";
 import { buildReplay } from "@/lib/replay";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Muted, ErrorText } from "@/components/JsonView";
+import { ErrorText } from "@/components/JsonView";
+import { SkeletonList } from "@/components/ui/skeleton";
 import { FlightRecorder } from "@/components/FlightRecorder";
 
 interface Run {
@@ -98,7 +99,7 @@ export function Replay() {
       {err ? (
         <ErrorText>{err}</ErrorText>
       ) : loading ? (
-        <Muted>loading run…</Muted>
+        <SkeletonList count={3} lines={2} />
       ) : (
         <div className="min-h-0 flex-1">
           <FlightRecorder steps={steps} live={isLive} />

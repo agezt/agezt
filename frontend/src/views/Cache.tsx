@@ -6,6 +6,7 @@ import { money } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Muted, ErrorText } from "@/components/JsonView";
+import { SkeletonList } from "@/components/ui/skeleton";
 import { Ring } from "@/components/Widgets";
 
 interface CacheData {
@@ -64,7 +65,7 @@ export function Cache() {
       {err ? (
         <ErrorText>{err}</ErrorText>
       ) : !d ? (
-        <Muted>loading…</Muted>
+        <SkeletonList count={3} lines={1} />
       ) : (
         <>
           {/* Savings hero */}

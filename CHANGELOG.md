@@ -12,6 +12,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Skeleton loading is now universal.** The shared `Panel` shell and every
+  remaining custom view (System health, Tools, Cache, Providers, Budget, Autonomy,
+  Board, Inbox, Reflection, Insights, Replay) plus the run-detail and log drill-down
+  loaders now render the shimmer skeleton instead of a bare "loading…" line — so no
+  matter where you are in the console, a fetch looks alive and consistent. Verified
+  live by holding the Tools fetch open (12 shimmer blocks while pending → 0 after
+  load) and sweeping 12 views with zero console errors. (M673)
 - **Designed empty states instead of bare "no X yet" lines.** Empty views now show
   a friendly dashed-card `EmptyState` — a soft icon, a title, and a hint that tells
   the operator how to fill it (e.g. Schedules explains the `schedule` tool and

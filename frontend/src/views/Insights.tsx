@@ -6,6 +6,7 @@ import { money, pct } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Muted, ErrorText } from "@/components/JsonView";
+import { SkeletonList } from "@/components/ui/skeleton";
 import { SpendArea, BarList, OutcomeBar } from "@/components/Charts";
 import { computeInsights, type RunRow } from "@/lib/insights";
 
@@ -66,7 +67,7 @@ export function Insights() {
       {err ? (
         <ErrorText>{err}</ErrorText>
       ) : !ins ? (
-        <Muted>loading…</Muted>
+        <SkeletonList count={3} lines={2} />
       ) : ins.total === 0 ? (
         <Muted>no runs yet — start one from Chat or the CLI</Muted>
       ) : (
