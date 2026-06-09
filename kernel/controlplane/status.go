@@ -20,31 +20,54 @@ import (
 	"github.com/agezt/agezt/kernel/event"
 )
 
-// countProviderFallbacks folds the journal for provider.fallback events (M280):
-// how many times the governor fell back from a primary provider to a backup
-// because the primary errored, plus the most recent reason. Until this was
-// surfaced, a misconfigured/incompatible provider could silently serve every run
-// from the mock fallback (the M279 dotted-tool-name bug was invisible this way).
-func (s *Server) countProviderFallbacks() (int, string) {
-	count := 0
-	last := ""
+// fallbackCounts folds the journal's governor.fallback events (KindProviderFallback)
+// into the TWO distinct fallback dimensions they now carry:
+//
+//   - provider fallbacks (M280): the governor moved from a primary PROVIDER to a
+//     backup because the primary errored (a misconfigured/incompatible provider
+//     could otherwise silently serve every run from the mock fallback).
+//   - model-chain fallbacks (M706): a per-task model chain moved from one MODEL to
+//     the next (scope="model-chain"). Before this split these inflated the provider
+//     count with no breakdown — configurable chains you couldn't see firing.
+//
+// Each dimension reports its count and most-recent reason. Model-chain events are
+// identified by scope; everything else is a provider fallback.
+type fallbackCounts struct {
+	providerCount int
+	providerLast  string
+	modelCount    int
+	modelLast     string
+}
+
+func (s *Server) fallbackCounts() fallbackCounts {
+	var fc fallbackCounts
 	_ = s.k.Journal().Range(func(e *event.Event) error {
 		if e.Kind != event.KindProviderFallback {
 			return nil
 		}
-		count++
 		var p struct {
 			Reason string `json:"reason"`
-			Failed string `json:"failed"`
+			Scope  string `json:"scope"`
 		}
-		if json.Unmarshal(e.Payload, &p) == nil {
-			if r := p.Reason; r != "" {
-				last = strutil.Ellipsis(r, 160, "…")
+		_ = json.Unmarshal(e.Payload, &p)
+		reason := ""
+		if p.Reason != "" {
+			reason = strutil.Ellipsis(p.Reason, 160, "…")
+		}
+		if p.Scope == "model-chain" {
+			fc.modelCount++
+			if reason != "" {
+				fc.modelLast = reason
+			}
+		} else {
+			fc.providerCount++
+			if reason != "" {
+				fc.providerLast = reason
 			}
 		}
 		return nil
 	})
-	return count, last
+	return fc
 }
 
 func (s *Server) handleStatus(conn net.Conn, req Request) {
@@ -86,10 +109,12 @@ func (s *Server) handleStatus(conn net.Conn, req Request) {
 		pendingApprovals = ap.PendingCount()
 	}
 
-	// Provider fallbacks (M280): make silent primary→backup fallbacks visible so
-	// a provider that errors on every request (and gets masked by the always-on
-	// mock fallback) is caught at a glance instead of via a journal dig.
-	fbCount, fbLast := s.countProviderFallbacks()
+	// Fallbacks (M280 provider + M706 model-chain): make silent primary→backup
+	// fallbacks visible so a provider that errors on every request (and gets masked
+	// by the always-on mock fallback) is caught at a glance instead of via a journal
+	// dig — and surface per-task model-chain fallbacks as their own dimension rather
+	// than conflating them into the provider count.
+	fb := s.fallbackCounts()
 
 	result := map[string]any{
 		"daemon":         brand.Version,
@@ -108,7 +133,8 @@ func (s *Server) handleStatus(conn net.Conn, req Request) {
 			"enabled": schedEnabled,
 		},
 		"pending_approvals":  pendingApprovals,
-		"provider_fallbacks": map[string]any{"count": fbCount, "last_reason": fbLast},
+		"provider_fallbacks": map[string]any{"count": fb.providerCount, "last_reason": fb.providerLast},
+		"model_fallbacks":    map[string]any{"count": fb.modelCount, "last_reason": fb.modelLast},
 		"delegation": map[string]any{
 			"enabled":              dl.Enabled,
 			"max_depth":            dl.MaxDepth,

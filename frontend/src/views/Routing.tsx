@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Route, RefreshCw, Save, ArrowUp, ArrowDown, X, Plus, Zap } from "lucide-react";
+import { Route, RefreshCw, Save, ArrowUp, ArrowDown, X, Plus, Zap, CornerDownRight } from "lucide-react";
 import { getJSON, postJSON } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -27,9 +27,18 @@ const TASK_HELP: Record<string, string> = {
   delegate: "Delegated sub-agents (the delegate tool).",
 };
 
+interface TaskActivity {
+  fallbacks?: number;
+  last_failed?: string;
+  last_next?: string;
+  last_reason?: string;
+  last_ms?: number;
+}
+
 interface RoutingResp {
   task_types?: string[];
   chains?: Record<string, string[]>;
+  activity?: Record<string, TaskActivity>;
 }
 
 export function Routing() {
@@ -37,6 +46,7 @@ export function Routing() {
   const [taskTypes, setTaskTypes] = useState<string[]>([]);
   const [chains, setChains] = useState<Record<string, string[]>>({});
   const [saved, setSaved] = useState<Record<string, string[]>>({});
+  const [activity, setActivity] = useState<Record<string, TaskActivity>>({});
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -48,6 +58,7 @@ export function Routing() {
       setTaskTypes(r.task_types || []);
       setChains(r.chains || {});
       setSaved(r.chains || {});
+      setActivity(r.activity || {});
       setErr(null);
     } catch (e) {
       setErr((e as Error).message);
@@ -152,6 +163,7 @@ export function Routing() {
               key={task}
               task={task}
               models={chains[task] || []}
+              activity={activity[task]}
               onAdd={(id) => addModel(task, id)}
               onRemove={(i) => removeAt(task, i)}
               onMove={(i, d) => move(task, i, d)}
@@ -166,16 +178,19 @@ export function Routing() {
 function ChainRow({
   task,
   models,
+  activity,
   onAdd,
   onRemove,
   onMove,
 }: {
   task: string;
   models: string[];
+  activity?: TaskActivity;
   onAdd: (id: string) => void;
   onRemove: (i: number) => void;
   onMove: (i: number, dir: -1 | 1) => void;
 }) {
+  const fb = activity?.fallbacks ?? 0;
   return (
     <div className="rounded-lg border border-border bg-card p-3">
       <div className="mb-2 flex items-baseline gap-2">
@@ -208,6 +223,21 @@ function ChainRow({
             </li>
           ))}
         </ol>
+      )}
+
+      {fb > 0 && (
+        <div className="mb-2 flex flex-wrap items-center gap-1.5 rounded-md border border-warn/30 bg-warn/5 px-2 py-1 text-[11px] text-warn">
+          <CornerDownRight className="size-3 shrink-0" />
+          <span className="font-medium">
+            {fb} fallback{fb === 1 ? "" : "s"}
+          </span>
+          {activity?.last_failed && activity?.last_next && (
+            <span className="font-mono text-foreground/70">
+              last: {activity.last_failed} → {activity.last_next}
+            </span>
+          )}
+          {activity?.last_reason && <span className="truncate text-muted">({activity.last_reason})</span>}
+        </div>
       )}
 
       <div className="flex items-center gap-1.5 text-[11px] text-muted">

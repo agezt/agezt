@@ -10,12 +10,15 @@ package controlplane
 // (startup injection + buildGovernor re-parse).
 
 import (
+	"encoding/json"
 	"fmt"
 	"net"
 	"sort"
 	"strings"
 
 	"github.com/agezt/agezt/internal/brand"
+	"github.com/agezt/agezt/internal/strutil"
+	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/settings"
 )
 
@@ -43,7 +46,64 @@ func (s *Server) handleRoutingGet(conn net.Conn, req Request) {
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{
 		"task_types": knownTaskTypes,
 		"chains":     stringSliceMapToAny(chains),
+		"activity":   s.routingActivity(),
 	}})
+}
+
+// routingActivity folds the journal's model-chain fallback events (M706) by task
+// type, so the Routing view can show each chain ACTUALLY firing: how many times a
+// task fell back model→model, and the most recent hop + reason. This closes the
+// loop on per-task chains — you can see a chain working, not just configure it.
+// Provider-scope fallbacks are excluded (they belong to the provider stats, not a
+// task's model chain). Range is in seq order, so the last hit per task is newest.
+func (s *Server) routingActivity() map[string]any {
+	type act struct {
+		count                            int
+		lastFailed, lastNext, lastReason string
+		lastMS                           int64
+	}
+	byTask := map[string]*act{}
+	_ = s.k.Journal().Range(func(e *event.Event) error {
+		if e.Kind != event.KindProviderFallback {
+			return nil
+		}
+		var p struct {
+			FailedModel string `json:"failed_model"`
+			NextModel   string `json:"next_model"`
+			Reason      string `json:"reason"`
+			Scope       string `json:"scope"`
+			TaskType    string `json:"task_type"`
+		}
+		if json.Unmarshal(e.Payload, &p) != nil || p.Scope != "model-chain" {
+			return nil
+		}
+		task := p.TaskType
+		if task == "" {
+			task = "(unknown)"
+		}
+		a := byTask[task]
+		if a == nil {
+			a = &act{}
+			byTask[task] = a
+		}
+		a.count++
+		a.lastFailed, a.lastNext, a.lastMS = p.FailedModel, p.NextModel, e.TSUnixMS
+		if p.Reason != "" {
+			a.lastReason = strutil.Ellipsis(p.Reason, 160, "…")
+		}
+		return nil
+	})
+	out := make(map[string]any, len(byTask))
+	for task, a := range byTask {
+		out[task] = map[string]any{
+			"fallbacks":   a.count,
+			"last_failed": a.lastFailed,
+			"last_next":   a.lastNext,
+			"last_reason": a.lastReason,
+			"last_ms":     a.lastMS,
+		}
+	}
+	return out
 }
 
 // handleRoutingSet replaces the per-task model chains. args.chains is an object
