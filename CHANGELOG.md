@@ -12,6 +12,15 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Teach the agent a fact from the Memory view.** The Memory browser was read + forget
+  only — durable facts only appeared when the agent distilled them itself. A **Teach**
+  button now opens a form to add a memory directly: a subject, the content, and a type
+  (fact / preference / observation). It posts to the existing `memory_add` command (newly
+  exposed as `POST /api/memory/add`), tagged `source=operator`, so what you teach is
+  recalled into future runs like any other memory. Tests cover the form (validation gate,
+  trimmed payload + default type, chosen type, error surfacing). Verified live (isolated
+  daemon): taught a PREFERENCE → it persisted with `source=operator`, confidence 1, and
+  rendered in the list, 0 console errors. (M718)
 - **Add hard-deny rules from the Policy view.** The capability policy already let you set
   per-capability trust levels, the ask mode, and *remove* runtime deny rules — but
   *adding* a hard-deny rule (the safety floor that blocks any tool call whose input

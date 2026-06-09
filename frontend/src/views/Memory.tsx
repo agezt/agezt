@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { Brain, RefreshCw, Search, Trash2 } from "lucide-react";
-import { getJSON, postAction } from "@/lib/api";
+import { Brain, RefreshCw, Search, Trash2, Plus, X } from "lucide-react";
+import { getJSON, postAction, postJSON } from "@/lib/api";
 import { cn, fmtTime } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useUI } from "@/components/ui/feedback";
@@ -31,6 +31,7 @@ export function Memory() {
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
+  const [showForm, setShowForm] = useState(false);
 
   async function reload() {
     setLoading(true);
@@ -100,10 +101,24 @@ export function Memory() {
             className="h-7 w-48 rounded-md border border-border bg-panel pl-7 pr-2 text-xs outline-none focus:border-accent"
           />
         </div>
+        <Button size="sm" onClick={() => setShowForm((v) => !v)} title="Teach the agent a fact">
+          {showForm ? <X className="size-3.5" /> : <Plus className="size-3.5" />} Teach
+        </Button>
         <Button variant="ghost" size="sm" onClick={reload} disabled={loading}>
           <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
         </Button>
       </div>
+
+      {showForm && (
+        <TeachFactForm
+          onAdded={(subject) => {
+            setShowForm(false);
+            ui.toast(subject ? `Learned: “${subject}”` : "Memory added", "success");
+            void reload();
+          }}
+          onError={(m) => ui.toast(m, "error")}
+        />
+      )}
 
       {err ? (
         <ErrorText>{err}</ErrorText>
@@ -163,6 +178,79 @@ export function Memory() {
           </ul>
         </div>
       )}
+    </div>
+  );
+}
+
+// MEM_TYPES are the record types an operator would manually teach. The agent also
+// writes SUMMARY/RELATION on its own; those aren't useful to hand-author.
+const MEM_TYPES = ["FACT", "PREFERENCE", "OBSERVATION"];
+
+// TeachFactForm lets the owner teach the agent a durable fact or preference from
+// the UI (M718) — the write side of the knowledge browser. It posts to memory_add
+// (tagged source=operator) so the fact is recalled into future runs like any other.
+export function TeachFactForm({
+  onAdded,
+  onError,
+}: {
+  onAdded: (subject: string) => void;
+  onError: (msg: string) => void;
+}) {
+  const [subject, setSubject] = useState("");
+  const [content, setContent] = useState("");
+  const [type, setType] = useState("FACT");
+  const [submitting, setSubmitting] = useState(false);
+
+  const valid = content.trim() !== "";
+
+  async function add() {
+    if (!valid) return;
+    setSubmitting(true);
+    try {
+      await postJSON("/api/memory/add", { content: content.trim(), subject: subject.trim(), type });
+      onAdded(subject.trim());
+    } catch (e) {
+      onError((e as Error).message);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="rounded-lg border border-accent/30 bg-card p-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <input
+          value={subject}
+          onChange={(e) => setSubject(e.target.value)}
+          placeholder="Subject (optional, e.g. Owner's timezone)"
+          aria-label="Memory subject"
+          className="h-8 min-w-0 flex-1 rounded-md border border-border bg-panel px-2 text-sm outline-none focus-visible:border-accent"
+        />
+        <select
+          value={type}
+          onChange={(e) => setType(e.target.value)}
+          aria-label="Memory type"
+          className="h-8 rounded-md border border-border bg-panel px-1.5 text-sm outline-none focus-visible:border-accent"
+        >
+          {MEM_TYPES.map((t) => (
+            <option key={t} value={t}>
+              {t.toLowerCase()}
+            </option>
+          ))}
+        </select>
+      </div>
+      <textarea
+        value={content}
+        onChange={(e) => setContent(e.target.value)}
+        placeholder="The fact to remember (e.g. The owner is in Istanbul, UTC+3, and prefers terse replies)…"
+        aria-label="Memory content"
+        className="mt-2 h-20 w-full resize-y rounded-md border border-border bg-panel p-2 text-sm outline-none placeholder:text-muted/60 focus-visible:border-accent"
+      />
+      <div className="mt-2 flex items-center justify-end">
+        <Button size="sm" onClick={add} disabled={!valid || submitting}>
+          {submitting ? <RefreshCw className="size-3.5 animate-spin" /> : <Plus className="size-3.5" />} Remember it
+        </Button>
+      </div>
     </div>
   );
 }

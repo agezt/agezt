@@ -224,6 +224,9 @@ var jsonRoutes = map[string]writeRoute{
 	// interval_sec, at_minutes, once_at_unix) ride the JSON body so they keep their
 	// types — a query arg would stringify them.
 	"/api/schedule/add": {controlplane.CmdScheduleAdd, []string{"intent", "model", "interval_sec", "at_minutes", "days", "tz", "once_at_unix"}},
+	// Teach the agent a fact (M718): content + optional subject/type/confidence.
+	// confidence is numeric, so the JSON body preserves its type.
+	"/api/memory/add": {controlplane.CmdMemoryAdd, []string{"content", "subject", "type", "confidence"}},
 }
 
 // planRoute is the streaming "run this plan" action (Flow Studio's Run button).
