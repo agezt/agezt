@@ -12,6 +12,18 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Per-sub-agent model — delegate to a worker on its own model.** The `delegate`
+  tool now accepts optional `model` and `task_type` inputs: the lead can spawn a
+  sub-agent on a *different* model than its own (e.g. a cheaper model for grunt
+  work, or a stronger one for a hard subtask) and/or tag it with a routing
+  task type whose configured chain (M703/M704) supplies the **fallback** models.
+  Both are optional — a bare `delegate` is byte-for-byte unchanged: the sub-agent
+  inherits the daemon default model and the task type defaults to `"delegate"`.
+  The choice is recorded on the `subagent.spawned` journal event (`model`,
+  `task_type`) so `agt why` shows what each worker ran on. Unit tests prove the
+  child runs on its override model while the lead keeps the default, the bare-call
+  defaults, and the journal payload. Verified live (isolated daemon): the running
+  daemon advertises the updated `delegate` schema/description. (M705)
 - **Routing view — edit each task's model chain from the Web UI.** A new
   **System → Routing** view turns the M703 per-task fallback chains into a visual
   editor: one card per task type (`chat`, `plan`, `code`, `verify`, `summarize`,
