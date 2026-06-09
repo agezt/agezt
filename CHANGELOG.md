@@ -11,6 +11,17 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 
 ## [Unreleased]
 
+### Tests
+- **HTTP-layer route-wiring tests for this session's console controls.** Hardened the new Web UI
+  routes with committed integration tests (run in the frontend/Go CI gate, no browser needed) that
+  drive the actual HTTP handler and assert each path maps to the right control-plane command,
+  forwards only its allowlisted args, and **strips anything else** (an `evil=x` canary). Covers the
+  pulse controls (`beat`/`flush`/`pause`/`resume`/`cadence`/`dial`), the read-with-args routes
+  (`edict/test`, `why`, `standing/why`, `schedule/test`), the secret-redaction probe (a jsonRoute —
+  asserts the text rides the POST **body** and a non-allowlisted body key is dropped), and the
+  journal-integrity GET. These lock in the wiring the manual Playwright runs verified, so a future
+  refactor that mis-routes or leaks an arg fails CI. (M763)
+
 ### Added
 - **Flush the pulse digest on demand.** When the proactivity dial holds lower-priority observations
   back for the periodic digest (delivered every N beats), the Autonomy view now shows a **Flush
