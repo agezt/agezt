@@ -243,6 +243,11 @@ var jsonRoutes = map[string]writeRoute{
 	// Edit a world-model entity's aliases/attrs in place (M730): id + the full
 	// editable state (arrays/objects, so the JSON body is needed).
 	"/api/world/edit": {controlplane.CmdWorldEdit, []string{"id", "aliases", "attrs"}},
+	// Author a skill from the UI (M736): name + body (required) + optional
+	// description/triggers/tools_required. triggers/tools_required are arrays, so the
+	// JSON body is needed. Lands as a draft (auto-staged to shadow if well-formed) —
+	// never auto-active; promote via the normal lifecycle controls.
+	"/api/skill/import": {controlplane.CmdSkillImport, []string{"name", "description", "triggers", "body", "tools_required"}},
 }
 
 // planRoute is the streaming "run this plan" action (Flow Studio's Run button).
