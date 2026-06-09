@@ -30,7 +30,7 @@ import { Markdown } from "@/components/Markdown";
 import { ToolOutput } from "@/components/DataView";
 import { ModelPicker } from "@/components/ModelPicker";
 import { AttachPicker } from "@/components/AttachPicker";
-import { turnText, type ChatTurn, type ChatTool } from "@/lib/chat";
+import { turnText, type ChatTurn, type ChatTool, type TimelineItem } from "@/lib/chat";
 import { useChat } from "@/lib/chatStore";
 import { buildContext, type AttachRef } from "@/lib/attach";
 import type { Msg } from "@/lib/conversations";
@@ -316,13 +316,24 @@ function MessageRow({ msg, onRetry }: { msg: Msg; onRetry?: () => void }) {
 function AssistantBubble({ turn, onRetry }: { turn: ChatTurn; onRetry?: () => void }) {
   const text = turnText(turn);
   const streaming = turn.status === "streaming";
-  // The most recent tool that hasn't produced output yet is the one in flight.
-  const running = streaming ? [...turn.tools].reverse().find((t) => !t.output && t.allow !== false) : undefined;
-  // Show the live working indicator during the pre-answer phase whenever a tool
-  // is actually running (the satisfying "watch it work" moment), or when there's
-  // no reasoning stream to stand in for it. While a reasoning model is only
-  // thinking (no tool yet), its own live "Thinking…" header covers it.
-  const working = streaming && !text && (!!running || !turn.reasoning);
+  // Turns restored from older storage have no `timeline` — fall back to the prior
+  // shape (tools first, then the final text) so old conversations still render.
+  const timeline: TimelineItem[] =
+    turn.timeline && turn.timeline.length > 0
+      ? turn.timeline
+      : [
+          ...turn.tools.map((c) => ({ kind: "tool" as const, callId: c.callId })),
+          ...(text ? [{ kind: "text" as const, text }] : []),
+        ];
+  // The trailing timeline item: if it's a tool that hasn't produced output yet,
+  // that's the call in flight — drive the live "working" pulse from it.
+  const lastItem = timeline[timeline.length - 1];
+  const lastTool = lastItem?.kind === "tool" ? turn.tools.find((c) => c.callId === lastItem.callId) : undefined;
+  const runningTool = lastTool && !lastTool.output && lastTool.allow !== false ? lastTool : undefined;
+  // Show the live pulse at the very start (nothing streamed yet, and no reasoning
+  // header to stand in for it) or while the trailing tool runs. Once text streams,
+  // the text + cursor convey liveliness instead.
+  const working = streaming && (timeline.length === 0 ? !turn.reasoning : !!runningTool);
 
   return (
     <div className="flex gap-2">
@@ -330,32 +341,30 @@ function AssistantBubble({ turn, onRetry }: { turn: ChatTurn; onRetry?: () => vo
         <Sparkles className="size-4" />
       </div>
       <div className="min-w-0 flex-1 space-y-2">
-        {turn.reasoning && <ReasoningBlock text={turn.reasoning} live={streaming && !text} />}
+        {turn.reasoning && <ReasoningBlock text={turn.reasoning} live={streaming && timeline.length === 0} />}
 
-        {turn.tools.length > 0 && (
-          <div className="space-y-1.5">
-            {turn.tools.map((c) => (
-              <ToolChip key={c.callId || c.tool} c={c} />
-            ))}
-          </div>
-        )}
-
-        {working ? (
-          <WorkingIndicator running={running?.tool} />
-        ) : (
-          text &&
-          // While streaming, render plain text (an unclosed code fence would
-          // otherwise swallow the rest mid-stream); once the answer is final,
-          // render it as Markdown.
-          (streaming ? (
-            <div className="text-sm leading-relaxed text-foreground whitespace-pre-wrap break-words">
-              {text}
-              <span className="ml-0.5 inline-block h-4 w-1.5 animate-pulse bg-accent align-text-bottom" />
+        {/* Chronological timeline: each text run and tool call in the order it
+            happened, so the conversation reads as "said this → ran that → said
+            this" and the final answer is simply the last text run. While
+            streaming, text is plain (an unclosed code fence would otherwise
+            swallow the rest mid-stream); once final, it renders as Markdown. */}
+        {timeline.map((item, i) => {
+          if (item.kind === "tool") {
+            const c = turn.tools.find((x) => x.callId === item.callId);
+            return c ? <ToolChip key={`tl${i}`} c={c} /> : null;
+          }
+          const isLast = i === timeline.length - 1;
+          return streaming ? (
+            <div key={`tl${i}`} className="text-sm leading-relaxed text-foreground whitespace-pre-wrap break-words">
+              {item.text}
+              {isLast && <span className="ml-0.5 inline-block h-4 w-1.5 animate-pulse bg-accent align-text-bottom" />}
             </div>
           ) : (
-            <Markdown source={text} className="text-sm text-foreground" />
-          ))
-        )}
+            <Markdown key={`tl${i}`} source={item.text} className="text-sm text-foreground" />
+          );
+        })}
+
+        {working && <WorkingIndicator running={runningTool?.tool} />}
 
         {turn.status === "error" && (
           <div className="space-y-2">

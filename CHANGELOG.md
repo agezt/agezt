@@ -12,6 +12,14 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Chat answers read as a timeline.** A turn's tool calls are no longer bunched
+  above the text — the fold now records a chronological `timeline` of text runs and
+  tool calls, and the bubble renders them in the order they happened: *"Let me
+  check." → ran `shell` → "It printed: hello-timeline"*. So you follow exactly what
+  the agent said, did, and said next, with the final answer last. Turns restored
+  from older storage fall back to the previous layout. Verified live (isolated
+  daemon): a multi-tool answer interleaved text, `memory`, `world`, `file`, and
+  `shell` calls in true chronological order, zero console errors. (M681)
 - **Attach a skill, memory, or past run as context.** A paperclip in the Chat
   composer opens a picker over the existing skill/memory/run lists; the items you
   choose stack as chips above the textarea and are folded into a context preamble in
