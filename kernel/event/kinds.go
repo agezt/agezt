@@ -263,6 +263,13 @@ const (
 	// primitive that lets one agent's post WAKE another agent. Payload carries the
 	// topic, the optional from-role, and the message length.
 	KindBoardPosted Kind = "board.posted"
+
+	// KindCodeExecuted is published once per `code_exec` run (M683): the agent
+	// wrote and ran a program. Payload carries {language, project?, code_bytes,
+	// exit_code, timed_out, net, profile_effective, duration_ms} so `agt why` and
+	// the run timeline show what code ran and how it ended. The warden additionally
+	// emits its own warden.exec for the underlying process.
+	KindCodeExecuted Kind = "code.executed"
 )
 
 // IsKnown reports whether k is one of the kinds defined in this file. Useful
@@ -367,4 +374,5 @@ var knownKinds = map[Kind]struct{}{
 	KindScheduleFired:             {},
 	KindAssureVerdict:             {},
 	KindBoardPosted:               {},
+	KindCodeExecuted:              {},
 }

@@ -12,6 +12,29 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Agents can write and run code in a sandboxed workspace.** A new `code_exec`
+  tool lets the agent author a real program — Python, JavaScript/Node, or
+  TypeScript/Deno — run it, read the output, and iterate: the "build whatever's
+  needed" primitive for computation, scraping, and data work. Each call runs in its
+  own scratch directory (removed afterward) or, with a `project` name, a persistent
+  directory it can revisit and extend across calls (write more files, re-run). It
+  routes through the same warden as the shell tool (timeout, output cap, working-dir
+  scoping, best-effort Linux resource limits) and adds, every run: a **scrubbed
+  environment** so the daemon's secrets (API keys, provider creds, the whole AGEZT_*
+  namespace) are never visible to model-written code; for Deno, an **OS-level
+  filesystem jail** confined to the work dir on every platform (Windows included),
+  with network on by default; and **honest reporting** of the effective isolation
+  level (Python/Node get the warden profile — real on Linux+namespace, workdir/env/
+  limits-only elsewhere; the result and the journal never overstate containment).
+  Governed by a new `code.exec` capability and journaled per run (`code.executed` +
+  `warden.exec`) so every execution is visible in `agt why` and revertable in the
+  policy center. Registered automatically when a runtime is present;
+  `AGEZT_SANDBOX=off` disables it and `AGEZT_SANDBOX_NO_NET=1` drops network.
+  Verified live (isolated daemon, real DeepSeek): Python computed fib(30)=832040; a
+  Deno script fetched example.com over the network and returned its title; a `calc`
+  project iterated across two calls (add.py then mul.py, both persisted); printing
+  `os.environ` showed **no** secrets leaked; and policy allowed `code.exec` at L4
+  with the run rendered as `isolation=none (downgraded on this host)`. (M683)
 - **The agent can introspect the daemon's OWN live state.** A new read-only
   `introspect` tool gives the agent everything it needs to report on AGEZT itself in
   one call: `op=overview` (default) returns the at-a-glance health snapshot —

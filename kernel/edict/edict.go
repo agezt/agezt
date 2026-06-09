@@ -133,6 +133,15 @@ const (
 	// network — low risk, Allow by default (M682), so a "summarise AGEZT's health"
 	// task can actually see everything instead of guessing.
 	CapIntrospect Capability = "introspect"
+	// CapCodeExec gates the `code_exec` tool: the agent WRITING and RUNNING
+	// arbitrary code (Python / Node / Deno) to compute, scrape, and build things
+	// (M683). A high-blast-radius capability — code can read/write the sandbox
+	// workspace and (by default) reach the network — but every run is sandboxed
+	// (scrubbed env so secrets never leak, work confined to <baseDir>/sandbox,
+	// resource-capped, Deno fs-jailed on every OS) and journaled (code.executed +
+	// warden.exec). The owner runs it Allow by default for full autonomy; operators
+	// who want confirmation set it to ask/deny in the policy center.
+	CapCodeExec Capability = "code.exec"
 )
 
 // TrustLevel encodes the trust ladder (DECISIONS F3).
@@ -559,6 +568,7 @@ func DefaultLevels() map[Capability]TrustLevel {
 		CapBoard:       LevelAllow,    // local shared message board between agents; low risk
 		CapSkill:       LevelAskFirst, // self-modification: the agent authoring/promoting its own skills
 		CapIntrospect:  LevelAllow,    // local read of the daemon's own live state; no mutation, no network — low risk
+		CapCodeExec:    LevelAllow,    // write+run code; sandboxed (scrubbed env, confined dir, capped) and journaled — owner's choice for full autonomy
 	}
 }
 
@@ -598,7 +608,7 @@ func AllCapabilities() []Capability {
 		CapACPAgent, CapRemoteRun, CapNotify,
 		CapHomeAssistantRead, CapHomeAssistantCall,
 		CapBrowserRead, CapMemory, CapWorld, CapWebSearch, CapSchedule, CapRunsRead, CapStanding, CapBoard, CapSkill,
-		CapIntrospect,
+		CapIntrospect, CapCodeExec,
 	}
 	slices.Sort(caps)
 	return caps

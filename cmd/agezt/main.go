@@ -85,6 +85,7 @@ import (
 	"github.com/agezt/agezt/plugins/tools/acpagent"
 	boardtool "github.com/agezt/agezt/plugins/tools/boardtool"
 	"github.com/agezt/agezt/plugins/tools/browser"
+	"github.com/agezt/agezt/plugins/tools/codeexec"
 	"github.com/agezt/agezt/plugins/tools/coding"
 	filetool "github.com/agezt/agezt/plugins/tools/file"
 	hatool "github.com/agezt/agezt/plugins/tools/homeassistant"
@@ -1165,6 +1166,14 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// the daemon's own health/schedules/standing-orders in one call.
 	introspectToolInst.Bind(introspecttool.NewKernelSource(k))
 	fmt.Fprintf(stdout, "  introspect tool  : enabled (the agent can read the daemon's own live state)\n")
+
+	// Bind the code-execution tool to the live bus (M683) so each run journals a
+	// code.executed event. The tool itself was constructed in buildTools (it needed
+	// the warden + base dir); we reach it through the returned tools map.
+	if ce, ok := tools["code_exec"].(*codeexec.Tool); ok {
+		ce.Bind(k.Bus())
+		fmt.Fprintf(stdout, "  code_exec tool   : enabled (the agent can write & run code: %s)\n", strings.Join(ce.Languages(), ", "))
+	}
 
 	// Scheduled intents (autonomy) — fire operator-configured intents on a timer
 	// through the governed loop. Runs on the daemon ctx (halt/shutdown stop it).
@@ -3812,6 +3821,26 @@ func buildTools(baseDir string, stderr io.Writer, ward warden.Engine) (map[strin
 		if ct := coding.New(codingCmd, coding.AbsRepo(wsRoot)); ct != nil {
 			out["coding"] = ct
 			registered = append(registered, "coding(external agent)")
+		}
+	}
+
+	// code_exec — the agent writes & runs Python/JS/TS in a sandboxed workspace
+	// under <baseDir>/sandbox (M683). Routed through the same warden as shell, with
+	// a scrubbed env (no secrets), per-call ephemeral dirs (or named persistent
+	// projects), and resource caps. Registered when at least one runtime is present,
+	// UNLESS AGEZT_SANDBOX=off. Network is on by default; AGEZT_SANDBOX_NO_NET=1
+	// forces it off. Bound to the kernel bus after it opens (for the code.executed
+	// event), via the returned tools map in the daemon run path.
+	if !strings.EqualFold(strings.TrimSpace(os.Getenv(brand.EnvPrefix+"SANDBOX")), "off") {
+		if rt := codeexec.DetectRuntimes(); len(rt) > 0 {
+			netOn := os.Getenv(brand.EnvPrefix+"SANDBOX_NO_NET") != "1"
+			ce := codeexec.NewWithWarden(ward, filepath.Join(baseDir, "sandbox"), rt, netOn)
+			out["code_exec"] = ce
+			netTag := "net=on"
+			if !netOn {
+				netTag = "net=off"
+			}
+			registered = append(registered, fmt.Sprintf("code_exec(langs=%s, %s)", strings.Join(ce.Languages(), "/"), netTag))
 		}
 	}
 
