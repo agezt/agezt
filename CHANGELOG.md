@@ -12,6 +12,15 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **`code_exec` cross-runtime parity is now enforced by a live test.** A new
+  smoke test actually runs each detected runtime (Python, Node, Deno) end-to-end
+  and asserts the two properties that must hold identically for all of them: clean
+  output (the program's printed line is exactly what comes back — the permanent
+  regression guard for the M685 interpreter-noise fix, now covering every language)
+  and the secret scrub (a secret-shaped env var in the daemon's environment never
+  reaches the code). Languages whose interpreter isn't installed are skipped, so it
+  is safe in CI. Confirms Node and Deno were already clean, and that scrubbing works
+  the same across all three. (M687)
 - **Sandbox view: see what your agents built.** A new **Sandbox** page (under
   Agents) surfaces the persistent projects agents create with the `code_exec` tool
   under `<baseDir>/sandbox/projects`: each project lists its files (with sizes and
