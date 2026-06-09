@@ -2,11 +2,12 @@ import { useState } from "react";
 import { RefreshCw, Wallet, Check, Infinity as InfinityIcon } from "lucide-react";
 import { usePanel } from "@/lib/usePanel";
 import { postAction } from "@/lib/api";
-import { money, pct } from "@/lib/format";
+import { money } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { Card, CardHeader, CardTitle, CardBody } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Muted, ErrorText } from "@/components/JsonView";
+import { Ring, BarRow } from "@/components/Widgets";
 
 interface BudgetData {
   utc_date?: string;
@@ -77,30 +78,26 @@ export function Budget() {
         ) : data ? (
           <>
             {/* Spend gauge */}
-            <div>
-              <div className="flex items-baseline gap-2">
-                <span className="text-3xl font-semibold tabular-nums">{money(spent)}</span>
-                <span className="text-sm text-muted">
-                  {ceiling > 0 ? `of ${money(ceiling)} daily ceiling` : "spent today · no ceiling"}
-                </span>
-              </div>
-              {ceiling > 0 && (
-                <>
-                  <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-panel">
-                    <div
-                      className={cn(
-                        "h-full rounded-full transition-all",
-                        pctUsed > 85 ? "bg-bad" : pctUsed > 60 ? "bg-accent" : "bg-good",
-                      )}
-                      style={{ width: `${pctUsed}%` }}
-                    />
-                  </div>
-                  <div className="mt-1 text-xs text-muted">{Math.round(pctUsed)}% of today's ceiling used</div>
-                </>
-              )}
-              <div className="mt-1 text-xs text-muted">
-                as of {data.utc_date} UTC ·{" "}
-                {data.strict_pricing ? "strict pricing (unpriced models refused)" : "lax pricing (unpriced charged $0)"}
+            <div className="flex items-center gap-5">
+              <Ring
+                pct={ceiling > 0 ? pctUsed : 0}
+                center={ceiling > 0 ? `${Math.round(pctUsed)}%` : "∞"}
+                label={ceiling > 0 ? "of ceiling" : "no ceiling"}
+                tone={ceiling === 0 ? "muted" : pctUsed > 85 ? "bad" : pctUsed > 60 ? "warn" : "good"}
+              />
+              <div className="min-w-0">
+                <div className="flex items-baseline gap-2">
+                  <span className="text-3xl font-semibold tabular-nums">{money(spent)}</span>
+                  <span className="text-sm text-muted">
+                    {ceiling > 0 ? `of ${money(ceiling)} daily ceiling` : "spent today · no ceiling"}
+                  </span>
+                </div>
+                <div className="mt-1 text-xs text-muted">
+                  as of {data.utc_date} UTC ·{" "}
+                  {data.strict_pricing
+                    ? "strict pricing (unpriced models refused)"
+                    : "lax pricing (unpriced charged $0)"}
+                </div>
               </div>
             </div>
 
@@ -159,29 +156,27 @@ export function Budget() {
             {/* Per-task-type caps */}
             {perTask.length > 0 && (
               <div>
-                <div className="mb-1.5 text-xs uppercase tracking-wider text-muted">Per task type</div>
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-xs text-muted">
-                      <th className="py-1 text-left font-normal">task type</th>
-                      <th className="py-1 text-right font-normal">spent</th>
-                      <th className="py-1 text-right font-normal">cap</th>
-                      <th className="py-1 text-right font-normal">used</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {perTask.map((r) => (
-                      <tr key={r.task_type} className="border-t border-border/60">
-                        <td className="py-1.5">{r.task_type}</td>
-                        <td className="py-1.5 text-right tabular-nums">{money(r.spent_mc)}</td>
-                        <td className="py-1.5 text-right tabular-nums">{money(r.ceiling_mc)}</td>
-                        <td className="py-1.5 text-right tabular-nums text-muted">
-                          {pct(r.spent_mc / (r.ceiling_mc || 1), r.ceiling_mc)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                <div className="mb-2 text-xs uppercase tracking-wider text-muted">Per task type</div>
+                <div className="space-y-2">
+                  {perTask.map((r) => {
+                    const used = r.ceiling_mc > 0 ? (r.spent_mc / r.ceiling_mc) * 100 : 0;
+                    const tone = r.ceiling_mc === 0 ? "muted" : used > 85 ? "bad" : used > 60 ? "warn" : "good";
+                    return (
+                      <BarRow
+                        key={r.task_type}
+                        label={r.task_type}
+                        value={r.spent_mc}
+                        max={r.ceiling_mc > 0 ? r.ceiling_mc : Math.max(r.spent_mc, 1)}
+                        display={
+                          r.ceiling_mc > 0
+                            ? `${money(r.spent_mc)} / ${money(r.ceiling_mc)}`
+                            : money(r.spent_mc)
+                        }
+                        tone={tone}
+                      />
+                    );
+                  })}
+                </div>
               </div>
             )}
           </>
