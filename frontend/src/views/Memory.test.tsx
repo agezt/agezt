@@ -11,12 +11,60 @@ vi.mock("@/lib/api", () => ({
   postAction: (...a: unknown[]) => postAction(...a),
 }));
 
-import { TeachFactForm, ReviseFactForm } from "@/views/Memory";
+import { TeachFactForm, ReviseFactForm, parseMemoryJSON } from "@/views/Memory";
 
 afterEach(cleanup);
 beforeEach(() => {
   postJSON.mockReset();
   postJSON.mockResolvedValue({ id: "mem-1" });
+});
+
+describe("parseMemoryJSON (M750)", () => {
+  const rec = (content: string) => ({ content, subject: "tz", type: "FACT" });
+
+  it("reads a bare array, a {memory:[…]} and a {records:[…]} wrapper", () => {
+    expect(parseMemoryJSON(JSON.stringify([rec("a")]))).toHaveLength(1);
+    expect(parseMemoryJSON(JSON.stringify({ memory: [rec("b")] }))).toHaveLength(1);
+    expect(parseMemoryJSON(JSON.stringify({ version: 1, records: [rec("c")] }))).toHaveLength(1);
+  });
+
+  it("keeps content + optional subject/type/confidence, dropping kernel fields", () => {
+    const out = parseMemoryJSON(
+      JSON.stringify([
+        {
+          id: "m-1",
+          created_ms: 1,
+          last_seen_ms: 2,
+          source_event: "x",
+          tags: { source: "agent" },
+          content: "  Owner is in Istanbul  ",
+          subject: "  Owner timezone  ",
+          type: "preference",
+          confidence: 0.8,
+        },
+      ]),
+    );
+    expect(out[0]).toEqual({ content: "Owner is in Istanbul", subject: "Owner timezone", type: "PREFERENCE", confidence: 0.8 });
+    expect(out[0]).not.toHaveProperty("id");
+    expect(out[0]).not.toHaveProperty("tags");
+  });
+
+  it("omits an empty/zero confidence and a blank subject/type", () => {
+    const out = parseMemoryJSON(JSON.stringify([{ content: "bare fact", subject: "  ", type: "", confidence: 0 }]));
+    expect(out[0]).toEqual({ content: "bare fact" });
+  });
+
+  it("drops entries with no content", () => {
+    const out = parseMemoryJSON(JSON.stringify([{ content: "keep" }, { subject: "no content" }, { content: "   " }]));
+    expect(out).toHaveLength(1);
+    expect(out[0].content).toBe("keep");
+  });
+
+  it("throws on invalid JSON, a non-array shape, or nothing valid", () => {
+    expect(() => parseMemoryJSON("nope")).toThrow();
+    expect(() => parseMemoryJSON('{"foo":1}')).toThrow(/expected an array/);
+    expect(() => parseMemoryJSON("[{}]")).toThrow(/no valid memories/);
+  });
 });
 
 describe("TeachFactForm", () => {
