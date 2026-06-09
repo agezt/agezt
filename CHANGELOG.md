@@ -12,6 +12,23 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Stop watching something — remove a live watch.** The Autonomy heartbeat card now lists the
+  agent's **observers** as chips, and each watch you added at runtime (a disk or a command, M767/M768)
+  carries a small **✕** to stop it — no daemon restart needed. Built-in observers (`self:health`) have
+  no remove control and can't be dropped: the engine only removes observers it was handed via
+  `AddObserver`, tracked per-instance, so a runtime `system:disk` watch is removable even if a startup
+  disk observer happens to share its name. `Engine.RemoveObserver(name)` filters the slice under the
+  same lock `tickOnce` snapshots, so a removal never races a beat; `Status`/`StatusMap` now also report
+  a `removable` set so the UI knows which chips get an ✕. New route `/api/pulse/unwatch` (name) → new
+  `CmdPulseUnwatch`. (This also fixes a latent display bug: the status line counted `observers` as if it
+  were a number when the API returns a name array — it now shows the correct count.) Tested at every
+  layer — engine (a runtime watch is removed while a same-named startup observer survives; removing a
+  permanent-only name is a no-op), control-plane (the call reaches the engine and returns the count; a
+  missing name is rejected), and UI (only removable chips render an ✕; clicking it confirms then posts
+  `/api/pulse/unwatch`). Verified live on an isolated daemon: added a `probe:ci` watch, confirmed it
+  showed an ✕ while `self:health` did not, clicked ✕ → confirm → observers went from
+  `[self:health, probe:ci]` back to `[self:health]`; 0 console errors. Completes the watch lifecycle:
+  add a disk/command watch (M767/M768) and remove it (M769), all from the console. (M769)
 - **Tell the agent to watch a command, live.** The Autonomy heartbeat card's watch control gains a
   second mode — **watch a command** — alongside the disk watch (M767). Give it a name and a shell
   command (e.g. `ci` / `make test`) and the agent runs that command each beat, alerting (per the

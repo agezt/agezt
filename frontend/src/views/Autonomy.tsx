@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Waves, RefreshCw, CalendarClock, Anchor, ShieldCheck, Sparkles, Radio, MessagesSquare, Play, Pause, Heart, Zap, Eye, Plus, Activity } from "lucide-react";
+import { Waves, RefreshCw, CalendarClock, Anchor, ShieldCheck, Sparkles, Radio, MessagesSquare, Play, Pause, Heart, Zap, Eye, Plus, Activity, X } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { getJSON, postAction } from "@/lib/api";
 import { useUI } from "@/components/ui/feedback";
@@ -157,7 +157,8 @@ interface PulseStatus {
   running?: boolean;
   paused?: boolean;
   beats?: number;
-  observers?: number;
+  observers?: string[];
+  removable?: string[];
   cadence_ms?: number;
   last_tick_ms?: number;
   dial?: string;
@@ -304,6 +305,20 @@ export function PulseControl() {
     }
   }
 
+  // Remove a runtime-added watch (M769): stop watching a disk or command without a
+  // restart. Only runtime-added observers (reported in `removable`) offer this; the
+  // built-in self:health observer can't be removed.
+  async function removeObserver(name: string) {
+    if (!(await ui.confirm({ title: `Stop watching ${name}?`, message: "The agent will no longer check this on each beat.", confirmLabel: "Stop watching", danger: true }))) return;
+    try {
+      await postAction("/api/pulse/unwatch", { name });
+      ui.toast(`Stopped watching ${name}`, "success");
+      await load();
+    } catch (e) {
+      ui.toast((e as Error).message, "error");
+    }
+  }
+
   if (!st) return null;
   if (!st.enabled) {
     return (
@@ -330,7 +345,7 @@ export function PulseControl() {
       </span>
       <span className="text-[11px] text-muted">
         {st.beats ?? 0} beat{st.beats === 1 ? "" : "s"}
-        {st.observers != null ? ` · ${st.observers} observer${st.observers === 1 ? "" : "s"}` : ""}
+        {st.observers != null ? ` · ${st.observers.length} observer${st.observers.length === 1 ? "" : "s"}` : ""}
         {st.last_tick_ms ? ` · last ${fmtTime(st.last_tick_ms)}` : ""}
       </span>
       <label className="ml-auto flex items-center gap-1 text-[11px] text-muted" title="How proactive the agent is (quiet=alerts only, chatty=digests too)">
@@ -378,6 +393,35 @@ export function PulseControl() {
         {paused ? "Resume" : "Pause"}
       </Button>
       </div>
+
+      {/* The live observer set — each is polled every beat. Runtime-added watches
+          (M767/M768) carry a remove control (M769); built-ins like self:health don't. */}
+      {(st.observers?.length ?? 0) > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5 border-t border-border/60 pt-2 text-[11px] text-muted">
+          <span className="text-muted">observers:</span>
+          {st.observers!.map((name, i) => {
+            const canRemove = (st.removable ?? []).includes(name);
+            return (
+              <span
+                key={`${name}-${i}`}
+                className="inline-flex items-center gap-1 rounded-full border border-border bg-panel px-2 py-0.5 font-mono"
+              >
+                {name}
+                {canRemove && (
+                  <button
+                    onClick={() => removeObserver(name)}
+                    className="text-muted transition-colors hover:text-bad"
+                    title={`Stop watching ${name}`}
+                    aria-label={`Stop watching ${name}`}
+                  >
+                    <X className="size-3" />
+                  </button>
+                )}
+              </span>
+            );
+          })}
+        </div>
+      )}
 
       {/* Add a watch — disk (M767) or command-probe (M768) */}
       <div className="flex flex-wrap items-center gap-1.5 border-t border-border/60 pt-2 text-[11px] text-muted">

@@ -926,6 +926,9 @@ const (
 	// CmdPulseProbe adds a command-probe watch at runtime. Args: name, command.
 	// Returns { added, observer }.
 	CmdPulseProbe = "pulse_probe"
+	// CmdPulseUnwatch removes runtime-added watches by observer name (M769) — the
+	// inverse of pulse_watch/pulse_probe. Args: name. Returns { removed }.
+	CmdPulseUnwatch = "pulse_unwatch"
 
 	// CmdInbox returns the Unified Inbox (SPEC-07 §4): channel.inbound /
 	// channel.outbound events folded into conversation threads grouped by

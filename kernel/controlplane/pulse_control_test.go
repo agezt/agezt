@@ -22,6 +22,7 @@ type fakePulse struct {
 	cadence time.Duration
 	dial    string
 	flushed int
+	removed string
 }
 
 func (f *fakePulse) StatusMap() map[string]any {
@@ -49,6 +50,12 @@ func (f *fakePulse) FlushDigest() int {
 	f.flushed++
 	f.mu.Unlock()
 	return 2 // pretend two items were held
+}
+func (f *fakePulse) RemoveObserver(name string) int {
+	f.mu.Lock()
+	f.removed = name
+	f.mu.Unlock()
+	return 1 // pretend one observer was dropped
 }
 
 func TestPulseStatusDisabledWhenNoEngine(t *testing.T) {
@@ -175,6 +182,23 @@ func TestPulseStatusPauseResumeWithEngine(t *testing.T) {
 	// Missing command is rejected.
 	if _, err := c.Call(ctx, controlplane.CmdPulseProbe, map[string]any{"name": "ci"}); err == nil {
 		t.Error("probe with no command should be rejected")
+	}
+
+	// pulse_unwatch (M769): removing by observer name reaches the engine and returns
+	// the count dropped.
+	ures, err := c.Call(ctx, controlplane.CmdPulseUnwatch, map[string]any{"name": "probe:ci"})
+	if err != nil {
+		t.Fatalf("pulse_unwatch: %v", err)
+	}
+	if n, _ := ures["removed"].(float64); n != 1 {
+		t.Fatalf("expected removed 1, got %v", ures["removed"])
+	}
+	if fp.removed != "probe:ci" {
+		t.Fatalf("expected engine to be asked to remove probe:ci, got %q", fp.removed)
+	}
+	// A missing name is rejected.
+	if _, err := c.Call(ctx, controlplane.CmdPulseUnwatch, map[string]any{}); err == nil {
+		t.Error("unwatch with no name should be rejected")
 	}
 
 	// Persistence (M760): cadence + dial are written to the config store so they

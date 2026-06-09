@@ -209,6 +209,64 @@ func TestAddObserverIsPolledNextBeat(t *testing.T) {
 	}
 }
 
+// TestRemoveObserverDropsOnlyRuntimeAdded (M769): a runtime-added watch can be removed
+// by name, while a startup observer with the SAME name is protected. The removable set
+// is reported in Status so the UI knows which observers offer a remove control.
+func TestRemoveObserverDropsOnlyRuntimeAdded(t *testing.T) {
+	// A startup observer named "self:health" (permanent) plus, later, a runtime one that
+	// collides on the name — only the runtime one may be removed.
+	startup := &fakeObserver{name: "self:health"}
+	e, _ := newEngine(t, Config{Observers: []Observer{startup}})
+
+	added := e.AddObserver(&fakeObserver{name: "probe:ci"})
+	if added != "probe:ci" {
+		t.Fatalf("AddObserver returned %q", added)
+	}
+	collide := &fakeObserver{name: "self:health"} // same name as the startup observer
+	e.AddObserver(collide)
+
+	// Status reports both observers as removable, but the permanent startup one is NOT in
+	// the removable set even though it shares a name with the runtime collider.
+	s := e.Status()
+	if len(s.Observers) != 3 {
+		t.Fatalf("expected 3 observers, got %v", s.Observers)
+	}
+	if !contains(s.Removable, "probe:ci") || !contains(s.Removable, "self:health") {
+		t.Fatalf("removable should list both runtime-added names, got %v", s.Removable)
+	}
+
+	// Removing "probe:ci" drops exactly one.
+	if n := e.RemoveObserver("probe:ci"); n != 1 {
+		t.Fatalf("RemoveObserver(probe:ci) = %d, want 1", n)
+	}
+
+	// Removing "self:health" drops ONLY the runtime collider, never the startup observer.
+	if n := e.RemoveObserver("self:health"); n != 1 {
+		t.Fatalf("RemoveObserver(self:health) = %d, want 1 (the runtime collider only)", n)
+	}
+	after := e.Status()
+	if len(after.Observers) != 1 || after.Observers[0] != "self:health" {
+		t.Fatalf("the permanent self:health observer must survive, got %v", after.Observers)
+	}
+	if len(after.Removable) != 0 {
+		t.Fatalf("nothing removable should remain, got %v", after.Removable)
+	}
+
+	// Removing a name that matches only a permanent observer is a no-op.
+	if n := e.RemoveObserver("self:health"); n != 0 {
+		t.Fatalf("removing a permanent-only name should drop nothing, got %d", n)
+	}
+}
+
+func contains(xs []string, want string) bool {
+	for _, x := range xs {
+		if x == want {
+			return true
+		}
+	}
+	return false
+}
+
 func TestTickEmitsFullChain(t *testing.T) {
 	sink := &capturingSink{}
 	obs := &fakeObserver{name: "fake", deltas: []Delta{{
