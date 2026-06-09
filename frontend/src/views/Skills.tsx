@@ -87,9 +87,10 @@ export function Skills() {
       ) : !skills ? (
         <Muted>loading…</Muted>
       ) : skills.length === 0 ? (
-        <Muted>no skills learned yet</Muted>
+        <Muted>no skills learned yet — the agent learns them with the `skill` tool</Muted>
       ) : (
         <div className="min-h-0 flex-1 space-y-2 overflow-auto">
+          <StatusSummary skills={skills} />
           {skills.map((s, i) => {
             const m = s.metrics || {};
             const isOpen = open === (s.id || String(i));
@@ -150,6 +151,52 @@ export function Skills() {
           })}
         </div>
       )}
+    </div>
+  );
+}
+
+// STATUS_ORDER + STATUS_BAR drive the lifecycle breakdown: the order skills flow
+// through (draft → shadow → active, with quarantined/archived off to the side) and
+// the bar/text colour for each.
+const STATUS_ORDER = ["active", "shadow", "draft", "quarantined", "archived"] as const;
+const STATUS_BAR: Record<string, { bar: string; text: string }> = {
+  active: { bar: "bg-good", text: "text-good" },
+  shadow: { bar: "bg-accent", text: "text-accent" },
+  draft: { bar: "bg-muted", text: "text-foreground" },
+  quarantined: { bar: "bg-bad", text: "text-bad" },
+  archived: { bar: "bg-panel", text: "text-muted" },
+};
+
+// StatusSummary shows the skill library's lifecycle health at a glance: a stacked
+// proportion bar of the statuses plus a count chip per status, so you can see how
+// many skills are live vs still being proven vs pulled — instead of scanning the
+// per-card badges.
+function StatusSummary({ skills }: { skills: Skill[] }) {
+  const counts: Record<string, number> = {};
+  for (const s of skills) counts[s.status || "draft"] = (counts[s.status || "draft"] || 0) + 1;
+  const present = STATUS_ORDER.filter((s) => counts[s] > 0);
+  const total = skills.length;
+  return (
+    <div className="rounded-lg border border-border bg-card p-3">
+      <div className="flex h-2.5 overflow-hidden rounded-full bg-panel">
+        {present.map((s) => (
+          <div
+            key={s}
+            className={cn("h-full transition-[width] duration-500", STATUS_BAR[s].bar)}
+            style={{ width: `${(counts[s] / total) * 100}%` }}
+            title={`${counts[s]} ${s}`}
+          />
+        ))}
+      </div>
+      <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+        {present.map((s) => (
+          <span key={s} className="inline-flex items-center gap-1.5">
+            <span className={cn("size-2 rounded-full", STATUS_BAR[s].bar)} />
+            <span className={cn("font-semibold tabular-nums", STATUS_BAR[s].text)}>{counts[s]}</span>
+            <span className="text-muted">{s}</span>
+          </span>
+        ))}
+      </div>
     </div>
   );
 }
