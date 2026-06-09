@@ -51,7 +51,7 @@ import type { Msg } from "@/lib/conversations";
 // cost. The engine (store, streaming, model) lives in ChatProvider so a run keeps
 // going when you leave the view; this component is the full-screen UI over it.
 export function Chat() {
-  const { store, messages, busy, model, setModel, activeModel, send, retry, editAndResend, conversationPersona, setConversationPersona, stop, newChat, selectConversation, removeConversation } =
+  const { store, messages, busy, model, setModel, activeModel, send, retry, editAndResend, conversationPersona, setConversationPersona, stop, newChat, selectConversation, removeConversation, renameConversation } =
     useChat();
   const [input, setInput] = useState("");
   // pinned = the thread is stuck to the bottom (auto-scrolls on new content).
@@ -192,24 +192,14 @@ export function Chat() {
           {[...store.conversations]
             .sort((a, b) => b.updatedAt - a.updatedAt)
             .map((c) => (
-              <div
+              <ConversationItem
                 key={c.id}
-                className={cn(
-                  "group flex items-center gap-1 rounded-md px-2 py-1.5 text-xs transition-colors",
-                  c.id === store.activeId ? "bg-accent/15 text-accent" : "text-muted hover:bg-panel",
-                )}
-              >
-                <button onClick={() => selectConversation(c.id)} className="min-w-0 flex-1 truncate text-left">
-                  {c.title || "New chat"}
-                </button>
-                <button
-                  onClick={() => removeConversation(c.id)}
-                  title="Delete conversation"
-                  className="shrink-0 opacity-0 transition-opacity hover:text-bad group-hover:opacity-100"
-                >
-                  <Trash2 className="size-3.5" />
-                </button>
-              </div>
+                title={c.title || "New chat"}
+                active={c.id === store.activeId}
+                onSelect={() => selectConversation(c.id)}
+                onRemove={() => removeConversation(c.id)}
+                onRename={(t) => renameConversation(c.id, t)}
+              />
             ))}
         </div>
       </aside>
@@ -342,6 +332,92 @@ export function Chat() {
         </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ConversationItem is one row in the thread sidebar: click to switch, hover to
+// reveal rename (pencil → inline input) and delete. Renaming a thread (M720) lets
+// you organise the sidebar instead of living with auto-derived titles.
+export function ConversationItem({
+  title,
+  active,
+  onSelect,
+  onRemove,
+  onRename,
+}: {
+  title: string;
+  active: boolean;
+  onSelect: () => void;
+  onRemove: () => void;
+  onRename: (title: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(title);
+  const ref = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (editing) {
+      ref.current?.focus();
+      ref.current?.select();
+    }
+  }, [editing]);
+
+  function begin() {
+    setDraft(title);
+    setEditing(true);
+  }
+  function commit() {
+    setEditing(false);
+    if (draft !== title) onRename(draft);
+  }
+
+  return (
+    <div
+      className={cn(
+        "group flex items-center gap-1 rounded-md px-2 py-1.5 text-xs transition-colors",
+        active ? "bg-accent/15 text-accent" : "text-muted hover:bg-panel",
+      )}
+    >
+      {editing ? (
+        <input
+          ref={ref}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={commit}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") commit();
+            else if (e.key === "Escape") {
+              setDraft(title);
+              setEditing(false);
+            }
+          }}
+          aria-label="Conversation title"
+          className="min-w-0 flex-1 rounded border border-accent/40 bg-panel px-1 text-xs outline-none"
+        />
+      ) : (
+        <>
+          <button onClick={onSelect} onDoubleClick={begin} className="min-w-0 flex-1 truncate text-left">
+            {title}
+          </button>
+          <button
+            onClick={begin}
+            title="Rename conversation"
+            aria-label="Rename conversation"
+            className="shrink-0 opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100"
+          >
+            <Pencil className="size-3" />
+          </button>
+          <button
+            onClick={onRemove}
+            title="Delete conversation"
+            aria-label="Delete conversation"
+            className="shrink-0 opacity-0 transition-opacity hover:text-bad group-hover:opacity-100"
+          >
+            <Trash2 className="size-3.5" />
+          </button>
+        </>
+      )}
     </div>
   );
 }

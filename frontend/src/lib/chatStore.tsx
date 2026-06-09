@@ -20,6 +20,7 @@ import {
   withActiveConvModel,
   startConversation,
   deleteConversation,
+  renameConversation,
   type Msg,
   type Store,
 } from "@/lib/conversations";
@@ -90,6 +91,8 @@ export interface ChatEngine {
   newChat: () => void;
   selectConversation: (id: string) => void;
   removeConversation: (id: string) => void;
+  /** Rename a conversation; a blank name restores the message-derived title. */
+  renameConversation: (id: string, title: string) => void;
   /** Memories the daemon recorded during the run with this correlation id. */
   learnedFor: (corr?: string) => LearnedMem[];
   /** Forget one learned memory (tombstones it in the store + drops the chip). */
@@ -268,6 +271,10 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     setStore((s) => deleteConversation(s, id, genId, Date.now()));
   }
 
+  function renameConv(id: string, title: string) {
+    setStore((s) => renameConversation(s, id, title, Date.now()));
+  }
+
   const engine: ChatEngine = {
     store,
     messages,
@@ -284,6 +291,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     newChat,
     selectConversation,
     removeConversation,
+    renameConversation: renameConv,
     learnedFor,
     forgetLearned,
   };

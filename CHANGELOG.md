@@ -12,6 +12,14 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Rename chat conversations.** Threads in the chat sidebar were auto-titled from their
+  first message and stuck that way. Each row now has a rename affordance (a pencil on
+  hover, or double-click the title): edit inline, Enter to save, Esc to cancel. A custom
+  title sticks across new messages; clearing it restores the message-derived title. Tests
+  cover the store helper (set/persist/blank-restores-derived) and the sidebar item
+  (select, rename on Enter, rename on double-click+blur, Esc cancels). Verified live: an
+  auto-titled thread renamed to "Q3 research" → persisted across a reload, 0 console
+  errors. (M720)
 - **Name your console.** The header title — "agezt · console" — is now click-to-rename:
   call it Jarvis, Friday, or whatever you like. The chosen name shows in the header and
   the browser tab title, is stored locally (a per-device appearance preference, like the

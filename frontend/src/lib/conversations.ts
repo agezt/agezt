@@ -148,6 +148,19 @@ export function withActiveMessages(store: Store, messages: Msg[], now: number): 
   };
 }
 
+// renameConversation sets a conversation's title to a manual value (trimmed). A
+// blank title falls back to one derived from the messages, so clearing a name
+// restores the auto-title rather than leaving it empty. Because the result is no
+// longer "New chat", later messages won't auto-rename it.
+export function renameConversation(store: Store, id: string, title: string, now: number): Store {
+  return {
+    ...store,
+    conversations: store.conversations.map((c) =>
+      c.id === id ? { ...c, title: title.trim() || deriveTitle(c.messages), updatedAt: now } : c,
+    ),
+  };
+}
+
 // startConversation adds a fresh empty conversation and makes it active. If the
 // current active conversation is already empty, it's reused (no pile-up of blank
 // "New chat" entries).
