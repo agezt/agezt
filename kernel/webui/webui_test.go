@@ -702,6 +702,96 @@ func TestEdictControlRoutes(t *testing.T) {
 	}
 }
 
+// TestSessionControlRoutesWired (M763) hardens the route→command wiring for the
+// controls added across M743–M761: each path must map to the right control-plane
+// command, forward only its allowlisted args, and strip anything else (the `evil`
+// canary). Covers the POST write routes and the GET read-with-args routes.
+func TestSessionControlRoutesWired(t *testing.T) {
+	for _, tc := range []struct {
+		path, cmd, method, query string
+		wantArgs                 map[string]string
+	}{
+		// Pulse heartbeat controls (no-arg POSTs).
+		{"/api/pulse/beat", "pulse_beat", http.MethodPost, "", nil},
+		{"/api/pulse/flush", "pulse_flush", http.MethodPost, "", nil},
+		{"/api/pulse/pause", "pulse_pause", http.MethodPost, "", nil},
+		{"/api/pulse/resume", "pulse_resume", http.MethodPost, "", nil},
+		// Pulse tuning (arg POSTs) — only the named arg passes.
+		{"/api/pulse/cadence", "pulse_cadence", http.MethodPost, "seconds=300&evil=x", map[string]string{"seconds": "300"}},
+		{"/api/pulse/dial", "pulse_dial", http.MethodPost, "dial=chatty&evil=x", map[string]string{"dial": "chatty"}},
+		// Read-with-args routes (GET).
+		{"/api/edict/test", "edict_test", http.MethodGet, "capability=shell&input=rm&evil=x", map[string]string{"capability": "shell", "input": "rm"}},
+		{"/api/why", "why", http.MethodGet, "event_id=e1&evil=x", map[string]string{"event_id": "e1"}},
+		{"/api/standing/why", "standing_why", http.MethodGet, "id=so-1&evil=x", map[string]string{"id": "so-1"}},
+		{"/api/schedule/test", "schedule_test", http.MethodGet, "id=sc-1&count=5&evil=x", map[string]string{"id": "sc-1", "count": "5"}},
+	} {
+		fc := &fakeCaller{result: map[string]any{"ok": true}}
+		s, _ := newServer(t, fc, "secret")
+		url := tc.path + "?token=secret"
+		if tc.query != "" {
+			url += "&" + tc.query
+		}
+		req := httptest.NewRequest(tc.method, url, nil)
+		rec := httptest.NewRecorder()
+		s.Handler().ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Errorf("%s status = %d want 200", tc.path, rec.Code)
+		}
+		if len(fc.calls) != 1 || fc.calls[0] != tc.cmd {
+			t.Errorf("%s issued %v want [%s]", tc.path, fc.calls, tc.cmd)
+		}
+		for k, v := range tc.wantArgs {
+			if got, _ := fc.lastArgs[k].(string); got != v {
+				t.Errorf("%s arg %s = %v want %q", tc.path, k, fc.lastArgs[k], v)
+			}
+		}
+		if _, leaked := fc.lastArgs["evil"]; leaked {
+			t.Errorf("%s leaked a non-allowlisted arg", tc.path)
+		}
+	}
+}
+
+// TestRedactTestRouteForwardsBody (M763): the redaction probe is a jsonRoute — its
+// text rides the POST body (so a real secret never lands in a URL), and only the
+// allowlisted body key is forwarded.
+func TestRedactTestRouteForwardsBody(t *testing.T) {
+	fc := &fakeCaller{result: map[string]any{"would_redact": false}}
+	s, _ := newServer(t, fc, "secret")
+	body := strings.NewReader(`{"text":"AKIAIOSFODNN7EXAMPLE","evil":"x"}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/redact/test?token=secret", body)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d want 200", rec.Code)
+	}
+	if len(fc.calls) != 1 || fc.calls[0] != "redact_test" {
+		t.Fatalf("issued %v want [redact_test]", fc.calls)
+	}
+	if got, _ := fc.lastArgs["text"].(string); got != "AKIAIOSFODNN7EXAMPLE" {
+		t.Errorf("text not forwarded from body: %v", fc.lastArgs["text"])
+	}
+	if _, leaked := fc.lastArgs["evil"]; leaked {
+		t.Errorf("jsonRoute leaked a non-allowlisted body key")
+	}
+}
+
+// TestJournalVerifyRouteProxies (M763): the integrity check is a parameterless GET
+// that proxies the journal_verify command.
+func TestJournalVerifyRouteProxies(t *testing.T) {
+	fc := &fakeCaller{result: map[string]any{"ok": true}}
+	s, _ := newServer(t, fc, "secret")
+	req := httptest.NewRequest(http.MethodGet, "/api/journal/verify?token=secret", nil)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d want 200", rec.Code)
+	}
+	if len(fc.calls) != 1 || fc.calls[0] != "journal_verify" {
+		t.Fatalf("issued %v want [journal_verify]", fc.calls)
+	}
+}
+
 // The edict_show read route proxies the parameterless show command (GET).
 func TestEdictShowRoute(t *testing.T) {
 	fc := &fakeCaller{result: map[string]any{"levels": map[string]any{}, "ask_policy": "allow"}}
