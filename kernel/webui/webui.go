@@ -220,6 +220,10 @@ var jsonRoutes = map[string]writeRoute{
 	"/api/persona/set":  {controlplane.CmdPersonaSet, []string{"system"}},
 	"/api/prompts/set":  {controlplane.CmdPromptsSet, []string{"prompts"}},
 	"/api/standing/add": {controlplane.CmdStandingAdd, []string{"order"}},
+	// Create a schedule (M715): intent + a timing mode. Numeric timing args (e.g.
+	// interval_sec, at_minutes, once_at_unix) ride the JSON body so they keep their
+	// types — a query arg would stringify them.
+	"/api/schedule/add": {controlplane.CmdScheduleAdd, []string{"intent", "model", "interval_sec", "at_minutes", "days", "tz", "once_at_unix"}},
 }
 
 // planRoute is the streaming "run this plan" action (Flow Studio's Run button).

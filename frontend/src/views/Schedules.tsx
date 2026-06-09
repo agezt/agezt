@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { CalendarClock, RefreshCw, Play, Pause, Trash2, Bot, Heart, Infinity as InfinityIcon, ShieldCheck } from "lucide-react";
-import { getJSON, postAction } from "@/lib/api";
+import { CalendarClock, RefreshCw, Play, Pause, Trash2, Bot, Heart, Infinity as InfinityIcon, ShieldCheck, Plus, X } from "lucide-react";
+import { getJSON, postAction, postJSON } from "@/lib/api";
 import { cn, fmtDateTime } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useUI, type ConfirmOptions } from "@/components/ui/feedback";
@@ -40,6 +40,7 @@ export function Schedules() {
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
+  const [showForm, setShowForm] = useState(false);
 
   async function reload() {
     setLoading(true);
@@ -91,10 +92,24 @@ export function Schedules() {
           {items ? `${items.length} total` : ""}
           {agentCount > 0 && <span className="text-accent"> · {agentCount} agent-scheduled</span>}
         </span>
-        <Button variant="ghost" size="sm" className="ml-auto" onClick={reload} disabled={loading} title="Reload">
+        <Button size="sm" className="ml-auto" onClick={() => setShowForm((v) => !v)} title="Create a schedule">
+          {showForm ? <X className="size-3.5" /> : <Plus className="size-3.5" />} New schedule
+        </Button>
+        <Button variant="ghost" size="sm" onClick={reload} disabled={loading} title="Reload">
           <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
         </Button>
       </div>
+
+      {showForm && (
+        <NewScheduleForm
+          onCreated={() => {
+            setShowForm(false);
+            ui.toast("Schedule created", "success");
+            void reload();
+          }}
+          onError={(m) => ui.toast(m, "error")}
+        />
+      )}
 
       {err ? (
         <ErrorText>{err}</ErrorText>
@@ -106,8 +121,8 @@ export function Schedules() {
           title="No schedules yet"
           hint={
             <>
-              The agent can schedule its own future work with the <code className="rounded bg-panel px-1 py-0.5">schedule</code>{" "}
-              tool, or you can add one with <code className="rounded bg-panel px-1 py-0.5">agt schedule add</code>.
+              Hit <span className="font-medium text-foreground/80">New schedule</span> above to add one — the agent can
+              also schedule its own future work with the <code className="rounded bg-panel px-1 py-0.5">schedule</code> tool.
             </>
           }
         />
@@ -209,6 +224,140 @@ export function Schedules() {
           </ul>
         </div>
       )}
+    </div>
+  );
+}
+
+// NewScheduleForm creates a scheduled intent from the UI (M715) — recurring or
+// one-shot — so arranging unattended work no longer needs the CLI. It captures the
+// common timings (every N, daily at a time, once at a moment) and posts to the
+// schedule_add command, which picks its branch by which timing arg is present.
+export function NewScheduleForm({
+  onCreated,
+  onError,
+}: {
+  onCreated: () => void;
+  onError: (msg: string) => void;
+}) {
+  type Mode = "interval" | "daily" | "once";
+  const [intent, setIntent] = useState("");
+  const [mode, setMode] = useState<Mode>("interval");
+  const [everyN, setEveryN] = useState("30");
+  const [everyUnit, setEveryUnit] = useState<"minutes" | "hours">("minutes");
+  const [dailyAt, setDailyAt] = useState("09:00");
+  const [onceAt, setOnceAt] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  const intervalSec = Math.max(1, Number(everyN) || 0) * (everyUnit === "hours" ? 3600 : 60);
+  const validTiming =
+    (mode === "interval" && Number(everyN) > 0) ||
+    (mode === "daily" && /^\d{1,2}:\d{2}$/.test(dailyAt)) ||
+    (mode === "once" && onceAt !== "");
+  const valid = intent.trim() !== "" && validTiming;
+
+  async function create() {
+    if (!valid) return;
+    const args: Record<string, unknown> = { intent: intent.trim() };
+    if (mode === "interval") {
+      args.interval_sec = intervalSec;
+    } else if (mode === "daily") {
+      const [h, m] = dailyAt.split(":").map(Number);
+      args.at_minutes = h * 60 + m;
+      args.days = 0; // every day
+    } else {
+      const ms = Date.parse(onceAt);
+      if (Number.isNaN(ms)) return onError("Invalid date/time");
+      args.once_at_unix = Math.floor(ms / 1000);
+    }
+    setSubmitting(true);
+    try {
+      await postJSON("/api/schedule/add", args);
+      onCreated();
+    } catch (e) {
+      onError((e as Error).message);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="rounded-lg border border-accent/30 bg-card p-3">
+      <label className="flex flex-col gap-1 text-[11px] text-muted">
+        Intent
+        <textarea
+          value={intent}
+          onChange={(e) => setIntent(e.target.value)}
+          placeholder="What the agent should do when this fires…"
+          aria-label="Schedule intent"
+          className="h-16 w-full resize-y rounded-md border border-border bg-panel p-2 text-sm text-foreground outline-none placeholder:text-muted/60 focus-visible:border-accent"
+        />
+      </label>
+
+      <div className="mt-2 flex flex-col gap-1 text-[11px] text-muted">
+        When
+        <div className="flex flex-wrap items-center gap-1.5">
+          <div className="inline-flex overflow-hidden rounded-md border border-border">
+            {(["interval", "daily", "once"] as const).map((m) => (
+              <button
+                key={m}
+                onClick={() => setMode(m)}
+                className={cn(
+                  "px-2 py-1 text-xs transition-colors",
+                  mode === m ? "bg-accent/15 text-accent" : "text-muted hover:text-foreground",
+                )}
+              >
+                {m === "interval" ? "every…" : m === "daily" ? "daily at…" : "once at…"}
+              </button>
+            ))}
+          </div>
+
+          {mode === "interval" && (
+            <div className="flex items-center gap-1.5">
+              <input
+                type="number"
+                min={1}
+                value={everyN}
+                onChange={(e) => setEveryN(e.target.value)}
+                aria-label="Interval amount"
+                className="w-20 rounded-md border border-border bg-panel px-2 py-1 text-sm text-foreground outline-none focus-visible:border-accent"
+              />
+              <select
+                value={everyUnit}
+                onChange={(e) => setEveryUnit(e.target.value as "minutes" | "hours")}
+                aria-label="Interval unit"
+                className="rounded-md border border-border bg-panel px-2 py-1 text-sm text-foreground outline-none focus-visible:border-accent"
+              >
+                <option value="minutes">minutes</option>
+                <option value="hours">hours</option>
+              </select>
+            </div>
+          )}
+          {mode === "daily" && (
+            <input
+              type="time"
+              value={dailyAt}
+              onChange={(e) => setDailyAt(e.target.value)}
+              aria-label="Daily time"
+              className="rounded-md border border-border bg-panel px-2 py-1 text-sm text-foreground outline-none focus-visible:border-accent"
+            />
+          )}
+          {mode === "once" && (
+            <input
+              type="datetime-local"
+              value={onceAt}
+              onChange={(e) => setOnceAt(e.target.value)}
+              aria-label="Once date and time"
+              className="rounded-md border border-border bg-panel px-2 py-1 text-sm text-foreground outline-none focus-visible:border-accent"
+            />
+          )}
+        </div>
+      </div>
+
+      <div className="mt-2 flex items-center justify-end">
+        <Button size="sm" onClick={create} disabled={!valid || submitting}>
+          {submitting ? <RefreshCw className="size-3.5 animate-spin" /> : <Plus className="size-3.5" />} Create schedule
+        </Button>
+      </div>
     </div>
   );
 }
