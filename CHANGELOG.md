@@ -12,6 +12,15 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Add world-model entities from the UI.** The World view (people, projects, repos,
+  devices the agent knows about) was read + forget only. An inline **add entity** form now
+  lets you teach it one directly: a name and a kind (person / project / repo / org /
+  account / device / channel / topic / task). It posts to the existing `world_add` command
+  (newly exposed as `POST /api/world/add`), so the entity then takes part in recall and
+  relations like any the agent discovered itself — the world-model counterpart to M718's
+  teach-a-fact. Tests cover the form (validation gate, default-kind payload, chosen kind).
+  Verified live (isolated daemon): added a person "Ada Lovelace" → it persisted and
+  rendered in the list, 0 console errors. (M721)
 - **Rename chat conversations.** Threads in the chat sidebar were auto-titled from their
   first message and stuck that way. Each row now has a rename affordance (a pencil on
   hover, or double-click the title): edit inline, Enter to save, Esc to cancel. A custom
