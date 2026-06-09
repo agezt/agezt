@@ -2,11 +2,11 @@ import { useEffect, useState } from "react";
 import { Cpu, RefreshCw, Route, GitFork } from "lucide-react";
 import { getJSON } from "@/lib/api";
 import { useEvents } from "@/lib/events";
-import { pct } from "@/lib/format";
 import { cn, fmtTime } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Muted, ErrorText } from "@/components/JsonView";
 import { BarList } from "@/components/Charts";
+import { Ring } from "@/components/Widgets";
 
 interface Stats {
   routed?: number;
@@ -63,6 +63,7 @@ export function Providers() {
 
   const byPrimary = stats?.by_primary || {};
   const fbBy = stats?.fallbacks_by_primary || {};
+  const fbRatePct = Math.round((stats?.fallback_rate ?? 0) * 100);
   const rows = Object.entries(byPrimary)
     .sort((a, b) => b[1] - a[1])
     .map(([name, n]) => ({
@@ -88,10 +89,17 @@ export function Providers() {
         <Muted>loading…</Muted>
       ) : (
         <>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <div className="flex items-center justify-center rounded-lg border border-border bg-card p-3">
+              <Ring
+                pct={fbRatePct}
+                center={`${fbRatePct}%`}
+                label="fallback rate"
+                tone={stats.routed ? (fbRatePct < 5 ? "good" : fbRatePct < 20 ? "warn" : "bad") : "muted"}
+              />
+            </div>
             <Tile icon={Route} label="routed" value={(stats.routed ?? 0).toLocaleString()} tone="accent" />
             <Tile icon={GitFork} label="fallbacks" value={stats.fallbacks ?? 0} tone={(stats.fallbacks ?? 0) > 0 ? "bad" : "muted"} />
-            <Tile icon={GitFork} label="fallback rate" value={pct(stats.fallback_rate, stats.routed)} tone="muted" />
             <Tile icon={Cpu} label="providers" value={rows.length} tone="muted" />
           </div>
 

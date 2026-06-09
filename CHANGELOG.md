@@ -12,6 +12,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Providers gets a resilience gauge.** The Providers routing monitor now leads
+  with a circular fallback-rate gauge (green/amber/red by threshold) beside the
+  routed / fallbacks / providers tiles, over the existing routes-by-provider bars
+  and live routing log. Reuses the M660 widget kit. Verified live with real
+  routing data (2% fallback rate, 145 routed across 4 providers), zero console
+  errors. (M663)
 - **Budget view goes visual — spend ring + per-task bars.** The Budget cockpit now
   leads with a circular spend gauge (today's spend as a % of the daily ceiling,
   green/amber/red, or ∞ when uncapped) beside the figures, and the per-task-type
