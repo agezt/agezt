@@ -125,12 +125,55 @@ body {
   animation: work-pulse 1.1s ease-in-out infinite;
 }
 
+/* Toasts slide in from the right; the confirm modal fades + scales in over a
+   fading overlay. */
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateX(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+.toast-in {
+  animation: toast-in 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes overlay-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.modal-overlay {
+  animation: overlay-in 0.15s ease-out;
+}
+@keyframes modal-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+.modal-in {
+  animation: modal-in 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
 /* Honor the OS "reduce motion" setting — no decorative animation for users who
    ask for less. */
 @media (prefers-reduced-motion: reduce) {
   .view-enter,
   .msg-in,
-  .work-pulse {
+  .work-pulse,
+  .toast-in,
+  .modal-overlay,
+  .modal-in {
     animation: none;
   }
 }

@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils";
 import { money } from "@/lib/format";
 import { getJSON, postAction } from "@/lib/api";
 import { useEvents } from "@/lib/events";
+import { useUI } from "@/components/ui/feedback";
 import { Button } from "@/components/ui/button";
 import { RunDetailLoader } from "@/components/RunDetail";
 import {
@@ -31,6 +32,7 @@ import {
 // delegated sub-agents update in real time — the operator stays in control.
 export function Activity() {
   const { subscribe, connected } = useEvents();
+  const ui = useUI();
   const [state, setState] = useState<ActivityState>({});
   const [now, setNow] = useState(() => Date.now());
   const [seeding, setSeeding] = useState(true);
@@ -44,7 +46,7 @@ export function Activity() {
     try {
       await postAction("/api/cancel_run", { correlation: corr });
     } catch (e) {
-      window.alert(`cancel failed: ${(e as Error).message}`);
+      ui.toast(`cancel failed: ${(e as Error).message}`, "error");
     } finally {
       setCancelling((c) => {
         const next = { ...c };

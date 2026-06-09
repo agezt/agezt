@@ -12,6 +12,18 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **No more native browser dialogs — every message is a toast, every confirm a
+  modal.** The console no longer falls back to `alert()`/`confirm()`: a small
+  self-contained feedback layer (`UIProvider`/`useUI()`) exposes `toast(text, kind)`
+  and `confirm(opts)` app-wide. Toasts slide in bottom-right (success/error/info,
+  auto-dismissing) and dangerous actions raise a styled, keyboard-driven modal
+  (Escape cancels, Enter confirms, focus on the confirm button, a warning triangle
+  for destructive ops). The global Halt now asks "Freeze all in-flight runs?" in a
+  red-accented modal and reports "All runs halted" / "Resumed" as toasts; Resume and
+  the Activity cancel-failure path use the same channel. All new motion is
+  `prefers-reduced-motion` aware. Verified live: Halt → confirm modal → halt toast →
+  Resume → resume toast, with the kernel `halt`/`resume` journal events observed and
+  zero console errors. (M669)
 - **Premium motion + a live "working" pulse in Chat.** The console now feels alive:
   every view fades and rises in on navigation (a keyed remount + a soft cubic-bezier
   transition), chat messages ease in as they arrive, and while the agent is working
