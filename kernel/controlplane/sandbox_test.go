@@ -111,3 +111,43 @@ func TestSandboxFile_RequiresArgs(t *testing.T) {
 		t.Error("missing file arg should error")
 	}
 }
+
+func TestSandboxDelete_RemovesProject(t *testing.T) {
+	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	seedProject(t, k.BaseDir(), "calc", map[string]string{"add.py": "x"})
+	seedProject(t, k.BaseDir(), "keep", map[string]string{"y.py": "y"})
+
+	res, err := c.Call(context.Background(), controlplane.CmdSandboxDelete, map[string]any{"project": "calc"})
+	if err != nil {
+		t.Fatalf("Call: %v", err)
+	}
+	if res["deleted"] != "calc" {
+		t.Errorf("deleted = %v, want calc", res["deleted"])
+	}
+	if _, err := os.Stat(filepath.Join(k.BaseDir(), "sandbox", "projects", "calc")); !os.IsNotExist(err) {
+		t.Error("calc project should be gone from disk")
+	}
+	// Sibling project is untouched.
+	if _, err := os.Stat(filepath.Join(k.BaseDir(), "sandbox", "projects", "keep")); err != nil {
+		t.Errorf("keep project must survive: %v", err)
+	}
+}
+
+func TestSandboxDelete_RejectsTraversalAndNested(t *testing.T) {
+	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	seedProject(t, k.BaseDir(), "calc", map[string]string{"sub/x.py": "x"})
+	_ = os.WriteFile(filepath.Join(k.BaseDir(), "creds.json"), []byte("SECRET"), 0o600)
+
+	for _, bad := range []string{"..", "../..", "calc/sub", "../creds.json", "/etc"} {
+		if _, err := c.Call(context.Background(), controlplane.CmdSandboxDelete, map[string]any{"project": bad}); err == nil {
+			t.Errorf("delete project=%q should be rejected", bad)
+		}
+	}
+	// The base dir and the project are still intact.
+	if _, err := os.Stat(filepath.Join(k.BaseDir(), "creds.json")); err != nil {
+		t.Errorf("creds.json must survive: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(k.BaseDir(), "sandbox", "projects", "calc")); err != nil {
+		t.Errorf("calc must survive a rejected nested delete: %v", err)
+	}
+}
