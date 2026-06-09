@@ -12,6 +12,20 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Trace why an event happened, from Journal search.** Expanding any event in the Journal-search
+  results now offers a **trace cause** affordance that walks the event's **causation chain** — the
+  `causation_id` links from the **root cause** down to this event, ordered oldest-first. Unlike the
+  correlation filter (which groups one run's events), the causation chain **crosses correlation
+  boundaries**, so it can show, e.g., a heartbeat tick → the initiative it raised → the run that
+  acted — answering "why did the agent do this *unprompted*?". A sub-agent's parent run is surfaced
+  too (the child→parent backlink). Loaded on demand (one click per event) so browsing stays cheap;
+  when an event has no upstream cause it says so plainly (it's a root cause). New read-only route
+  `/api/why` (event_id) → existing `CmdWhy`. `CausationTrace` is unit-tested (renders the root→this
+  chain with root/this markers; the root-cause empty state; the parent-run backlink; toggle without
+  refetch; surfaces a fetch error). Verified live on an isolated daemon: triggered a real scheduled
+  run, then in Journal search expanded its `task.completed` event and **trace cause** loaded the
+  trace end-to-end (this single-correlation run showed the root-cause state; 0 console errors). From
+  the unexposed-command survey — `why` was CLI-only (`agt why`). (M755)
 - **Check the secret redactor from the Policy view ("will my key leak?").** The Policy view gains a
   **Secret redaction** card: paste any text — a log line, a message, a snippet — and the **live**
   secret-scrubber (the one that guards outbound content: logs, channel messages, prompts) reports

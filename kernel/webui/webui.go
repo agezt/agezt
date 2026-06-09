@@ -163,6 +163,11 @@ var readArgsRoutes = map[string]writeRoute{
 	// <input>, would the edict engine allow / ask / deny it, and via which rule?".
 	// Read-only — eng.Decide mutates nothing.
 	"/api/edict/test": {controlplane.CmdEdictTest, []string{"capability", "input"}},
+	// Trace an event's causation (M755): the chain of journal events linked by
+	// causation_id from the root cause down to this one — crossing correlation
+	// boundaries (e.g. a heartbeat tick → the initiative it spawned → the run). Plus
+	// the correlation group and a sub-agent's parent backlink. Read-only provenance.
+	"/api/why": {controlplane.CmdWhy, []string{"event_id"}},
 }
 
 // writeRoutes is the operator-action allowlist: the big red button (halt),
