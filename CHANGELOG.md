@@ -12,6 +12,19 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **See what the agent can do — the tool inventory.** The Tools view now leads with an **Available
+  tools** card: the agent's full in-process capability inventory — every tool it advertises to the
+  model, with its description — not just the ones that happen to have been called. Each tool shows a
+  **used / idle** badge (cross-referenced against the usage stats), so you can tell at a glance which
+  capabilities are exercised and which are sitting unused. Previously the Tools view was usage-only
+  (call volume, error rate, invocation log) — it answered *"what has the agent done"* but never
+  *"what can it do"*, even though the daemon already served the inventory at `/api/tools_catalog`
+  (`tool_list`). This wires that existing read-only endpoint into the UI; no backend change. Unit-
+  tested (the catalog lists each tool with its description; a tool with usage is marked *used* and one
+  without is *idle*; an empty inventory shows a graceful empty state). Verified live on an isolated
+  daemon: the card listed all **16** built-in tools (`board`, `browser.read`, `code_exec`, `config`,
+  `delegate`, `file`, `http`, `introspect`, `memory`, `runs`, `schedule`, `shell`, `skill`,
+  `standing`, `web_search`, `world`) with descriptions and idle badges; 0 console errors. (M771)
 - **Set quiet hours — don't ping me overnight.** The Autonomy heartbeat card gains a **quiet hours**
   control: give it a daily window (e.g. `22-7`) and during it only *alert/act* briefs break through —
   lower-priority observations are held regardless of the dial. The active window shows as

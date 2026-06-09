@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Wrench, RefreshCw, Activity, AlertTriangle } from "lucide-react";
+import { Wrench, RefreshCw, Activity, AlertTriangle, Boxes } from "lucide-react";
 import { getJSON } from "@/lib/api";
 import { useEvents } from "@/lib/events";
 import { cn, clip, fmtTime } from "@/lib/utils";
@@ -28,6 +28,10 @@ interface Invocation {
   input?: string;
   output?: string;
 }
+interface ToolDef {
+  name?: string;
+  description?: string;
+}
 
 function ms(v?: number): string {
   if (v == null) return "—";
@@ -41,20 +45,23 @@ export function Tools() {
   const { events } = useEvents();
   const [stats, setStats] = useState<Stats | null>(null);
   const [log, setLog] = useState<Invocation[]>([]);
+  const [catalog, setCatalog] = useState<ToolDef[]>([]);
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   async function reload() {
     setLoading(true);
-    const [s, l] = await Promise.allSettled([
+    const [s, l, c] = await Promise.allSettled([
       getJSON<Stats>("/api/tools"),
       getJSON<{ invocations?: Invocation[] }>("/api/tool_log", { limit: "50" }),
+      getJSON<{ tools?: ToolDef[] }>("/api/tools_catalog"),
     ]);
     if (s.status === "fulfilled") {
       setStats(s.value);
       setErr(null);
     } else setErr((s.reason as Error).message);
     if (l.status === "fulfilled") setLog(l.value.invocations || []);
+    if (c.status === "fulfilled") setCatalog(c.value.tools || []);
     setLoading(false);
   }
   useEffect(() => {
@@ -104,6 +111,35 @@ export function Tools() {
             <Tile icon={AlertTriangle} label="errored" value={stats.errored ?? 0} tone={(stats.errored ?? 0) > 0 ? "bad" : "muted"} />
             <Tile icon={Wrench} label="tools used" value={stats.tools ?? tools.length} tone="muted" />
           </div>
+
+          <Card title={`Available tools — what the agent can do (${catalog.length})`} icon={Boxes}>
+            {catalog.length === 0 ? (
+              <Muted>no tools registered</Muted>
+            ) : (
+              <ul className="grid gap-1.5 sm:grid-cols-2">
+                {catalog.map((t) => {
+                  const used = (byTool[t.name || ""]?.calls ?? 0) > 0;
+                  return (
+                    <li key={t.name} className="rounded-md border border-border/60 bg-panel/40 px-2.5 py-1.5">
+                      <div className="flex items-center gap-1.5">
+                        <span className="truncate font-mono text-xs font-medium">{t.name}</span>
+                        <span
+                          className={cn(
+                            "ml-auto shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider",
+                            used ? "bg-accent/15 text-accent" : "bg-panel text-muted",
+                          )}
+                          title={used ? "called this session" : "available but not yet called"}
+                        >
+                          {used ? "used" : "idle"}
+                        </span>
+                      </div>
+                      {t.description && <p className="mt-0.5 line-clamp-2 text-[11px] text-muted">{clip(t.description, 140)}</p>}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </Card>
 
           <Card title="Usage by tool" icon={Wrench}>
             {tools.length === 0 ? (
