@@ -12,6 +12,23 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Config Center UI — edit settings from the console, no `.env` by hand.** The
+  visible half of M693: a new **Config Center** view (under *System*) renders
+  schema-driven forms section by section (Provider & Model, Telegram, Email/SMTP,
+  Slack, Discord, Interfaces, Budget, Security) straight from `/api/config/schema`,
+  prefilled from `/api/config/values`. Each field carries a **live** or **restart**
+  badge so there's no false promise about when a change takes effect; a per-field
+  **Save** posts to `/api/config/set` and toasts the outcome (*applied live* vs
+  *restart to apply*, or *saved but pinned by the environment*). Secrets render as
+  write-only password inputs — the value is **never** shown back, only “set / not
+  set”, with a separate **Clear** action to remove one from the vault. Fields pinned
+  by the real `.env`/shell are shown read-only with a lock + “env” chip (the process
+  env always wins). Verified live (isolated daemon, fake values, `localStorage`
+  cleared, off the chat view): all sections render with 0 console errors; an
+  env-pinned `AGEZT_WEB_ADDR` showed read-only; a fake secret saved to the encrypted
+  vault and the value never appeared in any GET; a non-secret wrote to `config.json`.
+  Vitest covers schema→form mapping, secret-never-shows-value, env-pinned read-only,
+  and the save/clear round-trips. (M694)
 - **Config Center backend — schema-driven config without hand-editing `.env`.**
   The foundation for configuring *everything* (SMTP, Telegram, API keys, …) from
   one place. A new `kernel/settings` package adds a **config store**
