@@ -12,6 +12,14 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Name your console.** The header title — "agezt · console" — is now click-to-rename:
+  call it Jarvis, Friday, or whatever you like. The chosen name shows in the header and
+  the browser tab title, is stored locally (a per-device appearance preference, like the
+  accent colour), and is applied before first paint so there's no flash on reload. Enter
+  saves, Esc cancels; clearing it returns to the default. Tests cover the name store
+  (default, save+title, clear-to-default, blank fallback) and the inline editor (rename
+  on Enter persists + retitles; Esc cancels). Verified live: renamed to "Jarvis" → header
+  and tab title both updated, persisted across a reload, 0 console errors. (M719)
 - **Teach the agent a fact from the Memory view.** The Memory browser was read + forget
   only — durable facts only appeared when the agent distilled them itself. A **Teach**
   button now opens a form to add a memory directly: a subject, the content, and a type
