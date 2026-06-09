@@ -12,6 +12,19 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Export/import your whole daemon config — persona, prompts & routing in one bundle.** The
+  appearance bundle (M735) covers the per-device *look*; this covers the daemon-side *identity*.
+  Two new ⌘K actions — **Export / Import configuration (persona, prompts, routing)** — bundle the
+  global persona (system prompt), the prompt library, and the per-task routing chains into one
+  `agezt-config.json` and restore them on another daemon (each section already had its own
+  get/set; this just gathers and replays them). Import keeps only recognised, well-typed sections
+  (`parseConfigBundle` — foreign/garbage files can't partially apply junk; a malformed file shows
+  "Import failed" and changes nothing) and applies each present section. Tests cover the parser
+  (all three sections, `{config:{…}}` wrapper, empty-persona round-trip, chain normalisation,
+  wrong-typed-section drop, error cases). Verified live on an isolated daemon: seeded persona +
+  a prompt + a routing chain, exported the bundle, wiped the config to temporary values, then
+  imported the bundle — `GET /api/persona|prompts|routing` confirmed all three were restored
+  exactly; 0 console errors. (M738)
 - **Revise a skill from the UI.** Authoring skills landed in M736; now each skill card has a
   **revise** (pencil) control that reopens the author form prefilled with that skill's
   name/description/body/triggers/tools. Because the skill store is content-addressed and

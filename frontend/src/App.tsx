@@ -41,7 +41,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { postAction, getJSON } from "@/lib/api";
+import { postAction, getJSON, postJSON } from "@/lib/api";
 import { useEvents } from "@/lib/events";
 import { CommandPalette } from "@/components/CommandPalette";
 import { MiniChat } from "@/components/MiniChat";
@@ -56,6 +56,7 @@ import { toggleTheme } from "@/lib/theme";
 import { useChat } from "@/lib/chatStore";
 import { focusRun } from "@/lib/runfocus";
 import { exportAppearance, parseAppearanceJSON, applyAppearanceBundle } from "@/lib/appearance";
+import { parseConfigBundle } from "@/lib/configbackup";
 import { downloadText } from "@/lib/export";
 import { AccentPicker } from "@/components/AccentPicker";
 import { ConsoleName } from "@/components/ConsoleName";
@@ -238,14 +239,56 @@ export default function App() {
   const ui = useUI();
   const current = NAV.find((n) => n.id === active) || NAV[0];
   const View = current.render;
-  // Hidden input behind the ⌘K "Import appearance" command.
+  // Hidden inputs behind the ⌘K "Import appearance" / "Import configuration" commands.
   const appearanceFileRef = useRef<HTMLInputElement>(null);
+  const configFileRef = useRef<HTMLInputElement>(null);
 
   async function importAppearanceFile(file: File) {
     try {
       const bundle = parseAppearanceJSON(await file.text());
       applyAppearanceBundle(bundle);
       ui.toast(`Appearance imported (${Object.keys(bundle).join(", ")})`, "success");
+    } catch (e) {
+      ui.toast(`Import failed: ${(e as Error).message}`, "error");
+    }
+  }
+
+  // Export the daemon-side config (persona + prompts + routing) as one bundle.
+  async function exportConfig() {
+    try {
+      const [p, pr, r] = await Promise.all([
+        getJSON<{ system?: string }>("/api/persona"),
+        getJSON<{ prompts?: unknown[] }>("/api/prompts"),
+        getJSON<{ chains?: Record<string, string[]> }>("/api/routing"),
+      ]);
+      const bundle = {
+        version: 1,
+        config: { persona: p.system || "", prompts: pr.prompts || [], chains: r.chains || {} },
+      };
+      downloadText("agezt-config.json", JSON.stringify(bundle, null, 2), "application/json");
+    } catch (e) {
+      ui.toast(`Export failed: ${(e as Error).message}`, "error");
+    }
+  }
+
+  // Restore a daemon-config bundle: apply each section it carries to the daemon.
+  async function importConfigFile(file: File) {
+    try {
+      const b = parseConfigBundle(await file.text());
+      const applied: string[] = [];
+      if (b.persona != null) {
+        await postJSON("/api/persona/set", { system: b.persona });
+        applied.push("persona");
+      }
+      if (b.prompts) {
+        await postJSON("/api/prompts/set", { prompts: b.prompts });
+        applied.push("prompts");
+      }
+      if (b.chains) {
+        await postJSON("/api/routing/set", { chains: b.chains });
+        applied.push("routing");
+      }
+      ui.toast(`Config imported: ${applied.join(", ")}`, "success");
     } catch (e) {
       ui.toast(`Import failed: ${(e as Error).message}`, "error");
     }
@@ -377,6 +420,20 @@ export default function App() {
         keywords: "restore theme accent console name upload settings",
         run: () => appearanceFileRef.current?.click(),
       },
+      {
+        id: "act-config-export",
+        label: "Export configuration (persona, prompts, routing)",
+        group: "Action",
+        keywords: "backup config persona prompts routing download daemon profile",
+        run: () => void exportConfig(),
+      },
+      {
+        id: "act-config-import",
+        label: "Import configuration (persona, prompts, routing)",
+        group: "Action",
+        keywords: "restore config persona prompts routing upload daemon profile",
+        run: () => configFileRef.current?.click(),
+      },
     ];
     // Recent runs → "Open run …" — jump straight to a run's detail from ⌘K.
     const runCmds: CommandItem[] = recentRuns.map((r) => ({
@@ -405,6 +462,18 @@ export default function App() {
         onChange={(e) => {
           const f = e.target.files?.[0];
           if (f) void importAppearanceFile(f);
+          e.target.value = "";
+        }}
+      />
+      <input
+        ref={configFileRef}
+        type="file"
+        accept="application/json,.json"
+        className="hidden"
+        aria-hidden="true"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) void importConfigFile(f);
           e.target.value = "";
         }}
       />
