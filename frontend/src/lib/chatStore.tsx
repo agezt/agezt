@@ -21,6 +21,7 @@ import {
   startConversation,
   deleteConversation,
   renameConversation,
+  togglePinned,
   type Msg,
   type Store,
 } from "@/lib/conversations";
@@ -93,6 +94,8 @@ export interface ChatEngine {
   removeConversation: (id: string) => void;
   /** Rename a conversation; a blank name restores the message-derived title. */
   renameConversation: (id: string, title: string) => void;
+  /** Toggle a conversation's pinned flag (pinned threads sort to the top). */
+  togglePin: (id: string) => void;
   /** Memories the daemon recorded during the run with this correlation id. */
   learnedFor: (corr?: string) => LearnedMem[];
   /** Forget one learned memory (tombstones it in the store + drops the chip). */
@@ -275,6 +278,10 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     setStore((s) => renameConversation(s, id, title, Date.now()));
   }
 
+  function togglePin(id: string) {
+    setStore((s) => togglePinned(s, id));
+  }
+
   const engine: ChatEngine = {
     store,
     messages,
@@ -292,6 +299,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     selectConversation,
     removeConversation,
     renameConversation: renameConv,
+    togglePin,
     learnedFor,
     forgetLearned,
   };

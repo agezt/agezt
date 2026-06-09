@@ -14,6 +14,8 @@ import {
   withActivePersona,
   activeConvModel,
   withActiveConvModel,
+  togglePinned,
+  sortConversations,
   type Store,
   type Msg,
 } from "@/lib/conversations";
@@ -143,6 +145,25 @@ describe("store mutations", () => {
     // Clearing restores the message-derived title.
     s = renameConversation(s, id, "   ", 5);
     expect(s.conversations.find((c) => c.id === id)!.title).toBe("how do I deploy the thing");
+  });
+
+  it("togglePinned flips the flag and sortConversations floats pinned to the top", () => {
+    let s = withActiveMessages(loadStore(genId, 1), [userMsg("a")], 10);
+    const a = s.activeId;
+    s = startConversation(s, genId, 20);
+    s = withActiveMessages(s, [userMsg("b")], 20);
+    const b = s.activeId; // b is newer than a
+
+    // By recency, b is first.
+    expect(sortConversations(s.conversations)[0].id).toBe(b);
+    // Pin the older one (a) → it floats to the top despite being less recent.
+    s = togglePinned(s, a);
+    expect(s.conversations.find((c) => c.id === a)!.pinned).toBe(true);
+    expect(sortConversations(s.conversations)[0].id).toBe(a);
+    // Unpin → back to recency order.
+    s = togglePinned(s, a);
+    expect(s.conversations.find((c) => c.id === a)!.pinned).toBe(false);
+    expect(sortConversations(s.conversations)[0].id).toBe(b);
   });
 
   it("deleteConversation activates a remaining one, or seeds fresh when last", () => {

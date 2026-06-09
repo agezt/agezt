@@ -12,6 +12,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Pin chat conversations.** Hovering a thread in the sidebar now reveals a pin; pinned
+  threads sort to the top (above by-recency), with the pin shown persistently and tinted.
+  Pinning is metadata, not activity, so it doesn't bump the thread's recency. Tests cover
+  the store (toggle flips the flag; sort floats pinned above newer-but-unpinned; unpin
+  restores recency) and the sidebar control (toggle + pinned/unpinned label). Verified
+  live: with a newer "beta" on top, pinning the older "alpha" floated it to the top and it
+  stayed there across a reload, 0 console errors. (M726)
 - **Launch saved prompts mid-conversation.** Saved prompts (M713) were only reachable from
   the chat's empty state — once a thread had messages, you couldn't quick-insert one. The
   composer now has a **prompts** menu (hidden when you have none): open it and pick a saved

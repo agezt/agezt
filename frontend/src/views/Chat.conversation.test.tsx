@@ -35,6 +35,20 @@ describe("ConversationItem", () => {
     expect(onRename).toHaveBeenCalledWith("Renamed");
   });
 
+  it("toggles pin and reflects the pinned state", () => {
+    const onTogglePin = vi.fn();
+    const { rerender } = render(
+      <ConversationItem title="T" active={false} pinned={false} onSelect={() => {}} onRemove={() => {}} onRename={() => {}} onTogglePin={onTogglePin} />,
+    );
+    fireEvent.click(screen.getByLabelText("Pin conversation"));
+    expect(onTogglePin).toHaveBeenCalled();
+    // When pinned, the control offers to unpin.
+    rerender(
+      <ConversationItem title="T" active={false} pinned onSelect={() => {}} onRemove={() => {}} onRename={() => {}} onTogglePin={onTogglePin} />,
+    );
+    expect(screen.getByLabelText("Unpin conversation")).toBeTruthy();
+  });
+
   it("cancels on Escape without renaming", () => {
     const onRename = vi.fn();
     render(<ConversationItem title="Keep" active onSelect={() => {}} onRemove={() => {}} onRename={onRename} />);

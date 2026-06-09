@@ -26,6 +26,7 @@ import {
   Pencil,
   Bot,
   Download,
+  Pin,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { money } from "@/lib/format";
@@ -44,7 +45,7 @@ const AUTOSPEAK_KEY = "agezt.chat.autospeak";
 import { turnText, type ChatTurn, type ChatTool, type TimelineItem } from "@/lib/chat";
 import { useChat } from "@/lib/chatStore";
 import { buildContext, type AttachRef } from "@/lib/attach";
-import type { Msg } from "@/lib/conversations";
+import { sortConversations, type Msg } from "@/lib/conversations";
 import { conversationToMarkdown, slugify, downloadText } from "@/lib/export";
 
 // Chat is the humane front door to the agent: a conversational thread where you
@@ -53,7 +54,7 @@ import { conversationToMarkdown, slugify, downloadText } from "@/lib/export";
 // cost. The engine (store, streaming, model) lives in ChatProvider so a run keeps
 // going when you leave the view; this component is the full-screen UI over it.
 export function Chat() {
-  const { store, messages, busy, model, setModel, activeModel, send, retry, editAndResend, conversationPersona, setConversationPersona, stop, newChat, selectConversation, removeConversation, renameConversation } =
+  const { store, messages, busy, model, setModel, activeModel, send, retry, editAndResend, conversationPersona, setConversationPersona, stop, newChat, selectConversation, removeConversation, renameConversation, togglePin } =
     useChat();
   const [input, setInput] = useState("");
   // pinned = the thread is stuck to the bottom (auto-scrolls on new content).
@@ -191,18 +192,18 @@ export function Chat() {
           <Plus className="size-3.5" /> New chat
         </button>
         <div className="min-h-0 flex-1 space-y-0.5 overflow-auto">
-          {[...store.conversations]
-            .sort((a, b) => b.updatedAt - a.updatedAt)
-            .map((c) => (
-              <ConversationItem
-                key={c.id}
-                title={c.title || "New chat"}
-                active={c.id === store.activeId}
-                onSelect={() => selectConversation(c.id)}
-                onRemove={() => removeConversation(c.id)}
-                onRename={(t) => renameConversation(c.id, t)}
-              />
-            ))}
+          {sortConversations(store.conversations).map((c) => (
+            <ConversationItem
+              key={c.id}
+              title={c.title || "New chat"}
+              active={c.id === store.activeId}
+              pinned={!!c.pinned}
+              onSelect={() => selectConversation(c.id)}
+              onRemove={() => removeConversation(c.id)}
+              onRename={(t) => renameConversation(c.id, t)}
+              onTogglePin={() => togglePin(c.id)}
+            />
+          ))}
         </div>
       </aside>
 
@@ -359,15 +360,19 @@ export function Chat() {
 export function ConversationItem({
   title,
   active,
+  pinned,
   onSelect,
   onRemove,
   onRename,
+  onTogglePin,
 }: {
   title: string;
   active: boolean;
+  pinned?: boolean;
   onSelect: () => void;
   onRemove: () => void;
   onRename: (title: string) => void;
+  onTogglePin?: () => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(title);
@@ -414,6 +419,19 @@ export function ConversationItem({
         />
       ) : (
         <>
+          {onTogglePin && (
+            <button
+              onClick={onTogglePin}
+              title={pinned ? "Unpin conversation" : "Pin conversation"}
+              aria-label={pinned ? "Unpin conversation" : "Pin conversation"}
+              className={cn(
+                "shrink-0 transition-opacity hover:text-foreground",
+                pinned ? "text-accent opacity-100" : "opacity-0 group-hover:opacity-100",
+              )}
+            >
+              <Pin className={cn("size-3", pinned && "fill-current")} />
+            </button>
+          )}
           <button onClick={onSelect} onDoubleClick={begin} className="min-w-0 flex-1 truncate text-left">
             {title}
           </button>
