@@ -11,7 +11,7 @@ vi.mock("@/lib/api", () => ({
   postAction: (...a: unknown[]) => postAction(...a),
 }));
 
-import { NewOrderForm } from "@/views/Standing";
+import { NewOrderForm, EditOrderForm } from "@/views/Standing";
 
 afterEach(cleanup);
 beforeEach(() => {
@@ -74,5 +74,68 @@ describe("NewOrderForm", () => {
     fireEvent.change(screen.getByLabelText("Trigger value"), { target: { value: "nope" } });
     fireEvent.click(screen.getByRole("button", { name: /Create order/ }));
     await waitFor(() => expect(onError).toHaveBeenCalledWith("bad cron"));
+  });
+});
+
+describe("EditOrderForm (M729)", () => {
+  const order = {
+    id: "so-42",
+    name: "watch",
+    plan: "old plan",
+    initiative: { mode: "act_or_ask" },
+    assure: 1,
+    triggers: [{ type: "cron", schedule: "0 8 * * *" }],
+  };
+
+  it("prefills the current mutable fields", () => {
+    render(<EditOrderForm order={order} onSaved={() => {}} onError={() => {}} />);
+    expect((screen.getByLabelText("Edit order name") as HTMLInputElement).value).toBe("watch");
+    expect((screen.getByLabelText("Edit order plan") as HTMLTextAreaElement).value).toBe("old plan");
+    expect((screen.getByLabelText("Edit initiative mode") as HTMLSelectElement).value).toBe("act_or_ask");
+    expect((screen.getByLabelText("Edit assure retries") as HTMLInputElement).value).toBe("1");
+  });
+
+  it("posts the full editable state to standing/edit with the id", async () => {
+    const onSaved = vi.fn();
+    render(<EditOrderForm order={order} onSaved={onSaved} onError={() => {}} />);
+    fireEvent.change(screen.getByLabelText("Edit order name"), { target: { value: "  renamed  " } });
+    fireEvent.change(screen.getByLabelText("Edit order plan"), { target: { value: "new plan" } });
+    fireEvent.change(screen.getByLabelText("Edit initiative mode"), { target: { value: "ask" } });
+    fireEvent.change(screen.getByLabelText("Edit assure retries"), { target: { value: "3" } });
+    fireEvent.click(screen.getByRole("button", { name: /Save changes/ }));
+    await waitFor(() =>
+      expect(postJSON).toHaveBeenCalledWith("/api/standing/edit", {
+        id: "so-42",
+        name: "renamed",
+        plan: "new plan",
+        mode: "ask",
+        assure: 3,
+      }),
+    );
+    await waitFor(() => expect(onSaved).toHaveBeenCalledWith("renamed"));
+  });
+
+  it("disables Save when the name is cleared", () => {
+    render(<EditOrderForm order={order} onSaved={() => {}} onError={() => {}} />);
+    fireEvent.change(screen.getByLabelText("Edit order name"), { target: { value: "  " } });
+    expect((screen.getByRole("button", { name: /Save changes/ }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("clamps a negative assure to 0", async () => {
+    render(<EditOrderForm order={order} onSaved={() => {}} onError={() => {}} />);
+    fireEvent.change(screen.getByLabelText("Edit assure retries"), { target: { value: "-5" } });
+    fireEvent.click(screen.getByRole("button", { name: /Save changes/ }));
+    await waitFor(() => {
+      const call = postJSON.mock.calls.find((c) => c[0] === "/api/standing/edit");
+      expect((call![1] as { assure: number }).assure).toBe(0);
+    });
+  });
+
+  it("reports an edit failure via onError", async () => {
+    postJSON.mockRejectedValueOnce(new Error("invalid mode"));
+    const onError = vi.fn();
+    render(<EditOrderForm order={order} onSaved={() => {}} onError={onError} />);
+    fireEvent.click(screen.getByRole("button", { name: /Save changes/ }));
+    await waitFor(() => expect(onError).toHaveBeenCalledWith("invalid mode"));
   });
 });

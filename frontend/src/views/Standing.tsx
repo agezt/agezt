@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Anchor, RefreshCw, Pause, Play, Trash2, Clock, Zap, ShieldCheck, Plus, X } from "lucide-react";
+import { Anchor, RefreshCw, Pause, Play, Trash2, Clock, Zap, ShieldCheck, Plus, X, Pencil, Save } from "lucide-react";
 import { getJSON, postAction, postJSON } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -36,6 +36,7 @@ export function Standing() {
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   async function reload() {
     setLoading(true);
@@ -158,6 +159,17 @@ export function Standing() {
                       {o.enabled ? <Pause className="size-3.5" /> : <Play className="size-3.5" />}
                     </button>
                     <button
+                      onClick={() => setEditingId((cur) => (cur === o.id ? null : o.id))}
+                      disabled={busy === o.id}
+                      title={editingId === o.id ? "Close editor" : "Edit"}
+                      className={cn(
+                        "transition-colors disabled:opacity-50",
+                        editingId === o.id ? "text-accent" : "text-muted hover:text-accent",
+                      )}
+                    >
+                      <Pencil className="size-3.5" />
+                    </button>
+                    <button
                       onClick={() =>
                         act(o.id, "/api/standing/remove", undefined, {
                           confirm: {
@@ -197,6 +209,19 @@ export function Standing() {
                 </div>
                 {o.plan && <p className="mt-1.5 line-clamp-2 text-xs text-foreground/80">{o.plan}</p>}
                 <div className="mt-1 font-mono text-[10px] text-muted opacity-70">{o.id}</div>
+                {editingId === o.id && (
+                  <div className="mt-2">
+                    <EditOrderForm
+                      order={o}
+                      onSaved={(name) => {
+                        setEditingId(null);
+                        ui.toast(`Standing order “${name}” updated`, "success");
+                        void reload();
+                      }}
+                      onError={(m) => ui.toast(m, "error")}
+                    />
+                  </div>
+                )}
               </li>
             ))}
           </ul>
@@ -316,6 +341,111 @@ export function NewOrderForm({
       <div className="mt-2 flex items-center justify-end gap-2">
         <Button size="sm" onClick={create} disabled={!valid || submitting}>
           {submitting ? <RefreshCw className="size-3.5 animate-spin" /> : <Plus className="size-3.5" />} Create order
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+// EditOrderForm edits an existing order's human-tunable fields in place (M729):
+// name, plan, autonomy mode and the do-it-for-sure (assure) retry budget. Triggers,
+// observers and scope are left as-is (this is the "tune what it does", not "re-wire
+// when it fires", surface), and pause/resume keeps its own control. Posts to the
+// standing_edit command, which applies the subset and re-validates.
+export function EditOrderForm({
+  order,
+  onSaved,
+  onError,
+}: {
+  order: Order;
+  onSaved: (name: string) => void;
+  onError: (msg: string) => void;
+}) {
+  const [name, setName] = useState(order.name ?? "");
+  const [plan, setPlan] = useState(order.plan ?? "");
+  const [mode, setMode] = useState(order.initiative?.mode ?? "");
+  const [assure, setAssure] = useState(String(order.assure ?? 0));
+  const [submitting, setSubmitting] = useState(false);
+
+  const valid = name.trim() !== "";
+
+  async function save() {
+    if (!valid) return;
+    // Send the full editable state: each key present means "set to this". An empty
+    // mode clears it to the default; an empty plan clears the plan — both valid.
+    const args: Record<string, unknown> = {
+      id: order.id,
+      name: name.trim(),
+      plan: plan.trim(),
+      mode,
+      assure: Math.max(0, Math.floor(Number(assure) || 0)),
+    };
+    setSubmitting(true);
+    try {
+      await postJSON("/api/standing/edit", args);
+      onSaved(name.trim());
+    } catch (e) {
+      onError((e as Error).message);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="rounded-lg border border-accent/30 bg-card p-3">
+      <div className="grid gap-2 sm:grid-cols-2">
+        <label className="flex flex-col gap-1 text-[11px] text-muted">
+          Name
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            aria-label="Edit order name"
+            className="rounded-md border border-border bg-panel px-2 py-1 text-sm text-foreground outline-none focus-visible:border-accent"
+          />
+        </label>
+        <label className="flex flex-col gap-1 text-[11px] text-muted">
+          Autonomy
+          <select
+            value={mode}
+            onChange={(e) => setMode(e.target.value)}
+            aria-label="Edit initiative mode"
+            className="rounded-md border border-border bg-panel px-2 py-1 text-sm text-foreground outline-none focus-visible:border-accent"
+          >
+            <option value="">default (inform only)</option>
+            <option value="inform_only">inform only</option>
+            <option value="ask">ask first</option>
+            <option value="act_or_ask">act, or ask if unsure</option>
+          </select>
+        </label>
+      </div>
+
+      <label className="mt-2 flex flex-col gap-1 text-[11px] text-muted">
+        Plan
+        <textarea
+          value={plan}
+          onChange={(e) => setPlan(e.target.value)}
+          placeholder="What the agent should do each time this fires…"
+          aria-label="Edit order plan"
+          className="h-20 w-full resize-y rounded-md border border-border bg-panel p-2 text-sm text-foreground outline-none placeholder:text-muted/60 focus-visible:border-accent"
+        />
+      </label>
+
+      <label className="mt-2 flex w-40 flex-col gap-1 text-[11px] text-muted">
+        Assure (retries)
+        <input
+          type="number"
+          min={0}
+          value={assure}
+          onChange={(e) => setAssure(e.target.value)}
+          aria-label="Edit assure retries"
+          title="do-it-for-sure: each firing verifies completion and retries the gap up to this many times (0 = single pass)"
+          className="rounded-md border border-border bg-panel px-2 py-1 text-sm text-foreground outline-none focus-visible:border-accent"
+        />
+      </label>
+
+      <div className="mt-2 flex items-center justify-end gap-2">
+        <Button size="sm" onClick={save} disabled={!valid || submitting}>
+          {submitting ? <RefreshCw className="size-3.5 animate-spin" /> : <Save className="size-3.5" />} Save changes
         </Button>
       </div>
     </div>

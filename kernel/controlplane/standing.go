@@ -64,6 +64,49 @@ func (s *Server) handleStandingAdd(conn net.Conn, req Request) {
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"order": standingView(saved)}})
 }
 
+// handleStandingEdit edits an order's mutable fields in place (M729): any subset
+// of name/plan/initiative-mode/max-trust/briefing-disposition/assure. Triggers,
+// observers and scope are not touched here (they keep their current values), and
+// enabled has its own pause/resume path. Unknown id → {updated:false}, mirroring
+// the schedule-edit path. Every edit is journaled (standing.updated, "edited").
+func (s *Server) handleStandingEdit(conn net.Conn, req Request) {
+	id, _ := req.Args["id"].(string)
+	if id == "" {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.id required"})
+		return
+	}
+	o, ok, err := s.k.UpdateStanding(id, func(o *standing.Order) {
+		if v, ok := req.Args["name"].(string); ok {
+			o.Name = v
+		}
+		if v, ok := req.Args["plan"].(string); ok {
+			o.Plan = v
+		}
+		if v, ok := req.Args["mode"].(string); ok {
+			o.Initiative.Mode = standing.InitiativeMode(v)
+		}
+		if v, ok := req.Args["max_trust"].(string); ok {
+			o.Initiative.MaxTrust = v
+		}
+		if v, ok := req.Args["briefing_min"].(string); ok {
+			o.BriefingMin = v
+		}
+		// assure is numeric; the JSON body carries it as a float64.
+		if v, ok := req.Args["assure"].(float64); ok {
+			o.Assure = int(v)
+		}
+	})
+	if err != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		return
+	}
+	if !ok {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"updated": false}})
+		return
+	}
+	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"updated": true, "order": standingView(o)}})
+}
+
 func (s *Server) handleStandingSetEnabled(conn net.Conn, req Request) {
 	id, _ := req.Args["id"].(string)
 	if id == "" {

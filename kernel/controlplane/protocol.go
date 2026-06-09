@@ -845,6 +845,7 @@ const (
 	// Remove: args.id. List: no args. Every mutation is journaled (standing.*).
 	CmdStandingList       = "standing_list"
 	CmdStandingAdd        = "standing_add"
+	CmdStandingEdit       = "standing_edit" // edit an order's mutable fields in place (M729)
 	CmdStandingSetEnabled = "standing_set_enabled"
 	CmdStandingRemove     = "standing_remove"
 	CmdStandingWhy        = "standing_why" // fold the journal for one order's life story

@@ -221,6 +221,9 @@ var jsonRoutes = map[string]writeRoute{
 	"/api/persona/set":  {controlplane.CmdPersonaSet, []string{"system"}},
 	"/api/prompts/set":  {controlplane.CmdPromptsSet, []string{"prompts"}},
 	"/api/standing/add": {controlplane.CmdStandingAdd, []string{"order"}},
+	// Edit a standing order in place (M729): id + any subset of the human-tunable
+	// fields. assure is numeric, so the JSON body preserves its type.
+	"/api/standing/edit": {controlplane.CmdStandingEdit, []string{"id", "name", "plan", "mode", "max_trust", "briefing_min", "assure"}},
 	// Create a schedule (M715): intent + a timing mode. Numeric timing args (e.g.
 	// interval_sec, at_minutes, once_at_unix) ride the JSON body so they keep their
 	// types — a query arg would stringify them.

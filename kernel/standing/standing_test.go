@@ -91,6 +91,60 @@ func TestStore_PauseResumeRemove(t *testing.T) {
 	}
 }
 
+func TestStore_Update(t *testing.T) {
+	s, _ := Open(t.TempDir())
+	o, _ := s.Add(cronOrder("watch"))
+	createdMS := o.CreatedMS
+
+	// Edit the mutable fields; the mutator also tries to tamper with id/enabled/
+	// created, which the store must protect.
+	updated, err := s.Update(o.ID, func(o *Order) {
+		o.Name = "renamed watch"
+		o.Plan = "do the new thing"
+		o.Initiative.Mode = InitiativeAsk
+		o.Assure = 3
+		o.ID = "hacked"
+		o.Enabled = false
+		o.CreatedMS = 0
+	})
+	if err != nil {
+		t.Fatalf("Update: %v", err)
+	}
+	if updated.Name != "renamed watch" || updated.Plan != "do the new thing" {
+		t.Errorf("edited fields not applied: %+v", updated)
+	}
+	if updated.Initiative.Mode != InitiativeAsk || updated.Assure != 3 {
+		t.Errorf("mode/assure not applied: %+v", updated)
+	}
+	// Protected fields survive the tampering.
+	if updated.ID != o.ID || !updated.Enabled || updated.CreatedMS != createdMS {
+		t.Errorf("identity/lifecycle not protected: %+v (orig id=%s created=%d)", updated, o.ID, createdMS)
+	}
+	if updated.UpdatedMS < createdMS {
+		t.Errorf("UpdatedMS not bumped: %d < %d", updated.UpdatedMS, createdMS)
+	}
+
+	// Persisted: reopening the store sees the edit.
+	s2, _ := Open(s.path[:len(s.path)-len("/standing.json")])
+	got, ok := s2.Get(o.ID)
+	if !ok || got.Name != "renamed watch" || got.Assure != 3 {
+		t.Errorf("edit not persisted: %+v ok=%v", got, ok)
+	}
+
+	// An edit that makes the order invalid is rejected and rolled back.
+	if _, err := s.Update(o.ID, func(o *Order) { o.Name = "" }); err == nil {
+		t.Error("Update to an invalid order should error")
+	}
+	if back, _ := s.Get(o.ID); back.Name != "renamed watch" {
+		t.Errorf("invalid edit should roll back, name=%q", back.Name)
+	}
+
+	// Unknown id → ErrNotFound.
+	if _, err := s.Update("nope", func(*Order) {}); err != ErrNotFound {
+		t.Errorf("Update unknown = %v, want ErrNotFound", err)
+	}
+}
+
 // TestStore_PreservesInitiative: the initiative ceiling (mode, max_trust, budget)
 // round-trips through Add → Get → reopen, so the budget cap M404 enforces is
 // actually persisted from what the operator set.
