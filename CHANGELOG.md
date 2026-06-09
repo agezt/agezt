@@ -12,6 +12,15 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **A real model picker in Chat.** The raw model-override text box is replaced by a
+  searchable, capability-aware picker: it reads the full provider→model catalog
+  (newly exposed at `/api/catalog`) and lists every model grouped by provider —
+  credentialed providers (the ones you can actually run) floated to the top — with
+  badges for tool-calling, reasoning, context window and input price, plus a pinned
+  "Daemon default" option. Search across 5000+ models by name/id/provider. Verified
+  live against the real catalog (DeepSeek surfaced first with its 4 models + prices;
+  searching "reasoner" filtered across providers; selecting one updated the
+  composer), zero console errors. (M676)
 - **Chat now shows the full tool trace, and the whole console gets proper
   scrollbars.** Every tool call in a chat answer is expandable to its **Arguments**
   (the JSON the agent passed) and its **Result** (or error) — rendered as readable

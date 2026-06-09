@@ -277,6 +277,21 @@ func TestProvidersRouteProxiesProviderStats(t *testing.T) {
 	}
 }
 
+func TestCatalogRouteProxiesCatalogList(t *testing.T) {
+	// The Chat model picker reads the full provider/model catalog via /api/catalog.
+	fc := &fakeCaller{result: map[string]any{"providers": []any{}}}
+	s, _ := newServer(t, fc, "secret")
+	req := httptest.NewRequest(http.MethodGet, "/api/catalog?token=secret", nil)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d want 200", rec.Code)
+	}
+	if len(fc.calls) != 1 || fc.calls[0] != "catalog_list" {
+		t.Errorf("expected one catalog_list call, got %v", fc.calls)
+	}
+}
+
 func TestToolsRouteProxiesToolStats(t *testing.T) {
 	fc := &fakeCaller{result: map[string]any{"total": 0}}
 	s, _ := newServer(t, fc, "secret")
@@ -541,6 +556,7 @@ func TestAPIReadOnly(t *testing.T) {
 		"status": true, "config": true, "runs_list": true, "runs_stats": true, "budget": true, "cache_stats": true, "provider_stats": true, "tool_stats": true, "edict_stats": true, "schedule_list": true, "memory_list": true, "world_list": true,
 		"skill_list": true, "standing_list": true, "inbox": true, "reflect_show": true, "approvals": true,
 		"plan_stats": true, "edict_show": true, "tool_list": true, "board_read": true, "autonomy_feed": true,
+		"catalog_list": true,
 	}
 	for path := range apiRoutes {
 		fc := &fakeCaller{result: map[string]any{"ok": true}}
