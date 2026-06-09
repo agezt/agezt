@@ -12,6 +12,22 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Revise a stored fact from the Memory view.** Memory is content-addressed and intentionally
+  immutable (an in-place content edit would change the record's identity), so facts taught from
+  the UI (M718) could only be forgotten, not corrected. Each memory card now has a **Revise**
+  (pencil) control that opens an inline editor prefilled with the fact's subject/type/content;
+  Save writes a **superseding** record — the model-correct edit: the new fact becomes active,
+  the old one is retained with its `superseded_by` pointing forward (history preserved, recall
+  uses the new one), exactly as the agent's own `Supersede` does. Revising to identical content
+  is a backend no-op. New path: control-plane `memory_supersede` (wraps the existing
+  `memory.Manager.Supersede`); webui `/api/memory/supersede` jsonRoute. Tests: control-plane
+  round-trip (revise → new active, old gone from the active list but retained and linked, journaled;
+  identical-content no-op; missing old_id/content rejected) and the UI form (prefill incl.
+  upper-cased type, posts `old_id` + trimmed content + carried confidence, Save disabled on empty
+  content, error surfaced). Verified live on an isolated daemon: seeded `owner-tz: "Owner is in
+  UTC"`, revised in the UI to "Owner is in Istanbul, UTC+3, prefers terse replies"; `agt memory
+  list` then showed only the revision and the old record carried `superseded_by` → the new id, 0
+  console errors. (M731)
 - **Edit a world-model entity's aliases & attributes from the UI.** The world model could gain
   entities (M721) and relations (M722) from the console, but its per-entity knowledge —
   **aliases** (phrases that resolve to it) and **attributes** (preferences/habits/constraints like

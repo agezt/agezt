@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Brain, RefreshCw, Search, Trash2, Plus, X } from "lucide-react";
+import { Brain, RefreshCw, Search, Trash2, Plus, X, Pencil, Save } from "lucide-react";
 import { getJSON, postAction, postJSON } from "@/lib/api";
 import { cn, fmtTime } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -32,6 +32,7 @@ export function Memory() {
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   async function reload() {
     setLoading(true);
@@ -153,6 +154,18 @@ export function Memory() {
                     )}
                     {r.id && (
                       <button
+                        onClick={() => setEditingId((cur) => (cur === r.id ? null : r.id!))}
+                        title={editingId === r.id ? "Close editor" : "Revise this memory"}
+                        className={cn(
+                          "transition-colors",
+                          editingId === r.id ? "text-accent" : "text-muted hover:text-accent",
+                        )}
+                      >
+                        <Pencil className="size-3.5" />
+                      </button>
+                    )}
+                    {r.id && (
+                      <button
                         onClick={() => forget(r.id!, r.subject)}
                         disabled={busy === r.id}
                         title="Forget this memory"
@@ -173,6 +186,19 @@ export function Memory() {
                       </span>
                     ))}
                 </div>
+                {editingId === r.id && r.id && (
+                  <div className="mt-2">
+                    <ReviseFactForm
+                      record={r}
+                      onRevised={() => {
+                        setEditingId(null);
+                        ui.toast("Memory revised", "success");
+                        void reload();
+                      }}
+                      onError={(m) => ui.toast(m, "error")}
+                    />
+                  </div>
+                )}
               </li>
             ))}
           </ul>
@@ -249,6 +275,88 @@ export function TeachFactForm({
       <div className="mt-2 flex items-center justify-end">
         <Button size="sm" onClick={add} disabled={!valid || submitting}>
           {submitting ? <RefreshCw className="size-3.5 animate-spin" /> : <Plus className="size-3.5" />} Remember it
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+// ReviseFactForm revises a stored fact (M731). Memory is content-addressed and
+// immutable, so "editing" means SUPERSEDING: a new record is written and the old
+// one's superseded_by points to it (history retained; recall uses the new one). The
+// form prefills the current subject/type/content; Save posts memory_supersede with
+// the old id. Revising to identical content is a backend no-op.
+export function ReviseFactForm({
+  record,
+  onRevised,
+  onError,
+}: {
+  record: MemRecord;
+  onRevised: () => void;
+  onError: (msg: string) => void;
+}) {
+  const [subject, setSubject] = useState(record.subject ?? "");
+  const [content, setContent] = useState(record.content ?? "");
+  const [type, setType] = useState((record.type || "FACT").toUpperCase());
+  const [submitting, setSubmitting] = useState(false);
+
+  const valid = content.trim() !== "";
+
+  async function save() {
+    if (!valid || !record.id) return;
+    setSubmitting(true);
+    try {
+      const args: Record<string, unknown> = {
+        old_id: record.id,
+        content: content.trim(),
+        subject: subject.trim(),
+        type,
+      };
+      if (record.confidence != null) args.confidence = record.confidence;
+      await postJSON("/api/memory/supersede", args);
+      onRevised();
+    } catch (e) {
+      onError((e as Error).message);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="rounded-lg border border-accent/30 bg-card p-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <input
+          value={subject}
+          onChange={(e) => setSubject(e.target.value)}
+          placeholder="Subject (optional)"
+          aria-label="Revise memory subject"
+          className="h-8 min-w-0 flex-1 rounded-md border border-border bg-panel px-2 text-sm outline-none focus-visible:border-accent"
+        />
+        <select
+          value={type}
+          onChange={(e) => setType(e.target.value)}
+          aria-label="Revise memory type"
+          className="h-8 rounded-md border border-border bg-panel px-1.5 text-sm outline-none focus-visible:border-accent"
+        >
+          {MEM_TYPES.map((t) => (
+            <option key={t} value={t}>
+              {t.toLowerCase()}
+            </option>
+          ))}
+        </select>
+      </div>
+      <textarea
+        value={content}
+        onChange={(e) => setContent(e.target.value)}
+        aria-label="Revise memory content"
+        className="mt-2 h-20 w-full resize-y rounded-md border border-border bg-panel p-2 text-sm outline-none placeholder:text-muted/60 focus-visible:border-accent"
+      />
+      <p className="mt-1 text-[10px] text-muted">
+        Revising keeps history: a new record supersedes the old one, which is retained for audit.
+      </p>
+      <div className="mt-2 flex items-center justify-end">
+        <Button size="sm" onClick={save} disabled={!valid || submitting}>
+          {submitting ? <RefreshCw className="size-3.5 animate-spin" /> : <Save className="size-3.5" />} Save revision
         </Button>
       </div>
     </div>

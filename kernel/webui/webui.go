@@ -234,6 +234,9 @@ var jsonRoutes = map[string]writeRoute{
 	// Teach the agent a fact (M718): content + optional subject/type/confidence.
 	// confidence is numeric, so the JSON body preserves its type.
 	"/api/memory/add": {controlplane.CmdMemoryAdd, []string{"content", "subject", "type", "confidence"}},
+	// Revise a fact (M731): supersede old_id with a new record (content required;
+	// confidence numeric, so the JSON body preserves its type).
+	"/api/memory/supersede": {controlplane.CmdMemorySupersede, []string{"old_id", "content", "subject", "type", "confidence"}},
 	// Add a world-model entity (M721): name + kind (+ optional aliases/attrs, which
 	// are arrays/objects, so the JSON body is needed).
 	"/api/world/add": {controlplane.CmdWorldAdd, []string{"name", "kind", "aliases", "attrs"}},

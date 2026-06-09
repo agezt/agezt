@@ -51,6 +51,74 @@ func TestMemoryAddListGetCycle(t *testing.T) {
 	}
 }
 
+// TestMemorySupersede revises a fact (M731): add → supersede with new content →
+// the new record is active, the old one is gone from the active list (superseded),
+// and the response reports superseded=true. A revise to identical content is a
+// no-op (superseded=false). Empty content / missing old_id are rejected.
+func TestMemorySupersede(t *testing.T) {
+	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	ctx := context.Background()
+
+	add, err := c.Call(ctx, controlplane.CmdMemoryAdd, map[string]any{
+		"subject": "owner-tz", "content": "Owner is in UTC", "type": "FACT",
+	})
+	if err != nil {
+		t.Fatalf("add: %v", err)
+	}
+	oldID, _ := add["id"].(string)
+
+	// Revise the content.
+	sup, err := c.Call(ctx, controlplane.CmdMemorySupersede, map[string]any{
+		"old_id": oldID, "subject": "owner-tz", "content": "Owner is in Istanbul, UTC+3", "type": "FACT",
+	})
+	if err != nil {
+		t.Fatalf("supersede: %v", err)
+	}
+	if ok, _ := sup["superseded"].(bool); !ok {
+		t.Errorf("revise to new content should report superseded=true: %v", sup)
+	}
+	newID, _ := sup["new_id"].(string)
+	if newID == "" || newID == oldID {
+		t.Errorf("supersede should mint a new id, got %q (old %q)", newID, oldID)
+	}
+
+	// The active list now shows only the new record.
+	list, _ := c.Call(ctx, controlplane.CmdMemoryList, nil)
+	recs, _ := list["records"].([]any)
+	if len(recs) != 1 {
+		t.Fatalf("active count = %d, want 1 (old superseded)", len(recs))
+	}
+	r0, _ := recs[0].(map[string]any)
+	if r0["content"] != "Owner is in Istanbul, UTC+3" {
+		t.Errorf("active record is not the revision: %v", r0["content"])
+	}
+
+	// The old record still exists (soft update) and points forward.
+	got, _ := c.Call(ctx, controlplane.CmdMemoryGet, map[string]any{"id": oldID})
+	if found, _ := got["found"].(bool); !found {
+		t.Error("old record should be retained, not deleted")
+	}
+
+	// A revise to identical content is a no-op.
+	noop, err := c.Call(ctx, controlplane.CmdMemorySupersede, map[string]any{
+		"old_id": newID, "subject": "owner-tz", "content": "Owner is in Istanbul, UTC+3", "type": "FACT",
+	})
+	if err != nil {
+		t.Fatalf("noop supersede: %v", err)
+	}
+	if ok, _ := noop["superseded"].(bool); ok {
+		t.Error("revise to identical content should report superseded=false")
+	}
+
+	// Validation.
+	if _, err := c.Call(ctx, controlplane.CmdMemorySupersede, map[string]any{"content": "x"}); err == nil {
+		t.Error("supersede without old_id must error")
+	}
+	if _, err := c.Call(ctx, controlplane.CmdMemorySupersede, map[string]any{"old_id": oldID}); err == nil {
+		t.Error("supersede without content must error")
+	}
+}
+
 func TestMemoryAddRejectsEmptyContent(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 	if _, err := c.Call(context.Background(), controlplane.CmdMemoryAdd, map[string]any{"subject": "x"}); err == nil {

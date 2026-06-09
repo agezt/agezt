@@ -571,6 +571,8 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.handleWebhookStats(conn, req)
 	case CmdMemoryAdd:
 		s.handleMemoryAdd(conn, req)
+	case CmdMemorySupersede:
+		s.handleMemorySupersede(conn, req)
 	case CmdMemoryList:
 		s.handleMemoryList(conn, req)
 	case CmdMemoryLog:
