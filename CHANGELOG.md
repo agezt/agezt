@@ -12,6 +12,18 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Author a skill from the UI.** Skills — the agent's reusable procedures — could only be born
+  from the agent distilling a successful run; the Skills view let you promote/quarantine/revert
+  them but not **create** one. There's now an **Author skill** form: name + body (the procedure)
+  plus an optional description, comma-separated **triggers** (the phrases that surface it in
+  recall) and **tools required**. It posts to the existing `skill_import` command (new
+  `/api/skill/import` jsonRoute, since triggers/tools are lists), which lands the skill as a
+  **draft** (auto-staged to shadow if well-formed) — **never auto-active**, so it goes through the
+  normal promote lifecycle like any learned skill. Tests cover the form (Create disabled until
+  name+body; splits/trims trigger & tool lists and omits empties; omits blank optional fields;
+  surfaces errors). Verified live on an isolated daemon: authored a `flux-diagnostic` skill from
+  the UI — `agt skill list` showed it as a draft (0 active, i.e. not auto-activated) and its card
+  rendered with a working **promote** control — 0 console errors. (M736)
 - **Portable console appearance — back up & restore your look.** Your per-device console look
   (theme, accent hue, console name) can now be **exported** to a file and **imported** on another
   browser or machine, from the ⌘K palette ("Export / Import appearance settings"). The bundle is a
