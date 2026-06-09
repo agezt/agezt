@@ -12,6 +12,24 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Skills can read/write/register config — `agt config` CLI + a `config` tool.**
+  The skill-facing half of the extensible Config Center (M695). The agent (and the
+  skills it runs) can now configure things directly: a built-in **`config` agent
+  tool** with ops `schema | get | set | register | unregister`, and matching
+  **`agt config`** subcommands (`ls`, `get <ENV>`, `set <ENV> <value>`,
+  `schema [register <file> | unregister <id>]`) on top of the existing
+  `/api/config/*` HTTP routes — three front-ends over the *same* `kernel/settings`
+  registry + `creds` vault, so namespacing, secret handling, and live-vs-restart are
+  identical everywhere. Secrets are always presence-only on read and go to the
+  encrypted vault on write; provider/model apply live (the tool holds a kernel ref
+  bound after boot and calls `Reload()`), everything else is restart-class. The tool
+  is capability-gated via edict: **`config.read` allows** (schema/get — no mutation,
+  secrets masked) and **`config.write` asks first** (set/register/unregister — a
+  write can reach built-in security fields, so confirm by default; lower it in the
+  policy center). Verified live (isolated daemon): registered a namespaced section
+  from a file via `agt config schema register`, then `ls`/`get`/`set` round-tripped
+  (secret → vault, value never shown; non-secret → `config.json`); a section
+  shadowing `AGEZT_ALLOW_ALL` was rejected; `unregister` removed it. (M696)
 - **Config Center schema is now extensible — skills/plugins register their own
   config.** The schema was hardcoded in `kernel/settings/schema.go`; it's now a
   **registry** (`kernel/settings/registry.go`) that merges the compiled-in built-in
