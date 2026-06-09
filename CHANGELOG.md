@@ -12,6 +12,23 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Set quiet hours — don't ping me overnight.** The Autonomy heartbeat card gains a **quiet hours**
+  control: give it a daily window (e.g. `22-7`) and during it only *alert/act* briefs break through —
+  lower-priority observations are held regardless of the dial. The active window shows as
+  `22:00–07:00` with an **✕** to turn it off. Quiet hours existed in the engine (SPEC-03 §6.3) but was
+  startup-only (`AGEZT_PULSE_QUIET_HOURS`); now it's live and **persisted**, so a change survives
+  restart (the config store is overlaid onto the environment before `buildPulse` reads it, the same
+  M760 mechanism as cadence/dial). `Engine.SetQuietHours(spec)` parses the window and stores it under
+  the lock; the `process` path now reads the quiet window under that same lock (previously off-lock —
+  the last remaining unsynchronized engine read, fixed alongside the M758 dial read), so a live change
+  never races a beat. `Status`/`StatusMap` now report the window. New route `/api/pulse/quiet` (hours)
+  → new `CmdPulseQuiet`. Tested at every layer — engine (a window is set and reported; an empty or
+  out-of-range spec disables it), control-plane (the call reaches the engine, echoes the applied spec,
+  and persists `AGEZT_PULSE_QUIET_HOURS`), and UI (the input posts `/api/pulse/quiet`; the active
+  window renders and its ✕ clears it). Verified live on an isolated daemon: set `22-7` from the UI →
+  status showed `{enabled, 22-7}` and the card rendered `22:00–07:00`; **killed and restarted the
+  daemon with no quiet env → it came back with the window still active** (persistence); clicked ✕ →
+  back to off; 0 console errors. (M770)
 - **Stop watching something — remove a live watch.** The Autonomy heartbeat card now lists the
   agent's **observers** as chips, and each watch you added at runtime (a disk or a command, M767/M768)
   carries a small **✕** to stop it — no daemon restart needed. Built-in observers (`self:health`) have

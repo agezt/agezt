@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Waves, RefreshCw, CalendarClock, Anchor, ShieldCheck, Sparkles, Radio, MessagesSquare, Play, Pause, Heart, Zap, Eye, Plus, Activity, X } from "lucide-react";
+import { Waves, RefreshCw, CalendarClock, Anchor, ShieldCheck, Sparkles, Radio, MessagesSquare, Play, Pause, Heart, Zap, Eye, Plus, Activity, X, Moon } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { getJSON, postAction } from "@/lib/api";
 import { useUI } from "@/components/ui/feedback";
@@ -162,6 +162,7 @@ interface PulseStatus {
   cadence_ms?: number;
   last_tick_ms?: number;
   dial?: string;
+  quiet?: { enabled?: boolean; start?: number; end?: number; spec?: string };
   digest_pending?: number;
 }
 
@@ -194,6 +195,7 @@ export function PulseControl() {
   const [watchPct, setWatchPct] = useState("10");
   const [probeName, setProbeName] = useState("");
   const [probeCmd, setProbeCmd] = useState("");
+  const [quietHours, setQuietHours] = useState("");
 
   async function load() {
     try {
@@ -299,6 +301,20 @@ export function PulseControl() {
       setProbeName("");
       setProbeCmd("");
       setWatchKind("");
+      await load();
+    } catch (e) {
+      ui.toast((e as Error).message, "error");
+    }
+  }
+
+  // Set or clear quiet hours (M770): during the window only alert/act briefs break
+  // through, regardless of the dial — so the agent won't ping you overnight. `spec` is
+  // "START-END" 24h (e.g. "22-7"); an empty spec clears it.
+  async function setQuiet(spec: string) {
+    try {
+      const r = await postAction<{ quiet?: string }>("/api/pulse/quiet", { hours: spec });
+      ui.toast(r?.quiet ? `Quiet hours set to ${r.quiet}` : "Quiet hours cleared", "success");
+      setQuietHours("");
       await load();
     } catch (e) {
       ui.toast((e as Error).message, "error");
@@ -488,6 +504,34 @@ export function PulseControl() {
             </Button>
           </>
         )}
+      </div>
+
+      {/* Quiet hours (M770): during the window only alert/act briefs break through,
+          regardless of the dial — so the agent won't ping you overnight. */}
+      <div className="flex flex-wrap items-center gap-1.5 border-t border-border/60 pt-2 text-[11px] text-muted">
+        <span className="inline-flex items-center gap-1 text-muted"><Moon className="size-3" /> quiet hours:</span>
+        {st.quiet?.enabled ? (
+          <>
+            <span className="inline-flex items-center gap-1 rounded-full border border-border bg-panel px-2 py-0.5 font-mono">
+              {String(st.quiet.start ?? 0).padStart(2, "0")}:00–{String(st.quiet.end ?? 0).padStart(2, "0")}:00
+              <button onClick={() => setQuiet("")} className="text-muted transition-colors hover:text-bad" title="Turn off quiet hours" aria-label="Clear quiet hours">
+                <X className="size-3" />
+              </button>
+            </span>
+            <span>only alerts break through</span>
+          </>
+        ) : (
+          <span>off — the agent may notify any hour</span>
+        )}
+        <input
+          value={quietHours}
+          onChange={(e) => setQuietHours(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter" && quietHours.trim()) setQuiet(quietHours.trim()); }}
+          placeholder="22-7"
+          aria-label="Quiet hours window"
+          className="ml-auto h-7 w-20 rounded-md border border-border bg-panel px-2 font-mono text-xs text-foreground outline-none focus-visible:border-accent"
+        />
+        <Button size="sm" onClick={() => setQuiet(quietHours.trim())} disabled={!quietHours.trim()}>Set</Button>
       </div>
     </div>
   );

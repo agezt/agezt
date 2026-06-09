@@ -165,6 +165,30 @@ func TestSetDialChangesAndNormalizes(t *testing.T) {
 	}
 }
 
+// TestSetQuietHoursChangesAndDisables: SetQuietHours (M770) sets a live window Status
+// reports, round-trips the canonical spec, and disables on an empty/invalid value.
+func TestSetQuietHoursChangesAndDisables(t *testing.T) {
+	e, _ := newEngine(t, Config{})
+	if applied := e.SetQuietHours("22-7"); applied != "22-7" {
+		t.Fatalf("applied %q, want 22-7", applied)
+	}
+	q := e.Status().Quiet
+	if !q.Enabled || q.Start != 22 || q.End != 7 {
+		t.Fatalf("Status quiet = %+v, want enabled 22-7", q)
+	}
+	// An empty spec disables it.
+	if applied := e.SetQuietHours(""); applied != "" {
+		t.Fatalf("empty spec should disable, applied %q", applied)
+	}
+	if e.Status().Quiet.Enabled {
+		t.Fatal("quiet hours should be disabled after an empty spec")
+	}
+	// An invalid spec also disables (ParseQuietHours rejects out-of-range).
+	if applied := e.SetQuietHours("99-7"); applied != "" {
+		t.Fatalf("invalid spec should disable, applied %q", applied)
+	}
+}
+
 // TestFlushDigestDeliversAndClears: FlushDigest (M761) composes + delivers the held
 // items, clears the digest, journals a briefing, and returns the count; an empty
 // flush is a no-op returning 0.

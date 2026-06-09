@@ -231,6 +231,20 @@ func (e *Engine) SetDial(s string) string {
 	return string(nd)
 }
 
+// SetQuietHours changes the quiet window live (M770): during it, only alert/act briefs
+// break through (lower-priority observations are held), regardless of the dial. spec is
+// the "START-END" 24h form ParseQuietHours accepts (e.g. "22-7"); an empty or invalid
+// spec disables quiet hours. Takes effect on the next delta (process reads e.quiet under
+// the lock); returns the applied canonical spec ("" when disabled). Runtime-only — resets
+// to the configured default on restart unless persisted.
+func (e *Engine) SetQuietHours(spec string) string {
+	q := ParseQuietHours(spec)
+	e.mu.Lock()
+	e.quiet = q
+	e.mu.Unlock()
+	return q.Spec()
+}
+
 // tickOnce executes a single heartbeat: publish the tick, poll observers, and
 // run each delta through salience → initiative → briefing. Exposed for
 // deterministic tests (drive beats without a real ticker).
@@ -365,12 +379,14 @@ func (e *Engine) process(ctx context.Context, d Delta, tickID string) {
 		return
 	}
 
-	// Read the dial under the lock — SetDial (M758) can change it live from the
-	// control-plane goroutine while this scoring runs on the pulse loop.
+	// Read the dial and quiet window under the lock — SetDial (M758) and SetQuietHours
+	// (M770) can change them live from the control-plane goroutine while this scoring
+	// runs on the pulse loop.
 	e.mu.Lock()
 	dial := e.dial
+	quiet := e.quiet
 	e.mu.Unlock()
-	delivery := Route(dial, sc.Disposition, e.quiet.Active(e.now()))
+	delivery := Route(dial, sc.Disposition, quiet.Active(e.now()))
 	if delivery == DeliverDrop {
 		return
 	}
@@ -454,12 +470,13 @@ type Status struct {
 	Running       bool     `json:"running"`
 	Paused        bool     `json:"paused"`
 	Beats         int64    `json:"beats"`
-	Observers     []string `json:"observers"`
-	Removable     []string `json:"removable"`
-	Dial          string   `json:"dial"`
-	CadenceMS     int64    `json:"cadence_ms"`
-	LastTickMS    int64    `json:"last_tick_ms"`
-	DigestPending int      `json:"digest_pending"`
+	Observers     []string   `json:"observers"`
+	Removable     []string   `json:"removable"`
+	Dial          string     `json:"dial"`
+	Quiet         QuietHours `json:"quiet"`
+	CadenceMS     int64      `json:"cadence_ms"`
+	LastTickMS    int64      `json:"last_tick_ms"`
+	DigestPending int        `json:"digest_pending"`
 }
 
 // Status returns a snapshot of the engine for operators.
@@ -485,6 +502,7 @@ func (e *Engine) Status() Status {
 		Observers:     names,
 		Removable:     removable,
 		Dial:          string(e.dial),
+		Quiet:         e.quiet,
 		CadenceMS:     e.cadence.Milliseconds(),
 		LastTickMS:    e.lastTickMS,
 		DigestPending: len(e.digest),
@@ -504,6 +522,7 @@ func (e *Engine) StatusMap() map[string]any {
 		"observers":      s.Observers,
 		"removable":      s.Removable,
 		"dial":           s.Dial,
+		"quiet":          map[string]any{"enabled": s.Quiet.Enabled, "start": s.Quiet.Start, "end": s.Quiet.End, "spec": s.Quiet.Spec()},
 		"cadence_ms":     s.CadenceMS,
 		"last_tick_ms":   s.LastTickMS,
 		"digest_pending": s.DigestPending,

@@ -196,6 +196,8 @@ var writeRoutes = map[string]writeRoute{
 	"/api/pulse/probe": {controlplane.CmdPulseProbe, []string{"name", "command"}},
 	// Remove a runtime-added watch by observer name (M769): the inverse of watch/probe.
 	"/api/pulse/unwatch": {controlplane.CmdPulseUnwatch, []string{"name"}},
+	// Set the quiet-hours window live (M770): "hours" is "START-END" (e.g. "22-7"); empty disables.
+	"/api/pulse/quiet": {controlplane.CmdPulseQuiet, []string{"hours"}},
 	// Reload catalog + providers in place (M745): apply credential/catalog changes
 	// without a daemon restart. No args.
 	"/api/provider/reload": {controlplane.CmdProviderReload, nil},

@@ -135,6 +135,15 @@ type QuietHours struct {
 	End     int // hour [0,24)
 }
 
+// Spec renders the window back into the "START-END" form ParseQuietHours accepts
+// (M770), or "" when disabled — so a live change can be persisted and round-tripped.
+func (q QuietHours) Spec() string {
+	if !q.Enabled {
+		return ""
+	}
+	return fmt.Sprintf("%d-%d", q.Start, q.End)
+}
+
 // Active reports whether t falls inside the quiet window.
 func (q QuietHours) Active(t time.Time) bool {
 	if !q.Enabled {

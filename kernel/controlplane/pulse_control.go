@@ -41,6 +41,7 @@ type PulseController interface {
 	Beat()
 	SetCadence(d time.Duration) time.Duration
 	SetDial(dial string) string
+	SetQuietHours(spec string) string
 	FlushDigest() int
 	RemoveObserver(name string) int
 }
@@ -207,6 +208,21 @@ func (s *Server) handlePulseDial(conn net.Conn, req Request) {
 	applied := s.pulse.SetDial(dial)
 	s.persistPulseSetting("AGEZT_PULSE_DIAL", applied)
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"dial": applied}})
+}
+
+// handlePulseQuiet sets the quiet-hours window live (M770): during it, only alert/act
+// briefs break through, regardless of the dial. hours is the "START-END" 24h form
+// (e.g. "22-7"); an empty or invalid value disables quiet hours. Persisted so it
+// survives restart (buildPulse reads AGEZT_PULSE_QUIET_HOURS). Returns the applied spec.
+func (s *Server) handlePulseQuiet(conn net.Conn, req Request) {
+	if s.pulse == nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "pulse is disabled (AGEZT_PULSE=off)"})
+		return
+	}
+	hours, _ := req.Args["hours"].(string)
+	applied := s.pulse.SetQuietHours(hours)
+	s.persistPulseSetting("AGEZT_PULSE_QUIET_HOURS", applied)
+	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"quiet": applied}})
 }
 
 // handlePulseFlush delivers any held digest items immediately (M761) instead of
