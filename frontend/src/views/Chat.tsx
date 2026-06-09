@@ -18,6 +18,7 @@ import {
   Trash2,
   RotateCcw,
   ArrowDown,
+  X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { money } from "@/lib/format";
@@ -328,6 +329,8 @@ function AssistantBubble({ turn, onRetry }: { turn: ChatTurn; onRetry?: () => vo
             {text && <CopyAnswer text={text} />}
           </div>
         )}
+
+        {turn.status === "done" && turn.correlationId && <LearnedChips corr={turn.correlationId} />}
       </div>
     </div>
   );
@@ -417,6 +420,62 @@ function CopyAnswer({ text }: { text: string }) {
       {copied ? <Check className="size-3 text-good" /> : <Copy className="size-3" />}
       {copied ? "Copied" : "Copy"}
     </button>
+  );
+}
+
+// LearnedChips shows the memories the daemon recorded during this turn — what the
+// agent took away from the exchange — each one forgettable in a click if it's not
+// worth keeping. Renders nothing until something is actually learned.
+function LearnedChips({ corr }: { corr: string }) {
+  const { learnedFor, forgetLearned } = useChat();
+  const ui = useUI();
+  const [busy, setBusy] = useState<string | null>(null);
+  const items = learnedFor(corr);
+  if (items.length === 0) return null;
+
+  async function forget(id: string, subject: string) {
+    const ok = await ui.confirm({
+      title: "Forget this memory?",
+      message: subject ? `“${subject}” will be permanently removed.` : "This memory will be permanently removed.",
+      confirmLabel: "Forget",
+      danger: true,
+    });
+    if (!ok) return;
+    setBusy(id);
+    try {
+      await forgetLearned(corr, id);
+      ui.toast("Memory forgotten", "success");
+    } catch (e) {
+      ui.toast(`forget failed: ${(e as Error).message}`, "error");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  return (
+    <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+      <span className="inline-flex items-center gap-1 text-[10px] text-muted">
+        <Brain className="size-3 text-accent" /> learned
+      </span>
+      {items.map((m) => (
+        <span
+          key={m.id}
+          className="inline-flex items-center gap-1 rounded-full border border-border bg-panel px-2 py-0.5 text-[10px]"
+          title={`${m.action} · ${m.type}`}
+        >
+          <span className="font-semibold uppercase tracking-wider text-accent">{m.type}</span>
+          <span className="max-w-[16rem] truncate">{m.subject || "(memory)"}</span>
+          <button
+            onClick={() => forget(m.id, m.subject)}
+            disabled={busy === m.id}
+            title="Forget this memory"
+            className="text-muted transition-colors hover:text-bad disabled:opacity-50"
+          >
+            <X className="size-3" />
+          </button>
+        </span>
+      ))}
+    </div>
   );
 }
 

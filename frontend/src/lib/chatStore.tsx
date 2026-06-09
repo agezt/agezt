@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useRef, useState } from "react";
-import { getJSON } from "@/lib/api";
+import { getJSON, postAction } from "@/lib/api";
+import { useEvents, type AgentEvent } from "@/lib/events";
 import {
   streamRun,
   foldChatFrame,
@@ -26,6 +27,39 @@ function genId(): string {
   return "c-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 }
 
+// A memory the daemon recorded during a run (from a memory.written event). The
+// Chat shows these under the turn so you can see what the agent learned — and
+// forget any that aren't worth keeping.
+export interface LearnedMem {
+  id: string;
+  type: string;
+  subject: string;
+  action: string; // write | reinforce | revive
+}
+
+// collectLearned folds one firehose event into the per-correlation learned map.
+// Only memory.written events with a real id are kept; duplicates (same id under
+// the same run) are ignored. Pure, so it's unit-testable without the provider.
+export function collectLearned(
+  prev: Record<string, LearnedMem[]>,
+  e: AgentEvent,
+): Record<string, LearnedMem[]> {
+  if (e.kind !== "memory.written" || !e.correlation_id) return prev;
+  const p = e.payload || {};
+  const id = String(p.id || "");
+  if (!id) return prev; // distill_failed and other id-less notes are skipped
+  const corr = e.correlation_id;
+  const list = prev[corr] || [];
+  if (list.some((x) => x.id === id)) return prev;
+  const mem: LearnedMem = {
+    id,
+    type: String(p.type || "FACT"),
+    subject: String(p.subject || ""),
+    action: String(p.action || "write"),
+  };
+  return { ...prev, [corr]: [...list, mem] };
+}
+
 // The chat engine, lifted above the view router so a run keeps streaming (and the
 // store keeps folding + persisting) even when you navigate away from the Chat
 // view — and so a global mini-chat can share the exact same conversation. The
@@ -43,6 +77,10 @@ export interface ChatEngine {
   newChat: () => void;
   selectConversation: (id: string) => void;
   removeConversation: (id: string) => void;
+  /** Memories the daemon recorded during the run with this correlation id. */
+  learnedFor: (corr?: string) => LearnedMem[];
+  /** Forget one learned memory (tombstones it in the store + drops the chip). */
+  forgetLearned: (corr: string, id: string) => Promise<void>;
 }
 
 const ChatCtx = createContext<ChatEngine | null>(null);
@@ -54,10 +92,12 @@ export function useChat(): ChatEngine {
 }
 
 export function ChatProvider({ children }: { children: React.ReactNode }) {
+  const { subscribe } = useEvents();
   const [store, setStore] = useState<Store>(() => loadStore(genId, Date.now()));
   const [model, setModel] = useState("");
   const [activeModel, setActiveModel] = useState("");
   const [busy, setBusy] = useState(false);
+  const [learned, setLearned] = useState<Record<string, LearnedMem[]>>({});
   const abortRef = useRef<AbortController | null>(null);
   // model is read inside the async stream closure; keep a ref so an override
   // chosen mid-session is always current without re-binding the engine.
@@ -88,6 +128,21 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     if (busy) return;
     saveStore(store);
   }, [store, busy]);
+
+  // Collect every memory the daemon records (memory.written) off the global
+  // firehose, bucketed by the run's correlation id — so a chat turn can show
+  // exactly what it taught the agent (distillation fires post-run, so these may
+  // land after the turn is already done; the global subscription catches them
+  // regardless of which view is open).
+  useEffect(() => subscribe((e) => setLearned((prev) => collectLearned(prev, e))), [subscribe]);
+
+  function learnedFor(corr?: string): LearnedMem[] {
+    return (corr && learned[corr]) || [];
+  }
+  async function forgetLearned(corr: string, id: string) {
+    await postAction("/api/memory/forget", { id });
+    setLearned((prev) => ({ ...prev, [corr]: (prev[corr] || []).filter((x) => x.id !== id) }));
+  }
 
   // Replace the trailing assistant turn (the one currently streaming).
   function updateLastTurn(fn: (t: ChatTurn) => ChatTurn) {
@@ -187,6 +242,8 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     newChat,
     selectConversation,
     removeConversation,
+    learnedFor,
+    forgetLearned,
   };
   return <ChatCtx.Provider value={engine}>{children}</ChatCtx.Provider>;
 }

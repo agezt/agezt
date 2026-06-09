@@ -12,6 +12,14 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Chat shows what the agent learned — and lets you forget it.** When a run records
+  a memory (the daemon's post-run distillation, or the agent using its memory tool),
+  the Chat surfaces it under the answer as a "🧠 learned" chip (type + subject),
+  collected off the live event firehose by the run's correlation id. Each chip has a
+  one-click Forget (confirm modal → tombstones it in the store → drops the chip), so
+  you stay in control of what the agent keeps. Verified live: asked the agent to
+  remember a test fact, the chip appeared, Forget removed it and tombstoned it in the
+  store (the owner's 7 real memories untouched), zero console errors. (M679)
 - **A mini-chat on every screen.** A floating launcher (bottom-right, hidden only on
   the full Chat view) pops open a compact thread bound to the *same* active
   conversation as the full Chat — so you can ask the agent from anywhere without
