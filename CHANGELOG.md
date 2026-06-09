@@ -12,6 +12,17 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **The agent can talk back — voice output in the chat.** The other half of the
+  voice loop (M689 was the mic): a **speak** toggle in the composer reads each
+  completed answer aloud, and every answer has its own **Speak / Stop** button to
+  replay it on demand. It uses the browser's built-in speech synthesis — no
+  backend, no config, no network — and is off by default (the preference persists).
+  Auto-speak fires once per answer on run completion (keyed on the run id so a
+  follow-up state update can't read it twice), interrupts itself when you send a
+  new message, and stops on navigation. Renders nothing when the browser can't do
+  TTS. Verified live (isolated daemon, real DeepSeek): with auto-speak on, a
+  completed answer was passed to the browser's speech engine; the toggle and
+  per-answer buttons render and the preference round-trips. (M690)
 - **Voice input in the chat — talk to your agent.** A microphone button in the
   Chat composer records a short voice message, transcribes it via the daemon's
   speech-to-text backend, and drops the text into the input for you to review and
