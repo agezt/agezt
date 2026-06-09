@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { Waves, RefreshCw, CalendarClock, Anchor, ShieldCheck, Sparkles, Radio, MessagesSquare } from "lucide-react";
+import { Waves, RefreshCw, CalendarClock, Anchor, ShieldCheck, Sparkles, Radio, MessagesSquare, Play, Pause, Heart } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { getJSON } from "@/lib/api";
+import { getJSON, postAction } from "@/lib/api";
+import { useUI } from "@/components/ui/feedback";
 import { cn, fmtTime } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Muted, ErrorText } from "@/components/JsonView";
@@ -86,6 +87,8 @@ export function Autonomy() {
         </Button>
       </div>
 
+      <PulseControl />
+
       {cats.length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5">
           <button
@@ -145,6 +148,88 @@ export function Autonomy() {
           </ul>
         </div>
       )}
+    </div>
+  );
+}
+
+interface PulseStatus {
+  enabled?: boolean;
+  running?: boolean;
+  paused?: boolean;
+  beats?: number;
+  observers?: number;
+  cadence_ms?: number;
+  last_tick_ms?: number;
+}
+
+// PulseControl surfaces the proactive heartbeat — the engine that drives the daemon's
+// self-directed work — with its live status and a pause/resume master switch (M743).
+// Pausing suppresses new beats (in-flight work finishes); the daemon goes reactive-only
+// until resumed. Previously this was reachable only via `agt pulse` on the CLI.
+export function PulseControl() {
+  const ui = useUI();
+  const [st, setSt] = useState<PulseStatus | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function load() {
+    try {
+      setSt(await getJSON<PulseStatus>("/api/pulse"));
+    } catch {
+      setSt(null);
+    }
+  }
+  useEffect(() => {
+    load();
+    const id = setInterval(load, 6000);
+    return () => clearInterval(id);
+  }, []);
+
+  async function toggle() {
+    if (!st) return;
+    setBusy(true);
+    try {
+      await postAction(st.paused ? "/api/pulse/resume" : "/api/pulse/pause", {});
+      ui.toast(st.paused ? "Pulse resumed — proactivity is back on" : "Pulse paused — the daemon is reactive-only", "success");
+      await load();
+    } catch (e) {
+      ui.toast((e as Error).message, "error");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!st) return null;
+  if (!st.enabled) {
+    return (
+      <div className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-xs text-muted">
+        <Radio className="size-3.5" /> Pulse is disabled on this daemon (set <code className="rounded bg-panel px-1">AGEZT_PULSE</code> to enable the proactive heartbeat).
+      </div>
+    );
+  }
+
+  const paused = !!st.paused;
+  const cadence = st.cadence_ms ? `${Math.round(st.cadence_ms / 1000)}s` : "—";
+  return (
+    <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-card px-3 py-2">
+      <Heart className={cn("size-4", paused ? "text-muted" : "animate-pulse fill-current text-bad")} />
+      <span className="text-sm font-semibold">Proactive heartbeat</span>
+      <span
+        className={cn(
+          "rounded-full px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider",
+          paused ? "bg-panel text-muted" : "bg-good/15 text-good",
+        )}
+      >
+        {paused ? "paused" : "running"}
+      </span>
+      <span className="text-[11px] text-muted">
+        {st.beats ?? 0} beat{st.beats === 1 ? "" : "s"} · every {cadence}
+        {st.observers != null ? ` · ${st.observers} observer${st.observers === 1 ? "" : "s"}` : ""}
+        {st.last_tick_ms ? ` · last ${fmtTime(st.last_tick_ms)}` : ""}
+      </span>
+      <Button size="sm" variant={paused ? "default" : "ghost"} className="ml-auto" onClick={toggle} disabled={busy} title={paused ? "Resume the heartbeat" : "Pause the heartbeat"}>
+        {busy ? <RefreshCw className="size-3.5 animate-spin" /> : paused ? <Play className="size-3.5" /> : <Pause className="size-3.5" />}
+        {paused ? "Resume" : "Pause"}
+      </Button>
     </div>
   );
 }
