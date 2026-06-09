@@ -12,6 +12,16 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **`code_exec` JS/TS packages via Deno — clean, no install step.** Deno resolves
+  `import x from "npm:pkg"` itself (caching under the sandbox's scrubbed HOME), so
+  agents can use any npm package in TypeScript/JavaScript with no install phase —
+  the JS counterpart to M691's pip support. The Deno run now passes `--quiet`, so
+  Deno's own `Download`/`Check` progress no longer pollutes the program's output
+  (real errors and program stdout still show). With this, the package story is
+  complete across all three runtimes: Python via `packages` (pip), JS/TS via Deno
+  `npm:` imports, and the tool description points agents to each. Verified live
+  (isolated daemon): an agent imported `lodash-es` via `npm:` in Deno and printed a
+  clean result with no download noise. (M692)
 - **`code_exec` can install Python packages — real scraping & data work.** Pass
   `packages` (e.g. `["requests","beautifulsoup4"]`) and the tool pip-installs them
   before running your code, so `import requests` / `pandas` / `bs4` just work. In a

@@ -87,13 +87,18 @@ func entryName(lang string) string {
 // and env access (env is already scrubbed), plus network only when granted —
 // this is a real OS-level jail on every platform, including Windows. We
 // deliberately do NOT pass --allow-run, so a Deno script can't shell out to
-// escape the fs confinement. Python/Node take no such flags (their isolation is
-// whatever the warden profile provides — real on Linux+namespace, workdir/env/
-// limits only elsewhere).
+// escape the fs confinement. --quiet suppresses Deno's own progress output so a
+// program's stdout stays clean even when it imports npm packages inline (Deno
+// resolves `import x from "npm:pkg"` itself, caching under the scrubbed HOME — no
+// install step needed; that is the JS/TS package path). Python/Node take no such
+// flags (their isolation is whatever the warden profile provides — real on
+// Linux+namespace, workdir/env/limits only elsewhere).
 func buildArgv(interp, lang, entry string, dir string, allowNet bool) []string {
 	if lang == LangDeno {
 		args := []string{
-			interp, "run", "--no-prompt",
+			interp, "run",
+			"--quiet", // suppress Deno's own Download/Check progress so npm: imports don't pollute the program's output (real errors still show)
+			"--no-prompt",
 			"--allow-read=" + dir,
 			"--allow-write=" + dir,
 			"--allow-env",

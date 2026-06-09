@@ -95,7 +95,7 @@ func TestDeno_PermissionFlags_NetOnOff(t *testing.T) {
 	tl, fw := newTool(t, map[string]string{LangDeno: "/usr/bin/deno"}, true)
 	run(t, tl, map[string]any{"language": "deno", "code": "console.log(1)"})
 	argv := strings.Join(fw.last.Argv, " ")
-	for _, want := range []string{"run", "--no-prompt", "--allow-read=", "--allow-write=", "--allow-env", "--allow-net", "main.ts"} {
+	for _, want := range []string{"run", "--quiet", "--no-prompt", "--allow-read=", "--allow-write=", "--allow-env", "--allow-net", "main.ts"} {
 		if !strings.Contains(argv, want) {
 			t.Errorf("deno argv missing %q: %s", want, argv)
 		}
