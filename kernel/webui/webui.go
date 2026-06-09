@@ -145,6 +145,9 @@ var readArgsRoutes = map[string]writeRoute{
 	"/api/sandbox_file": {controlplane.CmdSandboxFile, []string{"project", "file"}},
 	"/api/policy_log":   {controlplane.CmdEdictLog, []string{"limit", "denied"}},
 	"/api/plan_history": {controlplane.CmdPlanHistory, []string{"limit", "status"}},
+	// Provider keyring list (M700): labels + active + last-4 for one env var.
+	// Read-only — values never leave the daemon.
+	"/api/provider/keys": {controlplane.CmdProviderKeyList, []string{"env"}},
 }
 
 // writeRoutes is the operator-action allowlist: the big red button (halt),
@@ -176,6 +179,10 @@ var writeRoutes = map[string]writeRoute{
 	"/api/standing/enable":  {controlplane.CmdStandingSetEnabled, []string{"id", "enabled"}},
 	"/api/standing/remove":  {controlplane.CmdStandingRemove, []string{"id"}},
 	"/api/reflect/run":      {controlplane.CmdReflectRun, nil},
+	// Provider keyring switch/remove (M700): activate or remove a key, reloading
+	// the provider in place. (Add is a jsonRoute — the value is a secret body.)
+	"/api/provider/keys/activate": {controlplane.CmdProviderKeyActivate, []string{"env", "label"}},
+	"/api/provider/keys/remove":   {controlplane.CmdProviderKeyRemove, []string{"env", "label"}},
 }
 
 // jsonRoutes are mutating commands invoked with a JSON request BODY rather than
@@ -200,6 +207,9 @@ var jsonRoutes = map[string]writeRoute{
 	// jsonProxy timeout; `url` optionally overrides the source. No body needed —
 	// the Sync button posts {}.
 	"/api/catalog/sync": {controlplane.CmdCatalogSync, []string{"url"}},
+	// Provider keyring add (M700): the value is a secret, so it travels in the
+	// POST body (not a query arg). env+label+value(+active).
+	"/api/provider/keys/add": {controlplane.CmdProviderKeyAdd, []string{"env", "label", "value", "active"}},
 }
 
 // planRoute is the streaming "run this plan" action (Flow Studio's Run button).

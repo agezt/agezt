@@ -12,6 +12,23 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Several API keys per provider — store many, pick the active one.** You can now
+  hold more than one key for a provider (e.g. a work and a personal `OPENAI_API_KEY`)
+  and switch which is live. Each key is stored encrypted in the vault under
+  `<ENV>#<label>`; the **active** key is mirrored to the bare env-var name
+  (`OPENAI_API_KEY`) — what the provider actually reads — and switching is a manual
+  copy that **reloads the provider in place** (no rotation, no failover; the owner's
+  choice). A key set the old way (`agt provider creds set NAME value`) shows up as a
+  synthetic `default` entry, so this layers cleanly on the existing single-credential
+  model. Values **never leave the daemon**: listing shows label + active + a last-4
+  fingerprint only. New CLI `agt provider keys {list, add <ENV> <label> [value]
+  [--active], activate, rm}` (the `config` namespace `AGEZT_*` is rejected — provider
+  keys live outside it), control-plane commands `provider_key_{list,add,activate,
+  remove}`, and routes `/api/provider/keys[/add|/activate|/remove]` for the upcoming
+  UI. Verified live (isolated daemon): added two keys, listed (active marked, no
+  values), switched active (provider reloaded), removed the active key (provider left
+  uncredentialed until another is activated), and confirmed the list API leaks no raw
+  values and the vault stays encrypted. (M700)
 - **Models view — browse the LLM catalog and sync it from models.dev in one click.**
   The first piece of the dedicated provider/models area: a new **Models** view (under
   *System*) lists every provider and model the daemon knows about — context window,
