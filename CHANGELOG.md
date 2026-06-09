@@ -12,6 +12,16 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Filter the run history — find that one run fast.** The Runs view gains a **filter runs** box
+  (appearing once there are more than four runs) that narrows the list as you type, matching on the
+  run's **intent, status, or correlation id** with a live `matched/total` count. Typing `failed`
+  surfaces every failed run, `deploy` every deploy, an id jumps straight to it — instead of scrolling
+  the agent's whole activity log. Pairs with the ⌘K palette's *Open run* (M734): the palette deep-links
+  a known run, this scans for one you're still looking for. Purely client-side over the loaded runs.
+  Unit-tested (the pure `runMatches` helper matches intent/status/id case-insensitively; the input
+  filters the list with a count, only renders past four runs, and a non-matching query shows a hint).
+  Verified live on a demo daemon: generated 5 runs, typed `tests` → `1/5` (showing "write tests",
+  hiding "deploy the API"), a non-matching query showed "no runs match"; 0 console errors. (M775)
 - **Find a node in a big world model — entity search.** The World view gains a **filter entities**
   box (appearing once there are more than four entities) that narrows the entity list as you type,
   matching on **name, kind, or alias** (case-insensitive) with a live `matched/total` count. As the
