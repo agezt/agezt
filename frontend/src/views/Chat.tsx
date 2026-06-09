@@ -20,6 +20,8 @@ import {
   ArrowDown,
   X,
   Paperclip,
+  Volume2,
+  VolumeX,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { money } from "@/lib/format";
@@ -31,6 +33,9 @@ import { ToolOutput } from "@/components/DataView";
 import { ModelPicker } from "@/components/ModelPicker";
 import { AttachPicker } from "@/components/AttachPicker";
 import { MicButton } from "@/components/MicButton";
+import { speak, stopSpeaking, speechSupported } from "@/lib/speech";
+
+const AUTOSPEAK_KEY = "agezt.chat.autospeak";
 import { turnText, type ChatTurn, type ChatTool, type TimelineItem } from "@/lib/chat";
 import { useChat } from "@/lib/chatStore";
 import { buildContext, type AttachRef } from "@/lib/attach";
@@ -53,8 +58,53 @@ export function Chat() {
   // hand the agent as context. Cleared once the message is sent.
   const [attached, setAttached] = useState<AttachRef[]>([]);
   const [attachOpen, setAttachOpen] = useState(false);
+  // autoSpeak: read each completed answer aloud (browser TTS). Persisted, off by
+  // default so the UI is silent unless the user opts in.
+  const [autoSpeak, setAutoSpeak] = useState(() => {
+    try {
+      return localStorage.getItem(AUTOSPEAK_KEY) === "1";
+    } catch {
+      return false;
+    }
+  });
   const scrollRef = useRef<HTMLDivElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
+  const prevBusy = useRef(busy);
+  const lastSpokeRef = useRef("");
+
+  function toggleAutoSpeak() {
+    setAutoSpeak((v) => {
+      const next = !v;
+      try {
+        localStorage.setItem(AUTOSPEAK_KEY, next ? "1" : "0");
+      } catch {
+        /* ignore storage errors */
+      }
+      if (!next) stopSpeaking();
+      return next;
+    });
+  }
+
+  // Auto-speak the latest answer when a run finishes (busy true→false). Keyed on
+  // the busy transition — not on `messages` content — so navigating, reloading,
+  // or switching conversations never reads an old answer aloud, and each answer
+  // is spoken at most once. Stop any speech when the component unmounts.
+  useEffect(() => {
+    if (prevBusy.current && !busy && autoSpeak) {
+      const last = messages[messages.length - 1];
+      if (last?.role === "assistant" && last.turn.status === "done") {
+        // Speak each answer at most once: key on the run id (or the text, before
+        // a correlation lands) so a follow-up state update can't read it twice.
+        const key = last.turn.correlationId || turnText(last.turn);
+        if (key && key !== lastSpokeRef.current) {
+          lastSpokeRef.current = key;
+          speak(turnText(last.turn));
+        }
+      }
+    }
+    prevBusy.current = busy;
+  }, [busy, autoSpeak, messages]);
+  useEffect(() => () => stopSpeaking(), []);
 
   // Pin the thread to the bottom as content streams in — but only while pinned,
   // so scrolling up to read history during a live stream isn't disrupted.
@@ -89,6 +139,7 @@ export function Chat() {
   function doSend() {
     const t = input.trim();
     if (!t || busy) return;
+    stopSpeaking(); // a new turn interrupts any answer being read aloud
     setPinned(true);
     setInput("");
     const ctx = buildContext(attached);
@@ -261,6 +312,19 @@ export function Chat() {
         <div className="mt-1.5 flex items-center gap-2 px-1 text-xs text-muted">
           <span>model</span>
           <ModelPicker value={model} onChange={setModel} activeModel={activeModel} />
+          {speechSupported() && (
+            <button
+              onClick={toggleAutoSpeak}
+              title={autoSpeak ? "Auto-speak answers: on" : "Auto-speak answers: off"}
+              className={cn(
+                "inline-flex items-center gap-1 rounded px-1.5 py-0.5 transition-colors hover:text-foreground",
+                autoSpeak ? "text-accent" : "text-muted",
+              )}
+            >
+              {autoSpeak ? <Volume2 className="size-3.5" /> : <VolumeX className="size-3.5" />}
+              <span>speak</span>
+            </button>
+          )}
           <span className="ml-auto">runs through the governed loop · same as the CLI</span>
         </div>
         </div>
@@ -392,6 +456,7 @@ function AssistantBubble({ turn, onRetry }: { turn: ChatTurn; onRetry?: () => vo
           <div className="flex items-center gap-3">
             <TurnMeta turn={turn} />
             {text && <CopyAnswer text={text} />}
+            {text && <SpeakAnswer text={text} />}
           </div>
         )}
 
@@ -484,6 +549,34 @@ function CopyAnswer({ text }: { text: string }) {
     >
       {copied ? <Check className="size-3 text-good" /> : <Copy className="size-3" />}
       {copied ? "Copied" : "Copy"}
+    </button>
+  );
+}
+
+// SpeakAnswer reads one answer aloud via the browser's speech synthesis — the
+// per-message companion to the global auto-speak toggle. Renders nothing when the
+// browser can't do TTS. Toggles between speak and stop, and stops on unmount.
+function SpeakAnswer({ text }: { text: string }) {
+  const [speaking, setSpeaking] = useState(false);
+  useEffect(() => () => stopSpeaking(), []);
+  if (!speechSupported()) return null;
+  function toggle() {
+    if (speaking) {
+      stopSpeaking();
+      setSpeaking(false);
+    } else {
+      setSpeaking(true);
+      speak(text, () => setSpeaking(false));
+    }
+  }
+  return (
+    <button
+      onClick={toggle}
+      title={speaking ? "Stop" : "Read aloud"}
+      className="inline-flex items-center gap-1 text-xs text-muted transition-colors hover:text-foreground"
+    >
+      {speaking ? <VolumeX className="size-3" /> : <Volume2 className="size-3" />}
+      {speaking ? "Stop" : "Speak"}
     </button>
   );
 }
