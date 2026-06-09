@@ -36,6 +36,7 @@ import {
   SlidersHorizontal,
   Layers,
   Route as RouteIcon,
+  Bot,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -75,6 +76,7 @@ import { Tools } from "@/views/Tools";
 import { Catalog } from "@/views/Catalog";
 import { Models } from "@/views/Models";
 import { Routing } from "@/views/Routing";
+import { Persona } from "@/views/Persona";
 import { Policy } from "@/views/Policy";
 import { Schedules } from "@/views/Schedules";
 import { World } from "@/views/World";
@@ -167,6 +169,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { id: "overview", label: "Overview", icon: LayoutDashboard, render: Dashboard },
       { id: "system", label: "System", icon: Settings, render: Status },
+      { id: "persona", label: "Persona", icon: Bot, render: Persona },
       { id: "configcenter", label: "Config Center", icon: SlidersHorizontal, render: ConfigCenter },
       { id: "config", label: "Config", icon: Settings, render: Config },
       { id: "providers", label: "Providers", icon: Cpu, render: Providers },

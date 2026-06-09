@@ -337,6 +337,7 @@ type Kernel struct {
 
 	mu     sync.Mutex
 	halted bool
+	system string                        // live agent persona / system prompt (M710); seeded from cfg.System, editable at runtime
 	runs   map[string]context.CancelFunc // correlation_id → cancel
 	fanout map[string]int                // spawning correlation_id → sub-agents spawned (M46 fan-out bound)
 	tree   map[string]int                // root correlation_id → total sub-agents in the tree (M629 total bound)
@@ -508,6 +509,7 @@ func Open(cfg Config) (*Kernel, error) {
 		reflect:      reflectEng,
 		schedules:    schedStore,
 		tools:        effTools,
+		system:       cfg.System,
 		runs:         make(map[string]context.CancelFunc),
 		fanout:       make(map[string]int),
 		tree:         make(map[string]int),
@@ -737,11 +739,25 @@ func (k *Kernel) SubAgentLimits() SubAgentLimits {
 	return l
 }
 
-// System returns the configured default system prompt. Empty
-// when none is set. Used by `agt config show` — but only to
-// report PRESENCE, not the prompt content (could contain
-// proprietary instructions).
-func (k *Kernel) System() string { return k.cfg.System }
+// System returns the live default system prompt (agent persona). Empty when none
+// is set. Seeded from cfg.System at Open and editable at runtime via SetSystem
+// (M710). `agt config show` uses it only to report PRESENCE, not content (which
+// could carry proprietary instructions); the dedicated persona surface returns
+// the content for the owner to edit.
+func (k *Kernel) System() string {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	return k.system
+}
+
+// SetSystem replaces the live default system prompt (agent persona). The next run
+// picks it up — no restart. Persistence (so it survives a restart) is the control
+// plane's job: it writes AGEZT_SYSTEM_PROMPT to the config store alongside this.
+func (k *Kernel) SetSystem(s string) {
+	k.mu.Lock()
+	k.system = s
+	k.mu.Unlock()
+}
 
 // Catalog returns the currently-loaded provider/model catalog. The
 // returned pointer is the live snapshot; callers should treat it as
@@ -1356,7 +1372,7 @@ func (k *Kernel) RunWith(ctx context.Context, corr, intent string) (string, erro
 	// Per-run system-prompt override (WithSystem): a one-off persona/instruction
 	// set for this run only; falls back to the kernel's configured System. Memory /
 	// world / skill injection below still layer on top.
-	system := k.cfg.System
+	system := k.System() // live persona (M710), editable at runtime
 	if s := systemFromCtx(runCtx); s != "" {
 		system = s
 	}

@@ -12,6 +12,20 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Edit your agent's persona (system prompt) from the UI — live.** A new **System →
+  Persona** view shows and edits the default system prompt that frames every run — your
+  Jarvis's personality, priorities, and house rules. Previously this was a startup-only
+  env var (`AGEZT_SYSTEM_PROMPT`) and config deliberately reported only *whether* one
+  was set (never the content); there was no way to view or change it without a restart.
+  Now the persona is a live, mutable kernel value: edits apply to the **next run** (no
+  restart) and persist to the config store so they survive one. The editor has a char
+  count, dirty/unsaved indicator, Clear (back to the default), and starter templates.
+  New control-plane commands `persona_get` / `persona_set` (`GET /api/persona`,
+  `POST /api/persona/set`) back it. Tests: the control plane sets the persona live
+  (`kernel.System()` reflects it immediately), persists it to the config store, and
+  clears it; the view loads/saves/clears/insert-preset. Verified live (isolated daemon):
+  set a persona → API reflects it → survived a page reload ("custom persona active") →
+  Clear returned to default, 0 console errors. (M710)
 - **Edit a chat message and re-run from there.** Hovering a user message in the Chat
   reveals a pencil; clicking it turns the bubble into an inline editor (Enter / "Save &
   run" to submit, Esc / Cancel to restore). Submitting rewrites that message, **drops
