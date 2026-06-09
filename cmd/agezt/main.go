@@ -89,6 +89,7 @@ import (
 	filetool "github.com/agezt/agezt/plugins/tools/file"
 	hatool "github.com/agezt/agezt/plugins/tools/homeassistant"
 	httptool "github.com/agezt/agezt/plugins/tools/http"
+	"github.com/agezt/agezt/plugins/tools/introspecttool"
 	"github.com/agezt/agezt/plugins/tools/notify"
 	"github.com/agezt/agezt/plugins/tools/peer"
 	"github.com/agezt/agezt/plugins/tools/runstool"
@@ -319,6 +320,13 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// to the kernel's Forge after it opens.
 	skillToolInst := skilltool.New()
 	tools["skill"] = skillToolInst
+
+	// Introspection tool (`introspect`, M682): the agent reads the daemon's OWN
+	// live state — a real health overview plus schedule/standing detail — in one
+	// call, so a "summarise AGEZT's health" task can see everything instead of
+	// guessing. Registered now, Bound to the live kernel after it opens.
+	introspectToolInst := introspecttool.New()
+	tools["introspect"] = introspectToolInst
 
 	// OnReload is invoked by the control plane's `provider_reload`
 	// command (and `agt provider reload`). It re-reads the vault,
@@ -1152,6 +1160,11 @@ func runDaemon(stdout, stderr io.Writer) int {
 		skillToolInst.Bind(fg)
 		fmt.Fprintf(stdout, "  skill tool       : enabled (the agent can author and manage its own skills)\n")
 	}
+
+	// Bind the introspection tool to the live kernel (M682), so the agent can read
+	// the daemon's own health/schedules/standing-orders in one call.
+	introspectToolInst.Bind(introspecttool.NewKernelSource(k))
+	fmt.Fprintf(stdout, "  introspect tool  : enabled (the agent can read the daemon's own live state)\n")
 
 	// Scheduled intents (autonomy) — fire operator-configured intents on a timer
 	// through the governed loop. Runs on the daemon ctx (halt/shutdown stop it).
