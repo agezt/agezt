@@ -9,6 +9,7 @@ export interface ToolCall {
   allow?: boolean;
   hardDenied?: boolean;
   error?: boolean;
+  input?: string; // the tool's arguments (JSON), captured from tool.invoked
   output?: string;
 }
 
@@ -102,6 +103,11 @@ export function deriveDetail(arc: AgentEvent[]): RunDetail {
       case "tool.invoked": {
         const c = call(String(p.call_id || ""));
         if (p.tool) c.tool = String(p.tool);
+        // The agent loop journals the tool's arguments as `input` (json.RawMessage);
+        // it lands as an object or a pre-stringified string. Keep a string so the
+        // detail view can show exactly what the tool was called with — crucial for
+        // autonomous runs (scheduled/standing) that never appear in the Chat view.
+        if (p.input != null) c.input = typeof p.input === "string" ? p.input : JSON.stringify(p.input);
         break;
       }
       case "tool.result": {

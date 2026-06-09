@@ -9,7 +9,7 @@ const arc: AgentEvent[] = [
   { seq: 1, kind: "llm.request", payload: { iter: 0, model: "mock" } },
   { seq: 2, kind: "llm.response", payload: { iter: 0, tool_calls: 1 } },
   { seq: 3, kind: "policy.decision", payload: { call_id: "c1", tool: "homeassistant", capability: "homeassistant.call", allow: true } },
-  { seq: 4, kind: "tool.invoked", payload: { call_id: "c1", tool: "homeassistant" } },
+  { seq: 4, kind: "tool.invoked", payload: { call_id: "c1", tool: "homeassistant", input: { entity: "light.living_room", action: "turn_off" } } },
   { seq: 5, kind: "tool.result", payload: { call_id: "c1", tool: "homeassistant", output: "called light.turn_off ok", error: false } },
   { seq: 8, kind: "budget.consumed", payload: { model: "mock", input_tokens: 100, output_tokens: 20, cached_input_tokens: 10, cost_microcents: 5000 } },
   { seq: 6, kind: "llm.request", payload: { iter: 1, model: "mock" } },
@@ -45,7 +45,17 @@ describe("deriveDetail", () => {
     expect(a.allow).toBe(true);
     expect(a.error).toBe(false);
     expect(a.output).toBe("called light.turn_off ok");
+    // The tool's arguments (object payload) are folded as stringified JSON, so the
+    // detail view can show exactly what the call ran — even for autonomous runs.
+    expect(a.input).toBe('{"entity":"light.living_room","action":"turn_off"}');
     expect(b.capability).toBe("homeassistant.read");
+  });
+
+  it("keeps a pre-stringified tool input as-is", () => {
+    const d = deriveDetail([
+      { seq: 1, kind: "tool.invoked", payload: { call_id: "z", tool: "code_exec", input: '{"language":"python","code":"print(1)"}' } },
+    ]);
+    expect(d.toolCalls[0].input).toBe('{"language":"python","code":"print(1)"}');
   });
 
   it("marks hasBudget false when no budget event was journaled", () => {

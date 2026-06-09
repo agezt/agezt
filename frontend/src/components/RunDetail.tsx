@@ -14,6 +14,7 @@ import {
 import { getJSON, postAction } from "@/lib/api";
 import { Badge, statusVariant } from "@/components/ui/badge";
 import { KeyValue, Muted, ErrorText } from "@/components/JsonView";
+import { ToolOutput } from "@/components/DataView";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { fmtTime, clip } from "@/lib/utils";
@@ -21,26 +22,64 @@ import { money } from "@/lib/format";
 import { deriveDetail, num, mergeEvents, type ToolCall } from "@/lib/rundetail";
 import { useEvents, type AgentEvent } from "@/lib/events";
 
-// One governed tool call, rendered with its policy verdict and (clipped) output.
+// One governed tool call, rendered with its policy verdict. Expandable to show
+// the full arguments it was called with and the result it returned — so EVERY
+// run is inspectable here, including autonomous ones (scheduled / standing /
+// board-triggered) that never appear in the Chat view. Mirrors the Chat ToolChip.
 export function ToolCallRow({ c }: { c: ToolCall }) {
+  const [open, setOpen] = useState(false);
+  const hasDetail = !!c.input || !!c.output;
   return (
-    <li className="flex items-center gap-2 py-0.5">
-      <Wrench className="size-3.5 shrink-0 text-muted" />
-      <span className="font-medium">{c.tool || "tool"}</span>
-      {c.capability && <Badge variant="accent">{c.capability}</Badge>}
-      {c.allow === false ? (
-        <Badge variant="bad">
-          <ShieldX className="mr-1 size-3" />
-          {c.hardDenied ? "hard-denied" : "denied"}
-        </Badge>
-      ) : (
-        <Badge variant="good">
-          <ShieldCheck className="mr-1 size-3" />
-          allowed
-        </Badge>
+    <li className="py-0.5">
+      <button
+        onClick={() => hasDetail && setOpen((o) => !o)}
+        className={cn("flex w-full items-center gap-2 text-left", !hasDetail && "cursor-default")}
+      >
+        {hasDetail ? (
+          open ? (
+            <ChevronDown className="size-3.5 shrink-0 text-muted" />
+          ) : (
+            <ChevronRight className="size-3.5 shrink-0 text-muted" />
+          )
+        ) : (
+          <Wrench className="size-3.5 shrink-0 text-muted" />
+        )}
+        <span className="font-medium">{c.tool || "tool"}</span>
+        {c.capability && <Badge variant="accent">{c.capability}</Badge>}
+        {c.allow === false ? (
+          <Badge variant="bad">
+            <ShieldX className="mr-1 size-3" />
+            {c.hardDenied ? "hard-denied" : "denied"}
+          </Badge>
+        ) : (
+          <Badge variant="good">
+            <ShieldCheck className="mr-1 size-3" />
+            allowed
+          </Badge>
+        )}
+        {c.error && <Badge variant="bad">error</Badge>}
+        {!open && c.output && <span className="truncate text-muted">{clip(c.output, 100)}</span>}
+      </button>
+      {open && hasDetail && (
+        <div className="mt-1 ml-5 rounded-md border border-border bg-panel/60">
+          {c.input && (
+            <div>
+              <div className="px-2.5 pt-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted">
+                Arguments
+              </div>
+              <ToolOutput text={c.input} />
+            </div>
+          )}
+          {c.output && (
+            <div>
+              <div className="px-2.5 pt-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted">
+                {c.error ? "Error" : "Result"}
+              </div>
+              <ToolOutput text={c.output} />
+            </div>
+          )}
+        </div>
       )}
-      {c.error && <Badge variant="bad">error</Badge>}
-      {c.output && <span className="truncate text-muted">{clip(c.output, 100)}</span>}
     </li>
   );
 }
