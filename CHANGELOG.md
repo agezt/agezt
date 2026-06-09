@@ -12,6 +12,18 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **⌘K: "New chat", and a theme toggle that actually sticks.** The command palette gains a
+  **New chat** action — start a fresh thread and jump to the chat from anywhere, no mouse. And
+  the palette's **Toggle theme** is fixed: it previously just flipped the `dark` class directly,
+  so it didn't persist (a reload reverted it) and desynced from the header toggle (which kept its
+  own state). Theme is now a single shared source of truth (`lib/theme` module store via
+  `useSyncExternalStore`), so the header button and the ⌘K command move in lockstep and the choice
+  persists; theme is also now applied **before first paint** in `main.tsx` (like accent/console
+  name), removing the brief flash of the wrong theme on load. Tests cover the theme store (toggle
+  moves DOM class + storage + value together; applyTheme reflects state; subscribers notified).
+  Verified live: toggling theme from ⌘K flipped `dark`+`localStorage` together and **survived a
+  reload** (the old bug reverted it); the New chat command navigated from another view to the chat
+  with a fresh composer — 0 console errors. (M733)
 - **Search your chat conversations.** As chat threads accumulate, the sidebar was an
   unfilterable scroll. A **search box** now appears above the conversation list (once you have
   more than one) and filters threads as you type — matching not just the **title** but the
