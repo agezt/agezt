@@ -12,7 +12,7 @@ vi.mock("@/lib/api", () => ({
   postAction: (...a: unknown[]) => postAction(...a),
 }));
 
-import { Prompts } from "@/views/Prompts";
+import { Prompts, parsePromptsJSON } from "@/views/Prompts";
 import { UIProvider } from "@/components/ui/feedback";
 
 function withUI(node: ReactNode) {
@@ -63,5 +63,36 @@ describe("Prompts view", () => {
     await waitFor(() => expect(screen.queryByLabelText("Prompt 2 title")).toBeNull());
     // The remaining row is the former B.
     expect((screen.getByLabelText("Prompt 1 title") as HTMLInputElement).value).toBe("B");
+  });
+});
+
+describe("parsePromptsJSON", () => {
+  it("parses a bare array of {title,text}, trimming and dropping invalid rows", () => {
+    const out = parsePromptsJSON(
+      JSON.stringify([
+        { title: "  A  ", text: "  body a  " },
+        { title: "", text: "no title" },
+        { title: "B", text: "" },
+        { title: "C", text: "body c" },
+      ]),
+    );
+    expect(out).toEqual([
+      { title: "A", text: "body a" },
+      { title: "C", text: "body c" },
+    ]);
+  });
+
+  it("accepts a {prompts:[…]} wrapper", () => {
+    const out = parsePromptsJSON(JSON.stringify({ prompts: [{ title: "X", text: "y" }] }));
+    expect(out).toEqual([{ title: "X", text: "y" }]);
+  });
+
+  it("throws on bad JSON", () => {
+    expect(() => parsePromptsJSON("{not json")).toThrow();
+  });
+
+  it("throws when no valid prompts are present", () => {
+    expect(() => parsePromptsJSON(JSON.stringify([{ title: "", text: "" }]))).toThrow(/no valid prompts/);
+    expect(() => parsePromptsJSON(JSON.stringify({ nope: 1 }))).toThrow(/expected an array/);
   });
 });
