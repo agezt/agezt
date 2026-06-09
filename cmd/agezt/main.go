@@ -1231,7 +1231,9 @@ func runDaemon(stdout, stderr io.Writer) int {
 			_ = channelSend(bctx, kind, recip, text)
 		}
 	}
-	fmt.Fprintf(stdout, "  standing orders  : %s\n", buildStandingRunner(ctx, k, standingBrief))
+	standingDesc, fireStandingNow := buildStandingRunner(ctx, k, standingBrief)
+	srv.SetStandingFire(fireStandingNow)
+	fmt.Fprintf(stdout, "  standing orders  : %s\n", standingDesc)
 
 	fmt.Fprintf(stdout, "  client commands  : %s run | halt | resume | why <id> | journal verify\n", brand.CLI)
 	fmt.Fprintf(stdout, "Press Ctrl+C to stop.\n")
@@ -2934,7 +2936,7 @@ func buildAnomaly(ctx context.Context, k *kernelruntime.Kernel, stdout io.Writer
 // a journal event matches an enabled order's event trigger, the order's plan is
 // launched as a run (bounded by its budget ceiling) and a standing.fired event is
 // journaled. Cron triggers are handled by the schedule engine, not here.
-func buildStandingRunner(ctx context.Context, k *kernelruntime.Kernel, brief func(ctx context.Context, kind, text string)) string {
+func buildStandingRunner(ctx context.Context, k *kernelruntime.Kernel, brief func(ctx context.Context, kind, text string)) (string, func(id string) bool) {
 	fire := func(fctx context.Context, o standing.Order, subject string) {
 		// A fired order launches a full governed run (provider/tool/plugin code) and
 		// then briefs over the network — any of which can panic. This goroutine is
@@ -2991,12 +2993,24 @@ func buildStandingRunner(ctx context.Context, k *kernelruntime.Kernel, brief fun
 			brief(fctx, o.BriefingChan, text)
 		}
 	}
+	// fireNow launches an order on demand (M765), through the same governed fire path
+	// the triggers use — so "run now" from the console/CLI behaves exactly like a real
+	// firing. Returns false for an unknown id. Works even if auto-triggers are off.
+	fireNow := func(id string) bool {
+		o, ok := k.Standing().Get(id)
+		if !ok {
+			return false
+		}
+		go fire(ctx, o, "manual")
+		return true
+	}
+
 	evOK := standing.StartRunner(ctx, k.Bus(), k.Standing(), standing.RunnerConfig{}, fire)
 	cronOK := standing.StartCron(ctx, k.Standing(), nil, fire)
 	if !evOK && !cronOK {
-		return "disabled"
+		return "disabled", fireNow
 	}
-	return fmt.Sprintf("on (event + cron triggers; %d order(s) defined)", k.Standing().Count())
+	return fmt.Sprintf("on (event + cron triggers; %d order(s) defined)", k.Standing().Count()), fireNow
 }
 
 // delegationBanner renders the active multi-agent delegation ceilings (M58) for

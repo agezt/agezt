@@ -11,6 +11,21 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 
 ## [Unreleased]
 
+### Added
+- **Run a standing order on demand.** Each standing-order row gains a **Run now** (⚡) control that
+  fires the order immediately, *ignoring its cron/event triggers* — the sibling of schedule "run now"
+  and pulse "beat now". Use it to test an order you just wrote, or to trigger one whose moment hasn't
+  come. It launches the order through the **same governed run path** a real trigger uses (scoped
+  intent, budget ceiling, `standing.fired` journaled), so a manual run behaves exactly like an
+  automatic one and lands in the Runs view. New route `/api/standing/fire` → new `CmdStandingFire`;
+  the daemon injects the fire path into the control plane (mirroring how the pulse engine is wired),
+  so the control plane stays decoupled from the run launcher. Tested at every layer — control-plane
+  (wired callback fires the looked-up order; unknown id is a no-op; unwired reports unavailable), and
+  UI (the row button posts `/api/standing/fire` with the id). Verified live on an isolated demo
+  daemon: seeded an order whose trigger (`never.fires`) can't fire on its own, clicked **Run now**,
+  and exactly one `standing.fired` (for that order's id) plus a real run (`task.received`) appeared —
+  proving the on-demand path launches a governed run; 0 console errors. (M765)
+
 ### Tests
 - **End-to-end browser coverage for this session's console controls.** Extended the headless-browser
   E2E gate (`scripts/webui-e2e.sh`, real daemon + go:embed-ded production SPA) — which previously

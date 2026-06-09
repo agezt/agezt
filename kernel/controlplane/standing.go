@@ -181,3 +181,30 @@ func (s *Server) handleStandingRemove(conn net.Conn, req Request) {
 	}
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"removed": removed, "id": id}})
 }
+
+// SetStandingFire wires the on-demand fire path (M765). The daemon injects a closure
+// that looks up the order and launches it through the same governed run path a cron/
+// event trigger uses, so the control plane stays decoupled from the run launcher.
+func (s *Server) SetStandingFire(fn func(id string) bool) { s.standingFire = fn }
+
+// handleStandingFire triggers one standing order now (M765) — the sibling of
+// schedule "run now" and pulse "beat now". It launches the order's run regardless of
+// its cron/event triggers (useful to test an order or run it on demand). Returns as
+// soon as the run is dispatched; the result lands in the journal / Runs view.
+func (s *Server) handleStandingFire(conn net.Conn, req Request) {
+	id, _ := req.Args["id"].(string)
+	if id == "" {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.id required"})
+		return
+	}
+	if s.standingFire == nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "standing-order firing is not available on this daemon"})
+		return
+	}
+	if _, ok := s.k.Standing().Get(id); !ok {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"fired": false, "id": id}})
+		return
+	}
+	fired := s.standingFire(id)
+	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"fired": fired, "id": id}})
+}

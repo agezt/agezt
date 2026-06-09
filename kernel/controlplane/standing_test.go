@@ -205,3 +205,54 @@ func TestStanding_Why(t *testing.T) {
 		t.Errorf("why for unknown id = %v events, want 0", cnt)
 	}
 }
+
+// TestStandingFire (M765) drives the on-demand fire path: with a fire callback
+// wired, CmdStandingFire looks up the order and invokes it; an unknown id is a
+// no-op; and without a callback wired the daemon reports it unavailable.
+func TestStandingFire(t *testing.T) {
+	_, srv, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	ctx := context.Background()
+
+	// Seed an order to fire.
+	add, err := c.Call(ctx, controlplane.CmdStandingAdd, map[string]any{
+		"order": map[string]any{
+			"name":     "nightly digest",
+			"triggers": []any{map[string]any{"type": "cron", "schedule": "0 8 * * *"}},
+			"plan":     "summarize the day",
+		},
+	})
+	if err != nil {
+		t.Fatalf("standing_add: %v", err)
+	}
+	o, _ := add["order"].(map[string]any)
+	id, _ := o["id"].(string)
+
+	// Before wiring, firing reports unavailable.
+	if _, err := c.Call(ctx, controlplane.CmdStandingFire, map[string]any{"id": id}); err == nil {
+		t.Error("fire with no callback wired should error")
+	}
+
+	// Wire a recording fire callback (mirrors the daemon's injection).
+	var firedID string
+	srv.SetStandingFire(func(fid string) bool { firedID = fid; return true })
+
+	res, err := c.Call(ctx, controlplane.CmdStandingFire, map[string]any{"id": id})
+	if err != nil {
+		t.Fatalf("standing_fire: %v", err)
+	}
+	if fired, _ := res["fired"].(bool); !fired {
+		t.Errorf("fired = %v, want true", res["fired"])
+	}
+	if firedID != id {
+		t.Errorf("callback got id %q, want %q", firedID, id)
+	}
+
+	// An unknown id is a no-op (fired:false), not an error.
+	res2, err := c.Call(ctx, controlplane.CmdStandingFire, map[string]any{"id": "nope"})
+	if err != nil {
+		t.Fatalf("standing_fire(unknown): %v", err)
+	}
+	if fired, _ := res2["fired"].(bool); fired {
+		t.Errorf("unknown id should not fire, got fired=%v", res2["fired"])
+	}
+}

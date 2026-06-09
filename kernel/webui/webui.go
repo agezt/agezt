@@ -218,6 +218,8 @@ var writeRoutes = map[string]writeRoute{
 	"/api/schedule/enable":  {controlplane.CmdScheduleEnable, []string{"id", "enabled"}},
 	"/api/standing/enable":  {controlplane.CmdStandingSetEnabled, []string{"id", "enabled"}},
 	"/api/standing/remove":  {controlplane.CmdStandingRemove, []string{"id"}},
+	// Fire a standing order now (M765), ignoring its triggers — test or run on demand.
+	"/api/standing/fire": {controlplane.CmdStandingFire, []string{"id"}},
 	"/api/reflect/run":      {controlplane.CmdReflectRun, nil},
 	// Provider keyring switch/remove (M700): activate or remove a key, reloading
 	// the provider in place. (Add is a jsonRoute — the value is a secret body.)

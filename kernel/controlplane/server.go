@@ -56,6 +56,12 @@ type Server struct {
 	// the pulse handlers report "disabled" rather than dereferencing it.
 	pulse PulseController
 
+	// standingFire fires a standing order on demand (M765), injected by the
+	// daemon via SetStandingFire (it closes over the daemon's fire path + ctx,
+	// so this package stays decoupled from the run launcher). Returns false if
+	// the id is unknown. Nil until wired; the handler reports that.
+	standingFire func(id string) bool
+
 	// tenants is the optional multi-tenant registry, injected by the daemon
 	// via SetTenants. Nil unless multi-tenancy is enabled; the tenant handlers
 	// report "disabled" rather than dereferencing it.
@@ -661,6 +667,8 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.handleStandingSetEnabled(conn, req)
 	case CmdStandingRemove:
 		s.handleStandingRemove(conn, req)
+	case CmdStandingFire:
+		s.handleStandingFire(conn, req)
 	case CmdSandboxList:
 		s.handleSandboxList(conn, req)
 	case CmdSandboxFile:

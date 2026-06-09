@@ -863,7 +863,8 @@ const (
 	CmdStandingEdit       = "standing_edit" // edit an order's mutable fields in place (M729)
 	CmdStandingSetEnabled = "standing_set_enabled"
 	CmdStandingRemove     = "standing_remove"
-	CmdStandingWhy        = "standing_why" // fold the journal for one order's life story
+	CmdStandingWhy        = "standing_why"  // fold the journal for one order's life story
+	CmdStandingFire       = "standing_fire" // fire an order now, ignoring its triggers (M765)
 
 	// Sandbox projects (M686) — read-only inspection of what agents BUILT with the
 	// code_exec tool under <baseDir>/sandbox/projects. List: no args, returns each

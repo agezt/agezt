@@ -182,6 +182,20 @@ describe("Standing order history (M746)", () => {
   });
 });
 
+describe("Standing order Run now (M765)", () => {
+  const order = { id: "so-7", name: "Nightly digest", enabled: true, triggers: [{ type: "cron", schedule: "0 8 * * *" }] };
+
+  it("fires the order on demand via /api/standing/fire", async () => {
+    getJSON.mockImplementation((path: string) =>
+      path === "/api/standing" ? Promise.resolve({ orders: [order] }) : Promise.resolve({}),
+    );
+    render(withUI(<Standing />));
+    await waitFor(() => expect(screen.getByText("Nightly digest")).toBeTruthy());
+    fireEvent.click(screen.getByTitle(/Run now/));
+    await waitFor(() => expect(postAction).toHaveBeenCalledWith("/api/standing/fire", { id: "so-7" }));
+  });
+});
+
 describe("parseStandingJSON (M748)", () => {
   const order = (name: string) => ({ name, triggers: [{ type: "cron", schedule: "0 8 * * *" }], plan: "x" });
 
