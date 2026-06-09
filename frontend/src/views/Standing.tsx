@@ -254,6 +254,14 @@ export function Standing() {
                   )}
                   <div className="ml-auto flex items-center gap-1.5">
                     <button
+                      onClick={() => act(o.id, "/api/standing/fire", undefined, { success: "Standing order fired — it's running now" })}
+                      disabled={busy === o.id}
+                      title="Run now (fire this order immediately, ignoring its triggers)"
+                      className="text-muted transition-colors hover:text-accent disabled:opacity-50"
+                    >
+                      <Zap className="size-3.5" />
+                    </button>
+                    <button
                       onClick={() =>
                         act(o.id, "/api/standing/enable", { enabled: o.enabled ? "false" : "true" }, {
                           success: o.enabled ? "Order paused" : "Order resumed",
