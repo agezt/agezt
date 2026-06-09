@@ -156,6 +156,9 @@ var readArgsRoutes = map[string]writeRoute{
 	// Read one sandbox project file's content (M686), path-confined server-side.
 	"/api/sandbox_file": {controlplane.CmdSandboxFile, []string{"project", "file"}},
 	"/api/policy_log":   {controlplane.CmdEdictLog, []string{"limit", "denied"}},
+	// Resolved HITL approval history (M773): a timeline of past approval requests
+	// joined with their granted/denied/timeout outcome. Read-only.
+	"/api/approvals_log": {controlplane.CmdApprovalsLog, []string{"limit", "denied"}},
 	"/api/plan_history": {controlplane.CmdPlanHistory, []string{"limit", "status"}},
 	// Provider keyring list (M700): labels + active + last-4 for one env var.
 	// Read-only — values never leave the daemon.
