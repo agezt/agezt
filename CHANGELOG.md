@@ -12,6 +12,17 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Search your chat conversations.** As chat threads accumulate, the sidebar was an
+  unfilterable scroll. A **search box** now appears above the conversation list (once you have
+  more than one) and filters threads as you type — matching not just the **title** but the
+  **message text**, including the assistant's replies, so you can find a thread by something that
+  was said in it, not only what you named it. Clear with the inline ✕; a no-match query shows a
+  tidy "No chats match …" line. Pure frontend (`filterConversations`/`conversationText` over the
+  localStorage store); pinning/recency ordering still applies to the filtered set. Tests cover the
+  helpers (title match, user-message match, case-insensitive, assistant-reply match, empty-query
+  passthrough, no-match). Verified live (isolated daemon, seeded test threads): "deploy" narrowed
+  to the Deploy-notes thread, "kubernetes" surfaced the thread whose *assistant reply* mentioned it
+  (not its title), and a nonsense query showed the empty line — 0 console errors. (M732)
 - **Revise a stored fact from the Memory view.** Memory is content-addressed and intentionally
   immutable (an in-place content edit would change the record's identity), so facts taught from
   the UI (M718) could only be forgotten, not corrected. Each memory card now has a **Revise**
