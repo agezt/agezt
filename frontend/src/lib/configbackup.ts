@@ -4,6 +4,8 @@
 // per-device localStorage): this is "take your whole Jarvis with you" across daemons.
 // Each section already has its own get/set command; this just bundles + restores them.
 
+import { getJSON, postJSON } from "@/lib/api";
+
 export interface ConfigBundle {
   persona?: string;
   prompts?: unknown[];
@@ -40,4 +42,34 @@ export function parseConfigBundle(text: string): ConfigBundle {
     throw new Error("no valid config sections (persona / prompts / chains) found");
   }
   return out;
+}
+
+// fetchConfigBundle gathers the daemon's current persona + prompts + routing into a
+// versioned, wrapped bundle (the shape downloadText writes / parseConfigBundle reads).
+export async function fetchConfigBundle(): Promise<{ version: number; config: Required<ConfigBundle> }> {
+  const [p, pr, r] = await Promise.all([
+    getJSON<{ system?: string }>("/api/persona"),
+    getJSON<{ prompts?: unknown[] }>("/api/prompts"),
+    getJSON<{ chains?: Record<string, string[]> }>("/api/routing"),
+  ]);
+  return { version: 1, config: { persona: p.system || "", prompts: pr.prompts || [], chains: r.chains || {} } };
+}
+
+// applyConfigBundle restores each section a bundle carries via the existing /set
+// endpoints, returning the section names it applied (for a confirmation message).
+export async function applyConfigBundle(b: ConfigBundle): Promise<string[]> {
+  const applied: string[] = [];
+  if (b.persona != null) {
+    await postJSON("/api/persona/set", { system: b.persona });
+    applied.push("persona");
+  }
+  if (b.prompts) {
+    await postJSON("/api/prompts/set", { prompts: b.prompts });
+    applied.push("prompts");
+  }
+  if (b.chains) {
+    await postJSON("/api/routing/set", { chains: b.chains });
+    applied.push("routing");
+  }
+  return applied;
 }

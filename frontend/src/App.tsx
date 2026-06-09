@@ -19,6 +19,7 @@ import {
   Wrench,
   Boxes,
   Shield,
+  Archive,
   CalendarClock,
   Network,
   Sparkles,
@@ -41,7 +42,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { postAction, getJSON, postJSON } from "@/lib/api";
+import { postAction, getJSON } from "@/lib/api";
 import { useEvents } from "@/lib/events";
 import { CommandPalette } from "@/components/CommandPalette";
 import { MiniChat } from "@/components/MiniChat";
@@ -56,7 +57,7 @@ import { toggleTheme } from "@/lib/theme";
 import { useChat } from "@/lib/chatStore";
 import { focusRun } from "@/lib/runfocus";
 import { exportAppearance, parseAppearanceJSON, applyAppearanceBundle } from "@/lib/appearance";
-import { parseConfigBundle } from "@/lib/configbackup";
+import { parseConfigBundle, fetchConfigBundle, applyConfigBundle } from "@/lib/configbackup";
 import { downloadText } from "@/lib/export";
 import { AccentPicker } from "@/components/AccentPicker";
 import { ConsoleName } from "@/components/ConsoleName";
@@ -87,6 +88,7 @@ import { Models } from "@/views/Models";
 import { Routing } from "@/views/Routing";
 import { Persona } from "@/views/Persona";
 import { Prompts } from "@/views/Prompts";
+import { Backup } from "@/views/Backup";
 import { Policy } from "@/views/Policy";
 import { Schedules } from "@/views/Schedules";
 import { World } from "@/views/World";
@@ -190,6 +192,7 @@ const NAV_GROUPS: NavGroup[] = [
       { id: "catalog", label: "Catalog", icon: Boxes, render: Catalog },
       { id: "policy", label: "Policy", icon: Shield, render: Policy },
       { id: "cache", label: "Cache", icon: Database, render: Cache },
+      { id: "backup", label: "Backup", icon: Archive, render: Backup },
     ],
   },
 ];
@@ -256,15 +259,7 @@ export default function App() {
   // Export the daemon-side config (persona + prompts + routing) as one bundle.
   async function exportConfig() {
     try {
-      const [p, pr, r] = await Promise.all([
-        getJSON<{ system?: string }>("/api/persona"),
-        getJSON<{ prompts?: unknown[] }>("/api/prompts"),
-        getJSON<{ chains?: Record<string, string[]> }>("/api/routing"),
-      ]);
-      const bundle = {
-        version: 1,
-        config: { persona: p.system || "", prompts: pr.prompts || [], chains: r.chains || {} },
-      };
+      const bundle = await fetchConfigBundle();
       downloadText("agezt-config.json", JSON.stringify(bundle, null, 2), "application/json");
     } catch (e) {
       ui.toast(`Export failed: ${(e as Error).message}`, "error");
@@ -274,20 +269,7 @@ export default function App() {
   // Restore a daemon-config bundle: apply each section it carries to the daemon.
   async function importConfigFile(file: File) {
     try {
-      const b = parseConfigBundle(await file.text());
-      const applied: string[] = [];
-      if (b.persona != null) {
-        await postJSON("/api/persona/set", { system: b.persona });
-        applied.push("persona");
-      }
-      if (b.prompts) {
-        await postJSON("/api/prompts/set", { prompts: b.prompts });
-        applied.push("prompts");
-      }
-      if (b.chains) {
-        await postJSON("/api/routing/set", { chains: b.chains });
-        applied.push("routing");
-      }
+      const applied = await applyConfigBundle(parseConfigBundle(await file.text()));
       ui.toast(`Config imported: ${applied.join(", ")}`, "success");
     } catch (e) {
       ui.toast(`Import failed: ${(e as Error).message}`, "error");

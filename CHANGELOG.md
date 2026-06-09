@@ -12,6 +12,16 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **A discoverable Backup & Restore view.** The appearance (M735) and daemon-config (M738)
+  export/import features were powerful but lived only behind ⌘K — invisible unless you knew the
+  commands. There's now a **System → Backup** view with two cards (Appearance; Daemon
+  configuration), each with plain **Export** / **Import** buttons, plus a note that the same
+  actions exist in the palette. The export/import orchestration moved into `lib/configbackup`
+  (`fetchConfigBundle` / `applyConfigBundle`) so the view and the palette share one implementation;
+  added unit tests for both (gathers all sections / defaults empties; posts each present section
+  and reports what it applied; empty-persona still applied). 341 frontend tests pass. Verified
+  live: the Backup view rendered both cards and the two Export buttons downloaded
+  `agezt-appearance.json` and `agezt-config.json` — 0 console errors. (M739)
 - **Export/import your whole daemon config — persona, prompts & routing in one bundle.** The
   appearance bundle (M735) covers the per-device *look*; this covers the daemon-side *identity*.
   Two new ⌘K actions — **Export / Import configuration (persona, prompts, routing)** — bundle the
