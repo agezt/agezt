@@ -838,6 +838,14 @@ const (
 	CmdSandboxFile   = "sandbox_file"
 	CmdSandboxDelete = "sandbox_delete" // remove one project dir (operator cleanup); path-confined
 
+	// Config Center (M693) — schema-driven configuration. Schema: the editable
+	// surface. Values: current state (non-secret values + secret presence, never
+	// secret values). Set: args{name, value} → config store (non-secret) or vault
+	// (secret); provider/model apply live, the rest "restart to apply".
+	CmdConfigSchema = "config_schema"
+	CmdConfigValues = "config_values"
+	CmdConfigSet    = "config_set"
+
 	// Reflection — meta-cognition (SPEC-05 §6).
 	//
 	// CmdReflectRun runs one reflection pass now: folds the journal, applies

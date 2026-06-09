@@ -59,6 +59,7 @@ import (
 	"github.com/agezt/agezt/kernel/redact"
 	"github.com/agezt/agezt/kernel/restapi"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
+	"github.com/agezt/agezt/kernel/settings"
 	"github.com/agezt/agezt/kernel/skill"
 	"github.com/agezt/agezt/kernel/standing"
 	"github.com/agezt/agezt/kernel/stt"
@@ -197,6 +198,14 @@ func runDaemon(stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "%s: creds load: %v\n", brand.Binary, err)
 		return 1
 	}
+
+	// Config Center bridge (M693): inject the config store + AGEZT_* vault secrets
+	// into the process environment so the existing os.Getenv consumers (provider,
+	// channels, interfaces) read operator edits unchanged. The real environment
+	// wins; the store/vault only fill gaps. Must run BEFORE buildGovernor + channel
+	// construction read the env. configPinned (schema vars set in the real env) is
+	// handed to the control plane so the Config Center can show them read-only.
+	configPinned := injectConfig(baseDir, credStore, stdout)
 	// Credential resolution chain (M1.dd):
 	//   1. agezt vault (M1.w) — operator-managed, AES-256-GCM-at-rest
 	//   2. process env — `export FOO=...` always wins over file sources
@@ -693,6 +702,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 	defer cancel()
 
 	srv := controlplane.NewServer(k, baseDir)
+	srv.SetConfigEnvPinned(configPinned) // M693: Config Center marks env-pinned fields read-only
 	// Cancel-on-disconnect (M35): when AGEZT_CANCEL_ON_DISCONNECT=on, a
 	// streaming `agt run` whose client drops (Ctrl-C / killed) cancels its run
 	// server-side instead of running on headless. Off by default so a
@@ -3697,6 +3707,54 @@ func sttTranscriberFromEnv() *stt.Client {
 		APIKey: key,
 		Model:  strings.TrimSpace(os.Getenv(brand.EnvPrefix + "STT_MODEL")),
 	})
+}
+
+// injectConfig bridges the Config Center's config store + vault into the process
+// environment at startup so the existing os.Getenv consumers read operator edits
+// unchanged (M693). Precedence: a value already in the real environment WINS
+// (operator's .env/shell); the store/vault only fill gaps. Returns the schema env
+// vars that were pinned by the real environment (computed BEFORE injection, so our
+// own Setenv calls aren't mistaken for operator pins) for the Config Center to
+// show read-only. AGEZT_CONFIG=off disables the bridge entirely.
+func injectConfig(baseDir string, vault *creds.Store, stdout io.Writer) map[string]bool {
+	pinned := map[string]bool{}
+	for _, sec := range settings.Schema() {
+		for _, f := range sec.Fields {
+			if os.Getenv(f.Env) != "" {
+				pinned[f.Env] = true
+			}
+		}
+	}
+	if strings.EqualFold(strings.TrimSpace(os.Getenv(brand.EnvPrefix+"CONFIG")), "off") {
+		return pinned
+	}
+	store := settings.NewStore(baseDir)
+	if err := store.Load(); err != nil {
+		fmt.Fprintf(stdout, "  config store     : load failed (%v) — environment only\n", err)
+		return pinned
+	}
+	injected := 0
+	for name, val := range store.All() {
+		if val != "" && os.Getenv(name) == "" {
+			_ = os.Setenv(name, val)
+			injected++
+		}
+	}
+	// Channel/config SECRETS live in the vault under their AGEZT_* name; inject
+	// those too. Provider API keys are NON-AGEZT_ and resolved via the cred chain,
+	// so they need no env injection.
+	for _, name := range vault.Names() {
+		if strings.HasPrefix(name, brand.EnvPrefix) && os.Getenv(name) == "" {
+			if v := vault.Get(name); v != "" {
+				_ = os.Setenv(name, v)
+				injected++
+			}
+		}
+	}
+	if injected > 0 {
+		fmt.Fprintf(stdout, "  config store     : %d setting(s) applied from %s\n", injected, store.Path)
+	}
+	return pinned
 }
 
 func workspaceRoot(baseDir string) string {
