@@ -937,6 +937,12 @@ const (
 	// starting points), full graphs included. Read-only; instantiation is
 	// just a save under a new name.
 	CmdWorkflowTemplates = "workflow_templates"
+	// Webhook fire (M809): args{ref, secret, payload?} — authenticate an
+	// external POST against the workflow's webhook trigger (enabled +
+	// kind=webhook + constant-time secret match) and start the run ASYNC.
+	// Returns {accepted, correlation_id} immediately; the journal carries
+	// the arc. The webui's tokenless /hooks/<name> path is the only caller.
+	CmdWorkflowWebhook = "workflow_webhook"
 
 	// Sandbox projects (M686) — read-only inspection of what agents BUILT with the
 	// code_exec tool under <baseDir>/sandbox/projects. List: no args, returns each

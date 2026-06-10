@@ -149,6 +149,72 @@ func TestWorkflow_WireRoundTrip(t *testing.T) {
 		t.Fatal("runs for an unknown workflow accepted")
 	}
 
+	// Webhook fire (M809): right secret accepted (async run completes),
+	// wrong secret / disabled / unknown all refuse UNIFORMLY.
+	hookGraph := map[string]any{
+		"name": "hooked",
+		"nodes": []any{
+			map[string]any{"id": "start", "type": "trigger",
+				"config": map[string]any{"kind": "webhook", "secret": "s3cret-string-12"}},
+			map[string]any{"id": "echo_it", "type": "transform",
+				"config": map[string]any{"template": "got {{trigger.payload.body.x}}"}},
+		},
+		"edges": []any{map[string]any{"from": "start", "to": "echo_it"}},
+	}
+	if _, err := c.Call(ctx, controlplane.CmdWorkflowSave, map[string]any{"workflow": hookGraph}); err != nil {
+		t.Fatalf("save hooked: %v", err)
+	}
+	// A short secret is refused at validation time.
+	short := map[string]any{"name": "shorty", "nodes": []any{map[string]any{
+		"id": "start", "type": "trigger", "config": map[string]any{"kind": "webhook", "secret": "tiny"}}}}
+	if _, err := c.Call(ctx, controlplane.CmdWorkflowSave, map[string]any{"workflow": short}); err == nil ||
+		!strings.Contains(err.Error(), "secret") {
+		t.Fatalf("short secret: %v", err)
+	}
+	// Watch for the async run's completion.
+	sub, err := k.Bus().Subscribe("workflow.hooked", 16)
+	if err != nil {
+		t.Fatalf("subscribe: %v", err)
+	}
+	defer sub.Cancel()
+	res, err = c.Call(ctx, controlplane.CmdWorkflowWebhook, map[string]any{
+		"ref": "hooked", "secret": "s3cret-string-12",
+		"payload": map[string]any{"kind": "webhook", "body": map[string]any{"x": "dis"}},
+	})
+	if err != nil {
+		t.Fatalf("webhook fire: %v", err)
+	}
+	if res["accepted"] != true || res["correlation_id"] == "" {
+		t.Fatalf("webhook result = %v", res)
+	}
+	deadline := time.After(10 * time.Second)
+	completed := false
+	for !completed {
+		select {
+		case ev := <-sub.C:
+			completed = string(ev.Kind) == "workflow.completed"
+		case <-deadline:
+			t.Fatal("async webhook run never completed")
+		}
+	}
+	// Uniform refusals: wrong secret, unknown name, and disabled.
+	for _, args := range []map[string]any{
+		{"ref": "hooked", "secret": "wrong-secret-123"},
+		{"ref": "ghost", "secret": "s3cret-string-12"},
+	} {
+		if _, err := c.Call(ctx, controlplane.CmdWorkflowWebhook, args); err == nil ||
+			!strings.Contains(err.Error(), "webhook refused") {
+			t.Fatalf("args %v: %v", args, err)
+		}
+	}
+	if _, err := c.Call(ctx, controlplane.CmdWorkflowSetEnabled, map[string]any{"ref": "hooked", "enabled": false}); err != nil {
+		t.Fatalf("disable hooked: %v", err)
+	}
+	if _, err := c.Call(ctx, controlplane.CmdWorkflowWebhook, map[string]any{
+		"ref": "hooked", "secret": "s3cret-string-12"}); err == nil || !strings.Contains(err.Error(), "webhook refused") {
+		t.Fatalf("disabled webhook accepted: %v", err)
+	}
+
 	// Disable → remove → ghost refs are honest errors.
 	if _, err := c.Call(ctx, controlplane.CmdWorkflowSetEnabled, map[string]any{"ref": "wire-flow", "enabled": false}); err != nil {
 		t.Fatalf("disable: %v", err)

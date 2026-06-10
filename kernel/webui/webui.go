@@ -408,7 +408,76 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/api/plan/run", s.auth(s.planRunProxy()))
 	mux.HandleFunc("/api/run", s.auth(s.runStreamProxy()))
 	mux.HandleFunc("/api/transcribe", s.auth(s.handleTranscribe))
+	// Workflow webhooks (M809): the ONE deliberately console-token-free
+	// path. Authentication is the per-workflow secret, verified by the
+	// control plane (constant-time); all this handler can ever do is ask
+	// "fire workflow <name>" — no reads, no other writes, uniform refusals.
+	mux.HandleFunc("/hooks/", s.secure(s.handleWorkflowHook))
 	return mux
+}
+
+// webhookBodyCap bounds an inbound hook body — payloads are trigger inputs,
+// not file uploads.
+const webhookBodyCap = 256 * 1024
+
+// handleWorkflowHook accepts POST /hooks/<workflow-name> from external
+// systems. The secret rides the X-Agezt-Secret header (or ?secret= for
+// callers that can't set headers). A JSON body becomes
+// {{trigger.payload.body}}; query params (minus secret) ride as
+// {{trigger.payload.query}}. Responds 202 with the run's correlation id —
+// the run itself proceeds async under the daemon's governance.
+func (s *Server) handleWorkflowHook(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "POST only", http.StatusMethodNotAllowed)
+		return
+	}
+	name := strings.TrimPrefix(r.URL.Path, "/hooks/")
+	if name == "" || strings.Contains(name, "/") {
+		http.Error(w, "webhook refused", http.StatusNotFound)
+		return
+	}
+	secret := r.Header.Get("X-Agezt-Secret")
+	if secret == "" {
+		secret = r.URL.Query().Get("secret")
+	}
+	raw, err := io.ReadAll(io.LimitReader(r.Body, webhookBodyCap+1))
+	if err != nil || len(raw) > webhookBodyCap {
+		http.Error(w, "body too large", http.StatusRequestEntityTooLarge)
+		return
+	}
+	var body any
+	if len(raw) > 0 {
+		if json.Unmarshal(raw, &body) != nil {
+			body = string(raw) // non-JSON bodies ride verbatim
+		}
+	}
+	query := map[string]any{}
+	for k, v := range r.URL.Query() {
+		if k == "secret" || len(v) == 0 {
+			continue
+		}
+		query[k] = v[0]
+	}
+	payload := map[string]any{"kind": "webhook", "body": body}
+	if len(query) > 0 {
+		payload["query"] = query
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+	res, err := s.client.Call(ctx, controlplane.CmdWorkflowWebhook, map[string]any{
+		"ref": name, "secret": secret, "payload": payload,
+	})
+	if err != nil {
+		// Uniform refusal — never tell a prober WHY (unknown name, bad
+		// secret, and disabled all read the same).
+		http.Error(w, "webhook refused", http.StatusForbidden)
+		return
+	}
+	writeJSON(w, http.StatusAccepted, map[string]any{
+		"accepted":       true,
+		"workflow":       res["workflow"],
+		"correlation_id": res["correlation_id"],
+	})
 }
 
 // runStreamProxy is the Chat view's send button: it runs a free-text intent

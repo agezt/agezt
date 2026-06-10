@@ -9,6 +9,7 @@ package controlplane
 
 import (
 	"context"
+	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -38,6 +39,8 @@ func workflowView(w workflow.Workflow, full bool) map[string]any {
 	spec := w.TriggerSpec()
 	m["trigger_kind"] = spec.Kind
 	switch {
+	case spec.Kind == "webhook":
+		m["trigger_detail"] = "POST /hooks/" + w.Name
 	case spec.IntervalSec > 0:
 		m["trigger_detail"] = fmt.Sprintf("every %ds", spec.IntervalSec)
 	case spec.DailyAt != "":
@@ -148,6 +151,49 @@ func (s *Server) handleWorkflowSetEnabled(conn net.Conn, req Request) {
 		return
 	}
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"workflow": workflowView(w, false)}})
+}
+
+// handleWorkflowWebhook (M809) authenticates an external webhook POST and
+// fires the workflow ASYNC. The gate is strict and entirely here, the single
+// source of truth: the workflow must exist, be ENABLED, declare a webhook
+// trigger, and the presented secret must match in constant time. Refusals
+// are deliberately uniform ("webhook refused") so a probing caller cannot
+// distinguish unknown-name from bad-secret from disabled.
+func (s *Server) handleWorkflowWebhook(conn net.Conn, req Request) {
+	refuse := func() {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "webhook refused"})
+	}
+	ref, _ := req.Args["ref"].(string)
+	secret, _ := req.Args["secret"].(string)
+	if strings.TrimSpace(ref) == "" || secret == "" {
+		refuse()
+		return
+	}
+	w, found := s.k.Workflows().Get(strings.TrimSpace(ref))
+	if !found || !w.Enabled {
+		refuse()
+		return
+	}
+	spec := w.TriggerSpec()
+	if spec.Kind != "webhook" ||
+		subtle.ConstantTimeCompare([]byte(spec.Secret), []byte(secret)) != 1 {
+		refuse()
+		return
+	}
+	// Fire-and-return: a webhook caller gets an immediate accept; the run
+	// proceeds under its own deadline and the journal carries the arc.
+	corr := s.k.NewCorrelation()
+	payload := req.Args["payload"]
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), workflowRunTimeout)
+		defer cancel()
+		_, _ = s.k.RunWorkflow(ctx, corr, w.Name, payload) // failures land in workflow.failed
+	}()
+	s.writeResp(conn, Response{
+		ID:     req.ID,
+		Type:   RespResult,
+		Result: map[string]any{"accepted": true, "correlation_id": corr, "workflow": w.Name},
+	})
 }
 
 // handleWorkflowTemplates (M807) returns the built-in gallery — curated,
