@@ -1024,7 +1024,15 @@ const (
 	ctxKeyTrustCeiling
 	ctxKeyRoot
 	ctxKeyModelChain
+	ctxKeyAgentIdent
 )
+
+// agentIdent carries a named agent's identity + daily ceiling for the
+// Governor's per-agent ledger (M793).
+type agentIdent struct {
+	slug    string
+	dailyMc int64
+}
 
 // rootFromCtx returns the correlation of the ROOT run of a delegation tree (the
 // top-level lead), propagated to every descendant so a tree-wide cap can be
@@ -1197,8 +1205,31 @@ func WithAgentProfile(ctx context.Context, p roster.Profile) context.Context {
 	ctx = memory.WithScope(ctx, scope)
 	// The agent's working directory (M792): file/shell tools operate inside
 	// this workspace subdirectory. Escape-proofed by the setter.
-	return agent.WithWorkdir(ctx, p.Workdir)
+	ctx = agent.WithWorkdir(ctx, p.Workdir)
+	// And its identity + daily ceiling for the Governor's ledger (M793).
+	return WithAgentIdent(ctx, p.Slug, p.MaxDailyMc)
 }
+
+// WithAgentIdent stamps the run with a named agent's identity and per-day
+// spend ceiling (M793): every completion of the run is metered against the
+// Governor's per-agent daily ledger and refused past the ceiling.
+func WithAgentIdent(ctx context.Context, slug string, dailyMc int64) context.Context {
+	if strings.TrimSpace(slug) == "" {
+		return ctx
+	}
+	return context.WithValue(ctx, ctxKeyAgentIdent, agentIdent{slug: slug, dailyMc: dailyMc})
+}
+
+func agentIdentFromCtx(ctx context.Context) (string, int64) {
+	if v, ok := ctx.Value(ctxKeyAgentIdent).(agentIdent); ok {
+		return v.slug, v.dailyMc
+	}
+	return "", 0
+}
+
+func agentSlugFromCtx(ctx context.Context) string { s, _ := agentIdentFromCtx(ctx); return s }
+
+func agentDailyMcFromCtx(ctx context.Context) int64 { _, d := agentIdentFromCtx(ctx); return d }
 
 // WithModelChain sets the run's per-agent ordered model fallback chain (M787):
 // the Governor tries these models in order, overriding the task type's
@@ -1628,6 +1659,8 @@ func (k *Kernel) RunWith(ctx context.Context, corr, intent string) (string, erro
 		Model:                model,
 		TaskType:             "chat",                    // M703: main agent loop → "chat" routing target
 		ModelChain:           modelChainFromCtx(runCtx), // M787: a named agent's own fallbacks
+		Agent:                agentSlugFromCtx(runCtx),
+		AgentDailyCeilingMc:  agentDailyMcFromCtx(runCtx),
 		System:               system,
 		MaxIter:              k.cfg.MaxIter,
 		ToolTimeout:          k.cfg.ToolTimeout,

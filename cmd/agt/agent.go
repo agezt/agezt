@@ -48,7 +48,7 @@ func agentUsage(w io.Writer) int {
 	fmt.Fprintf(w, "usage: %s agent <list|add|show|set|pause|resume|remove>\n", brand.CLI)
 	fmt.Fprintf(w, "  list [--json]                                  show the agent roster\n")
 	fmt.Fprintf(w, "  add <slug> [--name N] [--soul PROMPT] [--model M] [--fallbacks m1,m2]\n")
-	fmt.Fprintf(w, "      [--task TYPE] [--max-cost USD] [--memory-scope S] [--workdir DIR] [--desc TEXT]\n")
+	fmt.Fprintf(w, "      [--task TYPE] [--max-cost USD] [--max-daily USD] [--memory-scope S] [--workdir DIR] [--desc TEXT]\n")
 	fmt.Fprintf(w, "  show <slug|id> [--json]                        one agent's full profile\n")
 	fmt.Fprintf(w, "  set <slug|id> [same flags as add]              edit an agent (slug is immutable)\n")
 	fmt.Fprintf(w, "  pause <slug|id>                                disable an agent (runs refused)\n")
@@ -63,7 +63,7 @@ func agentUsage(w io.Writer) int {
 type agentFlags struct {
 	name, soul, model, task, memScope, workdir, desc string
 	fallbacks                                        []string
-	maxCostMc                                        int64
+	maxCostMc, maxDailyMc                            int64
 	set                                              map[string]bool
 }
 
@@ -126,6 +126,17 @@ func parseAgentFlags(args []string, stderr io.Writer, cmd string) (agentFlags, [
 				return f, nil, false
 			}
 			f.maxCostMc, f.set["max_cost"] = mc, true
+		case "--max-daily":
+			if !need(i, a) {
+				return f, nil, false
+			}
+			i++
+			mc, err := parseUSDToMicrocents(args[i])
+			if err != nil {
+				fmt.Fprintf(stderr, "%s agent %s: invalid --max-daily %q (want a dollar amount like 5.00)\n", brand.CLI, cmd, args[i])
+				return f, nil, false
+			}
+			f.maxDailyMc, f.set["max_daily"] = mc, true
 		case "--memory-scope":
 			if !need(i, a) {
 				return f, nil, false
@@ -261,6 +272,9 @@ func cmdAgentShow(args []string, stdout, stderr io.Writer) int {
 		if mc, ok := p["max_cost_mc"].(float64); ok && mc > 0 {
 			fmt.Fprintf(stdout, "max cost/run: %s\n", fmtUSD(int64(mc)))
 		}
+		if mc, ok := p["max_daily_mc"].(float64); ok && mc > 0 {
+			fmt.Fprintf(stdout, "max cost/day: %s\n", fmtUSD(int64(mc)))
+		}
 		if v := str(p["memory_scope"]); v != "" {
 			fmt.Fprintf(stdout, "memory scope: %s\n", v)
 		}
@@ -290,7 +304,7 @@ func cmdAgentAdd(args []string, stdout, stderr io.Writer) int {
 	}
 	profile := map[string]any{
 		"slug": rest[0], "name": f.name, "soul": f.soul, "model": f.model,
-		"task_type": f.task, "max_cost_mc": f.maxCostMc,
+		"task_type": f.task, "max_cost_mc": f.maxCostMc, "max_daily_mc": f.maxDailyMc,
 		"memory_scope": f.memScope, "workdir": f.workdir, "description": f.desc,
 	}
 	if len(f.fallbacks) > 0 {
@@ -367,6 +381,9 @@ func cmdAgentSet(args []string, stdout, stderr io.Writer) int {
 	overlay("description", "desc", f.desc)
 	if f.set["max_cost"] {
 		base["max_cost_mc"] = f.maxCostMc
+	}
+	if f.set["max_daily"] {
+		base["max_daily_mc"] = f.maxDailyMc
 	}
 	if f.set["fallbacks"] {
 		fb := make([]any, len(f.fallbacks))

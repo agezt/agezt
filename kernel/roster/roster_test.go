@@ -5,6 +5,7 @@ package roster
 import (
 	"strings"
 	"testing"
+	"time"
 )
 
 func openStore(t *testing.T) *Store {
@@ -184,6 +185,10 @@ func TestPersistence_SurvivesReopen(t *testing.T) {
 // TestList_DeterministicOrder: creation order, stable.
 func TestList_DeterministicOrder(t *testing.T) {
 	s := openStore(t)
+	// Deterministic clock: real adds can share a millisecond, flipping the
+	// creation-time sort onto the ID tiebreaker (flaked once in CI-local).
+	var tick int64 = 1000
+	s.now = func() time.Time { tick++; return time.UnixMilli(tick) }
 	for _, slug := range []string{"c", "a", "b"} {
 		if _, err := s.Add(Profile{Slug: slug}); err != nil {
 			t.Fatalf("Add %s: %v", slug, err)
