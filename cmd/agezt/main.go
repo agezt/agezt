@@ -602,6 +602,9 @@ func runDaemon(stdout, stderr io.Writer) int {
 		}
 	}
 
+	// Forward-declared so OnReload (a closure that runs after Open) can hot-swap
+	// the kernel's live default model. Assigned just below by kernelruntime.Open.
+	var k *kernelruntime.Kernel
 	cfg.OnReload = func() error {
 		// Re-load vault (catalog already refreshed by Kernel.Reload).
 		if err := credStore.Load(); err != nil {
@@ -632,7 +635,31 @@ func runDaemon(stdout, stderr io.Writer) int {
 		if err != nil {
 			return fmt.Errorf("select primary: %w", err)
 		}
-		_ = model2 // Model swap mid-flight would need extra plumbing; defer to M1.r.x.
+		// Demote a stale mock primary before installing the real one (M816).
+		// When the daemon booted with no credentials, buildGovernor registered
+		// the offline mock as the PRIMARY (not a fallback). Registry.Replace only
+		// swaps an entry of the SAME name, so replacing "mock" with "deepseek"
+		// would APPEND deepseek behind the mock — leaving mock at primary[0],
+		// still serving every run (exactly the first-run-wizard case: add a key,
+		// reload, but answers stay "[offline-mock]"). Remove the mock primary and
+		// re-add it as a last-resort FALLBACK, mirroring the boot path's
+		// "primary != mock ⇒ mock is IsFallback" rule. gov.Replace below rebuilds
+		// the primary/fallback slices from the registry, so order matters: mutate
+		// the registry first, then Replace.
+		if prov.Name() != "mock" {
+			reg := gov.Registry()
+			if old, ok := reg.Get("mock"); ok && !old.IsFallback {
+				reg.Remove("mock")
+				if err := reg.Register(&governor.ProviderInfo{
+					Name:       "mock",
+					Provider:   newDemoMock(),
+					AuthMode:   governor.AuthLocal,
+					IsFallback: true,
+				}); err != nil {
+					return fmt.Errorf("re-register mock fallback: %w", err)
+				}
+			}
+		}
 		if err := gov.Replace(&governor.ProviderInfo{
 			Name:     prov.Name(),
 			Provider: prov,
@@ -640,12 +667,22 @@ func runDaemon(stdout, stderr io.Writer) int {
 		}); err != nil {
 			return fmt.Errorf("registry replace: %w", err)
 		}
+		// Hot-swap the live default model to match the freshly-selected provider
+		// (M816). Without this the governor would route to the new provider while
+		// runs still carried the OLD model id — e.g. after the first-run wizard
+		// switches mock→deepseek, requests would carry model "mock" and the real
+		// provider rejects it. k is non-nil whenever Reload runs (control plane
+		// only dispatches it post-Open); guard anyway for safety.
+		if k != nil {
+			k.SetModel(model2)
+		}
 		return nil
 	}
 
-	k, err := kernelruntime.Open(cfg)
-	if err != nil {
-		fmt.Fprintf(stderr, "%s: open runtime: %v\n", brand.Binary, err)
+	var openErr error
+	k, openErr = kernelruntime.Open(cfg)
+	if openErr != nil {
+		fmt.Fprintf(stderr, "%s: open runtime: %v\n", brand.Binary, openErr)
 		return 1
 	}
 	defer k.Close()
@@ -851,6 +888,12 @@ func runDaemon(stdout, stderr io.Writer) int {
 	fmt.Fprintf(stdout, "%s %s — daemon ready (protocol v%d)\n", brand.Name, brand.Version, brand.ProtocolVersion)
 	fmt.Fprintf(stdout, "  base dir         : %s\n", baseDir)
 	fmt.Fprintf(stdout, "  governor         : %s\n", govDesc)
+	// First-run nudge (M816): when the governor degraded to the offline mock
+	// (no credentialed provider), make the fix impossible to miss — point at
+	// both the CLI wizard and the Web UI, which auto-opens its setup screen.
+	if model == "mock" {
+		fmt.Fprintf(stdout, "  ⚠ setup needed   : no provider key yet — run `%s quickstart`, or open the Web UI (URL below) to add one\n", brand.CLI)
+	}
 	if adv := modelAdvisory(cat, model); adv != "" {
 		fmt.Fprintf(stdout, "  model advisory   : ⚠ %s\n", adv)
 	}

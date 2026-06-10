@@ -358,6 +358,7 @@ type Kernel struct {
 	mu     sync.Mutex
 	halted bool
 	system string                        // live agent persona / system prompt (M710); seeded from cfg.System, editable at runtime
+	model  string                        // live default model id (M816); seeded from cfg.Model, hot-swapped on provider reload
 	runs   map[string]context.CancelFunc // correlation_id → cancel
 	fanout map[string]int                // spawning correlation_id → sub-agents spawned (M46 fan-out bound)
 	tree   map[string]int                // root correlation_id → total sub-agents in the tree (M629 total bound)
@@ -578,6 +579,7 @@ func Open(cfg Config) (*Kernel, error) {
 		schedules:    schedStore,
 		tools:        effTools,
 		system:       cfg.System,
+		model:        cfg.Model,
 		runs:         make(map[string]context.CancelFunc),
 		fanout:       make(map[string]int),
 		tree:         make(map[string]int),
@@ -856,10 +858,26 @@ func (k *Kernel) Plugins() []PluginInfo { return k.cfg.Plugins }
 // when the daemon was launched with a custom path).
 func (k *Kernel) BaseDir() string { return k.cfg.BaseDir }
 
-// Model returns the configured default model name. Empty when
-// the daemon uses provider defaults rather than an override.
-// Used by `agt config show`.
-func (k *Kernel) Model() string { return k.cfg.Model }
+// Model returns the live default model name. Empty when the daemon uses
+// provider defaults rather than an override. Seeded from cfg.Model at Open and
+// hot-swapped via SetModel when the provider is reloaded (M816), so it must be
+// mu-guarded like the persona. Used by `agt config show` and every run that
+// builds a CompletionRequest without an explicit per-run/per-task model.
+func (k *Kernel) Model() string {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	return k.model
+}
+
+// SetModel replaces the live default model id. The next run picks it up — no
+// restart. Paired with SetSystem-style persistence: the daemon's provider
+// reload calls this after AGEZT_MODEL changes so a wizard/Config-Center edit
+// takes effect in place instead of waiting for the next boot (M816).
+func (k *Kernel) SetModel(m string) {
+	k.mu.Lock()
+	k.model = m
+	k.mu.Unlock()
+}
 
 // MaxDuration is the daemon-wide per-run wall-clock budget (M31), 0 if disabled.
 // Exposed so the control plane can report the effective timeout in `agt run
@@ -1504,7 +1522,7 @@ func (k *Kernel) verifyCompletion(ctx context.Context, corr, task, answer string
 		"Reply with ONLY a JSON object and no other text: {\"complete\": true|false, \"gap\": \"<concise description of what is still missing; empty string if complete>\"}.\n\n" +
 		"TASK:\n" + task + "\n\nANSWER:\n" + answer
 	resp, err := k.cfg.Provider.Complete(ctx, agent.CompletionRequest{
-		Model:         k.cfg.Model,
+		Model:         k.Model(),
 		CorrelationID: corr,
 		TaskType:      "verify",
 		MaxTokens:     assureVerifyMaxTokens,
@@ -1663,8 +1681,9 @@ func (k *Kernel) RunWith(ctx context.Context, corr, intent string) (string, erro
 	}
 
 	// Per-run model override (WithModel) — used by the OpenAI-compatible API to
-	// honour the request's `model`. Falls back to the configured model.
-	model := k.cfg.Model
+	// honour the request's `model`. Falls back to the live default model
+	// (k.Model(), hot-swappable via SetModel on provider reload — M816).
+	model := k.Model()
 	if m := modelFromCtx(runCtx); m != "" {
 		model = m
 	}
@@ -1793,7 +1812,7 @@ const shadowEvalLimit = 2
 // (SPEC-05 §5.2). Best-effort: a judge failure is journaled but never affects the
 // run, which has already returned its answer.
 func (k *Kernel) maybeShadowEval(ctx context.Context, corr, intent, answer string) {
-	if err := k.forge.ShadowEvaluate(ctx, corr, k.cfg.Provider, k.cfg.Model, intent, answer, shadowEvalLimit); err != nil {
+	if err := k.forge.ShadowEvaluate(ctx, corr, k.cfg.Provider, k.Model(), intent, answer, shadowEvalLimit); err != nil {
 		_, _ = k.bus.Publish(event.Spec{
 			Subject:       "skill.shadow_eval_failed",
 			Kind:          event.KindSkillShadowEval,
@@ -1996,7 +2015,7 @@ func (k *Kernel) maybeForge(ctx context.Context, corr, intent, answer string) {
 		return
 	}
 	transcript := buildTranscript(names, answer)
-	if _, err := k.forge.Propose(ctx, corr, k.cfg.Provider, k.cfg.Model, intent, transcript); err != nil {
+	if _, err := k.forge.Propose(ctx, corr, k.cfg.Provider, k.Model(), intent, transcript); err != nil {
 		_, _ = k.bus.Publish(event.Spec{
 			Subject:       "skill.propose_failed",
 			Kind:          event.KindSkillCreated,
@@ -2021,7 +2040,7 @@ func (k *Kernel) maybeDistill(ctx context.Context, corr, intent, answer string) 
 		return
 	}
 	transcript := buildTranscript(names, answer)
-	if _, err := k.memory.Distill(ctx, corr, k.cfg.Provider, k.cfg.Model, intent, transcript); err != nil {
+	if _, err := k.memory.Distill(ctx, corr, k.cfg.Provider, k.Model(), intent, transcript); err != nil {
 		_, _ = k.bus.Publish(event.Spec{
 			Subject:       "memory.distill_failed",
 			Kind:          event.KindMemoryWritten,

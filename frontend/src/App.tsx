@@ -43,6 +43,7 @@ import {
   Route as RouteIcon,
   Bot,
   MessageSquarePlus,
+  Wand2,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -95,6 +96,7 @@ import { Tools } from "@/views/Tools";
 import { Catalog } from "@/views/Catalog";
 import { Models } from "@/views/Models";
 import { Routing } from "@/views/Routing";
+import { Setup, anyCredentialed, type SetupCatalog } from "@/views/Setup";
 import { Persona } from "@/views/Persona";
 import { Prompts } from "@/views/Prompts";
 import { Backup } from "@/views/Backup";
@@ -193,6 +195,7 @@ const NAV_GROUPS: NavGroup[] = [
     label: "System",
     items: [
       { id: "overview", label: "Overview", icon: LayoutDashboard, render: Dashboard },
+      { id: "setup", label: "Setup", icon: Wand2, render: Setup },
       { id: "system", label: "System", icon: Settings, render: Status },
       { id: "persona", label: "Persona", icon: Bot, render: Persona },
       { id: "prompts", label: "Prompts", icon: MessageSquarePlus, render: Prompts },
@@ -266,6 +269,17 @@ export default function App() {
 
   const current = NAV.find((n) => n.id === active) || NAV[0];
   const View = current.render;
+
+  // First-run setup (M816): auto-open the full-screen wizard when the daemon has
+  // no credentialed provider (it's on the mock fallback) — unless the operator
+  // dismissed it this install. Once any provider has a key, it never auto-shows.
+  const [needsSetup, setNeedsSetup] = useState(false);
+  useEffect(() => {
+    if (localStorage.getItem("agezt.setup.skipped") === "1") return;
+    getJSON<SetupCatalog>("/api/catalog")
+      .then((c) => setNeedsSetup(!anyCredentialed(c)))
+      .catch(() => {});
+  }, []);
   // Hidden inputs behind the ⌘K "Import appearance" / "Import configuration" commands.
   const appearanceFileRef = useRef<HTMLInputElement>(null);
   const configFileRef = useRef<HTMLInputElement>(null);
@@ -459,6 +473,19 @@ export default function App() {
   return (
     <div className="flex h-full flex-col">
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} items={commands} />
+      {needsSetup && (
+        <Setup
+          overlay
+          onDone={() => {
+            setNeedsSetup(false);
+            setActive("chat");
+          }}
+          onSkip={() => {
+            localStorage.setItem("agezt.setup.skipped", "1");
+            setNeedsSetup(false);
+          }}
+        />
+      )}
       <input
         ref={appearanceFileRef}
         type="file"

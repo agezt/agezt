@@ -4,14 +4,18 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"io"
 	"os"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/agezt/agezt/internal/brand"
+	"github.com/agezt/agezt/internal/paths"
 	"github.com/agezt/agezt/kernel/catalog"
+	"github.com/agezt/agezt/kernel/controlplane"
 )
 
 // cmdQuickstart implements `agt quickstart` — a one-command, client-side
@@ -104,22 +108,67 @@ func cmdQuickstart(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "      %s already has its key.\n", pid)
 	}
 
-	// [4/4] Start command + next steps. AGEZT_WORKSPACE="$PWD" scopes the file
-	// tool to the directory you launch from, so the agent can read your project
-	// (the default is a sandboxed ~/.agezt/workspace). Opt-in and visible here
-	// rather than changing the safe default.
+	// [4/4] Persist the choice (M816) so the daemon uses it with no env vars and
+	// no restart. config_set goes through the control plane, so this only works
+	// when a daemon is already running — probe quietly and, if it's up, pin
+	// AGEZT_PROVIDER/AGEZT_MODEL live; otherwise fall back to the env-var start
+	// command (the daemon picks the same values up at boot).
 	model := firstModelID(p)
+	persisted := persistProviderModel(pid, model, stdout)
+
+	if persisted {
+		fmt.Fprintf(stdout, "\n[4/4] You're set — provider %q and model %q are saved (live, no restart).\n", pid, model)
+		fmt.Fprintf(stdout, "Try it:\n")
+		fmt.Fprintf(stdout, "  %s provider check         # live roundtrip (latency + cost)\n", brand.CLI)
+		fmt.Fprintf(stdout, "  %s run \"what is this project?\"\n", brand.CLI)
+		fmt.Fprintf(stdout, "\nThe daemon's Web UI URL (in its banner) opens a live monitor + the same setup screen.\n")
+		return 0
+	}
+
+	// No daemon yet — print the start command. AGEZT_WORKSPACE="$PWD" scopes the
+	// file tool to the launch directory (the default is a sandboxed
+	// ~/.agezt/workspace); opt-in and visible here rather than changing the safe
+	// default.
 	fmt.Fprintf(stdout, "\n[4/4] You're set. Start the daemon from your project dir (terminal 1):\n\n")
 	fmt.Fprintf(stdout, "  %sPROVIDER=%s %sMODEL=%s %sWORKSPACE=\"$PWD\" %sWEB_ADDR=127.0.0.1:8787 %s\n\n",
 		brand.EnvPrefix, pid, brand.EnvPrefix, model, brand.EnvPrefix, brand.EnvPrefix, brand.Binary)
 	fmt.Fprintf(stdout, "  (%sWORKSPACE=\"$PWD\" lets the file tool read the current directory;\n", brand.EnvPrefix)
 	fmt.Fprintf(stdout, "   omit it to keep the file tool sandboxed to ~/.agezt/workspace.)\n\n")
+	fmt.Fprintf(stdout, "Once it's running, the choice is permanent — re-run `%s quickstart`, set it in the\n", brand.CLI)
+	fmt.Fprintf(stdout, "Web UI's Setup screen, or `%s config set %sPROVIDER %s`.\n\n", brand.CLI, brand.EnvPrefix, pid)
 	fmt.Fprintf(stdout, "Then, in another terminal:\n")
 	fmt.Fprintf(stdout, "  %s doctor                 # confirm it's healthy\n", brand.CLI)
-	fmt.Fprintf(stdout, "  %s provider check         # live roundtrip (latency + cost)\n", brand.CLI)
 	fmt.Fprintf(stdout, "  %s run \"what is this project?\"\n", brand.CLI)
 	fmt.Fprintf(stdout, "\nThe daemon banner prints a tokenized Web UI URL — open it for a live monitor.\n")
 	return 0
+}
+
+// persistProviderModel pins AGEZT_PROVIDER/AGEZT_MODEL on a RUNNING daemon via
+// config_set (ApplyLive — no restart). Returns false when no daemon is
+// reachable, so the caller can fall back to the env-var start command. The
+// probe is silent (io.Discard) — "no daemon yet" is the normal pre-start case,
+// not an error.
+func persistProviderModel(pid, model string, stdout io.Writer) bool {
+	base, err := paths.BaseDir()
+	if err != nil {
+		return false
+	}
+	c := dialBase(base, io.Discard)
+	if c == nil {
+		return false
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	if _, err := c.Call(ctx, controlplane.CmdConfigSet, map[string]any{"name": brand.EnvPrefix + "PROVIDER", "value": pid}); err != nil {
+		return false
+	}
+	if model != "" {
+		if _, err := c.Call(ctx, controlplane.CmdConfigSet, map[string]any{"name": brand.EnvPrefix + "MODEL", "value": model}); err != nil {
+			return false
+		}
+	}
+	fmt.Fprintf(stdout, "      saved to the running daemon (no env vars, no restart).\n")
+	return true
 }
 
 // keyedConfigured returns the ids of catalog providers that require a key and
