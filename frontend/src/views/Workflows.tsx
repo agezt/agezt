@@ -379,15 +379,20 @@ function NodePanel({
   node,
   runInfo,
   onApply,
+  onTest,
   onDelete,
   onError,
 }: {
   node: WfRFNode;
   runInfo?: WfRunNodeEvent;
   onApply: (label: string, config: Record<string, unknown>, settings: WfSettings) => void;
+  /** run JUST this node with mock upstream data (M811); resolves when the probe returns */
+  onTest?: (data: Record<string, unknown>) => Promise<void>;
   onDelete: () => void;
   onError: (msg: string) => void;
 }) {
+  const [testData, setTestData] = useState("");
+  const [testing, setTesting] = useState(false);
   const specs = FIELD_SPECS[node.data.wfType] || [];
   const relSpecs = reliabilitySpecs(node.data.wfType);
   const seed = () => {
@@ -525,6 +530,49 @@ function NodePanel({
           Apply
         </Button>
       </div>
+      {onTest && node.data.wfType !== "trigger" && (
+        <>
+          <div className="mt-1 text-[10px] font-semibold tracking-wide text-muted uppercase">Test this node</div>
+          <label className="flex flex-col gap-1 text-[11px] text-muted">
+            Upstream data (JSON, optional) — node ids → their outputs
+            <textarea
+              value={testData}
+              onChange={(e) => setTestData(e.target.value)}
+              rows={3}
+              placeholder={'{"trigger":{"payload":{"x":1}},"fetch":{"output":{"status":200}}}'}
+              aria-label="Test data"
+              className={cn(inputCls, "resize-y font-mono text-xs")}
+            />
+          </label>
+          <Button
+            size="sm"
+            variant="ghost"
+            disabled={testing}
+            aria-label="Test node"
+            onClick={async () => {
+              let data: Record<string, unknown> = {};
+              const raw = testData.trim();
+              if (raw !== "") {
+                try {
+                  data = JSON.parse(raw);
+                } catch {
+                  onError("test data: invalid JSON");
+                  return;
+                }
+              }
+              setTesting(true);
+              try {
+                await onTest(data);
+              } finally {
+                setTesting(false);
+              }
+            }}
+          >
+            <Play className={cn("h-3.5 w-3.5", testing && "animate-pulse")} />
+            {testing ? "Testing…" : "Test node"}
+          </Button>
+        </>
+      )}
       {runInfo && (
         <div className="mt-2 space-y-1 rounded-md border border-border bg-panel p-2" aria-label="Last run data">
           <div className="flex items-center gap-2">
@@ -1091,6 +1139,24 @@ export function Workflows() {
             <NodePanel
               node={selectedNode}
               runInfo={nodeRunInfo[selectedNode.id]}
+              onTest={async (data) => {
+                // Probe JUST this node against the CURRENT canvas (unsaved
+                // edits included); the result lands in the Last-run card via
+                // the SSE event the probe publishes.
+                const wf = fromFlow(editing.name, editing.description || "", nodes, edges);
+                try {
+                  const res = await postJSON<{ port?: string; attempts?: number }>(
+                    "/api/workflows/test_node",
+                    { workflow: wf, node: selectedNode.id, data },
+                  );
+                  const extra =
+                    (res.port ? ` — port ${res.port}` : "") +
+                    ((res.attempts ?? 1) > 1 ? ` — ${res.attempts} attempts` : "");
+                  ui.toast(`node test ok${extra}`, "success");
+                } catch (e) {
+                  ui.toast((e as Error).message, "error");
+                }
+              }}
               onApply={(label, config, settings) => {
                 setNodes((ns) =>
                   ns.map((n) =>

@@ -153,6 +153,54 @@ func (s *Server) handleWorkflowSetEnabled(conn net.Conn, req Request) {
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"workflow": workflowView(w, false)}})
 }
 
+// workflowTestNodeTimeout bounds one single-node probe — a node's own
+// timeout_sec applies inside it; this is the outer hard stop.
+const workflowTestNodeTimeout = 3 * time.Minute
+
+// handleWorkflowTestNode (M811) runs ONE node of the POSTED graph with
+// caller-supplied upstream data — the canvas's "Test node" button. The graph
+// rides in the request (the canvas's truth, unsaved edits included).
+func (s *Server) handleWorkflowTestNode(conn net.Conn, req Request) {
+	raw, ok := req.Args["workflow"]
+	if !ok {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.workflow required"})
+		return
+	}
+	b, err := json.Marshal(raw)
+	if err != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.workflow: " + err.Error()})
+		return
+	}
+	var w workflow.Workflow
+	if err := json.Unmarshal(b, &w); err != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.workflow: " + err.Error()})
+		return
+	}
+	nodeID, _ := req.Args["node"].(string)
+	if strings.TrimSpace(nodeID) == "" {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.node required"})
+		return
+	}
+	data, _ := req.Args["data"].(map[string]any)
+	payload := req.Args["payload"]
+	corr := s.k.NewCorrelation()
+	ctx, cancel := context.WithTimeout(context.Background(), workflowTestNodeTimeout)
+	defer cancel()
+	res, err := s.k.TestWorkflowNode(ctx, corr, w, nodeID, data, payload)
+	if err != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		return
+	}
+	s.writeResp(conn, Response{
+		ID:   req.ID,
+		Type: RespResult,
+		Result: map[string]any{
+			"output": res.Output, "port": res.Port, "attempts": res.Attempts,
+			"correlation_id": corr,
+		},
+	})
+}
+
 // handleWorkflowWebhook (M809) authenticates an external webhook POST and
 // fires the workflow ASYNC. The gate is strict and entirely here, the single
 // source of truth: the workflow must exist, be ENABLED, declare a webhook
@@ -302,9 +350,12 @@ func (s *Server) handleWorkflowRuns(conn net.Conn, req Request) {
 				Input    string `json:"input"`
 				Output   string `json:"output"`
 				Attempts int    `json:"attempts"`
+				Test     bool   `json:"test"`
 			}
 			_ = json.Unmarshal(e.Payload, &p)
-			if p.Node == "" {
+			if p.Node == "" || p.Test {
+				// Single-node tests (M811) are probes, not arcs — they never
+				// belong in run history.
 				return nil
 			}
 			nv := map[string]any{"node": p.Node, "ts_ms": e.TSUnixMS}

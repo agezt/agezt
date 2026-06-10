@@ -335,6 +335,9 @@ var jsonRoutes = map[string]writeRoute{
 	// Copilot refine (M805): the current canvas graph + a change request in,
 	// the revised UNSAVED graph out.
 	"/api/workflows/refine": {controlplane.CmdWorkflowRefine, []string{"workflow", "instruction", "ref"}},
+	// Single-node test (M811): the canvas graph + a node id + mock upstream
+	// data in, the node's real output out.
+	"/api/workflows/test_node": {controlplane.CmdWorkflowTestNode, []string{"workflow", "node", "data", "payload"}},
 	// Create a schedule (M715): intent + a timing mode. Numeric timing args (e.g.
 	// interval_sec, at_minutes, once_at_unix) ride the JSON body so they keep their
 	// types — a query arg would stringify them.
