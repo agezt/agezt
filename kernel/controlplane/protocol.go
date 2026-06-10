@@ -904,6 +904,19 @@ const (
 	CmdMCPSetEnabled = "mcp_set_enabled"
 	CmdMCPRemove     = "mcp_remove"
 
+	// Workflow engine (M798) — durable typed-node graphs behind
+	// `agt workflow` and the console canvas. Save: args.workflow (the whole
+	// graph object; upsert by name). Run: args{ref, payload?} — executes
+	// synchronously and returns {outputs, executed}. Show/Remove: args.ref.
+	// SetEnabled: args{ref, enabled} (arms triggers — M799). List: no args.
+	// Every mutation + every run arc is journaled (workflow.*).
+	CmdWorkflowList       = "workflow_list"
+	CmdWorkflowShow       = "workflow_show"
+	CmdWorkflowSave       = "workflow_save"
+	CmdWorkflowRemove     = "workflow_remove"
+	CmdWorkflowSetEnabled = "workflow_set_enabled"
+	CmdWorkflowRun        = "workflow_run"
+
 	// Sandbox projects (M686) — read-only inspection of what agents BUILT with the
 	// code_exec tool under <baseDir>/sandbox/projects. List: no args, returns each
 	// persistent project with its files (name, bytes, modified). File: args{project,

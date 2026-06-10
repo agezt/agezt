@@ -298,6 +298,18 @@ const (
 	KindMCPAttached Kind = "mcp.attached"
 	KindMCPDetached Kind = "mcp.detached"
 	KindMCPRemoved  Kind = "mcp.removed"
+
+	// Workflow engine (M798) — durable typed-node graphs. CRUD plus one
+	// started/node.../completed|failed arc per run, all under subject
+	// "workflow.<name>", so the console canvas can replay a run live and
+	// `agt why` explains what each node did.
+	KindWorkflowSaved     Kind = "workflow.saved"
+	KindWorkflowUpdated   Kind = "workflow.updated" // enabled/disabled
+	KindWorkflowRemoved   Kind = "workflow.removed"
+	KindWorkflowStarted   Kind = "workflow.started"
+	KindWorkflowNode      Kind = "workflow.node" // one node executed (ok/error, fired port)
+	KindWorkflowCompleted Kind = "workflow.completed"
+	KindWorkflowFailed    Kind = "workflow.failed"
 )
 
 // IsKnown reports whether k is one of the kinds defined in this file. Useful
@@ -417,4 +429,11 @@ var knownKinds = map[Kind]struct{}{
 	KindMCPAttached:               {},
 	KindMCPDetached:               {},
 	KindMCPRemoved:                {},
+	KindWorkflowSaved:             {},
+	KindWorkflowUpdated:           {},
+	KindWorkflowRemoved:           {},
+	KindWorkflowStarted:           {},
+	KindWorkflowNode:              {},
+	KindWorkflowCompleted:         {},
+	KindWorkflowFailed:            {},
 }
