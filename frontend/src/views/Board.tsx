@@ -5,6 +5,7 @@ import { cn, fmtTime } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Muted, ErrorText } from "@/components/JsonView";
 import { SkeletonList } from "@/components/ui/skeleton";
+import { Markdown } from "@/components/Markdown";
 
 interface Msg {
   topic: string;
@@ -165,7 +166,7 @@ export function Board() {
                   )}
                   <span className="ml-auto font-mono text-[10px] text-muted opacity-70">{fmtTime(m.ts_unix_ms)}</span>
                 </div>
-                <p className="mt-1.5 whitespace-pre-wrap break-words text-sm text-foreground/90">{m.text}</p>
+                <Markdown source={m.text} className="mt-1.5 text-sm text-foreground/90" />
               </li>
             ))}
           </ul>
