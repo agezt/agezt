@@ -45,6 +45,7 @@ import (
 	"github.com/agezt/agezt/kernel/alerter"
 	"github.com/agezt/agezt/kernel/anomaly"
 	"github.com/agezt/agezt/kernel/board"
+	"github.com/agezt/agezt/kernel/roster"
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/cadence"
 	"github.com/agezt/agezt/kernel/catalog"
@@ -3029,17 +3030,50 @@ func buildStandingRunner(ctx context.Context, k *kernelruntime.Kernel, brief fun
 		if intent == "" {
 			intent = o.Name
 		}
+		// Run AS a named agent (M790): resolve the order's roster profile up
+		// front — an unknown or paused agent journals a standing.error instead
+		// of silently running as the default identity (mirrors `agt run --agent`).
+		var prof *roster.Profile
+		if slug := strings.TrimSpace(o.Agent); slug != "" {
+			p, ok := k.Roster().Get(slug)
+			if !ok || !p.Enabled {
+				reason := "unknown agent " + slug
+				if ok {
+					reason = "agent " + p.Slug + " is paused"
+				}
+				_, _ = k.Bus().Publish(event.Spec{
+					Subject: "standing." + o.ID,
+					Kind:    event.KindStandingError,
+					Actor:   "standing",
+					Payload: map[string]any{"id": o.ID, "name": o.Name, "trigger_subject": subject, "agent": slug, "reason": reason},
+				})
+				return
+			}
+			prof = &p
+		}
 		// Ground the run in the order's scope (SPEC-16 §4): the agent is told what
 		// this standing order watches.
 		intent = standing.ScopedIntent(o, intent)
+		firedPayload := map[string]any{"id": o.ID, "name": o.Name, "trigger_subject": subject, "intent": intent}
+		if prof != nil {
+			firedPayload["agent"] = prof.Slug // who this firing runs AS (M790)
+		}
 		_, _ = k.Bus().Publish(event.Spec{
 			Subject:       "standing." + o.ID,
 			Kind:          event.KindStandingFired,
 			Actor:         "standing",
 			CorrelationID: corr,
-			Payload:       map[string]any{"id": o.ID, "name": o.Name, "trigger_subject": subject, "intent": intent},
+			Payload:       firedPayload,
 		})
 		rctx := fctx
+		if prof != nil {
+			// Soul → system, model + fallbacks → chain, memory scope (M790).
+			rctx = kernelruntime.WithAgentProfile(rctx, *prof)
+			// The profile's per-run ceiling is the DEFAULT; the order's own wins.
+			if o.Initiative.BudgetPerRunMc <= 0 && prof.MaxCostMc > 0 {
+				rctx = kernelruntime.WithMaxCost(rctx, prof.MaxCostMc)
+			}
+		}
 		if o.Initiative.BudgetPerRunMc > 0 {
 			rctx = kernelruntime.WithMaxCost(rctx, o.Initiative.BudgetPerRunMc)
 		}

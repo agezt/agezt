@@ -80,6 +80,12 @@ type Order struct {
 	BriefingMin   string     `json:"briefing_disposition_min,omitempty"` // drop|digest|notify|alert
 	BriefingChan  string     `json:"briefing_channel,omitempty"`
 	Plan          string     `json:"plan,omitempty"` // optional explicit plan/intent template
+	// Agent, when set, makes each firing run AS that named roster agent
+	// (M790): its soul, model fallback chain, and memory scope apply, and its
+	// per-run cost ceiling is the default when the order sets none. Resolved
+	// at fire time — an unknown or paused agent journals a standing.error
+	// instead of silently running as the default identity.
+	Agent string `json:"agent,omitempty"`
 	// Assure, when > 0, makes each firing "do-it-for-sure": the order's plan runs,
 	// a verifier checks it was actually accomplished, and it retries the gap up to
 	// this many attempts (M655). 0 = a single pass (the default). The fire path

@@ -1163,6 +1163,40 @@ func maxCostFromCtx(ctx context.Context) int64 {
 	return 0
 }
 
+// WithAgentProfile applies a roster profile to a run's context (M790): the
+// soul becomes the system override, the model + ordered fallbacks become the
+// run's model chain, and the memory scope follows the identity (M786). The
+// per-run cost ceiling is NOT applied here — callers layer it so their own
+// explicit budget wins (mirrors handleRun's precedence). Used by the standing
+// runner so an order can fire AS a named agent; handleRun keeps its inline
+// application (its model resolves before the vision gate).
+func WithAgentProfile(ctx context.Context, p roster.Profile) context.Context {
+	if soul := strings.TrimSpace(p.Soul); soul != "" {
+		ctx = WithSystem(ctx, soul)
+	}
+	primary := strings.TrimSpace(p.Model)
+	if primary != "" {
+		ctx = WithModel(ctx, primary)
+	}
+	if len(p.Fallbacks) > 0 {
+		chain := []string{primary}
+		if primary == "" {
+			chain = nil
+		}
+		for _, m := range p.Fallbacks {
+			if m = strings.TrimSpace(m); m != "" && m != primary {
+				chain = append(chain, m)
+			}
+		}
+		ctx = WithModelChain(ctx, chain)
+	}
+	scope := strings.TrimSpace(p.MemoryScope)
+	if scope == "" {
+		scope = p.Slug
+	}
+	return memory.WithScope(ctx, scope)
+}
+
 // WithModelChain sets the run's per-agent ordered model fallback chain (M787):
 // the Governor tries these models in order, overriding the task type's
 // configured chain. Carries a named agent's own fallbacks (roster M783).

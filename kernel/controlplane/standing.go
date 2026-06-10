@@ -82,6 +82,9 @@ func (s *Server) handleStandingEdit(conn net.Conn, req Request) {
 		if v, ok := req.Args["plan"].(string); ok {
 			o.Plan = v
 		}
+		if v, ok := req.Args["agent"].(string); ok {
+			o.Agent = strings.TrimSpace(v) // M790: run firings AS this roster agent ("" clears)
+		}
 		if v, ok := req.Args["mode"].(string); ok {
 			o.Initiative.Mode = standing.InitiativeMode(v)
 		}

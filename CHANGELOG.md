@@ -12,6 +12,24 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Standing orders run AS a named agent — the autonomous answerer is complete.** A standing order
+  can now carry an **agent** (roster slug): every firing — event-triggered, cron, or "run now" —
+  executes AS that identity, with its soul as the run's persona, its model + fallback chain, its
+  memory scope (private notes + shared brain), and its per-run cost ceiling as the default (the
+  order's own budget still wins). This closes the loop the A2A work opened: *"ask researcher a
+  question"* (`board op=send to=researcher`, M788) journals `board.dm.researcher` → a standing order
+  with that event trigger fires → **runs as researcher** → reads its inbox and replies — a fully
+  autonomous, journaled ask→wake→answer cycle with no operator in the path. An unknown or paused
+  agent journals a `standing.error` (with the reason) instead of silently running as the default
+  identity, and `standing.fired` now records who the firing ran as. Surface: `agt standing add
+  --agent <slug>`, the `agent` key on standing add/edit over the control plane and the console's
+  edit route. The profile application is one reusable call (`runtime.WithAgentProfile`) shared with
+  the standing runner. Unit-tested (the profile application carries soul + model + dupe-skipped
+  chain + memory-scoped private notes into a real run's provider request, asserted on the actual
+  completion request; the agent field round-trips add → edit → clear over the wire). Verified live
+  on an isolated daemon: two event-triggered orders on `kernel.resume`, one as a real agent and one
+  as a ghost — the resume fired the real one (standing.fired → full run to task.completed) and the
+  ghost one journaled standing.error without running; 0 panics. (M790)
 - **Talk to a named agent in Chat — each conversation picks who it's with.** The Chat composer
   gains an **agent picker** next to the model picker: choose a roster agent (M783) and *this
   thread* runs AS it — its soul, model fallback chain, memory scope, and per-run budget all apply

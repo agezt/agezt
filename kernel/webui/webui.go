@@ -278,7 +278,7 @@ var jsonRoutes = map[string]writeRoute{
 	"/api/standing/add": {controlplane.CmdStandingAdd, []string{"order"}},
 	// Edit a standing order in place (M729): id + any subset of the human-tunable
 	// fields. assure is numeric, so the JSON body preserves its type.
-	"/api/standing/edit": {controlplane.CmdStandingEdit, []string{"id", "name", "plan", "mode", "max_trust", "briefing_min", "assure"}},
+	"/api/standing/edit": {controlplane.CmdStandingEdit, []string{"id", "name", "plan", "agent", "mode", "max_trust", "briefing_min", "assure"}},
 	// Agent roster create/edit (M783): the profile is a structured object (soul
 	// text, fallback list, numeric cost ceiling) — a JSON body, not query args.
 	"/api/agents/add":  {controlplane.CmdAgentAdd, []string{"profile"}},
