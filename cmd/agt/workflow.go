@@ -35,6 +35,8 @@ func cmdWorkflow(args []string, stdout, stderr io.Writer) int {
 		return cmdWorkflowRun(args[1:], stdout, stderr)
 	case "draft":
 		return cmdWorkflowDraft(args[1:], stdout, stderr)
+	case "refine":
+		return cmdWorkflowRefine(args[1:], stdout, stderr)
 	case "enable":
 		return cmdWorkflowSetEnabled(args[1:], stdout, stderr, true)
 	case "disable":
@@ -55,6 +57,7 @@ func workflowUsage(w io.Writer) int {
 	fmt.Fprintf(w, "  show <name|id> [--json]            one workflow's full graph\n")
 	fmt.Fprintf(w, "  save --file GRAPH.json             create or update (upsert by name) a workflow\n")
 	fmt.Fprintf(w, "  draft \"DESCRIPTION\" [--name N] [--save]  copilot designs a graph from plain language\n")
+	fmt.Fprintf(w, "  refine <name|id> \"CHANGE\" [--save]   copilot revises a stored graph per a change request\n")
 	fmt.Fprintf(w, "  run <name|id> [--payload JSON]     execute now; payload lands in {{trigger.payload}}\n")
 	fmt.Fprintf(w, "  enable|disable <name|id>           arm/disarm its triggers (M799)\n")
 	fmt.Fprintf(w, "  remove <name|id>                   delete a workflow\n")
@@ -259,11 +262,85 @@ func cmdWorkflowDraft(args []string, stdout, stderr io.Writer) int {
 	}
 	saveCtx, saveCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer saveCancel()
-	if _, err := c.Call(saveCtx, controlplane.CmdWorkflowSave, map[string]any{"workflow": w}); err != nil {
+	saveRes, err := c.Call(saveCtx, controlplane.CmdWorkflowSave, map[string]any{"workflow": w})
+	if err != nil {
 		fmt.Fprintf(stderr, "%s workflow draft: save: %v\n", brand.CLI, err)
 		return 1
 	}
-	fmt.Fprintf(stdout, "saved (disabled) — run it with `%s workflow run %s`\n", brand.CLI, str(w["name"]))
+	fmt.Fprintf(stdout, "saved (%s) — run it with `%s workflow run %s`\n",
+		savedState(saveRes), brand.CLI, str(w["name"]))
+	return 0
+}
+
+// savedState reads the persisted enabled flag out of a workflow_save result —
+// a fresh save arrives enabled (store semantics), an update keeps its state.
+func savedState(res map[string]any) string {
+	if w, _ := res["workflow"].(map[string]any); w != nil {
+		if en, _ := w["enabled"].(bool); !en {
+			return "disabled"
+		}
+	}
+	return "enabled — triggers armed"
+}
+
+// cmdWorkflowRefine (M805): the copilot revises a STORED workflow per a
+// plain-language change request; prints the revision for review, --save
+// persists it (upsert by name).
+func cmdWorkflowRefine(args []string, stdout, stderr io.Writer) int {
+	ref, instruction := "", ""
+	save := false
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "--save":
+			save = true
+		default:
+			if strings.HasPrefix(args[i], "--") {
+				continue
+			}
+			if ref == "" {
+				ref = args[i]
+			} else if instruction == "" {
+				instruction = args[i]
+			}
+		}
+	}
+	if ref == "" || strings.TrimSpace(instruction) == "" {
+		fmt.Fprintf(stderr, "usage: %s workflow refine <name|id> \"CHANGE REQUEST\" [--save]\n", brand.CLI)
+		return 2
+	}
+	c := dial(stderr)
+	if c == nil {
+		return 1
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Minute)
+	defer cancel()
+	res, err := c.Call(ctx, controlplane.CmdWorkflowRefine, map[string]any{"ref": ref, "instruction": instruction})
+	if err != nil {
+		fmt.Fprintf(stderr, "%s workflow refine: %v\n", brand.CLI, err)
+		return 1
+	}
+	w, _ := res["workflow"].(map[string]any)
+	if w == nil {
+		fmt.Fprintf(stderr, "%s workflow refine: empty revision\n", brand.CLI)
+		return 1
+	}
+	fmt.Fprintf(stdout, "refined %s — %v node(s), %v edge(s)\n", str(w["name"]), w["node_count"], w["edge_count"])
+	if rc := encodeJSON(stdout, w); rc != 0 {
+		return rc
+	}
+	if !save {
+		fmt.Fprintf(stdout, "review it, then persist with --save\n")
+		return 0
+	}
+	saveCtx, saveCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer saveCancel()
+	saveRes, err := c.Call(saveCtx, controlplane.CmdWorkflowSave, map[string]any{"workflow": w})
+	if err != nil {
+		fmt.Fprintf(stderr, "%s workflow refine: save: %v\n", brand.CLI, err)
+		return 1
+	}
+	fmt.Fprintf(stdout, "saved (%s) — run it with `%s workflow run %s`\n",
+		savedState(saveRes), brand.CLI, str(w["name"]))
 	return 0
 }
 

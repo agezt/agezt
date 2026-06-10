@@ -925,6 +925,10 @@ const (
 	// Draft (M802): args{description, name?} — the copilot designs a
 	// validated workflow from plain language; returned UNSAVED for review.
 	CmdWorkflowDraft = "workflow_draft"
+	// Refine (M805): args{instruction, workflow?|ref?} — the copilot revises
+	// an existing graph (the posted one, or the stored one at ref) per a
+	// plain-language change request; returned UNSAVED for review.
+	CmdWorkflowRefine = "workflow_refine"
 
 	// Sandbox projects (M686) — read-only inspection of what agents BUILT with the
 	// code_exec tool under <baseDir>/sandbox/projects. List: no args, returns each
