@@ -77,6 +77,7 @@ export function isAlert(e: AgentEvent): boolean {
 export interface RankedAlert extends Alert {
   id: string;
   tsMs?: number;
+  correlationId?: string; // the run this alert belongs to, when there is one (M781)
 }
 
 // recentAttentionAlerts classifies a stream and returns the warning/critical alerts only,
@@ -91,7 +92,7 @@ export function recentAttentionAlerts(events: AgentEvent[], limit = 5): RankedAl
     const id = e.id || `${e.kind}-${e.seq ?? ""}`;
     if (seen.has(id)) continue;
     seen.add(id);
-    out.push({ ...a, id, tsMs: e.ts_unix_ms });
+    out.push({ ...a, id, tsMs: e.ts_unix_ms, correlationId: e.correlation_id });
   }
   out.sort((x, y) => (y.tsMs ?? 0) - (x.tsMs ?? 0));
   return out.slice(0, limit);

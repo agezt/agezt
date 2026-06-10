@@ -12,6 +12,18 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Jump from an alert to the run that caused it.** Alerts tied to a run — a failure, a budget/rate
+  trip, blocked egress — now carry the run's id, so both the **Alerts** view (an *open run →* link on
+  the row) and the Cockpit's **Needs attention** strip (the whole row is clickable) take you straight to
+  that run in the Runs view, expanded and scrolled into view. It closes the loop the alert work opened:
+  the badge says *something's* wrong (M779), the cockpit says *what* (M780), and now one click takes you
+  to *where* — the failing run itself — to read its full arc. Reuses the existing run-focus deep-link
+  (M734); the correlation id is threaded onto each alert row, no backend change. Unit-tested (a
+  run-associated alert renders the open-run affordance and clicking it calls `focusRun` with the id and
+  navigates to `#runs`; an alert with no correlation shows no link; `recentAttentionAlerts` carries the
+  correlation id). Verified live on an isolated daemon end-to-end: tripped a real `task.failed`, clicked
+  **open run →** on the alert, and landed on the Runs view with that failed run surfaced; 0 console
+  errors. (M781)
 - **The cockpit tells you what's wrong, not just that something is.** The Overview (Cockpit) — the
   landing screen — now leads with a **Needs attention** strip when the agent has raised any
   warning/critical alert: the most recent few (run failures, blocked egress, budget/rate trips, halts)

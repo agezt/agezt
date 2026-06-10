@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
-import { render, screen, cleanup, waitFor } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent, waitFor } from "@testing-library/react";
 
 const getJSON = vi.fn();
 vi.mock("@/lib/api", () => ({ getJSON: (...a: unknown[]) => getJSON(...a) }));
@@ -9,11 +9,16 @@ vi.mock("@/lib/api", () => ({ getJSON: (...a: unknown[]) => getJSON(...a) }));
 vi.mock("@/lib/events", () => ({
   useEvents: () => ({ events: [], connected: true, subscribe: () => () => {} }),
 }));
+const focusRun = vi.fn();
+vi.mock("@/lib/runfocus", () => ({ focusRun: (...a: unknown[]) => focusRun(...a) }));
 
 import { Alerts, mergeAlerts } from "@/views/Alerts";
 
 afterEach(cleanup);
-beforeEach(() => getJSON.mockReset());
+beforeEach(() => {
+  getJSON.mockReset();
+  focusRun.mockReset();
+});
 
 describe("mergeAlerts (M777)", () => {
   const row = (id: string, tsMs: number) => ({ id, tsMs, level: "info" as const, title: id, detail: "", source: "x", kind: "k" });
@@ -45,5 +50,25 @@ describe("Alerts journal backfill (M777)", () => {
     render(<Alerts />);
     await waitFor(() => expect(getJSON).toHaveBeenCalled());
     await waitFor(() => expect(screen.getByText(/no alerts — all quiet/)).toBeTruthy());
+  });
+});
+
+describe("Alerts → open run (M781)", () => {
+  it("a run-associated alert links to its run (focusRun + navigate)", async () => {
+    getJSON.mockResolvedValue({
+      events: [{ id: "e1", kind: "task.failed", ts_unix_ms: 10, correlation_id: "run-abc", payload: { reason: "boom" } }],
+    });
+    render(<Alerts />);
+    const btn = await screen.findByRole("button", { name: /open run/ });
+    fireEvent.click(btn);
+    expect(focusRun).toHaveBeenCalledWith("run-abc");
+    expect(location.hash).toBe("#runs");
+  });
+
+  it("an alert with no correlation does not show an open-run link", async () => {
+    getJSON.mockResolvedValue({ events: [{ id: "e1", kind: "budget.exceeded", ts_unix_ms: 5, payload: {} }] });
+    render(<Alerts />);
+    await waitFor(() => expect(screen.getByText("budget ceiling exceeded")).toBeTruthy());
+    expect(screen.queryByRole("button", { name: /open run/ })).toBeNull();
   });
 });
