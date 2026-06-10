@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: MIT
 
-// Package memory implements "memory-lite" (ROADMAP §2.3): a journaled,
+// Package memory implements the memory store (ROADMAP §2.3): a journaled,
 // content-addressed knowledge store that the agent loop reads as injected
 // context and that the operator, the agent, and an auto-distiller can write
-// to. It is the smallest slice of SPEC-05 that makes Agezt *remember*
-// without yet building the world-model graph, the skill/Forge lifecycle, or
-// vector retrieval (those land in the full Memory & Forge milestone).
+// to. Retrieval is hybrid (M803): exact keyword overlap blended with local
+// hashed-n-gram embeddings (vector.go) for typo/morphology recall —
+// DECISIONS C5's "local embeddings by default"; provider embeddings remain
+// the documented opt-in.
 //
 // Two layers, mirroring how kernel/state and kernel/runtime split:
 //
@@ -284,15 +285,7 @@ func Search(rs []Record, query string, limit int, nowMS int64) []Scored {
 		score := float64(overlap) * (0.5 + conf) * recencyFactor(r.LastSeenMS, nowMS)
 		out = append(out, Scored{Record: r, Score: score})
 	}
-	sort.SliceStable(out, func(i, j int) bool {
-		if out[i].Score != out[j].Score {
-			return out[i].Score > out[j].Score
-		}
-		if out[i].Record.LastSeenMS != out[j].Record.LastSeenMS {
-			return out[i].Record.LastSeenMS > out[j].Record.LastSeenMS
-		}
-		return out[i].Record.ID < out[j].Record.ID
-	})
+	sortScored(out)
 	if limit > 0 && len(out) > limit {
 		out = out[:limit]
 	}
@@ -300,20 +293,11 @@ func Search(rs []Record, query string, limit int, nowMS int64) []Scored {
 }
 
 // keywordOverlap counts how many distinct query tokens appear anywhere in the
-// record's searchable text (subject + content + tag keys/values).
+// record's searchable text (subject + content + tag keys/values — searchText,
+// shared with the embedder so both signals see the same surface).
 func keywordOverlap(qTokens []string, r Record) int {
-	var b strings.Builder
-	b.WriteString(r.Subject)
-	b.WriteByte(' ')
-	b.WriteString(r.Content)
-	for k, v := range r.Tags {
-		b.WriteByte(' ')
-		b.WriteString(k)
-		b.WriteByte(' ')
-		b.WriteString(v)
-	}
 	haystack := make(map[string]struct{})
-	for _, t := range tokenize(b.String()) {
+	for _, t := range tokenize(searchText(r)) {
 		haystack[t] = struct{}{}
 	}
 	n := 0

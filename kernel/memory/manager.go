@@ -160,7 +160,10 @@ func (m *Manager) RecallScoped(corr, query string, limit int, scope string) ([]S
 		return nil, err
 	}
 	all = filterScope(all, scope)
-	hits := Search(all, query, limit, m.now().UnixMilli())
+	// Hybrid (M803): exact-keyword precision + local-embedding cosine for
+	// typo/morphology recall — a misspelled or inflected query still
+	// surfaces the right record.
+	hits := SearchHybrid(all, query, limit, m.now().UnixMilli())
 	if len(hits) > 0 {
 		ids := make([]string, 0, len(hits))
 		for _, h := range hits {
@@ -269,7 +272,7 @@ func (m *Manager) Search(query string, limit int) ([]Scored, error) {
 	if err != nil {
 		return nil, err
 	}
-	return Search(all, query, limit, m.now().UnixMilli()), nil
+	return SearchHybrid(all, query, limit, m.now().UnixMilli()), nil
 }
 
 // publish writes one event through the bus, returning the persisted event (or
