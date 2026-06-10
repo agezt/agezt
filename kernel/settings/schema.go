@@ -160,6 +160,8 @@ func builtinSections() []Section {
 				{Env: "AGEZT_ALERT_NOTIFY_LEVEL", Label: "Minimum level", Type: TypeSelect, Apply: ApplyRestart, Options: []string{"", "warning", "critical"}, Help: "warning (default) sends warnings and criticals; critical sends criticals only."},
 				{Env: "AGEZT_ALERT_NOTIFY_COOLDOWN", Label: "Repeat cooldown", Type: TypeText, Apply: ApplyRestart, Help: "The same alert (kind + run) is sent at most once per this window, e.g. 5m."},
 				{Env: "AGEZT_ALERT_NOTIFY_MAX", Label: "Flood cap (per 10m)", Type: TypeNumber, Apply: ApplyRestart, Help: "Hard ceiling on notifications per 10-minute window; extra alerts are dropped."},
+				{Env: "AGEZT_ALERT_NOTIFY_MUTE", Label: "Mute window", Type: TypeText, Apply: ApplyRestart, Help: "Daily quiet window in 24h START-END form, e.g. 0-7. Warnings are held; CRITICAL alerts (budget, halt) still break through."},
+				{Env: "AGEZT_ALERT_NOTIFY_MUTE_SOURCES", Label: "Muted sources", Type: TypeText, Apply: ApplyRestart, Help: "Comma-separated categories to silence entirely (any level): run, egress, budget, provider, kernel."},
 			},
 		},
 		{

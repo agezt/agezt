@@ -11,6 +11,14 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 
 ## [Unreleased]
 
+### Added
+- **Alert mute window + per-source muting.** Two new controls over which alert notifications
+  reach your channels: a **mute window** (`AGEZT_ALERT_NOTIFY_MUTE=0-7`) holds warning pings
+  during a daily quiet window — while **critical alerts (budget blowouts, halts) always break
+  through** — and **per-source muting** (`AGEZT_ALERT_NOTIFY_MUTE_SOURCES=provider,egress`)
+  silences whole categories (run / egress / budget / provider / kernel) at any level. Both are
+  in the Config Center's Alert Notifications section. (M815)
+
 ### Changed
 - **Allow-by-default policy posture.** Every capability now ships at the allow level — AGEZT
   is full-autonomy out of the box, and restriction is your explicit opt-out (`agt edict level
