@@ -130,6 +130,45 @@ func TestRun_AsAgent_ModelChain(t *testing.T) {
 	}
 }
 
+// TestStanding_AgentFieldRoundTrips: a standing order created with an agent
+// (M790) keeps it through add → list → edit (set + clear) over the wire.
+func TestStanding_AgentFieldRoundTrips(t *testing.T) {
+	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	ctx := context.Background()
+
+	add, err := c.Call(ctx, controlplane.CmdStandingAdd, map[string]any{
+		"order": map[string]any{
+			"name":     "inbox answerer",
+			"triggers": []any{map[string]any{"type": "event", "subject": "board.dm.researcher"}},
+			"plan":     "read your inbox and reply",
+			"agent":    "researcher",
+		},
+	})
+	if err != nil {
+		t.Fatalf("standing add: %v", err)
+	}
+	o, _ := add["order"].(map[string]any)
+	if o["agent"] != "researcher" {
+		t.Fatalf("add lost the agent: %v", o)
+	}
+	id, _ := o["id"].(string)
+
+	edit, err := c.Call(ctx, controlplane.CmdStandingEdit, map[string]any{"id": id, "agent": "ops"})
+	if err != nil {
+		t.Fatalf("standing edit: %v", err)
+	}
+	if eo, _ := edit["order"].(map[string]any); eo["agent"] != "ops" {
+		t.Fatalf("edit didn't set the agent: %v", edit)
+	}
+	clear, err := c.Call(ctx, controlplane.CmdStandingEdit, map[string]any{"id": id, "agent": ""})
+	if err != nil {
+		t.Fatalf("standing clear: %v", err)
+	}
+	if co, _ := clear["order"].(map[string]any); co["agent"] != nil {
+		t.Fatalf("empty agent should clear (omitempty): %v", clear)
+	}
+}
+
 func equalStrings(a, b []string) bool {
 	if len(a) != len(b) {
 		return false

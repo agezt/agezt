@@ -45,6 +45,7 @@ func standingUsage(w io.Writer) int {
 	fmt.Fprintf(w, "usage: %s standing <list|add|pause|resume|remove>\n", brand.CLI)
 	fmt.Fprintf(w, "  list [--json]                                  show standing orders\n")
 	fmt.Fprintf(w, "  add --name N (--cron \"SCHED\" | --event SUBJ) [--plan TEXT]\n")
+	fmt.Fprintf(w, "      [--agent SLUG]  run each firing AS that named agent (soul/model/memory/budget)\n")
 	fmt.Fprintf(w, "      [--mode inform_only|ask|act_or_ask] [--max-trust L0..L4] [--budget USD]\n")
 	fmt.Fprintf(w, "      [--scope ent1,ent2] [--channel C]\n")
 	fmt.Fprintf(w, "  pause <id>                                     disable an order\n")
@@ -173,7 +174,7 @@ func initiativeMode(o map[string]any) string {
 }
 
 func cmdStandingAdd(args []string, stdout, stderr io.Writer) int {
-	var name, cron, event, plan, mode, maxTrust, channel, budget, scope string
+	var name, cron, event, plan, mode, maxTrust, channel, budget, scope, agentSlug string
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
 		case "--name":
@@ -205,6 +206,11 @@ func cmdStandingAdd(args []string, stdout, stderr io.Writer) int {
 			i++
 			if i < len(args) {
 				plan = args[i]
+			}
+		case "--agent":
+			i++
+			if i < len(args) {
+				agentSlug = args[i]
 			}
 		case "--mode":
 			i++
@@ -277,6 +283,9 @@ func cmdStandingAdd(args []string, stdout, stderr io.Writer) int {
 	}
 	if channel != "" {
 		order["briefing_channel"] = channel
+	}
+	if agentSlug = strings.TrimSpace(agentSlug); agentSlug != "" {
+		order["agent"] = agentSlug // M790: firings run AS this roster agent
 	}
 
 	c := dial(stderr)
