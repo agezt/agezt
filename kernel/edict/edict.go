@@ -152,6 +152,20 @@ const (
 	// op=test EXECUTES the draft in the sandbox and maps to CapCodeExec.
 	CapToolForge Capability = "tool.forge"
 
+	// CapMCPInstall gates the SELF-INSTALL ops of the `mcp` tool (M796): the
+	// agent registering, ATTACHING (spawning an arbitrary external process),
+	// detaching, or removing an MCP server at runtime. The strongest
+	// self-extension grant in the system — an attached server's tools are
+	// whatever IT advertises — so Ask on every call by default. The child
+	// gets a scrubbed env (no AGEZT_*/secrets) and every transition is
+	// journaled (mcp.*); detach is the instant kill switch.
+	CapMCPInstall Capability = "mcp.install"
+	// CapMCP gates every CALL of a bridged mcp_<server>_<tool> tool: code
+	// the daemon didn't ship, talking to a process the operator (or an
+	// approved agent) attached. Ask-first by default — vet the first use
+	// per session, then flow.
+	CapMCP Capability = "mcp.call"
+
 	// CapConfigRead / CapConfigWrite gate the `config` tool (M696): the agent
 	// reading vs mutating Config Center settings. Reads (schema/get) are low-risk
 	// and Allow by default. Writes (set/register/unregister) are Ask by default —
@@ -588,6 +602,8 @@ func DefaultLevels() map[Capability]TrustLevel {
 		CapIntrospect:  LevelAllow,    // local read of the daemon's own live state; no mutation, no network — low risk
 		CapCodeExec:    LevelAllow,    // write+run code; sandboxed (scrubbed env, confined dir, capped) and journaled — owner's choice for full autonomy
 		CapToolForge:   LevelAskFirst, // self-modification: the agent authoring its own script tools (going live still needs an operator promote)
+		CapMCPInstall:  LevelAsk,      // self-install: registering/attaching an MCP server spawns an arbitrary process — approve every one
+		CapMCP:         LevelAskFirst, // calling a bridged MCP tool: external, unvetted surface — vet first use per session
 		CapConfigRead:  LevelAllow,    // read Config Center schema/values; no mutation, secrets presence-only
 		CapConfigWrite: LevelAskFirst, // mutate settings / register schema; can reach built-in security fields — confirm first
 	}
@@ -629,7 +645,7 @@ func AllCapabilities() []Capability {
 		CapACPAgent, CapRemoteRun, CapNotify,
 		CapHomeAssistantRead, CapHomeAssistantCall,
 		CapBrowserRead, CapMemory, CapWorld, CapWebSearch, CapSchedule, CapRunsRead, CapStanding, CapBoard, CapSkill,
-		CapIntrospect, CapCodeExec, CapToolForge, CapConfigRead, CapConfigWrite,
+		CapIntrospect, CapCodeExec, CapToolForge, CapMCPInstall, CapMCP, CapConfigRead, CapConfigWrite,
 	}
 	slices.Sort(caps)
 	return caps

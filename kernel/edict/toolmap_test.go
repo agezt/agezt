@@ -42,6 +42,16 @@ func TestCapabilityForToolCall(t *testing.T) {
 		{"tool_forge", `{"op":"list"}`, CapToolForge},
 		{"tool_forge", `{"op":"  TEST  ","ref":"x"}`, CapCodeExec},
 		{"tool_forge", `{}`, CapToolForge},
+		// MCP self-install (M796): every bridged mcp_<server>_<tool> call is
+		// external code → mcp.call; the mcp tool's install ops are gated,
+		// list reads the daemon's own state.
+		{"mcp_fake_greet", `{"name":"x"}`, CapMCP},
+		{"mcp_everything_read-file", `{}`, CapMCP},
+		{"mcp", `{"op":"add","name":"x"}`, CapMCPInstall},
+		{"mcp", `{"op":"attach","ref":"x"}`, CapMCPInstall},
+		{"mcp", `{"op":"remove","ref":"x"}`, CapMCPInstall},
+		{"mcp", `{"op":"list"}`, CapIntrospect},
+		{"mcp", `{}`, CapMCPInstall}, // garbled call lands on the gated axis
 	}
 	for _, c := range cases {
 		got := CapabilityForToolCall(c.tool, json.RawMessage(c.input))

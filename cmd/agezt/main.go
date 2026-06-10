@@ -97,6 +97,7 @@ import (
 	hatool "github.com/agezt/agezt/plugins/tools/homeassistant"
 	httptool "github.com/agezt/agezt/plugins/tools/http"
 	"github.com/agezt/agezt/plugins/tools/introspecttool"
+	"github.com/agezt/agezt/plugins/tools/mcptool"
 	"github.com/agezt/agezt/plugins/tools/notify"
 	"github.com/agezt/agezt/plugins/tools/peer"
 	"github.com/agezt/agezt/plugins/tools/runstool"
@@ -349,6 +350,12 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// to the live kernel after it opens.
 	forgeToolInst := forgetool.New()
 	tools["tool_forge"] = forgeToolInst
+
+	// MCP self-install tool (`mcp`, M796): the agent extends its own toolbox —
+	// registering and ATTACHING MCP servers at runtime (Edict mcp.install, Ask
+	// by default). Registered now, Bound to the live kernel after it opens.
+	mcpToolInst := mcptool.New()
+	tools["mcp"] = mcpToolInst
 
 	// OnReload is invoked by the control plane's `provider_reload`
 	// command (and `agt provider reload`). It re-reads the vault,
@@ -1249,6 +1256,20 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// Going live still takes an operator promote (`agt toolforge promote`).
 	forgeToolInst.Bind(k)
 	fmt.Fprintf(stdout, "  tool_forge tool  : enabled (the agent can build its own tools; operator promotes)\n")
+
+	// Bind the MCP self-install tool (M796) and auto-attach every ENABLED
+	// registered server. Per-server failures are reported, never fatal — one
+	// broken server must not take the daemon down.
+	mcpToolInst.Bind(k)
+	if registered := k.MCPStore().Count(); registered > 0 {
+		attached, failures := k.AttachEnabledMCPServers(ctx)
+		fmt.Fprintf(stdout, "  mcp servers      : %d attached of %d registered\n", len(attached), registered)
+		for name, aerr := range failures {
+			fmt.Fprintf(stdout, "    %s: attach failed: %v\n", name, aerr)
+		}
+	} else {
+		fmt.Fprintf(stdout, "  mcp self-install : enabled (the agent can attach MCP servers at runtime; Edict mcp.install gates it)\n")
+	}
 
 	// Scheduled intents (autonomy) — fire operator-configured intents on a timer
 	// through the governed loop. Runs on the daemon ctx (halt/shutdown stop it).

@@ -12,6 +12,24 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Governed self-install: agents can attach MCP servers at runtime.** The new `mcp` tool (and
+  `agt mcp` for operators) registers a Model Context Protocol server — any stdio MCP server, e.g.
+  `npx -y @modelcontextprotocol/server-everything` — and **attaches it while the daemon runs**: the
+  kernel's own minimal MCP client spawns it, handshakes, discovers its tools, and from the next run
+  on every agent (and delegate sub-agent) can call them as `mcp_<server>_<tool>`. No restart, no
+  separate bridge binary, no env-var surgery. Governance is the point: registering/attaching is
+  gated by the new `mcp.install` Edict capability (**Ask on every call** by default — an attach
+  spawns an arbitrary external process), every bridged call exercises the new `mcp.call` capability
+  (ask-first), the spawned server gets a **scrubbed environment** (PATH and friends — never
+  `AGEZT_*` or secret-shaped variables), frames are size-capped, and every lifecycle transition is
+  journaled (`mcp.added/attached/detached/removed`) so `agt why` explains how a server's tools
+  became callable. **Detach is the instant kill switch**; enabled servers auto-attach at daemon
+  boot (per-server failures reported, never fatal). A per-run tool allowlist gates bridged tools
+  exactly like built-ins. Surface: `agt mcp add/attach/detach/enable/disable/remove/list`,
+  control-plane `mcp_*` commands, webui API routes (console view to follow). 16 new tests across
+  five packages — including a **live python MCP subprocess** end-to-end — plus an isolated-daemon
+  smoke: register + attach a real python server via the CLI (2 tools discovered), detach, restart
+  the daemon and watch it auto-attach, with the full journal trail verified. (M796)
 - **Tool Forge console view.** The script-tool forge (M794) gets its operator surface in the web
   UI — a *Tool Forge* view under Agents: draft a script in the browser (language, description, the
   code editor states the `stdin.txt` contract inline, optional input schema), **run a sandbox test

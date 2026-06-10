@@ -288,6 +288,16 @@ const (
 	KindScriptToolPromoted    Kind = "scripttool.promoted"
 	KindScriptToolQuarantined Kind = "scripttool.quarantined"
 	KindScriptToolRemoved     Kind = "scripttool.removed"
+
+	// MCP self-install (M796) — runtime-attached Model Context Protocol
+	// servers. Registering/attaching is the governed self-install path
+	// (`mcp.install` Edict capability); every lifecycle transition is
+	// journaled so `agt why` explains how a server's tools became callable.
+	KindMCPAdded    Kind = "mcp.added"
+	KindMCPUpdated  Kind = "mcp.updated" // enabled/disabled (auto-attach flag)
+	KindMCPAttached Kind = "mcp.attached"
+	KindMCPDetached Kind = "mcp.detached"
+	KindMCPRemoved  Kind = "mcp.removed"
 )
 
 // IsKnown reports whether k is one of the kinds defined in this file. Useful
@@ -402,4 +412,9 @@ var knownKinds = map[Kind]struct{}{
 	KindScriptToolPromoted:        {},
 	KindScriptToolQuarantined:     {},
 	KindScriptToolRemoved:         {},
+	KindMCPAdded:                  {},
+	KindMCPUpdated:                {},
+	KindMCPAttached:               {},
+	KindMCPDetached:               {},
+	KindMCPRemoved:                {},
 }

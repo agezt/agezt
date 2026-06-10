@@ -319,7 +319,7 @@ func (k *Kernel) runSubAgent(ctx context.Context, task, model, taskType, agentRe
 
 	answer, err := agent.Run(childCtx, agent.LoopConfig{
 		Provider:             k.cfg.Provider,
-		Tools:                k.mergeScriptTools(k.tools), // forged script tools reach sub-agents too (M794)
+		Tools:                k.mergeMCPTools(k.mergeScriptTools(k.tools)), // forged + MCP tools reach sub-agents too (M794/M796)
 		Bus:                  k.bus,
 		Model:                subModel,
 		TaskType:             taskType,   // M705: route the sub-agent (chain supplies fallbacks)

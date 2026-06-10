@@ -25,6 +25,11 @@ func CapabilityForToolCall(toolName string, input json.RawMessage) Capability {
 	if strings.HasPrefix(toolName, "forge_") {
 		return CapCodeExec
 	}
+	// Runtime-attached MCP servers (M796): every bridged mcp_<server>_<tool>
+	// call is external code the daemon didn't ship → the mcp.call capability.
+	if strings.HasPrefix(toolName, "mcp_") {
+		return CapMCP
+	}
 	switch toolName {
 	case "shell":
 		return CapShell
@@ -69,6 +74,20 @@ func CapabilityForToolCall(toolName string, input json.RawMessage) Capability {
 			return CapCodeExec
 		}
 		return CapToolForge
+	case "mcp":
+		var p struct {
+			Op string `json:"op"`
+		}
+		_ = json.Unmarshal(input, &p)
+		if strings.EqualFold(strings.TrimSpace(p.Op), "list") {
+			// Listing registrations + live attachments reads the daemon's own
+			// state — the introspection axis, not an install.
+			return CapIntrospect
+		}
+		// add/attach/detach/remove (and anything unrecognised) is the
+		// self-install axis — the high-risk default, so a garbled call lands
+		// on the gated capability rather than silently flowing.
+		return CapMCPInstall
 	case "introspect":
 		return CapIntrospect
 	case "code_exec":

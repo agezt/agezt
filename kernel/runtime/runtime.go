@@ -33,6 +33,7 @@ import (
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/governor"
 	"github.com/agezt/agezt/kernel/journal"
+	"github.com/agezt/agezt/kernel/mcp"
 	"github.com/agezt/agezt/kernel/memory"
 	"github.com/agezt/agezt/kernel/reflect"
 	"github.com/agezt/agezt/kernel/roster"
@@ -96,6 +97,10 @@ type Config struct {
 	// The daemon wires the code_exec tool here — same warden isolation,
 	// scrubbed env, and `code.exec` Edict gate as direct code execution.
 	ScriptRunner toolforge.Runner
+
+	// MCPDialer spawns + handshakes one MCP server on attach (M796). Nil
+	// means the production stdio dialer (mcp.Dial); tests inject fakes.
+	MCPDialer mcp.Dialer
 
 	// Model is the default model name passed to the provider.
 	Model string
@@ -339,6 +344,7 @@ type Kernel struct {
 	standing  *standing.Store
 	roster    *roster.Store
 	toolForge *toolforge.Store
+	mcpStore  *mcp.Store
 	artifacts *artifact.Store
 	reflect   *reflect.Engine
 	schedules *cadence.Store        // persistent scheduled-intents store (autonomy)
@@ -354,6 +360,9 @@ type Kernel struct {
 	fanout map[string]int                // spawning correlation_id → sub-agents spawned (M46 fan-out bound)
 	tree   map[string]int                // root correlation_id → total sub-agents in the tree (M629 total bound)
 	steers map[string]*runControl        // correlation_id → live-steering control surface (M608)
+	// mcpConns are the LIVE MCP attachments (M796): server name → connection.
+	// Merged into every run's tool map (mergeMCPTools); detach removes.
+	mcpConns map[string]mcp.Conn
 
 	startTime time.Time // wall-clock at Open() — powers `agt status` uptime
 }
@@ -478,6 +487,16 @@ func Open(cfg Config) (*Kernel, error) {
 		return nil, fmt.Errorf("runtime: toolforge: %w", err)
 	}
 
+	mcpstore, err := mcp.OpenStore(filepath.Join(cfg.BaseDir, "mcp"))
+	if err != nil {
+		j.Close()
+		st.Close()
+		mstore.Close()
+		wstore.Close()
+		skstore.Close()
+		return nil, fmt.Errorf("runtime: mcp: %w", err)
+	}
+
 	// Reflection holds no store of its own — it folds the journal and tunes
 	// the world graph, then journals its report (SPEC-05 §6). Default decay
 	// knobs; the daemon may override via the optional periodic trigger.
@@ -539,6 +558,8 @@ func Open(cfg Config) (*Kernel, error) {
 		standing:     ststore,
 		roster:       rstore,
 		toolForge:    tfstore,
+		mcpStore:     mcpstore,
+		mcpConns:     make(map[string]mcp.Conn),
 		artifacts:    artStore,
 		reflect:      reflectEng,
 		schedules:    schedStore,
@@ -559,7 +580,8 @@ func Open(cfg Config) (*Kernel, error) {
 // Close stops the bus, then closes state and the journal. Pending runs
 // are cancelled via Halt before close.
 func (k *Kernel) Close() error {
-	k.Halt() // cancel any in-flight runs first
+	k.Halt()          // cancel any in-flight runs first
+	k.closeMCPConns() // detach every live MCP server (kills the children)
 	k.bus.Close()
 	// Close every store even if an earlier one errors — the previous short-circuit
 	// returned on the first error and leaked the remaining handles, notably the
@@ -1636,9 +1658,10 @@ func (k *Kernel) RunWith(ctx context.Context, corr, intent string) (string, erro
 
 	// Per-run tool restriction (WithTools): an allowlist (possibly empty = no
 	// tools) scopes what this run may call, without changing the kernel's tool
-	// set. Forged script tools (M794) are merged BEFORE the filter so a
-	// restricted run only sees the forge_<name> tools its allowlist grants.
-	runTools := k.mergeScriptTools(k.tools)
+	// set. Forged script tools (M794) and live MCP attachments (M796) are
+	// merged BEFORE the filter so a restricted run only sees the dynamic
+	// tools its allowlist grants.
+	runTools := k.mergeMCPTools(k.mergeScriptTools(k.tools))
 	if allow, ok := toolsFromCtx(runCtx); ok {
 		runTools = filterTools(runTools, allow)
 	}
