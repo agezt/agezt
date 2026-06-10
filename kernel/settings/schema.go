@@ -53,10 +53,10 @@ type Field struct {
 // the section came from — "builtin" for the compiled-in core config, or the
 // registered schema's id for a skill/plugin-contributed section (see registry.go).
 type Section struct {
-	ID     string  `json:"id"`
-	Name   string  `json:"name"`
-	Help   string  `json:"help,omitempty"`
-	Source string  `json:"source,omitempty"`
+	ID     string `json:"id"`
+	Name   string `json:"name"`
+	Help   string `json:"help,omitempty"`
+	Source string `json:"source,omitempty"`
 	// Locked: a system-approved section that cannot be unregistered through the
 	// normal path (config_schema_unregister / the `config` tool) — only with an
 	// explicit operator force, or by deleting the file. Built-in sections are
@@ -150,6 +150,16 @@ func builtinSections() []Section {
 			Fields: []Field{
 				{Env: "AGEZT_RATE_PER_MIN", Label: "Max requests / minute", Type: TypeNumber, Apply: ApplyRestart},
 				{Env: "AGEZT_CONTEXT_BUDGET", Label: "Context budget (chars)", Type: TypeNumber, Apply: ApplyRestart},
+			},
+		},
+		{
+			ID: "alerts", Name: "Alert Notifications",
+			Help: "Push warning/critical alerts (run failures, blocked egress, budget/rate trips, halts) to the configured channels. Restart to apply.",
+			Fields: []Field{
+				{Env: "AGEZT_ALERT_NOTIFY", Label: "Enabled", Type: TypeBool, Apply: ApplyRestart, Help: "Needs at least one configured channel (Telegram, Slack, …)."},
+				{Env: "AGEZT_ALERT_NOTIFY_LEVEL", Label: "Minimum level", Type: TypeSelect, Apply: ApplyRestart, Options: []string{"", "warning", "critical"}, Help: "warning (default) sends warnings and criticals; critical sends criticals only."},
+				{Env: "AGEZT_ALERT_NOTIFY_COOLDOWN", Label: "Repeat cooldown", Type: TypeText, Apply: ApplyRestart, Help: "The same alert (kind + run) is sent at most once per this window, e.g. 5m."},
+				{Env: "AGEZT_ALERT_NOTIFY_MAX", Label: "Flood cap (per 10m)", Type: TypeNumber, Apply: ApplyRestart, Help: "Hard ceiling on notifications per 10-minute window; extra alerts are dropped."},
 			},
 		},
 		{

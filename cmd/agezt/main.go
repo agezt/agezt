@@ -42,6 +42,7 @@ import (
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/internal/paths"
 	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/alerter"
 	"github.com/agezt/agezt/kernel/anomaly"
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/cadence"
@@ -966,11 +967,15 @@ func runDaemon(stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "  signal channel   : disabled (set AGEZT_SIGNAL_API_URL + AGEZT_SIGNAL_NUMBER)\n")
 	}
 
+	// Every configured channel's brief sink, teed: Pulse briefs and (M782)
+	// alert notifications share the same delivery surface.
+	channelSinks := combineSinks(tgSink, slSink, dcSink, whSink, emSink, mxSink, smSink, waSink, haSink, tmSink, sgSink)
+
 	// Pulse — the proactive heart (SPEC-03). On by default; the resident
 	// engine runs on the daemon ctx so `agt halt`/SIGTERM/`agt shutdown`
 	// stop it with everything else. AGEZT_PULSE=off disables it. When a channel
 	// is configured, briefs tee to it (closes the Jarvis loop).
-	if eng, pulseDesc := buildPulse(k, ward, model, stdout, combineSinks(tgSink, slSink, dcSink, whSink, emSink, mxSink, smSink, waSink, haSink, tmSink, sgSink)); eng != nil {
+	if eng, pulseDesc := buildPulse(k, ward, model, stdout, channelSinks); eng != nil {
 		eng.Start(ctx)
 		srv.SetPulse(eng)
 		// Runtime disk watches (M767): build the observer here (the daemon owns the
@@ -1040,6 +1045,12 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// that auto-halts the kernel if a runaway/looping agent floods tool calls.
 	// On by default; AGEZT_ANOMALY_MAX_TOOLCALLS=0 disables.
 	fmt.Fprintf(stdout, "  anomaly halt     : %s\n", buildAnomaly(ctx, k, stdout))
+
+	// Alert notifications (M782): push warning/critical alerts — run failures,
+	// blocked egress, budget/rate trips, halts — to the configured channels, so
+	// the operator hears about problems without the console open. Opt-in via
+	// AGEZT_ALERT_NOTIFY=1; uses the same sinks Pulse briefs go through.
+	fmt.Fprintf(stdout, "  alert notify     : %s\n", buildAlertNotify(ctx, k, channelSinks))
 
 	// draining flips true at shutdown so /readyz reports not-ready and the daemon
 	// drains in-flight runs before exiting (M136). Shared with buildRESTAPI's
@@ -2940,6 +2951,39 @@ func buildAnomaly(ctx context.Context, k *kernelruntime.Kernel, stdout io.Writer
 		return "disabled"
 	}
 	return fmt.Sprintf("on (halt if >%d tool calls / %s; set AGEZT_ANOMALY_MAX_TOOLCALLS=0 to disable)", max, window)
+}
+
+// buildAlertNotify starts the alert → channel notifier (M782) when
+// AGEZT_ALERT_NOTIFY is on and at least one channel is configured. Knobs:
+//
+//	AGEZT_ALERT_NOTIFY           1/on/true enables (default off — opt-in)
+//	AGEZT_ALERT_NOTIFY_LEVEL     "critical" = criticals only; default warning+
+//	AGEZT_ALERT_NOTIFY_COOLDOWN  per-alert (kind+run) repeat suppression, default 5m
+//	AGEZT_ALERT_NOTIFY_MAX       global cap per 10-minute window, default 12
+func buildAlertNotify(ctx context.Context, k *kernelruntime.Kernel, sink pulse.BriefSink) string {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv(brand.EnvPrefix + "ALERT_NOTIFY"))) {
+	case "1", "on", "true", "yes":
+	default:
+		return "disabled (set AGEZT_ALERT_NOTIFY=1 to push warning/critical alerts to channels)"
+	}
+	if sink == nil {
+		return "enabled but NO channel configured — configure Telegram/Slack/… first"
+	}
+	cfg := alerter.Config{MinLevel: alerter.ParseLevel(os.Getenv(brand.EnvPrefix + "ALERT_NOTIFY_LEVEL"))}
+	if v := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "ALERT_NOTIFY_COOLDOWN")); v != "" {
+		if d, err := time.ParseDuration(v); err == nil && d > 0 {
+			cfg.Cooldown = d
+		}
+	}
+	if v := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "ALERT_NOTIFY_MAX")); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			cfg.MaxPerWindow = n
+		}
+	}
+	if !alerter.Start(ctx, k.Bus(), sink, cfg) {
+		return "disabled"
+	}
+	return fmt.Sprintf("on (level≥%s → channels; repeats suppressed; flood-capped)", cfg.MinLevel)
 }
 
 // buildStandingRunner starts the event-trigger half of Chronos (SPEC-16 §4): when
