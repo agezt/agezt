@@ -77,6 +77,26 @@ func TestValidate_Rejects(t *testing.T) {
 		{"event on workflow.*", graph([]Node{{ID: "s", Type: NodeTrigger, Config: json.RawMessage(`{"kind":"event","subject":"workflow.x"}`)}}, nil), "self-referential"},
 		{"event on everything", graph([]Node{{ID: "s", Type: NodeTrigger, Config: json.RawMessage(`{"kind":"event","subject":">"}`)}}, nil), "too broad"},
 		{"unknown trigger kind", graph([]Node{{ID: "s", Type: NodeTrigger, Config: json.RawMessage(`{"kind":"vibes"}`)}}, nil), "trigger kind"},
+		// M800 node library.
+		{"http bad method", graph([]Node{trigger(), {ID: "a", Type: NodeHTTP, Config: json.RawMessage(`{"method":"DELETE","url":"https://x"}`)}}, nil), "GET or POST"},
+		{"http no url", graph([]Node{trigger(), {ID: "a", Type: NodeHTTP, Config: json.RawMessage(`{"method":"GET"}`)}}, nil), "url"},
+		{"code missing parts", graph([]Node{trigger(), {ID: "a", Type: NodeCode, Config: json.RawMessage(`{"language":"python"}`)}}, nil), "language and code"},
+		{"map missing template", graph([]Node{trigger(), {ID: "a", Type: NodeMap, Config: json.RawMessage(`{"items":"{{x}}"}`)}}, nil), "items and template"},
+		{"filter bad op", graph([]Node{trigger(), {ID: "a", Type: NodeFilter, Config: json.RawMessage(`{"items":"{{x}}","left":"{{item}}","op":"vibes"}`)}}, nil), "filter op"},
+		{"switch no cases", graph([]Node{trigger(), {ID: "a", Type: NodeSwitch, Config: json.RawMessage(`{"value":"{{x}}","cases":[]}`)}}, nil), "cases"},
+		{"switch reserved port", graph([]Node{trigger(), {ID: "a", Type: NodeSwitch, Config: json.RawMessage(`{"value":"{{x}}","cases":[{"equals":"a","port":"error"}]}`)}}, nil), "named"},
+		{"switch dup port", graph([]Node{trigger(), {ID: "a", Type: NodeSwitch, Config: json.RawMessage(`{"value":"{{x}}","cases":[{"equals":"a","port":"p"},{"equals":"b","port":"p"}]}`)}}, nil), "duplicate switch port"},
+		{"switch undeclared edge port", graph(
+			[]Node{trigger(),
+				{ID: "sw", Type: NodeSwitch, Config: json.RawMessage(`{"value":"{{x}}","cases":[{"equals":"a","port":"p"}]}`)},
+				toolNode("t")},
+			[]Edge{{From: "start", To: "sw"}, {From: "sw", To: "t", Port: "ghost"}}), "undeclared port"},
+		{"merge bad mode", graph([]Node{trigger(), {ID: "a", Type: NodeMerge, Config: json.RawMessage(`{"mode":"most"}`)}}, nil), "merge mode"},
+		{"approval no description", graph([]Node{trigger(), {ID: "a", Type: NodeApproval, Config: json.RawMessage(`{}`)}}, nil), "description"},
+		{"subworkflow no name", graph([]Node{trigger(), {ID: "a", Type: NodeSubflow, Config: json.RawMessage(`{}`)}}, nil), "workflow name"},
+		{"error port on non-failable", graph(
+			[]Node{trigger(), {ID: "a", Type: NodeTransform, Config: json.RawMessage(`{"template":"x"}`)}, toolNode("t")},
+			[]Edge{{From: "start", To: "a"}, {From: "a", To: "t", Port: "error"}}), "default port"},
 	}
 	for _, tc := range cases {
 		err := Validate(tc.w)

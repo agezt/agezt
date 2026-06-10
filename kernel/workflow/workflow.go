@@ -31,19 +31,39 @@ import (
 // ErrNotFound is returned for an unknown workflow id/name.
 var ErrNotFound = errors.New("workflow: not found")
 
-// Node types the M798 engine executes. The set grows by arc (http, code,
-// forEach, parallel, approval, subworkflow... — M800).
+// Node types the engine executes.
 const (
-	NodeTrigger   = "trigger"   // the single entry point (manual in M798; cron/event in M799)
+	NodeTrigger   = "trigger"   // the single entry point: manual | cron | event (M799)
 	NodeTool      = "tool"      // one governed tool call: config {tool, args}
 	NodeLLM       = "llm"       // one completion: config {prompt, system?, model?}
 	NodeCondition = "condition" // branch: config {left, op, right} → "true"/"false" ports
 	NodeTransform = "transform" // pure template: config {template} → output
 	NodeDelay     = "delay"     // wait: config {seconds}
+
+	// The M800 library.
+	NodeHTTP     = "http"        // request via the governed http tool: {method, url, headers?, body?}
+	NodeCode     = "code"        // sandboxed script: {language, code, input?} (input → stdin.txt)
+	NodeMap      = "map"         // per-item template over an array: {items, template} ({{item}}, {{index}})
+	NodeFilter   = "filter"      // keep matching items: {items, left, op, right} ({{item}} in left/right)
+	NodeSwitch   = "switch"      // multi-way branch: {value, cases:[{equals, port}]} → case ports | "default"
+	NodeMerge    = "merge"       // join branches: {mode: "all"|"any"} (all = wait for every incoming edge)
+	NodeApproval = "approval"    // HITL gate: {description, capability?} — blocks on the operator
+	NodeSubflow  = "subworkflow" // run another stored workflow: {workflow, payload?} (depth-capped)
 )
 
 // knownTypes gates validation; ordered for error messages.
-var knownTypes = []string{NodeTrigger, NodeTool, NodeLLM, NodeCondition, NodeTransform, NodeDelay}
+var knownTypes = []string{
+	NodeTrigger, NodeTool, NodeLLM, NodeCondition, NodeTransform, NodeDelay,
+	NodeHTTP, NodeCode, NodeMap, NodeFilter, NodeSwitch, NodeMerge, NodeApproval, NodeSubflow,
+}
+
+// Failable nodes may wire an "error" port: when the node fails AND such an
+// edge exists, the run survives — {{node.output.error}} carries the message
+// and the error branch runs instead of the default one.
+var failable = map[string]bool{
+	NodeTool: true, NodeLLM: true, NodeHTTP: true, NodeCode: true,
+	NodeApproval: true, NodeSubflow: true,
+}
 
 // Node is one typed step on the canvas.
 type Node struct {
@@ -149,15 +169,8 @@ func Validate(w Workflow) error {
 		if e.From == e.To {
 			return fmt.Errorf("workflow: self-edge on %q", e.From)
 		}
-		switch from.Type {
-		case NodeCondition:
-			if e.Port != "true" && e.Port != "false" {
-				return fmt.Errorf("workflow: edge from condition %q needs port \"true\" or \"false\"", e.From)
-			}
-		default:
-			if e.Port != "" {
-				return fmt.Errorf("workflow: edge from %q (%s) must use the default port", e.From, from.Type)
-			}
+		if err := validateEdgePort(from, e.Port); err != nil {
+			return err
 		}
 		if from.Type == NodeTrigger && byID[e.To].Type == NodeTrigger {
 			return errors.New("workflow: trigger cannot feed a trigger")
@@ -292,9 +305,115 @@ type DelayConfig struct {
 	Seconds float64 `json:"seconds"`
 }
 
+// HTTPConfig rides the registered `http` tool — same egress guard and
+// CapHTTPGet/Post policy as an agent's own call. URL/headers/body are
+// templated.
+type HTTPConfig struct {
+	Method      string            `json:"method"` // GET | POST
+	URL         string            `json:"url"`
+	Headers     map[string]string `json:"headers,omitempty"`
+	Body        string            `json:"body,omitempty"`
+	ContentType string            `json:"content_type,omitempty"`
+}
+
+// CodeConfig runs a script in the code-exec sandbox (the M794 runner):
+// the interpolated Input lands as ./stdin.txt, stdout becomes the output.
+type CodeConfig struct {
+	Language string `json:"language"`
+	Code     string `json:"code"`
+	Input    string `json:"input,omitempty"` // templated; default "{}"
+}
+
+// MapConfig applies Template to every element of the array at Items
+// (a {{...}}-style path); inside the template {{item}} / {{item.field}} /
+// {{index}} address the current element.
+type MapConfig struct {
+	Items    string `json:"items"`
+	Template string `json:"template"`
+}
+
+// FilterConfig keeps the elements of Items for which left/op/right holds
+// ({{item}} / {{index}} usable in left and right).
+type FilterConfig struct {
+	Items string `json:"items"`
+	Left  string `json:"left"`
+	Op    string `json:"op"`
+	Right string `json:"right,omitempty"`
+}
+
+// SwitchConfig routes by value: the first case whose Equals matches fires
+// its Port; otherwise the "default" port fires.
+type SwitchCase struct {
+	Equals string `json:"equals"`
+	Port   string `json:"port"`
+}
+
+type SwitchConfig struct {
+	Value string       `json:"value"` // templated
+	Cases []SwitchCase `json:"cases"`
+}
+
+// MergeConfig joins branches: "any" (default) runs on the first incoming
+// token; "all" waits for a token on EVERY incoming edge — if an upstream
+// branch never fires (an untaken condition path), the merge never runs.
+type MergeConfig struct {
+	Mode string `json:"mode,omitempty"`
+}
+
+// ApprovalConfig blocks the run on a human decision via the HITL approval
+// registry (`agt approvals` / channels / console). Deny or timeout fails
+// the node (wire an "error" port to branch instead).
+type ApprovalConfig struct {
+	Description string `json:"description"` // templated; what the operator reads
+	Capability  string `json:"capability,omitempty"`
+}
+
+// SubflowConfig runs another stored workflow; the interpolated Payload
+// becomes its {{trigger.payload}}. Nesting is depth-capped by the engine.
+type SubflowConfig struct {
+	Workflow string `json:"workflow"`
+	Payload  string `json:"payload,omitempty"` // templated; JSON becomes structured
+}
+
+const maxSwitchCases = 16
+
 var conditionOps = map[string]bool{
 	"equals": true, "not_equals": true, "contains": true,
 	"not_empty": true, "empty": true, "gt": true, "lt": true,
+}
+
+// validateEdgePort enforces each node type's legal output ports: condition
+// fires true/false, switch fires its declared case ports or "default",
+// failable nodes may add an "error" branch, everything else uses the
+// default port only.
+func validateEdgePort(from *Node, port string) error {
+	switch from.Type {
+	case NodeCondition:
+		if port != "true" && port != "false" {
+			return fmt.Errorf("workflow: edge from condition %q needs port \"true\" or \"false\"", from.ID)
+		}
+		return nil
+	case NodeSwitch:
+		if port == "default" {
+			return nil
+		}
+		var c SwitchConfig
+		_ = json.Unmarshal(orEmpty(from.Config), &c)
+		for _, cs := range c.Cases {
+			if cs.Port == port {
+				return nil
+			}
+		}
+		return fmt.Errorf("workflow: edge from switch %q uses undeclared port %q", from.ID, port)
+	default:
+		if port == "" {
+			return nil
+		}
+		if port == "error" && failable[from.Type] {
+			return nil
+		}
+		return fmt.Errorf("workflow: edge from %q (%s) must use the default port", from.ID, from.Type)
+	}
 }
 
 func validateNodeConfig(n *Node) error {
@@ -344,6 +463,99 @@ func validateNodeConfig(n *Node) error {
 		}
 		if c.Seconds <= 0 || c.Seconds > maxDelaySeconds {
 			return fmt.Errorf("workflow: node %s: delay seconds must be in (0, %d]", n.ID, maxDelaySeconds)
+		}
+		return nil
+	case NodeHTTP:
+		var c HTTPConfig
+		if err := json.Unmarshal(orEmpty(n.Config), &c); err != nil {
+			return fmt.Errorf("workflow: node %s: http config: %w", n.ID, err)
+		}
+		m := strings.ToUpper(strings.TrimSpace(c.Method))
+		if m != "GET" && m != "POST" {
+			return fmt.Errorf("workflow: node %s: http method must be GET or POST", n.ID)
+		}
+		if strings.TrimSpace(c.URL) == "" {
+			return fmt.Errorf("workflow: node %s: http url is required", n.ID)
+		}
+		return nil
+	case NodeCode:
+		var c CodeConfig
+		if err := json.Unmarshal(orEmpty(n.Config), &c); err != nil {
+			return fmt.Errorf("workflow: node %s: code config: %w", n.ID, err)
+		}
+		if strings.TrimSpace(c.Language) == "" || strings.TrimSpace(c.Code) == "" {
+			return fmt.Errorf("workflow: node %s: code needs language and code", n.ID)
+		}
+		return nil
+	case NodeMap:
+		var c MapConfig
+		if err := json.Unmarshal(orEmpty(n.Config), &c); err != nil {
+			return fmt.Errorf("workflow: node %s: map config: %w", n.ID, err)
+		}
+		if strings.TrimSpace(c.Items) == "" || c.Template == "" {
+			return fmt.Errorf("workflow: node %s: map needs items and template", n.ID)
+		}
+		return nil
+	case NodeFilter:
+		var c FilterConfig
+		if err := json.Unmarshal(orEmpty(n.Config), &c); err != nil {
+			return fmt.Errorf("workflow: node %s: filter config: %w", n.ID, err)
+		}
+		if strings.TrimSpace(c.Items) == "" {
+			return fmt.Errorf("workflow: node %s: filter needs items", n.ID)
+		}
+		if !conditionOps[c.Op] {
+			return fmt.Errorf("workflow: node %s: filter op %q (want equals|not_equals|contains|not_empty|empty|gt|lt)", n.ID, c.Op)
+		}
+		return nil
+	case NodeSwitch:
+		var c SwitchConfig
+		if err := json.Unmarshal(orEmpty(n.Config), &c); err != nil {
+			return fmt.Errorf("workflow: node %s: switch config: %w", n.ID, err)
+		}
+		if strings.TrimSpace(c.Value) == "" {
+			return fmt.Errorf("workflow: node %s: switch needs a value", n.ID)
+		}
+		if len(c.Cases) == 0 || len(c.Cases) > maxSwitchCases {
+			return fmt.Errorf("workflow: node %s: switch needs 1..%d cases", n.ID, maxSwitchCases)
+		}
+		seen := map[string]bool{}
+		for _, cs := range c.Cases {
+			p := strings.TrimSpace(cs.Port)
+			if p == "" || p == "default" || p == "error" {
+				return fmt.Errorf("workflow: node %s: switch case ports must be named (not empty/default/error)", n.ID)
+			}
+			if seen[p] {
+				return fmt.Errorf("workflow: node %s: duplicate switch port %q", n.ID, p)
+			}
+			seen[p] = true
+		}
+		return nil
+	case NodeMerge:
+		var c MergeConfig
+		if err := json.Unmarshal(orEmpty(n.Config), &c); err != nil {
+			return fmt.Errorf("workflow: node %s: merge config: %w", n.ID, err)
+		}
+		if c.Mode != "" && c.Mode != "all" && c.Mode != "any" {
+			return fmt.Errorf("workflow: node %s: merge mode must be \"all\" or \"any\"", n.ID)
+		}
+		return nil
+	case NodeApproval:
+		var c ApprovalConfig
+		if err := json.Unmarshal(orEmpty(n.Config), &c); err != nil {
+			return fmt.Errorf("workflow: node %s: approval config: %w", n.ID, err)
+		}
+		if strings.TrimSpace(c.Description) == "" {
+			return fmt.Errorf("workflow: node %s: approval needs a description (what the operator reads)", n.ID)
+		}
+		return nil
+	case NodeSubflow:
+		var c SubflowConfig
+		if err := json.Unmarshal(orEmpty(n.Config), &c); err != nil {
+			return fmt.Errorf("workflow: node %s: subworkflow config: %w", n.ID, err)
+		}
+		if strings.TrimSpace(c.Workflow) == "" {
+			return fmt.Errorf("workflow: node %s: subworkflow needs a workflow name", n.ID)
 		}
 		return nil
 	default:

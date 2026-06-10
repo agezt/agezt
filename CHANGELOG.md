@@ -12,6 +12,20 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **The workflow node library — branch, loop, join, gate, nest, and survive failures.** Eight new
+  node types make workflows genuinely n8n-class: **http** (rides the governed http tool — host
+  allowlist and GET/POST policy included), **code** (a script in the code-exec sandbox, input via
+  \`stdin.txt\`), **map** and **filter** (per-item \`{{item}}\`/\`{{index}}\` templates over arrays),
+  **switch** (multi-way branching on declared ports + \`default\`), **merge** (join branches —
+  \`any\` runs on the first arrival, \`all\` waits for every incoming edge), **approval** (a human
+  gate: the run blocks on the HITL registry until the operator grants or denies), and
+  **subworkflow** (run another stored workflow with its own payload; nesting depth-capped so a
+  self-recursive graph is refused, not run forever). And the **error port**: failable nodes may
+  wire an \`error\` branch — on failure the run survives, \`{{node.output.error}}\` carries the
+  message, and the error path runs instead of the happy path. Verified end-to-end in an isolated
+  daemon: a 10-node triage pipeline filtered severities, mapped titles, switched to the right team,
+  merged both branches, then a deliberately broken python node failed in the real sandbox and the
+  error port rescued the run. (M800)
 - **Workflows now start themselves — cron and event triggers.** A workflow's trigger node takes a
   `kind`: **manual** (run-on-demand, the default), **cron** (`interval_sec` or a daily `HH:MM`), or
   **event** (a journal-subject glob like `task.failed`, `board.dm.*`, or `memory.>`) — the matched
