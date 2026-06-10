@@ -586,12 +586,33 @@ func cmdRun(args []string, stdout, stderr io.Writer) int {
 	// bus.PublishStreaming). Render those inline so the operator sees
 	// progress instead of a frozen prompt. Every other event keeps
 	// the existing `[evt seq=...]` summary line.
-	inStream := false
+	// Stream renderer state. The answer tokens (KindLLMToken) stream inline; a
+	// reasoning model's chain-of-thought (KindLLMReasoning) is HIDDEN by default —
+	// it's high-rate ephemeral noise (the "[evt seq=0 kind=llm.reasoning]" flood)
+	// that the operator rarely wants — and shown, demarcated with 💭, only when
+	// AGEZT_SHOW_REASONING=1. streamMode tracks which inline stream is open so we
+	// emit a clean newline when switching between thinking, answer, and the
+	// per-event summary lines.
+	showReasoning := os.Getenv(brand.EnvPrefix+"SHOW_REASONING") == "1"
+	streamMode := "" // "", "answer", "reason"
 	closeStream := func() {
-		if inStream {
+		if streamMode != "" {
 			fmt.Fprintln(stdout)
-			inStream = false
+			streamMode = ""
 		}
+	}
+	streamText := func(mode, prefix, text string) {
+		if text == "" {
+			return
+		}
+		if streamMode != mode {
+			if streamMode != "" {
+				fmt.Fprintln(stdout)
+			}
+			fmt.Fprint(stdout, prefix)
+			streamMode = mode
+		}
+		fmt.Fprint(stdout, text)
 	}
 	// --quiet (M156): suppress the live token stream + per-event lines + the
 	// usage/correlation footer, printing ONLY the final answer — so scripts can
@@ -600,18 +621,23 @@ func cmdRun(args []string, stdout, stderr io.Writer) int {
 		if quiet {
 			return
 		}
-		if ev.Kind == event.KindLLMToken {
+		switch ev.Kind {
+		case event.KindLLMToken:
 			var p struct {
 				Text string `json:"text"`
 			}
 			_ = json.Unmarshal(ev.Payload, &p)
-			if p.Text != "" {
-				if !inStream {
-					fmt.Fprint(stdout, "  ")
-					inStream = true
-				}
-				fmt.Fprint(stdout, p.Text)
+			streamText("answer", "  ", p.Text)
+			return
+		case event.KindLLMReasoning:
+			if !showReasoning {
+				return // ephemeral thinking; opt in with AGEZT_SHOW_REASONING=1
 			}
+			var p struct {
+				Text string `json:"text"`
+			}
+			_ = json.Unmarshal(ev.Payload, &p)
+			streamText("reason", "  💭 ", p.Text)
 			return
 		}
 		closeStream()
@@ -1090,6 +1116,13 @@ func runPlanJSON(planJSON string, stdout, stderr io.Writer) int {
 	result, err := c.Stream(ctx, controlplane.CmdPlan,
 		map[string]any{"plan_json": planJSON},
 		func(ev *event.Event) {
+			// Skip the high-rate ephemeral token/reasoning chunks — with concurrent
+			// plan nodes they interleave into an unreadable "[evt seq=0]" flood. The
+			// structural events (node transitions, tool calls) and the per-node
+			// outputs at the end carry the signal.
+			if ev.Kind == event.KindLLMToken || ev.Kind == event.KindLLMReasoning {
+				return
+			}
 			fmt.Fprintf(stdout, "  [evt seq=%d kind=%s subject=%s]\n", ev.Seq, ev.Kind, ev.Subject)
 		})
 	if err != nil {
