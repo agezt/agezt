@@ -170,6 +170,9 @@ var readArgsRoutes = map[string]writeRoute{
 	// A standing order's life story (M746): every standing.* journal event for it —
 	// created, paused/resumed, each firing, removed. Read-only provenance.
 	"/api/standing/why": {controlplane.CmdStandingWhy, []string{"id"}},
+	// One script tool's full record incl. the code body (M795) — the list route
+	// deliberately strips code; the Forge view's editor fetches it here. Read-only.
+	"/api/toolforge/show": {controlplane.CmdToolforgeShow, []string{"ref"}},
 	// Dry-run a policy decision (M753): "if the agent asked to do <capability> with
 	// <input>, would the edict engine allow / ask / deny it, and via which rule?".
 	// Read-only — eng.Decide mutates nothing.

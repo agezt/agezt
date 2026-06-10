@@ -12,6 +12,18 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Tool Forge console view.** The script-tool forge (M794) gets its operator surface in the web
+  UI — a *Tool Forge* view under Agents: draft a script in the browser (language, description, the
+  code editor states the `stdin.txt` contract inline, optional input schema), **run a sandbox test
+  straight from the row** (sample JSON input → PASS/FAIL badge + the run's raw output), and
+  **promote with one click** — the button stays disabled until a test of the current code passed,
+  because only tested code goes live. Quarantine (kill switch) and remove sit behind confirm
+  dialogs; the editor fetches the full record on demand (the list never carries code bodies — a new
+  read-only `/api/toolforge/show` route serves the editor) and warns that a code change demotes the
+  tool back to draft. 8 new vitest (465 total); browser-verified end-to-end against an isolated
+  daemon with the real Python sandbox: draft → test PASS ("hello ersin") → promote →
+  `forge_greet` live → quarantine, with the CLI and journal confirming every step and zero console
+  errors. (M795)
 - **The agent can now build its own tools — the script-tool forge.** Code an agent (or operator)
   writes can be promoted into a **durable, callable tool**: draft a named script (Python/Node/Deno)
   with the new `tool_forge` tool, **test it in the code_exec sandbox** (the call's JSON input
