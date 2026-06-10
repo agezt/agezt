@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { classifyAlert, isAlert, LEVEL_ORDER, attentionAlertCount } from "@/lib/alerts";
+import { classifyAlert, isAlert, LEVEL_ORDER, attentionAlertCount, recentAttentionAlerts } from "@/lib/alerts";
 import type { AgentEvent } from "@/lib/events";
 
 function ev(kind: string, payload: any = {}): AgentEvent {
@@ -75,5 +75,29 @@ describe("attentionAlertCount (M779)", () => {
     ];
     expect(attentionAlertCount(events)).toBe(3);
     expect(attentionAlertCount([])).toBe(0);
+  });
+});
+
+describe("recentAttentionAlerts (M780)", () => {
+  it("returns warning/critical alerts newest-first, deduped, capped, with title+detail", () => {
+    const mk = (id: string, kind: string, ts: number, payload: any = {}) => ({ ...ev(kind, payload), id, ts_unix_ms: ts });
+    const events = [
+      mk("a", "task.failed", 30, { reason: "boom" }),
+      mk("b", "budget.exceeded", 40),
+      mk("a", "task.failed", 30, { reason: "boom" }), // dup id → ignored
+      mk("c", "capability.rejected", 50, { capability: "shell" }), // info → excluded
+      mk("d", "tool.result", 60), // not an alert
+      mk("e", "netguard.blocked", 20, { ip: "1.2.3.4" }),
+    ];
+    const out = recentAttentionAlerts(events, 5);
+    expect(out.map((r) => r.id)).toEqual(["b", "a", "e"]); // ts 40,30,20; info+dup+non-alert dropped
+    expect(out[0].title).toBe("budget ceiling exceeded");
+    expect(out[1].detail).toBe("boom");
+  });
+
+  it("respects the limit", () => {
+    const mk = (id: string, ts: number) => ({ ...ev("task.failed", {}), id, ts_unix_ms: ts });
+    const out = recentAttentionAlerts([mk("a", 1), mk("b", 2), mk("c", 3)], 2);
+    expect(out.map((r) => r.id)).toEqual(["c", "b"]);
   });
 });

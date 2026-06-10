@@ -12,6 +12,19 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **The cockpit tells you what's wrong, not just that something is.** The Overview (Cockpit) — the
+  landing screen — now leads with a **Needs attention** strip when the agent has raised any
+  warning/critical alert: the most recent few (run failures, blocked egress, budget/rate trips, halts)
+  with their title, detail, source, and time, each marked by severity. It complements the nav badge
+  (M779): the badge says *something* needs attention from anywhere, this says *what* on the first screen
+  you see. Hidden entirely when all is well. Pulls a recent journal slice and classifies it with a
+  shared, tested `recentAttentionAlerts` helper (warning/critical only, deduped, newest-first, capped) —
+  the same rules as the Alerts view; no backend change, and it survives reloads (unlike the live-only
+  badge). Unit-tested (`recentAttentionAlerts` returns warning/critical alerts newest-first with
+  title+detail, dedupes by id, drops info-level and non-alert events, and respects the limit). Verified
+  live on an isolated daemon end-to-end: the strip was absent when quiet, then after tripping a real
+  `budget.exceeded` + `task.failed` (budget ceiling set below a run's cost) it appeared on the Cockpit
+  showing "budget ceiling exceeded" and "run failed"; 0 console errors. (M780)
 - **A live alert badge on the nav — know something's wrong from anywhere.** The **Alerts** nav item now
   carries a small red count badge whenever the agent raises a warning- or critical-level alert (a run
   failure, blocked egress, a budget/rate trip, a daemon halt) — so you find out the moment it happens,

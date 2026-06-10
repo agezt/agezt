@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import { Activity, RefreshCw, Cpu, Wallet, ListTree, Network, Radio, CalendarClock, Gauge } from "lucide-react";
+import { Activity, RefreshCw, Cpu, Wallet, ListTree, Network, Radio, CalendarClock, Gauge, ShieldAlert, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { money } from "@/lib/format";
 import { getJSON } from "@/lib/api";
-import { useEvents } from "@/lib/events";
+import { useEvents, type AgentEvent } from "@/lib/events";
+import { recentAttentionAlerts, type RankedAlert } from "@/lib/alerts";
 import { Button } from "@/components/ui/button";
 import { fmtTime } from "@/lib/utils";
 import { Ring, Sparkline, BarRow } from "@/components/Widgets";
@@ -37,18 +38,21 @@ export function Dashboard() {
   const [budget, setBudget] = useState<Budget | null>(null);
   const [status, setStatus] = useState<Record<string, any> | null>(null);
   const [series, setSeries] = useState<number[]>([]);
+  const [alerts, setAlerts] = useState<RankedAlert[]>([]);
   const [loading, setLoading] = useState(false);
   const lastHead = useRef<number | null>(null);
 
   async function refresh() {
     setLoading(true);
-    const [s, b, st] = await Promise.allSettled([
+    const [s, b, st, j] = await Promise.allSettled([
       getJSON<Stats>("/api/stats"),
       getJSON<Budget>("/api/budget"),
       getJSON<Record<string, any>>("/api/status"),
+      getJSON<{ events?: AgentEvent[] }>("/api/journal", { limit: "300" }),
     ]);
     if (s.status === "fulfilled") setStats(s.value);
     if (b.status === "fulfilled") setBudget(b.value);
+    if (j.status === "fulfilled") setAlerts(recentAttentionAlerts(j.value.events || [], 4));
     if (st.status === "fulfilled") {
       setStatus(st.value);
       // Activity rate = growth of the journal head between samples (events/tick).
@@ -98,6 +102,32 @@ export function Dashboard() {
           <RefreshCw className={cn("size-3.5", loading && "animate-spin")} /> Refresh
         </Button>
       </div>
+
+      {/* Needs attention (M780): the most recent warning/critical alerts surfaced on the
+          landing cockpit, so the first screen tells you WHAT the agent flagged — not just
+          that something happened (the nav badge). Hidden when all is well. */}
+      {alerts.length > 0 && (
+        <div className="rounded-lg border border-bad/40 bg-bad/5 p-3">
+          <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-bad">
+            <ShieldAlert className="size-3.5" /> Needs attention ({alerts.length})
+          </div>
+          <ul className="space-y-1">
+            {alerts.map((a) => (
+              <li key={a.id} className="flex items-center gap-2 text-xs">
+                {a.level === "critical" ? (
+                  <ShieldAlert className="size-3.5 shrink-0 text-bad" />
+                ) : (
+                  <AlertTriangle className="size-3.5 shrink-0 text-warn" />
+                )}
+                <span className="shrink-0 font-medium text-foreground">{a.title}</span>
+                {a.detail && <span className="min-w-0 flex-1 truncate text-muted">{a.detail}</span>}
+                <span className="ml-auto shrink-0 font-mono text-[10px] text-muted">{a.source}</span>
+                {a.tsMs ? <span className="w-12 shrink-0 text-right tabular-nums text-muted">{fmtTime(a.tsMs)}</span> : null}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {/* Gauges + live activity */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
