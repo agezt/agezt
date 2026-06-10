@@ -4158,25 +4158,34 @@ func buildTools(baseDir string, stderr io.Writer, ward warden.Engine) (map[strin
 	out["config"] = configtool.New(baseDir)
 	registered = append(registered, "config()")
 
-	// http — default-deny; allowed hosts via $AGEZT_HTTP_ALLOWED_HOSTS
-	// (comma-separated). $AGEZT_HTTP_ALLOW_ALL=1 bypasses (DANGEROUS).
+	// http — default-ALLOW (M818, owner law: every capability open unless you opt
+	// out). Any PUBLIC host is reachable out of the box; the opt-OUT is a non-empty
+	// $AGEZT_HTTP_ALLOWED_HOSTS (comma-separated), which RESTRICTS the tool to just
+	// those hosts. The SSRF egress guard (loopback / private / cloud-metadata
+	// refused) is the hard floor and stays on regardless — relaxed only by the
+	// explicit AGEZT_HTTP_ALLOW_* flags below. So "open" means the public internet,
+	// not a pivot into co-located admin surfaces.
 	ht := httptool.New()
-	if hostsCSV := os.Getenv(brand.EnvPrefix + "HTTP_ALLOWED_HOSTS"); hostsCSV != "" {
+	httpRestricted := false
+	if hostsCSV := os.Getenv(brand.EnvPrefix + "HTTP_ALLOWED_HOSTS"); strings.TrimSpace(hostsCSV) != "" {
 		for h := range strings.SplitSeq(hostsCSV, ",") {
 			if h = strings.TrimSpace(h); h != "" {
 				ht.AllowedHosts = append(ht.AllowedHosts, h)
 			}
 		}
+		httpRestricted = len(ht.AllowedHosts) > 0
+	}
+	if !httpRestricted {
+		ht.AllowAll = true // default-allow: no allowlist pinned ⇒ any public host
 	}
 	// Master permissive switch (M611): AGEZT_ALLOW_ALL=1 implies the full open
 	// posture for the network tools too — any host, including loopback and the
-	// private network — so "everything allowed" really means everything.
+	// private network — so "everything allowed" really means everything. It also
+	// overrides a pinned allowlist back to open.
 	allowAll := os.Getenv(brand.EnvPrefix+"ALLOW_ALL") == "1"
 	if allowAll || os.Getenv(brand.EnvPrefix+"HTTP_ALLOW_ALL") == "1" {
 		ht.AllowAll = true
-		if !allowAll {
-			fmt.Fprintln(stderr, "WARNING: AGEZT_HTTP_ALLOW_ALL=1 disables the http host allowlist.")
-		}
+		httpRestricted = false
 	}
 	// Egress guard (M16): by default the http tool refuses internal/metadata
 	// addresses even for allowlisted/AllowAll hosts. Relax per range for local use.
@@ -4195,28 +4204,33 @@ func buildTools(baseDir string, stderr io.Writer, ward warden.Engine) (map[strin
 		fmt.Fprintln(stderr, "WARNING: AGEZT_HTTP_ALLOW_PRIVATE=1 lets the http tool reach the private network.")
 	}
 	out["http"] = ht
-	if ht.AllowAll {
-		registered = append(registered, fmt.Sprintf("http(allow_all=true, egress=%s)", egress))
-	} else {
+	if httpRestricted {
 		registered = append(registered, fmt.Sprintf("http(hosts=%d, egress=%s)", len(ht.AllowedHosts), egress))
+	} else {
+		registered = append(registered, fmt.Sprintf("http(any host, egress=%s)", egress))
 	}
 
 	// browser.read — same allowlist pattern as http (uses AGEZT_BROWSER_*
 	// env vars; deliberately separate from http's allowlist so operators
 	// can grant browser-read access to a wider domain set than POSTs).
+	// Same default-ALLOW posture as http (M818): any public host out of the box;
+	// a non-empty AGEZT_BROWSER_ALLOWED_HOSTS is the opt-OUT that restricts it.
 	br := browser.New()
-	if hostsCSV := os.Getenv(brand.EnvPrefix + "BROWSER_ALLOWED_HOSTS"); hostsCSV != "" {
+	browserRestricted := false
+	if hostsCSV := os.Getenv(brand.EnvPrefix + "BROWSER_ALLOWED_HOSTS"); strings.TrimSpace(hostsCSV) != "" {
 		for h := range strings.SplitSeq(hostsCSV, ",") {
 			if h = strings.TrimSpace(h); h != "" {
 				br.AllowedHosts = append(br.AllowedHosts, h)
 			}
 		}
+		browserRestricted = len(br.AllowedHosts) > 0
+	}
+	if !browserRestricted {
+		br.AllowAll = true // default-allow
 	}
 	if allowAll || os.Getenv(brand.EnvPrefix+"BROWSER_ALLOW_ALL") == "1" {
 		br.AllowAll = true
-		if !allowAll {
-			fmt.Fprintln(stderr, "WARNING: AGEZT_BROWSER_ALLOW_ALL=1 disables the browser host allowlist.")
-		}
+		browserRestricted = false
 	}
 	// Egress guard (M16): browser.read refuses internal/metadata addresses by
 	// default, even for allowlisted/AllowAll hosts. Relax per range for local use.
@@ -4236,10 +4250,10 @@ func buildTools(baseDir string, stderr io.Writer, ward warden.Engine) (map[strin
 		}
 	}
 	out["browser.read"] = br
-	if br.AllowAll {
-		registered = append(registered, "browser.read(allow_all=true)")
-	} else {
+	if browserRestricted {
 		registered = append(registered, fmt.Sprintf("browser.read(hosts=%d)", len(br.AllowedHosts)))
+	} else {
+		registered = append(registered, "browser.read(any host)")
 	}
 
 	// web_search — keyword search against a public engine, returning result
