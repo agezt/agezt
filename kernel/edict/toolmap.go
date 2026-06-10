@@ -88,6 +88,20 @@ func CapabilityForToolCall(toolName string, input json.RawMessage) Capability {
 		// self-install axis — the high-risk default, so a garbled call lands
 		// on the gated capability rather than silently flowing.
 		return CapMCPInstall
+	case "workflow":
+		var p struct {
+			Op string `json:"op"`
+		}
+		_ = json.Unmarshal(input, &p)
+		switch strings.ToLower(strings.TrimSpace(p.Op)) {
+		case "list", "show":
+			// Reading the workflow library is the introspection axis.
+			return CapIntrospect
+		}
+		// save/run/enable (and anything unrecognised) installs or fires
+		// automation — the gated default, so a garbled call lands on the
+		// capability rather than silently flowing.
+		return CapWorkflow
 	case "introspect":
 		return CapIntrospect
 	case "code_exec":

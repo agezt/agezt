@@ -15,7 +15,7 @@ vi.mock("@/lib/events", () => ({
   useEvents: () => ({ events: [], connected: true, subscribe: () => () => {} }),
 }));
 
-import { Workflows, toFlow, fromFlow, portsForNode, summarize, type Wf } from "@/views/Workflows";
+import { Workflows, CopilotPanel, toFlow, fromFlow, portsForNode, summarize, type Wf } from "@/views/Workflows";
 import { UIProvider } from "@/components/ui/feedback";
 
 const withUI = (node: ReactNode) => <UIProvider>{node}</UIProvider>;
@@ -133,5 +133,56 @@ describe("Workflows list", () => {
     getJSON.mockResolvedValue({ workflows: [], count: 0 });
     render(withUI(<Workflows />));
     await waitFor(() => expect(screen.getByText("No workflows yet")).toBeTruthy());
+  });
+});
+
+describe("CopilotPanel", () => {
+  it("posts the description and hands the drafted graph back", async () => {
+    const drafted: Wf = {
+      name: "status-check",
+      description: "drafted",
+      nodes: [
+        { id: "start", type: "trigger", config: { kind: "cron", daily_at: "09:00" } },
+        { id: "fetch", type: "http", config: { method: "GET", url: "https://x" } },
+      ],
+      edges: [{ from: "start", to: "fetch" }],
+    };
+    postJSON.mockResolvedValue({ workflow: drafted });
+    const onDraft = vi.fn();
+    const onError = vi.fn();
+    render(withUI(<CopilotPanel name="status-check" onDraft={onDraft} onError={onError} />));
+    fireEvent.change(screen.getByLabelText("Copilot description"), {
+      target: { value: "check the status page every morning" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Draft with copilot" }));
+    await waitFor(() =>
+      expect(postJSON).toHaveBeenCalledWith("/api/workflows/draft", {
+        description: "check the status page every morning",
+        name: "status-check",
+      }),
+    );
+    await waitFor(() => expect(onDraft).toHaveBeenCalledWith(drafted));
+    expect(onError).not.toHaveBeenCalled();
+  });
+
+  it("refuses an empty description without calling the daemon", () => {
+    const onDraft = vi.fn();
+    const onError = vi.fn();
+    render(withUI(<CopilotPanel name="x" onDraft={onDraft} onError={onError} />));
+    fireEvent.click(screen.getByRole("button", { name: "Draft with copilot" }));
+    expect(postJSON).not.toHaveBeenCalled();
+    expect(onError).toHaveBeenCalledWith("describe the workflow first");
+    expect(onDraft).not.toHaveBeenCalled();
+  });
+
+  it("surfaces a copilot failure as an error, not a draft", async () => {
+    postJSON.mockRejectedValue(new Error("workflow draft: the graph has a cycle"));
+    const onDraft = vi.fn();
+    const onError = vi.fn();
+    render(withUI(<CopilotPanel name="x" onDraft={onDraft} onError={onError} />));
+    fireEvent.change(screen.getByLabelText("Copilot description"), { target: { value: "do a thing" } });
+    fireEvent.click(screen.getByRole("button", { name: "Draft with copilot" }));
+    await waitFor(() => expect(onError).toHaveBeenCalledWith("workflow draft: the graph has a cycle"));
+    expect(onDraft).not.toHaveBeenCalled();
   });
 });

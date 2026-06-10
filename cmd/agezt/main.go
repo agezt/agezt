@@ -107,6 +107,7 @@ import (
 	skilltool "github.com/agezt/agezt/plugins/tools/skilltool"
 	standingtool "github.com/agezt/agezt/plugins/tools/standingtool"
 	"github.com/agezt/agezt/plugins/tools/websearch"
+	"github.com/agezt/agezt/plugins/tools/workflowtool"
 )
 
 func main() {
@@ -357,6 +358,13 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// by default). Registered now, Bound to the live kernel after it opens.
 	mcpToolInst := mcptool.New()
 	tools["mcp"] = mcpToolInst
+
+	// Workflow tool (`workflow`, M802): the agent authors and runs durable
+	// workflows in the SAME store the console canvas edits (Edict
+	// workflow.manage, AskFirst by default; tool nodes inside a run re-gate
+	// per call). Registered now, Bound to the live kernel after it opens.
+	workflowToolInst := workflowtool.New()
+	tools["workflow"] = workflowToolInst
 
 	// OnReload is invoked by the control plane's `provider_reload`
 	// command (and `agt provider reload`). It re-reads the vault,
@@ -1257,6 +1265,11 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// Going live still takes an operator promote (`agt toolforge promote`).
 	forgeToolInst.Bind(k)
 	fmt.Fprintf(stdout, "  tool_forge tool  : enabled (the agent can build its own tools; operator promotes)\n")
+
+	// Bind the workflow tool (M802): agents author/run workflows themselves;
+	// everything lands in the journaled workflow.* lifecycle the operator sees.
+	workflowToolInst.Bind(k)
+	fmt.Fprintf(stdout, "  workflow tool    : enabled (the agent can author & run workflows)\n")
 
 	// Bind the MCP self-install tool (M796) and auto-attach every ENABLED
 	// registered server. Per-server failures are reported, never fatal — one

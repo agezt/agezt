@@ -310,6 +310,9 @@ const (
 	KindWorkflowNode      Kind = "workflow.node" // one node executed (ok/error, fired port)
 	KindWorkflowCompleted Kind = "workflow.completed"
 	KindWorkflowFailed    Kind = "workflow.failed"
+	// KindWorkflowDrafted (M802): the copilot turned a plain-language
+	// description into a validated (but UNSAVED) workflow graph.
+	KindWorkflowDrafted Kind = "workflow.drafted"
 )
 
 // IsKnown reports whether k is one of the kinds defined in this file. Useful
@@ -436,4 +439,5 @@ var knownKinds = map[Kind]struct{}{
 	KindWorkflowNode:              {},
 	KindWorkflowCompleted:         {},
 	KindWorkflowFailed:            {},
+	KindWorkflowDrafted:           {},
 }

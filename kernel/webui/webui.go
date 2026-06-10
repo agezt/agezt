@@ -321,6 +321,9 @@ var jsonRoutes = map[string]writeRoute{
 	// are structured objects — JSON bodies, not query args.
 	"/api/workflows/save": {controlplane.CmdWorkflowSave, []string{"workflow"}},
 	"/api/workflows/run":  {controlplane.CmdWorkflowRun, []string{"ref", "payload"}},
+	// Copilot draft (M802): description in, validated UNSAVED graph out —
+	// the canvas reviews and saves explicitly.
+	"/api/workflows/draft": {controlplane.CmdWorkflowDraft, []string{"description", "name"}},
 	// Create a schedule (M715): intent + a timing mode. Numeric timing args (e.g.
 	// interval_sec, at_minutes, once_at_unix) ride the JSON body so they keep their
 	// types — a query arg would stringify them.

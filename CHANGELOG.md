@@ -12,6 +12,21 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **The workflow copilot — describe it, see it on the canvas — and agents that author workflows.**
+  Tell the copilot what you want in plain language and it designs a validated workflow graph:
+  the daemon's provider sees the full node-type contract, the kernel extracts strict JSON,
+  auto-lays-out the canvas, and runs the exact validation the save path uses (one repair
+  round-trip on a rejected draft — the model sees its own error). Drafts are returned
+  **unsaved** and journaled (`workflow.drafted`) — the copilot can never silently install
+  automation. Surfaces: the **Copilot panel** on the console canvas ("Draft onto canvas"),
+  `agt workflow draft "DESC" [--save]`, and `workflow_draft` over the control plane. And the
+  new **`workflow` agent tool** (save/run/enable/list/show): agents author durable workflows
+  into the same store the canvas edits, gated by the new `workflow.manage` capability
+  (ask-first) — agent-created workflows arrive **disabled** (arming is its own gated step),
+  and every tool node inside a run still passes the regular policy gate, so a workflow can't
+  launder a forbidden call. Verified against a real provider end-to-end: the copilot designed
+  branching graphs from Turkish plain-language asks, and a real agent built, ran, and reported
+  on its own workflow. (M802)
 - **The workflow canvas — build and run workflows visually.** New **Workflows** view in the
   console (Automation group): a list of every stored workflow with trigger chips and
   enable/disable, and a full React Flow canvas editor — node palette for all 14 node types,

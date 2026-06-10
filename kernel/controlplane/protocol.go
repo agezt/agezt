@@ -916,6 +916,9 @@ const (
 	CmdWorkflowRemove     = "workflow_remove"
 	CmdWorkflowSetEnabled = "workflow_set_enabled"
 	CmdWorkflowRun        = "workflow_run"
+	// Draft (M802): args{description, name?} — the copilot designs a
+	// validated workflow from plain language; returned UNSAVED for review.
+	CmdWorkflowDraft = "workflow_draft"
 
 	// Sandbox projects (M686) — read-only inspection of what agents BUILT with the
 	// code_exec tool under <baseDir>/sandbox/projects. List: no args, returns each

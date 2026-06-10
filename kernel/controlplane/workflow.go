@@ -148,6 +148,33 @@ func (s *Server) handleWorkflowSetEnabled(conn net.Conn, req Request) {
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"workflow": workflowView(w, false)}})
 }
 
+// workflowDraftTimeout bounds one copilot draft — up to two provider
+// round-trips (the draft and one repair).
+const workflowDraftTimeout = 3 * time.Minute
+
+func (s *Server) handleWorkflowDraft(conn net.Conn, req Request) {
+	desc, _ := req.Args["description"].(string)
+	if strings.TrimSpace(desc) == "" {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.description required"})
+		return
+	}
+	name, _ := req.Args["name"].(string)
+	corr := s.k.NewCorrelation()
+	ctx, cancel := context.WithTimeout(context.Background(), workflowDraftTimeout)
+	defer cancel()
+	w, err := s.k.DraftWorkflow(ctx, corr, name, desc)
+	if err != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		return
+	}
+	// The draft is NOT saved — the caller (canvas, CLI) reviews and saves.
+	s.writeResp(conn, Response{
+		ID:     req.ID,
+		Type:   RespResult,
+		Result: map[string]any{"workflow": workflowView(w, true), "correlation_id": corr},
+	})
+}
+
 func (s *Server) handleWorkflowRun(conn net.Conn, req Request) {
 	ref, _ := req.Args["ref"].(string)
 	if strings.TrimSpace(ref) == "" {

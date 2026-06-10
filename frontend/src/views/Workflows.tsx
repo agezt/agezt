@@ -25,6 +25,7 @@ import {
   ArrowLeft,
   Power,
   PowerOff,
+  Sparkles,
 } from "lucide-react";
 import { getJSON, postAction, postJSON } from "@/lib/api";
 import { cn, clip } from "@/lib/utils";
@@ -451,6 +452,62 @@ function freshID(type: string, taken: Set<string>): string {
   }
 }
 
+// ---- copilot ------------------------------------------------------------------
+
+// CopilotPanel (M802): describe the workflow in plain language; the daemon's
+// copilot designs a validated graph and we hand it back UNSAVED — the canvas
+// shows it for review, Save persists it. Exported for tests.
+export function CopilotPanel({
+  name,
+  onDraft,
+  onError,
+}: {
+  name: string;
+  onDraft: (wf: Wf) => void;
+  onError: (msg: string) => void;
+}) {
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function draft() {
+    const description = text.trim();
+    if (!description) {
+      onError("describe the workflow first");
+      return;
+    }
+    setBusy(true);
+    try {
+      const res = await postJSON<{ workflow?: Wf }>("/api/workflows/draft", { description, name });
+      if (!res.workflow) throw new Error("the copilot returned no workflow");
+      onDraft(res.workflow);
+    } catch (e) {
+      onError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="flex items-end gap-2 rounded-lg border border-accent/30 bg-card p-2">
+      <label className="flex flex-1 flex-col gap-1 text-[11px] text-muted">
+        Copilot — describe what this workflow should do; the draft replaces the canvas (unsaved until you Save)
+        <textarea
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder="e.g. every morning at 09:00 fetch https://example.com/status, and if it doesn't contain OK, ask me for approval and then notify the team"
+          aria-label="Copilot description"
+          rows={2}
+          className={inputCls}
+        />
+      </label>
+      <Button size="sm" onClick={draft} disabled={busy} aria-label="Draft with copilot">
+        <Sparkles className={cn("h-3.5 w-3.5", busy && "animate-pulse")} />
+        {busy ? "Drafting…" : "Draft onto canvas"}
+      </Button>
+    </div>
+  );
+}
+
 export function Workflows() {
   const ui = useUI();
   const { subscribe } = useEvents();
@@ -466,6 +523,7 @@ export function Workflows() {
   const [edges, setEdges, onEdgesChange] = useEdgesState<RFEdge>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
+  const [copilotOpen, setCopilotOpen] = useState(false);
   const [nodeStatus, setNodeStatus] = useState<Record<string, string>>({});
   const editingName = useRef<string | null>(null);
   editingName.current = editing?.name ?? null;
@@ -632,6 +690,14 @@ export function Workflows() {
             {nodes.length} node(s) · {edges.length} edge(s)
           </span>
           <span className="ml-auto flex items-center gap-1.5">
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => setCopilotOpen((v) => !v)}
+              aria-label="Toggle copilot"
+            >
+              <Sparkles className="h-3.5 w-3.5" /> Copilot
+            </Button>
             <Button size="sm" variant="ghost" onClick={saveGraph} aria-label="Save workflow">
               <Save className="h-3.5 w-3.5" /> Save
             </Button>
@@ -641,6 +707,24 @@ export function Workflows() {
             </Button>
           </span>
         </div>
+        {copilotOpen && (
+          <CopilotPanel
+            name={editing.name}
+            onDraft={(wf) => {
+              const { nodes: ns, edges: es } = toFlow(wf);
+              setNodes(ns);
+              setEdges(es);
+              setSelected(null);
+              setNodeStatus({});
+              setEditing((cur) => (cur ? { ...cur, description: wf.description || cur.description } : cur));
+              ui.toast(
+                `copilot drafted ${wf.nodes?.length ?? 0} node(s) — review the canvas, then Save`,
+                "success",
+              );
+            }}
+            onError={(msg) => ui.toast(msg, "error")}
+          />
+        )}
         <div className="flex min-h-0 flex-1 rounded-lg border border-border">
           <div className="flex w-36 shrink-0 flex-col gap-1 overflow-y-auto border-r border-border bg-card p-2">
             <div className="mb-1 text-[10px] font-semibold tracking-wide text-muted uppercase">Nodes</div>

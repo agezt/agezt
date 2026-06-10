@@ -33,6 +33,8 @@ func cmdWorkflow(args []string, stdout, stderr io.Writer) int {
 		return cmdWorkflowSave(args[1:], stdout, stderr)
 	case "run":
 		return cmdWorkflowRun(args[1:], stdout, stderr)
+	case "draft":
+		return cmdWorkflowDraft(args[1:], stdout, stderr)
 	case "enable":
 		return cmdWorkflowSetEnabled(args[1:], stdout, stderr, true)
 	case "disable":
@@ -48,10 +50,11 @@ func cmdWorkflow(args []string, stdout, stderr io.Writer) int {
 }
 
 func workflowUsage(w io.Writer) int {
-	fmt.Fprintf(w, "usage: %s workflow <list|show|save|run|enable|disable|remove>\n", brand.CLI)
+	fmt.Fprintf(w, "usage: %s workflow <list|show|save|draft|run|enable|disable|remove>\n", brand.CLI)
 	fmt.Fprintf(w, "  list [--json]                      all workflows (name, nodes, enabled)\n")
 	fmt.Fprintf(w, "  show <name|id> [--json]            one workflow's full graph\n")
 	fmt.Fprintf(w, "  save --file GRAPH.json             create or update (upsert by name) a workflow\n")
+	fmt.Fprintf(w, "  draft \"DESCRIPTION\" [--name N] [--save]  copilot designs a graph from plain language\n")
 	fmt.Fprintf(w, "  run <name|id> [--payload JSON]     execute now; payload lands in {{trigger.payload}}\n")
 	fmt.Fprintf(w, "  enable|disable <name|id>           arm/disarm its triggers (M799)\n")
 	fmt.Fprintf(w, "  remove <name|id>                   delete a workflow\n")
@@ -195,6 +198,72 @@ func cmdWorkflowSave(args []string, stdout, stderr io.Writer) int {
 		verb = "created"
 	}
 	fmt.Fprintf(stdout, "%s %s (%v node(s)) — run it with `%s workflow run %s`\n", verb, str(w["name"]), w["node_count"], brand.CLI, str(w["name"]))
+	return 0
+}
+
+// cmdWorkflowDraft (M802): the copilot designs a workflow from plain
+// language. The draft prints as JSON for review; --save persists it in one
+// step (it arrives disabled either way).
+func cmdWorkflowDraft(args []string, stdout, stderr io.Writer) int {
+	desc, name := "", ""
+	save := false
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "--name":
+			if i+1 >= len(args) {
+				fmt.Fprintf(stderr, "%s workflow draft: --name needs a value\n", brand.CLI)
+				return 2
+			}
+			i++
+			name = args[i]
+		case "--save":
+			save = true
+		default:
+			if !strings.HasPrefix(args[i], "--") && desc == "" {
+				desc = args[i]
+			}
+		}
+	}
+	if strings.TrimSpace(desc) == "" {
+		fmt.Fprintf(stderr, "usage: %s workflow draft \"DESCRIPTION\" [--name N] [--save]\n", brand.CLI)
+		return 2
+	}
+	c := dial(stderr)
+	if c == nil {
+		return 1
+	}
+	// Up to two provider round-trips (draft + one repair).
+	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Minute)
+	defer cancel()
+	callArgs := map[string]any{"description": desc}
+	if name != "" {
+		callArgs["name"] = name
+	}
+	res, err := c.Call(ctx, controlplane.CmdWorkflowDraft, callArgs)
+	if err != nil {
+		fmt.Fprintf(stderr, "%s workflow draft: %v\n", brand.CLI, err)
+		return 1
+	}
+	w, _ := res["workflow"].(map[string]any)
+	if w == nil {
+		fmt.Fprintf(stderr, "%s workflow draft: empty draft\n", brand.CLI)
+		return 1
+	}
+	fmt.Fprintf(stdout, "drafted %s — %v node(s), %v edge(s)\n", str(w["name"]), w["node_count"], w["edge_count"])
+	if rc := encodeJSON(stdout, w); rc != 0 {
+		return rc
+	}
+	if !save {
+		fmt.Fprintf(stdout, "review it, then persist with `%s workflow draft ... --save` or `%s workflow save --file graph.json`\n", brand.CLI, brand.CLI)
+		return 0
+	}
+	saveCtx, saveCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer saveCancel()
+	if _, err := c.Call(saveCtx, controlplane.CmdWorkflowSave, map[string]any{"workflow": w}); err != nil {
+		fmt.Fprintf(stderr, "%s workflow draft: save: %v\n", brand.CLI, err)
+		return 1
+	}
+	fmt.Fprintf(stdout, "saved (disabled) — run it with `%s workflow run %s`\n", brand.CLI, str(w["name"]))
 	return 0
 }
 
