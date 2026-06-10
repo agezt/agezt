@@ -1326,3 +1326,57 @@ func TestFlowStatsProxiesPlanStats(t *testing.T) {
 		t.Errorf("expected one plan_stats call, got %v", fc.calls)
 	}
 }
+
+// TestWorkflowHook (M809): the tokenless /hooks/<name> path — POST with a
+// JSON body forwards {ref, secret, payload{kind,body,query}} to the
+// workflow_webhook command WITHOUT the console token; refusals are uniform;
+// non-POST methods are rejected before any control-plane call.
+func TestWorkflowHook(t *testing.T) {
+	fc := &fakeCaller{result: map[string]any{"accepted": true, "correlation_id": "run-1", "workflow": "hooked"}}
+	s, _ := newServer(t, fc, "secret")
+
+	// NO console token on the request — the per-workflow secret is the auth.
+	req := httptest.NewRequest(http.MethodPost, "/hooks/hooked?env=prod",
+		strings.NewReader(`{"x":"dis"}`))
+	req.Header.Set("X-Agezt-Secret", "s3cret-string-12")
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("status = %d want 202 (%s)", rec.Code, rec.Body.String())
+	}
+	if len(fc.calls) != 1 || fc.calls[0] != "workflow_webhook" {
+		t.Fatalf("calls = %v", fc.calls)
+	}
+	if fc.lastArgs["ref"] != "hooked" || fc.lastArgs["secret"] != "s3cret-string-12" {
+		t.Fatalf("args = %v", fc.lastArgs)
+	}
+	payload, _ := fc.lastArgs["payload"].(map[string]any)
+	body, _ := payload["body"].(map[string]any)
+	query, _ := payload["query"].(map[string]any)
+	if payload["kind"] != "webhook" || body["x"] != "dis" || query["env"] != "prod" {
+		t.Fatalf("payload = %v", payload)
+	}
+	if _, leaked := query["secret"]; leaked {
+		t.Fatal("the secret must never ride into the payload")
+	}
+
+	// A control-plane refusal surfaces as a uniform 403.
+	fc2 := &fakeCaller{err: errors.New("webhook refused")}
+	s2, _ := newServer(t, fc2, "secret")
+	req2 := httptest.NewRequest(http.MethodPost, "/hooks/hooked", strings.NewReader(`{}`))
+	rec2 := httptest.NewRecorder()
+	s2.Handler().ServeHTTP(rec2, req2)
+	if rec2.Code != http.StatusForbidden {
+		t.Fatalf("refusal status = %d want 403", rec2.Code)
+	}
+
+	// GET is rejected without touching the control plane.
+	fc3 := &fakeCaller{}
+	s3, _ := newServer(t, fc3, "secret")
+	rec3 := httptest.NewRecorder()
+	s3.Handler().ServeHTTP(rec3, httptest.NewRequest(http.MethodGet, "/hooks/hooked", nil))
+	if rec3.Code != http.StatusMethodNotAllowed || len(fc3.calls) != 0 {
+		t.Fatalf("GET: status=%d calls=%v", rec3.Code, fc3.calls)
+	}
+}

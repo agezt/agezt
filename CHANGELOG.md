@@ -12,6 +12,18 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Webhook triggers — external systems start your workflows.** A trigger can now be
+  `{"kind":"webhook","secret":"…"}` (12+ characters, validator-enforced): external callers
+  `POST /hooks/<workflow-name>` with the secret in `X-Agezt-Secret`, the JSON body arrives as
+  `{{trigger.payload.body}}` and query params as `{{trigger.payload.query}}`, and the run fires
+  **asynchronously** — the caller gets an immediate 202 with the correlation id while the
+  journal carries the arc. Security is layered: the per-workflow secret is the only credential
+  (never the console token — a leaked secret can fire exactly one workflow and nothing else),
+  the control plane verifies it in constant time, and refusals are uniform 403s so probers
+  can't tell unknown-name from bad-secret from disabled. Proven live with curl: a CI-style
+  deploy notification flowed body + query params through templates into a real memory record
+  in 6ms. The copilot knows the new kind, the canvas trigger panel has the secret field, and
+  the boot banner counts armed webhooks. (M809)
 - **Workflow reliability — retries, timeouts, and seeing exactly what every node did.** Each
   node now takes production-grade settings: `timeout_sec` bounds one attempt (a hung script is
   killed with a named "node timeout after Ns" error, not a 15-minute wait), `retries` +

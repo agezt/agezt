@@ -744,6 +744,8 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.handleWorkflowRuns(conn, req)
 	case CmdWorkflowTemplates:
 		s.handleWorkflowTemplates(conn, req)
+	case CmdWorkflowWebhook:
+		s.handleWorkflowWebhook(conn, req)
 	case CmdSandboxList:
 		s.handleSandboxList(conn, req)
 	case CmdSandboxFile:

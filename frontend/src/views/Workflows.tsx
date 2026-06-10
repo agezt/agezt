@@ -122,6 +122,7 @@ export function summarize(type: string, config?: Record<string, unknown>): strin
       const kind = s("kind") || "manual";
       if (kind === "cron") return c.interval_sec ? `cron every ${c.interval_sec}s` : `cron daily ${s("daily_at")}`;
       if (kind === "event") return `event on ${s("subject")}`;
+      if (kind === "webhook") return "webhook (POST /hooks/…)";
       return "manual";
     }
     case "tool":
@@ -287,10 +288,16 @@ interface FieldSpec {
 
 const FIELD_SPECS: Record<string, FieldSpec[]> = {
   trigger: [
-    { key: "kind", label: "Kind", kind: "select", options: ["manual", "cron", "event"] },
+    { key: "kind", label: "Kind", kind: "select", options: ["manual", "cron", "event", "webhook"] },
     { key: "interval_sec", label: "Interval seconds (cron)", kind: "number", placeholder: "e.g. 300" },
     { key: "daily_at", label: "Daily at HH:MM (cron)", kind: "text", placeholder: "09:00" },
     { key: "subject", label: "Subject glob (event)", kind: "text", placeholder: "task.failed | board.dm.* | memory.>" },
+    {
+      key: "secret",
+      label: "Secret (webhook, ≥12 chars) — callers POST /hooks/<name> with X-Agezt-Secret",
+      kind: "text",
+      placeholder: "long-random-string",
+    },
   ],
   tool: [
     { key: "tool", label: "Tool name", kind: "text", placeholder: "shell, memory, forge_x, mcp_x_y…" },

@@ -232,9 +232,16 @@ type TriggerConfig struct {
 	IntervalSec int    `json:"interval_sec,omitempty"` // cron: every N seconds (≥30)
 	DailyAt     string `json:"daily_at,omitempty"`     // cron: "HH:MM" once a day
 	Subject     string `json:"subject,omitempty"`      // event: subject glob
+	// Secret authenticates the webhook kind (M809): an external POST to
+	// /hooks/<name> must present it. Per-workflow, never the console token —
+	// a leaked hook secret can fire ONE workflow, nothing else.
+	Secret string `json:"secret,omitempty"`
 }
 
-const minIntervalSec = 30
+const (
+	minIntervalSec      = 30
+	minWebhookSecretLen = 12
+)
 
 var dailyAtRe = regexp.MustCompile(`^([01]?\d|2[0-3]):[0-5]\d$`)
 
@@ -283,8 +290,16 @@ func validateTriggerConfig(n *Node) error {
 			return fmt.Errorf("workflow: node %s: event subject %q is too broad or self-referential", n.ID, subj)
 		}
 		return nil
+	case "webhook":
+		// The secret is the ONLY gate between the internet-facing hook path
+		// and a workflow run — a short one is a refused config, not a risk
+		// the operator silently accepts.
+		if len(strings.TrimSpace(c.Secret)) < minWebhookSecretLen {
+			return fmt.Errorf("workflow: node %s: webhook trigger needs a secret of at least %d characters", n.ID, minWebhookSecretLen)
+		}
+		return nil
 	default:
-		return fmt.Errorf("workflow: node %s: unknown trigger kind %q (manual|cron|event)", n.ID, c.Kind)
+		return fmt.Errorf("workflow: node %s: unknown trigger kind %q (manual|cron|event|webhook)", n.ID, c.Kind)
 	}
 }
 

@@ -1350,7 +1350,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 	if err := workflow.StartTriggers(ctx, k.Bus(), k.Workflows(), workflow.RunnerConfig{}, wfFire); err != nil {
 		fmt.Fprintf(stdout, "  workflows        : trigger runner failed to start: %v\n", err)
 	} else {
-		cron, evt := 0, 0
+		cron, evt, hook := 0, 0, 0
 		for _, w := range k.Workflows().List() {
 			if !w.Enabled {
 				continue
@@ -1360,9 +1360,11 @@ func runDaemon(stdout, stderr io.Writer) int {
 				cron++
 			case "event":
 				evt++
+			case "webhook":
+				hook++
 			}
 		}
-		fmt.Fprintf(stdout, "  workflows        : %d defined (%d cron + %d event trigger(s) armed)\n", k.Workflows().Count(), cron, evt)
+		fmt.Fprintf(stdout, "  workflows        : %d defined (%d cron + %d event + %d webhook trigger(s) armed)\n", k.Workflows().Count(), cron, evt, hook)
 	}
 
 	fmt.Fprintf(stdout, "  client commands  : %s run | halt | resume | why <id> | journal verify\n", brand.CLI)

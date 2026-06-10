@@ -65,6 +65,7 @@ describe("summarize", () => {
   it("renders the canvas gist per type", () => {
     expect(summarize("trigger", { kind: "cron", interval_sec: 30 })).toBe("cron every 30s");
     expect(summarize("trigger", { kind: "event", subject: "memory.>" })).toBe("event on memory.>");
+    expect(summarize("trigger", { kind: "webhook", secret: "s3cret-string-12" })).toBe("webhook (POST /hooks/…)");
     expect(summarize("trigger")).toBe("manual");
     expect(summarize("http", { method: "GET", url: "https://x" })).toBe("GET https://x");
     expect(summarize("condition", { left: "{{a}}", op: "gt", right: "5" })).toBe("{{a}} gt 5");
