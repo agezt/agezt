@@ -11,6 +11,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net"
 	"strings"
 	"time"
@@ -30,6 +31,18 @@ func workflowView(w workflow.Workflow, full bool) map[string]any {
 	_ = json.Unmarshal(b, &m)
 	m["node_count"] = len(w.Nodes)
 	m["edge_count"] = len(w.Edges)
+	// Trigger summary (M799) so list rows can say HOW a workflow starts
+	// without carrying the whole graph.
+	spec := w.TriggerSpec()
+	m["trigger_kind"] = spec.Kind
+	switch {
+	case spec.IntervalSec > 0:
+		m["trigger_detail"] = fmt.Sprintf("every %ds", spec.IntervalSec)
+	case spec.DailyAt != "":
+		m["trigger_detail"] = "daily at " + spec.DailyAt
+	case spec.Subject != "":
+		m["trigger_detail"] = "on " + spec.Subject
+	}
 	if !full {
 		delete(m, "nodes")
 		delete(m, "edges")

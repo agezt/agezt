@@ -12,6 +12,19 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Workflows now start themselves — cron and event triggers.** A workflow's trigger node takes a
+  `kind`: **manual** (run-on-demand, the default), **cron** (`interval_sec` or a daily `HH:MM`), or
+  **event** (a journal-subject glob like `task.failed`, `board.dm.*`, or `memory.>`) — the matched
+  event rides into the run as `{{trigger.payload}}` (subject, kind, and the event's own data), so a
+  workflow can react to what just happened with full context. The trigger runner consults the store
+  **live**: save or enable a workflow and its triggers arm without a restart. Safety rails are
+  built in: a per-workflow cooldown keeps event storms from launching run floods, and `workflow.*`
+  events can never be trigger fuel (validation refuses such subjects — and bare `>`/`*` — outright;
+  the runner skips them too), killing the feedback-loop foot-gun. Disabled workflows never
+  auto-fire but still run manually — that's how you test a draft. List views and the daemon banner
+  now say how each workflow starts ("cron (every 30s)", "event (on memory.>)"). Verified live in an
+  isolated daemon: an `agt memory add` fired the event-triggered workflow seconds later, the 30s
+  heartbeat fired twice on schedule, and a restart armed "1 cron + 1 event" from the banner. (M799)
 - **Workflow engine (core): durable, typed-node graphs — n8n-style, governed.** New
   `kernel/workflow` + `agt workflow`: build a named graph of **typed nodes** — `trigger` (manual;
   cron/event triggers next), `tool` (one governed call to ANY tool, built-in, forged, or

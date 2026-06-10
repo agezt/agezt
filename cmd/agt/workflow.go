@@ -96,7 +96,11 @@ func cmdWorkflowList(args []string, stdout, stderr io.Writer) int {
 			state = "disabled"
 		}
 		nodes, _ := w["node_count"].(float64)
-		fmt.Fprintf(stdout, "%-24s %-9s %d node(s)", str(w["name"]), state, int(nodes))
+		trig := str(w["trigger_kind"])
+		if d := str(w["trigger_detail"]); d != "" {
+			trig += " (" + d + ")"
+		}
+		fmt.Fprintf(stdout, "%-24s %-9s %d node(s)  %-24s", str(w["name"]), state, int(nodes), trig)
 		if d := str(w["description"]); d != "" {
 			fmt.Fprintf(stdout, "  %s", d)
 		}
