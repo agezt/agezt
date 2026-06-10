@@ -11,6 +11,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/memory"
 	"github.com/agezt/agezt/kernel/roster"
 )
 
@@ -272,6 +273,15 @@ func (k *Kernel) runSubAgent(ctx context.Context, task, model, taskType, agentRe
 	// Carry the tree root to every descendant so the M629 total cap is attributed
 	// to the whole tree, not re-seeded at each level.
 	childCtx = context.WithValue(childCtx, ctxKeyRoot, rootCorr)
+	// A named agent's memory follows it (M786): the child's memory-tool recalls
+	// default to the profile's scope (its private notes + shared memory).
+	if prof != nil {
+		scope := strings.TrimSpace(prof.MemoryScope)
+		if scope == "" {
+			scope = prof.Slug
+		}
+		childCtx = memory.WithScope(childCtx, scope)
+	}
 
 	// A named agent's soul REPLACES the daemon persona layer (it IS this
 	// sub-agent's identity); the sub-agent preamble always stays on top.

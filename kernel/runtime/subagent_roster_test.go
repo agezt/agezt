@@ -11,8 +11,11 @@ import (
 
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/memory"
 	"github.com/agezt/agezt/kernel/roster"
+	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/plugins/providers/mock"
+	"github.com/agezt/agezt/plugins/tools/shell"
 )
 
 // TestDelegate_AsNamedAgent: delegate(agent="researcher") runs the sub-agent AS
@@ -82,6 +85,59 @@ func TestDelegate_AsNamedAgent(t *testing.T) {
 	}
 	if pl.Agent != "researcher" || pl.Model != "agent-model" {
 		t.Errorf("spawn payload agent=%q model=%q, want researcher/agent-model", pl.Agent, pl.Model)
+	}
+}
+
+// TestDelegate_AgentMemoryScopeFollowsChild: the sub-agent's memory-tool
+// recalls default to the profile's scope (M786) — its private notes surface
+// without the child naming itself.
+func TestDelegate_AgentMemoryScopeFollowsChild(t *testing.T) {
+	prov := mock.New(
+		mock.ToolUse("c1", "delegate", map[string]any{"task": "check notes", "agent": "researcher"}),
+		mock.ToolUse("c2", "memory", map[string]any{"action": "recall", "query": "target"}), // child turn 1
+		mock.FinalText("child done"), // child turn 2
+		mock.FinalText("lead done"),  // lead final
+	)
+	k, err := runtime.Open(runtime.Config{
+		BaseDir:          t.TempDir(),
+		Provider:         prov,
+		Tools:            map[string]agent.Tool{"shell": shell.New()},
+		SubAgentTool:     true,
+		SubAgentMaxDepth: 1,
+		MemoryTool:       true,
+	})
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	t.Cleanup(func() { k.Close() })
+
+	if _, _, err := k.Memory().Remember("", memory.RememberSpec{
+		Subject: "target notes", Content: "researcher-private-fact",
+		Tags: map[string]string{"scope": "researcher"},
+	}); err != nil {
+		t.Fatalf("remember: %v", err)
+	}
+	if _, err := k.AddProfile(roster.Profile{Slug: "researcher"}); err != nil {
+		t.Fatalf("AddProfile: %v", err)
+	}
+
+	col := &collector{}
+	col.watch(k)
+	if _, _, err := k.Run(context.Background(), "lead task"); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	time.Sleep(50 * time.Millisecond)
+
+	// The child's memory recall surfaced the scope-private note.
+	found := false
+	for _, e := range col.ofKind(event.KindToolResult) {
+		if strings.Contains(string(e.Payload), "researcher-private-fact") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("child's memory recall did not surface the agent's private note")
 	}
 }
 

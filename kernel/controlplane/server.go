@@ -21,6 +21,7 @@ import (
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/approval"
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/memory"
 	"github.com/agezt/agezt/kernel/roster"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/scheduler"
@@ -1225,6 +1226,13 @@ func (s *Server) handleRun(ctx context.Context, conn net.Conn, req Request) {
 		if modelOverride == "" {
 			modelOverride = strings.TrimSpace(p.Model)
 		}
+		// The agent's memory follows it (M786): recalls — context injection
+		// and the memory tool — default to its scope (private notes + shared).
+		scope := strings.TrimSpace(p.MemoryScope)
+		if scope == "" {
+			scope = p.Slug
+		}
+		ctx = memory.WithScope(ctx, scope)
 	}
 	effModel := k.Model()
 	if modelOverride != "" {
