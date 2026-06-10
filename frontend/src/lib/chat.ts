@@ -53,6 +53,9 @@ export interface ChatTurn {
   // the chat can show "this answer came from a fallback model" — model is the one
   // that ultimately answered.
   fallbacks?: { from: string; to: string }[];
+  // The named agent this turn ran AS (roster slug, M789) — present only when
+  // the conversation picked one, so the meta line can say who answered.
+  agent?: string;
   error?: string;
   correlationId?: string;
 }
@@ -160,6 +163,7 @@ export function foldChatFrame(prev: ChatTurn, f: ChatFrame): ChatTurn {
       const r = f.result || {};
       if (r.answer != null) t.answer = String(r.answer);
       if (r.model) t.model = String(r.model);
+      if (r.agent) t.agent = String(r.agent);
       if (r.iters != null) t.iters = Math.max(t.iters, num(r.iters));
       if (r.spent_mc != null) t.costMicrocents = num(r.spent_mc);
       if (r.correlation_id) t.correlationId = String(r.correlation_id);
@@ -240,7 +244,7 @@ export function buildHistory(msgs: import("@/lib/conversations").Msg[]): ChatHis
 }
 
 export async function streamRun(
-  body: { intent: string; model?: string; history?: ChatHistoryTurn[]; system?: string },
+  body: { intent: string; model?: string; history?: ChatHistoryTurn[]; system?: string; agent?: string },
   onFrame: (f: ChatFrame) => void,
   signal?: AbortSignal,
 ): Promise<void> {

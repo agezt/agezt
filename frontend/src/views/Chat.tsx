@@ -38,6 +38,7 @@ import { Badge } from "@/components/ui/badge";
 import { Markdown } from "@/components/Markdown";
 import { ToolOutput } from "@/components/DataView";
 import { ModelPicker } from "@/components/ModelPicker";
+import { AgentPicker } from "@/components/AgentPicker";
 import { AttachPicker } from "@/components/AttachPicker";
 import { MicButton } from "@/components/MicButton";
 import { speak, stopSpeaking, speechSupported } from "@/lib/speech";
@@ -55,7 +56,7 @@ import { conversationToMarkdown, slugify, downloadText } from "@/lib/export";
 // cost. The engine (store, streaming, model) lives in ChatProvider so a run keeps
 // going when you leave the view; this component is the full-screen UI over it.
 export function Chat() {
-  const { store, messages, busy, model, setModel, activeModel, send, retry, editAndResend, conversationPersona, setConversationPersona, stop, newChat, selectConversation, removeConversation, renameConversation, togglePin } =
+  const { store, messages, busy, model, setModel, agent, setAgent, activeModel, send, retry, editAndResend, conversationPersona, setConversationPersona, stop, newChat, selectConversation, removeConversation, renameConversation, togglePin } =
     useChat();
   const [input, setInput] = useState("");
   // convFilter filters the conversation sidebar by title/message text (M732).
@@ -347,6 +348,7 @@ export function Chat() {
         <div className="mt-1.5 flex items-center gap-2 px-1 text-xs text-muted">
           <span>model</span>
           <ModelPicker value={model} onChange={setModel} activeModel={activeModel} />
+          <AgentPicker value={agent} onChange={setAgent} />
           <ConversationPersona value={conversationPersona} onChange={setConversationPersona} />
           <PromptLauncher onPick={(text) => setInput((cur) => (cur.trim() ? cur.trimEnd() + "\n" : "") + text)} />
           {messages.length > 0 && (
@@ -965,6 +967,7 @@ export function FallbackNote({ hops }: { hops: { from: string; to: string }[] })
 
 function TurnMeta({ turn }: { turn: ChatTurn }) {
   const parts: string[] = [];
+  if (turn.agent) parts.push("as " + turn.agent); // who answered (M789)
   if (turn.model) parts.push(turn.model);
   if (turn.iters) parts.push(`${turn.iters} iter${turn.iters === 1 ? "" : "s"}`);
   if (turn.costMicrocents) parts.push(money(turn.costMicrocents));

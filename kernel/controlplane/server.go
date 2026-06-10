@@ -1496,6 +1496,9 @@ func (s *Server) handleRun(ctx context.Context, conn net.Conn, req Request) {
 				"answer":         r.answer,
 				"correlation_id": corr,
 			}
+			if agentProf != nil {
+				result["agent"] = agentProf.Slug // who the run executed AS (M789)
+			}
 			// Enrich with this run's cost/iters/model (M146) so `agt run` can report
 			// what the run cost without a second round-trip. Reuses the same journal
 			// fold as `agt runs` (so the numbers agree); best-effort — a fold error or

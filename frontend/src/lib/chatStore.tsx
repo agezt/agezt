@@ -18,6 +18,8 @@ import {
   withActivePersona,
   activeConvModel,
   withActiveConvModel,
+  activeConvAgent,
+  withActiveConvAgent,
   startConversation,
   deleteConversation,
   renameConversation,
@@ -76,6 +78,8 @@ export interface ChatEngine {
   busy: boolean;
   model: string; // "" = daemon default
   setModel: (m: string) => void;
+  agent: string; // "" = the daemon's default identity; else a roster slug (M789)
+  setAgent: (slug: string) => void;
   activeModel: string; // the daemon's configured default (a hint)
   /** Send a message. `context`, when given, is prepended to the run intent only —
    *  the conversation still shows the clean `intent` as the user's message. */
@@ -117,6 +121,10 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   // (derived from the store, so switching threads switches the model). "" = default.
   const model = activeConvModel(store);
   const setModel = (m: string) => setStore((s) => withActiveConvModel(s, m, Date.now()));
+  // The agent is a per-conversation identity (M789): the thread runs AS the
+  // picked roster agent — soul/model chain/memory scope/budget (M783).
+  const agent = activeConvAgent(store);
+  const setAgent = (a: string) => setStore((s) => withActiveConvAgent(s, a, Date.now()));
   const [activeModel, setActiveModel] = useState("");
   const [busy, setBusy] = useState(false);
   const [learned, setLearned] = useState<Record<string, LearnedMem[]>>({});
@@ -188,6 +196,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         {
           intent,
           model: activeConvModel(store).trim() || undefined, // per-conversation model (M712)
+          agent: activeConvAgent(store).trim() || undefined, // per-conversation agent (M789)
           history: history.length ? history : undefined,
           system: persona || undefined, // per-conversation persona override (M711)
         },
@@ -288,6 +297,8 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     busy,
     model,
     setModel,
+    agent,
+    setAgent,
     activeModel,
     send,
     retry,

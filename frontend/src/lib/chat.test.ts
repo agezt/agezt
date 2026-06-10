@@ -59,6 +59,13 @@ describe("foldChatFrame", () => {
     expect(t.model).toBe("gpt-4o"); // the model that ultimately answered
   });
 
+  it("captures the named agent the run executed as (M789)", () => {
+    const t = fold([{ kind: "done", result: { answer: "ok", agent: "researcher" } }]);
+    expect(t.agent).toBe("researcher");
+    const plain = fold([{ kind: "done", result: { answer: "ok" } }]);
+    expect(plain.agent).toBeUndefined();
+  });
+
   it("chains multiple model-chain fallback hops in order", () => {
     const t = fold([
       { kind: "provider.fallback", payload: { scope: "model-chain", failed_model: "a", next_model: "b" } },

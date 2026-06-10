@@ -12,6 +12,22 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Talk to a named agent in Chat — each conversation picks who it's with.** The Chat composer
+  gains an **agent picker** next to the model picker: choose a roster agent (M783) and *this
+  thread* runs AS it — its soul, model fallback chain, memory scope, and per-run budget all apply
+  (the thread's explicit model/persona overrides still win over the profile's). Each conversation
+  remembers its own agent (the M712 per-thread pattern), so "Researcher" and "Ops" threads live
+  side by side in the sidebar; finished answers say **who** answered ("as researcher · model · …")
+  in the turn meta, fed by the run result now carrying the resolved agent slug. The picker lists
+  enabled roster agents live (paused ones hidden, with a pointer to the Roster view when empty).
+  Plumbing: the web run proxy forwards the `agent` body key to the control plane's existing M783
+  seam — unknown/paused agents are refused there, never silently defaulted. Unit-tested
+  (per-thread agent set/clear/persist across thread switches mirrors the model tests; the done
+  frame folds `agent` into the turn; the picker lists enabled-only, picks, clears to the default
+  identity, and shows the active slug on its trigger). Verified live in a real browser on an
+  isolated daemon: picked "researcher" in a fresh thread, sent a message, the answer rendered with
+  **as researcher** in its meta — proving the run executed as the profile end to end; 0 console
+  errors under strict CSP. (M789)
 - **Agents can now ask each other questions — addressed messages with replies.** The shared board
   (M647) grows a direct agent-to-agent layer: `board op=send to=researcher` addresses a message to a
   named agent and returns its **message id**; `op=inbox to=researcher` shows what's **waiting** for
