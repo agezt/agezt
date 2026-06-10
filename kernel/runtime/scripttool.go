@@ -15,9 +15,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/approval"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/toolforge"
 )
@@ -109,6 +111,42 @@ func (k *Kernel) PromoteScriptTool(corr, ref string) (toolforge.ScriptTool, erro
 		Payload:       map[string]any{"id": st.ID, "name": st.Name, "language": st.Language},
 	})
 	return st, nil
+}
+
+// RequestToolPromotion (M813): the agent ASKS for its tool to go live — the
+// promotion queue. The request blocks on the HITL approval registry (it
+// shows up in `agt approvals` and the console's Approvals view); a grant
+// promotes through the exact path the operator CLI uses, a deny/timeout
+// comes back as the decision, not an error. The "only tested code goes
+// live" invariant is checked up front so an untested draft never even
+// reaches the operator's queue.
+func (k *Kernel) RequestToolPromotion(ctx context.Context, corr, ref string) (toolforge.ScriptTool, approval.Decision, string, error) {
+	st, found := k.toolForge.Get(strings.TrimSpace(ref))
+	if !found {
+		return toolforge.ScriptTool{}, "", "", fmt.Errorf("toolforge: no script tool %q", ref)
+	}
+	if st.Status == toolforge.StatusActive {
+		return st, "", "", fmt.Errorf("toolforge: %s is already active", st.Name)
+	}
+	if !st.TestedOK {
+		return toolforge.ScriptTool{}, "", "", toolforge.ErrUntested
+	}
+	out := k.approvals.Submit(ctx, approval.SubmitSpec{
+		Capability:    "toolforge.promote",
+		ToolName:      "toolforge.promote",
+		Input:         fmt.Sprintf("promote %s (%s): %s", st.Name, st.Language, st.Description),
+		Reason:        "agent requested promotion of forge tool " + st.Name,
+		Actor:         "toolforge",
+		CorrelationID: corr,
+	})
+	if out.Decision != approval.DecisionGrant {
+		return st, out.Decision, out.Reason, nil // a verdict, not a failure
+	}
+	promoted, err := k.PromoteScriptTool(corr, st.Name)
+	if err != nil {
+		return st, out.Decision, out.Reason, err
+	}
+	return promoted, out.Decision, out.Reason, nil
 }
 
 // QuarantineScriptTool pulls an active tool from production — the kill

@@ -18,6 +18,7 @@ import (
 	"sync"
 
 	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/approval"
 	"github.com/agezt/agezt/kernel/toolforge"
 )
 
@@ -27,6 +28,7 @@ type Kernel interface {
 	DraftScriptTool(corr string, st toolforge.ScriptTool) (toolforge.ScriptTool, error)
 	UpdateScriptTool(corr, ref string, mutate func(*toolforge.ScriptTool)) (toolforge.ScriptTool, bool, error)
 	TestScriptTool(ctx context.Context, corr, ref, input string) (toolforge.ScriptTool, string, error)
+	RequestToolPromotion(ctx context.Context, corr, ref string) (toolforge.ScriptTool, approval.Decision, string, error)
 	ToolForge() *toolforge.Store
 }
 
@@ -62,14 +64,15 @@ func (t *Tool) Definition() agent.ToolDef {
 			"op=draft saves a named script (python/node/deno) as a DRAFT tool; " +
 			"op=test runs the draft once in the sandbox with a sample JSON input (your script reads it from ./stdin.txt and must print its result to stdout); " +
 			"op=update edits a draft (changing the code clears its test record and demotes an active tool back to draft); " +
+			"op=request_promotion asks the human operator to take a TESTED draft live — the call waits for their decision; " +
 			"op=list and op=show inspect your tools. " +
-			"A draft only goes LIVE when the operator promotes it — after a passing test — and is then callable by every agent as forge_<name>. " +
+			"A draft only goes LIVE when the operator approves — after a passing test — and is then callable by every agent as forge_<name>. " +
 			"Use this when you've written code worth keeping: turn it into a tool instead of rewriting it every run.",
 		InputSchema: json.RawMessage(`{
   "type": "object",
   "required": ["op"],
   "properties": {
-    "op":           {"type":"string", "enum":["draft","update","test","list","show"]},
+    "op":           {"type":"string", "enum":["draft","update","test","request_promotion","list","show"]},
     "name":         {"type":"string", "description":"For op=draft: the tool's handle (lowercase letters/digits/underscore, e.g. \"fetch_weather\"); callable as forge_<name> once promoted."},
     "description":  {"type":"string", "description":"For op=draft/update: what the tool does and when to call it — the model-facing description."},
     "language":     {"type":"string", "description":"For op=draft/update: the sandbox runtime, e.g. \"python\", \"node\", or \"deno\"."},
@@ -161,11 +164,34 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, e
 		if err != nil {
 			return errResult(err.Error()), nil
 		}
-		verdict := "PASSED — ask the operator to promote it (agt toolforge promote " + st.Name + ")"
+		verdict := "PASSED — request promotion (op=request_promotion) or ask the operator (agt toolforge promote " + st.Name + ")"
 		if !st.TestedOK {
 			verdict = "FAILED — fix the code (op=update) and test again"
 		}
 		return agent.Result{Output: "test " + verdict + "\n\n" + out, IsError: !st.TestedOK}, nil
+
+	case "request_promotion":
+		if strings.TrimSpace(in.Ref) == "" {
+			return errResult(`op=request_promotion needs a "ref" (the tool's id or name)`), nil
+		}
+		st, decision, reason, err := k.RequestToolPromotion(ctx, corr, in.Ref)
+		if err != nil {
+			return errResult(err.Error()), nil
+		}
+		switch decision {
+		case approval.DecisionGrant:
+			v := view(st)
+			v["message"] = "promoted by the operator — callable as forge_" + st.Name + " from the next run"
+			return okJSON(v), nil
+		case approval.DecisionDeny:
+			msg := "promotion denied by the operator"
+			if reason != "" {
+				msg += ": " + reason
+			}
+			return errResult(msg + " — improve the tool or move on"), nil
+		default:
+			return errResult("promotion request " + string(decision) + " — the operator did not decide in time"), nil
+		}
 
 	case "list":
 		all := k.ToolForge().List()
@@ -191,9 +217,9 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, e
 		return okJSON(v), nil
 
 	case "":
-		return errResult("op required (draft|update|test|list|show)"), nil
+		return errResult("op required (draft|update|test|request_promotion|list|show)"), nil
 	default:
-		return errResult("unknown op " + in.Op + " (draft|update|test|list|show)"), nil
+		return errResult("unknown op " + in.Op + " (draft|update|test|request_promotion|list|show)"), nil
 	}
 }
 
