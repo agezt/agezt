@@ -113,6 +113,42 @@ func TestWorkflow_WireRoundTrip(t *testing.T) {
 		t.Fatalf("executed = %v", res["executed"])
 	}
 
+	// Run history (M806): the journal folds into per-run arcs, newest first.
+	firstCorr, _ := res["correlation_id"].(string)
+	if _, err := c.Call(ctx, controlplane.CmdWorkflowRun, map[string]any{
+		"ref": "wire-flow", "payload": map[string]any{"who": "ikinci"},
+	}); err != nil {
+		t.Fatalf("second run: %v", err)
+	}
+	res, err = c.Call(ctx, controlplane.CmdWorkflowRuns, map[string]any{"ref": "wire-flow"})
+	if err != nil {
+		t.Fatalf("runs: %v", err)
+	}
+	runs, _ := res["runs"].([]any)
+	if len(runs) != 2 {
+		t.Fatalf("runs count = %d", len(runs))
+	}
+	newest, _ := runs[0].(map[string]any)
+	oldest, _ := runs[1].(map[string]any)
+	if newest["status"] != "completed" || oldest["status"] != "completed" {
+		t.Fatalf("run statuses = %v / %v", newest["status"], oldest["status"])
+	}
+	if oldest["correlation_id"] != firstCorr {
+		t.Fatalf("ordering: oldest corr = %v want %v", oldest["correlation_id"], firstCorr)
+	}
+	if evs, _ := newest["node_events"].([]any); len(evs) != 3 {
+		t.Fatalf("node_events = %v", newest["node_events"])
+	}
+	if started, _ := newest["started_ms"].(float64); started <= 0 {
+		t.Fatalf("started_ms = %v", newest["started_ms"])
+	}
+	if _, ok := newest["finished_ms"].(float64); !ok {
+		t.Fatal("finished_ms missing on a completed run")
+	}
+	if _, err := c.Call(ctx, controlplane.CmdWorkflowRuns, map[string]any{"ref": "ghost"}); err == nil {
+		t.Fatal("runs for an unknown workflow accepted")
+	}
+
 	// Disable → remove → ghost refs are honest errors.
 	if _, err := c.Call(ctx, controlplane.CmdWorkflowSetEnabled, map[string]any{"ref": "wire-flow", "enabled": false}); err != nil {
 		t.Fatalf("disable: %v", err)

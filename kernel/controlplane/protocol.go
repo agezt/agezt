@@ -929,6 +929,10 @@ const (
 	// an existing graph (the posted one, or the stored one at ref) per a
 	// plain-language change request; returned UNSAVED for review.
 	CmdWorkflowRefine = "workflow_refine"
+	// Runs (M806): args{ref, limit?} — fold the journal into the workflow's
+	// run history (started→node…→completed|failed arcs, newest first), so
+	// the console can replay any past run on the canvas. Read-only.
+	CmdWorkflowRuns = "workflow_runs"
 
 	// Sandbox projects (M686) — read-only inspection of what agents BUILT with the
 	// code_exec tool under <baseDir>/sandbox/projects. List: no args, returns each

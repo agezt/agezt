@@ -178,6 +178,9 @@ var readArgsRoutes = map[string]writeRoute{
 	// One workflow's full graph (M798) — the list stays light; the canvas
 	// editor fetches nodes+edges here. Read-only.
 	"/api/workflows/show": {controlplane.CmdWorkflowShow, []string{"ref"}},
+	// Run history (M806): the journal folded into per-run arcs so the canvas
+	// can replay any past run. Read-only.
+	"/api/workflows/runs": {controlplane.CmdWorkflowRuns, []string{"ref", "limit"}},
 	// Dry-run a policy decision (M753): "if the agent asked to do <capability> with
 	// <input>, would the edict engine allow / ask / deny it, and via which rule?".
 	// Read-only — eng.Decide mutates nothing.
