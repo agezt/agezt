@@ -11,10 +11,12 @@ vi.mock("@/lib/api", () => ({
   postAction: (...a: unknown[]) => postAction(...a),
 }));
 
-import { AuthorSkillForm } from "@/views/Skills";
+import { AuthorSkillForm, Skills, skillMatches } from "@/views/Skills";
+import { UIProvider } from "@/components/ui/feedback";
 
 afterEach(cleanup);
 beforeEach(() => {
+  getJSON.mockReset();
   postJSON.mockReset();
   postJSON.mockResolvedValue({ name: "deploy-release", status: "shadow" });
 });
@@ -102,5 +104,48 @@ describe("AuthorSkillForm (revise mode, M737)", () => {
         tools_required: ["shell"],
       }),
     );
+  });
+});
+
+describe("Skills filter (M778)", () => {
+  it("skillMatches matches on name, description, status, triggers, or tools", () => {
+    const s = {
+      name: "deploy-release",
+      description: "ship a tagged build",
+      status: "active",
+      triggers: ["on tag push"],
+      tools_required: ["shell", "http"],
+    };
+    expect(skillMatches(s, "deploy")).toBe(true);
+    expect(skillMatches(s, "ship")).toBe(true);
+    expect(skillMatches(s, "active")).toBe(true);
+    expect(skillMatches(s, "tag push")).toBe(true);
+    expect(skillMatches(s, "http")).toBe(true);
+    expect(skillMatches(s, "nope")).toBe(false);
+    expect(skillMatches(s, "")).toBe(true);
+  });
+
+  it("filters skill cards with a count once there are more than four", async () => {
+    getJSON.mockResolvedValue({
+      skills: [
+        { id: "s1", name: "deploy-release", status: "active", description: "ship a build" },
+        { id: "s2", name: "triage-bug", status: "shadow", description: "label issues" },
+        { id: "s3", name: "summarize-thread", status: "active", description: "tl;dr a chat" },
+        { id: "s4", name: "draft-standup", status: "draft", description: "morning note" },
+        { id: "s5", name: "review-diff", status: "active", description: "read a PR" },
+      ],
+      active: 3,
+    });
+    render(
+      <UIProvider>
+        <Skills />
+      </UIProvider>,
+    );
+    const input = await screen.findByLabelText("Filter skills");
+    expect(screen.queryByText("1/5")).toBeNull();
+    fireEvent.change(input, { target: { value: "shadow" } });
+    await waitFor(() => expect(screen.getByText("1/5")).toBeTruthy());
+    fireEvent.change(input, { target: { value: "zzz" } });
+    await waitFor(() => expect(screen.getByText(/no skills match/)).toBeTruthy());
   });
 });
