@@ -12,6 +12,16 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Vector memory — recall that survives typos and inflections, at zero marginal cost.** Memory
+  retrieval is now hybrid: exact keyword overlap blended with **local embeddings** (signed
+  feature hashing of words + character n-grams, pure Go, no model download, no network, no
+  per-call cost — DECISIONS C5's default). "kubenetes clstr" now finds the kubernetes record
+  keyword search misses entirely, and Turkish morphology works: "ödeme servisinin yeniden
+  başlatılması" finds "ödeme servisi … yeniden başlatılıyor". A salient term buried in a chatty
+  question isn't diluted away (per-token matching with a damping factor), unrelated queries stay
+  under the noise floor, and every surface — the agent's pre-run recall, the memory tool,
+  `agt memory search`, the console — gets it with no schema change and nothing new persisted.
+  True synonym semantics remain the documented provider-embeddings opt-in. (M803)
 - **The workflow copilot — describe it, see it on the canvas — and agents that author workflows.**
   Tell the copilot what you want in plain language and it designs a validated workflow graph:
   the daemon's provider sees the full node-type contract, the kernel extracts strict JSON,
