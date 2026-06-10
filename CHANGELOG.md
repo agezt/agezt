@@ -12,6 +12,17 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **The brain distiller — a sleep cycle for the agent's memory.** Over weeks the per-run
+  distiller accretes many small, overlapping records about the same things; the new
+  **consolidation pass** clusters related records by the local embeddings, has the LLM merge
+  each cluster into one concise record, and supersedes the originals — soft, journaled
+  (`memory.consolidated` + per-record `memory.superseded`), reversible, with `agt why`
+  explaining every merge. Scope is a hard wall: private notes never merge into shared memory.
+  Run it on demand (`agt memory consolidate`, `POST /api/memory/consolidate`) or arm the
+  standing timer with `AGEZT_BRAIN_DISTILL_EVERY=24h`. Each pass is incremental (at most 4
+  clusters) and budgeted under the distill task class. Verified against a real provider: four
+  near-duplicate facts — mixed English and Turkish — merged into one clean record, with the
+  hybrid recall still finding it from a misspelled query. (M804)
 - **Vector memory — recall that survives typos and inflections, at zero marginal cost.** Memory
   retrieval is now hybrid: exact keyword overlap blended with **local embeddings** (signed
   feature hashing of words + character n-grams, pure Go, no model download, no network, no

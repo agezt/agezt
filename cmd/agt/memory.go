@@ -36,6 +36,8 @@ func cmdMemory(args []string, stdout, stderr io.Writer) int {
 		return cmdMemoryGet(args[1:], stdout, stderr)
 	case "forget", "rm":
 		return cmdMemoryForget(args[1:], stdout, stderr)
+	case "consolidate":
+		return cmdMemoryConsolidate(args[1:], stdout, stderr)
 	case "-h", "--help", "help":
 		fmt.Fprintf(stdout, "usage: %s memory <subcommand>\n", brand.CLI)
 		fmt.Fprintf(stdout, "  add <subject> <content> [--type T] [--tag k=v] [--conf F] [--json]\n")
@@ -44,9 +46,10 @@ func cmdMemory(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "  search <query> [N] [--json]\n")
 		fmt.Fprintf(stdout, "  get <id> [--json]      (exit 3 = absent)\n")
 		fmt.Fprintf(stdout, "  forget <id> [--json]\n")
+		fmt.Fprintf(stdout, "  consolidate [--json]   one brain-distillation pass: merge related records, supersede originals\n")
 		return 0
 	default:
-		fmt.Fprintf(stderr, "%s memory: unknown subcommand %q (add|list|log|search|get|forget)\n", brand.CLI, args[0])
+		fmt.Fprintf(stderr, "%s memory: unknown subcommand %q (add|list|log|search|get|forget|consolidate)\n", brand.CLI, args[0])
 		return 2
 	}
 }
@@ -364,6 +367,44 @@ func renderRecordLine(r map[string]any) string {
 		return fmt.Sprintf("  %s [%s] %s: %s", prefix, typ, subject, content)
 	}
 	return fmt.Sprintf("  %s [%s] %s", prefix, typ, content)
+}
+
+// cmdMemoryConsolidate implements `agt memory consolidate [--json]` (M804):
+// one synchronous brain-distillation pass on the daemon.
+func cmdMemoryConsolidate(args []string, stdout, stderr io.Writer) int {
+	asJSON := false
+	for _, a := range args {
+		if a == "--json" {
+			asJSON = true
+		}
+	}
+	c := dial(stderr)
+	if c == nil {
+		return 1
+	}
+	// Up to a handful of provider calls; generous but bounded.
+	ctx, cancel := context.WithTimeout(context.Background(), 6*time.Minute)
+	defer cancel()
+	res, err := c.Call(ctx, controlplane.CmdMemoryConsolidate, nil)
+	if err != nil {
+		fmt.Fprintf(stderr, "%s memory consolidate: %v\n", brand.CLI, err)
+		return 1
+	}
+	if asJSON {
+		return encodeJSON(stdout, res)
+	}
+	found, _ := res["clusters_found"].(float64)
+	merged, _ := res["clusters_merged"].(float64)
+	superseded, _ := res["records_superseded"].(float64)
+	before, _ := res["active_before"].(float64)
+	after, _ := res["active_after"].(float64)
+	if found == 0 {
+		fmt.Fprintf(stdout, "nothing to consolidate — %d active record(s), no cluster of related records found\n", int(before))
+		return 0
+	}
+	fmt.Fprintf(stdout, "consolidated %d of %d cluster(s): %d record(s) merged away (%d → ~%d active) — correlation %s\n",
+		int(merged), int(found), int(superseded), int(before), int(after), str(res["correlation_id"]))
+	return 0
 }
 
 // encodeJSON pretty-prints v to w and returns 0.
