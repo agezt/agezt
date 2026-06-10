@@ -12,6 +12,15 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Test this node — probe one workflow node before trusting the pipeline with it.** Select any
+  node on the canvas, optionally paste mock upstream data (`{"fetch":{"output":{…}}}`), and hit
+  **Test node**: just that node runs — under the full machinery (policy gates, retries,
+  timeouts, metered LLM calls), with templates resolving from your mock — and the Last-run card
+  fills with the exact input and output. Probes are flagged in the journal and **never appear
+  in run history** (a test is not an arc). Proven live: an LLM node tested alone against the
+  real provider summarized mock Turkish input, turned green on the canvas, and left the
+  workflow's history untouched. Also `workflow_test_node` over the control plane and
+  `POST /api/workflows/test_node`. (M811)
 - **Async workflow runs — long runs no longer die at the wire.** The canvas's Save & Run used
   to hold an HTTP connection capped at 120 seconds while the engine allows 15 minutes — a
   two-minute workflow died at the proxy mid-run. Runs now fire **asynchronously**: the canvas

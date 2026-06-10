@@ -179,6 +179,31 @@ func TestWorkflow_WireRoundTrip(t *testing.T) {
 		t.Fatal("async run of unknown workflow accepted")
 	}
 
+	// Single-node test (M811): the probe returns the node's real output and
+	// never pollutes run history.
+	res, err = c.Call(ctx, controlplane.CmdWorkflowRuns, map[string]any{"ref": "wire-flow"})
+	if err != nil {
+		t.Fatalf("runs before probe: %v", err)
+	}
+	runsBefore, _ := res["runs"].([]any)
+	res, err = c.Call(ctx, controlplane.CmdWorkflowTestNode, map[string]any{
+		"workflow": graph, "node": "shape",
+		"data": map[string]any{"call": map[string]any{"output": map[string]any{"status": "probed"}}},
+	})
+	if err != nil {
+		t.Fatalf("test node: %v", err)
+	}
+	if res["output"] != "status=probed" {
+		t.Fatalf("test node output = %v", res["output"])
+	}
+	res, err = c.Call(ctx, controlplane.CmdWorkflowRuns, map[string]any{"ref": "wire-flow"})
+	if err != nil {
+		t.Fatalf("runs after probe: %v", err)
+	}
+	if runsAfter, _ := res["runs"].([]any); len(runsAfter) != len(runsBefore) {
+		t.Fatalf("a node test leaked into run history: %d → %d runs", len(runsBefore), len(runsAfter))
+	}
+
 	// Webhook fire (M809): right secret accepted (async run completes),
 	// wrong secret / disabled / unknown all refuse UNIFORMLY.
 	hookGraph := map[string]any{

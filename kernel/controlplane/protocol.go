@@ -937,6 +937,11 @@ const (
 	// starting points), full graphs included. Read-only; instantiation is
 	// just a save under a new name.
 	CmdWorkflowTemplates = "workflow_templates"
+	// Test node (M811): args{workflow (graph), node, data?, payload?} — run
+	// ONE node with caller-supplied upstream data, under the full run
+	// machinery (policy, reliability, metering). Returns {output, port,
+	// attempts}. The journal event is flagged test:true (out of history).
+	CmdWorkflowTestNode = "workflow_test_node"
 	// Webhook fire (M809): args{ref, secret, payload?} — authenticate an
 	// external POST against the workflow's webhook trigger (enabled +
 	// kind=webhook + constant-time secret match) and start the run ASYNC.

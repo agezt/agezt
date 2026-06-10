@@ -240,3 +240,58 @@ func TestWorkflowValidate_ReliabilityBounds(t *testing.T) {
 		t.Fatalf("legal reliability rejected: %v", err)
 	}
 }
+
+// TestWorkflowTestNode (M811): one node runs with mock upstream data under
+// the full machinery — templates resolve from the mock, policy still gates,
+// the journal event is flagged test:true, and triggers refuse.
+func TestWorkflowTestNode(t *testing.T) {
+	tool := &flakyTool{}
+	k := openReliabilityKernel(t, tool)
+	w := workflow.Workflow{
+		Name: "probe-flow",
+		Nodes: []workflow.Node{
+			{ID: "start", Type: workflow.NodeTrigger},
+			{ID: "shape", Type: workflow.NodeTransform,
+				Config: json.RawMessage(`{"template":"got {{fetch.output.status}} for {{trigger.payload.who}}"}`)},
+			{ID: "call", Type: workflow.NodeTool, Config: json.RawMessage(`{"tool":"flaky","args":{}}`)},
+		},
+		Edges: []workflow.Edge{{From: "start", To: "shape"}, {From: "shape", To: "call"}},
+	}
+
+	collect := watchNodeEvents(t, k, "probe-flow")
+	res, err := k.TestWorkflowNode(context.Background(), k.NewCorrelation(), w, "shape",
+		map[string]any{"fetch": map[string]any{"output": map[string]any{"status": 200}}},
+		map[string]any{"who": "ersin"})
+	if err != nil {
+		t.Fatalf("TestWorkflowNode: %v", err)
+	}
+	if res.Output != "got 200 for ersin" || res.Attempts != 1 {
+		t.Fatalf("res = %+v", res)
+	}
+
+	// The trigger refuses; an unknown node is an honest error.
+	if _, err := k.TestWorkflowNode(context.Background(), "", w, "start", nil, nil); err == nil {
+		t.Fatal("trigger test accepted")
+	}
+	if _, err := k.TestWorkflowNode(context.Background(), "", w, "ghost", nil, nil); err == nil {
+		t.Fatal("ghost node accepted")
+	}
+
+	// Policy still gates: the flaky tool is default-denied on a fresh edict
+	// level... it was set to allow in openReliabilityKernel; flip to deny.
+	k.Edict().SetLevel("flaky", edict.LevelDeny)
+	if _, err := k.TestWorkflowNode(context.Background(), "", w, "call", nil, nil); err == nil {
+		t.Fatal("denied tool ran in a node test")
+	}
+
+	// The journal event is flagged test:true (history-fold exclusion).
+	var probeEv map[string]any
+	for _, p := range collect() {
+		if p["node"] == "shape" {
+			probeEv = p
+		}
+	}
+	if probeEv == nil || probeEv["test"] != true || probeEv["output"] != "got 200 for ersin" {
+		t.Fatalf("probe event = %v", probeEv)
+	}
+}

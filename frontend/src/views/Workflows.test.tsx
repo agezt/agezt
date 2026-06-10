@@ -198,6 +198,40 @@ describe("template gallery", () => {
     count: 1,
   };
 
+  it("Test node probes one node with mock data against the live canvas (M811)", async () => {
+    getJSON.mockImplementation((path: string) =>
+      path === "/api/workflows/templates"
+        ? Promise.resolve(gallery)
+        : Promise.resolve({ workflows: [], count: 0 }),
+    );
+    postJSON.mockResolvedValue({ output: "ok", port: "", attempts: 1 });
+    render(withUI(<Workflows />));
+    await waitFor(() => expect(screen.getByText("No workflows yet")).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: /New workflow/ }));
+    await waitFor(() => expect(getJSON).toHaveBeenCalledWith("/api/workflows/templates"));
+    fireEvent.change(screen.getByLabelText("Workflow name"), { target: { value: "probe" } });
+    fireEvent.change(screen.getByLabelText("Start from template"), { target: { value: "resilient-fetch" } });
+    fireEvent.click(screen.getByRole("button", { name: "Create workflow" }));
+    await waitFor(() => expect(screen.getByText("probe")).toBeTruthy());
+    // Select the fetch node → panel opens with the Test section.
+    fireEvent.click(document.querySelector('.react-flow__node[data-id="fetch"]')!);
+    await waitFor(() => expect(screen.getByRole("button", { name: "Test node" })).toBeTruthy());
+    fireEvent.change(screen.getByLabelText("Test data"), {
+      target: { value: '{"trigger":{"payload":{"url":"https://x"}}}' },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Test node" }));
+    await waitFor(() =>
+      expect(postJSON).toHaveBeenCalledWith(
+        "/api/workflows/test_node",
+        expect.objectContaining({
+          node: "fetch",
+          data: { trigger: { payload: { url: "https://x" } } },
+          workflow: expect.objectContaining({ name: "probe" }),
+        }),
+      ),
+    );
+  });
+
   it("canvas Run fires async — save then run with async:true (M810)", async () => {
     getJSON.mockImplementation((path: string) =>
       path === "/api/workflows/templates"
