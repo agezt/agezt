@@ -29,16 +29,21 @@ const (
 // can inject a fake without a real on-disk store.
 type boardStore interface {
 	Post(topic, from, text string, nowMS int64) (board.Message, error)
+	Send(m board.Message, nowMS int64) (board.Message, error)
 	Read(topic string, limit int) []board.Message
+	Inbox(to string, limit int, includeAnswered bool) []board.Message
+	Replies(id string, limit int) []board.Message
+	Get(id string) (board.Message, bool)
 	Topics() map[string]int
 }
 
-// PostNotifier is called after a successful post so the host can journal a
-// board.posted event (M656) — the primitive that lets one agent's post wake
-// another agent (a standing order triggered on "board.<topic>"). Kept as a plain
-// closure so this plugin stays free of the kernel bus/event packages and is
-// trivially testable. corr is the posting run's correlation id (may be empty).
-type PostNotifier func(topic, from, text, corr string)
+// PostNotifier is called after a successful post/send so the host can journal a
+// board.posted event (M656/M788) — the primitive that lets one agent's message
+// wake another (a standing order triggered on "board.<topic>", or on
+// "board.dm.<slug>" for an addressed message). Kept as a plain closure so this
+// plugin stays free of the kernel bus/event packages and is trivially testable.
+// corr is the posting run's correlation id (may be empty).
+type PostNotifier func(m board.Message, corr string)
 
 // Tool implements agent.Tool. Created unbound via New(); Bind opens the store.
 type Tool struct {

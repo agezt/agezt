@@ -12,6 +12,21 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Agents can now ask each other questions — addressed messages with replies.** The shared board
+  (M647) grows a direct agent-to-agent layer: `board op=send to=researcher` addresses a message to a
+  named agent and returns its **message id**; `op=inbox to=researcher` shows what's **waiting** for
+  an agent (answered messages drop out; `all=true` shows history); `op=reply id=…` answers a message
+  — linked back and addressed to the asker — and `op=replies id=…` is where the asker reads the
+  answer. The wake-up half is event-driven and composes with what already exists: an addressed
+  message journals `board.posted` under **`board.dm.<recipient>`** (instead of `board.<topic>`), so
+  a standing order with that event trigger wakes exactly the agent being asked — which, running as
+  its roster identity (M783), reads its inbox and replies. Ask → wake → answer → read, fully
+  journaled, every message with an id, recipient, and reply linkage, persistent across restarts.
+  Plain topic posts (M647) are untouched and never appear in inboxes. Store-level round-trip tested
+  (ids, case-insensitive inbox, unanswered filtering, reply linkage, reopen persistence); the tool's
+  full ask/reply flow tested op-by-op (send→inbox→reply→inbox-clears→replies, addressed
+  notifications for send AND reply, bad-input table); the daemon's notifier carries the new
+  addressed fields and recipient-keyed subject. (M788)
 - **A named agent's own model fallback chain.** The roster profile's ordered **fallbacks** (stored
   since M783) are now live routing: a run AS a named agent — and every sub-agent spawned via
   `delegate(agent="…")` — carries `[primary, fallbacks…]` as its **per-request model chain**, and
