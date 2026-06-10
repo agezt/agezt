@@ -36,6 +36,7 @@ import {
   ChevronDown,
   FlaskConical,
   Hammer,
+  Plug,
   SlidersHorizontal,
   Layers,
   Route as RouteIcon,
@@ -77,6 +78,7 @@ import { Replay } from "@/views/Replay";
 import { Agents } from "@/views/Agents";
 import { Roster } from "@/views/Roster";
 import { Toolforge } from "@/views/Toolforge";
+import { Mcp } from "@/views/Mcp";
 import { Dashboard } from "@/views/Dashboard";
 import { Insights } from "@/views/Insights";
 import { Status } from "@/views/Status";
@@ -157,6 +159,7 @@ const NAV_GROUPS: NavGroup[] = [
       { id: "agents", label: "Agents", icon: Waypoints, render: Agents },
       { id: "roster", label: "Roster", icon: Users, render: Roster },
       { id: "toolforge", label: "Tool Forge", icon: Hammer, render: Toolforge },
+      { id: "mcp", label: "MCP Servers", icon: Plug, render: Mcp },
       { id: "sandbox", label: "Sandbox", icon: FlaskConical, render: Sandbox },
       { id: "flow", label: "Flow Studio", icon: Workflow, render: FlowStudio },
       { id: "replay", label: "Replay", icon: Clapperboard, render: Replay },

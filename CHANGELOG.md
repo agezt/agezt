@@ -12,6 +12,16 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **MCP Servers console view.** MCP self-install (M796) gets its operator surface — an *MCP
+  Servers* view under Agents: register a stdio server in the browser (the form explains the
+  no-underscore name rule and splits args for you), **attach behind a confirm dialog** that says
+  exactly what attaching means (a process is spawned now, with a scrubbed environment; its tools go
+  live for every run as `mcp_<name>_<tool>`), with the success toast reporting how many tools were
+  discovered. Detach (kill switch) and remove sit behind confirms; an auto-attach-at-start toggle
+  rides each row. 8 new vitest (473 total); browser-verified end-to-end against an isolated daemon
+  with a real python MCP server — register → attach (row turned "attached · 2 tools") → detach,
+  plus a restart proving boot auto-attach, with the journal trail confirming every step and zero
+  console errors. (M797)
 - **Governed self-install: agents can attach MCP servers at runtime.** The new `mcp` tool (and
   `agt mcp` for operators) registers a Model Context Protocol server — any stdio MCP server, e.g.
   `npx -y @modelcontextprotocol/server-everything` — and **attaches it while the daemon runs**: the
