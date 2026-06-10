@@ -1481,7 +1481,10 @@ func (k *Kernel) RunWith(ctx context.Context, corr, intent string) (string, erro
 		if topK <= 0 {
 			topK = 5
 		}
-		if hits, err := k.memory.Recall(corr, intent, topK); err == nil && len(hits) > 0 {
+		// Scoped to the run's agent identity (M786): a named agent's private
+		// notes surface in its injected context; an unscoped run sees shared
+		// memory only (RecallScoped with "" ≡ the previous Recall behaviour).
+		if hits, err := k.memory.RecallScoped(corr, intent, topK, memory.ScopeFrom(runCtx)); err == nil && len(hits) > 0 {
 			system = injectMemory(system, hits)
 		}
 	}

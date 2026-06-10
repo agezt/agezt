@@ -322,6 +322,29 @@ func CorrelationFrom(ctx context.Context) string {
 	return ""
 }
 
+const ctxKeyScope ctxKey = iota + 1
+
+// WithScope returns a child context carrying the run's per-agent memory scope
+// (M786): when a run executes AS a named agent (M783), its recalls — the
+// context injection and the memory tool — default to this scope, so the agent
+// sees its own private notes on top of shared memory without having to name
+// itself. Writes stay shared by default ("shared brain, private notes", M652);
+// the explicit tool scope param always wins over this default.
+func WithScope(ctx context.Context, scope string) context.Context {
+	if scope == "" {
+		return ctx
+	}
+	return context.WithValue(ctx, ctxKeyScope, scope)
+}
+
+// ScopeFrom extracts the per-agent memory scope set by WithScope ("" = none).
+func ScopeFrom(ctx context.Context) string {
+	if v, ok := ctx.Value(ctxKeyScope).(string); ok {
+		return v
+	}
+	return ""
+}
+
 // --- agent tool -----------------------------------------------------------
 
 // toolInputSchema is the JSON Schema advertised to the model for the
@@ -398,7 +421,16 @@ func (t memoryTool) Invoke(ctx context.Context, input json.RawMessage) (agent.Re
 		if limit <= 0 {
 			limit = 5
 		}
-		hits, err := t.mgr.RecallScoped(corr, in.Query, limit, strings.TrimSpace(in.Scope))
+		// The run's per-agent scope (M786) is the DEFAULT visibility: a named
+		// agent recalls its own private notes + shared memory without naming
+		// itself. An explicit scope param wins (e.g. peeking at a teammate's
+		// scope is still expressible — records stay readable, never hidden
+		// behind identity).
+		scope := strings.TrimSpace(in.Scope)
+		if scope == "" {
+			scope = ScopeFrom(ctx)
+		}
+		hits, err := t.mgr.RecallScoped(corr, in.Query, limit, scope)
 		if err != nil {
 			return agent.Result{Output: "recall failed: " + err.Error(), IsError: true}, nil
 		}

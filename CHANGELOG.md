@@ -12,6 +12,21 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **A named agent's memory follows it — private notes, shared brain.** Running as a roster agent
+  (M783) now wires the profile's **memory scope** (default: its slug) into the whole run: the
+  **context injection** recalls the agent's private notes alongside shared memory (a plain run still
+  sees shared only — nothing leaks), and the **memory tool's recalls default to the agent's scope**,
+  so "researcher" surfaces its own notes without naming itself. The same follows **sub-agents**:
+  `delegate(agent="researcher")` gives the child the profile's scope. Writes deliberately stay
+  shared by default — the M652 philosophy is *shared brain, private notes*: an agent's learnings
+  benefit the fleet unless it explicitly scopes a note; the explicit tool `scope` param always wins
+  over the identity default, in both directions. Plumbed as a context value in `kernel/memory`
+  (`WithScope`/`ScopeFrom`), applied at the run boundary (`agt run --agent`) and the delegate spawn.
+  Tested at every layer: the memory tool's ctx-default/explicit-wins/unscoped matrix; writes staying
+  shared under a scoped ctx; the delegated child's recall surfacing the profile-private note on a
+  real kernel; and end-to-end over the control plane — the agent run's injected context contained
+  both the shared fact and the private note while the plain run got shared only, asserted on the
+  actual provider requests. Isolated-daemon smoke: scoped + plain runs clean, 0 panics. (M786)
 - **The Roster view — manage your named agents from the console.** The agent roster (M783) gets its
   console surface: a **Roster** view under the Agents group lists every named agent — slug, state,
   model, task type, per-run budget, memory scope, workdir, fallbacks, description, and its full
