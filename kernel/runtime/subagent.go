@@ -274,13 +274,16 @@ func (k *Kernel) runSubAgent(ctx context.Context, task, model, taskType, agentRe
 	// to the whole tree, not re-seeded at each level.
 	childCtx = context.WithValue(childCtx, ctxKeyRoot, rootCorr)
 	// A named agent's memory follows it (M786): the child's memory-tool recalls
-	// default to the profile's scope (its private notes + shared memory).
+	// default to the profile's scope (its private notes + shared memory). Its
+	// working directory follows too (M792): the child's file/shell tools
+	// operate inside the profile's workspace subdirectory.
 	if prof != nil {
 		scope := strings.TrimSpace(prof.MemoryScope)
 		if scope == "" {
 			scope = prof.Slug
 		}
 		childCtx = memory.WithScope(childCtx, scope)
+		childCtx = agent.WithWorkdir(childCtx, prof.Workdir)
 	}
 
 	// A named agent's soul REPLACES the daemon persona layer (it IS this
