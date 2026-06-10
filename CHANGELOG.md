@@ -12,6 +12,16 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **The workflow canvas — build and run workflows visually.** New **Workflows** view in the
+  console (Automation group): a list of every stored workflow with trigger chips and
+  enable/disable, and a full React Flow canvas editor — node palette for all 14 node types,
+  drag-to-connect with one source handle per output port (condition true/false, switch case
+  ports, the red error port), a side panel with per-type config forms (JSON fields validated
+  before they can corrupt the graph), and Save / Save & Run. Runs replay live on the canvas:
+  each `workflow.node` journal event recolors its node green or red as it executes, straight
+  off the SSE firehose. Node positions persist with the workflow, so the graph you drew is the
+  graph you reopen — and the same workflow remains fully editable from `agt workflow` and the
+  HTTP surface. Zero new dependencies (rides the React Flow already in the bundle). (M801)
 - **The workflow node library — branch, loop, join, gate, nest, and survive failures.** Eight new
   node types make workflows genuinely n8n-class: **http** (rides the governed http tool — host
   allowlist and GET/POST policy included), **code** (a script in the code-exec sandbox, input via

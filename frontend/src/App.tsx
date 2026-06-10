@@ -35,6 +35,7 @@ import {
   Search,
   ChevronDown,
   FlaskConical,
+  GitFork,
   Hammer,
   Plug,
   SlidersHorizontal,
@@ -79,6 +80,7 @@ import { Agents } from "@/views/Agents";
 import { Roster } from "@/views/Roster";
 import { Toolforge } from "@/views/Toolforge";
 import { Mcp } from "@/views/Mcp";
+import { Workflows } from "@/views/Workflows";
 import { Dashboard } from "@/views/Dashboard";
 import { Insights } from "@/views/Insights";
 import { Status } from "@/views/Status";
@@ -171,6 +173,7 @@ const NAV_GROUPS: NavGroup[] = [
     id: "automation",
     label: "Automation",
     items: [
+      { id: "workflows", label: "Workflows", icon: GitFork, render: Workflows },
       { id: "schedules", label: "Schedules", icon: CalendarClock, render: Schedules },
       { id: "standing", label: "Standing", icon: Anchor, render: Standing },
     ],
