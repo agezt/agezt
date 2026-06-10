@@ -48,6 +48,16 @@ func (s *Server) handleBoardRead(conn net.Conn, req Request) {
 		if m.From != "" {
 			v["from"] = m.From
 		}
+		// Addressed messaging (M788/M791): the console threads DMs and replies.
+		if m.ID != "" {
+			v["id"] = m.ID
+		}
+		if m.To != "" {
+			v["to"] = m.To
+		}
+		if m.ReplyTo != "" {
+			v["reply_to"] = m.ReplyTo
+		}
 		views = append(views, v)
 	}
 

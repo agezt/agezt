@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { MessagesSquare, RefreshCw, Hash, User } from "lucide-react";
+import { MessagesSquare, RefreshCw, Hash, User, ArrowRight, CornerDownRight } from "lucide-react";
 import { getJSON } from "@/lib/api";
 import { cn, fmtTime } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,24 @@ interface Msg {
   from?: string;
   text: string;
   ts_unix_ms?: number;
+  // Addressed messaging (M788): direct agent-to-agent messages and replies.
+  id?: string;
+  to?: string;
+  reply_to?: string;
+}
+
+// awaitingReply reports which ADDRESSED messages have no reply on the board
+// yet — the "someone asked and nobody answered" set the operator should see at
+// a glance. Pure + unit-tested.
+export function awaitingReply(messages: Msg[]): Set<string> {
+  const answered = new Set<string>();
+  for (const m of messages) if (m.reply_to) answered.add(m.reply_to);
+  const out = new Set<string>();
+  for (const m of messages) {
+    // A reply is an ANSWER, not a question — it never awaits one itself.
+    if (m.to && m.id && !m.reply_to && !answered.has(m.id)) out.add(m.id);
+  }
+  return out;
 }
 interface BoardData {
   messages?: Msg[];
@@ -56,6 +74,9 @@ export function Board() {
     () => (data?.messages || []).filter((m) => !topic || m.topic === topic),
     [data, topic],
   );
+  // Unanswered DMs are computed over the WHOLE board (a reply may live under
+  // another topic filter), so the badge never lies because of the filter.
+  const waiting = useMemo(() => awaitingReply(data?.messages || []), [data]);
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3">
@@ -123,6 +144,23 @@ export function Board() {
                     <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-foreground/80">
                       <User className="size-3 text-muted" />
                       {m.from}
+                    </span>
+                  )}
+                  {m.to && (
+                    <span className="inline-flex items-center gap-1 text-[11px] text-accent">
+                      <ArrowRight className="size-3" />
+                      {m.to}
+                    </span>
+                  )}
+                  {m.reply_to && (
+                    <span className="inline-flex items-center gap-1 rounded-full border border-border bg-panel px-2 py-0.5 text-[10px] text-muted" title={`reply to ${m.reply_to}`}>
+                      <CornerDownRight className="size-3" />
+                      reply
+                    </span>
+                  )}
+                  {m.id && waiting.has(m.id) && (
+                    <span className="rounded-full border border-warn/40 bg-warn/10 px-2 py-0.5 text-[10px] text-warn">
+                      awaiting reply
                     </span>
                   )}
                   <span className="ml-auto font-mono text-[10px] text-muted opacity-70">{fmtTime(m.ts_unix_ms)}</span>
