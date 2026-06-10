@@ -93,6 +93,12 @@ type CompletionRequest struct {
 	// Carries a named agent's own fallbacks (roster M783). Like TaskType it
 	// is a Governor-only hint — plain providers never consult it.
 	ModelChain []string
+	// Agent + AgentDailyCeilingMc carry a named agent's identity and its
+	// per-day spend ceiling (roster MaxDailyMc, M793). Governor-only: the
+	// Governor keeps a per-agent daily ledger and refuses completions past
+	// the ceiling; plain providers never consult either field.
+	Agent               string
+	AgentDailyCeilingMc int64
 	// CorrelationID identifies the run this completion serves. Like
 	// TaskType it is a Governor-only hint — opaque to providers, who
 	// never see it — letting the Governor stamp its budget.consumed
@@ -211,6 +217,11 @@ type LoopConfig struct {
 	// into every CompletionRequest, overriding the task type's configured
 	// chain — a named agent's own fallbacks (roster M783). Empty → none.
 	ModelChain []string
+	// Agent + AgentDailyCeilingMc identify the named agent this run executes
+	// AS and its per-day spend ceiling (M793), carried into every request so
+	// the Governor's identity ledger can meter and refuse. Empty/0 → none.
+	Agent               string
+	AgentDailyCeilingMc int64
 	// MaxIdenticalToolCalls caps how many times the model may invoke the SAME
 	// (tool, input) within one run before the loop refuses to execute it again
 	// (M116). A model stuck retrying an identical failing/expensive call would
@@ -796,15 +807,17 @@ func Run(ctx context.Context, cfg LoopConfig, userIntent string) (answer string,
 		}
 
 		req := CompletionRequest{
-			Model:         cfg.Model,
-			System:        cfg.System,
-			Messages:      messages,
-			Tools:         offered,
-			MaxTokens:     cfg.MaxTokens,
-			TaskType:      cfg.TaskType,      // M703: per-task model routing hint
-			ModelChain:    cfg.ModelChain,    // M787: per-agent model fallback chain
-			CorrelationID: cfg.CorrelationID, // M47: attribute spend to this run
-			JSONMode:      cfg.JSONMode,      // M314: structured-output request
+			Model:               cfg.Model,
+			System:              cfg.System,
+			Messages:            messages,
+			Tools:               offered,
+			MaxTokens:           cfg.MaxTokens,
+			TaskType:            cfg.TaskType,   // M703: per-task model routing hint
+			ModelChain:          cfg.ModelChain, // M787: per-agent model fallback chain
+			Agent:               cfg.Agent,      // M793: identity for the per-agent ledger
+			AgentDailyCeilingMc: cfg.AgentDailyCeilingMc,
+			CorrelationID:       cfg.CorrelationID, // M47: attribute spend to this run
+			JSONMode:            cfg.JSONMode,      // M314: structured-output request
 		}
 		var resp *CompletionResponse
 		// Use the streaming path when the provider advertises it

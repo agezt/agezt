@@ -19,6 +19,7 @@ export interface AgentProfile {
   fallbacks?: string[];
   task_type?: string;
   max_cost_mc?: number;
+  max_daily_mc?: number;
   memory_scope?: string;
   workdir?: string;
   description?: string;
@@ -54,18 +55,22 @@ function profileFields(f: {
   fallbacks: string;
   taskType: string;
   maxCost: string;
+  maxDaily: string;
   memoryScope: string;
   workdir: string;
   description: string;
 }): Record<string, unknown> | string {
   const mc = usdToMc(f.maxCost);
   if (mc === null) return "max cost must be a dollar amount like 0.50";
+  const dailyMc = usdToMc(f.maxDaily);
+  if (dailyMc === null) return "max daily must be a dollar amount like 5.00";
   const p: Record<string, unknown> = {
     name: f.name.trim(),
     soul: f.soul.trim(),
     model: f.model.trim(),
     task_type: f.taskType.trim(),
     max_cost_mc: mc,
+    max_daily_mc: dailyMc,
     memory_scope: f.memoryScope.trim(),
     workdir: f.workdir.trim(),
     description: f.description.trim(),
@@ -104,6 +109,7 @@ function AgentFormFields(props: {
         {field("Fallback models (comma-separated)", "fallbacks", "m1, m2", "Fallback models")}
         {field("Task type", "taskType", "e.g. research, code", "Task type")}
         {field("Max cost per run (USD)", "maxCost", "e.g. 0.50 — blank = no cap", "Max cost per run")}
+        {field("Max cost per day (USD)", "maxDaily", "e.g. 5.00 — blank = no cap", "Max cost per day")}
         {field("Memory scope", "memoryScope", "blank = the slug", "Memory scope")}
         {field("Workdir (workspace-relative)", "workdir", "e.g. research", "Workdir")}
         {field("Description", "description", "what this agent is for", "Description")}
@@ -147,6 +153,7 @@ export function NewAgentForm({
       fallbacks: state.fallbacks || "",
       taskType: state.taskType || "",
       maxCost: state.maxCost || "",
+      maxDaily: state.maxDaily || "",
       memoryScope: state.memoryScope || "",
       workdir: state.workdir || "",
       description: state.description || "",
@@ -208,6 +215,7 @@ export function EditAgentForm({
     fallbacks: (profile.fallbacks || []).join(", "),
     taskType: profile.task_type || "",
     maxCost: profile.max_cost_mc ? String(profile.max_cost_mc / 1e9) : "",
+    maxDaily: profile.max_daily_mc ? String(profile.max_daily_mc / 1e9) : "",
     memoryScope: profile.memory_scope || "",
     workdir: profile.workdir || "",
     description: profile.description || "",
@@ -223,6 +231,7 @@ export function EditAgentForm({
       fallbacks: state.fallbacks,
       taskType: state.taskType,
       maxCost: state.maxCost,
+      maxDaily: state.maxDaily,
       memoryScope: state.memoryScope,
       workdir: state.workdir,
       description: state.description,
@@ -411,6 +420,7 @@ export function Roster() {
               <span>model: {p.model || "(default)"}</span>
               {p.task_type && <span>task: {p.task_type}</span>}
               {(p.max_cost_mc || 0) > 0 && <span>max/run: {money(p.max_cost_mc)}</span>}
+              {(p.max_daily_mc || 0) > 0 && <span>max/day: {money(p.max_daily_mc)}</span>}
               {p.memory_scope && <span>memory: {p.memory_scope}</span>}
               {p.workdir && <span>workdir: {p.workdir}</span>}
               {(p.fallbacks || []).length > 0 && <span>fallbacks: {(p.fallbacks || []).join(" → ")}</span>}

@@ -301,10 +301,12 @@ func (k *Kernel) runSubAgent(ctx context.Context, task, model, taskType, agentRe
 	// Its ordered fallbacks become the child's model chain (M787): primary
 	// first (an explicit delegate model still wins the front slot), walked
 	// in order by the Governor; duplicates of the primary are skipped.
-	var maxRunCost int64
+	var maxRunCost, agentDailyMc int64
 	var modelChain []string
+	var agentSlug string
 	if prof != nil {
 		maxRunCost = prof.MaxCostMc
+		agentSlug, agentDailyMc = prof.Slug, prof.MaxDailyMc // M793: identity ledger
 		if len(prof.Fallbacks) > 0 {
 			modelChain = []string{subModel}
 			for _, m := range prof.Fallbacks {
@@ -322,6 +324,8 @@ func (k *Kernel) runSubAgent(ctx context.Context, task, model, taskType, agentRe
 		Model:                subModel,
 		TaskType:             taskType,   // M705: route the sub-agent (chain supplies fallbacks)
 		ModelChain:           modelChain, // M787: the named agent's own fallbacks win
+		Agent:                agentSlug,
+		AgentDailyCeilingMc:  agentDailyMc,
 		System:               system,
 		MaxIter:              k.cfg.MaxIter,
 		ToolTimeout:          k.cfg.ToolTimeout,

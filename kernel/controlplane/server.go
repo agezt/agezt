@@ -1237,6 +1237,8 @@ func (s *Server) handleRun(ctx context.Context, conn net.Conn, req Request) {
 		// And its working directory (M792): file/shell tools operate inside
 		// the profile's workspace subdirectory.
 		ctx = agent.WithWorkdir(ctx, p.Workdir)
+		// And its identity + daily ceiling for the Governor's ledger (M793).
+		ctx = runtime.WithAgentIdent(ctx, p.Slug, p.MaxDailyMc)
 		// Its own model fallback chain too (M787): primary (the resolved
 		// model — an explicit --model still wins the front slot) followed by
 		// the profile's ordered fallbacks; the Governor walks it in order.

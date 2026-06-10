@@ -157,12 +157,13 @@ type Config struct {
 type Governor struct {
 	cfg Config
 
-	mu               sync.Mutex
-	spentToday       int64            // microcents (global)
-	spentByTaskToday map[string]int64 // microcents per task type (M1.zz)
-	today            string           // YYYY-MM-DD UTC
-	rateWindow       string           // current rate window key (YYYY-MM-DDTHH:MM UTC)
-	callsThisWindow  int              // admitted calls in the current rate window
+	mu                sync.Mutex
+	spentToday        int64            // microcents (global)
+	spentByTaskToday  map[string]int64 // microcents per task type (M1.zz)
+	spentByAgentToday map[string]int64 // microcents per agent slug (M793)
+	today             string           // YYYY-MM-DD UTC
+	rateWindow        string           // current rate window key (YYYY-MM-DDTHH:MM UTC)
+	callsThisWindow   int              // admitted calls in the current rate window
 
 	// ceilingOverride is the operator's runtime-adjusted daily cap (M607),
 	// set via SetDailyCeiling from the control plane / Web UI. When
@@ -232,7 +233,7 @@ func New(cfg Config) (*Governor, error) {
 	if cfg.Now == nil {
 		cfg.Now = time.Now
 	}
-	g := &Governor{cfg: cfg, spentByTaskToday: map[string]int64{}}
+	g := &Governor{cfg: cfg, spentByTaskToday: map[string]int64{}, spentByAgentToday: map[string]int64{}}
 	g.taskModelChains = copyStringSliceMap(cfg.TaskModelChains)
 	g.bus.Store(cfg.Bus) // may be nil; SetBus latches the real bus later
 	for _, p := range cfg.Registry.All() {
@@ -291,6 +292,12 @@ var ErrBudgetExceeded = errors.New("governor: daily budget exceeded")
 // Wraps ErrBudgetExceeded so existing chain-walk logic that treats
 // budget-exhaustion as terminal (shouldFallback) catches both.
 var ErrTaskBudgetExceeded = fmt.Errorf("%w: task type", ErrBudgetExceeded)
+
+// ErrAgentBudgetExceeded is returned when a named agent's daily spend
+// ceiling (roster MaxDailyMc, M793) has been reached for the current
+// UTC day. Wraps ErrBudgetExceeded so callers' existing budget checks
+// (errors.Is) keep matching.
+var ErrAgentBudgetExceeded = fmt.Errorf("%w: agent", ErrBudgetExceeded)
 
 // ErrUnpricedModel is returned (only in StrictPricing mode, M193) when a
 // request names a model the governor has no price for. Without strict
@@ -478,6 +485,33 @@ func (g *Governor) preflightAndRoute(req *agent.CompletionRequest) ([]*ProviderI
 			})
 			return nil, fmt.Errorf("%w (task=%s, spent=%d, ceiling=%d microcents)",
 				ErrTaskBudgetExceeded, req.TaskType, spent, cap)
+		}
+	}
+
+	// Per-agent daily budget pre-check (M793): a named agent's requests carry
+	// its slug and daily ceiling (roster MaxDailyMc); once today's identity
+	// ledger reaches the ceiling, further completions are refused — the
+	// per-day analogue of the profile's per-run cost cap.
+	if req.Agent != "" && req.AgentDailyCeilingMc > 0 {
+		g.mu.Lock()
+		g.rolloverIfNeededLocked()
+		agentSpent := g.spentByAgentToday[req.Agent]
+		g.mu.Unlock()
+		if agentSpent >= req.AgentDailyCeilingMc {
+			g.publish(event.Spec{
+				Subject:       "governor.budget",
+				Kind:          event.KindBudgetExceeded,
+				Actor:         "governor",
+				CorrelationID: req.CorrelationID,
+				Payload: map[string]any{
+					"agent":              req.Agent,
+					"spent_microcents":   agentSpent,
+					"ceiling_microcents": req.AgentDailyCeilingMc,
+					"scope":              "agent",
+				},
+			})
+			return nil, fmt.Errorf("%w (agent=%s, spent=%d, ceiling=%d microcents)",
+				ErrAgentBudgetExceeded, req.Agent, agentSpent, req.AgentDailyCeilingMc)
 		}
 	}
 
@@ -956,6 +990,9 @@ func (g *Governor) recordUsage(p *ProviderInfo, req agent.CompletionRequest, res
 	if req.TaskType != "" {
 		g.spentByTaskToday[req.TaskType] += cost
 	}
+	if req.Agent != "" {
+		g.spentByAgentToday[req.Agent] += cost // per-identity ledger (M793)
+	}
 	spent := g.spentToday
 	ceiling := g.effectiveCeilingLocked()
 	g.mu.Unlock()
@@ -1112,6 +1149,15 @@ func (g *Governor) SpentByTaskMicrocents(taskType string) int64 {
 	return g.spentByTaskToday[taskType]
 }
 
+// SpentByAgentMicrocents returns the current-day spend attributed to a named
+// agent (M793) in microcents. 0 for unknown / unspent agents.
+func (g *Governor) SpentByAgentMicrocents(slug string) int64 {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.rolloverIfNeededLocked()
+	return g.spentByAgentToday[slug]
+}
+
 // TaskBudgetSnapshot is one row of the per-task budget view
 // returned by Snapshot. SpentMicrocents is the current spend;
 // CeilingMicrocents is the configured cap (always > 0 since
@@ -1178,6 +1224,10 @@ func (g *Governor) rolloverIfNeededLocked() {
 		// underlying memory hot.
 		for k := range g.spentByTaskToday {
 			delete(g.spentByTaskToday, k)
+		}
+		// Per-agent counters too (M793).
+		for k := range g.spentByAgentToday {
+			delete(g.spentByAgentToday, k)
 		}
 	}
 }

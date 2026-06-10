@@ -12,6 +12,25 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Each named agent gets a daily allowance — the identity budget ledger.** A roster profile gains
+  **max cost per day** (`--max-daily`, the Config-style USD field on the Roster view): the Governor
+  now keeps a **per-agent daily ledger** — every completion an identity makes, whether from
+  `agt run --agent`, a chat thread, a delegate child, or a standing-order firing, accrues to its
+  slug for the current UTC day — and once the ledger reaches the ceiling, further completions are
+  **refused** with a journaled `budget.exceeded` scoped `agent` (so the Alerts view and the M782
+  channel push report *which agent* blew its allowance). This is the per-day layer over the
+  per-run cap (M783): per-run bounds one task, per-day bounds the identity — a runaway standing
+  order or chatty delegate can't drain the global budget under one agent's name. Other identities
+  and unattributed runs are untouched; the ledger rolls over at UTC midnight with the existing
+  daily counters; the global and per-task ceilings still apply on top. Carried like `TaskType` —
+  Governor-only request fields providers never see — set by every identity path
+  (`WithAgentProfile`, run-as, delegate). Unit-tested (the Governor meters an identity, refuses
+  past the ceiling with `ErrAgentBudgetExceeded` wrapping `ErrBudgetExceeded`, leaves other
+  identities and unattributed/ceiling-less requests flowing; the run carries slug+ceiling into the
+  actual provider request). Surface: `agt agent add/set --max-daily`, *max cost/day* on show/list,
+  the Roster view's create/edit forms and row line. Smoke: round-trips + run-as boots clean. Also
+  de-flaked the roster list-order test (same-millisecond creations flipped the sort onto the ID
+  tiebreaker — deterministic clock injected). (M793)
 - **Each named agent gets its own working directory.** A roster profile's **workdir** (stored and
   escape-validated since M783) is now live: when a run executes AS that agent — `agt run --agent`,
   a chat thread, a delegate child, or a standing-order firing — the **file tool** rebases relative

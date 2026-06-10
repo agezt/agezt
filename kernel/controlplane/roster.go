@@ -110,6 +110,7 @@ func (s *Server) handleAgentEdit(conn net.Conn, req Request) {
 		dst.Fallbacks = in.Fallbacks
 		dst.TaskType = in.TaskType
 		dst.MaxCostMc = in.MaxCostMc
+		dst.MaxDailyMc = in.MaxDailyMc
 		dst.MemoryScope = in.MemoryScope
 		dst.Workdir = in.Workdir
 		dst.Description = in.Description

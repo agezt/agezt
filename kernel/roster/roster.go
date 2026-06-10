@@ -58,6 +58,12 @@ type Profile struct {
 	// Applied as the run's max_cost default; an explicit per-run cap wins.
 	MaxCostMc int64 `json:"max_cost_mc,omitempty"`
 
+	// MaxDailyMc is the per-DAY spend ceiling in USD-microcents (0 = none):
+	// the Governor meters every completion this agent makes (runs, delegate
+	// children, standing firings) against an identity ledger and refuses
+	// once today's total reaches the ceiling (M793).
+	MaxDailyMc int64 `json:"max_daily_mc,omitempty"`
+
 	// MemoryScope is the agent's private memory scope (M652); empty = the
 	// slug, so every named agent gets its own notes by default.
 	MemoryScope string `json:"memory_scope,omitempty"`
@@ -100,6 +106,9 @@ func Validate(p Profile) error {
 	}
 	if p.MaxCostMc < 0 {
 		return errors.New("roster: max_cost_mc must be >= 0")
+	}
+	if p.MaxDailyMc < 0 {
+		return errors.New("roster: max_daily_mc must be >= 0")
 	}
 	if p.Workdir != "" {
 		w := filepath.ToSlash(p.Workdir)

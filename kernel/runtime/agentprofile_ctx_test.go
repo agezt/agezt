@@ -48,6 +48,7 @@ func TestWithAgentProfile_AppliesIdentityToRun(t *testing.T) {
 	ctx := runtime.WithAgentProfile(context.Background(), roster.Profile{
 		Slug: "researcher", Soul: "You are Researcher.",
 		Model: "agent-model", Fallbacks: []string{"agent-model", "backup-1"},
+		MaxDailyMc: 5_000_000_000,
 	})
 	if _, err := k.RunWith(ctx, k.NewCorrelation(), "what about the target?"); err != nil {
 		t.Fatalf("RunWith: %v", err)
@@ -64,6 +65,9 @@ func TestWithAgentProfile_AppliesIdentityToRun(t *testing.T) {
 	}
 	if !strings.Contains(req.System, "researcher-private-fact") {
 		t.Errorf("memory scope not applied — private note missing:\n%s", req.System)
+	}
+	if req.Agent != "researcher" || req.AgentDailyCeilingMc != 5_000_000_000 {
+		t.Errorf("identity ledger fields = %q/%d, want researcher/5e9 (M793)", req.Agent, req.AgentDailyCeilingMc)
 	}
 }
 
