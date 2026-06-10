@@ -157,6 +157,10 @@ func (s *Server) handleWorkflowSetEnabled(conn net.Conn, req Request) {
 // timeout_sec applies inside it; this is the outer hard stop.
 const workflowTestNodeTimeout = 3 * time.Minute
 
+// workflowWebhookReplyTimeout bounds one SYNC webhook run (M812) — reply
+// workflows are request/response, not pipelines; long work stays async.
+const workflowWebhookReplyTimeout = 2 * time.Minute
+
 // handleWorkflowTestNode (M811) runs ONE node of the POSTED graph with
 // caller-supplied upstream data — the canvas's "Test node" button. The graph
 // rides in the request (the canvas's truth, unsaved edits included).
@@ -228,10 +232,37 @@ func (s *Server) handleWorkflowWebhook(conn net.Conn, req Request) {
 		refuse()
 		return
 	}
-	// Fire-and-return: a webhook caller gets an immediate accept; the run
-	// proceeds under its own deadline and the journal carries the arc.
 	corr := s.k.NewCorrelation()
 	payload := req.Args["payload"]
+
+	// Reply mode (M812): the AUTHENTICATED caller holds the line and gets
+	// the run's outputs back — n8n's "respond to webhook". Post-auth run
+	// failures may be honest (the caller proved knowledge of the secret);
+	// only the auth gate stays uniform.
+	if w.TriggerSpec().Reply {
+		ctx, cancel := context.WithTimeout(context.Background(), workflowWebhookReplyTimeout)
+		defer cancel()
+		runRes, err := s.k.RunWorkflow(ctx, corr, w.Name, payload)
+		if err != nil {
+			s.writeResp(conn, Response{
+				ID: req.ID, Type: RespError,
+				Error: "webhook run failed: " + err.Error() + " (correlation " + corr + ")",
+			})
+			return
+		}
+		s.writeResp(conn, Response{
+			ID:   req.ID,
+			Type: RespResult,
+			Result: map[string]any{
+				"correlation_id": corr, "workflow": w.Name,
+				"executed": runRes.Executed, "outputs": runRes.Outputs,
+			},
+		})
+		return
+	}
+
+	// Fire-and-return: a webhook caller gets an immediate accept; the run
+	// proceeds under its own deadline and the journal carries the arc.
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), workflowRunTimeout)
 		defer cancel()

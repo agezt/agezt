@@ -252,6 +252,35 @@ func TestWorkflow_WireRoundTrip(t *testing.T) {
 			t.Fatal("async webhook run never completed")
 		}
 	}
+	// Reply mode (M812): a sync webhook returns the run's outputs in-line.
+	replyGraph := map[string]any{
+		"name": "echoer",
+		"nodes": []any{
+			map[string]any{"id": "start", "type": "trigger",
+				"config": map[string]any{"kind": "webhook", "secret": "reply-s3cret-99", "reply": true}},
+			map[string]any{"id": "shape", "type": "transform",
+				"config": map[string]any{"template": "pong {{trigger.payload.body.ping}}"}},
+		},
+		"edges": []any{map[string]any{"from": "start", "to": "shape"}},
+	}
+	if _, err := c.Call(ctx, controlplane.CmdWorkflowSave, map[string]any{"workflow": replyGraph}); err != nil {
+		t.Fatalf("save echoer: %v", err)
+	}
+	res, err = c.Call(ctx, controlplane.CmdWorkflowWebhook, map[string]any{
+		"ref": "echoer", "secret": "reply-s3cret-99",
+		"payload": map[string]any{"kind": "webhook", "body": map[string]any{"ping": "42"}},
+	})
+	if err != nil {
+		t.Fatalf("reply webhook: %v", err)
+	}
+	outs, _ := res["outputs"].(map[string]any)
+	if outs["shape"] != "pong 42" {
+		t.Fatalf("reply outputs = %v", res)
+	}
+	if _, async := res["accepted"]; async {
+		t.Fatal("reply mode must not answer with the async accept shape")
+	}
+
 	// Uniform refusals: wrong secret, unknown name, and disabled.
 	for _, args := range []map[string]any{
 		{"ref": "hooked", "secret": "wrong-secret-123"},

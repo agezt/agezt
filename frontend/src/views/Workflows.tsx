@@ -277,7 +277,7 @@ const nodeTypes = { wf: WfNodeView };
 
 // ---- per-type config forms ----------------------------------------------------
 
-type FieldKind = "text" | "textarea" | "number" | "select" | "json";
+type FieldKind = "text" | "textarea" | "number" | "select" | "json" | "bool";
 interface FieldSpec {
   key: string;
   label: string;
@@ -297,6 +297,11 @@ const FIELD_SPECS: Record<string, FieldSpec[]> = {
       label: "Secret (webhook, ≥12 chars) — callers POST /hooks/<name> with X-Agezt-Secret",
       kind: "text",
       placeholder: "long-random-string",
+    },
+    {
+      key: "reply",
+      label: "Reply mode (webhook) — the caller waits and receives the run's outputs",
+      kind: "bool",
     },
   ],
   tool: [
@@ -436,6 +441,8 @@ function NodePanel({
           onError(`${f.label}: invalid JSON`);
           return;
         }
+      } else if (f.kind === "bool") {
+        if (raw === "true") config[f.key] = true; // false stays omitted (no zero-noise)
       } else {
         config[f.key] = raw;
       }
@@ -477,14 +484,14 @@ function NodePanel({
               aria-label={f.label}
               className={cn(inputCls, "resize-y font-mono text-xs")}
             />
-          ) : f.kind === "select" ? (
+          ) : f.kind === "select" || f.kind === "bool" ? (
             <select
-              value={vals[f.key] || (f.options?.[0] ?? "")}
+              value={vals[f.key] || (f.kind === "bool" ? "false" : (f.options?.[0] ?? ""))}
               onChange={(e) => setVals((s) => ({ ...s, [f.key]: e.target.value }))}
               aria-label={f.label}
               className={inputCls}
             >
-              {(f.options || []).map((o) => (
+              {(f.kind === "bool" ? ["false", "true"] : f.options || []).map((o) => (
                 <option key={o} value={o}>
                   {o}
                 </option>

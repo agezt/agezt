@@ -465,15 +465,34 @@ func (s *Server) handleWorkflowHook(w http.ResponseWriter, r *http.Request) {
 	if len(query) > 0 {
 		payload["query"] = query
 	}
-	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	// Generous ctx: async hooks answer in milliseconds; reply-mode hooks
+	// (M812) legitimately hold until the run finishes (2m control-plane cap).
+	ctx, cancel := context.WithTimeout(r.Context(), 130*time.Second)
 	defer cancel()
 	res, err := s.client.Call(ctx, controlplane.CmdWorkflowWebhook, map[string]any{
 		"ref": name, "secret": secret, "payload": payload,
 	})
 	if err != nil {
-		// Uniform refusal — never tell a prober WHY (unknown name, bad
-		// secret, and disabled all read the same).
+		// Post-auth run failures are honest (the caller knew the secret);
+		// auth refusals stay uniform — never tell a prober WHY (unknown
+		// name, bad secret, and disabled all read the same 403).
+		if strings.Contains(err.Error(), "webhook run failed") {
+			writeJSON(w, http.StatusBadGateway, map[string]any{"error": err.Error()})
+			return
+		}
 		http.Error(w, "webhook refused", http.StatusForbidden)
+		return
+	}
+	// Reply mode (M812): the run finished synchronously — hand its outputs
+	// back to the caller with a 200.
+	if outputs, ok := res["outputs"]; ok {
+		writeJSON(w, http.StatusOK, map[string]any{
+			"ok":             true,
+			"workflow":       res["workflow"],
+			"correlation_id": res["correlation_id"],
+			"executed":       res["executed"],
+			"outputs":        outputs,
+		})
 		return
 	}
 	writeJSON(w, http.StatusAccepted, map[string]any{

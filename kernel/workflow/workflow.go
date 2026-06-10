@@ -236,6 +236,11 @@ type TriggerConfig struct {
 	// /hooks/<name> must present it. Per-workflow, never the console token —
 	// a leaked hook secret can fire ONE workflow, nothing else.
 	Secret string `json:"secret,omitempty"`
+	// Reply (M812) makes the webhook SYNCHRONOUS: the caller's POST holds
+	// until the run finishes and the response carries the outputs — n8n's
+	// "respond to webhook". Reply workflows should be fast (the sync path
+	// is capped well under the async 15m); long pipelines stay async.
+	Reply bool `json:"reply,omitempty"`
 }
 
 const (
