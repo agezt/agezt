@@ -12,6 +12,24 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **First-run setup & onboarding (both surfaces).** A guided first-use that hand-holds a brand-new
+  operator past the one thing the daemon can't self-create — a real LLM key. **Web UI:** a
+  3-step **Setup** wizard (catalog → provider + key → model) that auto-opens full-screen on first
+  run when no provider is credentialed, plus a permanent **Setup** nav entry to reopen it; it drives
+  the existing catalog/keys/config routes and drops you straight into Chat. **CLI:** `agt quickstart`
+  now **persists** your provider/model choice live (no env vars, no restart) when a daemon is
+  reachable, and the daemon banner prints a can't-miss **⚠ setup needed** line pointing at both
+  surfaces whenever it's running on the offline mock. (M816)
+
+### Fixed
+- **Live provider switch now actually switches.** Selecting a provider/model at runtime (the new
+  Setup wizard, the Config Center, or `agt quickstart` against a running daemon) takes effect
+  **without a restart**: the kernel's default model is hot-swapped to match the freshly-selected
+  provider, and a stale offline-mock primary is demoted to a fallback instead of lingering ahead of
+  the real provider. Previously a live switch left runs carrying the old model id (the real provider
+  rejected it) or kept the mock serving every run — the wizard would say "you're ready" while
+  answers stayed `[offline-mock]`. (M816)
+
 - **Alert mute window + per-source muting.** Two new controls over which alert notifications
   reach your channels: a **mute window** (`AGEZT_ALERT_NOTIFY_MUTE=0-7`) holds warning pings
   during a daily quiet window — while **critical alerts (budget blowouts, halts) always break

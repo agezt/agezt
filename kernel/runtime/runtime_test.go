@@ -473,6 +473,66 @@ func TestKernel_Reload_InvokesOnReloadAndRefreshesCatalog(t *testing.T) {
 	}
 }
 
+// TestKernel_Model_LiveSwap — the kernel's default model is seeded from
+// cfg.Model, surfaced via Model(), and hot-swappable via SetModel without a
+// restart (M816). A run dispatched after SetModel must carry the NEW model on
+// its CompletionRequest — this is what makes the first-run wizard's provider
+// switch (mock→real, no restart) actually serve requests with the real model
+// rather than the stale boot-time one.
+func TestKernel_Model_LiveSwap(t *testing.T) {
+	prov := mock.New()
+	// Stable reply across both runs (the scripted list would exhaust after one).
+	prov.Responder = func(agent.CompletionRequest) agent.CompletionResponse {
+		return mock.FinalText("ok")
+	}
+	var seen []string
+	prov.OnRequest = func(req agent.CompletionRequest) {
+		// Per-run model the agent loop chose (empty for the synthetic
+		// reflection/verify calls is fine — we only assert the ones it sets).
+		if req.Model != "" {
+			seen = append(seen, req.Model)
+		}
+	}
+	k, err := runtime.Open(runtime.Config{
+		BaseDir:  t.TempDir(),
+		Provider: prov,
+		Model:    "model-a",
+		Tools:    map[string]agent.Tool{},
+	})
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer k.Close()
+
+	if got := k.Model(); got != "model-a" {
+		t.Fatalf("Model() = %q, want seeded model-a", got)
+	}
+
+	if _, _, err := k.Run(context.Background(), "first"); err != nil {
+		t.Fatalf("Run #1: %v", err)
+	}
+
+	// Hot-swap — no restart, no Reload required.
+	k.SetModel("model-b")
+	if got := k.Model(); got != "model-b" {
+		t.Fatalf("Model() after SetModel = %q, want model-b", got)
+	}
+
+	if _, _, err := k.Run(context.Background(), "second"); err != nil {
+		t.Fatalf("Run #2: %v", err)
+	}
+
+	if len(seen) < 2 {
+		t.Fatalf("expected ≥2 model-bearing requests, saw %v", seen)
+	}
+	if seen[0] != "model-a" {
+		t.Errorf("first run used model %q, want model-a", seen[0])
+	}
+	if last := seen[len(seen)-1]; last != "model-b" {
+		t.Errorf("post-swap run used model %q, want model-b", last)
+	}
+}
+
 func TestKernel_Reload_NilOnReloadIsCatalogOnly(t *testing.T) {
 	k, err := runtime.Open(runtime.Config{
 		BaseDir:  t.TempDir(),
