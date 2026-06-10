@@ -1093,7 +1093,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 	if webDesc := buildWebUI(ctx, k, baseDir, stdout); webDesc != "" {
 		fmt.Fprintf(stdout, "  web ui           : %s\n", webDesc)
 	} else {
-		fmt.Fprintf(stdout, "  web ui           : disabled (set AGEZT_WEB_ADDR, e.g. 127.0.0.1:8787)\n")
+		fmt.Fprintf(stdout, "  web ui           : disabled (AGEZT_WEB_ADDR=off; unset it to serve on 127.0.0.1:8787)\n")
 	}
 
 	// Tunnel (SPEC-07) — expose a local HTTP service (the Web UI, else the REST
@@ -2433,9 +2433,18 @@ func newGuardedHTTPServer(h http.Handler) *http.Server {
 // banner warns if it isn't loopback (public exposure is their explicit choice,
 // SPEC-06).
 func buildWebUI(ctx context.Context, k *kernelruntime.Kernel, baseDir string, stdout io.Writer) string {
-	addr := os.Getenv(brand.EnvPrefix + "WEB_ADDR")
-	if addr == "" {
+	// Default-ON (M817): the web console is the product surface, so a bare
+	// `agezt` serves it without ceremony. AGEZT_WEB_ADDR overrides the bind
+	// address; the explicit opt-OUT keywords disable it (mirrors the owner's
+	// allow-by-default posture — you turn it off, you don't turn it on).
+	addr := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "WEB_ADDR"))
+	defaulted := false
+	switch strings.ToLower(addr) {
+	case "off", "disabled", "none", "no", "0", "false":
 		return ""
+	case "":
+		addr = "127.0.0.1:8787"
+		defaulted = true
 	}
 	// Fresh random token, minted like the control plane's (crypto/rand → hex).
 	tokBytes := make([]byte, 32)
@@ -2454,11 +2463,28 @@ func buildWebUI(ctx context.Context, k *kernelruntime.Kernel, baseDir string, st
 	}
 
 	ln, err := net.Listen("tcp", addr)
+	if err != nil && defaulted {
+		// The default port is taken (a second daemon, or another app on 8787).
+		// Don't leave the console dark over a port clash — fall back to an
+		// OS-assigned free port on loopback so a bare `agezt` ALWAYS gets a UI.
+		fmt.Fprintf(stdout, "  web ui           : %s busy — using a free port instead\n", addr)
+		ln, err = net.Listen("tcp", "127.0.0.1:0")
+	}
 	if err != nil {
 		fmt.Fprintf(stdout, "  web ui           : disabled (listen %s: %v)\n", addr, err)
 		return ""
 	}
 	wsrv := webui.New(k.Bus(), client, token)
+	// Optional password second factor (M817): when AGEZT_WEB_PASSWORD is set, the
+	// token gets you the page but every data route also requires a password login
+	// (HttpOnly session cookie). Opt-in — unset means token-only. It's a SECRET in
+	// the schema, so a Config-Center edit lands in the vault and injectConfig has
+	// already bridged it into the environment by the time we read it here.
+	webPassword := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "WEB_PASSWORD"))
+	passwordOn := webPassword != ""
+	if passwordOn {
+		wsrv.SetPassword(webPassword)
+	}
 	// Wire speech-to-text for the chat mic button (M689) when an STT endpoint is
 	// configured. Guard on the concrete pointer so a nil never becomes a non-nil
 	// interface (which would make /api/transcribe think STT is configured).
@@ -2481,6 +2507,9 @@ func buildWebUI(ctx context.Context, k *kernelruntime.Kernel, baseDir string, st
 	}()
 
 	desc := "http://" + ln.Addr().String() + "/?token=" + token
+	if passwordOn {
+		desc += "  (password-protected)"
+	}
 	if !isLoopback(addr) {
 		desc += "  [WARNING: not loopback — reachable beyond localhost]"
 	}
