@@ -1,0 +1,241 @@
+// SPDX-License-Identifier: MIT
+
+package alerter
+
+import (
+	"context"
+	"encoding/json"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/agezt/agezt/kernel/bus"
+	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/journal"
+	"github.com/agezt/agezt/kernel/pulse"
+)
+
+// captureSink records delivered briefs, safely across goroutines.
+type captureSink struct {
+	mu     sync.Mutex
+	briefs []pulse.Brief
+}
+
+func (c *captureSink) Deliver(b pulse.Brief) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.briefs = append(c.briefs, b)
+	return nil
+}
+
+func (c *captureSink) all() []pulse.Brief {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return append([]pulse.Brief(nil), c.briefs...)
+}
+
+func ev(kind event.Kind, corr string, payload map[string]any) *event.Event {
+	e := &event.Event{Kind: kind, CorrelationID: corr}
+	if payload != nil {
+		raw, err := json.Marshal(payload)
+		if err != nil {
+			panic(err)
+		}
+		e.Payload = raw
+	}
+	return e
+}
+
+// TestClassify_MirrorsConsoleAlertRules: the five notify-worthy kinds map to
+// the console's titles/levels/sources; everything else is not an alert.
+func TestClassify_MirrorsConsoleAlertRules(t *testing.T) {
+	cases := []struct {
+		name   string
+		ev     *event.Event
+		want   Alert
+		wantOK bool
+	}{
+		{"task.failed", ev(event.KindTaskFailed, "c1", map[string]any{"reason": "boom"}),
+			Alert{Kind: event.KindTaskFailed, Level: LevelWarning, Title: "run failed", Detail: "boom", Source: "run"}, true},
+		{"task.failed error fallback", ev(event.KindTaskFailed, "c1", map[string]any{"error": "exploded"}),
+			Alert{Kind: event.KindTaskFailed, Level: LevelWarning, Title: "run failed", Detail: "exploded", Source: "run"}, true},
+		{"netguard.blocked", ev(event.KindNetguardBlocked, "c2", map[string]any{"ip": "10.0.0.1", "reason": "private", "tool": "http"}),
+			Alert{Kind: event.KindNetguardBlocked, Level: LevelWarning, Title: "egress blocked", Detail: "10.0.0.1 — private", Source: "http"}, true},
+		{"netguard.blocked no tool", ev(event.KindNetguardBlocked, "", nil),
+			Alert{Kind: event.KindNetguardBlocked, Level: LevelWarning, Title: "egress blocked", Source: "egress"}, true},
+		{"budget.exceeded", ev(event.KindBudgetExceeded, "c3", nil),
+			Alert{Kind: event.KindBudgetExceeded, Level: LevelCritical, Title: "budget ceiling exceeded", Source: "budget"}, true},
+		{"rate.limited", ev(event.KindRateLimited, "", map[string]any{"provider": "openai"}),
+			Alert{Kind: event.KindRateLimited, Level: LevelWarning, Title: "provider rate-limited", Detail: "openai", Source: "provider"}, true},
+		{"halt", ev(event.KindHalt, "", map[string]any{"reason": "operator"}),
+			Alert{Kind: event.KindHalt, Level: LevelCritical, Title: "daemon halted", Detail: "operator", Source: "kernel"}, true},
+		{"tool.invoked is not an alert", ev(event.KindToolInvoked, "", nil), Alert{}, false},
+		{"pulse observer.delta NOT handled here (pulse delivers its own)",
+			&event.Event{Kind: event.Kind("observer.delta")}, Alert{}, false},
+		{"briefing.sent NOT handled here", &event.Event{Kind: event.Kind("briefing.sent")}, Alert{}, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, ok := Classify(tc.ev)
+			if ok != tc.wantOK {
+				t.Fatalf("ok = %v, want %v", ok, tc.wantOK)
+			}
+			if ok && got != tc.want {
+				t.Fatalf("got %+v, want %+v", got, tc.want)
+			}
+		})
+	}
+}
+
+// TestHandle_MinLevelGate: MinLevel=critical drops warnings, passes criticals.
+func TestHandle_MinLevelGate(t *testing.T) {
+	sink := &captureSink{}
+	n := New(sink, Config{MinLevel: LevelCritical})
+	if n.Handle(ev(event.KindTaskFailed, "c1", nil)) {
+		t.Fatal("warning delivered despite MinLevel=critical")
+	}
+	if !n.Handle(ev(event.KindBudgetExceeded, "c1", nil)) {
+		t.Fatal("critical not delivered")
+	}
+	if got := len(sink.all()); got != 1 {
+		t.Fatalf("delivered %d briefs, want 1", got)
+	}
+}
+
+// TestHandle_DedupCooldown: the same kind+correlation inside the cooldown is
+// sent once; a different correlation or an elapsed cooldown sends again.
+func TestHandle_DedupCooldown(t *testing.T) {
+	sink := &captureSink{}
+	n := New(sink, Config{Cooldown: time.Minute})
+	clock := time.Unix(1000, 0)
+	n.now = func() time.Time { return clock }
+
+	if !n.Handle(ev(event.KindTaskFailed, "run-1", nil)) {
+		t.Fatal("first alert not delivered")
+	}
+	if n.Handle(ev(event.KindTaskFailed, "run-1", nil)) {
+		t.Fatal("duplicate inside cooldown delivered")
+	}
+	if !n.Handle(ev(event.KindTaskFailed, "run-2", nil)) {
+		t.Fatal("different correlation suppressed")
+	}
+	clock = clock.Add(61 * time.Second)
+	if !n.Handle(ev(event.KindTaskFailed, "run-1", nil)) {
+		t.Fatal("alert after cooldown elapsed suppressed")
+	}
+	if got := len(sink.all()); got != 3 {
+		t.Fatalf("delivered %d briefs, want 3", got)
+	}
+}
+
+// TestHandle_RateCap: a flood of DISTINCT alerts is capped per window, and the
+// cap frees up once the window slides past the burst.
+func TestHandle_RateCap(t *testing.T) {
+	sink := &captureSink{}
+	n := New(sink, Config{MaxPerWindow: 3, Window: 10 * time.Minute})
+	clock := time.Unix(1000, 0)
+	n.now = func() time.Time { return clock }
+
+	delivered := 0
+	for i := range 8 {
+		clock = clock.Add(time.Second)
+		if n.Handle(ev(event.KindTaskFailed, "run-"+string(rune('a'+i)), nil)) {
+			delivered++
+		}
+	}
+	if delivered != 3 {
+		t.Fatalf("delivered %d, want exactly the cap 3", delivered)
+	}
+	clock = clock.Add(11 * time.Minute) // burst slides out of the window
+	if !n.Handle(ev(event.KindTaskFailed, "run-z", nil)) {
+		t.Fatal("delivery after the window cleared was suppressed")
+	}
+}
+
+// TestBrief_RendersSeverityAndDisposition: criticals get the siren, warnings
+// the caution sign; every brief is DispAlert (breaks through digests/quiet
+// hours) with the correlation threaded for `agt why`.
+func TestBrief_RendersSeverityAndDisposition(t *testing.T) {
+	sink := &captureSink{}
+	n := New(sink, Config{})
+	n.Handle(ev(event.KindHalt, "corr-7", map[string]any{"reason": "operator"}))
+	n.Handle(ev(event.KindTaskFailed, "corr-8", map[string]any{"reason": "boom"}))
+	briefs := sink.all()
+	if len(briefs) != 2 {
+		t.Fatalf("delivered %d briefs, want 2", len(briefs))
+	}
+	crit, warn := briefs[0], briefs[1]
+	if crit.Title != "🚨 daemon halted" {
+		t.Fatalf("critical title = %q", crit.Title)
+	}
+	if warn.Title != "⚠ run failed" {
+		t.Fatalf("warning title = %q", warn.Title)
+	}
+	for _, b := range briefs {
+		if b.Disposition != pulse.DispAlert {
+			t.Fatalf("disposition = %q, want %q", b.Disposition, pulse.DispAlert)
+		}
+	}
+	if crit.CorrelationID != "corr-7" || crit.IssueKey != "alert/halt" {
+		t.Fatalf("correlation/issue = %q/%q", crit.CorrelationID, crit.IssueKey)
+	}
+	if crit.Body != "operator\nsource: kernel" {
+		t.Fatalf("critical body = %q", crit.Body)
+	}
+}
+
+func newBus(t *testing.T) *bus.Bus {
+	t.Helper()
+	j, err := journal.Open(t.TempDir(), journal.Options{})
+	if err != nil {
+		t.Fatalf("journal.Open: %v", err)
+	}
+	t.Cleanup(func() { _ = j.Close() })
+	return bus.New(j)
+}
+
+// TestStart_DeliversFromRealBus: end to end on a real bus — a published
+// task.failed reaches the sink; non-alert events do not.
+func TestStart_DeliversFromRealBus(t *testing.T) {
+	b := newBus(t)
+	sink := &captureSink{}
+	if !Start(t.Context(), b, sink, Config{}) {
+		t.Fatal("Start returned false")
+	}
+
+	if _, err := b.Publish(event.Spec{Subject: "agent.run-1.task", Kind: event.KindToolInvoked,
+		Actor: "agent", Payload: map[string]any{"name": "shell"}}); err != nil {
+		t.Fatalf("publish tool.invoked: %v", err)
+	}
+	if _, err := b.Publish(event.Spec{Subject: "agent.run-1.task", Kind: event.KindTaskFailed,
+		Actor: "agent", CorrelationID: "run-1", Payload: map[string]any{"reason": "boom"}}); err != nil {
+		t.Fatalf("publish task.failed: %v", err)
+	}
+
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		if briefs := sink.all(); len(briefs) >= 1 {
+			if briefs[0].Title != "⚠ run failed" || briefs[0].CorrelationID != "run-1" {
+				t.Fatalf("unexpected brief: %+v", briefs[0])
+			}
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("alert never reached the sink")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if got := len(sink.all()); got != 1 {
+		t.Fatalf("delivered %d briefs, want 1 (tool.invoked must not notify)", got)
+	}
+}
+
+// TestStart_NilGuards: nothing starts without a bus or a sink.
+func TestStart_NilGuards(t *testing.T) {
+	if Start(context.Background(), nil, &captureSink{}, Config{}) {
+		t.Fatal("started without a bus")
+	}
+	if Start(context.Background(), newBus(t), nil, Config{}) {
+		t.Fatal("started without a sink")
+	}
+}

@@ -12,6 +12,25 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Hear about problems without the console open — alerts push to your channels.** The same
+  warning/critical signals the console's Alerts view surfaces — a run failure, blocked egress, a
+  budget ceiling or provider rate trip, a daemon halt — can now be **pushed to the configured
+  channels** (Telegram, Slack, Discord, email, Signal, …) the moment they happen. It completes the
+  alert arc (M777–M781): the badge and cockpit strip tell you *in* the console; this tells you when
+  you're *away from it*. A new `kernel/alerter` watcher classifies bus events with the very same
+  rules as the console (Pulse's own signals are deliberately excluded — Pulse already delivers its
+  briefs through these sinks, and double-pinging every heartbeat would be noise) and delivers a short
+  high-priority brief through the existing Pulse channel sinks, with the run's correlation threaded
+  for `agt why`. Spam-safe by construction: the same alert (kind + run) repeats at most once per
+  cooldown (default 5m), and a global flood cap (default 12 per 10m) keeps a cascading failure from
+  turning a channel into a siren. **Opt-in** via `AGEZT_ALERT_NOTIFY=1` (plus `_LEVEL` to restrict to
+  criticals, `_COOLDOWN`, `_MAX`), editable in the Config Center under **Alert Notifications**.
+  Unit-tested (classification mirrors the console's rules kind-for-kind; min-level gate; dedup
+  cooldown; flood cap window slide; severity/disposition/correlation on the brief; end-to-end
+  delivery from a real bus; nil guards). Verified live on an isolated daemon: a real `agt halt`
+  pushed `🚨 daemon halted` through the webhook channel to a local listener; a repeat halt inside the
+  cooldown was suppressed; the negative control (notify off) pushed nothing and reported `disabled`
+  in the boot banner. (M782)
 - **Jump from an alert to the run that caused it.** Alerts tied to a run — a failure, a budget/rate
   trip, blocked egress — now carry the run's id, so both the **Alerts** view (an *open run →* link on
   the row) and the Cockpit's **Needs attention** strip (the whole row is clickable) take you straight to
