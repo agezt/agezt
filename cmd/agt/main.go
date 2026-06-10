@@ -134,6 +134,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return cmdSkill(args[1:], stdout, stderr)
 	case "standing":
 		return cmdStanding(args[1:], stdout, stderr)
+	case "agent":
+		return cmdAgent(args[1:], stdout, stderr)
 	case "reflect":
 		return cmdReflect(args[1:], stdout, stderr)
 	case "inbox":
@@ -336,6 +338,7 @@ func cmdRun(args []string, stdout, stderr io.Writer) int {
 	quiet := false
 	tenant := ""
 	model := ""
+	agentRef := ""
 	system := ""
 	file := ""
 	timeout := ""
@@ -369,6 +372,15 @@ func cmdRun(args []string, stdout, stderr io.Writer) int {
 			model = args[i]
 		case strings.HasPrefix(a, "--model="):
 			model = strings.TrimPrefix(a, "--model=")
+		case a == "--agent":
+			if i+1 >= len(args) {
+				fmt.Fprintf(stderr, "%s run: --agent needs an agent slug (agt agent list)\n", brand.CLI)
+				return 2
+			}
+			i++
+			agentRef = args[i]
+		case strings.HasPrefix(a, "--agent="):
+			agentRef = strings.TrimPrefix(a, "--agent=")
 		case a == "--system":
 			if i+1 >= len(args) {
 				fmt.Fprintf(stderr, "%s run: --system needs a prompt\n", brand.CLI)
@@ -490,6 +502,11 @@ func cmdRun(args []string, stdout, stderr io.Writer) int {
 	}
 	if model = strings.TrimSpace(model); model != "" {
 		runArgs["model"] = model
+	}
+	// Run AS a named agent (M783): the daemon resolves the roster profile and
+	// applies its soul/model/cost ceiling as defaults (explicit flags win).
+	if agentRef = strings.TrimSpace(agentRef); agentRef != "" {
+		runArgs["agent"] = agentRef
 	}
 	if strings.TrimSpace(system) != "" {
 		runArgs["system"] = system

@@ -229,6 +229,13 @@ const (
 	// diagnosable (`agt journal`) instead of taking down the whole daemon.
 	KindStandingError Kind = "standing.error"
 
+	// Agent roster (M783) — durable named agent profiles (slug + soul + model
+	// + budget + memory scope). Lifecycle is journaled so `agt why` and the
+	// changelog can explain how an agent came to exist.
+	KindRosterCreated Kind = "roster.created"
+	KindRosterUpdated Kind = "roster.updated" // edited/paused/resumed
+	KindRosterRemoved Kind = "roster.removed"
+
 	// Reflection — meta-cognition (SPEC-05 §6). The system reviews its own
 	// behaviour from the journal and recalibrates; the report (observations,
 	// adjustments applied, advisory proposals) is itself journaled.
@@ -367,6 +374,9 @@ var knownKinds = map[Kind]struct{}{
 	KindStandingRemoved:           {},
 	KindStandingFired:             {},
 	KindStandingError:             {},
+	KindRosterCreated:             {},
+	KindRosterUpdated:             {},
+	KindRosterRemoved:             {},
 	KindReflectionCompleted:       {},
 	KindJournalSegmentRotated:     {},
 	KindWebhookDelivered:          {},

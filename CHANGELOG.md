@@ -12,6 +12,26 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Named, durable agents — the roster.** Until now an "agent" was a run: it existed for the length
+  of one task and vanished. The new **agent roster** (`kernel/roster`) makes agents *durable named
+  identities*: `agt agent add researcher --soul "You research deeply…" --model … --max-cost 0.50`
+  creates **researcher** — with its own **soul** (system prompt), model (+ ordered fallback list),
+  default task type, per-run spend ceiling, memory scope, and workspace subdirectory — and
+  `agt run --agent researcher "…"` runs AS it: the soul becomes the run's system prompt, the
+  profile's model and cost ceiling apply as defaults (explicit per-run flags still win), and a
+  paused or unknown agent is refused with a hint rather than silently running as the default
+  identity. Profiles persist across restarts (atomic JSON, the standing-orders pattern), every
+  create/edit/pause/resume/remove is journaled (`roster.*`) so `agt why` can explain how an agent
+  came to exist, and the slug is immutable — it's the agent's address. Full management surface:
+  `agt agent list/add/show/set/pause/resume/remove`, control-plane commands (`agent_*`), and Web UI
+  proxy routes (`/api/agents` + add/edit/enable/remove) ready for the console view. This is the
+  identity layer the multi-agent arc builds on: per-agent messaging, budgets, and tool grants all
+  get something durable to attach to. Unit-tested (slug rules, workdir-escape rejection, identity
+  protection on edit, persistence across reopen, CRUD round-trip over the control plane with
+  journal assertions, and the run seam: profile fills model/soul/cost gaps, explicit flags win,
+  paused/unknown refused). Verified live on an isolated daemon end-to-end: created an agent, ran as
+  it (dry-run showed the soul + $0.50 ceiling applied; the real run completed), pause refused the
+  run with a hint, edit/remove round-tripped, `roster.created` in the journal; 0 panics. (M783)
 - **Hear about problems without the console open — alerts push to your channels.** The same
   warning/critical signals the console's Alerts view surfaces — a run failure, blocked egress, a
   budget ceiling or provider rate trip, a daemon halt — can now be **pushed to the configured
