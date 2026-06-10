@@ -722,6 +722,18 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.handleMCPSetEnabled(conn, req)
 	case CmdMCPRemove:
 		s.handleMCPRemove(conn, req)
+	case CmdWorkflowList:
+		s.handleWorkflowList(conn, req)
+	case CmdWorkflowShow:
+		s.handleWorkflowShow(conn, req)
+	case CmdWorkflowSave:
+		s.handleWorkflowSave(conn, req)
+	case CmdWorkflowRemove:
+		s.handleWorkflowRemove(conn, req)
+	case CmdWorkflowSetEnabled:
+		s.handleWorkflowSetEnabled(conn, req)
+	case CmdWorkflowRun:
+		s.handleWorkflowRun(conn, req)
 	case CmdSandboxList:
 		s.handleSandboxList(conn, req)
 	case CmdSandboxFile:

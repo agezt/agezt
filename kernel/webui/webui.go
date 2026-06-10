@@ -113,6 +113,7 @@ var apiRoutes = map[string]string{
 	"/api/agents":        controlplane.CmdAgentList,
 	"/api/toolforge":     controlplane.CmdToolforgeList,
 	"/api/mcp":           controlplane.CmdMCPList,
+	"/api/workflows":     controlplane.CmdWorkflowList,
 	"/api/inbox":         controlplane.CmdInbox,
 	"/api/board":         controlplane.CmdBoardRead,
 	"/api/autonomy":      controlplane.CmdAutonomyFeed,
@@ -174,6 +175,9 @@ var readArgsRoutes = map[string]writeRoute{
 	// One script tool's full record incl. the code body (M795) — the list route
 	// deliberately strips code; the Forge view's editor fetches it here. Read-only.
 	"/api/toolforge/show": {controlplane.CmdToolforgeShow, []string{"ref"}},
+	// One workflow's full graph (M798) — the list stays light; the canvas
+	// editor fetches nodes+edges here. Read-only.
+	"/api/workflows/show": {controlplane.CmdWorkflowShow, []string{"ref"}},
 	// Dry-run a policy decision (M753): "if the agent asked to do <capability> with
 	// <input>, would the edict engine allow / ask / deny it, and via which rule?".
 	// Read-only — eng.Decide mutates nothing.
@@ -253,11 +257,15 @@ var writeRoutes = map[string]writeRoute{
 	// MCP self-install lifecycle (M796): attach spawns the registered server
 	// NOW (its tools go live for the next run); detach is the kill switch;
 	// enable flips auto-attach at daemon start. ref = name or id.
-	"/api/mcp/attach":  {controlplane.CmdMCPAttach, []string{"ref"}},
-	"/api/mcp/detach":  {controlplane.CmdMCPDetach, []string{"ref"}},
-	"/api/mcp/enable":  {controlplane.CmdMCPSetEnabled, []string{"ref", "enabled"}},
-	"/api/mcp/remove":  {controlplane.CmdMCPRemove, []string{"ref"}},
-	"/api/reflect/run": {controlplane.CmdReflectRun, nil},
+	"/api/mcp/attach": {controlplane.CmdMCPAttach, []string{"ref"}},
+	"/api/mcp/detach": {controlplane.CmdMCPDetach, []string{"ref"}},
+	"/api/mcp/enable": {controlplane.CmdMCPSetEnabled, []string{"ref", "enabled"}},
+	"/api/mcp/remove": {controlplane.CmdMCPRemove, []string{"ref"}},
+	// Workflow lifecycle (M798): enable arms triggers (M799); remove deletes.
+	// (Save and run carry structured bodies — they are jsonRoutes.)
+	"/api/workflows/enable": {controlplane.CmdWorkflowSetEnabled, []string{"ref", "enabled"}},
+	"/api/workflows/remove": {controlplane.CmdWorkflowRemove, []string{"ref"}},
+	"/api/reflect/run":      {controlplane.CmdReflectRun, nil},
 	// Provider keyring switch/remove (M700): activate or remove a key, reloading
 	// the provider in place. (Add is a jsonRoute — the value is a secret body.)
 	"/api/provider/keys/activate": {controlplane.CmdProviderKeyActivate, []string{"env", "label"}},
@@ -309,6 +317,10 @@ var jsonRoutes = map[string]writeRoute{
 	// Register an MCP server (M796): the server is a structured object
 	// (command + args list) — a JSON body, not query args.
 	"/api/mcp/add": {controlplane.CmdMCPAdd, []string{"server"}},
+	// Workflow save/run (M798): the graph (nodes+edges) and the run payload
+	// are structured objects — JSON bodies, not query args.
+	"/api/workflows/save": {controlplane.CmdWorkflowSave, []string{"workflow"}},
+	"/api/workflows/run":  {controlplane.CmdWorkflowRun, []string{"ref", "payload"}},
 	// Create a schedule (M715): intent + a timing mode. Numeric timing args (e.g.
 	// interval_sec, at_minutes, once_at_unix) ride the JSON body so they keep their
 	// types — a query arg would stringify them.

@@ -45,6 +45,7 @@ import (
 	"github.com/agezt/agezt/kernel/toolforge"
 	"github.com/agezt/agezt/kernel/ulid"
 	"github.com/agezt/agezt/kernel/warden"
+	"github.com/agezt/agezt/kernel/workflow"
 	"github.com/agezt/agezt/kernel/worldmodel"
 )
 
@@ -345,6 +346,7 @@ type Kernel struct {
 	roster    *roster.Store
 	toolForge *toolforge.Store
 	mcpStore  *mcp.Store
+	workflows *workflow.Store
 	artifacts *artifact.Store
 	reflect   *reflect.Engine
 	schedules *cadence.Store        // persistent scheduled-intents store (autonomy)
@@ -497,6 +499,16 @@ func Open(cfg Config) (*Kernel, error) {
 		return nil, fmt.Errorf("runtime: mcp: %w", err)
 	}
 
+	wfstore, err := workflow.OpenStore(filepath.Join(cfg.BaseDir, "workflows"))
+	if err != nil {
+		j.Close()
+		st.Close()
+		mstore.Close()
+		wstore.Close()
+		skstore.Close()
+		return nil, fmt.Errorf("runtime: workflows: %w", err)
+	}
+
 	// Reflection holds no store of its own — it folds the journal and tunes
 	// the world graph, then journals its report (SPEC-05 §6). Default decay
 	// knobs; the daemon may override via the optional periodic trigger.
@@ -560,6 +572,7 @@ func Open(cfg Config) (*Kernel, error) {
 		toolForge:    tfstore,
 		mcpStore:     mcpstore,
 		mcpConns:     make(map[string]mcp.Conn),
+		workflows:    wfstore,
 		artifacts:    artStore,
 		reflect:      reflectEng,
 		schedules:    schedStore,

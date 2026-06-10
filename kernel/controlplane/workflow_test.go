@@ -1,0 +1,130 @@
+// SPDX-License-Identifier: MIT
+
+package controlplane_test
+
+import (
+	"context"
+	"encoding/json"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/edict"
+	"github.com/agezt/agezt/kernel/runtime"
+	"github.com/agezt/agezt/plugins/providers/mock"
+)
+
+// wireEchoTool is the tool-node double for the wire round-trip.
+type wireEchoTool struct{ last string }
+
+func (t *wireEchoTool) Definition() agent.ToolDef {
+	return agent.ToolDef{Name: "echo", Description: "echoes", InputSchema: json.RawMessage(`{"type":"object"}`)}
+}
+
+func (t *wireEchoTool) Invoke(_ context.Context, raw json.RawMessage) (agent.Result, error) {
+	t.last = string(raw)
+	return agent.Result{Output: `{"status":"done"}`}, nil
+}
+
+// TestWorkflow_WireRoundTrip drives the full operator pipeline over the
+// wire: save (validated) → list → show (full graph) → run with a payload
+// (templates resolve, outputs come back) → disable → remove. Exactly what
+// `agt workflow` and the console canvas speak.
+func TestWorkflow_WireRoundTrip(t *testing.T) {
+	tool := &wireEchoTool{}
+	k, _, c, _ := startPairWithConfig(t, runtime.Config{
+		Provider: mock.New(mock.FinalText("unused")),
+		Tools:    map[string]agent.Tool{"echo": tool},
+	})
+	k.Edict().SetLevel("echo", edict.LevelAllow)
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	graph := map[string]any{
+		"name":        "wire-flow",
+		"description": "round-trip demo",
+		"nodes": []any{
+			map[string]any{"id": "start", "type": "trigger"},
+			map[string]any{"id": "call", "type": "tool",
+				"config": map[string]any{"tool": "echo", "args": map[string]any{"who": "{{trigger.payload.who}}"}}},
+			map[string]any{"id": "shape", "type": "transform",
+				"config": map[string]any{"template": "status={{call.output.status}}"}},
+		},
+		"edges": []any{
+			map[string]any{"from": "start", "to": "call"},
+			map[string]any{"from": "call", "to": "shape"},
+		},
+	}
+
+	// Save (create).
+	res, err := c.Call(ctx, controlplane.CmdWorkflowSave, map[string]any{"workflow": graph})
+	if err != nil {
+		t.Fatalf("save: %v", err)
+	}
+	if created, _ := res["created"].(bool); !created {
+		t.Fatalf("created = %v", res["created"])
+	}
+
+	// An invalid graph is refused with the validator's reason.
+	bad := map[string]any{"name": "bad-flow", "nodes": []any{map[string]any{"id": "a", "type": "tool", "config": map[string]any{"tool": "x"}}}}
+	if _, err := c.Call(ctx, controlplane.CmdWorkflowSave, map[string]any{"workflow": bad}); err == nil ||
+		!strings.Contains(err.Error(), "trigger") {
+		t.Fatalf("invalid save: %v", err)
+	}
+
+	// List is light (no nodes); show carries the full graph.
+	res, err = c.Call(ctx, controlplane.CmdWorkflowList, nil)
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	items, _ := res["workflows"].([]any)
+	if len(items) != 1 {
+		t.Fatalf("list count = %d", len(items))
+	}
+	if first, _ := items[0].(map[string]any); first["nodes"] != nil {
+		t.Fatal("list leaked the graph body")
+	}
+	res, err = c.Call(ctx, controlplane.CmdWorkflowShow, map[string]any{"ref": "wire-flow"})
+	if err != nil {
+		t.Fatalf("show: %v", err)
+	}
+	wf, _ := res["workflow"].(map[string]any)
+	if nodes, _ := wf["nodes"].([]any); len(nodes) != 3 {
+		t.Fatalf("show graph = %v", wf["nodes"])
+	}
+
+	// Run with a payload: the template reaches the tool; outputs return.
+	res, err = c.Call(ctx, controlplane.CmdWorkflowRun, map[string]any{
+		"ref": "wire-flow", "payload": map[string]any{"who": "ersin"},
+	})
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	if !strings.Contains(tool.last, `"ersin"`) {
+		t.Fatalf("payload did not reach the tool: %q", tool.last)
+	}
+	outputs, _ := res["outputs"].(map[string]any)
+	if outputs["shape"] != "status=done" {
+		t.Fatalf("outputs = %v", outputs)
+	}
+	if executed, _ := res["executed"].([]any); len(executed) != 3 {
+		t.Fatalf("executed = %v", res["executed"])
+	}
+
+	// Disable → remove → ghost refs are honest errors.
+	if _, err := c.Call(ctx, controlplane.CmdWorkflowSetEnabled, map[string]any{"ref": "wire-flow", "enabled": false}); err != nil {
+		t.Fatalf("disable: %v", err)
+	}
+	res, err = c.Call(ctx, controlplane.CmdWorkflowRemove, map[string]any{"ref": "wire-flow"})
+	if err != nil {
+		t.Fatalf("remove: %v", err)
+	}
+	if removed, _ := res["removed"].(bool); !removed {
+		t.Fatal("remove reported false")
+	}
+	if _, err := c.Call(ctx, controlplane.CmdWorkflowRun, map[string]any{"ref": "wire-flow"}); err == nil {
+		t.Fatal("running a removed workflow accepted")
+	}
+}

@@ -12,6 +12,24 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Workflow engine (core): durable, typed-node graphs — n8n-style, governed.** New
+  `kernel/workflow` + `agt workflow`: build a named graph of **typed nodes** — `trigger` (manual;
+  cron/event triggers next), `tool` (one governed call to ANY tool, built-in, forged, or
+  MCP-bridged), `llm` (one completion through the Governor), `condition` (true/false branching),
+  `transform`, `delay` — wired by edges and carrying data with **{{path}} templates**
+  (`{{trigger.payload.city}}`, `{{fetch.output.items.0.title}}`; JSON outputs stay structured so
+  downstream nodes reach into them). Unlike `agt plan` (intent → an agent loop per node), a
+  workflow node is a precise, deterministic step — and governance is inherited, not reinvented:
+  **tool nodes pass the exact same Edict policy gate as agent tool calls** (deny refuses the node,
+  ask blocks on the operator), llm nodes are routed/metered by the Governor, and every run journals
+  a `workflow.started → workflow.node… → workflow.completed|failed` arc the console canvas will
+  replay live. Graphs are validated hard before they ever touch disk (exactly one trigger, acyclic,
+  ports legal, per-type configs) and saved by name (`agt workflow save --file graph.json`), run on
+  demand with a payload (`agt workflow run <name> --payload '{...}'` → per-node outputs), and
+  exposed over the control plane + web API for the upcoming React Flow canvas editor (M801) and
+  copilot (M802). 10 new tests incl. a wire-level data-flow e2e and an isolated-daemon smoke whose
+  6-node branching pipeline took the true branch ("KAZANDIN…") at score 80 and the false branch at
+  score 20, per-node outputs and journal arc verified. (M798)
 - **MCP Servers console view.** MCP self-install (M796) gets its operator surface — an *MCP
   Servers* view under Agents: register a stdio server in the browser (the form explains the
   no-underscore name rule and splits args for you), **attach behind a confirm dialog** that says
