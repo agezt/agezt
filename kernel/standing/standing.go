@@ -91,9 +91,9 @@ type Order struct {
 	// this many attempts (M655). 0 = a single pass (the default). The fire path
 	// (cmd/agezt) reads this to choose RunAssured vs RunWith — symmetric with the
 	// schedule tool's assure budget for the time axis.
-	Assure        int        `json:"assure,omitempty"`
-	CreatedMS     int64      `json:"created_ms"`
-	UpdatedMS     int64      `json:"updated_ms"`
+	Assure    int   `json:"assure,omitempty"`
+	CreatedMS int64 `json:"created_ms"`
+	UpdatedMS int64 `json:"updated_ms"`
 }
 
 // ErrNotFound is returned for operations on an unknown order id.
