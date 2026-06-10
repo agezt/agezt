@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { classifyAlert, isAlert, LEVEL_ORDER } from "@/lib/alerts";
+import { classifyAlert, isAlert, LEVEL_ORDER, attentionAlertCount } from "@/lib/alerts";
 import type { AgentEvent } from "@/lib/events";
 
 function ev(kind: string, payload: any = {}): AgentEvent {
@@ -61,5 +61,19 @@ describe("classifyAlert", () => {
   it("ranks severity", () => {
     expect(LEVEL_ORDER.critical).toBeGreaterThan(LEVEL_ORDER.warning);
     expect(LEVEL_ORDER.warning).toBeGreaterThan(LEVEL_ORDER.info);
+  });
+});
+
+describe("attentionAlertCount (M779)", () => {
+  it("counts warning/critical alerts and ignores info-level and non-alert events", () => {
+    const events: AgentEvent[] = [
+      ev("task.failed", { reason: "boom" }), // warning
+      ev("budget.exceeded", {}), // critical
+      ev("capability.rejected", { capability: "shell" }), // info → not counted
+      ev("tool.result", {}), // not an alert
+      ev("netguard.blocked", { ip: "1.2.3.4" }), // warning
+    ];
+    expect(attentionAlertCount(events)).toBe(3);
+    expect(attentionAlertCount([])).toBe(0);
   });
 });

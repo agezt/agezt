@@ -12,6 +12,17 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **A live alert badge on the nav — know something's wrong from anywhere.** The **Alerts** nav item now
+  carries a small red count badge whenever the agent raises a warning- or critical-level alert (a run
+  failure, blocked egress, a budget/rate trip, a daemon halt) — so you find out the moment it happens,
+  from whatever view you're on, instead of only when you think to open the Alerts tab. Opening that tab
+  marks the alerts seen and the badge clears (and stays clear as you navigate on). Info-level signals
+  (e.g. a rejected capability) are real alerts but don't demand attention, so they don't badge. Built
+  on the app-wide event stream with a pure, tested `attentionAlertCount` helper; no backend change.
+  Unit-tested (`attentionAlertCount` counts warning/critical events and ignores info-level and
+  non-alert events). Verified live on an isolated daemon end-to-end: set the budget ceiling below a
+  run's cost to trip a real `budget.exceeded` + `task.failed`, and the badge appeared showing **2** on a
+  non-Alerts view; opening **Alerts** cleared it; navigating away kept it clear; 0 console errors. (M779)
 - **Search the skill library — find a procedure fast.** The Skills view gains a **filter skills** box
   (appearing once there are more than four skills) that narrows the cards as you type, matching on
   **name, description, status, triggers, or required tools**, with a live `matched/total` count. As the

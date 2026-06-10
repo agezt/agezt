@@ -44,6 +44,7 @@ import {
 import { cn } from "@/lib/utils";
 import { postAction, getJSON } from "@/lib/api";
 import { useEvents } from "@/lib/events";
+import { attentionAlertCount } from "@/lib/alerts";
 import { CommandPalette } from "@/components/CommandPalette";
 import { MiniChat } from "@/components/MiniChat";
 import { AlertBell } from "@/components/AlertBell";
@@ -238,8 +239,19 @@ export default function App() {
   // Refreshed whenever the palette opens so the list is current without polling.
   const [recentRuns, setRecentRuns] = useState<{ correlation_id?: string; intent?: string; status?: string }[]>([]);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>(loadCollapsed);
-  const { connected } = useEvents();
+  const { connected, events } = useEvents();
   const ui = useUI();
+
+  // Unseen-alert badge on the Alerts nav item (M779): count the critical/warning alerts
+  // in the live buffer so the cockpit flags "something needs attention" from anywhere —
+  // not only when you happen to open the Alerts tab. Opening that tab marks them seen.
+  const liveAlertCount = useMemo(() => attentionAlertCount(events), [events]);
+  const [seenAlerts, setSeenAlerts] = useState(0);
+  useEffect(() => {
+    if (active === "alerts") setSeenAlerts(liveAlertCount);
+  }, [active, liveAlertCount]);
+  const unseenAlerts = Math.max(0, liveAlertCount - seenAlerts);
+
   const current = NAV.find((n) => n.id === active) || NAV[0];
   const View = current.render;
   // Hidden inputs behind the ⌘K "Import appearance" / "Import configuration" commands.
@@ -494,6 +506,15 @@ export default function App() {
                   >
                     <n.icon className="size-4 shrink-0" />
                     <span>{n.label}</span>
+                    {n.id === "alerts" && unseenAlerts > 0 && (
+                      <span
+                        className="ml-auto inline-flex min-w-4 items-center justify-center rounded-full bg-bad px-1 text-[10px] font-semibold leading-4 text-white"
+                        title={`${unseenAlerts} new alert${unseenAlerts === 1 ? "" : "s"} — the agent flagged something`}
+                        aria-label={`${unseenAlerts} unseen alerts`}
+                      >
+                        {unseenAlerts > 99 ? "99+" : unseenAlerts}
+                      </span>
+                    )}
                   </button>
                 ))}
               </div>

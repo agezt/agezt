@@ -73,3 +73,15 @@ export function classifyAlert(e: AgentEvent): Alert | null {
 export function isAlert(e: AgentEvent): boolean {
   return classifyAlert(e) !== null;
 }
+
+// attentionAlertCount counts the events that classify as a warning- or critical-level
+// alert — the ones worth a badge (M779). Info-level signals (e.g. a rejected capability)
+// are real alerts but don't demand attention, so they're excluded from the count.
+export function attentionAlertCount(events: AgentEvent[]): number {
+  let n = 0;
+  for (const e of events) {
+    const a = classifyAlert(e);
+    if (a && a.level !== "info") n++;
+  }
+  return n;
+}
