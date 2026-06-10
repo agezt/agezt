@@ -14,6 +14,8 @@ import {
   withActivePersona,
   activeConvModel,
   withActiveConvModel,
+  activeConvAgent,
+  withActiveConvAgent,
   togglePinned,
   sortConversations,
   filterConversations,
@@ -135,6 +137,22 @@ describe("store mutations", () => {
     s = withActiveConvModel(s, "", 5);
     expect(activeConvModel(s)).toBe("");
     expect(s.conversations.find((c) => c.id === s.activeId)!.model).toBeUndefined();
+  });
+
+  it("withActiveConvAgent sets and clears the active conversation's agent, per thread (M789)", () => {
+    let s = loadStore(genId, 1);
+    expect(activeConvAgent(s)).toBe(""); // default identity by default
+    s = withActiveConvAgent(s, " researcher ", 2);
+    expect(activeConvAgent(s)).toBe("researcher"); // trimmed
+    const firstId = s.activeId;
+
+    s = startConversation(withActiveMessages(s, [userMsg("hi")], 3), genId, 4);
+    expect(activeConvAgent(s)).toBe(""); // new thread defaults
+    expect(s.conversations.find((c) => c.id === firstId)!.agent).toBe("researcher"); // first keeps its own
+
+    s = withActiveConvAgent(s, "", 5);
+    expect(activeConvAgent(s)).toBe("");
+    expect(s.conversations.find((c) => c.id === s.activeId)!.agent).toBeUndefined();
   });
 
   it("renameConversation sets a manual title; blank restores the derived one", () => {

@@ -372,7 +372,7 @@ func (s *Server) runStreamProxy() http.HandlerFunc {
 			http.Error(w, "streaming unsupported", http.StatusInternalServerError)
 			return
 		}
-		args, ok := s.decodeAllowedBody(w, r, []string{"intent", "model", "history", "system"})
+		args, ok := s.decodeAllowedBody(w, r, []string{"intent", "model", "history", "system", "agent"})
 		if !ok {
 			return
 		}

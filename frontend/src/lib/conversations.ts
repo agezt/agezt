@@ -24,6 +24,10 @@ export interface Conversation {
   // Optional per-conversation model (M712): the model id this thread runs on
   // ("" / undefined = the daemon default). Each thread remembers its own.
   model?: string;
+  // Optional per-conversation AGENT (M789): the roster slug this thread runs
+  // AS — its soul, model chain, memory scope, and budget apply (M783). The
+  // thread's explicit model/persona overrides still win over the profile's.
+  agent?: string;
   // Pinned threads (M726) sort to the top of the sidebar, above by-recency.
   pinned?: boolean;
 }
@@ -133,6 +137,23 @@ export function withActiveConvModel(store: Store, model: string, now: number): S
     ...store,
     conversations: store.conversations.map((c) =>
       c.id === store.activeId ? { ...c, model: m || undefined, updatedAt: now } : c,
+    ),
+  };
+}
+
+// activeConvAgent returns the active conversation's agent slug ("" if none).
+export function activeConvAgent(store: Store): string {
+  return store.conversations.find((c) => c.id === store.activeId)?.agent ?? "";
+}
+
+// withActiveConvAgent returns a new store with the active conversation's agent
+// set (empty string clears it → run as the daemon's default identity). Pure.
+export function withActiveConvAgent(store: Store, agent: string, now: number): Store {
+  const a = agent.trim();
+  return {
+    ...store,
+    conversations: store.conversations.map((c) =>
+      c.id === store.activeId ? { ...c, agent: a || undefined, updatedAt: now } : c,
     ),
   };
 }
