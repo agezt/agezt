@@ -12,6 +12,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Changed
+- **CLI no longer floods with per-token/reasoning event lines.** `agt run` and `agt plan` were
+  printing a `[evt seq=0 kind=llm.token]` / `kind=llm.reasoning` line for every streamed chunk — a
+  reasoning model (e.g. deepseek-v4-pro) buried the output. Now the answer streams inline, reasoning
+  is hidden by default (`AGEZT_SHOW_REASONING=1` shows it, demarcated with 💭), and `agt plan` skips
+  the ephemeral chunks entirely. (M819)
+
+### Changed
 - **`http` and `browser.read` are allow-by-default.** Out of the box the network tools now reach
   **any public host** — an empty allowlist no longer means "deny everything" (the old behaviour that
   made every `http.get`/`browser.read` fail with `host not in allowlist`). Setting
