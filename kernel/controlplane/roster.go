@@ -17,6 +17,19 @@ import (
 	"github.com/agezt/agezt/kernel/roster"
 )
 
+// agentModelChain builds a named agent's run chain: the resolved primary model
+// first, then the profile's ordered fallbacks, skipping duplicates of the
+// primary (so an explicit --model equal to a fallback doesn't try it twice).
+func agentModelChain(primary string, fallbacks []string) []string {
+	chain := []string{primary}
+	for _, m := range fallbacks {
+		if m = strings.TrimSpace(m); m != "" && m != primary {
+			chain = append(chain, m)
+		}
+	}
+	return chain
+}
+
 // profileView is the stable wire shape for one profile.
 func profileView(p roster.Profile) map[string]any {
 	b, _ := json.Marshal(p)

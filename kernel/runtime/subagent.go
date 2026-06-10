@@ -295,9 +295,21 @@ func (k *Kernel) runSubAgent(ctx context.Context, task, model, taskType, agentRe
 
 	// The profile's per-run spend ceiling bounds this sub-agent's own run
 	// (M784) — the delegation-tree spend cap above still applies on top.
+	// Its ordered fallbacks become the child's model chain (M787): primary
+	// first (an explicit delegate model still wins the front slot), walked
+	// in order by the Governor; duplicates of the primary are skipped.
 	var maxRunCost int64
+	var modelChain []string
 	if prof != nil {
 		maxRunCost = prof.MaxCostMc
+		if len(prof.Fallbacks) > 0 {
+			modelChain = []string{subModel}
+			for _, m := range prof.Fallbacks {
+				if m = strings.TrimSpace(m); m != "" && m != subModel {
+					modelChain = append(modelChain, m)
+				}
+			}
+		}
 	}
 
 	answer, err := agent.Run(childCtx, agent.LoopConfig{
@@ -305,7 +317,8 @@ func (k *Kernel) runSubAgent(ctx context.Context, task, model, taskType, agentRe
 		Tools:                k.tools,
 		Bus:                  k.bus,
 		Model:                subModel,
-		TaskType:             taskType, // M705: route the sub-agent (chain supplies fallbacks)
+		TaskType:             taskType,   // M705: route the sub-agent (chain supplies fallbacks)
+		ModelChain:           modelChain, // M787: the named agent's own fallbacks win
 		System:               system,
 		MaxIter:              k.cfg.MaxIter,
 		ToolTimeout:          k.cfg.ToolTimeout,

@@ -141,6 +141,39 @@ func TestDelegate_AgentMemoryScopeFollowsChild(t *testing.T) {
 	}
 }
 
+// TestDelegate_AgentModelChainFollowsChild: the child's completion requests
+// carry the profile's fallback chain (M787), primary first, dupes skipped.
+func TestDelegate_AgentModelChainFollowsChild(t *testing.T) {
+	prov := mock.New(
+		mock.ToolUse("c1", "delegate", map[string]any{"task": "t", "agent": "researcher"}),
+		mock.FinalText("child"),
+		mock.FinalText("lead"),
+	)
+	var chains [][]string
+	prov.OnRequest = func(req agent.CompletionRequest) {
+		if req.Model == "agent-model" { // the child's request
+			chains = append(chains, req.ModelChain)
+		}
+	}
+	k := openSubAgentKernel(t, prov, 1)
+	if _, err := k.AddProfile(roster.Profile{
+		Slug: "researcher", Model: "agent-model",
+		Fallbacks: []string{"agent-model", "backup-1"}, // dupe of primary must be skipped
+	}); err != nil {
+		t.Fatalf("AddProfile: %v", err)
+	}
+	if _, _, err := k.Run(context.Background(), "lead task"); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if len(chains) == 0 {
+		t.Fatal("child request never seen")
+	}
+	want := []string{"agent-model", "backup-1"}
+	if len(chains[0]) != 2 || chains[0][0] != want[0] || chains[0][1] != want[1] {
+		t.Errorf("child chain = %v, want %v", chains[0], want)
+	}
+}
+
 // TestDelegate_ExplicitModelWinsOverProfile: an explicit delegate model beats
 // the profile's — the profile only fills gaps.
 func TestDelegate_ExplicitModelWinsOverProfile(t *testing.T) {

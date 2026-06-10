@@ -87,6 +87,12 @@ type CompletionRequest struct {
 	// can ignore the field; setting or not setting it never changes
 	// what the provider receives.
 	TaskType string
+	// ModelChain is an optional per-REQUEST ordered model fallback chain
+	// (M787): when set, a chain-aware router (the Governor) tries these
+	// models in order and it WINS over the task type's configured chain.
+	// Carries a named agent's own fallbacks (roster M783). Like TaskType it
+	// is a Governor-only hint — plain providers never consult it.
+	ModelChain []string
 	// CorrelationID identifies the run this completion serves. Like
 	// TaskType it is a Governor-only hint — opaque to providers, who
 	// never see it — letting the Governor stamp its budget.consumed
@@ -201,6 +207,10 @@ type LoopConfig struct {
 	// delegated sub-agents set "delegate" (or a per-delegation type). Empty →
 	// no hint (default routing).
 	TaskType string
+	// ModelChain is the per-run ordered model fallback chain (M787) carried
+	// into every CompletionRequest, overriding the task type's configured
+	// chain — a named agent's own fallbacks (roster M783). Empty → none.
+	ModelChain []string
 	// MaxIdenticalToolCalls caps how many times the model may invoke the SAME
 	// (tool, input) within one run before the loop refuses to execute it again
 	// (M116). A model stuck retrying an identical failing/expensive call would
@@ -792,6 +802,7 @@ func Run(ctx context.Context, cfg LoopConfig, userIntent string) (answer string,
 			Tools:         offered,
 			MaxTokens:     cfg.MaxTokens,
 			TaskType:      cfg.TaskType,      // M703: per-task model routing hint
+			ModelChain:    cfg.ModelChain,    // M787: per-agent model fallback chain
 			CorrelationID: cfg.CorrelationID, // M47: attribute spend to this run
 			JSONMode:      cfg.JSONMode,      // M314: structured-output request
 		}

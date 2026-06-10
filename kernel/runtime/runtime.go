@@ -1023,6 +1023,7 @@ const (
 	ctxKeyJSONMode
 	ctxKeyTrustCeiling
 	ctxKeyRoot
+	ctxKeyModelChain
 )
 
 // rootFromCtx returns the correlation of the ROOT run of a delegation tree (the
@@ -1160,6 +1161,23 @@ func maxCostFromCtx(ctx context.Context) int64 {
 		return v
 	}
 	return 0
+}
+
+// WithModelChain sets the run's per-agent ordered model fallback chain (M787):
+// the Governor tries these models in order, overriding the task type's
+// configured chain. Carries a named agent's own fallbacks (roster M783).
+func WithModelChain(ctx context.Context, chain []string) context.Context {
+	if len(chain) == 0 {
+		return ctx
+	}
+	return context.WithValue(ctx, ctxKeyModelChain, chain)
+}
+
+func modelChainFromCtx(ctx context.Context) []string {
+	if v, ok := ctx.Value(ctxKeyModelChain).([]string); ok {
+		return v
+	}
+	return nil
 }
 
 // WithTools restricts the run started with this context to the named tools only
@@ -1571,7 +1589,8 @@ func (k *Kernel) RunWith(ctx context.Context, corr, intent string) (string, erro
 		Tools:                runTools,
 		Bus:                  k.bus,
 		Model:                model,
-		TaskType:             "chat", // M703: main agent loop → "chat" routing target
+		TaskType:             "chat",                      // M703: main agent loop → "chat" routing target
+		ModelChain:           modelChainFromCtx(runCtx),   // M787: a named agent's own fallbacks
 		System:               system,
 		MaxIter:              k.cfg.MaxIter,
 		ToolTimeout:          k.cfg.ToolTimeout,
