@@ -45,4 +45,20 @@ describe("Board", () => {
     expect(screen.getByText("reply")).toBeTruthy();
     expect(screen.getAllByText("awaiting reply")).toHaveLength(1);
   });
+
+  it("renders post text as markdown (M820): bold + list, not raw asterisks", async () => {
+    getJSON.mockResolvedValue({
+      count: 1,
+      topics: { general: 1 },
+      messages: [{ topic: "general", from: "planner", text: "**done**\n\n- step one\n- step two", ts_unix_ms: 1 }],
+    });
+    render(<Board />);
+    // "done" renders inside a <strong>, not as literal "**done**".
+    const strong = await waitFor(() => screen.getByText("done"));
+    expect(strong.tagName).toBe("STRONG");
+    expect(screen.queryByText("**done**")).toBeNull();
+    // The bullets render as list items.
+    expect(screen.getByText("step one").closest("li")).toBeTruthy();
+    expect(screen.getByText("step two").closest("li")).toBeTruthy();
+  });
 });
