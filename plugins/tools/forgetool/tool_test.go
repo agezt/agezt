@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/agezt/agezt/kernel/approval"
 	"github.com/agezt/agezt/kernel/toolforge"
 )
 
@@ -18,6 +19,9 @@ type fakeKernel struct {
 	store   *toolforge.Store
 	testOut string
 	testOK  bool
+	// promotion-queue double (M813): the operator's canned verdict.
+	decision approval.Decision
+	reason   string
 }
 
 func (f *fakeKernel) DraftScriptTool(_ string, st toolforge.ScriptTool) (toolforge.ScriptTool, error) {
@@ -38,6 +42,21 @@ func (f *fakeKernel) UpdateScriptTool(_, ref string, mutate func(*toolforge.Scri
 func (f *fakeKernel) TestScriptTool(_ context.Context, _, ref, _ string) (toolforge.ScriptTool, string, error) {
 	st, err := f.store.RecordTest(ref, f.testOK)
 	return st, f.testOut, err
+}
+
+func (f *fakeKernel) RequestToolPromotion(_ context.Context, _, ref string) (toolforge.ScriptTool, approval.Decision, string, error) {
+	st, found := f.store.Get(ref)
+	if !found {
+		return toolforge.ScriptTool{}, "", "", errors.New("toolforge: no script tool " + ref)
+	}
+	if !st.TestedOK {
+		return toolforge.ScriptTool{}, "", "", toolforge.ErrUntested
+	}
+	if f.decision == approval.DecisionGrant {
+		st, err := f.store.Promote(ref)
+		return st, f.decision, f.reason, err
+	}
+	return st, f.decision, f.reason, nil
 }
 
 func (f *fakeKernel) ToolForge() *toolforge.Store { return f.store }
@@ -126,5 +145,45 @@ func TestUnbound(t *testing.T) {
 	out, isErr := invoke(t, New(), map[string]any{"op": "list"})
 	if !isErr || !strings.Contains(out, "not available") {
 		t.Fatalf("unbound: err=%v out=%s", isErr, out)
+	}
+}
+
+// TestRequestPromotion (M813): the agent's promotion queue — granted goes
+// live, denied is an actionable error, untested never reaches the operator.
+func TestRequestPromotion(t *testing.T) {
+	tool, fk := newBound(t)
+	fk.testOK = true
+	invoke(t, tool, map[string]any{"op": "draft", "name": "greet", "language": "python", "code": "print(1)", "description": "says hi"})
+	invoke(t, tool, map[string]any{"op": "test", "ref": "greet"})
+
+	// Denied: an error result carrying the operator's reason.
+	fk.decision, fk.reason = approval.DecisionDeny, "needs input validation"
+	res, err := tool.Invoke(context.Background(), json.RawMessage(`{"op":"request_promotion","ref":"greet"}`))
+	if err != nil || !res.IsError || !strings.Contains(res.Output, "needs input validation") {
+		t.Fatalf("denied: %+v err=%v", res, err)
+	}
+	if st, _ := fk.store.Get("greet"); st.Status == toolforge.StatusActive {
+		t.Fatal("a denied tool went active")
+	}
+
+	// Granted: promoted, callable as forge_greet.
+	fk.decision = approval.DecisionGrant
+	res, err = tool.Invoke(context.Background(), json.RawMessage(`{"op":"request_promotion","ref":"greet"}`))
+	if err != nil || res.IsError || !strings.Contains(res.Output, "forge_greet") {
+		t.Fatalf("granted: %+v err=%v", res, err)
+	}
+	if st, _ := fk.store.Get("greet"); st.Status != toolforge.StatusActive {
+		t.Fatalf("status = %s", st.Status)
+	}
+
+	// Untested drafts never reach the queue; missing ref is refused.
+	invoke(t, tool, map[string]any{"op": "draft", "name": "raw", "language": "python", "code": "print(2)", "description": "untested"})
+	res, _ = tool.Invoke(context.Background(), json.RawMessage(`{"op":"request_promotion","ref":"raw"}`))
+	if !res.IsError || !strings.Contains(res.Output, "no passing test") {
+		t.Fatalf("untested: %+v", res)
+	}
+	res, _ = tool.Invoke(context.Background(), json.RawMessage(`{"op":"request_promotion"}`))
+	if !res.IsError || !strings.Contains(res.Output, `"ref"`) {
+		t.Fatalf("missing ref: %+v", res)
 	}
 }

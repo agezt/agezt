@@ -12,6 +12,14 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Forge promotion queue — agents ask, you decide.** A forged tool's author can now request
+  promotion (`tool_forge op=request_promotion`): the call blocks on the same HITL approval
+  queue as everything else (`agt approvals` / the console's Approvals view), a grant takes the
+  tool live through the exact operator path, and a denial returns your reason to the agent so
+  it can improve and retry. The "only tested code goes live" invariant holds at the gate — an
+  untested draft never even reaches your queue. Proven in one live session: a real agent
+  drafted and sandbox-tested a slugify tool, requested promotion, waited; `agt approve` took it
+  live; a fresh run called `forge_slugify` successfully. (M813)
 - **Webhook reply mode — request/response workflows.** Set `"reply": true` on a webhook
   trigger and the caller's POST waits for the run and receives its outputs: a branching
   workflow answered `curl -d '{"n":9}'` with the BIG branch's result and `'{"n":2}'` with the

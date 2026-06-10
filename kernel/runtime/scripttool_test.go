@@ -4,10 +4,13 @@ package runtime_test
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/approval"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/toolforge"
 	"github.com/agezt/agezt/plugins/providers/mock"
@@ -228,4 +231,72 @@ func contains(names []string, want string) bool {
 		}
 	}
 	return false
+}
+
+// TestRequestToolPromotion (M813): the agent's promotion request blocks on
+// the REAL approval registry; a grant promotes through the operator path, a
+// deny comes back as the decision, and untested/active/ghost are refused
+// before the operator ever sees a request.
+func TestRequestToolPromotion(t *testing.T) {
+	runner := &stubRunner{}
+	k := openForgeKernel(t, mock.New(mock.FinalText("unused")), runner)
+
+	st, err := k.DraftScriptTool("", toolforge.ScriptTool{
+		Name: "greet", Description: "says hi", Language: "python", Code: "print('hi')",
+	})
+	if err != nil {
+		t.Fatalf("draft: %v", err)
+	}
+
+	// Untested → refused without touching the registry.
+	if _, _, _, err := k.RequestToolPromotion(context.Background(), "", st.Name); !errors.Is(err, toolforge.ErrUntested) {
+		t.Fatalf("untested err = %v", err)
+	}
+	runner.out = "ok"
+	if _, _, err := k.TestScriptTool(context.Background(), "", st.Name, "{}"); err != nil {
+		t.Fatalf("test: %v", err)
+	}
+
+	// The operator resolves the pending request from another goroutine.
+	resolve := func(decision approval.Decision, reason string) {
+		deadline := time.After(5 * time.Second)
+		for {
+			for _, req := range k.Approvals().Pending() {
+				if req.Capability == "toolforge.promote" {
+					_ = k.Approvals().Resolve(req.ID, decision, reason, "tester")
+					return
+				}
+			}
+			select {
+			case <-deadline:
+				return
+			case <-time.After(10 * time.Millisecond):
+			}
+		}
+	}
+
+	// Denied: the verdict rides back, the draft stays a draft.
+	go resolve(approval.DecisionDeny, "needs validation")
+	_, decision, reason, err := k.RequestToolPromotion(context.Background(), "", "greet")
+	if err != nil || decision != approval.DecisionDeny || reason != "needs validation" {
+		t.Fatalf("deny: %v/%v/%v", decision, reason, err)
+	}
+	if got, _ := k.ToolForge().Get("greet"); got.Status == toolforge.StatusActive {
+		t.Fatal("denied tool went active")
+	}
+
+	// Granted: ACTIVE via the same path the operator CLI uses.
+	go resolve(approval.DecisionGrant, "lgtm")
+	promoted, decision, _, err := k.RequestToolPromotion(context.Background(), "", "greet")
+	if err != nil || decision != approval.DecisionGrant || promoted.Status != toolforge.StatusActive {
+		t.Fatalf("grant: %+v %v %v", promoted, decision, err)
+	}
+
+	// Already active / ghost → refused up front.
+	if _, _, _, err := k.RequestToolPromotion(context.Background(), "", "greet"); err == nil {
+		t.Fatal("re-promoting an active tool accepted")
+	}
+	if _, _, _, err := k.RequestToolPromotion(context.Background(), "", "ghost"); err == nil {
+		t.Fatal("ghost accepted")
+	}
 }
