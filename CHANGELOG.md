@@ -12,6 +12,22 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Each named agent gets its own working directory.** A roster profile's **workdir** (stored and
+  escape-validated since M783) is now live: when a run executes AS that agent — `agt run --agent`,
+  a chat thread, a delegate child, or a standing-order firing — the **file tool** rebases relative
+  paths under `<workspace>/<workdir>` (an empty list path means *my directory*) and the **shell
+  tool** runs commands there (the directory is created lazily on first use). "Researcher" keeps its
+  notes in `workspace/research/`, "Ops" in `workspace/ops/` — agents stop trampling each other's
+  files, and the operator can read each agent's home at a glance. Absolute paths and the workspace
+  containment rules are untouched: the workdir only changes where *relative* work lands, escaping
+  the workspace is refused exactly as before, and the workdir value itself is escape-proofed twice
+  (profile validation + the context setter rejects abs/`..` shapes outright — defense in depth).
+  Carried as a run-context value every identity path sets (`WithAgentProfile`, run-as, delegate).
+  Unit-tested (writes/reads/list land under the workdir while an unscoped run still sees the root
+  and `..` out of the workspace stays refused; the setter's escape table; end-to-end on a real
+  kernel: a run AS a workdir-bearing profile wrote through the real file tool and the file landed
+  in `<workspace>/research/`). Smoke: `agt agent add --workdir research` round-trips and a run-as
+  boots clean. (M792)
 - **The console catches up with the fleet — agent fields and message threading.** Two surfaces the
   multi-agent arc grew now render in the console. The **Standing view**: orders that run AS a named
   agent (M790) show a *runs as <slug>* chip, and both the create and edit forms gain a **Run as

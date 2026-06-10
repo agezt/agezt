@@ -21,6 +21,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"runtime"
 	"time"
 
@@ -134,11 +136,22 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, e
 		profile = warden.ProfileNamespace
 	}
 
+	// Per-agent workdir (M792): a named agent's commands run inside its
+	// workspace subdirectory (created lazily on first use). Anchored under the
+	// tool's configured workspace WorkDir — without one there is nothing safe
+	// to anchor to, so the ctx workdir is ignored. The ctx value is
+	// escape-proofed at the setter (and by profile validation upstream).
+	workDir := t.WorkDir
+	if wd := agent.WorkdirFromContext(ctx); wd != "" && t.WorkDir != "" {
+		workDir = filepath.Join(t.WorkDir, filepath.FromSlash(wd))
+		_ = os.MkdirAll(workDir, 0o755)
+	}
+
 	shellBin, shellArg := t.resolveShell()
 	res, err := w.Run(ctx, warden.Spec{
 		Profile: profile,
 		Argv:    []string{shellBin, shellArg, in.Command},
-		WorkDir: t.WorkDir, // M609: run where the file tool operates (empty = inherit CWD)
+		WorkDir: workDir, // M609 workspace coherence + M792 per-agent subdir
 		Limits: warden.Limits{
 			Timeout:        timeout,
 			MaxOutputBytes: MaxOutputBytes,

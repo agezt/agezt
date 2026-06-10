@@ -4,6 +4,8 @@ package runtime_test
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -12,6 +14,7 @@ import (
 	"github.com/agezt/agezt/kernel/roster"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/plugins/providers/mock"
+	"github.com/agezt/agezt/plugins/tools/file"
 	"github.com/agezt/agezt/plugins/tools/shell"
 )
 
@@ -61,5 +64,37 @@ func TestWithAgentProfile_AppliesIdentityToRun(t *testing.T) {
 	}
 	if !strings.Contains(req.System, "researcher-private-fact") {
 		t.Errorf("memory scope not applied — private note missing:\n%s", req.System)
+	}
+}
+
+// TestWithAgentProfile_WorkdirConfinesFileTool: a profile workdir (M792) makes
+// the run's file-tool writes land inside <workspace>/<workdir>.
+func TestWithAgentProfile_WorkdirConfinesFileTool(t *testing.T) {
+	ws := t.TempDir()
+	ft, err := file.New(ws)
+	if err != nil {
+		t.Fatalf("file.New: %v", err)
+	}
+	prov := mock.New(
+		mock.ToolUse("c1", "file", map[string]any{"op": "write", "path": "notes.txt", "content": "from researcher"}),
+		mock.FinalText("done"),
+	)
+	k, err := runtime.Open(runtime.Config{
+		BaseDir:  t.TempDir(),
+		Provider: prov,
+		Tools:    map[string]agent.Tool{"file": ft},
+	})
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	t.Cleanup(func() { k.Close() })
+
+	ctx := runtime.WithAgentProfile(context.Background(), roster.Profile{Slug: "researcher", Workdir: "research"})
+	if _, err := k.RunWith(ctx, k.NewCorrelation(), "take a note"); err != nil {
+		t.Fatalf("RunWith: %v", err)
+	}
+	b, err := os.ReadFile(filepath.Join(ws, "research", "notes.txt"))
+	if err != nil || string(b) != "from researcher" {
+		t.Fatalf("write did not land in the agent's workdir: %v %q", err, b)
 	}
 }

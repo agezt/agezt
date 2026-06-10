@@ -146,6 +146,19 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, e
 		return agent.Result{}, err
 	}
 
+	// Per-agent workdir (M792): a run executing AS a named agent whose profile
+	// names a workspace subdirectory operates THERE — relative paths rebase
+	// under it (and an empty list/glob path means "my directory"). Absolute
+	// paths are untouched; full root containment below still applies, and the
+	// workdir itself is escape-proofed twice (profile validation + ctx setter).
+	if wd := agent.WorkdirFromContext(ctx); wd != "" {
+		if in.Path == "" {
+			in.Path = wd
+		} else if !filepath.IsAbs(in.Path) {
+			in.Path = filepath.Join(wd, in.Path)
+		}
+	}
+
 	switch in.Op {
 	case "read":
 		return t.doRead(in)

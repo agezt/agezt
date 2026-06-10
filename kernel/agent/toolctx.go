@@ -2,7 +2,11 @@
 
 package agent
 
-import "context"
+import (
+	"context"
+	"path/filepath"
+	"strings"
+)
 
 // corrKey is the unexported context key under which the running loop stashes the
 // current run's correlation id, so a Tool's Invoke can attribute its own side
@@ -32,4 +36,48 @@ func CorrelationFromContext(ctx context.Context) string {
 		return id
 	}
 	return ""
+}
+
+// workdirKey carries the run's per-agent working directory (M792): a
+// workspace-RELATIVE subdirectory the file and shell tools operate inside
+// when a run executes AS a named agent whose profile names one.
+type workdirKey struct{}
+
+// WithWorkdir returns a child context carrying a workspace-relative workdir.
+// Defense-in-depth: absolute paths and any form of `..` escape are refused
+// here (the context stays unchanged) even though the roster profile already
+// validates the same rule — a tool must never receive an escaping workdir.
+func WithWorkdir(ctx context.Context, workdir string) context.Context {
+	w := cleanRelWorkdir(workdir)
+	if w == "" {
+		return ctx
+	}
+	return context.WithValue(ctx, workdirKey{}, w)
+}
+
+// WorkdirFromContext returns the per-agent workdir set by WithWorkdir, or ""
+// (operate at the workspace root) when the run carries none.
+func WorkdirFromContext(ctx context.Context) string {
+	if ctx == nil {
+		return ""
+	}
+	if w, ok := ctx.Value(workdirKey{}).(string); ok {
+		return w
+	}
+	return ""
+}
+
+// cleanRelWorkdir normalises a workdir to forward slashes and rejects
+// absolute or escaping shapes ("" on any violation).
+func cleanRelWorkdir(w string) string {
+	w = strings.TrimSpace(w)
+	if w == "" {
+		return ""
+	}
+	s := filepath.ToSlash(w)
+	if filepath.IsAbs(w) || strings.HasPrefix(s, "/") ||
+		s == ".." || strings.HasPrefix(s, "../") || strings.Contains(s, "/../") || strings.HasSuffix(s, "/..") {
+		return ""
+	}
+	return s
 }

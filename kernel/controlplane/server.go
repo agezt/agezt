@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/internal/brand"
+	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/approval"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/memory"
@@ -1233,6 +1234,9 @@ func (s *Server) handleRun(ctx context.Context, conn net.Conn, req Request) {
 			scope = p.Slug
 		}
 		ctx = memory.WithScope(ctx, scope)
+		// And its working directory (M792): file/shell tools operate inside
+		// the profile's workspace subdirectory.
+		ctx = agent.WithWorkdir(ctx, p.Workdir)
 		// Its own model fallback chain too (M787): primary (the resolved
 		// model — an explicit --model still wins the front slot) followed by
 		// the profile's ordered fallbacks; the Governor walks it in order.

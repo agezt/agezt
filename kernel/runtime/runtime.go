@@ -35,9 +35,9 @@ import (
 	"github.com/agezt/agezt/kernel/journal"
 	"github.com/agezt/agezt/kernel/memory"
 	"github.com/agezt/agezt/kernel/reflect"
+	"github.com/agezt/agezt/kernel/roster"
 	"github.com/agezt/agezt/kernel/scheduler"
 	"github.com/agezt/agezt/kernel/skill"
-	"github.com/agezt/agezt/kernel/roster"
 	"github.com/agezt/agezt/kernel/standing"
 	"github.com/agezt/agezt/kernel/state"
 	"github.com/agezt/agezt/kernel/tenantctx"
@@ -1194,7 +1194,10 @@ func WithAgentProfile(ctx context.Context, p roster.Profile) context.Context {
 	if scope == "" {
 		scope = p.Slug
 	}
-	return memory.WithScope(ctx, scope)
+	ctx = memory.WithScope(ctx, scope)
+	// The agent's working directory (M792): file/shell tools operate inside
+	// this workspace subdirectory. Escape-proofed by the setter.
+	return agent.WithWorkdir(ctx, p.Workdir)
 }
 
 // WithModelChain sets the run's per-agent ordered model fallback chain (M787):
@@ -1623,8 +1626,8 @@ func (k *Kernel) RunWith(ctx context.Context, corr, intent string) (string, erro
 		Tools:                runTools,
 		Bus:                  k.bus,
 		Model:                model,
-		TaskType:             "chat",                      // M703: main agent loop → "chat" routing target
-		ModelChain:           modelChainFromCtx(runCtx),   // M787: a named agent's own fallbacks
+		TaskType:             "chat",                    // M703: main agent loop → "chat" routing target
+		ModelChain:           modelChainFromCtx(runCtx), // M787: a named agent's own fallbacks
 		System:               system,
 		MaxIter:              k.cfg.MaxIter,
 		ToolTimeout:          k.cfg.ToolTimeout,
