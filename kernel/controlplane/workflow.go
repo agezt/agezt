@@ -150,6 +150,29 @@ func (s *Server) handleWorkflowSetEnabled(conn net.Conn, req Request) {
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"workflow": workflowView(w, false)}})
 }
 
+// handleWorkflowTemplates (M807) returns the built-in gallery — curated,
+// validated starting points with their full graphs. Read-only; the caller
+// instantiates by saving under a new name.
+func (s *Server) handleWorkflowTemplates(conn net.Conn, req Request) {
+	all := workflow.Templates()
+	out := make([]any, 0, len(all))
+	for _, t := range all {
+		out = append(out, map[string]any{
+			"name":        t.Name,
+			"title":       t.Title,
+			"description": t.Description,
+			"category":    t.Category,
+			"node_count":  len(t.Workflow.Nodes),
+			"workflow":    workflowView(t.Workflow, true),
+		})
+	}
+	s.writeResp(conn, Response{
+		ID:     req.ID,
+		Type:   RespResult,
+		Result: map[string]any{"templates": out, "count": len(out)},
+	})
+}
+
 // workflowDraftTimeout bounds one copilot draft — up to two provider
 // round-trips (the draft and one repair).
 const workflowDraftTimeout = 3 * time.Minute

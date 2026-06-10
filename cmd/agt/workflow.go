@@ -40,6 +40,8 @@ func cmdWorkflow(args []string, stdout, stderr io.Writer) int {
 		return cmdWorkflowRefine(args[1:], stdout, stderr)
 	case "runs":
 		return cmdWorkflowRuns(args[1:], stdout, stderr)
+	case "templates":
+		return cmdWorkflowTemplates(args[1:], stdout, stderr)
 	case "enable":
 		return cmdWorkflowSetEnabled(args[1:], stdout, stderr, true)
 	case "disable":
@@ -62,6 +64,7 @@ func workflowUsage(w io.Writer) int {
 	fmt.Fprintf(w, "  draft \"DESCRIPTION\" [--name N] [--save]  copilot designs a graph from plain language\n")
 	fmt.Fprintf(w, "  refine <name|id> \"CHANGE\" [--save]   copilot revises a stored graph per a change request\n")
 	fmt.Fprintf(w, "  runs <name|id> [N] [--json]          run history folded from the journal (newest first)\n")
+	fmt.Fprintf(w, "  templates [--json] [--use T --name N]  built-in gallery; --use saves template T as workflow N\n")
 	fmt.Fprintf(w, "  run <name|id> [--payload JSON]     execute now; payload lands in {{trigger.payload}}\n")
 	fmt.Fprintf(w, "  enable|disable <name|id>           arm/disarm its triggers (M799)\n")
 	fmt.Fprintf(w, "  remove <name|id>                   delete a workflow\n")
@@ -418,6 +421,90 @@ func cmdWorkflowRun(args []string, stdout, stderr io.Writer) int {
 		}
 		fmt.Fprintf(stdout, "  %-20s %s\n", id, rendered)
 	}
+	return 0
+}
+
+// cmdWorkflowTemplates (M807): list the built-in gallery; --use T --name N
+// instantiates template T as a new workflow named N (a plain save — the
+// gallery itself never writes).
+func cmdWorkflowTemplates(args []string, stdout, stderr io.Writer) int {
+	asJSON := false
+	use, name := "", ""
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "--json":
+			asJSON = true
+		case "--use":
+			if i+1 >= len(args) {
+				fmt.Fprintf(stderr, "%s workflow templates: --use needs a template name\n", brand.CLI)
+				return 2
+			}
+			i++
+			use = args[i]
+		case "--name":
+			if i+1 >= len(args) {
+				fmt.Fprintf(stderr, "%s workflow templates: --name needs a value\n", brand.CLI)
+				return 2
+			}
+			i++
+			name = args[i]
+		}
+	}
+	c := dial(stderr)
+	if c == nil {
+		return 1
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	res, err := c.Call(ctx, controlplane.CmdWorkflowTemplates, nil)
+	if err != nil {
+		fmt.Fprintf(stderr, "%s workflow templates: %v\n", brand.CLI, err)
+		return 1
+	}
+	items, _ := res["templates"].([]any)
+
+	if use != "" {
+		if name == "" {
+			fmt.Fprintf(stderr, "%s workflow templates: --use also needs --name <new workflow name>\n", brand.CLI)
+			return 2
+		}
+		for _, raw := range items {
+			t, _ := raw.(map[string]any)
+			if t == nil || str(t["name"]) != use {
+				continue
+			}
+			w, _ := t["workflow"].(map[string]any)
+			if w == nil {
+				fmt.Fprintf(stderr, "%s workflow templates: template %q carries no graph\n", brand.CLI, use)
+				return 1
+			}
+			w["name"] = name
+			delete(w, "id")
+			saveRes, err := c.Call(ctx, controlplane.CmdWorkflowSave, map[string]any{"workflow": w})
+			if err != nil {
+				fmt.Fprintf(stderr, "%s workflow templates: save: %v\n", brand.CLI, err)
+				return 1
+			}
+			fmt.Fprintf(stdout, "created %s from template %s (%s) — run it with `%s workflow run %s`\n",
+				name, use, savedState(saveRes), brand.CLI, name)
+			return 0
+		}
+		fmt.Fprintf(stderr, "%s workflow templates: unknown template %q\n", brand.CLI, use)
+		return 1
+	}
+
+	if asJSON {
+		return encodeJSON(stdout, res)
+	}
+	for _, raw := range items {
+		t, _ := raw.(map[string]any)
+		if t == nil {
+			continue
+		}
+		nodes, _ := t["node_count"].(float64)
+		fmt.Fprintf(stdout, "%-20s %-8s %d node(s)  %s\n", str(t["name"]), str(t["category"]), int(nodes), str(t["description"]))
+	}
+	fmt.Fprintf(stdout, "%v template(s) — instantiate with `%s workflow templates --use T --name N`\n", res["count"], brand.CLI)
 	return 0
 }
 
