@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { Anchor, RefreshCw, Pause, Play, Trash2, Clock, Zap, ShieldCheck, Plus, X, Pencil, Save, Download, Upload } from "lucide-react";
+import { Anchor, RefreshCw, Pause, Play, Trash2, Clock, Zap, ShieldCheck, Plus, X, Pencil, Save, Download, Upload, Users } from "lucide-react";
+import { AgentPicker } from "@/components/AgentPicker";
 import { getJSON, postAction, postJSON } from "@/lib/api";
 import { cn, fmtTime } from "@/lib/utils";
 import { downloadText } from "@/lib/export";
@@ -22,6 +23,7 @@ interface Order {
   triggers?: Trigger[];
   initiative?: { mode?: string };
   plan?: string;
+  agent?: string; // M790: firings run AS this roster agent
   assure?: number;
 }
 interface WhyEvent {
@@ -322,6 +324,12 @@ export function Standing() {
                     </span>
                   ))}
                 </div>
+                {o.agent && (
+                  <span className="mt-1.5 inline-flex items-center gap-1 rounded-full border border-accent/40 bg-accent/10 px-2 py-0.5 text-[10px] text-accent">
+                    <Users className="size-3" />
+                    runs as {o.agent}
+                  </span>
+                )}
                 {o.plan && <p className="mt-1.5 line-clamp-2 text-xs text-foreground/80">{o.plan}</p>}
                 <div className="mt-1 flex items-center gap-3 text-[10px]">
                   <button onClick={() => toggleHistory(o.id)} className="text-accent/80 transition-colors hover:text-accent" title="Show this order's life story from the journal">
@@ -385,6 +393,7 @@ export function NewOrderForm({
   const [triggerValue, setTriggerValue] = useState("");
   const [plan, setPlan] = useState("");
   const [mode, setMode] = useState("");
+  const [agent, setAgent] = useState(""); // M790: firings run AS this roster agent
   const [submitting, setSubmitting] = useState(false);
 
   const valid = name.trim() !== "" && triggerValue.trim() !== "";
@@ -397,6 +406,7 @@ export function NewOrderForm({
         : { type: "event", subject: triggerValue.trim() };
     const order: Record<string, unknown> = { name: name.trim(), triggers: [trigger] };
     if (plan.trim()) order.plan = plan.trim();
+    if (agent.trim()) order.agent = agent.trim();
     if (mode) order.initiative = { mode };
 
     setSubmitting(true);
@@ -437,6 +447,12 @@ export function NewOrderForm({
             <option value="act_or_ask">act, or ask if unsure</option>
           </select>
         </label>
+      </div>
+
+      <div className="mt-2 flex items-center gap-2 text-[11px] text-muted">
+        Run as agent
+        <AgentPicker value={agent} onChange={setAgent} />
+        <span className="opacity-70">firings use its soul, model chain, memory, and budget</span>
       </div>
 
       <div className="mt-2 flex flex-col gap-1 text-[11px] text-muted">
@@ -503,6 +519,7 @@ export function EditOrderForm({
   const [name, setName] = useState(order.name ?? "");
   const [plan, setPlan] = useState(order.plan ?? "");
   const [mode, setMode] = useState(order.initiative?.mode ?? "");
+  const [agent, setAgent] = useState(order.agent ?? ""); // M790: who firings run AS
   const [assure, setAssure] = useState(String(order.assure ?? 0));
   const [submitting, setSubmitting] = useState(false);
 
@@ -511,11 +528,12 @@ export function EditOrderForm({
   async function save() {
     if (!valid) return;
     // Send the full editable state: each key present means "set to this". An empty
-    // mode clears it to the default; an empty plan clears the plan — both valid.
+    // mode clears it to the default; an empty plan/agent clears it — both valid.
     const args: Record<string, unknown> = {
       id: order.id,
       name: name.trim(),
       plan: plan.trim(),
+      agent: agent.trim(),
       mode,
       assure: Math.max(0, Math.floor(Number(assure) || 0)),
     };
@@ -556,6 +574,11 @@ export function EditOrderForm({
             <option value="act_or_ask">act, or ask if unsure</option>
           </select>
         </label>
+      </div>
+
+      <div className="mt-2 flex items-center gap-2 text-[11px] text-muted">
+        Run as agent
+        <AgentPicker value={agent} onChange={setAgent} />
       </div>
 
       <label className="mt-2 flex flex-col gap-1 text-[11px] text-muted">

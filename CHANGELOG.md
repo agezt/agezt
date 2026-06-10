@@ -12,6 +12,20 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **The console catches up with the fleet — agent fields and message threading.** Two surfaces the
+  multi-agent arc grew now render in the console. The **Standing view**: orders that run AS a named
+  agent (M790) show a *runs as <slug>* chip, and both the create and edit forms gain a **Run as
+  agent** picker (the same enabled-agents dropdown Chat uses) — so the autonomous-answerer recipe is
+  assembled entirely from the UI. The **Agent board**: addressed messages (M788) render their
+  addressing — *from → to* chips, a *reply* marker on answers linked back to their question, and an
+  **awaiting reply** badge on every addressed message no one has answered yet (computed over the
+  whole board, so a topic filter can't make it lie; replies themselves never count as awaiting —
+  a bug the test caught). The board read API now carries id/to/reply_to. Unit-tested (the
+  `awaitingReply` set: unanswered flagged, answered cleared, replies and broadcasts never flag;
+  the Board renders chips/marker/exactly-one badge from a mocked feed; the Standing edit form posts
+  the agent key — present-and-empty clears it). Verified live in a real browser on an isolated
+  daemon: an agent-bound order showed its *runs as researcher* chip and the New-order form's picker
+  listed and selected the agent; 0 console errors. (M791)
 - **Standing orders run AS a named agent — the autonomous answerer is complete.** A standing order
   can now carry an **agent** (roster slug): every firing — event-triggered, cron, or "run now" —
   executes AS that identity, with its soul as the run's persona, its model + fallback chain, its

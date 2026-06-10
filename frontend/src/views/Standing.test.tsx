@@ -113,6 +113,7 @@ describe("EditOrderForm (M729)", () => {
         id: "so-42",
         name: "renamed",
         plan: "new plan",
+        agent: "", // M790: present-and-empty clears the agent
         mode: "ask",
         assure: 3,
       }),
