@@ -15,7 +15,18 @@ vi.mock("@/lib/events", () => ({
   useEvents: () => ({ events: [], connected: true, subscribe: () => () => {} }),
 }));
 
-import { Workflows, CopilotPanel, toFlow, fromFlow, portsForNode, summarize, type Wf } from "@/views/Workflows";
+import {
+  Workflows,
+  CopilotPanel,
+  RunsDrawer,
+  runToStatus,
+  toFlow,
+  fromFlow,
+  portsForNode,
+  summarize,
+  type Wf,
+  type WfRun,
+} from "@/views/Workflows";
 import { UIProvider } from "@/components/ui/feedback";
 
 const withUI = (node: ReactNode) => <UIProvider>{node}</UIProvider>;
@@ -133,6 +144,43 @@ describe("Workflows list", () => {
     getJSON.mockResolvedValue({ workflows: [], count: 0 });
     render(withUI(<Workflows />));
     await waitFor(() => expect(screen.getByText("No workflows yet")).toBeTruthy());
+  });
+});
+
+describe("run history", () => {
+  const failedRun: WfRun = {
+    correlation_id: "run-001",
+    status: "failed",
+    started_ms: 1000,
+    finished_ms: 3500,
+    error: "node call: boom",
+    node_events: [
+      { node: "start", ok: true },
+      { node: "rescue", ok: false, handled: true, port: "error" },
+      { node: "call", ok: false },
+    ],
+  };
+
+  it("runToStatus mirrors the live ok/handled rule", () => {
+    expect(runToStatus(failedRun)).toEqual({ start: "done", rescue: "done", call: "failed" });
+    expect(runToStatus({ correlation_id: "x", status: "running" })).toEqual({});
+  });
+
+  it("RunsDrawer lists runs from the journal fold and replays on click", async () => {
+    getJSON.mockResolvedValue({ runs: [failedRun], count: 1 });
+    const onReplay = vi.fn();
+    render(withUI(<RunsDrawer name="wire-flow" onReplay={onReplay} onError={vi.fn()} />));
+    await waitFor(() => expect(screen.getByText("failed")).toBeTruthy());
+    expect(getJSON).toHaveBeenCalledWith("/api/workflows/runs", { ref: "wire-flow" });
+    expect(screen.getByText(/3 node\(s\)/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Replay run run-001" }));
+    expect(onReplay).toHaveBeenCalledWith(failedRun);
+  });
+
+  it("RunsDrawer shows the empty state when nothing ran yet", async () => {
+    getJSON.mockResolvedValue({ runs: [], count: 0 });
+    render(withUI(<RunsDrawer name="x" onReplay={vi.fn()} onError={vi.fn()} />));
+    await waitFor(() => expect(screen.getByText(/No runs yet/)).toBeTruthy());
   });
 });
 

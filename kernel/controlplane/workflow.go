@@ -13,9 +13,11 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"strconv"
 	"strings"
 	"time"
 
+	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/workflow"
 )
 
@@ -151,6 +153,155 @@ func (s *Server) handleWorkflowSetEnabled(conn net.Conn, req Request) {
 // workflowDraftTimeout bounds one copilot draft — up to two provider
 // round-trips (the draft and one repair).
 const workflowDraftTimeout = 3 * time.Minute
+
+// workflowRunsDefaultLimit / Max bound the run-history fold (M806).
+const (
+	workflowRunsDefaultLimit = 20
+	workflowRunsMaxLimit     = 100
+)
+
+// handleWorkflowRuns (M806) folds the journal into a workflow's run
+// history: every started→node…→completed|failed arc under subject
+// workflow.<name>, grouped by correlation, newest first. This is what the
+// console's Runs drawer replays on the canvas — the journal is the truth,
+// nothing new is stored.
+func (s *Server) handleWorkflowRuns(conn net.Conn, req Request) {
+	ref, _ := req.Args["ref"].(string)
+	if strings.TrimSpace(ref) == "" {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.ref required"})
+		return
+	}
+	w, found := s.k.Workflows().Get(strings.TrimSpace(ref))
+	if !found {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "unknown workflow: " + ref})
+		return
+	}
+	limit := workflowRunsDefaultLimit
+	switch v := req.Args["limit"].(type) {
+	case float64:
+		limit = int(v)
+	case string:
+		if n, err := strconv.Atoi(v); err == nil {
+			limit = n
+		}
+	}
+	if limit <= 0 {
+		limit = workflowRunsDefaultLimit
+	}
+	if limit > workflowRunsMaxLimit {
+		limit = workflowRunsMaxLimit
+	}
+
+	subject := "workflow." + w.Name
+	type runFold struct {
+		corr     string
+		started  int64
+		finished int64
+		status   string // running|completed|failed
+		errText  string
+		executed []any
+		nodes    []map[string]any
+	}
+	byCorr := map[string]*runFold{}
+	var order []string // first-seen order == chronological (journal is append-only)
+	get := func(corr string) *runFold {
+		r := byCorr[corr]
+		if r == nil {
+			r = &runFold{corr: corr, status: "running"}
+			byCorr[corr] = r
+			order = append(order, corr)
+		}
+		return r
+	}
+	if err := s.k.Journal().Range(func(e *event.Event) error {
+		if e.Subject != subject || e.CorrelationID == "" {
+			return nil
+		}
+		switch e.Kind {
+		case event.KindWorkflowStarted:
+			r := get(e.CorrelationID)
+			r.started = e.TSUnixMS
+		case event.KindWorkflowNode:
+			var p struct {
+				Node    string `json:"node"`
+				Type    string `json:"type"`
+				Label   string `json:"label"`
+				OK      *bool  `json:"ok"`
+				Port    string `json:"port"`
+				Handled *bool  `json:"handled"`
+				Error   string `json:"error"`
+			}
+			_ = json.Unmarshal(e.Payload, &p)
+			if p.Node == "" {
+				return nil
+			}
+			nv := map[string]any{"node": p.Node, "ts_ms": e.TSUnixMS}
+			nv["ok"] = p.OK == nil || *p.OK
+			if p.Type != "" {
+				nv["type"] = p.Type
+			}
+			if p.Label != "" {
+				nv["label"] = p.Label
+			}
+			if p.Port != "" {
+				nv["port"] = p.Port
+			}
+			if p.Handled != nil {
+				nv["handled"] = *p.Handled
+			}
+			if p.Error != "" {
+				nv["error"] = p.Error
+			}
+			get(e.CorrelationID).nodes = append(get(e.CorrelationID).nodes, nv)
+		case event.KindWorkflowCompleted, event.KindWorkflowFailed:
+			var p struct {
+				Executed []any  `json:"executed"`
+				Error    string `json:"error"`
+			}
+			_ = json.Unmarshal(e.Payload, &p)
+			r := get(e.CorrelationID)
+			r.finished = e.TSUnixMS
+			r.executed = p.Executed
+			if e.Kind == event.KindWorkflowFailed {
+				r.status = "failed"
+				r.errText = p.Error
+			} else {
+				r.status = "completed"
+			}
+		}
+		return nil
+	}); err != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "journal: " + err.Error()})
+		return
+	}
+
+	// Newest first, capped.
+	out := make([]any, 0, limit)
+	for i := len(order) - 1; i >= 0 && len(out) < limit; i-- {
+		r := byCorr[order[i]]
+		rv := map[string]any{
+			"correlation_id": r.corr,
+			"status":         r.status,
+			"started_ms":     r.started,
+			"node_events":    r.nodes,
+		}
+		if r.finished > 0 {
+			rv["finished_ms"] = r.finished
+		}
+		if len(r.executed) > 0 {
+			rv["executed"] = r.executed
+		}
+		if r.errText != "" {
+			rv["error"] = r.errText
+		}
+		out = append(out, rv)
+	}
+	s.writeResp(conn, Response{
+		ID:     req.ID,
+		Type:   RespResult,
+		Result: map[string]any{"workflow": w.Name, "runs": out, "count": len(out)},
+	})
+}
 
 func (s *Server) handleWorkflowDraft(conn net.Conn, req Request) {
 	desc, _ := req.Args["description"].(string)

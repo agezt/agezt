@@ -26,6 +26,7 @@ import {
   Power,
   PowerOff,
   Sparkles,
+  History,
 } from "lucide-react";
 import { getJSON, postAction, postJSON } from "@/lib/api";
 import { cn, clip } from "@/lib/utils";
@@ -540,6 +541,104 @@ export function CopilotPanel({
   );
 }
 
+// ---- run history (M806) --------------------------------------------------------
+
+export interface WfRunNodeEvent {
+  node: string;
+  ok?: boolean;
+  handled?: boolean;
+  port?: string;
+  label?: string;
+  error?: string;
+}
+export interface WfRun {
+  correlation_id: string;
+  status: string; // running | completed | failed
+  started_ms?: number;
+  finished_ms?: number;
+  node_events?: WfRunNodeEvent[];
+  error?: string;
+}
+
+// runToStatus folds a past run's node events into the canvas status map —
+// the same ok/handled rule the live SSE replay uses. Pure + unit-tested.
+export function runToStatus(run: WfRun): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const ev of run.node_events || []) {
+    out[ev.node] = ev.ok !== false || ev.handled === true ? "done" : "failed";
+  }
+  return out;
+}
+
+// RunsDrawer lists a workflow's past runs (folded from the journal) and lets
+// the operator replay any of them on the canvas. Exported for tests.
+export function RunsDrawer({
+  name,
+  onReplay,
+  onError,
+}: {
+  name: string;
+  onReplay: (run: WfRun) => void;
+  onError: (msg: string) => void;
+}) {
+  const [runs, setRuns] = useState<WfRun[] | null>(null);
+
+  const load = useCallback(async () => {
+    try {
+      const d = await getJSON<{ runs?: WfRun[] }>("/api/workflows/runs", { ref: name });
+      setRuns(d.runs || []);
+    } catch (e) {
+      onError((e as Error).message);
+      setRuns([]);
+    }
+  }, [name, onError]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  return (
+    <div className="rounded-lg border border-border bg-card p-2">
+      <div className="mb-1 flex items-center gap-2">
+        <span className="text-[10px] font-semibold tracking-wide text-muted uppercase">Run history</span>
+        <Button size="sm" variant="ghost" onClick={load} aria-label="Refresh runs">
+          <RefreshCw className="h-3 w-3" />
+        </Button>
+      </div>
+      {runs === null && <div className="text-xs text-muted">loading…</div>}
+      {runs !== null && runs.length === 0 && (
+        <div className="text-xs text-muted">No runs yet — Save &amp; Run records the first arc in the journal.</div>
+      )}
+      <ul className="max-h-36 space-y-1 overflow-y-auto">
+        {(runs || []).map((r) => {
+          const when = r.started_ms ? new Date(r.started_ms).toLocaleString() : "?";
+          const dur =
+            r.finished_ms && r.started_ms ? ` · ${((r.finished_ms - r.started_ms) / 1000).toFixed(1)}s` : "";
+          return (
+            <li key={r.correlation_id}>
+              <button
+                className="flex w-full items-center gap-2 rounded-md px-2 py-1 text-left text-xs hover:bg-accent/10"
+                onClick={() => onReplay(r)}
+                aria-label={`Replay run ${r.correlation_id}`}
+              >
+                <Badge variant={r.status === "completed" ? "good" : r.status === "failed" ? "bad" : "default"}>
+                  {r.status}
+                </Badge>
+                <span className="text-muted">{when}</span>
+                <span>
+                  {(r.node_events || []).length} node(s){dur}
+                </span>
+                {r.error && <span className="truncate text-bad">{clip(r.error, 40)}</span>}
+                <span className="ml-auto font-mono text-[10px] text-muted">{clip(r.correlation_id, 18)}</span>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
 export function Workflows() {
   const ui = useUI();
   const { subscribe } = useEvents();
@@ -556,6 +655,7 @@ export function Workflows() {
   const [selected, setSelected] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
   const [copilotOpen, setCopilotOpen] = useState(false);
+  const [runsOpen, setRunsOpen] = useState(false);
   const [nodeStatus, setNodeStatus] = useState<Record<string, string>>({});
   const editingName = useRef<string | null>(null);
   editingName.current = editing?.name ?? null;
@@ -730,6 +830,9 @@ export function Workflows() {
             >
               <Sparkles className="h-3.5 w-3.5" /> Copilot
             </Button>
+            <Button size="sm" variant="ghost" onClick={() => setRunsOpen((v) => !v)} aria-label="Toggle run history">
+              <History className="h-3.5 w-3.5" /> Runs
+            </Button>
             <Button size="sm" variant="ghost" onClick={saveGraph} aria-label="Save workflow">
               <Save className="h-3.5 w-3.5" /> Save
             </Button>
@@ -754,6 +857,18 @@ export function Workflows() {
                 `copilot drafted ${wf.nodes?.length ?? 0} node(s) — review the canvas, then Save`,
                 "success",
               );
+            }}
+            onError={(msg) => ui.toast(msg, "error")}
+          />
+        )}
+        {runsOpen && (
+          <RunsDrawer
+            name={editing.name}
+            onReplay={(run) => {
+              setNodeStatus(runToStatus(run));
+              const dur =
+                run.finished_ms && run.started_ms ? ` in ${((run.finished_ms - run.started_ms) / 1000).toFixed(1)}s` : "";
+              ui.toast(`replaying ${run.status} run${dur} — ${(run.node_events || []).length} node event(s)`, "info");
             }}
             onError={(msg) => ui.toast(msg, "error")}
           />

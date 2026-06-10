@@ -12,6 +12,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Workflow run history — replay any past run on the canvas.** The journal already records
+  every run's full arc; the new **Runs drawer** in the canvas editor folds it into a browsable
+  history (status, time, duration, per-node events, error gist) and clicking a run replays it
+  on the canvas — each node lights green or red exactly as it did live, error-port rescues
+  included, branch-accurate (a condition's untaken branch stays uncolored). Also
+  `agt workflow runs <name>` and `GET /api/workflows/runs`. Nothing new is stored: the journal
+  is the truth, folded on demand. (M806)
 - **Workflow copilot refine — "change X" on the canvas.** The copilot now revises existing
   workflows: tell it the change in plain language and it returns the complete revised graph,
   keeping unrelated nodes, ids, and canvas positions untouched. On the console the Copilot

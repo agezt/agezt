@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -37,6 +38,8 @@ func cmdWorkflow(args []string, stdout, stderr io.Writer) int {
 		return cmdWorkflowDraft(args[1:], stdout, stderr)
 	case "refine":
 		return cmdWorkflowRefine(args[1:], stdout, stderr)
+	case "runs":
+		return cmdWorkflowRuns(args[1:], stdout, stderr)
 	case "enable":
 		return cmdWorkflowSetEnabled(args[1:], stdout, stderr, true)
 	case "disable":
@@ -58,6 +61,7 @@ func workflowUsage(w io.Writer) int {
 	fmt.Fprintf(w, "  save --file GRAPH.json             create or update (upsert by name) a workflow\n")
 	fmt.Fprintf(w, "  draft \"DESCRIPTION\" [--name N] [--save]  copilot designs a graph from plain language\n")
 	fmt.Fprintf(w, "  refine <name|id> \"CHANGE\" [--save]   copilot revises a stored graph per a change request\n")
+	fmt.Fprintf(w, "  runs <name|id> [N] [--json]          run history folded from the journal (newest first)\n")
 	fmt.Fprintf(w, "  run <name|id> [--payload JSON]     execute now; payload lands in {{trigger.payload}}\n")
 	fmt.Fprintf(w, "  enable|disable <name|id>           arm/disarm its triggers (M799)\n")
 	fmt.Fprintf(w, "  remove <name|id>                   delete a workflow\n")
@@ -414,6 +418,77 @@ func cmdWorkflowRun(args []string, stdout, stderr io.Writer) int {
 		}
 		fmt.Fprintf(stdout, "  %-20s %s\n", id, rendered)
 	}
+	return 0
+}
+
+// cmdWorkflowRuns (M806): the workflow's run history, folded from the
+// journal — every started→node…→completed|failed arc, newest first.
+func cmdWorkflowRuns(args []string, stdout, stderr io.Writer) int {
+	ref := ""
+	limit := 0
+	asJSON := false
+	for _, a := range args {
+		switch {
+		case a == "--json":
+			asJSON = true
+		case strings.HasPrefix(a, "--"):
+		case ref == "":
+			ref = a
+		default:
+			if n, err := strconv.Atoi(a); err == nil {
+				limit = n
+			}
+		}
+	}
+	if ref == "" {
+		fmt.Fprintf(stderr, "usage: %s workflow runs <name|id> [N] [--json]\n", brand.CLI)
+		return 2
+	}
+	callArgs := map[string]any{"ref": ref}
+	if limit > 0 {
+		callArgs["limit"] = limit
+	}
+	c := dial(stderr)
+	if c == nil {
+		return 1
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	res, err := c.Call(ctx, controlplane.CmdWorkflowRuns, callArgs)
+	if err != nil {
+		fmt.Fprintf(stderr, "%s workflow runs: %v\n", brand.CLI, err)
+		return 1
+	}
+	if asJSON {
+		return encodeJSON(stdout, res)
+	}
+	runs, _ := res["runs"].([]any)
+	if len(runs) == 0 {
+		fmt.Fprintf(stdout, "no runs recorded for %s yet\n", str(res["workflow"]))
+		return 0
+	}
+	for _, raw := range runs {
+		r, _ := raw.(map[string]any)
+		if r == nil {
+			continue
+		}
+		started, _ := r["started_ms"].(float64)
+		when := time.UnixMilli(int64(started)).Format("2006-01-02 15:04:05")
+		dur := ""
+		if fin, ok := r["finished_ms"].(float64); ok && started > 0 {
+			dur = " " + (time.Duration(int64(fin-started)) * time.Millisecond).Truncate(time.Millisecond).String()
+		}
+		nodes, _ := r["node_events"].([]any)
+		fmt.Fprintf(stdout, "%s  %-9s %2d node(s)%s  %s", when, str(r["status"]), len(nodes), dur, str(r["correlation_id"]))
+		if e := str(r["error"]); e != "" {
+			if len(e) > 60 {
+				e = e[:60] + "…"
+			}
+			fmt.Fprintf(stdout, "  %s", e)
+		}
+		fmt.Fprintln(stdout)
+	}
+	fmt.Fprintf(stdout, "%v run(s)\n", res["count"])
 	return 0
 }
 
