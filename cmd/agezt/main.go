@@ -1034,6 +1034,16 @@ func runDaemon(stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "  reflection       : on-demand (agt reflect run; set AGEZT_REFLECT_EVERY for a timer)\n")
 	}
 
+	// Brain distillation (M804). Always available via `agt memory
+	// consolidate`; set AGEZT_BRAIN_DISTILL_EVERY (e.g. 24h) to run the
+	// consolidation pass on a timer — the standing "sleep cycle" that merges
+	// accumulated near-duplicate memories. Mirrors the reflection ticker.
+	if bdDesc := startBrainDistillTicker(ctx, k, stdout); bdDesc != "" {
+		fmt.Fprintf(stdout, "  brain distill    : %s\n", bdDesc)
+	} else {
+		fmt.Fprintf(stdout, "  brain distill    : on-demand (agt memory consolidate; set AGEZT_BRAIN_DISTILL_EVERY for a timer)\n")
+	}
+
 	// Web UI (SPEC-07) — the SSE Live Monitor + read panels over the same
 	// bus/control plane the CLI uses. Off unless AGEZT_WEB_ADDR is set;
 	// runs on the daemon ctx (halt/shutdown stop it), localhost + token.
@@ -2294,6 +2304,38 @@ func startReflectTicker(ctx context.Context, k *kernelruntime.Kernel, stdout io.
 				corr := "reflect-" + ulid.New()
 				if _, err := k.Reflect().Reflect(ctx, corr); err != nil {
 					fmt.Fprintf(stdout, "reflection pass failed: %v\n", err)
+				}
+			}
+		}
+	}()
+	return "every " + every.String()
+}
+
+// startBrainDistillTicker starts a periodic brain-distillation pass when
+// AGEZT_BRAIN_DISTILL_EVERY is a valid positive duration, on the daemon ctx
+// (so halt/shutdown stop it). Returns a banner description, or "" when no
+// timer is configured. Mirrors the reflection ticker.
+func startBrainDistillTicker(ctx context.Context, k *kernelruntime.Kernel, stdout io.Writer) string {
+	raw := os.Getenv(brand.EnvPrefix + "BRAIN_DISTILL_EVERY")
+	if raw == "" {
+		return ""
+	}
+	every, err := time.ParseDuration(raw)
+	if err != nil || every <= 0 {
+		fmt.Fprintf(stdout, "  brain distill    : invalid AGEZT_BRAIN_DISTILL_EVERY %q (%v) — on-demand only\n", raw, err)
+		return ""
+	}
+	go func() {
+		ticker := time.NewTicker(every)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				corr := "brain-distill-" + ulid.New()
+				if _, err := k.DistillBrain(ctx, corr); err != nil {
+					fmt.Fprintf(stdout, "brain-distill pass failed: %v\n", err)
 				}
 			}
 		}

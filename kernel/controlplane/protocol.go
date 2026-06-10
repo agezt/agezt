@@ -665,6 +665,12 @@ const (
 	// Args: id (required). Returns: { forgotten (bool) }
 	CmdMemoryForget = "memory_forget"
 
+	// CmdMemoryConsolidate (M804) runs one brain-distillation pass: cluster
+	// related records by local embedding, LLM-merge each cluster into one
+	// consolidated record, supersede the originals (soft, reversible).
+	// Args: none. Returns the pass report (clusters, merges, supersessions).
+	CmdMemoryConsolidate = "memory_consolidate"
+
 	// Scheduled intents (autonomy). The cadence resident fires due schedules
 	// through the governed loop; these commands manage the persistent store
 	// behind `agt schedule`.

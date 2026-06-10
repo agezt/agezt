@@ -198,6 +198,9 @@ const (
 	KindMemoryRetrieved  Kind = "memory.retrieved"  // records surfaced into a run's context
 	KindMemoryForgotten  Kind = "memory.forgotten"  // a record tombstoned (soft delete)
 	KindMemorySuperseded Kind = "memory.superseded" // a record replaced by a newer version
+	// KindMemoryConsolidated (M804): one brain-distillation pass merged
+	// clusters of related records into consolidated summaries.
+	KindMemoryConsolidated Kind = "memory.consolidated"
 
 	// World model (SPEC-05 §3). The entity/relation graph is content-
 	// addressed and journaled so `agt why` can explain why "the portfolio"
@@ -394,6 +397,7 @@ var knownKinds = map[Kind]struct{}{
 	KindMemoryRetrieved:           {},
 	KindMemoryForgotten:           {},
 	KindMemorySuperseded:          {},
+	KindMemoryConsolidated:        {},
 	KindWorldEntityUpserted:       {},
 	KindWorldRelationUpserted:     {},
 	KindWorldRetrieved:            {},

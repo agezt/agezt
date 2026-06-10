@@ -9,10 +9,45 @@ package controlplane
 // via `agt why`, exactly like a mutation the agent itself made.
 
 import (
+	"context"
 	"net"
+	"time"
 
 	"github.com/agezt/agezt/kernel/memory"
 )
+
+// memoryConsolidateTimeout bounds one brain-distillation pass — at most
+// maxClustersPerPass provider calls.
+const memoryConsolidateTimeout = 5 * time.Minute
+
+// handleMemoryConsolidate (M804) runs one synchronous brain-distillation
+// pass and returns its report. The pass journals memory.consolidated +
+// memory.superseded under a fresh correlation, so `agt why` explains every
+// merge.
+func (s *Server) handleMemoryConsolidate(conn net.Conn, req Request) {
+	corr := s.k.NewCorrelation()
+	ctx, cancel := context.WithTimeout(context.Background(), memoryConsolidateTimeout)
+	defer cancel()
+	report, err := s.k.DistillBrain(ctx, corr)
+	if err != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		return
+	}
+	s.writeResp(conn, Response{
+		ID:   req.ID,
+		Type: RespResult,
+		Result: map[string]any{
+			"correlation_id":     corr,
+			"clusters_found":     report.ClustersFound,
+			"clusters_merged":    report.ClustersMerged,
+			"records_superseded": report.RecordsSuperseded,
+			"consolidated_ids":   report.ConsolidatedIDs,
+			"skipped_non_json":   report.SkippedNonJSON,
+			"active_before":      report.ActiveBefore,
+			"active_after":       report.ActiveAfterApprox,
+		},
+	})
+}
 
 func (s *Server) handleMemoryAdd(conn net.Conn, req Request) {
 	content, _ := req.Args["content"].(string)
