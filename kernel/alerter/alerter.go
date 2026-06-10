@@ -108,6 +108,18 @@ type Config struct {
 	MaxPerWindow int
 	// Window is the trailing window MaxPerWindow is measured over. Default 10m.
 	Window time.Duration
+	// Mute (M815) is a daily quiet window during which alerts are suppressed
+	// (the operator silences pings overnight even though they're high
+	// priority). Disabled by default. CRITICAL alerts still break through —
+	// a budget blowout or a halt at 3am is exactly what the owner DOES want
+	// to hear; only warnings honour the mute.
+	Mute pulse.QuietHours
+	// MuteSources (M815) is the set of alert sources to drop entirely
+	// (per-category routing: e.g. mute noisy "provider" rate-limit pings
+	// while keeping "budget" and "kernel"). Matched case-insensitively
+	// against Alert.Source. A critical from a muted source is still
+	// suppressed — muting a category means "I never want these".
+	MuteSources map[string]bool
 }
 
 func (c Config) normalize() Config {
@@ -144,14 +156,24 @@ func New(sink pulse.BriefSink, cfg Config) *Notifier {
 		lastSent: map[string]time.Time{}}
 }
 
-// Handle classifies one event and, when it passes the level/dedup/rate gates,
-// delivers it. Returns true when a brief was delivered.
+// Handle classifies one event and, when it passes the level/source/mute/
+// dedup/rate gates, delivers it. Returns true when a brief was delivered.
 func (n *Notifier) Handle(ev *event.Event) bool {
 	a, ok := Classify(ev)
 	if !ok || a.Level < n.cfg.MinLevel {
 		return false
 	}
+	// Per-source routing (M815): a muted category never notifies, at any level.
+	if n.cfg.MuteSources != nil && a.Source != "" &&
+		n.cfg.MuteSources[strings.ToLower(a.Source)] {
+		return false
+	}
 	now := n.now()
+	// Mute window (M815): warnings are held during the quiet window; criticals
+	// always break through — that's the whole point of a critical.
+	if a.Level < LevelCritical && n.cfg.Mute.Active(now) {
+		return false
+	}
 	key := string(a.Kind) + "/" + ev.CorrelationID
 	n.mu.Lock()
 	if last, seen := n.lastSent[key]; seen && now.Sub(last) < n.cfg.Cooldown {
@@ -183,6 +205,19 @@ func (n *Notifier) Handle(ev *event.Event) bool {
 	n.mu.Unlock()
 	_ = n.sink.Deliver(brief(a, ev.CorrelationID)) // a channel outage must not wedge the watcher
 	return true
+}
+
+// ParseMuteSources reads a comma/space-separated source list ("provider,
+// egress") into the lowercase set Config.MuteSources expects. Empty → nil.
+func ParseMuteSources(s string) map[string]bool {
+	out := map[string]bool{}
+	for _, f := range strings.FieldsFunc(s, func(r rune) bool { return r == ',' || r == ' ' }) {
+		out[strings.ToLower(strings.TrimSpace(f))] = true
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 // brief renders an Alert as a Pulse brief. DispAlert is the "send now, high

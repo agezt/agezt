@@ -239,3 +239,69 @@ func TestStart_NilGuards(t *testing.T) {
 		t.Fatal("started without a sink")
 	}
 }
+
+// TestHandle_MuteWindow (M815): warnings are held during the mute window;
+// criticals still break through; outside the window everything flows.
+func TestHandle_MuteWindow(t *testing.T) {
+	sink := &captureSink{}
+	// Mute 0..7 (e.g. overnight).
+	n := New(sink, Config{Mute: pulse.ParseQuietHours("0-7")})
+
+	at := func(hour int) time.Time { return time.Date(2026, 6, 10, hour, 0, 0, 0, time.UTC) }
+
+	// 03:00, inside the window: a warning is muted, a critical breaks through.
+	n.now = func() time.Time { return at(3) }
+	if n.Handle(ev(event.KindTaskFailed, "c1", nil)) {
+		t.Fatal("warning delivered inside the mute window")
+	}
+	if !n.Handle(ev(event.KindHalt, "c2", nil)) {
+		t.Fatal("critical suppressed by the mute window — criticals must break through")
+	}
+
+	// 09:00, outside the window: the warning flows.
+	n.now = func() time.Time { return at(9) }
+	if !n.Handle(ev(event.KindTaskFailed, "c3", nil)) {
+		t.Fatal("warning suppressed outside the mute window")
+	}
+	if got := len(sink.all()); got != 2 {
+		t.Fatalf("delivered %d, want 2 (critical + post-window warning)", got)
+	}
+}
+
+// TestHandle_MuteSources (M815): a muted category never notifies, at any
+// level; unmuted categories still flow.
+func TestHandle_MuteSources(t *testing.T) {
+	sink := &captureSink{}
+	n := New(sink, Config{MuteSources: ParseMuteSources("provider, kernel")})
+
+	// provider (rate-limit, warning) and kernel (halt, CRITICAL) are muted.
+	if n.Handle(ev(event.KindRateLimited, "c1", map[string]any{"provider": "x"})) {
+		t.Fatal("muted provider source delivered")
+	}
+	if n.Handle(ev(event.KindHalt, "c2", nil)) {
+		t.Fatal("muted kernel source delivered even at critical")
+	}
+	// budget (critical) and run (warning) are NOT muted.
+	if !n.Handle(ev(event.KindBudgetExceeded, "c3", nil)) {
+		t.Fatal("unmuted budget source suppressed")
+	}
+	if !n.Handle(ev(event.KindTaskFailed, "c4", nil)) {
+		t.Fatal("unmuted run source suppressed")
+	}
+	if got := len(sink.all()); got != 2 {
+		t.Fatalf("delivered %d, want 2", got)
+	}
+}
+
+// TestParseMuteSources: comma/space tolerant, lowercased, empty → nil.
+func TestParseMuteSources(t *testing.T) {
+	got := ParseMuteSources(" Provider, Kernel  egress ")
+	for _, want := range []string{"provider", "kernel", "egress"} {
+		if !got[want] {
+			t.Fatalf("missing %q in %v", want, got)
+		}
+	}
+	if ParseMuteSources("") != nil || ParseMuteSources("  ,  ") != nil {
+		t.Fatal("empty input must yield nil")
+	}
+}

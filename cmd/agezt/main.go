@@ -3123,10 +3123,28 @@ func buildAlertNotify(ctx context.Context, k *kernelruntime.Kernel, sink pulse.B
 			cfg.MaxPerWindow = n
 		}
 	}
+	// Mute window (M815): hold warnings during a daily quiet window (criticals
+	// always break through). Reuses Pulse's "START-END" 24h form, e.g. "0-7".
+	cfg.Mute = pulse.ParseQuietHours(os.Getenv(brand.EnvPrefix + "ALERT_NOTIFY_MUTE"))
+	// Per-source routing (M815): drop noisy categories (run/egress/budget/
+	// provider/kernel) outright while keeping the rest.
+	cfg.MuteSources = alerter.ParseMuteSources(os.Getenv(brand.EnvPrefix + "ALERT_NOTIFY_MUTE_SOURCES"))
 	if !alerter.Start(ctx, k.Bus(), sink, cfg) {
 		return "disabled"
 	}
-	return fmt.Sprintf("on (level≥%s → channels; repeats suppressed; flood-capped)", cfg.MinLevel)
+	extra := ""
+	if cfg.Mute.Enabled {
+		extra += fmt.Sprintf("; muted %s (criticals still break through)", cfg.Mute.Spec())
+	}
+	if len(cfg.MuteSources) > 0 {
+		srcs := make([]string, 0, len(cfg.MuteSources))
+		for s := range cfg.MuteSources {
+			srcs = append(srcs, s)
+		}
+		sort.Strings(srcs)
+		extra += "; sources muted: " + strings.Join(srcs, ",")
+	}
+	return fmt.Sprintf("on (level≥%s → channels; repeats suppressed; flood-capped%s)", cfg.MinLevel, extra)
 }
 
 // buildStandingRunner starts the event-trigger half of Chronos (SPEC-16 §4): when
