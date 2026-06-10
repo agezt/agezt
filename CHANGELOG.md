@@ -11,6 +11,15 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 
 ## [Unreleased]
 
+### Changed
+- **`http` and `browser.read` are allow-by-default.** Out of the box the network tools now reach
+  **any public host** — an empty allowlist no longer means "deny everything" (the old behaviour that
+  made every `http.get`/`browser.read` fail with `host not in allowlist`). Setting
+  `AGEZT_HTTP_ALLOWED_HOSTS` / `AGEZT_BROWSER_ALLOWED_HOSTS` is now the opt-OUT that **restricts** to
+  those hosts. The SSRF egress guard still refuses loopback, the private network, and cloud-metadata
+  on every hop — "open" means the public internet, not a pivot inward. Matches the allow-by-default
+  posture. (M818)
+
 ### Added
 - **Web UI on by default + optional password.** A bare `agezt` now serves the console at
   `127.0.0.1:8787` (tokenized URL in the banner) — no `AGEZT_WEB_ADDR` needed. The default port
