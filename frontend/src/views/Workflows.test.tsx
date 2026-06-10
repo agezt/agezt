@@ -198,6 +198,29 @@ describe("template gallery", () => {
     count: 1,
   };
 
+  it("canvas Run fires async — save then run with async:true (M810)", async () => {
+    getJSON.mockImplementation((path: string) =>
+      path === "/api/workflows/templates"
+        ? Promise.resolve(gallery)
+        : Promise.resolve({ workflows: [], count: 0 }),
+    );
+    postJSON.mockResolvedValue({ accepted: true, async: true, correlation_id: "run-x" });
+    render(withUI(<Workflows />));
+    await waitFor(() => expect(screen.getByText("No workflows yet")).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: /New workflow/ }));
+    await waitFor(() => expect(getJSON).toHaveBeenCalledWith("/api/workflows/templates"));
+    fireEvent.change(screen.getByLabelText("Workflow name"), { target: { value: "asy" } });
+    fireEvent.change(screen.getByLabelText("Start from template"), { target: { value: "resilient-fetch" } });
+    fireEvent.click(screen.getByRole("button", { name: "Create workflow" }));
+    await waitFor(() => expect(screen.getByText("asy")).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: "Run workflow" }));
+    await waitFor(() =>
+      expect(postJSON).toHaveBeenCalledWith("/api/workflows/run", { ref: "asy", payload: {}, async: true }),
+    );
+    // The wire is NOT held for outputs anymore; the save happened first.
+    expect(postJSON).toHaveBeenCalledWith("/api/workflows/save", expect.anything());
+  });
+
   it("instantiates a template onto the canvas under the new name", async () => {
     getJSON.mockImplementation((path: string) =>
       path === "/api/workflows/templates"

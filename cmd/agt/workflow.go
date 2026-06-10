@@ -65,7 +65,7 @@ func workflowUsage(w io.Writer) int {
 	fmt.Fprintf(w, "  refine <name|id> \"CHANGE\" [--save]   copilot revises a stored graph per a change request\n")
 	fmt.Fprintf(w, "  runs <name|id> [N] [--json]          run history folded from the journal (newest first)\n")
 	fmt.Fprintf(w, "  templates [--json] [--use T --name N]  built-in gallery; --use saves template T as workflow N\n")
-	fmt.Fprintf(w, "  run <name|id> [--payload JSON]     execute now; payload lands in {{trigger.payload}}\n")
+	fmt.Fprintf(w, "  run <name|id> [--payload JSON] [--async]  execute now; --async returns immediately (journal carries the arc)\n")
 	fmt.Fprintf(w, "  enable|disable <name|id>           arm/disarm its triggers (M799)\n")
 	fmt.Fprintf(w, "  remove <name|id>                   delete a workflow\n")
 	fmt.Fprintf(w, "node types: trigger, tool {tool,args}, llm {prompt,system,model}, condition {left,op,right},\n")
@@ -353,7 +353,7 @@ func cmdWorkflowRefine(args []string, stdout, stderr io.Writer) int {
 
 func cmdWorkflowRun(args []string, stdout, stderr io.Writer) int {
 	ref, payloadRaw := "", ""
-	asJSON := false
+	asJSON, async := false, false
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
 		case "--payload":
@@ -365,6 +365,8 @@ func cmdWorkflowRun(args []string, stdout, stderr io.Writer) int {
 			payloadRaw = args[i]
 		case "--json":
 			asJSON = true
+		case "--async":
+			async = true
 		default:
 			if !strings.HasPrefix(args[i], "--") && ref == "" {
 				ref = args[i]
@@ -372,10 +374,13 @@ func cmdWorkflowRun(args []string, stdout, stderr io.Writer) int {
 		}
 	}
 	if ref == "" {
-		fmt.Fprintf(stderr, "usage: %s workflow run <name|id> [--payload JSON] [--json]\n", brand.CLI)
+		fmt.Fprintf(stderr, "usage: %s workflow run <name|id> [--payload JSON] [--async] [--json]\n", brand.CLI)
 		return 2
 	}
 	callArgs := map[string]any{"ref": ref}
+	if async {
+		callArgs["async"] = true
+	}
 	if payloadRaw != "" {
 		// A JSON payload rides structured; anything else rides as a string.
 		var v any
@@ -399,6 +404,11 @@ func cmdWorkflowRun(args []string, stdout, stderr io.Writer) int {
 	}
 	if asJSON {
 		return encodeJSON(stdout, res)
+	}
+	if accepted, _ := res["accepted"].(bool); accepted {
+		fmt.Fprintf(stdout, "started — follow it with `%s workflow runs %s` or `%s why <event>` (correlation %s)\n",
+			brand.CLI, ref, brand.CLI, str(res["correlation_id"]))
+		return 0
 	}
 	executed, _ := res["executed"].([]any)
 	fmt.Fprintf(stdout, "completed — %d node(s) executed (correlation %s)\n", len(executed), str(res["correlation_id"]))
