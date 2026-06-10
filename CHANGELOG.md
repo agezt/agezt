@@ -12,6 +12,16 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Search the skill library — find a procedure fast.** The Skills view gains a **filter skills** box
+  (appearing once there are more than four skills) that narrows the cards as you type, matching on
+  **name, description, status, triggers, or required tools**, with a live `matched/total` count. As the
+  agent learns and you author more procedures, finding the one that fires on a given trigger — or every
+  skill still in `shadow`, or every skill that needs `shell` — beats scrolling. Purely client-side over
+  the loaded skills; the status summary still tallies the whole library. Unit-tested (the pure
+  `skillMatches` helper matches name/description/status/triggers/tools; the input filters the cards with
+  a count, only appears past four skills, and a non-matching query shows a hint). Verified live on an
+  isolated daemon: authored 5 skills → typing `triage` showed `1/5` (showing "triage-bug", hiding
+  "deploy-release"), a non-matching query showed "no skills match"; 0 console errors. (M778)
 - **See what the agent flagged while you were away — alert history.** The Alerts view (the proactive
   signal feed: run failures, blocked egress, budget/rate trips, pulse briefings, self-health
   degradations) previously seeded *only* from the live SSE stream — which carries events from

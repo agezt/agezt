@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Sparkles, RefreshCw, ChevronRight, ChevronDown, Check, ShieldX, Undo2, Plus, X, Pencil } from "lucide-react";
+import { Sparkles, RefreshCw, ChevronRight, ChevronDown, Check, ShieldX, Undo2, Plus, X, Pencil, Search } from "lucide-react";
 import { getJSON, postAction, postJSON } from "@/lib/api";
 import { cn, fmtTime } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -28,6 +28,18 @@ const statusTone: Record<string, string> = {
   quarantined: "bg-bad/15 text-bad",
 };
 
+// skillMatches tests a skill against a lowercased query over its name, description,
+// status, triggers, and required tools — so a growing library stays findable by what a
+// skill does, when it fires, what it needs, or its lifecycle state (M778).
+export function skillMatches(s: Skill, q: string): boolean {
+  if (!q) return true;
+  const hay = [s.name, s.description, s.status, ...(s.triggers || []), ...(s.tools_required || [])]
+    .filter((x): x is string => typeof x === "string")
+    .join(" ")
+    .toLowerCase();
+  return hay.includes(q);
+}
+
 // Skills is the learned-procedure library: each skill is a card with its status,
 // description, triggers, required tools, shadow/usage metrics and the full
 // procedure body (expandable), plus its promote / quarantine / revert controls.
@@ -41,6 +53,7 @@ export function Skills() {
   const [open, setOpen] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [editSkill, setEditSkill] = useState<Skill | null>(null);
+  const [q, setQ] = useState("");
 
   async function reload() {
     setLoading(true);
@@ -133,7 +146,29 @@ export function Skills() {
       ) : (
         <div className="min-h-0 flex-1 space-y-2 overflow-auto">
           <StatusSummary skills={skills} />
-          {skills.map((s, i) => {
+          {/* Find a skill by name, what it does, when it fires, or its status (M778). */}
+          {skills.length > 4 && (
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted" />
+              <input
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="filter skills…"
+                aria-label="Filter skills"
+                className="h-8 w-full rounded-md border border-border bg-panel pl-7 pr-12 text-xs text-foreground outline-none focus-visible:border-accent"
+              />
+              {q.trim() && (
+                <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted">
+                  {skills.filter((s) => skillMatches(s, q.trim().toLowerCase())).length}/{skills.length}
+                </span>
+              )}
+            </div>
+          )}
+          {(() => {
+            const query = q.trim().toLowerCase();
+            const shown = query ? skills.filter((s) => skillMatches(s, query)) : skills;
+            if (shown.length === 0) return <p className="px-1 py-2 text-xs text-muted">no skills match “{q.trim()}”</p>;
+            return shown.map((s, i) => {
             const m = s.metrics || {};
             const isOpen = open === (s.id || String(i));
             return (
@@ -243,7 +278,8 @@ export function Skills() {
                 )}
               </div>
             );
-          })}
+            });
+          })()}
         </div>
       )}
     </div>
