@@ -866,6 +866,16 @@ const (
 	CmdStandingWhy        = "standing_why"  // fold the journal for one order's life story
 	CmdStandingFire       = "standing_fire" // fire an order now, ignoring its triggers (M765)
 
+	// Agent roster (M783) — durable named agent profiles behind `agt agent`.
+	// Add: args.profile (object). Edit: args{ref, profile}. SetEnabled:
+	// args{ref, enabled}. Remove: args.ref. List: no args. ref = id OR slug.
+	// Every mutation is journaled (roster.*).
+	CmdAgentList       = "agent_list"
+	CmdAgentAdd        = "agent_add"
+	CmdAgentEdit       = "agent_edit"
+	CmdAgentSetEnabled = "agent_set_enabled"
+	CmdAgentRemove     = "agent_remove"
+
 	// Sandbox projects (M686) — read-only inspection of what agents BUILT with the
 	// code_exec tool under <baseDir>/sandbox/projects. List: no args, returns each
 	// persistent project with its files (name, bytes, modified). File: args{project,

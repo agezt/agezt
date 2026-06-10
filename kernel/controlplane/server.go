@@ -21,6 +21,7 @@ import (
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/approval"
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/roster"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/scheduler"
 	"github.com/agezt/agezt/kernel/tenant"
@@ -681,6 +682,16 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.handleStandingRemove(conn, req)
 	case CmdStandingFire:
 		s.handleStandingFire(conn, req)
+	case CmdAgentList:
+		s.handleAgentList(conn, req)
+	case CmdAgentAdd:
+		s.handleAgentAdd(conn, req)
+	case CmdAgentEdit:
+		s.handleAgentEdit(conn, req)
+	case CmdAgentSetEnabled:
+		s.handleAgentSetEnabled(conn, req)
+	case CmdAgentRemove:
+		s.handleAgentRemove(conn, req)
 	case CmdSandboxList:
 		s.handleSandboxList(conn, req)
 	case CmdSandboxFile:
@@ -1187,6 +1198,34 @@ func (s *Server) handleRun(ctx context.Context, conn net.Conn, req Request) {
 		return
 	}
 	modelOverride := strings.TrimSpace(modelRaw)
+
+	// Run AS a named agent (M783): `agt run --agent <slug>` resolves a roster
+	// profile and applies its soul / model / per-run cost ceiling as this run's
+	// DEFAULTS. Explicit per-run overrides still win; the profile fills the
+	// gaps. Resolved before the vision gate so the gate judges the model the
+	// run will actually use. An unknown or paused agent is a usage error —
+	// silently running as the default identity would be worse than failing.
+	agentRaw, _, agerr := argString(req.Args, "agent")
+	if agerr != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: agerr.Error()})
+		return
+	}
+	var agentProf *roster.Profile
+	if agentRef := strings.TrimSpace(agentRaw); agentRef != "" {
+		p, found := k.Roster().Get(agentRef)
+		if !found {
+			s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "unknown agent: " + agentRef})
+			return
+		}
+		if !p.Enabled {
+			s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "agent " + p.Slug + " is paused (agt agent resume " + p.Slug + ")"})
+			return
+		}
+		agentProf = &p
+		if modelOverride == "" {
+			modelOverride = strings.TrimSpace(p.Model)
+		}
+	}
 	effModel := k.Model()
 	if modelOverride != "" {
 		effModel = modelOverride
@@ -1245,6 +1284,9 @@ func (s *Server) handleRun(ctx context.Context, conn net.Conn, req Request) {
 		return
 	}
 	systemOverride := strings.TrimSpace(sysRaw)
+	if systemOverride == "" && agentProf != nil {
+		systemOverride = strings.TrimSpace(agentProf.Soul) // the agent's soul IS its system prompt
+	}
 	if systemOverride != "" {
 		ctx = runtime.WithSystem(ctx, systemOverride)
 	}
@@ -1283,6 +1325,9 @@ func (s *Server) handleRun(ctx context.Context, conn net.Conn, req Request) {
 	if mcerr != nil {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: mcerr.Error()})
 		return
+	}
+	if maxCost <= 0 && agentProf != nil {
+		maxCost = agentProf.MaxCostMc // the agent's own per-run spend ceiling
 	}
 	if maxCost > 0 {
 		ctx = runtime.WithMaxCost(ctx, maxCost)

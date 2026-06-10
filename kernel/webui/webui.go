@@ -110,6 +110,7 @@ var apiRoutes = map[string]string{
 	"/api/world":         controlplane.CmdWorldList,
 	"/api/skills":        controlplane.CmdSkillList,
 	"/api/standing":      controlplane.CmdStandingList,
+	"/api/agents":        controlplane.CmdAgentList,
 	"/api/inbox":         controlplane.CmdInbox,
 	"/api/board":         controlplane.CmdBoardRead,
 	"/api/autonomy":      controlplane.CmdAutonomyFeed,
@@ -234,6 +235,9 @@ var writeRoutes = map[string]writeRoute{
 	"/api/standing/remove":  {controlplane.CmdStandingRemove, []string{"id"}},
 	// Fire a standing order now (M765), ignoring its triggers — test or run on demand.
 	"/api/standing/fire": {controlplane.CmdStandingFire, []string{"id"}},
+	// Agent roster lifecycle (M783): pause/resume/remove a named agent (ref = id or slug).
+	"/api/agents/enable": {controlplane.CmdAgentSetEnabled, []string{"ref", "enabled"}},
+	"/api/agents/remove": {controlplane.CmdAgentRemove, []string{"ref"}},
 	"/api/reflect/run":      {controlplane.CmdReflectRun, nil},
 	// Provider keyring switch/remove (M700): activate or remove a key, reloading
 	// the provider in place. (Add is a jsonRoute — the value is a secret body.)
@@ -275,6 +279,10 @@ var jsonRoutes = map[string]writeRoute{
 	// Edit a standing order in place (M729): id + any subset of the human-tunable
 	// fields. assure is numeric, so the JSON body preserves its type.
 	"/api/standing/edit": {controlplane.CmdStandingEdit, []string{"id", "name", "plan", "mode", "max_trust", "briefing_min", "assure"}},
+	// Agent roster create/edit (M783): the profile is a structured object (soul
+	// text, fallback list, numeric cost ceiling) — a JSON body, not query args.
+	"/api/agents/add":  {controlplane.CmdAgentAdd, []string{"profile"}},
+	"/api/agents/edit": {controlplane.CmdAgentEdit, []string{"ref", "profile"}},
 	// Create a schedule (M715): intent + a timing mode. Numeric timing args (e.g.
 	// interval_sec, at_minutes, once_at_unix) ride the JSON body so they keep their
 	// types — a query arg would stringify them.

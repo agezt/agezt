@@ -37,6 +37,7 @@ import (
 	"github.com/agezt/agezt/kernel/reflect"
 	"github.com/agezt/agezt/kernel/scheduler"
 	"github.com/agezt/agezt/kernel/skill"
+	"github.com/agezt/agezt/kernel/roster"
 	"github.com/agezt/agezt/kernel/standing"
 	"github.com/agezt/agezt/kernel/state"
 	"github.com/agezt/agezt/kernel/tenantctx"
@@ -327,6 +328,7 @@ type Kernel struct {
 	forge     *skill.Forge
 	skillDir  *skill.FileStore
 	standing  *standing.Store
+	roster    *roster.Store
 	artifacts *artifact.Store
 	reflect   *reflect.Engine
 	schedules *cadence.Store        // persistent scheduled-intents store (autonomy)
@@ -446,6 +448,16 @@ func Open(cfg Config) (*Kernel, error) {
 		return nil, fmt.Errorf("runtime: standing: %w", err)
 	}
 
+	rstore, err := roster.Open(filepath.Join(cfg.BaseDir, "roster"))
+	if err != nil {
+		j.Close()
+		st.Close()
+		mstore.Close()
+		wstore.Close()
+		skstore.Close()
+		return nil, fmt.Errorf("runtime: roster: %w", err)
+	}
+
 	// Reflection holds no store of its own — it folds the journal and tunes
 	// the world graph, then journals its report (SPEC-05 §6). Default decay
 	// knobs; the daemon may override via the optional periodic trigger.
@@ -505,6 +517,7 @@ func Open(cfg Config) (*Kernel, error) {
 		forge:        forge,
 		skillDir:     skstore,
 		standing:     ststore,
+		roster:       rstore,
 		artifacts:    artStore,
 		reflect:      reflectEng,
 		schedules:    schedStore,
@@ -681,6 +694,74 @@ func (k *Kernel) RemoveStanding(id string) (bool, error) {
 		_, _ = k.bus.Publish(event.Spec{
 			Subject: "standing." + id, Kind: event.KindStandingRemoved, Actor: "standing",
 			Payload: map[string]any{"id": id, "name": o.Name},
+		})
+	}
+	return ok, nil
+}
+
+// Roster returns the durable agent-profile store (M783). Always non-nil after Open.
+func (k *Kernel) Roster() *roster.Store { return k.roster }
+
+// AddProfile validates and persists a named agent profile, journaling
+// roster.created so the agent's birth is auditable.
+func (k *Kernel) AddProfile(p roster.Profile) (roster.Profile, error) {
+	saved, err := k.roster.Add(p)
+	if err != nil {
+		return roster.Profile{}, err
+	}
+	_, _ = k.bus.Publish(event.Spec{
+		Subject: "roster." + saved.Slug, Kind: event.KindRosterCreated, Actor: "roster",
+		Payload: map[string]any{"id": saved.ID, "slug": saved.Slug, "name": saved.Name, "model": saved.Model},
+	})
+	return saved, nil
+}
+
+// SetProfileEnabled pauses/resumes an agent profile, journaling roster.updated.
+func (k *Kernel) SetProfileEnabled(ref string, enabled bool) (roster.Profile, error) {
+	p, err := k.roster.SetEnabled(ref, enabled)
+	if err != nil {
+		return roster.Profile{}, err
+	}
+	state := "paused"
+	if enabled {
+		state = "resumed"
+	}
+	_, _ = k.bus.Publish(event.Spec{
+		Subject: "roster." + p.Slug, Kind: event.KindRosterUpdated, Actor: "roster",
+		Payload: map[string]any{"id": p.ID, "slug": p.Slug, "enabled": enabled, "action": state},
+	})
+	return p, nil
+}
+
+// UpdateProfile edits a profile's mutable fields via mutate, journaling
+// roster.updated (action "edited"). Identity/lifecycle fields are protected by
+// the store. Returns false + nil error for an unknown ref (standing pattern).
+func (k *Kernel) UpdateProfile(ref string, mutate func(*roster.Profile)) (roster.Profile, bool, error) {
+	p, err := k.roster.Update(ref, mutate)
+	if errors.Is(err, roster.ErrNotFound) {
+		return roster.Profile{}, false, nil
+	}
+	if err != nil {
+		return roster.Profile{}, false, err
+	}
+	_, _ = k.bus.Publish(event.Spec{
+		Subject: "roster." + p.Slug, Kind: event.KindRosterUpdated, Actor: "roster",
+		Payload: map[string]any{"id": p.ID, "slug": p.Slug, "action": "edited"},
+	})
+	return p, true, nil
+}
+
+// RemoveProfile deletes an agent profile, journaling roster.removed when it
+// existed. Returns whether it existed.
+func (k *Kernel) RemoveProfile(ref string) (bool, error) {
+	gone, ok, err := k.roster.Remove(ref)
+	if err != nil {
+		return false, err
+	}
+	if ok {
+		_, _ = k.bus.Publish(event.Spec{
+			Subject: "roster." + gone.Slug, Kind: event.KindRosterRemoved, Actor: "roster",
+			Payload: map[string]any{"id": gone.ID, "slug": gone.Slug, "name": gone.Name},
 		})
 	}
 	return ok, nil
