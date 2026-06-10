@@ -5,6 +5,7 @@ import { money } from "@/lib/format";
 import { getJSON } from "@/lib/api";
 import { useEvents, type AgentEvent } from "@/lib/events";
 import { recentAttentionAlerts, type RankedAlert } from "@/lib/alerts";
+import { focusRun } from "@/lib/runfocus";
 import { Button } from "@/components/ui/button";
 import { fmtTime } from "@/lib/utils";
 import { Ring, Sparkline, BarRow } from "@/components/Widgets";
@@ -112,19 +113,33 @@ export function Dashboard() {
             <ShieldAlert className="size-3.5" /> Needs attention ({alerts.length})
           </div>
           <ul className="space-y-1">
-            {alerts.map((a) => (
-              <li key={a.id} className="flex items-center gap-2 text-xs">
-                {a.level === "critical" ? (
-                  <ShieldAlert className="size-3.5 shrink-0 text-bad" />
-                ) : (
-                  <AlertTriangle className="size-3.5 shrink-0 text-warn" />
-                )}
-                <span className="shrink-0 font-medium text-foreground">{a.title}</span>
-                {a.detail && <span className="min-w-0 flex-1 truncate text-muted">{a.detail}</span>}
-                <span className="ml-auto shrink-0 font-mono text-[10px] text-muted">{a.source}</span>
-                {a.tsMs ? <span className="w-12 shrink-0 text-right tabular-nums text-muted">{fmtTime(a.tsMs)}</span> : null}
-              </li>
-            ))}
+            {alerts.map((a) => {
+              const Icon = a.level === "critical" ? ShieldAlert : AlertTriangle;
+              const iconCls = a.level === "critical" ? "text-bad" : "text-warn";
+              const inner = (
+                <>
+                  <Icon className={cn("size-3.5 shrink-0", iconCls)} />
+                  <span className="shrink-0 font-medium text-foreground">{a.title}</span>
+                  {a.detail && <span className="min-w-0 flex-1 truncate text-muted">{a.detail}</span>}
+                  <span className="ml-auto shrink-0 font-mono text-[10px] text-muted">{a.source}</span>
+                  {a.tsMs ? <span className="w-12 shrink-0 text-right tabular-nums text-muted">{fmtTime(a.tsMs)}</span> : null}
+                </>
+              );
+              // A run-associated alert links to its run (M781): open it in the Runs view.
+              return a.correlationId ? (
+                <li key={a.id}>
+                  <button
+                    onClick={() => { focusRun(a.correlationId!); location.hash = "runs"; }}
+                    className="flex w-full items-center gap-2 rounded text-left text-xs transition-colors hover:bg-bad/10"
+                    title="Open the run this alert came from"
+                  >
+                    {inner}
+                  </button>
+                </li>
+              ) : (
+                <li key={a.id} className="flex items-center gap-2 text-xs">{inner}</li>
+              );
+            })}
           </ul>
         </div>
       )}

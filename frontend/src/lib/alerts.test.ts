@@ -82,7 +82,7 @@ describe("recentAttentionAlerts (M780)", () => {
   it("returns warning/critical alerts newest-first, deduped, capped, with title+detail", () => {
     const mk = (id: string, kind: string, ts: number, payload: any = {}) => ({ ...ev(kind, payload), id, ts_unix_ms: ts });
     const events = [
-      mk("a", "task.failed", 30, { reason: "boom" }),
+      { ...ev("task.failed", { reason: "boom" }), id: "a", ts_unix_ms: 30, correlation_id: "c-a" },
       mk("b", "budget.exceeded", 40),
       mk("a", "task.failed", 30, { reason: "boom" }), // dup id → ignored
       mk("c", "capability.rejected", 50, { capability: "shell" }), // info → excluded
@@ -93,6 +93,7 @@ describe("recentAttentionAlerts (M780)", () => {
     expect(out.map((r) => r.id)).toEqual(["b", "a", "e"]); // ts 40,30,20; info+dup+non-alert dropped
     expect(out[0].title).toBe("budget ceiling exceeded");
     expect(out[1].detail).toBe("boom");
+    expect(out[1].correlationId).toBe("c-a"); // correlation threaded for M781
   });
 
   it("respects the limit", () => {

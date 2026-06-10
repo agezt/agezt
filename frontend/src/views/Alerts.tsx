@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { ShieldAlert, AlertTriangle, Info, Bell, BellOff } from "lucide-react";
 import { useEvents, type AgentEvent } from "@/lib/events";
 import { getJSON } from "@/lib/api";
+import { focusRun } from "@/lib/runfocus";
 import { classifyAlert, type Alert, type AlertLevel } from "@/lib/alerts";
 import { cn, fmtTime } from "@/lib/utils";
 
@@ -11,6 +12,7 @@ interface AlertRow extends Alert {
   id: string;
   tsMs?: number;
   kind: string;
+  correlationId?: string;
 }
 
 // mergeAlerts combines two alert lists into one newest-first, deduped by id, capped list
@@ -37,7 +39,7 @@ const LEVEL_STYLE: Record<AlertLevel, { ring: string; text: string; icon: typeof
 function rowOf(e: AgentEvent): AlertRow | null {
   const a = classifyAlert(e);
   if (!a) return null;
-  return { ...a, id: e.id || `${e.kind}-${e.seq ?? Math.random()}`, tsMs: e.ts_unix_ms, kind: e.kind || "" };
+  return { ...a, id: e.id || `${e.kind}-${e.seq ?? Math.random()}`, tsMs: e.ts_unix_ms, kind: e.kind || "", correlationId: e.correlation_id };
 }
 
 // Alerts is the proactive-signal feed: what the daemon flagged ON ITS OWN —
@@ -141,6 +143,15 @@ export function Alerts() {
                     <div className="mt-0.5 flex items-center gap-2 text-[10px] text-muted">
                       <span className="rounded bg-panel px-1.5 py-0.5 font-medium">{r.source}</span>
                       <span className="font-mono opacity-70">{r.kind}</span>
+                      {r.correlationId && (
+                        <button
+                          onClick={() => { focusRun(r.correlationId!); location.hash = "runs"; }}
+                          className="ml-auto font-medium text-accent/80 transition-colors hover:text-accent"
+                          title="Open the run this alert came from"
+                        >
+                          open run →
+                        </button>
+                      )}
                     </div>
                   </div>
                 </li>
