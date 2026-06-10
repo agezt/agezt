@@ -1361,6 +1361,32 @@ func TestWorkflowHook(t *testing.T) {
 		t.Fatal("the secret must never ride into the payload")
 	}
 
+	// Reply mode (M812): a result carrying outputs answers 200 with them.
+	fcReply := &fakeCaller{result: map[string]any{
+		"workflow": "echoer", "correlation_id": "run-2",
+		"executed": []any{"start", "shape"}, "outputs": map[string]any{"shape": "pong 42"},
+	}}
+	sReply, _ := newServer(t, fcReply, "secret")
+	reqReply := httptest.NewRequest(http.MethodPost, "/hooks/echoer", strings.NewReader(`{"ping":"42"}`))
+	reqReply.Header.Set("X-Agezt-Secret", "reply-s3cret-99")
+	recReply := httptest.NewRecorder()
+	sReply.Handler().ServeHTTP(recReply, reqReply)
+	if recReply.Code != http.StatusOK {
+		t.Fatalf("reply status = %d (%s)", recReply.Code, recReply.Body.String())
+	}
+	if !strings.Contains(recReply.Body.String(), `"pong 42"`) || !strings.Contains(recReply.Body.String(), `"ok":true`) {
+		t.Fatalf("reply body = %s", recReply.Body.String())
+	}
+
+	// A post-auth run failure is honest (502), not a uniform refusal.
+	fcFail := &fakeCaller{err: errors.New("webhook run failed: node shape: boom (correlation run-3)")}
+	sFail, _ := newServer(t, fcFail, "secret")
+	recFail := httptest.NewRecorder()
+	sFail.Handler().ServeHTTP(recFail, httptest.NewRequest(http.MethodPost, "/hooks/echoer", strings.NewReader(`{}`)))
+	if recFail.Code != http.StatusBadGateway || !strings.Contains(recFail.Body.String(), "boom") {
+		t.Fatalf("run-failure status = %d (%s)", recFail.Code, recFail.Body.String())
+	}
+
 	// A control-plane refusal surfaces as a uniform 403.
 	fc2 := &fakeCaller{err: errors.New("webhook refused")}
 	s2, _ := newServer(t, fc2, "secret")

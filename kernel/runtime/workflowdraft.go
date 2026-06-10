@@ -32,7 +32,7 @@ Schema:
 {"name":"<lowercase, [a-z0-9][a-z0-9._-]{0,63}>","description":"<one line>","nodes":[{"id":"<[a-z0-9][a-z0-9_-]*>","type":"<type>","label":"<short human label>","config":{...}}],"edges":[{"from":"<id>","to":"<id>","port":"<optional>"}]}
 
 Node types and their config:
-- trigger (EXACTLY ONE, no incoming edges): {"kind":"manual"} | {"kind":"cron","interval_sec":<int >=30>} | {"kind":"cron","daily_at":"HH:MM"} | {"kind":"event","subject":"<glob, e.g. task.failed or memory.> — workflow.* is forbidden>"} | {"kind":"webhook","secret":"<random string, >=12 chars>"} (external systems then POST /hooks/<workflow-name> with header X-Agezt-Secret; the request body arrives as {{trigger.payload.body}})
+- trigger (EXACTLY ONE, no incoming edges): {"kind":"manual"} | {"kind":"cron","interval_sec":<int >=30>} | {"kind":"cron","daily_at":"HH:MM"} | {"kind":"event","subject":"<glob, e.g. task.failed or memory.> — workflow.* is forbidden>"} | {"kind":"webhook","secret":"<random string, >=12 chars>","reply":<optional bool — true makes the POST synchronous and returns the run's outputs to the caller>} (external systems then POST /hooks/<workflow-name> with header X-Agezt-Secret; the request body arrives as {{trigger.payload.body}})
 - tool: {"tool":"<tool name>","args":{...}} — one governed tool call; args values may use templates.
 - llm: {"prompt":"...","system":"<optional>","model":"<optional, blank = default>"} — one completion.
 - condition: {"left":"...","op":"equals|not_equals|contains|not_empty|empty|gt|lt","right":"..."} — outgoing edges MUST use port "true" or "false".

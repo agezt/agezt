@@ -12,6 +12,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Webhook reply mode — request/response workflows.** Set `"reply": true` on a webhook
+  trigger and the caller's POST waits for the run and receives its outputs: a branching
+  workflow answered `curl -d '{"n":9}'` with the BIG branch's result and `'{"n":2}'` with the
+  small branch's — the caller sees exactly which nodes ran and what they produced, in one
+  round-trip (2-minute cap; long pipelines stay async). Post-auth run failures return honest
+  502s with the correlation id, while the auth gate keeps its uniform 403. n8n's "respond to
+  webhook", governed end to end. (M812)
 - **Test this node — probe one workflow node before trusting the pipeline with it.** Select any
   node on the canvas, optionally paste mock upstream data (`{"fetch":{"output":{…}}}`), and hit
   **Test node**: just that node runs — under the full machinery (policy gates, retries,
