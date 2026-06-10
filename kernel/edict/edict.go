@@ -166,6 +166,15 @@ const (
 	// per session, then flow.
 	CapMCP Capability = "mcp.call"
 
+	// CapWorkflow gates the MUTATING ops of the `workflow` tool (M802): an
+	// agent saving, running, or arming durable workflows. Saving installs
+	// standing automation (a cron/event trigger keeps firing after the run
+	// that wrote it ends) — but every tool node inside a run passes the
+	// regular per-capability gate, and new workflows arrive disabled, so the
+	// blast radius of a bad save is bounded. Ask-first by default: vet the
+	// first use per session, then flow. list/show map to introspection.
+	CapWorkflow Capability = "workflow.manage"
+
 	// CapConfigRead / CapConfigWrite gate the `config` tool (M696): the agent
 	// reading vs mutating Config Center settings. Reads (schema/get) are low-risk
 	// and Allow by default. Writes (set/register/unregister) are Ask by default —
@@ -604,6 +613,7 @@ func DefaultLevels() map[Capability]TrustLevel {
 		CapToolForge:   LevelAskFirst, // self-modification: the agent authoring its own script tools (going live still needs an operator promote)
 		CapMCPInstall:  LevelAsk,      // self-install: registering/attaching an MCP server spawns an arbitrary process — approve every one
 		CapMCP:         LevelAskFirst, // calling a bridged MCP tool: external, unvetted surface — vet first use per session
+		CapWorkflow:    LevelAskFirst, // L2 autonomy grant like standing: saving/arming durable automation — vet first use; nodes re-gate per call
 		CapConfigRead:  LevelAllow,    // read Config Center schema/values; no mutation, secrets presence-only
 		CapConfigWrite: LevelAskFirst, // mutate settings / register schema; can reach built-in security fields — confirm first
 	}
@@ -646,6 +656,7 @@ func AllCapabilities() []Capability {
 		CapHomeAssistantRead, CapHomeAssistantCall,
 		CapBrowserRead, CapMemory, CapWorld, CapWebSearch, CapSchedule, CapRunsRead, CapStanding, CapBoard, CapSkill,
 		CapIntrospect, CapCodeExec, CapToolForge, CapMCPInstall, CapMCP, CapConfigRead, CapConfigWrite,
+		CapWorkflow,
 	}
 	slices.Sort(caps)
 	return caps
