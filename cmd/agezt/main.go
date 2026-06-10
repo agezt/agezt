@@ -44,6 +44,7 @@ import (
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/alerter"
 	"github.com/agezt/agezt/kernel/anomaly"
+	"github.com/agezt/agezt/kernel/board"
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/cadence"
 	"github.com/agezt/agezt/kernel/catalog"
@@ -1176,14 +1177,29 @@ func runDaemon(stdout, stderr io.Writer) int {
 	} else {
 		// Journal each post as a board.posted event under subject "board.<topic>"
 		// (M656), so a standing order can trigger on a topic and one agent's post
-		// wakes another. The posting run's correlation ties the event into `agt why`.
-		boardToolInst.OnPost(func(topic, from, text, corr string) {
-			payload := map[string]any{"topic": topic, "chars": len(text)}
-			if from != "" {
-				payload["from"] = from
+		// wakes another. An ADDRESSED message (M788) publishes under
+		// "board.dm.<recipient>" instead, so a standing order can wake exactly
+		// the agent being asked. The posting run's correlation ties into `agt why`.
+		boardToolInst.OnPost(func(m board.Message, corr string) {
+			subject := "board." + boardSubjectSlug(m.Topic)
+			if m.To != "" {
+				subject = "board.dm." + boardSubjectSlug(m.To)
+			}
+			payload := map[string]any{"topic": m.Topic, "chars": len(m.Text)}
+			if m.ID != "" {
+				payload["id"] = m.ID
+			}
+			if m.From != "" {
+				payload["from"] = m.From
+			}
+			if m.To != "" {
+				payload["to"] = m.To
+			}
+			if m.ReplyTo != "" {
+				payload["reply_to"] = m.ReplyTo
 			}
 			_, _ = k.Bus().Publish(event.Spec{
-				Subject:       "board." + boardSubjectSlug(topic),
+				Subject:       subject,
 				Kind:          event.KindBoardPosted,
 				Actor:         "board",
 				CorrelationID: corr,

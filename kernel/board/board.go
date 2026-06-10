@@ -25,18 +25,26 @@ import (
 	"sort"
 	"strings"
 	"sync"
+
+	"github.com/agezt/agezt/kernel/ulid"
 )
 
 // MaxMessages bounds the on-disk board so it can't grow without limit; the
 // oldest are dropped first.
 const MaxMessages = 1000
 
-// Message is one board post.
+// Message is one board post. Addressed messaging (M788): To names the
+// recipient agent (a roster slug or any agreed name) for direct agent-to-agent
+// messages; ReplyTo links an answer back to the message it answers; ID makes
+// both possible. Plain topic posts (M647) simply leave them empty.
 type Message struct {
-	Topic string `json:"topic"`
-	From  string `json:"from,omitempty"`
-	Text  string `json:"text"`
-	TSMS  int64  `json:"ts_ms"`
+	ID      string `json:"id,omitempty"`
+	Topic   string `json:"topic"`
+	From    string `json:"from,omitempty"`
+	To      string `json:"to,omitempty"`
+	ReplyTo string `json:"reply_to,omitempty"`
+	Text    string `json:"text"`
+	TSMS    int64  `json:"ts_ms"`
 }
 
 // Store is the persistent, concurrency-safe message board. Many agents (and
@@ -62,9 +70,21 @@ func Open(dir string) (*Store, error) {
 	return s, nil
 }
 
-// Post appends a message and persists, dropping the oldest past MaxMessages.
+// Post appends a topic message and persists. Kept as the M647 surface; it is
+// Send with no recipient.
 func (s *Store) Post(topic, from, text string, nowMS int64) (Message, error) {
-	m := Message{Topic: strings.TrimSpace(topic), From: strings.TrimSpace(from), Text: text, TSMS: nowMS}
+	return s.Send(Message{Topic: topic, From: from, Text: text}, nowMS)
+}
+
+// Send appends a message — addressed (To set) or plain — assigning its ID and
+// timestamp, and persists, dropping the oldest past MaxMessages (M788).
+func (s *Store) Send(m Message, nowMS int64) (Message, error) {
+	m.ID = ulid.New()
+	m.Topic = strings.TrimSpace(m.Topic)
+	m.From = strings.TrimSpace(m.From)
+	m.To = strings.TrimSpace(m.To)
+	m.ReplyTo = strings.TrimSpace(m.ReplyTo)
+	m.TSMS = nowMS
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.msgs = append(s.msgs, m)
@@ -72,6 +92,68 @@ func (s *Store) Post(topic, from, text string, nowMS int64) (Message, error) {
 		s.msgs = s.msgs[len(s.msgs)-MaxMessages:]
 	}
 	return m, s.save()
+}
+
+// Get returns one message by id.
+func (s *Store) Get(id string) (Message, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, m := range s.msgs {
+		if m.ID == id {
+			return m, true
+		}
+	}
+	return Message{}, false
+}
+
+// Inbox returns up to limit messages ADDRESSED to `to` (case-insensitive),
+// newest first. With includeAnswered=false (the usual call), messages that
+// already have a reply on the board are dropped — "what's waiting for me".
+func (s *Store) Inbox(to string, limit int, includeAnswered bool) []Message {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	to = strings.ToLower(strings.TrimSpace(to))
+	answered := map[string]bool{}
+	if !includeAnswered {
+		for _, m := range s.msgs {
+			if m.ReplyTo != "" {
+				answered[m.ReplyTo] = true
+			}
+		}
+	}
+	out := make([]Message, 0, 8)
+	for _, m := range s.msgs {
+		if m.To == "" || strings.ToLower(m.To) != to {
+			continue
+		}
+		if !includeAnswered && answered[m.ID] {
+			continue
+		}
+		out = append(out, m)
+	}
+	sort.SliceStable(out, func(i, j int) bool { return out[i].TSMS > out[j].TSMS })
+	if limit > 0 && len(out) > limit {
+		out = out[:limit]
+	}
+	return out
+}
+
+// Replies returns up to limit replies to the message id, OLDEST first
+// (conversation order) — what the asker reads back.
+func (s *Store) Replies(id string, limit int) []Message {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := make([]Message, 0, 4)
+	for _, m := range s.msgs {
+		if m.ReplyTo == id {
+			out = append(out, m)
+		}
+	}
+	sort.SliceStable(out, func(i, j int) bool { return out[i].TSMS < out[j].TSMS })
+	if limit > 0 && len(out) > limit {
+		out = out[:limit]
+	}
+	return out
 }
 
 // Read returns up to limit messages, newest first, optionally filtered to a
