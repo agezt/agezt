@@ -12,6 +12,20 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **See what the agent flagged while you were away — alert history.** The Alerts view (the proactive
+  signal feed: run failures, blocked egress, budget/rate trips, pulse briefings, self-health
+  degradations) previously seeded *only* from the live SSE stream — which carries events from
+  connect-time forward — so anything the agent flagged before you opened the console, or since your
+  last reload, was simply gone. It now **backfills from the journal on mount**: a recent slice is run
+  through the very same classifier as the live feed and merged in, deduped, newest-first. So the
+  question the proactive loop exists to answer — *"did anything happen while I wasn't watching?"* — is
+  finally answered on the Alerts tab itself, and survives a reload. Uses the existing read-only
+  `/api/journal`; no new backend. A pure `mergeAlerts` helper folds history and the live feed together
+  without double-counting. Unit-tested (`mergeAlerts` dedupes by id, sorts newest-first, and caps;
+  rendering the view with a mocked journal surfaces `task.failed` as "run failed" and `budget.exceeded`
+  as "budget ceiling exceeded" while ignoring non-alert events; an alert-free journal shows the
+  all-quiet state). Verified live on an isolated daemon: the view fired `GET /api/journal?limit=500` on
+  mount (→ 200) and rendered cleanly; 0 console errors. (M777)
 - **Search the inbox — find a conversation fast.** The Inbox view gains a **filter conversations**
   box (appearing once there are more than four threads) that narrows the channel threads as you type,
   matching on **channel kind, contact id, or any message's sender or text**, with a live `matched/total`

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ShieldAlert, AlertTriangle, Info, Bell, BellOff } from "lucide-react";
 import { useEvents, type AgentEvent } from "@/lib/events";
+import { getJSON } from "@/lib/api";
 import { classifyAlert, type Alert, type AlertLevel } from "@/lib/alerts";
 import { cn, fmtTime } from "@/lib/utils";
 
@@ -10,6 +11,21 @@ interface AlertRow extends Alert {
   id: string;
   tsMs?: number;
   kind: string;
+}
+
+// mergeAlerts combines two alert lists into one newest-first, deduped by id, capped list
+// (M777). Used to fold the journal-history backfill together with the live SSE feed
+// without double-counting an alert that appears in both.
+export function mergeAlerts(a: AlertRow[], b: AlertRow[]): AlertRow[] {
+  const seen = new Set<string>();
+  const out: AlertRow[] = [];
+  for (const r of [...a, ...b]) {
+    if (seen.has(r.id)) continue;
+    seen.add(r.id);
+    out.push(r);
+  }
+  out.sort((x, y) => (y.tsMs ?? 0) - (x.tsMs ?? 0));
+  return out.slice(0, MAX_ALERTS);
 }
 
 const LEVEL_STYLE: Record<AlertLevel, { ring: string; text: string; icon: typeof Info }> = {
@@ -39,15 +55,33 @@ export function Alerts() {
     if (!seeded.current) {
       seeded.current = true;
       const seed = events.map(rowOf).filter(Boolean) as AlertRow[];
-      setRows(seed.slice(-MAX_ALERTS).reverse()); // newest first
+      setRows((prev) => mergeAlerts(prev, seed));
     }
     return subscribe((e) => {
       const r = rowOf(e);
       if (!r) return;
-      setRows((prev) => [r, ...prev].slice(0, MAX_ALERTS));
+      setRows((prev) => mergeAlerts([r], prev)); // dedupe a live event already in history
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [subscribe]);
+
+  // Backfill from the journal on mount (M777): the SSE stream only carries events from
+  // connect-time forward, so without this the view would miss everything the agent
+  // flagged while you weren't watching (and lose its history on every reload). Classify
+  // a recent journal slice through the same rules as the live feed, and merge.
+  useEffect(() => {
+    let alive = true;
+    getJSON<{ events?: AgentEvent[] }>("/api/journal", { limit: "500" })
+      .then((d) => {
+        if (!alive) return;
+        const hist = (d.events || []).map(rowOf).filter(Boolean) as AlertRow[];
+        if (hist.length) setRows((prev) => mergeAlerts(prev, hist));
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   const counts = rows.reduce(
     (acc, r) => ((acc[r.level] = (acc[r.level] || 0) + 1), acc),
