@@ -12,6 +12,17 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Workflow reliability — retries, timeouts, and seeing exactly what every node did.** Each
+  node now takes production-grade settings: `timeout_sec` bounds one attempt (a hung script is
+  killed with a named "node timeout after Ns" error, not a 15-minute wait), `retries` +
+  `retry_delay_sec` re-run failable nodes on transient failures — and the error port fires only
+  after retries are exhausted. Every `workflow.node` journal event now carries the node's
+  resolved **input** and **output** (truncated snippets) plus the attempt count, so the canvas
+  shows an n8n-style **Last run** card per node — status, fired port, attempts, the exact data
+  in and out — both live and for any historical run. The copilot knows the new fields ("retry
+  that flaky fetch twice" just works). Proven on a real daemon: an egress-denied fetch retried
+  3×, a 30-second script was cut at 2s, both rescued by their error ports, the whole 5-node run
+  finishing in 2 seconds. (M808)
 - **Workflow template gallery — five validated starting points, shipped in the binary.** The
   New-workflow form grows a **"Start from"** picker: daily status check (cron → http →
   branch → LLM alert), failed-task triage (event → LLM fix → human approval), resilient fetch

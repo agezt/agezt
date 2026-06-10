@@ -47,6 +47,17 @@ export interface WfNode {
   config?: Record<string, unknown>;
   x?: number;
   y?: number;
+  // Reliability settings (M808) — per-node, outside config.
+  timeout_sec?: number;
+  retries?: number;
+  retry_delay_sec?: number;
+}
+
+// WfSettings is the per-node reliability tuple the panel edits.
+export interface WfSettings {
+  timeout_sec?: number;
+  retries?: number;
+  retry_delay_sec?: number;
 }
 export interface WfEdge {
   from: string;
@@ -150,7 +161,16 @@ export function toFlow(wf: Wf): { nodes: RFNode[]; edges: RFEdge[] } {
     id: n.id,
     type: "wf",
     position: { x: n.x ?? (i % 4) * 240, y: n.y ?? Math.floor(i / 4) * 140 },
-    data: { wfType: n.type, label: n.label || "", config: n.config || {} },
+    data: {
+      wfType: n.type,
+      label: n.label || "",
+      config: n.config || {},
+      settings: {
+        timeout_sec: n.timeout_sec,
+        retries: n.retries,
+        retry_delay_sec: n.retry_delay_sec,
+      },
+    },
   }));
   const edges: RFEdge[] = (wf.edges || []).map((e, i) => ({
     id: `e${i}-${e.from}-${e.to}`,
@@ -175,7 +195,7 @@ export function fromFlow(
     name,
     description,
     nodes: rfNodes.map((n) => {
-      const d = n.data as { wfType: string; label: string; config: Record<string, unknown> };
+      const d = n.data as { wfType: string; label: string; config: Record<string, unknown>; settings?: WfSettings };
       return {
         id: n.id,
         type: d.wfType,
@@ -183,6 +203,9 @@ export function fromFlow(
         config: Object.keys(d.config || {}).length ? d.config : undefined,
         x: Math.round(n.position.x),
         y: Math.round(n.position.y),
+        timeout_sec: d.settings?.timeout_sec || undefined,
+        retries: d.settings?.retries || undefined,
+        retry_delay_sec: d.settings?.retry_delay_sec || undefined,
       };
     }),
     edges: rfEdges.map((e) => ({
@@ -195,7 +218,13 @@ export function fromFlow(
 
 // ---- canvas node -------------------------------------------------------------
 
-type WfNodeData = { wfType: string; label: string; config: Record<string, unknown>; status?: string };
+type WfNodeData = {
+  wfType: string;
+  label: string;
+  config: Record<string, unknown>;
+  settings?: WfSettings;
+  status?: string;
+};
 type WfRFNode = RFNode<WfNodeData, "wf">;
 
 const statusRing: Record<string, string> = {
@@ -318,38 +347,61 @@ const FIELD_SPECS: Record<string, FieldSpec[]> = {
 const inputCls =
   "rounded-md border border-border bg-panel px-2 py-1 text-sm text-foreground outline-none focus-visible:border-accent w-full";
 
-// NodePanel edits the selected node's label + type-specific config. JSON
-// fields are edited as text and parsed on apply.
+// reliabilitySpecs lists the per-node settings the panel edits: a timeout
+// for anything that does work, retries only where failure is transient by
+// nature (the failable set).
+function reliabilitySpecs(wfType: string): FieldSpec[] {
+  if (wfType === "trigger") return [];
+  const out: FieldSpec[] = [
+    { key: "timeout_sec", label: "Timeout seconds per attempt (0 = none)", kind: "number", placeholder: "30" },
+  ];
+  if (FAILABLE.has(wfType)) {
+    out.push(
+      { key: "retries", label: "Retries on failure (0..5)", kind: "number", placeholder: "2" },
+      { key: "retry_delay_sec", label: "Delay between attempts seconds (0..60)", kind: "number", placeholder: "5" },
+    );
+  }
+  return out;
+}
+
+// NodePanel edits the selected node's label + type-specific config +
+// reliability settings, and shows the node's LAST RUN data (input/output/
+// attempts) when a run touched it. JSON fields are edited as text and
+// parsed on apply.
 function NodePanel({
   node,
+  runInfo,
   onApply,
   onDelete,
   onError,
 }: {
   node: WfRFNode;
-  onApply: (label: string, config: Record<string, unknown>) => void;
+  runInfo?: WfRunNodeEvent;
+  onApply: (label: string, config: Record<string, unknown>, settings: WfSettings) => void;
   onDelete: () => void;
   onError: (msg: string) => void;
 }) {
   const specs = FIELD_SPECS[node.data.wfType] || [];
-  const [label, setLabel] = useState(node.data.label);
-  const [vals, setVals] = useState<Record<string, string>>(() => {
+  const relSpecs = reliabilitySpecs(node.data.wfType);
+  const seed = () => {
     const out: Record<string, string> = {};
     for (const f of specs) {
       const v = node.data.config[f.key];
       out[f.key] = f.kind === "json" ? (v ? JSON.stringify(v) : "") : v == null ? "" : String(v);
     }
+    const s = node.data.settings || {};
+    for (const f of relSpecs) {
+      const v = s[f.key as keyof WfSettings];
+      out[f.key] = v ? String(v) : "";
+    }
     return out;
-  });
+  };
+  const [label, setLabel] = useState(node.data.label);
+  const [vals, setVals] = useState<Record<string, string>>(seed);
   // Re-seed when another node is selected.
   useEffect(() => {
     setLabel(node.data.label);
-    const out: Record<string, string> = {};
-    for (const f of specs) {
-      const v = node.data.config[f.key];
-      out[f.key] = f.kind === "json" ? (v ? JSON.stringify(v) : "") : v == null ? "" : String(v);
-    }
-    setVals(out);
+    setVals(seed());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [node.id]);
 
@@ -376,7 +428,18 @@ function NodePanel({
         config[f.key] = raw;
       }
     }
-    onApply(label.trim(), config);
+    const settings: WfSettings = {};
+    for (const f of relSpecs) {
+      const raw = (vals[f.key] || "").trim();
+      if (raw === "") continue;
+      const n = Number(raw);
+      if (!Number.isFinite(n) || n < 0) {
+        onError(`${f.label}: not a number`);
+        return;
+      }
+      settings[f.key as keyof WfSettings] = n;
+    }
+    onApply(label.trim(), config, settings);
   }
 
   const meta = NODE_META[node.data.wfType];
@@ -426,6 +489,23 @@ function NodePanel({
           )}
         </label>
       ))}
+      {relSpecs.length > 0 && (
+        <>
+          <div className="mt-1 text-[10px] font-semibold tracking-wide text-muted uppercase">Reliability</div>
+          {relSpecs.map((f) => (
+            <label key={f.key} className="flex flex-col gap-1 text-[11px] text-muted">
+              {f.label}
+              <input
+                value={vals[f.key] || ""}
+                onChange={(e) => setVals((s) => ({ ...s, [f.key]: e.target.value }))}
+                placeholder={f.placeholder}
+                aria-label={f.label}
+                className={inputCls}
+              />
+            </label>
+          ))}
+        </>
+      )}
       <div className="mt-1 flex items-center justify-between">
         {node.data.wfType !== "trigger" ? (
           <Button size="sm" variant="ghost" aria-label="Delete node" onClick={onDelete}>
@@ -438,6 +518,35 @@ function NodePanel({
           Apply
         </Button>
       </div>
+      {runInfo && (
+        <div className="mt-2 space-y-1 rounded-md border border-border bg-panel p-2" aria-label="Last run data">
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-semibold tracking-wide text-muted uppercase">Last run</span>
+            <Badge variant={runInfo.ok !== false || runInfo.handled ? "good" : "bad"}>
+              {runInfo.ok !== false ? "ok" : runInfo.handled ? "rescued" : "failed"}
+            </Badge>
+            {runInfo.port && <span className="font-mono text-[10px] text-muted">port {runInfo.port}</span>}
+            {(runInfo.attempts ?? 1) > 1 && (
+              <span className="text-[10px] text-warn">{runInfo.attempts} attempts</span>
+            )}
+          </div>
+          {runInfo.input && (
+            <div>
+              <div className="text-[10px] text-muted">input</div>
+              <pre className="max-h-24 overflow-auto rounded bg-card p-1 text-[10px] whitespace-pre-wrap">{runInfo.input}</pre>
+            </div>
+          )}
+          {runInfo.output && (
+            <div>
+              <div className="text-[10px] text-muted">
+                output{runInfo.output_truncated ? " (truncated)" : ""}
+              </div>
+              <pre className="max-h-32 overflow-auto rounded bg-card p-1 text-[10px] whitespace-pre-wrap">{runInfo.output}</pre>
+            </div>
+          )}
+          {runInfo.error && <div className="text-[10px] text-bad">{runInfo.error}</div>}
+        </div>
+      )}
     </div>
   );
 }
@@ -560,6 +669,11 @@ export interface WfRunNodeEvent {
   port?: string;
   label?: string;
   error?: string;
+  // Per-node data snippets (M808): what the node consumed and produced.
+  input?: string;
+  output?: string;
+  output_truncated?: boolean;
+  attempts?: number;
 }
 export interface WfRun {
   correlation_id: string;
@@ -669,6 +783,9 @@ export function Workflows() {
   const [copilotOpen, setCopilotOpen] = useState(false);
   const [runsOpen, setRunsOpen] = useState(false);
   const [nodeStatus, setNodeStatus] = useState<Record<string, string>>({});
+  // Per-node last-run data (M808): input/output/attempts snippets, from the
+  // live SSE arc or a replayed historical run.
+  const [nodeRunInfo, setNodeRunInfo] = useState<Record<string, WfRunNodeEvent>>({});
   const editingName = useRef<string | null>(null);
   editingName.current = editing?.name ?? null;
 
@@ -700,9 +817,11 @@ export function Workflows() {
         if (ev.kind === "workflow.node" && ev.payload?.workflow === editingName.current) {
           const ok = ev.payload.ok !== false || ev.payload.handled === true;
           setNodeStatus((s) => ({ ...s, [ev.payload.node]: ok ? "done" : "failed" }));
+          setNodeRunInfo((s) => ({ ...s, [ev.payload.node]: ev.payload as WfRunNodeEvent }));
         }
         if (ev.kind === "workflow.started" && ev.subject === "workflow." + editingName.current) {
           setNodeStatus({});
+          setNodeRunInfo({});
         }
       }),
     [subscribe],
@@ -895,6 +1014,9 @@ export function Workflows() {
             name={editing.name}
             onReplay={(run) => {
               setNodeStatus(runToStatus(run));
+              const info: Record<string, WfRunNodeEvent> = {};
+              for (const ev of run.node_events || []) info[ev.node] = ev;
+              setNodeRunInfo(info);
               const dur =
                 run.finished_ms && run.started_ms ? ` in ${((run.finished_ms - run.started_ms) / 1000).toFixed(1)}s` : "";
               ui.toast(`replaying ${run.status} run${dur} — ${(run.node_events || []).length} node event(s)`, "info");
@@ -943,10 +1065,13 @@ export function Workflows() {
           {selectedNode && (
             <NodePanel
               node={selectedNode}
-              onApply={(label, config) => {
+              runInfo={nodeRunInfo[selectedNode.id]}
+              onApply={(label, config, settings) => {
                 setNodes((ns) =>
                   ns.map((n) =>
-                    n.id === selectedNode.id ? { ...n, data: { ...(n.data as WfNodeData), label, config } } : n,
+                    n.id === selectedNode.id
+                      ? { ...n, data: { ...(n.data as WfNodeData), label, config, settings } }
+                      : n,
                   ),
                 );
                 ui.toast("node updated — Save to persist", "success");

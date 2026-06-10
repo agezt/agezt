@@ -246,13 +246,16 @@ func (s *Server) handleWorkflowRuns(conn net.Conn, req Request) {
 			r.started = e.TSUnixMS
 		case event.KindWorkflowNode:
 			var p struct {
-				Node    string `json:"node"`
-				Type    string `json:"type"`
-				Label   string `json:"label"`
-				OK      *bool  `json:"ok"`
-				Port    string `json:"port"`
-				Handled *bool  `json:"handled"`
-				Error   string `json:"error"`
+				Node     string `json:"node"`
+				Type     string `json:"type"`
+				Label    string `json:"label"`
+				OK       *bool  `json:"ok"`
+				Port     string `json:"port"`
+				Handled  *bool  `json:"handled"`
+				Error    string `json:"error"`
+				Input    string `json:"input"`
+				Output   string `json:"output"`
+				Attempts int    `json:"attempts"`
 			}
 			_ = json.Unmarshal(e.Payload, &p)
 			if p.Node == "" {
@@ -274,6 +277,16 @@ func (s *Server) handleWorkflowRuns(conn net.Conn, req Request) {
 			}
 			if p.Error != "" {
 				nv["error"] = p.Error
+			}
+			// Per-node data snippets (M808): what the node consumed/produced.
+			if p.Input != "" {
+				nv["input"] = p.Input
+			}
+			if p.Output != "" {
+				nv["output"] = p.Output
+			}
+			if p.Attempts > 1 {
+				nv["attempts"] = p.Attempts
 			}
 			get(e.CorrelationID).nodes = append(get(e.CorrelationID).nodes, nv)
 		case event.KindWorkflowCompleted, event.KindWorkflowFailed:
