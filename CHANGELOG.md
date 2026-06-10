@@ -12,6 +12,14 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Web UI on by default + optional password.** A bare `agezt` now serves the console at
+  `127.0.0.1:8787` (tokenized URL in the banner) — no `AGEZT_WEB_ADDR` needed. The default port
+  being busy falls back to a free port so a console always comes up; disable with
+  `AGEZT_WEB_ADDR=off`. New **`AGEZT_WEB_PASSWORD`** adds a **second factor**: with it set, the
+  token gets you the page but you must also log in with the password (HttpOnly session cookie, 12h
+  sliding, brute-force lockout) — *token alone isn't enough*. Off by default (token-only); settable
+  in the Config Center's Interfaces section. (M817)
+
 - **First-run setup & onboarding (both surfaces).** A guided first-use that hand-holds a brand-new
   operator past the one thing the daemon can't self-create — a real LLM key. **Web UI:** a
   3-step **Setup** wizard (catalog → provider + key → model) that auto-opens full-screen on first

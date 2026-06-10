@@ -139,7 +139,8 @@ func builtinSections() []Section {
 			ID: "interfaces", Name: "Interfaces",
 			Help: "Network surfaces the daemon serves. Restart to apply.",
 			Fields: []Field{
-				{Env: "AGEZT_WEB_ADDR", Label: "Web UI addr", Type: TypeText, Apply: ApplyRestart, Help: "e.g. 127.0.0.1:8787"},
+				{Env: "AGEZT_WEB_ADDR", Label: "Web UI addr", Type: TypeText, Apply: ApplyRestart, Help: "Where the console listens. Blank = on at 127.0.0.1:8787; set 'off' to disable."},
+				pw("AGEZT_WEB_PASSWORD", "Web UI password", "Optional second factor: with it set, the token gets you the page but you must also log in with this password. Blank = token-only."),
 				{Env: "AGEZT_API_ADDR", Label: "OpenAI-compatible API addr", Type: TypeText, Apply: ApplyRestart},
 				{Env: "AGEZT_REST_ADDR", Label: "REST API addr", Type: TypeText, Apply: ApplyRestart},
 			},

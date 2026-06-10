@@ -70,6 +70,8 @@ type Server struct {
 	token       string
 	dist        fs.FS       // the built SPA bundle (embed dist/, sub-rooted)
 	transcriber Transcriber // optional STT backend for /api/transcribe (nil = not configured)
+	password    string      // optional console password (M817); "" = token-only
+	sessions    *sessionStore
 }
 
 // SetTranscriber wires the speech-to-text backend for POST /api/transcribe
@@ -87,7 +89,7 @@ func New(b *bus.Bus, client Caller, token string) *Server {
 		// a runtime condition. Fall back to the raw FS so the server still starts.
 		sub = distFS
 	}
-	return &Server{bus: b, client: client, token: token, dist: sub}
+	return &Server{bus: b, client: client, token: token, dist: sub, sessions: newSessionStore()}
 }
 
 // apiRoutes maps each GET /api path to the read-only control-plane command it
@@ -387,7 +389,14 @@ const planRunTimeout = 30 * time.Minute
 // Handler builds the mux. Every route is wrapped in token auth.
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/", s.auth(s.handleSPA))
+	// The SPA shell is gated by the TOKEN only (first factor): the page must
+	// load so the password login screen can render before a session exists. The
+	// data routes below use auth(), which adds the password session when set.
+	mux.HandleFunc("/", s.tokenAuth(s.handleSPA))
+	// Auth surface (M817): probe + login/logout. Token-gated, session-independent.
+	mux.HandleFunc("/api/authmeta", s.tokenAuth(s.handleAuthMeta))
+	mux.HandleFunc("/api/login", s.tokenAuth(s.handleLogin))
+	mux.HandleFunc("/api/logout", s.tokenAuth(s.handleLogout))
 	// The hashed bundle and favicon are PUBLIC: the browser loads them as
 	// subresources of index.html and cannot attach the ?token= (only fetch /
 	// EventSource, which the SPA controls, can). They carry no secrets (compiled
@@ -625,6 +634,21 @@ func (s *Server) auth(next http.HandlerFunc) http.HandlerFunc {
 	})
 }
 
+// tokenAuth wraps a handler with the FIRST factor only (token), skipping the
+// password/session check. Used for the SPA shell and the login surface, which
+// must load with the token alone so the password screen can render BEFORE a
+// session exists (chicken-and-egg). Data routes use auth(), which also enforces
+// the password session when one is configured.
+func (s *Server) tokenAuth(next http.HandlerFunc) http.HandlerFunc {
+	return s.secure(func(w http.ResponseWriter, r *http.Request) {
+		if !s.tokenPresented(r) {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		next(w, r)
+	})
+}
+
 // setSecurityHeaders applies defensive response headers to every web UI route
 // (set before the auth check so even 401s carry them). This is a control surface:
 //   - X-Frame-Options DENY — the dashboard has state-mutating controls
@@ -657,7 +681,10 @@ func setSecurityHeaders(w http.ResponseWriter) {
 			"frame-ancestors 'none'")
 }
 
-func (s *Server) authorized(r *http.Request) bool {
+// tokenPresented reports whether the request carries the valid console token —
+// the FIRST factor, via ?token= (EventSource can't set headers) or a Bearer
+// header (API callers).
+func (s *Server) tokenPresented(r *http.Request) bool {
 	if s.token == "" {
 		return false // never serve without a configured token
 	}
@@ -668,6 +695,20 @@ func (s *Server) authorized(r *http.Request) bool {
 		return s.tokenMatch(strings.TrimPrefix(h, "Bearer "))
 	}
 	return false
+}
+
+// authorized gates a DATA route: the token is always required; when a console
+// password is configured (M817) a valid session cookie is required ON TOP of it
+// ("token alone isn't enough"). With no password set, the token alone suffices —
+// the pre-M817 behaviour.
+func (s *Server) authorized(r *http.Request) bool {
+	if !s.tokenPresented(r) {
+		return false
+	}
+	if s.password == "" {
+		return true
+	}
+	return s.sessionValid(r)
 }
 
 // tokenMatch compares a presented token against the configured one in CONSTANT
