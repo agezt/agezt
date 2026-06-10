@@ -149,6 +149,36 @@ func TestWorkflow_WireRoundTrip(t *testing.T) {
 		t.Fatal("runs for an unknown workflow accepted")
 	}
 
+	// Async run (M810): accepted immediately, the arc completes on the bus,
+	// a typo'd ref is still a synchronous honest error.
+	asyncSub, err := k.Bus().Subscribe("workflow.wire-flow", 16)
+	if err != nil {
+		t.Fatalf("async subscribe: %v", err)
+	}
+	res, err = c.Call(ctx, controlplane.CmdWorkflowRun, map[string]any{
+		"ref": "wire-flow", "async": true, "payload": map[string]any{"who": "async"},
+	})
+	if err != nil {
+		t.Fatalf("async run: %v", err)
+	}
+	if res["accepted"] != true || res["async"] != true || res["correlation_id"] == "" {
+		t.Fatalf("async result = %v", res)
+	}
+	asyncDone := false
+	asyncDeadline := time.After(10 * time.Second)
+	for !asyncDone {
+		select {
+		case ev := <-asyncSub.C:
+			asyncDone = string(ev.Kind) == "workflow.completed"
+		case <-asyncDeadline:
+			t.Fatal("async run never completed")
+		}
+	}
+	asyncSub.Cancel()
+	if _, err := c.Call(ctx, controlplane.CmdWorkflowRun, map[string]any{"ref": "ghost", "async": true}); err == nil {
+		t.Fatal("async run of unknown workflow accepted")
+	}
+
 	// Webhook fire (M809): right secret accepted (async run completes),
 	// wrong secret / disabled / unknown all refuse UNIFORMLY.
 	hookGraph := map[string]any{

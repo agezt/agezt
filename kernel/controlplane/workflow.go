@@ -466,6 +466,37 @@ func (s *Server) handleWorkflowRun(conn net.Conn, req Request) {
 	// CLI's --payload) — passed verbatim into {{trigger.payload}}.
 	payload := req.Args["payload"]
 	corr := s.k.NewCorrelation()
+
+	// Async mode (M810): start the run and return immediately — the canvas
+	// follows it live on the SSE arc, long runs stop being hostage to wire
+	// timeouts (the webui's JSON proxy caps a held connection at 120s while
+	// the engine legitimately allows 15m). The ref is resolved BEFORE
+	// detaching so a typo is still an honest, synchronous error.
+	async := false
+	switch v := req.Args["async"].(type) {
+	case bool:
+		async = v
+	case string:
+		async = strings.EqualFold(v, "true") || v == "1"
+	}
+	if async {
+		w, found := s.k.Workflows().Get(strings.TrimSpace(ref))
+		if !found {
+			s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "unknown workflow: " + ref})
+			return
+		}
+		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), workflowRunTimeout)
+			defer cancel()
+			_, _ = s.k.RunWorkflow(ctx, corr, w.Name, payload) // failures land in workflow.failed
+		}()
+		s.writeResp(conn, Response{
+			ID:     req.ID,
+			Type:   RespResult,
+			Result: map[string]any{"accepted": true, "async": true, "correlation_id": corr, "workflow": w.Name},
+		})
+		return
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), workflowRunTimeout)
 	defer cancel()
 	res, err := s.k.RunWorkflow(ctx, corr, ref, payload)

@@ -328,7 +328,7 @@ var jsonRoutes = map[string]writeRoute{
 	// Workflow save/run (M798): the graph (nodes+edges) and the run payload
 	// are structured objects — JSON bodies, not query args.
 	"/api/workflows/save": {controlplane.CmdWorkflowSave, []string{"workflow"}},
-	"/api/workflows/run":  {controlplane.CmdWorkflowRun, []string{"ref", "payload"}},
+	"/api/workflows/run":  {controlplane.CmdWorkflowRun, []string{"ref", "payload", "async"}},
 	// Copilot draft (M802): description in, validated UNSAVED graph out —
 	// the canvas reviews and saves explicitly.
 	"/api/workflows/draft": {controlplane.CmdWorkflowDraft, []string{"description", "name"}},

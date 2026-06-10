@@ -795,6 +795,9 @@ export function Workflows() {
   const [nodeRunInfo, setNodeRunInfo] = useState<Record<string, WfRunNodeEvent>>({});
   const editingName = useRef<string | null>(null);
   editingName.current = editing?.name ?? null;
+  // Stable handle for the SSE subscription (it must not re-subscribe per render).
+  const uiRef = useRef(ui);
+  uiRef.current = ui;
 
   async function reload() {
     setLoading(true);
@@ -829,6 +832,20 @@ export function Workflows() {
         if (ev.kind === "workflow.started" && ev.subject === "workflow." + editingName.current) {
           setNodeStatus({});
           setNodeRunInfo({});
+        }
+        // Async run terminals (M810): the run we fired (or any external
+        // trigger's) finishing lands as a toast + releases the Run button.
+        if (ev.subject === "workflow." + editingName.current) {
+          if (ev.kind === "workflow.completed") {
+            setRunning(false);
+            uiRef.current.toast(
+              `run completed — ${((ev.payload?.executed as string[]) || []).length} node(s)`,
+              "success",
+            );
+          } else if (ev.kind === "workflow.failed") {
+            setRunning(false);
+            uiRef.current.toast(`run failed: ${ev.payload?.error ?? "see the journal"}`, "error");
+          }
         }
       }),
     [subscribe],
@@ -945,15 +962,16 @@ export function Workflows() {
     if (!(await saveGraph())) return; // run what you see
     setRunning(true);
     setNodeStatus({});
+    setNodeRunInfo({});
     try {
-      const res = await postJSON<{ executed?: string[] }>("/api/workflows/run", {
-        ref: editing.name,
-        payload: {},
-      });
-      ui.toast(`run completed — ${(res.executed || []).length} node(s)`, "success");
+      // Async (M810): the daemon accepts immediately and the canvas follows
+      // the run live on the SSE arc — a long run is no longer hostage to
+      // the HTTP proxy's timeout. Completion lands as a toast from the
+      // workflow.completed/failed subscription below.
+      await postJSON("/api/workflows/run", { ref: editing.name, payload: {}, async: true });
+      ui.toast("run started — watching it live on the canvas", "info");
     } catch (e) {
       ui.toast((e as Error).message, "error");
-    } finally {
       setRunning(false);
     }
   }

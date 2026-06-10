@@ -12,6 +12,14 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Async workflow runs — long runs no longer die at the wire.** The canvas's Save & Run used
+  to hold an HTTP connection capped at 120 seconds while the engine allows 15 minutes — a
+  two-minute workflow died at the proxy mid-run. Runs now fire **asynchronously**: the canvas
+  gets an immediate "run started" toast, follows every node live over SSE (mid-run you can
+  watch the executed nodes turn green while later ones are still pending), and a completion
+  or failure toast lands when the journal's terminal event arrives. `workflow_run` takes
+  `async: true` (a typo'd name is still an immediate, honest error), and the CLI gains
+  `agt workflow run --async` — returns in milliseconds with the correlation id. (M810)
 - **Webhook triggers — external systems start your workflows.** A trigger can now be
   `{"kind":"webhook","secret":"…"}` (12+ characters, validator-enforced): external callers
   `POST /hooks/<workflow-name>` with the secret in `X-Agezt-Secret`, the JSON body arrives as
