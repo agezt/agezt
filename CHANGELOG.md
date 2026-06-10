@@ -12,6 +12,16 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Workflow template gallery — five validated starting points, shipped in the binary.** The
+  New-workflow form grows a **"Start from"** picker: daily status check (cron → http →
+  branch → LLM alert), failed-task triage (event → LLM fix → human approval), resilient fetch
+  (the error-port rescue pattern), team router (switch + merge join), and list pipeline
+  (filter + map → memory). Pick one and the canvas opens on its graph under your name —
+  unsaved, laid out, ready to tweak. Every template passes the exact save-path validation
+  (pinned by test, so schema drift breaks the build, not your first click) and runs under full
+  governance — in the live smoke the resilient-fetch demo had its loopback URL refused by the
+  http egress guard and the error port rescued the run, exactly as designed. Also
+  `agt workflow templates [--use T --name N]` and `GET /api/workflows/templates`. (M807)
 - **Workflow run history — replay any past run on the canvas.** The journal already records
   every run's full arc; the new **Runs drawer** in the canvas editor folds it into a browsable
   history (status, time, duration, per-node events, error gist) and clicking a run replays it

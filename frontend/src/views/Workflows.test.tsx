@@ -31,6 +31,15 @@ import { UIProvider } from "@/components/ui/feedback";
 
 const withUI = (node: ReactNode) => <UIProvider>{node}</UIProvider>;
 
+// React Flow needs ResizeObserver; jsdom has none. A no-op keeps the editor
+// mountable in tests (we assert the top bar, not canvas geometry).
+class NoopResizeObserver {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+(globalThis as { ResizeObserver?: unknown }).ResizeObserver ??= NoopResizeObserver;
+
 afterEach(cleanup);
 beforeEach(() => {
   getJSON.mockReset();
@@ -144,6 +153,47 @@ describe("Workflows list", () => {
     getJSON.mockResolvedValue({ workflows: [], count: 0 });
     render(withUI(<Workflows />));
     await waitFor(() => expect(screen.getByText("No workflows yet")).toBeTruthy());
+  });
+});
+
+describe("template gallery", () => {
+  const gallery = {
+    templates: [
+      {
+        name: "resilient-fetch",
+        title: "Resilient fetch",
+        description: "error-port rescue demo",
+        category: "demo",
+        node_count: 4,
+        workflow: {
+          name: "resilient-fetch",
+          nodes: [
+            { id: "start", type: "trigger", x: 40, y: 40 },
+            { id: "fetch", type: "http", config: { method: "GET", url: "{{trigger.payload.url}}" }, x: 40, y: 190 },
+          ],
+          edges: [{ from: "start", to: "fetch" }],
+        },
+      },
+    ],
+    count: 1,
+  };
+
+  it("instantiates a template onto the canvas under the new name", async () => {
+    getJSON.mockImplementation((path: string) =>
+      path === "/api/workflows/templates"
+        ? Promise.resolve(gallery)
+        : Promise.resolve({ workflows: [], count: 0 }),
+    );
+    render(withUI(<Workflows />));
+    await waitFor(() => expect(screen.getByText("No workflows yet")).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: /New workflow/ }));
+    await waitFor(() => expect(getJSON).toHaveBeenCalledWith("/api/workflows/templates"));
+    fireEvent.change(screen.getByLabelText("Workflow name"), { target: { value: "my-fetch" } });
+    fireEvent.change(screen.getByLabelText("Start from template"), { target: { value: "resilient-fetch" } });
+    fireEvent.click(screen.getByRole("button", { name: "Create workflow" }));
+    // The canvas opened on the template graph under the NEW name.
+    await waitFor(() => expect(screen.getByText("my-fetch")).toBeTruthy());
+    expect(screen.getByText("2 node(s) · 1 edge(s)")).toBeTruthy();
   });
 });
 

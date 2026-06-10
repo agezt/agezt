@@ -933,6 +933,10 @@ const (
 	// run history (started→node…→completed|failed arcs, newest first), so
 	// the console can replay any past run on the canvas. Read-only.
 	CmdWorkflowRuns = "workflow_runs"
+	// Templates (M807): no args — the built-in gallery (curated, validated
+	// starting points), full graphs included. Read-only; instantiation is
+	// just a save under a new name.
+	CmdWorkflowTemplates = "workflow_templates"
 
 	// Sandbox projects (M686) — read-only inspection of what agents BUILT with the
 	// code_exec tool under <baseDir>/sandbox/projects. List: no args, returns each

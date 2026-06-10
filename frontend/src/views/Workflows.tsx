@@ -541,6 +541,16 @@ export function CopilotPanel({
   );
 }
 
+// WfTemplate is one built-in gallery entry (M807).
+export interface WfTemplate {
+  name: string;
+  title: string;
+  description: string;
+  category: string;
+  node_count?: number;
+  workflow: Wf;
+}
+
 // ---- run history (M806) --------------------------------------------------------
 
 export interface WfRunNodeEvent {
@@ -647,6 +657,8 @@ export function Workflows() {
   const [loading, setLoading] = useState(false);
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
+  const [templates, setTemplates] = useState<WfTemplate[] | null>(null);
+  const [fromTemplate, setFromTemplate] = useState("");
 
   // Editor state.
   const [editing, setEditing] = useState<Wf | null>(null);
@@ -708,6 +720,14 @@ export function Workflows() {
     );
   }, [nodeStatus, setNodes]);
 
+  // The gallery loads lazily, the first time the create form opens.
+  useEffect(() => {
+    if (!creating || templates !== null) return;
+    getJSON<{ templates?: WfTemplate[] }>("/api/workflows/templates")
+      .then((d) => setTemplates(d.templates || []))
+      .catch(() => setTemplates([]));
+  }, [creating, templates]);
+
   function openEditor(wf: Wf) {
     const { nodes: ns, edges: es } = toFlow(wf);
     setNodes(ns);
@@ -734,6 +754,15 @@ export function Workflows() {
     }
     setCreating(false);
     setNewName("");
+    const tpl = templates?.find((t) => t.name === fromTemplate);
+    setFromTemplate("");
+    if (tpl) {
+      // Instantiate: the template's graph under the new name, UNSAVED —
+      // review on the canvas, Save persists.
+      openEditor({ ...tpl.workflow, name, id: undefined, enabled: undefined });
+      ui.toast(`canvas loaded from template "${tpl.title}" — review, then Save`, "info");
+      return;
+    }
     openEditor({
       name,
       nodes: [{ id: "start", type: "trigger", x: 0, y: 0 }],
@@ -976,10 +1005,31 @@ export function Workflows() {
               className={inputCls}
             />
           </label>
+          <label className="flex flex-col gap-1 text-[11px] text-muted">
+            Start from
+            <select
+              value={fromTemplate}
+              onChange={(e) => setFromTemplate(e.target.value)}
+              aria-label="Start from template"
+              className={inputCls}
+            >
+              <option value="">Blank canvas</option>
+              {(templates || []).map((t) => (
+                <option key={t.name} value={t.name}>
+                  {t.title} ({t.node_count ?? t.workflow?.nodes?.length ?? "?"} nodes)
+                </option>
+              ))}
+            </select>
+          </label>
           <Button size="sm" onClick={startNew} aria-label="Create workflow">
             <Plus className="h-3.5 w-3.5" /> Open canvas
           </Button>
         </div>
+      )}
+      {creating && fromTemplate && (
+        <p className="text-[11px] text-muted">
+          {templates?.find((t) => t.name === fromTemplate)?.description}
+        </p>
       )}
 
       {err && <ErrorText>{err}</ErrorText>}
