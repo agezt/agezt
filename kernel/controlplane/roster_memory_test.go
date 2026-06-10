@@ -80,3 +80,64 @@ func TestRun_AsAgent_MemoryScope(t *testing.T) {
 		t.Errorf("plain run's injected context missing shared memory:\n%s", plain)
 	}
 }
+
+// TestRun_AsAgent_ModelChain proves the M787 chain end to end over the wire:
+// a run AS a named agent with fallbacks carries [primary, fallbacks...] as the
+// request's ModelChain; an explicit --model heads the chain; a plain run
+// carries none.
+func TestRun_AsAgent_ModelChain(t *testing.T) {
+	prov := mock.New(
+		mock.FinalText("run1"),
+		mock.FinalText("run2"),
+		mock.FinalText("run3"),
+	)
+	var chains [][]string
+	prov.OnRequest = func(req agent.CompletionRequest) { chains = append(chains, req.ModelChain) }
+	_, _, c, _ := startPair(t, prov)
+	ctx := context.Background()
+
+	if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+		"profile": map[string]any{
+			"slug": "researcher", "model": "agent-model",
+			"fallbacks": []any{"backup-1", "backup-2"},
+		},
+	}); err != nil {
+		t.Fatalf("agent add: %v", err)
+	}
+
+	for _, args := range []map[string]any{
+		{"intent": "x", "agent": "researcher"},
+		{"intent": "x", "agent": "researcher", "model": "explicit-model"},
+		{"intent": "x"},
+	} {
+		if _, err := c.Stream(ctx, controlplane.CmdRun, args, nil); err != nil {
+			t.Fatalf("run %v: %v", args, err)
+		}
+	}
+	if len(chains) < 3 {
+		t.Fatalf("saw %d requests, want 3", len(chains))
+	}
+	want := []string{"agent-model", "backup-1", "backup-2"}
+	if !equalStrings(chains[0], want) {
+		t.Errorf("agent run chain = %v, want %v", chains[0], want)
+	}
+	wantExplicit := []string{"explicit-model", "backup-1", "backup-2"}
+	if !equalStrings(chains[1], wantExplicit) {
+		t.Errorf("explicit-model chain = %v, want %v (explicit heads the chain)", chains[1], wantExplicit)
+	}
+	if len(chains[2]) != 0 {
+		t.Errorf("plain run carries a chain: %v", chains[2])
+	}
+}
+
+func equalStrings(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}

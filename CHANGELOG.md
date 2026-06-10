@@ -12,6 +12,22 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **A named agent's own model fallback chain.** The roster profile's ordered **fallbacks** (stored
+  since M783) are now live routing: a run AS a named agent — and every sub-agent spawned via
+  `delegate(agent="…")` — carries `[primary, fallbacks…]` as its **per-request model chain**, and
+  the Governor walks it model→model on retryable failure, exactly like the per-task chains (M703)
+  but keyed to *identity*: "researcher prefers deepseek, falls back to gpt-4o-mini" travels with the
+  agent wherever it runs. The identity's chain **wins over the task type's** configured chain (the
+  more specific routing beats the broader category), an explicit `--model`/delegate-model still
+  heads the chain (fallbacks keep protecting it), duplicates of the primary are skipped, and each
+  hop journals a `governor.fallback` event scoped **`agent-chain`** — distinguishable from per-task
+  fallbacks in the Routing view and `agt why`. Plumbed as an additive, Governor-only field on the
+  completion request (providers never consult it; like `TaskType`). Tested at every layer: the
+  Governor walks a per-request chain across real registered providers (model-a down → model-b
+  serves, agent-chain-scoped event journaled) and prefers it over a configured task chain;
+  end-to-end over the control plane the agent run carried `[agent-model, backup-1, backup-2]`, the
+  explicit-model run carried `[explicit-model, backup-1, backup-2]`, and a plain run carried none;
+  the delegated child's requests carried the chain with the primary-dupe skipped. (M787)
 - **A named agent's memory follows it — private notes, shared brain.** Running as a roster agent
   (M783) now wires the profile's **memory scope** (default: its slug) into the whole run: the
   **context injection** recalls the agent's private notes alongside shared memory (a plain run still

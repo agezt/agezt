@@ -613,7 +613,15 @@ func (g *Governor) CompleteStream(ctx context.Context, req agent.CompletionReque
 // actually falls back consumes one rate-window slot per model TRIED — acceptable
 // for a soft burst cap, and only on the rare provider-failure path.
 func (g *Governor) completeChained(req agent.CompletionRequest, runOne func(agent.CompletionRequest) (*agent.CompletionResponse, error)) (*agent.CompletionResponse, error) {
-	models := g.modelChainFor(req.TaskType)
+	// A per-request chain (M787 — a named agent's own fallbacks) WINS over
+	// the task type's configured chain: the more specific identity beats the
+	// broader category. The fallback events stay distinguishable via scope.
+	models := req.ModelChain
+	scope := "agent-chain"
+	if len(models) == 0 {
+		models = g.modelChainFor(req.TaskType)
+		scope = "model-chain"
+	}
 	if len(models) == 0 {
 		return runOne(req)
 	}
@@ -639,7 +647,7 @@ func (g *Governor) completeChained(req agent.CompletionRequest, runOne func(agen
 					"failed_model": m,
 					"next_model":   models[i+1],
 					"reason":       err.Error(),
-					"scope":        "model-chain",
+					"scope":        scope,
 					"task_type":    req.TaskType,
 				},
 			})

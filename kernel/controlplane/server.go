@@ -1233,6 +1233,16 @@ func (s *Server) handleRun(ctx context.Context, conn net.Conn, req Request) {
 			scope = p.Slug
 		}
 		ctx = memory.WithScope(ctx, scope)
+		// Its own model fallback chain too (M787): primary (the resolved
+		// model — an explicit --model still wins the front slot) followed by
+		// the profile's ordered fallbacks; the Governor walks it in order.
+		if len(p.Fallbacks) > 0 {
+			primary := modelOverride
+			if primary == "" {
+				primary = k.Model()
+			}
+			ctx = runtime.WithModelChain(ctx, agentModelChain(primary, p.Fallbacks))
+		}
 	}
 	effModel := k.Model()
 	if modelOverride != "" {
