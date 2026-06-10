@@ -876,6 +876,21 @@ const (
 	CmdAgentSetEnabled = "agent_set_enabled"
 	CmdAgentRemove     = "agent_remove"
 
+	// Script-tool forge (M794) — agent-authored code promoted into callable
+	// forge_<name> tools, behind `agt toolforge`. Draft: args.tool (object).
+	// Edit: args{ref, tool}. Test: args{ref, input?} (runs the code in the
+	// sandbox and records the verdict; promotion requires a pass). Promote /
+	// Quarantine(+reason?) / Remove / Show: args.ref. List: no args.
+	// ref = id OR name. Every mutation is journaled (scripttool.*).
+	CmdToolforgeList       = "toolforge_list"
+	CmdToolforgeShow       = "toolforge_show"
+	CmdToolforgeDraft      = "toolforge_draft"
+	CmdToolforgeEdit       = "toolforge_edit"
+	CmdToolforgeTest       = "toolforge_test"
+	CmdToolforgePromote    = "toolforge_promote"
+	CmdToolforgeQuarantine = "toolforge_quarantine"
+	CmdToolforgeRemove     = "toolforge_remove"
+
 	// Sandbox projects (M686) — read-only inspection of what agents BUILT with the
 	// code_exec tool under <baseDir>/sandbox/projects. List: no args, returns each
 	// persistent project with its files (name, bytes, modified). File: args{project,

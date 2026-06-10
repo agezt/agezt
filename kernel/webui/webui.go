@@ -111,6 +111,7 @@ var apiRoutes = map[string]string{
 	"/api/skills":        controlplane.CmdSkillList,
 	"/api/standing":      controlplane.CmdStandingList,
 	"/api/agents":        controlplane.CmdAgentList,
+	"/api/toolforge":     controlplane.CmdToolforgeList,
 	"/api/inbox":         controlplane.CmdInbox,
 	"/api/board":         controlplane.CmdBoardRead,
 	"/api/autonomy":      controlplane.CmdAutonomyFeed,
@@ -160,7 +161,7 @@ var readArgsRoutes = map[string]writeRoute{
 	// Resolved HITL approval history (M773): a timeline of past approval requests
 	// joined with their granted/denied/timeout outcome. Read-only.
 	"/api/approvals_log": {controlplane.CmdApprovalsLog, []string{"limit", "denied"}},
-	"/api/plan_history": {controlplane.CmdPlanHistory, []string{"limit", "status"}},
+	"/api/plan_history":  {controlplane.CmdPlanHistory, []string{"limit", "status"}},
 	// Provider keyring list (M700): labels + active + last-4 for one env var.
 	// Read-only — values never leave the daemon.
 	"/api/provider/keys": {controlplane.CmdProviderKeyList, []string{"env"}},
@@ -184,8 +185,8 @@ var readArgsRoutes = map[string]writeRoute{
 // its inverse (resume), and HITL approval resolution (decide). Each is
 // POST-only (see writeProxy).
 var writeRoutes = map[string]writeRoute{
-	"/api/halt":             {controlplane.CmdHalt, []string{"reason"}},
-	"/api/resume":           {controlplane.CmdResume, []string{"reason"}},
+	"/api/halt":   {controlplane.CmdHalt, []string{"reason"}},
+	"/api/resume": {controlplane.CmdResume, []string{"reason"}},
 	// Pulse pause/resume (M743): the proactive-heartbeat master switch. No args.
 	"/api/pulse/pause":  {controlplane.CmdPulsePause, nil},
 	"/api/pulse/resume": {controlplane.CmdPulseResume, nil},
@@ -209,7 +210,7 @@ var writeRoutes = map[string]writeRoute{
 	// without a daemon restart. No args.
 	"/api/provider/reload": {controlplane.CmdProviderReload, nil},
 	// Send an outbound message via a configured channel (M747): channel + to + text.
-	"/api/send": {controlplane.CmdSend, []string{"channel", "to", "text"}},
+	"/api/send":             {controlplane.CmdSend, []string{"channel", "to", "text"}},
 	"/api/cancel_run":       {controlplane.CmdCancelRun, []string{"correlation"}},
 	"/api/budget_set":       {controlplane.CmdBudgetSet, []string{"ceiling_mc"}},
 	"/api/run/pause":        {controlplane.CmdRunPause, []string{"correlation"}},
@@ -238,7 +239,14 @@ var writeRoutes = map[string]writeRoute{
 	// Agent roster lifecycle (M783): pause/resume/remove a named agent (ref = id or slug).
 	"/api/agents/enable": {controlplane.CmdAgentSetEnabled, []string{"ref", "enabled"}},
 	"/api/agents/remove": {controlplane.CmdAgentRemove, []string{"ref"}},
-	"/api/reflect/run":      {controlplane.CmdReflectRun, nil},
+	// Script-tool forge lifecycle (M794): test runs the code in the sandbox and
+	// records the verdict; promote/quarantine move a TESTED tool in/out of
+	// production; remove deletes it. ref = id or name.
+	"/api/toolforge/test":       {controlplane.CmdToolforgeTest, []string{"ref", "input"}},
+	"/api/toolforge/promote":    {controlplane.CmdToolforgePromote, []string{"ref"}},
+	"/api/toolforge/quarantine": {controlplane.CmdToolforgeQuarantine, []string{"ref", "reason"}},
+	"/api/toolforge/remove":     {controlplane.CmdToolforgeRemove, []string{"ref"}},
+	"/api/reflect/run":          {controlplane.CmdReflectRun, nil},
 	// Provider keyring switch/remove (M700): activate or remove a key, reloading
 	// the provider in place. (Add is a jsonRoute — the value is a secret body.)
 	"/api/provider/keys/activate": {controlplane.CmdProviderKeyActivate, []string{"env", "label"}},
@@ -283,6 +291,10 @@ var jsonRoutes = map[string]writeRoute{
 	// text, fallback list, numeric cost ceiling) — a JSON body, not query args.
 	"/api/agents/add":  {controlplane.CmdAgentAdd, []string{"profile"}},
 	"/api/agents/edit": {controlplane.CmdAgentEdit, []string{"ref", "profile"}},
+	// Script-tool forge draft/edit (M794): the tool is a structured object
+	// (code body, schema text) — a JSON body, not query args.
+	"/api/toolforge/draft": {controlplane.CmdToolforgeDraft, []string{"tool"}},
+	"/api/toolforge/edit":  {controlplane.CmdToolforgeEdit, []string{"ref", "tool"}},
 	// Create a schedule (M715): intent + a timing mode. Numeric timing args (e.g.
 	// interval_sec, at_minutes, once_at_unix) ride the JSON body so they keep their
 	// types — a query arg would stringify them.

@@ -33,6 +33,15 @@ func TestCapabilityForToolCall(t *testing.T) {
 		{"homeassistant", `{"operation":"  CALL_SERVICE  "}`, CapHomeAssistantCall},
 		{"homeassistant", `{}`, CapHomeAssistantRead}, // unparsed/absent op → read (low-risk default)
 		{"unknown-tool", `{}`, Capability("unknown-tool")},
+		// Script-tool forge (M794): every forged forge_<name> call IS a
+		// sandboxed code execution; tool_forge authoring is its own grant,
+		// except op=test, which runs code.
+		{"forge_fetch_weather", `{"city":"izmir"}`, CapCodeExec},
+		{"forge_x", `{}`, CapCodeExec},
+		{"tool_forge", `{"op":"draft","name":"x"}`, CapToolForge},
+		{"tool_forge", `{"op":"list"}`, CapToolForge},
+		{"tool_forge", `{"op":"  TEST  ","ref":"x"}`, CapCodeExec},
+		{"tool_forge", `{}`, CapToolForge},
 	}
 	for _, c := range cases {
 		got := CapabilityForToolCall(c.tool, json.RawMessage(c.input))

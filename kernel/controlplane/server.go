@@ -694,6 +694,22 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.handleAgentSetEnabled(conn, req)
 	case CmdAgentRemove:
 		s.handleAgentRemove(conn, req)
+	case CmdToolforgeList:
+		s.handleToolforgeList(conn, req)
+	case CmdToolforgeShow:
+		s.handleToolforgeShow(conn, req)
+	case CmdToolforgeDraft:
+		s.handleToolforgeDraft(conn, req)
+	case CmdToolforgeEdit:
+		s.handleToolforgeEdit(conn, req)
+	case CmdToolforgeTest:
+		s.handleToolforgeTest(conn, req)
+	case CmdToolforgePromote:
+		s.handleToolforgePromote(conn, req)
+	case CmdToolforgeQuarantine:
+		s.handleToolforgeQuarantine(conn, req)
+	case CmdToolforgeRemove:
+		s.handleToolforgeRemove(conn, req)
 	case CmdSandboxList:
 		s.handleSandboxList(conn, req)
 	case CmdSandboxFile:

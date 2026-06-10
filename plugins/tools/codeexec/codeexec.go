@@ -294,6 +294,25 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, e
 	return render(lang, projectSlug, dir, ephemeral, timeout, res), nil
 }
 
+// RunScript executes a stored script once in the sandbox: an ephemeral work
+// dir, the daemon's scrubbed env, and inputJSON surfaced to the script as
+// ./stdin.txt. It is the execution backend of the script-tool forge (M794) —
+// structurally satisfying the kernel's toolforge.Runner contract without the
+// kernel importing this plugin. isError mirrors the tool's own verdict
+// (unavailable language, non-zero exit, timeout), so a failed forged call
+// reads exactly like a failed code_exec call.
+func (t *Tool) RunScript(ctx context.Context, language, code, inputJSON string) (string, bool, error) {
+	raw, err := json.Marshal(input{Language: language, Code: code, Stdin: inputJSON})
+	if err != nil {
+		return "", false, fmt.Errorf("code_exec: marshal script input: %w", err)
+	}
+	res, err := t.Invoke(ctx, raw)
+	if err != nil {
+		return "", false, err
+	}
+	return res.Output, res.IsError, nil
+}
+
 // workDir resolves where this run executes. With no project name it returns a
 // fresh ephemeral temp dir (caller removes it). With a project name it returns
 // a stable per-project dir that persists across calls.
