@@ -74,6 +74,29 @@ export function isAlert(e: AgentEvent): boolean {
   return classifyAlert(e) !== null;
 }
 
+export interface RankedAlert extends Alert {
+  id: string;
+  tsMs?: number;
+}
+
+// recentAttentionAlerts classifies a stream and returns the warning/critical alerts only,
+// deduped by id and newest-first, capped at `limit` (M780). Used by the cockpit to show
+// "what needs attention" inline, reusing the exact rules of the Alerts view.
+export function recentAttentionAlerts(events: AgentEvent[], limit = 5): RankedAlert[] {
+  const seen = new Set<string>();
+  const out: RankedAlert[] = [];
+  for (const e of events) {
+    const a = classifyAlert(e);
+    if (!a || a.level === "info") continue;
+    const id = e.id || `${e.kind}-${e.seq ?? ""}`;
+    if (seen.has(id)) continue;
+    seen.add(id);
+    out.push({ ...a, id, tsMs: e.ts_unix_ms });
+  }
+  out.sort((x, y) => (y.tsMs ?? 0) - (x.tsMs ?? 0));
+  return out.slice(0, limit);
+}
+
 // attentionAlertCount counts the events that classify as a warning- or critical-level
 // alert — the ones worth a badge (M779). Info-level signals (e.g. a rejected capability)
 // are real alerts but don't demand attention, so they're excluded from the count.
