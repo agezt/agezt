@@ -12,6 +12,20 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Delegate to a named agent — `delegate(agent="researcher")`.** The lead agent can now spawn
+  sub-agents AS named roster identities (M783): the `delegate` tool takes an optional **`agent`**
+  (roster slug), and the sub-agent runs with that profile's **soul** as its persona (replacing the
+  daemon persona layer; the sub-agent preamble stays on top), its **model** and **task type** as
+  defaults (explicit `model`/`task_type` args still win), and its **per-run spend ceiling** bounding
+  the child's own run — on top of the existing delegation-tree depth/fan-out/total/spend caps. The
+  `subagent.spawned` journal event now records who the child ran as (`agent: researcher`), so the
+  delegation graph and `agt why` show the fleet by name. An unknown or paused agent is a clear tool
+  error the lead adapts to — never a sub-agent silently running as the default identity. This turns
+  the roster into a real **fleet**: define "researcher", "coder", "ops-watcher" once, and the lead
+  (or a standing order's plan) staffs work to them by name. Unit-tested on a real kernel (the
+  provider sees the profile's model + soul in the child's completion request; the spawn event
+  carries the agent slug; explicit model wins over the profile; unknown and paused agents are
+  refused with zero spawns). Daemon boots clean with the extended tool schema; 0 panics. (M784)
 - **Named, durable agents — the roster.** Until now an "agent" was a run: it existed for the length
   of one task and vanished. The new **agent roster** (`kernel/roster`) makes agents *durable named
   identities*: `agt agent add researcher --soul "You research deeply…" --model … --max-cost 0.50`

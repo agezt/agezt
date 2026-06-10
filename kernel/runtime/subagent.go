@@ -11,6 +11,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/roster"
 )
 
 // ctxKeyDepth carries the current sub-agent nesting depth so runSubAgent can
@@ -38,7 +39,7 @@ const subAgentSystem = "You are a focused sub-agent spawned to complete ONE dele
 // wired to k.runSubAgent after the kernel is constructed (the tool is built
 // during Open before *Kernel exists).
 type subAgentTool struct {
-	run func(ctx context.Context, task, model, taskType string) (string, error)
+	run func(ctx context.Context, task, model, taskType, agentRef string) (string, error)
 }
 
 func newSubAgentTool() *subAgentTool { return &subAgentTool{} }
@@ -67,6 +68,10 @@ func (t *subAgentTool) Definition() agent.ToolDef {
     "task_type": {
       "type": "string",
       "description": "Optional routing task type for the sub-agent (e.g. \"code\", \"plan\"); its configured model chain supplies the fallbacks. Defaults to \"delegate\"."
+    },
+    "agent": {
+      "type": "string",
+      "description": "Optional named agent (roster slug) to run the sub-agent AS: its soul becomes the sub-agent's persona and its model/task type/cost ceiling apply as defaults. Explicit model/task_type here still win."
     }
   },
   "required": ["task"]
@@ -79,6 +84,7 @@ func (t *subAgentTool) Invoke(ctx context.Context, input json.RawMessage) (agent
 		Task     string `json:"task"`
 		Model    string `json:"model"`
 		TaskType string `json:"task_type"`
+		Agent    string `json:"agent"`
 	}
 	if err := json.Unmarshal(input, &in); err != nil {
 		return agent.Result{Output: "invalid input: " + err.Error(), IsError: true}, nil
@@ -86,7 +92,7 @@ func (t *subAgentTool) Invoke(ctx context.Context, input json.RawMessage) (agent
 	if t.run == nil {
 		return agent.Result{Output: "sub-agent runner not wired", IsError: true}, nil
 	}
-	out, err := t.run(ctx, in.Task, in.Model, in.TaskType)
+	out, err := t.run(ctx, in.Task, in.Model, in.TaskType, in.Agent)
 	if err != nil {
 		// Surface as a tool error so the lead agent can adapt, not crash.
 		return agent.Result{Output: "delegation failed: " + err.Error(), IsError: true}, nil
@@ -98,10 +104,25 @@ func (t *subAgentTool) Invoke(ctx context.Context, input json.RawMessage) (agent
 // child correlation, bounded by SubAgentMaxDepth. The spawn is journaled under
 // the PARENT correlation (carrying the child correlation) so `agt why <parent>`
 // shows the delegation; the child's own steps live under the child correlation.
-func (k *Kernel) runSubAgent(ctx context.Context, task, model, taskType string) (string, error) {
+func (k *Kernel) runSubAgent(ctx context.Context, task, model, taskType, agentRef string) (string, error) {
 	task = strings.TrimSpace(task)
 	if task == "" {
 		return "", errors.New("task required")
+	}
+	// Delegate AS a named agent (M784): resolve the roster profile up front so
+	// an unknown or paused agent is a clear tool error the lead adapts to, not
+	// a sub-agent silently running as the default identity. The profile's
+	// model/task type/cost ceiling apply as DEFAULTS; explicit call args win.
+	var prof *roster.Profile
+	if agentRef = strings.TrimSpace(agentRef); agentRef != "" {
+		p, ok := k.roster.Get(agentRef)
+		if !ok {
+			return "", fmt.Errorf("unknown agent %q (agt agent list)", agentRef)
+		}
+		if !p.Enabled {
+			return "", fmt.Errorf("agent %q is paused (agt agent resume %s)", p.Slug, p.Slug)
+		}
+		prof = &p
 	}
 	// Per-sub-agent model (M705): an explicit model overrides the daemon default
 	// for this delegation; an explicit task_type selects the routing chain whose
@@ -109,6 +130,14 @@ func (k *Kernel) runSubAgent(ctx context.Context, task, model, taskType string) 
 	// a bare delegate behaves exactly as before.
 	model = strings.TrimSpace(model)
 	taskType = strings.TrimSpace(taskType)
+	if prof != nil {
+		if model == "" {
+			model = strings.TrimSpace(prof.Model)
+		}
+		if taskType == "" {
+			taskType = strings.TrimSpace(prof.TaskType)
+		}
+	}
 	if taskType == "" {
 		taskType = "delegate"
 	}
@@ -216,19 +245,23 @@ func (k *Kernel) runSubAgent(ctx context.Context, task, model, taskType string) 
 	if linkCorr == "" {
 		linkCorr = childCorr
 	}
+	spawnPayload := map[string]any{
+		"task":              task,
+		"child_correlation": childCorr,
+		"depth":             depth + 1,
+		"parent":            parentCorr,
+		"model":             subModel,
+		"task_type":         taskType,
+	}
+	if prof != nil {
+		spawnPayload["agent"] = prof.Slug // who the sub-agent ran AS (M784)
+	}
 	_, _ = k.bus.Publish(event.Spec{
 		Subject:       "agent." + actor + ".subagent",
 		Kind:          event.KindSubAgentSpawned,
 		Actor:         actor,
 		CorrelationID: linkCorr,
-		Payload: map[string]any{
-			"task":              task,
-			"child_correlation": childCorr,
-			"depth":             depth + 1,
-			"parent":            parentCorr,
-			"model":             subModel,
-			"task_type":         taskType,
-		},
+		Payload:       spawnPayload,
 	})
 
 	// Child context: bump depth, retarget actor/correlation so the policy hook
@@ -240,24 +273,37 @@ func (k *Kernel) runSubAgent(ctx context.Context, task, model, taskType string) 
 	// to the whole tree, not re-seeded at each level.
 	childCtx = context.WithValue(childCtx, ctxKeyRoot, rootCorr)
 
+	// A named agent's soul REPLACES the daemon persona layer (it IS this
+	// sub-agent's identity); the sub-agent preamble always stays on top.
 	system := subAgentSystem
-	if k.cfg.System != "" {
+	switch {
+	case prof != nil && strings.TrimSpace(prof.Soul) != "":
+		system += "\n\n" + strings.TrimSpace(prof.Soul)
+	case k.cfg.System != "":
 		system += "\n\n" + k.cfg.System
 	}
 
+	// The profile's per-run spend ceiling bounds this sub-agent's own run
+	// (M784) — the delegation-tree spend cap above still applies on top.
+	var maxRunCost int64
+	if prof != nil {
+		maxRunCost = prof.MaxCostMc
+	}
+
 	answer, err := agent.Run(childCtx, agent.LoopConfig{
-		Provider:      k.cfg.Provider,
-		Tools:         k.tools,
-		Bus:           k.bus,
-		Model:         subModel,
-		TaskType:      taskType, // M705: route the sub-agent (chain supplies fallbacks)
-		System:        system,
-		MaxIter:       k.cfg.MaxIter,
-		ToolTimeout:   k.cfg.ToolTimeout,
-		Actor:         actor,
-		CorrelationID: childCorr,
-		Policy:        k.policyHook,
-		Steer:         rc, // M631: individual sub-agent steering
+		Provider:             k.cfg.Provider,
+		Tools:                k.tools,
+		Bus:                  k.bus,
+		Model:                subModel,
+		TaskType:             taskType, // M705: route the sub-agent (chain supplies fallbacks)
+		System:               system,
+		MaxIter:              k.cfg.MaxIter,
+		ToolTimeout:          k.cfg.ToolTimeout,
+		MaxRunCostMicrocents: maxRunCost,
+		Actor:                actor,
+		CorrelationID:        childCorr,
+		Policy:               k.policyHook,
+		Steer:                rc, // M631: individual sub-agent steering
 	}, task)
 	if err != nil {
 		return "", fmt.Errorf("sub-agent %s: %w", childCorr, err)
