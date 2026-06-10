@@ -4,6 +4,7 @@ import {
   Activity as ActivityIcon,
   Clapperboard,
   Waypoints,
+  Users,
   Radar,
   Waves,
   HeartPulse,
@@ -73,6 +74,7 @@ import { Alerts } from "@/views/Alerts";
 import { Search as SearchView } from "@/views/Search";
 import { Replay } from "@/views/Replay";
 import { Agents } from "@/views/Agents";
+import { Roster } from "@/views/Roster";
 import { Dashboard } from "@/views/Dashboard";
 import { Insights } from "@/views/Insights";
 import { Status } from "@/views/Status";
@@ -151,6 +153,7 @@ const NAV_GROUPS: NavGroup[] = [
     label: "Agents",
     items: [
       { id: "agents", label: "Agents", icon: Waypoints, render: Agents },
+      { id: "roster", label: "Roster", icon: Users, render: Roster },
       { id: "sandbox", label: "Sandbox", icon: FlaskConical, render: Sandbox },
       { id: "flow", label: "Flow Studio", icon: Workflow, render: FlowStudio },
       { id: "replay", label: "Replay", icon: Clapperboard, render: Replay },

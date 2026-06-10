@@ -12,6 +12,21 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **The Roster view — manage your named agents from the console.** The agent roster (M783) gets its
+  console surface: a **Roster** view under the Agents group lists every named agent — slug, state,
+  model, task type, per-run budget, memory scope, workdir, fallbacks, description, and its full
+  soul — with the whole lifecycle one click away: **create** (a form covering every profile field,
+  with the kernel's slug rule validated as you type and dollar amounts converted to the budget
+  unit), **edit** (slug shown but immutable — it's the agent's address), **pause/resume**, and
+  **remove** behind a confirm. Toast feedback throughout, live refresh every 8s, and an empty state
+  that teaches the feature. Pure frontend over the M783 proxy routes (`/api/agents…`); no backend
+  change. Unit-tested (7 Vitest cases: the slug rule and USD→microcents conversion mirrors, create
+  disabled until the slug is valid, the posted profile shape including fallbacks and the converted
+  budget, bad budget rejected without a POST, list rendering with state/model/budget/soul, pause
+  posting `enabled=false`, the empty state). Verified live in a real browser on an isolated daemon:
+  created "researcher" through the form (soul + $0.50 ceiling), the card rendered fully, pause
+  flipped it to *paused* — and `agt agent list` from the CLI showed the same agent PAUSED (one
+  roster, every surface); **0 console errors** under the strict CSP. (M785)
 - **Delegate to a named agent — `delegate(agent="researcher")`.** The lead agent can now spawn
   sub-agents AS named roster identities (M783): the `delegate` tool takes an optional **`agent`**
   (roster slug), and the sub-agent runs with that profile's **soul** as its persona (replacing the
