@@ -87,6 +87,25 @@ describe("toFlow / fromFlow", () => {
     ],
   };
 
+  it("round-trips reliability settings (M808) losslessly", () => {
+    const withSettings: Wf = {
+      name: "rel",
+      nodes: [
+        { id: "start", type: "trigger" },
+        { id: "call", type: "tool", config: { tool: "http" }, timeout_sec: 30, retries: 2, retry_delay_sec: 5 },
+      ],
+      edges: [{ from: "start", to: "call" }],
+    };
+    const { nodes, edges } = toFlow(withSettings);
+    const back = fromFlow("rel", "", nodes, edges);
+    expect(back.nodes[1].timeout_sec).toBe(30);
+    expect(back.nodes[1].retries).toBe(2);
+    expect(back.nodes[1].retry_delay_sec).toBe(5);
+    // Unset settings stay absent (no zero-noise in the saved graph).
+    expect(back.nodes[0].timeout_sec).toBeUndefined();
+    expect(back.nodes[0].retries).toBeUndefined();
+  });
+
   it("round-trips a workflow through the canvas shapes losslessly", () => {
     const { nodes, edges } = toFlow(wf);
     expect(nodes).toHaveLength(3);

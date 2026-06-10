@@ -77,6 +77,15 @@ type Node struct {
 	// X/Y are canvas coordinates — pure presentation, never semantics.
 	X float64 `json:"x,omitempty"`
 	Y float64 `json:"y,omitempty"`
+
+	// Reliability settings (M808) — production runs need per-node control,
+	// not per-workflow hope. TimeoutSec bounds ONE attempt (0 = no extra
+	// bound beyond the run's own deadline). Retries re-runs a FAILABLE node
+	// after a failure (the error port only fires once retries are
+	// exhausted); RetryDelaySec pauses between attempts.
+	TimeoutSec    int `json:"timeout_sec,omitempty"`
+	Retries       int `json:"retries,omitempty"`
+	RetryDelaySec int `json:"retry_delay_sec,omitempty"`
 }
 
 // Edge wires From's completion to To's execution. Port selects a labelled
@@ -416,7 +425,40 @@ func validateEdgePort(from *Node, port string) error {
 	}
 }
 
+// Reliability bounds (M808): a node may not retry forever or sleep the run
+// away between attempts.
+const (
+	maxNodeTimeoutSec = 600
+	maxNodeRetries    = 5
+	maxRetryDelaySec  = 60
+)
+
+// validateReliability checks the per-node retry/timeout settings. Retries
+// only make sense on failable nodes (a transform never fails transiently);
+// timeouts apply to anything that does work, so everything but the trigger.
+func validateReliability(n *Node) error {
+	if n.TimeoutSec < 0 || n.TimeoutSec > maxNodeTimeoutSec {
+		return fmt.Errorf("workflow: node %s: timeout_sec must be 0..%d", n.ID, maxNodeTimeoutSec)
+	}
+	if n.TimeoutSec > 0 && n.Type == NodeTrigger {
+		return fmt.Errorf("workflow: node %s: the trigger does not run — timeout_sec is meaningless on it", n.ID)
+	}
+	if n.Retries < 0 || n.Retries > maxNodeRetries {
+		return fmt.Errorf("workflow: node %s: retries must be 0..%d", n.ID, maxNodeRetries)
+	}
+	if n.RetryDelaySec < 0 || n.RetryDelaySec > maxRetryDelaySec {
+		return fmt.Errorf("workflow: node %s: retry_delay_sec must be 0..%d", n.ID, maxRetryDelaySec)
+	}
+	if (n.Retries > 0 || n.RetryDelaySec > 0) && !failable[n.Type] {
+		return fmt.Errorf("workflow: node %s: retries only apply to failable nodes (tool/llm/http/code/approval/subworkflow)", n.ID)
+	}
+	return nil
+}
+
 func validateNodeConfig(n *Node) error {
+	if err := validateReliability(n); err != nil {
+		return err
+	}
 	switch n.Type {
 	case NodeTrigger:
 		return validateTriggerConfig(n)

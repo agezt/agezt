@@ -49,6 +49,8 @@ Node types and their config:
 
 Data flow: {{trigger.payload}} is the start payload; {{<node_id>.output}} is an upstream node's output ({{<node_id>.output.<dotted.path>}} digs into JSON). Nodes that can fail (tool/llm/http/code/approval/subworkflow) may wire an edge with port "error" — then a failure runs the error branch with {{<node_id>.output.error}} instead of failing the run.
 
+Reliability (per node, OUTSIDE config, next to id/type/label): "timeout_sec" (1..600, any non-trigger node) bounds one attempt; "retries" (0..5) and "retry_delay_sec" (0..60) re-run a FAILABLE node on failure — use them on http/tool/code nodes that talk to flaky things.
+
 Rules: ids are short snake_case; give every non-trigger node a label; the graph must be acyclic and every node reachable from the trigger; prefer the http node for web requests and the code node for computation; do NOT invent node types or config keys. Omit x/y (the canvas lays out automatically).`
 
 // errDraftEmpty is returned when the description is blank.

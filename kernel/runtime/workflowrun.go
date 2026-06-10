@@ -174,7 +174,8 @@ func (k *Kernel) runWorkflowGraph(ctx context.Context, corr string, w workflow.W
 		}
 		executed[id] = true
 
-		output, port, err := k.execWorkflowNode(ctx, corr, node, w, data, payload)
+		inputPreview := nodeInputPreview(node, data)
+		output, port, attempts, err := k.execNodeWithReliability(ctx, corr, node, w, data, payload)
 		handled := false
 		if err != nil && len(edges[id]["error"]) > 0 {
 			// The node wired an error branch: the run survives, the error
@@ -189,6 +190,23 @@ func (k *Kernel) runWorkflowGraph(ctx context.Context, corr string, w workflow.W
 		}
 		if port != "" {
 			nodePayload["port"] = port
+		}
+		if attempts > 1 {
+			nodePayload["attempts"] = attempts
+		}
+		// Inspectability (M808): the exact data the node consumed and
+		// produced rides the journal (truncated), so the canvas can show it
+		// live AND for any historical run. The journal is the truth.
+		if inputPreview != "" {
+			nodePayload["input"], _ = wfSnippet(inputPreview)
+		}
+		if err == nil || handled {
+			if snip, truncated := wfSnippet(output); snip != "" {
+				nodePayload["output"] = snip
+				if truncated {
+					nodePayload["output_truncated"] = true
+				}
+			}
 		}
 		if err != nil {
 			nodePayload["error"] = err.Error()
@@ -221,6 +239,120 @@ func mergeMode(n *workflow.Node) string {
 		return "any"
 	}
 	return c.Mode
+}
+
+// execNodeWithReliability (M808) wraps one node's execution with its
+// reliability settings: each ATTEMPT gets its own deadline when timeout_sec
+// is set, and failable nodes re-run up to retries times (pausing
+// retry_delay_sec between attempts). A cancelled RUN never retries — only
+// the node's own failures do. Returns the attempts actually used so the
+// journal can say "succeeded on attempt 3".
+func (k *Kernel) execNodeWithReliability(ctx context.Context, corr string, n *workflow.Node, w workflow.Workflow, data map[string]any, payload any) (any, string, int, error) {
+	attempts := 1 + n.Retries
+	var (
+		output any
+		port   string
+		err    error
+	)
+	for attempt := 1; attempt <= attempts; attempt++ {
+		actx, cancel := ctx, context.CancelFunc(nil)
+		if n.TimeoutSec > 0 {
+			actx, cancel = context.WithTimeout(ctx, time.Duration(n.TimeoutSec)*time.Second)
+		}
+		output, port, err = k.execWorkflowNode(actx, corr, n, w, data, payload)
+		if cancel != nil {
+			// Name the per-node deadline distinctly: "context deadline
+			// exceeded" alone reads as the whole run dying.
+			if err != nil && errors.Is(actx.Err(), context.DeadlineExceeded) && ctx.Err() == nil {
+				err = fmt.Errorf("node timeout after %ds: %w", n.TimeoutSec, err)
+			}
+			cancel()
+		}
+		if err == nil {
+			return output, port, attempt, nil
+		}
+		if ctx.Err() != nil || attempt == attempts {
+			return output, port, attempt, err
+		}
+		if n.RetryDelaySec > 0 {
+			select {
+			case <-time.After(time.Duration(n.RetryDelaySec) * time.Second):
+			case <-ctx.Done():
+				return output, port, attempt, err
+			}
+		}
+	}
+	return output, port, attempts, err
+}
+
+// wfSnippetMax bounds the per-node data snippet journaled with each
+// workflow.node event — enough to inspect, never enough to bloat the chain.
+const wfSnippetMax = 2000
+
+// wfSnippet renders a node's data for the journal: strings verbatim,
+// everything else compact JSON, truncated at wfSnippetMax runes.
+func wfSnippet(v any) (string, bool) {
+	var s string
+	switch t := v.(type) {
+	case nil:
+		return "", false
+	case string:
+		s = t
+	default:
+		b, err := json.Marshal(t)
+		if err != nil {
+			return "", false
+		}
+		s = string(b)
+	}
+	if r := []rune(s); len(r) > wfSnippetMax {
+		return string(r[:wfSnippetMax]) + "…", true
+	}
+	return s, false
+}
+
+// nodeInputPreview resolves what a node is ABOUT to consume — the
+// interpolated args/prompt/url/items — for the journal's input snippet.
+// Preview-only (the executor re-interpolates authoritatively); a node type
+// with no meaningful input previews as "".
+func nodeInputPreview(n *workflow.Node, data map[string]any) string {
+	switch n.Type {
+	case workflow.NodeTool:
+		var c workflow.ToolConfig
+		_ = json.Unmarshal(n.Config, &c)
+		return strings.TrimSpace(workflow.Interpolate(string(c.Args), data))
+	case workflow.NodeLLM:
+		var c workflow.LLMConfig
+		_ = json.Unmarshal(n.Config, &c)
+		return workflow.Interpolate(c.Prompt, data)
+	case workflow.NodeCondition:
+		var c workflow.ConditionConfig
+		_ = json.Unmarshal(n.Config, &c)
+		return workflow.Interpolate(c.Left, data) + " " + c.Op + " " + workflow.Interpolate(c.Right, data)
+	case workflow.NodeHTTP:
+		var c workflow.HTTPConfig
+		_ = json.Unmarshal(n.Config, &c)
+		return strings.ToUpper(strings.TrimSpace(c.Method)) + " " + workflow.Interpolate(c.URL, data)
+	case workflow.NodeCode:
+		var c workflow.CodeConfig
+		_ = json.Unmarshal(n.Config, &c)
+		return strings.TrimSpace(workflow.Interpolate(c.Input, data))
+	case workflow.NodeMap, workflow.NodeFilter:
+		var c struct {
+			Items string `json:"items"`
+		}
+		_ = json.Unmarshal(n.Config, &c)
+		return workflow.Interpolate(c.Items, data)
+	case workflow.NodeSwitch:
+		var c workflow.SwitchConfig
+		_ = json.Unmarshal(n.Config, &c)
+		return workflow.Interpolate(c.Value, data)
+	case workflow.NodeSubflow:
+		var c workflow.SubflowConfig
+		_ = json.Unmarshal(n.Config, &c)
+		return strings.TrimSpace(workflow.Interpolate(c.Payload, data))
+	}
+	return ""
 }
 
 // wfDepthKey carries subworkflow nesting depth through the run context.
