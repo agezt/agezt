@@ -4,12 +4,14 @@ package runtime_test
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"sync"
 	"testing"
 
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/workflow"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
 
@@ -128,6 +130,85 @@ func TestDraftWorkflow_GivesUpAfterRepair(t *testing.T) {
 	}
 	if prov.CallCount() != 2 {
 		t.Fatalf("calls = %d, want 2", prov.CallCount())
+	}
+}
+
+// TestRefineWorkflow_RevisesBaseGraph: the provider sees the CURRENT graph
+// plus the instruction; the revision keeps the base's name, validates, and
+// journals mode=refine.
+func TestRefineWorkflow_RevisesBaseGraph(t *testing.T) {
+	revised := "```json\n" + `{
+  "name": "ignored-by-override",
+  "description": "now with approval",
+  "nodes": [
+    {"id": "start", "type": "trigger", "config": {"kind": "manual"}, "x": 10, "y": 10},
+    {"id": "greet", "type": "transform", "config": {"template": "hi"}, "x": 10, "y": 160},
+    {"id": "gate", "type": "approval", "config": {"description": "ok to greet?"}, "x": 10, "y": 310}
+  ],
+  "edges": [
+    {"from": "start", "to": "gate"},
+    {"from": "gate", "to": "greet"}
+  ]
+}` + "\n```"
+	var req agent.CompletionRequest
+	prov := mock.New(mock.FinalText(revised))
+	prov.OnRequest = func(r agent.CompletionRequest) { req = r }
+	k := openWorkflowKernel(t, prov, &echoTool{out: "x"})
+
+	base := workflow.Workflow{
+		Name: "greeter",
+		Nodes: []workflow.Node{
+			{ID: "start", Type: workflow.NodeTrigger, X: 10, Y: 10},
+			{ID: "greet", Type: workflow.NodeTransform, Config: json.RawMessage(`{"template":"hi"}`), X: 10, Y: 160},
+		},
+		Edges: []workflow.Edge{{From: "start", To: "greet"}},
+	}
+	w, err := k.RefineWorkflow(context.Background(), k.NewCorrelation(), base, "add an approval gate before greeting")
+	if err != nil {
+		t.Fatalf("RefineWorkflow: %v", err)
+	}
+	if w.Name != "greeter" { // the base's name wins over the model's
+		t.Fatalf("name = %q", w.Name)
+	}
+	if len(w.Nodes) != 3 {
+		t.Fatalf("nodes = %d", len(w.Nodes))
+	}
+	// The model saw the base graph AND the instruction in one prompt.
+	p := req.Messages[0].Content
+	if !strings.Contains(p, `"template":"hi"`) && !strings.Contains(p, `"template": "hi"`) {
+		t.Fatalf("prompt missing base graph: %q", p)
+	}
+	if !strings.Contains(p, "approval gate before greeting") {
+		t.Fatalf("prompt missing instruction: %q", p)
+	}
+	// Positions from the model survive (no auto-layout when any are set).
+	for _, n := range w.Nodes {
+		if n.ID == "gate" && n.Y != 310 {
+			t.Fatalf("gate position lost: %+v", n)
+		}
+	}
+	// Not saved.
+	if got := len(k.Workflows().List()); got != 0 {
+		t.Fatalf("refine must not save; store has %d", got)
+	}
+}
+
+// TestRefineWorkflow_Refusals: empty instruction and an invalid base are
+// refused without burning provider calls.
+func TestRefineWorkflow_Refusals(t *testing.T) {
+	prov := mock.New()
+	k := openWorkflowKernel(t, prov, &echoTool{out: "x"})
+	valid := workflow.Workflow{Name: "x", Nodes: []workflow.Node{{ID: "s", Type: workflow.NodeTrigger}}}
+
+	if _, err := k.RefineWorkflow(context.Background(), "", valid, "  "); err == nil {
+		t.Fatal("want error for empty instruction")
+	}
+	noTrigger := workflow.Workflow{Name: "x", Nodes: []workflow.Node{{ID: "a", Type: workflow.NodeTransform, Config: json.RawMessage(`{"template":"t"}`)}}}
+	if _, err := k.RefineWorkflow(context.Background(), "", noTrigger, "change it"); err == nil || !strings.Contains(err.Error(), "base graph") {
+		t.Fatalf("want base-graph validation error, got %v", err)
+	}
+	if prov.CallCount() != 0 {
+		t.Fatalf("provider called %d times on refusals", prov.CallCount())
 	}
 }
 

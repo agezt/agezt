@@ -63,11 +63,44 @@ func (k *Kernel) DraftWorkflow(ctx context.Context, corr, name, description stri
 	if description == "" {
 		return workflow.Workflow{}, errDraftEmpty
 	}
-	if k.cfg.Provider == nil {
-		return workflow.Workflow{}, errors.New("workflow draft: no provider configured")
-	}
+	basePrompt := "Design a workflow for this request:\n\n" + description
+	return k.draftLoop(ctx, corr, basePrompt, name, "draft")
+}
 
-	prompt := "Design a workflow for this request:\n\n" + description
+// RefineWorkflow (M805) revises an existing graph from a plain-language
+// instruction: the provider sees the CURRENT graph JSON (the canvas's truth,
+// unsaved edits included) plus the change request, and answers with the full
+// revised graph under the same contract. The base's name is preserved and
+// the result is returned UNSAVED, exactly like a fresh draft.
+func (k *Kernel) RefineWorkflow(ctx context.Context, corr string, base workflow.Workflow, instruction string) (workflow.Workflow, error) {
+	instruction = strings.TrimSpace(instruction)
+	if instruction == "" {
+		return workflow.Workflow{}, errors.New("workflow refine: an instruction is required")
+	}
+	if err := workflow.Validate(base); err != nil {
+		return workflow.Workflow{}, fmt.Errorf("workflow refine: base graph: %w", err)
+	}
+	baseJSON, err := json.Marshal(map[string]any{
+		"name": base.Name, "description": base.Description,
+		"nodes": base.Nodes, "edges": base.Edges,
+	})
+	if err != nil {
+		return workflow.Workflow{}, fmt.Errorf("workflow refine: %w", err)
+	}
+	basePrompt := "Here is an existing workflow:\n\n" + string(baseJSON) +
+		"\n\nRevise it per this request (return the COMPLETE revised workflow, keeping unrelated nodes, ids, and positions unchanged):\n\n" + instruction
+	return k.draftLoop(ctx, corr, basePrompt, base.Name, "refine")
+}
+
+// draftLoop runs the shared design conversation: up to two provider
+// round-trips (the attempt and one repair carrying the exact rejection),
+// journaling workflow.drafted on success. mode tags the journal payload so
+// `agt why` distinguishes fresh drafts from refinements.
+func (k *Kernel) draftLoop(ctx context.Context, corr, basePrompt, name, mode string) (workflow.Workflow, error) {
+	if k.cfg.Provider == nil {
+		return workflow.Workflow{}, errors.New("workflow " + mode + ": no provider configured")
+	}
+	prompt := basePrompt
 	var lastErr error
 	for attempt := 1; attempt <= 2; attempt++ {
 		resp, err := k.cfg.Provider.Complete(ctx, agent.CompletionRequest{
@@ -77,7 +110,7 @@ func (k *Kernel) DraftWorkflow(ctx context.Context, corr, name, description stri
 			Messages: []agent.Message{{Role: agent.RoleUser, Content: prompt}},
 		})
 		if err != nil {
-			return workflow.Workflow{}, fmt.Errorf("workflow draft: %w", err)
+			return workflow.Workflow{}, fmt.Errorf("workflow %s: %w", mode, err)
 		}
 		w, err := parseWorkflowDraft(resp.Message.Content, name)
 		if err == nil {
@@ -85,7 +118,8 @@ func (k *Kernel) DraftWorkflow(ctx context.Context, corr, name, description stri
 				Subject: "workflow." + w.Name, Kind: event.KindWorkflowDrafted, Actor: "workflow",
 				CorrelationID: corr,
 				Payload: map[string]any{
-					"name": w.Name, "nodes": len(w.Nodes), "edges": len(w.Edges), "attempt": attempt,
+					"name": w.Name, "nodes": len(w.Nodes), "edges": len(w.Edges),
+					"attempt": attempt, "mode": mode,
 				},
 			})
 			return w, nil
@@ -93,12 +127,12 @@ func (k *Kernel) DraftWorkflow(ctx context.Context, corr, name, description stri
 		lastErr = err
 		// One repair round-trip: the model sees its own output and the exact
 		// validation error, and tries again.
-		prompt = "Design a workflow for this request:\n\n" + description +
+		prompt = basePrompt +
 			"\n\nYour previous answer was rejected: " + err.Error() +
 			"\n\nPrevious answer:\n" + resp.Message.Content +
 			"\n\nReturn a corrected JSON object."
 	}
-	return workflow.Workflow{}, fmt.Errorf("workflow draft: %w", lastErr)
+	return workflow.Workflow{}, fmt.Errorf("workflow %s: %w", mode, lastErr)
 }
 
 // parseWorkflowDraft extracts the JSON object from a model answer, decodes

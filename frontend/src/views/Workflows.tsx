@@ -454,32 +454,46 @@ function freshID(type: string, taken: Set<string>): string {
 
 // ---- copilot ------------------------------------------------------------------
 
-// CopilotPanel (M802): describe the workflow in plain language; the daemon's
-// copilot designs a validated graph and we hand it back UNSAVED — the canvas
-// shows it for review, Save persists it. Exported for tests.
+// CopilotPanel (M802/M805): describe the workflow in plain language and the
+// daemon's copilot designs a validated graph — or, when the canvas already
+// holds a real graph, REFINE it: the copilot sees the current canvas (unsaved
+// edits included) plus the change request and returns the full revision.
+// Either way the result comes back UNSAVED — the canvas shows it for review,
+// Save persists it. Exported for tests.
 export function CopilotPanel({
   name,
+  graph,
   onDraft,
   onError,
 }: {
   name: string;
+  /** the current canvas graph; when it has more than the trigger, Refine is offered */
+  graph?: Wf;
   onDraft: (wf: Wf) => void;
   onError: (msg: string) => void;
 }) {
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
+  const canRefine = (graph?.nodes?.length ?? 0) > 1;
 
-  async function draft() {
+  async function send(mode: "draft" | "refine") {
     const description = text.trim();
     if (!description) {
-      onError("describe the workflow first");
+      onError(mode === "refine" ? "describe the change first" : "describe the workflow first");
       return;
     }
     setBusy(true);
     try {
-      const res = await postJSON<{ workflow?: Wf }>("/api/workflows/draft", { description, name });
+      const res =
+        mode === "refine"
+          ? await postJSON<{ workflow?: Wf }>("/api/workflows/refine", {
+              workflow: graph,
+              instruction: description,
+            })
+          : await postJSON<{ workflow?: Wf }>("/api/workflows/draft", { description, name });
       if (!res.workflow) throw new Error("the copilot returned no workflow");
       onDraft(res.workflow);
+      setText("");
     } catch (e) {
       onError((e as Error).message);
     } finally {
@@ -490,19 +504,37 @@ export function CopilotPanel({
   return (
     <div className="flex items-end gap-2 rounded-lg border border-accent/30 bg-card p-2">
       <label className="flex flex-1 flex-col gap-1 text-[11px] text-muted">
-        Copilot — describe what this workflow should do; the draft replaces the canvas (unsaved until you Save)
+        {canRefine
+          ? "Copilot — describe a change to refine the current canvas, or a whole new workflow to replace it (unsaved until you Save)"
+          : "Copilot — describe what this workflow should do; the draft replaces the canvas (unsaved until you Save)"}
         <textarea
           value={text}
           onChange={(e) => setText(e.target.value)}
-          placeholder="e.g. every morning at 09:00 fetch https://example.com/status, and if it doesn't contain OK, ask me for approval and then notify the team"
+          placeholder={
+            canRefine
+              ? "e.g. add an approval step before the notify, and make the cron daily at 07:30"
+              : "e.g. every morning at 09:00 fetch https://example.com/status, and if it doesn't contain OK, ask me for approval and then notify the team"
+          }
           aria-label="Copilot description"
           rows={2}
           className={inputCls}
         />
       </label>
-      <Button size="sm" onClick={draft} disabled={busy} aria-label="Draft with copilot">
-        <Sparkles className={cn("h-3.5 w-3.5", busy && "animate-pulse")} />
-        {busy ? "Drafting…" : "Draft onto canvas"}
+      {canRefine && (
+        <Button size="sm" onClick={() => send("refine")} disabled={busy} aria-label="Refine with copilot">
+          <Sparkles className={cn("h-3.5 w-3.5", busy && "animate-pulse")} />
+          {busy ? "Working…" : "Refine canvas"}
+        </Button>
+      )}
+      <Button
+        size="sm"
+        variant={canRefine ? "ghost" : "default"}
+        onClick={() => send("draft")}
+        disabled={busy}
+        aria-label="Draft with copilot"
+      >
+        {!canRefine && <Sparkles className={cn("h-3.5 w-3.5", busy && "animate-pulse")} />}
+        {busy ? "Working…" : canRefine ? "Draft fresh" : "Draft onto canvas"}
       </Button>
     </div>
   );
@@ -710,6 +742,7 @@ export function Workflows() {
         {copilotOpen && (
           <CopilotPanel
             name={editing.name}
+            graph={fromFlow(editing.name, editing.description || "", nodes, edges)}
             onDraft={(wf) => {
               const { nodes: ns, edges: es } = toFlow(wf);
               setNodes(ns);

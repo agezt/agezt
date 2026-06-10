@@ -12,6 +12,16 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Workflow copilot refine — "change X" on the canvas.** The copilot now revises existing
+  workflows: tell it the change in plain language and it returns the complete revised graph,
+  keeping unrelated nodes, ids, and canvas positions untouched. On the console the Copilot
+  panel offers **"Refine canvas"** whenever the canvas holds a real graph — it sends the
+  canvas's current truth (unsaved edits included), and the revision comes back unsaved for
+  review, exactly like a fresh draft. Also `agt workflow refine <name> "CHANGE" [--save]` and
+  `POST /api/workflows/refine`. Verified against a real provider with Turkish change requests:
+  an approval gate inserted mid-pipeline and a poetic-LLM node appended, labels and ids
+  preserved. (Drive-by: `agt workflow draft --save` now reports the real persisted state —
+  new workflows arrive enabled, not "disabled" as the old message claimed.) (M805)
 - **The brain distiller — a sleep cycle for the agent's memory.** Over weeks the per-run
   distiller accretes many small, overlapping records about the same things; the new
   **consolidation pass** clusters related records by the local embeddings, has the LLM merge

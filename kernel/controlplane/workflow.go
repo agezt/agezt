@@ -175,6 +175,54 @@ func (s *Server) handleWorkflowDraft(conn net.Conn, req Request) {
 	})
 }
 
+// handleWorkflowRefine (M805): revise an existing graph from a plain-language
+// instruction. The base is the POSTED graph when args.workflow is present
+// (the canvas's truth, unsaved edits included), else the STORED one at
+// args.ref (the CLI's path). The revision returns UNSAVED, like a draft.
+func (s *Server) handleWorkflowRefine(conn net.Conn, req Request) {
+	instruction, _ := req.Args["instruction"].(string)
+	if strings.TrimSpace(instruction) == "" {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.instruction required"})
+		return
+	}
+	var base workflow.Workflow
+	if raw, ok := req.Args["workflow"]; ok && raw != nil {
+		b, err := json.Marshal(raw)
+		if err == nil {
+			err = json.Unmarshal(b, &base)
+		}
+		if err != nil {
+			s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.workflow: " + err.Error()})
+			return
+		}
+	} else {
+		ref, _ := req.Args["ref"].(string)
+		if strings.TrimSpace(ref) == "" {
+			s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.workflow or args.ref required"})
+			return
+		}
+		w, found := s.k.Workflows().Get(strings.TrimSpace(ref))
+		if !found {
+			s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "unknown workflow: " + ref})
+			return
+		}
+		base = w
+	}
+	corr := s.k.NewCorrelation()
+	ctx, cancel := context.WithTimeout(context.Background(), workflowDraftTimeout)
+	defer cancel()
+	w, err := s.k.RefineWorkflow(ctx, corr, base, instruction)
+	if err != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		return
+	}
+	s.writeResp(conn, Response{
+		ID:     req.ID,
+		Type:   RespResult,
+		Result: map[string]any{"workflow": workflowView(w, true), "correlation_id": corr},
+	})
+}
+
 func (s *Server) handleWorkflowRun(conn net.Conn, req Request) {
 	ref, _ := req.Args["ref"].(string)
 	if strings.TrimSpace(ref) == "" {

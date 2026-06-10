@@ -738,6 +738,8 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.handleWorkflowRun(conn, req)
 	case CmdWorkflowDraft:
 		s.handleWorkflowDraft(conn, req)
+	case CmdWorkflowRefine:
+		s.handleWorkflowRefine(conn, req)
 	case CmdSandboxList:
 		s.handleSandboxList(conn, req)
 	case CmdSandboxFile:

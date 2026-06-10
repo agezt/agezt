@@ -175,6 +175,39 @@ describe("CopilotPanel", () => {
     expect(onDraft).not.toHaveBeenCalled();
   });
 
+  it("offers Refine when the canvas holds a real graph and posts it with the instruction", async () => {
+    const graph: Wf = {
+      name: "greeter",
+      nodes: [
+        { id: "start", type: "trigger" },
+        { id: "greet", type: "transform", config: { template: "hi" } },
+      ],
+      edges: [{ from: "start", to: "greet" }],
+    };
+    const revised: Wf = { ...graph, nodes: [...graph.nodes, { id: "gate", type: "approval" }] };
+    postJSON.mockResolvedValue({ workflow: revised });
+    const onDraft = vi.fn();
+    render(withUI(<CopilotPanel name="greeter" graph={graph} onDraft={onDraft} onError={vi.fn()} />));
+    fireEvent.change(screen.getByLabelText("Copilot description"), {
+      target: { value: "add an approval gate" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Refine with copilot" }));
+    await waitFor(() =>
+      expect(postJSON).toHaveBeenCalledWith("/api/workflows/refine", {
+        workflow: graph,
+        instruction: "add an approval gate",
+      }),
+    );
+    await waitFor(() => expect(onDraft).toHaveBeenCalledWith(revised));
+  });
+
+  it("hides Refine on a trigger-only canvas", () => {
+    const bare: Wf = { name: "x", nodes: [{ id: "start", type: "trigger" }] };
+    render(withUI(<CopilotPanel name="x" graph={bare} onDraft={vi.fn()} onError={vi.fn()} />));
+    expect(screen.queryByRole("button", { name: "Refine with copilot" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Draft with copilot" })).toBeTruthy();
+  });
+
   it("surfaces a copilot failure as an error, not a draft", async () => {
     postJSON.mockRejectedValue(new Error("workflow draft: the graph has a cycle"));
     const onDraft = vi.fn();
