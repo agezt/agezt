@@ -11,6 +11,17 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 
 ## [Unreleased]
 
+### Changed
+- **Allow-by-default policy posture.** Every capability now ships at the allow level — AGEZT
+  is full-autonomy out of the box, and restriction is your explicit opt-out (`agt edict level
+  <cap> <L0..L4>`, the Policy center, `AGEZT_EDICT_DENY`, durable overlays) rather than the
+  default. This makes the real posture explicit: the previous mixed ladder was already folded
+  to allow in practice by the AskAllow approval mode. The guardrails that are *not* permission
+  levels stay exactly as they were — the hard-deny strings (`rm -rf /`, fork bombs, raw-device
+  writes) bite even at the allow level, the SSRF/egress guards hold, budget ceilings apply, and
+  the deliberate human-approval gates (workflow approval node, forge promotion queue) still
+  block on the approval registry. (M814)
+
 ### Added
 - **Forge promotion queue — agents ask, you decide.** A forged tool's author can now request
   promotion (`tool_forge op=request_promotion`): the call blocks on the same HITL approval

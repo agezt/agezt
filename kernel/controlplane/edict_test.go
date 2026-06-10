@@ -71,12 +71,11 @@ func TestEdictShow_ReturnsDefaultPolicy(t *testing.T) {
 	if len(levels) < 8 {
 		t.Errorf("levels len = %d, want at least 8 (DefaultLevels count)", len(levels))
 	}
-	// Spot-check a high-value entry — shell is operator-critical;
-	// regressions on its default would be a security event.
-	// DECISIONS F3 vocabulary: TrustLevel.String() emits "L0".."L4"
-	// (where L2 = ask-first; see kernel/edict/edict.go).
-	if lvl, _ := levels["shell"].(string); lvl != "L2" {
-		t.Errorf("shell level = %q want %q (DECISIONS F3, L2 = ask-first)", lvl, "L2")
+	// Spot-check a high-value entry — under the M814 owner posture every
+	// capability defaults to L4 (allow); restriction is the operator's
+	// opt-OUT. TrustLevel.String() emits "L0".."L4".
+	if lvl, _ := levels["shell"].(string); lvl != "L4" {
+		t.Errorf("shell level = %q want %q (M814 allow-by-default)", lvl, "L4")
 	}
 
 	rules, ok := res["hard_deny"].([]any)
@@ -208,9 +207,9 @@ func TestEdictSetLevel_RuntimeChange(t *testing.T) {
 	if to, _ := set["to"].(string); to != "L0" {
 		t.Errorf("to = %q want L0", to)
 	}
-	// from must be the F3 default for shell (L2), proving we captured it.
-	if from, _ := set["from"].(string); from != "L2" {
-		t.Errorf("from = %q want L2 (shell default)", from)
+	// from must be the M814 default for shell (L4 allow), proving we captured it.
+	if from, _ := set["from"].(string); from != "L4" {
+		t.Errorf("from = %q want L4 (shell default, allow-by-default)", from)
 	}
 
 	probe, _ := c.Call(ctx, controlplane.CmdEdictTest, map[string]any{
@@ -276,6 +275,12 @@ func TestEdictSetLevel_FloorStillFires(t *testing.T) {
 func TestEdictSetMode_RuntimeChange(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 	ctx := context.Background()
+
+	// M814: every capability is allow-by-default, so nothing is ask-class
+	// out of the box — opt shell INTO ask-first to exercise mode folding.
+	if _, err := c.Call(ctx, controlplane.CmdEdictSetLevel, map[string]any{"capability": "shell", "level": "L2"}); err != nil {
+		t.Fatalf("opt shell into ask-first: %v", err)
+	}
 
 	set, err := c.Call(ctx, controlplane.CmdEdictSetMode, map[string]any{"mode": "deny"})
 	if err != nil {

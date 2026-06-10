@@ -283,25 +283,26 @@ func TestApplyOverlay_RestoresOntoEngine(t *testing.T) {
 	}
 }
 
-func TestDefaultLevels_RespectF3(t *testing.T) {
+// TestDefaultLevels_MaxAutonomy pins the M814 owner posture: EVERY known
+// capability defaults to LevelAllow ("default olarak kapatmadıkça her şeye
+// izni var"). Restriction is the operator's opt-OUT, not the default — a
+// new capability missing from the map, or any non-Allow default, fails here.
+func TestDefaultLevels_MaxAutonomy(t *testing.T) {
 	e := New(Options{})
-	checks := map[Capability]TrustLevel{
-		CapShell:      LevelAskFirst,
-		CapFileRead:   LevelAllow,
-		CapFileWrite:  LevelAskFirst,
-		CapFileDelete: LevelAsk,
-		CapHTTPGet:    LevelAskFirst,
-		CapHTTPPost:   LevelAsk,
-	}
-	for cap, want := range checks {
+	for _, cap := range AllCapabilities() {
 		got, ok := e.Level(cap)
 		if !ok {
 			t.Errorf("%s missing from default levels", cap)
 			continue
 		}
-		if got != want {
-			t.Errorf("%s: level=%s want %s", cap, got, want)
+		if got != LevelAllow {
+			t.Errorf("%s: level=%s want L4 (allow-by-default is the owner's law)", cap, got)
 		}
+	}
+	// The opt-OUT still works: an explicit override beats the default.
+	e2 := New(Options{Levels: map[Capability]TrustLevel{CapShell: LevelAsk}})
+	if got, _ := e2.Level(CapShell); got != LevelAsk {
+		t.Errorf("override ignored: %s", got)
 	}
 }
 

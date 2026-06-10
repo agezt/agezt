@@ -857,7 +857,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 	fmt.Fprintf(stdout, "  credentials      : %s\n", credDesc)
 	fmt.Fprintf(stdout, "  redaction        : %s\n", redactDesc)
 	fmt.Fprintf(stdout, "  tools            : %s\n", toolsDesc)
-	fmt.Fprintf(stdout, "  policy engine    : edict (defaults from DECISIONS F3; %s)\n", askPolicyDesc)
+	fmt.Fprintf(stdout, "  policy engine    : edict (allow-by-default — every capability on unless you opt out; %s)\n", askPolicyDesc)
 	fmt.Fprintf(stdout, "  delegation       : %s\n", delegationBanner(k))
 	fmt.Fprintf(stdout, "  run timeout      : %s\n", runTimeoutDesc)
 	fmt.Fprintf(stdout, "  tool timeout     : %s\n", toolTimeoutDesc)
