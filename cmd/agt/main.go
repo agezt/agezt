@@ -138,6 +138,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return cmdAgent(args[1:], stdout, stderr)
 	case "toolforge":
 		return cmdToolforge(args[1:], stdout, stderr)
+	case "mcp":
+		return cmdMCP(args[1:], stdout, stderr)
 	case "reflect":
 		return cmdReflect(args[1:], stdout, stderr)
 	case "inbox":

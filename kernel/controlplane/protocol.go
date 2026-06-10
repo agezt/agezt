@@ -891,6 +891,19 @@ const (
 	CmdToolforgeQuarantine = "toolforge_quarantine"
 	CmdToolforgeRemove     = "toolforge_remove"
 
+	// MCP self-install (M796) — runtime-attached MCP servers behind
+	// `agt mcp`. Add: args.server (object {name,command,args,description}).
+	// Attach/Detach/Remove: args.ref (name or id). SetEnabled:
+	// args{ref,enabled} (auto-attach at daemon start). List: no args —
+	// returns registrations joined with live attachment status.
+	// Every mutation is journaled (mcp.*).
+	CmdMCPList       = "mcp_list"
+	CmdMCPAdd        = "mcp_add"
+	CmdMCPAttach     = "mcp_attach"
+	CmdMCPDetach     = "mcp_detach"
+	CmdMCPSetEnabled = "mcp_set_enabled"
+	CmdMCPRemove     = "mcp_remove"
+
 	// Sandbox projects (M686) — read-only inspection of what agents BUILT with the
 	// code_exec tool under <baseDir>/sandbox/projects. List: no args, returns each
 	// persistent project with its files (name, bytes, modified). File: args{project,

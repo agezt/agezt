@@ -710,6 +710,18 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.handleToolforgeQuarantine(conn, req)
 	case CmdToolforgeRemove:
 		s.handleToolforgeRemove(conn, req)
+	case CmdMCPList:
+		s.handleMCPList(conn, req)
+	case CmdMCPAdd:
+		s.handleMCPAdd(conn, req)
+	case CmdMCPAttach:
+		s.handleMCPAttach(conn, req)
+	case CmdMCPDetach:
+		s.handleMCPDetach(conn, req)
+	case CmdMCPSetEnabled:
+		s.handleMCPSetEnabled(conn, req)
+	case CmdMCPRemove:
+		s.handleMCPRemove(conn, req)
 	case CmdSandboxList:
 		s.handleSandboxList(conn, req)
 	case CmdSandboxFile:

@@ -112,6 +112,7 @@ var apiRoutes = map[string]string{
 	"/api/standing":      controlplane.CmdStandingList,
 	"/api/agents":        controlplane.CmdAgentList,
 	"/api/toolforge":     controlplane.CmdToolforgeList,
+	"/api/mcp":           controlplane.CmdMCPList,
 	"/api/inbox":         controlplane.CmdInbox,
 	"/api/board":         controlplane.CmdBoardRead,
 	"/api/autonomy":      controlplane.CmdAutonomyFeed,
@@ -249,7 +250,14 @@ var writeRoutes = map[string]writeRoute{
 	"/api/toolforge/promote":    {controlplane.CmdToolforgePromote, []string{"ref"}},
 	"/api/toolforge/quarantine": {controlplane.CmdToolforgeQuarantine, []string{"ref", "reason"}},
 	"/api/toolforge/remove":     {controlplane.CmdToolforgeRemove, []string{"ref"}},
-	"/api/reflect/run":          {controlplane.CmdReflectRun, nil},
+	// MCP self-install lifecycle (M796): attach spawns the registered server
+	// NOW (its tools go live for the next run); detach is the kill switch;
+	// enable flips auto-attach at daemon start. ref = name or id.
+	"/api/mcp/attach":  {controlplane.CmdMCPAttach, []string{"ref"}},
+	"/api/mcp/detach":  {controlplane.CmdMCPDetach, []string{"ref"}},
+	"/api/mcp/enable":  {controlplane.CmdMCPSetEnabled, []string{"ref", "enabled"}},
+	"/api/mcp/remove":  {controlplane.CmdMCPRemove, []string{"ref"}},
+	"/api/reflect/run": {controlplane.CmdReflectRun, nil},
 	// Provider keyring switch/remove (M700): activate or remove a key, reloading
 	// the provider in place. (Add is a jsonRoute — the value is a secret body.)
 	"/api/provider/keys/activate": {controlplane.CmdProviderKeyActivate, []string{"env", "label"}},
@@ -298,6 +306,9 @@ var jsonRoutes = map[string]writeRoute{
 	// (code body, schema text) — a JSON body, not query args.
 	"/api/toolforge/draft": {controlplane.CmdToolforgeDraft, []string{"tool"}},
 	"/api/toolforge/edit":  {controlplane.CmdToolforgeEdit, []string{"ref", "tool"}},
+	// Register an MCP server (M796): the server is a structured object
+	// (command + args list) — a JSON body, not query args.
+	"/api/mcp/add": {controlplane.CmdMCPAdd, []string{"server"}},
 	// Create a schedule (M715): intent + a timing mode. Numeric timing args (e.g.
 	// interval_sec, at_minutes, once_at_unix) ride the JSON body so they keep their
 	// types — a query arg would stringify them.
