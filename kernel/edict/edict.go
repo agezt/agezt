@@ -577,46 +577,30 @@ func New(opt Options) *Engine {
 	}
 }
 
-// DefaultLevels are the per-capability defaults from DECISIONS F3, adapted
-// to the M1 capability set. Approval routing isn't wired yet, so anything
-// at L1..L3 will be folded by AskPolicy (default AskAllow + journal note).
+// DefaultLevels is the MAX-AUTONOMY posture (M814, owner's law: "default
+// olarak kapatmadıkça her şeye izni var" — everything is allowed unless the
+// operator turns it off). Every capability defaults to LevelAllow;
+// restriction is the operator's opt-OUT, applied per capability through the
+// Policy center, `agt edict`, AGEZT_EDICT_DENY, or a durable overlay.
+//
+// What this deliberately does NOT relax (they are guards, not permissions):
+//   - the F4 hard-deny strings (fork bombs, rm -rf /, raw-device writes);
+//   - the http/browser SSRF guards (loopback/private-net egress);
+//   - Governor budget ceilings and per-agent daily caps;
+//   - EXPLICIT HITL surfaces the operator wires on purpose (the workflow
+//     approval node, the forge promotion queue) — those block on the
+//     approval registry regardless of capability levels.
+//
+// History: the pre-M814 ladder mixed Allow/AskFirst/Ask per DECISIONS F3,
+// but the owner ran AskPolicy=AskAllow, which folded every ask to allow in
+// practice — this makes the real posture the explicit one. New capabilities
+// ship at LevelAllow unless the owner says otherwise.
 func DefaultLevels() map[Capability]TrustLevel {
-	return map[Capability]TrustLevel{
-		CapShell:        LevelAskFirst, // L2 per F3
-		CapFileRead:     LevelAllow,    // very common, low risk
-		CapFileList:     LevelAllow,
-		CapFileWrite:    LevelAskFirst, // L2
-		CapFileDelete:   LevelAsk,      // L1 — always ask
-		CapHTTPGet:      LevelAskFirst, // L2 (more permissive than F3's L1)
-		CapHTTPPost:     LevelAsk,      // L1
-		CapProviderCall: LevelAllow,    // governed by budget, not Edict
-		CapDelegate:     LevelAllow,    // sub-agent spawn; its tool calls are gated individually
-		CapCoding:       LevelAskFirst, // external coding agent; isolated to a worktree, returns a diff
-		CapACPAgent:     LevelAskFirst, // external ACP agent; runs in its own sandbox, returns its answer
-		CapRemoteRun:    LevelAskFirst, // peer Agezt node; ships a task to an external node over REST
-		CapNotify:       LevelAllow,    // message the operator's own configured chats; recipient is config-pinned
-
-		CapHomeAssistantRead: LevelAllow,    // read entity state; low risk, allowlist-filtered
-		CapHomeAssistantCall: LevelAskFirst, // actuate the physical world; confirm before acting
-
-		CapBrowserRead: LevelAskFirst, // L2 network read, symmetric with http.get; host allowlist is the 2nd gate
-		CapMemory:      LevelAllow,    // local knowledge store; low risk
-		CapWorld:       LevelAllow,    // local world-model graph; low risk
-		CapWebSearch:   LevelAskFirst, // L2 network read; engine host is fixed, query is the only operator input
-		CapSchedule:    LevelAskFirst, // L2 autonomy grant; a scheduled intent runs later through the governed loop
-		CapRunsRead:    LevelAllow,    // local read of the agent's own run history; low risk
-		CapStanding:    LevelAskFirst, // L2 strongest autonomy grant; the agent sets up unattended trigger-driven behaviour
-		CapBoard:       LevelAllow,    // local shared message board between agents; low risk
-		CapSkill:       LevelAskFirst, // self-modification: the agent authoring/promoting its own skills
-		CapIntrospect:  LevelAllow,    // local read of the daemon's own live state; no mutation, no network — low risk
-		CapCodeExec:    LevelAllow,    // write+run code; sandboxed (scrubbed env, confined dir, capped) and journaled — owner's choice for full autonomy
-		CapToolForge:   LevelAskFirst, // self-modification: the agent authoring its own script tools (going live still needs an operator promote)
-		CapMCPInstall:  LevelAsk,      // self-install: registering/attaching an MCP server spawns an arbitrary process — approve every one
-		CapMCP:         LevelAskFirst, // calling a bridged MCP tool: external, unvetted surface — vet first use per session
-		CapWorkflow:    LevelAskFirst, // L2 autonomy grant like standing: saving/arming durable automation — vet first use; nodes re-gate per call
-		CapConfigRead:  LevelAllow,    // read Config Center schema/values; no mutation, secrets presence-only
-		CapConfigWrite: LevelAskFirst, // mutate settings / register schema; can reach built-in security fields — confirm first
+	levels := make(map[Capability]TrustLevel, len(AllCapabilities()))
+	for _, c := range AllCapabilities() {
+		levels[c] = LevelAllow
 	}
+	return levels
 }
 
 // DefaultHardDeny is the immutable hard-deny set from DECISIONS F4. The
