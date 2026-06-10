@@ -41,6 +41,7 @@ import (
 	"github.com/agezt/agezt/kernel/standing"
 	"github.com/agezt/agezt/kernel/state"
 	"github.com/agezt/agezt/kernel/tenantctx"
+	"github.com/agezt/agezt/kernel/toolforge"
 	"github.com/agezt/agezt/kernel/ulid"
 	"github.com/agezt/agezt/kernel/warden"
 	"github.com/agezt/agezt/kernel/worldmodel"
@@ -87,6 +88,14 @@ type Config struct {
 
 	// Tools are the in-process tools advertised to the model.
 	Tools map[string]agent.Tool
+
+	// ScriptRunner executes forged script tools (M794) in the code-exec
+	// sandbox. When set, every run is additionally offered the toolforge
+	// store's ACTIVE scripts as callable `forge_<name>` tools; nil disables
+	// the offering (drafting/testing then reports the forge unavailable).
+	// The daemon wires the code_exec tool here — same warden isolation,
+	// scrubbed env, and `code.exec` Edict gate as direct code execution.
+	ScriptRunner toolforge.Runner
 
 	// Model is the default model name passed to the provider.
 	Model string
@@ -329,6 +338,7 @@ type Kernel struct {
 	skillDir  *skill.FileStore
 	standing  *standing.Store
 	roster    *roster.Store
+	toolForge *toolforge.Store
 	artifacts *artifact.Store
 	reflect   *reflect.Engine
 	schedules *cadence.Store        // persistent scheduled-intents store (autonomy)
@@ -458,6 +468,16 @@ func Open(cfg Config) (*Kernel, error) {
 		return nil, fmt.Errorf("runtime: roster: %w", err)
 	}
 
+	tfstore, err := toolforge.Open(filepath.Join(cfg.BaseDir, "toolforge"))
+	if err != nil {
+		j.Close()
+		st.Close()
+		mstore.Close()
+		wstore.Close()
+		skstore.Close()
+		return nil, fmt.Errorf("runtime: toolforge: %w", err)
+	}
+
 	// Reflection holds no store of its own — it folds the journal and tunes
 	// the world graph, then journals its report (SPEC-05 §6). Default decay
 	// knobs; the daemon may override via the optional periodic trigger.
@@ -518,6 +538,7 @@ func Open(cfg Config) (*Kernel, error) {
 		skillDir:     skstore,
 		standing:     ststore,
 		roster:       rstore,
+		toolForge:    tfstore,
 		artifacts:    artStore,
 		reflect:      reflectEng,
 		schedules:    schedStore,
@@ -1614,10 +1635,12 @@ func (k *Kernel) RunWith(ctx context.Context, corr, intent string) (string, erro
 	}
 
 	// Per-run tool restriction (WithTools): an allowlist (possibly empty = no
-	// tools) scopes what this run may call, without changing the kernel's tool set.
-	runTools := k.tools
+	// tools) scopes what this run may call, without changing the kernel's tool
+	// set. Forged script tools (M794) are merged BEFORE the filter so a
+	// restricted run only sees the forge_<name> tools its allowlist grants.
+	runTools := k.mergeScriptTools(k.tools)
 	if allow, ok := toolsFromCtx(runCtx); ok {
-		runTools = filterTools(k.tools, allow)
+		runTools = filterTools(runTools, allow)
 	}
 
 	// Host-environment preamble (M609): prepend OS/arch, the shell the shell tool

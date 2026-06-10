@@ -12,6 +12,26 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **The agent can now build its own tools — the script-tool forge.** Code an agent (or operator)
+  writes can be promoted into a **durable, callable tool**: draft a named script (Python/Node/Deno)
+  with the new `tool_forge` tool, **test it in the code_exec sandbox** (the call's JSON input
+  arrives as `./stdin.txt`, stdout becomes the tool result), and once a test of the current code
+  passes, the **operator promotes it** (`agt toolforge promote`) — from then on every run and every
+  delegate sub-agent is offered it as a real `forge_<name>` tool. This closes the
+  write→use→improve cycle: code worth keeping becomes a tool instead of being rewritten every run.
+  Governance is the point — *only tested code is ever live*: promotion is refused until a sandbox
+  test of the current code passed, **any code edit demotes the tool back to draft** with its test
+  record cleared, quarantine is the instant kill switch, and promotion is deliberately not an agent
+  op. Every transition is journaled (`scripttool.created/tested/promoted/quarantined/…`) so
+  `agt why` explains how a tool came to be. Execution rides the same warden-isolated,
+  secret-scrubbed sandbox as `code_exec` and every `forge_*` call exercises the same `code.exec`
+  Edict capability; authoring is gated by the new `tool.forge` capability (ask-first, like
+  `skill`). A per-run tool allowlist gates forged tools exactly like registered ones. Surface:
+  `agt toolforge list/show/draft/edit/test/promote/quarantine/remove` (code via `--file`),
+  control-plane `toolforge_*` commands, webui API routes (console view to follow). 17 new tests
+  across the store/runtime/edict/tool/control-plane/codeexec layers, plus an isolated-daemon smoke
+  in which a real Python script was drafted, refused promotion untested, tested live in the
+  sandbox, promoted, quarantined, and demoted by a code edit — all journaled. (M794)
 - **Each named agent gets a daily allowance — the identity budget ledger.** A roster profile gains
   **max cost per day** (`--max-daily`, the Config-style USD field on the Roster view): the Governor
   now keeps a **per-agent daily ledger** — every completion an identity makes, whether from

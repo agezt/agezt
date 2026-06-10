@@ -18,6 +18,13 @@ import (
 // Kept in this package (not the runtime) so the mapping lives next to
 // the Capability constants and can grow as new tools land.
 func CapabilityForToolCall(toolName string, input json.RawMessage) Capability {
+	// Forged script tools (M794): every promoted script is offered as
+	// forge_<name> and EXECUTES code in the code-exec sandbox, so each call
+	// exercises exactly the code.exec capability — promotion changes who can
+	// be called, never what the sandbox allows.
+	if strings.HasPrefix(toolName, "forge_") {
+		return CapCodeExec
+	}
 	switch toolName {
 	case "shell":
 		return CapShell
@@ -51,6 +58,17 @@ func CapabilityForToolCall(toolName string, input json.RawMessage) Capability {
 		return CapBoard
 	case "skill":
 		return CapSkill
+	case "tool_forge":
+		var p struct {
+			Op string `json:"op"`
+		}
+		_ = json.Unmarshal(input, &p)
+		if strings.EqualFold(strings.TrimSpace(p.Op), "test") {
+			// op=test RUNS the draft's code in the sandbox — that's a real
+			// code execution, so it exercises code.exec, not just authoring.
+			return CapCodeExec
+		}
+		return CapToolForge
 	case "introspect":
 		return CapIntrospect
 	case "code_exec":

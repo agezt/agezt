@@ -143,6 +143,15 @@ const (
 	// who want confirmation set it to ask/deny in the policy center.
 	CapCodeExec Capability = "code.exec"
 
+	// CapToolForge gates the AUTHORING ops of the `tool_forge` tool (M794):
+	// the agent drafting, editing, listing, and inspecting its own script
+	// tools. Like CapSkill, a genuine self-modification grant — but a draft
+	// is never live (promotion is operator-driven through the control plane,
+	// not a tool op), every transition is journaled (scripttool.*), and
+	// quarantine is an instant kill switch — so ask-first by default.
+	// op=test EXECUTES the draft in the sandbox and maps to CapCodeExec.
+	CapToolForge Capability = "tool.forge"
+
 	// CapConfigRead / CapConfigWrite gate the `config` tool (M696): the agent
 	// reading vs mutating Config Center settings. Reads (schema/get) are low-risk
 	// and Allow by default. Writes (set/register/unregister) are Ask by default —
@@ -578,6 +587,7 @@ func DefaultLevels() map[Capability]TrustLevel {
 		CapSkill:       LevelAskFirst, // self-modification: the agent authoring/promoting its own skills
 		CapIntrospect:  LevelAllow,    // local read of the daemon's own live state; no mutation, no network — low risk
 		CapCodeExec:    LevelAllow,    // write+run code; sandboxed (scrubbed env, confined dir, capped) and journaled — owner's choice for full autonomy
+		CapToolForge:   LevelAskFirst, // self-modification: the agent authoring its own script tools (going live still needs an operator promote)
 		CapConfigRead:  LevelAllow,    // read Config Center schema/values; no mutation, secrets presence-only
 		CapConfigWrite: LevelAskFirst, // mutate settings / register schema; can reach built-in security fields — confirm first
 	}
@@ -619,7 +629,7 @@ func AllCapabilities() []Capability {
 		CapACPAgent, CapRemoteRun, CapNotify,
 		CapHomeAssistantRead, CapHomeAssistantCall,
 		CapBrowserRead, CapMemory, CapWorld, CapWebSearch, CapSchedule, CapRunsRead, CapStanding, CapBoard, CapSkill,
-		CapIntrospect, CapCodeExec, CapConfigRead, CapConfigWrite,
+		CapIntrospect, CapCodeExec, CapToolForge, CapConfigRead, CapConfigWrite,
 	}
 	slices.Sort(caps)
 	return caps

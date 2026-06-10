@@ -554,7 +554,7 @@ func TestAPIReadOnly(t *testing.T) {
 	// never issues anything outside the known read set.
 	readOnly := map[string]bool{
 		"status": true, "config": true, "runs_list": true, "runs_stats": true, "budget": true, "cache_stats": true, "provider_stats": true, "tool_stats": true, "edict_stats": true, "schedule_list": true, "memory_list": true, "world_list": true,
-		"skill_list": true, "standing_list": true, "agent_list": true, "inbox": true, "reflect_show": true, "approvals": true,
+		"skill_list": true, "standing_list": true, "agent_list": true, "toolforge_list": true, "inbox": true, "reflect_show": true, "approvals": true,
 		"plan_stats": true, "edict_show": true, "tool_list": true, "board_read": true, "autonomy_feed": true,
 		"catalog_list": true, "sandbox_list": true,
 		"config_schema": true, "config_values": true, "routing_get": true, "persona_get": true, "prompts_get": true,

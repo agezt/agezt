@@ -93,6 +93,7 @@ import (
 	"github.com/agezt/agezt/plugins/tools/coding"
 	configtool "github.com/agezt/agezt/plugins/tools/config"
 	filetool "github.com/agezt/agezt/plugins/tools/file"
+	"github.com/agezt/agezt/plugins/tools/forgetool"
 	hatool "github.com/agezt/agezt/plugins/tools/homeassistant"
 	httptool "github.com/agezt/agezt/plugins/tools/http"
 	"github.com/agezt/agezt/plugins/tools/introspecttool"
@@ -342,6 +343,13 @@ func runDaemon(stdout, stderr io.Writer) int {
 	introspectToolInst := introspecttool.New()
 	tools["introspect"] = introspectToolInst
 
+	// Tool-forge tool (`tool_forge`, M794): the agent builds its OWN tools —
+	// drafts a script, tests it in the code_exec sandbox, and once the operator
+	// promotes it every run can call it as forge_<name>. Registered now, Bound
+	// to the live kernel after it opens.
+	forgeToolInst := forgetool.New()
+	tools["tool_forge"] = forgeToolInst
+
 	// OnReload is invoked by the control plane's `provider_reload`
 	// command (and `agt provider reload`). It re-reads the vault,
 	// re-runs primary-provider selection against the freshly-reloaded
@@ -505,6 +513,12 @@ func runDaemon(stdout, stderr io.Writer) int {
 		SubAgentMaxFanout:          subAgentFanout,
 		SubAgentMaxSpendMicrocents: subAgentSpendCap,
 		SubAgentMaxTotal:           subAgentTotal,
+	}
+	// Script-tool forge runner (M794): forged tools execute through the same
+	// code_exec sandbox (warden isolation, scrubbed env). Only wired when the
+	// sandbox is available — without it the forge reports itself unavailable.
+	if ce, ok := tools["code_exec"].(*codeexec.Tool); ok {
+		cfg.ScriptRunner = ce
 	}
 	// Per-run wall-clock timeout (M31): AGEZT_RUN_TIMEOUT=<duration> caps how
 	// long a single run may take inside a live session. Off by default (only
@@ -1229,6 +1243,12 @@ func runDaemon(stdout, stderr io.Writer) int {
 		ce.Bind(k.Bus())
 		fmt.Fprintf(stdout, "  code_exec tool   : enabled (the agent can write & run code: %s)\n", strings.Join(ce.Languages(), ", "))
 	}
+
+	// Bind the tool-forge tool to the live kernel (M794), so the agent can draft
+	// and test its own script tools through the journaled scripttool.* lifecycle.
+	// Going live still takes an operator promote (`agt toolforge promote`).
+	forgeToolInst.Bind(k)
+	fmt.Fprintf(stdout, "  tool_forge tool  : enabled (the agent can build its own tools; operator promotes)\n")
 
 	// Scheduled intents (autonomy) — fire operator-configured intents on a timer
 	// through the governed loop. Runs on the daemon ctx (halt/shutdown stop it).

@@ -277,6 +277,17 @@ const (
 	// the run timeline show what code ran and how it ended. The warden additionally
 	// emits its own warden.exec for the underlying process.
 	KindCodeExecuted Kind = "code.executed"
+
+	// Script-tool forge (M794) — agent-authored code promoted into durable,
+	// callable tools (forge_<name>), executed through the code-exec sandbox.
+	// Lifecycle is journaled so `agt why` can explain how a tool came to be,
+	// who tested it, and when it went live (or was pulled).
+	KindScriptToolCreated     Kind = "scripttool.created"
+	KindScriptToolUpdated     Kind = "scripttool.updated" // edit (code changes demote to draft)
+	KindScriptToolTested      Kind = "scripttool.tested"  // a sandbox test of the current code (ok true/false)
+	KindScriptToolPromoted    Kind = "scripttool.promoted"
+	KindScriptToolQuarantined Kind = "scripttool.quarantined"
+	KindScriptToolRemoved     Kind = "scripttool.removed"
 )
 
 // IsKnown reports whether k is one of the kinds defined in this file. Useful
@@ -385,4 +396,10 @@ var knownKinds = map[Kind]struct{}{
 	KindAssureVerdict:             {},
 	KindBoardPosted:               {},
 	KindCodeExecuted:              {},
+	KindScriptToolCreated:         {},
+	KindScriptToolUpdated:         {},
+	KindScriptToolTested:          {},
+	KindScriptToolPromoted:        {},
+	KindScriptToolQuarantined:     {},
+	KindScriptToolRemoved:         {},
 }
