@@ -72,6 +72,7 @@ import (
 	"github.com/agezt/agezt/kernel/warden"
 	"github.com/agezt/agezt/kernel/webhook"
 	"github.com/agezt/agezt/kernel/webui"
+	"github.com/agezt/agezt/kernel/workflow"
 	"github.com/agezt/agezt/plugins/channels/discord"
 	"github.com/agezt/agezt/plugins/channels/email"
 	"github.com/agezt/agezt/plugins/channels/homeassistant"
@@ -1313,6 +1314,33 @@ func runDaemon(stdout, stderr io.Writer) int {
 	standingDesc, fireStandingNow := buildStandingRunner(ctx, k, standingBrief)
 	srv.SetStandingFire(fireStandingNow)
 	fmt.Fprintf(stdout, "  standing orders  : %s\n", standingDesc)
+
+	// Workflow triggers (M799): arm cron/event triggers for ENABLED workflows.
+	// The runner consults the store live, so canvas/CLI saves take effect
+	// without a restart; each firing runs the graph under its own correlation
+	// (the workflow.* journal arc is the audit trail either way).
+	wfFire := func(fctx context.Context, w workflow.Workflow, payload any, reason string) {
+		rctx, cancel := context.WithTimeout(fctx, 15*time.Minute)
+		defer cancel()
+		_, _ = k.RunWorkflow(rctx, k.NewCorrelation(), w.Name, payload)
+	}
+	if err := workflow.StartTriggers(ctx, k.Bus(), k.Workflows(), workflow.RunnerConfig{}, wfFire); err != nil {
+		fmt.Fprintf(stdout, "  workflows        : trigger runner failed to start: %v\n", err)
+	} else {
+		cron, evt := 0, 0
+		for _, w := range k.Workflows().List() {
+			if !w.Enabled {
+				continue
+			}
+			switch w.TriggerSpec().Kind {
+			case "cron":
+				cron++
+			case "event":
+				evt++
+			}
+		}
+		fmt.Fprintf(stdout, "  workflows        : %d defined (%d cron + %d event trigger(s) armed)\n", k.Workflows().Count(), cron, evt)
+	}
 
 	fmt.Fprintf(stdout, "  client commands  : %s run | halt | resume | why <id> | journal verify\n", brand.CLI)
 	fmt.Fprintf(stdout, "Press Ctrl+C to stop.\n")

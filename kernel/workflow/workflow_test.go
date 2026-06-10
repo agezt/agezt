@@ -68,6 +68,15 @@ func TestValidate_Rejects(t *testing.T) {
 		{"llm without prompt", graph([]Node{trigger(), {ID: "a", Type: NodeLLM, Config: json.RawMessage(`{}`)}}, nil), "prompt"},
 		{"condition bad op", graph([]Node{trigger(), {ID: "a", Type: NodeCondition, Config: json.RawMessage(`{"left":"x","op":"vibes"}`)}}, nil), "op"},
 		{"delay out of range", graph([]Node{trigger(), {ID: "a", Type: NodeDelay, Config: json.RawMessage(`{"seconds":99999}`)}}, nil), "seconds"},
+		// Trigger configs (M799).
+		{"cron without timing", graph([]Node{{ID: "s", Type: NodeTrigger, Config: json.RawMessage(`{"kind":"cron"}`)}}, nil), "exactly one of"},
+		{"cron both timings", graph([]Node{{ID: "s", Type: NodeTrigger, Config: json.RawMessage(`{"kind":"cron","interval_sec":60,"daily_at":"09:00"}`)}}, nil), "exactly one of"},
+		{"cron interval too small", graph([]Node{{ID: "s", Type: NodeTrigger, Config: json.RawMessage(`{"kind":"cron","interval_sec":5}`)}}, nil), "interval_sec"},
+		{"cron bad daily_at", graph([]Node{{ID: "s", Type: NodeTrigger, Config: json.RawMessage(`{"kind":"cron","daily_at":"25:99"}`)}}, nil), "HH:MM"},
+		{"event without subject", graph([]Node{{ID: "s", Type: NodeTrigger, Config: json.RawMessage(`{"kind":"event"}`)}}, nil), "subject"},
+		{"event on workflow.*", graph([]Node{{ID: "s", Type: NodeTrigger, Config: json.RawMessage(`{"kind":"event","subject":"workflow.x"}`)}}, nil), "self-referential"},
+		{"event on everything", graph([]Node{{ID: "s", Type: NodeTrigger, Config: json.RawMessage(`{"kind":"event","subject":">"}`)}}, nil), "too broad"},
+		{"unknown trigger kind", graph([]Node{{ID: "s", Type: NodeTrigger, Config: json.RawMessage(`{"kind":"vibes"}`)}}, nil), "trigger kind"},
 	}
 	for _, tc := range cases {
 		err := Validate(tc.w)

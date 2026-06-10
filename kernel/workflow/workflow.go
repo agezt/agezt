@@ -198,6 +198,74 @@ func Validate(w Workflow) error {
 	return nil
 }
 
+// TriggerConfig is the trigger node's config (M799): how a workflow STARTS.
+// kind "" or "manual" = run-on-demand only. "cron" fires on a clock —
+// either every interval_sec seconds (≥30) or once a day at daily_at
+// ("HH:MM", daemon-local time). "event" fires when a journal event's
+// subject matches the glob (bus semantics: "*" = one token, ">" = rest),
+// with the event riding in as {{trigger.payload}}. Triggers only arm while
+// the workflow is ENABLED.
+type TriggerConfig struct {
+	Kind        string `json:"kind,omitempty"`
+	IntervalSec int    `json:"interval_sec,omitempty"` // cron: every N seconds (≥30)
+	DailyAt     string `json:"daily_at,omitempty"`     // cron: "HH:MM" once a day
+	Subject     string `json:"subject,omitempty"`      // event: subject glob
+}
+
+const minIntervalSec = 30
+
+var dailyAtRe = regexp.MustCompile(`^([01]?\d|2[0-3]):[0-5]\d$`)
+
+// TriggerSpec parses a workflow's trigger configuration (Validate
+// guarantees it parses and is legal).
+func (w Workflow) TriggerSpec() TriggerConfig {
+	var c TriggerConfig
+	if n := w.TriggerNode(); n != nil {
+		_ = json.Unmarshal(orEmpty(n.Config), &c)
+	}
+	if c.Kind == "" {
+		c.Kind = "manual"
+	}
+	return c
+}
+
+func validateTriggerConfig(n *Node) error {
+	var c TriggerConfig
+	if err := json.Unmarshal(orEmpty(n.Config), &c); err != nil {
+		return fmt.Errorf("workflow: node %s: trigger config: %w", n.ID, err)
+	}
+	switch c.Kind {
+	case "", "manual":
+		return nil
+	case "cron":
+		hasInterval := c.IntervalSec != 0
+		hasDaily := strings.TrimSpace(c.DailyAt) != ""
+		if hasInterval == hasDaily { // both or neither
+			return fmt.Errorf("workflow: node %s: cron trigger needs exactly one of interval_sec or daily_at", n.ID)
+		}
+		if hasInterval && c.IntervalSec < minIntervalSec {
+			return fmt.Errorf("workflow: node %s: interval_sec must be >= %d", n.ID, minIntervalSec)
+		}
+		if hasDaily && !dailyAtRe.MatchString(strings.TrimSpace(c.DailyAt)) {
+			return fmt.Errorf("workflow: node %s: daily_at must be HH:MM", n.ID)
+		}
+		return nil
+	case "event":
+		subj := strings.TrimSpace(c.Subject)
+		if subj == "" {
+			return fmt.Errorf("workflow: node %s: event trigger needs a subject glob", n.ID)
+		}
+		if strings.HasPrefix(subj, "workflow.") || subj == ">" || subj == "*" {
+			// A workflow run publishes workflow.* events — triggering on them
+			// (or on everything) is a feedback-loop foot-gun, refused outright.
+			return fmt.Errorf("workflow: node %s: event subject %q is too broad or self-referential", n.ID, subj)
+		}
+		return nil
+	default:
+		return fmt.Errorf("workflow: node %s: unknown trigger kind %q (manual|cron|event)", n.ID, c.Kind)
+	}
+}
+
 // Per-type config shapes (also the engine's parse targets).
 type ToolConfig struct {
 	Tool string          `json:"tool"`
@@ -232,7 +300,7 @@ var conditionOps = map[string]bool{
 func validateNodeConfig(n *Node) error {
 	switch n.Type {
 	case NodeTrigger:
-		return nil // manual in M798; trigger kinds arrive with M799
+		return validateTriggerConfig(n)
 	case NodeTool:
 		var c ToolConfig
 		if err := json.Unmarshal(orEmpty(n.Config), &c); err != nil {
