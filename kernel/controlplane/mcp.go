@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net"
+	"sort"
 	"strings"
 
 	"github.com/agezt/agezt/kernel/mcp"
@@ -23,6 +24,19 @@ func (s *Server) mcpServerView(srv mcp.Server) map[string]any {
 	b, _ := json.Marshal(srv)
 	var m map[string]any
 	_ = json.Unmarshal(b, &m)
+	// Never echo env VALUES back over a read API (M898) — they may be secrets
+	// (a token the operator typed for this server). Expose only the sorted key
+	// names so the UI can show "env: GITHUB_PERSONAL_ACCESS_TOKEN" without
+	// leaking the value. The stored values still reach the child on attach.
+	delete(m, "env")
+	if len(srv.Env) > 0 {
+		keys := make([]string, 0, len(srv.Env))
+		for k := range srv.Env {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		m["env_keys"] = keys
+	}
 	attached := s.k.MCPAttached()
 	if n, live := attached[srv.Name]; live {
 		m["attached"] = true

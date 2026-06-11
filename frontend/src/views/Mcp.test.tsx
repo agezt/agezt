@@ -12,7 +12,7 @@ vi.mock("@/lib/api", () => ({
   postAction: (...a: unknown[]) => postAction(...a),
 }));
 
-import { Mcp, NewServerForm, serverNameOk, splitArgs, CATALOG } from "@/views/Mcp";
+import { Mcp, NewServerForm, serverNameOk, splitArgs, parseEnv, CATALOG } from "@/views/Mcp";
 import { UIProvider } from "@/components/ui/feedback";
 
 const withUI = (node: ReactNode) => <UIProvider>{node}</UIProvider>;
@@ -41,6 +41,16 @@ describe("splitArgs", () => {
       "@modelcontextprotocol/server-everything",
     ]);
     expect(splitArgs("")).toEqual([]);
+  });
+});
+
+describe("parseEnv", () => {
+  it("parses KEY=value lines, keeps later '=' in the value, drops blanks/comments", () => {
+    expect(parseEnv("GITHUB_TOKEN=ghp_x\n# a note\n\nB64=aGk=\nbad line\n")).toEqual({
+      GITHUB_TOKEN: "ghp_x",
+      B64: "aGk=",
+    });
+    expect(parseEnv("")).toEqual({});
   });
 });
 

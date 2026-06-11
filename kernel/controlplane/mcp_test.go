@@ -33,7 +33,7 @@ func TestMCP_WireRoundTrip(t *testing.T) {
 	conn := &wireMCPConn{}
 	_, _, c, _ := startPairWithConfig(t, runtime.Config{
 		Provider: mock.New(mock.FinalText("unused")),
-		MCPDialer: func(context.Context, string, []string) (mcp.Conn, error) {
+		MCPDialer: func(context.Context, string, []string, map[string]string) (mcp.Conn, error) {
 			return conn, nil
 		},
 	})

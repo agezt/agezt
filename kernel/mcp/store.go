@@ -53,8 +53,16 @@ type Server struct {
 	// attach/detach is a runtime operation independent of this flag.
 	Enabled     bool   `json:"enabled"`
 	Description string `json:"description,omitempty"`
-	CreatedMS   int64  `json:"created_ms"`
-	UpdatedMS   int64  `json:"updated_ms"`
+	// Env is an OPT-IN set of environment variables injected into THIS server's
+	// process on attach (M898) — e.g. {"GITHUB_PERSONAL_ACCESS_TOKEN": "..."}.
+	// The base environment stays scrubbed (the daemon's own AGEZT_*/secret vars
+	// never leak); only these explicit, operator-supplied entries are added, so a
+	// credentialed server (github/brave/slack) can get exactly the key it needs.
+	// Stored like Args (plaintext in the registry) — use a dedicated low-scope
+	// token. Redacted out of read APIs.
+	Env       map[string]string `json:"env,omitempty"`
+	CreatedMS int64             `json:"created_ms"`
+	UpdatedMS int64             `json:"updated_ms"`
 }
 
 // nameRe: lowercase letter first, then letters/digits. Deliberately NO
@@ -62,7 +70,15 @@ type Server struct {
 // Edict toolmap, so it must never contain the separator.
 var nameRe = regexp.MustCompile(`^[a-z][a-z0-9]{0,15}$`)
 
+// envKeyRe: a POSIX-ish environment variable name (letters/digits/underscore,
+// not starting with a digit). Keeps a malformed key from reaching exec.
+var envKeyRe = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+
 const maxArgs = 32
+
+// maxEnv caps how many env vars one server may carry (a sanity bound, not a
+// security boundary).
+const maxEnv = 32
 
 // Validate checks a server's user-supplied fields.
 func Validate(s Server) error {
@@ -78,6 +94,14 @@ func Validate(s Server) error {
 	for _, a := range s.Args {
 		if strings.TrimSpace(a) == "" {
 			return errors.New("mcp: empty arg")
+		}
+	}
+	if len(s.Env) > maxEnv {
+		return fmt.Errorf("mcp: at most %d env vars", maxEnv)
+	}
+	for k := range s.Env {
+		if !envKeyRe.MatchString(k) {
+			return fmt.Errorf("mcp: invalid env var name %q", k)
 		}
 	}
 	return nil

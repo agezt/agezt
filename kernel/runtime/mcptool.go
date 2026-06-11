@@ -77,7 +77,7 @@ func (k *Kernel) AttachMCPServer(ctx context.Context, corr, ref string) (mcp.Ser
 	if dial == nil {
 		dial = mcp.Dial
 	}
-	conn, err := dial(ctx, srv.Command, srv.Args)
+	conn, err := dial(ctx, srv.Command, srv.Args, srv.Env)
 	if err != nil {
 		return mcp.Server{}, nil, err
 	}

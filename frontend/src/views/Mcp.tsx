@@ -18,6 +18,8 @@ export interface MCPServer {
   description?: string;
   attached?: boolean;
   tool_count?: number;
+  // env values are redacted by the backend; only the key names come back (M898).
+  env_keys?: string[];
 }
 
 // serverNameOk mirrors the kernel's mcp name rule: lowercase letter first,
@@ -34,6 +36,22 @@ export function splitArgs(s: string): string[] {
   return s.split(/\s+/).filter(Boolean);
 }
 
+// parseEnv turns the form's "KEY=value" lines into the wire env map (M898).
+// Blank lines and lines without "=" are dropped; the value keeps any later "="
+// (e.g. a base64 token). Pure + unit-tested.
+export function parseEnv(s: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const line of (s || "").split("\n")) {
+    const t = line.trim();
+    if (!t || t.startsWith("#")) continue;
+    const eq = t.indexOf("=");
+    if (eq <= 0) continue;
+    const key = t.slice(0, eq).trim();
+    if (key) out[key] = t.slice(eq + 1).trim();
+  }
+  return out;
+}
+
 // CatalogEntry is one preset in the popular-servers gallery (M897). `args` is in
 // the form's space-separated shape; `needs` flags a path/secret the operator must
 // supply before it works. Names obey the kernel rule (≤16 lowercase alnum).
@@ -43,6 +61,9 @@ export interface CatalogEntry {
   args: string;
   description: string;
   needs?: string;
+  // env: names of environment variables this server needs — prefilled (with
+  // blank values) into the register form's env field for the operator to fill.
+  env?: string[];
 }
 
 // CATALOG: popular Model Context Protocol servers, offered as one-click examples.
@@ -55,12 +76,12 @@ export const CATALOG: CatalogEntry[] = [
   { name: "fetch", command: "uvx", args: "mcp-server-fetch", description: "Fetch a URL and return its content as clean markdown." },
   { name: "memory", command: "npx", args: "-y @modelcontextprotocol/server-memory", description: "Persistent knowledge-graph memory the model can read and write." },
   { name: "git", command: "uvx", args: "mcp-server-git --repository /path/to/repo", description: "Inspect and operate a local Git repository.", needs: "set the repo path in args" },
-  { name: "github", command: "npx", args: "-y @modelcontextprotocol/server-github", description: "GitHub API — issues, pull requests, repos, code search.", needs: "GITHUB_PERSONAL_ACCESS_TOKEN (env)" },
+  { name: "github", command: "npx", args: "-y @modelcontextprotocol/server-github", description: "GitHub API — issues, pull requests, repos, code search.", needs: "GITHUB_PERSONAL_ACCESS_TOKEN (env)", env: ["GITHUB_PERSONAL_ACCESS_TOKEN"] },
   { name: "postgres", command: "npx", args: "-y @modelcontextprotocol/server-postgres postgresql://user:pass@host/db", description: "Read-only SQL queries against a PostgreSQL database.", needs: "set the connection string in args" },
   { name: "sqlite", command: "uvx", args: "mcp-server-sqlite --db-path /path/to.db", description: "Query a local SQLite database file.", needs: "set the db path in args" },
   { name: "puppeteer", command: "npx", args: "-y @modelcontextprotocol/server-puppeteer", description: "Browser automation — navigate, click, fill, screenshot." },
-  { name: "brave", command: "npx", args: "-y @modelcontextprotocol/server-brave-search", description: "Web and local search via the Brave Search API.", needs: "BRAVE_API_KEY (env)" },
-  { name: "slack", command: "npx", args: "-y @modelcontextprotocol/server-slack", description: "Read and post messages across Slack channels.", needs: "SLACK_BOT_TOKEN + SLACK_TEAM_ID (env)" },
+  { name: "brave", command: "npx", args: "-y @modelcontextprotocol/server-brave-search", description: "Web and local search via the Brave Search API.", needs: "BRAVE_API_KEY (env)", env: ["BRAVE_API_KEY"] },
+  { name: "slack", command: "npx", args: "-y @modelcontextprotocol/server-slack", description: "Read and post messages across Slack channels.", needs: "SLACK_BOT_TOKEN + SLACK_TEAM_ID (env)", env: ["SLACK_BOT_TOKEN", "SLACK_TEAM_ID"] },
   { name: "gdrive", command: "npx", args: "-y @modelcontextprotocol/server-gdrive", description: "Search and read files in Google Drive.", needs: "OAuth credentials (env)" },
   { name: "time", command: "uvx", args: "mcp-server-time", description: "Current time and timezone conversions." },
   { name: "thinking", command: "npx", args: "-y @modelcontextprotocol/server-sequential-thinking", description: "A structured step-by-step reasoning scratchpad." },
@@ -98,6 +119,8 @@ export function NewServerForm({
       };
       const args = splitArgs(state.args || "");
       if (args.length > 0) server.args = args;
+      const env = parseEnv(state.env || "");
+      if (Object.keys(env).length > 0) server.env = env;
       await postJSON("/api/mcp/add", { server });
       onCreated(name);
     } catch (e) {
@@ -150,6 +173,19 @@ export function NewServerForm({
             className={inputCls}
           />
         </label>
+        <label className="flex flex-col gap-1 text-[11px] text-muted sm:col-span-2">
+          Environment (optional) — one <span className="font-mono">KEY=value</span> per line, injected only into this
+          server (e.g. an API token). The base environment stays scrubbed; values are stored in the registry and never
+          shown again, so use a dedicated low-scope token.
+          <textarea
+            value={state.env || ""}
+            onChange={(e) => set("env", e.target.value)}
+            placeholder={"GITHUB_PERSONAL_ACCESS_TOKEN=ghp_..."}
+            aria-label="Server environment"
+            rows={2}
+            className={cn(inputCls, "font-mono text-xs")}
+          />
+        </label>
       </div>
       <div className="mt-3 flex justify-end">
         <Button size="sm" onClick={create} disabled={!valid || submitting}>
@@ -177,7 +213,14 @@ export function Mcp() {
   const registered = new Set((servers || []).map((s) => s.name));
 
   function useCatalogEntry(e: CatalogEntry) {
-    setPrefill({ name: e.name, command: e.command, args: e.args, description: e.description });
+    setPrefill({
+      name: e.name,
+      command: e.command,
+      args: e.args,
+      description: e.description,
+      // Prefill blank KEY= lines so the operator just pastes the secret value.
+      env: (e.env || []).map((k) => `${k}=`).join("\n"),
+    });
     setShowCatalog(false);
     setShowForm(true);
   }
@@ -437,6 +480,11 @@ export function Mcp() {
                 {s.command}
                 {(s.args || []).length > 0 ? " " + (s.args || []).join(" ") : ""}
               </span>
+              {(s.env_keys || []).length > 0 && (
+                <span className="flex items-center gap-1 text-[11px]">
+                  <KeyRound className="h-3 w-3" /> env: {(s.env_keys || []).join(", ")}
+                </span>
+              )}
             </div>
             {s.description && <div className="mt-1 text-xs text-muted">{s.description}</div>}
           </li>
