@@ -52,6 +52,11 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   the Runs view. Purely frontend — reuses the existing event provider and read routes. (M867)
 
 ### Added
+- **Per-server MCP tool allowlist (M899).** Context-efficient MCP management (#39): a server can expose
+  only a chosen subset of its tools to runs via an optional `tool_allow` list, so a chatty server (github
+  ~30 tools) doesn't inject all its schemas into every run's context. Empty = all (unchanged default).
+  Enforced inside `mergeMCPTools` (no call-site change); the register form gains a Tools-allowlist field
+  and cards show `tools: …` when set. (M899)
 - **Per-server environment for MCP servers (M898).** Credentialed MCP servers (github, brave, slack, …)
   now work: each registration can carry an opt-in `env` map the operator supplies (e.g. an API token),
   injected only into *that* server on attach. The base environment stays **scrubbed** — the daemon's own

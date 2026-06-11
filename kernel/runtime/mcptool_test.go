@@ -105,6 +105,47 @@ func TestAttach_OffersAndForwardsBridgedTool(t *testing.T) {
 	}
 }
 
+// TestAttach_ToolAllowFilters: a server with a ToolAllow allowlist exposes only
+// the listed tools to a run — the others are kept out of context (M899).
+func TestAttach_ToolAllowFilters(t *testing.T) {
+	prov := mock.New(mock.FinalText("done"))
+	var first agent.CompletionRequest
+	seen := false
+	prov.OnRequest = func(r agent.CompletionRequest) {
+		if !seen {
+			first, seen = r, true
+		}
+	}
+	conn := &fakeMCPConn{tools: []mcp.ToolDef{{Name: "greet"}, {Name: "shout"}}}
+	k, _ := openMCPKernel(t, prov, conn)
+	if _, err := k.AddMCPServer("", mcp.Server{
+		Name: "fake", Command: "python", Args: []string{"s.py"}, ToolAllow: []string{"greet"},
+	}); err != nil {
+		t.Fatalf("AddMCPServer: %v", err)
+	}
+	if _, _, err := k.AttachMCPServer(context.Background(), "", "fake"); err != nil {
+		t.Fatalf("Attach: %v", err)
+	}
+	if _, err := k.RunWith(context.Background(), k.NewCorrelation(), "hi"); err != nil {
+		t.Fatalf("RunWith: %v", err)
+	}
+	var hasGreet, hasShout bool
+	for _, d := range first.Tools {
+		switch d.Name {
+		case "mcp_fake_greet":
+			hasGreet = true
+		case "mcp_fake_shout":
+			hasShout = true
+		}
+	}
+	if !hasGreet {
+		t.Errorf("allowed tool mcp_fake_greet not offered; tools = %v", toolNames(first.Tools))
+	}
+	if hasShout {
+		t.Errorf("filtered tool mcp_fake_shout was offered despite the allowlist")
+	}
+}
+
 // TestDetach_KillSwitch: after detach the connection is closed and the tools
 // vanish from the next run; double-attach is refused while live.
 func TestDetach_KillSwitch(t *testing.T) {

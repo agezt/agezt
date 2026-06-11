@@ -89,6 +89,7 @@ func TestValidateServer(t *testing.T) {
 		{"empty arg", func(s *Server) { s.Args = []string{"x", " "} }},
 		{"bad env key", func(s *Server) { s.Env = map[string]string{"BAD-KEY": "v"} }},
 		{"env key leading digit", func(s *Server) { s.Env = map[string]string{"1KEY": "v"} }},
+		{"empty tool in allowlist", func(s *Server) { s.ToolAllow = []string{"greet", "  "} }},
 	}
 	for _, tc := range cases {
 		s := ok
@@ -98,11 +99,12 @@ func TestValidateServer(t *testing.T) {
 		}
 	}
 
-	// A well-formed env (e.g. an API token) is accepted.
+	// A well-formed env (e.g. an API token) + tool allowlist are accepted.
 	good := ok
 	good.Env = map[string]string{"GITHUB_PERSONAL_ACCESS_TOKEN": "ghp_x", "FOO_BAR": "1"}
+	good.ToolAllow = []string{"create_issue", "search_code"}
 	if err := Validate(good); err != nil {
-		t.Errorf("valid env rejected: %v", err)
+		t.Errorf("valid env/tool-allow rejected: %v", err)
 	}
 }
 
