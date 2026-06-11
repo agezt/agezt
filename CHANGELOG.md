@@ -25,6 +25,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   `delegate` tool now coaches the leader pattern and prefers reusing an existing named agent. (M843)
 
 ### Added
+- **Overseer supervisory dashboard (M862).** A new read-only view (Agents → Overseer) that folds three
+  existing read routes into one at-a-glance triage screen, refreshing every 5s: the **Active runs** panel
+  (runs still `running`, with model/iters/start time and a sub-agent tag for delegated runs), an
+  **enabled / total** agent headline, and a **Needs attention** panel of open (unanswered) help requests
+  and broadcasts. Headline stat cards tint accent/amber when non-zero. Purely frontend — reuses
+  `/api/runs`, `/api/agents`, `/api/board/help`; adds no route and mutates nothing. (M862)
 - **Built-in data-analysis skill bundle (M861).** A third out-of-the-box skill (after browser-use and
   computer-use), seeded active at startup: crunch real data with pandas. `scripts/analyze.py` loads a
   CSV/Excel/JSON/Parquet file and returns a JSON summary (shape, dtypes, describe, head) plus optional
