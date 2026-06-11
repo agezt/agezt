@@ -183,7 +183,9 @@ var readArgsRoutes = map[string]writeRoute{
 	// read one resource's content. Both read-only; the daemon path-confines reads.
 	"/api/skill/files": {controlplane.CmdSkillFiles, []string{"id"}},
 	"/api/skill/file":  {controlplane.CmdSkillReadFile, []string{"id", "path"}},
-	"/api/policy_log":  {controlplane.CmdEdictLog, []string{"limit", "denied"}},
+	// Skill hygiene (M858): active skills that look idle (never/long-unused). Read-only.
+	"/api/skills/hygiene": {controlplane.CmdSkillHygiene, []string{"idle_days"}},
+	"/api/policy_log":     {controlplane.CmdEdictLog, []string{"limit", "denied"}},
 	// Resolved HITL approval history (M773): a timeline of past approval requests
 	// joined with their granted/denied/timeout outcome. Read-only.
 	"/api/approvals_log": {controlplane.CmdApprovalsLog, []string{"limit", "denied"}},

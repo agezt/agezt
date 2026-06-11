@@ -918,6 +918,11 @@ const (
 
 	// CmdSkillFiles lists a skill's on-disk bundle resources (M847).
 	// Args: id (required). Returns: { id, name, files: [...], dir, count }
+	// CmdSkillHygiene reports active skills that look idle (never used, or not used
+	// in idle_days) — the cleanup view (M858). Args: idle_days (optional; default
+	// 30). Returns: { idle_days, total, active, idle:[...], idle_count }
+	CmdSkillHygiene = "skill_hygiene"
+
 	CmdSkillFiles = "skill_files"
 
 	// CmdSkillReadFile returns one bundle resource's text content (M847).

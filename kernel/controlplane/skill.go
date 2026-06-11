@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"time"
 
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/skill"
@@ -284,6 +285,33 @@ func (s *Server) handleSkillReadFile(conn net.Conn, req Request) {
 		ID: req.ID, Type: RespResult,
 		Result: map[string]any{"id": sk.ID, "name": sk.Name, "path": path, "content": string(data), "bytes": len(data)},
 	})
+}
+
+// handleSkillHygiene reports which active skills look idle (never used, or not
+// used in idle_days) so an operator can prune dead weight from the retrieval pool
+// (M858). Read-only; the cleanup action is the existing CmdSkillQuarantine.
+func (s *Server) handleSkillHygiene(conn net.Conn, req Request) {
+	days := dlInt(req.Args, "idle_days")
+	if days <= 0 {
+		days = 30
+	}
+	cutoff := time.Now().Add(-time.Duration(days) * 24 * time.Hour).UnixMilli()
+	rep, err := s.k.Forge().Hygiene(cutoff)
+	if err != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		return
+	}
+	idle := make([]any, 0, len(rep.Idle))
+	for _, sk := range rep.Idle {
+		v := skillView(sk)
+		v["uses"] = sk.Metrics.Uses
+		v["last_used_ms"] = sk.Metrics.LastUsedMS
+		idle = append(idle, v)
+	}
+	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{
+		"idle_days": days, "total": rep.Total, "active": rep.Active,
+		"idle": idle, "idle_count": len(idle),
+	}})
 }
 
 func isSkillKind(k event.Kind) bool {

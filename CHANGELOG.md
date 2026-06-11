@@ -25,6 +25,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   `delegate` tool now coaches the leader pattern and prefers reusing an existing named agent. (M843)
 
 ### Added
+- **Skill hygiene — find and retire idle skills (M858).** The pair to memory prune: the Skills view now
+  surfaces active skills that are never used or long-unused (skills already track use counts), in a
+  collapsible "idle skills" strip, each with a one-click **retire** (quarantine — reversible). Brand-new
+  skills get a grace period so a freshly promoted one isn't flagged. Backed by `Forge.Hygiene` +
+  `CmdSkillHygiene` / `/api/skills/hygiene` (default 30-day idle threshold). Keeps the retrieval pool
+  sharp. (M858)
 - **Memory prune — reclaim soft-deleted records (M857).** Memory consolidation (the LLM "sleep cycle")
   already merges related records, but it and `forget` only soft-delete — the superseded/tombstoned rows
   pile up forever. A new prune hard-removes soft-deleted records older than a threshold (default 30 days,
