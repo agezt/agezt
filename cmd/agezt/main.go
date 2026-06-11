@@ -57,6 +57,7 @@ import (
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/governor"
+	kernelmemory "github.com/agezt/agezt/kernel/memory"
 	"github.com/agezt/agezt/kernel/netguard"
 	"github.com/agezt/agezt/kernel/openaiapi"
 	"github.com/agezt/agezt/kernel/plugin"
@@ -90,6 +91,7 @@ import (
 	"github.com/agezt/agezt/plugins/channels/whatsapp"
 	"github.com/agezt/agezt/plugins/providers/anthropic"
 	"github.com/agezt/agezt/plugins/providers/compat"
+	"github.com/agezt/agezt/plugins/providers/embed"
 	"github.com/agezt/agezt/plugins/providers/mock"
 	"github.com/agezt/agezt/plugins/tools/acpagent"
 	artifactstool "github.com/agezt/agezt/plugins/tools/artifacts"
@@ -287,7 +289,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 	}
 	edictEng := edict.New(edictOpts)
 
-	tools, pluginManifest, toolsDesc, err := buildTools(baseDir, stderr, ward)
+	tools, pluginManifest, pluginToolCaps, toolsDesc, err := buildTools(baseDir, stderr, ward)
 	if err != nil {
 		fmt.Fprintf(stderr, "%s: %v\n", brand.Binary, err)
 		return 1
@@ -526,11 +528,31 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// extra provider calls per run, so the operator opts in.
 	shadowEval := strings.EqualFold(os.Getenv(brand.EnvPrefix+"SKILL_SHADOWEVAL"), "on")
 
+	// Provider embeddings for memory recall (M901, DECISIONS C5 opt-in): when
+	// AGEZT_EMBED_URL + AGEZT_EMBED_MODEL are both set, recall ranks by TRUE
+	// semantic similarity from an OpenAI-compatible /v1/embeddings endpoint —
+	// a local Ollama ("http://localhost:11434" + nomic-embed-text, zero cost,
+	// no key) or a hosted API (api.openai.com/v1 + text-embedding-3-small +
+	// AGEZT_EMBED_KEY). Unset (default) keeps the local feature-hash embedder.
+	// Recall falls back to local on any embedder failure, so a wrong URL
+	// degrades quality, never availability.
+	var memEmbedder kernelmemory.Embedder
+	if embedURL := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "EMBED_URL")); embedURL != "" {
+		embedModel := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "EMBED_MODEL"))
+		if embedModel == "" {
+			fmt.Fprintf(stderr, "%s: %sEMBED_URL is set but %sEMBED_MODEL is empty — provider embeddings disabled\n", brand.Binary, brand.EnvPrefix, brand.EnvPrefix)
+		} else {
+			memEmbedder = embed.New(embedURL, embedModel, strings.TrimSpace(os.Getenv(brand.EnvPrefix+"EMBED_KEY")))
+		}
+	}
+
 	cfg := kernelruntime.Config{
 		BaseDir:                    baseDir,
 		Provider:                   gov, // Governor implements agent.Provider
 		Tools:                      tools,
 		Plugins:                    pluginManifest,
+		ToolCapabilities:           pluginToolCaps, // M900: manifest-declared policy axes
+
 		Model:                      model,
 		System:                     os.Getenv(brand.EnvPrefix + "SYSTEM_PROMPT"),
 		Warden:                     ward,
@@ -541,6 +563,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 		MemoryDistill:              memOn,
 		MemoryTopK:                 5,
 		MemoryDistillMinTools:      4,
+		MemoryEmbedder:             memEmbedder, // M901: provider embeddings opt-in (nil = local hashing)
 		WorldInject:                worldOn,
 		WorldTool:                  worldOn,
 		WorldTopK:                  5,
@@ -632,6 +655,19 @@ func runDaemon(stdout, stderr io.Writer) int {
 			return 1
 		}
 		cfg.AutoContinueWait = d
+	}
+
+	// In-turn parallel tool dispatch (M880): AGEZT_PARALLEL_TOOLS caps how many
+	// tool calls from ONE assistant turn execute concurrently. Defaults to the
+	// agent package's DefaultMaxParallelTools; 1 disables (strictly sequential).
+	// Malformed or non-positive is a hard startup error (fast feedback).
+	if spec := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "PARALLEL_TOOLS")); spec != "" {
+		n, perr := strconv.Atoi(spec)
+		if perr != nil || n <= 0 {
+			fmt.Fprintf(stderr, "%s: %sPARALLEL_TOOLS: want a positive integer, got %q\n", brand.Binary, brand.EnvPrefix, spec)
+			return 1
+		}
+		cfg.MaxParallelTools = n
 	}
 
 	// Per-tool-call timeout (M34): AGEZT_TOOL_TIMEOUT=<duration> bounds each
@@ -1804,7 +1840,7 @@ func makeChannelHandler(k *kernelruntime.Kernel) channel.InboundHandler {
 	limit := channelHistoryLimit()
 	return func(hctx context.Context, msg channel.UnifiedMessage, corr string) (string, error) {
 		intent := msg.Text
-		if h := channel.ConversationHistory(k.Journal(), msg.ChannelKind, msg.ChannelID, msg.Sender, limit); h != "" {
+		if h := channel.ConversationHistory(k.Journal(), msg.ChannelKind, msg.ChannelID, msg.ThreadID, msg.Sender, limit); h != "" {
 			intent = h
 		}
 		// Inbound image attachments (M247): forward them to the run the same way
@@ -3790,6 +3826,9 @@ func buildCadence(ctx context.Context, k *kernelruntime.Kernel, stdout io.Writer
 		return err
 	}
 	eng := cadence.NewEngine(store, run, 0, stdout)
+	// Injection tripwire (M886): a suspicious scheduled intent journals an
+	// anomaly.detected warning on every firing (it still fires — default-allow).
+	eng.Bus = k.Bus()
 	// Backstop each firing with a deadline so a single hung run can't permanently
 	// stall its schedule (its in-flight guard would never clear). Default 1h is
 	// generous for any reasonable agentic run; AGEZT_SCHEDULE_RUN_TIMEOUT overrides
@@ -4156,8 +4195,22 @@ func buildGovernor(cat *catalog.Catalog, lookup func(string) string) (*governor.
 		}
 	}
 
+	// Opt-in LLM response cache (M888): AGEZT_LLM_CACHE_TTL=<duration> serves
+	// an IDENTICAL completion request from memory within the TTL — no provider
+	// call, no spend. Off when unset (an LLM is not a pure function; chat
+	// regenerate wants fresh samples). Malformed = hard startup error.
+	var respCacheTTL time.Duration
+	if spec := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "LLM_CACHE_TTL")); spec != "" {
+		d, derr := time.ParseDuration(spec)
+		if derr != nil || d < 0 {
+			return nil, "", "", fmt.Errorf("%sLLM_CACHE_TTL: want a non-negative Go duration (e.g. 5m), got %q", brand.EnvPrefix, spec)
+		}
+		respCacheTTL = d
+	}
+
 	gov, err := governor.New(governor.Config{
 		Registry:                reg,
+		ResponseCacheTTL:        respCacheTTL,
 		DailyCeilingMicrocents:  ceiling,
 		RateLimitPerMin:         ratePerMin,
 		TaskRoutes:              taskRoutes,
@@ -4522,7 +4575,7 @@ func workspaceRoot(baseDir string) string {
 	return filepath.Join(baseDir, "workspace")
 }
 
-func buildTools(baseDir string, stderr io.Writer, ward warden.Engine) (map[string]agent.Tool, []kernelruntime.PluginInfo, string, error) {
+func buildTools(baseDir string, stderr io.Writer, ward warden.Engine) (map[string]agent.Tool, []kernelruntime.PluginInfo, map[string]string, string, error) {
 	out := map[string]agent.Tool{}
 	var registered []string
 	// Manifest of external plugins that successfully spawned.
@@ -4530,6 +4583,10 @@ func buildTools(baseDir string, stderr io.Writer, ward warden.Engine) (map[strin
 	// plane can serve `agt plugin list`. Stays nil when no
 	// AGEZT_PLUGINS entries are configured.
 	var manifestEntries []kernelruntime.PluginInfo
+	// Declared tool capabilities from plugin manifests (M900): prefixed tool
+	// name → Edict capability the plugin claims to belong to. Validated by the
+	// kernel at Open (unknown axes dropped). Stays nil without plugins.
+	var toolCaps map[string]string
 
 	// Workspace root — both the file tool (scoped to it) and the shell tool (runs
 	// in it, M609) use this so `dir`/`ls` (shell) and `file read x` (file) agree
@@ -4548,7 +4605,7 @@ func buildTools(baseDir string, stderr io.Writer, ward warden.Engine) (map[strin
 	// file — scoped to the same workspace root.
 	ft, err := filetool.New(wsRoot)
 	if err != nil {
-		return nil, nil, "", fmt.Errorf("file tool: %w", err)
+		return nil, nil, nil, "", fmt.Errorf("file tool: %w", err)
 	}
 	out["file"] = ft
 	registered = append(registered, "file(root="+ft.Root()+")")
@@ -4787,13 +4844,13 @@ func buildTools(baseDir string, stderr io.Writer, ward warden.Engine) (map[strin
 		if peerSpec != "" || tenantSpec != "" {
 			peers, err := peer.ParsePeers(peerSpec)
 			if err != nil {
-				return nil, nil, "", fmt.Errorf("AGEZT_PEERS: %w", err)
+				return nil, nil, nil, "", fmt.Errorf("AGEZT_PEERS: %w", err)
 			}
 			// Per-tenant peer sets (M219): a tenant's runs route against its own peers,
 			// falling back to the global set. Parsed/validated up front like AGEZT_PEERS.
 			tenantPeers, terr := peer.ParseTenantPeers(tenantSpec)
 			if terr != nil {
-				return nil, nil, "", fmt.Errorf("AGEZT_TENANT_PEERS: %w", terr)
+				return nil, nil, nil, "", fmt.Errorf("AGEZT_TENANT_PEERS: %w", terr)
 			}
 			if pt := peer.NewWithTenants(peers, tenantPeers); pt != nil {
 				out["remote_run"] = pt
@@ -4825,7 +4882,7 @@ func buildTools(baseDir string, stderr io.Writer, ward warden.Engine) (map[strin
 		if pinSpec := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "PLUGIN_PINS")); pinSpec != "" {
 			parsed, err := plugin.ParsePinSpec(pinSpec)
 			if err != nil {
-				return nil, nil, "", fmt.Errorf("AGEZT_PLUGIN_PINS: %w", err)
+				return nil, nil, nil, "", fmt.Errorf("AGEZT_PLUGIN_PINS: %w", err)
 			}
 			pins = parsed
 		}
@@ -4834,7 +4891,7 @@ func buildTools(baseDir string, stderr io.Writer, ward warden.Engine) (map[strin
 		if allowSpec := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "PLUGIN_TOOLS")); allowSpec != "" {
 			parsed, err := plugin.ParseToolAllowlistSpec(allowSpec)
 			if err != nil {
-				return nil, nil, "", fmt.Errorf("AGEZT_PLUGIN_TOOLS: %w", err)
+				return nil, nil, nil, "", fmt.Errorf("AGEZT_PLUGIN_TOOLS: %w", err)
 			}
 			allowedTools = parsed
 		}
@@ -4846,7 +4903,7 @@ func buildTools(baseDir string, stderr io.Writer, ward warden.Engine) (map[strin
 		// rejecting it surfaces the typo instead.
 		entries, err := plugin.ParsePluginSpec(spec)
 		if err != nil {
-			return nil, nil, "", fmt.Errorf("AGEZT_PLUGINS: %w", err)
+			return nil, nil, nil, "", fmt.Errorf("AGEZT_PLUGINS: %w", err)
 		}
 		usedPrefixes := make([]string, 0, len(entries))
 		// Scrub secrets of known formats from plugin stderr before it reaches the
@@ -4874,6 +4931,7 @@ func buildTools(baseDir string, stderr io.Writer, ward warden.Engine) (map[strin
 				continue
 			}
 			pluginTools := p.Tools(prefix + ".")
+			declaredCaps := p.ToolCapabilities(prefix + ".") // M900: manifest-declared policy axes
 			loadedCount := 0
 			for name, tool := range pluginTools {
 				if _, conflict := out[name]; conflict {
@@ -4882,6 +4940,12 @@ func buildTools(baseDir string, stderr io.Writer, ward warden.Engine) (map[strin
 				}
 				out[name] = tool
 				loadedCount++
+				if cap, ok := declaredCaps[name]; ok {
+					if toolCaps == nil {
+						toolCaps = map[string]string{}
+					}
+					toolCaps[name] = cap
+				}
 			}
 			registered = append(registered, fmt.Sprintf("plugin:%s(%d tools)", prefix, len(pluginTools)))
 			// Record manifest entry. tool_count is the post-conflict
@@ -4908,7 +4972,7 @@ func buildTools(baseDir string, stderr io.Writer, ward warden.Engine) (map[strin
 		}
 	}
 
-	return out, manifestEntries, strings.Join(registered, ", "), nil
+	return out, manifestEntries, toolCaps, strings.Join(registered, ", "), nil
 }
 
 // newDemoMock returns a Provider scripted with the canonical M0.5 demo:
