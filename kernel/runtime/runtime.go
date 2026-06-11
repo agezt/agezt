@@ -341,6 +341,13 @@ type Config struct {
 	// model can't see them. Nil disables the vision sidecar.
 	VisionModel func() (modelID string, ok bool)
 
+	// ModelAvailable, when set, reports whether a model id can actually be served
+	// by a registered+credentialed provider. The daemon (cmd/agezt) injects it
+	// (it owns the keyed set). Delegation uses it to drop unkeyed models from a
+	// sub-agent's model chain (M838 bugfix) so a delegate never runs on a provider
+	// with no API key. Nil → no filtering (the historical behaviour; tests).
+	ModelAvailable func(modelID string) bool
+
 	// CouncilMembers, when set, returns the default Council of Elders membership
 	// (M837) — one seat per keyed provider's best model, so the council speaks
 	// across providers. Injected by the daemon (cmd/agezt), which owns the

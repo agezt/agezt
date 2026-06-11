@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/agezt/agezt/kernel/agent"
@@ -148,6 +149,25 @@ func (k *Kernel) runSubAgent(ctx context.Context, task, model, taskType, agentRe
 	}
 	if k.IsHalted() {
 		return "", ErrHalted
+	}
+
+	// Build the effective model chain (M787): the chosen model first, then the
+	// profile's ordered fallbacks. Restrict to KEYED models (M838 bugfix) — an
+	// unkeyed explicit model or fallback would fail to route mid-delegation, so
+	// drop it; if nothing keyed remains, fall back to the daemon default. Done
+	// HERE (before the spawn is journaled and the child runs) so the recorded and
+	// executed model is the one actually used. No-op when ModelAvailable is unset.
+	var modelChain []string
+	if prof != nil && len(prof.Fallbacks) > 0 {
+		modelChain = []string{subModel}
+		for _, m := range prof.Fallbacks {
+			if m = strings.TrimSpace(m); m != "" && m != subModel {
+				modelChain = append(modelChain, m)
+			}
+		}
+	}
+	if avail := k.cfg.ModelAvailable; avail != nil {
+		subModel, modelChain = keyedModelChain(subModel, modelChain, avail, k.cfg.Model)
 	}
 
 	depth := depthFromCtx(ctx)
@@ -302,20 +322,13 @@ func (k *Kernel) runSubAgent(ctx context.Context, task, model, taskType, agentRe
 	// first (an explicit delegate model still wins the front slot), walked
 	// in order by the Governor; duplicates of the primary are skipped.
 	var maxRunCost, agentDailyMc int64
-	var modelChain []string
 	var agentSlug string
 	if prof != nil {
 		maxRunCost = prof.MaxCostMc
 		agentSlug, agentDailyMc = prof.Slug, prof.MaxDailyMc // M793: identity ledger
-		if len(prof.Fallbacks) > 0 {
-			modelChain = []string{subModel}
-			for _, m := range prof.Fallbacks {
-				if m = strings.TrimSpace(m); m != "" && m != subModel {
-					modelChain = append(modelChain, m)
-				}
-			}
-		}
 	}
+	// modelChain + subModel were resolved (and keyed-filtered) above, before the
+	// spawn was journaled.
 
 	answer, err := agent.Run(childCtx, agent.LoopConfig{
 		Provider:             k.cfg.Provider,
@@ -419,4 +432,41 @@ func budgetCostMicrocents(payload json.RawMessage) int64 {
 		return 0
 	}
 	return int64(p.Cost)
+}
+
+// keyedModelChain restricts a delegation's effective model chain to models a
+// KEYED provider can serve (M838 bugfix). It folds subModel + the profile chain
+// into one de-duped ordered list, keeps only those for which avail() is true,
+// and — if nothing keyed survives — falls back to def (the daemon's active,
+// keyed model). Returns the chosen primary model and the chain (nil when a single
+// model, matching the pre-filter convention). A nil/empty result leaves the
+// caller's values unchanged.
+func keyedModelChain(subModel string, modelChain []string, avail func(string) bool, def string) (string, []string) {
+	chain := []string{}
+	if subModel != "" {
+		chain = append(chain, subModel)
+	}
+	for _, m := range modelChain {
+		if m != "" && !slices.Contains(chain, m) {
+			chain = append(chain, m)
+		}
+	}
+	kept := make([]string, 0, len(chain))
+	for _, m := range chain {
+		if avail(m) {
+			kept = append(kept, m)
+		}
+	}
+	if len(kept) == 0 {
+		if d := strings.TrimSpace(def); d != "" {
+			kept = append(kept, d)
+		}
+	}
+	if len(kept) == 0 {
+		return subModel, modelChain // nothing to do; keep originals
+	}
+	if len(kept) == 1 {
+		return kept[0], nil
+	}
+	return kept[0], kept
 }
