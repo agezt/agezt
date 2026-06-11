@@ -52,6 +52,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   the Runs view. Purely frontend — reuses the existing event provider and read routes. (M867)
 
 ### Added
+- **Per-server environment for MCP servers (M898).** Credentialed MCP servers (github, brave, slack, …)
+  now work: each registration can carry an opt-in `env` map the operator supplies (e.g. an API token),
+  injected only into *that* server on attach. The base environment stays **scrubbed** — the daemon's own
+  `AGEZT_*`/secret vars never leak — so a server gets exactly the key it needs and nothing more. Values are
+  redacted out of read APIs (only `env_keys` come back) and never echoed in the UI; the register form gains
+  a `KEY=value` field and the popular-servers catalog prefills the needed key names. Builds on #39 / the
+  M897 catalog. (M898)
 - **Popular MCP servers catalog (M897).** The MCP view gains a **Popular servers** gallery — 14 curated
   one-click presets (everything, filesystem, fetch, memory, git, github, postgres, sqlite, puppeteer,
   brave, slack, gdrive, time, sequential-thinking) so you can stand up a well-known Model Context Protocol

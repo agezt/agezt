@@ -37,7 +37,7 @@ func openMCPKernel(t *testing.T, prov agent.Provider, conn *fakeMCPConn) (*runti
 	k, err := runtime.Open(runtime.Config{
 		BaseDir:  t.TempDir(),
 		Provider: prov,
-		MCPDialer: func(_ context.Context, command string, args []string) (mcp.Conn, error) {
+		MCPDialer: func(_ context.Context, command string, args []string, _ map[string]string) (mcp.Conn, error) {
 			dials++
 			return conn, nil
 		},

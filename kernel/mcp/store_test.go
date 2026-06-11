@@ -87,6 +87,8 @@ func TestValidateServer(t *testing.T) {
 		{"leading digit", func(s *Server) { s.Name = "9fake" }},
 		{"empty command", func(s *Server) { s.Command = "  " }},
 		{"empty arg", func(s *Server) { s.Args = []string{"x", " "} }},
+		{"bad env key", func(s *Server) { s.Env = map[string]string{"BAD-KEY": "v"} }},
+		{"env key leading digit", func(s *Server) { s.Env = map[string]string{"1KEY": "v"} }},
 	}
 	for _, tc := range cases {
 		s := ok
@@ -94,5 +96,33 @@ func TestValidateServer(t *testing.T) {
 		if err := Validate(s); err == nil {
 			t.Errorf("%s: accepted", tc.label)
 		}
+	}
+
+	// A well-formed env (e.g. an API token) is accepted.
+	good := ok
+	good.Env = map[string]string{"GITHUB_PERSONAL_ACCESS_TOKEN": "ghp_x", "FOO_BAR": "1"}
+	if err := Validate(good); err != nil {
+		t.Errorf("valid env rejected: %v", err)
+	}
+}
+
+func TestAppendEnv(t *testing.T) {
+	base := []string{"PATH=/bin", "HOME=/home/me"}
+	out := appendEnv(base, map[string]string{"TOKEN": "secret"})
+	var got string
+	for _, kv := range out {
+		if kv == "TOKEN=secret" {
+			got = kv
+		}
+	}
+	if got == "" {
+		t.Errorf("appendEnv did not inject TOKEN=secret: %v", out)
+	}
+	if len(out) != len(base)+1 {
+		t.Errorf("appendEnv len = %d, want %d", len(out), len(base)+1)
+	}
+	// Nil/empty extra returns the base unchanged.
+	if same := appendEnv(base, nil); len(same) != len(base) {
+		t.Errorf("appendEnv(nil) changed the base: %v", same)
 	}
 }

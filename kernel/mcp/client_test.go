@@ -193,7 +193,7 @@ func TestDial_LivePythonServer(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	conn, err := Dial(ctx, py, []string{script})
+	conn, err := Dial(ctx, py, []string{script}, nil)
 	if err != nil {
 		t.Fatalf("Dial: %v", err)
 	}

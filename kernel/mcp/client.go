@@ -60,8 +60,9 @@ type Conn interface {
 }
 
 // Dialer spawns + handshakes one server. The runtime takes it as a seam so
-// tests can attach fakes; Dial is the production implementation.
-type Dialer func(ctx context.Context, command string, args []string) (Conn, error)
+// tests can attach fakes; Dial is the production implementation. env is the
+// server's opt-in extra environment (M898), injected on top of the scrubbed base.
+type Dialer func(ctx context.Context, command string, args []string, env map[string]string) (Conn, error)
 
 // jsonrpc wire shapes (only what this client speaks).
 type rpcRequest struct {
@@ -98,10 +99,13 @@ type clientConn struct {
 // Dial spawns command args... and completes the MCP handshake + tool
 // discovery. The child gets a SCRUBBED environment — PATH and friends, never
 // AGEZT_* or secret-shaped variables — so a registered server can't read the
-// daemon's keys out of its env.
-func Dial(ctx context.Context, command string, args []string) (Conn, error) {
+// daemon's keys out of its env. The optional env map (M898) is the operator's
+// explicit per-server opt-in (e.g. an API token); those entries are injected on
+// top of the scrubbed base, so a credentialed server gets exactly what it needs
+// without un-scrubbing the daemon's ambient secrets.
+func Dial(ctx context.Context, command string, args []string, env map[string]string) (Conn, error) {
 	cmd := exec.Command(command, args...)
-	cmd.Env = scrubbedEnv()
+	cmd.Env = appendEnv(scrubbedEnv(), env)
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
 		return nil, fmt.Errorf("mcp: stdin: %w", err)
@@ -281,6 +285,22 @@ func (c *clientConn) send(req rpcRequest) error {
 	}
 	_, err = c.stdin.Write(append(b, '\n'))
 	return err
+}
+
+// appendEnv overlays the operator's explicit per-server env (M898) onto the
+// scrubbed base. These are the values the operator typed for THIS server, so they
+// are allowed through even when secret-shaped (that's the point) — the scrub still
+// governs everything inherited from the daemon's own environment. A later entry
+// for the same key wins.
+func appendEnv(base []string, extra map[string]string) []string {
+	if len(extra) == 0 {
+		return base
+	}
+	out := append([]string(nil), base...)
+	for k, v := range extra {
+		out = append(out, k+"="+v)
+	}
+	return out
 }
 
 // scrubbedEnv builds the child environment: harmless OS variables only
