@@ -52,6 +52,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   the Runs view. Purely frontend — reuses the existing event provider and read routes. (M867)
 
 ### Added
+- **Built-in archive-tools skill bundle (M890).** A tenth out-of-the-box skill that packs/unpacks zip and
+  tar(.gz) archives (#34) — **zero pip deps** (Python stdlib only). `scripts/arc.py` has four ops: `list`
+  (entries without extracting), `extract` (path-traversal-guarded — refuses zip-slip members), `zip`, and
+  `tar`; archive names keep the input folder and normalize to forward slashes. Closes the output pipeline:
+  bundle image-tools PNGs / data-analysis CSVs / pdf-tools exports into one zip → artifacts → Files. Rides
+  the `plugins/builtinskills` seeder. (M890)
 - **Built-in sql-db skill bundle (M889).** A ninth out-of-the-box skill that queries SQL databases —
   SQLite, PostgreSQL, MySQL — completing the data story (#34). `scripts/db.py` is one SQLAlchemy helper
   with four ops: `tables`, `schema`, `query` (parameterised SELECT → JSON rows, capped + `truncated`
