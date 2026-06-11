@@ -133,6 +133,15 @@ const (
 	// network — low risk, Allow by default (M682), so a "summarise AGEZT's health"
 	// task can actually see everything instead of guessing.
 	CapIntrospect Capability = "introspect"
+	// CapOversee gates the `overseer` tool: a privileged "brain" agent supervising
+	// and INTERVENING on the rest of the system — cancel a runaway run, halt or
+	// resume the whole daemon, pause / retire / revive other agents, triage the
+	// open help requests (M850). High blast radius (it can stop everything), but
+	// every action goes through the kernel's own journaled, reversible methods —
+	// the same controls an operator has. Allow by default per the default-allow
+	// posture, with its OWN knob so an owner can opt OUT of autonomous oversight
+	// without disabling delegation.
+	CapOversee Capability = "oversee"
 	// CapCodeExec gates the `code_exec` tool: the agent WRITING and RUNNING
 	// arbitrary code (Python / Node / Deno) to compute, scrape, and build things
 	// (M683). A high-blast-radius capability — code can read/write the sandbox
@@ -639,7 +648,7 @@ func AllCapabilities() []Capability {
 		CapACPAgent, CapRemoteRun, CapNotify,
 		CapHomeAssistantRead, CapHomeAssistantCall,
 		CapBrowserRead, CapMemory, CapWorld, CapWebSearch, CapSchedule, CapRunsRead, CapStanding, CapBoard, CapSkill,
-		CapIntrospect, CapCodeExec, CapToolForge, CapMCPInstall, CapMCP, CapConfigRead, CapConfigWrite,
+		CapIntrospect, CapOversee, CapCodeExec, CapToolForge, CapMCPInstall, CapMCP, CapConfigRead, CapConfigWrite,
 		CapWorkflow,
 	}
 	slices.Sort(caps)

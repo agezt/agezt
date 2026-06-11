@@ -19,6 +19,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   `delegate` tool now coaches the leader pattern and prefers reusing an existing named agent. (M843)
 
 ### Added
+- **Overseer tool — a brain agent that supervises and intervenes (M850).** A new `overseer` tool gives a
+  privileged agent the operator's own controls over the whole fleet: see the daemon `status`, list
+  `agents` and their state, list the `runs` in flight, and triage open `help` requests — then intervene:
+  `cancel` one run, `halt`/`resume` the whole daemon, `pause`/`unpause`, `retire`/`revive` an agent
+  (with impact). Every action routes through the kernel's journaled, reversible methods, so autonomous
+  oversight is as auditable as an operator's. Gated by a new allow-by-default `oversee` capability with
+  its own opt-out knob; backed by a new `Kernel.ActiveRunIDs()` for the live in-flight run set. (M850)
 - **Agent mailbox — broadcast + help requests (M849).** The shared board is now a full mailbox: on top
   of directed agent-to-agent DMs, an agent can `op=broadcast` an announcement to every agent's inbox, or
   `op=help` to ask for assistance — broadcast to all (or directed with `to=<slug>`), it stays open until

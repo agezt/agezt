@@ -961,6 +961,22 @@ func (k *Kernel) ActiveRuns() int {
 	return len(k.runs)
 }
 
+// ActiveRunIDs returns the correlation ids of the runs in flight right now —
+// the live keys of the cancel registry, sorted for determinism. This is the
+// "what is running" the overseer (M850) cancels by id, distinct from the
+// journal-derived run history (CmdRunsList): these are exactly the runs a
+// CancelRun can still stop. Safe under concurrent run starts/completes.
+func (k *Kernel) ActiveRunIDs() []string {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	ids := make([]string, 0, len(k.runs))
+	for corr := range k.runs {
+		ids = append(ids, corr)
+	}
+	slices.Sort(ids)
+	return ids
+}
+
 // StartTime returns the wall-clock time Open() returned. Used by
 // `agt status` to compute uptime; not adjusted by Reload or any
 // in-process state change, so it reflects "since this process

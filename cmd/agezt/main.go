@@ -107,6 +107,7 @@ import (
 	"github.com/agezt/agezt/plugins/tools/introspecttool"
 	"github.com/agezt/agezt/plugins/tools/mcptool"
 	"github.com/agezt/agezt/plugins/tools/notify"
+	"github.com/agezt/agezt/plugins/tools/overseertool"
 	"github.com/agezt/agezt/plugins/tools/peer"
 	"github.com/agezt/agezt/plugins/tools/runstool"
 	scheduletool "github.com/agezt/agezt/plugins/tools/schedule"
@@ -355,6 +356,12 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// guessing. Registered now, Bound to the live kernel after it opens.
 	introspectToolInst := introspecttool.New()
 	tools["introspect"] = introspectToolInst
+
+	// Overseer tool (`overseer`, M850): the brain/overseer agent supervises and
+	// intervenes on the fleet — list/cancel runs, halt/resume the daemon, pause/
+	// retire/revive agents, triage open help. Registered now, Bound after open.
+	overseerToolInst := overseertool.New()
+	tools["overseer"] = overseerToolInst
 
 	// Tool-forge tool (`tool_forge`, M794): the agent builds its OWN tools —
 	// drafts a script, tests it in the code_exec sandbox, and once the operator
@@ -1520,6 +1527,12 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// the daemon's own health/schedules/standing-orders in one call.
 	introspectToolInst.Bind(introspecttool.NewKernelSource(k))
 	fmt.Fprintf(stdout, "  introspect tool  : enabled (the agent can read the daemon's own live state)\n")
+
+	// Bind the overseer tool to the live kernel (M850), so a brain/overseer agent
+	// can supervise and intervene on the fleet — cancel runs, halt/resume, pause/
+	// retire/revive agents, triage open help. baseDir locates the board it reads.
+	overseerToolInst.Bind(overseertool.NewKernelSource(k, baseDir))
+	fmt.Fprintf(stdout, "  overseer tool    : enabled (a brain agent can supervise & intervene on the fleet)\n")
 
 	// Bind the code-execution tool to the live bus (M683) so each run journals a
 	// code.executed event. The tool itself was constructed in buildTools (it needed
