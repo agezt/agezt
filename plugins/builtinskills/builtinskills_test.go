@@ -160,6 +160,42 @@ func TestSeedAll_InstallsDockerServices(t *testing.T) {
 	}
 }
 
+func TestSeedAll_InstallsGitOps(t *testing.T) {
+	f := newForge(t)
+	seeded, err := SeedAll(f, "")
+	if err != nil {
+		t.Fatalf("SeedAll: %v", err)
+	}
+	var got *Seeded
+	for i := range seeded {
+		if seeded[i].Name == "git-ops" {
+			got = &seeded[i]
+		}
+	}
+	if got == nil {
+		t.Fatalf("git-ops not seeded: %+v", seeded)
+	}
+	if got.Status != skill.StatusActive {
+		t.Errorf("git-ops status = %q, want active", got.Status)
+	}
+	flow, err := f.Bundles().Read("git-ops", "scripts/gitflow.sh")
+	if err != nil || len(flow) == 0 {
+		t.Fatalf("git-ops gitflow.sh unreadable/empty: %v", err)
+	}
+	files, _ := f.Bundles().List("git-ops")
+	want := map[string]bool{"scripts/gitflow.sh": false, "reference/recipes.md": false}
+	for _, rel := range files {
+		if _, ok := want[rel]; ok {
+			want[rel] = true
+		}
+	}
+	for rel, found := range want {
+		if !found {
+			t.Errorf("git-ops bundle missing %q (got %v)", rel, files)
+		}
+	}
+}
+
 func TestSeedAll_Idempotent(t *testing.T) {
 	f := newForge(t)
 	if _, err := SeedAll(f, ""); err != nil {
