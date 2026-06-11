@@ -98,6 +98,35 @@ func (i *Index) PutEntry(meta Entry, data []byte, createdMs int64) (Entry, error
 	return meta, nil
 }
 
+// IndexRef records a metadata Entry for an ALREADY-stored blob (by content ref),
+// without re-storing the bytes — used to index outputs the agent offloaded itself
+// (the tool.result raw_ref). The ref must exist in the blob store. Size is filled
+// from the store when meta.Size is 0.
+func (i *Index) IndexRef(ref string, meta Entry, createdMs int64) (Entry, error) {
+	ok, err := i.store.Has(ref)
+	if err != nil {
+		return Entry{}, err
+	}
+	if !ok {
+		return Entry{}, ErrNotFound
+	}
+	meta.ID = "art-" + ulid.New()
+	meta.Ref = ref
+	meta.CreatedMs = createdMs
+	if meta.Size == 0 {
+		if sz, serr := i.store.Size(ref); serr == nil {
+			meta.Size = sz
+		}
+	}
+	i.mu.Lock()
+	i.entries[meta.ID] = meta
+	i.mu.Unlock()
+	if err := i.writeMeta(meta); err != nil {
+		return Entry{}, err
+	}
+	return meta, nil
+}
+
 func (i *Index) writeMeta(e Entry) error {
 	b, err := json.MarshalIndent(e, "", "  ")
 	if err != nil {
