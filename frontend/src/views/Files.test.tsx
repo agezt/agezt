@@ -18,7 +18,7 @@ vi.mock("@/components/ui/feedback", () => ({
   useUI: () => ({ confirm: (...a: unknown[]) => confirm(...a), toast }),
 }));
 
-import { Files, isImage, rawURL } from "@/views/Files";
+import { Files, isImage, rawURL, isPdf, textKind } from "@/views/Files";
 
 afterEach(cleanup);
 beforeEach(() => {
@@ -40,6 +40,20 @@ describe("pure helpers", () => {
     const dl = rawURL({ id: "1", ref: "abc", mime: "image/png", name: "x.png" }, true);
     expect(dl).toContain("download=1");
     expect(dl).toContain("name=x.png");
+  });
+  it("isPdf by mime or extension", () => {
+    expect(isPdf({ id: "1", ref: "r", mime: "application/pdf" })).toBe(true);
+    expect(isPdf({ id: "1", ref: "r", name: "report.PDF" })).toBe(true);
+    expect(isPdf({ id: "1", ref: "r", mime: "text/plain" })).toBe(false);
+  });
+  it("textKind classifies markdown/json/code/text and binary", () => {
+    expect(textKind({ id: "1", ref: "r", mime: "text/markdown" })).toBe("markdown");
+    expect(textKind({ id: "1", ref: "r", name: "notes.md" })).toBe("markdown");
+    expect(textKind({ id: "1", ref: "r", mime: "application/json" })).toBe("json");
+    expect(textKind({ id: "1", ref: "r", name: "main.go" })).toBe("code");
+    expect(textKind({ id: "1", ref: "r", name: "data.csv", mime: "text/csv" })).toBe("text");
+    expect(textKind({ id: "1", ref: "r", mime: "application/octet-stream" })).toBe("");
+    expect(textKind({ id: "1", ref: "r", mime: "image/png" })).toBe("");
   });
 });
 
