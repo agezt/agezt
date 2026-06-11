@@ -2304,6 +2304,9 @@ func injectEnvironment(system, workspaceRoot string, tools map[string]agent.Tool
 	if brief := capabilityBriefing(tools); brief != "" {
 		b.WriteString(brief)
 	}
+	if bias := forgeBias(tools); bias != "" {
+		b.WriteString(bias)
+	}
 	b.WriteString("Some capabilities require operator approval and may be denied; if a call is denied, adapt your approach rather than repeating it.\n")
 
 	if system != "" {
@@ -2350,6 +2353,37 @@ func capabilityBriefing(tools map[string]agent.Tool) string {
 		b.WriteString("- Capture what works as a reusable skill — including bundled reference files and scripts — so future runs reuse it (skill op=learn / op=files / op=read).\n")
 	}
 	b.WriteString("Default to action: prefer doing the work over asking whether you're allowed. The only real limits are explicit — a denied approval, a spend budget, and the network/secret guards (no SSRF, secrets stay redacted). Everything else is yours to use.\n")
+	return b.String()
+}
+
+// forgeBias nudges the agent toward DETERMINISM and SELF-IMPROVEMENT (M902): for
+// work that must be exact, is repeatable, or you'll likely do again, prefer a
+// tool over ad-hoc reasoning — write a script so the result is deterministic and
+// re-runnable, forge a recurring script into a durable tool, and capture what
+// works as a skill so it compounds across runs. Tuned to the tools present;
+// returns "" when none of code_exec / tool_forge / skill is available (nothing
+// to bias toward). Complements capabilityBriefing (which says what you CAN do)
+// with how to work well.
+func forgeBias(tools map[string]agent.Tool) string {
+	_, hasCode := tools["code_exec"]
+	_, hasForge := tools["tool_forge"]
+	_, hasSkill := tools["skill"]
+	if !hasCode && !hasForge && !hasSkill {
+		return ""
+	}
+	var b strings.Builder
+	b.WriteString("## Prefer deterministic tools — and improve your own\n")
+	b.WriteString("For work that must be exact, is repeatable, or you'll likely do again, reach for a tool instead of reasoning it out by hand each time:\n")
+	if hasCode {
+		b.WriteString("- Write a script (code_exec) so the result is deterministic, checkable, and re-runnable — not re-derived (and error-prone) each turn. Computation, parsing, transforms, and anything with exact rules belong in code.\n")
+	}
+	if hasForge {
+		b.WriteString("- When a one-off script recurs, forge it into a durable tool (tool_forge) so the capability persists and the next run just calls it.\n")
+	}
+	if hasSkill {
+		b.WriteString("- Check existing skills/tools before re-deriving one, and capture a working approach as a reusable skill (skill op=learn) so it's there next time.\n")
+	}
+	b.WriteString("Treat each run as self-improvement: when you hit a capability gap, build the tool that closes it — you finish faster and more reliably every time after.\n")
 	return b.String()
 }
 

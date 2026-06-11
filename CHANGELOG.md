@@ -12,6 +12,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Forge bias — prefer deterministic tools + self-improvement (M902).** Each run's environment preamble
+  now carries a short "prefer deterministic tools — and improve your own" nudge after the capability
+  briefing (#42): for work that must be exact, is repeatable, or recurs, write a script (code_exec) for a
+  deterministic re-runnable result, forge a recurring script into a durable tool (tool_forge), and capture
+  a working approach as a reusable skill — checking existing skills/tools before re-deriving. Tuned to the
+  tools present (no nudge for absent tools); reaches main, sub-agent, and workflow runs via
+  `injectEnvironment`. Descriptive guidance, not a hard rail. (M902)
 - **In-turn parallel tool dispatch (M880).** When the model issues several tool calls in one assistant
   turn, the loop now executes them concurrently (default cap 4; `AGEZT_PARALLEL_TOOLS` overrides, `1` =
   strictly sequential) instead of one-at-a-time. Gating (loop guard, policy) and its journaling stay
