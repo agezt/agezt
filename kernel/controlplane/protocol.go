@@ -490,6 +490,13 @@ const (
 	// Args: id : string. Returns: deleted : bool.
 	CmdArtifactDelete = "artifact_delete"
 
+	// CmdArtifactCollect reaps STALE artifacts older than a threshold (M845) — the
+	// dead-file collector. With dry_run (default) it only reports the candidates;
+	// without it, they are deleted (blobs GC'd when unreferenced).
+	// Args: older_than_days : number (default 30); dry_run : bool (default true).
+	// Returns: dry_run, count, bytes, cutoff_ms, candidates ([]entry when dry_run).
+	CmdArtifactCollect = "artifact_collect"
+
 	// Personal Data Lake (M836) — the Web UI Data view + CLI read/manage the
 	// agent-built structured collections (kernel/datalake, M834/M835).
 	//

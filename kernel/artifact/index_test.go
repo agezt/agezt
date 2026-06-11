@@ -129,3 +129,36 @@ func TestIndex_PersistsAcrossReopen(t *testing.T) {
 		t.Fatalf("entry not persisted across reopen: %+v ok=%v", got, ok)
 	}
 }
+
+func TestIndex_StaleAndCollect(t *testing.T) {
+	idx, _ := openIdx(t)
+	// created_ms: old=100, mid=500, new=1000.
+	old, _ := idx.PutEntry(artifact.Entry{Kind: "tool-output", Source: "run"}, []byte("oldlog"), 100)
+	_, _ = idx.PutEntry(artifact.Entry{Kind: "tool-output", Source: "run"}, []byte("midlog"), 500)
+	newE, _ := idx.PutEntry(artifact.Entry{Kind: "image", Source: "telegram"}, []byte("freshpng"), 1000)
+
+	// Stale before 600 → the two oldest (100, 500), oldest-first.
+	stale := idx.StaleEntries(600)
+	if len(stale) != 2 || stale[0].ID != old.ID {
+		t.Fatalf("StaleEntries(600) = %d entries, first=%v want 2 oldest-first", len(stale), stale[0].ID)
+	}
+	// An entry with no created time is never stale.
+	noTime, _ := idx.PutEntry(artifact.Entry{Kind: "x"}, []byte("notime"), 0)
+	for _, e := range idx.StaleEntries(1 << 62) {
+		if e.ID == noTime.ID {
+			t.Error("an entry with created_ms<=0 must not be considered stale")
+		}
+	}
+
+	// Collect before 600 removes the two oldest and reports their byte sum.
+	n, bytes := idx.Collect(600)
+	if n != 2 || bytes != int64(len("oldlog")+len("midlog")) {
+		t.Fatalf("Collect(600) = (%d, %d), want (2, %d)", n, bytes, len("oldlog")+len("midlog"))
+	}
+	if _, ok := idx.Get(old.ID); ok {
+		t.Error("old entry should be gone after Collect")
+	}
+	if _, ok := idx.Get(newE.ID); !ok {
+		t.Error("fresh entry must survive Collect")
+	}
+}

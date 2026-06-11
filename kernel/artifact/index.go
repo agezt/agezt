@@ -169,6 +169,42 @@ func (i *Index) List(f Filter) []Entry {
 	return out
 }
 
+// StaleEntries returns the entries created strictly before olderThanMs, OLDEST
+// first — the collector's candidates for removal (M845). Entries with no creation
+// time (CreatedMs<=0) are never considered stale, so a malformed entry isn't
+// reaped by accident.
+func (i *Index) StaleEntries(olderThanMs int64) []Entry {
+	i.mu.Lock()
+	out := make([]Entry, 0)
+	for _, e := range i.entries {
+		if e.CreatedMs > 0 && e.CreatedMs < olderThanMs {
+			out = append(out, e)
+		}
+	}
+	i.mu.Unlock()
+	sort.Slice(out, func(a, b int) bool {
+		if out[a].CreatedMs != out[b].CreatedMs {
+			return out[a].CreatedMs < out[b].CreatedMs // oldest first
+		}
+		return out[a].ID < out[b].ID
+	})
+	return out
+}
+
+// Collect deletes the entries created before olderThanMs and returns how many
+// were removed and the summed bytes of their entries (the blob is GC'd by Delete
+// only when no surviving entry references it, so freed disk may be ≤ bytes). The
+// collector (M845) runs this after the operator confirms a dry-run.
+func (i *Index) Collect(olderThanMs int64) (collected int, bytes int64) {
+	for _, e := range i.StaleEntries(olderThanMs) {
+		if err := i.Delete(e.ID); err == nil {
+			collected++
+			bytes += e.Size
+		}
+	}
+	return collected, bytes
+}
+
 // Get returns the Entry for id.
 func (i *Index) Get(id string) (Entry, bool) {
 	i.mu.Lock()

@@ -102,6 +102,37 @@ export function Files() {
   const images = shown.filter(isImage);
   const files = shown.filter((e) => !isImage(e));
 
+  // collect reaps stale artifacts (M845): a dry-run reports the candidates, then a
+  // confirm actually deletes them — the operator's "onaylı" path.
+  const COLLECT_DAYS = 30;
+  async function collect() {
+    try {
+      const dry = await postAction<{ count: number; bytes: number }>("/api/artifact/collect", {
+        older_than_days: String(COLLECT_DAYS),
+        dry_run: "true",
+      });
+      if (!dry.count) {
+        ui.toast(`Nothing to collect — no files older than ${COLLECT_DAYS} days.`, "success");
+        return;
+      }
+      const ok = await ui.confirm({
+        title: `Collect ${dry.count} stale file${dry.count === 1 ? "" : "s"}?`,
+        message: `Permanently delete artifacts older than ${COLLECT_DAYS} days (~${humanSize(dry.bytes)}). The most recent files are kept.`,
+        confirmLabel: "Collect",
+        danger: true,
+      });
+      if (!ok) return;
+      const res = await postAction<{ count: number; bytes: number }>("/api/artifact/collect", {
+        older_than_days: String(COLLECT_DAYS),
+        dry_run: "false",
+      });
+      ui.toast(`Collected ${res.count} file${res.count === 1 ? "" : "s"} (~${humanSize(res.bytes)}).`, "success");
+      reload();
+    } catch (e) {
+      ui.toast((e as Error).message, "error");
+    }
+  }
+
   async function del(e: ArtifactEntry) {
     const ok = await ui.confirm({
       title: "Delete artifact?",
@@ -141,7 +172,10 @@ export function Files() {
             </button>
           ))}
         </div>
-        <Button variant="ghost" size="sm" className="ml-auto" onClick={reload} disabled={loading} title="Reload">
+        <Button variant="ghost" size="sm" className="ml-auto" onClick={collect} disabled={loading || entries.length === 0} title={`Collect stale files (older than ${COLLECT_DAYS} days)`}>
+          <Trash2 className="size-3.5" /> Collect
+        </Button>
+        <Button variant="ghost" size="sm" onClick={reload} disabled={loading} title="Reload">
           <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
         </Button>
       </div>
