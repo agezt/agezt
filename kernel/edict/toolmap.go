@@ -132,6 +132,10 @@ func CapabilityForToolCall(toolName string, input json.RawMessage) Capability {
 		return CapWorld
 	case "delegate":
 		return CapDelegate
+	case "council":
+		// Convening the council fans out to several model completions — a multi-
+		// model consultation, the same axis as delegate, so it reuses that grant.
+		return CapDelegate
 	case "coding":
 		return CapCoding
 	case "acp_agent":

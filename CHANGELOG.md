@@ -12,6 +12,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Council of Elders — a multi-model consensus panel (M837).** New `council` tool convenes a panel
+  of advisors, each on a DIFFERENT keyed provider/model, that give independent opinions, deliberate
+  (seeing each other's positions), and converge to a chair-synthesized **consensus** (with any dissent
+  recorded). Any agent can consult it for hard or high-stakes decisions; membership defaults to one
+  best model per keyed provider (never an unkeyed one) and is overridable via `AGEZT_COUNCIL_MEMBERS`.
+  Journaled as `council.convened/opinion/consensus`. A Council Web UI view follows. (M837)
 - **Data Lake Web UI — a "Data Lake" view (M836).** The Personal Data Lake is now browsable and
   editable from the console: pick a collection in the sidebar, search/sort its records in a table, and
   add / edit / delete rows by hand (the agent fills the same collections via the `db` tool). Backed by
