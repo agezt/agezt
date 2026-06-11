@@ -101,6 +101,29 @@ func TestSeedAll_InstallsComputerUse(t *testing.T) {
 	}
 }
 
+func TestSeedAll_InstallsDataAnalysis(t *testing.T) {
+	f := newForge(t)
+	if _, err := SeedAll(f, ""); err != nil {
+		t.Fatalf("SeedAll: %v", err)
+	}
+	driver, err := f.Bundles().Read("data-analysis", "scripts/analyze.py")
+	if err != nil || len(driver) == 0 {
+		t.Fatalf("data-analysis analyze.py unreadable/empty: %v", err)
+	}
+	files, _ := f.Bundles().List("data-analysis")
+	want := map[string]bool{"scripts/analyze.py": false, "scripts/setup.sh": false, "reference/recipes.md": false}
+	for _, rel := range files {
+		if _, ok := want[rel]; ok {
+			want[rel] = true
+		}
+	}
+	for rel, found := range want {
+		if !found {
+			t.Errorf("data-analysis bundle missing %q (got %v)", rel, files)
+		}
+	}
+}
+
 func TestSeedAll_Idempotent(t *testing.T) {
 	f := newForge(t)
 	if _, err := SeedAll(f, ""); err != nil {
