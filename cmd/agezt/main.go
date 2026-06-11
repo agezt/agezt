@@ -818,6 +818,12 @@ func runDaemon(stdout, stderr io.Writer) int {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	// Index offloaded tool outputs (M827): watch tool.result events carrying a
+	// raw_ref (the agent stored a large output in the blob store) and add a
+	// browsable artifact-index entry, so the file manager lists run outputs
+	// alongside inbound images. Best-effort; lives on the daemon ctx.
+	wireArtifactIndexer(ctx, k)
+
 	srv := controlplane.NewServer(k, baseDir)
 	srv.SetConfigEnvPinned(configPinned) // M693: Config Center marks env-pinned fields read-only
 	// Cancel-on-disconnect (M35): when AGEZT_CANCEL_ON_DISCONNECT=on, a
@@ -4112,6 +4118,60 @@ func buildFromCatalog(entry *catalog.Provider, modelOverride string, lookup func
 	}
 	desc := fmt.Sprintf("%s(catalog; family=%s, model=%s)", entry.ID, entry.Family(), modelID)
 	return prov, desc, modelID, auth, nil
+}
+
+// wireArtifactIndexer subscribes to the bus and indexes every offloaded tool
+// output (M827): a tool.result event with a raw_ref means the agent stored a
+// large output in the blob store, so we add a metadata index entry pointing at
+// that ref (kind=tool-output, source=run, the tool name, the run correlation).
+// The file manager then lists run outputs alongside inbound images. Best-effort:
+// an index failure is silently skipped — it must never disturb a run. The
+// subscription lives on the daemon ctx and ends when the daemon stops.
+func wireArtifactIndexer(ctx context.Context, k *kernelruntime.Kernel) {
+	idx := k.ArtifactIndex()
+	if idx == nil {
+		return
+	}
+	sub, err := k.Bus().Subscribe(">", 256)
+	if err != nil {
+		return
+	}
+	go func() {
+		defer sub.Cancel()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case ev, ok := <-sub.C:
+				if !ok {
+					return
+				}
+				if ev.Kind != event.KindToolResult {
+					continue
+				}
+				var p struct {
+					RawRef      string `json:"raw_ref"`
+					Tool        string `json:"tool"`
+					OutputBytes int64  `json:"output_bytes"`
+				}
+				if json.Unmarshal(ev.Payload, &p) != nil || p.RawRef == "" {
+					continue
+				}
+				name := p.Tool
+				if name == "" {
+					name = "tool"
+				}
+				_, _ = idx.IndexRef(p.RawRef, artifact.Entry{
+					Kind:   "tool-output",
+					Source: "run",
+					Name:   fmt.Sprintf("%s-output.txt", name),
+					Mime:   "text/plain",
+					Corr:   ev.CorrelationID,
+					Size:   p.OutputBytes,
+				}, time.Now().UnixMilli())
+			}
+		}
+	}()
 }
 
 // wireNetguardAudit points the http/browser tools' egress-guard OnBlock at the

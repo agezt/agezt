@@ -85,6 +85,35 @@ func TestIndex_DeleteGCsOrphanBlobButKeepsShared(t *testing.T) {
 	}
 }
 
+func TestIndex_IndexRefForAlreadyStoredBlob(t *testing.T) {
+	dir := t.TempDir()
+	st, _ := artifact.Open(dir)
+	idx, _ := artifact.OpenIndex(st, dir)
+
+	// Simulate the agent's offload: bytes are already in the blob store by ref.
+	ref, err := st.Put([]byte("a big tool output …"))
+	if err != nil {
+		t.Fatalf("Put: %v", err)
+	}
+
+	e, err := idx.IndexRef(ref, artifact.Entry{Kind: "tool-output", Source: "run", Name: "shell-output.txt", Corr: "run-1"}, 42)
+	if err != nil {
+		t.Fatalf("IndexRef: %v", err)
+	}
+	if e.Ref != ref || e.Size == 0 || e.CreatedMs != 42 || e.Corr != "run-1" {
+		t.Fatalf("entry not filled from store: %+v", e)
+	}
+	got := idx.List(artifact.Filter{Kind: "tool-output"})
+	if len(got) != 1 || got[0].ID != e.ID {
+		t.Fatalf("tool-output not listed: %+v", got)
+	}
+
+	// A ref that isn't in the store is rejected (no phantom entry).
+	if _, err := idx.IndexRef("00ff", artifact.Entry{Kind: "tool-output"}, 1); err == nil {
+		t.Error("IndexRef of an absent ref should fail")
+	}
+}
+
 func TestIndex_PersistsAcrossReopen(t *testing.T) {
 	idx, dir := openIdx(t)
 	e, _ := idx.PutEntry(artifact.Entry{Kind: "image", Source: "telegram", Caption: "kept"}, []byte("X"), 5)
