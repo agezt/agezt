@@ -340,6 +340,42 @@ func TestSeedAll_InstallsSQLDB(t *testing.T) {
 	}
 }
 
+func TestSeedAll_InstallsArchiveTools(t *testing.T) {
+	f := newForge(t)
+	seeded, err := SeedAll(f, "")
+	if err != nil {
+		t.Fatalf("SeedAll: %v", err)
+	}
+	var got *Seeded
+	for i := range seeded {
+		if seeded[i].Name == "archive-tools" {
+			got = &seeded[i]
+		}
+	}
+	if got == nil {
+		t.Fatalf("archive-tools not seeded: %+v", seeded)
+	}
+	if got.Status != skill.StatusActive {
+		t.Errorf("archive-tools status = %q, want active", got.Status)
+	}
+	drv, err := f.Bundles().Read("archive-tools", "scripts/arc.py")
+	if err != nil || len(drv) == 0 {
+		t.Fatalf("archive-tools arc.py unreadable/empty: %v", err)
+	}
+	files, _ := f.Bundles().List("archive-tools")
+	want := map[string]bool{"scripts/arc.py": false, "reference/recipes.md": false}
+	for _, rel := range files {
+		if _, ok := want[rel]; ok {
+			want[rel] = true
+		}
+	}
+	for rel, found := range want {
+		if !found {
+			t.Errorf("archive-tools bundle missing %q (got %v)", rel, files)
+		}
+	}
+}
+
 func TestSeedAll_Idempotent(t *testing.T) {
 	f := newForge(t)
 	if _, err := SeedAll(f, ""); err != nil {
