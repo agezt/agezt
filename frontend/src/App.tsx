@@ -6,6 +6,7 @@ import {
   Waypoints,
   Scale,
   Users,
+  Eye,
   Radar,
   Waves,
   HeartPulse,
@@ -81,6 +82,7 @@ import { Search as SearchView } from "@/views/Search";
 import { Replay } from "@/views/Replay";
 import { Agents } from "@/views/Agents";
 import { Roster } from "@/views/Roster";
+import { Overseer } from "@/views/Overseer";
 import { Toolforge } from "@/views/Toolforge";
 import { Mcp } from "@/views/Mcp";
 import { Workflows } from "@/views/Workflows";
@@ -169,6 +171,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { id: "agents", label: "Agents", icon: Waypoints, render: Agents },
       { id: "roster", label: "Roster", icon: Users, render: Roster },
+      { id: "overseer", label: "Overseer", icon: Eye, render: Overseer },
       { id: "council", label: "Council", icon: Scale, render: Council },
       { id: "toolforge", label: "Tool Forge", icon: Hammer, render: Toolforge },
       { id: "mcp", label: "MCP Servers", icon: Plug, render: Mcp },
