@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { ErrorText } from "@/components/JsonView";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { useUI } from "@/components/ui/feedback";
+import { rawURL, type ArtifactEntry } from "@/views/Files";
 
 // COMMON_CHANNELS pre-fills the kind picker with the channels the daemon can carry;
 // the field stays free-text so an unlisted kind still works.
@@ -52,6 +53,10 @@ export function Inbox() {
   const { events } = useEvents();
   const ui = useUI();
   const [threads, setThreads] = useState<Thread[] | null>(null);
+  // Inbound images persisted as artifacts (M822/M828), grouped by the run
+  // correlation that brought them — the SAME key the inbox threads are grouped by
+  // (the channel handler runs under that corr), so a thread's images render inline.
+  const [imagesByCorr, setImagesByCorr] = useState<Record<string, ArtifactEntry[]>>({});
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [showSend, setShowSend] = useState(false);
@@ -65,6 +70,18 @@ export function Inbox() {
       const d = await getJSON<{ threads?: Thread[] }>("/api/inbox", { limit: "50" });
       setThreads(d.threads || []);
       setErr(null);
+      // Pull the inbound images and bucket them by correlation for inline display.
+      try {
+        const imgs = await getJSON<{ entries?: ArtifactEntry[] }>("/api/artifacts", { kind: "image" });
+        const byCorr: Record<string, ArtifactEntry[]> = {};
+        for (const e of imgs.entries || []) {
+          if (!e.corr) continue;
+          (byCorr[e.corr] ||= []).push(e);
+        }
+        setImagesByCorr(byCorr);
+      } catch {
+        /* images are a nicety — a failure here never breaks the inbox */
+      }
     } catch (e) {
       setErr((e as Error).message);
     } finally {
@@ -196,6 +213,22 @@ export function Inbox() {
                   );
                 })}
               </ul>
+              {(imagesByCorr[th.correlation_id]?.length ?? 0) > 0 && (
+                <div className="mt-2 flex flex-wrap gap-1.5 border-t border-border pt-2">
+                  {imagesByCorr[th.correlation_id].map((e) => (
+                    <a
+                      key={e.id}
+                      href={rawURL(e)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title={e.caption || e.name || "image"}
+                      className="block size-16 overflow-hidden rounded-md border border-border bg-panel"
+                    >
+                      <img src={rawURL(e)} alt={e.caption || "image"} className="size-full object-cover" loading="lazy" />
+                    </a>
+                  ))}
+                </div>
+              )}
             </div>
             ));
           })()}
