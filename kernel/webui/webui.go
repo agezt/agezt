@@ -173,7 +173,9 @@ var readArgsRoutes = map[string]writeRoute{
 	"/api/artifacts": {controlplane.CmdArtifactList, []string{"kind", "source", "corr"}},
 	// Personal Data Lake records query (M836): one collection, filtered/sorted/paged.
 	"/api/data/records": {controlplane.CmdDataRecords, []string{"collection", "search", "sort", "desc", "limit", "offset"}},
-	"/api/policy_log":   {controlplane.CmdEdictLog, []string{"limit", "denied"}},
+	// Agent graveyard impact (M846): what standing orders fire this agent. Read-only.
+	"/api/agents/impact": {controlplane.CmdAgentImpact, []string{"ref"}},
+	"/api/policy_log":    {controlplane.CmdEdictLog, []string{"limit", "denied"}},
 	// Resolved HITL approval history (M773): a timeline of past approval requests
 	// joined with their granted/denied/timeout outcome. Read-only.
 	"/api/approvals_log": {controlplane.CmdApprovalsLog, []string{"limit", "denied"}},
@@ -277,6 +279,9 @@ var writeRoutes = map[string]writeRoute{
 	// Agent roster lifecycle (M783): pause/resume/remove a named agent (ref = id or slug).
 	"/api/agents/enable": {controlplane.CmdAgentSetEnabled, []string{"ref", "enabled"}},
 	"/api/agents/remove": {controlplane.CmdAgentRemove, []string{"ref"}},
+	// Agent graveyard (M846): retire to / revive from the graveyard. POST-only.
+	"/api/agents/retire": {controlplane.CmdAgentRetire, []string{"ref"}},
+	"/api/agents/revive": {controlplane.CmdAgentRevive, []string{"ref"}},
 	// Script-tool forge lifecycle (M794): test runs the code in the sandbox and
 	// records the verdict; promote/quarantine move a TESTED tool in/out of
 	// production; remove deletes it. ref = id or name.

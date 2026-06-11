@@ -123,6 +123,9 @@ func (k *Kernel) runSubAgent(ctx context.Context, task, model, taskType, agentRe
 		if !ok {
 			return "", fmt.Errorf("unknown agent %q (agt agent list)", agentRef)
 		}
+		if p.Retired {
+			return "", fmt.Errorf("agent %q is retired — revive it first (agt agent revive %s)", p.Slug, p.Slug)
+		}
 		if !p.Enabled {
 			return "", fmt.Errorf("agent %q is paused (agt agent resume %s)", p.Slug, p.Slug)
 		}

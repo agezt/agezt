@@ -720,6 +720,12 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.handleAgentSetEnabled(conn, req)
 	case CmdAgentRemove:
 		s.handleAgentRemove(conn, req)
+	case CmdAgentImpact:
+		s.handleAgentImpact(conn, req)
+	case CmdAgentRetire:
+		s.handleAgentRetire(conn, req)
+	case CmdAgentRevive:
+		s.handleAgentRevive(conn, req)
 	case CmdToolforgeList:
 		s.handleToolforgeList(conn, req)
 	case CmdToolforgeShow:

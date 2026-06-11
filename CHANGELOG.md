@@ -19,6 +19,14 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   `delegate` tool now coaches the leader pattern and prefers reusing an existing named agent. (M843)
 
 ### Added
+- **Dead-agent graveyard — retire and revive (M846).** Agents you no longer need can be retired to a
+  graveyard instead of deleted: a retired agent is paused, delegation to it is refused ("agent is
+  retired — revive it first"), and it is greyed out under a "graveyard" marker in the Roster — but its
+  full profile is kept, so reviving it is one click (it comes back paused, for you to resume). Retiring
+  first reports the impact (which standing orders fire that agent) so nothing breaks silently, and every
+  retire/revive is journaled (`roster.updated` action `retired`/`revived`). New `agt agent retire` /
+  `agt agent revive` CLI verbs and `/api/agents/{retire,revive,impact}` routes. (Second half of the
+  reaper, after the M845 dead-file collector.) (M846)
 - **Dead-file collector in the Files view (M845).** A "Collect" button reaps stale artifacts older
   than 30 days: it runs a dry-run first (how many, how much space), then asks for confirmation before
   deleting — recent files are always kept, and the underlying blob is freed only when no entry still

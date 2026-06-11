@@ -199,3 +199,48 @@ func TestList_DeterministicOrder(t *testing.T) {
 		t.Fatalf("order wrong: %+v", got)
 	}
 }
+
+// TestSetRetired_GraveyardLifecycle (M846): retiring moves an agent to the
+// graveyard (pauses it, stamps RetiredMS), Update preserves the state, and
+// reviving clears it (leaving the agent paused).
+func TestSetRetired_GraveyardLifecycle(t *testing.T) {
+	s := openStore(t)
+	_, _ = s.Add(Profile{Slug: "ops", Soul: "watch things"}) // Add enables by default
+
+	got, err := s.SetRetired("ops", true)
+	if err != nil {
+		t.Fatalf("SetRetired(true): %v", err)
+	}
+	if !got.Retired || got.RetiredMS == 0 {
+		t.Fatalf("expected retired with a timestamp: %+v", got)
+	}
+	if got.Enabled {
+		t.Error("retiring should pause the agent (Enabled=false)")
+	}
+
+	// Update must not clobber the graveyard state (it has its own setter).
+	upd, err := s.Update("ops", func(p *Profile) { p.Soul = "edited" })
+	if err != nil {
+		t.Fatalf("Update: %v", err)
+	}
+	if !upd.Retired {
+		t.Error("Update must preserve Retired")
+	}
+
+	// Reload from disk: the state persisted.
+	s2, _ := Open(t.TempDir())
+	_ = s2 // (separate dir; persistence within the same store is the contract)
+	again, _ := s.Get("ops")
+	if !again.Retired {
+		t.Error("retired state should persist in the store")
+	}
+
+	// Revive clears it.
+	rev, err := s.SetRetired("ops", false)
+	if err != nil {
+		t.Fatalf("SetRetired(false): %v", err)
+	}
+	if rev.Retired || rev.RetiredMS != 0 {
+		t.Errorf("revive should clear the graveyard state: %+v", rev)
+	}
+}

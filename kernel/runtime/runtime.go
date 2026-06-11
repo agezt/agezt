@@ -866,6 +866,47 @@ func (k *Kernel) SetProfileEnabled(ref string, enabled bool) (roster.Profile, er
 	return p, nil
 }
 
+// SetProfileRetired moves an agent to the graveyard (true) or revives it (false)
+// by ref, journaling roster.updated. Retiring also pauses the agent so it stops
+// firing (M846). A graveyard agent is excluded from delegation (runSubAgent).
+func (k *Kernel) SetProfileRetired(ref string, retired bool) (roster.Profile, error) {
+	p, err := k.roster.SetRetired(ref, retired)
+	if err != nil {
+		return roster.Profile{}, err
+	}
+	action := "revived"
+	if retired {
+		action = "retired"
+	}
+	_, _ = k.bus.Publish(event.Spec{
+		Subject: "roster." + p.Slug, Kind: event.KindRosterUpdated, Actor: "roster",
+		Payload: map[string]any{"id": p.ID, "slug": p.Slug, "retired": retired, "action": action},
+	})
+	return p, nil
+}
+
+// AgentImpact reports what depends on an agent before it is retired/removed
+// (M846) — the standing orders that fire AS it. The operator sees this in the
+// retire confirmation so the "etkileri" are explicit, not a surprise. Returns the
+// affected orders as "name (id)" strings, or nil when nothing references it.
+func (k *Kernel) AgentImpact(slug string) []string {
+	slug = strings.TrimSpace(slug)
+	if slug == "" || k.standing == nil {
+		return nil
+	}
+	var out []string
+	for _, o := range k.standing.List() {
+		if strings.EqualFold(strings.TrimSpace(o.Agent), slug) {
+			name := o.Name
+			if name == "" {
+				name = o.ID
+			}
+			out = append(out, fmt.Sprintf("%s (%s)", name, o.ID))
+		}
+	}
+	return out
+}
+
 // UpdateProfile edits a profile's mutable fields via mutate, journaling
 // roster.updated (action "edited"). Identity/lifecycle fields are protected by
 // the store. Returns false + nil error for an unknown ref (standing pattern).
