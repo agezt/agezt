@@ -91,6 +91,7 @@ import (
 	"github.com/agezt/agezt/plugins/providers/compat"
 	"github.com/agezt/agezt/plugins/providers/mock"
 	"github.com/agezt/agezt/plugins/tools/acpagent"
+	artifactstool "github.com/agezt/agezt/plugins/tools/artifacts"
 	boardtool "github.com/agezt/agezt/plugins/tools/boardtool"
 	"github.com/agezt/agezt/plugins/tools/browser"
 	"github.com/agezt/agezt/plugins/tools/codeexec"
@@ -737,6 +738,11 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// owns it, so downloaded files are saved as browsable artifacts.
 	if fe, ok := tools["fetch"].(*fetch.Tool); ok {
 		fe.SetIndex(k.ArtifactIndex())
+	}
+	// Inject the artifact index into the artifacts tool (M832) so the agent can
+	// list/read/delete the files it has saved.
+	if af, ok := tools["artifacts"].(*artifactstool.Tool); ok {
+		af.SetIndex(k.ArtifactIndex())
 	}
 
 	// Wire the bus into the Governor and the Warden so their events
@@ -4493,6 +4499,14 @@ func buildTools(baseDir string, stderr io.Writer, ward warden.Engine) (map[strin
 	}
 	out["fetch"] = fe
 	registered = append(registered, "fetch(url→artifact)")
+
+	// artifacts — list/read/delete the files the agent has saved (fetch downloads,
+	// offloaded tool outputs, inbound images), so a file from one run is usable in a
+	// later one (M832). A read/list/delete view over the artifact index injected
+	// after the kernel opens. Always registered.
+	af := artifactstool.New()
+	out["artifacts"] = af
+	registered = append(registered, "artifacts(list/read/delete)")
 
 	// coding — external coding-agent bridge (P6-CODE). Registered only when
 	// AGEZT_CODING_CMD is set (the command that runs Claude Code / Codex / Aider
