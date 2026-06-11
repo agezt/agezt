@@ -255,30 +255,47 @@ func (k *Kernel) mergeMCPTools(tools map[string]agent.Tool) map[string]agent.Too
 	}
 	sort.Slice(live, func(i, j int) bool { return live[i].name < live[j].name })
 
-	// Per-server tool allowlists (M899): a server may expose only a chosen subset
-	// of its tools to runs, so a chatty server doesn't bloat every run's context.
-	// An empty/absent allowlist means "expose all" (the default).
-	allow := make(map[string]map[string]bool, len(live))
-	for _, lc := range live {
-		if srv, ok := k.mcpStore.Get(lc.name); ok && len(srv.ToolAllow) > 0 {
-			set := make(map[string]bool, len(srv.ToolAllow))
-			for _, t := range srv.ToolAllow {
-				set[t] = true
-			}
-			allow[lc.name] = set
-		}
-	}
-
 	out := make(map[string]agent.Tool, len(tools)+8)
 	for name, t := range tools {
 		out[name] = t
 	}
 	for _, lc := range live {
-		filter := allow[lc.name]
+		// Per-server config: ToolAllow (M899) trims which tools are exposed; Lazy
+		// (M906) collapses them into a single dispatcher. An empty/absent
+		// allowlist means "expose all"; lazy defaults off (eager injection).
+		var filter map[string]bool
+		lazy := false
+		if srv, ok := k.mcpStore.Get(lc.name); ok {
+			if len(srv.ToolAllow) > 0 {
+				filter = make(map[string]bool, len(srv.ToolAllow))
+				for _, t := range srv.ToolAllow {
+					filter[t] = true
+				}
+			}
+			lazy = srv.Lazy
+		}
+
+		// The exposed subset (after the allowlist).
+		exposed := make([]mcp.ToolDef, 0, len(lc.conn.Tools()))
 		for _, def := range lc.conn.Tools() {
 			if filter != nil && !filter[def.Name] {
-				continue // server has an allowlist and this tool isn't on it
+				continue
 			}
+			exposed = append(exposed, def)
+		}
+		if len(exposed) == 0 {
+			continue
+		}
+
+		if lazy {
+			// One dispatcher tool for the whole server — N schemas → 1.
+			name := "mcp_" + lc.name
+			if _, exists := out[name]; !exists {
+				out[name] = lazyMCPDispatch{name: name, server: lc.name, conn: lc.conn, tools: exposed}
+			}
+			continue
+		}
+		for _, def := range exposed {
 			name := mcpToolName(lc.name, def.Name)
 			if _, exists := out[name]; exists {
 				continue
@@ -320,6 +337,78 @@ func (t bridgedMCPTool) Invoke(ctx context.Context, raw json.RawMessage) (agent.
 	if err != nil {
 		if errors.Is(err, context.Canceled) {
 			return agent.Result{}, err // the run was cancelled, not the tool failing
+		}
+		return agent.Result{Output: t.name + ": " + err.Error(), IsError: true}, nil
+	}
+	if text == "" {
+		text = "(no output)"
+	}
+	return agent.Result{Output: text, IsError: isErr}, nil
+}
+
+// lazyMCPDispatch collapses one server's exposed tools into a single dispatcher
+// tool (mcp_<server>) for context efficiency (M906): instead of injecting each
+// tool's full input schema into every run, the run is offered ONE tool whose
+// `tool` argument is an enum of the server's tool names and whose `arguments`
+// is a freeform object the remote server validates. The tool descriptions are
+// listed in the dispatcher's own description so the model can still choose.
+type lazyMCPDispatch struct {
+	name   string // mcp_<server>
+	server string
+	conn   mcp.Conn
+	tools  []mcp.ToolDef // the exposed (allowlisted) subset
+}
+
+func (t lazyMCPDispatch) Definition() agent.ToolDef {
+	names := make([]string, 0, len(t.tools))
+	var b strings.Builder
+	fmt.Fprintf(&b, "Call a tool on the attached MCP server %q. Set \"tool\" to one of its tools and \"arguments\" to that tool's input object (the server validates it). Available tools:\n", t.server)
+	for _, d := range t.tools {
+		names = append(names, d.Name)
+		if desc := strings.TrimSpace(d.Description); desc != "" {
+			fmt.Fprintf(&b, "- %s: %s\n", d.Name, desc)
+		} else {
+			fmt.Fprintf(&b, "- %s\n", d.Name)
+		}
+	}
+	schema := map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"tool":      map[string]any{"type": "string", "enum": names, "description": "which of the server's tools to call"},
+			"arguments": map[string]any{"type": "object", "description": "the input object for that tool"},
+		},
+		"required":             []string{"tool"},
+		"additionalProperties": false,
+	}
+	raw, _ := json.Marshal(schema)
+	return agent.ToolDef{Name: t.name, Description: strings.TrimRight(b.String(), "\n"), InputSchema: raw}
+}
+
+func (t lazyMCPDispatch) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, error) {
+	var in struct {
+		Tool      string          `json:"tool"`
+		Arguments json.RawMessage `json:"arguments"`
+	}
+	if err := json.Unmarshal(raw, &in); err != nil {
+		return agent.Result{Output: t.name + ": invalid input: " + err.Error(), IsError: true}, nil
+	}
+	if strings.TrimSpace(in.Tool) == "" {
+		return agent.Result{Output: t.name + `: "tool" is required (one of the server's tools)`, IsError: true}, nil
+	}
+	exposed := false
+	for _, d := range t.tools {
+		if d.Name == in.Tool {
+			exposed = true
+			break
+		}
+	}
+	if !exposed {
+		return agent.Result{Output: fmt.Sprintf("%s: tool %q is not exposed by server %q", t.name, in.Tool, t.server), IsError: true}, nil
+	}
+	text, isErr, err := t.conn.Call(ctx, in.Tool, in.Arguments)
+	if err != nil {
+		if errors.Is(err, context.Canceled) {
+			return agent.Result{}, err
 		}
 		return agent.Result{Output: t.name + ": " + err.Error(), IsError: true}, nil
 	}

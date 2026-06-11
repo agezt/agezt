@@ -28,6 +28,8 @@ export interface MCPServer {
   header_keys?: string[];
   // tool_allow: optional per-server allowlist of tool names to expose (M899).
   tool_allow?: string[];
+  // lazy: collapse this server's tools into one mcp_<name> dispatcher (M906).
+  lazy?: boolean;
 }
 
 // serverNameOk mirrors the kernel's mcp name rule: lowercase letter first,
@@ -189,6 +191,7 @@ export function NewServerForm({
       }
       const toolAllow = splitTools(state.tool_allow || "");
       if (toolAllow.length > 0) server.tool_allow = toolAllow;
+      if (state.lazy === "true") server.lazy = true;
       await postJSON("/api/mcp/add", { server });
       onCreated(name);
     } catch (e) {
@@ -316,6 +319,21 @@ export function NewServerForm({
             aria-label="Server tool allowlist"
             className={cn(inputCls, "font-mono text-xs")}
           />
+        </label>
+        <label className="flex items-start gap-2 text-[11px] text-muted sm:col-span-2">
+          <input
+            type="checkbox"
+            checked={state.lazy === "true"}
+            onChange={(e) => set("lazy", e.target.checked ? "true" : "")}
+            aria-label="Lazy load tools"
+            className="mt-0.5"
+          />
+          <span>
+            Lazy load — collapse this server’s tools into a single{" "}
+            <span className="font-mono">mcp_&lt;name&gt;</span> dispatcher instead of injecting every tool’s schema into
+            each run. Best for chatty servers (e.g. github’s ~30 tools); the model picks a tool and the server validates
+            the arguments.
+          </span>
         </label>
       </div>
       <div className="mt-3 flex justify-end">
@@ -534,6 +552,11 @@ export function Mcp() {
                 <Badge variant="default">registered</Badge>
               )}
               {s.enabled && <Badge variant="default">auto-attach</Badge>}
+              {s.lazy && (
+                <Badge variant="default" title="Tools collapsed into one mcp_<name> dispatcher">
+                  lazy
+                </Badge>
+              )}
               <span className="ml-auto flex items-center gap-1">
                 {!s.attached && (
                   <Button

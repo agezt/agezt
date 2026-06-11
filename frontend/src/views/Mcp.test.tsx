@@ -184,6 +184,21 @@ describe("NewServerForm", () => {
     expect(posted.server.command).toBeUndefined();
     expect(onCreated).toHaveBeenCalledWith("githubremote");
   });
+
+  it("ticking Lazy load posts lazy:true (M906)", async () => {
+    render(<NewServerForm onCreated={() => {}} onError={() => {}} />);
+    fireEvent.change(screen.getByLabelText("Server name"), { target: { value: "github" } });
+    fireEvent.change(screen.getByLabelText("Server command"), { target: { value: "npx" } });
+    fireEvent.click(screen.getByLabelText("Lazy load tools"));
+    fireEvent.click(screen.getByRole("button", { name: /Register server/ }));
+
+    await waitFor(() =>
+      expect(postJSON).toHaveBeenCalledWith(
+        "/api/mcp/add",
+        expect.objectContaining({ server: expect.objectContaining({ name: "github", lazy: true }) }),
+      ),
+    );
+  });
 });
 
 describe("Mcp", () => {

@@ -74,6 +74,14 @@ type Server struct {
 	// are stored plaintext in the registry but redacted out of read APIs (only
 	// the key names are exposed). Meaningless for stdio servers.
 	Headers map[string]string `json:"headers,omitempty"`
+	// Lazy, when true, collapses this server's tools into a SINGLE dispatcher
+	// tool (mcp_<name>) for context efficiency (M906) instead of injecting every
+	// tool's full input schema into every run. The dispatcher takes
+	// {tool, arguments}; the run picks a tool name (the dispatcher lists them)
+	// and the remote server validates the arguments. Opt-in — eager injection is
+	// the default. Composes with ToolAllow (the dispatcher only lists/forwards
+	// allowlisted tools).
+	Lazy bool `json:"lazy,omitempty"`
 	// ToolAllow is an OPT-IN allowlist of the server's own tool names to expose
 	// to runs (M899) — context-efficient MCP management. A chatty server (github
 	// exposes ~30 tools) can be trimmed to the few a run actually needs, so its
