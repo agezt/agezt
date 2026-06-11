@@ -7,6 +7,8 @@ const postAction = vi.fn();
 vi.mock("@/lib/api", () => ({
   getJSON: (...a: unknown[]) => getJSON(...a),
   postAction: (...a: unknown[]) => postAction(...a),
+  withToken: (path: string, extra?: Record<string, string>) =>
+    `${path}?${new URLSearchParams(extra || {}).toString()}`,
 }));
 // Avoid the SSE EventSource (not in jsdom): stub the events hook.
 vi.mock("@/lib/events", () => ({
@@ -106,5 +108,40 @@ describe("Inbox conversation search (M776)", () => {
     await waitFor(() => expect(screen.getByText("1/5")).toBeTruthy());
     fireEvent.change(input, { target: { value: "zzz" } });
     await waitFor(() => expect(screen.getByText(/no conversations match/)).toBeTruthy());
+  });
+});
+
+describe("Inbox inline image thumbnails (M828)", () => {
+  it("renders inbound image artifacts matched to their thread by correlation", async () => {
+    getJSON.mockImplementation((path: string) => {
+      if (path === "/api/inbox") {
+        return Promise.resolve({
+          threads: [
+            { correlation_id: "c1", channel_kind: "telegram", channel_id: "99", messages: [{ direction: "in", sender: "Ada", text: "look at this" }] },
+          ],
+        });
+      }
+      if (path === "/api/artifacts") {
+        return Promise.resolve({
+          entries: [
+            { id: "art-1", ref: "aaa", kind: "image", mime: "image/png", corr: "c1", caption: "a cat" },
+            { id: "art-2", ref: "bbb", kind: "image", mime: "image/png", corr: "other-thread" },
+          ],
+        });
+      }
+      return Promise.resolve({});
+    });
+
+    render(
+      <UIProvider>
+        <Inbox />
+      </UIProvider>,
+    );
+
+    // The thread's own image (corr c1) renders; the other thread's image does not.
+    await waitFor(() => expect(screen.getByText("look at this")).toBeTruthy());
+    const imgs = document.querySelectorAll("img");
+    expect(imgs.length).toBe(1);
+    expect(imgs[0].getAttribute("src")).toContain("/api/artifact/raw?ref=aaa");
   });
 });
