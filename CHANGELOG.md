@@ -19,6 +19,15 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   `delegate` tool now coaches the leader pattern and prefers reusing an existing named agent. (M843)
 
 ### Added
+- **Skills can ship a bundle of files — agentskills.io shape (M847).** A skill is no longer just an
+  inline body: it can carry reference files and scripts on disk. `agt skill import <dir>` ingests an
+  agentskills.io-style directory (`SKILL.md` + `reference/…` + `scripts/…`); the resources are
+  materialized under `skills/bundles/<slug>/`, path-confined and size-capped. Inspect them with
+  `agt skill files <id>` / `agt skill cat <id> <path>` (or `/api/skill/files` · `/api/skill/file`), and
+  the agent reaches its own with the `skill` tool's new `op=files` / `op=read`. A retrieved bundled
+  skill now tells the agent how to use its resources — read a reference, then run a script (e.g.
+  `scripts/setup.sh` to install a CLI / npm package) with shell or code_exec. This is the "install this
+  and use it, no limits" surface: the bundle anchors the files, the always-on exec tools run them. (M847)
 - **Dead-agent graveyard — retire and revive (M846).** Agents you no longer need can be retired to a
   graveyard instead of deleted: a retired agent is paused, delegation to it is refused ("agent is
   retired — revive it first"), and it is greyed out under a "graveyard" marker in the Roster — but its

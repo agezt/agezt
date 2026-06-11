@@ -39,6 +39,10 @@ func cmdSkill(args []string, stdout, stderr io.Writer) int {
 		return cmdSkillExport(args[1:], stdout, stderr)
 	case "import":
 		return cmdSkillImport(args[1:], stdout, stderr)
+	case "files":
+		return cmdSkillFiles(args[1:], stdout, stderr)
+	case "cat":
+		return cmdSkillCat(args[1:], stdout, stderr)
 	case "registry":
 		return cmdSkillRegistry(args[1:], stdout, stderr)
 	case "-h", "--help", "help":
@@ -52,7 +56,9 @@ func cmdSkill(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "  diff <id> [<id2>]             diff a skill's body vs its parent (or vs id2)\n")
 		fmt.Fprintf(stdout, "  export <id> [--out <file>]    write a portable, verifiable skill bundle\n")
 		fmt.Fprintf(stdout, "  export --all [--dir <dir>]    export every skill into a directory registry\n")
-		fmt.Fprintf(stdout, "  import <bundle> [--json]      verify a bundle and install it as a draft\n")
+		fmt.Fprintf(stdout, "  import <bundle|dir> [--json]  install a bundle/SKILL.md/skill directory as a draft\n")
+		fmt.Fprintf(stdout, "  files <id> [--json]           list a skill's bundle resources + their directory\n")
+		fmt.Fprintf(stdout, "  cat <id> <path>               print one bundle resource (reference file or script)\n")
 		fmt.Fprintf(stdout, "  registry <dir> [--install <name>]   list/install verifiable bundles in a directory\n")
 		return 0
 	default:

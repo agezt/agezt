@@ -21,6 +21,7 @@ type fakeForge struct {
 	promoted string
 	retired  string
 	retErr   error
+	bundles  *skill.BundleStore
 }
 
 func newFake() *fakeForge { return &fakeForge{byID: map[string]skill.Skill{}} }
@@ -68,6 +69,8 @@ func (f *fakeForge) List() ([]skill.Skill, error) {
 	}
 	return out, nil
 }
+
+func (f *fakeForge) Bundles() *skill.BundleStore { return f.bundles }
 
 func newTool(f forge) *Tool {
 	t := New()
@@ -127,8 +130,8 @@ func TestLearn_CorrelationFromContextIsPassedThrough(t *testing.T) {
 func TestLearn_NeedsNameAndBody(t *testing.T) {
 	f := newFake()
 	for _, c := range []map[string]any{
-		{"op": "learn", "body": "b"},  // no name
-		{"op": "learn", "name": "n"},  // no body
+		{"op": "learn", "body": "b"}, // no name
+		{"op": "learn", "name": "n"}, // no body
 	} {
 		if _, isErr := invoke(t, newTool(f), c); !isErr {
 			t.Errorf("expected error for %v", c)
@@ -220,6 +223,66 @@ func TestBadOps(t *testing.T) {
 		if _, isErr := invoke(t, newTool(f), c); !isErr {
 			t.Errorf("expected error for %v", c)
 		}
+	}
+}
+
+func TestFilesAndRead_Bundle(t *testing.T) {
+	f := newFake()
+	bs, err := skill.OpenBundles(t.TempDir())
+	if err != nil {
+		t.Fatalf("OpenBundles: %v", err)
+	}
+	f.bundles = bs
+	tool := newTool(f)
+
+	// Author a skill, then attach a bundle out-of-band (the daemon would do this
+	// during import; here we drive the store directly and register the skill).
+	invoke(t, tool, map[string]any{"op": "learn", "name": "pdf-fill", "body": "fill a pdf"})
+	if _, err := bs.Write("pdf-fill", map[string][]byte{
+		"reference/fields.md": []byte("the fields"),
+		"scripts/run.py":      []byte("print('hi')"),
+	}); err != nil {
+		t.Fatalf("bundle Write: %v", err)
+	}
+	id := skill.ContentID("pdf-fill", "fill a pdf")
+
+	// op=files lists the bundle + reports the dir.
+	fl, isErr := invoke(t, tool, map[string]any{"op": "files", "id": id})
+	if isErr {
+		t.Fatalf("files errored: %v", fl)
+	}
+	if fl["count"].(float64) != 2 {
+		t.Fatalf("files count = %v, want 2", fl["count"])
+	}
+	if fl["dir"] == "" {
+		t.Error("files did not report a bundle dir")
+	}
+
+	// op=read returns one resource's content.
+	rd, isErr := invoke(t, tool, map[string]any{"op": "read", "id": id, "path": "scripts/run.py"})
+	if isErr {
+		t.Fatalf("read errored: %v", rd)
+	}
+	if rd["content"] != "print('hi')" {
+		t.Errorf("read content = %v, want print('hi')", rd["content"])
+	}
+
+	// op=read needs a path; an escaping path is refused by the store.
+	if _, isErr := invoke(t, tool, map[string]any{"op": "read", "id": id}); !isErr {
+		t.Error("op=read without a path should error")
+	}
+	if _, isErr := invoke(t, tool, map[string]any{"op": "read", "id": id, "path": "../escape"}); !isErr {
+		t.Error("op=read with an escaping path should error")
+	}
+}
+
+func TestFiles_NoBundleStore(t *testing.T) {
+	f := newFake() // bundles nil
+	tool := newTool(f)
+	invoke(t, tool, map[string]any{"op": "learn", "name": "x", "body": "y"})
+	id := skill.ContentID("x", "y")
+	if _, isErr := invoke(t, tool, map[string]any{"op": "files", "id": id}); !isErr {
+		t.Error("op=files without a bundle store should error gracefully")
 	}
 }
 

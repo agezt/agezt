@@ -51,6 +51,12 @@ func cmdSkillImport(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 
+	// A directory is an agentskills.io skill bundle: SKILL.md + reference files +
+	// scripts (M847). Import the whole tree, not just the body.
+	if info, statErr := os.Stat(bundlePath); statErr == nil && info.IsDir() {
+		return importSkillDir(bundlePath, asJSON, stdout, stderr)
+	}
+
 	data, err := os.ReadFile(bundlePath)
 	if err != nil {
 		fmt.Fprintf(stderr, "%s skill import: read %s: %v\n", brand.CLI, bundlePath, err)

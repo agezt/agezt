@@ -21,19 +21,25 @@ func (t *Tool) Definition() agent.ToolDef {
 			"op=list shows your skills with their status and usage; op=show returns one skill's " +
 			"full body; op=promote advances a skill toward your active retrieval pool " +
 			"(draft→shadow→active); op=retire pulls a skill that's gone wrong (quarantine). " +
+			"A skill can also carry a BUNDLE of files (agentskills.io shape): reference docs and " +
+			"scripts. op=files lists a skill's bundled resources and the directory they live in; " +
+			"op=read returns one resource's contents — read a reference doc when you need the " +
+			"detail, then run a bundled script (e.g. scripts/setup.sh to install a CLI) with your " +
+			"shell or code_exec tool from the reported dir. " +
 			"Use this to get better over time: when you work out how to do something, capture it " +
 			"as a skill so future runs can reuse it. Every change is journaled and reversible.",
 		InputSchema: json.RawMessage(`{
   "type": "object",
   "required": ["op"],
   "properties": {
-    "op":          {"type":"string", "enum":["learn","list","show","promote","retire"]},
+    "op":          {"type":"string", "enum":["learn","list","show","promote","retire","files","read"]},
     "name":        {"type":"string", "description":"For op=learn: a short kebab-case name, e.g. \"diagnose-failing-ci\"."},
     "description": {"type":"string", "description":"For op=learn: one line on when this skill applies (the retrieval-matching key)."},
     "body":        {"type":"string", "description":"For op=learn: the procedure itself — the steps/instructions to follow."},
     "triggers":    {"type":"array", "items":{"type":"string"}, "description":"For op=learn (optional): tags/conditions hinting when the skill is relevant."},
     "tools":       {"type":"array", "items":{"type":"string"}, "description":"For op=learn (optional): tools this skill expects to be available."},
-    "id":          {"type":"string", "description":"For op=show/promote/retire: the skill id (a prefix is accepted)."},
+    "id":          {"type":"string", "description":"For op=show/promote/retire/files/read: the skill id (a prefix is accepted)."},
+    "path":        {"type":"string", "description":"For op=read: the bundle-relative path of the resource to read (from op=files), e.g. \"reference/api.md\" or \"scripts/setup.sh\"."},
     "reason":      {"type":"string", "description":"For op=retire (optional): why you're pulling the skill."}
   }
 }`),
@@ -48,6 +54,7 @@ type input struct {
 	Triggers    []string `json:"triggers"`
 	Tools       []string `json:"tools"`
 	ID          string   `json:"id"`
+	Path        string   `json:"path"`
 	Reason      string   `json:"reason"`
 }
 
@@ -137,10 +144,49 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, e
 		}
 		return okJSON(map[string]any{"id": shortID(sk.ID), "name": sk.Name, "status": string(skill.StatusQuarantined), "message": "retired (quarantined)"}), nil
 
+	case "files":
+		sk, err := t.resolve(f, in.ID)
+		if err != nil {
+			return errResult(err.Error()), nil
+		}
+		bundles := f.Bundles()
+		if bundles == nil {
+			return errResult("skill bundles are not available on this daemon"), nil
+		}
+		files, err := bundles.List(sk.Name)
+		if err != nil {
+			return errResult(err.Error()), nil
+		}
+		return okJSON(map[string]any{
+			"id": shortID(sk.ID), "name": sk.Name, "dir": bundles.Dir(sk.Name),
+			"files": files, "count": len(files),
+		}), nil
+
+	case "read":
+		sk, err := t.resolve(f, in.ID)
+		if err != nil {
+			return errResult(err.Error()), nil
+		}
+		if strings.TrimSpace(in.Path) == "" {
+			return errResult(`op=read needs a "path" (a bundle-relative file from op=files)`), nil
+		}
+		bundles := f.Bundles()
+		if bundles == nil {
+			return errResult("skill bundles are not available on this daemon"), nil
+		}
+		data, err := bundles.Read(sk.Name, in.Path)
+		if err != nil {
+			return errResult(err.Error()), nil
+		}
+		return okJSON(map[string]any{
+			"id": shortID(sk.ID), "name": sk.Name, "path": in.Path,
+			"content": string(data), "bytes": len(data),
+		}), nil
+
 	case "":
-		return errResult("op required (learn|list|show|promote|retire)"), nil
+		return errResult("op required (learn|list|show|promote|retire|files|read)"), nil
 	default:
-		return errResult("unknown op " + in.Op + " (learn|list|show|promote|retire)"), nil
+		return errResult("unknown op " + in.Op + " (learn|list|show|promote|retire|files|read)"), nil
 	}
 }
 

@@ -139,6 +139,12 @@ type Skill struct {
 	Body string `json:"body"`
 	// ToolsRequired lists tools the skill expects to be available.
 	ToolsRequired []string `json:"tools_required,omitempty"`
+	// Resources lists the relative paths of the skill's on-disk bundle —
+	// reference files and scripts that travel with it (agentskills.io shape,
+	// SPEC-13). Empty for a plain body-only skill. The files live under the
+	// BundleStore (kernel/skill/bundle.go); this is the manifest the retrieval
+	// layer, the CLI, and the agent's skill tool use to discover them.
+	Resources []string `json:"resources,omitempty"`
 	// Version is semver; a new body is a new version (§4.3).
 	Version string `json:"version"`
 	// Lineage is the ids this skill evolved from (parent-first).
