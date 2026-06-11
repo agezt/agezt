@@ -11,6 +11,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 
 ## [Unreleased]
 
+### Changed
+- **Agents can delegate in depth — leader/worker trees by default (M843).** Delegation nesting now
+  defaults to depth 3 (was 1): a lead agent can split a task, delegate the parts, and those sub-agents
+  can delegate further. A generous tree-total rail (48 sub-agents, when unset and depth>1) keeps deep
+  recursion from running away; `AGEZT_SUBAGENT_DEPTH` / `AGEZT_SUBAGENT_MAX_TOTAL` override. The
+  `delegate` tool now coaches the leader pattern and prefers reusing an existing named agent. (M843)
+
 ### Added
 - **Files view previews more than images (M842).** The file preview now renders inline: PDFs (embedded),
   markdown (rendered), JSON (pretty-printed), and code / text / CSV / logs (monospace) — fetched from

@@ -50,10 +50,12 @@ func (t *subAgentTool) Definition() agent.ToolDef {
 	return agent.ToolDef{
 		Name: "delegate",
 		Description: "Delegate a focused subtask to a fresh sub-agent that works " +
-			"autonomously (its own tool-loop) and returns a concise result. Use this " +
-			"to parallelise independent subtasks or isolate a self-contained piece of " +
-			"work. Issue multiple delegate calls in one turn to fan out concurrently. " +
-			"Optionally pick the sub-agent's model (otherwise the daemon default) and/or " +
+			"autonomously (its own tool-loop) and returns a concise result. LEAD the work: " +
+			"break a big task into parts and delegate each — your sub-agents can delegate " +
+			"FURTHER, so you can build a leader/worker tree, not just one flat layer. Issue " +
+			"multiple delegate calls in one turn to fan out concurrently. Prefer reusing an " +
+			"existing named `agent` (roster slug) whose role fits over inventing an ad-hoc " +
+			"one. Optionally pick the sub-agent's model (otherwise the daemon default) and/or " +
 			"its routing task type (defaults to \"delegate\"); a configured routing chain " +
 			"for that task type provides the fallback models.",
 		InputSchema: json.RawMessage(`{
