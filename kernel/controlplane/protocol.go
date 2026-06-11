@@ -945,6 +945,11 @@ const (
 	CmdAgentImpact = "agent_impact"
 	CmdAgentRetire = "agent_retire"
 	CmdAgentRevive = "agent_revive"
+	// CmdAgentActivity returns a per-agent activity timeline derived from the
+	// journal (M854): the runs it executed, council consults + delegations during
+	// them, memory it wrote, board messages, and profile changes — newest first.
+	// Args: ref (required), limit (optional). Returns: { slug, activity:[...], count, total }
+	CmdAgentActivity = "agent_activity"
 
 	// Script-tool forge (M794) — agent-authored code promoted into callable
 	// forge_<name> tools, behind `agt toolforge`. Draft: args.tool (object).

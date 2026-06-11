@@ -690,6 +690,12 @@ func Run(ctx context.Context, cfg LoopConfig, userIntent string) (answer string,
 	if len(cfg.Images) > 0 {
 		received["images"] = len(cfg.Images)
 	}
+	// Tag the run with the named agent it executes AS (M854), so a per-agent
+	// activity timeline can attribute runs — "what did researcher do?". Empty for
+	// the daemon's default identity.
+	if cfg.Agent != "" {
+		received["agent"] = cfg.Agent
+	}
 	if _, err := publish(event.KindTaskReceived, "task", received); err != nil {
 		return "", fmt.Errorf("agent: publish task.received: %w", err)
 	}

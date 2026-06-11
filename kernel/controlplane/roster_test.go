@@ -163,3 +163,59 @@ func TestRun_AsAgent(t *testing.T) {
 		t.Fatalf("paused agent: err = %v", err)
 	}
 }
+
+// TestAgentActivity_ShowsRuns runs a real task AS a named agent and asserts the
+// per-agent activity timeline (M854) attributes the run to it.
+func TestAgentActivity_ShowsRuns(t *testing.T) {
+	_, _, c, _ := startPair(t, mock.New(mock.FinalText("done")))
+	ctx := context.Background()
+
+	if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+		"profile": map[string]any{"slug": "scout", "soul": "You scout.", "model": "m"},
+	}); err != nil {
+		t.Fatalf("agent add: %v", err)
+	}
+	// A real run (not dry) as the agent — journals task.received tagged agent=scout.
+	// CmdRun streams events before its terminal result, so drive it via Stream.
+	if _, err := c.Stream(ctx, controlplane.CmdRun,
+		map[string]any{"intent": "find the thing", "agent": "scout"},
+		func(*event.Event) {}); err != nil {
+		t.Fatalf("run as agent: %v", err)
+	}
+
+	res, err := c.Call(ctx, controlplane.CmdAgentActivity, map[string]any{"ref": "scout"})
+	if err != nil {
+		t.Fatalf("agent activity: %v", err)
+	}
+	if res["slug"] != "scout" {
+		t.Errorf("slug = %v, want scout", res["slug"])
+	}
+	acts, _ := res["activity"].([]any)
+	if len(acts) == 0 {
+		t.Fatalf("no activity recorded for the agent's run")
+	}
+	var sawStart bool
+	for _, raw := range acts {
+		m, _ := raw.(map[string]any)
+		if s, _ := m["summary"].(string); strings.Contains(s, "started a run") && strings.Contains(s, "find the thing") {
+			sawStart = true
+		}
+	}
+	if !sawStart {
+		t.Errorf("activity did not attribute the run to the agent: %+v", acts)
+	}
+
+	// An unrelated agent has no activity from scout's run.
+	if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+		"profile": map[string]any{"slug": "idle", "soul": "."},
+	}); err != nil {
+		t.Fatalf("add idle: %v", err)
+	}
+	res2, err := c.Call(ctx, controlplane.CmdAgentActivity, map[string]any{"ref": "idle"})
+	if err != nil {
+		t.Fatalf("idle activity: %v", err)
+	}
+	if acts2, _ := res2["activity"].([]any); len(acts2) != 0 {
+		t.Errorf("idle agent should have no activity, got %+v", acts2)
+	}
+}

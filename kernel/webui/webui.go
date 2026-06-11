@@ -177,6 +177,8 @@ var readArgsRoutes = map[string]writeRoute{
 	"/api/data/records": {controlplane.CmdDataRecords, []string{"collection", "search", "sort", "desc", "limit", "offset"}},
 	// Agent graveyard impact (M846): what standing orders fire this agent. Read-only.
 	"/api/agents/impact": {controlplane.CmdAgentImpact, []string{"ref"}},
+	// Per-agent activity timeline (M854): what the agent did, from the journal. Read-only.
+	"/api/agents/activity": {controlplane.CmdAgentActivity, []string{"ref", "limit"}},
 	// Skill bundle resources (M847): list a skill's reference files + scripts, and
 	// read one resource's content. Both read-only; the daemon path-confines reads.
 	"/api/skill/files": {controlplane.CmdSkillFiles, []string{"id"}},
