@@ -58,3 +58,7 @@ creds.json
 # Local demo artifacts (Playwright screenshots, browser MCP)
 .playwright-mcp/
 webui-*.png
+
+# editor/build backup files
+*~
+*.exe~
