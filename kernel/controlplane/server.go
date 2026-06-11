@@ -476,6 +476,20 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.handleArtifactList(conn, req)
 	case CmdArtifactDelete:
 		s.handleArtifactDelete(conn, req)
+	case CmdDataCollections:
+		s.handleDataCollections(conn, req)
+	case CmdDataRecords:
+		s.handleDataRecords(conn, req)
+	case CmdDataInsert:
+		s.handleDataInsert(conn, req)
+	case CmdDataUpdate:
+		s.handleDataUpdate(conn, req)
+	case CmdDataDelete:
+		s.handleDataDelete(conn, req)
+	case CmdDataCreateCollection:
+		s.handleDataCreateCollection(conn, req)
+	case CmdDataDropCollection:
+		s.handleDataDropCollection(conn, req)
 	case CmdApprovals:
 		s.handleApprovals(conn, req)
 	case CmdApprovalsLog:

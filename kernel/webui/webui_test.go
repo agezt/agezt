@@ -559,6 +559,7 @@ func TestAPIReadOnly(t *testing.T) {
 		"catalog_list": true, "sandbox_list": true,
 		"config_schema": true, "config_values": true, "routing_get": true, "persona_get": true, "prompts_get": true,
 		"pulse_status": true, "journal_verify": true,
+		"data_collections": true,
 	}
 	for path := range apiRoutes {
 		fc := &fakeCaller{result: map[string]any{"ok": true}}

@@ -490,6 +490,26 @@ const (
 	// Args: id : string. Returns: deleted : bool.
 	CmdArtifactDelete = "artifact_delete"
 
+	// Personal Data Lake (M836) — the Web UI Data view + CLI read/manage the
+	// agent-built structured collections (kernel/datalake, M834/M835).
+	//
+	// CmdDataCollections lists every collection with its schema + record count.
+	// Returns: collections — []object{name,title,icon,view,desc,fields,builtin,system,count,created_ms,created_by}.
+	CmdDataCollections = "data_collections"
+	// CmdDataRecords queries one collection's records.
+	// Args: collection (req), search, sort, desc, limit, offset. Returns: records, count, schema.
+	CmdDataRecords = "data_records"
+	// CmdDataInsert adds a record. Args: collection, record(object). Returns: record.
+	CmdDataInsert = "data_insert"
+	// CmdDataUpdate merges fields into a record. Args: collection, id, record(object). Returns: record.
+	CmdDataUpdate = "data_update"
+	// CmdDataDelete removes a record. Args: collection, id. Returns: deleted, id.
+	CmdDataDelete = "data_delete"
+	// CmdDataCreateCollection creates a user collection. Args: collection(object schema). Returns: collection.
+	CmdDataCreateCollection = "data_create_collection"
+	// CmdDataDropCollection drops a non-system collection. Args: name. Returns: dropped.
+	CmdDataDropCollection = "data_drop_collection"
+
 	// CmdJournalGrep is the server-side filter sibling of
 	// CmdJournalTail. Today operators run `agt journal tail 10000
 	// --json | jq 'select(...)'` which loads the entire tail into
