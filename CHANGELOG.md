@@ -19,6 +19,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   `delegate` tool now coaches the leader pattern and prefers reusing an existing named agent. (M843)
 
 ### Added
+- **Computer-use, out of the box (M853).** Full machine control to match browser-use: a built-in
+  `computer-use` skill bundle, seeded active at startup, covers both halves — install/update/remove
+  software via the shell (winget/choco/brew/apt/npm/pip), and desktop GUI automation via
+  `scripts/desktop.py` (a stateless pyautogui driver: screenshot, click, double-click, type, hotkeys,
+  scroll, locate-by-image), run through code_exec in a see-then-act loop. A desktop session is required;
+  on a headless host the driver returns a clear error. No new Go dependency — it rides the same
+  `plugins/builtinskills` seeder as browser-use. (M853)
 - **Browser-use, out of the box (M852).** Full agentic browser automation — navigate, click, type,
   submit forms, screenshot, and extract from JavaScript-rendered pages — now works without setup. The
   daemon seeds a built-in `browser-use` skill bundle (agentskills.io shape) into the Forge at startup,
