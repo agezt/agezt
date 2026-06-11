@@ -33,6 +33,11 @@ type Manager struct {
 	// Get→Put pairs and lose an update (M421). The underlying Store guards each call
 	// individually but not the pair.
 	mu sync.Mutex
+	// embMu guards the optional provider embedder + its vector cache (M884).
+	// Separate from mu: embedding work must not block writers.
+	embMu    sync.Mutex
+	embedder Embedder
+	embCache map[string][]float32 // record ID → vector; content-addressing makes it immutable
 }
 
 // NewManager wires a Store to a bus. bus may be nil in tests that only
@@ -179,19 +184,34 @@ func (m *Manager) RecallScoped(corr, query string, limit int, scope string) ([]S
 		return nil, err
 	}
 	all = filterScope(all, scope)
+	nowMS := m.now().UnixMilli()
 	// Hybrid (M803): exact-keyword precision + local-embedding cosine for
 	// typo/morphology recall — a misspelled or inflected query still
 	// surfaces the right record.
-	hits := SearchHybrid(all, query, limit, m.now().UnixMilli())
+	hits := SearchHybrid(all, query, limit, nowMS)
+	engine := "local"
+	// Provider embeddings opt-in (M884): when an Embedder is installed, true
+	// semantic similarity replaces the feature-hash signal — keyword precision
+	// stays blended in. Any embedder failure falls back to the local hits
+	// already computed above; recall never fails because the embedder did.
+	if emb := m.getEmbedder(); emb != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), embedTimeout)
+		if sem, err := m.semanticProvider(ctx, emb, all, query, nowMS); err == nil {
+			hits = mergeScored(Search(all, query, 0, nowMS), sem, limit)
+			engine = "provider"
+		}
+		cancel()
+	}
 	if len(hits) > 0 {
 		ids := make([]string, 0, len(hits))
 		for _, h := range hits {
 			ids = append(ids, h.Record.ID)
 		}
 		m.publish(event.KindMemoryRetrieved, corr, map[string]any{
-			"query":   query,
-			"matched": len(hits),
-			"ids":     ids,
+			"query":    query,
+			"matched":  len(hits),
+			"ids":      ids,
+			"embedder": engine,
 		})
 	}
 	return hits, nil
