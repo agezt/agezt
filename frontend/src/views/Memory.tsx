@@ -19,6 +19,9 @@ interface MemRecord {
   created_ms?: number;
   last_seen_ms?: number;
   source_event?: string;
+  // Provenance (M851): who added the record, and who most recently wrote it.
+  added_by?: string;
+  updated_by?: string;
   tags?: Record<string, string>;
 }
 
@@ -258,6 +261,14 @@ export function Memory() {
                 <p className="whitespace-pre-wrap break-words text-xs text-foreground/85">{r.content}</p>
                 <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-muted">
                   {r.created_ms ? <span>{fmtTime(r.created_ms)}</span> : null}
+                  {r.added_by && (
+                    <span title={r.updated_by && r.updated_by !== r.added_by ? `last updated by ${r.updated_by}` : "who added this"}>
+                      by <span className="text-foreground/70">{r.added_by}</span>
+                      {r.updated_by && r.updated_by !== r.added_by && (
+                        <> · upd. <span className="text-foreground/70">{r.updated_by}</span></>
+                      )}
+                    </span>
+                  )}
                   {r.tags &&
                     Object.entries(r.tags).map(([k, v]) => (
                       <span key={k} className="rounded-full bg-panel px-1.5 py-0.5">

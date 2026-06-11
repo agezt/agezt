@@ -49,6 +49,10 @@ type RememberSpec struct {
 	Content    string
 	Tags       map[string]string
 	Confidence float64
+	// Actor records WHO is writing (M851): the acting agent's slug, or
+	// "operator"/"distill" for non-agent writes. Stored as AddedBy (first writer)
+	// and UpdatedBy (latest writer) on the record. Empty leaves provenance unset.
+	Actor string
 }
 
 // Remember stores (or reinforces) a memory record and journals the write.
@@ -96,6 +100,8 @@ func (m *Manager) Remember(corr string, spec RememberSpec) (Record, bool, error)
 		Confidence: conf,
 		CreatedMS:  nowMS,
 		LastSeenMS: nowMS,
+		AddedBy:    spec.Actor,
+		UpdatedBy:  spec.Actor,
 	}
 	action := "create"
 	if found {
@@ -104,6 +110,15 @@ func (m *Manager) Remember(corr string, spec RememberSpec) (Record, bool, error)
 		rec.CreatedMS = existing.CreatedMS
 		rec.SourceEvent = existing.SourceEvent
 		rec.Confidence = clampConf(existing.Confidence + 0.1)
+		// Provenance: AddedBy is first-writer-wins (preserve the original author,
+		// like SourceEvent); UpdatedBy reflects this latest write. A legacy record
+		// with no AddedBy adopts this writer as its author.
+		if existing.AddedBy != "" {
+			rec.AddedBy = existing.AddedBy
+		}
+		if spec.Actor == "" {
+			rec.UpdatedBy = existing.UpdatedBy
+		}
 		if existing.Tags != nil && rec.Tags == nil {
 			rec.Tags = existing.Tags
 		}
@@ -122,14 +137,18 @@ func (m *Manager) Remember(corr string, spec RememberSpec) (Record, bool, error)
 	// persist. A crash between the two leaves an orphan audit event and no
 	// stored record — harmless, since the store is the retrieval source of
 	// truth and the journal is append-only audit.
-	ev := m.publish(event.KindMemoryWritten, corr, map[string]any{
+	payload := map[string]any{
 		"action":     action,
 		"id":         id,
 		"type":       string(t),
 		"subject":    spec.Subject,
 		"chars":      len(spec.Content),
 		"confidence": rec.Confidence,
-	})
+	}
+	if rec.UpdatedBy != "" {
+		payload["actor"] = rec.UpdatedBy // who wrote this (M851)
+	}
+	ev := m.publish(event.KindMemoryWritten, corr, payload)
 	if ev != nil && rec.SourceEvent == "" {
 		rec.SourceEvent = ev.ID
 	}
@@ -410,6 +429,7 @@ func (t memoryTool) Invoke(ctx context.Context, input json.RawMessage) (agent.Re
 	case "remember":
 		rec, created, err := t.mgr.Remember(corr, RememberSpec{
 			Type: in.Type, Subject: in.Subject, Content: in.Content, Tags: in.Tags(),
+			Actor: toolActor(ctx), // who is writing — the agent slug, or "agent" (M851)
 		})
 		if err != nil {
 			return agent.Result{Output: "remember failed: " + err.Error(), IsError: true}, nil
@@ -450,6 +470,17 @@ func (t memoryTool) Invoke(ctx context.Context, input json.RawMessage) (agent.Re
 	default:
 		return agent.Result{Output: "unknown action " + in.Action + " (remember|recall|forget)", IsError: true}, nil
 	}
+}
+
+// toolActor resolves who an agent's memory write should be attributed to (M851):
+// the named roster agent's slug when the run executes AS one, else the generic
+// "agent" (a default-identity run). Operator (console/CLI) and distilled writes
+// set their own actor at their call sites.
+func toolActor(ctx context.Context) string {
+	if slug := agent.AgentFromContext(ctx); slug != "" {
+		return slug
+	}
+	return "agent"
 }
 
 // Tags adapts the tool input to a tag map. Tool writes are tagged source=agent so
@@ -560,6 +591,7 @@ func (m *Manager) Distill(ctx context.Context, corr string, provider agent.Provi
 			Type:    t,
 			Subject: f.Subject,
 			Content: f.Content,
+			Actor:   "distill",
 			Tags:    map[string]string{"source": "distill"},
 		})
 		if err != nil {
