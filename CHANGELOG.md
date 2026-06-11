@@ -52,6 +52,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   the Runs view. Purely frontend — reuses the existing event provider and read routes. (M867)
 
 ### Added
+- **Built-in sql-db skill bundle (M889).** A ninth out-of-the-box skill that queries SQL databases —
+  SQLite, PostgreSQL, MySQL — completing the data story (#34). `scripts/db.py` is one SQLAlchemy helper
+  with four ops: `tables`, `schema`, `query` (parameterised SELECT → JSON rows, capped + `truncated`
+  flag), and a write op (INSERT/UPDATE/DDL → rowcount); `setup.sh` installs SQLAlchemy + Postgres/MySQL
+  drivers. Values bind through `:name` + params (the one hard rule — never string-format SQL). Composes
+  with docker-services (run the DB) and data-analysis (`pd.read_sql`). Rides the `plugins/builtinskills`
+  seeder — no new Go dependency. (M889)
 - **Built-in image-tools skill bundle (M879).** An eighth out-of-the-box skill that manipulates images
   with Pillow, completing the visual pipeline (#34). `scripts/img.py` is one JSON-spec helper with eight
   ops: `info` (size/mode/format/EXIF), `resize`, `convert`, `crop`, `thumb`, `rotate`, `grayscale`,
