@@ -12,7 +12,18 @@ vi.mock("@/lib/api", () => ({
   postAction: (...a: unknown[]) => postAction(...a),
 }));
 
-import { Mcp, NewServerForm, serverNameOk, splitArgs, splitTools, parseEnv, CATALOG } from "@/views/Mcp";
+import {
+  Mcp,
+  NewServerForm,
+  serverNameOk,
+  splitArgs,
+  splitTools,
+  parseEnv,
+  parseHeaders,
+  urlOk,
+  transportOf,
+  CATALOG,
+} from "@/views/Mcp";
 import { UIProvider } from "@/components/ui/feedback";
 
 const withUI = (node: ReactNode) => <UIProvider>{node}</UIProvider>;
@@ -65,15 +76,40 @@ describe("parseEnv", () => {
   });
 });
 
+describe("parseHeaders", () => {
+  it("parses Name: value lines, keeps later ':' in the value, drops blanks/comments", () => {
+    expect(parseHeaders("Authorization: Bearer ab:cd\n# note\n\nX-Trace: 1\nno-colon\n")).toEqual({
+      Authorization: "Bearer ab:cd",
+      "X-Trace": "1",
+    });
+    expect(parseHeaders("")).toEqual({});
+  });
+});
+
+describe("urlOk", () => {
+  it("accepts http(s) URLs with a host, rejects everything else", () => {
+    for (const s of ["https://api.example.com/mcp", "http://localhost:8080/v1"]) expect(urlOk(s)).toBe(true);
+    for (const s of ["", "ftp://x/y", "not a url", "https://"]) expect(urlOk(s)).toBe(false);
+  });
+});
+
 describe("CATALOG", () => {
-  it("every preset has a kernel-valid name, a command, and args", () => {
+  it("every preset has a kernel-valid name, a description, and exactly one transport shape", () => {
     expect(CATALOG.length).toBeGreaterThan(0);
     for (const e of CATALOG) {
       expect(serverNameOk(e.name)).toBe(true); // ≤16 lowercase alnum (tool-prefix rule)
-      expect(e.command.trim()).not.toBe("");
-      expect(splitArgs(e.args).length).toBeGreaterThan(0);
       expect(e.description.trim()).not.toBe("");
+      if (transportOf(e) === "http") {
+        expect(urlOk(e.url!)).toBe(true);
+        expect(e.command).toBeUndefined();
+      } else {
+        expect((e.command || "").trim()).not.toBe("");
+        expect(splitArgs(e.args || "").length).toBeGreaterThan(0);
+      }
     }
+  });
+  it("includes at least one remote (http) preset", () => {
+    expect(CATALOG.some((e) => transportOf(e) === "http")).toBe(true);
   });
   it("preset names are unique", () => {
     const names = CATALOG.map((e) => e.name);
@@ -112,6 +148,41 @@ describe("NewServerForm", () => {
       ),
     );
     expect(onCreated).toHaveBeenCalledWith("everything");
+  });
+
+  it("in Remote mode requires a valid URL and posts the http shape with headers (M904)", async () => {
+    const onCreated = vi.fn();
+    render(<NewServerForm onCreated={onCreated} onError={() => {}} />);
+    const btn = () => screen.getByRole("button", { name: /Register server/ }) as HTMLButtonElement;
+
+    fireEvent.click(screen.getByRole("tab", { name: /Remote/ }));
+    fireEvent.change(screen.getByLabelText("Server name"), { target: { value: "githubremote" } });
+    expect(screen.queryByLabelText("Server command")).toBeNull(); // command field hidden in remote mode
+    expect(btn().disabled).toBe(true); // no URL yet
+
+    fireEvent.change(screen.getByLabelText("Server URL"), { target: { value: "https://api.example.com/mcp" } });
+    fireEvent.change(screen.getByLabelText("Server headers"), {
+      target: { value: "Authorization: Bearer ghp_x" },
+    });
+    expect(btn().disabled).toBe(false);
+    fireEvent.click(btn());
+
+    await waitFor(() =>
+      expect(postJSON).toHaveBeenCalledWith(
+        "/api/mcp/add",
+        expect.objectContaining({
+          server: expect.objectContaining({
+            name: "githubremote",
+            url: "https://api.example.com/mcp",
+            headers: { Authorization: "Bearer ghp_x" },
+          }),
+        }),
+      ),
+    );
+    // The http shape must NOT carry a command.
+    const posted = postJSON.mock.calls[0][1] as { server: Record<string, unknown> };
+    expect(posted.server.command).toBeUndefined();
+    expect(onCreated).toHaveBeenCalledWith("githubremote");
   });
 });
 
