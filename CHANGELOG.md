@@ -81,6 +81,10 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   the network-GET capability — no new grant or env var. (M831)
 
 ### Fixed
+- **Board tool no longer fails when `op` is omitted (M844).** A workflow board node (or an agent)
+  passing `{topic, text}` without an explicit `op` previously errored with "op required". The board
+  tool now infers the op from the fields — text+to → send, text+id → reply, text → post, else read —
+  so posting from a workflow node just works. Explicit ops are unchanged.
 - **Delegation never runs a sub-agent on an unkeyed model (M838).** `delegate` (and roster-profile
   model/fallback chains) could pick a model from a provider with no API key, which then failed to
   route mid-delegation. The effective chain is now filtered to models a credentialed provider actually

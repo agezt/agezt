@@ -26,9 +26,8 @@ func (t *Tool) Definition() agent.ToolDef {
 			"reads the answers to a message you sent. The board is shared and persistent.",
 		InputSchema: json.RawMessage(`{
   "type": "object",
-  "required": ["op"],
   "properties": {
-    "op":    {"type":"string", "enum":["post","read","topics","send","inbox","reply","replies"]},
+    "op":    {"type":"string", "enum":["post","read","topics","send","inbox","reply","replies"], "description":"What to do. Optional — if omitted it is inferred: text+to → send, text+id → reply, text (alone/with topic) → post, otherwise read."},
     "topic": {"type":"string", "description":"The topic to post under, or to filter reads by (a short label). For op=send: optional, defaults to \"dm\"."},
     "text":  {"type":"string", "description":"For op=post/send/reply: the message body."},
     "from":  {"type":"string", "description":"Who is posting/sending/replying — use YOUR agent slug so replies can find you."},
@@ -72,6 +71,23 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, e
 	st, nowFn, notify := t.current()
 	if st == nil {
 		return errResult("the board is not available on this daemon"), nil
+	}
+
+	// Infer a missing op from the supplied fields (M844): a workflow board node (or
+	// an agent) that passes {topic, text} without an explicit op should post, not
+	// fail. Keeps the common write ergonomic while leaving explicit ops untouched.
+	in.Op = strings.ToLower(strings.TrimSpace(in.Op))
+	if in.Op == "" {
+		switch {
+		case strings.TrimSpace(in.Text) != "" && strings.TrimSpace(in.To) != "":
+			in.Op = "send"
+		case strings.TrimSpace(in.Text) != "" && strings.TrimSpace(in.ID) != "":
+			in.Op = "reply"
+		case strings.TrimSpace(in.Text) != "":
+			in.Op = "post"
+		default:
+			in.Op = "read"
+		}
 	}
 
 	switch in.Op {

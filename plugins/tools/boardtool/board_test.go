@@ -125,6 +125,33 @@ func TestDefinitionValid(t *testing.T) {
 	}
 }
 
+// TestInferOp (M844): a board call without an explicit op infers one from the
+// fields — so a workflow board node passing {topic, text} posts instead of
+// failing with "op required".
+func TestInferOp(t *testing.T) {
+	tool := newTool(t)
+	// {topic, text} with no op → post.
+	out, isErr := invoke(t, tool, map[string]any{"topic": "findings", "text": "from a workflow node"})
+	if isErr {
+		t.Fatalf("op-less post should succeed: %v", out)
+	}
+	if _, ok := out["posted"]; !ok {
+		t.Errorf("expected a post, got %v", out)
+	}
+	// {to, text} with no op → send.
+	out, isErr = invoke(t, tool, map[string]any{"to": "researcher", "text": "ping"})
+	if isErr {
+		t.Fatalf("op-less send should succeed: %v", out)
+	}
+	if _, ok := out["sent"]; !ok {
+		t.Errorf("expected a send, got %v", out)
+	}
+	// No fields at all → read (the harmless default), not an error.
+	if _, isErr := invoke(t, tool, map[string]any{}); isErr {
+		t.Error("op-less empty call should default to read, not error")
+	}
+}
+
 func TestPostThenRead_SharedAcrossCalls(t *testing.T) {
 	tool := newTool(t)
 	if _, isErr := invoke(t, tool, map[string]any{"op": "post", "topic": "findings", "from": "researcher", "text": "Go site is go.dev"}); isErr {
@@ -193,7 +220,7 @@ func TestBadInputs(t *testing.T) {
 		{"op": "post", "text": "no topic"},
 		{"op": "post", "topic": "t"}, // no text
 		{"op": "bogus"},
-		{"op": ""},
+		// {"op":""} is no longer an error — it infers a harmless read (M844).
 	} {
 		if _, isErr := invoke(t, tool, c); !isErr {
 			t.Errorf("expected error for %v", c)
