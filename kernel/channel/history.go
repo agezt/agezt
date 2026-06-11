@@ -34,10 +34,17 @@ type histTurn struct {
 }
 
 // ConversationHistory returns a transcript of the last `limit` messages of the
-// caller's conversation in (kind, channelID), oldest first, for use as the run
-// intent. It returns "" when limit <= 0, the id is empty, or there is no PRIOR
-// context (≤1 message — i.e. only the just-received message), so the caller falls
-// back to the raw message text and behavior is unchanged for the first turn.
+// caller's conversation in (kind, channelID, threadID), oldest first, for use
+// as the run intent. It returns "" when limit <= 0, the id is empty, or there
+// is no PRIOR context (≤1 message — i.e. only the just-received message), so the
+// caller falls back to the raw message text and behavior is unchanged for the
+// first turn.
+//
+// Thread binding (M885): threadID scopes the fold to one platform thread/topic
+// within the channel — a Slack thread or Telegram forum topic is its own
+// conversation, not mixed with the channel's main stream or sibling threads.
+// An empty threadID folds the main stream only (events with no thread_id),
+// which is also the pre-M885 behaviour for channels without threads.
 //
 // Privacy in shared channels: a Slack/Discord channel can carry many users. The
 // fold isolates per sender — it includes only THIS sender's inbound messages and
@@ -48,7 +55,7 @@ type histTurn struct {
 // The current inbound message is already journaled by the time a handler runs,
 // so it appears as the final `user:` line — the agent replies to it with the
 // preceding turns as context.
-func ConversationHistory(r EventRanger, kind, channelID, sender string, limit int) string {
+func ConversationHistory(r EventRanger, kind, channelID, threadID, sender string, limit int) string {
 	if r == nil || limit <= 0 || channelID == "" {
 		return ""
 	}
@@ -58,13 +65,14 @@ func ConversationHistory(r EventRanger, kind, channelID, sender string, limit in
 		var p struct {
 			ChannelKind string `json:"channel_kind"`
 			ChannelID   string `json:"channel_id"`
+			ThreadID    string `json:"thread_id"`
 			Sender      string `json:"sender"`
 			Text        string `json:"text"`
 		}
 		if err := json.Unmarshal(e.Payload, &p); err != nil {
 			return nil
 		}
-		if p.ChannelKind != kind || p.ChannelID != channelID || strings.TrimSpace(p.Text) == "" {
+		if p.ChannelKind != kind || p.ChannelID != channelID || p.ThreadID != threadID || strings.TrimSpace(p.Text) == "" {
 			return nil
 		}
 		switch e.Kind {

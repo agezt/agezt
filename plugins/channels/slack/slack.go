@@ -203,14 +203,15 @@ type slackEnvelope struct {
 }
 
 type slackEvent struct {
-	Type    string      `json:"type"`    // "message"
-	Channel string      `json:"channel"` // C…
-	User    string      `json:"user"`    // U…
+	Type    string      `json:"type"`      // "message"
+	Channel string      `json:"channel"`   // C…
+	User    string      `json:"user"`      // U…
 	Text    string      `json:"text"`
 	TS      string      `json:"ts"`
-	BotID   string      `json:"bot_id"`  // set when the message is from a bot
-	Subtype string      `json:"subtype"` // set for edits/joins/bot_message/etc.
-	Files   []slackFile `json:"files"`   // shared-file attachments
+	ThreadTS string     `json:"thread_ts"` // set when the message lives in a thread (M885)
+	BotID   string      `json:"bot_id"`    // set when the message is from a bot
+	Subtype string      `json:"subtype"`   // set for edits/joins/bot_message/etc.
+	Files   []slackFile `json:"files"`     // shared-file attachments
 }
 
 // slackFile is an inbound file attachment. url_private requires the bot token in
@@ -284,6 +285,7 @@ func (c *Channel) process(ctx context.Context, ev slackEvent) {
 	msg := channel.UnifiedMessage{
 		ChannelKind:  "slack",
 		ChannelID:    ev.Channel,
+		ThreadID:     ev.ThreadTS, // M885: a Slack thread is its own conversation
 		Sender:       ev.User,
 		Text:         ev.Text,
 		PlatformTSMS: slackTSMillis(ev.TS),
@@ -320,7 +322,7 @@ func (c *Channel) process(ctx context.Context, ev slackEvent) {
 	if reply == "" {
 		return
 	}
-	_ = c.send(ctx, channel.Outbound{ChannelID: ev.Channel, Text: reply, Priority: channel.PriorityNotify}, corr)
+	_ = c.send(ctx, channel.Outbound{ChannelID: ev.Channel, ThreadID: msg.ThreadID, Text: reply, Priority: channel.PriorityNotify}, corr)
 }
 
 // verify checks Slack's request signature: v0=HMAC-SHA256(secret, "v0:ts:body"),
@@ -376,7 +378,7 @@ func (c *Channel) send(ctx context.Context, out channel.Outbound, corr string) e
 		return nil
 	}
 	for _, chunk := range channel.SplitText(out.Text, slackMaxChars) {
-		if err := c.postMessage(ctx, out.ChannelID, chunk); err != nil {
+		if err := c.postMessage(ctx, out.ChannelID, out.ThreadID, chunk); err != nil {
 			return err
 		}
 	}
@@ -388,8 +390,12 @@ func (c *Channel) send(ctx context.Context, out channel.Outbound, corr string) e
 // Slack returns HTTP 200 even on application errors ({"ok":false,"error":…}), so
 // the body must be decoded and ok checked — a decode failure or ok=false is a
 // FAILED send, not a delivered one.
-func (c *Channel) postMessage(ctx context.Context, channelID, text string) error {
-	body, _ := json.Marshal(map[string]any{"channel": channelID, "text": text})
+func (c *Channel) postMessage(ctx context.Context, channelID, threadTS, text string) error {
+	fields := map[string]any{"channel": channelID, "text": text}
+	if threadTS != "" {
+		fields["thread_ts"] = threadTS // M885: reply inside the originating thread
+	}
+	body, _ := json.Marshal(fields)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.base+"/chat.postMessage", bytes.NewReader(body))
 	if err != nil {
 		return err
@@ -460,18 +466,22 @@ func (c *Channel) emitInbound(msg channel.UnifiedMessage, corr string, allowed b
 	if c.bus == nil {
 		return
 	}
+	payload := map[string]any{
+		"channel_kind": msg.ChannelKind,
+		"channel_id":   msg.ChannelID,
+		"sender":       msg.Sender,
+		"text":         msg.Text,
+		"allowed":      allowed,
+	}
+	if msg.ThreadID != "" {
+		payload["thread_id"] = msg.ThreadID // M885: history folds per thread
+	}
 	_, _ = c.bus.Publish(event.Spec{
 		Subject:       "channel.inbound.slack",
 		Kind:          event.KindChannelInbound,
 		Actor:         "channel-slack",
 		CorrelationID: corr,
-		Payload: map[string]any{
-			"channel_kind": msg.ChannelKind,
-			"channel_id":   msg.ChannelID,
-			"sender":       msg.Sender,
-			"text":         msg.Text,
-			"allowed":      allowed,
-		},
+		Payload:       payload,
 	})
 }
 
@@ -479,17 +489,21 @@ func (c *Channel) emitOutbound(out channel.Outbound, corr string) {
 	if c.bus == nil {
 		return
 	}
+	payload := map[string]any{
+		"channel_kind": "slack",
+		"channel_id":   out.ChannelID,
+		"text":         out.Text,
+		"priority":     string(out.Priority),
+	}
+	if out.ThreadID != "" {
+		payload["thread_id"] = out.ThreadID // M885
+	}
 	_, _ = c.bus.Publish(event.Spec{
 		Subject:       "channel.outbound.slack",
 		Kind:          event.KindChannelOutbound,
 		Actor:         "channel-slack",
 		CorrelationID: corr,
-		Payload: map[string]any{
-			"channel_kind": "slack",
-			"channel_id":   out.ChannelID,
-			"text":         out.Text,
-			"priority":     string(out.Priority),
-		},
+		Payload:       payload,
 	})
 }
 

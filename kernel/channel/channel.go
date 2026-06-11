@@ -25,8 +25,15 @@ import (
 // conversation/thread → ChannelID; body → Text; anything platform-specific is
 // preserved in PlatformMeta (never lost, not required by core).
 type UnifiedMessage struct {
-	ChannelKind  string            `json:"channel_kind"`             // "telegram", "discord", ...
-	ChannelID    string            `json:"channel_id"`               // conversation/chat id
+	ChannelKind string `json:"channel_kind"` // "telegram", "discord", ...
+	ChannelID   string `json:"channel_id"`   // conversation/chat id
+	// ThreadID is the platform thread/topic WITHIN the channel (M885): Slack
+	// thread_ts, Telegram forum topic id. Empty = the channel's main stream.
+	// Platforms whose threads are first-class channels (Discord) leave it
+	// empty — their thread already IS the ChannelID. Conversation history is
+	// folded per (channel, thread), so two threads in one channel are two
+	// separate conversations, and replies land back in the same thread.
+	ThreadID     string            `json:"thread_id,omitempty"`
 	Sender       string            `json:"sender"`                   // platform user id/handle
 	Text         string            `json:"text"`                     // message body
 	Images       []string          `json:"images,omitempty"`         // inbound image attachments as data: URLs (M247)
@@ -45,9 +52,12 @@ const (
 
 // Outbound is a message the kernel hands a channel to deliver.
 type Outbound struct {
-	ChannelID string   `json:"channel_id"`
-	Text      string   `json:"text"`
-	Priority  Priority `json:"priority,omitempty"`
+	ChannelID string `json:"channel_id"`
+	// ThreadID targets a thread/topic within the channel (M885) — the reply
+	// half of UnifiedMessage.ThreadID. Empty posts to the main stream.
+	ThreadID string   `json:"thread_id,omitempty"`
+	Text     string   `json:"text"`
+	Priority Priority `json:"priority,omitempty"`
 }
 
 // InboundHandler turns an inbound message into a reply. The daemon supplies it
