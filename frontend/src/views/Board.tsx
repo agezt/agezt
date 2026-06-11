@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { MessagesSquare, RefreshCw, Hash, User, ArrowRight, CornerDownRight } from "lucide-react";
+import { MessagesSquare, RefreshCw, Hash, User, ArrowRight, CornerDownRight, Search } from "lucide-react";
 import { getJSON } from "@/lib/api";
 import { cn, fmtTime } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -47,6 +47,8 @@ export function Board() {
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [topic, setTopic] = useState<string | null>(null);
+  const [topicQuery, setTopicQuery] = useState("");
+  const [showAllTopics, setShowAllTopics] = useState(false);
 
   async function reload() {
     setLoading(true);
@@ -71,6 +73,24 @@ export function Board() {
     () => Object.entries(data?.topics || {}).sort((a, b) => b[1] - a[1]),
     [data],
   );
+  // With many agents the board grows a long tail of topics; a search + a visible
+  // cap keep the chip row from swallowing the view (M829). The selected topic is
+  // always kept visible even when filtered/capped out, so the filter never hides
+  // what you're looking at.
+  const filteredTopics = useMemo(() => {
+    const q = topicQuery.trim().toLowerCase();
+    return q ? topics.filter(([name]) => name.toLowerCase().includes(q)) : topics;
+  }, [topics, topicQuery]);
+  const TOPIC_CAP = 24;
+  const visibleTopics = useMemo(() => {
+    const base = showAllTopics ? filteredTopics : filteredTopics.slice(0, TOPIC_CAP);
+    if (topic && !base.some(([n]) => n === topic)) {
+      const sel = filteredTopics.find(([n]) => n === topic) ?? topics.find(([n]) => n === topic);
+      if (sel) return [sel, ...base];
+    }
+    return base;
+  }, [filteredTopics, showAllTopics, topic, topics]);
+  const hiddenCount = filteredTopics.length - Math.min(filteredTopics.length, TOPIC_CAP);
   const messages = useMemo(
     () => (data?.messages || []).filter((m) => !topic || m.topic === topic),
     [data, topic],
@@ -95,30 +115,63 @@ export function Board() {
       </div>
 
       {topics.length > 0 && (
-        <div className="flex flex-wrap items-center gap-1.5">
-          <button
-            onClick={() => setTopic(null)}
-            className={cn(
-              "rounded-full border px-2.5 py-0.5 text-[11px] transition-colors",
-              topic === null ? "border-accent bg-accent/10 text-accent" : "border-border bg-panel text-muted hover:text-foreground",
-            )}
-          >
-            all
-          </button>
-          {topics.map(([name, n]) => (
+        <div className="flex flex-col gap-1.5">
+          {topics.length > 12 && (
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted" />
+              <input
+                value={topicQuery}
+                onChange={(e) => setTopicQuery(e.target.value)}
+                placeholder={`filter ${topics.length} topics…`}
+                aria-label="Filter topics"
+                className="w-full rounded-md border border-border bg-panel py-1 pl-7 pr-2 text-xs outline-none focus-visible:border-accent"
+              />
+            </div>
+          )}
+          <div className="flex max-h-24 flex-wrap items-center gap-1.5 overflow-y-auto">
             <button
-              key={name}
-              onClick={() => setTopic(name === topic ? null : name)}
+              onClick={() => setTopic(null)}
               className={cn(
-                "inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] transition-colors",
-                topic === name ? "border-accent bg-accent/10 text-accent" : "border-border bg-panel text-muted hover:text-foreground",
+                "rounded-full border px-2.5 py-0.5 text-[11px] transition-colors",
+                topic === null ? "border-accent bg-accent/10 text-accent" : "border-border bg-panel text-muted hover:text-foreground",
               )}
             >
-              <Hash className="size-3 opacity-70" />
-              {name}
-              <span className="opacity-60">{n}</span>
+              all
             </button>
-          ))}
+            {visibleTopics.map(([name, n]) => (
+              <button
+                key={name}
+                onClick={() => setTopic(name === topic ? null : name)}
+                className={cn(
+                  "inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] transition-colors",
+                  topic === name ? "border-accent bg-accent/10 text-accent" : "border-border bg-panel text-muted hover:text-foreground",
+                )}
+              >
+                <Hash className="size-3 opacity-70" />
+                {name}
+                <span className="opacity-60">{n}</span>
+              </button>
+            ))}
+            {!showAllTopics && hiddenCount > 0 && !topicQuery && (
+              <button
+                onClick={() => setShowAllTopics(true)}
+                className="rounded-full border border-dashed border-border px-2.5 py-0.5 text-[11px] text-muted hover:text-accent"
+              >
+                +{hiddenCount} more
+              </button>
+            )}
+            {showAllTopics && filteredTopics.length > TOPIC_CAP && (
+              <button
+                onClick={() => setShowAllTopics(false)}
+                className="rounded-full border border-dashed border-border px-2.5 py-0.5 text-[11px] text-muted hover:text-accent"
+              >
+                show fewer
+              </button>
+            )}
+            {topicQuery && filteredTopics.length === 0 && (
+              <span className="text-[11px] text-muted">no topics match “{topicQuery}”</span>
+            )}
+          </div>
         </div>
       )}
 

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
-import { render, screen, cleanup, waitFor } from "@testing-library/react";
+import { render, screen, cleanup, waitFor, fireEvent } from "@testing-library/react";
 
 const getJSON = vi.fn();
 vi.mock("@/lib/api", () => ({ getJSON: (...a: unknown[]) => getJSON(...a) }));
@@ -44,6 +44,24 @@ describe("Board", () => {
     // unanswered one does (exactly one badge on the board).
     expect(screen.getByText("reply")).toBeTruthy();
     expect(screen.getAllByText("awaiting reply")).toHaveLength(1);
+  });
+
+  it("caps the topic chips and filters them when there are many (M829)", async () => {
+    const topics: Record<string, number> = {};
+    for (let i = 0; i < 30; i++) topics[`topic-${i}`] = 30 - i; // 30 topics, sorted by count
+    getJSON.mockResolvedValue({ count: 1, topics, messages: [{ topic: "topic-0", from: "a", text: "hi", ts_unix_ms: 1 }] });
+    render(<Board />);
+
+    // The search box appears (>12 topics), and only the first 24 chips show + a "+6 more".
+    const search = await screen.findByLabelText("Filter topics");
+    expect(screen.getByText("+6 more")).toBeTruthy();
+    expect(screen.queryByText("topic-23")).toBeTruthy(); // 24th by count, within the cap
+    expect(screen.queryByText("topic-29")).toBeNull(); // tail, capped out
+
+    // Filtering narrows to the match (a tail topic becomes reachable).
+    fireEvent.change(search, { target: { value: "topic-29" } });
+    await waitFor(() => expect(screen.getByText("topic-29")).toBeTruthy());
+    expect(screen.queryByText("topic-23")).toBeNull();
   });
 
   it("renders post text as markdown (M820): bold + list, not raw asterisks", async () => {
