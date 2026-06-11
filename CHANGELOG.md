@@ -25,6 +25,10 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   `delegate` tool now coaches the leader pattern and prefers reusing an existing named agent. (M843)
 
 ### Changed
+- **Overseer active-run cards name the responsible agent (M869).** Each in-flight run on the Overseer now
+  shows an agent chip (who is running it), learned live from `task.received` events (`actor`), answering
+  "who is doing what right now". Omitted gracefully for runs that predate the page load. Purely frontend —
+  reuses the existing event feed. (M869)
 - **Live active-runs badge on the Overseer nav item (M868).** The sidebar Overseer item now carries an
   accent count pill showing how many runs are in flight, folded live from the event stream
   (`foldActivityEvent` + `summarize`), so the operator sees activity from any view — ambient monitoring,

@@ -13,6 +13,7 @@ import {
   GitBranch,
   Scale,
   Radio,
+  UserRound,
 } from "lucide-react";
 import { getJSON } from "@/lib/api";
 import { cn, fmtTime } from "@/lib/utils";
@@ -129,6 +130,19 @@ export function Overseer() {
     () => data.runs.filter((r) => (r.status || "running") === "running"),
     [data.runs],
   );
+  // corr → responsible agent, learned from the live stream: task.received carries
+  // the agent slug in `actor`. Lets each active-run card name WHO is running it.
+  // Runs that started before the page loaded have no actor in the buffer → the
+  // card just omits the agent chip (graceful, like the rest of the live UI).
+  const corrAgent = useMemo(() => {
+    const m: Record<string, string> = {};
+    for (const e of events) {
+      if (e.kind === "task.received" && e.correlation_id && e.actor && !m[e.correlation_id]) {
+        m[e.correlation_id] = e.actor;
+      }
+    }
+    return m;
+  }, [events]);
   const live = useMemo(() => {
     const roster = data.agents.filter((a) => !a.retired);
     return { total: roster.length, enabled: roster.filter((a) => a.enabled !== false).length };
@@ -219,6 +233,12 @@ export function Overseer() {
                           )}
                         </div>
                         <div className="mt-0.5 flex items-center gap-2 text-[10px] text-muted">
+                          {r.correlation_id && corrAgent[r.correlation_id] && (
+                            <span className="inline-flex items-center gap-1 rounded bg-accent/10 px-1 text-accent">
+                              <UserRound className="size-2.5" />
+                              {corrAgent[r.correlation_id]}
+                            </span>
+                          )}
                           {r.model && <span className="truncate">{r.model}</span>}
                           {typeof r.iters === "number" && <span>· {r.iters} iters</span>}
                           {r.started_unix_ms ? <span>· started {fmtTime(r.started_unix_ms)}</span> : null}
