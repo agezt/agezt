@@ -12,6 +12,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Changed
+- **Chat can Continue a run that hit the iteration limit (instead of only Retry).** When a run
+  exhausts its tool-round cap, chat now offers **Continue** — it resumes from where the agent
+  stopped, keeping the work already done — alongside **Retry** (which restarts from scratch). The cap
+  itself is bigger (default 25 → 50) and configurable via `AGEZT_MAX_ITER` (Config Center → Budget &
+  Limits). (M824)
+
+### Changed
 - **CLI no longer floods with per-token/reasoning event lines.** `agt run` and `agt plan` were
   printing a `[evt seq=0 kind=llm.token]` / `kind=llm.reasoning` line for every streamed chunk — a
   reasoning model (e.g. deepseek-v4-pro) buried the output. Now the answer streams inline, reasoning

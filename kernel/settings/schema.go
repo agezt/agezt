@@ -151,6 +151,7 @@ func builtinSections() []Section {
 			Fields: []Field{
 				{Env: "AGEZT_RATE_PER_MIN", Label: "Max requests / minute", Type: TypeNumber, Apply: ApplyRestart},
 				{Env: "AGEZT_CONTEXT_BUDGET", Label: "Context budget (chars)", Type: TypeNumber, Apply: ApplyRestart},
+				{Env: "AGEZT_MAX_ITER", Label: "Max tool rounds / run", Type: TypeNumber, Apply: ApplyRestart, Help: "How many tool-call rounds one run may take before it stops (default 50). Chat can 'Continue' a run that hits the cap."},
 			},
 		},
 		{

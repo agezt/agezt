@@ -18,6 +18,7 @@ import {
   Trash2,
   RotateCcw,
   ArrowDown,
+  ArrowRight,
   X,
   Paperclip,
   Volume2,
@@ -56,7 +57,7 @@ import { conversationToMarkdown, slugify, downloadText } from "@/lib/export";
 // cost. The engine (store, streaming, model) lives in ChatProvider so a run keeps
 // going when you leave the view; this component is the full-screen UI over it.
 export function Chat() {
-  const { store, messages, busy, model, setModel, agent, setAgent, activeModel, send, retry, editAndResend, conversationPersona, setConversationPersona, stop, newChat, selectConversation, removeConversation, renameConversation, togglePin } =
+  const { store, messages, busy, model, setModel, agent, setAgent, activeModel, send, retry, continueRun, editAndResend, conversationPersona, setConversationPersona, stop, newChat, selectConversation, removeConversation, renameConversation, togglePin } =
     useChat();
   const [input, setInput] = useState("");
   // convFilter filters the conversation sidebar by title/message text (M732).
@@ -272,6 +273,7 @@ export function Chat() {
                       <MessageRow
                         msg={m}
                         onRetry={canRetry ? retry : undefined}
+                        onContinue={canRetry ? continueRun : undefined}
                         onRegenerate={canRegenerate ? retry : undefined}
                         onEdit={!busy && m.role === "user" ? (text) => editAndResend(i, text) : undefined}
                       />
@@ -541,18 +543,20 @@ function EmptyState({ onPick }: { onPick: (s: string) => void }) {
 function MessageRow({
   msg,
   onRetry,
+  onContinue,
   onRegenerate,
   onEdit,
 }: {
   msg: Msg;
   onRetry?: () => void;
+  onContinue?: () => void;
   onRegenerate?: () => void;
   onEdit?: (text: string) => void;
 }) {
   if (msg.role === "user") {
     return <UserBubble text={msg.text} onEdit={onEdit} />;
   }
-  return <AssistantBubble turn={msg.turn} onRetry={onRetry} onRegenerate={onRegenerate} />;
+  return <AssistantBubble turn={msg.turn} onRetry={onRetry} onContinue={onContinue} onRegenerate={onRegenerate} />;
 }
 
 // UserBubble renders one user message, with an inline edit affordance: a pencil
@@ -662,10 +666,12 @@ export function UserBubble({ text, onEdit }: { text: string; onEdit?: (text: str
 function AssistantBubble({
   turn,
   onRetry,
+  onContinue,
   onRegenerate,
 }: {
   turn: ChatTurn;
   onRetry?: () => void;
+  onContinue?: () => void;
   onRegenerate?: () => void;
 }) {
   const text = turnText(turn);
@@ -728,14 +734,26 @@ function AssistantBubble({
               <AlertTriangle className="mt-0.5 size-4 shrink-0" />
               <span className="break-words">{turn.error || "the run failed"}</span>
             </div>
-            {onRetry && (
-              <button
-                onClick={onRetry}
-                className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1 text-xs text-muted transition-colors hover:border-accent hover:text-accent"
-              >
-                <RotateCcw className="size-3.5" /> Retry
-              </button>
-            )}
+            <div className="flex items-center gap-2">
+              {onContinue && (
+                <button
+                  onClick={onContinue}
+                  title="Resume from where it stopped, keeping the work so far (use this if it hit the iteration limit)"
+                  className="inline-flex items-center gap-1.5 rounded-md border border-accent/50 px-2.5 py-1 text-xs text-accent transition-colors hover:bg-accent/10"
+                >
+                  <ArrowRight className="size-3.5" /> Continue
+                </button>
+              )}
+              {onRetry && (
+                <button
+                  onClick={onRetry}
+                  title="Start this task over from scratch"
+                  className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1 text-xs text-muted transition-colors hover:border-accent hover:text-accent"
+                >
+                  <RotateCcw className="size-3.5" /> Retry
+                </button>
+              )}
+            </div>
           </div>
         )}
 

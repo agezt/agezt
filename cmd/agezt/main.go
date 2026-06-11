@@ -554,6 +554,22 @@ func runDaemon(stdout, stderr io.Writer) int {
 			runTimeoutDesc = fmt.Sprintf("%s per run (task.failed reason=timeout on overrun)", d)
 		}
 	}
+	// Per-run tool-round cap (M824): AGEZT_MAX_ITER sets how many tool-call rounds
+	// a single run may take before it stops with max_iters. Defaults to the agent
+	// package's DefaultMaxIter. A malformed or non-positive value is a hard startup
+	// error (fast feedback). Raise it for deep agentic tasks; the chat's "Continue"
+	// affordance resumes a run that still hit the cap.
+	maxIterDesc := fmt.Sprintf("%d per run (default; set %sMAX_ITER to change)", agent.DefaultMaxIter, brand.EnvPrefix)
+	if spec := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "MAX_ITER")); spec != "" {
+		n, perr := strconv.Atoi(spec)
+		if perr != nil || n <= 0 {
+			fmt.Fprintf(stderr, "%s: %sMAX_ITER: want a positive integer, got %q\n", brand.Binary, brand.EnvPrefix, spec)
+			return 1
+		}
+		cfg.MaxIter = n
+		maxIterDesc = fmt.Sprintf("%d per run", n)
+	}
+
 	// Per-tool-call timeout (M34): AGEZT_TOOL_TIMEOUT=<duration> bounds each
 	// individual tool invocation. Unlike the per-run cap, an overrun fails
 	// only that tool call (the model gets an error result and can adapt) —
@@ -925,6 +941,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 	fmt.Fprintf(stdout, "  policy engine    : edict (allow-by-default — every capability on unless you opt out; %s)\n", askPolicyDesc)
 	fmt.Fprintf(stdout, "  delegation       : %s\n", delegationBanner(k))
 	fmt.Fprintf(stdout, "  run timeout      : %s\n", runTimeoutDesc)
+	fmt.Fprintf(stdout, "  max iterations   : %s\n", maxIterDesc)
 	fmt.Fprintf(stdout, "  tool timeout     : %s\n", toolTimeoutDesc)
 	fmt.Fprintf(stdout, "  approval timeout : %s\n", approvalTimeoutDesc)
 	fmt.Fprintf(stdout, "  warden           : %s\n", wardDesc)

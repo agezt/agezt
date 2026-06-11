@@ -85,6 +85,9 @@ export interface ChatEngine {
    *  the conversation still shows the clean `intent` as the user's message. */
   send: (intent: string, context?: string) => void;
   retry: () => void;
+  /** Resume an errored/maxed-out turn: keep the partial answer as context and ask
+   *  the model to finish, instead of restarting the whole task like retry(). */
+  continueRun: () => void;
   /** This conversation's persona override (system prompt), "" when it uses the
    *  daemon's global persona. Set it to make a single thread act as something else. */
   conversationPersona: string;
@@ -244,6 +247,23 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     void streamIntent(intent, history);
   }
 
+  // continueRun resumes the trailing assistant turn that stopped (e.g. hit the
+  // max-iteration cap) WITHOUT restarting: it keeps the partial answer as history
+  // and appends a fresh turn that asks the model to finish from where it left off.
+  // Unlike retry (drop the failed turn, re-run the original ask), this preserves
+  // the work already done.
+  function continueRun() {
+    if (busy) return;
+    const last = messages[messages.length - 1];
+    if (!last || last.role !== "assistant") return;
+    const history = buildHistory(messages); // includes the partial answer
+    setMessages((prev) => [...prev, { role: "assistant", turn: newTurn() }]);
+    void streamIntent(
+      "Continue from where you stopped and finish the task. Do not repeat work already completed.",
+      history,
+    );
+  }
+
   // editAndResend rewrites a past user message and re-runs the conversation from
   // that point: drop everything after the edited message (the old answer and any
   // later turns no longer apply), then stream a fresh turn with the history that
@@ -302,6 +322,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     activeModel,
     send,
     retry,
+    continueRun,
     editAndResend,
     conversationPersona: activePersona(store),
     setConversationPersona,
