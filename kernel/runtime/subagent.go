@@ -328,6 +328,8 @@ func (k *Kernel) runSubAgent(ctx context.Context, task, model, taskType, agentRe
 		AgentDailyCeilingMc:  agentDailyMc,
 		System:               system,
 		MaxIter:              k.cfg.MaxIter,
+		MaxAutoContinue:      k.cfg.MaxAutoContinue,  // M833: autonomous continue past MaxIter
+		AutoContinueWait:     k.cfg.AutoContinueWait, // M833
 		ToolTimeout:          k.cfg.ToolTimeout,
 		MaxRunCostMicrocents: maxRunCost,
 		Actor:                actor,
