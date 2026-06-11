@@ -11,7 +11,71 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 
 ## [Unreleased]
 
+### Added
+- **In-turn parallel tool dispatch (M880).** When the model issues several tool calls in one assistant
+  turn, the loop now executes them concurrently (default cap 4; `AGEZT_PARALLEL_TOOLS` overrides, `1` =
+  strictly sequential) instead of one-at-a-time. Gating (loop guard, policy) and its journaling stay
+  sequential in call order, and `tool.result` events plus the tool messages are emitted in the original
+  call order — the conversation the model sees is byte-identical to the sequential build. Each concurrent
+  invocation has its own panic firewall, so a tool panic fails the run, never the daemon. (M880)
+- **Async delegation — fire-and-forget sub-agents with explicit collect (M881).** `delegate` gains
+  `async: true`: it returns a `spawn_id` immediately while the sub-agent runs in the background, and a new
+  `delegate_await` tool collects the result (once per id). Completion is announced push-style as a
+  `subagent.completed` event under the parent correlation. Every bound (depth, fan-out, tree-total, spend)
+  applies at spawn time exactly as for a synchronous delegate; `agt halt` / cancel reach async children,
+  and any child left un-awaited when its tree's root run ends is cancelled — a spawn never outlives its
+  delegation tree. Combined with M880 this makes a multi-sub-agent fan-out genuinely concurrent. (M881)
+- **Governor retries a transient failure in place before falling back (M882).** A rate-limit / 5xx /
+  network blip on the chosen provider now retries the SAME provider with exponential backoff + jitter
+  (`AGEZT`-tunable; default 2 retries, 500 ms base; each attempt journals `provider.retry`) before the
+  chain downgrades to a fallback provider or model. Non-transient errors (auth, invalid request) still
+  fall back immediately. Streaming reaches parity — but once output has started flowing to the consumer a
+  failure becomes terminal, so a retry/fallback can never replay and duplicate a half-streamed answer. (M882)
+- **Opt-in LLM response cache (M888).** `AGEZT_LLM_CACHE_TTL` (off by default) serves an *identical*
+  completion request from an in-memory TTL'd LRU — no provider call, no spend, no rate-window slot —
+  checked before preflight. Off by default because an LLM is not a pure function and chat "regenerate"
+  wants a fresh sample; enable it for machine-driven workloads whose repeat calls are deterministic
+  re-asks (retried workflow steps, re-fired schedules over unchanged input). Streaming is never served
+  from the cache. (M888)
+- **Provider embeddings for memory recall (M884, M901).** Memory recall gains an optional `Embedder`
+  seam: with one installed, recall ranks by true semantic similarity (synonyms, cross-language) on top of
+  the keyword signal, falling back to the local feature-hash embedder on any embedder failure — quality
+  degrades, availability never. The first implementation is an OpenAI-compatible `/v1/embeddings` client
+  configured by `AGEZT_EMBED_URL` + `AGEZT_EMBED_MODEL` (+ optional `AGEZT_EMBED_KEY`): point it at a
+  local Ollama (`nomic-embed-text`, zero cost, no key) or a hosted API (`text-embedding-3-small`). A new
+  "Memory Embeddings" group in the Config Center surfaces the three settings. Vectors are cached per
+  content-addressed record id, so a recall only embeds the query plus cache misses. (M884, M901)
+- **Platform thread binding — Slack threads, Telegram topics (M885).** A reply in a Slack thread or a
+  Telegram forum topic is now its own conversation: history folds per `(channel, thread, sender)` instead
+  of lumping a whole channel together, and replies land back inside the originating thread (`thread_ts` /
+  `message_thread_id`). Telegram guards on `is_topic_message` so a plain reply in a non-forum chat doesn't
+  split an ordinary conversation; Discord needs nothing (its threads are already distinct channel ids). (M885)
+- **Scheduled-intent prompt-injection tripwire (M886).** Every scheduled intent is scanned at fire time
+  — the one choke point all creation paths funnel through, so pre-existing schedules are covered too —
+  against conservative injection markers (instruction override in EN+TR, persona hijack, prompt/secret
+  exfiltration, shell smuggling, long base64 blobs). Per the default-allow posture the schedule still
+  fires; a suspicious intent journals an `anomaly.detected` warning on each firing, so an unattended
+  compromised automation becomes visible instead of silent. (M886)
+- **Plugin capability manifest (M900).** An out-of-process plugin can declare, per tool, which kernel
+  policy axis it belongs to (`ToolDef.Capability` / SDK `Tool.Capability`, e.g. `http.post`,
+  `file.write`). The declared tool then joins that axis's trust level and hard-deny rules — an operator's
+  "http.post asks first" applies to a third-party plugin's POST tool exactly like the built-in one.
+  Unknown declarations are dropped (a plugin joins existing axes, it never invents one); undeclared tools
+  keep the historical name classification, so the change is fully backward compatible. (M900)
+
+### Changed
+- **Bounded drain on shutdown (M883).** `Close()` now waits (default 5 s, `ShutdownDrainTimeout`) for
+  in-flight runs and async spawns to settle after `Halt` before tearing down the journal/state/memory
+  stores they write to — a run mid-write no longer races store teardown. A run wedged in a
+  cancellation-ignoring tool is abandoned past the deadline with a journaled anomaly rather than blocking
+  shutdown forever. (M883)
+
 ### Fixed
+- **DeepSeek cached-token billing parity (M887).** The OpenAI-compatible adapter now also reads DeepSeek's
+  `prompt_cache_hit_tokens` (their spelling of the cache-read count) alongside OpenAI's
+  `prompt_tokens_details.cached_tokens`, on both the non-streaming and streaming paths. DeepSeek context-cache
+  hits now price at the cache-read rate instead of being silently billed as fresh input; the streaming
+  usage frame previously dropped the cached count entirely. (M887)
 - **Data Lake record edit/delete are now visible (M855).** The per-record edit and delete controls in
   the Data browse view were hover-only (`opacity-0`), so they looked missing. They're now always-shown
   pencil and trash icon buttons per row (the edit tooltip also surfaces who added/updated the record).
