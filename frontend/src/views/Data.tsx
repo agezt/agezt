@@ -11,6 +11,14 @@ import {
   Wallet,
   CheckCircle2,
   Circle,
+  CalendarDays,
+  Flame,
+  StickyNote,
+  Bookmark,
+  User,
+  Mail,
+  Phone,
+  ExternalLink,
 } from "lucide-react";
 import { getJSON, postJSON, postAction } from "@/lib/api";
 import { cn, fmtTime } from "@/lib/utils";
@@ -233,6 +241,16 @@ export function Data() {
               <ExpenseView records={records} onEdit={(r) => setEditing(r)} onDelete={delRecord} />
             ) : activeCol.view === "tasks" ? (
               <TasksView records={records} onEdit={(r) => setEditing(r)} onDelete={delRecord} onToggle={(r) => saveRecord({ done: !truthy(r.fields?.done) }, r.id)} />
+            ) : activeCol.view === "calendar" ? (
+              <CalendarView records={records} onEdit={(r) => setEditing(r)} onDelete={delRecord} />
+            ) : activeCol.view === "habits" ? (
+              <HabitsView records={records} onEdit={(r) => setEditing(r)} onDelete={delRecord} />
+            ) : activeCol.view === "notes" ? (
+              <NotesView records={records} onEdit={(r) => setEditing(r)} onDelete={delRecord} />
+            ) : activeCol.view === "bookmarks" ? (
+              <BookmarksView records={records} onEdit={(r) => setEditing(r)} onDelete={delRecord} />
+            ) : activeCol.view === "contacts" ? (
+              <ContactsView records={records} onEdit={(r) => setEditing(r)} onDelete={delRecord} />
             ) : (
               <div className="min-h-0 flex-1 overflow-auto rounded-lg border border-border">
                 <table className="w-full border-collapse text-sm">
@@ -422,6 +440,166 @@ function TasksView({ records, onEdit, onDelete, onToggle }: BespokeProps & { onT
           <ul className="space-y-1 opacity-80">{done.map(Row)}</ul>
         </div>
       )}
+    </div>
+  );
+}
+
+const str = (v: unknown): string => (v == null ? "" : String(v));
+function tagList(v: unknown): string[] {
+  if (Array.isArray(v)) return v.map(String);
+  if (typeof v === "string") return v.split(",").map((s) => s.trim()).filter(Boolean);
+  return [];
+}
+
+// CalendarView (M860): an agenda grouped by date, soonest first — upcoming events
+// above past ones.
+function CalendarView({ records, onEdit, onDelete }: BespokeProps) {
+  const sorted = [...records].sort((a, b) => str(a.fields?.date).localeCompare(str(b.fields?.date)));
+  const today = new Date().toISOString().slice(0, 10);
+  const upcoming = sorted.filter((r) => str(r.fields?.date) >= today);
+  const past = sorted.filter((r) => str(r.fields?.date) < today).reverse();
+  const Item = (r: DataRecord) => (
+    <li key={r.id} className="group flex items-start gap-3 rounded-lg border border-border bg-card px-3 py-2 text-sm">
+      <div className="flex w-16 shrink-0 flex-col items-center rounded-md bg-panel py-1">
+        <CalendarDays className="size-3.5 text-accent" />
+        <span className="mt-0.5 font-mono text-[10px] text-muted">{str(r.fields?.date).slice(5) || "—"}</span>
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="truncate font-medium">{str(r.fields?.title) || "—"}</div>
+        <div className="flex flex-wrap gap-x-3 text-[11px] text-muted">
+          {str(r.fields?.time) && <span>{str(r.fields?.time)}</span>}
+          {str(r.fields?.location) && <span>· {str(r.fields?.location)}</span>}
+        </div>
+      </div>
+      <RowActions r={r} onEdit={onEdit} onDelete={onDelete} />
+    </li>
+  );
+  return (
+    <div className="min-h-0 flex-1 space-y-3 overflow-auto">
+      <div>
+        <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-muted">Upcoming · {upcoming.length}</div>
+        <ul className="space-y-1">{upcoming.map(Item)}</ul>
+      </div>
+      {past.length > 0 && (
+        <div>
+          <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-muted">Past · {past.length}</div>
+          <ul className="space-y-1 opacity-70">{past.map(Item)}</ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// HabitsView (M860): streak cards — biggest streak first.
+function HabitsView({ records, onEdit, onDelete }: BespokeProps) {
+  const sorted = [...records].sort((a, b) => num(b.fields?.streak) - num(a.fields?.streak));
+  return (
+    <div className="grid min-h-0 flex-1 grid-cols-2 gap-2 overflow-auto md:grid-cols-3">
+      {sorted.map((r) => (
+        <div key={r.id} className="group flex flex-col rounded-lg border border-border bg-card p-3">
+          <div className="flex items-center gap-2">
+            <span className="min-w-0 flex-1 truncate font-medium">{str(r.fields?.name) || "—"}</span>
+            <RowActions r={r} onEdit={onEdit} onDelete={onDelete} />
+          </div>
+          <div className="mt-2 flex items-center gap-1.5">
+            <Flame className={cn("size-5", num(r.fields?.streak) > 0 ? "text-warn" : "text-muted")} />
+            <span className="font-mono text-xl font-semibold">{num(r.fields?.streak)}</span>
+            <span className="text-[11px] text-muted">day streak</span>
+          </div>
+          <div className="mt-1 flex flex-wrap gap-x-3 text-[11px] text-muted">
+            {str(r.fields?.cadence) && <span>{str(r.fields?.cadence)}</span>}
+            {str(r.fields?.last) && <span>· last {str(r.fields?.last)}</span>}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// NotesView (M860): a card grid (title + body + tags).
+function NotesView({ records, onEdit, onDelete }: BespokeProps) {
+  return (
+    <div className="grid min-h-0 flex-1 grid-cols-1 gap-2 overflow-auto md:grid-cols-2 xl:grid-cols-3">
+      {records.map((r) => (
+        <div key={r.id} className="group flex flex-col rounded-lg border border-border bg-card p-3">
+          <div className="flex items-center gap-2">
+            <StickyNote className="size-3.5 shrink-0 text-accent" />
+            <span className="min-w-0 flex-1 truncate font-medium">{str(r.fields?.title) || "untitled"}</span>
+            <RowActions r={r} onEdit={onEdit} onDelete={onDelete} />
+          </div>
+          {str(r.fields?.body) && <p className="mt-1.5 line-clamp-5 whitespace-pre-wrap text-xs text-foreground/80">{str(r.fields?.body)}</p>}
+          <div className="mt-auto flex flex-wrap gap-1 pt-2">
+            {tagList(r.fields?.tags).map((t) => (
+              <Badge key={t} variant="default">{t}</Badge>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// BookmarksView (M860): a list of links you can open, with tags.
+function BookmarksView({ records, onEdit, onDelete }: BespokeProps) {
+  return (
+    <ul className="min-h-0 flex-1 space-y-1 overflow-auto">
+      {records.map((r) => {
+        const url = str(r.fields?.url);
+        return (
+          <li key={r.id} className="group flex items-center gap-3 rounded-lg border border-border bg-card px-3 py-2 text-sm">
+            <Bookmark className="size-3.5 shrink-0 text-accent" />
+            <div className="min-w-0 flex-1">
+              <div className="truncate font-medium">{str(r.fields?.title) || url || "—"}</div>
+              {url && (
+                <a href={url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 truncate text-[11px] text-accent hover:underline">
+                  <ExternalLink className="size-3" /> {url}
+                </a>
+              )}
+            </div>
+            <div className="hidden shrink-0 flex-wrap gap-1 sm:flex">
+              {tagList(r.fields?.tags).map((t) => (
+                <Badge key={t} variant="default">{t}</Badge>
+              ))}
+            </div>
+            <RowActions r={r} onEdit={onEdit} onDelete={onDelete} />
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+// ContactsView (M860): a card grid (name + email + phone + company).
+function ContactsView({ records, onEdit, onDelete }: BespokeProps) {
+  const sorted = [...records].sort((a, b) => str(a.fields?.name).localeCompare(str(b.fields?.name)));
+  return (
+    <div className="grid min-h-0 flex-1 grid-cols-1 gap-2 overflow-auto md:grid-cols-2 xl:grid-cols-3">
+      {sorted.map((r) => (
+        <div key={r.id} className="group flex flex-col rounded-lg border border-border bg-card p-3">
+          <div className="flex items-center gap-2">
+            <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-panel text-accent">
+              <User className="size-3.5" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <div className="truncate font-medium">{str(r.fields?.name) || "—"}</div>
+              {str(r.fields?.company) && <div className="truncate text-[11px] text-muted">{str(r.fields?.company)}</div>}
+            </div>
+            <RowActions r={r} onEdit={onEdit} onDelete={onDelete} />
+          </div>
+          <div className="mt-2 space-y-0.5 text-[11px] text-muted">
+            {str(r.fields?.email) && (
+              <a href={`mailto:${str(r.fields?.email)}`} className="flex items-center gap-1.5 hover:text-accent">
+                <Mail className="size-3" /> <span className="truncate">{str(r.fields?.email)}</span>
+              </a>
+            )}
+            {str(r.fields?.phone) && (
+              <div className="flex items-center gap-1.5">
+                <Phone className="size-3" /> {str(r.fields?.phone)}
+              </div>
+            )}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

@@ -25,6 +25,11 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   `delegate` tool now coaches the leader pattern and prefers reusing an existing named agent. (M843)
 
 ### Added
+- **Data Lake app-like views for every built-in collection (M860).** After expense + tasks (M856), the
+  remaining built-ins now render as apps instead of a raw table: `calendar` (an agenda grouped into
+  upcoming/past), `habits` (streak cards), `notes` (a card grid with tags), `bookmarks` (openable link
+  list), and `contacts` (cards with mailto/phone). All keep the always-visible edit/delete per record;
+  agent-created custom collections still use the editable table. (M860)
 - **Skill hygiene — find and retire idle skills (M858).** The pair to memory prune: the Skills view now
   surfaces active skills that are never used or long-unused (skills already track use counts), in a
   collapsible "idle skills" strip, each with a one-click **retire** (quarantine — reversible). Brand-new
