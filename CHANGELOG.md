@@ -52,6 +52,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   the Runs view. Purely frontend — reuses the existing event provider and read routes. (M867)
 
 ### Added
+- **Built-in crypto-tools skill bundle (M894).** A fourteenth out-of-the-box skill — cryptographic
+  primitives (#34), **zero pip deps** (Python stdlib `hashlib`/`hmac`/`base64`/`secrets`).
+  `scripts/crypto.py` has six ops: `hash` (file/text, any algo), `verify` (constant-time), `hmac` /
+  `hmac_verify` (webhook signatures, constant-time), `base64` (encode/decode, std or urlsafe), `token`
+  (CSPRNG secrets). Keys never echoed back; verify uses `hmac.compare_digest`. Pairs with http-api-client
+  (sign/verify webhooks), archive-tools (checksum a bundle), ssh-remote (verify a transferred file). Rides
+  the `plugins/builtinskills` seeder. (M894)
 - **Built-in ssh-remote skill bundle (M893).** A thirteenth out-of-the-box skill that operates remote
   hosts over SSH (#34). `scripts/ssh.py` (paramiko) has four ops: `run` (exec → exit_code/stdout/stderr),
   `put`/`get` (SFTP upload/download), `ls` (remote dir); key or password auth, password never echoed back,
