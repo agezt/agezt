@@ -24,6 +24,15 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   recursion from running away; `AGEZT_SUBAGENT_DEPTH` / `AGEZT_SUBAGENT_MAX_TOTAL` override. The
   `delegate` tool now coaches the leader pattern and prefers reusing an existing named agent. (M843)
 
+### Changed
+- **Overseer dashboard goes live (M867).** The supervisory view (M862) now rides the SSE event stream
+  instead of only polling: a state-changing event (`task.received/completed/failed/continued`,
+  `subagent.spawned`, `council.consensus`, `board.posted`) triggers a debounced refetch so panels update
+  within ~1s, with a 15s fallback poll for self-healing. Adds a **live/offline connection pill**, a
+  **Recent activity** ticker (last 10 supervisory events with typed icons — run started/completed/failed,
+  sub-agent spawned, council consensus, help requested), and **click-through** from an active-run card to
+  the Runs view. Purely frontend — reuses the existing event provider and read routes. (M867)
+
 ### Added
 - **Built-in pdf-tools skill bundle (M866).** A seventh out-of-the-box skill that gets data out of PDFs —
   the gap data-analysis and web-research both defer on (#34). `scripts/pdf.py` is one JSON-spec helper
