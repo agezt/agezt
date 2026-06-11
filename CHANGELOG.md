@@ -25,6 +25,11 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   `delegate` tool now coaches the leader pattern and prefers reusing an existing named agent. (M843)
 
 ### Changed
+- **Per-skill last-used recency + idle hint (M878, completes #37).** Every skill card in the Skills view
+  now shows when it was last used (`used N× · K ok · last 2d ago`) and flags an active skill that has
+  never fired as `idle · never used`, so "in-use vs idle" is readable per skill — not only via the
+  aggregate hygiene strip (M858). Adds a reusable `fmtAgo` relative-time helper. Purely frontend; reuses
+  the existing skill-list metrics (`uses`/`successes`/`last_used_ms`). (M878)
 - **Per-turn timestamps in the chat (M877).** Each chat exchange now shows when it happened — the meta
   line under an answer gains the turn's time (`as <agent> · <model> · <n> iters · <cost> · <time>`).
   `ChatTurn` carries an optional `ts` stamped by the store on send (the pure reducer stays time-free);

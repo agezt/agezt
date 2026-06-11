@@ -35,3 +35,20 @@ export function fmtDateTime(ms?: number): string {
     return "";
   }
 }
+
+// fmtAgo renders a coarse relative time ("3m ago", "2d ago") — for "when was
+// this last used / seen" labels where recency matters more than the exact clock.
+export function fmtAgo(ms?: number): string {
+  if (!ms) return "";
+  const diff = Date.now() - ms;
+  if (diff < 60_000) return "just now";
+  const m = Math.floor(diff / 60_000);
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  const d = Math.floor(h / 24);
+  if (d < 30) return `${d}d ago`;
+  const mo = Math.floor(d / 30);
+  if (mo < 12) return `${mo}mo ago`;
+  return `${Math.floor(mo / 12)}y ago`;
+}
