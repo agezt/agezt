@@ -12,6 +12,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Personal Data Lake — agents get real databases (M834).** A new `db` tool lets agents build and
+  use structured **collections** (tables): `create_collection`, `insert`, `query` (search / exact-match
+  / sort / limit), `get`, `update`, `delete`, `drop_collection`, `list_collections`. Collections are
+  shared across all agents and the human (so one agent files data another — or you, from chat — later
+  reads), every record records which agent created/updated it, and a `view` hint (expense / calendar /
+  tasks / notes / …) lets the Web UI render bespoke app views. File-based and dependency-free (no
+  SQLite/Postgres) to keep the single static binary; rides the memory capability — no new grant. (M834)
 - **Runs continue themselves past the iteration cap (M833).** A run that exhausts its tool-round
   budget without finishing no longer just stops with `max_iters` — the loop automatically injects a
   "keep going" turn and grants another batch of rounds, up to `AGEZT_MAX_AUTO_CONTINUE` times (default

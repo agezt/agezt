@@ -33,6 +33,9 @@ func TestCapabilityForToolCall(t *testing.T) {
 		{"artifacts", `{"op":"read","id":"art-x"}`, CapFileRead},
 		{"artifacts", `{"op":"  DELETE  ","id":"art-x"}`, CapFileDelete},
 		{"artifacts", `{}`, CapFileRead}, // garbled call lands on read (low-risk default)
+		// The Personal Data Lake tool (M834) rides the memory capability.
+		{"db", `{"op":"query","collection":"expenses"}`, CapMemory},
+		{"db", `{"op":"insert","collection":"notes","record":{}}`, CapMemory},
 		{"remote_run", `{"task":"x"}`, CapRemoteRun},
 		{"notify", `{"text":"hi"}`, CapNotify},
 		{"homeassistant", `{"operation":"get_states","entity_id":"light.x"}`, CapHomeAssistantRead},
