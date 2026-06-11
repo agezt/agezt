@@ -213,6 +213,7 @@ const (
 	KindMemoryWritten    Kind = "memory.written"    // a record created/reinforced/revived
 	KindMemoryRetrieved  Kind = "memory.retrieved"  // records surfaced into a run's context
 	KindMemoryForgotten  Kind = "memory.forgotten"  // a record tombstoned (soft delete)
+	KindMemoryPruned     Kind = "memory.pruned"     // soft-deleted records hard-removed (M857)
 	KindMemorySuperseded Kind = "memory.superseded" // a record replaced by a newer version
 	// KindMemoryConsolidated (M804): one brain-distillation pass merged
 	// clusters of related records into consolidated summaries.
@@ -416,6 +417,7 @@ var knownKinds = map[Kind]struct{}{
 	KindMemoryWritten:             {},
 	KindMemoryRetrieved:           {},
 	KindMemoryForgotten:           {},
+	KindMemoryPruned:              {},
 	KindMemorySuperseded:          {},
 	KindMemoryConsolidated:        {},
 	KindWorldEntityUpserted:       {},

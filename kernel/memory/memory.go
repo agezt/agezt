@@ -130,6 +130,10 @@ type Store interface {
 	Put(r Record) error
 	// Get returns the record at id; the bool is false if absent.
 	Get(id string) (Record, bool, error)
+	// Delete hard-removes the record at id (returns false if absent). Unlike
+	// Forget (which tombstones), this reclaims the row — used only by the prune
+	// pass on already-soft-deleted records (M857).
+	Delete(id string) (bool, error)
 	// All returns every record (including tombstoned/superseded ones),
 	// sorted deterministically by CreatedMS then ID.
 	All() ([]Record, error)
@@ -204,6 +208,17 @@ func (s *FileStore) Get(id string) (Record, bool, error) {
 	defer s.mu.RUnlock()
 	r, ok := s.data[id]
 	return r, ok, nil
+}
+
+// Delete implements Store — a hard removal (M857). Returns false if id is absent.
+func (s *FileStore) Delete(id string) (bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.data[id]; !ok {
+		return false, nil
+	}
+	delete(s.data, id)
+	return true, s.snapshotLocked()
 }
 
 // All implements Store. The returned slice is sorted by CreatedMS then ID so

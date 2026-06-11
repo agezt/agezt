@@ -717,6 +717,13 @@ const (
 	// Args: none. Returns the pass report (clusters, merges, supersessions).
 	CmdMemoryConsolidate = "memory_consolidate"
 
+	// CmdMemoryPrune hard-removes soft-deleted (tombstoned/superseded) records
+	// older than older_than_days — reclaiming dead weight so memory can't grow
+	// unbounded (M857). dry_run (default) reports hygiene + prunable count.
+	// Args: older_than_days (optional; default 30), dry_run (optional; default true).
+	// Returns: { dry_run, older_than_days, cutoff_ms, prunable|pruned, stats }
+	CmdMemoryPrune = "memory_prune"
+
 	// Scheduled intents (autonomy). The cadence resident fires due schedules
 	// through the governed loop; these commands manage the persistent store
 	// behind `agt schedule`.

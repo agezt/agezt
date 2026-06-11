@@ -25,6 +25,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   `delegate` tool now coaches the leader pattern and prefers reusing an existing named agent. (M843)
 
 ### Added
+- **Memory prune — reclaim soft-deleted records (M857).** Memory consolidation (the LLM "sleep cycle")
+  already merges related records, but it and `forget` only soft-delete — the superseded/tombstoned rows
+  pile up forever. A new prune hard-removes soft-deleted records older than a threshold (default 30 days,
+  so recent deletions stay recoverable); active memories are never touched. A "Prune" button in the
+  Memory view dry-runs first (shows how many would go) then confirms; backed by `CmdMemoryPrune` +
+  `Manager.Hygiene`/`Prune` and a `memory.pruned` journal event. Together with consolidation this bounds
+  memory growth — no memory-bomb. (M857)
 - **Data Lake bespoke views — expense tracker + task checklist (M856).** The Data view now renders
   app-like layouts for collections that declare a `view`, instead of one generic table. `expense` →
   summary cards (total / this month / count) + a by-category breakdown with bars + the recent-expenses

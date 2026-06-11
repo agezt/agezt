@@ -134,6 +134,32 @@ export function Memory() {
     }
   }
 
+  // prune hard-removes soft-deleted (forgotten/superseded) records older than the
+  // cutoff — the "no memory-bomb" sweep (M857). Dry-run first, then confirm.
+  const PRUNE_DAYS = 30;
+  async function prune() {
+    try {
+      const dry = await postJSON<{ prunable?: number }>("/api/memory/prune", { older_than_days: String(PRUNE_DAYS), dry_run: "true" });
+      const n = dry.prunable ?? 0;
+      if (n === 0) {
+        ui.toast("Nothing to prune — no soft-deleted records older than 30 days", "success");
+        return;
+      }
+      const ok = await ui.confirm({
+        title: "Prune old deleted memories?",
+        message: `${n} forgotten/superseded record${n === 1 ? "" : "s"} older than ${PRUNE_DAYS} days will be permanently removed. Active memories are never touched.`,
+        confirmLabel: "Prune",
+        danger: true,
+      });
+      if (!ok) return;
+      const res = await postJSON<{ pruned?: number }>("/api/memory/prune", { older_than_days: String(PRUNE_DAYS), dry_run: "false" });
+      ui.toast(`Pruned ${res.pruned ?? 0} record(s)`, "success");
+      await reload();
+    } catch (e) {
+      ui.toast(`prune failed: ${(e as Error).message}`, "error");
+    }
+  }
+
   // byType drives the breakdown bar (over ALL records, not the filtered view).
   const byType = useMemo(() => {
     const c: Record<string, number> = {};
@@ -186,6 +212,9 @@ export function Memory() {
         </Button>
         <Button variant="ghost" size="sm" onClick={exportMemory} disabled={!records || records.length === 0} title="Export memories to a file">
           <Download className="size-3.5" /> Export
+        </Button>
+        <Button variant="ghost" size="sm" onClick={prune} title="Permanently remove forgotten/superseded records older than 30 days">
+          <Trash2 className="size-3.5" /> Prune
         </Button>
         <Button variant="ghost" size="sm" onClick={reload} disabled={loading}>
           <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />

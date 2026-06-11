@@ -630,6 +630,8 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.handleMemoryConsolidate(conn, req)
 	case CmdMemoryForget:
 		s.handleMemoryForget(conn, req)
+	case CmdMemoryPrune:
+		s.handleMemoryPrune(conn, req)
 	case CmdScheduleAdd:
 		s.handleScheduleAdd(conn, req)
 	case CmdScheduleList:
