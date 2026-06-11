@@ -97,6 +97,7 @@ import (
 	"github.com/agezt/agezt/plugins/tools/codeexec"
 	"github.com/agezt/agezt/plugins/tools/coding"
 	configtool "github.com/agezt/agezt/plugins/tools/config"
+	dbtool "github.com/agezt/agezt/plugins/tools/db"
 	"github.com/agezt/agezt/plugins/tools/fetch"
 	filetool "github.com/agezt/agezt/plugins/tools/file"
 	"github.com/agezt/agezt/plugins/tools/forgetool"
@@ -776,6 +777,10 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// list/read/delete the files it has saved.
 	if af, ok := tools["artifacts"].(*artifactstool.Tool); ok {
 		af.SetIndex(k.ArtifactIndex())
+	}
+	// Inject the data lake into the db tool (M834).
+	if dbt, ok := tools["db"].(*dbtool.Tool); ok {
+		dbt.SetStore(k.DataLake())
 	}
 
 	// Wire the bus into the Governor and the Warden so their events
@@ -4541,6 +4546,13 @@ func buildTools(baseDir string, stderr io.Writer, ward warden.Engine) (map[strin
 	af := artifactstool.New()
 	out["artifacts"] = af
 	registered = append(registered, "artifacts(list/read/delete)")
+
+	// db — the Personal Data Lake (M834): agent-built, multi-agent-shared structured
+	// collections (expenses, tasks, notes, contacts, …) the human can also browse in
+	// the Data view. The lake is injected after the kernel opens. Always registered.
+	dbt := dbtool.New()
+	out["db"] = dbt
+	registered = append(registered, "db(data-lake)")
 
 	// coding — external coding-agent bridge (P6-CODE). Registered only when
 	// AGEZT_CODING_CMD is set (the command that runs Claude Code / Codex / Aider

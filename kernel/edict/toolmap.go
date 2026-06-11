@@ -123,6 +123,11 @@ func CapabilityForToolCall(toolName string, input json.RawMessage) Capability {
 		return CapCodeExec
 	case "memory":
 		return CapMemory
+	case "db":
+		// The Personal Data Lake (M834) is structured durable knowledge the agent
+		// keeps for itself — same axis as memory, so it inherits that allow-by-
+		// default grant rather than introducing a new capability.
+		return CapMemory
 	case "world":
 		return CapWorld
 	case "delegate":

@@ -29,6 +29,7 @@ import (
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/cadence"
 	"github.com/agezt/agezt/kernel/catalog"
+	"github.com/agezt/agezt/kernel/datalake"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/governor"
@@ -366,6 +367,7 @@ type Kernel struct {
 	workflows *workflow.Store
 	artifacts *artifact.Store
 	artIndex  *artifact.Index // metadata sidecar over artifacts (M822): browsable/deletable entries
+	lake      *datalake.Lake  // Personal Data Lake (M834): agent-built structured collections
 	reflect   *reflect.Engine
 	schedules *cadence.Store        // persistent scheduled-intents store (autonomy)
 	tools     map[string]agent.Tool // cfg.Tools + the memory/world tools (when enabled)
@@ -490,6 +492,19 @@ func Open(cfg Config) (*Kernel, error) {
 		return nil, fmt.Errorf("runtime: artifact index: %w", err)
 	}
 
+	// Personal Data Lake (M834): file-based structured collections agents build
+	// and share. Pure on-disk (no handle to close), so its error path just unwinds
+	// the prior stores like the others.
+	lake, err := datalake.Open(cfg.BaseDir, func() int64 { return time.Now().UnixMilli() })
+	if err != nil {
+		j.Close()
+		st.Close()
+		mstore.Close()
+		wstore.Close()
+		skstore.Close()
+		return nil, fmt.Errorf("runtime: data lake: %w", err)
+	}
+
 	ststore, err := standing.Open(filepath.Join(cfg.BaseDir, "standing"))
 	if err != nil {
 		j.Close()
@@ -606,6 +621,7 @@ func Open(cfg Config) (*Kernel, error) {
 		workflows:    wfstore,
 		artifacts:    artStore,
 		artIndex:     artIndex,
+		lake:         lake,
 		reflect:      reflectEng,
 		schedules:    schedStore,
 		tools:        effTools,
@@ -721,6 +737,10 @@ func (k *Kernel) Artifacts() *artifact.Store { return k.artifacts }
 // browsable/deletable per-arrival entries (inbound images, tool outputs) the
 // file manager and inbound-image persistence use.
 func (k *Kernel) ArtifactIndex() *artifact.Index { return k.artIndex }
+
+// DataLake returns the Personal Data Lake (M834) — the file-based structured
+// collections agents build and share, surfaced by the `db` tool and the Web UI.
+func (k *Kernel) DataLake() *datalake.Lake { return k.lake }
 
 // Standing returns the Chronos standing-order store (SPEC-16 §4), backing
 // `agt standing`. Always non-nil after Open.
