@@ -12,6 +12,14 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Autonomous reaper — surface dead agents + stale artifacts (M903).** A pulse observer
+  (`system:reaper`) periodically scans for agents idle past a 30-day window and artifacts the
+  artifact index marks stale, emitting one low-severity brief only when the pile *grows* (#53) —
+  no repeat spam while counts are stable, silent on cleanup. Detection is read-only and
+  transition-based; retiring an agent to the graveyard (M846) and collecting artifacts (M845) stay
+  operator-gated. Backed by `Kernel.ReaperScan` (journal `task.received` → per-agent last-active,
+  skipping retired/paused/within-grace profiles) and a `reaper_scan` control-plane command with a
+  `/api/reaper/scan` read route (`idle_days`/`stale_days`, default 30) for on-demand detail.
 - **Forge bias — prefer deterministic tools + self-improvement (M902).** Each run's environment preamble
   now carries a short "prefer deterministic tools — and improve your own" nudge after the capability
   briefing (#42): for work that must be exact, is repeatable, or recurs, write a script (code_exec) for a

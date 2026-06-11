@@ -1308,6 +1308,16 @@ func runDaemon(stdout, stderr io.Writer) int {
 		srv.SetProbeWatch(func(name string, argv []string) (string, bool) {
 			return eng.AddObserver(pulse.NewProbeObserver(name, argv, ward, k.State())), true
 		})
+		// Reaper (#53, M903): each beat, scan for dead agents (enabled, non-retired,
+		// idle past the window) and stale artifacts, and surface a low-severity brief
+		// when the pile grows. Detection only — retire (graveyard) and collect stay
+		// operator-gated. Fixed 30-day idle/stale window.
+		const reaperWindow = 30 * 24 * time.Hour
+		eng.AddObserver(pulse.NewReaperObserver(func() (int, int) {
+			cut := time.Now().Add(-reaperWindow).UnixMilli()
+			r := k.ReaperScan(cut, cut)
+			return len(r.DeadAgents), r.StaleArtifacts
+		}))
 		fmt.Fprintf(stdout, "  pulse            : %s\n", pulseDesc)
 	} else {
 		fmt.Fprintf(stdout, "  pulse            : disabled (AGEZT_PULSE=off)\n")
