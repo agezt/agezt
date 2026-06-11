@@ -40,7 +40,7 @@ func TestRecallScoped_VisibilityRules(t *testing.T) {
 	m, _ := newTestManager(t)
 	// All three share the queryable term "project" so Search returns every record;
 	// only the scope filter decides visibility.
-	rememberScoped(t, m, "deploy-url", "project deploy URL is example.com", "")        // shared
+	rememberScoped(t, m, "deploy-url", "project deploy URL is example.com", "")            // shared
 	rememberScoped(t, m, "researcher-draft", "project research draft notes", "researcher") // private
 	rememberScoped(t, m, "writer-style", "project writing style preference", "writer")     // private
 

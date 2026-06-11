@@ -228,6 +228,56 @@ func (s *Server) handleMemoryForget(conn net.Conn, req Request) {
 	})
 }
 
+// defaultPruneDays is the age threshold below which soft-deleted records are NOT
+// pruned — recently forgotten/superseded records stay recoverable for a month.
+const defaultPruneDays = 30
+
+// handleMemoryPrune hard-removes soft-deleted (tombstoned/superseded) records
+// older than older_than_days, reclaiming the dead weight consolidation and
+// forgets leave behind (M857 — "no memory-bomb"). dry_run (the default) reports
+// the store's hygiene + how many would be pruned; dry_run=false prunes. Mirrors
+// the artifact collector's confirm-first flow.
+func (s *Server) handleMemoryPrune(conn net.Conn, req Request) {
+	mgr := s.k.Memory()
+	if mgr == nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "memory unavailable"})
+		return
+	}
+	days := dlInt(req.Args, "older_than_days")
+	if days <= 0 {
+		days = defaultPruneDays
+	}
+	dryRun := true
+	if v, ok := req.Args["dry_run"].(bool); ok {
+		dryRun = v
+	} else if v, ok := req.Args["dry_run"].(string); ok {
+		dryRun = !(v == "false" || v == "0")
+	}
+	cutoff := time.Now().Add(-time.Duration(days) * 24 * time.Hour).UnixMilli()
+
+	hyg, err := mgr.Hygiene(cutoff)
+	if err != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		return
+	}
+	if dryRun {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{
+			"dry_run": true, "older_than_days": days, "cutoff_ms": cutoff,
+			"prunable": hyg.Prunable, "stats": hyg,
+		}})
+		return
+	}
+	pruned, err := mgr.Prune("", cutoff, false)
+	if err != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		return
+	}
+	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{
+		"dry_run": false, "older_than_days": days, "cutoff_ms": cutoff,
+		"pruned": pruned, "stats": hyg,
+	}})
+}
+
 // recordView renders a memory.Record as a stable JSON object for the wire.
 // All fields are operator-supplied or derived; nothing here is secret (the
 // store never holds credentials — that's the vault's job).
