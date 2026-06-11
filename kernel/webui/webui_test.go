@@ -561,6 +561,7 @@ func TestAPIReadOnly(t *testing.T) {
 		"pulse_status": true, "journal_verify": true,
 		"data_collections": true,
 		"council_members":  true,
+		"board_help":       true,
 	}
 	for path := range apiRoutes {
 		fc := &fakeCaller{result: map[string]any{"ok": true}}

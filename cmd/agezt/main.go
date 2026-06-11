@@ -1466,8 +1466,20 @@ func runDaemon(stdout, stderr io.Writer) int {
 		// "board.dm.<recipient>" instead, so a standing order can wake exactly
 		// the agent being asked. The posting run's correlation ties into `agt why`.
 		boardToolInst.OnPost(func(m board.Message, corr string) {
+			// Subject carries the routing so standing orders can wake the right
+			// agent: a directed message → board.dm.<slug>; a help request →
+			// board.help[.<slug>] (M849); a broadcast → board.broadcast; a plain
+			// topic post → board.<topic>. Help takes precedence so a help-flagged
+			// message wakes responders watching board.help.
 			subject := "board." + boardSubjectSlug(m.Topic)
-			if m.To != "" {
+			switch {
+			case m.Help && m.To != "" && m.To != board.Everyone:
+				subject = "board.help." + boardSubjectSlug(m.To)
+			case m.Help:
+				subject = "board.help"
+			case m.To == board.Everyone:
+				subject = "board.broadcast"
+			case m.To != "":
 				subject = "board.dm." + boardSubjectSlug(m.To)
 			}
 			payload := map[string]any{"topic": m.Topic, "chars": len(m.Text)}
@@ -1482,6 +1494,9 @@ func runDaemon(stdout, stderr io.Writer) int {
 			}
 			if m.ReplyTo != "" {
 				payload["reply_to"] = m.ReplyTo
+			}
+			if m.Help {
+				payload["help"] = true
 			}
 			_, _ = k.Bus().Publish(event.Spec{
 				Subject:       subject,

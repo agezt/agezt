@@ -17,24 +17,28 @@ import (
 func (t *Tool) Definition() agent.ToolDef {
 	return agent.ToolDef{
 		Name: "board",
-		Description: "A shared message board every agent on this daemon can use to coordinate: " +
+		Description: "A shared mailbox every agent on this daemon uses to coordinate: " +
 			"op=post leaves a message on a topic; op=read returns recent messages (optionally for " +
 			"one topic); op=topics lists the active topics. Direct agent-to-agent messaging: " +
 			"op=send addresses a message to a named agent (to = its agent slug; returns the message id) " +
 			"— it journals board.dm.<slug>, so a standing order can wake that agent; op=inbox lists what " +
-			"is waiting for an agent (unanswered first); op=reply answers a message by id; op=replies " +
-			"reads the answers to a message you sent. The board is shared and persistent.",
+			"is waiting for an agent (unanswered first; includes broadcasts to everyone); op=reply answers " +
+			"a message by id; op=replies reads the answers to a message you sent. " +
+			"op=broadcast sends a message to EVERY agent's inbox (an announcement); op=help asks for " +
+			"assistance — broadcast to all (or directed with to=<slug>), it stays open until someone answers " +
+			"and journals board.help so a responder can be woken; op=help with no text LISTS the open help " +
+			"requests (what needs answering). The board is shared and persistent.",
 		InputSchema: json.RawMessage(`{
   "type": "object",
   "properties": {
-    "op":    {"type":"string", "enum":["post","read","topics","send","inbox","reply","replies"], "description":"What to do. Optional — if omitted it is inferred: text+to → send, text+id → reply, text (alone/with topic) → post, otherwise read."},
+    "op":    {"type":"string", "enum":["post","read","topics","send","inbox","reply","replies","broadcast","help"], "description":"What to do. Optional — if omitted it is inferred: text+to → send, text+id → reply, text (alone/with topic) → post, otherwise read."},
     "topic": {"type":"string", "description":"The topic to post under, or to filter reads by (a short label). For op=send: optional, defaults to \"dm\"."},
-    "text":  {"type":"string", "description":"For op=post/send/reply: the message body."},
+    "text":  {"type":"string", "description":"For op=post/send/reply/broadcast/help: the message body. For op=help with no text: list the open help requests instead."},
     "from":  {"type":"string", "description":"Who is posting/sending/replying — use YOUR agent slug so replies can find you."},
-    "to":    {"type":"string", "description":"For op=send: the recipient agent's slug. For op=inbox: whose inbox to read (your slug)."},
+    "to":    {"type":"string", "description":"For op=send: the recipient agent's slug. For op=help: optional — direct the ask to one agent (default: anyone). For op=inbox: whose inbox to read (your slug)."},
     "id":    {"type":"string", "description":"For op=reply: the message id being answered. For op=replies: the message id whose answers to read."},
     "all":   {"type":"boolean", "description":"For op=inbox: include already-answered messages too (default false = only what's waiting)."},
-    "limit": {"type":"integer", "description":"For op=read/inbox/replies: max messages (default 20, max 100)."}
+    "limit": {"type":"integer", "description":"For op=read/inbox/replies/help-list: max messages (default 20, max 100)."}
   }
 }`),
 	}
@@ -191,10 +195,46 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, e
 	case "topics":
 		return okJSON(map[string]any{"topics": st.Topics()}), nil
 
+	case "broadcast":
+		if strings.TrimSpace(in.Text) == "" {
+			return errResult(`op=broadcast needs "text" (the announcement for every agent)`), nil
+		}
+		m, err := st.Broadcast(in.From, in.Text, nowFn())
+		if err != nil {
+			return errResult(err.Error()), nil
+		}
+		if notify != nil {
+			notify(m, agent.CorrelationFromContext(ctx))
+		}
+		return okJSON(map[string]any{"broadcast": msgView(m),
+			"hint": "delivered to every agent's inbox; an agent answers with op=reply id=" + m.ID}), nil
+
+	case "help":
+		// op=help with no text LISTS the open help requests (what needs answering);
+		// with text it RAISES one (broadcast, or directed via to).
+		if strings.TrimSpace(in.Text) == "" {
+			open := st.OpenHelp(clampLimit(in.Limit))
+			views := make([]map[string]any, 0, len(open))
+			for _, m := range open {
+				views = append(views, msgView(m))
+			}
+			return okJSON(map[string]any{"count": len(views), "open_help": views,
+				"hint": "answer one with op=reply id=<id>"}), nil
+		}
+		m, err := st.HelpRequest(in.From, in.To, in.Text, nowFn())
+		if err != nil {
+			return errResult(err.Error()), nil
+		}
+		if notify != nil {
+			notify(m, agent.CorrelationFromContext(ctx))
+		}
+		return okJSON(map[string]any{"help_requested": msgView(m),
+			"hint": "stays open until answered; read answers with op=replies id=" + m.ID}), nil
+
 	case "":
-		return errResult("op required (post|read|topics|send|inbox|reply|replies)"), nil
+		return errResult("op required (post|read|topics|send|inbox|reply|replies|broadcast|help)"), nil
 	default:
-		return errResult("unknown op " + in.Op + " (post|read|topics|send|inbox|reply|replies)"), nil
+		return errResult("unknown op " + in.Op + " (post|read|topics|send|inbox|reply|replies|broadcast|help)"), nil
 	}
 }
 
@@ -211,6 +251,9 @@ func msgView(m board.Message) map[string]any {
 	}
 	if m.ReplyTo != "" {
 		v["reply_to"] = m.ReplyTo
+	}
+	if m.Help {
+		v["help"] = true
 	}
 	if m.TSMS > 0 {
 		v["at"] = time.UnixMilli(m.TSMS).Format(time.RFC3339)

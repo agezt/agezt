@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { MessagesSquare, RefreshCw, Hash, User, ArrowRight, CornerDownRight, Search } from "lucide-react";
+import { MessagesSquare, RefreshCw, Hash, User, ArrowRight, CornerDownRight, Search, LifeBuoy, Megaphone } from "lucide-react";
 import { getJSON } from "@/lib/api";
 import { cn, fmtTime } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -16,6 +16,13 @@ interface Msg {
   id?: string;
   to?: string;
   reply_to?: string;
+  // Mailbox (M849): a help request flagged for assistance; a broadcast is To "*".
+  help?: boolean;
+}
+
+interface HelpData {
+  open_help?: Msg[];
+  count?: number;
 }
 
 // awaitingReply reports which ADDRESSED messages have no reply on the board
@@ -44,6 +51,7 @@ interface BoardData {
 // topic. Read-only: the board is written by agents via the `board` tool.
 export function Board() {
   const [data, setData] = useState<BoardData | null>(null);
+  const [help, setHelp] = useState<Msg[]>([]);
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [topic, setTopic] = useState<string | null>(null);
@@ -53,8 +61,12 @@ export function Board() {
   async function reload() {
     setLoading(true);
     try {
-      const d = await getJSON<BoardData>("/api/board", { limit: "200" });
+      const [d, h] = await Promise.all([
+        getJSON<BoardData>("/api/board", { limit: "200" }),
+        getJSON<HelpData>("/api/board/help").catch(() => ({ open_help: [] }) as HelpData),
+      ]);
       setData(d);
+      setHelp(h.open_help || []);
       setErr(null);
     } catch (e) {
       setErr((e as Error).message);
@@ -113,6 +125,30 @@ export function Board() {
           <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
         </Button>
       </div>
+
+      {help.length > 0 && (
+        <div className="rounded-lg border border-warn/40 bg-warn/10 p-2.5">
+          <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold text-warn">
+            <LifeBuoy className="size-3.5" />
+            {help.length} open help request{help.length === 1 ? "" : "s"} — waiting for an answer
+          </div>
+          <ul className="space-y-1">
+            {help.map((h, i) => (
+              <li key={h.id ?? i} className="flex items-start gap-2 text-xs">
+                {h.from && <span className="shrink-0 font-semibold text-foreground/80">{h.from}</span>}
+                {h.to && h.to !== "*" && (
+                  <span className="inline-flex shrink-0 items-center gap-0.5 text-accent">
+                    <ArrowRight className="size-3" />
+                    {h.to}
+                  </span>
+                )}
+                <span className="text-foreground/90">{h.text}</span>
+                <span className="ml-auto shrink-0 font-mono text-[10px] text-muted opacity-70">{fmtTime(h.ts_unix_ms)}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {topics.length > 0 && (
         <div className="flex flex-col gap-1.5">
@@ -200,11 +236,24 @@ export function Board() {
                       {m.from}
                     </span>
                   )}
-                  {m.to && (
-                    <span className="inline-flex items-center gap-1 text-[11px] text-accent">
-                      <ArrowRight className="size-3" />
-                      {m.to}
+                  {m.help && (
+                    <span className="inline-flex items-center gap-1 rounded-full border border-warn/40 bg-warn/10 px-2 py-0.5 text-[10px] text-warn" title="help request">
+                      <LifeBuoy className="size-3" />
+                      help
                     </span>
+                  )}
+                  {m.to === "*" ? (
+                    <span className="inline-flex items-center gap-1 rounded-full border border-accent/40 bg-accent/10 px-2 py-0.5 text-[10px] text-accent" title="broadcast to every agent">
+                      <Megaphone className="size-3" />
+                      all
+                    </span>
+                  ) : (
+                    m.to && (
+                      <span className="inline-flex items-center gap-1 text-[11px] text-accent">
+                        <ArrowRight className="size-3" />
+                        {m.to}
+                      </span>
+                    )
                   )}
                   {m.reply_to && (
                     <span className="inline-flex items-center gap-1 rounded-full border border-border bg-panel px-2 py-0.5 text-[10px] text-muted" title={`reply to ${m.reply_to}`}>
