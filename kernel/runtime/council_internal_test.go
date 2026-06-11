@@ -120,6 +120,10 @@ func TestSplitConsensusDissent(t *testing.T) {
 		{"CONSENSUS: do X.\nDISSENT: Beta prefers Y.", "do X.", "Beta prefers Y."},
 		{"CONSENSUS: do X.\nDISSENT: none", "do X.", ""},
 		{"just a plain answer", "just a plain answer", ""},
+		// Markdown-header style (what real chair models actually emit).
+		{"## CONSENSUS\n\nUse tabs.\n\n## DISSENT\n\nGamma prefers spaces.", "Use tabs.", "Gamma prefers spaces."},
+		{"## Consensus\nShip it.\n## Dissent\nnone", "Ship it.", ""},
+		{"**CONSENSUS:** do the thing", "do the thing", ""},
 	}
 	for _, c := range cases {
 		gotC, gotD := splitConsensusDissent(c.in)

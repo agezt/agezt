@@ -510,6 +510,14 @@ const (
 	// CmdDataDropCollection drops a non-system collection. Args: name. Returns: dropped.
 	CmdDataDropCollection = "data_drop_collection"
 
+	// Council of Elders (M839) — the Web UI consults the multi-model panel (M837).
+	// CmdCouncilMembers returns the default membership the council will convene with
+	// (so the UI shows which models speak). Returns: members — []object{seat,model}.
+	CmdCouncilMembers = "council_members"
+	// CmdCouncilAsk convenes the council on a question and returns the full result.
+	// Args: question (req), rounds. Returns: {consensus, dissent, members, rounds, opinions}.
+	CmdCouncilAsk = "council_ask"
+
 	// CmdJournalGrep is the server-side filter sibling of
 	// CmdJournalTail. Today operators run `agt journal tail 10000
 	// --json | jq 'select(...)'` which loads the entire tail into

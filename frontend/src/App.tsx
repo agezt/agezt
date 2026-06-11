@@ -4,6 +4,7 @@ import {
   Activity as ActivityIcon,
   Clapperboard,
   Waypoints,
+  Scale,
   Users,
   Radar,
   Waves,
@@ -100,6 +101,7 @@ import { Routing } from "@/views/Routing";
 import { Setup, anyCredentialed, type SetupCatalog } from "@/views/Setup";
 import { Files } from "@/views/Files";
 import { Data } from "@/views/Data";
+import { Council } from "@/views/Council";
 import { Persona } from "@/views/Persona";
 import { Prompts } from "@/views/Prompts";
 import { Backup } from "@/views/Backup";
@@ -167,6 +169,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { id: "agents", label: "Agents", icon: Waypoints, render: Agents },
       { id: "roster", label: "Roster", icon: Users, render: Roster },
+      { id: "council", label: "Council", icon: Scale, render: Council },
       { id: "toolforge", label: "Tool Forge", icon: Hammer, render: Toolforge },
       { id: "mcp", label: "MCP Servers", icon: Plug, render: Mcp },
       { id: "sandbox", label: "Sandbox", icon: FlaskConical, render: Sandbox },
