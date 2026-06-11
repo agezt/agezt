@@ -504,6 +504,11 @@ func Open(cfg Config) (*Kernel, error) {
 		skstore.Close()
 		return nil, fmt.Errorf("runtime: data lake: %w", err)
 	}
+	// Seed the built-in Personal Data Lake collections (M835) — expenses, calendar,
+	// tasks, notes, habits, bookmarks, contacts. Idempotent (EnsureCollection skips
+	// existing ones) and best-effort: a seed hiccup must not block boot, and the
+	// next start retries.
+	_, _ = lake.SeedBuiltins("system")
 
 	ststore, err := standing.Open(filepath.Join(cfg.BaseDir, "standing"))
 	if err != nil {
