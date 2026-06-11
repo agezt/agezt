@@ -24,7 +24,7 @@ import (
 	"github.com/agezt/agezt/kernel/skill"
 )
 
-//go:embed browseruse computeruse dataanalysis dockerservices gitops
+//go:embed browseruse computeruse dataanalysis dockerservices gitops webresearch
 var bundles embed.FS
 
 // Forge is the slice of *skill.Forge the seeder needs — an interface so it is
@@ -44,7 +44,7 @@ type Seeded struct {
 }
 
 // builtinBundles lists the embedded bundle directories to seed.
-var builtinBundles = []string{"browseruse", "computeruse", "dataanalysis", "dockerservices", "gitops"}
+var builtinBundles = []string{"browseruse", "computeruse", "dataanalysis", "dockerservices", "gitops", "webresearch"}
 
 // SeedAll installs every embedded bundle into the Forge and promotes each to
 // active. It is best-effort per bundle: an error on one is returned but does not
