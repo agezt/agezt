@@ -52,6 +52,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   the Runs view. Purely frontend — reuses the existing event provider and read routes. (M867)
 
 ### Added
+- **Popular MCP servers catalog (M897).** The MCP view gains a **Popular servers** gallery — 14 curated
+  one-click presets (everything, filesystem, fetch, memory, git, github, postgres, sqlite, puppeteer,
+  brave, slack, gdrive, time, sequential-thinking) so you can stand up a well-known Model Context Protocol
+  server without hunting for the right command/args (#39). **Use** prefills the existing register form
+  (review the path/credential, then add); each card flags any secret it `needs` and already-registered
+  servers show an **added** badge. Purely frontend — reuses `/api/mcp/add`, no new route. (M897)
 - **Built-in office-docs skill bundle (M896).** A sixteenth out-of-the-box skill that generates Word
   `.docx` and Excel `.xlsx` deliverables (#34) — the polished-output step beyond raw CSV/PDF.
   `scripts/office.py` has two ops: `docx` (build from typed blocks — heading/para/bullets/table) and
