@@ -25,6 +25,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   `delegate` tool now coaches the leader pattern and prefers reusing an existing named agent. (M843)
 
 ### Added
+- **Built-in web-research skill bundle (M865).** A sixth out-of-the-box skill: a disciplined multi-source
+  web-research workflow — gather from several sources, extract the readable text, keep every URL as a
+  citation, and synthesize a sourced answer (#34). `scripts/extract.py` fetches one or more URLs and
+  returns title + clean main text per URL as JSON (trafilatura when present, BeautifulSoup fallback; one
+  bad URL never sinks the batch); `setup.sh` installs the deps. The SKILL explicitly hands off to
+  browser-use for JS-heavy/gated pages, so the bundles compose. Rides the `plugins/builtinskills` seeder
+  — no new Go dependency. (M865)
 - **Built-in git-ops skill bundle (M864).** A fifth out-of-the-box skill that gives agents a safe,
   disciplined git + GitHub workflow for changing code and shipping it as a PR (#34, supports #42
   self-improvement). `scripts/gitflow.sh` wraps `sync`/`branch`/`save`/`pr`/`status` and **refuses to

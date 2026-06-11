@@ -196,6 +196,42 @@ func TestSeedAll_InstallsGitOps(t *testing.T) {
 	}
 }
 
+func TestSeedAll_InstallsWebResearch(t *testing.T) {
+	f := newForge(t)
+	seeded, err := SeedAll(f, "")
+	if err != nil {
+		t.Fatalf("SeedAll: %v", err)
+	}
+	var got *Seeded
+	for i := range seeded {
+		if seeded[i].Name == "web-research" {
+			got = &seeded[i]
+		}
+	}
+	if got == nil {
+		t.Fatalf("web-research not seeded: %+v", seeded)
+	}
+	if got.Status != skill.StatusActive {
+		t.Errorf("web-research status = %q, want active", got.Status)
+	}
+	ex, err := f.Bundles().Read("web-research", "scripts/extract.py")
+	if err != nil || len(ex) == 0 {
+		t.Fatalf("web-research extract.py unreadable/empty: %v", err)
+	}
+	files, _ := f.Bundles().List("web-research")
+	want := map[string]bool{"scripts/extract.py": false, "scripts/setup.sh": false, "reference/recipes.md": false}
+	for _, rel := range files {
+		if _, ok := want[rel]; ok {
+			want[rel] = true
+		}
+	}
+	for rel, found := range want {
+		if !found {
+			t.Errorf("web-research bundle missing %q (got %v)", rel, files)
+		}
+	}
+}
+
 func TestSeedAll_Idempotent(t *testing.T) {
 	f := newForge(t)
 	if _, err := SeedAll(f, ""); err != nil {
