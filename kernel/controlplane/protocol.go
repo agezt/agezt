@@ -605,6 +605,12 @@ const (
 	//   - count : int
 	CmdRunsList = "runs_list"
 
+	// CmdReaperScan runs the reaper's read-only scan (#53, M903): dead-agent
+	// candidates (enabled, non-retired, idle past idle_days) + stale-artifact
+	// totals (older than stale_days). Detection only — the operator still retires
+	// (graveyard) / collects. Args: idle_days, stale_days (both default 30).
+	CmdReaperScan = "reaper_scan"
+
 	// CmdRunsStats aggregates the entire journal into a single
 	// agent-run health summary. Pure read-only fold over the same
 	// task.received/completed/abandoned events CmdRunsList pairs,

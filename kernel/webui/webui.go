@@ -179,6 +179,8 @@ var readArgsRoutes = map[string]writeRoute{
 	"/api/agents/impact": {controlplane.CmdAgentImpact, []string{"ref"}},
 	// Per-agent activity timeline (M854): what the agent did, from the journal. Read-only.
 	"/api/agents/activity": {controlplane.CmdAgentActivity, []string{"ref", "limit"}},
+	// Reaper scan (M903): dead-agent + stale-artifact candidates. Read-only detection. (#53)
+	"/api/reaper/scan": {controlplane.CmdReaperScan, []string{"idle_days", "stale_days"}},
 	// Skill bundle resources (M847): list a skill's reference files + scripts, and
 	// read one resource's content. Both read-only; the daemon path-confines reads.
 	"/api/skill/files": {controlplane.CmdSkillFiles, []string{"id"}},

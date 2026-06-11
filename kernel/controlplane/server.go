@@ -582,6 +582,8 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.handleStateGet(conn, req)
 	case CmdRunsList:
 		s.handleRunsList(conn, req)
+	case CmdReaperScan:
+		s.handleReaperScan(conn, req)
 	case CmdRunsStats:
 		s.handleRunsStats(conn, req)
 	case CmdCancelRun:
