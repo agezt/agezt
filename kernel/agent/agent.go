@@ -19,6 +19,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/agezt/agezt/kernel/bus"
@@ -236,6 +237,17 @@ type LoopConfig struct {
 	// the Governor's identity ledger can meter and refuse. Empty/0 → none.
 	Agent               string
 	AgentDailyCeilingMc int64
+	// MaxParallelTools caps how many tool calls from ONE assistant response
+	// execute concurrently (M880). A model that fans out several independent
+	// calls in a single turn no longer waits for each to finish before the
+	// next starts. Gating (loop guard, policy) and its journaling stay
+	// sequential in call order, and tool.result events + tool messages are
+	// emitted in the original call order afterwards — the conversation the
+	// model sees is byte-identical to the sequential build. Tools are already
+	// required to be goroutine-safe (the daemon invokes the same Tool values
+	// from concurrent runs), so in-turn parallelism adds no new contract.
+	// 0 → DefaultMaxParallelTools; 1 or negative → strictly sequential.
+	MaxParallelTools int
 	// MaxIdenticalToolCalls caps how many times the model may invoke the SAME
 	// (tool, input) within one run before the loop refuses to execute it again
 	// (M116). A model stuck retrying an identical failing/expensive call would
@@ -541,6 +553,12 @@ const DefaultAutoContinueWait = 2 * time.Second
 const autoContinuePrompt = "[auto-continue] You reached your tool-round budget for this segment but the task isn't finished yet. " +
 	"Keep going from exactly where you left off — do not restart or repeat completed work. " +
 	"As soon as the task IS fully done, stop calling tools and give your final answer."
+
+// DefaultMaxParallelTools is the default ceiling on concurrently executing
+// tool calls from one assistant turn (M880). High enough to make a typical
+// fan-out (a handful of delegate/search calls) genuinely parallel, low enough
+// that one turn can't stampede the host or a rate-limited upstream.
+const DefaultMaxParallelTools = 4
 
 // DefaultMaxIdenticalToolCalls is how many times the same (tool, input) may run
 // in one run before the loop guard refuses further executions (M116). Generous
@@ -1042,11 +1060,29 @@ func Run(ctx context.Context, cfg LoopConfig, userIntent string) (answer string,
 			return resp.Message.Content, nil
 		}
 
-		// 2e. tool calls
+		// 2e. tool calls — three phases (M880). Phase 1 gates each call
+		// sequentially in call order (loop guard, policy) and journals
+		// policy.decision / tool.invoked, so the audit trail and any HITL
+		// approval prompts stay deterministic. Phase 2 executes the allowed
+		// invocations, concurrently when the turn carries more than one (up
+		// to MaxParallelTools). Phase 3 journals tool.result and appends the
+		// tool messages in the ORIGINAL call order, so the conversation the
+		// model sees is identical to the sequential build.
+		type toolJob struct {
+			tc           ToolCall
+			tool         Tool // non-nil ⇒ phase 2 executes it
+			result       Result
+			invokeErr    error
+			toolTimedOut bool
+			panicked     bool
+		}
+		jobs := make([]*toolJob, 0, len(resp.Message.ToolCalls))
 		for _, tc := range resp.Message.ToolCalls {
 			if err := ctx.Err(); err != nil {
 				return "", err
 			}
+			job := &toolJob{tc: tc}
+			jobs = append(jobs, job)
 
 			// Loop guard (M116): if the model has already invoked this EXACT
 			// (tool, input) the cap number of times in this run, refuse to run it
@@ -1059,16 +1095,10 @@ func Run(ctx context.Context, cfg LoopConfig, userIntent string) (answer string,
 				callKey := tc.Name + "\x00" + string(tc.Input)
 				callCounts[callKey]++
 				if callCounts[callKey] > cfg.MaxIdenticalToolCalls {
-					loopMsg := fmt.Sprintf("loop guard: %q was already called with this exact input %d times in this run; the result will not change. Use different input or stop and give your answer.", tc.Name, cfg.MaxIdenticalToolCalls)
-					if _, err := publish(event.KindToolResult, "tool", map[string]any{
-						"tool":    tc.Name,
-						"call_id": tc.ID,
-						"output":  loopMsg,
-						"error":   true,
-					}); err != nil {
-						return "", fmt.Errorf("agent: publish tool.result: %w", err)
+					job.result = Result{
+						Output:  fmt.Sprintf("loop guard: %q was already called with this exact input %d times in this run; the result will not change. Use different input or stop and give your answer.", tc.Name, cfg.MaxIdenticalToolCalls),
+						IsError: true,
 					}
-					messages = append(messages, Message{Role: RoleTool, Content: loopMsg, ToolCallID: tc.ID})
 					continue
 				}
 			}
@@ -1093,7 +1123,6 @@ func Run(ctx context.Context, cfg LoopConfig, userIntent string) (answer string,
 				return "", fmt.Errorf("agent: publish policy.decision: %w", err)
 			}
 
-			var result Result
 			if !verdict.Allow {
 				// Count the refusal so a tool that's hard-denied (never allowed)
 				// or repeatedly refused is dropped from later iterations (M605).
@@ -1102,80 +1131,128 @@ func Run(ctx context.Context, cfg LoopConfig, userIntent string) (answer string,
 				} else {
 					toolDenials[tc.Name]++
 				}
-				result = Result{
+				job.result = Result{
 					Output:  "tool call denied by policy: " + verdict.Reason,
 					IsError: true,
 				}
-				// Skip tool.invoked when the call never ran; jump to result.
-			} else {
-				if _, err := publish(event.KindToolInvoked, "tool", map[string]any{
-					"tool":    tc.Name,
-					"call_id": tc.ID,
-					"input":   tc.Input,
-				}); err != nil {
-					return "", fmt.Errorf("agent: publish tool.invoked: %w", err)
+				continue // skip tool.invoked when the call never runs
+			}
+			if _, err := publish(event.KindToolInvoked, "tool", map[string]any{
+				"tool":    tc.Name,
+				"call_id": tc.ID,
+				"input":   tc.Input,
+			}); err != nil {
+				return "", fmt.Errorf("agent: publish tool.invoked: %w", err)
+			}
+			tool, ok := cfg.Tools[tc.Name]
+			if !ok {
+				job.result = Result{
+					Output:  fmt.Sprintf("tool %q is not available", tc.Name),
+					IsError: true,
 				}
-				tool, ok := cfg.Tools[tc.Name]
-				if !ok {
-					result = Result{
-						Output:  fmt.Sprintf("tool %q is not available", tc.Name),
+				continue
+			}
+			job.tool = tool
+		}
+
+		// Phase 2: execute. invoke runs ONE job; identical semantics to the
+		// historical inline invocation, including the per-tool wall-clock
+		// (M34): bound this single invocation without bounding the whole run.
+		// Whether the tool's OWN per-call deadline fired is captured BEFORE
+		// cancelling — calling toolCancel() would flip a not-yet-expired
+		// toolCtx to Canceled and mask the distinction. We key on toolCtx's
+		// state rather than the returned error so a tool that wraps its error
+		// without the DeadlineExceeded sentinel (e.g. the warden's "context
+		// deadline exceeded" string) is still classified cleanly.
+		invoke := func(job *toolJob) {
+			toolCtx := WithCorrelation(ctx, cfg.CorrelationID)
+			var toolCancel context.CancelFunc
+			if cfg.ToolTimeout > 0 {
+				toolCtx, toolCancel = context.WithTimeout(toolCtx, cfg.ToolTimeout)
+			}
+			job.result, job.invokeErr = job.tool.Invoke(toolCtx, job.tc.Input)
+			job.toolTimedOut = cfg.ToolTimeout > 0 && toolCtx.Err() == context.DeadlineExceeded
+			if toolCancel != nil {
+				toolCancel()
+			}
+		}
+		var toExec []*toolJob
+		for _, job := range jobs {
+			if job.tool != nil {
+				toExec = append(toExec, job)
+			}
+		}
+		maxPar := cfg.MaxParallelTools
+		if maxPar == 0 {
+			maxPar = DefaultMaxParallelTools
+		}
+		if len(toExec) <= 1 || maxPar <= 1 {
+			// Single call (the common case) or parallelism disabled: invoke
+			// inline on this goroutine — Run's panic firewall (M168) covers it.
+			for _, job := range toExec {
+				invoke(job)
+			}
+		} else {
+			// Concurrent fan-out. Each worker needs its own panic recovery:
+			// Run's firewall only guards Run's goroutine, and an unrecovered
+			// panic on a spawned goroutine would crash the whole daemon. A
+			// captured panic is surfaced in phase 3 as the run's terminal
+			// error — exactly what the sequential path would have produced.
+			sem := make(chan struct{}, maxPar)
+			var wg sync.WaitGroup
+			for _, job := range toExec {
+				wg.Add(1)
+				go func(job *toolJob) {
+					defer wg.Done()
+					defer func() {
+						if r := recover(); r != nil {
+							job.panicked = true
+							job.invokeErr = fmt.Errorf("%w: %v", ErrPanic, r)
+						}
+					}()
+					sem <- struct{}{}
+					defer func() { <-sem }()
+					invoke(job)
+				}(job)
+			}
+			wg.Wait()
+		}
+
+		// Phase 3: classify, journal, and append in the original call order.
+		for _, job := range jobs {
+			if job.tool != nil {
+				switch {
+				case job.panicked:
+					return "", job.invokeErr
+				case job.invokeErr == nil:
+					// job.result already holds the tool's output.
+				case ctx.Err() != nil:
+					// The RUN context itself ended (operator halt, M32
+					// cancel, or the M31 per-run deadline) — a run-level
+					// terminal, not a tool fault. Propagate so the run
+					// fails with the correct reason instead of limping on.
+					return "", ctx.Err()
+				case job.toolTimedOut:
+					// The tool overran its own budget while the run is fine:
+					// hand the model a clear error and keep the run going.
+					job.result = Result{
+						Output:  fmt.Sprintf("tool %q exceeded its %s timeout", job.tc.Name, cfg.ToolTimeout),
 						IsError: true,
 					}
-				} else {
-					// Optional per-tool wall-clock (M34): bound this single
-					// invocation without bounding the whole run. A tool that
-					// overruns gets an IsError result fed back to the model so
-					// it can adapt; the run keeps going. The per-run deadline
-					// (M31) and operator/M32 cancellation, by contrast, fail
-					// the run — distinguished below by checking the PARENT ctx.
-					toolCtx := WithCorrelation(ctx, cfg.CorrelationID)
-					var toolCancel context.CancelFunc
-					if cfg.ToolTimeout > 0 {
-						toolCtx, toolCancel = context.WithTimeout(toolCtx, cfg.ToolTimeout)
-					}
-					r, invokeErr := tool.Invoke(toolCtx, tc.Input)
-					// Capture whether the tool's OWN per-call deadline fired
-					// BEFORE cancelling — calling toolCancel() would flip a
-					// not-yet-expired toolCtx to Canceled and mask the
-					// distinction. We key on toolCtx's state rather than the
-					// returned error so a tool that wraps its error without the
-					// DeadlineExceeded sentinel (e.g. the warden's "context
-					// deadline exceeded" string) is still classified cleanly.
-					toolTimedOut := cfg.ToolTimeout > 0 && toolCtx.Err() == context.DeadlineExceeded
-					if toolCancel != nil {
-						toolCancel()
-					}
-					switch {
-					case invokeErr == nil:
-						result = r
-					case ctx.Err() != nil:
-						// The RUN context itself ended (operator halt, M32
-						// cancel, or the M31 per-run deadline) — a run-level
-						// terminal, not a tool fault. Propagate so the run
-						// fails with the correct reason instead of limping on.
-						return "", ctx.Err()
-					case toolTimedOut:
-						// The tool overran its own budget while the run is fine:
-						// hand the model a clear error and keep the run going.
-						result = Result{
-							Output:  fmt.Sprintf("tool %q exceeded its %s timeout", tc.Name, cfg.ToolTimeout),
-							IsError: true,
-						}
-					default:
-						result = Result{Output: invokeErr.Error(), IsError: true}
-					}
+				default:
+					job.result = Result{Output: job.invokeErr.Error(), IsError: true}
 				}
 			}
 
 			// Offload a large output out of the journal event (SPEC-04 §3.6 /
 			// SPEC-01 §10.2): the event carries a preview + raw_ref; the MODEL
 			// still gets the full output via the tool message below.
-			eventOutput, rawRef, fullBytes, offloaded := offloadToolOutput(cfg.Artifacts, cfg.ArtifactThreshold, result.Output)
+			eventOutput, rawRef, fullBytes, offloaded := offloadToolOutput(cfg.Artifacts, cfg.ArtifactThreshold, job.result.Output)
 			resultPayload := map[string]any{
-				"tool":    tc.Name,
-				"call_id": tc.ID,
+				"tool":    job.tc.Name,
+				"call_id": job.tc.ID,
 				"output":  eventOutput,
-				"error":   result.IsError,
+				"error":   job.result.IsError,
 			}
 			if offloaded {
 				resultPayload["raw_ref"] = rawRef
@@ -1187,8 +1264,8 @@ func Run(ctx context.Context, cfg LoopConfig, userIntent string) (answer string,
 
 			messages = append(messages, Message{
 				Role:       RoleTool,
-				Content:    result.Output,
-				ToolCallID: tc.ID,
+				Content:    job.result.Output,
+				ToolCallID: job.tc.ID,
 			})
 		}
 	}
