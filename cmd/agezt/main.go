@@ -413,7 +413,12 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// agent spawn bounded sub-agents. On by default; AGEZT_SUBAGENT=off disables
 	// it, AGEZT_SUBAGENT_DEPTH sets how deep delegation may nest (default 1).
 	subAgentOn := !strings.EqualFold(os.Getenv(brand.EnvPrefix+"SUBAGENT"), "off")
-	subAgentDepth := 1
+	// Default depth 3 (M843): a lead agent can decompose a task, delegate the parts
+	// to sub-agents, and THOSE sub-agents can delegate further — a real leader/worker
+	// tree, not just one flat layer. The owner wants agents to "split tasks and run
+	// more agents", and the default-allow posture favours capability; the tree-total
+	// rail below keeps deep delegation bounded. AGEZT_SUBAGENT_DEPTH overrides.
+	subAgentDepth := 3
 	if v := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "SUBAGENT_DEPTH")); v != "" {
 		if d, err := strconv.Atoi(v); err == nil && d > 0 {
 			subAgentDepth = d
@@ -452,6 +457,15 @@ func runDaemon(stdout, stderr io.Writer) int {
 		if n, err := strconv.Atoi(v); err == nil && n > 0 {
 			subAgentTotal = n
 		}
+	}
+	// With deep delegation on by default (depth>1), give the tree a generous but
+	// finite size rail when the operator hasn't set one (M843) — depth×fan-out
+	// alone can't bound a tree, so an unbounded total + deep recursion risks a
+	// fork-bomb. 48 total sub-agents is far more than any real leader/worker task
+	// needs while still preventing runaway. depth==1 stays unbounded (unchanged);
+	// AGEZT_SUBAGENT_MAX_TOTAL overrides.
+	if subAgentTotal == 0 && subAgentDepth > 1 {
+		subAgentTotal = 48
 	}
 
 	// Artifact offload threshold (SPEC-04 §3.6): tool outputs larger than this are
