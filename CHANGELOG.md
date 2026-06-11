@@ -12,6 +12,15 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Remote MCP servers over Streamable HTTP (M904).** The MCP registry can now attach a server
+  by URL, not just by spawned command (#39): a registration with a `url` speaks the MCP Streamable
+  HTTP transport (2025-03-26 spec) — JSON-RPC POSTed to the endpoint, replies decoded from either an
+  `application/json` body or a `text/event-stream`, with the `Mcp-Session-Id` captured and echoed
+  and the session `DELETE`d on close. Exactly one of command (stdio) or url (http) per server;
+  opt-in request headers (e.g. `Authorization: Bearer …`) ride every request and are redacted from
+  read APIs like env (only sorted `header_keys` are exposed). Attached, governed (`mcp.install` /
+  `mcp.call`), bridged as `mcp_<server>_<tool>`, and journaled exactly like a stdio server. Reachable
+  via `agt mcp add <name> --url URL [--header "K: V" …]`; the wire view badges `transport` stdio/http.
 - **Autonomous reaper — surface dead agents + stale artifacts (M903).** A pulse observer
   (`system:reaper`) periodically scans for agents idle past a 30-day window and artifacts the
   artifact index marks stale, emitting one low-severity brief only when the pile *grows* (#53) —

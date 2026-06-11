@@ -5,6 +5,7 @@ package controlplane_test
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
@@ -99,5 +100,46 @@ func TestMCP_WireRoundTrip(t *testing.T) {
 	// Ghost refs are honest errors.
 	if _, err := c.Call(ctx, controlplane.CmdMCPAttach, map[string]any{"ref": "ghost"}); err == nil {
 		t.Fatal("ghost attach accepted")
+	}
+}
+
+// TestMCP_RemoteServerViewRedactsHeaders (M904, #39): a remote (URL)
+// registration round-trips with a transport badge and its header VALUES
+// redacted — only sorted key names are exposed, like env.
+func TestMCP_RemoteServerViewRedactsHeaders(t *testing.T) {
+	_, _, c, _ := startPairWithConfig(t, runtime.Config{
+		Provider: mock.New(mock.FinalText("unused")),
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	res, err := c.Call(ctx, controlplane.CmdMCPAdd, map[string]any{
+		"server": map[string]any{
+			"name": "remote",
+			"url":  "https://mcp.example.com/v1",
+			"headers": map[string]any{
+				"Authorization": "Bearer super-secret",
+				"X-Trace-Id":    "abc",
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("add remote: %v", err)
+	}
+	srv, _ := res["server"].(map[string]any)
+	if srv["transport"] != "http" {
+		t.Errorf("transport = %v, want http", srv["transport"])
+	}
+	if _, leaked := srv["headers"]; leaked {
+		t.Error("raw header values leaked over the wire")
+	}
+	keys, _ := srv["header_keys"].([]any)
+	if len(keys) != 2 || keys[0] != "Authorization" || keys[1] != "X-Trace-Id" {
+		t.Errorf("header_keys = %v, want sorted [Authorization X-Trace-Id]", keys)
+	}
+	// And the secret value must appear nowhere in the serialized view.
+	blob, _ := json.Marshal(srv)
+	if strings.Contains(string(blob), "super-secret") {
+		t.Error("serialized view contained the header secret")
 	}
 }

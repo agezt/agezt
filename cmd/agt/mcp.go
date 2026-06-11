@@ -50,6 +50,8 @@ func mcpUsage(w io.Writer) int {
 	fmt.Fprintf(w, "  list [--json]                              registrations + live attachment status\n")
 	fmt.Fprintf(w, "  add <name> --cmd EXE [--arg A ...] [--desc TEXT]\n")
 	fmt.Fprintf(w, "      register a stdio MCP server, e.g. %s mcp add everything --cmd npx --arg -y --arg @modelcontextprotocol/server-everything\n", brand.CLI)
+	fmt.Fprintf(w, "  add <name> --url URL [--header \"K: V\" ...] [--desc TEXT]\n")
+	fmt.Fprintf(w, "      register a remote (Streamable HTTP) MCP server, e.g. %s mcp add github --url https://api.example.com/mcp --header \"Authorization: Bearer ghp_...\"\n", brand.CLI)
 	fmt.Fprintf(w, "  attach <name|id>                           spawn + handshake NOW; its tools become callable as mcp_<name>_<tool>\n")
 	fmt.Fprintf(w, "  detach <name|id>                           stop it (kill switch); its tools vanish from the next run\n")
 	fmt.Fprintf(w, "  enable|disable <name|id>                   auto-attach at daemon start on/off\n")
@@ -98,6 +100,9 @@ func cmdMCPList(args []string, stdout, stderr io.Writer) int {
 			auto = " auto-attach"
 		}
 		argv := str(srv["command"])
+		if u := str(srv["url"]); u != "" {
+			argv = "http " + u // remote (Streamable HTTP) server, M904
+		}
 		if list, _ := srv["args"].([]any); len(list) > 0 {
 			parts := make([]string, 0, len(list))
 			for _, a := range list {
@@ -112,8 +117,9 @@ func cmdMCPList(args []string, stdout, stderr io.Writer) int {
 }
 
 func cmdMCPAdd(args []string, stdout, stderr io.Writer) int {
-	name, command, desc := "", "", ""
+	name, command, desc, url := "", "", "", ""
 	var srvArgs []string
+	headers := map[string]any{}
 	for i := 0; i < len(args); i++ {
 		a := args[i]
 		need := func() bool {
@@ -130,12 +136,30 @@ func cmdMCPAdd(args []string, stdout, stderr io.Writer) int {
 			}
 			i++
 			command = args[i]
+		case "--url":
+			if !need() {
+				return 2
+			}
+			i++
+			url = args[i]
 		case "--arg":
 			if !need() {
 				return 2
 			}
 			i++
 			srvArgs = append(srvArgs, args[i])
+		case "--header":
+			// --header "Authorization: Bearer ..." (remote servers, M904).
+			if !need() {
+				return 2
+			}
+			i++
+			k, v, ok := strings.Cut(args[i], ":")
+			if !ok || strings.TrimSpace(k) == "" {
+				fmt.Fprintf(stderr, "%s mcp add: --header wants \"Name: value\"\n", brand.CLI)
+				return 2
+			}
+			headers[strings.TrimSpace(k)] = strings.TrimSpace(v)
 		case "--desc", "--description":
 			if !need() {
 				return 2
@@ -148,11 +172,19 @@ func cmdMCPAdd(args []string, stdout, stderr io.Writer) int {
 			}
 		}
 	}
-	if name == "" || command == "" {
-		fmt.Fprintf(stderr, "usage: %s mcp add <name> --cmd EXE [--arg A ...] [--desc TEXT]\n", brand.CLI)
+	if name == "" || (command == "" && url == "") {
+		fmt.Fprintf(stderr, "usage: %s mcp add <name> (--cmd EXE [--arg A ...] | --url URL [--header \"K: V\" ...]) [--desc TEXT]\n", brand.CLI)
 		return 2
 	}
-	server := map[string]any{"name": name, "command": command, "description": desc}
+	server := map[string]any{"name": name, "description": desc}
+	if url != "" {
+		server["url"] = url
+		if len(headers) > 0 {
+			server["headers"] = headers
+		}
+	} else {
+		server["command"] = command
+	}
 	if len(srvArgs) > 0 {
 		list := make([]any, len(srvArgs))
 		for i, a := range srvArgs {

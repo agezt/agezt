@@ -104,6 +104,11 @@ type Config struct {
 	// means the production stdio dialer (mcp.Dial); tests inject fakes.
 	MCPDialer mcp.Dialer
 
+	// MCPHTTPDialer handshakes one REMOTE MCP server over Streamable HTTP on
+	// attach (M904, #39) — used when a registration carries a URL instead of a
+	// command. Nil means the production dialer (mcp.DialHTTP); tests inject fakes.
+	MCPHTTPDialer mcp.HTTPDialer
+
 	// Model is the default model name passed to the provider.
 	Model string
 

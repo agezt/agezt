@@ -37,6 +37,23 @@ func (s *Server) mcpServerView(srv mcp.Server) map[string]any {
 		sort.Strings(keys)
 		m["env_keys"] = keys
 	}
+	// Same for remote-server request headers (M904): they may carry an auth
+	// token, so echo only the sorted key names, never the values.
+	delete(m, "headers")
+	if len(srv.Headers) > 0 {
+		keys := make([]string, 0, len(srv.Headers))
+		for k := range srv.Headers {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		m["header_keys"] = keys
+	}
+	// Surface the transport so the UI can badge stdio vs http without parsing.
+	if srv.URL != "" {
+		m["transport"] = "http"
+	} else {
+		m["transport"] = "stdio"
+	}
 	attached := s.k.MCPAttached()
 	if n, live := attached[srv.Name]; live {
 		m["attached"] = true

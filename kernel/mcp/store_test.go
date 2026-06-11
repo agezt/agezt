@@ -108,6 +108,35 @@ func TestValidateServer(t *testing.T) {
 	}
 }
 
+func TestValidateServer_Transport(t *testing.T) {
+	// A remote (URL) server with no command is valid.
+	remote := Server{Name: "remote9", URL: "https://mcp.example.com/v1"}
+	if err := Validate(remote); err != nil {
+		t.Fatalf("valid remote server rejected: %v", err)
+	}
+	// With opt-in auth headers, still valid.
+	remote.Headers = map[string]string{"Authorization": "Bearer x", "X-Trace-Id": "abc"}
+	if err := Validate(remote); err != nil {
+		t.Fatalf("remote + headers rejected: %v", err)
+	}
+
+	bad := []struct {
+		label string
+		srv   Server
+	}{
+		{"both command and url", Server{Name: "both9", Command: "python", URL: "https://x.example"}},
+		{"neither command nor url", Server{Name: "none9"}},
+		{"non-http scheme", Server{Name: "ftp9", URL: "ftp://x.example/v1"}},
+		{"url without host", Server{Name: "nohost9", URL: "http:///v1"}},
+		{"bad header name", Server{Name: "badhdr9", URL: "https://x.example", Headers: map[string]string{"Bad Header": "v"}}},
+	}
+	for _, tc := range bad {
+		if err := Validate(tc.srv); err == nil {
+			t.Errorf("%s: accepted, want rejected", tc.label)
+		}
+	}
+}
+
 func TestAppendEnv(t *testing.T) {
 	base := []string{"PATH=/bin", "HOME=/home/me"}
 	out := appendEnv(base, map[string]string{"TOKEN": "secret"})
