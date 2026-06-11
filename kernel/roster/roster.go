@@ -75,8 +75,16 @@ type Profile struct {
 
 	Description string `json:"description,omitempty"`
 	Enabled     bool   `json:"enabled"`
-	CreatedMS   int64  `json:"created_ms"`
-	UpdatedMS   int64  `json:"updated_ms"`
+
+	// Retired moves a no-longer-needed agent to the GRAVEYARD (M846): it is kept
+	// (recoverable via Revive) but excluded from delegation and marked in the
+	// roster — distinct from a temporary pause (Enabled=false) and from a hard
+	// Remove. RetiredMS is when it was retired.
+	Retired   bool  `json:"retired,omitempty"`
+	RetiredMS int64 `json:"retired_ms,omitempty"`
+
+	CreatedMS int64 `json:"created_ms"`
+	UpdatedMS int64 `json:"updated_ms"`
 }
 
 // slugRe: lowercase, digit-or-letter first, then letters/digits/dot/dash/underscore.
@@ -202,6 +210,32 @@ func (s *Store) SetEnabled(ref string, enabled bool) (Profile, error) {
 	return *p, nil
 }
 
+// SetRetired moves a profile to the graveyard (true) or revives it (false) by id
+// or slug (M846). Retiring also pauses the agent (Enabled=false) so it stops
+// firing; reviving leaves it paused for the operator to explicitly resume.
+func (s *Store) SetRetired(ref string, retired bool) (Profile, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	p := s.find(ref)
+	if p == nil {
+		return Profile{}, ErrNotFound
+	}
+	snapshot := *p
+	p.Retired = retired
+	if retired {
+		p.RetiredMS = s.now().UnixMilli()
+		p.Enabled = false // a graveyard agent does not run
+	} else {
+		p.RetiredMS = 0
+	}
+	p.UpdatedMS = s.now().UnixMilli()
+	if err := s.save(); err != nil {
+		*p = snapshot
+		return Profile{}, err
+	}
+	return *p, nil
+}
+
 // Update applies edits to a profile's mutable fields via mutate, re-validates,
 // and persists. Identity and lifecycle fields — ID, Slug, CreatedMS, Enabled
 // (which has its own setter) — are preserved regardless of what mutate does;
@@ -218,6 +252,7 @@ func (s *Store) Update(ref string, mutate func(*Profile)) (Profile, error) {
 	// Protect identity + lifecycle fields from the mutator. The slug is the
 	// agent's ADDRESS — renaming it would orphan every reference to it.
 	p.ID, p.Slug, p.CreatedMS, p.Enabled = snapshot.ID, snapshot.Slug, snapshot.CreatedMS, snapshot.Enabled
+	p.Retired, p.RetiredMS = snapshot.Retired, snapshot.RetiredMS // graveyard state has its own setter (M846)
 	p.UpdatedMS = s.now().UnixMilli()
 	if err := Validate(*p); err != nil {
 		*p = snapshot

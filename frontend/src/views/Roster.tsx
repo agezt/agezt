@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Users, RefreshCw, Pause, Play, Trash2, Plus, X, Pencil, Bot } from "lucide-react";
+import { Users, RefreshCw, Pause, Play, Trash2, Plus, X, Pencil, Bot, Archive, ArchiveRestore, Skull } from "lucide-react";
 import { getJSON, postAction, postJSON } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { money } from "@/lib/format";
@@ -24,6 +24,7 @@ export interface AgentProfile {
   workdir?: string;
   description?: string;
   enabled?: boolean;
+  retired?: boolean;
 }
 
 // slugOk mirrors the kernel's roster slug rule (lowercase, digit/letter first,
@@ -320,6 +321,30 @@ export function Roster() {
     }
   }
 
+  // retire moves an agent to the graveyard (M846): fetch the impact first (which
+  // standing orders fire it) and show it in the confirm, so the effects are
+  // explicit before the agent is retired. Recoverable via Revive.
+  async function retire(slug: string) {
+    let impactLine = "";
+    try {
+      const imp = await getJSON<{ standing_orders?: string[]; standing_count?: number }>("/api/agents/impact", { ref: slug });
+      if (imp.standing_count && imp.standing_count > 0) {
+        impactLine = `\n\n⚠ ${imp.standing_count} standing order(s) fire this agent and will stop running it:\n• ${(imp.standing_orders || []).join("\n• ")}`;
+      }
+    } catch {
+      // Impact is advisory; proceed without it if the lookup fails.
+    }
+    await act(slug, "/api/agents/retire", undefined, {
+      confirm: {
+        title: `Retire agent ${slug} to the graveyard?`,
+        message: `It is kept and recoverable (Revive), but paused and excluded from delegation.${impactLine}`,
+        confirmLabel: "Retire",
+        danger: true,
+      },
+      success: `${slug} retired to the graveyard`,
+    });
+  }
+
   const enabled = (profiles || []).filter((p) => p.enabled).length;
 
   return (
@@ -370,9 +395,15 @@ export function Roster() {
         {(profiles || []).map((p) => (
           <li key={p.id} className="rounded-lg border border-border bg-card p-3">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="font-mono text-sm text-foreground">{p.slug}</span>
+              <span className={cn("font-mono text-sm", p.retired ? "text-muted line-through" : "text-foreground")}>{p.slug}</span>
               {p.name && p.name !== p.slug && <span className="text-xs text-muted">{p.name}</span>}
-              <Badge variant={p.enabled ? "good" : "default"}>{p.enabled ? "enabled" : "paused"}</Badge>
+              {p.retired ? (
+                <Badge variant="default" className="inline-flex items-center gap-1 text-muted">
+                  <Skull className="h-3 w-3" /> graveyard
+                </Badge>
+              ) : (
+                <Badge variant={p.enabled ? "good" : "default"}>{p.enabled ? "enabled" : "paused"}</Badge>
+              )}
               <span className="ml-auto flex items-center gap-1">
                 <Button
                   size="sm"
@@ -382,19 +413,44 @@ export function Roster() {
                 >
                   <Pencil className="h-3.5 w-3.5" />
                 </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  disabled={busy === p.slug}
-                  aria-label={p.enabled ? `Pause ${p.slug}` : `Resume ${p.slug}`}
-                  onClick={() =>
-                    act(p.slug, "/api/agents/enable", { enabled: p.enabled ? "false" : "true" }, {
-                      success: p.enabled ? `${p.slug} paused` : `${p.slug} resumed`,
-                    })
-                  }
-                >
-                  {p.enabled ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
-                </Button>
+                {!p.retired && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    disabled={busy === p.slug}
+                    aria-label={p.enabled ? `Pause ${p.slug}` : `Resume ${p.slug}`}
+                    onClick={() =>
+                      act(p.slug, "/api/agents/enable", { enabled: p.enabled ? "false" : "true" }, {
+                        success: p.enabled ? `${p.slug} paused` : `${p.slug} resumed`,
+                      })
+                    }
+                  >
+                    {p.enabled ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
+                  </Button>
+                )}
+                {p.retired ? (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    disabled={busy === p.slug}
+                    aria-label={`Revive ${p.slug}`}
+                    title="Revive from the graveyard"
+                    onClick={() => act(p.slug, "/api/agents/revive", undefined, { success: `${p.slug} revived (paused)` })}
+                  >
+                    <ArchiveRestore className="h-3.5 w-3.5" />
+                  </Button>
+                ) : (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    disabled={busy === p.slug}
+                    aria-label={`Retire ${p.slug}`}
+                    title="Retire to the graveyard"
+                    onClick={() => retire(p.slug)}
+                  >
+                    <Archive className="h-3.5 w-3.5" />
+                  </Button>
+                )}
                 <Button
                   size="sm"
                   variant="ghost"

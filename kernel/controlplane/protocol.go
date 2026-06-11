@@ -927,6 +927,14 @@ const (
 	CmdAgentEdit       = "agent_edit"
 	CmdAgentSetEnabled = "agent_set_enabled"
 	CmdAgentRemove     = "agent_remove"
+	// Agent graveyard (M846). CmdAgentImpact reports what depends on an agent
+	// (standing orders that fire it) — shown before retiring. CmdAgentRetire moves
+	// it to the graveyard (recoverable, excluded from delegation) and returns the
+	// impact; CmdAgentRevive brings it back (paused, for the operator to resume).
+	// Args: ref. Returns: profile (+ impact for retire/impact).
+	CmdAgentImpact = "agent_impact"
+	CmdAgentRetire = "agent_retire"
+	CmdAgentRevive = "agent_revive"
 
 	// Script-tool forge (M794) — agent-authored code promoted into callable
 	// forge_<name> tools, behind `agt toolforge`. Draft: args.tool (object).

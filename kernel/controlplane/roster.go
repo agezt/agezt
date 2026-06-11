@@ -153,6 +153,62 @@ func (s *Server) handleAgentSetEnabled(conn net.Conn, req Request) {
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"profile": profileView(p)}})
 }
 
+// handleAgentImpact reports what depends on an agent (standing orders that fire
+// it) — shown before retiring so the operator sees the effects (M846).
+func (s *Server) handleAgentImpact(conn net.Conn, req Request) {
+	ref, _ := req.Args["ref"].(string)
+	if strings.TrimSpace(ref) == "" {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.ref required"})
+		return
+	}
+	p, ok := s.k.Roster().Get(ref)
+	if !ok {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "unknown agent: " + ref})
+		return
+	}
+	orders := s.k.AgentImpact(p.Slug)
+	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{
+		"slug": p.Slug, "standing_orders": orders, "standing_count": len(orders),
+	}})
+}
+
+func (s *Server) handleAgentRetire(conn net.Conn, req Request) {
+	s.handleAgentSetRetired(conn, req, true)
+}
+
+func (s *Server) handleAgentRevive(conn net.Conn, req Request) {
+	s.handleAgentSetRetired(conn, req, false)
+}
+
+func (s *Server) handleAgentSetRetired(conn net.Conn, req Request, retired bool) {
+	ref, _ := req.Args["ref"].(string)
+	if strings.TrimSpace(ref) == "" {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.ref required"})
+		return
+	}
+	// Compute impact BEFORE the state change so a retire reports what it affected.
+	var impact []string
+	if retired {
+		if p, ok := s.k.Roster().Get(ref); ok {
+			impact = s.k.AgentImpact(p.Slug)
+		}
+	}
+	p, err := s.k.SetProfileRetired(ref, retired)
+	if err != nil {
+		if errors.Is(err, roster.ErrNotFound) {
+			s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "unknown agent: " + ref})
+			return
+		}
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		return
+	}
+	res := map[string]any{"profile": profileView(p)}
+	if retired {
+		res["impact"] = impact
+	}
+	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: res})
+}
+
 func (s *Server) handleAgentRemove(conn net.Conn, req Request) {
 	ref, _ := req.Args["ref"].(string)
 	if strings.TrimSpace(ref) == "" {

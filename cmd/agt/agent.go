@@ -34,6 +34,10 @@ func cmdAgent(args []string, stdout, stderr io.Writer) int {
 		return cmdAgentSetEnabled(args[1:], stdout, stderr, false)
 	case "resume":
 		return cmdAgentSetEnabled(args[1:], stdout, stderr, true)
+	case "retire":
+		return cmdAgentRetire(args[1:], stdout, stderr)
+	case "revive":
+		return cmdAgentRevive(args[1:], stdout, stderr)
 	case "remove", "rm":
 		return cmdAgentRemove(args[1:], stdout, stderr)
 	case "-h", "--help", "help":
@@ -53,6 +57,8 @@ func agentUsage(w io.Writer) int {
 	fmt.Fprintf(w, "  set <slug|id> [same flags as add]              edit an agent (slug is immutable)\n")
 	fmt.Fprintf(w, "  pause <slug|id>                                disable an agent (runs refused)\n")
 	fmt.Fprintf(w, "  resume <slug|id>                               re-enable an agent\n")
+	fmt.Fprintf(w, "  retire <slug|id>                               move a dead agent to the graveyard (paused; delegation refused)\n")
+	fmt.Fprintf(w, "  revive <slug|id>                               bring a retired agent back from the graveyard\n")
 	fmt.Fprintf(w, "  remove <slug|id>                               delete an agent\n")
 	fmt.Fprintf(w, "run as an agent:  %s run --agent <slug> \"intent\"\n", brand.CLI)
 	return 0
@@ -424,6 +430,60 @@ func cmdAgentSetEnabled(args []string, stdout, stderr io.Writer, enabled bool) i
 	}
 	p, _ := res["profile"].(map[string]any)
 	fmt.Fprintf(stdout, "agent %s %sd\n", str(p["slug"]), verb)
+	return 0
+}
+
+// cmdAgentRetire moves a dead agent to the graveyard (M846): it shows what
+// depends on the agent (standing orders that fire it) first, then retires —
+// the agent is paused and any delegation to it is refused until revived. The
+// roster keeps it (recoverable), distinct from `remove` which deletes.
+func cmdAgentRetire(args []string, stdout, stderr io.Writer) int {
+	if len(args) != 1 {
+		fmt.Fprintf(stderr, "usage: %s agent retire <slug|id>\n", brand.CLI)
+		return 2
+	}
+	c := dial(stderr)
+	if c == nil {
+		return 1
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	res, err := c.Call(ctx, controlplane.CmdAgentRetire, map[string]any{"ref": args[0]})
+	if err != nil {
+		fmt.Fprintf(stderr, "%s agent retire: %v\n", brand.CLI, err)
+		return 1
+	}
+	p, _ := res["profile"].(map[string]any)
+	fmt.Fprintf(stdout, "agent %s retired to the graveyard (revive it: %s agent revive %s)\n", str(p["slug"]), brand.CLI, str(p["slug"]))
+	if impact, _ := res["impact"].([]any); len(impact) > 0 {
+		fmt.Fprintf(stdout, "  ⚠ %d standing order(s) referenced this agent:\n", len(impact))
+		for _, o := range impact {
+			fmt.Fprintf(stdout, "    - %s\n", str(o))
+		}
+	}
+	return 0
+}
+
+// cmdAgentRevive brings a retired agent back from the graveyard (M846). It is
+// restored paused so the operator decides when to resume it.
+func cmdAgentRevive(args []string, stdout, stderr io.Writer) int {
+	if len(args) != 1 {
+		fmt.Fprintf(stderr, "usage: %s agent revive <slug|id>\n", brand.CLI)
+		return 2
+	}
+	c := dial(stderr)
+	if c == nil {
+		return 1
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	res, err := c.Call(ctx, controlplane.CmdAgentRevive, map[string]any{"ref": args[0]})
+	if err != nil {
+		fmt.Fprintf(stderr, "%s agent revive: %v\n", brand.CLI, err)
+		return 1
+	}
+	p, _ := res["profile"].(map[string]any)
+	fmt.Fprintf(stdout, "agent %s revived (paused — resume it: %s agent resume %s)\n", str(p["slug"]), brand.CLI, str(p["slug"]))
 	return 0
 }
 
