@@ -44,8 +44,19 @@ type Message struct {
 	To      string `json:"to,omitempty"`
 	ReplyTo string `json:"reply_to,omitempty"`
 	Text    string `json:"text"`
-	TSMS    int64  `json:"ts_ms"`
+	// Help marks a message as a request for assistance (M849): it stays in
+	// recipients' inboxes until any agent answers it, and OpenHelp surfaces the
+	// still-unanswered ones so an overseer or peer can pick them up. A help
+	// message is journaled under board.help[.<to>] so a standing order can wake a
+	// responder.
+	Help bool  `json:"help,omitempty"`
+	TSMS int64 `json:"ts_ms"`
 }
+
+// Everyone is the wildcard recipient for a broadcast (M849): a message To this
+// value lands in every agent's Inbox except the sender's. It is not a real agent
+// slug — Inbox special-cases it.
+const Everyone = "*"
 
 // Store is the persistent, concurrency-safe message board. Many agents (and
 // their goroutines) post concurrently, so every access is mutex-guarded.
@@ -94,6 +105,50 @@ func (s *Store) Send(m Message, nowMS int64) (Message, error) {
 	return m, s.save()
 }
 
+// Broadcast appends a message addressed to Everyone (M849): it lands in every
+// agent's Inbox except the sender's. A plain announcement — "I shipped X",
+// "heads-up, deploying" — that any agent sees when it checks its inbox.
+func (s *Store) Broadcast(from, text string, nowMS int64) (Message, error) {
+	return s.Send(Message{Topic: "broadcast", From: from, To: Everyone, Text: text}, nowMS)
+}
+
+// HelpRequest appends a request for assistance (M849). If to is empty it is
+// broadcast to Everyone (any agent may answer); if to names an agent it is a
+// directed ask. Either way it is flagged Help, so it stays in the inbox until
+// answered and OpenHelp surfaces it.
+func (s *Store) HelpRequest(from, to, text string, nowMS int64) (Message, error) {
+	to = strings.TrimSpace(to)
+	if to == "" {
+		to = Everyone
+	}
+	return s.Send(Message{Topic: "help", From: from, To: to, Text: text, Help: true}, nowMS)
+}
+
+// OpenHelp returns up to limit still-UNANSWERED help requests, newest first —
+// the "who needs help right now" view for an overseer agent or the Web UI. A
+// help request is open until any message replies to it (ReplyTo == its id).
+func (s *Store) OpenHelp(limit int) []Message {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	answered := map[string]bool{}
+	for _, m := range s.msgs {
+		if m.ReplyTo != "" {
+			answered[m.ReplyTo] = true
+		}
+	}
+	out := make([]Message, 0, 8)
+	for _, m := range s.msgs {
+		if m.Help && !answered[m.ID] {
+			out = append(out, m)
+		}
+	}
+	sort.SliceStable(out, func(i, j int) bool { return out[i].TSMS > out[j].TSMS })
+	if limit > 0 && len(out) > limit {
+		out = out[:limit]
+	}
+	return out
+}
+
 // Get returns one message by id.
 func (s *Store) Get(id string) (Message, bool) {
 	s.mu.Lock()
@@ -123,7 +178,12 @@ func (s *Store) Inbox(to string, limit int, includeAnswered bool) []Message {
 	}
 	out := make([]Message, 0, 8)
 	for _, m := range s.msgs {
-		if m.To == "" || strings.ToLower(m.To) != to {
+		// A message is "for me" if it is addressed to my slug, OR it is a broadcast
+		// (To == Everyone) that I didn't send (M849).
+		mTo := strings.ToLower(strings.TrimSpace(m.To))
+		directed := mTo != "" && mTo == to
+		broadcast := m.To == Everyone && strings.ToLower(strings.TrimSpace(m.From)) != to
+		if !directed && !broadcast {
 			continue
 		}
 		if !includeAnswered && answered[m.ID] {

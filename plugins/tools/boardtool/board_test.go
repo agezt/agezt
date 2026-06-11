@@ -31,6 +31,37 @@ func (f *fakeStore) Send(m board.Message, nowMS int64) (board.Message, error) {
 	return m, nil
 }
 
+func (f *fakeStore) Broadcast(from, text string, nowMS int64) (board.Message, error) {
+	return f.Send(board.Message{Topic: "broadcast", From: from, To: board.Everyone, Text: text}, nowMS)
+}
+
+func (f *fakeStore) HelpRequest(from, to, text string, nowMS int64) (board.Message, error) {
+	if to == "" {
+		to = board.Everyone
+	}
+	return f.Send(board.Message{Topic: "help", From: from, To: to, Text: text, Help: true}, nowMS)
+}
+
+func (f *fakeStore) OpenHelp(limit int) []board.Message {
+	answered := map[string]bool{}
+	for _, m := range f.msgs {
+		if m.ReplyTo != "" {
+			answered[m.ReplyTo] = true
+		}
+	}
+	out := make([]board.Message, 0, len(f.msgs))
+	for _, m := range f.msgs {
+		if m.Help && !answered[m.ID] {
+			out = append(out, m)
+		}
+	}
+	sort.SliceStable(out, func(i, j int) bool { return out[i].TSMS > out[j].TSMS })
+	if limit > 0 && len(out) > limit {
+		out = out[:limit]
+	}
+	return out
+}
+
 func (f *fakeStore) Get(id string) (board.Message, bool) {
 	for _, m := range f.msgs {
 		if m.ID == id {
@@ -51,7 +82,10 @@ func (f *fakeStore) Inbox(to string, limit int, includeAnswered bool) []board.Me
 	}
 	out := make([]board.Message, 0, len(f.msgs))
 	for _, m := range f.msgs {
-		if m.To == to && !answered[m.ID] {
+		// Directed to me, or a broadcast I didn't send (mirrors kernel/board.Inbox).
+		directed := m.To == to
+		broadcast := m.To == board.Everyone && m.From != to
+		if (directed || broadcast) && !answered[m.ID] {
 			out = append(out, m)
 		}
 	}
@@ -334,6 +368,66 @@ func TestSendReplyBadInputs(t *testing.T) {
 		if _, isErr := invoke(t, tool, c); !isErr {
 			t.Errorf("expected error for %v", c)
 		}
+	}
+}
+
+func TestBroadcast_DeliversToPeersAndNotifies(t *testing.T) {
+	tool := newTool(t)
+	var notified []board.Message
+	tool.OnPost(func(m board.Message, _ string) { notified = append(notified, m) })
+
+	out, isErr := invoke(t, tool, map[string]any{"op": "broadcast", "from": "ann", "text": "deploying"})
+	if isErr {
+		t.Fatalf("broadcast errored: %v", out)
+	}
+	if len(notified) != 1 || notified[0].To != board.Everyone {
+		t.Fatalf("broadcast did not notify To=Everyone: %+v", notified)
+	}
+	// A peer sees it in their inbox; the sender does not.
+	peer, _ := invoke(t, tool, map[string]any{"op": "inbox", "to": "worker"})
+	if peer["count"].(float64) != 1 {
+		t.Fatalf("peer inbox = %v, want the broadcast", peer)
+	}
+	self, _ := invoke(t, tool, map[string]any{"op": "inbox", "to": "ann"})
+	if self["count"].(float64) != 0 {
+		t.Errorf("sender saw its own broadcast: %v", self)
+	}
+}
+
+func TestHelp_RaiseListAndAnswer(t *testing.T) {
+	tool := newTool(t)
+	// Raise a help request (broadcast).
+	raised, isErr := invoke(t, tool, map[string]any{"op": "help", "from": "worker", "text": "build is red"})
+	if isErr {
+		t.Fatalf("help raise errored: %v", raised)
+	}
+	hid := raised["help_requested"].(map[string]any)["id"].(string)
+	if raised["help_requested"].(map[string]any)["help"] != true {
+		t.Errorf("help message not flagged: %+v", raised["help_requested"])
+	}
+	// op=help with no text LISTS the open requests.
+	list, _ := invoke(t, tool, map[string]any{"op": "help"})
+	if list["count"].(float64) != 1 {
+		t.Fatalf("open_help count = %v, want 1", list["count"])
+	}
+	// Answering it closes the open-help list.
+	if _, isErr := invoke(t, tool, map[string]any{"op": "reply", "id": hid, "from": "helper", "text": "fixed it"}); isErr {
+		t.Fatal("reply errored")
+	}
+	list2, _ := invoke(t, tool, map[string]any{"op": "help"})
+	if list2["count"].(float64) != 0 {
+		t.Errorf("answered help still listed open: %v", list2)
+	}
+}
+
+func TestBroadcastHelp_BadInputs(t *testing.T) {
+	tool := newTool(t)
+	// broadcast needs text; help-raise infers list when text is absent (not an error).
+	if _, isErr := invoke(t, tool, map[string]any{"op": "broadcast", "from": "x"}); !isErr {
+		t.Error("broadcast without text should error")
+	}
+	if _, isErr := invoke(t, tool, map[string]any{"op": "help"}); isErr {
+		t.Error("op=help with no text should LIST, not error")
 	}
 }
 

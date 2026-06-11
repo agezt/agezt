@@ -19,6 +19,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   `delegate` tool now coaches the leader pattern and prefers reusing an existing named agent. (M843)
 
 ### Added
+- **Agent mailbox — broadcast + help requests (M849).** The shared board is now a full mailbox: on top
+  of directed agent-to-agent DMs, an agent can `op=broadcast` an announcement to every agent's inbox, or
+  `op=help` to ask for assistance — broadcast to all (or directed with `to=<slug>`), it stays open until
+  someone answers and journals `board.help` so a responder can be woken. `op=help` with no text lists the
+  still-open requests. The Agent Board view shows an "open help requests" strip and tags help/broadcast
+  messages; a read-only `/api/board/help` surfaces the open asks for an overseer. Built on the existing
+  board store (no parallel mailbox, no contract churn). (M849)
 - **Agents know their own (unlimited) capabilities (M848).** Every run's environment preamble now
   carries a "What you can do — act without artificial limits" briefing, tuned to the tools actually
   present: write and run Python / Node / Deno (code_exec), install and run CLIs and npm/pip/cargo

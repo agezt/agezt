@@ -852,6 +852,8 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.handleSend(conn, req)
 	case CmdBoardRead:
 		s.handleBoardRead(conn, req)
+	case CmdBoardHelp:
+		s.handleBoardHelp(conn, req)
 	case CmdAutonomyFeed:
 		s.handleAutonomyFeed(conn, req)
 	default:

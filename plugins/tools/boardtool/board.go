@@ -30,6 +30,9 @@ const (
 type boardStore interface {
 	Post(topic, from, text string, nowMS int64) (board.Message, error)
 	Send(m board.Message, nowMS int64) (board.Message, error)
+	Broadcast(from, text string, nowMS int64) (board.Message, error)
+	HelpRequest(from, to, text string, nowMS int64) (board.Message, error)
+	OpenHelp(limit int) []board.Message
 	Read(topic string, limit int) []board.Message
 	Inbox(to string, limit int, includeAnswered bool) []board.Message
 	Replies(id string, limit int) []board.Message

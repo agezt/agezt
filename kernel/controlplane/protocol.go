@@ -1116,6 +1116,12 @@ const (
 	// Returns: { messages: [{topic, from?, text, ts_unix_ms}], topics: {name:count},
 	//            count }
 	CmdBoardRead = "board_read"
+
+	// CmdBoardHelp surfaces the still-open (unanswered) help requests agents have
+	// raised on the board (M849), newest first — the mailbox's "who needs help"
+	// view. Read-only. Args: limit (optional; default 50, clamped ..500).
+	// Returns: { open_help: [{id, from?, to?, topic, text, ts_unix_ms}], count }
+	CmdBoardHelp = "board_help"
 )
 
 // Request is the wire shape sent by the client.

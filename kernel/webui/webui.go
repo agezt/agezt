@@ -120,6 +120,8 @@ var apiRoutes = map[string]string{
 	"/api/workflows/templates": controlplane.CmdWorkflowTemplates,
 	"/api/inbox":               controlplane.CmdInbox,
 	"/api/board":               controlplane.CmdBoardRead,
+	// Open (unanswered) help requests agents have raised on the board (M849). Read-only.
+	"/api/board/help": controlplane.CmdBoardHelp,
 	// Personal Data Lake (M836): list collections (no args). Read-only.
 	"/api/data/collections": controlplane.CmdDataCollections,
 	// Council of Elders (M839): the default membership the panel convenes with. Read-only.
