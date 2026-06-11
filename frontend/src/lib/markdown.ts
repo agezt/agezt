@@ -10,7 +10,9 @@ export type Inline =
   | { t: "text"; v: string }
   | { t: "code"; v: string }
   | { t: "strong"; v: string }
-  | { t: "em"; v: string };
+  | { t: "em"; v: string }
+  | { t: "del"; v: string }
+  | { t: "link"; v: string; href: string };
 
 export type Block =
   | { t: "code"; lang: string; v: string }
@@ -22,9 +24,20 @@ export type Block =
   | { t: "quote"; v: string }
   | { t: "p"; v: string };
 
-// Earliest-match of `code`, **strong**, *em* (code first so `*` inside code is
-// literal). Non-greedy, single-line spans.
-const INLINE_RE = /(`[^`]+`|\*\*[^*]+\*\*|\*[^*]+\*)/;
+// Earliest-match of `code`, [text](href) links, **strong**, ~~del~~, *em* (code
+// first so markup inside code is literal; link before emphasis so `*` inside a
+// URL/label doesn't split it). Non-greedy, single-line spans.
+const INLINE_RE = /(`[^`]+`|\[[^\]]+\]\([^)\s]+\)|\*\*[^*]+\*\*|~~[^~]+~~|\*[^*]+\*)/;
+
+// LINK_RE pulls the label and href out of a matched [text](href) span.
+const LINK_RE = /^\[([^\]]+)\]\(([^)\s]+)\)$/;
+
+// safeHref returns the href only when it's a navigable, non-script scheme
+// (http/https/mailto) — so a `[x](javascript:…)` link can never execute. Anything
+// else returns "" and the caller renders the label as plain text.
+export function safeHref(href: string): string {
+  return /^(https?:\/\/|mailto:)/i.test(href.trim()) ? href.trim() : "";
+}
 
 // Strip LaTeX math delimiters (\( … \), \[ … \]) so a model's math reads as the
 // plain expression instead of literal backslash-brackets. Applied only to
@@ -47,9 +60,20 @@ export function parseInline(input: string): Inline[] {
     }
     if (m.index > 0) out.push({ t: "text", v: rest.slice(0, m.index) });
     const tok = m[0];
-    if (tok.startsWith("`")) out.push({ t: "code", v: tok.slice(1, -1) });
-    else if (tok.startsWith("**")) out.push({ t: "strong", v: tok.slice(2, -2) });
-    else out.push({ t: "em", v: tok.slice(1, -1) });
+    if (tok.startsWith("`")) {
+      out.push({ t: "code", v: tok.slice(1, -1) });
+    } else if (tok.startsWith("[")) {
+      const lm = tok.match(LINK_RE);
+      const href = lm ? safeHref(lm[2]) : "";
+      if (lm && href) out.push({ t: "link", v: lm[1], href });
+      else out.push({ t: "text", v: tok }); // unsafe/odd href → render literally
+    } else if (tok.startsWith("**")) {
+      out.push({ t: "strong", v: tok.slice(2, -2) });
+    } else if (tok.startsWith("~~")) {
+      out.push({ t: "del", v: tok.slice(2, -2) });
+    } else {
+      out.push({ t: "em", v: tok.slice(1, -1) });
+    }
     rest = rest.slice(m.index + tok.length);
   }
   return out;
