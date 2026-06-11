@@ -52,6 +52,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   the Runs view. Purely frontend — reuses the existing event provider and read routes. (M867)
 
 ### Added
+- **Built-in calendar-tools skill bundle (M895).** A fifteenth out-of-the-box skill that creates and
+  parses iCalendar `.ics` events (#34) — **zero pip deps** (Python stdlib). `scripts/cal.py` has two ops:
+  `create` (valid VCALENDAR/VEVENT with RFC 5545 text escaping + line folding) and `parse` (unfolds and
+  extracts VEVENT fields). Pairs with email-tools to send a meeting invite (attach the `.ics`); parsed
+  events can land in a Data Lake calendar collection. RRULE recurrence is out of scope (pointer to
+  `icalendar`). Rides the `plugins/builtinskills` seeder. (M895)
 - **Built-in crypto-tools skill bundle (M894).** A fourteenth out-of-the-box skill — cryptographic
   primitives (#34), **zero pip deps** (Python stdlib `hashlib`/`hmac`/`base64`/`secrets`).
   `scripts/crypto.py` has six ops: `hash` (file/text, any algo), `verify` (constant-time), `hmac` /
