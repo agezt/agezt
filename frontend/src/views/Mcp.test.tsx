@@ -12,7 +12,7 @@ vi.mock("@/lib/api", () => ({
   postAction: (...a: unknown[]) => postAction(...a),
 }));
 
-import { Mcp, NewServerForm, serverNameOk, splitArgs } from "@/views/Mcp";
+import { Mcp, NewServerForm, serverNameOk, splitArgs, CATALOG } from "@/views/Mcp";
 import { UIProvider } from "@/components/ui/feedback";
 
 const withUI = (node: ReactNode) => <UIProvider>{node}</UIProvider>;
@@ -41,6 +41,22 @@ describe("splitArgs", () => {
       "@modelcontextprotocol/server-everything",
     ]);
     expect(splitArgs("")).toEqual([]);
+  });
+});
+
+describe("CATALOG", () => {
+  it("every preset has a kernel-valid name, a command, and args", () => {
+    expect(CATALOG.length).toBeGreaterThan(0);
+    for (const e of CATALOG) {
+      expect(serverNameOk(e.name)).toBe(true); // ≤16 lowercase alnum (tool-prefix rule)
+      expect(e.command.trim()).not.toBe("");
+      expect(splitArgs(e.args).length).toBeGreaterThan(0);
+      expect(e.description.trim()).not.toBe("");
+    }
+  });
+  it("preset names are unique", () => {
+    const names = CATALOG.map((e) => e.name);
+    expect(new Set(names).size).toBe(names.length);
   });
 });
 

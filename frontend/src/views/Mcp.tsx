@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Plug, PlugZap, RefreshCw, Plus, X, Trash2, Power, PowerOff } from "lucide-react";
+import { Plug, PlugZap, RefreshCw, Plus, X, Trash2, Power, PowerOff, Boxes, KeyRound } from "lucide-react";
 import { getJSON, postAction, postJSON } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -34,19 +34,54 @@ export function splitArgs(s: string): string[] {
   return s.split(/\s+/).filter(Boolean);
 }
 
+// CatalogEntry is one preset in the popular-servers gallery (M897). `args` is in
+// the form's space-separated shape; `needs` flags a path/secret the operator must
+// supply before it works. Names obey the kernel rule (≤16 lowercase alnum).
+export interface CatalogEntry {
+  name: string;
+  command: string;
+  args: string;
+  description: string;
+  needs?: string;
+}
+
+// CATALOG: popular Model Context Protocol servers, offered as one-click examples.
+// Picking one prefills the register form so the operator can review/adjust the
+// path or note the credential before adding. Sourced from the official MCP
+// servers collection and widely-used community servers.
+export const CATALOG: CatalogEntry[] = [
+  { name: "everything", command: "npx", args: "-y @modelcontextprotocol/server-everything", description: "Reference server exercising every MCP feature — ideal for a first test." },
+  { name: "filesystem", command: "npx", args: "-y @modelcontextprotocol/server-filesystem /path/to/dir", description: "Read and write files within an allowed directory.", needs: "set the directory path in args" },
+  { name: "fetch", command: "uvx", args: "mcp-server-fetch", description: "Fetch a URL and return its content as clean markdown." },
+  { name: "memory", command: "npx", args: "-y @modelcontextprotocol/server-memory", description: "Persistent knowledge-graph memory the model can read and write." },
+  { name: "git", command: "uvx", args: "mcp-server-git --repository /path/to/repo", description: "Inspect and operate a local Git repository.", needs: "set the repo path in args" },
+  { name: "github", command: "npx", args: "-y @modelcontextprotocol/server-github", description: "GitHub API — issues, pull requests, repos, code search.", needs: "GITHUB_PERSONAL_ACCESS_TOKEN (env)" },
+  { name: "postgres", command: "npx", args: "-y @modelcontextprotocol/server-postgres postgresql://user:pass@host/db", description: "Read-only SQL queries against a PostgreSQL database.", needs: "set the connection string in args" },
+  { name: "sqlite", command: "uvx", args: "mcp-server-sqlite --db-path /path/to.db", description: "Query a local SQLite database file.", needs: "set the db path in args" },
+  { name: "puppeteer", command: "npx", args: "-y @modelcontextprotocol/server-puppeteer", description: "Browser automation — navigate, click, fill, screenshot." },
+  { name: "brave", command: "npx", args: "-y @modelcontextprotocol/server-brave-search", description: "Web and local search via the Brave Search API.", needs: "BRAVE_API_KEY (env)" },
+  { name: "slack", command: "npx", args: "-y @modelcontextprotocol/server-slack", description: "Read and post messages across Slack channels.", needs: "SLACK_BOT_TOKEN + SLACK_TEAM_ID (env)" },
+  { name: "gdrive", command: "npx", args: "-y @modelcontextprotocol/server-gdrive", description: "Search and read files in Google Drive.", needs: "OAuth credentials (env)" },
+  { name: "time", command: "uvx", args: "mcp-server-time", description: "Current time and timezone conversions." },
+  { name: "thinking", command: "npx", args: "-y @modelcontextprotocol/server-sequential-thinking", description: "A structured step-by-step reasoning scratchpad." },
+];
+
 const inputCls =
   "rounded-md border border-border bg-panel px-2 py-1 text-sm text-foreground outline-none focus-visible:border-accent";
 
 // NewServerForm registers an MCP server (M797). Exported for tests and reuse
-// (the M714 "creatable from UI" recipe).
+// (the M714 "creatable from UI" recipe). `initial` pre-fills the fields — used
+// by the popular-servers catalog (M897) to seed name/command/args/description.
 export function NewServerForm({
   onCreated,
   onError,
+  initial,
 }: {
   onCreated: (name: string) => void;
   onError: (msg: string) => void;
+  initial?: Record<string, string>;
 }) {
-  const [state, setState] = useState<Record<string, string>>({});
+  const [state, setState] = useState<Record<string, string>>(initial || {});
   const [submitting, setSubmitting] = useState(false);
   const set = (k: string, v: string) => setState((s) => ({ ...s, [k]: v }));
   const name = (state.name || "").trim();
@@ -136,6 +171,16 @@ export function Mcp() {
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const [showCatalog, setShowCatalog] = useState(false);
+  // Pre-fill values for the register form when a catalog entry is picked (M897).
+  const [prefill, setPrefill] = useState<Record<string, string> | undefined>(undefined);
+  const registered = new Set((servers || []).map((s) => s.name));
+
+  function useCatalogEntry(e: CatalogEntry) {
+    setPrefill({ name: e.name, command: e.command, args: e.args, description: e.description });
+    setShowCatalog(false);
+    setShowForm(true);
+  }
 
   async function reload() {
     setLoading(true);
@@ -194,7 +239,24 @@ export function Mcp() {
           <Button size="sm" variant="ghost" onClick={reload} disabled={loading} aria-label="Refresh">
             <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
           </Button>
-          <Button size="sm" onClick={() => setShowForm((v) => !v)}>
+          <Button
+            size="sm"
+            variant={showCatalog ? "default" : "ghost"}
+            onClick={() => {
+              setShowCatalog((v) => !v);
+              setShowForm(false);
+            }}
+          >
+            <Boxes className="h-3.5 w-3.5" /> Popular servers
+          </Button>
+          <Button
+            size="sm"
+            onClick={() => {
+              setShowForm((v) => !v);
+              if (showForm) setPrefill(undefined);
+              setShowCatalog(false);
+            }}
+          >
             {showForm ? <X className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
             {showForm ? "Close" : "Register server"}
           </Button>
@@ -208,10 +270,59 @@ export function Mcp() {
         auto-attach when the daemon starts.
       </p>
 
+      {showCatalog && (
+        <div className="rounded-lg border border-accent/30 bg-card p-3">
+          <div className="mb-2 flex items-center gap-2 text-xs text-muted">
+            <Boxes className="h-3.5 w-3.5 text-accent" />
+            Popular MCP servers — pick one to prefill the form, then adjust any path or credential and register.
+            Most run via <span className="font-mono">npx</span>/<span className="font-mono">uvx</span> (Node/Python must be installed).
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {CATALOG.map((e) => {
+              const already = registered.has(e.name);
+              return (
+                <div key={e.name} className="flex flex-col rounded-md border border-border bg-panel/40 p-2.5">
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-sm text-foreground">{e.name}</span>
+                    {already && <Badge variant="good">added</Badge>}
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="ml-auto"
+                      disabled={already}
+                      aria-label={`Use ${e.name}`}
+                      onClick={() => useCatalogEntry(e)}
+                    >
+                      <Plus className="h-3.5 w-3.5" /> Use
+                    </Button>
+                  </div>
+                  <p className="mt-1 text-xs text-muted">{e.description}</p>
+                  <p className="mt-1 truncate font-mono text-[10px] text-muted/80" title={`${e.command} ${e.args}`}>
+                    {e.command} {e.args}
+                  </p>
+                  {e.needs && (
+                    <p className="mt-1 flex items-center gap-1 text-[10px] text-amber-500/90">
+                      <KeyRound className="h-3 w-3" /> needs: {e.needs}
+                    </p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          <p className="mt-2 text-[10px] text-muted/80">
+            Note: the spawned process gets a scrubbed environment, so servers marked “needs … (env)” require the secret to
+            be provided to the daemon’s environment (or passed via args where the server supports it).
+          </p>
+        </div>
+      )}
+
       {showForm && (
         <NewServerForm
+          key={prefill?.name || "blank"}
+          initial={prefill}
           onCreated={(name) => {
             setShowForm(false);
+            setPrefill(undefined);
             ui.toast(`server ${name} registered — attach it to make its tools callable`, "success");
             reload();
           }}
