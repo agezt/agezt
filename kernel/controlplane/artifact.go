@@ -13,9 +13,60 @@ import (
 	"encoding/base64"
 	"errors"
 	"net"
+	"time"
 
 	"github.com/agezt/agezt/kernel/artifact"
 )
+
+// defaultCollectDays is the age past which an artifact is a collection candidate
+// when the caller doesn't specify (M845).
+const defaultCollectDays = 30
+
+// handleArtifactCollect reaps stale artifacts older than older_than_days (M845).
+// dry_run (the default) only reports candidates; dry_run=false deletes them. The
+// operator-facing flow runs a dry-run first, then confirms.
+func (s *Server) handleArtifactCollect(conn net.Conn, req Request) {
+	idx := s.k.ArtifactIndex()
+	if idx == nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "artifact index unavailable"})
+		return
+	}
+	days := dlInt(req.Args, "older_than_days")
+	if days <= 0 {
+		days = defaultCollectDays
+	}
+	// dry_run defaults to TRUE — collection only deletes when explicitly asked.
+	dryRun := true
+	if v, ok := req.Args["dry_run"].(bool); ok {
+		dryRun = v
+	} else if v, ok := req.Args["dry_run"].(string); ok {
+		dryRun = !(v == "false" || v == "0")
+	}
+	cutoff := time.Now().Add(-time.Duration(days) * 24 * time.Hour).UnixMilli()
+
+	if dryRun {
+		cands := idx.StaleEntries(cutoff)
+		out := make([]map[string]any, 0, len(cands))
+		var bytes int64
+		for _, e := range cands {
+			bytes += e.Size
+			out = append(out, map[string]any{
+				"id": e.ID, "name": e.Name, "kind": e.Kind, "source": e.Source,
+				"size": e.Size, "created_ms": e.CreatedMs,
+			})
+		}
+		s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{
+			"dry_run": true, "older_than_days": days, "cutoff_ms": cutoff,
+			"count": len(out), "bytes": bytes, "candidates": out,
+		}})
+		return
+	}
+	collected, bytes := idx.Collect(cutoff)
+	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{
+		"dry_run": false, "older_than_days": days, "cutoff_ms": cutoff,
+		"count": collected, "bytes": bytes,
+	}})
+}
 
 func (s *Server) handleArtifactGet(conn net.Conn, req Request) {
 	ref, _ := req.Args["ref"].(string)

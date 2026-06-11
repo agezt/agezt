@@ -19,6 +19,11 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   `delegate` tool now coaches the leader pattern and prefers reusing an existing named agent. (M843)
 
 ### Added
+- **Dead-file collector in the Files view (M845).** A "Collect" button reaps stale artifacts older
+  than 30 days: it runs a dry-run first (how many, how much space), then asks for confirmation before
+  deleting — recent files are always kept, and the underlying blob is freed only when no entry still
+  references it. Backed by a `CmdArtifactCollect` command that defaults to dry-run. (First half of the
+  reaper; the dead-agent graveyard follows.) (M845)
 - **Files view previews more than images (M842).** The file preview now renders inline: PDFs (embedded),
   markdown (rendered), JSON (pretty-printed), and code / text / CSV / logs (monospace) — fetched from
   the existing raw route, capped at 2 MiB, with download as the fallback for true binaries. (M842)

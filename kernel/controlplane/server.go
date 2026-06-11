@@ -476,6 +476,8 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.handleArtifactList(conn, req)
 	case CmdArtifactDelete:
 		s.handleArtifactDelete(conn, req)
+	case CmdArtifactCollect:
+		s.handleArtifactCollect(conn, req)
 	case CmdDataCollections:
 		s.handleDataCollections(conn, req)
 	case CmdDataRecords:

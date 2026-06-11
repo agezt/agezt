@@ -212,6 +212,10 @@ var readArgsRoutes = map[string]writeRoute{
 var writeRoutes = map[string]writeRoute{
 	"/api/halt":   {controlplane.CmdHalt, []string{"reason"}},
 	"/api/resume": {controlplane.CmdResume, []string{"reason"}},
+	// Artifact collector (M845): reap stale artifacts. POST so the browser must opt
+	// in; dry_run (default true) previews, dry_run=false deletes. Goes through the
+	// jsonProxy? No — the args are simple scalars, so it's a query-arg write route.
+	"/api/artifact/collect": {controlplane.CmdArtifactCollect, []string{"older_than_days", "dry_run"}},
 	// Personal Data Lake mutations (M836): delete a record / drop a user collection.
 	// (Insert/update/create carry structured bodies — they are jsonRoutes.)
 	"/api/data/delete": {controlplane.CmdDataDelete, []string{"collection", "id"}},
