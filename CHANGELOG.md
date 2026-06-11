@@ -12,6 +12,14 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Lazy MCP loading — context-efficient tool injection (M906).** A server can opt into `lazy`
+  mode (#39), collapsing its tools into a single `mcp_<name>` dispatcher instead of injecting every
+  tool's full input schema into every run. The dispatcher's input is `{tool, arguments}` — `tool` is
+  an enum of the server's exposed tool names (listed with descriptions in the dispatcher's own
+  description), `arguments` a freeform object the remote server validates. Best for chatty servers
+  (GitHub's MCP exposes ~30 tools); composes with the M899 allowlist (dispatcher lists/forwards only
+  allowlisted tools). Eager injection stays the default. `agt mcp add … --lazy`; the register form
+  has a "Lazy load" checkbox and cards badge `lazy`.
 - **Remote MCP server UI (M905).** The MCP view's register form gains a stdio/remote transport
   toggle (#39): "Remote (HTTP)" swaps Command/Args/Env for URL + Headers (`Name: value` per line),
   validates an http(s) URL client-side, and posts the `{url, headers}` shape. The popular-servers

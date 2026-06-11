@@ -52,6 +52,7 @@ func mcpUsage(w io.Writer) int {
 	fmt.Fprintf(w, "      register a stdio MCP server, e.g. %s mcp add everything --cmd npx --arg -y --arg @modelcontextprotocol/server-everything\n", brand.CLI)
 	fmt.Fprintf(w, "  add <name> --url URL [--header \"K: V\" ...] [--desc TEXT]\n")
 	fmt.Fprintf(w, "      register a remote (Streamable HTTP) MCP server, e.g. %s mcp add github --url https://api.example.com/mcp --header \"Authorization: Bearer ghp_...\"\n", brand.CLI)
+	fmt.Fprintf(w, "      add --lazy to collapse a chatty server's tools into one mcp_<name> dispatcher (context-efficient)\n")
 	fmt.Fprintf(w, "  attach <name|id>                           spawn + handshake NOW; its tools become callable as mcp_<name>_<tool>\n")
 	fmt.Fprintf(w, "  detach <name|id>                           stop it (kill switch); its tools vanish from the next run\n")
 	fmt.Fprintf(w, "  enable|disable <name|id>                   auto-attach at daemon start on/off\n")
@@ -99,6 +100,9 @@ func cmdMCPList(args []string, stdout, stderr io.Writer) int {
 		if en, _ := srv["enabled"].(bool); en {
 			auto = " auto-attach"
 		}
+		if lz, _ := srv["lazy"].(bool); lz {
+			auto += " lazy"
+		}
 		argv := str(srv["command"])
 		if u := str(srv["url"]); u != "" {
 			argv = "http " + u // remote (Streamable HTTP) server, M904
@@ -118,6 +122,7 @@ func cmdMCPList(args []string, stdout, stderr io.Writer) int {
 
 func cmdMCPAdd(args []string, stdout, stderr io.Writer) int {
 	name, command, desc, url := "", "", "", ""
+	lazy := false
 	var srvArgs []string
 	headers := map[string]any{}
 	for i := 0; i < len(args); i++ {
@@ -160,6 +165,9 @@ func cmdMCPAdd(args []string, stdout, stderr io.Writer) int {
 				return 2
 			}
 			headers[strings.TrimSpace(k)] = strings.TrimSpace(v)
+		case "--lazy":
+			// Collapse this server's tools into one mcp_<name> dispatcher (M906).
+			lazy = true
 		case "--desc", "--description":
 			if !need() {
 				return 2
@@ -177,6 +185,9 @@ func cmdMCPAdd(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 	server := map[string]any{"name": name, "description": desc}
+	if lazy {
+		server["lazy"] = true
+	}
 	if url != "" {
 		server["url"] = url
 		if len(headers) > 0 {

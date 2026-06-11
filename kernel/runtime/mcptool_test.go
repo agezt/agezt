@@ -197,6 +197,66 @@ func TestAttach_ToolAllowFilters(t *testing.T) {
 	}
 }
 
+// TestAttach_LazyCollapsesToDispatcher (M906, #39): a server marked Lazy exposes
+// a SINGLE mcp_<server> dispatcher (not one tool per schema); its enum lists the
+// allowlisted tools, and calling it with {tool, arguments} forwards to the
+// connection. Context-efficient MCP management.
+func TestAttach_LazyCollapsesToDispatcher(t *testing.T) {
+	prov := mock.New(
+		mock.ToolUse("c1", "mcp_fake", map[string]any{"tool": "greet", "arguments": map[string]any{"name": "ersin"}}),
+		mock.FinalText("done"),
+	)
+	var first agent.CompletionRequest
+	seen := false
+	prov.OnRequest = func(r agent.CompletionRequest) {
+		if !seen {
+			first, seen = r, true
+		}
+	}
+	conn := &fakeMCPConn{
+		tools: []mcp.ToolDef{{Name: "greet", Description: "greets"}, {Name: "shout"}, {Name: "hidden"}},
+		out:   "hello ersin",
+	}
+	k, _ := openMCPKernel(t, prov, conn)
+	// Lazy + an allowlist: only greet/shout are exposed, collapsed into one tool.
+	if _, err := k.AddMCPServer("", mcp.Server{
+		Name: "fake", Command: "python", Lazy: true, ToolAllow: []string{"greet", "shout"},
+	}); err != nil {
+		t.Fatalf("AddMCPServer: %v", err)
+	}
+	if _, _, err := k.AttachMCPServer(context.Background(), "", "fake"); err != nil {
+		t.Fatalf("Attach: %v", err)
+	}
+	if _, err := k.RunWith(context.Background(), k.NewCorrelation(), "greet ersin"); err != nil {
+		t.Fatalf("RunWith: %v", err)
+	}
+
+	// Exactly one dispatcher tool, no per-tool bridged names.
+	var dispatch *agent.ToolDef
+	for i, d := range first.Tools {
+		if d.Name == "mcp_fake" {
+			dispatch = &first.Tools[i]
+		}
+		if strings.HasPrefix(d.Name, "mcp_fake_") {
+			t.Errorf("lazy server still offered a per-tool schema: %s", d.Name)
+		}
+	}
+	if dispatch == nil {
+		t.Fatalf("dispatcher mcp_fake not offered; tools = %v", toolNames(first.Tools))
+	}
+	schema := string(dispatch.InputSchema)
+	if !strings.Contains(schema, "greet") || !strings.Contains(schema, "shout") {
+		t.Errorf("dispatcher enum missing exposed tools: %s", schema)
+	}
+	if strings.Contains(schema, "hidden") {
+		t.Errorf("dispatcher exposed a tool outside the allowlist: %s", schema)
+	}
+	// The dispatched call forwarded to the underlying tool with its arguments.
+	if conn.lastTool != "greet" || !strings.Contains(conn.lastArgs, `"ersin"`) {
+		t.Fatalf("dispatch did not forward: tool=%q args=%q", conn.lastTool, conn.lastArgs)
+	}
+}
+
 // TestDetach_KillSwitch: after detach the connection is closed and the tools
 // vanish from the next run; double-attach is refused while live.
 func TestDetach_KillSwitch(t *testing.T) {
