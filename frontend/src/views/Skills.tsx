@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Sparkles, RefreshCw, ChevronRight, ChevronDown, Check, ShieldX, Undo2, Plus, X, Pencil, Search } from "lucide-react";
 import { getJSON, postAction, postJSON } from "@/lib/api";
-import { cn, fmtTime } from "@/lib/utils";
+import { cn, fmtTime, fmtAgo } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useUI, type ConfirmOptions } from "@/components/ui/feedback";
 import { SkeletonList } from "@/components/ui/skeleton";
@@ -18,7 +18,15 @@ interface Skill {
   triggers?: string[];
   tools_required?: string[];
   created_ms?: number;
-  metrics?: { shadow_wins?: number; shadow_evals?: number; uses?: number; wins?: number };
+  metrics?: {
+    shadow_wins?: number;
+    shadow_evals?: number;
+    uses?: number;
+    wins?: number;
+    successes?: number;
+    failures?: number;
+    last_used_ms?: number;
+  };
   // Present on the hygiene (idle) list (M858).
   uses?: number;
   last_used_ms?: number;
@@ -297,10 +305,14 @@ export function Skills() {
                       shadow {m.shadow_wins || 0}/{m.shadow_evals}
                     </span>
                   )}
-                  {(m.uses || 0) > 0 && (
+                  {(m.uses || 0) > 0 ? (
                     <span>
-                      used {m.uses}× {m.wins != null ? `· ${m.wins} ok` : ""}
+                      used {m.uses}×
+                      {(m.successes ?? m.wins) != null ? ` · ${m.successes ?? m.wins} ok` : ""}
+                      {m.last_used_ms ? ` · last ${fmtAgo(m.last_used_ms)}` : ""}
                     </span>
+                  ) : (
+                    s.status === "active" && <span className="text-amber-500/80">idle · never used</span>
                   )}
                   {s.triggers?.length ? <span>triggers: {s.triggers.slice(0, 3).join(", ")}</span> : null}
                   {s.tools_required?.length ? <span>tools: {s.tools_required.join(", ")}</span> : null}
