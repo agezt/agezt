@@ -33,10 +33,14 @@ func (k *Kernel) AddMCPServer(corr string, srv mcp.Server) (mcp.Server, error) {
 	if err != nil {
 		return mcp.Server{}, err
 	}
+	transport := "stdio"
+	if saved.URL != "" {
+		transport = "http"
+	}
 	_, _ = k.bus.Publish(event.Spec{
 		Subject: "mcp." + saved.Name, Kind: event.KindMCPAdded, Actor: "mcp",
 		CorrelationID: corr,
-		Payload:       map[string]any{"id": saved.ID, "name": saved.Name, "command": saved.Command, "args": saved.Args},
+		Payload:       map[string]any{"id": saved.ID, "name": saved.Name, "transport": transport, "command": saved.Command, "args": saved.Args, "url": saved.URL},
 	})
 	return saved, nil
 }
@@ -73,11 +77,7 @@ func (k *Kernel) AttachMCPServer(ctx context.Context, corr, ref string) (mcp.Ser
 	}
 	k.mu.Unlock()
 
-	dial := k.cfg.MCPDialer
-	if dial == nil {
-		dial = mcp.Dial
-	}
-	conn, err := dial(ctx, srv.Command, srv.Args, srv.Env)
+	conn, err := k.dialMCP(ctx, srv)
 	if err != nil {
 		return mcp.Server{}, nil, err
 	}
@@ -101,6 +101,25 @@ func (k *Kernel) AttachMCPServer(ctx context.Context, corr, ref string) (mcp.Ser
 		Payload:       map[string]any{"id": srv.ID, "name": srv.Name, "tools": names},
 	})
 	return srv, names, nil
+}
+
+// dialMCP attaches one registered server over the transport its registration
+// implies: a remote endpoint (URL) speaks Streamable HTTP (M904), everything
+// else is a spawned stdio process (M796). Both seams default to the production
+// dialer and are overridable for tests.
+func (k *Kernel) dialMCP(ctx context.Context, srv mcp.Server) (mcp.Conn, error) {
+	if strings.TrimSpace(srv.URL) != "" {
+		dial := k.cfg.MCPHTTPDialer
+		if dial == nil {
+			dial = mcp.DialHTTP
+		}
+		return dial(ctx, srv.URL, srv.Headers)
+	}
+	dial := k.cfg.MCPDialer
+	if dial == nil {
+		dial = mcp.Dial
+	}
+	return dial(ctx, srv.Command, srv.Args, srv.Env)
 }
 
 // DetachMCPServer closes a live attachment — the kill switch: its tools

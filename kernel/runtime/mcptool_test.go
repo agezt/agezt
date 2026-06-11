@@ -105,6 +105,57 @@ func TestAttach_OffersAndForwardsBridgedTool(t *testing.T) {
 	}
 }
 
+// TestAttach_RemoteRoutesThroughHTTPDialer (M904, #39): a registration with a
+// URL (not a command) attaches over the HTTP dialer seam, carrying the opt-in
+// headers — never the stdio dialer.
+func TestAttach_RemoteRoutesThroughHTTPDialer(t *testing.T) {
+	prov := mock.New(mock.FinalText("ok"))
+	conn := &fakeMCPConn{tools: []mcp.ToolDef{{Name: "search"}}}
+
+	stdioDials, httpDials := 0, 0
+	var gotURL string
+	var gotHeaders map[string]string
+	k, err := runtime.Open(runtime.Config{
+		BaseDir:  t.TempDir(),
+		Provider: prov,
+		MCPDialer: func(_ context.Context, _ string, _ []string, _ map[string]string) (mcp.Conn, error) {
+			stdioDials++
+			return conn, nil
+		},
+		MCPHTTPDialer: func(_ context.Context, url string, headers map[string]string) (mcp.Conn, error) {
+			httpDials++
+			gotURL, gotHeaders = url, headers
+			return conn, nil
+		},
+	})
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	t.Cleanup(func() { k.Close() })
+
+	reg := mcp.Server{
+		Name:    "remote",
+		URL:     "https://mcp.example.com/v1",
+		Headers: map[string]string{"Authorization": "Bearer tok"},
+	}
+	if _, err := k.AddMCPServer("", reg); err != nil {
+		t.Fatalf("AddMCPServer: %v", err)
+	}
+	_, names, err := k.AttachMCPServer(context.Background(), "", "remote")
+	if err != nil {
+		t.Fatalf("Attach: %v", err)
+	}
+	if httpDials != 1 || stdioDials != 0 {
+		t.Fatalf("dial routing wrong: http=%d stdio=%d", httpDials, stdioDials)
+	}
+	if gotURL != "https://mcp.example.com/v1" || gotHeaders["Authorization"] != "Bearer tok" {
+		t.Fatalf("http dialer got url=%q headers=%v", gotURL, gotHeaders)
+	}
+	if len(names) != 1 || names[0] != "mcp_remote_search" {
+		t.Fatalf("discovered names = %v", names)
+	}
+}
+
 // TestAttach_ToolAllowFilters: a server with a ToolAllow allowlist exposes only
 // the listed tools to a run — the others are kept out of context (M899).
 func TestAttach_ToolAllowFilters(t *testing.T) {

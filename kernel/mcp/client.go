@@ -64,6 +64,12 @@ type Conn interface {
 // server's opt-in extra environment (M898), injected on top of the scrubbed base.
 type Dialer func(ctx context.Context, command string, args []string, env map[string]string) (Conn, error)
 
+// HTTPDialer handshakes one REMOTE server over Streamable HTTP (M904). The
+// runtime takes it as a seam so tests can attach fakes; DialHTTP is the
+// production implementation. headers are the operator's opt-in request headers
+// (e.g. an Authorization bearer token), applied to every request.
+type HTTPDialer func(ctx context.Context, url string, headers map[string]string) (Conn, error)
+
 // jsonrpc wire shapes (only what this client speaks).
 type rpcRequest struct {
 	JSONRPC string `json:"jsonrpc"`

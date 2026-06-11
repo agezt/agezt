@@ -22,6 +22,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -46,9 +47,15 @@ type Server struct {
 	// (it becomes a tool-name segment, parsed by prefix).
 	Name string `json:"name"`
 	// Command + Args spawn the server process (stdio transport), e.g.
-	// "npx" ["-y","@modelcontextprotocol/server-everything"].
-	Command string   `json:"command"`
+	// "npx" ["-y","@modelcontextprotocol/server-everything"]. Mutually
+	// exclusive with URL: a server is either a local process (stdio) or a
+	// remote endpoint (http).
+	Command string   `json:"command,omitempty"`
 	Args    []string `json:"args,omitempty"`
+	// URL, when set, makes this a REMOTE server over the MCP Streamable HTTP
+	// transport (M904, #39) — JSON-RPC POSTed to this endpoint — instead of a
+	// spawned process. Exactly one of Command / URL must be set.
+	URL string `json:"url,omitempty"`
 	// Enabled means "attach automatically when the daemon starts". A live
 	// attach/detach is a runtime operation independent of this flag.
 	Enabled     bool   `json:"enabled"`
@@ -61,6 +68,12 @@ type Server struct {
 	// Stored like Args (plaintext in the registry) — use a dedicated low-scope
 	// token. Redacted out of read APIs.
 	Env map[string]string `json:"env,omitempty"`
+	// Headers is an OPT-IN set of HTTP request headers for a remote (URL)
+	// server (M904) — e.g. {"Authorization": "Bearer ..."}. Applied to every
+	// request including the handshake. Like Env, these may be secrets, so they
+	// are stored plaintext in the registry but redacted out of read APIs (only
+	// the key names are exposed). Meaningless for stdio servers.
+	Headers map[string]string `json:"headers,omitempty"`
 	// ToolAllow is an OPT-IN allowlist of the server's own tool names to expose
 	// to runs (M899) — context-efficient MCP management. A chatty server (github
 	// exposes ~30 tools) can be trimmed to the few a run actually needs, so its
@@ -81,11 +94,18 @@ var nameRe = regexp.MustCompile(`^[a-z][a-z0-9]{0,15}$`)
 // not starting with a digit). Keeps a malformed key from reaching exec.
 var envKeyRe = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
+// headerNameRe: an HTTP field-name (RFC 7230 token). Keeps a malformed header
+// name from reaching the request.
+var headerNameRe = regexp.MustCompile(`^[A-Za-z0-9!#$%&'*+\-.^_` + "`" + `|~]+$`)
+
 const maxArgs = 32
 
 // maxEnv caps how many env vars one server may carry (a sanity bound, not a
 // security boundary).
 const maxEnv = 32
+
+// maxHeaders caps how many request headers a remote server may carry.
+const maxHeaders = 32
 
 // maxToolAllow caps the per-server tool allowlist length.
 const maxToolAllow = 128
@@ -95,8 +115,25 @@ func Validate(s Server) error {
 	if !nameRe.MatchString(s.Name) {
 		return fmt.Errorf("mcp: name must match %s (it becomes the mcp_<name>_* tool prefix)", nameRe)
 	}
-	if strings.TrimSpace(s.Command) == "" {
-		return errors.New("mcp: command is required")
+	// Transport: exactly one of Command (stdio) or URL (remote http).
+	hasCmd := strings.TrimSpace(s.Command) != ""
+	hasURL := strings.TrimSpace(s.URL) != ""
+	switch {
+	case hasCmd && hasURL:
+		return errors.New("mcp: set either command (stdio) or url (http), not both")
+	case !hasCmd && !hasURL:
+		return errors.New("mcp: command (stdio) or url (http) is required")
+	case hasURL:
+		u, err := url.Parse(strings.TrimSpace(s.URL))
+		if err != nil {
+			return fmt.Errorf("mcp: invalid url: %w", err)
+		}
+		if u.Scheme != "http" && u.Scheme != "https" {
+			return errors.New("mcp: url must be http or https")
+		}
+		if u.Host == "" {
+			return errors.New("mcp: url must have a host")
+		}
 	}
 	if len(s.Args) > maxArgs {
 		return fmt.Errorf("mcp: at most %d args", maxArgs)
@@ -104,6 +141,14 @@ func Validate(s Server) error {
 	for _, a := range s.Args {
 		if strings.TrimSpace(a) == "" {
 			return errors.New("mcp: empty arg")
+		}
+	}
+	if len(s.Headers) > maxHeaders {
+		return fmt.Errorf("mcp: at most %d headers", maxHeaders)
+	}
+	for k := range s.Headers {
+		if !headerNameRe.MatchString(k) {
+			return fmt.Errorf("mcp: invalid header name %q", k)
 		}
 	}
 	if len(s.Env) > maxEnv {
@@ -161,6 +206,7 @@ func OpenStore(dir string) (*Store, error) {
 func (s *Store) Add(srv Server) (Server, error) {
 	srv.Name = strings.TrimSpace(srv.Name)
 	srv.Command = strings.TrimSpace(srv.Command)
+	srv.URL = strings.TrimSpace(srv.URL)
 	if err := Validate(srv); err != nil {
 		return Server{}, err
 	}
