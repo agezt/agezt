@@ -25,6 +25,10 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   `delegate` tool now coaches the leader pattern and prefers reusing an existing named agent. (M843)
 
 ### Changed
+- **Per-turn timestamps in the chat (M877).** Each chat exchange now shows when it happened — the meta
+  line under an answer gains the turn's time (`as <agent> · <model> · <n> iters · <cost> · <time>`).
+  `ChatTurn` carries an optional `ts` stamped by the store on send (the pure reducer stays time-free);
+  older persisted turns omit it gracefully. Purely frontend; chat suite green (42/42). (M877)
 - **Overseer active-run cards name the responsible agent (M869).** Each in-flight run on the Overseer now
   shows an agent chip (who is running it), learned live from `task.received` events (`actor`), answering
   "who is doing what right now". Omitted gracefully for runs that predate the page load. Purely frontend —

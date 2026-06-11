@@ -58,6 +58,10 @@ export interface ChatTurn {
   agent?: string;
   error?: string;
   correlationId?: string;
+  // Wall-clock ms when this turn was created (set by the store on send). Lets the
+  // chat show when each exchange happened. Optional — turns restored from older
+  // storage (and the pure reducer's newTurn) lack it, so the meta line omits it.
+  ts?: number;
 }
 
 export function newTurn(): ChatTurn {
