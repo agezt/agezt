@@ -25,6 +25,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   `delegate` tool now coaches the leader pattern and prefers reusing an existing named agent. (M843)
 
 ### Added
+- **Built-in pdf-tools skill bundle (M866).** A seventh out-of-the-box skill that gets data out of PDFs —
+  the gap data-analysis and web-research both defer on (#34). `scripts/pdf.py` is one JSON-spec helper
+  with five ops: `info` (pages + metadata), `text` (per-page extract with a 1-based page range), `tables`
+  (pdfplumber rows), `merge`, and `split`; `setup.sh` installs pypdf + pdfplumber. The SKILL documents the
+  OCR path for scanned PDFs and handoffs to data-analysis (tables → pandas) and artifacts. Rides the
+  `plugins/builtinskills` seeder — no new Go dependency. (M866)
 - **Built-in web-research skill bundle (M865).** A sixth out-of-the-box skill: a disciplined multi-source
   web-research workflow — gather from several sources, extract the readable text, keep every URL as a
   citation, and synthesize a sourced answer (#34). `scripts/extract.py` fetches one or more URLs and
