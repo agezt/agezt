@@ -55,6 +55,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   complements `http` (which returns a page's *text* into context) by capturing the *bytes*. Reuses
   the network-GET capability — no new grant or env var. (M831)
 
+### Fixed
+- **Delegation never runs a sub-agent on an unkeyed model (M838).** `delegate` (and roster-profile
+  model/fallback chains) could pick a model from a provider with no API key, which then failed to
+  route mid-delegation. The effective chain is now filtered to models a credentialed provider actually
+  serves; if none survive, it falls back to the daemon's active (keyed) model — so a delegation always
+  runs on something that works, and the journaled `subagent.spawned` records the real model.
+
 ### Changed
 - **Chat can Continue a run that hit the iteration limit (instead of only Retry).** When a run
   exhausts its tool-round cap, chat now offers **Continue** — it resumes from where the agent

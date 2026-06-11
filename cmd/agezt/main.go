@@ -756,6 +756,43 @@ func runDaemon(stdout, stderr io.Writer) int {
 		})
 	}
 
+	// Keyed-model predicate (M838 bugfix): true when some registered+credentialed
+	// provider actually serves the model id. Delegation uses it to drop unkeyed
+	// models from a sub-agent's chain so a delegate never lands on a provider with
+	// no API key. Built like VisionModel — the daemon owns the keyed set.
+	cfg.ModelAvailable = func(modelID string) bool {
+		modelID = strings.TrimSpace(modelID)
+		if modelID == "" {
+			return false
+		}
+		if k == nil {
+			return true // set not built yet → don't block a non-empty id
+		}
+		cat := k.Catalog()
+		if cat == nil {
+			return true
+		}
+		lookup, _ := buildAWSCredChain(credStore.Lookup)
+		// Accept a bare ("model") or provider-qualified ("provider/model") id.
+		want := modelID
+		if i := strings.IndexByte(modelID, '/'); i >= 0 {
+			want = modelID[i+1:]
+		}
+		for _, p := range cat.ProviderList() {
+			e := cat.Providers[p.ID]
+			if e == nil || !compat.IsSupportedFamily(e.Family()) || !e.HasCredentials(lookup) {
+				continue
+			}
+			if _, ok := e.Models[modelID]; ok {
+				return true
+			}
+			if _, ok := e.Models[want]; ok {
+				return true
+			}
+		}
+		return false
+	}
+
 	// Council of Elders default membership (M837): one seat per KEYED provider's
 	// best model, so the panel speaks across providers. AGEZT_COUNCIL_MEMBERS (a
 	// comma-separated model list) overrides. Built like VisionModel — the daemon
