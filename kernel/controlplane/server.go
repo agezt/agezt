@@ -472,6 +472,10 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.handleVerify(conn, req)
 	case CmdArtifactGet:
 		s.handleArtifactGet(conn, req)
+	case CmdArtifactList:
+		s.handleArtifactList(conn, req)
+	case CmdArtifactDelete:
+		s.handleArtifactDelete(conn, req)
 	case CmdApprovals:
 		s.handleApprovals(conn, req)
 	case CmdApprovalsLog:

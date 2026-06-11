@@ -1,0 +1,102 @@
+// SPDX-License-Identifier: MIT
+
+package artifact_test
+
+import (
+	"testing"
+
+	"github.com/agezt/agezt/kernel/artifact"
+)
+
+func openIdx(t *testing.T) (*artifact.Index, string) {
+	t.Helper()
+	dir := t.TempDir()
+	st, err := artifact.Open(dir)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	idx, err := artifact.OpenIndex(st, dir)
+	if err != nil {
+		t.Fatalf("OpenIndex: %v", err)
+	}
+	return idx, dir
+}
+
+func TestIndex_PutListGetBytes(t *testing.T) {
+	idx, _ := openIdx(t)
+
+	e1, err := idx.PutEntry(artifact.Entry{Kind: "image", Source: "telegram", Mime: "image/png", Caption: "a cat"}, []byte("PNGDATA"), 100)
+	if err != nil {
+		t.Fatalf("PutEntry: %v", err)
+	}
+	if e1.ID == "" || e1.Ref == "" || e1.Size != 7 || e1.CreatedMs != 100 {
+		t.Fatalf("entry not filled in: %+v", e1)
+	}
+	_, err = idx.PutEntry(artifact.Entry{Kind: "tool-output", Source: "run"}, []byte("log output"), 200)
+	if err != nil {
+		t.Fatalf("PutEntry 2: %v", err)
+	}
+
+	// List newest-first.
+	all := idx.List(artifact.Filter{})
+	if len(all) != 2 || all[0].CreatedMs != 200 {
+		t.Fatalf("List = %d entries, newest-first broken: %+v", len(all), all)
+	}
+	// Filter by kind.
+	imgs := idx.List(artifact.Filter{Kind: "image"})
+	if len(imgs) != 1 || imgs[0].ID != e1.ID {
+		t.Fatalf("kind filter = %+v", imgs)
+	}
+
+	// Bytes round-trips through the blob store.
+	b, e, err := idx.Bytes(e1.ID)
+	if err != nil || string(b) != "PNGDATA" || e.Caption != "a cat" {
+		t.Fatalf("Bytes = %q,%+v,%v", b, e, err)
+	}
+}
+
+func TestIndex_DeleteGCsOrphanBlobButKeepsShared(t *testing.T) {
+	idx, _ := openIdx(t)
+
+	// Two arrivals of the SAME bytes → two entries, one blob (content dedup).
+	a, _ := idx.PutEntry(artifact.Entry{Kind: "image", Source: "telegram"}, []byte("SAME"), 1)
+	bEnt, _ := idx.PutEntry(artifact.Entry{Kind: "image", Source: "slack"}, []byte("SAME"), 2)
+	if a.Ref != bEnt.Ref {
+		t.Fatalf("identical bytes should share a ref: %s vs %s", a.Ref, bEnt.Ref)
+	}
+
+	// Delete one — the blob must survive because the other entry still uses it.
+	if err := idx.Delete(a.ID); err != nil {
+		t.Fatalf("Delete a: %v", err)
+	}
+	if _, _, err := idx.Bytes(bEnt.ID); err != nil {
+		t.Fatalf("shared blob GC'd too early: %v", err)
+	}
+	if idx.Count() != 1 {
+		t.Fatalf("Count after one delete = %d, want 1", idx.Count())
+	}
+
+	// Delete the last referrer — now the blob is orphaned and GC'd.
+	if err := idx.Delete(bEnt.ID); err != nil {
+		t.Fatalf("Delete b: %v", err)
+	}
+	if idx.Count() != 0 {
+		t.Fatalf("Count = %d, want 0", idx.Count())
+	}
+}
+
+func TestIndex_PersistsAcrossReopen(t *testing.T) {
+	idx, dir := openIdx(t)
+	e, _ := idx.PutEntry(artifact.Entry{Kind: "image", Source: "telegram", Caption: "kept"}, []byte("X"), 5)
+
+	// Reopen against the same dir — the entry must reload from its sidecar file.
+	st, _ := artifact.Open(dir)
+	idx2, err := artifact.OpenIndex(st, dir)
+	if err != nil {
+		t.Fatalf("reopen: %v", err)
+	}
+	got, ok := idx2.Get(e.ID)
+	if !ok || got.Caption != "kept" {
+		t.Fatalf("entry not persisted across reopen: %+v ok=%v", got, ok)
+	}
+}

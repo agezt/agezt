@@ -163,7 +163,11 @@ var readArgsRoutes = map[string]writeRoute{
 	"/api/tool_log":       {controlplane.CmdToolLog, []string{"limit", "tool", "errors"}},
 	// Read one sandbox project file's content (M686), path-confined server-side.
 	"/api/sandbox_file": {controlplane.CmdSandboxFile, []string{"project", "file"}},
-	"/api/policy_log":   {controlplane.CmdEdictLog, []string{"limit", "denied"}},
+	// Artifact index listing (M822): browsable metadata for stored artifacts
+	// (inbound images, tool outputs), optionally filtered. No bytes — the raw
+	// route below serves those.
+	"/api/artifacts":  {controlplane.CmdArtifactList, []string{"kind", "source", "corr"}},
+	"/api/policy_log": {controlplane.CmdEdictLog, []string{"limit", "denied"}},
 	// Resolved HITL approval history (M773): a timeline of past approval requests
 	// joined with their granted/denied/timeout outcome. Read-only.
 	"/api/approvals_log": {controlplane.CmdApprovalsLog, []string{"limit", "denied"}},
@@ -234,6 +238,8 @@ var writeRoutes = map[string]writeRoute{
 	"/api/run/steer":     {controlplane.CmdRunSteer, []string{"correlation", "directive"}},
 	"/api/decide":        {controlplane.CmdDecide, []string{"id", "decision", "reason"}},
 	"/api/memory/forget": {controlplane.CmdMemoryForget, []string{"id"}},
+	// Delete a stored artifact by index id (M822); the blob is GC'd when unreferenced.
+	"/api/artifact/delete": {controlplane.CmdArtifactDelete, []string{"id"}},
 	// One brain-distillation pass (M804): merge related records, supersede
 	// the originals. No args; mirrors /api/reflect/run.
 	"/api/memory/consolidate": {controlplane.CmdMemoryConsolidate, nil},
@@ -420,6 +426,10 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/api/plan/run", s.auth(s.planRunProxy()))
 	mux.HandleFunc("/api/run", s.auth(s.runStreamProxy()))
 	mux.HandleFunc("/api/transcribe", s.auth(s.handleTranscribe))
+	// Binary artifact serving (M822): streams the raw bytes for a content ref with
+	// a sanitized Content-Type, so an <img src> / download link can render stored
+	// images and files. Proxies CmdArtifactGet (which re-verifies the bytes).
+	mux.HandleFunc("/api/artifact/raw", s.auth(s.handleArtifactRaw))
 	// Workflow webhooks (M809): the ONE deliberately console-token-free
 	// path. Authentication is the per-workflow secret, verified by the
 	// control plane (constant-time); all this handler can ever do is ask

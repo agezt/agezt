@@ -355,6 +355,7 @@ type Kernel struct {
 	mcpStore  *mcp.Store
 	workflows *workflow.Store
 	artifacts *artifact.Store
+	artIndex  *artifact.Index // metadata sidecar over artifacts (M822): browsable/deletable entries
 	reflect   *reflect.Engine
 	schedules *cadence.Store        // persistent scheduled-intents store (autonomy)
 	tools     map[string]agent.Tool // cfg.Tools + the memory/world tools (when enabled)
@@ -465,6 +466,18 @@ func Open(cfg Config) (*Kernel, error) {
 		wstore.Close()
 		skstore.Close()
 		return nil, fmt.Errorf("runtime: artifacts: %w", err)
+	}
+	// Metadata index over the blob store (M822) — browsable/deletable entries
+	// (inbound images, tool outputs). Failure here is non-fatal to the blob store
+	// but we surface it so the operator knows the file-manager won't populate.
+	artIndex, err := artifact.OpenIndex(artStore, filepath.Join(cfg.BaseDir, "artifacts"))
+	if err != nil {
+		j.Close()
+		st.Close()
+		mstore.Close()
+		wstore.Close()
+		skstore.Close()
+		return nil, fmt.Errorf("runtime: artifact index: %w", err)
 	}
 
 	ststore, err := standing.Open(filepath.Join(cfg.BaseDir, "standing"))
@@ -582,6 +595,7 @@ func Open(cfg Config) (*Kernel, error) {
 		mcpConns:     make(map[string]mcp.Conn),
 		workflows:    wfstore,
 		artifacts:    artStore,
+		artIndex:     artIndex,
 		reflect:      reflectEng,
 		schedules:    schedStore,
 		tools:        effTools,
@@ -692,6 +706,11 @@ func (k *Kernel) Forge() *skill.Forge { return k.forge }
 // Artifacts returns the content-addressed artifact store (SPEC-04 §3.6), where
 // the loop offloads oversized tool outputs. Used by retrieval surfaces.
 func (k *Kernel) Artifacts() *artifact.Store { return k.artifacts }
+
+// ArtifactIndex returns the metadata index over the blob store (M822) — the
+// browsable/deletable per-arrival entries (inbound images, tool outputs) the
+// file manager and inbound-image persistence use.
+func (k *Kernel) ArtifactIndex() *artifact.Index { return k.artIndex }
 
 // Standing returns the Chronos standing-order store (SPEC-16 §4), backing
 // `agt standing`. Always non-nil after Open.
