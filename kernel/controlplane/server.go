@@ -726,6 +726,8 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.handleAgentRemove(conn, req)
 	case CmdAgentImpact:
 		s.handleAgentImpact(conn, req)
+	case CmdAgentActivity:
+		s.handleAgentActivity(conn, req)
 	case CmdAgentRetire:
 		s.handleAgentRetire(conn, req)
 	case CmdAgentRevive:

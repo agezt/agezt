@@ -12,8 +12,10 @@ import (
 	"encoding/json"
 	"errors"
 	"net"
+	"sort"
 	"strings"
 
+	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/roster"
 )
 
@@ -170,6 +172,148 @@ func (s *Server) handleAgentImpact(conn net.Conn, req Request) {
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{
 		"slug": p.Slug, "standing_orders": orders, "standing_count": len(orders),
 	}})
+}
+
+// handleAgentActivity builds a per-agent activity timeline (M854): what an agent
+// did — the runs it executed, the council consults and sub-agent delegations
+// during those runs, the memory it wrote (M851 actor), its board messages, and
+// changes to its own profile. Derived entirely from the journal (no new store),
+// newest first. Answers the owner's "ne oldu ne bitti, hangi agent fikir danıştı".
+func (s *Server) handleAgentActivity(conn net.Conn, req Request) {
+	ref, _ := req.Args["ref"].(string)
+	if strings.TrimSpace(ref) == "" {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.ref required"})
+		return
+	}
+	p, ok := s.k.Roster().Get(ref)
+	if !ok {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "unknown agent: " + ref})
+		return
+	}
+	slug := p.Slug
+	limit := 50
+	if raw, ok := req.Args["limit"].(float64); ok && raw > 0 {
+		limit = int(raw)
+	}
+	if limit > 500 {
+		limit = 500
+	}
+
+	// Pass 1: the correlation ids of runs this agent executed (task.received
+	// carries the agent slug since M854). These also scope the council consults
+	// and delegations that happened *during* the agent's runs.
+	runCorr := map[string]bool{}
+	_ = s.k.Journal().Range(func(e *event.Event) error {
+		if e.Kind != event.KindTaskReceived {
+			return nil
+		}
+		var pl map[string]any
+		if json.Unmarshal(e.Payload, &pl) == nil && plString(pl, "agent") == slug && e.CorrelationID != "" {
+			runCorr[e.CorrelationID] = true
+		}
+		return nil
+	})
+
+	// Pass 2: emit every event attributable to the agent.
+	var items []map[string]any
+	_ = s.k.Journal().Range(func(e *event.Event) error {
+		var pl map[string]any
+		_ = json.Unmarshal(e.Payload, &pl)
+		summary, ok := agentActivitySummary(e, pl, slug, runCorr)
+		if !ok {
+			return nil
+		}
+		items = append(items, map[string]any{
+			"seq":            e.Seq,
+			"kind":           string(e.Kind),
+			"ts_unix_ms":     e.TSUnixMS,
+			"correlation_id": e.CorrelationID,
+			"summary":        summary,
+		})
+		return nil
+	})
+
+	// Newest first, capped.
+	sort.SliceStable(items, func(i, j int) bool {
+		return items[i]["seq"].(int64) > items[j]["seq"].(int64)
+	})
+	total := len(items)
+	if len(items) > limit {
+		items = items[:limit]
+	}
+	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{
+		"slug": slug, "activity": items, "count": len(items), "total": total,
+	}})
+}
+
+// agentActivitySummary decides whether one event belongs in an agent's timeline
+// and renders a one-line summary. Attribution is by the slug fields the events
+// already carry, plus the agent's own run correlations for run-scoped events.
+func agentActivitySummary(e *event.Event, pl map[string]any, slug string, runCorr map[string]bool) (string, bool) {
+	switch e.Kind {
+	case event.KindTaskReceived:
+		if plString(pl, "agent") == slug {
+			return "started a run: " + truncate(plString(pl, "intent"), 100), true
+		}
+	case event.KindTaskCompleted:
+		if runCorr[e.CorrelationID] {
+			return "completed a run", true
+		}
+	case event.KindTaskFailed:
+		if runCorr[e.CorrelationID] {
+			r := plString(pl, "reason")
+			if r == "" {
+				r = "failed"
+			}
+			return "run failed: " + truncate(r, 80), true
+		}
+	case event.KindCouncilConvened:
+		if runCorr[e.CorrelationID] {
+			return "consulted the council: " + truncate(plString(pl, "question"), 100), true
+		}
+	case event.KindSubAgentSpawned:
+		// The agent delegated (its run spawned a sub-agent), or it WAS the named
+		// sub-agent that ran.
+		if runCorr[e.CorrelationID] {
+			return "delegated to a sub-agent: " + truncate(plString(pl, "agent"), 60), true
+		}
+		if plString(pl, "agent") == slug {
+			return "ran as a delegated sub-agent", true
+		}
+	case event.KindMemoryWritten:
+		if plString(pl, "actor") == slug {
+			return "memory " + plString(pl, "action") + ": " + truncate(plString(pl, "subject"), 80), true
+		}
+	case event.KindBoardPosted:
+		if plString(pl, "from") == slug {
+			if to := plString(pl, "to"); to != "" {
+				return "messaged " + to, true
+			}
+			return "posted to the board: " + truncate(plString(pl, "topic"), 60), true
+		}
+	case event.KindRosterUpdated:
+		if plString(pl, "slug") == slug {
+			a := plString(pl, "action")
+			if a == "" {
+				a = "updated"
+			}
+			return "profile " + a, true
+		}
+	}
+	return "", false
+}
+
+func plString(pl map[string]any, key string) string {
+	s, _ := pl[key].(string)
+	return s
+}
+
+func truncate(s string, n int) string {
+	s = strings.TrimSpace(s)
+	if len(s) <= n {
+		return s
+	}
+	return s[:n] + "…"
 }
 
 func (s *Server) handleAgentRetire(conn net.Conn, req Request) {

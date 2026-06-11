@@ -19,6 +19,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   `delegate` tool now coaches the leader pattern and prefers reusing an existing named agent. (M843)
 
 ### Added
+- **Per-agent activity log (M854).** Each agent in the Roster now has an "activity" timeline showing
+  what it did — the runs it executed, the council consults and sub-agent delegations during them, the
+  memory it wrote, its board messages/DMs, and changes to its own profile. Derived from the journal (no
+  new store): runs are now tagged with the agent on `task.received`, joined with the M851 memory actor,
+  the board sender, and the delegation agent. New `CmdAgentActivity` / `/api/agents/activity`; the Roster
+  row expands to a compact, newest-first timeline. Answers "ne oldu, ne bitti, hangi agent fikir danıştı". (M854)
 - **Computer-use, out of the box (M853).** Full machine control to match browser-use: a built-in
   `computer-use` skill bundle, seeded active at startup, covers both halves — install/update/remove
   software via the shell (winget/choco/brew/apt/npm/pip), and desktop GUI automation via

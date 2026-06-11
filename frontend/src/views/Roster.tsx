@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { Users, RefreshCw, Pause, Play, Trash2, Plus, X, Pencil, Bot, Archive, ArchiveRestore, Skull } from "lucide-react";
+import { Users, RefreshCw, Pause, Play, Trash2, Plus, X, Pencil, Bot, Archive, ArchiveRestore, Skull, Activity } from "lucide-react";
 import { getJSON, postAction, postJSON } from "@/lib/api";
-import { cn } from "@/lib/utils";
+import { cn, fmtTime } from "@/lib/utils";
 import { money } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { useUI, type ConfirmOptions } from "@/components/ui/feedback";
@@ -273,6 +273,56 @@ export function EditAgentForm({
 // (M783) — each with its own soul, model, cost ceiling, and memory scope —
 // with create/edit/pause/resume/remove governance. Run one from chat or the
 // CLI with `agt run --agent <slug>`; the lead delegates to them by name.
+interface ActivityItem {
+  seq: number;
+  kind: string;
+  ts_unix_ms?: number;
+  correlation_id?: string;
+  summary: string;
+}
+
+// AgentActivity is the per-agent activity timeline (M854): what the agent did —
+// runs, council consults, delegations, memory writes, board messages, profile
+// changes — derived from the journal, newest first.
+function AgentActivity({ slug }: { slug: string }) {
+  const [items, setItems] = useState<ActivityItem[] | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  useEffect(() => {
+    let alive = true;
+    getJSON<{ activity?: ActivityItem[] }>("/api/agents/activity", { ref: slug, limit: "40" })
+      .then((d) => alive && setItems(d.activity || []))
+      .catch((e) => alive && setErr((e as Error).message));
+    return () => {
+      alive = false;
+    };
+  }, [slug]);
+
+  return (
+    <div className="mt-2 rounded-md border border-border bg-panel/60 p-2">
+      <div className="mb-1 flex items-center gap-1.5 text-[11px] font-semibold text-muted">
+        <Activity className="h-3 w-3" /> activity
+      </div>
+      {err ? (
+        <ErrorText>{err}</ErrorText>
+      ) : !items ? (
+        <div className="text-xs text-muted">loading…</div>
+      ) : items.length === 0 ? (
+        <div className="text-xs text-muted">no recorded activity yet</div>
+      ) : (
+        <ul className="space-y-1">
+          {items.map((a) => (
+            <li key={a.seq} className="flex items-start gap-2 text-xs">
+              <span className="shrink-0 rounded bg-card px-1.5 py-0.5 font-mono text-[10px] text-accent">{a.kind}</span>
+              <span className="text-foreground/85">{a.summary}</span>
+              <span className="ml-auto shrink-0 font-mono text-[10px] text-muted opacity-70">{fmtTime(a.ts_unix_ms)}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 export function Roster() {
   const ui = useUI();
   const [profiles, setProfiles] = useState<AgentProfile[] | null>(null);
@@ -281,6 +331,7 @@ export function Roster() {
   const [busy, setBusy] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
+  const [activityFor, setActivityFor] = useState<string | null>(null);
 
   async function reload() {
     setLoading(true);
@@ -408,6 +459,15 @@ export function Roster() {
                 <Button
                   size="sm"
                   variant="ghost"
+                  aria-label={`Activity for ${p.slug}`}
+                  title="What this agent did (runs, consults, memory, messages)"
+                  onClick={() => setActivityFor(activityFor === p.slug ? null : p.slug)}
+                >
+                  <Activity className="h-3.5 w-3.5" />
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
                   aria-label={`Edit ${p.slug}`}
                   onClick={() => setEditing(editing === p.slug ? null : p.slug)}
                 >
@@ -500,6 +560,7 @@ export function Roster() {
                 />
               </div>
             )}
+            {activityFor === p.slug && <AgentActivity slug={p.slug} />}
           </li>
         ))}
       </ul>
