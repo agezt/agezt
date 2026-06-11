@@ -479,6 +479,17 @@ const (
 	//   - data  : string — base64-encoded bytes.
 	CmdArtifactGet = "artifact_get"
 
+	// CmdArtifactList lists the artifact INDEX entries (M822) — browsable metadata
+	// for stored artifacts (inbound images, tool outputs), newest first. No bytes.
+	// Args (all optional, exact-match filters): kind, source, corr.
+	// Returns: entries — []object{id,ref,name,mime,kind,source,sender,corr,size,created_ms,caption}.
+	CmdArtifactList = "artifact_list"
+
+	// CmdArtifactDelete removes an artifact index entry by id (M822); the blob is
+	// garbage-collected when no other entry references it.
+	// Args: id : string. Returns: deleted : bool.
+	CmdArtifactDelete = "artifact_delete"
+
 	// CmdJournalGrep is the server-side filter sibling of
 	// CmdJournalTail. Today operators run `agt journal tail 10000
 	// --json | jq 'select(...)'` which loads the entire tail into

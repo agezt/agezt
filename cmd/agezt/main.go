@@ -22,6 +22,7 @@ package main
 import (
 	"context"
 	"crypto/rand"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -45,6 +46,7 @@ import (
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/alerter"
 	"github.com/agezt/agezt/kernel/anomaly"
+	"github.com/agezt/agezt/kernel/artifact"
 	"github.com/agezt/agezt/kernel/board"
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/cadence"
@@ -1607,19 +1609,22 @@ func makeChannelHandler(k *kernelruntime.Kernel) channel.InboundHandler {
 		// the control plane and OpenAI API do, so a photo sent to the bot reaches
 		// a vision model. An image with no caption gets a default instruction.
 		if len(msg.Images) > 0 {
+			var caption string
 			if err := visionGate(k, "", msg.Images); err != nil {
 				// The active model can't see images. Vision SIDECAR (M821): a keyed
 				// vision model describes the image and we inject that text into the
 				// run, so a non-vision primary still "reads" the photo instead of
-				// failing. If NO vision model is keyed, fall back to the clear gate
-				// error so the operator knows to add one.
-				caption, derr := k.DescribeImages(hctx, corr, msg.Images, "")
+				// failing. If NO vision model is keyed, persist the image anyway
+				// (so it's not lost) and surface the clear gate error.
+				c, derr := k.DescribeImages(hctx, corr, msg.Images, "")
 				if derr != nil {
 					if errors.Is(derr, kernelruntime.ErrNoVisionModel) {
+						persistInboundImages(k, msg, corr, "")
 						return "", err
 					}
 					return "", derr
 				}
+				caption = c
 				if strings.TrimSpace(intent) == "" {
 					intent = "Describe the attached image(s)."
 				}
@@ -1630,8 +1635,89 @@ func makeChannelHandler(k *kernelruntime.Kernel) channel.InboundHandler {
 					intent = "Describe the attached image(s)."
 				}
 			}
+			// Persist the inbound image(s) as browsable artifacts (M822) — keyed to
+			// this run's correlation, with the vision caption (if any) attached.
+			persistInboundImages(k, msg, corr, caption)
 		}
 		return k.RunWith(hctx, corr, intent)
+	}
+}
+
+// persistInboundImages saves each inbound channel image as a browsable artifact
+// entry (M822), keyed to the run correlation, with the vision caption (if the
+// sidecar ran) attached. Best-effort: a decode/store failure for one image is
+// logged-by-omission, never fatal to the run. Returns the new entry ids.
+func persistInboundImages(k *kernelruntime.Kernel, msg channel.UnifiedMessage, corr, caption string) []string {
+	idx := k.ArtifactIndex()
+	if idx == nil || len(msg.Images) == 0 {
+		return nil
+	}
+	now := time.Now().UnixMilli()
+	var ids []string
+	for n, du := range msg.Images {
+		mime, data, ok := decodeDataURL(du)
+		if !ok || len(data) == 0 {
+			continue
+		}
+		e, err := idx.PutEntry(artifact.Entry{
+			Kind:    "image",
+			Source:  msg.ChannelKind,
+			Sender:  msg.Sender,
+			Corr:    corr,
+			Mime:    mime,
+			Name:    fmt.Sprintf("%s-image-%d%s", msg.ChannelKind, n+1, extForMime(mime)),
+			Caption: caption,
+		}, data, now)
+		if err == nil {
+			ids = append(ids, e.ID)
+		}
+	}
+	return ids
+}
+
+// decodeDataURL parses a data: URL (data:<mime>[;base64],<payload>) into its mime
+// and decoded bytes. ok=false for anything that isn't a data URL. Base64 is the
+// only encoding channels produce for images; a non-base64 payload is returned raw.
+func decodeDataURL(s string) (mime string, data []byte, ok bool) {
+	if !strings.HasPrefix(s, "data:") {
+		return "", nil, false
+	}
+	rest := s[len("data:"):]
+	comma := strings.IndexByte(rest, ',')
+	if comma < 0 {
+		return "", nil, false
+	}
+	meta, payload := rest[:comma], rest[comma+1:]
+	mime = meta
+	base64Encoded := false
+	if i := strings.IndexByte(meta, ';'); i >= 0 {
+		mime = meta[:i]
+		base64Encoded = strings.Contains(meta[i:], "base64")
+	}
+	if base64Encoded {
+		b, err := base64.StdEncoding.DecodeString(payload)
+		if err != nil {
+			return "", nil, false
+		}
+		return mime, b, true
+	}
+	return mime, []byte(payload), true
+}
+
+// extForMime maps the common image mimes to a file extension for the artifact's
+// display name; unknown types get no extension.
+func extForMime(mime string) string {
+	switch strings.ToLower(strings.TrimSpace(mime)) {
+	case "image/jpeg", "image/jpg":
+		return ".jpg"
+	case "image/png":
+		return ".png"
+	case "image/gif":
+		return ".gif"
+	case "image/webp":
+		return ".webp"
+	default:
+		return ""
 	}
 }
 

@@ -53,3 +53,55 @@ func (s *Server) handleArtifactGet(conn net.Conn, req Request) {
 		},
 	})
 }
+
+// handleArtifactList returns the artifact INDEX entries (M822), newest first,
+// optionally filtered by kind/source/corr — metadata only, no bytes. The file
+// manager and Inbox use this to enumerate stored artifacts.
+func (s *Server) handleArtifactList(conn net.Conn, req Request) {
+	idx := s.k.ArtifactIndex()
+	if idx == nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "artifact index unavailable"})
+		return
+	}
+	kind, _ := req.Args["kind"].(string)
+	source, _ := req.Args["source"].(string)
+	corr, _ := req.Args["corr"].(string)
+	ents := idx.List(artifact.Filter{Kind: kind, Source: source, Corr: corr})
+	out := make([]map[string]any, 0, len(ents))
+	for _, e := range ents {
+		out = append(out, map[string]any{
+			"id": e.ID, "ref": e.Ref, "name": e.Name, "mime": e.Mime,
+			"kind": e.Kind, "source": e.Source, "sender": e.Sender,
+			"corr": e.Corr, "size": e.Size, "created_ms": e.CreatedMs,
+			"caption": e.Caption,
+		})
+	}
+	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{
+		"count":   len(out),
+		"entries": out,
+	}})
+}
+
+// handleArtifactDelete removes an index entry by id (M822); the blob is GC'd when
+// no other entry references it.
+func (s *Server) handleArtifactDelete(conn net.Conn, req Request) {
+	id, _ := req.Args["id"].(string)
+	if id == "" {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.id required"})
+		return
+	}
+	idx := s.k.ArtifactIndex()
+	if idx == nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "artifact index unavailable"})
+		return
+	}
+	if err := idx.Delete(id); err != nil {
+		if errors.Is(err, artifact.ErrNotFound) {
+			s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "artifact not found: " + id})
+			return
+		}
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		return
+	}
+	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"deleted": true, "id": id}})
+}
