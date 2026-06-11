@@ -95,6 +95,15 @@ func builtinSections() []Section {
 			},
 		},
 		{
+			ID: "embeddings", Name: "Memory Embeddings",
+			Help: "Optional semantic embeddings for memory recall (M901). Unset = local hashing (free, typo-tolerant, no synonyms). Point at a local Ollama for free true-semantic recall, or a hosted API. Restart to apply.",
+			Fields: []Field{
+				{Env: "AGEZT_EMBED_URL", Label: "Embeddings API URL", Type: TypeText, Apply: ApplyRestart, Help: "OpenAI-compatible API root, e.g. http://localhost:11434 (Ollama) or https://api.openai.com/v1."},
+				{Env: "AGEZT_EMBED_MODEL", Label: "Embedding model", Type: TypeText, Apply: ApplyRestart, Help: "e.g. nomic-embed-text (Ollama) or text-embedding-3-small (OpenAI)."},
+				{Env: "AGEZT_EMBED_KEY", Label: "API key", Type: TypePassword, Secret: true, Apply: ApplyRestart, Help: "Bearer token for hosted APIs; leave empty for a local Ollama."},
+			},
+		},
+		{
 			ID: "telegram", Name: "Telegram",
 			Help: "Telegram bot channel. Restart to apply.",
 			Fields: []Field{
@@ -152,6 +161,8 @@ func builtinSections() []Section {
 				{Env: "AGEZT_RATE_PER_MIN", Label: "Max requests / minute", Type: TypeNumber, Apply: ApplyRestart},
 				{Env: "AGEZT_CONTEXT_BUDGET", Label: "Context budget (chars)", Type: TypeNumber, Apply: ApplyRestart},
 				{Env: "AGEZT_MAX_ITER", Label: "Max tool rounds / run", Type: TypeNumber, Apply: ApplyRestart, Help: "How many tool-call rounds one run may take before it stops (default 50). Chat can 'Continue' a run that hits the cap."},
+				{Env: "AGEZT_PARALLEL_TOOLS", Label: "Parallel tools / turn", Type: TypeNumber, Apply: ApplyRestart, Help: "How many tool calls from one assistant turn may execute concurrently (default 4). 1 = strictly sequential."},
+				{Env: "AGEZT_LLM_CACHE_TTL", Label: "LLM response cache TTL", Type: TypeText, Apply: ApplyRestart, Help: "Serve an IDENTICAL model request from memory within this window (e.g. 5m) — no provider call, no spend. Empty = off; chat regenerate wants fresh samples, so enable only for machine-driven repeat calls."},
 			},
 		},
 		{

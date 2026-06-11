@@ -311,6 +311,13 @@ type oaResponse struct {
 			// at the cache-read rate; threaded to agent.Usage.CachedInputTokens.
 			CachedTokens int `json:"cached_tokens"`
 		} `json:"prompt_tokens_details"`
+		// PromptCacheHitTokens is DeepSeek's spelling of the same cache-read
+		// count (M887): their context caching reports prompt_cache_hit_tokens /
+		// prompt_cache_miss_tokens at the top level of usage instead of the
+		// OpenAI prompt_tokens_details shape. Read as a fallback so a DeepSeek
+		// run's cache hits price at the cache-read rate instead of being
+		// silently billed as fresh input.
+		PromptCacheHitTokens int `json:"prompt_cache_hit_tokens"`
 	} `json:"usage"`
 }
 
@@ -566,9 +573,18 @@ func decodeResponse(body []byte) (*agent.CompletionResponse, error) {
 		StopReason:       stop,
 		Usage: agent.Usage{
 			InputTokens:       or.Usage.PromptTokens,
-			CachedInputTokens: or.Usage.PromptTokensDetails.CachedTokens,
+			CachedInputTokens: cachedInputTokens(or.Usage.PromptTokensDetails.CachedTokens, or.Usage.PromptCacheHitTokens),
 			OutputTokens:      or.Usage.CompletionTokens,
 			Model:             or.Model,
 		},
 	}, nil
+}
+
+// cachedInputTokens folds the two wire spellings of "prompt tokens served
+// from cache" into one count (M887): OpenAI's prompt_tokens_details.
+// cached_tokens and DeepSeek's prompt_cache_hit_tokens. A server emitting
+// both reports the same number; max() keeps a double-reporter from
+// double-counting while letting either spelling stand alone.
+func cachedInputTokens(openaiStyle, deepseekStyle int) int {
+	return max(openaiStyle, deepseekStyle)
 }

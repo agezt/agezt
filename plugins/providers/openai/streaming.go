@@ -174,6 +174,7 @@ type streamState struct {
 	model          string
 	inputTokens    int
 	outputTokens   int
+	cachedTokens   int // prompt tokens served from the provider's cache (M887)
 }
 
 type openTool struct {
@@ -241,8 +242,13 @@ func dispatchSSEFrame(data string, st *streamState, onChunk func(agent.Chunk) er
 			FinishReason string `json:"finish_reason"`
 		} `json:"choices"`
 		Usage *struct {
-			PromptTokens     int `json:"prompt_tokens"`
-			CompletionTokens int `json:"completion_tokens"`
+			PromptTokens        int `json:"prompt_tokens"`
+			CompletionTokens    int `json:"completion_tokens"`
+			PromptTokensDetails struct {
+				CachedTokens int `json:"cached_tokens"`
+			} `json:"prompt_tokens_details"`
+			// DeepSeek's spelling of the cache-read count (M887); see oaResponse.
+			PromptCacheHitTokens int `json:"prompt_cache_hit_tokens"`
 		} `json:"usage"`
 	}
 	if err := json.Unmarshal([]byte(data), &f); err != nil {
@@ -257,6 +263,7 @@ func dispatchSSEFrame(data string, st *streamState, onChunk func(agent.Chunk) er
 	if f.Usage != nil {
 		st.inputTokens = f.Usage.PromptTokens
 		st.outputTokens = f.Usage.CompletionTokens
+		st.cachedTokens = cachedInputTokens(f.Usage.PromptTokensDetails.CachedTokens, f.Usage.PromptCacheHitTokens)
 	}
 
 	if len(f.Choices) == 0 {
@@ -395,9 +402,10 @@ func assembleResponse(st *streamState) *agent.CompletionResponse {
 		},
 		StopReason: stop,
 		Usage: agent.Usage{
-			InputTokens:  st.inputTokens,
-			OutputTokens: st.outputTokens,
-			Model:        st.model,
+			InputTokens:       st.inputTokens,
+			CachedInputTokens: st.cachedTokens, // M887: cache hits price at the cache-read rate
+			OutputTokens:      st.outputTokens,
+			Model:             st.model,
 		},
 	}
 }

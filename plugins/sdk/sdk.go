@@ -141,6 +141,12 @@ type Tool struct {
 	// InputSchema is the JSON Schema for the tool's input. Optional;
 	// an empty value advertises an open object.
 	InputSchema json.RawMessage
+	// Capability optionally declares which of the kernel's policy axes this
+	// tool belongs to (M900) — e.g. "http.post", "file.write", "shell" — so
+	// the operator's trust level and hard-deny rules for that axis apply to
+	// this tool exactly like a built-in. Empty keeps the historical
+	// classification; a value the kernel doesn't recognise is ignored.
+	Capability string
 	// Handle runs the tool. Required.
 	Handle Handler
 }
@@ -162,6 +168,7 @@ type toolDef struct {
 	Name        string          `json:"name"`
 	Description string          `json:"description"`
 	InputSchema json.RawMessage `json:"input_schema"`
+	Capability  string          `json:"capability,omitempty"` // M900: declared policy axis
 }
 
 type initResult struct {
@@ -305,6 +312,7 @@ func (s *session) initPayload() json.RawMessage {
 			Name:        t.Name,
 			Description: t.Description,
 			InputSchema: schema,
+			Capability:  t.Capability, // M900
 		})
 	}
 	raw, _ := json.Marshal(initResult{Tools: defs})

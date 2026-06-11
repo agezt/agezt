@@ -27,6 +27,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/agezt/agezt/kernel/bus"
+	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/ulid"
 )
 
@@ -963,6 +965,12 @@ type Engine struct {
 	// guard clears, and the schedule recovers on its next slot. Set before Start.
 	RunTimeout time.Duration
 
+	// Bus, when set before Start, receives an anomaly.detected WARNING each
+	// time a schedule whose intent trips the injection scan fires (M886). The
+	// schedule still runs — default-allow; the tripwire makes an unattended
+	// suspicious automation visible to the alerter/cockpit, it never gates.
+	Bus *bus.Bus
+
 	running sync.Map // entry ID -> struct{} while a run is in flight
 	mu      sync.Mutex
 	started bool
@@ -1033,6 +1041,27 @@ func (e *Engine) fireOne(ctx context.Context, ent Entry) {
 		}
 	}()
 	fmt.Fprintf(e.log, "schedule: firing %q (%s)\n", short(ent.Intent), ent.Cadence())
+	// Injection tripwire (M886): journal a warning when the intent looks like
+	// a prompt-injection payload, then fire anyway (default-allow). Scanned at
+	// fire time — the single choke point every creation path funnels through,
+	// including schedules that predate the scan.
+	if markers := SuspiciousIntent(ent.Intent); len(markers) > 0 {
+		fmt.Fprintf(e.log, "schedule: %q trips injection markers %v (firing anyway)\n", short(ent.Intent), markers)
+		if e.Bus != nil {
+			_, _ = e.Bus.Publish(event.Spec{
+				Subject: "cadence.injection",
+				Kind:    event.KindAnomalyDetected,
+				Actor:   "cadence",
+				Payload: map[string]any{
+					"anomaly":     "schedule_intent_injection_suspect",
+					"schedule_id": ent.ID,
+					"markers":     markers,
+					"intent":      short(ent.Intent),
+					"severity":    "warning",
+				},
+			})
+		}
+	}
 	runCtx := ctx
 	if e.RunTimeout > 0 {
 		var cancel context.CancelFunc

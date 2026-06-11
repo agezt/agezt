@@ -134,6 +134,10 @@ func CapabilityForToolCall(toolName string, input json.RawMessage) Capability {
 		return CapWorld
 	case "delegate":
 		return CapDelegate
+	case "delegate_await":
+		// Collecting an async delegation's result is the same axis as spawning
+		// it (M881) — no new capability, it inherits the delegate grant.
+		return CapDelegate
 	case "council":
 		// Convening the council fans out to several model completions — a multi-
 		// model consultation, the same axis as delegate, so it reuses that grant.

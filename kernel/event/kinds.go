@@ -48,6 +48,13 @@ const (
 	// the drill-down into the sub-agent's own run.
 	KindSubAgentSpawned Kind = "subagent.spawned"
 
+	// An ASYNCHRONOUSLY delegated sub-agent finished (M881). Published under
+	// the PARENT correlation (carrying the child correlation and outcome) the
+	// moment the child's run returns — the push-based completion signal that
+	// pairs with delegate(async=true) + delegate_await. Synchronous
+	// delegations don't emit this: their completion is the tool result itself.
+	KindSubAgentCompleted Kind = "subagent.completed"
+
 	// Tool calls (the in-process Tool interface, DECISIONS B0a).
 	KindToolInvoked Kind = "tool.invoked"
 	KindToolResult  Kind = "tool.result"
@@ -80,6 +87,9 @@ const (
 	KindRoutingDecision  Kind = "routing.decision"
 	KindBudgetConsumed   Kind = "budget.consumed"
 	KindProviderFallback Kind = "provider.fallback"
+	// One provider being retried IN PLACE with backoff on a transient error
+	// (rate limit / 5xx / network blip) before the chain falls back (M882).
+	KindProviderRetry Kind = "provider.retry"
 	KindBudgetExceeded   Kind = "budget.exceeded"
 	KindRateLimited      Kind = "rate.limited"
 	// KindBudgetCapInert records that a per-run cost cap (--max-cost / M166) was
@@ -354,6 +364,7 @@ var knownKinds = map[Kind]struct{}{
 	KindTaskAbandoned:             {},
 	KindTaskFailed:                {},
 	KindSubAgentSpawned:           {},
+	KindSubAgentCompleted:         {},
 	KindToolInvoked:               {},
 	KindToolResult:                {},
 	KindLLMRequest:                {},
@@ -368,6 +379,7 @@ var knownKinds = map[Kind]struct{}{
 	KindRoutingDecision:           {},
 	KindBudgetConsumed:            {},
 	KindProviderFallback:          {},
+	KindProviderRetry:             {},
 	KindBudgetExceeded:            {},
 	KindRateLimited:               {},
 	KindBudgetCapInert:            {},

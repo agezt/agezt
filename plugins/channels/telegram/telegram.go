@@ -113,6 +113,12 @@ type tgMessage struct {
 	Text      string        `json:"text"`
 	Caption   string        `json:"caption"` // a photo's text rides here, not in Text
 	Photo     []tgPhotoSize `json:"photo"`   // ascending sizes; the last is largest
+	// Forum-topic threading (M885): in a forum supergroup each topic carries
+	// message_thread_id + is_topic_message. The flag matters — a plain REPLY in
+	// a non-forum chat also sets message_thread_id, and treating that as a
+	// conversation boundary would split ordinary chats.
+	MessageThreadID int64 `json:"message_thread_id"`
+	IsTopicMessage  bool  `json:"is_topic_message"`
 }
 
 // tgPhotoSize is one rendition of an inbound photo. Telegram sends several
@@ -240,6 +246,11 @@ func (c *Channel) handleInbound(ctx context.Context, m *tgMessage) {
 		PlatformTSMS: m.Date * 1000,
 		PlatformMeta: map[string]string{"message_id": strconv.FormatInt(m.MessageID, 10)},
 	}
+	// Forum topic = its own conversation thread (M885); the reply goes back
+	// into the topic and history folds per topic.
+	if m.IsTopicMessage && m.MessageThreadID != 0 {
+		msg.ThreadID = strconv.FormatInt(m.MessageThreadID, 10)
+	}
 
 	corr := "chan-" + ulid.New()
 	allowed := c.allow.Allows(chatID)
@@ -271,7 +282,7 @@ func (c *Channel) handleInbound(ctx context.Context, m *tgMessage) {
 	if reply == "" {
 		return
 	}
-	_ = c.send(ctx, channel.Outbound{ChannelID: chatID, Text: reply, Priority: channel.PriorityNotify}, corr)
+	_ = c.send(ctx, channel.Outbound{ChannelID: chatID, ThreadID: msg.ThreadID, Text: reply, Priority: channel.PriorityNotify}, corr)
 }
 
 // tgPhotoMaxRaw bounds a downloaded photo so the resulting data: URL stays
@@ -376,7 +387,15 @@ func (c *Channel) send(ctx context.Context, out channel.Outbound, corr string) e
 	}
 	endpoint := fmt.Sprintf("%s/bot%s/sendMessage", c.base, c.token)
 	for _, chunk := range channel.SplitText(out.Text, telegramMaxChars) {
-		body, _ := json.Marshal(map[string]any{"chat_id": out.ChannelID, "text": chunk})
+		fields := map[string]any{"chat_id": out.ChannelID, "text": chunk}
+		// Forum-topic reply (M885): message_thread_id routes the message into
+		// the originating topic instead of the chat's General stream.
+		if out.ThreadID != "" {
+			if tid, err := strconv.ParseInt(out.ThreadID, 10, 64); err == nil {
+				fields["message_thread_id"] = tid
+			}
+		}
+		body, _ := json.Marshal(fields)
 		req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
 		if err != nil {
 			return err
@@ -406,18 +425,22 @@ func (c *Channel) emitInbound(msg channel.UnifiedMessage, corr string, allowed b
 	if c.bus == nil {
 		return
 	}
+	payload := map[string]any{
+		"channel_kind": msg.ChannelKind,
+		"channel_id":   msg.ChannelID,
+		"sender":       msg.Sender,
+		"text":         msg.Text,
+		"allowed":      allowed,
+	}
+	if msg.ThreadID != "" {
+		payload["thread_id"] = msg.ThreadID // M885: history folds per topic
+	}
 	_, _ = c.bus.Publish(event.Spec{
 		Subject:       "channel.inbound.telegram",
 		Kind:          event.KindChannelInbound,
 		Actor:         "channel-telegram",
 		CorrelationID: corr,
-		Payload: map[string]any{
-			"channel_kind": msg.ChannelKind,
-			"channel_id":   msg.ChannelID,
-			"sender":       msg.Sender,
-			"text":         msg.Text,
-			"allowed":      allowed,
-		},
+		Payload:       payload,
 	})
 }
 
@@ -425,16 +448,20 @@ func (c *Channel) emitOutbound(out channel.Outbound, corr string) {
 	if c.bus == nil {
 		return
 	}
+	payload := map[string]any{
+		"channel_kind": "telegram",
+		"channel_id":   out.ChannelID,
+		"text":         out.Text,
+		"priority":     string(out.Priority),
+	}
+	if out.ThreadID != "" {
+		payload["thread_id"] = out.ThreadID // M885
+	}
 	_, _ = c.bus.Publish(event.Spec{
 		Subject:       "channel.outbound.telegram",
 		Kind:          event.KindChannelOutbound,
 		Actor:         "channel-telegram",
 		CorrelationID: corr,
-		Payload: map[string]any{
-			"channel_kind": "telegram",
-			"channel_id":   out.ChannelID,
-			"text":         out.Text,
-			"priority":     string(out.Priority),
-		},
+		Payload:       payload,
 	})
 }

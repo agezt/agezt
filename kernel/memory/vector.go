@@ -179,11 +179,19 @@ func SearchSemantic(rs []Record, query string, limit int, nowMS int64) []Scored 
 // record, and "izmir hava" should still rank the exact-keyword record first.
 // Pure function; this is what Manager recall uses.
 func SearchHybrid(rs []Record, query string, limit int, nowMS int64) []Scored {
+	return mergeScored(Search(rs, query, 0, nowMS), SearchSemantic(rs, query, 0, nowMS), limit)
+}
+
+// mergeScored blends two ranked lists: a record present in both sums both
+// scores; a record only one signal sees still surfaces. Shared by the local
+// hybrid (keyword + feature-hash) and the provider hybrid (keyword + provider
+// embeddings, M884).
+func mergeScored(a, b []Scored, limit int) []Scored {
 	byID := make(map[string]Scored)
-	for _, s := range Search(rs, query, 0, nowMS) {
+	for _, s := range a {
 		byID[s.Record.ID] = s
 	}
-	for _, s := range SearchSemantic(rs, query, 0, nowMS) {
+	for _, s := range b {
 		if prev, ok := byID[s.Record.ID]; ok {
 			prev.Score += s.Score
 			byID[s.Record.ID] = prev

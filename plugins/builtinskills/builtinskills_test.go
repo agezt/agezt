@@ -376,6 +376,42 @@ func TestSeedAll_InstallsArchiveTools(t *testing.T) {
 	}
 }
 
+func TestSeedAll_InstallsHTTPAPI(t *testing.T) {
+	f := newForge(t)
+	seeded, err := SeedAll(f, "")
+	if err != nil {
+		t.Fatalf("SeedAll: %v", err)
+	}
+	var got *Seeded
+	for i := range seeded {
+		if seeded[i].Name == "http-api-client" {
+			got = &seeded[i]
+		}
+	}
+	if got == nil {
+		t.Fatalf("http-api-client not seeded: %+v", seeded)
+	}
+	if got.Status != skill.StatusActive {
+		t.Errorf("http-api-client status = %q, want active", got.Status)
+	}
+	drv, err := f.Bundles().Read("http-api-client", "scripts/api.py")
+	if err != nil || len(drv) == 0 {
+		t.Fatalf("http-api-client api.py unreadable/empty: %v", err)
+	}
+	files, _ := f.Bundles().List("http-api-client")
+	want := map[string]bool{"scripts/api.py": false, "scripts/setup.sh": false, "reference/recipes.md": false}
+	for _, rel := range files {
+		if _, ok := want[rel]; ok {
+			want[rel] = true
+		}
+	}
+	for rel, found := range want {
+		if !found {
+			t.Errorf("http-api-client bundle missing %q (got %v)", rel, files)
+		}
+	}
+}
+
 func TestSeedAll_Idempotent(t *testing.T) {
 	f := newForge(t)
 	if _, err := SeedAll(f, ""); err != nil {

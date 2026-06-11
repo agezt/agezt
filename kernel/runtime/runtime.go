@@ -140,6 +140,20 @@ type Config struct {
 	// fails the whole run. 0 (the default) means no per-tool cap.
 	ToolTimeout time.Duration
 
+	// MaxParallelTools caps how many tool calls from one assistant turn run
+	// concurrently (M880), passed straight through to LoopConfig. 0 → the
+	// agent loop's default; 1 or negative → strictly sequential.
+	MaxParallelTools int
+
+	// ShutdownDrainTimeout bounds how long Close waits for in-flight runs
+	// (and async delegations) to settle after Halt cancels them, BEFORE the
+	// journal/state/memory stores they write to are torn down (M883). A run
+	// blocked in a tool that ignores cancellation no longer races store
+	// teardown — it gets this grace window, then Close proceeds anyway.
+	// 0 → DefaultShutdownDrainTimeout; negative → no wait (the historical
+	// immediate teardown).
+	ShutdownDrainTimeout time.Duration
+
 	// SubAgentTool registers the in-process `delegate` tool (P6-MULTI-01) so
 	// a lead agent can spawn a bounded sub-agent for a focused subtask and get
 	// back its summary. Off by default; the daemon is the single enable point.
@@ -177,6 +191,15 @@ type Config struct {
 	// default engine (edict.New(edict.Options{})) is constructed — the
 	// runtime is never policy-less.
 	Edict *edict.Engine
+
+	// ToolCapabilities maps tool names (as registered, i.e. prefixed for
+	// plugin tools) to a DECLARED Edict capability (M900) — the kernel-side
+	// half of the plugin capability manifest. A mapped tool is classified
+	// under the declared axis (its trust level + hard-deny rules) instead of
+	// the unknown-capability default. Declarations naming a capability the
+	// kernel doesn't know are dropped at Open — plugins join existing axes,
+	// they don't invent them. Nil/empty = historical classification only.
+	ToolCapabilities map[string]string
 
 	// Warden is the process-isolation engine tools use to run external
 	// work. If nil, a default cross-platform engine wired to the kernel
@@ -239,6 +262,12 @@ type Config struct {
 	MemoryTool            bool
 	MemoryDistill         bool
 	MemoryDistillMinTools int
+	// MemoryEmbedder, when non-nil, upgrades memory recall from the local
+	// feature-hash embedding to true provider embeddings (M884, DECISIONS C5
+	// opt-in). The kernel never picks an implementation — the daemon injects
+	// one (typically backed by a provider plugin). Recall falls back to the
+	// local hybrid on any embedder failure.
+	MemoryEmbedder memory.Embedder
 
 	// World-model knobs (SPEC-05 §3; Phase 2 slice 1). Like the memory
 	// knobs the graph store and `agt world` CLI always work; these flags
@@ -397,6 +426,14 @@ type Kernel struct {
 	fanout map[string]int                // spawning correlation_id → sub-agents spawned (M46 fan-out bound)
 	tree   map[string]int                // root correlation_id → total sub-agents in the tree (M629 total bound)
 	steers map[string]*runControl        // correlation_id → live-steering control surface (M608)
+	spawns map[string]*spawnHandle       // child correlation_id → pending/finished async delegation (M881)
+	runWG  sync.WaitGroup                // in-flight runs + async spawn goroutines; Close drains it bounded (M883)
+
+	// toolCaps is the validated declared-capability overlay (M900): tool name
+	// → Edict capability, consulted by policyHook before the built-in
+	// classification. Built once at Open from cfg.ToolCapabilities (known
+	// capabilities only); read-only afterwards, so no lock needed.
+	toolCaps map[string]edict.Capability
 	// mcpConns are the LIVE MCP attachments (M796): server name → connection.
 	// Merged into every run's tool map (mergeMCPTools); detach removes.
 	mcpConns map[string]mcp.Conn
@@ -452,6 +489,9 @@ func Open(cfg Config) (*Kernel, error) {
 		return nil, fmt.Errorf("runtime: memory: %w", err)
 	}
 	mgr := memory.NewManager(mstore, kbus)
+	if cfg.MemoryEmbedder != nil {
+		mgr.SetEmbedder(cfg.MemoryEmbedder) // M884: provider embeddings opt-in
+	}
 
 	wstore, err := worldmodel.Open(filepath.Join(cfg.BaseDir, "worldmodel"))
 	if err != nil {
@@ -600,9 +640,14 @@ func Open(cfg Config) (*Kernel, error) {
 	// exist yet; register the tool now and wire its runner just after k is
 	// built (effTools is the same map k.tools holds).
 	var subTool *subAgentTool
+	var awaitTool *subAgentAwaitTool
 	if cfg.SubAgentTool {
 		subTool = newSubAgentTool()
 		effTools["delegate"] = subTool
+		// The collect half of async delegation (M881): delegate(async=true)
+		// returns a spawn_id; delegate_await blocks until that child finishes.
+		awaitTool = newSubAgentAwaitTool()
+		effTools["delegate_await"] = awaitTool
 	}
 
 	catStore := catalog.NewStore(catDir)
@@ -656,18 +701,64 @@ func Open(cfg Config) (*Kernel, error) {
 		fanout:       make(map[string]int),
 		tree:         make(map[string]int),
 		steers:       make(map[string]*runControl),
+		spawns:       make(map[string]*spawnHandle),
+		toolCaps:     validatedToolCaps(cfg.ToolCapabilities), // M900
 		startTime:    time.Now(),
 	}
 	if subTool != nil {
 		subTool.run = k.runSubAgent
+		subTool.spawn = k.runSubAgentAsync // M881: non-blocking delegation
+	}
+	if awaitTool != nil {
+		awaitTool.await = k.awaitSubAgent
 	}
 	return k, nil
 }
 
-// Close stops the bus, then closes state and the journal. Pending runs
-// are cancelled via Halt before close.
+// DefaultShutdownDrainTimeout is how long Close waits for cancelled in-flight
+// runs to actually return before tearing down their stores (M883).
+const DefaultShutdownDrainTimeout = 5 * time.Second
+
+// Close stops the bus, then closes state and the journal. Pending runs are
+// cancelled via Halt, then given a bounded drain window (M883) so a run
+// mid-journal-write finishes cleanly instead of racing store teardown.
 func (k *Kernel) Close() error {
-	k.Halt()          // cancel any in-flight runs first
+	k.Halt() // cancel any in-flight runs first
+	// Drain: cancelled runs still need to unwind — publish their terminal
+	// task.failed, release fan-out tallies, return from tools that honour the
+	// cancel late. Wait bounded; a run wedged in a cancel-ignoring tool must
+	// not block shutdown forever.
+	drain := k.cfg.ShutdownDrainTimeout
+	if drain == 0 {
+		drain = DefaultShutdownDrainTimeout
+	}
+	if drain > 0 {
+		settled := make(chan struct{})
+		go func() {
+			k.runWG.Wait()
+			close(settled)
+		}()
+		t := time.NewTimer(drain)
+		select {
+		case <-settled:
+			t.Stop()
+		case <-t.C:
+			// Best-effort breadcrumb: the journal is still open here, so the
+			// abandonment is auditable. The wedged goroutine dies with the
+			// process.
+			_, _ = k.bus.Publish(event.Spec{
+				Subject: "kernel.shutdown",
+				Kind:    event.KindAnomalyDetected,
+				Actor:   "kernel",
+				Payload: map[string]any{
+					"anomaly":  "shutdown_drain_timeout",
+					"waited":   drain.String(),
+					"detail":   "in-flight runs did not settle after Halt; closing stores anyway",
+					"severity": "warning",
+				},
+			})
+		}
+	}
 	k.closeMCPConns() // detach every live MCP server (kills the children)
 	k.bus.Close()
 	// Close every store even if an earlier one errors — the previous short-circuit
@@ -1174,8 +1265,32 @@ func (k *Kernel) RunPlan(ctx context.Context, plan scheduler.Plan, planID string
 //
 // The ctx passed in is the per-run context; cancellation (Halt) flows
 // through to Submit and surfaces as DecisionCancel.
+// validatedToolCaps keeps only declarations naming a capability Edict knows
+// (M900) — a plugin may join an existing policy axis, never invent one.
+func validatedToolCaps(declared map[string]string) map[string]edict.Capability {
+	if len(declared) == 0 {
+		return nil
+	}
+	out := make(map[string]edict.Capability, len(declared))
+	for tool, cap := range declared {
+		if edict.KnownCapability(cap) {
+			out[tool] = edict.Capability(cap)
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
 func (k *Kernel) policyHook(ctx context.Context, tc agent.ToolCall) agent.PolicyVerdict {
-	cap := edict.CapabilityForToolCall(tc.Name, tc.Input)
+	// Declared-capability overlay (M900): a plugin tool whose manifest joined
+	// a known policy axis is classified there; everything else falls through
+	// to the built-in name/input classification.
+	cap, declared := k.toolCaps[tc.Name]
+	if !declared {
+		cap = edict.CapabilityForToolCall(tc.Name, tc.Input)
+	}
 	var out edict.Outcome
 	if ceiling, ok := trustCeilingFromCtx(ctx); ok {
 		out = k.edict.DecideWithCeiling(cap, string(tc.Input), ceiling) // SPEC-16 §4 initiative ceiling
@@ -1790,6 +1905,11 @@ func (k *Kernel) RunWith(ctx context.Context, corr, intent string) (string, erro
 		runCtx, cancel = context.WithCancel(ctx)
 	}
 	k.runs[corr] = cancel
+	// Drain accounting (M883): Close waits (bounded) for in-flight runs to
+	// settle before tearing down the stores they write to. Add under the same
+	// lock as the halted check above, so no run can slip in after Halt flips
+	// the flag and Close begins waiting.
+	k.runWG.Add(1)
 	// Live-steering control surface (M608): registered for the run's whole
 	// lifetime so an operator can pause/step/inject from another goroutine. Wired
 	// into the agent loop via LoopConfig.Steer below.
@@ -1797,13 +1917,28 @@ func (k *Kernel) RunWith(ctx context.Context, corr, intent string) (string, erro
 	k.steers[corr] = rc
 	k.mu.Unlock()
 
+	defer k.runWG.Done()
 	defer func() {
 		k.mu.Lock()
 		delete(k.runs, corr)
 		delete(k.fanout, corr) // release this run's fan-out tally (M46)
 		delete(k.tree, corr)   // release this tree's total sub-agent tally (M629)
 		delete(k.steers, corr) // release the steering control (M608)
+		// Cancel any still-pending async delegations of this tree (M881): an
+		// un-awaited child must not outlive the run that spawned it. The spawn
+		// goroutine observes the cancel, finishes, and journals its terminal
+		// events; the handle is dropped here so the id is no longer awaitable.
+		var orphans []context.CancelFunc
+		for id, h := range k.spawns {
+			if h.rootCorr == corr || h.parentCorr == corr {
+				orphans = append(orphans, h.cancel)
+				delete(k.spawns, id)
+			}
+		}
 		k.mu.Unlock()
+		for _, c := range orphans {
+			c()
+		}
 		cancel()
 	}()
 
@@ -1941,6 +2076,7 @@ func (k *Kernel) RunWith(ctx context.Context, corr, intent string) (string, erro
 		MaxAutoContinue:      k.cfg.MaxAutoContinue,  // M833: autonomous continue past MaxIter
 		AutoContinueWait:     k.cfg.AutoContinueWait, // M833
 		ToolTimeout:          k.cfg.ToolTimeout,
+		MaxParallelTools:     k.cfg.MaxParallelTools, // M880: in-turn parallel tool dispatch
 		Actor:                actor,
 		CorrelationID:        corr,
 		Policy:               k.policyHook,

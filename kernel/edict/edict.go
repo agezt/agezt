@@ -660,6 +660,11 @@ func knownCapability(s string) bool {
 	return slices.Contains(AllCapabilities(), Capability(s))
 }
 
+// KnownCapability is the exported form of knownCapability (M900): the kernel
+// uses it to validate a plugin manifest's DECLARED tool capability — a plugin
+// may join an existing policy axis but never invent a new one.
+func KnownCapability(s string) bool { return knownCapability(s) }
+
 // ParseDenyRules parses operator-supplied hard-deny rules from a ';'-separated
 // spec, for AGEZT_EDICT_DENY. Each entry is either:
 //
