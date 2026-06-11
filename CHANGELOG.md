@@ -25,6 +25,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   `delegate` tool now coaches the leader pattern and prefers reusing an existing named agent. (M843)
 
 ### Added
+- **Built-in data-analysis skill bundle (M861).** A third out-of-the-box skill (after browser-use and
+  computer-use), seeded active at startup: crunch real data with pandas. `scripts/analyze.py` loads a
+  CSV/Excel/JSON/Parquet file and returns a JSON summary (shape, dtypes, describe, head) plus optional
+  group-by aggregates and a saved chart; `setup.sh` installs pandas/matplotlib; `reference/recipes.md`
+  covers joins/pivots/time-series. The agent runs it via code_exec — pairs naturally with the Data Lake.
+  No new Go dependency (rides the `plugins/builtinskills` seeder). (M861)
 - **Data Lake app-like views for every built-in collection (M860).** After expense + tasks (M856), the
   remaining built-ins now render as apps instead of a raw table: `calendar` (an agenda grouped into
   upcoming/past), `habits` (streak cards), `notes` (a card grid with tags), `bookmarks` (openable link
