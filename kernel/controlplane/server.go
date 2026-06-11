@@ -700,6 +700,8 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.handleSkillRevert(conn, req)
 	case CmdSkillImport:
 		s.handleSkillImport(conn, req)
+	case CmdSkillHygiene:
+		s.handleSkillHygiene(conn, req)
 	case CmdSkillFiles:
 		s.handleSkillFiles(conn, req)
 	case CmdSkillReadFile:

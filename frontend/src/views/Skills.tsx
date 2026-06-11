@@ -19,6 +19,9 @@ interface Skill {
   tools_required?: string[];
   created_ms?: number;
   metrics?: { shadow_wins?: number; shadow_evals?: number; uses?: number; wins?: number };
+  // Present on the hygiene (idle) list (M858).
+  uses?: number;
+  last_used_ms?: number;
 }
 
 const statusTone: Record<string, string> = {
@@ -54,13 +57,19 @@ export function Skills() {
   const [showForm, setShowForm] = useState(false);
   const [editSkill, setEditSkill] = useState<Skill | null>(null);
   const [q, setQ] = useState("");
+  const [idle, setIdle] = useState<Skill[]>([]);
+  const [showIdle, setShowIdle] = useState(false);
 
   async function reload() {
     setLoading(true);
     try {
-      const d = await getJSON<{ skills?: Skill[]; active?: number }>("/api/skills");
+      const [d, h] = await Promise.all([
+        getJSON<{ skills?: Skill[]; active?: number }>("/api/skills"),
+        getJSON<{ idle?: Skill[] }>("/api/skills/hygiene").catch(() => ({ idle: [] }) as { idle?: Skill[] }),
+      ]);
       setSkills(d.skills || []);
       setActive(d.active ?? null);
+      setIdle(h.idle || []);
       setErr(null);
     } catch (e) {
       setErr((e as Error).message);
@@ -113,6 +122,42 @@ export function Skills() {
           <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
         </Button>
       </div>
+
+      {idle.length > 0 && (
+        <div className="rounded-lg border border-warn/40 bg-warn/10 p-2.5">
+          <button onClick={() => setShowIdle((v) => !v)} className="flex w-full items-center gap-1.5 text-[11px] font-semibold text-warn">
+            {showIdle ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" />}
+            {idle.length} idle skill{idle.length === 1 ? "" : "s"} — active but never / long-unused (clutter in the retrieval pool)
+          </button>
+          {showIdle && (
+            <ul className="mt-1.5 space-y-1">
+              {idle.map((s) => (
+                <li key={s.id} className="flex items-center gap-2 text-xs">
+                  <span className="min-w-0 flex-1 truncate font-medium text-foreground/85">{s.name}</span>
+                  <span className="shrink-0 text-[10px] text-muted">{(s.uses ?? 0) === 0 ? "never used" : `${s.uses} uses`}</span>
+                  <button
+                    onClick={() =>
+                      act(s.id!, "/api/skill/quarantine", {
+                        confirm: {
+                          title: `Retire idle skill “${s.name}”?`,
+                          message: "It's pulled from the retrieval pool (quarantined). Reversible — promote it again to restore.",
+                          confirmLabel: "Retire",
+                          danger: true,
+                        },
+                        success: "Idle skill retired",
+                      })
+                    }
+                    disabled={busy === s.id}
+                    className="shrink-0 rounded px-1.5 py-0.5 text-[10px] text-bad hover:bg-bad/10"
+                  >
+                    retire
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
 
       {showForm && (
         <AuthorSkillForm

@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -576,6 +577,45 @@ func (f *Forge) List() ([]Skill, error) { return f.store.All() }
 
 // Count returns the number of active skills. Used by `agt status`.
 func (f *Forge) Count() int { return f.store.Count() }
+
+// HygieneReport summarizes skill health for the cleanup view (M858).
+type HygieneReport struct {
+	Total  int     `json:"total"`
+	Active int     `json:"active"`
+	Idle   []Skill `json:"idle"` // active skills that look unused (see Hygiene)
+}
+
+// Hygiene reports which ACTIVE skills look idle — never used, or not used since
+// idleCutoffMs — so an operator can prune dead weight from the retrieval pool
+// (M858). Brand-new skills (created after the cutoff) are NOT flagged, so a
+// freshly promoted skill gets a fair chance before it's called idle. idleCutoffMs
+// <= 0 flags every never-used active skill. Idle skills are sorted oldest-seen
+// first (the deadest weight on top).
+func (f *Forge) Hygiene(idleCutoffMs int64) (HygieneReport, error) {
+	all, err := f.store.All()
+	if err != nil {
+		return HygieneReport{}, err
+	}
+	var rep HygieneReport
+	rep.Total = len(all)
+	for _, sk := range all {
+		if sk.Status != StatusActive {
+			continue
+		}
+		rep.Active++
+		neverUsed := sk.Metrics.Uses == 0
+		stale := idleCutoffMs > 0 && sk.Metrics.LastUsedMS > 0 && sk.Metrics.LastUsedMS < idleCutoffMs
+		// Give new skills a grace period: only flag if it predates the cutoff.
+		oldEnough := idleCutoffMs <= 0 || sk.CreatedMS < idleCutoffMs
+		if (neverUsed || stale) && oldEnough {
+			rep.Idle = append(rep.Idle, sk)
+		}
+	}
+	sort.Slice(rep.Idle, func(i, j int) bool {
+		return rep.Idle[i].Metrics.LastUsedMS < rep.Idle[j].Metrics.LastUsedMS
+	})
+	return rep, nil
+}
 
 // get is the internal "must exist" lookup.
 func (f *Forge) get(id string) (Skill, bool, error) {
