@@ -25,6 +25,14 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   `delegate` tool now coaches the leader pattern and prefers reusing an existing named agent. (M843)
 
 ### Added
+- **Built-in docker-services skill bundle (M863).** A fourth out-of-the-box skill (after browser-use,
+  computer-use, data-analysis) that lets agents stand up real self-hosted services in the background via
+  Docker — Postgres, Redis, MinIO, Ollama, n8n, … — and tear them down cleanly (#51). `scripts/svc.sh`
+  wraps the lifecycle (`up`/`down`/`nuke`/`ls`/`logs`/`ip`), labelling every container `agezt.service=1`
+  and naming it `agezt-<name>` so agezt's services stay discoverable and reapable without touching the
+  user's own containers; `up` is idempotent and adds `--restart unless-stopped`. `reference/services.md`
+  ships ready recipes with ports, named volumes, and connection strings. Agents run it via the existing
+  shell/code_exec tools — no new Go dependency (rides the `plugins/builtinskills` seeder). (M863)
 - **Overseer supervisory dashboard (M862).** A new read-only view (Agents → Overseer) that folds three
   existing read routes into one at-a-glance triage screen, refreshing every 5s: the **Active runs** panel
   (runs still `running`, with model/iters/start time and a sub-agent tag for delegated runs), an
