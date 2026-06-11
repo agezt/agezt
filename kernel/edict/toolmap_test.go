@@ -28,6 +28,11 @@ func TestCapabilityForToolCall(t *testing.T) {
 		{"http", `{"method":"  post  ","url":"https://x"}`, CapHTTPPost},
 		// A download (fetch) is a network GET that saves the bytes (M831).
 		{"fetch", `{"url":"https://x/cat.png"}`, CapHTTPGet},
+		// The artifacts tool (M832): list/read are file-read; delete is file-delete.
+		{"artifacts", `{"op":"list"}`, CapFileRead},
+		{"artifacts", `{"op":"read","id":"art-x"}`, CapFileRead},
+		{"artifacts", `{"op":"  DELETE  ","id":"art-x"}`, CapFileDelete},
+		{"artifacts", `{}`, CapFileRead}, // garbled call lands on read (low-risk default)
 		{"remote_run", `{"task":"x"}`, CapRemoteRun},
 		{"notify", `{"text":"hi"}`, CapNotify},
 		{"homeassistant", `{"operation":"get_states","entity_id":"light.x"}`, CapHomeAssistantRead},

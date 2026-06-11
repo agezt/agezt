@@ -56,6 +56,18 @@ func CapabilityForToolCall(toolName string, input json.RawMessage) Capability {
 	case "fetch":
 		// A download is a network GET that saves the bytes — same capability as http.get.
 		return CapHTTPGet
+	case "artifacts":
+		var p struct {
+			Op string `json:"op"`
+		}
+		_ = json.Unmarshal(input, &p)
+		if strings.EqualFold(strings.TrimSpace(p.Op), "delete") {
+			// Removing a saved file is the file-delete axis.
+			return CapFileDelete
+		}
+		// list/read (and anything unrecognised) reads stored files — the low-risk
+		// default, so a garbled call lands on read rather than gaining delete.
+		return CapFileRead
 	case "schedule":
 		return CapSchedule
 	case "runs":

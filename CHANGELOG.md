@@ -12,6 +12,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **New `artifacts` tool — the agent can list/read/delete its own saved files.** Files that `fetch`,
+  the tool-output offloader, or inbound-image persistence put into the artifact store were readable
+  only from the Files view; now the agent can `artifacts {op:list}` (metadata, filterable by
+  kind/source/corr), `{op:read, id}` (a text file's contents inline — binary reports metadata
+  instead), and `{op:delete, id}`. So a file saved in one run is usable in the next. Reuses the
+  file-read / file-delete capabilities — no new grant or env var. (M832)
 - **New `fetch` tool — download a URL and keep the file.** Agents can now save binary content from
   the web (an image, PDF, archive, dataset) straight into the artifact store: `fetch {url, name?}`
   downloads through the SSRF-guarded client (≤50 MiB), detects the mime, and files it in the Files
