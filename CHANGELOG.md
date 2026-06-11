@@ -11,6 +11,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 
 ## [Unreleased]
 
+### Fixed
+- **Data Lake record edit/delete are now visible (M855).** The per-record edit and delete controls in
+  the Data browse view were hover-only (`opacity-0`), so they looked missing. They're now always-shown
+  pencil and trash icon buttons per row (the edit tooltip also surfaces who added/updated the record).
+  The underlying CRUD (`/api/data/{insert,update,delete}`) was already there and is verified end to end. (M855)
+
 ### Changed
 - **Agents can delegate in depth — leader/worker trees by default (M843).** Delegation nesting now
   defaults to depth 3 (was 1): a lead agent can split a task, delegate the parts, and those sub-agents
