@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseInline, parseMarkdown } from "@/lib/markdown";
+import { parseInline, parseMarkdown, safeHref } from "@/lib/markdown";
 
 describe("parseInline", () => {
   it("splits inline code, bold and italic out of plain text", () => {
@@ -21,6 +21,28 @@ describe("parseInline", () => {
 
   it("returns a single text token when there's no markup", () => {
     expect(parseInline("just words")).toEqual([{ t: "text", v: "just words" }]);
+  });
+
+  it("parses [text](href) links and strikethrough (M825)", () => {
+    expect(parseInline("see [the docs](https://agezt.dev/x) here")).toEqual([
+      { t: "text", v: "see " },
+      { t: "link", v: "the docs", href: "https://agezt.dev/x" },
+      { t: "text", v: " here" },
+    ]);
+    expect(parseInline("~~old~~ new")).toEqual([
+      { t: "del", v: "old" },
+      { t: "text", v: " new" },
+    ]);
+  });
+
+  it("renders an unsafe-scheme link as literal text, never executes it", () => {
+    // javascript: href must not become a <link>; falls through as plain text.
+    expect(parseInline("[x](javascript:alert)")).toEqual([
+      { t: "text", v: "[x](javascript:alert)" },
+    ]);
+    expect(safeHref("javascript:alert(1)")).toBe("");
+    expect(safeHref("https://ok.com")).toBe("https://ok.com");
+    expect(safeHref("mailto:a@b.com")).toBe("mailto:a@b.com");
   });
 
   it("strips LaTeX math delimiters, keeping the expression", () => {

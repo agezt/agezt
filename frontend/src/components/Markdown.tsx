@@ -139,6 +139,20 @@ function renderInline(tokens: Inline[]) {
         return <strong key={i} className="font-semibold">{tok.v}</strong>;
       case "em":
         return <em key={i}>{tok.v}</em>;
+      case "del":
+        return <del key={i} className="text-muted">{tok.v}</del>;
+      case "link":
+        return (
+          <a
+            key={i}
+            href={tok.href}
+            target="_blank"
+            rel="noopener noreferrer nofollow"
+            className="text-accent underline underline-offset-2 hover:opacity-80"
+          >
+            {tok.v}
+          </a>
+        );
       default:
         return <Fragment key={i}>{tok.v}</Fragment>;
     }
