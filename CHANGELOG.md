@@ -19,6 +19,14 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   `delegate` tool now coaches the leader pattern and prefers reusing an existing named agent. (M843)
 
 ### Added
+- **Agents know their own (unlimited) capabilities (M848).** Every run's environment preamble now
+  carries a "What you can do — act without artificial limits" briefing, tuned to the tools actually
+  present: write and run Python / Node / Deno (code_exec), install and run CLIs and npm/pip/cargo
+  packages and background services (shell — "if a command is missing, install it, then use it"), build
+  whole apps in the workspace, forge durable tools, and capture what works as a reusable bundled skill.
+  It stays honest about the only real rails (explicit denials, budgets, SSRF/secret guards) and tells the
+  agent to default to action otherwise — the system-prompt expression of the default-allow posture, so
+  agents act boldly instead of assuming limits. (M848)
 - **Skills can ship a bundle of files — agentskills.io shape (M847).** A skill is no longer just an
   inline body: it can carry reference files and scripts on disk. `agt skill import <dir>` ingests an
   agentskills.io-style directory (`SKILL.md` + `reference/…` + `scripts/…`); the resources are
