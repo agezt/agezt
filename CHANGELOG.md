@@ -19,6 +19,14 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   `delegate` tool now coaches the leader pattern and prefers reusing an existing named agent. (M843)
 
 ### Added
+- **Browser-use, out of the box (M852).** Full agentic browser automation — navigate, click, type,
+  submit forms, screenshot, and extract from JavaScript-rendered pages — now works without setup. The
+  daemon seeds a built-in `browser-use` skill bundle (agentskills.io shape) into the Forge at startup,
+  active and ready: a `SKILL.md`, a one-time `scripts/setup.sh` (installs Playwright + Chromium), and a
+  stateless `scripts/browse.mjs` Playwright driver the agent runs via code_exec (it screenshots, looks,
+  and acts in a loop). No new Go dependency — it rides the always-on code_exec sandbox and the M848
+  "you can install/run anything" posture, keeping the single-binary, one-dep ethos. New
+  `plugins/builtinskills` go:embed-seeds the bundle (idempotent, content-addressed). (M852)
 - **Memory provenance — who added & updated each fact (M851).** Every memory record now records WHO
   wrote it: the acting agent's slug, or `operator` for a console/CLI write, or `distill` for an
   auto-distilled summary. `added_by` is first-writer-wins (the original author survives a peer's
