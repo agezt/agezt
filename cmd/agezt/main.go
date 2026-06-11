@@ -574,6 +574,39 @@ func runDaemon(stdout, stderr io.Writer) int {
 		maxIterDesc = fmt.Sprintf("%d per run", n)
 	}
 
+	// Autonomous continue past the round cap (M833): when a run exhausts its
+	// tool-round budget without finishing, the loop keeps going on its own — it
+	// injects a "keep working" turn and grants another batch of rounds, up to
+	// AGEZT_MAX_AUTO_CONTINUE times, until the task completes. Defaults to the
+	// agent package's DefaultMaxAutoContinue; a negative value disables it (a run
+	// then stops at the cap with max_iters). Set it high for long unattended jobs.
+	// AGEZT_AUTO_CONTINUE_WAIT tunes the breather before each continuation.
+	autoContinueDesc := fmt.Sprintf("%d×%d rounds (default; set %sMAX_AUTO_CONTINUE)", agent.DefaultMaxAutoContinue, cfg.MaxIter, brand.EnvPrefix)
+	if spec := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "MAX_AUTO_CONTINUE")); spec != "" {
+		n, perr := strconv.Atoi(spec)
+		if perr != nil {
+			fmt.Fprintf(stderr, "%s: %sMAX_AUTO_CONTINUE: want an integer, got %q\n", brand.Binary, brand.EnvPrefix, spec)
+			return 1
+		}
+		cfg.MaxAutoContinue = n
+		switch {
+		case n < 0:
+			autoContinueDesc = "disabled (stops at the round cap)"
+		case n == 0:
+			autoContinueDesc = fmt.Sprintf("%d×%d rounds (default)", agent.DefaultMaxAutoContinue, cfg.MaxIter)
+		default:
+			autoContinueDesc = fmt.Sprintf("%d×%d rounds", n, cfg.MaxIter)
+		}
+	}
+	if spec := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "AUTO_CONTINUE_WAIT")); spec != "" {
+		d, perr := time.ParseDuration(spec)
+		if perr != nil || d < 0 {
+			fmt.Fprintf(stderr, "%s: %sAUTO_CONTINUE_WAIT: want a non-negative duration, got %q\n", brand.Binary, brand.EnvPrefix, spec)
+			return 1
+		}
+		cfg.AutoContinueWait = d
+	}
+
 	// Per-tool-call timeout (M34): AGEZT_TOOL_TIMEOUT=<duration> bounds each
 	// individual tool invocation. Unlike the per-run cap, an overrun fails
 	// only that tool call (the model gets an error result and can adapt) —
@@ -962,6 +995,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 	fmt.Fprintf(stdout, "  delegation       : %s\n", delegationBanner(k))
 	fmt.Fprintf(stdout, "  run timeout      : %s\n", runTimeoutDesc)
 	fmt.Fprintf(stdout, "  max iterations   : %s\n", maxIterDesc)
+	fmt.Fprintf(stdout, "  auto-continue    : %s\n", autoContinueDesc)
 	fmt.Fprintf(stdout, "  tool timeout     : %s\n", toolTimeoutDesc)
 	fmt.Fprintf(stdout, "  approval timeout : %s\n", approvalTimeoutDesc)
 	fmt.Fprintf(stdout, "  warden           : %s\n", wardDesc)

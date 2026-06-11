@@ -12,6 +12,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Runs continue themselves past the iteration cap (M833).** A run that exhausts its tool-round
+  budget without finishing no longer just stops with `max_iters` — the loop automatically injects a
+  "keep going" turn and grants another batch of rounds, up to `AGEZT_MAX_AUTO_CONTINUE` times (default
+  5), until the task completes. Each continuation is journaled as `task.continued`, with a short,
+  configurable breather (`AGEZT_AUTO_CONTINUE_WAIT`) between segments. Applies to chat and sub-agents;
+  set the cap negative to restore the old fail-at-cap behaviour. The per-run cost cap, identical-call
+  guard, and halt/timeout remain the safety nets. (M833)
 - **New `artifacts` tool — the agent can list/read/delete its own saved files.** Files that `fetch`,
   the tool-output offloader, or inbound-image persistence put into the artifact store were readable
   only from the Files view; now the agent can `artifacts {op:list}` (metadata, filterable by

@@ -398,12 +398,13 @@ func TestRun_MaxIterStops(t *testing.T) {
 	prov := &repeatingToolUseProvider{}
 
 	_, err := agent.Run(context.Background(), agent.LoopConfig{
-		Provider:      prov,
-		Tools:         map[string]agent.Tool{"shell": shell.New()},
-		Bus:           b,
-		Actor:         "agent-loop",
-		CorrelationID: "corr-loop",
-		MaxIter:       3,
+		Provider:        prov,
+		Tools:           map[string]agent.Tool{"shell": shell.New()},
+		Bus:             b,
+		Actor:           "agent-loop",
+		CorrelationID:   "corr-loop",
+		MaxIter:         3,
+		MaxAutoContinue: -1, // test the bare MaxIter stop, not the M833 auto-continue
 	}, "loop forever")
 	if !errors.Is(err, agent.ErrMaxIter) {
 		t.Errorf("got err=%v, want ErrMaxIter", err)
@@ -431,6 +432,21 @@ func failureReasonOf(t *testing.T, j interface {
 		return nil
 	})
 	return reason, ok
+}
+
+// journalHasKind reports whether any journaled event has the given kind.
+func journalHasKind(t *testing.T, j interface {
+	Range(func(*event.Event) error) error
+}, kind event.Kind) bool {
+	t.Helper()
+	found := false
+	_ = j.Range(func(e *event.Event) error {
+		if e.Kind == kind {
+			found = true
+		}
+		return nil
+	})
+	return found
 }
 
 // TestRun_ProviderErrorEmitsTaskFailed — a provider that errors out must
@@ -469,12 +485,13 @@ func TestRun_ProviderErrorEmitsTaskFailed(t *testing.T) {
 func TestRun_MaxIterEmitsTaskFailed(t *testing.T) {
 	b, j := newTestBus(t)
 	_, err := agent.Run(context.Background(), agent.LoopConfig{
-		Provider:      &repeatingToolUseProvider{},
-		Tools:         map[string]agent.Tool{"shell": shell.New()},
-		Bus:           b,
-		Actor:         "agent-loop",
-		CorrelationID: "corr-loop",
-		MaxIter:       2,
+		Provider:        &repeatingToolUseProvider{},
+		Tools:           map[string]agent.Tool{"shell": shell.New()},
+		Bus:             b,
+		Actor:           "agent-loop",
+		CorrelationID:   "corr-loop",
+		MaxIter:         2,
+		MaxAutoContinue: -1, // exercise the bare max-iter failure, not auto-continue
 	}, "loop forever")
 	if !errors.Is(err, agent.ErrMaxIter) {
 		t.Fatalf("got err=%v, want ErrMaxIter", err)
@@ -485,6 +502,84 @@ func TestRun_MaxIterEmitsTaskFailed(t *testing.T) {
 	}
 	if reason != "max_iters" {
 		t.Errorf("reason = %q want %q", reason, "max_iters")
+	}
+}
+
+// finishAfterProvider asks for a tool call on each of its first `finishAt` calls,
+// then returns a final text answer — so a run with a small MaxIter must be
+// auto-continued (M833) to reach completion.
+type finishAfterProvider struct {
+	calls    int
+	finishAt int
+}
+
+func (p *finishAfterProvider) Name() string { return "finish-after" }
+func (p *finishAfterProvider) Complete(_ context.Context, _ agent.CompletionRequest) (*agent.CompletionResponse, error) {
+	p.calls++
+	if p.calls >= p.finishAt {
+		return &agent.CompletionResponse{
+			Message:    agent.Message{Role: agent.RoleAssistant, Content: "done"},
+			StopReason: agent.StopEndTurn,
+		}, nil
+	}
+	return &agent.CompletionResponse{
+		Message: agent.Message{
+			Role:      agent.RoleAssistant,
+			ToolCalls: []agent.ToolCall{{ID: "c", Name: "shell", Input: json.RawMessage(`{"command":"true"}`)}},
+		},
+		StopReason: agent.StopToolUse,
+	}, nil
+}
+
+// TestRun_AutoContinue_FinishesPastMaxIter — a run that can't finish within one
+// MaxIter segment is automatically continued and completes (M833), emitting a
+// task.continued event for the continuation.
+func TestRun_AutoContinue_FinishesPastMaxIter(t *testing.T) {
+	b, j := newTestBus(t)
+	// Needs 3 model calls to finish; MaxIter=2 means it must continue once.
+	prov := &finishAfterProvider{finishAt: 3}
+	ans, err := agent.Run(context.Background(), agent.LoopConfig{
+		Provider:         prov,
+		Tools:            map[string]agent.Tool{"shell": shell.New()},
+		Bus:              b,
+		Actor:            "agent-loop",
+		CorrelationID:    "corr-cont",
+		MaxIter:          2,
+		MaxAutoContinue:  3,
+		AutoContinueWait: time.Millisecond, // keep the test fast
+	}, "long task")
+	if err != nil {
+		t.Fatalf("run errored instead of auto-continuing: %v", err)
+	}
+	if ans != "done" {
+		t.Errorf("answer = %q, want %q", ans, "done")
+	}
+	if !journalHasKind(t, j, event.KindTaskContinued) {
+		t.Error("expected a task.continued event for the auto-continuation")
+	}
+}
+
+// TestRun_AutoContinue_BoundedByMax — auto-continue is not infinite: a run that
+// never finishes still gives up after MaxAutoContinue continuations (M833).
+func TestRun_AutoContinue_BoundedByMax(t *testing.T) {
+	b, _ := newTestBus(t)
+	prov := &repeatingToolUseProvider{}
+	_, err := agent.Run(context.Background(), agent.LoopConfig{
+		Provider:         prov,
+		Tools:            map[string]agent.Tool{"shell": shell.New()},
+		Bus:              b,
+		Actor:            "agent-loop",
+		CorrelationID:    "corr-cont2",
+		MaxIter:          2,
+		MaxAutoContinue:  2,
+		AutoContinueWait: time.Millisecond,
+	}, "loop forever")
+	if !errors.Is(err, agent.ErrMaxIter) {
+		t.Fatalf("got err=%v, want ErrMaxIter after exhausting continuations", err)
+	}
+	// 2 initial rounds + 2 continuations × 2 rounds = 6 model calls, then stop.
+	if prov.calls != 6 {
+		t.Errorf("provider called %d times, want 6 (2 + 2×2 continuations)", prov.calls)
 	}
 }
 
@@ -1073,7 +1168,7 @@ func TestRun_LoopGuard_CapsIdenticalCalls(t *testing.T) {
 	_, err := agent.Run(context.Background(), agent.LoopConfig{
 		Provider: &repeatEchoProvider{}, Tools: map[string]agent.Tool{"echo": tool},
 		Bus: b, Actor: "a", CorrelationID: "c",
-		MaxIter: 12, MaxIdenticalToolCalls: 3,
+		MaxIter: 12, MaxIdenticalToolCalls: 3, MaxAutoContinue: -1,
 	}, "loop")
 	if !errors.Is(err, agent.ErrMaxIter) {
 		t.Errorf("got err=%v, want ErrMaxIter", err)
@@ -1090,7 +1185,7 @@ func TestRun_LoopGuard_DistinctInputsNotCapped(t *testing.T) {
 	_, err := agent.Run(context.Background(), agent.LoopConfig{
 		Provider: &repeatEchoProvider{varyInput: true}, Tools: map[string]agent.Tool{"echo": tool},
 		Bus: b, Actor: "a", CorrelationID: "c",
-		MaxIter: 6, MaxIdenticalToolCalls: 3,
+		MaxIter: 6, MaxIdenticalToolCalls: 3, MaxAutoContinue: -1,
 	}, "loop")
 	if !errors.Is(err, agent.ErrMaxIter) {
 		t.Errorf("got err=%v, want ErrMaxIter", err)
@@ -1107,7 +1202,7 @@ func TestRun_LoopGuard_DisabledByNegative(t *testing.T) {
 	_, _ = agent.Run(context.Background(), agent.LoopConfig{
 		Provider: &repeatEchoProvider{}, Tools: map[string]agent.Tool{"echo": tool},
 		Bus: b, Actor: "a", CorrelationID: "c",
-		MaxIter: 5, MaxIdenticalToolCalls: -1, // disabled
+		MaxIter: 5, MaxIdenticalToolCalls: -1, MaxAutoContinue: -1, // both guards disabled
 	}, "loop")
 	if tool.calls != 5 {
 		t.Errorf("tool executed %d times, want 5 (guard disabled)", tool.calls)

@@ -193,6 +193,20 @@ type LoopConfig struct {
 	System   string
 	// MaxIter caps tool-call rounds (DECISIONS E5: default 25).
 	MaxIter int
+	// MaxAutoContinue caps how many times the loop AUTOMATICALLY continues a run
+	// that exhausted MaxIter without a final answer (M833): instead of failing
+	// with ErrMaxIter, it injects a "keep going" turn and grants another MaxIter
+	// rounds, repeating until the task completes or this cap is hit. 0 → default
+	// (DefaultMaxAutoContinue); a negative value disables auto-continue (the old
+	// fail-at-MaxIter behaviour). The per-run cost cap, the identical-call guard,
+	// and context cancellation/timeout remain the real safety nets across
+	// continuations.
+	MaxAutoContinue int
+	// AutoContinueWait is an optional pause before each automatic continuation
+	// (M833) — a brief breather so a wedged run doesn't hammer the provider, and
+	// a window for an operator to halt. 0 → DefaultAutoContinueWait. Honoured
+	// ctx-aware: a cancel during the wait ends the run immediately.
+	AutoContinueWait time.Duration
 	// ToolTimeout, when > 0, bounds each individual tool invocation's
 	// wall-clock (M34). A tool that overruns has its call context cancelled
 	// and the loop feeds an IsError result ("tool X exceeded its … timeout")
@@ -507,6 +521,27 @@ type Policy func(ctx context.Context, tc ToolCall) PolicyVerdict
 // and the chat's "Continue" resumes a run that still hits the cap.
 const DefaultMaxIter = 50
 
+// DefaultMaxAutoContinue is how many times a run is automatically continued past
+// MaxIter before it gives up with ErrMaxIter (M833). With the default MaxIter of
+// 50, this is up to 6×50 = 300 tool-rounds of autonomous work before a run that
+// still hasn't finished stops on its own. AGEZT_MAX_AUTO_CONTINUE overrides; set
+// it high (e.g. for a long unattended job) or negative to disable auto-continue.
+const DefaultMaxAutoContinue = 5
+
+// DefaultAutoContinueWait is the breather before each automatic continuation
+// (M833) — short enough that chat doesn't feel hung, long enough to avoid
+// hammering the provider and to leave a halt window. AGEZT_AUTO_CONTINUE_WAIT
+// overrides.
+const DefaultAutoContinueWait = 2 * time.Second
+
+// autoContinuePrompt is the user turn injected when a run is auto-continued past
+// MaxIter (M833). It tells the model it ran out of its round budget mid-task and
+// must press on, and — crucially — to STOP and give a final answer once the work
+// is actually done, so a finished task ends instead of burning continuations.
+const autoContinuePrompt = "[auto-continue] You reached your tool-round budget for this segment but the task isn't finished yet. " +
+	"Keep going from exactly where you left off — do not restart or repeat completed work. " +
+	"As soon as the task IS fully done, stop calling tools and give your final answer."
+
 // DefaultMaxIdenticalToolCalls is how many times the same (tool, input) may run
 // in one run before the loop guard refuses further executions (M116). Generous
 // enough for legitimate retries, far below MaxIter so a stuck loop can't re-run
@@ -618,6 +653,17 @@ func Run(ctx context.Context, cfg LoopConfig, userIntent string) (answer string,
 	if cfg.MaxIdenticalToolCalls == 0 {
 		cfg.MaxIdenticalToolCalls = DefaultMaxIdenticalToolCalls
 	}
+	// M833: 0 → default auto-continue budget; negative → disabled (old
+	// fail-at-MaxIter behaviour). Resolved once here so the loop math is simple.
+	if cfg.MaxAutoContinue == 0 {
+		cfg.MaxAutoContinue = DefaultMaxAutoContinue
+	}
+	if cfg.MaxAutoContinue < 0 {
+		cfg.MaxAutoContinue = 0
+	}
+	if cfg.AutoContinueWait == 0 {
+		cfg.AutoContinueWait = DefaultAutoContinueWait
+	}
 	if cfg.Tools == nil {
 		cfg.Tools = map[string]Tool{}
 	}
@@ -728,7 +774,46 @@ func Run(ctx context.Context, cfg LoopConfig, userIntent string) (answer string,
 		}
 	}
 
-	for iter := range cfg.MaxIter {
+	// Auto-continue (M833): the loop runs in SEGMENTS of cfg.MaxIter rounds. When a
+	// segment exhausts without a final answer, instead of failing immediately we
+	// inject a "keep going" turn and grant another segment — up to cfg.MaxAutoContinue
+	// times — so a long task finishes autonomously instead of stopping at the cap.
+	// `iter` is monotonic across segments (so journal iter numbers keep climbing);
+	// segmentEnd is the round budget for the current segment.
+	autoContinuesUsed := 0
+	segmentEnd := cfg.MaxIter
+	for iter := 0; ; iter++ {
+		if iter >= segmentEnd {
+			// Segment exhausted without a final answer. Continue automatically if
+			// budget remains; otherwise fall through to ErrMaxIter.
+			if autoContinuesUsed >= cfg.MaxAutoContinue {
+				break
+			}
+			if err := ctx.Err(); err != nil {
+				return "", err
+			}
+			autoContinuesUsed++
+			if _, err := publish(event.KindTaskContinued, "task", map[string]any{
+				"attempt":      autoContinuesUsed,
+				"of":           cfg.MaxAutoContinue,
+				"iters_so_far": iter,
+			}); err != nil {
+				return "", fmt.Errorf("agent: publish task.continued: %w", err)
+			}
+			// Breather before pressing on (ctx-aware so a halt during the wait
+			// ends the run immediately rather than after the sleep).
+			if cfg.AutoContinueWait > 0 {
+				t := time.NewTimer(cfg.AutoContinueWait)
+				select {
+				case <-ctx.Done():
+					t.Stop()
+					return "", ctx.Err()
+				case <-t.C:
+				}
+			}
+			messages = append(messages, Message{Role: RoleUser, Content: autoContinuePrompt})
+			segmentEnd += cfg.MaxIter
+		}
 		if err := ctx.Err(); err != nil {
 			return "", err
 		}

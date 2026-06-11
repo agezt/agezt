@@ -109,6 +109,13 @@ const (
 	KindRunResumed Kind = "run.resumed"
 	KindRunStepped Kind = "run.stepped"
 	KindRunSteered Kind = "run.steered"
+	// KindTaskContinued records that a run exhausted its tool-round budget
+	// (MaxIter) without a final answer and was AUTOMATICALLY continued (M833) —
+	// the loop injected a "keep going" turn and granted another batch of rounds
+	// instead of failing with max_iters. Payload: {attempt, of, iters_so_far}.
+	// The audit trail for "why did this run keep going past the cap"; bounded by
+	// MaxAutoContinue, so a run can't continue forever silently.
+	KindTaskContinued Kind = "task.continued"
 	// KindPolicyCompacted records that the durable policy overlay was compacted to
 	// a snapshot (M176). Its payload {through_seq, content_hash} binds the on-disk
 	// snapshot to the tamper-evident journal: at boot the snapshot is trusted only
@@ -360,6 +367,7 @@ var knownKinds = map[Kind]struct{}{
 	KindRunResumed:                {},
 	KindRunStepped:                {},
 	KindRunSteered:                {},
+	KindTaskContinued:             {},
 	KindPolicyCompacted:           {},
 	KindNetguardBlocked:           {},
 	KindCapabilityRejected:        {},

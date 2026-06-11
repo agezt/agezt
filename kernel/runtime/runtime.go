@@ -112,6 +112,16 @@ type Config struct {
 	// MaxIter caps tool-call rounds per run (DECISIONS E5).
 	MaxIter int
 
+	// MaxAutoContinue caps how many times a run that exhausts MaxIter without a
+	// final answer is automatically continued (M833) before failing with
+	// max_iters. 0 → the agent loop's default; negative → disabled. Passed
+	// straight through to LoopConfig.
+	MaxAutoContinue int
+
+	// AutoContinueWait is the breather before each automatic continuation (M833).
+	// 0 → the loop's default. Passed straight through to LoopConfig.
+	AutoContinueWait time.Duration
+
 	// MaxDuration is an optional per-run wall-clock budget (M31). When > 0,
 	// RunWith wraps the run context with this deadline; a run that overruns
 	// is cancelled and the agent loop returns context.DeadlineExceeded,
@@ -1822,6 +1832,8 @@ func (k *Kernel) RunWith(ctx context.Context, corr, intent string) (string, erro
 		AgentDailyCeilingMc:  agentDailyMcFromCtx(runCtx),
 		System:               system,
 		MaxIter:              k.cfg.MaxIter,
+		MaxAutoContinue:      k.cfg.MaxAutoContinue,  // M833: autonomous continue past MaxIter
+		AutoContinueWait:     k.cfg.AutoContinueWait, // M833
 		ToolTimeout:          k.cfg.ToolTimeout,
 		Actor:                actor,
 		CorrelationID:        corr,
