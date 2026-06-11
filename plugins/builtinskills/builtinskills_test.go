@@ -77,6 +77,30 @@ func TestSeedAll_InstallsActiveBrowserUse(t *testing.T) {
 	}
 }
 
+func TestSeedAll_InstallsComputerUse(t *testing.T) {
+	f := newForge(t)
+	if _, err := SeedAll(f, ""); err != nil {
+		t.Fatalf("SeedAll: %v", err)
+	}
+	// The computer-use bundle's desktop driver must be materialized.
+	driver, err := f.Bundles().Read("computer-use", "scripts/desktop.py")
+	if err != nil || len(driver) == 0 {
+		t.Fatalf("computer-use desktop.py unreadable/empty: %v", err)
+	}
+	files, _ := f.Bundles().List("computer-use")
+	want := map[string]bool{"scripts/desktop.py": false, "scripts/setup.sh": false, "reference/patterns.md": false}
+	for _, rel := range files {
+		if _, ok := want[rel]; ok {
+			want[rel] = true
+		}
+	}
+	for rel, found := range want {
+		if !found {
+			t.Errorf("computer-use bundle missing %q (got %v)", rel, files)
+		}
+	}
+}
+
 func TestSeedAll_Idempotent(t *testing.T) {
 	f := newForge(t)
 	if _, err := SeedAll(f, ""); err != nil {
