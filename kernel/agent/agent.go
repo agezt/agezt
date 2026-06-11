@@ -502,8 +502,10 @@ type PolicyVerdict struct {
 // kernel/runtime).
 type Policy func(ctx context.Context, tc ToolCall) PolicyVerdict
 
-// DefaultMaxIter is DECISIONS E5.
-const DefaultMaxIter = 25
+// DefaultMaxIter caps tool-call rounds per run (DECISIONS E5). Raised from 25 to
+// 50 (M824) so deeper agentic tasks finish in one run; AGEZT_MAX_ITER overrides,
+// and the chat's "Continue" resumes a run that still hits the cap.
+const DefaultMaxIter = 50
 
 // DefaultMaxIdenticalToolCalls is how many times the same (tool, input) may run
 // in one run before the loop guard refuses further executions (M116). Generous
