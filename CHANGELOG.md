@@ -12,6 +12,10 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Built-in Data Lake collections (M835).** The Personal Data Lake now ships seven ready-to-use
+  collections out of the box — **expenses, calendar, tasks, notes, habits, bookmarks, contacts** —
+  each with a typed field schema and a `view` hint for a bespoke UI. Seeded idempotently at boot;
+  always present and undroppable, but you (and agents) fill and query them freely. (M835)
 - **Personal Data Lake — agents get real databases (M834).** A new `db` tool lets agents build and
   use structured **collections** (tables): `create_collection`, `insert`, `query` (search / exact-match
   / sort / limit), `get`, `update`, `delete`, `drop_collection`, `list_collections`. Collections are

@@ -145,6 +145,40 @@ func TestEnsureIdempotentAndPersistence(t *testing.T) {
 	}
 }
 
+func TestSeedBuiltins(t *testing.T) {
+	l := newLake(t)
+	created, err := l.SeedBuiltins("system")
+	if err != nil {
+		t.Fatalf("SeedBuiltins: %v", err)
+	}
+	want := len(BuiltinSchemas())
+	if want == 0 {
+		t.Fatal("no built-in schemas defined")
+	}
+	if len(created) != want {
+		t.Fatalf("first seed created %d, want %d", len(created), want)
+	}
+	// Idempotent: a second seed creates nothing new.
+	created2, _ := l.SeedBuiltins("system")
+	if len(created2) != 0 {
+		t.Errorf("second seed created %v, want none", created2)
+	}
+	// Built-ins are present, marked, and protected from drop.
+	for _, sc := range BuiltinSchemas() {
+		got, ok := l.Schema(sc.Name)
+		if !ok || !got.Builtin || !got.System || got.View == "" {
+			t.Fatalf("built-in %q not seeded correctly: %+v", sc.Name, got)
+		}
+		if err := l.DropCollection(sc.Name); err != ErrSystem {
+			t.Errorf("drop built-in %q = %v, want ErrSystem", sc.Name, err)
+		}
+	}
+	// A user can still add records to a built-in.
+	if _, err := l.Insert("contacts", map[string]any{"name": "Ada"}, "agent"); err != nil {
+		t.Errorf("insert into built-in: %v", err)
+	}
+}
+
 func TestQueryNotFound(t *testing.T) {
 	l := newLake(t)
 	if _, err := l.Query("nope", Query{}); err != ErrNotFound {
