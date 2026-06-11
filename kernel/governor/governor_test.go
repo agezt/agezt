@@ -288,7 +288,9 @@ func TestComplete_FallbackChain(t *testing.T) {
 		&governor.ProviderInfo{Name: "bad2", Provider: bad2, AuthMode: governor.AuthAPIKey},
 		&governor.ProviderInfo{Name: "local", Provider: good, AuthMode: governor.AuthLocal, IsFallback: true},
 	)
-	g, _ := governor.New(governor.Config{Registry: r, Bus: b})
+	// ProviderRetries -1: this test asserts the FALLBACK chain semantics; the
+	// in-place transient retry layer (M882) has its own tests.
+	g, _ := governor.New(governor.Config{Registry: r, Bus: b, ProviderRetries: -1})
 
 	resp, err := g.Complete(context.Background(), agent.CompletionRequest{Model: "llama3.2"})
 	if err != nil {
@@ -1224,7 +1226,9 @@ func TestGovernor_CompleteStreamFallsBack(t *testing.T) {
 		&governor.ProviderInfo{Name: "p1", Provider: primary, AuthMode: governor.AuthAPIKey},
 		&governor.ProviderInfo{Name: "p2", Provider: fallback, IsFallback: true},
 	)
-	g, err := governor.New(governor.Config{Registry: r, Bus: b})
+	// ProviderRetries -1: this test asserts streaming FALLBACK parity; the
+	// in-place transient retry layer (M882) has its own tests.
+	g, err := governor.New(governor.Config{Registry: r, Bus: b, ProviderRetries: -1})
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
