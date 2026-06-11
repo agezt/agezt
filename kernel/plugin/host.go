@@ -451,6 +451,22 @@ func (p *Plugin) Tools(prefix string) map[string]agent.Tool {
 	return out
 }
 
+// ToolCapabilities returns the DECLARED capability per prefixed tool name
+// (M900): only tools whose manifest carried a non-empty Capability appear.
+// The kernel validates each declaration against its known capability set and
+// feeds the survivors to the policy engine, so a plugin tool can join an
+// existing policy axis (and its trust level / hard-deny rules) instead of
+// classifying as an unknown one-off.
+func (p *Plugin) ToolCapabilities(prefix string) map[string]string {
+	out := map[string]string{}
+	for _, def := range p.tools {
+		if def.Capability != "" {
+			out[prefix+def.Name] = def.Capability
+		}
+	}
+	return out
+}
+
 // Invoke is the lower-level entry point — callers usually go
 // through the remoteTool wrapper instead.
 func (p *Plugin) Invoke(ctx context.Context, name string, input json.RawMessage) (InvokeResult, error) {

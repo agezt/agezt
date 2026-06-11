@@ -102,6 +102,16 @@ type ToolDef struct {
 	Name        string          `json:"name"`
 	Description string          `json:"description"`
 	InputSchema json.RawMessage `json:"input_schema"`
+	// Capability optionally declares which policy axis this tool belongs to
+	// (M900) — one of the kernel's known Edict capabilities, e.g. "http.post",
+	// "file.write", "shell". A declared tool joins that axis's trust level and
+	// hard-deny rules instead of landing on the unknown-capability default, so
+	// an operator's "http.post asks first" applies to a third-party plugin's
+	// POST tool exactly like the built-in one. Empty (the default) keeps the
+	// historical classification (the tool's own name as a one-off capability);
+	// an UNKNOWN declared value is ignored the same way — a plugin cannot
+	// invent axes, only join existing ones.
+	Capability string `json:"capability,omitempty"`
 }
 
 // InitializeResult is the payload of the initialize response.
