@@ -52,6 +52,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   the Runs view. Purely frontend — reuses the existing event provider and read routes. (M867)
 
 ### Added
+- **Built-in http-api-client skill bundle (M891).** An eleventh out-of-the-box skill — the write-capable
+  complement to `fetch`/web-research — that calls REST/JSON APIs (#34). `scripts/api.py` does any method
+  with headers, query params, JSON or form bodies, and bearer/basic auth, returning
+  `{ok,status,elapsed_ms,headers,json|text}` (a 4xx/5xx returns the error body rather than throwing, and
+  the request's Authorization header is never echoed back); `setup.sh` installs requests. Completes the
+  integration loop: API → data-analysis → sql-db → archive-tools. Rides the `plugins/builtinskills`
+  seeder. (M891)
 - **Built-in archive-tools skill bundle (M890).** A tenth out-of-the-box skill that packs/unpacks zip and
   tar(.gz) archives (#34) — **zero pip deps** (Python stdlib only). `scripts/arc.py` has four ops: `list`
   (entries without extracting), `extract` (path-traversal-guarded — refuses zip-slip members), `zip`, and
