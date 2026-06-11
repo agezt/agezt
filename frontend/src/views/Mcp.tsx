@@ -14,12 +14,18 @@ export interface MCPServer {
   name: string;
   command?: string;
   args?: string[];
+  // url + transport: remote (Streamable HTTP) servers (M904). transport is
+  // "stdio" | "http"; url is set only for http.
+  url?: string;
+  transport?: string;
   enabled?: boolean;
   description?: string;
   attached?: boolean;
   tool_count?: number;
   // env values are redacted by the backend; only the key names come back (M898).
   env_keys?: string[];
+  // header values are redacted too; only the names come back for remote servers (M904).
+  header_keys?: string[];
   // tool_allow: optional per-server allowlist of tool names to expose (M899).
   tool_allow?: string[];
 }
@@ -60,18 +66,56 @@ export function parseEnv(s: string): Record<string, string> {
   return out;
 }
 
+// parseHeaders turns the form's "Name: value" lines into the wire header map for
+// a remote server (M904) — e.g. "Authorization: Bearer ...". Blank/"#" lines and
+// lines without ":" are dropped; the value keeps any later ":". Pure + tested.
+export function parseHeaders(s: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const line of (s || "").split("\n")) {
+    const t = line.trim();
+    if (!t || t.startsWith("#")) continue;
+    const c = t.indexOf(":");
+    if (c <= 0) continue;
+    const key = t.slice(0, c).trim();
+    if (key) out[key] = t.slice(c + 1).trim();
+  }
+  return out;
+}
+
+// urlOk is a light client-side check mirroring the kernel: http(s) with a host.
+// The server re-validates; this just keeps the Register button honest. Pure.
+export function urlOk(s: string): boolean {
+  try {
+    const u = new URL((s || "").trim());
+    return (u.protocol === "http:" || u.protocol === "https:") && u.host !== "";
+  } catch {
+    return false;
+  }
+}
+
 // CatalogEntry is one preset in the popular-servers gallery (M897). `args` is in
 // the form's space-separated shape; `needs` flags a path/secret the operator must
 // supply before it works. Names obey the kernel rule (≤16 lowercase alnum).
 export interface CatalogEntry {
   name: string;
-  command: string;
-  args: string;
+  // command/args: a stdio preset. url/headers: a remote (http) preset (M904).
+  // Exactly one shape is set per entry.
+  command?: string;
+  args?: string;
+  url?: string;
   description: string;
   needs?: string;
   // env: names of environment variables this server needs — prefilled (with
   // blank values) into the register form's env field for the operator to fill.
   env?: string[];
+  // headers: names of HTTP headers a remote preset needs — prefilled (with blank
+  // values, "Name: ") into the register form's headers field.
+  headers?: string[];
+}
+
+// transportOf reports a catalog entry's transport from its shape. Pure + tested.
+export function transportOf(e: CatalogEntry): "stdio" | "http" {
+  return e.url ? "http" : "stdio";
 }
 
 // CATALOG: popular Model Context Protocol servers, offered as one-click examples.
@@ -93,6 +137,11 @@ export const CATALOG: CatalogEntry[] = [
   { name: "gdrive", command: "npx", args: "-y @modelcontextprotocol/server-gdrive", description: "Search and read files in Google Drive.", needs: "OAuth credentials (env)" },
   { name: "time", command: "uvx", args: "mcp-server-time", description: "Current time and timezone conversions." },
   { name: "thinking", command: "npx", args: "-y @modelcontextprotocol/server-sequential-thinking", description: "A structured step-by-step reasoning scratchpad." },
+  // Remote (Streamable HTTP) presets (M904) — no local process; the daemon talks
+  // to a hosted endpoint. Most need an Authorization header (a token/PAT).
+  { name: "githubremote", url: "https://api.githubcopilot.com/mcp/", description: "GitHub's hosted MCP endpoint — issues, PRs, repos, code search (no local install).", needs: "Authorization: Bearer <GitHub PAT>", headers: ["Authorization"] },
+  { name: "deepwiki", url: "https://mcp.deepwiki.com/mcp", description: "Ask questions about any public GitHub repo's docs via DeepWiki (hosted, no auth).", },
+  { name: "context7", url: "https://mcp.context7.com/mcp", description: "Up-to-date library/framework docs for coding questions (hosted by Upstash).", needs: "Authorization: Bearer <Context7 API key> (optional)", headers: ["Authorization"] },
 ];
 
 const inputCls =
@@ -114,7 +163,10 @@ export function NewServerForm({
   const [submitting, setSubmitting] = useState(false);
   const set = (k: string, v: string) => setState((s) => ({ ...s, [k]: v }));
   const name = (state.name || "").trim();
-  const valid = serverNameOk(name) && (state.command || "").trim() !== "";
+  const remote = (state.transport || "stdio") === "http";
+  const valid =
+    serverNameOk(name) &&
+    (remote ? urlOk(state.url || "") : (state.command || "").trim() !== "");
 
   async function create() {
     if (!valid) return;
@@ -122,13 +174,19 @@ export function NewServerForm({
     try {
       const server: Record<string, unknown> = {
         name,
-        command: (state.command || "").trim(),
         description: (state.description || "").trim(),
       };
-      const args = splitArgs(state.args || "");
-      if (args.length > 0) server.args = args;
-      const env = parseEnv(state.env || "");
-      if (Object.keys(env).length > 0) server.env = env;
+      if (remote) {
+        server.url = (state.url || "").trim();
+        const headers = parseHeaders(state.headers || "");
+        if (Object.keys(headers).length > 0) server.headers = headers;
+      } else {
+        server.command = (state.command || "").trim();
+        const args = splitArgs(state.args || "");
+        if (args.length > 0) server.args = args;
+        const env = parseEnv(state.env || "");
+        if (Object.keys(env).length > 0) server.env = env;
+      }
       const toolAllow = splitTools(state.tool_allow || "");
       if (toolAllow.length > 0) server.tool_allow = toolAllow;
       await postJSON("/api/mcp/add", { server });
@@ -142,6 +200,26 @@ export function NewServerForm({
 
   return (
     <div className="rounded-lg border border-accent/30 bg-card p-3">
+      <div className="mb-2 inline-flex rounded-md border border-border bg-panel p-0.5 text-xs" role="tablist" aria-label="Transport">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={!remote}
+          onClick={() => set("transport", "stdio")}
+          className={cn("rounded px-2.5 py-1", !remote ? "bg-accent text-accent-foreground" : "text-muted")}
+        >
+          Local (stdio)
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={remote}
+          onClick={() => set("transport", "http")}
+          className={cn("rounded px-2.5 py-1", remote ? "bg-accent text-accent-foreground" : "text-muted")}
+        >
+          Remote (HTTP)
+        </button>
+      </div>
       <div className="grid gap-2 sm:grid-cols-2">
         <label className="flex flex-col gap-1 text-[11px] text-muted">
           Name — permanent handle (lowercase letters/digits); its tools appear as mcp_&lt;name&gt;_&lt;tool&gt;
@@ -153,26 +231,41 @@ export function NewServerForm({
             className={cn(inputCls, name !== "" && !serverNameOk(name) && "border-bad")}
           />
         </label>
-        <label className="flex flex-col gap-1 text-[11px] text-muted">
-          Command — the stdio MCP server executable
-          <input
-            value={state.command || ""}
-            onChange={(e) => set("command", e.target.value)}
-            placeholder="e.g. npx"
-            aria-label="Server command"
-            className={inputCls}
-          />
-        </label>
-        <label className="flex flex-col gap-1 text-[11px] text-muted">
-          Arguments (space-separated)
-          <input
-            value={state.args || ""}
-            onChange={(e) => set("args", e.target.value)}
-            placeholder="-y @modelcontextprotocol/server-everything"
-            aria-label="Server arguments"
-            className={cn(inputCls, "font-mono text-xs")}
-          />
-        </label>
+        {remote ? (
+          <label className="flex flex-col gap-1 text-[11px] text-muted">
+            URL — the remote MCP endpoint (Streamable HTTP)
+            <input
+              value={state.url || ""}
+              onChange={(e) => set("url", e.target.value)}
+              placeholder="https://api.example.com/mcp"
+              aria-label="Server URL"
+              className={cn(inputCls, "font-mono text-xs", (state.url || "").trim() !== "" && !urlOk(state.url || "") && "border-bad")}
+            />
+          </label>
+        ) : (
+          <label className="flex flex-col gap-1 text-[11px] text-muted">
+            Command — the stdio MCP server executable
+            <input
+              value={state.command || ""}
+              onChange={(e) => set("command", e.target.value)}
+              placeholder="e.g. npx"
+              aria-label="Server command"
+              className={inputCls}
+            />
+          </label>
+        )}
+        {!remote && (
+          <label className="flex flex-col gap-1 text-[11px] text-muted">
+            Arguments (space-separated)
+            <input
+              value={state.args || ""}
+              onChange={(e) => set("args", e.target.value)}
+              placeholder="-y @modelcontextprotocol/server-everything"
+              aria-label="Server arguments"
+              className={cn(inputCls, "font-mono text-xs")}
+            />
+          </label>
+        )}
         <label className="flex flex-col gap-1 text-[11px] text-muted">
           Description (optional)
           <input
@@ -183,19 +276,35 @@ export function NewServerForm({
             className={inputCls}
           />
         </label>
-        <label className="flex flex-col gap-1 text-[11px] text-muted sm:col-span-2">
-          Environment (optional) — one <span className="font-mono">KEY=value</span> per line, injected only into this
-          server (e.g. an API token). The base environment stays scrubbed; values are stored in the registry and never
-          shown again, so use a dedicated low-scope token.
-          <textarea
-            value={state.env || ""}
-            onChange={(e) => set("env", e.target.value)}
-            placeholder={"GITHUB_PERSONAL_ACCESS_TOKEN=ghp_..."}
-            aria-label="Server environment"
-            rows={2}
-            className={cn(inputCls, "font-mono text-xs")}
-          />
-        </label>
+        {remote ? (
+          <label className="flex flex-col gap-1 text-[11px] text-muted sm:col-span-2">
+            Headers (optional) — one <span className="font-mono">Name: value</span> per line, sent on every request to
+            this server (e.g. <span className="font-mono">Authorization: Bearer …</span>). Values are stored in the
+            registry and never shown again, so use a dedicated low-scope token.
+            <textarea
+              value={state.headers || ""}
+              onChange={(e) => set("headers", e.target.value)}
+              placeholder={"Authorization: Bearer ..."}
+              aria-label="Server headers"
+              rows={2}
+              className={cn(inputCls, "font-mono text-xs")}
+            />
+          </label>
+        ) : (
+          <label className="flex flex-col gap-1 text-[11px] text-muted sm:col-span-2">
+            Environment (optional) — one <span className="font-mono">KEY=value</span> per line, injected only into this
+            server (e.g. an API token). The base environment stays scrubbed; values are stored in the registry and never
+            shown again, so use a dedicated low-scope token.
+            <textarea
+              value={state.env || ""}
+              onChange={(e) => set("env", e.target.value)}
+              placeholder={"GITHUB_PERSONAL_ACCESS_TOKEN=ghp_..."}
+              aria-label="Server environment"
+              rows={2}
+              className={cn(inputCls, "font-mono text-xs")}
+            />
+          </label>
+        )}
         <label className="flex flex-col gap-1 text-[11px] text-muted sm:col-span-2">
           Tools allowlist (optional) — only expose these tool names to runs (space/comma-separated); leave blank for
           all. Trims a chatty server so its schemas don’t bloat every run’s context. Attach first to discover the tool
@@ -235,13 +344,17 @@ export function Mcp() {
   const registered = new Set((servers || []).map((s) => s.name));
 
   function useCatalogEntry(e: CatalogEntry) {
+    const transport = transportOf(e);
     setPrefill({
       name: e.name,
-      command: e.command,
-      args: e.args,
+      transport,
+      command: e.command || "",
+      args: e.args || "",
+      url: e.url || "",
       description: e.description,
-      // Prefill blank KEY= lines so the operator just pastes the secret value.
+      // Prefill blank KEY= / "Name: " lines so the operator just pastes the secret.
       env: (e.env || []).map((k) => `${k}=`).join("\n"),
+      headers: (e.headers || []).map((k) => `${k}: `).join("\n"),
     });
     setShowCatalog(false);
     setShowForm(true);
@@ -349,6 +462,7 @@ export function Mcp() {
                 <div key={e.name} className="flex flex-col rounded-md border border-border bg-panel/40 p-2.5">
                   <div className="flex items-center gap-2">
                     <span className="font-mono text-sm text-foreground">{e.name}</span>
+                    {transportOf(e) === "http" && <Badge variant="default">remote</Badge>}
                     {already && <Badge variant="good">added</Badge>}
                     <Button
                       size="sm"
@@ -362,8 +476,11 @@ export function Mcp() {
                     </Button>
                   </div>
                   <p className="mt-1 text-xs text-muted">{e.description}</p>
-                  <p className="mt-1 truncate font-mono text-[10px] text-muted/80" title={`${e.command} ${e.args}`}>
-                    {e.command} {e.args}
+                  <p
+                    className="mt-1 truncate font-mono text-[10px] text-muted/80"
+                    title={e.url || `${e.command} ${e.args}`}
+                  >
+                    {e.url || `${e.command} ${e.args}`}
                   </p>
                   {e.needs && (
                     <p className="mt-1 flex items-center gap-1 text-[10px] text-amber-500/90">
@@ -410,6 +527,7 @@ export function Mcp() {
           <li key={s.id} className="rounded-lg border border-border bg-card p-3">
             <div className="flex flex-wrap items-center gap-2">
               <span className="font-mono text-sm text-foreground">{s.name}</span>
+              {s.transport === "http" && <Badge variant="default">remote</Badge>}
               {s.attached ? (
                 <Badge variant="good">attached · {s.tool_count ?? 0} tools</Badge>
               ) : (
@@ -427,7 +545,10 @@ export function Mcp() {
                       act(s.name, "/api/mcp/attach", undefined, {
                         confirm: {
                           title: `Attach ${s.name}?`,
-                          message: `The daemon spawns "${s.command || ""}" now; every run will be offered its tools as mcp_${s.name}_<tool>. The process gets a scrubbed environment.`,
+                          message:
+                            s.transport === "http"
+                              ? `The daemon connects to "${s.url || ""}" now (Streamable HTTP); every run will be offered its tools as mcp_${s.name}_<tool>.`
+                              : `The daemon spawns "${s.command || ""}" now; every run will be offered its tools as mcp_${s.name}_<tool>. The process gets a scrubbed environment.`,
                           confirmLabel: "Attach",
                         },
                         success: (res) => {
@@ -499,12 +620,18 @@ export function Mcp() {
             </div>
             <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted">
               <span className="font-mono">
-                {s.command}
-                {(s.args || []).length > 0 ? " " + (s.args || []).join(" ") : ""}
+                {s.transport === "http"
+                  ? s.url
+                  : `${s.command || ""}${(s.args || []).length > 0 ? " " + (s.args || []).join(" ") : ""}`}
               </span>
               {(s.env_keys || []).length > 0 && (
                 <span className="flex items-center gap-1 text-[11px]">
                   <KeyRound className="h-3 w-3" /> env: {(s.env_keys || []).join(", ")}
+                </span>
+              )}
+              {(s.header_keys || []).length > 0 && (
+                <span className="flex items-center gap-1 text-[11px]">
+                  <KeyRound className="h-3 w-3" /> headers: {(s.header_keys || []).join(", ")}
                 </span>
               )}
               {(s.tool_allow || []).length > 0 && (

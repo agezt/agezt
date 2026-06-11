@@ -12,6 +12,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Remote MCP server UI (M905).** The MCP view's register form gains a stdio/remote transport
+  toggle (#39): "Remote (HTTP)" swaps Command/Args/Env for URL + Headers (`Name: value` per line),
+  validates an http(s) URL client-side, and posts the `{url, headers}` shape. The popular-servers
+  catalog now carries hosted presets (GitHub's hosted MCP, DeepWiki, Context7) that prefill the
+  remote form with the right `Authorization:` header line; server cards badge `remote`, show the URL,
+  and list redacted `header_keys` alongside env keys.
 - **Remote MCP servers over Streamable HTTP (M904).** The MCP registry can now attach a server
   by URL, not just by spawned command (#39): a registration with a `url` speaks the MCP Streamable
   HTTP transport (2025-03-26 spec) — JSON-RPC POSTed to the endpoint, replies decoded from either an
