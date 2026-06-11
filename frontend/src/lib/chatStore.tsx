@@ -35,6 +35,13 @@ function genId(): string {
   return "c-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 }
 
+// freshTurn is newTurn() stamped with the current wall-clock time, so the chat
+// can show when each exchange happened. newTurn() itself stays time-free (it's
+// the pure reducer's seed); only turns the store creates on a real send get a ts.
+function freshTurn(): ChatTurn {
+  return { ...newTurn(), ts: Date.now() };
+}
+
 // A memory the daemon recorded during a run (from a memory.written event). The
 // Chat shows these under the turn so you can see what the agent learned — and
 // forget any that aren't worth keeping.
@@ -224,7 +231,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     const history = buildHistory(messages);
     // The conversation records the clean intent; the run receives the attachment
     // context (if any) prepended, so the user's bubble stays uncluttered.
-    setMessages((m) => [...m, { role: "user", text: t }, { role: "assistant", turn: newTurn() }]);
+    setMessages((m) => [...m, { role: "user", text: t }, { role: "assistant", turn: freshTurn() }]);
     void streamIntent(context ? `${context}\n\n---\n\n${t}` : t, history);
   }
 
@@ -243,7 +250,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     if (userIdx < 0) return;
     const intent = (messages[userIdx] as Extract<Msg, { role: "user" }>).text;
     const history = buildHistory(messages.slice(0, userIdx));
-    setMessages((prev) => [...prev.slice(0, userIdx + 1), { role: "assistant", turn: newTurn() }]);
+    setMessages((prev) => [...prev.slice(0, userIdx + 1), { role: "assistant", turn: freshTurn() }]);
     void streamIntent(intent, history);
   }
 
@@ -257,7 +264,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     const last = messages[messages.length - 1];
     if (!last || last.role !== "assistant") return;
     const history = buildHistory(messages); // includes the partial answer
-    setMessages((prev) => [...prev, { role: "assistant", turn: newTurn() }]);
+    setMessages((prev) => [...prev, { role: "assistant", turn: freshTurn() }]);
     void streamIntent(
       "Continue from where you stopped and finish the task. Do not repeat work already completed.",
       history,
@@ -275,7 +282,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     const msg = messages[index];
     if (!msg || msg.role !== "user") return;
     const history = buildHistory(messages.slice(0, index));
-    setMessages((prev) => [...prev.slice(0, index), { role: "user", text: t }, { role: "assistant", turn: newTurn() }]);
+    setMessages((prev) => [...prev.slice(0, index), { role: "user", text: t }, { role: "assistant", turn: freshTurn() }]);
     void streamIntent(t, history);
   }
 

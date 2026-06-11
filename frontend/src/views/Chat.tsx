@@ -30,7 +30,7 @@ import {
   Pin,
   Search,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, fmtTime } from "@/lib/utils";
 import { money } from "@/lib/format";
 import { getJSON } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -992,6 +992,9 @@ function TurnMeta({ turn }: { turn: ChatTurn }) {
   if (turn.model) parts.push(turn.model);
   if (turn.iters) parts.push(`${turn.iters} iter${turn.iters === 1 ? "" : "s"}`);
   if (turn.costMicrocents) parts.push(money(turn.costMicrocents));
+  // When this exchange happened (M877) — shown for turns the store stamped; older
+  // persisted turns lack `ts` and just omit it.
+  if (turn.ts) parts.push(fmtTime(turn.ts));
   if (parts.length === 0) return null;
   return <div className="text-xs text-muted">{parts.join(" · ")}</div>;
 }
