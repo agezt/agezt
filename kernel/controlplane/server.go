@@ -1309,6 +1309,10 @@ func (s *Server) handleRun(ctx context.Context, conn net.Conn, req Request) {
 		effModel = modelOverride
 	}
 
+	// Pre-generate the correlation id here (it was minted just before Subscribe
+	// below) so the vision sidecar's journaled event links to this run.
+	corr := k.NewCorrelation()
+
 	// Vision capability gate (M91): a run carrying image attachments requires a
 	// model confirmed to accept image input. Unlike the M25 tool gate (which
 	// allows unknown models because many tolerate tool schemas), an image sent to
@@ -1329,24 +1333,36 @@ func (s *Server) handleRun(ctx context.Context, conn net.Conn, req Request) {
 			}
 		}
 		if !visionOK {
-			_, _ = k.Bus().Publish(event.Spec{
-				Subject: "governor.capability",
-				Kind:    event.KindCapabilityRejected,
-				Actor:   "controlplane",
-				Payload: map[string]any{
-					"model":            effModel,
-					"capability":       "vision",
-					"images_requested": len(imageRefs),
-				},
-			})
-			s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: fmt.Sprintf(
-				"model %q does not support vision (image input); attach images only to a vision-capable model (see `agt provider check --caps`)",
-				effModel)})
-			return
+			// Vision SIDECAR (M821): rather than rejecting, ask a keyed vision model
+			// to describe the image(s) and inject that text into the intent, so a
+			// non-vision active model still "reads" the photo. Fall back to the hard
+			// rejection only when no vision model is configured.
+			caption, derr := k.DescribeImages(ctx, corr, imageRefs, "")
+			if derr == nil && strings.TrimSpace(caption) != "" {
+				intent += "\n\n[Image description (analyzed by a vision model):\n" + caption + "\n]"
+				imageRefs = nil // consumed by the sidecar; don't send raw images downstream
+			} else {
+				_, _ = k.Bus().Publish(event.Spec{
+					Subject: "governor.capability",
+					Kind:    event.KindCapabilityRejected,
+					Actor:   "controlplane",
+					Payload: map[string]any{
+						"model":            effModel,
+						"capability":       "vision",
+						"images_requested": len(imageRefs),
+					},
+				})
+				s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: fmt.Sprintf(
+					"model %q does not support vision (image input); add a vision-capable provider key or attach images only to a vision-capable model (see `agt provider check --caps`)",
+					effModel)})
+				return
+			}
 		}
-		// Gate passed (M93): carry the image refs into the run so they reach the
-		// initial user message and, in turn, the provider.
-		ctx = runtime.WithImages(ctx, imageRefs)
+		// Gate passed or sidecar consumed the images (M93/M821): carry any remaining
+		// image refs into the run so they reach the initial user message.
+		if len(imageRefs) > 0 {
+			ctx = runtime.WithImages(ctx, imageRefs)
+		}
 	}
 	// Route this run to the override model when given (M148); the loop reads it
 	// via modelFromCtx, the same path the OpenAI API uses.
@@ -1463,9 +1479,8 @@ func (s *Server) handleRun(ctx context.Context, conn net.Conn, req Request) {
 		return
 	}
 
-	// Pre-generate the correlation ID so we can subscribe to this run's
-	// subject *before* starting it. No race; no missed events.
-	corr := k.NewCorrelation()
+	// corr was pre-generated above (before the vision gate) so we can subscribe to
+	// this run's subject *before* starting it. No race; no missed events.
 	sub, err := k.Bus().Subscribe(k.SubjectForRun(corr), 1024)
 	if err != nil {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})

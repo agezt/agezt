@@ -194,3 +194,51 @@ func TestToolCapableAlternativeAmong_TieBreaksByIDAcrossProviders(t *testing.T) 
 		})
 	}
 }
+
+// vis builds a vision-capable model.
+func vis(id string, ctx int) *catalog.Model {
+	return &catalog.Model{ID: id, Modalities: catalog.Modalities{Input: []string{"text", "image"}}, Limit: catalog.Limit{Context: ctx}}
+}
+
+// txt builds a text-only model.
+func txt(id string, ctx int) *catalog.Model {
+	return &catalog.Model{ID: id, Modalities: catalog.Modalities{Input: []string{"text"}}, Limit: catalog.Limit{Context: ctx}}
+}
+
+// TestVisionCapableAmong_PicksLargestVisionModel (M821) — among eligible
+// providers, the first (sorted) with a vision model returns its largest-context
+// vision model.
+func TestVisionCapableAmong_PicksLargestVisionModel(t *testing.T) {
+	c := catalog.NewEmpty()
+	c.Providers["acme"] = &catalog.Provider{ID: "acme", Models: map[string]*catalog.Model{
+		"a-text": txt("a-text", 99999),
+		"a-vis":  vis("a-vis", 8000),
+		"a-vbig": vis("a-vbig", 200000),
+	}}
+	for i := 0; i < 20; i++ { // map order randomised
+		id, ok := c.VisionCapableAmong(allEligible)
+		if !ok || id != "a-vbig" {
+			t.Fatalf("VisionCapableAmong = %q,%v want a-vbig,true", id, ok)
+		}
+	}
+}
+
+// TestVisionCapableAmong_SkipsIneligibleAndTextOnly — only eligible providers
+// with an actual vision model qualify; a provider filtered out by the predicate
+// (e.g. uncredentialed) is skipped even if it has a vision model.
+func TestVisionCapableAmong_SkipsIneligibleAndTextOnly(t *testing.T) {
+	c := catalog.NewEmpty()
+	c.Providers["aaa"] = &catalog.Provider{ID: "aaa", Models: map[string]*catalog.Model{"t": txt("t", 1000)}} // text only
+	c.Providers["bbb"] = &catalog.Provider{ID: "bbb", Models: map[string]*catalog.Model{"v": vis("v", 1000)}} // vision but ineligible
+	c.Providers["ccc"] = &catalog.Provider{ID: "ccc", Models: map[string]*catalog.Model{"cv": vis("cv", 1000)}}
+
+	id, ok := c.VisionCapableAmong(func(p string) bool { return p != "bbb" })
+	if !ok || id != "cv" {
+		t.Fatalf("VisionCapableAmong = %q,%v want cv,true (aaa text-only, bbb ineligible)", id, ok)
+	}
+
+	// No eligible provider has a vision model → (\"\", false).
+	if id, ok := c.VisionCapableAmong(func(p string) bool { return p == "aaa" }); ok {
+		t.Errorf("VisionCapableAmong over text-only provider = %q,true want \"\",false", id)
+	}
+}

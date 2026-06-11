@@ -24,6 +24,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -677,6 +678,27 @@ func runDaemon(stdout, stderr io.Writer) int {
 			k.SetModel(model2)
 		}
 		return nil
+	}
+
+	// Vision sidecar picker (M821): returns a keyed vision-capable model id the
+	// governor can route to, or ("", false) if none. Eligibility mirrors
+	// buildGovernor's registered set (supported family + credentialed) so the
+	// pick is always routable. Uses the LIVE catalog (k.Catalog()) so a freshly
+	// synced/credentialed vision provider is picked up without a restart. Injected
+	// into the runtime so DescribeImages can caption images for non-vision models.
+	cfg.VisionModel = func() (string, bool) {
+		if k == nil {
+			return "", false
+		}
+		cat := k.Catalog()
+		if cat == nil {
+			return "", false
+		}
+		lookup, _ := buildAWSCredChain(credStore.Lookup)
+		return cat.VisionCapableAmong(func(provID string) bool {
+			e := cat.Providers[provID]
+			return e != nil && compat.IsSupportedFamily(e.Family()) && e.HasCredentials(lookup)
+		})
 	}
 
 	var openErr error
@@ -1561,14 +1583,28 @@ func makeChannelHandler(k *kernelruntime.Kernel) channel.InboundHandler {
 		// the control plane and OpenAI API do, so a photo sent to the bot reaches
 		// a vision model. An image with no caption gets a default instruction.
 		if len(msg.Images) > 0 {
-			// Pre-gate vision capability (M255) so a non-vision model gives a clear
-			// reply instead of a downstream provider error.
 			if err := visionGate(k, "", msg.Images); err != nil {
-				return "", err
-			}
-			hctx = kernelruntime.WithImages(hctx, msg.Images)
-			if strings.TrimSpace(intent) == "" {
-				intent = "Describe the attached image(s)."
+				// The active model can't see images. Vision SIDECAR (M821): a keyed
+				// vision model describes the image and we inject that text into the
+				// run, so a non-vision primary still "reads" the photo instead of
+				// failing. If NO vision model is keyed, fall back to the clear gate
+				// error so the operator knows to add one.
+				caption, derr := k.DescribeImages(hctx, corr, msg.Images, "")
+				if derr != nil {
+					if errors.Is(derr, kernelruntime.ErrNoVisionModel) {
+						return "", err
+					}
+					return "", derr
+				}
+				if strings.TrimSpace(intent) == "" {
+					intent = "Describe the attached image(s)."
+				}
+				intent += "\n\n[Image description (analyzed by a vision model):\n" + caption + "\n]"
+			} else {
+				hctx = kernelruntime.WithImages(hctx, msg.Images)
+				if strings.TrimSpace(intent) == "" {
+					intent = "Describe the attached image(s)."
+				}
 			}
 		}
 		return k.RunWith(hctx, corr, intent)

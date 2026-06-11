@@ -322,6 +322,13 @@ type Config struct {
 	// provider-agnostic; cmd/agezt owns the build logic. Nil is
 	// allowed — Kernel.Reload then refreshes only the catalog snapshot.
 	OnReload func() error
+
+	// VisionModel, when set, returns a vision-capable model id the governor can
+	// route to (among the registered+credentialed providers), or ("", false) if
+	// none is keyed. Injected by the daemon (cmd/agezt) which owns the registered
+	// set. Used by DescribeImages (M821) to caption images for a run whose active
+	// model can't see them. Nil disables the vision sidecar.
+	VisionModel func() (modelID string, ok bool)
 }
 
 // Kernel is the running Agezt instance.
@@ -1543,6 +1550,61 @@ func (k *Kernel) verifyCompletion(ctx context.Context, corr, task, answer string
 		Payload:       map[string]any{"complete": v.Complete, "gap": v.Gap},
 	})
 	return v, nil
+}
+
+// visionDescribeMaxTokens bounds the sidecar caption — a description, not an essay.
+const visionDescribeMaxTokens = 1024
+
+// ErrNoVisionModel is returned by DescribeImages when no vision-capable model is
+// available (the sidecar is disabled or no keyed provider has one).
+var ErrNoVisionModel = errors.New("runtime: no vision-capable model available")
+
+// DescribeImages runs the vision SIDECAR (M821): it sends the images to a keyed
+// vision-capable model and returns a text description, so a run whose active
+// model can't see images can still "read" them (the caller injects the returned
+// text into the run). One-shot governor completion — no agent loop — routed to
+// the vision model via per-request model routing. hint, if non-empty, replaces
+// the default instruction. Returns ErrNoVisionModel when none is configured.
+func (k *Kernel) DescribeImages(ctx context.Context, corr string, images []string, hint string) (string, error) {
+	if len(images) == 0 {
+		return "", nil
+	}
+	if k.cfg.VisionModel == nil {
+		return "", ErrNoVisionModel
+	}
+	model, ok := k.cfg.VisionModel()
+	if !ok || model == "" {
+		return "", ErrNoVisionModel
+	}
+	prompt := hint
+	if strings.TrimSpace(prompt) == "" {
+		prompt = "Describe the attached image(s) in detail and transcribe any visible text. Be thorough and factual."
+	}
+	resp, err := k.cfg.Provider.Complete(ctx, agent.CompletionRequest{
+		Model:         model,
+		CorrelationID: corr,
+		TaskType:      "vision",
+		MaxTokens:     visionDescribeMaxTokens,
+		Messages:      []agent.Message{{Role: agent.RoleUser, Content: prompt, Images: images}},
+	})
+	if err != nil {
+		return "", err
+	}
+	// Journal the sidecar so `agt why` shows the active model was supplemented by
+	// a vision model (reuse capability.rerouted; capability="vision").
+	_, _ = k.bus.Publish(event.Spec{
+		Subject:       "agent.agent-" + corr + ".vision",
+		Kind:          event.KindCapabilityRerouted,
+		Actor:         "vision",
+		CorrelationID: corr,
+		Payload: map[string]any{
+			"from_model": k.Model(),
+			"to_model":   model,
+			"capability": "vision",
+			"images":     len(images),
+		},
+	})
+	return resp.Message.Content, nil
 }
 
 // RunWith executes one tool-loop using the supplied correlation ID.
