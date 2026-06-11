@@ -4,6 +4,7 @@ import {
   RefreshCw,
   Plus,
   Trash2,
+  Pencil,
   Search,
   X,
   Lock,
@@ -250,21 +251,25 @@ export function Data() {
                             {fmtCell(r.fields?.[f.name])}
                           </td>
                         ))}
-                        <td className="whitespace-nowrap border-b border-border/60 px-3 py-1.5 text-right">
-                          <button
-                            onClick={() => setEditing(r)}
-                            className="text-muted opacity-0 transition-opacity hover:text-accent group-hover:opacity-100"
-                            title={`edit · added by ${r.created_by || "?"} ${fmtTime(r.created_ms)}`}
-                          >
-                            edit
-                          </button>
-                          <button
-                            onClick={() => delRecord(r)}
-                            className="ml-2 text-muted opacity-0 transition-opacity hover:text-bad group-hover:opacity-100"
-                            title="delete"
-                          >
-                            <Trash2 className="inline size-3.5" />
-                          </button>
+                        <td className="whitespace-nowrap border-b border-border/60 px-2 py-1.5 text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <button
+                              onClick={() => setEditing(r)}
+                              className="rounded p-1 text-muted transition-colors hover:bg-accent/10 hover:text-accent"
+                              title={`edit · added by ${r.created_by || "?"} ${fmtTime(r.created_ms)}${r.updated_by ? ` · updated by ${r.updated_by}` : ""}`}
+                              aria-label="edit record"
+                            >
+                              <Pencil className="size-3.5" />
+                            </button>
+                            <button
+                              onClick={() => delRecord(r)}
+                              className="rounded p-1 text-muted transition-colors hover:bg-bad/10 hover:text-bad"
+                              title="delete record"
+                              aria-label="delete record"
+                            >
+                              <Trash2 className="size-3.5" />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
