@@ -99,6 +99,7 @@ import { Models } from "@/views/Models";
 import { Routing } from "@/views/Routing";
 import { Setup, anyCredentialed, type SetupCatalog } from "@/views/Setup";
 import { Files } from "@/views/Files";
+import { Data } from "@/views/Data";
 import { Persona } from "@/views/Persona";
 import { Prompts } from "@/views/Prompts";
 import { Backup } from "@/views/Backup";
@@ -140,6 +141,7 @@ const NAV_GROUPS: NavGroup[] = [
       { id: "chat", label: "Chat", icon: MessageSquare, render: Chat },
       { id: "inbox", label: "Inbox", icon: InboxIcon, render: Inbox },
       { id: "files", label: "Files", icon: FolderOpen, render: Files },
+      { id: "data", label: "Data Lake", icon: Database, render: Data },
       { id: "board", label: "Agent Board", icon: MessagesSquare, render: Board },
       { id: "approvals", label: "Approvals", icon: CheckSquare, render: Approvals },
     ],

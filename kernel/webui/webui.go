@@ -120,13 +120,15 @@ var apiRoutes = map[string]string{
 	"/api/workflows/templates": controlplane.CmdWorkflowTemplates,
 	"/api/inbox":               controlplane.CmdInbox,
 	"/api/board":               controlplane.CmdBoardRead,
-	"/api/autonomy":            controlplane.CmdAutonomyFeed,
-	"/api/reflect":             controlplane.CmdReflectShow,
-	"/api/approvals":           controlplane.CmdApprovals,
-	"/api/plan_stats":          controlplane.CmdPlanStats,
-	"/api/sandbox":             controlplane.CmdSandboxList,
-	"/api/config/schema":       controlplane.CmdConfigSchema,
-	"/api/config/values":       controlplane.CmdConfigValues,
+	// Personal Data Lake (M836): list collections (no args). Read-only.
+	"/api/data/collections": controlplane.CmdDataCollections,
+	"/api/autonomy":         controlplane.CmdAutonomyFeed,
+	"/api/reflect":          controlplane.CmdReflectShow,
+	"/api/approvals":        controlplane.CmdApprovals,
+	"/api/plan_stats":       controlplane.CmdPlanStats,
+	"/api/sandbox":          controlplane.CmdSandboxList,
+	"/api/config/schema":    controlplane.CmdConfigSchema,
+	"/api/config/values":    controlplane.CmdConfigValues,
 	// Per-task model routing (M703): the effective chains + known task types.
 	"/api/routing": controlplane.CmdRoutingGet,
 	"/api/persona": controlplane.CmdPersonaGet,
@@ -166,8 +168,10 @@ var readArgsRoutes = map[string]writeRoute{
 	// Artifact index listing (M822): browsable metadata for stored artifacts
 	// (inbound images, tool outputs), optionally filtered. No bytes — the raw
 	// route below serves those.
-	"/api/artifacts":  {controlplane.CmdArtifactList, []string{"kind", "source", "corr"}},
-	"/api/policy_log": {controlplane.CmdEdictLog, []string{"limit", "denied"}},
+	"/api/artifacts": {controlplane.CmdArtifactList, []string{"kind", "source", "corr"}},
+	// Personal Data Lake records query (M836): one collection, filtered/sorted/paged.
+	"/api/data/records": {controlplane.CmdDataRecords, []string{"collection", "search", "sort", "desc", "limit", "offset"}},
+	"/api/policy_log":   {controlplane.CmdEdictLog, []string{"limit", "denied"}},
 	// Resolved HITL approval history (M773): a timeline of past approval requests
 	// joined with their granted/denied/timeout outcome. Read-only.
 	"/api/approvals_log": {controlplane.CmdApprovalsLog, []string{"limit", "denied"}},
@@ -206,6 +210,10 @@ var readArgsRoutes = map[string]writeRoute{
 var writeRoutes = map[string]writeRoute{
 	"/api/halt":   {controlplane.CmdHalt, []string{"reason"}},
 	"/api/resume": {controlplane.CmdResume, []string{"reason"}},
+	// Personal Data Lake mutations (M836): delete a record / drop a user collection.
+	// (Insert/update/create carry structured bodies — they are jsonRoutes.)
+	"/api/data/delete": {controlplane.CmdDataDelete, []string{"collection", "id"}},
+	"/api/data/drop":   {controlplane.CmdDataDropCollection, []string{"name"}},
 	// Pulse pause/resume (M743): the proactive-heartbeat master switch. No args.
 	"/api/pulse/pause":  {controlplane.CmdPulsePause, nil},
 	"/api/pulse/resume": {controlplane.CmdPulseResume, nil},
@@ -315,10 +323,15 @@ var jsonRoutes = map[string]writeRoute{
 	"/api/provider/keys/add": {controlplane.CmdProviderKeyAdd, []string{"env", "label", "value", "active"}},
 	// Per-task model routing (M703): replace the model chains. `chains` is an
 	// object {task: [models]} too large/structured for a query arg.
-	"/api/routing/set":  {controlplane.CmdRoutingSet, []string{"chains"}},
-	"/api/persona/set":  {controlplane.CmdPersonaSet, []string{"system"}},
-	"/api/prompts/set":  {controlplane.CmdPromptsSet, []string{"prompts"}},
-	"/api/standing/add": {controlplane.CmdStandingAdd, []string{"order"}},
+	"/api/routing/set": {controlplane.CmdRoutingSet, []string{"chains"}},
+	"/api/persona/set": {controlplane.CmdPersonaSet, []string{"system"}},
+	// Personal Data Lake writes (M836): insert/update carry the record object;
+	// create carries the full collection schema — JSON bodies, not query args.
+	"/api/data/insert":     {controlplane.CmdDataInsert, []string{"collection", "record"}},
+	"/api/data/update":     {controlplane.CmdDataUpdate, []string{"collection", "id", "record"}},
+	"/api/data/collection": {controlplane.CmdDataCreateCollection, []string{"collection"}},
+	"/api/prompts/set":     {controlplane.CmdPromptsSet, []string{"prompts"}},
+	"/api/standing/add":    {controlplane.CmdStandingAdd, []string{"order"}},
 	// Edit a standing order in place (M729): id + any subset of the human-tunable
 	// fields. assure is numeric, so the JSON body preserves its type.
 	"/api/standing/edit": {controlplane.CmdStandingEdit, []string{"id", "name", "plan", "agent", "mode", "max_trust", "briefing_min", "assure"}},

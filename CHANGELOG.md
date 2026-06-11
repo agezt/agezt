@@ -12,6 +12,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Data Lake Web UI — a "Data Lake" view (M836).** The Personal Data Lake is now browsable and
+  editable from the console: pick a collection in the sidebar, search/sort its records in a table, and
+  add / edit / delete rows by hand (the agent fills the same collections via the `db` tool). Backed by
+  new read/write control-plane commands (`data_collections`, `data_records`, `data_insert`,
+  `data_update`, `data_delete`, …) on the allowlisted API. Generic table for now; bespoke per-collection
+  app views (expense/calendar/…) come next. (M836)
 - **Built-in Data Lake collections (M835).** The Personal Data Lake now ships seven ready-to-use
   collections out of the box — **expenses, calendar, tasks, notes, habits, bookmarks, contacts** —
   each with a typed field schema and a `view` hint for a bespoke UI. Seeded idempotently at boot;
