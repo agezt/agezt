@@ -52,6 +52,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   the Runs view. Purely frontend — reuses the existing event provider and read routes. (M867)
 
 ### Added
+- **Built-in email-tools skill bundle (M892).** A twelfth out-of-the-box skill that sends (SMTP) and reads
+  (IMAP) email (#34) — **zero pip deps** (Python stdlib `smtplib`/`imaplib`/`email`). `scripts/mail.py`
+  has three ops: `send` (STARTTLS/SSL, plain + optional HTML, file attachments), `list` (newest-first IMAP
+  summaries honouring a `search` like `UNSEEN`), and `read` (full message by uid → decoded text). Headers
+  are RFC2047-decoded; the password is never echoed back. The delivery step of the reporting pipeline:
+  data-analysis / pdf-tools / archive-tools output → attach → send. Rides the `plugins/builtinskills`
+  seeder. (M892)
 - **Built-in http-api-client skill bundle (M891).** An eleventh out-of-the-box skill — the write-capable
   complement to `fetch`/web-research — that calls REST/JSON APIs (#34). `scripts/api.py` does any method
   with headers, query params, JSON or form bodies, and bearer/basic auth, returning
