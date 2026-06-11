@@ -26,6 +26,8 @@ func TestCapabilityForToolCall(t *testing.T) {
 		{"http", `{"method":"GET","url":"https://x"}`, CapHTTPGet},
 		{"http", `{"method":"POST","url":"https://x"}`, CapHTTPPost},
 		{"http", `{"method":"  post  ","url":"https://x"}`, CapHTTPPost},
+		// A download (fetch) is a network GET that saves the bytes (M831).
+		{"fetch", `{"url":"https://x/cat.png"}`, CapHTTPGet},
 		{"remote_run", `{"task":"x"}`, CapRemoteRun},
 		{"notify", `{"text":"hi"}`, CapNotify},
 		{"homeassistant", `{"operation":"get_states","entity_id":"light.x"}`, CapHomeAssistantRead},

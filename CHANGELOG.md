@@ -11,6 +11,14 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 
 ## [Unreleased]
 
+### Added
+- **New `fetch` tool — download a URL and keep the file.** Agents can now save binary content from
+  the web (an image, PDF, archive, dataset) straight into the artifact store: `fetch {url, name?}`
+  downloads through the SSRF-guarded client (≤50 MiB), detects the mime, and files it in the Files
+  view (`Source: fetch`, grouped as `image`/`download`), returning `{id, mime, size, name}`. It
+  complements `http` (which returns a page's *text* into context) by capturing the *bytes*. Reuses
+  the network-GET capability — no new grant or env var. (M831)
+
 ### Changed
 - **Chat can Continue a run that hit the iteration limit (instead of only Retry).** When a run
   exhausts its tool-round cap, chat now offers **Continue** — it resumes from where the agent

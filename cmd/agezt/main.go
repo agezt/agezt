@@ -96,6 +96,7 @@ import (
 	"github.com/agezt/agezt/plugins/tools/codeexec"
 	"github.com/agezt/agezt/plugins/tools/coding"
 	configtool "github.com/agezt/agezt/plugins/tools/config"
+	"github.com/agezt/agezt/plugins/tools/fetch"
 	filetool "github.com/agezt/agezt/plugins/tools/file"
 	"github.com/agezt/agezt/plugins/tools/forgetool"
 	hatool "github.com/agezt/agezt/plugins/tools/homeassistant"
@@ -731,6 +732,11 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// fields (provider/model) rebuild the provider in place via Reload().
 	if ct, ok := tools["config"].(*configtool.Tool); ok {
 		ct.SetKernel(k)
+	}
+	// Inject the artifact index into the fetch tool (M831) now that the kernel
+	// owns it, so downloaded files are saved as browsable artifacts.
+	if fe, ok := tools["fetch"].(*fetch.Tool); ok {
+		fe.SetIndex(k.ArtifactIndex())
 	}
 
 	// Wire the bus into the Governor and the Warden so their events
@@ -4475,6 +4481,18 @@ func buildTools(baseDir string, stderr io.Writer, ward warden.Engine) (map[strin
 	}
 	out["web_search"] = ws
 	registered = append(registered, "web_search(duckduckgo)")
+
+	// fetch — download a URL's bytes and save them as a browsable artifact (M831),
+	// so the agent can keep an image/PDF/file it finds (it shows up in Files). Same
+	// SSRF-guarded egress as the other network tools; the artifact index is injected
+	// after the kernel opens. Always registered.
+	fe := fetch.New()
+	if allowAll {
+		fe.AllowLoopback = true
+		fe.AllowPrivate = true
+	}
+	out["fetch"] = fe
+	registered = append(registered, "fetch(url→artifact)")
 
 	// coding — external coding-agent bridge (P6-CODE). Registered only when
 	// AGEZT_CODING_CMD is set (the command that runs Claude Code / Codex / Aider
