@@ -533,6 +533,68 @@ func TestKernel_Model_LiveSwap(t *testing.T) {
 	}
 }
 
+// TestKernel_DescribeImages_RoutesToVisionModel (M821) — the vision sidecar
+// sends the images to the injected vision model and returns its description; the
+// request carries the images and is routed to the vision model id.
+func TestKernel_DescribeImages_RoutesToVisionModel(t *testing.T) {
+	prov := mock.New()
+	var gotModel string
+	var gotImages []string
+	prov.OnRequest = func(req agent.CompletionRequest) {
+		gotModel = req.Model
+		if len(req.Messages) > 0 {
+			gotImages = req.Messages[0].Images
+		}
+	}
+	prov.Responder = func(agent.CompletionRequest) agent.CompletionResponse {
+		return mock.FinalText("a photo of a cat on a sofa")
+	}
+	k, err := runtime.Open(runtime.Config{
+		BaseDir:     t.TempDir(),
+		Provider:    prov,
+		Model:       "text-only-model",
+		Tools:       map[string]agent.Tool{},
+		VisionModel: func() (string, bool) { return "vision-model", true },
+	})
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer k.Close()
+
+	caption, err := k.DescribeImages(context.Background(), "corr-vis", []string{"data:image/png;base64,AAAA"}, "")
+	if err != nil {
+		t.Fatalf("DescribeImages: %v", err)
+	}
+	if caption != "a photo of a cat on a sofa" {
+		t.Errorf("caption = %q", caption)
+	}
+	if gotModel != "vision-model" {
+		t.Errorf("request model = %q, want vision-model (not the text-only default)", gotModel)
+	}
+	if len(gotImages) != 1 {
+		t.Errorf("vision request carried %d images, want 1", len(gotImages))
+	}
+}
+
+// TestKernel_DescribeImages_NoVisionModel — with no vision model configured the
+// sidecar reports ErrNoVisionModel so the caller can fall back to a clear error.
+func TestKernel_DescribeImages_NoVisionModel(t *testing.T) {
+	k, err := runtime.Open(runtime.Config{
+		BaseDir:  t.TempDir(),
+		Provider: mock.New(mock.FinalText("x")),
+		Tools:    map[string]agent.Tool{},
+		// VisionModel nil → sidecar disabled.
+	})
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer k.Close()
+
+	if _, err := k.DescribeImages(context.Background(), "c", []string{"data:image/png;base64,AAAA"}, ""); !errors.Is(err, runtime.ErrNoVisionModel) {
+		t.Fatalf("err = %v, want ErrNoVisionModel", err)
+	}
+}
+
 func TestKernel_Reload_NilOnReloadIsCatalogOnly(t *testing.T) {
 	k, err := runtime.Open(runtime.Config{
 		BaseDir:  t.TempDir(),

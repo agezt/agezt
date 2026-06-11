@@ -28,6 +28,14 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   posture. (M818)
 
 ### Added
+- **Vision sidecar: images on a non-vision model just work.** When a message brings an image but
+  the active model can't see images, AGEZT no longer fails with `model does not support vision` — it
+  asks a keyed vision-capable provider to describe the image and injects that description into the
+  run, so the active model still "reads" the photo. Works for inbound channel images (Telegram/Slack/
+  Discord) and `agt run --image`; falls back to a clear error only when no vision provider is keyed.
+  The pick uses the live catalog (a freshly synced vision provider needs no restart). (M821)
+
+### Added
 - **Web UI on by default + optional password.** A bare `agezt` now serves the console at
   `127.0.0.1:8787` (tokenized URL in the banner) — no `AGEZT_WEB_ADDR` needed. The default port
   being busy falls back to a free port so a console always comes up; disable with

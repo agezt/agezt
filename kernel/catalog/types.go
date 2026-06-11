@@ -455,6 +455,42 @@ func pickBestToolCapable(p *Provider, excludeID string) (string, int, bool) {
 	return best, bestCtx, true
 }
 
+// VisionCapableAmong finds a vision-capable model among the providers for which
+// providerEligible returns true (the daemon passes registered+credentialed
+// providers, so the result is one the governor can actually route to). It walks
+// ProviderList() (sorted by id) and returns the first eligible provider's
+// largest-context vision model (tie-broken by id ascending) — deterministic
+// despite random map iteration. Returns (modelID, true) or ("", false) when no
+// eligible provider has a vision model. Used by the vision sidecar (M821) to
+// caption images when the active model can't see them.
+func (c *Catalog) VisionCapableAmong(providerEligible func(provID string) bool) (string, bool) {
+	for _, p := range c.ProviderList() {
+		if !providerEligible(p.ID) {
+			continue
+		}
+		if id, ok := pickBestVision(p); ok {
+			return id, true
+		}
+	}
+	return "", false
+}
+
+// pickBestVision returns the largest-context vision-capable model in p, tie-broken
+// by id ascending, or ("", false) if none. Mirrors pickBestToolCapable.
+func pickBestVision(p *Provider) (string, bool) {
+	best := ""
+	bestCtx := -1
+	for id, m := range p.Models {
+		if !m.SupportsVision() {
+			continue
+		}
+		if m.Limit.Context > bestCtx || (m.Limit.Context == bestCtx && id < best) {
+			best, bestCtx = id, m.Limit.Context
+		}
+	}
+	return best, best != ""
+}
+
 // Merge folds src into dst with src winning on key conflict. Mutates
 // dst.Providers in place; per-provider Models maps are also merged
 // (src model wins). Used by the loader to apply local/custom on top
