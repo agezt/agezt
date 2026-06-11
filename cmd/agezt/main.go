@@ -1435,11 +1435,18 @@ func runDaemon(stdout, stderr io.Writer) int {
 	fmt.Fprintf(stdout, "  client commands  : %s run | halt | resume | why <id> | journal verify\n", brand.CLI)
 	fmt.Fprintf(stdout, "Press Ctrl+C to stop.\n")
 
-	// Stream all events to stdout so the operator sees activity.
+	// Stream events to stdout so the operator sees activity — but SKIP the
+	// high-rate ephemeral chunks (llm.token, llm.reasoning). With autonomous
+	// agents running, those fire hundreds of times per run and bury the console
+	// in "[evt seq=0 kind=llm.reasoning …]" noise (M826; mirrors the CLI filter
+	// from M819). The meaningful lifecycle events (task/tool/run/…) still print.
 	sub, err := k.Bus().Subscribe(">", 256)
 	if err == nil {
 		go func() {
 			for ev := range sub.C {
+				if ev.Kind == event.KindLLMToken || ev.Kind == event.KindLLMReasoning {
+					continue
+				}
 				fmt.Fprintf(stdout, "  [evt seq=%d kind=%s subject=%s]\n", ev.Seq, ev.Kind, ev.Subject)
 			}
 		}()
