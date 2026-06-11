@@ -52,6 +52,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   the Runs view. Purely frontend — reuses the existing event provider and read routes. (M867)
 
 ### Added
+- **Built-in image-tools skill bundle (M879).** An eighth out-of-the-box skill that manipulates images
+  with Pillow, completing the visual pipeline (#34). `scripts/img.py` is one JSON-spec helper with eight
+  ops: `info` (size/mode/format/EXIF), `resize`, `convert`, `crop`, `thumb`, `rotate`, `grayscale`,
+  `annotate`; `setup.sh` installs Pillow. The SKILL documents OCR (tesseract via computer-use) and the
+  visual pipeline — browser screenshots / rendered PDF pages / chart PNGs flow through image-tools to the
+  artifacts tool. Rides the `plugins/builtinskills` seeder — no new Go dependency. (M879)
 - **Built-in pdf-tools skill bundle (M866).** A seventh out-of-the-box skill that gets data out of PDFs —
   the gap data-analysis and web-research both defer on (#34). `scripts/pdf.py` is one JSON-spec helper
   with five ops: `info` (pages + metadata), `text` (per-page extract with a 1-based page range), `tables`
