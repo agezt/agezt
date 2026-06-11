@@ -12,6 +12,9 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Files view previews more than images (M842).** The file preview now renders inline: PDFs (embedded),
+  markdown (rendered), JSON (pretty-printed), and code / text / CSV / logs (monospace) — fetched from
+  the existing raw route, capped at 2 MiB, with download as the fallback for true binaries. (M842)
 - **Channel conversations are followable sessions in Chat (M841).** A new "Channels" section in the
   Chat sidebar turns each inbound channel conversation (Telegram/Slack/Discord/webhook) into a
   per-user **session** you can open and follow live — incoming messages and the agent's replies,

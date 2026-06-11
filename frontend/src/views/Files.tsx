@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { FolderOpen, RefreshCw, Trash2, Download, ImageIcon, FileText, X } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { FolderOpen, RefreshCw, Trash2, Download, ImageIcon, FileText, X, Loader2 } from "lucide-react";
 import { usePanel } from "@/lib/usePanel";
 import { withToken, postAction } from "@/lib/api";
 import { cn, fmtTime } from "@/lib/utils";
@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { SkeletonGrid } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty";
 import { ErrorText } from "@/components/JsonView";
+import { Markdown } from "@/components/Markdown";
 import { useUI } from "@/components/ui/feedback";
 
 // File manager (M823): browse/preview/download/delete the stored artifacts the
@@ -38,6 +39,34 @@ interface ArtifactList {
 export function isImage(e: ArtifactEntry): boolean {
   return e.kind === "image" || (e.mime ?? "").toLowerCase().startsWith("image/");
 }
+
+// isPdf / textKind classify an entry for inline preview (M842). textKind returns
+// "markdown" | "json" | "code" | "text" for text-like artifacts, or "" otherwise —
+// driving how the preview pane renders the fetched bytes.
+export function isPdf(e: ArtifactEntry): boolean {
+  return (e.mime ?? "").toLowerCase().includes("pdf") || (e.name ?? "").toLowerCase().endsWith(".pdf");
+}
+
+export function textKind(e: ArtifactEntry): "markdown" | "json" | "code" | "text" | "" {
+  const mime = (e.mime ?? "").toLowerCase();
+  const name = (e.name ?? "").toLowerCase();
+  const ext = name.includes(".") ? name.slice(name.lastIndexOf(".") + 1) : "";
+  if (mime === "text/markdown" || ext === "md" || ext === "markdown") return "markdown";
+  if (mime.includes("json") || ext === "json") return "json";
+  if (
+    ["js", "ts", "tsx", "jsx", "go", "py", "rs", "java", "c", "cpp", "h", "sh", "yaml", "yml", "toml", "css", "html", "xml", "sql"].includes(ext) ||
+    mime.includes("javascript") ||
+    mime.includes("yaml") ||
+    mime.includes("xml")
+  )
+    return "code";
+  if (mime.startsWith("text/") || ["txt", "log", "csv", "tsv", "ini", "env", "conf"].includes(ext)) return "text";
+  // Unknown mime with a known-text-ish nothing → not previewable as text.
+  return "";
+}
+
+// previewMaxBytes caps inline text fetches so a giant artifact can't hang the UI.
+const previewMaxBytes = 2 * 1024 * 1024;
 
 // rawURL builds the tokenized binary URL for an entry (optionally a download).
 export function rawURL(e: ArtifactEntry, download = false): string {
@@ -215,12 +244,8 @@ function PreviewModal({
             <X className="size-4" />
           </button>
         </div>
-        <div className="min-h-0 flex-1 overflow-auto bg-panel/40 p-3 text-center">
-          {isImage(entry) ? (
-            <img src={rawURL(entry)} alt={entry.caption || entry.name || "image"} className="mx-auto max-h-[60vh] rounded-md" />
-          ) : (
-            <p className="py-12 text-sm text-muted">No inline preview — use Download.</p>
-          )}
+        <div className="min-h-0 flex-1 overflow-auto bg-panel/40 p-3">
+          <PreviewBody entry={entry} />
         </div>
         <div className="space-y-1 border-t border-border px-4 py-2 text-[11px] text-muted">
           <div className="flex flex-wrap gap-x-4 gap-y-0.5">
@@ -235,4 +260,70 @@ function PreviewModal({
       </div>
     </div>
   );
+}
+
+// PreviewBody renders an artifact inline (M842): images and SVG as a picture, PDFs
+// in an embedded frame, and text/markdown/code/json/csv by fetching the bytes and
+// rendering them — falling back to a download prompt only for true binaries.
+function PreviewBody({ entry }: { entry: ArtifactEntry }) {
+  const kind = textKind(entry);
+  const [text, setText] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (isImage(entry) || isPdf(entry) || kind === "") return;
+    if ((entry.size ?? 0) > previewMaxBytes) {
+      setErr(`File is too large to preview inline (${humanSize(entry.size)}) — download it.`);
+      return;
+    }
+    let cancelled = false;
+    setLoading(true);
+    fetch(rawURL(entry))
+      .then((r) => (r.ok ? r.text() : Promise.reject(new Error(`HTTP ${r.status}`))))
+      .then((t) => {
+        if (cancelled) return;
+        setText(kind === "json" ? prettyJSON(t) : t);
+      })
+      .catch((e) => !cancelled && setErr((e as Error).message))
+      .finally(() => !cancelled && setLoading(false));
+    return () => {
+      cancelled = true;
+    };
+  }, [entry, kind]);
+
+  if (isImage(entry)) {
+    return <img src={rawURL(entry)} alt={entry.caption || entry.name || "image"} className="mx-auto max-h-[68vh] rounded-md" />;
+  }
+  if (isPdf(entry)) {
+    return <iframe src={rawURL(entry)} title={entry.name || "pdf"} className="h-[68vh] w-full rounded-md border border-border bg-white" />;
+  }
+  if (kind === "") {
+    return <p className="py-12 text-center text-sm text-muted">No inline preview for this file type — use Download.</p>;
+  }
+  if (err) return <p className="py-12 text-center text-sm text-muted">{err}</p>;
+  if (loading || text === null) {
+    return (
+      <p className="flex items-center justify-center gap-2 py-12 text-sm text-muted">
+        <Loader2 className="size-4 animate-spin" /> loading preview…
+      </p>
+    );
+  }
+  if (kind === "markdown") {
+    return <Markdown source={text} className="prose-sm max-w-none text-sm text-foreground/90" />;
+  }
+  return (
+    <pre className="overflow-auto whitespace-pre-wrap break-words rounded-md bg-card p-3 text-left font-mono text-xs leading-relaxed text-foreground/90">
+      {text}
+    </pre>
+  );
+}
+
+// prettyJSON re-indents valid JSON; returns the original text if it doesn't parse.
+function prettyJSON(s: string): string {
+  try {
+    return JSON.stringify(JSON.parse(s), null, 2);
+  } catch {
+    return s;
+  }
 }
