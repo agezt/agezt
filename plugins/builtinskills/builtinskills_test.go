@@ -520,6 +520,42 @@ func TestSeedAll_InstallsCryptoTools(t *testing.T) {
 	}
 }
 
+func TestSeedAll_InstallsCalendarTools(t *testing.T) {
+	f := newForge(t)
+	seeded, err := SeedAll(f, "")
+	if err != nil {
+		t.Fatalf("SeedAll: %v", err)
+	}
+	var got *Seeded
+	for i := range seeded {
+		if seeded[i].Name == "calendar-tools" {
+			got = &seeded[i]
+		}
+	}
+	if got == nil {
+		t.Fatalf("calendar-tools not seeded: %+v", seeded)
+	}
+	if got.Status != skill.StatusActive {
+		t.Errorf("calendar-tools status = %q, want active", got.Status)
+	}
+	drv, err := f.Bundles().Read("calendar-tools", "scripts/cal.py")
+	if err != nil || len(drv) == 0 {
+		t.Fatalf("calendar-tools cal.py unreadable/empty: %v", err)
+	}
+	files, _ := f.Bundles().List("calendar-tools")
+	want := map[string]bool{"scripts/cal.py": false, "reference/recipes.md": false}
+	for _, rel := range files {
+		if _, ok := want[rel]; ok {
+			want[rel] = true
+		}
+	}
+	for rel, found := range want {
+		if !found {
+			t.Errorf("calendar-tools bundle missing %q (got %v)", rel, files)
+		}
+	}
+}
+
 func TestSeedAll_Idempotent(t *testing.T) {
 	f := newForge(t)
 	if _, err := SeedAll(f, ""); err != nil {
