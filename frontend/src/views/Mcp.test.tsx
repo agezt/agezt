@@ -12,7 +12,7 @@ vi.mock("@/lib/api", () => ({
   postAction: (...a: unknown[]) => postAction(...a),
 }));
 
-import { Mcp, NewServerForm, serverNameOk, splitArgs, parseEnv, CATALOG } from "@/views/Mcp";
+import { Mcp, NewServerForm, serverNameOk, splitArgs, splitTools, parseEnv, CATALOG } from "@/views/Mcp";
 import { UIProvider } from "@/components/ui/feedback";
 
 const withUI = (node: ReactNode) => <UIProvider>{node}</UIProvider>;
@@ -41,6 +41,17 @@ describe("splitArgs", () => {
       "@modelcontextprotocol/server-everything",
     ]);
     expect(splitArgs("")).toEqual([]);
+  });
+});
+
+describe("splitTools", () => {
+  it("splits the allowlist on whitespace and commas, dropping blanks", () => {
+    expect(splitTools("create_issue, search_code  get_file")).toEqual([
+      "create_issue",
+      "search_code",
+      "get_file",
+    ]);
+    expect(splitTools("")).toEqual([]);
   });
 });
 

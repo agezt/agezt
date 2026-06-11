@@ -20,6 +20,8 @@ export interface MCPServer {
   tool_count?: number;
   // env values are redacted by the backend; only the key names come back (M898).
   env_keys?: string[];
+  // tool_allow: optional per-server allowlist of tool names to expose (M899).
+  tool_allow?: string[];
 }
 
 // serverNameOk mirrors the kernel's mcp name rule: lowercase letter first,
@@ -34,6 +36,12 @@ export function serverNameOk(s: string): boolean {
 // whitespace-separated, blanks dropped. Pure + unit-tested.
 export function splitArgs(s: string): string[] {
   return s.split(/\s+/).filter(Boolean);
+}
+
+// splitTools turns the form's tool-allowlist field into the wire list:
+// split on whitespace or commas, blanks dropped. Pure + unit-tested (M899).
+export function splitTools(s: string): string[] {
+  return (s || "").split(/[\s,]+/).filter(Boolean);
 }
 
 // parseEnv turns the form's "KEY=value" lines into the wire env map (M898).
@@ -121,6 +129,8 @@ export function NewServerForm({
       if (args.length > 0) server.args = args;
       const env = parseEnv(state.env || "");
       if (Object.keys(env).length > 0) server.env = env;
+      const toolAllow = splitTools(state.tool_allow || "");
+      if (toolAllow.length > 0) server.tool_allow = toolAllow;
       await postJSON("/api/mcp/add", { server });
       onCreated(name);
     } catch (e) {
@@ -183,6 +193,18 @@ export function NewServerForm({
             placeholder={"GITHUB_PERSONAL_ACCESS_TOKEN=ghp_..."}
             aria-label="Server environment"
             rows={2}
+            className={cn(inputCls, "font-mono text-xs")}
+          />
+        </label>
+        <label className="flex flex-col gap-1 text-[11px] text-muted sm:col-span-2">
+          Tools allowlist (optional) — only expose these tool names to runs (space/comma-separated); leave blank for
+          all. Trims a chatty server so its schemas don’t bloat every run’s context. Attach first to discover the tool
+          names, then set this.
+          <input
+            value={state.tool_allow || ""}
+            onChange={(e) => set("tool_allow", e.target.value)}
+            placeholder="create_issue search_code"
+            aria-label="Server tool allowlist"
             className={cn(inputCls, "font-mono text-xs")}
           />
         </label>
@@ -483,6 +505,11 @@ export function Mcp() {
               {(s.env_keys || []).length > 0 && (
                 <span className="flex items-center gap-1 text-[11px]">
                   <KeyRound className="h-3 w-3" /> env: {(s.env_keys || []).join(", ")}
+                </span>
+              )}
+              {(s.tool_allow || []).length > 0 && (
+                <span className="text-[11px]" title="Only these tools are exposed to runs">
+                  tools: {(s.tool_allow || []).join(", ")}
                 </span>
               )}
             </div>

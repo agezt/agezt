@@ -236,12 +236,30 @@ func (k *Kernel) mergeMCPTools(tools map[string]agent.Tool) map[string]agent.Too
 	}
 	sort.Slice(live, func(i, j int) bool { return live[i].name < live[j].name })
 
+	// Per-server tool allowlists (M899): a server may expose only a chosen subset
+	// of its tools to runs, so a chatty server doesn't bloat every run's context.
+	// An empty/absent allowlist means "expose all" (the default).
+	allow := make(map[string]map[string]bool, len(live))
+	for _, lc := range live {
+		if srv, ok := k.mcpStore.Get(lc.name); ok && len(srv.ToolAllow) > 0 {
+			set := make(map[string]bool, len(srv.ToolAllow))
+			for _, t := range srv.ToolAllow {
+				set[t] = true
+			}
+			allow[lc.name] = set
+		}
+	}
+
 	out := make(map[string]agent.Tool, len(tools)+8)
 	for name, t := range tools {
 		out[name] = t
 	}
 	for _, lc := range live {
+		filter := allow[lc.name]
 		for _, def := range lc.conn.Tools() {
+			if filter != nil && !filter[def.Name] {
+				continue // server has an allowlist and this tool isn't on it
+			}
 			name := mcpToolName(lc.name, def.Name)
 			if _, exists := out[name]; exists {
 				continue

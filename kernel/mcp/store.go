@@ -60,9 +60,16 @@ type Server struct {
 	// credentialed server (github/brave/slack) can get exactly the key it needs.
 	// Stored like Args (plaintext in the registry) — use a dedicated low-scope
 	// token. Redacted out of read APIs.
-	Env       map[string]string `json:"env,omitempty"`
-	CreatedMS int64             `json:"created_ms"`
-	UpdatedMS int64             `json:"updated_ms"`
+	Env map[string]string `json:"env,omitempty"`
+	// ToolAllow is an OPT-IN allowlist of the server's own tool names to expose
+	// to runs (M899) — context-efficient MCP management. A chatty server (github
+	// exposes ~30 tools) can be trimmed to the few a run actually needs, so its
+	// schemas don't bloat every run's context. Empty = expose all the server's
+	// tools (the default). Names are the server's bare tool names (not the
+	// mcp_<name>_<tool> prefix).
+	ToolAllow []string `json:"tool_allow,omitempty"`
+	CreatedMS int64    `json:"created_ms"`
+	UpdatedMS int64    `json:"updated_ms"`
 }
 
 // nameRe: lowercase letter first, then letters/digits. Deliberately NO
@@ -79,6 +86,9 @@ const maxArgs = 32
 // maxEnv caps how many env vars one server may carry (a sanity bound, not a
 // security boundary).
 const maxEnv = 32
+
+// maxToolAllow caps the per-server tool allowlist length.
+const maxToolAllow = 128
 
 // Validate checks a server's user-supplied fields.
 func Validate(s Server) error {
@@ -102,6 +112,14 @@ func Validate(s Server) error {
 	for k := range s.Env {
 		if !envKeyRe.MatchString(k) {
 			return fmt.Errorf("mcp: invalid env var name %q", k)
+		}
+	}
+	if len(s.ToolAllow) > maxToolAllow {
+		return fmt.Errorf("mcp: at most %d allowed tools", maxToolAllow)
+	}
+	for _, t := range s.ToolAllow {
+		if strings.TrimSpace(t) == "" {
+			return errors.New("mcp: empty tool name in allowlist")
 		}
 	}
 	return nil
