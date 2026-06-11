@@ -25,6 +25,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   `delegate` tool now coaches the leader pattern and prefers reusing an existing named agent. (M843)
 
 ### Added
+- **Built-in git-ops skill bundle (M864).** A fifth out-of-the-box skill that gives agents a safe,
+  disciplined git + GitHub workflow for changing code and shipping it as a PR (#34, supports #42
+  self-improvement). `scripts/gitflow.sh` wraps `sync`/`branch`/`save`/`pr`/`status` and **refuses to
+  commit on the default branch** (branch-per-PR, like the operator's own discipline); `pr` pushes and
+  opens a PR via `gh`. `reference/recipes.md` covers clone→PR, auth checks, undo/amend, cherry-pick,
+  rebase conflict resolution, and throwaway worktrees. Rides the `plugins/builtinskills` seeder — no new
+  Go dependency. (M864)
 - **Built-in docker-services skill bundle (M863).** A fourth out-of-the-box skill (after browser-use,
   computer-use, data-analysis) that lets agents stand up real self-hosted services in the background via
   Docker — Postgres, Redis, MinIO, Ollama, n8n, … — and tear them down cleanly (#51). `scripts/svc.sh`
