@@ -50,6 +50,7 @@ import { useChat } from "@/lib/chatStore";
 import { buildContext, type AttachRef } from "@/lib/attach";
 import { sortConversations, filterConversations, type Msg } from "@/lib/conversations";
 import { conversationToMarkdown, slugify, downloadText } from "@/lib/export";
+import { ChannelSessions } from "@/views/ChannelSessions";
 
 // Chat is the humane front door to the agent: a conversational thread where you
 // type an intent and watch the governed loop answer live — streaming text, the
@@ -237,6 +238,8 @@ export function Chat() {
             ));
           })()}
         </div>
+        {/* Channel-originated sessions (Telegram/Slack/…) — follow them live (M841). */}
+        <ChannelSessions />
       </aside>
 
       {/* Active thread + composer. */}

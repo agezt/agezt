@@ -12,6 +12,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Channel conversations are followable sessions in Chat (M841).** A new "Channels" section in the
+  Chat sidebar turns each inbound channel conversation (Telegram/Slack/Discord/webhook) into a
+  per-user **session** you can open and follow live — incoming messages and the agent's replies,
+  updating as new traffic arrives. Built on the existing inbox + event stream; the daemon's
+  per-message correlations are merged into one continuous session per sender. (Read-only follow for
+  now; reply-from-web is a follow-up.) (M841)
 - **Self-healing watchdog — `agezt watchdog` (M840).** A new subcommand supervises the daemon using
   the same binary: it spawns `agezt daemon` and **respawns it whenever it exits**, so a crash brings
   the daemon back on its own. Exponential backoff (1 s→30 s, reset after a clean 60 s run), a crash-loop
