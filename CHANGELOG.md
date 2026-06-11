@@ -25,6 +25,11 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   `delegate` tool now coaches the leader pattern and prefers reusing an existing named agent. (M843)
 
 ### Changed
+- **Live active-runs badge on the Overseer nav item (M868).** The sidebar Overseer item now carries an
+  accent count pill showing how many runs are in flight, folded live from the event stream
+  (`foldActivityEvent` + `summarize`), so the operator sees activity from any view — ambient monitoring,
+  mirroring the unseen-alert badge (M779). Shown only when > 0, capped at 99+, with a tooltip. Purely
+  frontend — reuses the existing event provider and activity helpers. (M868)
 - **Overseer dashboard goes live (M867).** The supervisory view (M862) now rides the SSE event stream
   instead of only polling: a state-changing event (`task.received/completed/failed/continued`,
   `subagent.spawned`, `council.consensus`, `board.posted`) triggers a debounced refetch so panels update
