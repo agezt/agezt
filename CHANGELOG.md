@@ -52,6 +52,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   the Runs view. Purely frontend — reuses the existing event provider and read routes. (M867)
 
 ### Added
+- **Built-in ssh-remote skill bundle (M893).** A thirteenth out-of-the-box skill that operates remote
+  hosts over SSH (#34). `scripts/ssh.py` (paramiko) has four ops: `run` (exec → exit_code/stdout/stderr),
+  `put`/`get` (SFTP upload/download), `ls` (remote dir); key or password auth, password never echoed back,
+  a non-zero command still returns its code. `setup.sh` installs paramiko. Extends docker-services to
+  remote hosts and pairs with archive-tools for deploys (zip → put → extract). Rides the
+  `plugins/builtinskills` seeder. (M893)
 - **Built-in email-tools skill bundle (M892).** A twelfth out-of-the-box skill that sends (SMTP) and reads
   (IMAP) email (#34) — **zero pip deps** (Python stdlib `smtplib`/`imaplib`/`email`). `scripts/mail.py`
   has three ops: `send` (STARTTLS/SSL, plain + optional HTML, file attachments), `list` (newest-first IMAP
