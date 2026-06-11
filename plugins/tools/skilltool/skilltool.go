@@ -31,6 +31,10 @@ type forge interface {
 	Quarantine(corr, id, reason string) error
 	Get(id string) (skill.Skill, bool, error)
 	List() ([]skill.Skill, error)
+	// Bundles returns the on-disk resource store (reference files + scripts) so
+	// the agent can list and read a skill's bundle (op=files / op=read, M847).
+	// nil when no bundle store is wired.
+	Bundles() *skill.BundleStore
 }
 
 // Tool implements agent.Tool. Created unbound via New(); Bind wires the Forge.

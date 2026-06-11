@@ -471,6 +471,12 @@ func Open(cfg Config) (*Kernel, error) {
 		return nil, fmt.Errorf("runtime: skills: %w", err)
 	}
 	forge := skill.NewForge(skstore, kbus)
+	// Wire the on-disk bundle store so skills can ship reference files + scripts
+	// (agentskills.io shape, M847). Best-effort: a bundle-store failure leaves
+	// skills body-only rather than failing daemon start.
+	if bundles, berr := skill.OpenBundles(filepath.Join(cfg.BaseDir, "skills")); berr == nil {
+		forge.SetBundles(bundles)
+	}
 
 	schedStore, err := cadence.OpenStore(filepath.Join(cfg.BaseDir, "cadence"))
 	if err != nil {
@@ -2077,6 +2083,17 @@ func injectSkills(system string, hits []skill.Scored) string {
 	for _, h := range hits {
 		s := h.Skill
 		fmt.Fprintf(&b, "## %s — %s\n%s\n", s.Name, s.Description, s.Body)
+		// A bundled skill (agentskills.io shape, M847) ships reference files and
+		// scripts. List them and tell the agent how to reach them: read a reference
+		// with `skill op=read`, run a script with shell/code_exec from the dir that
+		// `skill op=files` reports. This is what lets a skill say "run scripts/setup.sh
+		// to install the CLI" and have the agent actually do it.
+		if len(s.Resources) > 0 {
+			fmt.Fprintf(&b, "Bundled resources (use the `skill` tool: op=files for the directory, op=read \"<path>\" to read one; run scripts with shell/code_exec):\n")
+			for _, r := range s.Resources {
+				fmt.Fprintf(&b, "  - %s\n", r)
+			}
+		}
 	}
 	if system != "" {
 		b.WriteString("\n")

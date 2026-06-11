@@ -9,6 +9,7 @@ package controlplane
 
 import (
 	"encoding/json"
+	"fmt"
 	"net"
 
 	"github.com/agezt/agezt/kernel/event"
@@ -167,12 +168,18 @@ func (s *Server) handleSkillImport(conn net.Conn, req Request) {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: toerr.Error()})
 		return
 	}
+	resources, rerr := argResources(req.Args, "resources")
+	if rerr != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: rerr.Error()})
+		return
+	}
 	sk, created, err := s.k.Forge().Create("", skill.CreateSpec{
 		Name:          name,
 		Description:   stringArg(req.Args, "description"),
 		Triggers:      triggers,
 		Body:          body,
 		ToolsRequired: tools,
+		Resources:     resources,
 	})
 	if err != nil {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
@@ -181,8 +188,101 @@ func (s *Server) handleSkillImport(conn net.Conn, req Request) {
 	s.writeResp(conn, Response{
 		ID: req.ID, Type: RespResult,
 		Result: map[string]any{
-			"id": sk.ID, "name": sk.Name, "status": string(sk.Status), "created": created,
+			"id": sk.ID, "name": sk.Name, "status": string(sk.Status),
+			"created": created, "resources": sk.Resources,
 		},
+	})
+}
+
+// argResources decodes the optional resources bundle from a control-plane call:
+// a JSON object mapping each relative path to that file's text content. Absent
+// or empty → nil (a body-only skill). A non-object value is rejected.
+func argResources(args map[string]any, key string) (map[string][]byte, error) {
+	raw, ok := args[key]
+	if !ok || raw == nil {
+		return nil, nil
+	}
+	obj, ok := raw.(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("args.%s must be an object of {path: content}", key)
+	}
+	if len(obj) == 0 {
+		return nil, nil
+	}
+	out := make(map[string][]byte, len(obj))
+	for path, v := range obj {
+		content, ok := v.(string)
+		if !ok {
+			return nil, fmt.Errorf("args.%s[%q] must be a string", key, path)
+		}
+		out[path] = []byte(content)
+	}
+	return out, nil
+}
+
+// handleSkillFiles lists a skill's bundle resources (relative paths) plus the
+// absolute bundle directory the agent runs scripts from. Read-only.
+func (s *Server) handleSkillFiles(conn net.Conn, req Request) {
+	id, _ := req.Args["id"].(string)
+	if id == "" {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.id required"})
+		return
+	}
+	sk, found, err := s.k.Forge().Get(id)
+	if err != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		return
+	}
+	if !found {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "no skill with id " + id})
+		return
+	}
+	bundles := s.k.Forge().Bundles()
+	files := sk.Resources
+	dir := ""
+	if bundles != nil {
+		if live, lerr := bundles.List(sk.Name); lerr == nil && live != nil {
+			files = live // the on-disk truth, in case the manifest drifted
+		}
+		dir = bundles.Dir(sk.Name)
+	}
+	s.writeResp(conn, Response{
+		ID: req.ID, Type: RespResult,
+		Result: map[string]any{"id": sk.ID, "name": sk.Name, "files": files, "dir": dir, "count": len(files)},
+	})
+}
+
+// handleSkillReadFile returns the text content of one bundle resource. Read-only;
+// the bundle store rejects any path that escapes the skill's directory.
+func (s *Server) handleSkillReadFile(conn net.Conn, req Request) {
+	id, _ := req.Args["id"].(string)
+	path, _ := req.Args["path"].(string)
+	if id == "" || path == "" {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.id and args.path required"})
+		return
+	}
+	sk, found, err := s.k.Forge().Get(id)
+	if err != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		return
+	}
+	if !found {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "no skill with id " + id})
+		return
+	}
+	bundles := s.k.Forge().Bundles()
+	if bundles == nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "skill bundles are not available on this daemon"})
+		return
+	}
+	data, err := bundles.Read(sk.Name, path)
+	if err != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		return
+	}
+	s.writeResp(conn, Response{
+		ID: req.ID, Type: RespResult,
+		Result: map[string]any{"id": sk.ID, "name": sk.Name, "path": path, "content": string(data), "bytes": len(data)},
 	})
 }
 
@@ -216,6 +316,9 @@ func skillView(sk skill.Skill) map[string]any {
 	}
 	if len(sk.ToolsRequired) > 0 {
 		v["tools_required"] = sk.ToolsRequired
+	}
+	if len(sk.Resources) > 0 {
+		v["resources"] = sk.Resources
 	}
 	if len(sk.Lineage) > 0 {
 		v["lineage"] = sk.Lineage

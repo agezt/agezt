@@ -24,6 +24,11 @@ import (
 type Forge struct {
 	store Store
 	bus   *bus.Bus
+	// bundles holds the on-disk resources (reference files + scripts) that travel
+	// with a skill (agentskills.io shape, SPEC-13). Optional: nil in store-only
+	// tests and on daemons without a bundle store; when nil, Create simply ignores
+	// any Resources and a skill stays body-only. Injected via SetBundles.
+	bundles *BundleStore
 	// now is the clock, injectable for deterministic tests.
 	now func() time.Time
 	// mu serialises the read-modify-write lifecycle mutators so two concurrent runs
@@ -92,6 +97,16 @@ func (f *Forge) SetAutoQuarantine(minFailures int, rate float64) {
 // The daemon calls this from config; off by default.
 func (f *Forge) SetAutoShadow(on bool) { f.autoShadow = on }
 
+// SetBundles wires the on-disk bundle store so Create can materialize a skill's
+// reference files and scripts (agentskills.io shape). The daemon injects it at
+// startup; nil leaves skills body-only. Bundles returns the wired store (nil if
+// unset) for callers that need to read resources directly.
+func (f *Forge) SetBundles(b *BundleStore) { f.bundles = b }
+
+// Bundles returns the wired bundle store (nil if none). The control plane uses
+// it to serve a skill's resource list and file reads.
+func (f *Forge) Bundles() *BundleStore { return f.bundles }
+
 // SetAutoPromote tunes (or, with minWins <= 0, disables) shadow→active
 // auto-promotion. The daemon calls this from config; tests use it to assert the
 // disabled path.
@@ -113,6 +128,12 @@ type CreateSpec struct {
 	Triggers      []string
 	Body          string
 	ToolsRequired []string
+	// Resources is an optional bundle of on-disk files (relative path → content)
+	// that travel with the skill — reference docs and scripts (agentskills.io
+	// shape). When non-empty and a bundle store is wired (SetBundles), Create
+	// materializes them and records their manifest on the skill. Ignored when no
+	// bundle store is set.
+	Resources map[string][]byte
 }
 
 // Create authors a new draft skill and journals it. Content-addressing by
@@ -135,10 +156,22 @@ func (f *Forge) Create(corr string, spec CreateSpec) (Skill, bool, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
+	// Materialize any bundle first: resources are keyed by name, so they attach
+	// to both a fresh skill and a refreshed-existing one. A bundle-write failure
+	// fails the create (a half-installed skill that points at missing files is
+	// worse than no skill).
+	resources, err := f.writeBundle(name, spec.Resources)
+	if err != nil {
+		return Skill{}, false, err
+	}
+
 	if existing, found, err := f.store.Get(id); err != nil {
 		return Skill{}, false, err
 	} else if found {
 		existing.LastSeenMS = nowMS
+		if resources != nil {
+			existing.Resources = resources
+		}
 		if err := f.store.Put(existing); err != nil {
 			return Skill{}, false, err
 		}
@@ -152,6 +185,7 @@ func (f *Forge) Create(corr string, spec CreateSpec) (Skill, bool, error) {
 		Triggers:      normalizeList(spec.Triggers),
 		Body:          spec.Body,
 		ToolsRequired: normalizeList(spec.ToolsRequired),
+		Resources:     resources,
 		Version:       DefaultVersion,
 		Lineage:       f.lineageFor(name),
 		Status:        StatusDraft,
@@ -189,6 +223,17 @@ func (f *Forge) maybeAutoShadow(corr string, sk Skill) {
 		return
 	}
 	_, _ = f.promoteWithReason(corr, sk.ID, "auto-shadow: shadow-test passed")
+}
+
+// writeBundle materializes a skill's resource bundle when both resources and a
+// bundle store are present. It returns the manifest (sorted relative paths) to
+// record on the skill, or nil when there is nothing to attach (no resources, or
+// no bundle store wired). Caller holds f.mu.
+func (f *Forge) writeBundle(name string, resources map[string][]byte) ([]string, error) {
+	if len(resources) == 0 || f.bundles == nil {
+		return nil, nil
+	}
+	return f.bundles.Write(name, resources)
 }
 
 // lineageFor returns the ids of non-archived skills sharing name — the

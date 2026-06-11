@@ -904,8 +904,18 @@ const (
 	// CmdSkillImport installs a skill from a portable bundle as a fresh DRAFT
 	// (via the Forge, so it is content-addressed, deduped, and journaled like
 	// any other authored skill). Args: name, body (required); description,
-	// triggers, tools_required (optional). Returns: { id, name, status, created }
+	// triggers, tools_required, resources (optional; resources is an object of
+	// {relative-path: text-content} — the agentskills.io bundle of reference
+	// files + scripts, M847). Returns: { id, name, status, created, resources }
 	CmdSkillImport = "skill_import"
+
+	// CmdSkillFiles lists a skill's on-disk bundle resources (M847).
+	// Args: id (required). Returns: { id, name, files: [...], dir, count }
+	CmdSkillFiles = "skill_files"
+
+	// CmdSkillReadFile returns one bundle resource's text content (M847).
+	// Args: id, path (required). Returns: { id, name, path, content, bytes }
+	CmdSkillReadFile = "skill_read_file"
 
 	// Chronos standing orders (SPEC-16 §4) — persistent-goal CRUD behind
 	// `agt standing`. Add: args.order (object). SetEnabled: args{id, enabled}.
