@@ -76,6 +76,7 @@ import (
 	"github.com/agezt/agezt/kernel/webhook"
 	"github.com/agezt/agezt/kernel/webui"
 	"github.com/agezt/agezt/kernel/workflow"
+	"github.com/agezt/agezt/plugins/builtinskills"
 	"github.com/agezt/agezt/plugins/channels/discord"
 	"github.com/agezt/agezt/plugins/channels/email"
 	"github.com/agezt/agezt/plugins/channels/homeassistant"
@@ -1521,6 +1522,19 @@ func runDaemon(stdout, stderr io.Writer) int {
 	if fg := k.Forge(); fg != nil {
 		skillToolInst.Bind(fg)
 		fmt.Fprintf(stdout, "  skill tool       : enabled (the agent can author and manage its own skills)\n")
+		// Seed the built-in skill bundles baked into the binary (M852), so
+		// capabilities like full browser automation work out of the box — the
+		// agent gets a ready, active skill with its scripts on disk. Idempotent
+		// (content-addressed); best-effort — a seed failure never blocks startup.
+		if seeded, serr := builtinskills.SeedAll(fg, ""); serr != nil {
+			fmt.Fprintf(stderr, "  built-in skills  : partial (%v)\n", serr)
+		} else if len(seeded) > 0 {
+			names := make([]string, 0, len(seeded))
+			for _, s := range seeded {
+				names = append(names, s.Name)
+			}
+			fmt.Fprintf(stdout, "  built-in skills  : seeded (%s)\n", strings.Join(names, ", "))
+		}
 	}
 
 	// Bind the introspection tool to the live kernel (M682), so the agent can read

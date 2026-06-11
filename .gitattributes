@@ -4,3 +4,6 @@
 # the committed dist (CRLF) differs from a Linux rebuild (LF) and the gate fails.
 frontend/** text=auto eol=lf
 kernel/webui/dist/** text eol=lf
+# Built-in skill bundles are go:embed-ded into the binary (M852). Force LF so a
+# Windows checkout doesn't embed CRLF — the shell setup script must run on Linux.
+plugins/builtinskills/** text eol=lf
