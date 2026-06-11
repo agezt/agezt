@@ -223,6 +223,33 @@ func TestVisionCapableAmong_PicksLargestVisionModel(t *testing.T) {
 	}
 }
 
+// TestBestModelsAcross (M837) — one best (largest-context) model per eligible
+// provider, providers sorted by id, capped by max; ineligible providers skipped.
+func TestBestModelsAcross(t *testing.T) {
+	c := catalog.NewEmpty()
+	c.Providers["acme"] = &catalog.Provider{ID: "acme", Models: map[string]*catalog.Model{
+		"a-small": txt("a-small", 100), "a-big": txt("a-big", 99999),
+	}}
+	c.Providers["beta"] = &catalog.Provider{ID: "beta", Models: map[string]*catalog.Model{"b1": txt("b1", 5000)}}
+	c.Providers["gamma"] = &catalog.Provider{ID: "gamma", Models: map[string]*catalog.Model{"g1": txt("g1", 1000)}}
+
+	for range 10 { // deterministic despite map randomisation
+		got := c.BestModelsAcross(allEligible, 3)
+		if len(got) != 3 || got[0] != "a-big" || got[1] != "b1" || got[2] != "g1" {
+			t.Fatalf("BestModelsAcross = %v, want [a-big b1 g1]", got)
+		}
+	}
+	// Cap by max.
+	if got := c.BestModelsAcross(allEligible, 2); len(got) != 2 || got[1] != "b1" {
+		t.Errorf("max=2 = %v, want [a-big b1]", got)
+	}
+	// Skip ineligible (uncredentialed) providers.
+	got := c.BestModelsAcross(func(p string) bool { return p != "beta" }, 3)
+	if len(got) != 2 || got[0] != "a-big" || got[1] != "g1" {
+		t.Errorf("excluding beta = %v, want [a-big g1]", got)
+	}
+}
+
 // TestVisionCapableAmong_SkipsIneligibleAndTextOnly — only eligible providers
 // with an actual vision model qualify; a provider filtered out by the predicate
 // (e.g. uncredentialed) is skipped even if it has a vision model.

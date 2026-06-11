@@ -36,6 +36,8 @@ func TestCapabilityForToolCall(t *testing.T) {
 		// The Personal Data Lake tool (M834) rides the memory capability.
 		{"db", `{"op":"query","collection":"expenses"}`, CapMemory},
 		{"db", `{"op":"insert","collection":"notes","record":{}}`, CapMemory},
+		// The Council of Elders tool (M837) rides the delegate capability.
+		{"council", `{"question":"ship?"}`, CapDelegate},
 		{"remote_run", `{"task":"x"}`, CapRemoteRun},
 		{"notify", `{"text":"hi"}`, CapNotify},
 		{"homeassistant", `{"operation":"get_states","entity_id":"light.x"}`, CapHomeAssistantRead},

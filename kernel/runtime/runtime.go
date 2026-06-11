@@ -340,6 +340,13 @@ type Config struct {
 	// set. Used by DescribeImages (M821) to caption images for a run whose active
 	// model can't see them. Nil disables the vision sidecar.
 	VisionModel func() (modelID string, ok bool)
+
+	// CouncilMembers, when set, returns the default Council of Elders membership
+	// (M837) — one seat per keyed provider's best model, so the council speaks
+	// across providers. Injected by the daemon (cmd/agezt), which owns the
+	// registered+credentialed set and the AGEZT_COUNCIL_MEMBERS override. Nil or
+	// empty → the council tool reports no members available.
+	CouncilMembers func() []CouncilMember
 }
 
 // Kernel is the running Agezt instance.

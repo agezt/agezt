@@ -109,6 +109,15 @@ const (
 	KindRunResumed Kind = "run.resumed"
 	KindRunStepped Kind = "run.stepped"
 	KindRunSteered Kind = "run.steered"
+	// Council of Elders (M837) — a panel of differently-modelled advisors debates a
+	// question and converges to a consensus. These events are the audit trail an
+	// operator (and `agt why`) reads to see who said what and how the council
+	// decided. KindCouncilConvened opens it {question, members, rounds};
+	// KindCouncilOpinion records one member's position {seat, model, round};
+	// KindCouncilConsensus records the synthesized verdict {chars}.
+	KindCouncilConvened  Kind = "council.convened"
+	KindCouncilOpinion   Kind = "council.opinion"
+	KindCouncilConsensus Kind = "council.consensus"
 	// KindTaskContinued records that a run exhausted its tool-round budget
 	// (MaxIter) without a final answer and was AUTOMATICALLY continued (M833) —
 	// the loop injected a "keep going" turn and granted another batch of rounds
@@ -368,6 +377,9 @@ var knownKinds = map[Kind]struct{}{
 	KindRunStepped:                {},
 	KindRunSteered:                {},
 	KindTaskContinued:             {},
+	KindCouncilConvened:           {},
+	KindCouncilOpinion:            {},
+	KindCouncilConsensus:          {},
 	KindPolicyCompacted:           {},
 	KindNetguardBlocked:           {},
 	KindCapabilityRejected:        {},

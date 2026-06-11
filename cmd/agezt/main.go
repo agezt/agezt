@@ -97,6 +97,7 @@ import (
 	"github.com/agezt/agezt/plugins/tools/codeexec"
 	"github.com/agezt/agezt/plugins/tools/coding"
 	configtool "github.com/agezt/agezt/plugins/tools/config"
+	counciltool "github.com/agezt/agezt/plugins/tools/council"
 	dbtool "github.com/agezt/agezt/plugins/tools/db"
 	"github.com/agezt/agezt/plugins/tools/fetch"
 	filetool "github.com/agezt/agezt/plugins/tools/file"
@@ -755,6 +756,50 @@ func runDaemon(stdout, stderr io.Writer) int {
 		})
 	}
 
+	// Council of Elders default membership (M837): one seat per KEYED provider's
+	// best model, so the panel speaks across providers. AGEZT_COUNCIL_MEMBERS (a
+	// comma-separated model list) overrides. Built like VisionModel — the daemon
+	// owns the registered+credentialed set; never picks an unkeyed model.
+	cfg.CouncilMembers = func() []kernelruntime.CouncilMember {
+		if spec := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "COUNCIL_MEMBERS")); spec != "" {
+			var ms []kernelruntime.CouncilMember
+			for i, part := range strings.Split(spec, ",") {
+				m := strings.TrimSpace(part)
+				if m == "" {
+					continue
+				}
+				ms = append(ms, kernelruntime.CouncilMember{Seat: councilSeatName(i), Model: m})
+			}
+			if len(ms) > 0 {
+				return ms
+			}
+		}
+		if k == nil {
+			return nil
+		}
+		cat := k.Catalog()
+		if cat == nil {
+			return nil
+		}
+		lookup, _ := buildAWSCredChain(credStore.Lookup)
+		models := cat.BestModelsAcross(func(provID string) bool {
+			e := cat.Providers[provID]
+			return e != nil && compat.IsSupportedFamily(e.Family()) && e.HasCredentials(lookup)
+		}, 3)
+		// No keyed provider listed a model → fall back to the active model so a
+		// single-provider setup still convenes a (degenerate) council.
+		if len(models) == 0 {
+			if m := strings.TrimSpace(k.Model()); m != "" && m != "mock" {
+				models = []string{m}
+			}
+		}
+		out := make([]kernelruntime.CouncilMember, 0, len(models))
+		for i, m := range models {
+			out = append(out, kernelruntime.CouncilMember{Seat: councilSeatName(i), Model: m})
+		}
+		return out
+	}
+
 	var openErr error
 	k, openErr = kernelruntime.Open(cfg)
 	if openErr != nil {
@@ -781,6 +826,10 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// Inject the data lake into the db tool (M834).
 	if dbt, ok := tools["db"].(*dbtool.Tool); ok {
 		dbt.SetStore(k.DataLake())
+	}
+	// Inject the kernel into the council tool (M837) as the deliberation runner.
+	if ct, ok := tools["council"].(*counciltool.Tool); ok {
+		ct.SetRunner(k)
 	}
 
 	// Wire the bus into the Governor and the Warden so their events
@@ -4554,6 +4603,13 @@ func buildTools(baseDir string, stderr io.Writer, ward warden.Engine) (map[strin
 	out["db"] = dbt
 	registered = append(registered, "db(data-lake)")
 
+	// council — the Council of Elders (M837): convene a multi-model panel for a
+	// hard decision and get a reconciled consensus. The kernel runner is injected
+	// after Open. Always registered.
+	ct := counciltool.New()
+	out["council"] = ct
+	registered = append(registered, "council(consensus panel)")
+
 	// coding — external coding-agent bridge (P6-CODE). Registered only when
 	// AGEZT_CODING_CMD is set (the command that runs Claude Code / Codex / Aider
 	// / any agent). It operates on a git worktree of the workspace and returns a
@@ -4768,6 +4824,16 @@ func buildTools(baseDir string, stderr io.Writer, ward warden.Engine) (map[strin
 //
 // Deterministic; satisfies the demo gate `agt run "list the files here and
 // tell me what this project is"` end-to-end with no external services.
+// councilSeatName labels the i-th council seat (M837): the first three get
+// distinct elder names, the rest a numbered fallback.
+func councilSeatName(i int) string {
+	names := []string{"Elder Alpha", "Elder Beta", "Elder Gamma"}
+	if i < len(names) {
+		return names[i]
+	}
+	return fmt.Sprintf("Elder %d", i+1)
+}
+
 // injectDemoVisionModel adds a synthetic vision-capable "mock" catalog entry
 // (M93 demo) so the offline mock model passes the M91 vision gate. Production
 // catalogs are untouched; this only fires under AGEZT_DEMO_VISION=1.

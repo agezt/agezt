@@ -475,6 +475,41 @@ func (c *Catalog) VisionCapableAmong(providerEligible func(provID string) bool) 
 	return "", false
 }
 
+// BestModelsAcross returns one representative model id per ELIGIBLE provider —
+// that provider's largest-context model, tie-broken by id ascending — across
+// providers sorted by id, up to max ids (max<=0 = no cap). Fewer than max when
+// fewer providers are eligible. Used to assemble a multi-provider Council of
+// Elders (M837) so each seat speaks for a DIFFERENT keyed provider; the daemon
+// passes the registered+credentialed predicate (same as VisionCapableAmong).
+func (c *Catalog) BestModelsAcross(providerEligible func(provID string) bool, max int) []string {
+	var out []string
+	for _, p := range c.ProviderList() {
+		if max > 0 && len(out) >= max {
+			break
+		}
+		if !providerEligible(p.ID) {
+			continue
+		}
+		if id, ok := pickBestModel(p); ok {
+			out = append(out, id)
+		}
+	}
+	return out
+}
+
+// pickBestModel returns the largest-context model in p (any modality), tie-broken
+// by id ascending, or ("", false) if the provider lists none.
+func pickBestModel(p *Provider) (string, bool) {
+	best := ""
+	bestCtx := -1
+	for id, m := range p.Models {
+		if m.Limit.Context > bestCtx || (m.Limit.Context == bestCtx && id < best) {
+			best, bestCtx = id, m.Limit.Context
+		}
+	}
+	return best, best != ""
+}
+
 // pickBestVision returns the largest-context vision-capable model in p, tie-broken
 // by id ascending, or ("", false) if none. Mirrors pickBestToolCapable.
 func pickBestVision(p *Provider) (string, bool) {
