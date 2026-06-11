@@ -122,13 +122,15 @@ var apiRoutes = map[string]string{
 	"/api/board":               controlplane.CmdBoardRead,
 	// Personal Data Lake (M836): list collections (no args). Read-only.
 	"/api/data/collections": controlplane.CmdDataCollections,
-	"/api/autonomy":         controlplane.CmdAutonomyFeed,
-	"/api/reflect":          controlplane.CmdReflectShow,
-	"/api/approvals":        controlplane.CmdApprovals,
-	"/api/plan_stats":       controlplane.CmdPlanStats,
-	"/api/sandbox":          controlplane.CmdSandboxList,
-	"/api/config/schema":    controlplane.CmdConfigSchema,
-	"/api/config/values":    controlplane.CmdConfigValues,
+	// Council of Elders (M839): the default membership the panel convenes with. Read-only.
+	"/api/council/members": controlplane.CmdCouncilMembers,
+	"/api/autonomy":        controlplane.CmdAutonomyFeed,
+	"/api/reflect":         controlplane.CmdReflectShow,
+	"/api/approvals":       controlplane.CmdApprovals,
+	"/api/plan_stats":      controlplane.CmdPlanStats,
+	"/api/sandbox":         controlplane.CmdSandboxList,
+	"/api/config/schema":   controlplane.CmdConfigSchema,
+	"/api/config/values":   controlplane.CmdConfigValues,
 	// Per-task model routing (M703): the effective chains + known task types.
 	"/api/routing": controlplane.CmdRoutingGet,
 	"/api/persona": controlplane.CmdPersonaGet,
@@ -330,8 +332,11 @@ var jsonRoutes = map[string]writeRoute{
 	"/api/data/insert":     {controlplane.CmdDataInsert, []string{"collection", "record"}},
 	"/api/data/update":     {controlplane.CmdDataUpdate, []string{"collection", "id", "record"}},
 	"/api/data/collection": {controlplane.CmdDataCreateCollection, []string{"collection"}},
-	"/api/prompts/set":     {controlplane.CmdPromptsSet, []string{"prompts"}},
-	"/api/standing/add":    {controlplane.CmdStandingAdd, []string{"order"}},
+	// Council of Elders ask (M839): convene the panel on a question. Long-running
+	// (several model calls) but bounded by the jsonProxy timeout. POST body.
+	"/api/council/ask":  {controlplane.CmdCouncilAsk, []string{"question", "rounds"}},
+	"/api/prompts/set":  {controlplane.CmdPromptsSet, []string{"prompts"}},
+	"/api/standing/add": {controlplane.CmdStandingAdd, []string{"order"}},
 	// Edit a standing order in place (M729): id + any subset of the human-tunable
 	// fields. assure is numeric, so the JSON body preserves its type.
 	"/api/standing/edit": {controlplane.CmdStandingEdit, []string{"id", "name", "plan", "agent", "mode", "max_trust", "briefing_min", "assure"}},

@@ -490,6 +490,10 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.handleDataCreateCollection(conn, req)
 	case CmdDataDropCollection:
 		s.handleDataDropCollection(conn, req)
+	case CmdCouncilMembers:
+		s.handleCouncilMembers(conn, req)
+	case CmdCouncilAsk:
+		s.handleCouncilAsk(ctx, conn, req)
 	case CmdApprovals:
 		s.handleApprovals(conn, req)
 	case CmdApprovalsLog:

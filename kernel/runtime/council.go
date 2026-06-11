@@ -58,6 +58,16 @@ const (
 	councilConsensusMaxTokens = 1200
 )
 
+// CouncilDefaultMembers returns the daemon-configured default membership (one
+// seat per keyed provider), or nil. Lets the control plane / Web UI show which
+// models the council will convene with before asking.
+func (k *Kernel) CouncilDefaultMembers() []CouncilMember {
+	if k.cfg.CouncilMembers == nil {
+		return nil
+	}
+	return dedupeSeats(k.cfg.CouncilMembers())
+}
+
 // Council convenes the panel on a question and returns the deliberation + the
 // chair's consensus. When members is nil/empty the daemon-configured default
 // membership is used (cfg.CouncilMembers). rounds<=0 uses councilDefaultRounds.
@@ -227,26 +237,44 @@ func councilDeliberatePrompt(question string, members []CouncilMember, latest []
 
 // --- helpers ---
 
-// splitConsensusDissent parses the chair's "CONSENSUS:/DISSENT:" sections; absent
-// the markers the whole text is the consensus. A dissent of "none" is dropped.
+// splitConsensusDissent parses the chair's CONSENSUS / DISSENT sections. It is
+// tolerant of how different models label them — "CONSENSUS:", a markdown header
+// "## CONSENSUS", or "**Dissent**" — by matching a line that (after stripping
+// leading markdown markers) starts with the keyword. Absent a dissent section the
+// whole text is the consensus; a dissent of "none" is dropped.
 func splitConsensusDissent(text string) (consensus, dissent string) {
-	text = strings.TrimSpace(text)
-	lower := strings.ToLower(text)
-	di := strings.LastIndex(lower, "dissent:")
-	if di >= 0 {
-		consensus = strings.TrimSpace(text[:di])
-		dissent = strings.TrimSpace(text[di+len("dissent:"):])
-	} else {
-		consensus = text
+	lines := strings.Split(strings.TrimSpace(text), "\n")
+	di := -1
+	for i, ln := range lines {
+		if strings.HasPrefix(strings.ToLower(strings.TrimLeft(ln, " #*->\t")), "dissent") {
+			di = i
+		}
 	}
-	// Strip a leading "CONSENSUS:" label if present.
-	if i := strings.Index(strings.ToLower(consensus), "consensus:"); i >= 0 {
-		consensus = strings.TrimSpace(consensus[i+len("consensus:"):])
+	if di < 0 {
+		return stripSectionLabel(strings.TrimSpace(text), "consensus"), ""
 	}
-	if d := strings.ToLower(strings.TrimSpace(dissent)); d == "none" || d == "none." || d == "" {
-		dissent = ""
+	consensus = stripSectionLabel(strings.TrimSpace(strings.Join(lines[:di], "\n")), "consensus")
+	marker := strings.TrimLeft(lines[di], " #*->\t")
+	rest := strings.TrimLeft(marker[len("dissent"):], " :*\t")
+	tail := strings.TrimSpace(strings.Join(append([]string{rest}, lines[di+1:]...), "\n"))
+	if d := strings.ToLower(tail); d == "" || d == "none" || d == "none." {
+		tail = ""
 	}
-	return consensus, dissent
+	return consensus, tail
+}
+
+// stripSectionLabel removes a leading "<label>:" / "## <label>" header line from s.
+func stripSectionLabel(s, label string) string {
+	lines := strings.Split(s, "\n")
+	if len(lines) == 0 {
+		return s
+	}
+	head := strings.TrimLeft(lines[0], " #*->\t")
+	if strings.HasPrefix(strings.ToLower(head), label) {
+		lines[0] = strings.TrimLeft(head[len(label):], " :*\t")
+		s = strings.Join(lines, "\n")
+	}
+	return strings.TrimSpace(s)
 }
 
 func dedupeSeats(members []CouncilMember) []CouncilMember {

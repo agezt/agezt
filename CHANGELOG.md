@@ -12,6 +12,10 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Council of Elders Web UI (M839).** A new **Council** view lets you put a question to the panel
+  from the console: it shows the seated models, takes your question (+ deliberation rounds), convenes
+  the council, and renders the consensus (with any dissent) above the full per-round transcript.
+  Backed by `council_members` / `council_ask` control-plane commands. (M839)
 - **Council of Elders — a multi-model consensus panel (M837).** New `council` tool convenes a panel
   of advisors, each on a DIFFERENT keyed provider/model, that give independent opinions, deliberate
   (seeing each other's positions), and converge to a chair-synthesized **consensus** (with any dissent
