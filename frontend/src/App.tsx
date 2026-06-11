@@ -53,6 +53,7 @@ import { cn } from "@/lib/utils";
 import { postAction, getJSON } from "@/lib/api";
 import { useEvents } from "@/lib/events";
 import { attentionAlertCount } from "@/lib/alerts";
+import { foldActivityEvent, summarize, type ActivityState } from "@/lib/activity";
 import { CommandPalette } from "@/components/CommandPalette";
 import { MiniChat } from "@/components/MiniChat";
 import { AlertBell } from "@/components/AlertBell";
@@ -277,6 +278,17 @@ export default function App() {
     if (active === "alerts") setSeenAlerts(liveAlertCount);
   }, [active, liveAlertCount]);
   const unseenAlerts = Math.max(0, liveAlertCount - seenAlerts);
+
+  // Live "active runs" badge on the Overseer nav item (M868): fold the live event
+  // buffer into run state and count those still running, so the operator sees how
+  // many runs are in flight from ANY view — ambient monitoring, like the alert
+  // badge. Events are newest-first, so fold in reverse (chronological) order.
+  // Same cold-start semantics as the alert badge: it reflects the live buffer.
+  const activeRunCount = useMemo(() => {
+    let state: ActivityState = {};
+    for (let i = events.length - 1; i >= 0; i--) state = foldActivityEvent(state, events[i]);
+    return summarize(state).running;
+  }, [events]);
 
   const current = NAV.find((n) => n.id === active) || NAV[0];
   const View = current.render;
@@ -563,6 +575,15 @@ export default function App() {
                         aria-label={`${unseenAlerts} unseen alerts`}
                       >
                         {unseenAlerts > 99 ? "99+" : unseenAlerts}
+                      </span>
+                    )}
+                    {n.id === "overseer" && activeRunCount > 0 && (
+                      <span
+                        className="ml-auto inline-flex min-w-4 items-center justify-center rounded-full bg-accent/20 px-1 text-[10px] font-semibold leading-4 text-accent"
+                        title={`${activeRunCount} run${activeRunCount === 1 ? "" : "s"} in flight`}
+                        aria-label={`${activeRunCount} active runs`}
+                      >
+                        {activeRunCount > 99 ? "99+" : activeRunCount}
                       </span>
                     )}
                   </button>
