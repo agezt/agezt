@@ -108,6 +108,41 @@ func TestCapabilityBriefing_TunedToTools(t *testing.T) {
 	}
 }
 
+func TestForgeBias_TunedToTools(t *testing.T) {
+	full := map[string]agent.Tool{
+		"code_exec":  envFakeTool{name: "code_exec", desc: "Run code."},
+		"tool_forge": envFakeTool{name: "tool_forge", desc: "Forge tools."},
+		"skill":      envFakeTool{name: "skill", desc: "Skills."},
+	}
+	out := forgeBias(full)
+	for _, want := range []string{
+		"Prefer deterministic tools",
+		"Write a script (code_exec)",                     // code line
+		"forge it into a durable tool",                   // tool_forge line
+		"capture a working approach as a reusable skill", // skill line
+		"self-improvement",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("forge bias missing %q\n---\n%s", want, out)
+		}
+	}
+
+	// Tuned: no tool_forge → no forge line; no code_exec → no script line.
+	noForge := map[string]agent.Tool{"code_exec": full["code_exec"]}
+	if strings.Contains(forgeBias(noForge), "durable tool") {
+		t.Errorf("forge bias promised tool_forge when absent")
+	}
+	noCode := map[string]agent.Tool{"skill": full["skill"]}
+	if strings.Contains(forgeBias(noCode), "Write a script") {
+		t.Errorf("forge bias promised code_exec when absent")
+	}
+
+	// None of code_exec/tool_forge/skill → empty (nothing to bias toward).
+	if got := forgeBias(map[string]agent.Tool{"notify": full["skill"]}); got != "" {
+		t.Errorf("expected empty forge bias with no relevant tools, got:\n%s", got)
+	}
+}
+
 func TestShellGuidance_ByInterpreter(t *testing.T) {
 	cases := map[string]string{
 		"cmd":            "Windows",
