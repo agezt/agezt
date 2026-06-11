@@ -134,6 +134,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return 0
 	case "daemon":
 		return runDaemon(stdout, stderr)
+	case "watchdog":
+		return runWatchdog(stdout, stderr)
 	default:
 		fmt.Fprintf(stderr, "%s: unknown command %q\n", brand.Binary, args[0])
 		printHelp(stderr)
@@ -147,6 +149,7 @@ func printHelp(w io.Writer) {
 	fmt.Fprintf(w, "Commands:\n")
 	fmt.Fprintf(w, "  (none)    run the daemon (default)\n")
 	fmt.Fprintf(w, "  daemon    run the daemon, explicit\n")
+	fmt.Fprintf(w, "  watchdog  supervise the daemon, restarting it if it exits (self-healing)\n")
 	fmt.Fprintf(w, "  version   show version and exit\n")
 	fmt.Fprintf(w, "  help      show this help\n")
 	fmt.Fprintf(w, "\n")
