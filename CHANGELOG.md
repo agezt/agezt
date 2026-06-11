@@ -12,6 +12,11 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Self-healing watchdog — `agezt watchdog` (M840).** A new subcommand supervises the daemon using
+  the same binary: it spawns `agezt daemon` and **respawns it whenever it exits**, so a crash brings
+  the daemon back on its own. Exponential backoff (1 s→30 s, reset after a clean 60 s run), a crash-loop
+  guard (gives up after 6 restarts in 2 min), and clean shutdown (SIGINT/SIGTERM stops both). Run it
+  instead of `agezt daemon`, or install it as a service/scheduled task. (M840)
 - **Council of Elders Web UI (M839).** A new **Council** view lets you put a question to the panel
   from the console: it shows the seated models, takes your question (+ deliberation rounds), convenes
   the council, and renders the consensus (with any dissent) above the full per-round transcript.
