@@ -25,6 +25,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   `delegate` tool now coaches the leader pattern and prefers reusing an existing named agent. (M843)
 
 ### Added
+- **Data Lake bespoke views — expense tracker + task checklist (M856).** The Data view now renders
+  app-like layouts for collections that declare a `view`, instead of one generic table. `expense` →
+  summary cards (total / this month / count) + a by-category breakdown with bars + the recent-expenses
+  list; `tasks` → a checklist (click a task's circle to toggle done, pending above done, priority/due
+  shown). Both keep always-visible edit/delete per row. Everything else still uses the table; the other
+  collections' `view` hints are ready for the same treatment. (M856)
 - **Per-agent activity log (M854).** Each agent in the Roster now has an "activity" timeline showing
   what it did — the runs it executed, the council consults and sub-agent delegations during them, the
   memory it wrote, its board messages/DMs, and changes to its own profile. Derived from the journal (no

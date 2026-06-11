@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   Database,
   RefreshCw,
@@ -8,6 +8,9 @@ import {
   Search,
   X,
   Lock,
+  Wallet,
+  CheckCircle2,
+  Circle,
 } from "lucide-react";
 import { getJSON, postJSON, postAction } from "@/lib/api";
 import { cn, fmtTime } from "@/lib/utils";
@@ -226,6 +229,10 @@ export function Data() {
                 title="No records yet"
                 hint={`Add one by hand, or ask an agent to fill "${activeCol.name}" with the db tool.`}
               />
+            ) : activeCol.view === "expense" ? (
+              <ExpenseView records={records} onEdit={(r) => setEditing(r)} onDelete={delRecord} />
+            ) : activeCol.view === "tasks" ? (
+              <TasksView records={records} onEdit={(r) => setEditing(r)} onDelete={delRecord} onToggle={(r) => saveRecord({ done: !truthy(r.fields?.done) }, r.id)} />
             ) : (
               <div className="min-h-0 flex-1 overflow-auto rounded-lg border border-border">
                 <table className="w-full border-collapse text-sm">
@@ -292,6 +299,155 @@ export function Data() {
         />
       )}
     </div>
+  );
+}
+
+// truthy coerces a stored field (bool, "true"/"1"/"yes", number) to a boolean —
+// the data lake keeps whatever the agent/user wrote, so a "done" flag may arrive
+// in several shapes.
+function truthy(v: unknown): boolean {
+  if (typeof v === "boolean") return v;
+  if (typeof v === "number") return v !== 0;
+  if (typeof v === "string") return ["true", "1", "yes", "✓", "done"].includes(v.toLowerCase());
+  return false;
+}
+
+function num(v: unknown): number {
+  const n = typeof v === "number" ? v : Number(String(v ?? "").replace(/[^0-9.-]/g, ""));
+  return Number.isFinite(n) ? n : 0;
+}
+
+function fmtMoney(n: number): string {
+  return n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+interface BespokeProps {
+  records: DataRecord[];
+  onEdit: (r: DataRecord) => void;
+  onDelete: (r: DataRecord) => void;
+}
+
+// ExpenseView is the app-like layout for the "expense" collection (M856): summary
+// cards (total / this month / count), a by-category breakdown, and the recent
+// expenses list — instead of a raw table.
+function ExpenseView({ records, onEdit, onDelete }: BespokeProps) {
+  const total = records.reduce((s, r) => s + num(r.fields?.amount), 0);
+  const ym = new Date().toISOString().slice(0, 7); // YYYY-MM (local-ish; dates are stored as YYYY-MM-DD)
+  const thisMonth = records
+    .filter((r) => String(r.fields?.date ?? "").startsWith(ym))
+    .reduce((s, r) => s + num(r.fields?.amount), 0);
+
+  const byCat = new Map<string, number>();
+  for (const r of records) {
+    const cat = String(r.fields?.category ?? "uncategorized") || "uncategorized";
+    byCat.set(cat, (byCat.get(cat) ?? 0) + num(r.fields?.amount));
+  }
+  const cats = [...byCat.entries()].sort((a, b) => b[1] - a[1]);
+  const maxCat = cats.length ? cats[0][1] : 0;
+
+  const recent = [...records].sort((a, b) => String(b.fields?.date ?? "").localeCompare(String(a.fields?.date ?? "")));
+
+  return (
+    <div className="min-h-0 flex-1 space-y-3 overflow-auto">
+      <div className="grid grid-cols-3 gap-2">
+        <SummaryCard label="Total" value={fmtMoney(total)} icon={<Wallet className="size-4 text-accent" />} />
+        <SummaryCard label="This month" value={fmtMoney(thisMonth)} />
+        <SummaryCard label="Records" value={String(records.length)} />
+      </div>
+
+      {cats.length > 0 && (
+        <div className="rounded-lg border border-border bg-card p-3">
+          <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted">By category</div>
+          <ul className="space-y-1.5">
+            {cats.slice(0, 8).map(([cat, amt]) => (
+              <li key={cat} className="flex items-center gap-2 text-xs">
+                <span className="w-28 shrink-0 truncate text-foreground/85">{cat}</span>
+                <div className="h-2 flex-1 overflow-hidden rounded-full bg-panel">
+                  <div className="h-full rounded-full bg-accent/70" style={{ width: `${maxCat ? (amt / maxCat) * 100 : 0}%` }} />
+                </div>
+                <span className="w-20 shrink-0 text-right font-mono text-foreground/80">{fmtMoney(amt)}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      <ul className="space-y-1">
+        {recent.map((r) => (
+          <li key={r.id} className="group flex items-center gap-3 rounded-lg border border-border bg-card px-3 py-2 text-sm">
+            <span className="w-24 shrink-0 font-mono text-[11px] text-muted">{String(r.fields?.date ?? "")}</span>
+            <span className="min-w-0 flex-1 truncate">{String(r.fields?.item ?? "—")}</span>
+            {r.fields?.category != null && String(r.fields.category) !== "" && (
+              <Badge variant="default">{String(r.fields.category)}</Badge>
+            )}
+            <span className="w-24 shrink-0 text-right font-mono font-semibold">{fmtMoney(num(r.fields?.amount))}</span>
+            <RowActions r={r} onEdit={onEdit} onDelete={onDelete} />
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+// TasksView is the app-like checklist for the "tasks" collection (M856): toggle a
+// task done by clicking its check, pending above done.
+function TasksView({ records, onEdit, onDelete, onToggle }: BespokeProps & { onToggle: (r: DataRecord) => void }) {
+  const pending = records.filter((r) => !truthy(r.fields?.done));
+  const done = records.filter((r) => truthy(r.fields?.done));
+
+  const Row = (r: DataRecord) => {
+    const isDone = truthy(r.fields?.done);
+    return (
+      <li key={r.id} className="group flex items-center gap-2.5 rounded-lg border border-border bg-card px-3 py-2 text-sm">
+        <button onClick={() => onToggle(r)} title={isDone ? "mark not done" : "mark done"} className="shrink-0 text-muted hover:text-accent">
+          {isDone ? <CheckCircle2 className="size-4 text-good" /> : <Circle className="size-4" />}
+        </button>
+        <span className={cn("min-w-0 flex-1 truncate", isDone && "text-muted line-through")}>{String(r.fields?.title ?? "—")}</span>
+        {r.fields?.priority != null && String(r.fields.priority) !== "" && <Badge variant="default">{String(r.fields.priority)}</Badge>}
+        {r.fields?.due != null && String(r.fields.due) !== "" && <span className="shrink-0 font-mono text-[11px] text-muted">{String(r.fields.due)}</span>}
+        <RowActions r={r} onEdit={onEdit} onDelete={onDelete} />
+      </li>
+    );
+  };
+
+  return (
+    <div className="min-h-0 flex-1 space-y-3 overflow-auto">
+      <div>
+        <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-muted">To do · {pending.length}</div>
+        <ul className="space-y-1">{pending.map(Row)}</ul>
+      </div>
+      {done.length > 0 && (
+        <div>
+          <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-muted">Done · {done.length}</div>
+          <ul className="space-y-1 opacity-80">{done.map(Row)}</ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SummaryCard({ label, value, icon }: { label: string; value: string; icon?: ReactNode }) {
+  return (
+    <div className="rounded-lg border border-border bg-card p-3">
+      <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-wide text-muted">
+        {icon}
+        {label}
+      </div>
+      <div className="mt-1 font-mono text-lg font-semibold">{value}</div>
+    </div>
+  );
+}
+
+function RowActions({ r, onEdit, onDelete }: { r: DataRecord; onEdit: (r: DataRecord) => void; onDelete: (r: DataRecord) => void }) {
+  return (
+    <span className="flex shrink-0 items-center gap-1">
+      <button onClick={() => onEdit(r)} className="rounded p-1 text-muted hover:bg-accent/10 hover:text-accent" title="edit" aria-label="edit record">
+        <Pencil className="size-3.5" />
+      </button>
+      <button onClick={() => onDelete(r)} className="rounded p-1 text-muted hover:bg-bad/10 hover:text-bad" title="delete" aria-label="delete record">
+        <Trash2 className="size-3.5" />
+      </button>
+    </span>
   );
 }
 
