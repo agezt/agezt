@@ -556,6 +556,42 @@ func TestSeedAll_InstallsCalendarTools(t *testing.T) {
 	}
 }
 
+func TestSeedAll_InstallsOfficeDocs(t *testing.T) {
+	f := newForge(t)
+	seeded, err := SeedAll(f, "")
+	if err != nil {
+		t.Fatalf("SeedAll: %v", err)
+	}
+	var got *Seeded
+	for i := range seeded {
+		if seeded[i].Name == "office-docs" {
+			got = &seeded[i]
+		}
+	}
+	if got == nil {
+		t.Fatalf("office-docs not seeded: %+v", seeded)
+	}
+	if got.Status != skill.StatusActive {
+		t.Errorf("office-docs status = %q, want active", got.Status)
+	}
+	drv, err := f.Bundles().Read("office-docs", "scripts/office.py")
+	if err != nil || len(drv) == 0 {
+		t.Fatalf("office-docs office.py unreadable/empty: %v", err)
+	}
+	files, _ := f.Bundles().List("office-docs")
+	want := map[string]bool{"scripts/office.py": false, "scripts/setup.sh": false, "reference/recipes.md": false}
+	for _, rel := range files {
+		if _, ok := want[rel]; ok {
+			want[rel] = true
+		}
+	}
+	for rel, found := range want {
+		if !found {
+			t.Errorf("office-docs bundle missing %q (got %v)", rel, files)
+		}
+	}
+}
+
 func TestSeedAll_Idempotent(t *testing.T) {
 	f := newForge(t)
 	if _, err := SeedAll(f, ""); err != nil {

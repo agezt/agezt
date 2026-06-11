@@ -52,6 +52,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   the Runs view. Purely frontend — reuses the existing event provider and read routes. (M867)
 
 ### Added
+- **Built-in office-docs skill bundle (M896).** A sixteenth out-of-the-box skill that generates Word
+  `.docx` and Excel `.xlsx` deliverables (#34) — the polished-output step beyond raw CSV/PDF.
+  `scripts/office.py` has two ops: `docx` (build from typed blocks — heading/para/bullets/table) and
+  `xlsx` (workbook from sheets/rows, bold + frozen header row); `setup.sh` installs python-docx + openpyxl.
+  Completes the reporting pipeline: data-analysis → office-docs → email-tools/archive-tools → artifacts.
+  Rides the `plugins/builtinskills` seeder. (M896)
 - **Built-in calendar-tools skill bundle (M895).** A fifteenth out-of-the-box skill that creates and
   parses iCalendar `.ics` events (#34) — **zero pip deps** (Python stdlib). `scripts/cal.py` has two ops:
   `create` (valid VCALENDAR/VEVENT with RFC 5545 text escaping + line folding) and `parse` (unfolds and
