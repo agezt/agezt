@@ -48,9 +48,12 @@ const (
 	MaxLimit     = 15
 )
 
-// engineURL is the no-JS DuckDuckGo HTML endpoint. Fixed by design — the
-// operator never controls the target host, only the query.
-const engineURL = "https://html.duckduckgo.com/html/"
+// engineURL is the no-JS DuckDuckGo LITE endpoint. Fixed by design — the
+// operator never controls the target host, only the query. (M830: the older
+// html.duckduckgo.com/html/ endpoint now answers bot GETs with an HTTP 202
+// anti-bot challenge and no results; the lite endpoint still serves a plain,
+// parseable results page.)
+const engineURL = "https://lite.duckduckgo.com/lite/"
 
 // Tool is the web_search implementation of agent.Tool.
 type Tool struct {
@@ -183,17 +186,18 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, e
 	return softResult(q, results, ""), nil
 }
 
-// resultLink matches DuckDuckGo HTML result anchors; snippet matches the
-// adjacent snippet block. The endpoint's markup is stable (it's the
-// deliberately-simple no-JS variant).
+// reLink matches the DuckDuckGo LITE result anchors; reSnippet matches the
+// adjacent snippet cell. The lite markup is a plain table: the anchor carries
+// href BEFORE a (single- or double-quoted) class='result-link', and the snippet
+// is a <td class='result-snippet'>. Deliberately tolerant of quote style.
 var (
-	reLink    = regexp.MustCompile(`(?s)<a[^>]*class="result__a"[^>]*href="([^"]+)"[^>]*>(.*?)</a>`)
-	reSnippet = regexp.MustCompile(`(?s)<a[^>]*class="result__snippet"[^>]*>(.*?)</a>`)
+	reLink    = regexp.MustCompile(`(?s)<a[^>]*href="([^"]+)"[^>]*class=['"]result-link['"][^>]*>(.*?)</a>`)
+	reSnippet = regexp.MustCompile(`(?s)<td[^>]*class=['"]result-snippet['"][^>]*>(.*?)</td>`)
 	reTag     = regexp.MustCompile(`<[^>]+>`)
 	reSpace   = regexp.MustCompile(`\s+`)
 )
 
-// parseResults extracts up to limit hits from a DuckDuckGo HTML result page.
+// parseResults extracts up to limit hits from a DuckDuckGo lite result page.
 func parseResults(body string, limit int) []Result {
 	links := reLink.FindAllStringSubmatch(body, -1)
 	snips := reSnippet.FindAllStringSubmatch(body, -1)

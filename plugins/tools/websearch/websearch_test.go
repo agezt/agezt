@@ -13,15 +13,20 @@ import (
 
 // sampleHTML mimics the DuckDuckGo no-JS result markup the tool parses,
 // including the //duckduckgo.com/l/?uddg= redirect wrapper.
+// sampleHTML mirrors the DuckDuckGo LITE results markup (M830): a plain table
+// where the anchor carries href before a single-quoted class='result-link', and
+// the snippet is a <td class='result-snippet'>.
 const sampleHTML = `<!DOCTYPE html><html><body>
-<div class="result">
-  <a rel="nofollow" class="result__a" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fgithub.com%2Fagiresearch%2FAIOS">AIOS: <b>AI</b> Agent OS</a>
-  <a class="result__snippet" href="x">AIOS is an <b>AI</b> agent operating &amp; system.</a>
-</div>
-<div class="result">
-  <a rel="nofollow" class="result__a" href="https://example.com/agentic">Agentic OS direct link</a>
-  <a class="result__snippet" href="y">A   plain    snippet with   spaces.</a>
-</div>
+<table>
+  <tr><td>
+    <a rel="nofollow" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fgithub.com%2Fagiresearch%2FAIOS&amp;rut=abc" class='result-link'>AIOS: <b>AI</b> Agent OS</a>
+  </td></tr>
+  <tr><td class='result-snippet'>AIOS is an <b>AI</b> agent operating &amp; system.</td></tr>
+  <tr><td>
+    <a rel="nofollow" href="https://example.com/agentic" class='result-link'>Agentic OS direct link</a>
+  </td></tr>
+  <tr><td class='result-snippet'>A   plain    snippet with   spaces.</td></tr>
+</table>
 </body></html>`
 
 func newStub(t *testing.T, body string, status int) *Tool {
