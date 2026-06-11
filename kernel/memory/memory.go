@@ -86,6 +86,13 @@ type Record struct {
 	// SourceEvent is the journal event id that produced this record —
 	// provenance for `agt why`.
 	SourceEvent string `json:"source_event,omitempty"`
+	// AddedBy / UpdatedBy record WHO wrote this (M851): the acting agent's slug,
+	// or "operator" for a direct console/CLI write, or "distill" for an
+	// auto-distilled summary. AddedBy is first-writer-wins (preserved on
+	// reinforce, like SourceEvent); UpdatedBy is the most recent writer. Empty on
+	// legacy records written before provenance.
+	AddedBy   string `json:"added_by,omitempty"`
+	UpdatedBy string `json:"updated_by,omitempty"`
 	// Confidence is 0..1; ranking weights it and it can strengthen on
 	// re-observation. Defaults to 1.0 for explicit writes.
 	Confidence float64 `json:"confidence"`

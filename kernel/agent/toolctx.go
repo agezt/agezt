@@ -38,6 +38,36 @@ func CorrelationFromContext(ctx context.Context) string {
 	return ""
 }
 
+// agentKey carries the slug of the named roster agent a run executes AS (M851),
+// so a tool's side effect can be attributed to the agent that caused it — "this
+// memory was added by researcher" — not just to the run. Empty when a run is the
+// daemon's default identity (no named agent); tools then fall back to a generic
+// source ("operator"/"agent").
+type agentKey struct{}
+
+// WithAgent returns a child context tagged with the acting agent's slug. The
+// runtime stamps it when a run executes AS a named roster agent, alongside the
+// correlation id, so provenance-aware tools (memory, skills) can record who.
+// An empty slug leaves the context unchanged.
+func WithAgent(ctx context.Context, slug string) context.Context {
+	if slug == "" {
+		return ctx
+	}
+	return context.WithValue(ctx, agentKey{}, slug)
+}
+
+// AgentFromContext returns the acting agent's slug stashed by WithAgent, or ""
+// when the run is the daemon's default identity (or in a direct unit test).
+func AgentFromContext(ctx context.Context) string {
+	if ctx == nil {
+		return ""
+	}
+	if s, ok := ctx.Value(agentKey{}).(string); ok {
+		return s
+	}
+	return ""
+}
+
 // workdirKey carries the run's per-agent working directory (M792): a
 // workspace-RELATIVE subdirectory the file and shell tools operate inside
 // when a run executes AS a named agent whose profile names one.

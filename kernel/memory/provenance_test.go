@@ -36,3 +36,41 @@ func TestRemember_PreservesProvenanceOnReinforce(t *testing.T) {
 		t.Errorf("reinforce overwrote provenance: got %q, want the original %q (first-writer-wins)", rec2.SourceEvent, rec1.SourceEvent)
 	}
 }
+
+// TestRemember_ActorProvenance pins WHO-attribution (M851): AddedBy is
+// first-writer-wins (the original author survives a reinforce by another agent),
+// while UpdatedBy tracks the most recent writer.
+func TestRemember_ActorProvenance(t *testing.T) {
+	m, _ := newTestManager(t)
+	const subj, content = "deploys", "prod is eu-west-1"
+
+	rec1, _, err := m.Remember("c1", RememberSpec{Type: TypeFact, Subject: subj, Content: content, Actor: "researcher"})
+	if err != nil {
+		t.Fatalf("first remember: %v", err)
+	}
+	if rec1.AddedBy != "researcher" || rec1.UpdatedBy != "researcher" {
+		t.Fatalf("create provenance = added:%q updated:%q, want researcher/researcher", rec1.AddedBy, rec1.UpdatedBy)
+	}
+
+	// A different agent reinforces the same fact: author preserved, updater changes.
+	rec2, created, err := m.Remember("c2", RememberSpec{Type: TypeFact, Subject: subj, Content: content, Actor: "planner"})
+	if err != nil || created {
+		t.Fatalf("reinforce: created=%v err=%v", created, err)
+	}
+	if rec2.AddedBy != "researcher" {
+		t.Errorf("AddedBy = %q, want researcher (first-writer-wins)", rec2.AddedBy)
+	}
+	if rec2.UpdatedBy != "planner" {
+		t.Errorf("UpdatedBy = %q, want planner (latest writer)", rec2.UpdatedBy)
+	}
+
+	// A reinforce with no actor (e.g. an automatic recall-reinforce) must not erase
+	// the recorded author or updater.
+	rec3, _, err := m.Remember("c3", RememberSpec{Type: TypeFact, Subject: subj, Content: content})
+	if err != nil {
+		t.Fatalf("third remember: %v", err)
+	}
+	if rec3.AddedBy != "researcher" || rec3.UpdatedBy != "planner" {
+		t.Errorf("actorless reinforce clobbered provenance: added:%q updated:%q", rec3.AddedBy, rec3.UpdatedBy)
+	}
+}

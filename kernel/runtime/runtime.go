@@ -1429,6 +1429,10 @@ func WithAgentIdent(ctx context.Context, slug string, dailyMc int64) context.Con
 	if strings.TrimSpace(slug) == "" {
 		return ctx
 	}
+	// Also stamp the agent slug under the kernel/agent key so provenance-aware
+	// tools (memory, M851) can read who is acting via agent.AgentFromContext —
+	// the runtime key here is private and additionally carries the daily ceiling.
+	ctx = agent.WithAgent(ctx, slug)
 	return context.WithValue(ctx, ctxKeyAgentIdent, agentIdent{slug: slug, dailyMc: dailyMc})
 }
 

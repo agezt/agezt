@@ -19,6 +19,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   `delegate` tool now coaches the leader pattern and prefers reusing an existing named agent. (M843)
 
 ### Added
+- **Memory provenance — who added & updated each fact (M851).** Every memory record now records WHO
+  wrote it: the acting agent's slug, or `operator` for a console/CLI write, or `distill` for an
+  auto-distilled summary. `added_by` is first-writer-wins (the original author survives a peer's
+  reinforce, like the source event); `updated_by` tracks the latest writer. The Memory view shows
+  "by <author> · upd. <updater>" under each record, and `agt memory list --json` / the `memory.written`
+  event carry it. Backed by a reusable `agent.AgentFromContext` so skills/world/data-lake can get the
+  same attribution next. (M851)
 - **Overseer tool — a brain agent that supervises and intervenes (M850).** A new `overseer` tool gives a
   privileged agent the operator's own controls over the whole fleet: see the daemon `status`, list
   `agents` and their state, list the `runs` in flight, and triage open `help` requests — then intervene:

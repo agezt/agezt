@@ -74,6 +74,7 @@ func (s *Server) handleMemoryAdd(conn net.Conn, req Request) {
 		Content:    content,
 		Tags:       tags,
 		Confidence: conf,
+		Actor:      "operator", // a console/CLI write (M851)
 	})
 	if err != nil {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
@@ -126,6 +127,7 @@ func (s *Server) handleMemorySupersede(conn net.Conn, req Request) {
 		Content:    content,
 		Tags:       tags,
 		Confidence: conf,
+		Actor:      "operator", // a console/CLI edit (M851)
 	})
 	if err != nil {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
@@ -244,6 +246,12 @@ func recordView(r memory.Record) map[string]any {
 	}
 	if r.SourceEvent != "" {
 		v["source_event"] = r.SourceEvent
+	}
+	if r.AddedBy != "" {
+		v["added_by"] = r.AddedBy
+	}
+	if r.UpdatedBy != "" {
+		v["updated_by"] = r.UpdatedBy
 	}
 	if r.SupersededBy != "" {
 		v["superseded_by"] = r.SupersededBy
