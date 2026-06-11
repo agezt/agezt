@@ -69,6 +69,45 @@ func TestInjectEnvironment_CoreFields(t *testing.T) {
 	}
 }
 
+func TestCapabilityBriefing_TunedToTools(t *testing.T) {
+	// A full tool set yields the emphatic, no-limits briefing with the relevant lines.
+	full := map[string]agent.Tool{
+		"shell":      envFakeTool{name: "shell", desc: "Run a command."},
+		"code_exec":  envFakeTool{name: "code_exec", desc: "Run code."},
+		"file":       envFakeTool{name: "file", desc: "Files."},
+		"tool_forge": envFakeTool{name: "tool_forge", desc: "Forge tools."},
+		"skill":      envFakeTool{name: "skill", desc: "Skills."},
+	}
+	out := capabilityBriefing(full)
+	for _, want := range []string{
+		"act without artificial limits",
+		"Python, Node/JavaScript, Deno", // code_exec line
+		"npm / pip",                     // shell install line
+		"forge your own durable tool",   // tool_forge line
+		"reusable skill",                // skill line
+		"Default to action",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("full briefing missing %q\n---\n%s", want, out)
+		}
+	}
+
+	// Tuned: no code_exec → no code line; no tool_forge → no forge line.
+	noCode := map[string]agent.Tool{"shell": full["shell"], "file": full["file"]}
+	out2 := capabilityBriefing(noCode)
+	if strings.Contains(out2, "Python, Node/JavaScript") {
+		t.Errorf("briefing promised code execution without code_exec:\n%s", out2)
+	}
+	if strings.Contains(out2, "forge your own durable tool") {
+		t.Errorf("briefing promised tool_forge when absent:\n%s", out2)
+	}
+
+	// No build/run tools at all → empty briefing (nothing to promise).
+	if got := capabilityBriefing(map[string]agent.Tool{"notify": full["skill"]}); got != "" {
+		t.Errorf("expected empty briefing with no build/run tools, got:\n%s", got)
+	}
+}
+
 func TestShellGuidance_ByInterpreter(t *testing.T) {
 	cases := map[string]string{
 		"cmd":            "Windows",

@@ -2145,12 +2145,55 @@ func injectEnvironment(system, workspaceRoot string, tools map[string]agent.Tool
 			fmt.Fprintf(&b, "  - %s — %s\n", name, firstSentence(tools[name].Definition().Description))
 		}
 	}
+	if brief := capabilityBriefing(tools); brief != "" {
+		b.WriteString(brief)
+	}
 	b.WriteString("Some capabilities require operator approval and may be denied; if a call is denied, adapt your approach rather than repeating it.\n")
 
 	if system != "" {
 		b.WriteString("\n")
 		b.WriteString(system)
 	}
+	return b.String()
+}
+
+// capabilityBriefing tells the agent, plainly, how much it is allowed to do —
+// so it knows its own reach instead of timidly assuming limits (M848). AGEZT is
+// default-allow (owner law): every capability is on unless explicitly opted out,
+// so an agent should marshal whatever it takes to finish the task — write and run
+// code, install and run CLIs and packages, build whole apps and services. The
+// briefing is tuned to the tools ACTUALLY present this run (no point promising
+// code execution if code_exec was opted out), and stays honest about the few real
+// rails: explicit operator denials, budgets, and the SSRF/secret guards. Returns
+// "" when none of the relevant tools are available.
+func capabilityBriefing(tools map[string]agent.Tool) string {
+	_, hasShell := tools["shell"]
+	_, hasCode := tools["code_exec"]
+	_, hasFile := tools["file"]
+	_, hasForge := tools["tool_forge"]
+	_, hasSkill := tools["skill"]
+	if !hasShell && !hasCode && !hasFile {
+		return "" // nothing to brief — this run can't build or run anything
+	}
+	var b strings.Builder
+	b.WriteString("## What you can do — act without artificial limits\n")
+	b.WriteString("You are a full agent on a real machine, not a sandboxed chat. To accomplish the task you may do whatever it takes — there are no artificial capability limits. Be bold: build it, install it, run it.\n")
+	if hasCode {
+		b.WriteString("- Write and run real code — Python, Node/JavaScript, Deno — via code_exec. Build scripts, prototypes, data pipelines, whole programs.\n")
+	}
+	if hasShell {
+		b.WriteString("- Install and run anything the host supports via the shell: CLI tools, npm / pip / cargo / go packages, build systems, even long-running background services. If a command is missing, install it, then use it.\n")
+	}
+	if hasFile {
+		b.WriteString("- Create and edit as many files, projects, and applications as the task needs in your working directory.\n")
+	}
+	if hasForge {
+		b.WriteString("- When a one-off script isn't enough, forge your own durable tool (tool_forge) so the capability persists.\n")
+	}
+	if hasSkill {
+		b.WriteString("- Capture what works as a reusable skill — including bundled reference files and scripts — so future runs reuse it (skill op=learn / op=files / op=read).\n")
+	}
+	b.WriteString("Default to action: prefer doing the work over asking whether you're allowed. The only real limits are explicit — a denied approval, a spend budget, and the network/secret guards (no SSRF, secrets stay redacted). Everything else is yours to use.\n")
 	return b.String()
 }
 
