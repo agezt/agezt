@@ -12,6 +12,11 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Live "Active agents" panel on the Cockpit (M914).** The home cockpit showed the fleet only as a
+  "running now: N" count. It now carries a glanceable panel of the lead runs in flight — each a
+  mini-card with a pulsing live dot, the intent, and agents/sub-agents/iterations/tree-spend — folded
+  from `/api/runs` through the Agents gallery's summarizer. Hidden when idle; cards link into the
+  Agents monitor.
 - **Pending-approval bell in the header (M913).** A gated HITL request could sit unseen on the
   Approvals tab. The header now carries a live approvals indicator on every view: it counts pending
   requests from `/api/approvals` (refetching on `approval.*` events), badges with the count, and

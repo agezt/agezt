@@ -7,8 +7,23 @@ import { useEvents, type AgentEvent } from "@/lib/events";
 import { recentAttentionAlerts, type RankedAlert } from "@/lib/alerts";
 import { focusRun } from "@/lib/runfocus";
 import { Button } from "@/components/ui/button";
-import { fmtTime } from "@/lib/utils";
+import { fmtTime, clip } from "@/lib/utils";
 import { Ring, Sparkline, BarRow } from "@/components/Widgets";
+import { summarizeRoots, type RootSummary } from "@/views/Agents";
+import { Bot, GitBranch, Coins, Repeat } from "lucide-react";
+
+// RunRow is the subset of /api/runs the cockpit folds into the active-agents
+// panel — structurally compatible with the Agents view's run shape.
+interface RunRow {
+  correlation_id?: string;
+  parent_correlation?: string;
+  status?: string;
+  model?: string;
+  spent_mc?: number;
+  iters?: number;
+  intent?: string;
+  started_unix_ms?: number;
+}
 
 interface Stats {
   total?: number;
@@ -40,19 +55,25 @@ export function Dashboard() {
   const [status, setStatus] = useState<Record<string, any> | null>(null);
   const [series, setSeries] = useState<number[]>([]);
   const [alerts, setAlerts] = useState<RankedAlert[]>([]);
+  const [active, setActive] = useState<RootSummary[]>([]);
   const [loading, setLoading] = useState(false);
   const lastHead = useRef<number | null>(null);
 
   async function refresh() {
     setLoading(true);
-    const [s, b, st, j] = await Promise.allSettled([
+    const [s, b, st, j, r] = await Promise.allSettled([
       getJSON<Stats>("/api/stats"),
       getJSON<Budget>("/api/budget"),
       getJSON<Record<string, any>>("/api/status"),
       getJSON<{ events?: AgentEvent[] }>("/api/journal", { limit: "300" }),
+      getJSON<{ runs?: RunRow[] }>("/api/runs"),
     ]);
     if (s.status === "fulfilled") setStats(s.value);
     if (b.status === "fulfilled") setBudget(b.value);
+    // Live fleet (M914): the lead runs currently in flight, folded from /api/runs
+    // with each one's sub-agent subtree (reuses the Agents gallery's summarizer).
+    if (r.status === "fulfilled")
+      setActive(summarizeRoots(r.value.runs || []).filter((x) => x.kind === "running"));
     // Recency-bounded + halt-resolved (M913): the journal backfills weeks of
     // history, so without a window an old halt/failure would sit in "Needs
     // attention" forever.
@@ -145,6 +166,54 @@ export function Dashboard() {
               );
             })}
           </ul>
+        </div>
+      )}
+
+      {/* Active agents (M914): a live window into the fleet right on the cockpit —
+          which lead runs are in flight now, with their sub-agent counts and spend.
+          Click one to drill into the Agents monitor. Hidden when nothing is running. */}
+      {active.length > 0 && (
+        <div className="rounded-lg border border-accent/40 bg-accent/5 p-3">
+          <button
+            onClick={() => (location.hash = "agents")}
+            className="mb-2 flex w-full items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-accent hover:underline"
+            title="Open the Agents monitor"
+          >
+            <Radio className="size-3.5 animate-pulse" /> Active agents ({active.length})
+          </button>
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {active.slice(0, 6).map((r) => (
+              <button
+                key={r.id}
+                onClick={() => (location.hash = "agents")}
+                className="flex flex-col gap-1.5 rounded-md border border-border bg-card p-2.5 text-left transition-colors hover:border-accent"
+              >
+                <div className="flex items-center gap-1.5">
+                  <span className="size-2 shrink-0 animate-pulse rounded-full bg-accent" />
+                  <span className="truncate text-xs font-medium text-foreground/90" title={r.intent || r.id}>
+                    {r.intent ? clip(r.intent, 80) : r.id}
+                  </span>
+                </div>
+                <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-muted">
+                  <span className="inline-flex items-center gap-1" title="agents in this run's tree">
+                    <Bot className="size-3" /> {r.agents}
+                  </span>
+                  {r.subAgents > 0 && (
+                    <span className="inline-flex items-center gap-1" title="sub-agents">
+                      <GitBranch className="size-3" /> {r.subAgents}
+                    </span>
+                  )}
+                  <span className="inline-flex items-center gap-1" title="iterations">
+                    <Repeat className="size-3" /> {r.iters}
+                  </span>
+                  <span className="inline-flex items-center gap-1" title="tree spend">
+                    <Coins className="size-3" /> {money(r.treeSpentMc)}
+                  </span>
+                  {r.model && <span className="ml-auto truncate font-mono opacity-70" title={r.model}>{r.model}</span>}
+                </div>
+              </button>
+            ))}
+          </div>
         </div>
       )}
 
