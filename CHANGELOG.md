@@ -12,6 +12,11 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Doctor / diagnostics in the Health view (M921).** The console now actively diagnoses, not just
+  shows vitals: a Diagnostics card at the top of Health evaluates the daemon's live state into
+  actionable issues — halted daemon, journal verification failure, a provider failing over (with the
+  reason), no default model, an elevated run-failure rate, pending approvals — each with a deep-link
+  to the view that fixes it, and "all systems healthy" when clean. Brings `agt doctor` to the webui.
 - **Budget forecast — "at this pace" (M920).** The Budget view now projects where today's spend
   lands at the current rate (`spent / fraction-of-UTC-day-elapsed`), shown as a forecast card under
   the spend gauge. With a ceiling set it flags whether you're comfortably within it or on track to
