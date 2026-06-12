@@ -10,6 +10,7 @@ import {
   StepForward,
   Navigation,
   Send,
+  OctagonX,
 } from "lucide-react";
 import { getJSON, postAction } from "@/lib/api";
 import { Badge, statusVariant } from "@/components/ui/badge";
@@ -178,6 +179,10 @@ export function SteerControls({ correlationId, arc }: { correlationId: string; a
   const [directive, setDirective] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  // Two-step confirm for the destructive Cancel — kills the run for good, so it
+  // arms on the first click and fires on the second (kept self-contained so the
+  // cockpit stays a pure, prop-driven component).
+  const [confirmingCancel, setConfirmingCancel] = useState(false);
 
   async function act(path: string, params?: Record<string, string>) {
     setBusy(true);
@@ -189,6 +194,17 @@ export function SteerControls({ correlationId, arc }: { correlationId: string; a
     } finally {
       setBusy(false);
     }
+  }
+
+  async function cancelRun() {
+    if (!confirmingCancel) {
+      setConfirmingCancel(true);
+      return;
+    }
+    setConfirmingCancel(false);
+    // The same targeted cancel `agt` uses (M32): stops THIS run by correlation id
+    // without halting the kernel or touching other runs.
+    await act("/api/cancel_run");
   }
 
   async function send() {
@@ -233,6 +249,20 @@ export function SteerControls({ correlationId, arc }: { correlationId: string; a
           title="Run exactly one more iteration, then pause"
         >
           <StepForward className="size-3.5" /> Step
+        </button>
+        <button
+          onClick={cancelRun}
+          onBlur={() => setConfirmingCancel(false)}
+          disabled={busy}
+          title="Cancel this run (stops it for good, without halting the kernel)"
+          className={cn(
+            "ml-auto inline-flex h-7 items-center gap-1 rounded-md border px-2 text-xs transition-colors disabled:opacity-50",
+            confirmingCancel
+              ? "border-bad bg-bad text-white"
+              : "border-bad/60 text-bad hover:bg-bad hover:text-white",
+          )}
+        >
+          <OctagonX className="size-3.5" /> {confirmingCancel ? "Confirm cancel" : "Cancel"}
         </button>
       </div>
       <div className="mt-2 flex items-center gap-1.5">

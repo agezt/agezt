@@ -5447,6 +5447,11 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   post-1.0 step toward the polyglot SDK story (ROADMAP §5).
 
 ### Fixed
+- **Targeted "Cancel" button in the live-run cockpit (M908).** `SteerControls` (the in-flight-run
+  cockpit) could pause/resume/step/steer a run but not stop it — the only UI kill switch was the
+  global Halt. It now has a Cancel button (two-step confirm) that issues the targeted
+  `cancel_run` (kills one run by correlation id, leaving the kernel and other runs untouched) — the
+  "stop" leg of the overseer's supervise/intervene/stop/modify controls.
 - **Chat "Stop" now cancels the run on the daemon, not just the browser (M907).** Stopping a chat
   response (or starting a new chat / switching threads mid-stream) only aborted the browser's SSE
   fetch; because cancel-on-disconnect is off by default and chat runs through the same governed loop
