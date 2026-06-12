@@ -12,6 +12,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Approval-needed push to channels (M922).** A blocked run waiting on your approval is now
+  pushed through the configured Pulse channels (Slack/Telegram/Discord), not just surfaced in the
+  console's Approvals bell. The daemon-side alerter already pushed failures, halts, budget trips and
+  blocked egress; it now also classifies `approval.requested` as a warning ("approval needed",
+  capability/tool + reason) — so an agent stalled on a HITL decision reaches you even with no console
+  open, and stops waiting forever. Honours the same mute/cooldown/rate gates as every other alert.
 - **Doctor / diagnostics in the Health view (M921).** The console now actively diagnoses, not just
   shows vitals: a Diagnostics card at the top of Health evaluates the daemon's live state into
   actionable issues — halted daemon, journal verification failure, a provider failing over (with the
