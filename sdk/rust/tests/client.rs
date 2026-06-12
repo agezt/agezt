@@ -167,6 +167,48 @@ fn handle(mut stream: TcpStream) {
                 write_json(&mut stream, 200, &body);
             }
         }
+        // Mailbox (M937): canned shapes mirroring the daemon's REST responses.
+        ("POST", "/api/v1/mailbox/messages") => {
+            // Echo the addressing fields back so a test proves they were sent.
+            let from = extract_str(&req.body, "from").unwrap_or_default();
+            let to = extract_str(&req.body, "to").unwrap_or_default();
+            let help = req.body.contains("\"help\":true");
+            let body = format!(
+                r#"{{"message":{{"id":"m-1","topic":"dm","from":"{from}","to":"{to}","text":"hi","help":{help},"ts_unix_ms":1700000000000}}}}"#
+            );
+            write_json(&mut stream, 201, &body);
+        }
+        ("GET", p) if p.starts_with("/api/v1/mailbox/inbox") => {
+            // Reflect the query so a test proves name/all/limit were encoded.
+            let body = format!(
+                r#"{{"name":"r","waiting":[{{"id":"m-1","topic":"dm","from":"myapp","to":"researcher","text":"{}","ts_unix_ms":1700000000000}}],"count":1}}"#,
+                p.trim_start_matches("/api/v1/mailbox/inbox?")
+            );
+            write_json(&mut stream, 200, &body);
+        }
+        ("POST", "/api/v1/mailbox/messages/m-1/ack") => {
+            let by = extract_str(&req.body, "by").unwrap_or_default();
+            let body = format!(r#"{{"acked":true,"id":"m-1","by":"{by}"}}"#);
+            write_json(&mut stream, 200, &body);
+        }
+        ("POST", p) if p.ends_with("/ack") => write_json(
+            &mut stream,
+            404,
+            r#"{"error":{"type":"not_found","message":"no message"}}"#,
+        ),
+        ("GET", "/api/v1/mailbox/messages/m-1/replies") => write_json(
+            &mut stream,
+            200,
+            r#"{"id":"m-1","replies":[{"id":"m-2","topic":"dm","from":"researcher","to":"myapp","reply_to":"m-1","text":"prod-eu","ts_unix_ms":1700000000001}],"count":1}"#,
+        ),
+        ("GET", p) if p.starts_with("/api/v1/mailbox/messages") => write_json(
+            &mut stream,
+            200,
+            r#"{"messages":[{"id":"m-1","topic":"status","from":"myapp","text":"shipped","ts_unix_ms":1700000000000}],"count":1}"#,
+        ),
+        ("GET", "/api/v1/mailbox/topics") => {
+            write_json(&mut stream, 200, r#"{"topics":{"dm":2,"status":1}}"#)
+        }
         _ => write_json(
             &mut stream,
             404,
@@ -292,4 +334,81 @@ fn tenant_header_is_transmitted() {
 
     // Without a tenant, the mock falls back to "test".
     assert_eq!(client(&base, "testtoken").health().unwrap().version, "test");
+}
+
+#[test]
+fn mailbox_send_and_broadcast() {
+    let base = start_mock();
+    let c = client(&base, "testtoken");
+
+    let draft = agezt::MailDraft {
+        from: "myapp".to_string(),
+        to: "researcher".to_string(),
+        text: "deploy target?".to_string(),
+        ..agezt::MailDraft::default()
+    };
+    let m = c.mailbox_send(&draft).unwrap();
+    assert_eq!(m.id, "m-1");
+    assert_eq!(m.from, "myapp");
+    assert_eq!(m.to, "researcher");
+    assert_eq!(m.ts_unix_ms, 1_700_000_000_000);
+
+    // Broadcast targets every inbox ("*"); the mock echoes `to` back.
+    let b = c.mailbox_broadcast("myapp", "heads-up").unwrap();
+    assert_eq!(b.to, "*");
+
+    // The help flag survives the round trip.
+    let h = c
+        .mailbox_send(&agezt::MailDraft {
+            from: "w".to_string(),
+            text: "stuck".to_string(),
+            help: true,
+            ..agezt::MailDraft::default()
+        })
+        .unwrap();
+    assert!(h.help);
+}
+
+#[test]
+fn mailbox_inbox_encodes_query() {
+    let base = start_mock();
+    // The mock reflects the query string into the message text, proving
+    // name/all/limit were encoded on the wire.
+    let mails = client(&base, "testtoken")
+        .mailbox_inbox("researcher", true, 5)
+        .unwrap();
+    assert_eq!(mails.len(), 1);
+    assert_eq!(mails[0].text, "name=researcher&all=true&limit=5");
+}
+
+#[test]
+fn mailbox_ack_and_unknown_id() {
+    let base = start_mock();
+    let c = client(&base, "testtoken");
+    c.mailbox_ack("m-1", "researcher").unwrap();
+
+    let err = c.mailbox_ack("nope", "researcher").unwrap_err();
+    match err {
+        Error::Api { status, .. } => assert_eq!(status, 404),
+        other => panic!("expected Api error, got {other:?}"),
+    }
+}
+
+#[test]
+fn mailbox_replies_messages_topics() {
+    let base = start_mock();
+    let c = client(&base, "testtoken");
+
+    let reps = c.mailbox_replies("m-1", 0).unwrap();
+    assert_eq!(reps.len(), 1);
+    assert_eq!(reps[0].reply_to, "m-1");
+    assert_eq!(reps[0].text, "prod-eu");
+
+    let msgs = c.mailbox_messages("status", 3).unwrap();
+    assert_eq!(msgs.len(), 1);
+    assert_eq!(msgs[0].topic, "status");
+
+    let topics = c.mailbox_topics().unwrap();
+    assert_eq!(topics.get("dm"), Some(&2));
+    assert_eq!(topics.get("status"), Some(&1));
 }

@@ -16,6 +16,8 @@
 //	GET  /api/v1/models            — the model ids the daemon can route
 //	POST /api/v1/runs              — submit an intent; sync JSON or SSE stream
 //	GET  /api/v1/runs/{corr}       — the journaled event arc of a past run
+//	/api/v1/mailbox/*              — the shared message board for SDK apps
+//	                                 (see mailbox.go, M937)
 //
 // Security (SPEC-06): loopback-bound by the operator, token-authed on every
 // request (Authorization: Bearer <token>, or ?token= for convenience). Empty
@@ -31,6 +33,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/agezt/agezt/kernel/board"
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/meshctx"
@@ -92,6 +95,17 @@ type Server struct {
 	// text format. Injected by the daemon (it has the kernel + governor); this
 	// package only formats. Nil → /metrics reports no samples.
 	metrics func() []Metric
+
+	// board is the daemon's ONE shared message-board instance behind the
+	// /api/v1/mailbox surface (M937), injected via SetMailbox. It must be the
+	// same instance the `board` tool writes — see SetMailbox. Nil → the mailbox
+	// endpoints answer 503.
+	board *board.Store
+
+	// boardNotify publishes board.posted for a mailbox write (the same closure
+	// the `board` tool's OnPost uses), so an SDK send wakes standing orders
+	// exactly like an agent's send. Nil-safe.
+	boardNotify func(m board.Message, corr string)
 }
 
 // Metric is one Prometheus sample exposed at /metrics. Name is the suffix after
@@ -155,6 +169,12 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/api/v1/models", s.auth(s.handleModels))
 	mux.HandleFunc("/api/v1/runs", s.auth(s.handleRunsRoot))
 	mux.HandleFunc("/api/v1/runs/", s.auth(s.handleRunByID))
+	// Mailbox (M937): the shared inter-agent message board for SDK apps —
+	// send/read messages, an inbox per name, replies, ack, topics.
+	mux.HandleFunc("/api/v1/mailbox/messages", s.auth(s.handleMailboxMessages))
+	mux.HandleFunc("/api/v1/mailbox/messages/", s.auth(s.handleMailboxMessageSub))
+	mux.HandleFunc("/api/v1/mailbox/inbox", s.auth(s.handleMailboxInbox))
+	mux.HandleFunc("/api/v1/mailbox/topics", s.auth(s.handleMailboxTopics))
 	return mux
 }
 

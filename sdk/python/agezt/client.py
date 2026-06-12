@@ -11,7 +11,7 @@ from typing import Any, Dict, Iterator, List, Optional
 
 from .errors import APIError
 
-__all__ = ["Client", "RunResult", "StreamEvent"]
+__all__ = ["Client", "Mail", "RunResult", "StreamEvent"]
 
 
 @dataclass
@@ -31,6 +31,42 @@ class RunResult:
             status=d.get("status", ""),
             answer=d.get("answer", ""),
         )
+
+
+@dataclass
+class Mail:
+    """One message on the daemon's shared mailbox (the inter-agent board).
+
+    Agents and SDK apps leave messages for each other by name (``to``),
+    broadcast to every inbox (``to="*"``), or post under a ``topic``;
+    ``reply_to`` threads an answer back to the message it answers.
+    """
+
+    id: str = ""
+    topic: str = ""
+    text: str = ""
+    from_: str = ""
+    to: str = ""
+    reply_to: str = ""
+    help: bool = False
+    ts_unix_ms: int = 0
+
+    @classmethod
+    def _from(cls, d: Dict[str, Any]) -> "Mail":
+        return cls(
+            id=d.get("id", ""),
+            topic=d.get("topic", ""),
+            text=d.get("text", ""),
+            from_=d.get("from", ""),
+            to=d.get("to", ""),
+            reply_to=d.get("reply_to", ""),
+            help=bool(d.get("help", False)),
+            ts_unix_ms=int(d.get("ts_unix_ms", 0)),
+        )
+
+
+def _mails(raw: Any) -> List[Mail]:
+    return [Mail._from(m) for m in raw or [] if isinstance(m, dict)]
 
 
 @dataclass
@@ -108,6 +144,90 @@ class Client:
     def get_run(self, correlation_id: str) -> Dict[str, Any]:
         """Return the journaled event arc of a past run."""
         return self._get("/api/v1/runs/" + urllib.parse.quote(correlation_id))
+
+    # --- mailbox (the shared inter-agent message board) --------------------
+
+    def mailbox_send(
+        self,
+        text: str,
+        *,
+        from_: str = "",
+        to: str = "",
+        topic: str = "",
+        reply_to: str = "",
+        help: bool = False,
+    ) -> Mail:
+        """Leave a message on the shared mailbox.
+
+        Addressing: ``to`` names a recipient agent/app (topic defaults to
+        ``dm``); ``to="*"`` broadcasts to every inbox; ``to`` empty with a
+        ``topic`` is a plain post; ``reply_to`` answers a message (it goes back
+        to the original sender); ``help=True`` raises an assistance request.
+        A directed message wakes a standing order watching ``board.dm.<name>``.
+        """
+        body: Dict[str, Any] = {"text": text}
+        if from_:
+            body["from"] = from_
+        if to:
+            body["to"] = to
+        if topic:
+            body["topic"] = topic
+        if reply_to:
+            body["reply_to"] = reply_to
+        if help:
+            body["help"] = True
+        res = self._post_json("/api/v1/mailbox/messages", body)
+        return Mail._from(res.get("message", {}))
+
+    def mailbox_broadcast(self, from_: str, text: str) -> Mail:
+        """Send an announcement to EVERY inbox except the sender's."""
+        return self.mailbox_send(text, from_=from_, to="*")
+
+    def mailbox_inbox(
+        self, name: str, include_read: bool = False, limit: int = 0
+    ) -> List[Mail]:
+        """Return what waits for ``name``, newest first: messages addressed to
+        it plus broadcasts it didn't send. Answered/acked messages are dropped
+        unless ``include_read``."""
+        q = {"name": name}
+        if include_read:
+            q["all"] = "true"
+        if limit > 0:
+            q["limit"] = str(limit)
+        res = self._get("/api/v1/mailbox/inbox?" + urllib.parse.urlencode(q))
+        return _mails(res.get("waiting"))
+
+    def mailbox_ack(self, message_id: str, by: str) -> None:
+        """Mark a message read for one reader (it leaves that reader's inbox
+        without a reply). Per-reader and idempotent."""
+        self._post_json(
+            "/api/v1/mailbox/messages/" + urllib.parse.quote(message_id) + "/ack",
+            {"by": by},
+        )
+
+    def mailbox_replies(self, message_id: str, limit: int = 0) -> List[Mail]:
+        """Return the answers to a sent message, oldest first."""
+        path = "/api/v1/mailbox/messages/" + urllib.parse.quote(message_id) + "/replies"
+        if limit > 0:
+            path += "?limit=" + str(limit)
+        return _mails(self._get(path).get("replies"))
+
+    def mailbox_messages(self, topic: str = "", limit: int = 0) -> List[Mail]:
+        """Return recent mailbox messages, newest first, optionally filtered to
+        one topic."""
+        q: Dict[str, str] = {}
+        if topic:
+            q["topic"] = topic
+        if limit > 0:
+            q["limit"] = str(limit)
+        path = "/api/v1/mailbox/messages"
+        if q:
+            path += "?" + urllib.parse.urlencode(q)
+        return _mails(self._get(path).get("messages"))
+
+    def mailbox_topics(self) -> Dict[str, int]:
+        """Return the mailbox's topics with their message counts."""
+        return self._get("/api/v1/mailbox/topics").get("topics", {})
 
     # --- internals --------------------------------------------------------
 

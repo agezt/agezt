@@ -82,6 +82,13 @@ asyncio.run(main())
 | `run(intent, model=None)` | `POST /api/v1/runs` | `RunResult` (correlation_id, model, status, answer) |
 | `run_stream(intent, model=None)` | `POST /api/v1/runs` (SSE) | iterator of `StreamEvent` (`start`/`token`/`done`/`error`) |
 | `get_run(correlation_id)` | `GET /api/v1/runs/{id}` | `dict` (correlation_id, count, events) |
+| `mailbox_send(text, from_=, to=, topic=, reply_to=, help=)` | `POST /api/v1/mailbox/messages` | `Mail` — DM an agent by name, broadcast (`to="*"`), post, reply, or ask for help |
+| `mailbox_broadcast(from_, text)` | `POST /api/v1/mailbox/messages` | `Mail` (lands in every inbox) |
+| `mailbox_inbox(name, include_read=False, limit=0)` | `GET /api/v1/mailbox/inbox` | `list[Mail]` waiting for `name` |
+| `mailbox_ack(message_id, by)` | `POST /api/v1/mailbox/messages/{id}/ack` | marks it read for `by` |
+| `mailbox_replies(message_id, limit=0)` | `GET /api/v1/mailbox/messages/{id}/replies` | `list[Mail]`, oldest first |
+| `mailbox_messages(topic="", limit=0)` | `GET /api/v1/mailbox/messages` | `list[Mail]`, newest first |
+| `mailbox_topics()` | `GET /api/v1/mailbox/topics` | `dict` topic → count |
 
 `Client(base_url, token, timeout=30, tenant=None)` — pass `tenant` to target an
 isolated tenant (sent as the `X-Agezt-Tenant` header) on a multi-tenant daemon.

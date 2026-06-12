@@ -17,6 +17,8 @@ export { Client } from "./client.js";
 export type {
   ClientOptions,
   Health,
+  Mail,
+  MailDraft,
   Models,
   RunResult,
   RunArc,

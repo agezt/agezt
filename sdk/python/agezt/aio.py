@@ -28,7 +28,9 @@ from __future__ import annotations
 import asyncio
 from typing import Any, AsyncIterator, Dict, Optional
 
-from .client import Client, RunResult, StreamEvent
+from typing import Dict as _Dict, List as _List
+
+from .client import Client, Mail, RunResult, StreamEvent
 
 __all__ = ["AsyncClient"]
 
@@ -135,6 +137,53 @@ class AsyncClient:
             if isinstance(item, BaseException):
                 raise item
             yield item
+
+    # --- mailbox (mirrors the sync client) ---------------------------------
+
+    async def mailbox_send(
+        self,
+        text: str,
+        *,
+        from_: str = "",
+        to: str = "",
+        topic: str = "",
+        reply_to: str = "",
+        help: bool = False,
+    ) -> Mail:
+        """Leave a message on the shared mailbox (see :meth:`Client.mailbox_send`)."""
+        return await self._in_thread(
+            lambda: self._sync.mailbox_send(
+                text, from_=from_, to=to, topic=topic, reply_to=reply_to, help=help
+            )
+        )
+
+    async def mailbox_broadcast(self, from_: str, text: str) -> Mail:
+        """Send an announcement to EVERY inbox except the sender's."""
+        return await self._in_thread(lambda: self._sync.mailbox_broadcast(from_, text))
+
+    async def mailbox_inbox(
+        self, name: str, include_read: bool = False, limit: int = 0
+    ) -> "_List[Mail]":
+        """Return what waits for ``name`` (see :meth:`Client.mailbox_inbox`)."""
+        return await self._in_thread(
+            lambda: self._sync.mailbox_inbox(name, include_read, limit)
+        )
+
+    async def mailbox_ack(self, message_id: str, by: str) -> None:
+        """Mark a message read for one reader."""
+        return await self._in_thread(lambda: self._sync.mailbox_ack(message_id, by))
+
+    async def mailbox_replies(self, message_id: str, limit: int = 0) -> "_List[Mail]":
+        """Return the answers to a sent message, oldest first."""
+        return await self._in_thread(lambda: self._sync.mailbox_replies(message_id, limit))
+
+    async def mailbox_messages(self, topic: str = "", limit: int = 0) -> "_List[Mail]":
+        """Return recent mailbox messages, newest first."""
+        return await self._in_thread(lambda: self._sync.mailbox_messages(topic, limit))
+
+    async def mailbox_topics(self) -> "_Dict[str, int]":
+        """Return the mailbox's topics with their message counts."""
+        return await self._in_thread(self._sync.mailbox_topics)
 
     async def aclose(self) -> None:
         """No-op: the client holds no persistent resources. Provided for symmetry."""

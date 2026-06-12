@@ -131,6 +131,16 @@ func (f *fakeStore) Topics() map[string]int {
 	return c
 }
 
+func (f *fakeStore) Ack(id, by string) (board.Message, bool, error) {
+	for i := range f.msgs {
+		if f.msgs[i].ID == id {
+			f.msgs[i].AckedBy = append(f.msgs[i].AckedBy, by)
+			return f.msgs[i], true, nil
+		}
+	}
+	return board.Message{}, false, nil
+}
+
 func newTool(t *testing.T) *Tool {
 	t.Helper()
 	tool := New()
@@ -428,6 +438,33 @@ func TestBroadcastHelp_BadInputs(t *testing.T) {
 	}
 	if _, isErr := invoke(t, tool, map[string]any{"op": "help"}); isErr {
 		t.Error("op=help with no text should LIST, not error")
+	}
+}
+
+func TestAck_MarksReadAndValidates(t *testing.T) {
+	tool := newTool(t)
+
+	sent, _ := invoke(t, tool, map[string]any{
+		"op": "send", "to": "researcher", "from": "planner", "text": "fyi"})
+	id := sent["sent"].(map[string]any)["id"].(string)
+
+	// ack needs both id and from.
+	if out, isErr := invoke(t, tool, map[string]any{"op": "ack", "from": "researcher"}); !isErr {
+		t.Fatalf("ack without id should error: %v", out)
+	}
+	if out, isErr := invoke(t, tool, map[string]any{"op": "ack", "id": id}); !isErr {
+		t.Fatalf("ack without from should error: %v", out)
+	}
+	if out, isErr := invoke(t, tool, map[string]any{"op": "ack", "id": "nope", "from": "researcher"}); !isErr {
+		t.Fatalf("ack of unknown id should error: %v", out)
+	}
+
+	out, isErr := invoke(t, tool, map[string]any{"op": "ack", "id": id, "from": "researcher"})
+	if isErr {
+		t.Fatalf("ack errored: %v", out)
+	}
+	if out["by"] != "researcher" || out["acked"].(map[string]any)["id"] != id {
+		t.Fatalf("ack result wrong: %+v", out)
 	}
 }
 

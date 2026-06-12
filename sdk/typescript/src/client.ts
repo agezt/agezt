@@ -36,6 +36,35 @@ export interface RunArc {
   events: unknown[];
 }
 
+/** One message on the daemon's shared mailbox (the inter-agent board, M937).
+ * Agents and SDK apps leave messages for each other by name (`to`), broadcast
+ * to every inbox (`to: "*"`), or post under a `topic`; `reply_to` threads an
+ * answer back to the message it answers. */
+export interface Mail {
+  id?: string;
+  topic: string;
+  text: string;
+  from?: string;
+  to?: string;
+  reply_to?: string;
+  help?: boolean;
+  ts_unix_ms?: number;
+}
+
+/** A message to send. `text` is required. Addressing: `to` names a recipient
+ * (topic defaults to "dm"); `to: "*"` broadcasts; `to` empty with a `topic` is
+ * a plain post; `replyTo` answers a message (it goes back to the original
+ * sender); `help: true` raises an assistance request. A directed message wakes
+ * a standing order watching `board.dm.<name>`. */
+export interface MailDraft {
+  text: string;
+  from?: string;
+  to?: string;
+  topic?: string;
+  replyTo?: string;
+  help?: boolean;
+}
+
 export interface ClientOptions {
   /** Per-request timeout in milliseconds (default 30000). */
   timeoutMs?: number;
@@ -99,6 +128,76 @@ export class Client {
 
   getRun(correlationId: string): Promise<RunArc> {
     return this.getJSON<RunArc>("/api/v1/runs/" + encodeURIComponent(correlationId));
+  }
+
+  // --- mailbox (the shared inter-agent message board, M937) ---
+
+  /** Leave a message on the shared mailbox. See MailDraft for addressing. */
+  async mailboxSend(draft: MailDraft): Promise<Mail> {
+    const body: Record<string, unknown> = { text: draft.text };
+    if (draft.from) body.from = draft.from;
+    if (draft.to) body.to = draft.to;
+    if (draft.topic) body.topic = draft.topic;
+    if (draft.replyTo) body.reply_to = draft.replyTo;
+    if (draft.help) body.help = true;
+    const res = await this.fetch("POST", "/api/v1/mailbox/messages", JSON.stringify(body));
+    if (!res.ok) throw await apiError(res);
+    const out = (await res.json()) as { message: Mail };
+    return out.message;
+  }
+
+  /** Send an announcement to EVERY inbox except the sender's. */
+  mailboxBroadcast(from: string, text: string): Promise<Mail> {
+    return this.mailboxSend({ from, to: "*", text });
+  }
+
+  /** What waits for `name`, newest first: messages addressed to it plus
+   * broadcasts it didn't send. Answered/acked messages are dropped unless
+   * `includeRead`. */
+  async mailboxInbox(name: string, includeRead = false, limit = 0): Promise<Mail[]> {
+    const q = new URLSearchParams({ name });
+    if (includeRead) q.set("all", "true");
+    if (limit > 0) q.set("limit", String(limit));
+    const out = await this.getJSON<{ waiting: Mail[] }>("/api/v1/mailbox/inbox?" + q.toString());
+    return out.waiting ?? [];
+  }
+
+  /** Mark a message read for one reader (it leaves that reader's inbox without
+   * a reply). Per-reader and idempotent. */
+  async mailboxAck(messageId: string, by: string): Promise<void> {
+    const res = await this.fetch(
+      "POST",
+      "/api/v1/mailbox/messages/" + encodeURIComponent(messageId) + "/ack",
+      JSON.stringify({ by }),
+    );
+    if (!res.ok) throw await apiError(res);
+    await res.body?.cancel();
+  }
+
+  /** The answers to a sent message, oldest first (conversation order). */
+  async mailboxReplies(messageId: string, limit = 0): Promise<Mail[]> {
+    let path = "/api/v1/mailbox/messages/" + encodeURIComponent(messageId) + "/replies";
+    if (limit > 0) path += "?limit=" + limit;
+    const out = await this.getJSON<{ replies: Mail[] }>(path);
+    return out.replies ?? [];
+  }
+
+  /** Recent mailbox messages, newest first, optionally one topic's. */
+  async mailboxMessages(topic = "", limit = 0): Promise<Mail[]> {
+    const q = new URLSearchParams();
+    if (topic) q.set("topic", topic);
+    if (limit > 0) q.set("limit", String(limit));
+    const qs = q.toString();
+    const out = await this.getJSON<{ messages: Mail[] }>(
+      "/api/v1/mailbox/messages" + (qs ? "?" + qs : ""),
+    );
+    return out.messages ?? [];
+  }
+
+  /** The mailbox's topics with their message counts. */
+  async mailboxTopics(): Promise<Record<string, number>> {
+    const out = await this.getJSON<{ topics: Record<string, number> }>("/api/v1/mailbox/topics");
+    return out.topics ?? {};
   }
 
   // --- internals ---
