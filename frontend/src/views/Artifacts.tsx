@@ -37,7 +37,7 @@ import {
   previewMaxBytes,
 } from "./Files";
 
-// Artifacts gallery (M929): every kind of agent output, bucketed by what it IS
+// Artifacts gallery (M931): every kind of agent output, bucketed by what it IS
 // (image / svg / html / markdown / json / code / pdf / text), each with its own
 // preview treatment — HTML renders live in a sandboxed frame, markdown renders
 // formatted, images as pictures — and a fullscreen viewer for the big-screen

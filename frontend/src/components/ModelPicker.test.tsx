@@ -60,3 +60,44 @@ describe("ModelPicker keyed-only filter", () => {
     expect(screen.getByText(/show all 1 providers/)).toBeTruthy();
   });
 });
+
+describe("ModelPicker pinned group (M931)", () => {
+  it("shows the pinned routing-chain group first, in chain order", async () => {
+    getJSON.mockResolvedValue({
+      providers: [
+        {
+          id: "openai",
+          name: "OpenAI",
+          credentialed: true,
+          models: [
+            { id: "gpt-4o", name: "GPT-4o" },
+            { id: "gpt-4o-mini", name: "GPT-4o mini" },
+          ],
+        },
+      ],
+    });
+    render(
+      <ModelPicker
+        value=""
+        onChange={() => {}}
+        pinned={{ label: "chat routing chain", ids: ["gpt-4o-mini", "gpt-4o", "not-in-catalog"] }}
+      />,
+    );
+    fireEvent.click(screen.getByTitle("Choose model"));
+    await waitFor(() => expect(screen.getByText("chat routing chain")).toBeTruthy());
+    // Both chain models render in the pinned group (so they appear twice in the
+    // modal: once pinned, once under their provider); unknown ids are skipped.
+    expect(screen.getAllByText("GPT-4o mini").length).toBe(2);
+    expect(screen.getAllByText("GPT-4o").length).toBe(2);
+    // Chain order preserved: the mini (chain primary) is the first row overall.
+    const rows = screen.getAllByText(/GPT-4o/).map((el) => el.textContent);
+    expect(rows[0]).toBe("GPT-4o mini");
+  });
+
+  it("renders no pinned group when the chain is empty or absent", async () => {
+    render(<ModelPicker value="" onChange={() => {}} pinned={{ label: "chat routing chain", ids: [] }} />);
+    fireEvent.click(screen.getByTitle("Choose model"));
+    await waitFor(() => expect(screen.getByText("GPT-4o")).toBeTruthy());
+    expect(screen.queryByText("chat routing chain")).toBeNull();
+  });
+});

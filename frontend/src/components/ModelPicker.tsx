@@ -1,15 +1,24 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, Search, Check, Cpu, Wrench, Brain, KeyRound, X } from "lucide-react";
+import { ChevronDown, Search, Check, Cpu, Wrench, Brain, KeyRound, X, Route } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getJSON } from "@/lib/api";
 import {
   flattenModels,
   filterModels,
   groupByProvider,
+  pinnedOptions,
   fmtContext,
   type ModelCatalog,
   type ModelOption,
 } from "@/lib/models";
+
+// PinnedModels is an ordered id list shown as the picker's FIRST group (M931) —
+// e.g. the chat task's routing chain, so the models the run will actually fall
+// back through lead the list instead of being buried under provider groups.
+export interface PinnedModels {
+  label: string;
+  ids: string[];
+}
 
 // ModelPicker replaces the raw model-override text box with a searchable,
 // capability-aware picker. The trigger shows the current selection (or the
@@ -20,10 +29,12 @@ export function ModelPicker({
   value,
   onChange,
   activeModel,
+  pinned,
 }: {
   value: string; // "" = use the daemon default
   onChange: (id: string) => void;
   activeModel?: string; // the daemon's default, shown as a hint
+  pinned?: PinnedModels; // optional ordered group shown first (e.g. the chat routing chain)
 }) {
   const [open, setOpen] = useState(false);
   const label = value || activeModel || "default";
@@ -43,6 +54,7 @@ export function ModelPicker({
         <ModelModal
           value={value}
           activeModel={activeModel}
+          pinned={pinned}
           onClose={() => setOpen(false)}
           onPick={(id) => {
             onChange(id);
@@ -57,11 +69,13 @@ export function ModelPicker({
 function ModelModal({
   value,
   activeModel,
+  pinned,
   onClose,
   onPick,
 }: {
   value: string;
   activeModel?: string;
+  pinned?: PinnedModels;
   onClose: () => void;
   onPick: (id: string) => void;
 }) {
@@ -92,6 +106,13 @@ function ModelModal({
   const keyedGroups = useMemo(() => allGroups.filter((g) => g.credentialed), [allGroups]);
   const groups = keyedOnly ? keyedGroups : allGroups;
   const hiddenCount = allGroups.length - keyedGroups.length;
+
+  // The pinned group (e.g. the chat routing chain) leads the list, in its own
+  // order, narrowed by the same search query as the provider groups.
+  const pinnedOpts = useMemo(
+    () => (pinned?.ids?.length ? pinnedOptions(filterModels(flattenModels(cat), q), pinned.ids) : []),
+    [cat, q, pinned],
+  );
 
   const total = useMemo(() => flattenModels(cat).length, [cat]);
 
@@ -129,6 +150,19 @@ function ModelModal({
             title="Daemon default"
             subtitle={activeModel ? `currently ${activeModel}` : "the daemon's configured model"}
           />
+
+          {pinnedOpts.length > 0 && (
+            <div className="mt-1">
+              <div className="flex items-center gap-1.5 px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-accent">
+                <Route className="size-3" />
+                {pinned!.label}
+                <span className="text-muted/60">· {pinnedOpts.length}</span>
+              </div>
+              {pinnedOpts.map((m, i) => (
+                <ModelRow key={`pinned/${m.id}-${i}`} m={m} selected={m.id === value} onClick={() => onPick(m.id)} />
+              ))}
+            </div>
+          )}
 
           {err ? (
             <div className="px-3 py-6 text-center text-xs text-bad">{err}</div>
