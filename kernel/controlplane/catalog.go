@@ -49,8 +49,17 @@ func (s *Server) handleCatalogSync(ctx context.Context, conn net.Conn, req Reque
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "save: " + err.Error()})
 		return
 	}
-	if _, err := s.k.ReloadCatalog(); err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "reload: " + err.Error()})
+	// FULL reload — catalog snapshot AND provider re-selection (M928). A daemon
+	// that booted catalog-less degrades to the offline mock primary; a bare
+	// ReloadCatalog here used to leave that mock serving every run even though
+	// the fresh catalog + existing vault keys now make real providers eligible
+	// (the first-run "sync from the UI, chat still answers [offline-mock]" trap).
+	// On a provider-rebuild failure the catalog snapshot has already installed
+	// (Reload loads it first), so surface the error in the result instead of
+	// failing the sync the operator asked for.
+	freshCat, providersReloaded, provErr := s.k.Reload()
+	if freshCat == nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "reload: " + provErr.Error()})
 		return
 	}
 	_, _ = s.k.Bus().Publish(event.Spec{
@@ -65,17 +74,19 @@ func (s *Server) handleCatalogSync(ctx context.Context, conn net.Conn, req Reque
 			"duration_ms":    res.Duration.Milliseconds(),
 		},
 	})
-	_ = cat // already installed via ReloadCatalog
-	s.writeResp(conn, Response{
-		ID: req.ID, Type: RespResult,
-		Result: map[string]any{
-			"url":            url,
-			"bytes":          res.Bytes,
-			"provider_count": res.ProviderCount,
-			"model_count":    res.ModelCount,
-			"duration_ms":    res.Duration.Milliseconds(),
-		},
-	})
+	_ = cat // already installed via Reload
+	result := map[string]any{
+		"url":                url,
+		"bytes":              res.Bytes,
+		"provider_count":     res.ProviderCount,
+		"model_count":        res.ModelCount,
+		"duration_ms":        res.Duration.Milliseconds(),
+		"providers_reloaded": providersReloaded,
+	}
+	if provErr != nil {
+		result["provider_reload_error"] = provErr.Error()
+	}
+	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: result})
 }
 
 // handleCatalogList projects the loaded catalog into a wire shape:
@@ -174,8 +185,12 @@ func (s *Server) handleCatalogDiscover(ctx context.Context, conn net.Conn, req R
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "save: " + err.Error()})
 		return
 	}
-	if _, err := s.k.ReloadCatalog(); err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "reload: " + err.Error()})
+	// Full reload (M928) — same rationale as handleCatalogSync: a freshly
+	// discovered local provider must be able to displace the offline mock
+	// primary without a daemon restart.
+	freshCat, providersReloaded, provErr := s.k.Reload()
+	if freshCat == nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "reload: " + provErr.Error()})
 		return
 	}
 	modelCount := 0
@@ -191,13 +206,15 @@ func (s *Server) handleCatalogDiscover(ctx context.Context, conn net.Conn, req R
 			"model_count": modelCount,
 		},
 	})
-	s.writeResp(conn, Response{
-		ID: req.ID, Type: RespResult,
-		Result: map[string]any{
-			"endpoint":    endpoint,
-			"model_count": modelCount,
-		},
-	})
+	result := map[string]any{
+		"endpoint":           endpoint,
+		"model_count":        modelCount,
+		"providers_reloaded": providersReloaded,
+	}
+	if provErr != nil {
+		result["provider_reload_error"] = provErr.Error()
+	}
+	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: result})
 }
 
 func envOrDefault(name, fallback string) string {

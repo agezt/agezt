@@ -205,6 +205,17 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   shutdown forever. (M883)
 
 ### Fixed
+- **Catalog sync now re-selects providers — no more permanent offline-mock after a first-run sync (M928).**
+  A daemon that boots with no catalog on disk degrades to the offline mock primary; syncing the catalog
+  from the UI/CLI then only refreshed the catalog snapshot, so the mock kept serving every run ("mock:
+  scripted responses exhausted" on chat) even though vault keys made real providers eligible — only a
+  daemon restart recovered. `catalog sync` and `catalog discover` now run the FULL reload (provider
+  re-selection included), and the hot-reload path itself reached boot parity: it registers every other
+  credentialed+supported catalog provider as a model-routable alternate (with its catalog model list, so
+  per-task model chains route each model to its serving provider) and drops alternates whose keys were
+  revoked. The Routing view also gained **Auto-fill**: one click builds a suggested chain for every task
+  from your keyed providers (one best model per provider, task-fit ordered — strongest-first for
+  chat/plan/code, cheapest-first for summarize/salience), ready to edit and Save. (M928)
 - **Abstractive context summaries work on reasoning models (M926).** The elided-output summary call
   (M398, `ContextSummarize`) capped its response at 64 tokens — a reasoning model (deepseek-v4-pro,
   o-series) spends output tokens on its chain of thought first, so the cap was entirely consumed and
