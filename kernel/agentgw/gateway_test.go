@@ -184,12 +184,12 @@ func TestParseCapability(t *testing.T) {
 
 // TestNormalizeCaps tests capability normalization and deduplication.
 func TestNormalizeCaps(t *testing.T) {
-	caps, err := NormalizeCaps([]string{"memory.write", "memory.read", "MEMORY.WRITE", "invalid.cap"})
+	_, err := NormalizeCaps([]string{"memory.write", "memory.read", "MEMORY.WRITE", "invalid.cap"})
 	if err == nil {
 		t.Error("NormalizeCaps: got nil error, want error for invalid.cap")
 	}
 
-	caps, err = NormalizeCaps([]string{"memory.write", "memory.read", "MEMORY.WRITE"})
+	caps, err := NormalizeCaps([]string{"memory.write", "memory.read", "MEMORY.WRITE"})
 	if err != nil {
 		t.Fatalf("NormalizeCaps: %v", err)
 	}
@@ -349,13 +349,13 @@ func TestResponseJSON(t *testing.T) {
 // TestExtractBearerToken tests the Authorization header extraction.
 func TestExtractBearerToken(t *testing.T) {
 	tests := []struct {
-		header  string
-		want    string
+		header string
+		want   string
 	}{
 		{"Bearer abc123", "abc123"},
-		{"Basic abc", ""},            // Wrong scheme
-		{"", ""},                     // Empty
-		{"Bearer ", ""},              // Empty token
+		{"Basic abc", ""}, // Wrong scheme
+		{"", ""},          // Empty
+		{"Bearer ", ""},   // Empty token
 	}
 
 	for _, tt := range tests {

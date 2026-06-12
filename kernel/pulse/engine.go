@@ -467,9 +467,9 @@ func briefPayload(b Brief) map[string]any {
 
 // Status is the snapshot returned to `agt pulse status`.
 type Status struct {
-	Running       bool     `json:"running"`
-	Paused        bool     `json:"paused"`
-	Beats         int64    `json:"beats"`
+	Running       bool       `json:"running"`
+	Paused        bool       `json:"paused"`
+	Beats         int64      `json:"beats"`
 	Observers     []string   `json:"observers"`
 	Removable     []string   `json:"removable"`
 	Dial          string     `json:"dial"`

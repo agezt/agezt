@@ -9,13 +9,13 @@ import (
 
 // Error codes
 const (
-	ErrKeyNotFound     = "KEY_NOT_FOUND"
-	ErrAccessDenied    = "ACCESS_DENIED"
-	ErrRatingDenied    = "RATING_DENIED"
-	ErrRateLimited     = "RATE_LIMITED"
-	ErrValueChanged    = "VALUE_CHANGED"
-	ErrUnknownPolicy   = "UNKNOWN_POLICY"
-	ErrInternal        = "INTERNAL_ERROR"
+	ErrKeyNotFound   = "KEY_NOT_FOUND"
+	ErrAccessDenied  = "ACCESS_DENIED"
+	ErrRatingDenied  = "RATING_DENIED"
+	ErrRateLimited   = "RATE_LIMITED"
+	ErrValueChanged  = "VALUE_CHANGED"
+	ErrUnknownPolicy = "UNKNOWN_POLICY"
+	ErrInternal      = "INTERNAL_ERROR"
 )
 
 // ConfigError represents a config center error with code and message.

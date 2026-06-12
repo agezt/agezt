@@ -554,17 +554,3 @@ func parseSemver(v string) [3]int {
 	}
 	return out
 }
-
-// BufferPoolingReader wraps an io.Reader and pools the scratch buffer
-// used for copies. This reduces allocation pressure during large downloads.
-type bufferPool struct {
-	buf []byte
-}
-
-// ReadFrom implements io.ReaderFrom, copying through a pooled buffer.
-func (p *bufferPool) ReadFrom(r io.Reader) (n int64, err error) {
-	if p.buf == nil {
-		p.buf = make([]byte, 32*1024) // 32 KiB chunks
-	}
-	return io.CopyBuffer(io.Discard, r, p.buf)
-}

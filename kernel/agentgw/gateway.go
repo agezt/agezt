@@ -29,12 +29,16 @@ type Gateway struct {
 	bus      *bus.Bus
 	mem      *memory.Manager
 	roster   *roster.Store
-	httpSrv  *http.Server
 	sockPath string
 
+	// srvMu guards httpSrv: Listen runs on a background goroutine (runtime.Open)
+	// while Close may be called from the kernel's shutdown path.
+	srvMu   sync.Mutex
+	httpSrv *http.Server
+
 	// Config center integration (set via SetConfigCenter)
-	configCenter   *configcenter.Center
-	configHandler  *ConfigHandler
+	configCenter  *configcenter.Center
+	configHandler *ConfigHandler
 }
 
 // GatewayConfig configures the gateway.
@@ -124,7 +128,7 @@ func (g *Gateway) Listen(ctx context.Context) error {
 	// Health endpoint (no auth)
 	mux.HandleFunc("GET /health", g.handleHealth)
 
-	g.httpSrv = &http.Server{
+	srv := &http.Server{
 		Handler:        mux,
 		ReadTimeout:    30 * time.Second,
 		WriteTimeout:   30 * time.Second,
@@ -136,6 +140,11 @@ func (g *Gateway) Listen(ctx context.Context) error {
 
 	// Support both TCP (tcp://host:port) and Unix socket (unix:/path or /path)
 	switch {
+	case len(g.sockPath) >= 1 && g.sockPath[0] == '@':
+		// Abstract unix socket (the default, e.g. @agezt/agentgw.sock). Go maps
+		// the leading @ to the abstract namespace on Linux; without this case it
+		// fell through to net.Listen("tcp", ...) and failed everywhere.
+		ln, err = net.Listen("unix", g.sockPath)
 	case len(g.sockPath) >= 7 && g.sockPath[:6] == "unix://":
 		// Unix socket with explicit prefix
 		socketPath := g.sockPath[6:]
@@ -152,8 +161,12 @@ func (g *Gateway) Listen(ctx context.Context) error {
 		return fmt.Errorf("agentgw: listen: %w", err)
 	}
 
+	g.srvMu.Lock()
+	g.httpSrv = srv
+	g.srvMu.Unlock()
+
 	go func() {
-		if err := g.httpSrv.Serve(ln); err != nil && err != http.ErrServerClosed {
+		if err := srv.Serve(ln); err != nil && err != http.ErrServerClosed {
 			fmt.Printf("agentgw: serve error: %v\n", err)
 		}
 	}()
@@ -163,12 +176,15 @@ func (g *Gateway) Listen(ctx context.Context) error {
 
 // Close shuts down the gateway.
 func (g *Gateway) Close() error {
+	g.srvMu.Lock()
+	srv := g.httpSrv
+	g.srvMu.Unlock()
+	if srv == nil {
+		return nil
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	if g.httpSrv != nil {
-		return g.httpSrv.Shutdown(ctx)
-	}
-	return nil
+	return srv.Shutdown(ctx)
 }
 
 // withAuth wraps an HTTP handler with authentication and rate limiting.

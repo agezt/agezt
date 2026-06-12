@@ -54,10 +54,10 @@ func (h *ConfigHandler) handleConfigGet(w http.ResponseWriter, r *http.Request) 
 
 	// Build access request
 	req := configcenter.ConfigAccessRequest{
-		AgentID:        claims.SubprocessID,
-		RunID:          claims.RunID,
-		Key:            key,
-		Reason:         reason,
+		AgentID:         claims.SubprocessID,
+		RunID:           claims.RunID,
+		Key:             key,
+		Reason:          reason,
 		CachedValueHash: cachedHash,
 	}
 
@@ -120,7 +120,7 @@ func (h *ConfigHandler) handleConfigList(w http.ResponseWriter, r *http.Request)
 	}
 
 	responseJSON(w, http.StatusOK, map[string]interface{}{
-		"keys": keys,
+		"keys":  keys,
 		"count": len(keys),
 	})
 }
@@ -223,9 +223,9 @@ func (h *ConfigHandler) handleConfigSet(w http.ResponseWriter, r *http.Request) 
 	}
 
 	responseJSON(w, http.StatusCreated, map[string]interface{}{
-		"key":      entry.Key,
-		"rating":   string(entry.Rating),
-		"version":  entry.Version,
+		"key":     entry.Key,
+		"rating":  string(entry.Rating),
+		"version": entry.Version,
 	})
 }
 

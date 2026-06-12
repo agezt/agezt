@@ -16,24 +16,22 @@ import (
 
 // AccessPolicy evaluates access requests against ratings and policies.
 type AccessPolicy struct {
-	config    *Config
-	store     *Store
+	config     *Config
+	store      *Store
 	classifier *SecretClassifier
-	auditLog  *AuditLogger
-	registry  *approval.Registry // nil means HITL not available
+	auditLog   *AuditLogger
+	registry   *approval.Registry // nil means HITL not available
 
 	// Rate limiting
 	rateLimits *RateLimitMap
-
-	mu sync.Mutex
 }
 
 // RateLimitMap tracks access counts for rate limiting.
 type RateLimitMap struct {
-	mu      sync.Mutex
-	agents  map[string]*timeWindow // agent -> count
-	keys    map[string]*timeWindow // key -> count
-	window  time.Duration
+	mu     sync.Mutex
+	agents map[string]*timeWindow // agent -> count
+	keys   map[string]*timeWindow // key -> count
+	window time.Duration
 }
 
 // timeWindow tracks events within a time window.
@@ -86,12 +84,12 @@ func NewAccessPolicy(cfg *Config, store *Store, auditLog *AuditLogger) *AccessPo
 	for key, rating := range cfg.Classifier.Overrides {
 		classifier.SetOverride(key, rating)
 	}
-	
+
 	return &AccessPolicy{
-		config:    cfg,
-		store:    store,
+		config:     cfg,
+		store:      store,
 		classifier: classifier,
-		auditLog: auditLog,
+		auditLog:   auditLog,
 		rateLimits: &RateLimitMap{
 			agents: make(map[string]*timeWindow),
 			keys:   make(map[string]*timeWindow),
@@ -112,7 +110,7 @@ func (ap *AccessPolicy) Evaluate(ctx context.Context, req *ConfigAccessRequest) 
 		ap.auditLog.Log(req, AccessDenied, "rate_limit", "agent_rate_exceeded", "")
 		return &ConfigAccessResponse{
 			Decision: AccessDenied,
-			Reason:  fmt.Sprintf("rate limit exceeded (%d/min)", ap.config.RateLimits.PerAgentPerMinute),
+			Reason:   fmt.Sprintf("rate limit exceeded (%d/min)", ap.config.RateLimits.PerAgentPerMinute),
 		}, nil
 	}
 
@@ -121,7 +119,7 @@ func (ap *AccessPolicy) Evaluate(ctx context.Context, req *ConfigAccessRequest) 
 		ap.auditLog.Log(req, AccessDenied, "rate_limit", "key_rate_exceeded", "")
 		return &ConfigAccessResponse{
 			Decision: AccessDenied,
-			Reason:  fmt.Sprintf("rate limit exceeded for key (%d/min)", ap.config.RateLimits.PerKeyPerMinute),
+			Reason:   fmt.Sprintf("rate limit exceeded for key (%d/min)", ap.config.RateLimits.PerKeyPerMinute),
 		}, nil
 	}
 
@@ -193,8 +191,8 @@ func (ap *AccessPolicy) Evaluate(ctx context.Context, req *ConfigAccessRequest) 
 		ap.auditLog.Log(req, AccessAllowed, "auto", "", entry.Value)
 		return &ConfigAccessResponse{
 			Decision: AccessAllowed,
-			Value:   entry.Value,
-			Rating:  rating,
+			Value:    entry.Value,
+			Rating:   rating,
 		}, nil
 
 	case PolicyDeny, PolicySecretDeny:
@@ -294,10 +292,10 @@ func (ap *AccessPolicy) requestHITLApproval(ctx context.Context, req *ConfigAcce
 	if outcome.Decision == approval.DecisionGrant {
 		ap.auditLog.Log(req, AccessAllowed, "hitl", "operator_grant", entry.Value)
 		return &ConfigAccessResponse{
-			Decision: AccessAllowed,
-			Value:   entry.Value,
-			Rating:  rating,
-			Approver: outcome.ResolvedBy,
+			Decision:   AccessAllowed,
+			Value:      entry.Value,
+			Rating:     rating,
+			Approver:   outcome.ResolvedBy,
 			ApprovalID: fmt.Sprintf("config:%s:%s", req.AgentID, req.Key),
 		}, nil
 	}

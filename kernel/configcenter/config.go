@@ -38,41 +38,41 @@ type Config struct {
 // DefaultConfig returns a default configuration for the Config Center.
 func DefaultConfig(baseDir string) *Config {
 	dir := filepath.Join(baseDir, "configcenter")
-	
+
 	return &Config{
-		Dir:        dir,
-		StoreType:  "json",
-		
+		Dir:       dir,
+		StoreType: "json",
+
 		AccessPolicies: map[Rating]Policy{
 			RatingPublic:     PolicyAuto,
 			RatingInternal:   PolicyAuto,
 			RatingRestricted: PolicyHITL,
 			RatingSecret:     PolicyDeny,
 		},
-		
+
 		Hitl: HitlConfig{
-			TimeoutMinutes:       5,
-			AutoDenyOnTimeout:   true,
-			NotifyChannels:      []string{},
+			TimeoutMinutes:    5,
+			AutoDenyOnTimeout: true,
+			NotifyChannels:    []string{},
 		},
-		
+
 		RateLimits: RateLimitConfig{
 			PerAgentPerMinute: 120,
 			PerKeyPerMinute:   600,
 		},
-		
+
 		Audit: AuditConfig{
-			LogAllAccess:     true,
-			LogPublicValues:   false,
-			RetentionDays:    90,
+			LogAllAccess:    true,
+			LogPublicValues: false,
+			RetentionDays:   90,
 		},
-		
+
 		Vault: VaultConfig{
-			Enabled:     false,
-			Provider:    "",
-			Address:     "",
-			AuthMethod:  "token",
-			MountPath:   "",
+			Enabled:    false,
+			Provider:   "",
+			Address:    "",
+			AuthMethod: "token",
+			MountPath:  "",
 			RefreshStrategy: map[Rating]RefreshStrategy{
 				RatingSecret:     RefreshAlways,
 				RatingRestricted: RefreshCache5m,
@@ -80,7 +80,7 @@ func DefaultConfig(baseDir string) *Config {
 				RatingPublic:     RefreshCache1h,
 			},
 		},
-		
+
 		Classifier: ClassifierConfig{
 			AutoClassify: true,
 			Overrides:    map[string]Rating{},
@@ -117,8 +117,8 @@ type RefreshStrategy string
 
 const (
 	RefreshAlways  RefreshStrategy = "always_refresh" // Always fetch fresh from vault
-	RefreshCache5m RefreshStrategy = "cache_5m"    // Cache for 5 minutes
-	RefreshCache1h RefreshStrategy = "cache_1h"    // Cache for 1 hour
+	RefreshCache5m RefreshStrategy = "cache_5m"       // Cache for 5 minutes
+	RefreshCache1h RefreshStrategy = "cache_1h"       // Cache for 1 hour
 )
 
 // HitlConfig contains HITL (Human-in-the-Loop) settings.
@@ -156,14 +156,14 @@ type AuditConfig struct {
 
 // VaultConfig contains vault integration settings.
 type VaultConfig struct {
-	Enabled          bool
-	Provider         string // "hashicorp", "aws-secrets", "azure-keyvault"
-	Address          string
-	AuthMethod       string // "token", "k8s", "aws", "azure"
-	MountPath        string
+	Enabled         bool
+	Provider        string // "hashicorp", "aws-secrets", "azure-keyvault"
+	Address         string
+	AuthMethod      string // "token", "k8s", "aws", "azure"
+	MountPath       string
 	Token           string
 	K8SRole         string
-	RefreshStrategy  map[Rating]RefreshStrategy
+	RefreshStrategy map[Rating]RefreshStrategy
 }
 
 // ClassifierConfig contains secret classifier settings.
@@ -200,7 +200,7 @@ func (c *Config) EnsureDefaults(baseDir string) {
 	if c.Audit.RetentionDays == 0 {
 		c.Audit.RetentionDays = 90
 	}
-	
+
 	// Ensure directory exists
 	os.MkdirAll(c.Dir, 0755)
 }

@@ -135,11 +135,11 @@ func TestVerifyAgainstOriginalTask(t *testing.T) {
 
 func TestParseVerdict(t *testing.T) {
 	cases := []struct {
-		name      string
-		in        string
-		wantOK    bool
-		wantDone  bool
-		wantGap   string
+		name     string
+		in       string
+		wantOK   bool
+		wantDone bool
+		wantGap  string
 	}{
 		{"strict", `{"complete":true}`, true, true, ""},
 		{"with gap", `{"complete":false,"gap":"no tests"}`, true, false, "no tests"},

@@ -14,15 +14,15 @@ import (
 // fakeStore records calls so the tool's mapping (op → store method + args) is
 // asserted without a real on-disk schedule store.
 type fakeStore struct {
-	added    []cadence.Entry
-	lastOnce time.Time
-	lastIntv time.Duration
+	added               []cadence.Entry
+	lastOnce            time.Time
+	lastIntv            time.Duration
 	lastAtMin, lastDays int
-	removed  string
-	removeOK bool
-	entries  []cadence.Entry
-	lastAssureID string
-	lastAssureN  int
+	removed             string
+	removeOK            bool
+	entries             []cadence.Entry
+	lastAssureID        string
+	lastAssureN         int
 }
 
 func (f *fakeStore) Add(intent string, interval time.Duration, model, source string, now time.Time) (cadence.Entry, error) {

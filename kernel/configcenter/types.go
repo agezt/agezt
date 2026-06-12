@@ -49,9 +49,9 @@ type ConfigEntry struct {
 	Metadata map[string]string `json:"metadata,omitempty"`
 
 	// Created info.
-	CreatedBy  string `json:"created_by,omitempty"`
-	CreatedAt  int64  `json:"created_at"`
-	UpdatedAt  int64  `json:"updated_at"`
+	CreatedBy string `json:"created_by,omitempty"`
+	CreatedAt int64  `json:"created_at"`
+	UpdatedAt int64  `json:"updated_at"`
 }
 
 // NewConfigEntry creates a new config entry with defaults.
@@ -181,28 +181,27 @@ type AuditEntry struct {
 	Timestamp int64 `json:"timestamp"`
 
 	// Access details.
-	AgentID   string `json:"agent_id"`
-	RunID     string `json:"run_id"`
-	Key       string `json:"key"`
-	Rating    Rating `json:"rating"`
-	Reason    string `json:"reason,omitempty"`
+	AgentID string `json:"agent_id"`
+	RunID   string `json:"run_id"`
+	Key     string `json:"key"`
+	Rating  Rating `json:"rating"`
+	Reason  string `json:"reason,omitempty"`
 
 	// Decision details.
-	Decision    AccessDecision `json:"decision"`
+	Decision   AccessDecision `json:"decision"`
 	Policy     string         `json:"policy"`
 	ReasonCode string         `json:"reason_code"`
 
 	// Audit metadata.
-	ValueLog     string            `json:"value_log,omitempty"` // "REDACTED", "ghp_xxxx...xxxx", or hash
-	Approver    string            `json:"approver,omitempty"`
-	ApprovalID  string            `json:"approval_id,omitempty"`
-	Metadata    map[string]string `json:"metadata,omitempty"`
+	ValueLog   string            `json:"value_log,omitempty"` // "REDACTED", "ghp_xxxx...xxxx", or hash
+	Approver   string            `json:"approver,omitempty"`
+	ApprovalID string            `json:"approval_id,omitempty"`
+	Metadata   map[string]string `json:"metadata,omitempty"`
 }
 
 // Store provides persistent storage for config entries.
 type Store struct {
 	mu      sync.RWMutex
-	path    string
 	entries map[string]*ConfigEntry
 	audit   []*AuditEntry
 }

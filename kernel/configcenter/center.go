@@ -19,11 +19,11 @@ import (
 
 // Center is the main Config Center implementation.
 type Center struct {
-	config    *Config
-	store     *Store
+	config     *Config
+	store      *Store
 	classifier *SecretClassifier
-	policy    *AccessPolicy
-	auditLog  *AuditLogger
+	policy     *AccessPolicy
+	auditLog   *AuditLogger
 
 	mu sync.RWMutex
 }
@@ -54,11 +54,11 @@ func New(cfg *Config) (*Center, error) {
 	policy := NewAccessPolicy(cfg, store, auditLog)
 
 	c := &Center{
-		config:    cfg,
-		store:    store,
+		config:     cfg,
+		store:      store,
 		classifier: classifier,
-		policy:   policy,
-		auditLog: auditLog,
+		policy:     policy,
+		auditLog:   auditLog,
 	}
 
 	return c, nil
@@ -161,11 +161,11 @@ func (c *Center) ListAccessible() []*ConfigEntry {
 func (c *Center) Search(query string, opts SearchOptions) []*ConfigEntry {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	
+
 	if opts.Limit == 0 {
 		opts.Limit = 50
 	}
-	
+
 	return c.store.Search(query, opts.Limit)
 }
 
@@ -200,11 +200,11 @@ func (c *Center) UpdateRating(key string, rating Rating) error {
 // SetOverride sets a manual rating override for a key.
 func (c *Center) SetOverride(key string, rating Rating) {
 	c.classifier.SetOverride(key, rating)
-	
+
 	// Also update the store
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	
+
 	if entry, err := c.store.Get(key); err == nil {
 		entry.Rating = rating
 		c.store.Set(entry)
@@ -320,7 +320,7 @@ func (c *Center) persistEntry(entry *ConfigEntry) error {
 	os.MkdirAll(c.config.Dir, 0755)
 
 	filename := c.entryFile(entry.Key)
-	
+
 	// Marshal to JSON
 	data, err := json.MarshalIndent(entry, "", "  ")
 	if err != nil {
