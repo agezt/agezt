@@ -30,23 +30,35 @@ test.describe("Agezt Web UI — embedded SPA against a real daemon", () => {
     await page.goto(URL!, { waitUntil: "domcontentloaded" });
 
     // --- Shell + live SSE indicator -------------------------------------
-    await expect(
-      page.getByRole("heading", { level: 1, name: /agezt · console/i }),
-    ).toBeVisible();
-    await expect(page.getByText("● live")).toBeVisible();
+    // The brand word inside the h1 is a rename button (M719) whose aria-label
+    // ("Rename console") replaces it in the heading's accessible *name*, so
+    // match on the visible text instead of the computed role name.
+    const title = page.locator("h1", { hasText: "· console" });
+    await expect(title).toBeVisible();
+    await expect(title).toContainText(/agezt/i);
+    // "● live" renders in the header AND in the Cockpit panel — either proves
+    // the SSE stream connected.
+    await expect(page.getByText("● live").first()).toBeVisible();
 
-    // --- Overview: live status pulled from the daemon -------------------
-    await page.getByRole("button", { name: "Overview" }).click();
+    const nav = page.getByRole("navigation");
+
+    // --- Landing: the humane chat surface --------------------------------
     await expect(
-      page.getByRole("heading", { level: 2, name: "Status" }),
+      page.getByRole("heading", { level: 2, name: "Talk to your agent" }),
     ).toBeVisible();
-    // The status grid is real daemon state, not a static placeholder
-    // (`active_runs` is unique to the Overview status keys).
-    await expect(page.getByText("active_runs", { exact: true })).toBeVisible();
-    await expect(page.getByText("daemon", { exact: true })).toBeVisible();
+
+    // --- Cockpit (nav "Overview"): live status pulled from the daemon ---
+    // The seeded run shows up in the completed counter; the vitals strip and
+    // widgets are real daemon state, not placeholders.
+    await nav.getByRole("button", { name: "Overview" }).click();
+    await expect(
+      page.getByRole("heading", { level: 2, name: "Cockpit" }),
+    ).toBeVisible();
+    await expect(page.getByText(/success rate/)).toBeVisible();
+    await expect(page.getByText(/active skills/)).toBeVisible();
 
     // --- Runs: the intent the harness submitted renders as a card -------
-    await page.getByRole("button", { name: "Runs" }).click();
+    await nav.getByRole("button", { name: "Runs" }).click();
     await expect(
       page.getByRole("heading", { level: 2, name: "Runs" }),
     ).toBeVisible();
@@ -61,12 +73,10 @@ test.describe("Agezt Web UI — embedded SPA against a real daemon", () => {
     await expect(page.getByText("[echo] hello e2e")).toBeVisible();
 
     // --- World: the React Flow panel mounts -----------------------------
-    await page.getByRole("button", { name: "World" }).click();
+    await nav.getByRole("button", { name: "World" }).click();
     await expect(
       page.getByRole("heading", { level: 2, name: "World" }),
     ).toBeVisible();
-
-    const nav = page.getByRole("navigation");
 
     // --- Autonomy: the proactive-heartbeat controls render + work -------
     // (M743 pause/resume, M756 beat-now, M757 cadence, M758 dial, M761 flush).
