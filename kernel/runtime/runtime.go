@@ -2019,12 +2019,26 @@ func (k *Kernel) RunWith(ctx context.Context, corr, intent string) (string, erro
 		}
 	}
 
-	// Per-run model override (WithModel) — used by the OpenAI-compatible API to
-	// honour the request's `model`. Falls back to the live default model
-	// (k.Model(), hot-swappable via SetModel on provider reload — M816).
+	// Per-run model override (WithModel) — used by the OpenAI-compatible API and
+	// the Chat picker to honour the request's `model`. Falls back to the live
+	// default model (k.Model(), hot-swappable via SetModel on provider reload —
+	// M816).
 	model := k.Model()
+	modelExplicit := false
 	if m := modelFromCtx(runCtx); m != "" {
 		model = m
+		modelExplicit = true
+	}
+	// An EXPLICIT pick must actually serve the run (M931): the governor's
+	// per-task chain ("chat" here) supersedes req.Model, so an operator choosing
+	// a model in the Chat picker / `agt run --model` / the OpenAI-compat `model`
+	// field was silently routed to the chain's models instead. Carry the pick as
+	// the per-request chain, which wins over the task chain (M787 precedence). A
+	// named agent's own chain (WithModelChain) still takes priority — it is the
+	// more specific identity.
+	modelChain := modelChainFromCtx(runCtx)
+	if len(modelChain) == 0 && modelExplicit {
+		modelChain = []string{model}
 	}
 
 	// Per-run tool restriction (WithTools): an allowlist (possibly empty = no
@@ -2083,8 +2097,8 @@ func (k *Kernel) RunWith(ctx context.Context, corr, intent string) (string, erro
 		Tools:                runTools,
 		Bus:                  k.bus,
 		Model:                model,
-		TaskType:             "chat",                    // M703: main agent loop → "chat" routing target
-		ModelChain:           modelChainFromCtx(runCtx), // M787: a named agent's own fallbacks
+		TaskType:             "chat",     // M703: main agent loop → "chat" routing target
+		ModelChain:           modelChain, // M787 agent fallbacks, or the explicit pick (M931)
 		Agent:                agentSlugFromCtx(runCtx),
 		AgentDailyCeilingMc:  agentDailyMcFromCtx(runCtx),
 		System:               system,

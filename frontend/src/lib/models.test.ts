@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { flattenModels, filterModels, groupByProvider, fmtContext, findModelContext, type ModelCatalog } from "@/lib/models";
+import { flattenModels, filterModels, groupByProvider, pinnedOptions, fmtContext, findModelContext, type ModelCatalog } from "@/lib/models";
 
 const cat: ModelCatalog = {
   providers: [
@@ -73,5 +73,28 @@ describe("findModelContext", () => {
     expect(findModelContext(cat, "nope")).toBe(0);
     expect(findModelContext(cat, "")).toBe(0);
     expect(findModelContext(null, "gpt-4o")).toBe(0);
+  });
+});
+
+describe("pinnedOptions", () => {
+  it("resolves ids in order, preferring a credentialed provider", () => {
+    const multi: ModelCatalog = {
+      providers: [
+        { id: "unkeyed", credentialed: false, models: [{ id: "shared-model" }] },
+        { id: "keyed", credentialed: true, models: [{ id: "shared-model" }, { id: "keyed-only" }] },
+      ],
+    };
+    const out = pinnedOptions(flattenModels(multi), ["keyed-only", "shared-model"]);
+    expect(out.map((o) => o.id)).toEqual(["keyed-only", "shared-model"]);
+    expect(out[1].providerId).toBe("keyed"); // credentialed match wins
+  });
+
+  it("skips unknown ids and dedupes repeats", () => {
+    const out = pinnedOptions(flattenModels(cat), ["gpt-4o", "not-in-catalog", "gpt-4o"]);
+    expect(out.map((o) => o.id)).toEqual(["gpt-4o"]);
+  });
+
+  it("returns empty for an empty id list", () => {
+    expect(pinnedOptions(flattenModels(cat), [])).toEqual([]);
   });
 });

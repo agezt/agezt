@@ -103,6 +103,23 @@ export function groupByProvider(opts: ModelOption[]): ModelGroup[] {
   return groups.sort((a, b) => Number(b.credentialed) - Number(a.credentialed));
 }
 
+// pinnedOptions resolves an ordered model-id list (e.g. the chat task's routing
+// chain) into picker options, preserving the given order: first match per id,
+// preferring a credentialed provider when several serve the same model. Ids not
+// in opts (filtered out by search, or unknown to the catalog) are skipped — the
+// pinned group simply shrinks. Powers the picker's "routing chain first" group
+// (M931) so the models the chat will actually fall back through lead the list.
+export function pinnedOptions(opts: ModelOption[], ids: string[]): ModelOption[] {
+  const out: ModelOption[] = [];
+  for (const id of ids) {
+    if (!id || out.some((o) => o.id === id)) continue;
+    const matches = opts.filter((o) => o.id === id);
+    if (!matches.length) continue;
+    out.push(matches.find((o) => o.credentialed) ?? matches[0]);
+  }
+  return out;
+}
+
 // findModelContext looks up a model's context window (tokens) in the catalog by
 // model id — what the chat's context bar divides by. 0 when the model isn't in
 // the catalog (the bar then shows absolute usage without a percentage).
