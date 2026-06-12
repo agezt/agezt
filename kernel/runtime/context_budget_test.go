@@ -228,3 +228,60 @@ func TestRun_AutoBudgetOffForUnknownModel(t *testing.T) {
 		t.Errorf("unknown model in auto mode must not compact, got %d", n)
 	}
 }
+
+// TestRun_ContextSummarizeReasoningHeadroom: the elided-summary call's token
+// cap follows the model's catalog reasoning flag (M926). A reasoning model
+// spends output tokens on its chain of thought before the summary line — at
+// the tight 64-token cap it returns empty content (observed live on
+// deepseek-v4-pro), silently degrading every abstractive summary to the
+// extractive head stub. Plain models keep the tight cap (spend stays
+// negligible); reasoning models get headroom.
+func TestRun_ContextSummarizeReasoningHeadroom(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		reasoning bool
+		wantMax   int
+	}{
+		{"reasoning model gets headroom", true, 1024},
+		{"plain model keeps the tight cap", false, 64},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cat := catalog.NewEmpty()
+			cat.Providers["p"] = &catalog.Provider{
+				ID:     "p",
+				Models: map[string]*catalog.Model{"mockmodel": {ID: "mockmodel", Reasoning: tc.reasoning}},
+			}
+
+			gotMax := 0
+			toolTurns := 0
+			prov := &mock.Provider{Responder: func(req agent.CompletionRequest) agent.CompletionResponse {
+				if len(req.Messages) == 1 && strings.HasPrefix(req.Messages[0].Content, "Summarize this tool output") {
+					gotMax = req.MaxTokens
+					return mock.FinalText("one-line summary")
+				}
+				if toolTurns < 3 {
+					toolTurns++
+					return mock.ToolUse("c", "dump", map[string]any{})
+				}
+				return mock.FinalText("done")
+			}}
+
+			k, err := runtime.Open(runtime.Config{
+				BaseDir: t.TempDir(), Provider: prov, Model: "mockmodel", Catalog: cat,
+				ContextBudget: 200, ContextSummarize: true, Edict: allowDump(),
+				Tools: map[string]agent.Tool{"dump": dumpTool{out: strings.Repeat("Z", 2000)}},
+			})
+			if err != nil {
+				t.Fatalf("Open: %v", err)
+			}
+			t.Cleanup(func() { k.Close() })
+
+			if _, _, err := k.Run(context.Background(), "dump repeatedly"); err != nil {
+				t.Fatalf("Run: %v", err)
+			}
+			if gotMax != tc.wantMax {
+				t.Errorf("summary call MaxTokens = %d, want %d", gotMax, tc.wantMax)
+			}
+		})
+	}
+}
