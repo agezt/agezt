@@ -12,6 +12,17 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Password login without the tokened URL (M933).** With `AGEZT_WEB_PASSWORD` set, opening the
+  console at its plain address (no `?token=`) now shows a login screen instead of "unauthorized" —
+  type the password, get a session, use the console; the tokened banner URL keeps working alone.
+  The Setup wizard gained an optional **Password** step, and a Config-Center edit of the password
+  applies LIVE (no restart): the secret lands in the vault and the live gate re-reads it per
+  request. With no password configured the token-less 401 now explains both ways in. For consoles
+  exposed beyond loopback, `AGEZT_WEB_PASSWORD_STRICT=on` restores the M817 compose semantics
+  (token AND password required together) instead of the new two-doors default. The CLI is the
+  recovery story: `agt web password set` (prompt + confirm, nothing in shell history; applies LIVE
+  through the daemon, or straight into the vault when it's down), `clear` reverts to token-only,
+  `status` reports presence only — a forgotten console password never needs hand-editing the vault.
 - **Page-aware Help drawer (M924).** A global help button in the header opens a per-view guide:
   what the current view shows, what each control does, and how it connects to the rest of the
   console — so the UI explains itself instead of assuming SPEC knowledge. Content lives in

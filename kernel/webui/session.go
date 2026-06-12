@@ -13,17 +13,21 @@ import (
 	"time"
 )
 
-// Password second factor (M817). The console's first factor is the URL token
-// (banner link / Bearer header). When AGEZT_WEB_PASSWORD is set, a SECOND factor
-// is layered on top: the token gets you the page, but every data route also
-// requires a valid session cookie minted by POST /api/login with the password.
-// "Token alone isn't enough." Password is OPT-IN — unset means token-only, the
-// pre-M817 behaviour, consistent with the allow-by-default posture.
+// Console password (M817 second factor → M933 alternative door). When
+// AGEZT_WEB_PASSWORD is set, the password is by default an ALTERNATIVE first
+// factor: visiting the console WITHOUT the URL token shows a login screen, and
+// a correct password mints a session cookie that opens the data routes — so an
+// operator can just browse to localhost:8787 and log in, no banner URL needed.
+// The token keeps working on its own (banner link, Bearer API callers).
 //
-// The login route is itself token-gated, so an attacker must ALREADY hold the
-// token to even present a password — the two factors compose, they don't merely
-// sit side by side. A small failed-attempt lockout bounds online guessing for
-// the case where the token has leaked (e.g. a shared screenshot of the banner).
+// AGEZT_WEB_PASSWORD_STRICT=on restores the original M817 compose semantics:
+// the token gets you the page but every data route ALSO requires the password
+// session ("token alone isn't enough") — for operators who exposed the console
+// beyond loopback (tunnel) and want two factors, not two doors.
+//
+// Unset password = token-only, the pre-M817 behaviour, consistent with the
+// allow-by-default posture. A failed-attempt lockout bounds online guessing on
+// the (now token-free) login route.
 
 const (
 	sessionCookie = "agezt_web_session"
@@ -128,6 +132,25 @@ func (s *sessionStore) noteSuccess() {
 // token-only. Called once at startup, before Handler(), like SetTranscriber.
 func (s *Server) SetPassword(pw string) { s.password = strings.TrimSpace(pw) }
 
+// SetPasswordFn wires a LIVE password source (M933): evaluated on each gate
+// decision, so a password set from the Setup wizard / Config Center (which
+// updates the process env) takes effect without a daemon restart. When set it
+// supersedes the static SetPassword value.
+func (s *Server) SetPasswordFn(fn func() string) { s.passwordFn = fn }
+
+// SetPasswordStrict restores the M817 compose semantics (token AND password
+// session on every data route) instead of the M933 alternative-door default.
+func (s *Server) SetPasswordStrict(on bool) { s.passwordStrict = on }
+
+// consolePassword returns the live console password: the SetPasswordFn source
+// when wired, else the static SetPassword value. Empty = no password gate.
+func (s *Server) consolePassword() string {
+	if s.passwordFn != nil {
+		return strings.TrimSpace(s.passwordFn())
+	}
+	return s.password
+}
+
 // sessionValid reports whether the request carries a live session cookie.
 func (s *Server) sessionValid(r *http.Request) bool {
 	c, err := r.Cookie(sessionCookie)
@@ -138,24 +161,26 @@ func (s *Server) sessionValid(r *http.Request) bool {
 }
 
 // handleAuthMeta tells the SPA whether a password gate exists and whether this
-// request is already past it — so it knows to render the login screen. Itself
-// token-gated (only token-holders probe), session-independent.
+// request can already reach the data routes — so it knows to render the login
+// screen. Token-FREE (M933): a token-less browser must be able to probe before
+// logging in. Leaks only the existence of a password gate, never data.
 func (s *Server) handleAuthMeta(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
-		"password_required": s.password != "",
-		"authed":            s.password == "" || s.sessionValid(r),
+		"password_required": s.consolePassword() != "",
+		"authed":            s.authorized(r),
 	})
 }
 
 // handleLogin verifies the password (constant-time) and mints a session cookie.
-// Token-gated by the router, so the caller already holds the first factor; the
-// lockout bounds guessing if that token has leaked.
+// Token-FREE since M933 (it is the token-less door); the failed-attempt lockout
+// bounds online guessing.
 func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "POST only", http.StatusMethodNotAllowed)
 		return
 	}
-	if s.password == "" {
+	password := s.consolePassword()
+	if password == "" {
 		// No gate configured — nothing to authenticate against.
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "password_required": false})
 		return
@@ -172,7 +197,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "bad request", http.StatusBadRequest)
 		return
 	}
-	if subtle.ConstantTimeCompare([]byte(body.Password), []byte(s.password)) != 1 {
+	if subtle.ConstantTimeCompare([]byte(body.Password), []byte(password)) != 1 {
 		s.sessions.noteFail()
 		http.Error(w, "invalid password", http.StatusUnauthorized)
 		return

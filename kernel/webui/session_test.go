@@ -13,14 +13,16 @@ import (
 // cookieRe pulls the session cookie value out of a Set-Cookie header.
 var cookieRe = regexp.MustCompile(sessionCookie + `=([0-9a-f]+)`)
 
-// TestPasswordGate_TokenAloneIsNotEnough — with AGEZT_WEB_PASSWORD set, a valid
-// token is necessary but NOT sufficient for a data route; a session cookie from
-// a successful login is also required (M817). Without a password the token alone
-// still works (pre-M817 behaviour).
+// TestPasswordGate_TokenAloneIsNotEnough — in STRICT mode (M817 compose,
+// AGEZT_WEB_PASSWORD_STRICT=on) a valid token is necessary but NOT sufficient
+// for a data route; a session cookie from a successful login is also required.
+// (The M933 default treats the password as an alternative door instead — see
+// TestPasswordGate_AlternativeDoor.)
 func TestPasswordGate_TokenAloneIsNotEnough(t *testing.T) {
 	fc := &fakeCaller{result: map[string]any{"ok": true}}
 	s, _ := newServer(t, fc, "secret")
 	s.SetPassword("hunter2")
+	s.SetPasswordStrict(true)
 
 	// A data route with a good token but NO session → 401 (password required).
 	req := httptest.NewRequest(http.MethodGet, "/api/status?token=secret", nil)
@@ -71,6 +73,85 @@ func TestPasswordGate_TokenAloneIsNotEnough(t *testing.T) {
 	s.Handler().ServeHTTP(rec, req)
 	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("session-only (no token) data request: code=%d, want 401", rec.Code)
+	}
+}
+
+// TestPasswordGate_AlternativeDoor — the M933 default: with a password set, a
+// token-less browser can reach the shell, probe authmeta, log in, and then use
+// the data routes on the session cookie ALONE; the token also keeps working
+// alone. This is the "open localhost:8787, type the password" flow.
+func TestPasswordGate_AlternativeDoor(t *testing.T) {
+	fc := &fakeCaller{result: map[string]any{"ok": true}}
+	s, _ := newServer(t, fc, "secret")
+	s.SetPassword("hunter2")
+
+	// Token alone still opens data routes (it is a door, not a half-key).
+	req := httptest.NewRequest(http.MethodGet, "/api/status?token=secret", nil)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("token-only data request: code=%d, want 200 (alternative-door default)", rec.Code)
+	}
+
+	// Token-less: the SPA shell must be served so the login screen can render.
+	req = httptest.NewRequest(http.MethodGet, "/", nil)
+	rec = httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("token-less shell: code=%d, want 200 when a password is configured", rec.Code)
+	}
+
+	// Token-less authmeta reports the gate and not-authed.
+	req = httptest.NewRequest(http.MethodGet, "/api/authmeta", nil)
+	rec = httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK ||
+		!strings.Contains(rec.Body.String(), `"password_required":true`) ||
+		!strings.Contains(rec.Body.String(), `"authed":false`) {
+		t.Fatalf("token-less authmeta: code=%d body=%s", rec.Code, rec.Body.String())
+	}
+
+	// Token-less data route without a session → still 401.
+	req = httptest.NewRequest(http.MethodGet, "/api/status", nil)
+	rec = httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("token-less, session-less data request: code=%d, want 401", rec.Code)
+	}
+
+	// Token-less login with the correct password mints a session…
+	rec = postLogin(t, s, `{"password":"hunter2"}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("token-less login: code=%d, want 200", rec.Code)
+	}
+	m := cookieRe.FindStringSubmatch(rec.Header().Get("Set-Cookie"))
+	if m == nil {
+		t.Fatalf("no session cookie; Set-Cookie=%q", rec.Header().Get("Set-Cookie"))
+	}
+
+	// …and the session ALONE opens data routes.
+	req = httptest.NewRequest(http.MethodGet, "/api/status", nil)
+	req.AddCookie(&http.Cookie{Name: sessionCookie, Value: m[1]})
+	rec = httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("session-only data request: code=%d, want 200 (password is a door)", rec.Code)
+	}
+}
+
+// TestNoPassword_TokenlessShellStays401 — with NO password configured the token
+// is the only secret, so a token-less "/" must stay unauthorized (with a hint).
+func TestNoPassword_TokenlessShellStays401(t *testing.T) {
+	fc := &fakeCaller{result: map[string]any{"ok": true}}
+	s, _ := newServer(t, fc, "secret")
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("token-less shell without a password: code=%d, want 401", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "password") {
+		t.Fatalf("401 body should hint at password setup, got: %s", rec.Body.String())
 	}
 }
 

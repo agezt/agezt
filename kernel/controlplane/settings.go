@@ -143,9 +143,16 @@ func (s *Server) handleConfigSet(conn net.Conn, req Request) {
 		return
 	}
 
-	if field.Apply == settings.ApplyLive && !field.Secret {
+	switch {
+	case field.Apply == settings.ApplyLive && field.Secret:
+		// A live SECRET (e.g. AGEZT_WEB_PASSWORD, M933) is pushed into the env —
+		// consumers that read it lazily (the console password gate) pick it up
+		// immediately. No provider rebuild: a secret edit doesn't change routing.
+		_ = os.Setenv(name, value)
+		result["applied"] = "live"
+	case field.Apply == settings.ApplyLive:
 		// Push into the live env and rebuild the provider in place — same path as
-		// provider_reload. (Live secrets would also reload, but none are live today.)
+		// provider_reload.
 		_ = os.Setenv(name, value)
 		if _, _, err := s.k.Reload(); err != nil {
 			result["applied"] = "restart"
@@ -153,7 +160,7 @@ func (s *Server) handleConfigSet(conn net.Conn, req Request) {
 		} else {
 			result["applied"] = "live"
 		}
-	} else {
+	default:
 		result["applied"] = "restart"
 	}
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: result})

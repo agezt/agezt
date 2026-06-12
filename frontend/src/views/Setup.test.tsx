@@ -82,16 +82,41 @@ describe("Setup wizard", () => {
     expect(postJSON).toHaveBeenCalledWith("/api/config/set", { name: "AGEZT_PROVIDER", value: "minimax" });
     expect(postAction).toHaveBeenCalledWith("/api/provider/reload", {});
 
-    // Model step → pick the one model → sets AGEZT_MODEL → done.
+    // Model step → pick the one model → sets AGEZT_MODEL → password step.
     await waitFor(() => expect(screen.getByRole("button", { name: "Use model MiniMax-M2" })).toBeTruthy());
     fireEvent.click(screen.getByRole("button", { name: "Use model MiniMax-M2" }));
     await waitFor(() =>
       expect(postJSON).toHaveBeenCalledWith("/api/config/set", { name: "AGEZT_MODEL", value: "MiniMax-M2" }),
     );
 
+    // Console password step (M933): set one → saved as the vault secret.
+    await waitFor(() => expect(screen.getByText("Console password (optional)")).toBeTruthy());
+    fireEvent.change(screen.getByLabelText("Console password"), { target: { value: "hunter2" } });
+    fireEvent.change(screen.getByLabelText("Repeat console password"), { target: { value: "hunter2" } });
+    fireEvent.click(screen.getByRole("button", { name: "Set console password" }));
+    await waitFor(() =>
+      expect(postJSON).toHaveBeenCalledWith("/api/config/set", { name: "AGEZT_WEB_PASSWORD", value: "hunter2" }),
+    );
+
     await waitFor(() => expect(screen.getByText("You're ready")).toBeTruthy());
     fireEvent.click(screen.getByRole("button", { name: "Start chatting" }));
     expect(onDone).toHaveBeenCalled();
+  });
+
+  it("password step is skippable", async () => {
+    getJSON.mockResolvedValue(catalog);
+    render(withUI(<Setup />));
+    await waitFor(() => expect(screen.getByText("Choose a provider and add its key")).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: "Pick minimax" }));
+    fireEvent.change(screen.getByLabelText("API key"), { target: { value: "sk-x" } });
+    fireEvent.click(screen.getByRole("button", { name: "Use minimax" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Use model MiniMax-M2" })).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: "Use model MiniMax-M2" }));
+    await waitFor(() => expect(screen.getByText("Console password (optional)")).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: "Skip password" }));
+    await waitFor(() => expect(screen.getByText("You're ready")).toBeTruthy());
+    // Skipping never writes the password secret.
+    expect(postJSON).not.toHaveBeenCalledWith("/api/config/set", expect.objectContaining({ name: "AGEZT_WEB_PASSWORD" }));
   });
 
   it("offers Sync when the catalog is empty", async () => {
