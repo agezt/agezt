@@ -142,6 +142,10 @@ var apiRoutes = map[string]string{
 	// Journal integrity (M759): verify the tamper-evident hash chain. Returns
 	// { ok: true } when intact, or errors describing the break. Read-only.
 	"/api/journal/verify": controlplane.CmdJournalVerify,
+	// Per-subsystem home-dir disk breakdown (M927): what under ~/.agezt is
+	// taking the space, plus the filesystem free/total. Read-only — the
+	// collectors (artifact collect, memory prune) reclaim via their own routes.
+	"/api/storage": controlplane.CmdStorageStats,
 }
 
 // writeRoute is a mutating control-plane command exposed over POST. args lists

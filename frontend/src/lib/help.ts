@@ -1983,6 +1983,61 @@ export const HELP: Record<string, HelpTopic> = {
     ],
   },
 
+  storage: {
+    title: "Storage",
+    intro:
+      "What under the daemon's home directory (~/.agezt) is taking the space, and the collectors that reclaim it. Every subsystem owns one subdirectory, so the breakdown is a faithful inventory of where the bytes live.",
+    sections: [
+      {
+        heading: "The breakdown",
+        items: [
+          {
+            term: "Summary band",
+            desc: "Total bytes and file count under the home dir, filesystem free space (red below 10%), and the largest subsystem at a glance.",
+          },
+          {
+            term: "Per-directory bars",
+            desc: "Each top-level subdirectory with what lives there, its file count, size, and share of the total. The journal is append-only and full-retention, so it growing forever is by design — everything else is reclaimable.",
+          },
+        ],
+      },
+      {
+        heading: "Collectors",
+        paragraphs: [
+          "Every destructive collector is dry-run first: it reports the candidates and asks for confirmation before deleting anything.",
+        ],
+        items: [
+          {
+            term: "Artifact collect",
+            desc: "Reaps stored files (inbound images, tool outputs) older than the threshold. Content blobs are kept while any other entry still references the same bytes.",
+          },
+          {
+            term: "Memory prune",
+            desc: "Hard-removes soft-deleted memory records (tombstoned or superseded) past their recovery window. Active memories are never touched.",
+          },
+          {
+            term: "Memory consolidate",
+            desc: "Compacts the brain: clusters near-duplicate memories and merges each cluster into one richer record. Originals are superseded, not deleted — recoverable until the next prune.",
+          },
+          {
+            term: "Reaper scan",
+            desc: "Read-only detection of roster agents idle for 30+ days and the stale artifact pile. Nothing is deleted from here — retire agents in the Roster, collect artifacts with the collector above.",
+          },
+        ],
+      },
+    ],
+    tips: [
+      "Run the dry-run freely — nothing is ever deleted without the confirm dialog.",
+      "A full disk is the classic silent outage: the journal can no longer write and the daemon stops recording. Watch the free-space card.",
+    ],
+    related: [
+      { id: "files", label: "Files" },
+      { id: "memory", label: "Memory" },
+      { id: "roster", label: "Roster" },
+      { id: "health", label: "Health" },
+    ],
+  },
+
   backup: {
     title: "Backup",
     intro:
