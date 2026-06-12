@@ -17,7 +17,7 @@ const NAV_IDS = [
   "memory", "world", "skills", "reflect",
   // System
   "overview", "setup", "system", "persona", "prompts", "configcenter", "config",
-  "providers", "models", "routing", "tools", "catalog", "policy", "cache", "backup",
+  "providers", "models", "routing", "tools", "catalog", "policy", "cache", "storage", "backup",
 ];
 
 describe("help content coverage", () => {

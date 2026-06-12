@@ -835,6 +835,16 @@ const (
 	// disk_available (bool), disk_free_bytes, disk_total_bytes, disk_free_pct }.
 	CmdDiskStats = "disk_stats"
 
+	// CmdStorageStats breaks the daemon's home directory down per subsystem
+	// (M927): for every top-level subdir under ~/.agezt, its on-disk bytes and
+	// file count, labelled with what lives there, plus the same free/total
+	// probe disk_stats uses. disk_stats says "the disk is filling"; this says
+	// WHAT is filling it — the read side of the Storage cleanup surface.
+	// Returns: { base_dir, total_bytes, total_files, dirs: [{name, bytes,
+	// files, label}], disk_available, disk_free_bytes?, disk_total_bytes?,
+	// disk_free_pct? }.
+	CmdStorageStats = "storage_stats"
+
 	// CmdTenantStats aggregates per-tenant run activity (M126): for each tenant
 	// on disk it folds that tenant's own journal into run count / completed /
 	// failed / active / spend / last activity, plus grand totals — the
