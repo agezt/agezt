@@ -49,6 +49,38 @@ pub struct RunArc {
     pub events: Vec<Value>,
 }
 
+/// One message on the daemon's shared mailbox (the inter-agent message board,
+/// M937). Agents and SDK apps leave messages for each other by name (`to`),
+/// broadcast to every inbox (`to == "*"`), or post under a `topic`; `reply_to`
+/// threads an answer back to the message it answers.
+#[derive(Debug, Clone, Default)]
+pub struct Mail {
+    pub id: String,
+    pub topic: String,
+    pub text: String,
+    pub from: String,
+    pub to: String,
+    pub reply_to: String,
+    pub help: bool,
+    pub ts_unix_ms: i64,
+}
+
+/// A message to send with [`Client::mailbox_send`]. `text` is required.
+/// Addressing: `to` names a recipient agent/app (`topic` defaults to `dm`);
+/// `to == "*"` broadcasts to every inbox; `to` empty with a `topic` is a plain
+/// post; `reply_to` answers a message (it goes back to the original sender);
+/// `help == true` raises an assistance request. A directed message wakes a
+/// standing order watching `board.dm.<name>`.
+#[derive(Debug, Clone, Default)]
+pub struct MailDraft {
+    pub from: String,
+    pub to: String,
+    pub topic: String,
+    pub reply_to: String,
+    pub text: String,
+    pub help: bool,
+}
+
 /// A client for a running Agezt daemon's REST API.
 ///
 /// ```no_run
@@ -183,6 +215,111 @@ impl Client {
         })
     }
 
+    // --- mailbox (the shared inter-agent message board, M937) --------------
+
+    /// Leave a message on the shared mailbox. See [`MailDraft`] for the
+    /// addressing rules.
+    pub fn mailbox_send(&self, draft: &MailDraft) -> Result<Mail> {
+        let mut m = std::collections::BTreeMap::new();
+        m.insert("text".to_string(), Value::Str(draft.text.clone()));
+        for (key, val) in [
+            ("from", &draft.from),
+            ("to", &draft.to),
+            ("topic", &draft.topic),
+            ("reply_to", &draft.reply_to),
+        ] {
+            if !val.is_empty() {
+                m.insert(key.to_string(), Value::Str(val.clone()));
+            }
+        }
+        if draft.help {
+            m.insert("help".to_string(), Value::Bool(true));
+        }
+        let body = Value::Object(m).to_json();
+        let v = self.post_json("/api/v1/mailbox/messages", &body)?;
+        Ok(mail_from(v.get("message").unwrap_or(&Value::Null)))
+    }
+
+    /// Send an announcement to EVERY inbox except the sender's.
+    pub fn mailbox_broadcast(&self, from: &str, text: &str) -> Result<Mail> {
+        self.mailbox_send(&MailDraft {
+            from: from.to_string(),
+            to: "*".to_string(),
+            text: text.to_string(),
+            ..MailDraft::default()
+        })
+    }
+
+    /// What waits for `name`, newest first: messages addressed to it plus
+    /// broadcasts it didn't send. Answered/acked messages are dropped unless
+    /// `include_read`. `limit == 0` uses the daemon default (50).
+    pub fn mailbox_inbox(&self, name: &str, include_read: bool, limit: u32) -> Result<Vec<Mail>> {
+        let mut path = format!("/api/v1/mailbox/inbox?name={}", percent_encode(name));
+        if include_read {
+            path.push_str("&all=true");
+        }
+        if limit > 0 {
+            path.push_str(&format!("&limit={limit}"));
+        }
+        let v = self.get_json(&path)?;
+        Ok(mails_from(v.get("waiting")))
+    }
+
+    /// Mark a message read for one reader (it leaves that reader's inbox
+    /// without a reply). Per-reader and idempotent.
+    pub fn mailbox_ack(&self, message_id: &str, by: &str) -> Result<()> {
+        let mut m = std::collections::BTreeMap::new();
+        m.insert("by".to_string(), Value::Str(by.to_string()));
+        let path = format!(
+            "/api/v1/mailbox/messages/{}/ack",
+            percent_encode(message_id)
+        );
+        self.post_json(&path, &Value::Object(m).to_json())?;
+        Ok(())
+    }
+
+    /// The answers to a sent message, oldest first (conversation order).
+    /// `limit == 0` uses the daemon default (50).
+    pub fn mailbox_replies(&self, message_id: &str, limit: u32) -> Result<Vec<Mail>> {
+        let mut path = format!(
+            "/api/v1/mailbox/messages/{}/replies",
+            percent_encode(message_id)
+        );
+        if limit > 0 {
+            path.push_str(&format!("?limit={limit}"));
+        }
+        let v = self.get_json(&path)?;
+        Ok(mails_from(v.get("replies")))
+    }
+
+    /// Recent mailbox messages, newest first, optionally filtered to one
+    /// topic. `limit == 0` uses the daemon default (50).
+    pub fn mailbox_messages(&self, topic: &str, limit: u32) -> Result<Vec<Mail>> {
+        let mut path = String::from("/api/v1/mailbox/messages");
+        let mut sep = '?';
+        if !topic.is_empty() {
+            path.push_str(&format!("{sep}topic={}", percent_encode(topic)));
+            sep = '&';
+        }
+        if limit > 0 {
+            path.push_str(&format!("{sep}limit={limit}"));
+        }
+        let v = self.get_json(&path)?;
+        Ok(mails_from(v.get("messages")))
+    }
+
+    /// The mailbox's topics with their message counts.
+    pub fn mailbox_topics(&self) -> Result<std::collections::BTreeMap<String, i64>> {
+        let v = self.get_json("/api/v1/mailbox/topics")?;
+        let mut out = std::collections::BTreeMap::new();
+        if let Some(Value::Object(m)) = v.get("topics") {
+            for (k, val) in m {
+                out.insert(k.clone(), val.as_i64().unwrap_or(0));
+            }
+        }
+        Ok(out)
+    }
+
     // --- internals --------------------------------------------------------
 
     fn get_json(&self, path: &str) -> Result<Value> {
@@ -303,6 +440,27 @@ fn run_body(intent: &str, model: Option<&str>, stream: bool) -> String {
 
 fn str_field(v: &Value, key: &str) -> String {
     v.str(key).unwrap_or("").to_string()
+}
+
+/// Map one mailbox message view to a [`Mail`].
+fn mail_from(v: &Value) -> Mail {
+    Mail {
+        id: str_field(v, "id"),
+        topic: str_field(v, "topic"),
+        text: str_field(v, "text"),
+        from: str_field(v, "from"),
+        to: str_field(v, "to"),
+        reply_to: str_field(v, "reply_to"),
+        help: v.get("help").and_then(Value::as_bool).unwrap_or(false),
+        ts_unix_ms: v.get("ts_unix_ms").and_then(Value::as_i64).unwrap_or(0),
+    }
+}
+
+/// Map a JSON array of message views to typed [`Mail`]s (absent → empty).
+fn mails_from(v: Option<&Value>) -> Vec<Mail> {
+    v.and_then(Value::as_array)
+        .map(|a| a.iter().map(mail_from).collect())
+        .unwrap_or_default()
 }
 
 /// Map a non-2xx response body to an [`Error::Api`]. Understands both

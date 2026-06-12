@@ -33,12 +33,13 @@ and never blocks the event loop::
 """
 
 from .aio import AsyncClient
-from .client import Client, RunResult, StreamEvent
+from .client import Client, Mail, RunResult, StreamEvent
 from .errors import AgeztError, APIError
 
 __all__ = [
     "Client",
     "AsyncClient",
+    "Mail",
     "RunResult",
     "StreamEvent",
     "AgeztError",

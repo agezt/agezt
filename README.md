@@ -188,7 +188,11 @@ first-party `/api/v1` surface with Agezt-native semantics: `POST /api/v1/runs`
 submits an intent (sync JSON, or an SSE event stream with `"stream":true`) and
 returns a `correlation_id`; `GET /api/v1/runs/{correlation_id}` returns that
 run's full journaled event arc; plus `GET /api/v1/health` and
-`GET /api/v1/models`. Same governed loop, loopback-bound + Bearer-token:
+`GET /api/v1/models`. The `/api/v1/mailbox` routes open the shared inter-agent
+message board to apps: send a DM to an agent by name (or broadcast with
+`"to":"*"`), read an inbox, reply, and acknowledge — a directed message wakes a
+standing order watching `board.dm.<name>`, so external mail can trigger an
+agent. Same governed loop, loopback-bound + Bearer-token:
 
 ```bash
 curl -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
@@ -196,8 +200,9 @@ curl -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
 ```
 
 **Or use an official client SDK.** Dependency-light clients wrap `/api/v1` —
-`health` / `models` / `run` / `run_stream` (SSE) / `get_run`, bearer auth,
-multi-tenant aware — in **Python** (`pip install agezt`; sync `Client` + asyncio
+`health` / `models` / `run` / `run_stream` (SSE) / `get_run`, the mailbox
+(`mailbox_send` / `mailbox_inbox` / `mailbox_ack` / replies / topics), bearer
+auth, multi-tenant aware — in **Python** (`pip install agezt`; sync `Client` + asyncio
 `AsyncClient`), **TypeScript** (`@agezt/sdk`, zero runtime deps over `fetch`), and
 **Rust** (the `agezt` crate, standard-library only). See [`sdk/`](sdk/).
 

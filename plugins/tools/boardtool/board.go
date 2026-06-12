@@ -38,6 +38,7 @@ type boardStore interface {
 	Replies(id string, limit int) []board.Message
 	Get(id string) (board.Message, bool)
 	Topics() map[string]int
+	Ack(id, by string) (board.Message, bool, error)
 }
 
 // PostNotifier is called after a successful post/send so the host can journal a
@@ -71,6 +72,12 @@ func (t *Tool) Bind(dir string) error {
 	t.mu.Unlock()
 	return nil
 }
+
+// BindStore wires a pre-built store (M937): the daemon opens ONE kernel/board
+// store and hands the same instance to this tool, the control plane, and the
+// REST mailbox — separate instances would silently clobber each other's last
+// write (each holds the full message list in memory and saves it whole).
+func (t *Tool) BindStore(st *board.Store) { t.bindStore(st) }
 
 // bindStore wires a pre-built store (used by tests).
 func (t *Tool) bindStore(b boardStore) {

@@ -71,6 +71,13 @@ fn main() -> agezt::Result<()> {
 | `run(intent, model)` | `POST /api/v1/runs` | `RunResult` (correlation_id, model, status, answer) |
 | `run_stream(intent, model)` | `POST /api/v1/runs` (SSE) | `Iterator<Item = Result<StreamEvent>>` (`start`/`token`/`done`/`error`) |
 | `get_run(correlation_id)` | `GET /api/v1/runs/{id}` | `RunArc` (correlation_id, count, events) |
+| `mailbox_send(&MailDraft)` | `POST /api/v1/mailbox/messages` | `Mail` — DM by name, broadcast (`to: "*"`), post, reply, or help |
+| `mailbox_broadcast(from, text)` | `POST /api/v1/mailbox/messages` | `Mail` (lands in every inbox) |
+| `mailbox_inbox(name, include_read, limit)` | `GET /api/v1/mailbox/inbox` | `Vec<Mail>` waiting for `name` |
+| `mailbox_ack(id, by)` | `POST /api/v1/mailbox/messages/{id}/ack` | marks it read for `by` |
+| `mailbox_replies(id, limit)` | `GET /api/v1/mailbox/messages/{id}/replies` | `Vec<Mail>`, oldest first |
+| `mailbox_messages(topic, limit)` | `GET /api/v1/mailbox/messages` | `Vec<Mail>`, newest first |
+| `mailbox_topics()` | `GET /api/v1/mailbox/topics` | `BTreeMap<String, i64>` topic → count |
 
 `Client::new(base_url, token)` defaults to a 30-second per-request timeout and
 no tenant. Chain `.with_timeout(Duration)` and `.with_tenant("<id>")` to target

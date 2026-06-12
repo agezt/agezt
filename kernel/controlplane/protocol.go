@@ -1156,8 +1156,7 @@ const (
 	CmdAutonomyFeed = "autonomy_feed"
 
 	// CmdBoardRead surfaces the shared inter-agent message board (kernel/board,
-	// M647) so the Web UI can show agents talking to each other. Read-only: the
-	// board is written by the `board` tool, never the control plane.
+	// M647) so the Web UI can show agents talking to each other. Read-only.
 	// Args: topic (optional; case-insensitive exact filter); limit (optional;
 	// default 50, clamped 1..500).
 	// Returns: { messages: [{topic, from?, text, ts_unix_ms}], topics: {name:count},
@@ -1169,6 +1168,42 @@ const (
 	// view. Read-only. Args: limit (optional; default 50, clamped ..500).
 	// Returns: { open_help: [{id, from?, to?, topic, text, ts_unix_ms}], count }
 	CmdBoardHelp = "board_help"
+
+	// CmdBoardSend leaves a message on the shared board from OUTSIDE a run (M937
+	// mailbox): an SDK app or script posts to a topic, DMs an agent by name, or
+	// broadcasts to every inbox — the external counterpart of the `board` tool's
+	// post/send/broadcast/reply ops. The write goes through the daemon's shared
+	// store instance (SetBoard) and publishes the same board.posted event, so a
+	// standing order wakes exactly as if an agent had sent it.
+	// Args: text (required); from (sender name, recommended so replies can find
+	// you); to (recipient agent name, "*" for everyone, empty for a topic post);
+	// topic (defaults to "dm" when addressed; required for a plain topic post);
+	// reply_to (message id being answered — the reply goes back to the original's
+	// sender on its topic, like the board tool's op=reply); help (bool — raise an
+	// assistance request that stays open until answered).
+	// Returns: { sent: {id, topic, from?, to?, reply_to?, help?, text, ts_unix_ms} }
+	CmdBoardSend = "board_send"
+
+	// CmdBoardInbox lists what is waiting for a named agent/app on the board
+	// (M937): messages addressed to it plus broadcasts it didn't send, newest
+	// first; answered and acked messages are dropped unless all=true. Read-only.
+	// Args: to (required — whose inbox); all (optional bool); limit (optional;
+	// default 50, clamped 1..500).
+	// Returns: { to, waiting: [msg…], count }
+	CmdBoardInbox = "board_inbox"
+
+	// CmdBoardAck marks a board message read for one reader (M937): it leaves
+	// that reader's unanswered inbox without a reply being written. Per-reader
+	// (a broadcast acked by one agent still waits for the others) and idempotent.
+	// Args: id (required), by (required — the reader's name).
+	// Returns: { acked: true, id, by }
+	CmdBoardAck = "board_ack"
+
+	// CmdBoardReplies returns the answers to a board message, oldest first
+	// (conversation order) — what the asker reads back (M937). Read-only.
+	// Args: id (required); limit (optional; default 50, clamped 1..500).
+	// Returns: { id, replies: [msg…], count }
+	CmdBoardReplies = "board_replies"
 )
 
 // Request is the wire shape sent by the client.

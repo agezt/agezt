@@ -51,6 +51,11 @@ type Message struct {
 	// responder.
 	Help bool  `json:"help,omitempty"`
 	TSMS int64 `json:"ts_ms"`
+	// AckedBy lists the readers that explicitly acknowledged this message
+	// (M937 mailbox): an acked message leaves that reader's unanswered Inbox
+	// without needing a reply. Per-reader, so a broadcast acked by one agent
+	// still shows for every other recipient.
+	AckedBy []string `json:"acked_by,omitempty"`
 }
 
 // Everyone is the wildcard recipient for a broadcast (M849): a message To this
@@ -161,9 +166,40 @@ func (s *Store) Get(id string) (Message, bool) {
 	return Message{}, false
 }
 
+// Ack marks the message id as read by `by` (M937): it leaves by's unanswered
+// Inbox without a reply being written. Per-reader and idempotent. Reports
+// whether the id exists; a blank `by` acks nothing (the caller validates).
+func (s *Store) Ack(id, by string) (Message, bool, error) {
+	by = strings.TrimSpace(by)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for i := range s.msgs {
+		if s.msgs[i].ID != id {
+			continue
+		}
+		if by == "" || ackedBy(s.msgs[i], strings.ToLower(by)) {
+			return s.msgs[i], true, nil
+		}
+		s.msgs[i].AckedBy = append(s.msgs[i].AckedBy, by)
+		return s.msgs[i], true, s.save()
+	}
+	return Message{}, false, nil
+}
+
+// ackedBy reports whether reader (already lowercased) acknowledged m.
+func ackedBy(m Message, reader string) bool {
+	for _, a := range m.AckedBy {
+		if strings.ToLower(strings.TrimSpace(a)) == reader {
+			return true
+		}
+	}
+	return false
+}
+
 // Inbox returns up to limit messages ADDRESSED to `to` (case-insensitive),
 // newest first. With includeAnswered=false (the usual call), messages that
-// already have a reply on the board are dropped — "what's waiting for me".
+// already have a reply on the board — or that `to` explicitly acknowledged
+// via Ack — are dropped: "what's waiting for me".
 func (s *Store) Inbox(to string, limit int, includeAnswered bool) []Message {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -186,7 +222,7 @@ func (s *Store) Inbox(to string, limit int, includeAnswered bool) []Message {
 		if !directed && !broadcast {
 			continue
 		}
-		if !includeAnswered && answered[m.ID] {
+		if !includeAnswered && (answered[m.ID] || ackedBy(m, to)) {
 			continue
 		}
 		out = append(out, m)
