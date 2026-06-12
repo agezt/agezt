@@ -21,6 +21,7 @@ import (
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/approval"
+	"github.com/agezt/agezt/kernel/board"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/memory"
 	"github.com/agezt/agezt/kernel/roster"
@@ -125,6 +126,18 @@ type Server struct {
 	// surfaces it so an operator on EKS can confirm IRSA actually engaged without
 	// grepping the boot banner. Empty when AWS credentials aren't in play.
 	credChain string
+
+	// boardStore is the daemon's ONE shared kernel/board instance, injected via
+	// SetBoard (M937 mailbox). Board WRITES must go through this instance — the
+	// `board` tool holds the same one, and a second instance would clobber its
+	// last write (each holds the whole message list and saves it whole). Reads
+	// fall back to a fresh read-only Open when nil (tests, older daemons).
+	boardStore *board.Store
+
+	// boardNotify publishes the board.posted event for a board write (same
+	// closure the `board` tool's OnPost uses), so a control-plane or SDK send
+	// wakes standing orders exactly like an agent's send. Nil-safe.
+	boardNotify func(m board.Message, corr string)
 }
 
 // ChannelSender delivers text out a named channel kind to a channel/chat id. The
@@ -161,6 +174,15 @@ func (s *Server) SetChannelSender(send ChannelSender) { s.channelSend = send }
 // SetCredChain records the resolved AWS credential-chain description so
 // `agt status` can report which credential layer engaged (M307).
 func (s *Server) SetCredChain(desc string) { s.credChain = desc }
+
+// SetBoard wires the daemon's shared message-board instance and its post
+// notifier (M937 mailbox). Board write commands (board_send/board_ack) require
+// it — a fresh per-request Open would clobber the `board` tool's writes; notify
+// publishes board.posted so SDK sends wake standing orders like agent sends.
+func (s *Server) SetBoard(st *board.Store, notify func(m board.Message, corr string)) {
+	s.boardStore = st
+	s.boardNotify = notify
+}
 
 // DiskFreeFunc returns the free (available) and total bytes for the filesystem
 // containing path (M131). The daemon injects a real implementation
@@ -868,6 +890,14 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.handleBoardRead(conn, req)
 	case CmdBoardHelp:
 		s.handleBoardHelp(conn, req)
+	case CmdBoardSend:
+		s.handleBoardSend(conn, req)
+	case CmdBoardInbox:
+		s.handleBoardInbox(conn, req)
+	case CmdBoardAck:
+		s.handleBoardAck(conn, req)
+	case CmdBoardReplies:
+		s.handleBoardReplies(conn, req)
 	case CmdAutonomyFeed:
 		s.handleAutonomyFeed(conn, req)
 	default:

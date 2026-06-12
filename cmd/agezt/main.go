@@ -1045,8 +1045,60 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// alongside inbound images. Best-effort; lives on the daemon ctx.
 	wireArtifactIndexer(ctx, k)
 
+	// Shared message board (M647/M937): ONE store instance serves every writer —
+	// the `board` tool, the control plane's board_send/board_ack, and the REST
+	// mailbox. Each store holds the whole message list in memory and saves it
+	// whole, so a second instance would silently clobber the other's last write.
+	// boardNotify publishes the board.posted event for ANY door's write: subject
+	// routing (board.dm.<slug> / board.help[.<slug>] / board.broadcast /
+	// board.<topic>) is what lets a standing order wake the addressed agent.
+	boardStore, boardErr := board.Open(filepath.Join(baseDir, "board"))
+	boardNotify := func(m board.Message, corr string) {
+		// Help takes precedence so a help-flagged message wakes responders
+		// watching board.help.
+		subject := "board." + boardSubjectSlug(m.Topic)
+		switch {
+		case m.Help && m.To != "" && m.To != board.Everyone:
+			subject = "board.help." + boardSubjectSlug(m.To)
+		case m.Help:
+			subject = "board.help"
+		case m.To == board.Everyone:
+			subject = "board.broadcast"
+		case m.To != "":
+			subject = "board.dm." + boardSubjectSlug(m.To)
+		}
+		payload := map[string]any{"topic": m.Topic, "chars": len(m.Text)}
+		if m.ID != "" {
+			payload["id"] = m.ID
+		}
+		if m.From != "" {
+			payload["from"] = m.From
+		}
+		if m.To != "" {
+			payload["to"] = m.To
+		}
+		if m.ReplyTo != "" {
+			payload["reply_to"] = m.ReplyTo
+		}
+		if m.Help {
+			payload["help"] = true
+		}
+		_, _ = k.Bus().Publish(event.Spec{
+			Subject:       subject,
+			Kind:          event.KindBoardPosted,
+			Actor:         "board",
+			CorrelationID: corr,
+			Payload:       payload,
+		})
+	}
+
 	srv := controlplane.NewServer(k, baseDir)
 	srv.SetConfigEnvPinned(configPinned) // M693: Config Center marks env-pinned fields read-only
+	if boardErr == nil {
+		// Board writes over the control plane (M937): `agt`/Go-SDK board_send,
+		// board_ack go through the shared instance and fire the same notifier.
+		srv.SetBoard(boardStore, boardNotify)
+	}
 	// Cancel-on-disconnect (M35): when AGEZT_CANCEL_ON_DISCONNECT=on, a
 	// streaming `agt run` whose client drops (Ctrl-C / killed) cancels its run
 	// server-side instead of running on headless. Off by default so a
@@ -1425,7 +1477,11 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// Native REST API (P7-API-02) — first-party /api/v1 surface: submit runs
 	// (sync or SSE), inspect a run's journaled arc, health/models. Same governed
 	// loop as `agt run`. Off unless AGEZT_REST_ADDR is set; loopback + token.
-	if restDesc := buildRESTAPI(ctx, k, tenantReg, &draining, stdout); restDesc != "" {
+	var restBoard *board.Store
+	if boardErr == nil {
+		restBoard = boardStore
+	}
+	if restDesc := buildRESTAPI(ctx, k, tenantReg, &draining, restBoard, boardNotify, stdout); restDesc != "" {
 		fmt.Fprintf(stdout, "  rest api         : %s\n", restDesc)
 	} else {
 		fmt.Fprintf(stdout, "  rest api         : disabled (set AGEZT_REST_ADDR, e.g. 127.0.0.1:8800)\n")
@@ -1533,57 +1589,17 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// journaled AddStanding / RemoveStanding / Standing() surface.
 	standingToolInst.Bind(k)
 
-	// Bind the shared message board to its on-disk store under the base dir (M647),
-	// so every agent on this daemon posts to and reads from one common board.
-	if err := boardToolInst.Bind(filepath.Join(baseDir, "board")); err != nil {
-		fmt.Fprintf(stderr, "%s: board tool unavailable: %v\n", brand.Binary, err)
+	// Bind the shared message board (M647): the SAME store instance the control
+	// plane and REST mailbox write through (opened once, before the servers).
+	// Each post journals a board.posted event (M656) via boardNotify, so a
+	// standing order can trigger on a topic — or on board.dm.<recipient> for an
+	// addressed message (M788) — and one agent's post wakes another. The posting
+	// run's correlation ties into `agt why`.
+	if boardErr != nil {
+		fmt.Fprintf(stderr, "%s: board tool unavailable: %v\n", brand.Binary, boardErr)
 	} else {
-		// Journal each post as a board.posted event under subject "board.<topic>"
-		// (M656), so a standing order can trigger on a topic and one agent's post
-		// wakes another. An ADDRESSED message (M788) publishes under
-		// "board.dm.<recipient>" instead, so a standing order can wake exactly
-		// the agent being asked. The posting run's correlation ties into `agt why`.
-		boardToolInst.OnPost(func(m board.Message, corr string) {
-			// Subject carries the routing so standing orders can wake the right
-			// agent: a directed message → board.dm.<slug>; a help request →
-			// board.help[.<slug>] (M849); a broadcast → board.broadcast; a plain
-			// topic post → board.<topic>. Help takes precedence so a help-flagged
-			// message wakes responders watching board.help.
-			subject := "board." + boardSubjectSlug(m.Topic)
-			switch {
-			case m.Help && m.To != "" && m.To != board.Everyone:
-				subject = "board.help." + boardSubjectSlug(m.To)
-			case m.Help:
-				subject = "board.help"
-			case m.To == board.Everyone:
-				subject = "board.broadcast"
-			case m.To != "":
-				subject = "board.dm." + boardSubjectSlug(m.To)
-			}
-			payload := map[string]any{"topic": m.Topic, "chars": len(m.Text)}
-			if m.ID != "" {
-				payload["id"] = m.ID
-			}
-			if m.From != "" {
-				payload["from"] = m.From
-			}
-			if m.To != "" {
-				payload["to"] = m.To
-			}
-			if m.ReplyTo != "" {
-				payload["reply_to"] = m.ReplyTo
-			}
-			if m.Help {
-				payload["help"] = true
-			}
-			_, _ = k.Bus().Publish(event.Spec{
-				Subject:       subject,
-				Kind:          event.KindBoardPosted,
-				Actor:         "board",
-				CorrelationID: corr,
-				Payload:       payload,
-			})
-		})
+		boardToolInst.BindStore(boardStore)
+		boardToolInst.OnPost(boardNotify)
 		fmt.Fprintf(stdout, "  board tool       : enabled (agents share a persistent message board)\n")
 	}
 
@@ -3384,7 +3400,7 @@ func buildOpenAIAPI(ctx context.Context, k *kernelruntime.Kernel, reg *tenant.Re
 // buildRESTAPI starts the native REST resident when AGEZT_REST_ADDR is set,
 // mirroring buildOpenAIAPI's lifecycle (daemon ctx, graceful shutdown, minted
 // token, loopback warning). Returns the banner description or "".
-func buildRESTAPI(ctx context.Context, k *kernelruntime.Kernel, reg *tenant.Registry, draining *atomic.Bool, stdout io.Writer) string {
+func buildRESTAPI(ctx context.Context, k *kernelruntime.Kernel, reg *tenant.Registry, draining *atomic.Bool, boardStore *board.Store, boardNotify func(board.Message, string), stdout io.Writer) string {
 	addr := os.Getenv(brand.EnvPrefix + "REST_ADDR")
 	if addr == "" {
 		return ""
@@ -3402,6 +3418,12 @@ func buildRESTAPI(ctx context.Context, k *kernelruntime.Kernel, reg *tenant.Regi
 		return ""
 	}
 	rest := restapi.New(kernelAPIEngine{k}, k.Bus(), token, brand.Version)
+	// Mailbox (M937): the shared message board for SDK apps — the same store
+	// instance the `board` tool writes, so external sends wake standing orders
+	// exactly like agent sends. Nil when the board failed to open.
+	if boardStore != nil {
+		rest.SetMailbox(boardStore, boardNotify)
+	}
 	// Readiness probe (M134): /readyz reports not-ready while the daemon is
 	// halted, so a load balancer / k8s readiness probe pulls it from rotation
 	// without the process dying. Liveness (/healthz) stays up regardless.

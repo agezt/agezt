@@ -16,7 +16,7 @@
   "engines": { "node": ">=18" },
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "tsc -p tsconfig.json && node --test dist/test/client.test.js"
+    "test": "tsc -p tsconfig.json && node --test dist/test/client.test.js dist/test/mailbox.test.js"
   },
   "keywords": ["agezt", "agent", "llm", "ai", "automation", "sdk"],
   "repository": { "type": "git", "url": "https://github.com/agezt/agezt", "directory": "sdk/typescript" },

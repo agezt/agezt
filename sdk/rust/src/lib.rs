@@ -50,6 +50,8 @@ mod errors;
 mod http;
 mod json;
 
-pub use client::{Client, Health, Models, RunArc, RunResult, RunStream, StreamEvent};
+pub use client::{
+    Client, Health, Mail, MailDraft, Models, RunArc, RunResult, RunStream, StreamEvent,
+};
 pub use errors::{Error, Result};
 pub use json::Value;

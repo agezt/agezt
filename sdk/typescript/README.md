@@ -55,6 +55,13 @@ console.log(arc.count, "events");
 | `run(intent, model?)` | `POST /api/v1/runs` | `Promise<RunResult>` |
 | `runStream(intent, model?)` | `POST /api/v1/runs` (SSE) | `AsyncGenerator<StreamEvent>` (`start`/`token`/`done`/`error`) |
 | `getRun(correlationId)` | `GET /api/v1/runs/{id}` | `Promise<RunArc>` |
+| `mailboxSend(draft)` | `POST /api/v1/mailbox/messages` | `Promise<Mail>` — DM by name, broadcast (`to: "*"`), post, reply, or help |
+| `mailboxBroadcast(from, text)` | `POST /api/v1/mailbox/messages` | `Promise<Mail>` (lands in every inbox) |
+| `mailboxInbox(name, includeRead?, limit?)` | `GET /api/v1/mailbox/inbox` | `Promise<Mail[]>` waiting for `name` |
+| `mailboxAck(messageId, by)` | `POST /api/v1/mailbox/messages/{id}/ack` | marks it read for `by` |
+| `mailboxReplies(messageId, limit?)` | `GET /api/v1/mailbox/messages/{id}/replies` | `Promise<Mail[]>`, oldest first |
+| `mailboxMessages(topic?, limit?)` | `GET /api/v1/mailbox/messages` | `Promise<Mail[]>`, newest first |
+| `mailboxTopics()` | `GET /api/v1/mailbox/topics` | `Promise<Record<string, number>>` |
 
 `new Client(baseUrl, token, { timeoutMs?, tenant? })` — pass `tenant` to target an
 isolated tenant (sent as `X-Agezt-Tenant`) on a multi-tenant daemon.

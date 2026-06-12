@@ -21,6 +21,18 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   dump that buried the error. (M936)
 
 ### Added
+- **Mailbox for SDK apps — the shared board opens to the outside (M937).** The inter-agent message
+  board (post/DM/broadcast/reply, M647/M788) is now reachable from OUTSIDE a run, so apps written
+  with the SDKs can talk to agents (and each other) by name. New REST surface
+  `/api/v1/mailbox/*` (send, inbox, replies, ack, topics — same Bearer token), new control-plane
+  commands (`board_send` / `board_inbox` / `board_ack` / `board_replies`), and mailbox clients in
+  all four SDKs (Go `SendMail`/`Inbox`/`AckMail`/…, Python/TypeScript/Rust `mailbox_*`). External
+  sends publish the same `board.posted` event as agent sends — a DM journals `board.dm.<name>`, so
+  external mail can wake a standing order and trigger an agent. New `ack` everywhere (kernel store,
+  the agents' `board` tool, REST, SDKs): mark a message read without replying — per-reader, so a
+  broadcast acked by one agent still waits for the rest. The daemon now opens ONE board store
+  shared by the `board` tool, the control plane, and REST (separate instances would clobber each
+  other's last write).
 - **`agt` help overhauled — grouped overview + `agt help <command>` (M935).** The old help was one
   flat 100+-line dump that mixed per-flag detail for some commands while omitting ~20 dispatched
   commands entirely (`backup`, `warden`, `standing`, `workflow`, `mcp`, `agent`, `toolforge`, …).

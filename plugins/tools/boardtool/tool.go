@@ -24,19 +24,21 @@ func (t *Tool) Definition() agent.ToolDef {
 			"— it journals board.dm.<slug>, so a standing order can wake that agent; op=inbox lists what " +
 			"is waiting for an agent (unanswered first; includes broadcasts to everyone); op=reply answers " +
 			"a message by id; op=replies reads the answers to a message you sent. " +
-			"op=broadcast sends a message to EVERY agent's inbox (an announcement); op=help asks for " +
+			"op=broadcast sends a message to EVERY agent's inbox (an announcement); op=ack marks a message " +
+			"as read (id = the message, from = YOUR slug) so it leaves your inbox without a reply — use it to " +
+			"clear announcements you've seen; op=help asks for " +
 			"assistance — broadcast to all (or directed with to=<slug>), it stays open until someone answers " +
 			"and journals board.help so a responder can be woken; op=help with no text LISTS the open help " +
 			"requests (what needs answering). The board is shared and persistent.",
 		InputSchema: json.RawMessage(`{
   "type": "object",
   "properties": {
-    "op":    {"type":"string", "enum":["post","read","topics","send","inbox","reply","replies","broadcast","help"], "description":"What to do. Optional — if omitted it is inferred: text+to → send, text+id → reply, text (alone/with topic) → post, otherwise read."},
+    "op":    {"type":"string", "enum":["post","read","topics","send","inbox","reply","replies","broadcast","ack","help"], "description":"What to do. Optional — if omitted it is inferred: text+to → send, text+id → reply, text (alone/with topic) → post, otherwise read."},
     "topic": {"type":"string", "description":"The topic to post under, or to filter reads by (a short label). For op=send: optional, defaults to \"dm\"."},
     "text":  {"type":"string", "description":"For op=post/send/reply/broadcast/help: the message body. For op=help with no text: list the open help requests instead."},
     "from":  {"type":"string", "description":"Who is posting/sending/replying — use YOUR agent slug so replies can find you."},
     "to":    {"type":"string", "description":"For op=send: the recipient agent's slug. For op=help: optional — direct the ask to one agent (default: anyone). For op=inbox: whose inbox to read (your slug)."},
-    "id":    {"type":"string", "description":"For op=reply: the message id being answered. For op=replies: the message id whose answers to read."},
+    "id":    {"type":"string", "description":"For op=reply: the message id being answered. For op=replies: the message id whose answers to read. For op=ack: the message id to mark read."},
     "all":   {"type":"boolean", "description":"For op=inbox: include already-answered messages too (default false = only what's waiting)."},
     "limit": {"type":"integer", "description":"For op=read/inbox/replies/help-list: max messages (default 20, max 100)."}
   }
@@ -209,6 +211,24 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, e
 		return okJSON(map[string]any{"broadcast": msgView(m),
 			"hint": "delivered to every agent's inbox; an agent answers with op=reply id=" + m.ID}), nil
 
+	case "ack":
+		// Mark a message read without replying (M937): it leaves YOUR unanswered
+		// inbox only — a broadcast acked here still waits for every other agent.
+		if strings.TrimSpace(in.ID) == "" {
+			return errResult(`op=ack needs "id" (the message to mark read)`), nil
+		}
+		if strings.TrimSpace(in.From) == "" {
+			return errResult(`op=ack needs "from" (your agent slug — whose inbox to clear)`), nil
+		}
+		m, ok, err := st.Ack(strings.TrimSpace(in.ID), in.From)
+		if err != nil {
+			return errResult(err.Error()), nil
+		}
+		if !ok {
+			return errResult("no message with id " + in.ID), nil
+		}
+		return okJSON(map[string]any{"acked": msgView(m), "by": strings.TrimSpace(in.From)}), nil
+
 	case "help":
 		// op=help with no text LISTS the open help requests (what needs answering);
 		// with text it RAISES one (broadcast, or directed via to).
@@ -232,9 +252,9 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, e
 			"hint": "stays open until answered; read answers with op=replies id=" + m.ID}), nil
 
 	case "":
-		return errResult("op required (post|read|topics|send|inbox|reply|replies|broadcast|help)"), nil
+		return errResult("op required (post|read|topics|send|inbox|reply|replies|broadcast|ack|help)"), nil
 	default:
-		return errResult("unknown op " + in.Op + " (post|read|topics|send|inbox|reply|replies|broadcast|help)"), nil
+		return errResult("unknown op " + in.Op + " (post|read|topics|send|inbox|reply|replies|broadcast|ack|help)"), nil
 	}
 }
 
