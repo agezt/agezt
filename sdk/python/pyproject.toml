@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "agezt"
-version = "1.0.0"
-description = "Official Python client for the Agezt agentic OS REST API (/api/v1)."
+version = "1.1.0"
+description = "Official Python client for the Agezt agentic OS. Includes Agent SDK for AI subprocess communication."
 readme = "README.md"
 requires-python = ">=3.9"
 license = "MIT"

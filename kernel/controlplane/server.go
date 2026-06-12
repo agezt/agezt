@@ -27,6 +27,7 @@ import (
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/scheduler"
 	"github.com/agezt/agezt/kernel/tenant"
+	"github.com/agezt/agezt/kernel/update"
 )
 
 // Server hosts the control plane for a running Kernel.
@@ -125,6 +126,10 @@ type Server struct {
 	// surfaces it so an operator on EKS can confirm IRSA actually engaged without
 	// grepping the boot banner. Empty when AWS credentials aren't in play.
 	credChain string
+
+	// updateSvc is the self-update engine (M860), injected via SetUpdateService.
+	// Nil when update is disabled; the update handlers report that.
+	updateSvc *update.Service
 }
 
 // ChannelSender delivers text out a named channel kind to a channel/chat id. The
@@ -161,6 +166,10 @@ func (s *Server) SetChannelSender(send ChannelSender) { s.channelSend = send }
 // SetCredChain records the resolved AWS credential-chain description so
 // `agt status` can report which credential layer engaged (M307).
 func (s *Server) SetCredChain(desc string) { s.credChain = desc }
+
+// SetUpdateService wires the self-update engine (M860). Nil when update is
+// disabled; update commands report that rather than dereferencing nil.
+func (s *Server) SetUpdateService(svc *update.Service) { s.updateSvc = svc }
 
 // DiskFreeFunc returns the free (available) and total bytes for the filesystem
 // containing path (M131). The daemon injects a real implementation
@@ -496,6 +505,8 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.handleCouncilMembers(conn, req)
 	case CmdCouncilAsk:
 		s.handleCouncilAsk(ctx, conn, req)
+	case CmdCouncilSet:
+		s.handleCouncilSet(conn, req)
 	case CmdApprovals:
 		s.handleApprovals(conn, req)
 	case CmdApprovalsLog:
@@ -598,6 +609,22 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.handleRunSteer(conn, req)
 	case CmdConfig:
 		s.handleConfig(conn, req)
+	case CmdConfigCenterSet:
+		s.handleConfigCenterSet(conn, req)
+	case CmdConfigCenterGet:
+		s.handleConfigCenterGet(conn, req)
+	case CmdConfigCenterList:
+		s.handleConfigCenterList(conn, req)
+	case CmdConfigCenterDelete:
+		s.handleConfigCenterDelete(conn, req)
+	case CmdConfigCenterSetRating:
+		s.handleConfigCenterSetRating(conn, req)
+	case CmdConfigCenterAccessLog:
+		s.handleConfigCenterAccessLog(conn, req)
+	case CmdConfigCenterAudit:
+		s.handleConfigCenterAudit(conn, req)
+	case CmdConfigCenterHealth:
+		s.handleConfigCenterHealth(conn, req)
 	case CmdJournalGrep:
 		s.handleJournalGrep(conn, req)
 	case CmdJournalHead:
@@ -634,6 +661,10 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.handleMemoryForget(conn, req)
 	case CmdMemoryPrune:
 		s.handleMemoryPrune(conn, req)
+	case CmdMemoryBulkForget:
+		s.handleMemoryBulkForget(conn, req)
+	case CmdMemoryFindRelated:
+		s.handleMemoryFindRelated(conn, req)
 	case CmdScheduleAdd:
 		s.handleScheduleAdd(conn, req)
 	case CmdScheduleList:
@@ -864,6 +895,10 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.handleBoardHelp(conn, req)
 	case CmdAutonomyFeed:
 		s.handleAutonomyFeed(conn, req)
+	case CmdUpdateCheck:
+		s.handleUpdateCheck(conn, req)
+	case CmdUpdateApply:
+		s.handleUpdateApply(conn, req)
 	default:
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "unknown command: " + req.Cmd})
 	}

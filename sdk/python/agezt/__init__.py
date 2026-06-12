@@ -33,15 +33,20 @@ and never blocks the event loop::
 """
 
 from .aio import AsyncClient
+from .agent import AgentClient, Capability, AgentError
 from .client import Client, RunResult, StreamEvent
-from .errors import AgeztError, APIError
+from .errors import AgeztError, APIError, ConfigAccessError
 
 __all__ = [
     "Client",
     "AsyncClient",
+    "AgentClient",
+    "Capability",
+    "AgentError",
     "RunResult",
     "StreamEvent",
     "AgeztError",
     "APIError",
+    "ConfigAccessError",
 ]
-__version__ = "1.0.0"
+__version__ = "1.1.0"

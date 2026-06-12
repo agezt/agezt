@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Scale, Users, Send, Loader2, Gavel, AlertTriangle } from "lucide-react";
+import { Scale, Users, Send, Loader2, Gavel, AlertTriangle, Pencil, Plus, X, Check } from "lucide-react";
 import { getJSON, postJSON } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { ErrorText } from "@/components/JsonView";
 import { Markdown } from "@/components/Markdown";
 import { useUI } from "@/components/ui/feedback";
+import { ModelPicker } from "@/components/ModelPicker";
 
 // Council of Elders view (M839): consult the multi-model panel (kernel/runtime
 // M837). It shows which models sit on the council, takes a question, convenes the
@@ -43,11 +44,77 @@ export function Council() {
   const [result, setResult] = useState<CouncilResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Edit mode state (M839: per-member model picker).
+  const [editMode, setEditMode] = useState(false);
+  const [draftMembers, setDraftMembers] = useState<Member[]>([]);
+  const [saving, setSaving] = useState(false);
+
   useEffect(() => {
-    getJSON<{ members: Member[] }>("/api/council/members")
-      .then((d) => setMembers(d.members ?? []))
-      .catch((e) => setError((e as Error).message));
+    loadMembers();
   }, []);
+
+  function loadMembers() {
+    getJSON<{ members: Member[] }>("/api/council/members")
+      .then((d) => {
+        setMembers(d.members ?? []);
+        setDraftMembers(d.members ?? []);
+      })
+      .catch((e) => setError((e as Error).message));
+  }
+
+  function enterEdit() {
+    setDraftMembers([...members]);
+    setEditMode(true);
+  }
+
+  function cancelEdit() {
+    setDraftMembers([...members]);
+    setEditMode(false);
+  }
+
+  async function saveMembers() {
+    if (saving) return;
+    setSaving(true);
+    try {
+      const res = await postJSON<{ saved: boolean; unknown_models?: string[] }>("/api/council/set", {
+        members: draftMembers.map((m) => ({ seat: m.seat, model: m.model })),
+      });
+      await loadMembers();
+      setEditMode(false);
+      if (res.unknown_models?.length) {
+        ui.toast(`Saved — unknown models: ${res.unknown_models.join(", ")}`, "info");
+      } else {
+        ui.toast("Council membership updated", "success");
+      }
+    } catch (e) {
+      ui.toast((e as Error).message, "error");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function addMember() {
+    setDraftMembers((prev) => [
+      ...prev,
+      { seat: `Elder ${prev.length + 1}`, model: "" },
+    ]);
+  }
+
+  function removeMember(index: number) {
+    setDraftMembers((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  function updateMemberModel(index: number, model: string) {
+    setDraftMembers((prev) =>
+      prev.map((m, i) => (i === index ? { ...m, model } : m))
+    );
+  }
+
+  function updateMemberSeat(index: number, seat: string) {
+    setDraftMembers((prev) =>
+      prev.map((m, i) => (i === index ? { ...m, seat } : m))
+    );
+  }
 
   async function ask() {
     const q = question.trim();
@@ -74,23 +141,98 @@ export function Council() {
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3">
+      {/* Header */}
       <div className="flex items-center gap-2">
         <h2 className="flex items-center gap-2 text-sm font-semibold">
           <Scale className="size-4 text-accent" /> Council of Elders
         </h2>
-        <span className="inline-flex items-center gap-1 text-xs text-muted">
-          <Users className="size-3.5" />
-          {members.length > 0 ? members.map((m) => m.seat).join(" · ") : "no keyed members"}
-        </span>
+        {!editMode ? (
+          <>
+            <span className="inline-flex items-center gap-1 text-xs text-muted">
+              <Users className="size-3.5" />
+              {members.length > 0 ? members.map((m) => m.seat).join(" · ") : "no keyed members"}
+            </span>
+            <Button variant="ghost" size="sm" className="ml-auto h-6 gap-1 px-2 text-xs" onClick={enterEdit}>
+              <Pencil className="size-3" /> Edit
+            </Button>
+          </>
+        ) : (
+          <span className="ml-auto text-xs text-muted">Editing members</span>
+        )}
       </div>
 
-      {members.length > 0 && (
+      {/* Member badges (view mode) */}
+      {!editMode && members.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
           {members.map((m) => (
             <Badge key={m.seat} variant="default" title={m.model}>
               {m.seat}: <span className="font-mono opacity-80">{m.model}</span>
             </Badge>
           ))}
+        </div>
+      )}
+
+      {/* Edit mode: per-member model picker */}
+      {editMode && (
+        <div className="flex flex-col gap-2 rounded-lg border border-accent/40 bg-card p-3">
+          <div className="flex items-center gap-1.5 text-xs text-muted">
+            <Users className="size-3.5" />
+            <span>Select a model for each council seat</span>
+          </div>
+          <div className="flex flex-col gap-2">
+            {draftMembers.map((m, i) => (
+              <div key={i} className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={m.seat}
+                  onChange={(e) => updateMemberSeat(i, e.target.value)}
+                  placeholder="Seat name"
+                  className="h-7 w-28 rounded border border-border bg-panel px-2 text-xs outline-none focus-visible:border-accent"
+                />
+                <ModelPicker
+                  value={m.model}
+                  onChange={(id) => updateMemberModel(i, id)}
+                />
+                <button
+                  type="button"
+                  onClick={() => removeMember(i)}
+                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded text-muted hover:text-bad"
+                  title="Remove member"
+                >
+                  <X className="size-3" />
+                </button>
+              </div>
+            ))}
+          </div>
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="sm" className="h-7 gap-1 px-2 text-xs" onClick={addMember}>
+              <Plus className="size-3" /> Add seat
+            </Button>
+            <span className="ml-auto text-[10px] text-muted">Tip: leave seat name blank to auto-name as Elder N</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="ml-auto h-7 gap-1 px-2 text-xs"
+              onClick={cancelEdit}
+              disabled={saving}
+            >
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              className="h-7 gap-1 px-2 text-xs"
+              onClick={saveMembers}
+              disabled={saving || draftMembers.some((m) => !m.model)}
+            >
+              {saving ? <Loader2 className="size-3 animate-spin" /> : <Check className="size-3" />}
+              {saving ? "Saving…" : "Save"}
+            </Button>
+          </div>
+          {draftMembers.some((m) => !m.model) && (
+            <p className="text-[10px] text-muted">Each seat must have a model selected.</p>
+          )}
         </div>
       )}
 

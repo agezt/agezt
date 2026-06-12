@@ -16,6 +16,8 @@
 //	GET  /api/v1/models            — the model ids the daemon can route
 //	POST /api/v1/runs              — submit an intent; sync JSON or SSE stream
 //	GET  /api/v1/runs/{corr}       — the journaled event arc of a past run
+//	GET  /api/v1/update            — check for updates (M860)
+//	POST /api/v1/update/apply      — validate and stage an update (M860)
 //
 // Security (SPEC-06): loopback-bound by the operator, token-authed on every
 // request (Authorization: Bearer <token>, or ?token= for convenience). Empty
@@ -34,6 +36,7 @@ import (
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/meshctx"
+	"github.com/agezt/agezt/kernel/update"
 )
 
 // maxRequestBodyBytes caps an HTTP request body (M198). The API surfaces are
@@ -92,6 +95,10 @@ type Server struct {
 	// text format. Injected by the daemon (it has the kernel + governor); this
 	// package only formats. Nil → /metrics reports no samples.
 	metrics func() []Metric
+
+	// updateSvc, when set, powers the /api/v1/update endpoints. Nil when update
+	// is disabled; the handlers report that rather than dereferencing nil.
+	updateSvc *update.Service
 }
 
 // Metric is one Prometheus sample exposed at /metrics. Name is the suffix after
@@ -126,6 +133,10 @@ func (s *Server) SetReadiness(fn func() (ready bool, reason string)) { s.readine
 // SetMetrics injects the gauge source for /metrics (Prometheus text format).
 func (s *Server) SetMetrics(fn func() []Metric) { s.metrics = fn }
 
+// SetUpdateService wires the self-update engine. Nil when update is disabled;
+// the update handlers report that rather than dereferencing nil.
+func (s *Server) SetUpdateService(svc *update.Service) { s.updateSvc = svc }
+
 // bind resolves the Engine + bus for a request: the per-tenant pair when an
 // X-Agezt-Tenant header is present and a resolver is configured, else the
 // primary engine/bus.
@@ -155,6 +166,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/api/v1/models", s.auth(s.handleModels))
 	mux.HandleFunc("/api/v1/runs", s.auth(s.handleRunsRoot))
 	mux.HandleFunc("/api/v1/runs/", s.auth(s.handleRunByID))
+	mux.HandleFunc("/api/v1/update", s.auth(s.handleUpdateCheck))
+	mux.HandleFunc("/api/v1/update/apply", s.auth(s.handleUpdateApply))
 	return mux
 }
 

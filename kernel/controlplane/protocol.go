@@ -524,6 +524,9 @@ const (
 	// CmdCouncilAsk convenes the council on a question and returns the full result.
 	// Args: question (req), rounds. Returns: {consensus, dissent, members, rounds, opinions}.
 	CmdCouncilAsk = "council_ask"
+	// CmdCouncilSet replaces the default council membership. Args: members — array of
+	// {seat, model}. Applies live and persists to the config store so it survives restart.
+	CmdCouncilSet = "council_set"
 
 	// CmdJournalGrep is the server-side filter sibling of
 	// CmdJournalTail. Today operators run `agt journal tail 10000
@@ -583,6 +586,72 @@ const (
 	//   - env         : {VARNAME: true} — only PRESENT vars listed
 	//                   (absent ones omitted to keep the map small)
 	CmdConfig = "config"
+
+	// CmdConfigCenterSet sets a config entry in the Config Center.
+	// This is an admin-only operation that bypasses access control.
+	// Args:
+	//   - key         : string (required)
+	//   - value       : string (required)
+	//   - rating      : string (optional: "public", "internal", "restricted", "secret")
+	//   - description : string (optional)
+	// Returns:
+	//   - entry: ConfigEntry
+	CmdConfigCenterSet = "configcenter.set"
+
+	// CmdConfigCenterGet retrieves a config entry from the Config Center.
+	// This is an admin-only operation that bypasses access control.
+	// Args:
+	//   - key: string (required)
+	// Returns:
+	//   - entry: ConfigEntry
+	CmdConfigCenterGet = "configcenter.get"
+
+	// CmdConfigCenterList lists all config entries in the Config Center.
+	// This is an admin-only operation that bypasses access control.
+	// Args:
+	//   - rating : string (optional: filter by rating)
+	// Returns:
+	//   - entries: []ConfigEntry
+	CmdConfigCenterList = "configcenter.list"
+
+	// CmdConfigCenterDelete deletes a config entry from the Config Center.
+	// This is an admin-only operation.
+	// Args:
+	//   - key: string (required)
+	// Returns:
+	//   - deleted: bool
+	CmdConfigCenterDelete = "configcenter.delete"
+
+	// CmdConfigCenterSetRating sets the rating for a config entry.
+	// Args:
+	//   - key    : string (required)
+	//   - rating : string (required: "public", "internal", "restricted", "secret")
+	// Returns:
+	//   - override: bool (true if manual override was applied)
+	CmdConfigCenterSetRating = "configcenter.set-rating"
+
+	// CmdConfigCenterAccessLog returns the access log for config entries.
+	// Args:
+	//   - key     : string (optional: filter by key)
+	//   - agent_id: string (optional: filter by agent)
+	//   - since   : string (optional: duration like "24h")
+	// Returns:
+	//   - logs: []AccessLogEntry
+	CmdConfigCenterAccessLog = "configcenter.access-log"
+
+	// CmdConfigCenterAudit returns the audit log for config operations.
+	// Args:
+	//   - since: string (optional: duration like "24h")
+	// Returns:
+	//   - entries: []AuditEntry
+	CmdConfigCenterAudit = "configcenter.audit"
+
+	// CmdConfigCenterHealth returns health status of the Config Center.
+	// Returns:
+	//   - status : string
+	//   - checks : map[string]string
+	//   - stats  : map[string]any
+	CmdConfigCenterHealth = "configcenter.health"
 
 	// CmdRunsList enumerates past agent runs by scanning the
 	// journal for task.received / task.completed pairs. Each
@@ -729,6 +798,17 @@ const (
 	// Args: older_than_days (optional; default 30), dry_run (optional; default true).
 	// Returns: { dry_run, older_than_days, cutoff_ms, prunable|pruned, stats }
 	CmdMemoryPrune = "memory_prune"
+
+	// CmdMemoryBulkForget soft-deletes multiple records in one operation.
+	// Args: ids (required, array of string). Returns: { forgotten: N, not_found: M }.
+	CmdMemoryBulkForget = "memory_bulk_forget"
+
+	// CmdMemoryFindRelated uses embedding-based similarity to find records related
+	// to a given seed record. Given the seed's id, fetches its content, embeds it,
+	// and returns the top-k most semantically similar active records.
+	// Args: id (required), limit (optional; default 10, max 100).
+	// Returns: { results: [{record, score}, ...], count }.
+	CmdMemoryFindRelated = "memory_find_related"
 
 	// Scheduled intents (autonomy). The cadence resident fires due schedules
 	// through the governed loop; these commands manage the persistent store
@@ -1145,6 +1225,19 @@ const (
 	// view. Read-only. Args: limit (optional; default 50, clamped ..500).
 	// Returns: { open_help: [{id, from?, to?, topic, text, ts_unix_ms}], count }
 	CmdBoardHelp = "board_help"
+
+	// Self-update (M860):
+	//
+	// CmdUpdateCheck queries the configured source (GitHub or the endpoint in
+	// AGEZT_UPDATE_ENDPOINT) and returns whether an update is available.
+	// No args. Returns: {current, update: {version,sha256,url,notes}|null, up_to_date}
+	CmdUpdateCheck = "update_check"
+	// CmdUpdateApply orchestrates drain → atomic swap → restart. Args:
+	// version, sha256, url (all required), notes (optional).
+	// Returns: {applied: bool, error?: string}.
+	// On success the daemon exits; the watchdog spawns the new binary.
+	// On failure the daemon stays running — human must investigate.
+	CmdUpdateApply = "update_apply"
 )
 
 // Request is the wire shape sent by the client.

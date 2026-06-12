@@ -58,7 +58,7 @@ func TestSuperviseLoop_RestartsThenStops(t *testing.T) {
 	now := func() time.Time { return time.Unix(0, 0) }
 	sleep := func(ctx context.Context, _ time.Duration) error { return ctx.Err() }
 
-	err := superviseLoop(ctx, spawn, p, now, sleep, func(string, ...any) {})
+	err := superviseLoop(ctx, spawn, t.TempDir(), p, now, sleep, func(string, ...any) {})
 	if err != nil {
 		t.Fatalf("clean shutdown should return nil, got %v", err)
 	}
@@ -77,7 +77,7 @@ func TestSuperviseLoop_CrashLoopGivesUp(t *testing.T) {
 	now := func() time.Time { return time.Unix(0, 0) } // all crashes in the same instant → within window
 	sleep := func(context.Context, time.Duration) error { return nil }
 
-	err := superviseLoop(context.Background(), spawn, p, now, sleep, func(string, ...any) {})
+	err := superviseLoop(context.Background(), spawn, t.TempDir(), p, now, sleep, func(string, ...any) {})
 	if err == nil {
 		t.Fatal("a crash loop should return an error")
 	}
@@ -100,7 +100,7 @@ func TestSuperviseLoop_KillsChildOnCancel(t *testing.T) {
 		time.Sleep(20 * time.Millisecond)
 		cancel() // ask to stop while the child is "running"
 	}()
-	err := superviseLoop(ctx, spawn, defaultWatchdogPolicy(), now, sleep, func(string, ...any) {})
+	err := superviseLoop(ctx, spawn, t.TempDir(), defaultWatchdogPolicy(), now, sleep, func(string, ...any) {})
 	if err != nil {
 		t.Fatalf("cancel should be a clean stop, got %v", err)
 	}

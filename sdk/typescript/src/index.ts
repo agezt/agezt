@@ -22,4 +22,15 @@ export type {
   RunArc,
   StreamEvent,
 } from "./client.js";
-export { AgeztError, APIError } from "./errors.js";
+export { AgeztError, APIError, ConfigAccessError } from "./errors.js";
+
+// Agent SDK - for AI agent subprocess communication
+export { AgentClient, Capability } from "./agent.js";
+export type {
+  AgentClientOptions,
+  MemoryRecord,
+  SearchResult,
+  AgentProfile,
+  BusEvent,
+} from "./agent.js";
+export { AgentError } from "./agent.js";

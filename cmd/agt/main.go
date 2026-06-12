@@ -160,6 +160,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return cmdSchedule(args[1:], stdout, stderr)
 	case "tenant":
 		return cmdTenant(args[1:], stdout, stderr)
+	case "token":
+		return cmdToken(args[1:], stdout, stderr)
 	default:
 		fmt.Fprintf(stderr, "%s: unknown command %q\n", brand.CLI, args[0])
 		printHelp(stderr)

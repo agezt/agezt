@@ -73,6 +73,7 @@ import (
 	"github.com/agezt/agezt/kernel/tenant"
 	"github.com/agezt/agezt/kernel/tunnel"
 	"github.com/agezt/agezt/kernel/ulid"
+	"github.com/agezt/agezt/kernel/update"
 	"github.com/agezt/agezt/kernel/warden"
 	"github.com/agezt/agezt/kernel/webhook"
 	"github.com/agezt/agezt/kernel/webui"
@@ -140,6 +141,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return runDaemon(stdout, stderr)
 	case "watchdog":
 		return runWatchdog(stdout, stderr)
+	case "update":
+		return runUpdate(stdout, stderr)
 	default:
 		fmt.Fprintf(stderr, "%s: unknown command %q\n", brand.Binary, args[0])
 		printHelp(stderr)
@@ -154,6 +157,7 @@ func printHelp(w io.Writer) {
 	fmt.Fprintf(w, "  (none)    run the daemon (default)\n")
 	fmt.Fprintf(w, "  daemon    run the daemon, explicit\n")
 	fmt.Fprintf(w, "  watchdog  supervise the daemon, restarting it if it exits (self-healing)\n")
+	fmt.Fprintf(w, "  update    check for updates or apply a new version (M860)\n")
 	fmt.Fprintf(w, "  version   show version and exit\n")
 	fmt.Fprintf(w, "  help      show this help\n")
 	fmt.Fprintf(w, "\n")
@@ -162,6 +166,70 @@ func printHelp(w io.Writer) {
 	fmt.Fprintf(w, "  ANTHROPIC_API_KEY    required to enable the Anthropic provider\n")
 	fmt.Fprintf(w, "  %sMODEL            default model (default: %s)\n", brand.EnvPrefix, anthropic.DefaultModel)
 	fmt.Fprintf(w, "  %sSYSTEM_PROMPT    system prompt for every run (optional)\n", brand.EnvPrefix)
+}
+
+// runUpdate checks for updates and optionally applies them. When called with no
+// arguments it performs a check; `agezt update --apply` triggers a drain-and-swap.
+func runUpdate(stdout, stderr io.Writer) int {
+	// Wire the same base-dir resolution as the daemon so `agezt update` works
+	// even when no daemon is running (the service is embedded in the binary).
+	baseDir, err := paths.BaseDir()
+	if err != nil {
+		fmt.Fprintf(stderr, "%s: %v\n", brand.Binary, err)
+		return 1
+	}
+
+	args := os.Args[2:] // skip "agezt update"
+	apply := len(args) > 0 && args[0] == "--apply"
+
+	// Connect to the running daemon's control plane.
+	cl, err := controlplane.NewClient(baseDir)
+	if err != nil {
+		fmt.Fprintf(stderr, "%s: controlplane: %v\n", brand.Binary, err)
+		return 1
+	}
+	defer cl.Close()
+
+	if apply {
+		// First check to get the available update.
+		check, err := cl.UpdateCheck(context.Background())
+		if err != nil {
+			fmt.Fprintf(stderr, "%s: update check: %v\n", brand.Binary, err)
+			return 1
+		}
+		if check.Update == nil {
+			fmt.Fprintf(stdout, "%s: already up to date (%s)\n", brand.Binary, check.Current)
+			return 0
+		}
+		fmt.Fprintf(stdout, "%s: applying update %s (from %s)\n", brand.Binary, check.Update.Version, check.Current)
+		result, err := cl.UpdateApply(context.Background(), check.Update.Version, check.Update.SHA256, check.Update.URL, check.Update.Notes)
+		if err != nil {
+			fmt.Fprintf(stderr, "%s: update apply: %v\n", brand.Binary, err)
+			return 1
+		}
+		if result.Error != "" {
+			fmt.Fprintf(stderr, "%s: update failed: %s\n", brand.Binary, result.Error)
+			return 1
+		}
+		fmt.Fprintf(stdout, "%s: update applied, daemon will restart shortly\n", brand.Binary)
+		return 0
+	}
+
+	// Check-only (default).
+	check, err := cl.UpdateCheck(context.Background())
+	if err != nil {
+		fmt.Fprintf(stderr, "%s: update check: %v\n", brand.Binary, err)
+		return 1
+	}
+	if check.Update == nil {
+		fmt.Fprintf(stdout, "%s: up to date (%s)\n", brand.Binary, check.Current)
+	} else {
+		fmt.Fprintf(stdout, "%s: update available: %s (current: %s)\n", brand.Binary, check.Update.Version, check.Current)
+		if check.Update.Notes != "" {
+			fmt.Fprintf(stdout, "\n%s\n", check.Update.Notes)
+		}
+	}
+	return 0
 }
 
 // runDaemon brings up the kernel + control plane, prints connection info
@@ -1033,6 +1101,49 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// disk handler / doctor check can report free space without controlplane
 	// importing kernel/pulse (same decoupling as SetPulse).
 	srv.SetDiskFree(pulse.DiskUsage)
+	// Self-update engine (M860): wired when AGEZT_UPDATE_ENDPOINT or
+	// AGEZT_UPDATE_GITHUB_OWNER/REPO is set. When not configured, update
+	// commands report "update is disabled" rather than erroring.
+	var updateSvc *update.Service
+	if endpoint := os.Getenv(brand.EnvPrefix + "UPDATE_ENDPOINT"); endpoint != "" {
+		updateSvc = update.New(update.Config{
+			Source:   update.SourceEndpoint,
+			Endpoint: endpoint,
+			BaseDir:  baseDir,
+			DrainTimeout: func() time.Duration {
+				if t := os.Getenv(brand.EnvPrefix + "UPDATE_DRAIN_TIMEOUT"); t != "" {
+					if d, err := time.ParseDuration(t); err == nil {
+						return d
+					}
+				}
+				return 30 * time.Second
+			}(),
+			CheckInterval: func() time.Duration {
+				if t := os.Getenv(brand.EnvPrefix + "UPDATE_CHECK_INTERVAL"); t != "" {
+					if d, err := time.ParseDuration(t); err == nil && d > 0 {
+						return d
+					}
+				}
+				return 0 // disabled by default
+			}(),
+		})
+	} else if owner := os.Getenv(brand.EnvPrefix + "UPDATE_GITHUB_OWNER"); owner != "" {
+		repo := os.Getenv(brand.EnvPrefix + "UPDATE_GITHUB_REPO")
+		if repo == "" {
+			repo = brand.Binary // default repo to the binary name
+		}
+		updateSvc = update.New(update.Config{
+			Source:        update.SourceGitHub,
+			GitHubOwner:   owner,
+			GitHubRepo:    repo,
+			BaseDir:       baseDir,
+			DrainTimeout:  30 * time.Second,
+			CheckInterval: 0,
+		})
+	}
+	if updateSvc != nil {
+		srv.SetUpdateService(updateSvc)
+	}
 	cancelOnDisconnectDesc := "disabled (set " + brand.EnvPrefix + "CANCEL_ON_DISCONNECT=on)"
 	if cancelOnDisconnect {
 		cancelOnDisconnectDesc = "on (a dropped `agt run` client cancels its run)"
@@ -1401,7 +1512,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// Native REST API (P7-API-02) — first-party /api/v1 surface: submit runs
 	// (sync or SSE), inspect a run's journaled arc, health/models. Same governed
 	// loop as `agt run`. Off unless AGEZT_REST_ADDR is set; loopback + token.
-	if restDesc := buildRESTAPI(ctx, k, tenantReg, &draining, stdout); restDesc != "" {
+	if restDesc := buildRESTAPI(ctx, k, tenantReg, &draining, updateSvc, stdout); restDesc != "" {
 		fmt.Fprintf(stdout, "  rest api         : %s\n", restDesc)
 	} else {
 		fmt.Fprintf(stdout, "  rest api         : disabled (set AGEZT_REST_ADDR, e.g. 127.0.0.1:8800)\n")
@@ -1643,6 +1754,19 @@ func runDaemon(stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "  schedule         : %s\n", schedDesc)
 	} else {
 		fmt.Fprintf(stdout, "  schedule         : disabled (set AGEZT_SCHEDULE, e.g. \"1h=summarise new commits\")\n")
+	}
+
+	// Background update checker (M860): when updateSvc.CheckInterval > 0, a
+	// goroutine fires on that interval. If an update is found, it is
+	// auto-applied after the daemon drains (idle). The journal receives an
+	// event so the update is auditable. The watchdog is signalled to restart
+	// with the new binary; if the update failed the daemon stays running —
+	// fail-safe: human must investigate.
+	if updateSvc != nil && updateSvc.CheckInterval() > 0 {
+		go startUpdateChecker(ctx, k, updateSvc, stdout, stderr)
+		fmt.Fprintf(stdout, "  auto-update      : enabled (check every %s)\n", updateSvc.CheckInterval())
+	} else if updateSvc != nil {
+		fmt.Fprintf(stdout, "  auto-update      : check-only (set AGEZT_UPDATE_CHECK_INTERVAL to enable auto-apply)\n")
 	}
 
 	// Chronos standing-order runner (SPEC-16 §4): fires an order's plan on its
@@ -3357,7 +3481,7 @@ func buildOpenAIAPI(ctx context.Context, k *kernelruntime.Kernel, reg *tenant.Re
 // buildRESTAPI starts the native REST resident when AGEZT_REST_ADDR is set,
 // mirroring buildOpenAIAPI's lifecycle (daemon ctx, graceful shutdown, minted
 // token, loopback warning). Returns the banner description or "".
-func buildRESTAPI(ctx context.Context, k *kernelruntime.Kernel, reg *tenant.Registry, draining *atomic.Bool, stdout io.Writer) string {
+func buildRESTAPI(ctx context.Context, k *kernelruntime.Kernel, reg *tenant.Registry, draining *atomic.Bool, updateSvc *update.Service, stdout io.Writer) string {
 	addr := os.Getenv(brand.EnvPrefix + "REST_ADDR")
 	if addr == "" {
 		return ""
@@ -3375,6 +3499,12 @@ func buildRESTAPI(ctx context.Context, k *kernelruntime.Kernel, reg *tenant.Regi
 		return ""
 	}
 	rest := restapi.New(kernelAPIEngine{k}, k.Bus(), token, brand.Version)
+	// Self-update engine (M860): wired when AGEZT_UPDATE_ENDPOINT or
+	// AGEZT_UPDATE_GITHUB_OWNER/REPO is set. Nil when not configured;
+	// the update handlers report that.
+	if updateSvc != nil {
+		rest.SetUpdateService(updateSvc)
+	}
 	// Readiness probe (M134): /readyz reports not-ready while the daemon is
 	// halted, so a load balancer / k8s readiness probe pulls it from rotation
 	// without the process dying. Liveness (/healthz) stays up regardless.
@@ -3876,6 +4006,94 @@ func isLoopback(addr string) bool {
 		return ip.IsLoopback()
 	}
 	return false
+}
+
+// startUpdateChecker runs the background update checker goroutine (M860).
+// It fires on the configured CheckInterval. When an update is found, it
+// auto-applies after the daemon goes idle (drain). The journal receives an
+// event so the update is auditable. The watchdog is signalled to restart
+// with the new binary.
+func startUpdateChecker(ctx context.Context, k *kernelruntime.Kernel, svc *update.Service, stdout, stderr io.Writer) {
+	ticker := time.NewTicker(svc.CheckInterval())
+	defer ticker.Stop()
+
+	// Do an immediate first check rather than waiting for the first interval.
+	check := func() {
+		result, err := svc.Check(ctx)
+		if err != nil {
+			fmt.Fprintf(stderr, "%s: auto-update check: %v\n", brand.Binary, err)
+			return
+		}
+		if result.Update == nil {
+			return // already up to date
+		}
+
+		info := result.Update
+		fmt.Fprintf(stdout, "%s: auto-update: %s available (current: %s)\n", brand.Binary, info.Version, result.Current)
+
+		// Publish journal event for auditability.
+		_, _ = k.Bus().Publish(event.Spec{
+			Subject: "update.available",
+			Kind:    event.KindInfo,
+			Actor:   "update-checker",
+			Payload: map[string]any{
+				"current_version": result.Current,
+				"new_version":    info.Version,
+				"url":            info.URL,
+			},
+		})
+
+		// Drain and apply.
+		fmt.Fprintf(stdout, "%s: auto-update: draining daemon for %s\n", brand.Binary, info.Version)
+		_, activeRuns := k.DrainAndHalt(svc.DrainTimeout())
+		if activeRuns > 0 {
+			fmt.Fprintf(stderr, "%s: auto-update: drain timeout (%d runs still active)\n", brand.Binary, activeRuns)
+			// Don't apply — leave the daemon running, let the operator investigate.
+			return
+		}
+
+		err = svc.Apply(ctx, info, func(context.Context, time.Duration) update.DrainResult {
+			// Already drained above; no-op drain for Apply.
+			return update.DrainResult{}
+		})
+		if err != nil {
+			_, _ = k.Bus().Publish(event.Spec{
+				Subject: "update.failed",
+				Kind:    event.KindAnomalyDetected,
+				Actor:   "update-checker",
+				Payload: map[string]any{
+					"version": info.Version,
+					"error":   err.Error(),
+				},
+			})
+			fmt.Fprintf(stderr, "%s: auto-update failed: %v (daemon stays running)\n", brand.Binary, err)
+			return
+		}
+
+		// Success. Publish event and signal shutdown so watchdog spawns new binary.
+		_, _ = k.Bus().Publish(event.Spec{
+			Subject: "update.applied",
+			Kind:    event.KindInfo,
+			Actor:   "update-checker",
+			Payload: map[string]any{"version": info.Version},
+		})
+		fmt.Fprintf(stdout, "%s: auto-update: %s applied, restarting\n", brand.Binary, info.Version)
+		// Signal graceful shutdown — watchdog will restart with new binary.
+		// The watchdog is already watching for exit; it will re-spawn.
+		os.Exit(0) // clean exit; watchdog handles restart
+	}
+
+	// Immediate first check.
+	check()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			check()
+		}
+	}
 }
 
 // buildPulse constructs the resident Pulse engine from env config, or returns
