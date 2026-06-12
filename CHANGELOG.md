@@ -12,6 +12,11 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Searchable capability gallery in the Tools view (M916).** The "Available tools" list was a flat
+  grid with only a used/idle badge. It's now a searchable, capability-grouped gallery: a search box
+  (name/description/capability), filter chips per Edict capability (with counts), and richer cards
+  showing each tool's source (mcp/forged/skill), its capability, inline usage (call count, errors,
+  avg latency), and description — used tools first. All from data already in `/api/tools_catalog`.
 - **Live "Active agents" panel on the Cockpit (M914).** The home cockpit showed the fleet only as a
   "running now: N" count. It now carries a glanceable panel of the lead runs in flight — each a
   mini-card with a pulsing live dot, the intent, and agents/sub-agents/iterations/tree-spend — folded

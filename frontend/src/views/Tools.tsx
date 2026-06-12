@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { Wrench, RefreshCw, Activity, AlertTriangle, Boxes } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Wrench, RefreshCw, Activity, AlertTriangle, Boxes, Search, ShieldCheck } from "lucide-react";
 import { getJSON } from "@/lib/api";
 import { useEvents } from "@/lib/events";
 import { cn, clip, fmtTime } from "@/lib/utils";
@@ -31,7 +31,93 @@ interface Invocation {
 interface ToolDef {
   name?: string;
   description?: string;
+  capability?: string; // the Edict capability this tool exercises (M916)
 }
+
+// ToolView is one row of the capability gallery: the catalog definition joined
+// with its live usage (calls/errors/latency) and a derived source.
+export interface ToolView {
+  name: string;
+  description: string;
+  capability: string;
+  source: ToolSource;
+  calls: number;
+  errors: number;
+  avgMs?: number;
+}
+
+export type ToolSource = "mcp" | "forged" | "skill" | "builtin";
+
+// toolSource infers where a tool comes from by its name — the same prefixes the
+// kernel uses (mcp_<server>_<tool> for attached MCP servers; forged/skill tools
+// carry their own prefixes). Pure + unit-tested.
+export function toolSource(name: string): ToolSource {
+  if (name.startsWith("mcp_")) return "mcp";
+  if (name.startsWith("forge_") || name.startsWith("forged_")) return "forged";
+  if (name.startsWith("skill_")) return "skill";
+  return "builtin";
+}
+
+// mergeToolViews joins the tool catalog with the per-tool usage stats into a
+// single sorted gallery model (used tools first by call volume, then idle
+// alphabetically). Pure + unit-tested.
+export function mergeToolViews(catalog: ToolDef[], byTool: Record<string, ToolStat>): ToolView[] {
+  const views = catalog
+    .filter((t) => t.name)
+    .map((t): ToolView => {
+      const s = byTool[t.name!] || {};
+      return {
+        name: t.name!,
+        description: t.description || "",
+        capability: t.capability || "",
+        source: toolSource(t.name!),
+        calls: s.calls || 0,
+        errors: s.errors || 0,
+        avgMs: s.avg_ms,
+      };
+    });
+  views.sort((a, b) => {
+    if ((b.calls > 0 ? 1 : 0) !== (a.calls > 0 ? 1 : 0)) return b.calls - a.calls; // used first
+    if (a.calls !== b.calls) return b.calls - a.calls;
+    return a.name.localeCompare(b.name);
+  });
+  return views;
+}
+
+// filterTools narrows the gallery by a free-text query (name/description/
+// capability, case-insensitive) and an optional exact capability. Pure + tested.
+export function filterTools(views: ToolView[], query: string, capability: string): ToolView[] {
+  const q = query.trim().toLowerCase();
+  return views.filter((v) => {
+    if (capability && v.capability !== capability) return false;
+    if (!q) return true;
+    return (
+      v.name.toLowerCase().includes(q) ||
+      v.description.toLowerCase().includes(q) ||
+      v.capability.toLowerCase().includes(q)
+    );
+  });
+}
+
+// capabilityCounts tallies tools per capability for the filter chips, sorted by
+// count then name. Pure + unit-tested.
+export function capabilityCounts(views: ToolView[]): { capability: string; n: number }[] {
+  const m = new Map<string, number>();
+  for (const v of views) {
+    if (!v.capability) continue;
+    m.set(v.capability, (m.get(v.capability) || 0) + 1);
+  }
+  return [...m.entries()]
+    .map(([capability, n]) => ({ capability, n }))
+    .sort((a, b) => (b.n !== a.n ? b.n - a.n : a.capability.localeCompare(b.capability)));
+}
+
+const SOURCE_LABEL: Record<ToolSource, string> = {
+  mcp: "mcp",
+  forged: "forged",
+  skill: "skill",
+  builtin: "built-in",
+};
 
 function ms(v?: number): string {
   if (v == null) return "—";
@@ -48,6 +134,8 @@ export function Tools() {
   const [catalog, setCatalog] = useState<ToolDef[]>([]);
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [query, setQuery] = useState("");
+  const [capFilter, setCapFilter] = useState("");
 
   async function reload() {
     setLoading(true);
@@ -80,6 +168,12 @@ export function Tools() {
   const tools = Object.entries(byTool).sort((a, b) => (b[1].calls || 0) - (a[1].calls || 0));
   const maxCalls = Math.max(1, ...tools.map(([, t]) => t.calls || 0));
   const errPct = Math.round((stats?.error_rate ?? 0) * 100);
+
+  // Capability gallery model (M916): the catalog joined with usage, the capability
+  // filter chips, and the current filtered view.
+  const views = useMemo(() => mergeToolViews(catalog, byTool), [catalog, byTool]);
+  const capChips = useMemo(() => capabilityCounts(views), [views]);
+  const shownTools = useMemo(() => filterTools(views, query, capFilter), [views, query, capFilter]);
 
   return (
     <div className="space-y-4">
@@ -116,28 +210,74 @@ export function Tools() {
             {catalog.length === 0 ? (
               <Muted>no tools registered</Muted>
             ) : (
-              <ul className="grid gap-1.5 sm:grid-cols-2">
-                {catalog.map((t) => {
-                  const used = (byTool[t.name || ""]?.calls ?? 0) > 0;
-                  return (
-                    <li key={t.name} className="rounded-md border border-border/60 bg-panel/40 px-2.5 py-1.5">
-                      <div className="flex items-center gap-1.5">
-                        <span className="truncate font-mono text-xs font-medium">{t.name}</span>
-                        <span
-                          className={cn(
-                            "ml-auto shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider",
-                            used ? "bg-accent/15 text-accent" : "bg-panel text-muted",
+              <>
+                {/* Search + capability filter chips (M916) — find any of the agent's
+                    tools fast, or narrow to one Edict capability. */}
+                <div className="mb-2 flex items-center gap-2">
+                  <div className="relative flex-1">
+                    <Search className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted" />
+                    <input
+                      value={query}
+                      onChange={(e) => setQuery(e.target.value)}
+                      placeholder="Search tools by name, description, or capability…"
+                      aria-label="Search tools"
+                      className="h-8 w-full rounded-md border border-border bg-panel pl-7 pr-2 text-xs outline-none focus:border-accent"
+                    />
+                  </div>
+                  <span className="shrink-0 text-[11px] tabular-nums text-muted">{shownTools.length} shown</span>
+                </div>
+                {capChips.length > 0 && (
+                  <div className="mb-2 flex flex-wrap gap-1.5">
+                    <FilterChip label="all" n={views.length} active={capFilter === ""} onClick={() => setCapFilter("")} />
+                    {capChips.map((c) => (
+                      <FilterChip
+                        key={c.capability}
+                        label={c.capability}
+                        n={c.n}
+                        active={capFilter === c.capability}
+                        onClick={() => setCapFilter(capFilter === c.capability ? "" : c.capability)}
+                      />
+                    ))}
+                  </div>
+                )}
+                {shownTools.length === 0 ? (
+                  <Muted>no tools match</Muted>
+                ) : (
+                  <ul className="grid gap-1.5 sm:grid-cols-2">
+                    {shownTools.map((t) => (
+                      <li key={t.name} className="rounded-md border border-border/60 bg-panel/40 px-2.5 py-1.5">
+                        <div className="flex items-center gap-1.5">
+                          <span className="truncate font-mono text-xs font-medium">{t.name}</span>
+                          {t.source !== "builtin" && (
+                            <span className="shrink-0 rounded bg-accent/10 px-1 text-[9px] font-semibold uppercase tracking-wider text-accent">
+                              {SOURCE_LABEL[t.source]}
+                            </span>
                           )}
-                          title={used ? "called this session" : "available but not yet called"}
-                        >
-                          {used ? "used" : "idle"}
-                        </span>
-                      </div>
-                      {t.description && <p className="mt-0.5 line-clamp-2 text-[11px] text-muted">{clip(t.description, 140)}</p>}
-                    </li>
-                  );
-                })}
-              </ul>
+                          <span
+                            className={cn(
+                              "ml-auto shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-semibold tabular-nums",
+                              t.calls > 0 ? "bg-accent/15 text-accent" : "bg-panel text-muted",
+                            )}
+                            title={t.calls > 0 ? "called this session" : "available but not yet called"}
+                          >
+                            {t.calls > 0 ? `${t.calls} call${t.calls === 1 ? "" : "s"}` : "idle"}
+                          </span>
+                        </div>
+                        <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-muted">
+                          {t.capability && (
+                            <span className="inline-flex items-center gap-0.5" title="Edict capability">
+                              <ShieldCheck className="size-2.5" /> {t.capability}
+                            </span>
+                          )}
+                          {t.errors > 0 && <span className="text-bad">{t.errors} err</span>}
+                          {t.avgMs != null && <span>{ms(t.avgMs)} avg</span>}
+                        </div>
+                        {t.description && <p className="mt-0.5 line-clamp-2 text-[11px] text-muted">{clip(t.description, 140)}</p>}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </>
             )}
           </Card>
 
@@ -219,6 +359,21 @@ function Tile({
       </div>
       <div className={cn("mt-1 text-xl font-semibold tabular-nums", color)}>{value}</div>
     </div>
+  );
+}
+
+function FilterChip({ label, n, active, onClick }: { label: string; n: number; active: boolean; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] transition-colors",
+        active ? "border-accent bg-accent/10 text-accent" : "border-border text-muted hover:border-accent",
+      )}
+    >
+      <span className="font-mono">{label}</span>
+      <span className="rounded-full bg-card px-1 text-[10px] tabular-nums">{n}</span>
+    </button>
   );
 }
 

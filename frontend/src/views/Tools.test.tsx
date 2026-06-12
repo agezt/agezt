@@ -11,7 +11,14 @@ vi.mock("@/lib/events", () => ({
   useEvents: () => ({ events: [], connected: true, subscribe: () => () => {} }),
 }));
 
-import { Tools } from "@/views/Tools";
+import {
+  Tools,
+  toolSource,
+  mergeToolViews,
+  filterTools,
+  capabilityCounts,
+  type ToolView,
+} from "@/views/Tools";
 
 afterEach(cleanup);
 beforeEach(() => {
@@ -28,6 +35,62 @@ beforeEach(() => {
   });
 });
 
+describe("toolSource (M916)", () => {
+  it("infers the source from the tool-name prefix", () => {
+    expect(toolSource("mcp_github_create_issue")).toBe("mcp");
+    expect(toolSource("forge_pdf")).toBe("forged");
+    expect(toolSource("skill_invoke")).toBe("skill");
+    expect(toolSource("shell")).toBe("builtin");
+  });
+});
+
+describe("mergeToolViews (M916)", () => {
+  it("joins catalog with usage and sorts used-first then alphabetical", () => {
+    const catalog = [
+      { name: "zeta", description: "z", capability: "fs.read" },
+      { name: "shell", description: "run", capability: "code.exec" },
+      { name: "alpha", description: "a", capability: "fs.read" },
+    ];
+    const byTool = { shell: { calls: 5, errors: 1, avg_ms: 12 }, zeta: { calls: 2, errors: 0 } };
+    const views = mergeToolViews(catalog, byTool);
+    expect(views.map((v) => v.name)).toEqual(["shell", "zeta", "alpha"]); // 5, 2, idle(alpha<zeta but zeta used)
+    expect(views[0]).toMatchObject({ calls: 5, errors: 1, avgMs: 12, capability: "code.exec", source: "builtin" });
+    expect(views[2]).toMatchObject({ name: "alpha", calls: 0 });
+  });
+});
+
+describe("filterTools (M916)", () => {
+  const views: ToolView[] = [
+    { name: "shell", description: "run a command", capability: "code.exec", source: "builtin", calls: 1, errors: 0 },
+    { name: "web_search", description: "search the web", capability: "net.fetch", source: "builtin", calls: 0, errors: 0 },
+    { name: "mcp_x_do", description: "remote", capability: "mcp.call", source: "mcp", calls: 0, errors: 0 },
+  ];
+  it("matches name/description/capability case-insensitively", () => {
+    expect(filterTools(views, "WEB", "").map((v) => v.name)).toEqual(["web_search"]);
+    expect(filterTools(views, "command", "").map((v) => v.name)).toEqual(["shell"]);
+    expect(filterTools(views, "mcp.call", "").map((v) => v.name)).toEqual(["mcp_x_do"]);
+  });
+  it("narrows to an exact capability, composed with the query", () => {
+    expect(filterTools(views, "", "net.fetch").map((v) => v.name)).toEqual(["web_search"]);
+    expect(filterTools(views, "shell", "net.fetch")).toHaveLength(0);
+  });
+});
+
+describe("capabilityCounts (M916)", () => {
+  it("tallies per capability, sorted by count then name, skipping blanks", () => {
+    const views: ToolView[] = [
+      { name: "a", description: "", capability: "fs.read", source: "builtin", calls: 0, errors: 0 },
+      { name: "b", description: "", capability: "fs.read", source: "builtin", calls: 0, errors: 0 },
+      { name: "c", description: "", capability: "code.exec", source: "builtin", calls: 0, errors: 0 },
+      { name: "d", description: "", capability: "", source: "builtin", calls: 0, errors: 0 },
+    ];
+    expect(capabilityCounts(views)).toEqual([
+      { capability: "fs.read", n: 2 },
+      { capability: "code.exec", n: 1 },
+    ]);
+  });
+});
+
 describe("Tools — available-tools catalog (M771)", () => {
   it("lists the agent's available tools with descriptions", async () => {
     render(<Tools />);
@@ -38,11 +101,11 @@ describe("Tools — available-tools catalog (M771)", () => {
     expect(screen.getByText(/Run a shell command/)).toBeTruthy();
   });
 
-  it("marks a tool 'used' when it appears in usage stats, 'idle' otherwise", async () => {
+  it("shows a tool's call count when used, 'idle' otherwise (M916)", async () => {
     render(<Tools />);
-    // shell has 3 calls in /api/tools → "used"; web_search has none → "idle".
+    // shell has 3 calls in /api/tools → "3 calls"; web_search has none → "idle".
     await waitFor(() => expect(screen.getByText("web_search")).toBeTruthy());
-    expect(screen.getByText("used")).toBeTruthy();
+    expect(screen.getByText("3 calls")).toBeTruthy();
     expect(screen.getByText("idle")).toBeTruthy();
   });
 
