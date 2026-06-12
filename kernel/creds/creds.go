@@ -76,23 +76,25 @@ type Store struct {
 }
 
 // NewStore returns a Store at <baseDir>/creds.json. Doesn't touch the
-// filesystem until Load is called.
+// filesystem until Load is called. The default passphrase source is the M934
+// chain: AGEZT_VAULT_PASSPHRASE wins, else the machine-bound key (so vaults
+// encrypt at rest by default), else plaintext (opt-out / no identity source).
 func NewStore(baseDir string) *Store {
 	return &Store{
 		Path:         filepath.Join(baseDir, FileName),
 		data:         map[string]string{},
-		passphraseFn: func() string { return os.Getenv(PassphraseEnvVar) },
+		passphraseFn: defaultPassphraseChain,
 	}
 }
 
 // SetPassphraseFn overrides the passphrase source. Used by tests to
 // inject a known passphrase without mutating AGEZT_VAULT_PASSPHRASE.
-// Pass nil to restore the default env-var lookup.
+// Pass nil to restore the default chain (env passphrase → machine key).
 func (s *Store) SetPassphraseFn(fn func() string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if fn == nil {
-		fn = func() string { return os.Getenv(PassphraseEnvVar) }
+		fn = defaultPassphraseChain
 	}
 	s.passphraseFn = fn
 }
@@ -139,6 +141,14 @@ func (s *Store) Load() error {
 		}
 		m, err := decryptVault(raw, passphrase)
 		if err != nil {
+			// A machine-derived key (M934) that fails usually means the vault
+			// file came from ANOTHER machine/user, or was encrypted with an
+			// explicit passphrase that is no longer in the env — say so, the
+			// bare "wrong passphrase" reads like corruption to an operator who
+			// never set one. (Only when the machine key was the one tried.)
+			if errors.Is(err, ErrWrongPassphrase) && strings.HasPrefix(passphrase, "machine-v1:") {
+				return fmt.Errorf("%w (the machine-bound key did not open it: the vault was likely encrypted on another machine/user, or with an explicit %s — set that env var to unlock)", err, PassphraseEnvVar)
+			}
 			return err
 		}
 		s.data = m
