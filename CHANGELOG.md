@@ -205,6 +205,15 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   shutdown forever. (M883)
 
 ### Fixed
+- **Picking a model in Chat actually uses that model (M931).** The chat task's configured routing
+  chain supersedes the request's model in the governor, so an explicit per-run pick — the Chat
+  picker, `agt run --model`, the OpenAI-compat `model` field — was silently replaced by the chain's
+  models. The pick now travels as the per-request model chain (which wins over the task chain, same
+  precedence a named agent's own fallbacks use), so the model you chose is the model that answers; a
+  named agent's roster chain still takes priority, and with no pick the routing chain serves as
+  before. The Chat model picker also leads with a **"chat routing chain"** group — your configured
+  primary + fallbacks first (keyed providers and the rest below), and the trigger label now shows
+  the chain's primary instead of the kernel default when nothing is picked. (M931)
 - **Catalog sync now re-selects providers — no more permanent offline-mock after a first-run sync (M928).**
   A daemon that boots with no catalog on disk degrades to the offline mock primary; syncing the catalog
   from the UI/CLI then only refreshed the catalog snapshot, so the mock kept serving every run ("mock:

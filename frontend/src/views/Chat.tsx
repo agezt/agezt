@@ -95,6 +95,21 @@ export function Chat() {
   const taRef = useRef<HTMLTextAreaElement>(null);
   const prevBusy = useRef(busy);
   const lastSpokeRef = useRef("");
+  // The chat task's routing chain (M931): pinned to the top of the model picker
+  // so the models this conversation will actually fall back through lead the
+  // list — pick from your configured fallbacks first, keyed providers after.
+  const [chatChain, setChatChain] = useState<string[]>([]);
+  useEffect(() => {
+    let live = true;
+    getJSON<{ chains?: Record<string, string[]> }>("/api/routing")
+      .then((r) => {
+        if (live) setChatChain(r.chains?.chat || []);
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, []);
 
   function toggleAutoSpeak() {
     setAutoSpeak((v) => {
@@ -366,7 +381,14 @@ export function Chat() {
         </div>
         <div className="mt-1.5 flex items-center gap-2 px-1 text-xs text-muted">
           <span>model</span>
-          <ModelPicker value={model} onChange={setModel} activeModel={activeModel} />
+          <ModelPicker
+            value={model}
+            onChange={setModel}
+            // With no explicit pick the chat ROUTING CHAIN serves the run, not the
+            // kernel default — show the chain's primary so the label tells the truth.
+            activeModel={chatChain.length ? `${chatChain[0]} (routing)` : activeModel}
+            pinned={chatChain.length ? { label: "chat routing chain", ids: chatChain } : undefined}
+          />
           <AgentPicker value={agent} onChange={setAgent} />
           <ConversationPersona value={conversationPersona} onChange={setConversationPersona} />
           <PromptLauncher onPick={(text) => setInput((cur) => (cur.trim() ? cur.trimEnd() + "\n" : "") + text)} />

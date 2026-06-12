@@ -65,7 +65,7 @@ export function textKind(e: ArtifactEntry): "markdown" | "json" | "code" | "text
   return "";
 }
 
-// categoryOf buckets an entry for the Artifacts gallery (M929): the file types
+// categoryOf buckets an entry for the Artifacts gallery (M931): the file types
 // agents actually produce, each with its own preview treatment. Checked before
 // textKind so html/svg get their dedicated buckets rather than "code"/"image".
 export type ArtifactCategory = "image" | "svg" | "html" | "pdf" | "markdown" | "json" | "code" | "text" | "other";
