@@ -193,6 +193,20 @@ body {
   animation: modal-in 0.18s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+/* The help drawer slides in from the right edge like a drawer being pulled out,
+   over a fading overlay — it never squeezes the page underneath. */
+@keyframes help-drawer-in {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+.help-drawer-in {
+  animation: help-drawer-in 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
 /* Skeleton loaders: a muted block with a soft shimmer sweeping across it, so a
    loading view looks alive and previews the shape of what's coming. */
 @keyframes skeleton-shimmer {
@@ -224,6 +238,7 @@ body {
   .toast-in,
   .modal-overlay,
   .modal-in,
+  .help-drawer-in,
   .skeleton {
     animation: none;
   }

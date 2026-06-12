@@ -12,6 +12,10 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Page-aware Help drawer (M924).** A global help button in the header opens a per-view guide:
+  what the current view shows, what each control does, and how it connects to the rest of the
+  console — so the UI explains itself instead of assuming SPEC knowledge. Content lives in
+  `lib/help.ts` (one `HelpTopic` per NAV view, guarded by a completeness test).
 - **Per-agent memory by default — selective shared brain (M915).** Each agent now keeps its own
   memory: a named agent's `memory` tool writes (and its per-run distilled facts) land in the agent's
   private scope instead of flooding the shared store. Sharing is an explicit, selective opt-in — the
