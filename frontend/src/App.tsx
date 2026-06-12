@@ -47,6 +47,7 @@ import {
   Bot,
   MessageSquarePlus,
   Wand2,
+  HelpCircle,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -55,6 +56,7 @@ import { useEvents } from "@/lib/events";
 import { attentionAlertCount } from "@/lib/alerts";
 import { foldActivityEvent, summarize, type ActivityState } from "@/lib/activity";
 import { CommandPalette } from "@/components/CommandPalette";
+import { HelpDrawer } from "@/components/HelpDrawer";
 import { MiniChat } from "@/components/MiniChat";
 import { AlertBell } from "@/components/AlertBell";
 import { ApprovalsBell } from "@/components/ApprovalsBell";
@@ -264,6 +266,8 @@ export default function App() {
   const [active, setActiveRaw] = useState(viewFromHash);
   const { newChat } = useChat();
   const [paletteOpen, setPaletteOpen] = useState(false);
+  // Page-aware help drawer (M920): one global toggle, content follows `active`.
+  const [helpOpen, setHelpOpen] = useState(false);
   // Recent runs offered as ⌘K "Open run" commands (fulfils the palette's promise).
   // Refreshed whenever the palette opens so the list is current without polling.
   const [recentRuns, setRecentRuns] = useState<{ correlation_id?: string; intent?: string; status?: string }[]>([]);
@@ -366,12 +370,23 @@ export default function App() {
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
 
-  // ⌘K / Ctrl+K opens the command palette from anywhere.
+  // ⌘K / Ctrl+K opens the command palette from anywhere; "?" toggles the help
+  // drawer — but never while the operator is typing in a field.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
         setPaletteOpen((o) => !o);
+        return;
+      }
+      if (e.key === "?" && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        const t = e.target as HTMLElement | null;
+        const typing =
+          t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement || !!t?.isContentEditable;
+        if (!typing) {
+          e.preventDefault();
+          setHelpOpen((o) => !o);
+        }
       }
     }
     window.addEventListener("keydown", onKey);
@@ -445,6 +460,13 @@ export default function App() {
             .catch((e) => ui.toast((e as Error).message, "error")),
       },
       {
+        id: "act-help",
+        label: "Help for this page",
+        group: "Action",
+        keywords: "guide manual docs documentation how to explain",
+        run: () => setHelpOpen(true),
+      },
+      {
         id: "act-theme",
         label: "Toggle theme",
         group: "Action",
@@ -498,6 +520,14 @@ export default function App() {
   return (
     <div className="flex h-full flex-col">
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} items={commands} />
+      <HelpDrawer
+        open={helpOpen}
+        viewId={active}
+        group={sectionForView[active]}
+        icon={current.icon}
+        onClose={() => setHelpOpen(false)}
+        onNavigate={setActive}
+      />
       {needsSetup && (
         <Setup
           overlay
@@ -536,7 +566,11 @@ export default function App() {
         }}
       />
       <MiniChat hidden={active === "chat"} onExpand={() => setActive("chat")} />
-      <Header connected={connected} onOpenPalette={() => setPaletteOpen(true)} />
+      <Header
+        connected={connected}
+        onOpenPalette={() => setPaletteOpen(true)}
+        onOpenHelp={() => setHelpOpen(true)}
+      />
       <Vitals onNavigate={setActive} />
       <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
         {/* Nav: horizontal scroll on small screens, grouped sidebar on lg+. */}
@@ -605,7 +639,15 @@ export default function App() {
   );
 }
 
-function Header({ connected, onOpenPalette }: { connected: boolean; onOpenPalette: () => void }) {
+function Header({
+  connected,
+  onOpenPalette,
+  onOpenHelp,
+}: {
+  connected: boolean;
+  onOpenPalette: () => void;
+  onOpenHelp: () => void;
+}) {
   const [busy, setBusy] = useState(false);
   const ui = useUI();
   async function act(path: string, opts?: { confirm?: ConfirmRequest; success?: string }) {
@@ -642,6 +684,15 @@ function Header({ connected, onOpenPalette }: { connected: boolean; onOpenPalett
         >
           <Search className="size-3.5" />
           <kbd className="rounded border border-border px-1 text-[10px]">⌘K</kbd>
+        </button>
+        <button
+          onClick={onOpenHelp}
+          className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-2.5 text-xs text-muted transition-colors hover:border-accent hover:text-foreground"
+          title="Help for this page (?)"
+          aria-label="Help for this page"
+        >
+          <HelpCircle className="size-3.5" />
+          <span className="hidden sm:inline">Help</span>
         </button>
         <button
           onClick={() =>
