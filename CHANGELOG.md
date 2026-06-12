@@ -12,6 +12,17 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Machine-bound vault encryption by default (M934).** `creds.json` used to sit on disk in
+  plaintext unless the operator hand-managed `AGEZT_VAULT_PASSPHRASE` — in practice every API key
+  was readable by anything that could read the file. The vault now encrypts at rest BY DEFAULT
+  (AES-256-GCM) with a key derived from stable machine + user identity (Windows `MachineGuid`,
+  `/etc/machine-id`, macOS `IOPlatformUUID` + the OS user): no passphrase to manage, and a
+  `creds.json` that leaves the machine (cloud-synced home, backup, accidental commit, stolen disk)
+  does not decrypt. A legacy plaintext vault is upgraded in place on daemon boot (the banner says
+  so). Honest scope: a same-user process on the same machine can derive the key — this protects the
+  file leaving the machine, not against local malware; `AGEZT_VAULT_PASSPHRASE` still wins for a
+  real operator-held secret, and `AGEZT_VAULT_AUTOENCRYPT=off` restores plaintext-at-rest. Repeated
+  vault loads memoize the 200k-iteration KDF so per-request Store instances stay fast.
 - **Password login without the tokened URL (M933).** With `AGEZT_WEB_PASSWORD` set, opening the
   console at its plain address (no `?token=`) now shows a login screen instead of "unauthorized" —
   type the password, get a session, use the console; the tokened banner URL keeps working alone.
