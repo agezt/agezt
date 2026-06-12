@@ -5,19 +5,27 @@
 
 name: CI
 
+# All jobs run on self-hosted WSL-Ubuntu runners (wsl-runner-1..3): the org's
+# GitHub-hosted minutes are blocked by Actions billing ("payments have failed /
+# spending limit"), and self-hosted runners are free and unaffected. The
+# macOS/Windows legs of the test matrix are parked until hosted runners are
+# back (cross-build below still compile-gates darwin/windows/freebsd, and the
+# owner develops on Windows daily). To restore: matrix os
+# [ubuntu-latest, macos-latest, windows-latest] + runs-on ${{ matrix.os }}.
+
 on:
   push:
     branches: [main]
   pull_request:
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
-    name: test (${{ matrix.os }})
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
+    name: test (linux)
+    runs-on: [self-hosted, Linux, X64]
     env:
       CGO_ENABLED: '0'
     steps:
@@ -35,7 +43,7 @@ jobs:
     # build matrix. We run it once on Linux with cgo enabled to surface
     # concurrent-code regressions in kernel/bus, kernel/journal, etc.
     name: race (linux, cgo)
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64]
     env:
       CGO_ENABLED: '1'
     steps:
@@ -53,7 +61,7 @@ jobs:
     # tests miss (e.g. M550, where streaming dropped a non-streaming provider's
     # answer). See scripts/e2e-smoke.sh.
     name: e2e smoke (linux)
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64]
     env:
       CGO_ENABLED: '0'
     steps:
@@ -70,7 +78,7 @@ jobs:
 
   codegen-in-sync:
     name: codegen-in-sync
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64]
     env:
       CGO_ENABLED: '0'
     steps:
@@ -94,7 +102,7 @@ jobs:
 
   frontend-dist-in-sync:
     name: frontend-dist-in-sync
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -117,7 +125,7 @@ jobs:
 
   frontend-test:
     name: frontend-test
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -133,7 +141,7 @@ jobs:
 
   webui-e2e:
     name: webui-e2e
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64]
     env:
       CGO_ENABLED: '0'
     steps:
@@ -162,7 +170,7 @@ jobs:
 
   python-sdk:
     name: python-sdk
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -176,7 +184,7 @@ jobs:
 
   typescript-sdk:
     name: typescript-sdk
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -194,7 +202,7 @@ jobs:
 
   rust-sdk:
     name: rust-sdk
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64]
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -213,7 +221,7 @@ jobs:
 
   multi-arch:
     name: cross-build (${{ matrix.goos }}/${{ matrix.goarch }})
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64]
     env:
       CGO_ENABLED: '0'
     strategy:
@@ -245,7 +253,7 @@ jobs:
 
   deps-check:
     name: deps-check (allowlist, POLICY §1)
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -259,7 +267,7 @@ jobs:
     # zero-tolerance; govulncheck catches new advisories (the toolchain is the
     # latest stable, which carries the patched stdlib).
     name: lint (gofmt, staticcheck, govulncheck)
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64]
     env:
       CGO_ENABLED: '0'
     steps:
@@ -290,7 +298,7 @@ jobs:
     # (fetch-depth: 0); .gitleaks.toml at the repo root keeps the default ruleset
     # and allowlists only the known secret-shaped test fixtures.
     name: secrets (gitleaks)
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64]
     steps:
       - uses: actions/checkout@v4
         with:
