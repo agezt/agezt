@@ -293,6 +293,19 @@ func printHelp(w io.Writer) {
 	}
 }
 
+// helpHas reports whether the help table documents the command — the gate for
+// the uniform `agt <cmd> -h` interception in main.go.
+func helpHas(name string) bool {
+	for _, g := range helpGroups() {
+		for _, c := range g.commands {
+			if c.name == name {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // cmdHelp implements `agt help [<command>]`: the overview without an argument,
 // one command's detail block with one. Reads only the table — it never runs
 // the command, so `agt help halt` can't halt anything.

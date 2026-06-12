@@ -45,6 +45,14 @@ func run(args []string, stdout, stderr io.Writer) int {
 		printHelp(stdout)
 		return 0
 	}
+	// Uniform `-h` (M936): `agt <cmd> -h|--help` answers from the help table
+	// for EVERY command, before the command's own code runs. This is a safety
+	// property, not just consistency — commands that treat their first arg as
+	// data would otherwise EXECUTE on "-h" (`agt run -h` used to send "-h" to
+	// the live agent as an intent and bill a completion for it).
+	if len(args) >= 2 && (args[1] == "-h" || args[1] == "--help") && helpHas(args[0]) {
+		return cmdHelp(args[:1], stdout, stderr)
+	}
 	switch args[0] {
 	case "-v", "--version", "version":
 		fmt.Fprintf(stdout, "%s %s (protocol v%d)\n", brand.CLI, brand.Version, brand.ProtocolVersion)
@@ -162,8 +170,13 @@ func run(args []string, stdout, stderr io.Writer) int {
 	case "tenant":
 		return cmdTenant(args[1:], stdout, stderr)
 	default:
-		fmt.Fprintf(stderr, "%s: unknown command %q\n", brand.CLI, args[0])
-		printHelp(stderr)
+		// Short and actionable (M936) — the old path dumped the entire help to
+		// stderr, burying the error line it started with.
+		fmt.Fprintf(stderr, "%s: unknown command %q", brand.CLI, args[0])
+		if sug := suggestCommands(args[0]); len(sug) > 0 {
+			fmt.Fprintf(stderr, " — did you mean %s?", strings.Join(sug, ", "))
+		}
+		fmt.Fprintf(stderr, "\nrun `%s help` for the command list\n", brand.CLI)
 		return 2
 	}
 }

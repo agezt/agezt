@@ -11,6 +11,15 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 
 ## [Unreleased]
 
+### Fixed
+- **`agt <cmd> -h` is now safe and uniform for every command (M936).** Commands that treat their
+  first argument as data used to EXECUTE on `-h` — `agt run -h` literally sent "-h" to the live
+  agent as an intent and billed a completion for it. A central interception now answers
+  `-h`/`--help` from the help table for every documented command before any command code runs
+  (guarded by a test that walks all of them against an empty home). An unknown top-level command
+  also gets a one-line error + did-you-mean + a pointer at `agt help`, instead of an 80-line help
+  dump that buried the error. (M936)
+
 ### Added
 - **`agt` help overhauled — grouped overview + `agt help <command>` (M935).** The old help was one
   flat 100+-line dump that mixed per-flag detail for some commands while omitting ~20 dispatched
