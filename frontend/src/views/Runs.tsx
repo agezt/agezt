@@ -62,22 +62,120 @@ export function runMatches(r: Run, q: string): boolean {
   return `${r.intent || ""} ${r.status || ""} ${r.correlation_id || ""}`.toLowerCase().includes(q);
 }
 
+// RunBucket is the coarse outcome a run falls into for the summary band and the
+// filter chips. "other" catches statuses the kernel may add later (e.g. queued)
+// so the counts always sum to the total — no run silently vanishes from view.
+export type RunBucket = "running" | "completed" | "failed" | "other";
+
+// runBucket classifies one run's status, mirroring Insights' outcome buckets
+// (completed / failed / running) plus an "other" catch-all. "abandoned" counts as
+// failed — it ended without finishing the work, which is what the operator cares
+// about when scanning for trouble.
+export function runBucket(r: Run): RunBucket {
+  switch ((r.status || "").toLowerCase()) {
+    case "running":
+      return "running";
+    case "completed":
+      return "completed";
+    case "failed":
+    case "abandoned":
+      return "failed";
+    default:
+      return "other";
+  }
+}
+
+export interface RunCounts {
+  total: number;
+  running: number;
+  completed: number;
+  failed: number;
+  other: number;
+}
+
+// runCounts tallies the bucket distribution across the run list for the summary
+// band. Pure and exported so it's unit-tested without rendering.
+export function runCounts(runs: Run[]): RunCounts {
+  const c: RunCounts = { total: runs.length, running: 0, completed: 0, failed: 0, other: 0 };
+  for (const r of runs) c[runBucket(r)]++;
+  return c;
+}
+
+// CHIPS drives the filter row in display order: live runs first (what's happening
+// now), then the two terminal outcomes, then the catch-all. Each carries the dot
+// colour so the chip reads as the same status the badge shows.
+const CHIPS: { bucket: RunBucket; label: string; dot: string }[] = [
+  { bucket: "running", label: "running", dot: "bg-accent" },
+  { bucket: "completed", label: "completed", dot: "bg-good" },
+  { bucket: "failed", label: "failed", dot: "bg-bad" },
+  { bucket: "other", label: "other", dot: "bg-muted" },
+];
+
 export function Runs() {
   const { data, error, loading, reload } = usePanel<{ runs?: Run[] }>("/api/runs");
   const runs = data?.runs || [];
   const focus = useRunFocus();
+  const counts = runCounts(runs);
   const [q, setQ] = useState("");
+  // A null filter means "all"; clicking the active chip clears it back to all.
+  const [filter, setFilter] = useState<RunBucket | null>(null);
   const query = q.trim().toLowerCase();
-  const shown = query ? runs.filter((r) => runMatches(r, query)) : runs;
+
+  // When a deep-link focuses a run that the active filter would hide, drop the
+  // filter so the targeted run is actually visible when it scrolls into view.
+  useEffect(() => {
+    if (!focus || !filter) return;
+    const target = runs.find((r) => r.correlation_id === focus);
+    if (target && runBucket(target) !== filter) setFilter(null);
+  }, [focus, filter, runs]);
+
+  const shown = runs.filter(
+    (r) => (!filter || runBucket(r) === filter) && (!query || runMatches(r, query)),
+  );
+
   return (
     <Card className="h-full">
       <CardHeader>
         <CardTitle>Runs</CardTitle>
+        {runs.length > 0 && (
+          <span className="ml-2 text-xs text-muted">{counts.total} total</span>
+        )}
         <Button variant="ghost" size="icon" className="ml-auto" onClick={reload} title="Refresh">
           <RefreshCw className={loading ? "animate-spin" : ""} />
         </Button>
       </CardHeader>
       <CardBody>
+        {/* Status distribution + click-to-filter chips, so the shape of the fleet's
+            recent work (how many failed, what's still running) is visible at a glance
+            before you scan the list. A chip with a zero count is disabled. */}
+        {runs.length > 0 && (
+          <div className="mb-2 flex flex-wrap gap-1.5">
+            {CHIPS.map((chip) => {
+              const n = counts[chip.bucket];
+              const active = filter === chip.bucket;
+              return (
+                <button
+                  key={chip.bucket}
+                  disabled={n === 0}
+                  onClick={() => setFilter(active ? null : chip.bucket)}
+                  aria-pressed={active}
+                  aria-label={`${chip.label} ${n}`}
+                  className={cn(
+                    "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors",
+                    n === 0 && "cursor-default opacity-40",
+                    active
+                      ? "border-accent bg-accent/10 text-foreground"
+                      : "border-border text-muted hover:bg-panel",
+                  )}
+                >
+                  <span className={cn("size-2 rounded-full", chip.dot)} />
+                  {chip.label}
+                  <span className="tabular-nums text-muted">{n}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
         {/* Find a run by intent, status (e.g. "failed"), or id once the list grows. */}
         {runs.length > 4 && (
           <div className="relative mb-2">
@@ -101,7 +199,11 @@ export function Runs() {
         ) : runs.length === 0 ? (
           <EmptyState icon={ListTree} title="No runs yet" hint="Completed and in-flight runs will be listed here — start one from Chat or the CLI." />
         ) : shown.length === 0 ? (
-          <p className="px-1 py-2 text-xs text-muted">no runs match “{q.trim()}”</p>
+          <p className="px-1 py-2 text-xs text-muted">
+            no runs match {filter ? `“${filter}”` : ""}
+            {filter && query ? " + " : ""}
+            {query ? `“${q.trim()}”` : ""}
+          </p>
         ) : (
           shown.map((r, i) => <RunRow key={r.correlation_id || i} run={r} focus={focus} />)
         )}
