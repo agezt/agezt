@@ -12,7 +12,7 @@ vi.mock("@/lib/api", () => ({
   postAction: (...a: unknown[]) => postAction(...a),
 }));
 
-import { Roster, NewAgentForm, slugOk, usdToMc } from "@/views/Roster";
+import { Roster, NewAgentForm, slugOk, usdToMc, agentHue, initials } from "@/views/Roster";
 import { UIProvider } from "@/components/ui/feedback";
 
 const withUI = (node: ReactNode) => <UIProvider>{node}</UIProvider>;
@@ -31,6 +31,28 @@ describe("slugOk", () => {
     for (const s of ["researcher", "ops-watcher", "r2.d2", "x_1", "a"]) expect(slugOk(s)).toBe(true);
     for (const s of ["", "Researcher", "has space", "-lead", ".lead", "_lead", "a".repeat(65)])
       expect(slugOk(s)).toBe(false);
+  });
+});
+
+describe("agentHue", () => {
+  it("is deterministic and in 0–359", () => {
+    expect(agentHue("researcher")).toBe(agentHue("researcher"));
+    for (const s of ["a", "ops", "the-long-agent-name"]) {
+      const h = agentHue(s);
+      expect(h).toBeGreaterThanOrEqual(0);
+      expect(h).toBeLessThan(360);
+    }
+    // Different slugs generally differ (not a hard guarantee, but these do).
+    expect(agentHue("researcher")).not.toBe(agentHue("ops"));
+  });
+});
+
+describe("initials", () => {
+  it("uses two name words, else two chars, else the slug", () => {
+    expect(initials("The Researcher", "researcher")).toBe("TR");
+    expect(initials("Ops", "ops")).toBe("OP");
+    expect(initials(undefined, "watcher")).toBe("WA");
+    expect(initials("", "qa")).toBe("QA");
   });
 });
 
@@ -108,7 +130,8 @@ describe("Roster", () => {
     render(withUI(<Roster />));
     await waitFor(() => expect(screen.getByText("researcher")).toBeTruthy());
     expect(screen.getByText("ops")).toBeTruthy();
-    expect(screen.getByText("paused")).toBeTruthy();
+    // "paused" appears both as the ops badge and the summary-band stat label.
+    expect(screen.getAllByText("paused").length).toBeGreaterThan(0);
     expect(screen.getByText("model: m-1")).toBeTruthy();
     expect(screen.getByText("max/run: $0.5000")).toBeTruthy();
     expect(screen.getByText("You dig deep.")).toBeTruthy();

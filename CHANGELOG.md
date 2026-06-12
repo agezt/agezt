@@ -12,6 +12,11 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Visual Roster — card grid + agent identity avatars (M911).** The agent Roster (sibling of the
+  Agents monitor) is no longer a flat list of rows: each agent now has a deterministic colored
+  monogram avatar (dimmed when retired), a summary band (agents / enabled / paused / graveyard), and
+  a responsive card grid — a card whose edit form or activity timeline is open spans full width.
+  All CRUD/pause/retire/activity behavior is unchanged.
 - **Visual Agents gallery — no more dropdown (M909).** The Agents view (multi-agent / delegation
   monitor) no longer hides every run behind a `<select>`. It opens on a fleet-at-a-glance screen: a
   summary band (leads · running · sub-agents · roster size · total spend), filter chips

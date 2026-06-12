@@ -34,6 +34,27 @@ export function slugOk(s: string): boolean {
   return /^[a-z0-9][a-z0-9._-]{0,63}$/.test(s);
 }
 
+// agentHue maps a slug to a stable hue (0–359) so every agent gets a consistent
+// colored identity avatar across the UI. A tiny deterministic string hash —
+// pure + unit-tested.
+export function agentHue(slug: string): number {
+  let h = 0;
+  for (let i = 0; i < slug.length; i++) h = (h * 31 + slug.charCodeAt(i)) % 360;
+  return h;
+}
+
+// initials derives a 1–2 char monogram for the avatar: from the name's words if
+// present, else the first two slug characters. Pure + unit-tested.
+export function initials(name: string | undefined, slug: string): string {
+  const src = (name || "").trim();
+  if (src) {
+    const words = src.split(/\s+/).filter(Boolean);
+    if (words.length >= 2) return (words[0][0] + words[1][0]).toUpperCase();
+    return src.slice(0, 2).toUpperCase();
+  }
+  return slug.slice(0, 2).toUpperCase();
+}
+
 // usdToMc converts a dollar string ("0.50", "$0.50") to USD-microcents
 // ($1 = 1e9, the kernel's budget unit). Returns null for blank, NaN, or
 // negative input. Pure + unit-tested.
@@ -47,6 +68,24 @@ export function usdToMc(s: string): number | null {
 
 const inputCls =
   "rounded-md border border-border bg-panel px-2 py-1 text-sm text-foreground outline-none focus-visible:border-accent";
+
+// AgentAvatar is the agent's colored identity monogram — a deterministic hue
+// from the slug, dimmed when retired so the graveyard reads at a glance.
+function AgentAvatar({ slug, name, retired }: { slug: string; name?: string; retired?: boolean }) {
+  const hue = agentHue(slug);
+  return (
+    <span
+      aria-hidden
+      className={cn(
+        "flex size-8 shrink-0 items-center justify-center rounded-md text-xs font-semibold text-white",
+        retired && "opacity-40 grayscale",
+      )}
+      style={{ backgroundColor: `hsl(${hue} 55% 42%)` }}
+    >
+      {initials(name, slug)}
+    </span>
+  );
+}
 
 // profileFields collects the shared New/Edit form fields into the wire shape.
 function profileFields(f: {
@@ -396,7 +435,10 @@ export function Roster() {
     });
   }
 
-  const enabled = (profiles || []).filter((p) => p.enabled).length;
+  const list = profiles || [];
+  const enabled = list.filter((p) => p.enabled && !p.retired).length;
+  const paused = list.filter((p) => !p.enabled && !p.retired).length;
+  const graveyard = list.filter((p) => p.retired).length;
 
   return (
     <div className="space-y-3">
@@ -432,6 +474,16 @@ export function Roster() {
         />
       )}
 
+      {/* Summary band — the roster at a glance. */}
+      {profiles && profiles.length > 0 && (
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <RosterStat label="agents" value={list.length} />
+          <RosterStat label="enabled" value={enabled} accent={enabled > 0} />
+          <RosterStat label="paused" value={paused} />
+          <RosterStat label="graveyard" value={graveyard} />
+        </div>
+      )}
+
       {err && <ErrorText>{err}</ErrorText>}
       {!profiles && !err && <SkeletonList count={3} />}
       {profiles && profiles.length === 0 && !showForm && (
@@ -442,10 +494,19 @@ export function Roster() {
         />
       )}
 
-      <ul className="space-y-2">
-        {(profiles || []).map((p) => (
-          <li key={p.id} className="rounded-lg border border-border bg-card p-3">
+      <ul className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
+        {(profiles || []).map((p) => {
+          const open = editing === p.slug || activityFor === p.slug;
+          return (
+          <li
+            key={p.id}
+            className={cn(
+              "rounded-lg border border-border bg-card p-3",
+              open && "sm:col-span-2 xl:col-span-3",
+            )}
+          >
             <div className="flex flex-wrap items-center gap-2">
+              <AgentAvatar slug={p.slug} name={p.name} retired={p.retired} />
               <span className={cn("font-mono text-sm", p.retired ? "text-muted line-through" : "text-foreground")}>{p.slug}</span>
               {p.name && p.name !== p.slug && <span className="text-xs text-muted">{p.name}</span>}
               {p.retired ? (
@@ -562,8 +623,18 @@ export function Roster() {
             )}
             {activityFor === p.slug && <AgentActivity slug={p.slug} />}
           </li>
-        ))}
+          );
+        })}
       </ul>
+    </div>
+  );
+}
+
+function RosterStat({ label, value, accent }: { label: string; value: number; accent?: boolean }) {
+  return (
+    <div className={cn("rounded-lg border bg-card p-2.5", accent ? "border-accent/50" : "border-border")}>
+      <div className="text-[10px] font-semibold uppercase tracking-wider text-muted">{label}</div>
+      <div className={cn("mt-0.5 text-lg font-semibold tabular-nums", accent && "text-accent")}>{value}</div>
     </div>
   );
 }
