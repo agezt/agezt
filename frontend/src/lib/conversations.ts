@@ -30,6 +30,17 @@ export interface Conversation {
   agent?: string;
   // Pinned threads (M726) sort to the top of the sidebar, above by-recency.
   pinned?: boolean;
+  // History compaction (M925): when a thread outgrows the history window, the
+  // oldest turns are folded into this briefing instead of being silently
+  // dropped. `upto` = how many leading messages the briefing covers; runs send
+  // the briefing as a leading system turn plus the messages after `upto`.
+  summary?: HistorySummary;
+}
+
+// HistorySummary is one folded prefix of a conversation (M925).
+export interface HistorySummary {
+  text: string;
+  upto: number; // count of leading messages the summary replaces
 }
 
 export interface Store {
@@ -154,6 +165,24 @@ export function withActiveConvAgent(store: Store, agent: string, now: number): S
     ...store,
     conversations: store.conversations.map((c) =>
       c.id === store.activeId ? { ...c, agent: a || undefined, updatedAt: now } : c,
+    ),
+  };
+}
+
+// activeSummary returns the active conversation's history briefing (undefined
+// when the thread hasn't been folded yet).
+export function activeSummary(store: Store): HistorySummary | undefined {
+  return store.conversations.find((c) => c.id === store.activeId)?.summary;
+}
+
+// withActiveSummary returns a new store with the active conversation's history
+// briefing replaced (undefined clears it — e.g. after editing a message the
+// briefing covered). Pure — safe for React state.
+export function withActiveSummary(store: Store, summary: HistorySummary | undefined, now: number): Store {
+  return {
+    ...store,
+    conversations: store.conversations.map((c) =>
+      c.id === store.activeId ? { ...c, summary, updatedAt: now } : c,
     ),
   };
 }

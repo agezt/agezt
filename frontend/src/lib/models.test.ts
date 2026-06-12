@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { flattenModels, filterModels, groupByProvider, fmtContext, type ModelCatalog } from "@/lib/models";
+import { flattenModels, filterModels, groupByProvider, fmtContext, findModelContext, type ModelCatalog } from "@/lib/models";
 
 const cat: ModelCatalog = {
   providers: [
@@ -61,5 +61,17 @@ describe("fmtContext", () => {
     expect(fmtContext(128000)).toBe("128K");
     expect(fmtContext(1000000)).toBe("1M");
     expect(fmtContext(0)).toBe("");
+  });
+});
+
+describe("findModelContext", () => {
+  it("finds a model's window by id across providers", () => {
+    expect(findModelContext(cat, "gpt-4o")).toBe(128000);
+    expect(findModelContext(cat, "deepseek-v4-pro")).toBe(1000000);
+  });
+  it("returns 0 for unknown models, blank ids, and a missing catalog", () => {
+    expect(findModelContext(cat, "nope")).toBe(0);
+    expect(findModelContext(cat, "")).toBe(0);
+    expect(findModelContext(null, "gpt-4o")).toBe(0);
   });
 });

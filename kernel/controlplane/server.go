@@ -826,6 +826,8 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.handlePromptsGet(conn, req)
 	case CmdPromptsSet:
 		s.handlePromptsSet(conn, req)
+	case CmdChatSummarize:
+		s.handleChatSummarize(ctx, conn, req)
 	case CmdStandingWhy:
 		s.handleStandingWhy(conn, req)
 	case CmdReflectRun:

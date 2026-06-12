@@ -35,6 +35,33 @@ export interface ChatTool {
 // a timeline — what happened, when — instead of all tools bunched above the text.
 export type TimelineItem = { kind: "text"; text: string } | { kind: "tool"; callId: string };
 
+// One context.compacted event folded into the turn (M925): the agent loop
+// trimmed its own context to fit the budget by eliding old tool outputs.
+export interface TurnCompaction {
+  elided: number; // how many tool outputs were stubbed out
+  reclaimedChars: number;
+  beforeChars: number;
+  afterChars: number;
+}
+
+// TurnContext is the turn's context-window accounting (M925), folded from the
+// llm.request / llm.response / context.compacted events the run streams. It
+// powers the per-turn context bar and the breakdown modal: how full the model's
+// window got, where the context came from, and what compaction reclaimed.
+export interface TurnContext {
+  chars: number; // assembled context of the LAST llm.request (chars)
+  byRole?: Record<string, number>; // system/user/assistant/tool split (chars)
+  // Provider-reported token totals, summed across the run's iterations.
+  inputTokens: number;
+  outputTokens: number;
+  cachedTokens: number; // subset of inputTokens served from the prompt cache
+  cacheWriteTokens: number;
+  // The final iteration's prompt tokens — the real size of the context the
+  // model last saw, which is what the window-usage bar measures.
+  lastInputTokens: number;
+  compactions: TurnCompaction[];
+}
+
 // ChatTurn is the assistant's evolving response to one user intent. The Chat
 // view folds frames into it live, so streaming tokens, tool chips and the final
 // answer all render as they arrive.
@@ -56,6 +83,9 @@ export interface ChatTurn {
   // The named agent this turn ran AS (roster slug, M789) — present only when
   // the conversation picked one, so the meta line can say who answered.
   agent?: string;
+  // Context-window accounting (M925). Absent on turns restored from older
+  // storage and on runs that never reached an llm.request.
+  context?: TurnContext;
   error?: string;
   correlationId?: string;
   // Wall-clock ms when this turn was created (set by the store on send). Lets the
@@ -96,6 +126,14 @@ export function foldChatFrame(prev: ChatTurn, f: ChatFrame): ChatTurn {
     if (last && last.kind === "text") last.text += s;
     else line.push({ kind: "text", text: s });
   };
+  // ctx returns the turn's context accounting, cloned (the spread above copies
+  // the reference, and prev must stay untouched) or freshly created.
+  const ctx = (): TurnContext => {
+    t.context = t.context
+      ? { ...t.context, byRole: t.context.byRole ? { ...t.context.byRole } : undefined, compactions: [...t.context.compactions] }
+      : { chars: 0, inputTokens: 0, outputTokens: 0, cachedTokens: 0, cacheWriteTokens: 0, lastInputTokens: 0, compactions: [] };
+    return t.context;
+  };
 
   switch (f.kind) {
     case "open":
@@ -112,9 +150,43 @@ export function foldChatFrame(prev: ChatTurn, f: ChatFrame): ChatTurn {
       if (p.text != null) t.reasoning += String(p.text);
       break;
     case "llm.request":
+      if (p.model) t.model = String(p.model);
+      t.iters = Math.max(t.iters, num(p.iter) + 1);
+      // Context observability (SPEC-10 §3.5): the loop reports the assembled
+      // context's size and role split before every provider call — keep the
+      // latest, which is what the model actually saw.
+      if (p.context_chars != null) {
+        const c = ctx();
+        c.chars = num(p.context_chars);
+        if (p.context_by_role && typeof p.context_by_role === "object") {
+          const byRole: Record<string, number> = {};
+          for (const [k, v] of Object.entries(p.context_by_role as Record<string, unknown>)) byRole[k] = num(v);
+          c.byRole = byRole;
+        }
+      }
+      break;
     case "llm.response":
       if (p.model) t.model = String(p.model);
       t.iters = Math.max(t.iters, num(p.iter) + 1);
+      // Provider-reported token usage: accumulate run totals, and keep the last
+      // call's prompt size — the turn's true context size in tokens.
+      if (p.usage && typeof p.usage === "object") {
+        const u = p.usage as Record<string, unknown>;
+        const c = ctx();
+        c.inputTokens += num(u.input_tokens);
+        c.outputTokens += num(u.output_tokens);
+        c.cachedTokens += num(u.cached_input_tokens);
+        c.cacheWriteTokens += num(u.cache_write_input_tokens);
+        if (num(u.input_tokens) > 0) c.lastInputTokens = num(u.input_tokens);
+      }
+      break;
+    case "context.compacted":
+      ctx().compactions.push({
+        elided: num(p.elided),
+        reclaimedChars: num(p.reclaimed_chars),
+        beforeChars: num(p.context_chars_before),
+        afterChars: num(p.context_chars_after),
+      });
       break;
     case "budget.consumed":
       t.costMicrocents += num(p.cost_microcents);
@@ -199,6 +271,20 @@ export function turnText(t: ChatTurn): string {
   return t.streamedText || t.answer || "";
 }
 
+// CHARS_PER_TOKEN mirrors the loop's own budgeting heuristic
+// (agent.AutoContextBudgetChars): ~4 chars per token. Used only to estimate
+// token counts from the char-based role split; real totals come from Usage.
+export const CHARS_PER_TOKEN = 4;
+
+// contextTokensUsed is the best available measure of the context the model last
+// saw: the provider-reported prompt tokens when present (real), else a chars/4
+// estimate from the last llm.request (e.g. mid-stream, or providers that don't
+// report usage).
+export function contextTokensUsed(c: TurnContext): number {
+  if (c.lastInputTokens > 0) return c.lastInputTokens;
+  return Math.round(c.chars / CHARS_PER_TOKEN);
+}
+
 // parseSSEChunk pulls complete `data:` frames out of a rolling buffer, returning
 // the parsed frames and whatever partial tail remains for the next read. Pure,
 // so the SSE framing is unit-testable without a network.
@@ -231,7 +317,9 @@ export function parseSSEChunk(buffer: string): { frames: ChatFrame[]; rest: stri
 // folds these (with the new intent) into a transcript intent — the same convo
 // mapping the OpenAI API uses.
 export interface ChatHistoryTurn {
-  role: "user" | "assistant";
+  // "system" carries the history briefing (M925) — the server's transcript
+  // folding (convo.TranscriptIntent) hoists system turns to the front.
+  role: "user" | "assistant" | "system";
   text: string;
 }
 
@@ -245,6 +333,45 @@ export function buildHistory(msgs: import("@/lib/conversations").Msg[]): ChatHis
       m.role === "user" ? { role: "user", text: m.text } : { role: "assistant", text: turnText(m.turn) },
     )
     .filter((t) => t.text.trim() !== "");
+}
+
+// History compaction (M925). The daemon's history window keeps only the most
+// recent turns (it would silently drop the rest) — so once a thread outgrows
+// HISTORY_SUMMARY_TRIGGER unsummarized messages, the chat folds everything but
+// the last HISTORY_SUMMARY_KEEP into one LLM-written briefing and rides it as
+// a leading system turn. Trigger > keep by a healthy margin so folding is rare
+// (one summarize call per ~18 messages, not per send).
+export const HISTORY_SUMMARY_TRIGGER = 30;
+export const HISTORY_SUMMARY_KEEP = 12;
+
+// summaryFoldRange decides whether a send needs to (re)fold history: given the
+// thread length and how many leading messages the current briefing already
+// covers, returns the [from, to) message range to fold next, or null while the
+// unsummarized tail still fits comfortably.
+export function summaryFoldRange(msgCount: number, upto: number): { from: number; to: number } | null {
+  if (msgCount - upto <= HISTORY_SUMMARY_TRIGGER) return null;
+  return { from: upto, to: msgCount - HISTORY_SUMMARY_KEEP };
+}
+
+// summaryBriefingTurn renders a briefing as the leading system turn a run's
+// history carries (M925) — labelled so the model knows it's compacted context,
+// not operator guidance.
+export function summaryBriefingTurn(text: string): ChatHistoryTurn {
+  return { role: "system", text: "Summary of the earlier conversation (older turns were compacted):\n" + text };
+}
+
+// buildHistoryWithSummary is buildHistory plus the fold: the briefing leads as
+// a system turn and only the messages after `upto` ride verbatim. Falls back to
+// the plain history when there's no briefing or it no longer fits the thread
+// (e.g. a retry/edit sliced messages back past the fold point).
+export function buildHistoryWithSummary(
+  msgs: import("@/lib/conversations").Msg[],
+  summary?: { text: string; upto: number },
+): ChatHistoryTurn[] {
+  if (!summary || summary.upto <= 0 || summary.upto > msgs.length || !summary.text.trim()) {
+    return buildHistory(msgs);
+  }
+  return [summaryBriefingTurn(summary.text), ...buildHistory(msgs.slice(summary.upto))];
 }
 
 export async function streamRun(
