@@ -749,9 +749,30 @@ export const HELP: Record<string, HelpTopic> = {
           },
         ],
       },
+      {
+        heading: "Standing army",
+        paragraphs: [
+          "Below the runs: the force that is WAITING. Every roster agent with what will wake it, so you can see your whole army — not just who is marching right now.",
+        ],
+        items: [
+          {
+            term: "States",
+            desc: "running (pulsing, has an active run) → armed (green, at least one trigger will wake it) → on call (wakes only by delegation or a direct run) → paused (disabled, dimmed).",
+          },
+          {
+            term: "Wake chips",
+            desc: "Each tripwire that fires the agent: standing-order cron specs, standing-order event subjects, and schedules whose intent runs as the agent (--agent binding). Hover a chip for which order or schedule it comes from.",
+          },
+          {
+            term: "Last marched",
+            desc: "When the agent last started a run, from the recent runs list — 'never marched' means it has yet to fire.",
+          },
+        ],
+      },
     ],
     tips: [
       "Only lead runs (no parent) get cards — sub-agents fold into their parent's tree rather than cluttering the gallery.",
+      "An 'on call' agent isn't broken — it's reserve force. Arm it from Standing (give an order an agent + a cron/event trigger) or reference it from a schedule.",
     ],
     related: [
       { id: "roster", label: "Roster" },

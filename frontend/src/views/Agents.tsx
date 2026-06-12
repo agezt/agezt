@@ -10,6 +10,11 @@ import {
   GitBranch,
   ArrowLeft,
   Clock,
+  Shield,
+  CalendarClock,
+  Zap,
+  Timer,
+  Moon,
 } from "lucide-react";
 import { getJSON } from "@/lib/api";
 import { useEvents } from "@/lib/events";
@@ -123,6 +128,105 @@ export function summarizeRoots(runs: ApiRun[]): RootSummary[] {
   return out;
 }
 
+// ───────────────────────── Standing army (M930) ─────────────────────────
+// The runs gallery shows agents that ARE running; the army map shows the force
+// that is waiting — every roster agent with what will wake it (standing-order
+// cron/event triggers, schedules that run as it) and when it last marched.
+
+interface ApiProfile {
+  slug: string;
+  name?: string;
+  model?: string;
+  enabled: boolean;
+  retired?: boolean;
+}
+
+interface ApiTrigger {
+  type?: string;
+  schedule?: string;
+  subject?: string;
+}
+
+interface ApiOrder {
+  id: string;
+  name?: string;
+  enabled: boolean;
+  agent?: string;
+  triggers?: ApiTrigger[];
+}
+
+interface ApiSchedule {
+  id: string;
+  intent?: string;
+  cadence?: string;
+  enabled: boolean;
+}
+
+export interface WakeSource {
+  type: "cron" | "event" | "schedule";
+  detail: string;
+  via: string;
+}
+
+export interface ArmyAgent {
+  slug: string;
+  name: string;
+  model?: string;
+  enabled: boolean;
+  running: boolean;
+  lastRunMs?: number;
+  wake: WakeSource[];
+}
+
+// scheduleAgentSlug extracts the roster slug a cadence intent runs as: cadence
+// entries have no agent field, so "--agent <slug>" inside the intent is the
+// binding (mirrors how the daemon resolves it at fire time).
+export function scheduleAgentSlug(intent?: string): string {
+  const m = (intent || "").match(/--agent[= ]+([\w.-]+)/);
+  return m ? m[1] : "";
+}
+
+// buildArmy folds roster + standing orders + schedules + recent runs into the
+// army map. Retired agents stay in the graveyard, not the ranks. Sorted:
+// running first, then trigger-armed, then alphabetical. Pure + unit-tested.
+export function buildArmy(
+  profiles: ApiProfile[],
+  orders: ApiOrder[],
+  schedules: ApiSchedule[],
+  runs: ApiRun[],
+): ArmyAgent[] {
+  const out: ArmyAgent[] = [];
+  for (const p of profiles) {
+    if (p.retired) continue;
+    const wake: WakeSource[] = [];
+    for (const o of orders) {
+      if (!o.enabled || o.agent !== p.slug) continue;
+      for (const t of o.triggers || []) {
+        if (t.type === "cron" && t.schedule) wake.push({ type: "cron", detail: t.schedule, via: o.name || o.id });
+        else if (t.type === "event" && t.subject) wake.push({ type: "event", detail: t.subject, via: o.name || o.id });
+      }
+    }
+    for (const sch of schedules) {
+      if (sch.enabled && scheduleAgentSlug(sch.intent) === p.slug)
+        wake.push({ type: "schedule", detail: sch.cadence || sch.id, via: sch.id });
+    }
+    let running = false;
+    let lastRunMs: number | undefined;
+    for (const r of runs) {
+      if ((r.agent || "") !== p.slug) continue;
+      if (statusKind(r.status) === "running") running = true;
+      if ((r.started_unix_ms || 0) > (lastRunMs || 0)) lastRunMs = r.started_unix_ms;
+    }
+    out.push({ slug: p.slug, name: p.name || p.slug, model: p.model, enabled: p.enabled, running, lastRunMs, wake });
+  }
+  out.sort((a, b) => {
+    if (a.running !== b.running) return a.running ? -1 : 1;
+    if (a.wake.length > 0 !== (b.wake.length > 0)) return a.wake.length > 0 ? -1 : 1;
+    return a.slug.localeCompare(b.slug);
+  });
+  return out;
+}
+
 export type Filter = "all" | "running" | "done" | "failed";
 
 // filterRoots applies the active filter chip. Pure + unit-tested.
@@ -145,7 +249,9 @@ const KIND_DOT: Record<StatusKind, string> = {
 export function Agents() {
   const { events } = useEvents();
   const [runs, setRuns] = useState<ApiRun[] | null>(null);
-  const [rosterCount, setRosterCount] = useState<number | null>(null);
+  const [profiles, setProfiles] = useState<ApiProfile[]>([]);
+  const [orders, setOrders] = useState<ApiOrder[]>([]);
+  const [schedules, setSchedules] = useState<ApiSchedule[]>([]);
   const [filter, setFilter] = useState<Filter>("all");
   const [sel, setSel] = useState<string>(""); // the drilled-into lead run
   const [picked, setPicked] = useState<string | null>(null); // node in the graph
@@ -164,13 +270,32 @@ export function Agents() {
       setLoading(false);
     }
   }
+  // The army inputs change rarely (operator edits), so they load once + on the
+  // slower poll, while runs stay on the fast 6s cycle.
+  async function reloadArmy() {
+    try {
+      const [a, o, s] = await Promise.all([
+        getJSON<{ profiles?: ApiProfile[] }>("/api/agents"),
+        getJSON<{ orders?: ApiOrder[] }>("/api/standing"),
+        getJSON<{ schedules?: ApiSchedule[] }>("/api/schedules"),
+      ]);
+      setProfiles(a.profiles || []);
+      setOrders(o.orders || []);
+      setSchedules(s.schedules || []);
+    } catch {
+      /* army panel is best-effort; the runs gallery still works */
+    }
+  }
+
   useEffect(() => {
     reload();
-    getJSON<{ profiles?: unknown[] }>("/api/agents")
-      .then((d) => setRosterCount((d.profiles || []).length))
-      .catch(() => setRosterCount(null));
+    reloadArmy();
     const id = setInterval(reload, 6000);
-    return () => clearInterval(id);
+    const armyId = setInterval(reloadArmy, 30000);
+    return () => {
+      clearInterval(id);
+      clearInterval(armyId);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -191,6 +316,8 @@ export function Agents() {
   const running = roots.filter((r) => r.kind === "running").length;
   const totalSubs = roots.reduce((s, r) => s + r.subAgents, 0);
   const totalSpend = roots.reduce((s, r) => s + r.treeSpentMc, 0);
+  const army = useMemo(() => buildArmy(profiles, orders, schedules, runs || []), [profiles, orders, schedules, runs]);
+  const armed = army.filter((a) => a.wake.length > 0).length;
 
   // Drill-down view: the selected lead's live delegation graph + detail.
   if (sel) {
@@ -268,7 +395,7 @@ export function Agents() {
           <BigStat icon={Network} label="leads" value={roots.length} />
           <BigStat icon={RefreshCw} label="running" value={running} accent={running > 0} />
           <BigStat icon={GitBranch} label="sub-agents" value={totalSubs} />
-          <BigStat icon={Bot} label="roster" value={rosterCount ?? "—"} />
+          <BigStat icon={Bot} label="roster" value={profiles.length || "—"} />
           <BigStat icon={Coins} label="spend" value={money(totalSpend)} />
         </div>
       )}
@@ -321,6 +448,96 @@ export function Agents() {
           ))}
         </div>
       )}
+
+      {/* Standing army (M930): the force that is waiting, and what wakes it. */}
+      {army.length > 0 && (
+        <div>
+          <div className="mb-1.5 mt-1 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted">
+            <Shield className="size-3" /> Standing army ({army.length})
+            <span className="font-normal normal-case tracking-normal">
+              — {armed} trigger-armed, {army.length - armed} on call
+            </span>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+            {army.map((a) => (
+              <ArmyCard key={a.slug} a={a} />
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const WAKE_ICON: Record<WakeSource["type"], typeof Bot> = {
+  cron: CalendarClock,
+  event: Zap,
+  schedule: Timer,
+};
+
+// ArmyCard — one waiting soldier: identity, state (marching / armed / on call /
+// paused) and the exact tripwires that will wake it.
+function ArmyCard({ a }: { a: ArmyAgent }) {
+  return (
+    <div
+      className={cn(
+        "flex flex-col gap-1.5 rounded-lg border bg-card p-2.5",
+        a.running ? "border-accent/60" : "border-border",
+        !a.enabled && "opacity-60",
+      )}
+    >
+      <div className="flex items-center gap-2">
+        <span
+          className={cn(
+            "size-2 shrink-0 rounded-full",
+            a.running ? "animate-pulse bg-accent" : !a.enabled ? "bg-muted" : a.wake.length > 0 ? "bg-good" : "bg-muted",
+          )}
+        />
+        <span className="truncate text-xs font-semibold">{a.name}</span>
+        <span className="truncate font-mono text-[10px] text-muted">{a.slug}</span>
+        <span className="ml-auto shrink-0 text-[10px] uppercase tracking-wider text-muted">
+          {a.running ? (
+            <span className="text-accent">running</span>
+          ) : !a.enabled ? (
+            "paused"
+          ) : a.wake.length > 0 ? (
+            "armed"
+          ) : (
+            "on call"
+          )}
+        </span>
+      </div>
+      {a.wake.length > 0 ? (
+        <div className="flex flex-wrap gap-1">
+          {a.wake.map((w, i) => {
+            const Icon = WAKE_ICON[w.type];
+            return (
+              <span
+                key={`${w.type}-${w.detail}-${i}`}
+                title={`${w.type} · via ${w.via}`}
+                className="inline-flex max-w-full items-center gap-1 rounded-md border border-border bg-panel/50 px-1.5 py-0.5 text-[10px] text-foreground/80"
+              >
+                <Icon className="size-2.5 shrink-0 text-muted" />
+                <span className="truncate font-mono">{w.detail}</span>
+              </span>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="flex items-center gap-1 text-[10px] text-muted">
+          <Moon className="size-2.5" /> wakes only by delegation or a direct run
+        </div>
+      )}
+      <div className="flex items-center gap-2 text-[10px] text-muted">
+        {a.model && (
+          <span className="truncate font-mono" title={a.model}>
+            {a.model}
+          </span>
+        )}
+        <span className="ml-auto inline-flex shrink-0 items-center gap-1">
+          <Clock className="size-2.5" /> {a.lastRunMs ? fmtTime(a.lastRunMs) : "never marched"}
+        </span>
+      </div>
     </div>
   );
 }
