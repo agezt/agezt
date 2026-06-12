@@ -141,8 +141,8 @@ func cmdConfigCenterSet(args []string, stdout, stderr io.Writer) int {
 	defer cancel()
 
 	params := map[string]any{
-		"key":   key,
-		"value": value,
+		"key":    key,
+		"value":  value,
 		"rating": string(r),
 	}
 	if description != "" {

@@ -234,8 +234,8 @@ func TestService_Check_context_cancel(t *testing.T) {
 	defer srv.Close()
 
 	svc := New(Config{
-		Source:   SourceEndpoint,
-		Endpoint: srv.URL,
+		Source:     SourceEndpoint,
+		Endpoint:   srv.URL,
 		HTTPClient: &http.Client{Timeout: 100 * time.Millisecond},
 	})
 

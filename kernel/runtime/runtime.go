@@ -405,25 +405,25 @@ type Kernel struct {
 	approvals *approval.Registry
 	scheduler *scheduler.Executor
 
-	memory    *memory.Manager
-	memoryDir *memory.FileStore
-	world     *worldmodel.Graph
-	worldDir  *worldmodel.FileStore
-	forge     *skill.Forge
-	skillDir  *skill.FileStore
-	standing  *standing.Store
-	roster    *roster.Store
-	toolForge *toolforge.Store
-	mcpStore  *mcp.Store
-	workflows *workflow.Store
-	artifacts *artifact.Store
-	artIndex  *artifact.Index // metadata sidecar over artifacts (M822): browsable/deletable entries
-	lake      *datalake.Lake  // Personal Data Lake (M834): agent-built structured collections
-	reflect     *reflect.Engine
-	schedules   *cadence.Store        // persistent scheduled-intents store (autonomy)
-	agentGW    *agentgw.Gateway      // agent subprocess gateway (agent SDK)
-	configCenter *configcenter.Center // config center for agent SDK config access
-	tools      map[string]agent.Tool // cfg.Tools + the memory/world tools (when enabled)
+	memory       *memory.Manager
+	memoryDir    *memory.FileStore
+	world        *worldmodel.Graph
+	worldDir     *worldmodel.FileStore
+	forge        *skill.Forge
+	skillDir     *skill.FileStore
+	standing     *standing.Store
+	roster       *roster.Store
+	toolForge    *toolforge.Store
+	mcpStore     *mcp.Store
+	workflows    *workflow.Store
+	artifacts    *artifact.Store
+	artIndex     *artifact.Index // metadata sidecar over artifacts (M822): browsable/deletable entries
+	lake         *datalake.Lake  // Personal Data Lake (M834): agent-built structured collections
+	reflect      *reflect.Engine
+	schedules    *cadence.Store        // persistent scheduled-intents store (autonomy)
+	agentGW      *agentgw.Gateway      // agent subprocess gateway (agent SDK)
+	configCenter *configcenter.Center  // config center for agent SDK config access
+	tools        map[string]agent.Tool // cfg.Tools + the memory/world tools (when enabled)
 
 	catalogStore *catalog.Store
 	catalog      *catalog.Catalog // snapshot — refreshable via ReloadCatalog

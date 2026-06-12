@@ -47,8 +47,8 @@ import (
 type Source int
 
 const (
-	SourceGitHub Source = iota // GitHub Releases API
-	SourceEndpoint             // Custom check.agezt.com-style endpoint
+	SourceGitHub   Source = iota // GitHub Releases API
+	SourceEndpoint               // Custom check.agezt.com-style endpoint
 )
 
 // UpdateInfo describes a available update.
@@ -240,7 +240,7 @@ func (s *Service) Apply(ctx context.Context, info *UpdateInfo, drainFunc func(co
 
 // DrainResult describes the outcome of the drain phase.
 type DrainResult struct {
-	Timeout   bool  // true if drain timed out
+	Timeout    bool // true if drain timed out
 	ActiveRuns int  // runs still in-flight when drain ended
 }
 

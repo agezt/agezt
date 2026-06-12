@@ -637,11 +637,11 @@ func runDaemon(stdout, stderr io.Writer) int {
 	}
 
 	cfg := kernelruntime.Config{
-		BaseDir:                    baseDir,
-		Provider:                   gov, // Governor implements agent.Provider
-		Tools:                      tools,
-		Plugins:                    pluginManifest,
-		ToolCapabilities:           pluginToolCaps, // M900: manifest-declared policy axes
+		BaseDir:          baseDir,
+		Provider:         gov, // Governor implements agent.Provider
+		Tools:            tools,
+		Plugins:          pluginManifest,
+		ToolCapabilities: pluginToolCaps, // M900: manifest-declared policy axes
 
 		Model:                      model,
 		System:                     os.Getenv(brand.EnvPrefix + "SYSTEM_PROMPT"),
@@ -4087,8 +4087,8 @@ func startUpdateChecker(ctx context.Context, k *kernelruntime.Kernel, svc *updat
 			Actor:   "update-checker",
 			Payload: map[string]any{
 				"current_version": result.Current,
-				"new_version":    info.Version,
-				"url":            info.URL,
+				"new_version":     info.Version,
+				"url":             info.URL,
 			},
 		})
 

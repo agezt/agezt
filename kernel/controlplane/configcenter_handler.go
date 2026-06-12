@@ -249,7 +249,7 @@ func (s *Server) handleConfigCenterAccessLog(conn net.Conn, req Request) {
 	result := make([]map[string]any, len(logs))
 	for i, l := range logs {
 		result[i] = map[string]any{
-			"timestamp":  l.Timestamp,
+			"timestamp": l.Timestamp,
 			"key":       l.Key,
 			"agent_id":  l.AgentID,
 			"run_id":    l.RunID,
@@ -314,8 +314,8 @@ func (s *Server) handleConfigCenterAudit(conn net.Conn, req Request) {
 func (s *Server) handleConfigCenterHealth(conn net.Conn, req Request) {
 	if s.k.ConfigCenter() == nil {
 		s.writeResp(conn, Response{
-			ID:     req.ID,
-			Type:   RespResult,
+			ID:   req.ID,
+			Type: RespResult,
 			Result: map[string]any{
 				"status": "unavailable",
 				"checks": map[string]string{
@@ -330,8 +330,8 @@ func (s *Server) handleConfigCenterHealth(conn net.Conn, req Request) {
 	stats := center.Stats()
 
 	s.writeResp(conn, Response{
-		ID:     req.ID,
-		Type:   RespResult,
+		ID:   req.ID,
+		Type: RespResult,
 		Result: map[string]any{
 			"status": "healthy",
 			"checks": map[string]string{

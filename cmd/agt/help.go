@@ -227,6 +227,15 @@ func helpGroups() []helpGroup {
 				"web password clear           remove it — the console reverts to token-only",
 				"web password status          report whether one is set (never the value)",
 			}},
+			{"configcenter", "rated config entries for SDK agents (public/internal/restricted/secret)", []string{
+				"configcenter set <key> <value> [--rating R] [--description D]",
+				"configcenter get <key> | list [--rating R] [--json] | delete <key>",
+				"configcenter rating <key> [--rating R] | access-log | audit | health",
+			}},
+			{"token", "scoped JWT capability tokens for SDK agent subprocesses", []string{
+				"token create [--run-id ID] [--caps CAPS] [--max-rpm N] [--burst N] [--expiry DUR]",
+				"token validate <TOKEN>     check a token and show its claims",
+			}},
 			{"vault", "the encrypted credentials vault", []string{
 				"vault status     encryption state + path",
 				"vault encrypt    migrate a plaintext vault to encrypted",

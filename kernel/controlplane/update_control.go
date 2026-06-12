@@ -45,13 +45,13 @@ func (s *Server) writeUpdateSentinel() {
 func (s *Server) handleUpdateCheck(conn net.Conn, req Request) {
 	if s.updateSvc == nil {
 		s.writeResp(conn, Response{
-			ID:    req.ID,
-			Type:  RespResult,
+			ID:   req.ID,
+			Type: RespResult,
 			Result: map[string]any{
-				"current":     update.CurrentVersion,
-				"update":      nil,
-				"up_to_date":  true,
-				"status":      "update is disabled",
+				"current":    update.CurrentVersion,
+				"update":     nil,
+				"up_to_date": true,
+				"status":     "update is disabled",
 			},
 		})
 		return
@@ -72,8 +72,8 @@ func (s *Server) handleUpdateCheck(conn net.Conn, req Request) {
 
 	if result.Update == nil {
 		s.writeResp(conn, Response{
-			ID:    req.ID,
-			Type:  RespResult,
+			ID:   req.ID,
+			Type: RespResult,
 			Result: map[string]any{
 				"current":    result.Current,
 				"update":     nil,
@@ -84,8 +84,8 @@ func (s *Server) handleUpdateCheck(conn net.Conn, req Request) {
 	}
 
 	s.writeResp(conn, Response{
-		ID:    req.ID,
-		Type:  RespResult,
+		ID:   req.ID,
+		Type: RespResult,
 		Result: map[string]any{
 			"current":    result.Current,
 			"up_to_date": false,
@@ -167,8 +167,8 @@ func (s *Server) handleUpdateApply(conn net.Conn, req Request) {
 		// Distinguish drain timeout (user-visible, no swap occurred).
 		if errors.Is(err, update.ErrDrainTimeout) {
 			s.writeResp(conn, Response{
-				ID:    req.ID,
-				Type:  RespResult,
+				ID:   req.ID,
+				Type: RespResult,
 				Result: map[string]any{
 					"applied": false,
 					"error":   "drain timed out: in-flight runs did not complete within the configured timeout",
@@ -179,8 +179,8 @@ func (s *Server) handleUpdateApply(conn net.Conn, req Request) {
 
 		// Checksum mismatch or download failure — human must investigate.
 		s.writeResp(conn, Response{
-			ID:    req.ID,
-			Type:  RespResult,
+			ID:   req.ID,
+			Type: RespResult,
 			Result: map[string]any{
 				"applied": false,
 				"error":   fmt.Sprintf("update failed: %v", err),
@@ -197,8 +197,8 @@ func (s *Server) handleUpdateApply(conn net.Conn, req Request) {
 	// Exit cleanly so the watchdog (which started us) can spawn the new binary.
 	// The watchdog checks the sentinel and resumes without backoff delay.
 	s.writeResp(conn, Response{
-		ID:    req.ID,
-		Type:  RespResult,
+		ID:   req.ID,
+		Type: RespResult,
 		Result: map[string]any{
 			"applied": true,
 			"version": version,
