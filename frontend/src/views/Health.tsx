@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { HeartPulse, RefreshCw, Clock, ShieldAlert, Brain, Network, Sparkles, ListTree, Pause, CheckSquare, Route } from "lucide-react";
+import { HeartPulse, RefreshCw, Clock, ShieldAlert, Brain, Network, Sparkles, ListTree, Pause, CheckSquare, Route, Stethoscope } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getJSON } from "@/lib/api";
@@ -9,6 +9,7 @@ import { Ring, Sparkline, BarRow } from "@/components/Widgets";
 interface Status {
   uptime_seconds?: number;
   halted?: boolean;
+  model?: string;
   active_runs?: number;
   journal_head?: number;
   pending_approvals?: number;
@@ -23,6 +24,67 @@ interface Stats {
   completed?: number;
   failed?: number;
   success_rate?: number;
+}
+
+// Diagnostics (M921): the webui "doctor" — active checks over the daemon's live
+// state, each with a remediation hint + a deep-link to the view that fixes it. The
+// CLI has `agt doctor`; this brings the same "what's wrong and how to fix it" to
+// the console. Pure + unit-tested; journalOk is null while the verify is in flight.
+export type DiagLevel = "ok" | "info" | "warn" | "fail";
+
+export interface Diagnostic {
+  id: string;
+  level: DiagLevel;
+  title: string;
+  detail: string;
+  fixHash?: string;
+  fixLabel?: string;
+}
+
+const DIAG_RANK: Record<DiagLevel, number> = { ok: 0, info: 1, warn: 2, fail: 3 };
+
+// worstLevel returns the most severe level across the checks (ok when empty).
+export function worstLevel(diags: Diagnostic[]): DiagLevel {
+  return diags.reduce<DiagLevel>((w, d) => (DIAG_RANK[d.level] > DIAG_RANK[w] ? d.level : w), "ok");
+}
+
+// runDiagnostics evaluates the daemon's state into a list of issues worth the
+// operator's attention — only the not-ok ones (an empty list means "all healthy").
+// Pure + unit-tested.
+export function runDiagnostics(
+  st: Status | null,
+  stats: Stats | null,
+  journalOk: boolean | null,
+): Diagnostic[] {
+  const out: Diagnostic[] = [];
+  if (!st) {
+    out.push({ id: "daemon", level: "fail", title: "Daemon unreachable", detail: "The console can't read the daemon's status.", fixHash: "status", fixLabel: "Status" });
+    return out;
+  }
+  if (st.halted) {
+    out.push({ id: "halted", level: "fail", title: "Daemon is halted", detail: "Runs are paused until you resume.", fixHash: "policy", fixLabel: "Resume" });
+  }
+  if (journalOk === false) {
+    out.push({ id: "journal", level: "fail", title: "Journal verification failed", detail: "The hash-chained journal didn't verify — possible corruption or tampering.", fixHash: "search", fixLabel: "Inspect" });
+  }
+  const pf = st.provider_fallbacks?.count ?? 0;
+  if (pf > 0) {
+    const why = (st.provider_fallbacks?.last_reason || "").trim();
+    out.push({ id: "provider", level: "warn", title: "A provider is failing over", detail: why ? `${pf} fallback(s); last: ${why}` : `${pf} provider fallback(s) — a primary provider is erroring.`, fixHash: "providers", fixLabel: "Providers" });
+  }
+  if (!st.model || !st.model.trim()) {
+    out.push({ id: "model", level: "warn", title: "No default model set", detail: "Runs have no model to route to until you pick one.", fixHash: "models", fixLabel: "Models" });
+  }
+  const total = stats?.total ?? 0;
+  const failed = stats?.failed ?? 0;
+  if (total >= 5 && failed / total > 0.2) {
+    out.push({ id: "failrate", level: "warn", title: "Elevated failure rate", detail: `${failed} of ${total} runs failed (${Math.round((failed / total) * 100)}%).`, fixHash: "runs", fixLabel: "Runs" });
+  }
+  const pending = st.pending_approvals ?? 0;
+  if (pending > 0) {
+    out.push({ id: "approvals", level: "info", title: `${pending} request${pending === 1 ? "" : "s"} awaiting approval`, detail: "The agent is blocked on your decision.", fixHash: "approvals", fixLabel: "Approvals" });
+  }
+  return out;
 }
 interface Providers {
   routed?: number;
@@ -54,16 +116,18 @@ export function Health() {
   const [st, setSt] = useState<Status | null>(null);
   const [stats, setStats] = useState<Stats | null>(null);
   const [prov, setProv] = useState<Providers | null>(null);
+  const [journalOk, setJournalOk] = useState<boolean | null>(null);
   const [series, setSeries] = useState<number[]>([]);
   const [loading, setLoading] = useState(false);
   const lastHead = useRef<number | null>(null);
 
   async function refresh() {
     setLoading(true);
-    const [s, t, p] = await Promise.allSettled([
+    const [s, t, p, j] = await Promise.allSettled([
       getJSON<Status>("/api/status"),
       getJSON<Stats>("/api/stats"),
       getJSON<Providers>("/api/providers"),
+      getJSON("/api/journal/verify"),
     ]);
     if (s.status === "fulfilled") {
       setSt(s.value);
@@ -75,6 +139,9 @@ export function Health() {
     }
     if (t.status === "fulfilled") setStats(t.value);
     if (p.status === "fulfilled") setProv(p.value);
+    // The verify endpoint resolves on a clean chain and rejects when it fails to
+    // verify — so a rejection IS the "journal broken" signal (M921).
+    setJournalOk(j.status === "fulfilled");
     setLoading(false);
   }
 
@@ -106,6 +173,9 @@ export function Health() {
           <RefreshCw className={cn("size-3.5", loading && "animate-spin")} /> Refresh
         </Button>
       </div>
+
+      {/* Doctor — active diagnostics with remedies (M921) */}
+      <DoctorCard diags={runDiagnostics(st, stats, journalOk)} loaded={st !== null} />
 
       {/* Vital gauges */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -181,6 +251,49 @@ export function Health() {
             <div className="mt-2 text-[11px] text-muted">last: {st.provider_fallbacks.last_reason}</div>
           )}
         </div>
+      )}
+    </div>
+  );
+}
+
+function DoctorCard({ diags, loaded }: { diags: Diagnostic[]; loaded: boolean }) {
+  const worst = worstLevel(diags);
+  const healthy = loaded && diags.length === 0;
+  const tone =
+    worst === "fail" ? "border-bad/50 bg-bad/5" : worst === "warn" ? "border-warn/50 bg-warn/5" : "border-good/40 bg-good/5";
+  const levelCls: Record<DiagLevel, string> = { ok: "text-good", info: "text-accent", warn: "text-warn", fail: "text-bad" };
+  return (
+    <div className={cn("rounded-lg border p-3", healthy ? "border-good/40 bg-good/5" : tone)}>
+      <div className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider">
+        <Stethoscope className={cn("size-3.5", healthy ? "text-good" : levelCls[worst])} />
+        <span className={healthy ? "text-good" : levelCls[worst]}>Diagnostics</span>
+        <span className="font-normal lowercase tracking-normal text-muted">
+          {!loaded ? "checking…" : healthy ? "all systems healthy" : `${diags.length} issue${diags.length === 1 ? "" : "s"}`}
+        </span>
+      </div>
+      {diags.length > 0 && (
+        <ul className="space-y-1">
+          {diags.map((d) => (
+            <li key={d.id} className="flex items-center gap-2 text-xs">
+              <span
+                className={cn("shrink-0 rounded px-1 py-0.5 text-[9px] font-bold uppercase", levelCls[d.level])}
+                title={d.level}
+              >
+                {d.level === "info" ? "•" : d.level === "warn" ? "!" : "✕"}
+              </span>
+              <span className="shrink-0 font-medium text-foreground">{d.title}</span>
+              <span className="min-w-0 flex-1 truncate text-muted">{d.detail}</span>
+              {d.fixHash && (
+                <button
+                  onClick={() => (location.hash = d.fixHash!)}
+                  className="ml-auto shrink-0 rounded border border-border px-1.5 py-0.5 text-[10px] text-accent transition-colors hover:border-accent"
+                >
+                  {d.fixLabel || "Fix"} →
+                </button>
+              )}
+            </li>
+          ))}
+        </ul>
       )}
     </div>
   );
