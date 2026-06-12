@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Route, RefreshCw, Save, ArrowUp, ArrowDown, X, Plus, Zap, CornerDownRight, Download, Upload } from "lucide-react";
+import { Route, RefreshCw, Save, ArrowUp, ArrowDown, X, Plus, Zap, CornerDownRight, Download, Upload, Wand2 } from "lucide-react";
 import { getJSON, postJSON } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -8,6 +8,8 @@ import { SkeletonList } from "@/components/ui/skeleton";
 import { useUI } from "@/components/ui/feedback";
 import { ModelPicker } from "@/components/ModelPicker";
 import { downloadText } from "@/lib/export";
+import { type ModelCatalog } from "@/lib/models";
+import { suggestChains } from "@/lib/routingSuggest";
 
 // parseChainsJSON normalises an imported routing file into a {task: [models]} map,
 // tolerating either a bare map or a {chains:{…}} wrapper. Keeps only string model
@@ -154,6 +156,29 @@ export function Routing() {
     downloadText("agezt-routing.json", JSON.stringify({ chains }, null, 2), "application/json");
   }
 
+  const [filling, setFilling] = useState(false);
+  // Auto-fill (M928): build a suggested chain for every task from the keyed
+  // providers in the catalog — one best model per provider, task-fit ordered.
+  // Replaces the current (unsaved) table for review; nothing persists until Save.
+  async function autoFill() {
+    setFilling(true);
+    try {
+      const cat = await getJSON<ModelCatalog>("/api/catalog");
+      const suggested = suggestChains(cat, rows);
+      const n = Object.keys(suggested).length;
+      if (n === 0) {
+        toast("No keyed provider with usable models found — add an API key under Models first", "info");
+        return;
+      }
+      setChains(suggested);
+      toast(`Auto-filled ${n} chain(s) from your keyed providers — review and Save`, "success");
+    } catch (e) {
+      toast((e as Error).message, "error");
+    } finally {
+      setFilling(false);
+    }
+  }
+
   async function onImportFile(file: File) {
     try {
       const imported = parseChainsJSON(await file.text());
@@ -185,6 +210,15 @@ export function Routing() {
         </h2>
         <span className="text-xs text-muted">per-task model chains</span>
         <div className="ml-auto flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={autoFill}
+            disabled={filling}
+            title="Fill every task with a suggested chain built from your keyed providers (review, then Save)"
+          >
+            {filling ? <RefreshCw className="size-3.5 animate-spin" /> : <Wand2 className="size-3.5" />} Auto-fill
+          </Button>
           <Button variant="ghost" size="sm" onClick={() => fileRef.current?.click()} title="Import routing from a JSON file">
             <Upload className="size-3.5" /> Import
           </Button>

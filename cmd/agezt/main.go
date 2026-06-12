@@ -763,8 +763,8 @@ func runDaemon(stdout, stderr io.Writer) int {
 		// "primary != mock ⇒ mock is IsFallback" rule. gov.Replace below rebuilds
 		// the primary/fallback slices from the registry, so order matters: mutate
 		// the registry first, then Replace.
+		reg := gov.Registry()
 		if prov.Name() != "mock" {
-			reg := gov.Registry()
 			if old, ok := reg.Get("mock"); ok && !old.IsFallback {
 				reg.Remove("mock")
 				if err := reg.Register(&governor.ProviderInfo{
@@ -777,10 +777,12 @@ func runDaemon(stdout, stderr io.Writer) int {
 				}
 			}
 		}
+		reconcileAlternateProviders(reg, c, freshLookup, prov.Name())
 		if err := gov.Replace(&governor.ProviderInfo{
 			Name:     prov.Name(),
 			Provider: prov,
 			AuthMode: auth,
+			Models:   catalogModelIDs(c, prov.Name()),
 		}); err != nil {
 			return fmt.Errorf("registry replace: %w", err)
 		}
@@ -4272,6 +4274,51 @@ func buildGovernor(cat *catalog.Catalog, lookup func(string) string) (*governor.
 		desc += fmt.Sprintf(", task_budgets=%d", len(taskBudgets))
 	}
 	return gov, desc, model, nil
+}
+
+// reconcileAlternateProviders mirrors buildGovernor's alternate registration on
+// the hot-reload path (M928). buildGovernor registers every other credentialed+
+// supported catalog provider so per-task model chains route each model to its
+// serving provider — but the reload path used to swap only the primary. After
+// the first-run flow (boot catalog-less → mock primary, then catalog sync +
+// vault keys + reload) the other keyed providers stayed unregistered, so a
+// chain model like "glm-5.1" was sent to whatever the primary happened to be
+// until a daemon restart. This drops alternates that lost eligibility (key
+// revoked / provider gone from the catalog) and (re-)registers the eligible
+// set with their catalog Models so per-request model routing works. The caller
+// installs the primary LAST via gov.Replace, which also rebuilds the routing
+// chains over the reconciled registry. Build failures are skipped, never
+// fatal — a misconfigured alternate must not stop the reload (same rule as
+// boot). Fallback entries (the offline mock) are never touched.
+func reconcileAlternateProviders(reg *governor.Registry, c *catalog.Catalog, lookup func(string) string, primaryName string) {
+	eligible := map[string]bool{primaryName: true}
+	for _, entry := range c.ProviderList() {
+		if entry.ID == primaryName {
+			continue
+		}
+		if !compat.IsSupportedFamily(entry.Family()) || !entry.HasCredentials(lookup) {
+			continue
+		}
+		p, _, _, auth, err := buildFromCatalog(entry, "", lookup)
+		if err != nil {
+			continue
+		}
+		if err := reg.Replace(&governor.ProviderInfo{
+			Name:     p.Name(),
+			Provider: p,
+			AuthMode: auth,
+			Models:   catalogModelIDs(c, entry.ID),
+		}); err != nil {
+			continue
+		}
+		eligible[entry.ID] = true
+	}
+	for _, info := range reg.All() {
+		if info.IsFallback || eligible[info.Name] {
+			continue
+		}
+		reg.Remove(info.Name)
+	}
 }
 
 // catalogModelIDs returns the sorted model ids the catalog lists for the given
