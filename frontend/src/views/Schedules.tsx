@@ -31,6 +31,49 @@ function sourceTone(src?: string): string {
   return "bg-panel text-muted";
 }
 
+// untilLabel renders a glanceable countdown to the next fire (M917): "now",
+// "in 45s", "in 12m", "in 3h", "in 2d", or "overdue" when it's in the past.
+// Pure + unit-tested; nowMs is injected so it's deterministic.
+export function untilLabel(nextUnixMs: number, nowMs: number): string {
+  const d = nextUnixMs - nowMs;
+  if (d < -1000) return "overdue";
+  if (d < 15_000) return "now";
+  const s = Math.round(d / 1000);
+  if (s < 90) return `in ${s}s`;
+  const m = Math.round(s / 60);
+  if (m < 90) return `in ${m}m`;
+  const h = Math.round(m / 60);
+  if (h < 36) return `in ${h}h`;
+  return `in ${Math.round(h / 24)}d`;
+}
+
+// DUE_SOON_MS: a schedule firing within this window counts as "due soon" for the
+// summary band — the ones worth glancing at.
+export const DUE_SOON_MS = 60 * 60 * 1000;
+
+export interface SchedCounts {
+  total: number;
+  enabled: number;
+  paused: number;
+  dueSoon: number;
+}
+
+// scheduleCounts tallies the summary band: enabled vs paused, and how many enabled
+// schedules fire within the due-soon window. Pure + unit-tested.
+export function scheduleCounts(items: { enabled?: boolean; next_run_unix?: number }[], nowMs: number): SchedCounts {
+  let enabled = 0;
+  let dueSoon = 0;
+  for (const s of items) {
+    const on = s.enabled !== false;
+    if (on) enabled++;
+    if (on && s.next_run_unix) {
+      const d = s.next_run_unix * 1000 - nowMs;
+      if (d <= DUE_SOON_MS) dueSoon++;
+    }
+  }
+  return { total: items.length, enabled, paused: items.length - enabled, dueSoon };
+}
+
 // parseSchedulesJSON normalises an exported schedules file into a list of
 // re-addable `schedule_add` arg objects. Accepts a bare array or a {schedules:[…]}
 // wrapper (the list shape). For each entry it rebuilds the cadence args from the
@@ -105,6 +148,12 @@ export function Schedules() {
   // Fire-time preview (M744): the schedule id whose next fires are shown + the times.
   const [forecast, setForecast] = useState<{ id: string; times: number[] } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  // A coarse clock so the "fires in …" countdowns stay live without refetching (M917).
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 5000);
+    return () => clearInterval(t);
+  }, []);
 
   function exportSchedules() {
     downloadText("agezt-schedules.json", JSON.stringify({ version: 1, schedules: items ?? [] }, null, 2), "application/json");
@@ -249,6 +298,19 @@ export function Schedules() {
         />
       ) : (
         <div className="min-h-0 flex-1 overflow-auto">
+          {/* Summary band (M917): the schedule fleet at a glance — how many are
+              live, paused, and about to fire within the hour. */}
+          {(() => {
+            const c = scheduleCounts(items, now);
+            return (
+              <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                <SchedStat label="schedules" value={c.total} />
+                <SchedStat label="enabled" value={c.enabled} accent={c.enabled > 0} />
+                <SchedStat label="paused" value={c.paused} />
+                <SchedStat label="due within 1h" value={c.dueSoon} accent={c.dueSoon > 0} />
+              </div>
+            );
+          })()}
           <ul className="space-y-2">
             {items.map((s) => (
               <li key={s.id} className="rounded-lg border border-border bg-card p-3">
@@ -344,7 +406,17 @@ export function Schedules() {
                 <div className="mt-1.5 text-sm">{s.intent || s.id}</div>
                 <div className="mt-1 flex flex-wrap items-center gap-x-3 text-[10px] text-muted">
                   {s.enabled !== false && s.next_run_unix ? (
-                    <span>next {fmtDateTime(s.next_run_unix * 1000)}</span>
+                    <span className="inline-flex items-center gap-1">
+                      next {fmtDateTime(s.next_run_unix * 1000)}
+                      <span
+                        className={cn(
+                          "rounded px-1 py-0.5 font-semibold tabular-nums",
+                          s.next_run_unix * 1000 - now <= DUE_SOON_MS ? "bg-accent/15 text-accent" : "bg-panel",
+                        )}
+                      >
+                        {untilLabel(s.next_run_unix * 1000, now)}
+                      </span>
+                    </span>
                   ) : null}
                   {s.mode !== "continuous" && (s.fires ?? 0) > 0 && (
                     <span>{s.fires} run{s.fires === 1 ? "" : "s"}</span>
@@ -389,6 +461,15 @@ export function Schedules() {
           </ul>
         </div>
       )}
+    </div>
+  );
+}
+
+function SchedStat({ label, value, accent }: { label: string; value: number; accent?: boolean }) {
+  return (
+    <div className={cn("rounded-lg border bg-card p-2.5", accent ? "border-accent/50" : "border-border")}>
+      <div className="text-[10px] font-semibold uppercase tracking-wider text-muted">{label}</div>
+      <div className={cn("mt-0.5 text-lg font-semibold tabular-nums", accent && "text-accent")}>{value}</div>
     </div>
   );
 }

@@ -12,6 +12,10 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Schedules cockpit — summary band + live "fires in …" countdown (M917).** The Schedules view now
+  opens with a summary band (schedules / enabled / paused / due-within-1h) and each card shows a live
+  coarse countdown to its next fire (`in 12m`, `in 3h`, `overdue`) beside the absolute time, so
+  what's about to run is glanceable. Additive; all data was already in `/api/schedules`.
 - **Searchable capability gallery in the Tools view (M916).** The "Available tools" list was a flat
   grid with only a used/idle badge. It's now a searchable, capability-grouped gallery: a search box
   (name/description/capability), filter chips per Edict capability (with counts), and richer cards
