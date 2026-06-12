@@ -299,6 +299,109 @@ func (s *Server) handleMemoryPrune(conn net.Conn, req Request) {
 	}})
 }
 
+// handleMemoryBulkForget soft-deletes multiple records in one operation.
+// It is idempotent: already-tombstoned records are counted as "forgotten".
+// Args: ids (required, array of string). Returns: { forgotten: N, not_found: M }.
+func (s *Server) handleMemoryBulkForget(conn net.Conn, req Request) {
+	raw, ok := req.Args["ids"]
+	if !ok {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.ids required"})
+		return
+	}
+	ids, ok := raw.([]any)
+	if !ok {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.ids must be an array"})
+		return
+	}
+	if len(ids) == 0 {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"forgotten": 0, "not_found": 0}})
+		return
+	}
+	if len(ids) > 500 {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.ids exceeds 500 — use smaller batches"})
+		return
+	}
+	var strIDs []string
+	for _, idRaw := range ids {
+		if id, ok := idRaw.(string); ok {
+			strIDs = append(strIDs, id)
+		}
+	}
+
+	var forgotten, notFound int
+	for _, id := range strIDs {
+		ok, err := s.k.Memory().Forget("", id)
+		if err != nil {
+			s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+			return
+		}
+		if ok {
+			forgotten++
+		} else {
+			notFound++
+		}
+	}
+	s.writeResp(conn, Response{
+		ID:     req.ID,
+		Type:   RespResult,
+		Result: map[string]any{"forgotten": forgotten, "not_found": notFound},
+	})
+}
+
+// handleMemoryFindRelated uses embedding-based similarity to find active records
+// related to a given seed record. The seed's content is embedded and compared
+// against the active corpus. The seed record itself is excluded from results.
+// Args: id (required), limit (optional; default 10, max 100).
+// Returns: { results: [{record, score}, ...], count }.
+func (s *Server) handleMemoryFindRelated(conn net.Conn, req Request) {
+	id, _ := req.Args["id"].(string)
+	if id == "" {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.id required"})
+		return
+	}
+	limit := 10
+	if l, ok := req.Args["limit"].(float64); ok && l > 0 {
+		limit = int(l)
+	}
+	if limit > 100 {
+		limit = 100
+	}
+
+	seed, found, err := s.k.Memory().Get(id)
+	if err != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		return
+	}
+	if !found {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "seed record id not found"})
+		return
+	}
+
+	// Search with the seed's content as the query — uses hybrid (keyword +
+	// embedding) search so it works even when no embedder is configured.
+	hits, err := s.k.Memory().Search(seed.Content, limit+1) // +1 because seed itself may appear
+	if err != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		return
+	}
+
+	// Exclude the seed record from results.
+	out := make([]any, 0, limit)
+	for _, h := range hits {
+		if h.Record.ID != id {
+			out = append(out, map[string]any{"record": recordView(h.Record), "score": h.Score})
+		}
+		if len(out) >= limit {
+			break
+		}
+	}
+	s.writeResp(conn, Response{
+		ID:     req.ID,
+		Type:   RespResult,
+		Result: map[string]any{"results": out, "count": len(out)},
+	})
+}
+
 // recordView renders a memory.Record as a stable JSON object for the wire.
 // All fields are operator-supplied or derived; nothing here is secret (the
 // store never holds credentials — that's the vault's job).

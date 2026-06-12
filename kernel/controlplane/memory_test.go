@@ -224,3 +224,156 @@ func TestMemoryGetRequiresID(t *testing.T) {
 		t.Error("get without id must error")
 	}
 }
+
+// TestMemoryBulkForget soft-deletes multiple records in one call and reports
+// forgotten vs not_found counts. It is idempotent: re-forgetting already-tombstoned
+// records still counts as forgotten.
+func TestMemoryBulkForget(t *testing.T) {
+	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	ctx := context.Background()
+
+	// Add three records.
+	r1, _ := c.Call(ctx, controlplane.CmdMemoryAdd, map[string]any{"subject": "a", "content": "content a"})
+	r2, _ := c.Call(ctx, controlplane.CmdMemoryAdd, map[string]any{"subject": "b", "content": "content b"})
+	r3, _ := c.Call(ctx, controlplane.CmdMemoryAdd, map[string]any{"subject": "c", "content": "content c"})
+	id1, _ := r1["id"].(string)
+	id2, _ := r2["id"].(string)
+	id3, _ := r3["id"].(string)
+
+	// Bulk-forget two of them plus a non-existent id.
+	res, err := c.Call(ctx, controlplane.CmdMemoryBulkForget, map[string]any{
+		"ids": []any{id1, id2, "does-not-exist"},
+	})
+	if err != nil {
+		t.Fatalf("bulk_forget: %v", err)
+	}
+	if forgotten, _ := res["forgotten"].(float64); forgotten != 2 {
+		t.Errorf("forgotten = %.0f, want 2", forgotten)
+	}
+	if notFound, _ := res["not_found"].(float64); notFound != 1 {
+		t.Errorf("not_found = %.0f, want 1", notFound)
+	}
+
+	// Re-forgetting id1 should still count as forgotten (idempotent).
+	res, _ = c.Call(ctx, controlplane.CmdMemoryBulkForget, map[string]any{
+		"ids": []any{id1},
+	})
+	if f, _ := res["forgotten"].(float64); f != 1 {
+		t.Errorf("re-forget of tombstoned id: forgotten = %.0f, want 1", f)
+	}
+
+	// Bulk-forget all remaining (id3) plus many non-existent.
+	nonExistent := make([]any, 10)
+	for i := range nonExistent {
+		nonExistent[i] = "nonexistent-" + string(rune('0'+i))
+	}
+	ids := append(nonExistent, id3)
+	res, _ = c.Call(ctx, controlplane.CmdMemoryBulkForget, map[string]any{"ids": ids})
+	if f, _ := res["forgotten"].(float64); f != 1 {
+		t.Errorf("remaining record: forgotten = %.0f, want 1", f)
+	}
+	if nf, _ := res["not_found"].(float64); nf != 10 {
+		t.Errorf("remaining record: not_found = %.0f, want 10", nf)
+	}
+}
+
+// TestMemoryBulkForgetValidation checks that missing or wrong-type ids are rejected.
+func TestMemoryBulkForgetValidation(t *testing.T) {
+	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+
+	// Missing ids arg.
+	if _, err := c.Call(context.Background(), controlplane.CmdMemoryBulkForget, nil); err == nil {
+		t.Error("bulk_forget without ids must error")
+	}
+
+	// Wrong type for ids.
+	if _, err := c.Call(context.Background(), controlplane.CmdMemoryBulkForget, map[string]any{"ids": "not-an-array"}); err == nil {
+		t.Error("bulk_forget with string ids must error")
+	}
+
+	// Over 500 ids.
+	tooMany := make([]any, 501)
+	for i := range tooMany {
+		tooMany[i] = "id-" + string(rune(i))
+	}
+	if _, err := c.Call(context.Background(), controlplane.CmdMemoryBulkForget, map[string]any{"ids": tooMany}); err == nil {
+		t.Error("bulk_forget with >500 ids must error")
+	}
+}
+
+// TestMemoryFindRelated uses hybrid search to find records related to a seed
+// record's content. The seed itself is excluded from results.
+func TestMemoryFindRelated(t *testing.T) {
+	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	ctx := context.Background()
+
+	// Add a seed record about Go concurrency.
+	seed, _ := c.Call(ctx, controlplane.CmdMemoryAdd, map[string]any{
+		"subject": "concurrency", "content": "Goroutines and channels are Go's concurrency primitives",
+	})
+	seedID, _ := seed["id"].(string)
+
+	// Add some related and unrelated records.
+	c.Call(ctx, controlplane.CmdMemoryAdd, map[string]any{
+		"subject": "goroutines", "content": "A goroutine is a lightweight thread managed by the Go runtime",
+	})
+	c.Call(ctx, controlplane.CmdMemoryAdd, map[string]any{
+		"subject": "weather", "content": "It is raining outside today",
+	})
+	c.Call(ctx, controlplane.CmdMemoryAdd, map[string]any{
+		"subject": "channels", "content": "Channels are the pipes that connect concurrent goroutines",
+	})
+
+	res, err := c.Call(ctx, controlplane.CmdMemoryFindRelated, map[string]any{
+		"id":    seedID,
+		"limit": 10,
+	})
+	if err != nil {
+		t.Fatalf("find_related: %v", err)
+	}
+	results, _ := res["results"].([]any)
+	count, _ := res["count"].(float64)
+
+	// Should find the two Go-related records (goroutines + channels), not the seed itself.
+	if count < 2 {
+		t.Fatalf("find_related returned count=%.0f, want >=2 related records", count)
+	}
+	if int(count) != len(results) {
+		t.Errorf("count = %d, len(results) = %d, should match", int(count), len(results))
+	}
+	for _, raw := range results {
+		m, _ := raw.(map[string]any)
+		rec, _ := m["record"].(map[string]any)
+		if rec["id"] == seedID {
+			t.Error("seed record should be excluded from results")
+		}
+	}
+
+	// Result records should be about goroutines or channels.
+	subjects := make(map[string]bool)
+	for _, raw := range results {
+		m, _ := raw.(map[string]any)
+		rec, _ := m["record"].(map[string]any)
+		subjects[rec["subject"].(string)] = true
+	}
+	if !subjects["goroutines"] || !subjects["channels"] {
+		t.Errorf("expected goroutines + channels in results, got: %v", subjects)
+	}
+}
+
+// TestMemoryFindRelatedRequiresID checks that missing id is rejected.
+func TestMemoryFindRelatedRequiresID(t *testing.T) {
+	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	if _, err := c.Call(context.Background(), controlplane.CmdMemoryFindRelated, nil); err == nil {
+		t.Error("find_related without id must error")
+	}
+}
+
+// TestMemoryFindRelatedSeedNotFound returns an error when the seed id does not exist.
+func TestMemoryFindRelatedSeedNotFound(t *testing.T) {
+	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	_, err := c.Call(context.Background(), controlplane.CmdMemoryFindRelated, map[string]any{"id": "does-not-exist"})
+	if err == nil {
+		t.Error("find_related with non-existent seed id must error")
+	}
+}

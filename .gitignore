@@ -66,3 +66,4 @@ webui-*.png
 # dev.ps1 artifacts (isolated dev daemon home + local builds)
 .dev-home/
 bin/
+.wrongstack/

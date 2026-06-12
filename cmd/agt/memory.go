@@ -20,7 +20,7 @@ import (
 // context; this is the operator's read/write path into it.
 func cmdMemory(args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
-		fmt.Fprintf(stderr, "%s memory: subcommand required (add|list|log|search|get|forget)\n", brand.CLI)
+		fmt.Fprintf(stderr, "%s memory: subcommand required (add|list|log|search|get|forget|consolidate|prune|bulk-forget|find-related)\n", brand.CLI)
 		return 2
 	}
 	switch args[0] {
@@ -40,6 +40,12 @@ func cmdMemory(args []string, stdout, stderr io.Writer) int {
 		return cmdMemoryPromote(args[1:], stdout, stderr)
 	case "consolidate":
 		return cmdMemoryConsolidate(args[1:], stdout, stderr)
+	case "prune":
+		return cmdMemoryPrune(args[1:], stdout, stderr)
+	case "bulk-forget":
+		return cmdMemoryBulkForget(args[1:], stdout, stderr)
+	case "find-related":
+		return cmdMemoryFindRelated(args[1:], stdout, stderr)
 	case "-h", "--help", "help":
 		fmt.Fprintf(stdout, "usage: %s memory <subcommand>\n", brand.CLI)
 		fmt.Fprintf(stdout, "  add <subject> <content> [--type T] [--tag k=v] [--conf F] [--json]\n")
@@ -50,9 +56,12 @@ func cmdMemory(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "  forget <id> [--json]\n")
 		fmt.Fprintf(stdout, "  promote <id> [--json]  share a private (agent-scoped) record with every agent\n")
 		fmt.Fprintf(stdout, "  consolidate [--json]   one brain-distillation pass: merge related records, supersede originals\n")
+		fmt.Fprintf(stdout, "  prune [--days N] [--execute]   hard-delete soft-deleted records (dry-run by default)\n")
+		fmt.Fprintf(stdout, "  bulk-forget <id>...    soft-delete multiple records in one call\n")
+		fmt.Fprintf(stdout, "  find-related --id <id> [--limit N] [--json]\n")
 		return 0
 	default:
-		fmt.Fprintf(stderr, "%s memory: unknown subcommand %q (add|list|log|search|get|forget|promote|consolidate)\n", brand.CLI, args[0])
+		fmt.Fprintf(stderr, "%s memory: unknown subcommand %q (add|list|log|search|get|forget|promote|consolidate|prune|bulk-forget|find-related)\n", brand.CLI, args[0])
 		return 2
 	}
 }
@@ -454,6 +463,228 @@ func cmdMemoryConsolidate(args []string, stdout, stderr io.Writer) int {
 	}
 	fmt.Fprintf(stdout, "consolidated %d of %d cluster(s): %d record(s) merged away (%d → ~%d active) — correlation %s\n",
 		int(merged), int(found), int(superseded), int(before), int(after), str(res["correlation_id"]))
+	return 0
+}
+
+// cmdMemoryPrune implements `agt memory prune [--days N] [--execute].
+// Defaults to a dry-run that reports hygiene + prunable count.
+// --execute (or --confirm) performs the actual hard-delete of soft-deleted records.
+func cmdMemoryPrune(args []string, stdout, stderr io.Writer) int {
+	tenant, args := extractTenantFlag(args)
+	days := 0
+	dryRun := true
+	asJSON := false
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		switch {
+		case a == "--days":
+			if i+1 >= len(args) {
+				fmt.Fprintf(stderr, "%s memory prune: --days needs a value\n", brand.CLI)
+				return 2
+			}
+			i++
+			d, err := strconv.Atoi(args[i])
+			if err != nil || d <= 0 {
+				fmt.Fprintf(stderr, "%s memory prune: --days must be a positive integer\n", brand.CLI)
+				return 2
+			}
+			days = d
+		case a == "--execute" || a == "--confirm" || a == "-y":
+			dryRun = false
+		case a == "--dry-run":
+			dryRun = true
+		case a == "--json":
+			asJSON = true
+		case a == "-h" || a == "--help":
+			fmt.Fprintf(stdout, "usage: %s memory prune [--days N] [--execute|--dry-run] [--json]\n", brand.CLI)
+			fmt.Fprintf(stdout, "hard-delete soft-deleted (tombstoned/superseded) records older than --days.\n")
+			fmt.Fprintf(stdout, "defaults: --days=30, --dry-run (safe; use --execute to actually prune)\n")
+			return 0
+		default:
+			fmt.Fprintf(stderr, "%s memory prune: unknown flag %q\n", brand.CLI, a)
+			return 2
+		}
+	}
+	c := dial(stderr)
+	if c == nil {
+		return 1
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	callArgs := map[string]any{"dry_run": dryRun}
+	if days > 0 {
+		callArgs["older_than_days"] = days
+	}
+	res, err := c.Call(ctx, controlplane.CmdMemoryPrune, withTenant(tenant, callArgs))
+	if err != nil {
+		fmt.Fprintf(stderr, "%s memory prune: %v\n", brand.CLI, err)
+		return 1
+	}
+	if asJSON {
+		return encodeJSON(stdout, res)
+	}
+	if dryRun {
+		stats, _ := res["stats"].(map[string]any)
+		prunable, _ := res["prunable"].(float64)
+		cutoffMs, _ := res["cutoff_ms"].(float64)
+		cutoffDays, _ := res["older_than_days"].(float64)
+		fmt.Fprintf(stdout, "dry-run — nothing deleted yet.\n")
+		if stats != nil {
+			fmt.Fprintf(stdout, "  total records : %d\n", int(stats["total"].(float64)))
+			fmt.Fprintf(stdout, "  active        : %d\n", int(stats["active"].(float64)))
+			fmt.Fprintf(stdout, "  tombstoned    : %d\n", int(stats["tombstoned"].(float64)))
+			fmt.Fprintf(stdout, "  superseded    : %d\n", int(stats["superseded"].(float64)))
+		}
+		fmt.Fprintf(stdout, "  prunable (>%.0f days old): %.0f\n", cutoffDays, prunable)
+		if cutoffMs > 0 {
+			t := time.UnixMilli(int64(cutoffMs))
+			fmt.Fprintf(stdout, "  cutoff        : %s\n", t.Format(time.RFC3339))
+		}
+		fmt.Fprintf(stdout, "re-run with --execute to permanently remove %d record(s).\n", int(prunable))
+	} else {
+		pruned, _ := res["pruned"].(float64)
+		cutoffDays, _ := res["older_than_days"].(float64)
+		fmt.Fprintf(stdout, "pruned %.0f record(s) older than %.0f days.\n", pruned, cutoffDays)
+	}
+	return 0
+}
+
+// cmdMemoryBulkForget implements `agt memory bulk-forget <id>...`.
+// Accepts one or more record IDs and soft-deletes them in a single call.
+// Returns: how many were forgotten vs not_found.
+func cmdMemoryBulkForget(args []string, stdout, stderr io.Writer) int {
+	tenant, args := extractTenantFlag(args)
+	asJSON := false
+	var ids []string
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		switch {
+		case a == "--json":
+			asJSON = true
+		case a == "-h" || a == "--help":
+			fmt.Fprintf(stdout, "usage: %s memory bulk-forget <id>... [--json]\n", brand.CLI)
+			fmt.Fprintf(stdout, "soft-delete multiple memory records in one call.\n")
+			return 0
+		case strings.HasPrefix(a, "-"):
+			fmt.Fprintf(stderr, "%s memory bulk-forget: unknown flag %q\n", brand.CLI, a)
+			return 2
+		default:
+			ids = append(ids, a)
+		}
+	}
+	if len(ids) == 0 {
+		fmt.Fprintf(stderr, "%s memory bulk-forget: at least one <id> required\n", brand.CLI)
+		return 2
+	}
+	if len(ids) > 500 {
+		fmt.Fprintf(stderr, "%s memory bulk-forget: at most 500 IDs per call (got %d)\n", brand.CLI, len(ids))
+		return 2
+	}
+	c := dial(stderr)
+	if c == nil {
+		return 1
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	idAnys := make([]any, len(ids))
+	for i, id := range ids {
+		idAnys[i] = id
+	}
+	res, err := c.Call(ctx, controlplane.CmdMemoryBulkForget, withTenant(tenant, map[string]any{"ids": idAnys}))
+	if err != nil {
+		fmt.Fprintf(stderr, "%s memory bulk-forget: %v\n", brand.CLI, err)
+		return 1
+	}
+	if asJSON {
+		return encodeJSON(stdout, res)
+	}
+	forgotten, _ := res["forgotten"].(float64)
+	notFound, _ := res["not_found"].(float64)
+	fmt.Fprintf(stdout, "forgotten: %.0f  not_found: %.0f\n", forgotten, notFound)
+	if notFound > 0 && forgotten == 0 {
+		return 3
+	}
+	return 0
+}
+
+// cmdMemoryFindRelated implements `agt memory find-related --id <id> [--limit N] [--json]`.
+// Uses hybrid (keyword + embedding) search to find records semantically similar to
+// the seed record identified by --id. The seed itself is excluded from results.
+func cmdMemoryFindRelated(args []string, stdout, stderr io.Writer) int {
+	tenant, args := extractTenantFlag(args)
+	asJSON := false
+	seedID := ""
+	limit := 10
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		switch {
+		case a == "--id":
+			if i+1 >= len(args) {
+				fmt.Fprintf(stderr, "%s memory find-related: --id needs a value\n", brand.CLI)
+				return 2
+			}
+			i++
+			seedID = args[i]
+		case a == "--limit":
+			if i+1 >= len(args) {
+				fmt.Fprintf(stderr, "%s memory find-related: --limit needs a value\n", brand.CLI)
+				return 2
+			}
+			i++
+			l, err := strconv.Atoi(args[i])
+			if err != nil || l <= 0 {
+				fmt.Fprintf(stderr, "%s memory find-related: --limit must be a positive integer\n", brand.CLI)
+				return 2
+			}
+			limit = l
+			if limit > 100 {
+				limit = 100
+			}
+		case a == "--json":
+			asJSON = true
+		case a == "-h" || a == "--help":
+			fmt.Fprintf(stdout, "usage: %s memory find-related --id <id> [--limit N] [--json]\n", brand.CLI)
+			fmt.Fprintf(stdout, "find records semantically related to the seed record (--id).\n")
+			fmt.Fprintf(stdout, "uses hybrid search (keyword + embedding similarity).\n")
+			return 0
+		default:
+			fmt.Fprintf(stderr, "%s memory find-related: unknown arg %q (use --id and --limit flags)\n", brand.CLI, a)
+			return 2
+		}
+	}
+	if seedID == "" {
+		fmt.Fprintf(stderr, "%s memory find-related: --id is required\n", brand.CLI)
+		return 2
+	}
+	c := dial(stderr)
+	if c == nil {
+		return 1
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	res, err := c.Call(ctx, controlplane.CmdMemoryFindRelated, withTenant(tenant, map[string]any{"id": seedID, "limit": limit}))
+	if err != nil {
+		fmt.Fprintf(stderr, "%s memory find-related: %v\n", brand.CLI, err)
+		return 1
+	}
+	if asJSON {
+		return encodeJSON(stdout, res)
+	}
+	results, _ := res["results"].([]any)
+	count, _ := res["count"].(float64)
+	if len(results) == 0 {
+		fmt.Fprintf(stdout, "no related records found for id %q\n", seedID)
+		return 0
+	}
+	fmt.Fprintf(stdout, "%.0f related record(s) for seed %q:\n", count, seedID)
+	for _, raw := range results {
+		r, _ := raw.(map[string]any)
+		rec, _ := r["record"].(map[string]any)
+		score, _ := r["score"].(float64)
+		id, _ := rec["id"].(string)
+		subject, _ := rec["subject"].(string)
+		fmt.Fprintf(stdout, "  [%.3f] %s  (%s)\n", score, subject, id)
+	}
 	return 0
 }
 
