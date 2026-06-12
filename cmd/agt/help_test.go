@@ -89,6 +89,51 @@ func TestHelp_EntriesAreComplete(t *testing.T) {
 	}
 }
 
+// TestUniformDashH (M936): `agt <cmd> -h` answers from the help table for
+// EVERY documented command, exits 0, and never reaches the command's own code.
+// This is the regression guard for the class of bug where a command treats its
+// first arg as data — `agt run -h` used to send "-h" to the live agent as an
+// intent and bill a completion for it.
+func TestUniformDashH(t *testing.T) {
+	// No daemon, fresh home: if interception leaked through to a command that
+	// dials the control plane, it would error (non-zero) — failing this test.
+	t.Setenv("AGEZT_HOME", t.TempDir())
+	for _, g := range helpGroups() {
+		for _, c := range g.commands {
+			for _, flag := range []string{"-h", "--help"} {
+				var out, errOut bytes.Buffer
+				if code := run([]string{c.name, flag}, &out, &errOut); code != 0 {
+					t.Errorf("agt %s %s: exit=%d stderr=%s (must answer from the help table)", c.name, flag, code, errOut.String())
+					continue
+				}
+				if !strings.Contains(out.String(), c.name) {
+					t.Errorf("agt %s %s output does not mention the command:\n%s", c.name, flag, out.String())
+				}
+			}
+		}
+	}
+}
+
+// TestUnknownCommand_ShortErrorWithSuggestion: a typo'd top-level command gets
+// a one-line error + did-you-mean + a pointer at `agt help` — not an 80-line
+// help dump that buries the error.
+func TestUnknownCommand_ShortErrorWithSuggestion(t *testing.T) {
+	var out, errOut bytes.Buffer
+	if code := run([]string{"jurnal"}, &out, &errOut); code != 2 {
+		t.Fatalf("exit=%d, want 2", code)
+	}
+	msg := errOut.String()
+	if !strings.Contains(msg, "journal") {
+		t.Errorf("no did-you-mean suggestion in: %s", msg)
+	}
+	if !strings.Contains(msg, "help") {
+		t.Errorf("no pointer at `agt help` in: %s", msg)
+	}
+	if lines := strings.Count(msg, "\n"); lines > 3 {
+		t.Errorf("error is %d lines — the old full-help dump is back?", lines)
+	}
+}
+
 // TestCmdHelp_OverviewAndDetail: the overview lists groups; `help <cmd>`
 // prints that command's detail; an unknown command suggests near-misses.
 func TestCmdHelp_OverviewAndDetail(t *testing.T) {
