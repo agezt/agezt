@@ -64,7 +64,7 @@ export function rankProviders(providers: SetupProvider[], query: string): SetupP
 
 // ---- the wizard ---------------------------------------------------------------
 
-type Step = "catalog" | "provider" | "model" | "done";
+type Step = "catalog" | "provider" | "model" | "password" | "done";
 
 export function Setup({
   overlay = false,
@@ -162,6 +162,36 @@ export function Setup({
     try {
       await postJSON("/api/config/set", { name: "AGEZT_MODEL", value: modelId });
       ui.toast(`model set to ${modelId}`, "success");
+      setStep("password");
+    } catch (e) {
+      ui.toast((e as Error).message, "error");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // Console password (M933): an optional setup step. Saved as the
+  // AGEZT_WEB_PASSWORD secret (vault) via the same config-set route the model
+  // step uses; the daemon applies it LIVE, so password login at the bare
+  // console address works immediately — no restart, no tokened URL needed.
+  const [pwVal, setPwVal] = useState("");
+  const [pwVal2, setPwVal2] = useState("");
+  async function applyPassword() {
+    const pw = pwVal.trim();
+    if (!pw) {
+      ui.toast("type a password first (or Skip)", "error");
+      return;
+    }
+    if (pw !== pwVal2.trim()) {
+      ui.toast("passwords don't match", "error");
+      return;
+    }
+    setBusy(true);
+    try {
+      await postJSON("/api/config/set", { name: "AGEZT_WEB_PASSWORD", value: pw });
+      ui.toast("console password set — you can now log in without the tokened URL", "success");
+      setPwVal("");
+      setPwVal2("");
       setStep("done");
     } catch (e) {
       ui.toast((e as Error).message, "error");
@@ -282,6 +312,42 @@ export function Setup({
         </Card>
       )}
 
+      {step === "password" && (
+        <Card title="Console password (optional)">
+          <p className="text-sm text-muted">
+            Set a password and you can open this console at its plain address and log in — no tokened URL
+            needed. The token from the daemon banner keeps working too. Stored in the encrypted vault;
+            applies immediately.
+          </p>
+          <div className="mt-2 flex max-w-sm flex-col gap-2">
+            <input
+              type="password"
+              value={pwVal}
+              onChange={(e) => setPwVal(e.target.value)}
+              placeholder="console password"
+              aria-label="Console password"
+              className="rounded-md border border-border bg-panel px-2 py-1 text-sm outline-none focus-visible:border-accent"
+            />
+            <input
+              type="password"
+              value={pwVal2}
+              onChange={(e) => setPwVal2(e.target.value)}
+              placeholder="repeat password"
+              aria-label="Repeat console password"
+              className="rounded-md border border-border bg-panel px-2 py-1 text-sm outline-none focus-visible:border-accent"
+            />
+            <div className="flex items-center gap-2">
+              <Button size="sm" onClick={applyPassword} disabled={busy} aria-label="Set console password">
+                <ArrowRight className="h-3.5 w-3.5" /> Set password
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setStep("done")} aria-label="Skip password">
+                Skip
+              </Button>
+            </div>
+          </div>
+        </Card>
+      )}
+
       {step === "done" && (
         <Card title="You're ready">
           <p className="flex items-center gap-2 text-sm">
@@ -316,8 +382,9 @@ function Stepper({ step }: { step: Step }) {
     { id: "catalog", label: "Catalog" },
     { id: "provider", label: "Provider + key" },
     { id: "model", label: "Model" },
+    { id: "password", label: "Password" },
   ];
-  const order: Step[] = ["catalog", "provider", "model", "done"];
+  const order: Step[] = ["catalog", "provider", "model", "password", "done"];
   const at = order.indexOf(step);
   return (
     <div className="flex items-center gap-2 text-[11px]">
