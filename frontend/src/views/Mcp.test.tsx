@@ -22,7 +22,9 @@ import {
   parseHeaders,
   urlOk,
   transportOf,
+  filterCatalog,
   CATALOG,
+  CATEGORY_LABELS,
 } from "@/views/Mcp";
 import { UIProvider } from "@/components/ui/feedback";
 
@@ -114,6 +116,27 @@ describe("CATALOG", () => {
   it("preset names are unique", () => {
     const names = CATALOG.map((e) => e.name);
     expect(new Set(names).size).toBe(names.length);
+  });
+  it("every preset has a known category and every category is non-empty (M912)", () => {
+    const cats = Object.keys(CATEGORY_LABELS);
+    for (const e of CATALOG) expect(cats).toContain(e.category);
+    for (const c of cats) expect(CATALOG.some((e) => e.category === c)).toBe(true);
+  });
+  it("is a real library, not a stub — 35+ presets spanning stdio and remote", () => {
+    expect(CATALOG.length).toBeGreaterThanOrEqual(35);
+  });
+});
+
+describe("filterCatalog", () => {
+  it("narrows by category chip and matches name/description case-insensitively", () => {
+    expect(filterCatalog(CATALOG, "all", "")).toHaveLength(CATALOG.length);
+    for (const e of filterCatalog(CATALOG, "data", "")) expect(e.category).toBe("data");
+    const byName = filterCatalog(CATALOG, "all", "FIRE");
+    expect(byName.some((e) => e.name === "firecrawl")).toBe(true);
+    const byDesc = filterCatalog(CATALOG, "web", "duckduckgo");
+    expect(byDesc.some((e) => e.name === "duckduckgo")).toBe(true);
+    expect(filterCatalog(CATALOG, "core", "firecrawl")).toHaveLength(0); // category AND query
+    expect(filterCatalog(CATALOG, "all", "zzz-no-such-server")).toHaveLength(0);
   });
 });
 
@@ -262,5 +285,24 @@ describe("Mcp", () => {
     getJSON.mockResolvedValue({ servers: [], count: 0, attached_count: 0 });
     render(withUI(<Mcp />));
     await waitFor(() => expect(screen.getByText("No MCP servers yet")).toBeTruthy());
+  });
+
+  it("gallery filters by category chip and search box (M912)", async () => {
+    getJSON.mockResolvedValue({ servers: [], count: 0, attached_count: 0 });
+    render(withUI(<Mcp />));
+    fireEvent.click(screen.getByRole("button", { name: /Popular servers/ }));
+    await waitFor(() => expect(screen.getByText("firecrawl")).toBeTruthy());
+
+    // Category chip: Databases hides web presets, keeps db ones.
+    fireEvent.click(screen.getByRole("button", { name: "Databases" }));
+    expect(screen.queryByText("firecrawl")).toBeNull();
+    expect(screen.getByText("mongodb")).toBeTruthy();
+
+    // Search inside the category, then a query with no hits.
+    fireEvent.change(screen.getByLabelText("Search catalog"), { target: { value: "qdrant" } });
+    expect(screen.getByText("qdrant")).toBeTruthy();
+    expect(screen.queryByText("mongodb")).toBeNull();
+    fireEvent.change(screen.getByLabelText("Search catalog"), { target: { value: "nope" } });
+    expect(screen.getByText(/No presets match/)).toBeTruthy();
   });
 });
