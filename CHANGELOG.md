@@ -205,6 +205,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   shutdown forever. (M883)
 
 ### Fixed
+- **Abstractive context summaries work on reasoning models (M926).** The elided-output summary call
+  (M398, `ContextSummarize`) capped its response at 64 tokens — a reasoning model (deepseek-v4-pro,
+  o-series) spends output tokens on its chain of thought first, so the cap was entirely consumed and
+  the summary came back empty, silently degrading every stub to the extractive head snippet. The cap
+  now follows the model's catalog `reasoning` flag: plain models keep the tight 64 (spend stays
+  negligible), reasoning models get 1024 of headroom.
 - **"Needs attention" no longer shows stale halts/failures forever (M913).** The Dashboard strip and
   the nav badge derive alerts from the journal/event buffer, which backfills weeks of history — so an
   old `halt` or a run that failed days ago lingered indefinitely. Alerts are now resolution-aware (a
