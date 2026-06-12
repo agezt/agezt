@@ -80,15 +80,62 @@ export interface RankedAlert extends Alert {
   correlationId?: string; // the run this alert belongs to, when there is one (M781)
 }
 
+// DEFAULT_ATTENTION_WINDOW_MS bounds how long an alert counts as "needs
+// attention" (M913). The event buffer backfills history from the journal, so an
+// old halt or a run that failed days ago would otherwise sit in "Needs
+// attention" forever — the operator asked why these never clear. A day is long
+// enough to not miss something actionable, short enough that stale signals age
+// out on their own.
+export const DEFAULT_ATTENTION_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+// daemonHalted reports whether the kernel is CURRENTLY halted, by the most
+// recent halt/resume transition in the stream — so a "daemon halted" alert that
+// a later resume already cleared no longer demands attention (M913). Pure.
+export function daemonHalted(events: AgentEvent[]): boolean {
+  let haltMs = -1;
+  let resumeMs = -1;
+  for (const e of events) {
+    const k = (e.kind || "").toLowerCase();
+    const ts = e.ts_unix_ms ?? 0;
+    if (k === "halt") haltMs = Math.max(haltMs, ts);
+    else if (k === "resume") resumeMs = Math.max(resumeMs, ts);
+  }
+  return haltMs >= 0 && haltMs > resumeMs;
+}
+
+// AttentionOpts tunes the "needs attention" filtering (M913). nowMs enables the
+// recency window (omit to keep every alert regardless of age); windowMs defaults
+// to a day. The 2nd arg may also be a bare number for the legacy `limit`.
+export interface AttentionOpts {
+  limit?: number;
+  nowMs?: number;
+  windowMs?: number;
+}
+
+// attentionFilter drops an alert that no longer needs attention: a "daemon
+// halted" already cleared by a later resume, or one older than the recency
+// window. Shared by the cockpit strip and the nav badge so they always agree.
+function attentionFilter(e: AgentEvent, halted: boolean, nowMs?: number, windowMs = DEFAULT_ATTENTION_WINDOW_MS): boolean {
+  if ((e.kind || "").toLowerCase() === "halt" && !halted) return false; // resolved by a resume
+  const ts = e.ts_unix_ms;
+  if (nowMs != null && ts != null && nowMs - ts > windowMs) return false; // aged out
+  return true;
+}
+
 // recentAttentionAlerts classifies a stream and returns the warning/critical alerts only,
 // deduped by id and newest-first, capped at `limit` (M780). Used by the cockpit to show
-// "what needs attention" inline, reusing the exact rules of the Alerts view.
-export function recentAttentionAlerts(events: AgentEvent[], limit = 5): RankedAlert[] {
+// "what needs attention" inline, reusing the exact rules of the Alerts view. Resolved
+// halts and (when nowMs is given) alerts past the recency window are dropped (M913).
+export function recentAttentionAlerts(events: AgentEvent[], limitOrOpts: number | AttentionOpts = {}): RankedAlert[] {
+  const opts = typeof limitOrOpts === "number" ? { limit: limitOrOpts } : limitOrOpts;
+  const { limit = 5, nowMs, windowMs } = opts;
+  const halted = daemonHalted(events);
   const seen = new Set<string>();
   const out: RankedAlert[] = [];
   for (const e of events) {
     const a = classifyAlert(e);
     if (!a || a.level === "info") continue;
+    if (!attentionFilter(e, halted, nowMs, windowMs)) continue;
     const id = e.id || `${e.kind}-${e.seq ?? ""}`;
     if (seen.has(id)) continue;
     seen.add(id);
@@ -100,12 +147,22 @@ export function recentAttentionAlerts(events: AgentEvent[], limit = 5): RankedAl
 
 // attentionAlertCount counts the events that classify as a warning- or critical-level
 // alert — the ones worth a badge (M779). Info-level signals (e.g. a rejected capability)
-// are real alerts but don't demand attention, so they're excluded from the count.
-export function attentionAlertCount(events: AgentEvent[]): number {
+// are real alerts but don't demand attention, so they're excluded from the count. Applies
+// the same resolved-halt + recency filtering as the cockpit strip (M913) so the badge and
+// the strip never disagree. Pass nowMs to enable the recency window.
+export function attentionAlertCount(events: AgentEvent[], opts: AttentionOpts = {}): number {
+  const { nowMs, windowMs } = opts;
+  const halted = daemonHalted(events);
+  const seen = new Set<string>();
   let n = 0;
   for (const e of events) {
     const a = classifyAlert(e);
-    if (a && a.level !== "info") n++;
+    if (!a || a.level === "info") continue;
+    if (!attentionFilter(e, halted, nowMs, windowMs)) continue;
+    const id = e.id || `${e.kind}-${e.seq ?? ""}`;
+    if (seen.has(id)) continue; // dedupe so the badge matches the strip's count
+    seen.add(id);
+    n++;
   }
   return n;
 }

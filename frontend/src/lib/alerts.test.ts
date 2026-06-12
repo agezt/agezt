@@ -1,5 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { classifyAlert, isAlert, LEVEL_ORDER, attentionAlertCount, recentAttentionAlerts } from "@/lib/alerts";
+import {
+  classifyAlert,
+  isAlert,
+  LEVEL_ORDER,
+  attentionAlertCount,
+  recentAttentionAlerts,
+  daemonHalted,
+} from "@/lib/alerts";
 import type { AgentEvent } from "@/lib/events";
 
 function ev(kind: string, payload: any = {}): AgentEvent {
@@ -100,5 +107,42 @@ describe("recentAttentionAlerts (M780)", () => {
     const mk = (id: string, ts: number) => ({ ...ev("task.failed", {}), id, ts_unix_ms: ts });
     const out = recentAttentionAlerts([mk("a", 1), mk("b", 2), mk("c", 3)], 2);
     expect(out.map((r) => r.id)).toEqual(["c", "b"]);
+  });
+});
+
+describe("daemonHalted (M913)", () => {
+  const at = (kind: string, ts: number) => ({ ...ev(kind), ts_unix_ms: ts });
+  it("is true only when the latest halt/resume transition is a halt", () => {
+    expect(daemonHalted([])).toBe(false);
+    expect(daemonHalted([at("halt", 10)])).toBe(true);
+    expect(daemonHalted([at("halt", 10), at("resume", 20)])).toBe(false); // resumed after
+    expect(daemonHalted([at("resume", 5), at("halt", 30)])).toBe(true); // halted again
+  });
+});
+
+describe("attention de-staling (M913)", () => {
+  const at = (id: string, kind: string, ts: number, p: any = {}) => ({ ...ev(kind, p), id, ts_unix_ms: ts });
+
+  it("drops a halt alert once a later resume cleared it", () => {
+    const events = [at("h", "halt", 10, { reason: "manual" }), at("r", "resume", 20)];
+    expect(recentAttentionAlerts(events).map((a) => a.id)).not.toContain("h");
+    expect(attentionAlertCount(events)).toBe(0);
+  });
+
+  it("keeps a halt that is still in effect (no resume after it)", () => {
+    const events = [at("h", "halt", 30, { reason: "manual" }), at("r", "resume", 10)];
+    expect(recentAttentionAlerts(events).map((a) => a.id)).toContain("h");
+    expect(attentionAlertCount(events)).toBe(1);
+  });
+
+  it("ages out alerts older than the recency window when nowMs is given", () => {
+    const now = 1_000_000_000_000;
+    const fresh = at("fresh", "task.failed", now - 60_000); // 1 min ago
+    const stale = at("stale", "task.failed", now - 3 * 24 * 60 * 60 * 1000); // 3 days ago
+    const out = recentAttentionAlerts([fresh, stale], { nowMs: now });
+    expect(out.map((a) => a.id)).toEqual(["fresh"]);
+    expect(attentionAlertCount([fresh, stale], { nowMs: now })).toBe(1);
+    // Without nowMs the window is off — both still count (legacy behavior).
+    expect(attentionAlertCount([fresh, stale])).toBe(2);
   });
 });

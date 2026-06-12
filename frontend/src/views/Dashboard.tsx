@@ -53,7 +53,11 @@ export function Dashboard() {
     ]);
     if (s.status === "fulfilled") setStats(s.value);
     if (b.status === "fulfilled") setBudget(b.value);
-    if (j.status === "fulfilled") setAlerts(recentAttentionAlerts(j.value.events || [], 4));
+    // Recency-bounded + halt-resolved (M913): the journal backfills weeks of
+    // history, so without a window an old halt/failure would sit in "Needs
+    // attention" forever.
+    if (j.status === "fulfilled")
+      setAlerts(recentAttentionAlerts(j.value.events || [], { limit: 4, nowMs: Date.now() }));
     if (st.status === "fulfilled") {
       setStatus(st.value);
       // Activity rate = growth of the journal head between samples (events/tick).

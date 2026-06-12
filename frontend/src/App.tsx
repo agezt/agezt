@@ -57,6 +57,7 @@ import { foldActivityEvent, summarize, type ActivityState } from "@/lib/activity
 import { CommandPalette } from "@/components/CommandPalette";
 import { MiniChat } from "@/components/MiniChat";
 import { AlertBell } from "@/components/AlertBell";
+import { ApprovalsBell } from "@/components/ApprovalsBell";
 import { Vitals } from "@/components/Vitals";
 import { useUI, type ConfirmOptions } from "@/components/ui/feedback";
 
@@ -272,7 +273,7 @@ export default function App() {
   // Unseen-alert badge on the Alerts nav item (M779): count the critical/warning alerts
   // in the live buffer so the cockpit flags "something needs attention" from anywhere —
   // not only when you happen to open the Alerts tab. Opening that tab marks them seen.
-  const liveAlertCount = useMemo(() => attentionAlertCount(events), [events]);
+  const liveAlertCount = useMemo(() => attentionAlertCount(events, { nowMs: Date.now() }), [events]);
   const [seenAlerts, setSeenAlerts] = useState(0);
   useEffect(() => {
     if (active === "alerts") setSeenAlerts(liveAlertCount);
@@ -630,6 +631,7 @@ function Header({ connected, onOpenPalette }: { connected: boolean; onOpenPalett
         ● {connected ? "live" : "disconnected"}
       </span>
       <div className="ml-auto flex items-center gap-2">
+        <ApprovalsBell />
         <AlertBell />
         <button
           onClick={onOpenPalette}

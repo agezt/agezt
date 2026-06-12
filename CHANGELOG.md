@@ -12,6 +12,10 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Pending-approval bell in the header (M913).** A gated HITL request could sit unseen on the
+  Approvals tab. The header now carries a live approvals indicator on every view: it counts pending
+  requests from `/api/approvals` (refetching on `approval.*` events), badges with the count, and
+  opens a dropdown to Approve/Deny each request inline (or jump to the Approvals page).
 - **Visual Roster — card grid + agent identity avatars (M911).** The agent Roster (sibling of the
   Agents monitor) is no longer a flat list of rows: each agent now has a deterministic colored
   monogram avatar (dimmed when retired), a summary band (agents / enabled / paused / graveyard), and
@@ -121,6 +125,11 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   shutdown forever. (M883)
 
 ### Fixed
+- **"Needs attention" no longer shows stale halts/failures forever (M913).** The Dashboard strip and
+  the nav badge derive alerts from the journal/event buffer, which backfills weeks of history — so an
+  old `halt` or a run that failed days ago lingered indefinitely. Alerts are now resolution-aware (a
+  `halt` cleared by a later `resume` is dropped via `daemonHalted`) and recency-bounded (a 24h window
+  ages out old signals); the badge and the strip also dedupe consistently so their counts agree.
 - **DeepSeek cached-token billing parity (M887).** The OpenAI-compatible adapter now also reads DeepSeek's
   `prompt_cache_hit_tokens` (their spelling of the cache-read count) alongside OpenAI's
   `prompt_tokens_details.cached_tokens`, on both the non-streaming and streaming paths. DeepSeek context-cache
