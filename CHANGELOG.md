@@ -12,6 +12,12 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Runs — status summary band + click-to-filter chips (M923).** The Runs monitor now shows the
+  shape of the fleet's work at a glance: a `N total` count and a row of status chips (running /
+  completed / failed / other) with live counts and status-coloured dots. Click a chip to narrow the
+  list to that outcome (click again to clear); zero-count chips are disabled. Composes with the
+  existing text search, and a deep-link to a hidden run auto-clears the filter so the run is visible.
+  Brings Runs in line with the Agents/Roster/Tools/Schedules/World galleries.
 - **Approval-needed push to channels (M922).** A blocked run waiting on your approval is now
   pushed through the configured Pulse channels (Slack/Telegram/Discord), not just surfaced in the
   console's Approvals bell. The daemon-side alerter already pushed failures, halts, budget trips and
