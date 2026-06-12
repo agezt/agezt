@@ -898,6 +898,8 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.handleBoardAck(conn, req)
 	case CmdBoardReplies:
 		s.handleBoardReplies(conn, req)
+	case CmdBoardGet:
+		s.handleBoardGet(conn, req)
 	case CmdAutonomyFeed:
 		s.handleAutonomyFeed(conn, req)
 	default:

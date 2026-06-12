@@ -43,6 +43,20 @@ class _Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         u = urlparse(self.path)
         self.server.last_query = parse_qs(u.query)
+        if u.path == "/api/v1/mailbox/watch":
+            # A finite SSE stream: ready, one mail, then EOF (the iterator ends).
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream")
+            self.end_headers()
+            for frame in (
+                'event: ready\ndata: {"name": "researcher"}\n\n',
+                ": keepalive\n\n",
+                'event: mail\ndata: '
+                + json.dumps(_MSG)
+                + "\n\n",
+            ):
+                self.wfile.write(frame.encode())
+            return
         if u.path == "/api/v1/mailbox/inbox":
             self._json(200, {"name": "researcher", "waiting": [_MSG], "count": 1})
         elif u.path == "/api/v1/mailbox/messages/m-1/replies":
@@ -114,6 +128,13 @@ class MailboxTest(unittest.TestCase):
         self.assertEqual(self.srv.last_body, {"by": "researcher"})
         with self.assertRaises(APIError):
             self.c.mailbox_ack("nope", "researcher")
+
+    def test_watch_yields_mail_frames_only(self):
+        mails = list(self.c.mailbox_watch(name="researcher"))
+        self.assertEqual(len(mails), 1)  # ready + keepalive frames are skipped
+        self.assertEqual(mails[0].id, "m-1")
+        self.assertEqual(mails[0].text, "deploy target?")
+        self.assertEqual(self.srv.last_query, {"name": ["researcher"]})
 
     def test_replies_messages_topics(self):
         reps = self.c.mailbox_replies("m-1")

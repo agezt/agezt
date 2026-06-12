@@ -109,6 +109,23 @@ func TestBoardWrite_SendInboxAckReplies(t *testing.T) {
 	if len(notified) != 4 {
 		t.Fatalf("notifier fired %d times, want 4", len(notified))
 	}
+
+	// board_get fetches one message by id (M938) — the watcher's body lookup.
+	res, err = c.Call(ctx, controlplane.CmdBoardGet, map[string]any{"id": id})
+	if err != nil {
+		t.Fatalf("board_get: %v", err)
+	}
+	if got := res["message"].(map[string]any); got["id"] != id || got["text"] != "deploy target?" {
+		t.Fatalf("board_get view wrong: %+v", got)
+	}
+	if _, err := c.Call(ctx, controlplane.CmdBoardGet, map[string]any{}); err == nil ||
+		!strings.Contains(err.Error(), "id") {
+		t.Fatalf("board_get without id: err = %v", err)
+	}
+	if _, err := c.Call(ctx, controlplane.CmdBoardGet, map[string]any{"id": "nope"}); err == nil ||
+		!strings.Contains(err.Error(), "no message") {
+		t.Fatalf("board_get unknown id: err = %v", err)
+	}
 }
 
 // TestBoardWrite_Validation covers the error paths: writes without the shared

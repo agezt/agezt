@@ -78,6 +78,7 @@ fn main() -> agezt::Result<()> {
 | `mailbox_replies(id, limit)` | `GET /api/v1/mailbox/messages/{id}/replies` | `Vec<Mail>`, oldest first |
 | `mailbox_messages(topic, limit)` | `GET /api/v1/mailbox/messages` | `Vec<Mail>`, newest first |
 | `mailbox_topics()` | `GET /api/v1/mailbox/topics` | `BTreeMap<String, i64>` topic → count |
+| `mailbox_watch(name, topic)` | `GET /api/v1/mailbox/watch` (SSE) | `Iterator<Item = Result<Mail>>` as messages land (push, no polling) |
 
 `Client::new(base_url, token)` defaults to a 30-second per-request timeout and
 no tenant. Chain `.with_timeout(Duration)` and `.with_tenant("<id>")` to target

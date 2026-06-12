@@ -185,6 +185,33 @@ class AsyncClient:
         """Return the mailbox's topics with their message counts."""
         return await self._in_thread(self._sync.mailbox_topics)
 
+    async def mailbox_watch(self, name: str = "", topic: str = "") -> AsyncIterator[Mail]:
+        """Stream new mail as it lands (see :meth:`Client.mailbox_watch`),
+        yielding to ``async for`` without blocking the event loop — the same
+        queue bridge as :meth:`run_stream`."""
+        loop = asyncio.get_running_loop()
+        queue: "asyncio.Queue[Any]" = asyncio.Queue()
+        done = object()
+
+        def produce() -> None:
+            try:
+                for mail in self._sync.mailbox_watch(name, topic):
+                    loop.call_soon_threadsafe(queue.put_nowait, mail)
+            except BaseException as exc:
+                loop.call_soon_threadsafe(queue.put_nowait, exc)
+            finally:
+                loop.call_soon_threadsafe(queue.put_nowait, done)
+
+        loop.run_in_executor(None, produce)
+
+        while True:
+            item = await queue.get()
+            if item is done:
+                return
+            if isinstance(item, BaseException):
+                raise item
+            yield item
+
     async def aclose(self) -> None:
         """No-op: the client holds no persistent resources. Provided for symmetry."""
         return None

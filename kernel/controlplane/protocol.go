@@ -1204,6 +1204,14 @@ const (
 	// Args: id (required); limit (optional; default 50, clamped 1..500).
 	// Returns: { id, replies: [msg…], count }
 	CmdBoardReplies = "board_replies"
+
+	// CmdBoardGet returns one board message by id (M938). The board.posted
+	// event carries only metadata (no text), so a watcher that learned an id
+	// from the event stream fetches the body here. Read-only.
+	// Args: id (required).
+	// Returns: { message: {id, topic, from?, to?, reply_to?, help?, text,
+	//            ts_unix_ms} }
+	CmdBoardGet = "board_get"
 )
 
 // Request is the wire shape sent by the client.

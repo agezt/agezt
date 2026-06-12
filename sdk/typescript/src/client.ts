@@ -200,6 +200,33 @@ export class Client {
     return out.topics ?? {};
   }
 
+  /** Stream new mail the moment it lands — the push counterpart of polling
+   * `mailboxInbox`. `name` watches one agent/app's mail (messages addressed to
+   * it plus broadcasts it didn't send); `topic` watches one topic; neither
+   * tails every board message. The server's first frame is a `ready` marker —
+   * messages sent after it are guaranteed delivered. Iterates until the
+   * connection closes or the consumer breaks out.
+   *
+   * Note: pass `timeoutMs: 0`-like long timeouts via ClientOptions if the
+   * default 30s would cut a quiet watch short. */
+  async *mailboxWatch(name = "", topic = ""): AsyncGenerator<Mail> {
+    const q = new URLSearchParams();
+    if (name) q.set("name", name);
+    if (topic) q.set("topic", topic);
+    const qs = q.toString();
+    const res = await this.fetch(
+      "GET",
+      "/api/v1/mailbox/watch" + (qs ? "?" + qs : ""),
+      undefined,
+      "text/event-stream",
+    );
+    if (!res.ok) throw await apiError(res);
+    if (!res.body) return;
+    for await (const ev of parseSSE(res.body)) {
+      if (ev.event === "mail") yield ev.data as unknown as Mail;
+    }
+  }
+
   // --- internals ---
 
   private async getJSON<T>(path: string): Promise<T> {

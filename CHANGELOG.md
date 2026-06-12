@@ -21,6 +21,14 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   dump that buried the error. (M936)
 
 ### Added
+- **Mailbox watch — push instead of polling (M938).** `GET /api/v1/mailbox/watch?name=&topic=`
+  streams new board messages as SSE `mail` frames the moment they land: `name` watches one
+  agent/app's mail (DMs + foreign broadcasts, the live counterpart of the inbox), `topic` one
+  topic, neither tails everything. A leading `ready` frame marks the subscription attached (no
+  send/subscribe race) and 25s keepalives hold idle connections open. All four SDKs gain a watch
+  (`WatchMail` in Go over the control plane's pulse stream; `mailbox_watch` iterators in
+  Python/asyncio, TypeScript, Rust). New `board_get` control-plane command fetches one message by
+  id — the `board.posted` event carries metadata only, so watchers resolve the body through it.
 - **Mailbox for SDK apps — the shared board opens to the outside (M937).** The inter-agent message
   board (post/DM/broadcast/reply, M647/M788) is now reachable from OUTSIDE a run, so apps written
   with the SDKs can talk to agents (and each other) by name. New REST surface
