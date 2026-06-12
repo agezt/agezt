@@ -228,6 +228,27 @@ func (s *Server) handleMemoryForget(conn net.Conn, req Request) {
 	})
 }
 
+// handleMemoryPromote (M915) shares a private record: its scope tag is cleared
+// so it joins the shared brain every agent recalls. The selective-sharing valve
+// over per-agent memory; journaled as memory.promoted.
+func (s *Server) handleMemoryPromote(conn net.Conn, req Request) {
+	id, _ := req.Args["id"].(string)
+	if id == "" {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.id required"})
+		return
+	}
+	rec, found, err := s.k.Memory().Promote("", id)
+	if err != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		return
+	}
+	result := map[string]any{"promoted": found, "id": id}
+	if found {
+		result["subject"] = rec.Subject
+	}
+	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: result})
+}
+
 // defaultPruneDays is the age threshold below which soft-deleted records are NOT
 // pruned — recently forgotten/superseded records stay recoverable for a month.
 const defaultPruneDays = 30

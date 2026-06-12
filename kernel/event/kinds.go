@@ -228,6 +228,9 @@ const (
 	// KindMemoryConsolidated (M804): one brain-distillation pass merged
 	// clusters of related records into consolidated summaries.
 	KindMemoryConsolidated Kind = "memory.consolidated"
+	// KindMemoryPromoted (M915): a private (scoped) record was shared — its
+	// scope tag cleared so it joins the brain every agent recalls.
+	KindMemoryPromoted Kind = "memory.promoted"
 
 	// World model (SPEC-05 §3). The entity/relation graph is content-
 	// addressed and journaled so `agt why` can explain why "the portfolio"
@@ -432,6 +435,7 @@ var knownKinds = map[Kind]struct{}{
 	KindMemoryPruned:              {},
 	KindMemorySuperseded:          {},
 	KindMemoryConsolidated:        {},
+	KindMemoryPromoted:            {},
 	KindWorldEntityUpserted:       {},
 	KindWorldRelationUpserted:     {},
 	KindWorldRetrieved:            {},

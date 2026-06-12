@@ -78,6 +78,14 @@ func (s *Server) handleMemoryLog(conn net.Conn, req Request) {
 			}
 			_ = json.Unmarshal(e.Payload, &p)
 			m.op, m.id, m.subject = "supersede", p.OldID, "→ "+p.NewID
+		case event.KindMemoryPromoted:
+			var p struct {
+				ID        string `json:"id"`
+				Subject   string `json:"subject"`
+				FromScope string `json:"from_scope"`
+			}
+			_ = json.Unmarshal(e.Payload, &p)
+			m.op, m.id, m.subject = "promote", p.ID, p.Subject+" (was private to "+p.FromScope+")"
 		default:
 			return nil
 		}
@@ -121,8 +129,8 @@ func (s *Server) handleMemoryLog(conn net.Conn, req Request) {
 }
 
 // memOpMatches maps the user's --op filter to the event kind. "written" keeps
-// both write and revive (the memory.written kind); "forgotten"/"superseded"
-// match their kinds.
+// both write and revive (the memory.written kind); "forgotten"/"superseded"/
+// "promoted" match their kinds.
 func memOpMatches(filter string, kind event.Kind, op string) bool {
 	switch filter {
 	case "written", "write":
@@ -131,6 +139,8 @@ func memOpMatches(filter string, kind event.Kind, op string) bool {
 		return kind == event.KindMemoryForgotten
 	case "superseded", "supersede":
 		return kind == event.KindMemorySuperseded
+	case "promoted", "promote":
+		return kind == event.KindMemoryPromoted
 	default:
 		return op == filter
 	}

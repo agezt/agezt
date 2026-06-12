@@ -85,7 +85,11 @@ func (m *Manager) Remember(corr string, spec RememberSpec) (Record, bool, error)
 		conf = 1
 	}
 	nowMS := m.now().UnixMilli()
-	id := ContentID(t, spec.Subject, spec.Content)
+	// Scope participates in identity (M915): two agents privately noting the
+	// same content get two records, instead of the second write reinforcing the
+	// first and flipping its scope tag (which would hide the note from its
+	// original author). Shared writes hash exactly as before.
+	id := ScopedID(t, spec.Subject, spec.Content, scopeOf(spec.Tags))
 
 	// Hold the lock across the Get→Put so a concurrent writer can't lose the update.
 	m.mu.Lock()
@@ -243,6 +247,38 @@ func (m *Manager) Forget(corr, id string) (bool, error) {
 		"subject": rec.Subject,
 	})
 	return true, nil
+}
+
+// Promote shares a private record (M915): its scope tag is cleared so the
+// record joins the shared brain every agent recalls. This is the selective-
+// sharing valve: agents accumulate private notes by default, and only the few
+// worth everyone knowing are promoted (by the operator, or a future policy).
+// Idempotent — promoting an already-shared record reports found without a
+// write. The record keeps its id: identity is stable once created, and a later
+// identical shared write would simply create a sibling record consolidation
+// merges away. Returns false if id is unknown.
+func (m *Manager) Promote(corr, id string) (Record, bool, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	rec, found, err := m.store.Get(id)
+	if err != nil || !found {
+		return Record{}, found, err
+	}
+	scope := scopeOf(rec.Tags)
+	if scope == "" {
+		return rec, true, nil // already shared
+	}
+	delete(rec.Tags, "scope")
+	rec.LastSeenMS = m.now().UnixMilli()
+	if err := m.store.Put(rec); err != nil {
+		return Record{}, true, err
+	}
+	m.publish(event.KindMemoryPromoted, corr, map[string]any{
+		"id":         id,
+		"subject":    rec.Subject,
+		"from_scope": scope,
+	})
+	return rec, true, nil
 }
 
 // HygieneStats summarizes the store's health for the maintenance view (M857).
@@ -442,8 +478,9 @@ const ctxKeyScope ctxKey = iota + 1
 // (M786): when a run executes AS a named agent (M783), its recalls — the
 // context injection and the memory tool — default to this scope, so the agent
 // sees its own private notes on top of shared memory without having to name
-// itself. Writes stay shared by default ("shared brain, private notes", M652);
-// the explicit tool scope param always wins over this default.
+// itself. Writes default to this scope too (M915 — each agent keeps its own
+// memory; the shared brain is opt-in via the tool's shared=true and kept
+// selective). The explicit tool scope param always wins over this default.
 func WithScope(ctx context.Context, scope string) context.Context {
 	if scope == "" {
 		return ctx
@@ -473,7 +510,8 @@ const toolInputSchema = `{
     "query":   {"type": "string", "description": "search text (recall)"},
     "limit":   {"type": "integer", "description": "max results (recall; default 5)"},
     "id":      {"type": "string", "description": "record id (forget)"},
-    "scope":   {"type": "string", "description": "optional private namespace, e.g. your role like \"researcher\". On remember: keep this note private to that scope. On recall: also surface that scope's private notes. Shared memory (no scope) is ALWAYS visible; another scope's private notes never are. Omit for shared memory."}
+    "shared":  {"type": "boolean", "description": "remember only: write to the SHARED memory every agent recalls. Be selective — share only durable facts useful to ALL agents (owner preferences, project-wide decisions). Default false: the note stays private to you."},
+    "scope":   {"type": "string", "description": "optional namespace override, e.g. a role like \"researcher\". On remember: store the note private to that scope (default: your own agent scope). On recall: also surface that scope's private notes. Shared memory is ALWAYS visible; another scope's private notes never are."}
   },
   "required": ["action"]
 }`
@@ -486,6 +524,7 @@ type toolInput struct {
 	Query   string `json:"query"`
 	Limit   int    `json:"limit"`
 	ID      string `json:"id"`
+	Shared  bool   `json:"shared"`
 	Scope   string `json:"scope"`
 }
 
@@ -505,8 +544,9 @@ func (t memoryTool) Definition() agent.ToolDef {
 			"action=remember stores a fact (subject, content); " +
 			"action=recall searches stored memory (query); " +
 			"action=forget tombstones a record (id). " +
-			"Memory is shared with every agent by default; pass an optional scope " +
-			"(e.g. your role) to keep a note private to that scope and to recall it.",
+			"Your notes are PRIVATE to you by default — recall surfaces them plus the shared memory. " +
+			"Pass shared=true only for facts genuinely useful to ALL agents " +
+			"(owner preferences, project-wide decisions); be selective about the shared brain.",
 		InputSchema: json.RawMessage(toolInputSchema),
 	}
 }
@@ -519,8 +559,20 @@ func (t memoryTool) Invoke(ctx context.Context, input json.RawMessage) (agent.Re
 	corr := CorrelationFrom(ctx)
 	switch strings.ToLower(strings.TrimSpace(in.Action)) {
 	case "remember":
+		// Private-by-default (M915): a named agent's write lands in its OWN
+		// scope unless it explicitly opts into the shared brain (shared=true,
+		// or the "shared" scope sentinel a model may plausibly produce). An
+		// explicit scope param still wins; an unscoped run (no agent identity)
+		// keeps writing shared, as before.
+		scope := strings.TrimSpace(in.Scope)
+		switch {
+		case in.Shared || strings.EqualFold(scope, "shared"):
+			scope = ""
+		case scope == "":
+			scope = ScopeFrom(ctx)
+		}
 		rec, created, err := t.mgr.Remember(corr, RememberSpec{
-			Type: in.Type, Subject: in.Subject, Content: in.Content, Tags: in.Tags(),
+			Type: in.Type, Subject: in.Subject, Content: in.Content, Tags: toolTags(scope),
 			Actor: toolActor(ctx), // who is writing — the agent slug, or "agent" (M851)
 		})
 		if err != nil {
@@ -530,7 +582,11 @@ func (t memoryTool) Invoke(ctx context.Context, input json.RawMessage) (agent.Re
 		if created {
 			verb = "stored"
 		}
-		return agent.Result{Output: fmt.Sprintf("%s memory %s (%s: %s)", verb, rec.ID[:12], rec.Type, rec.Subject)}, nil
+		where := "shared"
+		if scope != "" {
+			where = "private to " + scope
+		}
+		return agent.Result{Output: fmt.Sprintf("%s memory %s (%s: %s) — %s", verb, rec.ID[:12], rec.Type, rec.Subject, where)}, nil
 	case "recall":
 		limit := in.Limit
 		if limit <= 0 {
@@ -575,16 +631,24 @@ func toolActor(ctx context.Context) string {
 	return "agent"
 }
 
-// Tags adapts the tool input to a tag map. Tool writes are tagged source=agent so
-// they are distinguishable from operator and distilled writes; an optional scope
+// toolTags builds a tool write's tag map. Tool writes are tagged source=agent so
+// they are distinguishable from operator and distilled writes; a non-empty scope
 // tag makes the note private to that namespace (recall only surfaces it when the
-// same scope is requested) — the per-agent layer over shared memory (M652).
-func (in toolInput) Tags() map[string]string {
+// same scope is requested) — the per-agent layer over shared memory (M652/M915).
+func toolTags(scope string) map[string]string {
 	t := map[string]string{"source": "agent"}
-	if s := strings.TrimSpace(in.Scope); s != "" {
-		t["scope"] = s
+	if scope != "" {
+		t["scope"] = scope
 	}
 	return t
+}
+
+// scopeOf extracts the scope tag from a record's tag map ("" = shared).
+func scopeOf(tags map[string]string) string {
+	if tags == nil {
+		return ""
+	}
+	return tags["scope"]
 }
 
 // filterScope drops records private to a scope other than the requested one.
@@ -670,6 +734,14 @@ func (m *Manager) Distill(ctx context.Context, corr string, provider agent.Provi
 		// an error; distillation is opportunistic.
 		return nil, nil
 	}
+	// A named agent's distilled facts stay its private notes (M915): the run
+	// ctx carries the agent's scope, so per-run distillation doesn't flood the
+	// shared brain. An unscoped run (operator chat) distills shared, as before.
+	// Promotion or consolidation can share the keepers later.
+	tags := map[string]string{"source": "distill"}
+	if scope := ScopeFrom(ctx); scope != "" {
+		tags["scope"] = scope
+	}
 	var ids []string
 	for _, f := range parsed.Facts {
 		if strings.TrimSpace(f.Content) == "" {
@@ -684,7 +756,7 @@ func (m *Manager) Distill(ctx context.Context, corr string, provider agent.Provi
 			Subject: f.Subject,
 			Content: f.Content,
 			Actor:   "distill",
-			Tags:    map[string]string{"source": "distill"},
+			Tags:    tags,
 		})
 		if err != nil {
 			return ids, err

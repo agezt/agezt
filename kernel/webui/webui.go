@@ -266,6 +266,9 @@ var writeRoutes = map[string]writeRoute{
 	"/api/run/steer":     {controlplane.CmdRunSteer, []string{"correlation", "directive"}},
 	"/api/decide":        {controlplane.CmdDecide, []string{"id", "decision", "reason"}},
 	"/api/memory/forget": {controlplane.CmdMemoryForget, []string{"id"}},
+	// Promote a private (agent-scoped) record into shared memory (M915) —
+	// the selective-sharing valve over per-agent memory.
+	"/api/memory/promote": {controlplane.CmdMemoryPromote, []string{"id"}},
 	// Delete a stored artifact by index id (M822); the blob is GC'd when unreferenced.
 	"/api/artifact/delete": {controlplane.CmdArtifactDelete, []string{"id"}},
 	// One brain-distillation pass (M804): merge related records, supersede

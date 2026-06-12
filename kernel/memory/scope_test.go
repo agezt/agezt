@@ -91,15 +91,15 @@ func TestRecall_DefaultIsSharedOnly(t *testing.T) {
 	}
 }
 
-// TestToolInputTags_Scope: the tool maps an input scope onto a scope tag, and
+// TestToolTags_Scope: the tool maps a resolved scope onto a scope tag, and
 // omits it when absent.
-func TestToolInputTags_Scope(t *testing.T) {
-	if tags := (toolInput{}).Tags(); tags["scope"] != "" {
+func TestToolTags_Scope(t *testing.T) {
+	if tags := toolTags(""); tags["scope"] != "" {
 		t.Errorf("no scope → no scope tag, got %v", tags)
 	}
-	tags := (toolInput{Scope: " researcher "}).Tags()
+	tags := toolTags("researcher")
 	if tags["scope"] != "researcher" {
-		t.Errorf("scope tag = %q, want researcher (trimmed)", tags["scope"])
+		t.Errorf("scope tag = %q, want researcher", tags["scope"])
 	}
 	if tags["source"] != "agent" {
 		t.Errorf("source tag should still be agent, got %v", tags)

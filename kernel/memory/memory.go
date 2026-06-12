@@ -123,6 +123,26 @@ func ContentID(t Type, subject, content string) string {
 	return hex.EncodeToString(h.Sum(nil))
 }
 
+// ScopedID extends ContentID with the record's scope (M915): the same fact
+// written privately by two different agents must yield two records, not one
+// record whose scope tag flips to the latest writer (silently hiding the note
+// from the first agent). An empty scope hashes identically to ContentID, so
+// every pre-existing shared record keeps its id.
+func ScopedID(t Type, subject, content, scope string) string {
+	if scope == "" {
+		return ContentID(t, subject, content)
+	}
+	h := blake3.New(32, nil)
+	h.Write([]byte(string(t)))
+	h.Write([]byte{0})
+	h.Write([]byte(subject))
+	h.Write([]byte{0})
+	h.Write([]byte(content))
+	h.Write([]byte{0})
+	h.Write([]byte(scope))
+	return hex.EncodeToString(h.Sum(nil))
+}
+
 // Store is the pure record store. Implementations persist records by id and
 // must be safe for concurrent use.
 type Store interface {

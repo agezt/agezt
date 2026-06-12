@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Brain, RefreshCw, Search, Trash2, Plus, X, Pencil, Save, Download, Upload } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Brain, RefreshCw, Search, Trash2, Plus, X, Pencil, Save, Download, Upload, Lock, Share2, Users } from "lucide-react";
 import { getJSON, postAction, postJSON } from "@/lib/api";
 import { downloadText } from "@/lib/export";
 import { cn, fmtTime } from "@/lib/utils";
@@ -70,6 +70,10 @@ export function Memory() {
   const [busy, setBusy] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  // Scope filter (M915): null = all, "" = shared brain, "<scope>" = that
+  // agent's private notes. Each agent keeps its own memory; this lets the
+  // owner browse them side by side.
+  const [scopeFilter, setScopeFilter] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   function exportMemory() {
@@ -160,6 +164,28 @@ export function Memory() {
     }
   }
 
+  // promote shares a private (agent-scoped) record with every agent (M915) —
+  // the selective-sharing valve: agents keep their own notes by default, the
+  // owner promotes the few worth everyone knowing.
+  async function promote(id: string, scope: string, subject?: string) {
+    const ok = await ui.confirm({
+      title: "Share this memory with every agent?",
+      message: `${subject ? `“${subject}” is` : "This note is"} currently private to “${scope}”. Promoting moves it into the shared memory all agents recall.`,
+      confirmLabel: "Share",
+    });
+    if (!ok) return;
+    setBusy(id);
+    try {
+      await postAction("/api/memory/promote", { id });
+      ui.toast("Memory shared with every agent", "success");
+      await reload();
+    } catch (e) {
+      ui.toast(`promote failed: ${(e as Error).message}`, "error");
+    } finally {
+      setBusy(null);
+    }
+  }
+
   // byType drives the breakdown bar (over ALL records, not the filtered view).
   const byType = useMemo(() => {
     const c: Record<string, number> = {};
@@ -167,14 +193,28 @@ export function Memory() {
     return Object.entries(c).map(([label, count]) => ({ label, count }));
   }, [records]);
 
+  // Per-agent memory map (M915): shared count + each private scope's count,
+  // driving the filter chips.
+  const scopes = useMemo(() => {
+    const c = new Map<string, number>();
+    let shared = 0;
+    for (const r of records || []) {
+      const s = r.tags?.scope || "";
+      if (s) c.set(s, (c.get(s) || 0) + 1);
+      else shared++;
+    }
+    return { shared, scoped: [...c.entries()].sort((a, b) => b[1] - a[1]) };
+  }, [records]);
+
   const f = q.trim().toLowerCase();
   const shown = useMemo(() => {
-    const list = [...(records || [])].sort((a, b) => (b.created_ms || 0) - (a.created_ms || 0));
+    let list = [...(records || [])].sort((a, b) => (b.created_ms || 0) - (a.created_ms || 0));
+    if (scopeFilter !== null) list = list.filter((r) => (r.tags?.scope || "") === scopeFilter);
     if (!f) return list;
     return list.filter((r) =>
       `${r.subject} ${r.content} ${r.type} ${Object.values(r.tags || {}).join(" ")}`.toLowerCase().includes(f),
     );
-  }, [records, f]);
+  }, [records, f, scopeFilter]);
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3">
@@ -221,6 +261,29 @@ export function Memory() {
         </Button>
       </div>
 
+      {scopes.scoped.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Memory scope filter">
+          <ScopeChip active={scopeFilter === null} onClick={() => setScopeFilter(null)} label="All" count={(records || []).length} />
+          <ScopeChip
+            active={scopeFilter === ""}
+            onClick={() => setScopeFilter((cur) => (cur === "" ? null : ""))}
+            label="Shared"
+            count={scopes.shared}
+            icon={<Users className="size-3" />}
+          />
+          {scopes.scoped.map(([s, n]) => (
+            <ScopeChip
+              key={s}
+              active={scopeFilter === s}
+              onClick={() => setScopeFilter((cur) => (cur === s ? null : s))}
+              label={s}
+              count={n}
+              icon={<Lock className="size-3" />}
+            />
+          ))}
+        </div>
+      )}
+
       {showForm && (
         <TeachFactForm
           onAdded={(subject) => {
@@ -250,7 +313,9 @@ export function Memory() {
         <div className="min-h-0 flex-1 space-y-2 overflow-auto">
           {byType.length > 0 && <BreakdownBar segments={byType} />}
           <ul className="grid grid-cols-1 gap-2 lg:grid-cols-2">
-            {shown.map((r, i) => (
+            {shown.map((r, i) => {
+              const scope = r.tags?.scope || "";
+              return (
               <li key={r.id || i} className="rounded-lg border border-border bg-card p-3">
                 <div className="mb-1 flex items-center gap-2">
                   {r.type && (
@@ -258,10 +323,28 @@ export function Memory() {
                       {r.type}
                     </span>
                   )}
+                  {scope && (
+                    <span
+                      title={`Private to “${scope}” — only that agent recalls this note`}
+                      className="flex items-center gap-1 rounded bg-panel px-1.5 py-0.5 text-[10px] font-semibold text-muted"
+                    >
+                      <Lock className="size-3" /> {scope}
+                    </span>
+                  )}
                   <span className="truncate text-sm font-semibold">{r.subject || "—"}</span>
                   <div className="ml-auto flex items-center gap-2">
                     {r.confidence != null && (
                       <span className="text-[10px] tabular-nums text-muted">conf {Math.round((r.confidence || 0) * 100)}%</span>
+                    )}
+                    {r.id && scope && (
+                      <button
+                        onClick={() => promote(r.id!, scope, r.subject)}
+                        disabled={busy === r.id}
+                        title="Share with every agent (promote to shared memory)"
+                        className="text-muted transition-colors hover:text-accent disabled:opacity-50"
+                      >
+                        <Share2 className="size-3.5" />
+                      </button>
                     )}
                     {r.id && (
                       <button
@@ -299,11 +382,13 @@ export function Memory() {
                     </span>
                   )}
                   {r.tags &&
-                    Object.entries(r.tags).map(([k, v]) => (
-                      <span key={k} className="rounded-full bg-panel px-1.5 py-0.5">
-                        {k}:{v}
-                      </span>
-                    ))}
+                    Object.entries(r.tags)
+                      .filter(([k]) => k !== "scope") // scope has its own badge up top
+                      .map(([k, v]) => (
+                        <span key={k} className="rounded-full bg-panel px-1.5 py-0.5">
+                          {k}:{v}
+                        </span>
+                      ))}
                 </div>
                 {editingId === r.id && r.id && (
                   <div className="mt-2">
@@ -319,11 +404,45 @@ export function Memory() {
                   </div>
                 )}
               </li>
-            ))}
+              );
+            })}
           </ul>
         </div>
       )}
     </div>
+  );
+}
+
+// ScopeChip is one filter chip in the per-agent memory map (M915): All, Shared,
+// or one agent's private scope. Clicking an active chip clears the filter.
+function ScopeChip({
+  active,
+  onClick,
+  label,
+  count,
+  icon,
+}: {
+  active: boolean;
+  onClick: () => void;
+  label: string;
+  count: number;
+  icon?: ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      aria-pressed={active}
+      className={cn(
+        "flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] transition-colors",
+        active
+          ? "border-accent bg-accent/15 text-accent"
+          : "border-border bg-panel text-muted hover:border-accent/50 hover:text-foreground",
+      )}
+    >
+      {icon}
+      {label}
+      <span className="tabular-nums opacity-70">{count}</span>
+    </button>
   );
 }
 

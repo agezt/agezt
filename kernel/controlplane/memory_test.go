@@ -179,6 +179,45 @@ func TestMemoryForgetExcludesFromList(t *testing.T) {
 	}
 }
 
+// TestMemoryPromote (M915): a private (agent-scoped) record can be shared from
+// the control plane — promote clears its scope tag; idempotent and safe on an
+// unknown id (promoted=false).
+func TestMemoryPromote(t *testing.T) {
+	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	ctx := context.Background()
+	res, _ := c.Call(ctx, controlplane.CmdMemoryAdd, map[string]any{
+		"subject": "ops-note", "content": "staging deploy needs the vault key",
+		"tags": map[string]any{"scope": "ops"},
+	})
+	id, _ := res["id"].(string)
+
+	res, err := c.Call(ctx, controlplane.CmdMemoryPromote, map[string]any{"id": id})
+	if err != nil {
+		t.Fatalf("promote: %v", err)
+	}
+	if ok, _ := res["promoted"].(bool); !ok {
+		t.Errorf("promote should report promoted=true: %v", res)
+	}
+	res, _ = c.Call(ctx, controlplane.CmdMemoryGet, map[string]any{"id": id})
+	rec, _ := res["record"].(map[string]any)
+	if tags, _ := rec["tags"].(map[string]any); tags != nil && tags["scope"] != nil {
+		t.Errorf("promoted record must have no scope tag: %v", tags)
+	}
+
+	// Unknown id → promoted=false, not an error.
+	res, err = c.Call(ctx, controlplane.CmdMemoryPromote, map[string]any{"id": "no-such-id"})
+	if err != nil {
+		t.Fatalf("promote unknown: %v", err)
+	}
+	if ok, _ := res["promoted"].(bool); ok {
+		t.Error("unknown id should report promoted=false")
+	}
+	// Missing id → error.
+	if _, err := c.Call(ctx, controlplane.CmdMemoryPromote, nil); err == nil {
+		t.Error("promote without id must error")
+	}
+}
+
 func TestMemoryGetRequiresID(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 	if _, err := c.Call(context.Background(), controlplane.CmdMemoryGet, nil); err == nil {
