@@ -220,6 +220,17 @@ func runDaemon(stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "%s: creds load: %v\n", brand.Binary, err)
 		return 1
 	}
+	// Machine-bound at-rest encryption (M934): a plaintext vault left over from
+	// earlier versions is upgraded in place on boot — every stored key becomes
+	// an AES-256-GCM envelope keyed to this machine+user, so a creds.json that
+	// leaves the machine (backup, cloud sync, accidental commit) doesn't leak.
+	// AGEZT_VAULT_AUTOENCRYPT=off opts out; AGEZT_VAULT_PASSPHRASE still wins.
+	credsUpgraded := false
+	if up, uerr := credStore.EncryptInPlace(); uerr != nil {
+		fmt.Fprintf(stderr, "%s: creds encrypt-in-place: %v (continuing with the plaintext vault)\n", brand.Binary, uerr)
+	} else {
+		credsUpgraded = up
+	}
 
 	// Config Center bridge (M693): inject the config store + AGEZT_* vault secrets
 	// into the process environment so the existing os.Getenv consumers (provider,
@@ -239,7 +250,18 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// first lookup (then nothing for 30s) — the chain remains fast.
 	credLookup, awsChainDesc := buildAWSCredChain(credStore.Lookup)
 	credCount := len(credStore.Names())
-	credDesc := fmt.Sprintf("vault entries=%d at %s — %s", credCount, credStore.Path, awsChainDesc)
+	atRest := "plaintext (set " + creds.PassphraseEnvVar + ", or unset " + creds.AutoEncryptEnvVar + " on a host with a machine id)"
+	switch {
+	case credStore.IsEncrypted():
+		atRest = "encrypted (AES-256-GCM"
+		if credsUpgraded {
+			atRest += "; auto-upgraded this boot"
+		}
+		atRest += ")"
+	case credCount == 0 && creds.MachinePassphrase() != "":
+		atRest = "empty (will encrypt machine-bound on first save)"
+	}
+	credDesc := fmt.Sprintf("vault entries=%d at %s — at-rest: %s — %s", credCount, credStore.Path, atRest, awsChainDesc)
 
 	gov, govDesc, model, err := buildGovernor(cat, credLookup)
 	if err != nil {

@@ -65,6 +65,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"sync"
 )
 
 const (
@@ -236,13 +237,17 @@ func decryptVault(raw []byte, passphrase string) (map[string]string, error) {
 		return nil, fmt.Errorf("creds: decode ciphertext: %w", err)
 	}
 	// Dispatch on the envelope's KDF id so legacy vaults (hmac-sha256-iter, written
-	// before M172) still decrypt while new ones use PBKDF2.
+	// before M172) still decrypt while new ones use PBKDF2. The derivation is
+	// memoized (M934): the vault encrypts at rest BY DEFAULT now, and several
+	// hot paths (Config Center values, catalog list, keyring ops) Load a fresh
+	// Store per request — without the cache each would pay the full ~100ms
+	// 200k-iteration KDF for the same (passphrase, salt) pair.
 	var key []byte
 	switch env.KDF {
 	case KDFPBKDF2:
-		key = deriveKeyPBKDF2([]byte(passphrase), salt, env.KDFIter)
+		key = cachedDeriveKey(env.KDF, passphrase, salt, env.KDFIter, deriveKeyPBKDF2)
 	case KDFIteratedHMAC:
-		key = deriveKeyLegacyHMAC([]byte(passphrase), salt, env.KDFIter)
+		key = cachedDeriveKey(env.KDF, passphrase, salt, env.KDFIter, deriveKeyLegacyHMAC)
 	default:
 		return nil, fmt.Errorf("creds: unsupported kdf %q", env.KDF)
 	}
@@ -266,6 +271,26 @@ func decryptVault(raw []byte, passphrase string) (map[string]string, error) {
 		return nil, fmt.Errorf("creds: parse decrypted JSON: %w", err)
 	}
 	return m, nil
+}
+
+// kdfCache memoizes derived keys by (kdf id, iterations, salt, passphrase
+// digest) so repeated Loads of the SAME envelope (per-request Store instances
+// on the Config Center / catalog / keyring paths) pay the 200k-iteration KDF
+// once, not per request. Bounded in practice: one entry per distinct envelope
+// save, and a save replaces the salt — the map stays tiny for a daemon's
+// lifetime. The cache key uses a SHA-256 of the passphrase (never the
+// passphrase itself) so the passphrase doesn't sit in a map key string.
+var kdfCache sync.Map // string → []byte (the derived key; never mutated)
+
+func cachedDeriveKey(kdf, passphrase string, salt []byte, iter int, derive func(pass, salt []byte, iter int) []byte) []byte {
+	pd := sha256.Sum256([]byte(passphrase))
+	ck := fmt.Sprintf("%s|%d|%x|%x", kdf, iter, salt, pd[:])
+	if v, ok := kdfCache.Load(ck); ok {
+		return v.([]byte)
+	}
+	key := derive([]byte(passphrase), salt, iter)
+	kdfCache.Store(ck, key)
+	return key
 }
 
 // deriveKeyPBKDF2 is PBKDF2-HMAC-SHA256 (RFC 8018), implemented with stdlib only
