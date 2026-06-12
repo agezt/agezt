@@ -503,13 +503,14 @@ func ScopeFrom(ctx context.Context) string {
 const toolInputSchema = `{
   "type": "object",
   "properties": {
-    "action":  {"type": "string", "enum": ["remember", "recall", "forget"], "description": "what to do"},
+    "action":  {"type": "string", "enum": ["remember", "recall", "forget", "find_related", "bulk_forget"], "description": "what to do"},
     "subject": {"type": "string", "description": "entity/topic the memory is about (remember)"},
     "content": {"type": "string", "description": "the text to remember (remember)"},
     "type":    {"type": "string", "enum": ["FACT","SUMMARY","RELATION","PREFERENCE","OBSERVATION"], "description": "memory type (remember; default FACT)"},
     "query":   {"type": "string", "description": "search text (recall)"},
     "limit":   {"type": "integer", "description": "max results (recall; default 5)"},
-    "id":      {"type": "string", "description": "record id (forget)"},
+    "id":      {"type": "string", "description": "record id (forget, find_related)"},
+    "ids":     {"type": "array", "items": {"type": "string"}, "description": "record ids (bulk_forget)"},
     "shared":  {"type": "boolean", "description": "remember only: write to the SHARED memory every agent recalls. Be selective — share only durable facts useful to ALL agents (owner preferences, project-wide decisions). Default false: the note stays private to you."},
     "scope":   {"type": "string", "description": "optional namespace override, e.g. a role like \"researcher\". On remember: store the note private to that scope (default: your own agent scope). On recall: also surface that scope's private notes. Shared memory is ALWAYS visible; another scope's private notes never are."}
   },
@@ -517,15 +518,16 @@ const toolInputSchema = `{
 }`
 
 type toolInput struct {
-	Action  string `json:"action"`
-	Subject string `json:"subject"`
-	Content string `json:"content"`
-	Type    Type   `json:"type"`
-	Query   string `json:"query"`
-	Limit   int    `json:"limit"`
-	ID      string `json:"id"`
-	Shared  bool   `json:"shared"`
-	Scope   string `json:"scope"`
+	Action  string   `json:"action"`
+	Subject string   `json:"subject"`
+	Content string   `json:"content"`
+	Type    Type     `json:"type"`
+	Query   string   `json:"query"`
+	Limit   int      `json:"limit"`
+	ID      string   `json:"id"`
+	IDs     []string `json:"ids"`
+	Shared  bool     `json:"shared"`
+	Scope   string   `json:"scope"`
 }
 
 // memoryTool is the in-process agent.Tool that lets the agent remember,
@@ -615,8 +617,64 @@ func (t memoryTool) Invoke(ctx context.Context, input json.RawMessage) (agent.Re
 			return agent.Result{Output: "no memory with id " + in.ID, IsError: true}, nil
 		}
 		return agent.Result{Output: "forgot memory " + in.ID}, nil
+	case "find_related":
+		if in.ID == "" {
+			return agent.Result{Output: "find_related requires id", IsError: true}, nil
+		}
+		limit := in.Limit
+		if limit <= 0 {
+			limit = 10
+		}
+		if limit > 100 {
+			limit = 100
+		}
+		seed, found, err := t.mgr.Get(in.ID)
+		if err != nil {
+			return agent.Result{Output: "find_related failed: " + err.Error(), IsError: true}, nil
+		}
+		if !found {
+			return agent.Result{Output: "seed memory id " + in.ID + " not found", IsError: true}, nil
+		}
+		hits, err := t.mgr.Search(seed.Content, limit+1) // +1 because seed itself may appear
+		if err != nil {
+			return agent.Result{Output: "find_related failed: " + err.Error(), IsError: true}, nil
+		}
+		// Exclude the seed record from results.
+		out := make([]string, 0, limit)
+		for _, h := range hits {
+			if h.Record.ID != in.ID {
+				out = append(out, fmt.Sprintf("[%.3f] %s (%s: %s)", h.Score, h.Record.Subject, h.Record.ID[:12], h.Record.Type))
+			}
+			if len(out) >= limit {
+				break
+			}
+		}
+		if len(out) == 0 {
+			return agent.Result{Output: "no related memories found for " + in.ID}, nil
+		}
+		return agent.Result{Output: "related memories for " + in.ID + ":\n" + strings.Join(out, "\n")}, nil
+	case "bulk_forget":
+		if len(in.IDs) == 0 {
+			return agent.Result{Output: "bulk_forget requires ids", IsError: true}, nil
+		}
+		if len(in.IDs) > 500 {
+			return agent.Result{Output: "bulk_forget exceeds 500 ids per call", IsError: true}, nil
+		}
+		var forgotten, notFound int
+		for _, id := range in.IDs {
+			ok, err := t.mgr.Forget(corr, id)
+			if err != nil {
+				return agent.Result{Output: "bulk_forget failed: " + err.Error(), IsError: true}, nil
+			}
+			if ok {
+				forgotten++
+			} else {
+				notFound++
+			}
+		}
+		return agent.Result{Output: fmt.Sprintf("forgotten: %d  not_found: %d", forgotten, notFound)}, nil
 	default:
-		return agent.Result{Output: "unknown action " + in.Action + " (remember|recall|forget)", IsError: true}, nil
+		return agent.Result{Output: "unknown action " + in.Action + " (remember|recall|forget|find_related|bulk_forget)", IsError: true}, nil
 	}
 }
 

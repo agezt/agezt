@@ -1,6 +1,6 @@
 {
   "name": "@agezt/sdk",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Official TypeScript/JavaScript client for the Agezt agentic OS REST API (/api/v1).",
   "license": "MIT",
   "type": "module",

@@ -23,3 +23,26 @@ class APIError(AgeztError):
         self.message = message
         detail = message or type or "request failed"
         super().__init__(f"agezt: HTTP {status}: {detail}")
+
+
+class ConfigAccessError(AgeztError):
+    """Access to a config value was denied.
+
+    This is raised when:
+    - The config key has rating=secret (always denied)
+    - HITL approval was denied or timed out
+    - The agent lacks the config.access capability
+
+    Attributes:
+        key: The config key that was denied.
+        code: Machine-readable error code (e.g., 'ACCESS_DENIED', 'KEY_NOT_FOUND').
+        message: Human-readable explanation.
+        status: HTTP status code (403, 404, 429, etc.).
+    """
+
+    def __init__(self, key: str, code: str, message: str, status: int = 403) -> None:
+        self.key = key
+        self.code = code
+        self.status = status
+        self.message = message
+        super().__init__(f"config: {code}: {message}")

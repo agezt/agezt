@@ -169,6 +169,10 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return cmdSchedule(args[1:], stdout, stderr)
 	case "tenant":
 		return cmdTenant(args[1:], stdout, stderr)
+	case "token":
+		return cmdToken(args[1:], stdout, stderr)
+	case "configcenter":
+		return cmdConfigCenter(args[1:], stdout, stderr)
 	default:
 		// Short and actionable (M936) — the old path dumped the entire help to
 		// stderr, burying the error line it started with.
@@ -180,8 +184,6 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 }
-
-
 
 func dial(stderr io.Writer) *controlplane.Client {
 	base, err := paths.BaseDir()

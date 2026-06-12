@@ -15,6 +15,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"os"
 	"path/filepath"
 	stdruntime "runtime"
 	"slices"
@@ -23,12 +24,14 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/agentgw"
 	"github.com/agezt/agezt/kernel/approval"
 	"github.com/agezt/agezt/kernel/artifact"
 	"github.com/agezt/agezt/kernel/assure"
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/cadence"
 	"github.com/agezt/agezt/kernel/catalog"
+	"github.com/agezt/agezt/kernel/configcenter"
 	"github.com/agezt/agezt/kernel/datalake"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/event"
@@ -402,23 +405,25 @@ type Kernel struct {
 	approvals *approval.Registry
 	scheduler *scheduler.Executor
 
-	memory    *memory.Manager
-	memoryDir *memory.FileStore
-	world     *worldmodel.Graph
-	worldDir  *worldmodel.FileStore
-	forge     *skill.Forge
-	skillDir  *skill.FileStore
-	standing  *standing.Store
-	roster    *roster.Store
-	toolForge *toolforge.Store
-	mcpStore  *mcp.Store
-	workflows *workflow.Store
-	artifacts *artifact.Store
-	artIndex  *artifact.Index // metadata sidecar over artifacts (M822): browsable/deletable entries
-	lake      *datalake.Lake  // Personal Data Lake (M834): agent-built structured collections
-	reflect   *reflect.Engine
-	schedules *cadence.Store        // persistent scheduled-intents store (autonomy)
-	tools     map[string]agent.Tool // cfg.Tools + the memory/world tools (when enabled)
+	memory       *memory.Manager
+	memoryDir    *memory.FileStore
+	world        *worldmodel.Graph
+	worldDir     *worldmodel.FileStore
+	forge        *skill.Forge
+	skillDir     *skill.FileStore
+	standing     *standing.Store
+	roster       *roster.Store
+	toolForge    *toolforge.Store
+	mcpStore     *mcp.Store
+	workflows    *workflow.Store
+	artifacts    *artifact.Store
+	artIndex     *artifact.Index // metadata sidecar over artifacts (M822): browsable/deletable entries
+	lake         *datalake.Lake  // Personal Data Lake (M834): agent-built structured collections
+	reflect      *reflect.Engine
+	schedules    *cadence.Store        // persistent scheduled-intents store (autonomy)
+	agentGW      *agentgw.Gateway      // agent subprocess gateway (agent SDK)
+	configCenter *configcenter.Center  // config center for agent SDK config access
+	tools        map[string]agent.Tool // cfg.Tools + the memory/world tools (when enabled)
 
 	catalogStore *catalog.Store
 	catalog      *catalog.Catalog // snapshot — refreshable via ReloadCatalog
@@ -717,6 +722,39 @@ func Open(cfg Config) (*Kernel, error) {
 	if awaitTool != nil {
 		awaitTool.await = k.awaitSubAgent
 	}
+
+	// Config Center for agent SDK config access (M???)
+	configCenter, err := configcenter.Open(configcenter.DefaultConfig(cfg.BaseDir))
+	if err != nil {
+		j.Close()
+		st.Close()
+		mstore.Close()
+		return nil, fmt.Errorf("runtime: configcenter: %w", err)
+	}
+	// Wire approval registry for HITL support
+	if apr != nil {
+		configCenter.SetApprovalRegistry(apr)
+	}
+	k.configCenter = configCenter
+
+	// Agent Gateway for subprocess communication (Agent SDK)
+	gwCfg := agentgw.DefaultGatewayConfig(cfg.BaseDir)
+	// Override socket path from environment if set (useful for Windows TCP testing)
+	if sockPath := os.Getenv("AGEZT_AGENTGW_SOCKET"); sockPath != "" {
+		gwCfg.SocketPath = sockPath
+	}
+	agentGW := agentgw.NewGateway(gwCfg)
+	agentGW.Attach(kbus, mgr, rstore)
+	agentGW.SetConfigCenter(configCenter)
+	k.agentGW = agentGW
+
+	// Start the gateway listener in background
+	go func() {
+		if err := agentGW.Listen(context.Background()); err != nil {
+			fmt.Printf("runtime: agentgw listen: %v\n", err)
+		}
+	}()
+
 	return k, nil
 }
 
@@ -776,6 +814,7 @@ func (k *Kernel) Close() error {
 		k.worldDir.Close,
 		k.skillDir.Close,
 		k.journal.Close,
+		func() error { return k.agentGW.Close() },
 	)
 }
 
@@ -836,6 +875,11 @@ func (k *Kernel) Tools() map[string]agent.Tool { return k.tools }
 // Memory returns the memory-lite manager backing `agt memory`, run-time
 // context injection, and auto-distillation. Always non-nil after Open.
 func (k *Kernel) Memory() *memory.Manager { return k.memory }
+
+// AgentGateway returns the Agent Gateway for subprocess communication.
+// The gateway is initialized but not started during Open. Call
+// AgentGateway().Listen(ctx) to start it.
+func (k *Kernel) AgentGateway() *agentgw.Gateway { return k.agentGW }
 
 // Schedules returns the persistent scheduled-intents store (autonomy). The
 // cadence resident fires its due entries; `agt schedule` manages them.
@@ -1092,6 +1136,9 @@ func (k *Kernel) Plugins() []PluginInfo { return k.cfg.Plugins }
 // when the daemon was launched with a custom path).
 func (k *Kernel) BaseDir() string { return k.cfg.BaseDir }
 
+// ConfigCenter returns the Config Center instance, or nil if not configured.
+func (k *Kernel) ConfigCenter() *configcenter.Center { return k.configCenter }
+
 // Model returns the live default model name. Empty when the daemon uses
 // provider defaults rather than an override. Seeded from cfg.Model at Open and
 // hot-swapped via SetModel when the provider is reloaded (M816), so it must be
@@ -1110,6 +1157,16 @@ func (k *Kernel) Model() string {
 func (k *Kernel) SetModel(m string) {
 	k.mu.Lock()
 	k.model = m
+	k.mu.Unlock()
+}
+
+// SetCouncilMembers replaces the live default Council of Elders membership
+// (M839). The next council convening picks it up — no restart. Paired with
+// persistence: handleCouncilSet writes AGEZT_COUNCIL_MEMBERS to the settings
+// store, then calls this so the kernel picks up the new membership immediately.
+func (k *Kernel) SetCouncilMembers(members func() []CouncilMember) {
+	k.mu.Lock()
+	k.cfg.CouncilMembers = members
 	k.mu.Unlock()
 }
 
@@ -1675,6 +1732,38 @@ func (k *Kernel) HaltWith(reason string) {
 		Actor:   "kernel",
 		Payload: payload,
 	})
+}
+
+// DrainAndHalt cancels all in-flight runs (equivalent to Halt()) and waits
+// for them to unwind. It is the drain-phase primitive used by Close and by
+// the self-update engine (M860). The timeout caps how long it waits; if
+// exceeded, the function returns true (timedOut) with remaining runs still
+// counted. A timeout of zero skips the drain wait entirely (cancels runs but
+// does not wait).
+//
+// Use this instead of Halt() when the caller needs to know whether the drain
+// completed within the timeout, e.g. for update vs. shutdown decisions.
+func (k *Kernel) DrainAndHalt(timeout time.Duration) (timedOut bool, activeRuns int) {
+	k.Halt() // cancel and mark halted; no-op if already halted
+	k.mu.Lock()
+	activeRuns = len(k.runs)
+	k.mu.Unlock()
+	if timeout <= 0 {
+		return false, activeRuns
+	}
+	settled := make(chan struct{})
+	go func() {
+		k.runWG.Wait()
+		close(settled)
+	}()
+	t := time.NewTimer(timeout)
+	select {
+	case <-settled:
+		t.Stop()
+		return false, 0
+	case <-t.C:
+		return true, activeRuns
+	}
 }
 
 // CancelRun cancels a single in-flight run by correlation id, leaving the

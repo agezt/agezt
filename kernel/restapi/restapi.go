@@ -18,6 +18,9 @@
 //	GET  /api/v1/runs/{corr}       — the journaled event arc of a past run
 //	/api/v1/mailbox/*              — the shared message board for SDK apps
 //	                                 (see mailbox.go, M937)
+
+//	GET  /api/v1/update            — check for updates (M860)
+//	POST /api/v1/update/apply      — validate and stage an update (M860)
 //
 // Security (SPEC-06): loopback-bound by the operator, token-authed on every
 // request (Authorization: Bearer <token>, or ?token= for convenience). Empty
@@ -37,6 +40,7 @@ import (
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/meshctx"
+	"github.com/agezt/agezt/kernel/update"
 )
 
 // maxRequestBodyBytes caps an HTTP request body (M198). The API surfaces are
@@ -106,6 +110,10 @@ type Server struct {
 	// the `board` tool's OnPost uses), so an SDK send wakes standing orders
 	// exactly like an agent's send. Nil-safe.
 	boardNotify func(m board.Message, corr string)
+
+	// updateSvc, when set, powers the /api/v1/update endpoints. Nil when update
+	// is disabled; the handlers report that rather than dereferencing nil.
+	updateSvc *update.Service
 }
 
 // Metric is one Prometheus sample exposed at /metrics. Name is the suffix after
@@ -139,6 +147,10 @@ func (s *Server) SetReadiness(fn func() (ready bool, reason string)) { s.readine
 
 // SetMetrics injects the gauge source for /metrics (Prometheus text format).
 func (s *Server) SetMetrics(fn func() []Metric) { s.metrics = fn }
+
+// SetUpdateService wires the self-update engine. Nil when update is disabled;
+// the update handlers report that rather than dereferencing nil.
+func (s *Server) SetUpdateService(svc *update.Service) { s.updateSvc = svc }
 
 // bind resolves the Engine + bus for a request: the per-tenant pair when an
 // X-Agezt-Tenant header is present and a resolver is configured, else the
@@ -176,6 +188,9 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/api/v1/mailbox/inbox", s.auth(s.handleMailboxInbox))
 	mux.HandleFunc("/api/v1/mailbox/watch", s.auth(s.handleMailboxWatch))
 	mux.HandleFunc("/api/v1/mailbox/topics", s.auth(s.handleMailboxTopics))
+
+	mux.HandleFunc("/api/v1/update", s.auth(s.handleUpdateCheck))
+	mux.HandleFunc("/api/v1/update/apply", s.auth(s.handleUpdateApply))
 	return mux
 }
 

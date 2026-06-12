@@ -75,6 +75,11 @@ const (
 	// journal` explain WHY the daemon halted itself.
 	KindAnomalyDetected Kind = "system.anomaly"
 
+	// KindInfo is a generic informational event for daemon lifecycle notices
+	// that don't warrant their own kind (first use: the self-update checker's
+	// update.available / update.applied notices, M860).
+	KindInfo Kind = "info"
+
 	// Policy / Edict (P1-EDICT-*).
 	KindPolicyDecision Kind = "policy.decision"
 	// KindPolicyChanged records a runtime mutation of the policy engine's
@@ -89,9 +94,9 @@ const (
 	KindProviderFallback Kind = "provider.fallback"
 	// One provider being retried IN PLACE with backoff on a transient error
 	// (rate limit / 5xx / network blip) before the chain falls back (M882).
-	KindProviderRetry Kind = "provider.retry"
-	KindBudgetExceeded   Kind = "budget.exceeded"
-	KindRateLimited      Kind = "rate.limited"
+	KindProviderRetry  Kind = "provider.retry"
+	KindBudgetExceeded Kind = "budget.exceeded"
+	KindRateLimited    Kind = "rate.limited"
 	// KindBudgetCapInert records that a per-run cost cap (--max-cost / M166) was
 	// set on a run whose effective model has no known pricing, so the cap can never
 	// trip (spend computes as $0). An advisory at run submission (M169) — the
@@ -184,6 +189,9 @@ const (
 	KindApprovalGranted   Kind = "approval.granted"
 	KindApprovalDenied    Kind = "approval.denied"
 	KindApprovalTimeout   Kind = "approval.timeout"
+
+	// Config Center (config.access, rating-based access control).
+	KindConfigAccess Kind = "config.access"
 
 	// Scheduler / DAG (SPEC-02 §4; TASKS P1-SCHED-*).
 	KindPlanStarted   Kind = "plan.started"
@@ -357,6 +365,7 @@ func IsKnown(k Kind) bool {
 }
 
 var knownKinds = map[Kind]struct{}{
+	KindInfo:                      {},
 	KindAgentSpawned:              {},
 	KindAgentSuspended:            {},
 	KindAgentResumed:              {},

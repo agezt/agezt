@@ -8,6 +8,13 @@ package main
 // it whenever it exits, with exponential backoff and a crash-loop guard. Run it
 // instead of `agezt daemon` (or install it as a service / scheduled task) and the
 // daemon comes back on its own after a crash.
+//
+// Sentinel flag (M860): when the daemon exits after a successful self-update,
+// it writes `<baseDir>/update.sentinel` before exiting. The watchdog checks for
+// this file before the next spawn and treats it as an intentional restart: the
+// consecutive crash counter is reset and no backoff delay is applied. After a
+// successful daemon start, the sentinel is cleared so normal crash-loop guard
+// behaviour resumes.
 
 import (
 	"context"
@@ -16,6 +23,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
@@ -83,13 +91,22 @@ func pruneOlderThan(ts []time.Time, cutoff time.Time) []time.Time {
 	return out
 }
 
+// updateSentinelPath returns the path to the update sentinel file for baseDir.
+// The sentinel is written by the daemon before exiting after a successful update.
+func updateSentinelPath(baseDir string) string {
+	return filepath.Join(baseDir, "update.sentinel")
+}
+
 // superviseLoop is the testable heart of the watchdog: spawn → wait → backoff →
 // respawn, until ctx is cancelled (clean shutdown, returns nil) or a crash loop is
 // detected (returns an error). spawn starts one daemon; now/sleep are injectable
 // for tests; logf reports lifecycle. On ctx cancel mid-run it kills the child.
+//
+// baseDir is used to check/clear the update sentinel (M860).
 func superviseLoop(
 	ctx context.Context,
 	spawn func() (proc, error),
+	baseDir string,
 	p watchdogPolicy,
 	now func() time.Time,
 	sleep func(context.Context, time.Duration) error,
@@ -97,6 +114,7 @@ func superviseLoop(
 ) error {
 	var recent []time.Time
 	consecutive := 0
+
 	for {
 		if ctx.Err() != nil {
 			return nil
@@ -106,6 +124,15 @@ func superviseLoop(
 		recent = pruneOlderThan(recent, start.Add(-p.crashWindow))
 		if len(recent) > p.maxCrashes {
 			return fmt.Errorf("watchdog: daemon restarted %d times within %s — looks like a crash loop, giving up", len(recent), p.crashWindow)
+		}
+
+		// Check for update sentinel (M860): if present, this restart is intentional
+		// (a self-update was applied). Clear it and reset the crash counter.
+		sentinelPath := updateSentinelPath(baseDir)
+		if fi, err := os.Stat(sentinelPath); err == nil && !fi.IsDir() {
+			logf("update sentinel detected — treating exit as intentional update restart")
+			consecutive = 0
+			os.Remove(sentinelPath) // best-effort; ignore error
 		}
 
 		child, err := spawn()
@@ -119,6 +146,11 @@ func superviseLoop(
 			continue
 		}
 		logf("daemon started (pid %d)", child.pid())
+
+		// After a successful start, clear any stale sentinel. A sentinel means
+		// the daemon wrote it before exiting intentionally. If we reached here
+		// the daemon is alive, so clear it so normal crash-loop guard resumes.
+		os.Remove(sentinelPath) // best-effort
 
 		// Wait for the child, but abandon the wait if we're asked to shut down.
 		done := make(chan error, 1)
@@ -134,6 +166,11 @@ func superviseLoop(
 			if uptime >= p.resetUptime {
 				consecutive = 0 // it ran fine for a while; forget the backoff
 			}
+			// If the daemon was killed mid-update (e.g. OOM during download), the
+			// sentinel may still exist. Clear it so crash-loop guard applies —
+			// we don't know if the update actually succeeded.
+			os.Remove(sentinelPath) // best-effort
+
 			consecutive++
 			delay := p.nextDelay(consecutive)
 			logf("daemon exited after %s (%v); restarting in %s", uptime.Round(time.Second), waitErr, delay)
@@ -168,6 +205,12 @@ func runWatchdog(stdout, stderr io.Writer) int {
 		return 1
 	}
 
+	baseDir, err := resolveBaseDir("")
+	if err != nil {
+		fmt.Fprintf(stderr, "%s watchdog: %v\n", brand.Binary, err)
+		return 1
+	}
+
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
@@ -188,9 +231,22 @@ func runWatchdog(stdout, stderr io.Writer) int {
 		return &execProc{cmd: cmd}, nil
 	}
 
-	if err := superviseLoop(ctx, spawn, defaultWatchdogPolicy(), time.Now, ctxSleep, logf); err != nil {
+	if err := superviseLoop(ctx, spawn, baseDir, defaultWatchdogPolicy(), time.Now, ctxSleep, logf); err != nil {
 		fmt.Fprintf(stderr, "%s watchdog: %v\n", brand.Binary, err)
 		return 1
 	}
 	return 0
+}
+
+// resolveBaseDir is the same base-dir resolution as the daemon uses so the
+// watchdog can find the sentinel file even if $AGEZT_HOME is not set.
+func resolveBaseDir(envHome string) (string, error) {
+	if envHome != "" {
+		return envHome, nil
+	}
+	home := os.Getenv("HOME")
+	if home == "" {
+		return "", fmt.Errorf("$HOME is empty")
+	}
+	return filepath.Join(home, ".agezt"), nil
 }
