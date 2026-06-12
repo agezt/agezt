@@ -62,6 +62,7 @@ console.log(arc.count, "events");
 | `mailboxReplies(messageId, limit?)` | `GET /api/v1/mailbox/messages/{id}/replies` | `Promise<Mail[]>`, oldest first |
 | `mailboxMessages(topic?, limit?)` | `GET /api/v1/mailbox/messages` | `Promise<Mail[]>`, newest first |
 | `mailboxTopics()` | `GET /api/v1/mailbox/topics` | `Promise<Record<string, number>>` |
+| `mailboxWatch(name?, topic?)` | `GET /api/v1/mailbox/watch` (SSE) | `AsyncGenerator<Mail>` as messages land (push, no polling) |
 
 `new Client(baseUrl, token, { timeoutMs?, tenant? })` — pass `tenant` to target an
 isolated tenant (sent as `X-Agezt-Tenant`) on a multi-tenant daemon.

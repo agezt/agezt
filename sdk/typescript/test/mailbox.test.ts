@@ -31,7 +31,14 @@ before(async () => {
     const url = req.url ?? "";
     lastUrl = url;
     if (req.method === "GET") {
-      if (url.startsWith("/api/v1/mailbox/inbox")) {
+      if (url.startsWith("/api/v1/mailbox/watch")) {
+        // A finite SSE stream: ready, keepalive, one mail, then EOF.
+        res.writeHead(200, { "Content-Type": "text/event-stream" });
+        res.write('event: ready\ndata: {"name":"researcher"}\n\n');
+        res.write(": keepalive\n\n");
+        res.write("event: mail\ndata: " + JSON.stringify(MSG) + "\n\n");
+        res.end();
+      } else if (url.startsWith("/api/v1/mailbox/inbox")) {
         json(res, 200, { name: "researcher", waiting: [MSG], count: 1 });
       } else if (url.startsWith("/api/v1/mailbox/messages/m-1/replies")) {
         json(res, 200, {
@@ -101,6 +108,14 @@ test("mailboxAck posts by; unknown id throws APIError(404)", async () => {
     assert.equal(e.status, 404);
     return true;
   });
+});
+
+test("mailboxWatch yields mail frames only (ready/keepalive skipped)", async () => {
+  const got: unknown[] = [];
+  for await (const m of client().mailboxWatch("researcher")) got.push(m);
+  assert.equal(got.length, 1);
+  assert.equal((got[0] as { id?: string }).id, "m-1");
+  assert.equal(lastUrl, "/api/v1/mailbox/watch?name=researcher");
 });
 
 test("mailboxReplies / mailboxMessages / mailboxTopics map their shapes", async () => {

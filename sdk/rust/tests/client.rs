@@ -209,6 +209,25 @@ fn handle(mut stream: TcpStream) {
         ("GET", "/api/v1/mailbox/topics") => {
             write_json(&mut stream, 200, r#"{"topics":{"dm":2,"status":1}}"#)
         }
+        ("GET", p) if p.starts_with("/api/v1/mailbox/watch") => {
+            // A finite SSE stream: ready, keepalive, one mail, then EOF. The
+            // query is reflected into the mail text so a test can assert the
+            // name/topic were encoded on the wire.
+            let q = p
+                .trim_start_matches("/api/v1/mailbox/watch")
+                .trim_start_matches('?');
+            let mail = format!(
+                "event: mail\ndata: {{\"id\":\"m-9\",\"topic\":\"dm\",\"from\":\"myapp\",\"to\":\"researcher\",\"text\":\"{q}\",\"ts_unix_ms\":1700000000000}}\n\n"
+            );
+            write_sse(
+                &mut stream,
+                &[
+                    "event: ready\ndata: {\"name\":\"researcher\"}\n\n",
+                    ": keepalive\n\n",
+                    &mail,
+                ],
+            );
+        }
         _ => write_json(
             &mut stream,
             404,
@@ -411,4 +430,19 @@ fn mailbox_replies_messages_topics() {
     let topics = c.mailbox_topics().unwrap();
     assert_eq!(topics.get("dm"), Some(&2));
     assert_eq!(topics.get("status"), Some(&1));
+}
+
+#[test]
+fn mailbox_watch_yields_mail_frames_only() {
+    let base = start_mock();
+    let mails: Vec<_> = client(&base, "testtoken")
+        .mailbox_watch("researcher", "")
+        .unwrap()
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap();
+    // ready + keepalive frames are skipped; the one mail frame arrives with
+    // the query (reflected by the mock) proving name= was encoded.
+    assert_eq!(mails.len(), 1);
+    assert_eq!(mails[0].id, "m-9");
+    assert_eq!(mails[0].text, "name=researcher");
 }

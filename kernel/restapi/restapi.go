@@ -174,6 +174,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/api/v1/mailbox/messages", s.auth(s.handleMailboxMessages))
 	mux.HandleFunc("/api/v1/mailbox/messages/", s.auth(s.handleMailboxMessageSub))
 	mux.HandleFunc("/api/v1/mailbox/inbox", s.auth(s.handleMailboxInbox))
+	mux.HandleFunc("/api/v1/mailbox/watch", s.auth(s.handleMailboxWatch))
 	mux.HandleFunc("/api/v1/mailbox/topics", s.auth(s.handleMailboxTopics))
 	return mux
 }
