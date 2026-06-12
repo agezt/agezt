@@ -188,7 +188,59 @@ export const HELP: Record<string, HelpTopic> = {
     ],
     related: [
       { id: "inbox", label: "Inbox" },
+      { id: "artifacts", label: "Artifacts" },
       { id: "data", label: "Data Lake" },
+    ],
+  },
+
+  artifacts: {
+    title: "Artifacts",
+    intro:
+      "The showroom for everything your agents produce: reports, charts, generated pages, code, data files — bucketed by what each artifact IS, with a live preview per type and a fullscreen viewer for the big screen.",
+    sections: [
+      {
+        heading: "The gallery",
+        items: [
+          {
+            term: "Category sections",
+            desc: "Artifacts are bucketed by type — Images, SVG, HTML, Markdown, JSON, Code, PDF, Text, Other. Pictures show themselves as thumbnails; everything else shows a type icon over its name, so a wall of outputs reads at a glance.",
+          },
+          {
+            term: "Category chips",
+            desc: "Each chip carries a live count; click to focus one category, click again to go back to all. Counts follow the search box, so 'report' + HTML shows exactly the generated report pages.",
+          },
+          {
+            term: "Search",
+            desc: "Matches name, caption, source channel, and sender — the fields a human remembers an artifact by.",
+          },
+        ],
+      },
+      {
+        heading: "The viewer",
+        items: [
+          {
+            term: "Live previews",
+            desc: "Markdown renders formatted; JSON is pretty-printed; code and text show monospaced; PDFs embed. HTML runs live inside a sandboxed frame — scripts may execute, but the frame has no same-origin access, so it can never reach the console's token or API.",
+          },
+          {
+            term: "Fullscreen",
+            desc: "The expand button grows the viewer to fill the monitor — a generated dashboard or chart at its intended size. Esc closes.",
+          },
+          {
+            term: "Download & delete",
+            desc: "Every artifact downloads with its original name. Delete removes the index entry; the underlying bytes are garbage-collected once nothing else references them.",
+          },
+        ],
+      },
+    ],
+    tips: [
+      "Files is the flat manager (everything in arrival order); Artifacts is the same store re-cut by type — use whichever matches the question in your head.",
+      "Text previews are capped at 2 MB; bigger artifacts offer a download instead.",
+    ],
+    related: [
+      { id: "files", label: "Files" },
+      { id: "runs", label: "Runs" },
+      { id: "storage", label: "Storage" },
     ],
   },
 
