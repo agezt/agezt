@@ -11,10 +11,20 @@ vi.mock("@/lib/api", () => ({
   postAction: (...a: unknown[]) => postAction(...a),
 }));
 
-import { TeachFactForm, ReviseFactForm, parseMemoryJSON } from "@/views/Memory";
+const toast = vi.fn();
+const confirm = vi.fn();
+vi.mock("@/components/ui/feedback", () => ({
+  useUI: () => ({ confirm: (...a: unknown[]) => confirm(...a), toast }),
+}));
+
+import { Memory, TeachFactForm, ReviseFactForm, parseMemoryJSON } from "@/views/Memory";
 
 afterEach(cleanup);
 beforeEach(() => {
+  getJSON.mockReset();
+  postAction.mockReset();
+  toast.mockReset();
+  confirm.mockReset();
   postJSON.mockReset();
   postJSON.mockResolvedValue({ id: "mem-1" });
 });
@@ -64,6 +74,49 @@ describe("parseMemoryJSON (M750)", () => {
     expect(() => parseMemoryJSON("nope")).toThrow();
     expect(() => parseMemoryJSON('{"foo":1}')).toThrow(/expected an array/);
     expect(() => parseMemoryJSON("[{}]")).toThrow(/no valid memories/);
+  });
+});
+
+describe("Memory scopes (M915)", () => {
+  const records = [
+    { id: "m-shared", subject: "deploy-url", content: "example.com", type: "FACT", tags: { source: "operator" } },
+    { id: "m-priv", subject: "draft", content: "research notes", type: "FACT", tags: { source: "agent", scope: "researcher" } },
+  ];
+
+  it("renders scope filter chips and filters to one agent's private notes", async () => {
+    getJSON.mockResolvedValue({ records });
+    render(<Memory />);
+    await screen.findByText("deploy-url");
+
+    // Chips: All / Shared / researcher, with counts.
+    const group = screen.getByRole("group", { name: /scope filter/i });
+    expect(group).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /researcher/ }));
+    expect(screen.queryByText("deploy-url")).toBeNull();
+    expect(screen.getByText("draft")).toBeTruthy();
+
+    // Clicking the active chip clears the filter.
+    fireEvent.click(screen.getByRole("button", { name: /researcher/ }));
+    expect(screen.getByText("deploy-url")).toBeTruthy();
+  });
+
+  it("promotes a private record to shared after confirm", async () => {
+    getJSON.mockResolvedValue({ records });
+    confirm.mockResolvedValue(true);
+    postAction.mockResolvedValue({ promoted: true });
+    render(<Memory />);
+    await screen.findByText("draft");
+
+    fireEvent.click(screen.getByTitle(/promote to shared memory/i));
+    await waitFor(() => expect(postAction).toHaveBeenCalledWith("/api/memory/promote", { id: "m-priv" }));
+  });
+
+  it("shared records get no promote button and no chips when nothing is scoped", async () => {
+    getJSON.mockResolvedValue({ records: [records[0]] });
+    render(<Memory />);
+    await screen.findByText("deploy-url");
+    expect(screen.queryByTitle(/promote to shared memory/i)).toBeNull();
+    expect(screen.queryByRole("group", { name: /scope filter/i })).toBeNull();
   });
 });
 

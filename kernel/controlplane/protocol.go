@@ -723,6 +723,14 @@ const (
 	// Args: id (required). Returns: { forgotten (bool) }
 	CmdMemoryForget = "memory_forget"
 
+	// CmdMemoryPromote (M915) shares a private record: clears its scope tag so
+	// the record joins the shared brain every agent recalls. The selective-
+	// sharing valve over per-agent memory — agents write private by default;
+	// the operator promotes the few notes worth everyone knowing. Idempotent on
+	// an already-shared record.
+	// Args: id (required). Returns: { promoted (bool, false = unknown id), id, subject }
+	CmdMemoryPromote = "memory_promote"
+
 	// CmdMemoryConsolidate (M804) runs one brain-distillation pass: cluster
 	// related records by local embedding, LLM-merge each cluster into one
 	// consolidated record, supersede the originals (soft, reversible).

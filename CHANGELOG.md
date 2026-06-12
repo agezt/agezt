@@ -12,6 +12,18 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Per-agent memory by default — selective shared brain (M915).** Each agent now keeps its own
+  memory: a named agent's `memory` tool writes (and its per-run distilled facts) land in the agent's
+  private scope instead of flooding the shared store. Sharing is an explicit, selective opt-in — the
+  tool's new `shared=true` flag (the tool description tells agents to share only facts useful to ALL
+  agents), plus a promotion valve for the keepers: `agt memory promote <id>` /
+  `POST /api/memory/promote` clears a record's scope so every agent recalls it (journaled as
+  `memory.promoted`, surfaced in `agt memory log --op promoted`). Scope now participates in the
+  content-address (`ScopedID`), so two agents privately noting the same fact get two records rather
+  than the second write flipping the first one's scope. The Memory view maps the brains visually:
+  filter chips (All / Shared / one per agent scope, with counts), a lock badge on private cards, and
+  a one-click share (promote) action. Unscoped runs and operator adds keep writing shared, and
+  recall visibility rules (M786) are unchanged.
 - **MCP catalog library — 43 verified popular servers + category browser (M912).** The
   popular-servers gallery (M897) grows from 17 to 43 one-click presets, organized into five
   categories (Core, Web & search, Databases, Dev & cloud, Apps & docs) with category filter chips

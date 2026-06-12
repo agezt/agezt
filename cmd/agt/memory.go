@@ -36,20 +36,23 @@ func cmdMemory(args []string, stdout, stderr io.Writer) int {
 		return cmdMemoryGet(args[1:], stdout, stderr)
 	case "forget", "rm":
 		return cmdMemoryForget(args[1:], stdout, stderr)
+	case "promote":
+		return cmdMemoryPromote(args[1:], stdout, stderr)
 	case "consolidate":
 		return cmdMemoryConsolidate(args[1:], stdout, stderr)
 	case "-h", "--help", "help":
 		fmt.Fprintf(stdout, "usage: %s memory <subcommand>\n", brand.CLI)
 		fmt.Fprintf(stdout, "  add <subject> <content> [--type T] [--tag k=v] [--conf F] [--json]\n")
 		fmt.Fprintf(stdout, "  list [--json]\n")
-		fmt.Fprintf(stdout, "  log [N] [--op written|forgotten|superseded] [--since <dur>] [--json]\n")
+		fmt.Fprintf(stdout, "  log [N] [--op written|forgotten|superseded|promoted] [--since <dur>] [--json]\n")
 		fmt.Fprintf(stdout, "  search <query> [N] [--json]\n")
 		fmt.Fprintf(stdout, "  get <id> [--json]      (exit 3 = absent)\n")
 		fmt.Fprintf(stdout, "  forget <id> [--json]\n")
+		fmt.Fprintf(stdout, "  promote <id> [--json]  share a private (agent-scoped) record with every agent\n")
 		fmt.Fprintf(stdout, "  consolidate [--json]   one brain-distillation pass: merge related records, supersede originals\n")
 		return 0
 	default:
-		fmt.Fprintf(stderr, "%s memory: unknown subcommand %q (add|list|log|search|get|forget|consolidate)\n", brand.CLI, args[0])
+		fmt.Fprintf(stderr, "%s memory: unknown subcommand %q (add|list|log|search|get|forget|promote|consolidate)\n", brand.CLI, args[0])
 		return 2
 	}
 }
@@ -346,6 +349,53 @@ func cmdMemoryForget(args []string, stdout, stderr io.Writer) int {
 	}
 	if ok, _ := res["forgotten"].(bool); ok {
 		fmt.Fprintf(stdout, "forgot %s\n", id)
+	} else {
+		fmt.Fprintf(stdout, "no such record %s\n", id)
+	}
+	return 0
+}
+
+// cmdMemoryPromote implements `agt memory promote <id> [--json]` (M915):
+// share a private (agent-scoped) record with every agent — the selective-
+// sharing valve over per-agent memory.
+func cmdMemoryPromote(args []string, stdout, stderr io.Writer) int {
+	asJSON := false
+	var id string
+	for _, a := range args {
+		switch {
+		case a == "--json":
+			asJSON = true
+		case a == "-h" || a == "--help":
+			fmt.Fprintf(stdout, "usage: %s memory promote <id> [--json]\n", brand.CLI)
+			fmt.Fprintf(stdout, "clears the record's private scope so every agent recalls it\n")
+			return 0
+		case id == "":
+			id = a
+		default:
+			fmt.Fprintf(stderr, "%s memory promote: unexpected arg %q\n", brand.CLI, a)
+			return 2
+		}
+	}
+	if id == "" {
+		fmt.Fprintf(stderr, "%s memory promote: id required\n", brand.CLI)
+		return 2
+	}
+	c := dial(stderr)
+	if c == nil {
+		return 1
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	res, err := c.Call(ctx, controlplane.CmdMemoryPromote, map[string]any{"id": id})
+	if err != nil {
+		fmt.Fprintf(stderr, "%s memory promote: %v\n", brand.CLI, err)
+		return 1
+	}
+	if asJSON {
+		return encodeJSON(stdout, res)
+	}
+	if ok, _ := res["promoted"].(bool); ok {
+		fmt.Fprintf(stdout, "promoted %s to shared memory\n", id)
 	} else {
 		fmt.Fprintf(stdout, "no such record %s\n", id)
 	}
