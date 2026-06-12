@@ -2871,16 +2871,19 @@ func buildWebUI(ctx context.Context, k *kernelruntime.Kernel, baseDir string, st
 		return ""
 	}
 	wsrv := webui.New(k.Bus(), client, token)
-	// Optional password second factor (M817): when AGEZT_WEB_PASSWORD is set, the
-	// token gets you the page but every data route also requires a password login
-	// (HttpOnly session cookie). Opt-in — unset means token-only. It's a SECRET in
-	// the schema, so a Config-Center edit lands in the vault and injectConfig has
-	// already bridged it into the environment by the time we read it here.
-	webPassword := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "WEB_PASSWORD"))
-	passwordOn := webPassword != ""
-	if passwordOn {
-		wsrv.SetPassword(webPassword)
-	}
+	// Optional console password (M817 → M933): when AGEZT_WEB_PASSWORD is set, a
+	// token-less visit shows the login screen and the password opens the console
+	// (alternative door); the tokened banner URL keeps working alone. Wired as a
+	// LIVE source — re-read from the env per gate decision — so setting the
+	// password from the Setup wizard / Config Center (whose live-apply path
+	// updates the env) takes effect without a restart. It's a SECRET in the
+	// schema: the value lives in the vault; injectConfig bridged it into the env
+	// at boot. AGEZT_WEB_PASSWORD_STRICT=on restores M817 compose semantics
+	// (token AND password on every data route) for consoles exposed beyond
+	// loopback (e.g. a tunnel).
+	wsrv.SetPasswordFn(func() string { return strings.TrimSpace(os.Getenv(brand.EnvPrefix + "WEB_PASSWORD")) })
+	wsrv.SetPasswordStrict(strings.EqualFold(os.Getenv(brand.EnvPrefix+"WEB_PASSWORD_STRICT"), "on"))
+	passwordOn := strings.TrimSpace(os.Getenv(brand.EnvPrefix+"WEB_PASSWORD")) != ""
 	// Wire speech-to-text for the chat mic button (M689) when an STT endpoint is
 	// configured. Guard on the concrete pointer so a nil never becomes a non-nil
 	// interface (which would make /api/transcribe think STT is configured).
@@ -2904,7 +2907,7 @@ func buildWebUI(ctx context.Context, k *kernelruntime.Kernel, baseDir string, st
 
 	desc := "http://" + ln.Addr().String() + "/?token=" + token
 	if passwordOn {
-		desc += "  (password-protected)"
+		desc += "  (password login enabled at http://" + ln.Addr().String() + "/)"
 	}
 	if !isLoopback(addr) {
 		desc += "  [WARNING: not loopback — reachable beyond localhost]"

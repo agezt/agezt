@@ -71,7 +71,13 @@ type Server struct {
 	dist        fs.FS       // the built SPA bundle (embed dist/, sub-rooted)
 	transcriber Transcriber // optional STT backend for /api/transcribe (nil = not configured)
 	password    string      // optional console password (M817); "" = token-only
-	sessions    *sessionStore
+	// passwordFn is the LIVE password source (M933); supersedes password when
+	// set, so a Setup/Config-Center edit applies without a restart.
+	passwordFn func() string
+	// passwordStrict restores M817 compose (token AND session) instead of the
+	// M933 alternative-door default (token OR session).
+	passwordStrict bool
+	sessions       *sessionStore
 }
 
 // SetTranscriber wires the speech-to-text backend for POST /api/transcribe
@@ -421,7 +427,7 @@ var jsonRoutes = map[string]writeRoute{
 	// description/triggers/tools_required. triggers/tools_required are arrays, so the
 	// JSON body is needed. Lands as a draft (auto-staged to shadow if well-formed) —
 	// never auto-active; promote via the normal lifecycle controls.
-	// agent (M932) optionally scopes the authored skill to one roster agent.
+	// agent (M933) optionally scopes the authored skill to one roster agent.
 	"/api/skill/import": {controlplane.CmdSkillImport, []string{"name", "description", "triggers", "body", "tools_required", "agent"}},
 	// Dry-run the secret redactor (M754): does the LIVE scrubber redact this text,
 	// and into which categories? Read-only, but carried in the JSON BODY (not a query
@@ -448,14 +454,17 @@ const planRunTimeout = 30 * time.Minute
 // Handler builds the mux. Every route is wrapped in token auth.
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
-	// The SPA shell is gated by the TOKEN only (first factor): the page must
-	// load so the password login screen can render before a session exists. The
-	// data routes below use auth(), which adds the password session when set.
-	mux.HandleFunc("/", s.tokenAuth(s.handleSPA))
-	// Auth surface (M817): probe + login/logout. Token-gated, session-independent.
-	mux.HandleFunc("/api/authmeta", s.tokenAuth(s.handleAuthMeta))
-	mux.HandleFunc("/api/login", s.tokenAuth(s.handleLogin))
-	mux.HandleFunc("/api/logout", s.tokenAuth(s.handleLogout))
+	// The SPA shell loads with the token OR — when a console password is
+	// configured (M933) — with no credential at all, so a token-less visitor
+	// gets the password login screen instead of a bare 401. The shell carries
+	// no data; every data route stays gated by auth().
+	mux.HandleFunc("/", s.shellAuth(s.handleSPA))
+	// Auth surface (M817/M933): probe + login/logout are token-FREE — they are
+	// how a token-less browser gets in. authmeta leaks only "is there a
+	// password gate" (no data); login is bounded by the failed-attempt lockout.
+	mux.HandleFunc("/api/authmeta", s.secure(s.handleAuthMeta))
+	mux.HandleFunc("/api/login", s.secure(s.handleLogin))
+	mux.HandleFunc("/api/logout", s.secure(s.handleLogout))
 	// The hashed bundle and favicon are PUBLIC: the browser loads them as
 	// subresources of index.html and cannot attach the ?token= (only fetch /
 	// EventSource, which the SPA controls, can). They carry no secrets (compiled
@@ -697,15 +706,20 @@ func (s *Server) auth(next http.HandlerFunc) http.HandlerFunc {
 	})
 }
 
-// tokenAuth wraps a handler with the FIRST factor only (token), skipping the
-// password/session check. Used for the SPA shell and the login surface, which
-// must load with the token alone so the password screen can render BEFORE a
-// session exists (chicken-and-egg). Data routes use auth(), which also enforces
-// the password session when one is configured.
-func (s *Server) tokenAuth(next http.HandlerFunc) http.HandlerFunc {
+// shellAuth gates the SPA shell: the token always opens it, and when a console
+// password is configured (M933) the shell is served credential-free too — it
+// has to be, or a token-less browser could never reach the login screen. The
+// shell is compiled UI code with no data; auth() still guards every data route.
+// With no password configured a token-less visit gets a hint page instead of a
+// bare "unauthorized", pointing at the banner URL / password setup.
+func (s *Server) shellAuth(next http.HandlerFunc) http.HandlerFunc {
 	return s.secure(func(w http.ResponseWriter, r *http.Request) {
-		if !s.tokenPresented(r) {
-			http.Error(w, "unauthorized", http.StatusUnauthorized)
+		if !s.tokenPresented(r) && s.consolePassword() == "" {
+			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+			w.WriteHeader(http.StatusUnauthorized)
+			_, _ = w.Write([]byte("unauthorized — open the console via the tokened URL from the daemon banner,\n" +
+				"or set a console password (Config Center → Interfaces → Web UI password, or AGEZT_WEB_PASSWORD)\n" +
+				"to enable password login at this address.\n"))
 			return
 		}
 		next(w, r)
@@ -760,18 +774,21 @@ func (s *Server) tokenPresented(r *http.Request) bool {
 	return false
 }
 
-// authorized gates a DATA route: the token is always required; when a console
-// password is configured (M817) a valid session cookie is required ON TOP of it
-// ("token alone isn't enough"). With no password set, the token alone suffices —
-// the pre-M817 behaviour.
+// authorized gates a DATA route. Default (M933): the token OR a password
+// session opens it — the password is an alternative door, so a token-less
+// browser that logged in with the console password works. Strict mode
+// (AGEZT_WEB_PASSWORD_STRICT=on) restores M817 compose: token AND session,
+// for operators who exposed the console beyond loopback and want two factors.
+// With no password configured, the token alone suffices (pre-M817 behaviour).
 func (s *Server) authorized(r *http.Request) bool {
-	if !s.tokenPresented(r) {
-		return false
+	pw := s.consolePassword()
+	if pw == "" {
+		return s.tokenPresented(r)
 	}
-	if s.password == "" {
-		return true
+	if s.passwordStrict {
+		return s.tokenPresented(r) && s.sessionValid(r)
 	}
-	return s.sessionValid(r)
+	return s.tokenPresented(r) || s.sessionValid(r)
 }
 
 // tokenMatch compares a presented token against the configured one in CONSTANT
