@@ -11,11 +11,44 @@ vi.mock("@/lib/api", () => ({
   postAction: (...a: unknown[]) => postAction(...a),
 }));
 
-import { NewScheduleForm, Schedules, parseSchedulesJSON } from "@/views/Schedules";
+import {
+  NewScheduleForm,
+  Schedules,
+  parseSchedulesJSON,
+  untilLabel,
+  scheduleCounts,
+  DUE_SOON_MS,
+} from "@/views/Schedules";
 import { UIProvider } from "@/components/ui/feedback";
 import type { ReactNode } from "react";
 
 const withUI = (node: ReactNode) => <UIProvider>{node}</UIProvider>;
+
+describe("untilLabel (M917)", () => {
+  const now = 1_000_000_000_000;
+  it("renders a coarse countdown, and overdue/now near zero", () => {
+    expect(untilLabel(now - 5000, now)).toBe("overdue");
+    expect(untilLabel(now + 5000, now)).toBe("now");
+    expect(untilLabel(now + 45_000, now)).toBe("in 45s");
+    expect(untilLabel(now + 12 * 60_000, now)).toBe("in 12m");
+    expect(untilLabel(now + 3 * 3_600_000, now)).toBe("in 3h");
+    expect(untilLabel(now + 2 * 24 * 3_600_000, now)).toBe("in 2d");
+  });
+});
+
+describe("scheduleCounts (M917)", () => {
+  const now = 1_000_000_000_000;
+  it("tallies enabled/paused and due-within-the-hour (enabled only)", () => {
+    const items = [
+      { enabled: true, next_run_unix: (now + 10 * 60_000) / 1000 }, // due soon
+      { enabled: true, next_run_unix: (now + 5 * 3_600_000) / 1000 }, // later
+      { enabled: false, next_run_unix: (now + 60_000) / 1000 }, // paused → not due-soon
+      { enabled: true }, // continuous/no next → enabled but not due-soon
+    ];
+    expect(scheduleCounts(items, now)).toEqual({ total: 4, enabled: 3, paused: 1, dueSoon: 1 });
+    expect(DUE_SOON_MS).toBe(3_600_000);
+  });
+});
 
 afterEach(cleanup);
 beforeEach(() => {
