@@ -10,7 +10,6 @@ package controlplane
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net"
 	"sort"
@@ -163,13 +162,4 @@ func (s *Server) handleCouncilSet(conn net.Conn, req Request) {
 		result["unknown_models"] = unknown
 	}
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: result})
-}
-
-// decodeMembersJSON decodes the wire form [{seat, model}] into a typed slice.
-func decodeMembersJSON(data []byte) ([]councilMember, error) {
-	var out []councilMember
-	if err := json.Unmarshal(data, &out); err != nil {
-		return nil, err
-	}
-	return out, nil
 }

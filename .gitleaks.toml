@@ -21,6 +21,11 @@ Test fixtures only. These files intentionally embed secret-shaped strings:
   - cmd/agezt/plugin_log_test.go verifies plugin-log lines redact provider keys
   - kernel/creds/aws_test.go     placeholder AWS creds (AKIA1111…, secret1234…)
                                  used to test credential-file / IMDS parsing
+  - kernel/agentgw/gateway_test.go        hand-built fake JWTs exercising the
+  - kernel/configcenter/configcenter_test.go  agent-SDK token validator and the
+                                 secret classifier (M939)
+  - kernel/controlplane/workflow_test.go  "wrong-secret-123" webhook-HMAC
+                                 negative fixture
 All values are obviously synthetic; no real secret is committed. The allowlist is
 scoped to these test paths so any secret introduced anywhere in production code,
 or in any other test, still trips the scan.
@@ -29,4 +34,7 @@ paths = [
   '''kernel/redact/.*_test\.go$''',
   '''cmd/agezt/plugin_log_test\.go$''',
   '''kernel/creds/aws_test\.go$''',
+  '''kernel/agentgw/gateway_test\.go$''',
+  '''kernel/configcenter/configcenter_test\.go$''',
+  '''kernel/controlplane/workflow_test\.go$''',
 ]

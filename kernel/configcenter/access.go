@@ -24,8 +24,6 @@ type AccessPolicy struct {
 
 	// Rate limiting
 	rateLimits *RateLimitMap
-
-	mu sync.Mutex
 }
 
 // RateLimitMap tracks access counts for rate limiting.

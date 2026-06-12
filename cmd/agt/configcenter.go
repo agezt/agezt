@@ -245,7 +245,7 @@ func cmdConfigCenterList(args []string, stdout, stderr io.Writer) int {
 		case "--json":
 			asJSON = true
 		default:
-			if rating == "" && strings.HasPrefix(a, "--rating") == false {
+			if rating == "" && !strings.HasPrefix(a, "--rating") {
 				rating = a
 			} else {
 				fmt.Fprintf(stderr, "%s configcenter list: unexpected arg %q\n", brand.CLI, a)
@@ -291,7 +291,6 @@ func cmdConfigCenterList(args []string, stdout, stderr io.Writer) int {
 		updatedAt int64
 	}
 	byRating := make(map[configcenter.Rating][]entryInfo)
-	var all []entryInfo
 
 	for _, e := range entries {
 		em := e.(map[string]any)
@@ -301,7 +300,6 @@ func cmdConfigCenterList(args []string, stdout, stderr io.Writer) int {
 			value:     em["value"].(string),
 			updatedAt: int64(em["updated_at"].(float64)),
 		}
-		all = append(all, ei)
 		byRating[configcenter.Rating(em["rating"].(string))] = append(byRating[configcenter.Rating(em["rating"].(string))], ei)
 	}
 

@@ -202,7 +202,6 @@ type AuditEntry struct {
 // Store provides persistent storage for config entries.
 type Store struct {
 	mu      sync.RWMutex
-	path    string
 	entries map[string]*ConfigEntry
 	audit   []*AuditEntry
 }

@@ -19,6 +19,12 @@ test.describe("Agezt Web UI — embedded SPA against a real daemon", () => {
     });
     page.on("pageerror", (e) => errors.push(String(e)));
 
+    // The harness daemon is keyless (echo mock), so the first-run Setup wizard
+    // (M816) would auto-open as a full-screen overlay and hide the console
+    // shell. Mark it dismissed up front — this spec covers the console, the
+    // wizard has its own unit coverage.
+    await page.addInitScript(() => localStorage.setItem("agezt.setup.skipped", "1"));
+
     // NOT `networkidle`: the UI holds an open `/events` SSE stream, so the
     // network is never idle. Wait for the DOM, then assert on elements.
     await page.goto(URL!, { waitUntil: "domcontentloaded" });
