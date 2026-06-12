@@ -1478,14 +1478,20 @@ export const HELP: Record<string, HelpTopic> = {
             term: "Idle banner",
             desc: "Skills that are active but never (or long) unused are flagged with a one-click retire — they clutter the recall pool without earning their place.",
           },
+          {
+            term: "Private vs shared",
+            desc: "A skill an agent learned in its own runs belongs to that agent (badge with the slug) and is retrieved only when IT acts — the same private-by-default wall as per-agent memory. Unbadged skills are the shared pool every agent and the default persona draws from. Authoring a skill can target an agent via the 'Private to agent' field.",
+          },
         ],
       },
     ],
     tips: [
       "Shadow mode is the safety net: a skill must win evaluations alongside real traffic before you trust it with real work.",
+      "Search by an agent's slug to see exactly what that agent has taught itself.",
     ],
     related: [
       { id: "reflect", label: "Reflection" },
+      { id: "roster", label: "Roster" },
       { id: "toolforge", label: "Tool Forge" },
     ],
   },

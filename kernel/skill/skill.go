@@ -145,6 +145,11 @@ type Skill struct {
 	// BundleStore (kernel/skill/bundle.go); this is the manifest the retrieval
 	// layer, the CLI, and the agent's skill tool use to discover them.
 	Resources []string `json:"resources,omitempty"`
+	// Agent is the owning roster slug (M932): a skill an agent learned in its
+	// own runs belongs to that agent and is retrieved only when IT acts — the
+	// same private-by-default wall per-agent memory draws (M915). Empty means
+	// shared: visible to every agent and the default persona.
+	Agent string `json:"agent,omitempty"`
 	// Version is semver; a new body is a new version (§4.3).
 	Version string `json:"version"`
 	// Lineage is the ids this skill evolved from (parent-first).

@@ -2002,14 +2002,16 @@ func (k *Kernel) RunWith(ctx context.Context, corr, intent string) (string, erro
 
 	// Skill activation: retrieve matching ACTIVE skills and prepend their
 	// bodies so the model plans with learned procedures (SPEC-05 §4.2, §7
-	// step 4). Activate journals skill.activated under corr for `agt why`.
+	// step 4). The pool is scoped to the acting agent (M932): shared skills
+	// plus its own private ones. Activate journals skill.activated under corr
+	// for `agt why`.
 	var activatedSkillIDs []string
 	if k.cfg.SkillInject {
 		topK := k.cfg.SkillTopK
 		if topK <= 0 {
 			topK = 3
 		}
-		if hits, err := k.forge.Activate(corr, intent, topK); err == nil && len(hits) > 0 {
+		if hits, err := k.forge.ActivateFor(corr, agentSlugFromCtx(runCtx), intent, topK); err == nil && len(hits) > 0 {
 			system = injectSkills(system, hits)
 			for _, h := range hits {
 				activatedSkillIDs = append(activatedSkillIDs, h.Skill.ID)

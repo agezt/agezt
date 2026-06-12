@@ -135,6 +135,10 @@ type CreateSpec struct {
 	// materializes them and records their manifest on the skill. Ignored when no
 	// bundle store is set.
 	Resources map[string][]byte
+	// Agent scopes the skill to one roster agent (M932). Empty = shared pool.
+	// Identical content re-proposed later refreshes the EXISTING record, so
+	// ownership stays with the first author.
+	Agent string
 }
 
 // Create authors a new draft skill and journals it. Content-addressing by
@@ -187,6 +191,7 @@ func (f *Forge) Create(corr string, spec CreateSpec) (Skill, bool, error) {
 		Body:          spec.Body,
 		ToolsRequired: normalizeList(spec.ToolsRequired),
 		Resources:     resources,
+		Agent:         strings.TrimSpace(spec.Agent),
 		Version:       DefaultVersion,
 		Lineage:       f.lineageFor(name),
 		Status:        StatusDraft,
@@ -194,7 +199,7 @@ func (f *Forge) Create(corr string, spec CreateSpec) (Skill, bool, error) {
 		LastSeenMS:    nowMS,
 	}
 	ev := f.publish(event.KindSkillCreated, corr, map[string]any{
-		"action": "create", "id": id, "name": name, "status": string(StatusDraft),
+		"action": "create", "id": id, "name": name, "status": string(StatusDraft), "agent": sk.Agent,
 	})
 	if ev != nil {
 		sk.SourceEvent = ev.ID
@@ -382,18 +387,40 @@ func (f *Forge) Revert(corr, id string) (string, error) {
 	return restored, nil
 }
 
+// visibleTo reports whether an acting agent may retrieve a skill (M932):
+// shared skills (no owner) are everyone's; a private skill is its owner's
+// alone — the default persona (empty slug) sees only the shared pool. The
+// same scope wall per-agent memory draws (M915).
+func visibleTo(sk Skill, agentSlug string) bool {
+	return sk.Agent == "" || sk.Agent == agentSlug
+}
+
 // Activate ranks active skills against intent and journals skill.activated
 // (under corr) when anything matched, bumping each matched skill's use metrics
 // — so `agt why` shows which skills shaped a run. Returns the ranked results.
+// Equivalent to ActivateFor with no acting agent (shared pool only).
 func (f *Forge) Activate(corr, intent string, limit int) ([]Scored, error) {
+	return f.ActivateFor(corr, "", intent, limit)
+}
+
+// ActivateFor is Activate scoped to the acting agent (M932): the retrieval
+// pool is the shared skills plus the agent's own private ones, so an agent
+// plans with what IT learned without leaking another agent's procedures.
+func (f *Forge) ActivateFor(corr, agentSlug, intent string, limit int) ([]Scored, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	all, err := f.store.All()
 	if err != nil {
 		return nil, err
 	}
+	pool := all[:0:0]
+	for _, sk := range all {
+		if visibleTo(sk, agentSlug) {
+			pool = append(pool, sk)
+		}
+	}
 	nowMS := f.now().UnixMilli()
-	hits := Retrieve(all, intent, limit, nowMS)
+	hits := Retrieve(pool, intent, limit, nowMS)
 	if len(hits) == 0 {
 		return hits, nil
 	}
@@ -736,12 +763,16 @@ func (f *Forge) Propose(ctx context.Context, corr string, provider agent.Provide
 	if strings.TrimSpace(parsed.Skill.Body) == "" || strings.TrimSpace(parsed.Skill.Name) == "" {
 		return nil, nil
 	}
+	// A skill learned while a named agent acted belongs to that agent (M932):
+	// private-by-default self-learning, mirroring per-agent memory. Default-
+	// persona runs (no agent on ctx) author into the shared pool as before.
 	sk, _, err := f.Create(corr, CreateSpec{
 		Name:          parsed.Skill.Name,
 		Description:   parsed.Skill.Description,
 		Triggers:      parsed.Skill.Triggers,
 		Body:          parsed.Skill.Body,
 		ToolsRequired: parsed.Skill.Tools,
+		Agent:         agent.AgentFromContext(ctx),
 	})
 	if err != nil {
 		return nil, err

@@ -181,6 +181,7 @@ func (s *Server) handleSkillImport(conn net.Conn, req Request) {
 		Body:          body,
 		ToolsRequired: tools,
 		Resources:     resources,
+		Agent:         stringArg(req.Args, "agent"),
 	})
 	if err != nil {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
@@ -331,6 +332,7 @@ func skillView(sk skill.Skill) map[string]any {
 		"description":  sk.Description,
 		"status":       string(sk.Status),
 		"version":      sk.Version,
+		"agent":        sk.Agent,
 		"created_ms":   sk.CreatedMS,
 		"last_seen_ms": sk.LastSeenMS,
 		"metrics": map[string]any{
