@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Sparkles, RefreshCw, ChevronRight, ChevronDown, Check, ShieldX, Undo2, Plus, X, Pencil, Search } from "lucide-react";
+import { Sparkles, RefreshCw, ChevronRight, ChevronDown, Check, ShieldX, Undo2, Plus, X, Pencil, Search, Bot } from "lucide-react";
 import { getJSON, postAction, postJSON } from "@/lib/api";
 import { cn, fmtTime, fmtAgo } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,9 @@ interface Skill {
   body?: string;
   status?: string;
   version?: number;
+  // Owning roster agent (M932): a skill the agent learned itself, retrieved
+  // only when IT acts. Empty/absent = shared pool.
+  agent?: string;
   triggers?: string[];
   tools_required?: string[];
   created_ms?: number;
@@ -40,11 +43,12 @@ const statusTone: Record<string, string> = {
 };
 
 // skillMatches tests a skill against a lowercased query over its name, description,
-// status, triggers, and required tools — so a growing library stays findable by what a
-// skill does, when it fires, what it needs, or its lifecycle state (M778).
+// status, owning agent, triggers, and required tools — so a growing library stays
+// findable by what a skill does, when it fires, what it needs, its lifecycle state
+// (M778), or whose private skill it is (M932).
 export function skillMatches(s: Skill, q: string): boolean {
   if (!q) return true;
-  const hay = [s.name, s.description, s.status, ...(s.triggers || []), ...(s.tools_required || [])]
+  const hay = [s.name, s.description, s.status, s.agent, ...(s.triggers || []), ...(s.tools_required || [])]
     .filter((x): x is string => typeof x === "string")
     .join(" ")
     .toLowerCase();
@@ -232,6 +236,14 @@ export function Skills() {
                   </span>
                   <span className="truncate text-sm font-semibold">{s.name || "—"}</span>
                   {s.version != null && <span className="text-[10px] text-muted">v{s.version}</span>}
+                  {s.agent && (
+                    <span
+                      className="inline-flex items-center gap-1 rounded-full bg-accent/10 px-1.5 py-0.5 text-[10px] text-accent"
+                      title={`private skill — only the “${s.agent}” agent retrieves it`}
+                    >
+                      <Bot className="size-2.5" /> {s.agent}
+                    </span>
+                  )}
                   <div className="ml-auto flex shrink-0 gap-1">
                     {s.id && s.body && (
                       <IconBtn
@@ -431,13 +443,14 @@ export function AuthorSkillForm({
   // When provided (revise/clone a card, M737), the form prefills from this skill.
   // Re-authoring the same name with a changed body creates a NEW version (lineage
   // tracked); an unchanged body dedupes (a no-op), so revising is always safe.
-  initial?: { name?: string; description?: string; body?: string; triggers?: string[]; tools_required?: string[] };
+  initial?: { name?: string; description?: string; body?: string; triggers?: string[]; tools_required?: string[]; agent?: string };
 }) {
   const editing = !!initial;
   const [name, setName] = useState(initial?.name ?? "");
   const [description, setDescription] = useState(initial?.description ?? "");
   const [triggers, setTriggers] = useState((initial?.triggers ?? []).join(", "));
   const [tools, setTools] = useState((initial?.tools_required ?? []).join(", "));
+  const [agent, setAgent] = useState(initial?.agent ?? "");
   const [body, setBody] = useState(initial?.body ?? "");
   const [submitting, setSubmitting] = useState(false);
 
@@ -456,6 +469,7 @@ export function AuthorSkillForm({
     if (trig.length) args.triggers = trig;
     const tl = splitList(tools);
     if (tl.length) args.tools_required = tl;
+    if (agent.trim()) args.agent = agent.trim();
     setSubmitting(true);
     try {
       const r = await postJSON<{ name?: string; status?: string }>("/api/skill/import", args);
@@ -521,6 +535,16 @@ export function AuthorSkillForm({
             onChange={(e) => setTools(e.target.value)}
             placeholder="shell, file"
             aria-label="Skill tools required"
+            className="rounded-md border border-border bg-panel px-2 py-1 text-sm text-foreground outline-none focus-visible:border-accent"
+          />
+        </label>
+        <label className="flex flex-col gap-1 text-[11px] text-muted">
+          Private to agent (optional)
+          <input
+            value={agent}
+            onChange={(e) => setAgent(e.target.value)}
+            placeholder="roster slug — empty = shared with every agent"
+            aria-label="Skill owning agent"
             className="rounded-md border border-border bg-panel px-2 py-1 text-sm text-foreground outline-none focus-visible:border-accent"
           />
         </label>

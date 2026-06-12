@@ -421,7 +421,8 @@ var jsonRoutes = map[string]writeRoute{
 	// description/triggers/tools_required. triggers/tools_required are arrays, so the
 	// JSON body is needed. Lands as a draft (auto-staged to shadow if well-formed) —
 	// never auto-active; promote via the normal lifecycle controls.
-	"/api/skill/import": {controlplane.CmdSkillImport, []string{"name", "description", "triggers", "body", "tools_required"}},
+	// agent (M932) optionally scopes the authored skill to one roster agent.
+	"/api/skill/import": {controlplane.CmdSkillImport, []string{"name", "description", "triggers", "body", "tools_required", "agent"}},
 	// Dry-run the secret redactor (M754): does the LIVE scrubber redact this text,
 	// and into which categories? Read-only, but carried in the JSON BODY (not a query
 	// arg) so the sensitive probe text never lands in a URL / access log. The response
