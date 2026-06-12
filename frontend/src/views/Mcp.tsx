@@ -95,11 +95,24 @@ export function urlOk(s: string): boolean {
   }
 }
 
+// CatalogCategory groups the (now ~40-entry) gallery so the operator can browse
+// by intent instead of scrolling one flat grid (M912).
+export type CatalogCategory = "core" | "web" | "data" | "dev" | "apps";
+
+export const CATEGORY_LABELS: Record<CatalogCategory, string> = {
+  core: "Core",
+  web: "Web & search",
+  data: "Databases",
+  dev: "Dev & cloud",
+  apps: "Apps & docs",
+};
+
 // CatalogEntry is one preset in the popular-servers gallery (M897). `args` is in
 // the form's space-separated shape; `needs` flags a path/secret the operator must
 // supply before it works. Names obey the kernel rule (≤16 lowercase alnum).
 export interface CatalogEntry {
   name: string;
+  category: CatalogCategory;
   // command/args: a stdio preset. url/headers: a remote (http) preset (M904).
   // Exactly one shape is set per entry.
   command?: string;
@@ -120,30 +133,77 @@ export function transportOf(e: CatalogEntry): "stdio" | "http" {
   return e.url ? "http" : "stdio";
 }
 
+// filterCatalog narrows the gallery by category chip and a free-text query over
+// name + description (M912). Pure + unit-tested.
+export function filterCatalog(
+  entries: CatalogEntry[],
+  cat: CatalogCategory | "all",
+  query: string,
+): CatalogEntry[] {
+  const q = query.trim().toLowerCase();
+  return entries.filter(
+    (e) =>
+      (cat === "all" || e.category === cat) &&
+      (q === "" || e.name.includes(q) || e.description.toLowerCase().includes(q)),
+  );
+}
+
 // CATALOG: popular Model Context Protocol servers, offered as one-click examples.
 // Picking one prefills the register form so the operator can review/adjust the
-// path or note the credential before adding. Sourced from the official MCP
-// servers collection and widely-used community servers.
+// path or note the credential before adding. Sourced from the maintained official
+// reference servers, first-party vendor servers, and widely-used community
+// servers (package names verified against npm/PyPI, 2026-06). Archived reference
+// servers that still install fine (postgres, gdrive, google-maps, github stdio)
+// stay listed; dead/never-published ones don't.
 export const CATALOG: CatalogEntry[] = [
-  { name: "everything", command: "npx", args: "-y @modelcontextprotocol/server-everything", description: "Reference server exercising every MCP feature — ideal for a first test." },
-  { name: "filesystem", command: "npx", args: "-y @modelcontextprotocol/server-filesystem /path/to/dir", description: "Read and write files within an allowed directory.", needs: "set the directory path in args" },
-  { name: "fetch", command: "uvx", args: "mcp-server-fetch", description: "Fetch a URL and return its content as clean markdown." },
-  { name: "memory", command: "npx", args: "-y @modelcontextprotocol/server-memory", description: "Persistent knowledge-graph memory the model can read and write." },
-  { name: "git", command: "uvx", args: "mcp-server-git --repository /path/to/repo", description: "Inspect and operate a local Git repository.", needs: "set the repo path in args" },
-  { name: "github", command: "npx", args: "-y @modelcontextprotocol/server-github", description: "GitHub API — issues, pull requests, repos, code search.", needs: "GITHUB_PERSONAL_ACCESS_TOKEN (env)", env: ["GITHUB_PERSONAL_ACCESS_TOKEN"] },
-  { name: "postgres", command: "npx", args: "-y @modelcontextprotocol/server-postgres postgresql://user:pass@host/db", description: "Read-only SQL queries against a PostgreSQL database.", needs: "set the connection string in args" },
-  { name: "sqlite", command: "uvx", args: "mcp-server-sqlite --db-path /path/to.db", description: "Query a local SQLite database file.", needs: "set the db path in args" },
-  { name: "puppeteer", command: "npx", args: "-y @modelcontextprotocol/server-puppeteer", description: "Browser automation — navigate, click, fill, screenshot." },
-  { name: "brave", command: "npx", args: "-y @modelcontextprotocol/server-brave-search", description: "Web and local search via the Brave Search API.", needs: "BRAVE_API_KEY (env)", env: ["BRAVE_API_KEY"] },
-  { name: "slack", command: "npx", args: "-y @modelcontextprotocol/server-slack", description: "Read and post messages across Slack channels.", needs: "SLACK_BOT_TOKEN + SLACK_TEAM_ID (env)", env: ["SLACK_BOT_TOKEN", "SLACK_TEAM_ID"] },
-  { name: "gdrive", command: "npx", args: "-y @modelcontextprotocol/server-gdrive", description: "Search and read files in Google Drive.", needs: "OAuth credentials (env)" },
-  { name: "time", command: "uvx", args: "mcp-server-time", description: "Current time and timezone conversions." },
-  { name: "thinking", command: "npx", args: "-y @modelcontextprotocol/server-sequential-thinking", description: "A structured step-by-step reasoning scratchpad." },
-  // Remote (Streamable HTTP) presets (M904) — no local process; the daemon talks
-  // to a hosted endpoint. Most need an Authorization header (a token/PAT).
-  { name: "githubremote", url: "https://api.githubcopilot.com/mcp/", description: "GitHub's hosted MCP endpoint — issues, PRs, repos, code search (no local install).", needs: "Authorization: Bearer <GitHub PAT>", headers: ["Authorization"] },
-  { name: "deepwiki", url: "https://mcp.deepwiki.com/mcp", description: "Ask questions about any public GitHub repo's docs via DeepWiki (hosted, no auth).", },
-  { name: "context7", url: "https://mcp.context7.com/mcp", description: "Up-to-date library/framework docs for coding questions (hosted by Upstash).", needs: "Authorization: Bearer <Context7 API key> (optional)", headers: ["Authorization"] },
+  // ── Core: the maintained official reference servers ──────────────────────
+  { name: "everything", category: "core", command: "npx", args: "-y @modelcontextprotocol/server-everything", description: "Reference server exercising every MCP feature — ideal for a first test." },
+  { name: "filesystem", category: "core", command: "npx", args: "-y @modelcontextprotocol/server-filesystem /path/to/dir", description: "Read and write files within an allowed directory.", needs: "set the directory path in args" },
+  { name: "fetch", category: "core", command: "uvx", args: "mcp-server-fetch", description: "Fetch a URL and return its content as clean markdown." },
+  { name: "memory", category: "core", command: "npx", args: "-y @modelcontextprotocol/server-memory", description: "Persistent knowledge-graph memory the model can read and write." },
+  { name: "git", category: "core", command: "uvx", args: "mcp-server-git --repository /path/to/repo", description: "Inspect and operate a local Git repository.", needs: "set the repo path in args" },
+  { name: "time", category: "core", command: "uvx", args: "mcp-server-time", description: "Current time and timezone conversions." },
+  { name: "thinking", category: "core", command: "npx", args: "-y @modelcontextprotocol/server-sequential-thinking", description: "A structured step-by-step reasoning scratchpad." },
+  // ── Web, search & browsing ────────────────────────────────────────────────
+  { name: "playwright", category: "web", command: "npx", args: "-y @playwright/mcp@latest", description: "Browser automation via Playwright — navigate, click, fill forms, screenshot (official Microsoft)." },
+  { name: "duckduckgo", category: "web", command: "uvx", args: "duckduckgo-mcp-server", description: "Free web search via DuckDuckGo — no API key required." },
+  { name: "brave", category: "web", command: "npx", args: "-y @brave/brave-search-mcp-server", description: "Web, image, news and local search via the Brave Search API (official).", needs: "BRAVE_API_KEY (env)", env: ["BRAVE_API_KEY"] },
+  { name: "tavily", category: "web", command: "npx", args: "-y tavily-mcp@latest", description: "AI-grade web search and page extraction via the Tavily API.", needs: "TAVILY_API_KEY (env)", env: ["TAVILY_API_KEY"] },
+  { name: "exa", category: "web", command: "npx", args: "-y exa-mcp-server", description: "Neural web search built for agents — web, code, company and paper search.", needs: "EXA_API_KEY (env)", env: ["EXA_API_KEY"] },
+  { name: "firecrawl", category: "web", command: "npx", args: "-y firecrawl-mcp", description: "Scrape, crawl and extract whole websites as clean markdown.", needs: "FIRECRAWL_API_KEY (env)", env: ["FIRECRAWL_API_KEY"] },
+  { name: "googlemaps", category: "web", command: "npx", args: "-y @modelcontextprotocol/server-google-maps", description: "Geocoding, directions and place details via Google Maps.", needs: "GOOGLE_MAPS_API_KEY (env)", env: ["GOOGLE_MAPS_API_KEY"] },
+  { name: "youtube", category: "web", command: "npx", args: "-y @kimtaeyoon83/mcp-server-youtube-transcript", description: "Fetch YouTube video transcripts/subtitles for summarizing." },
+  // ── Databases & vector stores ─────────────────────────────────────────────
+  { name: "postgres", category: "data", command: "npx", args: "-y @modelcontextprotocol/server-postgres postgresql://user:pass@host/db", description: "Read-only SQL queries against a PostgreSQL database.", needs: "set the connection string in args" },
+  { name: "sqlite", category: "data", command: "uvx", args: "mcp-server-sqlite --db-path /path/to.db", description: "Query a local SQLite database file.", needs: "set the db path in args" },
+  { name: "mongodb", category: "data", command: "npx", args: "-y mongodb-mcp-server", description: "MongoDB & Atlas — query collections, inspect schemas, run aggregations (official).", needs: "MDB_MCP_CONNECTION_STRING (env)", env: ["MDB_MCP_CONNECTION_STRING"] },
+  { name: "redis", category: "data", command: "uvx", args: "--from redis-mcp-server@latest redis-mcp-server --url redis://localhost:6379/0", description: "Manage and search data in Redis (official).", needs: "set the redis url in args" },
+  { name: "supabase", category: "data", command: "npx", args: "-y @supabase/mcp-server-supabase@latest --access-token sbp_YOUR_TOKEN", description: "Manage Supabase projects — SQL, migrations, logs, types (official).", needs: "Supabase personal access token in args" },
+  { name: "neon", category: "data", command: "npx", args: "-y @neondatabase/mcp-server-neon start napi_YOUR_KEY", description: "Neon serverless Postgres — projects, branches, SQL (official).", needs: "Neon API key in args" },
+  { name: "qdrant", category: "data", command: "uvx", args: "mcp-server-qdrant", description: "Semantic memory on the Qdrant vector database (official).", needs: "QDRANT_URL + COLLECTION_NAME (env)", env: ["QDRANT_URL", "COLLECTION_NAME"] },
+  { name: "chroma", category: "data", command: "uvx", args: "chroma-mcp --client-type persistent --data-dir /path/to/data", description: "Chroma vector database — collections, embeddings, semantic search (official).", needs: "set the data dir in args" },
+  { name: "pinecone", category: "data", command: "npx", args: "-y @pinecone-database/mcp", description: "Pinecone vector database — search docs, manage indexes (official).", needs: "PINECONE_API_KEY (env)", env: ["PINECONE_API_KEY"] },
+  // ── Dev & cloud ───────────────────────────────────────────────────────────
+  { name: "github", category: "dev", command: "npx", args: "-y @modelcontextprotocol/server-github", description: "GitHub API — issues, pull requests, repos, code search.", needs: "GITHUB_PERSONAL_ACCESS_TOKEN (env)", env: ["GITHUB_PERSONAL_ACCESS_TOKEN"] },
+  { name: "githubremote", category: "dev", url: "https://api.githubcopilot.com/mcp/", description: "GitHub's hosted MCP endpoint — issues, PRs, repos, code search (no local install).", needs: "Authorization: Bearer <GitHub PAT>", headers: ["Authorization"] },
+  { name: "kubernetes", category: "dev", command: "npx", args: "-y mcp-server-kubernetes", description: "Manage a Kubernetes cluster — kubectl and Helm tools over your local kubeconfig." },
+  { name: "awsdocs", category: "dev", command: "uvx", args: "awslabs.aws-documentation-mcp-server@latest", description: "Search and read AWS documentation (official AWS Labs)." },
+  { name: "azure", category: "dev", command: "npx", args: "-y @azure/mcp@latest server start", description: "Azure resources — storage, Cosmos DB, CLI and more (official Microsoft).", needs: "Azure credentials (az login on this machine)" },
+  { name: "sentry", category: "dev", command: "npx", args: "-y @sentry/mcp-server@latest", description: "Sentry issues, stack traces and error analysis (official).", needs: "SENTRY_ACCESS_TOKEN (env)", env: ["SENTRY_ACCESS_TOKEN"] },
+  { name: "deepwiki", category: "dev", url: "https://mcp.deepwiki.com/mcp", description: "Ask questions about any public GitHub repo's docs via DeepWiki (hosted, no auth)." },
+  { name: "context7", category: "dev", url: "https://mcp.context7.com/mcp", description: "Up-to-date library/framework docs for coding questions (hosted by Upstash).", needs: "Authorization: Bearer <Context7 API key> (optional)", headers: ["Authorization"] },
+  { name: "huggingface", category: "dev", url: "https://huggingface.co/mcp", description: "Hugging Face Hub — search models, datasets, papers and Spaces (official, hosted).", needs: "Authorization: Bearer <HF token>", headers: ["Authorization"] },
+  // ── Apps, docs & productivity ─────────────────────────────────────────────
+  { name: "notion", category: "apps", command: "npx", args: "-y @notionhq/notion-mcp-server", description: "Notion pages and databases — read, search, create, update (official).", needs: "NOTION_TOKEN (env)", env: ["NOTION_TOKEN"] },
+  { name: "linear", category: "apps", command: "npx", args: "-y mcp-remote https://mcp.linear.app/mcp", description: "Linear issues and projects via the hosted endpoint (bridged with mcp-remote).", needs: "browser OAuth login on first attach" },
+  { name: "atlassian", category: "apps", command: "uvx", args: "mcp-atlassian", description: "Jira and Confluence — issues, sprints, pages; set CONFLUENCE_* env too if you use it.", needs: "JIRA_URL + JIRA_USERNAME + JIRA_API_TOKEN (env)", env: ["JIRA_URL", "JIRA_USERNAME", "JIRA_API_TOKEN"] },
+  { name: "slack", category: "apps", command: "npx", args: "-y slack-mcp-server@latest --transport stdio", description: "Slack channels, DMs and history — no workspace app approval needed.", needs: "SLACK_MCP_XOXC_TOKEN + SLACK_MCP_XOXD_TOKEN (env)", env: ["SLACK_MCP_XOXC_TOKEN", "SLACK_MCP_XOXD_TOKEN"] },
+  { name: "gdrive", category: "apps", command: "npx", args: "-y @modelcontextprotocol/server-gdrive", description: "Search and read files in Google Drive.", needs: "OAuth credentials (env)" },
+  { name: "airtable", category: "apps", command: "npx", args: "-y airtable-mcp-server", description: "Read and write Airtable bases, tables and records.", needs: "AIRTABLE_API_KEY (env)", env: ["AIRTABLE_API_KEY"] },
+  { name: "stripe", category: "apps", command: "npx", args: "-y @stripe/mcp --tools=all --api-key=sk_YOUR_KEY", description: "Stripe — customers, products, payment links, invoices (official).", needs: "Stripe secret key in args" },
+  { name: "obsidian", category: "apps", command: "npx", args: "-y mcp-obsidian /path/to/vault", description: "Read and search an Obsidian vault (markdown notes).", needs: "set the vault path in args" },
+  { name: "excel", category: "apps", command: "uvx", args: "excel-mcp-server stdio", description: "Create and edit Excel workbooks — formulas, charts, pivots (no Excel install needed)." },
+  { name: "arxiv", category: "apps", command: "uvx", args: "arxiv-mcp-server", description: "Search, download and read arXiv papers." },
 ];
 
 const inputCls =
@@ -359,6 +419,9 @@ export function Mcp() {
   const [showCatalog, setShowCatalog] = useState(false);
   // Pre-fill values for the register form when a catalog entry is picked (M897).
   const [prefill, setPrefill] = useState<Record<string, string> | undefined>(undefined);
+  // Gallery filters (M912): category chip + free-text search over name/description.
+  const [catFilter, setCatFilter] = useState<CatalogCategory | "all">("all");
+  const [catQuery, setCatQuery] = useState("");
   const registered = new Set((servers || []).map((s) => s.name));
 
   function useCatalogEntry(e: CatalogEntry) {
@@ -473,8 +536,35 @@ export function Mcp() {
             Popular MCP servers — pick one to prefill the form, then adjust any path or credential and register.
             Most run via <span className="font-mono">npx</span>/<span className="font-mono">uvx</span> (Node/Python must be installed).
           </div>
+          <div className="mb-2 flex flex-wrap items-center gap-1.5">
+            {(["all", ...(Object.keys(CATEGORY_LABELS) as CatalogCategory[])] as (CatalogCategory | "all")[]).map(
+              (c) => (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => setCatFilter(c)}
+                  aria-pressed={catFilter === c}
+                  className={cn(
+                    "rounded-full border px-2.5 py-0.5 text-[11px]",
+                    catFilter === c
+                      ? "border-accent bg-accent text-accent-foreground"
+                      : "border-border bg-panel text-muted hover:text-foreground",
+                  )}
+                >
+                  {c === "all" ? `All (${CATALOG.length})` : CATEGORY_LABELS[c]}
+                </button>
+              ),
+            )}
+            <input
+              value={catQuery}
+              onChange={(e) => setCatQuery(e.target.value)}
+              placeholder="search servers…"
+              aria-label="Search catalog"
+              className={cn(inputCls, "ml-auto w-44 text-xs")}
+            />
+          </div>
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-            {CATALOG.map((e) => {
+            {filterCatalog(CATALOG, catFilter, catQuery).map((e) => {
               const already = registered.has(e.name);
               return (
                 <div key={e.name} className="flex flex-col rounded-md border border-border bg-panel/40 p-2.5">
@@ -509,9 +599,12 @@ export function Mcp() {
               );
             })}
           </div>
+          {filterCatalog(CATALOG, catFilter, catQuery).length === 0 && (
+            <p className="py-3 text-center text-xs text-muted">No presets match “{catQuery.trim()}”.</p>
+          )}
           <p className="mt-2 text-[10px] text-muted/80">
-            Note: the spawned process gets a scrubbed environment, so servers marked “needs … (env)” require the secret to
-            be provided to the daemon’s environment (or passed via args where the server supports it).
+            Note: servers marked “needs … (env)” get the secret injected only into that server’s process via the env
+            field — the rest of the environment stays scrubbed. “Use” prefills the key names so you just paste the value.
           </p>
         </div>
       )}

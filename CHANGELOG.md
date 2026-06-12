@@ -12,6 +12,16 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **MCP catalog library — 43 verified popular servers + category browser (M912).** The
+  popular-servers gallery (M897) grows from 17 to 43 one-click presets, organized into five
+  categories (Core, Web & search, Databases, Dev & cloud, Apps & docs) with category filter chips
+  and a free-text search box. New presets cover the 2026 MCP mainstays — Playwright, DuckDuckGo,
+  Tavily, Exa, Firecrawl, MongoDB, Redis, Supabase, Neon, Qdrant, Chroma, Pinecone, Kubernetes,
+  AWS docs, Azure, Sentry, Hugging Face (remote), Notion, Linear, Jira/Confluence, Slack, Airtable,
+  Stripe, Obsidian, Excel, arXiv and more. Every package name / remote URL was verified against
+  npm/PyPI and vendor docs; archived-but-working reference servers stay, dead ones were dropped,
+  and the archived puppeteer/slack presets were replaced by their maintained successors. Presets
+  that need a secret prefill the env/header key names so the operator just pastes the value.
 - **Chat context-window observability + history compaction (M925).** Every assistant turn now
   carries a traffic-light context gauge (% of the model's window, from the catalog) in its meta
   line; clicking opens a breakdown modal — system/user/assistant/tool composition, provider-billed
