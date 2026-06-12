@@ -12,8 +12,43 @@ vi.mock("@/lib/api", () => ({
   postAction: (...a: unknown[]) => postAction(...a),
 }));
 
-import { World, WorldAddForm, WorldRelateForm, WorldEditForm, parseWorldJSON } from "@/views/World";
+import {
+  World,
+  WorldAddForm,
+  WorldRelateForm,
+  WorldEditForm,
+  parseWorldJSON,
+  kindBreakdown,
+  filterEntities,
+} from "@/views/World";
 import { UIProvider } from "@/components/ui/feedback";
+
+describe("kindBreakdown (M918)", () => {
+  it("counts entities per kind, sorted by count then name, defaulting blank to 'entity'", () => {
+    const ents = [{ kind: "person" }, { kind: "person" }, { kind: "project" }, {}];
+    expect(kindBreakdown(ents)).toEqual([
+      { label: "person", count: 2 },
+      { label: "entity", count: 1 },
+      { label: "project", count: 1 },
+    ]);
+  });
+});
+
+describe("filterEntities (M918)", () => {
+  const ents = [
+    { name: "Ada", kind: "person", aliases: ["Countess"] },
+    { name: "Babbage", kind: "person" },
+    { name: "AnalyticalEngine", kind: "project" },
+  ];
+  it("narrows by exact kind", () => {
+    expect(filterEntities(ents, "", "project").map((e) => e.name)).toEqual(["AnalyticalEngine"]);
+  });
+  it("composes the kind filter with the text query (name/kind/alias)", () => {
+    expect(filterEntities(ents, "countess", "").map((e) => e.name)).toEqual(["Ada"]);
+    expect(filterEntities(ents, "ada", "project")).toHaveLength(0);
+    expect(filterEntities(ents, "", "").map((e) => e.name)).toEqual(["Ada", "Babbage", "AnalyticalEngine"]);
+  });
+});
 
 // WorldGraph (React Flow / @xyflow) needs ResizeObserver, which jsdom lacks.
 globalThis.ResizeObserver ||= class {

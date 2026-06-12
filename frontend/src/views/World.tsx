@@ -10,6 +10,7 @@ import { WorldGraph } from "@/components/WorldGraph";
 import { BreakdownBar } from "@/components/Widgets";
 import { postJSON, postAction } from "@/lib/api";
 import { downloadText } from "@/lib/export";
+import { cn } from "@/lib/utils";
 import { useUI } from "@/components/ui/feedback";
 
 // The entity kinds the world model recognises — offered when teaching it one.
@@ -17,11 +18,24 @@ const WORLD_KINDS = ["person", "project", "repo", "org", "account", "device", "c
 // The relation verbs the world model recognises.
 const WORLD_VERBS = ["relates_to", "owns", "depends_on", "member_of", "prefers", "assigned_to", "derived_from"];
 
-// kindBreakdown counts entities by kind for the breakdown bar.
-function kindBreakdown(ents: any[]): { label: string; count: number }[] {
+// kindBreakdown counts entities by kind for the breakdown bar + filter chips,
+// sorted by count then name. Pure + unit-tested.
+export function kindBreakdown(ents: any[]): { label: string; count: number }[] {
   const c: Record<string, number> = {};
   for (const e of ents) c[e.kind || "entity"] = (c[e.kind || "entity"] || 0) + 1;
-  return Object.entries(c).map(([label, count]) => ({ label, count }));
+  return Object.entries(c)
+    .map(([label, count]) => ({ label, count }))
+    .sort((a, b) => (b.count !== a.count ? b.count - a.count : a.label.localeCompare(b.label)));
+}
+
+// filterEntities narrows the entity list by a free-text query (name/kind/alias,
+// via entityMatches) and an optional exact kind (M918). Pure + unit-tested.
+export function filterEntities(ents: any[], query: string, kind: string): any[] {
+  const q = query.trim().toLowerCase();
+  return ents.filter((e) => {
+    if (kind && (e.kind || "entity") !== kind) return false;
+    return entityMatches(e, q);
+  });
 }
 
 // parseWorldJSON normalises an exported world file into re-addable entity
@@ -102,13 +116,15 @@ export function World() {
   const ui = useUI();
   const fileRef = useRef<HTMLInputElement>(null);
   const [q, setQ] = useState("");
+  const [kindFilter, setKindFilter] = useState("");
   return (
     <Panel<Record<string, any>> title="World" path="/api/world">
       {(d, reload) => {
         const ents = d.entities || [];
         const edges = d.edges || [];
         const query = q.trim().toLowerCase();
-        const shown = query ? ents.filter((e: any) => entityMatches(e, query)) : ents;
+        const breakdown = kindBreakdown(ents);
+        const shown = filterEntities(ents, query, kindFilter);
         const rels = d.relations ?? d.relation_count ?? edges.length;
         // Relations store their endpoints by entity id; resolve to names for display.
         const nameById: Record<string, string> = {};
@@ -185,7 +201,23 @@ export function World() {
             <WorldAddForm onAdded={reload} />
             {ents.length >= 2 && <WorldRelateForm names={ents.map((e: any) => e.name).filter(Boolean)} onRelated={reload} />}
 
-            {ents.length > 0 && <BreakdownBar segments={kindBreakdown(ents)} />}
+            {ents.length > 0 && <BreakdownBar segments={breakdown} />}
+            {/* Kind filter chips (M918): click a kind to narrow the entity list —
+                complements the free-text search below. */}
+            {breakdown.length > 1 && (
+              <div className="flex flex-wrap gap-1.5">
+                <KindChip label="all" n={ents.length} active={kindFilter === ""} onClick={() => setKindFilter("")} />
+                {breakdown.map((b) => (
+                  <KindChip
+                    key={b.label}
+                    label={b.label}
+                    n={b.count}
+                    active={kindFilter === b.label}
+                    onClick={() => setKindFilter(kindFilter === b.label ? "" : b.label)}
+                  />
+                ))}
+              </div>
+            )}
             {ents.length >= 2 && (
               <div className="h-72 overflow-hidden rounded-md border border-border bg-panel">
                 <WorldGraph entities={ents} edges={edges} />
@@ -248,7 +280,10 @@ export function World() {
                 hint="The agent builds its world model as it learns about people, projects and systems — it'll fill in here."
               />
             ) : shown.length === 0 ? (
-              <Muted>no entities match “{q.trim()}”</Muted>
+              <Muted>
+                no entities match{q.trim() ? ` “${q.trim()}”` : ""}
+                {kindFilter ? ` in ${kindFilter}` : ""}
+              </Muted>
             ) : (
               shown.map((e: any, i: number) => <EntityRow key={e.id || i} entity={e} onChanged={reload} />)
             )}
@@ -262,6 +297,21 @@ export function World() {
 // EntityRow renders one world entity with its forget control and an Edit (pencil)
 // that reveals an inline aliases/attrs editor (M730). Each row owns its own edit
 // state so opening one doesn't disturb the others.
+function KindChip({ label, n, active, onClick }: { label: string; n: number; active: boolean; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] transition-colors",
+        active ? "border-accent bg-accent/10 text-accent" : "border-border text-muted hover:border-accent",
+      )}
+    >
+      <span>{label}</span>
+      <span className="rounded-full bg-card px-1 text-[10px] tabular-nums">{n}</span>
+    </button>
+  );
+}
+
 function EntityRow({ entity, onChanged }: { entity: any; onChanged: () => void }) {
   const [editing, setEditing] = useState(false);
   return (

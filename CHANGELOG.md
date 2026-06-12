@@ -12,6 +12,9 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **World — clickable kind-filter chips (M918).** The World entity graph's kind breakdown is now
+  actionable: a row of kind chips (with counts) below the breakdown bar narrows the entity list to a
+  chosen kind, composed with the existing text search. Additive; data already in `/api/world`.
 - **Schedules cockpit — summary band + live "fires in …" countdown (M917).** The Schedules view now
   opens with a summary band (schedules / enabled / paused / due-within-1h) and each card shows a live
   coarse countdown to its next fire (`in 12m`, `in 3h`, `overdue`) beside the absolute time, so
