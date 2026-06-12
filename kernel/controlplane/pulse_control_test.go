@@ -226,7 +226,7 @@ func TestPulseStatusPauseResumeWithEngine(t *testing.T) {
 	if err := store.Load(); err != nil {
 		t.Fatalf("load store: %v", err)
 	}
-	if v, ok := store.Get("AGEZT_PULSE_CADENCE"); !ok || v != (45 * time.Second).String() {
+	if v, ok := store.Get("AGEZT_PULSE_CADENCE"); !ok || v != (45*time.Second).String() {
 		t.Fatalf("cadence not persisted: %q (ok=%v)", v, ok)
 	}
 	if v, ok := store.Get("AGEZT_PULSE_DIAL"); !ok || v != "chatty" {

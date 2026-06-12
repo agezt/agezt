@@ -110,9 +110,9 @@ func TestCenterAutoClassification(t *testing.T) {
 func TestCenterAccessControlAutoAllow(t *testing.T) {
 	cfg := DefaultConfig(t.TempDir())
 	cfg.AccessPolicies = map[Rating]Policy{
-		RatingPublic:    PolicyAuto,
+		RatingPublic:   PolicyAuto,
 		RatingInternal: PolicyAuto,
-		RatingSecret:    PolicyDeny,
+		RatingSecret:   PolicyDeny,
 	}
 
 	center, err := New(cfg)
@@ -184,9 +184,9 @@ func TestCenterAccessControlDeny(t *testing.T) {
 func TestCenterAccessControlHITL(t *testing.T) {
 	cfg := DefaultConfig(t.TempDir())
 	cfg.AccessPolicies = map[Rating]Policy{
-		RatingPublic:    PolicyAuto,
+		RatingPublic:     PolicyAuto,
 		RatingRestricted: PolicyHITL,
-		RatingSecret:    PolicyDeny,
+		RatingSecret:     PolicyDeny,
 	}
 
 	center, err := New(cfg)

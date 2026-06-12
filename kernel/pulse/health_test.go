@@ -40,8 +40,8 @@ func TestHealth_BaselineFirstPollSilent(t *testing.T) {
 
 func TestHealth_EmitsOnDegradeTransition(t *testing.T) {
 	o := NewHealthObserver(statSeq(
-		HealthStat{ToolCalls: 10, ToolErrors: 0},  // healthy baseline
-		HealthStat{ToolCalls: 10, ToolErrors: 4},  // 40% → degraded
+		HealthStat{ToolCalls: 10, ToolErrors: 0}, // healthy baseline
+		HealthStat{ToolCalls: 10, ToolErrors: 4}, // 40% → degraded
 	), 0, 0)
 	poll(t, o) // baseline
 	d := poll(t, o)

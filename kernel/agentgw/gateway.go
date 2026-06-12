@@ -33,8 +33,8 @@ type Gateway struct {
 	sockPath string
 
 	// Config center integration (set via SetConfigCenter)
-	configCenter   *configcenter.Center
-	configHandler  *ConfigHandler
+	configCenter  *configcenter.Center
+	configHandler *ConfigHandler
 }
 
 // GatewayConfig configures the gateway.
@@ -136,6 +136,11 @@ func (g *Gateway) Listen(ctx context.Context) error {
 
 	// Support both TCP (tcp://host:port) and Unix socket (unix:/path or /path)
 	switch {
+	case len(g.sockPath) >= 1 && g.sockPath[0] == '@':
+		// Abstract unix socket (the default, e.g. @agezt/agentgw.sock). Go maps
+		// the leading @ to the abstract namespace on Linux; without this case it
+		// fell through to net.Listen("tcp", ...) and failed everywhere.
+		ln, err = net.Listen("unix", g.sockPath)
 	case len(g.sockPath) >= 7 && g.sockPath[:6] == "unix://":
 		// Unix socket with explicit prefix
 		socketPath := g.sockPath[6:]

@@ -98,7 +98,7 @@ const (
 	CapDBWrite AgentCapability = "db.write"
 
 	// Config capabilities.
-	CapConfigAccess  AgentCapability = "config.access"  // Get config values (rating-based)
+	CapConfigAccess AgentCapability = "config.access" // Get config values (rating-based)
 	CapConfigList   AgentCapability = "config.list"   // List accessible config keys
 	CapConfigSearch AgentCapability = "config.search" // Search config keys
 )

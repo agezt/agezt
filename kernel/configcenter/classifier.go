@@ -10,10 +10,10 @@ import (
 
 // SecretClassifier automatically detects the sensitivity rating of config values.
 type SecretClassifier struct {
-	mu         sync.RWMutex
-	overrides  map[string]Rating
-	keyPatterns    []*CompiledPattern
-	valuePatterns  []*CompiledPattern
+	mu              sync.RWMutex
+	overrides       map[string]Rating
+	keyPatterns     []*CompiledPattern
+	valuePatterns   []*CompiledPattern
 	contextualRules []*ContextualRule
 }
 

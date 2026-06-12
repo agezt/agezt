@@ -141,11 +141,11 @@ func TestListAndRemove(t *testing.T) {
 func TestValidationErrors(t *testing.T) {
 	tool, _ := newTool(t)
 	cases := []map[string]any{
-		{"op": "create_event", "subject": "x", "plan": "y"},                 // missing name
-		{"op": "create_event", "name": "n", "plan": "y"},                    // missing subject
-		{"op": "create_event", "name": "n", "subject": "x"},                 // missing plan
-		{"op": "create_cron", "name": "n", "plan": "y"},                     // missing schedule
-		{"op": "remove"},                                                    // missing id
+		{"op": "create_event", "subject": "x", "plan": "y"}, // missing name
+		{"op": "create_event", "name": "n", "plan": "y"},    // missing subject
+		{"op": "create_event", "name": "n", "subject": "x"}, // missing plan
+		{"op": "create_cron", "name": "n", "plan": "y"},     // missing schedule
+		{"op": "remove"}, // missing id
 		{"op": "bogus"},
 		{"op": ""},
 	}

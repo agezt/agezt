@@ -349,13 +349,13 @@ func TestResponseJSON(t *testing.T) {
 // TestExtractBearerToken tests the Authorization header extraction.
 func TestExtractBearerToken(t *testing.T) {
 	tests := []struct {
-		header  string
-		want    string
+		header string
+		want   string
 	}{
 		{"Bearer abc123", "abc123"},
-		{"Basic abc", ""},            // Wrong scheme
-		{"", ""},                     // Empty
-		{"Bearer ", ""},              // Empty token
+		{"Basic abc", ""}, // Wrong scheme
+		{"", ""},          // Empty
+		{"Bearer ", ""},   // Empty token
 	}
 
 	for _, tt := range tests {

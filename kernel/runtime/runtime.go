@@ -2531,7 +2531,10 @@ func defaultShellHint() (string, string) {
 // binary, so the model uses native commands (the #1 source of wasted iterations
 // on Windows was the model reflexively trying `ls`/`cat`/`rm`).
 func shellGuidance(shellBin string) string {
-	switch strings.ToLower(filepath.Base(shellBin)) {
+	// Normalize Windows separators first: on Linux filepath.Base treats
+	// `C:\Win\cmd.exe` as one element and the interpreter would misroute
+	// to the POSIX advice.
+	switch strings.ToLower(filepath.Base(strings.ReplaceAll(shellBin, `\`, "/"))) {
 	case "cmd", "cmd.exe":
 		return "Use native Windows commands (dir, type, copy, del, move, findstr) — NOT ls/cat/rm/cp/mv/grep. Chain with `&&`."
 	case "powershell", "powershell.exe", "pwsh", "pwsh.exe":

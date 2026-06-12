@@ -203,15 +203,15 @@ type slackEnvelope struct {
 }
 
 type slackEvent struct {
-	Type    string      `json:"type"`      // "message"
-	Channel string      `json:"channel"`   // C…
-	User    string      `json:"user"`      // U…
-	Text    string      `json:"text"`
-	TS      string      `json:"ts"`
-	ThreadTS string     `json:"thread_ts"` // set when the message lives in a thread (M885)
-	BotID   string      `json:"bot_id"`    // set when the message is from a bot
-	Subtype string      `json:"subtype"`   // set for edits/joins/bot_message/etc.
-	Files   []slackFile `json:"files"`     // shared-file attachments
+	Type     string      `json:"type"`    // "message"
+	Channel  string      `json:"channel"` // C…
+	User     string      `json:"user"`    // U…
+	Text     string      `json:"text"`
+	TS       string      `json:"ts"`
+	ThreadTS string      `json:"thread_ts"` // set when the message lives in a thread (M885)
+	BotID    string      `json:"bot_id"`    // set when the message is from a bot
+	Subtype  string      `json:"subtype"`   // set for edits/joins/bot_message/etc.
+	Files    []slackFile `json:"files"`     // shared-file attachments
 }
 
 // slackFile is an inbound file attachment. url_private requires the bot token in
