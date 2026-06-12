@@ -12,6 +12,13 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Visual Agents gallery — no more dropdown (M909).** The Agents view (multi-agent / delegation
+  monitor) no longer hides every run behind a `<select>`. It opens on a fleet-at-a-glance screen: a
+  summary band (leads · running · sub-agents · roster size · total spend), filter chips
+  (all/running/done/failed with counts), and a responsive card gallery — one rich card per lead run
+  showing a live status dot, agent identity, start time, intent, answer preview, and a chip row of
+  agents/sub-agents/depth/iterations/tree-spend. Clicking a card drills into the existing live
+  delegation graph + per-agent detail. Cards sort running-first then newest.
 - **Lazy MCP loading — context-efficient tool injection (M906).** A server can opt into `lazy`
   mode (#39), collapsing its tools into a single `mcp_<name>` dispatcher instead of injecting every
   tool's full input schema into every run. The dispatcher's input is `{tool, arguments}` — `tool` is
