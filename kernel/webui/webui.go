@@ -351,6 +351,9 @@ var jsonRoutes = map[string]writeRoute{
 	// object {task: [models]} too large/structured for a query arg.
 	"/api/routing/set": {controlplane.CmdRoutingSet, []string{"chains"}},
 	"/api/persona/set": {controlplane.CmdPersonaSet, []string{"system"}},
+	// Chat history compaction (M923): fold older turns into one briefing. The
+	// turns array is far too large for a query string — JSON body only.
+	"/api/chat/summarize": {controlplane.CmdChatSummarize, []string{"turns", "model"}},
 	// Personal Data Lake writes (M836): insert/update carry the record object;
 	// create carries the full collection schema — JSON bodies, not query args.
 	"/api/data/insert":     {controlplane.CmdDataInsert, []string{"collection", "record"}},

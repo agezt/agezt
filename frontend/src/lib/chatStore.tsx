@@ -1,11 +1,14 @@
 import { createContext, useContext, useEffect, useRef, useState } from "react";
-import { getJSON, postAction } from "@/lib/api";
+import { getJSON, postAction, postJSON } from "@/lib/api";
 import { useEvents, type AgentEvent } from "@/lib/events";
 import {
   streamRun,
   foldChatFrame,
   newTurn,
   buildHistory,
+  buildHistoryWithSummary,
+  summaryFoldRange,
+  summaryBriefingTurn,
   type ChatTurn,
   type ChatHistoryTurn,
 } from "@/lib/chat";
@@ -20,10 +23,13 @@ import {
   withActiveConvModel,
   activeConvAgent,
   withActiveConvAgent,
+  activeSummary,
+  withActiveSummary,
   startConversation,
   deleteConversation,
   renameConversation,
   togglePinned,
+  type HistorySummary,
   type Msg,
   type Store,
 } from "@/lib/conversations";
@@ -110,6 +116,9 @@ export interface ChatEngine {
   renameConversation: (id: string, title: string) => void;
   /** Toggle a conversation's pinned flag (pinned threads sort to the top). */
   togglePin: (id: string) => void;
+  /** The active conversation's history briefing (M925) — older turns folded
+   *  into one summary so long threads don't silently lose their start. */
+  historySummary?: HistorySummary;
   /** Memories the daemon recorded during the run with this correlation id. */
   learnedFor: (corr?: string) => LearnedMem[];
   /** Forget one learned memory (tombstones it in the store + drops the chip). */
@@ -249,14 +258,43 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     if (corr) void postAction("/api/cancel_run", { correlation: corr }).catch(() => {});
   }
 
+  // ensureSummary folds older history into one briefing when the thread has
+  // outgrown the window (M925): prior briefing (if any) + the messages between
+  // the old fold point and the keep-tail go through one bounded summarize call.
+  // Best-effort — on failure the send just rides the windowed history as before.
+  async function ensureSummary(msgs: Msg[]): Promise<HistorySummary | undefined> {
+    const cur = activeSummary(store);
+    const range = summaryFoldRange(msgs.length, cur?.upto || 0);
+    if (!range) return cur;
+    const fold = buildHistory(msgs.slice(range.from, range.to));
+    if (fold.length === 0) return cur;
+    const turns: ChatHistoryTurn[] = cur?.text.trim() ? [summaryBriefingTurn(cur.text), ...fold] : fold;
+    try {
+      const r = await postJSON<{ summary?: string }>("/api/chat/summarize", { turns });
+      const text = String(r.summary || "").trim();
+      if (!text) return cur;
+      const next: HistorySummary = { text, upto: range.to };
+      setStore((s) => withActiveSummary(s, next, Date.now()));
+      return next;
+    } catch {
+      return cur; // summarizer unavailable — fall back to the windowed history
+    }
+  }
+
   function send(intent: string, context?: string) {
     const t = intent.trim();
     if (!t || busy) return;
-    const history = buildHistory(messages);
+    const msgs = messages;
     // The conversation records the clean intent; the run receives the attachment
     // context (if any) prepended, so the user's bubble stays uncluttered.
     setMessages((m) => [...m, { role: "user", text: t }, { role: "assistant", turn: freshTurn() }]);
-    void streamIntent(context ? `${context}\n\n---\n\n${t}` : t, history);
+    // Busy now, not when streamIntent starts — the summarize call below awaits
+    // first, and a double-send must not slip through that gap.
+    setBusy(true);
+    void (async () => {
+      const summary = await ensureSummary(msgs);
+      await streamIntent(context ? `${context}\n\n---\n\n${t}` : t, buildHistoryWithSummary(msgs, summary));
+    })();
   }
 
   // retry re-runs the most recent user intent after a failed turn: drop the
@@ -273,7 +311,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     }
     if (userIdx < 0) return;
     const intent = (messages[userIdx] as Extract<Msg, { role: "user" }>).text;
-    const history = buildHistory(messages.slice(0, userIdx));
+    const history = buildHistoryWithSummary(messages.slice(0, userIdx), activeSummary(store));
     setMessages((prev) => [...prev.slice(0, userIdx + 1), { role: "assistant", turn: freshTurn() }]);
     void streamIntent(intent, history);
   }
@@ -287,7 +325,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     if (busy) return;
     const last = messages[messages.length - 1];
     if (!last || last.role !== "assistant") return;
-    const history = buildHistory(messages); // includes the partial answer
+    const history = buildHistoryWithSummary(messages, activeSummary(store)); // includes the partial answer
     setMessages((prev) => [...prev, { role: "assistant", turn: freshTurn() }]);
     void streamIntent(
       "Continue from where you stopped and finish the task. Do not repeat work already completed.",
@@ -305,7 +343,11 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     if (!t) return;
     const msg = messages[index];
     if (!msg || msg.role !== "user") return;
-    const history = buildHistory(messages.slice(0, index));
+    // Editing a message the briefing covered makes it stale (it summarizes
+    // turns that no longer exist) — drop it; a later send re-folds if needed.
+    const cur = activeSummary(store);
+    if (cur && index < cur.upto) setStore((s) => withActiveSummary(s, undefined, Date.now()));
+    const history = buildHistoryWithSummary(messages.slice(0, index), cur && index < cur.upto ? undefined : cur);
     setMessages((prev) => [...prev.slice(0, index), { role: "user", text: t }, { role: "assistant", turn: freshTurn() }]);
     void streamIntent(t, history);
   }
@@ -357,6 +399,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     editAndResend,
     conversationPersona: activePersona(store),
     setConversationPersona,
+    historySummary: activeSummary(store),
     stop,
     newChat,
     selectConversation,

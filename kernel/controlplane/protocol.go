@@ -76,6 +76,12 @@ const (
 	// Daemon-persisted; purely a Chat-composer convenience.
 	CmdPromptsGet = "prompts_get"
 	CmdPromptsSet = "prompts_set"
+	// CmdChatSummarize condenses older chat turns into one compact briefing
+	// (M925) so a long thread can keep its full context instead of silently
+	// dropping the oldest turns at the history window. One bounded provider
+	// call (TaskType "summarize" — per-task routing applies); no tools, no loop.
+	// Args: turns ([{role,text}]), optional model. Returns: { summary, turns }.
+	CmdChatSummarize = "chat_summarize"
 	// CmdProviderLog lists recent provider-routing activity (M89) — a timeline of
 	// routing.decision + provider.fallback events (which provider handled calls,
 	// when the primary fell back). Args: limit, fallbacks (bool — only fallbacks),

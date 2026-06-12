@@ -9,6 +9,16 @@ export function pct(rate?: number, denom?: number): string {
   return Math.round((rate || 0) * 100) + "%";
 }
 
+// fmtCount renders a token/char count compactly, with one decimal below 10K so
+// small contexts don't all round to the same label: 9_850 → "9.9K", 12_400 →
+// "12K", 1_500_000 → "1.5M".
+export function fmtCount(n: number): string {
+  if (n >= 1_000_000) return (n / 1_000_000).toFixed(n % 1_000_000 ? 1 : 0) + "M";
+  if (n >= 10_000) return Math.round(n / 1000) + "K";
+  if (n >= 1000) return (n / 1000).toFixed(1) + "K";
+  return String(Math.round(n));
+}
+
 // sort object keys by descending numeric value (for "top by count" lists).
 export function byDescValue(obj: Record<string, number>): string[] {
   return Object.keys(obj).sort((a, b) => (obj[b] || 0) - (obj[a] || 0));

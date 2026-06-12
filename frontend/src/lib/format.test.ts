@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { money, pct, byDescValue } from "@/lib/format";
+import { money, pct, byDescValue, fmtCount } from "@/lib/format";
 
 describe("money", () => {
   it("renders microcents (1e-9 USD) as a 4-dp dollar string", () => {
@@ -19,6 +19,16 @@ describe("pct", () => {
   it("returns an em dash when the denominator is zero", () => {
     expect(pct(0.5, 0)).toBe("—");
     expect(pct(0.5, 3)).toBe("50%");
+  });
+});
+
+describe("fmtCount", () => {
+  it("keeps one decimal below 10K so small counts stay distinguishable", () => {
+    expect(fmtCount(950)).toBe("950");
+    expect(fmtCount(9840)).toBe("9.8K");
+    expect(fmtCount(12400)).toBe("12K");
+    expect(fmtCount(1_500_000)).toBe("1.5M");
+    expect(fmtCount(1_000_000)).toBe("1M");
   });
 });
 

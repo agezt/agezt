@@ -12,6 +12,17 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Chat context-window observability + history compaction (M925).** Every assistant turn now
+  carries a traffic-light context gauge (% of the model's window, from the catalog) in its meta
+  line; clicking opens a breakdown modal — system/user/assistant/tool composition, provider-billed
+  tokens (incl. cache hits) across iterations, and the compaction history. When the loop compacts
+  its own context mid-run, a "context compacted" note appears right in the thread (same visibility
+  rule as the fallback note). And long threads no longer silently lose their start at the history
+  window: past ~30 unsummarized messages the chat folds the oldest turns into one LLM-written
+  briefing (new `chat_summarize` command, TaskType "summarize" so per-task routing applies) that
+  rides as a leading system turn, with a visible "N older messages summarized" divider — click it
+  to read exactly what the agent still knows. The gauge/modal are pure UI over events the loop
+  already journals (SPEC-10 §3.5).
 - **Runs — status summary band + click-to-filter chips (M923).** The Runs monitor now shows the
   shape of the fleet's work at a glance: a `N total` count and a row of status chips (running /
   completed / failed / other) with live counts and status-coloured dots. Click a chip to narrow the

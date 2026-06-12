@@ -103,6 +103,19 @@ export function groupByProvider(opts: ModelOption[]): ModelGroup[] {
   return groups.sort((a, b) => Number(b.credentialed) - Number(a.credentialed));
 }
 
+// findModelContext looks up a model's context window (tokens) in the catalog by
+// model id — what the chat's context bar divides by. 0 when the model isn't in
+// the catalog (the bar then shows absolute usage without a percentage).
+export function findModelContext(cat: ModelCatalog | null | undefined, modelId: string): number {
+  if (!modelId) return 0;
+  for (const p of cat?.providers || []) {
+    for (const m of p.models || []) {
+      if (m.id === modelId) return Number(m.context || 0);
+    }
+  }
+  return 0;
+}
+
 // fmtContext renders a context window compactly: 128000 → "128K", 1000000 → "1M".
 export function fmtContext(n: number): string {
   if (!n) return "";
