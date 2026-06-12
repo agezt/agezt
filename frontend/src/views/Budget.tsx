@@ -18,6 +18,18 @@ interface BudgetData {
   per_task?: { task_type: string; spent_mc: number; ceiling_mc: number }[];
 }
 
+// projectedDailySpend extrapolates today's spend to UTC end-of-day, "at this
+// pace" — spend / fraction-of-the-UTC-day-elapsed. The budget resets at UTC
+// midnight (utc_date), and the Unix epoch is UTC-aligned, so nowMs % dayMs is ms
+// since midnight. Returns null too early in the day (< ~1h) where the
+// extrapolation is meaningless noise. Pure + unit-tested (M920).
+export function projectedDailySpend(spentMc: number, nowMs: number): number | null {
+  const dayMs = 24 * 60 * 60 * 1000;
+  const frac = (nowMs % dayMs) / dayMs;
+  if (frac < 0.04) return null; // < ~58 min into the day — too little signal
+  return Math.round(spentMc / frac);
+}
+
 // Budget is the spend cockpit: it SHOWS today's spend against the daily ceiling
 // and lets the operator ADJUST that ceiling at runtime (M607) — the "ayarla"
 // knob. Setting a new dollar figure posts /api/budget_set; "Unlimited" clears
@@ -101,6 +113,32 @@ export function Budget() {
                 </div>
               </div>
             </div>
+
+            {/* Forecast (M920): where today's spend lands at the current pace. */}
+            {(() => {
+              const projected = projectedDailySpend(spent, Date.now());
+              if (projected == null || spent <= 0) return null;
+              const over = ceiling > 0 && projected > ceiling;
+              return (
+                <div className={cn("rounded-lg border p-3", over ? "border-bad/50 bg-bad/5" : "border-border bg-card")}>
+                  <div className="flex items-baseline justify-between gap-2">
+                    <span className="text-xs font-semibold uppercase tracking-wider text-muted">
+                      Projected today · at this pace
+                    </span>
+                    <span className={cn("text-lg font-semibold tabular-nums", over ? "text-bad" : "text-foreground")}>
+                      {money(projected)}
+                    </span>
+                  </div>
+                  {ceiling > 0 && (
+                    <div className="mt-1 text-xs text-muted">
+                      {over
+                        ? `On track to exceed the ${money(ceiling)} ceiling — the daily cap halts spend before then.`
+                        : `Comfortably within the ${money(ceiling)} daily ceiling at the current rate.`}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
 
             {/* Runtime ceiling control — the "ayarla" knob */}
             <div className="rounded-lg border border-border bg-card p-3">
