@@ -65,8 +65,25 @@ export function textKind(e: ArtifactEntry): "markdown" | "json" | "code" | "text
   return "";
 }
 
+// categoryOf buckets an entry for the Artifacts gallery (M929): the file types
+// agents actually produce, each with its own preview treatment. Checked before
+// textKind so html/svg get their dedicated buckets rather than "code"/"image".
+export type ArtifactCategory = "image" | "svg" | "html" | "pdf" | "markdown" | "json" | "code" | "text" | "other";
+
+export function categoryOf(e: ArtifactEntry): ArtifactCategory {
+  const mime = (e.mime ?? "").toLowerCase();
+  const name = (e.name ?? "").toLowerCase();
+  const ext = name.includes(".") ? name.slice(name.lastIndexOf(".") + 1) : "";
+  if (mime.includes("svg") || ext === "svg") return "svg";
+  if (isImage(e)) return "image";
+  if (mime === "text/html" || ext === "html" || ext === "htm") return "html";
+  if (isPdf(e)) return "pdf";
+  const t = textKind(e);
+  return t === "" ? "other" : t;
+}
+
 // previewMaxBytes caps inline text fetches so a giant artifact can't hang the UI.
-const previewMaxBytes = 2 * 1024 * 1024;
+export const previewMaxBytes = 2 * 1024 * 1024;
 
 // rawURL builds the tokenized binary URL for an entry (optionally a download).
 export function rawURL(e: ArtifactEntry, download = false): string {
@@ -222,18 +239,31 @@ export function Files() {
             </div>
             <ul className="space-y-1">
               {files.map((e) => (
-                <li key={e.id} className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm">
+                <li
+                  key={e.id}
+                  onClick={() => setPreview(e)}
+                  className="flex cursor-pointer items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm transition-colors hover:border-accent/50"
+                  title="Click to preview"
+                >
                   <FileText className="size-4 shrink-0 text-muted" />
                   <span className="min-w-0 flex-1 truncate" title={e.name || e.id}>
                     {e.name || e.id}
                   </span>
-                  {e.kind && <Badge variant="default">{e.kind}</Badge>}
+                  <Badge variant="accent">{categoryOf(e)}</Badge>
+                  {e.kind && e.kind !== "file" && <Badge variant="default">{e.kind}</Badge>}
                   <span className="text-[11px] text-muted">{humanSize(e.size)}</span>
                   <span className="text-[11px] text-muted">{fmtTime(e.created_ms)}</span>
-                  <a href={rawURL(e, true)} download className="text-muted hover:text-accent" title="Download">
+                  <a href={rawURL(e, true)} download onClick={(ev) => ev.stopPropagation()} className="text-muted hover:text-accent" title="Download">
                     <Download className="size-3.5" />
                   </a>
-                  <button onClick={() => del(e)} className="text-muted hover:text-bad" title="Delete">
+                  <button
+                    onClick={(ev) => {
+                      ev.stopPropagation();
+                      del(e);
+                    }}
+                    className="text-muted hover:text-bad"
+                    title="Delete"
+                  >
                     <Trash2 className="size-3.5" />
                   </button>
                 </li>

@@ -49,6 +49,7 @@ import {
   Wand2,
   HelpCircle,
   HardDrive,
+  Shapes,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -125,6 +126,7 @@ import { Reflect } from "@/views/Reflect";
 import { Approvals } from "@/views/Approvals";
 import { Sandbox } from "@/views/Sandbox";
 import { Storage } from "@/views/Storage";
+import { Artifacts } from "@/views/Artifacts";
 
 interface NavItem {
   id: string;
@@ -152,6 +154,7 @@ const NAV_GROUPS: NavGroup[] = [
       { id: "chat", label: "Chat", icon: MessageSquare, render: Chat },
       { id: "inbox", label: "Inbox", icon: InboxIcon, render: Inbox },
       { id: "files", label: "Files", icon: FolderOpen, render: Files },
+      { id: "artifacts", label: "Artifacts", icon: Shapes, render: Artifacts },
       { id: "data", label: "Data Lake", icon: Database, render: Data },
       { id: "board", label: "Agent Board", icon: MessagesSquare, render: Board },
       { id: "approvals", label: "Approvals", icon: CheckSquare, render: Approvals },
