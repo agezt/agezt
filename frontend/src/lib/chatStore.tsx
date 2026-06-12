@@ -139,6 +139,11 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   const [busy, setBusy] = useState(false);
   const [learned, setLearned] = useState<Record<string, LearnedMem[]>>({});
   const abortRef = useRef<AbortController | null>(null);
+  // The correlation id of the run currently streaming, captured from its frames
+  // (M907). Stopping the browser stream alone leaves the daemon running the loop
+  // headless (cancel-on-disconnect is off by default), so Stop must ALSO cancel
+  // the run server-side by this id — otherwise it keeps burning budget unseen.
+  const activeCorrRef = useRef<string | null>(null);
 
   const messages = activeMessages(store);
   const setMessages = (updater: Msg[] | ((prev: Msg[]) => Msg[])) => {
@@ -200,6 +205,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     setBusy(true);
     const ctrl = new AbortController();
     abortRef.current = ctrl;
+    activeCorrRef.current = null;
     try {
       const persona = activePersona(store).trim();
       await streamRun(
@@ -210,7 +216,12 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
           history: history.length ? history : undefined,
           system: persona || undefined, // per-conversation persona override (M711)
         },
-        (f) => updateLastTurn((t) => foldChatFrame(t, f)),
+        (f) => {
+          // Capture the run's correlation id from the first frame that carries
+          // it, so Stop can cancel the run server-side (M907).
+          if (f.correlation_id && !activeCorrRef.current) activeCorrRef.current = f.correlation_id;
+          updateLastTurn((t) => foldChatFrame(t, f));
+        },
         ctrl.signal,
       );
     } catch (e) {
@@ -221,8 +232,21 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       }
     } finally {
       abortRef.current = null;
+      activeCorrRef.current = null;
       setBusy(false);
     }
+  }
+
+  // abortActiveRun tears down the browser stream AND cancels the run on the
+  // daemon (M907). Aborting the fetch alone only stops the UI folding frames;
+  // because cancel-on-disconnect is off by default, the governed loop would run
+  // on headless and keep spending budget. Cancelling by correlation id (the same
+  // targeted cancel `agt` uses) actually stops the work. Best-effort — a failed
+  // cancel must not throw into the caller.
+  function abortActiveRun() {
+    const corr = activeCorrRef.current;
+    abortRef.current?.abort();
+    if (corr) void postAction("/api/cancel_run", { correlation: corr }).catch(() => {});
   }
 
   function send(intent: string, context?: string) {
@@ -291,22 +315,22 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   }
 
   function stop() {
-    abortRef.current?.abort();
+    abortActiveRun();
   }
 
   function newChat() {
-    if (busy) abortRef.current?.abort();
+    if (busy) abortActiveRun();
     setStore((s) => startConversation(s, genId, Date.now()));
   }
 
   function selectConversation(id: string) {
     if (id === store.activeId) return;
-    if (busy) abortRef.current?.abort();
+    if (busy) abortActiveRun();
     setStore((s) => ({ ...s, activeId: id }));
   }
 
   function removeConversation(id: string) {
-    if (busy && id === store.activeId) abortRef.current?.abort();
+    if (busy && id === store.activeId) abortActiveRun();
     setStore((s) => deleteConversation(s, id, genId, Date.now()));
   }
 

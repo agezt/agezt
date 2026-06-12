@@ -5446,6 +5446,15 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   host (initialize, invoke success/error, progress, host callback). First
   post-1.0 step toward the polyglot SDK story (ROADMAP §5).
 
+### Fixed
+- **Chat "Stop" now cancels the run on the daemon, not just the browser (M907).** Stopping a chat
+  response (or starting a new chat / switching threads mid-stream) only aborted the browser's SSE
+  fetch; because cancel-on-disconnect is off by default and chat runs through the same governed loop
+  as `agt run`, the agent loop kept running headless on the daemon — still calling the model, running
+  tools, and spending budget — while the UI said "stopped". The Chat store now captures the run's
+  correlation id from its event stream and, on stop, issues the targeted `cancel_run` so the daemon
+  actually halts the work.
+
 ## [1.0.0] — 2026-06-03
 
 **Scale release (ROADMAP M8): "One Agezt across many nodes."** v1.0 fuses the v0.1.0 MVP
