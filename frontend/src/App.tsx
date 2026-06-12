@@ -58,6 +58,7 @@ import { CommandPalette } from "@/components/CommandPalette";
 import { MiniChat } from "@/components/MiniChat";
 import { AlertBell } from "@/components/AlertBell";
 import { ApprovalsBell } from "@/components/ApprovalsBell";
+import { NotifyToggle } from "@/components/NotifyToggle";
 import { Vitals } from "@/components/Vitals";
 import { useUI, type ConfirmOptions } from "@/components/ui/feedback";
 
@@ -631,6 +632,7 @@ function Header({ connected, onOpenPalette }: { connected: boolean; onOpenPalett
         ● {connected ? "live" : "disconnected"}
       </span>
       <div className="ml-auto flex items-center gap-2">
+        <NotifyToggle />
         <ApprovalsBell />
         <AlertBell />
         <button
