@@ -308,6 +308,35 @@ impl Client {
         Ok(mails_from(v.get("messages")))
     }
 
+    /// Stream new mail the moment it lands — the push counterpart of polling
+    /// [`Client::mailbox_inbox`]. `name` watches one agent/app's mail
+    /// (messages addressed to it plus broadcasts it didn't send); `topic`
+    /// watches one topic; both empty tails every board message. The server's
+    /// first frame is a `ready` marker (skipped here) — messages sent after
+    /// the iterator is obtained are guaranteed delivered. Iterates until the
+    /// connection closes; raise the client timeout for long quiet watches.
+    pub fn mailbox_watch(&self, name: &str, topic: &str) -> Result<MailWatch> {
+        let mut path = String::from("/api/v1/mailbox/watch");
+        let mut sep = '?';
+        if !name.is_empty() {
+            path.push_str(&format!("{sep}name={}", percent_encode(name)));
+            sep = '&';
+        }
+        if !topic.is_empty() {
+            path.push_str(&format!("{sep}topic={}", percent_encode(topic)));
+        }
+        let resp = self.send("GET", &path, None, "text/event-stream")?;
+        if !(200..300).contains(&resp.status) {
+            return Err(api_error(resp.status, &resp.read_text()?));
+        }
+        Ok(MailWatch {
+            inner: RunStream {
+                lines: resp.body.into_lines(),
+                done: false,
+            },
+        })
+    }
+
     /// The mailbox's topics with their message counts.
     pub fn mailbox_topics(&self) -> Result<std::collections::BTreeMap<String, i64>> {
         let v = self.get_json("/api/v1/mailbox/topics")?;
@@ -411,6 +440,27 @@ impl Iterator for RunStream {
                 event = rest.trim().to_string();
             } else if let Some(rest) = line.strip_prefix("data:") {
                 data_lines.push(rest.strip_prefix(' ').unwrap_or(rest).to_string());
+            }
+        }
+    }
+}
+
+/// The watch iterator returned by [`Client::mailbox_watch`]: each item is one
+/// newly-landed [`Mail`] (the SSE `mail` frames; `ready` and keepalives are
+/// skipped). Built on the same SSE reader as [`RunStream`].
+pub struct MailWatch {
+    inner: RunStream,
+}
+
+impl Iterator for MailWatch {
+    type Item = Result<Mail>;
+
+    fn next(&mut self) -> Option<Result<Mail>> {
+        loop {
+            match self.inner.next()? {
+                Err(e) => return Some(Err(e)),
+                Ok(ev) if ev.event == "mail" => return Some(Ok(mail_from(&ev.data))),
+                Ok(_) => {} // ready / unknown frames
             }
         }
     }

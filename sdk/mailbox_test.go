@@ -46,6 +46,25 @@ func TestParseMails(t *testing.T) {
 	}
 }
 
+func TestMailForName(t *testing.T) {
+	cases := []struct {
+		name, from, to string
+		want           bool
+	}{
+		{"researcher", "x", "Researcher", true},  // directed, case-insensitive
+		{"researcher", "x", "writer", false},     // someone else's DM
+		{"researcher", "myapp", "*", true},       // foreign broadcast
+		{"researcher", "Researcher", "*", false}, // own broadcast
+		{"researcher", "x", "", false},           // plain topic post
+		{"", "x", "writer", true},                // firehose matches everything
+	}
+	for i, c := range cases {
+		if got := mailForName(c.name, c.from, c.to); got != c.want {
+			t.Errorf("case %d (%q from=%q to=%q): got %v, want %v", i, c.name, c.from, c.to, got, c.want)
+		}
+	}
+}
+
 func TestParseMails_Empty(t *testing.T) {
 	if got := parseMails(nil); len(got) != 0 {
 		t.Fatalf("nil input: %d", len(got))

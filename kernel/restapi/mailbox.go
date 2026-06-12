@@ -19,6 +19,7 @@ package restapi
 //	                                             agent/app, newest first
 //	GET  /api/v1/mailbox/messages/{id}/replies — answers, oldest first
 //	POST /api/v1/mailbox/messages/{id}/ack     — mark read for one reader
+//	GET  /api/v1/mailbox/watch?name=&topic=    — SSE: new messages as they land
 //	GET  /api/v1/mailbox/topics                — topic → message count
 //
 // The mailbox is daemon-global (one board per daemon), so the X-Agezt-Tenant
@@ -33,6 +34,7 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/board"
+	"github.com/agezt/agezt/kernel/event"
 )
 
 // mailboxDefaultLimit / mailboxMaxLimit bound the list endpoints (mirrors the
@@ -267,6 +269,129 @@ func (s *Server) handleMailboxMessageSub(w http.ResponseWriter, r *http.Request)
 
 	default:
 		writeErr(w, http.StatusNotFound, "not_found", "unknown action "+action+" (replies|ack)")
+	}
+}
+
+// --- GET /api/v1/mailbox/watch (SSE) ---
+
+// mailboxKeepalive is how often the watch stream emits an SSE comment frame so
+// idle connections survive proxies and dead peers are detected. The watch is
+// open-ended (unlike a run stream), so it can sit silent for hours otherwise.
+const mailboxKeepalive = 25 * time.Second
+
+// boardPostedPayload is the metadata a board.posted event carries (the daemon
+// journals no message text — watchers fetch the body from the store by id).
+type boardPostedPayload struct {
+	ID    string `json:"id"`
+	Topic string `json:"topic"`
+	From  string `json:"from"`
+	To    string `json:"to"`
+	Help  bool   `json:"help"`
+}
+
+// mailWatchMatch reports whether a posted message is for this watcher: with a
+// name, messages addressed to it (case-insensitive) plus broadcasts it didn't
+// send — the live counterpart of Inbox; with a topic, that topic's posts; with
+// neither, everything (a firehose tail).
+func mailWatchMatch(name, topic string, p boardPostedPayload) bool {
+	if name != "" {
+		to := strings.ToLower(strings.TrimSpace(p.To))
+		directed := to != "" && to == name
+		broadcast := p.To == board.Everyone && strings.ToLower(strings.TrimSpace(p.From)) != name
+		if !directed && !broadcast {
+			return false
+		}
+	}
+	if topic != "" && !strings.EqualFold(strings.TrimSpace(p.Topic), topic) {
+		return false
+	}
+	return true
+}
+
+// handleMailboxWatch streams new mailbox messages as SSE `mail` frames the
+// moment they land (M938) — the push counterpart of polling the inbox.
+// ?name= watches one agent/app's mail (DMs + broadcasts), ?topic= one topic,
+// neither tails everything. The mailbox is daemon-global, so this subscribes
+// the primary bus regardless of any tenant header.
+func (s *Server) handleMailboxWatch(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		methodNotAllowed(w, http.MethodGet)
+		return
+	}
+	st, ok := s.mailbox(w)
+	if !ok {
+		return
+	}
+	flusher, canFlush := w.(http.Flusher)
+	if !canFlush {
+		writeErr(w, http.StatusInternalServerError, "stream_unsupported", "streaming unsupported")
+		return
+	}
+	name := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("name")))
+	topic := strings.TrimSpace(r.URL.Query().Get("topic"))
+
+	// Subscribe BEFORE the ready frame so no message can slip between them.
+	sub, err := s.bus.Subscribe("board.>", 0)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "subscribe_error", err.Error())
+		return
+	}
+	defer sub.Cancel()
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.WriteHeader(http.StatusOK)
+
+	send := func(eventName string, payload any) {
+		data, _ := json.Marshal(payload)
+		_, _ = w.Write([]byte("event: " + eventName + "\ndata: " + string(data) + "\n\n"))
+		flusher.Flush()
+	}
+	ready := map[string]any{}
+	if name != "" {
+		ready["name"] = name
+	}
+	if topic != "" {
+		ready["topic"] = topic
+	}
+	send("ready", ready)
+
+	keepalive := time.NewTicker(mailboxKeepalive)
+	defer keepalive.Stop()
+	ctx := r.Context()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-keepalive.C:
+			_, _ = w.Write([]byte(": keepalive\n\n"))
+			flusher.Flush()
+		case ev, alive := <-sub.C:
+			if !alive {
+				return
+			}
+			if ev == nil || ev.Kind != event.KindBoardPosted || len(ev.Payload) == 0 {
+				continue
+			}
+			var p boardPostedPayload
+			if json.Unmarshal(ev.Payload, &p) != nil {
+				continue
+			}
+			if !mailWatchMatch(name, topic, p) {
+				continue
+			}
+			// The event carries metadata only; the body lives in the store. The
+			// write committed before the publish, so the lookup is reliable — but
+			// fall back to the metadata view if the message was already evicted.
+			if m, found := st.Get(p.ID); found {
+				send("mail", mailMsgView(m))
+				continue
+			}
+			send("mail", map[string]any{
+				"id": p.ID, "topic": p.Topic, "from": p.From, "to": p.To, "help": p.Help,
+			})
+		}
 	}
 }
 

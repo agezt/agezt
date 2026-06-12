@@ -236,6 +236,28 @@ func (s *Server) handleBoardAck(conn net.Conn, req Request) {
 		Result: map[string]any{"acked": true, "id": id, "by": by}})
 }
 
+// handleBoardGet serves CmdBoardGet (M938): one message by id — how a watcher
+// that learned an id from a board.posted event (which carries no text) fetches
+// the body. Read-only.
+func (s *Server) handleBoardGet(conn net.Conn, req Request) {
+	st, err := s.boardReader()
+	if err != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		return
+	}
+	id := stringArg(req.Args, "id")
+	if id == "" {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "board_get requires id"})
+		return
+	}
+	m, found := st.Get(id)
+	if !found {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "no message with id " + id})
+		return
+	}
+	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"message": boardMsgView(m)}})
+}
+
 // handleBoardReplies serves CmdBoardReplies (M937): the answers to a message,
 // oldest first — what the asker reads back. Read-only.
 func (s *Server) handleBoardReplies(conn net.Conn, req Request) {

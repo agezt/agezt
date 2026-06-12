@@ -229,6 +229,34 @@ class Client:
         """Return the mailbox's topics with their message counts."""
         return self._get("/api/v1/mailbox/topics").get("topics", {})
 
+    def mailbox_watch(self, name: str = "", topic: str = "") -> Iterator[Mail]:
+        """Stream new mail the moment it lands — the push counterpart of
+        polling :meth:`mailbox_inbox`.
+
+        ``name`` watches one agent/app's mail (messages addressed to it plus
+        broadcasts it didn't send); ``topic`` watches one topic; neither tails
+        every board message. Blocks on the SSE stream until the server closes
+        it (or the caller abandons the iterator). The server's first frame is
+        a ``ready`` marker — messages sent after it are guaranteed delivered.
+        """
+        q: Dict[str, str] = {}
+        if name:
+            q["name"] = name
+        if topic:
+            q["topic"] = topic
+        path = "/api/v1/mailbox/watch"
+        if q:
+            path += "?" + urllib.parse.urlencode(q)
+        req = self._request("GET", path, accept="text/event-stream")
+        try:
+            resp = urllib.request.urlopen(req, timeout=self.timeout)
+        except urllib.error.HTTPError as e:
+            raise self._api_error(e) from None
+        with resp:
+            for ev in _parse_sse(resp):
+                if ev.event == "mail":
+                    yield Mail._from(ev.data)
+
     # --- internals --------------------------------------------------------
 
     def _request(

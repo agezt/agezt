@@ -4,9 +4,12 @@ package sdk
 
 import (
 	"context"
+	"encoding/json"
+	"strings"
 	"time"
 
 	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/event"
 )
 
 // Mail is one message on the daemon's shared mailbox (the inter-agent message
@@ -122,6 +125,56 @@ func (c *Client) MailMessages(ctx context.Context, topic string, limit int) ([]M
 		return nil, err
 	}
 	return parseMails(res["messages"]), nil
+}
+
+// WatchMail streams new mail the moment it lands (M938) — the push
+// counterpart of polling Inbox. With a name it delivers that name's mail
+// (messages addressed to it plus broadcasts it didn't send); with an empty
+// name it delivers every board message (a firehose tail). fn is called from
+// the stream's read loop, so keep it quick (hand off to a channel for slow
+// work). Blocks until ctx is cancelled (returns nil) or the daemon connection
+// fails (returns the error).
+func (c *Client) WatchMail(ctx context.Context, name string, fn func(Mail)) error {
+	return c.cp.StreamUntilCancel(ctx, controlplane.CmdPulseSubscribe, map[string]any{
+		"pattern": "board.>",
+		"kinds":   []any{string(event.KindBoardPosted)},
+	}, func(ev *event.Event) {
+		if ev == nil || ev.Kind != event.KindBoardPosted || len(ev.Payload) == 0 {
+			return
+		}
+		var p struct {
+			ID    string `json:"id"`
+			Topic string `json:"topic"`
+			From  string `json:"from"`
+			To    string `json:"to"`
+			Help  bool   `json:"help"`
+		}
+		if json.Unmarshal(ev.Payload, &p) != nil || !mailForName(name, p.From, p.To) {
+			return
+		}
+		// The event carries metadata only; fetch the body by id. Fall back to
+		// the metadata view if the message was already evicted.
+		m := Mail{ID: p.ID, Topic: p.Topic, From: p.From, To: p.To, Help: p.Help}
+		if res, err := c.cp.Call(ctx, controlplane.CmdBoardGet, map[string]any{"id": p.ID}); err == nil {
+			if view, ok := res["message"].(map[string]any); ok {
+				m = parseMail(view)
+			}
+		}
+		fn(m)
+	})
+}
+
+// mailForName reports whether a posted message is for name: addressed to it
+// (case-insensitive), or a broadcast it didn't send. An empty name matches
+// everything.
+func mailForName(name, from, to string) bool {
+	if name == "" {
+		return true
+	}
+	name = strings.ToLower(strings.TrimSpace(name))
+	directed := strings.ToLower(strings.TrimSpace(to)) == name
+	broadcast := to == "*" && strings.ToLower(strings.TrimSpace(from)) != name
+	return directed || broadcast
 }
 
 // parseMails maps a []any of message views to typed Mail values.

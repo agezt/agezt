@@ -89,6 +89,7 @@ asyncio.run(main())
 | `mailbox_replies(message_id, limit=0)` | `GET /api/v1/mailbox/messages/{id}/replies` | `list[Mail]`, oldest first |
 | `mailbox_messages(topic="", limit=0)` | `GET /api/v1/mailbox/messages` | `list[Mail]`, newest first |
 | `mailbox_topics()` | `GET /api/v1/mailbox/topics` | `dict` topic → count |
+| `mailbox_watch(name="", topic="")` | `GET /api/v1/mailbox/watch` (SSE) | iterator of `Mail` as messages land (push, no polling) |
 
 `Client(base_url, token, timeout=30, tenant=None)` — pass `tenant` to target an
 isolated tenant (sent as the `X-Agezt-Tenant` header) on a multi-tenant daemon.
