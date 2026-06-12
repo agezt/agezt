@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from "vitest";
-import { statusKind, summarizeRoots, filterRoots, type RootSummary } from "@/views/Agents";
+import { statusKind, summarizeRoots, filterRoots, scheduleAgentSlug, buildArmy, type RootSummary } from "@/views/Agents";
 
 describe("statusKind", () => {
   it("buckets the daemon's run statuses", () => {
@@ -65,5 +65,61 @@ describe("filterRoots", () => {
     expect(filterRoots(roots, "done").map((r) => r.id)).toEqual(["b", "d"]);
     expect(filterRoots(roots, "running").map((r) => r.id)).toEqual(["a"]);
     expect(filterRoots(roots, "failed").map((r) => r.id)).toEqual(["c"]);
+  });
+});
+
+describe("scheduleAgentSlug", () => {
+  it("extracts the --agent binding from a cadence intent", () => {
+    expect(scheduleAgentSlug("run the digest --agent researcher")).toBe("researcher");
+    expect(scheduleAgentSlug("--agent=ops-watcher check disks")).toBe("ops-watcher");
+    expect(scheduleAgentSlug("plain intent, default persona")).toBe("");
+    expect(scheduleAgentSlug(undefined)).toBe("");
+  });
+});
+
+describe("buildArmy", () => {
+  const profiles = [
+    { slug: "researcher", name: "Researcher", model: "m1", enabled: true },
+    { slug: "ops", enabled: true },
+    { slug: "idle-bot", enabled: false },
+    { slug: "ghost", enabled: true, retired: true },
+  ];
+  const orders = [
+    {
+      id: "ord1",
+      name: "Nightly digest",
+      enabled: true,
+      agent: "researcher",
+      triggers: [
+        { type: "cron", schedule: "0 9 * * *" },
+        { type: "event", subject: "task.failed" },
+      ],
+    },
+    // Disabled order must not arm anyone.
+    { id: "ord2", enabled: false, agent: "ops", triggers: [{ type: "cron", schedule: "* * * * *" }] },
+  ];
+  const schedules = [
+    { id: "sch1", intent: "summarize inbox --agent ops", cadence: "daily 09:00", enabled: true },
+    { id: "sch2", intent: "--agent researcher noop", cadence: "hourly", enabled: false },
+  ];
+  const runs = [
+    { correlation_id: "r1", status: "running", agent: "ops", started_unix_ms: 500 },
+    { correlation_id: "r2", status: "completed", agent: "researcher", started_unix_ms: 300 },
+  ];
+
+  it("folds wake sources per agent, skips retired, keeps disabled sources out", () => {
+    const army = buildArmy(profiles, orders, schedules, runs);
+    expect(army.map((a) => a.slug)).toEqual(["ops", "researcher", "idle-bot"]); // running > armed > rest
+    const ops = army[0];
+    expect(ops.running).toBe(true);
+    expect(ops.wake).toEqual([{ type: "schedule", detail: "daily 09:00", via: "sch1" }]);
+    const res = army[1];
+    expect(res.running).toBe(false);
+    expect(res.lastRunMs).toBe(300);
+    expect(res.wake.map((w) => w.type)).toEqual(["cron", "event"]);
+    expect(res.wake[0].via).toBe("Nightly digest");
+    // Retired agent never enlists; disabled agent still listed (paused).
+    expect(army.find((a) => a.slug === "ghost")).toBeUndefined();
+    expect(army.find((a) => a.slug === "idle-bot")?.enabled).toBe(false);
   });
 });
