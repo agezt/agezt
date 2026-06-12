@@ -12,6 +12,16 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **`agt` help overhauled — grouped overview + `agt help <command>` (M935).** The old help was one
+  flat 100+-line dump that mixed per-flag detail for some commands while omitting ~20 dispatched
+  commands entirely (`backup`, `warden`, `standing`, `workflow`, `mcp`, `agent`, `toolforge`, …).
+  `agt` / `agt help` now prints a grouped, one-line-per-command overview that fits on a screen
+  (Getting started / Run & control / Plans & automation / Providers & models / Memory & knowledge /
+  Journal & audit / Console, config & data / Channels / Daemon); `agt help <command>` prints that
+  command's full usage from the same data table (never executing the command, so `agt help halt`
+  can't halt anything); a typo suggests near-misses (`agt help jurnal` → "did you mean journal?").
+  A coverage guard test ties the dispatch table to the help table, so a new command can never ship
+  invisible again.
 - **Machine-bound vault encryption by default (M934).** `creds.json` used to sit on disk in
   plaintext unless the operator hand-managed `AGEZT_VAULT_PASSPHRASE` — in practice every API key
   was readable by anything that could read the file. The vault now encrypts at rest BY DEFAULT
