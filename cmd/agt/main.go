@@ -100,6 +100,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return cmdNetguard(args[1:], stdout, stderr)
 	case "ratelimit":
 		return cmdRateLimit(args[1:], stdout, stderr)
+	case "web":
+		return cmdWeb(args[1:], stdout, stderr)
 	case "webhook":
 		return cmdWebhook(args[1:], stdout, stderr)
 	case "backup":
@@ -208,6 +210,8 @@ func printHelp(w io.Writer) {
 	fmt.Fprintf(w, "  provider creds list                   list credential env vars in the vault\n")
 	fmt.Fprintf(w, "  provider creds set <NAME> [<value>]   store a credential (prompts if value omitted)\n")
 	fmt.Fprintf(w, "  provider creds rm <NAME>              remove a credential\n")
+	fmt.Fprintf(w, "  web password set [<value>]            set the console password (prompts + confirms if omitted; live when the daemon runs)\n")
+	fmt.Fprintf(w, "  web password clear|status             remove the console password / report whether one is set\n")
 	fmt.Fprintf(w, "  provider setup [provider-id]          list providers needing a key, or prompt to add one's keys (offline)\n")
 	fmt.Fprintf(w, "  provider import [--from f] [--all] [-y] discover keys already on this machine (env/.env/Codex/Gemini) → vault\n")
 	fmt.Fprintf(w, "  provider check [id]                   live roundtrip to verify creds + latency + cost\n")
