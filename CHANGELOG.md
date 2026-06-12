@@ -12,6 +12,11 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Proactive desktop notifications (M919).** AGEZT can now reach OUT: an opt-in header toggle
+  enables browser/desktop notifications that fire — even when the tab is backgrounded — for the few
+  high-signal events that need you (`approval.requested`, `task.failed`, `halt`, `budget.exceeded`).
+  Clicking a notification focuses the window and opens the relevant view; repeats coalesce by tag.
+  Off by default (requires an explicit permission grant); driven purely off the live event stream.
 - **World — clickable kind-filter chips (M918).** The World entity graph's kind breakdown is now
   actionable: a row of kind chips (with counts) below the breakdown bar narrows the entity list to a
   chosen kind, composed with the existing text search. Additive; data already in `/api/world`.
