@@ -12,6 +12,10 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Added
+- **Budget forecast — "at this pace" (M920).** The Budget view now projects where today's spend
+  lands at the current rate (`spent / fraction-of-UTC-day-elapsed`), shown as a forecast card under
+  the spend gauge. With a ceiling set it flags whether you're comfortably within it or on track to
+  exceed it (red). Suppressed in the noisy first hour of the day.
 - **Proactive desktop notifications (M919).** AGEZT can now reach OUT: an opt-in header toggle
   enables browser/desktop notifications that fire — even when the tab is backgrounded — for the few
   high-signal events that need you (`approval.requested`, `task.failed`, `halt`, `budget.exceeded`).
