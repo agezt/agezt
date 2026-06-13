@@ -1018,6 +1018,18 @@ const (
 	// Args: id (required). Returns: { id, restored }
 	CmdSkillRevert = "skill_revert"
 
+	// CmdSkillShare promotes a private (per-agent, M932) skill to the shared
+	// pool every agent retrieves — the ownership analogue of memory_promote
+	// (M915). Clears Skill.Agent. Args: id (required).
+	// Returns: { shared, id, name?, from_agent? }
+	CmdSkillShare = "skill_share"
+
+	// CmdSkillReassign changes a skill's owning agent (M942). An empty agent
+	// shares it (same as skill_share); a non-empty slug must exist in the
+	// roster. Args: id (required), agent (optional, "" = shared).
+	// Returns: { reassigned, id, name?, from_agent?, to_agent }
+	CmdSkillReassign = "skill_reassign"
+
 	// CmdSkillImport installs a skill from a portable bundle as a fresh DRAFT
 	// (via the Forge, so it is content-addressed, deduped, and journaled like
 	// any other authored skill). Args: name, body (required); description,

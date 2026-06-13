@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Sparkles, RefreshCw, ChevronRight, ChevronDown, Check, ShieldX, Undo2, Plus, X, Pencil, Search, Bot } from "lucide-react";
+import { Sparkles, RefreshCw, ChevronRight, ChevronDown, Check, ShieldX, Undo2, Plus, X, Pencil, Search, Bot, Share2 } from "lucide-react";
 import { getJSON, postAction, postJSON } from "@/lib/api";
 import { cn, fmtTime, fmtAgo } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -254,6 +254,26 @@ export function Skills() {
                           setEditSkill(s);
                           setShowForm(true);
                         }}
+                      />
+                    )}
+                    {s.agent && s.id && (
+                      <IconBtn
+                        label="share"
+                        tone="good"
+                        icon={Share2}
+                        busy={busy === s.id}
+                        onClick={() =>
+                          act(s.id!, "/api/skill/share", {
+                            confirm: {
+                              title: "Share this skill with every agent?",
+                              message: s.name
+                                ? `“${s.name}” is private to “${s.agent}”. Sharing moves it into the pool every agent retrieves.`
+                                : `This skill is private to “${s.agent}”. Sharing moves it into the pool every agent retrieves.`,
+                              confirmLabel: "Share",
+                            },
+                            success: "Skill shared with every agent",
+                          })
+                        }
                       />
                     )}
                     {(s.status === "draft" || s.status === "shadow") && s.id && (
