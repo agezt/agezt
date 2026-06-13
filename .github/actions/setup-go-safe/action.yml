@@ -32,8 +32,17 @@ runs:
       with:
         go-version: stable
         check-latest: true
+        # Disable Actions module-cache restore: on the self-hosted WSL
+        # runners it produces a flood of `tar: Cannot open: File exists`
+        # errors restoring ~/go/pkg/mod, and a half-restored module cache
+        # can itself cause spurious build failures. Re-fetching is cheap.
+        cache: false
 
-    - name: Verify toolchain integrity (can it actually compile?)
+    - name: Verify toolchain integrity (does the stdlib actually compile?)
+      # A minimal `func main(){}` probe passes even when the stdlib is
+      # corrupt — the linker never touches src/log/internal. We import `log`
+      # (which pulls in log/internal) so a zero-byte stdlib file is caught
+      # here and triggers a re-install, rather than failing mid-`go install`.
       id: verify
       continue-on-error: true
       shell: bash
@@ -41,7 +50,7 @@ runs:
         set -e
         tmp="$(mktemp -d)"
         trap 'rm -rf "$tmp"' EXIT
-        printf 'package main\nfunc main(){}\n' > "$tmp/probe.go"
+        printf 'package main\nimport "log"\nfunc main(){ log.Println("probe") }\n' > "$tmp/probe.go"
         go build -o /dev/null "$tmp/probe.go"
         echo "::notice::Go toolchain OK ($(go version))"
 
@@ -49,7 +58,7 @@ runs:
       if: steps.verify.outcome == 'failure'
       shell: bash
       run: |
-        echo "::warning::Go toolchain was corrupt after download — purging ALL Go toolcache and re-installing once."
+        echo "::warning::Go toolchain stdlib was corrupt after download — purging ALL Go toolcache and re-installing once."
         rm -rf "${RUNNER_TOOL_CACHE:-$HOME/actions-runner-2/_work/_tool}/go"
 
     - name: Re-install Go (latest stable)
@@ -58,6 +67,7 @@ runs:
       with:
         go-version: stable
         check-latest: true
+        cache: false
 
     - name: Re-verify toolchain integrity
       if: steps.verify.outcome == 'failure'
@@ -66,6 +76,6 @@ runs:
         set -e
         tmp="$(mktemp -d)"
         trap 'rm -rf "$tmp"' EXIT
-        printf 'package main\nfunc main(){}\n' > "$tmp/probe.go"
+        printf 'package main\nimport "log"\nfunc main(){ log.Println("probe") }\n' > "$tmp/probe.go"
         go build -o /dev/null "$tmp/probe.go"
         echo "::notice::Go toolchain OK after re-install ($(go version))"
