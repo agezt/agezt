@@ -12,7 +12,7 @@ const NAV_IDS = [
   // Agents
   "agents", "roster", "overseer", "council", "toolforge", "mcp", "sandbox", "flow", "replay", "analyst", "search",
   // Automation
-  "workflows", "schedules", "standing",
+  "wizards", "workflows", "schedules", "standing",
   // Knowledge
   "memory", "world", "skills", "reflect",
   // System

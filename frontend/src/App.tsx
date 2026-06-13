@@ -94,6 +94,7 @@ import { Overseer } from "@/views/Overseer";
 import { Toolforge } from "@/views/Toolforge";
 import { Mcp } from "@/views/Mcp";
 import { Workflows } from "@/views/Workflows";
+import { Wizards } from "@/views/Wizards";
 import { Dashboard } from "@/views/Dashboard";
 import { Insights } from "@/views/Insights";
 import { Status } from "@/views/Status";
@@ -197,6 +198,7 @@ const NAV_GROUPS: NavGroup[] = [
     id: "automation",
     label: "Automation",
     items: [
+      { id: "wizards", label: "Wizards", icon: Wand2, render: Wizards },
       { id: "workflows", label: "Workflows", icon: GitFork, render: Workflows },
       { id: "schedules", label: "Schedules", icon: CalendarClock, render: Schedules },
       { id: "standing", label: "Standing", icon: Anchor, render: Standing },
