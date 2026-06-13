@@ -35,6 +35,15 @@ jobs:
       CGO_ENABLED: '0'
     steps:
       - uses: actions/checkout@v4
+      - name: Purge corrupt Go toolcache (self-hosted runner workaround)
+        # The self-hosted WSL runner's cached Go 1.26.4 toolchain has a
+        # zero-byte-corrupted file under src/log/internal/ (observed: SIGBUS
+        # linker fault + "compile: invalid argument"). setup-go reuses the
+        # cached SDK without integrity-checking it, so the corrupt toolchain
+        # survives across runs. Purging it here forces a clean re-download.
+        # Forward-looking: we stay on `go-version: stable` (latest), never
+        # pinning back to an older minor just to dodge a bad cache entry.
+        run: rm -rf "${RUNNER_TOOL_CACHE:-$HOME/actions-runner-2/_work/_tool}/go/1.26.4" || true
       - uses: actions/setup-go@v5
         with:
           go-version: stable
@@ -54,6 +63,15 @@ jobs:
       CGO_ENABLED: '1'
     steps:
       - uses: actions/checkout@v4
+      - name: Purge corrupt Go toolcache (self-hosted runner workaround)
+        # The self-hosted WSL runner's cached Go 1.26.4 toolchain has a
+        # zero-byte-corrupted file under src/log/internal/ (observed: SIGBUS
+        # linker fault + "compile: invalid argument"). setup-go reuses the
+        # cached SDK without integrity-checking it, so the corrupt toolchain
+        # survives across runs. Purging it here forces a clean re-download.
+        # Forward-looking: we stay on `go-version: stable` (latest), never
+        # pinning back to an older minor just to dodge a bad cache entry.
+        run: rm -rf "${RUNNER_TOOL_CACHE:-$HOME/actions-runner-2/_work/_tool}/go/1.26.4" || true
       - uses: actions/setup-go@v5
         with:
           go-version: stable
@@ -73,6 +91,15 @@ jobs:
       CGO_ENABLED: '0'
     steps:
       - uses: actions/checkout@v4
+      - name: Purge corrupt Go toolcache (self-hosted runner workaround)
+        # The self-hosted WSL runner's cached Go 1.26.4 toolchain has a
+        # zero-byte-corrupted file under src/log/internal/ (observed: SIGBUS
+        # linker fault + "compile: invalid argument"). setup-go reuses the
+        # cached SDK without integrity-checking it, so the corrupt toolchain
+        # survives across runs. Purging it here forces a clean re-download.
+        # Forward-looking: we stay on `go-version: stable` (latest), never
+        # pinning back to an older minor just to dodge a bad cache entry.
+        run: rm -rf "${RUNNER_TOOL_CACHE:-$HOME/actions-runner-2/_work/_tool}/go/1.26.4" || true
       - uses: actions/setup-go@v5
         with:
           go-version: stable
@@ -91,6 +118,15 @@ jobs:
       CGO_ENABLED: '0'
     steps:
       - uses: actions/checkout@v4
+      - name: Purge corrupt Go toolcache (self-hosted runner workaround)
+        # The self-hosted WSL runner's cached Go 1.26.4 toolchain has a
+        # zero-byte-corrupted file under src/log/internal/ (observed: SIGBUS
+        # linker fault + "compile: invalid argument"). setup-go reuses the
+        # cached SDK without integrity-checking it, so the corrupt toolchain
+        # survives across runs. Purging it here forces a clean re-download.
+        # Forward-looking: we stay on `go-version: stable` (latest), never
+        # pinning back to an older minor just to dodge a bad cache entry.
+        run: rm -rf "${RUNNER_TOOL_CACHE:-$HOME/actions-runner-2/_work/_tool}/go/1.26.4" || true
       - uses: actions/setup-go@v5
         with:
           go-version: stable
@@ -157,6 +193,15 @@ jobs:
       CGO_ENABLED: '0'
     steps:
       - uses: actions/checkout@v4
+      - name: Purge corrupt Go toolcache (self-hosted runner workaround)
+        # The self-hosted WSL runner's cached Go 1.26.4 toolchain has a
+        # zero-byte-corrupted file under src/log/internal/ (observed: SIGBUS
+        # linker fault + "compile: invalid argument"). setup-go reuses the
+        # cached SDK without integrity-checking it, so the corrupt toolchain
+        # survives across runs. Purging it here forces a clean re-download.
+        # Forward-looking: we stay on `go-version: stable` (latest), never
+        # pinning back to an older minor just to dodge a bad cache entry.
+        run: rm -rf "${RUNNER_TOOL_CACHE:-$HOME/actions-runner-2/_work/_tool}/go/1.26.4" || true
       - uses: actions/setup-go@v5
         with:
           go-version: stable
@@ -251,6 +296,15 @@ jobs:
           - { goos: freebsd, goarch: amd64 }
     steps:
       - uses: actions/checkout@v4
+      - name: Purge corrupt Go toolcache (self-hosted runner workaround)
+        # The self-hosted WSL runner's cached Go 1.26.4 toolchain has a
+        # zero-byte-corrupted file under src/log/internal/ (observed: SIGBUS
+        # linker fault + "compile: invalid argument"). setup-go reuses the
+        # cached SDK without integrity-checking it, so the corrupt toolchain
+        # survives across runs. Purging it here forces a clean re-download.
+        # Forward-looking: we stay on `go-version: stable` (latest), never
+        # pinning back to an older minor just to dodge a bad cache entry.
+        run: rm -rf "${RUNNER_TOOL_CACHE:-$HOME/actions-runner-2/_work/_tool}/go/1.26.4" || true
       - uses: actions/setup-go@v5
         with:
           go-version: stable
@@ -272,6 +326,15 @@ jobs:
     runs-on: [self-hosted, Linux, X64]
     steps:
       - uses: actions/checkout@v4
+      - name: Purge corrupt Go toolcache (self-hosted runner workaround)
+        # The self-hosted WSL runner's cached Go 1.26.4 toolchain has a
+        # zero-byte-corrupted file under src/log/internal/ (observed: SIGBUS
+        # linker fault + "compile: invalid argument"). setup-go reuses the
+        # cached SDK without integrity-checking it, so the corrupt toolchain
+        # survives across runs. Purging it here forces a clean re-download.
+        # Forward-looking: we stay on `go-version: stable` (latest), never
+        # pinning back to an older minor just to dodge a bad cache entry.
+        run: rm -rf "${RUNNER_TOOL_CACHE:-$HOME/actions-runner-2/_work/_tool}/go/1.26.4" || true
       - uses: actions/setup-go@v5
         with:
           go-version: stable
@@ -289,6 +352,15 @@ jobs:
       CGO_ENABLED: '0'
     steps:
       - uses: actions/checkout@v4
+      - name: Purge corrupt Go toolcache (self-hosted runner workaround)
+        # The self-hosted WSL runner's cached Go 1.26.4 toolchain has a
+        # zero-byte-corrupted file under src/log/internal/ (observed: SIGBUS
+        # linker fault + "compile: invalid argument"). setup-go reuses the
+        # cached SDK without integrity-checking it, so the corrupt toolchain
+        # survives across runs. Purging it here forces a clean re-download.
+        # Forward-looking: we stay on `go-version: stable` (latest), never
+        # pinning back to an older minor just to dodge a bad cache entry.
+        run: rm -rf "${RUNNER_TOOL_CACHE:-$HOME/actions-runner-2/_work/_tool}/go/1.26.4" || true
       - uses: actions/setup-go@v5
         with:
           go-version: stable
@@ -321,6 +393,15 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - name: Purge corrupt Go toolcache (self-hosted runner workaround)
+        # The self-hosted WSL runner's cached Go 1.26.4 toolchain has a
+        # zero-byte-corrupted file under src/log/internal/ (observed: SIGBUS
+        # linker fault + "compile: invalid argument"). setup-go reuses the
+        # cached SDK without integrity-checking it, so the corrupt toolchain
+        # survives across runs. Purging it here forces a clean re-download.
+        # Forward-looking: we stay on `go-version: stable` (latest), never
+        # pinning back to an older minor just to dodge a bad cache entry.
+        run: rm -rf "${RUNNER_TOOL_CACHE:-$HOME/actions-runner-2/_work/_tool}/go/1.26.4" || true
       - uses: actions/setup-go@v5
         with:
           go-version: stable
