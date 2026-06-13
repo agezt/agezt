@@ -1,10 +1,13 @@
 import { useState, type ReactNode } from "react";
-import { Wand2, X, Bot, CalendarClock, KeyRound, Check, ArrowRight, type LucideIcon } from "lucide-react";
+import { Wand2, X, Bot, CalendarClock, KeyRound, Check, ArrowRight, Plug, Anchor, Wallet, type LucideIcon } from "lucide-react";
+import { postAction } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { useUI } from "@/components/ui/feedback";
 import { Setup } from "@/views/Setup";
-import { NewAgentForm } from "@/views/Roster";
+import { NewAgentForm, usdToMc } from "@/views/Roster";
 import { NewScheduleForm } from "@/views/Schedules";
+import { NewServerForm } from "@/views/Mcp";
+import { NewOrderForm } from "@/views/Standing";
 
 // Wizards (M949) is the "get things done without hunting through menus" hub:
 // guided, step-by-step flows that complete a whole task in a focused overlay.
@@ -78,6 +81,92 @@ function ScheduleWizard({ onClose }: { onClose: () => void }) {
   );
 }
 
+function McpWizard({ onClose }: { onClose: () => void }) {
+  const ui = useUI();
+  const [created, setCreated] = useState<string | null>(null);
+  if (created) {
+    return <DoneState message={`MCP server “${created}” attached — its tools are now available to agents.`} onAnother={() => setCreated(null)} onClose={onClose} />;
+  }
+  return (
+    <NewServerForm
+      onCreated={(name) => {
+        ui.toast(`MCP server ${name} added`, "success");
+        setCreated(name);
+      }}
+      onError={(m) => ui.toast(m, "error")}
+    />
+  );
+}
+
+function StandingWizard({ onClose }: { onClose: () => void }) {
+  const ui = useUI();
+  const [created, setCreated] = useState<string | null>(null);
+  if (created) {
+    return <DoneState message={`Standing order “${created}” created — it fires on its trigger.`} onAnother={() => setCreated(null)} onClose={onClose} />;
+  }
+  return (
+    <NewOrderForm
+      onCreated={(name) => {
+        ui.toast(`standing order ${name} created`, "success");
+        setCreated(name);
+      }}
+      onError={(m) => ui.toast(m, "error")}
+    />
+  );
+}
+
+function BudgetWizard({ onClose }: { onClose: () => void }) {
+  const ui = useUI();
+  const [draft, setDraft] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState<string | null>(null);
+  async function apply(unlimited: boolean) {
+    const mc = unlimited ? 0 : usdToMc(draft);
+    if (mc === null) {
+      ui.toast("enter a dollar amount like 25 or 1.50", "error");
+      return;
+    }
+    setBusy(true);
+    try {
+      await postAction("/api/budget_set", { ceiling_mc: String(mc) });
+      ui.toast(unlimited ? "daily ceiling removed" : `daily ceiling set to $${(mc / 1e9).toFixed(2)}`, "success");
+      setDone(unlimited ? "Unlimited — no daily ceiling." : `Daily ceiling set to $${(mc / 1e9).toFixed(2)}.`);
+    } catch (e) {
+      ui.toast((e as Error).message, "error");
+    } finally {
+      setBusy(false);
+    }
+  }
+  if (done) return <DoneState message={done} onClose={onClose} />;
+  return (
+    <div className="flex flex-col gap-3 rounded-lg border border-border bg-card p-4">
+      <p className="text-xs text-muted">
+        Set the daily spend ceiling. The daemon halts spend before it exceeds this — leave it unlimited to remove the cap.
+      </p>
+      <label className="flex flex-col gap-1 text-[11px] text-muted">
+        Daily ceiling (USD)
+        <input
+          autoFocus
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && apply(false)}
+          placeholder="25.00"
+          aria-label="Daily ceiling in USD"
+          className="rounded-md border border-border bg-panel px-2 py-1 text-sm text-foreground outline-none focus-visible:border-accent"
+        />
+      </label>
+      <div className="flex gap-2">
+        <Button size="sm" onClick={() => apply(false)} disabled={busy || !draft.trim()}>
+          Set ceiling
+        </Button>
+        <Button size="sm" variant="ghost" onClick={() => apply(true)} disabled={busy}>
+          Unlimited
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 const WIZARDS: WizardDef[] = [
   {
     id: "provider",
@@ -102,6 +191,30 @@ const WIZARDS: WizardDef[] = [
     icon: CalendarClock,
     hue: "#34d399",
     render: (close) => <ScheduleWizard onClose={close} />,
+  },
+  {
+    id: "mcp",
+    title: "Add an MCP server",
+    desc: "Attach an external Model-Context-Protocol server so its tools become available to your agents.",
+    icon: Plug,
+    hue: "#60a5fa",
+    render: (close) => <McpWizard onClose={close} />,
+  },
+  {
+    id: "standing",
+    title: "Add a standing order",
+    desc: "Give the daemon a persistent goal that fires on a schedule or an event trigger.",
+    icon: Anchor,
+    hue: "#fbbf24",
+    render: (close) => <StandingWizard onClose={close} />,
+  },
+  {
+    id: "budget",
+    title: "Set the daily budget",
+    desc: "Cap daily spend — the daemon halts before it exceeds your ceiling.",
+    icon: Wallet,
+    hue: "#f472b6",
+    render: (close) => <BudgetWizard onClose={close} />,
   },
 ];
 
