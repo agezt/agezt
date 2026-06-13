@@ -18,15 +18,18 @@ describe("statusKind", () => {
 describe("summarizeRoots", () => {
   const runs = [
     // A lead with two sub-agents (one nested) — a 3-node tree of depth 2.
-    { correlation_id: "lead1", status: "completed", model: "m", intent: "research the topic", spent_mc: 1_000_000, iters: 3, started_unix_ms: 100, answer_preview: "the answer" },
+    { correlation_id: "lead1", status: "completed", model: "m", intent: "research the topic", spent_mc: 1_000_000, iters: 3, started_unix_ms: 100, answer_preview: "the answer", agent: "ops" },
     { correlation_id: "sub1", parent_correlation: "lead1", status: "completed", spent_mc: 500_000 },
     { correlation_id: "sub2", parent_correlation: "sub1", status: "completed", spent_mc: 250_000 },
     // A second, running lead (no sub-agents), more recent.
     { correlation_id: "lead2", status: "running", intent: "do the thing", iters: 1, started_unix_ms: 200, agent: "researcher" },
+    // A chat run without an agent — should be filtered out (not an agent run).
+    { correlation_id: "chat1", status: "completed", intent: "just chatting", iters: 1, started_unix_ms: 50 },
   ];
 
   it("makes one summary per lead, folding the subtree, running-first then newest", () => {
     const roots = summarizeRoots(runs);
+    // chat1 is filtered out because it has no agent field
     expect(roots.map((r) => r.id)).toEqual(["lead2", "lead1"]); // running sorts first
 
     const l1 = roots.find((r) => r.id === "lead1")!;
@@ -36,6 +39,7 @@ describe("summarizeRoots", () => {
     expect(l1.treeSpentMc).toBe(1_750_000); // 1.0 + 0.5 + 0.25
     expect(l1.kind).toBe("done");
     expect(l1.answerPreview).toBe("the answer");
+    expect(l1.agentName).toBe("ops");
 
     const l2 = roots.find((r) => r.id === "lead2")!;
     expect(l2.kind).toBe("running");
@@ -47,6 +51,11 @@ describe("summarizeRoots", () => {
     const ids = summarizeRoots(runs).map((r) => r.id);
     expect(ids).not.toContain("sub1");
     expect(ids).not.toContain("sub2");
+  });
+
+  it("filters out runs without an agent (chat conversations)", () => {
+    const roots = summarizeRoots(runs);
+    expect(roots.map((r) => r.id)).not.toContain("chat1");
   });
 });
 

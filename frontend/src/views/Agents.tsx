@@ -85,8 +85,9 @@ export interface RootSummary {
 
 // summarizeRoots turns the runs list into one card summary per LEAD run (a run
 // with no parent), folding each lead's delegation subtree into aggregates and
-// sorting running-first then most-recent. Pure, so the whole gallery model is
-// unit-testable without the network.
+// sorting running-first then most-recent. Only includes runs that have an
+// agent field set — plain chat conversations (no --agent) are excluded since
+// the Agents gallery is for roster agent runs, not ad-hoc chat sessions.
 export function summarizeRoots(runs: ApiRun[]): RootSummary[] {
   const nodes = toRunNodes(runs);
   const startedById = new Map<string, number | undefined>();
@@ -102,6 +103,11 @@ export function summarizeRoots(runs: ApiRun[]): RootSummary[] {
   const out: RootSummary[] = [];
   for (const n of nodes) {
     if (n.parent) continue; // sub-agents fold into their lead's card
+    // Skip runs without an agent — those are ad-hoc chat conversations, not
+    // roster agent runs. The Agents gallery should only show runs started via
+    // --agent (cron, continuous, event, or manual trigger).
+    const agentName = agentById.get(n.id);
+    if (!agentName) continue;
     const tree = buildDelegationTree(nodes, n.id);
     out.push({
       id: n.id,
@@ -109,7 +115,7 @@ export function summarizeRoots(runs: ApiRun[]): RootSummary[] {
       status: n.status,
       kind: statusKind(n.status),
       model: n.model,
-      agentName: agentById.get(n.id) || undefined,
+      agentName,
       answerPreview: previewById.get(n.id) || undefined,
       iters: n.iters || 0,
       spentMc: n.spentMc || 0,

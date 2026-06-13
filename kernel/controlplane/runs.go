@@ -70,6 +70,12 @@ type runEntry struct {
 	// that never spent (no model journaled, e.g. the offline mock or a run
 	// that errored before its first call).
 	Model string
+	// Agent is the roster agent slug this run executed as (M73), extracted
+	// from the task.received event's payload when the run was started via
+	// a roster agent (--agent flag). Empty for ad-hoc chat runs that were
+	// not started as a named agent. Lets the Agents gallery distinguish
+	// agent runs from plain chat conversations.
+	Agent string
 }
 
 // runEntryStatus reports a run's terminal status (M61), the single source of
@@ -119,6 +125,11 @@ func (s *Server) collectRuns(k *runtime.Kernel) (map[string]*runEntry, error) {
 			// {"intent": "..."} on KindTaskReceived (see kernel/agent).
 			if intent := extractIntent(e.Payload); intent != "" {
 				entry.Intent = intent
+			}
+			// Extract agent slug if present — agent.go writes it as
+			// {"agent": "<slug>"} when run via --agent (M73).
+			if agent := extractAgent(e.Payload); agent != "" {
+				entry.Agent = agent
 			}
 		case event.KindTaskCompleted:
 			entry, ok := runs[e.CorrelationID]
@@ -324,6 +335,7 @@ func (s *Server) handleRunsList(conn net.Conn, req Request) {
 			"spent_mc":           r.SpentMicrocents,   // this run's spend in microcents (M50; 0 = none/unpriced)
 			"model":              r.Model,             // primary (first-routed) model (M123; "" if unpriced/mock)
 			"answer_preview":     r.AnswerPreview,     // one-line excerpt of the final answer (M52; "" if none)
+			"agent":              r.Agent,             // roster agent slug (M73; "" for chat runs)
 		})
 	}
 
@@ -633,6 +645,23 @@ func extractIntent(payload json.RawMessage) string {
 		return ""
 	}
 	return p.Intent
+}
+
+// extractAgent pulls "agent" out of a task.received payload.
+// Returns "" if missing or malformed. An empty string indicates a
+// chat run started without --agent; a non-empty slug indicates a run
+// started as a named roster agent (M73).
+func extractAgent(payload json.RawMessage) string {
+	if len(payload) == 0 {
+		return ""
+	}
+	var p struct {
+		Agent string `json:"agent"`
+	}
+	if err := json.Unmarshal(payload, &p); err != nil {
+		return ""
+	}
+	return p.Agent
 }
 
 // extractIters pulls "iters" out of a task.completed payload.
