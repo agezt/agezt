@@ -154,12 +154,12 @@ type ArtifactConfig struct {
 // NewIterationConfig returns a default IterationConfig.
 func NewIterationConfig() IterationConfig {
 	return IterationConfig{
-		MaxIter:            25, // DECISIONS E5 default
-		MaxAutoContinue:    0,  // use DefaultMaxAutoContinue
-		AutoContinueWait:   0,  // use DefaultAutoContinueWait
-		ToolTimeout:        0,  // unbounded
-		MaxParallelTools:   0,  // use DefaultMaxParallelTools
-		MaxIdenticalToolCalls: 0, // use DefaultMaxIdenticalToolCalls
+		MaxIter:               25, // DECISIONS E5 default
+		MaxAutoContinue:       0,  // use DefaultMaxAutoContinue
+		AutoContinueWait:      0,  // use DefaultAutoContinueWait
+		ToolTimeout:           0,  // unbounded
+		MaxParallelTools:      0,  // use DefaultMaxParallelTools
+		MaxIdenticalToolCalls: 0,  // use DefaultMaxIdenticalToolCalls
 	}
 }
 

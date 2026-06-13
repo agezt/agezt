@@ -22,10 +22,10 @@ func init() {
 // registerRunCommands registers commands for running agents.
 func registerRunCommands() {
 	Register(&Command{
-		Name:    "run",
-		Aliases: []string{},
+		Name:        "run",
+		Aliases:     []string{},
 		Description: `run "<intent>"        run an intent end-to-end; streams events`,
-		Run:     cmdRun,
+		Run:         cmdRun,
 	})
 	Register(&Command{
 		Name:        "halt",

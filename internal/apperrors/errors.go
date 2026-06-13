@@ -43,8 +43,8 @@ const (
 	CodeAlreadyExists Code = "already_exists"
 	CodeTimeout       Code = "timeout"
 	CodePermission    Code = "permission"
-	CodeInternal     Code = "internal"
-	CodeExternal     Code = "external"
+	CodeInternal      Code = "internal"
+	CodeExternal      Code = "external"
 )
 
 // Wrap wraps err with a prefix and returns a new error.

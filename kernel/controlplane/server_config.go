@@ -140,14 +140,14 @@ func (s *Server) LifecycleConfig() LifecycleConfig {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return LifecycleConfig{
-		Listener:    s.listener,
-		Token:       s.token,
-		Done:        s.done,
-		ServeCancel: s.serveCancel,
-		ShutdownCh:  s.shutdownCh,
-		mu:          sync.Mutex{}, // zero value; not a copy of the real mutex
-		wg:          sync.WaitGroup{},
-		stopOnce:    sync.Once{},
+		Listener:     s.listener,
+		Token:        s.token,
+		Done:         s.done,
+		ServeCancel:  s.serveCancel,
+		ShutdownCh:   s.shutdownCh,
+		mu:           sync.Mutex{}, // zero value; not a copy of the real mutex
+		wg:           sync.WaitGroup{},
+		stopOnce:     sync.Once{},
 		shutdownOnce: sync.Once{},
 	}
 }
@@ -165,9 +165,9 @@ func (s *Server) ProactiveConfig() ProactiveConfig {
 // TenantConfig returns the multi-tenant configuration.
 func (s *Server) TenantConfig() TenantConfig {
 	return TenantConfig{
-		Registry:            s.tenants,
-		ConfigEnvPinned:     s.configEnvPinned,
-		CancelOnDisconnect:  s.cancelOnDisconnect,
+		Registry:           s.tenants,
+		ConfigEnvPinned:    s.configEnvPinned,
+		CancelOnDisconnect: s.cancelOnDisconnect,
 	}
 }
 
@@ -282,7 +282,11 @@ func (s *Server) WithUpdateConfig(uc UpdateConfig) *Server {
 // ApplyConfig applies all config structs to the server at once.
 // This is an atomic operation that returns an error if any field is
 // invalid. The Server must not be running when called.
-func (s *Server) ApplyConfig(cfg ServerConfig) *Server {
+//
+// cfg is taken by pointer because ServerConfig transitively embeds
+// LifecycleConfig (which holds sync primitives) — copying it would pass a
+// lock by value (go vet copylocks).
+func (s *Server) ApplyConfig(cfg *ServerConfig) *Server {
 	s.k = cfg.Runtime.Kernel
 	s.baseDir = cfg.Runtime.BaseDir
 	s.tenants = cfg.Tenant.Registry
@@ -319,10 +323,12 @@ type ServerConfig struct {
 }
 
 // NewServerFromConfig creates a new Server with the given configuration.
-func NewServerFromConfig(cfg ServerConfig) *Server {
+// cfg is taken by pointer; see ApplyConfig for why ServerConfig must not be
+// copied (it embeds sync primitives via LifecycleConfig).
+func NewServerFromConfig(cfg *ServerConfig) *Server {
 	s := &Server{
-		k:       cfg.Runtime.Kernel,
-		baseDir: cfg.Runtime.BaseDir,
+		k:          cfg.Runtime.Kernel,
+		baseDir:    cfg.Runtime.BaseDir,
 		shutdownCh: make(chan struct{}),
 	}
 	s.applyConfig(cfg)
@@ -330,7 +336,7 @@ func NewServerFromConfig(cfg ServerConfig) *Server {
 }
 
 // applyConfig is the internal helper that applies cfg to s.
-func (s *Server) applyConfig(cfg ServerConfig) {
+func (s *Server) applyConfig(cfg *ServerConfig) {
 	s.tenants = cfg.Tenant.Registry
 	s.configEnvPinned = cfg.Tenant.ConfigEnvPinned
 	s.cancelOnDisconnect = cfg.Tenant.CancelOnDisconnect

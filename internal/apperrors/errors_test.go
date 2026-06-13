@@ -100,43 +100,43 @@ func TestJoin(t *testing.T) {
 	err3 := errors.New("third error")
 
 	tests := []struct {
-		name   string
-		errs   []error
-		want   string
+		name    string
+		errs    []error
+		want    string
 		wantNil bool
 	}{
 		{
-			name:   "single error",
-			errs:   []error{err1},
-			want:   "first error",
+			name:    "single error",
+			errs:    []error{err1},
+			want:    "first error",
 			wantNil: false,
 		},
 		{
-			name:   "two errors",
-			errs:   []error{err1, err2},
-			want:   "first error | second error",
+			name:    "two errors",
+			errs:    []error{err1, err2},
+			want:    "first error | second error",
 			wantNil: false,
 		},
 		{
-			name:   "three errors",
-			errs:   []error{err1, err2, err3},
-			want:   "first error | second error | third error",
+			name:    "three errors",
+			errs:    []error{err1, err2, err3},
+			want:    "first error | second error | third error",
 			wantNil: false,
 		},
 		{
-			name:   "all nil",
-			errs:   []error{nil, nil, nil},
+			name:    "all nil",
+			errs:    []error{nil, nil, nil},
 			wantNil: true,
 		},
 		{
-			name:   "mixed nil",
-			errs:   []error{nil, err1, nil, err2},
-			want:   "first error | second error",
+			name:    "mixed nil",
+			errs:    []error{nil, err1, nil, err2},
+			want:    "first error | second error",
 			wantNil: false,
 		},
 		{
-			name:   "nil only",
-			errs:   nil,
+			name:    "nil only",
+			errs:    nil,
 			wantNil: true,
 		},
 	}
