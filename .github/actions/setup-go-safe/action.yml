@@ -1,0 +1,71 @@
+# SPDX-License-Identifier: MIT
+# Composite action: set up Go on the self-hosted WSL runners *safely*.
+#
+# The self-hosted runners occasionally get a corrupt Go 1.26.4 toolchain
+# after download — the extracted SDK contains zero-byte garbage under
+# src/log/internal/ and a broken `compile` binary, which then crashes the
+# linker (SIGBUS) and any `go install`/`go build` ("compile: invalid
+# argument"). It is transient: the same runner can build cleanly on one job
+# and fail on the next. setup-go@v5 does not integrity-check what it
+# extracts, so the corruption passes its install step undetected.
+#
+# This action:
+#   1. purges any cached 1.26.4 toolcache (forces a fresh download), and
+#   2. verifies the freshly-installed toolchain can actually compile; if not,
+#   3. fully purges Go toolcache and re-installs once.
+#
+# We stay on `go-version: stable` (latest, currently 1.26.4) and NEVER pin
+# back to an older minor just to dodge a bad extract.
+name: setup-go-safe
+description: Install latest Go on self-hosted runners, with corrupt-toolcache purge + integrity re-install.
+
+runs:
+  using: composite
+  steps:
+    - name: Purge corrupt Go toolcache (self-hosted runner workaround)
+      shell: bash
+      run: rm -rf "${RUNNER_TOOL_CACHE:-$HOME/actions-runner-2/_work/_tool}/go/1.26.4" || true
+
+    - name: Install Go (latest stable)
+      id: go-install
+      uses: actions/setup-go@v5
+      with:
+        go-version: stable
+        check-latest: true
+
+    - name: Verify toolchain integrity (can it actually compile?)
+      id: verify
+      continue-on-error: true
+      shell: bash
+      run: |
+        set -e
+        tmp="$(mktemp -d)"
+        trap 'rm -rf "$tmp"' EXIT
+        printf 'package main\nfunc main(){}\n' > "$tmp/probe.go"
+        go build -o /dev/null "$tmp/probe.go"
+        echo "::notice::Go toolchain OK ($(go version))"
+
+    - name: Re-purge all Go toolcache (toolchain was corrupt)
+      if: steps.verify.outcome == 'failure'
+      shell: bash
+      run: |
+        echo "::warning::Go toolchain was corrupt after download — purging ALL Go toolcache and re-installing once."
+        rm -rf "${RUNNER_TOOL_CACHE:-$HOME/actions-runner-2/_work/_tool}/go"
+
+    - name: Re-install Go (latest stable)
+      if: steps.verify.outcome == 'failure'
+      uses: actions/setup-go@v5
+      with:
+        go-version: stable
+        check-latest: true
+
+    - name: Re-verify toolchain integrity
+      if: steps.verify.outcome == 'failure'
+      shell: bash
+      run: |
+        set -e
+        tmp="$(mktemp -d)"
+        trap 'rm -rf "$tmp"' EXIT
+        printf 'package main\nfunc main(){}\n' > "$tmp/probe.go"
+        go build -o /dev/null "$tmp/probe.go"
+        echo "::notice::Go toolchain OK after re-install ($(go version))"
