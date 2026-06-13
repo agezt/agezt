@@ -13,7 +13,6 @@ import {
   GitBranch,
   Scale,
   Radio,
-  UserRound,
 } from "lucide-react";
 import { getJSON } from "@/lib/api";
 import { cn, fmtTime } from "@/lib/utils";
@@ -21,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { ErrorText } from "@/components/JsonView";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { useEvents, type AgentEvent } from "@/lib/events";
+import { AgentAvatar } from "@/components/AgentAvatar";
 
 // Shapes mirror the read routes this view aggregates — kept loose (all optional)
 // so a field the backend drops never crashes the dashboard.
@@ -234,8 +234,8 @@ export function Overseer() {
                         </div>
                         <div className="mt-0.5 flex items-center gap-2 text-[10px] text-muted">
                           {r.correlation_id && corrAgent[r.correlation_id] && (
-                            <span className="inline-flex items-center gap-1 rounded bg-accent/10 px-1 text-accent">
-                              <UserRound className="size-2.5" />
+                            <span className="inline-flex items-center gap-1 rounded bg-accent/10 py-0.5 pl-0.5 pr-1.5 text-accent">
+                              <AgentAvatar slug={corrAgent[r.correlation_id]} size={14} status="running" />
                               {corrAgent[r.correlation_id]}
                             </span>
                           )}

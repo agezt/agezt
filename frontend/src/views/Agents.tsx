@@ -26,6 +26,7 @@ import { SkeletonList } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty";
 import { DelegationGraph } from "@/components/DelegationGraph";
 import { RunDetailLoader } from "@/components/RunDetail";
+import { AgentAvatar } from "@/components/AgentAvatar";
 import { buildDelegationTree, type RunNode } from "@/lib/delegation";
 
 interface ApiRun {
@@ -561,8 +562,8 @@ function RunCard({ r, onOpen }: { r: RootSummary; onOpen: () => void }) {
         />
         <span className="text-[10px] font-semibold uppercase tracking-wider text-muted">{r.status || "run"}</span>
         {r.agentName && (
-          <span className="inline-flex items-center gap-1 rounded-full bg-panel px-1.5 py-0.5 text-[10px] text-accent">
-            <Bot className="size-2.5" /> {r.agentName}
+          <span className="inline-flex items-center gap-1 rounded-full bg-panel py-0.5 pl-0.5 pr-1.5 text-[10px] text-accent">
+            <AgentAvatar slug={r.agentName} size={14} status={r.kind === "running" ? "running" : undefined} /> {r.agentName}
           </span>
         )}
         {r.startedMs ? (
