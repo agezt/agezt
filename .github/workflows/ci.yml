@@ -27,6 +27,17 @@ permissions:
   contents: read
 
 jobs:
+  # NOTE (2026-06-13): every Go job below pins go-version to 1.26.3. The
+  # self-hosted runners' Go 1.26.4 install is intermittently corrupt —
+  # setup-go's tar cache restore fails ("tar failed with exit code 2") and
+  # 1.26.4 then mis-links the FIPS140 crypto packages: nistec "relocation
+  # target not defined for ABI0" in CGO_ENABLED=0 *test* binaries, "reference
+  # to nonexistent package crypto/internal/fips140/ecdsa" in cgo/race builds,
+  # and staticcheck can't fork/exec the 1.26.4 `compile` tool ("invalid
+  # argument"). 1.26.3 — the local-dev toolchain and the go.mod `go` directive
+  # — is clean on every runner (the test job built cmd/agt.test on it).
+  # Revert these pins to `stable` once the runner 1.26.4 installs are repaired
+  # or Go 1.26.5 ships.
   test:
     name: test (linux)
     if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
@@ -65,7 +76,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version: stable
+          go-version: '1.26.3'
       - run: go test -race ./...
 
   e2e:
@@ -84,7 +95,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version: stable
+          go-version: '1.26.3'
       - name: Build binaries
         run: |
           go build -o /tmp/agezt ./cmd/agezt
@@ -102,7 +113,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version: stable
+          go-version: '1.26.3'
       - name: Regenerate SDK types
         run: |
           go run ./tools/jsonschemagen \
@@ -168,7 +179,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version: stable
+          go-version: '1.26.3'
       - uses: actions/setup-node@v4
         with:
           node-version-file: frontend/.nvmrc
@@ -262,7 +273,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version: stable
+          go-version: '1.26.3'
       - name: Generate SDK types
         run: |
           go run ./tools/jsonschemagen \
@@ -283,7 +294,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version: stable
+          go-version: '1.26.3'
       - name: Verify every module is in tools/depscheck/allowlist.txt
         run: go run ./tools/depscheck
 
@@ -339,7 +350,7 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-go@v5
         with:
-          go-version: stable
+          go-version: '1.26.3'
       - name: gitleaks
         # Install from the module's canonical path. gitleaks moved GitHub orgs
         # (zricethezav → gitleaks) but its go.mod still declares the module as
