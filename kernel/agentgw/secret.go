@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 // TokenSecretEnv, when set, overrides the persisted per-install gateway token
@@ -46,38 +47,69 @@ func ResolveTokenSecret(baseDir string) ([]byte, error) {
 		// default, and never a fixed key.
 		return randomSecret()
 	}
+	if err := os.MkdirAll(baseDir, 0o700); err != nil {
+		return nil, fmt.Errorf("agentgw: create base dir: %w", err)
+	}
 	path := filepath.Join(baseDir, tokenSecretFile)
+
+	// Fast path: a decodable secret already exists.
 	if b, err := os.ReadFile(path); err == nil {
 		if s := decodeSecret(b); len(s) > 0 {
 			return s, nil
 		}
 	}
 
+	// First run: claim the slot exclusively and persist a fresh secret. A
+	// concurrent first-runner that loses the O_EXCL race reads the winner's key
+	// back via readPersistedSecretRetrying (which bridges the create→write
+	// window), so the daemon and the CLI converge on ONE key.
 	secret, err := randomSecret()
 	if err != nil {
 		return nil, err
 	}
-	if err := os.MkdirAll(baseDir, 0o700); err != nil {
-		return nil, fmt.Errorf("agentgw: create base dir: %w", err)
-	}
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
 	if err != nil {
 		if os.IsExist(err) {
-			// Lost a first-run race — another process just wrote it; use theirs
-			// so daemon and CLI agree on one key.
-			if b, rerr := os.ReadFile(path); rerr == nil {
-				if s := decodeSecret(b); len(s) > 0 {
-					return s, nil
-				}
-			}
+			// Lost the first-run claim; another runner owns the file.
+			return readPersistedSecretRetrying(path)
 		}
 		return nil, fmt.Errorf("agentgw: persist token secret: %w", err)
 	}
-	defer f.Close()
 	if _, err := f.WriteString(hex.EncodeToString(secret)); err != nil {
+		f.Close()
 		return nil, fmt.Errorf("agentgw: write token secret: %w", err)
 	}
+	if err := f.Close(); err != nil {
+		return nil, fmt.Errorf("agentgw: close token secret: %w", err)
+	}
 	return secret, nil
+}
+
+// readPersistedSecretRetrying reads a decodable secret from path, retrying with
+// a short backoff. It exists for the first-run race: the O_EXCL winner creates
+// the file and then writes its contents in two separate steps, so a loser that
+// lost the claim can observe the file existing but still empty. The retry
+// bridges that window (worst case ~250 ms) so losers converge on the winner's
+// key instead of erroring. This must work across processes (daemon + CLI), so
+// there is no in-memory synchronization to lean on.
+func readPersistedSecretRetrying(path string) ([]byte, error) {
+	wait := time.Millisecond
+	for range 8 {
+		if b, err := os.ReadFile(path); err == nil {
+			if s := decodeSecret(b); len(s) > 0 {
+				return s, nil
+			}
+		}
+		time.Sleep(wait)
+		wait *= 2
+	}
+	// One final attempt after the backoff window.
+	if b, err := os.ReadFile(path); err != nil {
+		return nil, fmt.Errorf("agentgw: read token secret: %w", err)
+	} else if s := decodeSecret(b); len(s) > 0 {
+		return s, nil
+	}
+	return nil, fmt.Errorf("agentgw: token secret %s claimed but empty after retries", path)
 }
 
 // decodeSecret interprets a persisted secret file's bytes: hex-encoded when it
