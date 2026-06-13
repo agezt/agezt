@@ -36,9 +36,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-go-safe
-      - run: go vet ./...
-      - run: go test ./...
-      - run: go build ./...
+      - run: bash scripts/ci-go-retry.sh go vet ./...
+      - run: bash scripts/ci-go-retry.sh go test ./...
+      - run: bash scripts/ci-go-retry.sh go build ./...
 
   race:
     # Race detector needs cgo, so it can't run in the default CGO_ENABLED=0
@@ -52,7 +52,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-go-safe
-      - run: go test -race ./...
+      - run: bash scripts/ci-go-retry.sh go test -race ./...
 
   e2e:
     # Runtime/E2E gate: boot the real daemon and smoke every core product surface
@@ -71,8 +71,8 @@ jobs:
       - uses: ./.github/actions/setup-go-safe
       - name: Build binaries
         run: |
-          go build -o /tmp/agezt ./cmd/agezt
-          go build -o /tmp/agt ./cmd/agt
+          bash scripts/ci-go-retry.sh go build -o /tmp/agezt ./cmd/agezt
+          bash scripts/ci-go-retry.sh go build -o /tmp/agt ./cmd/agt
       - name: E2E smoke (real daemon, every core surface)
         run: bash scripts/e2e-smoke.sh /tmp/agezt /tmp/agt
 
@@ -87,7 +87,7 @@ jobs:
       - uses: ./.github/actions/setup-go-safe
       - name: Regenerate SDK types
         run: |
-          go run ./tools/jsonschemagen \
+          bash scripts/ci-go-retry.sh go run ./tools/jsonschemagen \
             -in  .project/agezt-contract.jsonc \
             -out contract/gen/types.gen.go \
             -pkg gen
@@ -156,8 +156,8 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - name: Build binaries
         run: |
-          go build -o /tmp/agezt ./cmd/agezt
-          go build -o /tmp/agt ./cmd/agt
+          bash scripts/ci-go-retry.sh go build -o /tmp/agezt ./cmd/agezt
+          bash scripts/ci-go-retry.sh go build -o /tmp/agt ./cmd/agt
       # The SPA tested is the committed go:embed bundle in kernel/webui/dist —
       # no `npm run build` here; we drive what actually ships.
       - name: Install Web UI deps + Playwright browser
@@ -243,7 +243,7 @@ jobs:
       - uses: ./.github/actions/setup-go-safe
       - name: Generate SDK types
         run: |
-          go run ./tools/jsonschemagen \
+          bash scripts/ci-go-retry.sh go run ./tools/jsonschemagen \
             -in  .project/agezt-contract.jsonc \
             -out contract/gen/types.gen.go \
             -pkg gen
@@ -251,7 +251,7 @@ jobs:
         env:
           GOOS:   ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
-        run: go build -trimpath -ldflags='-s -w' -o /tmp/out/ ./cmd/...
+        run: bash scripts/ci-go-retry.sh go build -trimpath -ldflags='-s -w' -o /tmp/out/ ./cmd/...
 
   deps-check:
     name: deps-check (allowlist, POLICY §1)
@@ -261,7 +261,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-go-safe
       - name: Verify every module is in tools/depscheck/allowlist.txt
-        run: go run ./tools/depscheck
+        run: bash scripts/ci-go-retry.sh go run ./tools/depscheck
 
   lint:
     # Static-analysis gates driven clean in M485/M487. gofmt + staticcheck are

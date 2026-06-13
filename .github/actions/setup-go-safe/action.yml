@@ -113,3 +113,14 @@ runs:
         go build -o /dev/null "$tmp/probe.go"
         "$(go env GOROOT)/pkg/tool/$(go env GOHOSTOS)_$(go env GOHOSTARCH)/compile" -V
         echo "::notice::Go toolchain OK after re-stage ($(go version))"
+
+    - name: Cap Go build/test parallelism (fewer concurrent compiler execs)
+      shell: bash
+      # The flaky tmpfs `compile` "invalid argument" corruption only surfaces
+      # under a full parallel build (the single-package verify probe never
+      # trips it). On these 32-core WSL boxes `go build ./...` would fork ~32
+      # concurrent execs of the tmpfs compile binary; capping -p/GOMAXPROCS to
+      # 4 cuts the concurrency that triggers it (and matches our test-CPU cap).
+      run: |
+        echo "GOFLAGS=-p=4" >> "$GITHUB_ENV"
+        echo "GOMAXPROCS=4" >> "$GITHUB_ENV"
