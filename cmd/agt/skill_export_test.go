@@ -118,6 +118,18 @@ func TestCmdSkillExport_AllRejectsID(t *testing.T) {
 	}
 }
 
+// --agent scopes the bulk export to one roster agent (M943); on its own (no
+// --all, single-skill export) it is meaningless and rejected before any dial.
+func TestCmdSkillExport_AgentRequiresAll(t *testing.T) {
+	var out, errb bytes.Buffer
+	if code := cmdSkillExport([]string{"someid", "--agent", "alice"}, &out, &errb); code != 2 {
+		t.Errorf("exit = %d, want 2 for --agent without --all", code)
+	}
+	if !strings.Contains(errb.String(), "--agent only applies to --all") {
+		t.Errorf("stderr = %q, want an --agent/--all message", errb.String())
+	}
+}
+
 func mustJSON(t *testing.T, v any) string {
 	t.Helper()
 	data, err := json.MarshalIndent(v, "", "  ")

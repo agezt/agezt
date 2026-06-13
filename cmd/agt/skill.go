@@ -61,7 +61,7 @@ func cmdSkill(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "  reassign <id> [--agent S]     change a skill's owning agent (omit --agent to share)\n")
 		fmt.Fprintf(stdout, "  diff <id> [<id2>]             diff a skill's body vs its parent (or vs id2)\n")
 		fmt.Fprintf(stdout, "  export <id> [--out <file>]    write a portable, verifiable skill bundle\n")
-		fmt.Fprintf(stdout, "  export --all [--dir <dir>]    export every skill into a directory registry\n")
+		fmt.Fprintf(stdout, "  export --all [--dir <dir>] [--agent <slug>]   export every skill (or one agent's) into a registry dir\n")
 		fmt.Fprintf(stdout, "  import <bundle|dir> [--json]  install a bundle/SKILL.md/skill directory as a draft\n")
 		fmt.Fprintf(stdout, "  files <id> [--json]           list a skill's bundle resources + their directory\n")
 		fmt.Fprintf(stdout, "  cat <id> <path>               print one bundle resource (reference file or script)\n")

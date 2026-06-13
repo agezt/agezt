@@ -114,7 +114,11 @@ func safeSkillFilename(name, id string) string {
 // CmdSkillList call supplies the full records, bodies included). It is the
 // publisher side of the skill registry: a node exports its whole skill library
 // as a directory another node can browse with `agt skill registry`.
-func exportAllSkills(dir string, stdout, stderr io.Writer) int {
+// exportAllSkills writes one bundle per skill into dir plus a registry index.
+// When agentFilter is non-empty, only skills owned by that roster agent (M932)
+// are exported — `skill export --all --agent <slug>` lifts one agent's private
+// skill set out as a portable bundle directory (M943).
+func exportAllSkills(dir, agentFilter string, stdout, stderr io.Writer) int {
 	c := dial(stderr)
 	if c == nil {
 		return 1
@@ -127,6 +131,21 @@ func exportAllSkills(dir string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	rawSkills, _ := res["skills"].([]any)
+	if agentFilter != "" {
+		filtered := rawSkills[:0:0]
+		for _, raw := range rawSkills {
+			if m, ok := raw.(map[string]any); ok {
+				if owner, _ := m["agent"].(string); owner == agentFilter {
+					filtered = append(filtered, raw)
+				}
+			}
+		}
+		rawSkills = filtered
+		if len(rawSkills) == 0 {
+			fmt.Fprintf(stdout, "no skills owned by agent %q to export\n", agentFilter)
+			return 0
+		}
+	}
 	if len(rawSkills) == 0 {
 		fmt.Fprintf(stdout, "no skills to export\n")
 		return 0
@@ -204,9 +223,19 @@ func cmdSkillExport(args []string, stdout, stderr io.Writer) int {
 	outPath := ""
 	all := false
 	dir := "."
+	agent := ""
 	for i := 0; i < len(args); i++ {
 		a := args[i]
 		switch {
+		case a == "--agent":
+			if i+1 >= len(args) {
+				fmt.Fprintf(stderr, "%s skill export: --agent needs a slug\n", brand.CLI)
+				return 2
+			}
+			i++
+			agent = args[i]
+		case strings.HasPrefix(a, "--agent="):
+			agent = strings.TrimPrefix(a, "--agent=")
 		case a == "--out":
 			if i+1 >= len(args) {
 				fmt.Fprintf(stderr, "%s skill export: --out needs a file path\n", brand.CLI)
@@ -229,11 +258,12 @@ func cmdSkillExport(args []string, stdout, stderr io.Writer) int {
 			dir = strings.TrimPrefix(a, "--dir=")
 		case a == "-h" || a == "--help":
 			fmt.Fprintf(stdout, "usage: %s skill export <id> [--out <file>]\n", brand.CLI)
-			fmt.Fprintf(stdout, "       %s skill export --all [--dir <dir>]\n", brand.CLI)
+			fmt.Fprintf(stdout, "       %s skill export --all [--dir <dir>] [--agent <slug>]\n", brand.CLI)
 			fmt.Fprintf(stdout, "write a portable, verifiable skill bundle (default: to stdout)\n")
-			fmt.Fprintf(stdout, "  --out <file>  write the bundle to a file instead of stdout\n")
-			fmt.Fprintf(stdout, "  --all         export every skill, one file per skill, into --dir\n")
-			fmt.Fprintf(stdout, "  --dir <dir>   target directory for --all (default: .)\n")
+			fmt.Fprintf(stdout, "  --out <file>    write the bundle to a file instead of stdout\n")
+			fmt.Fprintf(stdout, "  --all           export every skill, one file per skill, into --dir\n")
+			fmt.Fprintf(stdout, "  --dir <dir>     target directory for --all (default: .)\n")
+			fmt.Fprintf(stdout, "  --agent <slug>  with --all: export only skills owned by that agent\n")
 			return 0
 		case strings.HasPrefix(a, "-"):
 			fmt.Fprintf(stderr, "%s skill export: unexpected flag %q\n", brand.CLI, a)
@@ -251,7 +281,11 @@ func cmdSkillExport(args []string, stdout, stderr io.Writer) int {
 			fmt.Fprintf(stderr, "%s skill export: --all takes no id (it exports every skill)\n", brand.CLI)
 			return 2
 		}
-		return exportAllSkills(dir, stdout, stderr)
+		return exportAllSkills(dir, agent, stdout, stderr)
+	}
+	if agent != "" {
+		fmt.Fprintf(stderr, "%s skill export: --agent only applies to --all\n", brand.CLI)
+		return 2
 	}
 	if id == "" {
 		fmt.Fprintf(stderr, "%s skill export: id required (or --all)\n", brand.CLI)
