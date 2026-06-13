@@ -283,12 +283,13 @@ jobs:
             echo "$out"
             exit 1
           fi
-      - name: staticcheck (prebuilt binary — bypass flaky WSL go compiler)
-        # `go install honnef.co/go/tools/cmd/staticcheck@latest` compiles a
-        # large dependency tree and is what triggers the self-hosted runner's
-        # corrupt `compile` binary to crash ("fork/exec compile: invalid
-        # argument"). Downloading the upstream prebuilt binary never invokes
-        # the local compiler at all, sidestepping the corruption entirely.
+      - name: staticcheck (prebuilt binary, retry — flaky WSL go compiler)
+        # We use the upstream PREBUILT staticcheck so we don't `go install` its
+        # large dep tree. But staticcheck still type-checks via go/packages,
+        # which execs the local `compile` tool — and that tool intermittently
+        # corrupts on the self-hosted WSL runners ("fork/exec compile: invalid
+        # argument", "src/log/internal/: invalid argument"). The corruption is
+        # transient, so retry the run a few times like govulncheck below.
         run: |
           set -e
           SC_TAG=$(curl -fsSL https://api.github.com/repos/dominikh/go-tools/releases/latest | grep -oP '"tag_name":\s*"\K[^"]+')
@@ -297,7 +298,16 @@ jobs:
           curl -fsSL "https://github.com/dominikh/go-tools/releases/download/${SC_TAG}/staticcheck_linux_amd64.tar.gz" -o /tmp/sc.tgz
           tar xzf /tmp/sc.tgz -C /tmp
           echo "staticcheck ${SC_TAG} (prebuilt)"
-          /tmp/staticcheck/staticcheck ./...
+          set +e
+          n=0
+          while [ $n -lt 5 ]; do
+            /tmp/staticcheck/staticcheck ./... && exit 0
+            n=$((n+1))
+            echo "staticcheck attempt $n/5 failed (flaky Go compiler on self-hosted runners); retrying..."
+            sleep 3
+          done
+          echo "::error::staticcheck failed after 5 attempts"
+          exit 1
       - name: "govulncheck (retry — flaky WSL go compiler)"
         # govulncheck has no prebuilt binary, so we must `go install` it and
         # that exercises the flaky compiler. Retry the install+run a few
