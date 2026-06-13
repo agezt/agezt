@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Users, RefreshCw, Pause, Play, Trash2, Plus, X, Pencil, Bot, Archive, ArchiveRestore, Skull, Activity, ListTree, ScrollText } from "lucide-react";
+import { Users, RefreshCw, Pause, Play, Trash2, Plus, X, Pencil, Bot, Archive, ArchiveRestore, Skull, Activity, ListTree, ScrollText, Sparkles } from "lucide-react";
 import { getJSON, postAction, postJSON } from "@/lib/api";
 import { cn, fmtTime } from "@/lib/utils";
 import { money } from "@/lib/format";
@@ -520,12 +520,24 @@ export function Roster() {
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
   const [activityFor, setActivityFor] = useState<string | null>(null);
+  // Per-agent private-skill counts (M943): how many skills each agent owns
+  // (Skill.Agent == slug), so an operator sees who has learned what before
+  // sharing/reassigning (M942) or exporting (`agt skill export --all --agent`).
+  const [skillCounts, setSkillCounts] = useState<Record<string, number>>({});
 
   async function reload() {
     setLoading(true);
     try {
-      const d = await getJSON<{ profiles?: AgentProfile[] }>("/api/agents");
+      const [d, sk] = await Promise.all([
+        getJSON<{ profiles?: AgentProfile[] }>("/api/agents"),
+        getJSON<{ skills?: { agent?: string }[] }>("/api/skills").catch(() => ({ skills: [] })),
+      ]);
       setProfiles(d.profiles || []);
+      const counts: Record<string, number> = {};
+      for (const s of sk.skills || []) {
+        if (s.agent) counts[s.agent] = (counts[s.agent] || 0) + 1;
+      }
+      setSkillCounts(counts);
       setErr(null);
     } catch (e) {
       setErr((e as Error).message);
@@ -664,6 +676,14 @@ export function Roster() {
                 </Badge>
               ) : (
                 <Badge variant={p.enabled ? "good" : "default"}>{p.enabled ? "enabled" : "paused"}</Badge>
+              )}
+              {skillCounts[p.slug] > 0 && (
+                <span
+                  className="inline-flex items-center gap-1 rounded-full bg-accent/10 px-1.5 py-0.5 text-[10px] text-accent"
+                  title={`${skillCounts[p.slug]} skill(s) private to this agent`}
+                >
+                  <Sparkles className="h-2.5 w-2.5" /> {skillCounts[p.slug]}
+                </span>
               )}
               <span className="ml-auto flex items-center gap-1">
                 <Button
