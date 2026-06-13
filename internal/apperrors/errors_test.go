@@ -1,5 +1,9 @@
 // SPDX-License-Identifier: MIT
 
+//lint:file-ignore SA1012 Wrap/Wrapf accept a context.Context as their first
+// argument and must tolerate nil; these tests deliberately pass nil to verify
+// that nil-context path rather than papering over it with context.TODO().
+
 package apperrors
 
 import (

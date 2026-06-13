@@ -37,8 +37,17 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version: stable
-          check-latest: true
+          # Pinned to 1.26.3: Go 1.26.4's linker mis-relocates nistec P256
+          # assembly (crypto/internal/fips140/nistec.* "relocation target not
+          # defined for ABI0, but defined for ABIInternal") when building a
+          # CGO_ENABLED=0 *test* binary whose import graph reaches crypto/ecdsa
+          # (cmd/agt.test pulls it via the daemon's crypto/tls). cgo-enabled
+          # builds (the race job) and all main binaries link fine; only the
+          # pure-Go test binary trips the bug. 1.26.3 — also the local-dev
+          # toolchain — builds it cleanly. Pin here until 1.26.5 fixes the
+          # regression; the other jobs stay on `stable` so govulncheck keeps
+          # the patched stdlib.
+          go-version: '1.26.3'
       - run: go vet ./...
       - run: go test ./...
       - run: go build ./...
