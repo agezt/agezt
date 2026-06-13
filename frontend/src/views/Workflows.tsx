@@ -27,6 +27,20 @@ import {
   PowerOff,
   Sparkles,
   History,
+  Zap,
+  Wrench,
+  GitBranch,
+  Wand2,
+  Clock,
+  Globe,
+  Code2,
+  List,
+  Filter as FilterIcon,
+  Split,
+  Merge as MergeIcon,
+  ShieldCheck,
+  Workflow as WorkflowIcon,
+  type LucideIcon,
 } from "lucide-react";
 import { getJSON, postAction, postJSON } from "@/lib/api";
 import { cn, clip } from "@/lib/utils";
@@ -79,21 +93,24 @@ export interface Wf {
 // Node-type palette: color accents + which extra OUTPUT ports a node offers.
 // "out" is the default port (wire port "" on save); failable nodes add an
 // "error" branch; condition/switch declare their own.
-export const NODE_META: Record<string, { label: string; accent: string }> = {
-  trigger: { label: "Trigger", accent: "border-good" },
-  tool: { label: "Tool", accent: "border-accent" },
-  llm: { label: "LLM", accent: "border-[#a78bfa]" },
-  condition: { label: "If/Else", accent: "border-warn" },
-  transform: { label: "Transform", accent: "border-accent" },
-  delay: { label: "Delay", accent: "border-[#f472b6]" },
-  http: { label: "HTTP", accent: "border-[#60a5fa]" },
-  code: { label: "Code", accent: "border-[#34d399]" },
-  map: { label: "Map", accent: "border-accent" },
-  filter: { label: "Filter", accent: "border-accent" },
-  switch: { label: "Switch", accent: "border-warn" },
-  merge: { label: "Merge", accent: "border-[#fbbf24]" },
-  approval: { label: "Approval", accent: "border-warn" },
-  subworkflow: { label: "Sub-Workflow", accent: "border-[#818cf8]" },
+// Each node type carries a border accent (class), an icon, and a color (a CSS
+// value usable in inline style) so the canvas reads as a colourful flowchart —
+// coloured header band + icon per type — rather than a grid of grey boxes.
+export const NODE_META: Record<string, { label: string; accent: string; icon: LucideIcon; color: string }> = {
+  trigger: { label: "Trigger", accent: "border-good", icon: Zap, color: "var(--good)" },
+  tool: { label: "Tool", accent: "border-accent", icon: Wrench, color: "var(--accent)" },
+  llm: { label: "LLM", accent: "border-[#a78bfa]", icon: Sparkles, color: "#a78bfa" },
+  condition: { label: "If/Else", accent: "border-warn", icon: GitBranch, color: "var(--warn)" },
+  transform: { label: "Transform", accent: "border-accent", icon: Wand2, color: "var(--accent)" },
+  delay: { label: "Delay", accent: "border-[#f472b6]", icon: Clock, color: "#f472b6" },
+  http: { label: "HTTP", accent: "border-[#60a5fa]", icon: Globe, color: "#60a5fa" },
+  code: { label: "Code", accent: "border-[#34d399]", icon: Code2, color: "#34d399" },
+  map: { label: "Map", accent: "border-accent", icon: List, color: "var(--accent)" },
+  filter: { label: "Filter", accent: "border-accent", icon: FilterIcon, color: "var(--accent)" },
+  switch: { label: "Switch", accent: "border-warn", icon: Split, color: "var(--warn)" },
+  merge: { label: "Merge", accent: "border-[#fbbf24]", icon: MergeIcon, color: "#fbbf24" },
+  approval: { label: "Approval", accent: "border-warn", icon: ShieldCheck, color: "var(--warn)" },
+  subworkflow: { label: "Sub-Workflow", accent: "border-[#818cf8]", icon: WorkflowIcon, color: "#818cf8" },
 };
 
 const FAILABLE = new Set(["tool", "llm", "http", "code", "approval", "subworkflow"]);
@@ -173,14 +190,21 @@ export function toFlow(wf: Wf): { nodes: RFNode[]; edges: RFEdge[] } {
       },
     },
   }));
-  const edges: RFEdge[] = (wf.edges || []).map((e, i) => ({
-    id: `e${i}-${e.from}-${e.to}`,
-    source: e.from,
-    target: e.to,
-    sourceHandle: e.port || "out",
-    label: e.port && e.port !== "out" ? e.port : undefined,
-    markerEnd: { type: MarkerType.ArrowClosed },
-  }));
+  const edges: RFEdge[] = (wf.edges || []).map((e, i) => {
+    // Animated flowing edges read as data in motion; the error branch is red so
+    // failure paths are obvious at a glance, the rest ride the accent colour.
+    const stroke = e.port === "error" ? "var(--bad)" : "var(--accent)";
+    return {
+      id: `e${i}-${e.from}-${e.to}`,
+      source: e.from,
+      target: e.to,
+      sourceHandle: e.port || "out",
+      label: e.port && e.port !== "out" ? e.port : undefined,
+      animated: true,
+      style: { stroke, strokeWidth: 2 },
+      markerEnd: { type: MarkerType.ArrowClosed, color: stroke },
+    };
+  });
   return { nodes, edges };
 }
 
@@ -229,26 +253,40 @@ type WfNodeData = {
 type WfRFNode = RFNode<WfNodeData, "wf">;
 
 const statusRing: Record<string, string> = {
-  done: "bg-good/15 !border-good",
-  failed: "bg-bad/15 !border-bad",
+  running: "!border-accent breathe",
+  done: "bg-good/12 !border-good",
+  failed: "bg-bad/12 !border-bad",
 };
 
 function WfNodeView({ data, selected }: NodeProps<WfRFNode>) {
-  const meta = NODE_META[data.wfType] || { label: data.wfType, accent: "border-border" };
+  const meta = NODE_META[data.wfType];
+  const accent = meta?.accent || "border-border";
+  const color = meta?.color || "var(--muted)";
+  const label = meta?.label || data.wfType;
+  const Icon = meta?.icon;
   const ports = portsForNode(data.wfType, data.config);
   return (
     <div
       className={cn(
-        "w-[200px] rounded-lg border-2 bg-card px-3 pt-2 pb-3 transition-colors",
-        meta.accent,
+        "w-[200px] overflow-hidden rounded-lg border-2 bg-card transition-colors",
+        accent,
         data.status && statusRing[data.status],
         selected && "ring-2 ring-accent/60",
       )}
     >
       {data.wfType !== "trigger" && <Handle type="target" position={Position.Top} className="!bg-muted" />}
-      <div className="text-[10px] font-semibold tracking-wide text-muted uppercase">{meta.label}</div>
-      <div className="truncate text-xs font-semibold">{clip(data.label || data.wfType, 26)}</div>
-      <div className="truncate text-[10px] text-muted">{clip(summarize(data.wfType, data.config), 30)}</div>
+      {/* Coloured header band: a tint of the type colour + icon, so the graph
+          reads at a glance by colour and shape, not by reading labels. */}
+      <div
+        className="flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-semibold tracking-wide uppercase"
+        style={{ color, backgroundColor: `color-mix(in oklch, ${color} 14%, transparent)` }}
+      >
+        {Icon && <Icon className="size-3" />}
+        <span className="truncate">{label}</span>
+      </div>
+      <div className="px-3 pb-3 pt-1.5">
+        <div className="truncate text-xs font-semibold">{clip(data.label || data.wfType, 26)}</div>
+        <div className="truncate text-[10px] text-muted">{clip(summarize(data.wfType, data.config), 30)}</div>
       {ports.map((p, i) => (
         <Handle
           key={p}
@@ -269,6 +307,7 @@ function WfNodeView({ data, selected }: NodeProps<WfRFNode>) {
           ))}
         </div>
       )}
+      </div>
     </div>
   );
 }
@@ -465,7 +504,10 @@ function NodePanel({
   return (
     <div className="flex w-72 shrink-0 flex-col gap-2 overflow-y-auto border-l border-border bg-card p-3">
       <div className="flex items-center justify-between">
-        <span className="text-xs font-semibold">{meta?.label || node.data.wfType}</span>
+        <span className="flex items-center gap-1.5 text-xs font-semibold">
+          {meta?.icon && <meta.icon className="size-3.5" style={{ color: meta.color }} />}
+          {meta?.label || node.data.wfType}
+        </span>
         <span className="font-mono text-[10px] text-muted">{node.id}</span>
       </div>
       <label className="flex flex-col gap-1 text-[11px] text-muted">
@@ -1109,19 +1151,23 @@ export function Workflows() {
             <div className="mb-1 text-[10px] font-semibold tracking-wide text-muted uppercase">Nodes</div>
             {Object.entries(NODE_META)
               .filter(([t]) => t !== "trigger")
-              .map(([t, m]) => (
-                <button
-                  key={t}
-                  onClick={() => addNode(t)}
-                  aria-label={`Add ${m.label} node`}
-                  className={cn(
-                    "rounded-md border-2 bg-panel px-2 py-1 text-left text-[11px] transition-colors hover:bg-accent/10",
-                    m.accent,
-                  )}
-                >
-                  {m.label}
-                </button>
-              ))}
+              .map(([t, m]) => {
+                const Icon = m.icon;
+                return (
+                  <button
+                    key={t}
+                    onClick={() => addNode(t)}
+                    aria-label={`Add ${m.label} node`}
+                    className={cn(
+                      "flex items-center gap-1.5 rounded-md border-2 bg-panel px-2 py-1 text-left text-[11px] transition-colors hover:bg-accent/10",
+                      m.accent,
+                    )}
+                  >
+                    <Icon className="size-3 shrink-0" style={{ color: m.color }} />
+                    {m.label}
+                  </button>
+                );
+              })}
           </div>
           <div className="min-w-0 flex-1">
             <ReactFlow
