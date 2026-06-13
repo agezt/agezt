@@ -283,14 +283,37 @@ jobs:
             echo "$out"
             exit 1
           fi
-      - name: staticcheck
+      - name: staticcheck (prebuilt binary — bypass flaky WSL go compiler)
+        # `go install honnef.co/go/tools/cmd/staticcheck@latest` compiles a
+        # large dependency tree and is what triggers the self-hosted runner's
+        # corrupt `compile` binary to crash ("fork/exec compile: invalid
+        # argument"). Downloading the upstream prebuilt binary never invokes
+        # the local compiler at all, sidestepping the corruption entirely.
         run: |
-          go install honnef.co/go/tools/cmd/staticcheck@latest
-          "$(go env GOPATH)/bin/staticcheck" ./...
-      - name: govulncheck
+          set -e
+          SC_TAG=$(curl -fsSL https://api.github.com/repos/dominikh/go-tools/releases/latest | grep -oP '"tag_name":\s*"\K[^"]+')
+          SC_VER="${SC_TAG#v}"
+          curl -fsSL "https://github.com/dominikh/go-tools/releases/download/${SC_TAG}/staticcheck_${SC_VER}_linux_amd64.tar.gz" -o /tmp/sc.tgz
+          tar xzf /tmp/sc.tgz -C /tmp
+          echo "staticcheck ${SC_TAG} (prebuilt)"
+          /tmp/staticcheck/staticcheck ./...
+      - name: "govulncheck (retry — flaky WSL go compiler)"
+        # govulncheck has no prebuilt binary, so we must `go install` it and
+        # that exercises the flaky compiler. Retry the install+run a few
+        # times — the corruption is intermittent, so a re-attempt usually
+        # succeeds.
         run: |
-          go install golang.org/x/vuln/cmd/govulncheck@latest
-          "$(go env GOPATH)/bin/govulncheck" ./...
+          set +e
+          n=0
+          while [ $n -lt 5 ]; do
+            go install golang.org/x/vuln/cmd/govulncheck@latest
+            "$(go env GOPATH)/bin/govulncheck" ./... && exit 0
+            n=$((n+1))
+            echo "govulncheck attempt $n/5 failed (flaky Go compiler on self-hosted runners); retrying..."
+            sleep 3
+          done
+          echo "::error::govulncheck failed after 5 attempts"
+          exit 1
 
   secrets:
     # Secret scan, baselined to zero in M486. The full git history is scanned

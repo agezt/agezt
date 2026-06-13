@@ -1,23 +1,26 @@
 # SPDX-License-Identifier: MIT
 # Composite action: set up Go on the self-hosted WSL runners *safely*.
 #
-# The self-hosted runners occasionally get a corrupt Go 1.26.4 toolchain
-# after download — the extracted SDK contains zero-byte garbage under
-# src/log/internal/ and a broken `compile` binary, which then crashes the
-# linker (SIGBUS) and any `go install`/`go build` ("compile: invalid
-# argument"). It is transient: the same runner can build cleanly on one job
-# and fail on the next. setup-go@v5 does not integrity-check what it
-# extracts, so the corruption passes its install step undetected.
+# Root cause: setup-go@v5 installs GOROOT under
+#   ~/actions-runner-*/_work/_tool/go/1.26.4
+# on the WSL2 ext4 disk. That filesystem intermittently read-corrupts the
+# `compile` tool and stdlib files (zero-byte src/log/internal/*, "fork/exec
+# compile: invalid argument", SIGBUS in the linker). The corruption is
+# flaky — the same runner can build cleanly on one job and fail the next —
+# and survives a purge+re-download because setup-go re-extracts to the same
+# bad disk. A minimal `func main(){}` probe even passes, because the linker
+# reuses precompiled stdlib objects; it only blows up when `go install`
+# actually invokes the corrupt `compile` binary.
 #
-# This action:
-#   1. purges any cached 1.26.4 toolcache (forces a fresh download), and
-#   2. verifies the freshly-installed toolchain can actually compile; if not,
-#   3. fully purges Go toolcache and re-installs once.
+# Fix: copy the freshly-installed GOROOT to tmpfs (/dev/shm = RAM) and point
+# GOROOT there for the rest of the job. RAM is not subject to ext4 read
+# corruption, so every subsequent `go build`/`go install` uses a stable,
+# in-memory toolchain. ~600MB in /dev/shm; the WSL runners have ample RAM.
 #
 # We stay on `go-version: stable` (latest, currently 1.26.4) and NEVER pin
-# back to an older minor just to dodge a bad extract.
+# back to an older minor just to dodge a bad cache entry.
 name: setup-go-safe
-description: Install latest Go on self-hosted runners, with corrupt-toolcache purge + integrity re-install.
+description: Install latest Go on self-hosted runners, staging GOROOT to tmpfs to escape WSL2 disk corruption.
 
 runs:
   using: composite
@@ -38,28 +41,40 @@ runs:
         # can itself cause spurious build failures. Re-fetching is cheap.
         cache: false
 
-    - name: Verify toolchain integrity (does the stdlib actually compile?)
-      # A minimal `func main(){}` probe passes even when the stdlib is
-      # corrupt — the linker never touches src/log/internal. We import `log`
-      # (which pulls in log/internal) so a zero-byte stdlib file is caught
-      # here and triggers a re-install, rather than failing mid-`go install`.
+    - name: Stage GOROOT to tmpfs (escape WSL2 ext4 read corruption)
+      id: stage
+      shell: bash
+      run: |
+        set -e
+        SRC="$(go env GOROOT)"
+        DST="/dev/shm/goroot"
+        rm -rf "$DST"
+        cp -a "$SRC" "$DST"
+        echo "GOROOT=$DST" >> "$GITHUB_ENV"
+        echo "Staged Go toolchain to tmpfs: $DST (from $SRC)"
+
+    - name: Verify toolchain integrity (stdlib + compile binary)
       id: verify
       continue-on-error: true
       shell: bash
       run: |
         set -e
+        echo "Using GOROOT=$GOROOT"
         tmp="$(mktemp -d)"
         trap 'rm -rf "$tmp"' EXIT
+        # importing `log` forces the corrupt src/log/internal/* to be compiled
         printf 'package main\nimport "log"\nfunc main(){ log.Println("probe") }\n' > "$tmp/probe.go"
         go build -o /dev/null "$tmp/probe.go"
-        echo "::notice::Go toolchain OK ($(go version))"
+        # exercise the flaky compile binary directly
+        "$(go env GOROOT)/pkg/tool/$(go env GOHOSTOS)_$(go env GOHOSTARCH)/compile" -V
+        echo "::notice::Go toolchain OK (tmpfs) ($(go version))"
 
-    - name: Re-purge all Go toolcache (toolchain was corrupt)
+    - name: Re-purge + re-install + re-stage on corruption
       if: steps.verify.outcome == 'failure'
       shell: bash
       run: |
-        echo "::warning::Go toolchain stdlib was corrupt after download — purging ALL Go toolcache and re-installing once."
-        rm -rf "${RUNNER_TOOL_CACHE:-$HOME/actions-runner-2/_work/_tool}/go"
+        echo "::warning::Go toolchain corrupt even on tmpfs; re-downloading toolchain once."
+        rm -rf "${RUNNER_TOOL_CACHE:-$HOME/actions-runner-2/_work/_tool}/go" /dev/shm/goroot
 
     - name: Re-install Go (latest stable)
       if: steps.verify.outcome == 'failure'
@@ -68,6 +83,17 @@ runs:
         go-version: stable
         check-latest: true
         cache: false
+
+    - name: Re-stage GOROOT to tmpfs
+      if: steps.verify.outcome == 'failure'
+      shell: bash
+      run: |
+        set -e
+        SRC="$(go env GOROOT)"
+        DST="/dev/shm/goroot"
+        rm -rf "$DST"
+        cp -a "$SRC" "$DST"
+        echo "GOROOT=$DST" >> "$GITHUB_ENV"
 
     - name: Re-verify toolchain integrity
       if: steps.verify.outcome == 'failure'
@@ -78,4 +104,5 @@ runs:
         trap 'rm -rf "$tmp"' EXIT
         printf 'package main\nimport "log"\nfunc main(){ log.Println("probe") }\n' > "$tmp/probe.go"
         go build -o /dev/null "$tmp/probe.go"
-        echo "::notice::Go toolchain OK after re-install ($(go version))"
+        "$(go env GOROOT)/pkg/tool/$(go env GOHOSTOS)_$(go env GOHOSTARCH)/compile" -V
+        echo "::notice::Go toolchain OK after re-stage ($(go version))"
