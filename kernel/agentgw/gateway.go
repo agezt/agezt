@@ -13,6 +13,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/configcenter"
+	"github.com/agezt/agezt/kernel/journal"
 	"github.com/agezt/agezt/kernel/memory"
 	"github.com/agezt/agezt/kernel/roster"
 )
@@ -55,12 +56,19 @@ type GatewayConfig struct {
 	WriteTimeout time.Duration
 }
 
-// DefaultGatewayConfig returns a default gateway configuration.
+// maxBodyBytes caps request bodies on the gateway's JSON endpoints so a hostile
+// (or buggy) client cannot exhaust memory with an unbounded POST body.
+const maxBodyBytes = 1 << 20 // 1 MiB
+
+// DefaultGatewayConfig returns a default gateway configuration. The token secret
+// is an ephemeral process-random key (safe-by-default); the daemon overrides it
+// with the persisted per-install secret via ResolveTokenSecret.
 func DefaultGatewayConfig(baseDir string) GatewayConfig {
+	secret, _ := randomSecret()
 	return GatewayConfig{
 		SocketPath:   "@agezt/agentgw.sock",
 		BaseDir:      baseDir,
-		TokenSecret:  []byte("change-me-in-production"),
+		TokenSecret:  secret,
 		ReadTimeout:  30 * time.Second,
 		WriteTimeout: 30 * time.Second,
 	}
@@ -68,13 +76,24 @@ func DefaultGatewayConfig(baseDir string) GatewayConfig {
 
 // NewGateway creates a new gateway.
 func NewGateway(cfg GatewayConfig) *Gateway {
+	secret := cfg.TokenSecret
+	if len(secret) == 0 {
+		// Never sign with an empty/zero key — generate an ephemeral random one.
+		secret, _ = randomSecret()
+	}
 	return &Gateway{
-		tokenMgr:  NewTokenManager(cfg.TokenSecret),
-		auditLog:  NewAuditLogger(nil), // Will be set when attached to kernel
+		tokenMgr:  NewTokenManager(secret),
+		auditLog:  NewAuditLogger(nil), // real journal wired via SetAuditJournal
 		capCheck:  NewCapabilityChecker(),
 		rateLimit: make(map[string]*RateLimit),
 		sockPath:  cfg.SocketPath,
 	}
+}
+
+// SetAuditJournal wires the kernel journal so capability access is recorded.
+// Called once at startup (runtime.Open) before Listen.
+func (g *Gateway) SetAuditJournal(j *journal.Journal) {
+	g.auditLog = NewAuditLogger(j)
 }
 
 // Attach connects the gateway to the kernel subsystems.
@@ -113,8 +132,10 @@ func (g *Gateway) Listen(ctx context.Context) error {
 	mux.HandleFunc("GET /v1/agent/list", g.withAuth(g.handleAgentList))
 	mux.HandleFunc("GET /v1/agent/query", g.withAuth(g.handleAgentQuery))
 
-	// Token endpoint (for creating subprocess tokens)
-	mux.HandleFunc("POST /v1/token/create", g.handleTokenCreate)
+	// Token endpoint (for creating SUBPROCESS tokens from an authenticated
+	// parent token). Behind withAuth: minting requires a valid parent token and
+	// the result is capped to the parent's capabilities (see handleTokenCreate).
+	mux.HandleFunc("POST /v1/token/create", g.withAuth(g.handleTokenCreate))
 
 	// Config endpoints (require configCenter to be set)
 	if g.configHandler != nil {
@@ -176,6 +197,9 @@ func (g *Gateway) Listen(ctx context.Context) error {
 
 // Close shuts down the gateway.
 func (g *Gateway) Close() error {
+	if g.auditLog != nil {
+		g.auditLog.Flush()
+	}
 	g.srvMu.Lock()
 	srv := g.httpSrv
 	g.srvMu.Unlock()
@@ -210,22 +234,72 @@ func (g *Gateway) withAuth(handler http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 
+		// Record the authorized access (audit trail).
+		g.auditAccess(r, claims)
+
 		// Store claims in request context
 		ctx := context.WithValue(r.Context(), claimsKey{}, claims)
 		handler(w, r.WithContext(ctx))
 	}
 }
 
+// auditAccess records one authorized gateway request to the journal (no-op
+// until SetAuditJournal wires a real journal).
+func (g *Gateway) auditAccess(r *http.Request, claims *TokenClaims) {
+	if g.auditLog == nil {
+		return
+	}
+	g.auditLog.Log(AuditEntry{
+		Timestamp:  time.Now(),
+		TokenID:    claims.ParentTokenID,
+		RunID:      claims.RunID,
+		Subprocess: claims.SubprocessID,
+		Operation:  r.Method,
+		Path:       r.URL.Path,
+		Success:    true,
+		ClientIP:   r.RemoteAddr,
+	})
+}
+
+// maxRateLimitEntries bounds the per-token rate-limit map so a flood of
+// distinct subprocess IDs cannot exhaust memory (CWE-770). When the cap is hit
+// we evict idle entries first, then (if all are fresh) drop one to make room.
+const maxRateLimitEntries = 4096
+
+// rateLimitIdleEvict is how long a rate-limit bucket may sit unused before it
+// becomes eligible for eviction.
+const rateLimitIdleEvictMs = 5 * 60_000 // 5 minutes
+
 // allowRate checks and updates rate limit for a token.
 func (g *Gateway) allowRate(tid string, maxRate, maxBurst int) bool {
 	g.rlMu.Lock()
 	rl, ok := g.rateLimit[tid]
 	if !ok {
+		if len(g.rateLimit) >= maxRateLimitEntries {
+			g.evictStaleLocked()
+		}
 		rl = NewRateLimit(maxRate, maxBurst)
 		g.rateLimit[tid] = rl
 	}
 	g.rlMu.Unlock()
 	return rl.Allow()
+}
+
+// evictStaleLocked removes idle rate-limit buckets. Caller must hold rlMu.
+func (g *Gateway) evictStaleLocked() {
+	cutoff := time.Now().UnixMilli() - rateLimitIdleEvictMs
+	for k, rl := range g.rateLimit {
+		if rl.LastSeen() < cutoff {
+			delete(g.rateLimit, k)
+		}
+	}
+	// All buckets still fresh: drop one arbitrary entry to bound memory.
+	if len(g.rateLimit) >= maxRateLimitEntries {
+		for k := range g.rateLimit {
+			delete(g.rateLimit, k)
+			break
+		}
+	}
 }
 
 // extractBearerToken extracts the token from the Authorization header.
@@ -272,44 +346,82 @@ func (g *Gateway) handleHealth(w http.ResponseWriter, r *http.Request) {
 	responseJSON(w, http.StatusOK, map[string]string{"status": "healthy"})
 }
 
-// handleTokenCreate handles token creation requests.
+// handleTokenCreate mints a SUBPROCESS token derived from the caller's
+// (authenticated) parent token. It runs behind withAuth, so getClaims is the
+// parent. The minted token can never exceed the parent: capabilities are
+// intersected with the parent's, expiry is clamped to the parent's, and the
+// RunID is inherited (a child cannot mint into a different run). This closes
+// the unauthenticated-mint / capability-escalation hole.
 func (g *Gateway) handleTokenCreate(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, `{"error":"method_not_allowed"}`, http.StatusMethodNotAllowed)
 		return
 	}
 
+	parent := getClaims(r)
+	if parent == nil {
+		responseError(w, http.StatusUnauthorized, "UNAUTHORIZED", "no claims")
+		return
+	}
+
 	var req struct {
-		RunID    string   `json:"run_id"`
+		SubID    string   `json:"sub_id"`
 		Caps     []string `json:"caps"`
 		MaxRate  int      `json:"max_rpm"`
 		MaxBurst int      `json:"max_burst"`
 		ExpiryMs int64    `json:"expiry_ms"`
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxBodyBytes)).Decode(&req); err != nil {
 		responseError(w, http.StatusBadRequest, "INVALID_REQUEST", err.Error())
 		return
 	}
 
-	// Validate and normalize capabilities
+	// Validate and normalize requested capabilities.
 	caps, err := NormalizeCaps(req.Caps)
 	if err != nil {
 		responseError(w, http.StatusBadRequest, "INVALID_CAPABILITY", err.Error())
 		return
 	}
+	// Reject (don't silently drop) any capability the parent lacks — a child
+	// token must be a subset of its parent.
+	if missing := CapsSubset(caps, parent.Caps); len(missing) > 0 {
+		responseError(w, http.StatusForbidden, "CAP_ESCALATION",
+			fmt.Sprintf("requested capabilities exceed parent grant: %v", missing))
+		return
+	}
+	if len(caps) == 0 {
+		// Default: inherit the full parent capability set.
+		caps = append([]string(nil), parent.Caps...)
+	}
 
 	expiry := time.Duration(req.ExpiryMs) * time.Millisecond
-	if expiry == 0 {
-		expiry = 1 * time.Hour
+	if expiry <= 0 {
+		expiry = 10 * time.Minute
+	}
+	exp := time.Now().Add(expiry)
+	if !parent.ExpiresAt.IsZero() && exp.After(parent.ExpiresAt) {
+		exp = parent.ExpiresAt // never outlive the parent
+	}
+
+	// Clamp rate limits to the parent's (0 == inherit).
+	maxRate := req.MaxRate
+	if maxRate <= 0 || (parent.MaxRate > 0 && maxRate > parent.MaxRate) {
+		maxRate = parent.MaxRate
+	}
+	maxBurst := req.MaxBurst
+	if maxBurst <= 0 || (parent.MaxBurst > 0 && maxBurst > parent.MaxBurst) {
+		maxBurst = parent.MaxBurst
 	}
 
 	claims := &TokenClaims{
-		RunID:     req.RunID,
-		Caps:      caps,
-		MaxRate:   req.MaxRate,
-		MaxBurst:  req.MaxBurst,
-		ExpiresAt: time.Now().Add(expiry),
+		RunID:         parent.RunID, // inherited — cannot mint into another run
+		Caps:          caps,
+		MaxRate:       maxRate,
+		MaxBurst:      maxBurst,
+		ExpiresAt:     exp,
+		ParentTokenID: parent.RunID,
+		SubprocessID:  req.SubID,
 	}
 
 	token, err := g.tokenMgr.CreateToken(claims)

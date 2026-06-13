@@ -1,6 +1,6 @@
 module github.com/agezt/agezt
 
-go 1.26.3
+go 1.26.4
 
 require lukechampine.com/blake3 v1.4.1
 

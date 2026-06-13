@@ -47,6 +47,10 @@ Thumbs.db
 # Agezt runtime (per SPEC-16; never inside repo, but defensive)
 .agezt/
 
+# Isolated test runtime home (AGEZT_HOME for go tests) — holds scratch state +
+# a live control token; never commit. Mirrors the production .agezt/ above.
+.agezt_test/
+
 .dfmt/
 
 # secrets / local env — never commit (API keys, tokens)
@@ -54,6 +58,25 @@ Thumbs.db
 .env.*
 *.env
 creds.json
+# gateway HMAC signing secret (per-install, lives under the base dir; defensive)
+agentgw.secret
+# ad-hoc token/secret scratch files + local debug scripts (the gateway-auth
+# investigation left these untracked; keep them from ever being committed)
+*.token
+token.txt
+temp_token.txt
+/decode_jwt.py
+/verify_sig.py
+/test_token.py
+/test_hash.py
+/test_hash.go
+/debug_parse.py
+/check_len.py
+/test_gateway.py
+
+# binary backups (agezt.exe.bak, agt.exe.bak-*, …)
+*.bak
+*.bak-*
 
 # Local demo artifacts (Playwright screenshots, browser MCP)
 .playwright-mcp/

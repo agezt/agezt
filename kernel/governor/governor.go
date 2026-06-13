@@ -538,11 +538,18 @@ func (g *Governor) preflightAndRoute(req *agent.CompletionRequest) ([]*ProviderI
 	// ledger reaches the ceiling, further completions are refused — the
 	// per-day analogue of the profile's per-run cost cap.
 	if req.Agent != "" && req.AgentDailyCeilingMc > 0 {
+		// Read AND compare under the same lock so the decision reflects a
+		// consistent snapshot (no released-lock gap). Note: like the global and
+		// per-task caps this remains a pre-check — the actual charge lands after
+		// the completion returns, so requests already in flight for one agent can
+		// still collectively overshoot by the in-flight set. Hard per-request
+		// reservation would require up-front cost estimation (out of scope here).
 		g.mu.Lock()
 		g.rolloverIfNeededLocked()
 		agentSpent := g.spentByAgentToday[req.Agent]
+		exceeded := agentSpent >= req.AgentDailyCeilingMc
 		g.mu.Unlock()
-		if agentSpent >= req.AgentDailyCeilingMc {
+		if exceeded {
 			g.publish(event.Spec{
 				Subject:       "governor.budget",
 				Kind:          event.KindBudgetExceeded,

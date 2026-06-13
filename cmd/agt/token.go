@@ -7,10 +7,12 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"os"
 	"strings"
 	"time"
 
 	"github.com/agezt/agezt/internal/brand"
+	"github.com/agezt/agezt/internal/paths"
 	"github.com/agezt/agezt/kernel/agentgw"
 )
 
@@ -218,9 +220,22 @@ func parseDuration(s string) time.Duration {
 	return time.Duration(seconds) * time.Second
 }
 
-// getTokenSecret returns the token signing secret.
-// In production, this should come from a secure config source.
+// getTokenSecret returns the token signing secret shared with the daemon: the
+// per-install secret persisted under the AGEZT base dir (or
+// $AGEZT_AGENTGW_TOKEN_SECRET). Both the daemon and this CLI resolve the same
+// key, replacing the former hardcoded "change-me-in-production" constant.
 func getTokenSecret() []byte {
-	// Use the same default as kernel/agentgw for consistency
-	return []byte(agentgw.DefaultTokenSecret)
+	base, err := paths.BaseDir()
+	if err != nil {
+		// No base dir resolvable: fall back to the env override only.
+		if env := strings.TrimSpace(os.Getenv(agentgw.TokenSecretEnv)); env != "" {
+			return []byte(env)
+		}
+		return nil
+	}
+	secret, err := agentgw.ResolveTokenSecret(base)
+	if err != nil {
+		return nil
+	}
+	return secret
 }

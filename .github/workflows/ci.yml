@@ -22,36 +22,37 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# Least privilege: jobs only read the checkout. No job needs write scopes.
+permissions:
+  contents: read
+
 jobs:
   test:
     name: test (linux)
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, Linux, X64]
     env:
       CGO_ENABLED: '0'
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version: stable
-          check-latest: true
-      - run: go vet ./...
-      - run: go test ./...
-      - run: go build ./...
+      - uses: ./.github/actions/setup-go-safe
+      - run: bash scripts/ci-go-retry.sh go vet ./...
+      - run: bash scripts/ci-go-retry.sh go test ./...
+      - run: bash scripts/ci-go-retry.sh go build ./...
 
   race:
     # Race detector needs cgo, so it can't run in the default CGO_ENABLED=0
     # build matrix. We run it once on Linux with cgo enabled to surface
     # concurrent-code regressions in kernel/bus, kernel/journal, etc.
     name: race (linux, cgo)
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, Linux, X64]
     env:
       CGO_ENABLED: '1'
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version: stable
-      - run: go test -race ./...
+      - uses: ./.github/actions/setup-go-safe
+      - run: bash scripts/ci-go-retry.sh go test -race ./...
 
   e2e:
     # Runtime/E2E gate: boot the real daemon and smoke every core product surface
@@ -61,34 +62,32 @@ jobs:
     # tests miss (e.g. M550, where streaming dropped a non-streaming provider's
     # answer). See scripts/e2e-smoke.sh.
     name: e2e smoke (linux)
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, Linux, X64]
     env:
       CGO_ENABLED: '0'
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version: stable
+      - uses: ./.github/actions/setup-go-safe
       - name: Build binaries
         run: |
-          go build -o /tmp/agezt ./cmd/agezt
-          go build -o /tmp/agt ./cmd/agt
+          bash scripts/ci-go-retry.sh go build -o /tmp/agezt ./cmd/agezt
+          bash scripts/ci-go-retry.sh go build -o /tmp/agt ./cmd/agt
       - name: E2E smoke (real daemon, every core surface)
         run: bash scripts/e2e-smoke.sh /tmp/agezt /tmp/agt
 
   codegen-in-sync:
     name: codegen-in-sync
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, Linux, X64]
     env:
       CGO_ENABLED: '0'
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version: stable
+      - uses: ./.github/actions/setup-go-safe
       - name: Regenerate SDK types
         run: |
-          go run ./tools/jsonschemagen \
+          bash scripts/ci-go-retry.sh go run ./tools/jsonschemagen \
             -in  .project/agezt-contract.jsonc \
             -out contract/gen/types.gen.go \
             -pkg gen
@@ -102,6 +101,7 @@ jobs:
 
   frontend-dist-in-sync:
     name: frontend-dist-in-sync
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, Linux, X64]
     steps:
       - uses: actions/checkout@v4
@@ -125,6 +125,7 @@ jobs:
 
   frontend-test:
     name: frontend-test
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, Linux, X64]
     steps:
       - uses: actions/checkout@v4
@@ -141,14 +142,13 @@ jobs:
 
   webui-e2e:
     name: webui-e2e
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, Linux, X64]
     env:
       CGO_ENABLED: '0'
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version: stable
+      - uses: ./.github/actions/setup-go-safe
       - uses: actions/setup-node@v4
         with:
           node-version-file: frontend/.nvmrc
@@ -156,8 +156,8 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - name: Build binaries
         run: |
-          go build -o /tmp/agezt ./cmd/agezt
-          go build -o /tmp/agt ./cmd/agt
+          bash scripts/ci-go-retry.sh go build -o /tmp/agezt ./cmd/agezt
+          bash scripts/ci-go-retry.sh go build -o /tmp/agt ./cmd/agt
       # The SPA tested is the committed go:embed bundle in kernel/webui/dist —
       # no `npm run build` here; we drive what actually ships.
       - name: Install Web UI deps + Playwright browser
@@ -170,6 +170,7 @@ jobs:
 
   python-sdk:
     name: python-sdk
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, Linux, X64]
     steps:
       - uses: actions/checkout@v4
@@ -184,6 +185,7 @@ jobs:
 
   typescript-sdk:
     name: typescript-sdk
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, Linux, X64]
     steps:
       - uses: actions/checkout@v4
@@ -202,6 +204,7 @@ jobs:
 
   rust-sdk:
     name: rust-sdk
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, Linux, X64]
     steps:
       - uses: actions/checkout@v4
@@ -221,6 +224,7 @@ jobs:
 
   multi-arch:
     name: cross-build (${{ matrix.goos }}/${{ matrix.goarch }})
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, Linux, X64]
     env:
       CGO_ENABLED: '0'
@@ -236,12 +240,10 @@ jobs:
           - { goos: freebsd, goarch: amd64 }
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version: stable
+      - uses: ./.github/actions/setup-go-safe
       - name: Generate SDK types
         run: |
-          go run ./tools/jsonschemagen \
+          bash scripts/ci-go-retry.sh go run ./tools/jsonschemagen \
             -in  .project/agezt-contract.jsonc \
             -out contract/gen/types.gen.go \
             -pkg gen
@@ -249,33 +251,30 @@ jobs:
         env:
           GOOS:   ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
-        run: go build -trimpath -ldflags='-s -w' -o /tmp/out/ ./cmd/...
+        run: bash scripts/ci-go-retry.sh go build -trimpath -ldflags='-s -w' -o /tmp/out/ ./cmd/...
 
   deps-check:
     name: deps-check (allowlist, POLICY §1)
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, Linux, X64]
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version: stable
+      - uses: ./.github/actions/setup-go-safe
       - name: Verify every module is in tools/depscheck/allowlist.txt
-        run: go run ./tools/depscheck
+        run: bash scripts/ci-go-retry.sh go run ./tools/depscheck
 
   lint:
     # Static-analysis gates driven clean in M485/M487. gofmt + staticcheck are
     # zero-tolerance; govulncheck catches new advisories (the toolchain is the
     # latest stable, which carries the patched stdlib).
     name: lint (gofmt, staticcheck, govulncheck)
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, Linux, X64]
     env:
       CGO_ENABLED: '0'
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version: stable
-          check-latest: true
+      - uses: ./.github/actions/setup-go-safe
       - name: gofmt (no diff)
         run: |
           out="$(gofmt -l .)"
@@ -284,28 +283,61 @@ jobs:
             echo "$out"
             exit 1
           fi
-      - name: staticcheck
+      - name: staticcheck (prebuilt binary, retry — flaky WSL go compiler)
+        # We use the upstream PREBUILT staticcheck so we don't `go install` its
+        # large dep tree. But staticcheck still type-checks via go/packages,
+        # which execs the local `compile` tool — and that tool intermittently
+        # corrupts on the self-hosted WSL runners ("fork/exec compile: invalid
+        # argument", "src/log/internal/: invalid argument"). The corruption is
+        # transient, so retry the run a few times like govulncheck below.
         run: |
-          go install honnef.co/go/tools/cmd/staticcheck@latest
-          "$(go env GOPATH)/bin/staticcheck" ./...
-      - name: govulncheck
+          set -e
+          SC_TAG=$(curl -fsSL https://api.github.com/repos/dominikh/go-tools/releases/latest | grep -oP '"tag_name":\s*"\K[^"]+')
+          # go-tools release assets are version-LESS (e.g. staticcheck_linux_amd64.tar.gz);
+          # the old ${SC_VER}-in-filename URL 404s on 2026.1+.
+          curl -fsSL "https://github.com/dominikh/go-tools/releases/download/${SC_TAG}/staticcheck_linux_amd64.tar.gz" -o /tmp/sc.tgz
+          tar xzf /tmp/sc.tgz -C /tmp
+          echo "staticcheck ${SC_TAG} (prebuilt)"
+          set +e
+          n=0
+          while [ $n -lt 5 ]; do
+            /tmp/staticcheck/staticcheck ./... && exit 0
+            n=$((n+1))
+            echo "staticcheck attempt $n/5 failed (flaky Go compiler on self-hosted runners); retrying..."
+            sleep 3
+          done
+          echo "::error::staticcheck failed after 5 attempts"
+          exit 1
+      - name: "govulncheck (retry — flaky WSL go compiler)"
+        # govulncheck has no prebuilt binary, so we must `go install` it and
+        # that exercises the flaky compiler. Retry the install+run a few
+        # times — the corruption is intermittent, so a re-attempt usually
+        # succeeds.
         run: |
-          go install golang.org/x/vuln/cmd/govulncheck@latest
-          "$(go env GOPATH)/bin/govulncheck" ./...
+          set +e
+          n=0
+          while [ $n -lt 5 ]; do
+            go install golang.org/x/vuln/cmd/govulncheck@latest
+            "$(go env GOPATH)/bin/govulncheck" ./... && exit 0
+            n=$((n+1))
+            echo "govulncheck attempt $n/5 failed (flaky Go compiler on self-hosted runners); retrying..."
+            sleep 3
+          done
+          echo "::error::govulncheck failed after 5 attempts"
+          exit 1
 
   secrets:
     # Secret scan, baselined to zero in M486. The full git history is scanned
     # (fetch-depth: 0); .gitleaks.toml at the repo root keeps the default ruleset
     # and allowlists only the known secret-shaped test fixtures.
     name: secrets (gitleaks)
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, Linux, X64]
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: actions/setup-go@v5
-        with:
-          go-version: stable
+      - uses: ./.github/actions/setup-go-safe
       - name: gitleaks
         # Install from the module's canonical path. gitleaks moved GitHub orgs
         # (zricethezav → gitleaks) but its go.mod still declares the module as

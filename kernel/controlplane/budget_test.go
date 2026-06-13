@@ -185,20 +185,6 @@ func TestBudgetSet_RejectsMissingAndBadArgs(t *testing.T) {
 	}
 }
 
-// mcOf is a helper that accepts the float64 / int64 ambiguity of
-// JSON-decoded numbers. Mirrors the cmd/agt/budget.go helper.
-func mcOf(v any) int64 {
-	switch n := v.(type) {
-	case float64:
-		return int64(n)
-	case int64:
-		return n
-	case int:
-		return int64(n)
-	}
-	return 0
-}
-
 // Compile-time pin: agent.Provider is the surface startPair needs;
 // governor.Governor satisfies it. If that breaks, this test stops
 // compiling — a useful canary if the Governor interface drifts.

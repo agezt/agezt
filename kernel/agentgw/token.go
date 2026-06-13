@@ -21,9 +21,6 @@ var ErrInvalidToken = errors.New("agentgw: invalid token")
 // ErrTokenExpired is returned when the token has expired.
 var ErrTokenExpired = errors.New("agentgw: token expired")
 
-// DefaultTokenSecret is the default HMAC secret for signing tokens.
-const DefaultTokenSecret = "change-me-in-production"
-
 // TokenManager creates and validates JWT-like tokens for agent subprocess access.
 type TokenManager struct {
 	secret []byte
@@ -85,6 +82,24 @@ func (tm *TokenManager) ValidateToken(token string) (*TokenClaims, error) {
 		return nil, ErrInvalidToken
 	}
 
+	// Pin the algorithm + type before trusting the signature. We only ever
+	// issue HS256/JWT, so anything else (notably "none", or a future asymmetric
+	// alg) is rejected — closing the classic JWT alg-confusion hole.
+	headerJSON, err := base64.RawURLEncoding.DecodeString(parts[0])
+	if err != nil {
+		return nil, ErrInvalidToken
+	}
+	var hdr struct {
+		Alg string `json:"alg"`
+		Typ string `json:"typ"`
+	}
+	if err := json.Unmarshal(headerJSON, &hdr); err != nil {
+		return nil, ErrInvalidToken
+	}
+	if hdr.Alg != "HS256" || hdr.Typ != "JWT" {
+		return nil, ErrInvalidToken
+	}
+
 	// Verify signature
 	expectedSig := tm.sign(parts[0] + "." + parts[1])
 	actualSig, err := base64.RawURLEncoding.DecodeString(parts[2])
@@ -129,12 +144,23 @@ func (tm *TokenManager) CreateSubprocessToken(parent *TokenClaims, subID string,
 		expiry = 10 * time.Minute // default 10 minutes for subprocess
 	}
 
+	// Enforce capability subset: a child can never hold a capability the parent
+	// lacks. Drop any requested cap the parent doesn't have rather than granting
+	// an escalation.
+	granted := CapsIntersect(caps, parent.Caps)
+
+	// A subprocess token must never outlive its parent.
+	exp := time.Now().Add(expiry)
+	if !parent.ExpiresAt.IsZero() && exp.After(parent.ExpiresAt) {
+		exp = parent.ExpiresAt
+	}
+
 	claims := &TokenClaims{
 		RunID:         parent.RunID,
-		Caps:          caps,
+		Caps:          granted,
 		MaxRate:       parent.MaxRate,
 		MaxBurst:      parent.MaxBurst / 2, // subprocess gets half the burst
-		ExpiresAt:     time.Now().Add(expiry),
+		ExpiresAt:     exp,
 		ParentTokenID: parent.RunID, // TODO: store actual parent tid
 		SubprocessID:  subID,
 	}

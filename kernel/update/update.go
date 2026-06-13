@@ -27,17 +27,21 @@ package update
 
 import (
 	"context"
+	"crypto/ed25519"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/agezt/agezt/internal/brand"
@@ -57,14 +61,20 @@ type UpdateInfo struct {
 	SHA256  string // lowercase hex SHA256 of the binary archive
 	URL     string // direct download URL
 	Notes   string // release notes (optional)
+	// Signature is the hex Ed25519 signature over "<version>\n<sha256>",
+	// attesting the release under the trusted public key (UPD-001). Empty
+	// when the endpoint does not sign releases; Apply rejects an unsigned
+	// release when a public key is configured.
+	Signature string
 }
 
 // Manifest is the JSON shape returned by a custom update endpoint.
 type Manifest struct {
-	Version string `json:"version"`
-	SHA256  string `json:"sha256"`
-	URL     string `json:"url"`
-	Notes   string `json:"notes,omitempty"`
+	Version   string `json:"version"`
+	SHA256    string `json:"sha256"`
+	URL       string `json:"url"`
+	Notes     string `json:"notes,omitempty"`
+	Signature string `json:"signature,omitempty"` // hex Ed25519 over "<version>\n<sha256>"
 }
 
 // Config tunes the update mechanism.
@@ -125,6 +135,16 @@ func New(cfg Config) *Service {
 	if hc == nil {
 		hc = &http.Client{
 			Timeout: 30 * time.Second,
+			// Enforce TLS on EVERY redirect hop, not just the initial URL.
+			// net/http follows redirects automatically; without a CheckRedirect
+			// hook the manual requireHTTPS check in downloadBinary never runs
+			// (the returned resp is already the final 200), so an HTTPS→HTTP
+			// downgrade would be silently followed and the binary fetched over
+			// plaintext. This hook refuses any non-TLS hop (loopback exempt) for
+			// BOTH the manifest Check and the binary download (UPD-002).
+			CheckRedirect: func(req *http.Request, via []*http.Request) error {
+				return requireHTTPS(req.URL.String())
+			},
 			Transport: &http.Transport{
 				MaxIdleConns:        2,
 				IdleConnTimeout:     90 * time.Second,
@@ -209,6 +229,20 @@ func (s *Service) Apply(ctx context.Context, info *UpdateInfo, drainFunc func(co
 		return fmt.Errorf("update: validation failed: %w", err)
 	}
 
+	// 2b. Verify the release signature (UPD-001) — but only for the custom
+	// endpoint source, which is the surface the audit flagged: an endpoint
+	// must not be trusted to supply its own checksum, or a MITM / compromised
+	// endpoint serves a malicious binary with a matching self-supplied hash.
+	// GitHub-source updates rely on GitHub Releases' own TLS + asset integrity
+	// (and are not signed in this scheme), so they are exempt. No-op (SHA-only
+	// mode) until a key is configured via SetPublicKey / DefaultPublicKeyHex.
+	if s.cfg.Source == SourceEndpoint {
+		if err := s.verifySignature(info); err != nil {
+			os.Remove(stagingPath)
+			return fmt.Errorf("update: signature verification failed: %w", err)
+		}
+	}
+
 	// 3. Drain (if configured).
 	var drainResult DrainResult
 	if s.cfg.DrainTimeout > 0 {
@@ -261,6 +295,105 @@ type ErrChecksumMismatch struct {
 
 func (e *ErrChecksumMismatch) Error() string {
 	return fmt.Sprintf("update: SHA256 mismatch (have=%s, want=%s)", e.Have[:8], e.Want[:8])
+}
+
+// ErrSignatureMissing is returned when a public key is configured but the
+// manifest carries no signature.
+var ErrSignatureMissing = errors.New("update: release is not signed but a public key is configured")
+
+// ErrSignatureInvalid is returned when the manifest's signature does not verify
+// under the configured public key (wrong key, tampered version/hash, or a
+// malformed signature).
+type ErrSignatureInvalid struct{ Reason string }
+
+func (e *ErrSignatureInvalid) Error() string {
+	return "update: release signature is invalid: " + e.Reason
+}
+
+// DefaultPublicKeyHex is the Ed25519 public key (lowercase hex, 64 chars) the
+// daemon trusts for release signatures. Inject it at build time, e.g.:
+//
+//	go build -ldflags '-X github.com/agezt/agezt/kernel/update.DefaultPublicKeyHex=<hex>'
+//
+// Empty (the default) leaves updates in SHA256-only mode — backward compatible,
+// but a configured endpoint can still supply a matching {binary, hash} pair
+// (UPD-001). Embed a key the moment releases are signed.
+var DefaultPublicKeyHex = ""
+
+// Trusted release-signing key, overridable at runtime via SetPublicKey (e.g.
+// from an env var). Protected by pubKeyMu.
+var (
+	pubKeyMu     sync.RWMutex
+	updatePubKey ed25519.PublicKey
+)
+
+// SetPublicKey configures the trusted release-signing key at runtime. Pass an
+// empty string to clear it. Returns an error if the hex does not decode to a
+// 32-byte Ed25519 public key.
+func SetPublicKey(hexKey string) error {
+	pubKeyMu.Lock()
+	defer pubKeyMu.Unlock()
+	if strings.TrimSpace(hexKey) == "" {
+		updatePubKey = nil
+		return nil
+	}
+	raw, err := hex.DecodeString(strings.TrimSpace(hexKey))
+	if err != nil {
+		return fmt.Errorf("update: bad public key hex: %w", err)
+	}
+	if len(raw) != ed25519.PublicKeySize {
+		return fmt.Errorf("update: public key is %d bytes, want %d", len(raw), ed25519.PublicKeySize)
+	}
+	updatePubKey = ed25519.PublicKey(raw)
+	return nil
+}
+
+// resolvePublicKey returns the trusted key: the runtime-configured key if set,
+// otherwise the build-time DefaultPublicKeyHex, otherwise nil (SHA-only mode).
+func resolvePublicKey() ed25519.PublicKey {
+	pubKeyMu.RLock()
+	k := updatePubKey
+	pubKeyMu.RUnlock()
+	if len(k) == ed25519.PublicKeySize {
+		return k
+	}
+	if h := strings.TrimSpace(DefaultPublicKeyHex); h != "" {
+		if raw, err := hex.DecodeString(h); err == nil && len(raw) == ed25519.PublicKeySize {
+			return ed25519.PublicKey(raw)
+		}
+	}
+	return nil
+}
+
+// signedMessage is the canonical bytes a release signature covers: the version
+// and the binary SHA256, newline-separated. Both are integrity-critical (the
+// URL is transport, gated separately by requireHTTPS; notes are cosmetic).
+func signedMessage(version, sumHex string) []byte {
+	return []byte(version + "\n" + sumHex)
+}
+
+// verifySignature enforces the release signature when a public key is
+// configured. With no key configured it returns nil (SHA256-only mode) so the
+// mechanism is opt-in and never breaks an unsigned deployment.
+func (s *Service) verifySignature(info *UpdateInfo) error {
+	pub := resolvePublicKey()
+	if pub == nil {
+		// No trusted key: SHA256-only mode. This is backward compatible but is
+		// NOT full integrity — UPD-001 stays open until a key is embedded.
+		return nil
+	}
+	sig := strings.TrimSpace(info.Signature)
+	if sig == "" {
+		return ErrSignatureMissing
+	}
+	sigBytes, err := hex.DecodeString(sig)
+	if err != nil {
+		return &ErrSignatureInvalid{Reason: "signature is not valid hex: " + err.Error()}
+	}
+	if !ed25519.Verify(pub, signedMessage(info.Version, info.SHA256), sigBytes) {
+		return &ErrSignatureInvalid{Reason: "signature does not match version/sha256 under the trusted key"}
+	}
+	return nil
 }
 
 // checkGitHub fetches the latest release from GitHub Releases.
@@ -376,16 +509,40 @@ func (s *Service) checkEndpoint(ctx context.Context) (*CheckResult, error) {
 	return &CheckResult{
 		Current: CurrentVersion,
 		Update: &UpdateInfo{
-			Version: m.Version,
-			SHA256:  m.SHA256,
-			URL:     m.URL,
-			Notes:   m.Notes,
+			Version:   m.Version,
+			SHA256:    m.SHA256,
+			URL:       m.URL,
+			Notes:     m.Notes,
+			Signature: m.Signature,
 		},
 	}, nil
 }
 
+// requireHTTPS rejects a non-HTTPS update URL. The update payload and (for the
+// custom endpoint) the SHA it is checked against must travel over TLS, or a
+// network MITM could swap the binary or its checksum. Loopback over http is
+// exempt so local test harnesses (httptest) and dev mirrors still work.
+func requireHTTPS(raw string) error {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return fmt.Errorf("update: bad URL %q: %w", raw, err)
+	}
+	switch u.Scheme {
+	case "https":
+		return nil
+	case "http":
+		if host := u.Hostname(); host == "localhost" || net.ParseIP(host).IsLoopback() {
+			return nil
+		}
+	}
+	return fmt.Errorf("update: refusing non-HTTPS update URL %q (scheme %q)", raw, u.Scheme)
+}
+
 // downloadBinary fetches the binary from url and writes it to dest.
 func (s *Service) downloadBinary(ctx context.Context, url, dest string) error {
+	if err := requireHTTPS(url); err != nil {
+		return err
+	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return err
@@ -408,6 +565,11 @@ func (s *Service) downloadBinary(ctx context.Context, url, dest string) error {
 		req.URL, err = req.URL.Parse(redirectURL)
 		if err != nil {
 			return fmt.Errorf("update: redirect URL parse failed: %w", err)
+		}
+		// Refuse an HTTPS→HTTP downgrade on redirect — the resolved absolute URL
+		// (after resolving a relative Location) must still be TLS.
+		if err := requireHTTPS(req.URL.String()); err != nil {
+			return err
 		}
 		resp.Body.Close()
 		resp, err = s.httpClient.Do(req)

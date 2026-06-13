@@ -49,6 +49,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"maps"
 	"net/http"
@@ -149,8 +150,10 @@ func runCredentialProcess(commandLine string) map[string]string {
 	if strings.TrimSpace(os.Getenv(EnvCredentialProcessAllowed)) != "1" {
 		return nil
 	}
-	parts := splitCommandLine(commandLine)
-	if len(parts) == 0 {
+	parts, err := splitCommandLine(commandLine)
+	if err != nil || len(parts) == 0 {
+		// Mis-split (e.g. an unterminated quote) must NOT run a half-parsed
+		// argv — fall through silently like any other cred-source failure.
 		return nil
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), credentialProcessTimeout)
@@ -183,13 +186,16 @@ func runCredentialProcess(commandLine string) map[string]string {
 }
 
 // splitCommandLine is a minimal shell-style tokeniser supporting
-// `"double-quoted"` and `'single-quoted'` spans. Backslash
-// escapes inside quotes are NOT supported — operators with paths
-// containing both kinds of quotes should put the command in a
-// wrapper script.
-func splitCommandLine(s string) []string {
+// `"double-quoted"` and `'single-quoted'` spans. Backslashes are kept LITERAL
+// (not treated as escapes) so Windows paths like C:\Tools\creds.exe tokenise
+// correctly; operators needing a literal quote inside an argument should wrap
+// the command in a script. An unterminated quote is reported as an error so the
+// caller refuses to exec a mis-split argv rather than silently swallowing the
+// rest of the line into one token.
+func splitCommandLine(s string) ([]string, error) {
 	var out []string
 	var cur strings.Builder
+	started := false // distinguishes an empty quoted arg ("") from no arg
 	inQuote := rune(0)
 	for _, r := range s {
 		switch {
@@ -199,19 +205,25 @@ func splitCommandLine(s string) []string {
 			cur.WriteRune(r)
 		case r == '"' || r == '\'':
 			inQuote = r
+			started = true
 		case r == ' ' || r == '\t':
-			if cur.Len() > 0 {
+			if started {
 				out = append(out, cur.String())
 				cur.Reset()
+				started = false
 			}
 		default:
 			cur.WriteRune(r)
+			started = true
 		}
 	}
-	if cur.Len() > 0 {
+	if inQuote != 0 {
+		return nil, fmt.Errorf("creds: unterminated %c-quote in credential_process command", inQuote)
+	}
+	if started {
 		out = append(out, cur.String())
 	}
-	return out
+	return out, nil
 }
 
 func loadAWSSharedFiles(profile string) map[string]string {

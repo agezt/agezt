@@ -119,9 +119,43 @@ func ParseCapability(s string) (AgentCapability, error) {
 		return CapConfigList, nil
 	case CapConfigSearch:
 		return CapConfigSearch, nil
+	case CapConfigWrite:
+		return CapConfigWrite, nil
 	default:
 		return "", fmt.Errorf("agentgw: unknown capability %q", s)
 	}
+}
+
+// CapsSubset returns the capabilities in child that are NOT present in parent.
+// An empty result means child is a subset of parent (no escalation).
+func CapsSubset(child, parent []string) []string {
+	have := make(map[string]bool, len(parent))
+	for _, c := range parent {
+		have[strings.ToLower(strings.TrimSpace(c))] = true
+	}
+	var missing []string
+	for _, c := range child {
+		if !have[strings.ToLower(strings.TrimSpace(c))] {
+			missing = append(missing, c)
+		}
+	}
+	return missing
+}
+
+// CapsIntersect returns the capabilities present in BOTH want and parent,
+// preserving want's order and dropping anything the parent does not grant.
+func CapsIntersect(want, parent []string) []string {
+	have := make(map[string]bool, len(parent))
+	for _, c := range parent {
+		have[strings.ToLower(strings.TrimSpace(c))] = true
+	}
+	out := make([]string, 0, len(want))
+	for _, c := range want {
+		if have[strings.ToLower(strings.TrimSpace(c))] {
+			out = append(out, c)
+		}
+	}
+	return out
 }
 
 // NormalizeCaps normalizes and validates a list of capability strings.

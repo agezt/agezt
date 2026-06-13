@@ -48,7 +48,9 @@ func (g *Gateway) handleEventbusSubscribe(w http.ResponseWriter, r *http.Request
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
+	// No CORS header: this SSE stream is consumed by agent subprocesses over a
+	// local socket, never a cross-origin browser. A wildcard ACAO would let any
+	// web page read the event bus if the gateway is ever TCP-exposed.
 
 	// Flush headers
 	if flusher, ok := w.(http.Flusher); ok {
@@ -100,7 +102,7 @@ func (g *Gateway) handleEventbusPublish(w http.ResponseWriter, r *http.Request) 
 		Tags    map[string]string      `json:"tags,omitempty"`
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxBodyBytes)).Decode(&req); err != nil {
 		responseError(w, http.StatusBadRequest, "INVALID_REQUEST", err.Error())
 		return
 	}
@@ -141,7 +143,7 @@ func (g *Gateway) handleMemoryWrite(w http.ResponseWriter, r *http.Request) {
 		Tags    map[string]string `json:"tags,omitempty"`
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxBodyBytes)).Decode(&req); err != nil {
 		responseError(w, http.StatusBadRequest, "INVALID_REQUEST", err.Error())
 		return
 	}
@@ -290,7 +292,7 @@ func (g *Gateway) handleLogWrite(w http.ResponseWriter, r *http.Request) {
 		Meta    map[string]interface{} `json:"meta,omitempty"`
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxBodyBytes)).Decode(&req); err != nil {
 		responseError(w, http.StatusBadRequest, "INVALID_REQUEST", err.Error())
 		return
 	}

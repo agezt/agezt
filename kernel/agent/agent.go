@@ -331,11 +331,11 @@ type LoopConfig struct {
 // This provides a cleaner API for accessing related limits.
 func (lc LoopConfig) IterationConfig() IterationConfig {
 	return IterationConfig{
-		MaxIter:              lc.MaxIter,
-		MaxAutoContinue:     lc.MaxAutoContinue,
-		AutoContinueWait:    lc.AutoContinueWait,
-		ToolTimeout:         lc.ToolTimeout,
-		MaxParallelTools:     lc.MaxParallelTools,
+		MaxIter:               lc.MaxIter,
+		MaxAutoContinue:       lc.MaxAutoContinue,
+		AutoContinueWait:      lc.AutoContinueWait,
+		ToolTimeout:           lc.ToolTimeout,
+		MaxParallelTools:      lc.MaxParallelTools,
 		MaxIdenticalToolCalls: lc.MaxIdenticalToolCalls,
 	}
 }
@@ -366,24 +366,24 @@ func (lc LoopConfig) AgentIdentity() AgentIdentity {
 func (lc LoopConfig) BudgetConfig() BudgetConfig {
 	return BudgetConfig{
 		MaxRunCostMicrocents: lc.MaxRunCostMicrocents,
-		CostFn:              lc.CostFn,
+		CostFn:               lc.CostFn,
 	}
 }
 
 // ContextConfig returns the context management fields as a grouped config.
 func (lc LoopConfig) ContextConfig() ContextConfig {
 	return ContextConfig{
-		ContextBudget:        lc.ContextBudget,
-		ContextProtectLast:   lc.ContextProtectLast,
-		ContextProtectFirst:  lc.ContextProtectFirst,
-		SummarizeElided:      lc.SummarizeElided,
+		ContextBudget:       lc.ContextBudget,
+		ContextProtectLast:  lc.ContextProtectLast,
+		ContextProtectFirst: lc.ContextProtectFirst,
+		SummarizeElided:     lc.SummarizeElided,
 	}
 }
 
 // ArtifactConfig returns the artifact offload fields as a grouped config.
 func (lc LoopConfig) ArtifactConfig() ArtifactConfig {
 	return ArtifactConfig{
-		Artifacts:        lc.Artifacts,
+		Artifacts:         lc.Artifacts,
 		ArtifactThreshold: lc.ArtifactThreshold,
 	}
 }
