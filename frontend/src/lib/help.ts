@@ -2152,6 +2152,33 @@ export const HELP: Record<string, HelpTopic> = {
       { id: "schedules", label: "Schedules" },
     ],
   },
+
+  wizards: {
+    title: "Wizards",
+    intro:
+      "Guided, step-by-step flows that complete a whole task in a focused overlay — so you don't have to hunt through menus. Each wizard reuses the same forms and endpoints the dedicated views do; it just sequences them for you.",
+    sections: [
+      {
+        heading: "Available flows",
+        items: [
+          { term: "Connect a provider", desc: "Sync the catalog, add an API key, and pick a default model — the first-run Setup flow, reachable any time." },
+          { term: "Create an agent", desc: "Give a new roster agent its soul, model, and daily budget, then run it by name." },
+          { term: "Schedule a task", desc: "Have the daemon run an instruction on a cadence — every N minutes, daily, or once." },
+        ],
+      },
+      {
+        heading: "How it works",
+        paragraphs: [
+          "Pick a card to open the wizard as a focused overlay; finish or close to return. Nothing here is new daemon behaviour — wizards are a launcher over the existing actions, so more will be added over time.",
+        ],
+      },
+    ],
+    related: [
+      { id: "setup", label: "Setup" },
+      { id: "roster", label: "Roster" },
+      { id: "schedules", label: "Schedules" },
+    ],
+  },
 };
 
 /** Fallback topic for a view id with no entry (should be caught by tests). */
