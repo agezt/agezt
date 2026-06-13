@@ -64,6 +64,7 @@ import { AlertBell } from "@/components/AlertBell";
 import { ApprovalsBell } from "@/components/ApprovalsBell";
 import { NotifyToggle } from "@/components/NotifyToggle";
 import { Vitals } from "@/components/Vitals";
+import { FleetNowBar } from "@/components/FleetNowBar";
 import { useUI, type ConfirmOptions } from "@/components/ui/feedback";
 
 type ConfirmRequest = ConfirmOptions;
@@ -578,6 +579,7 @@ export default function App() {
         onOpenHelp={() => setHelpOpen(true)}
       />
       <Vitals onNavigate={setActive} />
+      <FleetNowBar onNavigate={setActive} />
       <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
         {/* Nav: horizontal scroll on small screens, grouped sidebar on lg+. */}
         <nav className="flex shrink-0 gap-1 overflow-x-auto border-b border-border p-2 lg:w-56 lg:flex-col lg:gap-0.5 lg:overflow-y-auto lg:border-b-0 lg:border-r">

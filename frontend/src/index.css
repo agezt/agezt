@@ -229,6 +229,37 @@ body {
   animation: skeleton-shimmer 1.4s ease-in-out infinite;
 }
 
+/* Fleet "now playing" strip (M945): a running agent chip breathes — a soft
+   accent halo swelling and fading — so the live fleet reads as alive, not a
+   static row. Tuned low so a busy fleet doesn't strobe. */
+@keyframes breathe {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in oklch, var(--accent) 38%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 4px color-mix(in oklch, var(--accent) 6%, transparent);
+  }
+}
+.breathe {
+  animation: breathe 2.4s ease-in-out infinite;
+}
+
+/* Each new live item (a fresh run, the latest event) eases up into the strip. */
+@keyframes now-in {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.now-in {
+  animation: now-in 0.26s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
 /* Honor the OS "reduce motion" setting — no decorative animation for users who
    ask for less. */
 @media (prefers-reduced-motion: reduce) {
@@ -239,7 +270,9 @@ body {
   .modal-overlay,
   .modal-in,
   .help-drawer-in,
-  .skeleton {
+  .skeleton,
+  .breathe,
+  .now-in {
     animation: none;
   }
 }
