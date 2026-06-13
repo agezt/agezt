@@ -15,12 +15,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"strings"
 
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/workflow"
+
+	"github.com/agezt/agezt/internal/apperrors"
 )
 
 // workflowDraftSystem is the copilot's contract: the node library, the
@@ -80,14 +81,14 @@ func (k *Kernel) RefineWorkflow(ctx context.Context, corr string, base workflow.
 		return workflow.Workflow{}, errors.New("workflow refine: an instruction is required")
 	}
 	if err := workflow.Validate(base); err != nil {
-		return workflow.Workflow{}, fmt.Errorf("workflow refine: base graph: %w", err)
+		return workflow.Workflow{}, apperrors.WrapSimple("workflow refine: base graph", err)
 	}
 	baseJSON, err := json.Marshal(map[string]any{
 		"name": base.Name, "description": base.Description,
 		"nodes": base.Nodes, "edges": base.Edges,
 	})
 	if err != nil {
-		return workflow.Workflow{}, fmt.Errorf("workflow refine: %w", err)
+		return workflow.Workflow{}, apperrors.WrapSimple("workflow refine", err)
 	}
 	basePrompt := "Here is an existing workflow:\n\n" + string(baseJSON) +
 		"\n\nRevise it per this request (return the COMPLETE revised workflow, keeping unrelated nodes, ids, and positions unchanged):\n\n" + instruction
@@ -112,7 +113,7 @@ func (k *Kernel) draftLoop(ctx context.Context, corr, basePrompt, name, mode str
 			Messages: []agent.Message{{Role: agent.RoleUser, Content: prompt}},
 		})
 		if err != nil {
-			return workflow.Workflow{}, fmt.Errorf("workflow %s: %w", mode, err)
+			return workflow.Workflow{}, apperrors.WrapSimplef("workflow %s: %%w", err, mode)
 		}
 		w, err := parseWorkflowDraft(resp.Message.Content, name)
 		if err == nil {
@@ -134,7 +135,7 @@ func (k *Kernel) draftLoop(ctx context.Context, corr, basePrompt, name, mode str
 			"\n\nPrevious answer:\n" + resp.Message.Content +
 			"\n\nReturn a corrected JSON object."
 	}
-	return workflow.Workflow{}, fmt.Errorf("workflow %s: %w", mode, lastErr)
+	return workflow.Workflow{}, apperrors.WrapSimplef("workflow %s: %%w", lastErr, mode)
 }
 
 // parseWorkflowDraft extracts the JSON object from a model answer, decodes
@@ -147,7 +148,7 @@ func parseWorkflowDraft(answer, nameOverride string) (workflow.Workflow, error) 
 	var w workflow.Workflow
 	dec := json.NewDecoder(strings.NewReader(raw))
 	if err := dec.Decode(&w); err != nil {
-		return workflow.Workflow{}, fmt.Errorf("decode workflow JSON: %w", err)
+		return workflow.Workflow{}, apperrors.WrapSimple("decode workflow JSON", err)
 	}
 	if strings.TrimSpace(nameOverride) != "" {
 		w.Name = strings.TrimSpace(nameOverride)

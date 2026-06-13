@@ -22,6 +22,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/agezt/agezt/internal/apperrors"
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/event"
 )
@@ -324,6 +325,117 @@ type LoopConfig struct {
 	// overhead. Implementations must be safe for concurrent use: the operator
 	// drives them from another goroutine while the loop runs.
 	Steer Steerer
+}
+
+// IterationConfig returns the iteration-related fields as a grouped config.
+// This provides a cleaner API for accessing related limits.
+func (lc LoopConfig) IterationConfig() IterationConfig {
+	return IterationConfig{
+		MaxIter:              lc.MaxIter,
+		MaxAutoContinue:     lc.MaxAutoContinue,
+		AutoContinueWait:    lc.AutoContinueWait,
+		ToolTimeout:         lc.ToolTimeout,
+		MaxParallelTools:     lc.MaxParallelTools,
+		MaxIdenticalToolCalls: lc.MaxIdenticalToolCalls,
+	}
+}
+
+// ModelConfig returns the model-related fields as a grouped config.
+func (lc LoopConfig) ModelConfig() ModelConfig {
+	return ModelConfig{
+		Model:      lc.Model,
+		System:     lc.System,
+		TaskType:   lc.TaskType,
+		ModelChain: lc.ModelChain,
+		MaxTokens:  lc.MaxTokens,
+		JSONMode:   lc.JSONMode,
+	}
+}
+
+// AgentIdentity returns the identity fields as a grouped config.
+func (lc LoopConfig) AgentIdentity() AgentIdentity {
+	return AgentIdentity{
+		Agent:               lc.Agent,
+		AgentDailyCeilingMc: lc.AgentDailyCeilingMc,
+		Actor:               lc.Actor,
+		CorrelationID:       lc.CorrelationID,
+	}
+}
+
+// BudgetConfig returns the cost/budget fields as a grouped config.
+func (lc LoopConfig) BudgetConfig() BudgetConfig {
+	return BudgetConfig{
+		MaxRunCostMicrocents: lc.MaxRunCostMicrocents,
+		CostFn:              lc.CostFn,
+	}
+}
+
+// ContextConfig returns the context management fields as a grouped config.
+func (lc LoopConfig) ContextConfig() ContextConfig {
+	return ContextConfig{
+		ContextBudget:        lc.ContextBudget,
+		ContextProtectLast:   lc.ContextProtectLast,
+		ContextProtectFirst:  lc.ContextProtectFirst,
+		SummarizeElided:      lc.SummarizeElided,
+	}
+}
+
+// ArtifactConfig returns the artifact offload fields as a grouped config.
+func (lc LoopConfig) ArtifactConfig() ArtifactConfig {
+	return ArtifactConfig{
+		Artifacts:        lc.Artifacts,
+		ArtifactThreshold: lc.ArtifactThreshold,
+	}
+}
+
+// WithIterationConfig applies an IterationConfig to this LoopConfig,
+// returning a new LoopConfig with those fields updated.
+func (lc LoopConfig) WithIterationConfig(ic IterationConfig) LoopConfig {
+	lc.MaxIter = ic.MaxIter
+	lc.MaxAutoContinue = ic.MaxAutoContinue
+	lc.AutoContinueWait = ic.AutoContinueWait
+	lc.ToolTimeout = ic.ToolTimeout
+	lc.MaxParallelTools = ic.MaxParallelTools
+	lc.MaxIdenticalToolCalls = ic.MaxIdenticalToolCalls
+	return lc
+}
+
+// WithModelConfig applies a ModelConfig to this LoopConfig,
+// returning a new LoopConfig with those fields updated.
+func (lc LoopConfig) WithModelConfig(mc ModelConfig) LoopConfig {
+	lc.Model = mc.Model
+	lc.System = mc.System
+	lc.TaskType = mc.TaskType
+	lc.ModelChain = mc.ModelChain
+	lc.MaxTokens = mc.MaxTokens
+	lc.JSONMode = mc.JSONMode
+	return lc
+}
+
+// WithBudgetConfig applies a BudgetConfig to this LoopConfig,
+// returning a new LoopConfig with those fields updated.
+func (lc LoopConfig) WithBudgetConfig(bc BudgetConfig) LoopConfig {
+	lc.MaxRunCostMicrocents = bc.MaxRunCostMicrocents
+	lc.CostFn = bc.CostFn
+	return lc
+}
+
+// WithContextConfig applies a ContextConfig to this LoopConfig,
+// returning a new LoopConfig with those fields updated.
+func (lc LoopConfig) WithContextConfig(cc ContextConfig) LoopConfig {
+	lc.ContextBudget = cc.ContextBudget
+	lc.ContextProtectLast = cc.ContextProtectLast
+	lc.ContextProtectFirst = cc.ContextProtectFirst
+	lc.SummarizeElided = cc.SummarizeElided
+	return lc
+}
+
+// WithArtifactConfig applies an ArtifactConfig to this LoopConfig,
+// returning a new LoopConfig with those fields updated.
+func (lc LoopConfig) WithArtifactConfig(ac ArtifactConfig) LoopConfig {
+	lc.Artifacts = ac.Artifacts
+	lc.ArtifactThreshold = ac.ArtifactThreshold
+	return lc
 }
 
 // Steerer is the optional per-run control surface the loop consults at the top
@@ -715,7 +827,7 @@ func Run(ctx context.Context, cfg LoopConfig, userIntent string) (answer string,
 		received["agent"] = cfg.Agent
 	}
 	if _, err := publish(event.KindTaskReceived, "task", received); err != nil {
-		return "", fmt.Errorf("agent: publish task.received: %w", err)
+		return "", apperrors.Wrap(ctx, "agent: publish task.received", err)
 	}
 
 	// From here the run has started: any error return is a run that began
@@ -822,7 +934,7 @@ func Run(ctx context.Context, cfg LoopConfig, userIntent string) (answer string,
 				"of":           cfg.MaxAutoContinue,
 				"iters_so_far": iter,
 			}); err != nil {
-				return "", fmt.Errorf("agent: publish task.continued: %w", err)
+				return "", apperrors.Wrap(ctx, "agent: publish task.continued", err)
 			}
 			// Breather before pressing on (ctx-aware so a halt during the wait
 			// ends the run immediately rather than after the sleep).
@@ -858,7 +970,7 @@ func Run(ctx context.Context, cfg LoopConfig, userIntent string) (answer string,
 					"iter":      iter,
 					"directive": d,
 				}); err != nil {
-					return "", fmt.Errorf("agent: publish run.steered: %w", err)
+					return "", apperrors.Wrap(ctx, "agent: publish run.steered", err)
 				}
 			}
 		}
@@ -880,7 +992,7 @@ func Run(ctx context.Context, cfg LoopConfig, userIntent string) (answer string,
 					"context_chars_after":  after,
 					"budget":               cfg.ContextBudget,
 				}); err != nil {
-					return "", fmt.Errorf("agent: publish context.compacted: %w", err)
+					return "", apperrors.Wrap(ctx, "agent: publish context.compacted", err)
 				}
 			}
 		}
@@ -914,7 +1026,7 @@ func Run(ctx context.Context, cfg LoopConfig, userIntent string) (answer string,
 			"context_chars":   ctxChars,
 			"context_by_role": ctxByRole,
 		}); err != nil {
-			return "", fmt.Errorf("agent: publish llm.request: %w", err)
+			return "", apperrors.Wrap(ctx, "agent: publish llm.request", err)
 		}
 
 		req := CompletionRequest{
@@ -974,13 +1086,13 @@ func Run(ctx context.Context, cfg LoopConfig, userIntent string) (answer string,
 				return nil
 			})
 			if err != nil {
-				return "", fmt.Errorf("agent: provider %s (stream): %w", cfg.Provider.Name(), err)
+				return "", apperrors.Wrapf(ctx, "agent: provider %s (stream): %w", err, cfg.Provider.Name())
 			}
 			resp = r
 		} else {
 			r, err := cfg.Provider.Complete(ctx, req)
 			if err != nil {
-				return "", fmt.Errorf("agent: provider %s: %w", cfg.Provider.Name(), err)
+				return "", apperrors.Wrapf(ctx, "agent: provider %s: %w", err, cfg.Provider.Name())
 			}
 			resp = r
 			// A non-streaming provider returns the reasoning whole, with no deltas
@@ -1020,7 +1132,7 @@ func Run(ctx context.Context, cfg LoopConfig, userIntent string) (answer string,
 			"reasoning_chars": len(resp.ReasoningContent), // M317: reasoning size (content streamed separately)
 			"tool_calls":      len(resp.Message.ToolCalls),
 		}); err != nil {
-			return "", fmt.Errorf("agent: publish llm.response: %w", err)
+			return "", apperrors.Wrap(ctx, "agent: publish llm.response", err)
 		}
 
 		// Per-run cost cap (M166): add this call's spend and stop if the run has
@@ -1055,7 +1167,7 @@ func Run(ctx context.Context, cfg LoopConfig, userIntent string) (answer string,
 				"stopped": resp.StopReason,
 				"answer":  truncateForJournal(resp.Message.Content),
 			}); err != nil {
-				return "", fmt.Errorf("agent: publish task.completed: %w", err)
+				return "", apperrors.Wrap(ctx, "agent: publish task.completed", err)
 			}
 			return resp.Message.Content, nil
 		}
@@ -1120,7 +1232,7 @@ func Run(ctx context.Context, cfg LoopConfig, userIntent string) (answer string,
 				"would_ask":   verdict.WouldAsk,
 				"hard_denied": verdict.HardDenied,
 			}); err != nil {
-				return "", fmt.Errorf("agent: publish policy.decision: %w", err)
+				return "", apperrors.Wrap(ctx, "agent: publish policy.decision", err)
 			}
 
 			if !verdict.Allow {
@@ -1142,7 +1254,7 @@ func Run(ctx context.Context, cfg LoopConfig, userIntent string) (answer string,
 				"call_id": tc.ID,
 				"input":   tc.Input,
 			}); err != nil {
-				return "", fmt.Errorf("agent: publish tool.invoked: %w", err)
+				return "", apperrors.Wrap(ctx, "agent: publish tool.invoked", err)
 			}
 			tool, ok := cfg.Tools[tc.Name]
 			if !ok {
@@ -1259,7 +1371,7 @@ func Run(ctx context.Context, cfg LoopConfig, userIntent string) (answer string,
 				resultPayload["output_bytes"] = fullBytes
 			}
 			if _, err := publish(event.KindToolResult, "tool", resultPayload); err != nil {
-				return "", fmt.Errorf("agent: publish tool.result: %w", err)
+				return "", apperrors.Wrap(ctx, "agent: publish tool.result", err)
 			}
 
 			messages = append(messages, Message{

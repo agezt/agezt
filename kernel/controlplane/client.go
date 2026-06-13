@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/agezt/agezt/internal/apperrors"
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/event"
 )
@@ -34,7 +35,7 @@ func NewClient(baseDir string) (*Client, error) {
 		if os.IsNotExist(err) {
 			return nil, fmt.Errorf("controlplane: daemon not running (no %s)", addrPath)
 		}
-		return nil, fmt.Errorf("controlplane: read addr: %w", err)
+		return nil, apperrors.WrapSimple("controlplane: read addr", err)
 	}
 	// Token resolution: AGEZT_TOKEN overrides the on-disk primary token, so a
 	// tenant operator can present their tenant token (M38) — `AGEZT_TOKEN=<tok>
@@ -46,7 +47,7 @@ func NewClient(baseDir string) (*Client, error) {
 	if token == "" {
 		tokenBytes, rerr := os.ReadFile(tokenPath)
 		if rerr != nil {
-			return nil, fmt.Errorf("controlplane: read token: %w", rerr)
+			return nil, apperrors.WrapSimple("controlplane: read token", rerr)
 		}
 		token = strings.TrimSpace(string(tokenBytes))
 	}
@@ -130,7 +131,7 @@ func (c *Client) CallRaw(ctx context.Context, cmd string, args map[string]any) (
 	reader := bufio.NewReader(conn)
 	line, err := reader.ReadBytes('\n')
 	if err != nil {
-		return nil, fmt.Errorf("controlplane: read: %w", err)
+		return nil, apperrors.Wrap(ctx, "controlplane: read", err)
 	}
 	var resp struct {
 		Type   string          `json:"type"`
@@ -138,7 +139,7 @@ func (c *Client) CallRaw(ctx context.Context, cmd string, args map[string]any) (
 		Error  string          `json:"error"`
 	}
 	if err := json.Unmarshal(line, &resp); err != nil {
-		return nil, fmt.Errorf("controlplane: parse response: %w", err)
+		return nil, apperrors.Wrap(ctx, "controlplane: parse response", err)
 	}
 	if resp.Type == RespError {
 		return nil, &ErrServerError{Msg: resp.Error}
@@ -165,11 +166,11 @@ func (c *Client) Stream(ctx context.Context, cmd string, args map[string]any, on
 	for {
 		line, err := reader.ReadBytes('\n')
 		if err != nil {
-			return nil, fmt.Errorf("controlplane: read: %w", err)
+			return nil, apperrors.Wrap(ctx, "controlplane: read", err)
 		}
 		var resp Response
 		if err := json.Unmarshal(line, &resp); err != nil {
-			return nil, fmt.Errorf("controlplane: parse response: %w", err)
+			return nil, apperrors.Wrap(ctx, "controlplane: parse response", err)
 		}
 		switch resp.Type {
 		case RespEvent:
@@ -227,11 +228,11 @@ func (c *Client) StreamUntilCancel(ctx context.Context, cmd string, args map[str
 			if ctx.Err() != nil {
 				return nil // operator cancellation; not a failure
 			}
-			return fmt.Errorf("controlplane: read: %w", err)
+			return apperrors.Wrap(ctx, "controlplane: read", err)
 		}
 		var resp Response
 		if err := json.Unmarshal(line, &resp); err != nil {
-			return fmt.Errorf("controlplane: parse response: %w", err)
+			return apperrors.Wrap(ctx, "controlplane: parse response", err)
 		}
 		switch resp.Type {
 		case RespEvent:
@@ -267,12 +268,12 @@ func writeRequest(conn net.Conn, cmd string, args map[string]any, token string) 
 	}
 	enc, err := json.Marshal(req)
 	if err != nil {
-		return fmt.Errorf("controlplane: marshal request: %w", err)
+		return apperrors.WrapSimple("controlplane: marshal request", err)
 	}
 	enc = append(enc, '\n')
 	_ = conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
 	if _, err := conn.Write(enc); err != nil {
-		return fmt.Errorf("controlplane: write: %w", err)
+		return apperrors.WrapSimple("controlplane: write", err)
 	}
 	return nil
 }
@@ -281,11 +282,11 @@ func readOneResponse(conn net.Conn) (*Response, error) {
 	reader := bufio.NewReader(conn)
 	line, err := reader.ReadBytes('\n')
 	if err != nil {
-		return nil, fmt.Errorf("controlplane: read: %w", err)
+		return nil, apperrors.WrapSimple("controlplane: read", err)
 	}
 	var resp Response
 	if err := json.Unmarshal(line, &resp); err != nil {
-		return nil, fmt.Errorf("controlplane: parse response: %w", err)
+		return nil, apperrors.WrapSimple("controlplane: parse response", err)
 	}
 	return &resp, nil
 }

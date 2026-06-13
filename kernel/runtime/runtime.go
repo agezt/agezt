@@ -51,6 +51,8 @@ import (
 	"github.com/agezt/agezt/kernel/warden"
 	"github.com/agezt/agezt/kernel/workflow"
 	"github.com/agezt/agezt/kernel/worldmodel"
+
+	"github.com/agezt/agezt/internal/apperrors"
 )
 
 // PluginInfo is the daemon-supplied manifest entry for one
@@ -466,12 +468,12 @@ func Open(cfg Config) (*Kernel, error) {
 
 	j, err := journal.Open(filepath.Join(cfg.BaseDir, "journal"), journal.Options{})
 	if err != nil {
-		return nil, fmt.Errorf("runtime: journal: %w", err)
+		return nil, apperrors.WrapSimple("runtime: journal", err)
 	}
 	st, err := state.Open(filepath.Join(cfg.BaseDir, "state"))
 	if err != nil {
 		j.Close()
-		return nil, fmt.Errorf("runtime: state: %w", err)
+		return nil, apperrors.WrapSimple("runtime: state", err)
 	}
 	eng := cfg.Edict
 	if eng == nil {
@@ -496,7 +498,7 @@ func Open(cfg Config) (*Kernel, error) {
 	if err != nil {
 		j.Close()
 		st.Close()
-		return nil, fmt.Errorf("runtime: memory: %w", err)
+		return nil, apperrors.WrapSimple("runtime: memory", err)
 	}
 	mgr := memory.NewManager(mstore, kbus)
 	if cfg.MemoryEmbedder != nil {
@@ -508,7 +510,7 @@ func Open(cfg Config) (*Kernel, error) {
 		j.Close()
 		st.Close()
 		mstore.Close()
-		return nil, fmt.Errorf("runtime: worldmodel: %w", err)
+		return nil, apperrors.WrapSimple("runtime: worldmodel", err)
 	}
 	wgraph := worldmodel.NewGraph(wstore, kbus)
 
@@ -518,7 +520,7 @@ func Open(cfg Config) (*Kernel, error) {
 		st.Close()
 		mstore.Close()
 		wstore.Close()
-		return nil, fmt.Errorf("runtime: skills: %w", err)
+		return nil, apperrors.WrapSimple("runtime: skills", err)
 	}
 	forge := skill.NewForge(skstore, kbus)
 	// Wire the on-disk bundle store so skills can ship reference files + scripts
@@ -535,7 +537,7 @@ func Open(cfg Config) (*Kernel, error) {
 		mstore.Close()
 		wstore.Close()
 		skstore.Close()
-		return nil, fmt.Errorf("runtime: cadence: %w", err)
+		return nil, apperrors.WrapSimple("runtime: cadence", err)
 	}
 
 	// Content-addressed artifact store (SPEC-04 §3.6): the agent loop offloads
@@ -547,7 +549,7 @@ func Open(cfg Config) (*Kernel, error) {
 		mstore.Close()
 		wstore.Close()
 		skstore.Close()
-		return nil, fmt.Errorf("runtime: artifacts: %w", err)
+		return nil, apperrors.WrapSimple("runtime: artifacts", err)
 	}
 	// Metadata index over the blob store (M822) — browsable/deletable entries
 	// (inbound images, tool outputs). Failure here is non-fatal to the blob store
@@ -559,7 +561,7 @@ func Open(cfg Config) (*Kernel, error) {
 		mstore.Close()
 		wstore.Close()
 		skstore.Close()
-		return nil, fmt.Errorf("runtime: artifact index: %w", err)
+		return nil, apperrors.WrapSimple("runtime: artifact index", err)
 	}
 
 	// Personal Data Lake (M834): file-based structured collections agents build
@@ -572,7 +574,7 @@ func Open(cfg Config) (*Kernel, error) {
 		mstore.Close()
 		wstore.Close()
 		skstore.Close()
-		return nil, fmt.Errorf("runtime: data lake: %w", err)
+		return nil, apperrors.WrapSimple("runtime: data lake", err)
 	}
 	// Seed the built-in Personal Data Lake collections (M835) — expenses, calendar,
 	// tasks, notes, habits, bookmarks, contacts. Idempotent (EnsureCollection skips
@@ -587,7 +589,7 @@ func Open(cfg Config) (*Kernel, error) {
 		mstore.Close()
 		wstore.Close()
 		skstore.Close()
-		return nil, fmt.Errorf("runtime: standing: %w", err)
+		return nil, apperrors.WrapSimple("runtime: standing", err)
 	}
 
 	rstore, err := roster.Open(filepath.Join(cfg.BaseDir, "roster"))
@@ -597,7 +599,7 @@ func Open(cfg Config) (*Kernel, error) {
 		mstore.Close()
 		wstore.Close()
 		skstore.Close()
-		return nil, fmt.Errorf("runtime: roster: %w", err)
+		return nil, apperrors.WrapSimple("runtime: roster", err)
 	}
 
 	tfstore, err := toolforge.Open(filepath.Join(cfg.BaseDir, "toolforge"))
@@ -607,7 +609,7 @@ func Open(cfg Config) (*Kernel, error) {
 		mstore.Close()
 		wstore.Close()
 		skstore.Close()
-		return nil, fmt.Errorf("runtime: toolforge: %w", err)
+		return nil, apperrors.WrapSimple("runtime: toolforge", err)
 	}
 
 	mcpstore, err := mcp.OpenStore(filepath.Join(cfg.BaseDir, "mcp"))
@@ -617,7 +619,7 @@ func Open(cfg Config) (*Kernel, error) {
 		mstore.Close()
 		wstore.Close()
 		skstore.Close()
-		return nil, fmt.Errorf("runtime: mcp: %w", err)
+		return nil, apperrors.WrapSimple("runtime: mcp", err)
 	}
 
 	wfstore, err := workflow.OpenStore(filepath.Join(cfg.BaseDir, "workflows"))
@@ -627,7 +629,7 @@ func Open(cfg Config) (*Kernel, error) {
 		mstore.Close()
 		wstore.Close()
 		skstore.Close()
-		return nil, fmt.Errorf("runtime: workflows: %w", err)
+		return nil, apperrors.WrapSimple("runtime: workflows", err)
 	}
 
 	// Reflection holds no store of its own — it folds the journal and tunes
@@ -670,7 +672,7 @@ func Open(cfg Config) (*Kernel, error) {
 			mstore.Close()
 			wstore.Close()
 			skstore.Close()
-			return nil, fmt.Errorf("runtime: catalog load: %w", err)
+			return nil, apperrors.WrapSimple("runtime: catalog load", err)
 		}
 		cat = loaded
 	}
@@ -729,7 +731,7 @@ func Open(cfg Config) (*Kernel, error) {
 		j.Close()
 		st.Close()
 		mstore.Close()
-		return nil, fmt.Errorf("runtime: configcenter: %w", err)
+		return nil, apperrors.WrapSimple("runtime: configcenter", err)
 	}
 	// Wire approval registry for HITL support
 	if apr != nil {
@@ -1255,7 +1257,7 @@ func (k *Kernel) Reload() (*catalog.Catalog, bool, error) {
 		return cat, false, nil
 	}
 	if err := k.cfg.OnReload(); err != nil {
-		return cat, false, fmt.Errorf("runtime: provider reload: %w", err)
+		return cat, false, apperrors.WrapSimple("runtime: provider reload", err)
 	}
 	return cat, true, nil
 }

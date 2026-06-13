@@ -18,6 +18,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/agezt/agezt/internal/apperrors"
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/approval"
@@ -238,12 +239,12 @@ func (s *Server) Start(ctx context.Context) error {
 
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
-		return fmt.Errorf("controlplane: listen: %w", err)
+		return apperrors.Wrap(ctx, "controlplane: listen", err)
 	}
 	tokBytes := make([]byte, 32)
 	if _, err := rand.Read(tokBytes); err != nil {
 		ln.Close()
-		return fmt.Errorf("controlplane: rand: %w", err)
+		return apperrors.Wrap(ctx, "controlplane: rand", err)
 	}
 	s.token = hex.EncodeToString(tokBytes)
 	s.listener = ln
@@ -392,13 +393,13 @@ func (s *Server) initiateShutdown() error {
 func (s *Server) writeRuntimeFiles(addr string) error {
 	dir := filepath.Join(s.baseDir, "runtime")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return fmt.Errorf("controlplane: mkdir runtime: %w", err)
+		return apperrors.WrapSimple("controlplane: mkdir runtime", err)
 	}
 	if err := os.WriteFile(filepath.Join(dir, addrFile), []byte(addr+"\n"), 0o600); err != nil {
-		return fmt.Errorf("controlplane: write addr file: %w", err)
+		return apperrors.WrapSimple("controlplane: write addr file", err)
 	}
 	if err := os.WriteFile(filepath.Join(dir, tokenFile), []byte(s.token+"\n"), 0o600); err != nil {
-		return fmt.Errorf("controlplane: write token file: %w", err)
+		return apperrors.WrapSimple("controlplane: write token file", err)
 	}
 	return nil
 }

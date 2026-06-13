@@ -14,6 +14,8 @@ import (
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/memory"
 	"github.com/agezt/agezt/kernel/roster"
+
+	"github.com/agezt/agezt/internal/apperrors"
 )
 
 // ctxKeyDepth carries the current sub-agent nesting depth so runSubAgent can
@@ -599,7 +601,7 @@ func (k *Kernel) executeSubAgent(p *subAgentPrep) (string, error) {
 		Steer:                p.rc, // M631: individual sub-agent steering
 	}, p.task)
 	if err != nil {
-		return "", fmt.Errorf("sub-agent %s: %w", p.childCorr, err)
+		return "", apperrors.WrapSimplef("sub-agent %s: %%w", err, p.childCorr)
 	}
 	return answer, nil
 }
