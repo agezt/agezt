@@ -258,6 +258,8 @@ const (
 	KindSkillReverted    Kind = "skill.reverted"         // a reversal appended (never an edit)
 	KindSkillActivated   Kind = "skill.activated"        // active skills injected into a run's context
 	KindSkillShadowEval  Kind = "skill.shadow_evaluated" // a shadow skill judged against a completed run (M400)
+	KindSkillShared      Kind = "skill.shared"           // a private (per-agent) skill promoted to the shared pool (M942)
+	KindSkillReassigned  Kind = "skill.reassigned"       // a skill's owning agent changed (M942)
 
 	// Chronos standing orders (SPEC-16 §4) — persistent goals; their lifecycle
 	// is journaled so the changelog / `agt standing` can explain them.
@@ -456,6 +458,8 @@ var knownKinds = map[Kind]struct{}{
 	KindSkillReverted:             {},
 	KindSkillActivated:            {},
 	KindSkillShadowEval:           {},
+	KindSkillShared:               {},
+	KindSkillReassigned:           {},
 	KindStandingCreated:           {},
 	KindStandingUpdated:           {},
 	KindStandingRemoved:           {},

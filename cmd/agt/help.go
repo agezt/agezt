@@ -167,6 +167,7 @@ func helpGroups() []helpGroup {
 			{"skill", "learned skills + lifecycle (draft → shadow → active)", []string{
 				"skill list | show <id> | history <id>   [--json]",
 				"skill promote <id> | quarantine <id> [--reason R] | revert <id>",
+				"skill share <id> | reassign <id> [--agent S]   (ownership: per-agent ↔ shared)",
 			}},
 			{"reflect", "reflection passes (decay stale world-model entities)", []string{
 				"reflect run [--json] | reflect show [--json]",

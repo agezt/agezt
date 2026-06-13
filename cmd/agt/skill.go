@@ -17,7 +17,7 @@ import (
 // draft→shadow→active and can revert non-destructively.
 func cmdSkill(args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
-		fmt.Fprintf(stderr, "%s skill: subcommand required (list|show|history|promote|quarantine|revert|diff|export|import|registry)\n", brand.CLI)
+		fmt.Fprintf(stderr, "%s skill: subcommand required (list|show|history|promote|quarantine|revert|share|reassign|diff|export|import|registry)\n", brand.CLI)
 		return 2
 	}
 	switch args[0] {
@@ -33,6 +33,10 @@ func cmdSkill(args []string, stdout, stderr io.Writer) int {
 		return cmdSkillTransition(args[1:], controlplane.CmdSkillQuarantine, "quarantine", stdout, stderr)
 	case "revert":
 		return cmdSkillTransition(args[1:], controlplane.CmdSkillRevert, "revert", stdout, stderr)
+	case "share":
+		return cmdSkillReassign(args[1:], true, stdout, stderr)
+	case "reassign":
+		return cmdSkillReassign(args[1:], false, stdout, stderr)
 	case "diff":
 		return cmdSkillDiff(args[1:], stdout, stderr)
 	case "export":
@@ -53,6 +57,8 @@ func cmdSkill(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "  promote <id> [--json]         advance draft->shadow->active\n")
 		fmt.Fprintf(stdout, "  quarantine <id> [--reason R] [--json]   pull from production\n")
 		fmt.Fprintf(stdout, "  revert <id> [--json]          archive + restore lineage parent\n")
+		fmt.Fprintf(stdout, "  share <id> [--json]           promote a private (per-agent) skill to the shared pool\n")
+		fmt.Fprintf(stdout, "  reassign <id> [--agent S]     change a skill's owning agent (omit --agent to share)\n")
 		fmt.Fprintf(stdout, "  diff <id> [<id2>]             diff a skill's body vs its parent (or vs id2)\n")
 		fmt.Fprintf(stdout, "  export <id> [--out <file>]    write a portable, verifiable skill bundle\n")
 		fmt.Fprintf(stdout, "  export --all [--dir <dir>]    export every skill into a directory registry\n")
@@ -62,7 +68,7 @@ func cmdSkill(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "  registry <dir> [--install <name>]   list/install verifiable bundles in a directory\n")
 		return 0
 	default:
-		fmt.Fprintf(stderr, "%s skill: unknown subcommand %q (list|show|history|promote|quarantine|revert|diff|export|import|registry)\n", brand.CLI, args[0])
+		fmt.Fprintf(stderr, "%s skill: unknown subcommand %q (list|show|history|promote|quarantine|revert|share|reassign|diff|export|import|registry)\n", brand.CLI, args[0])
 		return 2
 	}
 }
@@ -274,6 +280,76 @@ func cmdSkillTransition(args []string, cmd, label string, stdout, stderr io.Writ
 	return 0
 }
 
+// cmdSkillReassign handles `skill share <id>` (promote a private skill to the
+// shared pool) and `skill reassign <id> --agent <slug>` (change the owning
+// agent; --agent "" or omitted shares it). share is the one-arg ownership
+// valve that mirrors `memory promote`; reassign is its general form.
+func cmdSkillReassign(args []string, share bool, stdout, stderr io.Writer) int {
+	label := "reassign"
+	if share {
+		label = "share"
+	}
+	asJSON := false
+	agent := ""
+	var id string
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		switch {
+		case a == "--json":
+			asJSON = true
+		case a == "-h" || a == "--help":
+			if share {
+				fmt.Fprintf(stdout, "usage: %s skill share <id> [--json]\n", brand.CLI)
+			} else {
+				fmt.Fprintf(stdout, "usage: %s skill reassign <id> [--agent <slug>] [--json]   (omit --agent to share)\n", brand.CLI)
+			}
+			return 0
+		case a == "--agent" && !share:
+			if i+1 >= len(args) {
+				fmt.Fprintf(stderr, "%s skill reassign: --agent needs a value\n", brand.CLI)
+				return 2
+			}
+			i++
+			agent = args[i]
+		case id == "":
+			id = a
+		default:
+			fmt.Fprintf(stderr, "%s skill %s: unexpected arg %q\n", brand.CLI, label, a)
+			return 2
+		}
+	}
+	if id == "" {
+		fmt.Fprintf(stderr, "%s skill %s: id required\n", brand.CLI, label)
+		return 2
+	}
+	cmd := controlplane.CmdSkillReassign
+	callArgs := map[string]any{"id": id, "agent": agent}
+	if share {
+		cmd = controlplane.CmdSkillShare
+		callArgs = map[string]any{"id": id}
+	}
+	c := dial(stderr)
+	if c == nil {
+		return 1
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	res, err := c.Call(ctx, cmd, callArgs)
+	if err != nil {
+		fmt.Fprintf(stderr, "%s skill %s: %v\n", brand.CLI, label, err)
+		return 1
+	}
+	if asJSON {
+		return encodeJSON(stdout, res)
+	}
+	if agent == "" {
+		fmt.Fprintf(stdout, "shared %s with every agent\n", id)
+	} else {
+		fmt.Fprintf(stdout, "reassigned %s to %s\n", id, agent)
+	}
+	return 0
+}
+
 // renderSkillLine formats a skill map into a single line:
 // "<id12> [status] name — description".
 func renderSkillLine(sk map[string]any) string {
@@ -330,6 +406,13 @@ func renderSkillEventDetail(kind string, p map[string]any) string {
 		return "archived"
 	case "skill.created":
 		return fmt.Sprintf("%v", p["name"])
+	case "skill.shared":
+		if fa, _ := p["from_agent"].(string); fa != "" {
+			return "shared (was private to " + fa + ")"
+		}
+		return "shared"
+	case "skill.reassigned":
+		return fmt.Sprintf("%v -> %v", p["from_agent"], p["to_agent"])
 	case "skill.activated":
 		return fmt.Sprintf("matched %v", p["matched"])
 	default:

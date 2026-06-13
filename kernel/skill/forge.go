@@ -304,6 +304,42 @@ func (f *Forge) promoteWithReason(corr, id, reason string) (Status, error) {
 	return target, nil
 }
 
+// Reassign changes a skill's owning agent (M942), the ownership analogue of the
+// per-agent memory promote valve (M915). newAgent == "" shares the skill with
+// the whole pool (clears the private-to-one-agent wall); a non-empty slug makes
+// it private to that agent. It is a no-op (found=true) when the owner is already
+// newAgent. Emits skill.shared when sharing, skill.reassigned otherwise. The
+// caller (controlplane) validates that a non-empty target slug exists in the
+// roster before calling. Ownership is orthogonal to the draft→active lifecycle,
+// so Status is untouched and any skill may be reassigned.
+func (f *Forge) Reassign(corr, id, newAgent string) (Skill, bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	sk, found, err := f.get(id)
+	if err != nil {
+		return Skill{}, found, err
+	}
+	if sk.Agent == newAgent {
+		return sk, true, nil // already there — no event, no churn
+	}
+	fromAgent := sk.Agent
+	sk.Agent = newAgent
+	sk.LastSeenMS = f.now().UnixMilli()
+	if err := f.store.Put(sk); err != nil {
+		return Skill{}, true, err
+	}
+	if newAgent == "" {
+		f.publish(event.KindSkillShared, corr, map[string]any{
+			"id": id, "name": sk.Name, "from_agent": fromAgent,
+		})
+	} else {
+		f.publish(event.KindSkillReassigned, corr, map[string]any{
+			"id": id, "name": sk.Name, "from_agent": fromAgent, "to_agent": newAgent,
+		})
+	}
+	return sk, true, nil
+}
+
 // Quarantine pulls an active or shadow skill out of production, journaling
 // skill.quarantined with the reason.
 func (f *Forge) Quarantine(corr, id, reason string) error {

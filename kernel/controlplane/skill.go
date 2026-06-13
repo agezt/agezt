@@ -146,6 +146,53 @@ func (s *Server) handleSkillRevert(conn net.Conn, req Request) {
 	})
 }
 
+// handleSkillShare promotes a private per-agent skill (M932) into the shared
+// pool — the ownership analogue of memory_promote (M915). Clears Skill.Agent.
+func (s *Server) handleSkillShare(conn net.Conn, req Request) {
+	id, _ := req.Args["id"].(string)
+	if id == "" {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.id required"})
+		return
+	}
+	sk, found, err := s.k.Forge().Reassign("", id, "")
+	if err != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		return
+	}
+	result := map[string]any{"shared": found, "id": id}
+	if found {
+		result["name"] = sk.Name
+	}
+	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: result})
+}
+
+// handleSkillReassign changes a skill's owning agent (M942). An empty agent
+// shares the skill; a non-empty slug must exist in the roster.
+func (s *Server) handleSkillReassign(conn net.Conn, req Request) {
+	id, _ := req.Args["id"].(string)
+	if id == "" {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.id required"})
+		return
+	}
+	agent, _ := req.Args["agent"].(string)
+	if agent != "" {
+		if _, ok := s.k.Roster().Get(agent); !ok {
+			s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "no such agent: " + agent})
+			return
+		}
+	}
+	sk, found, err := s.k.Forge().Reassign("", id, agent)
+	if err != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		return
+	}
+	result := map[string]any{"reassigned": found, "id": id, "to_agent": agent}
+	if found {
+		result["name"] = sk.Name
+	}
+	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: result})
+}
+
 // handleSkillImport installs a skill from a portable bundle (M269). It routes
 // through the Forge's Create, so the imported skill is content-addressed,
 // deduped against any identical existing skill, and journaled (skill.created) —
