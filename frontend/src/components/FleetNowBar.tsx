@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { Radio, CircleDot, Activity } from "lucide-react";
 import { useEvents, type AgentEvent } from "@/lib/events";
 import { cn, clip } from "@/lib/utils";
+import { AgentAvatar } from "@/components/AgentAvatar";
 
 // FleetNowBar (M945) is the live "now playing" strip: a qualitative, event-
 // driven view of WHAT the fleet is doing right this second — which agents are
@@ -15,14 +16,6 @@ interface LiveRun {
   agent?: string;
   intent?: string;
   ts?: number;
-}
-
-// hashHue maps a slug to a stable hue so an agent keeps one colour across the UI
-// (mirrors Roster's avatar hue) without coupling this component to a view.
-function hashHue(s: string): number {
-  let h = 0;
-  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) % 360;
-  return h;
 }
 
 // tickerLabel summarizes the newest event for the right-hand ticker.
@@ -79,24 +72,22 @@ export function FleetNowBar({ onNavigate }: { onNavigate?: (id: string) => void 
         </span>
       ) : (
         <div className="flex shrink-0 items-center gap-1.5">
-          {shown.map((r) => {
-            const hue = r.agent ? hashHue(r.agent) : 255;
-            return (
-              <button
-                key={r.corr}
-                onClick={go}
-                title={r.intent || r.corr}
-                className="now-in breathe flex max-w-[15rem] shrink-0 items-center gap-1.5 rounded-full border border-border bg-card px-2 py-0.5 transition-colors hover:border-accent"
-              >
-                <span
-                  className="size-2 shrink-0 rounded-full work-pulse"
-                  style={{ backgroundColor: `oklch(0.7 0.15 ${hue})` }}
-                />
-                <span className="shrink-0 font-medium text-foreground">{r.agent || "run"}</span>
-                {r.intent && <span className="truncate text-muted">{clip(r.intent, 40)}</span>}
-              </button>
-            );
-          })}
+          {shown.map((r) => (
+            <button
+              key={r.corr}
+              onClick={go}
+              title={r.intent || r.corr}
+              className="now-in flex max-w-[15rem] shrink-0 items-center gap-1.5 rounded-full border border-border bg-card py-0.5 pl-0.5 pr-2 transition-colors hover:border-accent"
+            >
+              {r.agent ? (
+                <AgentAvatar slug={r.agent} size={18} status="running" />
+              ) : (
+                <span className="work-pulse ml-1 size-2 shrink-0 rounded-full bg-accent" />
+              )}
+              <span className="shrink-0 font-medium text-foreground">{r.agent || "run"}</span>
+              {r.intent && <span className="truncate text-muted">{clip(r.intent, 40)}</span>}
+            </button>
+          ))}
           {overflow > 0 && (
             <button onClick={go} className="shrink-0 rounded-full bg-card px-2 py-0.5 text-muted hover:text-foreground">
               +{overflow} more

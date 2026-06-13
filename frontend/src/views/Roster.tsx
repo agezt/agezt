@@ -11,6 +11,7 @@ import { Badge, statusVariant } from "@/components/ui/badge";
 import { ErrorText } from "@/components/JsonView";
 import { useEvents } from "@/lib/events";
 import { RunDetailLoader } from "@/components/RunDetail";
+import { AgentAvatar } from "@/components/AgentAvatar";
 
 export interface AgentProfile {
   id: string;
@@ -37,25 +38,11 @@ export function slugOk(s: string): boolean {
 }
 
 // agentHue maps a slug to a stable hue (0–359) so every agent gets a consistent
-// colored identity avatar across the UI. A tiny deterministic string hash —
-// pure + unit-tested.
-export function agentHue(slug: string): number {
-  let h = 0;
-  for (let i = 0; i < slug.length; i++) h = (h * 31 + slug.charCodeAt(i)) % 360;
-  return h;
-}
-
-// initials derives a 1–2 char monogram for the avatar: from the name's words if
-// present, else the first two slug characters. Pure + unit-tested.
-export function initials(name: string | undefined, slug: string): string {
-  const src = (name || "").trim();
-  if (src) {
-    const words = src.split(/\s+/).filter(Boolean);
-    if (words.length >= 2) return (words[0][0] + words[1][0]).toUpperCase();
-    return src.slice(0, 2).toUpperCase();
-  }
-  return slug.slice(0, 2).toUpperCase();
-}
+// colored identity avatar across the UI. The deterministic hue + monogram now
+// live in @/lib/agent (M948) so the avatar can be shared; re-exported here for
+// existing importers.
+import { agentHue, initials } from "@/lib/agent";
+export { agentHue, initials };
 
 // usdToMc converts a dollar string ("0.50", "$0.50") to USD-microcents
 // ($1 = 1e9, the kernel's budget unit). Returns null for blank, NaN, or
@@ -70,24 +57,6 @@ export function usdToMc(s: string): number | null {
 
 const inputCls =
   "rounded-md border border-border bg-panel px-2 py-1 text-sm text-foreground outline-none focus-visible:border-accent";
-
-// AgentAvatar is the agent's colored identity monogram — a deterministic hue
-// from the slug, dimmed when retired so the graveyard reads at a glance.
-function AgentAvatar({ slug, name, retired }: { slug: string; name?: string; retired?: boolean }) {
-  const hue = agentHue(slug);
-  return (
-    <span
-      aria-hidden
-      className={cn(
-        "flex size-8 shrink-0 items-center justify-center rounded-md text-xs font-semibold text-white",
-        retired && "opacity-40 grayscale",
-      )}
-      style={{ backgroundColor: `hsl(${hue} 55% 42%)` }}
-    >
-      {initials(name, slug)}
-    </span>
-  );
-}
 
 // profileFields collects the shared New/Edit form fields into the wire shape.
 function profileFields(f: {
@@ -667,7 +636,7 @@ export function Roster() {
             )}
           >
             <div className="flex flex-wrap items-center gap-2">
-              <AgentAvatar slug={p.slug} name={p.name} retired={p.retired} />
+              <AgentAvatar slug={p.slug} name={p.name} status={p.retired ? "retired" : undefined} />
               <span className={cn("font-mono text-sm", p.retired ? "text-muted line-through" : "text-foreground")}>{p.slug}</span>
               {p.name && p.name !== p.slug && <span className="text-xs text-muted">{p.name}</span>}
               {p.retired ? (
