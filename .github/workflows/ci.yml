@@ -292,8 +292,9 @@ jobs:
         run: |
           set -e
           SC_TAG=$(curl -fsSL https://api.github.com/repos/dominikh/go-tools/releases/latest | grep -oP '"tag_name":\s*"\K[^"]+')
-          SC_VER="${SC_TAG#v}"
-          curl -fsSL "https://github.com/dominikh/go-tools/releases/download/${SC_TAG}/staticcheck_${SC_VER}_linux_amd64.tar.gz" -o /tmp/sc.tgz
+          # go-tools release assets are version-LESS (e.g. staticcheck_linux_amd64.tar.gz);
+          # the old ${SC_VER}-in-filename URL 404s on 2026.1+.
+          curl -fsSL "https://github.com/dominikh/go-tools/releases/download/${SC_TAG}/staticcheck_linux_amd64.tar.gz" -o /tmp/sc.tgz
           tar xzf /tmp/sc.tgz -C /tmp
           echo "staticcheck ${SC_TAG} (prebuilt)"
           /tmp/staticcheck/staticcheck ./...
