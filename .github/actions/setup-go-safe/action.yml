@@ -17,6 +17,13 @@
 # corruption, so every subsequent `go build`/`go install` uses a stable,
 # in-memory toolchain. ~600MB in /dev/shm; the WSL runners have ample RAM.
 #
+# IMPORTANT: the three self-hosted runners (wsl-runner-1/2/3) all live in the
+# SAME WSL VM and therefore share ONE /dev/shm. A fixed staging path made the
+# three concurrent jobs stomp each other ("cp: cannot create directory: File
+# exists", "compile: Text file busy", "rm: Directory not empty", "cannot find
+# GOROOT"). We stage to a per-runner path (/dev/shm/goroot-$RUNNER_NAME);
+# since each runner runs one job at a time, that path is never contended.
+#
 # We stay on `go-version: stable` (latest, currently 1.26.4) and NEVER pin
 # back to an older minor just to dodge a bad cache entry.
 name: setup-go-safe
@@ -47,7 +54,7 @@ runs:
       run: |
         set -e
         SRC="$(go env GOROOT)"
-        DST="/dev/shm/goroot"
+        DST="/dev/shm/goroot-${RUNNER_NAME:-shared}"
         rm -rf "$DST"
         cp -a "$SRC" "$DST"
         echo "GOROOT=$DST" >> "$GITHUB_ENV"
@@ -74,7 +81,7 @@ runs:
       shell: bash
       run: |
         echo "::warning::Go toolchain corrupt even on tmpfs; re-downloading toolchain once."
-        rm -rf "${RUNNER_TOOL_CACHE:-$HOME/actions-runner-2/_work/_tool}/go" /dev/shm/goroot
+        rm -rf "${RUNNER_TOOL_CACHE:-$HOME/actions-runner-2/_work/_tool}/go" "/dev/shm/goroot-${RUNNER_NAME:-shared}"
 
     - name: Re-install Go (latest stable)
       if: steps.verify.outcome == 'failure'
@@ -90,7 +97,7 @@ runs:
       run: |
         set -e
         SRC="$(go env GOROOT)"
-        DST="/dev/shm/goroot"
+        DST="/dev/shm/goroot-${RUNNER_NAME:-shared}"
         rm -rf "$DST"
         cp -a "$SRC" "$DST"
         echo "GOROOT=$DST" >> "$GITHUB_ENV"
