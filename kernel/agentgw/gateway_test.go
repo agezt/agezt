@@ -3,6 +3,7 @@
 package agentgw
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -236,6 +237,35 @@ func TestRateLimit_Allow(t *testing.T) {
 	}
 }
 
+// TestRateLimit_WindowReset proves the limiter re-arms after a window rolls
+// over (regression for the bug where Allow() returned true unconditionally
+// once the first window elapsed, silently disabling the limit).
+func TestRateLimit_WindowReset(t *testing.T) {
+	rl := NewRateLimit(2, 1) // 3 allowed per window
+	// Exhaust the current window.
+	for i := 0; i < 3; i++ {
+		if !rl.Allow() {
+			t.Fatalf("Allow() %d: got false, want true", i)
+		}
+	}
+	if rl.Allow() {
+		t.Fatal("Allow() over limit: got true, want false")
+	}
+	// Force the window to have elapsed, then confirm the limit re-applies
+	// (NOT that every call is suddenly allowed forever).
+	rl.mu.Lock()
+	rl.windowEnd = time.Now().UnixMilli() - 1
+	rl.mu.Unlock()
+	for i := 0; i < 3; i++ {
+		if !rl.Allow() {
+			t.Fatalf("Allow() post-reset %d: got false, want true", i)
+		}
+	}
+	if rl.Allow() {
+		t.Error("Allow() over limit after reset: got true, want false (limiter must re-arm, not disable)")
+	}
+}
+
 // TestGateway_HealthEndpoint tests the health check endpoint.
 func TestGateway_HealthEndpoint(t *testing.T) {
 	g := NewGateway(GatewayConfig{
@@ -260,33 +290,63 @@ func TestGateway_HealthEndpoint(t *testing.T) {
 	}
 }
 
-// TestGateway_TokenCreateEndpoint tests the token creation endpoint.
+// TestGateway_TokenCreateEndpoint tests the (now authenticated) subprocess
+// token-mint endpoint: it requires a parent token in context and clamps the
+// child to the parent's capabilities.
 func TestGateway_TokenCreateEndpoint(t *testing.T) {
 	g := NewGateway(GatewayConfig{
 		SocketPath:  "@test/agentgw/token.sock",
 		TokenSecret: []byte("test-secret-key-32-chars-minimum!!"),
 	})
 
-	// We need to test handleTokenCreate directly
-	req := httptest.NewRequest("POST", "/v1/token/create", strings.NewReader(`{
-		"run_id": "run_abc123",
-		"caps": ["memory.write", "memory.read"],
-		"max_rpm": 60,
-		"expiry_ms": 3600000
-	}`))
-	req.Header.Set("Content-Type", "application/json")
+	// Unauthenticated (no claims in context) must be rejected.
+	t.Run("unauthenticated", func(t *testing.T) {
+		req := httptest.NewRequest("POST", "/v1/token/create", strings.NewReader(`{"caps":["memory.read"]}`))
+		rr := httptest.NewRecorder()
+		g.handleTokenCreate(rr, req)
+		if rr.Code != http.StatusUnauthorized {
+			t.Errorf("Status: got %d, want %d. Body: %s", rr.Code, http.StatusUnauthorized, rr.Body.String())
+		}
+	})
 
-	rr := httptest.NewRecorder()
-	g.handleTokenCreate(rr, req)
-
-	if rr.Code != http.StatusCreated {
-		t.Errorf("Status: got %d, want %d. Body: %s", rr.Code, http.StatusCreated, rr.Body.String())
+	parent := &TokenClaims{
+		RunID:     "run_abc123",
+		Caps:      []string{"memory.write", "memory.read"},
+		MaxRate:   60,
+		MaxBurst:  10,
+		ExpiresAt: time.Now().Add(1 * time.Hour),
 	}
 
-	// Should return a token
-	if !strings.Contains(rr.Body.String(), `"token"`) {
-		t.Errorf("Body: got %s, want token field", rr.Body.String())
-	}
+	// A subset request from an authenticated parent succeeds.
+	t.Run("subset_ok", func(t *testing.T) {
+		req := httptest.NewRequest("POST", "/v1/token/create", strings.NewReader(`{
+			"sub_id": "sub_1",
+			"caps": ["memory.read"],
+			"expiry_ms": 600000
+		}`))
+		req = req.WithContext(context.WithValue(req.Context(), claimsKey{}, parent))
+		rr := httptest.NewRecorder()
+		g.handleTokenCreate(rr, req)
+		if rr.Code != http.StatusCreated {
+			t.Fatalf("Status: got %d, want %d. Body: %s", rr.Code, http.StatusCreated, rr.Body.String())
+		}
+		if !strings.Contains(rr.Body.String(), `"token"`) {
+			t.Errorf("Body: got %s, want token field", rr.Body.String())
+		}
+	})
+
+	// Requesting a capability the parent lacks must be rejected (no escalation).
+	t.Run("escalation_rejected", func(t *testing.T) {
+		req := httptest.NewRequest("POST", "/v1/token/create", strings.NewReader(`{
+			"caps": ["memory.delete"]
+		}`))
+		req = req.WithContext(context.WithValue(req.Context(), claimsKey{}, parent))
+		rr := httptest.NewRecorder()
+		g.handleTokenCreate(rr, req)
+		if rr.Code != http.StatusForbidden {
+			t.Errorf("Status: got %d, want %d. Body: %s", rr.Code, http.StatusForbidden, rr.Body.String())
+		}
+	})
 }
 
 // TestGateway_TokenValidationEndpoint tests the token validation endpoint.

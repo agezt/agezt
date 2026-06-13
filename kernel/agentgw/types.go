@@ -14,7 +14,7 @@
 package agentgw
 
 import (
-	"sync/atomic"
+	"sync"
 	"time"
 
 	"github.com/agezt/agezt/kernel/edict"
@@ -101,6 +101,7 @@ const (
 	CapConfigAccess AgentCapability = "config.access" // Get config values (rating-based)
 	CapConfigList   AgentCapability = "config.list"   // List accessible config keys
 	CapConfigSearch AgentCapability = "config.search" // Search config keys
+	CapConfigWrite  AgentCapability = "config.write"  // Set/modify config values (privileged)
 )
 
 // AllAgentCaps returns all available agent capabilities.
@@ -112,7 +113,7 @@ func AllAgentCaps() []AgentCapability {
 		CapLogRead, CapLogWrite,
 		CapAgentList, CapAgentQuery,
 		CapDBQuery, CapDBRead, CapDBWrite,
-		CapConfigAccess, CapConfigList, CapConfigSearch,
+		CapConfigAccess, CapConfigList, CapConfigSearch, CapConfigWrite,
 	}
 }
 
@@ -131,52 +132,53 @@ type AuditEntry struct {
 	ClientIP   string    `json:"ip,omitempty"`
 }
 
-// RateLimit tracks request counts for a token.
+// RateLimit tracks request counts for a token within a sliding fixed window.
 type RateLimit struct {
-	mu       int64 // atomic count
-	max      int
-	burst    int
-	windowMs int64
-	lastTick int64
+	mu        sync.Mutex
+	count     int   // requests in the current window
+	max       int   // sustained requests per window
+	burst     int   // extra requests allowed on top of max
+	windowMs  int64 // window length
+	windowEnd int64 // unix-ms when the current window rolls over
+	lastSeen  int64 // unix-ms of the most recent Allow() (for idle eviction)
 }
 
 // NewRateLimit creates a new rate limiter.
 func NewRateLimit(maxRPM, maxBurst int) *RateLimit {
+	now := time.Now().UnixMilli()
 	return &RateLimit{
-		max:      maxRPM,
-		burst:    maxBurst,
-		windowMs: 60_000,
-		lastTick: time.Now().UnixMilli(),
+		max:       maxRPM,
+		burst:     maxBurst,
+		windowMs:  60_000,
+		windowEnd: now + 60_000,
+		lastSeen:  now,
 	}
 }
 
-// Allow checks if a request is allowed under the rate limit.
-// Returns true if allowed, false if rate limited.
+// Allow reports whether a request is permitted, counting it when so. On window
+// rollover the counter resets — unlike the previous implementation, which
+// returned true unconditionally after the first window and silently disabled
+// the limiter (CWE-770).
 func (r *RateLimit) Allow() bool {
 	now := time.Now().UnixMilli()
-
-	// Reset window if we've passed a full window
-	if now-r.lastTick >= r.windowMs {
-		// Can't use atomic swap for int64 easily, so use sync
-		return true
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.lastSeen = now
+	if now >= r.windowEnd {
+		r.count = 0
+		r.windowEnd = now + r.windowMs
 	}
-
-	// Check count
-	count := atomicLoadInt64(&r.mu)
-	if count >= int64(r.max+r.burst) {
+	if r.count >= r.max+r.burst {
 		return false
 	}
-
-	atomicAddInt64(&r.mu, 1)
+	r.count++
 	return true
 }
 
-// atomicAddInt64 adds delta to a *int64 atomically.
-func atomicAddInt64(addr *int64, delta int64) int64 {
-	return atomic.AddInt64(addr, delta)
-}
-
-// atomicLoadInt64 loads a *int64 atomically.
-func atomicLoadInt64(addr *int64) int64 {
-	return atomic.LoadInt64(addr)
+// LastSeen returns the unix-ms timestamp of the most recent Allow() call, used
+// to evict idle buckets.
+func (r *RateLimit) LastSeen() int64 {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.lastSeen
 }

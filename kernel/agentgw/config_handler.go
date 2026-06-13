@@ -181,14 +181,15 @@ func (h *ConfigHandler) handleConfigSet(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// This should be restricted to operator/admin capabilities
-	// For now, allow if they have config.access (in production, add config.write capability)
-	if err := h.capCheck.Check(claims, CapConfigAccess); err != nil {
+	// Config WRITES require the dedicated config.write capability — never the
+	// read-only config.access. Without a distinct write cap a read-scoped token
+	// could mutate config (CWE-862).
+	if err := h.capCheck.Check(claims, CapConfigWrite); err != nil {
 		responseError(w, http.StatusForbidden, "FORBIDDEN", err.Error())
 		return
 	}
 
-	body, err := io.ReadAll(r.Body)
+	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxBodyBytes))
 	if err != nil {
 		responseError(w, http.StatusBadRequest, "INVALID_REQUEST", "failed to read body")
 		return

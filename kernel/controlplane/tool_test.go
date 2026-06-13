@@ -5,7 +5,6 @@ package controlplane_test
 import (
 	"context"
 	"testing"
-	"time"
 
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/controlplane"
@@ -147,45 +146,4 @@ func TestToolList_SortsByName(t *testing.T) {
 			t.Errorf("call %d: not sorted: %q > %q", i, na, nb)
 		}
 	}
-}
-
-// intOf decodes a JSON number (always float64 after Go's stdlib
-// decoder) back to int. Mirrors mcOf in budget_test.go but for
-// non-microcent counts.
-func intOf(v any) int {
-	switch n := v.(type) {
-	case float64:
-		return int(n)
-	case int:
-		return n
-	case int64:
-		return int(n)
-	}
-	return -1
-}
-
-// dialUntilReady polls until the runtime files are on disk, then
-// returns a connected client. Extracted from startPair so the
-// custom-config tests above can construct their own kernels
-// without reaching into the shared helper.
-func dialUntilReady(t *testing.T, dir string) (*controlplane.Client, error) {
-	t.Helper()
-	var (
-		client  *controlplane.Client
-		lastErr error
-	)
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
-		c, err := controlplane.NewClient(dir)
-		if err == nil {
-			client = c
-			break
-		}
-		lastErr = err
-		time.Sleep(10 * time.Millisecond)
-	}
-	if client == nil {
-		return nil, lastErr
-	}
-	return client, nil
 }

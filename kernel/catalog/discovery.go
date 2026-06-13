@@ -37,7 +37,9 @@ func DiscoverOllama(ctx context.Context, endpoint string) (*Catalog, error) {
 	if err != nil {
 		return nil, err
 	}
-	resp, err := http.DefaultClient.Do(req)
+	// Guarded client: Ollama is local (loopback/private allowed) but a
+	// redirect to the cloud-metadata endpoint is still refused (SSRF).
+	resp, err := guardedClient(3 * time.Second).Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("ollama discovery: %w", err)
 	}

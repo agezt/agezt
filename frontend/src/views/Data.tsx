@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { getJSON, postJSON, postAction } from "@/lib/api";
 import { cn, fmtTime } from "@/lib/utils";
+import { safeHref } from "@/lib/markdown";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { SkeletonList } from "@/components/ui/skeleton";
@@ -545,15 +546,24 @@ function BookmarksView({ records, onEdit, onDelete }: BespokeProps) {
     <ul className="min-h-0 flex-1 space-y-1 overflow-auto">
       {records.map((r) => {
         const url = str(r.fields?.url);
+        // Only link when the scheme is navigable (http/https/mailto/…); a stored
+        // url like "javascript:alert(1)" would otherwise execute on click (XSS).
+        const href = safeHref(url);
         return (
           <li key={r.id} className="group flex items-center gap-3 rounded-lg border border-border bg-card px-3 py-2 text-sm">
             <Bookmark className="size-3.5 shrink-0 text-accent" />
             <div className="min-w-0 flex-1">
               <div className="truncate font-medium">{str(r.fields?.title) || url || "—"}</div>
               {url && (
-                <a href={url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 truncate text-[11px] text-accent hover:underline">
-                  <ExternalLink className="size-3" /> {url}
-                </a>
+                href ? (
+                  <a href={href} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 truncate text-[11px] text-accent hover:underline">
+                    <ExternalLink className="size-3" /> {url}
+                  </a>
+                ) : (
+                  <span className="inline-flex items-center gap-1 truncate text-[11px] text-muted" title="blocked non-navigable URL">
+                    <ExternalLink className="size-3" /> {url}
+                  </span>
+                )
               )}
             </div>
             <div className="hidden shrink-0 flex-wrap gap-1 sm:flex">

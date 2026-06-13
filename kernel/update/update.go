@@ -33,7 +33,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -125,6 +127,16 @@ func New(cfg Config) *Service {
 	if hc == nil {
 		hc = &http.Client{
 			Timeout: 30 * time.Second,
+			// Enforce TLS on EVERY redirect hop, not just the initial URL.
+			// net/http follows redirects automatically; without a CheckRedirect
+			// hook the manual requireHTTPS check in downloadBinary never runs
+			// (the returned resp is already the final 200), so an HTTPS→HTTP
+			// downgrade would be silently followed and the binary fetched over
+			// plaintext. This hook refuses any non-TLS hop (loopback exempt) for
+			// BOTH the manifest Check and the binary download (UPD-002).
+			CheckRedirect: func(req *http.Request, via []*http.Request) error {
+				return requireHTTPS(req.URL.String())
+			},
 			Transport: &http.Transport{
 				MaxIdleConns:        2,
 				IdleConnTimeout:     90 * time.Second,
@@ -384,8 +396,31 @@ func (s *Service) checkEndpoint(ctx context.Context) (*CheckResult, error) {
 	}, nil
 }
 
+// requireHTTPS rejects a non-HTTPS update URL. The update payload and (for the
+// custom endpoint) the SHA it is checked against must travel over TLS, or a
+// network MITM could swap the binary or its checksum. Loopback over http is
+// exempt so local test harnesses (httptest) and dev mirrors still work.
+func requireHTTPS(raw string) error {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return fmt.Errorf("update: bad URL %q: %w", raw, err)
+	}
+	switch u.Scheme {
+	case "https":
+		return nil
+	case "http":
+		if host := u.Hostname(); host == "localhost" || net.ParseIP(host).IsLoopback() {
+			return nil
+		}
+	}
+	return fmt.Errorf("update: refusing non-HTTPS update URL %q (scheme %q)", raw, u.Scheme)
+}
+
 // downloadBinary fetches the binary from url and writes it to dest.
 func (s *Service) downloadBinary(ctx context.Context, url, dest string) error {
+	if err := requireHTTPS(url); err != nil {
+		return err
+	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return err
@@ -408,6 +443,11 @@ func (s *Service) downloadBinary(ctx context.Context, url, dest string) error {
 		req.URL, err = req.URL.Parse(redirectURL)
 		if err != nil {
 			return fmt.Errorf("update: redirect URL parse failed: %w", err)
+		}
+		// Refuse an HTTPS→HTTP downgrade on redirect — the resolved absolute URL
+		// (after resolving a relative Location) must still be TLS.
+		if err := requireHTTPS(req.URL.String()); err != nil {
+			return err
 		}
 		resp.Body.Close()
 		resp, err = s.httpClient.Do(req)

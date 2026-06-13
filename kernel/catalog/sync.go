@@ -8,7 +8,18 @@ import (
 	"io"
 	"net/http"
 	"time"
+
+	"github.com/agezt/agezt/kernel/netguard"
 )
+
+// guardedClient returns an HTTP client whose every connection (and redirect
+// hop) is screened by netguard. Loopback and private ranges are permitted —
+// catalog/Ollama endpoints are legitimately local — but link-local is blocked,
+// so a malicious or redirecting catalog URL cannot pivot to the cloud-metadata
+// endpoint (169.254.169.254) and exfiltrate instance credentials (SSRF, CWE-918).
+func guardedClient(timeout time.Duration) *http.Client {
+	return netguard.New(netguard.AllowLoopback(), netguard.AllowPrivate()).HTTPClient(timeout)
+}
 
 // DefaultSyncURL is the community-maintained source the catalog syncs
 // from. Overridable via AGEZT_CATALOG_URL on the daemon side.
@@ -34,7 +45,7 @@ type Syncer struct {
 // NewSyncer returns a Syncer with sensible defaults.
 func NewSyncer() *Syncer {
 	return &Syncer{
-		HTTP:    &http.Client{Timeout: DefaultSyncTimeout},
+		HTTP:    guardedClient(DefaultSyncTimeout),
 		URL:     DefaultSyncURL,
 		Timeout: DefaultSyncTimeout,
 	}

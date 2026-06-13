@@ -22,9 +22,14 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# Least privilege: jobs only read the checkout. No job needs write scopes.
+permissions:
+  contents: read
+
 jobs:
   test:
     name: test (linux)
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, Linux, X64]
     env:
       CGO_ENABLED: '0'
@@ -43,6 +48,7 @@ jobs:
     # build matrix. We run it once on Linux with cgo enabled to surface
     # concurrent-code regressions in kernel/bus, kernel/journal, etc.
     name: race (linux, cgo)
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, Linux, X64]
     env:
       CGO_ENABLED: '1'
@@ -61,6 +67,7 @@ jobs:
     # tests miss (e.g. M550, where streaming dropped a non-streaming provider's
     # answer). See scripts/e2e-smoke.sh.
     name: e2e smoke (linux)
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, Linux, X64]
     env:
       CGO_ENABLED: '0'
@@ -78,6 +85,7 @@ jobs:
 
   codegen-in-sync:
     name: codegen-in-sync
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, Linux, X64]
     env:
       CGO_ENABLED: '0'
@@ -102,6 +110,7 @@ jobs:
 
   frontend-dist-in-sync:
     name: frontend-dist-in-sync
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, Linux, X64]
     steps:
       - uses: actions/checkout@v4
@@ -125,6 +134,7 @@ jobs:
 
   frontend-test:
     name: frontend-test
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, Linux, X64]
     steps:
       - uses: actions/checkout@v4
@@ -141,6 +151,7 @@ jobs:
 
   webui-e2e:
     name: webui-e2e
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, Linux, X64]
     env:
       CGO_ENABLED: '0'
@@ -170,6 +181,7 @@ jobs:
 
   python-sdk:
     name: python-sdk
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, Linux, X64]
     steps:
       - uses: actions/checkout@v4
@@ -184,6 +196,7 @@ jobs:
 
   typescript-sdk:
     name: typescript-sdk
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, Linux, X64]
     steps:
       - uses: actions/checkout@v4
@@ -202,6 +215,7 @@ jobs:
 
   rust-sdk:
     name: rust-sdk
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, Linux, X64]
     steps:
       - uses: actions/checkout@v4
@@ -221,6 +235,7 @@ jobs:
 
   multi-arch:
     name: cross-build (${{ matrix.goos }}/${{ matrix.goarch }})
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, Linux, X64]
     env:
       CGO_ENABLED: '0'
@@ -253,6 +268,7 @@ jobs:
 
   deps-check:
     name: deps-check (allowlist, POLICY §1)
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, Linux, X64]
     steps:
       - uses: actions/checkout@v4
@@ -267,6 +283,7 @@ jobs:
     # zero-tolerance; govulncheck catches new advisories (the toolchain is the
     # latest stable, which carries the patched stdlib).
     name: lint (gofmt, staticcheck, govulncheck)
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, Linux, X64]
     env:
       CGO_ENABLED: '0'
@@ -298,6 +315,7 @@ jobs:
     # (fetch-depth: 0); .gitleaks.toml at the repo root keeps the default ruleset
     # and allowlists only the known secret-shaped test fixtures.
     name: secrets (gitleaks)
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, Linux, X64]
     steps:
       - uses: actions/checkout@v4

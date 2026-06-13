@@ -32,6 +32,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/agezt/agezt/kernel/netguard"
 )
 
 // httpProtocolVersion is what we advertise on the HTTP transport. The
@@ -66,7 +68,11 @@ func DialHTTP(ctx context.Context, endpoint string, headers map[string]string) (
 		return nil, fmt.Errorf("mcp http: bad url %q: %w", endpoint, err)
 	}
 	c := &httpConn{
-		client:   &http.Client{Timeout: callTimeout},
+		// Guarded client: every dial and redirect hop is screened by netguard.
+		// Loopback/private are allowed (local MCP servers are legitimate), but
+		// link-local is refused so a malicious or redirecting endpoint cannot
+		// reach the cloud-metadata service (169.254.169.254) — SSRF, CWE-918.
+		client:   netguard.New(netguard.AllowLoopback(), netguard.AllowPrivate()).HTTPClient(callTimeout),
 		endpoint: endpoint,
 		headers:  headers,
 	}

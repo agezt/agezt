@@ -741,6 +741,14 @@ func Open(cfg Config) (*Kernel, error) {
 
 	// Agent Gateway for subprocess communication (Agent SDK)
 	gwCfg := agentgw.DefaultGatewayConfig(cfg.BaseDir)
+	// Token signing key: a per-install secret persisted under the base dir (or
+	// $AGEZT_AGENTGW_TOKEN_SECRET), shared with the `agt` CLI. Never the old
+	// hardcoded "change-me-in-production" constant.
+	secret, err := agentgw.ResolveTokenSecret(cfg.BaseDir)
+	if err != nil {
+		return nil, fmt.Errorf("runtime: resolve agentgw token secret: %w", err)
+	}
+	gwCfg.TokenSecret = secret
 	// Override socket path from environment if set (useful for Windows TCP testing)
 	if sockPath := os.Getenv("AGEZT_AGENTGW_SOCKET"); sockPath != "" {
 		gwCfg.SocketPath = sockPath
@@ -748,6 +756,7 @@ func Open(cfg Config) (*Kernel, error) {
 	agentGW := agentgw.NewGateway(gwCfg)
 	agentGW.Attach(kbus, mgr, rstore)
 	agentGW.SetConfigCenter(configCenter)
+	agentGW.SetAuditJournal(j) // wire the audit trail (was a nil no-op)
 	k.agentGW = agentGW
 
 	// Start the gateway listener in background
