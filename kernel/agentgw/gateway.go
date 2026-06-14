@@ -336,7 +336,7 @@ func responseError(w http.ResponseWriter, code int, errCode, message string) {
 }
 
 // responseJSON writes a JSON response.
-func responseJSON(w http.ResponseWriter, status int, data interface{}) {
+func responseJSON[T any](w http.ResponseWriter, status int, data T) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	json.NewEncoder(w).Encode(data)
