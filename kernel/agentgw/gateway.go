@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net"
 	"net/http"
 	"sync"
@@ -188,7 +189,7 @@ func (g *Gateway) Listen(ctx context.Context) error {
 
 	go func() {
 		if err := srv.Serve(ln); err != nil && err != http.ErrServerClosed {
-			fmt.Printf("agentgw: serve error: %v\n", err)
+			slog.Error("agentgw: serve error", "error", err)
 		}
 	}()
 

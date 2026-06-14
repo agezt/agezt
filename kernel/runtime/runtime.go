@@ -14,6 +14,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"maps"
 	"os"
 	"path/filepath"
@@ -772,7 +773,7 @@ func Open(cfg Config) (*Kernel, error) {
 	// Start the gateway listener in background
 	go func() {
 		if err := agentGW.Listen(context.Background()); err != nil {
-			fmt.Printf("runtime: agentgw listen: %v\n", err)
+			slog.Error("runtime: agentgw listen", "error", err)
 		}
 	}()
 
