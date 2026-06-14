@@ -164,7 +164,7 @@ func (c *clientConn) readLoop(r io.Reader) {
 		copy(b, line)
 		select {
 		case c.frames <- b:
-		case <-time.After(5 * time.Second):
+		case <-time.After(60 * time.Second):
 			return // consumer gone — stop reading rather than block forever
 		}
 	}
@@ -239,9 +239,13 @@ func (c *clientConn) Call(ctx context.Context, tool string, args json.RawMessage
 func (c *clientConn) Close() error {
 	c.closeOnce.Do(func() {
 		_ = c.stdin.Close() // polite: EOF lets a well-behaved server exit
+		timer := time.NewTimer(2 * time.Second)
 		select {
 		case <-c.dead:
-		case <-time.After(2 * time.Second):
+			if !timer.Stop() {
+				<-timer.C
+			}
+		case <-timer.C:
 		}
 		if c.stop != nil {
 			c.stop()
