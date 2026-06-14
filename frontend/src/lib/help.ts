@@ -717,66 +717,94 @@ export const HELP: Record<string, HelpTopic> = {
   agents: {
     title: "Agents",
     intro:
-      "The multi-agent monitor: every lead run as a card with its sub-agent fleet, delegation depth, iterations, and spend — click any card to drill into the live delegation graph.",
+      "Your whole agent force in one place. The Fleet tab is a complete census of every agent and automation you own — each card spelling out how it gets triggered — so the page is full and useful even when nothing is running. The Live tab is the run monitor.",
     sections: [
       {
-        heading: "The gallery",
+        heading: "Fleet — the census",
+        paragraphs: [
+          "Every durable agent/automation appears as a card, whatever its kind, with its trigger front and centre. This is what you have, at rest.",
+        ],
         items: [
           {
-            term: "Summary band",
-            desc: "Lead runs, currently running, total sub-agents, roster size, and total spend across everything shown.",
+            term: "Roster agents",
+            desc: "Persistent identities (soul, model, budget). They wake by delegation or a direct run unless a standing order / schedule is bound to them.",
           },
           {
-            term: "Status chips",
-            desc: "Filter the gallery to all / running / done / failed.",
+            term: "Standing orders",
+            desc: "Goals that fire on a cron schedule or a journal event subject.",
           },
+          {
+            term: "Schedules",
+            desc: "Cadence intents — interval, daily, once, window, or continuous — each with its next fire time.",
+          },
+          {
+            term: "Workflows",
+            desc: "DAGs whose trigger node is manual, cron, event, or webhook.",
+          },
+          {
+            term: "System engines",
+            desc: "The always-on workers: Pulse (the proactive heartbeat), Reaper (the read-only sentinel), and Overseer (the live supervisor).",
+          },
+        ],
+      },
+      {
+        heading: "Reading a card",
+        items: [
+          {
+            term: "Trigger chips",
+            desc: "The answer to 'how does this run?' — cron specs, event subjects, webhook, cadence, or 'manual / delegated' when nothing wakes it automatically.",
+          },
+          {
+            term: "State pill",
+            desc: "running (a run is happening) · armed (enabled with an automatic trigger) · manual (enabled but you must start it) · paused (disabled) · retired (graveyard).",
+          },
+          {
+            term: "Filters & search",
+            desc: "Narrow by kind (roster / standing / schedules / workflows / system) or running-now, or type to search names, models, and triggers.",
+          },
+        ],
+      },
+      {
+        heading: "The detail panel",
+        items: [
+          {
+            term: "How does this run?",
+            desc: "A plain-language explanation of each trigger and exactly what you'd do to fire it (the cron, the event, the webhook URL, or the run command).",
+          },
+          {
+            term: "Manage",
+            desc: "Jumps to the page that edits this kind — Roster, Standing, Schedules, or Flow Studio.",
+          },
+          {
+            term: "View live",
+            desc: "For a running roster agent, opens its live delegation graph on the Live tab.",
+          },
+        ],
+      },
+      {
+        heading: "Live — the run monitor",
+        items: [
           {
             term: "Run cards",
-            desc: "Intent, the roster agent it ran as, status, an answer preview, and tree statistics. Running cards sort first, then most recent.",
+            desc: "Every lead run with its sub-agent fleet, delegation depth, iterations, and spend. Running sorts first, then most recent.",
           },
-        ],
-      },
-      {
-        heading: "Drilling in",
-        items: [
           {
             term: "Delegation graph",
-            desc: "Clicking a card opens a live graph of the run's delegation tree — nodes light up as sub-agents work.",
-          },
-          {
-            term: "Node detail",
-            desc: "Select any node to read that sub-run's full detail in the sidebar.",
-          },
-        ],
-      },
-      {
-        heading: "Standing army",
-        paragraphs: [
-          "Below the runs: the force that is WAITING. Every roster agent with what will wake it, so you can see your whole army — not just who is marching right now.",
-        ],
-        items: [
-          {
-            term: "States",
-            desc: "running (pulsing, has an active run) → armed (green, at least one trigger will wake it) → on call (wakes only by delegation or a direct run) → paused (disabled, dimmed).",
-          },
-          {
-            term: "Wake chips",
-            desc: "Each tripwire that fires the agent: standing-order cron specs, standing-order event subjects, and schedules whose intent runs as the agent (--agent binding). Hover a chip for which order or schedule it comes from.",
-          },
-          {
-            term: "Last marched",
-            desc: "When the agent last started a run, from the recent runs list — 'never marched' means it has yet to fire.",
+            desc: "Click a card for a live graph of the run's delegation tree; select any node to read that sub-run's full detail.",
           },
         ],
       },
     ],
     tips: [
-      "Only lead runs (no parent) get cards — sub-agents fold into their parent's tree rather than cluttering the gallery.",
-      "An 'on call' agent isn't broken — it's reserve force. Arm it from Standing (give an order an agent + a cron/event trigger) or reference it from a schedule.",
+      "The Fleet tab fills from the durable list endpoints, so you see your army even when nothing is executing — that's the point.",
+      "A 'manual / delegated' agent isn't broken — it's reserve force. Arm it from Standing (give an order that agent + a cron/event trigger) or reference it from a schedule.",
+      "Only lead runs get cards on the Live tab — sub-agents fold into their parent's tree.",
     ],
     related: [
       { id: "roster", label: "Roster" },
-      { id: "board", label: "Agent Board" },
+      { id: "standing", label: "Standing" },
+      { id: "schedules", label: "Schedules" },
+      { id: "flow", label: "Flow Studio" },
       { id: "overseer", label: "Overseer" },
     ],
   },
