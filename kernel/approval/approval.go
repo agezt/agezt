@@ -153,6 +153,10 @@ type SubmitSpec struct {
 	Reason        string
 	Actor         string
 	CorrelationID string
+	// AutoRec is the auto-recommendation for the operator (e.g., "allow" or "deny").
+	AutoRec string
+	// ValuePreview is a masked preview of the value being accessed.
+	ValuePreview string
 }
 
 // Submit registers a pending request and blocks until Resolve is

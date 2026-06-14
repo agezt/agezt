@@ -54,8 +54,8 @@ func (tm *TokenManager) CreateToken(claims *TokenClaims) (string, error) {
 		claims.MaxBurst = 10 // default burst of 10
 	}
 
-	// Generate a unique token ID (we don't need to store it, just create the token)
-	_ = ulid.New()
+	// Generate a unique token ID and store it in claims
+	claims.TokenID = ulid.New()
 
 	// Create header
 	header := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"HS256","typ":"JWT"}`))
@@ -161,7 +161,7 @@ func (tm *TokenManager) CreateSubprocessToken(parent *TokenClaims, subID string,
 		MaxRate:       parent.MaxRate,
 		MaxBurst:      parent.MaxBurst / 2, // subprocess gets half the burst
 		ExpiresAt:     exp,
-		ParentTokenID: parent.RunID, // TODO: store actual parent tid
+		ParentTokenID: parent.TokenID,
 		SubprocessID:  subID,
 	}
 

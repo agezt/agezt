@@ -273,11 +273,9 @@ func (ap *AccessPolicy) requestHITLApproval(ctx context.Context, req *ConfigAcce
 	if rating == RatingSecret {
 		autoRec = "deny"
 	}
-	_ = autoRec // TODO: Pass to approval system metadata
 
 	// Create value preview (last 4 chars for secrets)
 	valuePreview := ap.maskValue(entry.Value)
-	_ = valuePreview // TODO: Include in approval metadata
 
 	// Submit approval request
 	outcome := ap.registry.Submit(ctx, approval.SubmitSpec{
@@ -287,6 +285,8 @@ func (ap *AccessPolicy) requestHITLApproval(ctx context.Context, req *ConfigAcce
 		Reason:        req.Reason,
 		Actor:         "config_center",
 		CorrelationID: req.RunID,
+		AutoRec:       autoRec,
+		ValuePreview:  valuePreview,
 	})
 
 	if outcome.Decision == approval.DecisionGrant {
