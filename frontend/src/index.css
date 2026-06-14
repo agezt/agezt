@@ -22,19 +22,31 @@
   --good: oklch(0.62 0.15 150);
   --warn: oklch(0.7 0.14 80);
   --bad: oklch(0.6 0.21 25);
+
+  /* Elevation scale (M951): soft, layered shadows so cards, menus and popovers
+     read as lifted surfaces rather than flat outlines. Light theme — a cool,
+     low-opacity shadow. Exposed as shadow-e1/e2/e3 utilities via @theme below. */
+  --elev-1: 0 1px 2px oklch(0.45 0.03 260 / 0.06), 0 1px 1px oklch(0.45 0.03 260 / 0.04);
+  --elev-2: 0 2px 4px -1px oklch(0.45 0.03 260 / 0.08), 0 6px 16px -5px oklch(0.45 0.03 260 / 0.08);
+  --elev-3: 0 10px 28px -6px oklch(0.4 0.04 260 / 0.14), 0 2px 6px -1px oklch(0.4 0.04 260 / 0.08);
 }
 
 .dark {
-  --background: oklch(0.17 0.012 260);
+  --background: oklch(0.155 0.012 260);
   --foreground: oklch(0.92 0.01 260);
   --card: oklch(0.21 0.014 260);
-  --panel: oklch(0.195 0.013 260);
+  --panel: oklch(0.19 0.013 260);
   --muted: oklch(0.62 0.015 260);
   --border: oklch(0.29 0.015 260);
   --accent: oklch(0.7 0.15 var(--accent-hue, 255));
   --good: oklch(0.72 0.16 150);
   --warn: oklch(0.78 0.15 80);
   --bad: oklch(0.68 0.2 25);
+
+  /* Dark theme — deeper, near-black shadows for real depth on the dark surface. */
+  --elev-1: 0 1px 2px oklch(0 0 0 / 0.35);
+  --elev-2: 0 2px 6px -1px oklch(0 0 0 / 0.45), 0 8px 20px -6px oklch(0 0 0 / 0.4);
+  --elev-3: 0 12px 32px -8px oklch(0 0 0 / 0.58), 0 3px 8px -2px oklch(0 0 0 / 0.45);
 }
 
 @theme inline {
@@ -48,7 +60,19 @@
   --color-good: var(--good);
   --color-warn: var(--warn);
   --color-bad: var(--bad);
+  /* Mono stays for code, model IDs, numbers and timestamps. Sans (self-hosted
+     Inter Variable, loaded in main.tsx) drives all UI chrome and body (M951). */
   --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --font-sans: "Inter Variable", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  /* Elevation utilities (shadow-e1/e2/e3) resolve the per-theme --elev-* vars. */
+  --shadow-e1: var(--elev-1);
+  --shadow-e2: var(--elev-2);
+  --shadow-e3: var(--elev-3);
+  /* Softer radius scale — slightly rounder than Tailwind's defaults for a more
+     modern, less boxy feel; cascades to every rounded-md/lg/xl across the app. */
+  --radius-md: 0.5rem;
+  --radius-lg: 0.625rem;
+  --radius-xl: 0.875rem;
 }
 
 * {
@@ -65,10 +89,18 @@ body {
   margin: 0;
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 13px;
   line-height: 1.5;
+  letter-spacing: -0.003em;
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Mono surfaces (code, IDs, numbers) keep their tighter rhythm — reset the
+   sans tracking so monospace columns stay crisp and aligned. */
+.font-mono {
+  letter-spacing: 0;
 }
 
 /* React Flow surface blends with the theme. */

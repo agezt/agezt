@@ -186,7 +186,7 @@ export function Dashboard() {
               <button
                 key={r.id}
                 onClick={() => (location.hash = "agents")}
-                className="flex flex-col gap-1.5 rounded-md border border-border bg-card p-2.5 text-left transition-colors hover:border-accent"
+                className="flex flex-col gap-1.5 rounded-md border border-border bg-card p-2.5 text-left shadow-e1 transition-[box-shadow,border-color] hover:border-accent hover:shadow-e2"
               >
                 <div className="flex items-center gap-1.5">
                   <span className="size-2 shrink-0 animate-pulse rounded-full bg-accent" />
@@ -296,7 +296,7 @@ export function Dashboard() {
       </div>
 
       {/* Live event ticker */}
-      <div className="rounded-lg border border-border bg-card">
+      <div className="rounded-lg border border-border bg-card shadow-e1">
         <div className="flex items-center gap-2 border-b border-border px-3 py-2 text-xs font-semibold uppercase tracking-wider text-muted">
           <Radio className="size-3.5" /> Live events
         </div>
@@ -321,7 +321,7 @@ export function Dashboard() {
 }
 
 function GaugeCard({ children }: { children: React.ReactNode }) {
-  return <div className="flex items-center justify-center rounded-lg border border-border bg-card p-3">{children}</div>;
+  return <div className="flex items-center justify-center rounded-lg border border-border bg-card p-3 shadow-e1">{children}</div>;
 }
 
 function Tile({
@@ -339,7 +339,7 @@ function Tile({
 }) {
   const color = { accent: "text-accent", good: "text-good", bad: "text-bad", muted: "text-foreground" }[tone];
   return (
-    <div className="rounded-lg border border-border bg-card px-3 py-2.5">
+    <div className="rounded-lg border border-border bg-card px-3 py-2.5 shadow-e1">
       <div className="flex items-center gap-1.5 text-xs text-muted">
         <Icon className="size-3.5" /> {label}
         {pulse && <span className="ml-auto size-2 animate-pulse rounded-full bg-accent" />}
@@ -351,7 +351,7 @@ function Tile({
 
 function Card({ title, icon: Icon, children }: { title: string; icon: typeof Activity; children: React.ReactNode }) {
   return (
-    <div className="rounded-lg border border-border bg-card p-3">
+    <div className="rounded-lg border border-border bg-card p-3 shadow-e1">
       <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted">
         <Icon className="size-3.5" /> {title}
       </div>

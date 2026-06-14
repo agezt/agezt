@@ -605,10 +605,12 @@ export default function App() {
                     key={n.id}
                     onClick={() => setActive(n.id)}
                     className={cn(
-                      "flex shrink-0 items-center gap-2 rounded-md px-3 py-1.5 text-left text-sm transition-colors lg:ml-1",
+                      "relative flex shrink-0 items-center gap-2 rounded-md px-3 py-1.5 text-left text-sm transition-[background-color,color,box-shadow] lg:ml-1",
                       isCollapsed && "lg:hidden",
                       n.id === active
-                        ? "bg-accent/15 font-medium text-accent"
+                        ? // Active item: tinted fill + inset accent ring, plus a left
+                          // accent rail on the lg sidebar so the current view reads at a glance.
+                          "bg-accent/12 font-medium text-accent ring-1 ring-inset ring-accent/25 before:absolute before:left-0 before:top-1/2 before:hidden before:h-5 before:w-[3px] before:-translate-y-1/2 before:rounded-r-full before:bg-accent before:content-[''] lg:before:block"
                         : "text-muted hover:bg-panel hover:text-foreground",
                     )}
                   >
@@ -638,7 +640,7 @@ export default function App() {
             );
           })}
         </nav>
-        <main className="min-h-0 flex-1 overflow-auto p-3">
+        <main className="min-h-0 flex-1 overflow-auto p-3 sm:p-4">
           {/* Keyed remount so each view fades + rises in on navigation. */}
           <div key={active} className="view-enter h-full">
             <View />
@@ -673,12 +675,12 @@ function Header({
     }
   }
   return (
-    <header className="flex items-center gap-3 border-b border-border bg-panel px-4 py-2">
+    <header className="relative z-10 flex items-center gap-3 border-b border-border bg-panel px-4 py-2 shadow-e1">
       <ConsoleName />
       <span
         className={cn(
-          "ml-1 inline-flex items-center gap-1 text-xs",
-          connected ? "text-good" : "text-bad",
+          "ml-1 inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium",
+          connected ? "border-good/30 bg-good/10 text-good" : "border-bad/30 bg-bad/10 text-bad",
         )}
       >
         ● {connected ? "live" : "disconnected"}

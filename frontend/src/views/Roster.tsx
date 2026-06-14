@@ -631,7 +631,7 @@ export function Roster() {
           <li
             key={p.id}
             className={cn(
-              "rounded-lg border border-border bg-card p-3",
+              "rounded-lg border border-border bg-card p-3 shadow-e1 transition-[box-shadow,border-color] hover:shadow-e2",
               open && "sm:col-span-2 xl:col-span-3",
             )}
           >
@@ -770,7 +770,7 @@ export function Roster() {
 
 function RosterStat({ label, value, accent }: { label: string; value: number; accent?: boolean }) {
   return (
-    <div className={cn("rounded-lg border bg-card p-2.5", accent ? "border-accent/50" : "border-border")}>
+    <div className={cn("rounded-lg border bg-card p-2.5 shadow-e1", accent ? "border-accent/50" : "border-border")}>
       <div className="text-[10px] font-semibold uppercase tracking-wider text-muted">{label}</div>
       <div className={cn("mt-0.5 text-lg font-semibold tabular-nums", accent && "text-accent")}>{value}</div>
     </div>

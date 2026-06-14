@@ -159,7 +159,7 @@ export function Overseer() {
         <span
           className={cn(
             "flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium",
-            connected ? "bg-emerald-500/10 text-emerald-400" : "bg-muted/20 text-muted",
+            connected ? "bg-good/10 text-good" : "bg-muted/20 text-muted",
           )}
           title={connected ? "Live event stream connected" : "Stream disconnected — polling"}
         >
@@ -218,7 +218,7 @@ export function Overseer() {
                         onClick={() => {
                           location.hash = "runs";
                         }}
-                        className="w-full rounded-md border border-border bg-surface/40 px-2.5 py-1.5 text-left transition-colors hover:border-accent/50 hover:bg-surface/70"
+                        className="w-full rounded-md border border-border bg-panel/50 px-2.5 py-1.5 text-left shadow-e1 transition-[background-color,border-color,box-shadow] hover:border-accent/50 hover:bg-panel hover:shadow-e2"
                         title="Open in Runs"
                       >
                         <div className="flex items-center gap-2">
@@ -227,7 +227,7 @@ export function Overseer() {
                             {r.intent || r.correlation_id}
                           </span>
                           {r.parent_correlation && (
-                            <span className="shrink-0 rounded bg-surface px-1 text-[10px] text-muted">
+                            <span className="shrink-0 rounded bg-panel px-1 text-[10px] text-muted">
                               sub-agent
                             </span>
                           )}
@@ -368,14 +368,14 @@ function Stat({
   return (
     <div
       className={cn(
-        "flex items-center gap-3 rounded-lg border border-border bg-surface/40 px-3 py-2.5",
+        "flex items-center gap-3 rounded-lg border border-border bg-card px-3 py-2.5 shadow-e1",
         tone === "accent" && "border-accent/40",
         tone === "warn" && "border-amber-500/40",
       )}
     >
       <span
         className={cn(
-          "grid size-8 place-items-center rounded-md bg-surface",
+          "grid size-8 place-items-center rounded-md bg-panel",
           tone === "accent" && "text-accent",
           tone === "warn" && "text-amber-400",
           tone === "muted" && "text-muted",
@@ -401,7 +401,7 @@ function Panel({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex min-h-0 flex-col gap-2 overflow-hidden rounded-lg border border-border bg-surface/20 p-3">
+    <div className="flex min-h-0 flex-col gap-2 overflow-hidden rounded-lg border border-border bg-card p-3 shadow-e1">
       <h3 className="flex items-center gap-2 text-xs font-semibold">
         {icon} {title}
       </h3>

@@ -4,7 +4,13 @@ import { cn } from "@/lib/utils";
 export function Card({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
-      className={cn("flex min-h-0 flex-col overflow-hidden rounded-lg border border-border bg-card", className)}
+      // shadow-e1 lifts every card off the background (M951); transition lets
+      // views opt into a hover-lift (e.g. interactive roster cards) by adding
+      // `hover:shadow-e2` / `hover:-translate-y-0.5` without restating the base.
+      className={cn(
+        "flex min-h-0 flex-col overflow-hidden rounded-lg border border-border bg-card shadow-e1 transition-shadow",
+        className,
+      )}
       {...props}
     />
   );
