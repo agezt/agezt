@@ -616,3 +616,145 @@ func TestValidatePattern(t *testing.T) {
 		}
 	}
 }
+
+// TestMatchSubject tests the NATS-style subject pattern matching function.
+// Exported for use by the controlplane's pulse historical-replay path.
+func TestMatchSubject(t *testing.T) {
+	tests := []struct {
+		pattern  string
+		subject  string
+		expected bool
+		name     string
+	}{
+		// Exact match
+		{"foo", "foo", true, "exact_match"},
+		{"foo.bar", "foo.bar", true, "exact_match_two_tokens"},
+		{"foo.bar.baz", "foo.bar.baz", true, "exact_match_three_tokens"},
+
+		// No match — different subjects
+		{"foo", "bar", false, "different_subject"},
+		{"foo", "fo", false, "prefix_only"},
+		{"foo.bar", "foo.baz", false, "different_second_token"},
+		{"foo.bar", "foo.bar.baz", false, "subject_longer_than_pattern"},
+		{"foo.bar.baz", "foo.bar", false, "subject_shorter_than_pattern"},
+
+		// Single wildcard (*) matches one token
+		{"foo.*", "foo.bar", true, "single_star_matches_one_token"},
+		{"foo.*", "foo.", true, "star_matches_empty_token"}, // * matches any token including empty
+		{"foo.*", "foo.bar.baz", false, "star_only_matches_single_token"},
+		{"*.bar", "foo.bar", true, "star_at_start"},
+		{"foo.*.baz", "foo.bar.baz", true, "star_in_middle"},
+		{"*.*", "foo.bar", true, "two_stars"},
+		{"*.*.*", "foo.bar.baz", true, "three_stars"},
+
+		// Wildcard mismatch
+		{"foo.*", "bar.baz", false, "star_subject_mismatch"},
+		{"*.bar", "foo.baz", false, "star_different_token"},
+		{"foo.*.baz", "foo.bar.qux", false, "star_middle_token_mismatch"},
+
+		// Trailing wildcard (>) matches all remaining tokens
+		{"foo.>", "foo.bar", true, "gt_matches_one_token"},
+		{"foo.>", "foo.bar.baz", true, "gt_matches_multiple_tokens"},
+		{"foo.>", "foo", false, "gt_requires_at_least_one_token"},
+		{"agent.>", "agent.spawned", true, "gt_agent_spawned"},
+		{"agent.>", "agent.spawned.task", true, "gt_agent_multi_token"},
+		{"a.>", "a.b.c.d", true, "gt_matches_many_tokens"},
+
+		// Trailing wildcard mismatch
+		{"foo.>", "bar.baz", false, "gt_subject_mismatch"},
+		{"foo.>", "bar.foo", false, "gt_subject_reversed"},
+
+		// Combined * and >
+		{"foo.*.>", "foo.bar.baz", true, "star_then_gt"},
+		{"foo.*.>", "foo.bar", false, "star_then_gt_requires_two_tokens"},
+		{"*.>", "foo.bar.baz", true, "star_then_gt_full_wildcard"},
+		{"foo.*.>", "foo.bar.qux.zod", true, "star_then_gt_multi_after"},
+
+		// Edge cases
+		{"*", "foo", true, "single_star"},
+		{"*", "foo.bar", false, "single_star_only_matches_one"},
+		{">", "foo", true, "bare_gt"},
+		{">", "foo.bar.baz", true, "bare_gt_matches_anything"},
+		{"", "foo", false, "empty_pattern"},
+
+		// Complex patterns
+		{"agent.01H.>", "agent.01H.llm", true, "complex_agent_id"},
+		{"agent.01H.*.result", "agent.01H.tool.result", true, "complex_with_star"},
+		{"agent.01H.*.result", "agent.01H.result", false, "complex_star_requires_token"},
+		{"a.b.c.d", "a.b.c", false, "exact_longer_than_short"},
+		{"a.b.c", "a.b.c.d", false, "exact_shorter_than_long"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := MatchSubject(tt.pattern, tt.subject)
+			if got != tt.expected {
+				t.Errorf("MatchSubject(%q, %q) = %v, want %v", tt.pattern, tt.subject, got, tt.expected)
+			}
+		})
+	}
+}
+
+// TestMatchSubject_CornerCases tests edge cases for MatchSubject.
+func TestMatchSubject_CornerCases(t *testing.T) {
+	// Malformed patterns should return false (not panic)
+	malformed := []string{"", "a..b", ">.a", "a.>.b"}
+	for _, p := range malformed {
+		if MatchSubject(p, "foo.bar") != false {
+			t.Errorf("MatchSubject(%q, foo.bar) = true, want false for malformed pattern", p)
+		}
+	}
+
+	// Empty subject with various patterns
+	if MatchSubject("foo.>", "foo") != false {
+		t.Error("MatchSubject(foo.>, foo) = true, want false")
+	}
+	if MatchSubject(">", "foo") != true {
+		t.Error("MatchSubject(>, foo) = false, want true")
+	}
+	if MatchSubject("*", "foo.bar") != false {
+		t.Error("MatchSubject(*, foo.bar) = true, want false")
+	}
+
+	// Subject with empty tokens (subjects don't have empty tokens per NATS spec,
+	// but MatchSubject splits on "." so a subject like "foo..bar" would have an empty token)
+	// Note: In practice, Publish() likely validates subject format, but MatchSubject
+	// is a standalone function that just does pattern matching.
+}
+
+// TestMatchSubject_RealWorldPatterns tests patterns commonly used in the bus.
+func TestMatchSubject_RealWorldPatterns(t *testing.T) {
+	// These are the kinds of patterns used in actual subscriptions
+	tests := []struct {
+		pattern  string
+		subject  string
+		expected bool
+	}{
+		// Agent events
+		{"agent.>", "agent.01H.spawned", true},
+		{"agent.>", "agent.01H.task", true},
+		{"agent.>", "agent.01H.llm", true},
+		{"agent.>", "kernel.halt", false},
+
+		// Tool events
+		{"tool.>", "tool.called", true},
+		{"tool.>", "tool.result", true},
+		{"tool.result", "tool.result", true},
+		{"tool.result", "tool.called", false},
+
+		// Subscription patterns used in controlplane
+		{"agent.*.>", "agent.01H.spawned", true},
+		{"agent.*.>", "agent.01H.llm", true},
+		{"agent.*.task", "agent.01H.task", true},
+		{"agent.*.task", "agent.01H.llm", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(fmt.Sprintf("%s_v_%s", tt.pattern, tt.subject), func(t *testing.T) {
+			got := MatchSubject(tt.pattern, tt.subject)
+			if got != tt.expected {
+				t.Errorf("MatchSubject(%q, %q) = %v, want %v", tt.pattern, tt.subject, got, tt.expected)
+			}
+		})
+	}
+}
