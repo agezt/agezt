@@ -8,17 +8,24 @@ import { getJSON } from "@/lib/api";
 import { fmtTime } from "@/lib/utils";
 import { Muted } from "@/components/JsonView";
 
+interface PendingApproval {
+  id?: string;
+  capability?: string;
+  tool_name?: string;
+  reason?: string;
+}
+
 export function Approvals() {
   return (
     <div className="space-y-4">
-      <Panel<Record<string, any>> title="Approvals" path="/api/approvals">
+      <Panel<{ pending?: PendingApproval[] }> title="Approvals" path="/api/approvals">
         {(d, reload) => {
           const items = d.pending || [];
           return (
             <>
               <Count>{items.length} pending</Count>
               {items.length ? (
-                items.map((a: any, i: number) => (
+                items.map((a: PendingApproval, i: number) => (
                   <Row key={a.id || i}>
                     <Badge variant="warn">{a.capability || a.tool_name || "?"}</Badge>
                     <span>{a.reason || a.tool_name || a.id || ""}</span>

@@ -277,7 +277,7 @@ export function Policy() {
                 path="/api/policy_log"
                 params={{ limit: "40" }}
                 extract={(x) => x.decisions || []}
-                render={(ev: any, i) => (
+                render={(ev: PolicyLogEntry, i: number) => (
                   <div key={i} className="flex gap-2 border-b border-border/40 py-0.5">
                     <span className="text-muted">{fmtTime(ev.ts_unix_ms)}</span>
                     <span className={ev.allow ? "text-good" : "text-bad"}>
@@ -374,6 +374,15 @@ interface EdictDecision {
   hard_deny_rule?: string;
   would_ask?: boolean;
   requires_approval?: boolean;
+}
+
+interface PolicyLogEntry {
+  ts_unix_ms?: number;
+  allow?: boolean;
+  hard_denied?: boolean;
+  capability?: string;
+  tool?: string;
+  reason?: string;
 }
 
 // effectiveOutcome folds the raw decision into the operator-facing verdict: a hard

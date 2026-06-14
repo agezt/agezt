@@ -9,10 +9,12 @@ import { withToken } from "@/lib/api";
 export interface ChatFrame {
   kind: string;
   subject?: string;
-  payload?: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  payload?: Record<string, unknown>;
   correlation_id?: string;
   error?: string;
-  result?: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  result?: Record<string, unknown>;
 }
 
 // One tool call assembled across the policy.decision / tool.invoked /

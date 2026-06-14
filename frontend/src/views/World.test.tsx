@@ -25,7 +25,12 @@ import { UIProvider } from "@/components/ui/feedback";
 
 describe("kindBreakdown (M918)", () => {
   it("counts entities per kind, sorted by count then name, defaulting blank to 'entity'", () => {
-    const ents = [{ kind: "person" }, { kind: "person" }, { kind: "project" }, {}];
+    const ents = [
+      { name: "Alice", kind: "person" },
+      { name: "Bob", kind: "person" },
+      { name: "RepoX", kind: "project" },
+      { name: "Unnamed" },
+    ];
     expect(kindBreakdown(ents)).toEqual([
       { label: "person", count: 2 },
       { label: "entity", count: 1 },

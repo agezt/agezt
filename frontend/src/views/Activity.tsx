@@ -59,7 +59,7 @@ export function Activity() {
   async function seed() {
     setSeeding(true);
     try {
-      const res = await getJSON<{ runs?: any[] }>("/api/runs");
+      const res = await getJSON<{ runs?: ActiveRun[] }>("/api/runs");
       // Merge the seed over live state so an in-flight run already being folded
       // isn't clobbered (live activity lines win; seed only fills gaps).
       setState((live) => {

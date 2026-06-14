@@ -558,9 +558,11 @@ func (p *Plugin) Close() error {
 			killProcessTree(cmd)
 			<-waitDone
 		} else {
+			timer := time.NewTimer(DefaultShutdownGrace)
+			defer timer.Stop()
 			select {
 			case <-waitDone:
-			case <-time.After(DefaultShutdownGrace):
+			case <-timer.C:
 				// Kill the whole process group (M184) so grandchildren are reaped too.
 				killProcessTree(cmd)
 				<-waitDone
