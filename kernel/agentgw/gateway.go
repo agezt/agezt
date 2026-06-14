@@ -282,8 +282,11 @@ func (g *Gateway) allowRate(tid string, maxRate, maxBurst int) bool {
 		rl = NewRateLimit(maxRate, maxBurst)
 		g.rateLimit[tid] = rl
 	}
+	// Call Allow() while holding rlMu to prevent a race where two concurrent
+	// requests both see count=0 before either has incremented.
+	allowed := rl.Allow()
 	g.rlMu.Unlock()
-	return rl.Allow()
+	return allowed
 }
 
 // evictStaleLocked removes idle rate-limit buckets. Caller must hold rlMu.
