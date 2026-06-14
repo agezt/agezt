@@ -242,26 +242,28 @@ func (k *Kernel) runSubAgentAsync(ctx context.Context, task, model, taskType, ag
 		cancel:     cancel,
 		done:       make(chan struct{}),
 	}
-	k.mu.Lock()
+	k.runsMu.Lock()
 	if k.halted {
 		// Halt won the race after prepare's check: don't start a goroutine
 		// Halt's sweep of k.runs can no longer see.
-		k.mu.Unlock()
+		k.runsMu.Unlock()
 		cancel()
 		return "", ErrHalted
 	}
+	k.spawnsMu.Lock()
 	k.spawns[p.childCorr] = h
 	k.runs[p.childCorr] = cancel
 	k.runWG.Add(1) // Close drains async spawns like any in-flight run (M883)
-	k.mu.Unlock()
+	k.runsMu.Unlock()
+	k.spawnsMu.Unlock()
 	go func() {
 		defer k.runWG.Done()
 		defer cancel()
 		answer, err := k.executeSubAgent(p)
 		h.answer, h.err = answer, err
-		k.mu.Lock()
+		k.runsMu.Lock()
 		delete(k.runs, p.childCorr)
-		k.mu.Unlock()
+		k.runsMu.Unlock()
 		// Announce completion under the parent correlation BEFORE releasing
 		// awaiters, so by the time delegate_await returns the outcome is
 		// already durably journaled (subscribable by the UI as a push signal).
@@ -296,9 +298,9 @@ func (k *Kernel) awaitSubAgent(ctx context.Context, spawnID string) (agent.Resul
 	if spawnID == "" {
 		return agent.Result{Output: "spawn_id required", IsError: true}, nil
 	}
-	k.mu.Lock()
+	k.spawnsMu.Lock()
 	h, ok := k.spawns[spawnID]
-	k.mu.Unlock()
+	k.spawnsMu.Unlock()
 	if !ok {
 		return agent.Result{Output: fmt.Sprintf("unknown spawn id %q (already collected, cancelled, or never spawned)", spawnID), IsError: true}, nil
 	}
@@ -313,9 +315,9 @@ func (k *Kernel) awaitSubAgent(ctx context.Context, spawnID string) (agent.Resul
 		return agent.Result{Output: fmt.Sprintf("sub-agent %s is still running — call delegate_await again to keep waiting", spawnID), IsError: true}, nil
 	case <-h.done:
 	}
-	k.mu.Lock()
+	k.spawnsMu.Lock()
 	delete(k.spawns, spawnID)
-	k.mu.Unlock()
+	k.spawnsMu.Unlock()
 	if h.err != nil {
 		return agent.Result{Output: "delegation failed: " + h.err.Error(), IsError: true}, nil
 	}
@@ -413,14 +415,14 @@ func (k *Kernel) prepareSubAgent(ctx context.Context, task, model, taskType, age
 	// (RunWith's defer for top-level; this function's defer for a nested
 	// spawner's own child correlation below).
 	if maxFanout := k.cfg.SubAgentMaxFanout; maxFanout > 0 && parentCorr != "" {
-		k.mu.Lock()
+		k.fanoutMu.Lock()
 		n := k.fanout[parentCorr]
 		if n >= maxFanout {
-			k.mu.Unlock()
+			k.fanoutMu.Unlock()
 			return nil, fmt.Errorf("max sub-agent fan-out %d reached", maxFanout)
 		}
 		k.fanout[parentCorr] = n + 1
-		k.mu.Unlock()
+		k.fanoutMu.Unlock()
 	}
 
 	// Tree-total bound (M629): depth caps how DEEP and fan-out caps how WIDE at
@@ -437,14 +439,14 @@ func (k *Kernel) prepareSubAgent(ctx context.Context, task, model, taskType, age
 		rootCorr = parentCorr // this spawner is the tree root
 	}
 	if maxTotal := k.cfg.SubAgentMaxTotal; maxTotal > 0 && rootCorr != "" {
-		k.mu.Lock()
+		k.treeMu.Lock()
 		n := k.tree[rootCorr]
 		if n >= maxTotal {
-			k.mu.Unlock()
+			k.treeMu.Unlock()
 			return nil, fmt.Errorf("max sub-agent total %d reached for this delegation tree", maxTotal)
 		}
 		k.tree[rootCorr] = n + 1
-		k.mu.Unlock()
+		k.treeMu.Unlock()
 	}
 
 	// Spend cap (M48): once this run's sub-agents have collectively spent past
@@ -469,9 +471,9 @@ func (k *Kernel) prepareSubAgent(ctx context.Context, task, model, taskType, age
 	// delegation tree, not just the top-level lead (M608 only wired RunWith).
 	// Wired into the child loop via LoopConfig.Steer below.
 	rc := newRunControl()
-	k.mu.Lock()
+	k.steersMu.Lock()
 	k.steers[childCorr] = rc
-	k.mu.Unlock()
+	k.steersMu.Unlock()
 
 	// Journal the spawn under the parent correlation so `agt why <parent>`
 	// reveals the delegation and the child correlation to drill into.
@@ -573,10 +575,12 @@ func (k *Kernel) executeSubAgent(p *subAgentPrep) (string, error) {
 	// control when it returns so the maps don't accumulate across a long-lived
 	// kernel.
 	defer func() {
-		k.mu.Lock()
+		k.fanoutMu.Lock()
 		delete(k.fanout, p.childCorr)
+		k.fanoutMu.Unlock()
+		k.steersMu.Lock()
 		delete(k.steers, p.childCorr)
-		k.mu.Unlock()
+		k.steersMu.Unlock()
 	}()
 
 	answer, err := agent.Run(p.childCtx, agent.LoopConfig{
@@ -637,9 +641,10 @@ func (k *Kernel) subAgentSpendMicrocents(parentCorr string) int64 {
 	var total int64
 	seen := map[string]bool{parentCorr: true}
 	queue := append([]string{}, childrenOf[parentCorr]...)
-	for len(queue) > 0 {
-		corr := queue[0]
-		queue = queue[1:]
+	head := 0
+	for head < len(queue) {
+		corr := queue[head]
+		head++
 		if seen[corr] {
 			continue
 		}

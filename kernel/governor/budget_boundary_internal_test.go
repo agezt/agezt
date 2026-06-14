@@ -32,14 +32,14 @@ func TestBudgetExceeded_AtExactCeilingBlocks(t *testing.T) {
 	g := newBudgetGov(Config{DailyCeilingMicrocents: 1000})
 
 	g.mu.Lock()
-	g.spentToday = 1000 // exactly the ceiling
+	g.spentToday.Store(1000) // exactly the ceiling
 	g.mu.Unlock()
 	if ex, _, _ := g.budgetExceeded(); !ex {
 		t.Error("spend exactly at the daily ceiling must be over budget (>=), got allowed")
 	}
 
 	g.mu.Lock()
-	g.spentToday = 999 // one microcent below
+	g.spentToday.Store(999) // one microcent below
 	g.mu.Unlock()
 	if ex, _, _ := g.budgetExceeded(); ex {
 		t.Error("spend one microcent below the ceiling must NOT be over budget")

@@ -29,6 +29,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/plugins/providers/internal/httpread"
+	"github.com/agezt/agezt/plugins/providers/internal/retry"
 )
 
 const (
@@ -137,40 +138,50 @@ func (p *Provider) Complete(ctx context.Context, req agent.CompletionRequest) (*
 	}
 
 	endpoint := p.resolveEndpoint()
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
-	if err != nil {
-		return nil, fmt.Errorf("openai: build request: %w", err)
-	}
-	httpReq.Header.Set("Content-Type", "application/json")
 	authHeader := p.AuthHeader
 	if authHeader == "" {
 		authHeader = "Authorization"
 	}
 	authScheme := p.AuthScheme
 	if authScheme == "" && p.AuthHeader == "" {
-		// Only default the scheme when the header is also defaulted,
-		// so an explicit empty-scheme caller (Azure) isn't silently
-		// promoted back to Bearer.
 		authScheme = "Bearer "
 	}
-	httpReq.Header.Set(authHeader, authScheme+p.APIKey)
 
 	client := p.HTTP
 	if client == nil {
 		client = http.DefaultClient
 	}
-	httpResp, err := client.Do(httpReq)
-	if err != nil {
-		return nil, fmt.Errorf("openai: http: %w", err)
-	}
-	defer httpResp.Body.Close()
 
-	respBytes, err := httpread.All(httpResp.Body, httpread.DefaultMaxResponseBytes)
-	if err != nil {
-		return nil, fmt.Errorf("openai: read body: %w", err)
-	}
-	if httpResp.StatusCode/100 != 2 {
-		return nil, &APIError{Status: httpResp.StatusCode, Body: string(respBytes)}
+	// Retry logic with exponential backoff for transient errors (429, 5xx)
+	var respBytes []byte
+	httpErr := retry.Do(ctx, retry.DefaultConfig, func() error {
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
+		if err != nil {
+			return err
+		}
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set(authHeader, authScheme+p.APIKey)
+
+		httpResp, err := client.Do(req)
+		if err != nil {
+			return &retry.TransientError{Err: err}
+		}
+		defer httpResp.Body.Close()
+
+		respBytes, err = httpread.All(httpResp.Body, httpread.DefaultMaxResponseBytes)
+		if err != nil {
+			return fmt.Errorf("openai: read body: %w", err)
+		}
+		if httpResp.StatusCode/100 != 2 {
+			return &retry.HTTPError{StatusCode: httpResp.StatusCode, Body: string(respBytes)}
+		}
+		return nil
+	})
+	if httpErr != nil {
+		if h, ok := httpErr.(*retry.HTTPError); ok {
+			return nil, &APIError{Status: h.StatusCode, Body: h.Body}
+		}
+		return nil, httpErr
 	}
 	resp, err := decodeResponse(respBytes)
 	if err != nil {

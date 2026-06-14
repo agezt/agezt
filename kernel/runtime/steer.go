@@ -141,8 +141,8 @@ func (rc *runControl) snapshot() (paused bool, pending int) {
 // controlFor returns the steering surface for a live run, or nil if there is no
 // such active run (finished, never existed, wrong id).
 func (k *Kernel) controlFor(corr string) *runControl {
-	k.mu.Lock()
-	defer k.mu.Unlock()
+	k.steersMu.Lock()
+	defer k.steersMu.Unlock()
 	return k.steers[corr]
 }
 

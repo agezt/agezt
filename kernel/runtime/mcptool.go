@@ -70,26 +70,26 @@ func (k *Kernel) AttachMCPServer(ctx context.Context, corr, ref string) (mcp.Ser
 	if !found {
 		return mcp.Server{}, nil, mcp.ErrNotFound
 	}
-	k.mu.Lock()
+	k.mcpMu.Lock()
 	if _, live := k.mcpConns[srv.Name]; live {
-		k.mu.Unlock()
+		k.mcpMu.Unlock()
 		return mcp.Server{}, nil, fmt.Errorf("runtime: mcp server %s is already attached", srv.Name)
 	}
-	k.mu.Unlock()
+	k.mcpMu.Unlock()
 
 	conn, err := k.dialMCP(ctx, srv)
 	if err != nil {
 		return mcp.Server{}, nil, err
 	}
 
-	k.mu.Lock()
+	k.mcpMu.Lock()
 	if _, live := k.mcpConns[srv.Name]; live { // raced a concurrent attach
-		k.mu.Unlock()
+		k.mcpMu.Unlock()
 		_ = conn.Close()
 		return mcp.Server{}, nil, fmt.Errorf("runtime: mcp server %s is already attached", srv.Name)
 	}
 	k.mcpConns[srv.Name] = conn
-	k.mu.Unlock()
+	k.mcpMu.Unlock()
 
 	names := make([]string, 0, len(conn.Tools()))
 	for _, t := range conn.Tools() {
@@ -131,10 +131,10 @@ func (k *Kernel) DetachMCPServer(corr, ref string) error {
 	if srv, found := k.mcpStore.Get(ref); found {
 		name = srv.Name
 	}
-	k.mu.Lock()
+	k.mcpMu.Lock()
 	conn, live := k.mcpConns[name]
 	delete(k.mcpConns, name)
-	k.mu.Unlock()
+	k.mcpMu.Unlock()
 	if !live {
 		return fmt.Errorf("runtime: mcp server %s is not attached", name)
 	}
@@ -151,9 +151,9 @@ func (k *Kernel) DetachMCPServer(corr, ref string) error {
 // journaling mcp.removed. Returns whether it existed.
 func (k *Kernel) RemoveMCPServer(corr, ref string) (bool, error) {
 	if srv, found := k.mcpStore.Get(ref); found {
-		k.mu.Lock()
+		k.mcpMu.Lock()
 		_, live := k.mcpConns[srv.Name]
-		k.mu.Unlock()
+		k.mcpMu.Unlock()
 		if live {
 			_ = k.DetachMCPServer(corr, srv.Name)
 		}
@@ -194,8 +194,8 @@ func (k *Kernel) AttachEnabledMCPServers(ctx context.Context) (attached []string
 // their bridged tool counts — the status surface for `agt mcp list` and the
 // console.
 func (k *Kernel) MCPAttached() map[string]int {
-	k.mu.Lock()
-	defer k.mu.Unlock()
+	k.mcpMu.Lock()
+	defer k.mcpMu.Unlock()
 	out := make(map[string]int, len(k.mcpConns))
 	for name, conn := range k.mcpConns {
 		out[name] = len(conn.Tools())
@@ -205,10 +205,10 @@ func (k *Kernel) MCPAttached() map[string]int {
 
 // closeMCPConns detaches everything — called from Kernel.Close.
 func (k *Kernel) closeMCPConns() {
-	k.mu.Lock()
+	k.mcpMu.Lock()
 	conns := k.mcpConns
 	k.mcpConns = map[string]mcp.Conn{}
-	k.mu.Unlock()
+	k.mcpMu.Unlock()
 	for _, conn := range conns {
 		_ = conn.Close()
 	}
@@ -240,7 +240,7 @@ func mcpToolName(server, tool string) string {
 // attachment's tools. Registered tools win a name collision; the input map
 // comes back untouched when nothing is attached.
 func (k *Kernel) mergeMCPTools(tools map[string]agent.Tool) map[string]agent.Tool {
-	k.mu.Lock()
+	k.mcpMu.Lock()
 	type liveConn struct {
 		name string
 		conn mcp.Conn
@@ -249,7 +249,7 @@ func (k *Kernel) mergeMCPTools(tools map[string]agent.Tool) map[string]agent.Too
 	for name, conn := range k.mcpConns {
 		live = append(live, liveConn{name, conn})
 	}
-	k.mu.Unlock()
+	k.mcpMu.Unlock()
 	if len(live) == 0 {
 		return tools
 	}

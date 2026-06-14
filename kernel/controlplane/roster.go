@@ -202,21 +202,18 @@ func (s *Server) handleAgentActivity(conn net.Conn, req Request) {
 	// Pass 1: the correlation ids of runs this agent executed (task.received
 	// carries the agent slug since M854). These also scope the council consults
 	// and delegations that happened *during* the agent's runs.
+	// Also collect activity events in the same pass to avoid O(2n) journal walks.
 	runCorr := map[string]bool{}
-	_ = s.k.Journal().Range(func(e *event.Event) error {
-		if e.Kind != event.KindTaskReceived {
-			return nil
-		}
-		var pl map[string]any
-		if json.Unmarshal(e.Payload, &pl) == nil && plString(pl, "agent") == slug && e.CorrelationID != "" {
-			runCorr[e.CorrelationID] = true
-		}
-		return nil
-	})
-
-	// Pass 2: emit every event attributable to the agent.
 	var items []map[string]any
 	_ = s.k.Journal().Range(func(e *event.Event) error {
+		// Build runCorr map
+		if e.Kind == event.KindTaskReceived {
+			var pl map[string]any
+			if json.Unmarshal(e.Payload, &pl) == nil && plString(pl, "agent") == slug && e.CorrelationID != "" {
+				runCorr[e.CorrelationID] = true
+			}
+		}
+		// Check if this event is attributable to the agent
 		var pl map[string]any
 		_ = json.Unmarshal(e.Payload, &pl)
 		summary, ok := agentActivitySummary(e, pl, slug, runCorr)

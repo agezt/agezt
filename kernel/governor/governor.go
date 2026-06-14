@@ -196,7 +196,7 @@ type Governor struct {
 	cfg Config
 
 	mu                sync.Mutex
-	spentToday        int64            // microcents (global)
+	spentToday        atomic.Int64     // microcents (global), atomic for hot-path no-lock reads
 	spentByTaskToday  map[string]int64 // microcents per task type (M1.zz)
 	spentByAgentToday map[string]int64 // microcents per agent slug (M793)
 	today             string           // YYYY-MM-DD UTC
@@ -215,10 +215,12 @@ type Governor struct {
 	ceilingOverridden bool
 
 	// Stable ordering for routing: primary chain + fallback chain. Guarded by
-	// mu — Replace rebuilds them on the hot-reload path concurrently with
-	// Complete's routeChain/Providers reads.
-	primary  []*ProviderInfo
-	fallback []*ProviderInfo
+	// chainMu (RWMutex) — Replace rebuilds them on the hot-reload path
+	// concurrently with Complete's routeChain/Providers reads.
+	chainMu      sync.RWMutex
+	primary      []*ProviderInfo // unsorted, insertion-order registry
+	sortedPrimary []*ProviderInfo // primary sorted by authModePriority (cached, rebuilt on Replace)
+	fallback     []*ProviderInfo
 
 	// taskModelChains is the runtime-mutable per-task-type model fallback chain
 	// (M703), seeded from cfg.TaskModelChains and swapped live by
@@ -288,6 +290,7 @@ func New(cfg Config) (*Governor, error) {
 			g.primary = append(g.primary, p)
 		}
 	}
+	g.sortedPrimary = g.sortPrimary() // initial sort (chainMu write not needed: single-threaded init)
 	return g, nil
 }
 
@@ -320,9 +323,10 @@ func (g *Governor) Replace(info *ProviderInfo) error {
 			primary = append(primary, p)
 		}
 	}
-	g.mu.Lock()
-	defer g.mu.Unlock()
+	g.chainMu.Lock()
+	defer g.chainMu.Unlock()
 	g.primary = primary
+	g.sortedPrimary = g.sortPrimary() // rebuild cached sorted primary
 	g.fallback = fallback
 	return nil
 }
@@ -674,8 +678,10 @@ func (g *Governor) callWithRetry(ctx context.Context, req agent.CompletionReques
 		if attempt >= retries || !shouldFallback(err) || !isTransient(err) {
 			return nil, err
 		}
-		delay := base << attempt                              // 0.5s, 1s, 2s, …
-		delay += time.Duration(rand.Int64N(int64(delay) / 4)) // +0–25% jitter
+		delay := base << attempt // 0.5s, 1s, 2s, …
+		if delay >= 4 {
+			delay += time.Duration(rand.Int64N(int64(delay)/4)) // +0–25% jitter
+		}
 		g.publish(event.Spec{
 			Subject:       "governor.retry",
 			Kind:          event.KindProviderRetry,
@@ -900,9 +906,9 @@ func (g *Governor) TaskModelChainsView() map[string][]string {
 // Useful for the future `agt budget` command and for tests.
 func (g *Governor) SpentMicrocents() int64 {
 	g.mu.Lock()
-	defer g.mu.Unlock()
 	g.rolloverIfNeededLocked()
-	return g.spentToday
+	g.mu.Unlock()
+	return g.spentToday.Load()
 }
 
 // SetBus attaches a bus after construction. The daemon builds the
@@ -950,7 +956,7 @@ func (g *Governor) SetDailyCeiling(microcents int64) int64 {
 	prev := g.effectiveCeilingLocked()
 	g.ceilingOverride = microcents
 	g.ceilingOverridden = true
-	spent := g.spentToday
+	spent := g.spentToday.Load()
 	g.mu.Unlock()
 
 	g.publish(event.Spec{
@@ -1002,8 +1008,8 @@ func (g *Governor) WithLimits(ceiling int64, ratePerMin int) (*Governor, error) 
 // Providers returns a snapshot of the routing chain (primary first,
 // fallback last). Used by the daemon banner.
 func (g *Governor) Providers() []*ProviderInfo {
-	g.mu.Lock()
-	defer g.mu.Unlock()
+	g.chainMu.RLock()
+	defer g.chainMu.RUnlock()
 	out := make([]*ProviderInfo, 0, len(g.primary)+len(g.fallback))
 	out = append(out, g.primary...)
 	out = append(out, g.fallback...)
@@ -1011,6 +1017,17 @@ func (g *Governor) Providers() []*ProviderInfo {
 }
 
 // ----- internals -----
+
+// sortPrimary returns a sorted copy of g.primary by authModePriority.
+// Caller holds g.mu.
+func (g *Governor) sortPrimary() []*ProviderInfo {
+	sorted := make([]*ProviderInfo, len(g.primary))
+	copy(sorted, g.primary)
+	slices.SortStableFunc(sorted, func(a, b *ProviderInfo) int {
+		return authModePriority(a.AuthMode) - authModePriority(b.AuthMode)
+	})
+	return sorted
+}
 
 // routeChain returns the ordered list of providers Complete will try.
 // Subscription-first per DECISIONS C2: among primary providers,
@@ -1027,23 +1044,19 @@ func (g *Governor) Providers() []*ProviderInfo {
 //   - AuthAPIKey: pay-per-token; tried only when the fixed-cost
 //     options aren't eligible or failed.
 //
-// Sorting on every call keeps the behaviour dynamic — when Replace
-// promotes a provider from API-key to subscription tier (rare but
-// possible after a creds rotation that adds an OAuth refresh token),
-// the next Complete picks it up without re-running anything.
+// The primary sort is cached in sortedPrimary (rebuilt on Replace) to avoid
+// O(n log n) sort on every Complete call. Replace also updates the cache
+// when a provider's AuthMode changes (e.g. creds rotation adds OAuth).
 func (g *Governor) routeChain(req agent.CompletionRequest) []*ProviderInfo {
-	// Snapshot the routing slices under the lock — Replace mutates them on the
-	// hot-reload path concurrently with Complete (which calls this unlocked).
-	g.mu.Lock()
-	primary := make([]*ProviderInfo, len(g.primary))
-	copy(primary, g.primary)
+	// Snapshot the routing slices under the chain lock — Replace mutates them on
+	// the hot-reload path concurrently with Complete (which calls this unlocked).
+	g.chainMu.RLock()
+	primary := make([]*ProviderInfo, len(g.sortedPrimary))
+	copy(primary, g.sortedPrimary)
 	fallback := make([]*ProviderInfo, len(g.fallback))
 	copy(fallback, g.fallback)
-	g.mu.Unlock()
+	g.chainMu.RUnlock()
 
-	slices.SortStableFunc(primary, func(a, b *ProviderInfo) int {
-		return authModePriority(a.AuthMode) - authModePriority(b.AuthMode)
-	})
 	chain := make([]*ProviderInfo, 0, len(primary)+len(fallback))
 	chain = append(chain, primary...)
 	chain = append(chain, fallback...)
@@ -1161,14 +1174,14 @@ func (g *Governor) recordUsage(p *ProviderInfo, req agent.CompletionRequest, res
 
 	g.mu.Lock()
 	g.rolloverIfNeededLocked()
-	g.spentToday += cost
+	g.spentToday.Add(cost)
 	if req.TaskType != "" {
 		g.spentByTaskToday[req.TaskType] += cost
 	}
 	if req.Agent != "" {
 		g.spentByAgentToday[req.Agent] += cost // per-identity ledger (M793)
 	}
-	spent := g.spentToday
+	spent := g.spentToday.Load()
 	ceiling := g.effectiveCeilingLocked()
 	g.mu.Unlock()
 
@@ -1286,13 +1299,14 @@ func (g *Governor) admitRate() (bool, int, int) {
 
 func (g *Governor) budgetExceeded() (bool, int64, int64) {
 	g.mu.Lock()
-	defer g.mu.Unlock()
 	g.rolloverIfNeededLocked()
 	ceiling := g.effectiveCeilingLocked()
+	spent := g.spentToday.Load()
+	g.mu.Unlock()
 	if ceiling <= 0 {
-		return false, g.spentToday, 0
+		return false, spent, 0
 	}
-	return g.spentToday >= ceiling, g.spentToday, ceiling
+	return spent >= ceiling, spent, ceiling
 }
 
 // taskBudgetExceeded reports whether the per-task-type ceiling for
@@ -1366,14 +1380,14 @@ type BudgetSnapshot struct {
 // hit it" as a separate state from "no cap configured."
 func (g *Governor) Snapshot() BudgetSnapshot {
 	g.mu.Lock()
-	defer g.mu.Unlock()
 	g.rolloverIfNeededLocked()
 	snap := BudgetSnapshot{
 		UTCDate:           g.today,
-		SpentMicrocents:   g.spentToday,
+		SpentMicrocents:   g.spentToday.Load(),
 		CeilingMicrocents: g.effectiveCeilingLocked(),
 		StrictPricing:     g.cfg.StrictPricing,
 	}
+	g.mu.Unlock()
 	if len(g.cfg.TaskBudgets) > 0 {
 		snap.PerTask = make([]TaskBudgetSnapshot, 0, len(g.cfg.TaskBudgets))
 		for taskType, cap := range g.cfg.TaskBudgets {
@@ -1393,7 +1407,7 @@ func (g *Governor) rolloverIfNeededLocked() {
 	today := g.cfg.Now().UTC().Format("2006-01-02")
 	if today != g.today {
 		g.today = today
-		g.spentToday = 0
+		g.spentToday.Store(0)
 		// Per-task counters also roll over (M1.zz). Clear the map
 		// rather than allocating a fresh one to keep the same
 		// underlying memory hot.

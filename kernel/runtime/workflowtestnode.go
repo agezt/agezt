@@ -33,9 +33,9 @@ type NodeTestResult struct {
 // half-edited canvas is refused with the validator's reason, not run on a
 // guess. Halted kernels refuse.
 func (k *Kernel) TestWorkflowNode(ctx context.Context, corr string, w workflow.Workflow, nodeID string, data map[string]any, payload any) (NodeTestResult, error) {
-	k.mu.Lock()
+	k.runsMu.Lock()
 	halted := k.halted
-	k.mu.Unlock()
+	k.runsMu.Unlock()
 	if halted {
 		return NodeTestResult{}, ErrHalted
 	}

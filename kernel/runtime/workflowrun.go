@@ -99,9 +99,9 @@ type RunWorkflowResult struct {
 // cancellation between and inside nodes. The first failing node fails the
 // run (error branching arrives with M800).
 func (k *Kernel) RunWorkflow(ctx context.Context, corr, ref string, payload any) (RunWorkflowResult, error) {
-	k.mu.Lock()
+	k.runsMu.Lock()
 	halted := k.halted
-	k.mu.Unlock()
+	k.runsMu.Unlock()
 	if halted {
 		return RunWorkflowResult{}, ErrHalted
 	}
@@ -154,8 +154,9 @@ func (k *Kernel) runWorkflowGraph(ctx context.Context, corr string, w workflow.W
 	tokens := map[string]int{} // incoming tokens received, for merge mode "all"
 
 	queue := []string{w.TriggerNode().ID}
+	head := 0
 	steps := 0
-	for len(queue) > 0 {
+	for head < len(queue) {
 		if err := ctx.Err(); err != nil {
 			return res, err
 		}
@@ -163,8 +164,8 @@ func (k *Kernel) runWorkflowGraph(ctx context.Context, corr string, w workflow.W
 		if steps > workflowStepCap {
 			return res, errors.New("workflow: step cap exceeded (engine bug — the graph validated as acyclic)")
 		}
-		id := queue[0]
-		queue = queue[1:]
+		id := queue[head]
+		head++
 		if executed[id] {
 			continue // a node runs once: first token wins
 		}

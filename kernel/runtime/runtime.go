@@ -430,7 +430,17 @@ type Kernel struct {
 	catalogStore *catalog.Store
 	catalog      *catalog.Catalog // snapshot — refreshable via ReloadCatalog
 
-	mu     sync.Mutex
+	// Fine-grained mutexes to reduce lock contention. Lock ordering to prevent
+	// deadlocks (always acquire in this order):
+	//   configMu (light config) < runsMu < fanoutMu < treeMu < steersMu < spawnsMu < mcpMu
+	configMu sync.Mutex // guards: system, model, cfg, catalog
+	runsMu   sync.Mutex // guards: halted, runs
+	fanoutMu sync.Mutex
+	treeMu   sync.Mutex
+	steersMu sync.Mutex
+	spawnsMu sync.Mutex
+	mcpMu    sync.Mutex // guards: mcpConns
+
 	halted bool
 	system string                        // live agent persona / system prompt (M710); seeded from cfg.System, editable at runtime
 	model  string                        // live default model id (M816); seeded from cfg.Model, hot-swapped on provider reload
@@ -1107,8 +1117,8 @@ func (k *Kernel) Reflect() *reflect.Engine { return k.reflect }
 // happening?" without scraping the bus. Safe under concurrent
 // Run starts/completes — takes the same mutex Halt does.
 func (k *Kernel) ActiveRuns() int {
-	k.mu.Lock()
-	defer k.mu.Unlock()
+	k.runsMu.Lock()
+	defer k.runsMu.Unlock()
 	return len(k.runs)
 }
 
@@ -1118,8 +1128,8 @@ func (k *Kernel) ActiveRuns() int {
 // journal-derived run history (CmdRunsList): these are exactly the runs a
 // CancelRun can still stop. Safe under concurrent run starts/completes.
 func (k *Kernel) ActiveRunIDs() []string {
-	k.mu.Lock()
-	defer k.mu.Unlock()
+	k.runsMu.Lock()
+	defer k.runsMu.Unlock()
 	ids := make([]string, 0, len(k.runs))
 	for corr := range k.runs {
 		ids = append(ids, corr)
@@ -1156,8 +1166,8 @@ func (k *Kernel) ConfigCenter() *configcenter.Center { return k.configCenter }
 // mu-guarded like the persona. Used by `agt config show` and every run that
 // builds a CompletionRequest without an explicit per-run/per-task model.
 func (k *Kernel) Model() string {
-	k.mu.Lock()
-	defer k.mu.Unlock()
+	k.configMu.Lock()
+	defer k.configMu.Unlock()
 	return k.model
 }
 
@@ -1166,9 +1176,9 @@ func (k *Kernel) Model() string {
 // reload calls this after AGEZT_MODEL changes so a wizard/Config-Center edit
 // takes effect in place instead of waiting for the next boot (M816).
 func (k *Kernel) SetModel(m string) {
-	k.mu.Lock()
+	k.configMu.Lock()
 	k.model = m
-	k.mu.Unlock()
+	k.configMu.Unlock()
 }
 
 // SetCouncilMembers replaces the live default Council of Elders membership
@@ -1176,9 +1186,9 @@ func (k *Kernel) SetModel(m string) {
 // persistence: handleCouncilSet writes AGEZT_COUNCIL_MEMBERS to the settings
 // store, then calls this so the kernel picks up the new membership immediately.
 func (k *Kernel) SetCouncilMembers(members func() []CouncilMember) {
-	k.mu.Lock()
+	k.configMu.Lock()
 	k.cfg.CouncilMembers = members
-	k.mu.Unlock()
+	k.configMu.Unlock()
 }
 
 // MaxDuration is the daemon-wide per-run wall-clock budget (M31), 0 if disabled.
@@ -1221,8 +1231,8 @@ func (k *Kernel) SubAgentLimits() SubAgentLimits {
 // could carry proprietary instructions); the dedicated persona surface returns
 // the content for the owner to edit.
 func (k *Kernel) System() string {
-	k.mu.Lock()
-	defer k.mu.Unlock()
+	k.configMu.Lock()
+	defer k.configMu.Unlock()
 	return k.system
 }
 
@@ -1230,17 +1240,17 @@ func (k *Kernel) System() string {
 // picks it up — no restart. Persistence (so it survives a restart) is the control
 // plane's job: it writes AGEZT_SYSTEM_PROMPT to the config store alongside this.
 func (k *Kernel) SetSystem(s string) {
-	k.mu.Lock()
+	k.configMu.Lock()
 	k.system = s
-	k.mu.Unlock()
+	k.configMu.Unlock()
 }
 
 // Catalog returns the currently-loaded provider/model catalog. The
 // returned pointer is the live snapshot; callers should treat it as
 // read-only and re-call after ReloadCatalog if they need fresh data.
 func (k *Kernel) Catalog() *catalog.Catalog {
-	k.mu.Lock()
-	defer k.mu.Unlock()
+	k.configMu.Lock()
+	defer k.configMu.Unlock()
 	return k.catalog
 }
 
@@ -1280,9 +1290,9 @@ func (k *Kernel) ReloadCatalog() (*catalog.Catalog, error) {
 	if err != nil {
 		return nil, err
 	}
-	k.mu.Lock()
+	k.configMu.Lock()
 	k.catalog = cat
-	k.mu.Unlock()
+	k.configMu.Unlock()
 	governor.SetCatalog(cat)
 	return cat, nil
 }
@@ -1302,9 +1312,9 @@ func (k *Kernel) LoopRunner() scheduler.LoopRunner {
 // cancelled when Halt is called mid-plan. PlanID is the correlation
 // ID for the whole plan; if empty, the scheduler mints one.
 func (k *Kernel) RunPlan(ctx context.Context, plan scheduler.Plan, planID string) (*scheduler.PlanResult, error) {
-	k.mu.Lock()
+	k.runsMu.Lock()
 	if k.halted {
-		k.mu.Unlock()
+		k.runsMu.Unlock()
 		return nil, ErrHalted
 	}
 	if planID == "" {
@@ -1312,12 +1322,12 @@ func (k *Kernel) RunPlan(ctx context.Context, plan scheduler.Plan, planID string
 	}
 	runCtx, cancel := context.WithCancel(ctx)
 	k.runs[planID] = cancel
-	k.mu.Unlock()
+	k.runsMu.Unlock()
 
 	defer func() {
-		k.mu.Lock()
+		k.runsMu.Lock()
 		delete(k.runs, planID)
-		k.mu.Unlock()
+		k.runsMu.Unlock()
 		cancel()
 	}()
 
@@ -1702,8 +1712,8 @@ func correlationFromCtx(ctx context.Context) string {
 
 // IsHalted reports whether Run will refuse to start.
 func (k *Kernel) IsHalted() bool {
-	k.mu.Lock()
-	defer k.mu.Unlock()
+	k.runsMu.Lock()
+	defer k.runsMu.Unlock()
 	return k.halted
 }
 
@@ -1718,9 +1728,9 @@ func (k *Kernel) Halt() { k.HaltWith("") }
 // "why was the daemon halted at 14:32?". Empty reason is fine and
 // rendered as omitted in the payload.
 func (k *Kernel) HaltWith(reason string) {
-	k.mu.Lock()
+	k.runsMu.Lock()
 	if k.halted {
-		k.mu.Unlock()
+		k.runsMu.Unlock()
 		return
 	}
 	k.halted = true
@@ -1729,7 +1739,7 @@ func (k *Kernel) HaltWith(reason string) {
 		cancels = append(cancels, c)
 	}
 	k.runs = make(map[string]context.CancelFunc)
-	k.mu.Unlock()
+	k.runsMu.Unlock()
 	for _, c := range cancels {
 		c()
 	}
@@ -1756,9 +1766,9 @@ func (k *Kernel) HaltWith(reason string) {
 // completed within the timeout, e.g. for update vs. shutdown decisions.
 func (k *Kernel) DrainAndHalt(timeout time.Duration) (timedOut bool, activeRuns int) {
 	k.Halt() // cancel and mark halted; no-op if already halted
-	k.mu.Lock()
+	k.runsMu.Lock()
 	activeRuns = len(k.runs)
-	k.mu.Unlock()
+	k.runsMu.Unlock()
 	if timeout <= 0 {
 		return false, activeRuns
 	}
@@ -1792,12 +1802,12 @@ func (k *Kernel) DrainAndHalt(timeout time.Duration) (timedOut bool, activeRuns 
 // RunWith's defer also deletes it, but delete is idempotent so the race is
 // harmless.
 func (k *Kernel) CancelRun(corr string) bool {
-	k.mu.Lock()
+	k.runsMu.Lock()
 	cancel, ok := k.runs[corr]
 	if ok {
 		delete(k.runs, corr)
 	}
-	k.mu.Unlock()
+	k.runsMu.Unlock()
 	if !ok {
 		return false
 	}
@@ -1814,13 +1824,13 @@ func (k *Kernel) Resume() { k.ResumeWith("") }
 // kernel.resume event. Symmetric with HaltWith for postmortem
 // reconstruction.
 func (k *Kernel) ResumeWith(reason string) {
-	k.mu.Lock()
+	k.runsMu.Lock()
 	if !k.halted {
-		k.mu.Unlock()
+		k.runsMu.Unlock()
 		return
 	}
 	k.halted = false
-	k.mu.Unlock()
+	k.runsMu.Unlock()
 	var payload any
 	if reason != "" {
 		payload = map[string]any{"reason": reason}
@@ -1970,9 +1980,9 @@ func (k *Kernel) RunWith(ctx context.Context, corr, intent string) (string, erro
 	if corr == "" {
 		return "", errors.New("runtime: correlation id required")
 	}
-	k.mu.Lock()
+	k.runsMu.Lock()
 	if k.halted {
-		k.mu.Unlock()
+		k.runsMu.Unlock()
 		return "", ErrHalted
 	}
 	// Reject a correlation that is already running: two concurrent RunWith calls
@@ -1981,7 +1991,7 @@ func (k *Kernel) RunWith(ctx context.Context, corr, intent string) (string, erro
 	// second's entry, leaving a run uncancellable by Halt/CancelRun. The contract is
 	// one id per run; enforce it instead of silently corrupting the registry. (M480)
 	if _, running := k.runs[corr]; running {
-		k.mu.Unlock()
+		k.runsMu.Unlock()
 		return "", fmt.Errorf("runtime: correlation %q is already running", corr)
 	}
 	// Per-run wall-clock budget (M31): when configured, the run context
@@ -2020,15 +2030,20 @@ func (k *Kernel) RunWith(ctx context.Context, corr, intent string) (string, erro
 	// into the agent loop via LoopConfig.Steer below.
 	rc := newRunControl()
 	k.steers[corr] = rc
-	k.mu.Unlock()
+	k.runsMu.Unlock()
 
 	defer k.runWG.Done()
 	defer func() {
-		k.mu.Lock()
+		// Lock ordering: runsMu → fanoutMu → treeMu → steersMu → spawnsMu
+		k.runsMu.Lock()
 		delete(k.runs, corr)
+		k.fanoutMu.Lock()
 		delete(k.fanout, corr) // release this run's fan-out tally (M46)
-		delete(k.tree, corr)   // release this tree's total sub-agent tally (M629)
+		k.treeMu.Lock()
+		delete(k.tree, corr) // release this tree's total sub-agent tally (M629)
+		k.steersMu.Lock()
 		delete(k.steers, corr) // release the steering control (M608)
+		k.spawnsMu.Lock()
 		// Cancel any still-pending async delegations of this tree (M881): an
 		// un-awaited child must not outlive the run that spawned it. The spawn
 		// goroutine observes the cancel, finishes, and journals its terminal
@@ -2040,7 +2055,11 @@ func (k *Kernel) RunWith(ctx context.Context, corr, intent string) (string, erro
 				delete(k.spawns, id)
 			}
 		}
-		k.mu.Unlock()
+		k.spawnsMu.Unlock()
+		k.steersMu.Unlock()
+		k.treeMu.Unlock()
+		k.fanoutMu.Unlock()
+		k.runsMu.Unlock()
 		for _, c := range orphans {
 			c()
 		}
@@ -2228,9 +2247,9 @@ func (k *Kernel) RunWith(ctx context.Context, corr, intent string) (string, erro
 	// runs only after all post-processing; without this an operator pausing/
 	// steering in that window would get a false success against a loop that has
 	// already finished and will never Drain again (M608). delete is idempotent.
-	k.mu.Lock()
+	k.steersMu.Lock()
 	delete(k.steers, corr)
-	k.mu.Unlock()
+	k.steersMu.Unlock()
 
 	// Attribute the run's outcome to the skills it activated, so an active skill
 	// that repeatedly fails in production is auto-quarantined (SPEC-05 §5). This
