@@ -79,11 +79,17 @@
   --shadow-e1: var(--elev-1);
   --shadow-e2: var(--elev-2);
   --shadow-e3: var(--elev-3);
-  /* Rounder radius scale (M979) — noticeably softer than Tailwind's defaults for
-     a modern, friendly, un-boxy feel; cascades to every rounded-md/lg/xl. */
-  --radius-md: 0.625rem;
-  --radius-lg: 0.875rem;
-  --radius-xl: 1.1rem;
+  /* TIGHT radius scale (M984) — owner wants near-square corners, max ~4px.
+     Caps the whole rounded-* scale (xs…3xl) at ≤4px so every card, button,
+     panel and menu reads crisp/edged. Circles (rounded-full: avatars, dots,
+     pills) are unaffected. */
+  --radius-xs: 0.125rem; /* 2px */
+  --radius-sm: 0.125rem; /* 2px */
+  --radius-md: 0.1875rem; /* 3px */
+  --radius-lg: 0.25rem; /* 4px */
+  --radius-xl: 0.25rem; /* 4px */
+  --radius-2xl: 0.25rem; /* 4px */
+  --radius-3xl: 0.25rem; /* 4px */
 }
 
 * {
