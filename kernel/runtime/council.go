@@ -56,6 +56,11 @@ const (
 	// the chair's synthesis. Keeps a council affordable.
 	councilOpinionMaxTokens   = 900
 	councilConsensusMaxTokens = 1200
+	// councilEventTextMax clips opinion/consensus text carried in bus events (M987)
+	// so the live Web UI can render the deliberation without re-fetching, while
+	// keeping the hash-chained journal from bloating on a long answer. ~4k runes
+	// comfortably holds a councilOpinionMaxTokens turn.
+	councilEventTextMax = 4000
 )
 
 // CouncilDefaultMembers returns the daemon-configured default membership (one
@@ -94,6 +99,7 @@ func (k *Kernel) Council(ctx context.Context, corr, question string, members []C
 	k.councilPublish(corr, event.KindCouncilConvened, map[string]any{
 		"question": clip(question, 500),
 		"members":  memberModels(members),
+		"seats":    memberSeats(members),
 		"rounds":   rounds,
 	})
 
@@ -131,6 +137,8 @@ func (k *Kernel) Council(ctx context.Context, corr, question string, members []C
 	k.councilPublish(corr, event.KindCouncilConsensus, map[string]any{
 		"chars":       len(consensus),
 		"has_dissent": dissent != "",
+		"consensus":   clip(consensus, councilEventTextMax),
+		"dissent":     clip(dissent, councilEventTextMax),
 	})
 	return result, nil
 }
@@ -146,6 +154,11 @@ func (k *Kernel) councilRound(ctx context.Context, corr string, members []Counci
 		wg.Add(1)
 		go func(i int, m CouncilMember) {
 			defer wg.Done()
+			// Announce the turn BEFORE the (slow) model call so the Web UI can show
+			// this seat "thinking now" live, not just after it finishes (M987).
+			k.councilPublish(corr, event.KindCouncilStarted, map[string]any{
+				"seat": m.Seat, "model": m.Model, "round": round,
+			})
 			op := Opinion{Seat: m.Seat, Model: m.Model, Round: round}
 			resp, err := k.cfg.Provider.Complete(ctx, agent.CompletionRequest{
 				Model:         m.Model,
@@ -161,15 +174,17 @@ func (k *Kernel) councilRound(ctx context.Context, corr string, members []Counci
 				op.Text = strings.TrimSpace(resp.Message.Content)
 			}
 			out[i] = op
+			// Publish each opinion AS IT LANDS (not batched after the round) carrying
+			// the text, so a live or returning viewer sees what each member said
+			// without waiting for the whole council. Text is clipped for the journal.
+			k.councilPublish(corr, event.KindCouncilOpinion, map[string]any{
+				"seat": op.Seat, "model": op.Model, "round": op.Round,
+				"chars": len(op.Text), "text": clip(op.Text, councilEventTextMax),
+				"error": op.Error != "", "error_text": op.Error,
+			})
 		}(i, m)
 	}
 	wg.Wait()
-	for _, op := range out {
-		k.councilPublish(corr, event.KindCouncilOpinion, map[string]any{
-			"seat": op.Seat, "model": op.Model, "round": op.Round,
-			"chars": len(op.Text), "error": op.Error != "",
-		})
-	}
 	return out
 }
 
@@ -303,6 +318,16 @@ func memberModels(members []CouncilMember) []string {
 	out := make([]string, len(members))
 	for i, m := range members {
 		out[i] = m.Model
+	}
+	return out
+}
+
+// memberSeats projects the panel to {seat, model} maps for the convened event, so
+// the Web UI can lay out the seats before any opinion lands (M987).
+func memberSeats(members []CouncilMember) []map[string]string {
+	out := make([]map[string]string, len(members))
+	for i, m := range members {
+		out[i] = map[string]string{"seat": m.Seat, "model": m.Model}
 	}
 	return out
 }

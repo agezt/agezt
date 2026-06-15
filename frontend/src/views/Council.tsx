@@ -9,6 +9,16 @@ import { Markdown } from "@/components/Markdown";
 import { useUI } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
 import { ModelPicker } from "@/components/ModelPicker";
+import { useCouncilStore, startCouncilRun, applyCouncilResult, genCouncilCorr } from "@/lib/councilStore";
+import {
+  type CouncilRun,
+  seatStatus,
+  currentRound,
+  opinionsByRound,
+  roundLabel,
+  progressLabel,
+  lastOpinionFor,
+} from "@/lib/council";
 
 // Council of Elders view (M839): consult the multi-model panel (kernel/runtime
 // M837). It shows which models sit on the council, takes a question, convenes the
@@ -41,9 +51,14 @@ export function Council() {
   const [members, setMembers] = useState<Member[]>([]);
   const [question, setQuestion] = useState("");
   const [rounds, setRounds] = useState(1);
-  const [asking, setAsking] = useState(false);
-  const [result, setResult] = useState<CouncilResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // The run this view follows: the one it started, else the store's active run so
+  // returning to the page mid-deliberation resumes watching it (M987).
+  const [corr, setCorr] = useState<string | null>(null);
+  const { runs, activeCorr } = useCouncilStore();
+  const shownCorr = corr ?? activeCorr;
+  const run = shownCorr ? runs[shownCorr] ?? null : null;
+  const asking = !!run && !run.done;
 
   // Edit mode state (M839: per-member model picker).
   const [editMode, setEditMode] = useState(false);
@@ -120,25 +135,22 @@ export function Council() {
   async function ask() {
     const q = question.trim();
     if (!q || asking) return;
-    setAsking(true);
-    setResult(null);
+    const newCorr = genCouncilCorr();
+    setCorr(newCorr);
     setError(null);
+    // Seed the run immediately so the live view appears at once, then convene.
+    startCouncilRun(newCorr, q, members.map((m) => ({ seat: m.seat, model: m.model })), rounds);
     try {
-      const res = await postJSON<CouncilResult>("/api/council/ask", { question: q, rounds });
-      setResult(res);
+      const res = await postJSON<CouncilResult>("/api/council/ask", { question: q, rounds, corr: newCorr });
+      applyCouncilResult(newCorr, res);
     } catch (e) {
+      // The deliberation streams over events independently of this POST, so if the
+      // request times out but the verdict still arrived, the error is moot — only
+      // surface it when no consensus landed.
       setError((e as Error).message);
       ui.toast((e as Error).message, "error");
-    } finally {
-      setAsking(false);
     }
   }
-
-  // Group opinions by round for a readable transcript.
-  const byRound = (result?.opinions ?? []).reduce<Record<number, Opinion[]>>((acc, op) => {
-    (acc[op.round] ||= []).push(op);
-    return acc;
-  }, {});
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3">
@@ -270,69 +282,144 @@ export function Council() {
         </div>
       </div>
 
-      {error && <ErrorText>{error}</ErrorText>}
+      {error && (!run || !run.done) && <ErrorText>{error}</ErrorText>}
 
       <div className="min-h-0 flex-1 space-y-3 overflow-auto">
-        {asking && (
-          <div className="flex items-center gap-2 rounded-lg border border-dashed border-border bg-panel/40 px-3 py-6 text-sm text-muted">
-            <Loader2 className="size-4 animate-spin text-accent" />
-            The council is deliberating across {members.length} model{members.length === 1 ? "" : "s"} — this can take a moment.
-          </div>
-        )}
+        {run && <CouncilLive run={run} />}
 
-        {result && (
-          <>
-            {/* Consensus first — the verdict. */}
-            <div className="rounded-lg border border-accent/40 bg-accent/5 p-4">
-              <div className="mb-1.5 flex items-center gap-2 text-sm font-semibold text-accent">
-                <Gavel className="size-4" /> Consensus
-              </div>
-              <Markdown source={result.consensus} className="text-sm text-foreground/90" />
-              {result.dissent && (
-                <div className="mt-3 rounded-md border border-warn/40 bg-warn/10 p-2.5">
-                  <div className="mb-1 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-warn">
-                    <AlertTriangle className="size-3" /> Dissent
-                  </div>
-                  <Markdown source={result.dissent} className="text-xs text-foreground/80" />
-                </div>
-              )}
-            </div>
-
-            {/* The deliberation transcript. */}
-            {Object.keys(byRound)
-              .map(Number)
-              .sort((a, b) => a - b)
-              .map((round) => (
-                <div key={round}>
-                  <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted">
-                    {round === 0 ? "Opening positions" : `Deliberation round ${round}`}
-                  </div>
-                  <div className="grid gap-2 md:grid-cols-2">
-                    {byRound[round].map((op, i) => (
-                      <div key={i} className="glass rounded-xl p-3">
-                        <div className="mb-1 flex items-center gap-2">
-                          <span className="text-xs font-semibold text-foreground/80">{op.seat}</span>
-                          <Badge variant="default" className="font-mono text-[10px]">{op.model}</Badge>
-                        </div>
-                        {op.error ? (
-                          <span className="text-xs text-bad">error: {op.error}</span>
-                        ) : (
-                          <Markdown source={op.text} className="text-xs text-foreground/85" />
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-          </>
-        )}
-
-        {!result && !asking && members.length === 0 && !error && (
+        {!run && members.length === 0 && !error && (
           <div className="rounded-lg border border-dashed border-border px-3 py-6 text-center text-sm text-muted">
             No keyed providers — add an API key for at least one provider and the council will convene.
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+// CouncilLive renders a deliberation as it unfolds (M987): a live strip of seat
+// nodes (each waiting → thinking → done), the verdict once it lands, and the full
+// round-by-round path of who said what. Folded purely from the council.* event
+// stream, so it shows the same whether watched live or reopened mid-run.
+function CouncilLive({ run }: { run: CouncilRun }) {
+  const round = currentRound(run);
+  const groups = opinionsByRound(run);
+  const thinkingNow = Object.values(run.thinking);
+
+  return (
+    <div className="space-y-3">
+      {/* Phase strip: where the deliberation is right now. */}
+      <div className="glass flex flex-wrap items-center gap-2 rounded-xl px-3 py-2 text-sm">
+        {run.done ? (
+          <Gavel className="size-4 text-accent" />
+        ) : (
+          <Loader2 className="size-4 animate-spin text-accent" />
+        )}
+        <span className={cn("font-medium", run.done ? "text-foreground" : "text-foreground/90")}>{progressLabel(run)}</span>
+        {run.rounds > 0 && (
+          <Badge variant="default" className="ml-auto text-[10px]">
+            round {Math.min(round, run.rounds)} / {run.rounds}
+          </Badge>
+        )}
+      </div>
+
+      {/* Seat nodes — the table. Each lights up as it takes its turn. */}
+      {run.seats.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {run.seats.map((s, i) => (
+            <SeatNode key={s.seat + i} run={run} seat={s.seat} model={s.model} hue={250 + i * 47} />
+          ))}
+        </div>
+      )}
+
+      {/* Verdict first, once reached. */}
+      {run.consensus && (
+        <div className="view-enter rounded-lg border border-accent/40 bg-accent/5 p-4">
+          <div className="mb-1.5 flex items-center gap-2 text-sm font-semibold text-accent">
+            <Gavel className="size-4" /> Consensus
+          </div>
+          <Markdown source={run.consensus} className="text-sm text-foreground/90" />
+          {run.dissent && (
+            <div className="mt-3 rounded-md border border-warn/40 bg-warn/10 p-2.5">
+              <div className="mb-1 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-warn">
+                <AlertTriangle className="size-3" /> Dissent
+              </div>
+              <Markdown source={run.dissent} className="text-xs text-foreground/80" />
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* The path to the verdict: each round's opinions as they land, with live
+          "deliberating…" placeholders for members still mid-turn this round. */}
+      {groups.map((g) => {
+        const stillThinking = thinkingNow.filter((t) => t.round === g.round);
+        return (
+          <div key={g.round}>
+            <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted">{roundLabel(g.round)}</div>
+            <div className="grid gap-2 md:grid-cols-2">
+              {g.opinions.map((op, i) => (
+                <div key={op.seat + i} className="view-enter glass rounded-xl p-3">
+                  <div className="mb-1 flex items-center gap-2">
+                    <span className="text-xs font-semibold text-foreground/80">{op.seat}</span>
+                    <Badge variant="default" className="font-mono text-[10px]">{op.model}</Badge>
+                  </div>
+                  {op.error ? (
+                    <span className="text-xs text-bad">error: {op.error}</span>
+                  ) : (
+                    <Markdown source={op.text} className="text-xs text-foreground/85" />
+                  )}
+                </div>
+              ))}
+              {stillThinking.map((t) => (
+                <div key={"think-" + t.seat} className="glass flex items-center gap-2 rounded-xl p-3 text-xs text-muted">
+                  <Loader2 className="size-3.5 animate-spin text-accent" />
+                  <span className="font-semibold text-foreground/70">{t.seat}</span> is deliberating…
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// SeatNode is one advisor at the table: a coloured monogram whose ring reflects
+// its live status — waiting (dim), thinking (pulsing accent), done (green check),
+// or error (red).
+function SeatNode({ run, seat, model, hue }: { run: CouncilRun; seat: string; model: string; hue: number }) {
+  const status = seatStatus(run, seat);
+  const op = lastOpinionFor(run, seat);
+  const initials = seat
+    .split(/\s+/)
+    .map((w) => w[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+  const ring =
+    status === "thinking"
+      ? "border-accent animate-pulse"
+      : status === "done"
+        ? "border-good"
+        : status === "error"
+          ? "border-bad"
+          : "border-border opacity-60";
+  return (
+    <div
+      className={cn("glass flex items-center gap-2 rounded-xl px-2.5 py-1.5", status === "thinking" && "shadow-e2")}
+      title={op?.error ? `error: ${op.error}` : model}
+    >
+      <span
+        className={cn("relative flex size-7 shrink-0 items-center justify-center rounded-full border-2 text-[10px] font-bold", ring)}
+        style={{ background: `oklch(0.6 0.14 ${hue} / 0.18)`, color: `oklch(0.7 0.15 ${hue})` }}
+      >
+        {status === "thinking" ? <Loader2 className="size-3.5 animate-spin" /> : status === "error" ? <X className="size-3.5 text-bad" /> : status === "done" ? <Check className="size-3.5 text-good" /> : initials}
+      </span>
+      <span className="flex min-w-0 flex-col leading-tight">
+        <span className="truncate text-xs font-semibold text-foreground/85">{seat}</span>
+        <span className="truncate font-mono text-[10px] text-muted">{model}</span>
+      </span>
     </div>
   );
 }

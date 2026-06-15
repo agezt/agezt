@@ -127,10 +127,13 @@ const (
 	// Council of Elders (M837) — a panel of differently-modelled advisors debates a
 	// question and converges to a consensus. These events are the audit trail an
 	// operator (and `agt why`) reads to see who said what and how the council
-	// decided. KindCouncilConvened opens it {question, members, rounds};
-	// KindCouncilOpinion records one member's position {seat, model, round};
-	// KindCouncilConsensus records the synthesized verdict {chars}.
+	// decided, AND the live feed the Web UI follows to watch a deliberation unfold
+	// (M987). KindCouncilConvened opens it {question, seats:[{seat,model}], rounds};
+	// KindCouncilStarted marks a member beginning its turn {seat, model, round};
+	// KindCouncilOpinion records one member's position {seat, model, round, text,
+	// chars, error}; KindCouncilConsensus records the verdict {consensus, dissent}.
 	KindCouncilConvened  Kind = "council.convened"
+	KindCouncilStarted   Kind = "council.member.started"
 	KindCouncilOpinion   Kind = "council.opinion"
 	KindCouncilConsensus Kind = "council.consensus"
 	// KindTaskContinued records that a run exhausted its tool-round budget
