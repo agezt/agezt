@@ -299,6 +299,10 @@ func (e *engine) Run(ctx context.Context, spec Spec) (*Result, error) {
 	// Linux for Setpgid so kill-on-timeout sweeps grandchildren;
 	// no-op on non-Linux).
 	configurePlatformAttrs(cmd, effective)
+	// M958: on Windows, hand `cmd /C <command>` to cmd.exe verbatim (cmd /S /C
+	// "<command>") so a quoted command isn't mangled by os/exec's MSVC-style
+	// escaping. No-op off Windows and for non-cmd invocations.
+	fixupWindowsCmd(cmd)
 
 	stdoutBuf := newCapBuffer(maxOut)
 	stderrBuf := newCapBuffer(maxOut)
