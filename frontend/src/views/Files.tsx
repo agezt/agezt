@@ -10,6 +10,7 @@ import { EmptyState } from "@/components/ui/empty";
 import { ErrorText } from "@/components/JsonView";
 import { Markdown } from "@/components/Markdown";
 import { useUI } from "@/components/ui/feedback";
+import { PageHeader } from "@/components/ui/page-header";
 
 // File manager (M823): browse/preview/download/delete the stored artifacts the
 // daemon indexed (M822) — inbound channel images as a gallery, everything else
@@ -170,32 +171,35 @@ export function Files() {
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3">
-      <div className="flex items-center gap-2">
-        <h2 className="flex items-center gap-2 text-sm font-semibold">
-          <FolderOpen className="size-4 text-accent" /> Files
-        </h2>
-        <span className="text-xs text-muted">{entries.length} stored</span>
-        <div className="ml-2 flex items-center gap-1">
-          {(["all", "images", "files"] as const).map((f) => (
-            <button
-              key={f}
-              onClick={() => setFilter(f)}
-              className={cn(
-                "rounded-full border px-2.5 py-0.5 text-[11px] capitalize transition-colors",
-                filter === f ? "border-accent bg-accent/10 text-accent" : "border-border text-muted hover:text-foreground",
-              )}
-            >
-              {f}
-            </button>
-          ))}
-        </div>
-        <Button variant="ghost" size="sm" className="ml-auto" onClick={collect} disabled={loading || entries.length === 0} title={`Collect stale files (older than ${COLLECT_DAYS} days)`}>
-          <Trash2 className="size-3.5" /> Collect
-        </Button>
-        <Button variant="ghost" size="sm" onClick={reload} disabled={loading} title="Reload">
-          <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
-        </Button>
-      </div>
+      <PageHeader
+        icon={FolderOpen}
+        title="Files"
+        description={`${entries.length} stored`}
+        actions={
+          <>
+            <div className="flex items-center gap-1">
+              {(["all", "images", "files"] as const).map((f) => (
+                <button
+                  key={f}
+                  onClick={() => setFilter(f)}
+                  className={cn(
+                    "rounded-full border px-2.5 py-0.5 text-[11px] capitalize transition-colors",
+                    filter === f ? "border-accent bg-accent/10 text-accent" : "border-border text-muted hover:text-foreground",
+                  )}
+                >
+                  {f}
+                </button>
+              ))}
+            </div>
+            <Button variant="ghost" size="sm" onClick={collect} disabled={loading || entries.length === 0} title={`Collect stale files (older than ${COLLECT_DAYS} days)`}>
+              <Trash2 className="size-3.5" /> Collect
+            </Button>
+            <Button variant="ghost" size="sm" onClick={reload} disabled={loading} title="Reload">
+              <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
+            </Button>
+          </>
+        }
+      />
 
       {error && <ErrorText>{error}</ErrorText>}
       {loading && entries.length === 0 && <SkeletonGrid count={8} />}
@@ -242,7 +246,7 @@ export function Files() {
                 <li
                   key={e.id}
                   onClick={() => setPreview(e)}
-                  className="flex cursor-pointer items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm transition-colors hover:border-accent/50"
+                  className="glass flex cursor-pointer items-center gap-2 rounded-xl px-3 py-2 text-sm transition-colors hover:border-accent/50"
                   title="Click to preview"
                 >
                   <FileText className="size-4 shrink-0 text-muted" />
@@ -293,7 +297,7 @@ function PreviewModal({
       onClick={onClose}
     >
       <div
-        className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-border bg-card shadow-2xl"
+        className="glass flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center gap-2 border-b border-border px-4 py-2">

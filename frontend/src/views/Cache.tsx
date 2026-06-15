@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Muted, ErrorText } from "@/components/JsonView";
 import { SkeletonList } from "@/components/ui/skeleton";
+import { PageHeader } from "@/components/ui/page-header";
 import { Ring } from "@/components/Widgets";
 
 interface CacheData {
@@ -53,14 +54,16 @@ export function Cache() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2">
-        <h2 className="flex items-center gap-2 text-sm font-semibold">
-          <Database className="size-4 text-accent" /> Prompt cache
-        </h2>
-        <Button variant="ghost" size="sm" className="ml-auto" onClick={reload} disabled={loading}>
-          <RefreshCw className={cn("size-3.5", loading && "animate-spin")} /> Refresh
-        </Button>
-      </div>
+      <PageHeader
+        icon={Database}
+        title="Prompt cache"
+        description="Prompt-cache savings, read vs write token split, and priced-call count."
+        actions={
+          <Button variant="ghost" size="sm" onClick={reload} disabled={loading}>
+            <RefreshCw className={cn("size-3.5", loading && "animate-spin")} /> Refresh
+          </Button>
+        }
+      />
 
       {err ? (
         <ErrorText>{err}</ErrorText>
@@ -86,7 +89,7 @@ export function Cache() {
 
           {/* Read vs write split, with a read-share gauge */}
           {total > 0 ? (
-            <div className="flex flex-col items-center gap-4 rounded-lg border border-border bg-card p-3 sm:flex-row">
+            <div className="flex flex-col items-center gap-4 glass rounded-xl p-3 sm:flex-row">
               <Ring
                 pct={(reads / total) * 100}
                 center={`${Math.round((reads / total) * 100)}%`}

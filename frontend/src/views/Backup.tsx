@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Archive, Download, Upload, Palette, Server, Info, Camera } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/ui/page-header";
 import { useUI } from "@/components/ui/feedback";
 import { downloadText } from "@/lib/export";
 import { exportAppearance, parseAppearanceJSON, applyAppearanceBundle } from "@/lib/appearance";
@@ -124,12 +125,11 @@ export function Backup() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2">
-        <h2 className="flex items-center gap-2 text-sm font-semibold">
-          <Archive className="size-4 text-accent" /> Backup &amp; Restore
-        </h2>
-        <span className="text-xs text-muted">carry your console to another browser or daemon</span>
-      </div>
+      <PageHeader
+        icon={Archive}
+        title="Backup & Restore"
+        description="carry your console to another browser or daemon"
+      />
 
       <input
         ref={appearanceRef}
@@ -168,7 +168,7 @@ export function Backup() {
         }}
       />
 
-      <div className="rounded-lg border border-border bg-card p-3">
+      <div className="glass rounded-xl p-3">
         <h3 className="flex items-center gap-2 text-sm font-semibold">
           <Palette className="size-4 text-accent" /> Appearance
         </h3>
@@ -185,7 +185,7 @@ export function Backup() {
         </div>
       </div>
 
-      <div className="rounded-lg border border-border bg-card p-3">
+      <div className="glass rounded-xl p-3">
         <h3 className="flex items-center gap-2 text-sm font-semibold">
           <Server className="size-4 text-accent" /> Daemon configuration
         </h3>
@@ -208,7 +208,7 @@ export function Backup() {
         </div>
       </div>
 
-      <div className="rounded-lg border border-border bg-card p-3">
+      <div className="glass rounded-xl p-3">
         <h3 className="flex items-center gap-2 text-sm font-semibold">
           <Camera className="size-4 text-accent" /> Full snapshot
         </h3>

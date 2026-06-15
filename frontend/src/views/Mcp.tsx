@@ -7,6 +7,7 @@ import { useUI, type ConfirmOptions } from "@/components/ui/feedback";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty";
 import { Badge } from "@/components/ui/badge";
+import { PageHeader } from "@/components/ui/page-header";
 import { ErrorText } from "@/components/JsonView";
 
 export interface MCPServer {
@@ -484,43 +485,48 @@ export function Mcp() {
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <Plug className="h-4 w-4 text-accent" />
-          <h2 className="text-sm font-semibold">MCP servers</h2>
-          {servers && (
-            <span className="text-xs text-muted">
-              {servers.length} server(s) · {attached} attached
-            </span>
-          )}
-        </div>
-        <div className="flex items-center gap-1.5">
-          <Button size="sm" variant="ghost" onClick={reload} disabled={loading} aria-label="Refresh">
-            <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
-          </Button>
-          <Button
-            size="sm"
-            variant={showCatalog ? "default" : "ghost"}
-            onClick={() => {
-              setShowCatalog((v) => !v);
-              setShowForm(false);
-            }}
-          >
-            <Boxes className="h-3.5 w-3.5" /> Popular servers
-          </Button>
-          <Button
-            size="sm"
-            onClick={() => {
-              setShowForm((v) => !v);
-              if (showForm) setPrefill(undefined);
-              setShowCatalog(false);
-            }}
-          >
-            {showForm ? <X className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
-            {showForm ? "Close" : "Register server"}
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        icon={Plug}
+        title={
+          <span className="inline-flex items-center gap-2">
+            MCP servers
+            {servers && (
+              <span className="text-xs font-normal text-muted">
+                {servers.length} server(s) · {attached} attached
+              </span>
+            )}
+          </span>
+        }
+        description="self-install Model Context Protocol servers"
+        actions={
+          <>
+            <Button size="sm" variant="ghost" onClick={reload} disabled={loading} aria-label="Refresh">
+              <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
+            </Button>
+            <Button
+              size="sm"
+              variant={showCatalog ? "default" : "ghost"}
+              onClick={() => {
+                setShowCatalog((v) => !v);
+                setShowForm(false);
+              }}
+            >
+              <Boxes className="h-3.5 w-3.5" /> Popular servers
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => {
+                setShowForm((v) => !v);
+                if (showForm) setPrefill(undefined);
+                setShowCatalog(false);
+              }}
+            >
+              {showForm ? <X className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
+              {showForm ? "Close" : "Register server"}
+            </Button>
+          </>
+        }
+      />
 
       <p className="text-xs text-muted">
         Attach a Model Context Protocol server and its tools go live for every run as{" "}
@@ -635,7 +641,7 @@ export function Mcp() {
 
       <ul className="space-y-2">
         {(servers || []).map((s) => (
-          <li key={s.id} className="rounded-lg border border-border bg-card p-3">
+          <li key={s.id} className="glass rounded-xl p-3">
             <div className="flex flex-wrap items-center gap-2">
               <span className="font-mono text-sm text-foreground">{s.name}</span>
               {s.transport === "http" && <Badge variant="default">remote</Badge>}

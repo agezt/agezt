@@ -7,6 +7,7 @@ import { cn, fmtTime } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Muted, ErrorText } from "@/components/JsonView";
 import { SkeletonList } from "@/components/ui/skeleton";
+import { PageHeader } from "@/components/ui/page-header";
 
 interface Item {
   seq: number;
@@ -75,17 +76,21 @@ export function Autonomy() {
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3">
-      <div className="flex items-center gap-2">
-        <h2 className="flex items-center gap-2 text-sm font-semibold">
-          <Waves className="size-4 text-accent" /> Autonomy
-        </h2>
-        <span className="text-xs text-muted">
-          {feed ? `${feed.count ?? 0} self-directed event${feed.count === 1 ? "" : "s"}` : ""}
-        </span>
-        <Button variant="ghost" size="sm" className="ml-auto" onClick={reload} disabled={loading} title="Reload">
-          <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
-        </Button>
-      </div>
+      <PageHeader
+        icon={Waves}
+        title="Autonomy"
+        description="A live timeline of everything the daemon did on its own — schedules, standing orders, learned skills, pulse briefings."
+        actions={
+          <>
+            <span className="text-xs text-muted">
+              {feed ? `${feed.count ?? 0} self-directed event${feed.count === 1 ? "" : "s"}` : ""}
+            </span>
+            <Button variant="ghost" size="sm" onClick={reload} disabled={loading} title="Reload">
+              <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
+            </Button>
+          </>
+        }
+      />
 
       <PulseControl />
 
@@ -132,7 +137,7 @@ export function Autonomy() {
               const meta = catMeta[it.category] || { icon: Waves, tone: "text-muted" };
               const Icon = meta.icon;
               return (
-                <li key={it.seq} className="flex items-start gap-2.5 rounded-lg border border-border bg-card p-2.5">
+                <li key={it.seq} className="flex items-start gap-2.5 glass rounded-xl p-2.5">
                   <Icon className={cn("mt-0.5 size-4 shrink-0", meta.tone)} />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
@@ -338,7 +343,7 @@ export function PulseControl() {
   if (!st) return null;
   if (!st.enabled) {
     return (
-      <div className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-xs text-muted">
+      <div className="flex items-center gap-2 glass rounded-xl px-3 py-2 text-xs text-muted">
         <Radio className="size-3.5" /> Pulse is disabled on this daemon (set <code className="rounded bg-panel px-1">AGEZT_PULSE</code> to enable the proactive heartbeat).
       </div>
     );
@@ -347,7 +352,7 @@ export function PulseControl() {
   const paused = !!st.paused;
   const curSec = st.cadence_ms ? Math.round(st.cadence_ms / 1000) : 0;
   return (
-    <div className="space-y-2 rounded-lg border border-border bg-card px-3 py-2">
+    <div className="space-y-2 glass rounded-xl px-3 py-2">
       <div className="flex flex-wrap items-center gap-2">
       <Heart className={cn("size-4", paused ? "text-muted" : "animate-pulse fill-current text-bad")} />
       <span className="text-sm font-semibold">Proactive heartbeat</span>

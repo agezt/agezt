@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { ErrorText } from "@/components/JsonView";
 import { Markdown } from "@/components/Markdown";
 import { useUI } from "@/components/ui/feedback";
+import { PageHeader } from "@/components/ui/page-header";
 import { ModelPicker } from "@/components/ModelPicker";
 
 // Council of Elders view (M839): consult the multi-model panel (kernel/runtime
@@ -142,24 +143,25 @@ export function Council() {
   return (
     <div className="flex h-full min-h-0 flex-col gap-3">
       {/* Header */}
-      <div className="flex items-center gap-2">
-        <h2 className="flex items-center gap-2 text-sm font-semibold">
-          <Scale className="size-4 text-accent" /> Council of Elders
-        </h2>
-        {!editMode ? (
-          <>
-            <span className="inline-flex items-center gap-1 text-xs text-muted">
-              <Users className="size-3.5" />
-              {members.length > 0 ? members.map((m) => m.seat).join(" · ") : "no keyed members"}
-            </span>
-            <Button variant="ghost" size="sm" className="ml-auto h-6 gap-1 px-2 text-xs" onClick={enterEdit}>
+      <PageHeader
+        icon={Scale}
+        title="Council of Elders"
+        description={
+          <span className="inline-flex items-center gap-1">
+            <Users className="size-3.5" />
+            {members.length > 0 ? members.map((m) => m.seat).join(" · ") : "no keyed members"}
+          </span>
+        }
+        actions={
+          !editMode ? (
+            <Button variant="ghost" size="sm" className="h-6 gap-1 px-2 text-xs" onClick={enterEdit}>
               <Pencil className="size-3" /> Edit
             </Button>
-          </>
-        ) : (
-          <span className="ml-auto text-xs text-muted">Editing members</span>
-        )}
-      </div>
+          ) : (
+            <span className="text-xs text-muted">Editing members</span>
+          )
+        }
+      />
 
       {/* Member badges (view mode) */}
       {!editMode && members.length > 0 && (
@@ -236,7 +238,7 @@ export function Council() {
         </div>
       )}
 
-      <div className="flex flex-col gap-2 rounded-lg border border-border bg-card p-3">
+      <div className="glass flex flex-col gap-2 rounded-xl p-3">
         <textarea
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
@@ -307,7 +309,7 @@ export function Council() {
                   </div>
                   <div className="grid gap-2 md:grid-cols-2">
                     {byRound[round].map((op, i) => (
-                      <div key={i} className="rounded-lg border border-border bg-card p-3">
+                      <div key={i} className="glass rounded-xl p-3">
                         <div className="mb-1 flex items-center gap-2">
                           <span className="text-xs font-semibold text-foreground/80">{op.seat}</span>
                           <Badge variant="default" className="font-mono text-[10px]">{op.model}</Badge>

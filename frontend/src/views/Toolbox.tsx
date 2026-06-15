@@ -11,6 +11,7 @@ import { EmptyState } from "@/components/ui/empty";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { ErrorText } from "@/components/JsonView";
 import { useUI } from "@/components/ui/feedback";
+import { PageHeader } from "@/components/ui/page-header";
 import {
   filterTools, census, categoriesPresent, CATEGORY_LABELS, streamInstall,
   type Inventory, type ToolStatus, type ToolFilter, type ToolCategory, type InstallProgress,
@@ -106,31 +107,37 @@ export function Toolbox() {
   return (
     <div className="space-y-3">
       {/* Header */}
-      <div className="flex flex-wrap items-center gap-2">
-        <h2 className="flex items-center gap-2 text-sm font-semibold">
-          <Wrench className="size-4 text-accent" /> Toolbox
-        </h2>
-        {inv && (
+      <PageHeader
+        icon={Wrench}
+        title="Toolbox"
+        description="Host CLI-tool library — install missing tools via the host package manager."
+        actions={
+          <>
+            <Button variant="ghost" size="sm" onClick={checkUpdates} disabled={checkingUpd || !inv} title="Ask the package managers what's upgradable">
+              <ArrowUpCircle className={cn("size-3.5", checkingUpd && "animate-pulse")} /> Check updates
+            </Button>
+            <Button variant="ghost" size="sm" onClick={reload} disabled={loading} title="Re-scan host">
+              <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
+            </Button>
+          </>
+        }
+      />
+
+      {/* Host / package-manager chips */}
+      {inv && (
+        <div className="flex flex-wrap items-center gap-2">
           <span className="inline-flex items-center gap-1 text-[11px] text-muted">
             <Cpu className="size-3" /> {inv.os}
           </span>
-        )}
-        {inv && inv.managers.length > 0 && (
-          <span className="flex flex-wrap items-center gap-1">
-            {inv.managers.map((m) => (
-              <Badge key={m} variant="default" className="font-mono text-[10px]">{m}</Badge>
-            ))}
-          </span>
-        )}
-        <div className="ml-auto flex items-center gap-1.5">
-          <Button variant="ghost" size="sm" onClick={checkUpdates} disabled={checkingUpd || !inv} title="Ask the package managers what's upgradable">
-            <ArrowUpCircle className={cn("size-3.5", checkingUpd && "animate-pulse")} /> Check updates
-          </Button>
-          <Button variant="ghost" size="sm" onClick={reload} disabled={loading} title="Re-scan host">
-            <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
-          </Button>
+          {inv.managers.length > 0 && (
+            <span className="flex flex-wrap items-center gap-1">
+              {inv.managers.map((m) => (
+                <Badge key={m} variant="default" className="font-mono text-[10px]">{m}</Badge>
+              ))}
+            </span>
+          )}
         </div>
-      </div>
+      )}
 
       {/* Census band */}
       {inv && (
@@ -216,7 +223,7 @@ export function Toolbox() {
 
       {/* Live install log */}
       {showLog && (
-        <div className="rounded-lg border border-border bg-card">
+        <div className="glass rounded-xl">
           <div className="flex items-center gap-2 border-b border-border px-3 py-1.5">
             <TerminalSquare className="size-3.5 text-accent" />
             <span className="text-[11px] font-semibold">Install output</span>
@@ -263,7 +270,7 @@ export function Toolbox() {
 
 function ToolCard({ t, outdated, running, onInstall }: { t: ToolStatus; outdated: boolean; running: boolean; onInstall: () => void }) {
   return (
-    <div className={cn("flex flex-col gap-2 rounded-lg border bg-card p-3", t.installed ? "border-border" : "border-border/60")}>
+    <div className={cn("glass flex flex-col gap-2 rounded-xl p-3", !t.installed && "border-border/60")}>
       <div className="flex items-center gap-2">
         <span className="font-mono text-sm font-semibold">{t.name}</span>
         {t.installed ? (
@@ -306,7 +313,7 @@ function FilterChip({ active, onClick, label, count }: { active: boolean; onClic
 
 function BigStat({ icon: Icon, label, value, accent }: { icon: typeof Boxes; label: string; value: number | string; accent?: boolean }) {
   return (
-    <div className={cn("rounded-lg border bg-card p-2.5", accent ? "border-accent/50" : "border-border")}>
+    <div className={cn("rounded-xl p-2.5", accent ? "border border-accent/50 bg-card" : "glass")}>
       <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted">
         <Icon className={cn("size-3", accent && "text-accent")} /> {label}
       </div>

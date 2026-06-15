@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Muted, ErrorText } from "@/components/JsonView";
 import { SkeletonList } from "@/components/ui/skeleton";
+import { PageHeader } from "@/components/ui/page-header";
 import { SpendArea, BarList, OutcomeBar } from "@/components/Charts";
 import { computeInsights, type RunRow } from "@/lib/insights";
 
@@ -55,14 +56,16 @@ export function Insights() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2">
-        <h2 className="flex items-center gap-2 text-sm font-semibold">
-          <BarChart3 className="size-4 text-accent" /> Insights
-        </h2>
-        <Button variant="ghost" size="sm" className="ml-auto" onClick={reload} disabled={loading}>
-          <RefreshCw className={cn("size-3.5", loading && "animate-spin")} /> Refresh
-        </Button>
-      </div>
+      <PageHeader
+        icon={BarChart3}
+        title="Insights"
+        description="spend, outcomes & throughput"
+        actions={
+          <Button variant="ghost" size="sm" onClick={reload} disabled={loading}>
+            <RefreshCw className={cn("size-3.5", loading && "animate-spin")} /> Refresh
+          </Button>
+        }
+      />
 
       {err ? (
         <ErrorText>{err}</ErrorText>
@@ -122,7 +125,7 @@ function Tile({ icon: Icon, label, value }: { icon: typeof Activity; label: stri
 
 function Card({ title, icon: Icon, children }: { title: string; icon: typeof Activity; children: React.ReactNode }) {
   return (
-    <div className="rounded-lg border border-border bg-card p-3">
+    <div className="glass rounded-xl p-3">
       <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted">
         <Icon className="size-3.5" /> {title}
       </div>

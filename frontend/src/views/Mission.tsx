@@ -4,6 +4,7 @@ import { useEvents } from "@/lib/events";
 import { money } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { SpendArea } from "@/components/Charts";
+import { PageHeader } from "@/components/ui/page-header";
 import { emptyBucket, addEvent, summarize, type Bucket } from "@/lib/telemetry";
 
 const WINDOW = 60; // seconds of rolling history
@@ -45,18 +46,19 @@ export function Mission() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2">
-        <h2 className="flex items-center gap-2 text-sm font-semibold">
-          <Radar className={cn("size-4 text-accent", connected && "animate-pulse")} /> Mission control
-        </h2>
-        <span className={cn("inline-flex items-center gap-1 text-xs", connected ? "text-good" : "text-bad")}>
-          ● {connected ? "live" : "offline"}
-        </span>
-        <span className="ml-auto text-xs text-muted">rolling {WINDOW}s · {t.totalEvents} events</span>
-      </div>
+      <PageHeader
+        icon={Radar}
+        title="Mission control"
+        description={`rolling ${WINDOW}s · ${t.totalEvents} events`}
+        actions={
+          <span className={cn("inline-flex items-center gap-1 text-xs", connected ? "text-good" : "text-bad")}>
+            ● {connected ? "live" : "offline"}
+          </span>
+        }
+      />
 
       {/* Activity hero waveform */}
-      <div className="rounded-lg border border-border bg-card p-3">
+      <div className="glass rounded-xl p-3">
         <div className="mb-1 flex items-center justify-between text-xs">
           <span className="inline-flex items-center gap-1.5 font-semibold uppercase tracking-wider text-muted">
             <Activity className="size-3.5" /> activity
@@ -128,7 +130,7 @@ function Metric({
   series: number[];
 }) {
   return (
-    <div className="rounded-lg border border-border bg-card p-3">
+    <div className="glass rounded-xl p-3">
       <div className="flex items-center gap-1.5 text-xs text-muted">
         <Icon className="size-3.5" /> {label}
       </div>

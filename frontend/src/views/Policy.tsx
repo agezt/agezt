@@ -4,6 +4,7 @@ import { Panel, Stats, Row, Count } from "@/components/Panel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useUI, type ConfirmOptions } from "@/components/ui/feedback";
+import { PageHeader } from "@/components/ui/page-header";
 import { LogDetail } from "@/components/LogDetail";
 import { getJSON, postAction, postJSON } from "@/lib/api";
 import { byDescValue, pct } from "@/lib/format";
@@ -129,31 +130,35 @@ export function Policy() {
   return (
     <div className="space-y-4">
       {/* Control center */}
-      <div className="rounded-lg border border-border bg-card p-3">
-        <div className="mb-3 flex items-center gap-2">
-          <ShieldCheck className="size-4 text-accent" />
-          <h2 className="text-sm font-semibold">Capability policy</h2>
-          <div className="ml-auto flex items-center gap-2">
-            <label className="flex items-center gap-1.5 text-xs text-muted">
-              ask mode
-              <select
-                value={show?.ask_policy || "allow"}
-                disabled={busy === "mode"}
-                onChange={(e) => act("mode", "/api/edict/set_mode", { mode: e.target.value }, { success: `Ask mode → ${e.target.value}` })}
-                className="h-7 rounded-md border border-border bg-panel px-1.5 text-xs outline-none focus:border-accent disabled:opacity-50"
-              >
-                {MODES.map((m) => (
-                  <option key={m} value={m}>
-                    {m}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <Button variant="ghost" size="sm" onClick={reload} disabled={loading}>
-              <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
-            </Button>
-          </div>
-        </div>
+      <div className="glass rounded-xl p-3">
+        <PageHeader
+          className="mb-3"
+          icon={ShieldCheck}
+          title="Capability policy"
+          description="grant or restrict each governed capability at runtime"
+          actions={
+            <>
+              <label className="flex items-center gap-1.5 text-xs text-muted">
+                ask mode
+                <select
+                  value={show?.ask_policy || "allow"}
+                  disabled={busy === "mode"}
+                  onChange={(e) => act("mode", "/api/edict/set_mode", { mode: e.target.value }, { success: `Ask mode → ${e.target.value}` })}
+                  className="h-7 rounded-md border border-border bg-panel px-1.5 text-xs outline-none focus:border-accent disabled:opacity-50"
+                >
+                  {MODES.map((m) => (
+                    <option key={m} value={m}>
+                      {m}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <Button variant="ghost" size="sm" onClick={reload} disabled={loading}>
+                <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
+              </Button>
+            </>
+          }
+        />
 
         {err && <div className="mb-2 text-xs text-bad">{err}</div>}
 
@@ -516,12 +521,13 @@ export function RedactionCheckForm() {
   }
 
   return (
-    <div className="rounded-lg border border-border bg-card p-3">
-      <div className="mb-2 flex items-center gap-2">
-        <EyeOff className="size-4 text-accent" />
-        <h2 className="text-sm font-semibold">Secret redaction</h2>
-        <span className="text-xs text-muted">check what the scrubber catches before it leaves the daemon</span>
-      </div>
+    <div className="glass rounded-xl p-3">
+      <PageHeader
+        className="mb-2"
+        icon={EyeOff}
+        title="Secret redaction"
+        description="check what the scrubber catches before it leaves the daemon"
+      />
       <textarea
         value={text}
         onChange={(e) => setText(e.target.value)}

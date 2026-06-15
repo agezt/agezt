@@ -4,6 +4,7 @@ import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getJSON } from "@/lib/api";
 import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/ui/page-header";
 import { Ring, Sparkline, BarRow } from "@/components/Widgets";
 
 interface Status {
@@ -160,19 +161,23 @@ export function Health() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-3">
-        <h2 className="flex items-center gap-2 text-sm font-semibold">
-          <HeartPulse className="size-4 text-accent" /> Health
-        </h2>
-        {st?.halted && (
-          <span className="inline-flex items-center gap-1 rounded-full bg-bad/15 px-2 py-0.5 text-xs font-semibold text-bad">
-            <Pause className="size-3" /> HALTED
-          </span>
-        )}
-        <Button variant="ghost" size="sm" onClick={refresh} disabled={loading} className="ml-auto">
-          <RefreshCw className={cn("size-3.5", loading && "animate-spin")} /> Refresh
-        </Button>
-      </div>
+      <PageHeader
+        icon={HeartPulse}
+        title="Health"
+        description="The daemon's vital signs at a glance — success rate, resilience, and live activity."
+        actions={
+          <>
+            {st?.halted && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-bad/15 px-2 py-0.5 text-xs font-semibold text-bad">
+                <Pause className="size-3" /> HALTED
+              </span>
+            )}
+            <Button variant="ghost" size="sm" onClick={refresh} disabled={loading}>
+              <RefreshCw className={cn("size-3.5", loading && "animate-spin")} /> Refresh
+            </Button>
+          </>
+        }
+      />
 
       {/* Doctor — active diagnostics with remedies (M921) */}
       <DoctorCard diags={runDiagnostics(st, stats, journalOk)} loaded={st !== null} />
@@ -203,7 +208,7 @@ export function Health() {
             tone={fbRatePct < 5 ? "good" : fbRatePct < 20 ? "warn" : "bad"}
           />
         </GaugeCard>
-        <div className="flex flex-col justify-center rounded-lg border border-border bg-card p-3">
+        <div className="flex flex-col justify-center glass rounded-xl p-3">
           <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted">
             <Clock className="size-3.5" /> Uptime
           </div>
@@ -213,7 +218,7 @@ export function Health() {
       </div>
 
       {/* Live activity pulse */}
-      <div className="rounded-lg border border-border bg-card p-3">
+      <div className="glass rounded-xl p-3">
         <div className="mb-1 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted">
           <HeartPulse className="size-3.5" /> Activity pulse
           <span className="ml-auto font-normal normal-case text-muted">
@@ -236,7 +241,7 @@ export function Health() {
 
       {/* Provider fallback breakdown */}
       {fallbacks.length > 0 && (
-        <div className="rounded-lg border border-border bg-card p-3">
+        <div className="glass rounded-xl p-3">
           <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted">
             <ShieldAlert className="size-3.5" /> Fallbacks by failed provider
           </div>
@@ -300,7 +305,7 @@ function DoctorCard({ diags, loaded }: { diags: Diagnostic[]; loaded: boolean })
 }
 
 function GaugeCard({ children }: { children: React.ReactNode }) {
-  return <div className="flex items-center justify-center rounded-lg border border-border bg-card p-3">{children}</div>;
+  return <div className="flex items-center justify-center glass rounded-xl p-3">{children}</div>;
 }
 
 function Tile({
@@ -324,7 +329,7 @@ function Tile({
     muted: "text-foreground",
   }[tone];
   return (
-    <div className="rounded-lg border border-border bg-card px-3 py-2.5">
+    <div className="glass rounded-xl px-3 py-2.5">
       <div className="flex items-center gap-1.5 text-xs text-muted">
         <Icon className="size-3.5" /> {label}
         {pulse && <span className="ml-auto size-2 animate-pulse rounded-full bg-accent" />}

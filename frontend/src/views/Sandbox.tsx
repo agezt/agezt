@@ -7,6 +7,7 @@ import { useUI } from "@/components/ui/feedback";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty";
 import { ErrorText } from "@/components/JsonView";
+import { PageHeader } from "@/components/ui/page-header";
 
 // downloadText saves text content to a file via a transient object URL — lets the
 // operator grab an artifact an agent built without leaving the browser.
@@ -72,18 +73,21 @@ export function Sandbox() {
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3">
-      <div className="flex items-center gap-2">
-        <h2 className="text-lg font-semibold">Sandbox</h2>
-        <span className="text-xs text-muted">
-          {projects ? `${projects.length} project${projects.length === 1 ? "" : "s"}` : ""}
-        </span>
-        <Button variant="ghost" size="sm" className="ml-auto" onClick={reload} disabled={loading}>
-          <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
-        </Button>
-      </div>
-      <p className="-mt-1 text-xs text-muted">
-        Persistent projects your agents built and iterate on with the <code>code_exec</code> tool. Open a file to view or download it; remove a project you no longer need.
-      </p>
+      <PageHeader
+        icon={FlaskConical}
+        title="Sandbox"
+        description="Persistent projects your agents built and iterate on with the code_exec tool — open a file to view or download it."
+        actions={
+          <>
+            <span className="text-xs text-muted">
+              {projects ? `${projects.length} project${projects.length === 1 ? "" : "s"}` : ""}
+            </span>
+            <Button variant="ghost" size="sm" onClick={reload} disabled={loading}>
+              <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
+            </Button>
+          </>
+        }
+      />
 
       {err ? (
         <ErrorText>{err}</ErrorText>
@@ -134,7 +138,7 @@ function ProjectCard({ p, onChanged }: { p: Project; onChanged: () => void }) {
   }
 
   return (
-    <li className="rounded-lg border border-border bg-card">
+    <li className="glass rounded-xl">
       <div className="flex items-center gap-2 px-3 py-2.5">
         <button onClick={() => setOpen((o) => !o)} className="flex flex-1 items-center gap-2 text-left">
           {open ? <ChevronDown className="size-4 text-muted" /> : <ChevronRight className="size-4 text-muted" />}

@@ -5,6 +5,7 @@ import { cn, fmtDateTime } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Muted, ErrorText } from "@/components/JsonView";
 import { SkeletonList } from "@/components/ui/skeleton";
+import { PageHeader } from "@/components/ui/page-header";
 
 interface Observations {
   window_events?: number;
@@ -75,18 +76,22 @@ export function Reflect() {
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3">
-      <div className="flex items-center gap-2">
-        <h2 className="flex items-center gap-2 text-sm font-semibold">
-          <Brain className="size-4 text-accent" /> Reflection
-        </h2>
-        {report?.generated_ms ? (
-          <span className="text-xs text-muted">last {fmtDateTime(report.generated_ms)}</span>
-        ) : null}
-        <Button variant="ghost" size="sm" className="ml-auto gap-1.5" onClick={runNow} disabled={running}>
-          {running ? <RefreshCw className="size-3.5 animate-spin" /> : <Play className="size-3.5" />}
-          Run now
-        </Button>
-      </div>
+      <PageHeader
+        icon={Brain}
+        title="Reflection"
+        description="The daemon folds its journal into observations and advisory proposals."
+        actions={
+          <>
+            {report?.generated_ms ? (
+              <span className="text-xs text-muted">last {fmtDateTime(report.generated_ms)}</span>
+            ) : null}
+            <Button variant="ghost" size="sm" className="gap-1.5" onClick={runNow} disabled={running}>
+              {running ? <RefreshCw className="size-3.5 animate-spin" /> : <Play className="size-3.5" />}
+              Run now
+            </Button>
+          </>
+        }
+      />
 
       {err ? (
         <ErrorText>{err}</ErrorText>
@@ -128,7 +133,7 @@ export function Reflect() {
             ) : (
               <ul className="space-y-2">
                 {props.map((p, i) => (
-                  <li key={i} className="rounded-lg border border-border bg-card p-3">
+                  <li key={i} className="glass rounded-xl p-3">
                     <span className="rounded bg-accent/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-accent">
                       {p.area || "general"}
                     </span>

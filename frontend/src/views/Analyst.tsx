@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { Markdown } from "@/components/Markdown";
 import { ErrorText } from "@/components/JsonView";
 import { streamRun, foldChatFrame, newTurn, type ChatTurn } from "@/lib/chat";
+import { PageHeader } from "@/components/ui/page-header";
 
 const SUGGESTED = [
   "Summarize the system's health right now.",
@@ -101,12 +102,7 @@ export function Analyst() {
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3">
-      <div className="flex items-center gap-2">
-        <h2 className="flex items-center gap-2 text-sm font-semibold">
-          <Sparkles className="size-4 text-accent" /> Analyst
-        </h2>
-        <span className="text-xs text-muted">ask the daemon about itself</span>
-      </div>
+      <PageHeader icon={Sparkles} title="Analyst" description="ask the daemon about itself" />
 
       {/* Ask box */}
       <div className="flex items-center gap-2">
@@ -149,7 +145,7 @@ export function Analyst() {
 
       {/* Answer */}
       {turn && (
-        <div className="min-h-0 flex-1 overflow-auto rounded-lg border border-border bg-card p-4">
+        <div className="glass min-h-0 flex-1 overflow-auto rounded-xl p-4">
           {turn.reasoning && (
             <div className="mb-3">
               <button

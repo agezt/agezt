@@ -26,6 +26,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { SkeletonGrid } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty";
+import { PageHeader } from "@/components/ui/page-header";
 import { ErrorText } from "@/components/JsonView";
 import { Markdown } from "@/components/Markdown";
 import { useUI } from "@/components/ui/feedback";
@@ -119,24 +120,27 @@ export function Artifacts() {
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <h2 className="flex items-center gap-2 text-sm font-semibold">
-          <Shapes className="size-4 text-accent" /> Artifacts
-        </h2>
-        <span className="text-xs text-muted">{entries.length} produced</span>
-        <div className="relative ml-2">
-          <Search className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted" />
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="search name, caption, source…"
-            className="w-56 rounded-full border border-border bg-panel py-1 pl-7 pr-3 text-xs text-foreground placeholder:text-muted"
-          />
-        </div>
-        <Button variant="ghost" size="sm" className="ml-auto" onClick={reload} disabled={loading} title="Reload">
-          <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
-        </Button>
-      </div>
+      <PageHeader
+        icon={Shapes}
+        title="Artifacts"
+        description={`${entries.length} produced`}
+        actions={
+          <>
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted" />
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="search name, caption, source…"
+                className="w-56 rounded-full border border-border bg-panel py-1 pl-7 pr-3 text-xs text-foreground placeholder:text-muted"
+              />
+            </div>
+            <Button variant="ghost" size="sm" onClick={reload} disabled={loading} title="Reload">
+              <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
+            </Button>
+          </>
+        }
+      />
 
       {/* Category chips with live counts */}
       <div className="flex flex-wrap items-center gap-1">
@@ -273,7 +277,7 @@ function Viewer({ entry, onClose, onDelete }: { entry: ArtifactEntry; onClose: (
     <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm" onClick={onClose}>
       <div
         className={cn(
-          "flex flex-col overflow-hidden rounded-xl border border-border bg-card shadow-2xl",
+          "glass flex flex-col overflow-hidden rounded-xl shadow-2xl",
           full ? "fixed inset-2" : "max-h-[90vh] w-full max-w-3xl",
         )}
         onClick={(e) => e.stopPropagation()}
