@@ -78,6 +78,7 @@ import (
 	"github.com/agezt/agezt/kernel/webhook"
 	"github.com/agezt/agezt/kernel/webui"
 	"github.com/agezt/agezt/kernel/workflow"
+	"github.com/agezt/agezt/plugins/builtinguardians"
 	"github.com/agezt/agezt/plugins/builtinskills"
 	"github.com/agezt/agezt/plugins/channels/discord"
 	"github.com/agezt/agezt/plugins/channels/email"
@@ -1744,6 +1745,27 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// retire/revive agents, triage open help. baseDir locates the board it reads.
 	overseerToolInst.Bind(overseertool.NewKernelSource(k, baseDir))
 	fmt.Fprintf(stdout, "  overseer tool    : enabled (a brain agent can supervise & intervene on the fleet)\n")
+
+	// Seed the built-in guardian agents (M961): the daemon's internal self-healing
+	// fleet (health / stuck / budget / routing-429 / code), each a System-marked
+	// agent with an event or cadence trigger, wielding the tools bound just above.
+	// Idempotent by slug (an operator who pauses/removes one is respected);
+	// best-effort — a seed failure never blocks startup.
+	if guards, gerr := builtinguardians.SeedAll(builtinguardians.NewKernelHost(k), ""); gerr != nil {
+		fmt.Fprintf(stderr, "  built-in guardians: partial (%v)\n", gerr)
+	} else {
+		created := 0
+		for _, g := range guards {
+			if g.Created {
+				created++
+			}
+		}
+		if created > 0 {
+			fmt.Fprintf(stdout, "  built-in guardians: seeded %d (health, stuck, budget, routing, code)\n", created)
+		} else if len(guards) > 0 {
+			fmt.Fprintf(stdout, "  built-in guardians: present (%d)\n", len(guards))
+		}
+	}
 
 	// Bind the code-execution tool to the live bus (M683) so each run journals a
 	// code.executed event. The tool itself was constructed in buildTools (it needed

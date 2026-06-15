@@ -38,6 +38,14 @@ type Source interface {
 	ResumeAll(reason string)
 	SetAgentEnabled(ref string, enabled bool) (roster.Profile, error)
 	SetAgentRetired(ref string, retired bool) (roster.Profile, error)
+	// EditAgent applies the mutable fields of `in` to the agent named by ref
+	// (the same set the webui's agent-edit allows: name/soul/model/fallbacks/
+	// task_type/budgets/memory_scope/workdir/description). The System flag is
+	// never touched. CreateAgent adds a brand-new agent. Both let a guardian
+	// "treat" or build other agents — the agent-facing half of the webui's
+	// roster admin (M961).
+	EditAgent(ref string, in roster.Profile) (roster.Profile, error)
+	CreateAgent(in roster.Profile) (roster.Profile, error)
 }
 
 // Tool implements agent.Tool. Created unbound via New(); Bind wires the live

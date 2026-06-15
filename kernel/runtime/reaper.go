@@ -68,6 +68,9 @@ func (k *Kernel) ReaperScan(agentIdleCutoffMs, artifactStaleCutoffMs int64) Reap
 		if !p.Enabled || p.Retired {
 			continue // paused/retired agents aren't "dead", just inactive on purpose
 		}
+		if p.System {
+			continue // shipped guardians are long-lived by design — never reap them (M961)
+		}
 		if p.CreatedMS == 0 || p.CreatedMS >= agentIdleCutoffMs {
 			continue // too new to judge (within the grace window)
 		}

@@ -73,6 +73,7 @@ func (s *Server) handleAgentAdd(conn net.Conn, req Request) {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.profile: " + err.Error()})
 		return
 	}
+	p.System = false // System is kernel-owned (set only by guardian seeding); never accept it from a client (M961)
 	saved, err := s.k.AddProfile(p)
 	if err != nil {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})

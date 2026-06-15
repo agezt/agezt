@@ -15,6 +15,7 @@ import {
   CalendarClock,
   GitFork,
   Cpu,
+  ShieldCheck,
   Search,
   Radar,
 } from "lucide-react";
@@ -162,10 +163,11 @@ const KIND_DOT: Record<StatusKind, string> = {
 };
 
 type Tab = "fleet" | "live";
-type FleetFilter = "all" | FleetKind | "running";
+type FleetFilter = "all" | FleetKind | "running" | "guardians";
 
 const FLEET_FILTERS: { id: FleetFilter; label: string; icon: typeof Bot }[] = [
   { id: "all", label: "All", icon: Network },
+  { id: "guardians", label: "Guardians", icon: ShieldCheck },
   { id: "roster", label: "Roster", icon: Users },
   { id: "standing", label: "Standing", icon: Anchor },
   { id: "schedule", label: "Schedules", icon: CalendarClock },
@@ -275,7 +277,8 @@ export function Agents() {
     const q = query.trim().toLowerCase();
     return fleet.filter((e) => {
       if (fleetFilter === "running" && !e.running) return false;
-      if (fleetFilter !== "all" && fleetFilter !== "running" && e.kind !== fleetFilter) return false;
+      if (fleetFilter === "guardians" && !e.system) return false;
+      if (fleetFilter !== "all" && fleetFilter !== "running" && fleetFilter !== "guardians" && e.kind !== fleetFilter) return false;
       if (!q) return true;
       return (
         e.name.toLowerCase().includes(q) ||
@@ -478,7 +481,9 @@ export function Agents() {
               ? fleet.length
               : f.id === "running"
                 ? census.running
-                : fleet.filter((e) => e.kind === f.id).length;
+                : f.id === "guardians"
+                  ? fleet.filter((e) => e.system).length
+                  : fleet.filter((e) => e.kind === f.id).length;
           return (
             <button
               key={f.id}
