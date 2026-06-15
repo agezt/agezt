@@ -33,6 +33,7 @@ import { AgentAvatar } from "@/components/AgentAvatar";
 import { FleetCard, FleetDetail } from "@/components/Fleet";
 import { AgentDetail } from "@/components/AgentDetail";
 import { openAgent } from "@/lib/agentnav";
+import { AnimatedNumber } from "@/components/AnimatedNumber";
 import type { AgentProfile } from "@/views/Roster";
 import { buildDelegationTree, type RunNode } from "@/lib/delegation";
 import {
@@ -664,7 +665,9 @@ function BigStat({
       <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted">
         <Icon className={cn("size-3", accent && "text-accent")} /> {label}
       </div>
-      <div className={cn("mt-0.5 text-lg font-semibold tabular-nums", accent && "text-accent")}>{value}</div>
+      <div className={cn("mt-0.5 text-lg font-semibold tabular-nums", accent && "text-accent")}>
+        {typeof value === "number" ? <AnimatedNumber value={value} /> : value}
+      </div>
     </div>
   );
 }
