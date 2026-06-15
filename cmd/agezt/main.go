@@ -3806,6 +3806,7 @@ func buildStandingRunner(ctx context.Context, k *kernelruntime.Kernel, brief fun
 		// standing.error so it stays diagnosable (`agt journal`).
 		defer func() {
 			if r := recover(); r != nil {
+				fmt.Fprintf(os.Stderr, "standing order %q panicked: %v\n", o.Name, r)
 				_, _ = k.Bus().Publish(event.Spec{
 					Subject: "standing." + o.ID,
 					Kind:    event.KindStandingError,

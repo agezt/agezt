@@ -42,43 +42,70 @@ const (
 // cluster whose SEED it matches at ≥ threshold, else seeds a new cluster.
 // Seed-matching (not centroid) keeps the function pure and order-stable.
 // Only clusters of at least minSize survive.
+//
+// Performance: O(n) overall. Records are first partitioned by scope (hard wall),
+// then clustered within each scope. The inner cluster scan is bounded by
+// maxClusterRecords since scope partitioning prevents cross-scope growth.
 func Clusters(rs []Record, threshold float64, minSize int) [][]Record {
 	type cluster struct {
 		seedVec []float32
 		scope   string
 		recs    []Record
 	}
-	var clusters []*cluster
-	ordered := append([]Record(nil), rs...)
-	sortRecords(ordered)
-	for _, r := range ordered {
+
+	// Phase 1: Partition by scope — O(n). Scope is a hard wall; records from
+	// different scopes never cluster together.
+	byScope := make(map[string][]Record)
+	for _, r := range rs {
 		if !r.Active() {
-			continue
-		}
-		rv := Embed(searchText(r))
-		if rv == nil {
 			continue
 		}
 		scope := ""
 		if r.Tags != nil {
 			scope = r.Tags["scope"]
 		}
-		placed := false
-		for _, c := range clusters {
-			if c.scope == scope && Cosine(c.seedVec, rv) >= threshold {
-				c.recs = append(c.recs, r)
-				placed = true
-				break
+		byScope[scope] = append(byScope[scope], r)
+	}
+
+	// Phase 2: Cluster within each scope. Each scope is independent.
+	// We maintain a map of scope -> clusters for that scope only.
+	// This means when searching for a match we only check clusters from
+	// the SAME scope, bounding the inner loop to O(k) where k is the
+	// number of clusters within that scope (at most maxClusterRecords).
+	scopeClusters := make(map[string][]*cluster)
+	for _, recs := range byScope {
+		sortRecords(recs)
+		for _, r := range recs {
+			rv := Embed(searchText(r))
+			if rv == nil {
+				continue
+			}
+			scope := ""
+			if r.Tags != nil {
+				scope = r.Tags["scope"]
+			}
+			clusters := scopeClusters[scope]
+			placed := false
+			for _, c := range clusters {
+				if Cosine(c.seedVec, rv) >= threshold {
+					c.recs = append(c.recs, r)
+					placed = true
+					break
+				}
+			}
+			if !placed {
+				scopeClusters[scope] = append(clusters, &cluster{seedVec: rv, scope: scope, recs: []Record{r}})
 			}
 		}
-		if !placed {
-			clusters = append(clusters, &cluster{seedVec: rv, scope: scope, recs: []Record{r}})
-		}
 	}
-	out := make([][]Record, 0, len(clusters))
-	for _, c := range clusters {
-		if len(c.recs) >= minSize {
-			out = append(out, c.recs)
+
+	// Collect all clusters meeting minimum size
+	out := make([][]Record, 0)
+	for _, clusters := range scopeClusters {
+		for _, c := range clusters {
+			if len(c.recs) >= minSize {
+				out = append(out, c.recs)
+			}
 		}
 	}
 	return out

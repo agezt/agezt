@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -44,7 +45,7 @@ func New(cfg *Config) (*Center, error) {
 	// Load existing entries from disk
 	if err := loadStoreFromDisk(store, cfg.Dir); err != nil {
 		// Non-fatal, just log
-		fmt.Printf("config center: failed to load existing entries: %v\n", err)
+		slog.Warn("config center: failed to load existing entries", "error", err)
 	}
 
 	// Create audit logger

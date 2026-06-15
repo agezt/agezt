@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net"
 	"net/http"
 	"sync"
@@ -188,7 +189,7 @@ func (g *Gateway) Listen(ctx context.Context) error {
 
 	go func() {
 		if err := srv.Serve(ln); err != nil && err != http.ErrServerClosed {
-			fmt.Printf("agentgw: serve error: %v\n", err)
+			slog.Error("agentgw: serve error", "error", err)
 		}
 	}()
 
@@ -281,8 +282,11 @@ func (g *Gateway) allowRate(tid string, maxRate, maxBurst int) bool {
 		rl = NewRateLimit(maxRate, maxBurst)
 		g.rateLimit[tid] = rl
 	}
+	// Call Allow() while holding rlMu to prevent a race where two concurrent
+	// requests both see count=0 before either has incremented.
+	allowed := rl.Allow()
 	g.rlMu.Unlock()
-	return rl.Allow()
+	return allowed
 }
 
 // evictStaleLocked removes idle rate-limit buckets. Caller must hold rlMu.
@@ -335,7 +339,7 @@ func responseError(w http.ResponseWriter, code int, errCode, message string) {
 }
 
 // responseJSON writes a JSON response.
-func responseJSON(w http.ResponseWriter, status int, data interface{}) {
+func responseJSON[T any](w http.ResponseWriter, status int, data T) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	json.NewEncoder(w).Encode(data)

@@ -23,6 +23,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/plugins/providers/internal/httpread"
+	"github.com/agezt/agezt/plugins/providers/internal/retry"
 )
 
 const (
@@ -151,18 +152,40 @@ func (p *Provider) Complete(ctx context.Context, req agent.CompletionRequest) (*
 	if client == nil {
 		client = http.DefaultClient
 	}
-	httpResp, err := client.Do(httpReq)
-	if err != nil {
-		return nil, fmt.Errorf("anthropic: http: %w", err)
-	}
-	defer httpResp.Body.Close()
 
-	respBytes, err := httpread.All(httpResp.Body, httpread.DefaultMaxResponseBytes)
-	if err != nil {
-		return nil, fmt.Errorf("anthropic: read body: %w", err)
-	}
-	if httpResp.StatusCode/100 != 2 {
-		return nil, &APIError{Status: httpResp.StatusCode, Body: string(respBytes)}
+	// Retry logic with exponential backoff for transient errors (429, 5xx)
+	var respBytes []byte
+	httpErr := retry.Do(ctx, retry.DefaultConfig, func() error {
+		// We need to recreate the request body for each retry since bytes.Reader
+		// can only be read once. Use a func to capture the body bytes.
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
+		if err != nil {
+			return err
+		}
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("anthropic-version", APIVersion)
+		req.Header.Set("x-api-key", p.APIKey)
+
+		httpResp, err := client.Do(req)
+		if err != nil {
+			return &retry.TransientError{Err: err}
+		}
+		defer httpResp.Body.Close()
+
+		respBytes, err = httpread.All(httpResp.Body, httpread.DefaultMaxResponseBytes)
+		if err != nil {
+			return fmt.Errorf("anthropic: read body: %w", err)
+		}
+		if httpResp.StatusCode/100 != 2 {
+			return &retry.HTTPError{StatusCode: httpResp.StatusCode, Body: string(respBytes)}
+		}
+		return nil
+	})
+	if httpErr != nil {
+		if h, ok := httpErr.(*retry.HTTPError); ok {
+			return nil, &APIError{Status: h.StatusCode, Body: h.Body}
+		}
+		return nil, httpErr
 	}
 	return decodeResponse(respBytes)
 }

@@ -21,9 +21,9 @@ import (
 // corr, using the kernel's configured provider/model (TaskType "distill" —
 // the same budgeting class as per-run distillation). Halted kernels refuse.
 func (k *Kernel) DistillBrain(ctx context.Context, corr string) (memory.BrainDistillReport, error) {
-	k.mu.Lock()
+	k.runsMu.Lock()
 	halted := k.halted
-	k.mu.Unlock()
+	k.runsMu.Unlock()
 	if halted {
 		return memory.BrainDistillReport{}, ErrHalted
 	}

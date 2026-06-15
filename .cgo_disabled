@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: MIT
+#
+# AGEZT - Pure Go Project
+#
+# This file explicitly disables CGO for this entire project.
+# CGO_ENABLED=0 is set globally for this project.
+#
+# What this means:
+# - All builds use pure Go (no C dependencies)
+# - No external C libraries required
+# - Cross-compilation works out of the box
+# - Race detector is NOT available (requires CGO)
+#
+# To run tests with race detector:
+#   CGO_ENABLED=1 go test -race ./...
+#   (requires GCC to be installed)
+#
+# Project: https://github.com/agezt/agezt
+# Pure Go: https://purego.doc

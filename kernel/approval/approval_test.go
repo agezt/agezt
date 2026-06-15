@@ -256,3 +256,58 @@ func TestEvent_RequestedPayloadShape(t *testing.T) {
 		t.Error("approval_id empty")
 	}
 }
+
+// TestDecision_IsTerminal tests that IsTerminal correctly identifies terminal decisions.
+func TestDecision_IsTerminal(t *testing.T) {
+	tests := []struct {
+		decision approval.Decision
+		expected bool
+		name     string
+	}{
+		{approval.DecisionGrant, true, "grant_is_terminal"},
+		{approval.DecisionDeny, true, "deny_is_terminal"},
+		{approval.DecisionTimeout, true, "timeout_is_terminal"},
+		{approval.DecisionCancel, true, "cancel_is_terminal"},
+		{approval.Decision(""), false, "empty_is_not_terminal"},
+		{approval.Decision("grantx"), false, "typo_is_not_terminal"},
+		{approval.Decision("GRANT"), false, "case_sensitive"},
+		{approval.Decision("grant "), false, "trailing_space_not_terminal"},
+		{approval.Decision(" grant"), false, "leading_space_not_terminal"},
+		{approval.Decision("unknown"), false, "unknown_not_terminal"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.decision.IsTerminal()
+			if got != tt.expected {
+				t.Errorf("Decision(%q).IsTerminal() = %v, want %v", tt.decision, got, tt.expected)
+			}
+		})
+	}
+}
+
+// TestDecision_IsTerminal_AllFourTerminalStates verifies all four defined terminal states are recognized.
+func TestDecision_IsTerminal_AllFourTerminalStates(t *testing.T) {
+	if !approval.DecisionGrant.IsTerminal() {
+		t.Error("DecisionGrant should be terminal")
+	}
+	if !approval.DecisionDeny.IsTerminal() {
+		t.Error("DecisionDeny should be terminal")
+	}
+	if !approval.DecisionTimeout.IsTerminal() {
+		t.Error("DecisionTimeout should be terminal")
+	}
+	if !approval.DecisionCancel.IsTerminal() {
+		t.Error("DecisionCancel should be terminal")
+	}
+}
+
+// TestDecision_IsTerminal_DirectConstant tests that IsTerminal works on Decision constants directly.
+func TestDecision_IsTerminal_DirectConstant(t *testing.T) {
+	if !approval.Decision("grant").IsTerminal() {
+		t.Error("Decision(grant).IsTerminal() should be true")
+	}
+	if approval.Decision("pending").IsTerminal() {
+		t.Error("Decision(pending).IsTerminal() should be false")
+	}
+}

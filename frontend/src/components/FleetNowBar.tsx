@@ -18,10 +18,16 @@ interface LiveRun {
   ts?: number;
 }
 
+// payloadIntent is the subset of agent-event payloads that carry an intent string.
+interface PayloadIntent {
+  intent?: string;
+}
+
 // tickerLabel summarizes the newest event for the right-hand ticker.
 function tickerLabel(e: AgentEvent): string {
   const who = e.actor ? `${e.actor} · ` : "";
-  const subj = clip(e.subject || (e.payload && (e.payload as any).intent) || "", 48);
+  const p = e.payload as PayloadIntent | null | undefined;
+  const subj = clip(e.subject || p?.intent || "", 48);
   return `${who}${e.kind || "event"}${subj ? " — " + subj : ""}`;
 }
 

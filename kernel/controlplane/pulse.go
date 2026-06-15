@@ -185,12 +185,20 @@ func (s *Server) handlePulseSubscribe(ctx context.Context, conn net.Conn, req Re
 	// Read returning err (typically EOF or "use of closed network
 	// connection") means the client went away.
 	clientGone := make(chan struct{})
+	stopCh := ctx.Done()
 	go func() {
 		var buf [1]byte
 		for {
+			conn.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
 			if _, err := conn.Read(buf[:]); err != nil {
 				close(clientGone)
 				return
+			}
+			select {
+			case <-stopCh:
+				close(clientGone)
+				return
+			default:
 			}
 		}
 	}()

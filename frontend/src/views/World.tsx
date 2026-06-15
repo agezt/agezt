@@ -18,9 +18,19 @@ const WORLD_KINDS = ["person", "project", "repo", "org", "account", "device", "c
 // The relation verbs the world model recognises.
 const WORLD_VERBS = ["relates_to", "owns", "depends_on", "member_of", "prefers", "assigned_to", "derived_from"];
 
+// WorldEntity is the client-side view of one entity node in the world knowledge graph.
+export interface WorldEntity {
+  id?: string;
+  name: string;
+  kind?: string;
+  aliases?: string[];
+  attrs?: Record<string, string>;
+  weight?: number;
+}
+
 // kindBreakdown counts entities by kind for the breakdown bar + filter chips,
 // sorted by count then name. Pure + unit-tested.
-export function kindBreakdown(ents: any[]): { label: string; count: number }[] {
+export function kindBreakdown(ents: WorldEntity[]): { label: string; count: number }[] {
   const c: Record<string, number> = {};
   for (const e of ents) c[e.kind || "entity"] = (c[e.kind || "entity"] || 0) + 1;
   return Object.entries(c)
@@ -30,7 +40,7 @@ export function kindBreakdown(ents: any[]): { label: string; count: number }[] {
 
 // filterEntities narrows the entity list by a free-text query (name/kind/alias,
 // via entityMatches) and an optional exact kind (M918). Pure + unit-tested.
-export function filterEntities(ents: any[], query: string, kind: string): any[] {
+export function filterEntities(ents: WorldEntity[], query: string, kind: string): WorldEntity[] {
   const q = query.trim().toLowerCase();
   return ents.filter((e) => {
     if (kind && (e.kind || "entity") !== kind) return false;
@@ -103,7 +113,7 @@ export function parseWorldJSON(text: string): {
 
 // entityMatches tests an entity against a lowercased query over its name, kind, and
 // aliases — so you can find a node in a large graph by any of the ways you might know it.
-export function entityMatches(e: any, q: string): boolean {
+export function entityMatches(e: WorldEntity, q: string): boolean {
   if (!q) return true;
   const hay = [e.name, e.kind, ...(Array.isArray(e.aliases) ? e.aliases : [])]
     .filter((s) => typeof s === "string")

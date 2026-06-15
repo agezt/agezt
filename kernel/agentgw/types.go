@@ -32,6 +32,8 @@ type TokenClaims struct {
 	MaxBurst int `json:"max_burst"`
 	// ExpiresAt is when the token expires.
 	ExpiresAt time.Time `json:"exp"`
+	// TokenID is the unique identifier for this token (set by CreateToken).
+	TokenID string `json:"tid,omitempty"`
 	// ParentTokenID is the ID of the parent token (if this is a subprocess token).
 	ParentTokenID string `json:"parent_tid,omitempty"`
 	// SubprocessID is the ID of the subprocess this token is for.

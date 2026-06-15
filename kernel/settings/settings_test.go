@@ -5,6 +5,7 @@ package settings
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
@@ -39,7 +40,7 @@ func TestStore_SetGetSaveLoad(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if info.Mode().Perm()&0o077 != 0 && os.Getenv("OS") != "Windows_NT" {
+	if runtime.GOOS != "windows" && info.Mode().Perm()&0o077 != 0 {
 		// On Unix the file must not be group/other readable. Windows ignores mode.
 		t.Errorf("config.json perms = %v, want 0600", info.Mode().Perm())
 	}

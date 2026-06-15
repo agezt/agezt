@@ -95,6 +95,8 @@ func (m *Manager) semanticProvider(ctx context.Context, emb Embedder, recs []Rec
 	for i, id := range missIDs {
 		m.embCache[id] = vecs[i+1]
 	}
+	m.embMu.Unlock()
+
 	out := make([]Scored, 0, len(active))
 	for _, r := range active {
 		cos := Cosine(qv, m.embCache[r.ID])
@@ -107,7 +109,6 @@ func (m *Manager) semanticProvider(ctx context.Context, emb Embedder, recs []Rec
 		}
 		out = append(out, Scored{Record: r, Score: cos * (0.5 + conf) * recencyFactor(r.LastSeenMS, nowMS)})
 	}
-	m.embMu.Unlock()
 	sortScored(out)
 	return out, nil
 }

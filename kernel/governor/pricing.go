@@ -5,6 +5,7 @@ package governor
 import (
 	"math"
 	"math/bits"
+	"slices"
 	"strings"
 	"sync/atomic"
 
@@ -87,6 +88,29 @@ var modelPriceTable = map[string]modelPrice{
 	"mock": {},
 }
 
+// prefixEntry pairs a lowercase prefix key with its price for binary-search
+// longest-prefix lookups. Sorted by prefix ascending; priceForOk binary-
+// searches for the greatest prefix ≤ model (case-insensitive), then checks
+// HasPrefix.
+type prefixEntry struct {
+	prefix string
+	price  modelPrice
+}
+
+// sortedPrefixes is built once at init from modelPriceTable for O(log n)
+// longest-prefix lookups instead of O(n) map iteration.
+var sortedPrefixes []prefixEntry
+
+func init() {
+	for k, v := range modelPriceTable {
+		sortedPrefixes = append(sortedPrefixes, prefixEntry{strings.ToLower(k), v})
+	}
+	// Sort ascending by prefix so binary search for the floor works.
+	slices.SortFunc(sortedPrefixes, func(a, b prefixEntry) int {
+		return strings.Compare(a.prefix, b.prefix)
+	})
+}
+
 // priceFor looks up a model's price.
 //
 // Order: live catalog (exact match across providers) → fallback table
@@ -139,7 +163,23 @@ func priceForOk(model string) (modelPrice, bool) {
 	// specific (cheaper) entry than the best available. Longest-prefix is
 	// deterministic (no two distinct keys of equal length can both prefix
 	// the same string) and always prefers the most specific price.
+	//
+	// Fast path: binary search (O(log n)) over sortedPrefixes (populated at
+	// init from the static table). Slow path: linear scan of modelPriceTable
+	// for runtime-added entries (e.g. test fixtures).
 	lower := strings.ToLower(model)
+
+	// Fast path: binary search for longest prefix in pre-computed sorted list.
+	idx, _ := slices.BinarySearchFunc(sortedPrefixes, lower, func(e prefixEntry, target string) int {
+		return strings.Compare(e.prefix, target)
+	})
+	for i := idx - 1; i >= 0; i-- {
+		if strings.HasPrefix(lower, sortedPrefixes[i].prefix) {
+			return sortedPrefixes[i].price, true
+		}
+	}
+
+	// Slow path: linear scan for runtime-added entries not in sortedPrefixes.
 	bestLen := -1
 	var best modelPrice
 	for k, v := range modelPriceTable {

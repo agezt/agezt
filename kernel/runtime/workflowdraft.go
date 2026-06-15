@@ -222,10 +222,11 @@ func autoLayoutWorkflow(w *workflow.Workflow) {
 	// Layout runs BEFORE Validate, so a cyclic draft must not spin this BFS
 	// forever — bound the relaxations; Validate rejects the cycle right after.
 	steps := (len(w.Nodes) + 1) * (len(w.Edges) + 1)
-	for len(queue) > 0 && steps > 0 {
+	head := 0
+	for head < len(queue) && steps > 0 {
 		steps--
-		id := queue[0]
-		queue = queue[1:]
+		id := queue[head]
+		head++
 		for _, next := range adj[id] {
 			if d, seen := depth[next]; !seen || depth[id]+1 > d {
 				depth[next] = depth[id] + 1

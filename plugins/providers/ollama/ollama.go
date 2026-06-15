@@ -26,6 +26,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/plugins/providers/internal/httpread"
+	"github.com/agezt/agezt/plugins/providers/internal/retry"
 )
 
 const (
@@ -113,28 +114,40 @@ func (p *Provider) Complete(ctx context.Context, req agent.CompletionRequest) (*
 		return nil, fmt.Errorf("ollama: encode request: %w", err)
 	}
 
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
-	if err != nil {
-		return nil, fmt.Errorf("ollama: build request: %w", err)
-	}
-	httpReq.Header.Set("Content-Type", "application/json")
-
 	client := p.HTTP
 	if client == nil {
 		client = http.DefaultClient
 	}
-	httpResp, err := client.Do(httpReq)
-	if err != nil {
-		return nil, fmt.Errorf("ollama: http: %w", err)
-	}
-	defer httpResp.Body.Close()
 
-	respBytes, err := httpread.All(httpResp.Body, httpread.DefaultMaxResponseBytes)
-	if err != nil {
-		return nil, fmt.Errorf("ollama: read body: %w", err)
-	}
-	if httpResp.StatusCode/100 != 2 {
-		return nil, &APIError{Status: httpResp.StatusCode, Body: string(respBytes)}
+	// Retry logic with exponential backoff for transient errors (429, 5xx)
+	var respBytes []byte
+	httpErr := retry.Do(ctx, retry.DefaultConfig, func() error {
+		httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
+		if err != nil {
+			return err
+		}
+		httpReq.Header.Set("Content-Type", "application/json")
+
+		httpResp, err := client.Do(httpReq)
+		if err != nil {
+			return &retry.TransientError{Err: err}
+		}
+		defer httpResp.Body.Close()
+
+		respBytes, err = httpread.All(httpResp.Body, httpread.DefaultMaxResponseBytes)
+		if err != nil {
+			return fmt.Errorf("ollama: read body: %w", err)
+		}
+		if httpResp.StatusCode/100 != 2 {
+			return &retry.HTTPError{StatusCode: httpResp.StatusCode, Body: string(respBytes)}
+		}
+		return nil
+	})
+	if httpErr != nil {
+		if h, ok := httpErr.(*retry.HTTPError); ok {
+			return nil, &APIError{Status: h.StatusCode, Body: h.Body}
+		}
+		return nil, httpErr
 	}
 	return decodeResponse(respBytes)
 }

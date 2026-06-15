@@ -12,7 +12,7 @@ import "testing"
 func TestSetDailyCeiling_RaiseUnblocks(t *testing.T) {
 	g := newBudgetGov(Config{DailyCeilingMicrocents: 1000})
 	g.mu.Lock()
-	g.spentToday = 1500 // already past the configured cap
+	g.spentToday.Store(1500) // already past the configured cap
 	g.mu.Unlock()
 
 	if ex, _, _ := g.budgetExceeded(); !ex {
@@ -35,7 +35,7 @@ func TestSetDailyCeiling_RaiseUnblocks(t *testing.T) {
 func TestSetDailyCeiling_LowerBlocks(t *testing.T) {
 	g := newBudgetGov(Config{DailyCeilingMicrocents: 5000})
 	g.mu.Lock()
-	g.spentToday = 1500
+	g.spentToday.Store(1500)
 	g.mu.Unlock()
 
 	if ex, _, _ := g.budgetExceeded(); ex {
@@ -50,7 +50,7 @@ func TestSetDailyCeiling_LowerBlocks(t *testing.T) {
 func TestSetDailyCeiling_ZeroIsUnlimited(t *testing.T) {
 	g := newBudgetGov(Config{DailyCeilingMicrocents: 1000})
 	g.mu.Lock()
-	g.spentToday = 1_000_000 // far past any finite cap
+	g.spentToday.Store(1_000_000) // far past any finite cap
 	g.mu.Unlock()
 
 	g.SetDailyCeiling(0) // 0 = unlimited
@@ -68,7 +68,7 @@ func TestSetDailyCeiling_NegativeClampsToUnlimited(t *testing.T) {
 		t.Errorf("negative ceiling must clamp to 0 (unlimited); got %d", got)
 	}
 	g.mu.Lock()
-	g.spentToday = 99_999
+	g.spentToday.Store(99_999)
 	g.mu.Unlock()
 	if ex, _, _ := g.budgetExceeded(); ex {
 		t.Error("after clamping a negative ceiling to 0 (unlimited), spend must not be over budget")
