@@ -4,10 +4,10 @@ import { usePanel } from "@/lib/usePanel";
 import { postAction } from "@/lib/api";
 import { money } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { Card, CardHeader, CardTitle, CardBody } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ErrorText } from "@/components/JsonView";
 import { SkeletonList } from "@/components/ui/skeleton";
+import { PageHeader } from "@/components/ui/page-header";
 import { Ring, BarRow } from "@/components/Widgets";
 
 interface BudgetData {
@@ -76,16 +76,18 @@ export function Budget() {
   }
 
   return (
-    <Card className="h-full">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Wallet className="size-4 text-accent" /> Budget
-        </CardTitle>
-        <Button variant="ghost" size="icon" className="ml-auto" onClick={reload} title="Refresh">
-          <RefreshCw className={loading ? "animate-spin" : ""} />
-        </Button>
-      </CardHeader>
-      <CardBody className="space-y-5">
+    <div className="space-y-4">
+      <PageHeader
+        icon={Wallet}
+        title="Budget"
+        description="Track today's spend against the daily ceiling and adjust the cap at runtime."
+        actions={
+          <Button variant="ghost" size="icon" onClick={reload} title="Refresh">
+            <RefreshCw className={loading ? "animate-spin" : ""} />
+          </Button>
+        }
+      />
+      <div className="glass rounded-xl p-4 space-y-5">
         {error ? (
           <ErrorText>{error}</ErrorText>
         ) : data ? (
@@ -120,7 +122,7 @@ export function Budget() {
               if (projected == null || spent <= 0) return null;
               const over = ceiling > 0 && projected > ceiling;
               return (
-                <div className={cn("rounded-lg border p-3", over ? "border-bad/50 bg-bad/5" : "border-border bg-card")}>
+                <div className={cn("rounded-xl p-3", over ? "border border-bad/50 bg-bad/5" : "glass")}>
                   <div className="flex items-baseline justify-between gap-2">
                     <span className="text-xs font-semibold uppercase tracking-wider text-muted">
                       Projected today · at this pace
@@ -141,7 +143,7 @@ export function Budget() {
             })()}
 
             {/* Runtime ceiling control — the "ayarla" knob */}
-            <div className="rounded-lg border border-border bg-card p-3">
+            <div className="glass rounded-xl p-3">
               <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted">
                 Adjust daily ceiling
               </div>
@@ -222,7 +224,7 @@ export function Budget() {
         ) : (
           <SkeletonList count={3} lines={2} />
         )}
-      </CardBody>
-    </Card>
+      </div>
+    </div>
   );
 }

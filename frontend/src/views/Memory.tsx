@@ -9,6 +9,7 @@ import { SkeletonGrid } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty";
 import { Muted, ErrorText } from "@/components/JsonView";
 import { BreakdownBar } from "@/components/Widgets";
+import { PageHeader } from "@/components/ui/page-header";
 
 interface MemRecord {
   id?: string;
@@ -218,48 +219,52 @@ export function Memory() {
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <h2 className="flex items-center gap-2 text-sm font-semibold">
-          <Brain className="size-4 text-accent" /> Memory
-        </h2>
-        {records && <span className="text-xs text-muted">{shown.length}/{records.length}</span>}
-        <div className="relative ml-auto">
-          <Search className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted" />
-          <input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="search memories…"
-            className="h-7 w-48 rounded-md border border-border bg-panel pl-7 pr-2 text-xs outline-none focus:border-accent"
-          />
-        </div>
-        <Button size="sm" onClick={() => setShowForm((v) => !v)} title="Teach the agent a fact">
-          {showForm ? <X className="size-3.5" /> : <Plus className="size-3.5" />} Teach
-        </Button>
-        <input
-          ref={fileRef}
-          type="file"
-          accept="application/json,.json"
-          className="hidden"
-          aria-hidden="true"
-          onChange={(e) => {
-            const f = e.target.files?.[0];
-            if (f) void importMemory(f);
-            e.target.value = "";
-          }}
-        />
-        <Button variant="ghost" size="sm" onClick={() => fileRef.current?.click()} title="Import memories from a file">
-          <Upload className="size-3.5" /> Import
-        </Button>
-        <Button variant="ghost" size="sm" onClick={exportMemory} disabled={!records || records.length === 0} title="Export memories to a file">
-          <Download className="size-3.5" /> Export
-        </Button>
-        <Button variant="ghost" size="sm" onClick={prune} title="Permanently remove forgotten/superseded records older than 30 days">
-          <Trash2 className="size-3.5" /> Prune
-        </Button>
-        <Button variant="ghost" size="sm" onClick={reload} disabled={loading}>
-          <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
-        </Button>
-      </div>
+      <PageHeader
+        icon={Brain}
+        title="Memory"
+        description="Every durable fact the agent has stored — searchable by subject, content or tag."
+        actions={
+          <>
+            {records && <span className="text-xs text-muted">{shown.length}/{records.length}</span>}
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted" />
+              <input
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="search memories…"
+                className="h-7 w-48 rounded-md border border-border bg-panel pl-7 pr-2 text-xs outline-none focus:border-accent"
+              />
+            </div>
+            <Button size="sm" onClick={() => setShowForm((v) => !v)} title="Teach the agent a fact">
+              {showForm ? <X className="size-3.5" /> : <Plus className="size-3.5" />} Teach
+            </Button>
+            <input
+              ref={fileRef}
+              type="file"
+              accept="application/json,.json"
+              className="hidden"
+              aria-hidden="true"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) void importMemory(f);
+                e.target.value = "";
+              }}
+            />
+            <Button variant="ghost" size="sm" onClick={() => fileRef.current?.click()} title="Import memories from a file">
+              <Upload className="size-3.5" /> Import
+            </Button>
+            <Button variant="ghost" size="sm" onClick={exportMemory} disabled={!records || records.length === 0} title="Export memories to a file">
+              <Download className="size-3.5" /> Export
+            </Button>
+            <Button variant="ghost" size="sm" onClick={prune} title="Permanently remove forgotten/superseded records older than 30 days">
+              <Trash2 className="size-3.5" /> Prune
+            </Button>
+            <Button variant="ghost" size="sm" onClick={reload} disabled={loading}>
+              <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
+            </Button>
+          </>
+        }
+      />
 
       {scopes.scoped.length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Memory scope filter">
@@ -316,7 +321,7 @@ export function Memory() {
             {shown.map((r, i) => {
               const scope = r.tags?.scope || "";
               return (
-              <li key={r.id || i} className="rounded-lg border border-border bg-card p-3">
+              <li key={r.id || i} className="glass rounded-xl p-3">
                 <div className="mb-1 flex items-center gap-2">
                   {r.type && (
                     <span className="rounded bg-accent/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-accent">

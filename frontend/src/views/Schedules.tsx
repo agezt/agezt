@@ -9,6 +9,7 @@ import { SkeletonList } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty";
 import { Badge, statusVariant } from "@/components/ui/badge";
 import { ErrorText } from "@/components/JsonView";
+import { PageHeader } from "@/components/ui/page-header";
 
 interface Sched {
   id: string;
@@ -236,39 +237,44 @@ export function Schedules() {
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3">
-      <div className="flex items-center gap-2">
-        <h2 className="flex items-center gap-2 text-sm font-semibold">
-          <CalendarClock className="size-4 text-accent" /> Schedules
-        </h2>
-        <span className="text-xs text-muted">
-          {items ? `${items.length} total` : ""}
-          {agentCount > 0 && <span className="text-accent"> · {agentCount} agent-scheduled</span>}
-        </span>
-        <Button size="sm" className="ml-auto" onClick={() => setShowForm((v) => !v)} title="Create a schedule">
-          {showForm ? <X className="size-3.5" /> : <Plus className="size-3.5" />} New schedule
-        </Button>
-        <input
-          ref={fileRef}
-          type="file"
-          accept="application/json,.json"
-          className="hidden"
-          aria-hidden="true"
-          onChange={(e) => {
-            const f = e.target.files?.[0];
-            if (f) void importSchedules(f);
-            e.target.value = "";
-          }}
-        />
-        <Button variant="ghost" size="sm" onClick={() => fileRef.current?.click()} title="Import schedules from a file">
-          <Upload className="size-3.5" /> Import
-        </Button>
-        <Button variant="ghost" size="sm" onClick={exportSchedules} disabled={!items || items.length === 0} title="Export schedules to a file">
-          <Download className="size-3.5" /> Export
-        </Button>
-        <Button variant="ghost" size="sm" onClick={reload} disabled={loading} title="Reload">
-          <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
-        </Button>
-      </div>
+      <PageHeader
+        icon={CalendarClock}
+        title="Schedules"
+        description={
+          <>
+            {items ? `${items.length} total` : "Manage every scheduled intent that fires unattended"}
+            {agentCount > 0 && <span className="text-accent"> · {agentCount} agent-scheduled</span>}
+          </>
+        }
+        actions={
+          <>
+            <Button size="sm" onClick={() => setShowForm((v) => !v)} title="Create a schedule">
+              {showForm ? <X className="size-3.5" /> : <Plus className="size-3.5" />} New schedule
+            </Button>
+            <input
+              ref={fileRef}
+              type="file"
+              accept="application/json,.json"
+              className="hidden"
+              aria-hidden="true"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) void importSchedules(f);
+                e.target.value = "";
+              }}
+            />
+            <Button variant="ghost" size="sm" onClick={() => fileRef.current?.click()} title="Import schedules from a file">
+              <Upload className="size-3.5" /> Import
+            </Button>
+            <Button variant="ghost" size="sm" onClick={exportSchedules} disabled={!items || items.length === 0} title="Export schedules to a file">
+              <Download className="size-3.5" /> Export
+            </Button>
+            <Button variant="ghost" size="sm" onClick={reload} disabled={loading} title="Reload">
+              <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
+            </Button>
+          </>
+        }
+      />
 
       {showForm && (
         <NewScheduleForm
@@ -313,7 +319,7 @@ export function Schedules() {
           })()}
           <ul className="space-y-2">
             {items.map((s) => (
-              <li key={s.id} className="rounded-lg border border-border bg-card p-3">
+              <li key={s.id} className="glass rounded-xl p-3">
                 <div className="flex items-center gap-2">
                   <Badge>
                     {s.mode === "continuous" && <InfinityIcon className="mr-1 inline size-3 align-[-1px]" />}
@@ -536,7 +542,7 @@ export function NewScheduleForm({
   }
 
   return (
-    <div className="rounded-lg border border-accent/30 bg-card p-3">
+    <div className="glass rounded-xl p-3">
       <label className="flex flex-col gap-1 text-[11px] text-muted">
         Intent
         <textarea

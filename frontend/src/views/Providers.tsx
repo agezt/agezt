@@ -7,6 +7,7 @@ import { cn, fmtTime } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Muted, ErrorText } from "@/components/JsonView";
 import { SkeletonList } from "@/components/ui/skeleton";
+import { PageHeader } from "@/components/ui/page-header";
 import { BarList } from "@/components/Charts";
 import { Ring } from "@/components/Widgets";
 
@@ -102,17 +103,21 @@ export function Providers() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2">
-        <h2 className="flex items-center gap-2 text-sm font-semibold">
-          <Cpu className="size-4 text-accent" /> Providers
-        </h2>
-        <Button variant="ghost" size="sm" className="ml-auto" onClick={reloadProviders} disabled={reloading} title="Re-read credentials & catalog without restarting the daemon">
-          <RotateCw className={cn("size-3.5", reloading && "animate-spin")} /> Reload
-        </Button>
-        <Button variant="ghost" size="sm" onClick={reload} disabled={loading} title="Re-fetch these stats">
-          <RefreshCw className={cn("size-3.5", loading && "animate-spin")} /> Refresh
-        </Button>
-      </div>
+      <PageHeader
+        icon={Cpu}
+        title="Providers"
+        description="Routing monitor: calls routed, fallback rate, and a live routing log"
+        actions={
+          <>
+            <Button variant="ghost" size="sm" onClick={reloadProviders} disabled={reloading} title="Re-read credentials & catalog without restarting the daemon">
+              <RotateCw className={cn("size-3.5", reloading && "animate-spin")} /> Reload
+            </Button>
+            <Button variant="ghost" size="sm" onClick={reload} disabled={loading} title="Re-fetch these stats">
+              <RefreshCw className={cn("size-3.5", loading && "animate-spin")} /> Refresh
+            </Button>
+          </>
+        }
+      />
 
       {err ? (
         <ErrorText>{err}</ErrorText>
@@ -121,7 +126,7 @@ export function Providers() {
       ) : (
         <>
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <div className="flex items-center justify-center rounded-lg border border-border bg-card p-3">
+            <div className="flex items-center justify-center glass rounded-xl p-3">
               <Ring
                 pct={fbRatePct}
                 center={`${fbRatePct}%`}
@@ -181,7 +186,7 @@ function Tile({
 }) {
   const color = { accent: "text-accent", bad: "text-bad", muted: "text-foreground" }[tone];
   return (
-    <div className="rounded-lg border border-border bg-card px-3 py-2.5">
+    <div className="glass rounded-xl px-3 py-2.5">
       <div className="flex items-center gap-1.5 text-xs text-muted">
         <Icon className="size-3.5" /> {label}
       </div>
@@ -192,7 +197,7 @@ function Tile({
 
 function Card({ title, icon: Icon, children }: { title: string; icon: typeof Cpu; children: React.ReactNode }) {
   return (
-    <div className="rounded-lg border border-border bg-card p-3">
+    <div className="glass rounded-xl p-3">
       <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted">
         <Icon className="size-3.5" /> {title}
       </div>

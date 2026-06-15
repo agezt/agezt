@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { useUI, type ConfirmOptions } from "@/components/ui/feedback";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty";
+import { PageHeader } from "@/components/ui/page-header";
 import { ErrorText } from "@/components/JsonView";
 
 interface Skill {
@@ -109,31 +110,32 @@ export function Skills() {
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3">
-      <div className="flex items-center gap-2">
-        <h2 className="flex items-center gap-2 text-sm font-semibold">
-          <Sparkles className="size-4 text-accent" /> Skills
-        </h2>
-        {skills && (
-          <span className="text-xs text-muted">
-            {active != null ? `${active} active · ` : ""}
-            {skills.length} total
-          </span>
-        )}
-        <Button
-          size="sm"
-          className="ml-auto"
-          onClick={() => {
-            setEditSkill(null);
-            setShowForm((v) => !(v && !editSkill));
-          }}
-          title="Author a skill"
-        >
-          {showForm && !editSkill ? <X className="size-3.5" /> : <Plus className="size-3.5" />} Author skill
-        </Button>
-        <Button variant="ghost" size="sm" onClick={reload} disabled={loading}>
-          <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
-        </Button>
-      </div>
+      <PageHeader
+        icon={Sparkles}
+        title="Skills"
+        description={
+          skills
+            ? `${active != null ? `${active} active · ` : ""}${skills.length} total`
+            : "Reusable procedures the agent distills from successful runs"
+        }
+        actions={
+          <>
+            <Button
+              size="sm"
+              onClick={() => {
+                setEditSkill(null);
+                setShowForm((v) => !(v && !editSkill));
+              }}
+              title="Author a skill"
+            >
+              {showForm && !editSkill ? <X className="size-3.5" /> : <Plus className="size-3.5" />} Author skill
+            </Button>
+            <Button variant="ghost" size="sm" onClick={reload} disabled={loading}>
+              <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
+            </Button>
+          </>
+        }
+      />
 
       {idle.length > 0 && (
         <div className="rounded-lg border border-warn/40 bg-warn/10 p-2.5">
@@ -229,7 +231,7 @@ export function Skills() {
             const m = s.metrics || {};
             const isOpen = open === (s.id || String(i));
             return (
-              <div key={s.id || i} className="rounded-lg border border-border bg-card p-3">
+              <div key={s.id || i} className="glass rounded-xl p-3">
                 <div className="flex items-center gap-2">
                   <span className={cn("rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider", statusTone[s.status || ""] || "bg-panel text-muted")}>
                     {s.status || "?"}
@@ -397,7 +399,7 @@ function StatusSummary({ skills }: { skills: Skill[] }) {
   const present = STATUS_ORDER.filter((s) => counts[s] > 0);
   const total = skills.length;
   return (
-    <div className="rounded-lg border border-border bg-card p-3">
+    <div className="glass rounded-xl p-3">
       <div className="flex h-2.5 overflow-hidden rounded-full bg-panel">
         {present.map((s) => (
           <div
@@ -502,7 +504,7 @@ export function AuthorSkillForm({
   }
 
   return (
-    <div className="rounded-lg border border-accent/30 bg-card p-3">
+    <div className="glass rounded-xl border-accent/30 p-3">
       <div className="grid gap-2 sm:grid-cols-2">
         <label className="flex flex-col gap-1 text-[11px] text-muted">
           Name

@@ -34,6 +34,7 @@ import { FleetCard, FleetDetail } from "@/components/Fleet";
 import { AgentDetail } from "@/components/AgentDetail";
 import { openAgent } from "@/lib/agentnav";
 import { AnimatedNumber } from "@/components/AnimatedNumber";
+import { PageHeader } from "@/components/ui/page-header";
 import type { AgentProfile } from "@/views/Roster";
 import { buildDelegationTree, type RunNode } from "@/lib/delegation";
 import {
@@ -305,29 +306,33 @@ export function Agents() {
   }
 
   const header = (
-    <div className="flex flex-wrap items-center gap-2">
-      <h2 className="flex items-center gap-2 text-sm font-semibold">
-        <Network className="size-4 text-accent" /> Agents
-      </h2>
-      <div className="inline-flex rounded-lg border border-border p-0.5 text-xs">
-        {(["fleet", "live"] as Tab[]).map((t) => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            className={cn(
-              "rounded-md px-2.5 py-1 capitalize transition-colors",
-              tab === t ? "bg-accent/15 text-accent" : "text-muted hover:text-foreground",
-            )}
-          >
-            {t === "fleet" ? "Fleet" : "Live"}
-            {t === "live" && running > 0 ? <span className="ml-1 text-accent">· {running}</span> : null}
-          </button>
-        ))}
-      </div>
-      <Button variant="ghost" size="sm" onClick={reloadAll} title="Reload" className="ml-auto">
-        <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
-      </Button>
-    </div>
+    <PageHeader
+      icon={Network}
+      title="Agents"
+      description="Your full fleet census and live run monitor."
+      actions={
+        <>
+          <div className="inline-flex rounded-lg border border-border p-0.5 text-xs">
+            {(["fleet", "live"] as Tab[]).map((t) => (
+              <button
+                key={t}
+                onClick={() => setTab(t)}
+                className={cn(
+                  "rounded-md px-2.5 py-1 capitalize transition-colors",
+                  tab === t ? "bg-accent/15 text-accent" : "text-muted hover:text-foreground",
+                )}
+              >
+                {t === "fleet" ? "Fleet" : "Live"}
+                {t === "live" && running > 0 ? <span className="ml-1 text-accent">· {running}</span> : null}
+              </button>
+            ))}
+          </div>
+          <Button variant="ghost" size="sm" onClick={reloadAll} title="Reload">
+            <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
+          </Button>
+        </>
+      }
+    />
   );
 
   // ───────────────────────── Live tab: delegation drill-in ─────────────────────────
@@ -358,11 +363,11 @@ export function Agents() {
           </Button>
         </div>
         <div className="flex min-h-0 flex-1 flex-col gap-3 lg:flex-row">
-          <div className="min-h-0 flex-1 overflow-hidden rounded-lg border border-border bg-card">
+          <div className="glass min-h-0 flex-1 overflow-hidden rounded-xl">
             <DelegationGraph runs={nodes} rootId={sel} onSelect={setPicked} selectedId={picked ?? undefined} />
           </div>
           {pickedNode && (
-            <aside className="min-h-0 overflow-auto rounded-lg border border-border bg-card p-3 lg:w-96 lg:shrink-0">
+            <aside className="glass min-h-0 overflow-auto rounded-xl p-3 lg:w-96 lg:shrink-0">
               <div className="mb-2 flex items-start gap-2">
                 <div className="min-w-0 flex-1">
                   <div className="text-[10px] font-semibold uppercase tracking-wider text-muted">
@@ -578,7 +583,7 @@ function RunCard({ r, onOpen }: { r: RootSummary; onOpen: () => void }) {
   return (
     <button
       onClick={onOpen}
-      className="group flex flex-col gap-2 rounded-lg border border-border bg-card p-3 text-left transition-colors hover:border-accent"
+      className="group flex flex-col gap-2 glass rounded-xl p-3 text-left transition-colors hover:border-accent"
     >
       <div className="flex items-center gap-2">
         <span

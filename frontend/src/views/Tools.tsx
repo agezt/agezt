@@ -6,6 +6,7 @@ import { cn, clip, fmtTime } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Muted, ErrorText } from "@/components/JsonView";
 import { SkeletonList } from "@/components/ui/skeleton";
+import { PageHeader } from "@/components/ui/page-header";
 import { Ring } from "@/components/Widgets";
 
 interface ToolStat {
@@ -177,14 +178,16 @@ export function Tools() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2">
-        <h2 className="flex items-center gap-2 text-sm font-semibold">
-          <Wrench className="size-4 text-accent" /> Tools
-        </h2>
-        <Button variant="ghost" size="sm" className="ml-auto" onClick={reload} disabled={loading}>
-          <RefreshCw className={cn("size-3.5", loading && "animate-spin")} /> Refresh
-        </Button>
-      </div>
+      <PageHeader
+        icon={Wrench}
+        title="Tools"
+        description="Tool usage monitor — capabilities, call volume, and a live invocation log."
+        actions={
+          <Button variant="ghost" size="sm" onClick={reload} disabled={loading}>
+            <RefreshCw className={cn("size-3.5", loading && "animate-spin")} /> Refresh
+          </Button>
+        }
+      />
 
       {err ? (
         <ErrorText>{err}</ErrorText>
@@ -193,7 +196,7 @@ export function Tools() {
       ) : (
         <>
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <div className="flex items-center justify-center rounded-lg border border-border bg-card p-3">
+            <div className="flex items-center justify-center glass rounded-xl p-3">
               <Ring
                 pct={errPct}
                 center={stats.total ? `${errPct}%` : "—"}
@@ -379,7 +382,7 @@ function FilterChip({ label, n, active, onClick }: { label: string; n: number; a
 
 function Card({ title, icon: Icon, children }: { title: string; icon: typeof Wrench; children: React.ReactNode }) {
   return (
-    <div className="rounded-lg border border-border bg-card p-3">
+    <div className="glass rounded-xl p-3">
       <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted">
         <Icon className="size-3.5" /> {title}
       </div>
