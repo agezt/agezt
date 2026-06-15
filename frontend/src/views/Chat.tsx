@@ -247,7 +247,7 @@ export function Chat() {
       <aside className="hidden w-52 shrink-0 flex-col border-r border-border pr-3 md:flex">
         <button
           onClick={startNewChat}
-          className="mb-2 inline-flex items-center justify-center gap-1.5 rounded-md border border-border px-2 py-1.5 text-xs transition-colors hover:border-accent hover:text-foreground"
+          className="mb-2 inline-flex items-center justify-center gap-1.5 rounded-md border border-accent/40 bg-accent/10 px-2 py-1.5 text-xs font-medium text-accent transition-colors hover:bg-accent hover:text-white"
         >
           <Plus className="size-3.5" /> New chat
         </button>
@@ -531,8 +531,10 @@ export function ConversationItem({
   return (
     <div
       className={cn(
-        "group flex items-center gap-1 rounded-md px-2 py-1.5 text-xs transition-colors",
-        active ? "bg-accent/15 text-accent" : "text-muted hover:bg-panel",
+        "group relative flex items-center gap-1 rounded-md px-2 py-1.5 text-xs transition-colors",
+        active
+          ? "bg-gradient-to-r from-accent/20 to-transparent font-medium text-accent before:absolute before:left-0 before:top-1/2 before:h-4 before:w-[3px] before:-translate-y-1/2 before:rounded-r-full before:bg-accent before:content-['']"
+          : "text-muted hover:bg-panel",
       )}
     >
       {editing ? (
@@ -629,7 +631,7 @@ function EmptyState({ onPick }: { onPick: (s: string) => void }) {
             key={`${p.title}-${i}`}
             onClick={() => onPick(p.text)}
             title={hasSaved ? p.text : undefined}
-            className="rounded-full border border-border px-3 py-1 text-xs text-muted transition-colors hover:border-accent hover:text-foreground"
+            className="rounded-full border border-border bg-panel/60 px-3 py-1 text-xs text-muted shadow-e1 transition-all hover:-translate-y-0.5 hover:border-accent hover:bg-accent/10 hover:text-accent"
           >
             {p.title}
           </button>
