@@ -37,7 +37,6 @@ import {
   Pause,
   Play,
   Search,
-  ChevronDown,
   FlaskConical,
   GitFork,
   Hammer,
@@ -146,6 +145,7 @@ interface NavItem {
 interface NavGroup {
   id: string;
   label: string;
+  icon: LucideIcon; // section icon for the two-level nav rail (M974)
   items: NavItem[];
 }
 
@@ -158,6 +158,7 @@ const NAV_GROUPS: NavGroup[] = [
   {
     id: "converse",
     label: "Converse",
+    icon: MessageSquare,
     items: [
       { id: "chat", label: "Chat", icon: MessageSquare, render: Chat },
       { id: "inbox", label: "Inbox", icon: InboxIcon, render: Inbox },
@@ -171,6 +172,7 @@ const NAV_GROUPS: NavGroup[] = [
   {
     id: "monitor",
     label: "Monitor",
+    icon: ActivityIcon,
     items: [
       { id: "mission", label: "Mission Control", icon: Radar, render: Mission },
       { id: "health", label: "Health", icon: HeartPulse, render: Health },
@@ -186,6 +188,7 @@ const NAV_GROUPS: NavGroup[] = [
   {
     id: "agents",
     label: "Agents",
+    icon: Bot,
     items: [
       { id: "agents", label: "Agents", icon: Waypoints, render: Agents },
       { id: "roster", label: "Roster", icon: Users, render: Roster },
@@ -203,6 +206,7 @@ const NAV_GROUPS: NavGroup[] = [
   {
     id: "automation",
     label: "Automation",
+    icon: Workflow,
     items: [
       { id: "wizards", label: "Wizards", icon: Wand2, render: Wizards },
       { id: "workflows", label: "Workflows", icon: GitFork, render: Workflows },
@@ -213,6 +217,7 @@ const NAV_GROUPS: NavGroup[] = [
   {
     id: "knowledge",
     label: "Knowledge",
+    icon: Brain,
     items: [
       { id: "memory", label: "Memory", icon: Brain, render: Memory },
       { id: "world", label: "World", icon: Network, render: World },
@@ -223,6 +228,7 @@ const NAV_GROUPS: NavGroup[] = [
   {
     id: "provision",
     label: "Setup",
+    icon: PackageOpen,
     items: [
       { id: "setup", label: "Setup", icon: Wand2, render: Setup },
       { id: "toolbox", label: "Toolbox", icon: PackageOpen, render: Toolbox },
@@ -231,6 +237,7 @@ const NAV_GROUPS: NavGroup[] = [
   {
     id: "system",
     label: "System",
+    icon: SlidersHorizontal,
     items: [
       { id: "overview", label: "Overview", icon: LayoutDashboard, render: Dashboard },
       { id: "system", label: "System", icon: Settings, render: Status },
@@ -278,17 +285,6 @@ function viewFromHash(): string {
   return NAV.some((n) => n.id === id) ? id : "chat";
 }
 
-// COLLAPSE_KEY persists which sidebar groups the user has collapsed.
-const COLLAPSE_KEY = "agezt.nav.collapsed";
-
-function loadCollapsed(): Record<string, boolean> {
-  try {
-    return JSON.parse(localStorage.getItem(COLLAPSE_KEY) || "{}");
-  } catch {
-    return {};
-  }
-}
-
 export default function App() {
   const [active, setActiveRaw] = useState(viewFromHash);
   // The agent currently addressed by `#agent/<slug>` (M960), or null on a normal
@@ -309,7 +305,10 @@ export default function App() {
   // Every roster agent offered as a ⌘K "Open agent" command, so any created
   // agent's identity page is one keystroke away from anywhere (M967).
   const [paletteAgents, setPaletteAgents] = useState<{ slug: string; name?: string; system?: boolean; retired?: boolean }[]>([]);
-  const [collapsed, setCollapsed] = useState<Record<string, boolean>>(loadCollapsed);
+  // Two-level nav (M974): the section whose items the secondary list shows. It
+  // follows the active view's section, but a rail click can browse another
+  // section without navigating yet.
+  const [navSection, setNavSection] = useState<string>(() => groupForView[viewFromHash()] || NAV_GROUPS[0].id);
   const { connected, events } = useEvents();
   const ui = useUI();
 
@@ -319,6 +318,14 @@ export default function App() {
       .then(setBuild)
       .catch(() => {});
   }, []);
+
+  // Keep the secondary nav list pointed at the active view's section (M974), so
+  // navigating (incl. via ⌘K or a deep link) reveals the right item list.
+  const activeGroupId = groupForView[active] || NAV_GROUPS[0].id;
+  useEffect(() => {
+    setNavSection(activeGroupId);
+  }, [activeGroupId]);
+  const shownGroup = NAV_GROUPS.find((g) => g.id === navSection) || NAV_GROUPS[0];
 
   // Unseen-alert badge on the Alerts nav item (M779): count the critical/warning alerts
   // in the live buffer so the cockpit flags "something needs attention" from anywhere —
@@ -387,18 +394,6 @@ export default function App() {
       ui.toast(`Import failed: ${(e as Error).message}`, "error");
     }
   }
-
-  const toggleGroup = (id: string) => {
-    setCollapsed((c) => {
-      const next = { ...c, [id]: !c[id] };
-      try {
-        localStorage.setItem(COLLAPSE_KEY, JSON.stringify(next));
-      } catch {
-        /* ignore quota/availability errors */
-      }
-      return next;
-    });
-  };
 
   // Deep-linkable views: setActive also reflects into the URL hash, so views are
   // bookmarkable and the browser back/forward buttons move between them.
@@ -636,79 +631,101 @@ export default function App() {
       <Vitals onNavigate={setActive} />
       <FleetNowBar onNavigate={setActive} />
       <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
-        {/* Nav: horizontal scroll on small screens, grouped sidebar on lg+. */}
-        <nav className="flex shrink-0 gap-1 overflow-x-auto border-b border-border p-2 lg:w-56 lg:flex-col lg:gap-0.5 lg:overflow-y-auto lg:border-b-0 lg:border-r">
-          {NAV_GROUPS.map((g) => {
-            // A group is open unless explicitly collapsed — but the group holding
-            // the active view is always shown so the current page is never hidden.
-            const hasActive = groupForView[active] === g.id;
-            const isCollapsed = !!collapsed[g.id] && !hasActive;
-            return (
-              <div key={g.id} className="contents lg:block">
+        {/* Two-level nav (M974): a big-icon section RAIL on the far left, then a
+            secondary LIST of that section's views. Far fewer items on screen at
+            once than the old long single list. On small screens both rows scroll
+            horizontally. */}
+        <nav className="flex shrink-0 border-b border-border lg:border-b-0 lg:border-r">
+          {/* Section rail */}
+          <div className="flex shrink-0 gap-1 overflow-x-auto p-2 lg:flex-col lg:gap-1.5 lg:overflow-visible lg:border-r lg:border-border">
+            {NAV_GROUPS.map((g) => {
+              const on = navSection === g.id;
+              const isActiveSection = activeGroupId === g.id;
+              const sectionBadge =
+                (g.id === "monitor" ? unseenAlerts : 0) + (g.id === "agents" ? activeRunCount : 0);
+              return (
                 <button
-                  onClick={() => toggleGroup(g.id)}
-                  className="hidden w-full items-center gap-1.5 rounded px-2 pb-1 pt-3 text-left text-[10px] font-semibold uppercase tracking-wider text-muted/70 transition-colors hover:text-muted lg:flex"
-                  title={isCollapsed ? "Expand" : "Collapse"}
+                  key={g.id}
+                  onClick={() => setNavSection(g.id)}
+                  title={g.label}
+                  aria-label={g.label}
+                  className={cn(
+                    "relative flex size-11 shrink-0 flex-col items-center justify-center gap-0.5 rounded-xl transition-colors",
+                    on
+                      ? "bg-accent/15 text-accent ring-1 ring-inset ring-accent/30"
+                      : "text-muted hover:bg-panel hover:text-foreground",
+                  )}
                 >
-                  <ChevronDown className={cn("size-3 transition-transform", isCollapsed && "-rotate-90")} />
-                  {g.label}
+                  <g.icon className="size-5" />
+                  <span className="text-[8px] font-medium leading-none">{g.label}</span>
+                  {/* active-section dot */}
+                  {isActiveSection && !on && <span className="absolute right-1 top-1 size-1.5 rounded-full bg-accent" />}
+                  {sectionBadge > 0 && (
+                    <span className="absolute -right-0.5 -top-0.5 inline-flex min-w-3.5 items-center justify-center rounded-full bg-bad px-0.5 text-[8px] font-bold leading-3.5 text-white">
+                      {sectionBadge > 99 ? "99+" : sectionBadge}
+                    </span>
+                  )}
                 </button>
-                {g.items.map((n) => (
-                  <button
-                    key={n.id}
-                    onClick={() => setActive(n.id)}
-                    className={cn(
-                      "relative flex shrink-0 items-center gap-2 rounded-md px-3 py-1.5 text-left text-sm transition-[background-color,color,box-shadow] lg:ml-1",
-                      isCollapsed && "lg:hidden",
-                      n.id === active
-                        ? // Active item: tinted fill + inset accent ring, plus a left
-                          // accent rail on the lg sidebar so the current view reads at a glance.
-                          "bg-accent/12 font-medium text-accent ring-1 ring-inset ring-accent/25 before:absolute before:left-0 before:top-1/2 before:hidden before:h-5 before:w-[3px] before:-translate-y-1/2 before:rounded-r-full before:bg-accent before:content-[''] lg:before:block"
-                        : "text-muted hover:bg-panel hover:text-foreground",
-                    )}
-                  >
-                    <n.icon className="size-4 shrink-0" />
-                    <span>{n.label}</span>
-                    {n.id === "alerts" && unseenAlerts > 0 && (
-                      <span
-                        className="ml-auto inline-flex min-w-4 items-center justify-center rounded-full bg-bad px-1 text-[10px] font-semibold leading-4 text-white"
-                        title={`${unseenAlerts} new alert${unseenAlerts === 1 ? "" : "s"} — the agent flagged something`}
-                        aria-label={`${unseenAlerts} unseen alerts`}
-                      >
-                        {unseenAlerts > 99 ? "99+" : unseenAlerts}
-                      </span>
-                    )}
-                    {n.id === "overseer" && activeRunCount > 0 && (
-                      <span
-                        className="ml-auto inline-flex min-w-4 items-center justify-center rounded-full bg-accent/20 px-1 text-[10px] font-semibold leading-4 text-accent"
-                        title={`${activeRunCount} run${activeRunCount === 1 ? "" : "s"} in flight`}
-                        aria-label={`${activeRunCount} active runs`}
-                      >
-                        {activeRunCount > 99 ? "99+" : activeRunCount}
-                      </span>
-                    )}
-                  </button>
-                ))}
-              </div>
-            );
-          })}
-          {build && (
-            <div
-              className="mt-auto hidden px-3 pt-3 text-[10px] leading-tight text-muted/60 lg:block"
-              title={
-                build.revision
-                  ? `Daemon build ${build.revision}${build.build_modified ? " (modified working tree)" : ""}${build.built ? ` · built ${build.built}` : ""}`
-                  : build.built
-                    ? `Daemon built ${build.built}`
-                    : "Build revision unavailable (binary built without VCS info)"
-              }
-            >
-              v{build.version || "?"}
-              {build.revision ? (
-                <> · {build.revision.slice(0, 7)}{build.build_modified ? "+" : ""}</>
-              ) : null}
+              );
+            })}
+          </div>
+
+          {/* Secondary item list for the selected section */}
+          <div className="flex min-w-0 flex-1 gap-1 overflow-x-auto p-2 lg:w-44 lg:flex-none lg:flex-col lg:gap-0.5 lg:overflow-y-auto">
+            <div className="hidden px-2 pb-1 pt-1 text-[10px] font-semibold uppercase tracking-wider text-muted/70 lg:block">
+              {shownGroup.label}
             </div>
-          )}
+            {shownGroup.items.map((n) => (
+              <button
+                key={n.id}
+                onClick={() => setActive(n.id)}
+                className={cn(
+                  "relative flex shrink-0 items-center gap-2 rounded-md px-3 py-1.5 text-left text-sm transition-[background-color,color,box-shadow]",
+                  n.id === active
+                    ? "bg-accent/12 font-medium text-accent ring-1 ring-inset ring-accent/25 before:absolute before:left-0 before:top-1/2 before:hidden before:h-5 before:w-[3px] before:-translate-y-1/2 before:rounded-r-full before:bg-accent before:content-[''] lg:before:block"
+                    : "text-muted hover:bg-panel hover:text-foreground",
+                )}
+              >
+                <n.icon className="size-4 shrink-0" />
+                <span>{n.label}</span>
+                {n.id === "alerts" && unseenAlerts > 0 && (
+                  <span
+                    className="ml-auto inline-flex min-w-4 items-center justify-center rounded-full bg-bad px-1 text-[10px] font-semibold leading-4 text-white"
+                    title={`${unseenAlerts} new alert${unseenAlerts === 1 ? "" : "s"} — the agent flagged something`}
+                    aria-label={`${unseenAlerts} unseen alerts`}
+                  >
+                    {unseenAlerts > 99 ? "99+" : unseenAlerts}
+                  </span>
+                )}
+                {n.id === "overseer" && activeRunCount > 0 && (
+                  <span
+                    className="ml-auto inline-flex min-w-4 items-center justify-center rounded-full bg-accent/20 px-1 text-[10px] font-semibold leading-4 text-accent"
+                    title={`${activeRunCount} run${activeRunCount === 1 ? "" : "s"} in flight`}
+                    aria-label={`${activeRunCount} active runs`}
+                  >
+                    {activeRunCount > 99 ? "99+" : activeRunCount}
+                  </span>
+                )}
+              </button>
+            ))}
+            {build && (
+              <div
+                className="mt-auto hidden px-3 pt-3 text-[10px] leading-tight text-muted/60 lg:block"
+                title={
+                  build.revision
+                    ? `Daemon build ${build.revision}${build.build_modified ? " (modified working tree)" : ""}${build.built ? ` · built ${build.built}` : ""}`
+                    : build.built
+                      ? `Daemon built ${build.built}`
+                      : "Build revision unavailable (binary built without VCS info)"
+                }
+              >
+                v{build.version || "?"}
+                {build.revision ? (
+                  <> · {build.revision.slice(0, 7)}{build.build_modified ? "+" : ""}</>
+                ) : null}
+              </div>
+            )}
+          </div>
         </nav>
         <main className="min-h-0 flex-1 overflow-auto p-3 sm:p-4">
           {/* Keyed remount so each view fades + rises in on navigation. The
