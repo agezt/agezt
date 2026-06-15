@@ -62,6 +62,18 @@ describe("FleetNowBar", () => {
     expect(location.hash).toContain("agent/researcher");
   });
 
+  it("opens a running agent's page directly from the collapsed avatar (M991)", () => {
+    // The owner's ask: click a running agent at the top and go straight to its
+    // page — no need to expand the slider first.
+    h.events = [
+      { seq: 1, kind: "task.received", correlation_id: "agent-run-XYZ", actor: "agent-run-XYZ", payload: { intent: "real", agent: "researcher" } },
+    ];
+    location.hash = "";
+    render(<FleetNowBar />);
+    fireEvent.click(screen.getByTitle("Open researcher's page"));
+    expect(location.hash).toContain("agent/researcher");
+  });
+
   it("expands into running-agent cards on click", () => {
     h.events = [
       { seq: 1, kind: "task.received", correlation_id: "c1", actor: "alice", payload: { intent: "deploy the app" } },
