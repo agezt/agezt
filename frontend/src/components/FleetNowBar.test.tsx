@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, fireEvent } from "@testing-library/react";
 
 // Mutable handle the mocked useEvents reads from, so each test can vary the
 // live buffer / connection state (vi.hoisted survives vi.mock hoisting).
@@ -23,15 +23,28 @@ describe("FleetNowBar", () => {
     expect(screen.getByText(/fleet idle · listening/)).toBeTruthy();
   });
 
-  it("shows a breathing chip for a running agent with its intent", () => {
+  it("summarizes a running agent (collapsed stack + ticker), not idle", () => {
     h.events = [
       { seq: 1, kind: "task.received", correlation_id: "c1", actor: "alice", payload: { intent: "deploy the app" } },
     ];
     render(<FleetNowBar />);
-    // "alice" / the intent appear in both the chip and the event ticker.
-    expect(screen.getAllByText("alice").length).toBeGreaterThan(0);
+    // Collapsed: a compact "N running" summary (avatar stack), not a wall of text.
+    expect(screen.getByText(/1 running/)).toBeTruthy();
+    // The agent + intent still surface in the live event ticker.
+    expect(screen.getAllByText(/alice/).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/deploy the app/).length).toBeGreaterThan(0);
     expect(screen.queryByText(/fleet idle/)).toBeNull();
+  });
+
+  it("expands into running-agent cards on click", () => {
+    h.events = [
+      { seq: 1, kind: "task.received", correlation_id: "c1", actor: "alice", payload: { intent: "deploy the app" } },
+    ];
+    render(<FleetNowBar />);
+    fireEvent.click(screen.getByText(/1 running/));
+    // Expanded slider shows the intent in a card and a Collapse control.
+    expect(screen.getByText(/Collapse/)).toBeTruthy();
+    expect(screen.getAllByText(/deploy the app/).length).toBeGreaterThan(0);
   });
 
   it("drops a run whose most recent lifecycle event is terminal", () => {

@@ -1,15 +1,21 @@
-import { useMemo } from "react";
-import { Radio, CircleDot, Activity } from "lucide-react";
+import { useMemo, useRef, useState } from "react";
+import { Radio, CircleDot, Activity, ChevronLeft, ChevronRight, ChevronDown, ChevronUp } from "lucide-react";
 import { useEvents, type AgentEvent } from "@/lib/events";
-import { cn, clip } from "@/lib/utils";
+import { cn, clip, fmtAgo } from "@/lib/utils";
 import { AgentAvatar } from "@/components/AgentAvatar";
+import { openAgent } from "@/lib/agentnav";
 
-// FleetNowBar (M945) is the live "now playing" strip: a qualitative, event-
-// driven view of WHAT the fleet is doing right this second — which agents are
-// running which tasks — to complement Vitals' numeric pulse. It reads only the
-// rolling SSE buffer (no fetch): a run is "live" when the most recent lifecycle
-// event for its correlation is task.received (not yet completed/failed). Each
-// running agent shows as a breathing chip; idle shows a calm listening state.
+// FleetNowBar (M945, reworked M973) is the live "now playing" strip: a
+// qualitative, event-driven view of WHAT the fleet is doing right now — which
+// agents are running which tasks. It reads only the rolling SSE buffer (no
+// fetch): a run is "live" when the most recent lifecycle event for its
+// correlation is task.received (not yet completed/failed).
+//
+// Two shapes (M973): COLLAPSED shows a compact overlapping stack of agent
+// avatars (3 shown + "+N"), so many concurrent agents stay a glance, not a wall
+// of text. EXPANDED turns the strip into a single horizontal row of taller
+// "running agent" cards you can slide left/right and click through to each
+// agent's identity page.
 
 interface LiveRun {
   corr: string;
@@ -31,8 +37,11 @@ function tickerLabel(e: AgentEvent): string {
   return `${who}${e.kind || "event"}${subj ? " — " + subj : ""}`;
 }
 
+const STACK_SHOWN = 3; // collapsed avatars before the "+N" overflow
+
 export function FleetNowBar({ onNavigate }: { onNavigate?: (id: string) => void }) {
   const { events, connected } = useEvents();
+  const [expanded, setExpanded] = useState(false);
 
   // Replay the buffer (newest-first): the first lifecycle event per correlation
   // decides its state. Most-recent == task.received → still running.
@@ -45,7 +54,7 @@ export function FleetNowBar({ onNavigate }: { onNavigate?: (id: string) => void 
       if (e.kind === "task.received" || e.kind === "task.completed" || e.kind === "task.failed") {
         seen.add(corr);
         if (e.kind === "task.received") {
-          runs.push({ corr, agent: e.actor, intent: (e.payload as any)?.intent, ts: e.ts_unix_ms });
+          runs.push({ corr, agent: e.actor, intent: (e.payload as PayloadIntent | null)?.intent, ts: e.ts_unix_ms });
         }
       }
     }
@@ -53,9 +62,16 @@ export function FleetNowBar({ onNavigate }: { onNavigate?: (id: string) => void 
   }, [events]);
 
   const latest = events[0];
-  const shown = live.slice(0, 4);
-  const overflow = live.length - shown.length;
   const go = () => onNavigate?.("overseer");
+  const open = (r: LiveRun) => (r.agent ? openAgent(r.agent) : go());
+
+  // Expanded view: a horizontal slider of running-agent cards.
+  if (expanded && connected && live.length > 0) {
+    return <NowSlider live={live} onCollapse={() => setExpanded(false)} onOpen={open} onOverseer={go} />;
+  }
+
+  const stack = live.slice(0, STACK_SHOWN);
+  const overflow = live.length - stack.length;
 
   return (
     <div className="flex shrink-0 items-center gap-2 overflow-x-auto border-b border-border bg-panel/40 px-3 py-1.5 text-xs">
@@ -77,29 +93,33 @@ export function FleetNowBar({ onNavigate }: { onNavigate?: (id: string) => void 
           fleet idle · listening
         </span>
       ) : (
-        <div className="flex shrink-0 items-center gap-1.5">
-          {shown.map((r) => (
-            <button
-              key={r.corr}
-              onClick={go}
-              title={r.intent || r.corr}
-              className="now-in flex max-w-[15rem] shrink-0 items-center gap-1.5 rounded-full border border-border bg-card py-0.5 pl-0.5 pr-2 transition-colors hover:border-accent"
-            >
-              {r.agent ? (
-                <AgentAvatar slug={r.agent} size={18} status="running" />
-              ) : (
-                <span className="work-pulse ml-1 size-2 shrink-0 rounded-full bg-accent" />
-              )}
-              <span className="shrink-0 font-medium text-foreground">{r.agent || "run"}</span>
-              {r.intent && <span className="truncate text-muted">{clip(r.intent, 40)}</span>}
-            </button>
-          ))}
-          {overflow > 0 && (
-            <button onClick={go} className="shrink-0 rounded-full bg-card px-2 py-0.5 text-muted hover:text-foreground">
-              +{overflow} more
-            </button>
-          )}
-        </div>
+        <button
+          onClick={() => setExpanded(true)}
+          title={`${live.length} agent${live.length === 1 ? "" : "s"} running — click to expand into cards`}
+          className="group flex shrink-0 items-center gap-2 rounded-full border border-border bg-card py-0.5 pl-1 pr-2 transition-colors hover:border-accent"
+        >
+          {/* Overlapping avatar stack — many concurrent agents stay a glance. */}
+          <span className="flex items-center -space-x-2">
+            {stack.map((r) => (
+              <span key={r.corr} className="now-in rounded-full ring-2 ring-card">
+                {r.agent ? (
+                  <AgentAvatar slug={r.agent} size={20} status="running" />
+                ) : (
+                  <span className="work-pulse flex size-5 items-center justify-center rounded-full bg-accent text-[8px] font-bold text-white ring-2 ring-card">
+                    ?
+                  </span>
+                )}
+              </span>
+            ))}
+            {overflow > 0 && (
+              <span className="flex size-5 items-center justify-center rounded-full bg-accent/20 text-[9px] font-bold text-accent ring-2 ring-card">
+                +{overflow}
+              </span>
+            )}
+          </span>
+          <span className="font-medium text-foreground">{live.length} running</span>
+          <ChevronDown className="size-3.5 text-muted transition-colors group-hover:text-accent" />
+        </button>
       )}
 
       {/* Live event ticker — keyed by seq so each new event eases in. */}
@@ -111,6 +131,81 @@ export function FleetNowBar({ onNavigate }: { onNavigate?: (id: string) => void 
           </span>
         </div>
       )}
+    </div>
+  );
+}
+
+// NowSlider is the expanded strip: a single horizontal row of running-agent
+// cards (no second row), scrollable left/right via the trackpad or the arrow
+// buttons, each card a doorway to that agent's identity page.
+function NowSlider({
+  live,
+  onCollapse,
+  onOpen,
+  onOverseer,
+}: {
+  live: LiveRun[];
+  onCollapse: () => void;
+  onOpen: (r: LiveRun) => void;
+  onOverseer: () => void;
+}) {
+  const scroller = useRef<HTMLDivElement>(null);
+  const scrollBy = (dir: -1 | 1) => scroller.current?.scrollBy({ left: dir * 260, behavior: "smooth" });
+
+  return (
+    <div className="flex shrink-0 flex-col gap-1.5 border-b border-border bg-panel/40 px-3 py-2">
+      <div className="flex items-center gap-2 text-xs">
+        <button
+          onClick={onOverseer}
+          className="flex shrink-0 items-center gap-1.5 font-semibold text-muted transition-colors hover:text-foreground"
+          title="Live fleet — click for the Overseer"
+        >
+          <Radio className="size-3.5 text-good" />
+          <span>Now</span>
+          <span className="text-muted/70">· {live.length} running</span>
+        </button>
+        <div className="ml-auto flex items-center gap-1">
+          <button onClick={() => scrollBy(-1)} title="Scroll left" className="rounded-md border border-border p-1 text-muted transition-colors hover:border-accent hover:text-foreground">
+            <ChevronLeft className="size-3.5" />
+          </button>
+          <button onClick={() => scrollBy(1)} title="Scroll right" className="rounded-md border border-border p-1 text-muted transition-colors hover:border-accent hover:text-foreground">
+            <ChevronRight className="size-3.5" />
+          </button>
+          <button onClick={onCollapse} title="Collapse" className="ml-1 flex items-center gap-1 rounded-md border border-border px-1.5 py-1 text-[11px] text-muted transition-colors hover:border-accent hover:text-foreground">
+            <ChevronUp className="size-3.5" /> Collapse
+          </button>
+        </div>
+      </div>
+
+      <div ref={scroller} className="flex snap-x gap-2 overflow-x-auto pb-1 [scrollbar-width:thin]">
+        {live.map((r) => (
+          <button
+            key={r.corr}
+            onClick={() => onOpen(r)}
+            title={r.agent ? `Open ${r.agent}'s identity page` : r.intent || r.corr}
+            className="now-in group flex w-60 shrink-0 snap-start flex-col gap-2 rounded-lg border border-border bg-card p-3 text-left transition-colors hover:border-accent"
+          >
+            <div className="flex items-center gap-2">
+              {r.agent ? (
+                <AgentAvatar slug={r.agent} size={32} status="running" />
+              ) : (
+                <span className="work-pulse flex size-8 items-center justify-center rounded-full bg-accent text-xs font-bold text-white">?</span>
+              )}
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-sm font-semibold text-foreground">{r.agent || "run"}</div>
+                <div className="flex items-center gap-1 text-[10px] text-good">
+                  <span className="work-pulse size-1.5 rounded-full bg-good" /> running
+                  {r.ts ? <span className="text-muted">· {fmtAgo(r.ts)}</span> : null}
+                </div>
+              </div>
+              <ChevronRight className="size-3.5 shrink-0 text-muted opacity-0 transition-opacity group-hover:opacity-100" />
+            </div>
+            <div className="line-clamp-3 min-h-[3.2em] text-[11px] leading-snug text-muted" title={r.intent || ""}>
+              {r.intent ? clip(r.intent, 160) : <span className="italic text-muted/60">no intent recorded</span>}
+            </div>
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
