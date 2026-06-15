@@ -68,6 +68,12 @@ const (
 	// fallback chains. Set: args{chains} → live + persisted.
 	CmdRoutingGet = "routing_get"
 	CmdRoutingSet = "routing_set"
+	// Named reusable fallback chains (M963): view/edit the governor's registry of
+	// named model ladders + the default chain. Any "@<name>" model slot anywhere
+	// (agent, task, chat) expands to the chain's models. Set: args{chains, default}
+	// → live + persisted.
+	CmdChainsGet = "chains_get"
+	CmdChainsSet = "chains_set"
 	// Agent persona (M710): view/edit the default system prompt that frames every
 	// run. Get returns the content (owner-facing); Set: args{system} → live + persisted.
 	CmdPersonaGet = "persona_get"

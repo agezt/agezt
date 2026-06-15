@@ -886,6 +886,10 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.handleRoutingGet(conn, req)
 	case CmdRoutingSet:
 		s.handleRoutingSet(conn, req)
+	case CmdChainsGet:
+		s.handleChainsGet(conn, req)
+	case CmdChainsSet:
+		s.handleChainsSet(conn, req)
 	case CmdPersonaGet:
 		s.handlePersonaGet(conn, req)
 	case CmdPersonaSet:

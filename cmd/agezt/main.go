@@ -4452,6 +4452,20 @@ func buildGovernor(cat *catalog.Catalog, lookup func(string) string) (*governor.
 		taskModelChains = parsed
 	}
 
+	// Named reusable fallback chains (M963): a registry of "@name → [models]"
+	// referenced anywhere a model is chosen, plus an optional default chain for
+	// runs that resolve to none. Editable live via the Chains UI (persisted back
+	// into these env vars).
+	var fallbackChains map[string][]string
+	if spec := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "FALLBACK_CHAINS")); spec != "" {
+		parsed, err := governor.ParseFallbackChainsEnv(spec)
+		if err != nil {
+			return nil, "", "", fmt.Errorf("AGEZT_FALLBACK_CHAINS: %w", err)
+		}
+		fallbackChains = parsed
+	}
+	defaultChain := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "DEFAULT_CHAIN"))
+
 	// Per-task-type daily budget caps (M1.zz). Layered on top of
 	// DAILY_CEILING; both must pass for a call to proceed.
 	var taskBudgets map[string]int64
@@ -4517,6 +4531,8 @@ func buildGovernor(cat *catalog.Catalog, lookup func(string) string) (*governor.
 		TaskRouteRequires:       taskRequires,
 		TaskModelOverrides:      taskModels,
 		TaskModelChains:         taskModelChains,
+		FallbackChains:          fallbackChains,
+		DefaultChain:            defaultChain,
 		TaskBudgets:             taskBudgets,
 		StrictModelCapabilities: strictCaps,
 		StrictPricing:           strictPricing,

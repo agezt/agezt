@@ -45,6 +45,7 @@ import {
   SlidersHorizontal,
   Layers,
   Route as RouteIcon,
+  Link2,
   Bot,
   MessageSquarePlus,
   Wand2,
@@ -111,6 +112,7 @@ import { Tools } from "@/views/Tools";
 import { Catalog } from "@/views/Catalog";
 import { Models } from "@/views/Models";
 import { Routing } from "@/views/Routing";
+import { Chains } from "@/views/Chains";
 import { Setup, anyCredentialed, type SetupCatalog } from "@/views/Setup";
 import { Toolbox } from "@/views/Toolbox";
 import { AgentPage } from "@/views/AgentPage";
@@ -239,6 +241,7 @@ const NAV_GROUPS: NavGroup[] = [
       { id: "providers", label: "Providers", icon: Cpu, render: Providers },
       { id: "models", label: "Models", icon: Layers, render: Models },
       { id: "routing", label: "Routing", icon: RouteIcon, render: Routing },
+      { id: "chains", label: "Fallback Chains", icon: Link2, render: Chains },
       { id: "tools", label: "Tools", icon: Wrench, render: Tools },
       { id: "catalog", label: "Catalog", icon: Boxes, render: Catalog },
       { id: "policy", label: "Policy", icon: Shield, render: Policy },

@@ -73,6 +73,18 @@ type Config struct {
 	// that task. Seeds the runtime-mutable chains (SetTaskModelChains). See
 	// kernel/governor/routes.go.
 	TaskModelChains TaskModelChains
+	// FallbackChains is the registry of NAMED, reusable model fallback chains
+	// (M963): chain name → [primary model, fallback model, …]. Anywhere a model
+	// id is expected (an agent's model, a task chain entry, a per-run model, the
+	// default) the token "@<name>" references a named chain and is expanded into
+	// that chain's models at completion time — so one chain edited in one place
+	// propagates everywhere it's referenced. Seeds the runtime-mutable registry
+	// (SetFallbackChains).
+	FallbackChains map[string][]string
+	// DefaultChain, when set, names the FallbackChains entry used for any run that
+	// resolves to no chain of its own (no agent chain, no task chain, no explicit
+	// model) — so even a bare run gets the operator's default fallback ladder.
+	DefaultChain string
 	// TaskRouteRequires is the per-task-type *hard* pin (M1.kk).
 	// When a TaskType matches, the chain is RESTRICTED to the
 	// listed providers (no fallback to others). Use when policy
@@ -217,16 +229,22 @@ type Governor struct {
 	// Stable ordering for routing: primary chain + fallback chain. Guarded by
 	// chainMu (RWMutex) — Replace rebuilds them on the hot-reload path
 	// concurrently with Complete's routeChain/Providers reads.
-	chainMu      sync.RWMutex
-	primary      []*ProviderInfo // unsorted, insertion-order registry
+	chainMu       sync.RWMutex
+	primary       []*ProviderInfo // unsorted, insertion-order registry
 	sortedPrimary []*ProviderInfo // primary sorted by authModePriority (cached, rebuilt on Replace)
-	fallback     []*ProviderInfo
+	fallback      []*ProviderInfo
 
 	// taskModelChains is the runtime-mutable per-task-type model fallback chain
 	// (M703), seeded from cfg.TaskModelChains and swapped live by
 	// SetTaskModelChains (the control plane / Routing UI). Guarded by mu — read
 	// as a snapshot in the Complete/CompleteStream chain loop.
 	taskModelChains map[string][]string
+	// fallbackChains is the runtime-mutable registry of named reusable chains
+	// (M963), seeded from cfg.FallbackChains and swapped live by SetFallbackChains.
+	// defaultChain names the entry used when a run resolves to no chain. Both are
+	// guarded by mu (read under lock; the control plane swaps them on edit).
+	fallbackChains map[string][]string
+	defaultChain   string
 
 	// bus is the audit sink, latched atomically so SetBus (which the daemon
 	// calls after construction, and WithLimits siblings re-point) never races
@@ -279,6 +297,8 @@ func New(cfg Config) (*Governor, error) {
 	}
 	g := &Governor{cfg: cfg, spentByTaskToday: map[string]int64{}, spentByAgentToday: map[string]int64{}}
 	g.taskModelChains = copyStringSliceMap(cfg.TaskModelChains)
+	g.fallbackChains = copyStringSliceMap(cfg.FallbackChains)
+	g.defaultChain = cfg.DefaultChain
 	if cfg.ResponseCacheTTL > 0 {
 		g.respCache = newRespCache(cfg.ResponseCacheTTL, cfg.ResponseCacheSize, cfg.Now) // M888: opt-in
 	}
@@ -688,7 +708,7 @@ func (g *Governor) callWithRetry(ctx context.Context, req agent.CompletionReques
 		}
 		delay := base << attempt // 0.5s, 1s, 2s, …
 		if delay >= 4 {
-			delay += time.Duration(rand.Int64N(int64(delay)/4)) // +0–25% jitter
+			delay += time.Duration(rand.Int64N(int64(delay) / 4)) // +0–25% jitter
 		}
 		g.publish(event.Spec{
 			Subject:       "governor.retry",
@@ -846,6 +866,17 @@ func (g *Governor) completeChained(req agent.CompletionRequest, runOne func(agen
 		scope = "model-chain"
 	}
 	if len(models) == 0 {
+		// No agent/task/explicit chain — fall to the operator's default named
+		// chain so even a bare run gets the configured fallback ladder (M963).
+		if def := g.defaultChainModels(); len(def) > 0 {
+			models = def
+			scope = "default-chain"
+		}
+	}
+	// Expand any "@<name>" references into the named chain's models (M963). One
+	// pass covers every source (agent, task, default) since they all flow here.
+	models = g.expandChains(models)
+	if len(models) == 0 {
 		return runOne(req)
 	}
 	var lastErr error
@@ -969,6 +1000,78 @@ func (g *Governor) TaskModelChainsView() map[string][]string {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	return copyStringSliceMap(g.taskModelChains)
+}
+
+// ChainPrefix marks a model-id slot as a reference to a NAMED fallback chain
+// (M963): "@fast" means "expand to the models of the chain called fast". Model
+// ids never start with "@", so the token is unambiguous and works inside the
+// comma/semicolon task-chain syntax too.
+const ChainPrefix = "@"
+
+// SetFallbackChains atomically replaces the named-chain registry and the default
+// chain name (M963) — the hot-reload path from the control plane / Chains UI.
+func (g *Governor) SetFallbackChains(chains map[string][]string, defaultChain string) {
+	g.mu.Lock()
+	g.fallbackChains = copyStringSliceMap(chains)
+	g.defaultChain = defaultChain
+	g.mu.Unlock()
+}
+
+// FallbackChainsView returns a copy of the named-chain registry and the default
+// chain name.
+func (g *Governor) FallbackChainsView() (map[string][]string, string) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	return copyStringSliceMap(g.fallbackChains), g.defaultChain
+}
+
+// defaultChainModels returns the models of the configured default chain, or nil.
+func (g *Governor) defaultChainModels() []string {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if g.defaultChain == "" {
+		return nil
+	}
+	if src := g.fallbackChains[g.defaultChain]; len(src) > 0 {
+		return slices.Clone(src)
+	}
+	return nil
+}
+
+// expandChains replaces every "@<name>" reference in a model list with the
+// models of that named chain (M963), flattening and de-duplicating while
+// preserving order. Unknown chains are dropped (a deleted chain must not crash a
+// run). Non-reference ids pass through unchanged. One level only — chains hold
+// real model ids, validated on save, so there is no recursion to worry about.
+func (g *Governor) expandChains(models []string) []string {
+	if len(models) == 0 {
+		return models
+	}
+	g.mu.Lock()
+	reg := g.fallbackChains
+	out := make([]string, 0, len(models))
+	seen := make(map[string]struct{}, len(models))
+	add := func(m string) {
+		if m == "" {
+			return
+		}
+		if _, dup := seen[m]; dup {
+			return
+		}
+		seen[m] = struct{}{}
+		out = append(out, m)
+	}
+	for _, m := range models {
+		if name, ok := strings.CutPrefix(m, ChainPrefix); ok {
+			for _, cm := range reg[name] {
+				add(cm)
+			}
+			continue
+		}
+		add(m)
+	}
+	g.mu.Unlock()
+	return out
 }
 
 // SpentMicrocents returns the total spend for the current UTC day so far.

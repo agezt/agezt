@@ -12,7 +12,7 @@ vi.mock("@/lib/api", () => ({
   postAction: (...a: unknown[]) => postAction(...a),
 }));
 
-import { Roster, NewAgentForm, slugOk, usdToMc, agentHue, initials } from "@/views/Roster";
+import { Roster, NewAgentForm, profileFields, slugOk, usdToMc, agentHue, initials } from "@/views/Roster";
 import { UIProvider } from "@/components/ui/feedback";
 
 const withUI = (node: ReactNode) => <UIProvider>{node}</UIProvider>;
@@ -78,8 +78,9 @@ describe("NewAgentForm", () => {
 
     fireEvent.change(screen.getByLabelText("Agent slug"), { target: { value: "researcher" } });
     fireEvent.change(screen.getByLabelText("Agent soul"), { target: { value: "You dig deep." } });
-    fireEvent.change(screen.getByLabelText("Agent model"), { target: { value: "m-1" } });
-    fireEvent.change(screen.getByLabelText("Fallback models"), { target: { value: "m2, m3" } });
+    // Model is chosen via the ModelPicker (a button + modal, M963), not a text
+    // input — the model/fallbacks → wire-shape mapping is covered directly by the
+    // profileFields unit test below. Here we verify slug gating and the post.
     fireEvent.change(screen.getByLabelText("Max cost per run"), { target: { value: "0.50" } });
     const btn = screen.getByRole("button", { name: /Create agent/ }) as HTMLButtonElement;
     expect(btn.disabled).toBe(false);
@@ -92,14 +93,33 @@ describe("NewAgentForm", () => {
           profile: expect.objectContaining({
             slug: "researcher",
             soul: "You dig deep.",
-            model: "m-1",
-            fallbacks: ["m2", "m3"],
             max_cost_mc: 500_000_000,
           }),
         }),
       ),
     );
     expect(onCreated).toHaveBeenCalledWith("researcher");
+  });
+
+  it("profileFields maps model + fallbacks, and treats a @chain model as self-contained", () => {
+    const base = {
+      name: "",
+      soul: "",
+      taskType: "",
+      maxCost: "",
+      maxDaily: "",
+      memoryScope: "",
+      workdir: "",
+      description: "",
+    };
+    // Plain model: fallbacks flow through as a trimmed list.
+    const plain = profileFields({ ...base, model: "m-1", fallbacks: "m2, m3" });
+    expect(plain).toMatchObject({ model: "m-1", fallbacks: ["m2", "m3"] });
+    // Chain reference: model is the @ref and fallbacks are dropped (the chain
+    // carries its own ladder).
+    const chain = profileFields({ ...base, model: "@fast", fallbacks: "m2, m3" }) as Record<string, unknown>;
+    expect(chain.model).toBe("@fast");
+    expect(chain.fallbacks).toBeUndefined();
   });
 
   it("rejects a bad max-cost without posting", async () => {
