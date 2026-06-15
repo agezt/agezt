@@ -19,6 +19,9 @@
   --border: oklch(0.9 0.005 260);
   /* The accent hue is customizable (M716); lightness/chroma stay per-theme. */
   --accent: oklch(0.58 0.17 var(--accent-hue, 255));
+  /* Gradient partner for the accent (M977 "command center"): a violet sibling
+     used in hero gradients (brand, big numbers) and glows. */
+  --accent-2: oklch(0.62 0.19 305);
   --good: oklch(0.62 0.15 150);
   --warn: oklch(0.7 0.14 80);
   --bad: oklch(0.6 0.21 25);
@@ -32,13 +35,17 @@
 }
 
 .dark {
-  --background: oklch(0.155 0.012 260);
-  --foreground: oklch(0.92 0.01 260);
-  --card: oklch(0.21 0.014 260);
-  --panel: oklch(0.19 0.013 260);
-  --muted: oklch(0.62 0.015 260);
-  --border: oklch(0.29 0.015 260);
+  /* Command-center palette (M977): deep navy→indigo surfaces with a little more
+     chroma so the console reads as a lit cockpit, not a flat grey spreadsheet.
+     Hue ~265 (indigo); the customizable accent keeps its own hue. */
+  --background: oklch(0.16 0.028 265);
+  --foreground: oklch(0.93 0.012 265);
+  --card: oklch(0.215 0.03 265);
+  --panel: oklch(0.195 0.028 265);
+  --muted: oklch(0.64 0.022 265);
+  --border: oklch(0.3 0.032 265);
   --accent: oklch(0.7 0.15 var(--accent-hue, 255));
+  --accent-2: oklch(0.72 0.17 305);
   --good: oklch(0.72 0.16 150);
   --warn: oklch(0.78 0.15 80);
   --bad: oklch(0.68 0.2 25);
@@ -57,6 +64,7 @@
   --color-muted: var(--muted);
   --color-border: var(--border);
   --color-accent: var(--accent);
+  --color-accent2: var(--accent-2);
   --color-good: var(--good);
   --color-warn: var(--warn);
   --color-bad: var(--bad);
@@ -95,6 +103,49 @@ body {
   letter-spacing: -0.003em;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+}
+
+/* Command-center depth (M977): a soft indigo/violet aurora bled into the top of
+   the dark canvas so the backdrop has life instead of one flat grey. Fixed so it
+   doesn't scroll; light theme stays clean and flat. */
+.dark body {
+  background:
+    radial-gradient(1100px 560px at 78% -12%, oklch(0.5 0.16 305 / 0.16), transparent 60%),
+    radial-gradient(1000px 520px at 12% -8%, oklch(0.5 0.14 265 / 0.18), transparent 58%),
+    var(--background);
+  background-attachment: fixed;
+}
+
+/* Reusable "command center" surface + accent treatments ------------------- */
+
+/* Glass card: a lifted, faintly translucent surface with an inset top highlight
+   so panels feel like physical cards under glass rather than outlined boxes. */
+.glass {
+  background: color-mix(in oklch, var(--card) 86%, transparent);
+  backdrop-filter: blur(8px);
+  border: 1px solid color-mix(in oklch, var(--border) 80%, transparent);
+  box-shadow:
+    var(--elev-2),
+    inset 0 1px 0 oklch(1 0 0 / 0.04);
+}
+
+/* Accent gradient text — for the brand wordmark and big hero numbers. */
+.text-gradient {
+  background-image: linear-gradient(110deg, var(--accent), var(--accent-2));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* A soft accent glow for live / running elements. */
+.glow-accent {
+  box-shadow: 0 0 0 1px color-mix(in oklch, var(--accent) 35%, transparent),
+    0 0 16px -2px color-mix(in oklch, var(--accent) 55%, transparent);
+}
+
+/* A thin accent gradient hairline (e.g. under the header) for a lit edge. */
+.accent-rule {
+  background-image: linear-gradient(90deg, transparent, color-mix(in oklch, var(--accent) 60%, transparent), color-mix(in oklch, var(--accent-2) 55%, transparent), transparent);
 }
 
 /* Mono surfaces (code, IDs, numbers) keep their tighter rhythm — reset the

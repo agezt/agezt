@@ -3,7 +3,25 @@ import { Radio, CircleDot, Activity, ChevronLeft, ChevronRight, ChevronDown, Che
 import { useEvents, type AgentEvent } from "@/lib/events";
 import { cn, clip, fmtAgo } from "@/lib/utils";
 import { AgentAvatar } from "@/components/AgentAvatar";
+import { Sparkline } from "@/components/Sparkline";
 import { openAgent } from "@/lib/agentnav";
+
+// activitySeries buckets the recent event buffer into a small per-interval count
+// series for the live sparkline (M977) — the shape of fleet chatter over the
+// last ~2 minutes, newest on the right.
+function activitySeries(events: AgentEvent[], buckets = 24, windowMs = 120_000, now = Date.now()): number[] {
+  const out = new Array(buckets).fill(0);
+  const step = windowMs / buckets;
+  for (const e of events) {
+    const ts = e.ts_unix_ms;
+    if (!ts) continue;
+    const age = now - ts;
+    if (age < 0 || age >= windowMs) continue;
+    const idx = buckets - 1 - Math.floor(age / step);
+    if (idx >= 0 && idx < buckets) out[idx]++;
+  }
+  return out;
+}
 
 // FleetNowBar (M945, reworked M973) is the live "now playing" strip: a
 // qualitative, event-driven view of WHAT the fleet is doing right now — which
@@ -62,6 +80,7 @@ export function FleetNowBar({ onNavigate }: { onNavigate?: (id: string) => void 
   }, [events]);
 
   const latest = events[0];
+  const spark = useMemo(() => activitySeries(events), [events]);
   const go = () => onNavigate?.("overseer");
   const open = (r: LiveRun) => (r.agent ? openAgent(r.agent) : go());
 
@@ -96,7 +115,7 @@ export function FleetNowBar({ onNavigate }: { onNavigate?: (id: string) => void 
         <button
           onClick={() => setExpanded(true)}
           title={`${live.length} agent${live.length === 1 ? "" : "s"} running — click to expand into cards`}
-          className="group flex shrink-0 items-center gap-2 rounded-full border border-border bg-card py-0.5 pl-1 pr-2 transition-colors hover:border-accent"
+          className="glow-accent group flex shrink-0 items-center gap-2 rounded-full bg-card py-0.5 pl-1 pr-2 transition-shadow hover:shadow-e2"
         >
           {/* Overlapping avatar stack — many concurrent agents stay a glance. */}
           <span className="flex items-center -space-x-2">
@@ -124,7 +143,8 @@ export function FleetNowBar({ onNavigate }: { onNavigate?: (id: string) => void 
 
       {/* Live event ticker — keyed by seq so each new event eases in. */}
       {latest && (
-        <div className="ml-auto flex min-w-0 shrink items-center gap-1.5 text-muted/70">
+        <div className="ml-auto flex min-w-0 shrink items-center gap-2 text-muted/70">
+          <Sparkline points={spark} width={56} height={16} className="hidden shrink-0 md:block" />
           <Activity className="size-3 shrink-0" />
           <span key={latest.seq ?? latest.id} className="now-in truncate font-mono text-[11px]">
             {tickerLabel(latest)}
