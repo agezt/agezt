@@ -30,6 +30,8 @@ import { DelegationGraph } from "@/components/DelegationGraph";
 import { RunDetailLoader } from "@/components/RunDetail";
 import { AgentAvatar } from "@/components/AgentAvatar";
 import { FleetCard, FleetDetail } from "@/components/Fleet";
+import { AgentDetail } from "@/components/AgentDetail";
+import type { AgentProfile } from "@/views/Roster";
 import { buildDelegationTree, type RunNode } from "@/lib/delegation";
 import {
   buildFleet,
@@ -512,6 +514,22 @@ export function Agents() {
           icon={Network}
           title="No agents yet"
           hint="Create a roster agent, a standing order, a schedule, or a workflow — each appears here with how it gets triggered."
+        />
+      ) : selEntity && selEntity.kind === "roster" ? (
+        // Roster agents get the full-width Command Center deep panel (M953):
+        // soul, triggers, activity, memory, skills, permissions/diagnostics,
+        // files — everything about one agent in one place. Other kinds keep the
+        // compact "how does this run?" aside below.
+        <AgentDetail
+          slug={selEntity.slug}
+          profile={selEntity.raw as AgentProfile}
+          runs={runs || []}
+          orders={orders}
+          triggers={selEntity.triggers}
+          state={selEntity.state}
+          onClose={() => setSelKey("")}
+          onManage={manage}
+          onLive={() => openLiveFor(selEntity.slug)}
         />
       ) : (
         <div className="flex min-h-0 flex-col gap-3 lg:flex-row">

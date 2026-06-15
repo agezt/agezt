@@ -768,6 +768,10 @@ export const HELP: Record<string, HelpTopic> = {
         heading: "The detail panel",
         items: [
           {
+            term: "Command Center (roster agents)",
+            desc: "Opening a roster agent unfolds its full per-agent console: Overview (status, budgets, how it runs), Soul (its system prompt), Triggers (the standing orders that fire it, with history), Activity/Runs/Logs, Memory (its private records), Skills, Diagnostics (capability denials + tool errors — what went wrong), and Files.",
+          },
+          {
             term: "How does this run?",
             desc: "A plain-language explanation of each trigger and exactly what you'd do to fire it (the cron, the event, the webhook URL, or the run command).",
           },
