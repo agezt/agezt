@@ -70,7 +70,6 @@ interface ToolInvocation {
   duration_ms?: number;
 }
 interface PolicyStats {
-  mode?: string;
   denial_rate?: number;
   denied?: number;
   hard_denied?: number;
@@ -129,6 +128,7 @@ export function AgentDetail({
   const [policy, setPolicy] = useState<PolicyDecision[] | null>(null);
   const [tools, setTools] = useState<ToolInvocation[] | null>(null);
   const [posture, setPosture] = useState<PolicyStats | null>(null);
+  const [askPolicy, setAskPolicy] = useState<string | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -138,14 +138,16 @@ export function AgentDetail({
       getJSON<{ decisions?: PolicyDecision[] }>("/api/policy_log", { limit: "200" }),
       getJSON<{ invocations?: ToolInvocation[] }>("/api/tool_log", { limit: "200" }),
       getJSON<PolicyStats>("/api/policy"),
+      getJSON<{ ask_policy?: string }>("/api/edict_show"),
     ]).then((res) => {
       if (!alive) return;
-      const [m, sk, pl, tl, po] = res;
+      const [m, sk, pl, tl, po, ed] = res;
       setMemory(m.status === "fulfilled" ? m.value.records || [] : []);
       setSkills(sk.status === "fulfilled" ? sk.value.skills || [] : []);
       setPolicy(pl.status === "fulfilled" ? pl.value.decisions || [] : []);
       setTools(tl.status === "fulfilled" ? tl.value.invocations || [] : []);
       setPosture(po.status === "fulfilled" ? po.value : null);
+      setAskPolicy(ed.status === "fulfilled" ? ed.value.ask_policy ?? null : null);
     });
     return () => {
       alive = false;
@@ -309,7 +311,7 @@ export function AgentDetail({
         {tab === "skills" && <SkillsTab skills={mySkills} busy={busy} onAction={action} onManage={onManage} />}
 
         {tab === "diag" && (
-          <DiagTab posture={posture} denials={myDenials} toolErrors={myToolErrors} fail={fail} />
+          <DiagTab posture={posture} askPolicy={askPolicy} denials={myDenials} toolErrors={myToolErrors} fail={fail} />
         )}
 
         {tab === "files" && <FilesTab workdir={profile.workdir} skills={mySkills} />}
@@ -702,11 +704,13 @@ function SkillsTab({
 
 function DiagTab({
   posture,
+  askPolicy,
   denials,
   toolErrors,
   fail,
 }: {
   posture: PolicyStats | null;
+  askPolicy: string | null;
   denials: PolicyDecision[] | null;
   toolErrors: ToolInvocation[] | null;
   fail?: RunLite;
@@ -715,7 +719,7 @@ function DiagTab({
     <div className="space-y-3">
       {/* posture */}
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-        <Stat icon={ShieldCheck} label="edict mode" value={posture?.mode || "—"} />
+        <Stat icon={ShieldCheck} label="ask policy" value={askPolicy || "—"} />
         <Stat icon={AlertTriangle} label="denial rate" value={posture?.denial_rate != null ? `${Math.round(posture.denial_rate * 100)}%` : "—"} />
         <Stat icon={X} label="hard-denied" value={posture?.hard_denied ?? "—"} />
       </div>
