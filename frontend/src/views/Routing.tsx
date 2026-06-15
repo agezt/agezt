@@ -7,6 +7,7 @@ import { ErrorText } from "@/components/JsonView";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { useUI } from "@/components/ui/feedback";
 import { ModelPicker } from "@/components/ModelPicker";
+import { ModelChip } from "@/components/ModelChip";
 import { downloadText } from "@/lib/export";
 import { type ModelCatalog } from "@/lib/models";
 import { suggestChains } from "@/lib/routingSuggest";
@@ -72,6 +73,10 @@ export function Routing() {
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  // Named fallback chains (M963) + catalog, so a "@chain" slot in a task chain
+  // renders as ⛓ chain and plain models get a health dot (M969). Best-effort.
+  const [namedChains, setNamedChains] = useState<Record<string, string[]>>({});
+  const [cat, setCat] = useState<ModelCatalog | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const reload = useCallback(async () => {
@@ -93,6 +98,11 @@ export function Routing() {
   useEffect(() => {
     reload();
   }, [reload]);
+
+  useEffect(() => {
+    getJSON<{ chains?: Record<string, string[]> }>("/api/chains").then((c) => setNamedChains(c.chains || {})).catch(() => {});
+    getJSON<ModelCatalog>("/api/catalog").then(setCat).catch(() => {});
+  }, []);
 
   // The union of known task types and any custom ones already configured.
   const rows = useMemo(() => {
@@ -252,6 +262,8 @@ export function Routing() {
               task={task}
               models={chains[task] || []}
               activity={activity[task]}
+              namedChains={namedChains}
+              cat={cat}
               onAdd={(id) => addModel(task, id)}
               onRemove={(i) => removeAt(task, i)}
               onMove={(i, d) => move(task, i, d)}
@@ -267,6 +279,8 @@ function ChainRow({
   task,
   models,
   activity,
+  namedChains,
+  cat,
   onAdd,
   onRemove,
   onMove,
@@ -274,6 +288,8 @@ function ChainRow({
   task: string;
   models: string[];
   activity?: TaskActivity;
+  namedChains: Record<string, string[]>;
+  cat: ModelCatalog | null;
   onAdd: (id: string) => void;
   onRemove: (i: number) => void;
   onMove: (i: number, dir: -1 | 1) => void;
@@ -298,7 +314,9 @@ function ChainRow({
               ) : (
                 <span className="rounded bg-panel px-1.5 py-0.5 text-[9px] font-medium uppercase text-muted">fallback {i}</span>
               )}
-              <span className="min-w-0 flex-1 truncate font-mono text-foreground/90">{m}</span>
+              <span className="min-w-0 flex-1 truncate">
+                <ModelChip id={m} chains={namedChains} cat={cat} />
+              </span>
               <button onClick={() => onMove(i, -1)} disabled={i === 0} className="text-muted transition-colors hover:text-foreground disabled:opacity-30" title="Move up">
                 <ArrowUp className="size-3.5" />
               </button>
