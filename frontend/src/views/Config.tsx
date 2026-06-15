@@ -1,3 +1,4 @@
+import { Settings } from "lucide-react";
 import { Panel, Stats, Count } from "@/components/Panel";
 import { KeyValue, JsonView } from "@/components/JsonView";
 
@@ -27,7 +28,7 @@ const SECTION_ORDER = [...CATEGORIES.map((c) => c.label), "Other"];
 
 export function Config() {
   return (
-    <Panel<Record<string, any>> title="Config" path="/api/config">
+    <Panel<Record<string, any>> title="Config" icon={Settings} description="Every AGEZT_* setting the daemon sees, grouped by area" path="/api/config">
       {(d) => {
         const setKeys = Object.keys(d.env || {})
           .filter((k) => d.env[k])

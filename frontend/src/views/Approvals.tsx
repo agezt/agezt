@@ -18,7 +18,7 @@ interface PendingApproval {
 export function Approvals() {
   return (
     <div className="space-y-4">
-      <Panel<{ pending?: PendingApproval[] }> title="Approvals" path="/api/approvals">
+      <Panel<{ pending?: PendingApproval[] }> title="Approvals" icon={ShieldCheck} description="Capabilities the agent is waiting on you to grant or deny" path="/api/approvals">
         {(d, reload) => {
           const items = d.pending || [];
           return (

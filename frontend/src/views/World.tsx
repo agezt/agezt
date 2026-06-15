@@ -128,7 +128,7 @@ export function World() {
   const [q, setQ] = useState("");
   const [kindFilter, setKindFilter] = useState("");
   return (
-    <Panel<Record<string, any>> title="World" path="/api/world">
+    <Panel<Record<string, any>> title="World" icon={Globe} description="The agents' shared model of entities and how they relate" path="/api/world">
       {(d, reload) => {
         const ents = d.entities || [];
         const edges = d.edges || [];
