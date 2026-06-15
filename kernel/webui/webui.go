@@ -389,7 +389,7 @@ var jsonRoutes = map[string]writeRoute{
 	"/api/data/collection": {controlplane.CmdDataCreateCollection, []string{"collection"}},
 	// Council of Elders ask (M839): convene the panel on a question. Long-running
 	// (several model calls) but bounded by the jsonProxy timeout. POST body.
-	"/api/council/ask": {controlplane.CmdCouncilAsk, []string{"question", "rounds"}},
+	"/api/council/ask": {controlplane.CmdCouncilAsk, []string{"question", "rounds", "corr"}},
 	// Council members edit (M839): replace the default council membership. members
 	// is an array of {seat, model}. Applies live and persists to config store.
 	"/api/council/set":  {controlplane.CmdCouncilSet, []string{"members"}},

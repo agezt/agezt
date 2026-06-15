@@ -56,6 +56,7 @@ import {
 import { cn } from "@/lib/utils";
 import { postAction, getJSON } from "@/lib/api";
 import { useEvents } from "@/lib/events";
+import { ingestCouncilEvent } from "@/lib/councilStore";
 import { attentionAlertCount } from "@/lib/alerts";
 import { foldActivityEvent, summarize, type ActivityState } from "@/lib/activity";
 import { CommandPalette } from "@/components/CommandPalette";
@@ -324,8 +325,13 @@ export default function App() {
   // follows the active view's section, but a rail click can browse another
   // section without navigating yet.
   const [navSection, setNavSection] = useState<string>(() => groupForView[viewFromHash()] || NAV_GROUPS[0].id);
-  const { connected, events } = useEvents();
+  const { connected, events, subscribe } = useEvents();
   const ui = useUI();
+
+  // Feed council.* events into the module-level council store (M987) from the app
+  // level, so a deliberation keeps assembling even when the Council view isn't
+  // mounted — letting the operator navigate away and return mid-run.
+  useEffect(() => subscribe(ingestCouncilEvent), [subscribe]);
 
   // Fetch the daemon's build provenance once for the sidebar footer (M971).
   useEffect(() => {

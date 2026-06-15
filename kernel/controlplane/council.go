@@ -27,6 +27,23 @@ type councilMember struct {
 	Model string `json:"model"`
 }
 
+// sanitizeCorr accepts a client-supplied correlation id only if it's a short,
+// plain token ([A-Za-z0-9_-], <=80 chars) — the id becomes a bus subject suffix
+// and event field, so we don't let arbitrary text through. Anything else returns
+// "" and the caller mints a server-side id instead.
+func sanitizeCorr(s string) string {
+	s = strings.TrimSpace(s)
+	if s == "" || len(s) > 80 {
+		return ""
+	}
+	for _, r := range s {
+		if !(r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '_' || r == '-') {
+			return ""
+		}
+	}
+	return s
+}
+
 func (s *Server) handleCouncilMembers(conn net.Conn, req Request) {
 	members := s.k.CouncilDefaultMembers()
 	out := make([]map[string]any, 0, len(members))
@@ -46,7 +63,14 @@ func (s *Server) handleCouncilAsk(ctx context.Context, conn net.Conn, req Reques
 		return
 	}
 	rounds := dlInt(req.Args, "rounds")
-	corr := s.k.NewCorrelation()
+	// The Web UI may pass its own correlation id so it can subscribe to the live
+	// council.* event stream for THIS run before the (blocking) call returns —
+	// letting it follow the deliberation and survive a navigation away (M987). A
+	// missing/odd id falls back to a fresh server-generated one.
+	corr := sanitizeCorr(stringArg(req.Args, "corr"))
+	if corr == "" {
+		corr = s.k.NewCorrelation()
+	}
 	res, err := s.k.Council(ctx, corr, question, nil, rounds)
 	if err != nil {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
