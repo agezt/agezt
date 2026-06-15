@@ -150,6 +150,20 @@ interface NavGroup {
   items: NavItem[];
 }
 
+// Per-section accent hue (M979) — each section gets its own colour so the nav
+// reads as a vivid, navigable map rather than one flat grey list. Used for the
+// rail icon tint, the active section pill, and the item active state.
+const SECTION_HUE: Record<string, number> = {
+  converse: 255, // blue
+  monitor: 150, // green
+  agents: 290, // violet
+  automation: 55, // amber
+  knowledge: 195, // cyan
+  provision: 18, // coral
+  system: 230, // indigo
+};
+const sectionHue = (id: string) => SECTION_HUE[id] ?? 255;
+
 // NAV_GROUPS organises the ~30 views into labelled sections so the sidebar reads
 // as a map of the system rather than a flat wall of links: Converse (talk to /
 // between agents), Monitor (live observability), Agents (introspect their work),
@@ -637,12 +651,13 @@ export default function App() {
             secondary LIST of that section's views. Far fewer items on screen at
             once than the old long single list. On small screens both rows scroll
             horizontally. */}
-        <nav className="flex shrink-0 border-b border-border lg:border-b-0 lg:border-r">
-          {/* Section rail */}
-          <div className="flex shrink-0 gap-1 overflow-x-auto p-2 lg:flex-col lg:gap-1.5 lg:overflow-visible lg:border-r lg:border-border">
+        <nav className="flex shrink-0 lg:border-r lg:border-border">
+          {/* Section rail — colourful, glassy, one accent per section. */}
+          <div className="flex shrink-0 gap-1.5 overflow-x-auto p-2 lg:flex-col lg:gap-2 lg:overflow-visible lg:border-r lg:border-border">
             {NAV_GROUPS.map((g) => {
               const on = navSection === g.id;
               const isActiveSection = activeGroupId === g.id;
+              const hue = sectionHue(g.id);
               const sectionBadge =
                 (g.id === "monitor" ? unseenAlerts : 0) + (g.id === "agents" ? activeRunCount : 0);
               return (
@@ -652,16 +667,25 @@ export default function App() {
                   title={g.label}
                   aria-label={g.label}
                   className={cn(
-                    "relative flex size-11 shrink-0 flex-col items-center justify-center gap-0.5 rounded-xl transition-colors",
-                    on
-                      ? "bg-accent/15 text-accent ring-1 ring-inset ring-accent/30"
-                      : "text-muted hover:bg-panel hover:text-foreground",
+                    "relative flex size-12 shrink-0 flex-col items-center justify-center gap-0.5 rounded-2xl transition-all duration-150",
+                    on ? "scale-[1.04] shadow-e2 ring-1 ring-inset" : "hover:scale-[1.03] hover:bg-panel",
                   )}
+                  style={
+                    on
+                      ? {
+                          background: `linear-gradient(155deg, oklch(0.62 0.17 ${hue} / 0.32), oklch(0.6 0.16 ${hue} / 0.1))`,
+                          color: `oklch(0.86 0.13 ${hue})`,
+                          // ring colour via box-shadow inset so it follows the hue
+                          boxShadow: `inset 0 0 0 1px oklch(0.7 0.16 ${hue} / 0.45), 0 6px 18px -8px oklch(0.6 0.16 ${hue} / 0.6)`,
+                        }
+                      : { color: `oklch(0.74 0.13 ${hue})` }
+                  }
                 >
                   <g.icon className="size-5" />
-                  <span className="text-[8px] font-medium leading-none">{g.label}</span>
-                  {/* active-section dot */}
-                  {isActiveSection && !on && <span className="absolute right-1 top-1 size-1.5 rounded-full bg-accent" />}
+                  <span className="text-[8px] font-semibold leading-none tracking-tight">{g.label}</span>
+                  {isActiveSection && !on && (
+                    <span className="absolute right-1.5 top-1.5 size-1.5 rounded-full" style={{ background: `oklch(0.75 0.16 ${hue})` }} />
+                  )}
                   {sectionBadge > 0 && (
                     <span className="absolute -right-0.5 -top-0.5 inline-flex min-w-3.5 items-center justify-center rounded-full bg-bad px-0.5 text-[8px] font-bold leading-3.5 text-white">
                       {sectionBadge > 99 ? "99+" : sectionBadge}
@@ -674,20 +698,36 @@ export default function App() {
 
           {/* Secondary item list for the selected section */}
           <div className="flex min-w-0 flex-1 gap-1 overflow-x-auto p-2 lg:w-44 lg:flex-none lg:flex-col lg:gap-0.5 lg:overflow-y-auto">
-            <div className="hidden px-2 pb-1 pt-1 text-[10px] font-semibold uppercase tracking-wider text-muted/70 lg:block">
+            <div
+              className="hidden items-center gap-1.5 px-2 pb-1.5 pt-1 text-[11px] font-bold uppercase tracking-widest lg:flex"
+              style={{ color: `oklch(0.78 0.13 ${sectionHue(shownGroup.id)})` }}
+            >
+              <shownGroup.icon className="size-3.5" />
               {shownGroup.label}
             </div>
-            {shownGroup.items.map((n) => (
+            {shownGroup.items.map((n) => {
+              const hue = sectionHue(shownGroup.id);
+              const isOn = n.id === active;
+              return (
               <button
                 key={n.id}
                 onClick={() => setActive(n.id)}
                 className={cn(
-                  "relative flex shrink-0 items-center gap-2 rounded-md px-3 py-1.5 text-left text-sm transition-[background-color,color,box-shadow]",
-                  n.id === active
-                    ? "bg-accent/12 font-medium text-accent ring-1 ring-inset ring-accent/25 before:absolute before:left-0 before:top-1/2 before:hidden before:h-5 before:w-[3px] before:-translate-y-1/2 before:rounded-r-full before:bg-accent before:content-[''] lg:before:block"
+                  "relative flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-all duration-150",
+                  isOn
+                    ? "font-semibold before:absolute before:left-0 before:top-1/2 before:hidden before:h-5 before:w-[3px] before:-translate-y-1/2 before:rounded-r-full before:content-[''] lg:before:block"
                     : "text-muted hover:bg-panel hover:text-foreground",
                 )}
+                style={
+                  isOn
+                    ? {
+                        background: `linear-gradient(90deg, oklch(0.6 0.16 ${hue} / 0.22), oklch(0.6 0.16 ${hue} / 0.04))`,
+                        color: `oklch(0.86 0.12 ${hue})`,
+                      }
+                    : undefined
+                }
               >
+                {isOn && <span className="absolute left-0 top-1/2 hidden h-5 w-[3px] -translate-y-1/2 rounded-r-full lg:block" style={{ background: `oklch(0.75 0.16 ${hue})` }} />}
                 <n.icon className="size-4 shrink-0" />
                 <span>{n.label}</span>
                 {n.id === "alerts" && unseenAlerts > 0 && (
@@ -709,7 +749,8 @@ export default function App() {
                   </span>
                 )}
               </button>
-            ))}
+              );
+            })}
             {build && (
               <div
                 className="mt-auto hidden px-3 pt-3 text-[10px] leading-tight text-muted/60 lg:block"

@@ -32,7 +32,7 @@ export function ConsoleName() {
   }
 
   return (
-    <h1 className="text-sm font-semibold tracking-wide">
+    <h1 className="text-base font-bold tracking-tight">
       {editing ? (
         <input
           ref={ref}
