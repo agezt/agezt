@@ -41,6 +41,17 @@ export function isImage(e: ArtifactEntry): boolean {
   return e.kind === "image" || (e.mime ?? "").toLowerCase().startsWith("image/");
 }
 
+// isRunInternal flags an entry that is a RUN BYPRODUCT, not something a human or
+// agent deliberately produced or uploaded: the agent loop offloads any large tool
+// output (code-exec / introspect / shell / skill stdout > the artifact threshold)
+// to the blob store and auto-indexes it as kind="tool-output", source="run". These
+// pile up fast and drown the real files/artifacts. The galleries hide them by
+// default (a toggle reveals them); the bytes stay retrievable by raw_ref from the
+// run, so nothing is lost — they just don't clutter the human-facing view.
+export function isRunInternal(e: ArtifactEntry): boolean {
+  return e.kind === "tool-output" || e.source === "run";
+}
+
 // isPdf / textKind classify an entry for inline preview (M842). textKind returns
 // "markdown" | "json" | "code" | "text" for text-like artifacts, or "" otherwise —
 // driving how the preview pane renders the fetched bytes.
@@ -108,9 +119,14 @@ export function Files() {
   const ui = useUI();
   const { data, error, loading, reload } = usePanel<ArtifactList>("/api/artifacts");
   const [filter, setFilter] = useState<"all" | "images" | "files">("all");
+  const [showRuns, setShowRuns] = useState(false);
   const [preview, setPreview] = useState<ArtifactEntry | null>(null);
 
-  const entries = useMemo(() => data?.entries ?? [], [data]);
+  const allEntries = useMemo(() => data?.entries ?? [], [data]);
+  const runCount = useMemo(() => allEntries.filter(isRunInternal).length, [allEntries]);
+  // Hide run byproducts (offloaded tool outputs) unless explicitly revealed, so
+  // the manager shows real files/uploads — not the run-internal txt flood.
+  const entries = useMemo(() => (showRuns ? allEntries : allEntries.filter((e) => !isRunInternal(e))), [allEntries, showRuns]);
   const shown = useMemo(() => {
     if (filter === "images") return entries.filter(isImage);
     if (filter === "files") return entries.filter((e) => !isImage(e));
@@ -191,6 +207,18 @@ export function Files() {
                 </button>
               ))}
             </div>
+            {runCount > 0 && (
+              <button
+                onClick={() => setShowRuns((v) => !v)}
+                className={cn(
+                  "rounded-full border px-2.5 py-0.5 text-[11px] transition-colors",
+                  showRuns ? "border-accent bg-accent/10 text-accent" : "border-border text-muted hover:text-foreground",
+                )}
+                title="Offloaded tool/run outputs are hidden by default — they're recoverable from each run"
+              >
+                {showRuns ? "Hide" : "Show"} run outputs ({runCount})
+              </button>
+            )}
             <Button variant="ghost" size="sm" onClick={collect} disabled={loading || entries.length === 0} title={`Collect stale files (older than ${COLLECT_DAYS} days)`}>
               <Trash2 className="size-3.5" /> Collect
             </Button>
@@ -207,8 +235,12 @@ export function Files() {
       {!loading && entries.length === 0 && !error && (
         <EmptyState
           icon={FolderOpen}
-          title="No stored files yet"
-          hint="Images sent to the bot over a channel (Telegram, Slack, Discord) are saved here automatically."
+          title={runCount > 0 ? "No files — only run outputs" : "No stored files yet"}
+          hint={
+            runCount > 0
+              ? `${runCount} offloaded run/tool output${runCount === 1 ? " is" : "s are"} hidden. Use “Show run outputs” above to browse them.`
+              : "Images sent to the bot over a channel (Telegram, Slack, Discord) are saved here automatically."
+          }
         />
       )}
 
