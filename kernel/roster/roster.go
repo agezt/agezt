@@ -83,6 +83,15 @@ type Profile struct {
 	Retired   bool  `json:"retired,omitempty"`
 	RetiredMS int64 `json:"retired_ms,omitempty"`
 
+	// System marks a SHIPPED internal agent (a guardian seeded at boot, M961):
+	// part of the daemon's own self-healing fleet, not a user creation. System
+	// agents are protected — Remove refuses them and the reaper never flags them
+	// — but they can still be paused, retired, and edited like any agent. The
+	// flag is kernel-owned: it is set only at seed time and is never accepted
+	// from an edit/add payload, so it cannot be spoofed or cleared by a profile
+	// write.
+	System bool `json:"system,omitempty"`
+
 	CreatedMS int64 `json:"created_ms"`
 	UpdatedMS int64 `json:"updated_ms"`
 }

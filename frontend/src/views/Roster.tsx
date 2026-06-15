@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Users, RefreshCw, Pause, Play, Trash2, Plus, X, Pencil, Bot, Archive, ArchiveRestore, Skull, Activity, Sparkles, IdCard } from "lucide-react";
+import { Users, RefreshCw, Pause, Play, Trash2, Plus, X, Pencil, Bot, Archive, ArchiveRestore, Skull, Activity, Sparkles, IdCard, ShieldCheck } from "lucide-react";
 import { getJSON, postAction, postJSON } from "@/lib/api";
 import { openAgent } from "@/lib/agentnav";
 import { cn } from "@/lib/utils";
@@ -28,6 +28,7 @@ export interface AgentProfile {
   description?: string;
   enabled?: boolean;
   retired?: boolean;
+  system?: boolean; // shipped internal guardian (M961) — protected from removal
 }
 
 // slugOk mirrors the kernel's roster slug rule (lowercase, digit/letter first,
@@ -455,6 +456,14 @@ export function Roster() {
                 {p.slug}
               </button>
               {p.name && p.name !== p.slug && <span className="text-xs text-muted">{p.name}</span>}
+              {p.system && (
+                <span
+                  className="inline-flex items-center gap-1 rounded-full bg-accent/15 px-1.5 py-0.5 text-[10px] font-medium text-accent"
+                  title="Shipped internal guardian — part of the daemon's self-healing fleet (protected from removal)"
+                >
+                  <ShieldCheck className="h-2.5 w-2.5" /> guardian
+                </span>
+              )}
               {p.retired ? (
                 <Badge variant="default" className="inline-flex items-center gap-1 text-muted">
                   <Skull className="h-3 w-3" /> graveyard
@@ -535,25 +544,27 @@ export function Roster() {
                     <Archive className="h-3.5 w-3.5" />
                   </Button>
                 )}
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  disabled={busy === p.slug}
-                  aria-label={`Remove ${p.slug}`}
-                  onClick={() =>
-                    act(p.slug, "/api/agents/remove", undefined, {
-                      confirm: {
-                        title: `Remove agent ${p.slug}?`,
-                        message: "Its profile (soul, model, budget) is deleted. Past runs stay in the journal.",
-                        confirmLabel: "Remove",
-                        danger: true,
-                      },
-                      success: `${p.slug} removed`,
-                    })
-                  }
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </Button>
+                {!p.system && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    disabled={busy === p.slug}
+                    aria-label={`Remove ${p.slug}`}
+                    onClick={() =>
+                      act(p.slug, "/api/agents/remove", undefined, {
+                        confirm: {
+                          title: `Remove agent ${p.slug}?`,
+                          message: "Its profile (soul, model, budget) is deleted. Past runs stay in the journal.",
+                          confirmLabel: "Remove",
+                          danger: true,
+                        },
+                        success: `${p.slug} removed`,
+                      })
+                    }
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                )}
               </span>
             </div>
             <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted">

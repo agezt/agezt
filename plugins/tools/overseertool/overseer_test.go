@@ -16,18 +16,21 @@ import (
 // fakeSource is an in-memory Source recording interventions so the tool's
 // op → kernel-method mapping is asserted without a live daemon.
 type fakeSource struct {
-	halted    bool
-	runs      []string
-	agents    []roster.Profile
-	help      []board.Message
-	impact    []string
-	cancelled string
-	cancelOK  bool
-	haltCalls int
-	resumes   int
-	enabled   map[string]bool
-	retired   map[string]bool
-	setErr    error
+	halted     bool
+	runs       []string
+	agents     []roster.Profile
+	help       []board.Message
+	impact     []string
+	cancelled  string
+	cancelOK   bool
+	haltCalls  int
+	resumes    int
+	enabled    map[string]bool
+	retired    map[string]bool
+	setErr     error
+	edited     string
+	editFields roster.Profile
+	created    roster.Profile
 }
 
 func (f *fakeSource) IsHalted() bool              { return f.halted }
@@ -62,6 +65,24 @@ func (f *fakeSource) SetAgentRetired(ref string, retired bool) (roster.Profile, 
 	}
 	f.retired[ref] = retired
 	return roster.Profile{Slug: ref, Retired: retired, Enabled: !retired}, nil
+}
+func (f *fakeSource) EditAgent(ref string, in roster.Profile) (roster.Profile, error) {
+	if f.setErr != nil {
+		return roster.Profile{}, f.setErr
+	}
+	f.edited = ref
+	in.Slug = ref
+	in.System = false // never settable via edit
+	f.editFields = in
+	return in, nil
+}
+func (f *fakeSource) CreateAgent(in roster.Profile) (roster.Profile, error) {
+	if f.setErr != nil {
+		return roster.Profile{}, f.setErr
+	}
+	in.System = false
+	f.created = in
+	return in, nil
 }
 
 func newTool(s Source) *Tool {
@@ -204,6 +225,63 @@ func TestBadAndUnbound(t *testing.T) {
 	}
 	if !res.IsError {
 		t.Error("an unbound overseer should return an error result")
+	}
+}
+
+func TestEditAgent(t *testing.T) {
+	f := &fakeSource{}
+	out, isErr := invoke(t, newTool(f), map[string]any{
+		"op":      "edit",
+		"agent":   "scout",
+		"profile": map[string]any{"model": "deepseek-chat", "max_daily_mc": 5000000, "soul": "Be terse."},
+	})
+	if isErr {
+		t.Fatalf("edit errored: %v", out)
+	}
+	if f.edited != "scout" {
+		t.Errorf("edited target = %q, want scout", f.edited)
+	}
+	if f.editFields.Model != "deepseek-chat" || f.editFields.MaxDailyMc != 5000000 || f.editFields.Soul != "Be terse." {
+		t.Errorf("edit fields not applied: %+v", f.editFields)
+	}
+	if out["action"] != "edited" {
+		t.Errorf("action = %v, want edited", out["action"])
+	}
+}
+
+func TestEditNeedsAgentAndProfile(t *testing.T) {
+	f := &fakeSource{}
+	if _, isErr := invoke(t, newTool(f), map[string]any{"op": "edit", "profile": map[string]any{"model": "x"}}); !isErr {
+		t.Error("op=edit without agent should error")
+	}
+	if _, isErr := invoke(t, newTool(f), map[string]any{"op": "edit", "agent": "scout"}); !isErr {
+		t.Error("op=edit without profile should error")
+	}
+}
+
+func TestCreateAgent(t *testing.T) {
+	f := &fakeSource{}
+	out, isErr := invoke(t, newTool(f), map[string]any{
+		"op":      "create",
+		"profile": map[string]any{"slug": "new-helper", "soul": "Help.", "system": true},
+	})
+	if isErr {
+		t.Fatalf("create errored: %v", out)
+	}
+	if f.created.Slug != "new-helper" {
+		t.Errorf("created slug = %q, want new-helper", f.created.Slug)
+	}
+	if f.created.System {
+		t.Error("create must NOT let the caller set System")
+	}
+	if out["action"] != "created" {
+		t.Errorf("action = %v, want created", out["action"])
+	}
+}
+
+func TestCreateNeedsSlug(t *testing.T) {
+	if _, isErr := invoke(t, newTool(&fakeSource{}), map[string]any{"op": "create", "profile": map[string]any{"soul": "x"}}); !isErr {
+		t.Error("op=create without slug should error")
 	}
 }
 

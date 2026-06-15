@@ -85,6 +85,21 @@ describe("buildFleet", () => {
   const fleet = buildFleet(profiles, orders, schedules, workflows, runs, { running: true, cadence_sec: 60 });
   const byKey = (k: string) => fleet.find((e) => e.key === k)!;
 
+  it("carries the System guardian flag onto roster entities", () => {
+    const f = buildFleet(
+      [
+        { slug: "guardian-health", enabled: true, system: true },
+        { slug: "plain", enabled: true },
+      ],
+      [],
+      [],
+      [],
+      [],
+    );
+    expect(f.find((e) => e.slug === "guardian-health")!.system).toBe(true);
+    expect(f.find((e) => e.slug === "plain")!.system).toBeFalsy();
+  });
+
   it("includes every archetype + the three system engines", () => {
     expect(fleet.filter((e) => e.kind === "roster")).toHaveLength(4); // retired kept
     expect(fleet.filter((e) => e.kind === "standing")).toHaveLength(2);

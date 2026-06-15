@@ -48,6 +48,8 @@ export interface FleetEntity {
   retired?: boolean;
   running: boolean;
   state: FleetState;
+  /** A shipped internal guardian (roster.System, M961) — protected + badged. */
+  system?: boolean;
   model?: string;
   description?: string;
   triggers: FleetTrigger[];
@@ -88,6 +90,7 @@ export interface ApiProfile {
   model?: string;
   enabled: boolean;
   retired?: boolean;
+  system?: boolean;
   soul?: string;
   description?: string;
   task_type?: string;
@@ -323,6 +326,7 @@ export function buildFleet(
       retired: p.retired,
       running,
       state,
+      system: p.system,
       model: p.model,
       description: p.description,
       triggers,

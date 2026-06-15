@@ -28,28 +28,32 @@ func (t *Tool) Definition() agent.ToolDef {
 			"Intervene: op=cancel stops one run by its correlation id; op=halt stops ALL runs and blocks " +
 			"new ones until op=resume; op=pause/op=unpause pause or resume a named agent; op=retire moves " +
 			"an agent to the graveyard (op=impact first to see what depends on it) and op=revive brings it " +
-			"back. Every action is journaled and reversible. Use this to keep the fleet healthy: stop a " +
-			"runaway, pause a misbehaving agent, answer or route a help request.",
+			"back. Treat the fleet: op=edit retunes another agent (soul/model/fallbacks/budgets via the " +
+			"\"profile\" object) and op=create makes a new agent. Every action is journaled and reversible. " +
+			"Use this to keep the fleet healthy: stop a runaway, pause or retune a misbehaving agent, fix a " +
+			"hot model, answer or route a help request.",
 		InputSchema: json.RawMessage(`{
   "type": "object",
   "required": ["op"],
   "properties": {
-    "op":     {"type":"string", "enum":["status","agents","runs","help","cancel","halt","resume","pause","unpause","retire","revive","impact"]},
-    "agent":  {"type":"string", "description":"For op=pause/unpause/retire/revive/impact: the target agent's slug (or id)."},
+    "op":     {"type":"string", "enum":["status","agents","runs","help","cancel","halt","resume","pause","unpause","retire","revive","impact","edit","create"]},
+    "agent":  {"type":"string", "description":"For op=pause/unpause/retire/revive/impact/edit: the target agent's slug (or id)."},
     "run":    {"type":"string", "description":"For op=cancel: the correlation id of the run to stop (from op=runs)."},
     "reason": {"type":"string", "description":"For op=halt/resume/cancel (optional): why — recorded in the journal."},
-    "limit":  {"type":"integer", "description":"For op=help: max requests to list (default 20)."}
+    "limit":  {"type":"integer", "description":"For op=help: max requests to list (default 20)."},
+    "profile":{"type":"object", "description":"For op=edit/create: agent fields to apply. Keys: slug (create only), name, soul, model, fallbacks (array), task_type, max_cost_mc, max_daily_mc, memory_scope, workdir, description. op=edit applies them wholesale to the target named by \"agent\"."}
   }
 }`),
 	}
 }
 
 type input struct {
-	Op     string `json:"op"`
-	Agent  string `json:"agent"`
-	Run    string `json:"run"`
-	Reason string `json:"reason"`
-	Limit  int    `json:"limit"`
+	Op      string          `json:"op"`
+	Agent   string          `json:"agent"`
+	Run     string          `json:"run"`
+	Reason  string          `json:"reason"`
+	Limit   int             `json:"limit"`
+	Profile json.RawMessage `json:"profile"`
 }
 
 // Invoke implements agent.Tool.
@@ -160,11 +164,53 @@ func (t *Tool) Invoke(_ context.Context, raw json.RawMessage) (agent.Result, err
 		impact := s.AgentImpact(strings.TrimSpace(in.Agent))
 		return okJSON(map[string]any{"agent": in.Agent, "standing_orders": impact, "count": len(impact)}), nil
 
+	case "edit":
+		ref := strings.TrimSpace(in.Agent)
+		if ref == "" {
+			return errResult(`op=edit needs "agent" (the target slug) and a "profile" object`), nil
+		}
+		prof, perr := parseProfile(in.Profile)
+		if perr != nil {
+			return errResult(perr.Error()), nil
+		}
+		p, err := s.EditAgent(ref, prof)
+		if err != nil {
+			return errResult(err.Error()), nil
+		}
+		return okJSON(map[string]any{"agent": p.Slug, "action": "edited", "profile": agentView(p)}), nil
+
+	case "create":
+		prof, perr := parseProfile(in.Profile)
+		if perr != nil {
+			return errResult(perr.Error()), nil
+		}
+		if strings.TrimSpace(prof.Slug) == "" {
+			return errResult(`op=create needs a "profile" object with a "slug"`), nil
+		}
+		p, err := s.CreateAgent(prof)
+		if err != nil {
+			return errResult(err.Error()), nil
+		}
+		return okJSON(map[string]any{"agent": p.Slug, "action": "created", "profile": agentView(p)}), nil
+
 	case "":
-		return errResult("op required (status|agents|runs|help|cancel|halt|resume|pause|unpause|retire|revive|impact)"), nil
+		return errResult("op required (status|agents|runs|help|cancel|halt|resume|pause|unpause|retire|revive|impact|edit|create)"), nil
 	default:
 		return errResult("unknown op " + op), nil
 	}
+}
+
+// parseProfile decodes the op=edit/create "profile" object into a roster.Profile.
+// A missing/empty object is an error so a guardian can't silently no-op an edit.
+func parseProfile(raw json.RawMessage) (roster.Profile, error) {
+	if len(raw) == 0 || string(raw) == "null" || string(raw) == "{}" {
+		return roster.Profile{}, fmt.Errorf(`a "profile" object is required`)
+	}
+	var p roster.Profile
+	if err := json.Unmarshal(raw, &p); err != nil {
+		return roster.Profile{}, fmt.Errorf("profile: %w", err)
+	}
+	return p, nil
 }
 
 func cancelNote(ok bool) string {

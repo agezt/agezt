@@ -3,6 +3,7 @@
 package overseertool
 
 import (
+	"fmt"
 	"path/filepath"
 
 	"github.com/agezt/agezt/kernel/board"
@@ -42,6 +43,40 @@ func (s *kernelSource) SetAgentEnabled(ref string, enabled bool) (roster.Profile
 }
 func (s *kernelSource) SetAgentRetired(ref string, retired bool) (roster.Profile, error) {
 	return s.k.SetProfileRetired(ref, retired)
+}
+
+// EditAgent applies `in`'s mutable fields wholesale to the agent named by ref,
+// mirroring the control plane's handleAgentEdit (the same whitelist the webui
+// uses). Identity/lifecycle fields (id/slug/enabled/retired) and the System flag
+// are NOT touched — a guardian can retune another agent but can't resurrect,
+// rename, or promote it to a protected guardian.
+func (s *kernelSource) EditAgent(ref string, in roster.Profile) (roster.Profile, error) {
+	p, found, err := s.k.UpdateProfile(ref, func(dst *roster.Profile) {
+		dst.Name = in.Name
+		dst.Soul = in.Soul
+		dst.Model = in.Model
+		dst.Fallbacks = in.Fallbacks
+		dst.TaskType = in.TaskType
+		dst.MaxCostMc = in.MaxCostMc
+		dst.MaxDailyMc = in.MaxDailyMc
+		dst.MemoryScope = in.MemoryScope
+		dst.Workdir = in.Workdir
+		dst.Description = in.Description
+	})
+	if err != nil {
+		return roster.Profile{}, err
+	}
+	if !found {
+		return roster.Profile{}, fmt.Errorf("unknown agent: %s", ref)
+	}
+	return p, nil
+}
+
+// CreateAgent adds a brand-new agent. System is forced off — only boot-time
+// guardian seeding may mint a protected agent.
+func (s *kernelSource) CreateAgent(in roster.Profile) (roster.Profile, error) {
+	in.System = false
+	return s.k.AddProfile(in)
 }
 
 // OpenHelp opens the board fresh and returns its open help requests. A failure

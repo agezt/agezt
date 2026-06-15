@@ -22,6 +22,7 @@ import {
   ArrowUpRight,
   Activity,
   Flame,
+  ShieldCheck,
   type LucideIcon,
 } from "lucide-react";
 import type { FleetEntity, FleetKind, FleetState, TriggerMode } from "@/lib/fleet";
@@ -121,6 +122,11 @@ export function FleetCard({ e, onOpen }: { e: FleetEntity; onOpen: () => void })
           </div>
           <div className="flex items-center gap-1 text-[10px] text-muted" style={color ? { color } : undefined}>
             <Kind className="size-2.5" /> {KIND_META[e.kind].label}
+            {e.system && (
+              <span className="ml-1 inline-flex items-center gap-0.5 rounded-full bg-accent/15 px-1.5 text-[9px] font-medium text-accent" title="Shipped internal guardian — part of the daemon's self-healing fleet">
+                <ShieldCheck className="size-2.5" /> guardian
+              </span>
+            )}
           </div>
         </div>
         <StatePill state={e.state} />

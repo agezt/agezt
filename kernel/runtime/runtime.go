@@ -1096,6 +1096,11 @@ func (k *Kernel) UpdateProfile(ref string, mutate func(*roster.Profile)) (roster
 // RemoveProfile deletes an agent profile, journaling roster.removed when it
 // existed. Returns whether it existed.
 func (k *Kernel) RemoveProfile(ref string) (bool, error) {
+	// Shipped guardians (System) are protected from hard delete (M961): they are
+	// the daemon's own self-healing fleet. They can still be paused or retired.
+	if p, ok := k.roster.Get(ref); ok && p.System {
+		return false, fmt.Errorf("agent %q is a protected system guardian — pause or retire it instead of removing", p.Slug)
+	}
 	gone, ok, err := k.roster.Remove(ref)
 	if err != nil {
 		return false, err
