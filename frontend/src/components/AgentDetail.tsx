@@ -20,6 +20,10 @@ import {
   CalendarClock,
   Zap,
   ChevronRight,
+  Mail,
+  Cpu,
+  Wrench,
+  ArrowRight,
 } from "lucide-react";
 import { getJSON, postAction } from "@/lib/api";
 import { cn, fmtTime, fmtDateTime, fmtAgo, clip } from "@/lib/utils";
@@ -33,9 +37,11 @@ import { useUI } from "@/components/ui/feedback";
 import { useEvents } from "@/lib/events";
 import { AgentAvatar } from "@/components/AgentAvatar";
 import { AgentActivity } from "@/components/AgentActivity";
+import { AgentRepair } from "@/components/AgentRepair";
 import { TriggerChip } from "@/components/Fleet";
+import { openAgent } from "@/lib/agentnav";
 import type { AgentProfile } from "@/views/Roster";
-import type { FleetTrigger, FleetState, ApiOrder } from "@/lib/fleet";
+import { scheduleAgentSlug, type FleetTrigger, type FleetState, type ApiOrder, type ApiSchedule } from "@/lib/fleet";
 import {
   agentScope,
   agentCorrelations,
@@ -73,19 +79,56 @@ interface PolicyStats {
   denial_rate?: number;
   denied?: number;
   hard_denied?: number;
+  allow_rate?: number;
+  allowed?: number;
+  total?: number;
 }
 
-type DetailTab = "overview" | "soul" | "triggers" | "activity" | "memory" | "skills" | "diag" | "files";
+// Board message (mirror of /api/board rows) for the Comms tab. The read view
+// emits ts_unix_ms (not ts_ms) and omits from/to when empty.
+interface BoardMessage {
+  id?: string;
+  topic?: string;
+  from?: string;
+  to?: string;
+  text?: string;
+  ts_unix_ms?: number;
+  help?: boolean;
+}
+// Routing snapshot (mirror of /api/routing) for the Model tab.
+interface RoutingInfo {
+  chains?: Record<string, string[]>;
+}
+// Provider-log row (mirror of /api/provider_log `events`): a global routing
+// decision (kind "route") or a fallback hop (kind "fallback"). These are
+// daemon-wide (no per-agent correlation), so the Model tab surfaces the ones
+// relevant to THIS agent's model/task rather than attributing them by run.
+interface ProviderLogRow {
+  ts_unix_ms?: number;
+  kind?: string; // "route" | "fallback"
+  primary?: string;
+  chain?: string;
+  task_type?: string;
+  failed?: string;
+  next?: string;
+  reason?: string;
+  scope?: string;
+}
+
+type DetailTab = "overview" | "soul" | "triggers" | "model" | "activity" | "comms" | "memory" | "skills" | "diag" | "files" | "repair";
 
 const TABS: { id: DetailTab; label: string; icon: typeof Bot }[] = [
   { id: "overview", label: "Overview", icon: Bot },
   { id: "soul", label: "Soul", icon: ScrollText },
   { id: "triggers", label: "Triggers", icon: Anchor },
+  { id: "model", label: "Model", icon: Cpu },
   { id: "activity", label: "Activity", icon: ActivityIcon },
+  { id: "comms", label: "Comms", icon: Mail },
   { id: "memory", label: "Memory", icon: Brain },
   { id: "skills", label: "Skills", icon: Sparkles },
   { id: "diag", label: "Diagnostics", icon: ShieldCheck },
   { id: "files", label: "Files", icon: FolderOpen },
+  { id: "repair", label: "Repair", icon: Wrench },
 ];
 
 // AgentDetail (M953) — the per-agent Command Center: one screen that answers
@@ -101,6 +144,8 @@ export function AgentDetail({
   orders,
   triggers,
   state,
+  schedules = [],
+  page = false,
   onClose,
   onManage,
   onLive,
@@ -111,6 +156,13 @@ export function AgentDetail({
   orders: ApiOrder[];
   triggers: FleetTrigger[];
   state: FleetState;
+  // Schedules that may run as this agent — used for the Triggers "upcoming
+  // fires" forecast. Optional so the embedded Fleet panel works without it.
+  schedules?: ApiSchedule[];
+  // page mode (M960): rendered as the full-page AgentPage rather than the
+  // embedded Fleet panel — hides the in-panel close X and the "open full page"
+  // shortcut (you're already there).
+  page?: boolean;
   onClose: () => void;
   onManage: (view: string) => void;
   onLive?: () => void;
@@ -129,6 +181,9 @@ export function AgentDetail({
   const [tools, setTools] = useState<ToolInvocation[] | null>(null);
   const [posture, setPosture] = useState<PolicyStats | null>(null);
   const [askPolicy, setAskPolicy] = useState<string | null>(null);
+  const [board, setBoard] = useState<BoardMessage[] | null>(null);
+  const [routing, setRouting] = useState<RoutingInfo | null>(null);
+  const [provLog, setProvLog] = useState<ProviderLogRow[] | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -139,15 +194,21 @@ export function AgentDetail({
       getJSON<{ invocations?: ToolInvocation[] }>("/api/tool_log", { limit: "200" }),
       getJSON<PolicyStats>("/api/policy"),
       getJSON<{ ask_policy?: string }>("/api/edict_show"),
+      getJSON<{ messages?: BoardMessage[] }>("/api/board"),
+      getJSON<RoutingInfo>("/api/routing"),
+      getJSON<{ events?: ProviderLogRow[] }>("/api/provider_log", { limit: "200" }),
     ]).then((res) => {
       if (!alive) return;
-      const [m, sk, pl, tl, po, ed] = res;
+      const [m, sk, pl, tl, po, ed, bd, rt, pv] = res;
       setMemory(m.status === "fulfilled" ? m.value.records || [] : []);
       setSkills(sk.status === "fulfilled" ? sk.value.skills || [] : []);
       setPolicy(pl.status === "fulfilled" ? pl.value.decisions || [] : []);
       setTools(tl.status === "fulfilled" ? tl.value.invocations || [] : []);
       setPosture(po.status === "fulfilled" ? po.value : null);
       setAskPolicy(ed.status === "fulfilled" ? ed.value.ask_policy ?? null : null);
+      setBoard(bd.status === "fulfilled" ? bd.value.messages || [] : []);
+      setRouting(rt.status === "fulfilled" ? rt.value : null);
+      setProvLog(pv.status === "fulfilled" ? pv.value.events || [] : []);
     });
     return () => {
       alive = false;
@@ -180,8 +241,30 @@ export function AgentDetail({
     [tools, corrs, slug],
   );
   const myOrders = useMemo(() => orders.filter((o) => o.agent === slug), [orders, slug]);
+  const mySchedules = useMemo(() => schedules.filter((s) => scheduleAgentSlug(s.intent) === slug), [schedules, slug]);
   const summary = useMemo(() => summarizeAgent(runs, slug), [runs, slug]);
   const fail = useMemo(() => lastFailure(runs, slug), [runs, slug]);
+  // Comms: board messages this agent sent, received, or broadcast.
+  const myComms = useMemo(
+    () => (board ? board.filter((m) => m.from === slug || m.to === slug || m.to === "*").sort((a, b) => (b.ts_unix_ms || 0) - (a.ts_unix_ms || 0)) : null),
+    [board, slug],
+  );
+  // Model: routing/fallback events are daemon-wide, so surface the ones relevant
+  // to THIS agent — its primary model or its task type (best-effort, since the
+  // events carry no per-agent correlation).
+  const myProvLog = useMemo(() => {
+    if (!provLog) return null;
+    const mdl = profile.model;
+    const tt = profile.task_type;
+    const rel = provLog.filter(
+      (r) =>
+        (mdl && (r.primary === mdl || r.failed === mdl || r.next === mdl || (r.chain || "").split(",").includes(mdl))) ||
+        (tt && r.task_type === tt),
+    );
+    // If nothing is attributable but routing is happening, still show the latest
+    // few fallbacks so "is my model failing over" is answerable.
+    return rel.length > 0 ? rel : provLog.filter((r) => r.kind === "fallback");
+  }, [provLog, profile.model, profile.task_type]);
 
   async function action(path: string, params: Record<string, string>, success: string) {
     setBusy(true);
@@ -230,20 +313,35 @@ export function AgentDetail({
               {profile.enabled ? <Pause className="size-3.5" /> : <Play className="size-3.5" />}
             </Button>
           )}
-          <button
-            onClick={onClose}
-            className="rounded-md border border-border p-1 text-muted hover:border-accent hover:text-foreground"
-            title="Close"
-          >
-            <X className="size-3.5" />
-          </button>
+          {!page && (
+            <Button variant="ghost" size="sm" onClick={() => openAgent(slug)} title="Open this agent's full identity page">
+              <ArrowUpRight className="size-3.5" /> Page
+            </Button>
+          )}
+          {!page && (
+            <button
+              onClick={onClose}
+              className="rounded-md border border-border p-1 text-muted hover:border-accent hover:text-foreground"
+              title="Close"
+            >
+              <X className="size-3.5" />
+            </button>
+          )}
         </div>
       </div>
 
       {/* Tabs */}
       <div className="flex flex-wrap items-center gap-1 border-b border-border pb-1">
         {TABS.map((t) => {
-          const count = tabCount(t.id, { memory: myMemory, skills: mySkills, orders: myOrders, denials: myDenials, toolErrors: myToolErrors });
+          const count = tabCount(t.id, {
+            memory: myMemory,
+            skills: mySkills,
+            orders: myOrders,
+            schedules: mySchedules,
+            comms: myComms,
+            denials: myDenials,
+            toolErrors: myToolErrors,
+          });
           return (
             <button
               key={t.id}
@@ -299,10 +397,14 @@ export function AgentDetail({
         )}
 
         {tab === "triggers" && (
-          <TriggersTab orders={myOrders} triggers={triggers} busy={busy} onAction={action} onManage={onManage} />
+          <TriggersTab orders={myOrders} schedules={mySchedules} triggers={triggers} busy={busy} onAction={action} onManage={onManage} />
         )}
 
+        {tab === "model" && <ModelTab profile={profile} routing={routing} provLog={myProvLog} onManage={onManage} />}
+
         {tab === "activity" && <AgentActivity slug={slug} />}
+
+        {tab === "comms" && <CommsTab slug={slug} messages={myComms} onManage={onManage} />}
 
         {tab === "memory" && (
           <MemoryTab records={myMemory} scope={agentScope(slug, profile.memory_scope)} busy={busy} onAction={action} onManage={onManage} />
@@ -315,6 +417,18 @@ export function AgentDetail({
         )}
 
         {tab === "files" && <FilesTab workdir={profile.workdir} skills={mySkills} />}
+
+        {tab === "repair" && (
+          <AgentRepair
+            slug={slug}
+            profile={profile}
+            fail={fail}
+            denials={myDenials}
+            toolErrors={myToolErrors}
+            runs={summary.runs}
+            onApplied={() => setBump((b) => b + 1)}
+          />
+        )}
       </div>
     </section>
   );
@@ -476,12 +590,14 @@ function Overview({
 
 function TriggersTab({
   orders,
+  schedules,
   triggers,
   busy,
   onAction,
   onManage,
 }: {
   orders: ApiOrder[];
+  schedules: ApiSchedule[];
   triggers: FleetTrigger[];
   busy: boolean;
   onAction: (path: string, params: Record<string, string>, success: string) => void;
@@ -500,6 +616,29 @@ function TriggersTab({
           )}
         </div>
       </div>
+
+      {/* Upcoming fires — what this agent WILL do next, from each binding schedule. */}
+      {schedules.length > 0 && (
+        <div>
+          <div className="mb-1 flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-muted">
+            <CalendarClock className="size-3" /> upcoming runs
+          </div>
+          <ul className="space-y-2">
+            {schedules.map((s) => (
+              <li key={s.id} className="rounded-lg border border-border bg-panel/30 p-2.5">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant={s.enabled ? "good" : "default"}>{s.enabled ? "armed" : "paused"}</Badge>
+                  <span className="text-xs font-medium">{s.cadence || s.mode || s.id}</span>
+                  <Button size="sm" variant="ghost" className="ml-auto" disabled={busy} title="Run now" onClick={() => onAction("/api/schedule/run", { id: s.id }, `ran ${s.id}`)}>
+                    <Flame className="size-3.5" />
+                  </Button>
+                </div>
+                <ScheduleForecast id={s.id} fallbackNext={s.next_run_unix} />
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <div className="text-[10px] uppercase tracking-wider text-muted">standing orders firing this agent</div>
       {orders.length === 0 ? (
@@ -584,6 +723,156 @@ function WhyHistory({ id }: { id: string }) {
         </li>
       ))}
     </ul>
+  );
+}
+
+// ScheduleForecast shows the next few fire times of a schedule (the agent's
+// near future), via the read-only /api/schedule/test dry-run.
+function ScheduleForecast({ id, fallbackNext }: { id: string; fallbackNext?: number }) {
+  const [fires, setFires] = useState<number[] | null>(null);
+  useEffect(() => {
+    let alive = true;
+    getJSON<{ forecasts?: { unix?: number }[] }>("/api/schedule/test", { id, count: "4" })
+      .then((d) => alive && setFires((d.forecasts || []).map((f) => f.unix || 0).filter(Boolean)))
+      .catch(() => alive && setFires([]));
+    return () => {
+      alive = false;
+    };
+  }, [id]);
+  const list = fires && fires.length ? fires : fallbackNext ? [fallbackNext] : [];
+  if (fires === null) return <div className="mt-1.5 text-[10px] text-muted">forecasting…</div>;
+  if (list.length === 0) return <div className="mt-1.5 text-[10px] text-muted">no upcoming runs</div>;
+  return (
+    <div className="mt-1.5 flex flex-wrap gap-1.5">
+      {list.map((u, i) => (
+        <span key={i} className="inline-flex items-center gap-1 rounded-md border border-border bg-card px-1.5 py-0.5 text-[10px] text-foreground/80">
+          <Clock className="size-2.5 text-muted" />
+          {fmtDateTime(u * 1000)}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+// ModelTab answers "which provider/model does this run on, and what happens when
+// it fails": the agent's primary model + fallback chain, the global per-task
+// chain its task_type resolves to, and the provider/fallback events its runs
+// actually produced.
+function ModelTab({
+  profile,
+  routing,
+  provLog,
+  onManage,
+}: {
+  profile: AgentProfile;
+  routing: RoutingInfo | null;
+  provLog: ProviderLogRow[] | null;
+  onManage: (view: string) => void;
+}) {
+  const taskChain = profile.task_type ? routing?.chains?.[profile.task_type] : undefined;
+  const fallbacks = provLog ? provLog.filter((r) => r.kind === "fallback") : null;
+  return (
+    <div className="space-y-3">
+      <div className="space-y-1.5 rounded-lg border border-border bg-panel/30 p-2.5">
+        <Row label="primary model" value={profile.model ? <span className="font-mono">{profile.model}</span> : "(daemon default)"} />
+        <Row
+          label="fallback chain"
+          value={
+            (profile.fallbacks || []).length > 0 ? (
+              <span className="flex flex-wrap items-center gap-1 font-mono">
+                {(profile.fallbacks || []).map((m, i) => (
+                  <span key={i} className="inline-flex items-center gap-1">
+                    {i > 0 && <ArrowRight className="size-3 text-muted" />}
+                    <span className="rounded bg-card px-1.5 py-0.5 text-[10px]">{m}</span>
+                  </span>
+                ))}
+              </span>
+            ) : (
+              "none — uses the per-task chain only"
+            )
+          }
+        />
+        <Row label="task type" value={profile.task_type || "—"} />
+        {taskChain && taskChain.length > 0 && (
+          <Row label="task chain (global)" value={<span className="font-mono">{taskChain.join(" → ")}</span>} />
+        )}
+      </div>
+
+      <div>
+        <div className="mb-1 flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-muted">
+          <Cpu className="size-3" /> routing &amp; fallbacks
+        </div>
+        {!provLog ? (
+          <SkeletonList count={2} lines={1} />
+        ) : provLog.length === 0 ? (
+          <div className="text-[11px] text-muted">no routing or fallback events relevant to this agent's model/task</div>
+        ) : (
+          <ul className="space-y-1">
+            {provLog.slice(0, 30).map((r, i) => (
+              <li key={i} className="flex items-start gap-2 text-[11px]">
+                <span className={cn("rounded px-1.5 py-0.5 font-mono text-[10px]", r.kind === "fallback" ? "bg-bad/15 text-bad" : "bg-card text-foreground/80")}>
+                  {r.kind || "route"}
+                </span>
+                <span className="min-w-0 flex-1 truncate text-muted" title={r.reason || r.chain}>
+                  {r.kind === "fallback"
+                    ? `${r.failed || "?"} → ${r.next || "?"}${r.reason ? ` — ${clip(r.reason, 60)}` : ""}`
+                    : `${r.primary || "?"}${r.task_type ? ` · ${r.task_type}` : ""}`}
+                </span>
+                <span className="ml-auto shrink-0 font-mono text-[10px] text-muted opacity-70">{fmtTime(r.ts_unix_ms)}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+        {fallbacks && fallbacks.length > 0 && (
+          <div className="mt-1.5 text-[10px] text-bad">
+            {fallbacks.length} recent fallback hop(s) — a model in this chain has been failing over.
+          </div>
+        )}
+      </div>
+
+      <Button variant="ghost" size="sm" onClick={() => onManage("routing")}>
+        Edit routing chains <ArrowUpRight className="size-3.5" />
+      </Button>
+    </div>
+  );
+}
+
+// CommsTab is the agent's mailbox: the board messages it sent, was addressed, or
+// received as a broadcast — its communication trail with the rest of the fleet.
+function CommsTab({ slug, messages, onManage }: { slug: string; messages: BoardMessage[] | null; onManage: (view: string) => void }) {
+  if (!messages) return <SkeletonList count={3} lines={2} />;
+  if (messages.length === 0)
+    return (
+      <EmptyState
+        icon={Mail}
+        title="No messages"
+        hint={`Board posts ${slug} sent, was addressed (to: ${slug}), or received as a broadcast appear here. Agents talk on the Board.`}
+      />
+    );
+  return (
+    <div className="space-y-2">
+      <ul className="space-y-2">
+        {messages.slice(0, 60).map((m, i) => {
+          const outbound = m.from === slug;
+          return (
+            <li key={m.id || i} className="rounded-lg border border-border bg-panel/30 p-2.5">
+              <div className="flex flex-wrap items-center gap-2 text-[11px]">
+                <Badge variant={outbound ? "good" : "default"}>{outbound ? "sent" : m.to === "*" ? "broadcast" : "received"}</Badge>
+                {m.from && <span className="font-mono text-[10px] text-muted">from {m.from}</span>}
+                {m.to && <span className="font-mono text-[10px] text-muted">→ {m.to}</span>}
+                {m.topic && <span className="rounded bg-card px-1.5 py-0.5 font-mono text-[10px] text-accent">{m.topic}</span>}
+                {m.help && <span className="rounded bg-bad/15 px-1.5 py-0.5 text-[10px] text-bad">help</span>}
+                <span className="ml-auto font-mono text-[10px] text-muted">{fmtAgo(m.ts_unix_ms)}</span>
+              </div>
+              {m.text && <div className="mt-1 whitespace-pre-wrap text-[11px] text-muted">{clip(m.text, 280)}</div>}
+            </li>
+          );
+        })}
+      </ul>
+      <Button variant="ghost" size="sm" onClick={() => onManage("board")}>
+        Open Board <ArrowUpRight className="size-3.5" />
+      </Button>
+    </div>
   );
 }
 
@@ -718,11 +1007,21 @@ function DiagTab({
   return (
     <div className="space-y-3">
       {/* posture */}
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         <Stat icon={ShieldCheck} label="ask policy" value={askPolicy || "—"} />
+        <Stat
+          icon={ShieldCheck}
+          label="allowed"
+          value={posture?.allow_rate != null ? `${Math.round(posture.allow_rate * 100)}%` : posture?.allowed ?? "—"}
+          accent
+        />
         <Stat icon={AlertTriangle} label="denial rate" value={posture?.denial_rate != null ? `${Math.round(posture.denial_rate * 100)}%` : "—"} />
         <Stat icon={X} label="hard-denied" value={posture?.hard_denied ?? "—"} />
       </div>
+      <p className="text-[10px] text-muted">
+        Capabilities default to <span className="text-good">allow</span> — only the denials below were ever blocked. This agent
+        can use any tool that isn't explicitly restricted.
+      </p>
 
       {fail && (
         <div className="rounded-lg border border-bad/40 bg-bad/5 p-2.5 text-[11px]">
@@ -841,11 +1140,21 @@ function SkillFiles({ id }: { id: string }) {
 // tabCount returns the badge number for a tab (undefined = no badge).
 function tabCount(
   id: DetailTab,
-  data: { memory: MemoryRecord[] | null; skills: SkillLite[] | null; orders: ApiOrder[]; denials: PolicyDecision[] | null; toolErrors: ToolInvocation[] | null },
+  data: {
+    memory: MemoryRecord[] | null;
+    skills: SkillLite[] | null;
+    orders: ApiOrder[];
+    schedules: ApiSchedule[];
+    comms: BoardMessage[] | null;
+    denials: PolicyDecision[] | null;
+    toolErrors: ToolInvocation[] | null;
+  },
 ): number | undefined {
   switch (id) {
     case "triggers":
-      return data.orders.length;
+      return data.orders.length + data.schedules.length;
+    case "comms":
+      return data.comms?.length;
     case "memory":
       return data.memory?.length;
     case "skills":

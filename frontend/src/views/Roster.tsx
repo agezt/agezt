@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { Users, RefreshCw, Pause, Play, Trash2, Plus, X, Pencil, Bot, Archive, ArchiveRestore, Skull, Activity, Sparkles } from "lucide-react";
+import { Users, RefreshCw, Pause, Play, Trash2, Plus, X, Pencil, Bot, Archive, ArchiveRestore, Skull, Activity, Sparkles, IdCard } from "lucide-react";
 import { getJSON, postAction, postJSON } from "@/lib/api";
+import { openAgent } from "@/lib/agentnav";
 import { cn } from "@/lib/utils";
 import { money } from "@/lib/format";
 import { Button } from "@/components/ui/button";
@@ -443,8 +444,16 @@ export function Roster() {
             )}
           >
             <div className="flex flex-wrap items-center gap-2">
-              <AgentAvatar slug={p.slug} name={p.name} status={p.retired ? "retired" : undefined} />
-              <span className={cn("font-mono text-sm", p.retired ? "text-muted line-through" : "text-foreground")}>{p.slug}</span>
+              <button onClick={() => openAgent(p.slug)} title="Open identity page" className="shrink-0">
+                <AgentAvatar slug={p.slug} name={p.name} status={p.retired ? "retired" : undefined} />
+              </button>
+              <button
+                onClick={() => openAgent(p.slug)}
+                title="Open identity page"
+                className={cn("font-mono text-sm hover:underline", p.retired ? "text-muted line-through" : "text-foreground")}
+              >
+                {p.slug}
+              </button>
               {p.name && p.name !== p.slug && <span className="text-xs text-muted">{p.name}</span>}
               {p.retired ? (
                 <Badge variant="default" className="inline-flex items-center gap-1 text-muted">
@@ -462,6 +471,15 @@ export function Roster() {
                 </span>
               )}
               <span className="ml-auto flex items-center gap-1">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  aria-label={`Identity page for ${p.slug}`}
+                  title="Open the full identity page (everything about this agent)"
+                  onClick={() => openAgent(p.slug)}
+                >
+                  <IdCard className="h-3.5 w-3.5" />
+                </Button>
                 <Button
                   size="sm"
                   variant="ghost"
