@@ -308,6 +308,34 @@ func TestDistillStoresExtractedFacts(t *testing.T) {
 	}
 }
 
+func TestDistillDedupesBySubject(t *testing.T) {
+	// Auto-distillation fires on most runs; re-extracting the SAME subject with
+	// slightly reworded content must NOT pile up near-duplicate notes (M993). The
+	// second pass reinforces the existing record instead of creating another.
+	m, _ := newTestManager(t)
+	p1 := fakeDistiller{body: `{"facts":[{"subject":"project structure","content":"a go monorepo under kernel/","type":"FACT"}]}`}
+	if _, err := m.Distill(context.Background(), "run-1", p1, "model", "intent", "transcript"); err != nil {
+		t.Fatal(err)
+	}
+	// Same subject (different case/whitespace), different wording → must collapse.
+	p2 := fakeDistiller{body: `{"facts":[{"subject":"Project  Structure","content":"the repo is a go monorepo","type":"FACT"}]}`}
+	ids, err := m.Distill(context.Background(), "run-2", p2, "model", "intent", "transcript")
+	if err != nil {
+		t.Fatal(err)
+	}
+	active, _ := m.Active()
+	if len(active) != 1 {
+		t.Fatalf("expected the second distill to reinforce, not add: got %d active records", len(active))
+	}
+	// The reinforced record keeps the FIRST content (the subject is already known).
+	if active[0].Content != "a go monorepo under kernel/" {
+		t.Fatalf("reinforced record should keep original content, got %q", active[0].Content)
+	}
+	if len(ids) != 1 {
+		t.Fatalf("expected the existing id returned, got %d ids", len(ids))
+	}
+}
+
 func TestDistillNonJSONIsNoOp(t *testing.T) {
 	m, _ := newTestManager(t)
 	ids, err := m.Distill(context.Background(), "c", fakeDistiller{body: "I have no idea, sorry."}, "m", "intent", "transcript")
