@@ -813,6 +813,42 @@ export const HELP: Record<string, HelpTopic> = {
     ],
   },
 
+  agent: {
+    title: "Agent identity page",
+    intro:
+      "Everything about one agent on a single deep-linkable page (#agent/<slug>): who it is, how it runs, what it has done and will do, and a self-repair console.",
+    sections: [
+      {
+        heading: "Tabs",
+        items: [
+          { term: "Overview", desc: "How it's triggered, run/spend stats, today's budget, identity (model, fallbacks, scope), and its most recent failure." },
+          { term: "Soul", desc: "The agent's system prompt — who it is. Edit it in Roster, or let a self-repair run rewrite it." },
+          { term: "Triggers", desc: "Standing orders and schedules that fire it, plus a forecast of its upcoming runs (what it will do next)." },
+          { term: "Model", desc: "Its primary model, fallback chain, the global per-task chain its task type resolves to, and the provider activity its runs produced." },
+          { term: "Activity and Comms", desc: "What it has done (runs, consults, memory) and its board mailbox — messages it sent, was addressed, or received." },
+          { term: "Diagnostics and Files", desc: "Capability posture and denials, tool errors, plus its workdir and skill/script bundle files." },
+        ],
+      },
+      {
+        heading: "Repair",
+        items: [
+          { term: "Self-repair", desc: "Runs the agent as itself on a brief built from its own failures; it fixes its own scripts and files with its tools." },
+          { term: "Auto-apply and Undo", desc: "Identity changes (soul/model/fallbacks) the run proposes are applied to its profile automatically; Undo reverts them." },
+          { term: "Iterate by N", desc: "Runs several repair rounds back-to-back, each shown what the previous round already tried so it builds on it." },
+        ],
+      },
+    ],
+    tips: [
+      "Open this page by clicking any agent's avatar or name in the Roster, or the “Page” button in the Fleet detail panel.",
+      "The URL is shareable and survives a reload — bookmark an agent you watch often.",
+    ],
+    related: [
+      { id: "roster", label: "Roster" },
+      { id: "agents", label: "Agents" },
+      { id: "routing", label: "Routing" },
+    ],
+  },
+
   roster: {
     title: "Roster",
     intro:

@@ -74,6 +74,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { toggleTheme } from "@/lib/theme";
 import { useChat } from "@/lib/chatStore";
 import { focusRun } from "@/lib/runfocus";
+import { agentSlugFromHash } from "@/lib/agentnav";
 import { exportAppearance, parseAppearanceJSON, applyAppearanceBundle } from "@/lib/appearance";
 import { parseConfigBundle, fetchConfigBundle, applyConfigBundle } from "@/lib/configbackup";
 import { downloadText } from "@/lib/export";
@@ -112,6 +113,7 @@ import { Models } from "@/views/Models";
 import { Routing } from "@/views/Routing";
 import { Setup, anyCredentialed, type SetupCatalog } from "@/views/Setup";
 import { Toolbox } from "@/views/Toolbox";
+import { AgentPage } from "@/views/AgentPage";
 import { Files } from "@/views/Files";
 import { Data } from "@/views/Data";
 import { Council } from "@/views/Council";
@@ -263,8 +265,12 @@ const sectionForView: Record<string, string> = Object.fromEntries(
 );
 
 // viewFromHash reads a valid view id from the URL hash (#agents → "agents"),
-// falling back to chat so a stale/empty hash never blanks the app.
+// falling back to chat so a stale/empty hash never blanks the app. The
+// `#agent/<slug>` detail route (M960) isn't a nav view of its own — it renders
+// the full-page AgentPage — so it resolves to "agents" here, keeping that nav
+// item highlighted while you're on one of its agents.
 function viewFromHash(): string {
+  if (agentSlugFromHash(location.hash)) return "agents";
   const id = location.hash.replace(/^#\/?/, "");
   return NAV.some((n) => n.id === id) ? id : "chat";
 }
@@ -282,6 +288,10 @@ function loadCollapsed(): Record<string, boolean> {
 
 export default function App() {
   const [active, setActiveRaw] = useState(viewFromHash);
+  // The agent currently addressed by `#agent/<slug>` (M960), or null on a normal
+  // view. When set, the main area renders the full-page AgentPage instead of the
+  // active nav view.
+  const [agentSlug, setAgentSlug] = useState<string | null>(() => agentSlugFromHash(location.hash));
   const { newChat } = useChat();
   const [paletteOpen, setPaletteOpen] = useState(false);
   // Page-aware help drawer (M920): one global toggle, content follows `active`.
@@ -377,12 +387,14 @@ export default function App() {
   // bookmarkable and the browser back/forward buttons move between them.
   const setActive = (id: string) => {
     setActiveRaw(id);
+    setAgentSlug(null); // leaving any agent detail route for a normal nav view
     if (location.hash.replace(/^#\/?/, "") !== id) location.hash = id;
   };
-  // Sync when the hash changes externally (back/forward, manual edit).
+  // Sync when the hash changes externally (back/forward, manual edit, openAgent).
   useEffect(() => {
     function onHash() {
       setActiveRaw(viewFromHash());
+      setAgentSlug(agentSlugFromHash(location.hash));
     }
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
@@ -540,9 +552,9 @@ export default function App() {
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} items={commands} />
       <HelpDrawer
         open={helpOpen}
-        viewId={active}
-        group={sectionForView[active]}
-        icon={current.icon}
+        viewId={agentSlug ? "agent" : active}
+        group={agentSlug ? "Agents" : sectionForView[active]}
+        icon={agentSlug ? Bot : current.icon}
         onClose={() => setHelpOpen(false)}
         onNavigate={setActive}
       />
@@ -650,9 +662,10 @@ export default function App() {
           })}
         </nav>
         <main className="min-h-0 flex-1 overflow-auto p-3 sm:p-4">
-          {/* Keyed remount so each view fades + rises in on navigation. */}
-          <div key={active} className="view-enter h-full">
-            <View />
+          {/* Keyed remount so each view fades + rises in on navigation. The
+              `#agent/<slug>` detail route (M960) takes over the main area. */}
+          <div key={agentSlug ? `agent/${agentSlug}` : active} className="view-enter h-full">
+            {agentSlug ? <AgentPage slug={agentSlug} onNavigate={setActive} /> : <View />}
           </div>
         </main>
       </div>

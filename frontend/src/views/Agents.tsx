@@ -527,6 +527,7 @@ export function Agents() {
           orders={orders}
           triggers={selEntity.triggers}
           state={selEntity.state}
+          schedules={schedules}
           onClose={() => setSelKey("")}
           onManage={manage}
           onLive={() => openLiveFor(selEntity.slug)}
