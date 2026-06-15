@@ -4,6 +4,7 @@ import type { LucideIcon } from "lucide-react";
 import { getJSON } from "@/lib/api";
 import { money } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { AnimatedNumber } from "@/components/AnimatedNumber";
 
 interface Status {
   halted?: boolean;
@@ -106,7 +107,11 @@ function Vital({
       )}
     >
       <Icon className={cn("size-3.5", live && "animate-pulse text-good", attention && "text-amber-500")} />
-      <span className="tabular-nums font-medium text-foreground">{value}</span>
+      {typeof value === "number" ? (
+        <AnimatedNumber value={value} className="tabular-nums font-medium text-foreground" />
+      ) : (
+        <span className="tabular-nums font-medium text-foreground">{value}</span>
+      )}
       <span className="hidden text-muted sm:inline">{label}</span>
     </button>
   );
