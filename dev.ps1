@@ -16,6 +16,7 @@
 param(
     [switch]$Fresh,
     [switch]$SkipBuild,
+    [switch]$Pull,
     [string]$WebAddr = "127.0.0.1:8899"
 )
 
@@ -65,6 +66,26 @@ $env:AGEZT_HOME = $DevHome
 # pass-through env the daemon reads; everything else stays out of the process env
 foreach ($k in @("AGEZT_PROVIDER", "AGEZT_MODEL", "AGEZT_ALLOW_ALL", "AGEZT_VAULT_PASSPHRASE")) {
     if ($DotEnv.ContainsKey($k)) { Set-Item -Path "env:$k" -Value $DotEnv[$k] }
+}
+
+# --- build freshness (M972): the daemon embeds the web UI at build time, so a
+# stale checkout silently ships an OLD console (e.g. no Fallback Chains page,
+# old agent edit form). Print the revision we're building and shout when the
+# branch is behind its upstream, so a redeploy that "changed nothing" is
+# obvious. Pass -Pull to fast-forward to the latest before building.
+if (-not $SkipBuild) {
+    $branch = (git -C $Root rev-parse --abbrev-ref HEAD 2>$null)
+    if ($Pull) {
+        Step "git pull --ff-only ($branch)"
+        git -C $Root pull --ff-only
+    }
+    $head = (git -C $Root rev-parse --short HEAD 2>$null)
+    if ($head) { Step "building $branch @ $head" }
+    git -C $Root fetch -q 2>$null
+    $behind = (git -C $Root rev-list --count "HEAD..@{upstream}" 2>$null)
+    if ($behind -and ([int]$behind) -gt 0) {
+        Write-Host ("    WARNING: this checkout is {0} commit(s) BEHIND its upstream - the build and its embedded console will be OLD. Run:  git pull   (or .\dev.ps1 -Pull)" -f $behind) -ForegroundColor Yellow
+    }
 }
 
 # --- build
