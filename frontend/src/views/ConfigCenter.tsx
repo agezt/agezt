@@ -23,6 +23,7 @@ import { getJSON, postJSON } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty";
 import { ErrorText } from "@/components/JsonView";
 import { SkeletonList } from "@/components/ui/skeleton";
@@ -166,29 +167,28 @@ export function ConfigCenter() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <h2 className="flex items-center gap-2 text-sm font-semibold">
-          <SlidersHorizontal className="size-4 text-accent" /> Config Center
-        </h2>
-        {sections && (
-          <span className="text-xs text-muted">
-            {setCount} of {Object.keys(values).length} configured
-          </span>
-        )}
-        <div className="relative ml-auto">
-          <Search className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted" />
-          <Input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search settings…"
-            className="h-8 w-44 pl-7 sm:w-56"
-            aria-label="Search settings"
-          />
-        </div>
-        <Button variant="ghost" size="sm" onClick={reload} disabled={loading}>
-          <RefreshCw className={cn("size-3.5", loading && "animate-spin")} /> Refresh
-        </Button>
-      </div>
+      <PageHeader
+        icon={SlidersHorizontal}
+        title="Config Center"
+        description={sections ? `${setCount} of ${Object.keys(values).length} configured` : "Edit settings without touching .env"}
+        actions={
+          <>
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted" />
+              <Input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search settings…"
+                className="h-8 w-44 pl-7 sm:w-56"
+                aria-label="Search settings"
+              />
+            </div>
+            <Button variant="ghost" size="sm" onClick={reload} disabled={loading}>
+              <RefreshCw className={cn("size-3.5", loading && "animate-spin")} /> Refresh
+            </Button>
+          </>
+        }
+      />
 
       <p className="text-xs text-muted">
         Edit settings without touching <code className="rounded bg-panel px-1">.env</code>. Secrets are stored encrypted
