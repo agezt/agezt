@@ -128,33 +128,51 @@ export function FleetNowBar({ onNavigate }: { onNavigate?: (id: string) => void 
           fleet idle · listening
         </span>
       ) : (
-        <button
-          onClick={() => setExpanded(true)}
-          title={`${live.length} agent${live.length === 1 ? "" : "s"} running — click to expand into cards`}
-          className="glow-accent group flex shrink-0 items-center gap-2 rounded-full bg-card py-0.5 pl-1 pr-2 transition-shadow hover:shadow-e2"
-        >
-          {/* Overlapping avatar stack — many concurrent agents stay a glance. */}
+        <div className="glow-accent group flex shrink-0 items-center gap-2 rounded-full bg-card py-0.5 pl-1 pr-2 transition-shadow hover:shadow-e2">
+          {/* Overlapping avatar stack — each running roster agent is a DIRECT
+              link to its identity page (M991); agentless ad-hoc runs and the
+              "+N" overflow expand the slider instead. */}
           <span className="flex items-center -space-x-2">
-            {stack.map((r) => (
-              <span key={r.corr} className="now-in rounded-full ring-2 ring-card">
-                {r.agent ? (
+            {stack.map((r) =>
+              isRealAgent(r.agent) ? (
+                <button
+                  key={r.corr}
+                  onClick={() => openAgent(r.agent!)}
+                  title={`Open ${r.agent}'s page`}
+                  className="now-in relative rounded-full ring-2 ring-card transition-transform hover:z-10 hover:scale-110"
+                >
                   <AgentAvatar slug={r.agent} size={20} status="running" />
-                ) : (
-                  <span className="work-pulse flex size-5 items-center justify-center rounded-full bg-accent text-[8px] font-bold text-white ring-2 ring-card">
-                    ?
-                  </span>
-                )}
-              </span>
-            ))}
+                </button>
+              ) : (
+                <button
+                  key={r.corr}
+                  onClick={() => setExpanded(true)}
+                  title={r.intent || "running task — expand for details"}
+                  className="now-in work-pulse relative flex size-5 items-center justify-center rounded-full bg-accent text-[8px] font-bold text-white ring-2 ring-card"
+                >
+                  ?
+                </button>
+              ),
+            )}
             {overflow > 0 && (
-              <span className="flex size-5 items-center justify-center rounded-full bg-accent/20 text-[9px] font-bold text-accent ring-2 ring-card">
+              <button
+                onClick={() => setExpanded(true)}
+                title="Expand all running agents"
+                className="relative flex size-5 items-center justify-center rounded-full bg-accent/20 text-[9px] font-bold text-accent ring-2 ring-card transition-transform hover:z-10 hover:scale-110"
+              >
                 +{overflow}
-              </span>
+              </button>
             )}
           </span>
-          <span className="font-medium text-foreground">{live.length} running</span>
-          <ChevronDown className="size-3.5 text-muted transition-colors group-hover:text-accent" />
-        </button>
+          <button
+            onClick={() => setExpanded(true)}
+            title={`${live.length} agent${live.length === 1 ? "" : "s"} running — expand into cards`}
+            className="flex items-center gap-1 font-medium text-foreground transition-colors hover:text-accent"
+          >
+            {live.length} running
+            <ChevronDown className="size-3.5 text-muted transition-colors group-hover:text-accent" />
+          </button>
+        </div>
       )}
 
       {/* Live event ticker — keyed by seq so each new event eases in. */}
