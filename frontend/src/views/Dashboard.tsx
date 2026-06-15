@@ -9,6 +9,7 @@ import { focusRun } from "@/lib/runfocus";
 import { Button } from "@/components/ui/button";
 import { fmtTime, clip } from "@/lib/utils";
 import { Ring, Sparkline, BarRow } from "@/components/Widgets";
+import { PageHeader } from "@/components/ui/page-header";
 import { summarizeRoots, type RootSummary } from "@/views/Agents";
 import { Bot, GitBranch, Coins, Repeat } from "lucide-react";
 
@@ -117,17 +118,21 @@ export function Dashboard() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-3">
-        <h2 className="flex items-center gap-2 text-sm font-semibold">
-          <Activity className="size-4 text-accent" /> Cockpit
-        </h2>
-        <span className={cn("inline-flex items-center gap-1 text-xs", connected ? "text-good" : "text-bad")}>
-          ● {connected ? "live" : "disconnected"}
-        </span>
-        <Button variant="ghost" size="sm" onClick={refresh} disabled={loading} className="ml-auto">
-          <RefreshCw className={cn("size-3.5", loading && "animate-spin")} /> Refresh
-        </Button>
-      </div>
+      <PageHeader
+        icon={Activity}
+        title="Cockpit"
+        description="Every key gauge of the running system at a glance."
+        actions={
+          <>
+            <span className={cn("inline-flex items-center gap-1 text-xs font-medium", connected ? "text-good" : "text-bad")}>
+              ● {connected ? "live" : "disconnected"}
+            </span>
+            <Button variant="ghost" size="sm" onClick={refresh} disabled={loading}>
+              <RefreshCw className={cn("size-3.5", loading && "animate-spin")} /> Refresh
+            </Button>
+          </>
+        }
+      />
 
       {/* Needs attention (M780): the most recent warning/critical alerts surfaced on the
           landing cockpit, so the first screen tells you WHAT the agent flagged — not just
@@ -243,7 +248,7 @@ export function Dashboard() {
             tone="accent"
           />
         </GaugeCard>
-        <div className="rounded-lg border border-border bg-card p-3">
+        <div className="glass rounded-xl p-3">
           <div className="mb-1 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted">
             <Gauge className="size-3.5" /> Activity
           </div>
@@ -296,7 +301,7 @@ export function Dashboard() {
       </div>
 
       {/* Live event ticker */}
-      <div className="rounded-lg border border-border bg-card shadow-e1">
+      <div className="glass rounded-xl">
         <div className="flex items-center gap-2 border-b border-border px-3 py-2 text-xs font-semibold uppercase tracking-wider text-muted">
           <Radio className="size-3.5" /> Live events
         </div>
@@ -321,7 +326,7 @@ export function Dashboard() {
 }
 
 function GaugeCard({ children }: { children: React.ReactNode }) {
-  return <div className="flex items-center justify-center rounded-lg border border-border bg-card p-3 shadow-e1">{children}</div>;
+  return <div className="flex items-center justify-center glass rounded-xl p-3 shadow-e1">{children}</div>;
 }
 
 function Tile({
@@ -339,7 +344,7 @@ function Tile({
 }) {
   const color = { accent: "text-accent", good: "text-good", bad: "text-bad", muted: "text-foreground" }[tone];
   return (
-    <div className="rounded-lg border border-border bg-card px-3 py-2.5 shadow-e1">
+    <div className="glass rounded-xl px-3 py-2.5 shadow-e1">
       <div className="flex items-center gap-1.5 text-xs text-muted">
         <Icon className="size-3.5" /> {label}
         {pulse && <span className="ml-auto size-2 animate-pulse rounded-full bg-accent" />}
@@ -351,7 +356,7 @@ function Tile({
 
 function Card({ title, icon: Icon, children }: { title: string; icon: typeof Activity; children: React.ReactNode }) {
   return (
-    <div className="rounded-lg border border-border bg-card p-3 shadow-e1">
+    <div className="glass rounded-xl p-3 shadow-e1">
       <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted">
         <Icon className="size-3.5" /> {title}
       </div>
