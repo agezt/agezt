@@ -8,6 +8,7 @@ import { SkeletonList } from "@/components/ui/skeleton";
 import { useUI } from "@/components/ui/feedback";
 import { ModelPicker } from "@/components/ModelPicker";
 import { validateChainName, moveItem, removeAt, renameChain, deleteChain } from "@/lib/chains";
+import { modelHealth, type ModelCatalog, type ModelHealth } from "@/lib/models";
 
 // Chains is the registry of named, reusable fallback ladders (M963). A chain is
 // an ordered model list; anywhere a model is picked (agent, routing, chat) you
@@ -39,6 +40,7 @@ export function Chains() {
   const [def, setDef] = useState("");
   const [savedDef, setSavedDef] = useState("");
   const [usage, setUsage] = useState<Record<string, ChainUsage | string[]>>({});
+  const [cat, setCat] = useState<ModelCatalog | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -63,6 +65,17 @@ export function Chains() {
   useEffect(() => {
     reload();
   }, [reload]);
+
+  // The catalog drives per-model health dots (does a keyed provider serve it?).
+  useEffect(() => {
+    getJSON<ModelCatalog>("/api/catalog")
+      .then(setCat)
+      .catch(() => {
+        /* health is best-effort — a missing catalog just hides the dots */
+      });
+  }, []);
+
+  const health = useCallback((id: string): ModelHealth => modelHealth(cat, id), [cat]);
 
   const names = useMemo(() => Object.keys(chains).sort((a, b) => a.localeCompare(b)), [chains]);
   const dangling = useMemo(() => (Array.isArray(usage.__dangling__) ? (usage.__dangling__ as string[]) : []), [usage]);
@@ -230,6 +243,7 @@ export function Chains() {
               models={chains[name] || []}
               isDefault={def === name}
               usage={usageFor(name)}
+              health={cat ? health : undefined}
               onAdd={(id) => addModel(name, id)}
               onRemove={(i) => setChainModels(name, removeAt(chains[name] || [], i))}
               onMove={(i, d) => setChainModels(name, moveItem(chains[name] || [], i, d))}
@@ -249,6 +263,7 @@ function ChainCard({
   models,
   isDefault,
   usage,
+  health,
   onAdd,
   onRemove,
   onMove,
@@ -260,6 +275,7 @@ function ChainCard({
   models: string[];
   isDefault: boolean;
   usage: ChainUsage;
+  health?: (id: string) => ModelHealth; // undefined until the catalog loads
   onAdd: (id: string) => void;
   onRemove: (i: number) => void;
   onMove: (i: number, dir: -1 | 1) => void;
@@ -269,6 +285,9 @@ function ChainCard({
 }) {
   const agentN = usage.agents?.length ?? 0;
   const taskN = usage.tasks?.length ?? 0;
+  // A chain is unhealthy if its primary can't run, or if NO model in it can run.
+  const primaryBad = health && models.length > 0 && health(models[0]) !== "ok";
+  const allBad = health && models.length > 0 && models.every((m) => health(m) !== "ok");
   return (
     <div className={cn("rounded-lg border bg-card p-3", isDefault ? "border-accent/50" : "border-border")}>
       <div className="mb-2 flex items-center gap-2">
@@ -325,6 +344,7 @@ function ChainCard({
               ) : (
                 <span className="rounded bg-panel px-1.5 py-0.5 text-[9px] font-medium uppercase text-muted">fallback {i}</span>
               )}
+              {health && <HealthDot status={health(m)} />}
               <span className="min-w-0 flex-1 truncate font-mono text-foreground/90">{m}</span>
               <button onClick={() => onMove(i, -1)} disabled={i === 0} className="text-muted transition-colors hover:text-foreground disabled:opacity-30" title="Move up">
                 <ArrowUp className="size-3.5" />
@@ -344,6 +364,18 @@ function ChainCard({
         </div>
       )}
 
+      {allBad ? (
+        <div className="mb-2 flex items-center gap-1.5 rounded-md border border-bad/40 bg-bad/5 px-2 py-1 text-[11px] text-bad">
+          <AlertTriangle className="size-3 shrink-0" /> No model in this chain has a keyed provider — runs using it will fall through to the daemon default.
+        </div>
+      ) : (
+        primaryBad && (
+          <div className="mb-2 flex items-center gap-1.5 rounded-md border border-warn/40 bg-warn/5 px-2 py-1 text-[11px] text-warn">
+            <AlertTriangle className="size-3 shrink-0" /> The primary model can't run (no keyed provider) — a fallback will be used first.
+          </div>
+        )
+      )}
+
       <div className="flex items-center gap-1.5 text-[11px] text-muted">
         <Plus className="size-3" />
         <ModelPicker
@@ -355,4 +387,17 @@ function ChainCard({
       </div>
     </div>
   );
+}
+
+// HealthDot renders a model's run-readiness as a colored dot: green = a keyed
+// provider serves it, amber = exists but needs an API key, red = unknown to the
+// catalog (typo / removed). Title carries the explanation.
+function HealthDot({ status }: { status: ModelHealth }) {
+  const meta: Record<ModelHealth, { cls: string; title: string }> = {
+    ok: { cls: "bg-good", title: "A keyed provider can run this model" },
+    nokey: { cls: "bg-warn", title: "No keyed provider — add an API key under Models to run this" },
+    unknown: { cls: "bg-bad", title: "Not in the catalog — check the model id (typo or removed)" },
+  };
+  const m = meta[status];
+  return <span className={cn("size-2 shrink-0 rounded-full", m.cls)} title={m.title} aria-label={`model health: ${status}`} />;
 }

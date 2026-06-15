@@ -133,6 +133,29 @@ export function findModelContext(cat: ModelCatalog | null | undefined, modelId: 
   return 0;
 }
 
+// ModelHealth reflects whether a model id can actually run right now:
+//  - "ok": at least one CREDENTIALED provider serves this model id
+//  - "nokey": the model exists in the catalog but no credentialed provider has
+//    it (add an API key to run it)
+//  - "unknown": no provider in the catalog lists this id (typo / removed model)
+export type ModelHealth = "ok" | "nokey" | "unknown";
+
+// modelHealth resolves a model id against the catalog. Used to flag chain models
+// that won't run (M965) so a fallback ladder can't silently contain dead links.
+export function modelHealth(cat: ModelCatalog | null | undefined, modelId: string): ModelHealth {
+  if (!modelId) return "unknown";
+  let found = false;
+  for (const p of cat?.providers || []) {
+    for (const m of p.models || []) {
+      if (m.id === modelId) {
+        if (p.credentialed) return "ok";
+        found = true;
+      }
+    }
+  }
+  return found ? "nokey" : "unknown";
+}
+
 // fmtContext renders a context window compactly: 128000 → "128K", 1000000 → "1M".
 export function fmtContext(n: number): string {
   if (!n) return "";
