@@ -296,7 +296,10 @@ var writeRoutes = map[string]writeRoute{
 	"/api/memory/consolidate": {controlplane.CmdMemoryConsolidate, nil},
 	// Memory prune (M857): hard-remove soft-deleted records older than N days.
 	// dry_run reports the prunable count first; the UI confirms before pruning.
-	"/api/memory/prune":     {controlplane.CmdMemoryPrune, []string{"older_than_days", "dry_run"}},
+	"/api/memory/prune": {controlplane.CmdMemoryPrune, []string{"older_than_days", "dry_run"}},
+	// Memory tidy (M994): collapse near-duplicate auto-distilled notes by subject.
+	// dry_run reports how many would collapse; the UI confirms before tidying.
+	"/api/memory/tidy":      {controlplane.CmdMemoryTidy, []string{"dry_run"}},
 	"/api/world/forget":     {controlplane.CmdWorldForget, []string{"id"}},
 	"/api/world/relate":     {controlplane.CmdWorldRelate, []string{"from", "verb", "to"}},
 	"/api/sandbox/delete":   {controlplane.CmdSandboxDelete, []string{"project"}},

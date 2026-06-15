@@ -819,6 +819,13 @@ const (
 	// Returns: { dry_run, older_than_days, cutoff_ms, prunable|pruned, stats }
 	CmdMemoryPrune = "memory_prune"
 
+	// CmdMemoryTidy collapses near-duplicate auto-distilled notes by subject (the
+	// backlog from before the M993 write-time gate). dry_run (default) reports how
+	// many would be collapsed; dry_run=false forgets the redundant ones, keeping
+	// the strongest note per subject. Args: dry_run (optional; default true).
+	// Returns: { dry_run, collapsed }.
+	CmdMemoryTidy = "memory_tidy"
+
 	// CmdMemoryBulkForget soft-deletes multiple records in one operation.
 	// Args: ids (required, array of string). Returns: { forgotten: N, not_found: M }.
 	CmdMemoryBulkForget = "memory_bulk_forget"

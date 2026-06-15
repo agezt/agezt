@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Brain, RefreshCw, Search, Trash2, Plus, X, Pencil, Save, Download, Upload, Lock, Share2, Users } from "lucide-react";
+import { Brain, RefreshCw, Search, Trash2, Plus, X, Pencil, Save, Download, Upload, Lock, Share2, Users, Sparkles } from "lucide-react";
 import { getJSON, postAction, postJSON } from "@/lib/api";
 import { downloadText } from "@/lib/export";
 import { cn, fmtTime } from "@/lib/utils";
@@ -165,6 +165,31 @@ export function Memory() {
     }
   }
 
+  // tidy collapses the near-duplicate auto-distilled notes that built up before
+  // the write-time subject gate (M994) — the "1000+ saçma girdi" cleanup. Keeps
+  // the strongest note per subject, forgets the rest (reversible). Dry-run first.
+  async function tidy() {
+    try {
+      const dry = await postJSON<{ collapsed?: number }>("/api/memory/tidy", { dry_run: "true" });
+      const n = dry.collapsed ?? 0;
+      if (n === 0) {
+        ui.toast("Nothing to tidy — no duplicate distilled notes", "success");
+        return;
+      }
+      const ok = await ui.confirm({
+        title: "Tidy duplicate distilled notes?",
+        message: `${n} near-duplicate auto-distilled note${n === 1 ? "" : "s"} will be collapsed — the strongest note per subject is kept, the rest forgotten (reversible). Curated memories you wrote are never touched.`,
+        confirmLabel: "Tidy",
+      });
+      if (!ok) return;
+      const res = await postJSON<{ collapsed?: number }>("/api/memory/tidy", { dry_run: "false" });
+      ui.toast(`Collapsed ${res.collapsed ?? 0} duplicate note(s)`, "success");
+      await reload();
+    } catch (e) {
+      ui.toast(`tidy failed: ${(e as Error).message}`, "error");
+    }
+  }
+
   // promote shares a private (agent-scoped) record with every agent (M915) —
   // the selective-sharing valve: agents keep their own notes by default, the
   // owner promotes the few worth everyone knowing.
@@ -255,6 +280,9 @@ export function Memory() {
             </Button>
             <Button variant="ghost" size="sm" onClick={exportMemory} disabled={!records || records.length === 0} title="Export memories to a file">
               <Download className="size-3.5" /> Export
+            </Button>
+            <Button variant="ghost" size="sm" onClick={tidy} title="Collapse near-duplicate auto-distilled notes — keep the strongest per subject">
+              <Sparkles className="size-3.5" /> Tidy
             </Button>
             <Button variant="ghost" size="sm" onClick={prune} title="Permanently remove forgotten/superseded records older than 30 days">
               <Trash2 className="size-3.5" /> Prune

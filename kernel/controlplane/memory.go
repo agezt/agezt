@@ -299,6 +299,33 @@ func (s *Server) handleMemoryPrune(conn net.Conn, req Request) {
 	}})
 }
 
+// handleMemoryTidy collapses the near-duplicate auto-distilled notes that built
+// up before the write-time subject gate (M993). dry_run (the default) reports how
+// many would be collapsed; dry_run=false forgets the redundant ones, keeping the
+// strongest note per subject. Curated memories are never touched. Confirm-first,
+// like the prune/collect flows.
+func (s *Server) handleMemoryTidy(conn net.Conn, req Request) {
+	mgr := s.k.Memory()
+	if mgr == nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "memory unavailable"})
+		return
+	}
+	dryRun := true
+	if v, ok := req.Args["dry_run"].(bool); ok {
+		dryRun = v
+	} else if v, ok := req.Args["dry_run"].(string); ok {
+		dryRun = !(v == "false" || v == "0")
+	}
+	n, err := mgr.DedupeDistilled("", dryRun)
+	if err != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		return
+	}
+	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{
+		"dry_run": dryRun, "collapsed": n,
+	}})
+}
+
 // handleMemoryBulkForget soft-deletes multiple records in one operation.
 // It is idempotent: already-tombstoned records are counted as "forgotten".
 // Args: ids (required, array of string). Returns: { forgotten: N, not_found: M }.
