@@ -75,7 +75,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { toggleTheme } from "@/lib/theme";
 import { useChat } from "@/lib/chatStore";
 import { focusRun } from "@/lib/runfocus";
-import { agentSlugFromHash } from "@/lib/agentnav";
+import { agentSlugFromHash, openAgent } from "@/lib/agentnav";
 import { exportAppearance, parseAppearanceJSON, applyAppearanceBundle } from "@/lib/appearance";
 import { parseConfigBundle, fetchConfigBundle, applyConfigBundle } from "@/lib/configbackup";
 import { downloadText } from "@/lib/export";
@@ -302,6 +302,9 @@ export default function App() {
   // Recent runs offered as ⌘K "Open run" commands (fulfils the palette's promise).
   // Refreshed whenever the palette opens so the list is current without polling.
   const [recentRuns, setRecentRuns] = useState<{ correlation_id?: string; intent?: string; status?: string }[]>([]);
+  // Every roster agent offered as a ⌘K "Open agent" command, so any created
+  // agent's identity page is one keystroke away from anywhere (M967).
+  const [paletteAgents, setPaletteAgents] = useState<{ slug: string; name?: string; system?: boolean; retired?: boolean }[]>([]);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>(loadCollapsed);
   const { connected, events } = useEvents();
   const ui = useUI();
@@ -437,6 +440,11 @@ export default function App() {
         if (live) setRecentRuns((d.runs || []).filter((r) => r.correlation_id).slice(0, 8));
       })
       .catch(() => {});
+    getJSON<{ profiles?: { slug: string; name?: string; system?: boolean; retired?: boolean }[] }>("/api/agents")
+      .then((d) => {
+        if (live) setPaletteAgents((d.profiles || []).filter((p) => p.slug));
+      })
+      .catch(() => {});
     return () => {
       live = false;
     };
@@ -546,9 +554,19 @@ export default function App() {
         setActive("runs");
       },
     }));
-    return [...views, ...actions, ...runCmds];
+    // Roster agents → "Open agent …" — jump straight to any agent's identity
+    // page from ⌘K (M967). Guardians and graveyard agents are tagged in keywords
+    // so they're searchable too.
+    const agentCmds: CommandItem[] = paletteAgents.map((a) => ({
+      id: `agent-${a.slug}`,
+      label: a.name && a.name !== a.slug ? `${a.name} (${a.slug})` : a.slug,
+      group: "Open agent",
+      keywords: `agent ${a.slug} ${a.name || ""} ${a.system ? "guardian system" : ""} ${a.retired ? "retired graveyard" : ""}`,
+      run: () => openAgent(a.slug),
+    }));
+    return [...views, ...actions, ...agentCmds, ...runCmds];
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ui, newChat, recentRuns]);
+  }, [ui, newChat, recentRuns, paletteAgents]);
 
   return (
     <div className="flex h-full flex-col">
