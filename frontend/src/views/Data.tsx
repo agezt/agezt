@@ -24,6 +24,7 @@ import { getJSON, postJSON, postAction } from "@/lib/api";
 import { cn, fmtTime } from "@/lib/utils";
 import { safeHref } from "@/lib/markdown";
 import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/ui/page-header";
 import { Badge } from "@/components/ui/badge";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty";
@@ -166,17 +167,20 @@ export function Data() {
       Array.from(new Set(records.flatMap((r) => Object.keys(r.fields ?? {})))).map((name) => ({ name }));
 
   return (
-    <div className="flex h-full min-h-0 gap-3">
-      {/* Collection sidebar */}
-      <div className="flex w-56 shrink-0 flex-col gap-2 overflow-y-auto">
-        <div className="flex items-center gap-2">
-          <h2 className="flex items-center gap-2 text-sm font-semibold">
-            <Database className="size-4 text-accent" /> Data Lake
-          </h2>
-          <Button variant="ghost" size="sm" className="ml-auto" onClick={loadCollections} disabled={loadingCols} title="Reload">
+    <div className="flex h-full min-h-0 flex-col gap-3">
+      <PageHeader
+        icon={Database}
+        title="Data Lake"
+        description="Structured collections your agents read and write"
+        actions={
+          <Button variant="ghost" size="sm" onClick={loadCollections} disabled={loadingCols} title="Reload">
             <RefreshCw className={cn("size-3.5", loadingCols && "animate-spin")} />
           </Button>
-        </div>
+        }
+      />
+      <div className="flex min-h-0 flex-1 gap-3">
+      {/* Collection sidebar */}
+      <div className="flex w-56 shrink-0 flex-col gap-2 overflow-y-auto">
         {loadingCols && cols.length === 0 ? (
           <SkeletonList count={6} lines={1} />
         ) : (
@@ -307,6 +311,7 @@ export function Data() {
         ) : (
           !loadingCols && <EmptyState icon={Database} title="No collections" hint="Built-in collections seed at startup; agents can create more with the db tool." />
         )}
+      </div>
       </div>
 
       {editing && activeCol && (
