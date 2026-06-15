@@ -828,6 +828,12 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.handleMCPSetEnabled(conn, req)
 	case CmdMCPRemove:
 		s.handleMCPRemove(conn, req)
+	case CmdToolboxDetect:
+		s.handleToolboxDetect(ctx, conn, req)
+	case CmdToolboxOutdated:
+		s.handleToolboxOutdated(ctx, conn, req)
+	case CmdToolboxInstall:
+		s.handleToolboxInstall(ctx, conn, req)
 	case CmdWorkflowList:
 		s.handleWorkflowList(conn, req)
 	case CmdWorkflowShow:
