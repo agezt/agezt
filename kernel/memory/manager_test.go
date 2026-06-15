@@ -336,6 +336,59 @@ func TestDistillDedupesBySubject(t *testing.T) {
 	}
 }
 
+func TestDedupeDistilledCollapsesBacklog(t *testing.T) {
+	// Simulate the pre-M993 backlog: several distilled notes about the SAME
+	// subject with different wording (each a distinct content-hash → distinct
+	// active record). A curated note (source≠distill) on the same subject must be
+	// left alone.
+	m, _ := newTestManager(t)
+	dt := map[string]string{"source": "distill"}
+	for _, c := range []string{"deploys via ci", "deploy uses github actions", "ci handles deploy"} {
+		if _, _, err := m.Remember("seed", RememberSpec{Type: TypeFact, Subject: "deployment", Content: c, Actor: "distill", Tags: dt}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, _, err := m.Remember("seed", RememberSpec{Type: TypeFact, Subject: "deployment", Content: "curated note", Actor: "operator"}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Dry-run reports without changing anything.
+	n, err := m.DedupeDistilled("c", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 2 {
+		t.Fatalf("dry-run should report 2 collapsible, got %d", n)
+	}
+	if active, _ := m.Active(); len(active) != 4 {
+		t.Fatalf("dry-run must not change the store; got %d active", len(active))
+	}
+
+	// Real run collapses the 3 distilled notes to 1, leaving the curated note.
+	n, err = m.DedupeDistilled("c", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 2 {
+		t.Fatalf("expected 2 collapsed, got %d", n)
+	}
+	active, _ := m.Active()
+	if len(active) != 2 {
+		t.Fatalf("expected 2 active after tidy (1 distilled + 1 curated), got %d", len(active))
+	}
+	var distilled, curated int
+	for _, r := range active {
+		if r.Tags["source"] == "distill" {
+			distilled++
+		} else {
+			curated++
+		}
+	}
+	if distilled != 1 || curated != 1 {
+		t.Fatalf("expected 1 distilled + 1 curated kept, got distilled=%d curated=%d", distilled, curated)
+	}
+}
+
 func TestDistillNonJSONIsNoOp(t *testing.T) {
 	m, _ := newTestManager(t)
 	ids, err := m.Distill(context.Background(), "c", fakeDistiller{body: "I have no idea, sorry."}, "m", "intent", "transcript")

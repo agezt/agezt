@@ -686,6 +686,8 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.handleMemoryPromote(conn, req)
 	case CmdMemoryPrune:
 		s.handleMemoryPrune(conn, req)
+	case CmdMemoryTidy:
+		s.handleMemoryTidy(conn, req)
 	case CmdMemoryBulkForget:
 		s.handleMemoryBulkForget(conn, req)
 	case CmdMemoryFindRelated:

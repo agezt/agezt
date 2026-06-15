@@ -865,6 +865,67 @@ func distillKey(t Type, subject, scope string) string {
 	return string(t) + "\x00" + strings.Join(strings.Fields(strings.ToLower(subject)), " ") + "\x00" + scope
 }
 
+// DedupeDistilled retroactively collapses the near-duplicate auto-distilled notes
+// that accumulated before the write-time subject gate (M993) existed — the "1000+
+// saçma girdi" the owner saw. It groups active source=distill records by
+// distillKey and, for each group with more than one, keeps the strongest note
+// (highest confidence, then most-recently-seen) and FORGETS the rest (soft
+// tombstone — reversible, and prunable later). Curated memories (the explicit
+// `memory` tool, source≠distill) are never touched. With dryRun it only reports
+// how many would be collapsed. Returns the number removed (or that would be).
+func (m *Manager) DedupeDistilled(corr string, dryRun bool) (int, error) {
+	active, err := m.Active()
+	if err != nil {
+		return 0, err
+	}
+	groups := map[string][]Record{}
+	for _, r := range active {
+		if r.Tags["source"] != "distill" {
+			continue
+		}
+		k := distillKey(r.Type, r.Subject, scopeOf(r.Tags))
+		groups[k] = append(groups[k], r)
+	}
+	collapsed := 0
+	for _, g := range groups {
+		if len(g) < 2 {
+			continue
+		}
+		keep := 0
+		for i := 1; i < len(g); i++ {
+			if strongerNote(g[i], g[keep]) {
+				keep = i
+			}
+		}
+		for i := range g {
+			if i == keep {
+				continue
+			}
+			if dryRun {
+				collapsed++
+				continue
+			}
+			ok, ferr := m.Forget(corr, g[i].ID)
+			if ferr != nil {
+				return collapsed, ferr
+			}
+			if ok {
+				collapsed++
+			}
+		}
+	}
+	return collapsed, nil
+}
+
+// strongerNote ranks two same-subject distilled notes for which to keep: higher
+// confidence wins (it was reinforced more), then the most-recently-seen.
+func strongerNote(a, b Record) bool {
+	if a.Confidence != b.Confidence {
+		return a.Confidence > b.Confidence
+	}
+	return a.LastSeenMS > b.LastSeenMS
+}
+
 // parseDistill extracts the JSON object from a model response, tolerating
 // surrounding prose or markdown fences by scanning for the outermost braces.
 func parseDistill(s string) (distillResult, bool) {
