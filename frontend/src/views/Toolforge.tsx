@@ -13,6 +13,7 @@ import {
 import { getJSON, postAction, postJSON } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/ui/page-header";
 import { useUI, type ConfirmOptions } from "@/components/ui/feedback";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty";
@@ -354,26 +355,26 @@ export function Toolforge() {
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <Hammer className="h-4 w-4 text-accent" />
-          <h2 className="text-sm font-semibold">Tool forge</h2>
-          {tools && (
-            <span className="text-xs text-muted">
-              {tools.length} tool(s) · {live} live
-            </span>
-          )}
-        </div>
-        <div className="flex items-center gap-1.5">
-          <Button size="sm" variant="ghost" onClick={reload} disabled={loading} aria-label="Refresh">
-            <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
-          </Button>
-          <Button size="sm" onClick={() => setShowForm((v) => !v)}>
-            {showForm ? <X className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
-            {showForm ? "Close" : "New tool"}
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        icon={Hammer}
+        title="Tool Forge"
+        description={
+          tools
+            ? `${tools.length} tool(s) · ${live} live — scripts become real tools, callable as forge_<name>`
+            : "Scripts the agents (or you) draft become real, testable tools"
+        }
+        actions={
+          <>
+            <Button size="sm" variant="ghost" onClick={reload} disabled={loading} aria-label="Refresh">
+              <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
+            </Button>
+            <Button size="sm" onClick={() => setShowForm((v) => !v)}>
+              {showForm ? <X className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
+              {showForm ? "Close" : "New tool"}
+            </Button>
+          </>
+        }
+      />
 
       <p className="text-xs text-muted">
         Scripts the agents (or you) draft become real tools: test one in the sandbox, then promote it — every run can

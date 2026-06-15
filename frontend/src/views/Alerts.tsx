@@ -5,6 +5,7 @@ import { getJSON } from "@/lib/api";
 import { focusRun } from "@/lib/runfocus";
 import { classifyAlert, type Alert, type AlertLevel } from "@/lib/alerts";
 import { cn, fmtTime } from "@/lib/utils";
+import { PageHeader } from "@/components/ui/page-header";
 
 const MAX_ALERTS = 100;
 
@@ -93,30 +94,33 @@ export function Alerts() {
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <h2 className="flex items-center gap-2 text-sm font-semibold">
-          <Bell className="size-4 text-accent" /> Alerts
-        </h2>
-        <span className={cn("inline-flex items-center gap-1 text-xs", connected ? "text-good" : "text-bad")}>
-          ● {connected ? "live" : "offline"}
-        </span>
-        <div className="ml-auto flex items-center gap-1.5 text-xs">
-          <Chip active={filter === "all"} onClick={() => setFilter("all")} label={`all ${rows.length}`} />
-          <Chip
-            active={filter === "critical"}
-            onClick={() => setFilter("critical")}
-            label={`critical ${counts.critical || 0}`}
-            tone="text-bad"
-          />
-          <Chip
-            active={filter === "warning"}
-            onClick={() => setFilter("warning")}
-            label={`warning ${counts.warning || 0}`}
-            tone="text-warn"
-          />
-          <Chip active={filter === "info"} onClick={() => setFilter("info")} label={`info ${counts.info || 0}`} />
-        </div>
-      </div>
+      <PageHeader
+        icon={Bell}
+        title="Alerts"
+        description={
+          <span className={cn("inline-flex items-center gap-1", connected ? "text-good" : "text-bad")}>
+            ● {connected ? "live" : "offline"} — what the daemon flagged on its own
+          </span>
+        }
+        actions={
+          <div className="flex flex-wrap items-center gap-1.5 text-xs">
+            <Chip active={filter === "all"} onClick={() => setFilter("all")} label={`all ${rows.length}`} />
+            <Chip
+              active={filter === "critical"}
+              onClick={() => setFilter("critical")}
+              label={`critical ${counts.critical || 0}`}
+              tone="text-bad"
+            />
+            <Chip
+              active={filter === "warning"}
+              onClick={() => setFilter("warning")}
+              label={`warning ${counts.warning || 0}`}
+              tone="text-warn"
+            />
+            <Chip active={filter === "info"} onClick={() => setFilter("info")} label={`info ${counts.info || 0}`} />
+          </div>
+        }
+      />
 
       {shown.length === 0 ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-2 text-muted">
