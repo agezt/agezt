@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { flattenModels, filterModels, groupByProvider, pinnedOptions, fmtContext, findModelContext, type ModelCatalog } from "@/lib/models";
+import { flattenModels, filterModels, groupByProvider, pinnedOptions, fmtContext, findModelContext, modelHealth, type ModelCatalog } from "@/lib/models";
 
 const cat: ModelCatalog = {
   providers: [
@@ -96,5 +96,28 @@ describe("pinnedOptions", () => {
 
   it("returns empty for an empty id list", () => {
     expect(pinnedOptions(flattenModels(cat), [])).toEqual([]);
+  });
+});
+
+describe("modelHealth", () => {
+  it("ok when a credentialed provider serves the model", () => {
+    expect(modelHealth(cat, "deepseek-v4-pro")).toBe("ok");
+  });
+  it("nokey when only an uncredentialed provider has it", () => {
+    expect(modelHealth(cat, "gpt-4o")).toBe("nokey");
+  });
+  it("unknown when no provider lists the id", () => {
+    expect(modelHealth(cat, "made-up-model")).toBe("unknown");
+    expect(modelHealth(cat, "")).toBe("unknown");
+    expect(modelHealth(null, "gpt-4o")).toBe("unknown");
+  });
+  it("prefers ok if any serving provider is credentialed", () => {
+    const multi: ModelCatalog = {
+      providers: [
+        { id: "unkeyed", credentialed: false, models: [{ id: "shared" }] },
+        { id: "keyed", credentialed: true, models: [{ id: "shared" }] },
+      ],
+    };
+    expect(modelHealth(multi, "shared")).toBe("ok");
   });
 });
