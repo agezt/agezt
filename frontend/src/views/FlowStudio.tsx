@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { Play, Sparkles, Wand2, RefreshCw } from "lucide-react";
+import { Play, Sparkles, Wand2, RefreshCw, Workflow } from "lucide-react";
 import { postJSON, getJSON } from "@/lib/api";
 import { useEvents, type AgentEvent } from "@/lib/events";
 import { Card, CardHeader, CardTitle, CardBody } from "@/components/ui/card";
+import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import { Input, Textarea } from "@/components/ui/input";
 import { Badge, statusVariant } from "@/components/ui/badge";
@@ -142,11 +143,16 @@ export function FlowStudio() {
 
   return (
     <div className="flex h-full flex-col gap-3">
+      <PageHeader
+        icon={Workflow}
+        title="Flow Studio"
+        description="Describe a task; the planner drafts an editable flow you can refine and run."
+      />
       <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-2">
         {/* Authoring column */}
         <Card className="min-h-0">
           <CardHeader>
-            <CardTitle>Flow Studio</CardTitle>
+            <CardTitle>Author a plan</CardTitle>
             {msg ? (
               msgErr ? <ErrorText>{msg}</ErrorText> : <Muted>{msg}</Muted>
             ) : null}
