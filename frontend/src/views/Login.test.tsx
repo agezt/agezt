@@ -49,8 +49,11 @@ describe("AuthGate", () => {
     expect(screen.queryByText("app body")).toBeNull();
   });
 
-  it("reveals the app after a successful login", async () => {
-    getJSON.mockResolvedValue({ password_required: true, authed: false });
+  it("reveals the app after a successful login (session now accepted)", async () => {
+    // First probe (AuthGate): locked. After login, the re-probe sees the session.
+    getJSON
+      .mockResolvedValueOnce({ password_required: true, authed: false })
+      .mockResolvedValue({ password_required: true, authed: true });
     postJSON.mockResolvedValue({ ok: true });
     render(
       <AuthGate>
@@ -62,6 +65,21 @@ describe("AuthGate", () => {
     fireEvent.click(screen.getByRole("button", { name: "Unlock console" }));
     await waitFor(() => expect(postJSON).toHaveBeenCalledWith("/api/login", { password: "hunter2" }));
     await waitFor(() => expect(screen.getByText("app body")).toBeTruthy());
+  });
+});
+
+describe("Login strict-mode trap", () => {
+  it("warns (does not advance) when the session is minted but data routes still 401", async () => {
+    // Login succeeds (cookie set) but the re-probe says still-not-authed —
+    // exactly the strict-mode / old-daemon token-less case.
+    postJSON.mockResolvedValue({ ok: true });
+    getJSON.mockResolvedValue({ password_required: true, authed: false });
+    const onAuthed = vi.fn();
+    render(<Login onAuthed={onAuthed} />);
+    fireEvent.change(screen.getByLabelText("Console password"), { target: { value: "hunter2" } });
+    fireEvent.click(screen.getByRole("button", { name: "Unlock console" }));
+    await waitFor(() => expect(screen.getByRole("alert").textContent).toContain("strict mode"));
+    expect(onAuthed).not.toHaveBeenCalled();
   });
 });
 
