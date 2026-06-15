@@ -36,6 +36,32 @@ describe("FleetNowBar", () => {
     expect(screen.queryByText(/fleet idle/)).toBeNull();
   });
 
+  it("does not deep-link to a run id as if it were an agent (M980)", () => {
+    // Ad-hoc run: actor is the run correlation id, no payload.agent. Clicking it
+    // must go to the Overseer, NOT to #agent/agent-run-… (which 404s).
+    h.events = [
+      { seq: 1, kind: "task.received", correlation_id: "agent-run-XYZ", actor: "agent-run-XYZ", payload: { intent: "ad-hoc" } },
+    ];
+    location.hash = "";
+    const onNavigate = vi.fn();
+    render(<FleetNowBar onNavigate={onNavigate} />);
+    fireEvent.click(screen.getByText(/1 running/)); // expand
+    fireEvent.click(screen.getAllByText(/ad-hoc/)[0]); // click the card
+    expect(onNavigate).toHaveBeenCalledWith("overseer");
+    expect(location.hash).not.toContain("agent-run");
+  });
+
+  it("deep-links to the real agent slug from the payload (M980)", () => {
+    h.events = [
+      { seq: 1, kind: "task.received", correlation_id: "agent-run-XYZ", actor: "agent-run-XYZ", payload: { intent: "real", agent: "researcher" } },
+    ];
+    location.hash = "";
+    render(<FleetNowBar />);
+    fireEvent.click(screen.getByText(/1 running/));
+    fireEvent.click(screen.getAllByText(/real/)[0]);
+    expect(location.hash).toContain("agent/researcher");
+  });
+
   it("expands into running-agent cards on click", () => {
     h.events = [
       { seq: 1, kind: "task.received", correlation_id: "c1", actor: "alice", payload: { intent: "deploy the app" } },
