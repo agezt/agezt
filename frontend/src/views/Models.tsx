@@ -8,6 +8,7 @@ import { EmptyState } from "@/components/ui/empty";
 import { ErrorText } from "@/components/JsonView";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { useUI } from "@/components/ui/feedback";
+import { PageHeader } from "@/components/ui/page-header";
 
 // Models is the LLM model catalog — the providers and models the daemon knows
 // about, synced from models.dev/api.json (the same source as `agt catalog sync`).
@@ -134,32 +135,39 @@ export function Models() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <h2 className="flex items-center gap-2 text-sm font-semibold">
-          <Layers className="size-4 text-accent" /> Models
-        </h2>
-        {data && (
-          <span className="text-xs text-muted">
-            {providers.length} providers · {totalModels} models
-          </span>
-        )}
-        <div className="relative ml-auto">
-          <Search className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted" />
-          <Input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search models…"
-            className="h-8 w-40 pl-7 sm:w-52"
-            aria-label="Search models"
-          />
-        </div>
-        <Button size="sm" onClick={sync} disabled={syncing} title="Pull the latest models from models.dev">
-          {syncing ? <RefreshCw className="size-3.5 animate-spin" /> : <DownloadCloud className="size-3.5" />} Sync models
-        </Button>
-        <Button variant="ghost" size="sm" onClick={reload} disabled={loading} title="Reload">
-          <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
-        </Button>
-      </div>
+      <PageHeader
+        icon={Layers}
+        title="Models"
+        description={
+          data ? (
+            <>
+              {providers.length} providers · {totalModels} models
+            </>
+          ) : (
+            "The LLM model catalog — providers and models synced from models.dev."
+          )
+        }
+        actions={
+          <>
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted" />
+              <Input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search models…"
+                className="h-8 w-40 pl-7 sm:w-52"
+                aria-label="Search models"
+              />
+            </div>
+            <Button size="sm" onClick={sync} disabled={syncing} title="Pull the latest models from models.dev">
+              {syncing ? <RefreshCw className="size-3.5 animate-spin" /> : <DownloadCloud className="size-3.5" />} Sync models
+            </Button>
+            <Button variant="ghost" size="sm" onClick={reload} disabled={loading} title="Reload">
+              <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
+            </Button>
+          </>
+        }
+      />
 
       <p className="text-xs text-muted">
         {syncedAt ? (
@@ -219,7 +227,7 @@ function ProviderCard({
   const models = provider.models || [];
   const keyEnv = providerKeyEnv(provider);
   return (
-    <div className="rounded-lg border border-border bg-card">
+    <div className="glass rounded-xl">
       <button onClick={onToggle} className="flex w-full items-center gap-2 px-3 py-2.5 text-left">
         <ChevronRight className={cn("size-3.5 shrink-0 text-muted transition-transform", open && "rotate-90")} />
         <span className="text-sm font-semibold">{provider.name || provider.id}</span>

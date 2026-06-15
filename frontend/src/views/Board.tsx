@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Muted, ErrorText } from "@/components/JsonView";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { Markdown } from "@/components/Markdown";
+import { PageHeader } from "@/components/ui/page-header";
 
 interface Msg {
   topic: string;
@@ -113,18 +114,21 @@ export function Board() {
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3">
-      <div className="flex items-center gap-2">
-        <h2 className="flex items-center gap-2 text-sm font-semibold">
-          <MessagesSquare className="size-4 text-accent" /> Agent board
-        </h2>
-        <span className="text-xs text-muted">
-          {data ? `${data.count ?? 0} message${data.count === 1 ? "" : "s"}` : ""}
-          {topics.length > 0 && <span className="text-muted"> · {topics.length} topic{topics.length === 1 ? "" : "s"}</span>}
-        </span>
-        <Button variant="ghost" size="sm" className="ml-auto" onClick={reload} disabled={loading} title="Reload">
-          <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
-        </Button>
-      </div>
+      <PageHeader
+        icon={MessagesSquare}
+        title="Agent board"
+        description={
+          <>
+            {data ? `${data.count ?? 0} message${data.count === 1 ? "" : "s"}` : "Shared inter-agent message board"}
+            {topics.length > 0 && <span className="text-muted"> · {topics.length} topic{topics.length === 1 ? "" : "s"}</span>}
+          </>
+        }
+        actions={
+          <Button variant="ghost" size="sm" onClick={reload} disabled={loading} title="Reload">
+            <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
+          </Button>
+        }
+      />
 
       {help.length > 0 && (
         <div className="rounded-lg border border-warn/40 bg-warn/10 p-2.5">
@@ -224,7 +228,7 @@ export function Board() {
         <div className="min-h-0 flex-1 overflow-auto">
           <ul className="space-y-2">
             {messages.map((m, i) => (
-              <li key={i} className="rounded-lg border border-border bg-card p-3">
+              <li key={i} className="glass rounded-xl p-3">
                 <div className="flex items-center gap-2">
                   <span className="inline-flex items-center gap-1 rounded-full border border-border bg-panel px-2 py-0.5 text-[10px] text-accent">
                     <Hash className="size-3 opacity-70" />

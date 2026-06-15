@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { RefreshCw, ChevronRight, ChevronDown, ListTree, Search } from "lucide-react";
 import { usePanel } from "@/lib/usePanel";
-import { Card, CardHeader, CardTitle, CardBody } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/ui/page-header";
 import { Badge, statusVariant } from "@/components/ui/badge";
 import { ErrorText } from "@/components/JsonView";
 import { EmptyState } from "@/components/ui/empty";
@@ -134,17 +134,21 @@ export function Runs() {
   );
 
   return (
-    <Card className="h-full">
-      <CardHeader>
-        <CardTitle>Runs</CardTitle>
-        {runs.length > 0 && (
-          <span className="ml-2 text-xs text-muted">{counts.total} total</span>
-        )}
-        <Button variant="ghost" size="icon" className="ml-auto" onClick={reload} title="Refresh">
-          <RefreshCw className={loading ? "animate-spin" : ""} />
-        </Button>
-      </CardHeader>
-      <CardBody>
+    <div className="space-y-4">
+      <PageHeader
+        icon={ListTree}
+        title="Runs"
+        description="Completed and in-flight runs across the fleet."
+        actions={
+          <>
+            {runs.length > 0 && <span className="text-xs text-muted">{counts.total} total</span>}
+            <Button variant="ghost" size="icon" onClick={reload} title="Refresh">
+              <RefreshCw className={loading ? "animate-spin" : ""} />
+            </Button>
+          </>
+        }
+      />
+      <div className="glass rounded-xl p-3">
         {/* Status distribution + click-to-filter chips, so the shape of the fleet's
             recent work (how many failed, what's still running) is visible at a glance
             before you scan the list. A chip with a zero count is disabled. */}
@@ -207,7 +211,7 @@ export function Runs() {
         ) : (
           shown.map((r, i) => <RunRow key={r.correlation_id || i} run={r} focus={focus} />)
         )}
-      </CardBody>
-    </Card>
+      </div>
+    </div>
   );
 }

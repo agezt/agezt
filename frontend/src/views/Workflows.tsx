@@ -49,6 +49,7 @@ import { useUI } from "@/components/ui/feedback";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty";
 import { Badge } from "@/components/ui/badge";
+import { PageHeader } from "@/components/ui/page-header";
 import { ErrorText } from "@/components/JsonView";
 import { useEvents } from "@/lib/events";
 
@@ -826,7 +827,7 @@ export function RunsDrawer({
   }, [load]);
 
   return (
-    <div className="rounded-lg border border-border bg-card p-2">
+    <div className="glass rounded-xl p-2">
       <div className="mb-1 flex items-center gap-2">
         <span className="text-[10px] font-semibold tracking-wide text-muted uppercase">Run history</span>
         <Button size="sm" variant="ghost" onClick={load} aria-label="Refresh runs">
@@ -1240,22 +1241,23 @@ export function Workflows() {
   // ---- list mode ----
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <Network className="h-4 w-4 text-accent" />
-          <h2 className="text-sm font-semibold">Workflows</h2>
-          {list && <span className="text-xs text-muted">{list.length} workflow(s)</span>}
-        </div>
-        <div className="flex items-center gap-1.5">
-          <Button size="sm" variant="ghost" onClick={reload} disabled={loading} aria-label="Refresh">
-            <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
-          </Button>
-          <Button size="sm" onClick={() => setCreating((v) => !v)}>
-            {creating ? <X className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
-            {creating ? "Close" : "New workflow"}
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        icon={Network}
+        title="Workflows"
+        description="Typed-node graphs executed under the same policy and budget governance — every run journaled."
+        actions={
+          <>
+            {list && <span className="text-xs text-muted">{list.length} workflow(s)</span>}
+            <Button size="sm" variant="ghost" onClick={reload} disabled={loading} aria-label="Refresh">
+              <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
+            </Button>
+            <Button size="sm" onClick={() => setCreating((v) => !v)}>
+              {creating ? <X className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
+              {creating ? "Close" : "New workflow"}
+            </Button>
+          </>
+        }
+      />
 
       <p className="text-xs text-muted">
         Typed-node graphs — triggers (manual/cron/event), tools, LLM steps, branches, loops over data, human approval
@@ -1313,7 +1315,7 @@ export function Workflows() {
 
       <ul className="space-y-2">
         {(list || []).map((w) => (
-          <li key={w.id || w.name} className="rounded-lg border border-border bg-card p-3">
+          <li key={w.id || w.name} className="glass rounded-xl p-3">
             <div className="flex flex-wrap items-center gap-2">
               <button
                 className="font-mono text-sm text-foreground hover:text-accent"

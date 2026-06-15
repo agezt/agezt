@@ -9,6 +9,7 @@ import { useUI, type ConfirmOptions } from "@/components/ui/feedback";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty";
 import { Badge } from "@/components/ui/badge";
+import { PageHeader } from "@/components/ui/page-header";
 import { ErrorText } from "@/components/JsonView";
 import { AgentAvatar } from "@/components/AgentAvatar";
 import { AgentActivity } from "@/components/AgentActivity";
@@ -203,7 +204,7 @@ export function NewAgentForm({
   }
 
   return (
-    <div className="rounded-lg border border-accent/30 bg-card p-3">
+    <div className="glass glow-accent rounded-xl p-3">
       <label className="flex flex-col gap-1 text-[11px] text-muted">
         Slug — the agent's permanent handle (lowercase; cannot be changed later)
         <input
@@ -281,7 +282,7 @@ export function EditAgentForm({
   }
 
   return (
-    <div className="rounded-lg border border-accent/30 bg-card p-3">
+    <div className="glass glow-accent rounded-xl p-3">
       <div className="text-[11px] text-muted">
         Editing <span className="font-mono text-foreground">{profile.slug}</span> (slug is permanent)
       </div>
@@ -398,26 +399,26 @@ export function Roster() {
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <Users className="h-4 w-4 text-accent" />
-          <h2 className="text-sm font-semibold">Agent roster</h2>
-          {profiles && (
-            <span className="text-xs text-muted">
-              {profiles.length} agent(s) · {enabled} enabled
-            </span>
-          )}
-        </div>
-        <div className="flex items-center gap-1.5">
-          <Button size="sm" variant="ghost" onClick={reload} disabled={loading} aria-label="Refresh">
-            <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
-          </Button>
-          <Button size="sm" onClick={() => setShowForm((v) => !v)}>
-            {showForm ? <X className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
-            {showForm ? "Close" : "New agent"}
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        icon={Users}
+        title="Agent roster"
+        description={
+          profiles
+            ? `${profiles.length} agent(s) · ${enabled} enabled`
+            : "Durable, named agents — each with its own soul, model, budget, and memory scope."
+        }
+        actions={
+          <>
+            <Button size="sm" variant="ghost" onClick={reload} disabled={loading} aria-label="Refresh">
+              <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
+            </Button>
+            <Button size="sm" onClick={() => setShowForm((v) => !v)}>
+              {showForm ? <X className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
+              {showForm ? "Close" : "New agent"}
+            </Button>
+          </>
+        }
+      />
 
       {showForm && (
         <NewAgentForm
@@ -457,7 +458,7 @@ export function Roster() {
           <li
             key={p.id}
             className={cn(
-              "rounded-lg border border-border bg-card p-3 shadow-e1 transition-[box-shadow,border-color] hover:shadow-e2",
+              "glass rounded-xl p-3 shadow-e1 transition-[box-shadow,border-color] hover:shadow-e2",
               open && "sm:col-span-2 xl:col-span-3",
             )}
           >

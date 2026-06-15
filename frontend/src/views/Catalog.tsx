@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useUI } from "@/components/ui/feedback";
 import { SkeletonGrid } from "@/components/ui/skeleton";
+import { PageHeader } from "@/components/ui/page-header";
 import { ErrorText } from "@/components/JsonView";
 import { joinCatalog, levelTone, type CatalogTool, type CatalogRow, type ToolUsage } from "@/lib/catalog";
 
@@ -64,15 +65,16 @@ export function Catalog() {
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3">
-      <div className="flex items-center gap-2">
-        <h2 className="flex items-center gap-2 text-sm font-semibold">
-          <Boxes className="size-4 text-accent" /> Capability catalog
-        </h2>
-        <span className="text-xs text-muted">{rows ? `${rows.length} tools the agent can use` : ""}</span>
-        <Button variant="ghost" size="sm" className="ml-auto" onClick={reload} disabled={loading} title="Reload">
-          <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
-        </Button>
-      </div>
+      <PageHeader
+        icon={Boxes}
+        title="Capability catalog"
+        description={rows ? `${rows.length} tools the agent can use` : "Every tool the agent can call and the policy that governs it."}
+        actions={
+          <Button variant="ghost" size="sm" onClick={reload} disabled={loading} title="Reload">
+            <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
+          </Button>
+        }
+      />
 
       {err ? (
         <ErrorText>{err}</ErrorText>
@@ -84,7 +86,7 @@ export function Catalog() {
         <div className="min-h-0 flex-1 overflow-auto">
           <ul className="grid grid-cols-1 gap-2 lg:grid-cols-2">
             {rows.map((r) => (
-              <li key={r.name} className="rounded-lg border border-border bg-card p-3">
+              <li key={r.name} className="glass rounded-xl p-3">
                 <div className="flex items-center gap-2">
                   <span className="font-mono text-sm font-semibold">{r.name}</span>
                   {r.capability && (

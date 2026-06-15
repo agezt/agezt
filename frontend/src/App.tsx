@@ -673,18 +673,19 @@ export default function App() {
                   style={
                     on
                       ? {
-                          background: `linear-gradient(155deg, oklch(0.62 0.17 ${hue} / 0.32), oklch(0.6 0.16 ${hue} / 0.1))`,
-                          color: `oklch(0.86 0.13 ${hue})`,
-                          // ring colour via box-shadow inset so it follows the hue
-                          boxShadow: `inset 0 0 0 1px oklch(0.7 0.16 ${hue} / 0.45), 0 6px 18px -8px oklch(0.6 0.16 ${hue} / 0.6)`,
+                          background: `linear-gradient(155deg, oklch(0.62 0.17 ${hue} / 0.3), oklch(0.6 0.16 ${hue} / 0.08))`,
+                          // Mid-lightness so the label reads on BOTH the dark gradient
+                          // tint and a light background (M982 light-mode fix).
+                          color: `oklch(0.58 0.17 ${hue})`,
+                          boxShadow: `inset 0 0 0 1px oklch(0.62 0.16 ${hue} / 0.5), 0 6px 18px -8px oklch(0.6 0.16 ${hue} / 0.5)`,
                         }
-                      : { color: `oklch(0.74 0.13 ${hue})` }
+                      : { color: `oklch(0.6 0.14 ${hue})` }
                   }
                 >
                   <g.icon className="size-5" />
                   <span className="text-[8px] font-semibold leading-none tracking-tight">{g.label}</span>
                   {isActiveSection && !on && (
-                    <span className="absolute right-1.5 top-1.5 size-1.5 rounded-full" style={{ background: `oklch(0.75 0.16 ${hue})` }} />
+                    <span className="absolute right-1.5 top-1.5 size-1.5 rounded-full" style={{ background: `oklch(0.62 0.16 ${hue})` }} />
                   )}
                   {sectionBadge > 0 && (
                     <span className="absolute -right-0.5 -top-0.5 inline-flex min-w-3.5 items-center justify-center rounded-full bg-bad px-0.5 text-[8px] font-bold leading-3.5 text-white">
@@ -700,7 +701,7 @@ export default function App() {
           <div className="flex min-w-0 flex-1 gap-1 overflow-x-auto p-2 lg:w-44 lg:flex-none lg:flex-col lg:gap-0.5 lg:overflow-y-auto">
             <div
               className="hidden items-center gap-1.5 px-2 pb-1.5 pt-1 text-[11px] font-bold uppercase tracking-widest lg:flex"
-              style={{ color: `oklch(0.78 0.13 ${sectionHue(shownGroup.id)})` }}
+              style={{ color: `oklch(0.6 0.14 ${sectionHue(shownGroup.id)})` }}
             >
               <shownGroup.icon className="size-3.5" />
               {shownGroup.label}
@@ -721,13 +722,13 @@ export default function App() {
                 style={
                   isOn
                     ? {
-                        background: `linear-gradient(90deg, oklch(0.6 0.16 ${hue} / 0.22), oklch(0.6 0.16 ${hue} / 0.04))`,
-                        color: `oklch(0.86 0.12 ${hue})`,
+                        background: `linear-gradient(90deg, oklch(0.6 0.16 ${hue} / 0.2), oklch(0.6 0.16 ${hue} / 0.03))`,
+                        color: `oklch(0.56 0.16 ${hue})`,
                       }
                     : undefined
                 }
               >
-                {isOn && <span className="absolute left-0 top-1/2 hidden h-5 w-[3px] -translate-y-1/2 rounded-r-full lg:block" style={{ background: `oklch(0.75 0.16 ${hue})` }} />}
+                {isOn && <span className="absolute left-0 top-1/2 hidden h-5 w-[3px] -translate-y-1/2 rounded-r-full lg:block" style={{ background: `oklch(0.62 0.16 ${hue})` }} />}
                 <n.icon className="size-4 shrink-0" />
                 <span>{n.label}</span>
                 {n.id === "alerts" && unseenAlerts > 0 && (

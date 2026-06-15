@@ -91,7 +91,7 @@ export function ApprovalsHistory() {
   }, []);
 
   return (
-    <div className="rounded-lg border border-border bg-card p-3">
+    <div className="glass rounded-xl p-3">
       <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted">
         <History className="size-3.5" /> Decision history
         {loaded && <span className="ml-1 normal-case text-muted/70">({rows.length})</span>}

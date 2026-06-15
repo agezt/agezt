@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { ErrorText } from "@/components/JsonView";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { useUI } from "@/components/ui/feedback";
+import { PageHeader } from "@/components/ui/page-header";
 import { ModelPicker } from "@/components/ModelPicker";
 import { ModelChip } from "@/components/ModelChip";
 import { downloadText } from "@/lib/export";
@@ -214,35 +215,36 @@ export function Routing() {
           e.target.value = "";
         }}
       />
-      <div className="flex flex-wrap items-center gap-2">
-        <h2 className="flex items-center gap-2 text-sm font-semibold">
-          <Route className="size-4 text-accent" /> Routing
-        </h2>
-        <span className="text-xs text-muted">per-task model chains</span>
-        <div className="ml-auto flex items-center gap-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={autoFill}
-            disabled={filling}
-            title="Fill every task with a suggested chain built from your keyed providers (review, then Save)"
-          >
-            {filling ? <RefreshCw className="size-3.5 animate-spin" /> : <Wand2 className="size-3.5" />} Auto-fill
-          </Button>
-          <Button variant="ghost" size="sm" onClick={() => fileRef.current?.click()} title="Import routing from a JSON file">
-            <Upload className="size-3.5" /> Import
-          </Button>
-          <Button variant="ghost" size="sm" onClick={exportChains} disabled={Object.keys(chains).length === 0} title="Export routing to a JSON file">
-            <Download className="size-3.5" /> Export
-          </Button>
-          <Button size="sm" onClick={save} disabled={!dirty || saving} title="Save routing">
-            {saving ? <RefreshCw className="size-3.5 animate-spin" /> : <Save className="size-3.5" />} Save
-          </Button>
-          <Button variant="ghost" size="sm" onClick={reload} disabled={loading} title="Reload">
-            <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        icon={Route}
+        title="Routing"
+        description="per-task model chains"
+        actions={
+          <>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={autoFill}
+              disabled={filling}
+              title="Fill every task with a suggested chain built from your keyed providers (review, then Save)"
+            >
+              {filling ? <RefreshCw className="size-3.5 animate-spin" /> : <Wand2 className="size-3.5" />} Auto-fill
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => fileRef.current?.click()} title="Import routing from a JSON file">
+              <Upload className="size-3.5" /> Import
+            </Button>
+            <Button variant="ghost" size="sm" onClick={exportChains} disabled={Object.keys(chains).length === 0} title="Export routing to a JSON file">
+              <Download className="size-3.5" /> Export
+            </Button>
+            <Button size="sm" onClick={save} disabled={!dirty || saving} title="Save routing">
+              {saving ? <RefreshCw className="size-3.5 animate-spin" /> : <Save className="size-3.5" />} Save
+            </Button>
+            <Button variant="ghost" size="sm" onClick={reload} disabled={loading} title="Reload">
+              <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
+            </Button>
+          </>
+        }
+      />
 
       <p className="text-xs text-muted">
         Give each agentic job its own ordered model chain: the <span className="text-foreground/80">primary</span> model
@@ -296,7 +298,7 @@ function ChainRow({
 }) {
   const fb = activity?.fallbacks ?? 0;
   return (
-    <div className="rounded-lg border border-border bg-card p-3">
+    <div className="glass rounded-xl p-3">
       <div className="mb-2 flex items-baseline gap-2">
         <h3 className="font-mono text-sm font-semibold text-foreground">{task}</h3>
         <span className="text-[11px] text-muted">{TASK_HELP[task] || "Custom task type."}</span>

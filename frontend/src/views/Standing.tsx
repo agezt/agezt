@@ -5,6 +5,7 @@ import { getJSON, postAction, postJSON } from "@/lib/api";
 import { cn, fmtTime } from "@/lib/utils";
 import { downloadText } from "@/lib/export";
 import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/ui/page-header";
 import { useUI, type ConfirmOptions } from "@/components/ui/feedback";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty";
@@ -171,39 +172,45 @@ export function Standing() {
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3">
-      <div className="flex items-center gap-2">
-        <h2 className="flex items-center gap-2 text-sm font-semibold">
-          <Anchor className="size-4 text-accent" /> Standing orders
-        </h2>
-        <span className="text-xs text-muted">
-          {orders ? `${orders.length} total` : ""}
-          {orders && orders.length > 0 && <span className="text-good"> · {enabledCount} active</span>}
-        </span>
-        <input
-          ref={fileRef}
-          type="file"
-          accept="application/json,.json"
-          className="hidden"
-          aria-hidden="true"
-          onChange={(e) => {
-            const f = e.target.files?.[0];
-            if (f) void importOrders(f);
-            e.target.value = "";
-          }}
-        />
-        <Button variant="ghost" size="sm" className="ml-auto" onClick={() => fileRef.current?.click()} title="Import standing orders from a file">
-          <Upload className="size-3.5" /> Import
-        </Button>
-        <Button variant="ghost" size="sm" onClick={exportOrders} disabled={!orders || orders.length === 0} title="Export standing orders to a file">
-          <Download className="size-3.5" /> Export
-        </Button>
-        <Button size="sm" onClick={() => setShowForm((v) => !v)} title="Create a standing order">
-          {showForm ? <X className="size-3.5" /> : <Plus className="size-3.5" />} New order
-        </Button>
-        <Button variant="ghost" size="sm" onClick={reload} disabled={loading} title="Reload">
-          <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
-        </Button>
-      </div>
+      <input
+        ref={fileRef}
+        type="file"
+        accept="application/json,.json"
+        className="hidden"
+        aria-hidden="true"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) void importOrders(f);
+          e.target.value = "";
+        }}
+      />
+      <PageHeader
+        icon={Anchor}
+        title="Standing orders"
+        description={
+          <>
+            {orders ? `${orders.length} total` : ""}
+            {orders && orders.length > 0 && <span className="text-good"> · {enabledCount} active</span>}
+            {!orders && "Persistent goals the daemon pursues on a trigger"}
+          </>
+        }
+        actions={
+          <>
+            <Button variant="ghost" size="sm" onClick={() => fileRef.current?.click()} title="Import standing orders from a file">
+              <Upload className="size-3.5" /> Import
+            </Button>
+            <Button variant="ghost" size="sm" onClick={exportOrders} disabled={!orders || orders.length === 0} title="Export standing orders to a file">
+              <Download className="size-3.5" /> Export
+            </Button>
+            <Button size="sm" onClick={() => setShowForm((v) => !v)} title="Create a standing order">
+              {showForm ? <X className="size-3.5" /> : <Plus className="size-3.5" />} New order
+            </Button>
+            <Button variant="ghost" size="sm" onClick={reload} disabled={loading} title="Reload">
+              <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
+            </Button>
+          </>
+        }
+      />
 
       {showForm && (
         <NewOrderForm
@@ -236,7 +243,7 @@ export function Standing() {
         <div className="min-h-0 flex-1 overflow-auto">
           <ul className="space-y-2">
             {orders.map((o) => (
-              <li key={o.id} className="rounded-lg border border-border bg-card p-3">
+              <li key={o.id} className="glass rounded-xl p-3">
                 <div className="flex items-center gap-2">
                   <Badge variant={o.enabled ? "good" : "default"}>{o.enabled ? "active" : "paused"}</Badge>
                   <span className="text-sm font-semibold">{o.name || o.id}</span>
@@ -421,7 +428,7 @@ export function NewOrderForm({
   }
 
   return (
-    <div className="rounded-lg border border-accent/30 bg-card p-3">
+    <div className="glass rounded-xl border-accent/30 p-3">
       <div className="grid gap-2 sm:grid-cols-2">
         <label className="flex flex-col gap-1 text-[11px] text-muted">
           Name
@@ -549,7 +556,7 @@ export function EditOrderForm({
   }
 
   return (
-    <div className="rounded-lg border border-accent/30 bg-card p-3">
+    <div className="glass rounded-xl border-accent/30 p-3">
       <div className="grid gap-2 sm:grid-cols-2">
         <label className="flex flex-col gap-1 text-[11px] text-muted">
           Name

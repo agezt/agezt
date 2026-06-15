@@ -121,12 +121,19 @@ body {
 
 /* Reusable "command center" surface + accent treatments ------------------- */
 
-/* Glass card: a lifted, faintly translucent surface with an inset top highlight
-   so panels feel like physical cards under glass rather than outlined boxes. */
+/* Glass card. LIGHT theme (default): a clean, solid, well-defined card — a clear
+   border + real shadow, NOT a washed-out translucent panel (which looked muddy
+   and floaty on a near-white background). DARK theme: the translucent
+   command-center treatment with blur + inset highlight. (M977 → M982 light fix.) */
 .glass {
+  background: var(--card);
+  border: 1px solid var(--border);
+  box-shadow: var(--elev-2);
+}
+.dark .glass {
   background: color-mix(in oklch, var(--card) 86%, transparent);
   backdrop-filter: blur(8px);
-  border: 1px solid color-mix(in oklch, var(--border) 80%, transparent);
+  border-color: color-mix(in oklch, var(--border) 80%, transparent);
   box-shadow:
     var(--elev-2),
     inset 0 1px 0 oklch(1 0 0 / 0.04);
