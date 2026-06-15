@@ -764,6 +764,8 @@ function Header({
   }
   return (
     <header className="relative z-10 flex items-center gap-3 border-b border-border bg-panel px-4 py-2 shadow-e1">
+      {/* Lit accent edge under the header (M977 command-center). */}
+      <div className="accent-rule pointer-events-none absolute inset-x-0 bottom-0 h-px" />
       <ConsoleName />
       <span
         className={cn(

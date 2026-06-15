@@ -661,11 +661,11 @@ function BigStat({
   accent?: boolean;
 }) {
   return (
-    <div className={cn("rounded-lg border bg-card p-2.5", accent ? "border-accent/50" : "border-border")}>
+    <div className={cn("glass rounded-xl p-2.5 transition-shadow hover:shadow-e3", accent && "glow-accent")}>
       <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted">
         <Icon className={cn("size-3", accent && "text-accent")} /> {label}
       </div>
-      <div className={cn("mt-0.5 text-lg font-semibold tabular-nums", accent && "text-accent")}>
+      <div className={cn("mt-0.5 text-2xl font-bold tabular-nums", accent ? "text-gradient" : "text-foreground")}>
         {typeof value === "number" ? <AnimatedNumber value={value} /> : value}
       </div>
     </div>

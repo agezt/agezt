@@ -51,7 +51,7 @@ export function ConsoleName() {
           onClick={begin}
           title="Rename your console"
           aria-label="Rename console"
-          className="text-accent transition-opacity hover:opacity-80"
+          className="text-gradient font-bold transition-opacity hover:opacity-80"
         >
           {name}
         </button>
