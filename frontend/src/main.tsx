@@ -1,5 +1,9 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
+// Self-hosted variable sans for all UI chrome (M951). Vite emits the woff2 as a
+// hashed same-origin asset, so it loads under the strict CSP (font-src 'self').
+// Monospace is kept for code/IDs/numbers via the --font-mono token in index.css.
+import "@fontsource-variable/inter";
 import "./index.css";
 import App from "./App";
 import { applyAccentHue, loadAccentHue } from "@/lib/accent";

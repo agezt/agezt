@@ -6,12 +6,15 @@ const badgeVariants = cva(
   "inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium",
   {
     variants: {
+      // A soft tinted fill (colour/10) behind the coloured text reads as a richer,
+      // more legible status chip than a hairline outline alone (M951). The text-*
+      // colour classes are preserved for downstream tests/semantics.
       variant: {
         default: "border-border bg-panel text-foreground",
-        good: "border-good text-good",
-        bad: "border-bad text-bad",
-        warn: "border-warn text-warn",
-        accent: "border-accent text-accent",
+        good: "border-good/30 bg-good/10 text-good",
+        bad: "border-bad/30 bg-bad/10 text-bad",
+        warn: "border-warn/30 bg-warn/10 text-warn",
+        accent: "border-accent/30 bg-accent/10 text-accent",
       },
     },
     defaultVariants: { variant: "default" },

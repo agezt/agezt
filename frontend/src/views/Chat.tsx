@@ -367,7 +367,7 @@ export function Chat() {
             onKeyDown={onKeyDown}
             rows={1}
             placeholder="Ask the agent to do something…  (Enter to send, Shift+Enter for a new line)"
-            className="max-h-40 min-h-[2.5rem] flex-1 resize-none overflow-y-auto rounded-lg border border-border bg-panel px-3 py-2 text-sm outline-none placeholder:text-muted focus-visible:border-accent"
+            className="max-h-40 min-h-[2.5rem] flex-1 resize-none overflow-y-auto rounded-lg border border-border bg-panel px-3 py-2 text-sm shadow-e1 outline-none transition-[border-color,box-shadow] placeholder:text-muted focus-visible:border-accent focus-visible:ring-2 focus-visible:ring-accent/30"
           />
           {busy ? (
             <Button variant="danger" size="icon" onClick={stop} title="Stop">
@@ -553,7 +553,7 @@ function EmptyState({ onPick }: { onPick: (s: string) => void }) {
 
   return (
     <div className="flex h-full flex-col items-center justify-center gap-4 text-center">
-      <div className="flex size-12 items-center justify-center rounded-2xl bg-accent/15 text-accent">
+      <div className="flex size-12 items-center justify-center rounded-2xl bg-gradient-to-br from-accent/30 to-accent/5 text-accent shadow-e2 ring-1 ring-inset ring-accent/20">
         <Sparkles className="size-6" />
       </div>
       <div>

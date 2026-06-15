@@ -3,15 +3,18 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent disabled:pointer-events-none disabled:opacity-50 [&_svg]:size-4 [&_svg]:shrink-0",
+  "inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-md text-sm font-medium transition-[color,background-color,border-color,box-shadow,transform,filter] duration-150 outline-none focus-visible:ring-2 focus-visible:ring-accent/55 active:translate-y-px disabled:pointer-events-none disabled:opacity-50 [&_svg]:size-4 [&_svg]:shrink-0",
   {
     variants: {
       variant: {
-        default: "border border-border bg-panel hover:border-accent",
-        accent: "bg-accent text-white hover:opacity-90",
+        // Subtle elevation on bordered/filled buttons makes them feel tactile;
+        // ghost stays flat. Accent gets a brightness lift instead of an opacity
+        // wash so its colour stays true on hover (M951).
+        default: "border border-border bg-panel shadow-e1 hover:border-accent hover:bg-card",
+        accent: "bg-accent text-white shadow-e1 hover:shadow-e2 hover:brightness-110 active:brightness-95",
         good: "border border-good text-good hover:bg-good hover:text-white",
         danger: "border border-bad text-bad hover:bg-bad hover:text-white",
-        ghost: "hover:bg-panel",
+        ghost: "hover:bg-panel hover:text-foreground",
       },
       size: {
         default: "h-8 px-3 py-1",
