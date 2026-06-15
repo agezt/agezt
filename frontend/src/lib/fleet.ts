@@ -137,7 +137,8 @@ export interface ApiWorkflow {
 export interface ApiPulse {
   running?: boolean;
   paused?: boolean;
-  cadence_sec?: number;
+  cadence_ms?: number; // the daemon reports the heartbeat period in ms
+  cadence_sec?: number; // tolerated fallback
   dial?: string;
 }
 
@@ -221,7 +222,8 @@ function scheduleTrigger(s: ApiSchedule): FleetTrigger {
 
 function systemEntities(pulse?: ApiPulse): FleetEntity[] {
   const pulseRunning = pulse ? !!pulse.running && !pulse.paused : true;
-  const cadence = pulse?.cadence_sec ? `every ${pulse.cadence_sec}s` : "heartbeat";
+  const secs = pulse?.cadence_ms ? Math.round(pulse.cadence_ms / 1000) : pulse?.cadence_sec;
+  const cadence = secs ? `every ${secs}s` : "heartbeat";
   return [
     {
       key: "system:pulse",

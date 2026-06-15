@@ -93,6 +93,13 @@ describe("buildFleet", () => {
     expect(fleet.filter((e) => e.kind === "system").map((e) => e.slug).sort()).toEqual(["overseer", "pulse", "reaper"]);
   });
 
+  it("labels Pulse cadence from the daemon's cadence_ms", () => {
+    const f = buildFleet([], [], [], [], [], { running: true, cadence_ms: 60000 });
+    const pulse = f.find((e) => e.key === "system:pulse")!;
+    expect(pulse.triggers[0].label).toBe("every 60s");
+    expect(pulse.running).toBe(true);
+  });
+
   it("derives roster state + triggers", () => {
     const ops = byKey("roster:ops");
     expect(ops.running).toBe(true);
