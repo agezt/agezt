@@ -144,6 +144,9 @@ var apiRoutes = map[string]string{
 	"/api/sandbox":         controlplane.CmdSandboxList,
 	"/api/config/schema":   controlplane.CmdConfigSchema,
 	"/api/config/values":   controlplane.CmdConfigValues,
+	// Build/version provenance (M971): semver + git revision, so the UI can show
+	// exactly which build the daemon is running.
+	"/api/version": controlplane.CmdVersion,
 	// Per-task model routing (M703): the effective chains + known task types.
 	"/api/routing": controlplane.CmdRoutingGet,
 	// Named reusable fallback chains (M963): the registry + default chain.

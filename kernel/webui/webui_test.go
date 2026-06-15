@@ -557,7 +557,7 @@ func TestAPIReadOnly(t *testing.T) {
 		"skill_list": true, "standing_list": true, "agent_list": true, "toolforge_list": true, "mcp_list": true, "workflow_list": true, "workflow_templates": true, "inbox": true, "reflect_show": true, "approvals": true,
 		"plan_stats": true, "edict_show": true, "tool_list": true, "board_read": true, "autonomy_feed": true,
 		"catalog_list": true, "sandbox_list": true,
-		"config_schema": true, "config_values": true, "routing_get": true, "chains_get": true, "persona_get": true, "prompts_get": true,
+		"config_schema": true, "config_values": true, "routing_get": true, "chains_get": true, "persona_get": true, "prompts_get": true, "version": true,
 		"pulse_status": true, "journal_verify": true, "storage_stats": true,
 		"data_collections": true,
 		"council_members":  true,
