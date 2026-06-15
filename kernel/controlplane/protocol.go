@@ -1113,6 +1113,17 @@ const (
 	CmdMCPSetEnabled = "mcp_set_enabled"
 	CmdMCPRemove     = "mcp_remove"
 
+	// CLI toolbox (M956) — host CLI-tool inventory + installer behind the
+	// Setup → Toolbox page. Detect/Outdated: no args, read-only host probe
+	// (LookPath + bounded --version; package-manager upgrade-list). Install:
+	// args.names ([]string) — streams one progress event per tool then a final
+	// {installed,failed,skipped} result. Runs the host package manager
+	// (winget/choco/brew/apt…) at host level; every install is journaled
+	// (toolbox.*).
+	CmdToolboxDetect   = "toolbox_detect"
+	CmdToolboxOutdated = "toolbox_outdated"
+	CmdToolboxInstall  = "toolbox_install"
+
 	// Workflow engine (M798) — durable typed-node graphs behind
 	// `agt workflow` and the console canvas. Save: args.workflow (the whole
 	// graph object; upsert by name). Run: args{ref, payload?} — executes

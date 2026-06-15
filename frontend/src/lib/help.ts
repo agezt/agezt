@@ -1635,7 +1635,57 @@ export const HELP: Record<string, HelpTopic> = {
     related: [
       { id: "providers", label: "Providers" },
       { id: "models", label: "Models" },
-      { id: "configcenter", label: "Config Center" },
+      { id: "toolbox", label: "Toolbox" },
+    ],
+  },
+
+  toolbox: {
+    title: "Toolbox",
+    intro:
+      "The host's CLI tool library: see which command-line tools are installed, missing, or out of date on the machine agezt runs on — and install the missing ones from here.",
+    sections: [
+      {
+        heading: "What you see",
+        items: [
+          {
+            term: "Census band",
+            desc: "Catalog size, plus how many tools are installed, missing, outdated, and installable on this host. The OS and the detected package managers (winget/choco/brew/apt…) are shown in the header.",
+          },
+          {
+            term: "Status badges",
+            desc: "Each tool card reads installed (with its version), missing, or update (when 'Check updates' found a newer release). Cards with no recipe for this OS say so.",
+          },
+          {
+            term: "Filters & search",
+            desc: "Narrow by installed / missing or by category (search, data, media, build, cloud…), or type to search names, descriptions, and managers.",
+          },
+        ],
+      },
+      {
+        heading: "Installing",
+        items: [
+          {
+            term: "One tool",
+            desc: "Click Install on a card to run the shown package-manager command. The exact command appears under every missing tool before you run it.",
+          },
+          {
+            term: "Bulk install",
+            desc: "Install all missing, or all missing in a category — each asks for confirmation (it changes the host) and then streams per-tool progress live in the output panel.",
+          },
+          {
+            term: "Check updates",
+            desc: "Asks the host package managers what's upgradable and flags those tools with an Update button.",
+          },
+        ],
+      },
+    ],
+    tips: [
+      "Installs run the real package manager on the machine agezt runs on, as the daemon's user — some packages may need elevation; failures show the command so you can run it yourself.",
+    ],
+    related: [
+      { id: "setup", label: "Setup" },
+      { id: "tools", label: "Tools" },
+      { id: "sandbox", label: "Sandbox" },
     ],
   },
 

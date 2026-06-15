@@ -15,6 +15,8 @@ const NAV_IDS = [
   "wizards", "workflows", "schedules", "standing",
   // Knowledge
   "memory", "world", "skills", "reflect",
+  // Setup
+  "toolbox",
   // System
   "overview", "setup", "system", "persona", "prompts", "configcenter", "config",
   "providers", "models", "routing", "tools", "catalog", "policy", "cache", "storage", "backup",

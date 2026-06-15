@@ -121,7 +121,12 @@ var apiRoutes = map[string]string{
 	"/api/agents":        controlplane.CmdAgentList,
 	"/api/toolforge":     controlplane.CmdToolforgeList,
 	"/api/mcp":           controlplane.CmdMCPList,
-	"/api/workflows":     controlplane.CmdWorkflowList,
+	// CLI Toolbox (M956): host tool inventory + upgradable set. Read-only host
+	// probes (LookPath + bounded --version; package-manager upgrade-list). The
+	// install action streams, so it has its own proxy (toolInstallProxy) below.
+	"/api/toolbox":         controlplane.CmdToolboxDetect,
+	"/api/toolbox/updates": controlplane.CmdToolboxOutdated,
+	"/api/workflows":       controlplane.CmdWorkflowList,
 	// Built-in workflow template gallery (M807). Read-only.
 	"/api/workflows/templates": controlplane.CmdWorkflowTemplates,
 	"/api/inbox":               controlplane.CmdInbox,
@@ -492,6 +497,9 @@ func (s *Server) Handler() http.Handler {
 	}
 	mux.HandleFunc("/api/plan/run", s.auth(s.planRunProxy()))
 	mux.HandleFunc("/api/run", s.auth(s.runStreamProxy()))
+	// CLI Toolbox install (M956): runs the host package manager and streams a
+	// per-tool progress event then a final summary as SSE.
+	mux.HandleFunc("/api/toolbox/install", s.auth(s.toolInstallProxy()))
 	mux.HandleFunc("/api/transcribe", s.auth(s.handleTranscribe))
 	// Binary artifact serving (M822): streams the raw bytes for a content ref with
 	// a sanitized Content-Type, so an <img src> / download link can render stored
@@ -652,6 +660,72 @@ func (s *Server) runStreamProxy() http.HandlerFunc {
 		}
 		write(map[string]any{"kind": "done", "result": res})
 	}
+}
+
+// toolInstallProxy is the CLI Toolbox install button (M956): it runs the host
+// package manager for the requested tools via controlplane.CmdToolboxInstall and
+// streams the per-tool progress events + final summary to the browser as SSE,
+// exactly like runStreamProxy. Each event IS the install-progress payload, so
+// it's forwarded inline. Only `names` is forwarded from the body.
+func (s *Server) toolInstallProxy() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		flusher, ok := w.(http.Flusher)
+		if !ok {
+			http.Error(w, "streaming unsupported", http.StatusInternalServerError)
+			return
+		}
+		args, ok := s.decodeAllowedBody(w, r, []string{"names"})
+		if !ok {
+			return
+		}
+		if len(stringList(args["names"])) == 0 {
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "names (non-empty list) is required"})
+			return
+		}
+
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.Header().Set("Cache-Control", "no-cache")
+		w.Header().Set("Connection", "keep-alive")
+		w.WriteHeader(http.StatusOK)
+		write := func(obj any) {
+			b, _ := json.Marshal(obj)
+			_, _ = w.Write([]byte("data: "))
+			_, _ = w.Write(b)
+			_, _ = w.Write([]byte("\n\n"))
+			flusher.Flush()
+		}
+		write(map[string]any{"kind": "open"})
+
+		ctx, cancel := context.WithTimeout(r.Context(), planRunTimeout)
+		defer cancel()
+		res, err := s.client.Stream(ctx, controlplane.CmdToolboxInstall, args, func(ev *event.Event) {
+			write(map[string]any{
+				"kind":    string(ev.Kind),
+				"subject": ev.Subject,
+				"payload": ev.Payload,
+			})
+		})
+		if err != nil {
+			write(map[string]any{"kind": "error", "error": err.Error()})
+			return
+		}
+		write(map[string]any{"kind": "done", "result": res})
+	}
+}
+
+// stringList coerces a decoded JSON array of strings (body value) to []string.
+func stringList(raw any) []string {
+	list, ok := raw.([]any)
+	if !ok {
+		return nil
+	}
+	out := make([]string, 0, len(list))
+	for _, x := range list {
+		if s, ok := x.(string); ok && s != "" {
+			out = append(out, s)
+		}
+	}
+	return out
 }
 
 // maxHistoryTurns bounds how many prior turns the Chat view can fold into one

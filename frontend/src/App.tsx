@@ -20,6 +20,7 @@ import {
   Database,
   Cpu,
   Wrench,
+  PackageOpen,
   Boxes,
   Shield,
   Archive,
@@ -110,6 +111,7 @@ import { Catalog } from "@/views/Catalog";
 import { Models } from "@/views/Models";
 import { Routing } from "@/views/Routing";
 import { Setup, anyCredentialed, type SetupCatalog } from "@/views/Setup";
+import { Toolbox } from "@/views/Toolbox";
 import { Files } from "@/views/Files";
 import { Data } from "@/views/Data";
 import { Council } from "@/views/Council";
@@ -215,11 +217,18 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
+    id: "provision",
+    label: "Setup",
+    items: [
+      { id: "setup", label: "Setup", icon: Wand2, render: Setup },
+      { id: "toolbox", label: "Toolbox", icon: PackageOpen, render: Toolbox },
+    ],
+  },
+  {
     id: "system",
     label: "System",
     items: [
       { id: "overview", label: "Overview", icon: LayoutDashboard, render: Dashboard },
-      { id: "setup", label: "Setup", icon: Wand2, render: Setup },
       { id: "system", label: "System", icon: Settings, render: Status },
       { id: "persona", label: "Persona", icon: Bot, render: Persona },
       { id: "prompts", label: "Prompts", icon: MessageSquarePlus, render: Prompts },
