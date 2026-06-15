@@ -641,6 +641,8 @@ export default function App() {
       <MiniChat hidden={active === "chat"} onExpand={() => setActive("chat")} />
       <Header
         connected={connected}
+        chatActive={active === "chat" && !agentSlug}
+        onOpenChat={() => setActive("chat")}
         onOpenPalette={() => setPaletteOpen(true)}
         onOpenHelp={() => setHelpOpen(true)}
       />
@@ -786,10 +788,14 @@ export default function App() {
 
 function Header({
   connected,
+  chatActive,
+  onOpenChat,
   onOpenPalette,
   onOpenHelp,
 }: {
   connected: boolean;
+  chatActive: boolean;
+  onOpenChat: () => void;
   onOpenPalette: () => void;
   onOpenHelp: () => void;
 }) {
@@ -821,6 +827,23 @@ function Header({
         ● {connected ? "live" : "disconnected"}
       </span>
       <div className="ml-auto flex items-center gap-2">
+        {/* Always-on Chat button (M985): the chat surface is the product's core
+            ([[product-layer-priority]]), but the two-level nav buries it two
+            clicks deep from any other section. This jumps there from anywhere. */}
+        <button
+          onClick={onOpenChat}
+          aria-current={chatActive ? "page" : undefined}
+          className={cn(
+            "inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-sm font-medium transition-colors",
+            chatActive
+              ? "bg-accent text-white shadow-e1"
+              : "border border-accent/40 text-accent hover:bg-accent hover:text-white",
+          )}
+          title="Go to Chat"
+        >
+          <MessageSquare className="size-4" />
+          <span className="hidden sm:inline">Chat</span>
+        </button>
         <NotifyToggle />
         <ApprovalsBell />
         <AlertBell />
