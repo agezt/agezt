@@ -7,6 +7,7 @@ import { categoryOf, isErrorKind } from "@/lib/eventmeta";
 import { cn, fmtTime } from "@/lib/utils";
 import { DataView } from "@/components/DataView";
 import { Muted, ErrorText } from "@/components/JsonView";
+import { PageHeader } from "@/components/ui/page-header";
 
 // Search queries the FULL journal server-side (CmdJournalGrep) — the historical
 // counterpart to the live stream. Filter by free-text pattern plus
@@ -47,13 +48,17 @@ export function Search() {
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3">
-      <div className="flex items-center gap-2">
-        <h2 className="flex items-center gap-2 text-sm font-semibold">
-          <SearchIcon className="size-4 text-accent" /> Journal search
-        </h2>
-        <JournalIntegrity />
-        <JournalExport />
-      </div>
+      <PageHeader
+        icon={SearchIcon}
+        title="Journal search"
+        description="find and inspect any past event across the daemon's whole history"
+        actions={
+          <>
+            <JournalIntegrity />
+            <JournalExport />
+          </>
+        }
+      />
 
       {/* Filters */}
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
@@ -75,7 +80,7 @@ export function Search() {
       </div>
 
       {/* Results */}
-      <div className="min-h-0 flex-1 overflow-auto rounded-lg border border-border bg-card font-mono text-xs">
+      <div className="min-h-0 flex-1 overflow-auto glass rounded-xl font-mono text-xs">
         {err ? (
           <div className="p-3">
             <ErrorText>{err}</ErrorText>

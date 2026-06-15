@@ -21,6 +21,7 @@ import { ErrorText } from "@/components/JsonView";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { useEvents, type AgentEvent } from "@/lib/events";
 import { AgentAvatar } from "@/components/AgentAvatar";
+import { PageHeader } from "@/components/ui/page-header";
 
 // Shapes mirror the read routes this view aggregates — kept loose (all optional)
 // so a field the backend drops never crashes the dashboard.
@@ -152,31 +153,34 @@ export function Overseer() {
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3">
-      <div className="flex items-center gap-2">
-        <h2 className="flex items-center gap-2 text-sm font-semibold">
-          <Eye className="size-4 text-accent" /> Overseer
-        </h2>
-        <span
-          className={cn(
-            "flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium",
-            connected ? "bg-good/10 text-good" : "bg-muted/20 text-muted",
-          )}
-          title={connected ? "Live event stream connected" : "Stream disconnected — polling"}
-        >
-          <CircleDot className={cn("size-3", connected && "animate-pulse")} />
-          {connected ? "live" : "offline"}
-        </span>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="ml-auto"
-          onClick={reload}
-          disabled={loading}
-          title="Refresh now"
-        >
-          <RefreshCw className={cn("size-4", loading && "animate-spin")} />
-        </Button>
-      </div>
+      <PageHeader
+        icon={Eye}
+        title="Overseer"
+        description="The supervisory dashboard — what is running, who is on the roster, who needs help."
+        actions={
+          <>
+            <span
+              className={cn(
+                "flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium",
+                connected ? "bg-good/10 text-good" : "bg-muted/20 text-muted",
+              )}
+              title={connected ? "Live event stream connected" : "Stream disconnected — polling"}
+            >
+              <CircleDot className={cn("size-3", connected && "animate-pulse")} />
+              {connected ? "live" : "offline"}
+            </span>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={reload}
+              disabled={loading}
+              title="Refresh now"
+            >
+              <RefreshCw className={cn("size-4", loading && "animate-spin")} />
+            </Button>
+          </>
+        }
+      />
 
       {err && <ErrorText>{err}</ErrorText>}
 
@@ -368,7 +372,7 @@ function Stat({
   return (
     <div
       className={cn(
-        "flex items-center gap-3 rounded-lg border border-border bg-card px-3 py-2.5 shadow-e1",
+        "glass flex items-center gap-3 rounded-xl px-3 py-2.5",
         tone === "accent" && "border-accent/40",
         tone === "warn" && "border-amber-500/40",
       )}
@@ -401,7 +405,7 @@ function Panel({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex min-h-0 flex-col gap-2 overflow-hidden rounded-lg border border-border bg-card p-3 shadow-e1">
+    <div className="glass flex min-h-0 flex-col gap-2 overflow-hidden rounded-xl p-3">
       <h3 className="flex items-center gap-2 text-xs font-semibold">
         {icon} {title}
       </h3>

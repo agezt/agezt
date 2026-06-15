@@ -253,7 +253,7 @@ export function Data() {
             ) : activeCol.view === "contacts" ? (
               <ContactsView records={records} onEdit={(r) => setEditing(r)} onDelete={delRecord} />
             ) : (
-              <div className="min-h-0 flex-1 overflow-auto rounded-lg border border-border">
+              <div className="min-h-0 flex-1 overflow-auto glass rounded-xl">
                 <table className="w-full border-collapse text-sm">
                   <thead className="sticky top-0 bg-panel text-left text-[11px] uppercase tracking-wide text-muted">
                     <tr>
@@ -375,7 +375,7 @@ function ExpenseView({ records, onEdit, onDelete }: BespokeProps) {
       </div>
 
       {cats.length > 0 && (
-        <div className="rounded-lg border border-border bg-card p-3">
+        <div className="glass rounded-xl p-3">
           <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted">By category</div>
           <ul className="space-y-1.5">
             {cats.slice(0, 8).map(([cat, amt]) => (
@@ -393,7 +393,7 @@ function ExpenseView({ records, onEdit, onDelete }: BespokeProps) {
 
       <ul className="space-y-1">
         {recent.map((r) => (
-          <li key={r.id} className="group flex items-center gap-3 rounded-lg border border-border bg-card px-3 py-2 text-sm">
+          <li key={r.id} className="group flex items-center gap-3 glass rounded-xl px-3 py-2 text-sm">
             <span className="w-24 shrink-0 font-mono text-[11px] text-muted">{String(r.fields?.date ?? "")}</span>
             <span className="min-w-0 flex-1 truncate">{String(r.fields?.item ?? "—")}</span>
             {r.fields?.category != null && String(r.fields.category) !== "" && (
@@ -417,7 +417,7 @@ function TasksView({ records, onEdit, onDelete, onToggle }: BespokeProps & { onT
   const Row = (r: DataRecord) => {
     const isDone = truthy(r.fields?.done);
     return (
-      <li key={r.id} className="group flex items-center gap-2.5 rounded-lg border border-border bg-card px-3 py-2 text-sm">
+      <li key={r.id} className="group flex items-center gap-2.5 glass rounded-xl px-3 py-2 text-sm">
         <button onClick={() => onToggle(r)} title={isDone ? "mark not done" : "mark done"} className="shrink-0 text-muted hover:text-accent">
           {isDone ? <CheckCircle2 className="size-4 text-good" /> : <Circle className="size-4" />}
         </button>
@@ -460,7 +460,7 @@ function CalendarView({ records, onEdit, onDelete }: BespokeProps) {
   const upcoming = sorted.filter((r) => str(r.fields?.date) >= today);
   const past = sorted.filter((r) => str(r.fields?.date) < today).reverse();
   const Item = (r: DataRecord) => (
-    <li key={r.id} className="group flex items-start gap-3 rounded-lg border border-border bg-card px-3 py-2 text-sm">
+    <li key={r.id} className="group flex items-start gap-3 glass rounded-xl px-3 py-2 text-sm">
       <div className="flex w-16 shrink-0 flex-col items-center rounded-md bg-panel py-1">
         <CalendarDays className="size-3.5 text-accent" />
         <span className="mt-0.5 font-mono text-[10px] text-muted">{str(r.fields?.date).slice(5) || "—"}</span>
@@ -497,7 +497,7 @@ function HabitsView({ records, onEdit, onDelete }: BespokeProps) {
   return (
     <div className="grid min-h-0 flex-1 grid-cols-2 gap-2 overflow-auto md:grid-cols-3">
       {sorted.map((r) => (
-        <div key={r.id} className="group flex flex-col rounded-lg border border-border bg-card p-3">
+        <div key={r.id} className="group flex flex-col glass rounded-xl p-3">
           <div className="flex items-center gap-2">
             <span className="min-w-0 flex-1 truncate font-medium">{str(r.fields?.name) || "—"}</span>
             <RowActions r={r} onEdit={onEdit} onDelete={onDelete} />
@@ -522,7 +522,7 @@ function NotesView({ records, onEdit, onDelete }: BespokeProps) {
   return (
     <div className="grid min-h-0 flex-1 grid-cols-1 gap-2 overflow-auto md:grid-cols-2 xl:grid-cols-3">
       {records.map((r) => (
-        <div key={r.id} className="group flex flex-col rounded-lg border border-border bg-card p-3">
+        <div key={r.id} className="group flex flex-col glass rounded-xl p-3">
           <div className="flex items-center gap-2">
             <StickyNote className="size-3.5 shrink-0 text-accent" />
             <span className="min-w-0 flex-1 truncate font-medium">{str(r.fields?.title) || "untitled"}</span>
@@ -550,7 +550,7 @@ function BookmarksView({ records, onEdit, onDelete }: BespokeProps) {
         // url like "javascript:alert(1)" would otherwise execute on click (XSS).
         const href = safeHref(url);
         return (
-          <li key={r.id} className="group flex items-center gap-3 rounded-lg border border-border bg-card px-3 py-2 text-sm">
+          <li key={r.id} className="group flex items-center gap-3 glass rounded-xl px-3 py-2 text-sm">
             <Bookmark className="size-3.5 shrink-0 text-accent" />
             <div className="min-w-0 flex-1">
               <div className="truncate font-medium">{str(r.fields?.title) || url || "—"}</div>
@@ -585,7 +585,7 @@ function ContactsView({ records, onEdit, onDelete }: BespokeProps) {
   return (
     <div className="grid min-h-0 flex-1 grid-cols-1 gap-2 overflow-auto md:grid-cols-2 xl:grid-cols-3">
       {sorted.map((r) => (
-        <div key={r.id} className="group flex flex-col rounded-lg border border-border bg-card p-3">
+        <div key={r.id} className="group flex flex-col glass rounded-xl p-3">
           <div className="flex items-center gap-2">
             <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-panel text-accent">
               <User className="size-3.5" />
@@ -616,7 +616,7 @@ function ContactsView({ records, onEdit, onDelete }: BespokeProps) {
 
 function SummaryCard({ label, value, icon }: { label: string; value: string; icon?: ReactNode }) {
   return (
-    <div className="rounded-lg border border-border bg-card p-3">
+    <div className="glass rounded-xl p-3">
       <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-wide text-muted">
         {icon}
         {label}

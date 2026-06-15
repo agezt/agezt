@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { ErrorText } from "@/components/JsonView";
 import { SkeletonList } from "@/components/ui/skeleton";
+import { PageHeader } from "@/components/ui/page-header";
 import { FlightRecorder } from "@/components/FlightRecorder";
 
 interface Run {
@@ -75,26 +76,30 @@ export function Replay() {
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <h2 className="flex items-center gap-2 text-sm font-semibold">
-          <Clapperboard className="size-4 text-accent" /> Flight recorder
-        </h2>
-        <select
-          value={sel}
-          onChange={(e) => setSel(e.target.value)}
-          className="h-8 max-w-[60%] flex-1 rounded-md border border-border bg-panel px-2 text-xs outline-none focus:border-accent"
-        >
-          {runs.length === 0 && <option value="">no runs yet</option>}
-          {runs.map((r) => (
-            <option key={r.correlation_id} value={r.correlation_id}>
-              {(r.status === "running" ? "● " : "") + (r.intent ? r.intent.slice(0, 70) : r.correlation_id)}
-            </option>
-          ))}
-        </select>
-        <Button variant="ghost" size="sm" onClick={loadRuns} title="Reload run list">
-          <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
-        </Button>
-      </div>
+      <PageHeader
+        icon={Clapperboard}
+        title="Flight recorder"
+        description="Pick any run and scrub through exactly what the agent did, step by step."
+        actions={
+          <>
+            <select
+              value={sel}
+              onChange={(e) => setSel(e.target.value)}
+              className="h-8 max-w-[60%] flex-1 rounded-md border border-border bg-panel px-2 text-xs outline-none focus:border-accent"
+            >
+              {runs.length === 0 && <option value="">no runs yet</option>}
+              {runs.map((r) => (
+                <option key={r.correlation_id} value={r.correlation_id}>
+                  {(r.status === "running" ? "● " : "") + (r.intent ? r.intent.slice(0, 70) : r.correlation_id)}
+                </option>
+              ))}
+            </select>
+            <Button variant="ghost" size="sm" onClick={loadRuns} title="Reload run list">
+              <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
+            </Button>
+          </>
+        }
+      />
 
       {err ? (
         <ErrorText>{err}</ErrorText>

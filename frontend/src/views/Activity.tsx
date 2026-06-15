@@ -16,6 +16,7 @@ import { getJSON, postAction } from "@/lib/api";
 import { useEvents } from "@/lib/events";
 import { useUI } from "@/components/ui/feedback";
 import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/ui/page-header";
 import { RunDetailLoader } from "@/components/RunDetail";
 import {
   seedFromRuns,
@@ -95,22 +96,27 @@ export function Activity() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-4">
-      <div className="flex items-center gap-3">
-        <h2 className="flex items-center gap-2 text-sm font-semibold">
-          <ActivityIcon className="size-4 text-accent" /> Live activity
-        </h2>
-        <span
-          className={cn(
-            "inline-flex items-center gap-1 text-xs",
-            connected ? "text-good" : "text-bad",
-          )}
-        >
-          ● {connected ? "live" : "disconnected"}
-        </span>
-        <Button variant="ghost" size="sm" onClick={seed} disabled={seeding} className="ml-auto">
-          <RefreshCw className={cn("size-3.5", seeding && "animate-spin")} /> Refresh
-        </Button>
-      </div>
+      <PageHeader
+        icon={ActivityIcon}
+        title="Live activity"
+        description="Is anything running right now, and what is it doing?"
+        actions={
+          <>
+            <span
+              className={cn(
+                "inline-flex items-center gap-1 text-xs",
+                connected ? "text-good" : "text-bad",
+              )}
+            >
+              ● {connected ? "live" : "disconnected"}
+            </span>
+            <Button variant="ghost" size="sm" onClick={seed} disabled={seeding}>
+              <RefreshCw className={cn("size-3.5", seeding && "animate-spin")} /> Refresh
+            </Button>
+          </>
+        }
+      />
+
 
       <div className="grid grid-cols-3 gap-2">
         <Stat label="running now" value={summary.running} tone="accent" pulse={summary.running > 0} />
@@ -166,7 +172,7 @@ function Stat({
     muted: "text-muted",
   }[tone];
   return (
-    <div className="rounded-lg border border-border bg-card px-3 py-2">
+    <div className="glass rounded-xl px-3 py-2">
       <div className="flex items-center gap-1.5">
         <span className={cn("text-2xl font-semibold tabular-nums", color)}>{value}</span>
         {pulse && <span className="size-2 animate-pulse rounded-full bg-accent" />}

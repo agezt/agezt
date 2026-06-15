@@ -62,7 +62,7 @@ export function Config() {
                 {sections.map((sec) => {
                   const keys = buckets.get(sec)!;
                   return (
-                    <div key={sec} className="rounded-lg border border-border bg-card p-3">
+                    <div key={sec} className="glass rounded-xl p-3">
                       <div className="mb-1.5 flex items-center gap-2">
                         <h3 className="text-xs font-semibold uppercase tracking-wider text-accent">{sec}</h3>
                         <span className="text-[10px] text-muted">{keys.length}</span>

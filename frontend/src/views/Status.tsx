@@ -21,6 +21,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Muted, ErrorText } from "@/components/JsonView";
 import { SkeletonList } from "@/components/ui/skeleton";
+import { PageHeader } from "@/components/ui/page-header";
 
 interface StatusData {
   daemon?: string;
@@ -92,17 +93,21 @@ export function Status() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-3">
-        <h2 className="flex items-center gap-2 text-sm font-semibold">
-          <Activity className="size-4 text-accent" /> System health
-        </h2>
-        <span className={cn("inline-flex items-center gap-1 text-xs", connected ? "text-good" : "text-bad")}>
-          ● {connected ? "live" : "disconnected"}
-        </span>
-        <Button variant="ghost" size="sm" className="ml-auto" onClick={reload} disabled={loading}>
-          <RefreshCw className={cn("size-3.5", loading && "animate-spin")} /> Refresh
-        </Button>
-      </div>
+      <PageHeader
+        icon={Activity}
+        title="System health"
+        description="daemon vitals at a glance"
+        actions={
+          <>
+            <span className={cn("inline-flex items-center gap-1 text-xs", connected ? "text-good" : "text-bad")}>
+              ● {connected ? "live" : "disconnected"}
+            </span>
+            <Button variant="ghost" size="sm" onClick={reload} disabled={loading}>
+              <RefreshCw className={cn("size-3.5", loading && "animate-spin")} /> Refresh
+            </Button>
+          </>
+        }
+      />
 
       {err ? (
         <ErrorText>{err}</ErrorText>
@@ -230,7 +235,7 @@ function Tile({
 }) {
   const color = { accent: "text-accent", good: "text-good", bad: "text-bad", muted: "text-foreground" }[tone];
   return (
-    <div className="rounded-lg border border-border bg-card px-3 py-2.5">
+    <div className="glass rounded-xl px-3 py-2.5">
       <div className="flex items-center gap-1.5 text-xs text-muted">
         <Icon className="size-3.5" /> {label}
         {pulse && <span className="ml-auto size-2 animate-pulse rounded-full bg-accent" />}
@@ -242,7 +247,7 @@ function Tile({
 
 function Card({ title, icon: Icon, children }: { title: string; icon: typeof Activity; children: React.ReactNode }) {
   return (
-    <div className="rounded-lg border border-border bg-card p-3">
+    <div className="glass rounded-xl p-3">
       <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted">
         <Icon className="size-3.5" /> {title}
       </div>

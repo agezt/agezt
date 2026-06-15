@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { ErrorText } from "@/components/JsonView";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { useUI } from "@/components/ui/feedback";
+import { PageHeader } from "@/components/ui/page-header";
 import { rawURL, type ArtifactEntry } from "@/views/Files";
 
 // COMMON_CHANNELS pre-fills the kind picker with the channels the daemon can carry;
@@ -102,26 +103,28 @@ export function Inbox() {
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3">
-      <div className="flex items-center gap-2">
-        <h2 className="flex items-center gap-2 text-sm font-semibold">
-          <InboxIcon className="size-4 text-accent" /> Inbox
-        </h2>
-        <span className="text-xs text-muted">{threads ? `${threads.length} conversation(s)` : ""}</span>
-        <Button
-          size="sm"
-          className="ml-auto"
-          onClick={() => {
-            setPrefill(null);
-            setShowSend((v) => !v);
-          }}
-          title="Send a message via a channel"
-        >
-          {showSend ? <X className="size-3.5" /> : <Send className="size-3.5" />} Send message
-        </Button>
-        <Button variant="ghost" size="sm" onClick={reload} disabled={loading} title="Reload">
-          <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
-        </Button>
-      </div>
+      <PageHeader
+        icon={InboxIcon}
+        title="Inbox"
+        description={threads ? `${threads.length} conversation(s)` : "Unified conversation view across every channel."}
+        actions={
+          <>
+            <Button
+              size="sm"
+              onClick={() => {
+                setPrefill(null);
+                setShowSend((v) => !v);
+              }}
+              title="Send a message via a channel"
+            >
+              {showSend ? <X className="size-3.5" /> : <Send className="size-3.5" />} Send message
+            </Button>
+            <Button variant="ghost" size="sm" onClick={reload} disabled={loading} title="Reload">
+              <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
+            </Button>
+          </>
+        }
+      />
 
       {showSend && (
         <SendMessageForm
@@ -172,7 +175,7 @@ export function Inbox() {
             const shown = query ? threads.filter((th) => threadMatches(th, query)) : threads;
             if (shown.length === 0) return <p className="px-1 py-2 text-xs text-muted">no conversations match “{q.trim()}”</p>;
             return shown.map((th) => (
-            <div key={th.correlation_id} className="rounded-lg border border-border bg-card p-3">
+            <div key={th.correlation_id} className="glass rounded-xl p-3">
               <div className="mb-2 flex items-center gap-2">
                 <Badge>{th.channel_kind || "?"}</Badge>
                 {th.channel_id && <span className="truncate text-xs text-muted">{th.channel_id}</span>}

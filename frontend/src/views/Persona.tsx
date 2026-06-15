@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { ErrorText } from "@/components/JsonView";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useUI } from "@/components/ui/feedback";
+import { PageHeader } from "@/components/ui/page-header";
 
 // Persona is the agent's standing instructions / personality — the default system
 // prompt prepended to every run. Editing it here makes the daemon *yours*: tone,
@@ -96,13 +97,12 @@ export function Persona() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <h2 className="flex items-center gap-2 text-sm font-semibold">
-          <Bot className="size-4 text-accent" /> Persona
-        </h2>
-        <span className="text-xs text-muted">the agent's standing instructions</span>
-        <span className={`ml-auto text-xs ${status.tone}`}>● {status.label}</span>
-      </div>
+      <PageHeader
+        icon={Bot}
+        title="Persona"
+        description="the agent's standing instructions"
+        actions={<span className={`text-xs ${status.tone}`}>● {status.label}</span>}
+      />
 
       <p className="text-xs text-muted">
         This is the default <span className="text-foreground/80">system prompt</span> prepended to every run — your
@@ -117,7 +117,7 @@ export function Persona() {
         <Skeleton className="h-64 w-full" />
       ) : (
         <>
-          <div className="rounded-lg border border-border bg-card">
+          <div className="glass rounded-xl">
             <textarea
               ref={taRef}
               value={draft}

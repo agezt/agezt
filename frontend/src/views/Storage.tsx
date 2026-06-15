@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { SkeletonGrid } from "@/components/ui/skeleton";
 import { ErrorText } from "@/components/JsonView";
 import { useUI } from "@/components/ui/feedback";
+import { PageHeader } from "@/components/ui/page-header";
 
 // Storage view (M927): what under ~/.agezt is taking the space, and the
 // collectors that reclaim it. The breakdown comes from /api/storage
@@ -56,19 +57,22 @@ export function Storage() {
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3">
-      <div className="flex items-center gap-2">
-        <h2 className="flex items-center gap-2 text-sm font-semibold">
-          <HardDrive className="size-4 text-accent" /> Storage
-        </h2>
-        {data && (
-          <span className="truncate text-xs text-muted" title={data.base_dir}>
-            {data.base_dir}
-          </span>
-        )}
-        <Button variant="ghost" size="sm" className="ml-auto" onClick={reload} disabled={loading} title="Reload">
-          <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
-        </Button>
-      </div>
+      <PageHeader
+        icon={HardDrive}
+        title="Storage"
+        description={
+          data ? (
+            <span className="truncate" title={data.base_dir}>
+              {data.base_dir}
+            </span>
+          ) : undefined
+        }
+        actions={
+          <Button variant="ghost" size="sm" onClick={reload} disabled={loading} title="Reload">
+            <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
+          </Button>
+        }
+      />
 
       {error && <ErrorText>{error}</ErrorText>}
       {loading && !data && <SkeletonGrid count={6} />}
@@ -101,7 +105,7 @@ export function Storage() {
               {dirs.map((d) => {
                 const pct = pctOf(d.bytes, total);
                 return (
-                  <li key={d.name} className="rounded-lg border border-border bg-card px-3 py-2">
+                  <li key={d.name} className="glass rounded-xl px-3 py-2">
                     <div className="flex items-baseline gap-2 text-sm">
                       <span className="font-mono font-medium">{d.name}</span>
                       <span className="min-w-0 flex-1 truncate text-[11px] text-muted" title={d.label}>
@@ -145,7 +149,7 @@ export function Storage() {
 
 function SummaryCard({ label, value, sub, warn }: { label: string; value: string; sub?: string; warn?: boolean }) {
   return (
-    <div className={cn("rounded-lg border border-border bg-card px-3 py-2", warn && "border-bad/50")}>
+    <div className={cn("glass rounded-xl px-3 py-2", warn && "border-bad/50")}>
       <div className="text-[11px] uppercase tracking-wide text-muted">{label}</div>
       <div className={cn("truncate text-lg font-semibold", warn && "text-bad")}>{value}</div>
       {sub && <div className="truncate text-[11px] text-muted">{sub}</div>}
@@ -165,7 +169,7 @@ function CollectorCard({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-col gap-2 rounded-lg border border-border bg-card p-3">
+    <div className="glass flex flex-col gap-2 rounded-xl p-3">
       <div className="flex items-center gap-2 text-sm font-semibold">
         <Icon className="size-4 text-accent" /> {title}
       </div>
