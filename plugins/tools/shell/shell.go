@@ -151,6 +151,11 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, e
 	res, err := w.Run(ctx, warden.Spec{
 		Profile: profile,
 		Argv:    []string{shellBin, shellArg, in.Command},
+		// A scrubbed host environment (M957): PATH + the OS vars a shell needs,
+		// secrets dropped. Warden defaults a nil Env to EMPTY (anti-leak), but an
+		// empty env breaks cmd.exe on Windows (no PATH/SystemRoot → "not
+		// recognized" / "syntax is incorrect"), which was crippling the shell tool.
+		Env:     scrubEnv(workDir),
 		WorkDir: workDir, // M609 workspace coherence + M792 per-agent subdir
 		Limits: warden.Limits{
 			Timeout:        timeout,
