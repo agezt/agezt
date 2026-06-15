@@ -42,9 +42,19 @@ interface LiveRun {
   ts?: number;
 }
 
-// payloadIntent is the subset of agent-event payloads that carry an intent string.
+// PayloadIntent is the subset of agent-event payloads the Now strip reads: the
+// task intent and the agent SLUG. The slug must come from the payload, not the
+// event actor — for ad-hoc/chat runs the actor is the run correlation id
+// ("agent-run-…"), which is not a navigable agent (M980).
 interface PayloadIntent {
   intent?: string;
+  agent?: string;
+}
+
+// isRealAgent rejects run-correlation ids ("agent-run-…" / "run-…") so we never
+// deep-link to #agent/<run-id>, which renders a "no such agent" page.
+function isRealAgent(a: string | undefined): a is string {
+  return !!a && !a.startsWith("agent-run-") && !a.startsWith("run-");
 }
 
 // tickerLabel summarizes the newest event for the right-hand ticker.
@@ -72,7 +82,13 @@ export function FleetNowBar({ onNavigate }: { onNavigate?: (id: string) => void 
       if (e.kind === "task.received" || e.kind === "task.completed" || e.kind === "task.failed") {
         seen.add(corr);
         if (e.kind === "task.received") {
-          runs.push({ corr, agent: e.actor, intent: (e.payload as PayloadIntent | null)?.intent, ts: e.ts_unix_ms });
+          {
+            const p = e.payload as PayloadIntent | null;
+            // Agent slug comes from the payload; fall back to the actor only when
+            // it's a real slug (not a run id). Ad-hoc/chat runs stay agentless.
+            const agent = isRealAgent(p?.agent) ? p?.agent : isRealAgent(e.actor) ? e.actor : undefined;
+            runs.push({ corr, agent, intent: p?.intent, ts: e.ts_unix_ms });
+          }
         }
       }
     }
@@ -82,7 +98,7 @@ export function FleetNowBar({ onNavigate }: { onNavigate?: (id: string) => void 
   const latest = events[0];
   const spark = useMemo(() => activitySeries(events), [events]);
   const go = () => onNavigate?.("overseer");
-  const open = (r: LiveRun) => (r.agent ? openAgent(r.agent) : go());
+  const open = (r: LiveRun) => (isRealAgent(r.agent) ? openAgent(r.agent) : go());
 
   // Expanded view: a horizontal slider of running-agent cards.
   if (expanded && connected && live.length > 0) {
