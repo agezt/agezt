@@ -32,6 +32,7 @@ import { RunDetailLoader } from "@/components/RunDetail";
 import { AgentAvatar } from "@/components/AgentAvatar";
 import { FleetCard, FleetDetail } from "@/components/Fleet";
 import { AgentDetail } from "@/components/AgentDetail";
+import { openAgent } from "@/lib/agentnav";
 import type { AgentProfile } from "@/views/Roster";
 import { buildDelegationTree, type RunNode } from "@/lib/delegation";
 import {
@@ -548,7 +549,13 @@ export function Agents() {
             {shownFleet.length === 0 ? (
               <EmptyState icon={Search} title="No matches" hint="Try a different filter or search term." />
             ) : (
-              shownFleet.map((e) => <FleetCard key={e.key} e={e} onOpen={() => setSelKey(e.key)} />)
+              // A roster agent (created or guardian) opens its full, deep-linkable
+              // identity PAGE (#agent/<slug>) — what the owner expects when clicking
+              // an agent. Automations (standing/schedule/workflow) have no page, so
+              // they open the inline "how does this run?" panel.
+              shownFleet.map((e) => (
+                <FleetCard key={e.key} e={e} onOpen={() => (e.kind === "roster" ? openAgent(e.slug) : setSelKey(e.key))} />
+              ))
             )}
           </div>
           {selEntity && (
