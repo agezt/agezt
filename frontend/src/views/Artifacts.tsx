@@ -36,6 +36,7 @@ import {
   categoryOf,
   rawURL,
   previewMaxBytes,
+  isRunInternal,
 } from "./Files";
 
 // Artifacts gallery (M931): every kind of agent output, bucketed by what it IS
@@ -93,9 +94,14 @@ export function Artifacts() {
   const { data, error, loading, reload } = usePanel<ArtifactList>("/api/artifacts");
   const [cat, setCat] = useState<ArtifactCategory | "all">("all");
   const [query, setQuery] = useState("");
+  const [showRuns, setShowRuns] = useState(false);
   const [viewing, setViewing] = useState<ArtifactEntry | null>(null);
 
-  const entries = useMemo(() => data?.entries ?? [], [data]);
+  const allEntries = useMemo(() => data?.entries ?? [], [data]);
+  const runCount = useMemo(() => allEntries.filter(isRunInternal).length, [allEntries]);
+  // The gallery is the showroom of deliberate products — hide offloaded run/tool
+  // outputs by default so they don't bury the real artifacts (toggle to reveal).
+  const entries = useMemo(() => (showRuns ? allEntries : allEntries.filter((e) => !isRunInternal(e))), [allEntries, showRuns]);
   const searched = useMemo(() => entries.filter((e) => matchesQuery(e, query)), [entries, query]);
   const groups = useMemo(() => groupByCategory(searched), [searched]);
   const shownGroups = cat === "all" ? groups : groups.filter((g) => g.key === cat);
@@ -135,6 +141,18 @@ export function Artifacts() {
                 className="w-56 rounded-full border border-border bg-panel py-1 pl-7 pr-3 text-xs text-foreground placeholder:text-muted"
               />
             </div>
+            {runCount > 0 && (
+              <button
+                onClick={() => setShowRuns((v) => !v)}
+                className={cn(
+                  "rounded-full border px-2.5 py-0.5 text-[11px] transition-colors",
+                  showRuns ? "border-accent bg-accent/10 text-accent" : "border-border text-muted hover:text-foreground",
+                )}
+                title="Offloaded tool/run outputs are hidden by default — they're recoverable from each run"
+              >
+                {showRuns ? "Hide" : "Show"} run outputs ({runCount})
+              </button>
+            )}
             <Button variant="ghost" size="sm" onClick={reload} disabled={loading} title="Reload">
               <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
             </Button>
@@ -166,8 +184,12 @@ export function Artifacts() {
       {!loading && entries.length === 0 && !error && (
         <EmptyState
           icon={Shapes}
-          title="No artifacts yet"
-          hint="Everything your agents produce — reports, charts, pages, code — lands here, bucketed by type."
+          title={runCount > 0 ? "No artifacts — only run outputs" : "No artifacts yet"}
+          hint={
+            runCount > 0
+              ? `${runCount} offloaded run/tool output${runCount === 1 ? " is" : "s are"} hidden. Use “Show run outputs” above to browse them.`
+              : "Everything your agents produce — reports, charts, pages, code — lands here, bucketed by type."
+          }
         />
       )}
 

@@ -18,7 +18,7 @@ vi.mock("@/components/ui/feedback", () => ({
   useUI: () => ({ confirm: (...a: unknown[]) => confirm(...a), toast }),
 }));
 
-import { Files, isImage, rawURL, isPdf, textKind } from "@/views/Files";
+import { Files, isImage, rawURL, isPdf, textKind, isRunInternal } from "@/views/Files";
 
 afterEach(cleanup);
 beforeEach(() => {
@@ -55,31 +55,50 @@ describe("pure helpers", () => {
     expect(textKind({ id: "1", ref: "r", mime: "application/octet-stream" })).toBe("");
     expect(textKind({ id: "1", ref: "r", mime: "image/png" })).toBe("");
   });
+  it("isRunInternal flags offloaded tool outputs but not real files/uploads", () => {
+    expect(isRunInternal({ id: "1", ref: "r", kind: "tool-output", source: "run" })).toBe(true);
+    expect(isRunInternal({ id: "1", ref: "r", source: "run" })).toBe(true);
+    expect(isRunInternal({ id: "1", ref: "r", kind: "image", source: "telegram" })).toBe(false);
+    expect(isRunInternal({ id: "1", ref: "r", kind: "download", source: "fetch" })).toBe(false);
+    expect(isRunInternal({ id: "1", ref: "r", kind: "file", name: "report.md" })).toBe(false);
+  });
 });
 
 describe("Files view", () => {
   const list = {
-    count: 2,
+    count: 3,
     entries: [
-      { id: "art-1", ref: "aaa", kind: "image", source: "telegram", mime: "image/png", created_ms: 2, caption: "a cat" },
-      { id: "art-2", ref: "bbb", kind: "tool-output", name: "out.txt", mime: "text/plain", size: 1200, created_ms: 1 },
+      { id: "art-1", ref: "aaa", kind: "image", source: "telegram", mime: "image/png", created_ms: 3, caption: "a cat" },
+      { id: "art-2", ref: "bbb", kind: "tool-output", source: "run", name: "out.txt", mime: "text/plain", size: 1200, created_ms: 2 },
+      { id: "art-3", ref: "ccc", kind: "file", name: "report.md", mime: "text/markdown", size: 800, created_ms: 1 },
     ],
   };
 
-  it("renders an image gallery and a files list, and deletes after confirm", async () => {
+  it("renders an image gallery and a real files list, and deletes after confirm", async () => {
     getJSON.mockResolvedValue(list);
     confirm.mockResolvedValue(true);
     render(<Files />);
 
-    // The image renders as an <img> with the raw URL; the file shows its name.
-    await waitFor(() => expect(screen.getByText("out.txt")).toBeTruthy());
+    // The deliberate file (report.md) shows; the run-internal out.txt is hidden by default.
+    await waitFor(() => expect(screen.getByText("report.md")).toBeTruthy());
+    expect(screen.queryByText("out.txt")).toBeNull();
     const img = document.querySelector("img") as HTMLImageElement;
     expect(img).toBeTruthy();
     expect(img.getAttribute("src")).toContain("/api/artifact/raw?ref=aaa");
 
     // Delete the file row → confirm → postAction with the id.
     fireEvent.click(screen.getByTitle("Delete"));
-    await waitFor(() => expect(postAction).toHaveBeenCalledWith("/api/artifact/delete", { id: "art-2" }));
+    await waitFor(() => expect(postAction).toHaveBeenCalledWith("/api/artifact/delete", { id: "art-3" }));
+  });
+
+  it("hides run outputs by default and reveals them via the toggle", async () => {
+    getJSON.mockResolvedValue(list);
+    render(<Files />);
+    await waitFor(() => expect(screen.getByText("report.md")).toBeTruthy());
+    expect(screen.queryByText("out.txt")).toBeNull();
+    // Toggle reveals the offloaded run output.
+    fireEvent.click(screen.getByText(/Show run outputs/));
+    await waitFor(() => expect(screen.getByText("out.txt")).toBeTruthy());
   });
 
   it("shows an empty state when nothing is stored", async () => {

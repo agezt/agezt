@@ -10,14 +10,17 @@ const entry = (over: Partial<ArtifactEntry>): ArtifactEntry => ({ id: "a1", ref:
 const ENTRIES: ArtifactEntry[] = [
   entry({ id: "i1", ref: "ref-i1", name: "photo.png", mime: "image/png", kind: "image" }),
   entry({ id: "s1", ref: "ref-s1", name: "chart.svg", mime: "image/svg+xml" }),
-  entry({ id: "h1", ref: "ref-h1", name: "report.html", mime: "text/html", source: "run" }),
+  entry({ id: "h1", ref: "ref-h1", name: "report.html", mime: "text/html" }),
   entry({ id: "m1", ref: "ref-m1", name: "notes.md" }),
   entry({ id: "j1", ref: "ref-j1", name: "data.json" }),
   entry({ id: "b1", ref: "ref-b1", name: "blob.bin", mime: "application/octet-stream" }),
 ];
 
+// A run byproduct (offloaded tool output) — hidden from the gallery by default.
+const RUN_ENTRY = entry({ id: "run1", ref: "ref-run1", name: "shell-output.txt", mime: "text/plain", kind: "tool-output", source: "run" });
+
 vi.mock("@/lib/usePanel", () => ({
-  usePanel: () => ({ data: { count: 6, entries: ENTRIES }, error: null, loading: false, reload: () => {} }),
+  usePanel: () => ({ data: { count: 7, entries: [...ENTRIES, RUN_ENTRY] }, error: null, loading: false, reload: () => {} }),
 }));
 
 afterEach(cleanup);
@@ -79,5 +82,18 @@ describe("Artifacts view", () => {
     expect(screen.getByLabelText("Fullscreen")).toBeTruthy();
     fireEvent.click(screen.getByLabelText("Fullscreen"));
     expect(screen.getByLabelText("Exit fullscreen")).toBeTruthy();
+  });
+
+  it("hides run outputs by default and reveals them via the toggle", () => {
+    render(
+      <UIProvider>
+        <Artifacts />
+      </UIProvider>,
+    );
+    // The offloaded run output is not in the gallery initially…
+    expect(screen.queryByText("shell-output.txt")).toBeNull();
+    // …until the "Show run outputs (1)" toggle is clicked.
+    fireEvent.click(screen.getByText(/Show run outputs/));
+    expect(screen.getByText("shell-output.txt")).toBeTruthy();
   });
 });
