@@ -103,6 +103,7 @@ export function FleetCard({ e, onOpen }: { e: FleetEntity; onOpen: () => void })
   return (
     <button
       onClick={onOpen}
+      title={e.kind === "roster" ? `Open ${e.name}'s identity page` : `Open ${e.name}`}
       className={cn(
         "group flex flex-col gap-2 rounded-lg border bg-card p-3 text-left transition-colors hover:border-accent",
         e.running ? "border-accent/60" : "border-border",
@@ -130,6 +131,12 @@ export function FleetCard({ e, onOpen }: { e: FleetEntity; onOpen: () => void })
           </div>
         </div>
         <StatePill state={e.state} />
+        {e.kind === "roster" && (
+          <ArrowUpRight
+            className="size-3.5 shrink-0 text-muted opacity-0 transition-opacity group-hover:opacity-100"
+            aria-hidden="true"
+          />
+        )}
       </div>
 
       {e.description && (
