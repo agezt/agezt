@@ -78,6 +78,10 @@ func (s *Server) handleRunSteer(conn net.Conn, req Request) {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.directive required"})
 		return
 	}
+	// mode "note" = a soft BTW (read it, stay on task); anything else = a forceful
+	// steer that re-prioritises (the default, M962).
+	mode, _ := req.Args["mode"].(string)
+	note := mode == "note"
 	k, err := s.kernelFor(tenantOf(req))
 	if err != nil {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
@@ -85,6 +89,7 @@ func (s *Server) handleRunSteer(conn net.Conn, req Request) {
 	}
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{
 		"correlation": corr,
-		"accepted":    k.SteerRun(corr, directive),
+		"mode":        map[bool]string{true: "note", false: "steer"}[note],
+		"accepted":    k.SteerRun(corr, directive, note),
 	}})
 }

@@ -25,6 +25,8 @@ import {
   withActiveConvAgent,
   activeSummary,
   withActiveSummary,
+  activeQueue,
+  withActiveQueue,
   startConversation,
   deleteConversation,
   renameConversation,
@@ -33,6 +35,7 @@ import {
   type Msg,
   type Store,
 } from "@/lib/conversations";
+import { addQueued, removeQueued as removeFromQueue, moveQueued, dequeueFront, type QueuedMsg } from "@/lib/queue";
 
 // genId: a unique conversation id (localhost is a secure context, so
 // crypto.randomUUID is available; a timestamp+random fallback covers the rest).
@@ -123,6 +126,23 @@ export interface ChatEngine {
   learnedFor: (corr?: string) => LearnedMem[];
   /** Forget one learned memory (tombstones it in the store + drops the chip). */
   forgetLearned: (corr: string, id: string) => Promise<void>;
+  /** Correlation id of the run currently streaming, or null — the steer target. */
+  activeCorr: string | null;
+  /** Inject a directive into the running run: "steer" re-prioritises, "note" is a
+   *  soft BTW the agent reads without abandoning its task (M962). */
+  steer: (directive: string, mode: "steer" | "note") => Promise<void>;
+  /** The active thread's pending message queue (M962). */
+  queue: QueuedMsg[];
+  /** Append a message to the queue (auto-sent when the current run finishes). */
+  enqueue: (text: string) => void;
+  /** Remove one queued message by id. */
+  removeQueued: (id: string) => void;
+  /** Move a queued message up (-1) or down (+1). */
+  reorderQueued: (id: string, dir: -1 | 1) => void;
+  /** Drop every queued message. */
+  clearQueue: () => void;
+  /** Send the front of the queue right now (when idle). */
+  sendQueuedNow: () => void;
 }
 
 const ChatCtx = createContext<ChatEngine | null>(null);
@@ -153,6 +173,9 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   // headless (cancel-on-disconnect is off by default), so Stop must ALSO cancel
   // the run server-side by this id — otherwise it keeps burning budget unseen.
   const activeCorrRef = useRef<string | null>(null);
+  // Same correlation, mirrored into state so the composer can show Steer/BTW
+  // controls the moment a run is addressable (M962).
+  const [activeCorr, setActiveCorr] = useState<string | null>(null);
 
   const messages = activeMessages(store);
   const setMessages = (updater: Msg[] | ((prev: Msg[]) => Msg[])) => {
@@ -178,6 +201,24 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     if (busy) return;
     saveStore(store);
   }, [store, busy]);
+
+  // Auto-flush the queue (M962): when a run finishes (busy true → false) and the
+  // active thread has queued messages, pop the front and send it. Gated on the
+  // busy→idle transition (a prevBusy ref) so a persisted queue does NOT
+  // auto-fire on reload — it waits for the next completed run, or a manual send.
+  const prevBusyRef = useRef(false);
+  useEffect(() => {
+    const wasBusy = prevBusyRef.current;
+    prevBusyRef.current = busy;
+    if (!wasBusy || busy) return; // only on the busy→idle edge
+    const q = activeQueue(store);
+    if (q.length === 0) return;
+    const { front, rest } = dequeueFront(q);
+    if (!front) return;
+    setStore((s) => withActiveQueue(s, rest, Date.now()));
+    send(front.text);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [busy]);
 
   // Collect every memory the daemon records (memory.written) off the global
   // firehose, bucketed by the run's correlation id — so a chat turn can show
@@ -228,7 +269,10 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         (f) => {
           // Capture the run's correlation id from the first frame that carries
           // it, so Stop can cancel the run server-side (M907).
-          if (f.correlation_id && !activeCorrRef.current) activeCorrRef.current = f.correlation_id;
+          if (f.correlation_id && !activeCorrRef.current) {
+            activeCorrRef.current = f.correlation_id;
+            setActiveCorr(f.correlation_id);
+          }
           updateLastTurn((t) => foldChatFrame(t, f));
         },
         ctrl.signal,
@@ -242,8 +286,21 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     } finally {
       abortRef.current = null;
       activeCorrRef.current = null;
+      setActiveCorr(null);
       setBusy(false);
     }
+  }
+
+  // steer injects an operator directive into the run currently streaming (M962):
+  // mode "steer" re-prioritises (the agent breaks at its next safe boundary and
+  // follows it), mode "note" is a soft "BTW" the agent reads but doesn't abandon
+  // its task for. No-op when nothing is running. Throws on transport error so the
+  // caller can surface it.
+  async function steer(directive: string, mode: "steer" | "note") {
+    const corr = activeCorrRef.current;
+    const d = directive.trim();
+    if (!corr || !d) return;
+    await postAction("/api/run/steer", { correlation: corr, directive: d, mode });
   }
 
   // abortActiveRun tears down the browser stream AND cancels the run on the
@@ -384,6 +441,31 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     setStore((s) => togglePinned(s, id));
   }
 
+  // ── Message queue (M962) ──────────────────────────────────────────────────
+  function enqueue(text: string) {
+    const t = text.trim();
+    if (!t) return;
+    setStore((s) => withActiveQueue(s, addQueued(activeQueue(s), t, genId()), Date.now()));
+  }
+  function removeQueued(id: string) {
+    setStore((s) => withActiveQueue(s, removeFromQueue(activeQueue(s), id), Date.now()));
+  }
+  function reorderQueued(id: string, dir: -1 | 1) {
+    setStore((s) => withActiveQueue(s, moveQueued(activeQueue(s), id, dir), Date.now()));
+  }
+  function clearQueue() {
+    setStore((s) => withActiveQueue(s, [], Date.now()));
+  }
+  // sendQueuedNow flushes the front of the queue immediately (used when idle, so
+  // the operator doesn't have to wait for a run to drain it).
+  function sendQueuedNow() {
+    if (busy) return;
+    const { front, rest } = dequeueFront(activeQueue(store));
+    if (!front) return;
+    setStore((s) => withActiveQueue(s, rest, Date.now()));
+    send(front.text);
+  }
+
   const engine: ChatEngine = {
     store,
     messages,
@@ -408,6 +490,14 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     togglePin,
     learnedFor,
     forgetLearned,
+    activeCorr,
+    steer,
+    queue: activeQueue(store),
+    enqueue,
+    removeQueued,
+    reorderQueued,
+    clearQueue,
+    sendQueuedNow,
   };
   return <ChatCtx.Provider value={engine}>{children}</ChatCtx.Provider>;
 }

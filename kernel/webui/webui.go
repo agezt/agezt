@@ -278,7 +278,7 @@ var writeRoutes = map[string]writeRoute{
 	"/api/run/pause":     {controlplane.CmdRunPause, []string{"correlation"}},
 	"/api/run/resume":    {controlplane.CmdRunResume, []string{"correlation"}},
 	"/api/run/step":      {controlplane.CmdRunStep, []string{"correlation"}},
-	"/api/run/steer":     {controlplane.CmdRunSteer, []string{"correlation", "directive"}},
+	"/api/run/steer":     {controlplane.CmdRunSteer, []string{"correlation", "directive", "mode"}},
 	"/api/decide":        {controlplane.CmdDecide, []string{"id", "decision", "reason"}},
 	"/api/memory/forget": {controlplane.CmdMemoryForget, []string{"id"}},
 	// Promote a private (agent-scoped) record into shared memory (M915) —

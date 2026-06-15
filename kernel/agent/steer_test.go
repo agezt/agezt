@@ -18,7 +18,7 @@ import (
 // Drain hands back queued directives once.
 type fakeSteerer struct {
 	mu         sync.Mutex
-	directives []string
+	directives []agent.Directive
 	gate       chan struct{} // non-nil + open ⇒ Wait blocks until closed/ctx-done
 }
 
@@ -37,7 +37,7 @@ func (f *fakeSteerer) Wait(ctx context.Context) error {
 	}
 }
 
-func (f *fakeSteerer) Drain() []string {
+func (f *fakeSteerer) Drain() []agent.Directive {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	out := f.directives
@@ -74,7 +74,7 @@ func TestSteer_DirectiveFoldedAsUserTurn(t *testing.T) {
 			}
 		}
 	}
-	st := &fakeSteerer{directives: []string{"focus on the database"}}
+	st := &fakeSteerer{directives: []agent.Directive{{Text: "focus on the database"}}}
 
 	answer, err := agent.Run(context.Background(), agent.LoopConfig{
 		Provider:      prov,
@@ -117,6 +117,59 @@ func TestSteer_DirectiveFoldedAsUserTurn(t *testing.T) {
 	}
 	if directive != "focus on the database" {
 		t.Errorf("run.steered directive = %q want 'focus on the database'", directive)
+	}
+}
+
+// TestSteer_NoteUsesSofterPrefix (M962): a Note directive ("BTW") is folded with
+// the note prefix (not the steer prefix) and the run.steered event records
+// mode=note, so the model treats it as FYI rather than a re-prioritisation.
+func TestSteer_NoteUsesSofterPrefix(t *testing.T) {
+	b, j := newTestBus(t)
+	prov := mock.New(mock.ToolUse("t1", "noop", map[string]any{}), mock.FinalText("done"))
+	var sawNote, sawSteerPrefix bool
+	var mu sync.Mutex
+	prov.OnRequest = func(req agent.CompletionRequest) {
+		for _, m := range req.Messages {
+			if strings.Contains(m.Content, "operator note") && strings.Contains(m.Content, "check the cache too") {
+				mu.Lock()
+				sawNote = true
+				mu.Unlock()
+			}
+			if strings.Contains(m.Content, "[operator steering]") {
+				mu.Lock()
+				sawSteerPrefix = true
+				mu.Unlock()
+			}
+		}
+	}
+	st := &fakeSteerer{directives: []agent.Directive{{Text: "check the cache too", Note: true}}}
+	if _, err := agent.Run(context.Background(), agent.LoopConfig{
+		Provider: prov, Bus: b, Actor: "a", CorrelationID: "corr-note", Model: "test", MaxIter: 5,
+		Tools: map[string]agent.Tool{"noop": steerNoopTool{}}, Steer: st,
+	}, "do the thing"); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if !sawNote {
+		t.Error("note directive was not folded with the operator-note prefix")
+	}
+	if sawSteerPrefix {
+		t.Error("a note must NOT use the forceful [operator steering] prefix")
+	}
+	var mode string
+	_ = j.Range(func(e *event.Event) error {
+		if e.Kind == event.KindRunSteered {
+			var p struct {
+				Mode string `json:"mode"`
+			}
+			_ = json.Unmarshal(e.Payload, &p)
+			mode = p.Mode
+		}
+		return nil
+	})
+	if mode != "note" {
+		t.Errorf("run.steered mode = %q want note", mode)
 	}
 }
 

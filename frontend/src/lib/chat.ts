@@ -90,6 +90,10 @@ export interface ChatTurn {
   context?: TurnContext;
   error?: string;
   correlationId?: string;
+  // Operator injections this turn received mid-run (M962): steers (forceful
+  // re-prioritisations) and notes ("BTW", soft). Shown as chips so the human
+  // sees their guidance landed.
+  steers?: { text: string; note: boolean }[];
   // Wall-clock ms when this turn was created (set by the store on send). Lets the
   // chat show when each exchange happened. Optional — turns restored from older
   // storage (and the pure reducer's newTurn) lack it, so the meta line omits it.
@@ -140,6 +144,12 @@ export function foldChatFrame(prev: ChatTurn, f: ChatFrame): ChatTurn {
   switch (f.kind) {
     case "open":
       break;
+    case "run.steered": {
+      // An operator steer/BTW landed (M962). Record it so the turn shows a chip.
+      const text = String(p.directive ?? "");
+      if (text) t.steers = [...(t.steers ?? []), { text, note: p.mode === "note" }];
+      break;
+    }
     case "llm.token":
       if (p.text != null) {
         t.streamedText += String(p.text);

@@ -11,7 +11,7 @@ import type { Msg } from "@/lib/conversations";
 // without leaving what you're doing — and pop out to the full view for detail.
 // It's hidden on the Chat view itself (where the full UI already lives).
 export function MiniChat({ hidden, onExpand }: { hidden: boolean; onExpand: () => void }) {
-  const { messages, busy, send, stop } = useChat();
+  const { messages, busy, send, stop, enqueue, queue } = useChat();
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -32,7 +32,14 @@ export function MiniChat({ hidden, onExpand }: { hidden: boolean; onExpand: () =
 
   function doSend() {
     const t = input.trim();
-    if (!t || busy) return;
+    if (!t) return;
+    // While a run streams, Enter queues the follow-up (M962) — it auto-sends when
+    // the current run finishes (manage the queue from the full Chat view).
+    if (busy) {
+      enqueue(t);
+      setInput("");
+      return;
+    }
     setInput("");
     send(t);
   }
@@ -89,6 +96,15 @@ export function MiniChat({ hidden, onExpand }: { hidden: boolean; onExpand: () =
         )}
       </div>
 
+      {/* Queue hint (M962): how many follow-ups are lined up; manage them in the
+          full Chat view. */}
+      {queue.length > 0 && (
+        <div className="flex items-center gap-1.5 border-t border-border px-2 pt-1.5 text-[11px] text-muted">
+          <MessageSquare className="size-3" />
+          {queue.length} queued — {busy ? "sends after this run" : "idle"} · open Chat to manage
+        </div>
+      )}
+
       {/* Composer */}
       <div className="flex items-end gap-2 border-t border-border p-2">
         <textarea
@@ -101,7 +117,7 @@ export function MiniChat({ hidden, onExpand }: { hidden: boolean; onExpand: () =
             }
           }}
           rows={1}
-          placeholder="Ask the agent…"
+          placeholder={busy ? "Queue a follow-up…" : "Ask the agent…"}
           className="max-h-24 min-h-[2.25rem] flex-1 resize-none rounded-lg border border-border bg-panel px-2.5 py-2 text-sm outline-none placeholder:text-muted focus-visible:border-accent"
         />
         {busy ? (

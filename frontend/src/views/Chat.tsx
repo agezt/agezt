@@ -18,7 +18,11 @@ import {
   Trash2,
   RotateCcw,
   ArrowDown,
+  ArrowUp,
   ArrowRight,
+  Forward,
+  StickyNote,
+  ListPlus,
   X,
   Paperclip,
   Volume2,
@@ -60,6 +64,7 @@ import {
 import { useChat } from "@/lib/chatStore";
 import { buildContext, type AttachRef } from "@/lib/attach";
 import { sortConversations, filterConversations, type HistorySummary, type Msg } from "@/lib/conversations";
+import type { QueuedMsg } from "@/lib/queue";
 import { conversationToMarkdown, slugify, downloadText } from "@/lib/export";
 import { ChannelSessions } from "@/views/ChannelSessions";
 
@@ -69,8 +74,9 @@ import { ChannelSessions } from "@/views/ChannelSessions";
 // cost. The engine (store, streaming, model) lives in ChatProvider so a run keeps
 // going when you leave the view; this component is the full-screen UI over it.
 export function Chat() {
-  const { store, messages, busy, model, setModel, agent, setAgent, activeModel, send, retry, continueRun, editAndResend, conversationPersona, setConversationPersona, historySummary, stop, newChat, selectConversation, removeConversation, renameConversation, togglePin } =
+  const { store, messages, busy, model, setModel, agent, setAgent, activeModel, send, retry, continueRun, editAndResend, conversationPersona, setConversationPersona, historySummary, stop, newChat, selectConversation, removeConversation, renameConversation, togglePin, activeCorr, steer, queue, enqueue, removeQueued, reorderQueued, clearQueue, sendQueuedNow } =
     useChat();
+  const ui = useUI();
   const [input, setInput] = useState("");
   // convFilter filters the conversation sidebar by title/message text (M732).
   const [convFilter, setConvFilter] = useState("");
@@ -174,16 +180,37 @@ export function Chat() {
   }, [input]);
 
   // Submit the composer: pin to bottom, clear the box, hand the intent to the
-  // engine with any attached context (skills/memories/runs) prepended.
+  // engine with any attached context (skills/memories/runs) prepended. While a
+  // run is in flight, Enter instead QUEUES the message (M962) — it auto-sends
+  // when the current run finishes; Steer/BTW are the explicit interrupt buttons.
   function doSend() {
     const t = input.trim();
-    if (!t || busy) return;
+    if (!t) return;
+    if (busy) {
+      enqueue(t);
+      setInput("");
+      return;
+    }
     stopSpeaking(); // a new turn interrupts any answer being read aloud
     setPinned(true);
     setInput("");
     const ctx = buildContext(attached);
     setAttached([]);
     send(t, ctx);
+  }
+
+  // doSteer injects the composer text into the running run (M962): mode "steer"
+  // re-prioritises, "note" is a soft BTW. Clears the box on success.
+  async function doSteer(mode: "steer" | "note") {
+    const t = input.trim();
+    if (!t || !activeCorr) return;
+    try {
+      await steer(t, mode);
+      setInput("");
+      ui.toast(mode === "note" ? "BTW sent — the agent will read it and keep going" : "Steered — the agent will break at its next safe point", "success");
+    } catch (e) {
+      ui.toast((e as Error).message, "error");
+    }
   }
 
   function addAttachment(ref: AttachRef) {
@@ -327,6 +354,19 @@ export function Chat() {
         </div>
 
         <div className="border-t border-border pt-3">
+        {/* Queued follow-ups (M962): lined up while a run streams; the next one
+            auto-sends when the current run finishes. Reorder / delete / clear. */}
+        {queue.length > 0 && (
+          <QueuePanel
+            queue={queue}
+            busy={busy}
+            onUp={(id) => reorderQueued(id, -1)}
+            onDown={(id) => reorderQueued(id, 1)}
+            onRemove={removeQueued}
+            onClear={clearQueue}
+            onSendNow={sendQueuedNow}
+          />
+        )}
         {/* Staged attachments — existing skills/memories/runs handed to the agent
             as context for the next message. */}
         {attached.length > 0 && (
@@ -366,13 +406,32 @@ export function Chat() {
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={onKeyDown}
             rows={1}
-            placeholder="Ask the agent to do something…  (Enter to send, Shift+Enter for a new line)"
+            placeholder={
+              busy
+                ? "Run in flight — Enter queues a follow-up; Steer or BTW the running agent →"
+                : "Ask the agent to do something…  (Enter to send, Shift+Enter for a new line)"
+            }
             className="max-h-40 min-h-[2.5rem] flex-1 resize-none overflow-y-auto rounded-lg border border-border bg-panel px-3 py-2 text-sm shadow-e1 outline-none transition-[border-color,box-shadow] placeholder:text-muted focus-visible:border-accent focus-visible:ring-2 focus-visible:ring-accent/30"
           />
           {busy ? (
-            <Button variant="danger" size="icon" onClick={stop} title="Stop">
-              <Square className="size-4" />
-            </Button>
+            <div className="flex items-end gap-1">
+              {activeCorr && (
+                <>
+                  <Button variant="ghost" size="icon" onClick={() => doSteer("note")} disabled={!input.trim()} title="BTW — the agent reads this and keeps going (doesn't break its task)">
+                    <StickyNote className="size-4" />
+                  </Button>
+                  <Button variant="accent" size="icon" onClick={() => doSteer("steer")} disabled={!input.trim()} title="Steer — interrupt at the next safe point and follow this">
+                    <Forward className="size-4" />
+                  </Button>
+                </>
+              )}
+              <Button variant="ghost" size="icon" onClick={doSend} disabled={!input.trim()} title="Queue — send after the current run finishes">
+                <ListPlus className="size-4" />
+              </Button>
+              <Button variant="danger" size="icon" onClick={stop} title="Stop">
+                <Square className="size-4" />
+              </Button>
+            </div>
           ) : (
             <Button variant="accent" size="icon" onClick={doSend} disabled={!input.trim()} title="Send">
               <Send className="size-4" />
@@ -579,6 +638,63 @@ function EmptyState({ onPick }: { onPick: (s: string) => void }) {
   );
 }
 
+// QueuePanel (M962) shows the pending follow-up messages lined up while a run
+// streams. The next one auto-sends when the run finishes; here the operator can
+// reorder (up/down), delete one, clear all, or — when idle — send the front now.
+function QueuePanel({
+  queue,
+  busy,
+  onUp,
+  onDown,
+  onRemove,
+  onClear,
+  onSendNow,
+}: {
+  queue: QueuedMsg[];
+  busy: boolean;
+  onUp: (id: string) => void;
+  onDown: (id: string) => void;
+  onRemove: (id: string) => void;
+  onClear: () => void;
+  onSendNow: () => void;
+}) {
+  return (
+    <div className="mb-2 rounded-lg border border-border bg-panel/40 p-2">
+      <div className="mb-1.5 flex items-center gap-2 px-0.5 text-[11px] text-muted">
+        <ListPlus className="size-3.5" />
+        <span className="font-medium text-foreground/80">Queue</span>
+        <span className="rounded-full bg-card px-1.5 tabular-nums">{queue.length}</span>
+        <span className="text-[10px]">{busy ? "next sends when this run finishes" : "idle — send the next now"}</span>
+        <button onClick={onClear} className="ml-auto inline-flex items-center gap-1 text-[10px] hover:text-bad" title="Clear the whole queue">
+          <Trash2 className="size-3" /> Clear
+        </button>
+      </div>
+      <ol className="space-y-1">
+        {queue.map((m, i) => (
+          <li key={m.id} className="flex items-center gap-1.5 rounded-md border border-border bg-card px-2 py-1 text-xs">
+            <span className="w-4 shrink-0 text-center font-mono text-[10px] text-muted">{i + 1}</span>
+            <span className="min-w-0 flex-1 truncate" title={m.text}>{m.text}</span>
+            {!busy && i === 0 && (
+              <button onClick={onSendNow} className="shrink-0 text-accent hover:underline" title="Send this now">
+                <Send className="size-3.5" />
+              </button>
+            )}
+            <button onClick={() => onUp(m.id)} disabled={i === 0} className="shrink-0 text-muted enabled:hover:text-foreground disabled:opacity-30" title="Move up">
+              <ArrowUp className="size-3.5" />
+            </button>
+            <button onClick={() => onDown(m.id)} disabled={i === queue.length - 1} className="shrink-0 text-muted enabled:hover:text-foreground disabled:opacity-30" title="Move down">
+              <ArrowDown className="size-3.5" />
+            </button>
+            <button onClick={() => onRemove(m.id)} className="shrink-0 text-muted hover:text-bad" title="Remove">
+              <X className="size-3.5" />
+            </button>
+          </li>
+        ))}
+      </ol>
+    </div>
+  );
+}
+
 function MessageRow({
   msg,
   onRetry,
@@ -766,6 +882,8 @@ function AssistantBubble({
         {working && <WorkingIndicator running={runningTool?.tool} />}
 
         {turn.fallbacks && turn.fallbacks.length > 0 && <FallbackNote hops={turn.fallbacks} />}
+
+        {turn.steers && turn.steers.length > 0 && <SteerNote steers={turn.steers} />}
 
         {turn.context && turn.context.compactions.length > 0 && <CompactionNote events={turn.context.compactions} />}
 
@@ -1021,6 +1139,29 @@ export function FallbackNote({ hops }: { hops: { from: string; to: string }[] })
       <CornerDownRight className="size-3.5 shrink-0" />
       <span className="font-medium">{hops.length === 1 ? "fell back" : `fell back ${hops.length}×`}</span>
       <span className="font-mono text-foreground/70">{path.join(" → ")}</span>
+    </div>
+  );
+}
+
+// SteerNote (M962) shows the operator injections this turn received mid-run — a
+// forceful steer (re-prioritise) or a soft BTW note — so the human sees their
+// guidance landed and how the agent was nudged.
+function SteerNote({ steers }: { steers: { text: string; note: boolean }[] }) {
+  return (
+    <div className="space-y-1">
+      {steers.map((s, i) => (
+        <div
+          key={i}
+          className={cn(
+            "flex items-start gap-1.5 rounded-md border px-2 py-1 text-xs",
+            s.note ? "border-border bg-panel/50 text-muted" : "border-accent/30 bg-accent/5 text-accent",
+          )}
+        >
+          {s.note ? <StickyNote className="mt-0.5 size-3.5 shrink-0" /> : <Forward className="mt-0.5 size-3.5 shrink-0" />}
+          <span className="font-medium">{s.note ? "BTW" : "steered"}</span>
+          <span className="min-w-0 flex-1 break-words text-foreground/80">{s.text}</span>
+        </div>
+      ))}
     </div>
   );
 }
