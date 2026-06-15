@@ -796,10 +796,31 @@ func (m *Manager) Distill(ctx context.Context, corr string, provider agent.Provi
 	// ctx carries the agent's scope, so per-run distillation doesn't flood the
 	// shared brain. An unscoped run (operator chat) distills shared, as before.
 	// Promotion or consolidation can share the keepers later.
+	scope := ScopeFrom(ctx)
 	tags := map[string]string{"source": "distill"}
-	if scope := ScopeFrom(ctx); scope != "" {
+	if scope != "" {
 		tags["scope"] = scope
 	}
+
+	// Subject-level dedupe (M993): auto-distillation fires after most multi-tool
+	// runs, so without this the SAME topic gets re-extracted run after run with
+	// slightly reworded content — each a new content-hash, so they pile up into
+	// thousands of near-duplicate notes ("her işlemde memory'ye bir şey ekliyor").
+	// Index the existing active records by (type, normalized-subject, scope); when
+	// a distilled fact lands on a subject we already hold in this scope, REINFORCE
+	// the existing record (bump recency/confidence) instead of creating another.
+	// New subjects are still recorded. The explicit `memory` tool is unaffected —
+	// only opportunistic distillation is gated, so deliberate writes still stand.
+	index := map[string]Record{}
+	if active, err := m.Active(); err == nil {
+		for _, r := range active {
+			if r.Tags["source"] != "distill" {
+				continue // only collapse onto prior distilled notes, not curated ones
+			}
+			index[distillKey(r.Type, r.Subject, scopeOf(r.Tags))] = r
+		}
+	}
+
 	var ids []string
 	for _, f := range parsed.Facts {
 		if strings.TrimSpace(f.Content) == "" {
@@ -808,6 +829,16 @@ func (m *Manager) Distill(ctx context.Context, corr string, provider agent.Provi
 		t := f.Type
 		if !ValidType(t) {
 			t = TypeSummary
+		}
+		key := distillKey(t, f.Subject, scope)
+		if ex, ok := index[key]; ok {
+			// Already noted this subject in this scope — reinforce the existing
+			// record rather than adding a near-duplicate.
+			if _, _, err := m.Remember(corr, RememberSpec{Type: ex.Type, Subject: ex.Subject, Content: ex.Content, Actor: "distill", Tags: ex.Tags}); err != nil {
+				return ids, err
+			}
+			ids = append(ids, ex.ID)
+			continue
 		}
 		rec, _, err := m.Remember(corr, RememberSpec{
 			Type:    t,
@@ -819,9 +850,19 @@ func (m *Manager) Distill(ctx context.Context, corr string, provider agent.Provi
 		if err != nil {
 			return ids, err
 		}
+		// Record it so two facts about the same new subject in one pass also collapse.
+		index[key] = rec
 		ids = append(ids, rec.ID)
 	}
 	return ids, nil
+}
+
+// distillKey is the subject-level identity used to collapse repeated
+// auto-distilled notes: type + normalized subject + scope. Subject is lowercased
+// and whitespace-collapsed so "Project structure" and "project  structure" map
+// together.
+func distillKey(t Type, subject, scope string) string {
+	return string(t) + "\x00" + strings.Join(strings.Fields(strings.ToLower(subject)), " ") + "\x00" + scope
 }
 
 // parseDistill extracts the JSON object from a model response, tolerating

@@ -496,6 +496,16 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// durable facts. Set AGEZT_MEMORY=off to disable the per-run behaviour
 	// (the store and `agt memory` CLI stay available either way).
 	memOn := !strings.EqualFold(os.Getenv(brand.EnvPrefix+"MEMORY"), "off")
+	// How many tool calls a run must make before it's worth an auto-distillation
+	// pass (M993). Higher = fewer, more meaningful auto-memories — simple/short
+	// runs no longer each spawn distilled notes. Default 6 (was 4); override with
+	// AGEZT_MEMORY_DISTILL_MIN_TOOLS (0 or negative falls back to the default).
+	distillMinTools := 6
+	if v := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "MEMORY_DISTILL_MIN_TOOLS")); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			distillMinTools = n
+		}
+	}
 	// World-model per-run behaviour (entity injection + the `world` tool).
 	// The graph store and `agt world` CLI always work; this only gates the
 	// in-run wiring. AGEZT_WORLDMODEL=off disables it.
@@ -614,6 +624,14 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// once-per-output) provider calls, so the operator opts in.
 	contextSummarize := os.Getenv(brand.EnvPrefix+"CONTEXT_SUMMARIZE") == "1"
 
+	// AGEZT_OBSERVATION_DELTAS=on (or 1) makes repeated identical tool/input
+	// observations return a compact delta to the model while the journal keeps
+	// the raw output. Off by default for compatibility.
+	obsDeltasRaw := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "OBSERVATION_DELTAS"))
+	observationDeltas := strings.EqualFold(obsDeltasRaw, "on") || obsDeltasRaw == "1"
+	disableHeuristicBypassRaw := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "DISABLE_HEURISTIC_BYPASS"))
+	disableHeuristicBypass := strings.EqualFold(disableHeuristicBypassRaw, "on") || disableHeuristicBypassRaw == "1"
+
 	// AGEZT_SKILL_SHADOWEVAL=on judges the shadow skills relevant to a completed
 	// run against what actually happened (SPEC-05 §5.2). Off by default — it spends
 	// extra provider calls per run, so the operator opts in.
@@ -653,7 +671,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 		MemoryTool:                 memOn,
 		MemoryDistill:              memOn,
 		MemoryTopK:                 5,
-		MemoryDistillMinTools:      4,
+		MemoryDistillMinTools:      distillMinTools,
 		MemoryEmbedder:             memEmbedder, // M901: provider embeddings opt-in (nil = local hashing)
 		WorldInject:                worldOn,
 		WorldTool:                  worldOn,
@@ -669,6 +687,8 @@ func runDaemon(stdout, stderr io.Writer) int {
 		ContextBudgetAuto:          contextBudgetAuto,
 		ContextProtectFirst:        contextProtectFirst,
 		ContextSummarize:           contextSummarize,
+		ObservationDeltas:          observationDeltas,
+		DisableHeuristicBypass:     disableHeuristicBypass,
 		ShadowEval:                 shadowEval,
 		SubAgentTool:               subAgentOn,
 		SubAgentMaxDepth:           subAgentDepth,
@@ -759,6 +779,19 @@ func runDaemon(stdout, stderr io.Writer) int {
 			return 1
 		}
 		cfg.MaxParallelTools = n
+	}
+
+	// Tool discovery (CH-03): AGEZT_TOOL_DISCOVERY_MAX=N trims each provider
+	// request to the N most relevant tool schemas using the built-in lexical
+	// selector. Off by default so existing deployments keep offering every tool;
+	// malformed or negative is a hard startup error.
+	if spec := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "TOOL_DISCOVERY_MAX")); spec != "" {
+		n, perr := strconv.Atoi(spec)
+		if perr != nil || n < 0 {
+			fmt.Fprintf(stderr, "%s: %sTOOL_DISCOVERY_MAX: want a non-negative integer, got %q\n", brand.Binary, brand.EnvPrefix, spec)
+			return 1
+		}
+		cfg.ToolDiscoveryMax = n
 	}
 
 	// Per-tool-call timeout (M34): AGEZT_TOOL_TIMEOUT=<duration> bounds each
@@ -4552,6 +4585,7 @@ func buildGovernor(cat *catalog.Catalog, lookup func(string) string) (*governor.
 			}
 			return catalog.FamilySupportsNativeJSONMode(p.Family()), true
 		},
+		ModelStrictToolArgsNative: cat.StrictToolArgsNative,
 	})
 	if err != nil {
 		return nil, "", "", err
