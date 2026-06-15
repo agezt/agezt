@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Waypoints, RefreshCw, Save, ArrowUp, ArrowDown, X, Plus, Zap, Star, Pencil, Trash2 } from "lucide-react";
+import { Waypoints, RefreshCw, Save, ArrowUp, ArrowDown, X, Plus, Zap, Star, Pencil, Trash2, Users, Route, AlertTriangle } from "lucide-react";
 import { getJSON, postJSON } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -16,9 +16,20 @@ import { validateChainName, moveItem, removeAt, renameChain, deleteChain } from 
 // picks up the change. One chain can be marked the DEFAULT, used by any run that
 // resolves to no chain of its own — so even a bare agent gets a fallback ladder.
 
+// ChainUsage is the per-chain reference map from the backend: which agents and
+// task types reference @name, and whether it is the default.
+export interface ChainUsage {
+  agents?: string[];
+  tasks?: string[];
+  default?: boolean;
+}
+
 interface ChainsResp {
   chains?: Record<string, string[]>;
   default?: string;
+  // usage maps chain name → ChainUsage, plus a reserved "__dangling__" key whose
+  // value is the list of @names referenced somewhere but no longer defined.
+  usage?: Record<string, ChainUsage | string[]>;
 }
 
 export function Chains() {
@@ -27,6 +38,7 @@ export function Chains() {
   const [savedChains, setSavedChains] = useState<Record<string, string[]>>({});
   const [def, setDef] = useState("");
   const [savedDef, setSavedDef] = useState("");
+  const [usage, setUsage] = useState<Record<string, ChainUsage | string[]>>({});
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -39,6 +51,7 @@ export function Chains() {
       setSavedChains(r.chains || {});
       setDef(r.default || "");
       setSavedDef(r.default || "");
+      setUsage(r.usage || {});
       setErr(null);
     } catch (e) {
       setErr((e as Error).message);
@@ -52,6 +65,14 @@ export function Chains() {
   }, [reload]);
 
   const names = useMemo(() => Object.keys(chains).sort((a, b) => a.localeCompare(b)), [chains]);
+  const dangling = useMemo(() => (Array.isArray(usage.__dangling__) ? (usage.__dangling__ as string[]) : []), [usage]);
+  const usageFor = useCallback(
+    (name: string): ChainUsage => {
+      const u = usage[name];
+      return u && !Array.isArray(u) ? u : {};
+    },
+    [usage],
+  );
   const dirty = useMemo(
     () => JSON.stringify(chains) !== JSON.stringify(savedChains) || def !== savedDef,
     [chains, savedChains, def, savedDef],
@@ -94,10 +115,18 @@ export function Chains() {
   }
 
   async function remove(name: string) {
+    const u = usageFor(name);
+    const refs: string[] = [];
+    if (u.agents?.length) refs.push(`${u.agents.length} agent${u.agents.length === 1 ? "" : "s"} (${u.agents.join(", ")})`);
+    if (u.tasks?.length) refs.push(`${u.tasks.length} task${u.tasks.length === 1 ? "" : "s"} (${u.tasks.join(", ")})`);
+    if (u.default) refs.push("the default chain");
+    const message = refs.length
+      ? `Still referenced by ${refs.join(" and ")} — those will fall through to the default chain (or the daemon model).`
+      : `References to @${name} will fall through to the default chain (or the daemon model).`;
     if (
       !(await confirm({
         title: `Delete chain “${name}”?`,
-        message: `References to @${name} will fall through to the default chain (or the daemon model).`,
+        message,
         confirmLabel: "Delete",
         danger: true,
       }))
@@ -168,6 +197,18 @@ export function Chains() {
         <span className="text-foreground/80">default</span> so even a bare run gets a fallback ladder. Changes apply live and persist.
       </p>
 
+      {dangling.length > 0 && (
+        <div className="flex items-start gap-2 rounded-lg border border-warn/40 bg-warn/5 px-3 py-2 text-xs text-warn">
+          <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
+          <span>
+            Dangling reference{dangling.length === 1 ? "" : "s"}:{" "}
+            <span className="font-mono">{dangling.map((d) => `@${d}`).join(", ")}</span> {dangling.length === 1 ? "is" : "are"} used
+            somewhere but no longer defined — those references fall through to the default chain. Create the chain{dangling.length === 1 ? "" : "s"} or
+            update the reference.
+          </span>
+        </div>
+      )}
+
       {err ? (
         <ErrorText>{err}</ErrorText>
       ) : loading && !names.length ? (
@@ -188,6 +229,7 @@ export function Chains() {
               name={name}
               models={chains[name] || []}
               isDefault={def === name}
+              usage={usageFor(name)}
               onAdd={(id) => addModel(name, id)}
               onRemove={(i) => setChainModels(name, removeAt(chains[name] || [], i))}
               onMove={(i, d) => setChainModels(name, moveItem(chains[name] || [], i, d))}
@@ -206,6 +248,7 @@ function ChainCard({
   name,
   models,
   isDefault,
+  usage,
   onAdd,
   onRemove,
   onMove,
@@ -216,6 +259,7 @@ function ChainCard({
   name: string;
   models: string[];
   isDefault: boolean;
+  usage: ChainUsage;
   onAdd: (id: string) => void;
   onRemove: (i: number) => void;
   onMove: (i: number, dir: -1 | 1) => void;
@@ -223,6 +267,8 @@ function ChainCard({
   onDelete: () => void;
   onMakeDefault: () => void;
 }) {
+  const agentN = usage.agents?.length ?? 0;
+  const taskN = usage.tasks?.length ?? 0;
   return (
     <div className={cn("rounded-lg border bg-card p-3", isDefault ? "border-accent/50" : "border-border")}>
       <div className="mb-2 flex items-center gap-2">
@@ -235,6 +281,22 @@ function ChainCard({
         <span className="text-[11px] text-muted">
           {models.length} model{models.length === 1 ? "" : "s"}
         </span>
+        {agentN > 0 && (
+          <span
+            className="inline-flex items-center gap-1 rounded bg-panel px-1.5 py-0.5 text-[10px] text-muted"
+            title={`Referenced by: ${usage.agents!.join(", ")}`}
+          >
+            <Users className="size-2.5" /> {agentN} agent{agentN === 1 ? "" : "s"}
+          </span>
+        )}
+        {taskN > 0 && (
+          <span
+            className="inline-flex items-center gap-1 rounded bg-panel px-1.5 py-0.5 text-[10px] text-muted"
+            title={`Task types: ${usage.tasks!.join(", ")}`}
+          >
+            <Route className="size-2.5" /> {taskN} task{taskN === 1 ? "" : "s"}
+          </span>
+        )}
         <div className="ml-auto flex items-center gap-1">
           <button
             onClick={onMakeDefault}

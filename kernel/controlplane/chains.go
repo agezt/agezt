@@ -35,8 +35,9 @@ type fallbackChainsSetter interface {
 }
 
 // handleChainsGet returns the named fallback chains, the default chain name, and
-// per-chain usage activity folded from the journal (how often each chain's
-// models actually fired in a fallback).
+// a per-chain USAGE map: which agents and task types reference "@name", and
+// whether it is the default. This closes the loop on editing a shared chain —
+// the UI can show what depends on it and warn before a delete breaks references.
 func (s *Server) handleChainsGet(conn net.Conn, req Request) {
 	chains := map[string][]string{}
 	def := ""
@@ -46,7 +47,105 @@ func (s *Server) handleChainsGet(conn net.Conn, req Request) {
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{
 		"chains":  stringSliceMapToAny(chains),
 		"default": def,
+		"usage":   s.chainUsage(chains, def),
 	}})
+}
+
+// chainUsage scans the roster (agent model + fallbacks) and the per-task model
+// chains for "@name" references, returning per chain the referencing agent slugs
+// and task types plus whether it is the default. Only known chains get an entry;
+// a "@name" pointing at a deleted chain is surfaced separately under "dangling"
+// so the UI can flag it. Pure read — safe on the hot path.
+func (s *Server) chainUsage(chains map[string][]string, def string) map[string]any {
+	type use struct {
+		agents []string
+		tasks  []string
+	}
+	byChain := map[string]*use{}
+	dangling := map[string]*use{} // refs to names not in `chains`
+	get := func(name string) *use {
+		m := byChain
+		if _, ok := chains[name]; !ok {
+			m = dangling
+		}
+		u := m[name]
+		if u == nil {
+			u = &use{}
+			m[name] = u
+		}
+		return u
+	}
+	noteAgent := func(ref, slug string) {
+		if name, ok := strings.CutPrefix(ref, governor.ChainPrefix); ok && name != "" {
+			u := get(name)
+			u.agents = append(u.agents, slug)
+		}
+	}
+	for _, p := range s.k.Roster().List() {
+		noteAgent(p.Model, p.Slug)
+		for _, fb := range p.Fallbacks {
+			noteAgent(fb, p.Slug)
+		}
+	}
+	if gov, ok := s.k.Provider().(chainsGetter); ok {
+		for task, models := range gov.TaskModelChainsView() {
+			for _, m := range models {
+				if name, ok := strings.CutPrefix(m, governor.ChainPrefix); ok && name != "" {
+					u := get(name)
+					u.tasks = append(u.tasks, task)
+				}
+			}
+		}
+	}
+	out := make(map[string]any, len(byChain)+len(dangling)+1)
+	emit := func(name string, u *use, known bool) {
+		entry := map[string]any{}
+		if len(u.agents) > 0 {
+			entry["agents"] = dedupeSorted(u.agents)
+		}
+		if len(u.tasks) > 0 {
+			entry["tasks"] = dedupeSorted(u.tasks)
+		}
+		if known && name == def {
+			entry["default"] = true
+		}
+		out[name] = entry
+	}
+	for name, u := range byChain {
+		emit(name, u, true)
+	}
+	// A chain can be the default without any agent/task reference — still surface it.
+	if def != "" {
+		if _, ok := out[def]; !ok {
+			if _, known := chains[def]; known {
+				out[def] = map[string]any{"default": true}
+			}
+		}
+	}
+	if len(dangling) > 0 {
+		dn := make([]string, 0, len(dangling))
+		for name := range dangling {
+			dn = append(dn, name)
+		}
+		sort.Strings(dn)
+		out["__dangling__"] = dn
+	}
+	return out
+}
+
+// dedupeSorted returns the unique values of a string slice, sorted.
+func dedupeSorted(in []string) []string {
+	seen := map[string]struct{}{}
+	out := make([]string, 0, len(in))
+	for _, v := range in {
+		if _, ok := seen[v]; ok {
+			continue
+		}
+		seen[v] = struct{}{}
+		out = append(out, v)
+	}
+	sort.Strings(out)
+	return out
 }
 
 // handleChainsSet replaces the whole named-chain registry and default chain.
