@@ -24,6 +24,7 @@ import {
   Cpu,
   Wrench,
   ArrowRight,
+  Waypoints,
 } from "lucide-react";
 import { getJSON, postAction } from "@/lib/api";
 import { cn, fmtTime, fmtDateTime, fmtAgo, clip } from "@/lib/utils";
@@ -54,6 +55,8 @@ import {
   type SkillLite,
   type RunLite,
 } from "@/lib/agentdetail";
+import { isChainRef, chainName, type ChainsState } from "@/lib/chains";
+import { modelHealth, type ModelCatalog, type ModelHealth } from "@/lib/models";
 
 // Diagnostics row shapes (mirrors of /api/policy_log + /api/tool_log rows).
 interface PolicyDecision {
@@ -771,27 +774,81 @@ function ModelTab({
 }) {
   const taskChain = profile.task_type ? routing?.chains?.[profile.task_type] : undefined;
   const fallbacks = provLog ? provLog.filter((r) => r.kind === "fallback") : null;
+
+  // A named fallback chain (M963): if this agent's model is "@name", expand it to
+  // the chain's real models so the page shows what it will actually run, with a
+  // health dot per model (M965). Best-effort fetches — absence just hides them.
+  const [chains, setChains] = useState<Record<string, string[]>>({});
+  const [cat, setCat] = useState<ModelCatalog | null>(null);
+  useEffect(() => {
+    let live = true;
+    getJSON<ChainsState>("/api/chains").then((c) => live && setChains(c.chains || {})).catch(() => {});
+    getJSON<ModelCatalog>("/api/catalog").then((c) => live && setCat(c)).catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, []);
+  const modelIsChain = isChainRef(profile.model || "");
+  const expandedChain = modelIsChain ? chains[chainName(profile.model || "")] : undefined;
+
   return (
     <div className="space-y-3">
       <div className="space-y-1.5 rounded-lg border border-border bg-panel/30 p-2.5">
-        <Row label="primary model" value={profile.model ? <span className="font-mono">{profile.model}</span> : "(daemon default)"} />
         <Row
-          label="fallback chain"
+          label="primary model"
           value={
-            (profile.fallbacks || []).length > 0 ? (
-              <span className="flex flex-wrap items-center gap-1 font-mono">
-                {(profile.fallbacks || []).map((m, i) => (
-                  <span key={i} className="inline-flex items-center gap-1">
-                    {i > 0 && <ArrowRight className="size-3 text-muted" />}
-                    <span className="rounded bg-card px-1.5 py-0.5 text-[10px]">{m}</span>
-                  </span>
-                ))}
+            modelIsChain ? (
+              <span className="inline-flex items-center gap-1 font-mono text-accent">
+                <Waypoints className="size-3" /> {chainName(profile.model || "")}
+                {expandedChain && <span className="text-muted">· {expandedChain.length} model{expandedChain.length === 1 ? "" : "s"}</span>}
               </span>
+            ) : profile.model ? (
+              <span className="font-mono">{profile.model}</span>
             ) : (
-              "none — uses the per-task chain only"
+              "(daemon default)"
             )
           }
         />
+        {modelIsChain && expandedChain && expandedChain.length > 0 && (
+          <Row
+            label="chain expands to"
+            value={
+              <span className="flex flex-wrap items-center gap-1 font-mono">
+                {expandedChain.map((m, i) => (
+                  <span key={i} className="inline-flex items-center gap-1">
+                    {i > 0 && <ArrowRight className="size-3 text-muted" />}
+                    <span className="inline-flex items-center gap-1 rounded bg-card px-1.5 py-0.5 text-[10px]">
+                      {cat && <ChainHealthDot status={modelHealth(cat, m)} />}
+                      {m}
+                    </span>
+                  </span>
+                ))}
+              </span>
+            }
+          />
+        )}
+        {modelIsChain && expandedChain === undefined && (
+          <Row label="chain" value={<span className="text-bad">@{chainName(profile.model || "")} — no such chain (falls through to default)</span>} />
+        )}
+        {!modelIsChain && (
+          <Row
+            label="fallback chain"
+            value={
+              (profile.fallbacks || []).length > 0 ? (
+                <span className="flex flex-wrap items-center gap-1 font-mono">
+                  {(profile.fallbacks || []).map((m, i) => (
+                    <span key={i} className="inline-flex items-center gap-1">
+                      {i > 0 && <ArrowRight className="size-3 text-muted" />}
+                      <span className="rounded bg-card px-1.5 py-0.5 text-[10px]">{m}</span>
+                    </span>
+                  ))}
+                </span>
+              ) : (
+                "none — uses the per-task chain only"
+              )
+            }
+          />
+        )}
         <Row label="task type" value={profile.task_type || "—"} />
         {taskChain && taskChain.length > 0 && (
           <Row label="task chain (global)" value={<span className="font-mono">{taskChain.join(" → ")}</span>} />
@@ -830,11 +887,30 @@ function ModelTab({
         )}
       </div>
 
-      <Button variant="ghost" size="sm" onClick={() => onManage("routing")}>
-        Edit routing chains <ArrowUpRight className="size-3.5" />
-      </Button>
+      <div className="flex flex-wrap gap-2">
+        {modelIsChain && (
+          <Button variant="ghost" size="sm" onClick={() => onManage("chains")}>
+            Edit fallback chains <ArrowUpRight className="size-3.5" />
+          </Button>
+        )}
+        <Button variant="ghost" size="sm" onClick={() => onManage("routing")}>
+          Edit routing chains <ArrowUpRight className="size-3.5" />
+        </Button>
+      </div>
     </div>
   );
+}
+
+// ChainHealthDot mirrors the Fallback Chains page dot (M965): green = a keyed
+// provider serves the model, amber = needs a key, red = unknown to the catalog.
+function ChainHealthDot({ status }: { status: ModelHealth }) {
+  const meta: Record<ModelHealth, { cls: string; title: string }> = {
+    ok: { cls: "bg-good", title: "A keyed provider can run this model" },
+    nokey: { cls: "bg-warn", title: "No keyed provider — add an API key under Models" },
+    unknown: { cls: "bg-bad", title: "Not in the catalog — check the model id" },
+  };
+  const m = meta[status];
+  return <span className={cn("size-1.5 shrink-0 rounded-full", m.cls)} title={m.title} />;
 }
 
 // CommsTab is the agent's mailbox: the board messages it sent, was addressed, or
