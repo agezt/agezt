@@ -8,6 +8,8 @@
 // env prefix, or config dir. Always reference these constants.
 package brand
 
+import "runtime/debug"
+
 // Frozen identity (DECISIONS A1).
 const (
 	// Name is the user-visible project name.
@@ -37,3 +39,27 @@ const (
 // bounded delegation) and multi-tenant isolation, fused so each tenant
 // federates to its own peer set. See CHANGELOG.md.
 var Version = "1.0.0"
+
+// BuildInfo returns the VCS revision, commit time, and dirty flag that `go
+// build` embeds automatically when building from a git checkout (no ldflags
+// needed). It lets operators confirm exactly which build a daemon is running —
+// the semver above is bumped only per release, so it can't distinguish two
+// dev builds. Empty revision means the binary was built without VCS info
+// (e.g. `go build -buildvcs=false` or from a tarball).
+func BuildInfo() (revision, committed string, modified bool) {
+	bi, ok := debug.ReadBuildInfo()
+	if !ok {
+		return "", "", false
+	}
+	for _, s := range bi.Settings {
+		switch s.Key {
+		case "vcs.revision":
+			revision = s.Value
+		case "vcs.time":
+			committed = s.Value
+		case "vcs.modified":
+			modified = s.Value == "true"
+		}
+	}
+	return revision, committed, modified
+}

@@ -302,12 +302,23 @@ export default function App() {
   // Recent runs offered as ⌘K "Open run" commands (fulfils the palette's promise).
   // Refreshed whenever the palette opens so the list is current without polling.
   const [recentRuns, setRecentRuns] = useState<{ correlation_id?: string; intent?: string; status?: string }[]>([]);
+  // Build provenance (M971): the daemon's semver + git revision, shown in the
+  // sidebar footer so it's unambiguous which build is actually running (the
+  // semver alone can't distinguish two dev builds).
+  const [build, setBuild] = useState<{ version?: string; revision?: string; built?: string; build_modified?: boolean } | null>(null);
   // Every roster agent offered as a ⌘K "Open agent" command, so any created
   // agent's identity page is one keystroke away from anywhere (M967).
   const [paletteAgents, setPaletteAgents] = useState<{ slug: string; name?: string; system?: boolean; retired?: boolean }[]>([]);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>(loadCollapsed);
   const { connected, events } = useEvents();
   const ui = useUI();
+
+  // Fetch the daemon's build provenance once for the sidebar footer (M971).
+  useEffect(() => {
+    getJSON<{ version?: string; revision?: string; built?: string; build_modified?: boolean }>("/api/version")
+      .then(setBuild)
+      .catch(() => {});
+  }, []);
 
   // Unseen-alert badge on the Alerts nav item (M779): count the critical/warning alerts
   // in the live buffer so the cockpit flags "something needs attention" from anywhere —
@@ -681,6 +692,23 @@ export default function App() {
               </div>
             );
           })}
+          {build && (
+            <div
+              className="mt-auto hidden px-3 pt-3 text-[10px] leading-tight text-muted/60 lg:block"
+              title={
+                build.revision
+                  ? `Daemon build ${build.revision}${build.build_modified ? " (modified working tree)" : ""}${build.built ? ` · built ${build.built}` : ""}`
+                  : build.built
+                    ? `Daemon built ${build.built}`
+                    : "Build revision unavailable (binary built without VCS info)"
+              }
+            >
+              v{build.version || "?"}
+              {build.revision ? (
+                <> · {build.revision.slice(0, 7)}{build.build_modified ? "+" : ""}</>
+              ) : null}
+            </div>
+          )}
         </nav>
         <main className="min-h-0 flex-1 overflow-auto p-3 sm:p-4">
           {/* Keyed remount so each view fades + rises in on navigation. The
