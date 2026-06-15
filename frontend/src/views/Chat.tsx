@@ -48,6 +48,7 @@ import { ToolOutput } from "@/components/DataView";
 import { ModelPicker } from "@/components/ModelPicker";
 import { AgentPicker } from "@/components/AgentPicker";
 import { AttachPicker } from "@/components/AttachPicker";
+import { AgentAvatar } from "@/components/AgentAvatar";
 import { MicButton } from "@/components/MicButton";
 import { speak, stopSpeaking, speechSupported } from "@/lib/speech";
 
@@ -331,6 +332,7 @@ export function Chat() {
                       )}
                       <MessageRow
                         msg={m}
+                        agent={agent}
                         onRetry={canRetry ? retry : undefined}
                         onContinue={canRetry ? continueRun : undefined}
                         onRegenerate={canRegenerate ? retry : undefined}
@@ -697,12 +699,14 @@ function QueuePanel({
 
 function MessageRow({
   msg,
+  agent,
   onRetry,
   onContinue,
   onRegenerate,
   onEdit,
 }: {
   msg: Msg;
+  agent?: string;
   onRetry?: () => void;
   onContinue?: () => void;
   onRegenerate?: () => void;
@@ -711,7 +715,7 @@ function MessageRow({
   if (msg.role === "user") {
     return <UserBubble text={msg.text} onEdit={onEdit} />;
   }
-  return <AssistantBubble turn={msg.turn} onRetry={onRetry} onContinue={onContinue} onRegenerate={onRegenerate} />;
+  return <AssistantBubble turn={msg.turn} agent={agent} onRetry={onRetry} onContinue={onContinue} onRegenerate={onRegenerate} />;
 }
 
 // UserBubble renders one user message, with an inline edit affordance: a pencil
@@ -818,13 +822,15 @@ export function UserBubble({ text, onEdit }: { text: string; onEdit?: (text: str
   );
 }
 
-function AssistantBubble({
+export function AssistantBubble({
   turn,
+  agent,
   onRetry,
   onContinue,
   onRegenerate,
 }: {
   turn: ChatTurn;
+  agent?: string;
   onRetry?: () => void;
   onContinue?: () => void;
   onRegenerate?: () => void;
@@ -852,9 +858,16 @@ function AssistantBubble({
 
   return (
     <div className="flex gap-2">
-      <div className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full bg-accent/15 text-accent">
-        <Sparkles className="size-4" />
-      </div>
+      {/* Who's answering: a specific roster agent shows its gradient monogram
+          (breathing while it streams) so the thread reflects the agent at work;
+          the default house assistant keeps the spark mark. */}
+      {agent ? (
+        <AgentAvatar slug={agent} size={28} status={streaming ? "running" : undefined} className="mt-0.5" />
+      ) : (
+        <div className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full bg-accent/15 text-accent">
+          <Sparkles className="size-4" />
+        </div>
+      )}
       <div className="min-w-0 flex-1 space-y-2">
         {turn.reasoning && <ReasoningBlock text={turn.reasoning} live={streaming && timeline.length === 0} />}
 
