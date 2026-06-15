@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { ErrorText } from "@/components/JsonView";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { useUI } from "@/components/ui/feedback";
+import { PageHeader } from "@/components/ui/page-header";
 import { ModelPicker } from "@/components/ModelPicker";
 import { validateChainName, moveItem, removeAt, renameChain, deleteChain } from "@/lib/chains";
 import { modelHealth, type ModelCatalog, type ModelHealth } from "@/lib/models";
@@ -185,23 +186,24 @@ export function Chains() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <h2 className="flex items-center gap-2 text-sm font-semibold">
-          <Waypoints className="size-4 text-accent" /> Fallback Chains
-        </h2>
-        <span className="text-xs text-muted">named, reusable model ladders</span>
-        <div className="ml-auto flex items-center gap-2">
-          <Button variant="ghost" size="sm" onClick={addChain} title="Create a new fallback chain">
-            <Plus className="size-3.5" /> New chain
-          </Button>
-          <Button size="sm" onClick={save} disabled={!dirty || saving} title="Save chains">
-            {saving ? <RefreshCw className="size-3.5 animate-spin" /> : <Save className="size-3.5" />} Save
-          </Button>
-          <Button variant="ghost" size="sm" onClick={reload} disabled={loading} title="Reload">
-            <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        icon={Waypoints}
+        title="Fallback Chains"
+        description="Named, reusable model ladders — pick a chain anywhere you pick a model."
+        actions={
+          <>
+            <Button variant="ghost" size="sm" onClick={addChain} title="Create a new fallback chain">
+              <Plus className="size-3.5" /> New chain
+            </Button>
+            <Button variant="accent" size="sm" onClick={save} disabled={!dirty || saving} title="Save chains">
+              {saving ? <RefreshCw className="size-3.5 animate-spin" /> : <Save className="size-3.5" />} Save
+            </Button>
+            <Button variant="ghost" size="sm" onClick={reload} disabled={loading} title="Reload">
+              <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
+            </Button>
+          </>
+        }
+      />
 
       <p className="text-xs text-muted">
         A chain is an ordered list of models tried in turn (the{" "}
@@ -289,7 +291,7 @@ function ChainCard({
   const primaryBad = health && models.length > 0 && health(models[0]) !== "ok";
   const allBad = health && models.length > 0 && models.every((m) => health(m) !== "ok");
   return (
-    <div className={cn("rounded-lg border bg-card p-3", isDefault ? "border-accent/50" : "border-border")}>
+    <div className={cn("glass rounded-xl p-3", isDefault && "glow-accent")}>
       <div className="mb-2 flex items-center gap-2">
         <h3 className="font-mono text-sm font-semibold text-foreground">@{name}</h3>
         {isDefault && (

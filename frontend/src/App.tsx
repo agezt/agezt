@@ -67,6 +67,7 @@ import { NotifyToggle } from "@/components/NotifyToggle";
 import { Vitals } from "@/components/Vitals";
 import { FleetNowBar } from "@/components/FleetNowBar";
 import { useUI, type ConfirmOptions } from "@/components/ui/feedback";
+import { TooltipProvider } from "@/components/ui/tooltip";
 
 type ConfirmRequest = ConfirmOptions;
 import type { CommandItem } from "@/lib/commands";
@@ -575,6 +576,7 @@ export default function App() {
   }, [ui, newChat, recentRuns, paletteAgents]);
 
   return (
+    <TooltipProvider delayDuration={200}>
     <div className="flex h-full flex-col">
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} items={commands} />
       <HelpDrawer
@@ -736,6 +738,7 @@ export default function App() {
         </main>
       </div>
     </div>
+    </TooltipProvider>
   );
 }
 

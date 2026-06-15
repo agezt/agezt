@@ -1,14 +1,21 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
-export function Card({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
+export function Card({
+  className,
+  glass,
+  interactive,
+  ...props
+}: React.HTMLAttributes<HTMLDivElement> & { glass?: boolean; interactive?: boolean }) {
   return (
     <div
-      // shadow-e1 lifts every card off the background (M951); transition lets
-      // views opt into a hover-lift (e.g. interactive roster cards) by adding
-      // `hover:shadow-e2` / `hover:-translate-y-0.5` without restating the base.
+      // Base: a lifted surface (shadow-e1, M951). `glass` (M978) swaps in the
+      // command-center translucent treatment; `interactive` adds a hover lift for
+      // clickable cards. Views still pass extra classes freely.
       className={cn(
-        "flex min-h-0 flex-col overflow-hidden rounded-lg border border-border bg-card shadow-e1 transition-shadow",
+        "flex min-h-0 flex-col overflow-hidden transition-[box-shadow,transform,border-color]",
+        glass ? "glass rounded-xl" : "rounded-lg border border-border bg-card shadow-e1",
+        interactive && "cursor-pointer hover:-translate-y-0.5 hover:shadow-e3 hover:border-accent/40",
         className,
       )}
       {...props}
