@@ -10,11 +10,13 @@ import {
   GitBranch,
   ArrowLeft,
   Clock,
-  Shield,
+  Users,
+  Anchor,
   CalendarClock,
-  Zap,
-  Timer,
-  Moon,
+  GitFork,
+  Cpu,
+  Search,
+  Radar,
 } from "lucide-react";
 import { getJSON } from "@/lib/api";
 import { useEvents } from "@/lib/events";
@@ -27,7 +29,25 @@ import { EmptyState } from "@/components/ui/empty";
 import { DelegationGraph } from "@/components/DelegationGraph";
 import { RunDetailLoader } from "@/components/RunDetail";
 import { AgentAvatar } from "@/components/AgentAvatar";
+import { FleetCard, FleetDetail } from "@/components/Fleet";
 import { buildDelegationTree, type RunNode } from "@/lib/delegation";
+import {
+  buildFleet,
+  fleetCensus,
+  statusKind,
+  type StatusKind,
+  type FleetKind,
+  type ApiProfile,
+  type ApiOrder,
+  type ApiSchedule,
+  type ApiWorkflow,
+  type ApiPulse,
+} from "@/lib/fleet";
+
+// Re-export the run-status helpers from their canonical home (lib/fleet) so the
+// existing test + Dashboard imports from "@/views/Agents" keep working.
+export { statusKind, scheduleAgentSlug } from "@/lib/fleet";
+export type { StatusKind } from "@/lib/fleet";
 
 interface ApiRun {
   correlation_id?: string;
@@ -52,17 +72,6 @@ function toRunNodes(runs: ApiRun[]): RunNode[] {
     iters: r.iters,
     intent: r.intent,
   }));
-}
-
-// statusKind normalizes the daemon's run statuses into the four buckets the
-// gallery colors + filters by. Pure + unit-tested.
-export type StatusKind = "running" | "done" | "failed" | "other";
-export function statusKind(status?: string): StatusKind {
-  const s = (status || "").toLowerCase();
-  if (s === "running" || s === "active" || s === "in_progress") return "running";
-  if (s === "completed" || s === "done" || s === "succeeded" || s === "ok") return "done";
-  if (s === "failed" || s === "error" || s === "cancelled" || s === "canceled" || s === "halted") return "failed";
-  return "other";
 }
 
 // RootSummary is one lead run's at-a-glance card data: its own fields plus the
@@ -135,105 +144,6 @@ export function summarizeRoots(runs: ApiRun[]): RootSummary[] {
   return out;
 }
 
-// ───────────────────────── Standing army (M930) ─────────────────────────
-// The runs gallery shows agents that ARE running; the army map shows the force
-// that is waiting — every roster agent with what will wake it (standing-order
-// cron/event triggers, schedules that run as it) and when it last marched.
-
-interface ApiProfile {
-  slug: string;
-  name?: string;
-  model?: string;
-  enabled: boolean;
-  retired?: boolean;
-}
-
-interface ApiTrigger {
-  type?: string;
-  schedule?: string;
-  subject?: string;
-}
-
-interface ApiOrder {
-  id: string;
-  name?: string;
-  enabled: boolean;
-  agent?: string;
-  triggers?: ApiTrigger[];
-}
-
-interface ApiSchedule {
-  id: string;
-  intent?: string;
-  cadence?: string;
-  enabled: boolean;
-}
-
-export interface WakeSource {
-  type: "cron" | "event" | "schedule";
-  detail: string;
-  via: string;
-}
-
-export interface ArmyAgent {
-  slug: string;
-  name: string;
-  model?: string;
-  enabled: boolean;
-  running: boolean;
-  lastRunMs?: number;
-  wake: WakeSource[];
-}
-
-// scheduleAgentSlug extracts the roster slug a cadence intent runs as: cadence
-// entries have no agent field, so "--agent <slug>" inside the intent is the
-// binding (mirrors how the daemon resolves it at fire time).
-export function scheduleAgentSlug(intent?: string): string {
-  const m = (intent || "").match(/--agent[= ]+([\w.-]+)/);
-  return m ? m[1] : "";
-}
-
-// buildArmy folds roster + standing orders + schedules + recent runs into the
-// army map. Retired agents stay in the graveyard, not the ranks. Sorted:
-// running first, then trigger-armed, then alphabetical. Pure + unit-tested.
-export function buildArmy(
-  profiles: ApiProfile[],
-  orders: ApiOrder[],
-  schedules: ApiSchedule[],
-  runs: ApiRun[],
-): ArmyAgent[] {
-  const out: ArmyAgent[] = [];
-  for (const p of profiles) {
-    if (p.retired) continue;
-    const wake: WakeSource[] = [];
-    for (const o of orders) {
-      if (!o.enabled || o.agent !== p.slug) continue;
-      for (const t of o.triggers || []) {
-        if (t.type === "cron" && t.schedule) wake.push({ type: "cron", detail: t.schedule, via: o.name || o.id });
-        else if (t.type === "event" && t.subject) wake.push({ type: "event", detail: t.subject, via: o.name || o.id });
-      }
-    }
-    for (const sch of schedules) {
-      if (sch.enabled && scheduleAgentSlug(sch.intent) === p.slug)
-        wake.push({ type: "schedule", detail: sch.cadence || sch.id, via: sch.id });
-    }
-    let running = false;
-    let lastRunMs: number | undefined;
-    for (const r of runs) {
-      if ((r.agent || "") !== p.slug) continue;
-      if (statusKind(r.status) === "running") running = true;
-      if ((r.started_unix_ms || 0) > (lastRunMs || 0)) lastRunMs = r.started_unix_ms;
-    }
-    out.push({ slug: p.slug, name: p.name || p.slug, model: p.model, enabled: p.enabled, running, lastRunMs, wake });
-  }
-  out.sort((a, b) => {
-    if (a.running !== b.running) return a.running ? -1 : 1;
-    if (a.wake.length > 0 !== (b.wake.length > 0)) return a.wake.length > 0 ? -1 : 1;
-    return a.slug.localeCompare(b.slug);
-  });
-  return out;
-}
-
 export type Filter = "all" | "running" | "done" | "failed";
 
 // filterRoots applies the active filter chip. Pure + unit-tested.
@@ -249,19 +159,41 @@ const KIND_DOT: Record<StatusKind, string> = {
   other: "bg-muted",
 };
 
-// Agents is the multi-agent monitor — a visual gallery of every lead run and its
-// sub-agent fleet: status, model, identity, sub-agent count, depth, iterations
-// and spend all visible at a glance, no dropdown. Click a card to drill into its
-// live delegation graph + per-agent detail.
+type Tab = "fleet" | "live";
+type FleetFilter = "all" | FleetKind | "running";
+
+const FLEET_FILTERS: { id: FleetFilter; label: string; icon: typeof Bot }[] = [
+  { id: "all", label: "All", icon: Network },
+  { id: "roster", label: "Roster", icon: Users },
+  { id: "standing", label: "Standing", icon: Anchor },
+  { id: "schedule", label: "Schedules", icon: CalendarClock },
+  { id: "workflow", label: "Workflows", icon: GitFork },
+  { id: "system", label: "System", icon: Cpu },
+  { id: "running", label: "Running", icon: RefreshCw },
+];
+
+// Agents is the multi-agent console. The default "Fleet" tab is a complete
+// census of every agent + automation you own — roster identities, standing
+// orders, schedules, workflows and the always-on system engines — each card
+// spelling out HOW it gets triggered, so the page is full and informative even
+// when nothing is running. The "Live" tab is the run monitor: a gallery of
+// in-flight lead runs and their sub-agent delegation trees.
 export function Agents() {
   const { events } = useEvents();
+  const [tab, setTab] = useState<Tab>("fleet");
   const [runs, setRuns] = useState<ApiRun[] | null>(null);
   const [profiles, setProfiles] = useState<ApiProfile[]>([]);
   const [orders, setOrders] = useState<ApiOrder[]>([]);
   const [schedules, setSchedules] = useState<ApiSchedule[]>([]);
-  const [filter, setFilter] = useState<Filter>("all");
-  const [sel, setSel] = useState<string>(""); // the drilled-into lead run
+  const [workflows, setWorkflows] = useState<ApiWorkflow[]>([]);
+  const [pulse, setPulse] = useState<ApiPulse | undefined>(undefined);
+  const [catalogLoaded, setCatalogLoaded] = useState(false);
+  const [filter, setFilter] = useState<Filter>("all"); // live tab
+  const [fleetFilter, setFleetFilter] = useState<FleetFilter>("all");
+  const [query, setQuery] = useState("");
+  const [sel, setSel] = useState<string>(""); // drilled-into lead run (live tab)
   const [picked, setPicked] = useState<string | null>(null); // node in the graph
+  const [selKey, setSelKey] = useState<string>(""); // selected fleet entity
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -277,31 +209,38 @@ export function Agents() {
       setLoading(false);
     }
   }
-  // The army inputs change rarely (operator edits), so they load once + on the
-  // slower poll, while runs stay on the fast 6s cycle.
-  async function reloadArmy() {
-    try {
-      const [a, o, s] = await Promise.all([
-        getJSON<{ profiles?: ApiProfile[] }>("/api/agents"),
-        getJSON<{ orders?: ApiOrder[] }>("/api/standing"),
-        getJSON<{ schedules?: ApiSchedule[] }>("/api/schedules"),
-      ]);
-      setProfiles(a.profiles || []);
-      setOrders(o.orders || []);
-      setSchedules(s.schedules || []);
-    } catch {
-      /* army panel is best-effort; the runs gallery still works */
-    }
+  // The catalogue inputs change rarely (operator edits), so they load once + on
+  // the slower poll, while runs stay on the fast 6s cycle. Each fetch is
+  // best-effort: one endpoint failing must not blank the rest of the census.
+  async function reloadCatalog() {
+    const [a, o, s, w, p] = await Promise.allSettled([
+      getJSON<{ profiles?: ApiProfile[] }>("/api/agents"),
+      getJSON<{ orders?: ApiOrder[] }>("/api/standing"),
+      getJSON<{ schedules?: ApiSchedule[] }>("/api/schedules"),
+      getJSON<{ workflows?: ApiWorkflow[] }>("/api/workflows"),
+      getJSON<ApiPulse>("/api/pulse"),
+    ]);
+    if (a.status === "fulfilled") setProfiles(a.value.profiles || []);
+    if (o.status === "fulfilled") setOrders(o.value.orders || []);
+    if (s.status === "fulfilled") setSchedules(s.value.schedules || []);
+    if (w.status === "fulfilled") setWorkflows(w.value.workflows || []);
+    if (p.status === "fulfilled") setPulse(p.value);
+    setCatalogLoaded(true);
+  }
+
+  function reloadAll() {
+    reload();
+    reloadCatalog();
   }
 
   useEffect(() => {
     reload();
-    reloadArmy();
+    reloadCatalog();
     const id = setInterval(reload, 6000);
-    const armyId = setInterval(reloadArmy, 30000);
+    const catId = setInterval(reloadCatalog, 30000);
     return () => {
       clearInterval(id);
-      clearInterval(armyId);
+      clearInterval(catId);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -323,11 +262,69 @@ export function Agents() {
   const running = roots.filter((r) => r.kind === "running").length;
   const totalSubs = roots.reduce((s, r) => s + r.subAgents, 0);
   const totalSpend = roots.reduce((s, r) => s + r.treeSpentMc, 0);
-  const army = useMemo(() => buildArmy(profiles, orders, schedules, runs || []), [profiles, orders, schedules, runs]);
-  const armed = army.filter((a) => a.wake.length > 0).length;
 
-  // Drill-down view: the selected lead's live delegation graph + detail.
-  if (sel) {
+  // The unified census.
+  const fleet = useMemo(
+    () => buildFleet(profiles, orders, schedules, workflows, runs || [], pulse),
+    [profiles, orders, schedules, workflows, runs, pulse],
+  );
+  const census = useMemo(() => fleetCensus(fleet), [fleet]);
+  const shownFleet = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return fleet.filter((e) => {
+      if (fleetFilter === "running" && !e.running) return false;
+      if (fleetFilter !== "all" && fleetFilter !== "running" && e.kind !== fleetFilter) return false;
+      if (!q) return true;
+      return (
+        e.name.toLowerCase().includes(q) ||
+        (e.description || "").toLowerCase().includes(q) ||
+        (e.model || "").toLowerCase().includes(q) ||
+        e.triggers.some((t) => `${t.mode} ${t.label}`.toLowerCase().includes(q))
+      );
+    });
+  }, [fleet, fleetFilter, query]);
+  const selEntity = useMemo(() => fleet.find((e) => e.key === selKey) || null, [fleet, selKey]);
+
+  // Jump from a fleet card to the matching live run + its delegation graph.
+  function openLiveFor(slug: string) {
+    const run = (runs || []).find((r) => (r.agent || "") === slug && statusKind(r.status) === "running");
+    if (!run?.correlation_id) return;
+    setTab("live");
+    setSel(run.correlation_id);
+    setPicked(null);
+  }
+  function manage(view: string) {
+    if (view) location.hash = view;
+  }
+
+  const header = (
+    <div className="flex flex-wrap items-center gap-2">
+      <h2 className="flex items-center gap-2 text-sm font-semibold">
+        <Network className="size-4 text-accent" /> Agents
+      </h2>
+      <div className="inline-flex rounded-lg border border-border p-0.5 text-xs">
+        {(["fleet", "live"] as Tab[]).map((t) => (
+          <button
+            key={t}
+            onClick={() => setTab(t)}
+            className={cn(
+              "rounded-md px-2.5 py-1 capitalize transition-colors",
+              tab === t ? "bg-accent/15 text-accent" : "text-muted hover:text-foreground",
+            )}
+          >
+            {t === "fleet" ? "Fleet" : "Live"}
+            {t === "live" && running > 0 ? <span className="ml-1 text-accent">· {running}</span> : null}
+          </button>
+        ))}
+      </div>
+      <Button variant="ghost" size="sm" onClick={reloadAll} title="Reload" className="ml-auto">
+        <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
+      </Button>
+    </div>
+  );
+
+  // ───────────────────────── Live tab: delegation drill-in ─────────────────────────
+  if (tab === "live" && sel) {
     return (
       <div className="flex h-full min-h-0 flex-col gap-3">
         <div className="flex flex-wrap items-center gap-2">
@@ -384,167 +381,162 @@ export function Agents() {
     );
   }
 
-  // Gallery view.
-  return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <h2 className="flex items-center gap-2 text-sm font-semibold">
-          <Network className="size-4 text-accent" /> Agents
-        </h2>
-        <Button variant="ghost" size="sm" onClick={reload} title="Reload" className="ml-auto">
-          <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
-        </Button>
-      </div>
+  // ───────────────────────── Live tab: run gallery ─────────────────────────
+  if (tab === "live") {
+    return (
+      <div className="space-y-3">
+        {header}
 
-      {/* Summary band — the fleet at a glance. */}
-      {runs && (
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
-          <BigStat icon={Network} label="leads" value={roots.length} />
-          <BigStat icon={RefreshCw} label="running" value={running} accent={running > 0} />
-          <BigStat icon={GitBranch} label="sub-agents" value={totalSubs} />
-          <BigStat icon={Bot} label="roster" value={profiles.length || "—"} />
-          <BigStat icon={Coins} label="spend" value={money(totalSpend)} />
-        </div>
-      )}
-
-      {/* Filter chips replace the dropdown. */}
-      {runs && roots.length > 0 && (
-        <div className="flex flex-wrap items-center gap-1.5">
-          {(["all", "running", "done", "failed"] as Filter[]).map((f) => {
-            const n = f === "all" ? roots.length : roots.filter((r) => r.kind === f).length;
-            return (
-              <button
-                key={f}
-                onClick={() => setFilter(f)}
-                className={cn(
-                  "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs capitalize transition-colors",
-                  filter === f ? "border-accent bg-accent/10 text-accent" : "border-border text-muted hover:border-accent",
-                )}
-              >
-                {f}
-                <span className="rounded-full bg-card px-1.5 text-[10px] tabular-nums">{n}</span>
-              </button>
-            );
-          })}
-        </div>
-      )}
-
-      {err ? (
-        <ErrorText>{err}</ErrorText>
-      ) : !runs ? (
-        <SkeletonList count={3} lines={2} />
-      ) : roots.length === 0 ? (
-        <EmptyState
-          icon={Network}
-          title="No agent runs yet"
-          hint="Start a run from Chat or the CLI — each lead run and its sub-agent fleet appears here as a live card."
-        />
-      ) : shown.length === 0 ? (
-        <EmptyState icon={Network} title={`No ${filter} runs`} hint="Try a different filter." />
-      ) : (
-        <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
-          {shown.map((r) => (
-            <RunCard
-              key={r.id}
-              r={r}
-              onOpen={() => {
-                setSel(r.id);
-                setPicked(null);
-              }}
-            />
-          ))}
-        </div>
-      )}
-
-      {/* Standing army (M930): the force that is waiting, and what wakes it. */}
-      {army.length > 0 && (
-        <div>
-          <div className="mb-1.5 mt-1 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted">
-            <Shield className="size-3" /> Standing army ({army.length})
-            <span className="font-normal normal-case tracking-normal">
-              — {armed} trigger-armed, {army.length - armed} on call
-            </span>
+        {runs && (
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+            <BigStat icon={Network} label="leads" value={roots.length} />
+            <BigStat icon={RefreshCw} label="running" value={running} accent={running > 0} />
+            <BigStat icon={GitBranch} label="sub-agents" value={totalSubs} />
+            <BigStat icon={Bot} label="roster" value={profiles.length || "—"} />
+            <BigStat icon={Coins} label="spend" value={money(totalSpend)} />
           </div>
-          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-            {army.map((a) => (
-              <ArmyCard key={a.slug} a={a} />
+        )}
+
+        {runs && roots.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1.5">
+            {(["all", "running", "done", "failed"] as Filter[]).map((f) => {
+              const n = f === "all" ? roots.length : roots.filter((r) => r.kind === f).length;
+              return (
+                <button
+                  key={f}
+                  onClick={() => setFilter(f)}
+                  className={cn(
+                    "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs capitalize transition-colors",
+                    filter === f ? "border-accent bg-accent/10 text-accent" : "border-border text-muted hover:border-accent",
+                  )}
+                >
+                  {f}
+                  <span className="rounded-full bg-card px-1.5 text-[10px] tabular-nums">{n}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {err ? (
+          <ErrorText>{err}</ErrorText>
+        ) : !runs ? (
+          <SkeletonList count={3} lines={2} />
+        ) : roots.length === 0 ? (
+          <EmptyState
+            icon={Network}
+            title="No agent runs right now"
+            hint="Nothing is executing — switch to the Fleet tab to see every agent you have and how each one gets triggered."
+            action={
+              <Button variant="ghost" size="sm" onClick={() => setTab("fleet")}>
+                <Radar className="size-3.5" /> View the fleet
+              </Button>
+            }
+          />
+        ) : shown.length === 0 ? (
+          <EmptyState icon={Network} title={`No ${filter} runs`} hint="Try a different filter." />
+        ) : (
+          <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
+            {shown.map((r) => (
+              <RunCard
+                key={r.id}
+                r={r}
+                onOpen={() => {
+                  setSel(r.id);
+                  setPicked(null);
+                }}
+              />
             ))}
           </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-const WAKE_ICON: Record<WakeSource["type"], typeof Bot> = {
-  cron: CalendarClock,
-  event: Zap,
-  schedule: Timer,
-};
-
-// ArmyCard — one waiting soldier: identity, state (marching / armed / on call /
-// paused) and the exact tripwires that will wake it.
-function ArmyCard({ a }: { a: ArmyAgent }) {
-  return (
-    <div
-      className={cn(
-        "flex flex-col gap-1.5 rounded-lg border bg-card p-2.5",
-        a.running ? "border-accent/60" : "border-border",
-        !a.enabled && "opacity-60",
-      )}
-    >
-      <div className="flex items-center gap-2">
-        <span
-          className={cn(
-            "size-2 shrink-0 rounded-full",
-            a.running ? "animate-pulse bg-accent" : !a.enabled ? "bg-muted" : a.wake.length > 0 ? "bg-good" : "bg-muted",
-          )}
-        />
-        <span className="truncate text-xs font-semibold">{a.name}</span>
-        <span className="truncate font-mono text-[10px] text-muted">{a.slug}</span>
-        <span className="ml-auto shrink-0 text-[10px] uppercase tracking-wider text-muted">
-          {a.running ? (
-            <span className="text-accent">running</span>
-          ) : !a.enabled ? (
-            "paused"
-          ) : a.wake.length > 0 ? (
-            "armed"
-          ) : (
-            "on call"
-          )}
-        </span>
-      </div>
-      {a.wake.length > 0 ? (
-        <div className="flex flex-wrap gap-1">
-          {a.wake.map((w, i) => {
-            const Icon = WAKE_ICON[w.type];
-            return (
-              <span
-                key={`${w.type}-${w.detail}-${i}`}
-                title={`${w.type} · via ${w.via}`}
-                className="inline-flex max-w-full items-center gap-1 rounded-md border border-border bg-panel/50 px-1.5 py-0.5 text-[10px] text-foreground/80"
-              >
-                <Icon className="size-2.5 shrink-0 text-muted" />
-                <span className="truncate font-mono">{w.detail}</span>
-              </span>
-            );
-          })}
-        </div>
-      ) : (
-        <div className="flex items-center gap-1 text-[10px] text-muted">
-          <Moon className="size-2.5" /> wakes only by delegation or a direct run
-        </div>
-      )}
-      <div className="flex items-center gap-2 text-[10px] text-muted">
-        {a.model && (
-          <span className="truncate font-mono" title={a.model}>
-            {a.model}
-          </span>
         )}
-        <span className="ml-auto inline-flex shrink-0 items-center gap-1">
-          <Clock className="size-2.5" /> {a.lastRunMs ? fmtTime(a.lastRunMs) : "never marched"}
-        </span>
       </div>
+    );
+  }
+
+  // ───────────────────────── Fleet tab: the census ─────────────────────────
+  return (
+    <div className="space-y-3">
+      {header}
+
+      {/* Census band — what you own, at a glance, even at rest. */}
+      <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-6">
+        <BigStat icon={Users} label="roster" value={census.roster} />
+        <BigStat icon={Anchor} label="standing" value={census.standing} />
+        <BigStat icon={CalendarClock} label="schedules" value={census.schedule} />
+        <BigStat icon={GitFork} label="workflows" value={census.workflow} />
+        <BigStat icon={Cpu} label="system" value={census.system} />
+        <BigStat icon={RefreshCw} label="running" value={census.running} accent={census.running > 0} />
+      </div>
+
+      {/* Kind filters + search. */}
+      <div className="flex flex-wrap items-center gap-1.5">
+        {FLEET_FILTERS.map((f) => {
+          const n =
+            f.id === "all"
+              ? fleet.length
+              : f.id === "running"
+                ? census.running
+                : fleet.filter((e) => e.kind === f.id).length;
+          return (
+            <button
+              key={f.id}
+              onClick={() => setFleetFilter(f.id)}
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors",
+                fleetFilter === f.id ? "border-accent bg-accent/10 text-accent" : "border-border text-muted hover:border-accent",
+              )}
+            >
+              <f.icon className="size-3" />
+              {f.label}
+              <span className="rounded-full bg-card px-1.5 text-[10px] tabular-nums">{n}</span>
+            </button>
+          );
+        })}
+        <div className="relative ml-auto">
+          <Search className="pointer-events-none absolute left-2 top-1/2 size-3 -translate-y-1/2 text-muted" />
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search agents…"
+            className="w-44 rounded-full border border-border bg-card py-1 pl-7 pr-2 text-xs outline-none focus:border-accent"
+          />
+        </div>
+      </div>
+
+      {err && !catalogLoaded ? (
+        <ErrorText>{err}</ErrorText>
+      ) : !catalogLoaded ? (
+        <SkeletonList count={4} lines={2} />
+      ) : fleet.length === 0 ? (
+        <EmptyState
+          icon={Network}
+          title="No agents yet"
+          hint="Create a roster agent, a standing order, a schedule, or a workflow — each appears here with how it gets triggered."
+        />
+      ) : (
+        <div className="flex min-h-0 flex-col gap-3 lg:flex-row">
+          <div
+            className={cn(
+              "grid min-w-0 flex-1 gap-2.5",
+              selEntity ? "sm:grid-cols-1 xl:grid-cols-2" : "sm:grid-cols-2 xl:grid-cols-3",
+            )}
+          >
+            {shownFleet.length === 0 ? (
+              <EmptyState icon={Search} title="No matches" hint="Try a different filter or search term." />
+            ) : (
+              shownFleet.map((e) => <FleetCard key={e.key} e={e} onOpen={() => setSelKey(e.key)} />)
+            )}
+          </div>
+          {selEntity && (
+            <FleetDetail
+              e={selEntity}
+              onClose={() => setSelKey("")}
+              onManage={manage}
+              onLive={selEntity.kind === "roster" ? () => openLiveFor(selEntity.slug) : undefined}
+            />
+          )}
+        </div>
+      )}
     </div>
   );
 }
