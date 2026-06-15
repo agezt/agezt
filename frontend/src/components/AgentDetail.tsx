@@ -26,7 +26,7 @@ import {
   ArrowRight,
   Waypoints,
 } from "lucide-react";
-import { getJSON, postAction } from "@/lib/api";
+import { getJSON, postAction, postJSON } from "@/lib/api";
 import { cn, fmtTime, fmtDateTime, fmtAgo, clip } from "@/lib/utils";
 import { money } from "@/lib/format";
 import { Button } from "@/components/ui/button";
@@ -39,6 +39,8 @@ import { useEvents } from "@/lib/events";
 import { AgentAvatar } from "@/components/AgentAvatar";
 import { AgentActivity } from "@/components/AgentActivity";
 import { AgentRepair } from "@/components/AgentRepair";
+import { ModelPicker } from "@/components/ModelPicker";
+import { ModelChip } from "@/components/ModelChip";
 import { TriggerChip } from "@/components/Fleet";
 import { openAgent } from "@/lib/agentnav";
 import type { AgentProfile } from "@/views/Roster";
@@ -56,7 +58,7 @@ import {
   type RunLite,
 } from "@/lib/agentdetail";
 import { isChainRef, chainName, type ChainsState } from "@/lib/chains";
-import { modelHealth, type ModelCatalog, type ModelHealth } from "@/lib/models";
+import { type ModelCatalog } from "@/lib/models";
 
 // Diagnostics row shapes (mirrors of /api/policy_log + /api/tool_log rows).
 interface PolicyDecision {
@@ -403,7 +405,7 @@ export function AgentDetail({
           <TriggersTab orders={myOrders} schedules={mySchedules} triggers={triggers} busy={busy} onAction={action} onManage={onManage} />
         )}
 
-        {tab === "model" && <ModelTab profile={profile} routing={routing} provLog={myProvLog} onManage={onManage} />}
+        {tab === "model" && <ModelTab slug={slug} profile={profile} routing={routing} provLog={myProvLog} onManage={onManage} />}
 
         {tab === "activity" && <AgentActivity slug={slug} />}
 
@@ -762,16 +764,19 @@ function ScheduleForecast({ id, fallbackNext }: { id: string; fallbackNext?: num
 // chain its task_type resolves to, and the provider/fallback events its runs
 // actually produced.
 function ModelTab({
+  slug,
   profile,
   routing,
   provLog,
   onManage,
 }: {
+  slug: string;
   profile: AgentProfile;
   routing: RoutingInfo | null;
   provLog: ProviderLogRow[] | null;
   onManage: (view: string) => void;
 }) {
+  const { toast } = useUI();
   const taskChain = profile.task_type ? routing?.chains?.[profile.task_type] : undefined;
   const fallbacks = provLog ? provLog.filter((r) => r.kind === "fallback") : null;
 
@@ -788,22 +793,77 @@ function ModelTab({
       live = false;
     };
   }, []);
-  const modelIsChain = isChainRef(profile.model || "");
-  const expandedChain = modelIsChain ? chains[chainName(profile.model || "")] : undefined;
+
+  // Inline edit of the agent's model straight from the detail page (M970): the
+  // ModelPicker surfaces the "Fallback chains" group, so you can point an agent
+  // at a named chain (@name) without leaving the page. /api/agents/edit is a full
+  // replace, so we send the whole profile with only the model (and, for a chain,
+  // the now-redundant per-agent fallbacks cleared) changed.
+  const [model, setModel] = useState(profile.model || "");
+  const [saving, setSaving] = useState(false);
+  useEffect(() => setModel(profile.model || ""), [profile.model]);
+  const dirty = model !== (profile.model || "");
+  async function saveModel() {
+    setSaving(true);
+    try {
+      await postJSON("/api/agents/edit", {
+        ref: slug,
+        profile: {
+          name: profile.name || "",
+          soul: profile.soul || "",
+          model,
+          fallbacks: isChainRef(model) ? [] : profile.fallbacks || [],
+          task_type: profile.task_type || "",
+          max_cost_mc: profile.max_cost_mc || 0,
+          max_daily_mc: profile.max_daily_mc || 0,
+          memory_scope: profile.memory_scope || "",
+          workdir: profile.workdir || "",
+          description: profile.description || "",
+        },
+      });
+      toast(isChainRef(model) ? `Model set to chain @${chainName(model)}` : model ? `Model set to ${model}` : "Model reset to daemon default", "success");
+    } catch (e) {
+      toast((e as Error).message, "error");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const modelIsChain = isChainRef(model);
+  const expandedChain = modelIsChain ? chains[chainName(model)] : undefined;
 
   return (
     <div className="space-y-3">
+      <div className="space-y-2 rounded-lg border border-accent/30 bg-accent/5 p-2.5">
+        <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-accent">
+          <Cpu className="size-3" /> Change model / fallback chain
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <ModelPicker value={model} activeModel="daemon default" onChange={setModel} />
+          <Button size="sm" onClick={saveModel} disabled={!dirty || saving}>
+            {saving ? "Saving…" : "Save"}
+          </Button>
+          {dirty && <span className="text-[10px] text-warn">unsaved</span>}
+        </div>
+        <p className="text-[10px] text-muted">
+          Pick a single model, or a <span className="text-accent">⛓ fallback chain</span> (defined under{" "}
+          <button className="underline-offset-2 hover:underline" onClick={() => onManage("chains")}>
+            Fallback Chains
+          </button>
+          ). A chain is self-contained — per-agent fallbacks are ignored when one is selected.
+        </p>
+      </div>
       <div className="space-y-1.5 rounded-lg border border-border bg-panel/30 p-2.5">
         <Row
-          label="primary model"
+          label={dirty ? "model (unsaved)" : "primary model"}
           value={
             modelIsChain ? (
               <span className="inline-flex items-center gap-1 font-mono text-accent">
-                <Waypoints className="size-3" /> {chainName(profile.model || "")}
+                <Waypoints className="size-3" /> {chainName(model)}
                 {expandedChain && <span className="text-muted">· {expandedChain.length} model{expandedChain.length === 1 ? "" : "s"}</span>}
               </span>
-            ) : profile.model ? (
-              <span className="font-mono">{profile.model}</span>
+            ) : model ? (
+              <span className="font-mono">{model}</span>
             ) : (
               "(daemon default)"
             )
@@ -813,14 +873,11 @@ function ModelTab({
           <Row
             label="chain expands to"
             value={
-              <span className="flex flex-wrap items-center gap-1 font-mono">
+              <span className="flex flex-wrap items-center gap-1">
                 {expandedChain.map((m, i) => (
                   <span key={i} className="inline-flex items-center gap-1">
                     {i > 0 && <ArrowRight className="size-3 text-muted" />}
-                    <span className="inline-flex items-center gap-1 rounded bg-card px-1.5 py-0.5 text-[10px]">
-                      {cat && <ChainHealthDot status={modelHealth(cat, m)} />}
-                      {m}
-                    </span>
+                    <ModelChip id={m} cat={cat} />
                   </span>
                 ))}
               </span>
@@ -828,7 +885,7 @@ function ModelTab({
           />
         )}
         {modelIsChain && expandedChain === undefined && (
-          <Row label="chain" value={<span className="text-bad">@{chainName(profile.model || "")} — no such chain (falls through to default)</span>} />
+          <Row label="chain" value={<span className="text-bad">@{chainName(model)} — no such chain (falls through to default)</span>} />
         )}
         {!modelIsChain && (
           <Row
@@ -901,17 +958,6 @@ function ModelTab({
   );
 }
 
-// ChainHealthDot mirrors the Fallback Chains page dot (M965): green = a keyed
-// provider serves the model, amber = needs a key, red = unknown to the catalog.
-function ChainHealthDot({ status }: { status: ModelHealth }) {
-  const meta: Record<ModelHealth, { cls: string; title: string }> = {
-    ok: { cls: "bg-good", title: "A keyed provider can run this model" },
-    nokey: { cls: "bg-warn", title: "No keyed provider — add an API key under Models" },
-    unknown: { cls: "bg-bad", title: "Not in the catalog — check the model id" },
-  };
-  const m = meta[status];
-  return <span className={cn("size-1.5 shrink-0 rounded-full", m.cls)} title={m.title} />;
-}
 
 // CommsTab is the agent's mailbox: the board messages it sent, was addressed, or
 // received as a broadcast — its communication trail with the rest of the fleet.
