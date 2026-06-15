@@ -49,6 +49,23 @@ export function Login({ onAuthed }: { onAuthed: () => void }) {
     try {
       await postJSON("/api/login", { password: pw });
       setPw("");
+      // Verify the session is actually accepted by the DATA routes before
+      // revealing the app. In strict mode (token AND session) — or against an
+      // older daemon — a token-less password login mints a cookie but every
+      // /api/* still 401s; surface that here instead of dropping the user into
+      // an app that fails on every request. A failed probe is treated as
+      // success (optimistic) so a transient blip never locks a usable console.
+      try {
+        const m = await getJSON<AuthMeta>("/api/authmeta");
+        if (m.password_required && !m.authed) {
+          setErr(
+            "Signed in, but this browser still can't reach the data routes — the daemon also requires the URL token (strict mode). Open the tokened link from the daemon banner.",
+          );
+          return;
+        }
+      } catch {
+        /* probe failed — be optimistic; the app's own requests surface real errors */
+      }
       onAuthed();
     } catch (e) {
       setErr((e as Error).message || "login failed");
