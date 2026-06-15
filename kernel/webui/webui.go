@@ -146,6 +146,8 @@ var apiRoutes = map[string]string{
 	"/api/config/values":   controlplane.CmdConfigValues,
 	// Per-task model routing (M703): the effective chains + known task types.
 	"/api/routing": controlplane.CmdRoutingGet,
+	// Named reusable fallback chains (M963): the registry + default chain.
+	"/api/chains":  controlplane.CmdChainsGet,
 	"/api/persona": controlplane.CmdPersonaGet,
 	"/api/prompts": controlplane.CmdPromptsGet,
 	// Pulse — the proactive heartbeat status (running/paused/beats/cadence) (M743).
@@ -370,6 +372,9 @@ var jsonRoutes = map[string]writeRoute{
 	// Per-task model routing (M703): replace the model chains. `chains` is an
 	// object {task: [models]} too large/structured for a query arg.
 	"/api/routing/set": {controlplane.CmdRoutingSet, []string{"chains"}},
+	// Named reusable fallback chains (M963): replace the whole registry. `chains`
+	// is an object {name: [models]} and `default` an optional chain name.
+	"/api/chains/set":  {controlplane.CmdChainsSet, []string{"chains", "default"}},
 	"/api/persona/set": {controlplane.CmdPersonaSet, []string{"system"}},
 	// Chat history compaction (M923): fold older turns into one briefing. The
 	// turns array is far too large for a query string — JSON body only.

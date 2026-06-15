@@ -2027,6 +2027,45 @@ export const HELP: Record<string, HelpTopic> = {
     related: [
       { id: "models", label: "Models" },
       { id: "providers", label: "Providers" },
+      { id: "chains", label: "Fallback Chains" },
+    ],
+  },
+
+  chains: {
+    title: "Fallback Chains",
+    intro:
+      "Named, reusable model ladders. A chain is an ordered list of models tried in turn; pick a chain anywhere you pick a model — agents, routing, chat — and the governor expands it at run time. Edit a chain in one place and every reference updates.",
+    sections: [
+      {
+        heading: "Managing chains",
+        items: [
+          {
+            term: "Create & name",
+            desc: "New chain makes an empty ladder; rename to a slug (lower-case, digits, dashes). The name is how it's referenced as @name elsewhere.",
+          },
+          {
+            term: "Ordering models",
+            desc: "The primary wears a badge; fallbacks are numbered. Reorder with the arrows, remove with the ×, add models via the picker. A chain may not reference another chain.",
+          },
+          {
+            term: "Default chain",
+            desc: "Star one chain as the default — any run that resolves to no chain of its own (no agent, task, or explicit model) uses it, so even a bare agent gets a fallback ladder.",
+          },
+          {
+            term: "Save",
+            desc: "Changes stage in the editor until saved; saving applies live and persists. Unknown model ids are flagged but not rejected.",
+          },
+        ],
+      },
+    ],
+    tips: [
+      "Selecting @chain for an agent replaces its model and per-agent fallbacks — the chain is self-contained.",
+      "Deleting a chain makes dangling @name references fall through to the default chain (or the daemon model).",
+    ],
+    related: [
+      { id: "routing", label: "Routing" },
+      { id: "models", label: "Models" },
+      { id: "agents", label: "Agents" },
     ],
   },
 

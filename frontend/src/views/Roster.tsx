@@ -12,6 +12,8 @@ import { Badge } from "@/components/ui/badge";
 import { ErrorText } from "@/components/JsonView";
 import { AgentAvatar } from "@/components/AgentAvatar";
 import { AgentActivity } from "@/components/AgentActivity";
+import { ModelPicker } from "@/components/ModelPicker";
+import { isChainRef } from "@/lib/chains";
 
 export interface AgentProfile {
   id: string;
@@ -60,7 +62,9 @@ const inputCls =
   "rounded-md border border-border bg-panel px-2 py-1 text-sm text-foreground outline-none focus-visible:border-accent";
 
 // profileFields collects the shared New/Edit form fields into the wire shape.
-function profileFields(f: {
+// Exported for unit tests (the model/fallbacks mapping, incl. the @chain
+// self-contained rule, is the meaningful logic).
+export function profileFields(f: {
   name: string;
   soul: string;
   model: string;
@@ -87,11 +91,15 @@ function profileFields(f: {
     workdir: f.workdir.trim(),
     description: f.description.trim(),
   };
-  const fb = f.fallbacks
-    .split(",")
-    .map((m) => m.trim())
-    .filter(Boolean);
-  if (fb.length > 0) p.fallbacks = fb;
+  // A "@chain" model is self-contained — its fallback ladder lives in the chain,
+  // so per-agent fallbacks are ignored (and the form hides the field).
+  if (!isChainRef(p.model as string)) {
+    const fb = f.fallbacks
+      .split(",")
+      .map((m) => m.trim())
+      .filter(Boolean);
+    if (fb.length > 0) p.fallbacks = fb;
+  }
   return p;
 }
 
@@ -113,12 +121,21 @@ function AgentFormFields(props: {
       />
     </label>
   );
+  const modelIsChain = isChainRef(state.model || "");
   return (
     <>
       <div className="grid gap-2 sm:grid-cols-2">
         {field("Name", "name", "e.g. The Researcher", "Agent name")}
-        {field("Model", "model", "blank = daemon default", "Agent model")}
-        {field("Fallback models (comma-separated)", "fallbacks", "m1, m2", "Fallback models")}
+        <label className="flex flex-col gap-1 text-[11px] text-muted">
+          Model
+          <div className="flex h-[30px] items-center">
+            <ModelPicker value={state.model || ""} activeModel="daemon default" onChange={(id) => set("model", id)} />
+          </div>
+          {modelIsChain && <span className="text-[10px] text-accent">chain is self-contained — fallbacks come from @{state.model.slice(1)}</span>}
+        </label>
+        {modelIsChain
+          ? null
+          : field("Fallback models (comma-separated)", "fallbacks", "m1, m2", "Fallback models")}
         {field("Task type", "taskType", "e.g. research, code", "Task type")}
         {field("Max cost per run (USD)", "maxCost", "e.g. 0.50 — blank = no cap", "Max cost per run")}
         {field("Max cost per day (USD)", "maxDaily", "e.g. 5.00 — blank = no cap", "Max cost per day")}

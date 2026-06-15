@@ -213,6 +213,21 @@ func ParseTaskModelChainsEnv(spec string) (TaskModelChains, error) {
 	return TaskModelChains(routes), nil
 }
 
+// ParseFallbackChainsEnv decodes an `AGEZT_FALLBACK_CHAINS` spec into the named
+// reusable chain registry (M963). Same syntax as AGEZT_TASK_MODEL_CHAINS — the
+// key is the chain NAME (not a task type) and the value is its ordered model
+// list: "fast=haiku,gpt-4o-mini;thorough=opus,gpt-5".
+func ParseFallbackChainsEnv(spec string) (map[string][]string, error) {
+	routes, err := parseTaskRoutesEnv(spec)
+	if err != nil {
+		return nil, fmt.Errorf("governor: fallback-chain: %w", err)
+	}
+	if routes == nil {
+		return nil, nil
+	}
+	return map[string][]string(routes), nil
+}
+
 // ParseTaskBudgetsEnv decodes
 //
 //	"plan=100000;code=500000"
