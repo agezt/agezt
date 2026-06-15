@@ -16,7 +16,8 @@
   --card: oklch(1 0 0);
   --panel: oklch(0.965 0.002 260);
   --muted: oklch(0.5 0.012 260);
-  --border: oklch(0.9 0.005 260);
+  /* Softer light-theme border (M979) — less grid, more air. */
+  --border: oklch(0.925 0.004 260);
   /* The accent hue is customizable (M716); lightness/chroma stay per-theme. */
   --accent: oklch(0.58 0.17 var(--accent-hue, 255));
   /* Gradient partner for the accent (M977 "command center"): a violet sibling
@@ -43,7 +44,9 @@
   --card: oklch(0.215 0.03 265);
   --panel: oklch(0.195 0.028 265);
   --muted: oklch(0.64 0.022 265);
-  --border: oklch(0.3 0.032 265);
+  /* Softer, lower-contrast border so the UI stops reading as a spreadsheet grid
+     (M979) — borders recede; depth comes from elevation + glass, not hard lines. */
+  --border: oklch(0.26 0.028 265);
   --accent: oklch(0.7 0.15 var(--accent-hue, 255));
   --accent-2: oklch(0.72 0.17 305);
   --good: oklch(0.72 0.16 150);
@@ -76,11 +79,11 @@
   --shadow-e1: var(--elev-1);
   --shadow-e2: var(--elev-2);
   --shadow-e3: var(--elev-3);
-  /* Softer radius scale — slightly rounder than Tailwind's defaults for a more
-     modern, less boxy feel; cascades to every rounded-md/lg/xl across the app. */
-  --radius-md: 0.5rem;
-  --radius-lg: 0.625rem;
-  --radius-xl: 0.875rem;
+  /* Rounder radius scale (M979) — noticeably softer than Tailwind's defaults for
+     a modern, friendly, un-boxy feel; cascades to every rounded-md/lg/xl. */
+  --radius-md: 0.625rem;
+  --radius-lg: 0.875rem;
+  --radius-xl: 1.1rem;
 }
 
 * {
@@ -98,9 +101,9 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans);
-  font-size: 13px;
-  line-height: 1.5;
-  letter-spacing: -0.003em;
+  font-size: 13.5px;
+  line-height: 1.55;
+  letter-spacing: -0.006em;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
