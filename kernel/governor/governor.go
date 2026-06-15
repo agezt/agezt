@@ -366,6 +366,14 @@ var ErrRateLimited = errors.New("governor: rate limit exceeded")
 // advertise tool-use. A pre-flight error — no provider is called.
 var ErrModelLacksToolUse = errors.New("governor: model does not support tool-use")
 
+// ErrModelUnservable is returned when a model fallback chain entry is skipped
+// because no registered provider serves it and every provider declares a
+// (non-empty) catalog model list — so dispatching it would only hit a provider
+// that 400s on an unrecognised id (M955: the glm-5.1→deepseek misroute). The
+// chain walk advances to the next model; this is the last error only when EVERY
+// model in the chain was unservable.
+var ErrModelUnservable = errors.New("governor: no registered provider serves model")
+
 // ErrNoProviders is returned when no provider in the chain succeeded.
 type ErrNoProviders struct {
 	Tried []string
@@ -842,6 +850,36 @@ func (g *Governor) completeChained(req agent.CompletionRequest, runOne func(agen
 	}
 	var lastErr error
 	for i, m := range models {
+		// Skip a chain model that NO registered provider can serve (M955).
+		// Without this, applyModelRoute leaves the default chain in place and
+		// the model id is dispatched to the primary provider, which 400s on an
+		// id it doesn't recognise — one failed call PER provider in the chain,
+		// a fallback storm — before the walk finally reaches the next model.
+		// Skipping straight to the next model produces a real answer with zero
+		// doomed calls. Guarded to "definitively unservable" (every provider
+		// declares a model list and none include m) so an unknown-coverage
+		// provider (empty Models, e.g. the mock/echo fallback) still gets the
+		// benefit of the doubt — its presence preserves the legacy fall-through.
+		if g.modelKnownUnservable(m) {
+			lastErr = fmt.Errorf("%w: %q", ErrModelUnservable, m)
+			if i+1 < len(models) {
+				g.publish(event.Spec{
+					Subject:       "governor.fallback",
+					Kind:          event.KindProviderFallback,
+					Actor:         "governor",
+					CorrelationID: req.CorrelationID,
+					Payload: map[string]any{
+						"failed_model": m,
+						"next_model":   models[i+1],
+						"reason":       "no registered provider serves this model",
+						"scope":        scope,
+						"task_type":    req.TaskType,
+						"skipped":      true,
+					},
+				})
+			}
+			continue
+		}
 		attempt := req
 		attempt.Model = m
 		resp, err := runOne(attempt)
@@ -884,6 +922,37 @@ func (g *Governor) modelChainFor(taskType string) []string {
 		return nil
 	}
 	return slices.Clone(src)
+}
+
+// modelKnownUnservable reports whether the registered providers DEFINITIVELY
+// cannot serve model: no registered provider lists it AND every registered
+// provider declares a non-empty catalog model list. An empty Models list means
+// "unknown coverage" (the comment on ProviderInfo.Models) — such a provider may
+// accept an unlisted id, so its presence makes the verdict false (don't skip).
+// Mirrors the routeChain snapshot discipline: read the chain slices under
+// chainMu so a concurrent Replace (hot reload) can't race the scan.
+func (g *Governor) modelKnownUnservable(model string) bool {
+	if model == "" {
+		return false
+	}
+	g.chainMu.RLock()
+	defer g.chainMu.RUnlock()
+	for _, p := range g.sortedPrimary {
+		if p.Serves(model) || len(p.Models) == 0 {
+			return false
+		}
+	}
+	for _, p := range g.fallback {
+		if p.Serves(model) || len(p.Models) == 0 {
+			return false
+		}
+	}
+	// Guard: with no providers at all (impossible post-New, but cheap) treat as
+	// servable so we never skip every model on an empty registry.
+	if len(g.sortedPrimary) == 0 && len(g.fallback) == 0 {
+		return false
+	}
+	return true
 }
 
 // SetTaskModelChains atomically replaces the per-task-type model fallback chains
