@@ -835,6 +835,23 @@ func TestRunSteerForwardsArgs(t *testing.T) {
 	}
 }
 
+// The steer route forwards the optional `mode` arg (M962) so the UI can send a
+// soft BTW (mode=note) vs a forceful steer.
+func TestRunSteerForwardsMode(t *testing.T) {
+	fc := &fakeCaller{result: map[string]any{"accepted": true}}
+	s, _ := newServer(t, fc, "secret")
+	req := httptest.NewRequest(http.MethodPost,
+		"/api/run/steer?token=secret&correlation=run-7&directive=hi&mode=note", nil)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d want 200", rec.Code)
+	}
+	if fc.lastArgs["mode"] != "note" {
+		t.Errorf("mode not forwarded: %v", fc.lastArgs)
+	}
+}
+
 // The pause/resume/step routes each forward only the correlation and map to the
 // right command.
 func TestRunControlRoutesMapToCommands(t *testing.T) {

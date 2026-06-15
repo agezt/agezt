@@ -35,6 +35,24 @@ function fold(frames: ChatFrame[]) {
   return frames.reduce(foldChatFrame, newTurn());
 }
 
+describe("foldChatFrame steer/note (M962)", () => {
+  it("records steers and BTW notes as chips", () => {
+    const t = fold([
+      { kind: "open" },
+      { kind: "run.steered", payload: { directive: "focus on the DB", mode: "steer" } },
+      { kind: "run.steered", payload: { directive: "check the cache too", mode: "note" } },
+    ]);
+    expect(t.steers).toEqual([
+      { text: "focus on the DB", note: false },
+      { text: "check the cache too", note: true },
+    ]);
+  });
+  it("ignores an empty steer directive", () => {
+    const t = fold([{ kind: "run.steered", payload: { directive: "", mode: "steer" } }]);
+    expect(t.steers).toBeUndefined();
+  });
+});
+
 describe("foldChatFrame", () => {
   it("accumulates streaming tokens while the run is live", () => {
     const live = fold(arc.slice(0, 5)); // through the two llm.token frames

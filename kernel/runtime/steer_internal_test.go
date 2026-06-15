@@ -83,11 +83,14 @@ func TestRunControl_WaitHonoursContext(t *testing.T) {
 
 func TestRunControl_InjectDrainOrderAndOnce(t *testing.T) {
 	rc := newRunControl()
-	rc.inject("first")
-	rc.inject("second")
+	rc.inject("first", false)
+	rc.inject("second", true)
 	got := rc.Drain()
-	if len(got) != 2 || got[0] != "first" || got[1] != "second" {
+	if len(got) != 2 || got[0].Text != "first" || got[1].Text != "second" {
 		t.Fatalf("Drain = %v want [first second] in order", got)
+	}
+	if got[0].Note || !got[1].Note {
+		t.Errorf("Drain notes = [%v %v] want [false true]", got[0].Note, got[1].Note)
 	}
 	if again := rc.Drain(); again != nil {
 		t.Errorf("second Drain = %v want nil (directives consumed once)", again)
@@ -100,7 +103,7 @@ func TestRunControl_SnapshotReflectsState(t *testing.T) {
 		t.Fatalf("fresh snapshot = (%v,%d) want (false,0)", p, n)
 	}
 	rc.pause()
-	rc.inject("x")
+	rc.inject("x", false)
 	if p, n := rc.snapshot(); !p || n != 1 {
 		t.Errorf("after pause+inject snapshot = (%v,%d) want (true,1)", p, n)
 	}

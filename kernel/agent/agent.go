@@ -451,7 +451,15 @@ type Steerer interface {
 	// Drain returns and clears any directives the operator has injected since the
 	// last call, in submission order. The loop appends each as a user turn before
 	// the next model call. Returns nil when none are pending.
-	Drain() []string
+	Drain() []Directive
+}
+
+// Directive is one operator injection the loop folds into the run at a safe
+// boundary (M962). Note distinguishes a soft "by the way" — read it, but finish
+// the current step and stay on task — from a forceful steer that re-prioritises.
+type Directive struct {
+	Text string
+	Note bool
 }
 
 // DefaultContextProtectLast is how many trailing messages context compaction
@@ -686,6 +694,11 @@ var ErrMaxIter = errors.New("agent: max iterations exceeded")
 // understands the new user turn is live guidance from the human operator, not a
 // continuation of the original task — letting it re-prioritise accordingly.
 const steeringPrefix = "[operator steering] "
+
+// noteSteeringPrefix frames a soft "BTW" injection (M962): the model should read
+// it and weave it in, but finish the current step and NOT abandon the task —
+// unlike a steer, which is a re-prioritisation.
+const noteSteeringPrefix = "[operator note — FYI; finish your current step, then weave this in if relevant; do NOT abandon your task] "
 
 // ErrPanic wraps a panic recovered by Run's panic firewall (M168). It lets the
 // run fail cleanly (journaled task.failed, reason=panic) instead of crashing the
@@ -965,10 +978,15 @@ func Run(ctx context.Context, cfg LoopConfig, userIntent string) (answer string,
 				return "", err
 			}
 			for _, d := range cfg.Steer.Drain() {
-				messages = append(messages, Message{Role: RoleUser, Content: steeringPrefix + d})
+				prefix, mode := steeringPrefix, "steer"
+				if d.Note {
+					prefix, mode = noteSteeringPrefix, "note"
+				}
+				messages = append(messages, Message{Role: RoleUser, Content: prefix + d.Text})
 				if _, err := publish(event.KindRunSteered, "steer", map[string]any{
 					"iter":      iter,
-					"directive": d,
+					"directive": d.Text,
+					"mode":      mode,
 				}); err != nil {
 					return "", apperrors.Wrap(ctx, "agent: publish run.steered", err)
 				}

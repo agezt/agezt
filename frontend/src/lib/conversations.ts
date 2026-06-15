@@ -1,4 +1,5 @@
 import type { ChatTurn } from "@/lib/chat";
+import type { QueuedMsg } from "@/lib/queue";
 
 // A chat message: a user prompt, or an assistant turn (the folded ChatTurn).
 export interface UserMsg {
@@ -35,6 +36,10 @@ export interface Conversation {
   // dropped. `upto` = how many leading messages the briefing covers; runs send
   // the briefing as a leading system turn plus the messages after `upto`.
   summary?: HistorySummary;
+  // Queued follow-up messages (M962): lined up while a run streams, shown on
+  // screen, and auto-sent one-by-one as each run finishes. Persisted so the
+  // queue survives a reload.
+  queue?: QueuedMsg[];
 }
 
 // HistorySummary is one folded prefix of a conversation (M925).
@@ -197,6 +202,21 @@ export function withActiveMessages(store: Store, messages: Msg[], now: number): 
         ? { ...c, messages, title: c.title === "New chat" ? deriveTitle(messages) : c.title, updatedAt: now }
         : c,
     ),
+  };
+}
+
+// activeQueue returns the active conversation's pending message queue (M962).
+export function activeQueue(store: Store): QueuedMsg[] {
+  return store.conversations.find((c) => c.id === store.activeId)?.queue ?? [];
+}
+
+// withActiveQueue returns a new store with the active conversation's queue
+// replaced. Pure — safe for React state. updatedAt is NOT bumped, so queueing a
+// message doesn't reorder the thread list.
+export function withActiveQueue(store: Store, queue: QueuedMsg[], _now: number): Store {
+  return {
+    ...store,
+    conversations: store.conversations.map((c) => (c.id === store.activeId ? { ...c, queue } : c)),
   };
 }
 

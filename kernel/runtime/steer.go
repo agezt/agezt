@@ -16,6 +16,7 @@ import (
 	"maps"
 	"sync"
 
+	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/event"
 )
 
@@ -25,9 +26,9 @@ import (
 type runControl struct {
 	mu         sync.Mutex
 	paused     bool
-	stepOnce   bool          // when paused, allow exactly one iteration then re-block
-	directives []string      // operator-injected guidance, drained by the loop
-	wake       chan struct{} // closed+replaced to broadcast a state change to Wait
+	stepOnce   bool              // when paused, allow exactly one iteration then re-block
+	directives []agent.Directive // operator-injected guidance, drained by the loop
+	wake       chan struct{}     // closed+replaced to broadcast a state change to Wait
 }
 
 func newRunControl() *runControl {
@@ -71,7 +72,7 @@ func (rc *runControl) Wait(ctx context.Context) error {
 
 // Drain implements agent.Steerer: returns and clears the queued directives in
 // submission order. nil when none pending.
-func (rc *runControl) Drain() []string {
+func (rc *runControl) Drain() []agent.Directive {
 	rc.mu.Lock()
 	defer rc.mu.Unlock()
 	if len(rc.directives) == 0 {
@@ -122,10 +123,10 @@ func (rc *runControl) step() {
 // inject queues a directive for the loop to fold into the next prompt. A paused
 // run picks it up the moment it is resumed/stepped; a running run picks it up at
 // the next iteration boundary.
-func (rc *runControl) inject(directive string) {
+func (rc *runControl) inject(directive string, note bool) {
 	rc.mu.Lock()
 	defer rc.mu.Unlock()
-	rc.directives = append(rc.directives, directive)
+	rc.directives = append(rc.directives, agent.Directive{Text: directive, Note: note})
 }
 
 // snapshot returns the current pause state and pending-directive count for the
@@ -190,7 +191,9 @@ func (k *Kernel) StepRun(corr string) bool {
 // folds it into the conversation as a fresh user turn at the next iteration
 // boundary (and emits run.steered when it takes effect). Returns true if the
 // run exists. An empty directive is rejected (false) so the UI can validate.
-func (k *Kernel) SteerRun(corr, directive string) bool {
+// note=true marks a soft "BTW" (read it, finish the current step, stay on task)
+// vs a forceful steer that re-prioritises (M962).
+func (k *Kernel) SteerRun(corr, directive string, note bool) bool {
 	if directive == "" {
 		return false
 	}
@@ -198,7 +201,7 @@ func (k *Kernel) SteerRun(corr, directive string) bool {
 	if rc == nil {
 		return false
 	}
-	rc.inject(directive)
+	rc.inject(directive, note)
 	return true
 }
 

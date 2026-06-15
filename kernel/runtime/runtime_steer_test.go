@@ -92,7 +92,7 @@ func TestSteerRun_PauseInjectResume(t *testing.T) {
 	}
 
 	// Inject the directive that ends the run, then resume so the loop folds it.
-	if !k.SteerRun(corr, "finish now") {
+	if !k.SteerRun(corr, "finish now", false) {
 		t.Fatal("SteerRun returned false for a live run")
 	}
 	if !k.ResumeRun(corr) {
@@ -251,7 +251,7 @@ func TestSteerRun_SubAgentIndividuallySteerable(t *testing.T) {
 	if paused, _, ok := k.RunControlState(childCorr); !ok || !paused {
 		t.Fatalf("sub-agent RunControlState = (paused=%v ok=%v), want paused & ok", paused, ok)
 	}
-	if !k.SteerRun(childCorr, "finish now") {
+	if !k.SteerRun(childCorr, "finish now", false) {
 		t.Fatal("SteerRun returned false for the live sub-agent")
 	}
 	if !k.ResumeRun(childCorr) {
@@ -290,13 +290,13 @@ func TestSteerRun_SubAgentIndividuallySteerable(t *testing.T) {
 // reporting false, never a panic.
 func TestSteerRun_UnknownReturnsFalse(t *testing.T) {
 	k := newKernel(t, steerLoopProvider{})
-	if k.PauseRun("nope") || k.ResumeRun("nope") || k.StepRun("nope") || k.SteerRun("nope", "x") {
+	if k.PauseRun("nope") || k.ResumeRun("nope") || k.StepRun("nope") || k.SteerRun("nope", "x", false) {
 		t.Error("steering an unknown correlation must return false")
 	}
 	if _, _, ok := k.RunControlState("nope"); ok {
 		t.Error("RunControlState for an unknown correlation must report ok=false")
 	}
-	if k.SteerRun("nope", "") {
+	if k.SteerRun("nope", "", false) {
 		t.Error("an empty directive must be rejected")
 	}
 }
