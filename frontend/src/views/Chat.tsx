@@ -388,6 +388,9 @@ export function Chat() {
             ))}
           </div>
         )}
+        {/* Composer surface (M995): input + controls in one elevated card that
+            lights an accent ring on focus, like a modern chat composer. */}
+        <div className="rounded-xl border border-border bg-panel/40 px-2 py-1.5 shadow-e1 transition-[border-color,box-shadow] focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/20">
         <div className="flex items-end gap-2">
           <Button
             variant="ghost"
@@ -413,7 +416,7 @@ export function Chat() {
                 ? "Run in flight — Enter queues a follow-up; Steer or BTW the running agent →"
                 : "Ask the agent to do something…  (Enter to send, Shift+Enter for a new line)"
             }
-            className="max-h-40 min-h-[2.5rem] flex-1 resize-none overflow-y-auto rounded-lg border border-border bg-panel px-3 py-2 text-sm shadow-e1 outline-none transition-[border-color,box-shadow] placeholder:text-muted focus-visible:border-accent focus-visible:ring-2 focus-visible:ring-accent/30"
+            className="max-h-40 min-h-[2.5rem] flex-1 resize-none overflow-y-auto bg-transparent px-1.5 py-1.5 text-sm outline-none placeholder:text-muted"
           />
           {busy ? (
             <div className="flex items-end gap-1">
@@ -440,7 +443,7 @@ export function Chat() {
             </Button>
           )}
         </div>
-        <div className="mt-1.5 flex items-center gap-2 px-1 text-xs text-muted">
+        <div className="mt-1.5 flex flex-wrap items-center gap-2 border-t border-border/40 px-1 pt-1.5 text-xs text-muted">
           <span>model</span>
           <ModelPicker
             value={model}
@@ -481,6 +484,7 @@ export function Chat() {
             </button>
           )}
           <span className="ml-auto">runs through the governed loop · same as the CLI</span>
+        </div>
         </div>
         </div>
       </div>
