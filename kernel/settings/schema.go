@@ -321,6 +321,18 @@ func builtinSections() []Section {
 			},
 		},
 		{
+			ID: "irc", Name: "IRC",
+			Help: "Two-way IRC channel — connects to any ircd and joins channels. Restart to apply.",
+			Fields: []Field{
+				{Env: "AGEZT_IRC_SERVER", Label: "Server", Type: TypeText, Apply: ApplyRestart, Help: "host:port, e.g. irc.libera.chat:6697"},
+				{Env: "AGEZT_IRC_NICK", Label: "Nick", Type: TypeText, Apply: ApplyRestart, Help: "the bot's nick"},
+				{Env: "AGEZT_IRC_CHANNELS", Label: "Channels", Type: TypeCSV, Apply: ApplyRestart, Help: "channels to join, e.g. #agezt (allowed by default)"},
+				pw("AGEZT_IRC_PASSWORD", "Server password", "optional (PASS)"),
+				{Env: "AGEZT_IRC_TLS", Label: "Force TLS", Type: TypeText, Apply: ApplyRestart, Help: "\"true\" to force TLS (auto for :6697)"},
+				{Env: "AGEZT_IRC_ALLOWLIST", Label: "Extra allowed sources", Type: TypeCSV, Apply: ApplyRestart, Help: "extra nicks (for DMs) / channels"},
+			},
+		},
+		{
 			ID: "interfaces", Name: "Interfaces",
 			Help: "Network surfaces the daemon serves. Restart to apply.",
 			Fields: []Field{

@@ -85,6 +85,7 @@ import (
 	"github.com/agezt/agezt/plugins/channels/discord"
 	"github.com/agezt/agezt/plugins/channels/email"
 	"github.com/agezt/agezt/plugins/channels/homeassistant"
+	"github.com/agezt/agezt/plugins/channels/irc"
 	"github.com/agezt/agezt/plugins/channels/matrix"
 	"github.com/agezt/agezt/plugins/channels/push"
 	signalchan "github.com/agezt/agezt/plugins/channels/signal"
@@ -1457,6 +1458,15 @@ func runDaemon(stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "  matrix channel   : disabled (set AGEZT_MATRIX_HOMESERVER + AGEZT_MATRIX_TOKEN)\n")
 	}
 
+	// IRC channel (SPEC-04 §1) — two-way over a persistent socket to any ircd.
+	ircChan, ircSink, ircDesc := buildIRC(ctx, k)
+	if ircChan != nil {
+		go ircChan.Start(ctx)
+		fmt.Fprintf(stdout, "  irc channel      : %s\n", ircDesc)
+	} else {
+		fmt.Fprintf(stdout, "  irc channel      : disabled (set AGEZT_IRC_SERVER + AGEZT_IRC_NICK)\n")
+	}
+
 	// SMS channel (SPEC-04 §1) — duplex over Twilio Programmable Messaging when
 	// AGEZT_SMS_ACCOUNT_SID + AGEZT_SMS_AUTH_TOKEN are set. Inbound is a signed
 	// Twilio webhook (needs AGEZT_SMS_ADDR); outbound texts go via the REST API
@@ -1532,7 +1542,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 
 	// Every configured channel's brief sink, teed: Pulse briefs and (M782)
 	// alert notifications share the same delivery surface.
-	channelSinks := combineSinks(tgSink, slSink, dcSink, whSink, emSink, mxSink, smSink, waSink, haSink, tmSink, sgSink, pushSink)
+	channelSinks := combineSinks(tgSink, slSink, dcSink, whSink, emSink, mxSink, ircSink, smSink, waSink, haSink, tmSink, sgSink, pushSink)
 
 	// Pulse — the proactive heart (SPEC-03). On by default; the resident
 	// engine runs on the daemon ctx so `agt halt`/SIGTERM/`agt shutdown`
@@ -1704,6 +1714,9 @@ func runDaemon(stdout, stderr io.Writer) int {
 	}
 	if mxChan != nil {
 		liveChannels["matrix"] = mxChan
+	}
+	if ircChan != nil {
+		liveChannels["irc"] = ircChan
 	}
 	if smChan != nil {
 		liveChannels["sms"] = smChan
@@ -2562,6 +2575,60 @@ func buildMatrix(ctx context.Context, k *kernelruntime.Kernel) (*matrix.Channel,
 	desc := fmt.Sprintf("listening, allowlist=%d room(s)", len(roomIDs))
 	if len(roomIDs) == 0 {
 		desc = "listening, NO allowlist (outbound-only; set AGEZT_MATRIX_ROOMS to allow commands)"
+	}
+	return ch, sink, desc
+}
+
+// buildIRC constructs the two-way IRC channel when AGEZT_IRC_SERVER +
+// AGEZT_IRC_NICK are set. It joins AGEZT_IRC_CHANNELS and acts on inbound from
+// allowlisted sources (the joined channels, plus any AGEZT_IRC_ALLOWLIST nicks/
+// channels); Pulse briefs tee to the joined channels.
+//
+//	AGEZT_IRC_SERVER     host:port (e.g. irc.libera.chat:6697)   (required)
+//	AGEZT_IRC_NICK       the bot's nick                          (required)
+//	AGEZT_IRC_CHANNELS   comma-separated channels to join (#foo) — allowed by default
+//	AGEZT_IRC_PASSWORD   optional server password (PASS)
+//	AGEZT_IRC_TLS        "true" to force TLS (auto for :6697)
+//	AGEZT_IRC_ALLOWLIST  extra allowed sources (nicks for DMs / channels)
+func buildIRC(ctx context.Context, k *kernelruntime.Kernel) (*irc.Channel, pulse.BriefSink, string) {
+	server := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "IRC_SERVER"))
+	nick := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "IRC_NICK"))
+	if server == "" || nick == "" {
+		return nil, nil, ""
+	}
+	chans := splitNonEmpty(os.Getenv(brand.EnvPrefix + "IRC_CHANNELS"))
+	// The joined channels are allowed by default; extra nicks/channels widen it.
+	allowed := append([]string(nil), chans...)
+	allowed = append(allowed, splitNonEmpty(os.Getenv(brand.EnvPrefix+"IRC_ALLOWLIST"))...)
+	useTLS := strings.EqualFold(strings.TrimSpace(os.Getenv(brand.EnvPrefix+"IRC_TLS")), "true") || strings.HasSuffix(server, ":6697")
+
+	ch := irc.New(irc.Config{
+		Server:    server,
+		TLS:       useTLS,
+		Nick:      nick,
+		Password:  strings.TrimSpace(os.Getenv(brand.EnvPrefix + "IRC_PASSWORD")),
+		Channels:  chans,
+		Allowlist: channel.NewAllowlist(allowed),
+		Bus:       k.Bus(),
+		Handler:   makeChannelHandler(k),
+	})
+
+	var sink pulse.BriefSink
+	if len(chans) > 0 {
+		sink = pulse.SinkFunc(func(b pulse.Brief) error {
+			var firstErr error
+			for _, c := range chans {
+				if err := ch.Send(ctx, channel.Outbound{ChannelID: c, Text: formatBrief(b), Priority: channel.PriorityNotify}); err != nil && firstErr == nil {
+					firstErr = err
+				}
+			}
+			return firstErr
+		})
+	}
+
+	desc := fmt.Sprintf("%s as %s, %d channel(s)", server, nick, len(chans))
+	if len(chans) == 0 {
+		desc = fmt.Sprintf("%s as %s, NO channels (set AGEZT_IRC_CHANNELS)", server, nick)
 	}
 	return ch, sink, desc
 }

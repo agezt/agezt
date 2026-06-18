@@ -171,4 +171,10 @@ var manifests = []channel.Manifest{
 		ConfigSection: "synology", RequiredEnv: []string{"AGEZT_SYNOLOGY_WEBHOOK"},
 		DocsURL: "https://kb.synology.com/DSM/help/Chat/chat_integration",
 	},
+	{
+		Kind: "irc", Display: "IRC", Transport: "socket", Duplex: true,
+		Description:   "Two-way IRC — connect to any ircd, join channels, chat with the agent.",
+		ConfigSection: "irc", RequiredEnv: []string{"AGEZT_IRC_SERVER", "AGEZT_IRC_NICK"},
+		DocsURL: "https://modern.ircdocs.horse/",
+	},
 }

@@ -261,6 +261,13 @@ var configEnvVars = []string{
 	"AGEZT_DINGTALK_WEBHOOK",
 	"AGEZT_WECOM_WEBHOOK",
 	"AGEZT_SYNOLOGY_WEBHOOK",
+	// IRC (two-way).
+	"AGEZT_IRC_SERVER",
+	"AGEZT_IRC_NICK",
+	"AGEZT_IRC_CHANNELS",
+	"AGEZT_IRC_PASSWORD",
+	"AGEZT_IRC_TLS",
+	"AGEZT_IRC_ALLOWLIST",
 }
 
 func (s *Server) handleConfig(conn net.Conn, req Request) {
