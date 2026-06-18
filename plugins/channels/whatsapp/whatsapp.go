@@ -31,6 +31,7 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"crypto/subtle"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -199,7 +200,7 @@ func (c *Channel) handleInbound(w http.ResponseWriter, r *http.Request) {
 	}
 	// Acknowledge promptly (Meta retries on non-2xx / slow), then process each
 	// text message. The dedup guard makes a retried delivery a no-op.
-	for _, msg := range wh.textMessages() {
+	for _, msg := range wh.messages() {
 		c.dispatch(r.Context(), msg)
 	}
 	w.WriteHeader(http.StatusOK)
@@ -221,7 +222,7 @@ func (c *Channel) handleVerify(w http.ResponseWriter, r *http.Request) {
 // dispatch runs one inbound text message through the allowlist + handler and sends
 // the reply back via the Graph API.
 func (c *Channel) dispatch(ctx context.Context, m inboundMsg) {
-	if m.from == "" || strings.TrimSpace(m.text) == "" {
+	if m.from == "" || (strings.TrimSpace(m.text) == "" && m.audioID == "") {
 		return
 	}
 	if m.id != "" && c.dedup.seenBefore(m.id) {
@@ -235,6 +236,14 @@ func (c *Channel) dispatch(ctx context.Context, m inboundMsg) {
 	}
 	corr := "chan-" + ulid.New()
 	allowed := c.allow.Allows(m.from)
+	// Inbound voice note: fetch the audio as a data: URL so the daemon can
+	// transcribe it (auto-STT). Only for allowlisted senders — never dereference
+	// a media id from an unauthorized sender.
+	if allowed && m.audioID != "" {
+		if du, err := c.fetchMediaDataURL(ctx, m.audioID); err == nil && du != "" {
+			msg.Audio = []string{du}
+		}
+	}
 	c.emitInbound(msg, corr, allowed)
 	if !allowed || c.handler == nil {
 		return
@@ -252,6 +261,78 @@ func (c *Channel) dispatch(ctx context.Context, m inboundMsg) {
 			CorrelationID: corr, Payload: map[string]any{"error": err.Error(), "channel_id": m.from},
 		})
 	}
+}
+
+// waMediaMaxRaw bounds a downloaded media blob so the resulting data: URL stays
+// within reason (voice notes are small; 16 MiB is generous).
+const waMediaMaxRaw = 16 << 20
+
+// fetchMediaDataURL resolves a WhatsApp Cloud API media id to an inline data:
+// URL. Two calls: GET the media id to learn its (short-lived, authed) download
+// URL + MIME, then download the bytes with the same bearer token. The daemon
+// holds the access token (not the provider), so the bytes are fetched here and
+// handed onward as a self-describing data: URL — same as the Telegram path.
+func (c *Channel) fetchMediaDataURL(ctx context.Context, mediaID string) (string, error) {
+	if c.accessToken == "" {
+		return "", fmt.Errorf("whatsapp: media fetch needs an access token")
+	}
+	mreq, err := http.NewRequestWithContext(ctx, http.MethodGet, c.graphBase+"/"+mediaID, nil)
+	if err != nil {
+		return "", err
+	}
+	mreq.Header.Set("Authorization", "Bearer "+c.accessToken)
+	mresp, err := c.client.Do(mreq)
+	if err != nil {
+		return "", err
+	}
+	var meta struct {
+		URL      string `json:"url"`
+		MimeType string `json:"mime_type"`
+	}
+	if err := func() error {
+		defer mresp.Body.Close()
+		if mresp.StatusCode/100 != 2 {
+			return fmt.Errorf("whatsapp: media lookup status %d", mresp.StatusCode)
+		}
+		return json.NewDecoder(io.LimitReader(mresp.Body, maxBody)).Decode(&meta)
+	}(); err != nil {
+		return "", err
+	}
+	if meta.URL == "" {
+		return "", fmt.Errorf("whatsapp: media has no download URL")
+	}
+
+	dreq, err := http.NewRequestWithContext(ctx, http.MethodGet, meta.URL, nil)
+	if err != nil {
+		return "", err
+	}
+	dreq.Header.Set("Authorization", "Bearer "+c.accessToken)
+	dresp, err := c.client.Do(dreq)
+	if err != nil {
+		return "", err
+	}
+	defer dresp.Body.Close()
+	if dresp.StatusCode/100 != 2 {
+		return "", fmt.Errorf("whatsapp: media download status %d", dresp.StatusCode)
+	}
+	data, err := io.ReadAll(io.LimitReader(dresp.Body, waMediaMaxRaw+1))
+	if err != nil {
+		return "", err
+	}
+	if len(data) == 0 {
+		return "", fmt.Errorf("whatsapp: empty media")
+	}
+	if len(data) > waMediaMaxRaw {
+		return "", fmt.Errorf("whatsapp: media exceeds %d bytes", waMediaMaxRaw)
+	}
+	mime := meta.MimeType
+	if i := strings.IndexByte(mime, ';'); i >= 0 { // "audio/ogg; codecs=opus" → "audio/ogg"
+		mime = strings.TrimSpace(mime[:i])
+	}
+	if mime == "" {
+		mime = "audio/ogg"
+	}
+	return "data:" + mime + ";base64," + base64.StdEncoding.EncodeToString(data), nil
 }
 
 // verify checks X-Hub-Signature-256: sha256=<hex HMAC-SHA256(appSecret, body)>,
@@ -325,25 +406,43 @@ type waWebhook struct {
 					Text struct {
 						Body string `json:"body"`
 					} `json:"text"`
+					Audio struct {
+						ID string `json:"id"`
+					} `json:"audio"`
+					Voice struct {
+						ID string `json:"id"`
+					} `json:"voice"`
 				} `json:"messages"`
 			} `json:"value"`
 		} `json:"changes"`
 	} `json:"entry"`
 }
 
-type inboundMsg struct{ from, id, text string }
+type inboundMsg struct {
+	from, id, text string
+	audioID        string // set for voice/audio messages (Cloud API media id)
+}
 
-// textMessages flattens the nested webhook envelope to the text messages it
-// carries (non-text message types are ignored — text-only scope).
-func (w waWebhook) textMessages() []inboundMsg {
+// messages flattens the nested webhook envelope to the messages it carries.
+// Text and voice/audio messages are kept (a voice note is fetched + transcribed
+// downstream); other media types are ignored.
+func (w waWebhook) messages() []inboundMsg {
 	var out []inboundMsg
 	for _, e := range w.Entry {
 		for _, ch := range e.Changes {
 			for _, m := range ch.Value.Messages {
-				if m.Type != "text" {
-					continue
+				switch m.Type {
+				case "text":
+					out = append(out, inboundMsg{from: m.From, id: m.ID, text: m.Text.Body})
+				case "audio", "voice":
+					// WhatsApp Cloud API tags voice notes as type "audio" with
+					// audio.voice=true; some shapes use a "voice" object. Accept both.
+					id := m.Audio.ID
+					if id == "" {
+						id = m.Voice.ID
+					}
+					out = append(out, inboundMsg{from: m.From, id: m.ID, audioID: id})
 				}
-				out = append(out, inboundMsg{from: m.From, id: m.ID, text: m.Text.Body})
 			}
 		}
 	}

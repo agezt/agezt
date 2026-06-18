@@ -217,6 +217,27 @@ func TestInbound_NotAllowedRefused(t *testing.T) {
 	}
 }
 
+func TestMessages_ParsesTextAndVoice(t *testing.T) {
+	raw := `{"entry":[{"changes":[{"value":{"messages":[
+		{"from":"15551234567","id":"m1","type":"text","text":{"body":"hello"}},
+		{"from":"15551234567","id":"m2","type":"audio","audio":{"id":"media-abc"}}
+	]}}]}]}`
+	var wh waWebhook
+	if err := json.Unmarshal([]byte(raw), &wh); err != nil {
+		t.Fatal(err)
+	}
+	msgs := wh.messages()
+	if len(msgs) != 2 {
+		t.Fatalf("want 2 messages, got %d", len(msgs))
+	}
+	if msgs[0].text != "hello" || msgs[0].audioID != "" {
+		t.Fatalf("text msg = %+v", msgs[0])
+	}
+	if msgs[1].audioID != "media-abc" || msgs[1].text != "" {
+		t.Fatalf("voice msg = %+v", msgs[1])
+	}
+}
+
 // A retried delivery (same message id) drives the agent only once.
 func TestInbound_DedupsMessageID(t *testing.T) {
 	g := newGraphMock(t)
