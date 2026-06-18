@@ -1733,6 +1733,52 @@ export const HELP: Record<string, HelpTopic> = {
     ],
   },
 
+  channels: {
+    title: "Channels",
+    intro:
+      "Connect AGEZT to the messaging platforms you already use — Telegram, WhatsApp, Slack, Discord, Matrix, SMS, and more. Each channel is set up separately from its own card; once connected, conversations flow in as the agent's inbox and it can reply and send notifications out.",
+    sections: [
+      {
+        heading: "Connecting a channel",
+        items: [
+          {
+            term: "Connect / Edit",
+            desc: "Open a channel's card to enter its account details (bot token, allowed chats, webhook address…). Required fields are marked; secrets are stored encrypted in the vault and never shown back.",
+          },
+          {
+            term: "Connected vs needs setup",
+            desc: "A green 'connected' badge means the required credentials are present. 'Needs setup' means it's listed but not yet configured.",
+          },
+          {
+            term: "Restart to apply",
+            desc: "Saved settings take effect when the daemon restarts. Fields already set in the environment are shown read-only (the environment wins).",
+          },
+        ],
+      },
+      {
+        heading: "Two-way vs outbound",
+        items: [
+          {
+            term: "Two-way",
+            desc: "Telegram, WhatsApp, Slack, Discord, Matrix, SMS, Signal, and the generic webhook can receive messages that drive the agent (within their allowlist) and reply.",
+          },
+          {
+            term: "Outbound only",
+            desc: "Email, Teams, and Home Assistant deliver notifications and agent messages out, but don't take inbound commands.",
+          },
+        ],
+      },
+    ],
+    tips: [
+      "An empty allowlist is fail-closed: the channel can still send out, but won't act on inbound messages until you list who's allowed.",
+    ],
+    related: [
+      { id: "inbox", label: "Inbox" },
+      { id: "config", label: "Config Center" },
+      { id: "chat", label: "Chat" },
+    ],
+  },
+
   market: {
     title: "Marketplace",
     intro:

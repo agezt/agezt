@@ -119,6 +119,7 @@ import { Chains } from "@/views/Chains";
 import { Setup, anyCredentialed, type SetupCatalog } from "@/views/Setup";
 import { Toolbox } from "@/views/Toolbox";
 import { Market } from "@/views/Market";
+import { Channels } from "@/views/Channels";
 import { AgentPage } from "@/views/AgentPage";
 import { IncidentPage } from "@/views/IncidentPage";
 import { Files } from "@/views/Files";
@@ -253,6 +254,7 @@ const NAV_GROUPS: NavGroup[] = [
       { id: "setup", label: "Setup", icon: Wand2, render: Setup },
       { id: "toolbox", label: "Toolbox", icon: PackageOpen, render: Toolbox },
       { id: "market", label: "Marketplace", icon: Store, render: Market },
+      { id: "channels", label: "Channels", icon: Radio, render: Channels },
     ],
   },
   {

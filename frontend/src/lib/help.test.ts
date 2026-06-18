@@ -16,7 +16,7 @@ const NAV_IDS = [
   // Knowledge
   "memory", "world", "skills", "reflect",
   // Setup
-  "toolbox", "market",
+  "toolbox", "market", "channels",
   // System
   "overview", "setup", "system", "persona", "prompts", "configcenter", "config",
   "providers", "models", "routing", "chains", "tools", "catalog", "policy", "cache", "storage", "backup",

@@ -79,6 +79,7 @@ import (
 	"github.com/agezt/agezt/kernel/webui"
 	"github.com/agezt/agezt/kernel/workflow"
 	"github.com/agezt/agezt/plugins/builtinguardians"
+	"github.com/agezt/agezt/plugins/builtinchannels"
 	"github.com/agezt/agezt/plugins/builtinmarket"
 	"github.com/agezt/agezt/plugins/builtinskills"
 	"github.com/agezt/agezt/plugins/channels/discord"
@@ -1760,6 +1761,10 @@ func runDaemon(stdout, stderr io.Writer) int {
 	if fg := k.Forge(); fg != nil {
 		skillToolInst.Bind(fg)
 		fmt.Fprintf(stdout, "  skill tool       : enabled (the agent can author and manage its own skills)\n")
+		// Register the built-in channel manifests (Telegram, WhatsApp, …) so the
+		// Channels wizard can list + configure every shipped channel uniformly.
+		builtinchannels.RegisterAll()
+
 		// Seed the built-in skill bundles baked into the binary (M852), so
 		// capabilities like full browser automation work out of the box — the
 		// agent gets a ready, active skill with its scripts on disk. Idempotent

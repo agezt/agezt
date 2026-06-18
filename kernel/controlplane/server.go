@@ -919,6 +919,8 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.handleConfigSchema(conn, req)
 	case CmdConfigValues:
 		s.handleConfigValues(conn, req)
+	case CmdChannelList:
+		s.handleChannelList(conn, req)
 	case CmdConfigSet:
 		s.handleConfigSet(conn, req)
 	case CmdConfigSchemaRegister:

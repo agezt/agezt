@@ -1304,6 +1304,11 @@ const (
 	CmdConfigSchema = "config_schema"
 	CmdConfigValues = "config_values"
 	CmdConfigSet    = "config_set"
+
+	// CmdChannelList returns the registered communication-channel manifests
+	// joined with their Config Center account fields + a configured flag — the
+	// data the Channels wizard renders. Read-only.
+	CmdChannelList = "channel_list"
 	// Schema registry (M695): skills/plugins register their own config sections
 	// into <baseDir>/schemas/*.json. Register: args{section}; Unregister: args{id}.
 	CmdConfigSchemaRegister   = "config_schema_register"

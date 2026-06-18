@@ -145,6 +145,74 @@ func builtinSections() []Section {
 			},
 		},
 		{
+			ID: "whatsapp", Name: "WhatsApp",
+			Help: "WhatsApp Cloud API channel (Meta). Restart to apply.",
+			Fields: []Field{
+				pw("AGEZT_WHATSAPP_ACCESS_TOKEN", "Access token", "Graph API bearer token."),
+				pw("AGEZT_WHATSAPP_APP_SECRET", "App secret", "Verifies inbound webhook signatures."),
+				{Env: "AGEZT_WHATSAPP_PHONE_NUMBER_ID", Label: "Phone number ID", Type: TypeText, Apply: ApplyRestart, Help: "The sender's phone-number ID for outbound."},
+				{Env: "AGEZT_WHATSAPP_NUMBERS", Label: "Allowed numbers", Type: TypeCSV, Apply: ApplyRestart, Help: "Comma-separated numbers allowed to drive the agent."},
+				{Env: "AGEZT_WHATSAPP_ADDR", Label: "Inbound addr (optional)", Type: TypeText, Apply: ApplyRestart, Help: "host:port to serve the Meta webhook; blank = outbound only."},
+				pw("AGEZT_WHATSAPP_VERIFY_TOKEN", "Webhook verify token", "Echoed during Meta webhook verification."),
+			},
+		},
+		{
+			ID: "matrix", Name: "Matrix",
+			Help: "Matrix channel (long-polls /sync). Restart to apply.",
+			Fields: []Field{
+				{Env: "AGEZT_MATRIX_HOMESERVER", Label: "Homeserver URL", Type: TypeText, Apply: ApplyRestart, Help: "e.g. https://matrix.org"},
+				pw("AGEZT_MATRIX_TOKEN", "Access token", ""),
+				{Env: "AGEZT_MATRIX_ROOMS", Label: "Allowed rooms", Type: TypeCSV, Apply: ApplyRestart},
+			},
+		},
+		{
+			ID: "sms", Name: "SMS (Twilio)",
+			Help: "Twilio Programmable Messaging channel. Restart to apply.",
+			Fields: []Field{
+				{Env: "AGEZT_SMS_ACCOUNT_SID", Label: "Account SID", Type: TypeText, Apply: ApplyRestart},
+				pw("AGEZT_SMS_AUTH_TOKEN", "Auth token", ""),
+				{Env: "AGEZT_SMS_FROM", Label: "From number", Type: TypeText, Apply: ApplyRestart, Help: "Your Twilio sender number, e.g. +15551234567."},
+				{Env: "AGEZT_SMS_NUMBERS", Label: "Allowed numbers", Type: TypeCSV, Apply: ApplyRestart},
+				{Env: "AGEZT_SMS_ADDR", Label: "Inbound addr (optional)", Type: TypeText, Apply: ApplyRestart, Help: "host:port for the signed Twilio webhook; blank = outbound only."},
+			},
+		},
+		{
+			ID: "signal", Name: "Signal",
+			Help: "Signal channel via a signal-cli REST gateway. Restart to apply.",
+			Fields: []Field{
+				{Env: "AGEZT_SIGNAL_API_URL", Label: "signal-cli REST URL", Type: TypeText, Apply: ApplyRestart, Help: "e.g. http://localhost:8080"},
+				{Env: "AGEZT_SIGNAL_NUMBER", Label: "Registered number", Type: TypeText, Apply: ApplyRestart, Help: "The number signal-cli is registered as."},
+				{Env: "AGEZT_SIGNAL_RECIPIENTS", Label: "Allowed recipients", Type: TypeCSV, Apply: ApplyRestart},
+				pw("AGEZT_SIGNAL_TOKEN", "API token (optional)", "If your signal-cli gateway requires bearer auth."),
+			},
+		},
+		{
+			ID: "teams", Name: "Microsoft Teams",
+			Help: "Outbound Teams channel via Incoming Webhooks. Restart to apply.",
+			Fields: []Field{
+				{Env: "AGEZT_TEAMS_WEBHOOKS", Label: "Incoming webhook URLs", Type: TypeCSV, Apply: ApplyRestart, Help: "Comma-separated Teams Incoming Webhook URLs to post to."},
+			},
+		},
+		{
+			ID: "homeassistant", Name: "Home Assistant",
+			Help: "Outbound Home Assistant notify channel. Restart to apply.",
+			Fields: []Field{
+				{Env: "AGEZT_HOMEASSISTANT_URL", Label: "Base URL", Type: TypeText, Apply: ApplyRestart, Help: "e.g. http://homeassistant.local:8123"},
+				pw("AGEZT_HOMEASSISTANT_TOKEN", "Long-lived access token", ""),
+				{Env: "AGEZT_HOMEASSISTANT_SERVICES", Label: "Notify services", Type: TypeCSV, Apply: ApplyRestart, Help: "Comma-separated notify service names to target."},
+			},
+		},
+		{
+			ID: "webhook", Name: "Generic Webhook",
+			Help: "Vendor-neutral signed-JSON channel. Restart to apply.",
+			Fields: []Field{
+				{Env: "AGEZT_WEBHOOK_ADDR", Label: "Inbound addr (optional)", Type: TypeText, Apply: ApplyRestart, Help: "host:port to receive signed JSON; blank = outbound only."},
+				pw("AGEZT_WEBHOOK_SECRET", "Shared secret", "HMAC secret for inbound/outbound signatures."),
+				{Env: "AGEZT_WEBHOOK_CHANNELS", Label: "Allowed channels", Type: TypeCSV, Apply: ApplyRestart},
+				{Env: "AGEZT_WEBHOOK_OUTBOUND_URL", Label: "Outbound URL (optional)", Type: TypeText, Apply: ApplyRestart, Help: "Where to POST outbound messages."},
+			},
+		},
+		{
 			ID: "interfaces", Name: "Interfaces",
 			Help: "Network surfaces the daemon serves. Restart to apply.",
 			Fields: []Field{
