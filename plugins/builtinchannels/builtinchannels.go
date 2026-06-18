@@ -177,4 +177,10 @@ var manifests = []channel.Manifest{
 		ConfigSection: "irc", RequiredEnv: []string{"AGEZT_IRC_SERVER", "AGEZT_IRC_NICK"},
 		DocsURL: "https://modern.ircdocs.horse/",
 	},
+	{
+		Kind: "twitch", Display: "Twitch", Transport: "socket", Duplex: true,
+		Description:   "Two-way Twitch chat (IRC) — read and reply in your stream's channels.",
+		ConfigSection: "twitch", RequiredEnv: []string{"AGEZT_TWITCH_USERNAME", "AGEZT_TWITCH_TOKEN"},
+		DocsURL: "https://dev.twitch.tv/docs/irc/",
+	},
 }

@@ -268,6 +268,11 @@ var configEnvVars = []string{
 	"AGEZT_IRC_PASSWORD",
 	"AGEZT_IRC_TLS",
 	"AGEZT_IRC_ALLOWLIST",
+	// Twitch (two-way, IRC).
+	"AGEZT_TWITCH_USERNAME",
+	"AGEZT_TWITCH_TOKEN",
+	"AGEZT_TWITCH_CHANNELS",
+	"AGEZT_TWITCH_ALLOWLIST",
 }
 
 func (s *Server) handleConfig(conn net.Conn, req Request) {

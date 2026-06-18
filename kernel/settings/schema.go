@@ -333,6 +333,16 @@ func builtinSections() []Section {
 			},
 		},
 		{
+			ID: "twitch", Name: "Twitch",
+			Help: "Two-way Twitch chat (IRC). Restart to apply.",
+			Fields: []Field{
+				{Env: "AGEZT_TWITCH_USERNAME", Label: "Bot username", Type: TypeText, Apply: ApplyRestart, Help: "the bot account's login name"},
+				pw("AGEZT_TWITCH_TOKEN", "OAuth token", "the chat OAuth token (\"oauth:\" prefix added if missing)"),
+				{Env: "AGEZT_TWITCH_CHANNELS", Label: "Channels", Type: TypeCSV, Apply: ApplyRestart, Help: "lowercase #channels to join (allowed by default)"},
+				{Env: "AGEZT_TWITCH_ALLOWLIST", Label: "Extra allowed sources", Type: TypeCSV, Apply: ApplyRestart, Help: "extra nicks / channels"},
+			},
+		},
+		{
 			ID: "interfaces", Name: "Interfaces",
 			Help: "Network surfaces the daemon serves. Restart to apply.",
 			Fields: []Field{

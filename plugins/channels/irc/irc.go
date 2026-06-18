@@ -30,6 +30,7 @@ import (
 
 // Config configures the IRC channel.
 type Config struct {
+	Kind      string   // channel kind for labelling/journaling (default "irc"); e.g. "twitch"
 	Server    string   // host:port (e.g. irc.libera.chat:6697)
 	TLS       bool     // dial with TLS (typical for :6697)
 	Nick      string   // the bot's nick (also used as username/realname)
@@ -50,8 +51,17 @@ type Channel struct {
 // New constructs an IRC channel from cfg.
 func New(cfg Config) *Channel { return &Channel{cfg: cfg} }
 
+// kind is the channel kind used for labelling and journaling — "irc" by default,
+// or an override like "twitch" for an IRC-protocol service.
+func (c *Channel) kind() string {
+	if c.cfg.Kind != "" {
+		return c.cfg.Kind
+	}
+	return "irc"
+}
+
 // Name implements channel.Channel.
-func (c *Channel) Name() string { return "irc" }
+func (c *Channel) Name() string { return c.kind() }
 
 // Start connects, registers, joins, and runs the read loop, reconnecting with
 // backoff until ctx is cancelled.
@@ -164,7 +174,7 @@ func (c *Channel) handlePrivmsg(ctx context.Context, prefix string, params strin
 		replyTo = sender
 	}
 	msg := channel.UnifiedMessage{
-		ChannelKind:  "irc",
+		ChannelKind:  c.kind(),
 		ChannelID:    replyTo,
 		Sender:       sender,
 		Text:         text,
@@ -207,8 +217,8 @@ func (c *Channel) Send(ctx context.Context, out channel.Outbound) error {
 	}
 	if c.cfg.Bus != nil {
 		_, _ = c.cfg.Bus.Publish(event.Spec{
-			Subject: "channel.outbound.irc", Kind: event.KindChannelOutbound, Actor: "channel-irc",
-			Payload: map[string]any{"channel_kind": "irc", "channel_id": target, "text": text},
+			Subject: "channel.outbound." + c.kind(), Kind: event.KindChannelOutbound, Actor: "channel-" + c.kind(),
+			Payload: map[string]any{"channel_kind": c.kind(), "channel_id": target, "text": text},
 		})
 	}
 	return nil
@@ -233,12 +243,12 @@ func (c *Channel) emitInbound(msg channel.UnifiedMessage, corr string, allowed b
 		return
 	}
 	_, _ = c.cfg.Bus.Publish(event.Spec{
-		Subject:       "channel.inbound.irc",
+		Subject:       "channel.inbound." + c.kind(),
 		Kind:          event.KindChannelInbound,
-		Actor:         "channel-irc",
+		Actor:         "channel-" + c.kind(),
 		CorrelationID: corr,
 		Payload: map[string]any{
-			"channel_kind": "irc", "channel_id": msg.ChannelID,
+			"channel_kind": c.kind(), "channel_id": msg.ChannelID,
 			"sender": msg.Sender, "text": msg.Text, "allowed": allowed,
 		},
 	})

@@ -1467,6 +1467,15 @@ func runDaemon(stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "  irc channel      : disabled (set AGEZT_IRC_SERVER + AGEZT_IRC_NICK)\n")
 	}
 
+	// Twitch chat (SPEC-04 §1) — IRC over Twitch's server; reuses the IRC channel.
+	twChan, twSink, twDesc := buildTwitch(ctx, k)
+	if twChan != nil {
+		go twChan.Start(ctx)
+		fmt.Fprintf(stdout, "  twitch channel   : %s\n", twDesc)
+	} else {
+		fmt.Fprintf(stdout, "  twitch channel   : disabled (set AGEZT_TWITCH_USERNAME + AGEZT_TWITCH_TOKEN)\n")
+	}
+
 	// SMS channel (SPEC-04 §1) — duplex over Twilio Programmable Messaging when
 	// AGEZT_SMS_ACCOUNT_SID + AGEZT_SMS_AUTH_TOKEN are set. Inbound is a signed
 	// Twilio webhook (needs AGEZT_SMS_ADDR); outbound texts go via the REST API
@@ -1542,7 +1551,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 
 	// Every configured channel's brief sink, teed: Pulse briefs and (M782)
 	// alert notifications share the same delivery surface.
-	channelSinks := combineSinks(tgSink, slSink, dcSink, whSink, emSink, mxSink, ircSink, smSink, waSink, haSink, tmSink, sgSink, pushSink)
+	channelSinks := combineSinks(tgSink, slSink, dcSink, whSink, emSink, mxSink, ircSink, twSink, smSink, waSink, haSink, tmSink, sgSink, pushSink)
 
 	// Pulse — the proactive heart (SPEC-03). On by default; the resident
 	// engine runs on the daemon ctx so `agt halt`/SIGTERM/`agt shutdown`
@@ -1717,6 +1726,9 @@ func runDaemon(stdout, stderr io.Writer) int {
 	}
 	if ircChan != nil {
 		liveChannels["irc"] = ircChan
+	}
+	if twChan != nil {
+		liveChannels["twitch"] = twChan
 	}
 	if smChan != nil {
 		liveChannels["sms"] = smChan
@@ -2629,6 +2641,61 @@ func buildIRC(ctx context.Context, k *kernelruntime.Kernel) (*irc.Channel, pulse
 	desc := fmt.Sprintf("%s as %s, %d channel(s)", server, nick, len(chans))
 	if len(chans) == 0 {
 		desc = fmt.Sprintf("%s as %s, NO channels (set AGEZT_IRC_CHANNELS)", server, nick)
+	}
+	return ch, sink, desc
+}
+
+// buildTwitch constructs a Twitch chat channel when AGEZT_TWITCH_USERNAME +
+// AGEZT_TWITCH_TOKEN are set. Twitch chat is IRC, so this reuses the IRC channel
+// pinned to Twitch's server with an "oauth:" PASS; it joins AGEZT_TWITCH_CHANNELS
+// (lowercase #channel) and acts on inbound from those channels by default.
+//
+//	AGEZT_TWITCH_USERNAME  the bot account's login name        (required)
+//	AGEZT_TWITCH_TOKEN     OAuth token ("oauth:" prefix added) (required)
+//	AGEZT_TWITCH_CHANNELS  comma-separated #channels to join — allowed by default
+//	AGEZT_TWITCH_ALLOWLIST extra allowed sources (nicks / channels)
+func buildTwitch(ctx context.Context, k *kernelruntime.Kernel) (*irc.Channel, pulse.BriefSink, string) {
+	user := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "TWITCH_USERNAME"))
+	token := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "TWITCH_TOKEN"))
+	if user == "" || token == "" {
+		return nil, nil, ""
+	}
+	chans := splitNonEmpty(os.Getenv(brand.EnvPrefix + "TWITCH_CHANNELS"))
+	allowed := append([]string(nil), chans...)
+	allowed = append(allowed, splitNonEmpty(os.Getenv(brand.EnvPrefix+"TWITCH_ALLOWLIST"))...)
+	pass := token
+	if !strings.HasPrefix(pass, "oauth:") {
+		pass = "oauth:" + pass
+	}
+
+	ch := irc.New(irc.Config{
+		Kind:      "twitch",
+		Server:    "irc.chat.twitch.tv:6697",
+		TLS:       true,
+		Nick:      strings.ToLower(user),
+		Password:  pass,
+		Channels:  chans,
+		Allowlist: channel.NewAllowlist(allowed),
+		Bus:       k.Bus(),
+		Handler:   makeChannelHandler(k),
+	})
+
+	var sink pulse.BriefSink
+	if len(chans) > 0 {
+		sink = pulse.SinkFunc(func(b pulse.Brief) error {
+			var firstErr error
+			for _, c := range chans {
+				if err := ch.Send(ctx, channel.Outbound{ChannelID: c, Text: formatBrief(b), Priority: channel.PriorityNotify}); err != nil && firstErr == nil {
+					firstErr = err
+				}
+			}
+			return firstErr
+		})
+	}
+
+	desc := fmt.Sprintf("as %s, %d channel(s)", user, len(chans))
+	if len(chans) == 0 {
+		desc = fmt.Sprintf("as %s, NO channels (set AGEZT_TWITCH_CHANNELS)", user)
 	}
 	return ch, sink, desc
 }

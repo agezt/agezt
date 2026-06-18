@@ -45,6 +45,15 @@ func TestSplitLinesClamps(t *testing.T) {
 	}
 }
 
+func TestKindOverride(t *testing.T) {
+	if New(Config{}).Name() != "irc" {
+		t.Fatal("default kind should be irc")
+	}
+	if New(Config{Kind: "twitch"}).Name() != "twitch" {
+		t.Fatal("kind override should propagate to Name")
+	}
+}
+
 func TestSendRequiresConnection(t *testing.T) {
 	ch := New(Config{Nick: "bot"})
 	err := ch.Send(context.Background(), channel.Outbound{ChannelID: "#room", Text: "hi"})
