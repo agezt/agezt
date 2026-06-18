@@ -19,6 +19,7 @@ import (
 // history is what a health check cares about, and it keeps the cost flat on a
 // long-lived daemon (mirrors runstool's window).
 const fallbackWindow = 5000
+const reaperOverviewWindow = 30 * 24 * time.Hour
 
 // kernelSource adapts the live *runtime.Kernel to the tool's narrow Source. The
 // kernel owns every slice the overview reports, so this is a thin gather — the
@@ -59,6 +60,7 @@ func (s *kernelSource) Overview() Overview {
 	}
 
 	fbCount, fbReason := s.providerFallbacks()
+	reaper := s.reaperOverview()
 
 	dl := k.SubAgentLimits()
 
@@ -94,6 +96,7 @@ func (s *kernelSource) Overview() Overview {
 			MaxSpendMicrocents: dl.MaxSpendMicrocents,
 			MaxTotal:           dl.MaxTotal,
 		},
+		Reaper: reaper,
 	}
 }
 
@@ -102,6 +105,28 @@ func (s *kernelSource) Schedules() []cadence.Entry {
 		return sched.List()
 	}
 	return nil
+}
+
+func (s *kernelSource) Reaper() ReaperReport {
+	rep := s.k.ReaperScan(time.Now().Add(-reaperOverviewWindow).UnixMilli(), time.Now().Add(-reaperOverviewWindow).UnixMilli())
+	out := ReaperReport{StaleArtifacts: rep.StaleArtifacts, StaleBytes: rep.StaleBytes}
+	for _, a := range rep.DeadAgents {
+		out.DeadAgents = append(out.DeadAgents, ReaperAgent{Slug: a.Slug, Name: a.Name, LastActiveMS: a.LastActiveMS})
+	}
+	for _, a := range rep.DegradedAgents {
+		out.DegradedAgents = append(out.DegradedAgents, ReaperDegradedAgent{
+			Slug: a.Slug, Name: a.Name, Failures: a.Failures, Window: a.Window, Threshold: a.Threshold,
+			DoctorAgent: a.DoctorAgent, SelfRepairEnabled: a.SelfRepairEnabled, EscalateTo: a.EscalateTo,
+			LastFailureMS: a.LastFailureMS, LastReason: a.LastReason,
+		})
+	}
+	for _, a := range rep.MisconfiguredAgents {
+		out.MisconfiguredAgents = append(out.MisconfiguredAgents, ReaperMisconfiguredAgent{
+			Slug: a.Slug, Name: a.Name, Issues: append([]string(nil), a.Issues...),
+			DoctorAgent: a.DoctorAgent, SelfRepairEnabled: a.SelfRepairEnabled, EscalateTo: a.EscalateTo,
+		})
+	}
+	return out
 }
 
 func (s *kernelSource) Standing() []standing.Order {
@@ -143,4 +168,23 @@ func (s *kernelSource) providerFallbacks() (int, string) {
 		}
 	}
 	return count, last
+}
+
+func (s *kernelSource) reaperOverview() ReaperOverview {
+	rep := s.k.ReaperScan(time.Now().Add(-reaperOverviewWindow).UnixMilli(), time.Now().Add(-reaperOverviewWindow).UnixMilli())
+	out := ReaperOverview{
+		DeadAgents:          len(rep.DeadAgents),
+		DegradedAgents:      len(rep.DegradedAgents),
+		MisconfiguredAgents: len(rep.MisconfiguredAgents),
+	}
+	for _, a := range rep.DeadAgents {
+		out.DeadSlugs = append(out.DeadSlugs, a.Slug)
+	}
+	for _, a := range rep.DegradedAgents {
+		out.DegradedSlugs = append(out.DegradedSlugs, a.Slug)
+	}
+	for _, a := range rep.MisconfiguredAgents {
+		out.MisconfiguredSlugs = append(out.MisconfiguredSlugs, a.Slug)
+	}
+	return out
 }

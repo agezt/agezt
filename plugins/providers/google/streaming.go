@@ -56,7 +56,7 @@ func (p *Provider) CompleteStream(ctx context.Context, req agent.CompletionReque
 		model = p.Model
 	}
 	if model == "" {
-		model = DefaultModel
+		return nil, ErrNoModel
 	}
 
 	body, err := encodeRequest(req.System, req.Messages, req.Tools, req.MaxTokens, req.JSONMode, p.ThinkingBudget)

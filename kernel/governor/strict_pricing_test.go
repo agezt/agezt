@@ -66,13 +66,19 @@ func TestStrictPricing_AllowsKnownFreeAndPriced(t *testing.T) {
 	}
 }
 
-func TestStrictPricing_EmptyModelNotGated(t *testing.T) {
+func TestStrictPricing_EmptyModelRefusedNoModelConfigured(t *testing.T) {
+	// The daemon has no baked-in default model, so an empty model is refused with
+	// ErrNoModelConfigured BEFORE the strict-pricing gate ever runs — and the
+	// provider is never called. (Previously an empty model passed through to the
+	// provider's own default; that default no longer exists.)
 	g, prov, _ := newStrictGov(t, true)
-	if _, err := g.Complete(context.Background(), agent.CompletionRequest{Model: ""}); err != nil {
-		t.Errorf("empty model gated under strict pricing: %v", err)
+	_, err := g.Complete(context.Background(), agent.CompletionRequest{Model: ""})
+	var e *governor.ErrNoModelConfigured
+	if !errors.As(err, &e) {
+		t.Errorf("empty model: got %v, want *ErrNoModelConfigured", err)
 	}
-	if prov.calls.Load() != 1 {
-		t.Errorf("empty model: provider called %d times, want 1", prov.calls.Load())
+	if prov.calls.Load() != 0 {
+		t.Errorf("empty model: provider called %d times, want 0", prov.calls.Load())
 	}
 }
 

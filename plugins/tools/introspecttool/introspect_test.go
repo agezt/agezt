@@ -15,12 +15,14 @@ import (
 // fakeSource is an in-memory Source so the tool's formatting/dispatch is testable
 // without standing up a kernel.
 type fakeSource struct {
-	ov   Overview
-	sch  []cadence.Entry
-	stnd []standing.Order
+	ov     Overview
+	reaper ReaperReport
+	sch    []cadence.Entry
+	stnd   []standing.Order
 }
 
 func (f *fakeSource) Overview() Overview         { return f.ov }
+func (f *fakeSource) Reaper() ReaperReport       { return f.reaper }
 func (f *fakeSource) Schedules() []cadence.Entry { return f.sch }
 func (f *fakeSource) Standing() []standing.Order { return f.stnd }
 
@@ -34,7 +36,13 @@ func newBound() (*Tool, *fakeSource) {
 			JournalHead: 99, SchedulesTotal: 2, SchedulesEnabled: 1,
 			PendingApprovals:  1,
 			ProviderFallbacks: 0,
+			Reaper:            ReaperOverview{DeadAgents: 1, DegradedAgents: 2, MisconfiguredAgents: 1, DeadSlugs: []string{"idle"}, MisconfiguredSlugs: []string{"builder"}},
 			Delegation:        Delegation{Enabled: true, MaxDepth: 1},
+		},
+		reaper: ReaperReport{
+			DeadAgents:          []ReaperAgent{{Slug: "idle"}},
+			DegradedAgents:      []ReaperDegradedAgent{{Slug: "worker", Failures: 2}},
+			MisconfiguredAgents: []ReaperMisconfiguredAgent{{Slug: "builder", Issues: []string{"AGEZT_MAX_ITER: must be an integer"}}},
 		},
 		sch: []cadence.Entry{
 			{ID: "s-late", Intent: "weekly report", Mode: cadence.ModeOnce, Source: "operator", Enabled: true, NextRunUnix: 5000},
@@ -77,6 +85,9 @@ func TestOverview_DefaultAndExplicit(t *testing.T) {
 		if ov.Model != "deepseek-chat" || ov.MemoryRecords != 7 || ov.ActiveRuns != 1 {
 			t.Errorf("overview(%q) lost fields: %+v", raw, ov)
 		}
+		if ov.Reaper.MisconfiguredAgents != 1 || len(ov.Reaper.DeadSlugs) != 1 {
+			t.Errorf("overview(%q) reaper wrong: %+v", raw, ov.Reaper)
+		}
 		if !ov.Delegation.Enabled || ov.Delegation.MaxDepth != 1 {
 			t.Errorf("overview(%q) delegation wrong: %+v", raw, ov.Delegation)
 		}
@@ -114,6 +125,21 @@ func TestSchedules_ListedAndSortedBySoonest(t *testing.T) {
 	}
 	if got.Schedules[0].Cadence == "" {
 		t.Error("schedule should carry a human-readable cadence string")
+	}
+}
+
+func TestReaper_Listed(t *testing.T) {
+	tl, _ := newBound()
+	out, isErr := invoke(t, tl, `{"op":"reaper"}`)
+	if isErr {
+		t.Fatalf("reaper error: %s", out)
+	}
+	var got ReaperReport
+	if err := json.Unmarshal([]byte(out), &got); err != nil {
+		t.Fatalf("reaper not JSON: %v\n%s", err, out)
+	}
+	if len(got.MisconfiguredAgents) != 1 || got.MisconfiguredAgents[0].Slug != "builder" {
+		t.Fatalf("reaper rows wrong: %+v", got)
 	}
 }
 

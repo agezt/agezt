@@ -69,4 +69,28 @@ describe("buildReplay", () => {
   it("is empty for an empty arc", () => {
     expect(buildReplay([])).toEqual([]);
   });
+
+  it("turns incident-family events into compact replay steps with badge metadata", () => {
+    const steps = buildReplay([
+      {
+        seq: 1,
+        kind: "info",
+        subject: "agent.wake",
+        ts_unix_ms: 1001,
+        correlation_id: "r1",
+        payload: {
+          agent: "infra-lead",
+          phase: "completed",
+          reason: "incident owner woke",
+        },
+      },
+    ]);
+    expect(steps[0].title).toBe("infra-lead · incident owner woke · agent.wake");
+    expect(steps[0].detail).toBe("");
+    expect(steps[0].incident).toEqual({
+      subject: "agent.wake",
+      phase: "completed",
+      mode: undefined,
+    });
+  });
 });

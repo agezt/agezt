@@ -622,6 +622,9 @@ func parseUSDToMicrocents(s string) (int64, error) {
 // toStringSlice coerces a decoded JSON array (interface slice) to []string,
 // skipping non-string elements. Nil-safe.
 func toStringSlice(v any) []string {
+	if xs, ok := v.([]string); ok {
+		return append([]string(nil), xs...)
+	}
 	list, ok := v.([]any)
 	if !ok {
 		return nil
@@ -738,6 +741,25 @@ func cmdApprovals(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "  capability : %v\n", m["capability"])
 		fmt.Fprintf(stdout, "  tool       : %v\n", m["tool_name"])
 		fmt.Fprintf(stdout, "  reason     : %v\n", m["reason"])
+		if v := strings.TrimSpace(fmt.Sprint(m["canonical_intent"])); v != "" && v != "<nil>" {
+			fmt.Fprintf(stdout, "  intent     : %v\n", v)
+		}
+		if v := strings.TrimSpace(fmt.Sprint(m["harmful_interpretation"])); v != "" && v != "<nil>" {
+			fmt.Fprintf(stdout, "  harmful    : %v\n", v)
+		}
+		if v := strings.TrimSpace(fmt.Sprint(m["confirmation_prompt"])); v != "" && v != "<nil>" {
+			fmt.Fprintf(stdout, "  confirm    : %v\n", v)
+		}
+		if v := strings.TrimSpace(fmt.Sprint(m["effect_class"])); v != "" && v != "<nil>" {
+			fmt.Fprintf(stdout, "  effect     : %v\n", v)
+		}
+		if resources := toStringSlice(m["affected_resources"]); len(resources) > 0 {
+			fmt.Fprintf(stdout, "  resources  : %s\n", strings.Join(resources, ", "))
+		}
+		if axes, ok := m["regret_axes"].(map[string]any); ok && len(axes) > 0 {
+			fmt.Fprintf(stdout, "  regret     : physical=%v informational=%v social=%v identity=%v\n",
+				axes["physical"], axes["informational"], axes["social"], axes["identity"])
+		}
 		fmt.Fprintf(stdout, "  actor      : %v\n", m["actor"])
 		fmt.Fprintf(stdout, "  input      : %v\n", m["input"])
 		fmt.Fprintf(stdout, "  timeout    : unix %v\n", m["timeout_unix"])

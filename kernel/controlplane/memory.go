@@ -10,6 +10,7 @@ package controlplane
 
 import (
 	"context"
+	"encoding/json"
 	"net"
 	"time"
 
@@ -58,6 +59,11 @@ func (s *Server) handleMemoryAdd(conn net.Conn, req Request) {
 	subject, _ := req.Args["subject"].(string)
 	typ, _ := req.Args["type"].(string)
 	conf, _ := req.Args["confidence"].(float64) // JSON numbers decode to float64
+	evidence, _ := req.Args["evidence"].(string)
+	halfLifeMS := int64(0)
+	if raw, ok := req.Args["half_life_ms"].(float64); ok && raw > 0 {
+		halfLifeMS = int64(raw)
+	}
 
 	tags := map[string]string{"source": "operator"}
 	if raw, ok := req.Args["tags"].(map[string]any); ok {
@@ -74,7 +80,10 @@ func (s *Server) handleMemoryAdd(conn net.Conn, req Request) {
 		Content:    content,
 		Tags:       tags,
 		Confidence: conf,
+		Evidence:   memory.Evidence(evidence),
+		HalfLifeMS: halfLifeMS,
 		Actor:      "operator", // a console/CLI write (M851)
+		Force:      true,
 	})
 	if err != nil {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
@@ -84,10 +93,11 @@ func (s *Server) handleMemoryAdd(conn net.Conn, req Request) {
 		ID:   req.ID,
 		Type: RespResult,
 		Result: map[string]any{
-			"id":      rec.ID,
-			"created": created,
-			"type":    string(rec.Type),
-			"subject": rec.Subject,
+			"id":       rec.ID,
+			"created":  created,
+			"type":     string(rec.Type),
+			"subject":  rec.Subject,
+			"evidence": string(rec.Evidence),
 		},
 	})
 }
@@ -111,6 +121,11 @@ func (s *Server) handleMemorySupersede(conn net.Conn, req Request) {
 	subject, _ := req.Args["subject"].(string)
 	typ, _ := req.Args["type"].(string)
 	conf, _ := req.Args["confidence"].(float64)
+	evidence, _ := req.Args["evidence"].(string)
+	halfLifeMS := int64(0)
+	if raw, ok := req.Args["half_life_ms"].(float64); ok && raw > 0 {
+		halfLifeMS = int64(raw)
+	}
 
 	tags := map[string]string{"source": "operator"}
 	if raw, ok := req.Args["tags"].(map[string]any); ok {
@@ -127,7 +142,10 @@ func (s *Server) handleMemorySupersede(conn net.Conn, req Request) {
 		Content:    content,
 		Tags:       tags,
 		Confidence: conf,
+		Evidence:   memory.Evidence(evidence),
+		HalfLifeMS: halfLifeMS,
 		Actor:      "operator", // a console/CLI edit (M851)
+		Force:      true,
 	})
 	if err != nil {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
@@ -429,6 +447,42 @@ func (s *Server) handleMemoryFindRelated(conn net.Conn, req Request) {
 	})
 }
 
+func (s *Server) handleMemoryAudit(conn net.Conn, req Request) {
+	k, err := s.kernelFor(tenantOf(req))
+	if err != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		return
+	}
+	report, err := k.Memory().Audit()
+	if err != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		return
+	}
+	body, _ := jsonMap(report)
+	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: body})
+}
+
+func (s *Server) handleMemoryClean(conn net.Conn, req Request) {
+	k, err := s.kernelFor(tenantOf(req))
+	if err != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		return
+	}
+	dryRun := true
+	if v, ok := req.Args["dry_run"].(bool); ok {
+		dryRun = v
+	} else if v, ok := req.Args["dry_run"].(string); ok {
+		dryRun = !(v == "false" || v == "0")
+	}
+	report, err := k.Memory().CleanLowValue("", dryRun)
+	if err != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		return
+	}
+	body, _ := jsonMap(report)
+	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: body})
+}
+
 // recordView renders a memory.Record as a stable JSON object for the wire.
 // All fields are operator-supplied or derived; nothing here is secret (the
 // store never holds credentials — that's the vault's job).
@@ -448,6 +502,16 @@ func recordView(r memory.Record) map[string]any {
 	if r.SourceEvent != "" {
 		v["source_event"] = r.SourceEvent
 	}
+	if r.Evidence != "" {
+		v["evidence"] = string(r.Evidence)
+	}
+	if r.HalfLifeMS > 0 {
+		v["half_life_ms"] = r.HalfLifeMS
+		v["expires_ms"] = r.LastSeenMS + r.HalfLifeMS
+		if r.Expired(time.Now().UnixMilli()) {
+			v["expired"] = true
+		}
+	}
 	if r.AddedBy != "" {
 		v["added_by"] = r.AddedBy
 	}
@@ -460,5 +524,22 @@ func recordView(r memory.Record) map[string]any {
 	if r.Tombstoned {
 		v["tombstoned"] = true
 	}
+	if r.Suspended() {
+		v["suspended_ms"] = r.SuspendedMS
+		v["suspended"] = true
+		if r.SuspendedReason != "" {
+			v["suspended_reason"] = r.SuspendedReason
+		}
+	}
 	return v
+}
+
+func jsonMap(v any) (map[string]any, error) {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return nil, err
+	}
+	var out map[string]any
+	err = json.Unmarshal(b, &out)
+	return out, err
 }

@@ -51,17 +51,75 @@ function str(v: unknown): string {
   return v == null ? "" : String(v);
 }
 
+function incidentBits(p: any): string {
+  const bits: string[] = [];
+  if (str(p.root_agent)) bits.push(`root ${str(p.root_agent)}`);
+  if (typeof p.chain_depth === "number")
+    bits.push(p.chain_depth > 0 ? `hop ${p.chain_depth}` : "hop 0");
+  const owner = str(p.delegate_to) || str(p.target_agent);
+  if (owner) bits.push(`next ${owner}`);
+  return bits.join(" · ");
+}
+
 // notifyEventClassify maps an event to a desktop notice, or null when the event
 // isn't worth interrupting the operator for. Deliberately narrow — only the
 // "you need to act / something broke" set, not the firehose. Pure + unit-tested.
 export function notifyEventClassify(e: AgentEvent): DesktopNotice | null {
   const k = (e.kind || "").toLowerCase();
   const p: any = e.payload || {};
+  if ((e.subject || "").toLowerCase() === "doctor.auto_repair") {
+    const mode = String(p.mode || "").toLowerCase();
+    const agent = str(p.agent) || "agent";
+    const phase = String(p.phase || "").toLowerCase();
+    const lineage = incidentBits(p);
+    if (phase === "routing_force_exhausted_detected") {
+      return {
+        title: "Forced chain exhausted",
+        body: [
+          `${agent}: ${str(p.reason) || "owner-forced chain stayed under pressure after repeated generations"}`,
+          lineage,
+        ]
+          .filter(Boolean)
+          .join(" · "),
+        tag:
+          "doctor-exhausted-" +
+          (str(p.agent) || str(p.fingerprint) || str(e.id) || "unknown"),
+        hash: "alerts",
+      };
+    }
+    if (!phase.endsWith("failed")) {
+      return null;
+    }
+    return {
+      title:
+        phase === "delegation_failed"
+          ? "Delegated wake failed"
+          : phase === "resolution_failed"
+            ? "Resolution follow-up failed"
+            : phase === "routing_rollback_failed"
+              ? "Routing rollback failed"
+            : mode === "degraded"
+              ? "Doctor run failed"
+              : mode === "routing"
+                ? "Routing repair failed"
+              : "Config repair failed",
+      body: [`${agent}: ${str(p.error) || str(p.reason) || "autonomous repair failed"}`, lineage]
+        .filter(Boolean)
+        .join(" · "),
+      tag:
+        "doctor-failed-" +
+        (str(p.agent) || str(p.fingerprint) || str(e.id) || "unknown"),
+      hash: "alerts",
+    };
+  }
   switch (k) {
     case "approval.requested":
       return {
         title: "Approval needed",
-        body: str(p.capability) || str(p.tool_name) || "A capability request is waiting.",
+        body:
+          str(p.capability) ||
+          str(p.tool_name) ||
+          "A capability request is waiting.",
         tag: "approval-" + (str(p.id) || str(e.id)),
         hash: "approvals",
       };

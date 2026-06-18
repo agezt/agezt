@@ -47,7 +47,7 @@ func (p *Provider) CompleteStream(ctx context.Context, req agent.CompletionReque
 		model = p.Model
 	}
 	if model == "" {
-		model = DefaultModel
+		return nil, ErrNoModel
 	}
 	maxTokens := req.MaxTokens
 	if maxTokens <= 0 {

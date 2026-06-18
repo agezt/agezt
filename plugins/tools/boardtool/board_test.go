@@ -152,8 +152,13 @@ func newTool(t *testing.T) *Tool {
 
 func invoke(t *testing.T, tool *Tool, in map[string]any) (map[string]any, bool) {
 	t.Helper()
+	return invokeCtx(t, context.Background(), tool, in)
+}
+
+func invokeCtx(t *testing.T, ctx context.Context, tool *Tool, in map[string]any) (map[string]any, bool) {
+	t.Helper()
 	raw, _ := json.Marshal(in)
-	res, err := tool.Invoke(context.Background(), raw)
+	res, err := tool.Invoke(ctx, raw)
 	if err != nil {
 		t.Fatalf("Invoke error: %v", err)
 	}
@@ -211,6 +216,36 @@ func TestPostThenRead_SharedAcrossCalls(t *testing.T) {
 	m := out["messages"].([]any)[0].(map[string]any)
 	if m["text"] != "Go site is go.dev" || m["from"] != "researcher" || m["topic"] != "findings" {
 		t.Errorf("message folded wrong: %+v", m)
+	}
+}
+
+func TestActorIdentityDefaultsAndPreventsSpoofing(t *testing.T) {
+	tool := newTool(t)
+	ctx := agent.WithAgent(context.Background(), "researcher")
+	out, isErr := invokeCtx(t, ctx, tool, map[string]any{"op": "send", "to": "ops", "text": "ping"})
+	if isErr {
+		t.Fatalf("send with actor default errored: %v", out)
+	}
+	sent := out["sent"].(map[string]any)
+	if sent["from"] != "researcher" {
+		t.Fatalf("from = %v, want researcher", sent["from"])
+	}
+	if _, isErr := invokeCtx(t, ctx, tool, map[string]any{"op": "post", "topic": "x", "from": "ops", "text": "spoof"}); !isErr {
+		t.Fatal("actor spoofing should be rejected")
+	}
+}
+
+func TestInboxDefaultsToActingAgent(t *testing.T) {
+	tool := newTool(t)
+	if _, isErr := invoke(t, tool, map[string]any{"op": "send", "from": "ops", "to": "researcher", "text": "need you"}); isErr {
+		t.Fatal("setup send errored")
+	}
+	out, isErr := invokeCtx(t, agent.WithAgent(context.Background(), "researcher"), tool, map[string]any{"op": "inbox"})
+	if isErr {
+		t.Fatalf("inbox default errored: %v", out)
+	}
+	if out["to"] != "researcher" || out["count"].(float64) != 1 {
+		t.Fatalf("inbox default = %+v, want researcher with one message", out)
 	}
 }
 
@@ -401,6 +436,23 @@ func TestBroadcast_DeliversToPeersAndNotifies(t *testing.T) {
 	self, _ := invoke(t, tool, map[string]any{"op": "inbox", "to": "ann"})
 	if self["count"].(float64) != 0 {
 		t.Errorf("sender saw its own broadcast: %v", self)
+	}
+}
+
+func TestMsgViewIncludesAcknowledgements(t *testing.T) {
+	tool := newTool(t)
+	out, isErr := invoke(t, tool, map[string]any{"op": "broadcast", "from": "ann", "text": "deploying"})
+	if isErr {
+		t.Fatalf("broadcast errored: %v", out)
+	}
+	id := out["broadcast"].(map[string]any)["id"].(string)
+	got, isErr := invoke(t, tool, map[string]any{"op": "ack", "id": id, "from": "worker"})
+	if isErr {
+		t.Fatalf("ack errored: %v", got)
+	}
+	acked := got["acked"].(map[string]any)["acked_by"].([]any)
+	if len(acked) != 1 || acked[0] != "worker" {
+		t.Fatalf("acked_by = %v, want [worker]", acked)
 	}
 }
 

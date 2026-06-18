@@ -67,6 +67,30 @@ type ToolDef struct {
 	Name        string          `json:"name"`
 	Description string          `json:"description,omitempty"`
 	InputSchema json.RawMessage `json:"input_schema"`
+	Effect      ToolEffect      `json:"-"`
+}
+
+// EffectClass classifies a tool call by operational reversibility. It is
+// governance metadata, not provider-facing schema; runtime uses it to build HITL
+// decision bundles and future compensation routing.
+type EffectClass string
+
+const (
+	EffectUnknown      EffectClass = ""
+	EffectReadOnly     EffectClass = "read_only"
+	EffectReversible   EffectClass = "reversible"
+	EffectCompensable  EffectClass = "compensable"
+	EffectIrreversible EffectClass = "irreversible"
+)
+
+// ToolEffect is optional governance metadata supplied by a tool definition.
+// Empty fields are filled by runtime capability defaults where possible.
+type ToolEffect struct {
+	Class             EffectClass
+	PredictedEffects  []string
+	AffectedResources []string
+	RollbackNotes     string
+	Confidence        float64
 }
 
 // CompletionRequest is what the loop sends to a Provider.
@@ -184,6 +208,14 @@ type Tool interface {
 type Result struct {
 	Output  string
 	IsError bool
+	// ObservationTrust classifies tool output before it is fed back to the
+	// model. Empty means "use the loop's default for this tool". External
+	// world content should be ObservationUntrusted so it is rendered as data,
+	// never as an instruction channel.
+	ObservationTrust ObservationTrust
+	// ObservationSource names the external source in operator-facing audit
+	// metadata, e.g. "https://example.com" or "workspace:file.md".
+	ObservationSource string
 }
 
 // LoopConfig configures one tool-loop run.
@@ -238,6 +270,16 @@ type LoopConfig struct {
 	// the Governor's identity ledger can meter and refuse. Empty/0 → none.
 	Agent               string
 	AgentDailyCeilingMc int64
+	// Wake* fields describe why this run exists. They are provenance, not prompt:
+	// schedule/standing/manual/sub-agent wakeups stamp task.received so every UI
+	// and audit projection can explain what woke the agent without parsing intent.
+	WakeSource        string
+	WakeReason        string
+	ScheduleID        string
+	StandingID        string
+	StandingName      string
+	TriggerSubject    string
+	ParentCorrelation string
 	// MaxParallelTools caps how many tool calls from ONE assistant response
 	// execute concurrently (M880). A model that fans out several independent
 	// calls in a single turn no longer waits for each to finish before the
@@ -256,6 +298,13 @@ type LoopConfig struct {
 	// re-execution and feeds back a clear nudge to change approach. 0 → default
 	// (DefaultMaxIdenticalToolCalls); a negative value disables the guard.
 	MaxIdenticalToolCalls int
+	// ToolMemo caches successful read-only tool results within this run. Policy
+	// still runs before cache lookup, so memoization never grants permission.
+	ToolMemo *ToolMemo
+	// ToolResultHook is called after an invoked tool has a classified result,
+	// before that result is appended back to the model. It is best-effort
+	// runtime bookkeeping; implementations must not panic.
+	ToolResultHook func(context.Context, ToolCall, Result)
 	// Actor is the journaling actor for emitted events (e.g. "agent-01H").
 	Actor string
 	// CorrelationID ties every event in this run together.
@@ -265,6 +314,15 @@ type LoopConfig struct {
 	// event. A Deny verdict skips the tool invocation; the model sees a
 	// tool result containing the deny reason so it can adjust.
 	Policy Policy
+	// ToolSelector optionally chooses a relevant subset of registered tools to
+	// offer before each provider call (CH-03 semantic discovery). Nil preserves
+	// the historical behaviour: every non-denied tool is offered.
+	ToolSelector ToolSelector
+	// ObservationDeltas, when true, sends repeated observations of the same
+	// tool/input pair back to the model as a structured delta while keeping the
+	// full raw output in the journal. Off by default for byte-for-byte
+	// compatibility. (CH-04)
+	ObservationDeltas bool
 	// Images attaches image references to the initial user message (M93).
 	// Only set on a vision-capable run (gated upstream by M91); the loop
 	// puts them on the first user Message so the provider can encode them.
@@ -641,6 +699,47 @@ type PolicyVerdict struct {
 	WouldAsk bool
 	// HardDenied indicates a non-overridable rule fired.
 	HardDenied bool
+	// EffectClass is the runtime/tool classification used for governance
+	// routing. Empty means unknown.
+	EffectClass string
+	// AffectedResources is a compact operator-facing resource list, when known.
+	AffectedResources []string
+	// EpistemicAction is the system-level calibration verdict for this proposed
+	// tool call: allow, escalate, or deny. It is advisory unless the runtime
+	// explicitly wires escalation into HITL.
+	EpistemicAction string
+	// EpistemicReason explains the calibration verdict in operator-facing text.
+	EpistemicReason string
+	// EpistemicSignals are structured reasons such as temporal_sensitive,
+	// matched_failure_conditions:N, or low_effect_confidence:X.
+	EpistemicSignals []string
+	// EpistemicConfidence is the runtime confidence in the effect prediction.
+	EpistemicConfidence float64
+	// FailureMatches counts historical failures whose conditions match this call.
+	FailureMatches int
+	// WeightedFailures is FailureMatches with time decay applied.
+	WeightedFailures float64
+	// SchemaHash and InputShape identify the validated call condition used for
+	// historical failure matching without storing raw schema/input twice.
+	SchemaHash string
+	InputShape string
+	// TemporalSensitive marks calls whose correctness depends on fresh external
+	// state, dates, versions, prices, schedules, or similar changing facts.
+	TemporalSensitive bool
+	// NovelTool marks calls whose tool/schema conditions have not appeared in the
+	// journal window used by the runtime epistemic gate.
+	NovelTool bool
+	// UntrustedObservation marks proposals made after external-world data entered
+	// the model context. This signal is produced by the loop, not by the model.
+	UntrustedObservation bool
+	// ObservationSources lists the external observation sources currently tainting
+	// the run. Used for audit and HITL prompts.
+	ObservationSources []string
+	// ObservationDirectiveLike indicates that the external data contained text
+	// resembling hidden instructions or social-engineering attempts.
+	ObservationDirectiveLike bool
+	// ObservationDirectiveMatches lists the directive-like patterns that fired.
+	ObservationDirectiveMatches []string
 }
 
 // Policy is the signature the loop expects. Implementations are free to
@@ -839,6 +938,27 @@ func Run(ctx context.Context, cfg LoopConfig, userIntent string) (answer string,
 	if cfg.Agent != "" {
 		received["agent"] = cfg.Agent
 	}
+	if cfg.WakeSource != "" {
+		received["wake_source"] = cfg.WakeSource
+	}
+	if cfg.WakeReason != "" {
+		received["wake_reason"] = cfg.WakeReason
+	}
+	if cfg.ScheduleID != "" {
+		received["schedule_id"] = cfg.ScheduleID
+	}
+	if cfg.StandingID != "" {
+		received["standing_id"] = cfg.StandingID
+	}
+	if cfg.StandingName != "" {
+		received["standing_name"] = cfg.StandingName
+	}
+	if cfg.TriggerSubject != "" {
+		received["trigger_subject"] = cfg.TriggerSubject
+	}
+	if cfg.ParentCorrelation != "" {
+		received["parent_correlation"] = cfg.ParentCorrelation
+	}
 	if _, err := publish(event.KindTaskReceived, "task", received); err != nil {
 		return "", apperrors.Wrap(ctx, "agent: publish task.received", err)
 	}
@@ -881,13 +1001,21 @@ func Run(ctx context.Context, cfg LoopConfig, userIntent string) (answer string,
 	}
 
 	tools := make([]ToolDef, 0, len(cfg.Tools))
-	for _, t := range cfg.Tools {
-		tools = append(tools, t.Definition())
+	for name, t := range cfg.Tools {
+		def := t.Definition()
+		if err := LintToolSchema(def); err != nil {
+			return "", fmt.Errorf("agent: tool %q schema lint failed: %w", name, err)
+		}
+		tools = append(tools, def)
 	}
 
 	// callCounts tracks how many times each exact (tool, input) has been
 	// requested in this run, for the M116 loop guard.
 	callCounts := map[string]int{}
+
+	// observations tracks the last successful output for each exact tool/input
+	// pair so repeated observations can be delivered to the model as deltas.
+	observations := map[string]string{}
 
 	// toolDenials tracks how many times each tool has been refused by policy
 	// this run. Once a tool reaches maxToolDenials (or is hard-denied even once)
@@ -897,6 +1025,11 @@ func Run(ctx context.Context, cfg LoopConfig, userIntent string) (answer string,
 	// (tool,input) repeat; this catches the same tool tried with new inputs.
 	toolDenials := map[string]int{}
 	const maxToolDenials = 2
+
+	// untrustedTaint carries external-observation provenance forward to policy.
+	// It is set by the tool-result boundary, not by the model, so a hostile web
+	// page cannot erase that it was the source of a downstream proposal.
+	var untrustedTaint UntrustedObservationTaint
 
 	// spentMicrocents accumulates this run's provider spend for the per-run cost
 	// cap (M166). A local stack variable — no shared state, no lifecycle, no
@@ -1029,6 +1162,21 @@ func Run(ctx context.Context, cfg LoopConfig, userIntent string) (answer string,
 			}
 			offered = filtered
 		}
+		toolsBeforeDiscovery := len(offered)
+		toolDiscovery := false
+		if cfg.ToolSelector != nil {
+			selected, err := cfg.ToolSelector(ctx, ToolSelectionRequest{
+				Intent:   userIntent,
+				Iter:     iter,
+				Messages: messages,
+				Tools:    offered,
+			})
+			if err != nil {
+				return "", fmt.Errorf("agent: tool discovery: %w", err)
+			}
+			offered = normalizeSelectedTools(offered, selected)
+			toolDiscovery = true
+		}
 
 		// 2a. llm.request — record what was sent: message count plus the
 		// assembled context size, broken down by role (SPEC-10 §3.5 context
@@ -1036,14 +1184,19 @@ func Run(ctx context.Context, cfg LoopConfig, userIntent string) (answer string,
 		// operator see how big each call's context was and where it came from,
 		// the #1 driver of cost and "lost in the middle" quality loss.
 		ctxChars, ctxByRole := contextSize(cfg.System, messages)
-		if _, err := publish(event.KindLLMRequest, "llm", map[string]any{
+		reqPayload := map[string]any{
 			"iter":            iter,
 			"messages":        len(messages),
 			"model":           cfg.Model,
 			"tools":           len(offered),
 			"context_chars":   ctxChars,
 			"context_by_role": ctxByRole,
-		}); err != nil {
+		}
+		if toolDiscovery {
+			reqPayload["tool_discovery"] = true
+			reqPayload["tools_before_discovery"] = toolsBeforeDiscovery
+		}
+		if _, err := publish(event.KindLLMRequest, "llm", reqPayload); err != nil {
 			return "", apperrors.Wrap(ctx, "agent: publish llm.request", err)
 		}
 
@@ -1205,14 +1358,35 @@ func Run(ctx context.Context, cfg LoopConfig, userIntent string) (answer string,
 			invokeErr    error
 			toolTimedOut bool
 			panicked     bool
+			memoEligible bool
+			memoHit      bool
+			memoSource   *toolJob
 		}
 		jobs := make([]*toolJob, 0, len(resp.Message.ToolCalls))
+		memoPending := map[string]*toolJob{}
 		for _, tc := range resp.Message.ToolCalls {
 			if err := ctx.Err(); err != nil {
 				return "", err
 			}
 			job := &toolJob{tc: tc}
 			jobs = append(jobs, job)
+
+			tool, ok := cfg.Tools[tc.Name]
+			if !ok {
+				job.result = Result{
+					Output:  fmt.Sprintf("tool %q is not available", tc.Name),
+					IsError: true,
+				}
+				continue
+			}
+			def := tool.Definition()
+			if err := ValidateToolInput(def, tc.Input); err != nil {
+				job.result = Result{
+					Output:  "tool call rejected by schema: " + err.Error(),
+					IsError: true,
+				}
+				continue
+			}
 
 			// Loop guard (M116): if the model has already invoked this EXACT
 			// (tool, input) the cap number of times in this run, refuse to run it
@@ -1239,16 +1413,34 @@ func Run(ctx context.Context, cfg LoopConfig, userIntent string) (answer string,
 			// invocation and synthesises a tool result the model sees.
 			verdict := PolicyVerdict{Allow: true, Capability: tc.Name, Reason: "no policy configured"}
 			if cfg.Policy != nil {
-				verdict = cfg.Policy(ctx, tc)
+				policyCtx := WithPolicyToolDef(ctx, def)
+				policyCtx = WithUntrustedObservationTaint(policyCtx, untrustedTaint)
+				verdict = cfg.Policy(policyCtx, tc)
 			}
 			if _, err := publish(event.KindPolicyDecision, "policy", map[string]any{
-				"tool":        tc.Name,
-				"call_id":     tc.ID,
-				"capability":  verdict.Capability,
-				"allow":       verdict.Allow,
-				"reason":      verdict.Reason,
-				"would_ask":   verdict.WouldAsk,
-				"hard_denied": verdict.HardDenied,
+				"tool":                  tc.Name,
+				"call_id":               tc.ID,
+				"capability":            verdict.Capability,
+				"allow":                 verdict.Allow,
+				"reason":                verdict.Reason,
+				"would_ask":             verdict.WouldAsk,
+				"hard_denied":           verdict.HardDenied,
+				"effect_class":          verdict.EffectClass,
+				"affected_resources":    verdict.AffectedResources,
+				"epistemic_action":      verdict.EpistemicAction,
+				"epistemic_reason":      verdict.EpistemicReason,
+				"epistemic_signals":     verdict.EpistemicSignals,
+				"epistemic_confidence":  verdict.EpistemicConfidence,
+				"failure_matches":       verdict.FailureMatches,
+				"weighted_failures":     verdict.WeightedFailures,
+				"schema_hash":           verdict.SchemaHash,
+				"input_shape":           verdict.InputShape,
+				"temporal_sensitive":    verdict.TemporalSensitive,
+				"novel_tool":            verdict.NovelTool,
+				"untrusted_observation": verdict.UntrustedObservation,
+				"observation_sources":   verdict.ObservationSources,
+				"directive_like":        verdict.ObservationDirectiveLike,
+				"directive_matches":     verdict.ObservationDirectiveMatches,
 			}); err != nil {
 				return "", apperrors.Wrap(ctx, "agent: publish policy.decision", err)
 			}
@@ -1267,20 +1459,27 @@ func Run(ctx context.Context, cfg LoopConfig, userIntent string) (answer string,
 				}
 				continue // skip tool.invoked when the call never runs
 			}
+			if cfg.ToolMemo != nil && (verdict.EffectClass == string(EffectReadOnly) || def.Effect.Class == EffectReadOnly) {
+				if cached, ok := cfg.ToolMemo.Get(tc.Name, tc.Input); ok {
+					job.result = cached
+					job.memoHit = true
+					continue
+				}
+				job.memoEligible = true
+				key := memoKey(tc.Name, tc.Input)
+				if source, ok := memoPending[key]; ok {
+					job.memoSource = source
+					job.memoHit = true
+					continue
+				}
+				memoPending[key] = job
+			}
 			if _, err := publish(event.KindToolInvoked, "tool", map[string]any{
 				"tool":    tc.Name,
 				"call_id": tc.ID,
 				"input":   tc.Input,
 			}); err != nil {
 				return "", apperrors.Wrap(ctx, "agent: publish tool.invoked", err)
-			}
-			tool, ok := cfg.Tools[tc.Name]
-			if !ok {
-				job.result = Result{
-					Output:  fmt.Sprintf("tool %q is not available", tc.Name),
-					IsError: true,
-				}
-				continue
 			}
 			job.tool = tool
 		}
@@ -1350,6 +1549,9 @@ func Run(ctx context.Context, cfg LoopConfig, userIntent string) (answer string,
 
 		// Phase 3: classify, journal, and append in the original call order.
 		for _, job := range jobs {
+			if job.memoSource != nil {
+				job.result = job.memoSource.result
+			}
 			if job.tool != nil {
 				switch {
 				case job.panicked:
@@ -1372,29 +1574,67 @@ func Run(ctx context.Context, cfg LoopConfig, userIntent string) (answer string,
 				default:
 					job.result = Result{Output: job.invokeErr.Error(), IsError: true}
 				}
+				if job.memoEligible && !job.result.IsError {
+					cfg.ToolMemo.Set(job.tc.Name, job.tc.Input, job.result)
+				}
+			}
+
+			modelOutput := job.result.Output
+			observationDelta := false
+			if cfg.ObservationDeltas && !job.result.IsError {
+				key := job.tc.Name + "\x00" + string(job.tc.Input)
+				if prev, ok := observations[key]; ok {
+					if delta, changed := DiffObservation(prev, job.result.Output); changed {
+						modelOutput = delta
+						observationDelta = true
+					}
+				}
+				observations[key] = job.result.Output
+			}
+
+			observationBoundary := ObservationBoundaryForTool(job.tc.Name, job.result, modelOutput)
+			if observationBoundary.Trust == ObservationUntrusted {
+				untrustedTaint = MergeUntrustedObservationTaint(untrustedTaint, observationBoundary)
+				modelOutput = RenderObservationForModel(job.tc.Name, observationBoundary, modelOutput)
 			}
 
 			// Offload a large output out of the journal event (SPEC-04 §3.6 /
-			// SPEC-01 §10.2): the event carries a preview + raw_ref; the MODEL
-			// still gets the full output via the tool message below.
+			// SPEC-01 §10.2): the event carries a preview + raw_ref. The model
+			// gets the raw output by default, or the observation delta when the
+			// optional CH-04 delta layer is enabled for a repeated observation.
 			eventOutput, rawRef, fullBytes, offloaded := offloadToolOutput(cfg.Artifacts, cfg.ArtifactThreshold, job.result.Output)
 			resultPayload := map[string]any{
-				"tool":    job.tc.Name,
-				"call_id": job.tc.ID,
-				"output":  eventOutput,
-				"error":   job.result.IsError,
+				"tool":               job.tc.Name,
+				"call_id":            job.tc.ID,
+				"output":             eventOutput,
+				"error":              job.result.IsError,
+				"observation_trust":  observationBoundary.Trust,
+				"observation_source": observationBoundary.Source,
+				"directive_like":     observationBoundary.DirectiveLike,
+				"directive_matches":  observationBoundary.Matches,
 			}
 			if offloaded {
 				resultPayload["raw_ref"] = rawRef
 				resultPayload["output_bytes"] = fullBytes
 			}
+			if observationDelta {
+				resultPayload["observation_delta"] = true
+				resultPayload["model_output_bytes"] = len(modelOutput)
+				resultPayload["raw_output_bytes"] = len(job.result.Output)
+			}
+			if job.memoHit {
+				resultPayload["memo_hit"] = true
+			}
 			if _, err := publish(event.KindToolResult, "tool", resultPayload); err != nil {
 				return "", apperrors.Wrap(ctx, "agent: publish tool.result", err)
+			}
+			if cfg.ToolResultHook != nil && job.tool != nil {
+				cfg.ToolResultHook(ctx, job.tc, job.result)
 			}
 
 			messages = append(messages, Message{
 				Role:       RoleTool,
-				Content:    job.result.Output,
+				Content:    modelOutput,
 				ToolCallID: job.tc.ID,
 			})
 		}

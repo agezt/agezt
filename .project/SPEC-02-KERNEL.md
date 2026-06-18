@@ -34,7 +34,7 @@ Every agent is a **goroutine + mailbox**, not an OS process. (Plugins are proces
 ```
 type Agent struct {
     ID          string
-    Kind        AgentKind        // resident | ephemeral | scheduled | reactive
+    Kind        AgentKind        // system | user | subagent
     Mailbox     chan Envelope    // bounded; backpressure on full
     State       AgentState       // reconstructed from journal on restart
     Supervisor  *Supervisor
@@ -44,10 +44,10 @@ type Agent struct {
 
 - **Mailbox:** bounded channel. When full, the sender gets backpressure (not a silent drop). Agent-to-agent messaging always goes through the bus → journal, never via shared memory.
 - **Agent kinds:**
-  - `resident` — lives 24/7, typically subscribes to a channel or a subject pattern.
-  - `ephemeral` — spawned for one task, dies on completion, emits a result event.
-  - `scheduled` — created by Chronos on a cron/interval; runs, then dies.
-  - `reactive` — spawned by an event match (e.g. `channel.telegram.inbound`).
+  - `system` — built-in daemon identity owned by the runtime.
+  - `user` — operator-created durable identity with its own soul, tasklist, memory scope, skills, model/provider/fallback config, permissions, retry, doctor, mailbox, workspace/data-lake authority, and lifecycle policy.
+  - `subagent` — durable child identity managed by a parent/owner agent; direct wake/repair can be blocked so the parent acts as leader.
+- **Wake sources:** schedule, event, mailbox, channel, operator, workflow, or another agent. Wake source is not identity. A schedule fires a typed target; the target agent works from its own profile and then sleeps/continues/retires according to lifecycle policy.
 
 ### 1.2 Supervision (lightweight)
 No full supervision tree in v1. A flat supervisor per agent with a restart policy:
@@ -169,6 +169,46 @@ Per SPEC-01 §6: `tool-node`, `llm-node`, `loop-node`, `gate-node`, `agent-node`
 ### 4.4 Determinism property
 Given the same journal prefix and the same plan, re-execution is reproducible up to LLM nondeterminism, which is itself recorded (`EVT_LLM_RESPONSE` stores the actual output). So a *replay* uses recorded outputs → fully deterministic; a *re-run* may differ but is fully logged.
 
+### 4.5 Deterministic pipeline primitive
+A pipeline is a validated subgraph that executes without LLM round-trips between internal
+steps. It is for solved chains such as fetch -> parse -> extract -> summarize-input where
+the useful work is deterministic once the plan is chosen.
+
+Pipeline validation proves:
+
+- every step is a registered tool or deterministic transform;
+- each output edge satisfies the next input schema;
+- timeout, retry, failure, and compensation policy are declared;
+- Edict evaluates every effectful step exactly as if it were a standalone node;
+- the pipeline journals enough intermediate references for `agt why` and replay.
+
+Pipelines may appear as workflow nodes or planner-selected shortcuts, but they are not a
+governance bypass.
+
+### 4.6 Plan invariant monitor and invalidation
+The planner proposes a plan; a separate monitor watches whether the committed plan remains
+valid while it runs. The monitor tracks assumptions such as:
+
+- budget, deadline, and loop ceilings;
+- world-model facts used during planning;
+- file/resource versions touched by the plan;
+- approval scope, trust level, and policy overlays;
+- external state freshness for APIs, repositories, and channels.
+
+When an invariant breaks, the monitor emits a plan-invalidation event and routes according
+to policy: minimal re-plan, compensation, HITL escalation, or fail-fast. This guard is
+separate from the planner so a stale plan can be invalidated even if the planner is not
+currently running.
+
+### 4.7 Heuristic bypass and memoization
+Before spending LLM tokens, the runtime may try explicit fast paths for known-safe,
+deterministic requests: current time, exact status queries, simple file reads, provider
+catalog lookups, and repeated deterministic tool calls with identical inputs.
+
+Bypass rules are policy-aware and journaled. Memoization is allowed only for tools whose
+effect class and TTL make caching safe, and cache keys must include tenant/user scope and
+redaction-safe normalized input.
+
 ---
 
 ## 5. Policy Gate (Edict)
@@ -270,7 +310,7 @@ Subscribes to the relevant subject pattern over the socket and streams events to
 3. Replay journal snapshot→head; rebuild projections.
 4. Start internal bus.
 5. Start Plugin Host; discover + autostart plugins; build routing table.
-6. Restore agents: respawn residents, reattach scheduled (Chronos), re-subscribe reactives.
+6. Restore agents: respawn system/user agents that should be alive, reload typed schedules/wake rules, re-subscribe event/mailbox/channel bindings, and preserve retired/graveyard identities.
 7. Start Pulse (if enabled).
 8. Open control-plane socket; CLI/UI/SDK can now attach.
 9. Emit system.resume.

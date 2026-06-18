@@ -197,18 +197,27 @@ func ackedBy(m Message, reader string) bool {
 }
 
 // Inbox returns up to limit messages ADDRESSED to `to` (case-insensitive),
-// newest first. With includeAnswered=false (the usual call), messages that
-// already have a reply on the board — or that `to` explicitly acknowledged
-// via Ack — are dropped: "what's waiting for me".
+// newest first. With includeAnswered=false (the usual call), direct messages
+// and help requests that already have a reply are dropped. Normal broadcasts
+// are per-reader: a reply only clears the broadcast for the replying reader,
+// while Ack clears it for the explicit reader.
 func (s *Store) Inbox(to string, limit int, includeAnswered bool) []Message {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	to = strings.ToLower(strings.TrimSpace(to))
 	answered := map[string]bool{}
+	repliedBy := map[string]map[string]bool{}
 	if !includeAnswered {
 		for _, m := range s.msgs {
 			if m.ReplyTo != "" {
 				answered[m.ReplyTo] = true
+				from := strings.ToLower(strings.TrimSpace(m.From))
+				if from != "" {
+					if repliedBy[m.ReplyTo] == nil {
+						repliedBy[m.ReplyTo] = map[string]bool{}
+					}
+					repliedBy[m.ReplyTo][from] = true
+				}
 			}
 		}
 	}
@@ -222,8 +231,21 @@ func (s *Store) Inbox(to string, limit int, includeAnswered bool) []Message {
 		if !directed && !broadcast {
 			continue
 		}
-		if !includeAnswered && (answered[m.ID] || ackedBy(m, to)) {
-			continue
+		if !includeAnswered {
+			if ackedBy(m, to) {
+				continue
+			}
+			if directed && answered[m.ID] {
+				continue
+			}
+			if broadcast {
+				if m.Help && answered[m.ID] {
+					continue
+				}
+				if repliedBy[m.ID][to] {
+					continue
+				}
+			}
 		}
 		out = append(out, m)
 	}

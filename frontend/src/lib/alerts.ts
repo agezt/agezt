@@ -1,4 +1,5 @@
 import type { AgentEvent } from "@/lib/events";
+import { incidentMetaFromEvent } from "@/lib/incidents";
 
 // Alerts: the daemon's PROACTIVE signals — what it flagged on its own, distinct
 // from the raw event firehose. Pulse observer deltas (e.g. the self-health
@@ -16,10 +17,24 @@ export interface Alert {
 }
 
 // LEVEL_ORDER ranks severity for sorting/filtering (higher = more severe).
-export const LEVEL_ORDER: Record<AlertLevel, number> = { info: 0, warning: 1, critical: 2 };
+export const LEVEL_ORDER: Record<AlertLevel, number> = {
+  info: 0,
+  warning: 1,
+  critical: 2,
+};
 
 function str(v: unknown): string {
   return v == null ? "" : String(v);
+}
+
+function incidentBits(p: any): string {
+  const bits: string[] = [];
+  if (str(p.root_agent)) bits.push(`root ${str(p.root_agent)}`);
+  if (typeof p.chain_depth === "number")
+    bits.push(p.chain_depth > 0 ? `hop ${p.chain_depth}` : "hop 0");
+  const owner = str(p.delegate_to) || str(p.target_agent);
+  if (owner) bits.push(`next owner ${owner}`);
+  return bits.join(" · ");
 }
 
 // classifyAlert maps an event to an Alert, or null when the event is not a
@@ -28,12 +43,55 @@ function str(v: unknown): string {
 export function classifyAlert(e: AgentEvent): Alert | null {
   const k = (e.kind || "").toLowerCase();
   const p: any = e.payload || {};
+  if ((e.subject || "").toLowerCase() === "doctor.auto_repair") {
+    const agent = str(p.agent) || "agent";
+    const mode = String(p.mode || "").toLowerCase();
+    const phase = String(p.phase || "").toLowerCase();
+    const lineage = incidentBits(p);
+    if (phase === "routing_force_exhausted_detected") {
+      return {
+        level: "warning",
+        title: "forced chain exhausted",
+        detail: [
+          `${agent} — ${str(p.reason) || str(p.resolution_summary) || "owner-forced chain stayed under pressure after repeated generations"}`,
+          lineage,
+        ]
+          .filter(Boolean)
+          .join(" · "),
+        source: "doctor",
+      };
+    }
+    if (!phase.endsWith("failed")) {
+      return null;
+    }
+    const title =
+      phase === "delegation_failed"
+        ? "delegated wake failed"
+        : phase === "resolution_failed"
+          ? "resolution follow-up failed"
+          : phase === "routing_rollback_failed"
+            ? "routing rollback failed"
+          : mode === "degraded"
+            ? "doctor run failed"
+          : mode === "routing"
+            ? "routing repair failed"
+            : "config repair failed";
+    const body =
+      str(p.error) || str(p.reason) || "An autonomous doctor attempt failed.";
+    return {
+      level: "warning",
+      title,
+      detail: [ `${agent} — ${body}`, lineage ].filter(Boolean).join(" · "),
+      source: "doctor",
+    };
+  }
 
   switch (k) {
     case "observer.delta": {
       // A pulse observer detected a meaningful change (self-health, disk, CI…).
       const sev = String(p.hints?.severity || "").toLowerCase();
-      const level: AlertLevel = sev === "critical" ? "critical" : sev === "high" ? "warning" : "info";
+      const level: AlertLevel =
+        sev === "critical" ? "critical" : sev === "high" ? "warning" : "info";
       return {
         level,
         title: str(p.summary) || str(p.kind) || "observed change",
@@ -45,10 +103,20 @@ export function classifyAlert(e: AgentEvent): Alert | null {
       // Pulse decided this was worth telling the operator.
       const disp = String(p.disposition || "").toLowerCase();
       const level: AlertLevel = disp === "alert" ? "warning" : "info";
-      return { level, title: str(p.title) || "briefing", detail: str(p.body), source: "pulse" };
+      return {
+        level,
+        title: str(p.title) || "briefing",
+        detail: str(p.body),
+        source: "pulse",
+      };
     }
     case "task.failed":
-      return { level: "warning", title: "run failed", detail: str(p.reason) || str(p.error), source: "run" };
+      return {
+        level: "warning",
+        title: "run failed",
+        detail: str(p.reason) || str(p.error),
+        source: "run",
+      };
     case "netguard.blocked":
       return {
         level: "warning",
@@ -57,13 +125,33 @@ export function classifyAlert(e: AgentEvent): Alert | null {
         source: str(p.tool) || "egress",
       };
     case "budget.exceeded":
-      return { level: "critical", title: "budget ceiling exceeded", detail: "", source: "budget" };
+      return {
+        level: "critical",
+        title: "budget ceiling exceeded",
+        detail: "",
+        source: "budget",
+      };
     case "rate.limited":
-      return { level: "warning", title: "provider rate-limited", detail: str(p.provider), source: "provider" };
+      return {
+        level: "warning",
+        title: "provider rate-limited",
+        detail: str(p.provider),
+        source: "provider",
+      };
     case "halt":
-      return { level: "critical", title: "daemon halted", detail: str(p.reason), source: "kernel" };
+      return {
+        level: "critical",
+        title: "daemon halted",
+        detail: str(p.reason),
+        source: "kernel",
+      };
     case "capability.rejected":
-      return { level: "info", title: "capability rejected", detail: str(p.capability), source: "policy" };
+      return {
+        level: "info",
+        title: "capability rejected",
+        detail: str(p.capability),
+        source: "policy",
+      };
     default:
       return null;
   }
@@ -78,6 +166,10 @@ export interface RankedAlert extends Alert {
   id: string;
   tsMs?: number;
   correlationId?: string; // the run this alert belongs to, when there is one (M781)
+  incidentId?: string;
+  rootIncidentId?: string;
+  subject?: string;
+  payload?: any;
 }
 
 // DEFAULT_ATTENTION_WINDOW_MS bounds how long an alert counts as "needs
@@ -115,7 +207,12 @@ export interface AttentionOpts {
 // attentionFilter drops an alert that no longer needs attention: a "daemon
 // halted" already cleared by a later resume, or one older than the recency
 // window. Shared by the cockpit strip and the nav badge so they always agree.
-function attentionFilter(e: AgentEvent, halted: boolean, nowMs?: number, windowMs = DEFAULT_ATTENTION_WINDOW_MS): boolean {
+function attentionFilter(
+  e: AgentEvent,
+  halted: boolean,
+  nowMs?: number,
+  windowMs = DEFAULT_ATTENTION_WINDOW_MS,
+): boolean {
   if ((e.kind || "").toLowerCase() === "halt" && !halted) return false; // resolved by a resume
   const ts = e.ts_unix_ms;
   if (nowMs != null && ts != null && nowMs - ts > windowMs) return false; // aged out
@@ -126,8 +223,12 @@ function attentionFilter(e: AgentEvent, halted: boolean, nowMs?: number, windowM
 // deduped by id and newest-first, capped at `limit` (M780). Used by the cockpit to show
 // "what needs attention" inline, reusing the exact rules of the Alerts view. Resolved
 // halts and (when nowMs is given) alerts past the recency window are dropped (M913).
-export function recentAttentionAlerts(events: AgentEvent[], limitOrOpts: number | AttentionOpts = {}): RankedAlert[] {
-  const opts = typeof limitOrOpts === "number" ? { limit: limitOrOpts } : limitOrOpts;
+export function recentAttentionAlerts(
+  events: AgentEvent[],
+  limitOrOpts: number | AttentionOpts = {},
+): RankedAlert[] {
+  const opts =
+    typeof limitOrOpts === "number" ? { limit: limitOrOpts } : limitOrOpts;
   const { limit = 5, nowMs, windowMs } = opts;
   const halted = daemonHalted(events);
   const seen = new Set<string>();
@@ -139,7 +240,17 @@ export function recentAttentionAlerts(events: AgentEvent[], limitOrOpts: number 
     const id = e.id || `${e.kind}-${e.seq ?? ""}`;
     if (seen.has(id)) continue;
     seen.add(id);
-    out.push({ ...a, id, tsMs: e.ts_unix_ms, correlationId: e.correlation_id });
+    const meta = incidentMetaFromEvent(e);
+    out.push({
+      ...a,
+      id,
+      tsMs: e.ts_unix_ms,
+      correlationId: e.correlation_id,
+      incidentId: meta.incidentId,
+      rootIncidentId: meta.rootIncidentId,
+      subject: e.subject,
+      payload: e.payload,
+    });
   }
   out.sort((x, y) => (y.tsMs ?? 0) - (x.tsMs ?? 0));
   return out.slice(0, limit);
@@ -150,7 +261,10 @@ export function recentAttentionAlerts(events: AgentEvent[], limitOrOpts: number 
 // are real alerts but don't demand attention, so they're excluded from the count. Applies
 // the same resolved-halt + recency filtering as the cockpit strip (M913) so the badge and
 // the strip never disagree. Pass nowMs to enable the recency window.
-export function attentionAlertCount(events: AgentEvent[], opts: AttentionOpts = {}): number {
+export function attentionAlertCount(
+  events: AgentEvent[],
+  opts: AttentionOpts = {},
+): number {
   const { nowMs, windowMs } = opts;
   const halted = daemonHalted(events);
   const seen = new Set<string>();

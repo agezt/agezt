@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { HeartPulse, RefreshCw, Clock, ShieldAlert, Brain, Network, Sparkles, ListTree, Pause, CheckSquare, Route, Stethoscope } from "lucide-react";
+import { HeartPulse, RefreshCw, Clock, ShieldAlert, Brain, Network, Sparkles, ListTree, Pause, CheckSquare, Route, Stethoscope, CalendarClock } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getJSON } from "@/lib/api";
@@ -17,6 +17,7 @@ interface Status {
   memory_records?: number;
   world_entities?: number;
   active_skills?: number;
+  schedules?: { total?: number; enabled?: number; running?: number; resident?: boolean };
   provider_fallbacks?: { count?: number; last_reason?: string };
   model_fallbacks?: { count?: number; last_reason?: string };
 }
@@ -84,6 +85,28 @@ export function runDiagnostics(
   const pending = st.pending_approvals ?? 0;
   if (pending > 0) {
     out.push({ id: "approvals", level: "info", title: `${pending} request${pending === 1 ? "" : "s"} awaiting approval`, detail: "The agent is blocked on your decision.", fixHash: "approvals", fixLabel: "Approvals" });
+  }
+  const schedulesRunning = st.schedules?.running ?? 0;
+  const schedulesEnabled = st.schedules?.enabled ?? 0;
+  if (schedulesEnabled > 0 && st.schedules?.resident === false) {
+    out.push({
+      id: "schedule-resident",
+      level: "warn",
+      title: "Schedule resident is offline",
+      detail: `${schedulesEnabled} enabled schedule${schedulesEnabled === 1 ? "" : "s"} cannot wake until the cadence resident is attached.`,
+      fixHash: "status",
+      fixLabel: "Status",
+    });
+  }
+  if (schedulesRunning > 0) {
+    out.push({
+      id: "schedule-running",
+      level: "info",
+      title: `${schedulesRunning} schedule${schedulesRunning === 1 ? "" : "s"} running`,
+      detail: "Cadence has active autonomous work in flight.",
+      fixHash: "schedules",
+      fixLabel: "Schedules",
+    });
   }
   return out;
 }
@@ -229,8 +252,9 @@ export function Health() {
       </div>
 
       {/* Footprint + attention */}
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-7">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-8">
         <Tile icon={ListTree} label="running" value={st?.active_runs ?? 0} pulse={(st?.active_runs ?? 0) > 0} tone="accent" />
+        <Tile icon={CalendarClock} label="sched live" value={st?.schedules?.running ?? 0} pulse={(st?.schedules?.running ?? 0) > 0} tone={(st?.schedules?.running ?? 0) > 0 ? "accent" : "muted"} />
         <Tile icon={CheckSquare} label="approvals" value={st?.pending_approvals ?? 0} tone={(st?.pending_approvals ?? 0) > 0 ? "warn" : "muted"} />
         <Tile icon={ShieldAlert} label="provider fb" value={st?.provider_fallbacks?.count ?? 0} tone={(st?.provider_fallbacks?.count ?? 0) > 0 ? "warn" : "muted"} />
         <Tile icon={Route} label="model fb" value={st?.model_fallbacks?.count ?? 0} tone={(st?.model_fallbacks?.count ?? 0) > 0 ? "warn" : "muted"} />

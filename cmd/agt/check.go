@@ -209,21 +209,22 @@ func runCheckSingle(cat *catalog.Catalog, lookup func(string) string, flags chec
 // jsonCaps is the machine-readable capability record emitted by
 // `agt provider check --caps --json`. Stable contract.
 type jsonCaps struct {
-	Provider     string   `json:"provider"`
-	Family       string   `json:"family"`
-	Model        string   `json:"model"`
-	ToolCall     bool     `json:"tool_call"`
-	Reasoning    bool     `json:"reasoning"`
-	Vision       bool     `json:"vision"`
-	Attachment   bool     `json:"attachment"`
-	JSONMode     bool     `json:"json_mode"`
-	PromptCache  bool     `json:"prompt_cache"`
-	InputModes   []string `json:"input_modalities,omitempty"`
-	OutputModes  []string `json:"output_modalities,omitempty"`
-	ContextLimit int      `json:"context_limit,omitempty"`
-	OutputLimit  int      `json:"output_limit,omitempty"`
-	Knowledge    string   `json:"knowledge,omitempty"`
-	Warnings     []string `json:"warnings,omitempty"`
+	Provider       string   `json:"provider"`
+	Family         string   `json:"family"`
+	Model          string   `json:"model"`
+	ToolCall       bool     `json:"tool_call"`
+	Reasoning      bool     `json:"reasoning"`
+	Vision         bool     `json:"vision"`
+	Attachment     bool     `json:"attachment"`
+	JSONMode       bool     `json:"json_mode"`
+	StrictToolArgs bool     `json:"strict_tool_args"`
+	PromptCache    bool     `json:"prompt_cache"`
+	InputModes     []string `json:"input_modalities,omitempty"`
+	OutputModes    []string `json:"output_modalities,omitempty"`
+	ContextLimit   int      `json:"context_limit,omitempty"`
+	OutputLimit    int      `json:"output_limit,omitempty"`
+	Knowledge      string   `json:"knowledge,omitempty"`
+	Warnings       []string `json:"warnings,omitempty"`
 }
 
 // runCheckCaps resolves a provider/model from the catalog (explicit id,
@@ -274,21 +275,22 @@ func runCheckCaps(cat *catalog.Catalog, flags checkFlags, stdout, stderr io.Writ
 	}
 
 	caps := jsonCaps{
-		Provider:     entry.ID,
-		Family:       string(entry.Family()),
-		Model:        modelID,
-		ToolCall:     model.ToolCall,
-		Reasoning:    model.Reasoning,
-		Vision:       model.SupportsVision(),
-		Attachment:   model.Attachment,
-		JSONMode:     catalog.FamilySupportsNativeJSONMode(entry.Family()),
-		PromptCache:  model.SupportsPromptCache(),
-		InputModes:   model.Modalities.Input,
-		OutputModes:  model.Modalities.Output,
-		ContextLimit: model.Limit.Context,
-		OutputLimit:  model.Limit.Output,
-		Knowledge:    model.Knowledge,
-		Warnings:     model.AgentWarnings(),
+		Provider:       entry.ID,
+		Family:         string(entry.Family()),
+		Model:          modelID,
+		ToolCall:       model.ToolCall,
+		Reasoning:      model.Reasoning,
+		Vision:         model.SupportsVision(),
+		Attachment:     model.Attachment,
+		JSONMode:       catalog.FamilySupportsNativeJSONMode(entry.Family()),
+		StrictToolArgs: model.SupportsStrictToolArgs(),
+		PromptCache:    model.SupportsPromptCache(),
+		InputModes:     model.Modalities.Input,
+		OutputModes:    model.Modalities.Output,
+		ContextLimit:   model.Limit.Context,
+		OutputLimit:    model.Limit.Output,
+		Knowledge:      model.Knowledge,
+		Warnings:       model.AgentWarnings(),
 	}
 
 	if flags.jsonOut {
@@ -318,6 +320,7 @@ func emitCapsHuman(c jsonCaps, stdout io.Writer) {
 	fmt.Fprintf(stdout, "  vision (image)  : %s\n", yn(c.Vision))
 	fmt.Fprintf(stdout, "  attachments     : %s\n", yn(c.Attachment))
 	fmt.Fprintf(stdout, "  json mode       : %s\n", yn(c.JSONMode))
+	fmt.Fprintf(stdout, "  strict tool args: %s\n", yn(c.StrictToolArgs))
 	fmt.Fprintf(stdout, "  prompt caching  : %s\n", yn(c.PromptCache))
 	if len(c.InputModes) > 0 {
 		fmt.Fprintf(stdout, "  input modes     : %s\n", strings.Join(c.InputModes, ", "))
@@ -366,17 +369,18 @@ func runCheckCapsAll(cat *catalog.Catalog, flags checkFlags, stdout io.Writer) i
 			continue // provider with no models — nothing to report
 		}
 		rows = append(rows, jsonCaps{
-			Provider:     entry.ID,
-			Family:       string(entry.Family()),
-			Model:        modelID,
-			ToolCall:     model.ToolCall,
-			Reasoning:    model.Reasoning,
-			Vision:       model.SupportsVision(),
-			Attachment:   model.Attachment,
-			JSONMode:     catalog.FamilySupportsNativeJSONMode(entry.Family()),
-			PromptCache:  model.SupportsPromptCache(),
-			ContextLimit: model.Limit.Context,
-			Warnings:     model.AgentWarnings(),
+			Provider:       entry.ID,
+			Family:         string(entry.Family()),
+			Model:          modelID,
+			ToolCall:       model.ToolCall,
+			Reasoning:      model.Reasoning,
+			Vision:         model.SupportsVision(),
+			Attachment:     model.Attachment,
+			JSONMode:       catalog.FamilySupportsNativeJSONMode(entry.Family()),
+			StrictToolArgs: model.SupportsStrictToolArgs(),
+			PromptCache:    model.SupportsPromptCache(),
+			ContextLimit:   model.Limit.Context,
+			Warnings:       model.AgentWarnings(),
 		})
 	}
 

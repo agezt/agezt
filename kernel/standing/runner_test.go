@@ -29,14 +29,16 @@ func newBus(t *testing.T) *bus.Bus {
 
 // fireRec records orders fired by the runner.
 type fireRec struct {
-	mu    sync.Mutex
-	fired []string
+	mu          sync.Mutex
+	fired       []string
+	lastPayload map[string]any
 }
 
-func (r *fireRec) fn(_ context.Context, o standing.Order, _ string) {
+func (r *fireRec) fn(_ context.Context, o standing.Order, _ string, payload map[string]any) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.fired = append(r.fired, o.ID)
+	r.lastPayload = payload
 }
 func (r *fireRec) count() int {
 	r.mu.Lock()
@@ -66,6 +68,16 @@ func TestScopedIntent(t *testing.T) {
 	}
 	if standing.ScopedIntent(standing.Order{Name: "x"}, "do it") != "do it" {
 		t.Error("no scope entities should leave the intent unchanged")
+	}
+}
+
+func TestTriggeredIntent(t *testing.T) {
+	got := standing.TriggeredIntent("diagnose it", "pulse.observer.system:reaper", map[string]any{"misconfigured_agents": 1, "agent_slug": "builder"})
+	if !strings.Contains(got, "pulse.observer.system:reaper") || !strings.Contains(got, `"agent_slug": "builder"`) {
+		t.Fatalf("triggered intent should carry event context, got %q", got)
+	}
+	if standing.TriggeredIntent("do it", "manual", map[string]any{"x": 1}) != "do it" {
+		t.Error("manual triggers should not prepend context")
 	}
 }
 
@@ -101,9 +113,12 @@ func TestRunner_FiresOnMatchingEvent(t *testing.T) {
 	}
 
 	// A matching event fires the order.
-	_, _ = b.Publish(event.Spec{Subject: "github.push", Kind: event.KindTaskReceived, Actor: "x"})
+	_, _ = b.Publish(event.Spec{Subject: "github.push", Kind: event.KindTaskReceived, Actor: "x", Payload: map[string]any{"repo": "agezt"}})
 	if !waitFor(t, func() bool { return rec.count() == 1 }) {
 		t.Fatalf("order did not fire on matching event (fired=%d)", rec.count())
+	}
+	if rec.lastPayload == nil || rec.lastPayload["repo"] != "agezt" {
+		t.Fatal("matching event payload should be passed through to fire")
 	}
 	_ = o
 
@@ -170,6 +185,33 @@ func TestRunner_CooldownUsesInjectedClock(t *testing.T) {
 	_, _ = b.Publish(event.Spec{Subject: "github.push", Kind: event.KindTaskReceived, Actor: "x"})
 	if !waitFor(t, func() bool { return rec.count() == 2 }) {
 		t.Errorf("after advancing the clock past cooldown the order should fire again, got %d", rec.count())
+	}
+}
+
+func TestRunner_OrderCooldownOverridesGlobal(t *testing.T) {
+	b := newBus(t)
+	s, _ := standing.Open(t.TempDir())
+	_, _ = s.Add(standing.Order{
+		Name:        "local cooldown",
+		Triggers:    []standing.Trigger{{Type: standing.TriggerEvent, Subject: "github.>"}},
+		CooldownSec: 1,
+	})
+	var clockMS atomic.Int64
+	clockMS.Store(1_000_000)
+	rec := &fireRec{}
+	standing.StartRunner(context.Background(), b, s, standing.RunnerConfig{
+		Cooldown: time.Hour,
+		Now:      func() time.Time { return time.UnixMilli(clockMS.Load()) },
+	}, rec.fn)
+
+	_, _ = b.Publish(event.Spec{Subject: "github.push", Kind: event.KindTaskReceived, Actor: "x"})
+	if !waitFor(t, func() bool { return rec.count() == 1 }) {
+		t.Fatalf("first event should fire, got %d", rec.count())
+	}
+	clockMS.Add(2 * 1000)
+	_, _ = b.Publish(event.Spec{Subject: "github.push", Kind: event.KindTaskReceived, Actor: "x"})
+	if !waitFor(t, func() bool { return rec.count() == 2 }) {
+		t.Fatalf("order cooldown should override global cooldown, got %d", rec.count())
 	}
 }
 

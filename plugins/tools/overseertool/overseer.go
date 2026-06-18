@@ -39,13 +39,26 @@ type Source interface {
 	SetAgentEnabled(ref string, enabled bool) (roster.Profile, error)
 	SetAgentRetired(ref string, retired bool) (roster.Profile, error)
 	// EditAgent applies the mutable fields of `in` to the agent named by ref
-	// (the same set the webui's agent-edit allows: name/soul/model/fallbacks/
-	// task_type/budgets/memory_scope/workdir/description). The System flag is
-	// never touched. CreateAgent adds a brand-new agent. Both let a guardian
-	// "treat" or build other agents — the agent-facing half of the webui's
-	// roster admin (M961).
+	// (the same set the webui's agent-edit allows, including config_overrides
+	// and governance knobs). The System flag is never touched. CreateAgent adds
+	// a brand-new agent. Both let a guardian "treat" or build other agents —
+	// the agent-facing half of the webui's roster admin (M961).
 	EditAgent(ref string, in roster.Profile) (roster.Profile, error)
 	CreateAgent(in roster.Profile) (roster.Profile, error)
+	// RepairAgent runs a governed self-repair pass AS the target agent, optionally
+	// auto-applying a closing profile proposal from the run's final answer.
+	RepairAgent(ref, reason string) (RepairResult, error)
+}
+
+// RepairResult is the operator/guardian-facing outcome of one self-repair pass.
+type RepairResult struct {
+	Agent                         string   `json:"agent"`
+	Correlation                   string   `json:"correlation"`
+	Applied                       []string `json:"applied,omitempty"`
+	RoutingTaskType               string   `json:"routing_task_type,omitempty"`
+	RoutingTaskModelChain         []string `json:"routing_task_model_chain,omitempty"`
+	PreviousRoutingTaskModelChain []string `json:"previous_routing_task_model_chain,omitempty"`
+	Answer                        string   `json:"answer,omitempty"`
 }
 
 // Tool implements agent.Tool. Created unbound via New(); Bind wires the live

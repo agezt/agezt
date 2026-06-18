@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-// Package standing implements the Chronos standing-order model and store
-// (SPEC-16 §4). A standing order is a persistent goal: a named, pausable rule
-// that — on one of its triggers — evaluates observers within a scope and acts
-// within an initiative ceiling, then briefs. This package owns the durable
-// record and its lifecycle (CRUD); the runner that fires triggers and drives the
-// observe→salience→initiative→briefing pipeline is layered on top.
+// Package standing implements the standing-order model and store (SPEC-16 §4).
+// A standing order is a durable wake rule: a named, pausable event/cron trigger
+// that wakes a governed plan, optionally as a roster agent, within an initiative
+// ceiling. This package owns the durable record and its lifecycle (CRUD); the
+// runner that fires triggers and drives the observe→salience→initiative→briefing
+// pipeline is layered on top.
 //
 // The SPEC sketches the order as YAML authored in Flow Studio, but Agezt is
 // stdlib-first (no YAML dependency, DECISIONS B0c), so the on-disk and wire form
@@ -91,9 +91,13 @@ type Order struct {
 	// this many attempts (M655). 0 = a single pass (the default). The fire path
 	// (cmd/agezt) reads this to choose RunAssured vs RunWith — symmetric with the
 	// schedule tool's assure budget for the time axis.
-	Assure    int   `json:"assure,omitempty"`
-	CreatedMS int64 `json:"created_ms"`
-	UpdatedMS int64 `json:"updated_ms"`
+	Assure int `json:"assure,omitempty"`
+	// CooldownSec, when > 0, overrides the event-runner default cooldown for this
+	// order. This keeps noisy event-triggered orders from spawning LLM work on
+	// every event burst while still allowing quiet orders to use the global default.
+	CooldownSec int64 `json:"cooldown_sec,omitempty"`
+	CreatedMS   int64 `json:"created_ms"`
+	UpdatedMS   int64 `json:"updated_ms"`
 }
 
 // ErrNotFound is returned for operations on an unknown order id.
@@ -124,6 +128,9 @@ func Validate(o Order) error {
 	}
 	if o.Initiative.Mode != "" && !validMode(o.Initiative.Mode) {
 		return fmt.Errorf("standing: unknown initiative mode %q", o.Initiative.Mode)
+	}
+	if o.CooldownSec < 0 {
+		return errors.New("standing: cooldown_sec must be non-negative")
 	}
 	return nil
 }

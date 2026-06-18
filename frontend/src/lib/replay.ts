@@ -1,5 +1,10 @@
 import type { AgentEvent } from "@/lib/events";
 import { num } from "@/lib/rundetail";
+import {
+  incidentBadgeItem,
+  incidentEventSummary,
+  isIncidentFamilyEvent,
+} from "@/lib/incidentevents";
 
 // A ReplayStep is one meaningful moment in a run's life, derived from its
 // journaled event arc. The flight recorder scrubs/plays through these, and each
@@ -27,6 +32,11 @@ export interface ReplayStep {
   title: string;
   detail: string;
   tone: StepTone;
+  incident?: {
+    subject?: string;
+    phase?: string;
+    mode?: string;
+  };
   // Cumulative through this step.
   cumIn: number;
   cumOut: number;
@@ -65,6 +75,7 @@ export function buildReplay(arc: AgentEvent[]): ReplayStep[] {
     let title = e.kind || "event";
     let detail = "";
     let tone: StepTone = "other";
+    const incident = isIncidentFamilyEvent(e) ? incidentBadgeItem(e) : undefined;
 
     switch (e.kind) {
       case "task.received":
@@ -144,8 +155,8 @@ export function buildReplay(arc: AgentEvent[]): ReplayStep[] {
         tone = "fail";
         break;
       default:
-        title = e.kind || "event";
-        detail = e.subject || "";
+        title = incident ? incidentEventSummary(e) : e.kind || "event";
+        detail = incident ? "" : e.subject || "";
         tone = "other";
     }
 
@@ -157,6 +168,7 @@ export function buildReplay(arc: AgentEvent[]): ReplayStep[] {
       title,
       detail,
       tone,
+      incident,
       cumIn,
       cumOut,
       cumCostMc,

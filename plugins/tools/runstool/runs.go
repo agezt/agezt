@@ -71,6 +71,15 @@ func (t *Tool) Definition() agent.ToolDef {
     "query": {"type":"string", "description":"For search: case-insensitive substring to match against run intents."}
   }
 }`),
+		Effect: agent.ToolEffect{
+			Class: agent.EffectReversible,
+			PredictedEffects: []string{
+				"Read recent journal events and fold them into run history or aggregate statistics.",
+			},
+			AffectedResources: []string{"local event journal"},
+			RollbackNotes:     "Read-only; no rollback required.",
+			Confidence:        0.95,
+		},
 	}
 }
 

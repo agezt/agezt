@@ -24,6 +24,7 @@ import (
 	"github.com/agezt/agezt/kernel/approval"
 	"github.com/agezt/agezt/kernel/board"
 	"github.com/agezt/agezt/kernel/event"
+	intentmodel "github.com/agezt/agezt/kernel/intent"
 	"github.com/agezt/agezt/kernel/memory"
 	"github.com/agezt/agezt/kernel/roster"
 	"github.com/agezt/agezt/kernel/runtime"
@@ -630,6 +631,8 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.handleRunStep(conn, req)
 	case CmdRunSteer:
 		s.handleRunSteer(conn, req)
+	case CmdRunIntervene:
+		s.handleRunIntervene(conn, req)
 	case CmdConfig:
 		s.handleConfig(conn, req)
 	case CmdConfigCenterSet:
@@ -642,6 +645,8 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.handleConfigCenterDelete(conn, req)
 	case CmdConfigCenterSetRating:
 		s.handleConfigCenterSetRating(conn, req)
+	case CmdConfigCenterSetAccess:
+		s.handleConfigCenterSetAccess(conn, req)
 	case CmdConfigCenterAccessLog:
 		s.handleConfigCenterAccessLog(conn, req)
 	case CmdConfigCenterAudit:
@@ -692,10 +697,16 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.handleMemoryBulkForget(conn, req)
 	case CmdMemoryFindRelated:
 		s.handleMemoryFindRelated(conn, req)
+	case CmdMemoryAudit:
+		s.handleMemoryAudit(conn, req)
+	case CmdMemoryClean:
+		s.handleMemoryClean(conn, req)
 	case CmdScheduleAdd:
 		s.handleScheduleAdd(conn, req)
 	case CmdScheduleList:
 		s.handleScheduleList(conn, req)
+	case CmdScheduleSystemTasks:
+		s.handleScheduleSystemTasks(conn, req)
 	case CmdScheduleRemove:
 		s.handleScheduleRemove(conn, req)
 	case CmdScheduleRun:
@@ -794,10 +805,30 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.handleAgentSetEnabled(conn, req)
 	case CmdAgentRemove:
 		s.handleAgentRemove(conn, req)
+	case CmdAgentTaskUpdate:
+		s.handleAgentTaskUpdate(conn, req)
 	case CmdAgentImpact:
 		s.handleAgentImpact(conn, req)
+	case CmdAgentTombstone:
+		s.handleAgentTombstone(conn, req)
+	case CmdAgentGraveyard:
+		s.handleAgentGraveyard(conn, req)
+	case CmdAgentPermissions:
+		s.handleAgentPermissions(conn, req)
+	case CmdAgentCapabilities:
+		s.handleAgentCapabilities(conn, req)
 	case CmdAgentActivity:
 		s.handleAgentActivity(conn, req)
+	case CmdAgentRepairStatus:
+		s.handleAgentRepairStatus(conn, req)
+	case CmdAgentRepair:
+		s.handleAgentRepair(conn, req)
+	case CmdAgentEscalations:
+		s.handleAgentEscalations(conn, req)
+	case CmdAgentWake:
+		s.handleAgentWake(conn, req)
+	case CmdAgentResolve:
+		s.handleAgentResolve(conn, req)
 	case CmdAgentRetire:
 		s.handleAgentRetire(conn, req)
 	case CmdAgentRevive:
@@ -830,12 +861,30 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.handleMCPSetEnabled(conn, req)
 	case CmdMCPRemove:
 		s.handleMCPRemove(conn, req)
+	case CmdACPAgents:
+		s.handleACPAgents(ctx, conn, req)
 	case CmdToolboxDetect:
 		s.handleToolboxDetect(ctx, conn, req)
 	case CmdToolboxOutdated:
 		s.handleToolboxOutdated(ctx, conn, req)
 	case CmdToolboxInstall:
 		s.handleToolboxInstall(ctx, conn, req)
+	case CmdMarketList:
+		s.handleMarketList(conn, req)
+	case CmdMarketShow:
+		s.handleMarketShow(conn, req)
+	case CmdMarketInstall:
+		s.handleMarketInstall(ctx, conn, req)
+	case CmdMarketUninstall:
+		s.handleMarketUninstall(ctx, conn, req)
+	case CmdMarketSources:
+		s.handleMarketSources(conn, req)
+	case CmdMarketAddSource:
+		s.handleMarketAddSource(conn, req)
+	case CmdMarketRemoveSource:
+		s.handleMarketRemoveSource(conn, req)
+	case CmdMarketSync:
+		s.handleMarketSync(ctx, conn, req)
 	case CmdWorkflowList:
 		s.handleWorkflowList(conn, req)
 	case CmdWorkflowShow:
@@ -1165,15 +1214,25 @@ func (s *Server) handleApprovals(conn net.Conn, req Request) {
 	out := make([]map[string]any, 0, len(pending))
 	for _, p := range pending {
 		out = append(out, map[string]any{
-			"id":             p.ID,
-			"capability":     p.Capability,
-			"tool_name":      p.ToolName,
-			"input":          p.Input,
-			"reason":         p.Reason,
-			"actor":          p.Actor,
-			"correlation_id": p.CorrelationID,
-			"created_unix":   p.CreatedAt.Unix(),
-			"timeout_unix":   p.Timeout.Unix(),
+			"id":                     p.ID,
+			"capability":             p.Capability,
+			"tool_name":              p.ToolName,
+			"input":                  p.Input,
+			"reason":                 p.Reason,
+			"actor":                  p.Actor,
+			"correlation_id":         p.CorrelationID,
+			"created_unix":           p.CreatedAt.Unix(),
+			"timeout_unix":           p.Timeout.Unix(),
+			"effect_class":           p.EffectClass,
+			"predicted_effects":      p.PredictedEffects,
+			"affected_resources":     p.AffectedResources,
+			"rollback_notes":         p.RollbackNotes,
+			"confidence":             p.Confidence,
+			"canonical_intent":       p.CanonicalIntent,
+			"harmful_interpretation": p.HarmfulInterpretation,
+			"ambiguity_score":        p.AmbiguityScore,
+			"regret_axes":            p.RegretAxes,
+			"confirmation_prompt":    p.ConfirmationPrompt,
 		})
 	}
 	s.writeResp(conn, Response{
@@ -1187,9 +1246,10 @@ func (s *Server) handleApprovals(conn net.Conn, req Request) {
 // wire shape that the server reifies into scheduler.Plan with the
 // kernel's wired LoopRunner + Approvals registry.
 type planSpec struct {
-	Name        string         `json:"name"`
-	MaxParallel int            `json:"max_parallel"`
-	Nodes       []planNodeSpec `json:"nodes"`
+	Name        string             `json:"name"`
+	MaxParallel int                `json:"max_parallel"`
+	Intent      *intentmodel.Frame `json:"intent,omitempty"`
+	Nodes       []planNodeSpec     `json:"nodes"`
 }
 
 type planNodeSpec struct {
@@ -1231,12 +1291,12 @@ func (s *Server) handlePlan(ctx context.Context, conn net.Conn, req Request) {
 		switch ns.Kind {
 		case "loop":
 			nodes = append(nodes, &scheduler.LoopNode{
-				NodeID: ns.ID, Deps: ns.Deps, Intent: ns.Intent, Runner: runner,
+				NodeID: ns.ID, Deps: ns.Deps, Intent: ns.Intent, Runner: runner, IntentFrame: spec.Intent,
 			})
 		case "gate":
 			nodes = append(nodes, &scheduler.GateNode{
 				NodeID: ns.ID, Deps: ns.Deps, Approvals: apr,
-				Capability: ns.Capability, Description: ns.Description,
+				Capability: ns.Capability, Description: ns.Description, IntentFrame: spec.Intent,
 			})
 		default:
 			s.writeResp(conn, Response{ID: req.ID, Type: RespError,
@@ -1413,8 +1473,16 @@ func (s *Server) handleRun(ctx context.Context, conn net.Conn, req Request) {
 			s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "unknown agent: " + agentRef})
 			return
 		}
+		if p.Retired {
+			s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "agent " + p.Slug + " is retired — revive it first (agt agent revive " + p.Slug + ")"})
+			return
+		}
 		if !p.Enabled {
 			s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "agent " + p.Slug + " is paused (agt agent resume " + p.Slug + ")"})
+			return
+		}
+		if !p.AllowsDirectCall() {
+			s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: managedSubagentDirectCallError(p, "called")})
 			return
 		}
 		agentProf = &p
@@ -1652,6 +1720,11 @@ func (s *Server) handleRun(ctx context.Context, conn net.Conn, req Request) {
 	go func() {
 		if assureN > 0 {
 			ans, _, err := k.RunAssured(ctx, corr, intent, int(assureN))
+			resultCh <- runResult{ans, err}
+			return
+		}
+		if agentProf != nil && agentProf.RetryPolicy != nil && agentProf.RetryPolicy.MaxAttempts > 1 {
+			ans, err := k.RunWithRetry(ctx, corr, intent, *agentProf.RetryPolicy)
 			resultCh <- runResult{ans, err}
 			return
 		}

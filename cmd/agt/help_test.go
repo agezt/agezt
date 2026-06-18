@@ -157,11 +157,55 @@ func TestCmdHelp_OverviewAndDetail(t *testing.T) {
 	}
 
 	out.Reset()
+	if code := cmdHelp([]string{"agent"}, &out, &errOut); code != 0 {
+		t.Fatalf("help agent: code=%d", code)
+	}
+	if !strings.Contains(out.String(), "repair-status") || !strings.Contains(out.String(), "wake|repair") {
+		t.Errorf("help agent output missing repair/wake lifecycle commands:\n%s", out.String())
+	}
+
+	out.Reset()
 	errOut.Reset()
 	if code := cmdHelp([]string{"jurnal"}, &out, &errOut); code == 0 {
 		t.Fatal("unknown command should fail")
 	}
 	if !strings.Contains(errOut.String(), "journal") {
 		t.Errorf("typo should suggest 'journal', got: %s", errOut.String())
+	}
+}
+
+func TestHelp_AgentAutomationLanguage(t *testing.T) {
+	var out, errOut bytes.Buffer
+	if code := cmdHelp(nil, &out, &errOut); code != 0 {
+		t.Fatalf("overview: code=%d stderr=%s", code, errOut.String())
+	}
+	overview := out.String()
+	for _, want := range []string{
+		"typed cron/event jobs",
+		"durable wake rules for agents",
+	} {
+		if !strings.Contains(overview, want) {
+			t.Fatalf("help overview missing %q:\n%s", want, overview)
+		}
+	}
+	for _, old := range []string{"recurring autonomous intents", "event + cron triggered intents"} {
+		if strings.Contains(overview, old) {
+			t.Fatalf("help overview still uses old automation wording %q:\n%s", old, overview)
+		}
+	}
+
+	out.Reset()
+	errOut.Reset()
+	if code := cmdHelp([]string{"schedule"}, &out, &errOut); code != 0 {
+		t.Fatalf("help schedule: code=%d stderr=%s", code, errOut.String())
+	}
+	detail := out.String()
+	if !strings.Contains(detail, "workflow/system-task/tool targets") ||
+		!strings.Contains(detail, "schedule add --system-task catalog_sync --every 24h") ||
+		!strings.Contains(detail, "sync models.dev/api.json without waking an agent") ||
+		!strings.Contains(detail, "--continuous <dur>") ||
+		!strings.Contains(detail, "cycle loop") ||
+		strings.Contains(detail, "<intent>") {
+		t.Fatalf("help schedule should present typed targets, not generic prompt-like intent text:\n%s", detail)
 	}
 }

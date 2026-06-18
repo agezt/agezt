@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Activity, ListTree, ScrollText } from "lucide-react";
 import { getJSON } from "@/lib/api";
 import { cn, fmtTime } from "@/lib/utils";
@@ -7,7 +7,14 @@ import { SkeletonList } from "@/components/ui/skeleton";
 import { Badge, statusVariant } from "@/components/ui/badge";
 import { ErrorText } from "@/components/JsonView";
 import { useEvents } from "@/lib/events";
+import { agentActivityEventMatches, agentActivityOperationalState, agentActivityPulse, agentRunCorrelations, filterAgentLogEvents } from "@/lib/agentactivity";
 import { RunDetailLoader } from "@/components/RunDetail";
+import { IncidentBadges } from "@/components/IncidentBadges";
+import {
+  incidentBadgeItem,
+  incidentEventSummary,
+  isIncidentFamilyEvent,
+} from "@/lib/incidentevents";
 
 interface ActivityItem {
   seq: number;
@@ -39,14 +46,30 @@ type DrillTab = "activity" | "runs" | "logs";
 // running agent in real time. Reuses RunDetailLoader, the Skeleton kit, and
 // the live events context. Extracted from views/Roster (M953) so the Roster
 // drill-in and the Command Center deep panel share one implementation.
-export function AgentActivity({ slug }: { slug: string }) {
+export function AgentActivity({
+  slug,
+  initialOpenRun,
+  initialTab = "activity",
+}: {
+  slug: string;
+  initialOpenRun?: string;
+  initialTab?: DrillTab;
+}) {
   const { events, subscribe } = useEvents();
-  const [tab, setTab] = useState<DrillTab>("activity");
+  const [tab, setTab] = useState<DrillTab>(initialTab);
   const [items, setItems] = useState<ActivityItem[] | null>(null);
   const [runs, setRuns] = useState<RunLite[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  const [openRun, setOpenRun] = useState<string | null>(null);
+  const [focusedRun, setFocusedRun] = useState<string | null>(initialOpenRun || null);
+  const [inlineRun, setInlineRun] = useState<string | null>(null);
   const [bump, setBump] = useState(0);
+
+  useEffect(() => {
+    if (!initialOpenRun) return;
+    setFocusedRun(initialOpenRun);
+    setInlineRun(null);
+    setTab(initialTab);
+  }, [initialOpenRun, initialTab]);
 
   // Re-load the digested timeline + run list whenever the agent changes or a
   // fresh event for this agent lands (debounced via the bump counter below).
@@ -66,13 +89,15 @@ export function AgentActivity({ slug }: { slug: string }) {
       alive = false;
     };
   }, [slug, bump]);
+  const runCorrs = useMemo(() => agentRunCorrelations(runs), [runs]);
 
-  // Live: any event whose actor is this agent triggers a debounced refetch so
-  // the timeline/runs track a running agent without a manual reload.
+  // Live: any event attributable to this agent (direct actor, one of its run
+  // correlations, or a targeted doctor/roster event) triggers a debounced
+  // refetch so the timeline/runs track it without a manual reload.
   useEffect(() => {
     let t: ReturnType<typeof setTimeout> | undefined;
     const off = subscribe((e) => {
-      if (e.actor !== slug) return;
+      if (!agentActivityEventMatches(e, slug, runCorrs)) return;
       if (t) clearTimeout(t);
       t = setTimeout(() => setBump((b) => b + 1), 700);
     });
@@ -80,11 +105,13 @@ export function AgentActivity({ slug }: { slug: string }) {
       if (t) clearTimeout(t);
       off();
     };
-  }, [slug, subscribe]);
+  }, [slug, subscribe, runCorrs]);
 
   // Live raw-log tail: the rolling SSE buffer filtered to this agent. No fetch —
   // it updates as events arrive.
-  const logs = events.filter((e) => e.actor === slug).slice(0, 60);
+  const logs = filterAgentLogEvents(events, slug, runCorrs);
+  const pulse = agentActivityPulse(runs, logs);
+  const operationalState = agentActivityOperationalState(pulse);
 
   const runCount = runs?.length ?? 0;
   const totalSpent = (runs || []).reduce((s, r) => s + (r.spent_mc || 0), 0);
@@ -110,9 +137,33 @@ export function AgentActivity({ slug }: { slug: string }) {
     <div className="mt-2 rounded-md border border-border bg-panel/60 p-2">
       {/* summary band */}
       <div className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-muted">
+        <span
+          title={operationalState.detail}
+          className={cn(
+            "rounded-md border border-border bg-card px-1.5 py-0.5 font-medium",
+            operationalState.tone === "accent" && "border-accent/30 bg-accent/10 text-accent",
+            operationalState.tone === "good" && "border-good/30 bg-good/10 text-good",
+            operationalState.tone === "warn" && "border-warn/35 bg-warn/10 text-warn",
+          )}
+        >
+          {operationalState.value}
+        </span>
+        <span
+          title={pulse.detail}
+          className={cn(
+            "rounded-md border border-border bg-card px-1.5 py-0.5 font-medium",
+            pulse.tone === "good" && "border-good/30 bg-good/10 text-good",
+            pulse.tone === "warn" && "border-warn/35 bg-warn/10 text-warn",
+          )}
+        >
+          {pulse.value}
+        </span>
         <span><span className="font-mono text-foreground">{runCount}</span> runs</span>
         <span><span className="font-mono text-foreground">{money(totalSpent)}</span> spent</span>
         <span>last active <span className="font-mono text-foreground/85">{lastActive ? fmtTime(lastActive) : "—"}</span></span>
+        {(pulse.doctorEvents > 0 || pulse.delegations > 0 || pulse.mailboxEvents > 0) && (
+          <span className="truncate" title={pulse.detail}>{pulse.detail}</span>
+        )}
       </div>
 
       {/* tabs */}
@@ -124,6 +175,23 @@ export function AgentActivity({ slug }: { slug: string }) {
 
       {err && <ErrorText>{err}</ErrorText>}
 
+      {focusedRun && (
+        <div className="mb-2 rounded-md border border-border bg-card/40 p-2">
+          <div className="mb-1 flex items-center gap-2 text-[10px] uppercase tracking-wider text-muted">
+            <span>focused run</span>
+            <span className="font-mono normal-case text-foreground/80">{focusedRun}</span>
+            <button
+              className="ml-auto rounded px-1 text-muted hover:bg-panel hover:text-foreground"
+              onClick={() => setFocusedRun(null)}
+              title="Close focused run"
+            >
+              close
+            </button>
+          </div>
+          <RunDetailLoader correlationId={focusedRun} status="running" />
+        </div>
+      )}
+
       {tab === "activity" && (
         !items ? (
           <SkeletonList count={4} lines={1} />
@@ -132,15 +200,24 @@ export function AgentActivity({ slug }: { slug: string }) {
         ) : (
           <ul className="space-y-1">
             {items.map((a) => {
-              const open = !!a.correlation_id && openRun === a.correlation_id;
+              const focused = !!a.correlation_id && focusedRun === a.correlation_id;
+              const open = !!a.correlation_id && inlineRun === a.correlation_id && !focused;
               return (
                 <li key={a.seq} className="text-xs">
                   <div
                     className={cn("flex items-start gap-2", a.correlation_id && "cursor-pointer")}
-                    onClick={() => a.correlation_id && setOpenRun(open ? null : a.correlation_id!)}
+                    onClick={() => {
+                      if (!a.correlation_id) return;
+                      if (focused) {
+                        setFocusedRun(null);
+                        return;
+                      }
+                      setInlineRun(open ? null : a.correlation_id);
+                    }}
                   >
                     <span className="shrink-0 rounded bg-card px-1.5 py-0.5 font-mono text-[10px] text-accent">{a.kind}</span>
                     <span className="text-foreground/85">{a.summary}</span>
+                    {focused && <span className="rounded bg-accent/10 px-1.5 py-0.5 text-[10px] text-accent">focused</span>}
                     <span className="ml-auto shrink-0 font-mono text-[10px] text-muted opacity-70">{fmtTime(a.ts_unix_ms)}</span>
                   </div>
                   {open && (
@@ -163,15 +240,24 @@ export function AgentActivity({ slug }: { slug: string }) {
         ) : (
           <ul className="space-y-1">
             {runs.map((r) => {
-              const open = openRun === r.correlation_id;
+              const focused = !!r.correlation_id && focusedRun === r.correlation_id;
+              const open = inlineRun === r.correlation_id && !focused;
               return (
                 <li key={r.correlation_id} className="text-xs">
                   <div
                     className="flex cursor-pointer items-center gap-2"
-                    onClick={() => setOpenRun(open ? null : r.correlation_id || null)}
+                    onClick={() => {
+                      if (!r.correlation_id) return;
+                      if (focused) {
+                        setFocusedRun(null);
+                        return;
+                      }
+                      setInlineRun(open ? null : r.correlation_id);
+                    }}
                   >
                     <Badge variant={statusVariant(r.status)}>{r.status || "?"}</Badge>
                     <span className="truncate text-foreground/85">{r.intent || r.correlation_id || "run"}</span>
+                    {focused && <span className="rounded bg-accent/10 px-1.5 py-0.5 text-[10px] text-accent">focused</span>}
                     <span className="ml-auto shrink-0 font-mono text-[10px] text-muted opacity-70">
                       {r.spent_mc ? money(r.spent_mc) + " · " : ""}{fmtTime(r.started_unix_ms)}
                     </span>
@@ -196,7 +282,10 @@ export function AgentActivity({ slug }: { slug: string }) {
             {logs.map((e, i) => (
               <li key={e.id || e.seq || i} className="flex items-start gap-2 text-xs">
                 <span className="shrink-0 rounded bg-card px-1.5 py-0.5 font-mono text-[10px] text-accent">{e.kind}</span>
-                <span className="truncate text-foreground/85">{e.subject || ""}</span>
+                {isIncidentFamilyEvent(e) && <IncidentBadges item={incidentBadgeItem(e)} mono />}
+                <span className="truncate text-foreground/85">
+                  {incidentEventSummary(e) || e.subject || ""}
+                </span>
                 <span className="ml-auto shrink-0 font-mono text-[10px] text-muted opacity-70">{fmtTime(e.ts_unix_ms)}</span>
               </li>
             ))}

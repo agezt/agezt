@@ -4,6 +4,7 @@ import { render, screen, cleanup, fireEvent, waitFor } from "@testing-library/re
 
 const getJSON = vi.fn();
 const postAction = vi.fn();
+const focusRun = vi.fn();
 vi.mock("@/lib/api", () => ({
   getJSON: (...a: unknown[]) => getJSON(...a),
   postAction: (...a: unknown[]) => postAction(...a),
@@ -14,6 +15,7 @@ vi.mock("@/lib/api", () => ({
 vi.mock("@/lib/events", () => ({
   useEvents: () => ({ events: [], connected: true, subscribe: () => () => {} }),
 }));
+vi.mock("@/lib/runfocus", () => ({ focusRun: (...a: unknown[]) => focusRun(...a) }));
 
 import { SendMessageForm, Inbox, threadMatches } from "@/views/Inbox";
 import { UIProvider } from "@/components/ui/feedback";
@@ -22,7 +24,9 @@ afterEach(cleanup);
 beforeEach(() => {
   getJSON.mockReset();
   postAction.mockReset();
+  focusRun.mockReset();
   postAction.mockResolvedValue({ sent: true });
+  location.hash = "";
 });
 
 describe("SendMessageForm (M747)", () => {
@@ -143,5 +147,35 @@ describe("Inbox inline image thumbnails (M828)", () => {
     const imgs = document.querySelectorAll("img");
     expect(imgs.length).toBe(1);
     expect(imgs[0].getAttribute("src")).toContain("/api/artifact/raw?ref=aaa");
+  });
+});
+
+describe("Inbox run linking", () => {
+  it("opens the governed run for a channel thread by correlation id", async () => {
+    getJSON.mockImplementation((path: string) => {
+      if (path === "/api/inbox") {
+        return Promise.resolve({
+          threads: [
+            {
+              correlation_id: "chan-corr-1",
+              channel_kind: "webhook",
+              channel_id: "room-1",
+              messages: [{ direction: "in", sender: "ersin", text: "check the mailbox" }],
+            },
+          ],
+        });
+      }
+      return Promise.resolve({ entries: [] });
+    });
+
+    render(
+      <UIProvider>
+        <Inbox />
+      </UIProvider>,
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: /run/i }));
+    expect(focusRun).toHaveBeenCalledWith("chan-corr-1");
+    expect(location.hash).toBe("#runs");
   });
 });

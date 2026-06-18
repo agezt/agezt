@@ -7,7 +7,12 @@ package controlplane
 // is tenant-routable (kernelFor(tenantOf(req))) so a tenant can steer its own
 // runs without the primary token — the same posture as cancel_run.
 
-import "net"
+import (
+	"net"
+	"time"
+
+	"github.com/agezt/agezt/kernel/intervention"
+)
 
 // runCorr pulls and validates the required correlation arg shared by every
 // steering handler, writing the error response itself. ok=false ⇒ return.
@@ -92,4 +97,51 @@ func (s *Server) handleRunSteer(conn net.Conn, req Request) {
 		"mode":        map[bool]string{true: "note", false: "steer"}[note],
 		"accepted":    k.SteerRun(corr, directive, note),
 	}})
+}
+
+func (s *Server) handleRunIntervene(conn net.Conn, req Request) {
+	corr, ok := s.runCorr(conn, req)
+	if !ok {
+		return
+	}
+	primitive, _ := req.Args["primitive"].(string)
+	directive, _ := req.Args["directive"].(string)
+	scope, _ := req.Args["scope"].(string)
+	key, _ := req.Args["idempotency_key"].(string)
+	var lease time.Duration
+	if ms, ok := req.Args["lease_ms"].(float64); ok && ms > 0 {
+		lease = time.Duration(ms) * time.Millisecond
+	}
+	k, err := s.kernelFor(tenantOf(req))
+	if err != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		return
+	}
+	res, err := k.InterveneRun(intervention.Request{
+		Primitive:      intervention.Primitive(primitive),
+		CorrelationID:  corr,
+		Directive:      directive,
+		Lease:          lease,
+		Scope:          scope,
+		IdempotencyKey: key,
+	})
+	if err != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		return
+	}
+	out := map[string]any{
+		"primitive":       string(res.Primitive),
+		"correlation":     res.CorrelationID,
+		"accepted":        res.Accepted,
+		"applied":         res.Applied,
+		"state":           res.State,
+		"paused":          res.Paused,
+		"pending":         res.Pending,
+		"idempotency_key": res.IdempotencyKey,
+		"reason":          res.Reason,
+	}
+	if !res.LeaseExpires.IsZero() {
+		out["lease_expires_unix"] = res.LeaseExpires.Unix()
+	}
+	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: out})
 }

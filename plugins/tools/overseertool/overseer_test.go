@@ -31,6 +31,8 @@ type fakeSource struct {
 	edited     string
 	editFields roster.Profile
 	created    roster.Profile
+	repaired   string
+	repairRes  RepairResult
 }
 
 func (f *fakeSource) IsHalted() bool              { return f.halted }
@@ -83,6 +85,16 @@ func (f *fakeSource) CreateAgent(in roster.Profile) (roster.Profile, error) {
 	in.System = false
 	f.created = in
 	return in, nil
+}
+func (f *fakeSource) RepairAgent(ref, _ string) (RepairResult, error) {
+	if f.setErr != nil {
+		return RepairResult{}, f.setErr
+	}
+	f.repaired = ref
+	if f.repairRes.Agent == "" {
+		f.repairRes = RepairResult{Agent: ref, Correlation: "corr-repair", Applied: []string{"config_overrides"}, Answer: "done"}
+	}
+	return f.repairRes, nil
 }
 
 func newTool(s Source) *Tool {
@@ -231,9 +243,13 @@ func TestBadAndUnbound(t *testing.T) {
 func TestEditAgent(t *testing.T) {
 	f := &fakeSource{}
 	out, isErr := invoke(t, newTool(f), map[string]any{
-		"op":      "edit",
-		"agent":   "scout",
-		"profile": map[string]any{"model": "deepseek-chat", "max_daily_mc": 5000000, "soul": "Be terse."},
+		"op":    "edit",
+		"agent": "scout",
+		"profile": map[string]any{
+			"model": "deepseek-chat", "max_daily_mc": 5000000, "soul": "Be terse.",
+			"config_overrides": map[string]any{"AGEZT_MAX_ITER": "6"},
+			"trust_ceiling":    "L2",
+		},
 	})
 	if isErr {
 		t.Fatalf("edit errored: %v", out)
@@ -243,6 +259,9 @@ func TestEditAgent(t *testing.T) {
 	}
 	if f.editFields.Model != "deepseek-chat" || f.editFields.MaxDailyMc != 5000000 || f.editFields.Soul != "Be terse." {
 		t.Errorf("edit fields not applied: %+v", f.editFields)
+	}
+	if f.editFields.ConfigOverrides["AGEZT_MAX_ITER"] != "6" || f.editFields.TrustCeiling != "L2" {
+		t.Errorf("edit config/policy fields not applied: %+v", f.editFields)
 	}
 	if out["action"] != "edited" {
 		t.Errorf("action = %v, want edited", out["action"])
@@ -282,6 +301,20 @@ func TestCreateAgent(t *testing.T) {
 func TestCreateNeedsSlug(t *testing.T) {
 	if _, isErr := invoke(t, newTool(&fakeSource{}), map[string]any{"op": "create", "profile": map[string]any{"soul": "x"}}); !isErr {
 		t.Error("op=create without slug should error")
+	}
+}
+
+func TestRepairAgent(t *testing.T) {
+	f := &fakeSource{repairRes: RepairResult{Agent: "builder", Correlation: "corr-1", Applied: []string{"model"}, Answer: "patched"}}
+	out, isErr := invoke(t, newTool(f), map[string]any{"op": "repair", "agent": "builder", "reason": "invalid runtime override"})
+	if isErr {
+		t.Fatalf("repair errored: %v", out)
+	}
+	if f.repaired != "builder" {
+		t.Fatalf("repair target = %q, want builder", f.repaired)
+	}
+	if out["action"] != "repair" || out["correlation"] != "corr-1" {
+		t.Fatalf("repair output wrong: %+v", out)
 	}
 }
 

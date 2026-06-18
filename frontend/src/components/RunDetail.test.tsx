@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, afterEach } from "vitest";
 import { render, screen, cleanup, fireEvent } from "@testing-library/react";
-import { ToolCallRow } from "@/components/RunDetail";
+import { ToolCallRow, runPhaseSteps } from "@/components/RunDetail";
 import type { ToolCall } from "@/lib/rundetail";
 
 afterEach(cleanup);
@@ -56,5 +56,46 @@ describe("ToolCallRow", () => {
     fireEvent.click(screen.getByRole("button"));
     expect(screen.queryByText("Arguments")).toBeNull();
     expect(screen.getByText("hard-denied")).toBeTruthy();
+  });
+});
+
+describe("runPhaseSteps", () => {
+  it("shows wake provenance on the started phase", () => {
+    const steps = runPhaseSteps([
+      {
+        seq: 1,
+        kind: "task.received",
+        payload: {
+          intent: "check disks",
+          wake_source: "schedule",
+          wake_reason: "intent",
+          schedule_id: "sched-ops",
+        },
+      },
+    ]);
+    expect(steps[0].phase).toBe("started");
+    expect(steps[0].detail).toContain("check disks");
+    expect(steps[0].detail).toContain("source: schedule");
+    expect(steps[0].detail).toContain("schedule: sched-ops");
+  });
+
+  it("shows retry attempt and backoff details", () => {
+    const steps = runPhaseSteps([
+      {
+        seq: 1,
+        kind: "agent.retry",
+        payload: {
+          next_attempt: 2,
+          max_attempts: 4,
+          delay_ms: 125_000,
+          backoff: "exponential",
+          retry_on: ["error", "timeout"],
+          reason: "timeout",
+        },
+      },
+    ]);
+
+    expect(steps[0].phase).toBe("retrying");
+    expect(steps[0].detail).toBe("attempt 2/4 · wait 2m 5s · backoff exponential · retry_on error,timeout · timeout");
   });
 });

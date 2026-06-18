@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/agezt/agezt/kernel/agent"
+	intentmodel "github.com/agezt/agezt/kernel/intent"
 	"github.com/agezt/agezt/kernel/planner"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
@@ -35,6 +36,9 @@ func TestGenerate_HappyPath_TwoNodes(t *testing.T) {
 	}
 	if !strings.Contains(raw, `"id": "research"`) {
 		t.Errorf("rawJSON does not look like the unwrapped plan: %s", raw)
+	}
+	if !strings.Contains(raw, `"intent"`) || p.Intent == nil || p.Intent.CanonicalIntent != "write me a quick brief on X" {
+		t.Errorf("generated plan did not preserve intent metadata: raw=%s intent=%+v", raw, p.Intent)
 	}
 	if p.Name != "research and draft" {
 		t.Errorf("Name = %q", p.Name)
@@ -240,15 +244,92 @@ func TestGenerate_HonorsSystemOverride(t *testing.T) {
 	}
 }
 
+func TestGenerate_SendsIntentFrameInsteadOfBareUtterance(t *testing.T) {
+	plan := `{"nodes":[{"id":"confirm","kind":"gate","description":"Confirm file cleanup scope."}]}`
+	cp := &captureProvider{resp: fencedJSON(plan)}
+	if _, _, err := planner.Generate(context.Background(), planner.Config{Provider: cp}, "dosyaları temizle"); err != nil {
+		t.Fatalf("Generate: %v", err)
+	}
+	if !strings.HasPrefix(cp.gotUserContent, "INTENT_FRAME:\n") {
+		t.Fatalf("planner user message should be a formal intent frame: %q", cp.gotUserContent)
+	}
+	if !strings.Contains(cp.gotUserContent, `"canonical_intent": "dosyaları temizle"`) {
+		t.Fatalf("intent frame missing canonical intent: %q", cp.gotUserContent)
+	}
+	if !strings.Contains(cp.gotUserContent, `"underdetermined": true`) {
+		t.Fatalf("intent frame missing ambiguity metadata: %q", cp.gotUserContent)
+	}
+	if !strings.Contains(cp.gotUserContent, `"harmful_reading"`) {
+		t.Fatalf("intent frame missing harmful reading: %q", cp.gotUserContent)
+	}
+}
+
+func TestGenerateFromIntent_RejectsEmptyFrame(t *testing.T) {
+	cp := &captureProvider{resp: fencedJSON(`{"nodes":[{"id":"a","kind":"loop","intent":"x"}]}`)}
+	_, _, err := planner.GenerateFromIntent(context.Background(), planner.Config{Provider: cp}, intentmodel.Frame{})
+	if err == nil || !strings.Contains(err.Error(), "intent frame required") {
+		t.Fatalf("err = %v, want intent-frame-required", err)
+	}
+}
+
+func TestGenerateFromIntent_UsesProvidedFrame(t *testing.T) {
+	plan := `{"nodes":[{"id":"confirm","kind":"gate","description":"Confirm scope before deletion."}]}`
+	cp := &captureProvider{resp: fencedJSON(plan)}
+	frame := intentmodel.Frame{
+		UserUtteranceHash: "abc",
+		CanonicalIntent:   "clean archived files",
+		HarmfulReading:    "Could delete non-cache archived files.",
+		AmbiguityScore:    0.8,
+		Underdetermined:   true,
+	}
+	if _, _, err := planner.GenerateFromIntent(context.Background(), planner.Config{Provider: cp}, frame); err != nil {
+		t.Fatalf("GenerateFromIntent: %v", err)
+	}
+	if !strings.Contains(cp.gotUserContent, `"user_utterance_hash": "abc"`) {
+		t.Fatalf("provided frame was not used: %q", cp.gotUserContent)
+	}
+	if !strings.Contains(cp.gotUserContent, `"harmful_reading": "Could delete non-cache archived files."`) {
+		t.Fatalf("provided harmful reading missing: %q", cp.gotUserContent)
+	}
+}
+
+func TestGenerate_RejectsUnderdeterminedHighRegretLoopWithoutGate(t *testing.T) {
+	plan := `{"nodes":[{"id":"delete_files","kind":"loop","intent":"delete files"}]}`
+	cp := &captureProvider{resp: fencedJSON(plan)}
+	_, _, err := planner.Generate(context.Background(), planner.Config{Provider: cp}, "clean files")
+	if err == nil || !strings.Contains(err.Error(), "requires a gate") {
+		t.Fatalf("err = %v, want requires-a-gate", err)
+	}
+}
+
+func TestGenerate_AllowsUnderdeterminedHighRegretLoopBehindGate(t *testing.T) {
+	plan := `{"nodes":[
+		{"id":"confirm_scope","kind":"gate","description":"Confirm exact cleanup scope before deleting files."},
+		{"id":"delete_files","kind":"loop","intent":"delete files","deps":["confirm_scope"]}
+	]}`
+	cp := &captureProvider{resp: fencedJSON(plan)}
+	_, p, err := planner.Generate(context.Background(), planner.Config{Provider: cp}, "clean files")
+	if err != nil {
+		t.Fatalf("Generate: %v", err)
+	}
+	if len(p.Nodes) != 2 || p.Nodes[1].Deps[0] != "confirm_scope" {
+		t.Fatalf("plan = %+v", p)
+	}
+}
+
 // captureProvider records the CompletionRequest the planner sends.
 type captureProvider struct {
-	gotJSONMode bool
-	resp        string
+	gotJSONMode    bool
+	gotUserContent string
+	resp           string
 }
 
 func (c *captureProvider) Name() string { return "capture" }
 func (c *captureProvider) Complete(_ context.Context, req agent.CompletionRequest) (*agent.CompletionResponse, error) {
 	c.gotJSONMode = req.JSONMode
+	if len(req.Messages) > 0 {
+		c.gotUserContent = req.Messages[0].Content
+	}
 	return &agent.CompletionResponse{
 		Message:    agent.Message{Role: agent.RoleAssistant, Content: c.resp},
 		StopReason: agent.StopEndTurn,

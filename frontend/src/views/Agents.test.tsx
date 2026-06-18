@@ -78,10 +78,10 @@ describe("filterRoots", () => {
 });
 
 describe("scheduleAgentSlug", () => {
-  it("extracts the --agent binding from a cadence intent", () => {
+  it("extracts legacy --agent bindings from old cadence intent text", () => {
     expect(scheduleAgentSlug("run the digest --agent researcher")).toBe("researcher");
     expect(scheduleAgentSlug("--agent=ops-watcher check disks")).toBe("ops-watcher");
-    expect(scheduleAgentSlug("plain intent, default persona")).toBe("");
+    expect(scheduleAgentSlug("plain legacy task")).toBe("");
     expect(scheduleAgentSlug(undefined)).toBe("");
   });
 });

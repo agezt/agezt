@@ -17,6 +17,7 @@ package alerter
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -74,6 +75,47 @@ func Classify(ev *event.Event) (Alert, bool) {
 		return Alert{}, false
 	}
 	p := payloadMap(ev.Payload)
+	if strings.EqualFold(strings.TrimSpace(ev.Subject), "doctor.auto_repair") {
+		agent := str(p, "agent")
+		if agent == "" {
+			agent = "agent"
+		}
+		mode := strings.ToLower(strings.TrimSpace(str(p, "mode")))
+		phase := strings.ToLower(strings.TrimSpace(str(p, "phase")))
+		if phase == "routing_force_exhausted_detected" {
+			detail := joinNonEmpty(" · ",
+				joinNonEmpty(" — ", agent, firstStr(p, "reason", "resolution_summary")),
+				doctorIncidentBits(p),
+			)
+			if detail == "" {
+				detail = agent + " — forced chain exhausted"
+			}
+			return Alert{Kind: ev.Kind, Level: LevelWarning, Title: "forced chain exhausted", Detail: detail, Source: "doctor"}, true
+		}
+		if !strings.HasSuffix(phase, "failed") {
+			return Alert{}, false
+		}
+		title := "config repair failed"
+		switch {
+		case phase == "delegation_failed":
+			title = "delegated wake failed"
+		case phase == "resolution_failed":
+			title = "resolution follow-up failed"
+		case phase == "routing_rollback_failed":
+			title = "routing rollback failed"
+		case mode == "degraded":
+			title = "doctor run failed"
+		case mode == "routing":
+			title = "routing repair failed"
+		}
+		detail := firstStr(p, "error", "reason")
+		if detail != "" {
+			detail = agent + " — " + detail
+		} else {
+			detail = agent + " — autonomous repair failed"
+		}
+		return Alert{Kind: ev.Kind, Level: LevelWarning, Title: title, Detail: detail, Source: "doctor"}, true
+	}
 	switch ev.Kind {
 	case event.KindTaskFailed:
 		return Alert{Kind: ev.Kind, Level: LevelWarning, Title: "run failed",
@@ -102,6 +144,44 @@ func Classify(ev *event.Event) (Alert, bool) {
 			Detail: joinNonEmpty(" — ", firstStr(p, "capability", "tool_name"), str(p, "reason")), Source: "approval"}, true
 	}
 	return Alert{}, false
+}
+
+func doctorIncidentBits(p map[string]any) string {
+	var bits []string
+	if root := strings.TrimSpace(str(p, "root_agent")); root != "" {
+		bits = append(bits, "root "+root)
+	}
+	switch depth, ok := intAny(p["chain_depth"]); {
+	case ok && depth > 0:
+		bits = append(bits, fmt.Sprintf("hop %d", depth))
+	case ok:
+		bits = append(bits, "hop 0")
+	}
+	if owner := strings.TrimSpace(firstStr(p, "delegate_to", "target_agent")); owner != "" {
+		bits = append(bits, "next owner "+owner)
+	}
+	return strings.Join(bits, " · ")
+}
+
+func intAny(v any) (int, bool) {
+	switch n := v.(type) {
+	case int:
+		return n, true
+	case int8:
+		return int(n), true
+	case int16:
+		return int(n), true
+	case int32:
+		return int(n), true
+	case int64:
+		return int(n), true
+	case float32:
+		return int(n), true
+	case float64:
+		return int(n), true
+	default:
+		return 0, false
+	}
 }
 
 // Config tunes the notifier. Zero values get safe defaults (see normalize).
@@ -172,6 +252,7 @@ func (n *Notifier) Handle(ev *event.Event) bool {
 	if !ok || a.Level < n.cfg.MinLevel {
 		return false
 	}
+	p := payloadMap(ev.Payload)
 	// Per-source routing (M815): a muted category never notifies, at any level.
 	if n.cfg.MuteSources != nil && a.Source != "" &&
 		n.cfg.MuteSources[strings.ToLower(a.Source)] {
@@ -183,7 +264,7 @@ func (n *Notifier) Handle(ev *event.Event) bool {
 	if a.Level < LevelCritical && n.cfg.Mute.Active(now) {
 		return false
 	}
-	key := string(a.Kind) + "/" + ev.CorrelationID
+	key := dedupeKey(a, ev, p)
 	n.mu.Lock()
 	if last, seen := n.lastSent[key]; seen && now.Sub(last) < n.cfg.Cooldown {
 		n.mu.Unlock()
@@ -212,7 +293,7 @@ func (n *Notifier) Handle(ev *event.Event) bool {
 		}
 	}
 	n.mu.Unlock()
-	_ = n.sink.Deliver(brief(a, ev.CorrelationID)) // a channel outage must not wedge the watcher
+	_ = n.sink.Deliver(brief(a, ev)) // a channel outage must not wedge the watcher
 	return true
 }
 
@@ -232,7 +313,7 @@ func ParseMuteSources(s string) map[string]bool {
 // brief renders an Alert as a Pulse brief. DispAlert is the "send now, high
 // priority" disposition — these are exactly the signals that should break
 // through digests and quiet hours.
-func brief(a Alert, corr string) pulse.Brief {
+func brief(a Alert, ev *event.Event) pulse.Brief {
 	title := "⚠ " + a.Title
 	if a.Level == LevelCritical {
 		title = "🚨 " + a.Title
@@ -245,10 +326,37 @@ func brief(a Alert, corr string) pulse.Brief {
 		Title:         title,
 		Body:          body,
 		Disposition:   pulse.DispAlert,
-		IssueKey:      "alert/" + string(a.Kind),
-		CorrelationID: corr,
+		IssueKey:      alertIssueKey(a, ev),
+		CorrelationID: ev.CorrelationID,
 		Items:         1,
 	}
+}
+
+func dedupeKey(a Alert, ev *event.Event, p map[string]any) string {
+	key := string(a.Kind) + "/" + ev.CorrelationID
+	if ev.CorrelationID != "" {
+		return key
+	}
+	if strings.EqualFold(strings.TrimSpace(ev.Subject), "doctor.auto_repair") {
+		parts := []string{ev.Subject, str(p, "agent"), str(p, "phase"), str(p, "fingerprint")}
+		out := make([]string, 0, len(parts))
+		for _, part := range parts {
+			if part = strings.TrimSpace(part); part != "" {
+				out = append(out, part)
+			}
+		}
+		if len(out) > 0 {
+			return strings.Join(out, "/")
+		}
+	}
+	return key
+}
+
+func alertIssueKey(a Alert, ev *event.Event) string {
+	if strings.EqualFold(strings.TrimSpace(ev.Subject), "doctor.auto_repair") {
+		return "alert/" + ev.Subject
+	}
+	return "alert/" + string(a.Kind)
 }
 
 // Start wires the notifier onto the bus: subscribe to everything, classify,

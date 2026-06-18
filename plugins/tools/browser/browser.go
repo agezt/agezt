@@ -176,6 +176,16 @@ func (t *Tool) Definition() agent.ToolDef {
     "max_chars": {"type":"integer", "description":"Optional truncation cap on returned text. Default 65536."}
   }
 }`),
+		Effect: agent.ToolEffect{
+			Class: agent.EffectReversible,
+			PredictedEffects: []string{
+				"Fetch one allow-listed web page with HTTP GET and return visible text to the model.",
+				"May send configured cookies to the target host when the browser cookie jar is enabled.",
+			},
+			AffectedResources: []string{"allowed browser.read hosts", "optional in-memory browser cookie jar"},
+			RollbackNotes:     "Network reads cannot be unsent, but no local durable state is changed; clear the in-memory cookie jar to discard session carryover.",
+			Confidence:        0.8,
+		},
 	}
 }
 
@@ -299,7 +309,11 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, e
 	if err != nil {
 		return agent.Result{}, fmt.Errorf("browser: marshal result: %w", err)
 	}
-	return agent.Result{Output: string(enc)}, nil
+	return agent.Result{
+		Output:            string(enc),
+		ObservationTrust:  agent.ObservationUntrusted,
+		ObservationSource: in.URL,
+	}, nil
 }
 
 // hostAllowed reports whether host (with optional :port) matches

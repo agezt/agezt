@@ -9,6 +9,10 @@ interface AgentOption {
   model?: string;
   description?: string;
   enabled?: boolean;
+  retired?: boolean;
+  managed?: boolean;
+  direct_callable?: boolean;
+  kind?: string;
 }
 
 // AgentPicker selects the conversation's named agent (M789): the thread runs
@@ -29,7 +33,7 @@ export function AgentPicker({
   useEffect(() => {
     if (!open || agents !== null) return;
     getJSON<{ profiles?: AgentOption[] }>("/api/agents")
-      .then((d) => setAgents((d.profiles || []).filter((p) => p.enabled)))
+      .then((d) => setAgents((d.profiles || []).filter(agentDirectCallable)))
       .catch(() => setAgents([]));
   }, [open, agents]);
 
@@ -60,7 +64,7 @@ export function AgentPicker({
         <div className="absolute bottom-full left-0 z-20 mb-1 w-64 rounded-lg border border-border bg-card p-1 shadow-lg">
           <Option
             label="default identity"
-            hint="the daemon's own persona and model"
+            hint="the daemon's default identity and model"
             selected={value === ""}
             onPick={() => {
               onChange("");
@@ -91,6 +95,10 @@ export function AgentPicker({
       )}
     </div>
   );
+}
+
+export function agentDirectCallable(p: AgentOption): boolean {
+  return p.enabled !== false && !p.retired && p.kind !== "subagent" && !p.managed && p.direct_callable !== false;
 }
 
 function Option({

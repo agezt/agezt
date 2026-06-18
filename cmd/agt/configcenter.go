@@ -51,7 +51,7 @@ func cmdConfigCenter(args []string, stdout, stderr io.Writer) int {
 
 func cmdConfigCenterHelp(stdout io.Writer) int {
 	fmt.Fprintf(stdout, "usage: %s configcenter <subcommand>\n\n", brand.CLI)
-	fmt.Fprintf(stdout, "  set <key> <value> [--rating <rating>] [--description <desc>]\n")
+	fmt.Fprintf(stdout, "  set <key> <value> [--rating <rating>] [--description <desc>] [--allow-agent csv] [--deny-agent csv]\n")
 	fmt.Fprintf(stdout, "                            Set a config value (auto-rates secret patterns)\n")
 	fmt.Fprintf(stdout, "  get <key>                 Get a config value (admin only)\n")
 	fmt.Fprintf(stdout, "  list [--rating <rating>] [--json]\n")
@@ -70,13 +70,13 @@ func cmdConfigCenterHelp(stdout io.Writer) int {
 
 // cmdConfigCenterSet sets a config value
 func cmdConfigCenterSet(args []string, stdout, stderr io.Writer) int {
-	var key, value, rating, description string
+	var key, value, rating, description, allowAgents, denyAgents string
 
 	i := 0
 	for i < len(args) {
 		switch args[i] {
 		case "-h", "--help":
-			fmt.Fprintf(stdout, "usage: %s configcenter set <key> <value> [--rating <rating>] [--description <desc>]\n", brand.CLI)
+			fmt.Fprintf(stdout, "usage: %s configcenter set <key> <value> [--rating <rating>] [--description <desc>] [--allow-agent csv] [--deny-agent csv]\n", brand.CLI)
 			return 0
 		case "--rating":
 			if i+1 >= len(args) {
@@ -92,6 +92,20 @@ func cmdConfigCenterSet(args []string, stdout, stderr io.Writer) int {
 			}
 			i++
 			description = args[i]
+		case "--allow-agent", "--allow-agents":
+			if i+1 >= len(args) {
+				fmt.Fprintf(stderr, "%s configcenter set: %s requires a value\n", brand.CLI, args[i])
+				return 2
+			}
+			i++
+			allowAgents = args[i]
+		case "--deny-agent", "--deny-agents":
+			if i+1 >= len(args) {
+				fmt.Fprintf(stderr, "%s configcenter set: %s requires a value\n", brand.CLI, args[i])
+				return 2
+			}
+			i++
+			denyAgents = args[i]
 		default:
 			if key == "" {
 				key = args[i]
@@ -148,6 +162,12 @@ func cmdConfigCenterSet(args []string, stdout, stderr io.Writer) int {
 	if description != "" {
 		params["description"] = description
 	}
+	if allowAgents != "" {
+		params["allowed_agents"] = splitList(allowAgents)
+	}
+	if denyAgents != "" {
+		params["excluded_agents"] = splitList(denyAgents)
+	}
 
 	res, err := c.Call(ctx, controlplane.CmdConfigCenterSet, params)
 	if err != nil {
@@ -169,6 +189,12 @@ func cmdConfigCenterSet(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "  rating: %s\n", entry["rating"])
 		if desc, _ := entry["description"].(string); desc != "" {
 			fmt.Fprintf(stdout, "  description: %s\n", desc)
+		}
+		if allowed, _ := entry["allowed_agents"].([]any); len(allowed) > 0 {
+			fmt.Fprintf(stdout, "  allow agents: %s\n", joinAnyStrings(allowed, ", "))
+		}
+		if denied, _ := entry["excluded_agents"].([]any); len(denied) > 0 {
+			fmt.Fprintf(stdout, "  deny agents: %s\n", joinAnyStrings(denied, ", "))
 		}
 	} else {
 		fmt.Fprintf(stdout, "%s set\n", key)

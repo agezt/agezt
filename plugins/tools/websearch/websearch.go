@@ -119,6 +119,15 @@ func (t *Tool) Definition() agent.ToolDef {
     "limit": {"type":"integer", "description":"Max results to return (default 6, max 15)."}
   }
 }`),
+		Effect: agent.ToolEffect{
+			Class: agent.EffectReversible,
+			PredictedEffects: []string{
+				"Send the query to the configured public search endpoint and return parsed result metadata.",
+			},
+			AffectedResources: []string{"web search endpoint", "network egress logs"},
+			RollbackNotes:     "No local durable state is changed; the outbound search request cannot be unsent.",
+			Confidence:        0.85,
+		},
 	}
 }
 
@@ -271,7 +280,11 @@ func softResult(query string, results []Result, note string) agent.Result {
 	if err != nil {
 		return errResult("marshal: " + err.Error())
 	}
-	return agent.Result{Output: string(enc)}
+	return agent.Result{
+		Output:            string(enc),
+		ObservationTrust:  agent.ObservationUntrusted,
+		ObservationSource: "web_search:" + query,
+	}
 }
 
 func errResult(msg string) agent.Result {

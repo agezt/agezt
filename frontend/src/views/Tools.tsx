@@ -28,6 +28,10 @@ interface Invocation {
   duration_ms?: number;
   input?: string;
   output?: string;
+  observation_trust?: string;
+  observation_source?: string;
+  directive_like?: boolean;
+  directive_matches?: string[];
 }
 interface ToolDef {
   name?: string;
@@ -329,6 +333,7 @@ export function Tools() {
                       {ev.error ? "✗" : "✓"} {ev.tool || "?"}
                     </span>
                     {ev.duration_ms != null && <span className="w-12 shrink-0 tabular-nums text-muted">{ms(ev.duration_ms)}</span>}
+                    <ObservationBadge ev={ev} />
                     <span className="min-w-0 flex-1 truncate text-muted">
                       {[ev.input, ev.output].filter(Boolean).map((s) => clip(String(s), 60)).join(" → ")}
                     </span>
@@ -341,6 +346,32 @@ export function Tools() {
       )}
     </div>
   );
+}
+
+function ObservationBadge({ ev }: { ev: Invocation }) {
+  const source = ev.observation_source ? ` from ${ev.observation_source}` : "";
+  if (ev.directive_like) {
+    const matches = ev.directive_matches?.length ? `; matches: ${ev.directive_matches.join(", ")}` : "";
+    return (
+      <span
+        className="inline-flex shrink-0 items-center gap-1 rounded-full border border-bad/40 bg-bad/10 px-1.5 py-0.5 text-[10px] font-semibold text-bad"
+        title={`Directive-like untrusted observation${source}${matches}`}
+      >
+        <AlertTriangle className="size-3" /> injection
+      </span>
+    );
+  }
+  if (ev.observation_trust === "untrusted") {
+    return (
+      <span
+        className="inline-flex shrink-0 items-center gap-1 rounded-full border border-border bg-panel px-1.5 py-0.5 text-[10px] font-semibold text-muted"
+        title={`Untrusted observation${source}`}
+      >
+        <ShieldCheck className="size-3" /> untrusted
+      </span>
+    );
+  }
+  return null;
 }
 
 function Tile({

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Activity as ActivityIcon,
   RefreshCw,
@@ -9,15 +9,20 @@ import {
   Ban,
   ChevronRight,
   ChevronDown,
+  LifeBuoy,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, fmtTime } from "@/lib/utils";
 import { money } from "@/lib/format";
 import { getJSON, postAction } from "@/lib/api";
 import { useEvents } from "@/lib/events";
 import { useUI } from "@/components/ui/feedback";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/ui/page-header";
 import { RunDetailLoader } from "@/components/RunDetail";
+import { DoctorIncidentTrees } from "@/components/DoctorIncidentTrees";
+import { IncidentBadges } from "@/components/IncidentBadges";
+import { openIncident } from "@/lib/incidentnav";
 import {
   seedFromRuns,
   foldActivityEvent,
@@ -26,6 +31,12 @@ import {
   type ActiveRun,
   type ActivityState,
 } from "@/lib/activity";
+import {
+  autonomyEventMatches,
+  doctorIncidentTrees,
+  filterDoctorAutonomy,
+  type AutonomyItem,
+} from "@/lib/autonomy";
 
 // Activity is the live fleet monitor: "is anything running right now, and what
 // is it doing?". It seeds the in-flight runs from /api/runs, then folds the
@@ -35,6 +46,7 @@ export function Activity() {
   const { subscribe, connected } = useEvents();
   const ui = useUI();
   const [state, setState] = useState<ActivityState>({});
+  const [doctorFeed, setDoctorFeed] = useState<AutonomyItem[]>([]);
   const [now, setNow] = useState(() => Date.now());
   const [seeding, setSeeding] = useState(true);
   const [cancelling, setCancelling] = useState<Record<string, boolean>>({});
@@ -60,13 +72,17 @@ export function Activity() {
   async function seed() {
     setSeeding(true);
     try {
-      const res = await getJSON<{ runs?: ActiveRun[] }>("/api/runs");
+      const [res, auto] = await Promise.all([
+        getJSON<{ runs?: ActiveRun[] }>("/api/runs"),
+        getJSON<{ items?: AutonomyItem[] }>("/api/autonomy", { limit: "20" }),
+      ]);
       // Merge the seed over live state so an in-flight run already being folded
       // isn't clobbered (live activity lines win; seed only fills gaps).
       setState((live) => {
         const seeded = seedFromRuns(res.runs || []);
         return { ...seeded, ...live };
       });
+      setDoctorFeed(filterDoctorAutonomy(auto.items, 6));
     } catch {
       /* daemon momentarily unreachable — the firehose will refill */
     } finally {
@@ -81,13 +97,33 @@ export function Activity() {
 
   // Fold every firehose event into the run map.
   useEffect(() => {
-    return subscribe((e) => setState((s) => foldActivityEvent(s, e)));
+    let t: ReturnType<typeof setTimeout> | undefined;
+    const off = subscribe((e) => {
+      setState((s) => foldActivityEvent(s, e));
+      if (!autonomyEventMatches(e)) return;
+      if (t) clearTimeout(t);
+      t = setTimeout(() => {
+        getJSON<{ items?: AutonomyItem[] }>("/api/autonomy", { limit: "20" })
+          .then((auto) => setDoctorFeed(filterDoctorAutonomy(auto.items, 6)))
+          .catch(() => {});
+      }, 700);
+    });
+    return () => {
+      if (t) clearTimeout(t);
+      off();
+    };
   }, [subscribe]);
 
   // Tick once a second so elapsed timers advance while anything is running.
   const tree = buildTree(state);
   const summary = summarize(state);
   const running = summary.running;
+  const hasDoctorFeed = doctorFeed.length > 0;
+  const doctorRows = useMemo(() => doctorFeed.slice(0, 6), [doctorFeed]);
+  const doctorIncidents = useMemo(
+    () => doctorIncidentTrees(doctorFeed, 4),
+    [doctorFeed],
+  );
   useEffect(() => {
     if (!running) return;
     const id = setInterval(() => setNow(Date.now()), 1000);
@@ -111,18 +147,71 @@ export function Activity() {
               ● {connected ? "live" : "disconnected"}
             </span>
             <Button variant="ghost" size="sm" onClick={seed} disabled={seeding}>
-              <RefreshCw className={cn("size-3.5", seeding && "animate-spin")} /> Refresh
+              <RefreshCw
+                className={cn("size-3.5", seeding && "animate-spin")}
+              />{" "}
+              Refresh
             </Button>
           </>
         }
       />
 
-
       <div className="grid grid-cols-3 gap-2">
-        <Stat label="running now" value={summary.running} tone="accent" pulse={summary.running > 0} />
+        <Stat
+          label="running now"
+          value={summary.running}
+          tone="accent"
+          pulse={summary.running > 0}
+        />
         <Stat label="completed" value={summary.completed} tone="good" />
-        <Stat label="failed" value={summary.failed} tone={summary.failed ? "bad" : "muted"} />
+        <Stat
+          label="failed"
+          value={summary.failed}
+          tone={summary.failed ? "bad" : "muted"}
+        />
       </div>
+
+      {hasDoctorFeed && (
+        <div className="glass rounded-xl px-3 py-2.5">
+          <div className="mb-2 flex items-center gap-2">
+            <LifeBuoy className="size-4 text-warn" />
+            <span className="text-sm font-medium">Autonomous doctor</span>
+            <Badge variant="warn">{doctorRows.length}</Badge>
+          </div>
+          <ul className="space-y-1.5">
+            {doctorRows.map((row) => {
+              return (
+                <li key={row.seq} className="flex items-start gap-2 text-xs">
+                  <div className="mt-0.5 flex shrink-0 items-center gap-1">
+                    <IncidentBadges item={row} mono />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-foreground/90">{row.title}</div>
+                    {row.detail && (
+                      <div className="truncate text-muted">{row.detail}</div>
+                    )}
+                  </div>
+                  <span className="shrink-0 font-mono text-[10px] text-muted opacity-70">
+                    {fmtTime(row.ts_unix_ms)}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+          {doctorIncidents.length > 0 && (
+            <div className="mt-3 border-t border-border pt-2">
+              <div className="mb-1.5 text-[10px] uppercase tracking-wider text-muted">
+                repair incident trees
+              </div>
+              <DoctorIncidentTrees
+                trees={doctorIncidents}
+                compact
+                onOpenIncident={openIncident}
+              />
+            </div>
+          )}
+        </div>
+      )}
 
       {tree.length === 0 ? (
         <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-border py-16 text-center">
@@ -130,7 +219,8 @@ export function Activity() {
           <div>
             <p className="text-sm font-medium">Nothing running right now</p>
             <p className="mt-0.5 text-xs text-muted">
-              Start a run from the Chat view or the CLI — it'll appear here live, with any sub-agents it spawns.
+              Start a run from the Chat view or the CLI — it'll appear here
+              live, with any sub-agents it spawns.
             </p>
           </div>
         </div>
@@ -138,11 +228,23 @@ export function Activity() {
         <div className="space-y-2">
           {tree.map((node) => (
             <div key={node.run.corr} className="space-y-1.5">
-              <RunRow run={node.run} now={now} onCancel={cancelRun} cancelling={!!cancelling[node.run.corr]} />
+              <RunRow
+                run={node.run}
+                now={now}
+                onCancel={cancelRun}
+                cancelling={!!cancelling[node.run.corr]}
+              />
               {node.children.length > 0 && (
                 <div className="ml-4 space-y-1.5 border-l border-border pl-3">
                   {node.children.map((c) => (
-                    <RunRow key={c.corr} run={c} now={now} onCancel={cancelRun} cancelling={!!cancelling[c.corr]} child />
+                    <RunRow
+                      key={c.corr}
+                      run={c}
+                      now={now}
+                      onCancel={cancelRun}
+                      cancelling={!!cancelling[c.corr]}
+                      child
+                    />
                   ))}
                 </div>
               )}
@@ -174,8 +276,12 @@ function Stat({
   return (
     <div className="glass rounded-xl px-3 py-2">
       <div className="flex items-center gap-1.5">
-        <span className={cn("text-2xl font-semibold tabular-nums", color)}>{value}</span>
-        {pulse && <span className="size-2 animate-pulse rounded-full bg-accent" />}
+        <span className={cn("text-2xl font-semibold tabular-nums", color)}>
+          {value}
+        </span>
+        {pulse && (
+          <span className="size-2 animate-pulse rounded-full bg-accent" />
+        )}
       </div>
       <div className="text-xs text-muted">{label}</div>
     </div>
@@ -199,7 +305,12 @@ function RunRow({
   const live = run.status === "running";
   const elapsed = (live ? now : run.endedMs || now) - (run.startedMs || now);
   return (
-    <div className={cn("rounded-lg border bg-card", live ? "border-accent/40" : "border-border")}>
+    <div
+      className={cn(
+        "rounded-lg border bg-card",
+        live ? "border-accent/40" : "border-border",
+      )}
+    >
       <div className="flex items-start gap-2.5 px-3 py-2">
         <button
           onClick={() => setOpen((v) => !v)}
@@ -222,7 +333,9 @@ function RunRow({
               ) : (
                 <ChevronRight className="size-3.5 shrink-0 text-muted" />
               )}
-              {child && <CornerDownRight className="size-3.5 shrink-0 text-muted" />}
+              {child && (
+                <CornerDownRight className="size-3.5 shrink-0 text-muted" />
+              )}
               <span className="truncate text-sm font-medium">
                 {run.intent || <span className="text-muted">(no intent)</span>}
               </span>

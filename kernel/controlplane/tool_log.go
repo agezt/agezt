@@ -69,13 +69,17 @@ func (s *Server) handleToolLog(conn net.Conn, req Request) {
 	// the journal is in order, the invoked event precedes its result and the map
 	// is already populated when we reach it.
 	type invocation struct {
-		ts, seq     int64
-		actor, corr string
-		tool        string
-		callID      string
-		output      string
-		isError     bool
-		duration    int64 // M71: result.TS − invoked.TS, 0 when unknowable
+		ts, seq           int64
+		actor, corr       string
+		tool              string
+		callID            string
+		output            string
+		isError           bool
+		duration          int64 // M71: result.TS − invoked.TS, 0 when unknowable
+		observationTrust  string
+		observationSource string
+		directiveLike     bool
+		directiveMatches  []string
 	}
 	inputs := map[string]string{}   // call_id → input preview
 	invokedTS := map[string]int64{} // call_id → tool.invoked timestamp (M71)
@@ -92,17 +96,17 @@ func (s *Server) handleToolLog(conn net.Conn, req Request) {
 			if cutoff > 0 && e.TSUnixMS < cutoff {
 				return nil // M65: outside the time window
 			}
-			tool, id, output, isErr := decodeToolResult(e.Payload)
-			if toolFilter != "" && tool != toolFilter {
+			decoded := decodeToolResult(e.Payload)
+			if toolFilter != "" && decoded.tool != toolFilter {
 				return nil
 			}
-			if errorsOnly && !isErr {
+			if errorsOnly && !decoded.isError {
 				return nil
 			}
 			// Latency (M71) joins the call's invoked→result span by call_id. A
 			// policy-denied call has no tool.invoked, so it has no latency (0).
 			var dur int64
-			if it, ok := invokedTS[id]; ok && e.TSUnixMS >= it {
+			if it, ok := invokedTS[decoded.callID]; ok && e.TSUnixMS >= it {
 				dur = e.TSUnixMS - it
 			}
 			if slowMS > 0 && dur < slowMS {
@@ -110,7 +114,15 @@ func (s *Server) handleToolLog(conn net.Conn, req Request) {
 			}
 			results = append(results, invocation{
 				ts: e.TSUnixMS, seq: e.Seq, actor: e.Actor, corr: e.CorrelationID,
-				tool: tool, callID: id, output: output, isError: isErr, duration: dur,
+				tool:              decoded.tool,
+				callID:            decoded.callID,
+				output:            decoded.output,
+				isError:           decoded.isError,
+				duration:          dur,
+				observationTrust:  decoded.observationTrust,
+				observationSource: decoded.observationSource,
+				directiveLike:     decoded.directiveLike,
+				directiveMatches:  decoded.directiveMatches,
 			})
 		}
 		return nil
@@ -141,6 +153,12 @@ func (s *Server) handleToolLog(conn net.Conn, req Request) {
 			"output":         r.output,
 			"error":          r.isError,
 			"duration_ms":    r.duration, // M71: invoked→result span (0 if unknowable)
+			// Prompt-injection hygiene: keep provenance and directive-like taint
+			// visible to operators instead of burying it in raw journal payloads.
+			"observation_trust":  r.observationTrust,
+			"observation_source": r.observationSource,
+			"directive_like":     r.directiveLike,
+			"directive_matches":  r.directiveMatches,
 		})
 	}
 	s.writeResp(conn, Response{
@@ -189,10 +207,11 @@ func (s *Server) handleToolStats(conn net.Conn, req Request) {
 		if cutoff > 0 && e.TSUnixMS < cutoff {
 			return nil
 		}
-		tool, id, output, isErr := decodeToolResult(e.Payload)
-		if toolFilter != "" && tool != toolFilter {
+		decoded := decodeToolResult(e.Payload)
+		if toolFilter != "" && decoded.tool != toolFilter {
 			return nil
 		}
+		tool := decoded.tool
 		if tool == "" {
 			tool = "unknown"
 		}
@@ -203,16 +222,16 @@ func (s *Server) handleToolStats(conn net.Conn, req Request) {
 			byTool[tool] = agg
 		}
 		agg.calls++
-		if isErr {
+		if decoded.isError {
 			errored++
 			agg.errors++
-			msg := output // already whitespace-collapsed + capped by decodeToolResult
+			msg := decoded.output // already whitespace-collapsed + capped by decodeToolResult
 			if msg == "" {
 				msg = "(no message)"
 			}
 			errorsByMessage[msg]++
 		}
-		if it, ok := invokedTS[id]; ok && e.TSUnixMS >= it {
+		if it, ok := invokedTS[decoded.callID]; ok && e.TSUnixMS >= it {
 			d := e.TSUnixMS - it
 			durations = append(durations, d)
 			agg.durSum += d
@@ -289,22 +308,47 @@ func decodeToolInvoked(payload json.RawMessage) (callID, input string) {
 	return p.CallID, previewString(string(p.Input))
 }
 
+type decodedToolResult struct {
+	tool              string
+	callID            string
+	output            string
+	isError           bool
+	observationTrust  string
+	observationSource string
+	directiveLike     bool
+	directiveMatches  []string
+}
+
 // decodeToolResult pulls tool + call_id + output preview + error flag out of a
-// tool.result payload (M66). Returns zero values on parse failure.
-func decodeToolResult(payload json.RawMessage) (tool, callID, output string, isError bool) {
+// tool.result payload (M66), plus observation-security metadata when present.
+// Returns zero values on parse failure.
+func decodeToolResult(payload json.RawMessage) decodedToolResult {
 	if len(payload) == 0 {
-		return "", "", "", false
+		return decodedToolResult{}
 	}
 	var p struct {
-		Tool   string `json:"tool"`
-		CallID string `json:"call_id"`
-		Output string `json:"output"`
-		Error  bool   `json:"error"`
+		Tool              string   `json:"tool"`
+		CallID            string   `json:"call_id"`
+		Output            string   `json:"output"`
+		Error             bool     `json:"error"`
+		ObservationTrust  string   `json:"observation_trust"`
+		ObservationSource string   `json:"observation_source"`
+		DirectiveLike     bool     `json:"directive_like"`
+		DirectiveMatches  []string `json:"directive_matches"`
 	}
 	if err := json.Unmarshal(payload, &p); err != nil {
-		return "", "", "", false
+		return decodedToolResult{}
 	}
-	return p.Tool, p.CallID, previewString(p.Output), p.Error
+	return decodedToolResult{
+		tool:              p.Tool,
+		callID:            p.CallID,
+		output:            previewString(p.Output),
+		isError:           p.Error,
+		observationTrust:  p.ObservationTrust,
+		observationSource: p.ObservationSource,
+		directiveLike:     p.DirectiveLike,
+		directiveMatches:  p.DirectiveMatches,
+	}
 }
 
 // previewString collapses all whitespace runs to single spaces, trims, and

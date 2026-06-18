@@ -44,7 +44,7 @@ func TestCmdMemoryAdd_HelpAndTypes(t *testing.T) {
 	if code := cmdMemoryAdd([]string{"--help"}, &out, &errOut); code != 0 {
 		t.Fatalf("exit=%d want 0", code)
 	}
-	if !strings.Contains(out.String(), "PREFERENCE") {
+	if !strings.Contains(out.String(), "PREFERENCE") || !strings.Contains(out.String(), "evidence") {
 		t.Errorf("add --help should list types; got %q", out.String())
 	}
 }
@@ -71,6 +71,16 @@ func TestCmdMemoryAdd_FlagNeedsValue(t *testing.T) {
 	errOut.Reset()
 	if code := cmdMemoryAdd([]string{"s", "c", "--tag", "novalue"}, &out, &errOut); code != 2 {
 		t.Errorf("malformed --tag should be exit 2, got %d", code)
+	}
+	out.Reset()
+	errOut.Reset()
+	if code := cmdMemoryAdd([]string{"s", "c", "--evidence", "guess"}, &out, &errOut); code != 2 {
+		t.Errorf("bad --evidence should be exit 2, got %d", code)
+	}
+	out.Reset()
+	errOut.Reset()
+	if code := cmdMemoryAdd([]string{"s", "c", "--half-life", "soon"}, &out, &errOut); code != 2 {
+		t.Errorf("bad --half-life should be exit 2, got %d", code)
 	}
 }
 
@@ -100,6 +110,36 @@ func TestCmdMemoryForget_RequiresID(t *testing.T) {
 	var out, errOut bytes.Buffer
 	if code := cmdMemoryForget([]string{"--json"}, &out, &errOut); code != 2 {
 		t.Errorf("exit=%d want 2", code)
+	}
+}
+
+func TestCmdMemoryAudit_HelpAndUnexpectedArg(t *testing.T) {
+	var out, errOut bytes.Buffer
+	if code := cmdMemoryAudit([]string{"--help"}, &out, &errOut); code != 0 {
+		t.Fatalf("help exit=%d want 0", code)
+	}
+	if !strings.Contains(out.String(), "memory audit") {
+		t.Fatalf("help missing usage: %q", out.String())
+	}
+	out.Reset()
+	errOut.Reset()
+	if code := cmdMemoryAudit([]string{"extra"}, &out, &errOut); code != 2 {
+		t.Fatalf("unexpected arg exit=%d want 2", code)
+	}
+}
+
+func TestCmdMemoryClean_HelpAndBadFlag(t *testing.T) {
+	var out, errOut bytes.Buffer
+	if code := cmdMemoryClean([]string{"--help"}, &out, &errOut); code != 0 {
+		t.Fatalf("help exit=%d want 0", code)
+	}
+	if !strings.Contains(out.String(), "memory clean") {
+		t.Fatalf("help missing usage: %q", out.String())
+	}
+	out.Reset()
+	errOut.Reset()
+	if code := cmdMemoryClean([]string{"--bad"}, &out, &errOut); code != 2 {
+		t.Fatalf("bad flag exit=%d want 2", code)
 	}
 }
 

@@ -41,9 +41,6 @@ import (
 const (
 	// DefaultAPIVersion is the Vertex AI REST API version path segment.
 	DefaultAPIVersion = "v1"
-	// DefaultModel is what the loop uses when CompletionRequest.Model
-	// is empty. Operators almost always pass an explicit model id.
-	DefaultModel = "gemini-1.5-flash"
 	// DefaultTimeout caps a single HTTP request.
 	DefaultTimeout = 5 * time.Minute
 )
@@ -87,7 +84,6 @@ func New(ts TokenMinter, project, location string) *Provider {
 		TokenSource: ts,
 		Project:     project,
 		Location:    location,
-		Model:       DefaultModel,
 		HTTP:        &http.Client{Timeout: DefaultTimeout},
 	}
 }
@@ -97,6 +93,11 @@ func (p *Provider) Name() string { return "google-vertex" }
 
 // ErrNoTokenSource is returned by Complete when TokenSource is nil.
 var ErrNoTokenSource = errors.New("vertex: TokenSource not configured")
+
+// ErrNoModel is returned when a completion request carries no model and the
+// provider has none set. The daemon ships with no default model (owner rule), so
+// the model must come from the request (AGEZT_MODEL / routing / a fallback chain).
+var ErrNoModel = errors.New("vertex: no model specified (set CompletionRequest.Model, AGEZT_MODEL, or a routing/fallback chain)")
 
 // APIError is returned for non-2xx upstream responses.
 type APIError struct {
@@ -144,7 +145,7 @@ func (p *Provider) Complete(ctx context.Context, req agent.CompletionRequest) (*
 		model = p.Model
 	}
 	if model == "" {
-		model = DefaultModel
+		return nil, ErrNoModel
 	}
 
 	// Anthropic-on-Vertex (`claude-*` model ids) speaks a different

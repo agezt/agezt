@@ -7,6 +7,10 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+
+	"github.com/agezt/agezt/kernel/roster"
+	kernelruntime "github.com/agezt/agezt/kernel/runtime"
+	"github.com/agezt/agezt/plugins/providers/mock"
 )
 
 func invoke(t *testing.T, tool *Tool, args map[string]any) (string, bool) {
@@ -146,5 +150,64 @@ func TestConfigTool_GetSetBuiltin(t *testing.T) {
 	}
 	if out, _ := invoke(t, tool, map[string]any{"op": "get", "name": "AGEZT_MODEL"}); out != "AGEZT_MODEL=deepseek-chat" {
 		t.Fatalf("get builtin model: %q", out)
+	}
+}
+
+func TestConfigTool_AgentScopedOverrides(t *testing.T) {
+	dir := t.TempDir()
+	tool := New(dir)
+	k, err := kernelruntime.Open(kernelruntime.Config{
+		BaseDir:  dir,
+		Provider: mock.New(mock.FinalText("ok")),
+	})
+	if err != nil {
+		t.Fatalf("runtime open: %v", err)
+	}
+	t.Cleanup(func() { k.Close() })
+	tool.SetKernel(k)
+
+	if _, err := k.AddProfile(roster.Profile{
+		Slug: "researcher",
+		ConfigOverrides: map[string]string{
+			"AGEZT_MODEL": "agent-model",
+		},
+	}); err != nil {
+		t.Fatalf("add profile: %v", err)
+	}
+
+	ctx := kernelruntime.WithAgentProfile(context.Background(), roster.Profile{
+		Slug: "researcher",
+		ConfigOverrides: map[string]string{
+			"AGEZT_MODEL": "agent-model",
+		},
+	})
+
+	raw, _ := json.Marshal(map[string]any{"op": "get", "name": "AGEZT_MODEL"})
+	res, err := tool.Invoke(ctx, raw)
+	if err != nil {
+		t.Fatalf("get effective: %v", err)
+	}
+	if res.Output != "AGEZT_MODEL=agent-model (agent override: researcher)" {
+		t.Fatalf("effective get = %q", res.Output)
+	}
+
+	raw, _ = json.Marshal(map[string]any{"op": "set", "scope": "agent", "name": "AGEZT_MODEL", "value": "agent-next"})
+	res, err = tool.Invoke(ctx, raw)
+	if err != nil || res.IsError {
+		t.Fatalf("set agent override: out=%q err=%v isErr=%v", res.Output, err, res.IsError)
+	}
+	got, ok := k.Roster().Get("researcher")
+	if !ok || got.ConfigOverrides["AGEZT_MODEL"] != "agent-next" {
+		t.Fatalf("profile override not saved: %+v ok=%v", got.ConfigOverrides, ok)
+	}
+
+	raw, _ = json.Marshal(map[string]any{"op": "set", "scope": "agent", "name": "AGEZT_MODEL", "value": ""})
+	res, err = tool.Invoke(ctx, raw)
+	if err != nil || res.IsError {
+		t.Fatalf("clear agent override: out=%q err=%v isErr=%v", res.Output, err, res.IsError)
+	}
+	got, _ = k.Roster().Get("researcher")
+	if _, ok := got.ConfigOverrides["AGEZT_MODEL"]; ok {
+		t.Fatalf("profile override should be cleared: %+v", got.ConfigOverrides)
 	}
 }

@@ -72,18 +72,50 @@ function fmtCell(v: unknown): string {
   return String(v);
 }
 
+export function dataRecordWriter(r: Pick<DataRecord, "created_by" | "updated_by">): string {
+  return r.updated_by || r.created_by || "unknown";
+}
+
+export function dataLakeActorAgent(actor?: string): string {
+  const raw = (actor || "").trim();
+  if (!raw) return "";
+  const idx = raw.indexOf(":");
+  return idx > 0 ? raw.slice(0, idx) : raw;
+}
+
+export function dataRecordAttribution(r: Pick<DataRecord, "created_by" | "updated_by" | "created_ms" | "updated_ms">): string {
+  const created = r.created_by ? `created by ${r.created_by}${r.created_ms ? ` ${fmtTime(r.created_ms)}` : ""}` : "creator unknown";
+  const updated = r.updated_by ? `updated by ${r.updated_by}${r.updated_ms ? ` ${fmtTime(r.updated_ms)}` : ""}` : "";
+  return [created, updated].filter(Boolean).join(" · ");
+}
+
+export function dataLakeAgents(records: Pick<DataRecord, "created_by" | "updated_by">[]): string[] {
+  return Array.from(
+    new Set(records.flatMap((r) => [dataLakeActorAgent(r.created_by), dataLakeActorAgent(r.updated_by)]).filter((x) => x.trim() !== "")),
+  ).sort((a, b) => a.localeCompare(b));
+}
+
+export function filterDataRecordsByAgent(records: DataRecord[], agent: string): DataRecord[] {
+  const a = agent.trim();
+  if (!a) return records;
+  return records.filter((r) => dataLakeActorAgent(r.created_by) === a || dataLakeActorAgent(r.updated_by) === a);
+}
+
 export function Data() {
   const ui = useUI();
   const [cols, setCols] = useState<Collection[]>([]);
   const [active, setActive] = useState<string | null>(null);
   const [records, setRecords] = useState<DataRecord[]>([]);
   const [search, setSearch] = useState("");
+  const [agentFilter, setAgentFilter] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loadingCols, setLoadingCols] = useState(false);
   const [loadingRecs, setLoadingRecs] = useState(false);
   const [editing, setEditing] = useState<DataRecord | "new" | null>(null);
 
   const activeCol = useMemo(() => cols.find((c) => c.name === active) ?? null, [cols, active]);
+  const agentOptions = useMemo(() => dataLakeAgents(records), [records]);
+  const visibleRecords = useMemo(() => filterDataRecordsByAgent(records, agentFilter), [records, agentFilter]);
 
   async function loadCollections() {
     setLoadingCols(true);
@@ -164,7 +196,7 @@ export function Data() {
   const fieldDefs: FieldDef[] = activeCol?.fields?.length
     ? activeCol.fields
     : // No schema fields → infer columns from the union of record keys.
-      Array.from(new Set(records.flatMap((r) => Object.keys(r.fields ?? {})))).map((name) => ({ name }));
+      Array.from(new Set(visibleRecords.flatMap((r) => Object.keys(r.fields ?? {})))).map((name) => ({ name }));
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3">
@@ -229,6 +261,22 @@ export function Data() {
                   className="w-44 rounded-md border border-border bg-panel py-1 pl-7 pr-2 text-xs outline-none focus-visible:border-accent"
                 />
               </div>
+              {agentOptions.length > 0 && (
+                <select
+                  value={agentFilter}
+                  onChange={(e) => setAgentFilter(e.target.value)}
+                  aria-label="Filter records by agent"
+                  className="max-w-44 rounded-md border border-border bg-panel px-2 py-1 text-xs text-foreground outline-none focus-visible:border-accent"
+                  title="Filter by the agent/user that created or last updated a record"
+                >
+                  <option value="">All writers</option>
+                  {agentOptions.map((agent) => (
+                    <option key={agent} value={agent}>
+                      {agent}
+                    </option>
+                  ))}
+                </select>
+              )}
               <Button size="sm" onClick={() => setEditing("new")}>
                 <Plus className="size-3.5" /> Add
               </Button>
@@ -242,20 +290,26 @@ export function Data() {
                 title="No records yet"
                 hint={`Add one by hand, or ask an agent to fill "${activeCol.name}" with the db tool.`}
               />
+            ) : visibleRecords.length === 0 ? (
+              <EmptyState
+                icon={Database}
+                title="No records for this writer"
+                hint="Clear the writer filter or pick another agent."
+              />
             ) : activeCol.view === "expense" ? (
-              <ExpenseView records={records} onEdit={(r) => setEditing(r)} onDelete={delRecord} />
+              <ExpenseView records={visibleRecords} onEdit={(r) => setEditing(r)} onDelete={delRecord} />
             ) : activeCol.view === "tasks" ? (
-              <TasksView records={records} onEdit={(r) => setEditing(r)} onDelete={delRecord} onToggle={(r) => saveRecord({ done: !truthy(r.fields?.done) }, r.id)} />
+              <TasksView records={visibleRecords} onEdit={(r) => setEditing(r)} onDelete={delRecord} onToggle={(r) => saveRecord({ done: !truthy(r.fields?.done) }, r.id)} />
             ) : activeCol.view === "calendar" ? (
-              <CalendarView records={records} onEdit={(r) => setEditing(r)} onDelete={delRecord} />
+              <CalendarView records={visibleRecords} onEdit={(r) => setEditing(r)} onDelete={delRecord} />
             ) : activeCol.view === "habits" ? (
-              <HabitsView records={records} onEdit={(r) => setEditing(r)} onDelete={delRecord} />
+              <HabitsView records={visibleRecords} onEdit={(r) => setEditing(r)} onDelete={delRecord} />
             ) : activeCol.view === "notes" ? (
-              <NotesView records={records} onEdit={(r) => setEditing(r)} onDelete={delRecord} />
+              <NotesView records={visibleRecords} onEdit={(r) => setEditing(r)} onDelete={delRecord} />
             ) : activeCol.view === "bookmarks" ? (
-              <BookmarksView records={records} onEdit={(r) => setEditing(r)} onDelete={delRecord} />
+              <BookmarksView records={visibleRecords} onEdit={(r) => setEditing(r)} onDelete={delRecord} />
             ) : activeCol.view === "contacts" ? (
-              <ContactsView records={records} onEdit={(r) => setEditing(r)} onDelete={delRecord} />
+              <ContactsView records={visibleRecords} onEdit={(r) => setEditing(r)} onDelete={delRecord} />
             ) : (
               <div className="min-h-0 flex-1 overflow-auto glass rounded-xl">
                 <table className="w-full border-collapse text-sm">
@@ -270,7 +324,7 @@ export function Data() {
                     </tr>
                   </thead>
                   <tbody>
-                    {records.map((r) => (
+                    {visibleRecords.map((r) => (
                       <tr key={r.id} className="group hover:bg-panel/50">
                         {fieldDefs.map((f) => (
                           <td
@@ -283,6 +337,12 @@ export function Data() {
                         ))}
                         <td className="whitespace-nowrap border-b border-border/60 px-2 py-1.5 text-right">
                           <div className="flex items-center justify-end gap-1">
+                            <span
+                              className="hidden rounded bg-panel px-1.5 py-0.5 font-mono text-[10px] text-muted sm:inline-flex"
+                              title={dataRecordAttribution(r)}
+                            >
+                              {dataRecordWriter(r)}
+                            </span>
                             <button
                               onClick={() => setEditing(r)}
                               className="rounded p-1 text-muted transition-colors hover:bg-accent/10 hover:text-accent"

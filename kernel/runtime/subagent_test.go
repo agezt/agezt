@@ -223,6 +223,13 @@ func TestSubAgent_DelegationFlow(t *testing.T) {
 	for _, e := range col.ofKind(event.KindTaskReceived) {
 		if e.CorrelationID == pl.ChildCorrelation {
 			childHasTask = true
+			var taskPayload map[string]any
+			if err := json.Unmarshal(e.Payload, &taskPayload); err != nil {
+				t.Fatalf("unmarshal child task.received: %v", err)
+			}
+			if taskPayload["wake_source"] != "subagent" || taskPayload["parent_correlation"] != corr {
+				t.Fatalf("child task wake provenance = %+v", taskPayload)
+			}
 		}
 	}
 	if !childHasTask {

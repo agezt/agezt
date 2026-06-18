@@ -220,12 +220,22 @@ func TestEvent_RequestedPayloadShape(t *testing.T) {
 	b, j := newBus(t)
 	r := approval.New(approval.Config{Bus: b, Timeout: 30 * time.Millisecond})
 	_ = r.Submit(context.Background(), approval.SubmitSpec{
-		Capability:    "file.delete",
-		ToolName:      "file",
-		Input:         `{"op":"delete","path":"x"}`,
-		Reason:        "L1",
-		Actor:         "agent-run-test",
-		CorrelationID: "corr-zzz",
+		Capability:            "file.delete",
+		ToolName:              "file",
+		Input:                 `{"op":"delete","path":"x"}`,
+		Reason:                "L1",
+		Actor:                 "agent-run-test",
+		CorrelationID:         "corr-zzz",
+		EffectClass:           "irreversible",
+		PredictedEffects:      []string{"delete x"},
+		AffectedResources:     []string{"path:x"},
+		RollbackNotes:         "restore from backup",
+		Confidence:            0.7,
+		CanonicalIntent:       "clean files",
+		HarmfulInterpretation: "could delete non-cache files",
+		AmbiguityScore:        0.85,
+		RegretAxes:            map[string]float64{"informational": 0.9},
+		ConfirmationPrompt:    "Confirm exact cleanup scope?",
 	})
 	var requested *event.Event
 	_ = j.Range(func(e *event.Event) error {
@@ -241,10 +251,20 @@ func TestEvent_RequestedPayloadShape(t *testing.T) {
 		t.Errorf("correlation=%q want corr-zzz", requested.CorrelationID)
 	}
 	var p struct {
-		ApprovalID string `json:"approval_id"`
-		Capability string `json:"capability"`
-		ToolName   string `json:"tool_name"`
-		Input      string `json:"input"`
+		ApprovalID            string             `json:"approval_id"`
+		Capability            string             `json:"capability"`
+		ToolName              string             `json:"tool_name"`
+		Input                 string             `json:"input"`
+		EffectClass           string             `json:"effect_class"`
+		PredictedEffects      []string           `json:"predicted_effects"`
+		AffectedResources     []string           `json:"affected_resources"`
+		RollbackNotes         string             `json:"rollback_notes"`
+		Confidence            float64            `json:"confidence"`
+		CanonicalIntent       string             `json:"canonical_intent"`
+		HarmfulInterpretation string             `json:"harmful_interpretation"`
+		AmbiguityScore        float64            `json:"ambiguity_score"`
+		RegretAxes            map[string]float64 `json:"regret_axes"`
+		ConfirmationPrompt    string             `json:"confirmation_prompt"`
 	}
 	if err := json.Unmarshal(requested.Payload, &p); err != nil {
 		t.Fatalf("unmarshal: %v", err)
@@ -254,6 +274,21 @@ func TestEvent_RequestedPayloadShape(t *testing.T) {
 	}
 	if p.ApprovalID == "" {
 		t.Error("approval_id empty")
+	}
+	if p.EffectClass != "irreversible" || p.RollbackNotes != "restore from backup" || p.Confidence != 0.7 {
+		t.Errorf("effect bundle scalar fields: %+v", p)
+	}
+	if len(p.PredictedEffects) != 1 || p.PredictedEffects[0] != "delete x" {
+		t.Errorf("predicted_effects=%v", p.PredictedEffects)
+	}
+	if len(p.AffectedResources) != 1 || p.AffectedResources[0] != "path:x" {
+		t.Errorf("affected_resources=%v", p.AffectedResources)
+	}
+	if p.CanonicalIntent != "clean files" || p.HarmfulInterpretation == "" || p.ConfirmationPrompt == "" {
+		t.Errorf("intent metadata missing: %+v", p)
+	}
+	if p.AmbiguityScore != 0.85 || p.RegretAxes["informational"] != 0.9 {
+		t.Errorf("regret metadata missing: %+v", p)
 	}
 }
 

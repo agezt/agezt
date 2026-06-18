@@ -28,22 +28,33 @@ func (t *Tool) Definition() agent.ToolDef {
 			"Intervene: op=cancel stops one run by its correlation id; op=halt stops ALL runs and blocks " +
 			"new ones until op=resume; op=pause/op=unpause pause or resume a named agent; op=retire moves " +
 			"an agent to the graveyard (op=impact first to see what depends on it) and op=revive brings it " +
-			"back. Treat the fleet: op=edit retunes another agent (soul/model/fallbacks/budgets via the " +
-			"\"profile\" object) and op=create makes a new agent. Every action is journaled and reversible. " +
+			"back. Treat the fleet: op=edit retunes another agent (identity, budgets, policy, config_overrides " +
+			"via the \"profile\" object), op=create makes a new agent, and op=repair runs a governed self-repair " +
+			"pass AS a named agent and auto-applies a closing profile proposal when present. Every action is journaled and reversible. " +
 			"Use this to keep the fleet healthy: stop a runaway, pause or retune a misbehaving agent, fix a " +
 			"hot model, answer or route a help request.",
 		InputSchema: json.RawMessage(`{
   "type": "object",
   "required": ["op"],
   "properties": {
-    "op":     {"type":"string", "enum":["status","agents","runs","help","cancel","halt","resume","pause","unpause","retire","revive","impact","edit","create"]},
-    "agent":  {"type":"string", "description":"For op=pause/unpause/retire/revive/impact/edit: the target agent's slug (or id)."},
+    "op":     {"type":"string", "enum":["status","agents","runs","help","cancel","halt","resume","pause","unpause","retire","revive","impact","edit","create","repair"]},
+    "agent":  {"type":"string", "description":"For op=pause/unpause/retire/revive/impact/edit/repair: the target agent's slug (or id)."},
     "run":    {"type":"string", "description":"For op=cancel: the correlation id of the run to stop (from op=runs)."},
-    "reason": {"type":"string", "description":"For op=halt/resume/cancel (optional): why — recorded in the journal."},
+    "reason": {"type":"string", "description":"For op=halt/resume/cancel/repair (optional): why — recorded in the journal or included in the repair brief."},
     "limit":  {"type":"integer", "description":"For op=help: max requests to list (default 20)."},
-    "profile":{"type":"object", "description":"For op=edit/create: agent fields to apply. Keys: slug (create only), name, soul, model, fallbacks (array), task_type, max_cost_mc, max_daily_mc, memory_scope, workdir, description. op=edit applies them wholesale to the target named by \"agent\"."}
+    "profile":{"type":"object", "description":"For op=edit/create: agent fields to apply. Keys include slug (create only), name, soul, model, fallbacks (array), task_type, max_cost_mc, max_daily_mc, memory_scope, workdir, description, tool_allow, tool_deny, trust_ceiling, retry_policy, health_policy, self_repair, noise_policy, config_overrides. op=edit applies them wholesale to the target named by \"agent\"."}
   }
 }`),
+		Effect: agent.ToolEffect{
+			Class: agent.EffectCompensable,
+			PredictedEffects: []string{
+				"Read fleet health, active runs, help requests, and agent profiles.",
+				"Cancel or halt runs and create, edit, pause, retire, or revive agents for mutating operations.",
+			},
+			AffectedResources: []string{"active run controls", "global halt switch", "agent roster", "open help queue"},
+			RollbackNotes:     "Resume halted runs acceptance, unpause/revive agents, or edit profiles back; cancelled in-flight work cannot be resumed and must be rerun.",
+			Confidence:        0.75,
+		},
 	}
 }
 
@@ -193,8 +204,28 @@ func (t *Tool) Invoke(_ context.Context, raw json.RawMessage) (agent.Result, err
 		}
 		return okJSON(map[string]any{"agent": p.Slug, "action": "created", "profile": agentView(p)}), nil
 
+	case "repair":
+		ref := strings.TrimSpace(in.Agent)
+		if ref == "" {
+			return errResult(`op=repair needs "agent" (the target slug)`), nil
+		}
+		res, err := s.RepairAgent(ref, strings.TrimSpace(in.Reason))
+		if err != nil {
+			return errResult(err.Error()), nil
+		}
+		return okJSON(map[string]any{
+			"agent":                             res.Agent,
+			"action":                            "repair",
+			"correlation":                       res.Correlation,
+			"applied":                           res.Applied,
+			"routing_task_type":                 res.RoutingTaskType,
+			"routing_task_model_chain":          res.RoutingTaskModelChain,
+			"previous_routing_task_model_chain": res.PreviousRoutingTaskModelChain,
+			"answer":                            res.Answer,
+		}), nil
+
 	case "":
-		return errResult("op required (status|agents|runs|help|cancel|halt|resume|pause|unpause|retire|revive|impact|edit|create)"), nil
+		return errResult("op required (status|agents|runs|help|cancel|halt|resume|pause|unpause|retire|revive|impact|edit|create|repair)"), nil
 	default:
 		return errResult("unknown op " + op), nil
 	}

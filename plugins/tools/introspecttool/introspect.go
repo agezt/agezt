@@ -36,28 +36,75 @@ type Delegation struct {
 	MaxTotal           int   `json:"max_total"`
 }
 
+// ReaperOverview is the daemon's stale/degraded/misconfigured fleet snapshot.
+type ReaperOverview struct {
+	DeadAgents          int      `json:"dead_agents"`
+	DegradedAgents      int      `json:"degraded_agents"`
+	MisconfiguredAgents int      `json:"misconfigured_agents"`
+	DeadSlugs           []string `json:"dead_slugs,omitempty"`
+	DegradedSlugs       []string `json:"degraded_slugs,omitempty"`
+	MisconfiguredSlugs  []string `json:"misconfigured_slugs,omitempty"`
+}
+
+type ReaperAgent struct {
+	Slug         string `json:"slug"`
+	Name         string `json:"name,omitempty"`
+	LastActiveMS int64  `json:"last_active_ms,omitempty"`
+}
+
+type ReaperDegradedAgent struct {
+	Slug              string `json:"slug"`
+	Name              string `json:"name,omitempty"`
+	Failures          int    `json:"failures,omitempty"`
+	Window            int    `json:"window,omitempty"`
+	Threshold         int    `json:"threshold,omitempty"`
+	DoctorAgent       string `json:"doctor_agent,omitempty"`
+	SelfRepairEnabled bool   `json:"self_repair_enabled,omitempty"`
+	EscalateTo        string `json:"escalate_to,omitempty"`
+	LastFailureMS     int64  `json:"last_failure_ms,omitempty"`
+	LastReason        string `json:"last_reason,omitempty"`
+}
+
+type ReaperMisconfiguredAgent struct {
+	Slug              string   `json:"slug"`
+	Name              string   `json:"name,omitempty"`
+	Issues            []string `json:"issues,omitempty"`
+	DoctorAgent       string   `json:"doctor_agent,omitempty"`
+	SelfRepairEnabled bool     `json:"self_repair_enabled,omitempty"`
+	EscalateTo        string   `json:"escalate_to,omitempty"`
+}
+
+type ReaperReport struct {
+	DeadAgents          []ReaperAgent              `json:"dead_agents,omitempty"`
+	DegradedAgents      []ReaperDegradedAgent      `json:"degraded_agents,omitempty"`
+	MisconfiguredAgents []ReaperMisconfiguredAgent `json:"misconfigured_agents,omitempty"`
+	StaleArtifacts      int                        `json:"stale_artifacts"`
+	StaleBytes          int64                      `json:"stale_bytes"`
+}
+
 // Overview is the daemon's at-a-glance health snapshot — the same shape `agt
 // status` assembles, minus the server-level (HTTP/channel) extras the kernel
 // doesn't own. Assembled by the Source (the kernel adapter); the tool just
 // formats it.
 type Overview struct {
-	Daemon                 string     `json:"daemon"`
-	Protocol               int        `json:"protocol"`
-	Model                  string     `json:"model"`
-	UptimeSeconds          int64      `json:"uptime_seconds"`
-	Halted                 bool       `json:"halted"`
-	ActiveRuns             int        `json:"active_runs"`
-	Tools                  []string   `json:"tools"`
-	MemoryRecords          int        `json:"memory_records"`
-	WorldEntities          int        `json:"world_entities"`
-	ActiveSkills           int        `json:"active_skills"`
-	JournalHead            int64      `json:"journal_head"`
-	SchedulesTotal         int        `json:"schedules_total"`
-	SchedulesEnabled       int        `json:"schedules_enabled"`
-	PendingApprovals       int        `json:"pending_approvals"`
-	ProviderFallbacks      int        `json:"provider_fallbacks"`
-	ProviderFallbackReason string     `json:"provider_fallback_reason,omitempty"`
-	Delegation             Delegation `json:"delegation"`
+	Daemon                 string         `json:"daemon"`
+	Protocol               int            `json:"protocol"`
+	Model                  string         `json:"model"`
+	UptimeSeconds          int64          `json:"uptime_seconds"`
+	Halted                 bool           `json:"halted"`
+	ActiveRuns             int            `json:"active_runs"`
+	Tools                  []string       `json:"tools"`
+	MemoryRecords          int            `json:"memory_records"`
+	WorldEntities          int            `json:"world_entities"`
+	ActiveSkills           int            `json:"active_skills"`
+	JournalHead            int64          `json:"journal_head"`
+	SchedulesTotal         int            `json:"schedules_total"`
+	SchedulesEnabled       int            `json:"schedules_enabled"`
+	PendingApprovals       int            `json:"pending_approvals"`
+	ProviderFallbacks      int            `json:"provider_fallbacks"`
+	ProviderFallbackReason string         `json:"provider_fallback_reason,omitempty"`
+	Delegation             Delegation     `json:"delegation"`
+	Reaper                 ReaperOverview `json:"reaper"`
 }
 
 // Source is the narrow live-state surface the tool reads. The kernel adapter
@@ -66,6 +113,8 @@ type Overview struct {
 type Source interface {
 	// Overview returns the daemon's at-a-glance health snapshot.
 	Overview() Overview
+	// Reaper returns the current dead/degraded/misconfigured fleet scan.
+	Reaper() ReaperReport
 	// Schedules returns every cadence entry (operator- and agent-created).
 	Schedules() []cadence.Entry
 	// Standing returns every standing order on this daemon.
@@ -95,16 +144,25 @@ func (t *Tool) Definition() agent.ToolDef {
 			"instead of guessing. op=overview (default) gives the at-a-glance snapshot: version, " +
 			"model, uptime, halted, active runs, registered tools, memory/world/skill counts, " +
 			"journal head, schedule & standing-order & pending-approval counts, provider-fallback " +
-			"health, and delegation ceilings. op=schedules lists the scheduled (time-driven) runs " +
+			"health, reaper candidates (dead/degraded/misconfigured agents), and delegation ceilings. op=reaper gives the full current reaper scan. op=schedules lists the scheduled (time-driven) runs " +
 			"in detail; op=standing lists the standing orders (event/cron-triggered autonomous " +
 			"agents) in detail. For deeper drill-down combine with the runs, memory, world and " +
 			"skill tools.",
 		InputSchema: json.RawMessage(`{
   "type": "object",
   "properties": {
-    "op": {"type":"string", "enum":["overview","schedules","standing"], "description":"What to read (default overview)."}
+    "op": {"type":"string", "enum":["overview","reaper","schedules","standing"], "description":"What to read (default overview)."}
   }
 }`),
+		Effect: agent.ToolEffect{
+			Class: agent.EffectReversible,
+			PredictedEffects: []string{
+				"Read the daemon's current health, schedule, standing-order, approval, and delegation posture.",
+			},
+			AffectedResources: []string{"daemon runtime state snapshot"},
+			RollbackNotes:     "Read-only; no rollback required.",
+			Confidence:        0.95,
+		},
 	}
 }
 
@@ -127,6 +185,8 @@ func (t *Tool) Invoke(_ context.Context, raw json.RawMessage) (agent.Result, err
 	switch in.Op {
 	case "", "overview":
 		return okJSON(t.src.Overview()), nil
+	case "reaper":
+		return okJSON(t.src.Reaper()), nil
 	case "schedules":
 		entries := t.src.Schedules()
 		out := make([]map[string]any, 0, len(entries))
@@ -146,7 +206,7 @@ func (t *Tool) Invoke(_ context.Context, raw json.RawMessage) (agent.Result, err
 		}
 		return okJSON(map[string]any{"count": len(out), "orders": out}), nil
 	default:
-		return errResult("unknown op " + in.Op + " (overview|schedules|standing)"), nil
+		return errResult("unknown op " + in.Op + " (overview|reaper|schedules|standing)"), nil
 	}
 }
 

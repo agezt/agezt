@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/memory"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
 
@@ -375,5 +376,68 @@ func TestMemoryFindRelatedSeedNotFound(t *testing.T) {
 	_, err := c.Call(context.Background(), controlplane.CmdMemoryFindRelated, map[string]any{"id": "does-not-exist"})
 	if err == nil {
 		t.Error("find_related with non-existent seed id must error")
+	}
+}
+
+func TestMemoryAuditReportsContradictions(t *testing.T) {
+	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	ctx := context.Background()
+	_, _ = c.Call(ctx, controlplane.CmdMemoryAdd, map[string]any{
+		"subject": "region", "content": "prod is eu-west-1", "type": "FACT", "evidence": "curated",
+	})
+	_, _ = c.Call(ctx, controlplane.CmdMemoryAdd, map[string]any{
+		"subject": "region", "content": "prod is us-east-1", "type": "FACT", "evidence": "curated",
+	})
+
+	res, err := c.Call(ctx, controlplane.CmdMemoryAudit, nil)
+	if err != nil {
+		t.Fatalf("audit: %v", err)
+	}
+	if load, _ := res["contradiction_load"].(float64); load != 1 {
+		t.Fatalf("contradiction_load = %.0f, want 1: %v", load, res)
+	}
+	if usable, _ := res["usable"].(float64); usable != 2 {
+		t.Fatalf("usable = %.0f, want 2: %v", usable, res)
+	}
+}
+
+func TestMemoryCleanDryRunAndExecute(t *testing.T) {
+	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	ctx := context.Background()
+	seed, _, err := k.Memory().Remember("seed", memory.RememberSpec{
+		Subject: "test",
+		Content: "ran go test ./... and it passed",
+		Tags:    map[string]string{"source": "agent"},
+		Actor:   "agent",
+		Force:   true,
+	})
+	if err != nil {
+		t.Fatalf("seed low-value memory: %v", err)
+	}
+	id := seed.ID
+
+	res, err := c.Call(ctx, controlplane.CmdMemoryClean, map[string]any{"dry_run": true})
+	if err != nil {
+		t.Fatalf("clean dry-run: %v", err)
+	}
+	if rejected, _ := res["rejected"].(float64); rejected != 1 {
+		t.Fatalf("dry-run rejected = %.0f, want 1: %v", rejected, res)
+	}
+	got, _ := c.Call(ctx, controlplane.CmdMemoryGet, map[string]any{"id": id})
+	rec, _ := got["record"].(map[string]any)
+	if tomb, _ := rec["tombstoned"].(bool); tomb {
+		t.Fatal("dry-run must not tombstone")
+	}
+
+	res, err = c.Call(ctx, controlplane.CmdMemoryClean, map[string]any{"dry_run": false})
+	if err != nil {
+		t.Fatalf("clean execute: %v", err)
+	}
+	if removed, _ := res["removed"].(float64); removed != 1 {
+		t.Fatalf("execute removed = %.0f, want 1: %v", removed, res)
+	}
+	got, _ = c.Call(ctx, controlplane.CmdMemoryGet, map[string]any{"id": id})
+	if found, _ := got["found"].(bool); found {
+		t.Fatal("execute should hard-delete low-value memory")
 	}
 }

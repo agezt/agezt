@@ -122,7 +122,7 @@ func searchText(r Record) string {
 	return b.String()
 }
 
-// SearchSemantic ranks active records by embedding cosine against the query,
+// SearchSemantic ranks usable records by embedding cosine against the query,
 // weighted by the same confidence and recency factors as keyword Search.
 // The similarity is the better of (a) the whole-query cosine and (b) the
 // best damped per-token cosine — so a salient term buried in a chatty
@@ -145,7 +145,7 @@ func SearchSemantic(rs []Record, query string, limit int, nowMS int64) []Scored 
 		}
 	}
 	for _, r := range rs {
-		if !r.Active() {
+		if !r.Usable(nowMS) {
 			continue
 		}
 		rv := Embed(searchText(r))

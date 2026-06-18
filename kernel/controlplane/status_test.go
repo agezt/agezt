@@ -9,6 +9,7 @@ import (
 
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/cadence"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/runtime"
@@ -68,6 +69,9 @@ func TestStatus_ReturnsExpectedShape(t *testing.T) {
 	if got := intOf(sched["total"]); got != 0 {
 		t.Errorf("schedules.total = %d want 0 on a fresh kernel", got)
 	}
+	if resident, _ := sched["resident"].(bool); resident {
+		t.Errorf("schedules.resident = true on a kernel with no attached cadence engine")
+	}
 	if got := intOf(res["pending_approvals"]); got != 0 {
 		t.Errorf("pending_approvals = %d want 0 on a fresh kernel", got)
 	}
@@ -76,7 +80,7 @@ func TestStatus_ReturnsExpectedShape(t *testing.T) {
 	}
 }
 
-// TestStatus_SchedulesAndTenants — status reflects armed scheduled intents (M130)
+// TestStatus_SchedulesAndTenants — status reflects armed typed schedules (M130)
 // and reports a tenant count when a registry is wired.
 func TestStatus_SchedulesAndTenants(t *testing.T) {
 	k, srv, c, dir := startPair(t, mock.New(mock.FinalText("ok")))
@@ -109,8 +113,67 @@ func TestStatus_SchedulesAndTenants(t *testing.T) {
 	if got := intOf(sched["enabled"]); got != 1 {
 		t.Errorf("schedules.enabled = %d want 1 (one paused)", got)
 	}
+	if got := intOf(sched["running"]); got != 0 {
+		t.Errorf("schedules.running = %d want 0 with no live schedule firing", got)
+	}
+	if resident, _ := sched["resident"].(bool); resident {
+		t.Errorf("schedules.resident = true before the daemon attaches the cadence engine")
+	}
 	if got := intOf(res["tenants"]); got != 1 {
 		t.Errorf("tenants = %d want 1", got)
+	}
+}
+
+func TestStatus_SchedulesReportsRunningFirings(t *testing.T) {
+	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	now := time.Now()
+	e, err := k.Schedules().Add("blocked schedule", time.Hour, "", "operator", now)
+	if err != nil {
+		t.Fatalf("Add schedule: %v", err)
+	}
+	if _, err := k.Schedules().RunNow(e.ID); err != nil {
+		t.Fatalf("RunNow: %v", err)
+	}
+	block := make(chan struct{})
+	eng := cadence.NewEngine(k.Schedules(), func(ctx context.Context, id, intent, model string) error {
+		<-block
+		return nil
+	}, 5*time.Millisecond, nil)
+	k.SetScheduleEngine(eng)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer func() {
+		cancel()
+		close(block)
+		eng.Wait()
+		idleCtx, idleCancel := context.WithTimeout(context.Background(), time.Second)
+		defer idleCancel()
+		if err := eng.WaitIdle(idleCtx); err != nil {
+			t.Fatalf("WaitIdle: %v", err)
+		}
+		k.SetScheduleEngine(nil)
+	}()
+	eng.Start(ctx)
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		if eng.RunningCount() == 1 {
+			break
+		}
+		time.Sleep(time.Millisecond)
+	}
+	if eng.RunningCount() != 1 {
+		t.Fatalf("schedule firing did not start, running=%d", eng.RunningCount())
+	}
+
+	res, err := c.Call(context.Background(), controlplane.CmdStatus, nil)
+	if err != nil {
+		t.Fatalf("Call: %v", err)
+	}
+	sched, _ := res["schedules"].(map[string]any)
+	if got := intOf(sched["running"]); got != 1 {
+		t.Errorf("schedules.running = %d want 1", got)
+	}
+	if resident, _ := sched["resident"].(bool); !resident {
+		t.Errorf("schedules.resident = false with live cadence engine attached")
 	}
 }
 

@@ -12,8 +12,8 @@ import { fetchFullSnapshot, snapshotCounts, parseSnapshotJSON, applyFullSnapshot
 // know what you're about to export (and what an import will replace).
 export function configSummary(c: { persona: string; prompts: unknown[]; chains: Record<string, string[]> }): string {
   const parts = [
-    c.persona.trim() ? "persona set" : "no persona",
-    `${c.prompts.length} prompt${c.prompts.length === 1 ? "" : "s"}`,
+    c.persona.trim() ? "default identity set" : "no default identity",
+    `${c.prompts.length} prompt template${c.prompts.length === 1 ? "" : "s"}`,
     `${Object.keys(c.chains).length} routing chain${Object.keys(c.chains).length === 1 ? "" : "s"}`,
   ];
   return parts.join(" · ");
@@ -94,7 +94,7 @@ export function Backup() {
     }
     const ok = await ui.confirm({
       title: "Restore this snapshot?",
-      message: `This will restore: ${snapshotCounts(snap)}. Persona, prompts and routing are replaced; standing orders and schedules are ADDED (re-importing onto a daemon that already has them creates duplicates); memory and the world model dedupe. Best for seeding a fresh daemon.`,
+      message: `This will restore: ${snapshotCounts(snap)}. Default identity, prompt templates, and routing are replaced; standing orders and schedules are ADDED (re-importing onto a daemon that already has them creates duplicates); memory and the world model dedupe. Best for seeding a fresh daemon.`,
       confirmLabel: "Restore",
     });
     if (!ok) return;
@@ -190,7 +190,7 @@ export function Backup() {
           <Server className="size-4 text-accent" /> Daemon configuration
         </h3>
         <p className="mt-1 text-xs text-muted">
-          Global persona, the prompt library and per-task routing chains. Lives on the daemon — importing
+          Default daemon identity, prompt templates and per-task routing chains. Lives on the daemon — importing
           replaces them on whichever daemon this console is connected to.
         </p>
         {summary && (
@@ -213,9 +213,9 @@ export function Backup() {
           <Camera className="size-4 text-accent" /> Full snapshot
         </h3>
         <p className="mt-1 text-xs text-muted">
-          A complete record of everything customizable — persona, prompts, routing, standing orders, schedules, memory and
+          A complete record of daemon-level defaults and knowledge — default identity, prompt templates, routing, standing orders, schedules, memory and
           the world model — in one file. Export it for backup or migration; <span className="text-foreground/70">Restore</span> replays
-          every section onto this daemon. Persona/prompts/routing are replaced; standing &amp; schedules are added; memory &amp; the
+          every section onto this daemon. Default identity / prompt templates / routing are replaced; standing &amp; schedules are added; memory &amp; the
           world model dedupe. Best for seeding a fresh daemon.
         </p>
         <div className="mt-2 flex items-center gap-2">
@@ -229,8 +229,8 @@ export function Backup() {
       </div>
 
       <p className="text-[11px] text-muted">
-        The config bundle covers <span className="text-foreground/70">persona, prompts and routing</span>; the full snapshot
-        adds standing orders, schedules, memory and the world model — a complete, restorable backup of the whole agent. The
+        The config bundle covers <span className="text-foreground/70">default identity, prompt templates and routing</span>; the full snapshot
+        adds standing orders, schedules, memory and the world model — a restorable daemon snapshot. The
         same Export/Import actions are also in the command palette (<kbd className="rounded border border-border px-1">⌘K</kbd>).
       </p>
     </div>

@@ -29,7 +29,7 @@ func TestAgentDailyBudget_MetersAndRefuses(t *testing.T) {
 		t.Fatalf("governor.New: %v", err)
 	}
 
-	asAgent := agent.CompletionRequest{Agent: "researcher", AgentDailyCeilingMc: 1_000_000_000}
+	asAgent := agent.CompletionRequest{Model: "claude-sonnet-4-6", Agent: "researcher", AgentDailyCeilingMc: 1_000_000_000}
 
 	// First call passes (ledger empty) and accrues spend to the identity.
 	if _, err := g.Complete(context.Background(), asAgent); err != nil {
@@ -46,15 +46,15 @@ func TestAgentDailyBudget_MetersAndRefuses(t *testing.T) {
 	}
 
 	// A DIFFERENT identity and an unattributed request still flow.
-	if _, err := g.Complete(context.Background(), agent.CompletionRequest{Agent: "ops", AgentDailyCeilingMc: 1_000_000_000}); err != nil {
+	if _, err := g.Complete(context.Background(), agent.CompletionRequest{Model: "claude-sonnet-4-6", Agent: "ops", AgentDailyCeilingMc: 1_000_000_000}); err != nil {
 		t.Fatalf("other identity blocked: %v", err)
 	}
-	if _, err := g.Complete(context.Background(), agent.CompletionRequest{}); err != nil {
+	if _, err := g.Complete(context.Background(), agent.CompletionRequest{Model: "claude-sonnet-4-6"}); err != nil {
 		t.Fatalf("unattributed request blocked: %v", err)
 	}
 
 	// No ceiling carried → the same identity is metered but never refused.
-	if _, err := g.Complete(context.Background(), agent.CompletionRequest{Agent: "researcher"}); err != nil {
+	if _, err := g.Complete(context.Background(), agent.CompletionRequest{Model: "claude-sonnet-4-6", Agent: "researcher"}); err != nil {
 		t.Fatalf("ceiling-less request refused: %v", err)
 	}
 }

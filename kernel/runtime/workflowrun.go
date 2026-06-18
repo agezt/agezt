@@ -112,11 +112,12 @@ func (k *Kernel) RunWorkflow(ctx context.Context, corr, ref string, payload any)
 	if err := workflow.Validate(w); err != nil { // defense: stores can predate rules
 		return RunWorkflowResult{}, err
 	}
+	runMeta := workflowRunProvenance(ctx)
 
 	_, _ = k.bus.Publish(event.Spec{
 		Subject: "workflow." + w.Name, Kind: event.KindWorkflowStarted, Actor: "workflow",
 		CorrelationID: corr,
-		Payload:       map[string]any{"id": w.ID, "name": w.Name, "nodes": len(w.Nodes)},
+		Payload:       mergeWorkflowRunPayload(map[string]any{"id": w.ID, "name": w.Name, "nodes": len(w.Nodes)}, runMeta),
 	})
 
 	res, err := k.runWorkflowGraph(ctx, corr, w, payload)
@@ -124,16 +125,59 @@ func (k *Kernel) RunWorkflow(ctx context.Context, corr, ref string, payload any)
 		_, _ = k.bus.Publish(event.Spec{
 			Subject: "workflow." + w.Name, Kind: event.KindWorkflowFailed, Actor: "workflow",
 			CorrelationID: corr,
-			Payload:       map[string]any{"id": w.ID, "name": w.Name, "error": err.Error(), "executed": res.Executed},
+			Payload:       mergeWorkflowRunPayload(map[string]any{"id": w.ID, "name": w.Name, "error": err.Error(), "executed": res.Executed}, runMeta),
 		})
 		return res, err
 	}
 	_, _ = k.bus.Publish(event.Spec{
 		Subject: "workflow." + w.Name, Kind: event.KindWorkflowCompleted, Actor: "workflow",
 		CorrelationID: corr,
-		Payload:       map[string]any{"id": w.ID, "name": w.Name, "executed": res.Executed},
+		Payload:       mergeWorkflowRunPayload(map[string]any{"id": w.ID, "name": w.Name, "executed": res.Executed}, runMeta),
 	})
 	return res, nil
+}
+
+func workflowRunProvenance(ctx context.Context) map[string]any {
+	wake := wakeContextFromCtx(ctx)
+	source := strings.TrimSpace(wake.Source)
+	if source == "" {
+		source = "manual"
+	}
+	agentSlug := strings.TrimSpace(agent.AgentFromContext(ctx))
+	runner := source
+	if agentSlug != "" {
+		runner = "agent"
+	}
+	out := map[string]any{
+		"source": source,
+		"runner": runner,
+	}
+	if agentSlug != "" {
+		out["agent"] = agentSlug
+	}
+	if wake.ScheduleID != "" {
+		out["schedule_id"] = wake.ScheduleID
+	}
+	if wake.StandingID != "" {
+		out["standing_id"] = wake.StandingID
+	}
+	if wake.StandingName != "" {
+		out["standing_name"] = wake.StandingName
+	}
+	if wake.TriggerSubject != "" {
+		out["trigger_subject"] = wake.TriggerSubject
+	}
+	if wake.ParentCorrelation != "" {
+		out["parent_correlation_id"] = wake.ParentCorrelation
+	}
+	return out
+}
+
+func mergeWorkflowRunPayload(base, extra map[string]any) map[string]any {
+	for k, v := range extra {
+		base[k] = v
+	}
+	return base
 }
 
 func (k *Kernel) runWorkflowGraph(ctx context.Context, corr string, w workflow.Workflow, payload any) (RunWorkflowResult, error) {
@@ -354,6 +398,18 @@ func nodeInputPreview(n *workflow.Node, data map[string]any) string {
 		var c workflow.SubflowConfig
 		_ = json.Unmarshal(n.Config, &c)
 		return strings.TrimSpace(workflow.Interpolate(c.Payload, data))
+	case workflow.NodePipeline:
+		var c workflow.PipelineConfig
+		_ = json.Unmarshal(n.Config, &c)
+		parts := make([]string, 0, len(c.Steps))
+		for _, step := range c.Steps {
+			args := strings.TrimSpace(workflow.Interpolate(string(step.Args), data))
+			if args == "" {
+				args = "{}"
+			}
+			parts = append(parts, strings.TrimSpace(step.Tool)+"("+args+")")
+		}
+		return strings.Join(parts, " -> ")
 	}
 	return ""
 }
@@ -391,7 +447,13 @@ func (k *Kernel) execWorkflowNode(ctx context.Context, corr string, n *workflow.
 		}
 		model := strings.TrimSpace(c.Model)
 		if model == "" {
-			model = k.cfg.Model
+			if m := modelFromCtx(ctx); m != "" {
+				model = m
+			} else if m, ok := agentConfigStringOverride(ctx, "AGEZT_MODEL"); ok {
+				model = m
+			} else {
+				model = k.cfg.Model
+			}
 		}
 		resp, err := k.cfg.Provider.Complete(ctx, agent.CompletionRequest{
 			Model:    model,
@@ -601,14 +663,67 @@ func (k *Kernel) execWorkflowNode(ctx context.Context, corr string, n *workflow.
 		}
 		return map[string]any{"executed": subRes.Executed, "outputs": subRes.Outputs}, "", nil
 
+	case workflow.NodePipeline:
+		var c workflow.PipelineConfig
+		if err := json.Unmarshal(n.Config, &c); err != nil {
+			return nil, "", err
+		}
+		return k.execPipelineNode(ctx, n.ID, c, data)
+
 	default:
 		return nil, "", fmt.Errorf("unknown node type %q", n.Type)
 	}
 }
 
+func (k *Kernel) execPipelineNode(ctx context.Context, nodeID string, c workflow.PipelineConfig, data map[string]any) (any, string, error) {
+	steps := map[string]any{}
+	var last any
+	for _, step := range c.Steps {
+		stepData := copyWorkflowData(data)
+		stepData["steps"] = steps
+		args := strings.TrimSpace(workflow.Interpolate(string(step.Args), stepData))
+		if args == "" {
+			args = "{}"
+		}
+		out, _, err := k.invokeWorkflowTool(ctx, step.Tool, "wf-"+nodeID+"-"+step.ID, json.RawMessage(args))
+		if err != nil {
+			return nil, "", fmt.Errorf("pipeline step %s: %w", step.ID, err)
+		}
+		if len(strings.TrimSpace(string(step.OutputSchema))) > 0 {
+			raw, err := json.Marshal(out)
+			if err != nil {
+				return nil, "", fmt.Errorf("pipeline step %s output cannot be encoded as JSON: %w", step.ID, err)
+			}
+			def := agent.ToolDef{Name: "pipeline." + nodeID + "." + step.ID + ".output", InputSchema: step.OutputSchema}
+			if err := agent.ValidateToolInput(def, raw); err != nil {
+				return nil, "", fmt.Errorf("pipeline step %s output rejected by schema: %w", step.ID, err)
+			}
+		}
+		steps[step.ID] = map[string]any{"tool": step.Tool, "output": out}
+		last = out
+	}
+	return map[string]any{"last": last, "steps": steps}, "", nil
+}
+
+func copyWorkflowData(data map[string]any) map[string]any {
+	out := make(map[string]any, len(data)+1)
+	for k, v := range data {
+		out[k] = v
+	}
+	return out
+}
+
 // invokeWorkflowTool runs one named tool through the policy gate — shared by
 // the tool and http nodes.
 func (k *Kernel) invokeWorkflowTool(ctx context.Context, toolName, callID string, args json.RawMessage) (any, string, error) {
+	tools := k.mergeMCPTools(k.mergeScriptTools(k.tools))
+	tool, ok := tools[toolName]
+	if !ok {
+		return nil, "", fmt.Errorf("unknown tool %q", toolName)
+	}
+	if err := agent.ValidateToolInput(tool.Definition(), args); err != nil {
+		return nil, "", fmt.Errorf("tool %s input rejected by schema: %w", toolName, err)
+	}
 	verdict := k.policyHook(ctx, agent.ToolCall{ID: callID, Name: toolName, Input: args})
 	if !verdict.Allow {
 		reason := verdict.Reason
@@ -617,18 +732,16 @@ func (k *Kernel) invokeWorkflowTool(ctx context.Context, toolName, callID string
 		}
 		return nil, "", fmt.Errorf("tool %s refused: %s", toolName, reason)
 	}
-	tools := k.mergeMCPTools(k.mergeScriptTools(k.tools))
-	tool, ok := tools[toolName]
-	if !ok {
-		return nil, "", fmt.Errorf("unknown tool %q", toolName)
-	}
 	out, err := tool.Invoke(ctx, args)
 	if err != nil {
+		k.completeAgentNoiseNotify(ctx, agent.ToolCall{ID: callID, Name: toolName, Input: args}, agent.Result{Output: err.Error(), IsError: true})
 		return nil, "", err
 	}
 	if out.IsError {
+		k.completeAgentNoiseNotify(ctx, agent.ToolCall{ID: callID, Name: toolName, Input: args}, out)
 		return nil, "", fmt.Errorf("tool %s failed: %s", toolName, truncateForErr(out.Output))
 	}
+	k.completeAgentNoiseNotify(ctx, agent.ToolCall{ID: callID, Name: toolName, Input: args}, out)
 	return parseMaybeJSON(out.Output), "", nil
 }
 

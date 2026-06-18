@@ -43,6 +43,16 @@ func (t *Tool) Definition() agent.ToolDef {
     "reason":      {"type":"string", "description":"For op=retire (optional): why you're pulling the skill."}
   }
 }`),
+		Effect: agent.ToolEffect{
+			Class: agent.EffectReversible,
+			PredictedEffects: []string{
+				"Read skill records and bundled resources.",
+				"Learn, promote, or quarantine reusable skills that affect future retrieval and behavior.",
+			},
+			AffectedResources: []string{"skill store", "skill retrieval pool", "skill bundle files"},
+			RollbackNotes:     "Retire/quarantine an unwanted skill or promote a prior version; file reads need no rollback.",
+			Confidence:        0.85,
+		},
 	}
 }
 

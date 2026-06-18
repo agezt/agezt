@@ -80,6 +80,31 @@ type Request struct {
 	CreatedAt time.Time
 	// Timeout is when DefaultTimeout would synthesise a deny (UTC).
 	Timeout time.Time
+	// EffectClass classifies the requested action by reversibility
+	// (read_only/reversible/compensable/irreversible).
+	EffectClass string
+	// PredictedEffects summarizes what the action is expected to change.
+	PredictedEffects []string
+	// AffectedResources lists the concrete resources the operator should inspect
+	// before approving.
+	AffectedResources []string
+	// RollbackNotes describes the available undo/compensation path, if any.
+	RollbackNotes string
+	// Confidence is the agent/runtime confidence in the prediction, 0..1 when
+	// known. 0 means unspecified.
+	Confidence float64
+	// CanonicalIntent is the interpreter's compact reading of the user's request.
+	CanonicalIntent string
+	// HarmfulInterpretation is the most plausible costly wrong reading surfaced
+	// by the intent gate.
+	HarmfulInterpretation string
+	// AmbiguityScore is the interpreter's uncertainty score, 0..1 when known.
+	AmbiguityScore float64
+	// RegretAxes estimates wrong-action cost by physical/informational/social/
+	// identity axes.
+	RegretAxes map[string]float64
+	// ConfirmationPrompt is the targeted question the operator should answer.
+	ConfirmationPrompt string
 }
 
 // Outcome carries the decision plus a human reason for the journal.
@@ -156,7 +181,17 @@ type SubmitSpec struct {
 	// AutoRec is the auto-recommendation for the operator (e.g., "allow" or "deny").
 	AutoRec string
 	// ValuePreview is a masked preview of the value being accessed.
-	ValuePreview string
+	ValuePreview          string
+	EffectClass           string
+	PredictedEffects      []string
+	AffectedResources     []string
+	RollbackNotes         string
+	Confidence            float64
+	CanonicalIntent       string
+	HarmfulInterpretation string
+	AmbiguityScore        float64
+	RegretAxes            map[string]float64
+	ConfirmationPrompt    string
 }
 
 // Submit registers a pending request and blocks until Resolve is
@@ -167,15 +202,25 @@ type SubmitSpec struct {
 func (r *Registry) Submit(ctx context.Context, spec SubmitSpec) Outcome {
 	now := r.now()
 	req := Request{
-		ID:            "appr-" + ulid.New(),
-		Capability:    spec.Capability,
-		ToolName:      spec.ToolName,
-		Input:         spec.Input,
-		Reason:        spec.Reason,
-		Actor:         spec.Actor,
-		CorrelationID: spec.CorrelationID,
-		CreatedAt:     now,
-		Timeout:       now.Add(r.timeout),
+		ID:                    "appr-" + ulid.New(),
+		Capability:            spec.Capability,
+		ToolName:              spec.ToolName,
+		Input:                 spec.Input,
+		Reason:                spec.Reason,
+		Actor:                 spec.Actor,
+		CorrelationID:         spec.CorrelationID,
+		CreatedAt:             now,
+		Timeout:               now.Add(r.timeout),
+		EffectClass:           spec.EffectClass,
+		PredictedEffects:      append([]string(nil), spec.PredictedEffects...),
+		AffectedResources:     append([]string(nil), spec.AffectedResources...),
+		RollbackNotes:         spec.RollbackNotes,
+		Confidence:            spec.Confidence,
+		CanonicalIntent:       spec.CanonicalIntent,
+		HarmfulInterpretation: spec.HarmfulInterpretation,
+		AmbiguityScore:        spec.AmbiguityScore,
+		RegretAxes:            cloneFloatMap(spec.RegretAxes),
+		ConfirmationPrompt:    spec.ConfirmationPrompt,
 	}
 	entry := &pending{req: req, done: make(chan Outcome, 1)}
 
@@ -244,10 +289,17 @@ func (r *Registry) Pending() []Request {
 	defer r.mu.Unlock()
 	out := make([]Request, 0, len(r.entries))
 	for _, p := range r.entries {
-		out = append(out, p.req)
+		out = append(out, cloneRequest(p.req))
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].CreatedAt.Before(out[j].CreatedAt) })
 	return out
+}
+
+func cloneRequest(req Request) Request {
+	req.PredictedEffects = append([]string(nil), req.PredictedEffects...)
+	req.AffectedResources = append([]string(nil), req.AffectedResources...)
+	req.RegretAxes = cloneFloatMap(req.RegretAxes)
+	return req
 }
 
 // PendingCount is a cheap len() over the queue, useful for tests.
@@ -273,15 +325,36 @@ func (r *Registry) publishRequested(req Request) {
 		Actor:         actorOr(req.Actor, "approval"),
 		CorrelationID: req.CorrelationID,
 		Payload: map[string]any{
-			"approval_id":  req.ID,
-			"capability":   req.Capability,
-			"tool_name":    req.ToolName,
-			"input":        req.Input,
-			"reason":       req.Reason,
-			"timeout_unix": req.Timeout.Unix(),
-			"created_unix": req.CreatedAt.Unix(),
+			"approval_id":            req.ID,
+			"capability":             req.Capability,
+			"tool_name":              req.ToolName,
+			"input":                  req.Input,
+			"reason":                 req.Reason,
+			"timeout_unix":           req.Timeout.Unix(),
+			"created_unix":           req.CreatedAt.Unix(),
+			"effect_class":           req.EffectClass,
+			"predicted_effects":      req.PredictedEffects,
+			"affected_resources":     req.AffectedResources,
+			"rollback_notes":         req.RollbackNotes,
+			"confidence":             req.Confidence,
+			"canonical_intent":       req.CanonicalIntent,
+			"harmful_interpretation": req.HarmfulInterpretation,
+			"ambiguity_score":        req.AmbiguityScore,
+			"regret_axes":            req.RegretAxes,
+			"confirmation_prompt":    req.ConfirmationPrompt,
 		},
 	})
+}
+
+func cloneFloatMap(in map[string]float64) map[string]float64 {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make(map[string]float64, len(in))
+	for k, v := range in {
+		out[k] = v
+	}
+	return out
 }
 
 func (r *Registry) publishResolved(req Request, out Outcome) {

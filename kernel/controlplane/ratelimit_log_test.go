@@ -33,6 +33,11 @@ func rateLimitedGovernor(t *testing.T, perMin int) *governor.Governor {
 	if err != nil {
 		t.Fatalf("governor.New: %v", err)
 	}
+	// The daemon has no default run model, so a bare CmdRun carries an empty model
+	// and would be refused with ErrNoModelConfigured before the rate limiter ever
+	// runs. Give the governor a default fallback chain (the production way to
+	// resolve a model) so the throttling path is exercised.
+	g.SetFallbackChains(map[string][]string{"d": {"m"}}, "d")
 	return g
 }
 

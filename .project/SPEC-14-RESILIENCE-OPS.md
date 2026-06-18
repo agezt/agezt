@@ -31,8 +31,31 @@ Beyond Edict approvals (SPEC-06), agents need to *pause and ask*, then resume.
 - **Long-lived, pausable tasks:** a task can wait hours/days for human input without holding resources (suspended, state in journal, resumed on reply across any channel).
 - **Approval scoping:** "once / for this task / raise trust for this capability" (SPEC-06 §3.4).
 - **Interruption:** the user can inject guidance into a running task ("actually, prioritize X") — a steering message the agent incorporates at the next node boundary. `/stop` halts the current run (SPEC-02 control plane).
+- **Contextual decision bundles:** related high-impact or irreversible actions are grouped into one approval packet with predicted effects, confidence, affected resources, cost/latency estimate, and rollback/compensation notes. The user can approve, reject, or modify the bundle instead of answering isolated prompts.
 
 **Phase:** clarify + suspend/resume **Phase 3**; interruption/steering **Phase 5**.
+
+---
+
+## 2.1 Effect classification and routing
+
+Every effectful action declares one of four effect classes:
+
+- `read_only` — no durable external side effect;
+- `reversible` — Agezt has a tested inverse operation;
+- `compensable` — Agezt can run a best-effort compensation, but cannot guarantee perfect undo;
+- `irreversible` — no reliable undo exists.
+
+Effect class is an action/tool property, not a planner wish. Edict, the planner, workflows,
+and HITL all consume the same metadata. Routing rules:
+
+- read-only actions can usually run at low trust;
+- reversible actions may run autonomously at the appropriate trust level;
+- compensable actions require the compensation path to be declared and journaled;
+- irreversible or high-blast-radius actions require HITL unless an explicit hard policy
+  grants bounded autonomy for that action.
+
+This model is the bridge between saga/compensation and the trust ladder.
 
 ---
 
@@ -44,6 +67,7 @@ Code has tests (IMPLEMENTATION §8); agent *behavior* needs evaluation too.
 - **Regression eval:** did a skill patch (Forge) or prompt change degrade performance? Shadow-testing (SPEC-05 §5.2) is the per-skill gate; this is the system-wide suite.
 - **Behavioral metrics:** task success rate by type, time-to-completion, cost-per-task, intervention rate, false-alarm rate (Pulse salience). Fed by the journal.
 - **Eval as a feedback source:** the reflection loop (SPEC-05 §6) consumes eval results to recalibrate. (Hermes uses Atropos for RL eval; Agezt focuses on behavioral/regression eval — we're a runtime, not a training framework, per VISION non-goals.)
+- **Stochasticity-aware replay:** behavioral re-runs record model, provider, temperature, seed when supported, context snapshot, tool mocks, and expected outcome bands. For `temperature > 0`, byte-for-byte equality is not the oracle; assertions combine schema validity, semantic checks, cost/latency bounds, safety invariants, and task-specific scoring.
 
 **Phase:** eval harness **Phase 5**; integrated into reflection **Phase 8**.
 
@@ -69,10 +93,10 @@ The first 10 minutes decide whether a user stays. Avoid the "still feels like a 
 
 - **Zero-config start** works immediately (embedded DB, local-model autodetect) — but then a **guided onboarding** offers to: connect providers/subscriptions, connect channels (esp. Telegram for the Jarvis loop), point at repos/projects, and set salience preferences + quiet hours.
 - **World-model bootstrap:** an optional onboarding interview seeds the context graph (who you are, your projects, your preferences) so the system understands references and judges salience from day one (SPEC-05 §3.3).
-- **First standing order:** suggest a starter standing order ("watch these repos, brief me each morning") so proactive value appears immediately.
+- **First standing wake rule:** suggest a starter durable agent plus wake rule ("wake repo-watch each morning and on CI failures") so proactive value appears immediately without putting identity instructions in the scheduler.
 - **Progressive disclosure:** advanced surfaces (Flow Studio, policy editor, trust ladder) are discoverable, not forced.
 
-**Phase:** zero-config **Phase 1**; guided onboarding + world-model bootstrap **Phase 5** (with UI); starter standing order **Phase 3–4**.
+**Phase:** zero-config **Phase 1**; guided onboarding + world-model bootstrap **Phase 5** (with UI); starter agent wake rule **Phase 3–4**.
 
 ---
 
@@ -109,7 +133,7 @@ The owner works in Turkish + English; many users are non-English.
 - **i18n UI/CLI:** externalized copy (English default; Turkish-ready), localizable.
 - **Timezone & locale:** cron, briefing timing ("each morning"), and date/number formatting respect the user's timezone/locale — critical for a scheduled, proactive system.
 
-**Phase:** timezone/locale correctness **Phase 3** (Pulse/Chronos need it); UI i18n **Phase 8**.
+**Phase:** timezone/locale correctness **Phase 3** (Pulse and typed schedules need it); UI i18n **Phase 8**.
 
 ---
 

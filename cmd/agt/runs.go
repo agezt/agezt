@@ -44,6 +44,8 @@ func cmdRuns(args []string, stdout, stderr io.Writer) int {
 		return cmdRunsSteerVerb(controlplane.CmdRunStep, "step", args[1:], stdout, stderr)
 	case "steer":
 		return cmdRunsSteer(args[1:], stdout, stderr)
+	case "intervene":
+		return cmdRunsIntervene(args[1:], stdout, stderr)
 	case "-h", "--help", "help":
 		fmt.Fprintf(stdout, "usage: %s runs <subcommand>\n", brand.CLI)
 		fmt.Fprintf(stdout, "  list [N] [--json]            show the last N agent runs (default 20)\n")
@@ -55,9 +57,10 @@ func cmdRuns(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "  resume <correlation>         let a paused run continue\n")
 		fmt.Fprintf(stdout, "  step <correlation>           advance a run one iteration, then re-pause\n")
 		fmt.Fprintf(stdout, "  steer <correlation> <text>   inject an operator directive into a live run\n")
+		fmt.Fprintf(stdout, "  intervene <primitive> <correlation> [text] [--lease <dur>] [--key <id>]\n")
 		return 0
 	default:
-		fmt.Fprintf(stderr, "%s runs: unknown subcommand %q (list|show|last|stats|cancel|pause|resume|step|steer)\n", brand.CLI, args[0])
+		fmt.Fprintf(stderr, "%s runs: unknown subcommand %q (list|show|last|stats|cancel|pause|resume|step|steer|intervene)\n", brand.CLI, args[0])
 		return 2
 	}
 }
@@ -159,6 +162,86 @@ func cmdRunsSteer(args []string, stdout, stderr io.Writer) int {
 		return 0
 	}
 	fmt.Fprintf(stderr, "no in-flight run with correlation %q (already finished or unknown)\n", corr)
+	return 1
+}
+
+func cmdRunsIntervene(args []string, stdout, stderr io.Writer) int {
+	asJSON := false
+	var primitive, corr, key string
+	var lease time.Duration
+	var parts []string
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		switch {
+		case a == "--json":
+			asJSON = true
+		case a == "--lease":
+			if i+1 >= len(args) {
+				fmt.Fprintf(stderr, "%s runs intervene: --lease needs a duration\n", brand.CLI)
+				return 2
+			}
+			d, err := time.ParseDuration(args[i+1])
+			if err != nil || d <= 0 {
+				fmt.Fprintf(stderr, "%s runs intervene: bad --lease %q\n", brand.CLI, args[i+1])
+				return 2
+			}
+			lease = d
+			i++
+		case a == "--key":
+			if i+1 >= len(args) {
+				fmt.Fprintf(stderr, "%s runs intervene: --key needs an idempotency key\n", brand.CLI)
+				return 2
+			}
+			key = args[i+1]
+			i++
+		case a == "-h" || a == "--help":
+			fmt.Fprintf(stdout, "usage: %s runs intervene <halt|abort|redirect|adjust|query> <correlation> [directive...] [--lease <dur>] [--key <id>] [--json]\n", brand.CLI)
+			return 0
+		case primitive == "":
+			primitive = a
+		case corr == "":
+			corr = a
+		default:
+			parts = append(parts, a)
+		}
+	}
+	if primitive == "" || corr == "" {
+		fmt.Fprintf(stderr, "%s runs intervene: primitive and correlation are required\n", brand.CLI)
+		return 2
+	}
+	directive := strings.Join(parts, " ")
+	callArgs := map[string]any{"primitive": primitive, "correlation": corr}
+	if directive != "" {
+		callArgs["directive"] = directive
+	}
+	if lease > 0 {
+		callArgs["lease_ms"] = float64(lease / time.Millisecond)
+	}
+	if key != "" {
+		callArgs["idempotency_key"] = key
+	}
+	c := dial(stderr)
+	if c == nil {
+		return 1
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	res, err := c.Call(ctx, controlplane.CmdRunIntervene, callArgs)
+	if err != nil {
+		fmt.Fprintf(stderr, "%s runs intervene: %v\n", brand.CLI, err)
+		return 1
+	}
+	if asJSON {
+		enc := json.NewEncoder(stdout)
+		enc.SetIndent("", "  ")
+		_ = enc.Encode(res)
+		return 0
+	}
+	if acc, _ := res["accepted"].(bool); acc {
+		fmt.Fprintf(stdout, "%s: %s %v\n", corr, primitive, res["state"])
+		return 0
+	}
+	fmt.Fprintf(stderr, "intervention not accepted for correlation %q: %v\n", corr, res["reason"])
 	return 1
 }
 

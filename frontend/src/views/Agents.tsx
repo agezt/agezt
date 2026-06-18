@@ -16,8 +16,11 @@ import {
   GitFork,
   Cpu,
   ShieldCheck,
+  Skull,
   Search,
   Radar,
+  UserCheck,
+  Wrench,
 } from "lucide-react";
 import { getJSON } from "@/lib/api";
 import { useEvents } from "@/lib/events";
@@ -39,16 +42,18 @@ import type { AgentProfile } from "@/views/Roster";
 import { buildDelegationTree, type RunNode } from "@/lib/delegation";
 import {
   buildFleet,
+  filterFleetEntities,
   fleetCensus,
   statusKind,
   type StatusKind,
-  type FleetKind,
+  type FleetEntityFilter,
   type ApiProfile,
   type ApiOrder,
   type ApiSchedule,
   type ApiWorkflow,
   type ApiPulse,
 } from "@/lib/fleet";
+import { applyAgentLivePatches, reduceAgentLivePatchMap, shouldReloadAgentCatalog, type AgentLivePatchMap } from "@/lib/agentlive";
 
 // Re-export the run-status helpers from their canonical home (lib/fleet) so the
 // existing test + Dashboard imports from "@/views/Agents" keep working.
@@ -102,7 +107,7 @@ export interface RootSummary {
 // summarizeRoots turns the runs list into one card summary per LEAD run (a run
 // with no parent), folding each lead's delegation subtree into aggregates and
 // sorting running-first then most-recent. Only includes runs that have an
-// agent field set — plain chat conversations (no --agent) are excluded since
+// agent field set — plain chat conversations (no roster agent) are excluded since
 // the Agents gallery is for roster agent runs, not ad-hoc chat sessions.
 export function summarizeRoots(runs: ApiRun[]): RootSummary[] {
   const nodes = toRunNodes(runs);
@@ -121,7 +126,7 @@ export function summarizeRoots(runs: ApiRun[]): RootSummary[] {
     if (n.parent) continue; // sub-agents fold into their lead's card
     // Skip runs without an agent — those are ad-hoc chat conversations, not
     // roster agent runs. The Agents gallery should only show runs started via
-    // --agent (cron, continuous, event, or manual trigger).
+    // a structured roster agent binding (cron, continuous, event, or manual trigger).
     const agentName = agentById.get(n.id);
     if (!agentName) continue;
     const tree = buildDelegationTree(nodes, n.id);
@@ -166,11 +171,15 @@ const KIND_DOT: Record<StatusKind, string> = {
 };
 
 type Tab = "fleet" | "live";
-type FleetFilter = "all" | FleetKind | "running" | "guardians";
+type FleetFilter = FleetEntityFilter;
 
 const FLEET_FILTERS: { id: FleetFilter; label: string; icon: typeof Bot }[] = [
   { id: "all", label: "All", icon: Network },
   { id: "guardians", label: "Guardians", icon: ShieldCheck },
+  { id: "direct", label: "Direct", icon: UserCheck },
+  { id: "subagents", label: "Sub-agents", icon: GitBranch },
+  { id: "repair", label: "Repair", icon: Wrench },
+  { id: "graveyard", label: "Graveyard", icon: Skull },
   { id: "roster", label: "Roster", icon: Users },
   { id: "standing", label: "Standing", icon: Anchor },
   { id: "schedule", label: "Schedules", icon: CalendarClock },
@@ -186,7 +195,7 @@ const FLEET_FILTERS: { id: FleetFilter; label: string; icon: typeof Bot }[] = [
 // when nothing is running. The "Live" tab is the run monitor: a gallery of
 // in-flight lead runs and their sub-agent delegation trees.
 export function Agents() {
-  const { events } = useEvents();
+  const { events, subscribe } = useEvents();
   const [tab, setTab] = useState<Tab>("fleet");
   const [runs, setRuns] = useState<ApiRun[] | null>(null);
   const [profiles, setProfiles] = useState<ApiProfile[]>([]);
@@ -203,6 +212,7 @@ export function Agents() {
   const [selKey, setSelKey] = useState<string>(""); // selected fleet entity
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [livePatches, setLivePatches] = useState<AgentLivePatchMap>({});
 
   async function reload() {
     setLoading(true);
@@ -252,6 +262,20 @@ export function Agents() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    let t: ReturnType<typeof setTimeout> | undefined;
+    const off = subscribe((ev) => {
+      setLivePatches((prev) => reduceAgentLivePatchMap(prev, ev));
+      if (!shouldReloadAgentCatalog(ev)) return;
+      if (t) clearTimeout(t);
+      t = setTimeout(() => void reloadCatalog(), 1200);
+    });
+    return () => {
+      if (t) clearTimeout(t);
+      off();
+    };
+  }, [subscribe]);
+
   // Nudge on run lifecycle + delegation events.
   const head = events[0]?.kind;
   useEffect(() => {
@@ -271,25 +295,14 @@ export function Agents() {
   const totalSpend = roots.reduce((s, r) => s + r.treeSpentMc, 0);
 
   // The unified census.
+  const liveProfiles = useMemo(() => applyAgentLivePatches(profiles, livePatches), [profiles, livePatches]);
   const fleet = useMemo(
-    () => buildFleet(profiles, orders, schedules, workflows, runs || [], pulse),
-    [profiles, orders, schedules, workflows, runs, pulse],
+    () => buildFleet(liveProfiles, orders, schedules, workflows, runs || [], pulse),
+    [liveProfiles, orders, schedules, workflows, runs, pulse],
   );
   const census = useMemo(() => fleetCensus(fleet), [fleet]);
   const shownFleet = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return fleet.filter((e) => {
-      if (fleetFilter === "running" && !e.running) return false;
-      if (fleetFilter === "guardians" && !e.system) return false;
-      if (fleetFilter !== "all" && fleetFilter !== "running" && fleetFilter !== "guardians" && e.kind !== fleetFilter) return false;
-      if (!q) return true;
-      return (
-        e.name.toLowerCase().includes(q) ||
-        (e.description || "").toLowerCase().includes(q) ||
-        (e.model || "").toLowerCase().includes(q) ||
-        e.triggers.some((t) => `${t.mode} ${t.label}`.toLowerCase().includes(q))
-      );
-    });
+    return filterFleetEntities(fleet, fleetFilter, query);
   }, [fleet, fleetFilter, query]);
   const selEntity = useMemo(() => fleet.find((e) => e.key === selKey) || null, [fleet, selKey]);
 
@@ -471,13 +484,14 @@ export function Agents() {
       {header}
 
       {/* Census band — what you own, at a glance, even at rest. */}
-      <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-6">
+      <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-7">
         <BigStat icon={Users} label="roster" value={census.roster} />
         <BigStat icon={Anchor} label="standing" value={census.standing} />
         <BigStat icon={CalendarClock} label="schedules" value={census.schedule} />
         <BigStat icon={GitFork} label="workflows" value={census.workflow} />
         <BigStat icon={Cpu} label="system" value={census.system} />
         <BigStat icon={RefreshCw} label="running" value={census.running} accent={census.running > 0} />
+        <BigStat icon={Skull} label="graveyard" value={census.graveyard} accent={census.graveyard > 0} />
       </div>
 
       {/* Kind filters + search. */}
@@ -488,9 +502,17 @@ export function Agents() {
               ? fleet.length
               : f.id === "running"
                 ? census.running
-                : f.id === "guardians"
-                  ? fleet.filter((e) => e.system).length
-                  : fleet.filter((e) => e.kind === f.id).length;
+                : f.id === "graveyard"
+                  ? census.graveyard
+                  : f.id === "direct"
+                    ? census.directAgents
+                    : f.id === "subagents"
+                      ? census.subagents
+                      : f.id === "repair"
+                        ? census.repair
+                        : f.id === "guardians"
+                          ? fleet.filter((e) => e.system).length
+                          : fleet.filter((e) => e.kind === f.id).length;
           return (
             <button
               key={f.id}
@@ -543,6 +565,7 @@ export function Agents() {
           onClose={() => setSelKey("")}
           onManage={manage}
           onLive={() => openLiveFor(selEntity.slug)}
+          onChanged={reloadAll}
         />
       ) : (
         <div className="flex min-h-0 flex-col gap-3 lg:flex-row">

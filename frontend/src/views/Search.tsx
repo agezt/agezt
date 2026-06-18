@@ -8,6 +8,12 @@ import { cn, fmtTime } from "@/lib/utils";
 import { DataView } from "@/components/DataView";
 import { Muted, ErrorText } from "@/components/JsonView";
 import { PageHeader } from "@/components/ui/page-header";
+import { IncidentBadges } from "@/components/IncidentBadges";
+import {
+  incidentBadgeItem,
+  incidentEventSummary,
+  isIncidentFamilyEvent,
+} from "@/lib/incidentevents";
 
 // Search queries the FULL journal server-side (CmdJournalGrep) — the historical
 // counterpart to the live stream. Filter by free-text pattern plus
@@ -111,7 +117,10 @@ export function Search() {
                     <span className="w-40 shrink-0 truncate font-medium" style={{ color: err2 ? undefined : cat.color }}>
                       <span className={cn(err2 && "text-bad")}>{e.kind}</span>
                     </span>
-                    <span className="min-w-0 flex-1 truncate text-foreground/80">{e.subject}</span>
+                    {isIncidentFamilyEvent(e) && <IncidentBadges item={incidentBadgeItem(e)} mono />}
+                    <span className="min-w-0 flex-1 truncate text-foreground/80">
+                      {incidentEventSummary(e) || e.subject}
+                    </span>
                     {e.correlation_id && (
                       <span className="shrink-0 text-[10px] text-muted">{e.correlation_id.slice(-6)}</span>
                     )}
@@ -317,7 +326,10 @@ export function CausationTrace({ eventId }: { eventId: string }) {
                     <span className="shrink-0 font-medium" style={{ color: cat.color }}>
                       {c.kind}
                     </span>
-                    <span className="min-w-0 flex-1 truncate text-foreground/70">{c.subject}</span>
+                    {isIncidentFamilyEvent(c) && <IncidentBadges item={incidentBadgeItem(c)} mono />}
+                    <span className="min-w-0 flex-1 truncate text-foreground/70">
+                      {incidentEventSummary(c) || c.subject}
+                    </span>
                     {isLast && <span className="shrink-0 text-[9px] uppercase tracking-wider text-accent">this</span>}
                     <span className="shrink-0 tabular-nums text-muted">{fmtTime(c.ts_unix_ms)}</span>
                   </li>

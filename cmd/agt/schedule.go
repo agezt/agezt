@@ -4,6 +4,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"strconv"
@@ -16,9 +17,9 @@ import (
 )
 
 // cmdSchedule dispatches `agt schedule <subcommand>` — the operator's
-// management path into the persistent scheduled-intents store (autonomy). The
-// cadence resident fires due schedules through the same governed loop as
-// `agt run`; these commands add/list/remove/trigger them.
+// management path into the persistent cron-style schedule store (autonomy). The
+// cadence resident fires due schedules as agent wakes, workflow runs, daemon
+// tasks, or tool invocations; these commands add/list/remove/trigger them.
 func cmdSchedule(args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
 		fmt.Fprintf(stderr, "%s schedule: subcommand required (add|edit|list|rm|run|pause|resume)\n", brand.CLI)
@@ -47,10 +48,14 @@ func cmdSchedule(args []string, stdout, stderr io.Writer) int {
 		return cmdScheduleEnable(args[1:], stdout, stderr, true)
 	case "-h", "--help", "help":
 		fmt.Fprintf(stdout, "usage: %s schedule <subcommand>\n", brand.CLI)
-		fmt.Fprintf(stdout, "  add \"<intent>\" --every <dur> [--between HH:MM-HH:MM [--days <spec>]]  interval, optionally windowed\n")
-		fmt.Fprintf(stdout, "  add \"<intent>\" --at <HH:MM> [--days <spec>] [--model <id>]    daily at a wall-clock time\n")
-		fmt.Fprintf(stdout, "  add \"<intent>\" --in <dur> | --once --at <HH:MM>              one-shot (fires once, then removed)\n")
-		fmt.Fprintf(stdout, "  edit <id> [--intent <s>] [--model <id>] [<cadence flag>]      change a schedule in place\n")
+		fmt.Fprintf(stdout, "  add \"<agent task>\" --every <dur> [--between HH:MM-HH:MM [--days <spec>]]  wake an agent/task on an interval\n")
+		fmt.Fprintf(stdout, "  add \"<agent task>\" --at <HH:MM> [--days <spec>] [--agent <slug>] [--model <id>]    wake at a wall-clock time\n")
+		fmt.Fprintf(stdout, "  add [\"<label>\"] --workflow <ref> [--payload JSON] --every <dur>|--at <HH:MM>|--in <dur>\n")
+		fmt.Fprintf(stdout, "  add [\"<label>\"] --system-task %s --every <dur>|--at <HH:MM>|--in <dur>\n", scheduleSystemTaskUsage())
+		fmt.Fprintf(stdout, "  add [\"<label>\"] --tool <name> [--payload JSON] --every <dur>|--at <HH:MM>|--in <dur>\n")
+		fmt.Fprintf(stdout, "  add \"<agent task>\" --continuous <dur> [--agent <slug>]      cycle loop; re-wakes after each completed run plus cooldown\n")
+		fmt.Fprintf(stdout, "  add \"<agent task>\" --in <dur> | --once --at <HH:MM>          one-shot (fires once, then removed)\n")
+		fmt.Fprintf(stdout, "  edit <id> [--intent <task/label>] [--model <id>] [<cadence flag>]  change a schedule in place\n")
 		fmt.Fprintf(stdout, "  list [--json]                                                list all schedules\n")
 		fmt.Fprintf(stdout, "  fires [N] [--id <sched>] [--json]                            recent scheduled firings + outcomes\n")
 		fmt.Fprintf(stdout, "  stats [--id <sched>] [--since <dur>] [--json]                aggregate firing health (counts, success, spend)\n")
@@ -66,6 +71,10 @@ func cmdSchedule(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "%s schedule: unknown subcommand %q (add|list|rm|run|pause|resume)\n", brand.CLI, args[0])
 		return 2
 	}
+}
+
+func scheduleSystemTaskUsage() string {
+	return strings.Join(cadence.SystemTasks(), "|")
 }
 
 // parseHHMM converts "HH:MM" (24h) to minutes since midnight.
@@ -117,7 +126,7 @@ func nextWallclock(now time.Time, mins int) time.Time {
 func cmdScheduleAdd(args []string, stdout, stderr io.Writer) int {
 	asJSON := false
 	once := false
-	var every, at, in, between, days, tz, model string
+	var every, continuous, at, in, between, days, tz, model, agentRef, workflowRef, systemTask, toolRef, payloadSpec string
 	var positional []string
 	for i := 0; i < len(args); i++ {
 		a := args[i]
@@ -127,7 +136,7 @@ func cmdScheduleAdd(args []string, stdout, stderr io.Writer) int {
 		case "--once":
 			once = true
 		case "-h", "--help":
-			fmt.Fprintf(stdout, "usage: %s schedule add \"<intent>\" (--every <dur> [--between <HH:MM-HH:MM> [--days <spec>]] | --at <HH:MM> [--days <spec>] | --once --at <HH:MM> | --in <dur>) [--tz <IANA>] [--model <id>] [--json]\n", brand.CLI)
+			fmt.Fprintf(stdout, "usage: %s schedule add [\"<agent-task|label>\"] (--every <dur> [--between <HH:MM-HH:MM> [--days <spec>]] | --continuous <dur> | --at <HH:MM> [--days <spec>] | --once --at <HH:MM> | --in <dur>) [--tz <IANA>] [--agent <slug>] [--workflow <ref> [--payload JSON] | --system-task %s | --tool <name> [--payload JSON]] [--model <id>] [--json]\n", brand.CLI, scheduleSystemTaskUsage())
 			return 0
 		case "--tz":
 			if i+1 >= len(args) {
@@ -150,6 +159,13 @@ func cmdScheduleAdd(args []string, stdout, stderr io.Writer) int {
 			}
 			i++
 			every = args[i]
+		case "--continuous":
+			if i+1 >= len(args) {
+				fmt.Fprintf(stderr, "%s schedule add: --continuous needs a cooldown duration\n", brand.CLI)
+				return 2
+			}
+			i++
+			continuous = args[i]
 		case "--at":
 			if i+1 >= len(args) {
 				fmt.Fprintf(stderr, "%s schedule add: --at needs a HH:MM time\n", brand.CLI)
@@ -178,25 +194,83 @@ func cmdScheduleAdd(args []string, stdout, stderr io.Writer) int {
 			}
 			i++
 			model = args[i]
+		case "--agent":
+			if i+1 >= len(args) {
+				fmt.Fprintf(stderr, "%s schedule add: --agent needs a roster slug\n", brand.CLI)
+				return 2
+			}
+			i++
+			agentRef = args[i]
+		case "--workflow":
+			if i+1 >= len(args) {
+				fmt.Fprintf(stderr, "%s schedule add: --workflow needs a workflow name or id\n", brand.CLI)
+				return 2
+			}
+			i++
+			workflowRef = args[i]
+		case "--system-task":
+			if i+1 >= len(args) {
+				fmt.Fprintf(stderr, "%s schedule add: --system-task needs a task name\n", brand.CLI)
+				return 2
+			}
+			i++
+			systemTask = args[i]
+		case "--tool":
+			if i+1 >= len(args) {
+				fmt.Fprintf(stderr, "%s schedule add: --tool needs a registered tool name\n", brand.CLI)
+				return 2
+			}
+			i++
+			toolRef = args[i]
+		case "--payload":
+			if i+1 >= len(args) {
+				fmt.Fprintf(stderr, "%s schedule add: --payload needs a JSON value\n", brand.CLI)
+				return 2
+			}
+			i++
+			payloadSpec = args[i]
 		default:
 			positional = append(positional, a)
 		}
 	}
 	intent := strings.TrimSpace(strings.Join(positional, " "))
-	if intent == "" {
-		fmt.Fprintf(stderr, "%s schedule add: an intent is required\n", brand.CLI)
+	if intent == "" && strings.TrimSpace(workflowRef) == "" && strings.TrimSpace(systemTask) == "" && strings.TrimSpace(toolRef) == "" {
+		fmt.Fprintf(stderr, "%s schedule add: an agent task or typed target is required\n", brand.CLI)
 		return 2
 	}
-	// Exactly one cadence source: --every (interval), --at (daily/one-shot), or
-	// --in (one-shot relative).
+	targets := 0
+	for _, s := range []string{workflowRef, systemTask, toolRef} {
+		if strings.TrimSpace(s) != "" {
+			targets++
+		}
+	}
+	if targets > 1 {
+		fmt.Fprintf(stderr, "%s schedule add: choose only one of --workflow, --system-task, or --tool\n", brand.CLI)
+		return 2
+	}
+	if strings.TrimSpace(agentRef) != "" && strings.TrimSpace(systemTask) != "" {
+		fmt.Fprintf(stderr, "%s schedule add: --agent can run workflow/tool schedules, not system tasks\n", brand.CLI)
+		return 2
+	}
+	if payloadSpec != "" && strings.TrimSpace(workflowRef) == "" && strings.TrimSpace(toolRef) == "" {
+		fmt.Fprintf(stderr, "%s schedule add: --payload applies only to --workflow or --tool\n", brand.CLI)
+		return 2
+	}
+	// Exactly one cadence source: --every (interval/window), --continuous
+	// (completion-anchored loop), --at (daily/one-shot), or --in (one-shot
+	// relative).
 	sources := 0
-	for _, s := range []string{every, at, in} {
+	for _, s := range []string{every, continuous, at, in} {
 		if s != "" {
 			sources++
 		}
 	}
 	if sources != 1 {
-		fmt.Fprintf(stderr, "%s schedule add: pass exactly one of --every <dur>, --at <HH:MM>, or --in <dur>\n", brand.CLI)
+		fmt.Fprintf(stderr, "%s schedule add: pass exactly one of --every <dur>, --continuous <dur>, --at <HH:MM>, or --in <dur>\n", brand.CLI)
+		return 2
+	}
+	if continuous != "" && (between != "" || days != "" || tz != "" || once) {
+		fmt.Fprintf(stderr, "%s schedule add: --continuous cannot combine with --between, --days, --tz, or --once\n", brand.CLI)
 		return 2
 	}
 	if days != "" && at == "" && between == "" {
@@ -220,7 +294,10 @@ func cmdScheduleAdd(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 
-	callArgs := map[string]any{"intent": intent}
+	callArgs := map[string]any{}
+	if intent != "" {
+		callArgs["intent"] = intent
+	}
 	var human string
 	switch {
 	case in != "":
@@ -268,6 +345,18 @@ func cmdScheduleAdd(args []string, stdout, stderr io.Writer) int {
 			callArgs["tz"] = tz
 			human += " " + tz
 		}
+	case continuous != "":
+		d, err := time.ParseDuration(continuous)
+		if err != nil {
+			fmt.Fprintf(stderr, "%s schedule add: bad --continuous duration %q: %v\n", brand.CLI, continuous, err)
+			return 2
+		}
+		if d < time.Second {
+			fmt.Fprintf(stderr, "%s schedule add: --continuous cooldown must be at least 1s\n", brand.CLI)
+			return 2
+		}
+		callArgs["cooldown_sec"] = int64(d / time.Second)
+		human = "continuous · " + d.String() + " cooldown"
 	default: // every (plain interval, or windowed when --between is set)
 		d, err := time.ParseDuration(every)
 		if err != nil {
@@ -310,6 +399,37 @@ func cmdScheduleAdd(args []string, stdout, stderr io.Writer) int {
 	if model != "" {
 		callArgs["model"] = model
 	}
+	if strings.TrimSpace(agentRef) != "" {
+		callArgs["agent"] = strings.TrimSpace(agentRef)
+	}
+	if strings.TrimSpace(workflowRef) != "" {
+		callArgs["target"] = "workflow"
+		callArgs["workflow"] = strings.TrimSpace(workflowRef)
+		if payloadSpec != "" {
+			var payload any
+			if err := json.Unmarshal([]byte(payloadSpec), &payload); err != nil {
+				fmt.Fprintf(stderr, "%s schedule add: bad --payload JSON: %v\n", brand.CLI, err)
+				return 2
+			}
+			callArgs["payload"] = payload
+		}
+	}
+	if strings.TrimSpace(systemTask) != "" {
+		callArgs["target"] = cadence.TargetSystemTask
+		callArgs["system_task"] = strings.TrimSpace(systemTask)
+	}
+	if strings.TrimSpace(toolRef) != "" {
+		callArgs["target"] = cadence.TargetTool
+		callArgs["tool"] = strings.TrimSpace(toolRef)
+		if payloadSpec != "" {
+			var payload any
+			if err := json.Unmarshal([]byte(payloadSpec), &payload); err != nil {
+				fmt.Fprintf(stderr, "%s schedule add: bad --payload JSON: %v\n", brand.CLI, err)
+				return 2
+			}
+			callArgs["payload"] = payload
+		}
+	}
 
 	c := dial(stderr)
 	if c == nil {
@@ -331,13 +451,14 @@ func cmdScheduleAdd(args []string, stdout, stderr io.Writer) int {
 }
 
 // cmdScheduleEdit changes an existing schedule in place: any of --intent,
-// --model, and at most one new cadence (--every | --at [--days] | --in | --once
-// --at). The id is preserved; the cadence change recomputes the next run.
+// --agent, one target flag (--workflow/--system-task/--tool), --model, and at
+// most one new cadence (--every | --continuous | --at [--days] | --in |
+// --once --at). The id is preserved; the cadence change recomputes the next run.
 func cmdScheduleEdit(args []string, stdout, stderr io.Writer) int {
 	asJSON := false
 	once := false
-	var id, intent, model, every, at, in, between, days, tz string
-	var setIntent, setModel bool
+	var id, intent, model, agentRef, workflowRef, systemTask, toolRef, payloadSpec, every, continuous, at, in, between, days, tz string
+	var setIntent, setModel, setAgent, setWorkflow, setSystemTask, setTool bool
 	for i := 0; i < len(args); i++ {
 		a := args[i]
 		needVal := func(flag string) (string, bool) {
@@ -354,7 +475,7 @@ func cmdScheduleEdit(args []string, stdout, stderr io.Writer) int {
 		case "--once":
 			once = true
 		case "-h", "--help":
-			fmt.Fprintf(stdout, "usage: %s schedule edit <id> [--intent <s>] [--model <id>] [--every <dur> | --at <HH:MM> [--days <spec>] | --in <dur> | --once --at <HH:MM>] [--json]\n", brand.CLI)
+			fmt.Fprintf(stdout, "usage: %s schedule edit <id> [--intent <s>] [--agent <slug>] [--workflow <ref> [--payload JSON] | --system-task %s | --tool <name> [--payload JSON]] [--model <id>] [--every <dur> | --continuous <dur> | --at <HH:MM> [--days <spec>] | --in <dur> | --once --at <HH:MM>] [--json]\n", brand.CLI, scheduleSystemTaskUsage())
 			return 0
 		case "--intent":
 			v, ok := needVal("--intent")
@@ -368,12 +489,48 @@ func cmdScheduleEdit(args []string, stdout, stderr io.Writer) int {
 				return 2
 			}
 			model, setModel = v, true
+		case "--agent":
+			v, ok := needVal("--agent")
+			if !ok {
+				return 2
+			}
+			agentRef, setAgent = v, true
+		case "--workflow":
+			v, ok := needVal("--workflow")
+			if !ok {
+				return 2
+			}
+			workflowRef, setWorkflow = v, true
+		case "--system-task":
+			v, ok := needVal("--system-task")
+			if !ok {
+				return 2
+			}
+			systemTask, setSystemTask = v, true
+		case "--tool":
+			v, ok := needVal("--tool")
+			if !ok {
+				return 2
+			}
+			toolRef, setTool = v, true
+		case "--payload":
+			v, ok := needVal("--payload")
+			if !ok {
+				return 2
+			}
+			payloadSpec = v
 		case "--every":
 			v, ok := needVal("--every")
 			if !ok {
 				return 2
 			}
 			every = v
+		case "--continuous":
+			v, ok := needVal("--continuous")
+			if !ok {
+				return 2
+			}
+			continuous = v
 		case "--at":
 			v, ok := needVal("--at")
 			if !ok {
@@ -418,13 +575,17 @@ func cmdScheduleEdit(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 	sources := 0
-	for _, s := range []string{every, at, in} {
+	for _, s := range []string{every, continuous, at, in} {
 		if s != "" {
 			sources++
 		}
 	}
 	if sources > 1 {
-		fmt.Fprintf(stderr, "%s schedule edit: pass at most one of --every, --at, or --in\n", brand.CLI)
+		fmt.Fprintf(stderr, "%s schedule edit: pass at most one of --every, --continuous, --at, or --in\n", brand.CLI)
+		return 2
+	}
+	if continuous != "" && (between != "" || days != "" || tz != "" || once) {
+		fmt.Fprintf(stderr, "%s schedule edit: --continuous cannot combine with --between, --days, --tz, or --once\n", brand.CLI)
 		return 2
 	}
 	if days != "" && at == "" && between == "" {
@@ -447,21 +608,73 @@ func cmdScheduleEdit(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "%s schedule edit: --days cannot combine with --once\n", brand.CLI)
 		return 2
 	}
-	if !setIntent && !setModel && sources == 0 {
-		fmt.Fprintf(stderr, "%s schedule edit: nothing to change (pass --intent, --model, or a cadence flag)\n", brand.CLI)
+	targets := 0
+	for _, set := range []bool{setWorkflow, setSystemTask, setTool} {
+		if set {
+			targets++
+		}
+	}
+	if targets > 1 {
+		fmt.Fprintf(stderr, "%s schedule edit: choose only one of --workflow, --system-task, or --tool\n", brand.CLI)
+		return 2
+	}
+	if setAgent && setSystemTask && strings.TrimSpace(agentRef) != "" {
+		fmt.Fprintf(stderr, "%s schedule edit: --agent can run workflow/tool schedules, not system tasks\n", brand.CLI)
+		return 2
+	}
+	if payloadSpec != "" && !setWorkflow && !setTool {
+		fmt.Fprintf(stderr, "%s schedule edit: --payload applies only to --workflow or --tool\n", brand.CLI)
+		return 2
+	}
+	if !setIntent && !setModel && !setAgent && targets == 0 && sources == 0 {
+		fmt.Fprintf(stderr, "%s schedule edit: nothing to change (pass --intent <task/label>, a target flag, --model, or a cadence flag)\n", brand.CLI)
 		return 2
 	}
 
 	callArgs := map[string]any{"id": id}
 	if setIntent {
 		if strings.TrimSpace(intent) == "" {
-			fmt.Fprintf(stderr, "%s schedule edit: --intent cannot be empty\n", brand.CLI)
+			fmt.Fprintf(stderr, "%s schedule edit: --intent task/label cannot be empty\n", brand.CLI)
 			return 2
 		}
 		callArgs["intent"] = intent
 	}
 	if setModel {
 		callArgs["model"] = model
+	}
+	if setAgent {
+		callArgs["agent"] = strings.TrimSpace(agentRef)
+		if !setWorkflow && !setTool {
+			callArgs["target"] = ""
+		}
+	}
+	if setWorkflow {
+		callArgs["target"] = cadence.TargetWorkflow
+		callArgs["workflow"] = strings.TrimSpace(workflowRef)
+		if payloadSpec != "" {
+			var payload any
+			if err := json.Unmarshal([]byte(payloadSpec), &payload); err != nil {
+				fmt.Fprintf(stderr, "%s schedule edit: bad --payload JSON: %v\n", brand.CLI, err)
+				return 2
+			}
+			callArgs["payload"] = payload
+		}
+	}
+	if setSystemTask {
+		callArgs["target"] = cadence.TargetSystemTask
+		callArgs["system_task"] = strings.TrimSpace(systemTask)
+	}
+	if setTool {
+		callArgs["target"] = cadence.TargetTool
+		callArgs["tool"] = strings.TrimSpace(toolRef)
+		if payloadSpec != "" {
+			var payload any
+			if err := json.Unmarshal([]byte(payloadSpec), &payload); err != nil {
+				fmt.Fprintf(stderr, "%s schedule edit: bad --payload JSON: %v\n", brand.CLI, err)
+				return 2
+			}
+			callArgs["payload"] = payload
+		}
 	}
 	switch {
 	case in != "":
@@ -471,6 +684,13 @@ func cmdScheduleEdit(args []string, stdout, stderr io.Writer) int {
 			return 2
 		}
 		callArgs["once_at_unix"] = time.Now().Add(d).Unix()
+	case continuous != "":
+		d, err := time.ParseDuration(continuous)
+		if err != nil || d < time.Second {
+			fmt.Fprintf(stderr, "%s schedule edit: bad --continuous duration %q\n", brand.CLI, continuous)
+			return 2
+		}
+		callArgs["cooldown_sec"] = int64(d / time.Second)
 	case at != "" && once:
 		mins, err := parseHHMM(at)
 		if err != nil {
@@ -626,7 +846,7 @@ func cmdScheduleList(args []string, stdout, stderr io.Writer) int {
 	}
 	list, _ := res["schedules"].([]any)
 	if len(list) == 0 {
-		fmt.Fprintf(stdout, "no schedules. Add one with `%s schedule add \"<intent>\" --every 1h`.\n", brand.CLI)
+		fmt.Fprintf(stdout, "no schedules. Add one with `%s schedule add \"<task>\" --every 1h`.\n", brand.CLI)
 		return 0
 	}
 	for _, item := range list {
@@ -635,6 +855,11 @@ func cmdScheduleList(args []string, stdout, stderr io.Writer) int {
 		intent, _ := m["intent"].(string)
 		cadence, _ := m["cadence"].(string)
 		source, _ := m["source"].(string)
+		agent, _ := m["agent"].(string)
+		target, _ := m["target"].(string)
+		workflowRef, _ := m["workflow"].(string)
+		systemTask, _ := m["system_task"].(string)
+		toolRef, _ := m["tool"].(string)
 		enabled, _ := m["enabled"].(bool)
 		next, _ := m["next_run_unix"].(float64)
 		state := "enabled"
@@ -645,8 +870,43 @@ func cmdScheduleList(args []string, stdout, stderr io.Writer) int {
 		if next > 0 {
 			nextStr = time.Unix(int64(next), 0).Format("2006-01-02 15:04")
 		}
-		fmt.Fprintf(stdout, "  %-22s %-16s [%s,%s] next %s  %q",
-			id, cadence, source, state, nextStr, intent)
+		action := scheduleActionText(map[string]string{
+			"id":          id,
+			"intent":      intent,
+			"target":      target,
+			"agent":       agent,
+			"workflow":    workflowRef,
+			"system_task": systemTask,
+			"tool":        toolRef,
+		})
+		if contract, _ := m["execution_contract"].(string); contract != "" {
+			action = contract
+		}
+		fmt.Fprintf(stdout, "  %-22s %-16s [%s,%s] next %s  %s",
+			id, cadence, source, state, nextStr, action)
+		executor, _ := m["executor"].(string)
+		usesLLM, hasUsesLLM := m["uses_llm"].(bool)
+		if exec := scheduleExecutorText(executor, usesLLM, hasUsesLLM); exec != "" {
+			fmt.Fprintf(stdout, "  executor:%s", exec)
+		}
+		if targetStatus := scheduleTargetStatusText(m); targetStatus != "" {
+			fmt.Fprintf(stdout, "  target:%s", targetStatus)
+		}
+		if intent != "" && action != intent && !strings.Contains(action, intent) {
+			fmt.Fprintf(stdout, "  label:%q", intent)
+		}
+		if agent != "" {
+			fmt.Fprintf(stdout, "  agent:%s", agent)
+		}
+		if workflowRef != "" {
+			fmt.Fprintf(stdout, "  workflow:%s", workflowRef)
+		}
+		if systemTask != "" {
+			fmt.Fprintf(stdout, "  system_task:%s", systemTask)
+		}
+		if toolRef != "" {
+			fmt.Fprintf(stdout, "  tool:%s", toolRef)
+		}
 		// Last-firing outcome (M56) — how the schedule last went, when known.
 		lastStatus, _ := m["last_status"].(string)
 		if lastStatus != "" {
@@ -663,6 +923,60 @@ func cmdScheduleList(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stdout)
 	}
 	return 0
+}
+
+func scheduleTargetStatusText(m map[string]any) string {
+	status, _ := m["target_status"].(string)
+	errText, _ := m["target_error"].(string)
+	status = strings.TrimSpace(status)
+	errText = strings.TrimSpace(errText)
+	if strings.EqualFold(status, "blocked") || errText != "" {
+		if errText == "" {
+			return "blocked"
+		}
+		return "blocked (" + errText + ")"
+	}
+	if strings.EqualFold(status, "ready") {
+		return "ready"
+	}
+	return ""
+}
+
+func scheduleExecutorText(executor string, usesLLM bool, known bool) string {
+	if executor == "" {
+		return ""
+	}
+	if !known {
+		return executor
+	}
+	if usesLLM {
+		return executor + "/llm"
+	}
+	return executor + "/no-llm"
+}
+
+func scheduleActionText(m map[string]string) string {
+	switch m["target"] {
+	case cadence.TargetWorkflow:
+		if m["workflow"] != "" {
+			return "run workflow " + m["workflow"]
+		}
+	case cadence.TargetSystemTask:
+		if m["system_task"] != "" {
+			return "run system task " + m["system_task"]
+		}
+	case cadence.TargetTool:
+		if m["tool"] != "" {
+			return "run tool " + m["tool"]
+		}
+	}
+	if m["agent"] != "" && m["intent"] != "" {
+		return "wake " + m["agent"] + ": " + m["intent"]
+	}
+	if m["intent"] != "" {
+		return m["intent"]
+	}
+	return m["id"]
 }
 
 // cmdScheduleFires implements `agt schedule fires [N] [--json]` — the autonomy
@@ -737,7 +1051,7 @@ func cmdScheduleFires(args []string, stdout, stderr io.Writer) int {
 			fmt.Fprintf(stdout, "  --id <sched>   only this schedule's firings\n")
 			fmt.Fprintf(stdout, "  --status <s>   only firings with this status (completed|failed|running|abandoned)\n")
 			fmt.Fprintf(stdout, "  --failed       shorthand for --status failed\n")
-			fmt.Fprintf(stdout, "  --intent <substr> only firings whose intent contains <substr>\n")
+			fmt.Fprintf(stdout, "  --intent <substr> only firings whose task/label contains <substr>\n")
 			fmt.Fprintf(stdout, "drill into a firing with `%s runs show <correlation>`\n", brand.CLI)
 			return 0
 		default:
@@ -789,6 +1103,7 @@ func cmdScheduleFires(args []string, stdout, stderr io.Writer) int {
 		m, _ := item.(map[string]any)
 		corr, _ := m["correlation_id"].(string)
 		intent, _ := m["intent"].(string)
+		action, _ := m["action"].(string)
 		status, _ := m["status"].(string)
 		reason, _ := m["reason"].(string)
 		fired := intOfStatus(m["fired_unix_ms"])
@@ -812,7 +1127,14 @@ func cmdScheduleFires(args []string, stdout, stderr io.Writer) int {
 			}
 			meta += ")"
 		}
-		fmt.Fprintf(stdout, "  %s  %-18s%s  %s  %q\n", firedStr, statusDisp, meta, corr, intent)
+		if action == "" {
+			action = intent
+		}
+		fmt.Fprintf(stdout, "  %s  %-18s%s  %s  %s", firedStr, statusDisp, meta, corr, action)
+		if intent != "" && action != intent && !strings.Contains(action, intent) {
+			fmt.Fprintf(stdout, "  label:%q", intent)
+		}
+		fmt.Fprintln(stdout)
 	}
 	return 0
 }

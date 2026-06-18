@@ -104,8 +104,9 @@ export interface ChatEngine {
   /** Resume an errored/maxed-out turn: keep the partial answer as context and ask
    *  the model to finish, instead of restarting the whole task like retry(). */
   continueRun: () => void;
-  /** This conversation's persona override (system prompt), "" when it uses the
-   *  daemon's global persona. Set it to make a single thread act as something else. */
+  /** This conversation's legacy-named identity override, "" when it uses the
+   *  daemon default identity. Set it to make a single thread act as something
+   *  else without creating a durable roster agent. */
   conversationPersona: string;
   setConversationPersona: (persona: string) => void;
   /** Edit the user message at `index` and re-run from there: replace its text,
@@ -264,7 +265,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
           model: activeConvModel(store).trim() || undefined, // per-conversation model (M712)
           agent: activeConvAgent(store).trim() || undefined, // per-conversation agent (M789)
           history: history.length ? history : undefined,
-          system: persona || undefined, // per-conversation persona override (M711)
+          system: persona || undefined, // per-conversation identity override (M711)
         },
         (f) => {
           // Capture the run's correlation id from the first frame that carries

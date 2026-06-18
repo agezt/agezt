@@ -184,6 +184,16 @@ func (t *Tool) Definition() agent.ToolDef {
   },
   "required": ["task"]
 }`),
+		Effect: agent.ToolEffect{
+			Class: agent.EffectCompensable,
+			PredictedEffects: []string{
+				"POST a task to a configured peer Agezt node and wait for the remote governed run to finish.",
+				"May execute side effects on the peer according to that peer's own tools and policy.",
+			},
+			AffectedResources: []string{"configured peer Agezt nodes", "remote run journal and remote tool surfaces"},
+			RollbackNotes:     "Local fallback only retries peers before execution; after a peer accepts the run, compensation must happen on that peer using its correlation id.",
+			Confidence:        0.55,
+		},
 	}
 }
 

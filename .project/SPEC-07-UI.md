@@ -46,7 +46,7 @@ The signature surface. Visually program and observe agentic workflows.
 ### 3.2 What you can build here
 - One-off task graphs.
 - Reusable **workflow templates** (saved, versioned, shareable to the marketplace).
-- **Standing orders** authored visually: observers + salience overrides + initiative scope rendered as a graph that Chronos keeps alive (SPEC-03 §7).
+- **Standing wake rules** authored visually: cron/event/webhook triggers and constraints bound to an agent, workflow, tool, or system task. The UI must not store agent identity or task instructions inside the schedule rule.
 
 ### 3.3 Node inspector (right drawer)
 Per node: bound plugin + isolation profile, input/output schema, live stream, policy decisions that applied, cost, and a `why` button (provenance chain). Approvals for `gate-node`s surface inline.
@@ -80,7 +80,7 @@ Platform-specific richness is preserved in `platform_meta` and accessible on dem
 The operational dashboard for a living, autonomous system.
 
 ### 5.1 Panels
-- **Agents:** every alive/suspended agent, its kind (resident/ephemeral/scheduled/reactive), mailbox depth, current activity, lineage. Spawn/suspend/kill controls (policy-gated).
+- **Agents:** every alive/sleeping/working/repairing/retired agent, its kind (system/user/subagent), mailbox depth, current activity, lineage, owner/parent, health, retry/doctor state, tasklist, permissions, and lifecycle controls (wake/pause/resume/retire/revive/remove, policy-gated).
 - **Pulse:** heartbeat cadence, recent observer deltas, salience scores with reasons, initiative decisions (acted/asked/informed), briefings sent. The proactive heart, visible.
 - **Cost & limits (Governor):** spend by provider/model, budget burn-down, rate-limit posture, fallback events. Subscription vs api-key usage split.
 - **Traces:** per-task timeline (nodes, latency, token flow) — the latency budget made concrete.
@@ -157,7 +157,7 @@ A kernel-fronting process that: terminates remote connections (WS/gRPC-Web/HTTP)
 
 ### 9.2 Public API (OpenAI-compatible + native)
 - **OpenAI-compatible** `/v1/chat/completions` + `/v1/responses` so existing tools/frontends can drive Agezt as if it were a model endpoint (an intent in, streamed result out). Session continuity via a header (correlation id).
-- **Native REST/gRPC** for full control: submit intents, manage agents, query journal/memory, manage cron/standing orders, stream events.
+- **Native REST/gRPC** for full control: submit intents, manage agents, query journal/memory, manage typed schedules/standing wake rules, stream events.
 - **Webhooks** in (trigger agents) and out (notify external systems).
 - All API actions pass through Edict and are journaled — the API is not a backdoor around governance.
 

@@ -524,6 +524,16 @@ func (t worldTool) Definition() agent.ToolDef {
 			"people and topics and how they relate. action=add records an entity (kind, name, aliases); " +
 			"action=relate links two entities (from, verb, to); action=resolve looks up what a phrase " +
 			"refers to (query); action=neighbors lists what an entity connects to (query=name).",
+		Effect: agent.ToolEffect{
+			Class: agent.EffectReversible,
+			PredictedEffects: []string{
+				"read world-model entities and relationships for resolve/neighbors",
+				"upsert entities or relationships for add/relate",
+			},
+			AffectedResources: []string{"world-model graph"},
+			RollbackNotes:     "Read operations need no rollback. Added entities/relations are journaled and can be superseded or removed by a later world-model correction.",
+			Confidence:        0.85,
+		},
 		InputSchema: json.RawMessage(toolInputSchema),
 	}
 }

@@ -11,43 +11,44 @@ import (
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
 
-// TestPersona_GetSet_LiveAndPersisted proves the M710 persona editor: set applies
-// live (kernel.System reflects it immediately) and persists to the config store as
-// AGEZT_SYSTEM_PROMPT; clearing removes it.
+// TestPersona_GetSet_LiveAndPersisted proves the legacy persona endpoint edits
+// the daemon default identity: set applies live (kernel.System reflects it
+// immediately) and persists to the config store as AGEZT_SYSTEM_PROMPT; clearing
+// removes it.
 func TestPersona_GetSet_LiveAndPersisted(t *testing.T) {
 	k, _, c, dir := startPair(t, mock.New(mock.FinalText("ok")))
 
-	// Initially no persona.
+	// Initially no default identity.
 	res, err := c.Call(context.Background(), controlplane.CmdPersonaGet, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if res["set"] != false || res["system"] != "" {
-		t.Fatalf("fresh daemon should have no persona, got %v", res)
+		t.Fatalf("fresh daemon should have no default identity, got %v", res)
 	}
 
-	// Set a persona.
-	persona := "You are Jarvis. Be terse and proactive."
-	if _, err := c.Call(context.Background(), controlplane.CmdPersonaSet, map[string]any{"system": persona}); err != nil {
+	// Set a default identity.
+	defaultIdentity := "You are Jarvis. Be terse and proactive."
+	if _, err := c.Call(context.Background(), controlplane.CmdPersonaSet, map[string]any{"system": defaultIdentity}); err != nil {
 		t.Fatal(err)
 	}
 
 	// Live: the kernel's System reflects it without a restart.
-	if got := k.System(); got != persona {
-		t.Errorf("kernel.System() = %q, want the new persona applied live", got)
+	if got := k.System(); got != defaultIdentity {
+		t.Errorf("kernel.System() = %q, want the new default identity applied live", got)
 	}
 	// Readback through the control plane.
 	res, _ = c.Call(context.Background(), controlplane.CmdPersonaGet, nil)
-	if res["system"] != persona || res["set"] != true {
-		t.Errorf("persona_get = %v, want the set persona", res)
+	if res["system"] != defaultIdentity || res["set"] != true {
+		t.Errorf("persona_get = %v, want the set default identity", res)
 	}
 	// Persisted to the config store (survives restart via startup injection).
 	store := settings.NewStore(dir)
 	if err := store.Load(); err != nil {
 		t.Fatal(err)
 	}
-	if v, _ := store.Get("AGEZT_SYSTEM_PROMPT"); v != persona {
-		t.Errorf("config store AGEZT_SYSTEM_PROMPT = %q, want the persona", v)
+	if v, _ := store.Get("AGEZT_SYSTEM_PROMPT"); v != defaultIdentity {
+		t.Errorf("config store AGEZT_SYSTEM_PROMPT = %q, want the default identity", v)
 	}
 
 	// Clearing removes it, live and persisted.
@@ -55,7 +56,7 @@ func TestPersona_GetSet_LiveAndPersisted(t *testing.T) {
 		t.Fatal(err)
 	}
 	if k.System() != "" {
-		t.Errorf("clearing should leave no persona, got %q", k.System())
+		t.Errorf("clearing should leave no default identity, got %q", k.System())
 	}
 	store2 := settings.NewStore(dir)
 	_ = store2.Load()

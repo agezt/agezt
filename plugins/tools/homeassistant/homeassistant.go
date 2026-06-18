@@ -118,6 +118,16 @@ func (t *Tool) Definition() agent.ToolDef {
     "data":      {"type":"object","description":"For call_service: extra service data (e.g. {\"brightness\":128} or {\"temperature\":20}). Merged with entity_id."}
   }
 }`),
+		Effect: agent.ToolEffect{
+			Class: agent.EffectIrreversible,
+			PredictedEffects: []string{
+				"Read allow-listed Home Assistant entity states.",
+				"Call allow-listed Home Assistant services that may actuate physical devices.",
+			},
+			AffectedResources: []string{"Home Assistant API", "allow-listed smart-home entities and devices"},
+			RollbackNotes:     "State reads need no rollback; service calls may require an explicit opposite service call and physical-world effects may not be fully reversible.",
+			Confidence:        0.65,
+		},
 	}
 }
 

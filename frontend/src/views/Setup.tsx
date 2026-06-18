@@ -221,8 +221,7 @@ export function Setup({
       {step === "catalog" && (
         <Card title="Model catalog">
           <p className="text-sm text-muted">
-            AGEZT needs the models.dev catalog (provider + model list) before you can pick one. This is a
-            one-time offline sync — no key required.
+            One-time offline sync of the provider/model list. No key needed.
           </p>
           <div className="mt-2 flex items-center gap-2">
             <Button size="sm" onClick={syncCatalog} disabled={busy} aria-label="Sync catalog">
@@ -315,9 +314,7 @@ export function Setup({
       {step === "password" && (
         <Card title="Console password (optional)">
           <p className="text-sm text-muted">
-            Set a password and you can open this console at its plain address and log in — no tokened URL
-            needed. The token from the daemon banner keeps working too. Stored in the encrypted vault;
-            applies immediately.
+            Log in at the plain console address — no tokened URL needed. Stored encrypted; applies immediately.
           </p>
           <div className="mt-2 flex max-w-sm flex-col gap-2">
             <input

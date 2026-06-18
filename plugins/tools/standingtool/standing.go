@@ -1,15 +1,13 @@
 // SPDX-License-Identifier: MIT
 
-// Package standingtool is the in-process standing-order tool: it lets the agent
-// create its OWN autonomous, trigger-driven agents (Chronos standing orders) —
-// "when event X happens, run plan Y" or "on this cron schedule, do Z" — plus
-// list and remove them (M645).
+// Package standingtool is the in-process standing-order tool: it lets an agent
+// create durable trigger rules — "when event X happens, wake the bound agent
+// with task Z" or "on this cron schedule, do Z" — plus list and remove them
+// (M645).
 //
-// This is the agents-create-agents primitive for the EVENT/cron axis, symmetric
-// with the `schedule` tool (which covers the time axis). A standing order the
-// agent creates fires later through the full governed loop; the operator sees
-// and governs them in the Standing cockpit (pause/remove). Tagged via name so
-// it's clear which were set up autonomously.
+// A standing order is not an agent identity. It is a durable event/cron trigger
+// that wakes the bound agent later through the full governed loop. Operators see
+// and govern these rules in the Standing cockpit (pause/remove).
 package standingtool
 
 import (
@@ -19,6 +17,7 @@ import (
 	"strings"
 
 	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/roster"
 	"github.com/agezt/agezt/kernel/standing"
 )
 
@@ -28,6 +27,10 @@ type host interface {
 	AddStanding(o standing.Order) (standing.Order, error)
 	RemoveStanding(id string) (bool, error)
 	Standing() *standing.Store
+}
+
+type rosterHost interface {
+	Roster() *roster.Store
 }
 
 // Tool implements agent.Tool. Created unbound via New(); Bind wires the kernel.
@@ -49,12 +52,23 @@ func (t *Tool) Bind(h host) {
 func (t *Tool) Definition() agent.ToolDef {
 	return agent.ToolDef{
 		Name: "standing",
-		Description: "Create your OWN autonomous, trigger-driven agents (standing orders): " +
-			"op=create_event makes one that fires its plan whenever a matching journal event " +
-			"is published (trigger on a subject like \"task.failed\"); op=create_cron makes one " +
-			"that fires on a cron schedule. op=list / op=remove manage them. A standing order " +
-			"runs its plan later through the full governed loop. Use this to set up reactive or " +
-			"recurring behaviour that should happen without the user asking again.",
+		Description: "Create durable event/cron wake rules for this agent. " +
+			"A standing order is not an agent identity: it binds event/cron triggers to the bound " +
+			"agent's governed task plan. op=create_event fires the plan whenever a matching journal " +
+			"event is published (trigger on a subject like \"task.failed\"); op=create_cron fires on " +
+			"a cron schedule. op=list / op=remove manage them. Managed sub-agents cannot create " +
+			"independently firing self-wake orders; their parent/owner should schedule or run them. " +
+			"Use this to set up reactive or recurring behaviour that should happen without the user asking again.",
+		Effect: agent.ToolEffect{
+			Class: agent.EffectReversible,
+			PredictedEffects: []string{
+				"create, list, or remove autonomous standing orders",
+				"created orders may launch future governed agent runs on cron or event triggers",
+			},
+			AffectedResources: []string{"standing order store", "future autonomous run triggers"},
+			RollbackNotes:     "Created standing orders can be paused or removed by id through this tool or the operator cockpit.",
+			Confidence:        0.85,
+		},
 		InputSchema: json.RawMessage(`{
   "type": "object",
   "required": ["op"],
@@ -66,6 +80,7 @@ func (t *Tool) Definition() agent.ToolDef {
     "schedule": {"type":"string", "description":"For create_cron: a 5-field cron expression (e.g. \"0 9 * * *\")."},
     "mode":     {"type":"string", "enum":["inform_only","ask","act_or_ask"], "description":"Autonomy when it fires. Default ask (confirm before acting)."},
     "assure":   {"type":"integer", "description":"Optional do-it-for-sure budget: if > 0, each firing runs, verifies it was actually completed, and retries the gap up to this many attempts. Use it for orders whose task must definitely get done."},
+    "cooldown_sec": {"type":"integer", "description":"Optional minimum seconds between event-triggered firings. Use this to prevent event storms from waking the order repeatedly."},
     "id":       {"type":"string", "description":"For remove: the standing order id."}
   }
 }`),
@@ -80,11 +95,12 @@ type input struct {
 	Schedule string `json:"schedule"`
 	Mode     string `json:"mode"`
 	Assure   int    `json:"assure"`
+	Cooldown int64  `json:"cooldown_sec"`
 	ID       string `json:"id"`
 }
 
 // Invoke implements agent.Tool.
-func (t *Tool) Invoke(_ context.Context, raw json.RawMessage) (agent.Result, error) {
+func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, error) {
 	var in input
 	if err := json.Unmarshal(raw, &in); err != nil {
 		return agent.Result{}, fmt.Errorf("standing: parse input: %w", err)
@@ -98,13 +114,13 @@ func (t *Tool) Invoke(_ context.Context, raw json.RawMessage) (agent.Result, err
 		if strings.TrimSpace(in.Subject) == "" {
 			return errResult(`op=create_event needs a "subject" (the event to trigger on)`), nil
 		}
-		return t.create(in, standing.Trigger{Type: standing.TriggerEvent, Subject: strings.TrimSpace(in.Subject)})
+		return t.create(ctx, in, standing.Trigger{Type: standing.TriggerEvent, Subject: strings.TrimSpace(in.Subject)})
 
 	case "create_cron":
 		if strings.TrimSpace(in.Schedule) == "" {
 			return errResult(`op=create_cron needs a "schedule" (a cron expression)`), nil
 		}
-		return t.create(in, standing.Trigger{Type: standing.TriggerCron, Schedule: strings.TrimSpace(in.Schedule)})
+		return t.create(ctx, in, standing.Trigger{Type: standing.TriggerCron, Schedule: strings.TrimSpace(in.Schedule)})
 
 	case "remove":
 		if in.ID == "" {
@@ -134,7 +150,7 @@ func (t *Tool) Invoke(_ context.Context, raw json.RawMessage) (agent.Result, err
 	}
 }
 
-func (t *Tool) create(in input, trig standing.Trigger) (agent.Result, error) {
+func (t *Tool) create(ctx context.Context, in input, trig standing.Trigger) (agent.Result, error) {
 	name := strings.TrimSpace(in.Name)
 	if name == "" {
 		return errResult(`a "name" is required`), nil
@@ -147,13 +163,21 @@ func (t *Tool) create(in input, trig standing.Trigger) (agent.Result, error) {
 		mode = standing.InitiativeAsk // conservative default: confirm before acting
 	}
 	assure := max(in.Assure, 0)
+	cooldown := max64(in.Cooldown, 0)
 	o := standing.Order{
-		Name:       name,
-		Enabled:    true,
-		Triggers:   []standing.Trigger{trig},
-		Initiative: standing.Initiative{Mode: mode},
-		Plan:       strings.TrimSpace(in.Plan),
-		Assure:     assure,
+		Name:        name,
+		Enabled:     true,
+		Triggers:    []standing.Trigger{trig},
+		Initiative:  standing.Initiative{Mode: mode},
+		Plan:        strings.TrimSpace(in.Plan),
+		Assure:      assure,
+		CooldownSec: cooldown,
+	}
+	if actor := strings.TrimSpace(agent.AgentFromContext(ctx)); actor != "" {
+		if res, ok := t.validateActingAgent(actor); ok {
+			return res, nil
+		}
+		o.Agent = actor
 	}
 	saved, err := t.host.AddStanding(o)
 	if err != nil {
@@ -162,6 +186,39 @@ func (t *Tool) create(in input, trig standing.Trigger) (agent.Result, error) {
 	v := orderView(saved)
 	v["message"] = "standing order created"
 	return okJSON(v), nil
+}
+
+func (t *Tool) validateActingAgent(slug string) (agent.Result, bool) {
+	h, ok := t.host.(rosterHost)
+	if !ok || h.Roster() == nil {
+		return agent.Result{}, false
+	}
+	p, found := h.Roster().Get(slug)
+	if !found {
+		return errResult("acting agent " + slug + " is not in the roster"), true
+	}
+	if p.Retired {
+		return errResult("agent " + p.Slug + " is retired and cannot create a direct standing wake"), true
+	}
+	if !p.Enabled {
+		return errResult("agent " + p.Slug + " is paused and cannot create a direct standing wake"), true
+	}
+	if !p.AllowsDirectCall() {
+		return errResult(managedSubAgentStandingHint(p)), true
+	}
+	return agent.Result{}, false
+}
+
+func managedSubAgentStandingHint(p roster.Profile) string {
+	manager := strings.TrimSpace(p.ParentAgent)
+	if manager == "" {
+		manager = strings.TrimSpace(p.OwnerAgent)
+	}
+	hint := "route the work through its parent/owner agent"
+	if manager != "" {
+		hint = "wake " + manager + " or delegate through it"
+	}
+	return "agent " + p.Slug + " is a managed sub-agent and cannot create a standing order that wakes itself directly; " + hint
 }
 
 func orderView(o standing.Order) map[string]any {
@@ -183,6 +240,12 @@ func orderView(o standing.Order) map[string]any {
 	if o.Assure > 0 {
 		v["assure"] = o.Assure
 	}
+	if o.CooldownSec > 0 {
+		v["cooldown_sec"] = o.CooldownSec
+	}
+	if strings.TrimSpace(o.Agent) != "" {
+		v["agent"] = o.Agent
+	}
 	return v
 }
 
@@ -196,4 +259,11 @@ func okJSON(v any) agent.Result {
 
 func errResult(msg string) agent.Result {
 	return agent.Result{Output: "standing: " + msg, IsError: true}
+}
+
+func max64(a, b int64) int64 {
+	if a > b {
+		return a
+	}
+	return b
 }

@@ -166,6 +166,14 @@ type Config struct {
 	// JSON-mode request lands on a non-native model. Nil disables the check.
 	ModelJSONNative func(model string) (native, known bool)
 
+	// ModelStrictToolArgsNative, when set, reports whether the given model id can
+	// enforce declared tool-argument schemas at generation/sampler time, and
+	// whether the model is known to the catalog at all. When a tools-bearing
+	// request lands on a known model without this capability, the Governor
+	// journals a capability.degraded event and lets the kernel boundary validator
+	// remain the enforcement fallback. Nil disables the check.
+	ModelStrictToolArgsNative func(model string) (native, known bool)
+
 	// ResponseCacheTTL enables the OPT-IN LLM response cache (M888): an
 	// IDENTICAL CompletionRequest within the TTL is served from memory — no
 	// provider call, no tokens, no spend. 0 (the default) disables caching
@@ -394,6 +402,23 @@ var ErrModelLacksToolUse = errors.New("governor: model does not support tool-use
 // model in the chain was unservable.
 var ErrModelUnservable = errors.New("governor: no registered provider serves model")
 
+// ErrNoModelConfigured is returned when a request reaches dispatch with no model
+// to send: no per-request/agent chain, no task-type chain, no operator default
+// chain, AND an empty req.Model. The daemon ships with NO baked-in default model
+// (the owner's "hiçbir default model" rule), so a model must come from
+// AGEZT_MODEL, per-task routing, or a fallback chain — otherwise the call cannot
+// proceed and the operator is told exactly what to configure.
+type ErrNoModelConfigured struct {
+	TaskType string
+}
+
+func (e *ErrNoModelConfigured) Error() string {
+	if e != nil && strings.TrimSpace(e.TaskType) != "" {
+		return fmt.Sprintf("governor: no model configured for task %q — set AGEZT_MODEL, a per-task routing model, or a fallback chain", e.TaskType)
+	}
+	return "governor: no model configured — set AGEZT_MODEL, a per-task routing model, or a fallback chain"
+}
+
 // ErrNoProviders is returned when no provider in the chain succeeded.
 type ErrNoProviders struct {
 	Tried []string
@@ -484,6 +509,29 @@ func (g *Governor) preflightAndRoute(req *agent.CompletionRequest) ([]*ProviderI
 			})
 			return nil, fmt.Errorf("%w: model %q (request carries %d tool(s))",
 				ErrModelLacksToolUse, req.Model, len(req.Tools))
+		}
+	}
+
+	// Strict tool-argument capability DEGRADATION (CH-02). Tool schemas are always
+	// validated at the kernel boundary, but some provider/model pairs can also
+	// prevent malformed arguments at generation time. If the catalog knows the
+	// final model lacks that native constrained path, record the fallback so the
+	// run timeline explains why invalid tool calls may be detected after sampling
+	// instead of made impossible by the sampler.
+	if len(req.Tools) > 0 && g.cfg.ModelStrictToolArgsNative != nil {
+		if native, known := g.cfg.ModelStrictToolArgsNative(req.Model); known && !native {
+			g.publish(event.Spec{
+				Subject:       "governor.capability",
+				Kind:          event.KindCapabilityDegraded,
+				Actor:         "governor",
+				CorrelationID: req.CorrelationID,
+				Payload: map[string]any{
+					"model":           req.Model,
+					"capability":      "strict_tool_args",
+					"tools_requested": len(req.Tools),
+					"reason":          "model does not advertise schema-constrained tool arguments; relying on kernel validation fallback",
+				},
+			})
 		}
 	}
 
@@ -877,6 +925,13 @@ func (g *Governor) completeChained(req agent.CompletionRequest, runOne func(agen
 	// pass covers every source (agent, task, default) since they all flow here.
 	models = g.expandChains(models)
 	if len(models) == 0 {
+		// No chain resolved a model. With the daemon's default-model removed,
+		// an empty req.Model has nowhere to come from — refuse with an
+		// actionable error instead of dispatching a blank model to the provider
+		// (which would 400 with an opaque message).
+		if strings.TrimSpace(req.Model) == "" {
+			return nil, &ErrNoModelConfigured{TaskType: req.TaskType}
+		}
 		return runOne(req)
 	}
 	var lastErr error

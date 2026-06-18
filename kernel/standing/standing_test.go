@@ -32,6 +32,7 @@ func TestValidate(t *testing.T) {
 		{"event-no-subject", Order{Name: "n", Triggers: []Trigger{{Type: TriggerEvent}}}, false},
 		{"unknown-trigger", Order{Name: "n", Triggers: []Trigger{{Type: "weather"}}}, false},
 		{"bad-mode", Order{Name: "n", Triggers: []Trigger{{Type: TriggerCron, Schedule: "x"}}, Initiative: Initiative{Mode: "yolo"}}, false},
+		{"negative-cooldown", Order{Name: "n", Triggers: []Trigger{{Type: TriggerEvent, Subject: "github.>"}}, CooldownSec: -1}, false},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -199,19 +200,19 @@ func TestPruneToLive(t *testing.T) {
 // package's documented no-crash guarantee true for ANY FireFunc.
 func TestSafeFire_ContainsPanic(t *testing.T) {
 	ran := false
-	panicky := func(_ context.Context, _ Order, _ string) {
+	panicky := func(_ context.Context, _ Order, _ string, _ map[string]any) {
 		ran = true
 		panic("boom from a fired order's plan")
 	}
 	// Called synchronously: if safeFire did not recover, this line would panic the
 	// test goroutine and fail the test.
-	safeFire(panicky)(context.Background(), Order{ID: "x", Name: "n"}, "subj")
+	safeFire(panicky)(context.Background(), Order{ID: "x", Name: "n"}, "subj", nil)
 	if !ran {
 		t.Fatal("safeFire should still invoke the wrapped fire")
 	}
 	// A non-panicking fire runs normally through the wrapper.
 	ok := false
-	safeFire(func(_ context.Context, _ Order, _ string) { ok = true })(context.Background(), Order{}, "")
+	safeFire(func(_ context.Context, _ Order, _ string, _ map[string]any) { ok = true })(context.Background(), Order{}, "", nil)
 	if !ok {
 		t.Error("safeFire should pass through a normal fire")
 	}

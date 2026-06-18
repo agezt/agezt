@@ -18,6 +18,7 @@ const (
 	KindAgentResumed   Kind = "agent.resumed"
 	KindAgentDied      Kind = "agent.died"
 	KindAgentCrashed   Kind = "agent.crashed"
+	KindAgentRetry     Kind = "agent.retry"
 
 	// Task / orchestration (tool-loop core; DAG layer adds plan/node kinds
 	// later per DECISIONS B0d).
@@ -124,6 +125,9 @@ const (
 	KindRunResumed Kind = "run.resumed"
 	KindRunStepped Kind = "run.stepped"
 	KindRunSteered Kind = "run.steered"
+	// KindRunIntervention records the protocol-level intervention transaction:
+	// primitive, scope, lease, idempotency key, and resulting run-control state.
+	KindRunIntervention Kind = "run.intervention"
 	// Council of Elders (M837) — a panel of differently-modelled advisors debates a
 	// question and converges to a consensus. These events are the audit trail an
 	// operator (and `agt why`) reads to see who said what and how the council
@@ -181,6 +185,19 @@ const (
 	// Makes the otherwise-invisible drop auditable. Payload: {elided, reclaimed_chars,
 	// context_chars_before, context_chars_after, budget}. (M393)
 	KindContextCompacted Kind = "context.compacted"
+	// KindContextSelection records the run-time context selector's manifest:
+	// which memory/world/skill candidates were injected, which plausible
+	// candidates were rejected, and why. Failure analysis reuses this kind with
+	// phase="failure_analysis" so omission suspects are tied to the exact
+	// rejected set that existed before the failed run.
+	KindContextSelection Kind = "context.selection"
+	// KindIntentInterpreted records the interpreter's formal reading of the user
+	// utterance before any executor/tool action consumes it. Payload excludes raw
+	// utterance text and uses a hash plus compact intent metadata.
+	KindIntentInterpreted Kind = "intent.interpreted"
+	// KindIntentConfirmationRequired records that ambiguity plus regret risk
+	// forced targeted human confirmation before a proposed action could execute.
+	KindIntentConfirmationRequired Kind = "intent.confirmation_required"
 
 	// Warden (P1-WARD-*).
 	KindWardenExecuted          Kind = "warden.executed"
@@ -242,6 +259,12 @@ const (
 	// KindMemoryPromoted (M915): a private (scoped) record was shared — its
 	// scope tag cleared so it joins the brain every agent recalls.
 	KindMemoryPromoted Kind = "memory.promoted"
+	// KindMemorySuspended marks a retained record as barred from active recall
+	// because it expired or failed an epistemic hygiene check.
+	KindMemorySuspended Kind = "memory.suspended"
+	// KindMemoryCleaned records a retention-hygiene pass that hard-deleted
+	// low-value records that never belonged in long-term memory.
+	KindMemoryCleaned Kind = "memory.cleaned"
 
 	// World model (SPEC-05 §3). The entity/relation graph is content-
 	// addressed and journaled so `agt why` can explain why "the portfolio"
@@ -264,8 +287,8 @@ const (
 	KindSkillShared      Kind = "skill.shared"           // a private (per-agent) skill promoted to the shared pool (M942)
 	KindSkillReassigned  Kind = "skill.reassigned"       // a skill's owning agent changed (M942)
 
-	// Chronos standing orders (SPEC-16 §4) — persistent goals; their lifecycle
-	// is journaled so the changelog / `agt standing` can explain them.
+	// Standing orders (SPEC-16 §4) — durable event/cron wake rules; their
+	// lifecycle is journaled so the changelog / `agt standing` can explain them.
 	KindStandingCreated Kind = "standing.created"
 	KindStandingUpdated Kind = "standing.updated" // paused/resumed/edited
 	KindStandingRemoved Kind = "standing.removed"
@@ -370,132 +393,139 @@ func IsKnown(k Kind) bool {
 }
 
 var knownKinds = map[Kind]struct{}{
-	KindInfo:                      {},
-	KindAgentSpawned:              {},
-	KindAgentSuspended:            {},
-	KindAgentResumed:              {},
-	KindAgentDied:                 {},
-	KindAgentCrashed:              {},
-	KindTaskReceived:              {},
-	KindTaskCompleted:             {},
-	KindTaskAbandoned:             {},
-	KindTaskFailed:                {},
-	KindSubAgentSpawned:           {},
-	KindSubAgentCompleted:         {},
-	KindToolInvoked:               {},
-	KindToolResult:                {},
-	KindLLMRequest:                {},
-	KindLLMResponse:               {},
-	KindLLMToken:                  {},
-	KindLLMReasoning:              {},
-	KindHalt:                      {},
-	KindAnomalyDetected:           {},
-	KindResume:                    {},
-	KindPolicyDecision:            {},
-	KindPolicyChanged:             {},
-	KindRoutingDecision:           {},
-	KindBudgetConsumed:            {},
-	KindProviderFallback:          {},
-	KindProviderRetry:             {},
-	KindBudgetExceeded:            {},
-	KindRateLimited:               {},
-	KindBudgetCapInert:            {},
-	KindBudgetUnpriced:            {},
-	KindBudgetCeilingSet:          {},
-	KindRunPaused:                 {},
-	KindRunResumed:                {},
-	KindRunStepped:                {},
-	KindRunSteered:                {},
-	KindTaskContinued:             {},
-	KindCouncilConvened:           {},
-	KindCouncilOpinion:            {},
-	KindCouncilConsensus:          {},
-	KindPolicyCompacted:           {},
-	KindNetguardBlocked:           {},
-	KindCapabilityRejected:        {},
-	KindCapabilityRerouted:        {},
-	KindCapabilityDegraded:        {},
-	KindContextCompacted:          {},
-	KindWardenExecuted:            {},
-	KindWardenProfileDowngraded:   {},
-	KindWardenLimitExceeded:       {},
-	KindApprovalRequested:         {},
-	KindApprovalGranted:           {},
-	KindApprovalDenied:            {},
-	KindApprovalTimeout:           {},
-	KindPlanStarted:               {},
-	KindPlanCompleted:             {},
-	KindPlanFailed:                {},
-	KindNodeStarted:               {},
-	KindNodeCompleted:             {},
-	KindNodeFailed:                {},
-	KindCatalogSynced:             {},
-	KindCatalogSyncFailed:         {},
-	KindCatalogDiscoveryCompleted: {},
-	KindCatalogDiscoveryFailed:    {},
-	KindChannelInbound:            {},
-	KindChannelOutbound:           {},
-	KindChannelError:              {},
-	KindPulseTick:                 {},
-	KindObserverDelta:             {},
-	KindSalienceScored:            {},
-	KindInitiativeTaken:           {},
-	KindBriefingSent:              {},
-	KindPulsePaused:               {},
-	KindPulseResumed:              {},
-	KindMemoryWritten:             {},
-	KindMemoryRetrieved:           {},
-	KindMemoryForgotten:           {},
-	KindMemoryPruned:              {},
-	KindMemorySuperseded:          {},
-	KindMemoryConsolidated:        {},
-	KindMemoryPromoted:            {},
-	KindWorldEntityUpserted:       {},
-	KindWorldRelationUpserted:     {},
-	KindWorldRetrieved:            {},
-	KindWorldForgotten:            {},
-	KindWorldSuperseded:           {},
-	KindSkillCreated:              {},
-	KindSkillPromoted:             {},
-	KindSkillQuarantined:          {},
-	KindSkillReverted:             {},
-	KindSkillActivated:            {},
-	KindSkillShadowEval:           {},
-	KindSkillShared:               {},
-	KindSkillReassigned:           {},
-	KindStandingCreated:           {},
-	KindStandingUpdated:           {},
-	KindStandingRemoved:           {},
-	KindStandingFired:             {},
-	KindStandingError:             {},
-	KindRosterCreated:             {},
-	KindRosterUpdated:             {},
-	KindRosterRemoved:             {},
-	KindReflectionCompleted:       {},
-	KindJournalSegmentRotated:     {},
-	KindWebhookDelivered:          {},
-	KindWebhookFailed:             {},
-	KindScheduleFired:             {},
-	KindAssureVerdict:             {},
-	KindBoardPosted:               {},
-	KindCodeExecuted:              {},
-	KindScriptToolCreated:         {},
-	KindScriptToolUpdated:         {},
-	KindScriptToolTested:          {},
-	KindScriptToolPromoted:        {},
-	KindScriptToolQuarantined:     {},
-	KindScriptToolRemoved:         {},
-	KindMCPAdded:                  {},
-	KindMCPUpdated:                {},
-	KindMCPAttached:               {},
-	KindMCPDetached:               {},
-	KindMCPRemoved:                {},
-	KindWorkflowSaved:             {},
-	KindWorkflowUpdated:           {},
-	KindWorkflowRemoved:           {},
-	KindWorkflowStarted:           {},
-	KindWorkflowNode:              {},
-	KindWorkflowCompleted:         {},
-	KindWorkflowFailed:            {},
-	KindWorkflowDrafted:           {},
+	KindInfo:                       {},
+	KindAgentSpawned:               {},
+	KindAgentSuspended:             {},
+	KindAgentResumed:               {},
+	KindAgentDied:                  {},
+	KindAgentCrashed:               {},
+	KindAgentRetry:                 {},
+	KindTaskReceived:               {},
+	KindTaskCompleted:              {},
+	KindTaskAbandoned:              {},
+	KindTaskFailed:                 {},
+	KindSubAgentSpawned:            {},
+	KindSubAgentCompleted:          {},
+	KindToolInvoked:                {},
+	KindToolResult:                 {},
+	KindLLMRequest:                 {},
+	KindLLMResponse:                {},
+	KindLLMToken:                   {},
+	KindLLMReasoning:               {},
+	KindHalt:                       {},
+	KindAnomalyDetected:            {},
+	KindResume:                     {},
+	KindPolicyDecision:             {},
+	KindPolicyChanged:              {},
+	KindRoutingDecision:            {},
+	KindBudgetConsumed:             {},
+	KindProviderFallback:           {},
+	KindProviderRetry:              {},
+	KindBudgetExceeded:             {},
+	KindRateLimited:                {},
+	KindBudgetCapInert:             {},
+	KindBudgetUnpriced:             {},
+	KindBudgetCeilingSet:           {},
+	KindRunPaused:                  {},
+	KindRunResumed:                 {},
+	KindRunStepped:                 {},
+	KindRunSteered:                 {},
+	KindRunIntervention:            {},
+	KindTaskContinued:              {},
+	KindCouncilConvened:            {},
+	KindCouncilOpinion:             {},
+	KindCouncilConsensus:           {},
+	KindPolicyCompacted:            {},
+	KindNetguardBlocked:            {},
+	KindCapabilityRejected:         {},
+	KindCapabilityRerouted:         {},
+	KindCapabilityDegraded:         {},
+	KindContextCompacted:           {},
+	KindContextSelection:           {},
+	KindIntentInterpreted:          {},
+	KindIntentConfirmationRequired: {},
+	KindWardenExecuted:             {},
+	KindWardenProfileDowngraded:    {},
+	KindWardenLimitExceeded:        {},
+	KindApprovalRequested:          {},
+	KindApprovalGranted:            {},
+	KindApprovalDenied:             {},
+	KindApprovalTimeout:            {},
+	KindPlanStarted:                {},
+	KindPlanCompleted:              {},
+	KindPlanFailed:                 {},
+	KindNodeStarted:                {},
+	KindNodeCompleted:              {},
+	KindNodeFailed:                 {},
+	KindCatalogSynced:              {},
+	KindCatalogSyncFailed:          {},
+	KindCatalogDiscoveryCompleted:  {},
+	KindCatalogDiscoveryFailed:     {},
+	KindChannelInbound:             {},
+	KindChannelOutbound:            {},
+	KindChannelError:               {},
+	KindPulseTick:                  {},
+	KindObserverDelta:              {},
+	KindSalienceScored:             {},
+	KindInitiativeTaken:            {},
+	KindBriefingSent:               {},
+	KindPulsePaused:                {},
+	KindPulseResumed:               {},
+	KindMemoryWritten:              {},
+	KindMemoryRetrieved:            {},
+	KindMemoryForgotten:            {},
+	KindMemoryPruned:               {},
+	KindMemorySuperseded:           {},
+	KindMemoryConsolidated:         {},
+	KindMemoryPromoted:             {},
+	KindMemorySuspended:            {},
+	KindMemoryCleaned:              {},
+	KindWorldEntityUpserted:        {},
+	KindWorldRelationUpserted:      {},
+	KindWorldRetrieved:             {},
+	KindWorldForgotten:             {},
+	KindWorldSuperseded:            {},
+	KindSkillCreated:               {},
+	KindSkillPromoted:              {},
+	KindSkillQuarantined:           {},
+	KindSkillReverted:              {},
+	KindSkillActivated:             {},
+	KindSkillShadowEval:            {},
+	KindSkillShared:                {},
+	KindSkillReassigned:            {},
+	KindStandingCreated:            {},
+	KindStandingUpdated:            {},
+	KindStandingRemoved:            {},
+	KindStandingFired:              {},
+	KindStandingError:              {},
+	KindRosterCreated:              {},
+	KindRosterUpdated:              {},
+	KindRosterRemoved:              {},
+	KindReflectionCompleted:        {},
+	KindJournalSegmentRotated:      {},
+	KindWebhookDelivered:           {},
+	KindWebhookFailed:              {},
+	KindScheduleFired:              {},
+	KindAssureVerdict:              {},
+	KindBoardPosted:                {},
+	KindCodeExecuted:               {},
+	KindScriptToolCreated:          {},
+	KindScriptToolUpdated:          {},
+	KindScriptToolTested:           {},
+	KindScriptToolPromoted:         {},
+	KindScriptToolQuarantined:      {},
+	KindScriptToolRemoved:          {},
+	KindMCPAdded:                   {},
+	KindMCPUpdated:                 {},
+	KindMCPAttached:                {},
+	KindMCPDetached:                {},
+	KindMCPRemoved:                 {},
+	KindWorkflowSaved:              {},
+	KindWorkflowUpdated:            {},
+	KindWorkflowRemoved:            {},
+	KindWorkflowStarted:            {},
+	KindWorkflowNode:               {},
+	KindWorkflowCompleted:          {},
+	KindWorkflowFailed:             {},
+	KindWorkflowDrafted:            {},
 }

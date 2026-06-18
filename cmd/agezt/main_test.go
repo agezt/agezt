@@ -5,6 +5,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"strings"
 	"testing"
 	"time"
@@ -12,6 +13,7 @@ import (
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/catalog"
+	"github.com/agezt/agezt/kernel/channel"
 	"github.com/agezt/agezt/kernel/event"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/plugins/providers/mock"
@@ -89,6 +91,54 @@ func TestCollectChannels(t *testing.T) {
 	}
 	if dc := by["discord"]; !dc.inbound || dc.addr != "127.0.0.1:8850" || dc.allowlist != 3 {
 		t.Errorf("discord = %+v want inbound, addr set, allow 3", dc)
+	}
+}
+
+func TestMakeChannelHandlerRunsGovernedAgentUnderChannelCorrelation(t *testing.T) {
+	k, err := kernelruntime.Open(kernelruntime.Config{
+		BaseDir:  t.TempDir(),
+		Provider: mock.New(mock.FinalText("channel handled")),
+	})
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	t.Cleanup(func() { k.Close() })
+
+	reply, err := makeChannelHandler(k)(context.Background(), channel.UnifiedMessage{
+		ChannelKind: "webhook",
+		ChannelID:   "room-1",
+		Sender:      "ersin",
+		Text:        "check the mailbox",
+	}, "chan-corr-1")
+	if err != nil {
+		t.Fatalf("channel handler: %v", err)
+	}
+	if reply != "channel handled" {
+		t.Fatalf("reply = %q, want channel handled", reply)
+	}
+
+	var sawReceived, sawCompleted bool
+	_ = k.Journal().Range(func(e *event.Event) error {
+		if e.CorrelationID != "chan-corr-1" {
+			return nil
+		}
+		switch e.Kind {
+		case event.KindTaskReceived:
+			sawReceived = true
+			var payload map[string]any
+			if err := json.Unmarshal(e.Payload, &payload); err != nil {
+				t.Fatalf("task.received payload: %v", err)
+			}
+			if payload["intent"] != "check the mailbox" {
+				t.Fatalf("channel task intent = %v, want check the mailbox", payload["intent"])
+			}
+		case event.KindTaskCompleted:
+			sawCompleted = true
+		}
+		return nil
+	})
+	if !sawReceived || !sawCompleted {
+		t.Fatalf("channel handler did not journal governed run lifecycle: received=%v completed=%v", sawReceived, sawCompleted)
 	}
 }
 
@@ -200,6 +250,51 @@ func TestModelAdvisory(t *testing.T) {
 	}
 	if adv := modelAdvisory(nil, "mini"); adv != "" {
 		t.Errorf("nil catalog should yield no advisory; got %q", adv)
+	}
+}
+
+// TestBuildGovernor_UnconfiguredWhenNoProvider: with no AGEZT_PROVIDER and no
+// credentialed catalog, the daemon must boot the "unconfigured" sentinel — NOT a
+// mock and NOT an auto-picked provider — and must surface no default run model.
+// A run then fails fast with the actionable "no LLM provider configured" error
+// rather than returning a silent mock answer. This pins the owner's
+// "hiçbir default provider/model" rule at the boot layer.
+func TestBuildGovernor_UnconfiguredWhenNoProvider(t *testing.T) {
+	t.Setenv(brand.EnvPrefix+"PROVIDER", "")
+	t.Setenv(brand.EnvPrefix+"MODEL", "")
+
+	gov, desc, model, err := buildGovernor(catalog.NewEmpty(), func(string) string { return "" })
+	if err != nil {
+		t.Fatalf("buildGovernor: %v", err)
+	}
+	if model != "" {
+		t.Errorf("run model = %q, want empty (no built-in default model)", model)
+	}
+	if !strings.Contains(desc, "unconfigured") {
+		t.Errorf("banner desc = %q, want it to mention unconfigured", desc)
+	}
+
+	// A run with a model still fails — there is no provider behind it, and no mock
+	// fallback to silently answer.
+	_, rerr := gov.Complete(context.Background(), agent.CompletionRequest{
+		Model:    "anything",
+		Messages: []agent.Message{{Role: agent.RoleUser, Content: "hi"}},
+	})
+	if rerr == nil {
+		t.Fatal("unconfigured daemon answered a run; want a hard error")
+	}
+	if !strings.Contains(rerr.Error(), "no LLM provider configured") {
+		t.Errorf("err = %v, want it to mention 'no LLM provider configured'", rerr)
+	}
+}
+
+// TestSelectPrimary_UnknownProviderIsHardError: an explicit but unknown
+// AGEZT_PROVIDER is a loud error, never a silent degrade to mock.
+func TestSelectPrimary_UnknownProviderIsHardError(t *testing.T) {
+	t.Setenv(brand.EnvPrefix+"PROVIDER", "does-not-exist")
+	t.Setenv(brand.EnvPrefix+"MODEL", "")
+	if _, _, _, _, err := selectPrimary(catalog.NewEmpty(), func(string) string { return "" }); err == nil {
+		t.Fatal("unknown provider id should be a hard error")
 	}
 }
 

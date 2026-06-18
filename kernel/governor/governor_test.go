@@ -329,7 +329,9 @@ func TestComplete_FallbackOrder_PrimaryThenFallback(t *testing.T) {
 	)
 	g, _ := governor.New(governor.Config{Registry: r, Bus: b})
 
-	_, err := g.Complete(context.Background(), agent.CompletionRequest{})
+	// A model is required now (no baked-in default); the request just needs one
+	// to reach the provider chain this test exercises.
+	_, err := g.Complete(context.Background(), agent.CompletionRequest{Model: "llama3.2"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -352,13 +354,58 @@ func TestComplete_AllFail_ReturnsErrNoProviders(t *testing.T) {
 	)
 	g, _ := governor.New(governor.Config{Registry: r, Bus: b})
 
-	_, err := g.Complete(context.Background(), agent.CompletionRequest{})
+	_, err := g.Complete(context.Background(), agent.CompletionRequest{Model: "x"})
 	var e *governor.ErrNoProviders
 	if !errors.As(err, &e) {
 		t.Fatalf("got %v, want *ErrNoProviders", err)
 	}
 	if len(e.Tried) != 2 {
 		t.Errorf("Tried=%v want 2 entries", e.Tried)
+	}
+}
+
+func TestComplete_NoModelNoChain_ReturnsErrNoModelConfigured(t *testing.T) {
+	// The daemon ships with NO default model. A request that reaches the governor
+	// with an empty Model and no agent/task/default chain has nowhere to get a
+	// model from — the governor must refuse with ErrNoModelConfigured BEFORE
+	// dispatching a blank model to a provider, and must not call the provider.
+	b, _ := newBus(t)
+	p := &fakeProvider{name: "p", resp: okResp("m", 0, 0)}
+	r := governor.NewRegistry()
+	mustRegister(t, r, &governor.ProviderInfo{Name: "p", Provider: p, AuthMode: governor.AuthAPIKey})
+	g, _ := governor.New(governor.Config{Registry: r, Bus: b})
+
+	_, err := g.Complete(context.Background(), agent.CompletionRequest{})
+	var e *governor.ErrNoModelConfigured
+	if !errors.As(err, &e) {
+		t.Fatalf("got %v, want *ErrNoModelConfigured", err)
+	}
+	if p.calls.Load() != 0 {
+		t.Errorf("provider was called with no model; calls=%d", p.calls.Load())
+	}
+
+	// With a model present, the same governor dispatches normally.
+	if _, err := g.Complete(context.Background(), agent.CompletionRequest{Model: "m"}); err != nil {
+		t.Fatalf("request with a model should dispatch; got %v", err)
+	}
+}
+
+func TestComplete_NoModelButDefaultChain_Dispatches(t *testing.T) {
+	// An empty Model is fine when the operator configured a default fallback
+	// chain — the chain supplies the model, satisfying the no-baked-in-default
+	// rule via routing.
+	b, _ := newBus(t)
+	p := &fakeProvider{name: "p", resp: okResp("chain-model", 0, 0)}
+	r := governor.NewRegistry()
+	mustRegister(t, r, &governor.ProviderInfo{Name: "p", Provider: p, AuthMode: governor.AuthAPIKey})
+	g, _ := governor.New(governor.Config{Registry: r, Bus: b})
+	g.SetFallbackChains(map[string][]string{"std": {"chain-model"}}, "std")
+
+	if _, err := g.Complete(context.Background(), agent.CompletionRequest{}); err != nil {
+		t.Fatalf("empty model with a default chain should dispatch; got %v", err)
+	}
+	if p.calls.Load() != 1 {
+		t.Errorf("provider calls=%d want 1", p.calls.Load())
 	}
 }
 
@@ -374,7 +421,7 @@ func TestComplete_CtxCancel_NoFallback(t *testing.T) {
 	)
 	g, _ := governor.New(governor.Config{Registry: r, Bus: b})
 
-	_, err := g.Complete(context.Background(), agent.CompletionRequest{})
+	_, err := g.Complete(context.Background(), agent.CompletionRequest{Model: "x"})
 	if !errors.Is(err, context.Canceled) {
 		t.Errorf("got %v, want context.Canceled", err)
 	}

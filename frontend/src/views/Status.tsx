@@ -36,7 +36,7 @@ interface StatusData {
   world_entities?: number;
   active_skills?: number;
   tools?: number;
-  schedules?: { enabled?: number; total?: number };
+  schedules?: { enabled?: number; total?: number; running?: number; resident?: boolean };
   delegation?: { enabled?: boolean; max_depth?: number; max_fanout?: number; max_spend_microcents?: number };
   http_servers?: { name?: string; addr?: string; loopback?: boolean }[];
   cred_chain?: string;
@@ -84,12 +84,21 @@ export function Status() {
 
   const head = events[0]?.kind;
   useEffect(() => {
-    if (head === "task.received" || head === "task.completed" || head === "kernel.halt" || head === "kernel.resume")
+    if (head === "task.received" || head === "task.completed" || head === "schedule.fired" || head === "kernel.halt" || head === "kernel.resume")
       reload();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [head, events[0]?.id]);
 
   const halted = data?.halted;
+  const scheduleRunning = data?.schedules?.running ?? 0;
+  const scheduleEnabled = data?.schedules?.enabled ?? 0;
+  const scheduleTotal = data?.schedules?.total ?? 0;
+  const scheduleResidentOffline = scheduleEnabled > 0 && data?.schedules?.resident === false;
+  const scheduleValue = scheduleResidentOffline
+    ? "offline"
+    : scheduleRunning > 0
+      ? `${scheduleRunning} live`
+      : `${scheduleEnabled}/${scheduleTotal}`;
 
   return (
     <div className="space-y-4">
@@ -145,8 +154,9 @@ export function Status() {
             <Tile
               icon={CalendarClock}
               label="schedules"
-              value={`${data.schedules?.enabled ?? 0}/${data.schedules?.total ?? 0}`}
-              tone="muted"
+              value={scheduleValue}
+              tone={scheduleResidentOffline ? "bad" : scheduleRunning > 0 ? "accent" : "muted"}
+              pulse={scheduleRunning > 0}
             />
           </div>
 

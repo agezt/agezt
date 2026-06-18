@@ -28,20 +28,20 @@ beforeEach(() => {
 });
 
 describe("Persona view", () => {
-  it("loads the current persona into the editor and reports default state", async () => {
+  it("loads the current default identity instructions into the editor and reports state", async () => {
     getJSON.mockResolvedValue({ system: "You are Jarvis.", set: true });
     render(withUI(<Persona />));
-    await waitFor(() => expect((screen.getByLabelText("Persona system prompt") as HTMLTextAreaElement).value).toBe("You are Jarvis."));
-    expect(screen.getByText(/custom persona active/)).toBeTruthy();
+    await waitFor(() => expect((screen.getByLabelText("Default identity instructions") as HTMLTextAreaElement).value).toBe("You are Jarvis."));
+    expect(screen.getByText(/custom default identity active/)).toBeTruthy();
   });
 
-  it("disables Save until the text changes, then posts the new persona", async () => {
+  it("disables Save until the text changes, then posts the new default identity", async () => {
     render(withUI(<Persona />));
-    await waitFor(() => expect(screen.getByLabelText("Persona system prompt")).toBeTruthy());
+    await waitFor(() => expect(screen.getByLabelText("Default identity instructions")).toBeTruthy());
     const save = screen.getByRole("button", { name: /Save/ }) as HTMLButtonElement;
     expect(save.disabled).toBe(true);
 
-    fireEvent.change(screen.getByLabelText("Persona system prompt"), { target: { value: "Be terse." } });
+    fireEvent.change(screen.getByLabelText("Default identity instructions"), { target: { value: "Be terse." } });
     await waitFor(() => expect((screen.getByRole("button", { name: /Save/ }) as HTMLButtonElement).disabled).toBe(false));
     expect(screen.getByText("unsaved changes")).toBeTruthy();
 
@@ -51,15 +51,15 @@ describe("Persona view", () => {
 
   it("inserts a preset template into the editor", async () => {
     render(withUI(<Persona />));
-    await waitFor(() => expect(screen.getByLabelText("Persona system prompt")).toBeTruthy());
+    await waitFor(() => expect(screen.getByLabelText("Default identity instructions")).toBeTruthy());
     fireEvent.click(screen.getByRole("button", { name: /Terse & proactive/ }));
-    expect((screen.getByLabelText("Persona system prompt") as HTMLTextAreaElement).value).toMatch(/terse and direct/);
+    expect((screen.getByLabelText("Default identity instructions") as HTMLTextAreaElement).value).toMatch(/terse and direct/);
   });
 
-  it("clears the persona via Clear (posts an empty system)", async () => {
+  it("clears the default identity via Clear (posts an empty system)", async () => {
     getJSON.mockResolvedValue({ system: "You are Jarvis.", set: true });
     render(withUI(<Persona />));
-    await waitFor(() => expect(screen.getByText(/custom persona active/)).toBeTruthy());
+    await waitFor(() => expect(screen.getByText(/custom default identity active/)).toBeTruthy());
     fireEvent.click(screen.getByRole("button", { name: /Clear/ }));
     await waitFor(() => expect(postJSON).toHaveBeenCalledWith("/api/persona/set", { system: "" }));
   });

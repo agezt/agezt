@@ -22,6 +22,182 @@ import { fmtTime, clip } from "@/lib/utils";
 import { money } from "@/lib/format";
 import { deriveDetail, num, mergeEvents, type ToolCall } from "@/lib/rundetail";
 import { useEvents, type AgentEvent } from "@/lib/events";
+import { IncidentBadges } from "@/components/IncidentBadges";
+import {
+  incidentBadgeItem,
+  incidentEventSummary,
+  isIncidentFamilyEvent,
+} from "@/lib/incidentevents";
+
+interface RunPhaseStep {
+  key: string;
+  ts?: number;
+  kind: string;
+  phase: string;
+  detail?: string;
+}
+
+function payloadString(e: AgentEvent, key: string): string {
+  const v = e.payload?.[key];
+  return typeof v === "string" ? v : "";
+}
+
+function payloadNumber(e: AgentEvent, key: string): number | undefined {
+  const v = e.payload?.[key];
+  return typeof v === "number" ? v : undefined;
+}
+
+function wakeDetail(e: AgentEvent): string {
+  const standing = payloadString(e, "standing_name") || payloadString(e, "standing_id");
+  return [
+    payloadString(e, "intent") ? clip(payloadString(e, "intent"), 100) : "",
+    payloadString(e, "wake_source") ? `source: ${payloadString(e, "wake_source")}` : "",
+    payloadString(e, "wake_reason") ? `reason: ${payloadString(e, "wake_reason")}` : "",
+    payloadString(e, "schedule_id") ? `schedule: ${payloadString(e, "schedule_id")}` : "",
+    standing ? `standing: ${standing}` : "",
+    payloadString(e, "trigger_subject") ? `trigger: ${payloadString(e, "trigger_subject")}` : "",
+    payloadString(e, "parent_correlation") ? `parent: ${payloadString(e, "parent_correlation")}` : "",
+  ].filter(Boolean).join(" · ");
+}
+
+function retryDetail(e: AgentEvent): string {
+  const nextAttempt = payloadNumber(e, "next_attempt");
+  const maxAttempts = payloadNumber(e, "max_attempts");
+  const delayMs = payloadNumber(e, "delay_ms");
+  const backoff = payloadString(e, "backoff");
+  const retryOn = Array.isArray(e.payload?.retry_on)
+    ? e.payload.retry_on.map((v: unknown) => String(v).trim()).filter(Boolean)
+    : [];
+  return [
+    nextAttempt != null && maxAttempts != null ? `attempt ${nextAttempt}/${maxAttempts}` : "",
+    delayMs && delayMs > 0 ? `wait ${formatRetryDelay(delayMs)}` : "",
+    backoff ? `backoff ${backoff}` : "",
+    retryOn.length > 0 ? `retry_on ${retryOn.join(",")}` : "",
+    clip(payloadString(e, "reason") || payloadString(e, "error"), 100),
+  ].filter(Boolean).join(" · ");
+}
+
+function formatRetryDelay(ms: number): string {
+  if (ms < 1000) return `${ms}ms`;
+  const sec = Math.round(ms / 1000);
+  if (sec < 60) return `${sec}s`;
+  const min = Math.floor(sec / 60);
+  const rem = sec % 60;
+  return rem > 0 ? `${min}m ${rem}s` : `${min}m`;
+}
+
+export function runPhaseSteps(arc: AgentEvent[]): RunPhaseStep[] {
+  return [...arc]
+    .sort((a, b) => num(a.seq) - num(b.seq))
+    .map((e, i): RunPhaseStep | null => {
+      const iter = payloadNumber(e, "iter");
+      const iterLabel = iter != null ? `iter ${iter}` : "";
+      switch (e.kind) {
+        case "task.received":
+          return {
+            key: `${e.seq || i}:received`,
+            ts: e.ts_unix_ms,
+            kind: e.kind,
+            phase: "started",
+            detail: wakeDetail(e),
+          };
+        case "llm.request":
+          return {
+            key: `${e.seq || i}:llm-request`,
+            ts: e.ts_unix_ms,
+            kind: e.kind,
+            phase: "thinking",
+            detail: [iterLabel, payloadString(e, "model")].filter(Boolean).join(" · "),
+          };
+        case "llm.response":
+          return {
+            key: `${e.seq || i}:llm-response`,
+            ts: e.ts_unix_ms,
+            kind: e.kind,
+            phase: payloadNumber(e, "tool_calls") ? "planned tools" : "answered",
+            detail: [iterLabel, payloadString(e, "stop_reason")].filter(Boolean).join(" · "),
+          };
+        case "tool.invoked":
+          return {
+            key: `${e.seq || i}:tool-invoked`,
+            ts: e.ts_unix_ms,
+            kind: e.kind,
+            phase: "using tool",
+            detail: [iterLabel, payloadString(e, "tool") || payloadString(e, "name")].filter(Boolean).join(" · "),
+          };
+        case "tool.result":
+          return {
+            key: `${e.seq || i}:tool-result`,
+            ts: e.ts_unix_ms,
+            kind: e.kind,
+            phase: e.payload?.error ? "tool error" : "observed tool",
+            detail: [iterLabel, payloadString(e, "tool") || payloadString(e, "name")].filter(Boolean).join(" · "),
+          };
+        case "agent.retry":
+        case "provider.retry":
+          return {
+            key: `${e.seq || i}:retry`,
+            ts: e.ts_unix_ms,
+            kind: e.kind,
+            phase: "retrying",
+            detail: retryDetail(e),
+          };
+        case "task.continued":
+          return { key: `${e.seq || i}:continued`, ts: e.ts_unix_ms, kind: e.kind, phase: "continuing", detail: iterLabel };
+        case "run.paused":
+        case "run.stepped":
+          return { key: `${e.seq || i}:paused`, ts: e.ts_unix_ms, kind: e.kind, phase: "paused", detail: iterLabel };
+        case "run.resumed":
+          return { key: `${e.seq || i}:resumed`, ts: e.ts_unix_ms, kind: e.kind, phase: "resumed", detail: iterLabel };
+        case "run.steered":
+          return {
+            key: `${e.seq || i}:steered`,
+            ts: e.ts_unix_ms,
+            kind: e.kind,
+            phase: "steered",
+            detail: clip(payloadString(e, "directive"), 100),
+          };
+        case "task.completed":
+          return { key: `${e.seq || i}:completed`, ts: e.ts_unix_ms, kind: e.kind, phase: "completed" };
+        case "task.failed":
+          return {
+            key: `${e.seq || i}:failed`,
+            ts: e.ts_unix_ms,
+            kind: e.kind,
+            phase: "failed",
+            detail: clip(payloadString(e, "reason") || payloadString(e, "error"), 100),
+          };
+      }
+      return null;
+    })
+    .filter((s): s is RunPhaseStep => !!s);
+}
+
+export function RunPhaseTimeline({ arc }: { arc: AgentEvent[] }) {
+  const steps = runPhaseSteps(arc);
+  if (!steps.length) return null;
+  const latest = steps[steps.length - 1];
+  return (
+    <div className="rounded-lg border border-border bg-panel/50 p-2.5">
+      <div className="mb-2 flex flex-wrap items-center gap-2 text-xs">
+        <span className="font-semibold uppercase tracking-wider text-muted">phase timeline</span>
+        <Badge variant={latest.phase === "failed" ? "bad" : latest.phase === "completed" ? "good" : "accent"}>
+          {latest.phase}
+        </Badge>
+        {latest.detail && <span className="truncate text-muted">{latest.detail}</span>}
+      </div>
+      <ol className="space-y-1">
+        {steps.slice(-8).map((s) => (
+          <li key={s.key} className="flex items-start gap-2 text-xs">
+            <span className="w-16 shrink-0 font-mono text-[10px] text-muted">{fmtTime(s.ts)}</span>
+            <span className="w-24 shrink-0 text-foreground/85">{s.phase}</span>
+            <span className="min-w-0 flex-1 truncate text-muted">{s.detail || s.kind}</span>
+          </li>
+        ))}
+      </ol>
+    </div>
+  );
+}
 
 // One governed tool call, rendered with its policy verdict. Expandable to show
 // the full arguments it was called with and the result it returned — so EVERY
@@ -334,6 +510,7 @@ export function RunDetailLoader({
   return (
     <>
       {correlationId && runIsLive(arc) && <SteerControls correlationId={correlationId} arc={arc} />}
+      <RunPhaseTimeline arc={arc} />
       <RunDetailCards arc={arc} status={status} durationMs={durationMs} />
       <button
         onClick={() => setRawOpen((v) => !v)}
@@ -351,7 +528,10 @@ export function RunDetailLoader({
                 <li key={e.id || i} className="flex gap-2">
                   <span className="text-muted">{fmtTime(e.ts_unix_ms)}</span>
                   <span className="text-accent">{e.kind}</span>
-                  <span className="truncate text-muted">{e.subject}</span>
+                  {isIncidentFamilyEvent(e) && <IncidentBadges item={incidentBadgeItem(e)} mono />}
+                  <span className="truncate text-muted">
+                    {incidentEventSummary(e) || e.subject}
+                  </span>
                 </li>
               ))}
           </ul>

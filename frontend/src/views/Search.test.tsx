@@ -7,7 +7,7 @@ vi.mock("@/lib/api", () => ({ getJSON: (...a: unknown[]) => getJSON(...a) }));
 const downloadText = vi.fn();
 vi.mock("@/lib/export", () => ({ downloadText: (...a: unknown[]) => downloadText(...a) }));
 
-import { CausationTrace, JournalIntegrity, JournalExport, journalExportBundle } from "@/views/Search";
+import { Search, CausationTrace, JournalIntegrity, JournalExport, journalExportBundle } from "@/views/Search";
 
 afterEach(cleanup);
 beforeEach(() => {
@@ -75,6 +75,32 @@ describe("CausationTrace (M755)", () => {
     expect(screen.getByText("34567890")).toBeTruthy(); // last 8 of the parent id
   });
 
+  it("shows incident badges and compact summaries inside the causation chain", async () => {
+    getJSON.mockResolvedValue({
+      correlation: "run-1",
+      causation_chain: [
+        {
+          id: "c0",
+          kind: "info",
+          subject: "agent.wake",
+          ts_unix_ms: 1,
+          payload: {
+            agent: "infra-lead",
+            phase: "completed",
+            reason: "incident owner woke",
+          },
+        },
+      ],
+    });
+    render(<CausationTrace eventId="c0" />);
+    fireEvent.click(screen.getByRole("button", { name: /trace cause/ }));
+    await waitFor(() =>
+      expect(screen.getByText(/infra-lead · incident owner woke · agent\.wake/)).toBeTruthy(),
+    );
+    expect(screen.getByText("operator")).toBeTruthy();
+    expect(screen.getByText("completed")).toBeTruthy();
+  });
+
   it("toggles the trace closed again without refetching", async () => {
     getJSON.mockResolvedValue({ causation_chain: [{ id: "a", kind: "k", subject: "s", ts_unix_ms: 1 }] });
     render(<CausationTrace eventId="a" />);
@@ -124,5 +150,35 @@ describe("JournalExport (M772)", () => {
     render(<JournalExport />);
     fireEvent.click(screen.getByRole("button", { name: /export journal/ }));
     await waitFor(() => expect(screen.getByRole("button").getAttribute("title")).toBe("journal locked"));
+  });
+});
+
+describe("Search incident rows", () => {
+  it("shows incident badges and compact summary for doctor/operator journal hits", async () => {
+    getJSON.mockResolvedValueOnce({
+      events: [
+        {
+          id: "e1",
+          kind: "info",
+          subject: "agent.wake",
+          ts_unix_ms: 10,
+          payload: {
+            agent: "infra-lead",
+            phase: "completed",
+            reason: "incident owner woke",
+          },
+        },
+      ],
+    });
+    render(<Search />);
+    fireEvent.click(screen.getByRole("button", { name: /search/i }));
+    await waitFor(() =>
+      expect(getJSON).toHaveBeenCalledWith("/api/journal_search", { limit: "200" }),
+    );
+    expect(screen.getByText("operator")).toBeTruthy();
+    expect(screen.getByText("completed")).toBeTruthy();
+    expect(
+      screen.getByText(/infra-lead · incident owner woke · agent\.wake/),
+    ).toBeTruthy();
   });
 });

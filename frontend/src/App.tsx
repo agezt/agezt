@@ -21,6 +21,7 @@ import {
   Cpu,
   Wrench,
   PackageOpen,
+  Store,
   Boxes,
   Shield,
   Archive,
@@ -77,6 +78,7 @@ import { toggleTheme } from "@/lib/theme";
 import { useChat } from "@/lib/chatStore";
 import { focusRun } from "@/lib/runfocus";
 import { agentSlugFromHash, openAgent } from "@/lib/agentnav";
+import { incidentIdFromHash } from "@/lib/incidentnav";
 import { exportAppearance, parseAppearanceJSON, applyAppearanceBundle } from "@/lib/appearance";
 import { parseConfigBundle, fetchConfigBundle, applyConfigBundle } from "@/lib/configbackup";
 import { downloadText } from "@/lib/export";
@@ -116,7 +118,9 @@ import { Routing } from "@/views/Routing";
 import { Chains } from "@/views/Chains";
 import { Setup, anyCredentialed, type SetupCatalog } from "@/views/Setup";
 import { Toolbox } from "@/views/Toolbox";
+import { Market } from "@/views/Market";
 import { AgentPage } from "@/views/AgentPage";
+import { IncidentPage } from "@/views/IncidentPage";
 import { Files } from "@/views/Files";
 import { Data } from "@/views/Data";
 import { Council } from "@/views/Council";
@@ -248,6 +252,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { id: "setup", label: "Setup", icon: Wand2, render: Setup },
       { id: "toolbox", label: "Toolbox", icon: PackageOpen, render: Toolbox },
+      { id: "market", label: "Marketplace", icon: Store, render: Market },
     ],
   },
   {
@@ -257,7 +262,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { id: "overview", label: "Overview", icon: LayoutDashboard, render: Dashboard },
       { id: "system", label: "System", icon: Settings, render: Status },
-      { id: "persona", label: "Persona", icon: Bot, render: Persona },
+      { id: "persona", label: "Default Identity", icon: Bot, render: Persona },
       { id: "prompts", label: "Prompts", icon: MessageSquarePlus, render: Prompts },
       { id: "configcenter", label: "Config Center", icon: SlidersHorizontal, render: ConfigCenter },
       { id: "config", label: "Config", icon: Settings, render: Config },
@@ -297,16 +302,19 @@ const sectionForView: Record<string, string> = Object.fromEntries(
 // item highlighted while you're on one of its agents.
 function viewFromHash(): string {
   if (agentSlugFromHash(location.hash)) return "agents";
-  const id = location.hash.replace(/^#\/?/, "");
+  if (incidentIdFromHash(location.hash)) return "autonomy";
+  const id = location.hash.replace(/^#\/?/, "").split("?")[0];
   return NAV.some((n) => n.id === id) ? id : "chat";
 }
 
 export default function App() {
   const [active, setActiveRaw] = useState(viewFromHash);
+  const [hashKey, setHashKey] = useState(() => location.hash);
   // The agent currently addressed by `#agent/<slug>` (M960), or null on a normal
   // view. When set, the main area renders the full-page AgentPage instead of the
   // active nav view.
   const [agentSlug, setAgentSlug] = useState<string | null>(() => agentSlugFromHash(location.hash));
+  const [incidentId, setIncidentId] = useState<string | null>(() => incidentIdFromHash(location.hash));
   const { newChat } = useChat();
   const [paletteOpen, setPaletteOpen] = useState(false);
   // Page-aware help drawer (M920): one global toggle, content follows `active`.
@@ -396,7 +404,7 @@ export default function App() {
     }
   }
 
-  // Export the daemon-side config (persona + prompts + routing) as one bundle.
+  // Export the daemon-side config (default identity + prompt templates + routing) as one bundle.
   async function exportConfig() {
     try {
       const bundle = await fetchConfigBundle();
@@ -421,6 +429,7 @@ export default function App() {
   const setActive = (id: string) => {
     setActiveRaw(id);
     setAgentSlug(null); // leaving any agent detail route for a normal nav view
+    setIncidentId(null); // leaving any incident detail route for a normal nav view
     if (location.hash.replace(/^#\/?/, "") !== id) location.hash = id;
   };
   // Sync when the hash changes externally (back/forward, manual edit, openAgent).
@@ -428,6 +437,8 @@ export default function App() {
     function onHash() {
       setActiveRaw(viewFromHash());
       setAgentSlug(agentSlugFromHash(location.hash));
+      setIncidentId(incidentIdFromHash(location.hash));
+      setHashKey(location.hash);
     }
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
@@ -557,16 +568,16 @@ export default function App() {
       },
       {
         id: "act-config-export",
-        label: "Export configuration (persona, prompts, routing)",
+        label: "Export configuration (default identity, prompt templates, routing)",
         group: "Action",
-        keywords: "backup config persona prompts routing download daemon profile",
+        keywords: "backup config identity prompt templates routing download daemon profile",
         run: () => void exportConfig(),
       },
       {
         id: "act-config-import",
-        label: "Import configuration (persona, prompts, routing)",
+        label: "Import configuration (default identity, prompt templates, routing)",
         group: "Action",
-        keywords: "restore config persona prompts routing upload daemon profile",
+        keywords: "restore config identity prompt templates routing upload daemon profile",
         run: () => configFileRef.current?.click(),
       },
     ];
@@ -659,9 +670,9 @@ export default function App() {
             secondary LIST of that section's views. Far fewer items on screen at
             once than the old long single list. On small screens both rows scroll
             horizontally. */}
-        <nav className="flex shrink-0 lg:border-r lg:border-border">
+        <nav className="flex min-w-0 shrink-0 overflow-hidden lg:border-r lg:border-border">
           {/* Section rail — colourful, glassy, one accent per section. */}
-          <div className="flex shrink-0 gap-1.5 overflow-x-auto p-2 lg:flex-col lg:gap-2 lg:overflow-visible lg:border-r lg:border-border">
+          <div className="flex max-w-full shrink-0 gap-1.5 overflow-x-auto p-2 lg:flex-col lg:gap-2 lg:overflow-visible lg:border-r lg:border-border">
             {NAV_GROUPS.map((g) => {
               const on = navSection === g.id;
               const isActiveSection = activeGroupId === g.id;
@@ -706,7 +717,7 @@ export default function App() {
           </div>
 
           {/* Secondary item list for the selected section */}
-          <div className="flex min-w-0 flex-1 gap-1 overflow-x-auto p-2 lg:w-44 lg:flex-none lg:flex-col lg:gap-0.5 lg:overflow-y-auto">
+          <div className="flex min-w-0 max-w-full flex-1 gap-1 overflow-x-auto p-2 lg:w-44 lg:flex-none lg:flex-col lg:gap-0.5 lg:overflow-y-auto">
             <div
               className="hidden items-center gap-1.5 px-2 pb-1.5 pt-1 text-[11px] font-bold uppercase tracking-widest lg:flex"
               style={{ color: `oklch(0.6 0.14 ${sectionHue(shownGroup.id)})` }}
@@ -782,8 +793,17 @@ export default function App() {
         <main className="min-h-0 flex-1 overflow-auto p-3 sm:p-4">
           {/* Keyed remount so each view fades + rises in on navigation. The
               `#agent/<slug>` detail route (M960) takes over the main area. */}
-          <div key={agentSlug ? `agent/${agentSlug}` : active} className="view-enter h-full">
-            {agentSlug ? <AgentPage slug={agentSlug} onNavigate={setActive} /> : <View />}
+          <div
+            key={incidentId ? `incident/${incidentId}` : agentSlug ? `agent/${agentSlug}` : hashKey || active}
+            className="view-enter h-full"
+          >
+            {incidentId ? (
+              <IncidentPage incidentId={incidentId} onNavigate={setActive} />
+            ) : agentSlug ? (
+              <AgentPage slug={agentSlug} onNavigate={setActive} />
+            ) : (
+              <View />
+            )}
           </div>
         </main>
       </div>
@@ -820,7 +840,7 @@ function Header({
     }
   }
   return (
-    <header className="relative z-10 flex items-center gap-3 border-b border-border bg-panel px-4 py-2 shadow-e1">
+    <header className="relative z-10 flex flex-wrap items-center gap-2 border-b border-border bg-panel px-3 py-2 shadow-e1 sm:gap-3 sm:px-4">
       {/* Lit accent edge under the header (M977 command-center). */}
       <div className="accent-rule pointer-events-none absolute inset-x-0 bottom-0 h-px" />
       <ConsoleName />
@@ -832,7 +852,7 @@ function Header({
       >
         ● {connected ? "live" : "disconnected"}
       </span>
-      <div className="ml-auto flex items-center gap-2">
+      <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-1.5 sm:gap-2">
         {/* Always-on Chat button (M985): the chat surface is the product's core
             ([[product-layer-priority]]), but the two-level nav buries it two
             clicks deep from any other section. This jumps there from anywhere. */}
@@ -883,16 +903,18 @@ function Header({
             })
           }
           disabled={busy}
-          className="inline-flex h-8 items-center gap-1.5 rounded-md border border-bad px-3 text-sm text-bad transition-colors hover:bg-bad hover:text-white disabled:opacity-50"
+          className="inline-flex h-8 items-center gap-1.5 rounded-md border border-bad px-2.5 text-sm text-bad transition-colors hover:bg-bad hover:text-white disabled:opacity-50 sm:px-3"
+          aria-label="Halt all runs"
         >
-          <Pause className="size-4" /> Halt
+          <Pause className="size-4" /> <span className="hidden sm:inline">Halt</span>
         </button>
         <button
           onClick={() => act("/api/resume", { success: "Resumed" })}
           disabled={busy}
-          className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-3 text-sm transition-colors hover:border-accent disabled:opacity-50"
+          className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-2.5 text-sm transition-colors hover:border-accent disabled:opacity-50 sm:px-3"
+          aria-label="Resume all runs"
         >
-          <Play className="size-4" /> Resume
+          <Play className="size-4" /> <span className="hidden sm:inline">Resume</span>
         </button>
         <AccentPicker />
         <ThemeToggle />

@@ -3,6 +3,7 @@
 package memory
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 )
@@ -50,6 +51,20 @@ func TestFileStorePutGetAllPersist(t *testing.T) {
 	}
 	if _, ok, _ := s2.Get("nope"); ok {
 		t.Fatal("absent id should report not found")
+	}
+}
+
+func TestFileStoreOpenToleratesUTF8BOM(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "memory.json"), []byte{0xEF, 0xBB, 0xBF, '{', '}', '\n'}, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	s, err := Open(dir)
+	if err != nil {
+		t.Fatalf("Open should tolerate UTF-8 BOM: %v", err)
+	}
+	if got := s.Count(); got != 0 {
+		t.Fatalf("count = %d want 0", got)
 	}
 }
 

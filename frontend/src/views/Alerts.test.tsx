@@ -51,6 +51,44 @@ describe("Alerts journal backfill (M777)", () => {
     await waitFor(() => expect(getJSON).toHaveBeenCalled());
     await waitFor(() => expect(screen.getByText(/no alerts — all quiet/)).toBeTruthy());
   });
+
+  it("shows provenance and phase badges for doctor-family alerts", async () => {
+    getJSON.mockResolvedValue({
+      events: [
+        {
+          id: "e1",
+          kind: "info",
+          subject: "doctor.auto_repair",
+          ts_unix_ms: 10,
+          payload: {
+            agent: "builder",
+            mode: "degraded",
+            phase: "failed",
+            error: "provider timeout",
+          },
+        },
+        {
+          id: "e2",
+          kind: "info",
+          subject: "doctor.auto_repair",
+          ts_unix_ms: 20,
+          payload: {
+            agent: "builder",
+            phase: "delegation_failed",
+            delegate_to: "infra-lead",
+            reason: "target agent infra-lead is paused",
+          },
+        },
+      ],
+    });
+    render(<Alerts />);
+    await waitFor(() =>
+      expect(screen.getByText("doctor run failed")).toBeTruthy(),
+    );
+    expect(screen.getAllByText("doctor").length).toBeGreaterThan(0);
+    expect(screen.getByText("failed")).toBeTruthy();
+    expect(screen.getByText("delegate failed")).toBeTruthy();
+  });
 });
 
 describe("Alerts → open run (M781)", () => {

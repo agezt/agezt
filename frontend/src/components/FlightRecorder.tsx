@@ -21,6 +21,7 @@ import {
 import { cn, fmtTime } from "@/lib/utils";
 import { money } from "@/lib/format";
 import type { ReplayStep, StepTone } from "@/lib/replay";
+import { IncidentBadges } from "@/components/IncidentBadges";
 
 const TONE: Record<StepTone, { color: string; ring: string; Icon: typeof Circle }> = {
   received: { color: "text-accent", ring: "bg-accent", Icon: Flag },
@@ -180,7 +181,12 @@ export function FlightRecorder({ steps, live }: { steps: ReplayStep[]; live?: bo
                   {i < steps.length - 1 && <span className="w-px flex-1 bg-border/70" />}
                 </div>
                 <div className="min-w-0 flex-1 pb-0.5">
-                  <div className={cn("truncate text-xs font-medium", active ? "text-foreground" : t.color)}>{s.title}</div>
+                  <div className="flex items-center gap-1.5">
+                    {s.incident && <IncidentBadges item={s.incident} mono />}
+                    <div className={cn("truncate text-xs font-medium", active ? "text-foreground" : t.color)}>
+                      {s.title}
+                    </div>
+                  </div>
                   {s.detail && (
                     <div
                       className={cn(

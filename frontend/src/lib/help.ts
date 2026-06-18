@@ -71,8 +71,8 @@ export const HELP: Record<string, HelpTopic> = {
             desc: "Dictate your message with the microphone button; speech is transcribed into the composer.",
           },
           {
-            term: "Model / agent / persona pickers",
-            desc: "Override which model answers, run as a specific roster agent, or apply a per-thread persona — all without touching global config.",
+            term: "Model / agent / identity pickers",
+            desc: "Override which model answers, run as a specific roster agent, or apply a per-thread identity override — all without touching global config.",
           },
           {
             term: "Auto-speak",
@@ -101,7 +101,7 @@ export const HELP: Record<string, HelpTopic> = {
     related: [
       { id: "prompts", label: "Prompts" },
       { id: "runs", label: "Runs" },
-      { id: "persona", label: "Persona" },
+      { id: "persona", label: "Default Identity" },
     ],
   },
 
@@ -717,7 +717,7 @@ export const HELP: Record<string, HelpTopic> = {
   agents: {
     title: "Agents",
     intro:
-      "Your whole agent force in one place. The Fleet tab is a complete census of every agent and automation you own — each card spelling out how it gets triggered — so the page is full and useful even when nothing is running. The Live tab is the run monitor.",
+      "Your whole autonomous fleet in one place. The Fleet tab is a complete census of every agent and automation you own — each card spelling out how it gets triggered — so the page is full and useful even when nothing is running. The Live tab is the run monitor.",
     sections: [
       {
         heading: "Fleet — the census",
@@ -731,11 +731,11 @@ export const HELP: Record<string, HelpTopic> = {
           },
           {
             term: "Standing orders",
-            desc: "Goals that fire on a cron schedule or a journal event subject.",
+            desc: "Durable wake rules that fire on a cron schedule or a journal event subject.",
           },
           {
             term: "Schedules",
-            desc: "Cadence intents — interval, daily, once, window, or continuous — each with its next fire time.",
+            desc: "Typed cron jobs — interval, daily, once, window, or continuous — each with its next fire time and target.",
           },
           {
             term: "Workflows",
@@ -769,7 +769,7 @@ export const HELP: Record<string, HelpTopic> = {
         items: [
           {
             term: "Command Center (roster agents)",
-            desc: "Opening a roster agent unfolds its full per-agent console: Overview (status, budgets, how it runs), Soul (its system prompt), Triggers (the standing orders that fire it, with history), Activity/Runs/Logs, Memory (its private records), Skills, Diagnostics (capability denials + tool errors — what went wrong), and Files.",
+            desc: "Opening a roster agent unfolds its full per-agent console: Overview (status, budgets, how it runs), Soul (identity core), Triggers (standing wake rules and schedules, with history), Activity/Runs/Logs, Memory (its private records), Skills, Diagnostics (capability denials + tool errors — what went wrong), and Files.",
           },
           {
             term: "How does this run?",
@@ -822,7 +822,7 @@ export const HELP: Record<string, HelpTopic> = {
         heading: "Tabs",
         items: [
           { term: "Overview", desc: "How it's triggered, run/spend stats, today's budget, identity (model, fallbacks, scope), and its most recent failure." },
-          { term: "Soul", desc: "The agent's system prompt — who it is. Edit it in Roster, or let a self-repair run rewrite it." },
+          { term: "Soul", desc: "The agent's identity core — who it is, how it should act, and what role it owns. Edit it in Roster, or let a self-repair run rewrite it." },
           { term: "Triggers", desc: "Standing orders and schedules that fire it, plus a forecast of its upcoming runs (what it will do next)." },
           { term: "Model", desc: "Its primary model, fallback chain, the global per-task chain its task type resolves to, and the provider activity its runs produced." },
           { term: "Activity and Comms", desc: "What it has done (runs, consults, memory) and its board mailbox — messages it sent, was addressed, or received." },
@@ -859,7 +859,15 @@ export const HELP: Record<string, HelpTopic> = {
         items: [
           {
             term: "Identity",
-            desc: "A deterministic-color avatar, the immutable slug, status (enabled / paused / graveyard), model, task type, costs, memory scope, fallback counts, and the soul text.",
+            desc: "A deterministic-color avatar, immutable slug, live status, and identity-card summary: kind, sleep/wake/work/repair rail, lifecycle, task contract, model, and private skills.",
+          },
+          {
+            term: "Authority",
+            desc: "Tool allow/deny posture, trust ceiling, workspace, memory scope, data-lake access, config overrides, noise budget, and schedule pressure.",
+          },
+          {
+            term: "Operations",
+            desc: "Mailbox backlog, lineage, delegation route, retry/self-repair governance, next wake, health, and current live work when the agent is awake.",
           },
           {
             term: "Activity",
@@ -867,7 +875,7 @@ export const HELP: Record<string, HelpTopic> = {
           },
           {
             term: "Lifecycle buttons",
-            desc: "Edit, Pause/Resume, Retire/Revive, Remove. Retiring shows an impact preview — which standing orders would stop firing — and is reversible via Revive.",
+            desc: "Edit, Pause/Resume, Retire/Revive, Remove. Retire moves the identity to the graveyard and is reversible; Remove can also clean selected standing orders, schedules, private/authored memory, skills, config, workspace, and dependent sub-agents.",
           },
         ],
       },
@@ -888,7 +896,7 @@ export const HELP: Record<string, HelpTopic> = {
     related: [
       { id: "agents", label: "Agents" },
       { id: "standing", label: "Standing" },
-      { id: "persona", label: "Persona" },
+      { id: "persona", label: "Default Identity" },
     ],
   },
 
@@ -1308,7 +1316,7 @@ export const HELP: Record<string, HelpTopic> = {
   schedules: {
     title: "Schedules",
     intro:
-      "Every scheduled intent — periodic, daily, or one-shot — with live countdowns, pause/resume, run-now, and full fire history.",
+      "Every typed cron job — agent wake, workflow run, daemon task, or tool call — with live countdowns, pause/resume, run-now, and full fire history.",
     sections: [
       {
         heading: "Reading the cockpit",
@@ -1319,7 +1327,7 @@ export const HELP: Record<string, HelpTopic> = {
           },
           {
             term: "Schedule cards",
-            desc: "Cadence badge, source badge (operator / env / agent), assure badge, last fire status, and a live \"fires in …\" countdown.",
+            desc: "Cadence badge, typed target badge, source badge (operator / env / agent), assure badge, last fire status, and a live \"fires in …\" countdown.",
           },
           {
             term: "Fire preview",
@@ -1340,7 +1348,7 @@ export const HELP: Record<string, HelpTopic> = {
           },
           {
             term: "New schedule",
-            desc: "Interval, daily-at-time, or once modes — each with its own form.",
+            desc: "Interval, daily-at-time, or once modes — each scheduling a typed target rather than embedding a new identity.",
           },
           {
             term: "Import / export",
@@ -1350,7 +1358,7 @@ export const HELP: Record<string, HelpTopic> = {
       },
     ],
     tips: [
-      "Agent-created schedules wear a distinct accent badge — worth reviewing periodically, since the daemon can schedule its own work.",
+      "Agent-created schedules wear a distinct accent badge — worth reviewing periodically, since the daemon can arm future cron jobs for itself.",
     ],
     related: [
       { id: "standing", label: "Standing" },
@@ -1362,7 +1370,7 @@ export const HELP: Record<string, HelpTopic> = {
   standing: {
     title: "Standing",
     intro:
-      "Standing orders: persistent goals that fire on a cron schedule or an event trigger, optionally running as a specific roster agent with a chosen autonomy mode.",
+      "Standing orders: durable wake rules that fire on a cron schedule or event trigger, optionally running as a specific roster agent with a chosen autonomy mode.",
     sections: [
       {
         heading: "Order anatomy",
@@ -1404,7 +1412,7 @@ export const HELP: Record<string, HelpTopic> = {
       },
     ],
     tips: [
-      "Schedules fire a fixed intent on a clock; standing orders are goals — they can react to events and carry autonomy policy.",
+      "Schedules run typed targets on a clock; standing orders are durable wake rules that can react to events and carry autonomy policy.",
     ],
     related: [
       { id: "schedules", label: "Schedules" },
@@ -1548,7 +1556,7 @@ export const HELP: Record<string, HelpTopic> = {
           },
           {
             term: "Private vs shared",
-            desc: "A skill an agent learned in its own runs belongs to that agent (badge with the slug) and is retrieved only when IT acts — the same private-by-default wall as per-agent memory. Unbadged skills are the shared pool every agent and the default persona draws from. Authoring a skill can target an agent via the 'Private to agent' field.",
+            desc: "A skill an agent learned in its own runs belongs to that agent (badge with the slug) and is retrieved only when IT acts — the same private-by-default wall as per-agent memory. Unbadged skills are the shared pool every agent and the default daemon identity draws from. Authoring a skill can target an agent via the 'Private to agent' field.",
           },
         ],
       },
@@ -1725,6 +1733,52 @@ export const HELP: Record<string, HelpTopic> = {
     ],
   },
 
+  market: {
+    title: "Marketplace",
+    intro:
+      "Install ready-made capability packs in one click. A pack bundles skills, MCP servers, and the CLI tools they need — installing it wires those into the systems that already run them, so your agents can use them immediately.",
+    sections: [
+      {
+        heading: "What you see",
+        items: [
+          {
+            term: "Pack cards",
+            desc: "Each card shows the pack name, version, a one-line description, and its contents at a glance — how many skills, MCP servers, and CLI tools it carries.",
+          },
+          {
+            term: "Signed badge",
+            desc: "A shield marks whether the pack is cryptographically signed. Unsigned packs still install (you'll see a note), signed ones are verified first.",
+          },
+          {
+            term: "Search & categories",
+            desc: "Filter by category or type to search names, descriptions, and tags. The built-in Official marketplace works fully offline.",
+          },
+        ],
+      },
+      {
+        heading: "Installing",
+        items: [
+          {
+            term: "Install",
+            desc: "Materializes the pack: its skills enter the Forge (active and retrievable), its MCP servers are registered, and any CLI tools it needs are reported so you can add them in the Toolbox.",
+          },
+          {
+            term: "Uninstall",
+            desc: "Reverses exactly what the pack added — its skills are quarantined and its MCP servers removed. Shared or other-agent resources are never touched.",
+          },
+        ],
+      },
+    ],
+    tips: [
+      "A pack only describes the CLI tools it needs — it never installs them on the host silently. Install those from the Toolbox once.",
+    ],
+    related: [
+      { id: "skills", label: "Skills" },
+      { id: "mcp", label: "MCP Servers" },
+      { id: "toolbox", label: "Toolbox" },
+    ],
+  },
+
   system: {
     title: "System",
     intro:
@@ -1764,9 +1818,9 @@ export const HELP: Record<string, HelpTopic> = {
   },
 
   persona: {
-    title: "Persona",
+    title: "Default Identity",
     intro:
-      "The agent's standing instructions — the default system prompt applied to every run. Edit it here and the very next run uses it; no restart.",
+      "The daemon's default identity instructions — used by runs that are not bound to a roster agent. Edit it here and the very next default-identity run uses it; no restart.",
     sections: [
       {
         heading: "Editing",
@@ -1781,14 +1835,14 @@ export const HELP: Record<string, HelpTopic> = {
           },
           {
             term: "Status line",
-            desc: "Shows whether a custom persona is active or the built-in default is in effect.",
+            desc: "Shows whether custom default identity instructions are active or the built-in default is in effect.",
           },
         ],
       },
     ],
     tips: [
-      "Saving an empty persona reverts to the default — that's the intended way to reset.",
-      "For a one-off personality change, use the per-thread persona picker in Chat instead of editing the global one.",
+      "Saving empty instructions reverts to the built-in default — that's the intended way to reset.",
+      "For a one-off identity change, use the per-thread identity override in Chat instead of editing the daemon default.",
     ],
     related: [
       { id: "prompts", label: "Prompts" },
@@ -1822,7 +1876,7 @@ export const HELP: Record<string, HelpTopic> = {
     ],
     related: [
       { id: "chat", label: "Chat" },
-      { id: "persona", label: "Persona" },
+      { id: "persona", label: "Default Identity" },
     ],
   },
 
@@ -1886,7 +1940,7 @@ export const HELP: Record<string, HelpTopic> = {
         items: [
           {
             term: "Summary stats",
-            desc: "Active model, whether a system prompt is set, tool and plugin counts, and the ask policy.",
+            desc: "Active model, whether default identity instructions are set, tool and plugin counts, and the ask policy.",
           },
           {
             term: "Grouped settings",
@@ -2288,7 +2342,7 @@ export const HELP: Record<string, HelpTopic> = {
           },
           {
             term: "Daemon config",
-            desc: "Persona, prompts, and routing chains — the bundle shows its current contents before you export.",
+            desc: "Default identity, prompt templates, and routing chains — the bundle shows its current contents before you export.",
           },
           {
             term: "Full snapshot",
@@ -2320,7 +2374,7 @@ export const HELP: Record<string, HelpTopic> = {
         items: [
           { term: "Connect a provider", desc: "Sync the catalog, add an API key, and pick a default model — the first-run Setup flow, reachable any time." },
           { term: "Create an agent", desc: "Give a new roster agent its soul, model, and daily budget, then run it by name." },
-          { term: "Schedule a task", desc: "Have the daemon run an instruction on a cadence — every N minutes, daily, or once." },
+          { term: "Schedule a task", desc: "Have the daemon run a typed target on a cadence — every N minutes, daily, or once." },
         ],
       },
       {

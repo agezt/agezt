@@ -56,16 +56,16 @@ func TestTickCron_FiresOncePerMinute(t *testing.T) {
 	lastFired := map[string]int64{}
 	at := time.Date(2026, 6, 8, 8, 0, 0, 0, time.UTC)
 
-	fired := tickCron(context.Background(), s, at, lastFired, func(context.Context, Order, string) {})
+	fired := tickCron(context.Background(), s, at, lastFired, func(context.Context, Order, string, map[string]any) {})
 	if len(fired) != 1 || fired[0] != o.ID {
 		t.Fatalf("first tick at 08:00 should fire the order, got %v", fired)
 	}
 	// Same minute again → no re-fire.
-	if again := tickCron(context.Background(), s, at.Add(20*time.Second), lastFired, func(context.Context, Order, string) {}); len(again) != 0 {
+	if again := tickCron(context.Background(), s, at.Add(20*time.Second), lastFired, func(context.Context, Order, string, map[string]any) {}); len(again) != 0 {
 		t.Errorf("second tick in the same minute should not re-fire, got %v", again)
 	}
 	// A non-matching minute → nothing.
-	if none := tickCron(context.Background(), s, at.Add(time.Hour), lastFired, func(context.Context, Order, string) {}); len(none) != 0 {
+	if none := tickCron(context.Background(), s, at.Add(time.Hour), lastFired, func(context.Context, Order, string, map[string]any) {}); len(none) != 0 {
 		t.Errorf("09:00 should not fire a 08:00 order, got %v", none)
 	}
 }
@@ -86,7 +86,7 @@ func TestTickCron_DoesNotFireAfterContextCancel(t *testing.T) {
 	at := time.Date(2026, 6, 8, 8, 0, 0, 0, time.UTC)
 
 	// Sanity: a live context fires the matching order.
-	if fired := tickCron(context.Background(), s, at, map[string]int64{}, func(context.Context, Order, string) {}); len(fired) != 1 {
+	if fired := tickCron(context.Background(), s, at, map[string]int64{}, func(context.Context, Order, string, map[string]any) {}); len(fired) != 1 {
 		t.Fatalf("live ctx should fire the matching order, got %v", fired)
 	}
 
@@ -95,7 +95,7 @@ func TestTickCron_DoesNotFireAfterContextCancel(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	fireCount := 0
-	if fired := tickCron(ctx, s, at, map[string]int64{}, func(context.Context, Order, string) { fireCount++ }); len(fired) != 0 || fireCount != 0 {
+	if fired := tickCron(ctx, s, at, map[string]int64{}, func(context.Context, Order, string, map[string]any) { fireCount++ }); len(fired) != 0 || fireCount != 0 {
 		t.Errorf("cancelled ctx must fire nothing, got fired=%v fireCount=%d — work launched during shutdown", fired, fireCount)
 	}
 }
@@ -106,7 +106,7 @@ func TestTickCron_SkipsDisabled(t *testing.T) {
 	o, _ := s.Add(Order{Name: "x", Triggers: []Trigger{{Type: TriggerCron, Schedule: "0 8 * * *"}}})
 	_, _ = s.SetEnabled(o.ID, false)
 	at := time.Date(2026, 6, 8, 8, 0, 0, 0, time.UTC)
-	if fired := tickCron(context.Background(), s, at, map[string]int64{}, func(context.Context, Order, string) {}); len(fired) != 0 {
+	if fired := tickCron(context.Background(), s, at, map[string]int64{}, func(context.Context, Order, string, map[string]any) {}); len(fired) != 0 {
 		t.Errorf("a disabled cron order must not fire, got %v", fired)
 	}
 }

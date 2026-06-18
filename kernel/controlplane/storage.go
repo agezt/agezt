@@ -28,7 +28,7 @@ var storageLabels = map[string]string{
 	"artifacts":  "Content-addressed blob store (inbound files, tool outputs) + metadata index",
 	"worldmodel": "Entity/relation knowledge graph",
 	"skills":     "Skill registry + agentskills.io bundles",
-	"cadence":    "Scheduled intents (recurring jobs)",
+	"cadence":    "Typed schedules (agent/workflow/system-task/tool jobs)",
 	"standing":   "Standing orders",
 	"roster":     "Agent roster profiles",
 	"toolforge":  "Custom forged tool definitions",

@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty";
 import { ErrorText } from "@/components/JsonView";
 import { useUI } from "@/components/ui/feedback";
-import { postJSON } from "@/lib/api";
+import { getJSON, postJSON } from "@/lib/api";
 import { cn, clip, fmtTime } from "@/lib/utils";
 import { newTurn, foldChatFrame, turnText, streamRun, type ChatTurn } from "@/lib/chat";
 import {
@@ -29,6 +29,49 @@ interface ToolErrRow {
   tool?: string;
   output?: string;
 }
+interface RoutingSnapshot {
+  chains?: Record<string, string[]>;
+}
+
+export function repairReadinessPassport(
+  profile: Pick<AgentProfile, "retired" | "kind" | "managed" | "direct_callable" | "parent_agent" | "owner_agent" | "retry_policy" | "health_policy" | "self_repair">,
+  evidence: number,
+): { value: string; detail: string; tone: "good" | "warn" | "bad" | "muted" } {
+  const manager = profile.parent_agent || profile.owner_agent || "";
+  if (profile.retired) {
+    return {
+      value: "repair blocked",
+      detail: "revive this agent before requesting repair",
+      tone: "bad",
+    };
+  }
+  if (profile.kind === "subagent" || profile.managed || profile.direct_callable === false) {
+    return {
+      value: "manager repair",
+      detail: manager ? `request repair through ${manager}` : "request repair through parent/owner",
+      tone: "warn",
+    };
+  }
+  const retry = profile.retry_policy?.max_attempts && profile.retry_policy.max_attempts > 1
+    ? `retry ${profile.retry_policy.max_attempts}x`
+    : "single attempt";
+  const doctor = profile.health_policy?.doctor_agent
+    ? `doctor ${profile.health_policy.doctor_agent}`
+    : "no doctor";
+  const selfRepair = profile.self_repair?.enabled
+    ? `self-repair${profile.self_repair.max_attempts ? ` ${profile.self_repair.max_attempts}x` : ""}`
+    : "self-repair off";
+  const escalation = profile.self_repair?.escalate_to ? `escalate ${profile.self_repair.escalate_to}` : "";
+  const value = evidence > 0 ? `ready · ${evidence} evidence` : "ready · proactive";
+  const tone = profile.health_policy?.doctor_agent || profile.self_repair?.enabled || (profile.retry_policy?.max_attempts || 0) > 1
+    ? "good"
+    : "warn";
+  return {
+    value,
+    detail: [retry, doctor, selfRepair, escalation].filter(Boolean).join(" · "),
+    tone,
+  };
+}
 
 // AgentRepair (M960) is the Self-Repair / Iterate tab: it runs the agent AS
 // ITSELF on a brief built from its own recent failures, lets it fix its own
@@ -43,6 +86,8 @@ export function AgentRepair({
   denials,
   toolErrors,
   runs,
+  configIssues = [],
+  taskModelChain,
   onApplied,
 }: {
   slug: string;
@@ -51,6 +96,8 @@ export function AgentRepair({
   denials: DenialRow[] | null;
   toolErrors: ToolErrRow[] | null;
   runs: number;
+  configIssues?: string[];
+  taskModelChain?: string[];
   onApplied: () => void;
 }) {
   const ui = useUI();
@@ -59,8 +106,13 @@ export function AgentRepair({
   const [round, setRound] = useState(0); // current round index during an iterate sweep
   const [iterN, setIterN] = useState(2);
   const [err, setErr] = useState<string | null>(null);
+  const [requestingRepair, setRequestingRepair] = useState(false);
   // The last applied identity change + the profile snapshot to restore on Undo.
-  const [applied, setApplied] = useState<{ prop: RepairProposal; prev: AgentProfile } | null>(null);
+  const [applied, setApplied] = useState<{
+    prop: RepairProposal;
+    prev: AgentProfile;
+    prevRouting?: { taskType: string; chain?: string[] };
+  } | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
   function buildBrief(priorRounds: string[]): string {
@@ -72,12 +124,21 @@ export function AgentRepair({
         model: profile.model,
         fallbacks: profile.fallbacks,
         task_type: profile.task_type,
+        task_model_chain: taskModelChain,
         workdir: profile.workdir,
         memory_scope: profile.memory_scope,
+        owner_agent: profile.owner_agent,
+        parent_agent: profile.parent_agent,
+        direct_callable: profile.direct_callable,
+        retry_policy: profile.retry_policy,
+        health_policy: profile.health_policy,
+        self_repair: profile.self_repair,
+        noise_policy: profile.noise_policy,
       },
       fail: fail ? { correlation_id: fail.correlation_id, status: fail.status, started_unix_ms: fail.started_unix_ms } : undefined,
       denials: (denials || []).map((d) => ({ capability: d.capability, tool: d.tool, reason: d.reason, hard_denied: d.hard_denied })),
       toolErrors: (toolErrors || []).map((t) => ({ tool: t.tool, output: t.output })),
+      configIssues,
       runs,
       priorRounds,
     };
@@ -111,9 +172,19 @@ export function AgentRepair({
   // is captured for Undo.
   async function autoApply(prop: RepairProposal) {
     try {
+      let prevRouting: { taskType: string; chain?: string[] } | undefined;
       const next = applyProposal(profile, prop);
       await postJSON("/api/agents/edit", { ref: slug, profile: stripForEdit(next) });
-      setApplied({ prop, prev: profile });
+      if (prop.task_model_chain !== undefined) {
+        const taskType = (prop.task_type || next.task_type || profile.task_type || "").trim();
+        if (!taskType) throw new Error("task_model_chain proposed without a task_type");
+        const routing = await getJSON<RoutingSnapshot>("/api/routing");
+        prevRouting = { taskType, chain: routing.chains?.[taskType] ? [...(routing.chains?.[taskType] || [])] : undefined };
+        const chains = { ...(routing.chains || {}) };
+        chains[taskType] = prop.task_model_chain;
+        await postJSON("/api/routing/set", { chains });
+      }
+      setApplied({ prop, prev: profile, prevRouting });
       ui.toast(`Applied to ${slug}: ${proposalSummary(prop)}`, "success");
       onApplied();
     } catch (e) {
@@ -125,6 +196,13 @@ export function AgentRepair({
     if (!applied) return;
     try {
       await postJSON("/api/agents/edit", { ref: slug, profile: stripForEdit(applied.prev) });
+      if (applied.prevRouting) {
+        const routing = await getJSON<RoutingSnapshot>("/api/routing");
+        const chains = { ...(routing.chains || {}) };
+        if (applied.prevRouting.chain && applied.prevRouting.chain.length > 0) chains[applied.prevRouting.taskType] = applied.prevRouting.chain;
+        else delete chains[applied.prevRouting.taskType];
+        await postJSON("/api/routing/set", { chains });
+      }
       ui.toast(`Reverted ${slug} to the previous identity`, "success");
       setApplied(null);
       onApplied();
@@ -159,10 +237,67 @@ export function AgentRepair({
     setRunning(false);
   }
 
-  const evidence = (fail ? 1 : 0) + (denials?.length || 0) + (toolErrors?.length || 0);
+  const governedRepairBlocked = profile.retired
+    ? "revive this agent before requesting repair"
+    : profile.kind === "subagent" || profile.managed || profile.direct_callable === false
+      ? "managed sub-agent; request repair through its parent/owner"
+      : "";
+
+  async function requestGovernedRepair() {
+    if (governedRepairBlocked) return;
+    setRequestingRepair(true);
+    setErr(null);
+    try {
+      const res = await postJSON<{ correlation_id?: string }>("/api/agents/repair", {
+        ref: slug,
+        reason: `operator requested governed repair from ${slug} repair tab`,
+      });
+      ui.toast(res.correlation_id ? `Repair accepted (${res.correlation_id})` : "Repair accepted", "success");
+      onApplied();
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setRequestingRepair(false);
+    }
+  }
+
+  const evidence = (fail ? 1 : 0) + (denials?.length || 0) + (toolErrors?.length || 0) + (configIssues?.length || 0);
+  const readiness = repairReadinessPassport(profile, evidence);
 
   return (
     <div className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-panel/30 p-2.5">
+        <div className="min-w-0">
+          <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted">
+            <AlertTriangle className="size-3" /> governed doctor run
+          </div>
+          <div className="mt-0.5 text-[11px] text-muted">
+            Queue the runtime repair path with this agent's retry, health, owner, and policy guardrails.
+          </div>
+          <div
+            title={readiness.detail}
+            className={cn(
+              "mt-2 inline-flex max-w-full items-center gap-1.5 rounded-md border border-border bg-card px-2 py-1 text-[11px]",
+              readiness.tone === "good" && "border-good/30 bg-good/10 text-good",
+              readiness.tone === "warn" && "border-warn/35 bg-warn/10 text-warn",
+              readiness.tone === "bad" && "border-bad/35 bg-bad/10 text-bad",
+            )}
+          >
+            <span className="font-medium">{readiness.value}</span>
+            <span className="truncate text-muted">{readiness.detail}</span>
+          </div>
+        </div>
+        <Button
+          size="sm"
+          variant="ghost"
+          disabled={requestingRepair || !!governedRepairBlocked}
+          onClick={requestGovernedRepair}
+          title={governedRepairBlocked || "Request a governed doctor/repair run for this agent"}
+        >
+          <Wrench className="size-3.5" /> Repair now
+        </Button>
+      </div>
+
       {/* What's wrong — the case for repair. */}
       <div className="rounded-lg border border-border bg-panel/30 p-2.5">
         <div className="mb-1.5 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted">
@@ -178,6 +313,7 @@ export function AgentRepair({
             {fail && <Badge variant="bad">last run failed</Badge>}
             {(denials?.length || 0) > 0 && <Badge variant="default">{denials!.length} denial(s)</Badge>}
             {(toolErrors?.length || 0) > 0 && <Badge variant="default">{toolErrors!.length} tool error(s)</Badge>}
+            {(configIssues?.length || 0) > 0 && <Badge variant="bad">{configIssues!.length} config issue(s)</Badge>}
           </div>
         )}
       </div>
@@ -219,7 +355,8 @@ export function AgentRepair({
 
       <p className="text-[10px] text-muted">
         Runs as <span className="font-mono text-foreground/80">{slug}</span> through the governed loop (policy/HITL apply). It
-        edits its own files; identity changes (soul/model/fallbacks) it proposes are applied automatically — Undo reverts them.
+        edits its own files; durable changes it proposes (soul/model/fallbacks/task routing/config overrides) are applied automatically
+        — Undo reverts the profile fields.
       </p>
 
       {err && <ErrorText>{err}</ErrorText>}
@@ -256,7 +393,7 @@ export function AgentRepair({
 // stripForEdit drops fields agents/edit rejects (id/slug/enabled/retired are
 // protected; created/updated are kernel-owned), leaving the mutable profile the
 // handler applies wholesale.
-function stripForEdit(p: AgentProfile): Record<string, unknown> {
+export function stripForEdit(p: AgentProfile): Record<string, unknown> {
   return {
     name: p.name,
     soul: p.soul,
@@ -267,7 +404,21 @@ function stripForEdit(p: AgentProfile): Record<string, unknown> {
     max_daily_mc: p.max_daily_mc,
     memory_scope: p.memory_scope,
     workdir: p.workdir,
+    owner_agent: p.owner_agent,
+    parent_agent: p.parent_agent,
+    direct_callable: p.direct_callable,
+    retry_policy: p.retry_policy,
+    health_policy: p.health_policy,
+    self_repair: p.self_repair,
+    noise_policy: p.noise_policy,
     description: p.description,
+    instructions: p.instructions,
+    tool_allow: p.tool_allow,
+    tool_deny: p.tool_deny,
+    trust_ceiling: p.trust_ceiling,
+    config_overrides: p.config_overrides,
+    lifecycle: p.lifecycle,
+    tasklist: p.tasklist,
   };
 }
 

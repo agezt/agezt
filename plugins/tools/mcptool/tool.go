@@ -79,6 +79,16 @@ func (t *Tool) Definition() agent.ToolDef {
     "ref":         {"type":"string", "description":"For op=attach/detach/remove: the server's name or id."}
   }
 }`),
+		Effect: agent.ToolEffect{
+			Class: agent.EffectCompensable,
+			PredictedEffects: []string{
+				"Register, attach, detach, list, or remove MCP server definitions.",
+				"Attach may spawn an external MCP process and expose newly discovered tools in future runs.",
+			},
+			AffectedResources: []string{"MCP server registry", "live MCP child processes or HTTP sessions", "future run tool registry"},
+			RollbackNotes:     "Detach live servers and remove registrations; effects of calls made through attached MCP tools must be compensated per server/tool.",
+			Confidence:        0.65,
+		},
 	}
 }
 

@@ -178,6 +178,7 @@ func TestCompleteStream_Vertex_HTTPError(t *testing.T) {
 	p.Endpoint = apiSrv.URL + "/anything"
 
 	_, err := p.CompleteStream(context.Background(), agent.CompletionRequest{
+		Model:    "m",
 		Messages: []agent.Message{{Role: agent.RoleUser, Content: "x"}},
 	}, func(c agent.Chunk) error { return nil })
 	if err == nil {

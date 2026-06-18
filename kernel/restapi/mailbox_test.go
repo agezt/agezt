@@ -10,17 +10,24 @@ import (
 	"github.com/agezt/agezt/kernel/board"
 )
 
+type mailboxNotification struct {
+	Message board.Message
+	Corr    string
+}
+
 // mailboxServer is newServer plus a wired board store, mirroring the daemon's
 // SetMailbox call. Returns the server and the collected notifications.
-func mailboxServer(t *testing.T, token string) (*Server, *[]board.Message) {
+func mailboxServer(t *testing.T, token string) (*Server, *[]mailboxNotification) {
 	t.Helper()
 	s := newServer(t, &fakeEngine{model: "m"}, token)
 	st, err := board.Open(t.TempDir())
 	if err != nil {
 		t.Fatalf("board.Open: %v", err)
 	}
-	var notified []board.Message
-	s.SetMailbox(st, func(m board.Message, _ string) { notified = append(notified, m) })
+	var notified []mailboxNotification
+	s.SetMailbox(st, func(m board.Message, corr string) {
+		notified = append(notified, mailboxNotification{Message: m, Corr: corr})
+	})
 	return s, &notified
 }
 
@@ -95,9 +102,12 @@ func TestMailbox_SendInboxReplyAck(t *testing.T) {
 
 	// Topic post + read + topics.
 	rec = do(t, s, http.MethodPost, "/api/v1/mailbox/messages",
-		`{"from":"myapp","topic":"status","text":"shipped"}`, "tok")
+		`{"from":"myapp","topic":"status","text":"shipped","correlation_id":"channel-42"}`, "tok")
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("post: %d", rec.Code)
+	}
+	if got := decode(t, rec.Body.Bytes())["correlation_id"]; got != "channel-42" {
+		t.Fatalf("correlation echo = %v, want channel-42", got)
 	}
 	rec = do(t, s, http.MethodGet, "/api/v1/mailbox/messages?topic=status", "", "tok")
 	if got := decode(t, rec.Body.Bytes())["count"].(float64); got != 1 {
@@ -112,6 +122,12 @@ func TestMailbox_SendInboxReplyAck(t *testing.T) {
 	// DM, reply, broadcast, topic post — four writes, four notifications.
 	if len(*notified) != 4 {
 		t.Fatalf("notifier fired %d times, want 4", len(*notified))
+	}
+	if got := (*notified)[3].Corr; got != "channel-42" {
+		t.Fatalf("notifier corr = %q, want channel-42", got)
+	}
+	if got := (*notified)[3].Message.Topic; got != "status" {
+		t.Fatalf("notified topic = %q, want status", got)
 	}
 }
 

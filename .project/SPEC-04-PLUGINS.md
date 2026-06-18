@@ -232,13 +232,21 @@ Per SPEC-01 §9: append-only proto evolution, integer major = protocol version, 
 ### 8.3 Discovery & marketplace (future)
 Plugins are content-addressed and signed. The marketplace (SPEC-future) distributes plugins, skills, standing-order templates, and Flow Studio workflows with type-safe, versioned, verifiable artifacts. `agt plugin add <ref>` resolves local path, URL, or marketplace ref.
 
-### 8.4 The Chronos scheduler (where it lives)
-Chronos (cron/interval/event/condition/webhook triggers) is a kernel-resident component, not a plugin, because it must integrate with the supervisor to spawn `scheduled` agents and survive restarts (jobs reload from the journal). Triggers:
+### 8.4 The schedule runner (where it lives)
+The schedule runner (cron/interval/event/condition/webhook triggers) is a kernel-resident component, not a plugin, because it must integrate with the supervisor, control plane, policy engine, and journal. Jobs reload from durable state and fire typed targets. A schedule is never an agent identity and must not carry agent instructions; it only decides **when** to wake or run something.
+
+Targets:
+- **agent** — wake an existing durable agent identity; the agent's profile supplies soul, tasklist, memory, skills, model/provider/fallback chain, permissions, retry, doctor, mailbox, and lifecycle policy.
+- **workflow** — run a reusable typed graph.
+- **tool** — invoke a governed tool with structured arguments.
+- **system_task** — run internal maintenance such as catalog sync, memory tidy, or log cleanup.
+
+Triggers:
 - **time** — cron/interval.
 - **event** — bus subject match.
 - **condition** — a predicate over memory/state (e.g. "if budget < X").
 - **webhook** — inbound HTTP (via gateway/tunnel).
-A Standing Order is typically a Chronos-kept configuration binding observers + initiative scope (SPEC-03 §7).
+A standing order is a durable wake rule layered over the same runner. It binds triggers and constraints to a target agent/workflow/tool/system task; it does not store a prompt or redefine an agent's identity.
 
 ---
 

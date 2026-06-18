@@ -91,11 +91,12 @@ func (s *Server) handleStatus(conn net.Conn, req Request) {
 	// silent until a delegation tripped one. 0 fan-out / spend = unbounded.
 	dl := s.k.SubAgentLimits()
 
-	// Autonomy + actionable signals (M130): how many scheduled intents are armed
+	// Autonomy + actionable signals (M130): how many typed schedules are armed
 	// (and how many enabled), and how many HITL approvals are waiting on the
 	// operator right now. Both are cheap in-memory reads. Scheduled autonomy and
 	// a blocking approval queue were invisible in the at-a-glance status until now.
-	schedTotal, schedEnabled := 0, 0
+	schedTotal, schedEnabled, schedRunning := 0, 0, 0
+	schedResident := false
 	if sched := s.k.Schedules(); sched != nil {
 		for _, e := range sched.List() {
 			schedTotal++
@@ -103,6 +104,10 @@ func (s *Server) handleStatus(conn net.Conn, req Request) {
 				schedEnabled++
 			}
 		}
+	}
+	if eng := s.k.ScheduleEngine(); eng != nil {
+		schedResident = true
+		schedRunning = eng.RunningCount()
 	}
 	pendingApprovals := 0
 	if ap := s.k.Approvals(); ap != nil {
@@ -129,8 +134,10 @@ func (s *Server) handleStatus(conn net.Conn, req Request) {
 		"active_skills":  s.k.Forge().Count(),
 		"journal_head":   headSeq,
 		"schedules": map[string]any{
-			"total":   schedTotal,
-			"enabled": schedEnabled,
+			"total":    schedTotal,
+			"enabled":  schedEnabled,
+			"running":  schedRunning,
+			"resident": schedResident,
 		},
 		"pending_approvals":  pendingApprovals,
 		"provider_fallbacks": map[string]any{"count": fb.providerCount, "last_reason": fb.providerLast},

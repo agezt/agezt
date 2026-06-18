@@ -4,10 +4,15 @@ package controlplane_test
 
 import (
 	"context"
+	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/configcenter"
 	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/edict"
+	"github.com/agezt/agezt/kernel/roster"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/plugins/providers/mock"
 	"github.com/agezt/agezt/plugins/tools/shell"
@@ -146,4 +151,229 @@ func TestToolList_SortsByName(t *testing.T) {
 			t.Errorf("call %d: not sorted: %q > %q", i, na, nb)
 		}
 	}
+}
+
+func TestAgentPermissions_ReturnsEffectiveToolPolicy(t *testing.T) {
+	dir := t.TempDir()
+	k, err := runtime.Open(runtime.Config{
+		BaseDir:  dir,
+		Provider: mock.New(mock.FinalText("ok")),
+		Tools: map[string]agent.Tool{
+			"alpha": testTool{name: "alpha"},
+			"beta":  testTool{name: "beta"},
+			"gamma": testTool{name: "gamma"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	t.Cleanup(func() { k.Close() })
+	if _, err := k.AddProfile(roster.Profile{
+		Slug:         "guarded",
+		ToolAllow:    []string{"alpha"},
+		ToolDeny:     []string{"beta"},
+		TrustCeiling: "L2",
+	}); err != nil {
+		t.Fatalf("AddProfile: %v", err)
+	}
+	directFalse := false
+	if _, err := k.AddProfile(roster.Profile{
+		Slug:           "worker",
+		ParentAgent:    "guarded",
+		DirectCallable: &directFalse,
+	}); err != nil {
+		t.Fatalf("AddProfile worker: %v", err)
+	}
+	k.Edict().SetLevel("alpha", edict.LevelAllow)
+	k.Edict().SetLevel("beta", edict.LevelAllow)
+	k.Edict().SetLevel("gamma", edict.LevelAllow)
+	global := configcenter.NewConfigEntry("public:value", "public")
+	guardedOnly := configcenter.NewConfigEntry("agent/guarded/runtime", "mode=careful")
+	guardedOnly.AllowedAgents = []string{"guarded"}
+	guardedOnly.Metadata = map[string]string{"agent": "guarded"}
+	otherOnly := configcenter.NewConfigEntry("agent/other/runtime", "mode=other")
+	otherOnly.AllowedAgents = []string{"other"}
+	excluded := configcenter.NewConfigEntry("blocked:value", "blocked")
+	excluded.ExcludedAgents = []string{"guarded"}
+	for _, entry := range []*configcenter.ConfigEntry{global, guardedOnly, otherOnly, excluded} {
+		if err := k.ConfigCenter().Set(entry); err != nil {
+			t.Fatalf("config set %s: %v", entry.Key, err)
+		}
+	}
+
+	srv := controlplane.NewServer(k, dir)
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	if err := srv.Start(ctx); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	t.Cleanup(func() { srv.Stop() })
+	client, err := dialUntilReady(t, dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, err := client.Call(context.Background(), controlplane.CmdAgentPermissions, map[string]any{"ref": "guarded"})
+	if err != nil {
+		t.Fatalf("agent permissions: %v", err)
+	}
+	if res["slug"] != "guarded" || res["trust_ceiling"] != "L2" {
+		t.Fatalf("permission header = %+v", res)
+	}
+	wake, _ := res["wake_access"].(map[string]any)
+	if wake["direct_allowed"] != true || wake["schedule_allowed"] != true || wake["channel_allowed"] != true || wake["delegation_scope"] != "any" {
+		t.Fatalf("direct agent wake access wrong: %+v", wake)
+	}
+	rows, _ := res["permissions"].([]any)
+	byName := map[string]map[string]any{}
+	for _, raw := range rows {
+		row, _ := raw.(map[string]any)
+		name, _ := row["name"].(string)
+		byName[name] = row
+	}
+	if byName["alpha"]["status"] != "L2" || byName["alpha"]["source"] != "edict" || byName["alpha"]["ask"] != true {
+		t.Fatalf("alpha should be allowed via Edict clamped to L2: %+v", byName["alpha"])
+	}
+	if byName["beta"]["status"] != "denied" || byName["beta"]["source"] != "agent_deny" {
+		t.Fatalf("beta should be agent-denied: %+v", byName["beta"])
+	}
+	if byName["gamma"]["status"] != "hidden" || byName["gamma"]["source"] != "agent_allow" {
+		t.Fatalf("gamma should be hidden by allowlist: %+v", byName["gamma"])
+	}
+	configRows, _ := res["config_entries"].([]any)
+	byKey := map[string]map[string]any{}
+	for _, raw := range configRows {
+		row, _ := raw.(map[string]any)
+		key, _ := row["key"].(string)
+		byKey[key] = row
+	}
+	if byKey["public:value"]["visible"] != true || byKey["public:value"]["source"] != "config_global" {
+		t.Fatalf("public config should be globally visible: %+v", byKey["public:value"])
+	}
+	if byKey["agent/guarded/runtime"]["visible"] != true || byKey["agent/guarded/runtime"]["source"] != "config_allowed" || byKey["agent/guarded/runtime"]["owned"] != true {
+		t.Fatalf("guarded config should be visible and owned: %+v", byKey["agent/guarded/runtime"])
+	}
+	if byKey["agent/other/runtime"]["visible"] != false || byKey["agent/other/runtime"]["source"] != "config_allowed" {
+		t.Fatalf("other-only config should be hidden by allowed_agents: %+v", byKey["agent/other/runtime"])
+	}
+	if byKey["blocked:value"]["visible"] != false || byKey["blocked:value"]["source"] != "config_excluded" {
+		t.Fatalf("excluded config should be hidden by excluded_agents: %+v", byKey["blocked:value"])
+	}
+	governance, _ := res["governance"].(map[string]any)
+	if intOf(governance["tool_count"]) != 3 || intOf(governance["allowed_count"]) != 0 || intOf(governance["ask_count"]) != 1 || intOf(governance["blocked_count"]) != 2 {
+		t.Fatalf("governance tool counts wrong: %+v", governance)
+	}
+	if intOf(governance["tool_allow_count"]) != 1 || intOf(governance["tool_deny_count"]) != 1 || governance["trust_ceiling"] != "L2" {
+		t.Fatalf("governance tool policy wrong: %+v", governance)
+	}
+	if got := strings.Join(anyStrings(governance["direct_tools"]), ","); got != "" {
+		t.Fatalf("direct_tools = %q, want none because alpha is ask-gated by L2", got)
+	}
+	if got := strings.Join(anyStrings(governance["ask_tools"]), ","); got != "alpha" {
+		t.Fatalf("ask_tools = %q, want alpha", got)
+	}
+	if got := strings.Join(anyStrings(governance["blocked_tools"]), ","); got != "beta,gamma" {
+		t.Fatalf("blocked_tools = %q, want beta,gamma", got)
+	}
+	if intOf(governance["config_count"]) != 4 || intOf(governance["config_visible_count"]) != 2 || intOf(governance["config_owned_count"]) != 1 || intOf(governance["config_hidden_count"]) != 2 {
+		t.Fatalf("governance config counts wrong: %+v", governance)
+	}
+	if got := strings.Join(anyStrings(governance["visible_configs"]), ","); got != "agent/guarded/runtime,public:value" {
+		t.Fatalf("visible_configs = %q, want agent/guarded/runtime,public:value", got)
+	}
+	if got := strings.Join(anyStrings(governance["hidden_configs"]), ","); got != "agent/other/runtime,blocked:value" {
+		t.Fatalf("hidden_configs = %q, want agent/other/runtime,blocked:value", got)
+	}
+	if governance["risk"] != "restricted" || governance["summary"] == "" {
+		t.Fatalf("governance summary wrong: %+v", governance)
+	}
+	if governance["tool_policy"] != "allowlist+denylist" || governance["memory_policy"] != "default:guarded" || governance["memory_writes"] != "enabled" {
+		t.Fatalf("governance authority policy wrong: %+v", governance)
+	}
+	if got, _ := governance["authority_boundary"].(string); !strings.Contains(got, "direct agent") {
+		t.Fatalf("authority_boundary = %q, want direct agent", got)
+	}
+	if got, _ := governance["execution_boundary"].(string); !strings.Contains(got, "schedules/workflows invoke through this policy") {
+		t.Fatalf("execution_boundary = %q, want schedule/workflow boundary", got)
+	}
+	if got, _ := governance["permission_passport"].(string); !strings.Contains(got, "trust L2") || !strings.Contains(got, "tools allowlist+denylist") || !strings.Contains(got, "memory default:guarded") {
+		t.Fatalf("permission_passport = %q, want trust/tool/memory passport", got)
+	}
+
+	workerRes, err := client.Call(context.Background(), controlplane.CmdAgentPermissions, map[string]any{"ref": "worker"})
+	if err != nil {
+		t.Fatalf("worker permissions: %v", err)
+	}
+	workerWake, _ := workerRes["wake_access"].(map[string]any)
+	if workerWake["direct_allowed"] != false || workerWake["schedule_allowed"] != false || workerWake["channel_allowed"] != false {
+		t.Fatalf("managed sub-agent direct wake access should be blocked: %+v", workerWake)
+	}
+	if workerWake["delegation_allowed"] != true || workerWake["delegation_scope"] != "manager" || workerWake["manager"] != "guarded" {
+		t.Fatalf("managed sub-agent delegation access wrong: %+v", workerWake)
+	}
+	sources, _ := workerWake["delegation_sources"].([]any)
+	if len(sources) != 1 || sources[0] != "guarded" {
+		t.Fatalf("managed sub-agent delegation sources wrong: %+v", sources)
+	}
+	workerGovernance, _ := workerRes["governance"].(map[string]any)
+	if got, _ := workerGovernance["authority_boundary"].(string); !strings.Contains(got, "managed sub-agent") {
+		t.Fatalf("worker authority_boundary = %q, want managed sub-agent", got)
+	}
+}
+
+func TestAgentCapabilities_PatchesResourceAuthority(t *testing.T) {
+	dir := t.TempDir()
+	k, err := runtime.Open(runtime.Config{
+		BaseDir:  dir,
+		Provider: mock.New(mock.FinalText("ok")),
+	})
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	t.Cleanup(func() { k.Close() })
+	if _, err := k.AddProfile(roster.Profile{Slug: "builder"}); err != nil {
+		t.Fatalf("AddProfile: %v", err)
+	}
+	srv := controlplane.NewServer(k, dir)
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	if err := srv.Start(ctx); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	t.Cleanup(func() { srv.Stop() })
+	client, err := dialUntilReady(t, dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	res, err := client.Call(context.Background(), controlplane.CmdAgentCapabilities, map[string]any{
+		"ref":          "builder",
+		"memory_scope": "agent/builder",
+		"workdir":      "agents/builder",
+		"max_cost_mc":  float64(100),
+		"max_daily_mc": float64(500),
+	})
+	if err != nil {
+		t.Fatalf("agent capabilities resource patch: %v", err)
+	}
+	prof, _ := res["profile"].(map[string]any)
+	if prof["memory_scope"] != "agent/builder" || prof["workdir"] != "agents/builder" ||
+		intOf(prof["max_cost_mc"]) != 100 || intOf(prof["max_daily_mc"]) != 500 {
+		t.Fatalf("resource authority fields not patched: %+v", prof)
+	}
+	if _, err := client.Call(context.Background(), controlplane.CmdAgentCapabilities, map[string]any{
+		"ref":     "builder",
+		"workdir": "../escape",
+	}); err == nil || !strings.Contains(err.Error(), "workdir must be a relative path") {
+		t.Fatalf("unsafe workdir err = %v, want roster validation", err)
+	}
+}
+
+type testTool struct{ name string }
+
+func (t testTool) Definition() agent.ToolDef {
+	return agent.ToolDef{Name: t.name, Description: "test tool", InputSchema: json.RawMessage(`{"type":"object"}`)}
+}
+
+func (t testTool) Invoke(context.Context, json.RawMessage) (agent.Result, error) {
+	return agent.Result{Output: "ok"}, nil
 }

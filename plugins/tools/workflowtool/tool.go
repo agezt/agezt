@@ -61,6 +61,7 @@ func (t *Tool) Definition() agent.ToolDef {
 	return agent.ToolDef{
 		Name: "workflow",
 		Description: "Author and run durable workflows — typed-node graphs (trigger/tool/llm/condition/transform/delay/http/code/map/filter/switch/merge/approval/subworkflow) that can start manually, on a cron, or on a journal event. " +
+			"Workflows are reusable chains, not agent identities; users, agents, schedules, and webhooks can run the same saved graph. " +
 			"op=save validates and stores a whole graph (upsert by name; new workflows arrive DISABLED); " +
 			"op=run executes one now (payload becomes {{trigger.payload}}) and returns per-node outputs; " +
 			"op=enable arms/disarms its triggers; op=list and op=show inspect the library. " +
@@ -78,6 +79,16 @@ func (t *Tool) Definition() agent.ToolDef {
     "enabled":  {"type":"boolean", "description":"For op=enable: true arms the workflow's triggers, false disarms them."}
   }
 }`),
+		Effect: agent.ToolEffect{
+			Class: agent.EffectCompensable,
+			PredictedEffects: []string{
+				"Save, inspect, enable, disable, or run durable workflow graphs.",
+				"Enabled workflows can launch future governed runs; manual runs may execute each workflow node's own effects.",
+			},
+			AffectedResources: []string{"workflow store", "workflow trigger state", "tools invoked by workflow runs"},
+			RollbackNotes:     "Disable or edit stored workflows to revert automation; compensate already-executed workflow node effects according to each node/tool.",
+			Confidence:        0.7,
+		},
 	}
 }
 

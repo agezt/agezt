@@ -120,10 +120,26 @@ const maxRedirects = 10
 
 // Definition implements agent.Tool.
 func (t *Tool) Definition() agent.ToolDef {
+	hosts := strings.Join(t.AllowedHosts, ", ")
+	if t.AllowAll {
+		hosts = "all hosts allowed by tool config"
+	} else if hosts == "" {
+		hosts = "none configured"
+	}
 	return agent.ToolDef{
 		Name: "http",
 		Description: "Fetch a URL (GET) or POST a JSON/text body to it. " +
 			"Hosts must be in the tool's allowlist; otherwise the call is denied.",
+		Effect: agent.ToolEffect{
+			Class: agent.EffectCompensable,
+			PredictedEffects: []string{
+				"perform an outbound HTTP GET or POST to an allowed host",
+				"POST requests may mutate remote state controlled by that service",
+			},
+			AffectedResources: []string{"allowed HTTP hosts: " + hosts},
+			RollbackNotes:     "GET requests need no rollback. POST requests have no guaranteed rollback; compensate with a service-specific follow-up request if needed.",
+			Confidence:        0.65,
+		},
 		InputSchema: json.RawMessage(`{
   "type": "object",
   "required": ["method","url"],
@@ -234,7 +250,12 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, e
 	if err != nil {
 		return errResult("marshal: " + err.Error()), nil
 	}
-	return agent.Result{Output: string(enc), IsError: resp.StatusCode >= 400}, nil
+	return agent.Result{
+		Output:            string(enc),
+		IsError:           resp.StatusCode >= 400,
+		ObservationTrust:  agent.ObservationUntrusted,
+		ObservationSource: resp.Request.URL.String(),
+	}, nil
 }
 
 // hostAllowed checks t.AllowedHosts (case-insensitive, with one-level "*."

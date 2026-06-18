@@ -25,6 +25,7 @@ func TestValidate_Accepts(t *testing.T) {
 			toolNode("fetch"),
 			{ID: "check", Type: NodeCondition, Config: json.RawMessage(`{"left":"{{fetch.output}}","op":"not_empty"}`)},
 			{ID: "shape", Type: NodeTransform, Config: json.RawMessage(`{"template":"got: {{fetch.output}}"}`)},
+			{ID: "pipe", Type: NodePipeline, Config: json.RawMessage(`{"steps":[{"id":"one","tool":"shell","args":{"command":"echo hi"}}]}`)},
 			{ID: "think", Type: NodeLLM, Config: json.RawMessage(`{"prompt":"summarize {{shape.output}}"}`)},
 			{ID: "wait", Type: NodeDelay, Config: json.RawMessage(`{"seconds":1}`)},
 		},
@@ -33,6 +34,7 @@ func TestValidate_Accepts(t *testing.T) {
 			{From: "fetch", To: "check"},
 			{From: "check", To: "shape", Port: "true"},
 			{From: "check", To: "wait", Port: "false"},
+			{From: "shape", To: "pipe"},
 			{From: "shape", To: "think"},
 		},
 	)
@@ -94,6 +96,11 @@ func TestValidate_Rejects(t *testing.T) {
 		{"merge bad mode", graph([]Node{trigger(), {ID: "a", Type: NodeMerge, Config: json.RawMessage(`{"mode":"most"}`)}}, nil), "merge mode"},
 		{"approval no description", graph([]Node{trigger(), {ID: "a", Type: NodeApproval, Config: json.RawMessage(`{}`)}}, nil), "description"},
 		{"subworkflow no name", graph([]Node{trigger(), {ID: "a", Type: NodeSubflow, Config: json.RawMessage(`{}`)}}, nil), "workflow name"},
+		{"pipeline no steps", graph([]Node{trigger(), {ID: "a", Type: NodePipeline, Config: json.RawMessage(`{"steps":[]}`)}}, nil), "pipeline needs"},
+		{"pipeline bad step id", graph([]Node{trigger(), {ID: "a", Type: NodePipeline, Config: json.RawMessage(`{"steps":[{"id":"Bad ID","tool":"echo"}]}`)}}, nil), "pipeline step id"},
+		{"pipeline duplicate step id", graph([]Node{trigger(), {ID: "a", Type: NodePipeline, Config: json.RawMessage(`{"steps":[{"id":"x","tool":"echo"},{"id":"x","tool":"echo"}]}`)}}, nil), "duplicate pipeline step"},
+		{"pipeline step without tool", graph([]Node{trigger(), {ID: "a", Type: NodePipeline, Config: json.RawMessage(`{"steps":[{"id":"x"}]}`)}}, nil), "needs a tool"},
+		{"pipeline bad output schema", graph([]Node{trigger(), {ID: "a", Type: NodePipeline, Config: json.RawMessage(`{"steps":[{"id":"x","tool":"echo","output_schema":"nope"}]}`)}}, nil), "output_schema"},
 		{"error port on non-failable", graph(
 			[]Node{trigger(), {ID: "a", Type: NodeTransform, Config: json.RawMessage(`{"template":"x"}`)}, toolNode("t")},
 			[]Edge{{From: "start", To: "a"}, {From: "a", To: "t", Port: "error"}}), "default port"},

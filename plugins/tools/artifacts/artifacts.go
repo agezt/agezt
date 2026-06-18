@@ -72,6 +72,16 @@ func (t *Tool) Definition() agent.ToolDef {
     "limit":  {"type":"integer", "description":"list: max entries to return (default 50)."}
   }
 }`),
+		Effect: agent.ToolEffect{
+			Class: agent.EffectReversible,
+			PredictedEffects: []string{
+				"List or read saved artifacts from the local artifact store.",
+				"Delete one saved artifact when op=delete is requested.",
+			},
+			AffectedResources: []string{"local artifact store", "Files view entries"},
+			RollbackNotes:     "List/read need no rollback; restore a deleted artifact from backups or recreate it from its source when available.",
+			Confidence:        0.85,
+		},
 	}
 }
 

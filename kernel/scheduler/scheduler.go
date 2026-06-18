@@ -111,17 +111,46 @@ type PlanResult struct {
 	Errors      map[string]error
 }
 
+// InvariantPhase names the scheduler boundary at which a plan invariant is
+// checked. The monitor is intentionally separate from the planner: it observes
+// committed execution state and may invalidate the plan before more work starts.
+type InvariantPhase string
+
+const (
+	InvariantPlanStart InvariantPhase = "plan_start"
+	InvariantNodeStart InvariantPhase = "node_start"
+)
+
+// InvariantSnapshot is the bounded execution state exposed to an
+// InvariantMonitor. It deliberately excludes node outputs; monitors should guard
+// resource/world-state constraints, not inspect arbitrary result payloads.
+type InvariantSnapshot struct {
+	PlanID    string
+	PlanName  string
+	Phase     InvariantPhase
+	NodeID    string
+	Started   []string
+	Completed []string
+	Failed    []string
+}
+
+// InvariantMonitor is called at plan start and immediately before each node is
+// allowed to start. Returning an error invalidates the plan.
+type InvariantMonitor func(ctx context.Context, snapshot InvariantSnapshot) error
+
 // Executor runs a Plan. One Executor instance per kernel; safe for
 // concurrent Run calls (each plan gets its own correlation_id).
 type Executor struct {
-	bus *bus.Bus
-	now func() time.Time
+	bus     *bus.Bus
+	now     func() time.Time
+	monitor InvariantMonitor
 }
 
 // Config configures an Executor.
 type Config struct {
-	Bus *bus.Bus
-	Now func() time.Time
+	Bus     *bus.Bus
+	Now     func() time.Time
+	Monitor InvariantMonitor
 }
 
 // New constructs an Executor.
@@ -130,7 +159,7 @@ func New(cfg Config) *Executor {
 	if now == nil {
 		now = time.Now
 	}
-	return &Executor{bus: cfg.Bus, now: now}
+	return &Executor{bus: cfg.Bus, now: now, monitor: cfg.Monitor}
 }
 
 // ErrCycle is returned by Run when the supplied Plan contains a cycle.
@@ -145,6 +174,17 @@ var ErrUnknownDependency = errors.New("scheduler: unknown dependency")
 
 // ErrEmptyPlan is returned for a Plan with no Nodes.
 var ErrEmptyPlan = errors.New("scheduler: plan has no nodes")
+
+// ErrPlanInvalidated is returned when an InvariantMonitor rejects the committed
+// plan state before the next boundary is allowed to run.
+var ErrPlanInvalidated = errors.New("scheduler: plan invalidated")
+
+// ContextInvariantMonitor invalidates a plan when its context has already been
+// cancelled. Runtime wires this as the baseline monitor so Halt/CancelRun cannot
+// allow newly-ready nodes to start after cancellation has propagated.
+func ContextInvariantMonitor(ctx context.Context, _ InvariantSnapshot) error {
+	return ctx.Err()
+}
 
 // Run executes the plan to completion or the first node failure.
 // CorrelationID, if empty, is generated.
@@ -184,16 +224,32 @@ func (e *Executor) Run(ctx context.Context, plan Plan, correlationID string) (*P
 	}
 
 	planID := correlationID
+	runCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	runCtx = withCorrelation(runCtx, planID)
 	e.publishPlanStarted(planID, plan)
 
 	// State for the dynamic scheduler.
 	var (
-		mu        sync.Mutex
-		results   = map[string]Result{}
-		errs      = map[string]error{}
-		completed = map[string]struct{}{}
-		started   = map[string]struct{}{}
+		mu          sync.Mutex
+		results     = map[string]Result{}
+		errs        = map[string]error{}
+		completed   = map[string]struct{}{}
+		started     = map[string]struct{}{}
+		invalidated bool
 	)
+	checkInvariant := func(phase InvariantPhase, nodeID string) error {
+		if e.monitor == nil {
+			return nil
+		}
+		mu.Lock()
+		snapshot := invariantSnapshot(planID, plan, phase, nodeID, started, completed, errs)
+		mu.Unlock()
+		if err := e.monitor(runCtx, snapshot); err != nil {
+			return fmt.Errorf("%w: %w", ErrPlanInvalidated, err)
+		}
+		return nil
+	}
 
 	// indegree counts how many unmet deps each node has.
 	indegree := make(map[string]int, len(plan.Nodes))
@@ -207,15 +263,42 @@ func (e *Executor) Run(ctx context.Context, plan Plan, correlationID string) (*P
 	// (and a late send after the driver has moved on is simply discarded).
 	done := make(chan struct{}, len(plan.Nodes))
 	var wg sync.WaitGroup
-	runCtx, cancel := context.WithCancel(ctx)
-	defer cancel()
-	runCtx = withCorrelation(runCtx, planID)
+	failNodeWithoutRun := func(id string, err error) {
+		mu.Lock()
+		invalidated = true
+		started[id] = struct{}{}
+		completed[id] = struct{}{}
+		errs[id] = err
+		for _, m := range plan.Nodes {
+			for _, dep := range m.DependsOn() {
+				if dep == id {
+					indegree[m.ID()]--
+				}
+			}
+		}
+		mu.Unlock()
+		e.publishNodeFailed(planID, byID[id], err)
+		done <- struct{}{}
+	}
+
+	if err := checkInvariant(InvariantPlanStart, ""); err != nil {
+		result := &PlanResult{
+			PlanID:      planID,
+			NodeResults: results,
+			Errors:      map[string]error{"plan": err},
+		}
+		e.publishPlanFailed(planID, plan, result)
+		return result, err
+	}
 
 	// readyToRun returns IDs that have indegree 0 and have not started
 	// yet, and that have no failed dependency.
 	pickReady := func() []string {
 		mu.Lock()
 		defer mu.Unlock()
+		if invalidated {
+			return nil
+		}
 		var ready []string
 		for id, deg := range indegree {
 			if deg != 0 {
@@ -236,7 +319,6 @@ func (e *Executor) Run(ctx context.Context, plan Plan, correlationID string) (*P
 			if !ok {
 				continue
 			}
-			started[id] = struct{}{}
 			ready = append(ready, id)
 		}
 		// Stable ordering helps tests + per-tick determinism.
@@ -310,6 +392,14 @@ func (e *Executor) Run(ctx context.Context, plan Plan, correlationID string) (*P
 	for {
 		ready := pickReady()
 		for _, id := range ready {
+			if err := checkInvariant(InvariantNodeStart, id); err != nil {
+				failNodeWithoutRun(id, err)
+				cancel()
+				break
+			}
+			mu.Lock()
+			started[id] = struct{}{}
+			mu.Unlock()
 			wg.Add(1)
 			go runNode(id, byID[id].Kind() != KindGate)
 		}
@@ -504,6 +594,36 @@ func nodeIDs(nodes []Node) []string {
 }
 
 func resultKeys(m map[string]Result) []string {
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out
+}
+
+func invariantSnapshot(planID string, plan Plan, phase InvariantPhase, nodeID string, started, completed map[string]struct{}, errs map[string]error) InvariantSnapshot {
+	return InvariantSnapshot{
+		PlanID:    planID,
+		PlanName:  plan.Name,
+		Phase:     phase,
+		NodeID:    nodeID,
+		Started:   setKeys(started),
+		Completed: setKeys(completed),
+		Failed:    errorKeys(errs),
+	}
+}
+
+func setKeys(m map[string]struct{}) []string {
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out
+}
+
+func errorKeys(m map[string]error) []string {
 	out := make([]string, 0, len(m))
 	for k := range m {
 		out = append(out, k)

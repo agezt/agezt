@@ -38,7 +38,7 @@ func hitNames(hits []Scored) []string {
 
 // TestActivateFor_AgentScopeWall — the per-agent skill wall (M932): an agent
 // retrieves the shared pool plus its own private skills, never a sibling's;
-// the default persona (no agent) retrieves only the shared pool.
+// the default daemon identity (no agent) retrieves only the shared pool.
 func TestActivateFor_AgentScopeWall(t *testing.T) {
 	f, _ := newTestForge(t)
 	putActive(t, f, "shared-proc", "")
@@ -57,10 +57,10 @@ func TestActivateFor_AgentScopeWall(t *testing.T) {
 
 	hits, err = f.Activate("c2", intent, 10)
 	if err != nil {
-		t.Fatalf("Activate (default persona): %v", err)
+		t.Fatalf("Activate (default daemon identity): %v", err)
 	}
 	if got := hitNames(hits); len(got) != 1 || got[0] != "shared-proc" {
-		t.Errorf("default-persona pool = %v, want [shared-proc] only", got)
+		t.Errorf("default daemon identity pool = %v, want [shared-proc] only", got)
 	}
 }
 

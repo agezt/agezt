@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"time"
 
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/acp"
@@ -24,12 +25,17 @@ import (
 // The IDE spawns this process; it is not interactive for humans. Run it as the
 // editor's configured ACP agent command: `agt acp`.
 func cmdACP(args []string, stdout, stderr io.Writer) int {
+	if len(args) >= 1 && args[0] == "agents" {
+		return cmdACPAgents(args[1:], stdout, stderr)
+	}
 	if len(args) == 1 && (args[0] == "-h" || args[0] == "--help") {
 		fmt.Fprintf(stdout, "usage: %s acp [--tenant <id>]\n", brand.CLI)
+		fmt.Fprintf(stdout, "       %s acp agents [--json]\n", brand.CLI)
 		fmt.Fprintf(stdout, "Agent Client Protocol server over stdio (JSON-RPC 2.0) — configure your IDE\n")
 		fmt.Fprintf(stdout, "(e.g. Zed) to launch `%s acp` as its agent backend. Requires a running daemon.\n", brand.CLI)
 		fmt.Fprintf(stdout, "  --tenant <id>   route every prompt to an isolated tenant kernel (daemon\n")
 		fmt.Fprintf(stdout, "                  AGEZT_MULTITENANT=on); omit for the primary kernel.\n")
+		fmt.Fprintf(stdout, "  agents          list ACP coding agents installed on this host\n")
 		return 0
 	}
 	tenant := ""
@@ -57,6 +63,71 @@ func cmdACP(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "%s acp: %v\n", brand.CLI, err)
 		return 1
 	}
+	return 0
+}
+
+// cmdACPAgents lists the ACP coding agents discovered on the host (installed /
+// missing / configured default) via the daemon's read-only inventory.
+func cmdACPAgents(args []string, stdout, stderr io.Writer) int {
+	asJSON := false
+	for _, a := range args {
+		if a == "--json" {
+			asJSON = true
+		} else if a == "-h" || a == "--help" {
+			fmt.Fprintf(stdout, "usage: %s acp agents [--json]\n", brand.CLI)
+			return 0
+		}
+	}
+	c := dial(stderr)
+	if c == nil {
+		return 1
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	res, err := c.Call(ctx, controlplane.CmdACPAgents, nil)
+	if err != nil {
+		fmt.Fprintf(stderr, "%s acp agents: %v\n", brand.CLI, err)
+		return 1
+	}
+	if asJSON {
+		return encodeJSON(stdout, res)
+	}
+	if active, _ := res["active_command"].(string); active != "" {
+		fmt.Fprintf(stdout, "default ACP command: %s\n", active)
+	}
+	agents, _ := res["agents"].([]any)
+	if len(agents) == 0 {
+		fmt.Fprintln(stdout, "no ACP agents in the catalog")
+		return 0
+	}
+	for _, raw := range agents {
+		a, _ := raw.(map[string]any)
+		if a == nil {
+			continue
+		}
+		mark := "  "
+		if installed, _ := a["installed"].(bool); installed {
+			mark = "✓ "
+		} else {
+			mark = "· "
+		}
+		fmt.Fprintf(stdout, "%s%-13s %s", mark, str(a["slug"]), str(a["name"]))
+		if active, _ := a["active"].(bool); active {
+			fmt.Fprintf(stdout, " [default]")
+		}
+		fmt.Fprintln(stdout)
+		if installed, _ := a["installed"].(bool); installed {
+			fmt.Fprintf(stdout, "     command: %s", str(a["command"]))
+			if v := str(a["version"]); v != "" {
+				fmt.Fprintf(stdout, "  (%s)", v)
+			}
+			fmt.Fprintln(stdout)
+		} else if hint := str(a["install"]); hint != "" {
+			fmt.Fprintf(stdout, "     not installed — install: %s\n", hint)
+		}
+	}
+	installedN, _ := res["installed_count"].(float64)
+	fmt.Fprintf(stdout, "%d of %d catalog agents installed\n", int(installedN), len(agents))
 	return 0
 }
 

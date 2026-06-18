@@ -329,6 +329,8 @@ function BrainConsolidator({ onDone }: { onDone: () => void }) {
 interface ReaperReport {
   dead_count: number;
   dead_agents: { slug: string; name?: string; last_active_ms?: number }[];
+  degraded_count?: number;
+  degraded_agents?: { slug: string; failures?: number; threshold?: number; doctor_agent?: string; self_repair_enabled?: boolean }[];
   stale_artifacts: number;
   stale_bytes: number;
 }
@@ -357,9 +359,17 @@ function ReaperCard() {
         {busy ? <Loader2 className="size-3.5 animate-spin" /> : <Skull className="size-3.5" />} Scan
       </Button>
       {report && (
-        <span className="text-xs text-muted">
-          {report.dead_count} idle agent{report.dead_count === 1 ? "" : "s"} · {report.stale_artifacts} stale artifacts ({fmtBytes(report.stale_bytes)})
-        </span>
+        <div className="space-y-1 text-xs text-muted">
+          <div>
+            {report.dead_count} idle agent{report.dead_count === 1 ? "" : "s"} · {report.degraded_count ?? 0} degraded ·{" "}
+            {report.stale_artifacts} stale artifacts ({fmtBytes(report.stale_bytes)})
+          </div>
+          {(report.degraded_agents || []).length > 0 && (
+            <div className="text-bad">
+              degraded: {(report.degraded_agents || []).slice(0, 3).map((a) => a.slug).join(", ")}
+            </div>
+          )}
+        </div>
       )}
     </CollectorCard>
   );

@@ -282,6 +282,7 @@ func TestCompleteStream_OAI_AzureAuthHeader(t *testing.T) {
 		AuthScheme: "",
 	}
 	_, err := p.CompleteStream(context.Background(), agent.CompletionRequest{
+		Model:    "m",
 		Messages: []agent.Message{{Role: agent.RoleUser, Content: "x"}},
 	}, func(c agent.Chunk) error { return nil })
 	if err != nil {
@@ -297,6 +298,7 @@ func TestCompleteStream_OAI_HTTPError(t *testing.T) {
 	defer srv.Close()
 	p := &Provider{APIKey: "x", Endpoint: srv.URL, HTTP: srv.Client()}
 	_, err := p.CompleteStream(context.Background(), agent.CompletionRequest{
+		Model:    "m",
 		Messages: []agent.Message{{Role: agent.RoleUser, Content: "x"}},
 	}, func(c agent.Chunk) error { return nil })
 	if err == nil {

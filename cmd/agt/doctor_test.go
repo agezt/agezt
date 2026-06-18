@@ -4,6 +4,9 @@ package main
 
 import (
 	"bytes"
+	"os"
+	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -51,6 +54,53 @@ func TestCheckBaseDir(t *testing.T) {
 			t.Errorf("absent dir should be WARN, got %s", c.Status.label())
 		}
 	})
+}
+
+func TestCheckMemoryStoreFileRepair(t *testing.T) {
+	base := t.TempDir()
+	memDir := filepath.Join(base, "memory")
+	if err := os.MkdirAll(memDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(memDir, "memory.json")
+
+	if err := os.WriteFile(path, []byte{0xEF, 0xBB, 0xBF, '{', '}', '\n'}, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if c := checkMemoryStoreFile(base, false); c.Status != statusWarn || !strings.Contains(c.Detail, "BOM") {
+		t.Fatalf("BOM should warn before repair, got %+v", c)
+	}
+	if c := checkMemoryStoreFile(base, true); c.Status != statusOK || !strings.Contains(c.Detail, "BOM removed") {
+		t.Fatalf("BOM repair should OK, got %+v", c)
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.HasPrefix(raw, []byte{0xEF, 0xBB, 0xBF}) {
+		t.Fatal("repair should remove BOM")
+	}
+
+	if err := os.WriteFile(path, []byte("not json"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if c := checkMemoryStoreFile(base, false); c.Status != statusFail {
+		t.Fatalf("corrupt JSON should fail before repair, got %+v", c)
+	}
+	if c := checkMemoryStoreFile(base, true); c.Status != statusOK || !strings.Contains(c.Detail, "backed up corrupt") {
+		t.Fatalf("corrupt repair should backup and recreate, got %+v", c)
+	}
+	raw, err = os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.TrimSpace(string(raw)) != "{}" {
+		t.Fatalf("repair should recreate empty JSON object, got %q", string(raw))
+	}
+	matches, err := filepath.Glob(path + ".bad-*")
+	if err != nil || len(matches) != 1 {
+		t.Fatalf("expected one corrupt backup, matches=%v err=%v", matches, err)
+	}
 }
 
 // TestDoctorSummaryExit verifies the exit-code contract: warnings don't fail by
@@ -125,6 +175,44 @@ func TestDoctorJSONShape(t *testing.T) {
 		if !strings.Contains(ss, want) {
 			t.Errorf("strict json missing %q in:\n%s", want, ss)
 		}
+	}
+}
+
+func TestAgentHealthCheckFromScan(t *testing.T) {
+	c := agentHealthCheckFromScan(map[string]any{"degraded_agents": []any{}})
+	if c.Status != statusOK {
+		t.Fatalf("empty degraded list should be OK, got %+v", c)
+	}
+	c = agentHealthCheckFromScan(map[string]any{
+		"degraded_agents": []any{
+			map[string]any{
+				"slug": "worker", "failures": float64(3), "threshold": float64(2),
+				"doctor_agent": "guardian-health", "self_repair_enabled": true,
+			},
+		},
+	})
+	if c.Status != statusWarn {
+		t.Fatalf("degraded agent should warn, got %+v", c)
+	}
+	if !strings.Contains(c.Detail, "worker") || !strings.Contains(c.Hint, "guardian-health") || !strings.Contains(c.Hint, "self-repair") {
+		t.Fatalf("agent health warning missing detail/hint: %+v", c)
+	}
+
+	c = agentHealthCheckFromScan(map[string]any{
+		"degraded_agents": []any{},
+		"misconfigured_agents": []any{
+			map[string]any{
+				"slug": "worker", "issues": []any{"parent_agent: lead is paused"},
+				"doctor_agent": "guardian-doctor", "self_repair_enabled": true,
+			},
+		},
+	})
+	if c.Status != statusWarn {
+		t.Fatalf("misconfigured agent should warn, got %+v", c)
+	}
+	if !strings.Contains(c.Detail, "worker") || !strings.Contains(c.Detail, "parent_agent: lead is paused") ||
+		!strings.Contains(c.Hint, "agent show worker") || !strings.Contains(c.Hint, "guardian-doctor") {
+		t.Fatalf("misconfigured warning missing detail/hint: %+v", c)
 	}
 }
 
@@ -308,7 +396,9 @@ func TestSchedulesCheckFromList(t *testing.T) {
 	}
 
 	// No schedules → OK.
-	if c := schedulesCheckFromList(map[string]any{"schedules": []any{}}); c.Status != statusOK {
+	statusWithResident := map[string]any{"schedules": map[string]any{"resident": true}}
+
+	if c := schedulesCheckFromList(map[string]any{"schedules": []any{}}, statusWithResident); c.Status != statusOK {
 		t.Errorf("no schedules: status = %v want OK", c.State)
 	}
 
@@ -316,7 +406,7 @@ func TestSchedulesCheckFromList(t *testing.T) {
 	w := schedulesCheckFromList(mk(
 		map[string]any{"id": "morning", "enabled": true, "last_status": "completed", "last_fired_unix_ms": float64(100)},
 		map[string]any{"id": "nightly", "enabled": true, "last_status": "failed", "last_fired_unix_ms": float64(200)},
-	))
+	), statusWithResident)
 	if w.Status != statusWarn {
 		t.Fatalf("a failed firing: status = %v want WARN", w.State)
 	}
@@ -328,7 +418,7 @@ func TestSchedulesCheckFromList(t *testing.T) {
 	w2 := schedulesCheckFromList(mk(
 		map[string]any{"id": "old", "enabled": true, "last_status": "abandoned", "last_fired_unix_ms": float64(10)},
 		map[string]any{"id": "new", "enabled": true, "last_status": "failed", "last_fired_unix_ms": float64(99)},
-	))
+	), statusWithResident)
 	if w2.Status != statusWarn || !strings.Contains(w2.Hint, "new") {
 		t.Errorf("abandoned+failed: status=%v hint=%q want WARN naming 'new'", w2.State, w2.Hint)
 	}
@@ -336,7 +426,7 @@ func TestSchedulesCheckFromList(t *testing.T) {
 	// A DISABLED schedule with a past failure is ignored (operator turned it off).
 	dis := schedulesCheckFromList(mk(
 		map[string]any{"id": "off", "enabled": false, "last_status": "failed", "last_fired_unix_ms": float64(5)},
-	))
+	), statusWithResident)
 	if dis.Status != statusOK {
 		t.Errorf("disabled failed schedule: status = %v want OK", dis.State)
 	}
@@ -344,17 +434,212 @@ func TestSchedulesCheckFromList(t *testing.T) {
 	// Enabled, healthy last firing → OK.
 	good := schedulesCheckFromList(mk(
 		map[string]any{"id": "ok1", "enabled": true, "last_status": "completed", "last_fired_unix_ms": float64(1)},
-	))
+	), statusWithResident)
 	if good.Status != statusOK {
 		t.Errorf("healthy: status = %v want OK", good.State)
+	}
+
+	noisy := schedulesCheckFromList(mk(
+		map[string]any{"id": "guardian-fast", "enabled": true, "last_status": "completed", "last_fired_unix_ms": float64(1), "frequency_warning": "system agent schedule is more frequent than the guardian quiet window"},
+	), statusWithResident)
+	if noisy.Status != statusWarn {
+		t.Fatalf("frequency warning: status=%v want WARN", noisy.State)
+	}
+	if !strings.Contains(noisy.Detail, "quiet cadence") || !strings.Contains(noisy.Hint, "guardian-fast") {
+		t.Errorf("frequency warning detail=%q hint=%q", noisy.Detail, noisy.Hint)
+	}
+
+	blocked := schedulesCheckFromList(mk(
+		map[string]any{"id": "stale-flow", "enabled": true, "last_status": "completed", "target_status": "blocked", "target_error": "unknown workflow: stale"},
+	), statusWithResident)
+	if blocked.Status != statusWarn {
+		t.Fatalf("blocked target: status=%v want WARN", blocked.State)
+	}
+	if !strings.Contains(blocked.Detail, "blocked targets") || !strings.Contains(blocked.Hint, "stale-flow") {
+		t.Errorf("blocked target detail=%q hint=%q", blocked.Detail, blocked.Hint)
+	}
+
+	disabledNoisy := schedulesCheckFromList(mk(
+		map[string]any{"id": "off-fast", "enabled": false, "frequency_warning": "agent wake schedule is very frequent"},
+	), statusWithResident)
+	if disabledNoisy.Status != statusOK {
+		t.Errorf("disabled frequency warning: status=%v want OK", disabledNoisy.State)
+	}
+	if got := scheduleAttentionIDs(mk(
+		map[string]any{"id": "guardian-fast", "enabled": true, "frequency_warning": "system agent schedule is more frequent than the guardian quiet window"},
+		map[string]any{"id": "stale-flow", "enabled": true, "target_status": "blocked", "target_error": "unknown workflow: stale"},
+		map[string]any{"id": "off-fast", "enabled": false, "frequency_warning": "agent wake schedule is very frequent"},
+		map[string]any{"id": "off-stale", "enabled": false, "target_status": "blocked", "target_error": "unknown tool: stale"},
+		map[string]any{"id": "healthy", "enabled": true},
+	)); !reflect.DeepEqual(got, []string{"guardian-fast", "stale-flow"}) {
+		t.Fatalf("scheduleAttentionIDs = %v, want [guardian-fast stale-flow]", got)
+	}
+
+	residentMissing := schedulesCheckFromList(mk(
+		map[string]any{"id": "armed", "enabled": true, "last_status": "completed", "last_fired_unix_ms": float64(1)},
+	), map[string]any{"schedules": map[string]any{"resident": false}})
+	if residentMissing.Status != statusWarn {
+		t.Fatalf("resident missing: status=%v want WARN", residentMissing.State)
+	}
+	if !strings.Contains(residentMissing.Detail, "cadence resident is not attached") {
+		t.Errorf("resident missing detail = %q", residentMissing.Detail)
 	}
 
 	// Enabled but never fired (no last_status) → healthy-by-default OK.
 	pending := schedulesCheckFromList(mk(
 		map[string]any{"id": "fresh", "enabled": true},
-	))
+	), statusWithResident)
 	if pending.Status != statusOK {
 		t.Errorf("never-fired: status = %v want OK", pending.State)
+	}
+}
+
+func TestStandingCheckFromList(t *testing.T) {
+	mk := func(rows ...map[string]any) map[string]any {
+		arr := make([]any, 0, len(rows))
+		for _, r := range rows {
+			arr = append(arr, r)
+		}
+		return map[string]any{"orders": arr}
+	}
+
+	none := standingCheckFromList(mk())
+	if none.Status != statusOK || !strings.Contains(none.Detail, "no standing wake rules") {
+		t.Fatalf("empty standing check = %v %q, want OK/no standing wake rules", none.State, none.Detail)
+	}
+
+	good := standingCheckFromList(mk(
+		map[string]any{"id": "ops-ready", "enabled": true, "target_status": "ready"},
+	))
+	if good.Status != statusOK {
+		t.Fatalf("ready standing check = %v, want OK", good.State)
+	}
+
+	noisy := standingCheckFromList(mk(
+		map[string]any{"id": "ops-fast", "enabled": true, "frequency_warning": "event cooldown is below the default 15m guard"},
+	))
+	if noisy.Status != statusWarn {
+		t.Fatalf("frequency warning: status=%v want WARN", noisy.State)
+	}
+	if !strings.Contains(noisy.Detail, "quiet cadence") || !strings.Contains(noisy.Hint, "ops-fast") {
+		t.Errorf("frequency warning detail=%q hint=%q", noisy.Detail, noisy.Hint)
+	}
+
+	blocked := standingCheckFromList(mk(
+		map[string]any{"id": "ops-dead", "enabled": true, "target_status": "blocked", "target_error": "standing agent ops is retired"},
+	))
+	if blocked.Status != statusWarn {
+		t.Fatalf("blocked target: status=%v want WARN", blocked.State)
+	}
+	if !strings.Contains(blocked.Detail, "blocked targets") || !strings.Contains(blocked.Hint, "ops-dead") {
+		t.Errorf("blocked target detail=%q hint=%q", blocked.Detail, blocked.Hint)
+	}
+
+	disabledNoisy := standingCheckFromList(mk(
+		map[string]any{"id": "off-fast", "enabled": false, "frequency_warning": "event cooldown is below the default 15m guard"},
+	))
+	if disabledNoisy.Status != statusOK {
+		t.Errorf("disabled frequency warning: status=%v want OK", disabledNoisy.State)
+	}
+	if got := standingAttentionIDs(mk(
+		map[string]any{"id": "ops-fast", "enabled": true, "frequency_warning": "event cooldown is below the default 15m guard"},
+		map[string]any{"id": "ops-dead", "enabled": true, "target_status": "blocked", "target_error": "standing agent ops is retired"},
+		map[string]any{"id": "off-fast", "enabled": false, "frequency_warning": "event cooldown is below the default 15m guard"},
+		map[string]any{"id": "healthy", "enabled": true},
+	)); !reflect.DeepEqual(got, []string{"ops-fast", "ops-dead"}) {
+		t.Fatalf("standingAttentionIDs = %v, want [ops-fast ops-dead]", got)
+	}
+}
+
+func TestGuardianNoiseCheckFromList(t *testing.T) {
+	mk := func(rows ...map[string]any) map[string]any {
+		arr := make([]any, 0, len(rows))
+		for _, r := range rows {
+			arr = append(arr, r)
+		}
+		return map[string]any{"profiles": arr}
+	}
+
+	none := guardianNoiseCheckFromList(mk())
+	if none.Status != statusOK || !strings.Contains(none.Detail, "no active system guardians") {
+		t.Fatalf("empty guardian noise = %v %q, want OK/no active guardians", none.State, none.Detail)
+	}
+
+	quiet := guardianNoiseCheckFromList(mk(map[string]any{
+		"slug":          "guardian-health",
+		"system":        true,
+		"memory_scope":  "system/guardian-health",
+		"max_cost_mc":   float64(50_000_000),
+		"max_daily_mc":  float64(50_000_000),
+		"trust_ceiling": "L2",
+		"tool_deny":     []any{"memory"},
+		"noise_policy": map[string]any{
+			"silent_on_success":       true,
+			"disable_memory_writes":   true,
+			"min_notify_severity":     "warning",
+			"min_notify_interval_sec": float64(8 * 3600),
+		},
+	}))
+	if quiet.Status != statusOK || !strings.Contains(quiet.Detail, "quiet") {
+		t.Fatalf("quiet guardian noise = %v %q, want OK/quiet", quiet.State, quiet.Detail)
+	}
+
+	noisy := guardianNoiseCheckFromList(mk(
+		map[string]any{
+			"slug":          "guardian-fast",
+			"system":        true,
+			"memory_scope":  "shared",
+			"max_cost_mc":   float64(0),
+			"max_daily_mc":  float64(200_000_000),
+			"trust_ceiling": "L4",
+			"noise_policy": map[string]any{
+				"min_notify_severity":     "info",
+				"min_notify_interval_sec": float64(60),
+			},
+		},
+		map[string]any{"slug": "guardian-old", "system": true, "retired": true},
+	))
+	if noisy.Status != statusWarn {
+		t.Fatalf("noisy guardian noise = %v, want WARN", noisy.State)
+	}
+	for _, want := range []string{"guardian-fast", "memory writes enabled", "notify below warning", "daily cap missing/high", "trust above L2", "memory scope not isolated"} {
+		if !strings.Contains(noisy.Detail, want) {
+			t.Fatalf("noisy guardian detail %q missing %q", noisy.Detail, want)
+		}
+	}
+	if !strings.Contains(noisy.Hint, "doctor --repair") {
+		t.Fatalf("noisy guardian hint = %q, want doctor --repair", noisy.Hint)
+	}
+}
+
+func TestGuardianQuietPatch(t *testing.T) {
+	got := guardianQuietPatch(map[string]any{
+		"slug":          "guardian-fast",
+		"trust_ceiling": "L4",
+		"tool_allow":    []any{"memory", "notify"},
+		"tool_deny":     []any{"notify"},
+		"noise_policy": map[string]any{
+			"min_notify_severity":     "info",
+			"min_notify_interval_sec": float64(60),
+		},
+	})
+	if got["ref"] != "guardian-fast" || got["memory_scope"] != "system/guardian-fast" ||
+		got["max_cost_mc"] != doctorGuardianMaxCostMc || got["max_daily_mc"] != doctorGuardianMaxDailyMc ||
+		got["trust_ceiling"] != "L2" {
+		t.Fatalf("quiet patch core fields wrong: %v", got)
+	}
+	allow, _ := got["tool_allow"].([]any)
+	if !reflect.DeepEqual(allow, []any{"notify"}) {
+		t.Fatalf("quiet patch allow = %v, want notify only", allow)
+	}
+	deny, _ := got["tool_deny"].([]any)
+	if !reflect.DeepEqual(deny, []any{"notify", "memory"}) {
+		t.Fatalf("quiet patch deny = %v, want notify+memory", deny)
+	}
+	noise, _ := got["noise_policy"].(map[string]any)
+	if noise["silent_on_success"] != true || noise["disable_memory_writes"] != true ||
+		noise["min_notify_severity"] != "warning" || noise["min_notify_interval_sec"] != doctorGuardianNotifyCooldownSec {
+		t.Fatalf("quiet patch noise wrong: %v", noise)
 	}
 }
 

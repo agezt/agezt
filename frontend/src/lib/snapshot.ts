@@ -5,12 +5,13 @@ import { parseSchedulesJSON } from "@/views/Schedules";
 import { parseMemoryJSON } from "@/views/Memory";
 import { parseWorldJSON } from "@/views/World";
 
-// Full snapshot (M741): a record of the daemon's whole customizable state — persona,
-// prompts, routing, standing orders, schedules, memory and the world model — gathered
-// into one JSON for backup, audit or migration. Originally export-only; M752 made it
-// RESTORABLE by replaying each section through the same per-domain importers the
-// individual views use (config replaces; standing/schedules are additive; memory/world
-// dedupe). Restore is gated behind an explicit confirm in the Backup view.
+// Full snapshot (M741): a record of daemon-level defaults and knowledge — default
+// identity, prompt templates, routing, standing orders, schedules, memory and the
+// world model — gathered into one JSON for backup, audit or migration. Originally
+// export-only; M752 made it RESTORABLE by replaying each section through the same
+// per-domain importers the individual views use (config replaces; standing/schedules
+// are additive; memory/world dedupe). Restore is gated behind an explicit confirm
+// in the Backup view.
 
 export interface FullSnapshot {
   version: number;
@@ -25,8 +26,8 @@ export interface FullSnapshot {
 // snapshotCounts summarises a snapshot for the UI (so you see roughly what you grabbed).
 export function snapshotCounts(s: FullSnapshot): string {
   return [
-    s.config.persona.trim() ? "persona" : "no persona",
-    `${s.config.prompts.length} prompts`,
+    s.config.persona.trim() ? "default identity" : "no default identity",
+    `${s.config.prompts.length} prompt templates`,
     `${Object.keys(s.config.chains).length} chains`,
     `${s.standing.length} standing`,
     `${s.schedules.length} schedules`,
@@ -45,7 +46,7 @@ export async function fetchFullSnapshot(): Promise<FullSnapshot> {
       return fallback;
     }
   };
-  const [persona, prompts, routing, standing, schedules, memory, world] = await Promise.all([
+  const [defaultIdentity, promptTemplates, routing, standing, schedules, memory, world] = await Promise.all([
     safe(getJSON<{ system?: string }>("/api/persona"), {}),
     safe(getJSON<{ prompts?: unknown[] }>("/api/prompts"), {}),
     safe(getJSON<{ chains?: Record<string, string[]> }>("/api/routing"), {}),
@@ -57,7 +58,7 @@ export async function fetchFullSnapshot(): Promise<FullSnapshot> {
   return {
     version: 1,
     exported_note: "Whole-daemon snapshot. Restore replays each section through the per-domain importers; standing/schedules are additive, memory/world dedupe.",
-    config: { persona: persona.system || "", prompts: prompts.prompts || [], chains: routing.chains || {} },
+    config: { persona: defaultIdentity.system || "", prompts: promptTemplates.prompts || [], chains: routing.chains || {} },
     standing: standing.orders || [],
     schedules: schedules.schedules || [],
     memory: memory.records || [],
@@ -104,11 +105,11 @@ export function parseSnapshotJSON(text: string): FullSnapshot {
 // replaced; standing & schedules are additive (re-adding duplicates — intended for a
 // fresh daemon); memory & world are content-addressed so they dedupe. Each section is
 // best-effort — one failing section never aborts the rest. Returns a human summary of
-// what landed (e.g. "config (persona+prompts)", "2/2 standing", "3/3 memories").
+// what landed (e.g. "config (default identity+prompt templates)", "2/2 standing", "3/3 memories").
 export async function applyFullSnapshot(snap: FullSnapshot): Promise<string[]> {
   const summary: string[] = [];
 
-  // Config: persona + prompts + routing (replace via the config bundle's /set calls).
+  // Config: default identity + prompt templates + routing (replace via the config bundle's /set calls).
   try {
     const applied = await applyConfigBundle({
       persona: snap.config.persona,

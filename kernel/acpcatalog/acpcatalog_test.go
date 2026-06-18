@@ -1,0 +1,71 @@
+// SPDX-License-Identifier: MIT
+
+package acpcatalog
+
+import (
+	"context"
+	"testing"
+)
+
+func TestFind(t *testing.T) {
+	if a, ok := Find("gemini"); !ok || a.Bin != "gemini" {
+		t.Fatalf("Find(gemini) = %+v, %v", a, ok)
+	}
+	if a, ok := Find("GEMINI"); !ok || a.Slug != "gemini" {
+		t.Fatalf("Find is case-insensitive: %+v %v", a, ok)
+	}
+	if _, ok := Find("nope"); ok {
+		t.Fatal("Find(nope) should not resolve")
+	}
+}
+
+func TestResolveCommand(t *testing.T) {
+	// Empty ref → fallback (the configured default).
+	if cmd, ok := ResolveCommand("", "custom --acp"); !ok || cmd != "custom --acp" {
+		t.Fatalf("empty ref should use fallback: %q %v", cmd, ok)
+	}
+	// Empty ref and no fallback → nothing usable.
+	if _, ok := ResolveCommand("", ""); ok {
+		t.Fatal("empty ref + empty fallback should be unresolved")
+	}
+	// A non-slug ref is passed through verbatim (custom command).
+	if cmd, ok := ResolveCommand("my-acp-binary --flag", ""); !ok || cmd != "my-acp-binary --flag" {
+		t.Fatalf("raw command should pass through: %q %v", cmd, ok)
+	}
+}
+
+func TestDetect_CoversCatalogAndFlagsActive(t *testing.T) {
+	inv := Detect(context.Background(), "gemini --experimental-acp")
+	if len(inv.Agents) != len(Catalog) {
+		t.Fatalf("Detect returned %d agents, want %d", len(inv.Agents), len(Catalog))
+	}
+	if inv.InstalledCount+inv.MissingCount != len(Catalog) {
+		t.Fatalf("counts don't sum: installed=%d missing=%d total=%d", inv.InstalledCount, inv.MissingCount, len(Catalog))
+	}
+	var geminiActive, otherActive bool
+	for _, st := range inv.Agents {
+		if st.Slug == "gemini" {
+			geminiActive = st.Active
+		} else if st.Active {
+			otherActive = true
+		}
+	}
+	if !geminiActive {
+		t.Fatal("gemini should be flagged active for 'gemini --experimental-acp'")
+	}
+	if otherActive {
+		t.Fatal("only the matching agent should be active")
+	}
+}
+
+func TestDetect_NoActiveWhenUnset(t *testing.T) {
+	inv := Detect(context.Background(), "")
+	if inv.ActiveCommand != "" {
+		t.Fatalf("active command should be empty, got %q", inv.ActiveCommand)
+	}
+	for _, st := range inv.Agents {
+		if st.Active {
+			t.Fatalf("no agent should be active when default is unset: %s", st.Slug)
+		}
+	}
+}

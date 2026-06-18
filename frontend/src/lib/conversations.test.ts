@@ -118,7 +118,7 @@ describe("store mutations", () => {
     s = withActivePersona(s, "persona A", 3);
     const firstId = s.activeId;
     s = startConversation(s, genId, 4); // new active thread
-    expect(activePersona(s)).toBe(""); // the new thread has no persona
+    expect(activePersona(s)).toBe(""); // the new thread has no override
     // The first thread still holds its own.
     expect(s.conversations.find((c) => c.id === firstId)!.persona).toBe("persona A");
   });

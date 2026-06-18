@@ -63,6 +63,16 @@ func invoke(t *testing.T, tool *Tool, input string) string {
 
 const graphJSON = `{"name":"greeter","description":"says hi","nodes":[{"id":"start","type":"trigger"},{"id":"greet","type":"transform","config":{"template":"hello {{trigger.payload.name}}"}}],"edges":[{"from":"start","to":"greet"}]}`
 
+func TestWorkflowToolDefinitionStatesReusableChainNotIdentity(t *testing.T) {
+	d := New().Definition()
+	if !strings.Contains(d.Description, "reusable chains, not agent identities") {
+		t.Fatalf("description should separate workflows from agent identities, got %q", d.Description)
+	}
+	if !strings.Contains(d.Description, "users, agents, schedules, and webhooks can run") {
+		t.Fatalf("description should state workflow run surfaces, got %q", d.Description)
+	}
+}
+
 func TestWorkflowTool_SaveRunEnableLifecycle(t *testing.T) {
 	fk := newFakeKernel(t)
 	tool := New()

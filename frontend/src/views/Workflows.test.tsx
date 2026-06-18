@@ -24,6 +24,11 @@ import {
   fromFlow,
   portsForNode,
   summarize,
+  workflowExecutionContract,
+  workflowIdentityBoundary,
+  workflowInvocationPassport,
+  workflowRunContractSummary,
+  workflowRunSourceLabel,
   type Wf,
   type WfRun,
 } from "@/views/Workflows";
@@ -70,6 +75,47 @@ describe("summarize", () => {
     expect(summarize("http", { method: "GET", url: "https://x" })).toBe("GET https://x");
     expect(summarize("condition", { left: "{{a}}", op: "gt", right: "5" })).toBe("{{a}} gt 5");
     expect(summarize("merge", {})).toBe("any");
+  });
+});
+
+describe("workflowExecutionContract", () => {
+  it("states that workflows are reusable chains runnable by agents and schedules", () => {
+    expect(workflowExecutionContract({ enabled: true, trigger_kind: "event", trigger_detail: "on memory.>" })).toBe(
+      "enabled reusable chain · trigger event (on memory.>) · runnable by user, agent, schedule, or webhook",
+    );
+    expect(workflowExecutionContract({ enabled: false })).toBe(
+      "disabled reusable chain · trigger manual/API · runnable by user, agent, schedule, or webhook",
+    );
+    expect(workflowRunContractSummary({ enabled: true, trigger_kind: "cron", trigger_detail: "every 30s" })).toEqual({
+      label: "scheduled chain",
+      detail: "enabled reusable chain · trigger cron (every 30s) · runnable by user, agent, schedule, or webhook · cron trigger starts the graph without making it an agent identity",
+      tone: "warn",
+    });
+    expect(workflowRunContractSummary({ enabled: false })).toEqual({
+      label: "draft chain",
+      detail: "disabled reusable chain · trigger manual/API · runnable by user, agent, schedule, or webhook · auto triggers disarmed, manual/user/agent test runs still allowed",
+      tone: "muted",
+    });
+    expect(workflowInvocationPassport({ enabled: true, trigger_kind: "cron", trigger_detail: "every 30s", node_count: 4 })).toEqual({
+      label: "cron-invoked graph",
+      detail: "4 nodes · cron starts the graph, not an agent · user, agent, schedule, or webhook may also run it through workflow policy · past runs stay journaled",
+      tone: "warn",
+    });
+    expect(workflowInvocationPassport({ enabled: false, trigger_kind: "event", trigger_detail: "on board.>", nodes: [{ id: "start", type: "trigger" }] })).toEqual({
+      label: "test-only invocation",
+      detail: "1 node · not an agent identity · auto trigger event (on board.>) disarmed · user or agent can still run tests manually · past runs stay journaled",
+      tone: "muted",
+    });
+    expect(workflowIdentityBoundary({ enabled: true, trigger_kind: "cron", trigger_detail: "every 30s", node_count: 4 })).toEqual({
+      label: "scheduled graph boundary",
+      detail: "4 graph nodes; cron runs the chain under daemon or invoking-agent authority, while identity and memory stay outside the workflow",
+      tone: "warn",
+    });
+    expect(workflowIdentityBoundary({ enabled: false, nodes: [{ id: "start", type: "trigger" }] })).toEqual({
+      label: "draft graph boundary",
+      detail: "1 graph node retained; disabled workflow owns no soul, memory, inbox, provider route, retry, or repair policy",
+      tone: "muted",
+    });
   });
 });
 
@@ -144,6 +190,18 @@ describe("Workflows list", () => {
     expect(screen.getByText("heartbeat")).toBeTruthy();
     expect(screen.getByText("event (on memory.>)")).toBeTruthy();
     expect(screen.getByText("cron (every 30s)")).toBeTruthy();
+    expect(screen.getByText("reactive chain")).toBeTruthy();
+    expect(screen.getByText("draft chain")).toBeTruthy();
+    expect(screen.getByText("enabled reusable chain · trigger event (on memory.>) · runnable by user, agent, schedule, or webhook")).toBeTruthy();
+    expect(screen.getByText("disabled reusable chain · trigger cron (every 30s) · runnable by user, agent, schedule, or webhook")).toBeTruthy();
+    expect(screen.getByText("event-invoked graph")).toBeTruthy();
+    expect(screen.getByText("10 nodes · event/webhook starts the graph, not an agent · user, agent, or schedule may also run it through workflow policy · past runs stay journaled")).toBeTruthy();
+    expect(screen.getByText("reactive graph boundary")).toBeTruthy();
+    expect(screen.getByText("10 graph nodes; event/webhook wakes the saved chain through workflow policy, not an autonomous agent identity")).toBeTruthy();
+    expect(screen.getByText("test-only invocation")).toBeTruthy();
+    expect(screen.getByText("2 nodes · not an agent identity · auto trigger cron (every 30s) disarmed · user or agent can still run tests manually · past runs stay journaled")).toBeTruthy();
+    expect(screen.getByText("draft graph boundary")).toBeTruthy();
+    expect(screen.getByText("2 graph nodes retained; disabled workflow owns no soul, memory, inbox, provider route, retry, or repair policy")).toBeTruthy();
     expect(screen.getByText("disabled")).toBeTruthy();
     expect(getJSON).toHaveBeenCalledWith("/api/workflows");
   });
@@ -281,6 +339,10 @@ describe("run history", () => {
     started_ms: 1000,
     finished_ms: 3500,
     error: "node call: boom",
+    source: "schedule",
+    runner: "agent",
+    agent: "ops",
+    schedule_id: "sch-1",
     node_events: [
       { node: "start", ok: true },
       { node: "rescue", ok: false, handled: true, port: "error" },
@@ -293,6 +355,13 @@ describe("run history", () => {
     expect(runToStatus({ correlation_id: "x", status: "running" })).toEqual({});
   });
 
+  it("labels who invoked a workflow run", () => {
+    expect(workflowRunSourceLabel(failedRun)).toBe("agent ops");
+    expect(workflowRunSourceLabel({ runner: "schedule", schedule_id: "sch-2" })).toBe("schedule sch-2");
+    expect(workflowRunSourceLabel({ runner: "webhook", trigger_subject: "webhook:hooked" })).toBe("webhook:hooked");
+    expect(workflowRunSourceLabel({})).toBe("manual");
+  });
+
   it("RunsDrawer lists runs from the journal fold and replays on click", async () => {
     getJSON.mockResolvedValue({ runs: [failedRun], count: 1 });
     const onReplay = vi.fn();
@@ -300,6 +369,7 @@ describe("run history", () => {
     await waitFor(() => expect(screen.getByText("failed")).toBeTruthy());
     expect(getJSON).toHaveBeenCalledWith("/api/workflows/runs", { ref: "wire-flow" });
     expect(screen.getByText(/3 node\(s\)/)).toBeTruthy();
+    expect(screen.getByText("agent ops")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Replay run run-001" }));
     expect(onReplay).toHaveBeenCalledWith(failedRun);
   });

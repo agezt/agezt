@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/event"
@@ -81,7 +82,7 @@ func (t *subAgentTool) Definition() agent.ToolDef {
     },
     "agent": {
       "type": "string",
-      "description": "Optional named agent (roster slug) to run the sub-agent AS: its soul becomes the sub-agent's persona and its model/task type/cost ceiling apply as defaults. Explicit model/task_type here still win."
+      "description": "Optional named agent (roster slug) to run the sub-agent AS: its soul becomes the sub-agent's identity and its model/task type/cost ceiling apply as defaults. Explicit model/task_type here still win."
     },
     "async": {
       "type": "boolean",
@@ -90,6 +91,16 @@ func (t *subAgentTool) Definition() agent.ToolDef {
   },
   "required": ["task"]
 }`),
+		Effect: agent.ToolEffect{
+			Class: agent.EffectCompensable,
+			PredictedEffects: []string{
+				"Spawn a governed sub-agent run with its own tool loop, budget, and journal correlation.",
+				"Async mode may keep the child run active after the delegate call returns until collected or cancelled.",
+			},
+			AffectedResources: []string{"sub-agent run tree", "model-provider budget", "tools invoked by the delegated child"},
+			RollbackNotes:     "Cancel unneeded async children or compensate any child tool effects through their own audit trail; completed model spend cannot be recovered.",
+			Confidence:        0.75,
+		},
 	}
 }
 
@@ -151,6 +162,15 @@ func (t *subAgentAwaitTool) Definition() agent.ToolDef {
   },
   "required": ["spawn_id"]
 }`),
+		Effect: agent.ToolEffect{
+			Class: agent.EffectReversible,
+			PredictedEffects: []string{
+				"Wait for and collect one previously spawned async sub-agent result.",
+			},
+			AffectedResources: []string{"async sub-agent result handle"},
+			RollbackNotes:     "Collection consumes the local handle; the result remains in the journal and can be inspected there.",
+			Confidence:        0.9,
+		},
 	}
 }
 
@@ -183,7 +203,7 @@ type spawnHandle struct {
 
 // subAgentPrep carries a fully resolved + journaled delegation, ready to
 // execute: prepareSubAgent applied every guard (depth, fan-out, tree total,
-// spend), resolved the model/persona, registered steering, and published
+// spend), resolved the model/identity, registered steering, and published
 // subagent.spawned; executeSubAgent runs the child loop and cleans up.
 type subAgentPrep struct {
 	childCtx     context.Context
@@ -200,6 +220,7 @@ type subAgentPrep struct {
 	maxRunCost   int64
 	agentSlug    string
 	agentDailyMc int64
+	retryPolicy  *roster.RetryPolicy
 	rc           *runControl
 }
 
@@ -349,6 +370,19 @@ func (k *Kernel) prepareSubAgent(ctx context.Context, task, model, taskType, age
 		if !p.Enabled {
 			return nil, fmt.Errorf("agent %q is paused (agt agent resume %s)", p.Slug, p.Slug)
 		}
+		caller := agent.AgentFromContext(ctx)
+		if !p.AllowsDelegationFrom(caller) {
+			manager := strings.TrimSpace(p.ParentAgent)
+			if manager == "" {
+				manager = strings.TrimSpace(p.OwnerAgent)
+			}
+			return nil, fmt.Errorf("agent %q is managed by %q and cannot be delegated by %q", p.Slug, manager, caller)
+		}
+		if !p.AllowsDirectCall() {
+			if err := k.validateDelegationManager(p, caller); err != nil {
+				return nil, err
+			}
+		}
 		prof = &p
 	}
 	// Per-sub-agent model (M705): an explicit model overrides the daemon default
@@ -360,6 +394,13 @@ func (k *Kernel) prepareSubAgent(ctx context.Context, task, model, taskType, age
 	if prof != nil {
 		if model == "" {
 			model = strings.TrimSpace(prof.Model)
+		}
+		if model == "" {
+			if override, ok := agentConfigOverrideRaw(prof.ConfigOverrides, "AGEZT_MODEL"); ok {
+				if parsed, ok := agentConfigStringValue(override); ok {
+					model = parsed
+				}
+			}
 		}
 		if taskType == "" {
 			taskType = strings.TrimSpace(prof.TaskType)
@@ -491,6 +532,17 @@ func (k *Kernel) prepareSubAgent(ctx context.Context, task, model, taskType, age
 	}
 	if prof != nil {
 		spawnPayload["agent"] = prof.Slug // who the sub-agent ran AS (M784)
+		// Delegated-wake evidence (mirrors schedule.fired / standing.fired): the
+		// sub-agent's wake contract plus who delegated it and the parent run, so the
+		// child run is attributable to its leader through status -> detail -> activity.
+		spawnPayload["autonomy_runbook"] = roster.AutonomyRunbook(*prof)
+		spawnPayload["wake_source"] = "delegated"
+		if caller := strings.TrimSpace(agent.AgentFromContext(ctx)); caller != "" {
+			spawnPayload["delegated_by"] = caller
+		}
+		if parentCorr != "" {
+			spawnPayload["parent_correlation_id"] = parentCorr
+		}
 	}
 	if async {
 		spawnPayload["async"] = true // M881: non-blocking spawn; completion announced separately
@@ -511,25 +563,22 @@ func (k *Kernel) prepareSubAgent(ctx context.Context, task, model, taskType, age
 	// Carry the tree root to every descendant so the M629 total cap is attributed
 	// to the whole tree, not re-seeded at each level.
 	childCtx = context.WithValue(childCtx, ctxKeyRoot, rootCorr)
-	// A named agent's memory follows it (M786): the child's memory-tool recalls
-	// default to the profile's scope (its private notes + shared memory). Its
-	// working directory follows too (M792): the child's file/shell tools
-	// operate inside the profile's workspace subdirectory.
+	// A named agent is a full roster identity, not only a prompt skin: carry its
+	// tool policy, trust ceiling, noise policy, config overrides, lifecycle,
+	// memory scope, workspace, and budget identity into the child context. The
+	// explicit sub-agent LoopConfig below still owns the child system prompt,
+	// selected model, and model chain so delegation-specific overrides keep their
+	// existing precedence.
 	if prof != nil {
-		scope := strings.TrimSpace(prof.MemoryScope)
-		if scope == "" {
-			scope = prof.Slug
-		}
-		childCtx = memory.WithScope(childCtx, scope)
-		childCtx = agent.WithWorkdir(childCtx, prof.Workdir)
+		childCtx = WithAgentProfile(childCtx, *prof)
 	}
 
-	// A named agent's soul REPLACES the daemon persona layer (it IS this
+	// A named agent's soul REPLACES the daemon default identity layer (it IS this
 	// sub-agent's identity); the sub-agent preamble always stays on top.
 	system := subAgentSystem
 	switch {
-	case prof != nil && strings.TrimSpace(prof.Soul) != "":
-		system += "\n\n" + strings.TrimSpace(prof.Soul)
+	case prof != nil && agentProfileSystem(*prof) != "":
+		system += "\n\n" + agentProfileSystem(*prof)
 	case k.cfg.System != "":
 		system += "\n\n" + k.cfg.System
 	}
@@ -541,9 +590,11 @@ func (k *Kernel) prepareSubAgent(ctx context.Context, task, model, taskType, age
 	// in order by the Governor; duplicates of the primary are skipped.
 	var maxRunCost, agentDailyMc int64
 	var agentSlug string
+	var retryPolicy *roster.RetryPolicy
 	if prof != nil {
 		maxRunCost = prof.MaxCostMc
 		agentSlug, agentDailyMc = prof.Slug, prof.MaxDailyMc // M793: identity ledger
+		retryPolicy = prof.RetryPolicy
 	}
 	// modelChain + subModel were resolved (and keyed-filtered) above, before the
 	// spawn was journaled.
@@ -563,8 +614,27 @@ func (k *Kernel) prepareSubAgent(ctx context.Context, task, model, taskType, age
 		maxRunCost:   maxRunCost,
 		agentSlug:    agentSlug,
 		agentDailyMc: agentDailyMc,
+		retryPolicy:  retryPolicy,
 		rc:           rc,
 	}, nil
+}
+
+func (k *Kernel) validateDelegationManager(p roster.Profile, caller string) error {
+	caller = strings.TrimSpace(caller)
+	if caller == "" {
+		return fmt.Errorf("agent %q is managed and requires a live parent/owner to delegate it", p.Slug)
+	}
+	manager, ok := k.roster.Get(caller)
+	if !ok {
+		return fmt.Errorf("agent %q manager %q is missing from the roster", p.Slug, caller)
+	}
+	if manager.Retired {
+		return fmt.Errorf("agent %q manager %q is retired — revive it first", p.Slug, manager.Slug)
+	}
+	if !manager.Enabled {
+		return fmt.Errorf("agent %q manager %q is paused — resume it first", p.Slug, manager.Slug)
+	}
+	return nil
 }
 
 // executeSubAgent runs a prepared delegation's child loop to completion and
@@ -583,31 +653,179 @@ func (k *Kernel) executeSubAgent(p *subAgentPrep) (string, error) {
 		k.steersMu.Unlock()
 	}()
 
-	answer, err := agent.Run(p.childCtx, agent.LoopConfig{
-		Provider:             k.cfg.Provider,
-		Tools:                k.mergeMCPTools(k.mergeScriptTools(k.tools)), // forged + MCP tools reach sub-agents too (M794/M796)
-		Bus:                  k.bus,
-		Model:                p.subModel,
-		TaskType:             p.taskType,   // M705: route the sub-agent (chain supplies fallbacks)
-		ModelChain:           p.modelChain, // M787: the named agent's own fallbacks win
-		Agent:                p.agentSlug,
-		AgentDailyCeilingMc:  p.agentDailyMc,
-		System:               p.system,
-		MaxIter:              k.cfg.MaxIter,
-		MaxAutoContinue:      k.cfg.MaxAutoContinue,  // M833: autonomous continue past MaxIter
-		AutoContinueWait:     k.cfg.AutoContinueWait, // M833
-		ToolTimeout:          k.cfg.ToolTimeout,
-		MaxParallelTools:     k.cfg.MaxParallelTools, // M880: in-turn parallel tool dispatch
-		MaxRunCostMicrocents: p.maxRunCost,
-		Actor:                p.actor,
-		CorrelationID:        p.childCorr,
-		Policy:               k.policyHook,
-		Steer:                p.rc, // M631: individual sub-agent steering
-	}, p.task)
+	var activatedSkillIDs []string
+	runOnce := func() (string, []string, error) {
+		runTools := k.mergeMCPTools(k.mergeScriptTools(k.tools))
+		runTools = applyAgentToolPolicy(runTools, agentToolPolicyFromCtx(p.childCtx))
+		runTools = applyAgentNoisePolicyToPromptTools(runTools, p.childCtx)
+		if allow, ok := toolsFromCtx(p.childCtx); ok {
+			runTools = filterTools(runTools, allow)
+		}
+		maxIter := k.cfg.MaxIter
+		if v, ok := agentConfigIntOverride(p.childCtx, "AGEZT_MAX_ITER"); ok {
+			maxIter = v
+		}
+		maxAutoContinue := k.cfg.MaxAutoContinue
+		if v, ok := agentConfigIntOverride(p.childCtx, "AGEZT_MAX_AUTO_CONTINUE"); ok {
+			maxAutoContinue = v
+		}
+		autoContinueWait := k.cfg.AutoContinueWait
+		if v, ok := agentConfigDurationOverride(p.childCtx, "AGEZT_AUTO_CONTINUE_WAIT"); ok {
+			autoContinueWait = v
+		}
+		maxParallelTools := k.cfg.MaxParallelTools
+		if v, ok := agentConfigIntOverride(p.childCtx, "AGEZT_PARALLEL_TOOLS"); ok {
+			maxParallelTools = v
+		}
+		toolDiscoveryMax := k.cfg.ToolDiscoveryMax
+		if v, ok := agentConfigIntOverride(p.childCtx, "AGEZT_TOOL_DISCOVERY_MAX"); ok {
+			toolDiscoveryMax = v
+		}
+		observationDeltas := k.cfg.ObservationDeltas
+		if v, ok := agentConfigBoolOverride(p.childCtx, "AGEZT_OBSERVATION_DELTAS"); ok {
+			observationDeltas = v
+		}
+		system, skills := k.subAgentInjectedSystem(p.childCtx, p.childCorr, p.actor, p.task, p.system)
+		activatedSkillIDs = appendUniqueStrings(activatedSkillIDs, skills...)
+		answer, err := agent.Run(p.childCtx, agent.LoopConfig{
+			Provider:             k.cfg.Provider,
+			Tools:                runTools, // forged + MCP tools reach sub-agents when their identity allows them (M794/M796)
+			Bus:                  k.bus,
+			Model:                p.subModel,
+			TaskType:             p.taskType,   // M705: route the sub-agent (chain supplies fallbacks)
+			ModelChain:           p.modelChain, // M787: the named agent's own fallbacks win
+			Agent:                p.agentSlug,
+			AgentDailyCeilingMc:  p.agentDailyMc,
+			WakeSource:           "subagent",
+			WakeReason:           "delegation",
+			ParentCorrelation:    p.parentCorr,
+			System:               system,
+			MaxIter:              maxIter,
+			MaxAutoContinue:      maxAutoContinue,  // M833: autonomous continue past MaxIter
+			AutoContinueWait:     autoContinueWait, // M833
+			ToolTimeout:          k.cfg.ToolTimeout,
+			MaxParallelTools:     maxParallelTools, // M880: in-turn parallel tool dispatch
+			MaxRunCostMicrocents: p.maxRunCost,
+			Actor:                p.actor,
+			CorrelationID:        p.childCorr,
+			Policy:               k.policyHook,
+			ToolSelector:         agent.LexicalToolSelector(toolDiscoveryMax),
+			ToolResultHook:       k.completeAgentNoiseNotify,
+			ObservationDeltas:    observationDeltas,
+			Steer:                p.rc, // M631: individual sub-agent steering
+		}, p.task)
+		return answer, skills, err
+	}
+	answer, _, err := runOnce()
+	if err != nil && p.retryPolicy != nil && p.retryPolicy.MaxAttempts > 1 {
+		max := p.retryPolicy.MaxAttempts
+		if max > 10 {
+			max = 10
+		}
+		for attempt := 1; err != nil && attempt < max && agentRetryable(retryReason(err), p.retryPolicy.RetryOn); attempt++ {
+			delay := retryDelay(*p.retryPolicy, attempt)
+			_, _ = k.bus.Publish(event.Spec{
+				Subject:       "agent." + p.agentSlug + ".retry",
+				Kind:          event.KindAgentRetry,
+				Actor:         "agent-retry",
+				CorrelationID: p.childCorr,
+				Payload: map[string]any{
+					"agent":        p.agentSlug,
+					"attempt":      attempt,
+					"next_attempt": attempt + 1,
+					"max_attempts": max,
+					"reason":       retryReason(err),
+					"error":        err.Error(),
+					"delay_ms":     int64(delay / time.Millisecond),
+					"subagent":     true,
+				},
+			})
+			if delay > 0 {
+				t := time.NewTimer(delay)
+				select {
+				case <-p.childCtx.Done():
+					if !t.Stop() {
+						select {
+						case <-t.C:
+						default:
+						}
+					}
+					return "", p.childCtx.Err()
+				case <-t.C:
+				}
+			}
+			answer, _, err = runOnce()
+		}
+	}
+	if k.forge != nil && len(activatedSkillIDs) > 0 {
+		k.forge.RecordOutcome(p.childCorr, activatedSkillIDs, err == nil)
+	}
 	if err != nil {
 		return "", apperrors.WrapSimplef("sub-agent %s: %%w", err, p.childCorr)
 	}
+	k.completeAgentLifecycle(p.childCtx, p.childCorr)
 	return answer, nil
+}
+
+func (k *Kernel) subAgentInjectedSystem(ctx context.Context, corr, actor, intent, system string) (string, []string) {
+	if systemAgentFromCtx(ctx) {
+		return system, nil
+	}
+	if k.cfg.MemoryInject && k.memory != nil {
+		topK := k.cfg.MemoryTopK
+		if topK <= 0 {
+			topK = 5
+		}
+		if hits, err := k.memory.RecallScoped(corr, intent, topK, memory.ScopeFrom(ctx)); err == nil && len(hits) > 0 {
+			system = injectMemory(system, hits)
+			ids := make([]string, 0, len(hits))
+			for _, h := range hits {
+				ids = append(ids, h.Record.ID)
+			}
+			chosen, rejected := splitContextCandidates(memoryContextCandidates(hits, time.Now().UnixMilli()), chosenIDSet(ids), "subagent_memory_injection")
+			summary := candidateSummary(chosen, rejected)
+			summary["source"] = "subagent_memory_injection"
+			k.publishContextSelection(corr, actor, contextSelectionManifest{
+				Phase:    "memory",
+				Query:    intent,
+				Chosen:   chosen,
+				Rejected: rejected,
+				Summary:  summary,
+			})
+		}
+	}
+	var activatedSkillIDs []string
+	if k.cfg.SkillInject && k.forge != nil {
+		topK := k.cfg.SkillTopK
+		if topK <= 0 {
+			topK = 3
+		}
+		agentSlug := agentSlugFromCtx(ctx)
+		if hits, err := k.forge.ActivateFor(corr, agentSlug, intent, topK); err == nil && len(hits) > 0 {
+			system = injectSkills(system, hits)
+			for _, h := range hits {
+				activatedSkillIDs = appendUniqueString(activatedSkillIDs, h.Skill.ID)
+			}
+			chosen, rejected := splitContextCandidates(skillContextCandidates(hits, time.Now().UnixMilli()), chosenIDSet(activatedSkillIDs), "subagent_skill_injection")
+			summary := candidateSummary(chosen, rejected)
+			summary["source"] = "subagent_skill_injection"
+			k.publishContextSelection(corr, actor, contextSelectionManifest{
+				Phase:    "skill",
+				Query:    intent,
+				Chosen:   chosen,
+				Rejected: rejected,
+				Summary:  summary,
+			})
+		}
+	}
+	return system, activatedSkillIDs
+}
+
+func appendUniqueStrings(in []string, values ...string) []string {
+	for _, value := range values {
+		in = appendUniqueString(in, value)
+	}
+	return in
 }
 
 // subAgentSpendMicrocents sums the spend (budget.consumed cost_microcents, M47)

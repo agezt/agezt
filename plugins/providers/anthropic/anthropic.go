@@ -29,9 +29,6 @@ import (
 const (
 	// DefaultEndpoint is the Anthropic Messages API URL.
 	DefaultEndpoint = "https://api.anthropic.com/v1/messages"
-	// DefaultModel is what the loop uses when CompletionRequest.Model is empty.
-	// claude-sonnet-4-6 is the latest Sonnet at the project's knowledge cutoff.
-	DefaultModel = "claude-sonnet-4-6"
 	// APIVersion is the value of the anthropic-version header.
 	APIVersion = "2023-06-01"
 	// DefaultMaxTokens is the cap applied when CompletionRequest.MaxTokens=0.
@@ -72,7 +69,6 @@ func New(apiKey string) *Provider {
 	return &Provider{
 		APIKey:   apiKey,
 		Endpoint: DefaultEndpoint,
-		Model:    DefaultModel,
 		HTTP:     &http.Client{Timeout: DefaultTimeout},
 	}
 }
@@ -105,6 +101,11 @@ func (p *Provider) Name() string { return "anthropic" }
 // ErrNoAPIKey is returned by Complete when APIKey is empty.
 var ErrNoAPIKey = errors.New("anthropic: API key not set")
 
+// ErrNoModel is returned when a completion request carries no model and the
+// provider has none set. The daemon ships with no default model (owner rule), so
+// the model must come from the request (AGEZT_MODEL / routing / a fallback chain).
+var ErrNoModel = errors.New("anthropic: no model specified (set CompletionRequest.Model, AGEZT_MODEL, or a routing/fallback chain)")
+
 // APIError is returned for non-2xx responses; it carries the upstream
 // status and body so callers (and the journal) can record the failure.
 type APIError struct {
@@ -127,7 +128,7 @@ func (p *Provider) Complete(ctx context.Context, req agent.CompletionRequest) (*
 		model = p.Model
 	}
 	if model == "" {
-		model = DefaultModel
+		return nil, ErrNoModel
 	}
 	maxTokens := req.MaxTokens
 	if maxTokens <= 0 {

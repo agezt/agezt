@@ -31,10 +31,10 @@ describe("snapshotCounts", () => {
       memory: [{}, {}],
       world: { entities: [{}], relations: [] },
     };
-    expect(snapshotCounts(s)).toBe("persona · 2 prompts · 1 chains · 1 standing · 3 schedules · 2 memories · 1 entities");
+    expect(snapshotCounts(s)).toBe("default identity · 2 prompt templates · 1 chains · 1 standing · 3 schedules · 2 memories · 1 entities");
   });
 
-  it("reports 'no persona' when blank", () => {
+  it("reports 'no default identity' when blank", () => {
     const s = {
       version: 1,
       exported_note: "",
@@ -44,7 +44,7 @@ describe("snapshotCounts", () => {
       memory: [],
       world: { entities: [], relations: [] },
     };
-    expect(snapshotCounts(s)).toContain("no persona");
+    expect(snapshotCounts(s)).toContain("no default identity");
   });
 });
 
@@ -143,7 +143,7 @@ describe("applyFullSnapshot (M752)", () => {
     expect(postAction).toHaveBeenCalledWith("/api/world/relate", { from: "Alice", verb: "owns", to: "AGEZT" });
 
     expect(applied).toEqual([
-      "config (persona+prompts+routing)",
+      "config (default identity+prompt templates+routing)",
       "1/1 standing",
       "1/1 schedules",
       "1/1 memories",
@@ -163,7 +163,7 @@ describe("applyFullSnapshot (M752)", () => {
     });
     // Config replaces all three sections (empty prompts/chains restore as empty — faithful);
     // the empty autonomy/knowledge sections produce no add calls and no summary entries.
-    expect(applied).toEqual(["config (persona+prompts+routing)"]);
+    expect(applied).toEqual(["config (default identity+prompt templates+routing)"]);
     expect(postJSON).not.toHaveBeenCalledWith("/api/standing/add", expect.anything());
     expect(postJSON).not.toHaveBeenCalledWith("/api/memory/add", expect.anything());
   });

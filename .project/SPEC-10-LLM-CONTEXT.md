@@ -69,6 +69,34 @@ World model + embeddings score "how relevant is this to the current task"; low-r
 ### 3.5 Context observability (ties to the conversation/debug UI)
 Every LLM call records **exactly what was sent**: which tokens came from which source (system/skill/memory/turn/artifact), what was compressed, the total token count, and the cost. This is journaled and surfaced in the UI's **context inspector** (SPEC-07). Most "why did it answer that?" questions are really "what was in its context?" — now answerable.
 
+### 3.6 Semantic tool discovery
+Large tool catalogs must not be dumped wholesale into every LLM call. Agezt maintains a
+tool-discovery index over:
+
+- tool name and capability labels;
+- natural-language description;
+- JSON Schema fields and required arguments;
+- examples and plugin-provided usage notes;
+- observed success/failure, latency, and policy friction.
+
+Planner and loop calls retrieve a bounded candidate set for the current task. Retrieval
+uses semantic search where embeddings are available and falls back to keyword/capability
+filtering when they are not. Every selected or excluded tool set is journaled enough for
+`agt why` and eval to explain why the agent saw those tools.
+
+### 3.7 Differential observation updates
+Tool results and observer outputs should enter the LLM context as state changes, not raw
+dumps. The observation layer produces:
+
+- `before_ref` when previous state exists;
+- `after_ref` or compact value reference;
+- `delta` for file/API/world/model changes;
+- `summary` for prompt insertion;
+- `raw_ref` for full recoverability outside the prompt.
+
+The journal keeps the recoverable raw artifact; the context assembler prefers the compact
+delta/summary. This preserves debuggability while reducing noise and context cost.
+
 ---
 
 ## 4. The conversation/reasoning record
@@ -104,6 +132,7 @@ An autonomous system can quietly burn money; this makes spend visible, attributa
 
 - Governor routing v1 + local fallback: **Phase 1**.
 - Context budgeting + tiered assembly + compression: **Phase 1–2** (needed as soon as loops run).
+- Semantic tool discovery and differential observations: **Phase 2–3** (start as bounded retrieval/deltas, then deepen with embeddings and observer state).
 - Capability leverage (vision/JSON/caching/reasoning): **Phase 1–3** as providers land.
 - Context observability UI: **Phase 5** (with the conversation surface).
 - Self-improvement leverage: **Phase 2 (Forge), 6 (coding), 8 (reflection)**.
@@ -118,6 +147,8 @@ An autonomous system can quietly burn money; this makes spend visible, attributa
 3. Context budget defaults per task type — tune empirically.
 4. Embedding routing/budget: local-default vs provider embeddings, accounted separately from completions.
 5. How aggressively prompt-cache across tasks without leaking stale context.
+6. Tool-discovery scoring: how much to weight semantic relevance vs historical reliability vs policy friction.
+7. Observation differ granularity: when to provide exact diffs vs summarized deltas.
 
 ---
 

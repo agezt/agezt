@@ -46,6 +46,14 @@ func ev(kind event.Kind, corr string, payload map[string]any) *event.Event {
 	return e
 }
 
+func mustJSON(v map[string]any) []byte {
+	raw, err := json.Marshal(v)
+	if err != nil {
+		panic(err)
+	}
+	return raw
+}
+
 // TestClassify_MirrorsConsoleAlertRules: the five notify-worthy kinds map to
 // the console's titles/levels/sources; everything else is not an alert.
 func TestClassify_MirrorsConsoleAlertRules(t *testing.T) {
@@ -73,6 +81,24 @@ func TestClassify_MirrorsConsoleAlertRules(t *testing.T) {
 			Alert{Kind: event.KindApprovalRequested, Level: LevelWarning, Title: "approval needed", Detail: "shell.exec — install deps", Source: "approval"}, true},
 		{"approval.requested tool fallback", ev(event.KindApprovalRequested, "c4", map[string]any{"tool_name": "browser"}),
 			Alert{Kind: event.KindApprovalRequested, Level: LevelWarning, Title: "approval needed", Detail: "browser", Source: "approval"}, true},
+		{"doctor.auto_repair failed degraded", &event.Event{
+			Kind:    event.KindInfo,
+			Subject: "doctor.auto_repair",
+			Payload: mustJSON(map[string]any{"agent": "builder", "mode": "degraded", "phase": "failed", "error": "provider timeout"}),
+		}, Alert{Kind: event.KindInfo, Level: LevelWarning, Title: "doctor run failed", Detail: "builder — provider timeout", Source: "doctor"}, true},
+		{"doctor.auto_repair forced chain exhausted", &event.Event{
+			Kind:    event.KindInfo,
+			Subject: "doctor.auto_repair",
+			Payload: mustJSON(map[string]any{
+				"agent":        "builder",
+				"mode":         "routing_forced_exhausted",
+				"phase":        "routing_force_exhausted_detected",
+				"reason":       "forced chain stayed under fallback pressure after generation 2",
+				"root_agent":   "builder",
+				"chain_depth":  1,
+				"target_agent": "lead",
+			}),
+		}, Alert{Kind: event.KindInfo, Level: LevelWarning, Title: "forced chain exhausted", Detail: "builder — forced chain stayed under fallback pressure after generation 2 · root builder · hop 1 · next owner lead", Source: "doctor"}, true},
 		{"tool.invoked is not an alert", ev(event.KindToolInvoked, "", nil), Alert{}, false},
 		{"pulse observer.delta NOT handled here (pulse delivers its own)",
 			&event.Event{Kind: event.Kind("observer.delta")}, Alert{}, false},
@@ -129,6 +155,36 @@ func TestHandle_DedupCooldown(t *testing.T) {
 	}
 	if got := len(sink.all()); got != 3 {
 		t.Fatalf("delivered %d briefs, want 3", got)
+	}
+}
+
+func TestHandle_DoctorFailureDedupesByAgentFingerprint(t *testing.T) {
+	sink := &captureSink{}
+	n := New(sink, Config{Cooldown: time.Minute})
+	clock := time.Unix(1000, 0)
+	n.now = func() time.Time { return clock }
+
+	docFail := func(agent, fp string) *event.Event {
+		return &event.Event{
+			Kind:    event.KindInfo,
+			Subject: "doctor.auto_repair",
+			Payload: mustJSON(map[string]any{
+				"agent": agent, "mode": "degraded", "phase": "failed", "fingerprint": fp, "error": "provider timeout",
+			}),
+		}
+	}
+
+	if !n.Handle(docFail("builder", "fp-1")) {
+		t.Fatal("first doctor failure not delivered")
+	}
+	if n.Handle(docFail("builder", "fp-1")) {
+		t.Fatal("same agent+fingerprint inside cooldown delivered")
+	}
+	if !n.Handle(docFail("writer", "fp-1")) {
+		t.Fatal("different agent should not collide on dedupe")
+	}
+	if got := len(sink.all()); got != 2 {
+		t.Fatalf("delivered %d briefs, want 2", got)
 	}
 }
 

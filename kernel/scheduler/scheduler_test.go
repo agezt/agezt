@@ -14,6 +14,7 @@ import (
 	"github.com/agezt/agezt/kernel/approval"
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/event"
+	intentmodel "github.com/agezt/agezt/kernel/intent"
 	"github.com/agezt/agezt/kernel/journal"
 	"github.com/agezt/agezt/kernel/scheduler"
 )
@@ -83,6 +84,15 @@ func countKinds(t *testing.T, j *journal.Journal) map[event.Kind]int {
 		return nil
 	})
 	return out
+}
+
+func hasString(xs []string, want string) bool {
+	for _, x := range xs {
+		if x == want {
+			return true
+		}
+	}
+	return false
 }
 
 // ---- happy path ----
@@ -243,6 +253,86 @@ func TestRun_FailureAbortsDownstreamButNotSiblings(t *testing.T) {
 	}
 }
 
+func TestRun_InvariantMonitorInvalidatesBeforeNodeStart(t *testing.T) {
+	b, j := newBus(t)
+	var inflight, maxIn atomic.Int32
+	monitorErr := errors.New("world state changed")
+	e := scheduler.New(scheduler.Config{
+		Bus: b,
+		Monitor: func(ctx context.Context, snapshot scheduler.InvariantSnapshot) error {
+			if snapshot.Phase == scheduler.InvariantNodeStart && snapshot.NodeID == "a" {
+				return monitorErr
+			}
+			return nil
+		},
+	})
+
+	plan := scheduler.Plan{
+		Name: "guarded",
+		Nodes: []scheduler.Node{&fakeNode{
+			NodeID: "a", ResultOutput: "must-not-run",
+			inflight: &inflight, maxInflight: &maxIn,
+		}},
+	}
+	res, err := e.Run(context.Background(), plan, "")
+	if !errors.Is(err, scheduler.ErrPlanInvalidated) {
+		t.Fatalf("Run err=%v, want ErrPlanInvalidated", err)
+	}
+	if !errors.Is(err, monitorErr) {
+		t.Fatalf("Run err=%v, want monitor error", err)
+	}
+	if inflight.Load() != 0 {
+		t.Fatal("node Run was entered even though invariant monitor invalidated before node_start")
+	}
+	if _, ok := res.NodeResults["a"]; ok {
+		t.Fatal("invalidated node must not produce a result")
+	}
+	if !errors.Is(res.Errors["a"], scheduler.ErrPlanInvalidated) {
+		t.Fatalf("node error=%v, want ErrPlanInvalidated", res.Errors["a"])
+	}
+	kinds := countKinds(t, j)
+	if kinds[event.KindNodeStarted] != 0 {
+		t.Errorf("node.started count=%d want 0", kinds[event.KindNodeStarted])
+	}
+	if kinds[event.KindNodeFailed] != 1 || kinds[event.KindPlanFailed] != 1 {
+		t.Errorf("failure events=%v want one node.failed and one plan.failed", kinds)
+	}
+}
+
+func TestRun_InvariantMonitorSeesCompletedStateBeforeNextNode(t *testing.T) {
+	b, _ := newBus(t)
+	var beforeB scheduler.InvariantSnapshot
+	e := scheduler.New(scheduler.Config{
+		Bus: b,
+		Monitor: func(ctx context.Context, snapshot scheduler.InvariantSnapshot) error {
+			if snapshot.Phase == scheduler.InvariantNodeStart && snapshot.NodeID == "b" {
+				beforeB = snapshot
+			}
+			return nil
+		},
+	})
+
+	plan := scheduler.Plan{
+		Name: "linear",
+		Nodes: []scheduler.Node{
+			&fakeNode{NodeID: "a", ResultOutput: "done-a"},
+			&fakeNode{NodeID: "b", Deps: []string{"a"}, ResultOutput: "done-b"},
+		},
+	}
+	if _, err := e.Run(context.Background(), plan, "plan-guard"); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if beforeB.PlanID != "plan-guard" || beforeB.PlanName != "linear" {
+		t.Fatalf("snapshot identity = {PlanID:%q PlanName:%q}", beforeB.PlanID, beforeB.PlanName)
+	}
+	if !hasString(beforeB.Started, "a") || !hasString(beforeB.Completed, "a") {
+		t.Fatalf("snapshot before b = started %v completed %v, want a completed", beforeB.Started, beforeB.Completed)
+	}
+	if hasString(beforeB.Started, "b") || hasString(beforeB.Completed, "b") {
+		t.Fatalf("snapshot before b must be pre-start for b; got started %v completed %v", beforeB.Started, beforeB.Completed)
+	}
+}
+
 // ---- validation ----
 
 func TestRun_DetectsCycle(t *testing.T) {
@@ -378,10 +468,17 @@ func TestGateNode_GrantedReleasesDownstream(t *testing.T) {
 	b, _ := newBus(t)
 	apr := approval.New(approval.Config{Bus: b, Timeout: 2 * time.Second})
 	e := scheduler.New(scheduler.Config{Bus: b})
+	frame := intentmodel.Frame{
+		CanonicalIntent: "clean files",
+		HarmfulReading:  "could delete the wrong files",
+		AmbiguityScore:  0.8,
+		Underdetermined: true,
+	}
 
 	gate := &scheduler.GateNode{
 		NodeID: "gate", Approvals: apr,
 		Capability: "plan.execute", Description: "Allow execute branch?",
+		IntentFrame: &frame,
 	}
 	exec := &fakeNode{NodeID: "execute", Deps: []string{"gate"}, ResultOutput: "did-it"}
 
@@ -392,7 +489,11 @@ func TestGateNode_GrantedReleasesDownstream(t *testing.T) {
 		deadline := time.Now().Add(time.Second)
 		for time.Now().Before(deadline) {
 			if apr.PendingCount() == 1 {
-				_ = apr.Resolve(apr.Pending()[0].ID, approval.DecisionGrant, "ok", "test")
+				req := apr.Pending()[0]
+				if req.CanonicalIntent != "clean files" || req.HarmfulInterpretation == "" {
+					t.Errorf("approval missing intent metadata: %+v", req)
+				}
+				_ = apr.Resolve(req.ID, approval.DecisionGrant, "ok", "test")
 				return
 			}
 			time.Sleep(2 * time.Millisecond)
@@ -594,6 +695,33 @@ func TestLoopNode_DelegatesToRunner(t *testing.T) {
 	}
 	if res.NodeResults["do"].Output != "result-for-hello world" {
 		t.Errorf("loop output=%q", res.NodeResults["do"].Output)
+	}
+}
+
+func TestLoopNode_CarriesIntentFrameToRunner(t *testing.T) {
+	b, _ := newBus(t)
+	e := scheduler.New(scheduler.Config{Bus: b})
+	frame := intentmodel.Frame{
+		UserUtteranceHash: "hash",
+		CanonicalIntent:   "clean files",
+		HarmfulReading:    "could delete the wrong files",
+		AmbiguityScore:    0.8,
+		Underdetermined:   true,
+	}
+	var seen intentmodel.Frame
+	var ok bool
+	runner := func(ctx context.Context, intent, corr string) (string, error) {
+		seen, ok = intentmodel.FrameFromContext(ctx)
+		return "done", nil
+	}
+	_, err := e.Run(context.Background(), scheduler.Plan{Nodes: []scheduler.Node{
+		&scheduler.LoopNode{NodeID: "do", Intent: "delete files", Runner: runner, IntentFrame: &frame},
+	}}, "test-plan-corr")
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if !ok || seen.CanonicalIntent != "clean files" || !seen.Underdetermined {
+		t.Fatalf("intent frame not carried to runner: ok=%v frame=%+v", ok, seen)
 	}
 }
 

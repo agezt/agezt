@@ -2,8 +2,9 @@
 
 package controlplane
 
-// Agent persona (M710): view and edit the default system prompt that frames every
-// run — the daemon's "personality" and standing instructions. Unlike `agt config`
+// Default identity (M710): view and edit the daemon fallback system instructions
+// for runs that are not bound to a roster agent. Roster agents use their own soul,
+// memory, skills, model route, and lifecycle instead. Unlike `agt config`
 // (which reports only whether a system prompt is SET, never its content, since a
 // generic config dump could leak proprietary instructions), this is the owner's
 // dedicated editor, so it returns and accepts the full text. Edits apply LIVE
@@ -17,8 +18,8 @@ import (
 	"github.com/agezt/agezt/kernel/settings"
 )
 
-// handlePersonaGet returns the live system prompt (the agent persona) and whether
-// one is set. Content is returned because this is the owner editing their own daemon.
+// handlePersonaGet returns the live daemon default identity and whether one is set.
+// Content is returned because this is the owner editing their own daemon.
 func (s *Server) handlePersonaGet(conn net.Conn, req Request) {
 	system := s.k.System()
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{
@@ -27,9 +28,9 @@ func (s *Server) handlePersonaGet(conn net.Conn, req Request) {
 	}})
 }
 
-// handlePersonaSet replaces the agent persona. args.system is the new prompt (an
-// empty/blank value clears it, returning to no custom persona). Applies live and
-// persists to the config store as AGEZT_SYSTEM_PROMPT.
+// handlePersonaSet replaces the daemon default identity. args.system is the new
+// instruction text (an empty/blank value clears it). Applies live and persists to
+// the config store as AGEZT_SYSTEM_PROMPT.
 func (s *Server) handlePersonaSet(conn net.Conn, req Request) {
 	raw, ok := req.Args["system"]
 	if !ok {
@@ -59,7 +60,7 @@ func (s *Server) handlePersonaSet(conn net.Conn, req Request) {
 		return
 	}
 
-	// Apply live — the next run frames itself with the new persona.
+	// Apply live — the next default run uses the new fallback identity.
 	s.k.SetSystem(system)
 
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{

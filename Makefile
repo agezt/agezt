@@ -6,7 +6,7 @@
 # Requires: Go 1.21+, Make
 # Note: This project does NOT use CGO - pure Go build
 
-.PHONY: all build test race clean vet install
+.PHONY: all build test race clean vet install webui-e2e webui-e2e-ps
 
 # Explicitly disable CGO - this is a PURE GO build
 export CGO_ENABLED := 0
@@ -21,6 +21,12 @@ build:
 test:
 	@echo "Running Tests (CGO_ENABLED=0)..."
 	go test -v ./...
+
+webui-e2e:
+	bash scripts/webui-e2e.sh
+
+webui-e2e-ps:
+	powershell -ExecutionPolicy Bypass -File scripts/webui-e2e.ps1
 
 test-race:
 	@echo "=== WARNING: Race detector requires CGO ==="

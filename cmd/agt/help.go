@@ -48,8 +48,9 @@ func helpGroups() []helpGroup {
 			{"quickstart", "interactive first-run: sync catalog, add a key, print the start command", []string{
 				"quickstart",
 			}},
-			{"doctor", "preflight checklist (base dir, daemon, journal, tools); exit 1 = a check failed", []string{
-				"doctor [--json]",
+			{"doctor", "preflight checklist (base dir, memory store, daemon, journal, tools); exit 1 = a check failed", []string{
+				"doctor [--json] [--strict] [--repair]",
+				"  --repair  repair startup-blocking local store files and pause noisy schedules",
 			}},
 			{"status", "daemon health overview (version skew, uptime, runs)", []string{
 				"status [--json]",
@@ -101,10 +102,13 @@ func helpGroups() []helpGroup {
 				"plan visualize <file.json> [--raw]    render as Mermaid graph TD",
 				"plan cost <file.json> --model <id>    estimate plan cost in USD (client-side)",
 			}},
-			{"schedule", "recurring autonomous intents", []string{
-				`schedule add "<intent>" --every <dur>    also: list | rm <id> | run <id>`,
+			{"schedule", "typed cron/event jobs", []string{
+				`schedule add "<agent task|label>" --every <dur>    also: workflow/system-task/tool targets`,
+				`schedule add --system-task catalog_sync --every 24h    sync models.dev/api.json without waking an agent`,
+				`schedule add "<agent task>" --continuous <dur>     cycle loop; re-wakes after each completed run`,
+				`schedule edit <id> --continuous <dur>              convert an existing job into a cycle loop`,
 			}},
-			{"standing", "standing orders: event + cron triggered intents", []string{
+			{"standing", "durable wake rules for agents", []string{
 				"standing <list|add|pause|resume|remove>",
 			}},
 			{"workflow", "author, save and run node-graph workflows", []string{
@@ -113,8 +117,8 @@ func helpGroups() []helpGroup {
 				"workflow save --file GRAPH.json",
 			}},
 			{"agent", "the named-agent roster (souls, models, budgets, workdirs)", []string{
-				"agent <list|add|show|set|pause|resume|retire|remove>",
-				"agent add <slug> [--soul PROMPT] [--model M] ...",
+				"agent <list|add|show|impact|set|task|wake|repair|repair-status|pause|resume|retire|revive|remove>",
+				"agent add <slug> [--soul TEXT] [--model M] ...",
 			}},
 			{"toolforge", "agent-built tools: draft, test, promote to production", []string{
 				"toolforge <list|show|draft|edit|test|promote|quarantine|remove>",
@@ -122,6 +126,12 @@ func helpGroups() []helpGroup {
 			{"mcp", "attach/detach Model Context Protocol servers at runtime", []string{
 				"mcp <list|add|attach|detach|enable|disable|remove>",
 				`mcp add <name> (--cmd EXE [--arg A ...] | --url URL [--header "K: V" ...]) [--desc TEXT]`,
+			}},
+			{"market", "capability marketplace: browse + install packs (skills + MCP + tools)", []string{
+				"market <list|search|show|install|uninstall>",
+				"market install <pack> [--marketplace M] [--version V]   materialize a pack into the Forge + MCP registry",
+				"market <sources|add <url>|remove|sync>                 manage + sync remote marketplaces",
+				"market <validate|publish|keygen>                       author, sign, and publish your own packs",
 			}},
 		}},
 		{"Providers & models", []commandHelp{
@@ -154,8 +164,10 @@ func helpGroups() []helpGroup {
 		}},
 		{"Memory & knowledge", []commandHelp{
 			{"memory", "the agent's long-term memory records", []string{
-				"memory add <subject> <content> [--type T] [--tag k=v] [--conf F]",
+				"memory add <subject> <content> [--type T] [--evidence E] [--half-life D] [--tag k=v] [--conf F]",
 				"memory list | search <query> [N] | get <id> | forget <id>   [--json]",
+				"memory audit                          report stale/suspended/conflicting records",
+				"memory clean [--execute]              soft-forget low-value automatic memories",
 				"memory promote <id>                   move an agent-private record into the shared brain",
 				"memory consolidate                    distill the brain (same pass AGEZT_BRAIN_DISTILL_EVERY runs)",
 			}},

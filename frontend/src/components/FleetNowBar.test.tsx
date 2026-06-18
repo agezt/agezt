@@ -9,7 +9,7 @@ vi.mock("@/lib/events", () => ({
   useEvents: () => ({ events: h.events, connected: h.connected, subscribe: () => () => {} }),
 }));
 
-import { FleetNowBar } from "@/components/FleetNowBar";
+import { FleetNowBar, fleetNowSummary, liveRunsFromEvents } from "@/components/FleetNowBar";
 
 afterEach(cleanup);
 beforeEach(() => {
@@ -18,6 +18,24 @@ beforeEach(() => {
 });
 
 describe("FleetNowBar", () => {
+  it("builds a live operational summary for awake, repair, tool, model and agentless runs", () => {
+    expect(
+      fleetNowSummary([
+        { corr: "c1", agent: "builder", phase: "using tool", tool: "shell" },
+        { corr: "c2", agent: "doctor", phase: "repair queued" },
+        { corr: "c3", phase: "thinking", model: "gpt-5" },
+      ]),
+    ).toMatchObject({
+      awake: 3,
+      repairing: 1,
+      toolUsers: 1,
+      modelThinkers: 1,
+      agentless: 1,
+      value: "3 awake · 1 repair",
+      tone: "warn",
+    });
+  });
+
   it("shows the idle state when no runs are live", () => {
     render(<FleetNowBar />);
     expect(screen.getByText(/fleet idle · listening/)).toBeTruthy();
@@ -33,6 +51,7 @@ describe("FleetNowBar", () => {
     // The agent + intent still surface in the live event ticker.
     expect(screen.getAllByText(/alice/).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/deploy the app/).length).toBeGreaterThan(0);
+    expect(screen.getByLabelText("Now ledger").textContent).toContain("awake 1");
     expect(screen.queryByText(/fleet idle/)).toBeNull();
   });
 
@@ -83,6 +102,83 @@ describe("FleetNowBar", () => {
     // Expanded slider shows the intent in a card and a Collapse control.
     expect(screen.getByText(/Collapse/)).toBeTruthy();
     expect(screen.getAllByText(/deploy the app/).length).toBeGreaterThan(0);
+  });
+
+  it("keeps the latest non-terminal phase on a running agent card", () => {
+    h.events = [
+      { seq: 3, kind: "tool.invoked", correlation_id: "c1", actor: "worker", ts_unix_ms: 3000, payload: { tool: "shell", iter: 1 } },
+      { seq: 2, kind: "llm.response", correlation_id: "c1", actor: "worker", ts_unix_ms: 2000, payload: { iter: 1, model: "gpt-5" } },
+      { seq: 1, kind: "task.received", correlation_id: "c1", actor: "worker", ts_unix_ms: 1000, payload: { intent: "repair disk", agent: "worker" } },
+    ];
+    expect(liveRunsFromEvents(h.events)).toMatchObject([
+      {
+        corr: "c1",
+        agent: "worker",
+        intent: "repair disk",
+        phase: "using tool",
+        tool: "shell",
+        detail: "iter 1 · shell",
+        lastTs: 3000,
+      },
+    ]);
+    render(<FleetNowBar />);
+    fireEvent.click(screen.getByText(/1 running/));
+    expect(screen.getByLabelText("Now ledger").textContent).toContain("tools 1");
+    expect(screen.getByText("using tool")).toBeTruthy();
+    expect(screen.getByText("shell")).toBeTruthy();
+    expect(screen.getByText("iter 1 · shell")).toBeTruthy();
+  });
+
+  it("shows standalone doctor repair work without a task.received prelude", () => {
+    h.events = [
+      {
+        seq: 4,
+        subject: "doctor.auto_repair",
+        kind: "info",
+        correlation_id: "repair-1",
+        actor: "guardian-doctor",
+        ts_unix_ms: 4000,
+        payload: { agent: "builder", mode: "degraded", phase: "queued", reason: "provider timeout" },
+      },
+    ];
+    expect(liveRunsFromEvents(h.events)).toMatchObject([
+      {
+        corr: "repair-1",
+        agent: "builder",
+        intent: "degraded repair builder",
+        phase: "repair queued",
+        detail: "degraded repair · agent builder · provider timeout",
+      },
+    ]);
+    render(<FleetNowBar />);
+    expect(screen.getByLabelText("Now ledger").textContent).toContain("repair 1");
+    fireEvent.click(screen.getByText(/1 running/));
+    expect(screen.getByText("repair queued")).toBeTruthy();
+    expect(screen.getByText("degraded repair · agent builder · provider timeout")).toBeTruthy();
+  });
+
+  it("drops standalone doctor repair work after a terminal repair phase", () => {
+    h.events = [
+      {
+        seq: 5,
+        subject: "doctor.auto_repair",
+        kind: "info",
+        correlation_id: "repair-1",
+        actor: "guardian-doctor",
+        payload: { agent: "builder", mode: "degraded", phase: "completed" },
+      },
+      {
+        seq: 4,
+        subject: "doctor.auto_repair",
+        kind: "info",
+        correlation_id: "repair-1",
+        actor: "guardian-doctor",
+        payload: { agent: "builder", mode: "degraded", phase: "queued" },
+      },
+    ];
+    expect(liveRunsFromEvents(h.events)).toEqual([]);
+    render(<FleetNowBar />);
+    expect(screen.getByText(/fleet idle · listening/)).toBeTruthy();
   });
 
   it("drops a run whose most recent lifecycle event is terminal", () => {

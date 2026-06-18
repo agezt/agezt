@@ -88,10 +88,10 @@ func builtinSections() []Section {
 	secs := []Section{
 		{
 			ID: "provider", Name: "Provider & Model",
-			Help: "The active LLM provider and model. Applies live (the provider is rebuilt without a restart).",
+			Help: "The active LLM provider and model. Applies live (the provider is rebuilt without a restart). There is no built-in default: blank provider = unconfigured (runs fail until set); model is resolved from routing/fallback chains when blank.",
 			Fields: []Field{
-				{Env: "AGEZT_PROVIDER", Label: "Provider", Type: TypeText, Apply: ApplyLive, Help: "Catalog provider id, e.g. deepseek, openai, anthropic."},
-				{Env: "AGEZT_MODEL", Label: "Model", Type: TypeText, Apply: ApplyLive, Help: "Model id within the provider; blank = the provider's default."},
+				{Env: "AGEZT_PROVIDER", Label: "Provider", Type: TypeText, Apply: ApplyLive, Help: "Catalog provider id, e.g. deepseek, openai, anthropic. Required to dispatch LLM calls — blank leaves the daemon unconfigured."},
+				{Env: "AGEZT_MODEL", Label: "Model", Type: TypeText, Apply: ApplyLive, Help: "Model id for runs. Blank = resolved per run from routing / a fallback chain; there is no built-in default model."},
 			},
 		},
 		{
@@ -163,8 +163,11 @@ func builtinSections() []Section {
 			Fields: []Field{
 				{Env: "AGEZT_RATE_PER_MIN", Label: "Max requests / minute", Type: TypeNumber, Apply: ApplyRestart},
 				{Env: "AGEZT_CONTEXT_BUDGET", Label: "Context budget (chars)", Type: TypeNumber, Apply: ApplyRestart},
+				{Env: "AGEZT_OBSERVATION_DELTAS", Label: "Observation deltas", Type: TypeBool, Apply: ApplyRestart, Help: "on = repeated identical tool/input observations are shown to the model as deltas while raw output remains journaled."},
 				{Env: "AGEZT_MAX_ITER", Label: "Max tool rounds / run", Type: TypeNumber, Apply: ApplyRestart, Help: "How many tool-call rounds one run may take before it stops (default 50). Chat can 'Continue' a run that hits the cap."},
 				{Env: "AGEZT_PARALLEL_TOOLS", Label: "Parallel tools / turn", Type: TypeNumber, Apply: ApplyRestart, Help: "How many tool calls from one assistant turn may execute concurrently (default 4). 1 = strictly sequential."},
+				{Env: "AGEZT_TOOL_DISCOVERY_MAX", Label: "Tool discovery max", Type: TypeNumber, Apply: ApplyRestart, Help: "Offer at most this many relevant tool schemas per model call using lexical discovery. Empty or 0 = offer all tools."},
+				{Env: "AGEZT_DISABLE_HEURISTIC_BYPASS", Label: "Disable heuristic bypass", Type: TypeBool, Apply: ApplyRestart, Help: "on = route even simple deterministic date/time intents through the normal model loop."},
 				{Env: "AGEZT_LLM_CACHE_TTL", Label: "LLM response cache TTL", Type: TypeText, Apply: ApplyRestart, Help: "Serve an IDENTICAL model request from memory within this window (e.g. 5m) — no provider call, no spend. Empty = off; chat regenerate wants fresh samples, so enable only for machine-driven repeat calls."},
 			},
 		},

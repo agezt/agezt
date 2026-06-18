@@ -5,13 +5,21 @@ import { money } from "@/lib/format";
 import { getJSON } from "@/lib/api";
 import { useEvents, type AgentEvent } from "@/lib/events";
 import { recentAttentionAlerts, type RankedAlert } from "@/lib/alerts";
+import { incidentRootId } from "@/lib/incidents";
 import { focusRun } from "@/lib/runfocus";
+import { openIncident } from "@/lib/incidentnav";
+import { doctorIncidentPhase, doctorIncidentSourceLabel } from "@/lib/autonomy";
+import {
+  IncidentBadges,
+  incidentPhaseBadgeClass,
+  incidentSourceBadgeClass,
+} from "@/components/IncidentBadges";
 import { Button } from "@/components/ui/button";
 import { fmtTime, clip } from "@/lib/utils";
 import { Ring, Sparkline, BarRow } from "@/components/Widgets";
 import { PageHeader } from "@/components/ui/page-header";
 import { summarizeRoots, type RootSummary } from "@/views/Agents";
-import { Bot, GitBranch, Coins, Repeat } from "lucide-react";
+import { Bot, GitBranch, Coins, Repeat, Mail, Wrench, Skull, Pause } from "lucide-react";
 
 // RunRow is the subset of /api/runs the cockpit folds into the active-agents
 // panel — structurally compatible with the Agents view's run shape.
@@ -42,6 +50,41 @@ interface Budget {
   ceiling_mc?: number;
   strict_pricing?: boolean;
 }
+interface DashboardAgentProfile {
+  slug: string;
+  enabled?: boolean;
+  retired?: boolean;
+  system?: boolean;
+  kind?: string;
+  managed?: boolean;
+  direct_callable?: boolean;
+  status?: {
+    active_run_count?: number;
+    operational_state?: string;
+    repair_inflight?: number;
+    repair_state?: string;
+    health_state?: string;
+  };
+}
+interface DashboardBoardMessage {
+  id?: string;
+  from?: string;
+  to?: string;
+  reply_to?: string;
+  acked_by?: string[];
+}
+export interface DashboardFleetOps {
+  total: number;
+  active: number;
+  paused: number;
+  running: number;
+  repair: number;
+  graveyard: number;
+  mailboxAgents: number;
+  mailboxBacklog: number;
+  system: number;
+  subagents: number;
+}
 
 const MAX_SERIES = 32;
 
@@ -57,17 +100,20 @@ export function Dashboard() {
   const [series, setSeries] = useState<number[]>([]);
   const [alerts, setAlerts] = useState<RankedAlert[]>([]);
   const [active, setActive] = useState<RootSummary[]>([]);
+  const [fleetOps, setFleetOps] = useState<DashboardFleetOps | null>(null);
   const [loading, setLoading] = useState(false);
   const lastHead = useRef<number | null>(null);
 
   async function refresh() {
     setLoading(true);
-    const [s, b, st, j, r] = await Promise.allSettled([
+    const [s, b, st, j, r, a, bd] = await Promise.allSettled([
       getJSON<Stats>("/api/stats"),
       getJSON<Budget>("/api/budget"),
       getJSON<Record<string, any>>("/api/status"),
       getJSON<{ events?: AgentEvent[] }>("/api/journal", { limit: "300" }),
       getJSON<{ runs?: RunRow[] }>("/api/runs"),
+      getJSON<{ profiles?: DashboardAgentProfile[] }>("/api/agents"),
+      getJSON<{ messages?: DashboardBoardMessage[] }>("/api/board", { limit: "200" }),
     ]);
     if (s.status === "fulfilled") setStats(s.value);
     if (b.status === "fulfilled") setBudget(b.value);
@@ -80,6 +126,10 @@ export function Dashboard() {
     // attention" forever.
     if (j.status === "fulfilled")
       setAlerts(recentAttentionAlerts(j.value.events || [], { limit: 4, nowMs: Date.now() }));
+    if (a.status === "fulfilled") {
+      const messages = bd.status === "fulfilled" ? bd.value.messages || [] : [];
+      setFleetOps(dashboardFleetOpsSummary(a.value.profiles || [], messages));
+    }
     if (st.status === "fulfilled") {
       setStatus(st.value);
       // Activity rate = growth of the journal head between samples (events/tick).
@@ -102,7 +152,7 @@ export function Dashboard() {
   // Snappy refresh right after a run starts or ends.
   const head = events[0]?.kind;
   useEffect(() => {
-    if (head === "task.received" || head === "task.completed" || head === "task.failed") refresh();
+    if (head === "task.received" || head === "task.completed" || head === "task.failed" || head === "schedule.fired") refresh();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [head, events[0]?.id]);
 
@@ -115,6 +165,9 @@ export function Dashboard() {
   const successPct = stats?.total ? Math.round((stats.success_rate ?? 0) * 100) : 0;
   const schedTotal = Number(status?.schedules?.total ?? 0);
   const schedEnabled = Number(status?.schedules?.enabled ?? 0);
+  const schedRunning = Number(status?.schedules?.running ?? 0);
+  const schedResidentOffline = schedEnabled > 0 && status?.schedules?.resident === false;
+  const schedCenter = schedResidentOffline ? "offline" : schedRunning > 0 ? `${schedRunning} live` : `${schedEnabled}`;
 
   return (
     <div className="space-y-4">
@@ -150,8 +203,26 @@ export function Dashboard() {
                 <>
                   <Icon className={cn("size-3.5 shrink-0", iconCls)} />
                   <span className="shrink-0 font-medium text-foreground">{a.title}</span>
+                  {a.source === "doctor" && (
+                    <IncidentBadges
+                      item={{
+                        subject: a.subject,
+                        phase: a.payload?.phase,
+                        mode: a.payload?.mode,
+                      }}
+                    />
+                  )}
                   {a.detail && <span className="min-w-0 flex-1 truncate text-muted">{a.detail}</span>}
                   <span className="ml-auto shrink-0 font-mono text-[10px] text-muted">{a.source}</span>
+                  {incidentRootId(a) && (
+                    <button
+                      onClick={() => openIncident(incidentRootId(a))}
+                      className="shrink-0 font-medium text-accent/80 transition-colors hover:text-accent"
+                      title="Open the incident tree this alert belongs to"
+                    >
+                      incident →
+                    </button>
+                  )}
                   {a.tsMs ? <span className="w-12 shrink-0 text-right tabular-nums text-muted">{fmtTime(a.tsMs)}</span> : null}
                 </>
               );
@@ -171,6 +242,47 @@ export function Dashboard() {
               );
             })}
           </ul>
+        </div>
+      )}
+
+      {fleetOps && fleetOps.total > 0 && (
+        <div className="rounded-lg border border-border bg-panel/45 p-3">
+          <div className="mb-2 flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => (location.hash = "roster")}
+              className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-accent hover:underline"
+              title="Open the roster identity cards"
+            >
+              <Bot className="size-3.5" /> Agent operations
+            </button>
+            <span className="text-xs text-muted">
+              {fleetOps.active} active · {fleetOps.paused} paused · {fleetOps.graveyard} graveyard
+            </span>
+          </div>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-8">
+            <MiniOp icon={Bot} label="agents" value={fleetOps.total} tone="accent" />
+            <MiniOp icon={Radio} label="awake" value={fleetOps.running} tone={fleetOps.running > 0 ? "accent" : "muted"} pulse={fleetOps.running > 0} />
+            <MiniOp icon={Wrench} label="repair" value={fleetOps.repair} tone={fleetOps.repair > 0 ? "bad" : "muted"} />
+            <MiniOp icon={Mail} label="mailbox" value={fleetOps.mailboxBacklog} tone={fleetOps.mailboxBacklog > 0 ? "warn" : "muted"} />
+            <MiniOp icon={Pause} label="paused" value={fleetOps.paused} tone={fleetOps.paused > 0 ? "warn" : "muted"} />
+            <MiniOp icon={Skull} label="graveyard" value={fleetOps.graveyard} tone={fleetOps.graveyard > 0 ? "muted" : "muted"} />
+            <MiniOp icon={ShieldAlert} label="system" value={fleetOps.system} tone="muted" />
+            <MiniOp icon={GitBranch} label="subagents" value={fleetOps.subagents} tone={fleetOps.subagents > 0 ? "accent" : "muted"} />
+          </div>
+          {(fleetOps.repair > 0 || fleetOps.mailboxBacklog > 0) && (
+            <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-muted">
+              {fleetOps.repair > 0 && (
+                <button onClick={() => (location.hash = "roster")} className="text-bad transition-colors hover:text-bad/80">
+                  {fleetOps.repair} agent{fleetOps.repair === 1 ? "" : "s"} need repair attention
+                </button>
+              )}
+              {fleetOps.mailboxBacklog > 0 && (
+                <button onClick={() => (location.hash = "board")} className="text-warn transition-colors hover:text-warn/80">
+                  {fleetOps.mailboxBacklog} mailbox message{fleetOps.mailboxBacklog === 1 ? "" : "s"} waiting across {fleetOps.mailboxAgents} agent{fleetOps.mailboxAgents === 1 ? "" : "s"}
+                </button>
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -243,9 +355,9 @@ export function Dashboard() {
         <GaugeCard>
           <Ring
             pct={schedTotal > 0 ? (schedEnabled / schedTotal) * 100 : 0}
-            center={`${schedEnabled}`}
+            center={schedCenter}
             label={`of ${schedTotal} schedules`}
-            tone="accent"
+            tone={schedResidentOffline ? "bad" : "accent"}
           />
         </GaugeCard>
         <div className="glass rounded-xl p-3">
@@ -314,7 +426,19 @@ export function Dashboard() {
                 <li key={e.id || i} className="flex items-center gap-2 px-3 py-1.5">
                   <span className="w-16 shrink-0 tabular-nums text-muted">{fmtTime(e.ts_unix_ms)}</span>
                   <span className="w-40 shrink-0 truncate font-medium text-accent">{e.kind}</span>
-                  <span className="truncate text-muted">{e.subject}</span>
+                  {eventSourceLabel(e) && (
+                    <span className={incidentSourceBadgeClass(eventSourceLabel(e)!)}>
+                      {eventSourceLabel(e)}
+                    </span>
+                  )}
+                  {eventPhaseLabel(e) && (
+                    <span className={incidentPhaseBadgeClass(eventPhaseLabel(e)!.tone)}>
+                      {eventPhaseLabel(e)!.label}
+                    </span>
+                  )}
+                  <span className="truncate text-muted">
+                    {eventSummary(e)}
+                  </span>
                 </li>
               ))}
             </ul>
@@ -325,8 +449,151 @@ export function Dashboard() {
   );
 }
 
+function eventSourceLabel(e: AgentEvent): string {
+  const subject = String(e.subject || "").trim();
+  if (!subject) return "";
+  if (subject === "doctor.auto_repair" || subject === "agent.repair" || subject === "agent.wake") {
+    return doctorIncidentSourceLabel({
+      subject,
+      phase: (e.payload as any)?.phase,
+      mode: (e.payload as any)?.mode,
+    });
+  }
+  return "";
+}
+
+function eventPhaseLabel(
+  e: AgentEvent,
+): { label: string; tone: "accent" | "warn" | "good" | "bad" | "muted" } | null {
+  const subject = String(e.subject || "").trim();
+  if (subject === "doctor.auto_repair" || subject === "agent.repair" || subject === "agent.wake") {
+    return doctorIncidentPhase({
+      subject,
+      phase: (e.payload as any)?.phase,
+      mode: (e.payload as any)?.mode,
+    });
+  }
+  return null;
+}
+
+function eventSummary(e: AgentEvent): string {
+  const subject = String(e.subject || "").trim();
+  const p: any = e.payload || {};
+  if (subject === "doctor.auto_repair" || subject === "agent.repair" || subject === "agent.wake") {
+    const bits = [
+      String(p.agent || p.root_agent || "").trim(),
+      String(p.reason || p.error || "").trim(),
+      String(subject || "").trim(),
+    ].filter(Boolean);
+    return clip(bits.join(" · "), 140);
+  }
+  return String(e.subject || "").trim();
+}
+
+export function dashboardFleetOpsSummary(
+  profiles: DashboardAgentProfile[],
+  messages: DashboardBoardMessage[] = [],
+): DashboardFleetOps {
+  const mailbox = dashboardMailboxCounts(messages, profiles.map((p) => p.slug));
+  let active = 0;
+  let paused = 0;
+  let running = 0;
+  let repair = 0;
+  let graveyard = 0;
+  let system = 0;
+  let subagents = 0;
+  let mailboxAgents = 0;
+  let mailboxBacklog = 0;
+  for (const p of profiles) {
+    if (p.retired) graveyard++;
+    else if (p.enabled === false) paused++;
+    else active++;
+    if (p.system || p.kind === "system") system++;
+    if (p.kind === "subagent" || p.managed || p.direct_callable === false) subagents++;
+    if ((p.status?.active_run_count || 0) > 0 || p.status?.operational_state === "running") running++;
+    if (dashboardAgentNeedsRepair(p)) repair++;
+    const waiting = mailbox[p.slug.toLowerCase()] || mailbox[p.slug] || 0;
+    if (!p.retired && waiting > 0) {
+      mailboxAgents++;
+      mailboxBacklog += waiting;
+    }
+  }
+  return { total: profiles.length, active, paused, running, repair, graveyard, mailboxAgents, mailboxBacklog, system, subagents };
+}
+
+function dashboardAgentNeedsRepair(p: DashboardAgentProfile): boolean {
+  if (p.retired) return false;
+  const repairState = (p.status?.repair_state || "").toLowerCase();
+  const healthState = (p.status?.health_state || "").toLowerCase();
+  return (
+    (p.status?.repair_inflight || 0) > 0 ||
+    repairState === "queued" ||
+    repairState === "failed" ||
+    repairState === "attempts_exhausted" ||
+    healthState === "degraded" ||
+    healthState === "misconfigured" ||
+    healthState === "unstable" ||
+    healthState === "force_failed" ||
+    healthState === "force_exhausted"
+  );
+}
+
+function dashboardMailboxCounts(messages: DashboardBoardMessage[], agents: string[] = []): Record<string, number> {
+  const answered = new Set(messages.filter((m) => m.reply_to).map((m) => String(m.reply_to || "").trim()).filter(Boolean));
+  const broadcastReplies = new Map<string, Set<string>>();
+  for (const m of messages) {
+    const replyTo = String(m.reply_to || "").trim();
+    const from = String(m.from || "").trim().toLowerCase();
+    if (!replyTo || !from) continue;
+    if (!broadcastReplies.has(replyTo)) broadcastReplies.set(replyTo, new Set());
+    broadcastReplies.get(replyTo)?.add(from);
+  }
+  const roster = agents.map((a) => a.trim().toLowerCase()).filter(Boolean);
+  const counts: Record<string, number> = {};
+  for (const m of messages) {
+    const id = String(m.id || "").trim();
+    if (!id || m.reply_to) continue;
+    const to = String(m.to || "").trim().toLowerCase();
+    const from = String(m.from || "").trim().toLowerCase();
+    const acked = new Set((m.acked_by || []).map((a) => a.trim().toLowerCase()).filter(Boolean));
+    if (to && to !== "*" && !answered.has(id) && !acked.has(to)) counts[to] = (counts[to] || 0) + 1;
+    if (to === "*") {
+      const replied = broadcastReplies.get(id) || new Set<string>();
+      for (const agent of roster) {
+        if (!agent || agent === from || acked.has(agent) || replied.has(agent)) continue;
+        counts[agent] = (counts[agent] || 0) + 1;
+      }
+    }
+  }
+  return counts;
+}
+
 function GaugeCard({ children }: { children: React.ReactNode }) {
   return <div className="flex items-center justify-center glass rounded-xl p-3 shadow-e1">{children}</div>;
+}
+
+function MiniOp({
+  icon: Icon,
+  label,
+  value,
+  tone,
+  pulse,
+}: {
+  icon: typeof Activity;
+  label: string;
+  value: number | string;
+  tone: "accent" | "warn" | "bad" | "muted";
+  pulse?: boolean;
+}) {
+  const color = { accent: "text-accent", warn: "text-warn", bad: "text-bad", muted: "text-foreground" }[tone];
+  return (
+    <div className="rounded-md border border-border bg-card/55 px-2 py-1.5">
+      <div className="flex items-center gap-1 text-[10px] uppercase tracking-wider text-muted">
+        <Icon className={cn("size-3", pulse && "animate-pulse")} /> {label}
+      </div>
+      <div className={cn("mt-0.5 text-lg font-semibold tabular-nums", color)}>{value}</div>
+    </div>
+  );
 }
 
 function Tile({

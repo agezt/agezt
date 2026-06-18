@@ -110,6 +110,7 @@ func registerConfigCommands() {
 	Register(&Command{Name: "tool", Run: cmdTool})
 	Register(&Command{Name: "toolforge", Run: cmdToolforge})
 	Register(&Command{Name: "mcp", Run: cmdMCP})
+	Register(&Command{Name: "market", Run: cmdMarket})
 	Register(&Command{Name: "workflow", Run: cmdWorkflow})
 }
 

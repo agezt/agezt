@@ -93,6 +93,7 @@ func TestComplete_ToolUseResponse(t *testing.T) {
 	p := New("k")
 	p.Endpoint = srv.URL
 	resp, err := p.Complete(context.Background(), agent.CompletionRequest{
+		Model:    "m",
 		Messages: []agent.Message{{Role: agent.RoleUser, Content: "list files"}},
 	})
 	if err != nil {
@@ -126,6 +127,7 @@ func TestComplete_APIError(t *testing.T) {
 	p := New("k")
 	p.Endpoint = srv.URL
 	_, err := p.Complete(context.Background(), agent.CompletionRequest{
+		Model:    "m",
 		Messages: []agent.Message{{Role: agent.RoleUser, Content: "x"}},
 	})
 	if err == nil {

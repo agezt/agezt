@@ -25,9 +25,9 @@ function activitySeries(events: AgentEvent[], buckets = 24, windowMs = 120_000, 
 
 // FleetNowBar (M945, reworked M973) is the live "now playing" strip: a
 // qualitative, event-driven view of WHAT the fleet is doing right now — which
-// agents are running which tasks. It reads only the rolling SSE buffer (no
-// fetch): a run is "live" when the most recent lifecycle event for its
-// correlation is task.received (not yet completed/failed).
+// agents are running which tasks or autonomous repair jobs. It reads only the
+// rolling SSE buffer (no fetch): a correlation is "live" until its latest
+// lifecycle/repair event is terminal.
 //
 // Two shapes (M973): COLLAPSED shows a compact overlapping stack of agent
 // avatars (3 shown + "+N"), so many concurrent agents stay a glance, not a wall
@@ -35,11 +35,27 @@ function activitySeries(events: AgentEvent[], buckets = 24, windowMs = 120_000, 
 // "running agent" cards you can slide left/right and click through to each
 // agent's identity page.
 
-interface LiveRun {
+export interface LiveRun {
   corr: string;
   agent?: string;
   intent?: string;
   ts?: number;
+  lastTs?: number;
+  phase?: string;
+  detail?: string;
+  tool?: string;
+  model?: string;
+}
+
+export interface FleetNowSummary {
+  awake: number;
+  repairing: number;
+  toolUsers: number;
+  modelThinkers: number;
+  agentless: number;
+  value: string;
+  detail: string;
+  tone: "good" | "warn" | "accent" | "muted";
 }
 
 // PayloadIntent is the subset of agent-event payloads the Now strip reads: the
@@ -49,6 +65,18 @@ interface LiveRun {
 interface PayloadIntent {
   intent?: string;
   agent?: string;
+  target_agent?: string;
+  iter?: number;
+  tool?: string;
+  name?: string;
+  capability?: string;
+  model?: string;
+  mode?: string;
+  phase?: string;
+  reason?: string;
+  error?: string | boolean;
+  resolution?: string;
+  allow?: boolean;
 }
 
 // isRealAgent rejects run-correlation ids ("agent-run-…" / "run-…") so we never
@@ -67,33 +95,149 @@ function tickerLabel(e: AgentEvent): string {
 
 const STACK_SHOWN = 3; // collapsed avatars before the "+N" overflow
 
+export function fleetNowSummary(live: LiveRun[]): FleetNowSummary {
+  const awake = live.length;
+  const repairing = live.filter((r) => {
+    const phase = (r.phase || "").toLowerCase();
+    return phase.includes("repair");
+  }).length;
+  const toolUsers = live.filter((r) => !!r.tool || (r.phase || "").toLowerCase().includes("tool")).length;
+  const modelThinkers = live.filter((r) => !!r.model || (r.phase || "").toLowerCase().includes("thinking")).length;
+  const agentless = live.filter((r) => !isRealAgent(r.agent)).length;
+  const parts = [`${awake} agents awake`];
+  if (repairing) parts.push(`${repairing} repair`);
+  if (toolUsers) parts.push(`${toolUsers} tools`);
+  if (modelThinkers) parts.push(`${modelThinkers} model`);
+  if (agentless) parts.push(`${agentless} agentless`);
+  return {
+    awake,
+    repairing,
+    toolUsers,
+    modelThinkers,
+    agentless,
+    value: awake === 0 ? "fleet sleeping" : repairing > 0 ? `${awake} awake · ${repairing} repair` : `${awake} awake`,
+    detail: parts.join(" · "),
+    tone: awake === 0 ? "muted" : repairing > 0 ? "warn" : toolUsers > 0 || modelThinkers > 0 ? "accent" : "good",
+  };
+}
+
+function eventPhase(e: AgentEvent): Pick<LiveRun, "phase" | "detail" | "tool" | "model" | "lastTs"> {
+  const p = (e.payload || {}) as PayloadIntent;
+  const iter = typeof p.iter === "number" ? `iter ${p.iter}` : "";
+  const tool = p.tool || p.name || p.capability || "";
+  const detail = [iter, tool].filter(Boolean).join(" · ");
+  if (e.subject === "doctor.auto_repair") {
+    const phase = p.phase || "repair";
+    const mode = p.mode ? `${p.mode} repair` : "repair";
+    const target = p.agent || p.target_agent || "";
+    const issue = typeof p.error === "string" ? p.error : p.reason || p.resolution || "";
+    return {
+      phase: repairPhaseLabel(phase),
+      detail: [mode, target ? `agent ${target}` : "", issue].filter(Boolean).join(" · "),
+      lastTs: e.ts_unix_ms,
+    };
+  }
+  switch (e.kind) {
+    case "task.received":
+      return { phase: "starting", detail: p.intent, model: p.model, lastTs: e.ts_unix_ms };
+    case "llm.request":
+      return { phase: "thinking", detail: iter, model: p.model, lastTs: e.ts_unix_ms };
+    case "llm.response":
+      return { phase: p.tool ? "planned tools" : "answered draft", detail, model: p.model, lastTs: e.ts_unix_ms };
+    case "policy.decision":
+      return { phase: p.allow === false ? "blocked tool" : "checking policy", detail, tool, lastTs: e.ts_unix_ms };
+    case "tool.invoked":
+      return { phase: "using tool", detail, tool, lastTs: e.ts_unix_ms };
+    case "tool.result":
+      return { phase: p.error ? "tool error" : "observed tool", detail, tool, lastTs: e.ts_unix_ms };
+    default:
+      return { phase: e.kind || "working", detail: e.subject, lastTs: e.ts_unix_ms };
+  }
+}
+
+function repairPhaseLabel(phase: string): string {
+  switch (phase) {
+    case "queued":
+      return "repair queued";
+    case "routing_rollback_queued":
+      return "rollback queued";
+    case "routing_rollback_completed":
+      return "rollback completed";
+    case "routing_rollback_failed":
+      return "rollback failed";
+    case "attempts_exhausted":
+      return "repair exhausted";
+    case "resolution_applied":
+      return "manager applied";
+    case "completed":
+      return "repair completed";
+    case "failed":
+    case "resolution_failed":
+      return "repair failed";
+    default:
+      return phase || "repair";
+  }
+}
+
+function isTerminalEvent(e: AgentEvent): boolean {
+  if (e.kind === "task.completed" || e.kind === "task.failed") return true;
+  if (e.subject !== "doctor.auto_repair") return false;
+  const phase = String((e.payload as PayloadIntent | undefined)?.phase || "");
+  return phase === "completed" || phase === "failed" || phase === "resolution_applied" || phase === "resolution_failed" || phase === "routing_rollback_completed" || phase === "routing_rollback_failed";
+}
+
+function isStandaloneRepairEvent(e: AgentEvent): boolean {
+  if (e.subject !== "doctor.auto_repair") return false;
+  const phase = String((e.payload as PayloadIntent | undefined)?.phase || "");
+  return !isTerminalEvent(e) && phase !== "";
+}
+
+export function liveRunsFromEvents(events: AgentEvent[]): LiveRun[] {
+  const byCorr = new Map<string, LiveRun & { terminal?: boolean; seenStart?: boolean }>();
+  for (const e of events) {
+    const corr = e.correlation_id;
+    if (!corr) continue;
+    const existing = byCorr.get(corr);
+    if (existing?.terminal) continue;
+    if (!existing) {
+      const terminal = isTerminalEvent(e);
+      const phase = eventPhase(e);
+      byCorr.set(corr, { corr, terminal, ...phase });
+      if (terminal) continue;
+    }
+    const row = byCorr.get(corr)!;
+    if (isStandaloneRepairEvent(e)) {
+      const p = e.payload as PayloadIntent | null;
+      const agent = isRealAgent(p?.agent) ? p?.agent : isRealAgent(p?.target_agent) ? p?.target_agent : undefined;
+      row.seenStart = true;
+      row.agent = agent || row.agent;
+      row.intent = row.intent || [p?.mode || "doctor", "repair", agent || ""].filter(Boolean).join(" ");
+      row.ts = e.ts_unix_ms || row.ts;
+      continue;
+    }
+    if (e.kind === "task.received") {
+      const p = e.payload as PayloadIntent | null;
+      row.seenStart = true;
+      row.agent = isRealAgent(p?.agent) ? p?.agent : isRealAgent(e.actor) ? e.actor : row.agent;
+      row.intent = p?.intent || row.intent;
+      row.ts = e.ts_unix_ms || row.ts;
+      if (!row.phase) Object.assign(row, eventPhase(e));
+    }
+  }
+  return [...byCorr.values()]
+    .filter((r) => !r.terminal && r.seenStart)
+    .map(({ terminal: _terminal, seenStart: _seenStart, ...r }) => r);
+}
+
 export function FleetNowBar({ onNavigate }: { onNavigate?: (id: string) => void }) {
   const { events, connected } = useEvents();
   const [expanded, setExpanded] = useState(false);
 
-  // Replay the buffer (newest-first): the first lifecycle event per correlation
-  // decides its state. Most-recent == task.received → still running.
-  const live = useMemo<LiveRun[]>(() => {
-    const seen = new Set<string>();
-    const runs: LiveRun[] = [];
-    for (const e of events) {
-      const corr = e.correlation_id;
-      if (!corr || seen.has(corr)) continue;
-      if (e.kind === "task.received" || e.kind === "task.completed" || e.kind === "task.failed") {
-        seen.add(corr);
-        if (e.kind === "task.received") {
-          {
-            const p = e.payload as PayloadIntent | null;
-            // Agent slug comes from the payload; fall back to the actor only when
-            // it's a real slug (not a run id). Ad-hoc/chat runs stay agentless.
-            const agent = isRealAgent(p?.agent) ? p?.agent : isRealAgent(e.actor) ? e.actor : undefined;
-            runs.push({ corr, agent, intent: p?.intent, ts: e.ts_unix_ms });
-          }
-        }
-      }
-    }
-    return runs;
-  }, [events]);
+  // Replay the buffer (newest-first): terminal task events close a correlation;
+  // otherwise the newest non-terminal event becomes the visible phase while the
+  // older task.received supplies the agent slug and intent.
+  const live = useMemo<LiveRun[]>(() => liveRunsFromEvents(events), [events]);
+  const summary = useMemo(() => fleetNowSummary(live), [live]);
 
   const latest = events[0];
   const spark = useMemo(() => activitySeries(events), [events]);
@@ -172,6 +316,7 @@ export function FleetNowBar({ onNavigate }: { onNavigate?: (id: string) => void 
             {live.length} running
             <ChevronDown className="size-3.5 text-muted transition-colors group-hover:text-accent" />
           </button>
+          <NowMiniLedger summary={summary} />
         </div>
       )}
 
@@ -186,6 +331,34 @@ export function FleetNowBar({ onNavigate }: { onNavigate?: (id: string) => void 
         </div>
       )}
     </div>
+  );
+}
+
+function NowMiniLedger({ summary }: { summary: FleetNowSummary }) {
+  const cells = [
+    { label: "awake", value: summary.awake, show: summary.awake > 0 },
+    { label: "repair", value: summary.repairing, show: summary.repairing > 0 },
+    { label: "tools", value: summary.toolUsers, show: summary.toolUsers > 0 },
+    { label: "model", value: summary.modelThinkers, show: summary.modelThinkers > 0 },
+    { label: "agentless", value: summary.agentless, show: summary.agentless > 0 },
+  ].filter((cell) => cell.show);
+
+  if (cells.length === 0) return null;
+  return (
+    <span
+      aria-label="Now ledger"
+      title={summary.detail}
+      className={cn(
+        "hidden items-center gap-1 border-l border-border/70 pl-2 text-[10px] sm:flex",
+        summary.tone === "warn" ? "text-warn" : summary.tone === "accent" ? "text-accent" : "text-muted",
+      )}
+    >
+      {cells.map((cell) => (
+        <span key={cell.label} className="rounded-md border border-border bg-panel/50 px-1.5 py-0.5">
+          {cell.label} {cell.value}
+        </span>
+      ))}
+    </span>
   );
 }
 
@@ -205,6 +378,7 @@ function NowSlider({
 }) {
   const scroller = useRef<HTMLDivElement>(null);
   const scrollBy = (dir: -1 | 1) => scroller.current?.scrollBy({ left: dir * 260, behavior: "smooth" });
+  const summary = fleetNowSummary(live);
 
   return (
     <div className="flex shrink-0 flex-col gap-1.5 border-b border-border bg-panel/40 px-3 py-2">
@@ -218,6 +392,7 @@ function NowSlider({
           <span>Now</span>
           <span className="text-muted/70">· {live.length} running</span>
         </button>
+        <NowMiniLedger summary={summary} />
         <div className="ml-auto flex items-center gap-1">
           <button onClick={() => scrollBy(-1)} title="Scroll left" className="rounded-md border border-border p-1 text-muted transition-colors hover:border-accent hover:text-foreground">
             <ChevronLeft className="size-3.5" />
@@ -254,6 +429,31 @@ function NowSlider({
               </div>
               <ChevronRight className="size-3.5 shrink-0 text-muted opacity-0 transition-opacity group-hover:opacity-100" />
             </div>
+            <div className="flex flex-wrap items-center gap-1.5">
+              {r.phase && (
+                <span className="rounded-md border border-accent/30 bg-accent/10 px-1.5 py-0.5 text-[10px] font-medium text-accent">
+                  {r.phase}
+                </span>
+              )}
+              {r.tool && (
+                <span className="rounded-md border border-border bg-panel/50 px-1.5 py-0.5 font-mono text-[10px] text-muted">
+                  {r.tool}
+                </span>
+              )}
+              {r.model && (
+                <span className="rounded-md border border-border bg-panel/50 px-1.5 py-0.5 font-mono text-[10px] text-muted">
+                  {r.model}
+                </span>
+              )}
+              {r.lastTs && r.lastTs !== r.ts ? (
+                <span className="text-[10px] text-muted">last event {fmtAgo(r.lastTs)}</span>
+              ) : null}
+            </div>
+            {r.detail && r.detail !== r.intent && (
+              <div className="truncate font-mono text-[10px] text-muted" title={r.detail}>
+                {r.detail}
+              </div>
+            )}
             <div className="line-clamp-3 min-h-[3.2em] text-[11px] leading-snug text-muted" title={r.intent || ""}>
               {r.intent ? clip(r.intent, 160) : <span className="italic text-muted/60">no intent recorded</span>}
             </div>

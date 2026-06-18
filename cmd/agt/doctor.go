@@ -3,8 +3,10 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -43,16 +45,20 @@ import (
 func cmdDoctor(args []string, stdout, stderr io.Writer) int {
 	asJSON := false
 	strict := false
+	repair := false
 	for _, a := range args {
 		switch a {
 		case "--json":
 			asJSON = true
 		case "--strict":
 			strict = true
+		case "--repair":
+			repair = true
 		case "-h", "--help":
-			fmt.Fprintf(stdout, "usage: %s doctor [--json] [--strict]\n", brand.CLI)
-			fmt.Fprintf(stdout, "preflight health check: base dir, daemon, version skew, journal, tools\n")
+			fmt.Fprintf(stdout, "usage: %s doctor [--json] [--strict] [--repair]\n", brand.CLI)
+			fmt.Fprintf(stdout, "preflight health check: base dir, memory store, daemon, version skew, journal, tools\n")
 			fmt.Fprintf(stdout, "  --strict  exit non-zero on warnings too (not just failures)\n")
+			fmt.Fprintf(stdout, "  --repair  repair startup-blocking local store files and pause noisy schedules\n")
 			return 0
 		default:
 			fmt.Fprintf(stderr, "%s doctor: unexpected arg %q\n", brand.CLI, a)
@@ -60,12 +66,16 @@ func cmdDoctor(args []string, stdout, stderr io.Writer) int {
 		}
 	}
 
-	checks := runDoctorChecks()
+	checks := runDoctorChecks(doctorOptions{Repair: repair})
 
 	if asJSON {
 		return renderDoctorJSON(checks, strict, stdout)
 	}
 	return renderDoctorText(checks, strict, stdout)
+}
+
+type doctorOptions struct {
+	Repair bool
 }
 
 // doctorExitCode maps the worst check status to a process exit code. A FAIL is
@@ -118,11 +128,14 @@ func fail(name, detail, hint string) doctorCheck {
 }
 
 // runDoctorChecks performs the diagnostics and returns them in display order.
-func runDoctorChecks() []doctorCheck {
+func runDoctorChecks(opts doctorOptions) []doctorCheck {
 	var checks []doctorCheck
 
 	base, baseErr := paths.BaseDir()
 	checks = append(checks, checkBaseDir(base, baseErr))
+	if baseErr == nil {
+		checks = append(checks, checkMemoryStoreFile(base, opts.Repair))
+	}
 
 	// Daemon-dependent checks need a client. If we can't build one (no
 	// addr/token files), the daemon isn't running — report that one FAIL and
@@ -176,7 +189,10 @@ func runDoctorChecks() []doctorCheck {
 	checks = append(checks, checkBudget(ctx, client))
 	checks = append(checks, checkCatalog(ctx, client))
 	checks = append(checks, checkWebhooks(ctx, client))
-	checks = append(checks, checkSchedules(ctx, client))
+	checks = append(checks, checkSchedules(ctx, client, status, opts.Repair))
+	checks = append(checks, checkStanding(ctx, client, opts.Repair))
+	checks = append(checks, checkAgentHealth(ctx, client))
+	checks = append(checks, checkGuardianNoise(ctx, client, opts.Repair))
 	checks = append(checks, checkDisk(ctx, client))
 	checks = append(checks, checkExposure(status))
 	checks = append(checks, checkNetguard(ctx, client))
@@ -217,6 +233,62 @@ func runDoctorChecks() []doctorCheck {
 	checks = append(checks, checkHalt(status))
 
 	return checks
+}
+
+func checkMemoryStoreFile(base string, repair bool) doctorCheck {
+	const name = "memory store"
+	path := filepath.Join(base, "memory", "memory.json")
+	raw, err := os.ReadFile(path)
+	if errors.Is(err, os.ErrNotExist) {
+		if !repair {
+			return warn(name, "memory.json is missing", "run `agt doctor --repair` to recreate an empty memory store")
+		}
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			return fail(name, "cannot create memory dir: "+err.Error(), "check filesystem permissions")
+		}
+		if err := os.WriteFile(path, []byte("{}\n"), 0o600); err != nil {
+			return fail(name, "cannot recreate memory.json: "+err.Error(), "check filesystem permissions")
+		}
+		return ok(name, "recreated missing memory.json as empty store")
+	}
+	if err != nil {
+		return fail(name, "cannot read memory.json: "+err.Error(), "check filesystem permissions")
+	}
+	trimmed := bytes.TrimSpace(raw)
+	if len(trimmed) == 0 {
+		if !repair {
+			return warn(name, "memory.json is empty", "run `agt doctor --repair` to reset it to an empty JSON object")
+		}
+		if err := os.WriteFile(path, []byte("{}\n"), 0o600); err != nil {
+			return fail(name, "cannot repair empty memory.json: "+err.Error(), "check filesystem permissions")
+		}
+		return ok(name, "repaired empty memory.json as empty store")
+	}
+	clean := bytes.TrimPrefix(trimmed, []byte{0xEF, 0xBB, 0xBF})
+	var decoded map[string]json.RawMessage
+	if err := json.Unmarshal(clean, &decoded); err != nil {
+		if !repair {
+			return fail(name, "memory.json is not valid JSON: "+err.Error(), "run `agt doctor --repair` to back it up and recreate an empty store")
+		}
+		backup := path + ".bad-" + time.Now().Format("20060102-150405")
+		if err := os.Rename(path, backup); err != nil {
+			return fail(name, "cannot back up corrupt memory.json: "+err.Error(), "check filesystem permissions")
+		}
+		if err := os.WriteFile(path, []byte("{}\n"), 0o600); err != nil {
+			return fail(name, "backed up corrupt memory.json but could not recreate it: "+err.Error(), "restore from "+backup+" after fixing permissions")
+		}
+		return ok(name, "backed up corrupt memory.json to "+filepath.Base(backup)+" and recreated empty store")
+	}
+	if !bytes.Equal(clean, trimmed) {
+		if !repair {
+			return warn(name, "memory.json has a UTF-8 BOM", "daemon tolerates it, but `agt doctor --repair` will normalize the file")
+		}
+		if err := os.WriteFile(path, append(clean, '\n'), 0o600); err != nil {
+			return fail(name, "cannot rewrite memory.json without BOM: "+err.Error(), "check filesystem permissions")
+		}
+		return ok(name, fmt.Sprintf("normalized memory.json (%d record(s), BOM removed)", len(decoded)))
+	}
+	return ok(name, fmt.Sprintf("memory.json valid (%d record(s))", len(decoded)))
 }
 
 // checkMeshAuth flags peers configured without a Bearer token (M214). A token-less
@@ -701,6 +773,265 @@ func topFailingWebhook(raw any) string {
 	return worst
 }
 
+func checkAgentHealth(ctx context.Context, client *controlplane.Client) doctorCheck {
+	res, err := client.Call(ctx, controlplane.CmdReaperScan, nil)
+	if err != nil {
+		return ok("agents", "agent health scan unavailable (—)")
+	}
+	return agentHealthCheckFromScan(res)
+}
+
+func agentHealthCheckFromScan(res map[string]any) doctorCheck {
+	const name = "agents"
+	rows, _ := res["degraded_agents"].([]any)
+	misconfigured, _ := res["misconfigured_agents"].([]any)
+	if len(rows) == 0 && len(misconfigured) == 0 {
+		return ok(name, "no degraded agents")
+	}
+	if len(rows) == 0 {
+		first, _ := misconfigured[0].(map[string]any)
+		slug, _ := first["slug"].(string)
+		if slug == "" {
+			slug = "agent"
+		}
+		detail := fmt.Sprintf("%d misconfigured agent(s); %s needs attention", len(misconfigured), slug)
+		if issues, ok := first["issues"].([]any); ok && len(issues) > 0 {
+			if issue, _ := issues[0].(string); issue != "" {
+				detail += ": " + issue
+			}
+		}
+		hint := fmt.Sprintf("inspect with `%s agent show %s` and repair owner/parent/config settings", brand.CLI, slug)
+		if doctor, _ := first["doctor_agent"].(string); doctor != "" {
+			hint += fmt.Sprintf("; doctor agent: %s", doctor)
+		}
+		if repair, _ := first["self_repair_enabled"].(bool); repair {
+			hint += "; self-repair enabled"
+		}
+		return warn(name, detail, hint)
+	}
+	first, _ := rows[0].(map[string]any)
+	slug, _ := first["slug"].(string)
+	if slug == "" {
+		slug = "agent"
+	}
+	failures := intOfStatus(first["failures"])
+	threshold := intOfStatus(first["threshold"])
+	doctor, _ := first["doctor_agent"].(string)
+	repair, _ := first["self_repair_enabled"].(bool)
+	detail := fmt.Sprintf("%d degraded agent(s); %s has %d failure(s)", len(rows), slug, failures)
+	if threshold > 0 {
+		detail += fmt.Sprintf(" (threshold %d)", threshold)
+	}
+	hint := fmt.Sprintf("inspect with `%s agent activity %s`", brand.CLI, slug)
+	if doctor != "" {
+		hint += fmt.Sprintf("; doctor agent: %s", doctor)
+	}
+	if repair {
+		hint += "; self-repair enabled"
+	}
+	return warn(name, detail, hint)
+}
+
+const (
+	doctorGuardianMaxCostMc         = 50_000_000
+	doctorGuardianMaxDailyMc        = 50_000_000
+	doctorGuardianNotifyCooldownSec = 8 * 3600
+)
+
+func checkGuardianNoise(ctx context.Context, client *controlplane.Client, repair bool) doctorCheck {
+	res, err := client.Call(ctx, controlplane.CmdAgentList, nil)
+	if err != nil {
+		return ok("guardian noise", "agent roster unavailable (—)")
+	}
+	check := guardianNoiseCheckFromList(res)
+	if !repair || check.Status != statusWarn {
+		return check
+	}
+	profiles, _ := res["profiles"].([]any)
+	targets := noisyGuardianProfiles(profiles)
+	repaired := 0
+	for _, p := range targets {
+		slug := str(p["slug"])
+		if slug == "" {
+			continue
+		}
+		if _, err := client.Call(ctx, controlplane.CmdAgentCapabilities, guardianQuietPatch(p)); err != nil {
+			return warn("guardian noise",
+				fmt.Sprintf("%s; repair quieted %d/%d guardian profile(s)", check.Detail, repaired, len(targets)),
+				fmt.Sprintf("failed to quiet %s: %v; inspect with `%s agent show %s`", slug, err, brand.CLI, slug))
+		}
+		repaired++
+	}
+	return ok("guardian noise", fmt.Sprintf("quieted %d noisy system guardian profile(s)", repaired))
+}
+
+func guardianNoiseCheckFromList(res map[string]any) doctorCheck {
+	const name = "guardian noise"
+	profiles, _ := res["profiles"].([]any)
+	active := 0
+	targets := noisyGuardianProfiles(profiles)
+	for _, raw := range profiles {
+		p, _ := raw.(map[string]any)
+		if isActiveSystemGuardian(p) {
+			active++
+		}
+	}
+	if active == 0 {
+		return ok(name, "no active system guardians")
+	}
+	if len(targets) == 0 {
+		return ok(name, fmt.Sprintf("%d system guardian profile(s) quiet", active))
+	}
+	first := targets[0]
+	slug := str(first["slug"])
+	if slug == "" {
+		slug = "guardian"
+	}
+	issues := guardianNoiseIssues(first)
+	detail := fmt.Sprintf("%d/%d system guardian profile(s) need quieting; %s: %s", len(targets), active, slug, strings.Join(issues, ", "))
+	hint := fmt.Sprintf("run `%s doctor --repair` to enforce memory off, notify >= warning, cooldown >=8h, caps, isolated memory scope, and trust <= L2", brand.CLI)
+	return warn(name, detail, hint)
+}
+
+func noisyGuardianProfiles(profiles []any) []map[string]any {
+	var out []map[string]any
+	for _, raw := range profiles {
+		p, _ := raw.(map[string]any)
+		if !isActiveSystemGuardian(p) {
+			continue
+		}
+		if len(guardianNoiseIssues(p)) > 0 {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+func isActiveSystemGuardian(p map[string]any) bool {
+	if p == nil {
+		return false
+	}
+	system, _ := p["system"].(bool)
+	retired, _ := p["retired"].(bool)
+	return system && !retired
+}
+
+func guardianNoiseIssues(p map[string]any) []string {
+	if p == nil {
+		return nil
+	}
+	slug := str(p["slug"])
+	noise, _ := p["noise_policy"].(map[string]any)
+	var issues []string
+	if noise == nil {
+		issues = append(issues, "no noise policy")
+	} else {
+		silent, _ := noise["silent_on_success"].(bool)
+		disableMemory, _ := noise["disable_memory_writes"].(bool)
+		if !silent {
+			issues = append(issues, "success notifications enabled")
+		}
+		if !disableMemory && !guardianToolDenyHasMemory(p) {
+			issues = append(issues, "memory writes enabled")
+		}
+		if notifySeverityRank(str(noise["min_notify_severity"])) < notifySeverityRank("warning") {
+			issues = append(issues, "notify below warning")
+		}
+		if intNumber(noise["min_notify_interval_sec"]) < doctorGuardianNotifyCooldownSec {
+			issues = append(issues, "notify cooldown <8h")
+		}
+	}
+	if intNumber(p["max_cost_mc"]) <= 0 || intNumber(p["max_cost_mc"]) > doctorGuardianMaxCostMc {
+		issues = append(issues, "run cap missing/high")
+	}
+	if intNumber(p["max_daily_mc"]) <= 0 || intNumber(p["max_daily_mc"]) > doctorGuardianMaxDailyMc {
+		issues = append(issues, "daily cap missing/high")
+	}
+	if guardianTrustRank(str(p["trust_ceiling"])) > guardianTrustRank("L2") {
+		issues = append(issues, "trust above L2")
+	}
+	if slug != "" && str(p["memory_scope"]) != "system/"+slug {
+		issues = append(issues, "memory scope not isolated")
+	}
+	return issues
+}
+
+func guardianToolDenyHasMemory(p map[string]any) bool {
+	for _, raw := range stringsAny(p["tool_deny"]) {
+		if strings.EqualFold(strings.TrimSpace(str(raw)), "memory") {
+			return true
+		}
+	}
+	return false
+}
+
+func guardianTrustRank(level string) int {
+	level = strings.TrimSpace(strings.ToUpper(level))
+	if len(level) == 2 && level[0] == 'L' && level[1] >= '0' && level[1] <= '4' {
+		return int(level[1] - '0')
+	}
+	return 4
+}
+
+func notifySeverityRank(severity string) int {
+	switch strings.ToLower(strings.TrimSpace(severity)) {
+	case "critical":
+		return 3
+	case "warning", "warn":
+		return 2
+	case "info":
+		return 1
+	default:
+		return 0
+	}
+}
+
+func guardianQuietPatch(p map[string]any) map[string]any {
+	slug := str(p["slug"])
+	policy, _ := p["noise_policy"].(map[string]any)
+	notifySeverity := str(policy["min_notify_severity"])
+	if notifySeverityRank(notifySeverity) < notifySeverityRank("warning") {
+		notifySeverity = "warning"
+	}
+	cooldown := intNumber(policy["min_notify_interval_sec"])
+	if cooldown < doctorGuardianNotifyCooldownSec {
+		cooldown = doctorGuardianNotifyCooldownSec
+	}
+	toolDeny := stringsAny(p["tool_deny"])
+	hasMemory := false
+	for _, raw := range toolDeny {
+		if strings.EqualFold(strings.TrimSpace(str(raw)), "memory") {
+			hasMemory = true
+			break
+		}
+	}
+	if !hasMemory {
+		toolDeny = append(toolDeny, "memory")
+	}
+	toolAllow := make([]any, 0, len(stringsAny(p["tool_allow"])))
+	for _, raw := range stringsAny(p["tool_allow"]) {
+		if strings.EqualFold(strings.TrimSpace(str(raw)), "memory") {
+			continue
+		}
+		toolAllow = append(toolAllow, raw)
+	}
+	return map[string]any{
+		"ref":           slug,
+		"memory_scope":  "system/" + slug,
+		"max_cost_mc":   doctorGuardianMaxCostMc,
+		"max_daily_mc":  doctorGuardianMaxDailyMc,
+		"trust_ceiling": "L2",
+		"tool_allow":    toolAllow,
+		"tool_deny":     toolDeny,
+		"noise_policy": map[string]any{
+			"silent_on_success":       true,
+			"disable_memory_writes":   true,
+			"min_notify_severity":     notifySeverity,
+			"min_notify_interval_sec": cooldown,
+		},
+	}
+}
+
 // checkSchedules warns when an enabled schedule's most recent firing failed
 // (M162). Scheduled runs are the autonomy axis: they fire unattended, so a run
 // that errors leaves no one watching — the failure sits silently in the journal
@@ -708,19 +1039,39 @@ func topFailingWebhook(raw any) string {
 // outcome into the go-to diagnostic surfaces broken automation proactively. Same
 // shape as the webhooks check. Best-effort: no schedules, or the call failing, is
 // an informational OK, never a FAIL.
-func checkSchedules(ctx context.Context, client *controlplane.Client) doctorCheck {
+func checkSchedules(ctx context.Context, client *controlplane.Client, status map[string]any, repair bool) doctorCheck {
 	res, err := client.Call(ctx, controlplane.CmdScheduleList, nil)
 	if err != nil {
 		return ok("schedules", "schedule list unavailable (—)")
 	}
-	return schedulesCheckFromList(res)
+	check := schedulesCheckFromList(res, status)
+	if !repair || check.Status != statusWarn {
+		return check
+	}
+	ids := scheduleAttentionIDs(res)
+	if len(ids) == 0 {
+		return check
+	}
+	paused := 0
+	for _, id := range ids {
+		out, err := client.Call(ctx, controlplane.CmdScheduleEnable, map[string]any{"id": id, "enabled": false})
+		if err != nil {
+			return warn("schedules",
+				fmt.Sprintf("%s; repair paused %d/%d attention schedule(s)", check.Detail, paused, len(ids)),
+				fmt.Sprintf("failed to pause %s: %v; inspect with `%s schedule list`", id, err, brand.CLI))
+		}
+		if updated, _ := out["updated"].(bool); updated {
+			paused++
+		}
+	}
+	return ok("schedules", fmt.Sprintf("paused %d attention schedule(s) with unsafe cadence or blocked targets", paused))
 }
 
 // schedulesCheckFromList is the pure verdict from a schedule-list response — split
 // out so the failure logic is testable without a live daemon (M162). Only ENABLED
 // schedules count: a disabled one the operator turned off shouldn't raise an
 // alarm. A schedule that hasn't fired yet (no last_status) is healthy-by-default.
-func schedulesCheckFromList(res map[string]any) doctorCheck {
+func schedulesCheckFromList(res map[string]any, status map[string]any) doctorCheck {
 	const name = "schedules"
 	rows, _ := res["schedules"].([]any)
 	if len(rows) == 0 {
@@ -728,6 +1079,8 @@ func schedulesCheckFromList(res map[string]any) doctorCheck {
 	}
 	enabled := 0
 	var failedIDs []string
+	var noisyIDs []string
+	var blockedIDs []string
 	worst := "" // id of the most recently-failed schedule, for the hint
 	worstMS := int64(-1)
 	for _, r := range rows {
@@ -739,6 +1092,16 @@ func schedulesCheckFromList(res map[string]any) doctorCheck {
 			continue
 		}
 		enabled++
+		if warning, _ := row["frequency_warning"].(string); strings.TrimSpace(warning) != "" {
+			if id, _ := row["id"].(string); strings.TrimSpace(id) != "" {
+				noisyIDs = append(noisyIDs, id)
+			}
+		}
+		if scheduleTargetBlocked(row) {
+			if id, _ := row["id"].(string); strings.TrimSpace(id) != "" {
+				blockedIDs = append(blockedIDs, id)
+			}
+		}
 		switch s, _ := row["last_status"].(string); s {
 		case "failed", "abandoned":
 			id, _ := row["id"].(string)
@@ -748,15 +1111,173 @@ func schedulesCheckFromList(res map[string]any) doctorCheck {
 			}
 		}
 	}
+	if enabled > 0 && !scheduleResident(status) {
+		return warn(name,
+			fmt.Sprintf("%d enabled schedule(s), but the cadence resident is not attached", enabled),
+			fmt.Sprintf("restart the daemon or inspect `%s status --json` schedules.resident", brand.CLI))
+	}
+	if len(blockedIDs) > 0 {
+		id := blockedIDs[0]
+		return warn(name,
+			fmt.Sprintf("%d/%d enabled schedule(s) have blocked targets", len(blockedIDs), enabled),
+			fmt.Sprintf("inspect `%s schedule list`; pause with `%s schedule enable %s false` or fix the target", brand.CLI, brand.CLI, id))
+	}
 	if len(failedIDs) == 0 {
 		if enabled == 0 {
 			return ok(name, fmt.Sprintf("%d schedule(s), none enabled", len(rows)))
+		}
+		if len(noisyIDs) > 0 {
+			id := noisyIDs[0]
+			return warn(name,
+				fmt.Sprintf("%d/%d enabled schedule(s) are more frequent than their quiet cadence", len(noisyIDs), enabled),
+				fmt.Sprintf("inspect `%s schedule list`; pause with `%s schedule enable %s false` or increase its interval", brand.CLI, brand.CLI, id))
 		}
 		return ok(name, fmt.Sprintf("%d enabled schedule(s), recent firings healthy", enabled))
 	}
 	detail := fmt.Sprintf("%d/%d enabled schedule(s) last firing failed", len(failedIDs), enabled)
 	hint := fmt.Sprintf("inspect with `agt schedule fires --id %s` (or `agt runs`)", worst)
 	return warn(name, detail, hint)
+}
+
+func scheduleResident(status map[string]any) bool {
+	sched, _ := status["schedules"].(map[string]any)
+	if sched == nil {
+		return true
+	}
+	resident, ok := sched["resident"].(bool)
+	if !ok {
+		return true
+	}
+	return resident
+}
+
+func scheduleAttentionIDs(res map[string]any) []string {
+	rows, _ := res["schedules"].([]any)
+	out := []string{}
+	for _, r := range rows {
+		row, _ := r.(map[string]any)
+		if row == nil {
+			continue
+		}
+		if on, _ := row["enabled"].(bool); !on {
+			continue
+		}
+		warning, _ := row["frequency_warning"].(string)
+		if strings.TrimSpace(warning) == "" && !scheduleTargetBlocked(row) {
+			continue
+		}
+		id, _ := row["id"].(string)
+		if id = strings.TrimSpace(id); id != "" {
+			out = append(out, id)
+		}
+	}
+	return out
+}
+
+func scheduleTargetBlocked(row map[string]any) bool {
+	if status, _ := row["target_status"].(string); strings.EqualFold(strings.TrimSpace(status), "blocked") {
+		return true
+	}
+	err, _ := row["target_error"].(string)
+	return strings.TrimSpace(err) != ""
+}
+
+func checkStanding(ctx context.Context, client *controlplane.Client, repair bool) doctorCheck {
+	res, err := client.Call(ctx, controlplane.CmdStandingList, nil)
+	if err != nil {
+		return ok("standing", "standing order list unavailable (—)")
+	}
+	check := standingCheckFromList(res)
+	if !repair || check.Status != statusWarn {
+		return check
+	}
+	ids := standingAttentionIDs(res)
+	if len(ids) == 0 {
+		return check
+	}
+	paused := 0
+	for _, id := range ids {
+		out, err := client.Call(ctx, controlplane.CmdStandingSetEnabled, map[string]any{"id": id, "enabled": false})
+		if err != nil {
+			return warn("standing",
+				fmt.Sprintf("%s; repair paused %d/%d attention standing order(s)", check.Detail, paused, len(ids)),
+				fmt.Sprintf("failed to pause %s: %v; inspect with `%s standing list`", id, err, brand.CLI))
+		}
+		if _, ok := out["order"].(map[string]any); ok {
+			paused++
+		}
+	}
+	return ok("standing", fmt.Sprintf("paused %d attention standing order(s) with unsafe cadence or blocked targets", paused))
+}
+
+func standingCheckFromList(res map[string]any) doctorCheck {
+	const name = "standing"
+	rows, _ := res["orders"].([]any)
+	if len(rows) == 0 {
+		return ok(name, "no standing wake rules configured")
+	}
+	enabled := 0
+	var noisyIDs []string
+	var blockedIDs []string
+	for _, r := range rows {
+		row, _ := r.(map[string]any)
+		if row == nil {
+			continue
+		}
+		if on, _ := row["enabled"].(bool); !on {
+			continue
+		}
+		enabled++
+		if warning, _ := row["frequency_warning"].(string); strings.TrimSpace(warning) != "" {
+			if id, _ := row["id"].(string); strings.TrimSpace(id) != "" {
+				noisyIDs = append(noisyIDs, id)
+			}
+		}
+		if scheduleTargetBlocked(row) {
+			if id, _ := row["id"].(string); strings.TrimSpace(id) != "" {
+				blockedIDs = append(blockedIDs, id)
+			}
+		}
+	}
+	if enabled == 0 {
+		return ok(name, fmt.Sprintf("%d standing wake rule(s), none enabled", len(rows)))
+	}
+	if len(blockedIDs) > 0 {
+		id := blockedIDs[0]
+		return warn(name,
+			fmt.Sprintf("%d/%d enabled standing wake rule(s) have blocked targets", len(blockedIDs), enabled),
+			fmt.Sprintf("inspect `%s standing list`; pause with `%s standing pause %s` or fix the target agent", brand.CLI, brand.CLI, id))
+	}
+	if len(noisyIDs) > 0 {
+		id := noisyIDs[0]
+		return warn(name,
+			fmt.Sprintf("%d/%d enabled standing wake rule(s) are more frequent than their quiet cadence", len(noisyIDs), enabled),
+			fmt.Sprintf("inspect `%s standing list`; pause with `%s standing pause %s` or increase its interval/cooldown", brand.CLI, brand.CLI, id))
+	}
+	return ok(name, fmt.Sprintf("%d enabled standing wake rule(s)", enabled))
+}
+
+func standingAttentionIDs(res map[string]any) []string {
+	rows, _ := res["orders"].([]any)
+	out := []string{}
+	for _, r := range rows {
+		row, _ := r.(map[string]any)
+		if row == nil {
+			continue
+		}
+		if on, _ := row["enabled"].(bool); !on {
+			continue
+		}
+		warning, _ := row["frequency_warning"].(string)
+		if strings.TrimSpace(warning) == "" && !scheduleTargetBlocked(row) {
+			continue
+		}
+		id, _ := row["id"].(string)
+		if id = strings.TrimSpace(id); id != "" {
+			out = append(out, id)
+		}
+	}
+	return out
 }
 
 // int64Of coerces a decoded-JSON number (float64) to int64. Returns -1 for a

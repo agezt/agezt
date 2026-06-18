@@ -329,6 +329,15 @@ func (t bridgedMCPTool) Definition() agent.ToolDef {
 		Name:        t.name,
 		Description: desc + " (via the attached MCP server \"" + t.server + "\")",
 		InputSchema: schema,
+		Effect: agent.ToolEffect{
+			Class: agent.EffectCompensable,
+			PredictedEffects: []string{
+				"Forward this tool call to an attached MCP server.",
+			},
+			AffectedResources: []string{"MCP server " + t.server, "remote resources reachable by MCP tool " + t.def.Name},
+			RollbackNotes:     "Compensation depends on the MCP server and specific remote tool; detach the server to stop future calls.",
+			Confidence:        0.45,
+		},
 	}
 }
 
@@ -381,7 +390,20 @@ func (t lazyMCPDispatch) Definition() agent.ToolDef {
 		"additionalProperties": false,
 	}
 	raw, _ := json.Marshal(schema)
-	return agent.ToolDef{Name: t.name, Description: strings.TrimRight(b.String(), "\n"), InputSchema: raw}
+	return agent.ToolDef{
+		Name:        t.name,
+		Description: strings.TrimRight(b.String(), "\n"),
+		InputSchema: raw,
+		Effect: agent.ToolEffect{
+			Class: agent.EffectCompensable,
+			PredictedEffects: []string{
+				"Dispatch a selected tool call through an attached MCP server.",
+			},
+			AffectedResources: []string{"MCP server " + t.server, "remote resources reachable by the selected MCP tool"},
+			RollbackNotes:     "Compensation depends on the selected MCP tool; detach the server to stop future calls.",
+			Confidence:        0.4,
+		},
+	}
 }
 
 func (t lazyMCPDispatch) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, error) {

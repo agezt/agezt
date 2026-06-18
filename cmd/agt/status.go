@@ -145,11 +145,11 @@ func cmdStatus(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "  mesh      : %s\n", peer.Describe(peers))
 	}
 
-	// Scheduled autonomy (M130): how many intents are armed, and how many enabled.
+	// Scheduled autonomy (M130): how many typed jobs are armed, and how many enabled.
 	// Quiet when there are none so single-shot operators see no noise.
 	if sched, _ := res["schedules"].(map[string]any); sched != nil {
-		if total := intOfStatus(sched["total"]); total > 0 {
-			fmt.Fprintf(stdout, "  schedules : %d (%d enabled)\n", total, intOfStatus(sched["enabled"]))
+		if line := scheduleStatusLine(sched); line != "" {
+			fmt.Fprintf(stdout, "  schedules : %s\n", line)
 		}
 	}
 	// Tenants (M130) — only present when multi-tenancy is on.
@@ -210,6 +210,26 @@ func meshSummary() []map[string]any {
 		out = append(out, map[string]any{"name": n, "url": peers[n].URL})
 	}
 	return out
+}
+
+func scheduleStatusLine(sched map[string]any) string {
+	total := intOfStatus(sched["total"])
+	if total <= 0 {
+		return ""
+	}
+	enabled := intOfStatus(sched["enabled"])
+	running := intOfStatus(sched["running"])
+	resident, hasResident := sched["resident"].(bool)
+	switch {
+	case running > 0 && hasResident && !resident:
+		return fmt.Sprintf("%d (%d enabled, %d running, resident offline)", total, enabled, running)
+	case running > 0:
+		return fmt.Sprintf("%d (%d enabled, %d running)", total, enabled, running)
+	case enabled > 0 && hasResident && !resident:
+		return fmt.Sprintf("%d (%d enabled, resident offline)", total, enabled)
+	default:
+		return fmt.Sprintf("%d (%d enabled)", total, enabled)
+	}
 }
 
 // intOfStatus mirrors mcFromAny/intOf — JSON decodes numbers as

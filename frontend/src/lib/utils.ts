@@ -52,3 +52,23 @@ export function fmtAgo(ms?: number): string {
   if (mo < 12) return `${mo}mo ago`;
   return `${Math.floor(mo / 12)}y ago`;
 }
+
+// fmtDue renders a coarse future/past deadline ("in 10m", "overdue 3m") for
+// scheduled wakeups and other operational timers.
+export function fmtDue(ms?: number, now = Date.now()): string {
+  if (!ms || !Number.isFinite(ms) || ms <= 0) return "unknown";
+  const delta = ms - now;
+  const abs = Math.abs(delta);
+  const minutes = Math.max(1, Math.round(abs / 60_000));
+  const hours = Math.floor(minutes / 60);
+  const days = Math.floor(hours / 24);
+  let text: string;
+  if (days >= 1) {
+    text = `${days}d ${hours % 24}h`;
+  } else if (hours >= 1) {
+    text = `${hours}h ${minutes % 60}m`;
+  } else {
+    text = `${minutes}m`;
+  }
+  return delta < 0 ? `overdue ${text}` : `in ${text}`;
+}

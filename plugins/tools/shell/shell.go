@@ -88,10 +88,24 @@ func (t *Tool) Name() string { return "shell" }
 
 // Definition implements agent.Tool.
 func (t *Tool) Definition() agent.ToolDef {
+	workDir := t.WorkDir
+	if workDir == "" {
+		workDir = "process working directory"
+	}
 	return agent.ToolDef{
 		Name: "shell",
 		Description: "Run a command in the operating system's default shell. " +
 			"Returns combined stdout+stderr. Output is truncated to 64 KiB.",
+		Effect: agent.ToolEffect{
+			Class: agent.EffectIrreversible,
+			PredictedEffects: []string{
+				"execute an operating-system command in the configured working directory",
+				"may read, write, start processes, or contact the network depending on the command",
+			},
+			AffectedResources: []string{"host shell", "working directory: " + workDir},
+			RollbackNotes:     "No reliable generic rollback exists for arbitrary shell commands; require command-specific rollback or restore from backups/version control.",
+			Confidence:        0.45,
+		},
 		InputSchema: json.RawMessage(`{
   "type": "object",
   "required": ["command"],

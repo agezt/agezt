@@ -148,7 +148,7 @@ type Skill struct {
 	// Agent is the owning roster slug (M932): a skill an agent learned in its
 	// own runs belongs to that agent and is retrieved only when IT acts — the
 	// same private-by-default wall per-agent memory draws (M915). Empty means
-	// shared: visible to every agent and the default persona.
+	// shared: visible to every agent and the default daemon identity.
 	Agent string `json:"agent,omitempty"`
 	// Version is semver; a new body is a new version (§4.3).
 	Version string `json:"version"`

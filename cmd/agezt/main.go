@@ -33,7 +33,6 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -57,6 +56,7 @@ import (
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/governor"
+	"github.com/agezt/agezt/kernel/market"
 	kernelmemory "github.com/agezt/agezt/kernel/memory"
 	"github.com/agezt/agezt/kernel/netguard"
 	"github.com/agezt/agezt/kernel/openaiapi"
@@ -79,6 +79,7 @@ import (
 	"github.com/agezt/agezt/kernel/webui"
 	"github.com/agezt/agezt/kernel/workflow"
 	"github.com/agezt/agezt/plugins/builtinguardians"
+	"github.com/agezt/agezt/plugins/builtinmarket"
 	"github.com/agezt/agezt/plugins/builtinskills"
 	"github.com/agezt/agezt/plugins/channels/discord"
 	"github.com/agezt/agezt/plugins/channels/email"
@@ -91,10 +92,8 @@ import (
 	"github.com/agezt/agezt/plugins/channels/telegram"
 	webhookchan "github.com/agezt/agezt/plugins/channels/webhook"
 	"github.com/agezt/agezt/plugins/channels/whatsapp"
-	"github.com/agezt/agezt/plugins/providers/anthropic"
 	"github.com/agezt/agezt/plugins/providers/compat"
 	"github.com/agezt/agezt/plugins/providers/embed"
-	"github.com/agezt/agezt/plugins/providers/mock"
 	"github.com/agezt/agezt/plugins/tools/acpagent"
 	artifactstool "github.com/agezt/agezt/plugins/tools/artifacts"
 	boardtool "github.com/agezt/agezt/plugins/tools/boardtool"
@@ -165,7 +164,8 @@ func printHelp(w io.Writer) {
 	fmt.Fprintf(w, "Environment:\n")
 	fmt.Fprintf(w, "  %sHOME             base directory (default: ~/%s)\n", brand.EnvPrefix, brand.ConfigDir)
 	fmt.Fprintf(w, "  ANTHROPIC_API_KEY    required to enable the Anthropic provider\n")
-	fmt.Fprintf(w, "  %sMODEL            default model (default: %s)\n", brand.EnvPrefix, anthropic.DefaultModel)
+	fmt.Fprintf(w, "  %sPROVIDER         catalog provider id to use; unset = unconfigured (set one in Setup)\n", brand.EnvPrefix)
+	fmt.Fprintf(w, "  %sMODEL            model id for runs; unset = resolved from routing/fallback chain (no built-in default)\n", brand.EnvPrefix)
 	fmt.Fprintf(w, "  %sSYSTEM_PROMPT    system prompt for every run (optional)\n", brand.EnvPrefix)
 }
 
@@ -274,12 +274,6 @@ func runDaemon(stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "%s: catalog load: %v\n", brand.Binary, err)
 		return 1
 	}
-	// M93 demo: make the offline "mock" model vision-capable so `agt run --image`
-	// passes the M91 gate and exercises the image-input path end-to-end.
-	if os.Getenv(brand.EnvPrefix+"DEMO_VISION") == "1" {
-		injectDemoVisionModel(cat)
-	}
-
 	// Load credentials vault (M1.o). Missing file is a valid first-run
 	// state — operators can still rely on env vars. Vault entries take
 	// precedence over env in the chained lookup below, so `export FOO=...`
@@ -425,9 +419,9 @@ func runDaemon(stdout, stderr io.Writer) int {
 	runsTool := runstool.New()
 	tools["runs"] = runsTool
 
-	// Standing-order tool (`standing`, M645): the agent creates its OWN autonomous,
-	// trigger-driven agents (event/cron). Registered now, Bound to the kernel after
-	// it opens (the kernel satisfies the tool's journaled standing-CRUD surface).
+	// Standing-order tool (`standing`, M645): the agent creates durable event/cron
+	// trigger rules that wake an agent later. Registered now, Bound to the kernel
+	// after it opens (the kernel satisfies the tool's journaled standing-CRUD surface).
 	standingToolInst := standingtool.New()
 	tools["standing"] = standingToolInst
 
@@ -629,6 +623,23 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// the raw output. Off by default for compatibility.
 	obsDeltasRaw := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "OBSERVATION_DELTAS"))
 	observationDeltas := strings.EqualFold(obsDeltasRaw, "on") || obsDeltasRaw == "1"
+	// AGEZT_EPISTEMIC_ESCALATION=on routes otherwise-allowed tool proposals
+	// through HITL when the runtime's external calibration gate sees matching
+	// historical failures, low effect confidence, temporal sensitivity, or novel
+	// dynamic tool conditions. Off by default; signals are still journaled.
+	epistemicEscalationRaw := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "EPISTEMIC_ESCALATION"))
+	epistemicEscalation := strings.EqualFold(epistemicEscalationRaw, "on") || epistemicEscalationRaw == "1"
+	// AGEZT_INTENT_REGRET_GATING=on routes otherwise-allowed tool proposals
+	// through HITL when the user's utterance is underdetermined and the proposed
+	// action has high wrong-action regret. Off by default; intent frames are
+	// still journaled.
+	intentRegretGatingRaw := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "INTENT_REGRET_GATING"))
+	intentRegretGating := strings.EqualFold(intentRegretGatingRaw, "on") || intentRegretGatingRaw == "1"
+	// AGEZT_PROMPT_INJECTION_GUARD=off disables the active HITL tripwire for
+	// effectful actions proposed after directive-like untrusted web/file/API
+	// content. The observation boundary and audit metadata remain enabled.
+	promptInjectionGuardRaw := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "PROMPT_INJECTION_GUARD"))
+	promptInjectionGuard := !strings.EqualFold(promptInjectionGuardRaw, "off") && promptInjectionGuardRaw != "0"
 	disableHeuristicBypassRaw := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "DISABLE_HEURISTIC_BYPASS"))
 	disableHeuristicBypass := strings.EqualFold(disableHeuristicBypassRaw, "on") || disableHeuristicBypassRaw == "1"
 
@@ -688,9 +699,13 @@ func runDaemon(stdout, stderr io.Writer) int {
 		ContextProtectFirst:        contextProtectFirst,
 		ContextSummarize:           contextSummarize,
 		ObservationDeltas:          observationDeltas,
+		EpistemicEscalation:        epistemicEscalation,
+		IntentRegretGating:         intentRegretGating,
+		PromptInjectionGuard:       promptInjectionGuard,
 		DisableHeuristicBypass:     disableHeuristicBypass,
 		ShadowEval:                 shadowEval,
 		SubAgentTool:               subAgentOn,
+		MarketTool:                 true, // agents can discover + install capability packs mid-task
 		SubAgentMaxDepth:           subAgentDepth,
 		SubAgentMaxFanout:          subAgentFanout,
 		SubAgentMaxSpendMicrocents: subAgentSpendCap,
@@ -876,30 +891,21 @@ func runDaemon(stdout, stderr io.Writer) int {
 		if err != nil {
 			return fmt.Errorf("select primary: %w", err)
 		}
-		// Demote a stale mock primary before installing the real one (M816).
-		// When the daemon booted with no credentials, buildGovernor registered
-		// the offline mock as the PRIMARY (not a fallback). Registry.Replace only
-		// swaps an entry of the SAME name, so replacing "mock" with "deepseek"
-		// would APPEND deepseek behind the mock — leaving mock at primary[0],
-		// still serving every run (exactly the first-run-wizard case: add a key,
-		// reload, but answers stay "[offline-mock]"). Remove the mock primary and
-		// re-add it as a last-resort FALLBACK, mirroring the boot path's
-		// "primary != mock ⇒ mock is IsFallback" rule. gov.Replace below rebuilds
-		// the primary/fallback slices from the registry, so order matters: mutate
-		// the registry first, then Replace.
+		// Demote the stale "unconfigured" sentinel before installing the real one
+		// (M816). When the daemon booted with no AGEZT_PROVIDER, buildGovernor
+		// registered the unconfigured sentinel as the PRIMARY. Registry.Replace
+		// only swaps an entry of the SAME name, so replacing "unconfigured" with
+		// "deepseek" would APPEND deepseek behind the sentinel — leaving the
+		// sentinel at primary[0], still refusing every run (the first-run-wizard
+		// case: add a key + set AGEZT_PROVIDER, reload, but runs still error
+		// "no provider configured"). Remove the sentinel entirely — unlike the old
+		// mock there is no fallback role for it. gov.Replace below rebuilds the
+		// primary/fallback slices from the registry, so order matters: mutate the
+		// registry first, then Replace. If the reload still resolves to the
+		// sentinel (operator added a key but no AGEZT_PROVIDER), we keep it.
 		reg := gov.Registry()
-		if prov.Name() != "mock" {
-			if old, ok := reg.Get("mock"); ok && !old.IsFallback {
-				reg.Remove("mock")
-				if err := reg.Register(&governor.ProviderInfo{
-					Name:       "mock",
-					Provider:   newDemoMock(),
-					AuthMode:   governor.AuthLocal,
-					IsFallback: true,
-				}); err != nil {
-					return fmt.Errorf("re-register mock fallback: %w", err)
-				}
-			}
+		if prov.Name() != unconfiguredProviderName {
+			reg.Remove(unconfiguredProviderName) // no-op when absent
 		}
 		reconcileAlternateProviders(reg, c, freshLookup, prov.Name())
 		if err := gov.Replace(&governor.ProviderInfo{
@@ -1529,15 +1535,15 @@ func runDaemon(stdout, stderr io.Writer) int {
 		srv.SetProbeWatch(func(name string, argv []string) (string, bool) {
 			return eng.AddObserver(pulse.NewProbeObserver(name, argv, ward, k.State())), true
 		})
-		// Reaper (#53, M903): each beat, scan for dead agents (enabled, non-retired,
-		// idle past the window) and stale artifacts, and surface a low-severity brief
-		// when the pile grows. Detection only — retire (graveyard) and collect stay
-		// operator-gated. Fixed 30-day idle/stale window.
+		// Reaper (#53, M903): each beat, scan for dead agents, degraded live agents,
+		// and stale artifacts, and surface a low-severity brief when the pile grows.
+		// Detection only — retire (graveyard), doctoring, and collect stay gated by
+		// the agents/orders that choose to act. Fixed 30-day idle/stale window.
 		const reaperWindow = 30 * 24 * time.Hour
-		eng.AddObserver(pulse.NewReaperObserver(func() (int, int) {
+		eng.AddObserver(pulse.NewReaperObserver(func() (int, int, int, int, int, int, int, int, int, int) {
 			cut := time.Now().Add(-reaperWindow).UnixMilli()
 			r := k.ReaperScan(cut, cut)
-			return len(r.DeadAgents), r.StaleArtifacts
+			return len(r.DeadAgents), len(r.DegradedAgents), len(r.MisconfiguredAgents), len(r.RetryPressure), len(r.RoutingPressure), len(r.RoutingForced), len(r.RoutingForcedFailed), len(r.RoutingForcedExhausted), len(r.RoutingUnstable), r.StaleArtifacts
 		}))
 		fmt.Fprintf(stdout, "  pulse            : %s\n", pulseDesc)
 	} else {
@@ -1722,6 +1728,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// ticks, so an agent-created schedule fires like any operator-added one.
 	if sched := k.Schedules(); sched != nil {
 		scheduleTool.Bind(sched)
+		scheduleTool.BindAgentLookup(k.Roster().Get)
 		fmt.Fprintf(stdout, "  schedule tool    : enabled (the agent can schedule its own future runs)\n")
 	}
 
@@ -1766,6 +1773,23 @@ func runDaemon(stdout, stderr io.Writer) int {
 			}
 			fmt.Fprintf(stdout, "  built-in skills  : seeded (%s)\n", strings.Join(names, ", "))
 		}
+		// Wire the capability marketplace (M-market): the built-in "Official"
+		// catalogue (skill/MCP/tool packs) is a plugin the kernel must not import,
+		// so it's injected here with this kernel's Forge + MCP as the install
+		// targets. Install materializes packs into those existing subsystems. The
+		// composite Library also serves synced remote marketplaces from the Store
+		// cache (Phase 2); the Syncer fetches them under netguard.
+		marketStore := market.NewStore(baseDir)
+		k.SetMarket(market.NewManager(market.Config{
+			Library: market.NewCompositeLibrary(builtinmarket.New(), marketStore),
+			Store:   marketStore,
+			Skills:  fg,
+			MCP:     k,
+			Now:     func() int64 { return time.Now().UnixMilli() },
+			Verify:  func(p market.Pack) (bool, error) { return market.VerifyPack(p, "") },
+			Syncer:  market.NewSyncer(),
+		}))
+		fmt.Fprintf(stdout, "  marketplace      : enabled (built-in Official + synced remotes; `agt market`)\n")
 	}
 
 	// Bind the introspection tool to the live kernel (M682), so the agent can read
@@ -1780,7 +1804,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 	fmt.Fprintf(stdout, "  overseer tool    : enabled (a brain agent can supervise & intervene on the fleet)\n")
 
 	// Seed the built-in guardian agents (M961): the daemon's internal self-healing
-	// fleet (health / stuck / budget / routing-429 / code), each a System-marked
+	// fleet (health / doctor / stuck / budget / routing-429 / code), each a System-marked
 	// agent with an event or cadence trigger, wielding the tools bound just above.
 	// Idempotent by slug (an operator who pauses/removes one is respected);
 	// best-effort — a seed failure never blocks startup.
@@ -1794,7 +1818,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 			}
 		}
 		if created > 0 {
-			fmt.Fprintf(stdout, "  built-in guardians: seeded %d (health, stuck, budget, routing, code)\n", created)
+			fmt.Fprintf(stdout, "  built-in guardians: seeded %d (health, doctor, stuck, budget, routing, code)\n", created)
 		} else if len(guards) > 0 {
 			fmt.Fprintf(stdout, "  built-in guardians: present (%d)\n", len(guards))
 		}
@@ -1864,7 +1888,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "  auto-update      : check-only (set AGEZT_UPDATE_CHECK_INTERVAL to enable auto-apply)\n")
 	}
 
-	// Chronos standing-order runner (SPEC-16 §4): fires an order's plan on its
+	// Standing-order runner (SPEC-16 §4): wakes an order's governed plan on its
 	// event/cron triggers, bounded by its budget + trust ceiling, then briefs the
 	// result to the order's configured channel. Wired here (after channelSend +
 	// notifyTargets) so briefing can reuse the channel allowlists + sender.
@@ -1888,6 +1912,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 	standingDesc, fireStandingNow := buildStandingRunner(ctx, k, standingBrief)
 	srv.SetStandingFire(fireStandingNow)
 	fmt.Fprintf(stdout, "  standing orders  : %s\n", standingDesc)
+	fmt.Fprintf(stdout, "  auto repair      : %s\n", wireAutoRepair(ctx, k, baseDir, boardStore, boardNotify))
 
 	// Workflow triggers (M799): arm cron/event triggers for ENABLED workflows.
 	// The runner consults the store live, so canvas/CLI saves take effect
@@ -3847,12 +3872,13 @@ func buildAlertNotify(ctx context.Context, k *kernelruntime.Kernel, sink pulse.B
 	return fmt.Sprintf("on (level≥%s → channels; repeats suppressed; flood-capped%s)", cfg.MinLevel, extra)
 }
 
-// buildStandingRunner starts the event-trigger half of Chronos (SPEC-16 §4): when
-// a journal event matches an enabled order's event trigger, the order's plan is
-// launched as a run (bounded by its budget ceiling) and a standing.fired event is
-// journaled. Cron triggers are handled by the schedule engine, not here.
+// buildStandingRunner starts the event-trigger half of standing orders
+// (SPEC-16 §4): when a journal event matches an enabled order's event trigger,
+// the order's governed plan is launched as a run (bounded by its budget ceiling)
+// and a standing.fired event is journaled. Cron triggers are handled by the
+// schedule engine, not here.
 func buildStandingRunner(ctx context.Context, k *kernelruntime.Kernel, brief func(ctx context.Context, kind, text string)) (string, func(id string) bool) {
-	fire := func(fctx context.Context, o standing.Order, subject string) {
+	fire := func(fctx context.Context, o standing.Order, subject string, triggerPayload map[string]any) {
 		// A fired order launches a full governed run (provider/tool/plugin code) and
 		// then briefs over the network — any of which can panic. This goroutine is
 		// dispatched with a bare `go fire(...)` by the runner/cron loop, so its own
@@ -3881,10 +3907,13 @@ func buildStandingRunner(ctx context.Context, k *kernelruntime.Kernel, brief fun
 		var prof *roster.Profile
 		if slug := strings.TrimSpace(o.Agent); slug != "" {
 			p, ok := k.Roster().Get(slug)
-			if !ok || !p.Enabled {
+			if !ok || p.Retired || !p.Enabled {
 				reason := "unknown agent " + slug
 				if ok {
 					reason = "agent " + p.Slug + " is paused"
+					if p.Retired {
+						reason = "agent " + p.Slug + " is retired — revive it first"
+					}
 				}
 				_, _ = k.Bus().Publish(event.Spec{
 					Subject: "standing." + o.ID,
@@ -3894,14 +3923,44 @@ func buildStandingRunner(ctx context.Context, k *kernelruntime.Kernel, brief fun
 				})
 				return
 			}
+			if !p.AllowsDirectCall() {
+				manager := strings.TrimSpace(p.ParentAgent)
+				if manager == "" {
+					manager = strings.TrimSpace(p.OwnerAgent)
+				}
+				hint := "route the work through its parent/owner agent"
+				if manager != "" {
+					hint = "wake " + manager + " or delegate through it"
+				}
+				_, _ = k.Bus().Publish(event.Spec{
+					Subject: "standing." + o.ID,
+					Kind:    event.KindStandingError,
+					Actor:   "standing",
+					Payload: map[string]any{
+						"id":              o.ID,
+						"name":            o.Name,
+						"trigger_subject": subject,
+						"agent":           p.Slug,
+						"reason":          "agent " + p.Slug + " is a managed sub-agent and cannot be fired directly by a standing order; " + hint,
+					},
+				})
+				return
+			}
 			prof = &p
 		}
 		// Ground the run in the order's scope (SPEC-16 §4): the agent is told what
 		// this standing order watches.
 		intent = standing.ScopedIntent(o, intent)
+		intent = standing.TriggeredIntent(intent, subject, triggerPayload)
 		firedPayload := map[string]any{"id": o.ID, "name": o.Name, "trigger_subject": subject, "intent": intent}
+		if len(triggerPayload) > 0 {
+			firedPayload["trigger_payload"] = triggerPayload
+		}
 		if prof != nil {
 			firedPayload["agent"] = prof.Slug // who this firing runs AS (M790)
+			// Carry the same autonomy runbook schedule.fired does, so a standing
+			// wake is traceable as event payload -> status -> detail -> activity.
+			firedPayload["autonomy_runbook"] = agentAutonomyRunbookPayload(*prof)
 		}
 		_, _ = k.Bus().Publish(event.Spec{
 			Subject:       "standing." + o.ID,
@@ -3919,6 +3978,13 @@ func buildStandingRunner(ctx context.Context, k *kernelruntime.Kernel, brief fun
 				rctx = kernelruntime.WithMaxCost(rctx, prof.MaxCostMc)
 			}
 		}
+		rctx = kernelruntime.WithWakeContext(rctx, kernelruntime.WakeContext{
+			Source:         "standing",
+			Reason:         "event",
+			StandingID:     o.ID,
+			StandingName:   o.Name,
+			TriggerSubject: subject,
+		})
 		if o.Initiative.BudgetPerRunMc > 0 {
 			rctx = kernelruntime.WithMaxCost(rctx, o.Initiative.BudgetPerRunMc)
 		}
@@ -3934,6 +4000,8 @@ func buildStandingRunner(ctx context.Context, k *kernelruntime.Kernel, brief fun
 		var answer string
 		if o.Assure > 0 {
 			answer, _, _ = k.RunAssured(rctx, corr, intent, o.Assure)
+		} else if prof != nil && prof.RetryPolicy != nil && prof.RetryPolicy.MaxAttempts > 1 {
+			answer, _ = k.RunWithRetry(rctx, corr, intent, *prof.RetryPolicy)
 		} else {
 			answer, _ = k.RunWith(rctx, corr, intent)
 		}
@@ -3950,7 +4018,7 @@ func buildStandingRunner(ctx context.Context, k *kernelruntime.Kernel, brief fun
 		if !ok {
 			return false
 		}
-		go fire(ctx, o, "manual")
+		go fire(ctx, o, "manual", nil)
 		return true
 	}
 
@@ -4039,6 +4107,107 @@ func buildCadence(ctx context.Context, k *kernelruntime.Kernel, stdout io.Writer
 	// spec). With no entries it simply ticks idly.
 	run := func(runCtx context.Context, id, intent, model string) error {
 		corr := k.NewCorrelation()
+		ent, ok := store.Get(id)
+		if !ok {
+			return fmt.Errorf("schedule %s: not found", id)
+		}
+		var prof *roster.Profile
+		if slug := strings.TrimSpace(ent.Agent); slug != "" {
+			p, ok := k.Roster().Get(slug)
+			if !ok {
+				return fmt.Errorf("schedule %s: unknown agent %s", id, slug)
+			}
+			if p.Retired {
+				return fmt.Errorf("schedule %s: agent %s is retired — revive it first", id, p.Slug)
+			}
+			if !p.Enabled {
+				return fmt.Errorf("schedule %s: agent %s is paused", id, p.Slug)
+			}
+			if !p.AllowsDirectCall() {
+				manager := strings.TrimSpace(p.ParentAgent)
+				if manager == "" {
+					manager = strings.TrimSpace(p.OwnerAgent)
+				}
+				hint := "route the work through its parent/owner agent"
+				if manager != "" {
+					hint = "wake " + manager + " or delegate through it"
+				}
+				return fmt.Errorf("schedule %s: agent %s is a managed sub-agent and cannot be scheduled directly; %s", id, p.Slug, hint)
+			}
+			prof = &p
+		}
+		mctx := scheduledRunContext(runCtx, model, prof)
+		mctx = kernelruntime.WithWakeContext(mctx, kernelruntime.WakeContext{
+			Source:     "schedule",
+			Reason:     ent.Target,
+			ScheduleID: id,
+		})
+		if ent.Target == cadence.TargetWorkflow {
+			var payload any
+			if len(ent.Payload) > 0 {
+				if err := json.Unmarshal(ent.Payload, &payload); err != nil {
+					return fmt.Errorf("schedule %s: workflow payload: %w", id, err)
+				}
+			}
+			_, _ = k.Bus().Publish(event.Spec{
+				Subject:       "schedule.fired",
+				Kind:          event.KindScheduleFired,
+				Actor:         "schedule",
+				CorrelationID: corr,
+				Payload:       scheduleFiredEventPayload(id, intent, model, ent, prof),
+			})
+			return runScheduledTrackedTarget(mctx, k, corr, ent, intent, func(ctx context.Context) (string, error) {
+				res, err := k.RunWorkflow(ctx, corr, ent.Workflow, payload)
+				if err != nil {
+					return "", err
+				}
+				return fmt.Sprintf("workflow %s completed (%d nodes)", ent.Workflow, len(res.Executed)), nil
+			})
+		}
+		if ent.Target == cadence.TargetSystemTask {
+			_, _ = k.Bus().Publish(event.Spec{
+				Subject:       "schedule.fired",
+				Kind:          event.KindScheduleFired,
+				Actor:         "schedule",
+				CorrelationID: corr,
+				Payload:       scheduleFiredEventPayload(id, intent, model, ent, prof),
+			})
+			return runScheduledTrackedTarget(mctx, k, corr, ent, intent, func(ctx context.Context) (string, error) {
+				if err := runScheduledSystemTask(ctx, k, corr, id, ent.SystemTask); err != nil {
+					return "", err
+				}
+				return "system task " + ent.SystemTask + " completed", nil
+			})
+		}
+		if ent.Target == cadence.TargetTool {
+			payload := ent.Payload
+			if len(payload) == 0 {
+				payload = json.RawMessage(`{}`)
+			}
+			_, _ = k.Bus().Publish(event.Spec{
+				Subject:       "schedule.fired",
+				Kind:          event.KindScheduleFired,
+				Actor:         "schedule",
+				CorrelationID: corr,
+				Payload:       scheduleFiredEventPayload(id, intent, model, ent, prof),
+			})
+			return runScheduledTrackedTarget(mctx, k, corr, ent, intent, func(ctx context.Context) (string, error) {
+				res, err := k.RunTool(ctx, corr, "schedule-"+id, ent.Tool, payload)
+				if err != nil {
+					return "", err
+				}
+				if res.IsError {
+					return "", fmt.Errorf("tool %s failed: %s", ent.Tool, res.Output)
+				}
+				if strings.TrimSpace(res.Output) == "" {
+					return "tool " + ent.Tool + " completed", nil
+				}
+				return res.Output, nil
+			})
+		}
+		if ent.Target != cadence.TargetIntent {
+			return fmt.Errorf("schedule %s: unknown target %q", id, ent.Target)
+		}
 		_, _ = k.Bus().Publish(event.Spec{
 			Subject:       "schedule.fired",
 			Kind:          event.KindScheduleFired,
@@ -4047,17 +4216,18 @@ func buildCadence(ctx context.Context, k *kernelruntime.Kernel, stdout io.Writer
 			// schedule_id (M55) attributes the firing to its schedule entry, so
 			// `agt schedule fires --id <sched>` can filter and `agt schedule list`
 			// can show a schedule's last outcome.
-			Payload: map[string]any{"schedule_id": id, "intent": intent, "model": model},
+			Payload: scheduleFiredEventPayload(id, intent, model, ent, prof),
 		})
-		mctx := kernelruntime.WithModel(runCtx, model)
 		// Do-it-for-sure firings (M654): when the entry carries an assure budget,
 		// each firing runs-verifies-retries until the task is judged complete (or
 		// the budget is spent), so an unattended schedule/continuous loop actually
 		// gets its task done rather than firing once and hoping.
 		var ans string
 		var err error
-		if ent, ok := store.Get(id); ok && ent.Assure > 0 {
+		if ent.Assure > 0 {
 			ans, _, err = k.RunAssured(mctx, corr, intent, ent.Assure)
+		} else if prof != nil && prof.RetryPolicy != nil && prof.RetryPolicy.MaxAttempts > 1 {
+			ans, err = k.RunWithRetry(mctx, corr, intent, *prof.RetryPolicy)
 		} else {
 			ans, err = k.RunWith(mctx, corr, intent)
 		}
@@ -4086,6 +4256,7 @@ func buildCadence(ctx context.Context, k *kernelruntime.Kernel, stdout io.Writer
 			eng.RunTimeout = d
 		}
 	}
+	k.SetScheduleEngine(eng)
 	eng.Start(ctx)
 
 	entries := store.List()
@@ -4093,6 +4264,445 @@ func buildCadence(ctx context.Context, k *kernelruntime.Kernel, stdout io.Writer
 		return "active (no schedules yet — add with `agt schedule add`)"
 	}
 	return cadence.Describe(entries)
+}
+
+func scheduledRunContext(runCtx context.Context, model string, prof *roster.Profile) context.Context {
+	mctx := runCtx
+	if prof != nil {
+		mctx = kernelruntime.WithAgentProfile(mctx, *prof)
+		if prof.MaxCostMc > 0 {
+			mctx = kernelruntime.WithMaxCost(mctx, prof.MaxCostMc)
+		}
+	}
+	model = strings.TrimSpace(model)
+	if model != "" {
+		mctx = kernelruntime.WithModel(mctx, model)
+		mctx = kernelruntime.WithModelChain(mctx, []string{model})
+	}
+	return mctx
+}
+
+func scheduleFiredEventPayload(id, intent, model string, ent cadence.Entry, profs ...*roster.Profile) map[string]any {
+	payload := map[string]any{
+		"schedule_id": id,
+		"intent":      intent,
+		"model":       model,
+		"target":      ent.Target,
+		"agent":       ent.Agent,
+	}
+	if len(profs) > 0 && profs[0] != nil {
+		payload["autonomy_runbook"] = agentAutonomyRunbookPayload(*profs[0])
+	}
+	switch ent.Target {
+	case cadence.TargetWorkflow:
+		payload["workflow"] = ent.Workflow
+		payload["executor"] = "workflow"
+		payload["uses_llm"] = true
+	case cadence.TargetSystemTask:
+		payload["system_task"] = ent.SystemTask
+		if info, ok := scheduledSystemTaskInfo(ent.SystemTask); ok {
+			payload["executor"] = info.Executor
+			payload["category"] = info.Category
+			payload["effect_class"] = info.EffectClass
+			payload["uses_llm"] = info.UsesLLM
+		} else {
+			payload["executor"] = "daemon"
+			payload["uses_llm"] = false
+		}
+	case cadence.TargetTool:
+		payload["tool"] = ent.Tool
+		payload["executor"] = "tool"
+		payload["uses_llm"] = false
+	default:
+		payload["executor"] = "agent"
+		payload["uses_llm"] = true
+	}
+	return payload
+}
+
+// agentAutonomyRunbookPayload attaches the machine-readable wake contract to
+// autonomous wake evidence (schedule.fired and standing.fired) when the firing
+// resolves a concrete agent profile. It delegates to the canonical roster builder
+// so operator, schedule, standing, and delegated wakes all carry an
+// identically-shaped runbook through the journal.
+func agentAutonomyRunbookPayload(p roster.Profile) map[string]any {
+	return roster.AutonomyRunbook(p)
+}
+
+func scheduledSystemTaskInfo(name string) (cadence.SystemTaskInfo, bool) {
+	name = strings.TrimSpace(name)
+	for _, info := range cadence.SystemTaskInfos() {
+		if info.Name == name {
+			return info, true
+		}
+	}
+	return cadence.SystemTaskInfo{}, false
+}
+
+func runScheduledTrackedTarget(ctx context.Context, k *kernelruntime.Kernel, corr string, ent cadence.Entry, intent string, run func(context.Context) (string, error)) error {
+	sf := schedulePayloadForEntry(ent, intent)
+	action := controlplaneScheduleAction(sf)
+	receivedPayload := map[string]any{
+		"schedule_id":      ent.ID,
+		"intent":           action,
+		"scheduled_intent": intent,
+		"target":           ent.Target,
+		"agent":            ent.Agent,
+		"workflow":         ent.Workflow,
+		"system_task":      ent.SystemTask,
+		"tool":             ent.Tool,
+	}
+	_, _ = k.Bus().Publish(event.Spec{
+		Subject:       "schedule.task",
+		Kind:          event.KindTaskReceived,
+		Actor:         "schedule",
+		CorrelationID: corr,
+		Payload:       receivedPayload,
+	})
+
+	answer, err := run(ctx)
+	if err != nil {
+		_, _ = k.Bus().Publish(event.Spec{
+			Subject:       "schedule.task",
+			Kind:          event.KindTaskFailed,
+			Actor:         "schedule",
+			CorrelationID: corr,
+			Payload: map[string]any{
+				"schedule_id": ent.ID,
+				"target":      ent.Target,
+				"reason":      "error",
+				"error":       err.Error(),
+			},
+		})
+		return err
+	}
+	k.CompleteAgentLifecycle(ctx, corr)
+	_, _ = k.Bus().Publish(event.Spec{
+		Subject:       "schedule.task",
+		Kind:          event.KindTaskCompleted,
+		Actor:         "schedule",
+		CorrelationID: corr,
+		Payload: map[string]any{
+			"schedule_id": ent.ID,
+			"target":      ent.Target,
+			"answer":      truncateScheduledAnswer(answer),
+			"iters":       0,
+		},
+	})
+	return nil
+}
+
+type scheduledTargetPayload struct {
+	ScheduleID string
+	Intent     string
+	Target     string
+	Agent      string
+	Workflow   string
+	SystemTask string
+	Tool       string
+}
+
+func schedulePayloadForEntry(ent cadence.Entry, intent string) scheduledTargetPayload {
+	return scheduledTargetPayload{
+		ScheduleID: ent.ID,
+		Intent:     intent,
+		Target:     ent.Target,
+		Agent:      ent.Agent,
+		Workflow:   ent.Workflow,
+		SystemTask: ent.SystemTask,
+		Tool:       ent.Tool,
+	}
+}
+
+func controlplaneScheduleAction(p scheduledTargetPayload) string {
+	switch p.Target {
+	case "workflow":
+		if p.Workflow != "" {
+			return "run workflow " + p.Workflow
+		}
+	case "system_task":
+		if p.SystemTask != "" {
+			return "run system task " + p.SystemTask
+		}
+	case "tool":
+		if p.Tool != "" {
+			return "run tool " + p.Tool
+		}
+	}
+	if p.Agent != "" && p.Intent != "" {
+		return "wake " + p.Agent + ": " + p.Intent
+	}
+	if p.Intent != "" {
+		return p.Intent
+	}
+	return p.ScheduleID
+}
+
+func truncateScheduledAnswer(s string) string {
+	const max = 4096
+	if len(s) <= max {
+		return s
+	}
+	return s[:max] + "...[truncated]"
+}
+
+func runScheduledSystemTask(ctx context.Context, k *kernelruntime.Kernel, corr, scheduleID, task string) error {
+	switch strings.TrimSpace(task) {
+	case cadence.SystemTaskCatalogSync:
+		return runScheduledCatalogSync(ctx, k, corr, scheduleID)
+	case cadence.SystemTaskArtifactCollect:
+		return runScheduledArtifactCollect(ctx, k, corr, scheduleID)
+	case cadence.SystemTaskMemoryClean:
+		return runScheduledMemoryClean(ctx, k, corr, scheduleID)
+	case cadence.SystemTaskMemoryTidy:
+		return runScheduledMemoryTidy(ctx, k, corr, scheduleID)
+	case cadence.SystemTaskLogClean:
+		return runScheduledLogClean(ctx, k, corr, scheduleID)
+	case cadence.SystemTaskGraveyardScan:
+		return runScheduledGraveyardScan(ctx, k, corr, scheduleID)
+	default:
+		return fmt.Errorf("schedule %s: unknown system task %q", scheduleID, task)
+	}
+}
+
+// graveyardRetentionDays is the retention window for the graveyard scan: retired
+// agents older than this are reported as removal-eligible. 0 (the default) means
+// keep-forever — the scan still reports graveyard size but flags nothing eligible.
+// This task is NOTIFY-ONLY: it never archives or deletes (removal stays an explicit
+// operator action), so a misconfigured window can only over-report, never destroy.
+func graveyardRetentionDays() int {
+	raw := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "GRAVEYARD_RETENTION_DAYS"))
+	if raw == "" {
+		return 0
+	}
+	n, err := strconv.Atoi(raw)
+	if err != nil || n < 0 {
+		return 0
+	}
+	return n
+}
+
+func runScheduledGraveyardScan(ctx context.Context, k *kernelruntime.Kernel, corr, scheduleID string) error {
+	_ = ctx
+	retentionDays := graveyardRetentionDays()
+	nowMS := time.Now().UnixMilli()
+	cutoffMS := int64(0)
+	if retentionDays > 0 {
+		cutoffMS = nowMS - int64(retentionDays)*24*3600*1000
+	}
+	graveyard := 0
+	eligible := make([]string, 0)
+	for _, p := range k.Roster().List() {
+		if !p.Retired {
+			continue
+		}
+		graveyard++
+		if cutoffMS > 0 && p.RetiredMS > 0 && p.RetiredMS <= cutoffMS {
+			eligible = append(eligible, p.Slug)
+		}
+	}
+	sort.Strings(eligible)
+	_, _ = k.Bus().Publish(event.Spec{
+		Subject:       "schedule.system_task.graveyard_scan",
+		Kind:          event.KindInfo,
+		Actor:         "schedule",
+		CorrelationID: corr,
+		Payload: map[string]any{
+			"schedule_id":     scheduleID,
+			"system_task":     cadence.SystemTaskGraveyardScan,
+			"retention_days":  retentionDays,
+			"graveyard_count": graveyard,
+			"eligible_count":  len(eligible),
+			"eligible":        eligible,
+			// Explicit: this task only reports — it performs no removal.
+			"action": "report_only",
+		},
+	})
+	return nil
+}
+
+func runScheduledArtifactCollect(ctx context.Context, k *kernelruntime.Kernel, corr, scheduleID string) error {
+	_ = ctx
+	idx := k.ArtifactIndex()
+	if idx == nil {
+		return fmt.Errorf("schedule %s: artifact index unavailable", scheduleID)
+	}
+	const olderThanDays = 30
+	cutoff := time.Now().Add(-time.Duration(olderThanDays) * 24 * time.Hour).UnixMilli()
+	collected, bytes := idx.Collect(cutoff)
+	_, _ = k.Bus().Publish(event.Spec{
+		Subject:       "schedule.system_task.artifact_collect",
+		Kind:          event.KindInfo,
+		Actor:         "schedule",
+		CorrelationID: corr,
+		Payload: map[string]any{
+			"schedule_id":     scheduleID,
+			"system_task":     cadence.SystemTaskArtifactCollect,
+			"older_than_days": olderThanDays,
+			"cutoff_ms":       cutoff,
+			"collected":       collected,
+			"bytes":           bytes,
+		},
+	})
+	return nil
+}
+
+func runScheduledMemoryClean(ctx context.Context, k *kernelruntime.Kernel, corr, scheduleID string) error {
+	_ = ctx
+	if k.Memory() == nil {
+		return fmt.Errorf("schedule %s: memory unavailable", scheduleID)
+	}
+	report, err := k.Memory().CleanLowValue(corr, false)
+	if err != nil {
+		return err
+	}
+	_, _ = k.Bus().Publish(event.Spec{
+		Subject:       "schedule.system_task.memory_clean",
+		Kind:          event.KindInfo,
+		Actor:         "schedule",
+		CorrelationID: corr,
+		Payload: map[string]any{
+			"schedule_id": scheduleID,
+			"system_task": cadence.SystemTaskMemoryClean,
+			"scanned":     report.Scanned,
+			"rejected":    report.Rejected,
+			"removed":     report.Removed,
+		},
+	})
+	return nil
+}
+
+func runScheduledMemoryTidy(ctx context.Context, k *kernelruntime.Kernel, corr, scheduleID string) error {
+	_ = ctx
+	if k.Memory() == nil {
+		return fmt.Errorf("schedule %s: memory unavailable", scheduleID)
+	}
+	collapsed, err := k.Memory().DedupeDistilled(corr, false)
+	if err != nil {
+		return err
+	}
+	_, _ = k.Bus().Publish(event.Spec{
+		Subject:       "schedule.system_task.memory_tidy",
+		Kind:          event.KindInfo,
+		Actor:         "schedule",
+		CorrelationID: corr,
+		Payload: map[string]any{
+			"schedule_id": scheduleID,
+			"system_task": cadence.SystemTaskMemoryTidy,
+			"collapsed":   collapsed,
+		},
+	})
+	return nil
+}
+
+func runScheduledLogClean(ctx context.Context, k *kernelruntime.Kernel, corr, scheduleID string) error {
+	_ = ctx
+	j := k.Journal()
+	if j == nil {
+		return fmt.Errorf("schedule %s: journal unavailable", scheduleID)
+	}
+	var events int64
+	var oldestMS int64
+	var latestMS int64
+	if err := j.Range(func(e *event.Event) error {
+		events++
+		if oldestMS == 0 || (e.TSUnixMS > 0 && e.TSUnixMS < oldestMS) {
+			oldestMS = e.TSUnixMS
+		}
+		if e.TSUnixMS > latestMS {
+			latestMS = e.TSUnixMS
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
+	headSeq, headHash := j.Head()
+	_, _ = k.Bus().Publish(event.Spec{
+		Subject:       "schedule.system_task.log_clean",
+		Kind:          event.KindInfo,
+		Actor:         "schedule",
+		CorrelationID: corr,
+		Payload: map[string]any{
+			"schedule_id":       scheduleID,
+			"system_task":       cadence.SystemTaskLogClean,
+			"events_scanned":    events,
+			"oldest_unix_ms":    oldestMS,
+			"latest_unix_ms":    latestMS,
+			"head_seq":          headSeq,
+			"head_hash":         headHash,
+			"physical_deletion": false,
+			"effect_class":      "log_maintenance",
+		},
+	})
+	return nil
+}
+
+func runScheduledCatalogSync(ctx context.Context, k *kernelruntime.Kernel, corr, scheduleID string) error {
+	url := envOrDefaultLocal(brand.EnvPrefix+"CATALOG_URL", catalog.DefaultSyncURL)
+	syncer := catalog.NewSyncer()
+	syncer.URL = url
+	raw, cat, res, err := syncer.Sync(ctx)
+	if err != nil {
+		_, _ = k.Bus().Publish(event.Spec{
+			Subject:       "catalog.sync",
+			Kind:          event.KindCatalogSyncFailed,
+			Actor:         "schedule",
+			CorrelationID: corr,
+			Payload:       map[string]any{"url": url, "schedule_id": scheduleID, "system_task": cadence.SystemTaskCatalogSync, "error": err.Error()},
+		})
+		return err
+	}
+	if err := k.CatalogStore().SaveAPI(raw, url); err != nil {
+		_, _ = k.Bus().Publish(event.Spec{
+			Subject:       "catalog.sync",
+			Kind:          event.KindCatalogSyncFailed,
+			Actor:         "schedule",
+			CorrelationID: corr,
+			Payload:       map[string]any{"url": url, "schedule_id": scheduleID, "system_task": cadence.SystemTaskCatalogSync, "error": "save: " + err.Error()},
+		})
+		return fmt.Errorf("save: %w", err)
+	}
+	freshCat, providersReloaded, provErr := k.Reload()
+	if freshCat == nil {
+		_, _ = k.Bus().Publish(event.Spec{
+			Subject:       "catalog.sync",
+			Kind:          event.KindCatalogSyncFailed,
+			Actor:         "schedule",
+			CorrelationID: corr,
+			Payload:       map[string]any{"url": url, "schedule_id": scheduleID, "system_task": cadence.SystemTaskCatalogSync, "error": "reload: " + provErr.Error()},
+		})
+		return fmt.Errorf("reload: %w", provErr)
+	}
+	payload := map[string]any{
+		"url":                url,
+		"schedule_id":        scheduleID,
+		"system_task":        cadence.SystemTaskCatalogSync,
+		"bytes":              res.Bytes,
+		"provider_count":     res.ProviderCount,
+		"model_count":        res.ModelCount,
+		"duration_ms":        res.Duration.Milliseconds(),
+		"providers_reloaded": providersReloaded,
+		"effect_class":       "config_update",
+	}
+	if provErr != nil {
+		payload["provider_reload_error"] = provErr.Error()
+	}
+	_, _ = k.Bus().Publish(event.Spec{
+		Subject:       "catalog.sync",
+		Kind:          event.KindCatalogSynced,
+		Actor:         "schedule",
+		CorrelationID: corr,
+		Payload:       payload,
+	})
+	_ = cat
+	return nil
+}
+
+func envOrDefaultLocal(name, fallback string) string {
+	if v := strings.TrimSpace(os.Getenv(name)); v != "" {
+		return v
+	}
+	return fallback
 }
 
 // isLoopback reports whether the host portion of addr binds to loopback only.
@@ -4316,62 +4926,48 @@ func healthStatFromJournal(k *kernelruntime.Kernel) pulse.HealthStatFunc {
 	}
 }
 
-// buildGovernor constructs the routing layer: one primary provider
-// (chosen from the catalog) plus an always-on fallback. Returns the
-// Governor (also serves as agent.Provider), a human-readable
-// description for the banner, and the default model name for the
-// kernel config.
+// buildGovernor constructs the routing layer: one primary provider plus every
+// other credentialed catalog provider as a model-routable alternate. Returns the
+// Governor (also serves as agent.Provider), a human-readable banner description,
+// and the run model for the kernel config ("" when none is configured).
 //
-// **Provider selection (M1.g — catalog-driven):**
+// The daemon has NO default provider, NO credential auto-pick, NO offline mock
+// fallback, and NO default model (owner rule: "hiçbir default provider/model").
 //
-//	$AGEZT_PROVIDER=mock            → offline 2-turn demo mock.
+// **Provider selection (catalog-driven):**
+//
 //	$AGEZT_PROVIDER=<catalog-id>    → e.g. "anthropic", "ollama-local",
-//	                                  "groq", "openai" — any provider
-//	                                  in the synced catalog.
-//	(unset)                          → auto-pick: first credentialed
-//	                                  catalog provider whose family is
-//	                                  supported by `compat`. Falls back
-//	                                  to mock if none.
-//	$AGEZT_MODEL=<model-id>         → override the model within the
-//	                                  selected provider. If unset, the
-//	                                  alphabetically-first model in the
-//	                                  provider's catalog entry is used.
-//
-// Fallback chain: the offline demo mock is *always* registered as
-// IsFallback=true (unless the primary IS the mock) so a transient
-// primary failure surfaces a degraded-but-working answer rather than
-// a hard error.
+//	                                  "groq", "openai" — any provider in the
+//	                                  synced catalog. The ONLY way to select a
+//	                                  primary. An unknown id is a hard error.
+//	(unset)                          → UNCONFIGURED: a sentinel primary that
+//	                                  fails every LLM call with an actionable
+//	                                  "configure a provider" error. The daemon,
+//	                                  Web UI, and Setup still run.
+//	$AGEZT_MODEL=<model-id>         → the run model. If unset, runs resolve their
+//	                                  model from per-task routing or a fallback
+//	                                  chain; with neither, the governor returns
+//	                                  ErrNoModelConfigured.
 func buildGovernor(cat *catalog.Catalog, lookup func(string) string) (*governor.Governor, string, string, error) {
 	reg := governor.NewRegistry()
 	primary, primaryDesc, model, authMode, err := selectPrimary(cat, lookup)
 	if err != nil {
 		return nil, "", "", err
 	}
-	// Demo escape hatch: AGEZT_DEMO_FAIL_PRIMARY=1 wraps the primary in
-	// an always-erroring shim so the fallback chain is observable from
-	// `agt run`. Used by the M1.b PHASE report and never in production.
-	// We rename the shim to "<orig>-failshim" so it never collides with
-	// a mock fallback that shares the original name.
-	demoFail := os.Getenv(brand.EnvPrefix+"DEMO_FAIL_PRIMARY") == "1"
-	origPrimaryName := primary.Name()
-	primaryName := origPrimaryName
-	if demoFail {
-		primaryName = primaryName + "-failshim"
-		primary = &alwaysFailProvider{name: primaryName}
-		primaryDesc = "[demo-shim:always-fail] " + primaryDesc
-	}
+	primaryName := primary.Name()
 	if err := reg.Register(&governor.ProviderInfo{
 		Name:     primaryName,
 		Provider: primary,
 		AuthMode: authMode,
-		Models:   catalogModelIDs(cat, origPrimaryName),
+		Models:   catalogModelIDs(cat, primaryName),
 	}); err != nil {
 		return nil, "", "", fmt.Errorf("register primary: %w", err)
 	}
 	// Track which catalog providers actually got registered — the eligible
-	// set for cross-provider down-routing (M40). Keyed by catalog provider id
-	// (not the shim Name), so it matches catalog lookups.
-	registered := map[string]bool{origPrimaryName: true}
+	// set for cross-provider down-routing (M40). Keyed by catalog provider id,
+	// so it matches catalog lookups. (For the "unconfigured" sentinel this is a
+	// non-catalog name that simply won't match, which is fine.)
+	registered := map[string]bool{primaryName: true}
 
 	// Register every OTHER credentialed + supported catalog provider as a
 	// model-routable alternate (SPEC-15 §1): a request naming one of their
@@ -4381,7 +4977,7 @@ func buildGovernor(cat *catalog.Catalog, lookup func(string) string) (*governor.
 	// Name() is its unique catalog id (wrapNamed), so there are no collisions.
 	extraProviders := 0
 	for _, entry := range cat.ProviderList() {
-		if entry.ID == origPrimaryName {
+		if entry.ID == primaryName {
 			continue // already the primary
 		}
 		if !compat.IsSupportedFamily(entry.Family()) || !entry.HasCredentials(lookup) {
@@ -4403,23 +4999,10 @@ func buildGovernor(cat *catalog.Catalog, lookup func(string) string) (*governor.
 		extraProviders++
 	}
 
-	// Always add the offline demo mock as a last-resort fallback —
-	// unless the primary IS the (unshimmed) mock (avoid duplicate-name
-	// register). Under DEMO_FAIL_PRIMARY=1 the shim is renamed, so we
-	// always register the fresh mock as the fallback.
+	// No offline mock fallback: the daemon never silently answers with a mock
+	// (owner rule). When the primary fails and no fallback chain / alternate
+	// serves the request, the governor surfaces the real error.
 	fallbackDesc := ""
-	if demoFail || primaryName != "mock" {
-		fb := newDemoMock()
-		if err := reg.Register(&governor.ProviderInfo{
-			Name:       fb.Name(),
-			Provider:   fb,
-			AuthMode:   governor.AuthLocal,
-			IsFallback: true,
-		}); err != nil {
-			return nil, "", "", fmt.Errorf("register fallback: %w", err)
-		}
-		fallbackDesc = " → fallback=mock(offline)"
-	}
 
 	ceiling := governor.DefaultDailyCeilingMicrocents
 
@@ -4679,23 +5262,19 @@ func catalogModelIDs(cat *catalog.Catalog, providerID string) []string {
 }
 
 // selectPrimary returns the primary provider, a banner description,
-// the resolved model id, the auth-mode tag for the Governor's
-// registry, and an error.
+// the resolved run model id (may be ""), the auth-mode tag for the
+// Governor's registry, and an error.
 //
-// Selection precedence (M1.g):
+// Selection:
 //
-//  1. AGEZT_PROVIDER=mock        → fixture (bypasses catalog).
-//  2. AGEZT_PROVIDER=<catalog id> → look up in cat; compat.Build it.
-//  3. AGEZT_PROVIDER unset       → auto-pick: first catalog provider
-//     that (a) is in a compat-supported
-//     family and (b) has credentials.
-//     If none, fall back to mock with a
-//     stderr note so the operator knows
-//     the catalog wasn't usable.
+//  1. AGEZT_PROVIDER=<catalog id> → look up in cat; compat.Build it. The ONLY
+//     way to select a real primary; an unknown id is a hard error.
+//  2. AGEZT_PROVIDER unset        → the "unconfigured" sentinel primary. No
+//     auto-pick, no mock. The daemon boots so Setup/routing can be configured,
+//     but LLM runs fail fast with an actionable error.
 //
-// The model id within a chosen provider comes from AGEZT_MODEL when
-// set; otherwise compat.FirstModelID picks the alphabetically-first
-// model in the catalog entry.
+// The run model comes from AGEZT_MODEL when set; otherwise it is left empty and
+// resolved per-run from routing / a fallback chain (or ErrNoModelConfigured).
 func selectPrimary(cat *catalog.Catalog, lookup func(string) string) (agent.Provider, string, string, governor.AuthMode, error) {
 	// AGEZT_PROVIDER and AGEZT_MODEL are *config*, not credentials —
 	// always read from env directly (operators may want a one-off
@@ -4703,13 +5282,10 @@ func selectPrimary(cat *catalog.Catalog, lookup func(string) string) (agent.Prov
 	want := strings.ToLower(strings.TrimSpace(os.Getenv(brand.EnvPrefix + "PROVIDER")))
 	modelOverride := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "MODEL"))
 
-	// 1. Explicit mock — fixture, bypasses catalog entirely.
-	if want == "mock" {
-		p := newDemoMock()
-		return p, "mock(offline; scripted shell+final)", "mock", governor.AuthLocal, nil
-	}
-
-	// 2. Explicit catalog id.
+	// Explicit catalog id is the ONLY way to select a primary. The daemon has no
+	// default provider, never auto-picks from credentials, and has no offline mock
+	// fallback (owner rule: "hiçbir default provider/model"). An unknown id is a
+	// hard error so a typo is loud, not silently degraded.
 	if want != "" {
 		entry, ok := cat.Providers[want]
 		if !ok {
@@ -4720,39 +5296,39 @@ func selectPrimary(cat *catalog.Catalog, lookup func(string) string) (agent.Prov
 		return buildFromCatalog(entry, modelOverride, lookup)
 	}
 
-	// 3. Auto-pick: walk the catalog, take the first supported +
-	//    credentialed entry. Deterministic via ProviderList()'s sort.
-	//    HasCredentials uses the chained lookup so vault entries count
-	//    alongside env vars.
-	for _, entry := range cat.ProviderList() {
-		if !compat.IsSupportedFamily(entry.Family()) {
-			continue
-		}
-		if !entry.HasCredentials(lookup) {
-			continue
-		}
-		return buildFromCatalog(entry, modelOverride, lookup)
-	}
-
-	// Nothing usable — degrade to offline mock so the daemon still
-	// starts. The banner will surface the fallback.
-	p := newDemoMock()
-	return p, "mock(offline; auto-picked because catalog had no credentialed+supported provider — run `agt catalog sync` and set credentials)",
-		"mock", governor.AuthLocal, nil
+	// AGEZT_PROVIDER unset → boot UNCONFIGURED. The daemon, Web UI, and Setup all
+	// run so the operator can add a provider + key and configure routing/chains,
+	// but any LLM call fails fast with an actionable error (unconfiguredProvider).
+	// No credential auto-pick, no mock.
+	return unconfiguredProvider{},
+		"unconfigured (no " + brand.EnvPrefix + "PROVIDER set — add a provider + key in Setup → Providers; LLM runs fail until then)",
+		"", governor.AuthLocal, nil
 }
 
 // buildFromCatalog finalises a catalog entry into a wire Provider.
 // Shared by both the explicit-id path and the auto-pick path.
 // `lookup` is the chained vault+env credential resolver from runDaemon.
 func buildFromCatalog(entry *catalog.Provider, modelOverride string, lookup func(string) string) (agent.Provider, string, string, governor.AuthMode, error) {
-	modelID := modelOverride
-	if modelID == "" {
-		modelID = compat.FirstModelID(entry)
+	// The daemon has NO default run model. AGEZT_MODEL, when set, is the model
+	// every run uses unless per-task routing or a fallback chain overrides it.
+	// When AGEZT_MODEL is empty the returned run model stays "" — so cfg.Model is
+	// empty and the governor refuses any run that doesn't resolve a model via
+	// routing/chain (ErrNoModelConfigured), per the owner's no-default rule.
+	//
+	// compat.Build still needs *a* concrete, catalog-valid model id to construct
+	// the provider wire, so when AGEZT_MODEL is empty we fall back to the first
+	// catalog model as an INERT construction placeholder. It is never surfaced as
+	// a run default (cfg.Model stays "") and is never reached at call time (the
+	// governor guard + per-provider model-required errors fire first).
+	runModel := modelOverride
+	constructModel := modelOverride
+	if constructModel == "" {
+		constructModel = compat.FirstModelID(entry)
 	}
-	if modelID == "" {
+	if constructModel == "" {
 		return nil, "", "", "", fmt.Errorf("provider %q in catalog has no models; set %sMODEL", entry.ID, brand.EnvPrefix)
 	}
-	prov, _, err := compat.Build(entry, modelID, lookup)
+	prov, _, err := compat.Build(entry, constructModel, lookup)
 	if err != nil {
 		return nil, "", "", "", err
 	}
@@ -4760,8 +5336,12 @@ func buildFromCatalog(entry *catalog.Provider, modelOverride string, lookup func
 	if len(entry.Env) == 0 {
 		auth = governor.AuthLocal
 	}
-	desc := fmt.Sprintf("%s(catalog; family=%s, model=%s)", entry.ID, entry.Family(), modelID)
-	return prov, desc, modelID, auth, nil
+	modelDesc := runModel
+	if modelDesc == "" {
+		modelDesc = "(unset — resolved from routing/fallback chain per run)"
+	}
+	desc := fmt.Sprintf("%s(catalog; family=%s, model=%s)", entry.ID, entry.Family(), modelDesc)
+	return prov, desc, runModel, auth, nil
 }
 
 // wireArtifactIndexer subscribes to the bus and indexes every offloaded tool
@@ -5190,15 +5770,15 @@ func buildTools(baseDir string, stderr io.Writer, ward warden.Engine) (map[strin
 	}
 
 	// acp_agent — external ACP-agent bridge (SPEC-15 §3, the inverse of `agt
-	// acp`). Registered only when AGEZT_ACP_AGENT_CMD is set (the command that
-	// launches an external agent speaking the Agent Client Protocol over stdio,
-	// e.g. `claude-code-acp` or `codex acp`). It drives that agent over JSON-RPC
-	// and relays its answer. Off by default.
-	if acpCmd := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "ACP_AGENT_CMD")); acpCmd != "" {
-		if at := acpagent.New(acpCmd, acpagent.AbsCwd(wsRoot)); at != nil {
-			out["acp_agent"] = at
-			registered = append(registered, "acp_agent(external agent)")
-		}
+	// acp`). It drives an external agent speaking the Agent Client Protocol over
+	// stdio (Gemini CLI, Claude Code's adapter, Codex, …) over JSON-RPC and relays
+	// its answer. Registered when AGEZT_ACP_AGENT_CMD sets a default command OR any
+	// catalog ACP agent is installed on the host (discovery via kernel/acpcatalog),
+	// so a run can delegate to any installed agent by slug without configuration.
+	acpCmd := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "ACP_AGENT_CMD"))
+	if at := acpagent.New(acpCmd, acpagent.AbsCwd(wsRoot)); at != nil {
+		out["acp_agent"] = at
+		registered = append(registered, "acp_agent(external agent)")
 	}
 
 	// homeassistant — read entity state + call services on the operator's Home
@@ -5370,15 +5950,6 @@ func buildTools(baseDir string, stderr io.Writer, ward warden.Engine) (map[strin
 	return out, manifestEntries, toolCaps, strings.Join(registered, ", "), nil
 }
 
-// newDemoMock returns a Provider scripted with the canonical M0.5 demo:
-//
-//  1. Round 1: assistant requests `shell` with a directory-listing command.
-//  2. Round 2: assistant returns a final text answer that mentions the
-//     project (the real LLM would synthesise this from the tool output;
-//     the mock just acknowledges the loop completed).
-//
-// Deterministic; satisfies the demo gate `agt run "list the files here and
-// tell me what this project is"` end-to-end with no external services.
 // councilSeatName labels the i-th council seat (M837): the first three get
 // distinct elder names, the rest a numbered fallback.
 func councilSeatName(i int) string {
@@ -5387,188 +5958,6 @@ func councilSeatName(i int) string {
 		return names[i]
 	}
 	return fmt.Sprintf("Elder %d", i+1)
-}
-
-// injectDemoVisionModel adds a synthetic vision-capable "mock" catalog entry
-// (M93 demo) so the offline mock model passes the M91 vision gate. Production
-// catalogs are untouched; this only fires under AGEZT_DEMO_VISION=1.
-func injectDemoVisionModel(cat *catalog.Catalog) {
-	if cat == nil {
-		return
-	}
-	if cat.Providers == nil {
-		cat.Providers = map[string]*catalog.Provider{}
-	}
-	cat.Providers["mock"] = &catalog.Provider{
-		ID:   "mock",
-		Name: "Mock (demo vision)",
-		Models: map[string]*catalog.Model{
-			"mock": {
-				ID:         "mock",
-				Name:       "Mock Vision (demo)",
-				Modalities: catalog.Modalities{Input: []string{"text", "image"}, Output: []string{"text"}},
-			},
-		},
-	}
-}
-
-func newDemoMock() agent.Provider {
-	// Demo escape hatch: AGEZT_DEMO_VISION=1 returns a mock that reflects its
-	// input — it reports how many image attachments the user message carried
-	// (M93), so the vision-input path (agt run --image on a vision-capable
-	// model) is observable end-to-end offline. Pairs with injectDemoVisionModel,
-	// which makes the "mock" model pass the M91 vision gate.
-	if os.Getenv(brand.EnvPrefix+"DEMO_VISION") == "1" {
-		return &mock.Provider{Responder: func(req agent.CompletionRequest) agent.CompletionResponse {
-			n := 0
-			for _, m := range req.Messages {
-				if m.Role == agent.RoleUser {
-					n = len(m.Images)
-				}
-			}
-			return mock.FinalText(fmt.Sprintf(
-				"[offline-mock vision] received %d image attachment(s); a real vision model would describe them here.", n))
-		}}
-	}
-	// Demo escape hatch: AGEZT_DEMO_SSRF=1 scripts the lead to fetch the cloud
-	// metadata endpoint via the http tool, so the egress-guard block + the M109
-	// netguard.blocked audit are observable offline. Pair with
-	// AGEZT_HTTP_ALLOW_ALL=1 so the HOST allowlist passes and the IP guard (not
-	// the allowlist) is what refuses the dial.
-	if os.Getenv(brand.EnvPrefix+"DEMO_SSRF") == "1" {
-		return mock.New(
-			mock.ToolUse("call-1", "http", map[string]any{"method": "GET", "url": "http://169.254.169.254/latest/meta-data/"}),
-			mock.FinalText("[offline-mock] I attempted to read the cloud metadata endpoint; the egress guard refused the connection."),
-		)
-	}
-	// Demo escape hatch: AGEZT_DEMO_LOOP=1 returns a mock that ALWAYS requests
-	// the same shell call, so the M116 loop guard is observable: the call runs at
-	// most MaxIdenticalToolCalls times, then the loop refuses further executions
-	// (the run still exhausts MaxIter since the mock never adapts).
-	if os.Getenv(brand.EnvPrefix+"DEMO_LOOP") == "1" {
-		return &mock.Provider{Responder: func(agent.CompletionRequest) agent.CompletionResponse {
-			return mock.ToolUse("call-loop", "shell", map[string]any{"command": "true"})
-		}}
-	}
-	// Demo escape hatch: AGEZT_DEMO_FILE_EDIT=1 scripts the lead to write a file
-	// then SURGICALLY edit it with the file tool's replace op (M114), so the
-	// partial-edit path is observable end-to-end offline.
-	if os.Getenv(brand.EnvPrefix+"DEMO_FILE_EDIT") == "1" {
-		return mock.New(
-			mock.ToolUse("call-1", "file", map[string]any{"op": "write", "path": "notes.txt", "content": "status = draft\nowner = nobody\n"}),
-			mock.ToolUse("call-2", "file", map[string]any{"op": "replace", "path": "notes.txt", "find": "draft", "replacement": "published"}),
-			mock.FinalText("[offline-mock] I wrote notes.txt and edited it in place: status is now 'published'."),
-		)
-	}
-	// Demo escape hatch: AGEZT_DEMO_CACHED=1 scripts one answer carrying synthetic
-	// usage where most of the prompt was prompt-cached (M289) on a priced model
-	// whose catalog entry has a cache_read price — so the Governor's cache-aware
-	// billing is observable offline: budget.consumed shows cached_input_tokens and
-	// a cost lower than charging every input token at the full rate.
-	if os.Getenv(brand.EnvPrefix+"DEMO_CACHED") == "1" {
-		return mock.New(mock.WithUsage(
-			mock.FinalText("[offline-mock] answered with a mostly-cached prompt."),
-			agent.Usage{InputTokens: 10000, CachedInputTokens: 9000, CacheWriteInputTokens: 500, OutputTokens: 200, Model: "claude-sonnet-4-6"},
-		))
-	}
-	// Demo escape hatch: AGEZT_DEMO_ECHO=1 makes the mock ECHO the last user
-	// message back as the answer, so the exact intent the agent received is
-	// observable — used to prove the M144 channel-conversation transcript actually
-	// reaches the loop. Network-free; no scripted list.
-	if os.Getenv(brand.EnvPrefix+"DEMO_ECHO") == "1" {
-		p := mock.New()
-		p.Responder = func(req agent.CompletionRequest) agent.CompletionResponse {
-			last := ""
-			for _, m := range req.Messages {
-				if m.Role == agent.RoleUser {
-					last = m.Content
-				}
-			}
-			return mock.FinalText("[echo]\n" + last)
-		}
-		return p
-	}
-	// Demo escape hatch: AGEZT_DEMO_NOTIFY=1 scripts the agent to call the `notify`
-	// tool mid-run (M143) so the proactive-messaging path (agent → configured
-	// channel allowlist → channel.outbound) is observable offline. Requires a
-	// channel with an allowlist configured for the tool to be registered.
-	if os.Getenv(brand.EnvPrefix+"DEMO_NOTIFY") == "1" {
-		return mock.New(
-			mock.ToolUse("call-1", "notify", map[string]any{"text": "Starting the long task — I'll report back when it's done."}),
-			mock.FinalText("[offline-mock] I pinged you over the configured channel, then finished the task."),
-		)
-	}
-	// Demo escape hatch: AGEZT_DEMO_HOMEASSISTANT=1 scripts the agent to actuate a
-	// service and then read a state via the `homeassistant` tool, so the smart-home
-	// control path (agent → service/read allowlist → HA REST API) is observable
-	// offline. Requires AGEZT_HOMEASSISTANT_URL/_TOKEN + a TOOL allowlist for the
-	// tool to be registered (point the URL at a mock HA to smoke it network-free).
-	if os.Getenv(brand.EnvPrefix+"DEMO_HOMEASSISTANT") == "1" {
-		return mock.New(
-			mock.ToolUse("call-1", "homeassistant", map[string]any{
-				"operation": "call_service", "domain": "light", "service": "turn_off", "entity_id": "light.living_room",
-			}),
-			mock.ToolUse("call-2", "homeassistant", map[string]any{
-				"operation": "get_states", "entity_id": "light.living_room",
-			}),
-			mock.FinalText("[offline-mock] I turned the living-room light off and confirmed its state."),
-		)
-	}
-	// Demo escape hatch: AGEZT_DEMO_DELEGATE=1 scripts a single delegation so
-	// the multi-agent path (the `delegate` tool, subagent.spawned, M41 run
-	// links) is observable from `agt run` with no external services. The lead
-	// delegates once; the sub-agent answers; the lead finalises. The mock
-	// replays responses sequentially across the lead+child Complete calls
-	// (lead-r1 → child-r1 → lead-r2).
-	if v := os.Getenv(brand.EnvPrefix + "DEMO_DELEGATE"); v == "1" {
-		return mock.New(
-			mock.ToolUse("call-1", "delegate", map[string]any{"task": "summarize the kernel package layout"}),
-			mock.FinalText("[offline-mock sub-agent] kernel/ holds event, journal, bus, agent, runtime, and controlplane."),
-			mock.FinalText("[offline-mock lead] I delegated the kernel-layout summary to a sub-agent; it reported the core packages."),
-		)
-	} else if n, err := strconv.Atoi(strings.TrimSpace(v)); err == nil && n >= 2 {
-		// AGEZT_DEMO_DELEGATE=N (N≥2) scripts the lead attempting N delegations
-		// in N rounds so the M46 fan-out cap is observable: run with
-		// AGEZT_SUBAGENT_FANOUT=N-1 and the final attempt is refused (a tool
-		// error the lead reports), while N-1 sub-agents spawn. The script feeds
-		// N-1 child answers then the lead's final — consumed in call order
-		// (lead-rk → child-k), so the refused Nth call falls straight through to
-		// the lead's final response.
-		//
-		// Each response carries synthetic token usage on a priced model so the
-		// Governor journals a non-zero budget.consumed per call (M47) — the
-		// lead's calls under the lead correlation, each child's under its own —
-		// making per-run / per-delegation spend visible in `agt runs stats`.
-		withUsage := func(r agent.CompletionResponse) agent.CompletionResponse {
-			return mock.WithUsage(r, agent.Usage{InputTokens: 2000, OutputTokens: 1000, Model: "claude-sonnet-4-6"})
-		}
-		resp := make([]agent.CompletionResponse, 0, 2*n)
-		for i := 1; i < n; i++ {
-			resp = append(resp,
-				withUsage(mock.ToolUse(fmt.Sprintf("call-%d", i), "delegate", map[string]any{"task": fmt.Sprintf("subtask %d", i)})),
-				withUsage(mock.FinalText(fmt.Sprintf("[offline-mock sub-agent %d] done.", i))),
-			)
-		}
-		resp = append(resp,
-			withUsage(mock.ToolUse(fmt.Sprintf("call-%d", n), "delegate", map[string]any{"task": fmt.Sprintf("subtask %d", n)})),
-			withUsage(mock.FinalText(fmt.Sprintf("[offline-mock lead] spawned %d sub-agent(s); the fan-out cap refused the rest.", n-1))),
-		)
-		return mock.New(resp...)
-	}
-	listCmd := "ls -la"
-	if runtime.GOOS == "windows" {
-		listCmd = "dir"
-	}
-	return mock.New(
-		mock.ToolUse("call-1", "shell", map[string]string{"command": listCmd}),
-		mock.FinalText(
-			"[offline-mock] I ran a directory listing via the shell tool. This project is "+
-				brand.Name+" — an open-source, MIT-licensed agentic operating system written in Go. "+
-				"The M0.5 foundation under kernel/ (event, journal, state, bus, agent, runtime, "+
-				"controlplane) plus the in-process plugins under plugins/ are what just executed this run; "+
-				"every step you saw was journaled and BLAKE3-chained.",
-		),
-	)
 }
 
 // selectAskPolicy maps AGEZT_APPROVAL_MODE to an edict.AskPolicy.
@@ -5596,9 +5985,9 @@ func selectAskPolicy() (edict.AskPolicy, string) {
 	}
 }
 
-// alwaysFailProvider is the demo shim used by AGEZT_DEMO_FAIL_PRIMARY=1
-// to force the Governor's fallback chain to engage on every call. The
-// returned error is non-cancel/non-budget so shouldFallback returns true.
+// alwaysFailProvider is a test shim (used by reconcile_providers_test.go) that
+// errors on every call with a non-cancel/non-budget error so shouldFallback
+// returns true. It forces the Governor's fallback chain to engage.
 type alwaysFailProvider struct{ name string }
 
 func (p *alwaysFailProvider) Name() string { return p.name }
@@ -5607,6 +5996,28 @@ func (p *alwaysFailProvider) Complete(ctx context.Context, _ agent.CompletionReq
 		return nil, err
 	}
 	return nil, fmt.Errorf("demo-shim: simulated primary failure")
+}
+
+// unconfiguredProviderName is the Name() of the sentinel primary registered when
+// no LLM provider is configured. The reload path keys off it to swap in a real
+// provider once the operator configures one.
+const unconfiguredProviderName = "unconfigured"
+
+// unconfiguredProvider is the daemon's primary when NO LLM provider is
+// configured (AGEZT_PROVIDER unset). The daemon ships with no default provider
+// or model (owner rule: "hiçbir default provider/model"), so a fresh install
+// boots with this sentinel: the daemon, Web UI, and Setup all run, but any LLM
+// call fails fast with an actionable message telling the operator to add a
+// provider + key and a model (via AGEZT_MODEL or a routing/fallback chain). It
+// is swapped for a real provider by the reload path once one is configured.
+type unconfiguredProvider struct{}
+
+func (unconfiguredProvider) Name() string { return unconfiguredProviderName }
+func (unconfiguredProvider) Complete(ctx context.Context, _ agent.CompletionRequest) (*agent.CompletionResponse, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	return nil, fmt.Errorf("no LLM provider configured — add a provider and API key (Setup → Providers, or set %sPROVIDER) and a model (%sMODEL, a per-task route, or a fallback chain)", brand.EnvPrefix, brand.EnvPrefix)
 }
 
 // keep import honest

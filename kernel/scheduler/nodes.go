@@ -10,6 +10,7 @@ import (
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/approval"
 	"github.com/agezt/agezt/kernel/bus"
+	intentmodel "github.com/agezt/agezt/kernel/intent"
 )
 
 // LoopRunner is the kernel-side hook that runs one agent tool-loop end
@@ -27,6 +28,10 @@ type LoopNode struct {
 	Intent string
 	Deps   []string
 	Runner LoopRunner
+	// IntentFrame is the plan-level interpretation that produced this loop. When
+	// present, it is attached to the run context so runtime policy does not
+	// reinterpret a derived loop intent as if it were the user's original words.
+	IntentFrame *intentmodel.Frame
 	// IntentFn, if set, overrides Intent. The function receives the
 	// upstream Inputs so a downstream loop can react to upstream
 	// results (e.g. "given the research summary, do the work").
@@ -58,6 +63,9 @@ func (n *LoopNode) Run(ctx context.Context, in Inputs) (Result, error) {
 	// loop subject ("agent.<actor>.>") nests under the plan's
 	// correlation, keeping `agt why` walkable end-to-end.
 	corr := correlationFromCtx(ctx) + ".loop." + n.NodeID
+	if n.IntentFrame != nil {
+		ctx = intentmodel.WithFrame(ctx, *n.IntentFrame)
+	}
 	answer, err := n.Runner(ctx, intent, corr)
 	if err != nil {
 		return Result{}, err
@@ -85,6 +93,9 @@ type GateNode struct {
 	// Actor identifies the originating agent in events; defaults to
 	// "scheduler" when empty.
 	Actor string
+	// IntentFrame is included in the approval request when a generated plan
+	// carries interpreter metadata.
+	IntentFrame *intentmodel.Frame
 }
 
 // ID implements Node.
@@ -113,14 +124,27 @@ func (n *GateNode) Run(ctx context.Context, _ Inputs) (Result, error) {
 	if desc == "" {
 		desc = "scheduler gate-node: " + n.NodeID
 	}
-	out := n.Approvals.Submit(ctx, approval.SubmitSpec{
+	spec := approval.SubmitSpec{
 		Capability:    cap,
 		ToolName:      "scheduler.gate",
 		Input:         desc,
 		Reason:        desc,
 		Actor:         actor,
 		CorrelationID: correlationFromCtx(ctx),
-	})
+	}
+	if n.IntentFrame != nil {
+		spec.CanonicalIntent = n.IntentFrame.CanonicalIntent
+		spec.HarmfulInterpretation = n.IntentFrame.HarmfulReading
+		spec.AmbiguityScore = n.IntentFrame.AmbiguityScore
+		spec.RegretAxes = map[string]float64{
+			"physical":      0,
+			"informational": 0.75,
+			"social":        0,
+			"identity":      0,
+		}
+		spec.ConfirmationPrompt = desc
+	}
+	out := n.Approvals.Submit(ctx, spec)
 	switch out.Decision {
 	case approval.DecisionGrant:
 		return Result{

@@ -1,25 +1,45 @@
 import { useEffect, useMemo, useState } from "react";
-import { Waves, RefreshCw, CalendarClock, Anchor, ShieldCheck, Sparkles, Radio, MessagesSquare, Play, Pause, Heart, Zap, Eye, Plus, Activity, X, Moon } from "lucide-react";
+import {
+  Waves,
+  RefreshCw,
+  CalendarClock,
+  Anchor,
+  ShieldCheck,
+  Sparkles,
+  Radio,
+  MessagesSquare,
+  Play,
+  Pause,
+  Heart,
+  Zap,
+  Eye,
+  Plus,
+  Activity,
+  X,
+  Moon,
+  LifeBuoy,
+  GitBranch,
+} from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { getJSON, postAction } from "@/lib/api";
+import { useEvents } from "@/lib/events";
 import { useUI } from "@/components/ui/feedback";
 import { cn, fmtTime } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Muted, ErrorText } from "@/components/JsonView";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { PageHeader } from "@/components/ui/page-header";
+import { DoctorIncidentTrees } from "@/components/DoctorIncidentTrees";
+import { IncidentBadges } from "@/components/IncidentBadges";
+import { openIncident } from "@/lib/incidentnav";
+import {
+  autonomyEventMatches,
+  doctorIncidentTrees,
+  type AutonomyItem,
+} from "@/lib/autonomy";
 
-interface Item {
-  seq: number;
-  ts_unix_ms?: number;
-  kind: string;
-  category: string;
-  title: string;
-  correlation_id?: string;
-  detail?: string;
-}
 interface Feed {
-  items?: Item[];
+  items?: AutonomyItem[];
   count?: number;
 }
 
@@ -32,6 +52,8 @@ const catMeta: Record<string, { icon: LucideIcon; tone: string }> = {
   skill: { icon: Sparkles, tone: "text-accent" },
   pulse: { icon: Radio, tone: "text-muted" },
   board: { icon: MessagesSquare, tone: "text-accent" },
+  doctor: { icon: LifeBuoy, tone: "text-warn" },
+  delegation: { icon: GitBranch, tone: "text-accent2" },
 };
 
 // Autonomy is the "living organism" pane: a curated, newest-first timeline of
@@ -40,6 +62,7 @@ const catMeta: Record<string, { icon: LucideIcon; tone: string }> = {
 // Unlike the raw Live Stream it keeps only self-directed milestones, so the
 // operator can see their Jarvis acting unprompted. Read-only; polls live.
 export function Autonomy() {
+  const { subscribe } = useEvents();
   const [feed, setFeed] = useState<Feed | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -63,15 +86,32 @@ export function Autonomy() {
     return () => clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  useEffect(() => {
+    let t: ReturnType<typeof setTimeout> | undefined;
+    const off = subscribe((e) => {
+      if (!autonomyEventMatches(e)) return;
+      if (t) clearTimeout(t);
+      t = setTimeout(() => void reload(), 700);
+    });
+    return () => {
+      if (t) clearTimeout(t);
+      off();
+    };
+  }, [subscribe]);
 
   const cats = useMemo(() => {
     const c: Record<string, number> = {};
-    for (const it of feed?.items || []) c[it.category] = (c[it.category] || 0) + 1;
+    for (const it of feed?.items || [])
+      c[it.category] = (c[it.category] || 0) + 1;
     return Object.entries(c).sort((a, b) => b[1] - a[1]);
   }, [feed]);
   const items = useMemo(
     () => (feed?.items || []).filter((it) => !cat || it.category === cat),
     [feed, cat],
+  );
+  const doctorIncidents = useMemo(
+    () => doctorIncidentTrees(feed?.items, 8),
+    [feed],
   );
 
   return (
@@ -83,10 +123,20 @@ export function Autonomy() {
         actions={
           <>
             <span className="text-xs text-muted">
-              {feed ? `${feed.count ?? 0} self-directed event${feed.count === 1 ? "" : "s"}` : ""}
+              {feed
+                ? `${feed.count ?? 0} self-directed event${feed.count === 1 ? "" : "s"}`
+                : ""}
             </span>
-            <Button variant="ghost" size="sm" onClick={reload} disabled={loading} title="Reload">
-              <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={reload}
+              disabled={loading}
+              title="Reload"
+            >
+              <RefreshCw
+                className={cn("size-3.5", loading && "animate-spin")}
+              />
             </Button>
           </>
         }
@@ -100,7 +150,9 @@ export function Autonomy() {
             onClick={() => setCat(null)}
             className={cn(
               "rounded-full border px-2.5 py-0.5 text-[11px] transition-colors",
-              cat === null ? "border-accent bg-accent/10 text-accent" : "border-border bg-panel text-muted hover:text-foreground",
+              cat === null
+                ? "border-accent bg-accent/10 text-accent"
+                : "border-border bg-panel text-muted hover:text-foreground",
             )}
           >
             all
@@ -111,7 +163,9 @@ export function Autonomy() {
               onClick={() => setCat(name === cat ? null : name)}
               className={cn(
                 "inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] transition-colors",
-                cat === name ? "border-accent bg-accent/10 text-accent" : "border-border bg-panel text-muted hover:text-foreground",
+                cat === name
+                  ? "border-accent bg-accent/10 text-accent"
+                  : "border-border bg-panel text-muted hover:text-foreground",
               )}
             >
               {name}
@@ -121,31 +175,61 @@ export function Autonomy() {
         </div>
       )}
 
+      {doctorIncidents.length > 0 && (cat === null || cat === "doctor") && (
+        <div className="glass rounded-xl p-2.5">
+          <div className="mb-2 flex items-center gap-2 text-sm font-medium">
+            <LifeBuoy className="size-4 text-warn" />
+            Repair incident trees
+          </div>
+          <DoctorIncidentTrees
+            trees={doctorIncidents}
+            compact
+            onOpenIncident={openIncident}
+          />
+        </div>
+      )}
+
       {err ? (
         <ErrorText>{err}</ErrorText>
       ) : !feed ? (
         <SkeletonList count={4} lines={2} />
       ) : items.length === 0 ? (
         <Muted>
-          nothing autonomous yet — when a schedule or standing order fires, a skill is learned, or a
-          do-it-for-sure check runs, it shows here. The system is quiet, not asleep.
+          nothing autonomous yet — when a schedule or standing order fires, a
+          skill is learned, or a do-it-for-sure check runs, it shows here. The
+          system is quiet, not asleep.
         </Muted>
       ) : (
         <div className="min-h-0 flex-1 overflow-auto">
           <ul className="space-y-1.5">
             {items.map((it) => {
-              const meta = catMeta[it.category] || { icon: Waves, tone: "text-muted" };
+              const meta = catMeta[it.category] || {
+                icon: Waves,
+                tone: "text-muted",
+              };
               const Icon = meta.icon;
               return (
-                <li key={it.seq} className="flex items-start gap-2.5 glass rounded-xl p-2.5">
+                <li
+                  key={it.seq}
+                  className="flex items-start gap-2.5 glass rounded-xl p-2.5"
+                >
                   <Icon className={cn("mt-0.5 size-4 shrink-0", meta.tone)} />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-medium">{it.title}</span>
-                      <span className="rounded bg-panel px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-muted">{it.category}</span>
-                      <span className="ml-auto font-mono text-[10px] text-muted opacity-70">{fmtTime(it.ts_unix_ms)}</span>
+                      <span className="rounded bg-panel px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-muted">
+                        {it.category}
+                      </span>
+                      {it.category === "doctor" && <IncidentBadges item={it} />}
+                      <span className="ml-auto font-mono text-[10px] text-muted opacity-70">
+                        {fmtTime(it.ts_unix_ms)}
+                      </span>
                     </div>
-                    {it.detail && <p className="mt-0.5 truncate text-xs text-foreground/80">{it.detail}</p>}
+                    {it.detail && (
+                      <p className="mt-0.5 truncate text-xs text-foreground/80">
+                        {it.detail}
+                      </p>
+                    )}
                   </div>
                 </li>
               );
@@ -219,8 +303,16 @@ export function PulseControl() {
     if (!st) return;
     setBusy(true);
     try {
-      await postAction(st.paused ? "/api/pulse/resume" : "/api/pulse/pause", {});
-      ui.toast(st.paused ? "Pulse resumed — proactivity is back on" : "Pulse paused — the daemon is reactive-only", "success");
+      await postAction(
+        st.paused ? "/api/pulse/resume" : "/api/pulse/pause",
+        {},
+      );
+      ui.toast(
+        st.paused
+          ? "Pulse resumed — proactivity is back on"
+          : "Pulse paused — the daemon is reactive-only",
+        "success",
+      );
       await load();
     } catch (e) {
       ui.toast((e as Error).message, "error");
@@ -250,7 +342,10 @@ export function PulseControl() {
   async function setCadence(seconds: string) {
     try {
       await postAction("/api/pulse/cadence", { seconds });
-      ui.toast(`Heartbeat now every ${cadenceLabel(Number(seconds))}`, "success");
+      ui.toast(
+        `Heartbeat now every ${cadenceLabel(Number(seconds))}`,
+        "success",
+      );
       await load();
     } catch (e) {
       ui.toast((e as Error).message, "error");
@@ -274,7 +369,12 @@ export function PulseControl() {
     try {
       const r = await postAction<{ flushed?: number }>("/api/pulse/flush", {});
       const n = r?.flushed ?? 0;
-      ui.toast(n > 0 ? `Flushed ${n} held brief${n === 1 ? "" : "s"}` : "Nothing held in the digest", n > 0 ? "success" : "info");
+      ui.toast(
+        n > 0
+          ? `Flushed ${n} held brief${n === 1 ? "" : "s"}`
+          : "Nothing held in the digest",
+        n > 0 ? "success" : "info",
+      );
       await load();
     } catch (e) {
       ui.toast((e as Error).message, "error");
@@ -286,8 +386,14 @@ export function PulseControl() {
   async function addWatch() {
     if (!watchPath.trim()) return;
     try {
-      const r = await postAction<{ observer?: string }>("/api/pulse/watch", { path: watchPath.trim(), min_pct: watchPct });
-      ui.toast(`Now watching ${r?.observer || watchPath.trim()} — alerts under ${watchPct}% free`, "success");
+      const r = await postAction<{ observer?: string }>("/api/pulse/watch", {
+        path: watchPath.trim(),
+        min_pct: watchPct,
+      });
+      ui.toast(
+        `Now watching ${r?.observer || watchPath.trim()} — alerts under ${watchPct}% free`,
+        "success",
+      );
       setWatchPath("");
       setWatchKind("");
       await load();
@@ -301,8 +407,14 @@ export function PulseControl() {
   async function addProbe() {
     if (!probeName.trim() || !probeCmd.trim()) return;
     try {
-      const r = await postAction<{ observer?: string }>("/api/pulse/probe", { name: probeName.trim(), command: probeCmd.trim() });
-      ui.toast(`Now watching ${r?.observer || probeName.trim()} — alerts when it flips`, "success");
+      const r = await postAction<{ observer?: string }>("/api/pulse/probe", {
+        name: probeName.trim(),
+        command: probeCmd.trim(),
+      });
+      ui.toast(
+        `Now watching ${r?.observer || probeName.trim()} — alerts when it flips`,
+        "success",
+      );
       setProbeName("");
       setProbeCmd("");
       setWatchKind("");
@@ -317,8 +429,13 @@ export function PulseControl() {
   // "START-END" 24h (e.g. "22-7"); an empty spec clears it.
   async function setQuiet(spec: string) {
     try {
-      const r = await postAction<{ quiet?: string }>("/api/pulse/quiet", { hours: spec });
-      ui.toast(r?.quiet ? `Quiet hours set to ${r.quiet}` : "Quiet hours cleared", "success");
+      const r = await postAction<{ quiet?: string }>("/api/pulse/quiet", {
+        hours: spec,
+      });
+      ui.toast(
+        r?.quiet ? `Quiet hours set to ${r.quiet}` : "Quiet hours cleared",
+        "success",
+      );
       setQuietHours("");
       await load();
     } catch (e) {
@@ -330,7 +447,15 @@ export function PulseControl() {
   // restart. Only runtime-added observers (reported in `removable`) offer this; the
   // built-in self:health observer can't be removed.
   async function removeObserver(name: string) {
-    if (!(await ui.confirm({ title: `Stop watching ${name}?`, message: "The agent will no longer check this on each beat.", confirmLabel: "Stop watching", danger: true }))) return;
+    if (
+      !(await ui.confirm({
+        title: `Stop watching ${name}?`,
+        message: "The agent will no longer check this on each beat.",
+        confirmLabel: "Stop watching",
+        danger: true,
+      }))
+    )
+      return;
     try {
       await postAction("/api/pulse/unwatch", { name });
       ui.toast(`Stopped watching ${name}`, "success");
@@ -344,7 +469,9 @@ export function PulseControl() {
   if (!st.enabled) {
     return (
       <div className="flex items-center gap-2 glass rounded-xl px-3 py-2 text-xs text-muted">
-        <Radio className="size-3.5" /> Pulse is disabled on this daemon (set <code className="rounded bg-panel px-1">AGEZT_PULSE</code> to enable the proactive heartbeat).
+        <Radio className="size-3.5" /> Pulse is disabled on this daemon (set{" "}
+        <code className="rounded bg-panel px-1">AGEZT_PULSE</code> to enable the
+        proactive heartbeat).
       </div>
     );
   }
@@ -354,65 +481,108 @@ export function PulseControl() {
   return (
     <div className="space-y-2 glass rounded-xl px-3 py-2">
       <div className="flex flex-wrap items-center gap-2">
-      <Heart className={cn("size-4", paused ? "text-muted" : "animate-pulse fill-current text-bad")} />
-      <span className="text-sm font-semibold">Proactive heartbeat</span>
-      <span
-        className={cn(
-          "rounded-full px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider",
-          paused ? "bg-panel text-muted" : "bg-good/15 text-good",
+        <Heart
+          className={cn(
+            "size-4",
+            paused ? "text-muted" : "animate-pulse fill-current text-bad",
+          )}
+        />
+        <span className="text-sm font-semibold">Proactive heartbeat</span>
+        <span
+          className={cn(
+            "rounded-full px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider",
+            paused ? "bg-panel text-muted" : "bg-good/15 text-good",
+          )}
+        >
+          {paused ? "paused" : "running"}
+        </span>
+        <span className="text-[11px] text-muted">
+          {st.beats ?? 0} beat{st.beats === 1 ? "" : "s"}
+          {st.observers != null
+            ? ` · ${st.observers.length} observer${st.observers.length === 1 ? "" : "s"}`
+            : ""}
+          {st.last_tick_ms ? ` · last ${fmtTime(st.last_tick_ms)}` : ""}
+        </span>
+        <label
+          className="ml-auto flex items-center gap-1 text-[11px] text-muted"
+          title="How proactive the agent is (quiet=alerts only, chatty=digests too)"
+        >
+          dial
+          <select
+            value={DIALS.includes(st.dial || "") ? st.dial : "balanced"}
+            onChange={(e) => setDial(e.target.value)}
+            aria-label="Proactivity dial"
+            className="h-7 rounded-md border border-border bg-panel px-1.5 text-xs outline-none focus:border-accent"
+          >
+            {DIALS.map((d) => (
+              <option key={d} value={d}>
+                {d}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label
+          className="flex items-center gap-1 text-[11px] text-muted"
+          title="How often the agent checks in (live; resets to the default on restart)"
+        >
+          every
+          <select
+            value={CADENCE_PRESETS.includes(curSec) ? String(curSec) : ""}
+            onChange={(e) => setCadence(e.target.value)}
+            aria-label="Heartbeat cadence"
+            className="h-7 rounded-md border border-border bg-panel px-1.5 text-xs outline-none focus:border-accent"
+          >
+            {!CADENCE_PRESETS.includes(curSec) && curSec > 0 && (
+              <option value="">{cadenceLabel(curSec)} (current)</option>
+            )}
+            {CADENCE_PRESETS.map((s) => (
+              <option key={s} value={s}>
+                {cadenceLabel(s)}
+              </option>
+            ))}
+          </select>
+        </label>
+        {(st.digest_pending ?? 0) > 0 && (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={flushDigest}
+            title="Deliver the briefs the agent is holding in its digest now"
+          >
+            <MessagesSquare className="size-3.5" /> Flush digest (
+            {st.digest_pending})
+          </Button>
         )}
-      >
-        {paused ? "paused" : "running"}
-      </span>
-      <span className="text-[11px] text-muted">
-        {st.beats ?? 0} beat{st.beats === 1 ? "" : "s"}
-        {st.observers != null ? ` · ${st.observers.length} observer${st.observers.length === 1 ? "" : "s"}` : ""}
-        {st.last_tick_ms ? ` · last ${fmtTime(st.last_tick_ms)}` : ""}
-      </span>
-      <label className="ml-auto flex items-center gap-1 text-[11px] text-muted" title="How proactive the agent is (quiet=alerts only, chatty=digests too)">
-        dial
-        <select
-          value={DIALS.includes(st.dial || "") ? st.dial : "balanced"}
-          onChange={(e) => setDial(e.target.value)}
-          aria-label="Proactivity dial"
-          className="h-7 rounded-md border border-border bg-panel px-1.5 text-xs outline-none focus:border-accent"
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={beatNow}
+          disabled={beating}
+          title="Trigger one heartbeat now (think now)"
         >
-          {DIALS.map((d) => (
-            <option key={d} value={d}>
-              {d}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label className="flex items-center gap-1 text-[11px] text-muted" title="How often the agent checks in (live; resets to the default on restart)">
-        every
-        <select
-          value={CADENCE_PRESETS.includes(curSec) ? String(curSec) : ""}
-          onChange={(e) => setCadence(e.target.value)}
-          aria-label="Heartbeat cadence"
-          className="h-7 rounded-md border border-border bg-panel px-1.5 text-xs outline-none focus:border-accent"
-        >
-          {!CADENCE_PRESETS.includes(curSec) && curSec > 0 && <option value="">{cadenceLabel(curSec)} (current)</option>}
-          {CADENCE_PRESETS.map((s) => (
-            <option key={s} value={s}>
-              {cadenceLabel(s)}
-            </option>
-          ))}
-        </select>
-      </label>
-      {(st.digest_pending ?? 0) > 0 && (
-        <Button size="sm" variant="ghost" onClick={flushDigest} title="Deliver the briefs the agent is holding in its digest now">
-          <MessagesSquare className="size-3.5" /> Flush digest ({st.digest_pending})
+          {beating ? (
+            <RefreshCw className="size-3.5 animate-spin" />
+          ) : (
+            <Zap className="size-3.5" />
+          )}
+          Beat now
         </Button>
-      )}
-      <Button size="sm" variant="ghost" onClick={beatNow} disabled={beating} title="Trigger one heartbeat now (think now)">
-        {beating ? <RefreshCw className="size-3.5 animate-spin" /> : <Zap className="size-3.5" />}
-        Beat now
-      </Button>
-      <Button size="sm" variant={paused ? "default" : "ghost"} onClick={toggle} disabled={busy} title={paused ? "Resume the heartbeat" : "Pause the heartbeat"}>
-        {busy ? <RefreshCw className="size-3.5 animate-spin" /> : paused ? <Play className="size-3.5" /> : <Pause className="size-3.5" />}
-        {paused ? "Resume" : "Pause"}
-      </Button>
+        <Button
+          size="sm"
+          variant={paused ? "default" : "ghost"}
+          onClick={toggle}
+          disabled={busy}
+          title={paused ? "Resume the heartbeat" : "Pause the heartbeat"}
+        >
+          {busy ? (
+            <RefreshCw className="size-3.5 animate-spin" />
+          ) : paused ? (
+            <Play className="size-3.5" />
+          ) : (
+            <Pause className="size-3.5" />
+          )}
+          {paused ? "Resume" : "Pause"}
+        </Button>
       </div>
 
       {/* The live observer set — each is polled every beat. Runtime-added watches
@@ -449,14 +619,24 @@ export function PulseControl() {
         <span className="text-muted">watch:</span>
         <button
           onClick={() => setWatchKind((v) => (v === "disk" ? "" : "disk"))}
-          className={cn("inline-flex items-center gap-1 transition-colors", watchKind === "disk" ? "text-accent" : "text-accent/80 hover:text-accent")}
+          className={cn(
+            "inline-flex items-center gap-1 transition-colors",
+            watchKind === "disk"
+              ? "text-accent"
+              : "text-accent/80 hover:text-accent",
+          )}
           title="Have the agent watch a disk and alert when it's low on space"
         >
           <Eye className="size-3" /> a disk
         </button>
         <button
           onClick={() => setWatchKind((v) => (v === "probe" ? "" : "probe"))}
-          className={cn("inline-flex items-center gap-1 transition-colors", watchKind === "probe" ? "text-accent" : "text-accent/80 hover:text-accent")}
+          className={cn(
+            "inline-flex items-center gap-1 transition-colors",
+            watchKind === "probe"
+              ? "text-accent"
+              : "text-accent/80 hover:text-accent",
+          )}
           title="Have the agent run a command each beat and alert when its pass/fail flips (e.g. CI, a build)"
         >
           <Activity className="size-3" /> a command
@@ -466,7 +646,9 @@ export function PulseControl() {
             <input
               value={watchPath}
               onChange={(e) => setWatchPath(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") addWatch(); }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") addWatch();
+              }}
               placeholder="path (e.g. / or C:\\)"
               aria-label="Watch disk path"
               className="h-7 w-36 rounded-md border border-border bg-panel px-2 font-mono text-xs text-foreground outline-none focus-visible:border-accent"
@@ -499,12 +681,18 @@ export function PulseControl() {
             <input
               value={probeCmd}
               onChange={(e) => setProbeCmd(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") addProbe(); }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") addProbe();
+              }}
               placeholder="command (e.g. make test)"
               aria-label="Probe command"
               className="h-7 w-44 rounded-md border border-border bg-panel px-2 font-mono text-xs text-foreground outline-none focus-visible:border-accent"
             />
-            <Button size="sm" onClick={addProbe} disabled={!probeName.trim() || !probeCmd.trim()}>
+            <Button
+              size="sm"
+              onClick={addProbe}
+              disabled={!probeName.trim() || !probeCmd.trim()}
+            >
               <Plus className="size-3.5" /> Watch
             </Button>
           </>
@@ -514,12 +702,20 @@ export function PulseControl() {
       {/* Quiet hours (M770): during the window only alert/act briefs break through,
           regardless of the dial — so the agent won't ping you overnight. */}
       <div className="flex flex-wrap items-center gap-1.5 border-t border-border/60 pt-2 text-[11px] text-muted">
-        <span className="inline-flex items-center gap-1 text-muted"><Moon className="size-3" /> quiet hours:</span>
+        <span className="inline-flex items-center gap-1 text-muted">
+          <Moon className="size-3" /> quiet hours:
+        </span>
         {st.quiet?.enabled ? (
           <>
             <span className="inline-flex items-center gap-1 rounded-full border border-border bg-panel px-2 py-0.5 font-mono">
-              {String(st.quiet.start ?? 0).padStart(2, "0")}:00–{String(st.quiet.end ?? 0).padStart(2, "0")}:00
-              <button onClick={() => setQuiet("")} className="text-muted transition-colors hover:text-bad" title="Turn off quiet hours" aria-label="Clear quiet hours">
+              {String(st.quiet.start ?? 0).padStart(2, "0")}:00–
+              {String(st.quiet.end ?? 0).padStart(2, "0")}:00
+              <button
+                onClick={() => setQuiet("")}
+                className="text-muted transition-colors hover:text-bad"
+                title="Turn off quiet hours"
+                aria-label="Clear quiet hours"
+              >
                 <X className="size-3" />
               </button>
             </span>
@@ -531,12 +727,21 @@ export function PulseControl() {
         <input
           value={quietHours}
           onChange={(e) => setQuietHours(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter" && quietHours.trim()) setQuiet(quietHours.trim()); }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && quietHours.trim())
+              setQuiet(quietHours.trim());
+          }}
           placeholder="22-7"
           aria-label="Quiet hours window"
           className="ml-auto h-7 w-20 rounded-md border border-border bg-panel px-2 font-mono text-xs text-foreground outline-none focus-visible:border-accent"
         />
-        <Button size="sm" onClick={() => setQuiet(quietHours.trim())} disabled={!quietHours.trim()}>Set</Button>
+        <Button
+          size="sm"
+          onClick={() => setQuiet(quietHours.trim())}
+          disabled={!quietHours.trim()}
+        >
+          Set
+        </Button>
       </div>
     </div>
   );

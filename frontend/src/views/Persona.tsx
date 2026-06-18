@@ -7,10 +7,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useUI } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
 
-// Persona is the agent's standing instructions / personality — the default system
-// prompt prepended to every run. Editing it here makes the daemon *yours*: tone,
-// priorities, house rules. Edits apply live (the next run uses them) and persist.
-// Memory / world / skill context still layer on top per run.
+// Persona is the legacy API name for the daemon's default identity instructions.
+// They apply only to runs that are not bound to a roster agent. Editing here
+// changes tone, priorities, and house rules for that default identity; roster
+// agent souls remain owned by their profiles.
 
 interface PersonaResp {
   system?: string;
@@ -77,7 +77,7 @@ export function Persona() {
       await postJSON("/api/persona/set", { system: next });
       setSaved(next);
       setDraft(next);
-      toast(next.trim() ? "Persona saved — applies to the next run" : "Persona cleared — back to the default", "success");
+      toast(next.trim() ? "Default identity saved — applies to the next default run" : "Default identity cleared", "success");
     } catch (e) {
       toast((e as Error).message, "error");
     } finally {
@@ -91,24 +91,24 @@ export function Persona() {
   }
 
   const status = useMemo(() => {
-    if (saved.trim()) return { label: "custom persona active", tone: "text-good" };
-    return { label: "using the default (no custom persona)", tone: "text-muted" };
+    if (saved.trim()) return { label: "custom default identity active", tone: "text-good" };
+    return { label: "using built-in default identity", tone: "text-muted" };
   }, [saved]);
 
   return (
     <div className="mx-auto max-w-3xl space-y-4">
       <PageHeader
         icon={Bot}
-        title="Persona"
-        description="the agent's standing instructions"
+        title="Default Identity"
+        description="daemon fallback instructions for runs without a roster agent"
         actions={<span className={`text-xs ${status.tone}`}>● {status.label}</span>}
       />
 
       <p className="text-xs text-muted">
-        This is the default <span className="text-foreground/80">system prompt</span> prepended to every run — your
-        Jarvis's personality, priorities, and house rules. Changes apply{" "}
-        <span className="text-foreground/80">live</span> (the next run uses them) and persist across restarts. Per-run
-        memory, world, and skill context still layer on top.
+        These are the daemon's default <span className="text-foreground/80">identity instructions</span> for runs
+        that are not bound to a roster agent. Changes apply <span className="text-foreground/80">live</span> to the
+        next default-identity run and persist across restarts. Roster agents keep their own soul, model, memory,
+        skills, and budget.
       </p>
 
       {err ? (
@@ -123,7 +123,7 @@ export function Persona() {
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               spellCheck={false}
-              aria-label="Persona system prompt"
+              aria-label="Default identity instructions"
               placeholder="e.g. You are Jarvis. Be terse and proactive; take initiative on obvious next steps and state assumptions briefly…"
               className="h-64 w-full resize-y rounded-lg bg-transparent p-3 font-mono text-sm leading-relaxed text-foreground outline-none placeholder:text-muted/60"
             />
@@ -134,7 +134,7 @@ export function Persona() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <Button onClick={() => save(draft)} disabled={!dirty || saving} title="Save persona">
+            <Button onClick={() => save(draft)} disabled={!dirty || saving} title="Save default identity">
               {saving ? <RefreshCw className="size-3.5 animate-spin" /> : <Save className="size-3.5" />} Save
             </Button>
             <Button variant="ghost" onClick={() => setDraft(saved)} disabled={!dirty || saving} title="Discard edits">
@@ -144,7 +144,7 @@ export function Persona() {
               variant="ghost"
               onClick={() => save("")}
               disabled={saving || (!saved.trim() && !draft.trim())}
-              title="Clear the custom persona"
+              title="Clear the custom default identity"
             >
               <Eraser className="size-3.5" /> Clear
             </Button>

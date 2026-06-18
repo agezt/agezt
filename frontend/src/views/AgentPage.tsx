@@ -136,6 +136,10 @@ export function AgentPage({ slug, onNavigate }: { slug: string; onNavigate: (vie
         onClose={() => onNavigate("agents")}
         onManage={onNavigate}
         onLive={() => onNavigate("agents")}
+        onChanged={() => {
+          loadRuns();
+          loadCatalog();
+        }}
       />
     </div>
   );

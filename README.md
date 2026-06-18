@@ -6,19 +6,17 @@
 > extends via in-process or out-of-process plugins.
 > **Autonomous, under your authority.**
 
-**Status:** **v1.0.0 — Scale: "One Agezt across many nodes"** (June 2026). The
-v0.1.0 MVP — a usable Jarvis (real providers proven end-to-end, sandboxed tools,
-Telegram, Pulse, the memory / world-model / skills / reflection cognitive loop,
-and a React Web UI, all journaled, content-addressed, and reversible) — now fused with
-a **federated mesh** and **multi-tenant isolation** (ROADMAP M8). Any **OpenAI
-client or IDE** can drive it (OpenAI **chat + responses** APIs, an **ACP** server,
-and a **native REST** `/api/v1`); it drives **external ACP agents** and **peer
-Agezt nodes** back — with capability-aware **auto-routing**, **failover**, and a
-bounded delegation **loop guard** — and now each **tenant federates to its own
-peer set**; events push out via **HMAC-signed webhooks**. See
-[CHANGELOG.md](CHANGELOG.md).
-**Tests:** 2607 passing across 83 packages (+ 28 Web UI unit/component tests via
-Vitest and a Playwright browser E2E that drives the embedded SPA against a live daemon).
+**Status:** active pre-release / Jarvis hardening tree (June 2026). This is a
+running Go daemon + CLI + embedded React Web UI, not only a design suite: durable
+agents, typed schedules, workflows, memory/world/skills, provider/catalog
+plumbing, policy, audit, and recovery surfaces are implemented and being tightened
+against the full autonomous-Jarvis acceptance bar. Any **OpenAI client or IDE**
+can drive it through the OpenAI-compatible/API surfaces where configured; peer,
+channel, and marketplace surfaces remain capability- and environment-dependent.
+See [CHANGELOG.md](CHANGELOG.md).
+**Recent local gates:** `go test ./...`, frontend `npm test` (121 files / 1052
+tests), `npm run build`, and Playwright browser E2E against the embedded SPA and a
+live demo daemon.
 **Dependencies:** one (`lukechampine.com/blake3`) + one transitive.
 
 ## What you get
@@ -39,7 +37,8 @@ agt budget                                                     — spend vs dail
 agt cache                                                      — prompt-cache savings (tokens from cache + $ saved)
 agt tool list                                                  — in-process tools the model sees
 agt peers [--json]                                             — list peer nodes + check their REST health
-agt schedule add "<intent>" --every 1h | --at 09:30            — recurring/daily autonomous intent (list/rm/run/pause/resume)
+agt schedule add "<agent task|label>" --every 1h | --at 09:30  — typed cron jobs: agent/workflow/system-task/tool
+agt schedule add --system-task catalog_sync --every 24h        — sync models.dev/api.json without waking an agent
 agt tenant create <id> / list / token <id> / rm <id>           — manage isolated tenants + reveal per-tenant token (daemon AGEZT_MULTITENANT=on)
 agt run "<intent>" --tenant <id>  ·  HTTP: X-Agezt-Tenant: <id> — route a run to a tenant's kernel (REST/OpenAI APIs + agt acp --tenant; auth with that tenant's token; isolated journal)
 agt plugin list                                                — external plugins loaded
@@ -211,30 +210,33 @@ auth, multi-tenant aware — in **Python** (`pip install agezt`; sync `Client` +
 binary, prints the public URL, and tears it down on exit — opt-in, so nothing is
 public unless you ask.
 
-**Let it act on its own schedule.** The daemon runs intents on a recurring timer
-through the same governed loop — the timer companion to Pulse's event-driven
-proactivity. Manage schedules live with `agt schedule` (persisted across
-restarts, reversible), or seed them at startup with `AGEZT_SCHEDULE`
-(`;`-separated `interval=intent` jobs). Every firing is journaled
-(`schedule.fired`), so `agt why` links what the system did on its own back to the
-run:
+**Let schedules wake work without becoming prompts.** The daemon treats schedules
+as typed cron/event triggers: wake an agent, run a workflow, invoke a system task,
+or call an approved tool. Agents keep their own identity, memory, task list,
+skills, model/provider settings, retry policy, mailbox, and lifecycle state;
+the schedule only says what to wake, when, and under which cadence. Manage
+schedules live with `agt schedule` (persisted across restarts, reversible). Every
+firing is journaled (`schedule.fired`), so `agt why` links autonomous work back to
+the trigger:
 
 ```bash
-agt schedule add "summarise new commits and brief me" --every 1h
-agt schedule add "morning brief: overnight events + today's plan" --at 09:30
-agt schedule add "standup nudge" --at 09:30 --days mon-fri   # weekdays only
-agt schedule add "weekend digest" --at 11:00 --days weekends
-agt schedule add "poll queue" --every 15m --between 09:00-17:00 --days mon-fri  # windowed interval
-agt schedule add "ny standup" --at 09:00 --days mon-fri --tz America/New_York   # wall-clock in any IANA zone
-agt schedule add "remind me to push" --in 30m                # one-shot, then self-removes
-agt schedule add "deploy recap" --once --at 18:00            # one-shot at a wall-clock time
-agt schedule edit <id> --intent "..." --at 10:00 --days mon-fri  # change in place (id preserved)
+agt schedule add "cycle inbox and brief me" --agent daily-brief --every 2h     # wake an agent; its soul/tasks decide work
+agt schedule add --workflow repo-digest --at 09:30           # run a reusable chain
+agt schedule add --system-task catalog_sync --every 24h      # sync models.dev/api.json without waking an agent
+agt schedule add --tool log_cleanup --every 6h               # invoke an approved internal tool
+agt schedule add "standup nudge" --agent standup --at 09:30 --days mon-fri     # weekdays only
+agt schedule add "weekend digest" --agent digest --at 11:00 --days weekends
+agt schedule add "poll queue" --agent queue-watcher --every 15m --between 09:00-17:00 --days mon-fri  # windowed interval
+agt schedule add "ny standup" --agent ny-standup --at 09:00 --days mon-fri --tz America/New_York      # wall-clock in any IANA zone
+agt schedule add "release check" --agent release-check --in 30m                # one-shot, then self-removes
+agt schedule add --workflow deploy-recap --once --at 18:00   # one-shot at a wall-clock time
+agt schedule edit <id> --at 10:00 --days mon-fri             # change cadence in place (id preserved)
 agt schedule list            # id, cadence, source, next run
 agt schedule run <id>        # fire now (next tick)
 agt schedule pause <id>      # disable without deleting (resume re-enables)
 agt schedule rm <id>         # reversible
 # or seed at startup:
-AGEZT_SCHEDULE='24h=audit the repo for secrets' ./bin/agezt
+AGEZT_SCHEDULE='24h=security auditor cycle' ./bin/agezt  # legacy interval=agent-task seed
 ```
 
 For the full operator cheat sheet: `agt help`.  Day-to-day commands:
@@ -317,9 +319,10 @@ The v1 substrate. Highlights:
 - `web_search` — keyword search against a keyless public engine (DuckDuckGo);
   returns `{title, url, snippet}` so the agent can DISCOVER a URL, then read it
   with `http`/`browser.read`. SSRF-guarded, fail-soft
-- `schedule` — the agent arranges its OWN future runs in the cadence store
-  (once after a delay / recurring / daily); a scheduled intent fires later
-  through the full governed loop. Tagged `source=agent` for operator visibility
+- `schedule` — the agent arranges typed future wakes in the cadence store
+  (once after a delay / recurring / daily / continuous); a schedule later wakes
+  an agent, workflow, system task, or approved tool. Tagged `source=agent` for
+  operator visibility
 - `delegate` — spawn a bounded sub-agent for a focused subtask (multi-agent
   fan-out); depth- AND tree-total-bounded, individually steerable, journaled,
   each sub-action gated through Edict

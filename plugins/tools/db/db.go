@@ -78,6 +78,16 @@ func (t *Tool) Definition() agent.ToolDef {
     "limit":      {"type":"integer", "description":"query: max records (default 50)."}
   }
 }`),
+		Effect: agent.ToolEffect{
+			Class: agent.EffectCompensable,
+			PredictedEffects: []string{
+				"Read data lake schemas and records for list/get/query operations.",
+				"Create or drop collections and insert, update, or delete structured records for mutating operations.",
+			},
+			AffectedResources: []string{"Personal Data Lake collections", "shared structured records visible to agents and the human"},
+			RollbackNotes:     "Reads need no rollback; compensate mutations by recreating dropped collections, deleting inserted records, or writing corrective updates from journal/provenance.",
+			Confidence:        0.75,
+		},
 	}
 }
 
@@ -109,12 +119,10 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, e
 	if t.lake == nil {
 		return errResult("data lake unavailable"), nil
 	}
-	// Provenance: attribute the mutation to the run that caused it (which maps to
-	// an agent via the journal). Falls back to a generic tag in a direct unit test.
-	actor := agent.CorrelationFromContext(ctx)
-	if actor == "" {
-		actor = "agent"
-	}
+	// Provenance: stamp both the acting durable agent and the run correlation
+	// when available, so Data Lake rows answer "which agent wrote this?" without
+	// requiring a journal lookup.
+	actor := dataLakeActor(ctx)
 
 	switch strings.ToLower(strings.TrimSpace(in.Op)) {
 	case "list_collections":
@@ -135,6 +143,21 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, e
 		return t.query(in)
 	default:
 		return errResult("op must be one of list_collections, create_collection, drop_collection, insert, get, update, delete, query"), nil
+	}
+}
+
+func dataLakeActor(ctx context.Context) string {
+	agentSlug := strings.TrimSpace(agent.AgentFromContext(ctx))
+	corr := strings.TrimSpace(agent.CorrelationFromContext(ctx))
+	switch {
+	case agentSlug != "" && corr != "":
+		return agentSlug + ":" + corr
+	case agentSlug != "":
+		return agentSlug
+	case corr != "":
+		return corr
+	default:
+		return "agent"
 	}
 }
 

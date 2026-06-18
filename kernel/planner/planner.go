@@ -44,6 +44,7 @@ import (
 
 	"github.com/agezt/agezt/internal/strutil"
 	"github.com/agezt/agezt/kernel/agent"
+	intentmodel "github.com/agezt/agezt/kernel/intent"
 )
 
 // TaskType is the per-task-type routing hint (M1.cc) the planner
@@ -55,7 +56,12 @@ const TaskType = "plan"
 // SystemPrompt is the instruction we send to the LLM. Kept as an
 // exported var so operators can override it (e.g. to nudge the
 // planner toward more gates, or to inject domain-specific rules).
-var SystemPrompt = `You are a planner. Convert the user's intent into a JSON execution plan.
+var SystemPrompt = `You are a planner. Convert the supplied INTENT_FRAME into a JSON execution plan.
+
+You do not receive the user's raw utterance. Treat the INTENT_FRAME as the only
+authority for what the user meant. If the frame is underdetermined or contains a
+harmful_reading, preserve that uncertainty with a targeted "gate" node before
+any irreversible or high-blast-radius action.
 
 OUTPUT FORMAT — return EXACTLY one JSON object inside a fenced code block:
 
@@ -80,7 +86,9 @@ RULES:
 3. No cycles. Every id in "deps" must exist as another node's id.
 4. If the intent is a single self-contained task, return a 1-node plan.
 5. Use snake_case for node ids. Use a verb-noun shape: "research_topic", "draft_summary".
-6. Do NOT include commentary, explanation, or text outside the fenced code block.
+6. If ambiguity_score >= 0.6 or underdetermined=true, add a gate before mutation/destructive execution.
+7. Gate descriptions must name the ambiguous scope and the plausible harmful interpretation.
+8. Do NOT include commentary, explanation, or text outside the fenced code block.
 
 `
 
@@ -114,11 +122,22 @@ const DefaultMaxTokens = 2048
 // raw and parsed forms saves the caller a re-marshal when piping
 // the JSON to the scheduler's handlePlan over the wire.
 func Generate(ctx context.Context, cfg Config, intent string) (rawJSON string, plan Plan, err error) {
+	if strings.TrimSpace(intent) == "" {
+		return "", Plan{}, errors.New("planner: intent required")
+	}
+	return GenerateFromIntent(ctx, cfg, intentmodel.Interpret(intent))
+}
+
+// GenerateFromIntent asks the provider for a plan from a formal intent frame,
+// not the raw user utterance. This is the planner-side interpreter/executor
+// boundary: the LLM planner receives explicit ambiguity and harmful-reading
+// metadata instead of silently collapsing the user's words into one reading.
+func GenerateFromIntent(ctx context.Context, cfg Config, frame intentmodel.Frame) (rawJSON string, plan Plan, err error) {
 	if cfg.Provider == nil {
 		return "", Plan{}, errors.New("planner: Provider required")
 	}
-	if strings.TrimSpace(intent) == "" {
-		return "", Plan{}, errors.New("planner: intent required")
+	if strings.TrimSpace(frame.CanonicalIntent) == "" {
+		return "", Plan{}, errors.New("planner: intent frame required")
 	}
 	maxTok := cfg.MaxTokens
 	if maxTok <= 0 {
@@ -128,13 +147,17 @@ func Generate(ctx context.Context, cfg Config, intent string) (rawJSON string, p
 	if strings.TrimSpace(sys) == "" {
 		sys = SystemPrompt
 	}
+	intentFrame, err := marshalIntentFrame(frame)
+	if err != nil {
+		return "", Plan{}, err
+	}
 
 	req := agent.CompletionRequest{
 		System:    sys,
 		Model:     cfg.Model,
 		MaxTokens: maxTok,
 		Messages: []agent.Message{
-			{Role: agent.RoleUser, Content: intent},
+			{Role: agent.RoleUser, Content: intentFrame},
 		},
 		// Hint the Governor's per-task-type routing (M1.cc): operators
 		// can pin planner LLM calls to a specific provider via
@@ -169,7 +192,24 @@ func Generate(ctx context.Context, cfg Config, intent string) (rawJSON string, p
 	if err != nil {
 		return rawJSON, Plan{}, fmt.Errorf("planner: %w", err)
 	}
+	if err := validateIntentBoundary(frame, plan); err != nil {
+		return rawJSON, Plan{}, fmt.Errorf("planner: %w", err)
+	}
+	plan.Intent = &frame
+	raw, err := json.MarshalIndent(plan, "", "  ")
+	if err != nil {
+		return rawJSON, Plan{}, fmt.Errorf("planner: marshal plan with intent metadata: %w", err)
+	}
+	rawJSON = string(raw)
 	return rawJSON, plan, nil
+}
+
+func marshalIntentFrame(frame intentmodel.Frame) (string, error) {
+	raw, err := json.MarshalIndent(frame, "", "  ")
+	if err != nil {
+		return "", fmt.Errorf("planner: marshal intent frame: %w", err)
+	}
+	return "INTENT_FRAME:\n" + string(raw), nil
 }
 
 // Plan mirrors the JSON shape the scheduler's control-plane handler
@@ -177,9 +217,10 @@ func Generate(ctx context.Context, cfg Config, intent string) (rawJSON string, p
 // here as a public type so callers (CLI, library users) have a
 // concrete type to inspect without importing controlplane internals.
 type Plan struct {
-	Name        string `json:"name,omitempty"`
-	MaxParallel int    `json:"max_parallel,omitempty"`
-	Nodes       []Node `json:"nodes"`
+	Name        string             `json:"name,omitempty"`
+	MaxParallel int                `json:"max_parallel,omitempty"`
+	Intent      *intentmodel.Frame `json:"intent,omitempty"`
+	Nodes       []Node             `json:"nodes"`
 }
 
 // Node is one planner-emitted node. Fields are a union over
@@ -348,6 +389,54 @@ func validateDAG(nodes []Node, ids map[string]struct{}) error {
 		return fmt.Errorf("plan has a cycle (processed %d of %d nodes via topological walk)", processed, len(nodes))
 	}
 	return nil
+}
+
+func validateIntentBoundary(frame intentmodel.Frame, plan Plan) error {
+	if !frame.Underdetermined || frame.AmbiguityScore < 0.6 {
+		return nil
+	}
+	nodes := make(map[string]Node, len(plan.Nodes))
+	for _, n := range plan.Nodes {
+		nodes[n.ID] = n
+	}
+	for _, n := range plan.Nodes {
+		if n.Kind != "loop" {
+			continue
+		}
+		axes := intentmodel.RegretForAction(intentmodel.Action{
+			ToolName:    "planner.loop",
+			Capability:  "plan.loop",
+			EffectClass: "read_only",
+			Input:       n.Intent,
+		})
+		if !intentmodel.RequiresConfirmation(frame, axes) {
+			continue
+		}
+		if !hasGateDependency(n, nodes, map[string]bool{}) {
+			return fmt.Errorf("underdetermined intent requires a gate before high-regret loop node %q", n.ID)
+		}
+	}
+	return nil
+}
+
+func hasGateDependency(n Node, nodes map[string]Node, seen map[string]bool) bool {
+	for _, depID := range n.Deps {
+		if seen[depID] {
+			continue
+		}
+		seen[depID] = true
+		dep, ok := nodes[depID]
+		if !ok {
+			continue
+		}
+		if dep.Kind == "gate" {
+			return true
+		}
+		if hasGateDependency(dep, nodes, seen) {
+			return true
+		}
+	}
+	return false
 }
 
 // snippet returns the first ~200 chars of s for error messages.

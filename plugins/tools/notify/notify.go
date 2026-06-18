@@ -98,6 +98,16 @@ func (t *Tool) Definition() agent.ToolDef {
 			"(" + avail + ") — e.g. progress on a long task, or an alert. " +
 			"The message goes ONLY to the operator's pre-configured chats; you cannot choose arbitrary " +
 			"recipients. Use sparingly, for things worth interrupting for.",
+		Effect: agent.ToolEffect{
+			Class: agent.EffectCompensable,
+			PredictedEffects: []string{
+				"send an outbound message to the operator's configured channel allowlist",
+				"may interrupt or notify the operator outside the current run UI",
+			},
+			AffectedResources: []string{"operator notification channels: " + avail},
+			RollbackNotes:     "Sent messages cannot be unsent by the daemon; compensate with a correction/follow-up message if needed.",
+			Confidence:        0.8,
+		},
 		InputSchema: json.RawMessage(`{
   "type": "object",
   "properties": {
@@ -108,6 +118,11 @@ func (t *Tool) Definition() agent.ToolDef {
     "channel": {
       "type": "string",
       "description": "Optional: restrict delivery to one channel kind (telegram|slack|discord). Omit to send to all configured channels."
+    },
+    "severity": {
+      "type": "string",
+      "enum": ["info", "warning", "critical"],
+      "description": "How interrupt-worthy this notification is. Use info for routine progress, warning for problems or changes made, critical for urgent human action."
     }
   },
   "required": ["text"]
@@ -122,8 +137,9 @@ func (t *Tool) Invoke(ctx context.Context, input json.RawMessage) (agent.Result,
 	}
 
 	var in struct {
-		Text    string `json:"text"`
-		Channel string `json:"channel"`
+		Text     string `json:"text"`
+		Channel  string `json:"channel"`
+		Severity string `json:"severity"`
 	}
 	if err := json.Unmarshal(input, &in); err != nil {
 		return agent.Result{Output: "invalid input: " + err.Error(), IsError: true}, nil

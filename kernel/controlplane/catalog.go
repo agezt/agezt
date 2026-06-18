@@ -118,13 +118,16 @@ func (s *Server) handleCatalogList(conn net.Conn, req Request) {
 		for _, id := range ids {
 			m := p.Models[id]
 			entry := map[string]any{
-				"id":        m.ID,
-				"name":      m.Name,
-				"family":    m.Family,
-				"tool_call": m.ToolCall,
-				"reasoning": m.Reasoning,
-				"context":   m.Limit.Context,
-				"output":    m.Limit.Output,
+				"id":                           m.ID,
+				"name":                         m.Name,
+				"family":                       m.Family,
+				"tool_call":                    m.ToolCall,
+				"strict_tool_args":             m.SupportsStrictToolArgs(),
+				"schema_constrained_decoding":  m.SchemaConstrainedDecoding,
+				"grammar_constrained_decoding": m.GrammarConstrainedDecoding,
+				"reasoning":                    m.Reasoning,
+				"context":                      m.Limit.Context,
+				"output":                       m.Limit.Output,
 			}
 			if m.Cost != nil {
 				entry["cost_input_usd_per_mtok"] = m.Cost.Input

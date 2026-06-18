@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/acp"
+	"github.com/agezt/agezt/kernel/acpcatalog"
 	"github.com/agezt/agezt/kernel/agent"
 )
 
@@ -65,10 +66,13 @@ type Tool struct {
 	dial dialFunc
 }
 
-// New builds an ACP-agent bridge Tool. cmd launches the external ACP agent; cwd
-// is the session working directory. Returns nil when cmd is empty (disabled).
+// New builds an ACP-agent bridge Tool. cmd is the DEFAULT external ACP agent
+// command (used when a call doesn't name an agent); cwd is the session working
+// directory. cmd may be empty when at least one catalog agent is installed — a
+// call then selects an agent by slug. Returns nil only when there is neither a
+// default command nor any installed catalog agent (nothing to delegate to).
 func New(cmd, cwd string) *Tool {
-	if strings.TrimSpace(cmd) == "" {
+	if strings.TrimSpace(cmd) == "" && !acpcatalog.AnyInstalled() {
 		return nil
 	}
 	return &Tool{Cmd: cmd, Cwd: cwd, dial: spawnAgent}
@@ -80,23 +84,40 @@ func (t *Tool) Definition() agent.ToolDef {
 		Description: "Delegate a task to an EXTERNAL agent that speaks the Agent Client Protocol " +
 			"(Claude Code, Codex, Gemini CLI, …) and return its answer. The external agent runs in " +
 			"its own sandbox with the workspace as its working directory; use it to hand off work to " +
-			"a specialised agent. The result is what that agent reports back.",
+			"a specialised agent. Optionally pick which installed ACP agent to use with `agent` " +
+			"(a catalog slug like \"gemini\", \"claude-code\", or \"codex\"); omit it to use the " +
+			"configured default. The result is what that agent reports back.",
 		InputSchema: json.RawMessage(`{
   "type": "object",
   "properties": {
     "task": {
       "type": "string",
       "description": "The complete, self-contained instruction for the external agent."
+    },
+    "agent": {
+      "type": "string",
+      "description": "Optional: which installed ACP agent to delegate to (catalog slug, e.g. \"gemini\", \"claude-code\", \"codex\"). Omit to use the configured default."
     }
   },
   "required": ["task"]
 }`),
+		Effect: agent.ToolEffect{
+			Class: agent.EffectCompensable,
+			PredictedEffects: []string{
+				"Spawn an operator-configured external ACP agent process.",
+				"Delegate a task to that agent in the workspace and relay its answer back into this run.",
+			},
+			AffectedResources: []string{"external ACP agent process", "workspace visible to ACP session", "any sandbox or tools owned by the external agent"},
+			RollbackNotes:     "The bridge tears down the ACP process, but side effects performed by the external agent require that agent's own rollback or manual cleanup.",
+			Confidence:        0.55,
+		},
 	}
 }
 
 func (t *Tool) Invoke(ctx context.Context, input json.RawMessage) (agent.Result, error) {
 	var in struct {
-		Task string `json:"task"`
+		Task  string `json:"task"`
+		Agent string `json:"agent"`
 	}
 	if err := json.Unmarshal(input, &in); err != nil {
 		return agent.Result{Output: "invalid input: " + err.Error(), IsError: true}, nil
@@ -105,8 +126,18 @@ func (t *Tool) Invoke(ctx context.Context, input json.RawMessage) (agent.Result,
 	if task == "" {
 		return agent.Result{Output: "task is required", IsError: true}, nil
 	}
-	if strings.TrimSpace(t.Cmd) == "" {
-		return agent.Result{Output: "ACP agent not configured (set AGEZT_ACP_AGENT_CMD)", IsError: true}, nil
+	// Resolve which ACP agent to drive: an explicit `agent` slug (must be
+	// installed) wins; otherwise the configured default command (t.Cmd).
+	cmd, ok := acpcatalog.ResolveCommand(in.Agent, t.Cmd)
+	if !ok {
+		installed := acpcatalog.InstalledSlugs()
+		hint := "set AGEZT_ACP_AGENT_CMD or install an ACP agent"
+		if len(installed) > 0 {
+			hint = "available installed agents: " + strings.Join(installed, ", ")
+		} else if strings.TrimSpace(in.Agent) != "" {
+			hint = "agent \"" + strings.TrimSpace(in.Agent) + "\" is not installed; " + hint
+		}
+		return agent.Result{Output: "no ACP agent to delegate to (" + hint + ")", IsError: true}, nil
 	}
 
 	to := t.Timeout
@@ -116,7 +147,7 @@ func (t *Tool) Invoke(ctx context.Context, input json.RawMessage) (agent.Result,
 	ctx, cancel := context.WithTimeout(ctx, to)
 	defer cancel()
 
-	tr, err := t.dial(ctx, t.Cmd, t.Cwd)
+	tr, err := t.dial(ctx, cmd, t.Cwd)
 	if err != nil {
 		return agent.Result{Output: "spawn ACP agent failed: " + err.Error(), IsError: true}, nil
 	}

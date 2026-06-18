@@ -222,9 +222,7 @@ func forgedToolName(name string) string { return "forge_" + name }
 // a permissive object — the whole call input reaches the script as JSON.
 const defaultForgedSchema = `{
   "type": "object",
-  "properties": {
-    "input": {"type": "string", "description": "Free-form input for the script."}
-  }
+  "additionalProperties": true
 }`
 
 // forgedTool adapts one ACTIVE script-tool record to agent.Tool: the call's
@@ -247,6 +245,15 @@ func (t forgedTool) Definition() agent.ToolDef {
 		Name:        forgedToolName(t.st.Name),
 		Description: desc,
 		InputSchema: json.RawMessage(schema),
+		Effect: agent.ToolEffect{
+			Class: agent.EffectCompensable,
+			PredictedEffects: []string{
+				"Execute a promoted agent-authored script inside the configured sandbox.",
+			},
+			AffectedResources: []string{"code-exec sandbox", "script tool " + t.st.Name},
+			RollbackNotes:     "Sandbox scratch output is disposable; any persistent or external effect depends on the sandbox profile and must be compensated manually.",
+			Confidence:        0.6,
+		},
 	}
 }
 

@@ -7,13 +7,13 @@ describe("configSummary", () => {
   it("summarises a populated config", () => {
     expect(
       configSummary({ persona: "be terse", prompts: [{}, {}], chains: { chat: ["a"], code: ["b"] } }),
-    ).toBe("persona set · 2 prompts · 2 routing chains");
+    ).toBe("default identity set · 2 prompt templates · 2 routing chains");
   });
 
   it("reports the empty state and singular nouns", () => {
     expect(configSummary({ persona: "  ", prompts: [{}], chains: { chat: ["a"] } })).toBe(
-      "no persona · 1 prompt · 1 routing chain",
+      "no default identity · 1 prompt template · 1 routing chain",
     );
-    expect(configSummary({ persona: "", prompts: [], chains: {} })).toBe("no persona · 0 prompts · 0 routing chains");
+    expect(configSummary({ persona: "", prompts: [], chains: {} })).toBe("no default identity · 0 prompt templates · 0 routing chains");
   });
 });

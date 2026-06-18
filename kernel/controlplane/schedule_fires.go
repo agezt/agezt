@@ -17,6 +17,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/agezt/agezt/kernel/cadence"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/runtime"
 )
@@ -45,7 +46,7 @@ func (s *Server) latestFiringBySchedule(k *runtime.Kernel) (map[string]scheduleL
 		if e.Kind != event.KindScheduleFired {
 			return nil
 		}
-		id, _, _ := extractScheduleFired(e.Payload)
+		id := extractScheduleFired(e.Payload).ScheduleID
 		if id == "" {
 			return nil
 		}
@@ -118,19 +119,26 @@ func (s *Server) handleScheduleFires(conn net.Conn, req Request) {
 
 	type fired struct {
 		corr, schedID, intent, model string
+		target, agent                string
+		workflow, systemTask, tool   string
+		executor, category           string
+		effectClass                  string
+		autonomyRunbook              map[string]any
+		usesLLM                      bool
+		action                       string
 		firedMS, seq                 int64
 	}
 	fires := make([]fired, 0)
 	if err := k.Journal().Range(func(e *event.Event) error {
 		if e.Kind == event.KindScheduleFired {
-			schedID, intent, model := extractScheduleFired(e.Payload)
-			if idFilter != "" && schedID != idFilter {
+			sf := extractScheduleFired(e.Payload)
+			if idFilter != "" && sf.ScheduleID != idFilter {
 				return nil // M55: filtered to a single schedule
 			}
 			if cutoff > 0 && e.TSUnixMS < cutoff {
 				return nil // M65: outside the time window
 			}
-			if intentQuery != "" && !strings.Contains(strings.ToLower(intent), intentQuery) {
+			if intentQuery != "" && !strings.Contains(strings.ToLower(sf.Intent), intentQuery) {
 				return nil // M80: intent substring filter
 			}
 			if statusFilter != "" {
@@ -144,7 +152,25 @@ func (s *Server) handleScheduleFires(conn net.Conn, req Request) {
 					return nil
 				}
 			}
-			fires = append(fires, fired{e.CorrelationID, schedID, intent, model, e.TSUnixMS, e.Seq})
+			fires = append(fires, fired{
+				corr:            e.CorrelationID,
+				schedID:         sf.ScheduleID,
+				intent:          sf.Intent,
+				model:           sf.Model,
+				target:          sf.Target,
+				agent:           sf.Agent,
+				workflow:        sf.Workflow,
+				systemTask:      sf.SystemTask,
+				tool:            sf.Tool,
+				executor:        scheduleFiredExecutor(sf),
+				category:        scheduleFiredCategory(sf),
+				effectClass:     scheduleFiredEffectClass(sf),
+				autonomyRunbook: sf.AutonomyRunbook,
+				usesLLM:         scheduleFiredUsesLLM(sf),
+				action:          scheduleFiredAction(sf),
+				firedMS:         e.TSUnixMS,
+				seq:             e.Seq,
+			})
 		}
 		return nil
 	}); err != nil {
@@ -190,18 +216,32 @@ func (s *Server) handleScheduleFires(conn net.Conn, req Request) {
 			spent = r.SpentMicrocents
 			preview = r.AnswerPreview
 		}
-		out = append(out, map[string]any{
+		row := map[string]any{
 			"correlation_id": f.corr,
 			"schedule_id":    f.schedID, // M55: which schedule fired ("" for pre-M55 firings)
 			"fired_unix_ms":  f.firedMS,
 			"intent":         f.intent,
 			"model":          f.model,
+			"target":         f.target,
+			"agent":          f.agent,
+			"workflow":       f.workflow,
+			"system_task":    f.systemTask,
+			"tool":           f.tool,
+			"executor":       f.executor,
+			"category":       f.category,
+			"effect_class":   f.effectClass,
+			"uses_llm":       f.usesLLM,
+			"action":         f.action,
 			"status":         status,
 			"reason":         reason,
 			"duration_ms":    duration,
 			"spent_mc":       spent,
 			"answer_preview": preview,
-		})
+		}
+		if len(f.autonomyRunbook) > 0 {
+			row["autonomy_runbook"] = f.autonomyRunbook
+		}
+		out = append(out, row)
 	}
 
 	s.writeResp(conn, Response{
@@ -211,23 +251,119 @@ func (s *Server) handleScheduleFires(conn net.Conn, req Request) {
 	})
 }
 
+type scheduleFiredPayload struct {
+	ScheduleID      string         `json:"schedule_id"`
+	Intent          string         `json:"intent"`
+	Model           string         `json:"model"`
+	Target          string         `json:"target"`
+	Agent           string         `json:"agent"`
+	Workflow        string         `json:"workflow"`
+	SystemTask      string         `json:"system_task"`
+	Tool            string         `json:"tool"`
+	Executor        string         `json:"executor"`
+	Category        string         `json:"category"`
+	EffectClass     string         `json:"effect_class"`
+	UsesLLM         *bool          `json:"uses_llm"`
+	AutonomyRunbook map[string]any `json:"autonomy_runbook"`
+}
+
 // extractScheduleFired pulls schedule_id + intent + model out of a
 // schedule.fired payload (M54; schedule_id added M55). Returns zero values on
 // parse failure so a malformed firing still lists with its correlation and
 // outcome. schedule_id is "" for firings journaled before M55.
-func extractScheduleFired(payload json.RawMessage) (id, intent, model string) {
+func extractScheduleFired(payload json.RawMessage) scheduleFiredPayload {
 	if len(payload) == 0 {
-		return "", "", ""
+		return scheduleFiredPayload{}
 	}
-	var p struct {
-		ScheduleID string `json:"schedule_id"`
-		Intent     string `json:"intent"`
-		Model      string `json:"model"`
-	}
+	var p scheduleFiredPayload
 	if err := json.Unmarshal(payload, &p); err != nil {
-		return "", "", ""
+		return scheduleFiredPayload{}
 	}
-	return p.ScheduleID, p.Intent, p.Model
+	return p
+}
+
+func scheduleFiredSystemTaskInfo(name string) (cadence.SystemTaskInfo, bool) {
+	name = strings.TrimSpace(name)
+	for _, info := range cadence.SystemTaskInfos() {
+		if info.Name == name {
+			return info, true
+		}
+	}
+	return cadence.SystemTaskInfo{}, false
+}
+
+func scheduleFiredExecutor(p scheduleFiredPayload) string {
+	if strings.TrimSpace(p.Executor) != "" {
+		return strings.TrimSpace(p.Executor)
+	}
+	if p.Target == cadence.TargetSystemTask {
+		if info, ok := scheduleFiredSystemTaskInfo(p.SystemTask); ok && strings.TrimSpace(info.Executor) != "" {
+			return info.Executor
+		}
+		return "daemon"
+	}
+	if p.Target == cadence.TargetWorkflow {
+		return "workflow"
+	}
+	if p.Target == cadence.TargetTool {
+		return "tool"
+	}
+	return "agent"
+}
+
+func scheduleFiredCategory(p scheduleFiredPayload) string {
+	if strings.TrimSpace(p.Category) != "" {
+		return strings.TrimSpace(p.Category)
+	}
+	if p.Target == cadence.TargetSystemTask {
+		if info, ok := scheduleFiredSystemTaskInfo(p.SystemTask); ok {
+			return strings.TrimSpace(info.Category)
+		}
+	}
+	return ""
+}
+
+func scheduleFiredEffectClass(p scheduleFiredPayload) string {
+	if strings.TrimSpace(p.EffectClass) != "" {
+		return strings.TrimSpace(p.EffectClass)
+	}
+	if p.Target == cadence.TargetSystemTask {
+		if info, ok := scheduleFiredSystemTaskInfo(p.SystemTask); ok {
+			return strings.TrimSpace(info.EffectClass)
+		}
+	}
+	return ""
+}
+
+func scheduleFiredUsesLLM(p scheduleFiredPayload) bool {
+	if p.UsesLLM != nil {
+		return *p.UsesLLM
+	}
+	return p.Target == "" || p.Target == cadence.TargetWorkflow
+}
+
+func scheduleFiredAction(p scheduleFiredPayload) string {
+	switch p.Target {
+	case cadence.TargetWorkflow:
+		if p.Workflow != "" {
+			return "run workflow " + p.Workflow
+		}
+	case cadence.TargetSystemTask:
+		if p.SystemTask != "" {
+			return "run system task " + p.SystemTask
+		}
+	case cadence.TargetTool:
+		if p.Tool != "" {
+			return "run tool " + p.Tool
+		}
+	}
+	if p.Agent != "" && p.Intent != "" {
+		return "wake " + p.Agent + ": " + p.Intent
+	}
+	if p.Intent != "" {
+		return p.Intent
+	}
+	return p.ScheduleID
 }
 
 // handleScheduleStats aggregates scheduled-run firings (M57) — the autonomy
@@ -270,7 +406,7 @@ func (s *Server) handleScheduleStats(conn net.Conn, req Request) {
 		if e.Kind != event.KindScheduleFired {
 			return nil
 		}
-		id, _, _ := extractScheduleFired(e.Payload)
+		id := extractScheduleFired(e.Payload).ScheduleID
 		if idFilter != "" && id != idFilter {
 			return nil
 		}

@@ -13,6 +13,11 @@ import (
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
 
+type boardNotification struct {
+	Message board.Message
+	Corr    string
+}
+
 // TestBoardWrite_SendInboxAckReplies drives the M937 mailbox commands end to
 // end over the control plane: an external sender DMs an agent, the inbox shows
 // it, a reply threads back, ack clears a broadcast, and the notifier fires for
@@ -24,8 +29,10 @@ func TestBoardWrite_SendInboxAckReplies(t *testing.T) {
 	if err != nil {
 		t.Fatalf("board.Open: %v", err)
 	}
-	var notified []board.Message
-	srv.SetBoard(st, func(m board.Message, _ string) { notified = append(notified, m) })
+	var notified []boardNotification
+	srv.SetBoard(st, func(m board.Message, corr string) {
+		notified = append(notified, boardNotification{Message: m, Corr: corr})
+	})
 
 	ctx := context.Background()
 
@@ -83,6 +90,14 @@ func TestBoardWrite_SendInboxAckReplies(t *testing.T) {
 	if _, err := c.Call(ctx, controlplane.CmdBoardAck, map[string]any{"id": bcID, "by": "researcher"}); err != nil {
 		t.Fatalf("board_ack: %v", err)
 	}
+	res, err = c.Call(ctx, controlplane.CmdBoardGet, map[string]any{"id": bcID})
+	if err != nil {
+		t.Fatalf("board_get acked broadcast: %v", err)
+	}
+	acked := res["message"].(map[string]any)["acked_by"].([]any)
+	if len(acked) != 1 || acked[0] != "researcher" {
+		t.Fatalf("acked_by view wrong: %+v", res["message"])
+	}
 	res, _ = c.Call(ctx, controlplane.CmdBoardInbox, map[string]any{"to": "researcher"})
 	if res["count"].(float64) != 0 {
 		t.Fatalf("acked broadcast should leave researcher's inbox: %v", res["count"])
@@ -94,7 +109,7 @@ func TestBoardWrite_SendInboxAckReplies(t *testing.T) {
 
 	// Topic post is readable via the existing board_read.
 	if _, err := c.Call(ctx, controlplane.CmdBoardSend, map[string]any{
-		"from": "myapp", "topic": "status", "text": "shipped"}); err != nil {
+		"from": "myapp", "topic": "status", "text": "shipped", "correlation_id": "sdk-42"}); err != nil {
 		t.Fatalf("topic post: %v", err)
 	}
 	res, err = c.Call(ctx, controlplane.CmdBoardRead, map[string]any{"topic": "status"})
@@ -108,6 +123,12 @@ func TestBoardWrite_SendInboxAckReplies(t *testing.T) {
 	// Every write fired the notifier (DM, reply, broadcast, topic post).
 	if len(notified) != 4 {
 		t.Fatalf("notifier fired %d times, want 4", len(notified))
+	}
+	if got := notified[3].Corr; got != "sdk-42" {
+		t.Fatalf("notifier corr = %q, want sdk-42", got)
+	}
+	if got := notified[3].Message.Topic; got != "status" {
+		t.Fatalf("notified topic = %q, want status", got)
 	}
 
 	// board_get fetches one message by id (M938) — the watcher's body lookup.

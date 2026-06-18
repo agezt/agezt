@@ -57,7 +57,7 @@ func Clusters(rs []Record, threshold float64, minSize int) [][]Record {
 	// different scopes never cluster together.
 	byScope := make(map[string][]Record)
 	for _, r := range rs {
-		if !r.Active() {
+		if !r.Active() || r.Suspended() {
 			continue
 		}
 		scope := ""

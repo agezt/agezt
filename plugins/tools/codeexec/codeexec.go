@@ -144,6 +144,16 @@ func (t *Tool) Definition() agent.ToolDef {
 	return agent.ToolDef{
 		Name:        "code_exec",
 		Description: desc,
+		Effect: agent.ToolEffect{
+			Class: agent.EffectIrreversible,
+			PredictedEffects: []string{
+				"write and execute model-provided code in the sandbox workspace",
+				"may create project files, install packages, consume compute, and contact the network when enabled",
+			},
+			AffectedResources: []string{"sandbox root: " + t.SandboxRoot, "available runtimes: " + strings.Join(langs, ", ")},
+			RollbackNotes:     "Ephemeral scratch runs are discarded after use. Persistent project files/packages must be deleted from the sandbox project or restored from a clean workspace.",
+			Confidence:        0.55,
+		},
 		InputSchema: json.RawMessage(schema),
 	}
 }

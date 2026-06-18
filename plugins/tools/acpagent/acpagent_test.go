@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/agezt/agezt/kernel/acp"
+	"github.com/agezt/agezt/kernel/acpcatalog"
 )
 
 // peerRunner is the fake external ACP agent's brain: it streams chunks and
@@ -111,14 +112,19 @@ func TestACPAgent_EmptyTask(t *testing.T) {
 	}
 }
 
-func TestNew_DisabledWhenNoCmd(t *testing.T) {
-	if New("", "/w") != nil {
-		t.Error("New with empty cmd should return nil (tool disabled)")
-	}
-	if New("  ", "/w") != nil {
-		t.Error("New with blank cmd should return nil")
-	}
+func TestNew_DisabledWhenNoCmdAndNoInstalledAgent(t *testing.T) {
+	// A configured default command always enables the tool.
 	if New("codex acp", "/w") == nil {
 		t.Error("New with a cmd should return a tool")
+	}
+	// With no default command, the tool is enabled iff a catalog agent is
+	// installed on this host (discovery makes it usable without configuration).
+	tool := New("", "/w")
+	if acpcatalog.AnyInstalled() {
+		if tool == nil {
+			t.Error("New with no cmd but an installed agent should return a tool")
+		}
+	} else if tool != nil {
+		t.Error("New with no cmd and no installed agent should return nil (disabled)")
 	}
 }

@@ -42,8 +42,6 @@ const (
 	DefaultBaseURL = "https://generativelanguage.googleapis.com"
 	// APIVersion is the path segment between the base URL and /models.
 	APIVersion = "v1beta"
-	// DefaultModel is what the loop uses when CompletionRequest.Model is empty.
-	DefaultModel = "gemini-1.5-flash"
 	// DefaultTimeout caps a single HTTP request.
 	DefaultTimeout = 5 * time.Minute
 )
@@ -77,7 +75,6 @@ func New(apiKey string) *Provider {
 	return &Provider{
 		APIKey:  apiKey,
 		BaseURL: DefaultBaseURL,
-		Model:   DefaultModel,
 		HTTP:    &http.Client{Timeout: DefaultTimeout},
 	}
 }
@@ -115,6 +112,11 @@ func (p *Provider) Name() string { return "google" }
 // ErrNoAPIKey is returned by Complete when APIKey is empty.
 var ErrNoAPIKey = errors.New("google: API key not set")
 
+// ErrNoModel is returned when a completion request carries no model and the
+// provider has none set. The daemon ships with no default model (owner rule), so
+// the model must come from the request (AGEZT_MODEL / routing / a fallback chain).
+var ErrNoModel = errors.New("google: no model specified (set CompletionRequest.Model, AGEZT_MODEL, or a routing/fallback chain)")
+
 // APIError is returned for non-2xx responses.
 type APIError struct {
 	Status int
@@ -135,7 +137,7 @@ func (p *Provider) Complete(ctx context.Context, req agent.CompletionRequest) (*
 		model = p.Model
 	}
 	if model == "" {
-		model = DefaultModel
+		return nil, ErrNoModel
 	}
 
 	body, err := encodeRequest(req.System, req.Messages, req.Tools, req.MaxTokens, req.JSONMode, p.ThinkingBudget)

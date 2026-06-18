@@ -75,3 +75,29 @@ func TestAck_ClearsInboxPerReaderAndPersists(t *testing.T) {
 		t.Fatalf("writer's broadcast lost on reopen: %d", got)
 	}
 }
+
+func TestBroadcastReplyClearsOnlyReplyingReader(t *testing.T) {
+	dir := t.TempDir()
+	s, err := Open(dir)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+
+	bc, err := s.Broadcast("planner", "who can check staging?", 1000)
+	if err != nil {
+		t.Fatalf("Broadcast: %v", err)
+	}
+	if _, err := s.Send(Message{Topic: "broadcast", From: "researcher", To: "planner", ReplyTo: bc.ID, Text: "I can"}, 1001); err != nil {
+		t.Fatalf("reply: %v", err)
+	}
+
+	if got := s.Inbox("researcher", 0, false); len(got) != 0 {
+		t.Fatalf("replying reader should clear its broadcast inbox: %+v", got)
+	}
+	if got := s.Inbox("writer", 0, false); len(got) != 1 || got[0].ID != bc.ID {
+		t.Fatalf("broadcast should still wait for non-replying readers: %+v", got)
+	}
+	if got := s.Inbox("researcher", 0, true); len(got) != 1 || got[0].ID != bc.ID {
+		t.Fatalf("includeAnswered should keep broadcast history for replying reader: %+v", got)
+	}
+}

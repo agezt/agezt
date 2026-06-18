@@ -1,7 +1,7 @@
-// Daemon-config backup (M738): the server-side identity of a console — the global
-// persona (system prompt), the prompt library, and the per-task routing chains —
-// bundled into one portable file. Complements the appearance bundle (M735, which is
-// per-device localStorage): this is "take your whole Jarvis with you" across daemons.
+// Daemon-config backup (M738): the daemon default identity, prompt-template
+// library, and per-task routing chains bundled into one portable file. Complements
+// the appearance bundle (M735, which is per-device localStorage): this carries the
+// daemon-level defaults without pretending to export every roster agent identity.
 // Each section already has its own get/set command; this just bundles + restores them.
 
 import { getJSON, postJSON } from "@/lib/api";
@@ -23,7 +23,7 @@ export function parseConfigBundle(text: string): ConfigBundle {
     throw new Error("expected a config object (or a {config:{…}} wrapper)");
   }
   const out: ConfigBundle = {};
-  // persona: any string (including "" — a deliberate "no persona", restored as-is).
+  // persona: any string (including "" — a deliberate "no default identity", restored as-is).
   if (typeof src.persona === "string") out.persona = src.persona;
   // prompts: pass the array through (the prompts_set command validates entries, the
   // same path the prompt import/export uses).
@@ -44,8 +44,8 @@ export function parseConfigBundle(text: string): ConfigBundle {
   return out;
 }
 
-// fetchConfigBundle gathers the daemon's current persona + prompts + routing into a
-// versioned, wrapped bundle (the shape downloadText writes / parseConfigBundle reads).
+// fetchConfigBundle gathers the daemon default identity + prompt templates + routing
+// into a versioned, wrapped bundle (the shape downloadText writes / parseConfigBundle reads).
 export async function fetchConfigBundle(): Promise<{ version: number; config: Required<ConfigBundle> }> {
   const [p, pr, r] = await Promise.all([
     getJSON<{ system?: string }>("/api/persona"),
@@ -61,11 +61,11 @@ export async function applyConfigBundle(b: ConfigBundle): Promise<string[]> {
   const applied: string[] = [];
   if (b.persona != null) {
     await postJSON("/api/persona/set", { system: b.persona });
-    applied.push("persona");
+    applied.push("default identity");
   }
   if (b.prompts) {
     await postJSON("/api/prompts/set", { prompts: b.prompts });
-    applied.push("prompts");
+    applied.push("prompt templates");
   }
   if (b.chains) {
     await postJSON("/api/routing/set", { chains: b.chains });

@@ -35,8 +35,6 @@ import (
 const (
 	// DefaultEndpoint is the real OpenAI Chat Completions URL.
 	DefaultEndpoint = "https://api.openai.com/v1/chat/completions"
-	// DefaultModel is what the loop uses when CompletionRequest.Model is empty.
-	DefaultModel = "gpt-4o-mini"
 	// DefaultTimeout caps a single HTTP request.
 	DefaultTimeout = 5 * time.Minute
 )
@@ -71,7 +69,6 @@ func New(apiKey string) *Provider {
 	return &Provider{
 		APIKey:   apiKey,
 		Endpoint: DefaultEndpoint,
-		Model:    DefaultModel,
 		HTTP:     &http.Client{Timeout: DefaultTimeout},
 	}
 }
@@ -107,6 +104,11 @@ func (p *Provider) Name() string { return "openai" }
 // ErrNoAPIKey is returned by Complete when APIKey is empty.
 var ErrNoAPIKey = errors.New("openai: API key not set")
 
+// ErrNoModel is returned when a completion request carries no model and the
+// provider has none set. The daemon ships with no default model (owner rule), so
+// the model must come from the request (AGEZT_MODEL / routing / a fallback chain).
+var ErrNoModel = errors.New("openai: no model specified (set CompletionRequest.Model, AGEZT_MODEL, or a routing/fallback chain)")
+
 // APIError is returned for non-2xx responses; it carries the upstream
 // status and body so callers (and the journal) can record the failure.
 type APIError struct {
@@ -129,7 +131,7 @@ func (p *Provider) Complete(ctx context.Context, req agent.CompletionRequest) (*
 		model = p.Model
 	}
 	if model == "" {
-		model = DefaultModel
+		return nil, ErrNoModel
 	}
 
 	body, err := encodeRequest(model, req.System, req.Messages, req.Tools, req.MaxTokens, req.JSONMode)

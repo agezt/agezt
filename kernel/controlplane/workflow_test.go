@@ -142,6 +142,9 @@ func TestWorkflow_WireRoundTrip(t *testing.T) {
 	if started, _ := newest["started_ms"].(float64); started <= 0 {
 		t.Fatalf("started_ms = %v", newest["started_ms"])
 	}
+	if newest["source"] != "manual" || newest["runner"] != "manual" {
+		t.Fatalf("run provenance = source %v runner %v, want manual/manual", newest["source"], newest["runner"])
+	}
 	if _, ok := newest["finished_ms"].(float64); !ok {
 		t.Fatal("finished_ms missing on a completed run")
 	}

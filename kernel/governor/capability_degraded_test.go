@@ -21,6 +21,15 @@ func jsonNativeLookup(m map[string]bool) func(string) (bool, bool) {
 	}
 }
 
+// strictToolArgsLookup builds a ModelStrictToolArgsNative func from a fixed map
+// of model→native; any model absent from the map reports known=false.
+func strictToolArgsLookup(m map[string]bool) func(string) (bool, bool) {
+	return func(model string) (bool, bool) {
+		n, ok := m[model]
+		return n, ok
+	}
+}
+
 func countKind(j interface {
 	Range(func(*event.Event) error) error
 }, kind event.Kind) int {
@@ -32,6 +41,19 @@ func countKind(j interface {
 		return nil
 	})
 	return n
+}
+
+func degradedEvents(j interface {
+	Range(func(*event.Event) error) error
+}) []*event.Event {
+	var out []*event.Event
+	_ = j.Range(func(e *event.Event) error {
+		if e.Kind == event.KindCapabilityDegraded {
+			out = append(out, e)
+		}
+		return nil
+	})
+	return out
 }
 
 // newGovWithJSONNative wires a governor with a single provider and a
@@ -48,6 +70,27 @@ func newGovWithJSONNative(t *testing.T, native map[string]bool) (*governor.Gover
 		Registry:        r,
 		Bus:             b,
 		ModelJSONNative: jsonNativeLookup(native),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return g, j, prov
+}
+
+// newGovWithStrictToolArgsNative wires a governor with a single provider and a
+// ModelStrictToolArgsNative lookup, returning the governor + journal.
+func newGovWithStrictToolArgsNative(t *testing.T, native map[string]bool) (*governor.Governor, interface {
+	Range(func(*event.Event) error) error
+}, *fakeProvider) {
+	t.Helper()
+	b, j := newBus(t)
+	r := governor.NewRegistry()
+	prov := &fakeProvider{name: "p", resp: okResp("mini", 1, 1)}
+	mustRegister(t, r, &governor.ProviderInfo{Name: "p", Provider: prov, AuthMode: governor.AuthAPIKey})
+	g, err := governor.New(governor.Config{
+		Registry:                  r,
+		Bus:                       b,
+		ModelStrictToolArgsNative: strictToolArgsLookup(native),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -156,5 +199,70 @@ func TestCapabilityDegraded_NoJSONModeNoEvent(t *testing.T) {
 	}
 	if got := countKind(j, event.KindCapabilityDegraded); got != 0 {
 		t.Errorf("capability.degraded count = %d, want 0 (no JSON mode)", got)
+	}
+}
+
+func TestCapabilityDegraded_StrictToolArgsFallback(t *testing.T) {
+	g, j, prov := newGovWithStrictToolArgsNative(t, map[string]bool{"mini": false})
+	if _, err := g.Complete(context.Background(), agent.CompletionRequest{
+		Model: "mini",
+		Tools: []agent.ToolDef{{
+			Name:        "shell",
+			InputSchema: json.RawMessage(`{"type":"object"}`),
+		}},
+		CorrelationID: "run-STRICT-ARGS",
+	}); err != nil {
+		t.Fatalf("Complete: %v", err)
+	}
+	if prov.calls.Load() != 1 {
+		t.Errorf("provider calls = %d, want 1 (strict-arg degradation must not block)", prov.calls.Load())
+	}
+	events := degradedEvents(j)
+	if len(events) != 1 {
+		t.Fatalf("capability.degraded count = %d, want 1", len(events))
+	}
+	if events[0].CorrelationID != "run-STRICT-ARGS" {
+		t.Errorf("CorrelationID = %q, want run-STRICT-ARGS", events[0].CorrelationID)
+	}
+	var p struct {
+		Model          string `json:"model"`
+		Capability     string `json:"capability"`
+		ToolsRequested int    `json:"tools_requested"`
+		Reason         string `json:"reason"`
+	}
+	if err := json.Unmarshal(events[0].Payload, &p); err != nil {
+		t.Fatalf("payload: %v", err)
+	}
+	if p.Model != "mini" || p.Capability != "strict_tool_args" || p.ToolsRequested != 1 || p.Reason == "" {
+		t.Errorf("payload = %+v", p)
+	}
+}
+
+func TestCapabilityDegraded_StrictToolArgsNativeNotFlagged(t *testing.T) {
+	g, j, _ := newGovWithStrictToolArgsNative(t, map[string]bool{"mini": true})
+	if _, err := g.Complete(context.Background(), agent.CompletionRequest{
+		Model: "mini",
+		Tools: []agent.ToolDef{{Name: "shell", InputSchema: json.RawMessage(`{"type":"object"}`)}},
+	}); err != nil {
+		t.Fatalf("Complete: %v", err)
+	}
+	if got := countKind(j, event.KindCapabilityDegraded); got != 0 {
+		t.Errorf("capability.degraded count = %d, want 0 (strict-native model)", got)
+	}
+}
+
+func TestCapabilityDegraded_StrictToolArgsUnknownOrNoToolsNotFlagged(t *testing.T) {
+	g, j, _ := newGovWithStrictToolArgsNative(t, map[string]bool{"mini": false})
+	if _, err := g.Complete(context.Background(), agent.CompletionRequest{
+		Model: "stranger",
+		Tools: []agent.ToolDef{{Name: "shell", InputSchema: json.RawMessage(`{"type":"object"}`)}},
+	}); err != nil {
+		t.Fatalf("Complete unknown: %v", err)
+	}
+	if _, err := g.Complete(context.Background(), agent.CompletionRequest{Model: "mini"}); err != nil {
+		t.Fatalf("Complete no tools: %v", err)
+	}
+	if got := countKind(j, event.KindCapabilityDegraded); got != 0 {
+		t.Errorf("capability.degraded count = %d, want 0 (unknown model/no tools)", got)
 	}
 }

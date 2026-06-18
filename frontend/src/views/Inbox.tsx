@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Inbox as InboxIcon, RefreshCw, ArrowDownLeft, ArrowUpRight, Send, Plus, X, Search } from "lucide-react";
+import { Inbox as InboxIcon, RefreshCw, ArrowDownLeft, ArrowUpRight, Send, Plus, X, Search, ListTree } from "lucide-react";
 import { getJSON, postAction } from "@/lib/api";
 import { useEvents } from "@/lib/events";
 import { cn, fmtTime } from "@/lib/utils";
@@ -10,6 +10,7 @@ import { SkeletonList } from "@/components/ui/skeleton";
 import { useUI } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
 import { rawURL, type ArtifactEntry } from "@/views/Files";
+import { focusRun } from "@/lib/runfocus";
 
 // COMMON_CHANNELS pre-fills the kind picker with the channels the daemon can carry;
 // the field stays free-text so an unlisted kind still works.
@@ -189,6 +190,18 @@ export function Inbox() {
                     title="Reply on this channel"
                   >
                     reply
+                  </button>
+                )}
+                {th.correlation_id && (
+                  <button
+                    onClick={() => {
+                      focusRun(th.correlation_id);
+                      location.hash = "runs";
+                    }}
+                    className="inline-flex items-center gap-1 text-[11px] text-muted transition-colors hover:text-accent"
+                    title="Open the governed run created for this channel message"
+                  >
+                    <ListTree className="size-3" /> run
                   </button>
                 )}
                 <span className="ml-auto text-[10px] tabular-nums text-muted">

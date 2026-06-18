@@ -11,7 +11,7 @@ vi.mock("@/lib/api", () => ({
   postJSON: (...a: unknown[]) => postJSON(...a),
 }));
 
-import { ConfigCenter } from "@/views/ConfigCenter";
+import { ConfigCenter, agentConfigScopeLabel, summarizeAgentConfigEntries } from "@/views/ConfigCenter";
 import { UIProvider } from "@/components/ui/feedback";
 
 function withUI(node: ReactNode) {
@@ -64,6 +64,7 @@ function mockFetch(values = valuesPayload()) {
   getJSON.mockImplementation((path: string) => {
     if (path === "/api/config/schema") return Promise.resolve(SCHEMA);
     if (path === "/api/config/values") return Promise.resolve(values);
+    if (path === "/api/configcenter/list") return Promise.resolve({ entries: [] });
     return Promise.reject(new Error("unexpected " + path));
   });
 }
@@ -79,10 +80,25 @@ beforeEach(() => {
 });
 
 describe("ConfigCenter view", () => {
+  it("summarizes agent config scope and sensitivity", () => {
+    expect(agentConfigScopeLabel({ key: "agent/ops/runtime", allowed_agents: ["ops"] })).toBe("identity-bound");
+    expect(agentConfigScopeLabel({ key: "shared/api-key", excluded_agents: ["ops"] })).toBe("shared with denylist");
+    expect(agentConfigScopeLabel({ key: "agent/ops/runtime" })).toBe("agent namespace");
+    expect(agentConfigScopeLabel({ key: "global/runtime" })).toBe("shared");
+    expect(
+      summarizeAgentConfigEntries([
+        { key: "agent/ops/runtime", allowed_agents: ["ops"], rating: "internal" },
+        { key: "shared/api-key", rating: "secret" },
+        { key: "agent/planner/runtime", rating: "restricted" },
+      ]),
+    ).toEqual({ total: 3, identityBound: 1, shared: 2, restricted: 1, secret: 1 });
+  });
+
   it("renders sections grouped with a field input from the schema", async () => {
     mockFetch();
     render(withUI(<ConfigCenter />));
     await waitFor(() => expect(sectionHeading("Provider & Model")).toBeTruthy());
+    expect(sectionHeading("Agent Runtime Config")).toBeTruthy();
     expect(sectionHeading("Telegram")).toBeTruthy();
     // Category headings exist.
     expect(sectionHeading("Core")).toBeTruthy();
@@ -143,6 +159,7 @@ describe("ConfigCenter view", () => {
             { env: "AGEZT_X_LOCKED", secret: true, env_pinned: false, set: true },
           ],
         });
+      if (path === "/api/configcenter/list") return Promise.resolve({ entries: [] });
       return Promise.reject(new Error("unexpected " + path));
     });
     render(withUI(<ConfigCenter />));
@@ -176,12 +193,52 @@ describe("ConfigCenter view", () => {
 
     const input = screen.getByDisplayValue("deepseek-chat") as HTMLInputElement;
     fireEvent.change(input, { target: { value: "deepseek-reasoner" } });
-    fireEvent.keyDown(input, { key: "Enter" });
+    const save = input.parentElement?.querySelector('button[title="Save"]') as HTMLButtonElement;
+    fireEvent.click(save);
 
     await waitFor(() =>
       expect(postJSON).toHaveBeenCalledWith("/api/config/set", { name: "AGEZT_MODEL", value: "deepseek-reasoner" }),
     );
     await waitFor(() => expect(screen.getByText("Model applied live")).toBeTruthy());
+  });
+
+  it("saves an agent runtime config entry with allow and deny lists", async () => {
+    getJSON.mockImplementation((path: string) => {
+      if (path === "/api/config/schema") return Promise.resolve(SCHEMA);
+      if (path === "/api/config/values") return Promise.resolve(valuesPayload());
+      if (path === "/api/configcenter/list")
+        return Promise.resolve({
+          entries: [{ key: "agent/ops/runtime", value: "mode=careful", rating: "internal", allowed_agents: ["ops"], excluded_agents: ["blocked"] }],
+        });
+      return Promise.reject(new Error("unexpected " + path));
+    });
+    postJSON.mockResolvedValueOnce({ entry: { key: "agent/ops/runtime" } });
+    render(withUI(<ConfigCenter />));
+    await waitFor(() => expect(screen.getByText("agent/ops/runtime")).toBeTruthy());
+    expect(screen.getByText("1 total")).toBeTruthy();
+    expect(screen.getAllByText("1 identity-bound").length).toBeGreaterThan(0);
+    expect(screen.getByText("0 shared")).toBeTruthy();
+    expect(screen.getByText("0 secret")).toBeTruthy();
+    expect(screen.getByText("allow: ops")).toBeTruthy();
+    expect(screen.getByText("deny: blocked")).toBeTruthy();
+
+    fireEvent.change(screen.getByLabelText("Agent config key"), { target: { value: "agent/planner/runtime" } });
+    fireEvent.change(screen.getByLabelText("Agent config value"), { target: { value: "mode=plan" } });
+    fireEvent.change(screen.getByLabelText("Agent config rating"), { target: { value: "restricted" } });
+    fireEvent.change(screen.getByLabelText("Allowed agents"), { target: { value: "planner,ops" } });
+    fireEvent.change(screen.getByLabelText("Denied agents"), { target: { value: "blocked" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save agent config" }));
+
+    await waitFor(() =>
+      expect(postJSON).toHaveBeenCalledWith("/api/configcenter/set", {
+        key: "agent/planner/runtime",
+        value: "mode=plan",
+        rating: "restricted",
+        description: "",
+        allowed_agents: ["planner", "ops"],
+        excluded_agents: ["blocked"],
+      }),
+    );
   });
 
   it("renders an env-pinned field read-only (no input, no save)", async () => {

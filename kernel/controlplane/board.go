@@ -66,6 +66,9 @@ func boardMsgView(m board.Message) map[string]any {
 	if m.Help {
 		v["help"] = true
 	}
+	if len(m.AckedBy) > 0 {
+		v["acked_by"] = append([]string(nil), m.AckedBy...)
+	}
 	return v
 }
 
@@ -122,6 +125,8 @@ func (s *Server) handleBoardHelp(conn net.Conn, req Request) {
 // — an SDK app or script posting, DMing, broadcasting, replying, or raising
 // help. Mirrors the `board` tool's write semantics and fires the same
 // board.posted notifier, so external mail wakes standing orders identically.
+// correlation_id is optional; channel bridges and SDKs use it to keep mailbox
+// wake events tied to the inbound message/run that caused the post.
 func (s *Server) handleBoardSend(conn net.Conn, req Request) {
 	st, ok := s.boardWriter()
 	if !ok {
@@ -138,6 +143,7 @@ func (s *Server) handleBoardSend(conn net.Conn, req Request) {
 	to := stringArg(req.Args, "to")
 	topic := stringArg(req.Args, "topic")
 	replyTo := stringArg(req.Args, "reply_to")
+	corr := stringArg(req.Args, "correlation_id")
 	help, _ := req.Args["help"].(bool)
 	now := time.Now().UnixMilli()
 
@@ -175,9 +181,13 @@ func (s *Server) handleBoardSend(conn net.Conn, req Request) {
 		return
 	}
 	if s.boardNotify != nil {
-		s.boardNotify(m, "")
+		s.boardNotify(m, corr)
 	}
-	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"sent": boardMsgView(m)}})
+	res := map[string]any{"sent": boardMsgView(m)}
+	if corr != "" {
+		res["correlation_id"] = corr
+	}
+	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: res})
 }
 
 // handleBoardInbox serves CmdBoardInbox (M937): what is waiting for a named

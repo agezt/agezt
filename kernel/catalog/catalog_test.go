@@ -541,6 +541,46 @@ func TestModel_SupportsPromptCache(t *testing.T) {
 	}
 }
 
+func TestModel_SupportsStrictToolArgs(t *testing.T) {
+	cases := []struct {
+		name string
+		m    *catalog.Model
+		want bool
+	}{
+		{name: "nil", m: nil, want: false},
+		{name: "plain tool use is not strict", m: &catalog.Model{ID: "plain", ToolCall: true}, want: false},
+		{name: "strict tool args", m: &catalog.Model{ID: "strict", ToolCall: true, StrictToolArgs: true}, want: true},
+		{name: "schema constrained", m: &catalog.Model{ID: "schema", ToolCall: true, SchemaConstrainedDecoding: true}, want: true},
+		{name: "grammar constrained", m: &catalog.Model{ID: "grammar", ToolCall: true, GrammarConstrainedDecoding: true}, want: true},
+		{name: "constraint without tool use", m: &catalog.Model{ID: "json-only", SchemaConstrainedDecoding: true}, want: false},
+	}
+	for _, tc := range cases {
+		if got := tc.m.SupportsStrictToolArgs(); got != tc.want {
+			t.Errorf("%s: SupportsStrictToolArgs()=%v want %v", tc.name, got, tc.want)
+		}
+	}
+}
+
+func TestCatalog_StrictToolArgsNative(t *testing.T) {
+	c := catalog.NewEmpty()
+	c.Providers["p"] = &catalog.Provider{
+		ID: "p",
+		Models: map[string]*catalog.Model{
+			"plain":  {ID: "plain", ToolCall: true},
+			"strict": {ID: "strict", ToolCall: true, StrictToolArgs: true},
+		},
+	}
+	if native, known := c.StrictToolArgsNative("strict"); !known || !native {
+		t.Fatalf("strict native,known = %v,%v want true,true", native, known)
+	}
+	if native, known := c.StrictToolArgsNative("plain"); !known || native {
+		t.Fatalf("plain native,known = %v,%v want false,true", native, known)
+	}
+	if native, known := c.StrictToolArgsNative("missing"); known || native {
+		t.Fatalf("missing native,known = %v,%v want false,false", native, known)
+	}
+}
+
 func TestFamilySupportsNativeJSONMode(t *testing.T) {
 	yes := []catalog.Family{
 		catalog.FamilyOpenAI, catalog.FamilyOpenAICompatible, catalog.FamilyMistral,

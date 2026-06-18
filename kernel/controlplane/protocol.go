@@ -74,8 +74,9 @@ const (
 	// → live + persisted.
 	CmdChainsGet = "chains_get"
 	CmdChainsSet = "chains_set"
-	// Agent persona (M710): view/edit the default system prompt that frames every
-	// run. Get returns the content (owner-facing); Set: args{system} → live + persisted.
+	// Default identity (M710): view/edit daemon fallback instructions for runs not
+	// bound to a roster agent. Get returns the content (owner-facing);
+	// Set: args{system} → live + persisted.
 	CmdPersonaGet = "persona_get"
 	CmdPersonaSet = "persona_set"
 	// Prompt library (M713): the owner's saved chat prompts (reusable workflows).
@@ -642,6 +643,11 @@ const (
 	//   - override: bool (true if manual override was applied)
 	CmdConfigCenterSetRating = "configcenter.set-rating"
 
+	// CmdConfigCenterSetAccess updates only a config entry's agent allow/deny
+	// lists, preserving the value, rating, metadata, and description.
+	// Args: key, allowed_agents, excluded_agents. Returns: { entry }.
+	CmdConfigCenterSetAccess = "configcenter.access"
+
 	// CmdConfigCenterAccessLog returns the access log for config entries.
 	// Args:
 	//   - key     : string (optional: filter by key)
@@ -748,6 +754,10 @@ const (
 	CmdRunResume = "run_resume"
 	CmdRunStep   = "run_step"
 	CmdRunSteer  = "run_steer"
+	// CmdRunIntervene is the protocolized intervention grammar over live runs.
+	// Args: {primitive: halt|abort|redirect|adjust|query, correlation, directive?,
+	// lease_ms?, scope?, idempotency_key?}. Returns the transaction result.
+	CmdRunIntervene = "run_intervene"
 
 	// Memory-lite (ROADMAP §2.3). The content-addressed, journaled
 	// knowledge store the agent reads as injected context. These give
@@ -837,18 +847,36 @@ const (
 	// Returns: { results: [{record, score}, ...], count }.
 	CmdMemoryFindRelated = "memory_find_related"
 
-	// Scheduled intents (autonomy). The cadence resident fires due schedules
-	// through the governed loop; these commands manage the persistent store
-	// behind `agt schedule`.
+	// CmdMemoryAudit reports epistemic hygiene: usable vs suspended/expired
+	// records and same-subject competing memories. Read-only.
+	// Args: none. Returns: memory.AuditReport.
+	CmdMemoryAudit = "memory_audit"
+
+	// CmdMemoryClean reports or soft-forgets low-value long-term memories using
+	// the same retention filter applied to automatic writes. Dry-run by default.
+	// Args: dry_run (optional; default true). Returns: memory.CleanReport.
+	CmdMemoryClean = "memory_clean"
+
+	// Typed schedules (autonomy). The cadence resident fires due agent,
+	// workflow, system-task, or tool targets; these commands manage the
+	// persistent store behind `agt schedule`.
 	//
-	// CmdScheduleAdd creates a recurring schedule.
-	// Args: intent (required), interval_sec (required, >= 1), model (optional).
-	// Returns: { id, intent, interval_sec, next_run_unix }
+	// CmdScheduleAdd creates a typed cron job. Historical target="" schedules
+	// wake an agent for a governed LLM task; target=workflow runs a workflow; target=system_task
+	// runs a daemon maintenance task; target=tool invokes a registered tool with
+	// payload directly. Args include cadence fields plus intent/model/agent or
+	// workflow/system_task/tool/payload depending on target.
+	// Returns: { id, intent, target, interval_sec, next_run_unix, ... }
 	CmdScheduleAdd = "schedule_add"
 	// CmdScheduleList returns all schedules.
-	// Returns: { schedules: [ {id,intent,interval_sec,model,source,enabled,
-	//            created_unix,last_run_unix,next_run_unix} ], count }
+	// Returns: { schedules: [ {id,intent,target,workflow,system_task,tool,
+	//            payload,interval_sec,model,source,enabled,created_unix,
+	//            last_run_unix,next_run_unix} ], count }
 	CmdScheduleList = "schedule_list"
+	// CmdScheduleSystemTasks returns daemon maintenance task names allowed for
+	// target=system_task schedules. Read-only metadata shared by CLI/UI/tools.
+	// Returns: { system_tasks: [string], count }
+	CmdScheduleSystemTasks = "schedule_system_tasks"
 	// CmdScheduleRemove deletes a schedule by id.
 	// Args: id (required). Returns: { removed (bool) }
 	CmdScheduleRemove = "schedule_rm"
@@ -859,9 +887,9 @@ const (
 	// deleting). Args: id (required), enabled (bool). Returns: { updated, enabled }
 	CmdScheduleEnable = "schedule_enable"
 	// CmdScheduleEdit changes an existing schedule in place (preserving its id),
-	// applying any of: intent, model, and a new cadence (interval_sec |
-	// at_minutes[+days] | once_at_unix). Args: id (required) + whichever fields
-	// change. Returns: { updated (bool), id, mode, cadence }
+	// applying any subset of intent/model/agent/target fields and a new cadence
+	// (interval_sec | at_minutes[+days] | once_at_unix). Returns:
+	// { updated (bool), id, mode, cadence, target, ... }
 	CmdScheduleEdit = "schedule_edit"
 	// CmdScheduleFires lists recent scheduled-run FIRINGS (M54) — the autonomy
 	// analogue of CmdRunsList. Walks the journal for schedule.fired events and
@@ -1064,8 +1092,8 @@ const (
 	// Args: id, path (required). Returns: { id, name, path, content, bytes }
 	CmdSkillReadFile = "skill_read_file"
 
-	// Chronos standing orders (SPEC-16 §4) — persistent-goal CRUD behind
-	// `agt standing`. Add: args.order (object). SetEnabled: args{id, enabled}.
+	// Standing orders (SPEC-16 §4) — durable wake-rule CRUD behind `agt
+	// standing`. Add: args.order (object). SetEnabled: args{id, enabled}.
 	// Remove: args.id. List: no args. Every mutation is journaled (standing.*).
 	CmdStandingList       = "standing_list"
 	CmdStandingAdd        = "standing_add"
@@ -1077,13 +1105,24 @@ const (
 
 	// Agent roster (M783) — durable named agent profiles behind `agt agent`.
 	// Add: args.profile (object). Edit: args{ref, profile}. SetEnabled:
-	// args{ref, enabled}. Remove: args.ref. List: no args. ref = id OR slug.
-	// Every mutation is journaled (roster.*).
+	// args{ref, enabled}. Remove: args.ref plus optional cascade flags:
+	// standing removes bound standing orders, schedules removes bound cadence
+	// jobs, memory forgets private scoped memory, authored_memory forgets shared
+	// memory authored by the agent, skills archives agent-owned skills, config
+	// deletes identity-owned config center entries, and subagents retires
+	// dependent child agents before removing the parent (it does not hard-delete
+	// child profiles). List: no args. ref = id OR slug. Every mutation is
+	// journaled (roster.*).
 	CmdAgentList       = "agent_list"
 	CmdAgentAdd        = "agent_add"
 	CmdAgentEdit       = "agent_edit"
 	CmdAgentSetEnabled = "agent_set_enabled"
 	CmdAgentRemove     = "agent_remove"
+	// CmdAgentTaskUpdate mutates one durable tasklist item without rewriting the
+	// whole profile. Args: ref, op(add|update|remove), id (update/remove),
+	// title/description/scope/status or task object. Returns: { profile, task?,
+	// updated }.
+	CmdAgentTaskUpdate = "agent_task_update"
 	// Agent graveyard (M846). CmdAgentImpact reports what depends on an agent
 	// (standing orders that fire it) — shown before retiring. CmdAgentRetire moves
 	// it to the graveyard (recoverable, excluded from delegation) and returns the
@@ -1092,11 +1131,64 @@ const (
 	CmdAgentImpact = "agent_impact"
 	CmdAgentRetire = "agent_retire"
 	CmdAgentRevive = "agent_revive"
+	// CmdAgentTombstone returns a read-only "death certificate" for one agent: its
+	// identity summary, lifecycle/retirement record, and the durable resource
+	// footprint it leaves behind (the same counts CmdAgentImpact computes). It is a
+	// portable archival/audit snapshot — it does NOT remove or mutate anything.
+	// Args: ref. Returns: { tombstone }.
+	CmdAgentTombstone = "agent_tombstone"
+	// CmdAgentGraveyard lists retired (graveyard) agents with their retirement age,
+	// newest-first by default, optionally filtered to those retired longer than
+	// older_than_days — the read-only retention-eligibility view. It REPORTS only;
+	// it never archives or hard-removes (that stays an explicit operator action).
+	// Args: optional older_than_days. Returns: { graveyard:[...], count }.
+	CmdAgentGraveyard = "agent_graveyard"
+	// CmdAgentPermissions returns the effective tool exposure/policy picture for
+	// one agent: roster allow/deny, global Edict level, trust ceiling clamp, and
+	// the resulting status for each registered tool. Args: ref. Returns:
+	// { slug, trust_ceiling, permissions:[...] }.
+	CmdAgentPermissions = "agent_permissions"
+	// CmdAgentCapabilities patches only the agent-local capability/config surface:
+	// trust ceiling, tool allow/deny, noise policy, and config overrides. Args:
+	// ref plus any subset of trust_ceiling, tool_allow, tool_deny, noise_policy,
+	// config_overrides. Returns the updated profile and effective permissions.
+	CmdAgentCapabilities = "agent_capabilities"
 	// CmdAgentActivity returns a per-agent activity timeline derived from the
 	// journal (M854): the runs it executed, council consults + delegations during
 	// them, memory it wrote, board messages, and profile changes — newest first.
 	// Args: ref (required), limit (optional). Returns: { slug, activity:[...], count, total }
 	CmdAgentActivity = "agent_activity"
+	// CmdAgentRepairStatus returns the journal-derived autonomous repair history
+	// for one agent: queued/completed/failed self-repair dispatches, the current
+	// inflight queue (if any), and the effective cooldown window. Args: ref
+	// (required), limit (optional). Returns: { slug, history:[...], latest?,
+	// inflight:[...], cooldown_sec, next_eligible_ms? }.
+	CmdAgentRepairStatus = "agent_repair_status"
+	// CmdAgentRepair triggers an operator-requested governed repair run AS the
+	// target agent, asynchronously. Args: ref (required), reason (optional),
+	// incident_id/root_incident_id/parent_incident_id (optional lineage).
+	// Returns: { accepted, agent, correlation_id } immediately; progress is
+	// journaled as agent.repair info events and the underlying run events.
+	CmdAgentRepair = "agent_repair"
+	// CmdAgentEscalations returns the owner/parent escalation queue for one
+	// agent: open or recent doctor-triggered help requests assigned to it,
+	// enriched with wake status and source-agent provenance. Args: ref
+	// (required), limit (optional). Returns: { slug, escalations:[...], open_count }.
+	CmdAgentEscalations = "agent_escalations"
+	// CmdAgentWake explicitly wakes a named agent now, asynchronously, with an
+	// operator-supplied intent or reason. Args: ref (required), intent
+	// (optional), reason (optional), incident_id/root_incident_id/
+	// parent_incident_id (optional lineage). Returns: { accepted, agent,
+	// correlation_id } immediately; progress is journaled as agent.wake info
+	// events and the underlying run events.
+	CmdAgentWake = "agent_wake"
+	// CmdAgentResolve applies an operator-selected incident resolution to one
+	// agent, synchronously: paused / retired / delegated / force_chain. Args:
+	// ref (required), resolution (required), summary (optional), delegate_to
+	// (required when delegated), task_type/task_model_chain (required when
+	// force_chain), incident lineage (optional). Returns { applied, agent,
+	// resolution } and journals agent.resolve info events.
+	CmdAgentResolve = "agent_resolve"
 
 	// Script-tool forge (M794) — agent-authored code promoted into callable
 	// forge_<name> tools, behind `agt toolforge`. Draft: args.tool (object).
@@ -1136,6 +1228,27 @@ const (
 	CmdToolboxDetect   = "toolbox_detect"
 	CmdToolboxOutdated = "toolbox_outdated"
 	CmdToolboxInstall  = "toolbox_install"
+
+	// Marketplace: browse + install capability packs (skills + MCP servers + CLI
+	// tool requirements) from the built-in Official catalogue (and, later, synced
+	// remotes). Install materializes a pack into the Forge + MCP registry; every
+	// install/uninstall is journaled (market.*).
+	CmdMarketList      = "market_list"
+	CmdMarketShow      = "market_show"
+	CmdMarketInstall   = "market_install"
+	CmdMarketUninstall = "market_uninstall"
+	// Remote marketplace sources (Phase 2): configure + sync external catalogues
+	// into the local cache (netguard-screened, keep-last-good).
+	CmdMarketSources      = "market_sources"
+	CmdMarketAddSource    = "market_add_source"
+	CmdMarketRemoveSource = "market_remove_source"
+	CmdMarketSync         = "market_sync"
+
+	// CmdACPAgents discovers the Agent Client Protocol (ACP) coding agents
+	// installed on the host (Gemini CLI, Claude Code's adapter, Codex, …): which
+	// are present (+version+path), which are missing (+install hint), and which is
+	// the configured default. Read-only. Drives the acp_agent bridge picker.
+	CmdACPAgents = "acp_agents"
 
 	// Workflow engine (M798) — durable typed-node graphs behind
 	// `agt workflow` and the console canvas. Save: args.workflow (the whole
@@ -1296,8 +1409,10 @@ const (
 	// topic (defaults to "dm" when addressed; required for a plain topic post);
 	// reply_to (message id being answered — the reply goes back to the original's
 	// sender on its topic, like the board tool's op=reply); help (bool — raise an
-	// assistance request that stays open until answered).
-	// Returns: { sent: {id, topic, from?, to?, reply_to?, help?, text, ts_unix_ms} }
+	// assistance request that stays open until answered); correlation_id (optional
+	// wake/run correlation for SDK or channel bridges).
+	// Returns: { sent: {id, topic, from?, to?, reply_to?, help?, text, ts_unix_ms},
+	//            correlation_id? }
 	CmdBoardSend = "board_send"
 
 	// CmdBoardInbox lists what is waiting for a named agent/app on the board

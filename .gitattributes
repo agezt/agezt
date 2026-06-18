@@ -4,6 +4,8 @@
 # the committed dist (CRLF) differs from a Linux rebuild (LF) and the gate fails.
 frontend/** text=auto eol=lf
 kernel/webui/dist/** text eol=lf
+*.sh text eol=lf
+scripts/*.sh text eol=lf
 # Binary build assets in the committed bundle (M951 self-hosted fonts): exempt
 # from the text/eol normalization above so git never rewrites their bytes —
 # otherwise the woff2 is corrupted and the Linux rebuild diff would never match.

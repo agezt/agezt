@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/datalake"
 )
 
@@ -28,6 +29,15 @@ func newTool(t *testing.T) *Tool {
 func call(t *testing.T, tool *Tool, in string) (string, bool) {
 	t.Helper()
 	r, err := tool.Invoke(context.Background(), json.RawMessage(in))
+	if err != nil {
+		t.Fatalf("Invoke(%s): %v", in, err)
+	}
+	return r.Output, r.IsError
+}
+
+func callCtx(t *testing.T, ctx context.Context, tool *Tool, in string) (string, bool) {
+	t.Helper()
+	r, err := tool.Invoke(ctx, json.RawMessage(in))
 	if err != nil {
 		t.Fatalf("Invoke(%s): %v", in, err)
 	}
@@ -82,6 +92,53 @@ func TestDB_FullLifecycle(t *testing.T) {
 	out, _ = call(t, tool, `{"op":"query","collection":"expenses"}`)
 	if !strings.Contains(out, `"count": 0`) {
 		t.Fatalf("query after delete should be empty: %s", out)
+	}
+}
+
+func TestDB_ProvenanceUsesAgentAndCorrelation(t *testing.T) {
+	tool := newTool(t)
+	ctx := agent.WithCorrelation(agent.WithAgent(context.Background(), "researcher"), "corr-123")
+	out, isErr := callCtx(t, ctx, tool, `{"op":"create_collection","name":"notes"}`)
+	if isErr {
+		t.Fatalf("create: %s", out)
+	}
+	var created struct {
+		Collection datalake.Schema `json:"collection"`
+	}
+	if err := json.Unmarshal([]byte(out), &created); err != nil {
+		t.Fatalf("decode create: %v\n%s", err, out)
+	}
+	if created.Collection.CreatedBy != "researcher:corr-123" {
+		t.Fatalf("collection created_by = %q, want researcher:corr-123", created.Collection.CreatedBy)
+	}
+
+	out, isErr = callCtx(t, ctx, tool, `{"op":"insert","collection":"notes","record":{"title":"plan"}}`)
+	if isErr {
+		t.Fatalf("insert: %s", out)
+	}
+	var inserted struct {
+		Record datalake.Record `json:"record"`
+	}
+	if err := json.Unmarshal([]byte(out), &inserted); err != nil {
+		t.Fatalf("decode insert: %v\n%s", err, out)
+	}
+	if inserted.Record.CreatedBy != "researcher:corr-123" || inserted.Record.UpdatedBy != "researcher:corr-123" {
+		t.Fatalf("record provenance after insert = %q/%q", inserted.Record.CreatedBy, inserted.Record.UpdatedBy)
+	}
+
+	updateCtx := agent.WithCorrelation(agent.WithAgent(context.Background(), "reviewer"), "corr-456")
+	out, isErr = callCtx(t, updateCtx, tool, `{"op":"update","collection":"notes","id":"`+inserted.Record.ID+`","record":{"title":"reviewed"}}`)
+	if isErr {
+		t.Fatalf("update: %s", out)
+	}
+	var updated struct {
+		Record datalake.Record `json:"record"`
+	}
+	if err := json.Unmarshal([]byte(out), &updated); err != nil {
+		t.Fatalf("decode update: %v\n%s", err, out)
+	}
+	if updated.Record.CreatedBy != "researcher:corr-123" || updated.Record.UpdatedBy != "reviewer:corr-456" {
+		t.Fatalf("record provenance after update = %q/%q", updated.Record.CreatedBy, updated.Record.UpdatedBy)
 	}
 }
 

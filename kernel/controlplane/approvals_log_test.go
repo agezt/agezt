@@ -5,7 +5,9 @@ package controlplane_test
 import (
 	"context"
 	"testing"
+	"time"
 
+	"github.com/agezt/agezt/kernel/approval"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/plugins/providers/mock"
@@ -114,5 +116,72 @@ func TestApprovalsStats_Aggregates(t *testing.T) {
 	byCap, _ := res["denied_by_capability"].(map[string]any)
 	if n, _ := byCap["net"].(float64); n != 1 {
 		t.Errorf("denied_by_capability[net] = %v want 1", byCap["net"])
+	}
+}
+
+func TestApprovals_PendingIncludesIntentAndEffectMetadata(t *testing.T) {
+	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	done := make(chan approval.Outcome, 1)
+	submitCtx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go func() {
+		done <- k.Approvals().Submit(submitCtx, approval.SubmitSpec{
+			Capability:            "file.delete",
+			ToolName:              "file",
+			Input:                 `{"path":"legacy/2023"}`,
+			Reason:                "confirm exact scope",
+			Actor:                 "agent-test",
+			CorrelationID:         "corr-test",
+			EffectClass:           "irreversible",
+			PredictedEffects:      []string{"delete legacy files"},
+			AffectedResources:     []string{"path:legacy/2023"},
+			RollbackNotes:         "restore from backup",
+			Confidence:            0.4,
+			CanonicalIntent:       "clean files",
+			HarmfulInterpretation: "could delete non-cache files",
+			AmbiguityScore:        0.85,
+			RegretAxes:            map[string]float64{"informational": 0.9},
+			ConfirmationPrompt:    "Confirm exact cleanup scope?",
+		})
+	}()
+
+	deadline := time.Now().Add(time.Second)
+	for k.Approvals().PendingCount() == 0 && time.Now().Before(deadline) {
+		time.Sleep(2 * time.Millisecond)
+	}
+	if k.Approvals().PendingCount() == 0 {
+		cancel()
+		<-done
+		t.Fatal("approval never became pending")
+	}
+	t.Cleanup(func() {
+		if p := k.Approvals().Pending(); len(p) > 0 {
+			_ = k.Approvals().Resolve(p[0].ID, approval.DecisionDeny, "cleanup", "test")
+			<-done
+		}
+	})
+
+	res, err := c.Call(context.Background(), controlplane.CmdApprovals, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pending, _ := res["pending"].([]any)
+	if len(pending) != 1 {
+		t.Fatalf("pending = %d want 1", len(pending))
+	}
+	row, _ := pending[0].(map[string]any)
+	if row["canonical_intent"] != "clean files" || row["harmful_interpretation"] == "" {
+		t.Fatalf("intent metadata missing: %+v", row)
+	}
+	if row["effect_class"] != "irreversible" || row["rollback_notes"] != "restore from backup" {
+		t.Fatalf("effect metadata missing: %+v", row)
+	}
+	axes, _ := row["regret_axes"].(map[string]any)
+	if axes["informational"] == nil {
+		t.Fatalf("regret axes missing: %+v", row["regret_axes"])
+	}
+	resources, _ := row["affected_resources"].([]any)
+	if len(resources) != 1 || resources[0] != "path:legacy/2023" {
+		t.Fatalf("affected resources = %+v", row["affected_resources"])
 	}
 }

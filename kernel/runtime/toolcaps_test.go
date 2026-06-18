@@ -71,8 +71,9 @@ func TestToolCapabilities_DeclaredAxisGoverns(t *testing.T) {
 
 	// Fold policy decisions by tool.
 	type decision struct {
-		cap   string
-		allow bool
+		cap    string
+		allow  bool
+		effect string
 	}
 	got := map[string]decision{}
 	_ = k.Journal().Range(func(e *event.Event) error {
@@ -80,12 +81,13 @@ func TestToolCapabilities_DeclaredAxisGoverns(t *testing.T) {
 			return nil
 		}
 		var p struct {
-			Tool       string `json:"tool"`
-			Capability string `json:"capability"`
-			Allow      bool   `json:"allow"`
+			Tool        string `json:"tool"`
+			Capability  string `json:"capability"`
+			Allow       bool   `json:"allow"`
+			EffectClass string `json:"effect_class"`
 		}
 		if json.Unmarshal(e.Payload, &p) == nil {
-			got[p.Tool] = decision{cap: p.Capability, allow: p.Allow}
+			got[p.Tool] = decision{cap: p.Capability, allow: p.Allow, effect: p.EffectClass}
 		}
 		return nil
 	})
@@ -93,10 +95,65 @@ func TestToolCapabilities_DeclaredAxisGoverns(t *testing.T) {
 	if d := got["plug.post"]; d.cap != "http.post" || d.allow {
 		t.Errorf("plug.post decision = %+v, want capability http.post, denied (declared axis at L0)", d)
 	}
+	if d := got["plug.post"]; d.effect != string(agent.EffectCompensable) {
+		t.Errorf("plug.post effect class = %q, want compensable for http.post", d.effect)
+	}
 	if d := got["plug.read"]; d.cap != "plug.read" || !d.allow {
 		t.Errorf("plug.read decision = %+v, want name-classified + allowed (UnknownAllow)", d)
 	}
 	if d := got["plug.weird"]; d.cap != "plug.weird" || !d.allow {
 		t.Errorf("plug.weird decision = %+v, want unknown declaration DROPPED → name-classified + allowed", d)
+	}
+}
+
+// TestRunTool_JournalsPolicyDecisionOnDirectPath: the direct (operator/CLI) tool
+// path journals a policy.decision for both the allowed and the refused call, just
+// like an in-loop tool call — so a refused direct run leaves an audit trail.
+func TestRunTool_JournalsPolicyDecisionOnDirectPath(t *testing.T) {
+	k, err := runtime.Open(runtime.Config{
+		BaseDir:  t.TempDir(),
+		Provider: mock.New(),
+		Tools: map[string]agent.Tool{
+			"plug.post": quietTool{name: "plug.post"},
+			"plug.read": quietTool{name: "plug.read"},
+		},
+		ToolCapabilities: map[string]string{"plug.post": "http.post"},
+		Edict: edict.New(edict.Options{
+			UnknownAllow: true, // plug.read classifies by name → allowed
+			Levels:       map[edict.Capability]edict.TrustLevel{edict.CapHTTPPost: edict.LevelDeny},
+		}),
+	})
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	t.Cleanup(func() { k.Close() })
+
+	ctx := context.Background()
+	if _, err := k.RunTool(ctx, "corr-deny", "c1", "plug.post", json.RawMessage(`{}`)); err == nil {
+		t.Fatal("RunTool plug.post should be refused at http.post L0")
+	}
+	if _, err := k.RunTool(ctx, "corr-allow", "c2", "plug.read", json.RawMessage(`{}`)); err != nil {
+		t.Fatalf("RunTool plug.read should be allowed: %v", err)
+	}
+
+	decisions := map[string]bool{} // tool -> allow
+	_ = k.Journal().Range(func(e *event.Event) error {
+		if e.Kind != event.KindPolicyDecision {
+			return nil
+		}
+		var p struct {
+			Tool  string `json:"tool"`
+			Allow bool   `json:"allow"`
+		}
+		if json.Unmarshal(e.Payload, &p) == nil {
+			decisions[p.Tool] = p.Allow
+		}
+		return nil
+	})
+	if allow, ok := decisions["plug.post"]; !ok || allow {
+		t.Fatalf("plug.post policy.decision = (%v,%v), want journaled + denied", allow, ok)
+	}
+	if allow, ok := decisions["plug.read"]; !ok || !allow {
+		t.Fatalf("plug.read policy.decision = (%v,%v), want journaled + allowed", allow, ok)
 	}
 }

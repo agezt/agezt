@@ -113,7 +113,8 @@ func cmdWorkflowList(args []string, stdout, stderr io.Writer) int {
 		if d := str(w["trigger_detail"]); d != "" {
 			trig += " (" + d + ")"
 		}
-		fmt.Fprintf(stdout, "%-24s %-9s %d node(s)  %-24s", str(w["name"]), state, int(nodes), trig)
+		contract := workflowContractText(state != "disabled", trig)
+		fmt.Fprintf(stdout, "%-24s %-9s %d node(s)  %-24s  %s", str(w["name"]), state, int(nodes), trig, contract)
 		if d := str(w["description"]); d != "" {
 			fmt.Fprintf(stdout, "  %s", d)
 		}
@@ -121,6 +122,17 @@ func cmdWorkflowList(args []string, stdout, stderr io.Writer) int {
 	}
 	fmt.Fprintf(stdout, "%v workflow(s)\n", res["count"])
 	return 0
+}
+
+func workflowContractText(enabled bool, trigger string) string {
+	state := "disabled"
+	if enabled {
+		state = "enabled"
+	}
+	if strings.TrimSpace(trigger) == "" {
+		trigger = "manual/API"
+	}
+	return state + " reusable chain · trigger " + strings.TrimSpace(trigger) + " · runnable by user, agent, schedule, or webhook"
 }
 
 func cmdWorkflowShow(args []string, stdout, stderr io.Writer) int {

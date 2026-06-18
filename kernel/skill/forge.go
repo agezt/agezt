@@ -370,6 +370,34 @@ func (f *Forge) quarantineLocked(corr, id, reason string) error {
 	return nil
 }
 
+// Archive retires a skill without restoring lineage. This is for ownership
+// cleanup, e.g. deleting an agent and removing its private skills, not reverting
+// a bad version back to a parent.
+func (f *Forge) Archive(corr, id, reason string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	sk, _, err := f.get(id)
+	if err != nil {
+		return err
+	}
+	if sk.Status == StatusArchived {
+		return nil
+	}
+	if !CanTransition(sk.Status, StatusArchived) {
+		return fmt.Errorf("%w: %s→archived", ErrIllegalTransition, sk.Status)
+	}
+	from := sk.Status
+	sk.Status = StatusArchived
+	sk.LastSeenMS = f.now().UnixMilli()
+	if err := f.store.Put(sk); err != nil {
+		return err
+	}
+	f.publish(event.KindSkillReverted, corr, map[string]any{
+		"id": id, "name": sk.Name, "from": string(from), "reason": reason, "archived": true,
+	})
+	return nil
+}
+
 // Revert appends a reversal (SPEC-05 §5.3): it archives the target skill and
 // re-activates its most recent non-archived lineage parent if there is one, so
 // reverting a bad new version restores the previous good one. History is never
@@ -425,7 +453,7 @@ func (f *Forge) Revert(corr, id string) (string, error) {
 
 // visibleTo reports whether an acting agent may retrieve a skill (M932):
 // shared skills (no owner) are everyone's; a private skill is its owner's
-// alone — the default persona (empty slug) sees only the shared pool. The
+// alone — the default daemon identity (empty slug) sees only the shared pool. The
 // same scope wall per-agent memory draws (M915).
 func visibleTo(sk Skill, agentSlug string) bool {
 	return sk.Agent == "" || sk.Agent == agentSlug

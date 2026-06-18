@@ -103,6 +103,16 @@ func (t *Tool) Definition() agent.ToolDef {
     "name": {"type":"string", "description":"Optional file name for the saved artifact."}
   }
 }`),
+		Effect: agent.ToolEffect{
+			Class: agent.EffectReversible,
+			PredictedEffects: []string{
+				"Download bytes from an HTTP(S) URL with GET.",
+				"Persist the downloaded content into the artifact store for later viewing or reuse.",
+			},
+			AffectedResources: []string{"remote HTTP(S) endpoint", "local artifact store"},
+			RollbackNotes:     "Delete the saved artifact id from the artifact store; the outbound GET itself cannot be unsent.",
+			Confidence:        0.8,
+		},
 	}
 }
 
@@ -185,7 +195,11 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, e
 		"saved": true,
 		"note":  "saved to the Files view; reference it by id",
 	}, "", "  ")
-	return agent.Result{Output: string(out)}, nil
+	return agent.Result{
+		Output:            string(out),
+		ObservationTrust:  agent.ObservationUntrusted,
+		ObservationSource: u,
+	}, nil
 }
 
 // cleanMime strips any "; charset=…" parameter from a Content-Type.

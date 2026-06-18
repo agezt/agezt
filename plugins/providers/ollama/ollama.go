@@ -32,8 +32,6 @@ import (
 const (
 	// DefaultEndpoint is a local Ollama server.
 	DefaultEndpoint = "http://localhost:11434/api/chat"
-	// DefaultModel is what the loop uses when CompletionRequest.Model is empty.
-	DefaultModel = "llama3.2"
 	// DefaultTimeout caps a single request. Local models can take a while.
 	DefaultTimeout = 10 * time.Minute
 )
@@ -55,7 +53,6 @@ type Provider struct {
 func New() *Provider {
 	return &Provider{
 		Endpoint: DefaultEndpoint,
-		Model:    DefaultModel,
 		HTTP:     &http.Client{Timeout: DefaultTimeout},
 	}
 }
@@ -95,6 +92,11 @@ func (e *APIError) Error() string {
 // ErrNoEndpoint is returned when Endpoint is empty.
 var ErrNoEndpoint = errors.New("ollama: endpoint not set")
 
+// ErrNoModel is returned when a completion request carries no model and the
+// provider has none set. The daemon ships with no default model (owner rule), so
+// the model must come from the request (AGEZT_MODEL / routing / a fallback chain).
+var ErrNoModel = errors.New("ollama: no model specified (set CompletionRequest.Model, AGEZT_MODEL, or a routing/fallback chain)")
+
 // Complete implements agent.Provider.
 func (p *Provider) Complete(ctx context.Context, req agent.CompletionRequest) (*agent.CompletionResponse, error) {
 	endpoint := p.resolveEndpoint()
@@ -106,7 +108,7 @@ func (p *Provider) Complete(ctx context.Context, req agent.CompletionRequest) (*
 		model = p.Model
 	}
 	if model == "" {
-		model = DefaultModel
+		return nil, ErrNoModel
 	}
 
 	body, err := encodeRequest(model, req.System, req.Messages, req.Tools, req.MaxTokens, req.JSONMode)

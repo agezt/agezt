@@ -23,6 +23,11 @@
   `AGEZT_DEMO_ECHO` daemon with `AGEZT_WEB_ADDR`, seeds one intent (`agt run`),
   greps the tokenized Web UI URL from the daemon log, and runs `npx playwright
   test`. Mirrors `scripts/e2e-smoke.sh` (build/boot/wait-ready/cleanup-trap).
+- **`scripts/webui-e2e.ps1`** + **`make webui-e2e-ps`** — Windows/PowerShell
+  parity harness for the same gate. Builds temp `agezt.exe`/`agt.exe`, uses
+  separate stdout/stderr daemon logs because PowerShell does not allow redirecting
+  both streams to one file, resolves the tokenized URL, and runs the same
+  Playwright spec against the embedded production SPA.
 - **CI `webui-e2e` job** — setup-go + setup-node, build binaries, `npm ci`,
   `npx playwright install --with-deps chromium`, run the harness. New gate.
 
@@ -40,17 +45,22 @@ bundle (and cascaded the JS hash) on first rebuild — exactly the M581 failure 
 Fixed with `@source not "../e2e/**"` in `src/index.css`; rebuilt dist verified
 **byte-for-byte identical** to the committed bundle (`git status kernel/webui/dist`
 clean), so `frontend-dist-in-sync` stays green. Vitest `include` is `src/**/*.test.*`
-and tsconfig `include` is `["src", …]`, so the spec is invisible to both — verified
-Vitest still reports 28 tests.
+and tsconfig `include` is `["src", …]`, so the spec is invisible to both. Later
+frontend hardening expanded the Vitest suite; use the current `npm test` output
+for live counts.
 
 ## Gate (all green locally)
 
 - `bash scripts/webui-e2e.sh <agezt> <agt>` → daemon ready, run seeded, URL
-  resolved, **Playwright 1 passed** (≈440ms). Full real-browser proof, offline.
+  resolved, **Playwright 1 passed**. Full real-browser proof, offline.
+- `powershell -ExecutionPolicy Bypass -File scripts/webui-e2e.ps1` → binaries
+  built, daemon ready, run seeded, URL resolved, **Playwright 1 passed**,
+  `WEBUI-E2E PASS`.
 - Re-ran the spec standalone against a hand-booted daemon: pass.
-- `npm test` (Vitest) still 28/28; `npm run build` clean; dist unchanged.
-- Go tree untouched — `go build ./...` clean, `go.mod` unchanged, full Go suite
-  still 80 pkgs green.
+- `npm test` (Vitest) green; `npm run build` clean; embedded dist rebuilt and
+  kept in sync with the production SPA bundle.
+- Go gates green in the current tree (`go test ./...` plus targeted package
+  checks during follow-up hardening).
 
 ## Wiring
 
@@ -60,7 +70,8 @@ Vitest still reports 28 tests.
 - `.gitignore`: `/frontend/test-results/`, `playwright-report/`, `blob-report/`,
   `.playwright/` (the spec in `frontend/e2e/` IS committed; only run output +
   downloaded browsers are ignored).
-- `.github/workflows/ci.yml`: `webui-e2e` job. `Makefile`: `webui-e2e` target.
+- `.github/workflows/ci.yml`: `webui-e2e` job. `Makefile`: `webui-e2e` and
+  `webui-e2e-ps` targets.
 - `CHANGELOG.md` Unreleased entry (M583).
 
 ## State after M583

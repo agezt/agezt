@@ -2,12 +2,14 @@
 
 package controlplane
 
-// Chronos standing-order CRUD handlers — the management path behind `agt
-// standing`. Lifecycle changes go through the kernel so every create/pause/
-// resume/remove is journaled (standing.*) and auditable via `agt why`.
+// Standing-order CRUD handlers — the management path behind `agt standing`.
+// Standing orders are durable event/cron wake rules, not agent identities.
+// Lifecycle changes go through the kernel so every create/pause/resume/remove
+// is journaled (standing.*) and auditable via `agt why`.
 
 import (
 	"encoding/json"
+	"fmt"
 	"net"
 	"strings"
 
@@ -20,7 +22,32 @@ func standingView(o standing.Order) map[string]any {
 	b, _ := json.Marshal(o)
 	var m map[string]any
 	_ = json.Unmarshal(b, &m)
+	if warning := standingFrequencyWarning(o); warning != "" {
+		m["frequency_warning"] = warning
+	}
 	return m
+}
+
+func standingFrequencyWarning(o standing.Order) string {
+	hasEvent := false
+	for _, t := range o.Triggers {
+		if t.Type == standing.TriggerEvent {
+			hasEvent = true
+		}
+		if t.Type == standing.TriggerCron {
+			first := ""
+			if fields := strings.Fields(strings.TrimSpace(t.Schedule)); len(fields) > 0 {
+				first = fields[0]
+			}
+			if first == "*" || first == "*/1" || first == "0/1" {
+				return "cron trigger may wake this standing order every minute"
+			}
+		}
+	}
+	if hasEvent && o.CooldownSec > 0 && o.CooldownSec < 15*60 {
+		return "event cooldown is below the default 15m guard"
+	}
+	return ""
 }
 
 func (s *Server) handleStandingList(conn net.Conn, req Request) {
@@ -28,7 +55,14 @@ func (s *Server) handleStandingList(conn net.Conn, req Request) {
 	out := make([]any, 0, len(orders))
 	enabled := 0
 	for _, o := range orders {
-		out = append(out, standingView(o))
+		row := standingView(o)
+		if err := s.validateStandingAgent(o.Agent); err != nil {
+			row["target_status"] = "blocked"
+			row["target_error"] = err.Error()
+		} else if strings.TrimSpace(o.Agent) != "" {
+			row["target_status"] = "ready"
+		}
+		out = append(out, row)
 		if o.Enabled {
 			enabled++
 		}
@@ -56,6 +90,10 @@ func (s *Server) handleStandingAdd(conn net.Conn, req Request) {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.order: " + err.Error()})
 		return
 	}
+	if err := s.validateStandingAgent(o.Agent); err != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		return
+	}
 	saved, err := s.k.AddStanding(o)
 	if err != nil {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
@@ -65,7 +103,7 @@ func (s *Server) handleStandingAdd(conn net.Conn, req Request) {
 }
 
 // handleStandingEdit edits an order's mutable fields in place (M729): any subset
-// of name/plan/initiative-mode/max-trust/briefing-disposition/assure. Triggers,
+// of name/plan/initiative-mode/max-trust/briefing-disposition/assure/cooldown. Triggers,
 // observers and scope are not touched here (they keep their current values), and
 // enabled has its own pause/resume path. Unknown id → {updated:false}, mirroring
 // the schedule-edit path. Every edit is journaled (standing.updated, "edited").
@@ -74,6 +112,12 @@ func (s *Server) handleStandingEdit(conn net.Conn, req Request) {
 	if id == "" {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.id required"})
 		return
+	}
+	if v, ok := req.Args["agent"].(string); ok {
+		if err := s.validateStandingAgent(v); err != nil {
+			s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+			return
+		}
 	}
 	o, ok, err := s.k.UpdateStanding(id, func(o *standing.Order) {
 		if v, ok := req.Args["name"].(string); ok {
@@ -98,6 +142,9 @@ func (s *Server) handleStandingEdit(conn net.Conn, req Request) {
 		if v, ok := req.Args["assure"].(float64); ok {
 			o.Assure = int(v)
 		}
+		if v, ok := req.Args["cooldown_sec"].(float64); ok {
+			o.CooldownSec = int64(v)
+		}
 	})
 	if err != nil {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
@@ -108,6 +155,27 @@ func (s *Server) handleStandingEdit(conn net.Conn, req Request) {
 		return
 	}
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"updated": true, "order": standingView(o)}})
+}
+
+func (s *Server) validateStandingAgent(ref string) error {
+	ref = strings.TrimSpace(ref)
+	if ref == "" {
+		return nil
+	}
+	p, ok := s.k.Roster().Get(ref)
+	if !ok {
+		return fmt.Errorf("unknown standing agent: %s", ref)
+	}
+	if p.Retired {
+		return fmt.Errorf("standing agent %s is retired", p.Slug)
+	}
+	if !p.Enabled {
+		return fmt.Errorf("standing agent %s is paused", p.Slug)
+	}
+	if !p.AllowsDirectCall() {
+		return fmt.Errorf("standing %s", managedSubagentDirectCallError(p, "called"))
+	}
+	return nil
 }
 
 func (s *Server) handleStandingSetEnabled(conn net.Conn, req Request) {
@@ -124,6 +192,17 @@ func (s *Server) handleStandingSetEnabled(conn net.Conn, req Request) {
 		enabled = v
 	case string:
 		enabled = strings.EqualFold(v, "true") || v == "1"
+	}
+	if enabled {
+		o, ok := s.k.Standing().Get(id)
+		if !ok {
+			s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "unknown standing order: " + id})
+			return
+		}
+		if err := s.validateStandingAgent(o.Agent); err != nil {
+			s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+			return
+		}
 	}
 	o, err := s.k.SetStandingEnabled(id, enabled)
 	if err != nil {
@@ -204,8 +283,13 @@ func (s *Server) handleStandingFire(conn net.Conn, req Request) {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "standing-order firing is not available on this daemon"})
 		return
 	}
-	if _, ok := s.k.Standing().Get(id); !ok {
+	o, ok := s.k.Standing().Get(id)
+	if !ok {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"fired": false, "id": id}})
+		return
+	}
+	if err := s.validateStandingAgent(o.Agent); err != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
 		return
 	}
 	fired := s.standingFire(id)

@@ -4,6 +4,8 @@ package configcenter
 
 import (
 	"context"
+	"sort"
+	"strings"
 	"testing"
 )
 
@@ -267,6 +269,37 @@ func TestCenterListAccessible(t *testing.T) {
 	}
 }
 
+func TestCenterListAndSearchVisibleForAgent(t *testing.T) {
+	cfg := DefaultConfig(t.TempDir())
+	center, err := New(cfg)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	defer center.Close()
+
+	public := NewConfigEntry("public:value", "public-content")
+	opsOnly := NewConfigEntry("agent/ops/runtime", "mode=careful")
+	opsOnly.AllowedAgents = []string{"ops"}
+	blocked := NewConfigEntry("agent/blocked/runtime", "mode=blocked")
+	blocked.ExcludedAgents = []string{"ops"}
+	plannerOnly := NewConfigEntry("agent/planner/runtime", "mode=plan")
+	plannerOnly.AllowedAgents = []string{"planner"}
+	for _, entry := range []*ConfigEntry{public, opsOnly, blocked, plannerOnly} {
+		if err := center.Set(entry); err != nil {
+			t.Fatalf("Set(%s): %v", entry.Key, err)
+		}
+	}
+
+	listed := center.ListAccessibleForAgent("ops")
+	if got := entryKeys(listed); strings.Join(got, ",") != "agent/ops/runtime,public:value" {
+		t.Fatalf("ListAccessibleForAgent(ops) = %v", got)
+	}
+	found := center.SearchForAgent("ops", "agent/", SearchOptions{Limit: 10})
+	if got := entryKeys(found); strings.Join(got, ",") != "agent/ops/runtime" {
+		t.Fatalf("SearchForAgent(ops) = %v", got)
+	}
+}
+
 // TestRateLimiting tests that rate limiting works.
 func TestRateLimiting(t *testing.T) {
 	cfg := DefaultConfig(t.TempDir())
@@ -372,4 +405,13 @@ func TestSearch(t *testing.T) {
 	if len(results) != 1 {
 		t.Errorf("Search(api) returned %d results, want 1", len(results))
 	}
+}
+
+func entryKeys(entries []*ConfigEntry) []string {
+	keys := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		keys = append(keys, entry.Key)
+	}
+	sort.Strings(keys)
+	return keys
 }

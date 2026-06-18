@@ -46,7 +46,7 @@ func tickCron(ctx context.Context, store *Store, t time.Time, lastFired map[stri
 			lastFired[o.ID] = stamp
 			ord := o
 			sched := tr.Schedule
-			go fire(ctx, ord, "cron:"+sched)
+			go fire(ctx, ord, "cron:"+sched, nil)
 			fired = append(fired, o.ID)
 			break
 		}

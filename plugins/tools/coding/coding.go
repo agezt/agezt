@@ -79,6 +79,16 @@ func (t *Tool) Definition() agent.ToolDef {
   },
   "required": ["task"]
 }`),
+		Effect: agent.ToolEffect{
+			Class: agent.EffectCompensable,
+			PredictedEffects: []string{
+				"Spawn an operator-configured external coding agent in an isolated git worktree.",
+				"Allow that agent to read repository contents, run commands, and produce a proposed diff.",
+			},
+			AffectedResources: []string{"temporary git worktree", "external coding-agent process", "repository contents visible to the delegated agent"},
+			RollbackNotes:     "The temporary worktree is removed and no patch is applied automatically; compensate leaked or external side effects according to the configured agent's sandbox.",
+			Confidence:        0.6,
+		},
 	}
 }
 

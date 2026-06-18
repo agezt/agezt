@@ -136,6 +136,14 @@ func TestStanding_AgentFieldRoundTrips(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 	ctx := context.Background()
 
+	for _, slug := range []string{"researcher", "ops"} {
+		if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+			"profile": map[string]any{"slug": slug, "soul": "Run standing work.", "model": "m"},
+		}); err != nil {
+			t.Fatalf("agent add %s: %v", slug, err)
+		}
+	}
+
 	add, err := c.Call(ctx, controlplane.CmdStandingAdd, map[string]any{
 		"order": map[string]any{
 			"name":     "inbox answerer",

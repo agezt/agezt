@@ -39,8 +39,6 @@ import (
 const (
 	// DefaultBaseURL is the public Cohere API root.
 	DefaultBaseURL = "https://api.cohere.com"
-	// DefaultModel is what the loop uses when CompletionRequest.Model is empty.
-	DefaultModel = "command-r-plus"
 	// DefaultTimeout caps a single HTTP request.
 	DefaultTimeout = 5 * time.Minute
 )
@@ -64,7 +62,6 @@ func New(apiKey string) *Provider {
 	return &Provider{
 		APIKey:  apiKey,
 		BaseURL: DefaultBaseURL,
-		Model:   DefaultModel,
 		HTTP:    &http.Client{Timeout: DefaultTimeout},
 	}
 }
@@ -94,6 +91,11 @@ func (p *Provider) Name() string { return "cohere" }
 // ErrNoAPIKey is returned by Complete when APIKey is empty.
 var ErrNoAPIKey = errors.New("cohere: API key not set")
 
+// ErrNoModel is returned when a completion request carries no model and the
+// provider has none set. The daemon ships with no default model (owner rule), so
+// the model must come from the request (AGEZT_MODEL / routing / a fallback chain).
+var ErrNoModel = errors.New("cohere: no model specified (set CompletionRequest.Model, AGEZT_MODEL, or a routing/fallback chain)")
+
 // APIError is returned for non-2xx responses.
 type APIError struct {
 	Status int
@@ -114,7 +116,7 @@ func (p *Provider) Complete(ctx context.Context, req agent.CompletionRequest) (*
 		model = p.Model
 	}
 	if model == "" {
-		model = DefaultModel
+		return nil, ErrNoModel
 	}
 
 	body, err := encodeRequest(model, req.System, req.Messages, req.Tools, req.MaxTokens)

@@ -113,7 +113,7 @@ func (h *ConfigHandler) handleConfigList(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	entries := h.center.ListAccessible()
+	entries := h.center.ListAccessibleForAgent(claims.SubprocessID)
 	keys := make([]string, len(entries))
 	for i, e := range entries {
 		keys[i] = e.Key
@@ -145,7 +145,7 @@ func (h *ConfigHandler) handleConfigSearch(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	results := h.center.Search(query, configcenter.SearchOptions{
+	results := h.center.SearchForAgent(claims.SubprocessID, query, configcenter.SearchOptions{
 		Limit: 50,
 	})
 
@@ -216,6 +216,12 @@ func (h *ConfigHandler) handleConfigSet(w http.ResponseWriter, r *http.Request) 
 	}
 	if len(req.Tags) > 0 {
 		entry.Tags = req.Tags
+	}
+	if len(req.AllowedAgents) > 0 {
+		entry.AllowedAgents = cleanStringList(req.AllowedAgents)
+	}
+	if len(req.ExcludedAgents) > 0 {
+		entry.ExcludedAgents = cleanStringList(req.ExcludedAgents)
 	}
 
 	if err := h.center.Set(entry); err != nil {
@@ -297,9 +303,28 @@ func (h *ConfigHandler) handleConfigAudit(w http.ResponseWriter, r *http.Request
 
 // ConfigSetRequest is the request body for setting a config value.
 type ConfigSetRequest struct {
-	Key         string   `json:"key"`
-	Value       string   `json:"value"`
-	Rating      string   `json:"rating,omitempty"`
-	Description string   `json:"description,omitempty"`
-	Tags        []string `json:"tags,omitempty"`
+	Key            string   `json:"key"`
+	Value          string   `json:"value"`
+	Rating         string   `json:"rating,omitempty"`
+	Description    string   `json:"description,omitempty"`
+	Tags           []string `json:"tags,omitempty"`
+	AllowedAgents  []string `json:"allowed_agents,omitempty"`
+	ExcludedAgents []string `json:"excluded_agents,omitempty"`
+}
+
+func cleanStringList(values []string) []string {
+	out := make([]string, 0, len(values))
+	seen := make(map[string]struct{}, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		if _, ok := seen[value]; ok {
+			continue
+		}
+		seen[value] = struct{}{}
+		out = append(out, value)
+	}
+	return out
 }

@@ -2,9 +2,10 @@ import { defineConfig, devices } from "@playwright/test";
 
 // End-to-end tests drive the REAL embedded Web UI — the production bundle that
 // is `go:embed`-ded into the agezt daemon — in a headless browser. The harness
-// (`scripts/webui-e2e.sh`, run by `make webui-e2e` and CI) boots a keyless demo
-// daemon and exports `AGEZT_WEBUI_URL`: the full Web UI URL including the
-// `?token=…` query the browser authenticates with. The spec reads that env var.
+// (`scripts/webui-e2e.sh` / `scripts/webui-e2e.ps1`, run by `make webui-e2e`,
+// `make webui-e2e-ps`, or CI) boots a keyless demo daemon and exports
+// `AGEZT_WEBUI_URL`: the full Web UI URL including the `?token=…` query the
+// browser authenticates with. The spec reads that env var.
 //
 // Kept separate from vite/vitest config: Playwright transpiles `e2e/*.spec.ts`
 // itself, and Vitest's `include` is `src/**/*.test.*`, so the two suites never

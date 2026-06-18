@@ -37,6 +37,18 @@ func TestSteerCommands_UnknownRunReportsNotOk(t *testing.T) {
 	if acc, _ := res["accepted"].(bool); acc {
 		t.Error("run_steer on an unknown run: accepted=true want false")
 	}
+
+	res, err = c.Call(context.Background(), controlplane.CmdRunIntervene,
+		map[string]any{"correlation": "no-such-run", "primitive": "query"})
+	if err != nil {
+		t.Fatalf("run_intervene query: %v", err)
+	}
+	if acc, _ := res["accepted"].(bool); acc {
+		t.Error("run_intervene on an unknown run: accepted=true want false")
+	}
+	if res["state"] != "unknown" {
+		t.Errorf("run_intervene state=%v want unknown", res["state"])
+	}
 }
 
 // Missing required args are clear errors, not silent no-ops.
@@ -49,5 +61,13 @@ func TestSteerCommands_RejectMissingArgs(t *testing.T) {
 	if _, err := c.Call(context.Background(), controlplane.CmdRunSteer,
 		map[string]any{"correlation": "r1"}); err == nil {
 		t.Error("run_steer without directive should error")
+	}
+	if _, err := c.Call(context.Background(), controlplane.CmdRunIntervene,
+		map[string]any{"correlation": "r1", "primitive": "redirect"}); err == nil {
+		t.Error("run_intervene redirect without directive should error")
+	}
+	if _, err := c.Call(context.Background(), controlplane.CmdRunIntervene,
+		map[string]any{"correlation": "r1", "primitive": "bogus"}); err == nil {
+		t.Error("run_intervene bad primitive should error")
 	}
 }

@@ -65,27 +65,26 @@ func SeedAll(f Forge, corr string) ([]Seeded, error) {
 	return out, firstErr
 }
 
-// seedOne reads one embedded bundle dir (its SKILL.md + the rest as resources),
-// creates the skill, and promotes it to active.
-func seedOne(f Forge, corr, dir string) (Seeded, error) {
-	mdRaw, err := bundles.ReadFile(path.Join(dir, "SKILL.md"))
-	if err != nil {
-		return Seeded{}, fmt.Errorf("read SKILL.md: %w", err)
-	}
-	md, err := skill.ParseSkillMD(mdRaw)
-	if err != nil {
-		return Seeded{}, err
-	}
+// Names returns the embedded built-in bundle directory names.
+func Names() []string { return append([]string(nil), builtinBundles...) }
 
-	resources := map[string][]byte{}
-	walkErr := fs.WalkDir(bundles, dir, func(p string, d fs.DirEntry, werr error) error {
+// Bundle returns one embedded bundle's raw SKILL.md plus its resource files
+// (relative path → bytes), so other packagers — e.g. the marketplace's built-in
+// "Official" seed — can wrap a built-in skill without duplicating its bytes.
+func Bundle(name string) (skillMD []byte, resources map[string][]byte, err error) {
+	mdRaw, err := bundles.ReadFile(path.Join(name, "SKILL.md"))
+	if err != nil {
+		return nil, nil, fmt.Errorf("read SKILL.md: %w", err)
+	}
+	resources = map[string][]byte{}
+	walkErr := fs.WalkDir(bundles, name, func(p string, d fs.DirEntry, werr error) error {
 		if werr != nil {
 			return werr
 		}
 		if d.IsDir() {
 			return nil
 		}
-		rel := strings.TrimPrefix(p, dir+"/")
+		rel := strings.TrimPrefix(p, name+"/")
 		if rel == "SKILL.md" {
 			return nil // the body, not a resource
 		}
@@ -97,7 +96,24 @@ func seedOne(f Forge, corr, dir string) (Seeded, error) {
 		return nil
 	})
 	if walkErr != nil {
-		return Seeded{}, walkErr
+		return nil, nil, walkErr
+	}
+	if len(resources) == 0 {
+		resources = nil
+	}
+	return mdRaw, resources, nil
+}
+
+// seedOne reads one embedded bundle dir (its SKILL.md + the rest as resources),
+// creates the skill, and promotes it to active.
+func seedOne(f Forge, corr, dir string) (Seeded, error) {
+	mdRaw, resources, err := Bundle(dir)
+	if err != nil {
+		return Seeded{}, err
+	}
+	md, err := skill.ParseSkillMD(mdRaw)
+	if err != nil {
+		return Seeded{}, err
 	}
 
 	sk, created, err := f.Create(corr, skill.CreateSpec{

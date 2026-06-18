@@ -4,6 +4,7 @@ package standing
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"time"
 
@@ -13,12 +14,14 @@ import (
 // DefaultRunnerCooldown is the minimum gap between event-trigger firings of the
 // SAME order, so a burst of matching events launches at most one run per window
 // rather than a flood.
-const DefaultRunnerCooldown = 60 * time.Second
+const DefaultRunnerCooldown = 15 * time.Minute
 
 // FireFunc launches a standing order's plan in response to a matched trigger.
 // It must not block the runner loop — the daemon's implementation starts the run
 // asynchronously. triggerSubject is the subject of the event that matched.
-type FireFunc func(ctx context.Context, o Order, triggerSubject string)
+// triggerPayload carries the matched event payload for event-triggered fires;
+// cron/manual fires pass nil.
+type FireFunc func(ctx context.Context, o Order, triggerSubject string, triggerPayload map[string]any)
 
 // RunnerConfig tunes the event-trigger runner.
 type RunnerConfig struct {
@@ -28,7 +31,8 @@ type RunnerConfig struct {
 	Now func() time.Time
 }
 
-// StartRunner wires the event-trigger half of Chronos onto the bus (SPEC-16 §4).
+// StartRunner wires the event-trigger half of standing orders onto the bus
+// (SPEC-16 §4).
 // It subscribes to every event and, for each, fires every enabled standing order
 // whose event-trigger subject matches — subject to a per-order cooldown so an
 // event storm can't launch a flood of runs. The order's OWN lifecycle events
@@ -89,13 +93,21 @@ func StartRunner(ctx context.Context, b *bus.Bus, store *Store, cfg RunnerConfig
 					if !matchesAnyEventTrigger(o, ev.Subject) {
 						continue
 					}
-					if last, ok := lastFireMS[o.ID]; ok && nowMS-last < cooldownMS {
+					orderCooldownMS := cooldownMS
+					if o.CooldownSec > 0 {
+						orderCooldownMS = o.CooldownSec * int64(time.Second/time.Millisecond)
+					}
+					if last, ok := lastFireMS[o.ID]; ok && nowMS-last < orderCooldownMS {
 						continue
 					}
 					lastFireMS[o.ID] = nowMS
 					ord := o
 					subj := ev.Subject
-					go fire(ctx, ord, subj)
+					var payload map[string]any
+					if len(ev.Payload) > 0 {
+						_ = json.Unmarshal(ev.Payload, &payload)
+					}
+					go fire(ctx, ord, subj, payload)
 				}
 				pruneToLive(lastFireMS, orders)
 			}
@@ -113,6 +125,30 @@ func ScopedIntent(o Order, intent string) string {
 		return intent
 	}
 	return "Scope (what this standing order watches): " + strings.Join(o.ScopeEntities, ", ") + ".\n\n" + intent
+}
+
+// TriggeredIntent grounds a fired order in the event that woke it. Event-driven
+// orders receive the triggering subject and, when available, the payload JSON so
+// the agent can act on the exact candidate instead of only knowing that
+// "something happened".
+func TriggeredIntent(intent, triggerSubject string, triggerPayload map[string]any) string {
+	triggerSubject = strings.TrimSpace(triggerSubject)
+	if triggerSubject == "" || strings.HasPrefix(triggerSubject, "cron:") || triggerSubject == "manual" {
+		return intent
+	}
+	var b strings.Builder
+	b.WriteString("Trigger event: ")
+	b.WriteString(triggerSubject)
+	if len(triggerPayload) > 0 {
+		if raw, err := json.MarshalIndent(triggerPayload, "", "  "); err == nil {
+			b.WriteString("\nTrigger payload:\n```json\n")
+			b.Write(raw)
+			b.WriteString("\n```")
+		}
+	}
+	b.WriteString("\n\n")
+	b.WriteString(intent)
+	return b.String()
 }
 
 // BriefText formats the briefing an order sends after a run, and reports whether
@@ -158,9 +194,9 @@ func pruneToLive(lastFire map[string]int64, orders []Order) {
 // before a panic reaches here, so this is the universal backstop, not the primary
 // diagnostic path — but it guarantees containment for ANY FireFunc a caller passes.
 func safeFire(fire FireFunc) FireFunc {
-	return func(ctx context.Context, o Order, subject string) {
+	return func(ctx context.Context, o Order, subject string, payload map[string]any) {
 		defer func() { _ = recover() }()
-		fire(ctx, o, subject)
+		fire(ctx, o, subject, payload)
 	}
 }
 

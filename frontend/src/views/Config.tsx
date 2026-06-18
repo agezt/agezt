@@ -1,6 +1,7 @@
 import { Settings } from "lucide-react";
 import { Panel, Stats, Count } from "@/components/Panel";
 import { KeyValue, JsonView } from "@/components/JsonView";
+import { Disclosure } from "@/components/ui/disclosure";
 
 // CATEGORIES buckets the AGEZT_* settings (sans prefix) into labelled groups so
 // the Config view reads like a settings panel instead of a flat chip cloud. Rules
@@ -63,12 +64,17 @@ export function Config() {
                 {sections.map((sec) => {
                   const keys = buckets.get(sec)!;
                   return (
-                    <div key={sec} className="glass rounded-xl p-3">
-                      <div className="mb-1.5 flex items-center gap-2">
-                        <h3 className="text-xs font-semibold uppercase tracking-wider text-accent">{sec}</h3>
-                        <span className="text-[10px] text-muted">{keys.length}</span>
-                      </div>
-                      <div className="flex flex-wrap gap-1">
+                    <Disclosure
+                      key={sec}
+                      className="glass rounded-xl px-2 py-1"
+                      summary={
+                        <span className="flex w-full items-center gap-2">
+                          <span className="text-xs font-semibold uppercase tracking-wider text-accent">{sec}</span>
+                          <span className="ml-auto font-mono text-[10px] text-muted">{keys.length}</span>
+                        </span>
+                      }
+                    >
+                      <div className="flex flex-wrap gap-1 px-1 pb-1">
                         {keys.map((k) => (
                           <span
                             key={k}
@@ -79,7 +85,7 @@ export function Config() {
                           </span>
                         ))}
                       </div>
-                    </div>
+                    </Disclosure>
                   );
                 })}
               </div>

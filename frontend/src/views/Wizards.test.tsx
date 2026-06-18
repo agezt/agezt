@@ -36,6 +36,7 @@ describe("Wizards", () => {
     expect(screen.getByText("Connect a provider")).toBeTruthy();
     expect(screen.getByText("Create an agent")).toBeTruthy();
     expect(screen.getByText("Schedule a task")).toBeTruthy();
+    expect(screen.getByText("Create a cron trigger for an agent wake, workflow, system task, or tool call.")).toBeTruthy();
   });
 
   it("opens a wizard overlay on click and closes it", () => {

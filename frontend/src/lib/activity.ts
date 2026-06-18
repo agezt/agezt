@@ -99,12 +99,38 @@ export function foldActivityEvent(state: ActivityState, e: AgentEvent): Activity
 
   const existing = state[corr];
   // Ignore events for runs we never saw begin — otherwise the capped firehose
-  // buffer could resurrect long-finished correlations on mount.
-  if (!existing && kind !== "task.received") return state;
+  // buffer could resurrect long-finished correlations on mount. Repair and
+  // mailbox events are allowed to seed a compact live line because they are
+  // often operator/doctor initiated and may not have a task.received prelude.
+  if (!existing && kind !== "task.received" && !isStandaloneActivityEvent(e)) return state;
 
   const next = { ...state };
   const r = { ...(existing || blankRun(corr)) };
   if (!r.startedMs) r.startedMs = num(e.ts_unix_ms);
+
+  if (e.subject === "doctor.auto_repair") {
+    r.status = "running";
+    const mode = String(p.mode || "").trim();
+    const phase = String(p.phase || "event").trim();
+    const target = String(p.agent || p.target_agent || "").trim();
+    const prefix = mode === "degraded" ? "doctor" : mode === "routing" ? "routing repair" : "repair";
+    if (phase === "completed" || phase === "routing_rollback_completed") {
+      r.status = "completed";
+      r.endedMs = num(e.ts_unix_ms) || r.endedMs;
+      r.activity = `${prefix} completed${target ? ` for ${target}` : ""}`;
+    } else if (phase === "failed" || phase === "routing_rollback_failed" || phase === "resolution_failed" || phase === "attempts_exhausted") {
+      r.status = "failed";
+      r.endedMs = num(e.ts_unix_ms) || r.endedMs;
+      r.activity = phase === "attempts_exhausted"
+        ? `${prefix} exhausted${p.self_repair_attempt && p.self_repair_max_attempts ? ` ${p.self_repair_attempt}/${p.self_repair_max_attempts}` : ""}${p.reason ? `: ${String(p.reason)}` : ""}`
+        : `${prefix} failed${p.error || p.reason ? `: ${String(p.error || p.reason)}` : ""}`;
+    } else {
+      r.activity = `${prefix} ${phase}${target ? ` for ${target}` : ""}`;
+    }
+    r.lastSeq = Math.max(r.lastSeq, num(e.seq));
+    next[corr] = r;
+    return pruneFinished(next);
+  }
 
   switch (kind) {
     case "task.received":
@@ -126,6 +152,46 @@ export function foldActivityEvent(state: ActivityState, e: AgentEvent): Activity
     case "tool.result":
       r.activity = `ran ${String(p.tool || "tool")}${p.error ? " (error)" : ""}`;
       break;
+    case "agent.retry":
+    case "provider.retry": {
+      r.status = "running";
+      r.endedMs = undefined;
+      const nextAttempt = num(p.next_attempt);
+      const maxAttempts = num(p.max_attempts);
+      const delayMs = num(p.delay_ms);
+      const reason = String(p.reason || p.error || "retry");
+      const attemptText =
+        nextAttempt > 0 && maxAttempts > 0
+          ? ` attempt ${nextAttempt}/${maxAttempts}`
+          : "";
+      const delayText = delayMs > 0 ? ` · wait ${formatRetryDelay(delayMs)}` : "";
+      const policyText = retryPolicyText(p);
+      r.activity = `retrying${attemptText}: ${reason}${delayText}${policyText}`;
+      break;
+    }
+    case "agent.repair": {
+      r.status = "running";
+      const phase = String(p.phase || "requested");
+      if (phase === "completed") {
+        r.status = "completed";
+        r.endedMs = num(e.ts_unix_ms) || r.endedMs;
+        r.activity = "operator repair completed";
+      } else if (phase === "failed") {
+        r.status = "failed";
+        r.endedMs = num(e.ts_unix_ms) || r.endedMs;
+        r.activity = `operator repair failed${p.error ? `: ${String(p.error)}` : ""}`;
+      } else {
+        r.activity = "operator repair requested";
+      }
+      break;
+    }
+    case "board.posted": {
+      const from = String(p.from || "agent");
+      const to = String(p.to || "board");
+      const topic = String(p.topic || "").trim();
+      r.activity = `${from} messaged ${to}${topic ? ` · ${topic}` : ""}`;
+      break;
+    }
     case "budget.consumed":
       r.spentMc += num(p.cost_microcents);
       break;
@@ -144,6 +210,32 @@ export function foldActivityEvent(state: ActivityState, e: AgentEvent): Activity
   r.lastSeq = Math.max(r.lastSeq, num(e.seq));
   next[corr] = r;
   return pruneFinished(next);
+}
+
+function isStandaloneActivityEvent(e: AgentEvent): boolean {
+  const kind = e.kind || "";
+  const subject = e.subject || "";
+  return kind === "agent.repair" || kind === "board.posted" || subject === "doctor.auto_repair";
+}
+
+function formatRetryDelay(ms: number): string {
+  if (ms < 1000) return `${ms}ms`;
+  const sec = Math.round(ms / 1000);
+  if (sec < 60) return `${sec}s`;
+  const min = Math.floor(sec / 60);
+  const rem = sec % 60;
+  return rem > 0 ? `${min}m ${rem}s` : `${min}m`;
+}
+
+function retryPolicyText(payload: Record<string, any>): string {
+  const bits: string[] = [];
+  const backoff = String(payload.backoff || "").trim();
+  if (backoff) bits.push(`backoff ${backoff}`);
+  const retryOn = Array.isArray(payload.retry_on)
+    ? payload.retry_on.map((v) => String(v).trim()).filter(Boolean)
+    : [];
+  if (retryOn.length > 0) bits.push(`retry_on ${retryOn.join(",")}`);
+  return bits.length > 0 ? ` · ${bits.join(" · ")}` : "";
 }
 
 // pruneFinished keeps every running run and only the most recently ended

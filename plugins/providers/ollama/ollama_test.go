@@ -72,6 +72,7 @@ func TestComplete_ToolCallResponse(t *testing.T) {
 	p := New()
 	p.Endpoint = srv.URL
 	resp, err := p.Complete(context.Background(), agent.CompletionRequest{
+		Model:    "m",
 		Messages: []agent.Message{{Role: agent.RoleUser, Content: "list"}},
 	})
 	if err != nil {
@@ -103,6 +104,7 @@ func TestComplete_StopReasonLength(t *testing.T) {
 	p := New()
 	p.Endpoint = srv.URL
 	resp, _ := p.Complete(context.Background(), agent.CompletionRequest{
+		Model:    "m",
 		Messages: []agent.Message{{Role: agent.RoleUser, Content: "hi"}},
 	})
 	if resp.StopReason != agent.StopMaxTokens {
@@ -119,6 +121,7 @@ func TestComplete_APIError(t *testing.T) {
 	p := New()
 	p.Endpoint = srv.URL
 	_, err := p.Complete(context.Background(), agent.CompletionRequest{
+		Model:    "m",
 		Messages: []agent.Message{{Role: agent.RoleUser, Content: "hi"}},
 	})
 	if err == nil {

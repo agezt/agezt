@@ -173,6 +173,121 @@ export function summarize(type: string, config?: Record<string, unknown>): strin
   }
 }
 
+export function workflowExecutionContract(w: Pick<Wf, "trigger_kind" | "trigger_detail" | "enabled">): string {
+  const state = w.enabled === false ? "disabled" : "enabled";
+  const trigger = w.trigger_kind
+    ? `${w.trigger_kind}${w.trigger_detail ? ` (${w.trigger_detail})` : ""}`
+    : "manual/API";
+  return `${state} reusable chain · trigger ${trigger} · runnable by user, agent, schedule, or webhook`;
+}
+
+export interface WorkflowRunContractSummary {
+  label: string;
+  detail: string;
+  tone: "good" | "warn" | "muted";
+}
+
+export function workflowRunContractSummary(w: Pick<Wf, "trigger_kind" | "trigger_detail" | "enabled">): WorkflowRunContractSummary {
+  const contract = workflowExecutionContract(w);
+  if (w.enabled === false) {
+    return {
+      label: "draft chain",
+      detail: `${contract} · auto triggers disarmed, manual/user/agent test runs still allowed`,
+      tone: "muted",
+    };
+  }
+  if (w.trigger_kind === "cron") {
+    return {
+      label: "scheduled chain",
+      detail: `${contract} · cron trigger starts the graph without making it an agent identity`,
+      tone: "warn",
+    };
+  }
+  if (w.trigger_kind === "event" || w.trigger_kind === "webhook") {
+    return {
+      label: "reactive chain",
+      detail: `${contract} · external/event wake starts the graph under workflow policy gates`,
+      tone: "good",
+    };
+  }
+  return {
+    label: "manual/shared chain",
+    detail: `${contract} · run on demand from user, agent, or schedule`,
+    tone: "muted",
+  };
+}
+
+export interface WorkflowInvocationPassport {
+  label: string;
+  detail: string;
+  tone: "good" | "warn" | "muted";
+}
+
+export function workflowInvocationPassport(w: Pick<Wf, "trigger_kind" | "trigger_detail" | "enabled" | "node_count"> & { nodes?: WfNode[] }): WorkflowInvocationPassport {
+  const trigger = w.trigger_kind
+    ? `${w.trigger_kind}${w.trigger_detail ? ` (${w.trigger_detail})` : ""}`
+    : "manual/API";
+  const nodeCount = w.node_count ?? w.nodes?.length ?? 0;
+  const nodeText = nodeCount > 0 ? `${nodeCount} node${nodeCount === 1 ? "" : "s"}` : "node count unknown";
+  if (w.enabled === false) {
+    return {
+      label: "test-only invocation",
+      detail: `${nodeText} · not an agent identity · auto trigger ${trigger} disarmed · user or agent can still run tests manually · past runs stay journaled`,
+      tone: "muted",
+    };
+  }
+  if (w.trigger_kind === "cron") {
+    return {
+      label: "cron-invoked graph",
+      detail: `${nodeText} · cron starts the graph, not an agent · user, agent, schedule, or webhook may also run it through workflow policy · past runs stay journaled`,
+      tone: "warn",
+    };
+  }
+  if (w.trigger_kind === "event" || w.trigger_kind === "webhook") {
+    return {
+      label: "event-invoked graph",
+      detail: `${nodeText} · event/webhook starts the graph, not an agent · user, agent, or schedule may also run it through workflow policy · past runs stay journaled`,
+      tone: "good",
+    };
+  }
+  return {
+    label: "shared invocation graph",
+    detail: `${nodeText} · not an agent identity · user, agent, schedule, or webhook can run it through workflow policy · past runs stay journaled`,
+    tone: "muted",
+  };
+}
+
+export function workflowIdentityBoundary(w: Pick<Wf, "trigger_kind" | "trigger_detail" | "enabled" | "node_count"> & { nodes?: WfNode[] }): WorkflowInvocationPassport {
+  const nodeCount = w.node_count ?? w.nodes?.length ?? 0;
+  const nodeText = nodeCount > 0 ? `${nodeCount} graph node${nodeCount === 1 ? "" : "s"}` : "graph nodes unknown";
+  if (w.enabled === false) {
+    return {
+      label: "draft graph boundary",
+      detail: `${nodeText} retained; disabled workflow owns no soul, memory, inbox, provider route, retry, or repair policy`,
+      tone: "muted",
+    };
+  }
+  if (w.trigger_kind === "cron") {
+    return {
+      label: "scheduled graph boundary",
+      detail: `${nodeText}; cron runs the chain under daemon or invoking-agent authority, while identity and memory stay outside the workflow`,
+      tone: "warn",
+    };
+  }
+  if (w.trigger_kind === "event" || w.trigger_kind === "webhook") {
+    return {
+      label: "reactive graph boundary",
+      detail: `${nodeText}; event/webhook wakes the saved chain through workflow policy, not an autonomous agent identity`,
+      tone: "good",
+    };
+  }
+  return {
+    label: "shared graph boundary",
+    detail: `${nodeText}; users, agents, schedules, and webhooks may invoke it without turning the workflow into an agent`,
+    tone: "muted",
+  };
+}
+
 // toFlow converts a stored workflow into React Flow nodes/edges. Pure +
 // unit-tested. Unpositioned nodes get a simple grid so old graphs render.
 export function toFlow(wf: Wf): { nodes: RFNode[]; edges: RFEdge[] } {
@@ -787,6 +902,23 @@ export interface WfRun {
   finished_ms?: number;
   node_events?: WfRunNodeEvent[];
   error?: string;
+  source?: string;
+  runner?: string;
+  agent?: string;
+  schedule_id?: string;
+  standing_id?: string;
+  trigger_subject?: string;
+  parent_correlation_id?: string;
+}
+
+export function workflowRunSourceLabel(run: Pick<WfRun, "runner" | "source" | "agent" | "schedule_id" | "standing_id" | "trigger_subject">): string {
+  const runner = run.runner || run.source || "manual";
+  if (runner === "agent" && run.agent) return `agent ${run.agent}`;
+  if (runner === "schedule") return run.schedule_id ? `schedule ${run.schedule_id}` : "schedule";
+  if (runner === "webhook") return run.trigger_subject || "webhook";
+  if (runner === "standing") return run.standing_id ? `standing ${run.standing_id}` : "standing";
+  if (run.source === "schedule") return run.schedule_id ? `schedule ${run.schedule_id}` : "schedule";
+  return runner;
 }
 
 // runToStatus folds a past run's node events into the canvas status map —
@@ -843,6 +975,7 @@ export function RunsDrawer({
           const when = r.started_ms ? new Date(r.started_ms).toLocaleString() : "?";
           const dur =
             r.finished_ms && r.started_ms ? ` · ${((r.finished_ms - r.started_ms) / 1000).toFixed(1)}s` : "";
+          const source = workflowRunSourceLabel(r);
           return (
             <li key={r.correlation_id}>
               <button
@@ -856,6 +989,9 @@ export function RunsDrawer({
                 <span className="text-muted">{when}</span>
                 <span>
                   {(r.node_events || []).length} node(s){dur}
+                </span>
+                <span className="rounded bg-panel px-1.5 py-0.5 font-mono text-[10px] text-muted" title={`runner: ${source}`}>
+                  {source}
                 </span>
                 {r.error && <span className="truncate text-bad">{clip(r.error, 40)}</span>}
                 <span className="ml-auto font-mono text-[10px] text-muted">{clip(r.correlation_id, 18)}</span>
@@ -1231,8 +1367,8 @@ export function Workflows() {
           )}
         </div>
         <p className="text-[11px] text-muted">
-          Connect nodes by dragging from a bottom handle (condition/switch/error ports are labelled). Data flows with{" "}
-          <span className="font-mono">{"{{node_id.output}}"}</span> templates; the run replays live on the canvas.
+          Workflows are reusable chains, not agent identities. Agents, schedules, users, and webhooks can run the same saved graph; data flows with{" "}
+          <span className="font-mono">{"{{node_id.output}}"}</span> templates and the run replays live on the canvas.
         </p>
       </div>
     );
@@ -1244,7 +1380,7 @@ export function Workflows() {
       <PageHeader
         icon={Network}
         title="Workflows"
-        description="Typed-node graphs executed under the same policy and budget governance — every run journaled."
+        description="Reusable typed-node chains that agents, schedules, users, and webhooks can run under the same policy and budget governance."
         actions={
           <>
             {list && <span className="text-xs text-muted">{list.length} workflow(s)</span>}
@@ -1260,8 +1396,8 @@ export function Workflows() {
       />
 
       <p className="text-xs text-muted">
-        Typed-node graphs — triggers (manual/cron/event), tools, LLM steps, branches, loops over data, human approval
-        gates — executed under the same policy and budget governance as everything else, every run journaled.
+        Workflows are not agents. They are reusable chains with triggers, tools, LLM steps, branches, data loops and approval gates;
+        agents can create or run them, schedules can trigger them, and every run is journaled.
       </p>
 
       {creating && (
@@ -1314,7 +1450,12 @@ export function Workflows() {
       )}
 
       <ul className="space-y-2">
-        {(list || []).map((w) => (
+        {(list || []).map((w) => {
+          const contract = workflowExecutionContract(w);
+          const runContract = workflowRunContractSummary(w);
+          const invocation = workflowInvocationPassport(w);
+          const identity = workflowIdentityBoundary(w);
+          return (
           <li key={w.id || w.name} className="glass rounded-xl p-3">
             <div className="flex flex-wrap items-center gap-2">
               <button
@@ -1375,9 +1516,55 @@ export function Workflows() {
                 </Button>
               </span>
             </div>
+            <div
+              className={cn(
+                "mt-2 flex min-w-0 items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] text-muted",
+                runContract.tone === "good"
+                  ? "border-good/30 bg-good/5"
+                  : runContract.tone === "warn"
+                    ? "border-warn/30 bg-warn/5"
+                    : "border-border/60 bg-panel/40",
+              )}
+              title={runContract.detail}
+            >
+              <WorkflowIcon className={cn("size-3 shrink-0", runContract.tone === "good" ? "text-good" : runContract.tone === "warn" ? "text-warn" : "text-accent")} />
+              <span className="font-semibold text-foreground/70">{runContract.label}</span>
+              <span className="truncate">{contract}</span>
+            </div>
+            <div
+              className={cn(
+                "mt-1.5 flex min-w-0 items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] text-muted",
+                invocation.tone === "good"
+                  ? "border-good/25 bg-good/5"
+                  : invocation.tone === "warn"
+                    ? "border-warn/30 bg-warn/5"
+                    : "border-border/60 bg-card/35",
+              )}
+              title={invocation.detail}
+            >
+              <Play className={cn("size-3 shrink-0", invocation.tone === "good" ? "text-good" : invocation.tone === "warn" ? "text-warn" : "text-accent")} />
+              <span className="font-semibold text-foreground/70">{invocation.label}</span>
+              <span className="truncate">{invocation.detail}</span>
+            </div>
+            <div
+              className={cn(
+                "mt-1.5 flex min-w-0 items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] text-muted",
+                identity.tone === "good"
+                  ? "border-good/25 bg-good/5"
+                  : identity.tone === "warn"
+                    ? "border-warn/30 bg-warn/5"
+                    : "border-border/60 bg-panel/35",
+              )}
+              title={identity.detail}
+            >
+              <ShieldCheck className={cn("size-3 shrink-0", identity.tone === "good" ? "text-good" : identity.tone === "warn" ? "text-warn" : "text-accent")} />
+              <span className="font-semibold text-foreground/70">{identity.label}</span>
+              <span className="truncate">{identity.detail}</span>
+            </div>
             {w.description && <div className="mt-1 text-xs text-muted">{w.description}</div>}
           </li>
-        ))}
+          );
+        })}
       </ul>
     </div>
   );

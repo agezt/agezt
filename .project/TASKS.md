@@ -123,10 +123,11 @@ Legend: `[ ]` todo · each phase ends with a demoable slice. Contracts (P0) are 
 - [ ] **P3-INIT-02** Safety guards: action rate-limit, no-repeat, reversibility requirement. DoD: thrash/runaway prevented.
 - [ ] **P3-BRIEF-01** Briefing composer (disposition→delivery, batching, tone, dedupe, quiet hours). DoD: `EVT_BRIEFING_SENT`; coalesced.
 - [ ] **P3-BRIEF-02** Feedback hooks (dismiss/snooze/less-of-this). DoD: feeds reflection later.
-- [ ] **P3-CHRON-01** Chronos triggers (time/event/condition/webhook) + persistence (reload from journal). DoD: jobs survive restart.
-- [ ] **P3-STAND-01** Standing orders (observers+overrides+initiative scope, Chronos-kept). DoD: a named standing order stays alive.
+- [ ] **P3-SCHED-01** Typed schedule runner (time/event/condition/webhook) + persistence (reload from journal). DoD: jobs survive restart and can fire agent, workflow, tool, or system-task targets without embedding agent instructions.
+- [ ] **P3-WAKE-01** Standing wake rules for durable agents. DoD: a named rule wakes an existing agent identity; the agent's profile supplies soul, tasklist, memory, skills, model/provider/fallback, permissions, retry, doctor, mailbox, and lifecycle policy.
+- [ ] **P3-SYSTASK-01** Built-in maintenance targets. DoD: catalog sync, memory tidy, and log cleanup can run from schedule or operator command with journaled causality.
 
-**Phase 3 demo gate:** unprompted detection of broken CI → briefed (to CLI/log in P3); `agt why` explains; `agt halt` stops.
+**Phase 3 demo gate:** scheduled or event wake → durable agent works from its own identity → briefed (to CLI/log in P3); `agt why` explains the wake/run chain; `agt halt` stops.
 
 ---
 
@@ -201,6 +202,23 @@ Legend: `[ ]` todo · each phase ends with a demoable slice. Contracts (P0) are 
 - [ ] **P9-MESH-02** Federated bus + agent migration (ship correlation-scoped event slice). DoD: agent migrates node→node.
 - [ ] **P9-MT-01** Multi-tenant mode (per-tenant world-model + isolation). DoD: two tenants isolated on one instance.
 - [ ] **P9-MIG-01** `agt migrate openclaw|hermes` (import settings/memories/skills). DoD: a real OpenClaw/Hermes config imports.
+
+---
+
+## Council hardening backlog
+
+These tasks integrate the council audit without resetting the phase plan. Details live in
+`COUNCIL-HARDENING-PLAN.md`.
+
+- [x] **CH-01-TOOL-VALIDATE** Strict tool-call boundary validator. DoD: every tool call validates against registered JSON Schema before Edict/invoke; unknown fields reject by default; failures journaled.
+- [x] **CH-02-CONSTRAINED-GEN** Provider constrained-generation capability. DoD: catalog advertises schema/grammar constrained decoding; Governor prefers it for strict tool-use; fallback validation degradation journaled.
+- [x] **CH-03-SEMANTIC-TOOLS** Semantic tool discovery index. DoD: planner/loop receives bounded relevant tool subset using semantic or keyword/capability fallback; selected set is explainable via journal.
+- [x] **CH-04-OBS-DELTAS** Differential observation layer. DoD: repeated tool observations provide compact deltas while raw outputs remain journaled/artifacted; LLM context can receive delta/summary instead of full dumps.
+- [x] **CH-05-PIPELINE-NODE** Deterministic typed pipeline primitive. DoD: validated tool/transform chains execute without internal LLM round-trips; schema edges, retries, timeouts, and policy checks covered.
+- [x] **CH-06-INVARIANT-MONITOR** Plan invariant monitor. DoD: running plans can be invalidated by budget, deadline, world-state, resource-version, approval-scope, or policy changes and route to re-plan/HITL/compensation/fail-fast.
+- [x] **CH-07-EFFECT-HITL** Effect classes and contextual HITL bundles. DoD: actions declare read-only/reversible/compensable/irreversible; irreversible bundles show predicted effects, confidence, affected resources, and rollback notes.
+- [x] **CH-08-STOCHASTIC-EVAL** Stochasticity-aware replay/eval. DoD: behavioral scenarios capture model/provider/temperature/seed when supported, context snapshot, mocked tools, and expectation-band assertions.
+- [x] **CH-09-BYPASS-CACHE** Heuristic bypass and safe memoization. DoD: explicit fast-path rules handle known-safe deterministic intents; memoization respects effect class, TTL, scope, and redaction-safe cache keys.
 
 ---
 

@@ -13,6 +13,7 @@ import {
   GitBranch,
   Scale,
   Radio,
+  Stethoscope,
 } from "lucide-react";
 import { getJSON } from "@/lib/api";
 import { cn, fmtTime } from "@/lib/utils";
@@ -22,6 +23,7 @@ import { SkeletonList } from "@/components/ui/skeleton";
 import { useEvents, type AgentEvent } from "@/lib/events";
 import { AgentAvatar } from "@/components/AgentAvatar";
 import { PageHeader } from "@/components/ui/page-header";
+import { incidentEventSummary, isIncidentFamilyEvent } from "@/lib/incidentevents";
 
 // Shapes mirror the read routes this view aggregates — kept loose (all optional)
 // so a field the backend drops never crashes the dashboard.
@@ -61,6 +63,18 @@ interface OverseerData {
 
 const EMPTY: OverseerData = { runs: [], agents: [], help: [] };
 
+export interface LiveRunContext {
+  agent?: string;
+  phase?: string;
+  detail?: string;
+  tool?: string;
+  model?: string;
+  wakeSource?: string;
+  scheduleId?: string;
+  standingName?: string;
+  lastEventMs?: number;
+}
+
 // Event kinds that change what the dashboard shows — an arrival of any of these
 // triggers a debounced refetch so the panels reflect reality within ~1s instead
 // of waiting out the fallback poll.
@@ -72,6 +86,10 @@ const REFRESH_KINDS = new Set([
   "subagent.spawned",
   "council.consensus",
   "board.posted",
+  "agent.retry",
+  "agent.repair",
+  "agent.resolve",
+  "doctor.auto_repair",
 ]);
 
 // Overseer is the supervisory dashboard — the "brain that watches" surface
@@ -115,7 +133,7 @@ export function Overseer() {
     reload();
     const poll = setInterval(reload, 15000);
     const unsub = subscribe((e: AgentEvent) => {
-      if (!e.kind || !REFRESH_KINDS.has(e.kind)) return;
+      if (!isSignificant(e)) return;
       if (debounce.current) clearTimeout(debounce.current);
       debounce.current = setTimeout(reload, 700);
     });
@@ -135,15 +153,7 @@ export function Overseer() {
   // the agent slug in `actor`. Lets each active-run card name WHO is running it.
   // Runs that started before the page loaded have no actor in the buffer → the
   // card just omits the agent chip (graceful, like the rest of the live UI).
-  const corrAgent = useMemo(() => {
-    const m: Record<string, string> = {};
-    for (const e of events) {
-      if (e.kind === "task.received" && e.correlation_id && e.actor && !m[e.correlation_id]) {
-        m[e.correlation_id] = e.actor;
-      }
-    }
-    return m;
-  }, [events]);
+  const liveRunContext = useMemo(() => buildLiveRunContexts(events), [events]);
   const live = useMemo(() => {
     const roster = data.agents.filter((a) => !a.retired);
     return { total: roster.length, enabled: roster.filter((a) => a.enabled !== false).length };
@@ -215,7 +225,10 @@ export function Overseer() {
                 <span className="text-xs text-muted">Nothing running right now.</span>
               ) : (
                 <ul className="flex flex-col gap-1.5">
-                  {active.map((r) => (
+                  {active.map((r) => {
+                    const corr = r.correlation_id || "";
+                    const ctx = corr ? liveRunContext[corr] : undefined;
+                    return (
                     <li key={r.correlation_id}>
                       <button
                         type="button"
@@ -237,19 +250,40 @@ export function Overseer() {
                           )}
                         </div>
                         <div className="mt-0.5 flex items-center gap-2 text-[10px] text-muted">
-                          {r.correlation_id && corrAgent[r.correlation_id] && (
+                          {ctx?.agent && (
                             <span className="inline-flex items-center gap-1 rounded bg-accent/10 py-0.5 pl-0.5 pr-1.5 text-accent">
-                              <AgentAvatar slug={corrAgent[r.correlation_id]} size={14} status="running" />
-                              {corrAgent[r.correlation_id]}
+                              <AgentAvatar slug={ctx.agent} size={14} status="running" />
+                              {ctx.agent}
                             </span>
                           )}
-                          {r.model && <span className="truncate">{r.model}</span>}
+                          {ctx?.phase && (
+                            <span className="rounded bg-panel px-1 text-[10px] text-foreground/85">
+                              {ctx.phase}
+                            </span>
+                          )}
+                          {ctx?.tool && (
+                            <span className="font-mono">tool {ctx.tool}</span>
+                          )}
+                          {ctx?.wakeSource && (
+                            <span>
+                              · {liveWakeLabel(ctx)}
+                            </span>
+                          )}
+                          {(ctx?.model || r.model) && (
+                            <span className="truncate">
+                              {ctx?.model || r.model}
+                            </span>
+                          )}
                           {typeof r.iters === "number" && <span>· {r.iters} iters</span>}
+                          {ctx?.lastEventMs ? (
+                            <span>· event {fmtTime(ctx.lastEventMs)}</span>
+                          ) : null}
                           {r.started_unix_ms ? <span>· started {fmtTime(r.started_unix_ms)}</span> : null}
                         </div>
                       </button>
                     </li>
-                  ))}
+                    );
+                  })}
                 </ul>
               )}
             </Panel>
@@ -321,14 +355,90 @@ export function Overseer() {
   );
 }
 
+export function buildLiveRunContexts(events: AgentEvent[]): Record<string, LiveRunContext> {
+  const out: Record<string, LiveRunContext> = {};
+  for (const e of [...events].reverse()) {
+    const corr = e.correlation_id || "";
+    if (!corr) continue;
+    const p = e.payload || {};
+    const row = out[corr] || {};
+    if (e.actor && !row.agent) row.agent = e.actor;
+    row.lastEventMs = Math.max(row.lastEventMs || 0, e.ts_unix_ms || 0) || row.lastEventMs;
+    switch (e.kind) {
+      case "task.received":
+        row.agent = firstText(row.agent, e.actor, p.agent);
+        row.phase = firstText(row.phase, "starting");
+        row.detail = firstText(row.detail, p.intent);
+        row.wakeSource = firstText(row.wakeSource, p.wake_source, p.source);
+        row.scheduleId = firstText(row.scheduleId, p.schedule_id);
+        row.standingName = firstText(row.standingName, p.standing_name, p.standing_id);
+        break;
+      case "llm.request":
+        row.phase = "thinking";
+        row.model = firstText(p.model, row.model);
+        break;
+      case "tool.invoked":
+        row.phase = "using tool";
+        row.tool = firstText(p.tool, p.name, row.tool);
+        row.detail = firstText(row.tool, row.detail);
+        break;
+      case "tool.result":
+        row.phase = "observing tool";
+        row.tool = firstText(p.tool, p.name, row.tool);
+        row.detail = firstText(row.tool, row.detail);
+        break;
+      case "task.continued":
+        row.phase = "continuing";
+        break;
+      case "task.completed":
+        row.phase = "completed";
+        break;
+      case "task.failed":
+        row.phase = "failed";
+        row.detail = firstText(p.error, row.detail);
+        break;
+    }
+    out[corr] = row;
+  }
+  return out;
+}
+
+export function liveWakeLabel(ctx: LiveRunContext): string {
+  const source = ctx.wakeSource || "wake";
+  if (ctx.standingName) return `${source} ${ctx.standingName}`;
+  if (ctx.scheduleId) return `${source} ${ctx.scheduleId}`;
+  return source;
+}
+
+function firstText(...items: unknown[]): string | undefined {
+  for (const item of items) {
+    if (typeof item !== "string") continue;
+    const v = item.trim();
+    if (v) return v;
+  }
+  return undefined;
+}
+
+// isSignificant keeps the supervisory-relevant events out of the raw feed noise.
+export function overseerShouldRefresh(e: AgentEvent): boolean {
+  return (!!e.kind && REFRESH_KINDS.has(e.kind)) || isIncidentFamilyEvent(e);
+}
+
 // isSignificant keeps the supervisory-relevant events out of the raw feed noise.
 function isSignificant(e: AgentEvent): boolean {
-  return !!e.kind && REFRESH_KINDS.has(e.kind);
+  return overseerShouldRefresh(e);
 }
 
 // describe maps an event to a one-line supervisory label + an icon/tone.
 function describe(e: AgentEvent): { label: string; icon: React.ReactNode; tone: string } {
   const p = e.payload || {};
+  if (isIncidentFamilyEvent(e)) {
+    return {
+      label: incidentEventSummary(e),
+      icon: <Stethoscope className="size-3.5" />,
+      tone: e.subject === "doctor.auto_repair" ? "text-amber-400" : "text-sky-400",
+    };
+  }
   switch (e.kind) {
     case "task.received":
       return { label: `Run started: ${clip(p.intent) || e.correlation_id || "task"}`, icon: <CircleDot className="size-3.5" />, tone: "text-accent" };
@@ -347,6 +457,12 @@ function describe(e: AgentEvent): { label: string; icon: React.ReactNode; tone: 
         label: p.help ? `Help requested by ${p.from || "agent"}` : `Board post by ${p.from || "agent"}`,
         icon: p.help ? <LifeBuoy className="size-3.5" /> : <Megaphone className="size-3.5" />,
         tone: p.help ? "text-amber-400" : "text-muted",
+      };
+    case "agent.retry":
+      return {
+        label: `Retrying ${p.agent || e.actor || "agent"}${p.next_attempt && p.max_attempts ? ` ${p.next_attempt}/${p.max_attempts}` : ""}${p.reason ? `: ${clip(p.reason)}` : ""}`,
+        icon: <RefreshCw className="size-3.5" />,
+        tone: "text-amber-400",
       };
     default:
       return { label: e.kind || "event", icon: <CircleDot className="size-3.5" />, tone: "text-muted" };

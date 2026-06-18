@@ -158,6 +158,15 @@ func (c *Center) ListAccessible() []*ConfigEntry {
 	return c.store.ListAccessible()
 }
 
+// ListAccessibleForAgent returns public/internal entries visible to one agent.
+// It mirrors value access restrictions for allowed/excluded agent lists without
+// triggering value-level audit/HITL/rate-limit side effects.
+func (c *Center) ListAccessibleForAgent(agentID string) []*ConfigEntry {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return filterEntriesForAgent(c.store.ListAccessible(), agentID)
+}
+
 // Search finds entries by key prefix or tag.
 func (c *Center) Search(query string, opts SearchOptions) []*ConfigEntry {
 	c.mu.RLock()
@@ -168,6 +177,51 @@ func (c *Center) Search(query string, opts SearchOptions) []*ConfigEntry {
 	}
 
 	return c.store.Search(query, opts.Limit)
+}
+
+// SearchForAgent returns metadata search results visible to one agent. It keeps
+// the store's rating/search rules, then applies the same per-agent visibility
+// lists used by Get.
+func (c *Center) SearchForAgent(agentID, query string, opts SearchOptions) []*ConfigEntry {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	if opts.Limit == 0 {
+		opts.Limit = 50
+	}
+
+	return filterEntriesForAgent(c.store.Search(query, opts.Limit), agentID)
+}
+
+func filterEntriesForAgent(entries []*ConfigEntry, agentID string) []*ConfigEntry {
+	agentID = strings.TrimSpace(agentID)
+	out := make([]*ConfigEntry, 0, len(entries))
+	for _, entry := range entries {
+		if entryVisibleToAgent(entry, agentID) {
+			out = append(out, entry)
+		}
+	}
+	return out
+}
+
+func entryVisibleToAgent(entry *ConfigEntry, agentID string) bool {
+	if entry == nil {
+		return false
+	}
+	for _, denied := range entry.ExcludedAgents {
+		if strings.TrimSpace(denied) == agentID {
+			return false
+		}
+	}
+	if len(entry.AllowedAgents) == 0 {
+		return true
+	}
+	for _, allowed := range entry.AllowedAgents {
+		if strings.TrimSpace(allowed) == agentID {
+			return true
+		}
+	}
+	return false
 }
 
 // SearchOptions contains search options.

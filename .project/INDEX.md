@@ -20,6 +20,7 @@ Agezt is an **agentic operating system**: a stdlib-first Go core (multiple stati
 - **agezt-contract.jsonc** — the contract source of truth (JSON-RPC 2.0 + JSON Schema).
 - **STRUCTURE.md** — the exact repository layout to produce.
 - **ROADMAP.md** — build order: M0.5 (minimal core) → MVP → growth, each with a success test.
+- **COUNCIL-HARDENING-PLAN.md** — post-audit integration overlay for strict tool validation, constrained generation, semantic tool discovery, differential observations, typed pipelines, invariant monitoring, effect/HITL bundles, stochastic replay, and heuristic bypass.
 - **LICENSE** — MIT.
 
 > **Ignore `_ARCHIVE/`** — superseded files (old gRPC `agezt.proto`, deprecated proto, old vision). Kept for history only; never build from them.
@@ -32,7 +33,7 @@ Agezt is an **agentic operating system**: a stdlib-first Go core (multiple stati
 - **SPEC-01-CONTRACTS** — plugin gRPC contracts + the canonical event schema (the dependency root).
 - **SPEC-02-KERNEL** — the six kernel responsibilities, agent runtime, scheduler, Governor, control plane.
 - **SPEC-03-PULSE** — the proactive heart (Observers → Salience → Initiative → Briefing).
-- **SPEC-04-PLUGINS** — the seven plugin interfaces in depth + Chronos + MCP bridge.
+- **SPEC-04-PLUGINS** — the seven plugin interfaces in depth + typed schedule runner + MCP bridge.
 - **SPEC-05-MEMORY** — memory tiers, world model, skills, Forge, reflection.
 - **SPEC-06-SECURITY** — threat model, Warden sandbox, Edict, secrets, autonomous-op safety.
 - **SPEC-07-UI** — surfaces: Flow Studio, Unified Inbox, Live Monitor, Memory Explorer, gateway/API, ambient, **+conversation surface (chat history, tool-call debug, context inspector)**.
@@ -44,7 +45,7 @@ Agezt is an **agentic operating system**: a stdlib-first Go core (multiple stati
 - **SPEC-13-CAPABILITY-ARMY** — ecosystem interop (MCP/agentskills/migration), first-party catalog, self-growth.
 - **SPEC-14-RESILIENCE-OPS** — resilience/saga, human-in-the-loop flow, agent eval, RBAC, onboarding, notifications/escalation, secrets lifecycle, i18n/locale, operator observability, project realities.
 - **SPEC-15-PROVIDER-ECOSYSTEM** — provider/model catalog sync (models.dev-class), credential import, tool-calling normalization across OpenAI/OpenAI-compat/Anthropic/Gemini/others, Agent Client Protocol (ACP) server + client.
-- **SPEC-16-DETAILS** — concrete implementation-level specs: API surface (OpenAI-compat + native REST/gRPC + webhooks), test strategy, full config.yaml reference, standing-order DSL, onboarding flow.
+- **SPEC-16-DETAILS** — concrete implementation-level specs: API surface (OpenAI-compat + native REST/gRPC + webhooks), test strategy, full config.yaml reference, agent wake-rule DSL, onboarding flow.
 
 ### Decisions, contract & license
 - **DECISIONS.md** — all open questions closed and frozen for v1. *Wins over any spec's open-question conflict.*
@@ -59,8 +60,11 @@ Agezt is an **agentic operating system**: a stdlib-first Go core (multiple stati
 - **README.md** — public-facing project overview.
 - **PROMPT.md** — single-shot build prompt for a coding agent.
 - **INDEX.md** — this document.
+- **COUNCIL-HARDENING-PLAN.md** — council audit hardening backlog mapped to SPEC-02/10/14/15/16 and `TASKS.md` IDs `CH-01`..`CH-09`.
 
 > **Integration status:** The canonical event enum now lives in `agezt.proto` (compiles; includes all kinds through SPEC-15). Remaining housekeeping before "frozen v1.0": (a) fold the prose of SPEC-08..16's additions back into the original SPEC-01/06/07 narrative sections; (b) extend TASKS.md with ID'd tasks + demo gates for SPEC-08..16 (currently only placed in the phase table §3). Neither blocks starting the MVP build — the contract and DECISIONS are authoritative.
+>
+> **Council hardening overlay:** `COUNCIL-HARDENING-PLAN.md` and `TASKS.md` `CH-01`..`CH-09` capture the post-audit invariants that should be added without derailing the MVP: strict tool-call validation, provider constrained generation, semantic tool discovery, differential observations, deterministic pipelines, plan invariant monitoring, effect/HITL bundles, stochastic eval replay, and heuristic bypass/memoization.
 
 ---
 
@@ -87,7 +91,7 @@ Each phase ends in a demoable slice. Contracts (P0) freeze first. New concerns f
 | **0 Kernel core** | journal, bus, supervisor, plugin host, control plane, `.proto` freeze, go-SDK | ULID/content-address identity (SPEC-09); `agt halt/why/attach` |
 | **1 Reasoning & tools** | Governor+providers, scheduler/planner, shell/file/http/browser, Edict v1, Warden namespace, CLI | model routing v1 + context budgeting (SPEC-10); migration runner + plugin contributions (SPEC-08); static multi-arch + scratch image + GHCR CI (SPEC-11); retry/checkpoint + graceful degradation + `agt doctor` (SPEC-14) |
 | **2 Memory & Forge** | tiers, world model, retrieval, skill lifecycle, shadow-test | context compression (SPEC-10); export/import + backup (SPEC-09); changelog/version tracking (SPEC-08) |
-| **3 Pulse** | heartbeat, observers, salience, initiative, briefing, Chronos, standing orders | timezone/locale correctness (SPEC-14); point-in-time restore (SPEC-09); clarify + suspend/resume (SPEC-14); starter standing order (SPEC-14) |
+| **3 Pulse** | heartbeat, observers, salience, initiative, briefing, typed schedule runner, agent wake rules | timezone/locale correctness (SPEC-14); point-in-time restore (SPEC-09); clarify + suspend/resume (SPEC-14); starter agent wake rule (SPEC-14) |
 | **4 Channels & Inbox** | Telegram-first then all channels, Unified Inbox, Pulse→Telegram | notifications/preferences (SPEC-14); agentskills/ClawHub adapter start (SPEC-13) |
 | **5 Web UI** | Flow Studio, Live Monitor, Memory Explorer, gateway, sdk-ts | conversation surface + tool-call debug + context inspector (SPEC-07/10); first-party widgets sandboxed (SPEC-12); FinOps + eval harness + guided onboarding + interruption/steering (SPEC-10/14) |
 | **6 Hardening & coding agents** | container/microvm, multi-agent, coding-nodes, simulation | Docker sandbox modes + sandbox image family (SPEC-11/06); saga/compensation (SPEC-14); single-instance RBAC (SPEC-14); coding-authored plugins (SPEC-13) |
@@ -112,8 +116,16 @@ Agezt does everything OpenClaw and Hermes do — multi-channel gateway, multi-pr
 
 ## 5. The one honest caveat
 
-This is a complete, coherent **design** — not yet a running system. Its success depends less on the breadth of this plan and more on shipping a working **core** and growing outward phase by phase, honoring the demo gates and resisting scope creep. The plan's job is to make that build unambiguous; the build's job is to make the plan real. Begin at Phase 0, task `P0-PROTO-01`.
+This index began as the design map, but the current tree is no longer only a
+plan: it contains a running Go daemon/CLI, durable agent roster, typed schedule
+runner, workflows, memory/world/skill surfaces, provider/catalog plumbing, REST
+and Web UI surfaces, and an embedded SPA e2e gate that boots a real demo daemon
+and drives it with Playwright (`scripts/webui-e2e.sh` on Bash,
+`scripts/webui-e2e.ps1` on Windows/PowerShell). The right caveat is narrower:
+**the full "autonomous Jarvis" scope is still being hardened requirement by
+requirement.** Working slices are real and testable; broad claims still need
+evidence against the acceptance matrix before they are treated as complete.
 
 ---
 
-*End of index. The suite — POLICY + SPEC-01..14 + IMPLEMENTATION + TASKS + BRANDING + README + PROMPT + this INDEX — constitutes the full project plan.*
+*End of index. The suite — POLICY + SPEC-01..16 + IMPLEMENTATION + TASKS + BRANDING + README + PROMPT + this INDEX — constitutes the full project plan plus the current implementation map.*

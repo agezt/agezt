@@ -55,14 +55,14 @@ func (m *Manager) getEmbedder() Embedder {
 	return m.embedder
 }
 
-// semanticProvider ranks active records by provider-embedding cosine against
+// semanticProvider ranks usable records by provider-embedding cosine against
 // the query — the provider-grade analogue of SearchSemantic. It embeds the
 // query plus any cache-miss records in ONE batch, fills the cache, and scores
 // with the same confidence/recency weighting as every other Search variant.
 func (m *Manager) semanticProvider(ctx context.Context, emb Embedder, recs []Record, query string, nowMS int64) ([]Scored, error) {
 	active := make([]Record, 0, len(recs))
 	for _, r := range recs {
-		if r.Active() {
+		if r.Usable(nowMS) {
 			active = append(active, r)
 		}
 	}

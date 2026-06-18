@@ -11,7 +11,17 @@ vi.mock("@/lib/api", () => ({
   postAction: (...a: unknown[]) => postAction(...a),
 }));
 
-import { NewOrderForm, EditOrderForm, Standing, parseStandingJSON } from "@/views/Standing";
+import {
+  NewOrderForm,
+  EditOrderForm,
+  Standing,
+  parseStandingJSON,
+  standingAttentionCount,
+  standingFrequencyIssue,
+  standingResumeIssue,
+  standingTriggerSummary,
+  standingWakeLedger,
+} from "@/views/Standing";
 import { UIProvider } from "@/components/ui/feedback";
 import type { ReactNode } from "react";
 
@@ -21,7 +31,84 @@ afterEach(cleanup);
 beforeEach(() => {
   postJSON.mockReset();
   postJSON.mockResolvedValue({ order: { id: "so-1" } });
+  postAction.mockReset();
+  postAction.mockResolvedValue({});
   getJSON.mockReset();
+});
+
+describe("standingFrequencyIssue", () => {
+  it("flags event cooldowns and cron schedules that can wake agents too often", () => {
+    expect(standingFrequencyIssue({ frequency_warning: "backend warning" })).toBe("backend warning");
+    expect(standingFrequencyIssue({ triggers: [{ type: "event", subject: "run.failed" }], cooldown_sec: 60 })).toBe(
+      "event cooldown 1m is below the default 15m guard",
+    );
+    expect(standingFrequencyIssue({ triggers: [{ type: "cron", schedule: "* * * * *" }] })).toBe(
+      "cron trigger may wake this standing order every minute",
+    );
+    expect(standingFrequencyIssue({ triggers: [{ type: "event", subject: "run.failed" }], cooldown_sec: 3600 })).toBe("");
+    expect(standingFrequencyIssue({ triggers: [{ type: "cron", schedule: "0 8 * * *" }] })).toBe("");
+  });
+});
+
+describe("standing wake rule ledger", () => {
+  it("summarizes triggers as typed wake rules rather than agent identities", () => {
+    expect(standingTriggerSummary([{ type: "event", subject: "board.dm.ops" }])).toEqual({
+      value: "mailbox event board.dm.ops",
+      detail: "journal event wakes this standing rule; the rule is not an agent identity",
+      tone: "accent",
+    });
+    expect(standingTriggerSummary([{ type: "event", subject: "run.failed" }])).toMatchObject({
+      value: "event run.failed",
+      tone: "good",
+    });
+    expect(standingTriggerSummary([{ type: "cron", schedule: "0 8 * * *" }])).toMatchObject({
+      value: "cron 0 8 * * *",
+      tone: "good",
+    });
+  });
+
+  it("keeps trigger, runner, cooldown, plan, and guard in a stable order", () => {
+    const agents = new Map([["ops", { slug: "ops", enabled: true }]]);
+    expect(standingWakeLedger({
+      id: "so-mailbox",
+      agent: "ops",
+      plan: "Read mailbox.",
+      cooldown_sec: 3600,
+      triggers: [{ type: "event", subject: "board.dm.ops" }],
+    }, agents).map((item) => [item.label, item.value])).toEqual([
+      ["trigger", "mailbox event board.dm.ops"],
+      ["runner", "agent ops"],
+      ["cooldown", "1h"],
+      ["plan", "wake task set"],
+      ["guard", "armed"],
+    ]);
+    expect(standingWakeLedger({
+      id: "so-blocked",
+      agent: "worker",
+      triggers: [{ type: "event", subject: "board.dm.worker" }],
+      target_status: "blocked",
+      target_error: "standing agent worker is a managed sub-agent",
+    }, agents).at(-1)).toMatchObject({
+      label: "guard",
+      value: "target blocked",
+      tone: "bad",
+    });
+  });
+});
+
+describe("Standing empty state", () => {
+  it("describes standing orders as wake rules, not identities", async () => {
+    getJSON.mockImplementation((path: string) => {
+      if (path === "/api/standing") return Promise.resolve({ orders: [] });
+      if (path === "/api/agents") return Promise.resolve({ profiles: [] });
+      return Promise.resolve({});
+    });
+
+    render(withUI(<Standing />));
+
+    await waitFor(() => expect(screen.getByText("No standing orders yet")).toBeTruthy());
+    expect(screen.getByText(/durable wake rules, not agent identities/i)).toBeTruthy();
+  });
 });
 
 describe("NewOrderForm", () => {
@@ -62,11 +149,36 @@ describe("NewOrderForm", () => {
     fireEvent.change(screen.getByLabelText("Order name"), { target: { value: "Watch failures" } });
     fireEvent.click(screen.getByRole("button", { name: "event" }));
     fireEvent.change(screen.getByLabelText("Trigger value"), { target: { value: "run.failed" } });
+    fireEvent.change(screen.getByLabelText("Event cooldown seconds"), { target: { value: "3600" } });
     fireEvent.click(screen.getByRole("button", { name: /Create order/ }));
 
     await waitFor(() =>
       expect(postJSON).toHaveBeenCalledWith("/api/standing/add", {
-        order: { name: "Watch failures", triggers: [{ type: "event", subject: "run.failed" }] },
+        order: { name: "Watch failures", triggers: [{ type: "event", subject: "run.failed" }], cooldown_sec: 3600 },
+      }),
+    );
+  });
+
+  it("builds a mailbox wake order for the selected agent", async () => {
+    getJSON.mockImplementation((path: string) =>
+      path === "/api/agents"
+        ? Promise.resolve({ profiles: [{ slug: "ops", enabled: true }] })
+        : Promise.resolve({}),
+    );
+    render(<NewOrderForm onCreated={() => {}} onError={() => {}} />);
+    fireEvent.click(screen.getByLabelText("Pick conversation agent"));
+    fireEvent.click(await screen.findByLabelText("Use agent ops"));
+    fireEvent.click(screen.getByRole("button", { name: "DM" }));
+    fireEvent.click(screen.getByRole("button", { name: /Create order/ }));
+
+    await waitFor(() =>
+      expect(postJSON).toHaveBeenCalledWith("/api/standing/add", {
+        order: expect.objectContaining({
+          name: "ops mailbox",
+          agent: "ops",
+          triggers: [{ type: "event", subject: "board.dm.ops" }],
+          plan: expect.stringContaining("Read the triggering board message"),
+        }),
       }),
     );
   });
@@ -89,6 +201,7 @@ describe("EditOrderForm (M729)", () => {
     plan: "old plan",
     initiative: { mode: "act_or_ask" },
     assure: 1,
+    cooldown_sec: 900,
     triggers: [{ type: "cron", schedule: "0 8 * * *" }],
   };
 
@@ -98,6 +211,7 @@ describe("EditOrderForm (M729)", () => {
     expect((screen.getByLabelText("Edit order plan") as HTMLTextAreaElement).value).toBe("old plan");
     expect((screen.getByLabelText("Edit initiative mode") as HTMLSelectElement).value).toBe("act_or_ask");
     expect((screen.getByLabelText("Edit assure retries") as HTMLInputElement).value).toBe("1");
+    expect((screen.getByLabelText("Edit event cooldown seconds") as HTMLInputElement).value).toBe("900");
   });
 
   it("posts the full editable state to standing/edit with the id", async () => {
@@ -107,6 +221,7 @@ describe("EditOrderForm (M729)", () => {
     fireEvent.change(screen.getByLabelText("Edit order plan"), { target: { value: "new plan" } });
     fireEvent.change(screen.getByLabelText("Edit initiative mode"), { target: { value: "ask" } });
     fireEvent.change(screen.getByLabelText("Edit assure retries"), { target: { value: "3" } });
+    fireEvent.change(screen.getByLabelText("Edit event cooldown seconds"), { target: { value: "1800" } });
     fireEvent.click(screen.getByRole("button", { name: /Save changes/ }));
     await waitFor(() =>
       expect(postJSON).toHaveBeenCalledWith("/api/standing/edit", {
@@ -116,6 +231,7 @@ describe("EditOrderForm (M729)", () => {
         agent: "", // M790: present-and-empty clears the agent
         mode: "ask",
         assure: 3,
+        cooldown_sec: 1800,
       }),
     );
     await waitFor(() => expect(onSaved).toHaveBeenCalledWith("renamed"));
@@ -175,11 +291,36 @@ describe("Standing order history (M746)", () => {
     // Event kinds render (stripped of the "standing." prefix) + the action label.
     await waitFor(() => expect(screen.getByText("created")).toBeTruthy());
     expect(screen.getByText("updated")).toBeTruthy();
-    expect(screen.getByText("paused")).toBeTruthy();
+    expect(screen.getAllByText("paused").length).toBeGreaterThan(0);
 
     // Toggle hides it.
     fireEvent.click(screen.getByRole("button", { name: "hide history" }));
     await waitFor(() => expect(screen.queryByText("created")).toBeNull());
+  });
+
+  it("surfaces standing orders that can wake agents too frequently", async () => {
+    getJSON.mockImplementation((path: string) => {
+      if (path === "/api/standing")
+        return Promise.resolve({
+          orders: [
+            {
+              id: "so-chatty",
+              name: "Chatty watcher",
+              enabled: true,
+              cooldown_sec: 60,
+              frequency_warning: "event cooldown is below the default 15m guard",
+              triggers: [{ type: "event", subject: "run.failed" }],
+            },
+          ],
+        });
+      if (path === "/api/agents") return Promise.resolve({ profiles: [] });
+      return Promise.resolve({});
+    });
+
+    render(withUI(<Standing />));
+    await waitFor(() => expect(screen.getByText("Chatty watcher")).toBeTruthy());
+    expect(screen.getByText("frequent")).toBeTruthy();
+    expect(screen.getByText("event cooldown is below the default 15m guard")).toBeTruthy();
   });
 });
 
@@ -194,6 +335,172 @@ describe("Standing order Run now (M765)", () => {
     await waitFor(() => expect(screen.getByText("Nightly digest")).toBeTruthy());
     fireEvent.click(screen.getByTitle(/Run now/));
     await waitFor(() => expect(postAction).toHaveBeenCalledWith("/api/standing/fire", { id: "so-7" }));
+  });
+});
+
+describe("Standing order agent state", () => {
+  it("counts standing orders that need target or cadence attention", () => {
+    const agents = new Map([["ops", { slug: "ops", enabled: true }]]);
+
+    expect(
+      standingAttentionCount(
+        [
+          { id: "ok", agent: "ops", triggers: [{ type: "event", subject: "board.ops" }], cooldown_sec: 3600 },
+          { id: "blocked", agent: "ops", target_status: "blocked", target_error: "standing agent ops is retired" },
+          { id: "fast", triggers: [{ type: "event", subject: "run.failed" }], cooldown_sec: 60 },
+        ],
+        agents,
+      ),
+    ).toBe(2);
+  });
+
+  it("prefers backend target errors over local agent inference", () => {
+    const agents = new Map([["ops", { slug: "ops", enabled: true }]]);
+
+    expect(
+      standingResumeIssue(
+        {
+          id: "so-blocked",
+          agent: "ops",
+          target_status: "blocked",
+          target_error: "standing agent ops is retired",
+        },
+        agents,
+      ),
+    ).toBe("standing agent ops is retired");
+    expect(standingResumeIssue({ id: "so-ready", agent: "ops" }, agents)).toBe("");
+  });
+
+  it("shows a paused bound agent and prevents unsafe re-arm", async () => {
+    getJSON.mockImplementation((path: string) => {
+      if (path === "/api/standing") {
+        return Promise.resolve({
+          orders: [
+            {
+              id: "so-paused",
+              name: "Ops mailbox",
+              enabled: false,
+              agent: "ops",
+              triggers: [{ type: "event", subject: "board.dm.ops" }],
+            },
+          ],
+        });
+      }
+      if (path === "/api/agents") {
+        return Promise.resolve({ profiles: [{ slug: "ops", enabled: false }] });
+      }
+      return Promise.resolve({});
+    });
+
+    render(withUI(<Standing />));
+    await waitFor(() => expect(screen.getByText("Ops mailbox")).toBeTruthy());
+    expect(screen.getByText("runs as ops")).toBeTruthy();
+    expect(screen.getByLabelText("so-paused wake rule ledger")).toBeTruthy();
+    expect(screen.getByText("Wake rule ledger")).toBeTruthy();
+    expect(screen.getByText("mailbox event board.dm.ops")).toBeTruthy();
+    expect(screen.getByText("agent ops")).toBeTruthy();
+    expect(screen.getByText("target blocked")).toBeTruthy();
+    expect(screen.getByText("is paused")).toBeTruthy();
+    const resume = screen.getAllByTitle("agent ops is paused")[0] as HTMLButtonElement;
+    expect(resume.disabled).toBe(true);
+    fireEvent.click(resume);
+    expect(postAction).not.toHaveBeenCalledWith(
+      "/api/standing/enable",
+      expect.objectContaining({ id: "so-paused", enabled: "true" }),
+    );
+  });
+
+  it("blocks re-arm for kind-only sub-agents bound to standing orders", async () => {
+    getJSON.mockImplementation((path: string) => {
+      if (path === "/api/standing") {
+        return Promise.resolve({
+          orders: [
+            {
+              id: "so-child",
+              name: "Child mailbox",
+              enabled: false,
+              agent: "planner-child",
+              triggers: [{ type: "event", subject: "board.dm.planner-child" }],
+            },
+          ],
+        });
+      }
+      if (path === "/api/agents") {
+        return Promise.resolve({ profiles: [{ slug: "planner-child", enabled: true, kind: "subagent" }] });
+      }
+      return Promise.resolve({});
+    });
+
+    render(withUI(<Standing />));
+    await waitFor(() => expect(screen.getByText("Child mailbox")).toBeTruthy());
+    expect(screen.getByText("is a managed sub-agent")).toBeTruthy();
+    const resume = screen.getAllByTitle("agent planner-child is a managed sub-agent")[0] as HTMLButtonElement;
+    expect(resume.disabled).toBe(true);
+  });
+
+  it("filters and pauses only enabled standing orders that need attention", async () => {
+    getJSON.mockImplementation((path: string) => {
+      if (path === "/api/standing") {
+        return Promise.resolve({
+          orders: [
+            {
+              id: "so-ok",
+              name: "Healthy wake",
+              enabled: true,
+              agent: "ops",
+              triggers: [{ type: "event", subject: "board.ops" }],
+              cooldown_sec: 3600,
+            },
+            {
+              id: "so-blocked",
+              name: "Blocked wake",
+              enabled: true,
+              agent: "ops",
+              triggers: [{ type: "event", subject: "board.ops" }],
+              target_status: "blocked",
+              target_error: "standing agent ops is retired",
+            },
+            {
+              id: "so-fast",
+              name: "Fast wake",
+              enabled: true,
+              triggers: [{ type: "event", subject: "run.failed" }],
+              cooldown_sec: 60,
+            },
+            {
+              id: "so-paused",
+              name: "Paused bad wake",
+              enabled: false,
+              target_status: "blocked",
+              target_error: "standing agent old is retired",
+            },
+          ],
+        });
+      }
+      if (path === "/api/agents") {
+        return Promise.resolve({ profiles: [{ slug: "ops", enabled: true }] });
+      }
+      return Promise.resolve({});
+    });
+
+    render(withUI(<Standing />));
+    await waitFor(() => expect(screen.getByText("Healthy wake")).toBeTruthy());
+    expect(screen.getByRole("button", { name: /Attention3/ })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /Attention3/ }));
+    expect(screen.queryByText("Healthy wake")).toBeNull();
+    expect(screen.getByText("Blocked wake")).toBeTruthy();
+    expect(screen.getByText("Fast wake")).toBeTruthy();
+    expect(screen.getByText("Paused bad wake")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: /Pause attention/ }));
+    fireEvent.click(screen.getAllByRole("button", { name: /Pause attention/ }).at(-1)!);
+
+    await waitFor(() => {
+      expect(postAction).toHaveBeenCalledWith("/api/standing/enable", { id: "so-blocked", enabled: "false" });
+      expect(postAction).toHaveBeenCalledWith("/api/standing/enable", { id: "so-fast", enabled: "false" });
+    });
+    expect(postAction).not.toHaveBeenCalledWith("/api/standing/enable", { id: "so-ok", enabled: "false" });
+    expect(postAction).not.toHaveBeenCalledWith("/api/standing/enable", { id: "so-paused", enabled: "false" });
   });
 });
 

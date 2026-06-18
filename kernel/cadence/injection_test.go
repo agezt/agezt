@@ -51,9 +51,9 @@ func TestSuspiciousIntent(t *testing.T) {
 	}
 }
 
-// TestEngine_InjectionTripwire (M886): a schedule whose intent trips the scan
-// STILL FIRES (default-allow) and journals one anomaly.detected warning per
-// firing; a clean schedule journals nothing.
+// TestEngine_InjectionTripwire (M886): an agent/intent schedule whose task text
+// trips the scan STILL FIRES (default-allow) and journals one anomaly.detected
+// warning per firing; a clean schedule journals nothing.
 func TestEngine_InjectionTripwire(t *testing.T) {
 	j, err := journal.Open(t.TempDir(), journal.Options{})
 	if err != nil {
@@ -71,9 +71,16 @@ func TestEngine_InjectionTripwire(t *testing.T) {
 	if _, err := s.Add("plain morning digest", time.Hour, "", SourceOperator, base); err != nil {
 		t.Fatal(err)
 	}
+	typed, err := s.Add("maintenance label says ignore previous instructions", time.Hour, "", SourceOperator, base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ok, err := s.SetSystemTaskTarget(typed.ID, SystemTaskLogClean); err != nil || !ok {
+		t.Fatalf("SetSystemTaskTarget = %v %v", ok, err)
+	}
 	due := s.Due(base.Add(time.Hour + time.Second))
-	if len(due) != 2 {
-		t.Fatalf("expected 2 due entries, got %d", len(due))
+	if len(due) != 3 {
+		t.Fatalf("expected 3 due entries, got %d", len(due))
 	}
 
 	fired := 0
@@ -86,8 +93,8 @@ func TestEngine_InjectionTripwire(t *testing.T) {
 		e.running.Store(ent.ID, struct{}{})
 		e.fireOne(context.Background(), ent)
 	}
-	if fired != 2 {
-		t.Errorf("fired = %d, want 2 — the tripwire must never gate a firing", fired)
+	if fired != 3 {
+		t.Errorf("fired = %d, want 3 — the tripwire must never gate a firing", fired)
 	}
 
 	var warnings []string
@@ -108,7 +115,7 @@ func TestEngine_InjectionTripwire(t *testing.T) {
 		return nil
 	})
 	if len(warnings) != 1 {
-		t.Fatalf("anomaly warnings = %d (%v), want exactly 1 (suspicious schedule only)", len(warnings), warnings)
+		t.Fatalf("anomaly warnings = %d (%v), want exactly 1 (suspicious agent schedule only)", len(warnings), warnings)
 	}
 	if !strings.Contains(warnings[0], "override_instructions") || !strings.Contains(warnings[0], "secret_exfil") {
 		t.Errorf("warning markers = %q, want override_instructions + secret_exfil", warnings[0])

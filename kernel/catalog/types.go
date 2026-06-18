@@ -166,17 +166,24 @@ func (p *Provider) Family() Family { return FamilyFromNPM(p.NPM) }
 // Model is one model the provider offers. Field names mirror
 // models.dev/api.json. Pricing is USD per-million-tokens.
 type Model struct {
-	ID         string     `json:"id"`
-	Name       string     `json:"name"`
-	Family     string     `json:"family,omitempty"`
-	Attachment bool       `json:"attachment,omitempty"`
-	Reasoning  bool       `json:"reasoning,omitempty"`
-	ToolCall   bool       `json:"tool_call,omitempty"`
-	Knowledge  string     `json:"knowledge,omitempty"`    // YYYY-MM
-	Release    string     `json:"release_date,omitempty"` // YYYY-MM-DD
-	Modalities Modalities `json:"modalities,omitempty"`
-	OpenWeight bool       `json:"open_weights,omitempty"`
-	Limit      Limit      `json:"limit,omitempty"`
+	ID         string `json:"id"`
+	Name       string `json:"name"`
+	Family     string `json:"family,omitempty"`
+	Attachment bool   `json:"attachment,omitempty"`
+	Reasoning  bool   `json:"reasoning,omitempty"`
+	ToolCall   bool   `json:"tool_call,omitempty"`
+	// StrictToolArgs means the provider/model advertises native enforcement of
+	// the declared tool-argument schema. SchemaConstrainedDecoding and
+	// GrammarConstrainedDecoding are lower-level sampler capabilities that can
+	// also make invalid tool arguments architecturally impossible.
+	StrictToolArgs             bool       `json:"strict_tool_args,omitempty"`
+	SchemaConstrainedDecoding  bool       `json:"schema_constrained_decoding,omitempty"`
+	GrammarConstrainedDecoding bool       `json:"grammar_constrained_decoding,omitempty"`
+	Knowledge                  string     `json:"knowledge,omitempty"`    // YYYY-MM
+	Release                    string     `json:"release_date,omitempty"` // YYYY-MM-DD
+	Modalities                 Modalities `json:"modalities,omitempty"`
+	OpenWeight                 bool       `json:"open_weights,omitempty"`
+	Limit                      Limit      `json:"limit,omitempty"`
 	// Cost is omitted for free/local models (Ollama, self-hosted).
 	Cost *Cost `json:"cost,omitempty"`
 }
@@ -222,6 +229,17 @@ func (m *Model) SupportsVision() bool {
 // with no Cost block report false.
 func (m *Model) SupportsPromptCache() bool {
 	return m.Cost.CacheReadMicrocentsPerMTok() > 0
+}
+
+// SupportsStrictToolArgs reports whether tool arguments can be constrained at
+// generation time for this model. It is intentionally conservative: plain
+// tool-use does not imply sampler-level schema enforcement, so models only
+// return true when the catalog advertises one of the strict/constrained flags.
+func (m *Model) SupportsStrictToolArgs() bool {
+	if m == nil || !m.ToolCall {
+		return false
+	}
+	return m.StrictToolArgs || m.SchemaConstrainedDecoding || m.GrammarConstrainedDecoding
 }
 
 // AgentWarnings returns operator-facing advisories about a model's
@@ -357,6 +375,18 @@ func (c *Catalog) FindModel(modelID string) (*Provider, *Model) {
 		}
 	}
 	return nil, nil
+}
+
+// StrictToolArgsNative reports whether the catalog knows modelID and whether
+// that model advertises sampler/provider-level enforcement for tool arguments.
+// Unknown models return known=false so callers do not invent a degradation from
+// missing catalog data.
+func (c *Catalog) StrictToolArgsNative(modelID string) (native, known bool) {
+	_, m := c.FindModel(modelID)
+	if m == nil {
+		return false, false
+	}
+	return m.SupportsStrictToolArgs(), true
 }
 
 // ToolCapableAlternative finds a tool-capable substitute for a

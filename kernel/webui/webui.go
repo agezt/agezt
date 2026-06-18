@@ -101,31 +101,34 @@ func New(b *bus.Bus, client Caller, token string) *Server {
 // apiRoutes maps each GET /api path to the read-only control-plane command it
 // proxies. Read-only by construction: there is no path here that mutates.
 var apiRoutes = map[string]string{
-	"/api/status":        controlplane.CmdStatus,
-	"/api/config":        controlplane.CmdConfig,
-	"/api/runs":          controlplane.CmdRunsList,
-	"/api/stats":         controlplane.CmdRunsStats,
-	"/api/budget":        controlplane.CmdBudget,
-	"/api/cache":         controlplane.CmdCacheStats,
-	"/api/providers":     controlplane.CmdProviderStats,
-	"/api/catalog":       controlplane.CmdCatalogList,
-	"/api/tools":         controlplane.CmdToolStats,
-	"/api/tools_catalog": controlplane.CmdToolList,
-	"/api/policy":        controlplane.CmdEdictStats,
-	"/api/edict_show":    controlplane.CmdEdictShow,
-	"/api/schedules":     controlplane.CmdScheduleList,
-	"/api/memory":        controlplane.CmdMemoryList,
-	"/api/world":         controlplane.CmdWorldList,
-	"/api/skills":        controlplane.CmdSkillList,
-	"/api/standing":      controlplane.CmdStandingList,
-	"/api/agents":        controlplane.CmdAgentList,
-	"/api/toolforge":     controlplane.CmdToolforgeList,
-	"/api/mcp":           controlplane.CmdMCPList,
+	"/api/status":                controlplane.CmdStatus,
+	"/api/config":                controlplane.CmdConfig,
+	"/api/runs":                  controlplane.CmdRunsList,
+	"/api/stats":                 controlplane.CmdRunsStats,
+	"/api/budget":                controlplane.CmdBudget,
+	"/api/cache":                 controlplane.CmdCacheStats,
+	"/api/providers":             controlplane.CmdProviderStats,
+	"/api/catalog":               controlplane.CmdCatalogList,
+	"/api/tools":                 controlplane.CmdToolStats,
+	"/api/tools_catalog":         controlplane.CmdToolList,
+	"/api/policy":                controlplane.CmdEdictStats,
+	"/api/edict_show":            controlplane.CmdEdictShow,
+	"/api/schedules":             controlplane.CmdScheduleList,
+	"/api/schedule/system_tasks": controlplane.CmdScheduleSystemTasks,
+	"/api/memory":                controlplane.CmdMemoryList,
+	"/api/memory/audit":          controlplane.CmdMemoryAudit,
+	"/api/world":                 controlplane.CmdWorldList,
+	"/api/skills":                controlplane.CmdSkillList,
+	"/api/standing":              controlplane.CmdStandingList,
+	"/api/agents":                controlplane.CmdAgentList,
+	"/api/toolforge":             controlplane.CmdToolforgeList,
+	"/api/mcp":                   controlplane.CmdMCPList,
 	// CLI Toolbox (M956): host tool inventory + upgradable set. Read-only host
 	// probes (LookPath + bounded --version; package-manager upgrade-list). The
 	// install action streams, so it has its own proxy (toolInstallProxy) below.
 	"/api/toolbox":         controlplane.CmdToolboxDetect,
 	"/api/toolbox/updates": controlplane.CmdToolboxOutdated,
+	"/api/acp/agents":      controlplane.CmdACPAgents,
 	"/api/workflows":       controlplane.CmdWorkflowList,
 	// Built-in workflow template gallery (M807). Read-only.
 	"/api/workflows/templates": controlplane.CmdWorkflowTemplates,
@@ -197,8 +200,20 @@ var readArgsRoutes = map[string]writeRoute{
 	"/api/data/records": {controlplane.CmdDataRecords, []string{"collection", "search", "sort", "desc", "limit", "offset"}},
 	// Agent graveyard impact (M846): what standing orders fire this agent. Read-only.
 	"/api/agents/impact": {controlplane.CmdAgentImpact, []string{"ref"}},
+	// Agent effective permissions: roster tool allow/deny + Edict/trust ceiling. Read-only.
+	"/api/agents/permissions": {controlplane.CmdAgentPermissions, []string{"ref"}},
 	// Per-agent activity timeline (M854): what the agent did, from the journal. Read-only.
 	"/api/agents/activity": {controlplane.CmdAgentActivity, []string{"ref", "limit"}},
+	// Autonomous self-repair history/state: queued/completed/failed auto-repair
+	// attempts for one agent, with inflight/cooldown detail. Read-only.
+	"/api/agents/repair_status": {controlplane.CmdAgentRepairStatus, []string{"ref", "limit"}},
+	// Owner/parent escalation queue for one agent: doctor-triggered help requests
+	// it is currently responsible for, enriched with wake/provenance metadata.
+	"/api/agents/escalations": {controlplane.CmdAgentEscalations, []string{"ref", "limit"}},
+	// Rated agent Config Center (distinct from daemon /api/config settings):
+	// key/value entries agents can read under rating + allow/deny policy.
+	"/api/configcenter/list": {controlplane.CmdConfigCenterList, []string{"rating"}},
+	"/api/configcenter/get":  {controlplane.CmdConfigCenterGet, []string{"key"}},
 	// Reaper scan (M903): dead-agent + stale-artifact candidates. Read-only detection. (#53)
 	"/api/reaper/scan": {controlplane.CmdReaperScan, []string{"idle_days", "stale_days"}},
 	// Skill bundle resources (M847): list a skill's reference files + scripts, and
@@ -207,6 +222,11 @@ var readArgsRoutes = map[string]writeRoute{
 	"/api/skill/file":  {controlplane.CmdSkillReadFile, []string{"id", "path"}},
 	// Skill hygiene (M858): active skills that look idle (never/long-unused). Read-only.
 	"/api/skills/hygiene": {controlplane.CmdSkillHygiene, []string{"idle_days"}},
+	// Marketplace (capability packs): browse the catalogue + one pack's contents.
+	// Read-only.
+	"/api/market":         {controlplane.CmdMarketList, []string{"query"}},
+	"/api/market/show":    {controlplane.CmdMarketShow, []string{"name", "marketplace"}},
+	"/api/market/sources": {controlplane.CmdMarketSources, nil},
 	"/api/policy_log":     {controlplane.CmdEdictLog, []string{"limit", "denied"}},
 	// Resolved HITL approval history (M773): a timeline of past approval requests
 	// joined with their granted/denied/timeout outcome. Read-only.
@@ -217,6 +237,9 @@ var readArgsRoutes = map[string]writeRoute{
 	"/api/provider/keys": {controlplane.CmdProviderKeyList, []string{"env"}},
 	// Forecast a schedule's next fire times (M744): id + how many. Read-only preview.
 	"/api/schedule/test": {controlplane.CmdScheduleTest, []string{"id", "count"}},
+	// Schedule firing history (M976): cronjob executions as structured actions,
+	// not prompt text. Read-only and filterable for the dashboard.
+	"/api/schedule/fires": {controlplane.CmdScheduleFires, []string{"limit", "id", "status", "since_ms", "intent"}},
 	// A standing order's life story (M746): every standing.* journal event for it —
 	// created, paused/resumed, each firing, removed. Read-only provenance.
 	"/api/standing/why": {controlplane.CmdStandingWhy, []string{"id"}},
@@ -286,6 +309,13 @@ var writeRoutes = map[string]writeRoute{
 	"/api/run/steer":     {controlplane.CmdRunSteer, []string{"correlation", "directive", "mode"}},
 	"/api/decide":        {controlplane.CmdDecide, []string{"id", "decision", "reason"}},
 	"/api/memory/forget": {controlplane.CmdMemoryForget, []string{"id"}},
+	// Marketplace install/uninstall stream per-item progress, so they have their
+	// own SSE proxies below (marketStreamProxy) rather than going through jsonProxy.
+	// Remote marketplace sources (Phase 2): add/remove a source, then sync its
+	// catalogue into the local cache. Write path; journaled market.*.
+	"/api/market/source/add":    {controlplane.CmdMarketAddSource, []string{"url", "name", "pubkey"}},
+	"/api/market/source/remove": {controlplane.CmdMarketRemoveSource, []string{"name"}},
+	"/api/market/sync":          {controlplane.CmdMarketSync, []string{"name"}},
 	// Promote a private (agent-scoped) record into shared memory (M915) —
 	// the selective-sharing valve over per-agent memory.
 	"/api/memory/promote": {controlplane.CmdMemoryPromote, []string{"id"}},
@@ -297,6 +327,9 @@ var writeRoutes = map[string]writeRoute{
 	// Memory prune (M857): hard-remove soft-deleted records older than N days.
 	// dry_run reports the prunable count first; the UI confirms before pruning.
 	"/api/memory/prune": {controlplane.CmdMemoryPrune, []string{"older_than_days", "dry_run"}},
+	// Memory retention hygiene: dry_run reports low-value active records;
+	// dry_run=false soft-forgets them.
+	"/api/memory/clean": {controlplane.CmdMemoryClean, []string{"dry_run"}},
 	// Memory tidy (M994): collapse near-duplicate auto-distilled notes by subject.
 	// dry_run reports how many would collapse; the UI confirms before tidying.
 	"/api/memory/tidy":      {controlplane.CmdMemoryTidy, []string{"dry_run"}},
@@ -321,9 +354,8 @@ var writeRoutes = map[string]writeRoute{
 	"/api/standing/fire": {controlplane.CmdStandingFire, []string{"id"}},
 	// Agent roster lifecycle (M783): pause/resume/remove a named agent (ref = id or slug).
 	"/api/agents/enable": {controlplane.CmdAgentSetEnabled, []string{"ref", "enabled"}},
-	"/api/agents/remove": {controlplane.CmdAgentRemove, []string{"ref"}},
 	// Agent graveyard (M846): retire to / revive from the graveyard. POST-only.
-	"/api/agents/retire": {controlplane.CmdAgentRetire, []string{"ref"}},
+	"/api/agents/retire": {controlplane.CmdAgentRetire, []string{"ref", "reason"}},
 	"/api/agents/revive": {controlplane.CmdAgentRevive, []string{"ref"}},
 	// Script-tool forge lifecycle (M794): test runs the code in the sandbox and
 	// records the verdict; promote/quarantine move a TESTED tool in/out of
@@ -363,6 +395,12 @@ var jsonRoutes = map[string]writeRoute{
 	// Config Center write (M693): set one setting (non-secret → config store,
 	// secret → vault). POST-only; only name+value are forwarded.
 	"/api/config/set": {controlplane.CmdConfigSet, []string{"name", "value"}},
+	// Rated agent Config Center writes: agent-readable key/value entries with
+	// rating and optional allow/deny lists. Separate from daemon settings above.
+	"/api/configcenter/set":    {controlplane.CmdConfigCenterSet, []string{"key", "value", "rating", "description", "allowed_agents", "excluded_agents"}},
+	"/api/configcenter/access": {controlplane.CmdConfigCenterSetAccess, []string{"key", "allowed_agents", "excluded_agents"}},
+	"/api/configcenter/delete": {controlplane.CmdConfigCenterDelete, []string{"key"}},
+	"/api/configcenter/rating": {controlplane.CmdConfigCenterSetRating, []string{"key", "rating"}},
 	// Schema registry write (M695): register/unregister a skill/plugin-contributed
 	// schema section. Register forwards the whole `section` object; unregister an id.
 	"/api/config/schema/register":   {controlplane.CmdConfigSchemaRegister, []string{"section"}},
@@ -400,11 +438,22 @@ var jsonRoutes = map[string]writeRoute{
 	"/api/standing/add": {controlplane.CmdStandingAdd, []string{"order"}},
 	// Edit a standing order in place (M729): id + any subset of the human-tunable
 	// fields. assure is numeric, so the JSON body preserves its type.
-	"/api/standing/edit": {controlplane.CmdStandingEdit, []string{"id", "name", "plan", "agent", "mode", "max_trust", "briefing_min", "assure"}},
+	"/api/standing/edit": {controlplane.CmdStandingEdit, []string{"id", "name", "plan", "agent", "mode", "max_trust", "briefing_min", "assure", "cooldown_sec"}},
 	// Agent roster create/edit (M783): the profile is a structured object (soul
 	// text, fallback list, numeric cost ceiling) — a JSON body, not query args.
-	"/api/agents/add":  {controlplane.CmdAgentAdd, []string{"profile"}},
-	"/api/agents/edit": {controlplane.CmdAgentEdit, []string{"ref", "profile"}},
+	"/api/agents/add":          {controlplane.CmdAgentAdd, []string{"profile"}},
+	"/api/agents/edit":         {controlplane.CmdAgentEdit, []string{"ref", "profile"}},
+	"/api/agents/capabilities": {controlplane.CmdAgentCapabilities, []string{"ref", "trust_ceiling", "tool_allow", "tool_deny", "noise_policy", "config_overrides", "memory_scope", "workdir", "max_cost_mc", "max_daily_mc"}},
+	"/api/agents/remove":       {controlplane.CmdAgentRemove, []string{"ref", "cascade"}},
+	"/api/agents/task":         {controlplane.CmdAgentTaskUpdate, []string{"ref", "op", "id", "task", "title", "description", "scope", "status"}},
+	"/api/agents/repair":       {controlplane.CmdAgentRepair, []string{"ref", "reason", "incident_id", "root_incident_id", "parent_incident_id"}},
+	"/api/agents/wake":         {controlplane.CmdAgentWake, []string{"ref", "intent", "reason", "incident_id", "root_incident_id", "parent_incident_id"}},
+	"/api/agents/resolve":      {controlplane.CmdAgentResolve, []string{"ref", "resolution", "summary", "delegate_to", "task_type", "task_model_chain", "incident_id", "root_incident_id", "parent_incident_id"}},
+	// Inter-agent mailbox writes (M937): message text and optional payload-shaped
+	// fields ride in the body; this is the operator/app path into the same board
+	// agents use with the board tool.
+	"/api/board/send": {controlplane.CmdBoardSend, []string{"from", "to", "topic", "reply_to", "text", "help"}},
+	"/api/board/ack":  {controlplane.CmdBoardAck, []string{"id", "by"}},
 	// Script-tool forge draft/edit (M794): the tool is a structured object
 	// (code body, schema text) — a JSON body, not query args.
 	"/api/toolforge/draft": {controlplane.CmdToolforgeDraft, []string{"tool"}},
@@ -428,16 +477,16 @@ var jsonRoutes = map[string]writeRoute{
 	// Create a schedule (M715): intent + a timing mode. Numeric timing args (e.g.
 	// interval_sec, at_minutes, once_at_unix) ride the JSON body so they keep their
 	// types — a query arg would stringify them.
-	"/api/schedule/add": {controlplane.CmdScheduleAdd, []string{"intent", "model", "interval_sec", "at_minutes", "days", "tz", "once_at_unix", "window_start", "window_end"}},
+	"/api/schedule/add": {controlplane.CmdScheduleAdd, []string{"intent", "model", "agent", "target", "workflow", "system_task", "tool", "payload", "interval_sec", "at_minutes", "days", "tz", "once_at_unix", "window_start", "window_end"}},
 	// Edit an existing schedule (M728): id + any subset of intent/model and at most
 	// one cadence change. Numeric timing args ride the JSON body to keep their types.
-	"/api/schedule/edit": {controlplane.CmdScheduleEdit, []string{"id", "intent", "model", "interval_sec", "at_minutes", "days", "tz", "once_at_unix", "window_start", "window_end"}},
+	"/api/schedule/edit": {controlplane.CmdScheduleEdit, []string{"id", "intent", "model", "agent", "target", "workflow", "system_task", "tool", "payload", "interval_sec", "at_minutes", "days", "tz", "once_at_unix", "window_start", "window_end"}},
 	// Teach the agent a fact (M718): content + optional subject/type/confidence.
 	// confidence is numeric, so the JSON body preserves its type.
-	"/api/memory/add": {controlplane.CmdMemoryAdd, []string{"content", "subject", "type", "confidence"}},
+	"/api/memory/add": {controlplane.CmdMemoryAdd, []string{"content", "subject", "type", "confidence", "evidence", "half_life_ms"}},
 	// Revise a fact (M731): supersede old_id with a new record (content required;
 	// confidence numeric, so the JSON body preserves its type).
-	"/api/memory/supersede": {controlplane.CmdMemorySupersede, []string{"old_id", "content", "subject", "type", "confidence"}},
+	"/api/memory/supersede": {controlplane.CmdMemorySupersede, []string{"old_id", "content", "subject", "type", "confidence", "evidence", "half_life_ms"}},
 	// Add a world-model entity (M721): name + kind (+ optional aliases/attrs, which
 	// are arrays/objects, so the JSON body is needed).
 	"/api/world/add": {controlplane.CmdWorldAdd, []string{"name", "kind", "aliases", "attrs"}},
@@ -511,6 +560,9 @@ func (s *Server) Handler() http.Handler {
 	// CLI Toolbox install (M956): runs the host package manager and streams a
 	// per-tool progress event then a final summary as SSE.
 	mux.HandleFunc("/api/toolbox/install", s.auth(s.toolInstallProxy()))
+	// Marketplace install/uninstall stream per-item progress (skill/mcp/tool) as SSE.
+	mux.HandleFunc("/api/market/install", s.auth(s.marketStreamProxy(controlplane.CmdMarketInstall, []string{"name", "marketplace", "version"})))
+	mux.HandleFunc("/api/market/uninstall", s.auth(s.marketStreamProxy(controlplane.CmdMarketUninstall, []string{"name"})))
 	mux.HandleFunc("/api/transcribe", s.auth(s.handleTranscribe))
 	// Binary artifact serving (M822): streams the raw bytes for a content ref with
 	// a sanitized Content-Type, so an <img src> / download link can render stored
@@ -722,6 +774,56 @@ func (s *Server) toolInstallProxy() http.HandlerFunc {
 		}
 		write(map[string]any{"kind": "done", "result": res})
 	}
+}
+
+// marketStreamProxy installs or uninstalls a marketplace pack, streaming the
+// per-item progress events (skill/mcp/tool) + final record to the browser as
+// SSE — mirroring toolInstallProxy. Only the whitelisted keys are forwarded.
+func (s *Server) marketStreamProxy(cmd string, keys []string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		flusher, ok := w.(http.Flusher)
+		if !ok {
+			http.Error(w, "streaming unsupported", http.StatusInternalServerError)
+			return
+		}
+		args, ok := s.decodeAllowedBody(w, r, keys)
+		if !ok {
+			return
+		}
+		if strings.TrimSpace(toStr(args["name"])) == "" {
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "name is required"})
+			return
+		}
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.Header().Set("Cache-Control", "no-cache")
+		w.Header().Set("Connection", "keep-alive")
+		w.WriteHeader(http.StatusOK)
+		write := func(obj any) {
+			b, _ := json.Marshal(obj)
+			_, _ = w.Write([]byte("data: "))
+			_, _ = w.Write(b)
+			_, _ = w.Write([]byte("\n\n"))
+			flusher.Flush()
+		}
+		write(map[string]any{"kind": "open"})
+
+		ctx, cancel := context.WithTimeout(r.Context(), planRunTimeout)
+		defer cancel()
+		res, err := s.client.Stream(ctx, cmd, args, func(ev *event.Event) {
+			write(map[string]any{"kind": string(ev.Kind), "subject": ev.Subject, "payload": ev.Payload})
+		})
+		if err != nil {
+			write(map[string]any{"kind": "error", "error": err.Error()})
+			return
+		}
+		write(map[string]any{"kind": "done", "result": res})
+	}
+}
+
+// toStr coerces a decoded JSON body value to a string (empty for non-strings).
+func toStr(v any) string {
+	s, _ := v.(string)
+	return s
 }
 
 // stringList coerces a decoded JSON array of strings (body value) to []string.

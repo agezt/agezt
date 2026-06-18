@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/event"
+	kernelruntime "github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/workflow"
 )
 
@@ -242,6 +243,7 @@ func (s *Server) handleWorkflowWebhook(conn net.Conn, req Request) {
 	if w.TriggerSpec().Reply {
 		ctx, cancel := context.WithTimeout(context.Background(), workflowWebhookReplyTimeout)
 		defer cancel()
+		ctx = kernelruntime.WithWakeContext(ctx, kernelruntime.WakeContext{Source: "webhook", TriggerSubject: "webhook:" + w.Name})
 		runRes, err := s.k.RunWorkflow(ctx, corr, w.Name, payload)
 		if err != nil {
 			s.writeResp(conn, Response{
@@ -266,6 +268,7 @@ func (s *Server) handleWorkflowWebhook(conn net.Conn, req Request) {
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), workflowRunTimeout)
 		defer cancel()
+		ctx = kernelruntime.WithWakeContext(ctx, kernelruntime.WakeContext{Source: "webhook", TriggerSubject: "webhook:" + w.Name})
 		_, _ = s.k.RunWorkflow(ctx, corr, w.Name, payload) // failures land in workflow.failed
 	}()
 	s.writeResp(conn, Response{
@@ -347,6 +350,13 @@ func (s *Server) handleWorkflowRuns(conn net.Conn, req Request) {
 		finished int64
 		status   string // running|completed|failed
 		errText  string
+		source   string
+		runner   string
+		agent    string
+		schedule string
+		standing string
+		trigger  string
+		parent   string
 		executed []any
 		nodes    []map[string]any
 	}
@@ -367,8 +377,25 @@ func (s *Server) handleWorkflowRuns(conn net.Conn, req Request) {
 		}
 		switch e.Kind {
 		case event.KindWorkflowStarted:
+			var p struct {
+				Source            string `json:"source"`
+				Runner            string `json:"runner"`
+				Agent             string `json:"agent"`
+				ScheduleID        string `json:"schedule_id"`
+				StandingID        string `json:"standing_id"`
+				TriggerSubject    string `json:"trigger_subject"`
+				ParentCorrelation string `json:"parent_correlation_id"`
+			}
+			_ = json.Unmarshal(e.Payload, &p)
 			r := get(e.CorrelationID)
 			r.started = e.TSUnixMS
+			r.source = p.Source
+			r.runner = p.Runner
+			r.agent = p.Agent
+			r.schedule = p.ScheduleID
+			r.standing = p.StandingID
+			r.trigger = p.TriggerSubject
+			r.parent = p.ParentCorrelation
 		case event.KindWorkflowNode:
 			var p struct {
 				Node     string `json:"node"`
@@ -457,6 +484,27 @@ func (s *Server) handleWorkflowRuns(conn net.Conn, req Request) {
 		}
 		if r.errText != "" {
 			rv["error"] = r.errText
+		}
+		if r.source != "" {
+			rv["source"] = r.source
+		}
+		if r.runner != "" {
+			rv["runner"] = r.runner
+		}
+		if r.agent != "" {
+			rv["agent"] = r.agent
+		}
+		if r.schedule != "" {
+			rv["schedule_id"] = r.schedule
+		}
+		if r.standing != "" {
+			rv["standing_id"] = r.standing
+		}
+		if r.trigger != "" {
+			rv["trigger_subject"] = r.trigger
+		}
+		if r.parent != "" {
+			rv["parent_correlation_id"] = r.parent
 		}
 		out = append(out, rv)
 	}
@@ -570,6 +618,7 @@ func (s *Server) handleWorkflowRun(conn net.Conn, req Request) {
 		go func() {
 			ctx, cancel := context.WithTimeout(context.Background(), workflowRunTimeout)
 			defer cancel()
+			ctx = kernelruntime.WithWakeContext(ctx, kernelruntime.WakeContext{Source: "manual"})
 			_, _ = s.k.RunWorkflow(ctx, corr, w.Name, payload) // failures land in workflow.failed
 		}()
 		s.writeResp(conn, Response{
@@ -581,6 +630,7 @@ func (s *Server) handleWorkflowRun(conn net.Conn, req Request) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), workflowRunTimeout)
 	defer cancel()
+	ctx = kernelruntime.WithWakeContext(ctx, kernelruntime.WakeContext{Source: "manual"})
 	res, err := s.k.RunWorkflow(ctx, corr, ref, payload)
 	if err != nil {
 		if errors.Is(err, workflow.ErrNotFound) {

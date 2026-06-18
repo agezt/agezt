@@ -30,7 +30,7 @@ describe("parseConfigBundle", () => {
     expect(parseConfigBundle('{"version":1,"config":{"persona":"hi"}}')).toEqual({ persona: "hi" });
   });
 
-  it("keeps an empty-string persona (a deliberate 'no persona' to restore)", () => {
+  it("keeps an empty-string persona field (a deliberate 'no default identity' to restore)", () => {
     expect(parseConfigBundle('{"persona":""}')).toEqual({ persona: "" });
   });
 
@@ -54,7 +54,7 @@ describe("parseConfigBundle", () => {
 });
 
 describe("fetchConfigBundle", () => {
-  it("gathers persona + prompts + routing into a wrapped, versioned bundle", async () => {
+  it("gathers default identity + prompt templates + routing into a wrapped, versioned bundle", async () => {
     getJSON.mockImplementation((path: string) => {
       if (path === "/api/persona") return Promise.resolve({ system: "be terse" });
       if (path === "/api/prompts") return Promise.resolve({ prompts: [{ title: "t", text: "x" }] });
@@ -78,7 +78,7 @@ describe("fetchConfigBundle", () => {
 describe("applyConfigBundle", () => {
   it("posts each present section and reports what it applied", async () => {
     const applied = await applyConfigBundle({ persona: "hi", prompts: [{ title: "t", text: "x" }], chains: { chat: ["a"] } });
-    expect(applied).toEqual(["persona", "prompts", "routing"]);
+    expect(applied).toEqual(["default identity", "prompt templates", "routing"]);
     expect(postJSON).toHaveBeenCalledWith("/api/persona/set", { system: "hi" });
     expect(postJSON).toHaveBeenCalledWith("/api/prompts/set", { prompts: [{ title: "t", text: "x" }] });
     expect(postJSON).toHaveBeenCalledWith("/api/routing/set", { chains: { chat: ["a"] } });
@@ -86,7 +86,7 @@ describe("applyConfigBundle", () => {
 
   it("only posts the sections the bundle carries", async () => {
     const applied = await applyConfigBundle({ persona: "" }); // empty persona is still applied
-    expect(applied).toEqual(["persona"]);
+    expect(applied).toEqual(["default identity"]);
     expect(postJSON).toHaveBeenCalledTimes(1);
     expect(postJSON).toHaveBeenCalledWith("/api/persona/set", { system: "" });
   });

@@ -1011,10 +1011,10 @@ function ReasoningBlock({ text, live }: { text: string; live: boolean }) {
   );
 }
 
-// ConversationPersona is a per-thread persona override (M711): a small composer
-// control that, when set, makes every run in THIS conversation act with a custom
-// system prompt instead of the daemon's global persona. A dot marks an active
-// override; clicking opens an inline editor with Save / Clear.
+// ConversationPersona is a legacy-named per-thread identity override (M711): a
+// small composer control that, when set, makes runs in THIS conversation use the
+// supplied identity text instead of the daemon default identity. It is not a
+// durable roster agent.
 export function ConversationPersona({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState(value);
@@ -1038,14 +1038,14 @@ export function ConversationPersona({ value, onChange }: { value: string; onChan
     <div className="relative">
       <button
         onClick={open ? () => setOpen(false) : openEditor}
-        title={active ? "This conversation has a custom persona" : "Set a persona for this conversation"}
+        title={active ? "This conversation has a custom identity override" : "Set an identity override for this conversation"}
         className={cn(
           "inline-flex items-center gap-1 rounded px-1.5 py-0.5 transition-colors hover:text-foreground",
           active ? "text-accent" : "text-muted",
         )}
       >
         <Bot className="size-3.5" />
-        <span>persona{active ? "" : ": default"}</span>
+        <span>identity{active ? "" : ": default"}</span>
         {active && <span className="size-1.5 rounded-full bg-accent" />}
       </button>
       {open && (
@@ -1053,15 +1053,15 @@ export function ConversationPersona({ value, onChange }: { value: string; onChan
           <div className="fixed inset-0 z-20" onClick={() => setOpen(false)} />
           <div className="absolute bottom-full left-0 z-30 mb-1.5 w-80 rounded-lg border border-border bg-card p-2 shadow-xl shadow-black/30">
             <div className="mb-1.5 text-[11px] text-muted">
-              Persona for <span className="text-foreground/80">this conversation</span> — overrides the global persona
-              for every run here. Leave empty to use the default.
+              Identity for <span className="text-foreground/80">this conversation</span> — overrides the daemon
+              default identity for every run here. Leave empty to use the default identity.
             </div>
             <textarea
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               autoFocus
               spellCheck={false}
-              aria-label="Conversation persona"
+              aria-label="Conversation identity"
               placeholder="e.g. You are a senior Go reviewer. Be blunt and specific…"
               className="h-28 w-full resize-none rounded-md border border-border bg-panel p-2 font-mono text-xs text-foreground outline-none placeholder:text-muted/60 focus-visible:border-accent"
             />

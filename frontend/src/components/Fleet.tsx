@@ -22,14 +22,124 @@ import {
   ArrowUpRight,
   Activity,
   Flame,
+  Repeat,
   ShieldCheck,
+  IdCard,
+  ListChecks,
+  Wrench,
+  Moon,
+  PauseCircle,
+  Skull,
   type LucideIcon,
 } from "lucide-react";
-import type { FleetEntity, FleetKind, FleetState, TriggerMode } from "@/lib/fleet";
+import {
+  fleetAgentCapabilityLabel,
+  fleetAgentAuthorityLabel,
+  fleetAgentHierarchyLabel,
+  fleetAgentIdentityCardSummary,
+  fleetAgentResilienceLabel,
+  fleetAgentTaskContractLabel,
+  type ApiProfile,
+  type FleetEntity,
+  type FleetKind,
+  type FleetState,
+  type TriggerMode,
+} from "@/lib/fleet";
 import { AgentAvatar } from "@/components/AgentAvatar";
 import { Button } from "@/components/ui/button";
 import { cn, clip, fmtDateTime, fmtAgo } from "@/lib/utils";
 import { money } from "@/lib/format";
+import { summarizeAgentRuntimeStatus } from "@/lib/agentdetail";
+
+export function fleetAgentRepairOpsSummary(
+  profile: Pick<ApiProfile, "retired" | "retry_policy" | "health_policy" | "self_repair">,
+  runtime: ReturnType<typeof summarizeAgentRuntimeStatus> | null,
+): { value: string; detail: string; tone: "good" | "warn" | "bad" | "accent" | "muted" } {
+  if (profile.retired) {
+    return { value: "graveyard", detail: "repair blocked until revived", tone: "muted" };
+  }
+  if ((runtime?.repairInflight || 0) > 0) {
+    return {
+      value: runtime?.repairText || `repair ${runtime?.repairInflight || 1}`,
+      detail: [runtime?.repairKindText || "repair", runtime?.repairDetail, runtime?.repairIncidentDetail].filter(Boolean).join(" · "),
+      tone: "accent",
+    };
+  }
+  if (runtime?.repairText) {
+    return {
+      value: runtime.repairText,
+      detail: [runtime.repairKindText || "repair", runtime.repairDetail, runtime.repairIncidentDetail].filter(Boolean).join(" · "),
+      tone: runtime.repairTone === "bad" ? "bad" : runtime.repairTone === "good" ? "good" : runtime.repairTone === "accent" ? "accent" : "muted",
+    };
+  }
+  if (runtime?.retryText) {
+    return { value: runtime.retryText, detail: runtime.retryDetail || "whole-run retry pressure is active", tone: "bad" };
+  }
+  const parts = [
+    profile.retry_policy?.max_attempts ? `retry ${profile.retry_policy.max_attempts}x` : "",
+    profile.health_policy?.doctor_agent ? `doctor ${profile.health_policy.doctor_agent}` : "",
+    profile.self_repair?.enabled ? `self-repair${profile.self_repair.max_attempts ? ` ${profile.self_repair.max_attempts}x` : ""}` : "",
+    profile.self_repair?.escalate_to ? `escalate ${profile.self_repair.escalate_to}` : "",
+  ].filter(Boolean);
+  if (parts.length > 0) {
+    return { value: "repair guarded", detail: parts.join(" · "), tone: "good" };
+  }
+  return { value: "manual repair", detail: "no retry, doctor, or self-repair policy configured", tone: "warn" };
+}
+
+function fleetAgentHealthOpsSummary(
+  e: Pick<FleetEntity, "running" | "state" | "retired">,
+  runtime: ReturnType<typeof summarizeAgentRuntimeStatus> | null,
+): { value: string; detail: string; tone: "good" | "warn" | "bad" | "accent" | "muted" } {
+  if (e.retired || e.state === "retired") return { value: "graveyard", detail: "retired identity is inspectable but asleep", tone: "muted" };
+  if (e.running) return { value: runtime?.activePhase || runtime?.liveText || "awake", detail: runtime?.liveDetail || "live execution", tone: "accent" };
+  if (runtime?.healthText) {
+    return {
+      value: runtime.healthText,
+      detail: runtime.configIssues?.length ? runtime.configIssues.join(" · ") : runtime.lastActivitySummary || runtime.healthText,
+      tone: runtime.healthTone === "bad" ? "bad" : runtime.healthTone === "muted" ? "muted" : "good",
+    };
+  }
+  if (e.state === "paused") return { value: "paused", detail: "wake disabled", tone: "warn" };
+  return { value: "nominal", detail: runtime?.lastActivitySummary || "no health pressure reported", tone: "good" };
+}
+
+export function fleetAgentLiveOpsSummary(
+  e: Pick<FleetEntity, "kind" | "state" | "running" | "retired" | "nextRunMs">,
+  runtime: ReturnType<typeof summarizeAgentRuntimeStatus> | null,
+  trigger?: { mode: TriggerMode; label: string },
+  repair?: { value: string; detail: string; tone: "good" | "warn" | "bad" | "accent" | "muted" } | null,
+): { value: string; detail: string; tone: "good" | "warn" | "bad" | "accent" | "muted" } {
+  const wake = wakeStateDescriptor(e, trigger);
+  const health = fleetAgentHealthOpsSummary(e, runtime);
+  const next = runtime?.nextWakeMs || e.nextRunMs || 0;
+  const nextLine = next ? `next ${fmtDateTime(next)}` : "";
+  const repairLine = repair ? `${repair.value}: ${repair.detail}` : "";
+  const detail = [
+    wake.detail,
+    health.detail,
+    repairLine,
+    nextLine,
+    runtime?.activeModel ? `model ${runtime.activeModel}` : "",
+    runtime?.activeTool ? `tool ${runtime.activeTool}` : "",
+  ].filter(Boolean).join(" · ");
+  const value = e.running
+    ? `awake · ${runtime?.activePhase || runtime?.liveText || "running"}`
+    : e.retired || e.state === "retired"
+      ? "graveyard · asleep"
+      : e.state === "paused"
+        ? "paused · asleep"
+        : wake.mode === "armed"
+          ? "sleeping · armed"
+          : "sleeping · manual";
+  const tone =
+    e.running ? "accent" :
+      health.tone === "bad" || repair?.tone === "bad" ? "bad" :
+        health.tone === "warn" || repair?.tone === "warn" ? "warn" :
+          e.retired || e.state === "retired" || e.state === "paused" ? "muted" :
+            wake.tone === "good" ? "good" : "muted";
+  return { value, detail, tone };
+}
 
 // Per-archetype identity: a label, an icon, and a hue so each kind has its own
 // colour (the owner wants the console colourful, not a grid of grey).
@@ -81,6 +191,69 @@ function StatePill({ state }: { state: FleetState }) {
   );
 }
 
+export function wakeStateDescriptor(e: Pick<FleetEntity, "kind" | "state" | "running" | "retired">, trigger?: { mode: TriggerMode; label: string }) {
+  if (e.retired || e.state === "retired") {
+    return { label: "graveyard", detail: "retired identity", tone: "muted" as const, mode: "retired" as const };
+  }
+  if (e.state === "paused") {
+    return { label: "paused", detail: "wake disabled", tone: "muted" as const, mode: "paused" as const };
+  }
+  if (e.running) {
+    return {
+      label: e.kind === "roster" ? "awake now" : "running now",
+      detail: trigger ? `${trigger.mode}: ${trigger.label}` : "live execution",
+      tone: "live" as const,
+      mode: "running" as const,
+    };
+  }
+  if (e.state === "armed") {
+    return {
+      label: e.kind === "roster" ? "sleeping until trigger" : "armed",
+      detail: trigger ? `${trigger.mode}: ${trigger.label}` : "automatic trigger",
+      tone: "good" as const,
+      mode: "armed" as const,
+    };
+  }
+  return {
+    label: e.kind === "roster" ? "sleeping" : "manual",
+    detail: trigger ? `${trigger.mode}: ${trigger.label}` : "manual / delegated",
+    tone: "plain" as const,
+    mode: "manual" as const,
+  };
+}
+
+function WakeStateBand({ e, trigger }: { e: FleetEntity; trigger?: { mode: TriggerMode; label: string } }) {
+  const state = wakeStateDescriptor(e, trigger);
+  const Icon =
+    state.mode === "running" ? Activity :
+      state.mode === "armed" ? Clock :
+        state.mode === "manual" ? Moon :
+          state.mode === "paused" ? PauseCircle :
+            Skull;
+  return (
+    <div
+      className={cn(
+        "flex min-h-[3rem] items-center gap-2 rounded-lg border px-2 py-1.5",
+        state.tone === "live" && "border-accent/45 bg-accent/10 text-accent",
+        state.tone === "good" && "border-good/30 bg-good/10 text-good",
+        state.tone === "muted" && "border-border bg-panel/25 text-muted",
+        state.tone === "plain" && "border-border bg-panel/30 text-foreground/75",
+      )}
+    >
+      <Icon className={cn("size-4 shrink-0", state.mode === "running" && "work-pulse")} />
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-[11px] font-semibold uppercase tracking-wider">{state.label}</div>
+        <div className="truncate font-mono text-[10px] opacity-80" title={state.detail}>
+          {state.detail}
+        </div>
+      </div>
+      <span className="shrink-0 rounded-md bg-card/60 px-1.5 py-0.5 text-[9px] uppercase tracking-wider opacity-80">
+        {STATE_LABEL[e.state]}
+      </span>
+    </div>
+  );
+}
+
 // TriggerChip — the answer to "what makes this run", compact for cards.
 export function TriggerChip({ mode, label }: { mode: TriggerMode; label: string }) {
   const Icon = TRIGGER_ICON[mode];
@@ -100,81 +273,306 @@ export function TriggerChip({ mode, label }: { mode: TriggerMode; label: string 
 export function FleetCard({ e, onOpen }: { e: FleetEntity; onOpen: () => void }) {
   const Kind = KIND_META[e.kind].icon;
   const color = kindColor(e.kind);
+  const primaryTrigger = e.triggers[0];
+  const runtimeStatus = e.kind === "roster" && e.raw && typeof e.raw === "object"
+    ? summarizeAgentRuntimeStatus((e.raw as { status?: Parameters<typeof summarizeAgentRuntimeStatus>[0] }).status)
+    : null;
+  const profile = e.kind === "roster" && e.raw && typeof e.raw === "object" ? (e.raw as ApiProfile) : null;
+  const identityCard = profile ? fleetAgentIdentityCardSummary(profile, e.state, e.running) : null;
+  const repairOps = profile ? fleetAgentRepairOpsSummary(profile, runtimeStatus) : null;
+  const healthOps = profile ? fleetAgentHealthOpsSummary(e, runtimeStatus) : null;
+  const liveOps = profile ? fleetAgentLiveOpsSummary(e, runtimeStatus, primaryTrigger, repairOps) : null;
   return (
     <button
       onClick={onOpen}
       title={e.kind === "roster" ? `Open ${e.name}'s identity page` : `Open ${e.name}`}
       className={cn(
-        "group flex flex-col gap-2 rounded-lg border bg-card p-3 text-left transition-colors hover:border-accent",
+        "group flex min-h-[230px] flex-col overflow-hidden rounded-xl border bg-card text-left shadow-e1 transition-[border-color,box-shadow] hover:border-accent hover:shadow-e2",
         e.running ? "border-accent/60" : "border-border",
         (e.state === "paused" || e.state === "retired") && "opacity-60",
       )}
     >
-      <div className="flex items-center gap-2">
+      <div className="flex items-start gap-2 border-b border-border bg-panel/35 p-3">
         <AgentAvatar
           slug={e.slug}
           name={e.name}
-          size={26}
+          size={34}
           status={e.running ? "running" : e.retired ? "retired" : undefined}
         />
         <div className="min-w-0 flex-1">
-          <div className="truncate text-xs font-semibold" title={e.name}>
+          <div className="truncate text-sm font-semibold leading-tight" title={e.name}>
             {e.name}
           </div>
-          <div className="flex items-center gap-1 text-[10px] text-muted" style={color ? { color } : undefined}>
-            <Kind className="size-2.5" /> {KIND_META[e.kind].label}
+          <div className="mt-1 flex flex-wrap items-center gap-1">
+            <span
+              className="inline-flex max-w-full items-center gap-1 rounded-md border border-border bg-card/70 px-1.5 py-0.5 text-[10px] font-medium"
+              style={color ? { color } : undefined}
+            >
+              <Kind className="size-2.5 shrink-0" /> <span className="truncate">{KIND_META[e.kind].label}</span>
+            </span>
             {e.system && (
-              <span className="ml-1 inline-flex items-center gap-0.5 rounded-full bg-accent/15 px-1.5 text-[9px] font-medium text-accent" title="Shipped internal guardian — part of the daemon's self-healing fleet">
+              <span className="inline-flex items-center gap-0.5 rounded-md bg-accent/15 px-1.5 py-0.5 text-[9px] font-medium text-accent" title="Shipped internal guardian — part of the daemon's self-healing fleet">
                 <ShieldCheck className="size-2.5" /> guardian
+              </span>
+            )}
+            {runtimeStatus?.healthText && (
+              <span
+                className={cn(
+                  "inline-flex items-center gap-0.5 rounded-md px-1.5 py-0.5 text-[9px] font-medium",
+                  runtimeStatus.healthTone === "bad" ? "bg-bad/10 text-bad" : "bg-panel text-muted",
+                )}
+              >
+                {runtimeStatus.healthText}
+              </span>
+            )}
+            {runtimeStatus?.repairText && (
+              <span
+                className={cn(
+                  "inline-flex items-center gap-0.5 rounded-md px-1.5 py-0.5 text-[9px] font-medium",
+                  runtimeStatus.repairTone === "accent" && "bg-accent/10 text-accent",
+                  runtimeStatus.repairTone === "good" && "bg-good/10 text-good",
+                  runtimeStatus.repairTone === "bad" && "bg-bad/10 text-bad",
+                )}
+              >
+                {runtimeStatus.repairText}
+              </span>
+            )}
+            {runtimeStatus?.repairKindText && (
+              <span
+                className={cn(
+                  "inline-flex items-center gap-0.5 rounded-md px-1.5 py-0.5 text-[9px] font-medium",
+                  runtimeStatus.repairKindTone === "accent" && "bg-accent/10 text-accent",
+                  runtimeStatus.repairKindTone === "warn" && "bg-warn/10 text-warn",
+                )}
+              >
+                {runtimeStatus.repairKindText}
+              </span>
+            )}
+            {runtimeStatus?.routingText && (
+              <span
+                className={cn(
+                  "inline-flex items-center gap-0.5 rounded-md px-1.5 py-0.5 text-[9px] font-medium",
+                  runtimeStatus.routingTone === "bad" ? "bg-bad/10 text-bad" : "bg-panel text-muted",
+                )}
+                title={runtimeStatus.routingDetail || "recent model-chain fallback pressure"}
+              >
+                {runtimeStatus.routingText}
+              </span>
+            )}
+            {runtimeStatus?.retryText && (
+              <span
+                className={cn(
+                  "inline-flex items-center gap-0.5 rounded-md px-1.5 py-0.5 text-[9px] font-medium",
+                  runtimeStatus.retryTone === "bad" ? "bg-bad/10 text-bad" : "bg-panel text-muted",
+                )}
+                title={runtimeStatus.retryDetail || "recent whole-run retry pressure"}
+              >
+                {runtimeStatus.retryText}
+              </span>
+            )}
+            {runtimeStatus?.escalationText && (
+              <span
+                className={cn(
+                  "inline-flex items-center gap-0.5 rounded-md px-1.5 py-0.5 text-[9px] font-medium",
+                  runtimeStatus.escalationTone === "bad" && "bg-bad/10 text-bad",
+                  runtimeStatus.escalationTone === "accent" && "bg-accent/10 text-accent",
+                  runtimeStatus.escalationTone === "muted" && "bg-panel text-muted",
+                )}
+                title="open owner/escalation workload"
+              >
+                {runtimeStatus.escalationText}
               </span>
             )}
           </div>
         </div>
-        <StatePill state={e.state} />
+        <div className="shrink-0 pt-0.5">
+          <StatePill state={e.state} />
+        </div>
         {e.kind === "roster" && (
           <ArrowUpRight
-            className="size-3.5 shrink-0 text-muted opacity-0 transition-opacity group-hover:opacity-100"
+            className="mt-0.5 size-3.5 shrink-0 text-muted opacity-0 transition-opacity group-hover:opacity-100"
             aria-hidden="true"
           />
         )}
       </div>
 
-      {e.description && (
-        <div className="line-clamp-2 text-[11px] text-muted" title={e.description}>
-          {clip(e.description, 140)}
-        </div>
-      )}
+      <div className="flex flex-1 flex-col gap-2 p-3">
+        <WakeStateBand e={e} trigger={primaryTrigger} />
 
-      <div className="flex flex-wrap gap-1">
-        {e.triggers.map((t, i) => (
-          <TriggerChip key={`${t.mode}-${i}`} mode={t.mode} label={t.label} />
-        ))}
+        {liveOps && (
+          <div
+            className={cn(
+              "flex min-h-[3.25rem] items-start gap-2 rounded-lg border px-2 py-1.5",
+              liveOps.tone === "accent" && "border-accent/40 bg-accent/10",
+              liveOps.tone === "good" && "border-good/30 bg-good/5",
+              liveOps.tone === "warn" && "border-warn/40 bg-warn/10",
+              liveOps.tone === "bad" && "border-bad/35 bg-bad/5",
+              liveOps.tone === "muted" && "border-border bg-panel/25",
+            )}
+            title={liveOps.detail}
+          >
+            <Activity
+              className={cn(
+                "mt-0.5 size-3.5 shrink-0",
+                liveOps.tone === "accent" && "work-pulse text-accent",
+                liveOps.tone === "good" && "text-good",
+                liveOps.tone === "warn" && "text-warn",
+                liveOps.tone === "bad" && "text-bad",
+                liveOps.tone === "muted" && "text-muted",
+              )}
+            />
+            <div className="min-w-0 flex-1">
+              <div className="text-[9px] font-semibold uppercase tracking-wider text-muted">Live ops</div>
+              <div
+                className={cn(
+                  "mt-0.5 truncate text-[11px] font-medium",
+                  liveOps.tone === "accent" && "text-accent",
+                  liveOps.tone === "good" && "text-good",
+                  liveOps.tone === "warn" && "text-warn",
+                  liveOps.tone === "bad" && "text-bad",
+                )}
+              >
+                {liveOps.value}
+              </div>
+              <div className="mt-0.5 truncate text-[10px] text-muted">{liveOps.detail}</div>
+            </div>
+          </div>
+        )}
+
+        {identityCard && (
+          <div
+            className={cn(
+              "flex min-h-[4.25rem] min-w-0 gap-2 rounded-lg border bg-panel/35 px-2 py-1.5",
+              identityCard.tone === "accent" && "border-accent/40 bg-accent/10",
+              identityCard.tone === "good" && "border-good/30 bg-good/5",
+              identityCard.tone === "warn" && "border-warn/40 bg-warn/10",
+              identityCard.tone === "bad" && "border-bad/35 bg-bad/5",
+              identityCard.tone === "muted" && "border-border bg-panel/25",
+            )}
+            title={identityCard.detail}
+          >
+            <IdCard
+              className={cn(
+                "mt-0.5 size-3.5 shrink-0 text-muted",
+                identityCard.tone === "accent" && "text-accent",
+                identityCard.tone === "good" && "text-good",
+                identityCard.tone === "warn" && "text-warn",
+                identityCard.tone === "bad" && "text-bad",
+              )}
+            />
+            <div className="min-w-0 flex-1">
+              <div className="text-[9px] font-semibold uppercase tracking-wider text-muted">Agent card</div>
+              <div
+                className={cn(
+                  "mt-0.5 truncate text-[11px] font-medium",
+                  identityCard.tone === "accent" && "text-accent",
+                  identityCard.tone === "good" && "text-good",
+                  identityCard.tone === "warn" && "text-warn",
+                  identityCard.tone === "bad" && "text-bad",
+                )}
+                title={identityCard.label}
+              >
+                {identityCard.label}
+              </div>
+              <div className="mt-0.5 line-clamp-2 text-[10px] text-muted">{identityCard.detail}</div>
+            </div>
+          </div>
+        )}
+
+        <div className="grid grid-cols-2 gap-1.5">
+          <FleetInfo label="wake" value={primaryTrigger ? `${primaryTrigger.mode}: ${primaryTrigger.label}` : "manual"} />
+          <FleetInfo label="status" value={STATE_LABEL[e.state]} />
+          <FleetInfo label="model" value={e.model || "default"} mono />
+          <FleetInfo
+            label={e.nextRunMs ? "next" : "last"}
+            value={e.nextRunMs ? fmtDateTime(e.nextRunMs) : e.lastRunMs ? fmtAgo(e.lastRunMs) : "never"}
+          />
+        </div>
+
+        {profile && (
+          <div className="grid grid-cols-2 gap-1.5">
+            <FleetInfo label="identity" value={fleetAgentHierarchyLabel(profile)} />
+            <FleetInfo label="tasks" value={fleetAgentTaskContractLabel(profile)} />
+            <FleetInfo label="tools" value={fleetAgentCapabilityLabel(profile)} mono />
+            <FleetInfo label="authority" value={fleetAgentAuthorityLabel(profile)} />
+            <FleetInfo label="health ops" value={healthOps?.value} />
+            <FleetInfo label="repair ops" value={repairOps?.value} />
+          </div>
+        )}
+
+        {e.description ? (
+          <div className="line-clamp-2 min-h-[2.75rem] rounded-lg border border-border bg-panel/30 px-2 py-1.5 text-[11px] text-muted" title={e.description}>
+            {clip(e.description, 140)}
+          </div>
+        ) : (
+          <div className="min-h-[2.75rem] rounded-lg border border-dashed border-border bg-panel/20 px-2 py-1.5 text-[11px] text-muted">
+            no description
+          </div>
+        )}
+
+        <div className="mt-auto flex flex-wrap gap-1">
+          {e.triggers.map((t, i) => (
+            <TriggerChip key={`${t.mode}-${i}`} mode={t.mode} label={t.label} />
+          ))}
+        </div>
       </div>
 
-      <div className="flex items-center gap-2 text-[10px] text-muted">
-        {e.model && (
-          <span className="truncate font-mono" title={e.model}>
-            {e.model}
-          </span>
-        )}
+      <div className="flex items-center gap-2 border-t border-border px-3 py-2 text-[10px] text-muted">
+        <span className="truncate font-mono" title={e.slug}>
+          {e.slug}
+        </span>
         {typeof e.fires === "number" && e.fires > 0 && (
-          <span className="inline-flex items-center gap-1">
+          <span className="inline-flex shrink-0 items-center gap-1 rounded-md border border-border bg-panel/40 px-1.5 py-0.5">
             <Flame className="size-2.5" /> {e.fires}
           </span>
         )}
-        <span className="ml-auto inline-flex shrink-0 items-center gap-1">
-          {e.nextRunMs ? (
-            <>
-              <CalendarClock className="size-2.5" /> {fmtDateTime(e.nextRunMs)}
-            </>
-          ) : e.lastRunMs ? (
-            <>
-              <Clock className="size-2.5" /> {fmtAgo(e.lastRunMs)}
-            </>
-          ) : null}
-        </span>
+        {runtimeStatus?.repairInflight ? (
+          <span className="inline-flex shrink-0 items-center gap-1 rounded-md border border-accent/30 bg-accent/10 px-1.5 py-0.5 text-accent">
+            <Activity className="size-2.5" /> {runtimeStatus.repairInflight}
+          </span>
+        ) : null}
+        {runtimeStatus?.routingFallbackCount ? (
+          <span
+            className="inline-flex shrink-0 items-center gap-1 rounded-md border border-bad/30 bg-bad/10 px-1.5 py-0.5 text-bad"
+            title={runtimeStatus.routingDetail || "recent model-chain fallback pressure"}
+          >
+            <Repeat className="size-2.5" /> {runtimeStatus.routingFallbackCount}
+          </span>
+        ) : null}
+        {runtimeStatus?.retryCount ? (
+          <span
+            className="inline-flex shrink-0 items-center gap-1 rounded-md border border-bad/30 bg-bad/10 px-1.5 py-0.5 text-bad"
+            title={runtimeStatus.retryDetail || "recent whole-run retry pressure"}
+          >
+            <Repeat className="size-2.5" /> retry {runtimeStatus.retryCount}
+          </span>
+        ) : null}
+        {runtimeStatus?.escalationOpenCount ? (
+          <span
+            className="inline-flex shrink-0 items-center gap-1 rounded-md border border-bad/30 bg-bad/10 px-1.5 py-0.5 text-bad"
+            title="open owner/escalation workload"
+          >
+            <Share2 className="size-2.5" /> {runtimeStatus.escalationOpenCount}
+          </span>
+        ) : null}
+        {typeof e.raw === "object" && e.raw && typeof (e.raw as Record<string, unknown>)["max_cost_mc"] === "number" && (
+          <span className="ml-auto inline-flex shrink-0 items-center gap-1 rounded-md border border-border bg-panel/40 px-1.5 py-0.5">
+            <Coins className="size-2.5" /> {money((e.raw as Record<string, unknown>)["max_cost_mc"] as number)}
+          </span>
+        )}
       </div>
     </button>
+  );
+}
+
+function FleetInfo({ label, value, mono }: { label: string; value?: string; mono?: boolean }) {
+  return (
+    <div className="min-w-0 rounded-lg border border-border bg-panel/35 px-2 py-1.5">
+      <div className="text-[9px] font-semibold uppercase tracking-wider text-muted">{label}</div>
+      <div className={cn("truncate text-[11px] text-foreground/85", mono && "font-mono")} title={value || ""}>
+        {value || "-"}
+      </div>
+    </div>
   );
 }
 
@@ -205,6 +603,13 @@ export function FleetDetail({
   const Kind = KIND_META[e.kind].icon;
   const color = kindColor(e.kind);
   const raw = e.raw as Record<string, unknown> | null;
+  const profile = e.kind === "roster" && e.raw && typeof e.raw === "object" ? (e.raw as ApiProfile) : null;
+  const runtimeStatus = profile
+    ? summarizeAgentRuntimeStatus((profile as { status?: Parameters<typeof summarizeAgentRuntimeStatus>[0] }).status)
+    : null;
+  const repairOps = profile ? fleetAgentRepairOpsSummary(profile, runtimeStatus) : null;
+  const healthOps = profile ? fleetAgentHealthOpsSummary(e, runtimeStatus) : null;
+  const liveOps = profile ? fleetAgentLiveOpsSummary(e, runtimeStatus, e.triggers[0], repairOps) : null;
   const str = (k: string) => (raw && typeof raw[k] === "string" ? (raw[k] as string) : undefined);
   const num = (k: string) => (raw && typeof raw[k] === "number" ? (raw[k] as number) : undefined);
 
@@ -272,6 +677,87 @@ export function FleetDetail({
       <div className="space-y-1.5 rounded-lg border border-border bg-panel/30 p-2.5">
         {e.kind === "roster" && (
           <>
+            {profile && (
+              <>
+                <Row
+                  label="live ops"
+                  value={
+                    <span className="inline-flex items-center gap-1">
+                      <Activity className="size-3 text-muted" /> {liveOps?.value}
+                    </span>
+                  }
+                />
+                <Row
+                  label="identity"
+                  value={
+                    <span className="inline-flex items-center gap-1">
+                      <IdCard className="size-3 text-muted" /> {fleetAgentHierarchyLabel(profile)}
+                    </span>
+                  }
+                />
+                <Row
+                  label="tasks"
+                  value={
+                    <span className="inline-flex items-center gap-1">
+                      <ListChecks className="size-3 text-muted" /> {fleetAgentTaskContractLabel(profile)}
+                    </span>
+                  }
+                />
+                <Row
+                  label="tools"
+                  value={
+                    <span className="inline-flex items-center gap-1 font-mono">
+                      <ShieldCheck className="size-3 text-muted" /> {fleetAgentCapabilityLabel(profile)}
+                    </span>
+                  }
+                />
+                <Row
+                  label="authority"
+                  value={
+                    <span className="inline-flex items-center gap-1">
+                      <ShieldCheck className="size-3 text-muted" /> {fleetAgentAuthorityLabel(profile)}
+                    </span>
+                  }
+                />
+                <Row
+                  label="repair"
+                  value={
+                    <span className="inline-flex items-center gap-1">
+                      <Wrench className="size-3 text-muted" /> {fleetAgentResilienceLabel(profile)}
+                    </span>
+                  }
+                />
+                <Row
+                  label="health ops"
+                  value={
+                    healthOps && (
+                      <span className="inline-flex items-center gap-1" title={healthOps.detail}>
+                        <Activity className="size-3 text-muted" /> {healthOps.value}
+                      </span>
+                    )
+                  }
+                />
+                <Row
+                  label="repair ops"
+                  value={
+                    repairOps && (
+                      <span
+                        className={cn(
+                          "inline-flex items-center gap-1",
+                          repairOps.tone === "bad" && "text-bad",
+                          repairOps.tone === "accent" && "text-accent",
+                          repairOps.tone === "good" && "text-good",
+                          repairOps.tone === "warn" && "text-warn",
+                        )}
+                        title={repairOps.detail}
+                      >
+                        <Wrench className="size-3" /> {repairOps.value}
+                      </span>
+                    )
+                  }
+                />
+              </>
+            )}
             <Row label="model" value={e.model && <span className="font-mono">{e.model}</span>} />
             <Row label="memory" value={str("memory_scope")} />
             <Row label="workdir" value={str("workdir") && <span className="font-mono">{str("workdir")}</span>} />

@@ -4,6 +4,7 @@ package cadence
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"sync"
 	"testing"
@@ -90,6 +91,81 @@ func TestStore_AddListGetRemove(t *testing.T) {
 	ok, _ := s.Remove(e.ID)
 	if !ok || s.Count() != 0 {
 		t.Errorf("Remove failed: ok=%v count=%d", ok, s.Count())
+	}
+}
+
+func TestStore_TargetTransitionsClearOtherBindings(t *testing.T) {
+	s := mustStore(t)
+	e, err := s.Add("maintenance", time.Hour, "m1", SourceOperator, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ok, err := s.SetAgent(e.ID, "ops"); err != nil || !ok {
+		t.Fatalf("SetAgent = %v %v", ok, err)
+	}
+	if ok, err := s.SetSystemTaskTarget(e.ID, "catalog_sync"); err != nil || !ok {
+		t.Fatalf("SetSystemTaskTarget = %v %v", ok, err)
+	}
+	got, _ := s.Get(e.ID)
+	if got.Target != TargetSystemTask || got.SystemTask != "catalog_sync" {
+		t.Fatalf("system target not stored: %+v", got)
+	}
+	if got.Agent != "" || got.Model != "" || got.Workflow != "" || got.Tool != "" || len(got.Payload) != 0 {
+		t.Fatalf("system target should clear agent/model/workflow/payload: %+v", got)
+	}
+	if ok, err := s.SetAgent(e.ID, "ops"); err != nil || !ok {
+		t.Fatalf("SetAgent before tool = %v %v", ok, err)
+	}
+	if ok, err := s.SetModel(e.ID, "m-tool"); err != nil || !ok {
+		t.Fatalf("SetModel before tool = %v %v", ok, err)
+	}
+	if ok, err := s.SetToolTarget(e.ID, "catalog_sync", json.RawMessage(`{"dry_run":true}`)); err != nil || !ok {
+		t.Fatalf("SetToolTarget = %v %v", ok, err)
+	}
+	got, _ = s.Get(e.ID)
+	if got.Target != TargetTool || got.Tool != "catalog_sync" || got.SystemTask != "" || string(got.Payload) != `{"dry_run":true}` {
+		t.Fatalf("tool target did not replace system target: %+v", got)
+	}
+	if got.Agent != "ops" || got.Model != "" || got.Workflow != "" {
+		t.Fatalf("tool target should preserve agent but clear model/workflow: %+v", got)
+	}
+	if ok, err := s.SetModel(e.ID, "m-workflow"); err != nil || !ok {
+		t.Fatalf("SetModel before workflow = %v %v", ok, err)
+	}
+	if ok, err := s.SetWorkflowTarget(e.ID, "daily-flow", json.RawMessage(`{"x":1}`)); err != nil || !ok {
+		t.Fatalf("SetWorkflowTarget = %v %v", ok, err)
+	}
+	got, _ = s.Get(e.ID)
+	if got.Target != TargetWorkflow || got.Workflow != "daily-flow" || got.SystemTask != "" || got.Tool != "" {
+		t.Fatalf("workflow target did not replace system target: %+v", got)
+	}
+	if got.Agent != "ops" || got.Model != "m-workflow" {
+		t.Fatalf("workflow target should preserve agent/model: %+v", got)
+	}
+	if ok, err := s.SetIntentTarget(e.ID); err != nil || !ok {
+		t.Fatalf("SetIntentTarget = %v %v", ok, err)
+	}
+	got, _ = s.Get(e.ID)
+	if got.Target != TargetIntent || got.Workflow != "" || got.SystemTask != "" || got.Tool != "" || len(got.Payload) != 0 {
+		t.Fatalf("intent target should clear target-specific fields: %+v", got)
+	}
+}
+
+func TestSystemTaskInfosDescribeTypedDaemonWork(t *testing.T) {
+	infos := SystemTaskInfos()
+	if len(infos) == 0 {
+		t.Fatal("SystemTaskInfos is empty")
+	}
+	for _, info := range infos {
+		if strings.TrimSpace(info.Name) == "" || strings.TrimSpace(info.Label) == "" {
+			t.Fatalf("system task missing name/label: %+v", info)
+		}
+		if strings.Contains(strings.ToLower(info.Effect), "prompt") {
+			t.Fatalf("%s effect uses prompt-era wording: %q", info.Name, info.Effect)
+		}
+		if strings.TrimSpace(info.Executor) == "" || strings.TrimSpace(info.EffectClass) == "" {
+			t.Fatalf("%s missing executor/effect_class: %+v", info.Name, info)
+		}
 	}
 }
 
@@ -222,7 +298,7 @@ func TestEngine_FireOne_ContainsPanic(t *testing.T) {
 	e.running.Store(due[0].ID, struct{}{}) // as fireDue's LoadOrStore would
 	// Synchronous: without the recover in fireOne this panics the test goroutine.
 	e.fireOne(context.Background(), due[0])
-	if _, busy := e.running.Load(due[0].ID); busy {
+	if e.RunningCount() != 0 {
 		t.Error("in-flight guard not cleared after a panicking run (schedule would wedge)")
 	}
 }
@@ -261,7 +337,7 @@ func TestEngine_RunTimeoutClearsInflightGuard(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("fireOne did not return — RunTimeout failed to bound a hung run")
 	}
-	if _, busy := e.running.Load(due[0].ID); busy {
+	if e.RunningCount() != 0 {
 		t.Error("in-flight guard not cleared after the run timed out (schedule would wedge)")
 	}
 }
@@ -279,9 +355,38 @@ func TestEngine_FireDue_FiresAndSkipsOverlap(t *testing.T) {
 	e.fireDue(context.Background(), base.Add(2*time.Hour+time.Second)) // due again but still running → skip
 	close(rec.block)
 	waitCount(t, rec, 1)
-	time.Sleep(20 * time.Millisecond)
+	idleCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if err := e.WaitIdle(idleCtx); err != nil {
+		t.Fatalf("WaitIdle: %v", err)
+	}
 	if rec.count() != 1 {
 		t.Errorf("overlap should be skipped: got %d", rec.count())
+	}
+}
+
+func TestEngine_WaitIdle_ObservesRunningWorkAndCancellation(t *testing.T) {
+	s := mustStore(t)
+	base := time.Date(2026, 5, 30, 0, 0, 0, 0, time.UTC)
+	s.Add("slow", time.Hour, "", SourceOperator, base)
+
+	rec := &recorder{block: make(chan struct{})}
+	e := NewEngine(s, rec.run, 0, nil)
+	e.fireDue(context.Background(), base.Add(time.Hour+time.Second))
+	waitRunningCount(t, e, 1)
+
+	shortCtx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+	if err := e.WaitIdle(shortCtx); err == nil {
+		t.Fatal("WaitIdle should return the context error while work is still running")
+	}
+
+	close(rec.block)
+	waitCount(t, rec, 1)
+	idleCtx, idleCancel := context.WithTimeout(context.Background(), time.Second)
+	defer idleCancel()
+	if err := e.WaitIdle(idleCtx); err != nil {
+		t.Fatalf("WaitIdle after release: %v", err)
 	}
 }
 
@@ -289,9 +394,7 @@ func waitRunningCount(t *testing.T, e *Engine, n int) {
 	t.Helper()
 	deadline := time.Now().Add(time.Second)
 	for time.Now().Before(deadline) {
-		c := 0
-		e.running.Range(func(_, _ any) bool { c++; return true })
-		if c >= n {
+		if e.RunningCount() >= n {
 			return
 		}
 		time.Sleep(time.Millisecond)
@@ -309,8 +412,16 @@ func TestEngine_Start_FiresLive(t *testing.T) {
 	rec := &recorder{}
 	eng := NewEngine(s, rec.run, 100*time.Millisecond, nil)
 	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 	eng.Start(ctx)
+	defer func() {
+		cancel()
+		eng.Wait()
+		idleCtx, idleCancel := context.WithTimeout(context.Background(), time.Second)
+		defer idleCancel()
+		if err := eng.WaitIdle(idleCtx); err != nil {
+			t.Fatalf("WaitIdle after cancel: %v", err)
+		}
+	}()
 	waitCount(t, rec, 1)
 
 	// The engine threads the firing entry's id to the RunFunc (M55), so the

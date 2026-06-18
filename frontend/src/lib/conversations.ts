@@ -19,15 +19,16 @@ export interface Conversation {
   title: string;
   messages: Msg[];
   updatedAt: number;
-  // Optional per-conversation persona (system-prompt override, M711): when set,
-  // every run in THIS thread uses it instead of the daemon's global persona.
+  // Optional per-conversation identity override (M711): when set, every run in
+  // THIS thread uses it instead of the daemon default identity. Field name stays
+  // `persona` for stored-chat compatibility; this is not a durable roster agent.
   persona?: string;
   // Optional per-conversation model (M712): the model id this thread runs on
   // ("" / undefined = the daemon default). Each thread remembers its own.
   model?: string;
   // Optional per-conversation AGENT (M789): the roster slug this thread runs
   // AS — its soul, model chain, memory scope, and budget apply (M783). The
-  // thread's explicit model/persona overrides still win over the profile's.
+  // thread's explicit model/identity overrides still win over the profile's.
   agent?: string;
   // Pinned threads (M726) sort to the top of the sidebar, above by-recency.
   pinned?: boolean;
@@ -123,12 +124,12 @@ export function activeMessages(store: Store): Msg[] {
   return store.conversations.find((c) => c.id === store.activeId)?.messages ?? [];
 }
 
-// activePersona returns the active conversation's persona override ("" if none).
+// activePersona returns the active conversation's identity override ("" if none).
 export function activePersona(store: Store): string {
   return store.conversations.find((c) => c.id === store.activeId)?.persona ?? "";
 }
 
-// withActivePersona returns a new store with the active conversation's persona
+// withActivePersona returns a new store with the active conversation's identity
 // override set (empty string clears it). Pure — safe for React state.
 export function withActivePersona(store: Store, persona: string, now: number): Store {
   const p = persona.trim();

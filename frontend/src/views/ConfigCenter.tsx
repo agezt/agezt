@@ -24,6 +24,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PageHeader } from "@/components/ui/page-header";
+import { Disclosure } from "@/components/ui/disclosure";
 import { EmptyState } from "@/components/ui/empty";
 import { ErrorText } from "@/components/JsonView";
 import { SkeletonList } from "@/components/ui/skeleton";
@@ -72,6 +73,15 @@ interface SetResult {
   applied: "live" | "restart";
   env_pinned?: boolean;
   reload_error?: string;
+}
+interface AgentConfigEntry {
+  key: string;
+  value?: string;
+  rating?: "public" | "internal" | "restricted" | "secret";
+  description?: string;
+  allowed_agents?: string[];
+  excluded_agents?: string[];
+  updated_at?: number;
 }
 
 type Category = "Core" | "Channels" | "Skills & Plugins";
@@ -191,11 +201,11 @@ export function ConfigCenter() {
       />
 
       <p className="text-xs text-muted">
-        Edit settings without touching <code className="rounded bg-panel px-1">.env</code>. Secrets are stored encrypted
-        and never shown back — only “set / not set”. Fields pinned by the environment are read-only (the real{" "}
-        <code className="rounded bg-panel px-1">.env</code> wins). Provider &amp; model apply live; everything else needs
-        a restart. Skills &amp; plugins can register their own sections.
+        Edit settings without touching <code className="rounded bg-panel px-1">.env</code>. Open a section to see its
+        fields; secrets stay encrypted (shown only as “set / not set”).
       </p>
+
+      <AgentRuntimeConfigPanel toast={toast} />
 
       {err ? (
         <ErrorText>{err}</ErrorText>
@@ -237,7 +247,14 @@ export function ConfigCenter() {
               <section key={cat} className="space-y-3">
                 <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted">{cat}</h3>
                 {grouped[cat].map((sec) => (
-                  <SectionCard key={sec.id} section={sec} values={values} onSaved={loadValues} toast={toast} />
+                  <SectionCard
+                    key={sec.id + (query.trim() ? "·q" : "")}
+                    section={sec}
+                    values={values}
+                    onSaved={loadValues}
+                    toast={toast}
+                    defaultOpen={!!query.trim()}
+                  />
                 ))}
               </section>
             ))}
@@ -248,41 +265,246 @@ export function ConfigCenter() {
   );
 }
 
+function AgentRuntimeConfigPanel({ toast }: { toast: (text: string, kind?: "success" | "error" | "info") => void }) {
+  const [entries, setEntries] = useState<AgentConfigEntry[] | null>(null);
+  const [key, setKey] = useState("");
+  const [value, setValue] = useState("");
+  const [rating, setRating] = useState<NonNullable<AgentConfigEntry["rating"]>>("internal");
+  const [description, setDescription] = useState("");
+  const [allow, setAllow] = useState("");
+  const [deny, setDeny] = useState("");
+  const [busy, setBusy] = useState(false);
+  const summary = useMemo(() => summarizeAgentConfigEntries(entries || []), [entries]);
+
+  const load = useCallback(async () => {
+    const res = await getJSON<{ entries?: AgentConfigEntry[] }>("/api/configcenter/list");
+    setEntries(res.entries || []);
+  }, []);
+
+  useEffect(() => {
+    load().catch((e) => {
+      toast(`Agent config load failed: ${(e as Error).message}`, "error");
+      setEntries([]);
+    });
+  }, [load, toast]);
+
+  async function save() {
+    if (!key.trim() || !value.trim()) return;
+    setBusy(true);
+    try {
+      await postJSON("/api/configcenter/set", {
+        key: key.trim(),
+        value,
+        rating,
+        description: description.trim(),
+        allowed_agents: splitCSV(allow),
+        excluded_agents: splitCSV(deny),
+      });
+      setKey("");
+      setValue("");
+      setDescription("");
+      setAllow("");
+      setDeny("");
+      await load();
+      toast("Agent config saved", "success");
+    } catch (e) {
+      toast((e as Error).message, "error");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function remove(entryKey: string) {
+    setBusy(true);
+    try {
+      await postJSON("/api/configcenter/delete", { key: entryKey });
+      await load();
+      toast("Agent config deleted", "success");
+    } catch (e) {
+      toast((e as Error).message, "error");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="rounded-lg border border-border bg-card p-3">
+      <div className="mb-3 flex flex-wrap items-start gap-2">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <Shield className="size-4 text-accent" />
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-foreground">Agent Runtime Config</h3>
+          </div>
+          <p className="mt-0.5 text-[11px] text-muted">
+            Rated key/value entries agents can read through Config Center policies. Use allow/deny lists to bind secrets or runtime knobs to identities.
+          </p>
+        </div>
+        {entries && (
+          <div className="flex flex-wrap gap-1.5 text-[10px] font-medium uppercase tracking-wider text-muted">
+            <span className="rounded bg-panel px-1.5 py-0.5">{summary.total} total</span>
+            <span className="rounded bg-panel px-1.5 py-0.5">{summary.identityBound} identity-bound</span>
+            <span className="rounded bg-panel px-1.5 py-0.5">{summary.shared} shared</span>
+            <span className="rounded bg-panel px-1.5 py-0.5">{summary.restricted} restricted</span>
+            <span className="rounded bg-panel px-1.5 py-0.5">{summary.secret} secret</span>
+          </div>
+        )}
+        <Button size="sm" variant="ghost" onClick={() => load()} disabled={busy}>
+          <RefreshCw className={cn("size-3.5", busy && "animate-spin")} /> Refresh
+        </Button>
+      </div>
+
+      <div className="grid gap-2 lg:grid-cols-[1.2fr_1.2fr_9rem_1fr_1fr_auto]">
+        <Input value={key} onChange={(e) => setKey(e.target.value)} placeholder="agent/ops/runtime" aria-label="Agent config key" />
+        <Input value={value} onChange={(e) => setValue(e.target.value)} placeholder="value" aria-label="Agent config value" />
+        <select
+          value={rating}
+          onChange={(e) => setRating(e.target.value as NonNullable<AgentConfigEntry["rating"]>)}
+          aria-label="Agent config rating"
+          className="h-8 rounded-md border border-border bg-panel px-2 text-xs text-foreground outline-none focus-visible:border-accent"
+        >
+          <option value="public">public</option>
+          <option value="internal">internal</option>
+          <option value="restricted">restricted</option>
+          <option value="secret">secret</option>
+        </select>
+        <Input value={allow} onChange={(e) => setAllow(e.target.value)} placeholder="allow: ops,planner" aria-label="Allowed agents" />
+        <Input value={deny} onChange={(e) => setDeny(e.target.value)} placeholder="deny: blocked" aria-label="Denied agents" />
+        <Button size="sm" onClick={save} disabled={busy || !key.trim() || !value.trim()} aria-label="Save agent config">
+          <Save className="size-3.5" /> Save
+        </Button>
+      </div>
+      <Input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Optional description" aria-label="Agent config description" className="mt-2" />
+
+      <div className="mt-3 overflow-hidden rounded-lg border border-border">
+        {!entries ? (
+          <div className="p-3 text-xs text-muted">Loading agent config…</div>
+        ) : entries.length === 0 ? (
+          <div className="p-3 text-xs text-muted">No agent runtime config entries yet.</div>
+        ) : (
+          <div className="divide-y divide-border">
+            {entries.map((entry) => (
+              <div key={entry.key} className="grid gap-2 p-2 text-xs md:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_7rem_minmax(0,1fr)_auto] md:items-center">
+                <div className="min-w-0">
+                  <div className="truncate font-mono text-foreground" title={entry.key}>{entry.key}</div>
+                  <div className="truncate text-[11px] text-muted">
+                    {agentConfigScopeLabel(entry)}
+                    {entry.description ? ` · ${entry.description}` : ""}
+                  </div>
+                </div>
+                <div className="truncate font-mono text-muted" title={entry.rating === "secret" ? undefined : entry.value}>
+                  {entry.rating === "secret" ? "********" : entry.value || "—"}
+                </div>
+                <span className={cn("w-fit rounded px-1.5 py-0.5 text-[10px] uppercase", ratingClass(entry.rating || "internal"))}>{entry.rating || "internal"}</span>
+                <div className="min-w-0 text-[11px] text-muted">
+                  {entry.allowed_agents?.length ? <div className="truncate">allow: {entry.allowed_agents.join(", ")}</div> : null}
+                  {entry.excluded_agents?.length ? <div className="truncate">deny: {entry.excluded_agents.join(", ")}</div> : null}
+                  {!entry.allowed_agents?.length && !entry.excluded_agents?.length ? "all eligible agents" : null}
+                </div>
+                <Button size="sm" variant="ghost" onClick={() => remove(entry.key)} disabled={busy} title="Delete agent config">
+                  <Trash2 className="size-3.5 text-bad" />
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function splitCSV(value: string): string[] {
+  return value.split(/[,\s]+/).map((v) => v.trim()).filter(Boolean);
+}
+
+export function agentConfigScopeLabel(entry: Pick<AgentConfigEntry, "key" | "allowed_agents" | "excluded_agents">): string {
+  const bound = (entry.allowed_agents || []).length > 0;
+  const excluded = (entry.excluded_agents || []).length > 0;
+  if (bound) return "identity-bound";
+  if (excluded) return "shared with denylist";
+  if (String(entry.key || "").startsWith("agent/")) return "agent namespace";
+  return "shared";
+}
+
+export function summarizeAgentConfigEntries(entries: AgentConfigEntry[]): {
+  total: number;
+  identityBound: number;
+  shared: number;
+  restricted: number;
+  secret: number;
+} {
+  let identityBound = 0;
+  let shared = 0;
+  let restricted = 0;
+  let secret = 0;
+  for (const entry of entries) {
+    const scope = agentConfigScopeLabel(entry);
+    if (scope === "identity-bound") identityBound++;
+    else shared++;
+    if (entry.rating === "restricted") restricted++;
+    if (entry.rating === "secret") secret++;
+  }
+  return { total: entries.length, identityBound, shared, restricted, secret };
+}
+
+function ratingClass(rating: string): string {
+  if (rating === "secret") return "bg-bad/15 text-bad";
+  if (rating === "restricted") return "bg-amber-500/15 text-amber-300";
+  if (rating === "public") return "bg-good/15 text-good";
+  return "bg-accent/15 text-accent";
+}
+
 function SectionCard({
   section,
   values,
   onSaved,
   toast,
+  defaultOpen = false,
 }: {
   section: Section;
   values: Record<string, ValueEntry>;
   onSaved: () => Promise<void>;
   toast: (text: string, kind?: "success" | "error" | "info") => void;
+  defaultOpen?: boolean;
 }) {
   const Icon = iconFor(section);
   const registered = isRegistered(section);
+  // Collapsed by default — show the section + how many of its fields are set, and
+  // reveal the inputs only when the operator opens it ("gözüme sokmamalısın").
+  const setCount = section.fields.filter((f) => values[f.env]?.set).length;
   return (
-    <div id={sectionDomID(section.id)} className="scroll-mt-2 rounded-lg border border-border bg-card p-3">
-      <div className="mb-2">
-        <div className="flex items-center gap-2">
-          <Icon className={cn("size-4", registered ? "text-violet-400" : "text-accent")} />
-          <h3 className="text-xs font-semibold uppercase tracking-wider text-foreground">{section.name}</h3>
-          {registered && (
-            <span
-              className="inline-flex items-center gap-1 rounded bg-violet-500/15 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-violet-300"
-              title={`Registered by ${section.source}`}
-            >
-              <Puzzle className="size-2.5" /> registered
+    <div id={sectionDomID(section.id)} className="scroll-mt-2 rounded-lg border border-border bg-card">
+      <Disclosure
+        defaultOpen={defaultOpen}
+        summaryClassName="px-3 py-2.5"
+        summary={
+          <span className="flex w-full items-center gap-2">
+            <Icon className={cn("size-4 shrink-0", registered ? "text-violet-400" : "text-accent")} />
+            {/* role=heading (not <h3>) keeps the heading semantics valid inside the
+                summary button and still matches getByRole("heading"). */}
+            <span role="heading" aria-level={3} className="text-xs font-semibold uppercase tracking-wider text-foreground">
+              {section.name}
             </span>
-          )}
+            {registered && (
+              <span
+                className="inline-flex items-center gap-1 rounded bg-violet-500/15 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-violet-300"
+                title={`Registered by ${section.source}`}
+              >
+                <Puzzle className="size-2.5" /> registered
+              </span>
+            )}
+            <span className="ml-auto shrink-0 font-mono text-[10px] text-muted">
+              {setCount}/{section.fields.length}
+            </span>
+          </span>
+        }
+      >
+        <div className="space-y-3 px-3 pb-3">
+          {section.help && <p className="text-[11px] text-muted">{section.help}</p>}
+          {section.fields.map((f) => (
+            <FieldRow key={f.env} field={f} entry={values[f.env]} onSaved={onSaved} toast={toast} />
+          ))}
         </div>
-        {section.help && <p className="mt-0.5 text-[11px] text-muted">{section.help}</p>}
-      </div>
-      <div className="space-y-3">
-        {section.fields.map((f) => (
-          <FieldRow key={f.env} field={f} entry={values[f.env]} onSaved={onSaved} toast={toast} />
-        ))}
-      </div>
+      </Disclosure>
     </div>
   );
 }

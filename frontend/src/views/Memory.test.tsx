@@ -120,6 +120,58 @@ describe("Memory scopes (M915)", () => {
   });
 });
 
+describe("Memory hygiene", () => {
+  it("loads and renders the audit summary", async () => {
+    getJSON.mockImplementation((path: string) =>
+      path === "/api/memory/audit"
+        ? Promise.resolve({ usable: 2, expired: 1, suspended: 0, contradiction_load: 1 })
+        : Promise.resolve({ records: [{ id: "m1", subject: "project", content: "Agezt uses Go", type: "FACT" }] }),
+    );
+    render(<Memory />);
+    await screen.findByText("project");
+    expect(screen.getByText(/usable:/i)).toBeTruthy();
+    expect(screen.getByText(/expired:/i)).toBeTruthy();
+    expect(screen.getByText(/conflict load:/i)).toBeTruthy();
+  });
+
+  it("cleans low-value memories through dry-run then execute", async () => {
+    getJSON.mockImplementation((path: string) =>
+      path === "/api/memory/audit" ? Promise.resolve({ usable: 1, expired: 0, suspended: 0, contradiction_load: 0 }) : Promise.resolve({ records: [] }),
+    );
+    postAction.mockImplementation((path: string, body: any) => {
+      if (path === "/api/memory/clean" && body?.dry_run === "true") return Promise.resolve({ rejected: 2, scanned: 4 });
+      if (path === "/api/memory/clean" && body?.dry_run === "false") return Promise.resolve({ removed: 2 });
+      return Promise.resolve({});
+    });
+    confirm.mockResolvedValue(true);
+    render(<Memory />);
+    await screen.findByText(/No memories yet/i);
+
+    fireEvent.click(screen.getByRole("button", { name: /Clean/i }));
+    await waitFor(() => expect(postAction).toHaveBeenCalledWith("/api/memory/clean", { dry_run: "true" }));
+    await waitFor(() => expect(postAction).toHaveBeenCalledWith("/api/memory/clean", { dry_run: "false" }));
+    expect(confirm).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: expect.stringMatching(/Clean low-value/),
+        message: expect.stringMatching(/permanently deleted/),
+      }),
+    );
+  });
+
+  it("does not ask for confirmation when clean dry-run finds nothing", async () => {
+    getJSON.mockImplementation((path: string) =>
+      path === "/api/memory/audit" ? Promise.resolve({ usable: 0, expired: 0, suspended: 0, contradiction_load: 0 }) : Promise.resolve({ records: [] }),
+    );
+    postAction.mockResolvedValueOnce({ rejected: 0, scanned: 0 });
+    render(<Memory />);
+    await screen.findByText(/No memories yet/i);
+
+    fireEvent.click(screen.getByRole("button", { name: /Clean/i }));
+    await waitFor(() => expect(postAction).toHaveBeenCalledWith("/api/memory/clean", { dry_run: "true" }));
+    expect(confirm).not.toHaveBeenCalled();
+  });
+});
+
 describe("TeachFactForm", () => {
   it("disables the button until content is entered", () => {
     render(<TeachFactForm onAdded={() => {}} onError={() => {}} />);

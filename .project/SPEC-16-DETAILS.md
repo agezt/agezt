@@ -4,7 +4,7 @@
 
 > Status: Draft v0.1 · Language: English · Domain/Repo: TBD · License: MIT
 > Depends on: all prior specs + DECISIONS
-> Fills the implementation-level gaps that the architectural specs intentionally left abstract: the API surface, the test strategy, the config reference, the standing-order DSL, and the onboarding flow. These are needed during the build (mostly M3–M6) and are collected here.
+> Fills the implementation-level gaps that the architectural specs intentionally left abstract: the API surface, the test strategy, the config reference, the agent wake-rule DSL, and the onboarding flow. These are needed during the build (mostly M3–M6) and are collected here.
 
 ---
 
@@ -28,7 +28,7 @@
 - Plugin-contributed routes mount under `/v1/plugins/<id>/…` (SPEC-08 §1), namespaced + policy-wrapped.
 
 ### 1.3 Webhooks
-- Inbound: `POST /api/hooks/<token>` → triggers an agent/standing order (Chronos webhook trigger).
+- Inbound: `POST /api/hooks/<token>` → fires a typed schedule target or agent wake rule.
 - Outbound: configured webhooks fire on subscribed events (e.g. notify an external system on `EVT_TASK_COMPLETED`).
 
 ### 1.4 Streaming & auth summary
@@ -48,6 +48,7 @@
   - *Durable-before-publish:* a subscriber never observes an event absent from the journal (fault-injected).
   - *ID uniqueness:* ULIDs never collide across simulated multi-node generation.
 - **Integration:** end-to-end DAG runs with **fake providers/tools** (deterministic stubs) producing **golden traces** (recorded event sequences) diffed against expected.
+- **Tool-call contract tests:** every first-party tool schema is linted; valid fixtures pass; malformed, missing-required, wrong-type, and unknown-field inputs are rejected before handler invocation.
 - **Security suite (CI-gated):**
   - *Injection corpus:* a curated set of malicious inputs across channels/web/files/MCP/widgets; assertion = no privileged action fires without approval, no secret leaks.
   - *Sandbox escape:* attempts to break out of namespace/container profiles fail.
@@ -59,6 +60,11 @@ CI blocks merge on: build (multi-arch), unit, contract-conformance, replay/prope
 
 ### 2.3 Agent behavioral eval (SPEC-14 §3)
 Separate from code tests: scenario suites with expected outcomes; success-rate + regression tracking per skill/capability; feeds reflection. Run on capability changes, not every commit.
+
+Behavioral eval has two replay modes:
+
+- **Recorded replay:** replays journaled provider/tool outputs exactly to rebuild state and inspect causality.
+- **Stochastic re-run:** re-executes a scenario with model/provider/temperature/seed when supported, context snapshot, mocked tools, and expectation bands. The oracle is not byte equality unless the model call is deterministic; it is a bundle of schema, semantic, cost, latency, and safety assertions.
 
 ---
 
@@ -135,36 +141,41 @@ Plugins read their own scoped config via `Kernel.GetConfig` (namespaced under `p
 
 ---
 
-## 4. Standing-order DSL
+## 4. Agent wake-rule DSL
 
-Visual authoring in Flow Studio compiles to this declarative YAML (DECISIONS G4). Standing order = persistent goal kept alive by Chronos + Pulse.
+Visual authoring in Flow Studio compiles to this declarative YAML (DECISIONS G4). A standing order is not an LLM prompt stored in the scheduler. It is a durable wake rule that selects an existing agent identity and tells the scheduler when to wake it. The agent's soul, tasklist, memory scope, permissions, provider/model/fallback config, retry policy, doctor policy, and mailbox live on the agent profile.
 
 ```yaml
 standing_order:
   id: <ulid>                # kernel-assigned
-  name: "portfolio watch"
+  name: "portfolio watch wake rule"
   enabled: true
+  agent: ops-watch
   triggers:                 # any of these activate evaluation
     - type: cron
       schedule: "0 8 * * *" # every morning
     - type: event
       subject: "github.>"
-  observers: [repo_ci, security_advisory]   # what to watch
-  scope:                    # what entities (world-model refs)
-    entities: [project:portfolio]
-  initiative:               # how autonomous within this order
-    mode: act_or_ask        # inform_only | ask | act_or_ask
-    max_trust: L2           # ceiling for autonomous action here
+  event_filter:             # optional scheduler-side prefilter; payload stays data
+    subjects: ["github.repo.*", "ci.*"]
+  wake:
+    kind: agent             # agent | workflow | tool | system_task
+    ref: ops-watch
+    intent: "cycle"         # small wake label only; not identity or instructions
+  constraints:
+    max_trust: L2           # extra ceiling for this wake rule
     budget_per_run_usd: 1
-  briefing:
-    disposition_min: notify # drop|digest|notify|alert
-    channel: telegram
-    schedule: "0 8 * * *"   # batch digest time
-  on_match:                 # optional explicit plan template
-    plan: "diagnose failing CI; if reversible fix, open PR; brief result"
+    cooldown_s: 3600
+    quiet_hours_respected: true
 ```
 
-The runner: on a trigger, evaluate observers within scope → salience → initiative (bounded by `max_trust`/budget) → briefing. All journaled; `agt standing {list|add|pause|why}`.
+The runner: on a trigger, evaluate scheduler predicates → wake the typed target → the target executes from its own profile/definition → journal fire/result/why metadata. Schedules can wake agents, run workflows, call tools, or run system tasks (catalog sync, memory tidy, log cleanup). They must not embed identity instructions, tasklists, provider choices, or agent policy.
+
+Agent behavior belongs to the agent:
+
+- **Agent profile:** identity/soul, lifecycle mode, parent/owner, managed-subagent direct-call policy, memory scopes, tasklists, skills, provider/model/fallback chain, tool permissions, retry/self-repair/doctor policy, mailbox bindings, workspace/data-lake authority.
+- **Workflow:** reusable n8n-like typed chain that a user, agent, or schedule can run.
+- **Schedule/standing order:** typed cron/event/webhook rule that wakes or runs one target and records causality.
 
 ---
 
@@ -177,7 +188,7 @@ Zero-config start works immediately; onboarding is an **optional guided flow** (
 2. **Connect a provider:** detect existing credentials (Claude Code/Codex/env); else add an API key or point at a local Ollama. Sync the catalog.
 3. **Connect a channel (recommended: Telegram):** the proactive loop needs an outbound channel; guided bot setup.
 4. **Point at your world:** repos/projects/paths → seeds the world model (entities). Optional short interview ("how should I brief you? terse/detailed? quiet hours?").
-5. **First standing order (suggested):** "watch these repos, brief me each morning, fix reversible CI breaks (ask first)." Starts at a cautious trust level.
+5. **First agent + wake rule (suggested):** create `repo-watch`, then wake it each morning and on CI-failure events. Starts at a cautious trust level.
 6. **Salience dial:** quiet/balanced/chatty.
 7. **Done:** show the first `agt run` and where the UI lives.
 
@@ -194,7 +205,7 @@ Zero-config start works immediately; onboarding is an **optional guided flow** (
 - Config reference: **Phase 0–1** (config loader is foundational).
 - Native + OpenAI-compat API: **Phase 5–7**.
 - Test strategy: **every phase** (CI from Milestone 0).
-- Standing-order DSL: **Phase 3** (with Chronos/standing orders).
+- Agent wake-rule DSL: **Phase 3** (with typed schedule targets and standing wake rules).
 - Onboarding flow: **Phase 5** (with the UI), CLI-guided version in **Phase 4**.
 
 ---

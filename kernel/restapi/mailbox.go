@@ -48,7 +48,8 @@ const (
 // The store must be the same instance the `board` tool holds — a second
 // instance would clobber its last write (each holds the whole message list in
 // memory and saves it whole). notify publishes board.posted (nil-safe); corr is
-// always empty here (no run owns an external send).
+// optional per request so channel/webhook bridges can keep a wake causally
+// attached to the inbound event that posted the mailbox message.
 func (s *Server) SetMailbox(st *board.Store, notify func(m board.Message, corr string)) {
 	s.board = st
 	s.boardNotify = notify
@@ -96,18 +97,22 @@ func mailMsgView(m board.Message) map[string]any {
 	if m.Help {
 		v["help"] = true
 	}
+	if len(m.AckedBy) > 0 {
+		v["acked_by"] = append([]string(nil), m.AckedBy...)
+	}
 	return v
 }
 
 // --- POST + GET /api/v1/mailbox/messages ---
 
 type mailboxSendRequest struct {
-	From    string `json:"from"`
-	To      string `json:"to"`
-	Topic   string `json:"topic"`
-	ReplyTo string `json:"reply_to"`
-	Text    string `json:"text"`
-	Help    bool   `json:"help"`
+	From          string `json:"from"`
+	To            string `json:"to"`
+	Topic         string `json:"topic"`
+	ReplyTo       string `json:"reply_to"`
+	Text          string `json:"text"`
+	Help          bool   `json:"help"`
+	CorrelationID string `json:"correlation_id"`
 }
 
 func (s *Server) handleMailboxMessages(w http.ResponseWriter, r *http.Request) {
@@ -178,10 +183,18 @@ func (s *Server) handleMailboxMessages(w http.ResponseWriter, r *http.Request) {
 			writeErr(w, http.StatusInternalServerError, "store_error", err.Error())
 			return
 		}
-		if s.boardNotify != nil {
-			s.boardNotify(m, "")
+		corr := strings.TrimSpace(req.CorrelationID)
+		if corr == "" {
+			corr = strings.TrimSpace(r.Header.Get("X-Agezt-Correlation"))
 		}
-		writeJSON(w, http.StatusCreated, map[string]any{"message": mailMsgView(m)})
+		if s.boardNotify != nil {
+			s.boardNotify(m, corr)
+		}
+		resp := map[string]any{"message": mailMsgView(m)}
+		if corr != "" {
+			resp["correlation_id"] = corr
+		}
+		writeJSON(w, http.StatusCreated, resp)
 
 	default:
 		methodNotAllowed(w, "GET, POST")

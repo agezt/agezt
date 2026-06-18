@@ -23,6 +23,13 @@ describe("AgentAvatar", () => {
     expect(container.querySelector(".work-pulse")).toBeNull();
   });
 
+  it("shows quieter markers for sleeping and paused agents", () => {
+    const { container, rerender } = render(<AgentAvatar slug="a" status="sleeping" />);
+    expect(container.querySelector(".bg-muted")).toBeTruthy();
+    rerender(<AgentAvatar slug="a" status="paused" />);
+    expect(container.querySelector(".bg-warn")).toBeTruthy();
+  });
+
   it("desaturates a retired agent", () => {
     const { container } = render(<AgentAvatar slug="a" status="retired" />);
     expect(container.querySelector(".grayscale")).toBeTruthy();

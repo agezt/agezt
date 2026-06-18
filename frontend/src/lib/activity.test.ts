@@ -84,6 +84,59 @@ describe("foldActivityEvent", () => {
     expect(s.r1.status).toBe("failed");
     expect(s.r1.activity).toBe("failed: max iters");
   });
+
+  it("shows whole-run retry attempts without ending the live run", () => {
+    const s = fold([
+      { kind: "task.received", correlation_id: "r1", payload: { intent: "heal yourself" } },
+      { kind: "task.failed", correlation_id: "r1", ts_unix_ms: 10, payload: { error: "provider timeout" } },
+      {
+        kind: "agent.retry",
+        correlation_id: "r1",
+        payload: {
+          reason: "timeout",
+          attempt: 1,
+          next_attempt: 2,
+          max_attempts: 3,
+          delay_ms: 65_000,
+          backoff: "exponential",
+          retry_on: ["error", "timeout"],
+        },
+      },
+    ]);
+
+    expect(s.r1.status).toBe("running");
+    expect(s.r1.endedMs).toBeUndefined();
+    expect(s.r1.activity).toBe("retrying attempt 2/3: timeout · wait 1m 5s · backoff exponential · retry_on error,timeout");
+  });
+
+  it("surfaces standalone repair and mailbox events as live activity lines", () => {
+    const s = fold([
+      {
+        kind: "agent.repair",
+        correlation_id: "repair-1",
+        ts_unix_ms: 10,
+        payload: { phase: "requested", agent: "ops" },
+      },
+      {
+        kind: "info",
+        subject: "doctor.auto_repair",
+        correlation_id: "doctor-1",
+        ts_unix_ms: 11,
+        payload: { phase: "failed", mode: "degraded", agent: "ops", error: "tool denied" },
+      },
+      {
+        kind: "board.posted",
+        correlation_id: "mail-1",
+        ts_unix_ms: 12,
+        payload: { from: "ops", to: "planner", topic: "handoff" },
+      },
+    ]);
+
+    expect(s["repair-1"].activity).toBe("operator repair requested");
+    expect(s["doctor-1"].status).toBe("failed");
+    expect(s["doctor-1"].activity).toBe("doctor failed: tool denied");
+    expect(s["mail-1"].activity).toBe("ops messaged planner · handoff");
+  });
 });
 
 describe("summarize + buildTree ordering", () => {

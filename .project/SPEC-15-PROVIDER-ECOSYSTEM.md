@@ -14,7 +14,7 @@
 There are 100+ providers and thousands of models, changing constantly (new models, prices, context windows, capabilities). Hardcoding them is hopeless. Agezt must **sync** a live catalog and keep the Governor's routing/price tables current.
 
 ### 1.2 Catalog source
-- A **catalog sync** component pulls from external registries (models.dev-class sources) on a schedule (Chronos) and on demand (`agt provider sync`).
+- A **catalog sync** component pulls from external registries (models.dev-class sources) as a typed system task on a schedule and on demand (`agt provider sync`).
 - The catalog records per model: id, provider, modalities (text/vision/audio), context window, tool-use support, JSON-mode, prompt-caching, reasoning support, and **pricing** (input/output/cached per Mtok → converted to USD-microcents, DECISIONS C1).
 - Local/self-hosted models (Ollama/vLLM) are **auto-discovered** from the running endpoint and merged into the same catalog (queried at runtime, no external source needed).
 - The synced catalog feeds the Governor's price table and the Planner's capability inventory.
@@ -62,6 +62,34 @@ The canonical representation supports multiple `ToolCall`s per turn (mapped to t
 
 ### 2.5 First-party providers must cover the dialects
 v1 ships provider plugins covering: Anthropic (native blocks), OpenAI (tools), OpenAI-compatible (generic, for most local/3rd-party), Gemini (functionDeclarations), and a prompt-shim base for the rest. This guarantees "tool-calling works on essentially any provider."
+
+### 2.6 Strict tool-call boundary validation
+Tool schemas are not advisory. Every canonical `ToolCall` is validated at the kernel
+boundary before Edict classification and before the tool handler receives input:
+
+- the tool name must exist in the effective run tool map;
+- `input_json` must validate against the registered JSON Schema;
+- unknown fields are rejected unless the schema explicitly permits them;
+- validation failures are journaled as structured tool-call rejections;
+- tool/plugin registration lints schemas so broken contracts fail early.
+
+Provider-native schema enforcement is still useful, but it is not trusted as the only
+guard. The kernel boundary is the invariant.
+
+### 2.7 Constrained generation capability
+Provider/model catalog entries advertise the level of structured generation they can
+enforce:
+
+- `json_mode`
+- `tool_use_native`
+- `schema_constrained_decoding`
+- `grammar_constrained_decoding`
+- `strict_tool_args`
+
+For strict tool-use requests, the Governor prefers providers that can prevent invalid
+arguments at sampling/decoding time. If the provider API cannot do that, the request may
+still run, but it must pass the strict validation fallback in §2.6 and the degradation is
+journaled for `agt why`, eval, and provider quality scoring.
 
 ---
 

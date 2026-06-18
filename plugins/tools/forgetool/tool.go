@@ -82,6 +82,16 @@ func (t *Tool) Definition() agent.ToolDef {
     "input":        {"type":"string", "description":"For op=test (optional): a sample JSON input for the run (default {})."}
   }
 }`),
+		Effect: agent.ToolEffect{
+			Class: agent.EffectCompensable,
+			PredictedEffects: []string{
+				"Draft, update, test, inspect, or request promotion of agent-authored script tools.",
+				"Testing executes draft code inside the configured sandbox; promotion changes future tool availability after approval.",
+			},
+			AffectedResources: []string{"tool forge store", "code-exec sandbox", "future run tool registry"},
+			RollbackNotes:     "Update, quarantine, or remove forged tools; sandbox test output can be discarded, but external effects depend on sandbox enforcement.",
+			Confidence:        0.7,
+		},
 	}
 }
 

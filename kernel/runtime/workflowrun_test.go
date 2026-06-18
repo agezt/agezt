@@ -12,6 +12,7 @@ import (
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/roster"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/workflow"
 	"github.com/agezt/agezt/plugins/providers/mock"
@@ -55,6 +56,82 @@ func saveFlow(t *testing.T, k *runtime.Kernel, w workflow.Workflow) {
 	t.Helper()
 	if _, _, err := k.SaveWorkflow("", w); err != nil {
 		t.Fatalf("SaveWorkflow: %v", err)
+	}
+}
+
+func TestRunWorkflow_LLMNodeUsesContextModelWhenUnset(t *testing.T) {
+	prov := mock.New(mock.FinalText("done"))
+	var llmReq agent.CompletionRequest
+	prov.OnRequest = func(r agent.CompletionRequest) { llmReq = r }
+	k := openWorkflowKernel(t, prov, &echoTool{})
+	saveFlow(t, k, workflow.Workflow{
+		Name: "scheduled-model-flow",
+		Nodes: []workflow.Node{
+			{ID: "start", Type: workflow.NodeTrigger},
+			{ID: "brief", Type: workflow.NodeLLM, Config: json.RawMessage(`{"prompt":"run"}`)},
+		},
+		Edges: []workflow.Edge{{From: "start", To: "brief"}},
+	})
+
+	_, err := k.RunWorkflow(runtime.WithModel(context.Background(), "schedule-model"), k.NewCorrelation(), "scheduled-model-flow", nil)
+	if err != nil {
+		t.Fatalf("RunWorkflow: %v", err)
+	}
+	if llmReq.Model != "schedule-model" {
+		t.Fatalf("llm model = %q, want schedule-model", llmReq.Model)
+	}
+}
+
+func TestRunWorkflow_LLMNodeExplicitModelWinsOverContextModel(t *testing.T) {
+	prov := mock.New(mock.FinalText("done"))
+	var llmReq agent.CompletionRequest
+	prov.OnRequest = func(r agent.CompletionRequest) { llmReq = r }
+	k := openWorkflowKernel(t, prov, &echoTool{})
+	saveFlow(t, k, workflow.Workflow{
+		Name: "node-model-flow",
+		Nodes: []workflow.Node{
+			{ID: "start", Type: workflow.NodeTrigger},
+			{ID: "brief", Type: workflow.NodeLLM, Config: json.RawMessage(`{"prompt":"run","model":"node-model"}`)},
+		},
+		Edges: []workflow.Edge{{From: "start", To: "brief"}},
+	})
+
+	_, err := k.RunWorkflow(runtime.WithModel(context.Background(), "schedule-model"), k.NewCorrelation(), "node-model-flow", nil)
+	if err != nil {
+		t.Fatalf("RunWorkflow: %v", err)
+	}
+	if llmReq.Model != "node-model" {
+		t.Fatalf("llm model = %q, want node-model", llmReq.Model)
+	}
+}
+
+func TestRunWorkflow_JournalsRunnerProvenance(t *testing.T) {
+	k := openWorkflowKernel(t, mock.New(mock.FinalText("unused")), &echoTool{})
+	saveFlow(t, k, workflow.Workflow{
+		Name: "agent-owned-flow",
+		Nodes: []workflow.Node{
+			{ID: "start", Type: workflow.NodeTrigger},
+			{ID: "shape", Type: workflow.NodeTransform, Config: json.RawMessage(`{"template":"ok"}`)},
+		},
+		Edges: []workflow.Edge{{From: "start", To: "shape"}},
+	})
+	ctx := runtime.WithAgentIdent(context.Background(), "ops", 0)
+	ctx = runtime.WithWakeContext(ctx, runtime.WakeContext{Source: "schedule", ScheduleID: "sch-1", ParentCorrelation: "corr-parent"})
+	corr := k.NewCorrelation()
+	if _, err := k.RunWorkflow(ctx, corr, "agent-owned-flow", nil); err != nil {
+		t.Fatalf("RunWorkflow: %v", err)
+	}
+	var started map[string]any
+	_ = k.Journal().Range(func(e *event.Event) error {
+		if e.Subject != "workflow.agent-owned-flow" || e.Kind != event.KindWorkflowStarted || e.CorrelationID != corr {
+			return nil
+		}
+		_ = json.Unmarshal(e.Payload, &started)
+		return nil
+	})
+	if started["source"] != "schedule" || started["runner"] != "agent" || started["agent"] != "ops" ||
+		started["schedule_id"] != "sch-1" || started["parent_correlation_id"] != "corr-parent" {
+		t.Fatalf("workflow start provenance = %+v", started)
 	}
 }
 
@@ -140,6 +217,81 @@ func TestRunWorkflow_LinearDataFlow(t *testing.T) {
 	}
 }
 
+func TestRunWorkflow_PipelineNodeChainsTypedToolSteps(t *testing.T) {
+	tool := &echoTool{out: `{"temp":28,"sky":"clear"}`}
+	k := openWorkflowKernel(t, mock.New(), tool)
+	k.Edict().SetLevel("echo", edict.LevelAllow)
+
+	saveFlow(t, k, workflow.Workflow{
+		Name: "typed-pipeline",
+		Nodes: []workflow.Node{
+			{ID: "start", Type: workflow.NodeTrigger},
+			{ID: "pipe", Type: workflow.NodePipeline, Config: json.RawMessage(`{
+				"steps":[
+					{
+						"id":"fetch",
+						"tool":"echo",
+						"args":{"city":"{{trigger.payload.city}}","kind":"fetch"},
+						"output_schema":{"type":"object","properties":{"temp":{"type":"number"},"sky":{"type":"string"}},"required":["temp"]}
+					},
+					{
+						"id":"shape",
+						"tool":"echo",
+						"args":{"temp":"{{steps.fetch.output.temp}}","kind":"shape"}
+					}
+				]
+			}`)},
+			{ID: "read", Type: workflow.NodeTransform, Config: json.RawMessage(`{"template":"last={{pipe.output.last.temp}} fetch={{pipe.output.steps.fetch.output.sky}}"}`)},
+		},
+		Edges: []workflow.Edge{
+			{From: "start", To: "pipe"},
+			{From: "pipe", To: "read"},
+		},
+	})
+
+	res, err := k.RunWorkflow(context.Background(), k.NewCorrelation(), "typed-pipeline", map[string]any{"city": "izmir"})
+	if err != nil {
+		t.Fatalf("RunWorkflow: %v", err)
+	}
+	if got := res.Outputs["read"]; got != "last=28 fetch=clear" {
+		t.Fatalf("pipeline downstream output = %v", got)
+	}
+	tool.mu.Lock()
+	inputs := append([]string(nil), tool.inputs...)
+	tool.mu.Unlock()
+	if len(inputs) != 2 {
+		t.Fatalf("tool inputs = %v, want two pipeline steps", inputs)
+	}
+	if !strings.Contains(inputs[0], `"izmir"`) || !strings.Contains(inputs[0], `"fetch"`) {
+		t.Fatalf("first step args = %s", inputs[0])
+	}
+	if !strings.Contains(inputs[1], `"temp":"28"`) || !strings.Contains(inputs[1], `"shape"`) {
+		t.Fatalf("second step args = %s", inputs[1])
+	}
+}
+
+func TestRunWorkflow_PipelineOutputSchemaFailure(t *testing.T) {
+	tool := &echoTool{out: `{"temp":"hot"}`}
+	k := openWorkflowKernel(t, mock.New(), tool)
+	k.Edict().SetLevel("echo", edict.LevelAllow)
+
+	saveFlow(t, k, workflow.Workflow{
+		Name: "bad-pipeline",
+		Nodes: []workflow.Node{
+			{ID: "start", Type: workflow.NodeTrigger},
+			{ID: "pipe", Type: workflow.NodePipeline, Config: json.RawMessage(`{
+				"steps":[{"id":"fetch","tool":"echo","args":{},"output_schema":{"type":"object","properties":{"temp":{"type":"number"}},"required":["temp"]}}]
+			}`)},
+		},
+		Edges: []workflow.Edge{{From: "start", To: "pipe"}},
+	})
+
+	_, err := k.RunWorkflow(context.Background(), k.NewCorrelation(), "bad-pipeline", nil)
+	if err == nil || !strings.Contains(err.Error(), "output rejected by schema") {
+		t.Fatalf("pipeline schema failure = %v", err)
+	}
+}
+
 // TestRunWorkflow_ConditionBranching: only the matching port's branch runs.
 func TestRunWorkflow_ConditionBranching(t *testing.T) {
 	tool := &echoTool{out: "ran"}
@@ -205,6 +357,33 @@ func TestRunWorkflow_PolicyGatesToolNodes(t *testing.T) {
 	}
 	if len(tool.inputs) != 0 {
 		t.Fatal("denied tool was still invoked")
+	}
+}
+
+func TestRunWorkflow_AgentToolDenyGatesToolNodes(t *testing.T) {
+	tool := &echoTool{out: "never"}
+	k := openWorkflowKernel(t, mock.New(), tool)
+	k.Edict().SetLevel("echo", edict.LevelAllow)
+
+	saveFlow(t, k, workflow.Workflow{
+		Name: "agent-denied",
+		Nodes: []workflow.Node{
+			{ID: "start", Type: workflow.NodeTrigger},
+			{ID: "call", Type: workflow.NodeTool, Config: json.RawMessage(`{"tool":"echo","args":{}}`)},
+		},
+		Edges: []workflow.Edge{{From: "start", To: "call"}},
+	})
+
+	ctx := runtime.WithAgentProfile(context.Background(), roster.Profile{
+		Slug:     "guarded",
+		ToolDeny: []string{"echo"},
+	})
+	_, err := k.RunWorkflow(ctx, k.NewCorrelation(), "agent-denied", nil)
+	if err == nil || !strings.Contains(err.Error(), "agent tool denylist") {
+		t.Fatalf("agent tool deny did not gate workflow tool node: %v", err)
+	}
+	if len(tool.inputs) != 0 {
+		t.Fatal("agent-denied workflow tool was still invoked")
 	}
 }
 

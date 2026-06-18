@@ -20,10 +20,29 @@ func TestRenderStandingLine(t *testing.T) {
 			t.Errorf("line %q missing %q", line, want)
 		}
 	}
+	o["target_status"] = "blocked"
+	o["target_error"] = "standing agent ops is retired"
+	if line := renderStandingLine(o); !strings.Contains(line, "target:blocked (standing agent ops is retired)") {
+		t.Errorf("blocked target should show in line, got %q", line)
+	}
+	delete(o, "target_error")
+	o["target_status"] = "ready"
+	if line := renderStandingLine(o); !strings.Contains(line, "target:ready") {
+		t.Errorf("ready target should show in line, got %q", line)
+	}
 	// A disabled order shows [off].
 	o["enabled"] = false
 	if !strings.Contains(renderStandingLine(o), "[off]") {
 		t.Errorf("disabled order should show [off], got %q", renderStandingLine(o))
+	}
+}
+
+func TestStandingUsageDescribesWakeRules(t *testing.T) {
+	var out bytes.Buffer
+	standingUsage(&out)
+	text := out.String()
+	if !strings.Contains(text, "show standing wake rules") {
+		t.Fatalf("usage should describe standing orders as wake rules, got %q", text)
 	}
 }
 
@@ -35,6 +54,17 @@ func TestCmdStandingAdd_RequiresNameAndTrigger(t *testing.T) {
 	}
 	if !strings.Contains(errOut.String(), "required") {
 		t.Errorf("expected a 'required' message, got %q", errOut.String())
+	}
+}
+
+func TestCmdStandingAdd_RejectsBadCooldown(t *testing.T) {
+	var out, errOut bytes.Buffer
+	code := cmdStandingAdd([]string{"--name", "x", "--event", "task.failed", "--cooldown", "soon"}, &out, &errOut)
+	if code != 2 {
+		t.Fatalf("bad cooldown should exit 2, got %d", code)
+	}
+	if !strings.Contains(errOut.String(), "--cooldown") {
+		t.Fatalf("expected cooldown error, got %q", errOut.String())
 	}
 }
 

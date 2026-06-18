@@ -16,6 +16,8 @@ func (s *Server) handleConfigCenterSet(conn net.Conn, req Request) {
 	value, _ := req.Args["value"].(string)
 	ratingStr, _ := req.Args["rating"].(string)
 	description, _ := req.Args["description"].(string)
+	allowedAgents := configCenterStringList(req.Args["allowed_agents"])
+	excludedAgents := configCenterStringList(req.Args["excluded_agents"])
 
 	if key == "" {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "key is required"})
@@ -49,6 +51,8 @@ func (s *Server) handleConfigCenterSet(conn net.Conn, req Request) {
 	if description != "" {
 		entry.Description = description
 	}
+	entry.AllowedAgents = allowedAgents
+	entry.ExcludedAgents = excludedAgents
 
 	if s.k.ConfigCenter() == nil {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "config center not available"})
@@ -223,6 +227,42 @@ func (s *Server) handleConfigCenterSetRating(conn net.Conn, req Request) {
 	})
 }
 
+func (s *Server) handleConfigCenterSetAccess(conn net.Conn, req Request) {
+	key, _ := req.Args["key"].(string)
+	if key == "" {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "key is required"})
+		return
+	}
+
+	if s.k.ConfigCenter() == nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "config center not available"})
+		return
+	}
+
+	entry, err := s.k.ConfigCenter().GetEntry(key)
+	if err != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "key not found: " + key})
+		return
+	}
+	entry.AllowedAgents = configCenterStringList(req.Args["allowed_agents"])
+	entry.ExcludedAgents = configCenterStringList(req.Args["excluded_agents"])
+	if err := s.k.ConfigCenter().Set(entry); err != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		return
+	}
+	updated, err := s.k.ConfigCenter().GetEntry(key)
+	if err != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		return
+	}
+
+	s.writeResp(conn, Response{
+		ID:     req.ID,
+		Type:   RespResult,
+		Result: map[string]any{"entry": entryToMap(updated)},
+	})
+}
+
 // handleConfigCenterAccessLog returns the access log.
 func (s *Server) handleConfigCenterAccessLog(conn net.Conn, req Request) {
 	key, _ := req.Args["key"].(string)
@@ -362,5 +402,58 @@ func entryToMap(e *configcenter.ConfigEntry) map[string]any {
 	if e.AccessPolicy != "" {
 		m["access_policy"] = string(e.AccessPolicy)
 	}
+	if len(e.AllowedAgents) > 0 {
+		m["allowed_agents"] = append([]string(nil), e.AllowedAgents...)
+	}
+	if len(e.ExcludedAgents) > 0 {
+		m["excluded_agents"] = append([]string(nil), e.ExcludedAgents...)
+	}
 	return m
+}
+
+func configCenterStringList(raw any) []string {
+	switch v := raw.(type) {
+	case nil:
+		return nil
+	case string:
+		return configCenterSplitList(v)
+	case []string:
+		return configCenterCleanList(v)
+	case []any:
+		out := make([]string, 0, len(v))
+		for _, item := range v {
+			if s, ok := item.(string); ok {
+				out = append(out, s)
+			}
+		}
+		return configCenterCleanList(out)
+	default:
+		return nil
+	}
+}
+
+func configCenterSplitList(s string) []string {
+	if strings.TrimSpace(s) == "" {
+		return nil
+	}
+	parts := strings.FieldsFunc(s, func(r rune) bool { return r == ',' || r == ';' || r == ' ' || r == '\n' || r == '\t' })
+	return configCenterCleanList(parts)
+}
+
+func configCenterCleanList(in []string) []string {
+	out := make([]string, 0, len(in))
+	seen := map[string]bool{}
+	for _, v := range in {
+		v = strings.TrimSpace(v)
+		if v == "" {
+			continue
+		}
+		key := strings.ToLower(v)
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		out = append(out, v)
+	}
+	return out
 }

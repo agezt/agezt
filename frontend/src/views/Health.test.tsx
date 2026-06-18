@@ -10,7 +10,7 @@ describe("runDiagnostics (M921)", () => {
   });
 
   it("is empty (all healthy) for a clean daemon", () => {
-    const st = { halted: false, model: "deepseek-chat", provider_fallbacks: { count: 0 }, pending_approvals: 0 };
+    const st = { halted: false, model: "deepseek-chat", provider_fallbacks: { count: 0 }, pending_approvals: 0, schedules: { running: 0, resident: true } };
     const stats = { total: 100, failed: 1 };
     expect(runDiagnostics(st, stats, true)).toEqual([]);
   });
@@ -35,6 +35,36 @@ describe("runDiagnostics (M921)", () => {
     // each actionable issue carries a deep-link.
     expect(byId.provider.fixHash).toBe("providers");
     expect(byId.approvals.fixHash).toBe("approvals");
+  });
+
+  it("surfaces active autonomous schedule work as an informational diagnostic", () => {
+    const st = {
+      halted: false,
+      model: "deepseek-chat",
+      provider_fallbacks: { count: 0 },
+      pending_approvals: 0,
+      schedules: { total: 4, enabled: 3, running: 2, resident: true },
+    };
+    const d = runDiagnostics(st, { total: 10, failed: 0 }, true);
+    const sched = d.find((x) => x.id === "schedule-running");
+    expect(sched?.level).toBe("info");
+    expect(sched?.title).toBe("2 schedules running");
+    expect(sched?.fixHash).toBe("schedules");
+  });
+
+  it("warns when enabled schedules exist but the cadence resident is offline", () => {
+    const st = {
+      halted: false,
+      model: "deepseek-chat",
+      provider_fallbacks: { count: 0 },
+      pending_approvals: 0,
+      schedules: { total: 2, enabled: 2, running: 0, resident: false },
+    };
+    const d = runDiagnostics(st, { total: 10, failed: 0 }, true);
+    const sched = d.find((x) => x.id === "schedule-resident");
+    expect(sched?.level).toBe("warn");
+    expect(sched?.detail).toContain("2 enabled schedules");
+    expect(sched?.fixHash).toBe("status");
   });
 
   it("ignores a high failure ratio when the sample is tiny", () => {

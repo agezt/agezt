@@ -49,12 +49,14 @@ const (
 	NodeMerge    = "merge"       // join branches: {mode: "all"|"any"} (all = wait for every incoming edge)
 	NodeApproval = "approval"    // HITL gate: {description, capability?} — blocks on the operator
 	NodeSubflow  = "subworkflow" // run another stored workflow: {workflow, payload?} (depth-capped)
+	NodePipeline = "pipeline"    // deterministic typed tool chain: {steps:[{id,tool,args,output_schema?}]}
 )
 
 // knownTypes gates validation; ordered for error messages.
 var knownTypes = []string{
 	NodeTrigger, NodeTool, NodeLLM, NodeCondition, NodeTransform, NodeDelay,
 	NodeHTTP, NodeCode, NodeMap, NodeFilter, NodeSwitch, NodeMerge, NodeApproval, NodeSubflow,
+	NodePipeline,
 }
 
 // Failable nodes may wire an "error" port: when the node fails AND such an
@@ -62,7 +64,7 @@ var knownTypes = []string{
 // and the error branch runs instead of the default one.
 var failable = map[string]bool{
 	NodeTool: true, NodeLLM: true, NodeHTTP: true, NodeCode: true,
-	NodeApproval: true, NodeSubflow: true,
+	NodeApproval: true, NodeSubflow: true, NodePipeline: true,
 }
 
 // Node is one typed step on the canvas.
@@ -404,7 +406,22 @@ type SubflowConfig struct {
 	Payload  string `json:"payload,omitempty"` // templated; JSON becomes structured
 }
 
+// PipelineConfig runs several governed tool calls inside one deterministic node,
+// without an LLM round-trip between steps. Step args are templated against the
+// workflow data plus prior step outputs under {{steps.<id>.output}}.
+type PipelineConfig struct {
+	Steps []PipelineStepConfig `json:"steps"`
+}
+
+type PipelineStepConfig struct {
+	ID           string          `json:"id"`
+	Tool         string          `json:"tool"`
+	Args         json.RawMessage `json:"args,omitempty"`
+	OutputSchema json.RawMessage `json:"output_schema,omitempty"`
+}
+
 const maxSwitchCases = 16
+const maxPipelineSteps = 16
 
 var conditionOps = map[string]bool{
 	"equals": true, "not_equals": true, "contains": true,
@@ -470,7 +487,7 @@ func validateReliability(n *Node) error {
 		return fmt.Errorf("workflow: node %s: retry_delay_sec must be 0..%d", n.ID, maxRetryDelaySec)
 	}
 	if (n.Retries > 0 || n.RetryDelaySec > 0) && !failable[n.Type] {
-		return fmt.Errorf("workflow: node %s: retries only apply to failable nodes (tool/llm/http/code/approval/subworkflow)", n.ID)
+		return fmt.Errorf("workflow: node %s: retries only apply to failable nodes (tool/llm/http/code/approval/subworkflow/pipeline)", n.ID)
 	}
 	return nil
 }
@@ -618,6 +635,37 @@ func validateNodeConfig(n *Node) error {
 		}
 		if strings.TrimSpace(c.Workflow) == "" {
 			return fmt.Errorf("workflow: node %s: subworkflow needs a workflow name", n.ID)
+		}
+		return nil
+	case NodePipeline:
+		var c PipelineConfig
+		if err := json.Unmarshal(orEmpty(n.Config), &c); err != nil {
+			return fmt.Errorf("workflow: node %s: pipeline config: %w", n.ID, err)
+		}
+		if len(c.Steps) == 0 || len(c.Steps) > maxPipelineSteps {
+			return fmt.Errorf("workflow: node %s: pipeline needs 1..%d steps", n.ID, maxPipelineSteps)
+		}
+		seen := map[string]bool{}
+		for _, step := range c.Steps {
+			id := strings.TrimSpace(step.ID)
+			if !idRe.MatchString(id) {
+				return fmt.Errorf("workflow: node %s: pipeline step id %q must match %s", n.ID, step.ID, idRe)
+			}
+			if seen[id] {
+				return fmt.Errorf("workflow: node %s: duplicate pipeline step id %q", n.ID, id)
+			}
+			seen[id] = true
+			if strings.TrimSpace(step.Tool) == "" {
+				return fmt.Errorf("workflow: node %s: pipeline step %s needs a tool", n.ID, id)
+			}
+			if len(step.OutputSchema) > maxConfigBytes {
+				return fmt.Errorf("workflow: node %s: pipeline step %s output_schema exceeds %d bytes", n.ID, id, maxConfigBytes)
+			}
+			if raw := strings.TrimSpace(string(step.OutputSchema)); raw != "" {
+				if !json.Valid(step.OutputSchema) || !strings.HasPrefix(raw, "{") {
+					return fmt.Errorf("workflow: node %s: pipeline step %s output_schema must be a JSON object", n.ID, id)
+				}
+			}
 		}
 		return nil
 	default:

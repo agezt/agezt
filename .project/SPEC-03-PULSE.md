@@ -58,7 +58,7 @@ Four stages, each emitting its own event so the entire proactive chain is explai
 ## 3. Stage ① — Observers
 
 ### 3.1 What an observer is
-A lightweight `reactive`/`scheduled` agent that watches **one thing** and emits **meaningful deltas**, not raw data. The discipline: an observer must do its own first-pass filtering so the bus isn't flooded. It reports "CI on repo X went from green to red," never "here is the full CI log every 60 seconds."
+A lightweight observer or durable system agent that watches **one thing** and emits **meaningful deltas**, not raw data. The discipline: an observer must do its own first-pass filtering so the bus isn't flooded. It reports "CI on repo X went from green to red," never "here is the full CI log every 60 seconds."
 
 ```
 type Observer interface {
@@ -199,7 +199,7 @@ disposition → delivery:
 - **World model (SPEC-future MEMORY):** Salience's relevance/novelty signals come from here; observer deltas update it. Pulse without a world model is generic; with it, it's *yours*.
 - **Reflection loop:** consumes briefing feedback + initiative outcomes to recalibrate salience thresholds and initiative aggressiveness over time ("he keeps deleting morning briefs → lower their salience / change cadence").
 - **Forge:** if Pulse repeatedly needs a capability it lacks ("I keep wanting to summarize these PDFs and have no tool"), it can request Forge to create a skill — proactive self-improvement.
-- **Standing Orders:** a standing order ("watch my portfolio, fix what you safely can, brief me") is essentially a *named, persistent Pulse configuration* — a set of observers + salience overrides + initiative scope, kept alive by Chronos and the supervisor.
+- **Standing wake rules:** a standing order ("wake ops-watch when portfolio CI breaks") is a durable trigger/constraint rule for an existing agent or workflow. Pulse can score and brief the result, but the agent's identity, tasklist, memory, permissions, model, retry, and doctor policy live on the agent profile, not inside the schedule.
 
 ---
 

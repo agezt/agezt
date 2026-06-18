@@ -20,7 +20,7 @@ import (
 // context; this is the operator's read/write path into it.
 func cmdMemory(args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
-		fmt.Fprintf(stderr, "%s memory: subcommand required (add|list|log|search|get|forget|consolidate|prune|bulk-forget|find-related)\n", brand.CLI)
+		fmt.Fprintf(stderr, "%s memory: subcommand required (add|list|log|search|get|forget|audit|clean|consolidate|prune|bulk-forget|find-related)\n", brand.CLI)
 		return 2
 	}
 	switch args[0] {
@@ -38,6 +38,10 @@ func cmdMemory(args []string, stdout, stderr io.Writer) int {
 		return cmdMemoryForget(args[1:], stdout, stderr)
 	case "promote":
 		return cmdMemoryPromote(args[1:], stdout, stderr)
+	case "audit":
+		return cmdMemoryAudit(args[1:], stdout, stderr)
+	case "clean":
+		return cmdMemoryClean(args[1:], stdout, stderr)
 	case "consolidate":
 		return cmdMemoryConsolidate(args[1:], stdout, stderr)
 	case "prune":
@@ -55,13 +59,15 @@ func cmdMemory(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "  get <id> [--json]      (exit 3 = absent)\n")
 		fmt.Fprintf(stdout, "  forget <id> [--json]\n")
 		fmt.Fprintf(stdout, "  promote <id> [--json]  share a private (agent-scoped) record with every agent\n")
+		fmt.Fprintf(stdout, "  audit [--json]         report expired, suspended, and competing memories\n")
+		fmt.Fprintf(stdout, "  clean [--execute]      hard-delete low-value log/transient memory records (dry-run by default)\n")
 		fmt.Fprintf(stdout, "  consolidate [--json]   one brain-distillation pass: merge related records, supersede originals\n")
 		fmt.Fprintf(stdout, "  prune [--days N] [--execute]   hard-delete soft-deleted records (dry-run by default)\n")
 		fmt.Fprintf(stdout, "  bulk-forget <id>...    soft-delete multiple records in one call\n")
 		fmt.Fprintf(stdout, "  find-related --id <id> [--limit N] [--json]\n")
 		return 0
 	default:
-		fmt.Fprintf(stderr, "%s memory: unknown subcommand %q (add|list|log|search|get|forget|promote|consolidate|prune|bulk-forget|find-related)\n", brand.CLI, args[0])
+		fmt.Fprintf(stderr, "%s memory: unknown subcommand %q (add|list|log|search|get|forget|promote|audit|clean|consolidate|prune|bulk-forget|find-related)\n", brand.CLI, args[0])
 		return 2
 	}
 }
@@ -71,6 +77,8 @@ func cmdMemoryAdd(args []string, stdout, stderr io.Writer) int {
 	asJSON := false
 	typ := ""
 	conf := 0.0
+	evidence := ""
+	halfLifeMS := int64(0)
 	tags := map[string]any{}
 	var positional []string
 
@@ -80,8 +88,9 @@ func cmdMemoryAdd(args []string, stdout, stderr io.Writer) int {
 		case a == "--json":
 			asJSON = true
 		case a == "-h" || a == "--help":
-			fmt.Fprintf(stdout, "usage: %s memory add <subject> <content> [--type T] [--tag k=v] [--conf F] [--json]\n", brand.CLI)
+			fmt.Fprintf(stdout, "usage: %s memory add <subject> <content> [--type T] [--evidence E] [--half-life D] [--tag k=v] [--conf F] [--json]\n", brand.CLI)
 			fmt.Fprintf(stdout, "types: FACT (default) | SUMMARY | RELATION | PREFERENCE | OBSERVATION\n")
+			fmt.Fprintf(stdout, "evidence: observed | inferred | curated | constraint\n")
 			return 0
 		case a == "--type":
 			if i+1 >= len(args) {
@@ -90,6 +99,29 @@ func cmdMemoryAdd(args []string, stdout, stderr io.Writer) int {
 			}
 			i++
 			typ = strings.ToUpper(args[i])
+		case a == "--evidence":
+			if i+1 >= len(args) {
+				fmt.Fprintf(stderr, "%s memory add: --evidence needs a value\n", brand.CLI)
+				return 2
+			}
+			i++
+			evidence = strings.ToLower(args[i])
+			if !validMemoryEvidence(evidence) {
+				fmt.Fprintf(stderr, "%s memory add: bad --evidence %q\n", brand.CLI, args[i])
+				return 2
+			}
+		case a == "--half-life":
+			if i+1 >= len(args) {
+				fmt.Fprintf(stderr, "%s memory add: --half-life needs a duration\n", brand.CLI)
+				return 2
+			}
+			i++
+			d, err := time.ParseDuration(args[i])
+			if err != nil || d <= 0 {
+				fmt.Fprintf(stderr, "%s memory add: bad --half-life %q\n", brand.CLI, args[i])
+				return 2
+			}
+			halfLifeMS = d.Milliseconds()
 		case a == "--conf":
 			if i+1 >= len(args) {
 				fmt.Fprintf(stderr, "%s memory add: --conf needs a value\n", brand.CLI)
@@ -139,6 +171,12 @@ func cmdMemoryAdd(args []string, stdout, stderr io.Writer) int {
 	if conf > 0 {
 		callArgs["confidence"] = conf
 	}
+	if evidence != "" {
+		callArgs["evidence"] = evidence
+	}
+	if halfLifeMS > 0 {
+		callArgs["half_life_ms"] = halfLifeMS
+	}
 	if len(tags) > 0 {
 		callArgs["tags"] = tags
 	}
@@ -165,6 +203,15 @@ func cmdMemoryAdd(args []string, stdout, stderr io.Writer) int {
 	}
 	fmt.Fprintf(stdout, "%s %s\n", verb, id)
 	return 0
+}
+
+func validMemoryEvidence(v string) bool {
+	switch v {
+	case "observed", "inferred", "curated", "constraint":
+		return true
+	default:
+		return false
+	}
 }
 
 // cmdMemoryList implements `agt memory list [--json]`.
@@ -407,6 +454,118 @@ func cmdMemoryPromote(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "promoted %s to shared memory\n", id)
 	} else {
 		fmt.Fprintf(stdout, "no such record %s\n", id)
+	}
+	return 0
+}
+
+func cmdMemoryAudit(args []string, stdout, stderr io.Writer) int {
+	tenant, args := extractTenantFlag(args)
+	asJSON := false
+	for _, a := range args {
+		switch a {
+		case "--json":
+			asJSON = true
+		case "-h", "--help":
+			fmt.Fprintf(stdout, "usage: %s memory audit [--tenant <id>] [--json]\n", brand.CLI)
+			fmt.Fprintf(stdout, "report memory records excluded by expiration/suspension and same-topic competing claims\n")
+			return 0
+		default:
+			fmt.Fprintf(stderr, "%s memory audit: unexpected arg %q\n", brand.CLI, a)
+			return 2
+		}
+	}
+	c := dial(stderr)
+	if c == nil {
+		return 1
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	res, err := c.Call(ctx, controlplane.CmdMemoryAudit, withTenant(tenant, nil))
+	if err != nil {
+		fmt.Fprintf(stderr, "%s memory audit: %v\n", brand.CLI, err)
+		return 1
+	}
+	if asJSON {
+		return encodeJSON(stdout, res)
+	}
+	fmt.Fprintf(stdout, "memory audit:\n")
+	fmt.Fprintf(stdout, "  usable       : %d\n", int(num(res["usable"])))
+	fmt.Fprintf(stdout, "  expired      : %d\n", int(num(res["expired"])))
+	fmt.Fprintf(stdout, "  suspended    : %d\n", int(num(res["suspended"])))
+	fmt.Fprintf(stdout, "  conflict load: %d\n", int(num(res["contradiction_load"])))
+	if groups, _ := res["contradictions"].([]any); len(groups) > 0 {
+		fmt.Fprintf(stdout, "  contradictions:\n")
+		for _, raw := range groups {
+			g, _ := raw.(map[string]any)
+			fmt.Fprintf(stdout, "    - %s (%d records)\n", str(g["key"]), lenSlice(g["ids"]))
+		}
+	}
+	return 0
+}
+
+func cmdMemoryClean(args []string, stdout, stderr io.Writer) int {
+	tenant, args := extractTenantFlag(args)
+	dryRun := true
+	asJSON := false
+	for _, a := range args {
+		switch a {
+		case "--execute", "--confirm", "-y":
+			dryRun = false
+		case "--dry-run":
+			dryRun = true
+		case "--json":
+			asJSON = true
+		case "-h", "--help":
+			fmt.Fprintf(stdout, "usage: %s memory clean [--tenant <id>] [--execute|--dry-run] [--json]\n", brand.CLI)
+			fmt.Fprintf(stdout, "hard-delete records that look like logs, transient notes, or automatic low-value memories\n")
+			return 0
+		default:
+			fmt.Fprintf(stderr, "%s memory clean: unknown flag %q\n", brand.CLI, a)
+			return 2
+		}
+	}
+	c := dial(stderr)
+	if c == nil {
+		return 1
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	res, err := c.Call(ctx, controlplane.CmdMemoryClean, withTenant(tenant, map[string]any{"dry_run": dryRun}))
+	if err != nil {
+		fmt.Fprintf(stderr, "%s memory clean: %v\n", brand.CLI, err)
+		return 1
+	}
+	if asJSON {
+		return encodeJSON(stdout, res)
+	}
+	scanned := int(num(res["scanned"]))
+	rejected := int(num(res["rejected"]))
+	removed := int(num(res["removed"]))
+	if dryRun {
+		fmt.Fprintf(stdout, "dry-run — scanned %d usable record(s), %d look low-value.\n", scanned, rejected)
+		if rejected > 0 {
+			fmt.Fprintf(stdout, "re-run with --execute to permanently delete them.\n")
+		}
+		return 0
+	}
+	fmt.Fprintf(stdout, "cleaned memory: scanned %d, permanently deleted %d low-value record(s).\n", scanned, removed)
+	return 0
+}
+
+func num(v any) float64 {
+	switch n := v.(type) {
+	case float64:
+		return n
+	case int:
+		return float64(n)
+	default:
+		return 0
+	}
+}
+
+func lenSlice(v any) int {
+	if xs, ok := v.([]any); ok {
+		return len(xs)
 	}
 	return 0
 }

@@ -41,24 +41,38 @@ test.describe("Agezt Web UI — embedded SPA against a real daemon", () => {
     await expect(page.getByText("● live").first()).toBeVisible();
 
     const nav = page.getByRole("navigation");
+    const openView = async (section: string, item: string) => {
+      await nav.getByRole("button", { name: section }).first().click();
+      await nav.getByRole("button", { name: item }).last().click();
+    };
 
     // --- Landing: the humane chat surface --------------------------------
     await expect(
       page.getByRole("heading", { level: 2, name: "Talk to your agent" }),
     ).toBeVisible();
 
-    // --- Cockpit (nav "Overview"): live status pulled from the daemon ---
+    // --- Cockpit (System → Overview): live status pulled from the daemon ---
     // The seeded run shows up in the completed counter; the vitals strip and
     // widgets are real daemon state, not placeholders.
-    await nav.getByRole("button", { name: "Overview" }).click();
+    await openView("System", "Overview");
     await expect(
       page.getByRole("heading", { level: 2, name: "Cockpit" }),
     ).toBeVisible();
     await expect(page.getByText(/success rate/)).toBeVisible();
     await expect(page.getByText(/active skills/)).toBeVisible();
 
+    // Mobile shell regression guard: the top command bar and two-level nav may
+    // scroll internally, but they must not create document-level horizontal
+    // overflow. A prior header/nav layout leaked ~278px of page overflow on
+    // 390px-wide screens.
+    await page.setViewportSize({ width: 390, height: 900 });
+    await expect.poll(async () =>
+      page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth),
+    ).toBeLessThanOrEqual(0);
+    await page.setViewportSize({ width: 1280, height: 720 });
+
     // --- Runs: the intent the harness submitted renders as a card -------
-    await nav.getByRole("button", { name: "Runs" }).click();
+    await openView("Monitor", "Runs");
     await expect(
       page.getByRole("heading", { level: 2, name: "Runs" }),
     ).toBeVisible();
@@ -73,7 +87,7 @@ test.describe("Agezt Web UI — embedded SPA against a real daemon", () => {
     await expect(page.getByText("[echo] hello e2e")).toBeVisible();
 
     // --- World: the React Flow panel mounts -----------------------------
-    await nav.getByRole("button", { name: "World" }).click();
+    await openView("Knowledge", "World");
     await expect(
       page.getByRole("heading", { level: 2, name: "World" }),
     ).toBeVisible();
@@ -81,7 +95,7 @@ test.describe("Agezt Web UI — embedded SPA against a real daemon", () => {
     // --- Autonomy: the proactive-heartbeat controls render + work -------
     // (M743 pause/resume, M756 beat-now, M757 cadence, M758 dial, M761 flush).
     // Pulse is on by default in the demo daemon, so the steering controls render.
-    await nav.getByRole("button", { name: "Autonomy" }).click();
+    await openView("Monitor", "Autonomy");
     await expect(page.getByRole("heading", { level: 2, name: "Autonomy" })).toBeVisible();
     await expect(page.getByRole("button", { name: /Beat now/ })).toBeVisible();
     await expect(page.getByLabel("Heartbeat cadence")).toBeVisible();
@@ -90,20 +104,56 @@ test.describe("Agezt Web UI — embedded SPA against a real daemon", () => {
     // errors guard below also covers it).
     await page.getByRole("button", { name: /Beat now/ }).click();
 
+    // --- Schedules: typed cronjobs, including daemon system tasks --------
+    // The schedule surface must be more than "run this prompt later": it can
+    // schedule typed daemon work such as syncing models.dev/api.json with no
+    // LLM agent wake.
+    await openView("Automation", "Schedules");
+    await expect(page.getByRole("heading", { level: 2, name: "Schedules" })).toBeVisible();
+    await page.getByRole("button", { name: /New schedule/ }).click();
+    await expect(page.getByText("Daemon cron presets")).toBeVisible();
+    await page.getByRole("button", { name: /Catalog sync.*every 24 hours/ }).click();
+    await expect(page.getByLabel("System task")).toHaveValue("catalog_sync");
+    await expect(page.getByText(/Recommended cadence: every 24 hours/)).toBeVisible();
+    await expect(page.getByText(/cron runs system task Catalog sync/).first()).toBeVisible();
+    await expect(page.getByText(/no LLM/).first()).toBeVisible();
+
     // --- Policy: the decision + secret-redaction testers mount ----------
     // (M753 policy dry-run, M754 redaction check).
-    await nav.getByRole("button", { name: "Policy" }).click();
+    await openView("System", "Policy");
     await expect(page.getByRole("heading", { level: 2, name: "Capability policy" })).toBeVisible();
     await expect(page.getByText("test a decision")).toBeVisible();
     await expect(page.getByRole("heading", { level: 2, name: "Secret redaction" })).toBeVisible();
 
     // --- Search: the journal's tamper-evident hash chain verifies clean -
     // (M759 integrity verify). The seeded run wrote hash-linked events.
-    await nav.getByRole("button", { name: "Search" }).click();
+    await openView("Agents", "Search");
     const verify = page.getByRole("button", { name: /verify integrity/ });
     await expect(verify).toBeVisible();
     await verify.click();
     await expect(page.getByText("chain intact")).toBeVisible();
+
+    // --- Fleet: roster agents open as identity-bearing entities ----------
+    // Schedules/standing/workflows can trigger work, but roster agents must be
+    // durable objects with their own identity, control, lifecycle and runtime
+    // surfaces. This clicks a real daemon-backed fleet card and proves those
+    // panels mount in the browser.
+    await openView("Agents", "Agents");
+    await expect(page.getByRole("heading", { level: 2, name: "Agents" })).toBeVisible();
+    const agentCard = page.locator('button[title*="identity page"]').first();
+    await expect(agentCard).toBeVisible();
+    await agentCard.click();
+    await expect(page.getByText("Agent identity card")).toBeVisible();
+    await expect(page.getByText("Control center").first()).toBeVisible();
+    await expect(page.getByText("Lifecycle ledger").first()).toBeVisible();
+    await expect(page.getByText("Runtime doctor ledger").first()).toBeVisible();
+    await expect(page.getByText("Operations passport")).toBeVisible();
+    await expect(page.getByText("Mailbox wake contract")).toBeVisible();
+    await page.getByRole("button", { name: /Triggers/ }).click();
+    await expect(page.getByText("mailbox wake subjects")).toBeVisible();
+    await expect(page.getByText(/board\.dm\./).first()).toBeVisible();
+    await expect(page.getByText(/board\.help\./).first()).toBeVisible();
+    await expect(page.getByText("board.broadcast").first()).toBeVisible();
 
     expect(errors, `console errors:\n${errors.join("\n")}`).toEqual([]);
   });

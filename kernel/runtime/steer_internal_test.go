@@ -6,6 +6,8 @@ import (
 	"context"
 	"testing"
 	"time"
+
+	"github.com/agezt/agezt/kernel/intervention"
 )
 
 // White-box tests for runControl's concurrency semantics (M608). These pin the
@@ -48,7 +50,7 @@ func TestRunControl_NotPausedWaitReturnsImmediately(t *testing.T) {
 
 func TestRunControl_PauseBlocksResumeReleases(t *testing.T) {
 	rc := newRunControl()
-	rc.pause()
+	rc.pause(time.Time{})
 	done := waitReturned(rc, context.Background())
 	assertBlocked(t, done, "paused run")
 	rc.resume()
@@ -57,7 +59,7 @@ func TestRunControl_PauseBlocksResumeReleases(t *testing.T) {
 
 func TestRunControl_StepReleasesExactlyOne(t *testing.T) {
 	rc := newRunControl()
-	rc.pause()
+	rc.pause(time.Time{})
 	// First Wait blocks (paused).
 	d1 := waitReturned(rc, context.Background())
 	assertBlocked(t, d1, "paused before step")
@@ -73,7 +75,7 @@ func TestRunControl_StepReleasesExactlyOne(t *testing.T) {
 
 func TestRunControl_WaitHonoursContext(t *testing.T) {
 	rc := newRunControl()
-	rc.pause()
+	rc.pause(time.Time{})
 	ctx, cancel := context.WithCancel(context.Background())
 	done := waitReturned(rc, ctx)
 	assertBlocked(t, done, "paused, ctx live")
@@ -99,12 +101,28 @@ func TestRunControl_InjectDrainOrderAndOnce(t *testing.T) {
 
 func TestRunControl_SnapshotReflectsState(t *testing.T) {
 	rc := newRunControl()
-	if p, n := rc.snapshot(); p || n != 0 {
+	if p, n, _ := rc.snapshot(); p || n != 0 {
 		t.Fatalf("fresh snapshot = (%v,%d) want (false,0)", p, n)
 	}
-	rc.pause()
+	rc.pause(time.Time{})
 	rc.inject("x", false)
-	if p, n := rc.snapshot(); !p || n != 1 {
+	if p, n, _ := rc.snapshot(); !p || n != 1 {
 		t.Errorf("after pause+inject snapshot = (%v,%d) want (true,1)", p, n)
+	}
+}
+
+func TestRunControl_PauseLeaseExpires(t *testing.T) {
+	rc := newRunControl()
+	rc.pause(time.Now().Add(20 * time.Millisecond))
+	assertUnblocked(t, waitReturned(rc, context.Background()), "pause lease expiry should release Wait")
+	if p, _, _ := rc.snapshot(); p {
+		t.Fatal("pause lease expired but run remains paused")
+	}
+}
+
+func TestInterventionNormalizeRequiresDirectiveForRedirect(t *testing.T) {
+	_, err := intervention.Normalize(intervention.Request{Primitive: intervention.PrimitiveRedirect, CorrelationID: "r"})
+	if err == nil {
+		t.Fatal("redirect without directive should be rejected")
 	}
 }

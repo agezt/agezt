@@ -55,7 +55,7 @@ func (p *Provider) CompleteStream(ctx context.Context, req agent.CompletionReque
 		model = p.Model
 	}
 	if model == "" {
-		model = DefaultModel
+		return nil, ErrNoModel
 	}
 
 	// Anthropic-on-Vertex (`claude-*` model ids) — see

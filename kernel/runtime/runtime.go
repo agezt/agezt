@@ -37,7 +37,9 @@ import (
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/governor"
+	intentmodel "github.com/agezt/agezt/kernel/intent"
 	"github.com/agezt/agezt/kernel/journal"
+	"github.com/agezt/agezt/kernel/market"
 	"github.com/agezt/agezt/kernel/mcp"
 	"github.com/agezt/agezt/kernel/memory"
 	"github.com/agezt/agezt/kernel/reflect"
@@ -296,6 +298,13 @@ type Config struct {
 	WorldTopK   int
 	WorldTool   bool
 
+	// MarketTool registers the in-process `market` tool so an agent can discover
+	// and install capability packs (skills + MCP servers + tools) from the
+	// marketplace mid-task. The tool resolves the kernel's market manager lazily
+	// (the daemon wires it via SetMarket after Open); when no manager is wired the
+	// tool reports the marketplace is unavailable. Off by default.
+	MarketTool bool
+
 	// Forge / skill knobs (SPEC-05 §4–5; Phase 2 slice 2). The skill store
 	// and `agt skill` CLI always work; these gate only the per-run
 	// behaviour and default OFF (daemon is the single enable point).
@@ -332,6 +341,44 @@ type Config struct {
 	// operate in. Surfaced to the model by the environment preamble so it
 	// references the right path. Empty omits the workspace line.
 	WorkspaceRoot string
+
+	// ToolDiscoveryMax, when > 0, enables deterministic lexical tool discovery:
+	// each provider call is offered at most this many relevant tools instead of
+	// every registered schema. This is the CH-03 bridge to semantic discovery;
+	// future embedding-backed selectors can replace the scorer without changing
+	// the agent loop contract. 0 preserves the historical "offer all" behaviour.
+	ToolDiscoveryMax int
+
+	// ObservationDeltas, when true, makes repeated observations of the same
+	// tool/input pair return a structured delta to the model while retaining the
+	// full raw output in the journal. Off by default for compatibility. (CH-04)
+	ObservationDeltas bool
+
+	// EpistemicEscalation, when true, lets the runtime's external calibration
+	// gate route otherwise-allowed tool calls to HITL approval when journaled
+	// failure conditions, low effect confidence, temporal sensitivity, or novel
+	// dynamic tool surfaces make the model's proposal unsafe to execute directly.
+	// Off by default for compatibility; policy.decision still journals the
+	// epistemic signals either way.
+	EpistemicEscalation bool
+
+	// IntentRegretGating, when true, routes otherwise-allowed tool calls to HITL
+	// approval when the user utterance is underdetermined and the proposed action
+	// has high wrong-action regret. Off by default for compatibility; intent
+	// interpretation is still journaled either way.
+	IntentRegretGating bool
+
+	// PromptInjectionGuard, when true, routes otherwise-allowed effectful tool
+	// calls to HITL approval if they are downstream of untrusted external content
+	// that contained directive-like text. The tool result is always typed and
+	// journaled; this flag controls the active intervention.
+	PromptInjectionGuard bool
+
+	// DisableHeuristicBypass turns off deterministic fast paths for known-safe
+	// intents such as current time/date queries. The default keeps the narrow
+	// CH-09 bypass layer enabled so trivial solved subproblems do not spend LLM
+	// tokens.
+	DisableHeuristicBypass bool
 
 	// ArtifactThreshold is the tool-output byte size above which the agent loop
 	// offloads the output to the content-addressed artifact store and journals a
@@ -414,6 +461,7 @@ type Kernel struct {
 	worldDir     *worldmodel.FileStore
 	forge        *skill.Forge
 	skillDir     *skill.FileStore
+	marketMgr    *market.Manager
 	standing     *standing.Store
 	roster       *roster.Store
 	toolForge    *toolforge.Store
@@ -423,7 +471,8 @@ type Kernel struct {
 	artIndex     *artifact.Index // metadata sidecar over artifacts (M822): browsable/deletable entries
 	lake         *datalake.Lake  // Personal Data Lake (M834): agent-built structured collections
 	reflect      *reflect.Engine
-	schedules    *cadence.Store        // persistent scheduled-intents store (autonomy)
+	schedules    *cadence.Store        // persistent typed schedule store (autonomy)
+	schedEngine  *cadence.Engine       // live cadence resident, set by the daemon after Open
 	agentGW      *agentgw.Gateway      // agent subprocess gateway (agent SDK)
 	configCenter *configcenter.Center  // config center for agent SDK config access
 	tools        map[string]agent.Tool // cfg.Tools + the memory/world tools (when enabled)
@@ -434,7 +483,7 @@ type Kernel struct {
 	// Fine-grained mutexes to reduce lock contention. Lock ordering to prevent
 	// deadlocks (always acquire in this order):
 	//   configMu (light config) < runsMu < fanoutMu < treeMu < steersMu < spawnsMu < mcpMu
-	configMu sync.Mutex // guards: system, model, cfg, catalog
+	configMu sync.Mutex // guards: system, model, cfg, catalog, schedEngine
 	runsMu   sync.Mutex // guards: halted, runs
 	fanoutMu sync.Mutex
 	treeMu   sync.Mutex
@@ -443,7 +492,7 @@ type Kernel struct {
 	mcpMu    sync.Mutex // guards: mcpConns
 
 	halted bool
-	system string                        // live agent persona / system prompt (M710); seeded from cfg.System, editable at runtime
+	system string                        // live daemon default identity / system prompt (M710); seeded from cfg.System, editable at runtime
 	model  string                        // live default model id (M816); seeded from cfg.Model, hot-swapped on provider reload
 	runs   map[string]context.CancelFunc // correlation_id → cancel
 	fanout map[string]int                // spawning correlation_id → sub-agents spawned (M46 fan-out bound)
@@ -499,7 +548,7 @@ func Open(cfg Config) (*Kernel, error) {
 	if apr == nil {
 		apr = approval.New(approval.Config{Bus: kbus, Timeout: cfg.ApprovalTimeout})
 	}
-	sched := scheduler.New(scheduler.Config{Bus: kbus})
+	sched := scheduler.New(scheduler.Config{Bus: kbus, Monitor: scheduler.ContextInvariantMonitor})
 
 	catDir := cfg.CatalogDir
 	if catDir == "" {
@@ -672,6 +721,13 @@ func Open(cfg Config) (*Kernel, error) {
 		awaitTool = newSubAgentAwaitTool()
 		effTools["delegate_await"] = awaitTool
 	}
+	// The market tool needs k.Market (wired by the daemon after Open); register
+	// it now and bind its lazy getter just after k is built (same map k holds).
+	var mktTool *marketTool
+	if cfg.MarketTool {
+		mktTool = newMarketTool()
+		effTools["market"] = mktTool
+	}
 
 	catStore := catalog.NewStore(catDir)
 	cat := cfg.Catalog
@@ -734,6 +790,9 @@ func Open(cfg Config) (*Kernel, error) {
 	}
 	if awaitTool != nil {
 		awaitTool.await = k.awaitSubAgent
+	}
+	if mktTool != nil {
+		mktTool.manager = k.Market
 	}
 
 	// Config Center for agent SDK config access (M???)
@@ -903,9 +962,28 @@ func (k *Kernel) Memory() *memory.Manager { return k.memory }
 // AgentGateway().Listen(ctx) to start it.
 func (k *Kernel) AgentGateway() *agentgw.Gateway { return k.agentGW }
 
-// Schedules returns the persistent scheduled-intents store (autonomy). The
-// cadence resident fires its due entries; `agt schedule` manages them.
+// Schedules returns the persistent typed schedule store (autonomy). The cadence
+// resident fires due agent/workflow/system-task/tool targets; `agt schedule`
+// manages them.
 func (k *Kernel) Schedules() *cadence.Store { return k.schedules }
+
+// SetScheduleEngine records the live cadence resident so status/doctor/UI
+// surfaces can observe whether scheduled work is currently running. It is set by
+// the daemon, not Open, because cmd/agezt owns the schedule target dispatcher.
+func (k *Kernel) SetScheduleEngine(e *cadence.Engine) {
+	k.configMu.Lock()
+	k.schedEngine = e
+	k.configMu.Unlock()
+}
+
+// ScheduleEngine returns the live cadence resident when the daemon has started
+// it. Nil means schedules can still be managed in the store but no resident is
+// currently attached in this process.
+func (k *Kernel) ScheduleEngine() *cadence.Engine {
+	k.configMu.Lock()
+	defer k.configMu.Unlock()
+	return k.schedEngine
+}
 
 // World returns the world-model graph backing `agt world`, run-time entity
 // injection, and the Pulse salience relevance signal. Always non-nil after
@@ -915,6 +993,15 @@ func (k *Kernel) World() *worldmodel.Graph { return k.world }
 // Forge returns the skill manager backing `agt skill`, run-time skill
 // activation, and post-run skill proposal. Always non-nil after Open.
 func (k *Kernel) Forge() *skill.Forge { return k.forge }
+
+// Market returns the capability marketplace manager (skill/MCP/tool packs). It is
+// nil until the daemon wires it via SetMarket (the built-in catalogue is a plugin
+// the kernel must not import, so it is injected from cmd/agezt).
+func (k *Kernel) Market() *market.Manager { return k.marketMgr }
+
+// SetMarket injects the marketplace manager (from cmd/agezt, with the built-in
+// Official library + this kernel's Forge/MCP as the install targets).
+func (k *Kernel) SetMarket(m *market.Manager) { k.marketMgr = m }
 
 // Artifacts returns the content-addressed artifact store (SPEC-04 §3.6), where
 // the loop offloads oversized tool outputs. Used by retrieval surfaces.
@@ -929,8 +1016,8 @@ func (k *Kernel) ArtifactIndex() *artifact.Index { return k.artIndex }
 // collections agents build and share, surfaced by the `db` tool and the Web UI.
 func (k *Kernel) DataLake() *datalake.Lake { return k.lake }
 
-// Standing returns the Chronos standing-order store (SPEC-16 §4), backing
-// `agt standing`. Always non-nil after Open.
+// Standing returns the standing wake-rule store (SPEC-16 §4), backing `agt
+// standing`. Always non-nil after Open.
 func (k *Kernel) Standing() *standing.Store { return k.standing }
 
 // AddStanding validates and persists a standing order, journaling
@@ -1037,8 +1124,8 @@ func (k *Kernel) SetProfileEnabled(ref string, enabled bool) (roster.Profile, er
 // SetProfileRetired moves an agent to the graveyard (true) or revives it (false)
 // by ref, journaling roster.updated. Retiring also pauses the agent so it stops
 // firing (M846). A graveyard agent is excluded from delegation (runSubAgent).
-func (k *Kernel) SetProfileRetired(ref string, retired bool) (roster.Profile, error) {
-	p, err := k.roster.SetRetired(ref, retired)
+func (k *Kernel) SetProfileRetired(ref string, retired bool, reason ...string) (roster.Profile, error) {
+	p, err := k.roster.SetRetired(ref, retired, reason...)
 	if err != nil {
 		return roster.Profile{}, err
 	}
@@ -1048,7 +1135,7 @@ func (k *Kernel) SetProfileRetired(ref string, retired bool) (roster.Profile, er
 	}
 	_, _ = k.bus.Publish(event.Spec{
 		Subject: "roster." + p.Slug, Kind: event.KindRosterUpdated, Actor: "roster",
-		Payload: map[string]any{"id": p.ID, "slug": p.Slug, "retired": retired, "action": action},
+		Payload: map[string]any{"id": p.ID, "slug": p.Slug, "retired": retired, "reason": p.RetiredReason, "action": action},
 	})
 	return p, nil
 }
@@ -1169,7 +1256,7 @@ func (k *Kernel) ConfigCenter() *configcenter.Center { return k.configCenter }
 // Model returns the live default model name. Empty when the daemon uses
 // provider defaults rather than an override. Seeded from cfg.Model at Open and
 // hot-swapped via SetModel when the provider is reloaded (M816), so it must be
-// mu-guarded like the persona. Used by `agt config show` and every run that
+// mu-guarded like the default identity. Used by `agt config show` and every run that
 // builds a CompletionRequest without an explicit per-run/per-task model.
 func (k *Kernel) Model() string {
 	k.configMu.Lock()
@@ -1231,10 +1318,10 @@ func (k *Kernel) SubAgentLimits() SubAgentLimits {
 	return l
 }
 
-// System returns the live default system prompt (agent persona). Empty when none
-// is set. Seeded from cfg.System at Open and editable at runtime via SetSystem
-// (M710). `agt config show` uses it only to report PRESENCE, not content (which
-// could carry proprietary instructions); the dedicated persona surface returns
+// System returns the live daemon default identity prompt. Empty when none is set.
+// Seeded from cfg.System at Open and editable at runtime via SetSystem (M710).
+// `agt config show` uses it only to report PRESENCE, not content (which could
+// carry proprietary instructions); the dedicated default-identity surface returns
 // the content for the owner to edit.
 func (k *Kernel) System() string {
 	k.configMu.Lock()
@@ -1242,9 +1329,10 @@ func (k *Kernel) System() string {
 	return k.system
 }
 
-// SetSystem replaces the live default system prompt (agent persona). The next run
-// picks it up — no restart. Persistence (so it survives a restart) is the control
-// plane's job: it writes AGEZT_SYSTEM_PROMPT to the config store alongside this.
+// SetSystem replaces the live daemon default identity prompt. The next default
+// run picks it up — no restart. Persistence (so it survives a restart) is the
+// control plane's job: it writes AGEZT_SYSTEM_PROMPT to the config store
+// alongside this.
 func (k *Kernel) SetSystem(s string) {
 	k.configMu.Lock()
 	k.system = s
@@ -1394,8 +1482,79 @@ func (k *Kernel) policyHook(ctx context.Context, tc agent.ToolCall) agent.Policy
 		WouldAsk:   out.WouldAsk,
 		HardDenied: out.HardDenied,
 	}
+	def, _ := agent.PolicyToolDefFromContext(ctx)
+	bundle := k.approvalDecisionBundle(tc.Name, out.Capability, tc.Input, def)
+	verdict.EffectClass = bundle.EffectClass
+	verdict.AffectedResources = append([]string(nil), bundle.AffectedResources...)
+	ep := k.epistemicGate(tc.Name, out.Capability, tc.Input, def, bundle)
+	verdict.EpistemicAction = ep.Action
+	verdict.EpistemicReason = ep.Reason
+	verdict.EpistemicSignals = append([]string(nil), ep.Signals...)
+	verdict.EpistemicConfidence = ep.Confidence
+	verdict.FailureMatches = ep.FailureMatches
+	verdict.WeightedFailures = ep.WeightedFailures
+	verdict.SchemaHash = ep.SchemaHash
+	verdict.InputShape = ep.InputShape
+	verdict.TemporalSensitive = ep.Temporal
+	verdict.NovelTool = ep.NovelTool
+	if reason, denied := agentToolPolicyDenial(agentToolPolicyFromCtx(ctx), tc.Name); denied {
+		verdict.Allow = false
+		verdict.Reason = reason
+		verdict.WouldAsk = false
+		verdict.HardDenied = true
+		return verdict
+	}
+	if reason, denied := k.agentNoisePolicyDenial(ctx, tc); denied {
+		verdict.Allow = false
+		verdict.Reason = reason
+		verdict.WouldAsk = false
+		verdict.HardDenied = true
+		return verdict
+	}
+	taint, hasTaint := agent.UntrustedObservationTaintFromContext(ctx)
+	if hasTaint {
+		verdict.UntrustedObservation = true
+		verdict.ObservationSources = append([]string(nil), taint.Sources...)
+		verdict.ObservationDirectiveLike = taint.DirectiveLike
+		verdict.ObservationDirectiveMatches = append([]string(nil), taint.Matches...)
+	}
+	intentFrame, hasIntentFrame := intentmodel.FrameFromContext(ctx)
+	intentAction := intentmodel.Action{
+		ToolName:          tc.Name,
+		Capability:        string(out.Capability),
+		EffectClass:       bundle.EffectClass,
+		Input:             string(tc.Input),
+		AffectedResources: append([]string(nil), bundle.AffectedResources...),
+	}
+	regretAxes := intentmodel.RegretForAction(intentAction)
+	confirmationPrompt := ""
+	if hasIntentFrame {
+		confirmationPrompt = intentmodel.ConfirmationPrompt(intentFrame, intentAction, regretAxes)
+	}
 
-	if !out.RequiresApproval {
+	requiresApproval := out.RequiresApproval
+	approvalReason := out.Reason
+	if k.cfg.EpistemicEscalation && verdict.Allow && ep.escalates() {
+		requiresApproval = true
+		approvalReason = ep.Reason
+		verdict.Allow = false
+		verdict.WouldAsk = true
+	}
+	if k.cfg.IntentRegretGating && verdict.Allow && hasIntentFrame && intentmodel.RequiresConfirmation(intentFrame, regretAxes) {
+		requiresApproval = true
+		approvalReason = confirmationPrompt
+		verdict.Allow = false
+		verdict.WouldAsk = true
+		k.publishIntentConfirmationRequired(correlationFromCtx(ctx), actorFromCtx(ctx), intentFrame, regretAxes, confirmationPrompt)
+	}
+	if k.cfg.PromptInjectionGuard && verdict.Allow && hasTaint && taint.DirectiveLike && bundle.EffectClass != string(agent.EffectReadOnly) {
+		requiresApproval = true
+		approvalReason = "prompt-injection guard: effectful action is downstream of directive-like untrusted observation from " + strings.Join(taint.Sources, ", ")
+		verdict.Allow = false
+		verdict.WouldAsk = true
+	}
+
+	if !requiresApproval {
 		return verdict
 	}
 
@@ -1404,12 +1563,22 @@ func (k *Kernel) policyHook(ctx context.Context, tc agent.ToolCall) agent.Policy
 	actor := actorFromCtx(ctx)
 	corr := correlationFromCtx(ctx)
 	res := k.approvals.Submit(ctx, approval.SubmitSpec{
-		Capability:    string(out.Capability),
-		ToolName:      tc.Name,
-		Input:         string(tc.Input),
-		Reason:        out.Reason,
-		Actor:         actor,
-		CorrelationID: corr,
+		Capability:            string(out.Capability),
+		ToolName:              tc.Name,
+		Input:                 string(tc.Input),
+		Reason:                approvalReason,
+		Actor:                 actor,
+		CorrelationID:         corr,
+		EffectClass:           bundle.EffectClass,
+		PredictedEffects:      bundle.PredictedEffects,
+		AffectedResources:     bundle.AffectedResources,
+		RollbackNotes:         bundle.RollbackNotes,
+		Confidence:            bundle.Confidence,
+		CanonicalIntent:       intentFrame.CanonicalIntent,
+		HarmfulInterpretation: intentFrame.HarmfulReading,
+		AmbiguityScore:        intentFrame.AmbiguityScore,
+		RegretAxes:            regretAxesPayload(regretAxes),
+		ConfirmationPrompt:    confirmationPrompt,
 	})
 	switch res.Decision {
 	case approval.DecisionGrant:
@@ -1420,6 +1589,236 @@ func (k *Kernel) policyHook(ctx context.Context, tc agent.ToolCall) agent.Policy
 		verdict.Reason = fmt.Sprintf("approval %s: %s", res.Decision, res.Reason)
 	}
 	return verdict
+}
+
+func (k *Kernel) agentNoisePolicyDenial(ctx context.Context, tc agent.ToolCall) (string, bool) {
+	policy, ok := agentNoisePolicyFromCtx(ctx)
+	if !ok {
+		return "", false
+	}
+	if tc.Name == "memory" && policy.disableMemoryWrites && memoryToolActionWrites(tc.Input) {
+		return "agent noise policy: memory writes are disabled", true
+	}
+	if tc.Name != "notify" {
+		return "", false
+	}
+	if min := notifySeverityRank(policy.minNotifySeverity); min > notifySeverityRank(notifySeverityFromInput(tc.Input)) {
+		return fmt.Sprintf("agent noise policy: notify severity must be at least %s", policy.minNotifySeverity), true
+	}
+	if policy.minNotifyIntervalSec <= 0 {
+		return "", false
+	}
+	slug, _ := agentIdentFromCtx(ctx)
+	if strings.TrimSpace(slug) == "" {
+		return "", false
+	}
+	nowMS := time.Now().UnixMilli()
+	var st agentNoiseState
+	if raw, ok, err := k.state.Get(agentNoiseStateNS, slug); err != nil {
+		return "agent noise policy: notify cooldown state unavailable: " + err.Error(), true
+	} else if ok {
+		_ = json.Unmarshal(raw, &st)
+	}
+	if st.PendingNotifyMS > 0 && nowMS-st.PendingNotifyMS < int64(agentNoisePendingNotifyTTL/time.Millisecond) {
+		return "agent noise policy: notify send already in progress", true
+	}
+	if st.LastNotifyMS > 0 {
+		elapsed := nowMS - st.LastNotifyMS
+		minMS := int64(policy.minNotifyIntervalSec) * 1000
+		if elapsed < minMS {
+			remaining := time.Duration(minMS-elapsed) * time.Millisecond
+			return "agent noise policy: notify cooldown active for " + remaining.Round(time.Second).String(), true
+		}
+	}
+	st.PendingNotifyMS = nowMS
+	if err := k.state.Set(agentNoiseStateNS, slug, st); err != nil {
+		return "agent noise policy: notify cooldown state unavailable: " + err.Error(), true
+	}
+	return "", false
+}
+
+func (k *Kernel) completeAgentNoiseNotify(ctx context.Context, tc agent.ToolCall, res agent.Result) {
+	policy, ok := agentNoisePolicyFromCtx(ctx)
+	if !ok || policy.minNotifyIntervalSec <= 0 || tc.Name != "notify" {
+		return
+	}
+	slug, _ := agentIdentFromCtx(ctx)
+	if strings.TrimSpace(slug) == "" {
+		return
+	}
+	var st agentNoiseState
+	if raw, ok, err := k.state.Get(agentNoiseStateNS, slug); err != nil {
+		return
+	} else if ok {
+		_ = json.Unmarshal(raw, &st)
+	}
+	st.PendingNotifyMS = 0
+	if !res.IsError {
+		st.LastNotifyMS = time.Now().UnixMilli()
+	}
+	_ = k.state.Set(agentNoiseStateNS, slug, st)
+}
+
+func memoryToolActionWrites(raw json.RawMessage) bool {
+	var in struct {
+		Action string `json:"action"`
+	}
+	if json.Unmarshal(raw, &in) != nil {
+		return false
+	}
+	switch strings.ToLower(strings.TrimSpace(in.Action)) {
+	case "remember", "forget", "bulk_forget":
+		return true
+	default:
+		return false
+	}
+}
+
+func notifySeverityFromInput(raw json.RawMessage) string {
+	var in struct {
+		Severity string `json:"severity"`
+	}
+	if json.Unmarshal(raw, &in) != nil {
+		return "info"
+	}
+	severity := strings.ToLower(strings.TrimSpace(in.Severity))
+	if severity == "" {
+		return "info"
+	}
+	return severity
+}
+
+func notifySeverityRank(severity string) int {
+	switch strings.ToLower(strings.TrimSpace(severity)) {
+	case "critical":
+		return 3
+	case "warning", "warn":
+		return 2
+	case "info", "":
+		return 1
+	default:
+		return 0
+	}
+}
+
+type approvalBundle struct {
+	EffectClass       string
+	PredictedEffects  []string
+	AffectedResources []string
+	RollbackNotes     string
+	Confidence        float64
+}
+
+func (k *Kernel) approvalDecisionBundle(toolName string, cap edict.Capability, input json.RawMessage, def agent.ToolDef) approvalBundle {
+	effect := def.Effect
+	if effect.Class == "" && len(effect.PredictedEffects) == 0 && len(effect.AffectedResources) == 0 {
+		if tool, ok := k.tools[toolName]; ok {
+			effect = tool.Definition().Effect
+		}
+	}
+
+	class := normalizeEffectClass(effect.Class)
+	if class == "" {
+		class = defaultEffectClass(cap)
+	}
+	resources := append([]string(nil), effect.AffectedResources...)
+	if len(resources) == 0 {
+		resources = affectedResourcesFromInput(toolName, cap, input)
+	}
+	predicted := append([]string(nil), effect.PredictedEffects...)
+	if len(predicted) == 0 {
+		predicted = []string{fmt.Sprintf("invoke %s under %s", toolName, cap)}
+	}
+	rollback := strings.TrimSpace(effect.RollbackNotes)
+	if rollback == "" {
+		rollback = defaultRollbackNotes(class)
+	}
+	confidence := effect.Confidence
+	if confidence <= 0 || confidence > 1 {
+		confidence = defaultEffectConfidence(class)
+	}
+	return approvalBundle{
+		EffectClass:       class,
+		PredictedEffects:  predicted,
+		AffectedResources: resources,
+		RollbackNotes:     rollback,
+		Confidence:        confidence,
+	}
+}
+
+func normalizeEffectClass(class agent.EffectClass) string {
+	switch class {
+	case agent.EffectReadOnly, agent.EffectReversible, agent.EffectCompensable, agent.EffectIrreversible:
+		return string(class)
+	default:
+		return ""
+	}
+}
+
+func defaultEffectClass(cap edict.Capability) string {
+	switch cap {
+	case edict.CapFileRead, edict.CapFileList, edict.CapHTTPGet, edict.CapBrowserRead,
+		edict.CapHomeAssistantRead, edict.CapWebSearch, edict.CapRunsRead,
+		edict.CapIntrospect, edict.CapConfigRead, edict.CapProviderCall:
+		return string(agent.EffectReadOnly)
+	case edict.CapFileWrite, edict.CapMemory, edict.CapWorld, edict.CapSchedule,
+		edict.CapStanding, edict.CapBoard, edict.CapSkill, edict.CapOversee,
+		edict.CapToolForge, edict.CapConfigWrite, edict.CapWorkflow:
+		return string(agent.EffectReversible)
+	case edict.CapNotify, edict.CapHTTPPost, edict.CapRemoteRun:
+		return string(agent.EffectCompensable)
+	case edict.CapShell, edict.CapFileDelete, edict.CapCoding, edict.CapACPAgent,
+		edict.CapHomeAssistantCall, edict.CapCodeExec, edict.CapMCPInstall, edict.CapMCP:
+		return string(agent.EffectIrreversible)
+	default:
+		return string(agent.EffectIrreversible)
+	}
+}
+
+func affectedResourcesFromInput(toolName string, cap edict.Capability, input json.RawMessage) []string {
+	out := []string{"tool:" + toolName, "capability:" + string(cap)}
+	var obj map[string]any
+	if err := json.Unmarshal(input, &obj); err != nil {
+		return out
+	}
+	for _, key := range []string{"path", "url", "endpoint", "entity_id", "service", "command", "op", "name", "id"} {
+		if v, ok := obj[key]; ok {
+			if s, ok := v.(string); ok && strings.TrimSpace(s) != "" {
+				out = append(out, key+":"+s)
+			}
+		}
+	}
+	return out
+}
+
+func defaultRollbackNotes(class string) string {
+	switch class {
+	case string(agent.EffectReadOnly):
+		return "No rollback required for read-only action."
+	case string(agent.EffectReversible):
+		return "Use the corresponding revert/delete/restore operation or journaled state to undo if needed."
+	case string(agent.EffectCompensable):
+		return "No guaranteed rollback; compensate with a follow-up action if the outcome is wrong."
+	case string(agent.EffectIrreversible):
+		return "No reliable rollback path declared; approve only if the effect is acceptable."
+	default:
+		return "No rollback information declared."
+	}
+}
+
+func defaultEffectConfidence(class string) float64 {
+	switch class {
+	case string(agent.EffectReadOnly):
+		return 0.95
+	case string(agent.EffectReversible):
+		return 0.75
+	case string(agent.EffectCompensable):
+		return 0.6
+	case string(agent.EffectIrreversible):
+		return 0.5
+	default:
+		return 0.4
+	}
 }
 
 // per-run context keys used by RunWith → policyHook to carry the
@@ -1441,6 +1840,13 @@ const (
 	ctxKeyRoot
 	ctxKeyModelChain
 	ctxKeyAgentIdent
+	ctxKeySystemAgent
+	ctxKeyAgentLifecycle
+	ctxKeyAgentRetryPolicy
+	ctxKeyAgentToolPolicy
+	ctxKeyAgentConfigOverrides
+	ctxKeyAgentNoisePolicy
+	ctxKeyWakeContext
 )
 
 // agentIdent carries a named agent's identity + daily ceiling for the
@@ -1448,6 +1854,50 @@ const (
 type agentIdent struct {
 	slug    string
 	dailyMc int64
+}
+
+type agentToolPolicy struct {
+	allow []string
+	deny  []string
+}
+
+const agentNoiseStateNS = "agent_noise"
+
+type agentNoisePolicy struct {
+	silentOnSuccess      bool
+	disableMemoryWrites  bool
+	minNotifySeverity    string
+	minNotifyIntervalSec int
+}
+
+type agentNoiseState struct {
+	LastNotifyMS    int64 `json:"last_notify_ms"`
+	PendingNotifyMS int64 `json:"pending_notify_ms,omitempty"`
+}
+
+const agentNoisePendingNotifyTTL = 5 * time.Minute
+
+// WakeContext is durable provenance for why a run exists. It is stamped on
+// task.received by agent.Run and intentionally kept separate from the prompt.
+type WakeContext struct {
+	Source            string
+	Reason            string
+	ScheduleID        string
+	StandingID        string
+	StandingName      string
+	TriggerSubject    string
+	ParentCorrelation string
+}
+
+func cloneStringMap(in map[string]string) map[string]string {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make(map[string]string, len(in))
+	for key, value := range in {
+		out[key] = value
+	}
+	return out
 }
 
 // rootFromCtx returns the correlation of the ROOT run of a delegation tree (the
@@ -1465,7 +1915,7 @@ func rootFromCtx(ctx context.Context) string {
 // the run started with it (SPEC-16 §4 initiative.max_trust). The policy hook
 // consults it so a normally auto-allowed capability is downgraded to Ask (or
 // Deny) within this run. ceiling >= LevelAllow is a no-op (no clamp). Used by the
-// Chronos standing-order runner to bound an order's autonomy.
+// standing-order runner to bound an order's autonomy.
 func WithTrustCeiling(ctx context.Context, ceiling edict.TrustLevel) context.Context {
 	if ceiling >= edict.LevelAllow {
 		return ctx
@@ -1534,8 +1984,8 @@ func modelFromCtx(ctx context.Context) string {
 // WithSystem returns a context that overrides the base system prompt for the run
 // started with it (M148-sibling). Empty is a no-op (the kernel's configured System
 // is used). The override REPLACES the configured System; memory/world/skill
-// injection still layer on top, so a one-off persona/instruction can be set per run
-// without losing what Agezt knows.
+// injection still layer on top, so a one-off identity/instruction override can
+// be set per run without losing what Agezt knows.
 func WithSystem(ctx context.Context, system string) context.Context {
 	if system == "" {
 		return ctx
@@ -1595,8 +2045,37 @@ func maxCostFromCtx(ctx context.Context) int64 {
 // runner so an order can fire AS a named agent; handleRun keeps its inline
 // application (its model resolves before the vision gate).
 func WithAgentProfile(ctx context.Context, p roster.Profile) context.Context {
-	if soul := strings.TrimSpace(p.Soul); soul != "" {
-		ctx = WithSystem(ctx, soul)
+	noise := effectiveAgentNoisePolicy(p)
+	if p.System {
+		ctx = context.WithValue(ctx, ctxKeySystemAgent, true)
+	}
+	if sys := agentProfileSystem(p); sys != "" {
+		ctx = WithSystem(ctx, sys)
+	}
+	if p.Lifecycle.Mode != "" || p.Lifecycle.RetireOnComplete {
+		ctx = context.WithValue(ctx, ctxKeyAgentLifecycle, p.Lifecycle)
+	}
+	if p.RetryPolicy != nil {
+		cp := *p.RetryPolicy
+		cp.RetryOn = append([]string(nil), p.RetryPolicy.RetryOn...)
+		ctx = context.WithValue(ctx, ctxKeyAgentRetryPolicy, cp)
+	}
+	if len(p.ToolAllow) > 0 || len(p.ToolDeny) > 0 {
+		ctx = context.WithValue(ctx, ctxKeyAgentToolPolicy, agentToolPolicy{
+			allow: append([]string(nil), p.ToolAllow...),
+			deny:  append([]string(nil), p.ToolDeny...),
+		})
+	}
+	if noise != (agentNoisePolicy{}) {
+		ctx = context.WithValue(ctx, ctxKeyAgentNoisePolicy, noise)
+	}
+	if len(p.ConfigOverrides) > 0 {
+		ctx = context.WithValue(ctx, ctxKeyAgentConfigOverrides, cloneStringMap(p.ConfigOverrides))
+	}
+	if ceiling := strings.TrimSpace(p.TrustCeiling); ceiling != "" {
+		if lvl, err := edict.ParseTrustLevel(ceiling); err == nil {
+			ctx = WithTrustCeiling(ctx, lvl)
+		}
 	}
 	primary := strings.TrimSpace(p.Model)
 	if primary != "" {
@@ -1626,6 +2105,65 @@ func WithAgentProfile(ctx context.Context, p roster.Profile) context.Context {
 	return WithAgentIdent(ctx, p.Slug, p.MaxDailyMc)
 }
 
+func effectiveAgentNoisePolicy(p roster.Profile) agentNoisePolicy {
+	var out agentNoisePolicy
+	if p.NoisePolicy != nil {
+		out.silentOnSuccess = p.NoisePolicy.SilentOnSuccess
+		out.disableMemoryWrites = p.NoisePolicy.DisableMemoryWrites
+		out.minNotifySeverity = strings.ToLower(strings.TrimSpace(p.NoisePolicy.MinNotifySeverity))
+		out.minNotifyIntervalSec = p.NoisePolicy.MinNotifyIntervalSec
+	}
+	if out.silentOnSuccess && notifySeverityRank(out.minNotifySeverity) < notifySeverityRank("warning") {
+		out.minNotifySeverity = "warning"
+	}
+	if p.System {
+		out.silentOnSuccess = true
+		out.disableMemoryWrites = true
+		if notifySeverityRank(out.minNotifySeverity) < notifySeverityRank("warning") {
+			out.minNotifySeverity = "warning"
+		}
+		if out.minNotifyIntervalSec < 8*3600 {
+			out.minNotifyIntervalSec = 8 * 3600
+		}
+	}
+	return out
+}
+
+func agentNoisePolicyFromCtx(ctx context.Context) (agentNoisePolicy, bool) {
+	v, ok := ctx.Value(ctxKeyAgentNoisePolicy).(agentNoisePolicy)
+	return v, ok
+}
+
+func applyAgentNoisePolicyToPromptTools(tools map[string]agent.Tool, ctx context.Context) map[string]agent.Tool {
+	policy, ok := agentNoisePolicyFromCtx(ctx)
+	if !ok || !policy.disableMemoryWrites {
+		return tools
+	}
+	if _, ok := tools["memory"]; !ok {
+		return tools
+	}
+	out := make(map[string]agent.Tool, len(tools)-1)
+	for name, tool := range tools {
+		if name != "memory" {
+			out[name] = tool
+		}
+	}
+	return out
+}
+
+func appendUniqueString(in []string, value string) []string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return in
+	}
+	for _, x := range in {
+		if strings.EqualFold(strings.TrimSpace(x), value) {
+			return in
+		}
+	}
+	return append(in, value)
+}
+
 // WithAgentIdent stamps the run with a named agent's identity and per-day
 // spend ceiling (M793): every completion of the run is metered against the
 // Governor's per-agent daily ledger and refused past the ceiling.
@@ -1650,6 +2188,169 @@ func agentIdentFromCtx(ctx context.Context) (string, int64) {
 func agentSlugFromCtx(ctx context.Context) string { s, _ := agentIdentFromCtx(ctx); return s }
 
 func agentDailyMcFromCtx(ctx context.Context) int64 { _, d := agentIdentFromCtx(ctx); return d }
+
+// WithWakeContext attaches run provenance to the next agent loop. Empty fields
+// are omitted from the journal; callers can layer it with WithAgentProfile.
+func WithWakeContext(ctx context.Context, w WakeContext) context.Context {
+	w.Source = strings.TrimSpace(w.Source)
+	w.Reason = strings.TrimSpace(w.Reason)
+	w.ScheduleID = strings.TrimSpace(w.ScheduleID)
+	w.StandingID = strings.TrimSpace(w.StandingID)
+	w.StandingName = strings.TrimSpace(w.StandingName)
+	w.TriggerSubject = strings.TrimSpace(w.TriggerSubject)
+	w.ParentCorrelation = strings.TrimSpace(w.ParentCorrelation)
+	if w == (WakeContext{}) {
+		return ctx
+	}
+	return context.WithValue(ctx, ctxKeyWakeContext, w)
+}
+
+func wakeContextFromCtx(ctx context.Context) WakeContext {
+	v, _ := ctx.Value(ctxKeyWakeContext).(WakeContext)
+	return v
+}
+
+func systemAgentFromCtx(ctx context.Context) bool {
+	v, _ := ctx.Value(ctxKeySystemAgent).(bool)
+	return v
+}
+
+func agentToolPolicyFromCtx(ctx context.Context) agentToolPolicy {
+	v, _ := ctx.Value(ctxKeyAgentToolPolicy).(agentToolPolicy)
+	return v
+}
+
+func agentLifecycleFromCtx(ctx context.Context) roster.AgentLifecycle {
+	v, _ := ctx.Value(ctxKeyAgentLifecycle).(roster.AgentLifecycle)
+	return v
+}
+
+func agentRetryPolicyFromCtx(ctx context.Context) (roster.RetryPolicy, bool) {
+	v, ok := ctx.Value(ctxKeyAgentRetryPolicy).(roster.RetryPolicy)
+	if !ok {
+		return roster.RetryPolicy{}, false
+	}
+	v.RetryOn = append([]string(nil), v.RetryOn...)
+	return v, true
+}
+
+// AgentConfigOverrides returns the named agent's config-override map attached to
+// a run context by WithAgentProfile. The returned map is a copy and safe for the
+// caller to mutate. Nil means the run carries no agent-specific overrides.
+func AgentConfigOverrides(ctx context.Context) map[string]string {
+	v, _ := ctx.Value(ctxKeyAgentConfigOverrides).(map[string]string)
+	return cloneStringMap(v)
+}
+
+func agentConfigStringOverride(ctx context.Context, key string) (string, bool) {
+	v, ok := agentConfigOverrideRaw(AgentConfigOverrides(ctx), key)
+	if !ok {
+		return "", false
+	}
+	return agentConfigStringValue(v)
+}
+
+func agentConfigBoolOverride(ctx context.Context, key string) (bool, bool) {
+	raw, ok := agentConfigStringOverride(ctx, key)
+	if !ok {
+		return false, false
+	}
+	return agentConfigBoolValue(raw)
+}
+
+func agentConfigIntOverride(ctx context.Context, key string) (int, bool) {
+	raw, ok := agentConfigStringOverride(ctx, key)
+	if !ok {
+		return 0, false
+	}
+	return agentConfigIntValue(raw)
+}
+
+func agentConfigDurationOverride(ctx context.Context, key string) (time.Duration, bool) {
+	raw, ok := agentConfigStringOverride(ctx, key)
+	if !ok {
+		return 0, false
+	}
+	return agentConfigDurationValue(raw)
+}
+
+func agentProfileSystem(p roster.Profile) string {
+	var b strings.Builder
+	if soul := strings.TrimSpace(p.Soul); soul != "" {
+		b.WriteString(soul)
+	}
+	if len(p.Instructions) > 0 {
+		if b.Len() > 0 {
+			b.WriteString("\n\n")
+		}
+		b.WriteString("Standing instructions:\n")
+		for _, ins := range p.Instructions {
+			if ins = strings.TrimSpace(ins); ins != "" {
+				b.WriteString("- ")
+				b.WriteString(ins)
+				b.WriteString("\n")
+			}
+		}
+	}
+	if len(p.TaskList) > 0 {
+		cycle, total := profileTasksByScope(p.TaskList)
+		if len(cycle) > 0 || len(total) > 0 {
+			if b.Len() > 0 {
+				b.WriteString("\n")
+			}
+			if len(cycle) > 0 {
+				b.WriteString("\nCycle tasks:\n")
+				writeProfileTasks(&b, cycle)
+			}
+			if len(total) > 0 {
+				b.WriteString("\nTotal tasks:\n")
+				writeProfileTasks(&b, total)
+			}
+		}
+	}
+	return strings.TrimSpace(b.String())
+}
+
+func profileTasksByScope(tasks []roster.AgentTask) (cycle, total []roster.AgentTask) {
+	for _, t := range tasks {
+		status := strings.TrimSpace(t.Status)
+		if status == "done" || status == "retired" {
+			continue
+		}
+		if strings.TrimSpace(t.Scope) == "cycle" {
+			cycle = append(cycle, t)
+		} else {
+			total = append(total, t)
+		}
+	}
+	return cycle, total
+}
+
+func writeProfileTasks(b *strings.Builder, tasks []roster.AgentTask) {
+	for i, t := range tasks {
+		if i >= 20 {
+			b.WriteString("- ...\n")
+			return
+		}
+		title := strings.TrimSpace(t.Title)
+		if title == "" {
+			continue
+		}
+		status := strings.TrimSpace(t.Status)
+		if status == "" {
+			status = "todo"
+		}
+		b.WriteString("- [")
+		b.WriteString(status)
+		b.WriteString("] ")
+		b.WriteString(title)
+		if desc := strings.TrimSpace(t.Description); desc != "" {
+			b.WriteString(" - ")
+			b.WriteString(desc)
+		}
+		b.WriteString("\n")
+	}
+}
 
 // WithModelChain sets the run's per-agent ordered model fallback chain (M787):
 // the Governor tries these models in order, overriding the task type's
@@ -1691,15 +2392,62 @@ func toolsFromCtx(ctx context.Context) ([]string, bool) {
 func filterTools(tools map[string]agent.Tool, allow []string) map[string]agent.Tool {
 	keep := make(map[string]struct{}, len(allow))
 	for _, n := range allow {
-		keep[n] = struct{}{}
+		if n = strings.ToLower(strings.TrimSpace(n)); n != "" {
+			keep[n] = struct{}{}
+		}
 	}
 	out := make(map[string]agent.Tool, len(keep))
 	for name, tool := range tools {
-		if _, ok := keep[name]; ok {
+		if _, ok := keep[strings.ToLower(name)]; ok {
 			out[name] = tool
 		}
 	}
 	return out
+}
+
+func applyAgentToolPolicy(tools map[string]agent.Tool, pol agentToolPolicy) map[string]agent.Tool {
+	out := tools
+	if len(pol.allow) > 0 {
+		out = filterTools(out, pol.allow)
+	}
+	if len(pol.deny) == 0 {
+		return out
+	}
+	deny := make(map[string]struct{}, len(pol.deny))
+	for _, name := range pol.deny {
+		if name = strings.ToLower(strings.TrimSpace(name)); name != "" {
+			deny[name] = struct{}{}
+		}
+	}
+	next := make(map[string]agent.Tool, len(out))
+	for name, tool := range out {
+		if _, blocked := deny[strings.ToLower(name)]; blocked {
+			continue
+		}
+		next[name] = tool
+	}
+	return next
+}
+
+func agentToolPolicyDenial(pol agentToolPolicy, toolName string) (string, bool) {
+	name := strings.ToLower(strings.TrimSpace(toolName))
+	if name == "" {
+		return "", false
+	}
+	for _, denied := range pol.deny {
+		if strings.ToLower(strings.TrimSpace(denied)) == name {
+			return "agent tool denylist", true
+		}
+	}
+	if len(pol.allow) == 0 {
+		return "", false
+	}
+	for _, allowed := range pol.allow {
+		if strings.ToLower(strings.TrimSpace(allowed)) == name {
+			return "", false
+		}
+	}
+	return "not in agent tool allowlist", true
 }
 
 func actorFromCtx(ctx context.Context) string {
@@ -1881,6 +2629,9 @@ const assureVerifyMaxTokens = 400
 func (k *Kernel) RunAssured(ctx context.Context, corr, intent string, maxAttempts int) (string, assure.Result, error) {
 	res, err := assure.Until(ctx, intent, maxAttempts,
 		func(ctx context.Context, _ int, task string) (string, error) {
+			if pol, ok := agentRetryPolicyFromCtx(ctx); ok && pol.MaxAttempts > 1 {
+				return k.RunWithRetry(ctx, corr, task, pol)
+			}
 			return k.RunWith(ctx, corr, task)
 		},
 		func(ctx context.Context, task, answer string) (assure.Verdict, error) {
@@ -1888,6 +2639,118 @@ func (k *Kernel) RunAssured(ctx context.Context, corr, intent string, maxAttempt
 		},
 	)
 	return res.Answer, res, err
+}
+
+// RunWithRetry executes one agent run using the profile's failure retry policy.
+// This is distinct from provider retry (one LLM request) and RunAssured
+// (semantic completion verification): it retries the whole governed run after a
+// terminal error, journaling each retry decision under the same correlation.
+func (k *Kernel) RunWithRetry(ctx context.Context, corr, intent string, pol roster.RetryPolicy) (string, error) {
+	max := pol.MaxAttempts
+	if max <= 1 {
+		return k.RunWith(ctx, corr, intent)
+	}
+	if max > 10 {
+		max = 10
+	}
+	var lastErr error
+	for attempt := 1; attempt <= max; attempt++ {
+		ans, err := k.RunWith(ctx, corr, intent)
+		if err == nil {
+			return ans, nil
+		}
+		lastErr = err
+		reason := retryReason(err)
+		if attempt >= max || !agentRetryable(reason, pol.RetryOn) {
+			return "", err
+		}
+		delay := retryDelay(pol, attempt)
+		agentSlug := agentSlugFromCtx(ctx)
+		subject := "agent.retry"
+		if agentSlug != "" {
+			subject = "agent." + agentSlug + ".retry"
+		}
+		_, _ = k.bus.Publish(event.Spec{
+			Subject:       subject,
+			Kind:          event.KindAgentRetry,
+			Actor:         "agent-retry",
+			CorrelationID: corr,
+			Payload: map[string]any{
+				"agent":          agentSlug,
+				"attempt":        attempt,
+				"next_attempt":   attempt + 1,
+				"max_attempts":   max,
+				"reason":         reason,
+				"error":          err.Error(),
+				"delay_ms":       int64(delay / time.Millisecond),
+				"backoff":        strings.TrimSpace(pol.Backoff),
+				"base_delay_sec": pol.BaseDelaySec,
+				"max_delay_sec":  pol.MaxDelaySec,
+				"retry_on":       append([]string{}, pol.RetryOn...),
+			},
+		})
+		if delay <= 0 {
+			continue
+		}
+		t := time.NewTimer(delay)
+		select {
+		case <-ctx.Done():
+			if !t.Stop() {
+				select {
+				case <-t.C:
+				default:
+				}
+			}
+			return "", ctx.Err()
+		case <-t.C:
+		}
+	}
+	return "", lastErr
+}
+
+func retryReason(err error) string {
+	switch {
+	case errors.Is(err, ErrHalted):
+		return "halted"
+	case errors.Is(err, context.Canceled):
+		return "canceled"
+	case errors.Is(err, context.DeadlineExceeded):
+		return "timeout"
+	default:
+		return "error"
+	}
+}
+
+func agentRetryable(reason string, retryOn []string) bool {
+	if len(retryOn) == 0 {
+		return reason == "error" || reason == "timeout"
+	}
+	for _, r := range retryOn {
+		if strings.TrimSpace(r) == reason {
+			return true
+		}
+	}
+	return false
+}
+
+func retryDelay(pol roster.RetryPolicy, attempt int) time.Duration {
+	base := time.Duration(pol.BaseDelaySec) * time.Second
+	if base <= 0 {
+		return 0
+	}
+	delay := base
+	if strings.TrimSpace(pol.Backoff) == "exponential" {
+		for i := 1; i < attempt; i++ {
+			delay *= 2
+		}
+	}
+	if pol.MaxDelaySec > 0 {
+		max := time.Duration(pol.MaxDelaySec) * time.Second
+		if delay > max {
+			delay = max
+		}
+	}
+	return delay
 }
 
 // verifyCompletion asks the provider whether answer fully accomplishes task,
@@ -2082,32 +2945,69 @@ func (k *Kernel) RunWith(ctx context.Context, corr, intent string) (string, erro
 	runCtx = memory.WithCorrelation(runCtx, corr)
 	runCtx = worldmodel.WithCorrelation(runCtx, corr)
 	runCtx = skill.WithCorrelation(runCtx, corr)
+	systemAgent := systemAgentFromCtx(runCtx)
+	intentFrame, ok := intentmodel.FrameFromContext(runCtx)
+	if !ok {
+		intentFrame = intentmodel.Interpret(intent)
+		runCtx = intentmodel.WithFrame(runCtx, intentFrame)
+	}
+	k.publishIntentInterpreted(corr, actor, intentFrame)
 	// So warden-backed tools (shell) stamp this run's correlation onto their
 	// warden.executed events — making the isolation profile show up in the run's
 	// timeline and walkable by `agt why`.
 	runCtx = warden.WithCorrelation(runCtx, corr)
 
+	disableHeuristicBypass := k.cfg.DisableHeuristicBypass
+	if v, ok := agentConfigBoolOverride(runCtx, "AGEZT_DISABLE_HEURISTIC_BYPASS"); ok {
+		disableHeuristicBypass = v
+	}
+	if !disableHeuristicBypass {
+		if answer, ok := deterministicHeuristicBypass(intent, time.Now()); ok {
+			if err := k.publishHeuristicBypass(runCtx, corr, actor, intent, answer); err != nil {
+				return "", err
+			}
+			k.completeAgentLifecycle(runCtx, corr)
+			return answer, nil
+		}
+	}
+
 	// Memory injection: recall relevant records and prepend them to the
 	// system prompt so the model starts the task already knowing what
 	// Agezt remembers. The recall is journaled (memory.retrieved) under
 	// corr, so `agt why` shows exactly what knowledge was surfaced.
-	// Per-run system-prompt override (WithSystem): a one-off persona/instruction
+	// Per-run system-prompt override (WithSystem): a one-off identity/instruction
 	// set for this run only; falls back to the kernel's configured System. Memory /
 	// world / skill injection below still layer on top.
-	system := k.System() // live persona (M710), editable at runtime
+	system := k.System() // live daemon default identity (M710), editable at runtime
 	if s := systemFromCtx(runCtx); s != "" {
 		system = s
 	}
-	if k.cfg.MemoryInject {
+	if k.cfg.MemoryInject && !systemAgent {
 		topK := k.cfg.MemoryTopK
 		if topK <= 0 {
 			topK = 5
+		}
+		var candidates []contextCandidate
+		if scored, err := k.memory.SearchScoped(intent, contextSelectionCandidateLimit, memory.ScopeFrom(runCtx)); err == nil {
+			candidates = memoryContextCandidates(scored, time.Now().UnixMilli())
 		}
 		// Scoped to the run's agent identity (M786): a named agent's private
 		// notes surface in its injected context; an unscoped run sees shared
 		// memory only (RecallScoped with "" ≡ the previous Recall behaviour).
 		if hits, err := k.memory.RecallScoped(corr, intent, topK, memory.ScopeFrom(runCtx)); err == nil && len(hits) > 0 {
 			system = injectMemory(system, hits)
+			ids := make([]string, 0, len(hits))
+			for _, h := range hits {
+				ids = append(ids, h.Record.ID)
+			}
+			chosen, rejected := splitContextCandidates(candidates, chosenIDSet(ids), "memory_recall")
+			k.publishContextSelection(corr, actor, contextSelectionManifest{
+				Phase:    "memory",
+				Query:    intent,
+				Chosen:   chosen,
+				Rejected: rejected,
+				Summary:  candidateSummary(chosen, rejected),
+			})
 		}
 	}
 
@@ -2115,13 +3015,29 @@ func (k *Kernel) RunWith(ctx context.Context, corr, intent string) (string, erro
 	// prepend them, so the model starts knowing what "the portfolio" means
 	// (SPEC-05 §7 step 1). Resolve journals worldmodel.retrieved under corr,
 	// so `agt why` shows what references were grounded.
-	if k.cfg.WorldInject {
+	if k.cfg.WorldInject && !systemAgent {
 		topK := k.cfg.WorldTopK
 		if topK <= 0 {
 			topK = 5
 		}
+		var candidates []contextCandidate
+		if scored, err := k.world.ResolveQuiet(intent, contextSelectionCandidateLimit); err == nil {
+			candidates = worldContextCandidates(scored, time.Now().UnixMilli())
+		}
 		if hits, err := k.world.Resolve(corr, intent, topK); err == nil && len(hits) > 0 {
 			system = injectWorld(system, hits)
+			ids := make([]string, 0, len(hits))
+			for _, h := range hits {
+				ids = append(ids, h.Entity.ID)
+			}
+			chosen, rejected := splitContextCandidates(candidates, chosenIDSet(ids), "world_resolve")
+			k.publishContextSelection(corr, actor, contextSelectionManifest{
+				Phase:    "world",
+				Query:    intent,
+				Chosen:   chosen,
+				Rejected: rejected,
+				Summary:  candidateSummary(chosen, rejected),
+			})
 		}
 	}
 
@@ -2131,16 +3047,35 @@ func (k *Kernel) RunWith(ctx context.Context, corr, intent string) (string, erro
 	// plus its own private ones. Activate journals skill.activated under corr
 	// for `agt why`.
 	var activatedSkillIDs []string
-	if k.cfg.SkillInject {
+	if k.cfg.SkillInject && !systemAgent {
 		topK := k.cfg.SkillTopK
 		if topK <= 0 {
 			topK = 3
 		}
-		if hits, err := k.forge.ActivateFor(corr, agentSlugFromCtx(runCtx), intent, topK); err == nil && len(hits) > 0 {
+		agentSlug := agentSlugFromCtx(runCtx)
+		var candidates []contextCandidate
+		if all, err := k.forge.List(); err == nil {
+			pool := all[:0:0]
+			for _, sk := range all {
+				if sk.Agent == "" || sk.Agent == agentSlug {
+					pool = append(pool, sk)
+				}
+			}
+			candidates = skillContextCandidates(skill.Retrieve(pool, intent, contextSelectionCandidateLimit, time.Now().UnixMilli()), time.Now().UnixMilli())
+		}
+		if hits, err := k.forge.ActivateFor(corr, agentSlug, intent, topK); err == nil && len(hits) > 0 {
 			system = injectSkills(system, hits)
 			for _, h := range hits {
 				activatedSkillIDs = append(activatedSkillIDs, h.Skill.ID)
 			}
+			chosen, rejected := splitContextCandidates(candidates, chosenIDSet(activatedSkillIDs), "skill_activation")
+			k.publishContextSelection(corr, actor, contextSelectionManifest{
+				Phase:    "skill",
+				Query:    intent,
+				Chosen:   chosen,
+				Rejected: rejected,
+				Summary:  candidateSummary(chosen, rejected),
+			})
 		}
 	}
 
@@ -2153,6 +3088,8 @@ func (k *Kernel) RunWith(ctx context.Context, corr, intent string) (string, erro
 	if m := modelFromCtx(runCtx); m != "" {
 		model = m
 		modelExplicit = true
+	} else if m, ok := agentConfigStringOverride(runCtx, "AGEZT_MODEL"); ok {
+		model = m
 	}
 	// An EXPLICIT pick must actually serve the run (M931): the governor's
 	// per-task chain ("chat" here) supersedes req.Model, so an operator choosing
@@ -2172,6 +3109,8 @@ func (k *Kernel) RunWith(ctx context.Context, corr, intent string) (string, erro
 	// merged BEFORE the filter so a restricted run only sees the dynamic
 	// tools its allowlist grants.
 	runTools := k.mergeMCPTools(k.mergeScriptTools(k.tools))
+	runTools = applyAgentToolPolicy(runTools, agentToolPolicyFromCtx(runCtx))
+	runTools = applyAgentNoisePolicyToPromptTools(runTools, runCtx)
 	if allow, ok := toolsFromCtx(runCtx); ok {
 		runTools = filterTools(runTools, allow)
 	}
@@ -2189,6 +3128,9 @@ func (k *Kernel) RunWith(ctx context.Context, corr, intent string) (string, erro
 	// mode, derive one from the resolved model's catalog context window. An
 	// unknown model leaves compaction off (0).
 	ctxBudget := k.cfg.ContextBudget
+	if v, ok := agentConfigIntOverride(runCtx, "AGEZT_CONTEXT_BUDGET"); ok {
+		ctxBudget = v
+	}
 	if ctxBudget == 0 && k.cfg.ContextBudgetAuto {
 		// Read the catalog through the locked accessor: ReloadCatalog swaps the
 		// k.catalog field under k.mu, and this hot path runs concurrently with an
@@ -2217,6 +3159,32 @@ func (k *Kernel) RunWith(ctx context.Context, corr, intent string) (string, erro
 		summarizeElided = makeElidedSummarizer(k.cfg.Provider, model, corr, maxTok)
 	}
 
+	maxIter := k.cfg.MaxIter
+	if v, ok := agentConfigIntOverride(runCtx, "AGEZT_MAX_ITER"); ok {
+		maxIter = v
+	}
+	maxAutoContinue := k.cfg.MaxAutoContinue
+	if v, ok := agentConfigIntOverride(runCtx, "AGEZT_MAX_AUTO_CONTINUE"); ok {
+		maxAutoContinue = v
+	}
+	autoContinueWait := k.cfg.AutoContinueWait
+	if v, ok := agentConfigDurationOverride(runCtx, "AGEZT_AUTO_CONTINUE_WAIT"); ok {
+		autoContinueWait = v
+	}
+	maxParallelTools := k.cfg.MaxParallelTools
+	if v, ok := agentConfigIntOverride(runCtx, "AGEZT_PARALLEL_TOOLS"); ok {
+		maxParallelTools = v
+	}
+	toolDiscoveryMax := k.cfg.ToolDiscoveryMax
+	if v, ok := agentConfigIntOverride(runCtx, "AGEZT_TOOL_DISCOVERY_MAX"); ok {
+		toolDiscoveryMax = v
+	}
+	observationDeltas := k.cfg.ObservationDeltas
+	if v, ok := agentConfigBoolOverride(runCtx, "AGEZT_OBSERVATION_DELTAS"); ok {
+		observationDeltas = v
+	}
+	wake := wakeContextFromCtx(runCtx)
+
 	answer, err := agent.Run(runCtx, agent.LoopConfig{
 		Provider:             k.cfg.Provider,
 		Tools:                runTools,
@@ -2226,15 +3194,26 @@ func (k *Kernel) RunWith(ctx context.Context, corr, intent string) (string, erro
 		ModelChain:           modelChain, // M787 agent fallbacks, or the explicit pick (M931)
 		Agent:                agentSlugFromCtx(runCtx),
 		AgentDailyCeilingMc:  agentDailyMcFromCtx(runCtx),
+		WakeSource:           wake.Source,
+		WakeReason:           wake.Reason,
+		ScheduleID:           wake.ScheduleID,
+		StandingID:           wake.StandingID,
+		StandingName:         wake.StandingName,
+		TriggerSubject:       wake.TriggerSubject,
+		ParentCorrelation:    wake.ParentCorrelation,
 		System:               system,
-		MaxIter:              k.cfg.MaxIter,
-		MaxAutoContinue:      k.cfg.MaxAutoContinue,  // M833: autonomous continue past MaxIter
-		AutoContinueWait:     k.cfg.AutoContinueWait, // M833
+		MaxIter:              maxIter,
+		MaxAutoContinue:      maxAutoContinue,  // M833: autonomous continue past MaxIter
+		AutoContinueWait:     autoContinueWait, // M833
 		ToolTimeout:          k.cfg.ToolTimeout,
-		MaxParallelTools:     k.cfg.MaxParallelTools, // M880: in-turn parallel tool dispatch
+		MaxParallelTools:     maxParallelTools, // M880: in-turn parallel tool dispatch
 		Actor:                actor,
 		CorrelationID:        corr,
 		Policy:               k.policyHook,
+		ToolSelector:         agent.LexicalToolSelector(toolDiscoveryMax),
+		ToolResultHook:       k.completeAgentNoiseNotify,
+		ObservationDeltas:    observationDeltas,
+		ToolMemo:             agent.NewToolMemo(agent.DefaultToolMemoTTL, agent.DefaultToolMemoMaxEntries),
 		Images:               imagesFromCtx(runCtx),   // M93: image attachments (vision-gated upstream)
 		JSONMode:             jsonModeFromCtx(runCtx), // M314: structured-output request
 		MaxRunCostMicrocents: maxCostFromCtx(runCtx),  // M166: per-run cost cap
@@ -2266,6 +3245,7 @@ func (k *Kernel) RunWith(ctx context.Context, corr, intent string) (string, erro
 	}
 
 	if err != nil {
+		k.publishContextFailureAnalysis(corr, actor, err)
 		return answer, err
 	}
 
@@ -2274,23 +3254,163 @@ func (k *Kernel) RunWith(ctx context.Context, corr, intent string) (string, erro
 	// simple Q&A runs aren't taxed with an extra round-trip. Failures are
 	// journaled but never propagated — distillation must not turn a
 	// successful task into a failed one.
-	if k.cfg.MemoryDistill {
+	if k.cfg.MemoryDistill && !systemAgent {
 		k.maybeDistill(runCtx, corr, intent, answer)
 	}
 
 	// Forge proposal: after a multi-tool run, propose a DRAFT skill via one
 	// best-effort LLM call (the operator promotes it — §5.1/§5.3). Same
 	// threshold-gated, never-fail-the-task contract as distillation.
-	if k.cfg.SkillForge {
+	if k.cfg.SkillForge && !systemAgent {
 		k.maybeForge(runCtx, corr, intent, answer)
 	}
 	// Shadow-evaluate relevant shadow skills against this completed run (SPEC-05
 	// §5.2). We're past the err!=nil early return, so the run succeeded — a failed
 	// run is a poor yardstick for "would it have helped".
-	if k.cfg.ShadowEval && k.forge != nil {
+	if k.cfg.ShadowEval && !systemAgent && k.forge != nil {
 		k.maybeShadowEval(runCtx, corr, intent, answer)
 	}
+	k.completeAgentLifecycle(runCtx, corr)
 	return answer, nil
+}
+
+func (k *Kernel) completeAgentLifecycle(ctx context.Context, corr string) {
+	slug := agentSlugFromCtx(ctx)
+	if slug == "" {
+		return
+	}
+	current, ok := k.roster.Get(slug)
+	if !ok || current.Retired {
+		return
+	}
+	lifecycle := current.Lifecycle
+	if shouldRetireAgentAfterComplete(lifecycle) {
+		_, _ = k.SetProfileRetired(slug, true, "completed run "+corr)
+		return
+	}
+	if strings.TrimSpace(lifecycle.Mode) != roster.LifecycleCycle && lifecycle.MaxCycles <= 0 {
+		return
+	}
+	var completed, max int
+	var advanced bool
+	_, found, err := k.UpdateProfile(slug, func(p *roster.Profile) {
+		// Idempotency: one logical run (correlation) advances the cycle exactly
+		// once. RunAssured/RunWithRetry re-invoke RunWith under the SAME corr
+		// (re-running until the work verifies complete / a transient error
+		// clears); each inner success calls here, so without this guard a single
+		// logical run would double-count. The check sits inside the atomic
+		// UpdateProfile, so it is race-free, and the marker is durable across
+		// restarts. A correlation-less completion (corr=="") is never guarded.
+		if corr != "" && strings.TrimSpace(p.Lifecycle.LastCompletedRun) == corr {
+			completed = p.Lifecycle.CompletedCycles
+			max = p.Lifecycle.MaxCycles
+			return
+		}
+		if strings.TrimSpace(p.Lifecycle.Mode) == "" {
+			p.Lifecycle.Mode = roster.LifecycleCycle
+		}
+		p.Lifecycle.CompletedCycles++
+		if corr != "" {
+			p.Lifecycle.LastCompletedRun = corr
+		}
+		resetCompletedCycleTasks(p.TaskList)
+		completed = p.Lifecycle.CompletedCycles
+		max = p.Lifecycle.MaxCycles
+		advanced = true
+	})
+	if err != nil || !found || !advanced {
+		return
+	}
+	_, _ = k.bus.Publish(event.Spec{
+		Subject:       "roster." + slug,
+		Kind:          event.KindRosterUpdated,
+		Actor:         "roster",
+		CorrelationID: corr,
+		Payload: map[string]any{
+			"slug":             slug,
+			"action":           "lifecycle_cycle_completed",
+			"completed_cycles": completed,
+			"max_cycles":       max,
+			"run":              corr,
+		},
+	})
+	if max > 0 && completed >= max {
+		_, _ = k.SetProfileRetired(slug, true, fmt.Sprintf("completed %d/%d cycles on run %s", completed, max, corr))
+	}
+}
+
+// CompleteAgentLifecycle advances the durable lifecycle for a successful
+// non-loop job that ran under an agent profile, such as a scheduled workflow or
+// direct tool target. RunWith calls the private helper itself; external runners
+// should call this only after the job has genuinely succeeded.
+func (k *Kernel) CompleteAgentLifecycle(ctx context.Context, corr string) {
+	k.completeAgentLifecycle(ctx, corr)
+}
+
+func shouldRetireAgentAfterComplete(l roster.AgentLifecycle) bool {
+	return l.RetireOnComplete || strings.TrimSpace(l.Mode) == roster.LifecycleRetireOnComplete
+}
+
+func resetCompletedCycleTasks(tasks []roster.AgentTask) {
+	for i := range tasks {
+		if strings.TrimSpace(tasks[i].Scope) == "cycle" && strings.TrimSpace(tasks[i].Status) == "done" {
+			tasks[i].Status = "todo"
+		}
+	}
+}
+
+func deterministicHeuristicBypass(intent string, now time.Time) (string, bool) {
+	q := strings.ToLower(strings.TrimSpace(strings.Trim(intent, " ?!.\t\r\n")))
+	switch q {
+	case "time", "current time", "what time is it", "what is the time", "saat kac", "saat kaç":
+		return "Current time: " + now.Format(time.RFC3339), true
+	case "date", "today", "today's date", "what is today's date", "bugunun tarihi", "bugünün tarihi":
+		return "Current date: " + now.Format("2006-01-02"), true
+	default:
+		return "", false
+	}
+}
+
+func (k *Kernel) publishHeuristicBypass(ctx context.Context, corr, actor, intent, answer string) error {
+	subject := func(suffix string) string {
+		return fmt.Sprintf("agent.%s.%s", actor, suffix)
+	}
+	publish := func(kind event.Kind, suffix string, payload any) error {
+		_, err := k.bus.Publish(event.Spec{
+			Subject:       subject(suffix),
+			Kind:          kind,
+			Actor:         actor,
+			CorrelationID: corr,
+			Payload:       payload,
+		})
+		return err
+	}
+	if err := publish(event.KindTaskReceived, "task", map[string]any{"intent": intent}); err != nil {
+		return apperrors.Wrap(ctx, "runtime: publish heuristic task.received", err)
+	}
+	if err := publish(event.KindInfo, "heuristic", map[string]any{
+		"bypass": "deterministic",
+		"reason": "known-safe fast path",
+	}); err != nil {
+		return apperrors.Wrap(ctx, "runtime: publish heuristic bypass", err)
+	}
+	if err := publish(event.KindTaskCompleted, "task", map[string]any{
+		"iters":   0,
+		"chars":   len(answer),
+		"stopped": "heuristic_bypass",
+		"answer":  truncateHeuristicAnswer(answer),
+	}); err != nil {
+		return apperrors.Wrap(ctx, "runtime: publish heuristic task.completed", err)
+	}
+	return nil
+}
+
+func truncateHeuristicAnswer(s string) string {
+	const max = 4096
+	if len(s) <= max {
+		return s
+	}
+	return s[:max] + "…[truncated]"
 }
 
 // shadowEvalLimit bounds how many shadow candidates are judged per run, so the

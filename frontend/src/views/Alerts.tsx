@@ -4,7 +4,10 @@ import { useEvents, type AgentEvent } from "@/lib/events";
 import { getJSON } from "@/lib/api";
 import { focusRun } from "@/lib/runfocus";
 import { classifyAlert, type Alert, type AlertLevel } from "@/lib/alerts";
+import { incidentMetaFromEvent, incidentRootId } from "@/lib/incidents";
+import { openIncident } from "@/lib/incidentnav";
 import { cn, fmtTime } from "@/lib/utils";
+import { IncidentBadges } from "@/components/IncidentBadges";
 import { PageHeader } from "@/components/ui/page-header";
 
 const MAX_ALERTS = 100;
@@ -13,7 +16,11 @@ interface AlertRow extends Alert {
   id: string;
   tsMs?: number;
   kind: string;
+  subject?: string;
+  payload?: any;
   correlationId?: string;
+  incidentId?: string;
+  rootIncidentId?: string;
 }
 
 // mergeAlerts combines two alert lists into one newest-first, deduped by id, capped list
@@ -40,7 +47,18 @@ const LEVEL_STYLE: Record<AlertLevel, { ring: string; text: string; icon: typeof
 function rowOf(e: AgentEvent): AlertRow | null {
   const a = classifyAlert(e);
   if (!a) return null;
-  return { ...a, id: e.id || `${e.kind}-${e.seq ?? Math.random()}`, tsMs: e.ts_unix_ms, kind: e.kind || "", correlationId: e.correlation_id };
+  const meta = incidentMetaFromEvent(e);
+  return {
+    ...a,
+    id: e.id || `${e.kind}-${e.seq ?? Math.random()}`,
+    tsMs: e.ts_unix_ms,
+    kind: e.kind || "",
+    subject: e.subject,
+    payload: e.payload,
+    correlationId: e.correlation_id,
+    incidentId: meta.incidentId,
+    rootIncidentId: meta.rootIncidentId,
+  };
 }
 
 // Alerts is the proactive-signal feed: what the daemon flagged ON ITS OWN —
@@ -139,6 +157,15 @@ export function Alerts() {
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <span className="truncate text-sm font-medium">{r.title}</span>
+                      {r.source === "doctor" && (
+                        <IncidentBadges
+                          item={{
+                            subject: r.subject,
+                            phase: r.payload?.phase,
+                            mode: r.payload?.mode,
+                          }}
+                        />
+                      )}
                       <span className="ml-auto shrink-0 text-[10px] tabular-nums text-muted">
                         {r.tsMs ? fmtTime(r.tsMs) : ""}
                       </span>
@@ -147,6 +174,15 @@ export function Alerts() {
                     <div className="mt-0.5 flex items-center gap-2 text-[10px] text-muted">
                       <span className="rounded bg-panel px-1.5 py-0.5 font-medium">{r.source}</span>
                       <span className="font-mono opacity-70">{r.kind}</span>
+                      {incidentRootId(r) && (
+                        <button
+                          onClick={() => openIncident(incidentRootId(r))}
+                          className="font-medium text-accent/80 transition-colors hover:text-accent"
+                          title="Open the doctor incident this alert belongs to"
+                        >
+                          incident →
+                        </button>
+                      )}
                       {r.correlationId && (
                         <button
                           onClick={() => { focusRun(r.correlationId!); location.hash = "runs"; }}

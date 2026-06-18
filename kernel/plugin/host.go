@@ -444,6 +444,15 @@ func (p *Plugin) Tools(prefix string) map[string]agent.Tool {
 				Name:        name,
 				Description: def.Description,
 				InputSchema: def.InputSchema,
+				Effect: agent.ToolEffect{
+					Class: agent.EffectCompensable,
+					PredictedEffects: []string{
+						"Forward this call to an operator-installed plugin process.",
+					},
+					AffectedResources: []string{"plugin process " + p.cfg.Path, "resources reachable by plugin tool " + def.Name},
+					RollbackNotes:     "Compensation depends on the plugin implementation and declared capability; stop or reload the plugin to prevent future calls.",
+					Confidence:        0.45,
+				},
 			},
 			remoteName: def.Name,
 		}

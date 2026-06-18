@@ -10,11 +10,13 @@ import (
 	"io/fs"
 	"net/http"
 	"net/http/httptest"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/agezt/agezt/kernel/bus"
+	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/journal"
 )
@@ -184,6 +186,24 @@ func TestEmbeddedDistPresent(t *testing.T) {
 	}
 }
 
+func TestEmbeddedIndexReferencesExistingAssets(t *testing.T) {
+	s, _ := newServer(t, &fakeCaller{}, "secret")
+	body, err := fs.ReadFile(s.dist, "index.html")
+	if err != nil {
+		t.Fatalf("read index.html: %v", err)
+	}
+	matches := regexp.MustCompile(`/assets/[^"'<> ]+`).FindAllString(string(body), -1)
+	if len(matches) == 0 {
+		t.Fatal("index.html has no /assets/ references")
+	}
+	for _, ref := range matches {
+		name := strings.TrimPrefix(ref, "/")
+		if _, err := fs.Stat(s.dist, name); err != nil {
+			t.Fatalf("index.html references missing asset %s: %v", ref, err)
+		}
+	}
+}
+
 // firstAsset returns the name of one file under dist/assets/ in the embed.FS.
 func firstAsset(t *testing.T, s *Server) string {
 	t.Helper()
@@ -235,6 +255,29 @@ func TestJournalRouteForwardsCorrelationOnly(t *testing.T) {
 	}
 }
 
+func TestScheduleFiresRouteForwardsAllowedFiltersOnly(t *testing.T) {
+	fc := &fakeCaller{result: map[string]any{"fires": []any{}}}
+	s, _ := newServer(t, fc, "secret")
+	req := httptest.NewRequest(http.MethodGet,
+		"/api/schedule/fires?token=secret&limit=5&id=sch-1&status=completed&since_ms=123&intent=nightly&evil=rm", nil)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d want 200", rec.Code)
+	}
+	if len(fc.calls) != 1 || fc.calls[0] != controlplane.CmdScheduleFires {
+		t.Fatalf("expected one schedule_fires call, got %v", fc.calls)
+	}
+	for _, k := range []string{"limit", "id", "status", "since_ms", "intent"} {
+		if fc.lastArgs[k] == "" {
+			t.Fatalf("%s not forwarded: %v", k, fc.lastArgs)
+		}
+	}
+	if _, leaked := fc.lastArgs["evil"]; leaked {
+		t.Fatalf("non-allowlisted arg leaked: %v", fc.lastArgs)
+	}
+}
+
 func TestBudgetRouteProxiesBudget(t *testing.T) {
 	fc := &fakeCaller{result: map[string]any{"spent_mc": 0}}
 	s, _ := newServer(t, fc, "secret")
@@ -246,6 +289,50 @@ func TestBudgetRouteProxiesBudget(t *testing.T) {
 	}
 	if len(fc.calls) != 1 || fc.calls[0] != "budget" {
 		t.Errorf("expected one budget call, got %v", fc.calls)
+	}
+}
+
+func TestConfigCenterListRouteForwardsRating(t *testing.T) {
+	fc := &fakeCaller{result: map[string]any{"entries": []any{}}}
+	s, _ := newServer(t, fc, "secret")
+	req := httptest.NewRequest(http.MethodGet, "/api/configcenter/list?token=secret&rating=secret&evil=x", nil)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d want 200", rec.Code)
+	}
+	if len(fc.calls) != 1 || fc.calls[0] != controlplane.CmdConfigCenterList {
+		t.Fatalf("calls = %v, want configcenter.list", fc.calls)
+	}
+	if fc.lastArgs["rating"] != "secret" {
+		t.Fatalf("rating not forwarded: %v", fc.lastArgs)
+	}
+	if _, leaked := fc.lastArgs["evil"]; leaked {
+		t.Fatalf("non-allowlisted arg leaked: %v", fc.lastArgs)
+	}
+}
+
+func TestConfigCenterSetRouteForwardsAgentAccessLists(t *testing.T) {
+	fc := &fakeCaller{result: map[string]any{"entry": map[string]any{"key": "agent/ops/runtime"}}}
+	s, _ := newServer(t, fc, "secret")
+	body := `{"key":"agent/ops/runtime","value":"mode=careful","rating":"internal","allowed_agents":["ops"],"excluded_agents":["blocked"],"ignored":true}`
+	req := httptest.NewRequest(http.MethodPost, "/api/configcenter/set?token=secret", strings.NewReader(body))
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d want 200 body=%s", rec.Code, rec.Body.String())
+	}
+	if len(fc.calls) != 1 || fc.calls[0] != controlplane.CmdConfigCenterSet {
+		t.Fatalf("calls = %v, want configcenter.set", fc.calls)
+	}
+	if fc.lastArgs["key"] != "agent/ops/runtime" || fc.lastArgs["value"] != "mode=careful" {
+		t.Fatalf("core args not forwarded: %v", fc.lastArgs)
+	}
+	if _, ok := fc.lastArgs["allowed_agents"].([]any); !ok {
+		t.Fatalf("allowed_agents not forwarded as array: %T %v", fc.lastArgs["allowed_agents"], fc.lastArgs)
+	}
+	if _, leaked := fc.lastArgs["ignored"]; leaked {
+		t.Fatalf("non-allowlisted body key leaked: %v", fc.lastArgs)
 	}
 }
 
@@ -476,6 +563,40 @@ func TestSchedulesRouteProxiesScheduleList(t *testing.T) {
 	}
 }
 
+func TestMemoryAuditRouteProxiesAudit(t *testing.T) {
+	fc := &fakeCaller{result: map[string]any{"usable": 1, "expired": 0}}
+	s, _ := newServer(t, fc, "secret")
+	req := httptest.NewRequest(http.MethodGet, "/api/memory/audit?token=secret", nil)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d want 200", rec.Code)
+	}
+	if len(fc.calls) != 1 || fc.calls[0] != controlplane.CmdMemoryAudit {
+		t.Fatalf("expected one memory_audit call, got %v", fc.calls)
+	}
+}
+
+func TestMemoryCleanRouteForwardsDryRunOnly(t *testing.T) {
+	fc := &fakeCaller{result: map[string]any{"dry_run": true, "rejected": 0}}
+	s, _ := newServer(t, fc, "secret")
+	req := httptest.NewRequest(http.MethodPost, "/api/memory/clean?token=secret&dry_run=false&evil=1", nil)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d want 200", rec.Code)
+	}
+	if len(fc.calls) != 1 || fc.calls[0] != controlplane.CmdMemoryClean {
+		t.Fatalf("expected one memory_clean call, got %v", fc.calls)
+	}
+	if fc.lastArgs["dry_run"] != "false" {
+		t.Fatalf("dry_run not forwarded: %v", fc.lastArgs)
+	}
+	if _, leaked := fc.lastArgs["evil"]; leaked {
+		t.Fatalf("non-allowlisted arg leaked: %v", fc.lastArgs)
+	}
+}
+
 func TestRunsRouteProxiesRunsList(t *testing.T) {
 	fc := &fakeCaller{result: map[string]any{"runs": []any{}}}
 	s, _ := newServer(t, fc, "secret")
@@ -553,7 +674,7 @@ func TestAPIReadOnly(t *testing.T) {
 	// Every GET /api route must map to a read-only command — assert the proxy
 	// never issues anything outside the known read set.
 	readOnly := map[string]bool{
-		"status": true, "config": true, "runs_list": true, "runs_stats": true, "budget": true, "cache_stats": true, "provider_stats": true, "tool_stats": true, "edict_stats": true, "schedule_list": true, "memory_list": true, "world_list": true,
+		"status": true, "config": true, "runs_list": true, "runs_stats": true, "budget": true, "cache_stats": true, "provider_stats": true, "tool_stats": true, "edict_stats": true, "schedule_list": true, "schedule_system_tasks": true, "memory_list": true, "memory_audit": true, "world_list": true,
 		"skill_list": true, "standing_list": true, "agent_list": true, "toolforge_list": true, "mcp_list": true, "workflow_list": true, "workflow_templates": true, "inbox": true, "reflect_show": true, "approvals": true,
 		"plan_stats": true, "edict_show": true, "tool_list": true, "board_read": true, "autonomy_feed": true,
 		"catalog_list": true, "sandbox_list": true,
@@ -1052,6 +1173,142 @@ func TestFlowGenerateForwardsBodyKeys(t *testing.T) {
 	}
 	if fc.lastArgs["intent"] != "ship the release" || fc.lastArgs["model"] != "sonnet" {
 		t.Errorf("body keys not forwarded: %v", fc.lastArgs)
+	}
+	if _, leaked := fc.lastArgs["evil"]; leaked {
+		t.Errorf("non-allowlisted body key leaked through: %v", fc.lastArgs)
+	}
+}
+
+func TestBoardSendJSONRouteForwardsMailboxBody(t *testing.T) {
+	fc := &fakeCaller{result: map[string]any{"sent": map[string]any{"id": "m1"}}}
+	s, _ := newServer(t, fc, "secret")
+	body := `{"from":"operator","to":"researcher","topic":"dm","text":"wake up","help":true,"evil":"x"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/board/send?token=secret", strings.NewReader(body))
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d want 200", rec.Code)
+	}
+	if len(fc.calls) != 1 || fc.calls[0] != controlplane.CmdBoardSend {
+		t.Fatalf("expected one board_send call, got %v", fc.calls)
+	}
+	for k, want := range map[string]any{"from": "operator", "to": "researcher", "topic": "dm", "text": "wake up", "help": true} {
+		if fc.lastArgs[k] != want {
+			t.Errorf("%s not forwarded: got %v want %v", k, fc.lastArgs[k], want)
+		}
+	}
+	if _, leaked := fc.lastArgs["evil"]; leaked {
+		t.Errorf("non-allowlisted body key leaked through: %v", fc.lastArgs)
+	}
+}
+
+func TestAgentWakeAndRepairJSONRoutesForwardIncidentBody(t *testing.T) {
+	for _, tc := range []struct {
+		path string
+		cmd  string
+		body string
+	}{
+		{
+			path: "/api/agents/wake",
+			cmd:  controlplane.CmdAgentWake,
+			body: `{"ref":"lead","intent":"wake now","reason":"incident ownership","incident_id":"inc-child","root_incident_id":"inc-root","parent_incident_id":"inc-parent","evil":"x"}`,
+		},
+		{
+			path: "/api/agents/repair",
+			cmd:  controlplane.CmdAgentRepair,
+			body: `{"ref":"builder","reason":"doctor rerun","incident_id":"inc-child","root_incident_id":"inc-root","parent_incident_id":"inc-parent","evil":"x"}`,
+		},
+	} {
+		fc := &fakeCaller{result: map[string]any{"accepted": true}}
+		s, _ := newServer(t, fc, "secret")
+		req := httptest.NewRequest(http.MethodPost, tc.path+"?token=secret", strings.NewReader(tc.body))
+		rec := httptest.NewRecorder()
+		s.Handler().ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("%s status = %d want 200", tc.path, rec.Code)
+		}
+		if len(fc.calls) != 1 || fc.calls[0] != tc.cmd {
+			t.Fatalf("%s expected one %s call, got %v", tc.path, tc.cmd, fc.calls)
+		}
+		if _, leaked := fc.lastArgs["evil"]; leaked {
+			t.Fatalf("%s leaked unexpected body key: %v", tc.path, fc.lastArgs)
+		}
+		if fc.lastArgs["root_incident_id"] != "inc-root" || fc.lastArgs["incident_id"] != "inc-child" {
+			t.Fatalf("%s incident args not forwarded: %v", tc.path, fc.lastArgs)
+		}
+	}
+}
+
+func TestAgentRemoveJSONRouteForwardsCascadeBody(t *testing.T) {
+	fc := &fakeCaller{result: map[string]any{"removed": true}}
+	s, _ := newServer(t, fc, "secret")
+	body := `{"ref":"ops","cascade":{"standing":true,"schedules":true,"memory":false,"skills":true},"evil":"x"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/agents/remove?token=secret", strings.NewReader(body))
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d want 200", rec.Code)
+	}
+	if len(fc.calls) != 1 || fc.calls[0] != controlplane.CmdAgentRemove {
+		t.Fatalf("expected one agent_remove call, got %v", fc.calls)
+	}
+	if fc.lastArgs["ref"] != "ops" {
+		t.Fatalf("ref not forwarded: %v", fc.lastArgs)
+	}
+	cascade, _ := fc.lastArgs["cascade"].(map[string]any)
+	if cascade["standing"] != true || cascade["schedules"] != true || cascade["memory"] != false || cascade["skills"] != true {
+		t.Fatalf("cascade not forwarded: %v", fc.lastArgs)
+	}
+	if _, leaked := fc.lastArgs["evil"]; leaked {
+		t.Fatalf("unexpected body key leaked: %v", fc.lastArgs)
+	}
+}
+
+func TestStandingEditJSONRouteForwardsCooldown(t *testing.T) {
+	fc := &fakeCaller{result: map[string]any{"updated": true}}
+	s, _ := newServer(t, fc, "secret")
+	body := `{"id":"so-1","name":"watch","plan":"p","assure":2,"cooldown_sec":1800,"evil":"x"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/standing/edit?token=secret", strings.NewReader(body))
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d want 200", rec.Code)
+	}
+	if len(fc.calls) != 1 || fc.calls[0] != controlplane.CmdStandingEdit {
+		t.Fatalf("expected one standing_edit call, got %v", fc.calls)
+	}
+	if fc.lastArgs["cooldown_sec"] != float64(1800) || fc.lastArgs["assure"] != float64(2) {
+		t.Fatalf("numeric args not forwarded: %v", fc.lastArgs)
+	}
+	if _, leaked := fc.lastArgs["evil"]; leaked {
+		t.Fatalf("unexpected body key leaked: %v", fc.lastArgs)
+	}
+}
+
+func TestScheduleJSONRouteForwardsAgentWorkflowAndSystemTaskTarget(t *testing.T) {
+	fc := &fakeCaller{result: map[string]any{"ok": true}}
+	s, _ := newServer(t, fc, "secret")
+	body := `{"intent":"workflow nightly","agent":"ops","target":"workflow","workflow":"nightly","system_task":"catalog_sync","payload":{"mode":"full"},"interval_sec":3600,"evil":"x"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/schedule/add?token=secret", strings.NewReader(body))
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d want 200", rec.Code)
+	}
+	if len(fc.calls) != 1 || fc.calls[0] != controlplane.CmdScheduleAdd {
+		t.Fatalf("expected one schedule_add call, got %v", fc.calls)
+	}
+	if fc.lastArgs["agent"] != "ops" || fc.lastArgs["target"] != "workflow" || fc.lastArgs["workflow"] != "nightly" || fc.lastArgs["system_task"] != "catalog_sync" {
+		t.Fatalf("schedule target args not forwarded: %v", fc.lastArgs)
+	}
+	payload, _ := fc.lastArgs["payload"].(map[string]any)
+	if payload["mode"] != "full" {
+		t.Fatalf("payload not forwarded: %v", fc.lastArgs["payload"])
 	}
 	if _, leaked := fc.lastArgs["evil"]; leaked {
 		t.Errorf("non-allowlisted body key leaked through: %v", fc.lastArgs)

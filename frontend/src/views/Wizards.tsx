@@ -69,7 +69,7 @@ function ScheduleWizard({ onClose }: { onClose: () => void }) {
   const ui = useUI();
   const [done, setDone] = useState(false);
   if (done) {
-    return <DoneState message="Schedule created — it will run on its cadence." onAnother={() => setDone(false)} onClose={onClose} />;
+    return <DoneState message="Schedule created — cron will trigger its selected target." onAnother={() => setDone(false)} onClose={onClose} />;
   }
   return (
     <NewScheduleForm
@@ -188,7 +188,7 @@ const WIZARDS: WizardDef[] = [
   {
     id: "schedule",
     title: "Schedule a task",
-    desc: "Have the daemon run an instruction on a cadence — every N minutes, daily, or once.",
+    desc: "Create a cron trigger for an agent wake, workflow, system task, or tool call.",
     icon: CalendarClock,
     hue: "#34d399",
     render: (close) => <ScheduleWizard onClose={close} />,
@@ -204,7 +204,7 @@ const WIZARDS: WizardDef[] = [
   {
     id: "standing",
     title: "Add a standing order",
-    desc: "Give the daemon a persistent goal that fires on a schedule or an event trigger.",
+    desc: "Create a durable standing order that can wake an agent from a schedule, event, or channel trigger.",
     icon: Anchor,
     hue: "#fbbf24",
     render: (close) => <StandingWizard onClose={close} />,

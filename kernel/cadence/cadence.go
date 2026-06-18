@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: MIT
 
-// Package cadence is the scheduled-intents subsystem (autonomy): it fires
-// intents on a recurring timer through the normal governed kernel loop, so the
-// system acts on its own ("every morning, summarise new commits and brief me")
-// rather than only reacting. It is the timer companion to Pulse's event-driven
-// proactivity.
+// Package cadence is the typed schedule subsystem (autonomy): it wakes agent
+// tasks, workflows, daemon maintenance tasks, or approved tools on recurring,
+// one-shot, daily, or continuous cadences. It is the timer companion to Pulse's
+// event-driven proactivity.
 //
 // Schedules live in a persistent Store (survives restarts) and are managed by
 // the operator over the control plane (`agt schedule add|list|rm|run`).
@@ -12,7 +11,7 @@
 // startup (source="env"), so both paths share one source of truth. The Engine
 // ticks, asks the Store which entries are due, and fires each through a RunFunc;
 // a still-running entry is skipped (no overlap). Every firing is journaled
-// (schedule.fired) and the run it launches is governed exactly like `agt run`.
+// (schedule.fired), and target execution is attributed back to that schedule.
 package cadence
 
 import (
@@ -44,6 +43,121 @@ const (
 	SourceEnv      = "env"
 )
 
+// Target values distinguish what a schedule fires. The zero value is the
+// historical governed agent/intent run, so old stores keep working unchanged.
+const (
+	TargetIntent     = ""
+	TargetWorkflow   = "workflow"
+	TargetSystemTask = "system_task"
+	TargetTool       = "tool"
+)
+
+const (
+	SystemTaskCatalogSync     = "catalog_sync"
+	SystemTaskArtifactCollect = "artifact_collect"
+	SystemTaskMemoryClean     = "memory_clean"
+	SystemTaskMemoryTidy      = "memory_tidy"
+	SystemTaskLogClean        = "log_clean"
+	SystemTaskGraveyardScan   = "graveyard_scan"
+)
+
+type SystemTaskInfo struct {
+	Name                   string `json:"name"`
+	Label                  string `json:"label"`
+	Description            string `json:"description"`
+	Category               string `json:"category,omitempty"`
+	Executor               string `json:"executor,omitempty"`
+	UsesLLM                bool   `json:"uses_llm"`
+	EffectClass            string `json:"effect_class,omitempty"`
+	Effect                 string `json:"effect,omitempty"`
+	RecommendedIntervalSec int64  `json:"recommended_interval_sec,omitempty"`
+}
+
+var systemTaskInfos = []SystemTaskInfo{
+	{
+		Name:                   SystemTaskCatalogSync,
+		Label:                  "Catalog sync",
+		Description:            "Download the models.dev catalog, persist it, and reload provider/model metadata.",
+		Category:               "catalog",
+		Executor:               "daemon",
+		EffectClass:            "config_update",
+		Effect:                 "Refreshes provider/model metadata from models.dev/api.json without waking an LLM agent.",
+		RecommendedIntervalSec: 24 * 3600,
+	},
+	{
+		Name:                   SystemTaskArtifactCollect,
+		Label:                  "Artifact collect",
+		Description:            "Index offloaded run artifacts so autonomous work remains searchable and inspectable.",
+		Category:               "storage",
+		Executor:               "daemon",
+		EffectClass:            "local_index",
+		Effect:                 "Indexes local run artifacts as a typed daemon job; no agent identity is woken.",
+		RecommendedIntervalSec: 6 * 3600,
+	},
+	{
+		Name:                   SystemTaskMemoryClean,
+		Label:                  "Memory clean",
+		Description:            "Run memory maintenance and publish a compact maintenance summary.",
+		Category:               "memory",
+		Executor:               "daemon",
+		EffectClass:            "memory_maintenance",
+		Effect:                 "Runs memory maintenance as a typed daemon task rather than an agent wake.",
+		RecommendedIntervalSec: 24 * 3600,
+	},
+	{
+		Name:                   SystemTaskMemoryTidy,
+		Label:                  "Memory tidy",
+		Description:            "Run lightweight memory hygiene without waking an LLM agent.",
+		Category:               "memory",
+		Executor:               "daemon",
+		EffectClass:            "memory_maintenance",
+		Effect:                 "Runs lightweight memory hygiene without waking an LLM agent.",
+		RecommendedIntervalSec: 12 * 3600,
+	},
+	{
+		Name:                   SystemTaskLogClean,
+		Label:                  "Log clean",
+		Description:            "Inspect journal/log pressure and publish a compact maintenance summary.",
+		Category:               "logs",
+		Executor:               "daemon",
+		EffectClass:            "log_maintenance",
+		Effect:                 "Scans durable journal/log pressure without waking an LLM agent; physical deletion stays disabled for hash-chain safety.",
+		RecommendedIntervalSec: 24 * 3600,
+	},
+	{
+		Name:                   SystemTaskGraveyardScan,
+		Label:                  "Graveyard scan",
+		Description:            "Report retired agents past the configured retention window. Notify-only — it never archives or deletes.",
+		Category:               "graveyard",
+		Executor:               "daemon",
+		EffectClass:            "report_only",
+		Effect:                 "Lists graveyard identities older than the retention window and journals an eligibility report; removal stays an explicit operator action (no auto-deletion).",
+		RecommendedIntervalSec: 24 * 3600,
+	},
+}
+
+func SystemTasks() []string {
+	out := make([]string, 0, len(systemTaskInfos))
+	for _, task := range systemTaskInfos {
+		out = append(out, task.Name)
+	}
+	return out
+}
+
+func SystemTaskInfos() []SystemTaskInfo {
+	return append([]SystemTaskInfo(nil), systemTaskInfos...)
+}
+
+func IsSystemTask(task string) bool {
+	task = strings.TrimSpace(task)
+	for _, known := range systemTaskInfos {
+		if task == known.Name {
+			return true
+		}
+	}
+	return false
+}
+
 // Scheduling modes. The zero value ("") is ModeInterval for backward
 // compatibility with stores written before daily scheduling existed.
 const (
@@ -69,20 +183,26 @@ const AllDays = 0x7F
 // be restricted to certain weekdays via Days (a bitmask over time.Weekday, bit
 // Sunday=0 .. Saturday=6); Days==0 (or AllDays) means every day.
 type Entry struct {
-	ID          string `json:"id"`
-	Intent      string `json:"intent"`
-	Mode        string `json:"mode,omitempty"`
-	IntervalSec int64  `json:"interval_sec,omitempty"`
-	AtMinutes   int    `json:"at_minutes,omitempty"`  // daily/window: minutes since local midnight (window: start)
-	EndMinutes  int    `json:"end_minutes,omitempty"` // window: window end, minutes since local midnight
-	Days        int    `json:"days,omitempty"`        // daily/window: weekday bitmask (0/AllDays = every day)
-	TZ          string `json:"tz,omitempty"`          // daily/window: IANA zone for the wall-clock time (empty = daemon local)
-	Model       string `json:"model,omitempty"`
-	Source      string `json:"source"`
-	Enabled     bool   `json:"enabled"`
-	CreatedUnix int64  `json:"created_unix"`
-	LastRunUnix int64  `json:"last_run_unix,omitempty"`
-	NextRunUnix int64  `json:"next_run_unix"`
+	ID          string          `json:"id"`
+	Intent      string          `json:"intent"`
+	Mode        string          `json:"mode,omitempty"`
+	IntervalSec int64           `json:"interval_sec,omitempty"`
+	AtMinutes   int             `json:"at_minutes,omitempty"`  // daily/window: minutes since local midnight (window: start)
+	EndMinutes  int             `json:"end_minutes,omitempty"` // window: window end, minutes since local midnight
+	Days        int             `json:"days,omitempty"`        // daily/window: weekday bitmask (0/AllDays = every day)
+	TZ          string          `json:"tz,omitempty"`          // daily/window: IANA zone for the wall-clock time (empty = daemon local)
+	Model       string          `json:"model,omitempty"`
+	Agent       string          `json:"agent,omitempty"` // optional roster slug to run this firing AS
+	Target      string          `json:"target,omitempty"`
+	Workflow    string          `json:"workflow,omitempty"` // workflow ref/name when TargetWorkflow
+	SystemTask  string          `json:"system_task,omitempty"`
+	Tool        string          `json:"tool,omitempty"`    // registered tool name when TargetTool
+	Payload     json.RawMessage `json:"payload,omitempty"` // workflow trigger payload
+	Source      string          `json:"source"`
+	Enabled     bool            `json:"enabled"`
+	CreatedUnix int64           `json:"created_unix"`
+	LastRunUnix int64           `json:"last_run_unix,omitempty"`
+	NextRunUnix int64           `json:"next_run_unix"`
 	// Fires counts completed firings — the heartbeat of the entry. For a
 	// continuous loop it is the number of cycles the loop has lived through; for
 	// a recurring entry, how many times it has run. Incremented once per run at
@@ -678,10 +798,119 @@ func (s *Store) SetModel(id, model string) (bool, error) {
 	return false, nil
 }
 
+// SetAgent changes the roster agent binding in place (empty clears it). Returns
+// whether the entry exists. The caller validates that a non-empty slug exists.
+func (s *Store) SetAgent(id, agent string) (bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, e := range s.entries {
+		if e.ID == id {
+			e.Agent = strings.TrimSpace(agent)
+			return true, s.save()
+		}
+	}
+	return false, nil
+}
+
+// SetIntentTarget restores the historical LLM intent target and clears
+// target-specific fields.
+func (s *Store) SetIntentTarget(id string) (bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, e := range s.entries {
+		if e.ID == id {
+			e.Target = TargetIntent
+			e.Workflow = ""
+			e.SystemTask = ""
+			e.Tool = ""
+			e.Payload = nil
+			return true, s.save()
+		}
+	}
+	return false, nil
+}
+
+// SetWorkflowTarget makes an entry fire a stored workflow instead of a governed
+// agent/intent run. The caller validates the workflow ref exists. Agent binding
+// is intentionally preserved: a workflow schedule may run under an agent's
+// identity, budget, and tool policy.
+func (s *Store) SetWorkflowTarget(id, ref string, payload json.RawMessage) (bool, error) {
+	ref = strings.TrimSpace(ref)
+	if ref == "" {
+		return false, fmt.Errorf("cadence: workflow ref is required")
+	}
+	cp := append(json.RawMessage(nil), payload...)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, e := range s.entries {
+		if e.ID == id {
+			e.Target = TargetWorkflow
+			e.Workflow = ref
+			e.SystemTask = ""
+			e.Tool = ""
+			e.Payload = cp
+			return true, s.save()
+		}
+	}
+	return false, nil
+}
+
+// SetSystemTaskTarget makes an entry fire a daemon maintenance task instead of
+// an LLM intent. The caller validates task names against the daemon whitelist.
+func (s *Store) SetSystemTaskTarget(id, task string) (bool, error) {
+	task = strings.TrimSpace(task)
+	if task == "" {
+		return false, fmt.Errorf("cadence: system task is required")
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, e := range s.entries {
+		if e.ID == id {
+			e.Target = TargetSystemTask
+			e.SystemTask = task
+			e.Workflow = ""
+			e.Tool = ""
+			e.Payload = nil
+			e.Agent = ""
+			e.Model = ""
+			return true, s.save()
+		}
+	}
+	return false, nil
+}
+
+// SetToolTarget makes an entry invoke a registered tool directly instead of
+// asking an LLM to interpret an intent. The caller validates the tool exists.
+// Agent binding is preserved so a tool schedule can run under that agent's
+// permissions and spend limits; model overrides are cleared because direct
+// tool invocations do not select an LLM.
+func (s *Store) SetToolTarget(id, tool string, payload json.RawMessage) (bool, error) {
+	tool = strings.TrimSpace(tool)
+	if tool == "" {
+		return false, fmt.Errorf("cadence: tool is required")
+	}
+	cp := append(json.RawMessage(nil), payload...)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, e := range s.entries {
+		if e.ID == id {
+			e.Target = TargetTool
+			e.Tool = tool
+			e.Workflow = ""
+			e.SystemTask = ""
+			e.Payload = cp
+			e.Model = ""
+			return true, s.save()
+		}
+	}
+	return false, nil
+}
+
 // Reschedule replaces an entry's cadence in place (preserving id/source/created/
 // enabled), recomputing its next-run time. mode selects which of the cadence
-// parameters apply: ModeOnce → onceAt; ModeDaily → atMinutes+days; ModeInterval
-// → interval. Returns whether the entry exists.
+// parameters apply: ModeOnce → onceAt; ModeDaily → atMinutes+days; ModeWindow
+// → interval+window; ModeContinuous → completion cooldown; ModeInterval →
+// interval. Returns whether the entry exists.
 func (s *Store) Reschedule(id, mode string, interval time.Duration, atMinutes, endMinutes, days int, tz string, onceAt, now time.Time) (bool, error) {
 	zoned, err := applyZone(now, tz)
 	if err != nil {
@@ -720,6 +949,14 @@ func (s *Store) Reschedule(id, mode string, interval time.Duration, atMinutes, e
 			e.IntervalSec = int64(interval / time.Second)
 			e.AtMinutes, e.EndMinutes, e.Days, e.TZ = atMinutes, endMinutes, days, strings.TrimSpace(tz)
 			e.NextRunUnix = nextWindowSlot(zoned, atMinutes, endMinutes, e.IntervalSec, days).Unix()
+		case ModeContinuous:
+			if interval < MinInterval {
+				return false, fmt.Errorf("cadence: cooldown %s is below the %s minimum", interval, MinInterval)
+			}
+			e.Mode = ModeContinuous
+			e.AtMinutes, e.EndMinutes, e.Days, e.TZ = 0, 0, 0, ""
+			e.IntervalSec = int64(interval / time.Second)
+			e.NextRunUnix = now.Unix()
 		default: // ModeInterval
 			if interval < MinInterval {
 				return false, fmt.Errorf("cadence: interval %s is below the %s minimum", interval, MinInterval)
@@ -943,10 +1180,11 @@ func (s *Store) save() error {
 
 // --- Engine ---
 
-// RunFunc executes one scheduled intent through the governed loop. The engine
+// RunFunc executes one due schedule through the target dispatcher. The engine
 // calls it on its own goroutine; a returned error is logged, not fatal. id is
 // the firing schedule's entry id (M55) so the caller can attribute the run to
-// its schedule (e.g. stamp it on the schedule.fired event).
+// its schedule (e.g. stamp it on the schedule.fired event). intent is kept for
+// the legacy agent-task label and for backward-compatible stores.
 type RunFunc func(ctx context.Context, id, intent, model string) error
 
 // Engine fires the store's due entries on a timer.
@@ -966,13 +1204,16 @@ type Engine struct {
 	RunTimeout time.Duration
 
 	// Bus, when set before Start, receives an anomaly.detected WARNING each
-	// time a schedule whose intent trips the injection scan fires (M886). The
-	// schedule still runs — default-allow; the tripwire makes an unattended
-	// suspicious automation visible to the alerter/cockpit, it never gates.
+	// time a legacy agent/intent schedule trips the injection scan (M886). The
+	// schedule still runs — default-allow; the tripwire makes unattended
+	// suspicious agent-task text visible to the alerter/cockpit, it never gates.
+	// Typed workflow/system-task/tool labels are metadata, so they are not
+	// prompt-injection scanned.
 	Bus *bus.Bus
 
 	running sync.Map // entry ID -> struct{} while a run is in flight
 	mu      sync.Mutex
+	wg      sync.WaitGroup
 	started bool
 }
 
@@ -998,9 +1239,11 @@ func (e *Engine) Start(ctx context.Context) {
 		return
 	}
 	e.started = true
+	e.wg.Add(1)
 	e.mu.Unlock()
 
 	go func() {
+		defer e.wg.Done()
 		t := time.NewTicker(e.res)
 		defer t.Stop()
 		for {
@@ -1012,6 +1255,46 @@ func (e *Engine) Start(ctx context.Context) {
 			}
 		}
 	}()
+}
+
+// Wait blocks until the Start loop has observed cancellation and exited. It does
+// not wait for already-fired schedule runs; those are intentionally independent
+// and bounded by the engine's in-flight guard and optional RunTimeout.
+func (e *Engine) Wait() {
+	e.wg.Wait()
+}
+
+// RunningCount returns how many schedule firings are currently executing. It is
+// intentionally small and race-safe so doctor/UI surfaces can distinguish "the
+// engine is asleep" from "the engine has work in flight".
+func (e *Engine) RunningCount() int {
+	c := 0
+	e.running.Range(func(_, _ any) bool {
+		c++
+		return true
+	})
+	return c
+}
+
+// WaitIdle blocks until no schedule firing is in flight or ctx is cancelled.
+// It is an observation helper, not a kill switch: hung work should still be
+// bounded with RunTimeout.
+func (e *Engine) WaitIdle(ctx context.Context) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	t := time.NewTicker(5 * time.Millisecond)
+	defer t.Stop()
+	for {
+		if e.RunningCount() == 0 {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-t.C:
+		}
+	}
 }
 
 // fireDue launches every due entry that is not already running. Tested directly
@@ -1041,11 +1324,17 @@ func (e *Engine) fireOne(ctx context.Context, ent Entry) {
 		}
 	}()
 	fmt.Fprintf(e.log, "schedule: firing %q (%s)\n", short(ent.Intent), ent.Cadence())
-	// Injection tripwire (M886): journal a warning when the intent looks like
-	// a prompt-injection payload, then fire anyway (default-allow). Scanned at
-	// fire time — the single choke point every creation path funnels through,
-	// including schedules that predate the scan.
-	if markers := SuspiciousIntent(ent.Intent); len(markers) > 0 {
+	// Injection tripwire (M886): journal a warning when legacy agent-task text
+	// looks like a prompt-injection payload, then fire anyway (default-allow).
+	// Scanned at fire time — the single choke point every creation path funnels
+	// through, including schedules that predate the scan. Typed targets keep
+	// their executable semantics outside the schedule label, so scanning them
+	// would create noise without reducing prompt risk.
+	var markers []string
+	if ent.Target == TargetIntent {
+		markers = SuspiciousIntent(ent.Intent)
+	}
+	if len(markers) > 0 {
 		fmt.Fprintf(e.log, "schedule: %q trips injection markers %v (firing anyway)\n", short(ent.Intent), markers)
 		if e.Bus != nil {
 			_, _ = e.Bus.Publish(event.Spec{
@@ -1083,7 +1372,7 @@ func (e *Engine) fireOne(ctx context.Context, ent Entry) {
 func short(s string) string {
 	s = strings.TrimSpace(s)
 	// Truncate on a rune boundary (48 characters, not bytes) so a multi-byte
-	// rune — e.g. a Turkish ç/ş/ğ in a schedule intent — is never split into
+	// rune — e.g. a Turkish ç/ş/ğ in a schedule label — is never split into
 	// invalid UTF-8 in the log / `describe` output.
 	if r := []rune(s); len(r) > 48 {
 		return string(r[:48]) + "…"
@@ -1093,11 +1382,11 @@ func short(s string) string {
 
 // --- env parsing ---
 
-// ParseJobs parses the AGEZT_SCHEDULE spec: a semicolon-separated list of jobs
-// (semicolon, not comma, because intents commonly contain commas), each
-// "interval=intent". The interval is a Go duration (e.g. 30m, 1h, 24h); the
-// intent is the rest of the entry verbatim. A malformed entry is a hard error so
-// a misconfigured schedule is caught at startup, not silently dropped.
+// ParseJobs parses the legacy AGEZT_SCHEDULE spec: a semicolon-separated list
+// of jobs (semicolon, not comma, because labels commonly contain commas), each
+// "interval=agent-task". The interval is a Go duration (e.g. 30m, 1h, 24h); the
+// task label is the rest of the entry verbatim. A malformed entry is a hard
+// error so a misconfigured schedule is caught at startup, not silently dropped.
 func ParseJobs(spec string) ([]Job, error) {
 	spec = strings.TrimSpace(spec)
 	if spec == "" {
@@ -1111,7 +1400,7 @@ func ParseJobs(spec string) ([]Job, error) {
 		}
 		durStr, intent, ok := strings.Cut(entry, "=")
 		if !ok {
-			return nil, fmt.Errorf("cadence: entry %q must be interval=intent", entry)
+			return nil, fmt.Errorf("cadence: entry %q must be interval=agent-task", entry)
 		}
 		d, err := time.ParseDuration(strings.TrimSpace(durStr))
 		if err != nil {

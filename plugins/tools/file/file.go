@@ -102,6 +102,16 @@ func (t *Tool) Definition() agent.ToolDef {
 		Description: "Read, write, list, search, and edit files in the workspace. " +
 			"All paths are relative to the workspace root; absolute paths or `..` " +
 			"escape are rejected. Prefer `replace` for small edits over rewriting a whole file.",
+		Effect: agent.ToolEffect{
+			Class: agent.EffectReversible,
+			PredictedEffects: []string{
+				"read workspace files for read/list/search/stat/glob operations",
+				"mutate workspace files for write/append/delete/replace operations",
+			},
+			AffectedResources: []string{"workspace files under " + t.root},
+			RollbackNotes:     "Read-only file operations need no rollback. Mutating operations can be reverted from version control, backups, or the journaled file path/content trail when available.",
+			Confidence:        0.85,
+		},
 		InputSchema: json.RawMessage(`{
   "type": "object",
   "required": ["op"],
@@ -218,13 +228,13 @@ func (t *Tool) doRead(in fileInput) (agent.Result, error) {
 		}
 		out := fmt.Sprintf("[file truncated: showing first %d of %d bytes]\n%s",
 			len(buf), info.Size(), string(buf))
-		return agent.Result{Output: out}, nil
+		return fileObservation(in.Path, out), nil
 	}
 	data, err := os.ReadFile(p)
 	if err != nil {
 		return errResult("read: " + err.Error()), nil
 	}
-	return agent.Result{Output: string(data)}, nil
+	return fileObservation(in.Path, string(data)), nil
 }
 
 // defaultReadRangeLines is the window size when only start_line is given.
@@ -291,7 +301,7 @@ func (t *Tool) doReadRange(in fileInput, p string) (agent.Result, error) {
 	if truncated {
 		header += " [truncated at byte cap]"
 	}
-	return agent.Result{Output: header + "\n" + b.String()}, nil
+	return fileObservation(in.Path, header+"\n"+b.String()), nil
 }
 
 func (t *Tool) doWrite(in fileInput, appendMode bool) (agent.Result, error) {
@@ -495,7 +505,7 @@ func (t *Tool) doList(in fileInput) (agent.Result, error) {
 	if err != nil {
 		return errResult("marshal: " + err.Error()), nil
 	}
-	return agent.Result{Output: string(body)}, nil
+	return fileObservation(target, string(body)), nil
 }
 
 func (t *Tool) doSearch(in fileInput) (agent.Result, error) {
@@ -580,7 +590,7 @@ func (t *Tool) doSearch(in fileInput) (agent.Result, error) {
 	if err != nil {
 		return errResult("marshal: " + err.Error()), nil
 	}
-	return agent.Result{Output: string(body)}, nil
+	return fileObservation(target, string(body)), nil
 }
 
 // doGlob finds files whose NAME matches a shell pattern (*, ?, [..]) anywhere
@@ -646,7 +656,7 @@ func (t *Tool) doGlob(in fileInput) (agent.Result, error) {
 	if err != nil {
 		return errResult("marshal: " + err.Error()), nil
 	}
-	return agent.Result{Output: string(body)}, nil
+	return fileObservation(target, string(body)), nil
 }
 
 func (t *Tool) doStat(in fileInput) (agent.Result, error) {
@@ -665,7 +675,7 @@ func (t *Tool) doStat(in fileInput) (agent.Result, error) {
 		"mode":     info.Mode().String(),
 		"mod_time": info.ModTime().UTC().Format("2006-01-02T15:04:05Z"),
 	}, "", "  ")
-	return agent.Result{Output: string(body)}, nil
+	return fileObservation(in.Path, string(body)), nil
 }
 
 func (t *Tool) doDelete(in fileInput) (agent.Result, error) {
@@ -809,4 +819,16 @@ func withinRoot(root, child string) bool {
 
 func errResult(msg string) agent.Result {
 	return agent.Result{Output: msg, IsError: true}
+}
+
+func fileObservation(path, output string) agent.Result {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		path = "."
+	}
+	return agent.Result{
+		Output:            output,
+		ObservationTrust:  agent.ObservationUntrusted,
+		ObservationSource: "workspace:" + filepath.ToSlash(path),
+	}
 }

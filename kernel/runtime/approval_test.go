@@ -5,6 +5,7 @@ package runtime_test
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -14,6 +15,7 @@ import (
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/plugins/providers/mock"
+	"github.com/agezt/agezt/plugins/tools/shell"
 )
 
 // probeTool is a side-effect-free tool used to exercise the live-approval path
@@ -28,6 +30,13 @@ func (probeTool) Definition() agent.ToolDef {
 		Name:        "approvalprobe",
 		Description: "test probe (no side effects)",
 		InputSchema: json.RawMessage(`{"type":"object","properties":{}}`),
+		Effect: agent.ToolEffect{
+			Class:             agent.EffectIrreversible,
+			PredictedEffects:  []string{"perform approval probe action"},
+			AffectedResources: []string{"resource:approvalprobe"},
+			RollbackNotes:     "probe action has no rollback",
+			Confidence:        0.42,
+		},
 	}
 }
 
@@ -103,6 +112,18 @@ func TestRunWith_ApprovalGrantedRunsTool(t *testing.T) {
 	if req.ToolName != "approvalprobe" || req.Capability != "approvalprobe" {
 		t.Errorf("pending request = {tool:%q cap:%q}, want approvalprobe/approvalprobe", req.ToolName, req.Capability)
 	}
+	if req.EffectClass != string(agent.EffectIrreversible) {
+		t.Errorf("effect class=%q want irreversible", req.EffectClass)
+	}
+	if len(req.PredictedEffects) != 1 || req.PredictedEffects[0] != "perform approval probe action" {
+		t.Errorf("predicted effects=%v", req.PredictedEffects)
+	}
+	if len(req.AffectedResources) != 1 || req.AffectedResources[0] != "resource:approvalprobe" {
+		t.Errorf("affected resources=%v", req.AffectedResources)
+	}
+	if req.RollbackNotes != "probe action has no rollback" || req.Confidence != 0.42 {
+		t.Errorf("bundle rollback/confidence = %q/%v", req.RollbackNotes, req.Confidence)
+	}
 	if err := reg.Resolve(req.ID, approval.DecisionGrant, "ok by op", "operator"); err != nil {
 		t.Fatalf("Resolve: %v", err)
 	}
@@ -120,6 +141,60 @@ func TestRunWith_ApprovalGrantedRunsTool(t *testing.T) {
 	}
 	if n := atomic.LoadInt32(&invoked); n != 1 {
 		t.Errorf("granted tool ran %d times, want 1", n)
+	}
+}
+
+func TestRunWith_ApprovalBundleUsesFirstPartyToolEffect(t *testing.T) {
+	eng := edict.New(edict.Options{
+		Levels:    map[edict.Capability]edict.TrustLevel{edict.CapShell: edict.LevelAsk},
+		AskPolicy: edict.AskPrompt,
+	})
+	reg := approval.New(approval.Config{Timeout: 5 * time.Second})
+	k, err := runtime.Open(runtime.Config{
+		BaseDir:   t.TempDir(),
+		Provider:  mock.New(mock.ToolUse("c1", "shell", map[string]any{"command": "echo no"}), mock.FinalText("done")),
+		Tools:     map[string]agent.Tool{"shell": shell.New()},
+		Edict:     eng,
+		Approvals: reg,
+	})
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	t.Cleanup(func() { k.Close() })
+
+	done := make(chan error, 1)
+	go func() {
+		_, _, err := k.Run(context.Background(), "try shell")
+		done <- err
+	}()
+
+	req := waitForPending(t, reg)
+	if req.ToolName != "shell" || req.Capability != string(edict.CapShell) {
+		t.Fatalf("pending request = {tool:%q cap:%q}, want shell/%s", req.ToolName, req.Capability, edict.CapShell)
+	}
+	if req.EffectClass != string(agent.EffectIrreversible) {
+		t.Fatalf("effect class=%q want irreversible", req.EffectClass)
+	}
+	if got := strings.Join(req.PredictedEffects, "\n"); !strings.Contains(got, "execute an operating-system command") {
+		t.Fatalf("predicted effects did not come from shell definition: %q", got)
+	}
+	if got := strings.Join(req.AffectedResources, "\n"); !strings.Contains(got, "host shell") {
+		t.Fatalf("affected resources did not come from shell definition: %q", got)
+	}
+	if !strings.Contains(req.RollbackNotes, "No reliable generic rollback") || req.Confidence != 0.45 {
+		t.Fatalf("rollback/confidence did not come from shell definition: %q/%v", req.RollbackNotes, req.Confidence)
+	}
+	if err := reg.Resolve(req.ID, approval.DecisionDeny, "do not run shell", "operator"); err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("Run: %v", err)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("run did not finish after shell approval denial")
 	}
 }
 

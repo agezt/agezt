@@ -28,6 +28,7 @@
 package memory
 
 import (
+	"bytes"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -56,6 +57,19 @@ const (
 
 // DefaultType is used when a writer leaves the type unset.
 const DefaultType = TypeFact
+
+// Evidence records how a memory entered the store. It is deliberately
+// orthogonal to Type: "OBSERVATION" as a Type means the content is a note;
+// EvidenceObserved means the note was grounded in a direct observation.
+type Evidence string
+
+const (
+	EvidenceUnknown    Evidence = ""
+	EvidenceObserved   Evidence = "observed"
+	EvidenceInferred   Evidence = "inferred"
+	EvidenceCurated    Evidence = "curated"
+	EvidenceConstraint Evidence = "constraint"
+)
 
 // validTypes is the membership set for ValidType.
 var validTypes = map[Type]struct{}{
@@ -96,9 +110,20 @@ type Record struct {
 	// Confidence is 0..1; ranking weights it and it can strengthen on
 	// re-observation. Defaults to 1.0 for explicit writes.
 	Confidence float64 `json:"confidence"`
+	// Evidence distinguishes observed, inferred, curated, and constraint-like
+	// memories. Retrieval treats this as metadata, not as truth authority.
+	Evidence Evidence `json:"evidence,omitempty"`
 	// CreatedMS / LastSeenMS drive recency in ranking and decay.
 	CreatedMS  int64 `json:"created_ms"`
 	LastSeenMS int64 `json:"last_seen_ms"`
+	// HalfLifeMS is the mechanical expiration budget. Once LastSeenMS+HalfLifeMS
+	// is in the past, the record is retained but barred from active use until it
+	// is reconstructed/reinforced.
+	HalfLifeMS int64 `json:"half_life_ms,omitempty"`
+	// SuspendedMS marks a record that failed an epistemic hygiene check. It is
+	// retained and gettable, but excluded from recall/search.
+	SuspendedMS     int64  `json:"suspended_ms,omitempty"`
+	SuspendedReason string `json:"suspended_reason,omitempty"`
 	// SupersededBy points at a newer record when this one was replaced
 	// (soft update — the old record is retained, not edited away).
 	SupersededBy string `json:"superseded_by,omitempty"`
@@ -110,6 +135,20 @@ type Record struct {
 // Active reports whether the record should participate in retrieval:
 // neither forgotten nor superseded.
 func (r Record) Active() bool { return !r.Tombstoned && r.SupersededBy == "" }
+
+// Suspended reports whether the record is explicitly barred from active use.
+func (r Record) Suspended() bool { return r.SuspendedMS > 0 }
+
+// Expired reports whether the record's reconstruction budget has elapsed.
+// A zero HalfLifeMS means legacy/no-expiry records remain usable.
+func (r Record) Expired(nowMS int64) bool {
+	return r.HalfLifeMS > 0 && nowMS > r.LastSeenMS+r.HalfLifeMS
+}
+
+// Usable reports whether the record may participate in retrieval at nowMS.
+func (r Record) Usable(nowMS int64) bool {
+	return r.Active() && !r.Suspended() && !r.Expired(nowMS)
+}
 
 // ContentID computes the content-addressed id for a (type, subject, content)
 // triple. NUL separators avoid ("ab","c") colliding with ("a","bc").
@@ -197,6 +236,10 @@ func Open(dir string) (*FileStore, error) {
 		return nil, fmt.Errorf("memory: read %s: %w", s.path, err)
 	}
 	if len(raw) == 0 {
+		return s, nil
+	}
+	raw = bytes.TrimPrefix(raw, []byte{0xEF, 0xBB, 0xBF})
+	if len(bytes.TrimSpace(raw)) == 0 {
 		return s, nil
 	}
 	if err := json.Unmarshal(raw, &s.data); err != nil {
@@ -294,11 +337,11 @@ type Scored struct {
 	Score  float64 `json:"score"`
 }
 
-// Search ranks the active records in rs against query and returns the top
+// Search ranks the usable records in rs against query and returns the top
 // `limit` by score (descending). A record scores on keyword overlap between
 // the query tokens and the record's subject+content+tags, weighted by
 // confidence and recency. Records with zero keyword overlap are excluded, as
-// are tombstoned and superseded records.
+// are tombstoned, superseded, suspended, and expired records.
 //
 // Ranking is a pure function of (rs, query, limit, nowMS): given the same
 // inputs it returns the same ordering, with ties broken by LastSeenMS
@@ -313,7 +356,7 @@ func Search(rs []Record, query string, limit int, nowMS int64) []Scored {
 		return out
 	}
 	for _, r := range rs {
-		if !r.Active() {
+		if !r.Usable(nowMS) {
 			continue
 		}
 		overlap := keywordOverlap(qTokens, r)

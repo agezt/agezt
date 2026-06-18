@@ -4,6 +4,12 @@ import { useEvents, type AgentEvent } from "@/lib/events";
 import { categoryOf, isErrorKind, CATEGORIES } from "@/lib/eventmeta";
 import { cn, fmtTime } from "@/lib/utils";
 import { DataView } from "@/components/DataView";
+import { IncidentBadges } from "@/components/IncidentBadges";
+import {
+  incidentBadgeItem,
+  incidentEventSummary,
+  isIncidentFamilyEvent,
+} from "@/lib/incidentevents";
 
 // EventFeed is the live stream console: the daemon's whole journal firehose,
 // colour-coded by category, filterable by category + free text + correlation,
@@ -142,7 +148,10 @@ export function EventFeed() {
                     <span className="w-40 shrink-0 truncate font-medium" style={{ color: err ? undefined : cat.color }}>
                       <span className={cn(err && "text-bad")}>{e.kind}</span>
                     </span>
-                    <span className="min-w-0 flex-1 truncate text-foreground/80">{e.subject}</span>
+                    {isIncidentFamilyEvent(e) && <IncidentBadges item={incidentBadgeItem(e)} mono />}
+                    <span className="min-w-0 flex-1 truncate text-foreground/80">
+                      {incidentEventSummary(e) || e.subject}
+                    </span>
                     {e.correlation_id && (
                       <button
                         onClick={(ev) => {

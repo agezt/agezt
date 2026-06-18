@@ -14,8 +14,9 @@ import (
 )
 
 // cmdStanding dispatches `agt standing <subcommand>` — the management surface for
-// Chronos standing orders (SPEC-16 §4): persistent goals that fire on a trigger.
-// Every mutation is journaled (standing.*) so it's auditable like any other event.
+// durable event/cron wake rules. Standing orders are triggers, not agent
+// identities; every mutation is journaled (standing.*) so it's auditable like any
+// other event.
 func cmdStanding(args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
 		return standingUsage(stderr)
@@ -43,11 +44,11 @@ func cmdStanding(args []string, stdout, stderr io.Writer) int {
 
 func standingUsage(w io.Writer) int {
 	fmt.Fprintf(w, "usage: %s standing <list|add|pause|resume|remove>\n", brand.CLI)
-	fmt.Fprintf(w, "  list [--json]                                  show standing orders\n")
+	fmt.Fprintf(w, "  list [--json]                                  show standing wake rules\n")
 	fmt.Fprintf(w, "  add --name N (--cron \"SCHED\" | --event SUBJ) [--plan TEXT]\n")
 	fmt.Fprintf(w, "      [--agent SLUG]  run each firing AS that named agent (soul/model/memory/budget)\n")
 	fmt.Fprintf(w, "      [--mode inform_only|ask|act_or_ask] [--max-trust L0..L4] [--budget USD]\n")
-	fmt.Fprintf(w, "      [--scope ent1,ent2] [--channel C]\n")
+	fmt.Fprintf(w, "      [--scope ent1,ent2] [--channel C] [--cooldown 15m]\n")
 	fmt.Fprintf(w, "  pause <id>                                     disable an order\n")
 	fmt.Fprintf(w, "  resume <id>                                    re-enable an order\n")
 	fmt.Fprintf(w, "  remove <id>                                    delete an order\n")
@@ -161,7 +162,23 @@ func renderStandingLine(o map[string]any) string {
 	if mode := initiativeMode(o); mode != "" {
 		line += "  · " + mode
 	}
+	if status := standingTargetStatus(o); status != "" {
+		line += "  · " + status
+	}
 	return line
+}
+
+func standingTargetStatus(o map[string]any) string {
+	errText, _ := o["target_error"].(string)
+	if errText = strings.TrimSpace(errText); errText != "" {
+		return "target:blocked (" + errText + ")"
+	}
+	status, _ := o["target_status"].(string)
+	status = strings.TrimSpace(status)
+	if status == "" {
+		return ""
+	}
+	return "target:" + status
 }
 
 func initiativeMode(o map[string]any) string {
@@ -174,7 +191,7 @@ func initiativeMode(o map[string]any) string {
 }
 
 func cmdStandingAdd(args []string, stdout, stderr io.Writer) int {
-	var name, cron, event, plan, mode, maxTrust, channel, budget, scope, agentSlug string
+	var name, cron, event, plan, mode, maxTrust, channel, budget, scope, agentSlug, cooldownRaw string
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
 		case "--name":
@@ -211,6 +228,11 @@ func cmdStandingAdd(args []string, stdout, stderr io.Writer) int {
 			i++
 			if i < len(args) {
 				agentSlug = args[i]
+			}
+		case "--cooldown":
+			i++
+			if i < len(args) {
+				cooldownRaw = args[i]
 			}
 		case "--mode":
 			i++
@@ -286,6 +308,16 @@ func cmdStandingAdd(args []string, stdout, stderr io.Writer) int {
 	}
 	if agentSlug = strings.TrimSpace(agentSlug); agentSlug != "" {
 		order["agent"] = agentSlug // M790: firings run AS this roster agent
+	}
+	if strings.TrimSpace(cooldownRaw) != "" {
+		d, err := time.ParseDuration(cooldownRaw)
+		if err != nil || d < 0 {
+			fmt.Fprintf(stderr, "%s standing add: --cooldown must be a non-negative duration like 15m or 1h\n", brand.CLI)
+			return 2
+		}
+		if d > 0 {
+			order["cooldown_sec"] = int64(d / time.Second)
+		}
 	}
 
 	c := dial(stderr)

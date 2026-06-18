@@ -15,9 +15,11 @@ import (
 	"context"
 	"maps"
 	"sync"
+	"time"
 
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/intervention"
 )
 
 // runControl is the per-run steering surface. It implements agent.Steerer
@@ -26,13 +28,16 @@ import (
 type runControl struct {
 	mu         sync.Mutex
 	paused     bool
+	pauseUntil time.Time
 	stepOnce   bool              // when paused, allow exactly one iteration then re-block
 	directives []agent.Directive // operator-injected guidance, drained by the loop
 	wake       chan struct{}     // closed+replaced to broadcast a state change to Wait
+	results    map[string]intervention.Result
+	now        func() time.Time
 }
 
 func newRunControl() *runControl {
-	return &runControl{wake: make(chan struct{})}
+	return &runControl{wake: make(chan struct{}), results: map[string]intervention.Result{}, now: time.Now}
 }
 
 // broadcastLocked wakes every goroutine parked in Wait by closing the current
@@ -54,18 +59,47 @@ func (rc *runControl) Wait(ctx context.Context) error {
 			rc.mu.Unlock()
 			return nil
 		}
+		if !rc.pauseUntil.IsZero() && !rc.now().Before(rc.pauseUntil) {
+			rc.paused = false
+			rc.stepOnce = false
+			rc.pauseUntil = time.Time{}
+			rc.broadcastLocked()
+			rc.mu.Unlock()
+			return nil
+		}
 		if rc.stepOnce {
 			rc.stepOnce = false // advance exactly one iteration, stay paused after
 			rc.mu.Unlock()
 			return nil
 		}
 		wake := rc.wake
+		var timer <-chan time.Time
+		var t *time.Timer
+		if !rc.pauseUntil.IsZero() {
+			delay := time.Until(rc.pauseUntil)
+			if delay <= 0 {
+				delay = time.Nanosecond
+			}
+			t = time.NewTimer(delay)
+			timer = t.C
+		}
 		rc.mu.Unlock()
 		select {
 		case <-ctx.Done():
+			if t != nil {
+				t.Stop()
+			}
 			return ctx.Err()
 		case <-wake:
+			if t != nil {
+				t.Stop()
+			}
 			// state changed; re-evaluate
+		case <-timer:
+			if t != nil {
+				t.Stop()
+			}
+			// lease expired; re-evaluate
 		}
 	}
 }
@@ -85,13 +119,14 @@ func (rc *runControl) Drain() []agent.Directive {
 
 // pause parks the run at the next iteration boundary. Returns false (no-op) if
 // already paused, so the caller can report idempotency.
-func (rc *runControl) pause() bool {
+func (rc *runControl) pause(until time.Time) bool {
 	rc.mu.Lock()
 	defer rc.mu.Unlock()
-	if rc.paused {
+	if rc.paused && rc.pauseUntil.Equal(until) {
 		return false
 	}
 	rc.paused = true
+	rc.pauseUntil = until
 	rc.broadcastLocked()
 	return true
 }
@@ -106,6 +141,7 @@ func (rc *runControl) resume() bool {
 	}
 	rc.paused = false
 	rc.stepOnce = false
+	rc.pauseUntil = time.Time{}
 	rc.broadcastLocked()
 	return true
 }
@@ -117,6 +153,7 @@ func (rc *runControl) step() {
 	defer rc.mu.Unlock()
 	rc.paused = true
 	rc.stepOnce = true
+	rc.pauseUntil = time.Time{}
 	rc.broadcastLocked()
 }
 
@@ -131,10 +168,29 @@ func (rc *runControl) inject(directive string, note bool) {
 
 // snapshot returns the current pause state and pending-directive count for the
 // operator UI.
-func (rc *runControl) snapshot() (paused bool, pending int) {
+func (rc *runControl) snapshot() (paused bool, pending int, until time.Time) {
 	rc.mu.Lock()
 	defer rc.mu.Unlock()
-	return rc.paused, len(rc.directives)
+	return rc.paused, len(rc.directives), rc.pauseUntil
+}
+
+func (rc *runControl) resultForKey(key string) (intervention.Result, bool) {
+	if key == "" {
+		return intervention.Result{}, false
+	}
+	rc.mu.Lock()
+	defer rc.mu.Unlock()
+	res, ok := rc.results[key]
+	return res, ok
+}
+
+func (rc *runControl) rememberResult(key string, res intervention.Result) {
+	if key == "" {
+		return
+	}
+	rc.mu.Lock()
+	defer rc.mu.Unlock()
+	rc.results[key] = res
 }
 
 // ----- kernel-facing operations -----
@@ -156,7 +212,7 @@ func (k *Kernel) PauseRun(corr string) bool {
 	if rc == nil {
 		return false
 	}
-	if rc.pause() {
+	if rc.pause(time.Time{}) {
 		k.publishSteer(corr, event.KindRunPaused, nil)
 	}
 	return true
@@ -213,8 +269,77 @@ func (k *Kernel) RunControlState(corr string) (paused bool, pending int, ok bool
 	if rc == nil {
 		return false, 0, false
 	}
-	paused, pending = rc.snapshot()
+	paused, pending, _ = rc.snapshot()
 	return paused, pending, true
+}
+
+// InterveneRun applies one protocolized live intervention. It is the structured
+// face over pause/cancel/steer/query and carries lease + idempotency metadata.
+func (k *Kernel) InterveneRun(req intervention.Request) (intervention.Result, error) {
+	req, err := intervention.Normalize(req)
+	if err != nil {
+		return intervention.Result{}, err
+	}
+	if req.Primitive == intervention.PrimitiveAbort {
+		res := intervention.Result{
+			Primitive:      req.Primitive,
+			CorrelationID:  req.CorrelationID,
+			Accepted:       true,
+			Applied:        k.CancelRun(req.CorrelationID),
+			State:          "aborted",
+			IdempotencyKey: req.IdempotencyKey,
+		}
+		if !res.Applied {
+			res.Accepted = false
+			res.State = "unknown"
+			res.Reason = "run not active"
+		}
+		k.publishIntervention(res, req)
+		return res, nil
+	}
+
+	rc := k.controlFor(req.CorrelationID)
+	if rc == nil {
+		res := intervention.Result{Primitive: req.Primitive, CorrelationID: req.CorrelationID, State: "unknown", Reason: "run not active", IdempotencyKey: req.IdempotencyKey}
+		k.publishIntervention(res, req)
+		return res, nil
+	}
+	if prior, ok := rc.resultForKey(req.IdempotencyKey); ok {
+		return prior, nil
+	}
+
+	res := intervention.Result{
+		Primitive:      req.Primitive,
+		CorrelationID:  req.CorrelationID,
+		Accepted:       true,
+		Applied:        true,
+		IdempotencyKey: req.IdempotencyKey,
+	}
+	switch req.Primitive {
+	case intervention.PrimitiveHalt:
+		res.LeaseExpires = time.Now().Add(req.Lease)
+		res.Applied = rc.pause(res.LeaseExpires)
+		res.State = "paused"
+		res.Paused, res.Pending, _ = rc.snapshot()
+		if res.Applied {
+			k.publishSteer(req.CorrelationID, event.KindRunPaused, map[string]any{"primitive": string(req.Primitive), "lease_expires_unix": res.LeaseExpires.Unix()})
+		}
+	case intervention.PrimitiveRedirect:
+		rc.inject(req.Directive, false)
+		res.State = "redirect_queued"
+		res.Paused, res.Pending, _ = rc.snapshot()
+	case intervention.PrimitiveAdjust:
+		rc.inject(req.Directive, true)
+		res.State = "adjustment_queued"
+		res.Paused, res.Pending, _ = rc.snapshot()
+	case intervention.PrimitiveQuery:
+		res.State = "observed"
+		res.Paused, res.Pending, res.LeaseExpires = rc.snapshot()
+		res.Applied = false
+	}
+	rc.rememberResult(req.IdempotencyKey, res)
+	k.publishIntervention(res, req)
+	return res, nil
 }
 
 // publishSteer emits a steering control event correlated to the run, so the
@@ -228,6 +353,34 @@ func (k *Kernel) publishSteer(corr string, kind event.Kind, extra map[string]any
 		Kind:          kind,
 		Actor:         "operator",
 		CorrelationID: corr,
+		Payload:       payload,
+	})
+}
+
+func (k *Kernel) publishIntervention(res intervention.Result, req intervention.Request) {
+	payload := map[string]any{
+		"primitive":       string(res.Primitive),
+		"correlation_id":  res.CorrelationID,
+		"accepted":        res.Accepted,
+		"applied":         res.Applied,
+		"state":           res.State,
+		"paused":          res.Paused,
+		"pending":         res.Pending,
+		"scope":           req.Scope,
+		"idempotency_key": res.IdempotencyKey,
+		"reason":          res.Reason,
+	}
+	if !res.LeaseExpires.IsZero() {
+		payload["lease_expires_unix"] = res.LeaseExpires.Unix()
+	}
+	if req.Directive != "" {
+		payload["directive"] = req.Directive
+	}
+	_, _ = k.bus.Publish(event.Spec{
+		Subject:       "kernel.intervention",
+		Kind:          event.KindRunIntervention,
+		Actor:         "operator",
+		CorrelationID: res.CorrelationID,
 		Payload:       payload,
 	})
 }

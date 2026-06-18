@@ -68,7 +68,7 @@ func (s *Server) SetTenants(r *tenant.Registry) { s.tenants = r }
 func tenantTokenAllows(cmd string) bool {
 	switch cmd {
 	case CmdRun, CmdCancelRun,
-		CmdRunPause, CmdRunResume, CmdRunStep, CmdRunSteer, // live steering of own runs (M608)
+		CmdRunPause, CmdRunResume, CmdRunStep, CmdRunSteer, CmdRunIntervene, // live steering of own runs (M608)
 		CmdRunsList, CmdRunsStats, CmdWhy, CmdWhoami, CmdToolLog, CmdToolStats, CmdCacheStats,
 		CmdRateLimitLog, CmdRateLimitStats, CmdNetguardLog,
 		CmdWebhookLog, CmdWebhookStats,
@@ -76,7 +76,7 @@ func tenantTokenAllows(cmd string) bool {
 		CmdEdictDenyRemove, CmdEdictSetLevel, CmdEdictSetMode,
 		// Tenant self-observability (M128) — read-only folds of the tenant's
 		// own journal; each handler reads only kernelFor(tenantOf(req)).
-		CmdMemoryLog, CmdWorldLog,
+		CmdMemoryLog, CmdMemoryAudit, CmdMemoryClean, CmdWorldLog,
 		CmdApprovalsLog, CmdApprovalsStats,
 		CmdPlanHistory, CmdPlanStats,
 		CmdProviderLog, CmdProviderStats, CmdProviderRejections,
