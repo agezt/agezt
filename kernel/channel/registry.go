@@ -45,3 +45,21 @@ func LookupManifest(kind string) (Manifest, bool) {
 	m, ok := registry[kind]
 	return m, ok
 }
+
+// live is the set of channel kinds the daemon actually started this run. The
+// daemon sets it after wiring its live channels; the Channels view reads it to
+// show "live" vs merely "configured (restart to start)".
+var live = map[string]bool{}
+
+// SetLive records the channel kinds that are running this process. Replaces the
+// prior set. Called once by the daemon after it builds its live channels.
+func SetLive(kinds []string) {
+	next := make(map[string]bool, len(kinds))
+	for _, k := range kinds {
+		next[k] = true
+	}
+	live = next
+}
+
+// IsLive reports whether a channel kind is currently running.
+func IsLive(kind string) bool { return live[kind] }

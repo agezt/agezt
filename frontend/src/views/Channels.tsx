@@ -32,6 +32,7 @@ interface ChannelRow {
   config_section?: string;
   docs_url?: string;
   configured?: boolean;
+  live?: boolean;
   fields: ChannelField[];
 }
 
@@ -60,7 +61,8 @@ export function Channels() {
     load();
   }, []);
 
-  const readyCount = useMemo(() => (rows || []).filter((r) => r.configured).length, [rows]);
+  const liveCount = useMemo(() => (rows || []).filter((r) => r.live).length, [rows]);
+  const configuredCount = useMemo(() => (rows || []).filter((r) => r.configured).length, [rows]);
 
   function openConfig(r: ChannelRow) {
     if (openKind === r.kind) {
@@ -105,7 +107,9 @@ export function Channels() {
         icon={Radio}
         title="Channels"
         description={
-          rows ? `${rows.length} channels · ${readyCount} connected` : "Connect Telegram, WhatsApp, Slack, and more"
+          rows
+            ? `${rows.length} channels · ${liveCount} live · ${configuredCount} configured`
+            : "Connect Telegram, WhatsApp, Slack, and more"
         }
         actions={
           <Button variant="ghost" size="sm" onClick={load} disabled={rows === null}>
@@ -126,10 +130,12 @@ export function Channels() {
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-1.5">
                     <span className="font-medium text-foreground">{r.display}</span>
-                    {r.configured ? (
+                    {r.live ? (
                       <Badge variant="good">
-                        <Check className="size-2.5" /> connected
+                        <span className="size-1.5 animate-pulse rounded-full bg-good" /> live
                       </Badge>
+                    ) : r.configured ? (
+                      <Badge variant="warn">configured · restart to start</Badge>
                     ) : (
                       <Badge variant="warn">needs setup</Badge>
                     )}

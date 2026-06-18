@@ -1705,6 +1705,13 @@ func runDaemon(stdout, stderr io.Writer) int {
 	if sgChan != nil {
 		liveChannels["signal"] = sgChan
 	}
+	// Record which channels actually started, so the Channels wizard can show
+	// "live" vs merely "configured (restart to start)".
+	liveKinds := make([]string, 0, len(liveChannels))
+	for k := range liveChannels {
+		liveKinds = append(liveKinds, k)
+	}
+	channel.SetLive(liveKinds)
 	channelSend := func(sctx context.Context, kind, id, text string) error {
 		ch, ok := liveChannels[kind]
 		if !ok {

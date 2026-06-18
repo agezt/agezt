@@ -23,6 +23,7 @@ const CHANNELS = [
     transport: "long-poll",
     duplex: true,
     configured: true,
+    live: true,
     fields: [
       { env: "AGEZT_TELEGRAM_TOKEN", label: "Bot token", secret: true, required: true, set: true },
       { env: "AGEZT_TELEGRAM_CHAT_ID", label: "Allowed chats", set: false, value: "" },
@@ -52,9 +53,9 @@ describe("Channels", () => {
     render(withUI(<Channels />));
     expect(await screen.findByText("Telegram")).toBeTruthy();
     expect(screen.getByText("WhatsApp")).toBeTruthy();
-    expect(screen.getByText("connected")).toBeTruthy(); // the badge (exact)
-    expect(screen.getByText("needs setup")).toBeTruthy();
-    expect(screen.getByText(/2 channels · 1 connected/)).toBeTruthy();
+    expect(screen.getByText("live")).toBeTruthy(); // telegram is running
+    expect(screen.getByText("needs setup")).toBeTruthy(); // whatsapp not configured
+    expect(screen.getByText(/2 channels · 1 live · 1 configured/)).toBeTruthy();
   });
 
   it("saves an account field to the Config Center", async () => {

@@ -80,6 +80,7 @@ func (s *Server) handleChannelList(conn net.Conn, req Request) {
 			"config_section": m.ConfigSection,
 			"docs_url":       m.DocsURL,
 			"configured":     configured,
+			"live":           channel.IsLive(m.Kind),
 			"fields":         fields,
 		})
 	}
