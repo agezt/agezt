@@ -78,14 +78,15 @@ import (
 	"github.com/agezt/agezt/kernel/webhook"
 	"github.com/agezt/agezt/kernel/webui"
 	"github.com/agezt/agezt/kernel/workflow"
-	"github.com/agezt/agezt/plugins/builtinguardians"
 	"github.com/agezt/agezt/plugins/builtinchannels"
+	"github.com/agezt/agezt/plugins/builtinguardians"
 	"github.com/agezt/agezt/plugins/builtinmarket"
 	"github.com/agezt/agezt/plugins/builtinskills"
 	"github.com/agezt/agezt/plugins/channels/discord"
 	"github.com/agezt/agezt/plugins/channels/email"
 	"github.com/agezt/agezt/plugins/channels/homeassistant"
 	"github.com/agezt/agezt/plugins/channels/matrix"
+	"github.com/agezt/agezt/plugins/channels/push"
 	signalchan "github.com/agezt/agezt/plugins/channels/signal"
 	"github.com/agezt/agezt/plugins/channels/slack"
 	"github.com/agezt/agezt/plugins/channels/sms"
@@ -1515,9 +1516,23 @@ func runDaemon(stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "  signal channel   : disabled (set AGEZT_SIGNAL_API_URL + AGEZT_SIGNAL_NUMBER)\n")
 	}
 
+	// Push-notification channels (SPEC-04 §1): a family of simple outbound
+	// destinations — ntfy, Pushover, Gotify, Pushbullet, Google Chat, Mattermost —
+	// each enabled by its own env and exposed as a distinct channel. Briefs/`agt
+	// send` POST to the service. Outbound-only.
+	pushChans, pushSink, pushDesc := buildPushChannels(ctx, k)
+	for _, pc := range pushChans {
+		go pc.Start(ctx)
+	}
+	if len(pushChans) > 0 {
+		fmt.Fprintf(stdout, "  push channels    : %s\n", pushDesc)
+	} else {
+		fmt.Fprintf(stdout, "  push channels    : disabled (ntfy/pushover/gotify/pushbullet/googlechat/mattermost)\n")
+	}
+
 	// Every configured channel's brief sink, teed: Pulse briefs and (M782)
 	// alert notifications share the same delivery surface.
-	channelSinks := combineSinks(tgSink, slSink, dcSink, whSink, emSink, mxSink, smSink, waSink, haSink, tmSink, sgSink)
+	channelSinks := combineSinks(tgSink, slSink, dcSink, whSink, emSink, mxSink, smSink, waSink, haSink, tmSink, sgSink, pushSink)
 
 	// Pulse — the proactive heart (SPEC-03). On by default; the resident
 	// engine runs on the daemon ctx so `agt halt`/SIGTERM/`agt shutdown`
@@ -1704,6 +1719,9 @@ func runDaemon(stdout, stderr io.Writer) int {
 	}
 	if sgChan != nil {
 		liveChannels["signal"] = sgChan
+	}
+	for _, pc := range pushChans {
+		liveChannels[pc.Name()] = pc
 	}
 	// Record which channels actually started, so the Channels wizard can show
 	// "live" vs merely "configured (restart to start)".
@@ -2798,6 +2816,56 @@ func buildSignal(ctx context.Context, k *kernelruntime.Kernel) (*signalchan.Chan
 		desc = "listening, NO allowlist (outbound-only; set AGEZT_SIGNAL_RECIPIENTS to allow commands)"
 	}
 	return ch, sink, desc
+}
+
+// buildPushChannels constructs every configured push-notification channel (ntfy,
+// Pushover, Gotify, Pushbullet, Google Chat, Mattermost). Each is enabled by its
+// own env and added as a distinct outbound channel; a combined Pulse sink fans a
+// brief out to all of them. Returns nil when none are configured.
+func buildPushChannels(ctx context.Context, k *kernelruntime.Kernel) ([]*push.Channel, pulse.BriefSink, string) {
+	env := func(s string) string { return strings.TrimSpace(os.Getenv(brand.EnvPrefix + s)) }
+	var chans []*push.Channel
+	add := func(cfg push.Config) {
+		cfg.Bus = k.Bus()
+		if ch, err := push.New(cfg); err == nil {
+			chans = append(chans, ch)
+		}
+	}
+	if t := env("NTFY_TOPIC"); t != "" {
+		add(push.Config{Kind: push.KindNtfy, Server: env("NTFY_SERVER"), Topic: t, Token: env("NTFY_TOKEN")})
+	}
+	if env("PUSHOVER_TOKEN") != "" {
+		add(push.Config{Kind: push.KindPushover, Token: env("PUSHOVER_TOKEN"), User: env("PUSHOVER_USER")})
+	}
+	if env("GOTIFY_TOKEN") != "" {
+		add(push.Config{Kind: push.KindGotify, Server: env("GOTIFY_SERVER"), Token: env("GOTIFY_TOKEN")})
+	}
+	if env("PUSHBULLET_TOKEN") != "" {
+		add(push.Config{Kind: push.KindPushbullet, Token: env("PUSHBULLET_TOKEN")})
+	}
+	if u := env("GOOGLECHAT_WEBHOOK"); u != "" {
+		add(push.Config{Kind: push.KindGoogleChat, URL: u})
+	}
+	if u := env("MATTERMOST_WEBHOOK"); u != "" {
+		add(push.Config{Kind: push.KindMattermost, URL: u})
+	}
+	if len(chans) == 0 {
+		return nil, nil, ""
+	}
+	names := make([]string, 0, len(chans))
+	for _, ch := range chans {
+		names = append(names, ch.Name())
+	}
+	sink := pulse.SinkFunc(func(b pulse.Brief) error {
+		var firstErr error
+		for _, ch := range chans {
+			if err := ch.Send(ctx, channel.Outbound{Text: formatBrief(b), Priority: channel.PriorityNotify}); err != nil && firstErr == nil {
+				firstErr = err
+			}
+		}
+		return firstErr
+	})
+	return chans, sink, fmt.Sprintf("outbound → %s", strings.Join(names, ", "))
 }
 
 // collectChannels reports the configured messaging channels for `agt status`

@@ -213,6 +213,52 @@ func builtinSections() []Section {
 			},
 		},
 		{
+			ID: "ntfy", Name: "ntfy",
+			Help: "Outbound push notifications via ntfy.sh (or a self-hosted server). Restart to apply.",
+			Fields: []Field{
+				{Env: "AGEZT_NTFY_TOPIC", Label: "Topic", Type: TypeText, Apply: ApplyRestart, Help: "The ntfy topic to publish to."},
+				{Env: "AGEZT_NTFY_SERVER", Label: "Server URL (optional)", Type: TypeText, Apply: ApplyRestart, Help: "Defaults to https://ntfy.sh; set for a self-hosted server."},
+				pw("AGEZT_NTFY_TOKEN", "Access token (optional)", "Bearer token for protected topics."),
+			},
+		},
+		{
+			ID: "pushover", Name: "Pushover",
+			Help: "Outbound push notifications via Pushover. Restart to apply.",
+			Fields: []Field{
+				pw("AGEZT_PUSHOVER_TOKEN", "Application token", "From your Pushover app."),
+				{Env: "AGEZT_PUSHOVER_USER", Label: "User / group key", Type: TypeText, Apply: ApplyRestart},
+			},
+		},
+		{
+			ID: "gotify", Name: "Gotify",
+			Help: "Outbound push via a self-hosted Gotify server. Restart to apply.",
+			Fields: []Field{
+				{Env: "AGEZT_GOTIFY_SERVER", Label: "Server URL", Type: TypeText, Apply: ApplyRestart, Help: "e.g. https://gotify.example.com"},
+				pw("AGEZT_GOTIFY_TOKEN", "App token", ""),
+			},
+		},
+		{
+			ID: "pushbullet", Name: "Pushbullet",
+			Help: "Outbound push notifications via Pushbullet. Restart to apply.",
+			Fields: []Field{
+				pw("AGEZT_PUSHBULLET_TOKEN", "Access token", "From Pushbullet account settings."),
+			},
+		},
+		{
+			ID: "googlechat", Name: "Google Chat",
+			Help: "Outbound messages via a Google Chat Incoming Webhook. Restart to apply.",
+			Fields: []Field{
+				pw("AGEZT_GOOGLECHAT_WEBHOOK", "Webhook URL", "The space's Incoming Webhook URL."),
+			},
+		},
+		{
+			ID: "mattermost", Name: "Mattermost",
+			Help: "Outbound messages via a Mattermost Incoming Webhook. Restart to apply.",
+			Fields: []Field{
+				pw("AGEZT_MATTERMOST_WEBHOOK", "Webhook URL", "The channel's Incoming Webhook URL."),
+			},
+		},
+		{
 			ID: "interfaces", Name: "Interfaces",
 			Help: "Network surfaces the daemon serves. Restart to apply.",
 			Fields: []Field{

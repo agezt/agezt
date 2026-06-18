@@ -87,4 +87,40 @@ var manifests = []channel.Manifest{
 		Description:   "Vendor-neutral signed-JSON channel — bridge anything.",
 		ConfigSection: "webhook", RequiredEnv: []string{"AGEZT_WEBHOOK_SECRET"},
 	},
+	{
+		Kind: "ntfy", Display: "ntfy", Transport: "rest", Duplex: false,
+		Description:   "Outbound push notifications via ntfy.sh or a self-hosted server.",
+		ConfigSection: "ntfy", RequiredEnv: []string{"AGEZT_NTFY_TOPIC"},
+		DocsURL: "https://ntfy.sh",
+	},
+	{
+		Kind: "pushover", Display: "Pushover", Transport: "rest", Duplex: false,
+		Description:   "Outbound push notifications to phones via Pushover.",
+		ConfigSection: "pushover", RequiredEnv: []string{"AGEZT_PUSHOVER_TOKEN", "AGEZT_PUSHOVER_USER"},
+		DocsURL: "https://pushover.net",
+	},
+	{
+		Kind: "gotify", Display: "Gotify", Transport: "rest", Duplex: false,
+		Description:   "Outbound push via a self-hosted Gotify server.",
+		ConfigSection: "gotify", RequiredEnv: []string{"AGEZT_GOTIFY_SERVER", "AGEZT_GOTIFY_TOKEN"},
+		DocsURL: "https://gotify.net",
+	},
+	{
+		Kind: "pushbullet", Display: "Pushbullet", Transport: "rest", Duplex: false,
+		Description:   "Outbound push notifications via Pushbullet.",
+		ConfigSection: "pushbullet", RequiredEnv: []string{"AGEZT_PUSHBULLET_TOKEN"},
+		DocsURL: "https://www.pushbullet.com",
+	},
+	{
+		Kind: "googlechat", Display: "Google Chat", Transport: "webhook", Duplex: false,
+		Description:   "Outbound messages via a Google Chat Incoming Webhook.",
+		ConfigSection: "googlechat", RequiredEnv: []string{"AGEZT_GOOGLECHAT_WEBHOOK"},
+		DocsURL: "https://developers.google.com/chat/how-tos/webhooks",
+	},
+	{
+		Kind: "mattermost", Display: "Mattermost", Transport: "webhook", Duplex: false,
+		Description:   "Outbound messages via a Mattermost Incoming Webhook.",
+		ConfigSection: "mattermost", RequiredEnv: []string{"AGEZT_MATTERMOST_WEBHOOK"},
+		DocsURL: "https://developers.mattermost.com/integrate/webhooks/incoming/",
+	},
 }
