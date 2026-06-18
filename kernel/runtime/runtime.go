@@ -1024,6 +1024,10 @@ func (k *Kernel) SetMarket(m *market.Manager) { k.marketMgr = m }
 // the loop offloads oversized tool outputs. Used by retrieval surfaces.
 func (k *Kernel) Artifacts() *artifact.Store { return k.artifacts }
 
+// Voice returns the configured voice adapter (STT/TTS), or nil when unset. The
+// channel inbound path uses it to auto-transcribe inbound voice notes.
+func (k *Kernel) Voice() Voice { return k.cfg.Voice }
+
 // ArtifactIndex returns the metadata index over the blob store (M822) — the
 // browsable/deletable per-arrival entries (inbound images, tool outputs) the
 // file manager and inbound-image persistence use.

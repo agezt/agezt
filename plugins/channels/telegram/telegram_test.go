@@ -284,6 +284,7 @@ func TestDispatchable_AdmitsPhotoAndCaption(t *testing.T) {
 		{"text", &tgMessage{Text: "hi"}, true},
 		{"caption only", &tgMessage{Caption: "a caption"}, true},
 		{"photo only", &tgMessage{Photo: []tgPhotoSize{{FileID: "f"}}}, true},
+		{"voice only", &tgMessage{Voice: &tgVoice{FileID: "v"}}, true},
 	}
 	for _, c := range cases {
 		if got := dispatchable(c.m); got != c.want {

@@ -2214,7 +2214,59 @@ func makeChannelHandler(k *kernelruntime.Kernel) channel.InboundHandler {
 			// this run's correlation, with the vision caption (if any) attached.
 			persistInboundImages(k, msg, corr, caption)
 		}
+		// Inbound voice notes: transcribe them so a voice message "just works" —
+		// the agent reads the transcript like any text. Best-effort: if no STT is
+		// configured, or transcription fails, the audio is still persisted as an
+		// artifact (below) and the run proceeds on whatever text there was.
+		if len(msg.Audio) > 0 {
+			if v := k.Voice(); v != nil && v.HasSTT() {
+				var transcripts []string
+				for _, du := range msg.Audio {
+					_, data, ok := decodeDataURL(du)
+					if !ok || len(data) == 0 {
+						continue
+					}
+					if txt, terr := v.Transcribe(hctx, data, "voice.ogg"); terr == nil && strings.TrimSpace(txt) != "" {
+						transcripts = append(transcripts, strings.TrimSpace(txt))
+					}
+				}
+				if len(transcripts) > 0 {
+					joined := strings.Join(transcripts, "\n")
+					if strings.TrimSpace(intent) == "" {
+						intent = joined
+					} else {
+						intent += "\n\n[Voice message transcript:\n" + joined + "\n]"
+					}
+				}
+			}
+			persistInboundAudio(k, msg, corr)
+		}
 		return k.RunWith(hctx, corr, intent)
+	}
+}
+
+// persistInboundAudio saves each inbound channel audio clip (voice note) as a
+// browsable artifact entry, keyed to the run correlation. Best-effort: a
+// decode/store failure for one clip is skipped, never fatal to the run.
+func persistInboundAudio(k *kernelruntime.Kernel, msg channel.UnifiedMessage, corr string) {
+	idx := k.ArtifactIndex()
+	if idx == nil || len(msg.Audio) == 0 {
+		return
+	}
+	now := time.Now().UnixMilli()
+	for n, du := range msg.Audio {
+		mime, data, ok := decodeDataURL(du)
+		if !ok || len(data) == 0 {
+			continue
+		}
+		_, _ = idx.PutEntry(artifact.Entry{
+			Kind:   "audio",
+			Source: msg.ChannelKind,
+			Sender: msg.Sender,
+			Corr:   corr,
+			Mime:   mime,
+			Name:   fmt.Sprintf("%s-audio-%d%s", msg.ChannelKind, n+1, extForMime(mime)),
+		}, data, now)
 	}
 }
 
@@ -2291,6 +2343,14 @@ func extForMime(mime string) string {
 		return ".gif"
 	case "image/webp":
 		return ".webp"
+	case "audio/ogg", "audio/opus":
+		return ".ogg"
+	case "audio/mpeg", "audio/mp3":
+		return ".mp3"
+	case "audio/mp4", "audio/m4a", "audio/x-m4a":
+		return ".m4a"
+	case "audio/wav", "audio/x-wav":
+		return ".wav"
 	default:
 		return ""
 	}

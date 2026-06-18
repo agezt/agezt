@@ -37,6 +37,7 @@ type UnifiedMessage struct {
 	Sender       string            `json:"sender"`                   // platform user id/handle
 	Text         string            `json:"text"`                     // message body
 	Images       []string          `json:"images,omitempty"`         // inbound image attachments as data: URLs (M247)
+	Audio        []string          `json:"audio,omitempty"`          // inbound audio attachments (voice notes) as data: URLs — auto-transcribed when STT is configured
 	PlatformTSMS int64             `json:"platform_ts_ms,omitempty"` // platform timestamp
 	PlatformMeta map[string]string `json:"platform_meta,omitempty"`  // preserved extras
 }

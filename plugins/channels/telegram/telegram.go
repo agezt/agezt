@@ -113,6 +113,7 @@ type tgMessage struct {
 	Text      string        `json:"text"`
 	Caption   string        `json:"caption"` // a photo's text rides here, not in Text
 	Photo     []tgPhotoSize `json:"photo"`   // ascending sizes; the last is largest
+	Voice     *tgVoice      `json:"voice"`   // a voice note (OGG/Opus) — auto-transcribed downstream
 	// Forum-topic threading (M885): in a forum supergroup each topic carries
 	// message_thread_id + is_topic_message. The flag matters — a plain REPLY in
 	// a non-forum chat also sets message_thread_id, and treating that as a
@@ -127,6 +128,15 @@ type tgPhotoSize struct {
 	FileID   string `json:"file_id"`
 	Width    int    `json:"width"`
 	Height   int    `json:"height"`
+	FileSize int    `json:"file_size"`
+}
+
+// tgVoice is an inbound Telegram voice note (OGG/Opus). Only the file_id is
+// needed to resolve the bytes via getFile (mirrors a photo).
+type tgVoice struct {
+	FileID   string `json:"file_id"`
+	Duration int    `json:"duration"`
+	MimeType string `json:"mime_type"`
 	FileSize int    `json:"file_size"`
 }
 
@@ -180,7 +190,7 @@ func (c *Channel) Start(ctx context.Context) error {
 // they reached handleInbound — killing the inbound-image path (M247) on the live
 // poll loop, even though handleInbound fully supports it. (M476)
 func dispatchable(m *tgMessage) bool {
-	return m != nil && (m.Text != "" || m.Caption != "" || len(m.Photo) > 0)
+	return m != nil && (m.Text != "" || m.Caption != "" || len(m.Photo) > 0 || m.Voice != nil)
 }
 
 // scrubToken removes the bot token from an error message. http.Client.Do returns
@@ -261,6 +271,13 @@ func (c *Channel) handleInbound(ctx context.Context, m *tgMessage) {
 		largest := m.Photo[len(m.Photo)-1]
 		if du, err := c.fetchPhotoDataURL(ctx, largest.FileID); err == nil && du != "" {
 			msg.Images = []string{du}
+		}
+	}
+	// Inbound voice note: fetch the OGG/Opus as a data: URL so the daemon can
+	// transcribe it (auto-STT). Same allowlist gate as photos.
+	if allowed && m.Voice != nil && m.Voice.FileID != "" {
+		if du, err := c.fetchPhotoDataURL(ctx, m.Voice.FileID); err == nil && du != "" {
+			msg.Audio = []string{du}
 		}
 	}
 	c.emitInbound(msg, corr, allowed)
@@ -359,6 +376,14 @@ func tgMediaType(path string) string {
 		return "image/gif"
 	case ".webp":
 		return "image/webp"
+	case ".oga", ".ogg":
+		return "audio/ogg"
+	case ".mp3":
+		return "audio/mpeg"
+	case ".m4a":
+		return "audio/mp4"
+	case ".wav":
+		return "audio/wav"
 	default:
 		return "image/jpeg"
 	}
