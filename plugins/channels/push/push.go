@@ -37,6 +37,10 @@ const (
 	KindPushbullet = "pushbullet"
 	KindGoogleChat = "googlechat"
 	KindMattermost = "mattermost"
+	KindRocketChat = "rocketchat"
+	KindMastodon   = "mastodon"
+	KindLine       = "line"
+	KindZulip      = "zulip"
 )
 
 // Config configures one push provider. Only the fields relevant to Kind are
@@ -45,9 +49,10 @@ type Config struct {
 	Kind   string
 	Server string // ntfy/gotify base URL (ntfy defaults to https://ntfy.sh)
 	Topic  string // ntfy topic
-	Token  string // pushover/gotify app token, pushbullet access token, optional ntfy bearer
-	User   string // pushover user/group key
-	URL    string // googlechat/mattermost incoming webhook URL
+	Token  string // pushover/gotify app token, pushbullet access token, optional ntfy bearer, mastodon/line bearer, zulip api key
+	User   string // pushover user/group key, zulip bot email
+	URL    string // googlechat/mattermost/rocketchat incoming webhook URL
+	Target string // line recipient id (to), zulip stream name
 
 	Bus        *bus.Bus
 	HTTPClient *http.Client
@@ -86,9 +91,24 @@ func New(cfg Config) (*Channel, error) {
 		if cfg.Token == "" {
 			return nil, missing("an access token")
 		}
-	case KindGoogleChat, KindMattermost:
+	case KindGoogleChat, KindMattermost, KindRocketChat:
 		if strings.TrimSpace(cfg.URL) == "" {
 			return nil, missing("a webhook URL")
+		}
+	case KindMastodon:
+		if strings.TrimSpace(cfg.Server) == "" || cfg.Token == "" {
+			return nil, missing("a server URL and access token")
+		}
+	case KindLine:
+		if cfg.Token == "" || strings.TrimSpace(cfg.Target) == "" {
+			return nil, missing("a channel access token and recipient id")
+		}
+	case KindZulip:
+		if strings.TrimSpace(cfg.Server) == "" || cfg.User == "" || cfg.Token == "" || strings.TrimSpace(cfg.Target) == "" {
+			return nil, missing("a server URL, bot email, API key, and stream")
+		}
+		if strings.TrimSpace(cfg.Topic) == "" {
+			cfg.Topic = "agezt"
 		}
 	default:
 		return nil, fmt.Errorf("push: unknown provider %q", cfg.Kind)
@@ -178,8 +198,37 @@ func (c *Channel) buildRequest(ctx context.Context, text string) (*http.Request,
 		}
 		r.Header.Set("Access-Token", c.cfg.Token)
 		return r, nil
-	case KindGoogleChat, KindMattermost:
+	case KindGoogleChat, KindMattermost, KindRocketChat:
 		return jsonReq(c.cfg.URL, map[string]any{"text": text})
+	case KindMastodon:
+		form := url.Values{"status": {text}}
+		u := strings.TrimRight(c.cfg.Server, "/") + "/api/v1/statuses"
+		r, err := http.NewRequestWithContext(ctx, http.MethodPost, u, strings.NewReader(form.Encode()))
+		if err != nil {
+			return nil, err
+		}
+		r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		r.Header.Set("Authorization", "Bearer "+c.cfg.Token)
+		return r, nil
+	case KindLine:
+		r, err := jsonReq("https://api.line.me/v2/bot/message/push", map[string]any{
+			"to": c.cfg.Target, "messages": []map[string]any{{"type": "text", "text": text}},
+		})
+		if err != nil {
+			return nil, err
+		}
+		r.Header.Set("Authorization", "Bearer "+c.cfg.Token)
+		return r, nil
+	case KindZulip:
+		form := url.Values{"type": {"stream"}, "to": {c.cfg.Target}, "topic": {c.cfg.Topic}, "content": {text}}
+		u := strings.TrimRight(c.cfg.Server, "/") + "/api/v1/messages"
+		r, err := http.NewRequestWithContext(ctx, http.MethodPost, u, strings.NewReader(form.Encode()))
+		if err != nil {
+			return nil, err
+		}
+		r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		r.SetBasicAuth(c.cfg.User, c.cfg.Token) // zulip: bot email + API key
+		return r, nil
 	default:
 		return nil, fmt.Errorf("push: unknown provider %q", c.cfg.Kind)
 	}

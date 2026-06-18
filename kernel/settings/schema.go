@@ -259,6 +259,40 @@ func builtinSections() []Section {
 			},
 		},
 		{
+			ID: "rocketchat", Name: "Rocket.Chat",
+			Help: "Outbound messages via a Rocket.Chat Incoming Webhook. Restart to apply.",
+			Fields: []Field{
+				pw("AGEZT_ROCKETCHAT_WEBHOOK", "Webhook URL", "The channel's Incoming Webhook URL."),
+			},
+		},
+		{
+			ID: "mastodon", Name: "Mastodon",
+			Help: "Outbound posts (toots) to a Mastodon account. Restart to apply.",
+			Fields: []Field{
+				{Env: "AGEZT_MASTODON_SERVER", Label: "Instance URL", Type: TypeText, Apply: ApplyRestart, Help: "e.g. https://mastodon.social"},
+				pw("AGEZT_MASTODON_TOKEN", "Access token", "An app access token with write:statuses."),
+			},
+		},
+		{
+			ID: "line", Name: "LINE",
+			Help: "Outbound push via the LINE Messaging API. Restart to apply.",
+			Fields: []Field{
+				pw("AGEZT_LINE_TOKEN", "Channel access token", "From the LINE Developers console."),
+				{Env: "AGEZT_LINE_TO", Label: "Recipient ID", Type: TypeText, Apply: ApplyRestart, Help: "User/group/room id to push to."},
+			},
+		},
+		{
+			ID: "zulip", Name: "Zulip",
+			Help: "Outbound messages to a Zulip stream via a bot. Restart to apply.",
+			Fields: []Field{
+				{Env: "AGEZT_ZULIP_SERVER", Label: "Server URL", Type: TypeText, Apply: ApplyRestart, Help: "e.g. https://yourorg.zulipchat.com"},
+				{Env: "AGEZT_ZULIP_EMAIL", Label: "Bot email", Type: TypeText, Apply: ApplyRestart},
+				pw("AGEZT_ZULIP_APIKEY", "Bot API key", ""),
+				{Env: "AGEZT_ZULIP_STREAM", Label: "Stream", Type: TypeText, Apply: ApplyRestart},
+				{Env: "AGEZT_ZULIP_TOPIC", Label: "Topic (optional)", Type: TypeText, Apply: ApplyRestart, Help: "Defaults to 'agezt'."},
+			},
+		},
+		{
 			ID: "interfaces", Name: "Interfaces",
 			Help: "Network surfaces the daemon serves. Restart to apply.",
 			Fields: []Field{

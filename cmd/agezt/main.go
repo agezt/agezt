@@ -2849,6 +2849,18 @@ func buildPushChannels(ctx context.Context, k *kernelruntime.Kernel) ([]*push.Ch
 	if u := env("MATTERMOST_WEBHOOK"); u != "" {
 		add(push.Config{Kind: push.KindMattermost, URL: u})
 	}
+	if u := env("ROCKETCHAT_WEBHOOK"); u != "" {
+		add(push.Config{Kind: push.KindRocketChat, URL: u})
+	}
+	if env("MASTODON_TOKEN") != "" {
+		add(push.Config{Kind: push.KindMastodon, Server: env("MASTODON_SERVER"), Token: env("MASTODON_TOKEN")})
+	}
+	if env("LINE_TOKEN") != "" {
+		add(push.Config{Kind: push.KindLine, Token: env("LINE_TOKEN"), Target: env("LINE_TO")})
+	}
+	if env("ZULIP_APIKEY") != "" {
+		add(push.Config{Kind: push.KindZulip, Server: env("ZULIP_SERVER"), User: env("ZULIP_EMAIL"), Token: env("ZULIP_APIKEY"), Target: env("ZULIP_STREAM"), Topic: env("ZULIP_TOPIC")})
+	}
 	if len(chans) == 0 {
 		return nil, nil, ""
 	}

@@ -123,4 +123,28 @@ var manifests = []channel.Manifest{
 		ConfigSection: "mattermost", RequiredEnv: []string{"AGEZT_MATTERMOST_WEBHOOK"},
 		DocsURL: "https://developers.mattermost.com/integrate/webhooks/incoming/",
 	},
+	{
+		Kind: "rocketchat", Display: "Rocket.Chat", Transport: "webhook", Duplex: false,
+		Description:   "Outbound messages via a Rocket.Chat Incoming Webhook.",
+		ConfigSection: "rocketchat", RequiredEnv: []string{"AGEZT_ROCKETCHAT_WEBHOOK"},
+		DocsURL: "https://docs.rocket.chat/docs/integrations",
+	},
+	{
+		Kind: "mastodon", Display: "Mastodon", Transport: "rest", Duplex: false,
+		Description:   "Outbound posts to a Mastodon account.",
+		ConfigSection: "mastodon", RequiredEnv: []string{"AGEZT_MASTODON_SERVER", "AGEZT_MASTODON_TOKEN"},
+		DocsURL: "https://docs.joinmastodon.org/methods/statuses/",
+	},
+	{
+		Kind: "line", Display: "LINE", Transport: "rest", Duplex: false,
+		Description:   "Outbound push via the LINE Messaging API.",
+		ConfigSection: "line", RequiredEnv: []string{"AGEZT_LINE_TOKEN", "AGEZT_LINE_TO"},
+		DocsURL: "https://developers.line.biz/en/docs/messaging-api/",
+	},
+	{
+		Kind: "zulip", Display: "Zulip", Transport: "rest", Duplex: false,
+		Description:   "Outbound messages to a Zulip stream via a bot.",
+		ConfigSection: "zulip", RequiredEnv: []string{"AGEZT_ZULIP_SERVER", "AGEZT_ZULIP_EMAIL", "AGEZT_ZULIP_APIKEY", "AGEZT_ZULIP_STREAM"},
+		DocsURL: "https://zulip.com/api/send-message",
+	},
 }

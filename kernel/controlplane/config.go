@@ -245,6 +245,17 @@ var configEnvVars = []string{
 	"AGEZT_WHATSAPP_VERIFY_TOKEN",
 	"AGEZT_WORKSPACE",
 	"AGEZT_WORLDMODEL",
+	// Push / webhook channels (Rocket.Chat, Mastodon, Line, Zulip).
+	"AGEZT_ROCKETCHAT_WEBHOOK",
+	"AGEZT_MASTODON_SERVER",
+	"AGEZT_MASTODON_TOKEN",
+	"AGEZT_LINE_TOKEN",
+	"AGEZT_LINE_TO",
+	"AGEZT_ZULIP_SERVER",
+	"AGEZT_ZULIP_EMAIL",
+	"AGEZT_ZULIP_APIKEY",
+	"AGEZT_ZULIP_STREAM",
+	"AGEZT_ZULIP_TOPIC",
 }
 
 func (s *Server) handleConfig(conn net.Conn, req Request) {

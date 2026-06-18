@@ -64,6 +64,52 @@ func TestSendGoogleChatJSON(t *testing.T) {
 	}
 }
 
+func TestLineRequest(t *testing.T) {
+	// Line posts to a fixed api.line.me URL; inspect the built request directly.
+	ch, err := New(Config{Kind: KindLine, Token: "tok", Target: "U123"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	req, err := ch.buildRequest(context.Background(), "hey")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if req.URL.String() != "https://api.line.me/v2/bot/message/push" {
+		t.Fatalf("line url = %s", req.URL)
+	}
+	if req.Header.Get("Authorization") != "Bearer tok" {
+		t.Fatalf("line auth = %q", req.Header.Get("Authorization"))
+	}
+	b, _ := io.ReadAll(req.Body)
+	if !strings.Contains(string(b), `"to":"U123"`) || !strings.Contains(string(b), `"text":"hey"`) {
+		t.Fatalf("line body = %q", string(b))
+	}
+}
+
+func TestSendZulipBasicAuth(t *testing.T) {
+	var user, pass, gotForm string
+	var ok bool
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		user, pass, ok = r.BasicAuth()
+		b, _ := io.ReadAll(r.Body)
+		gotForm = string(b)
+	}))
+	defer srv.Close()
+	ch, err := New(Config{Kind: KindZulip, Server: srv.URL, User: "bot@x", Token: "key", Target: "general", HTTPClient: srv.Client()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := ch.Send(context.Background(), channel.Outbound{Text: "ping"}); err != nil {
+		t.Fatalf("send: %v", err)
+	}
+	if !ok || user != "bot@x" || pass != "key" {
+		t.Fatalf("zulip basic auth = %q/%q ok=%v", user, pass, ok)
+	}
+	if !strings.Contains(gotForm, "content=ping") || !strings.Contains(gotForm, "topic=agezt") {
+		t.Fatalf("zulip form = %q", gotForm)
+	}
+}
+
 func TestSendEmptyIsNoop(t *testing.T) {
 	called := false
 	srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { called = true }))
