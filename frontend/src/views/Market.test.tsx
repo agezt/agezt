@@ -54,6 +54,8 @@ beforeEach(() => {
   // Route by endpoint: the gallery and the sources panel both load on mount.
   getJSON.mockImplementation((path: string) => {
     if (path === "/api/market/sources") return Promise.resolve({ sources: [] });
+    if (path.startsWith("/api/market/show"))
+      return Promise.resolve({ skills: [{ name: "fetcher", description: "fetch the web" }], mcp_servers: ["fetch"], tools: ["rg"] });
     return Promise.resolve({ packs: PACKS });
   });
   postJSON.mockResolvedValue({});
@@ -119,5 +121,26 @@ describe("Market", () => {
     );
     // adding a source kicks off a sync
     await waitFor(() => expect(postJSON).toHaveBeenCalledWith("/api/market/sync", { name: "" }));
+  });
+
+  it("lazily reveals a pack's contents on 'What's inside'", async () => {
+    render(withUI(<Market />));
+    await screen.findByText("web-research-pro");
+    // Details aren't fetched until expanded.
+    expect(getJSON.mock.calls.some((c) => String(c[0]).startsWith("/api/market/show"))).toBe(false);
+    fireEvent.click(screen.getAllByRole("button", { name: /what's inside/i })[0]);
+    expect(await screen.findByText(/fetcher/)).toBeTruthy();
+    expect(screen.getByText(/fetch the web/)).toBeTruthy();
+    await waitFor(() =>
+      expect(getJSON.mock.calls.some((c) => String(c[0]).startsWith("/api/market/show"))).toBe(true),
+    );
+  });
+
+  it("filters to installed packs only", async () => {
+    render(withUI(<Market />));
+    await screen.findByText("web-research-pro");
+    fireEvent.click(screen.getByRole("switch", { name: /installed only/i }));
+    await waitFor(() => expect(screen.queryByText("web-research-pro")).toBeNull());
+    expect(screen.getByText("git-workshop")).toBeTruthy(); // the installed one stays
   });
 });

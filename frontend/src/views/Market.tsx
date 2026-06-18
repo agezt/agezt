@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { Store, RefreshCw, Search, Download, Trash2, ShieldCheck, ShieldAlert, Check, Globe, Plus, RotateCw } from "lucide-react";
+import { Store, RefreshCw, Search, Download, Trash2, ShieldCheck, ShieldAlert, Check, Globe, Plus, RotateCw, ChevronDown } from "lucide-react";
 import { getJSON, postJSON } from "@/lib/api";
-import { streamMarket, stepFromFrame, type MarketStep } from "@/lib/market";
+import { streamMarket, stepFromFrame, fetchPackDetails, type MarketStep, type PackDetails } from "@/lib/market";
 import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card } from "@/components/ui/card";
@@ -44,8 +44,12 @@ export function Market() {
   const [err, setErr] = useState("");
   const [query, setQuery] = useState("");
   const [cat, setCat] = useState<string>("all");
+  const [installedOnly, setInstalledOnly] = useState(false);
   const [busy, setBusy] = useState<string>("");
   const [progress, setProgress] = useState<Record<string, MarketStep[]>>({});
+  // Lazily-loaded "What's inside" details, keyed by pack name ("loading" while fetching).
+  const [details, setDetails] = useState<Record<string, PackDetails | "loading">>({});
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [sources, setSources] = useState<MarketSource[]>([]);
   const [showSources, setShowSources] = useState(false);
   const [newURL, setNewURL] = useState("");
@@ -131,12 +135,32 @@ export function Market() {
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase();
     return (packs || []).filter((p) => {
+      if (installedOnly && !p.installed) return false;
       if (cat !== "all" && p.category !== cat) return false;
       if (!q) return true;
       const hay = `${p.name} ${p.description ?? ""} ${(p.tags || []).join(" ")}`.toLowerCase();
       return hay.includes(q);
     });
-  }, [packs, query, cat]);
+  }, [packs, query, cat, installedOnly]);
+
+  // toggleDetails expands/collapses a pack's "What's inside" panel, lazily
+  // fetching its contents the first time it's opened.
+  async function toggleDetails(p: Pack) {
+    setExpanded((cur) => {
+      const next = new Set(cur);
+      next.has(p.name) ? next.delete(p.name) : next.add(p.name);
+      return next;
+    });
+    if (details[p.name] === undefined) {
+      setDetails((m) => ({ ...m, [p.name]: "loading" }));
+      try {
+        const d = await fetchPackDetails(p.name, p.marketplace);
+        setDetails((m) => ({ ...m, [p.name]: d }));
+      } catch {
+        setDetails((m) => ({ ...m, [p.name]: { skills: [], mcp_servers: [], tools: [] } }));
+      }
+    }
+  }
 
   async function install(p: Pack) {
     setBusy(p.name);
@@ -284,20 +308,34 @@ export function Market() {
         </Card>
       )}
 
-      {categories.length > 2 && (
-        <div className="flex flex-wrap gap-1">
-          {categories.map((c) => (
+      {(categories.length > 2 || installedCount > 0) && (
+        <div className="flex flex-wrap items-center gap-1">
+          {categories.length > 2 &&
+            categories.map((c) => (
+              <button
+                key={c}
+                onClick={() => setCat(c)}
+                className={cn(
+                  "rounded-full border px-2.5 py-0.5 text-[11px] capitalize transition-colors",
+                  cat === c ? "border-accent bg-accent/15 text-accent" : "border-border text-muted hover:text-foreground",
+                )}
+              >
+                {c}
+              </button>
+            ))}
+          {installedCount > 0 && (
             <button
-              key={c}
-              onClick={() => setCat(c)}
+              onClick={() => setInstalledOnly((v) => !v)}
+              role="switch"
+              aria-checked={installedOnly}
               className={cn(
-                "rounded-full border px-2.5 py-0.5 text-[11px] capitalize transition-colors",
-                cat === c ? "border-accent bg-accent/15 text-accent" : "border-border text-muted hover:text-foreground",
+                "ml-auto inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] transition-colors",
+                installedOnly ? "border-good/40 bg-good/10 text-good" : "border-border text-muted hover:text-foreground",
               )}
             >
-              {c}
+              <Check className="size-3" /> Installed only
             </button>
-          ))}
+          )}
         </div>
       )}
 
@@ -335,7 +373,48 @@ export function Market() {
                       {p.skill_count ?? 0} skill{(p.skill_count ?? 0) === 1 ? "" : "s"} · {p.mcp_count ?? 0} MCP ·{" "}
                       {p.tool_count ?? 0} tool{(p.tool_count ?? 0) === 1 ? "" : "s"}
                     </span>
+                    <button
+                      onClick={() => toggleDetails(p)}
+                      aria-expanded={expanded.has(p.name)}
+                      className="inline-flex items-center gap-0.5 text-accent transition-colors hover:text-accent2"
+                    >
+                      <ChevronDown className={cn("size-3 transition-transform", expanded.has(p.name) && "rotate-180")} />
+                      What's inside
+                    </button>
                   </div>
+                  {expanded.has(p.name) && (
+                    <div className="mt-1.5 space-y-1 border-t border-border/50 pt-1.5 text-[10px]">
+                      {details[p.name] === "loading" || details[p.name] === undefined ? (
+                        <span className="text-muted">loading…</span>
+                      ) : (
+                        <>
+                          {(details[p.name] as PackDetails).skills.map((s, i) => (
+                            <div key={`s${i}`}>
+                              <span className="text-accent">skill</span>{" "}
+                              <span className="text-foreground">{s.name}</span>
+                              {s.description && <span className="text-muted"> — {s.description}</span>}
+                            </div>
+                          ))}
+                          {(details[p.name] as PackDetails).mcp_servers.map((m, i) => (
+                            <div key={`m${i}`}>
+                              <span className="text-accent2">mcp</span> <span className="text-foreground">{m}</span>
+                            </div>
+                          ))}
+                          {(details[p.name] as PackDetails).tools.length > 0 && (
+                            <div>
+                              <span className="text-muted">CLI tools needed:</span>{" "}
+                              {(details[p.name] as PackDetails).tools.join(", ")}
+                            </div>
+                          )}
+                          {(details[p.name] as PackDetails).skills.length === 0 &&
+                            (details[p.name] as PackDetails).mcp_servers.length === 0 &&
+                            (details[p.name] as PackDetails).tools.length === 0 && (
+                              <span className="text-muted">no details available</span>
+                            )}
+                        </>
+                      )}
+                    </div>
+                  )}
                 </div>
                 <div className="flex shrink-0 items-center gap-1">
                   {p.installed ? (

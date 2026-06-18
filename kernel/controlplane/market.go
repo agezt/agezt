@@ -53,11 +53,30 @@ func (s *Server) handleMarketShow(conn net.Conn, req Request) {
 		return
 	}
 	skills, mcps, tools := pack.Counts()
+	// Readable contents for the UI's "What's inside" panel: skill name+description
+	// (parsed from each SKILL.md), MCP server names, and the CLI tool requirements.
+	skillRows := make([]map[string]any, 0, len(pack.Skills))
+	for _, ps := range pack.Skills {
+		row := map[string]any{}
+		if summary, serr := market.SkillSummary(ps); serr == nil {
+			name, desc, _ := strings.Cut(summary, " — ")
+			row["name"] = name
+			row["description"] = desc
+		}
+		skillRows = append(skillRows, row)
+	}
+	mcpNames := make([]string, 0, len(pack.MCPServers))
+	for _, srv := range pack.MCPServers {
+		mcpNames = append(mcpNames, srv.Name)
+	}
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{
 		"pack":         structToMap(pack),
 		"skill_count":  skills,
 		"mcp_count":    mcps,
 		"tool_count":   tools,
+		"skills":       skillRows,
+		"mcp_servers":  mcpNames,
+		"tools":        pack.ToolRequirements,
 		"installed":    isInstalled,
 		"installed_at": installed.InstalledMS,
 	}})

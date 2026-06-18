@@ -1,5 +1,21 @@
-import { withToken } from "@/lib/api";
+import { getJSON, withToken } from "@/lib/api";
 import { parseSSEChunk, type ChatFrame } from "@/lib/chat";
+
+// A pack's readable contents, for the gallery's "What's inside" panel.
+export interface PackDetails {
+  skills: { name?: string; description?: string }[];
+  mcp_servers: string[];
+  tools: string[];
+}
+
+// fetchPackDetails resolves one pack's contents (skills + MCP servers + CLI
+// tools) from the read-only show endpoint, for lazy on-expand loading.
+export async function fetchPackDetails(name: string, marketplace?: string): Promise<PackDetails> {
+  const res = await getJSON<{ skills?: PackDetails["skills"]; mcp_servers?: string[]; tools?: string[] }>(
+    `/api/market/show?name=${encodeURIComponent(name)}&marketplace=${encodeURIComponent(marketplace || "")}`,
+  );
+  return { skills: res.skills || [], mcp_servers: res.mcp_servers || [], tools: res.tools || [] };
+}
 
 // One marketplace install/uninstall progress step (kernel/market.Event).
 export interface MarketStep {
