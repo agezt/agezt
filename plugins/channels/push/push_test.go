@@ -110,6 +110,51 @@ func TestSendZulipBasicAuth(t *testing.T) {
 	}
 }
 
+func TestSendFeishuAndDingTalkShapes(t *testing.T) {
+	cases := []struct {
+		kind, want string
+	}{
+		{KindFeishu, `"msg_type":"text"`},
+		{KindDingTalk, `"msgtype":"text"`},
+		{KindWeCom, `"msgtype":"text"`},
+	}
+	for _, c := range cases {
+		var body string
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			b, _ := io.ReadAll(r.Body)
+			body = string(b)
+		}))
+		ch, err := New(Config{Kind: c.kind, URL: srv.URL, HTTPClient: srv.Client()})
+		if err != nil {
+			t.Fatalf("%s new: %v", c.kind, err)
+		}
+		if err := ch.Send(context.Background(), channel.Outbound{Text: "hi"}); err != nil {
+			t.Fatalf("%s send: %v", c.kind, err)
+		}
+		if !strings.Contains(body, c.want) || !strings.Contains(body, "hi") {
+			t.Fatalf("%s body = %q want %q", c.kind, body, c.want)
+		}
+		srv.Close()
+	}
+}
+
+func TestSendSynologyForm(t *testing.T) {
+	var ctype, body string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctype = r.Header.Get("Content-Type")
+		b, _ := io.ReadAll(r.Body)
+		body = string(b)
+	}))
+	defer srv.Close()
+	ch, _ := New(Config{Kind: KindSynology, URL: srv.URL, HTTPClient: srv.Client()})
+	if err := ch.Send(context.Background(), channel.Outbound{Text: "hello"}); err != nil {
+		t.Fatalf("send: %v", err)
+	}
+	if !strings.Contains(ctype, "x-www-form-urlencoded") || !strings.Contains(body, "payload=") {
+		t.Fatalf("synology ctype=%q body=%q", ctype, body)
+	}
+}
+
 func TestSendEmptyIsNoop(t *testing.T) {
 	called := false
 	srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { called = true }))

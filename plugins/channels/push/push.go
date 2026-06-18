@@ -41,6 +41,10 @@ const (
 	KindMastodon   = "mastodon"
 	KindLine       = "line"
 	KindZulip      = "zulip"
+	KindFeishu     = "feishu"
+	KindDingTalk   = "dingtalk"
+	KindWeCom      = "wecom"
+	KindSynology   = "synology"
 )
 
 // Config configures one push provider. Only the fields relevant to Kind are
@@ -91,7 +95,7 @@ func New(cfg Config) (*Channel, error) {
 		if cfg.Token == "" {
 			return nil, missing("an access token")
 		}
-	case KindGoogleChat, KindMattermost, KindRocketChat:
+	case KindGoogleChat, KindMattermost, KindRocketChat, KindFeishu, KindDingTalk, KindWeCom, KindSynology:
 		if strings.TrimSpace(cfg.URL) == "" {
 			return nil, missing("a webhook URL")
 		}
@@ -200,6 +204,22 @@ func (c *Channel) buildRequest(ctx context.Context, text string) (*http.Request,
 		return r, nil
 	case KindGoogleChat, KindMattermost, KindRocketChat:
 		return jsonReq(c.cfg.URL, map[string]any{"text": text})
+	case KindFeishu:
+		// Feishu/Lark custom bot.
+		return jsonReq(c.cfg.URL, map[string]any{"msg_type": "text", "content": map[string]any{"text": text}})
+	case KindDingTalk, KindWeCom:
+		// DingTalk robot + WeChat Work (WeCom) group robot share this shape.
+		return jsonReq(c.cfg.URL, map[string]any{"msgtype": "text", "text": map[string]any{"content": text}})
+	case KindSynology:
+		// Synology Chat incoming webhook expects a form field payload={"text":…}.
+		payload, _ := json.Marshal(map[string]any{"text": text})
+		form := url.Values{"payload": {string(payload)}}
+		r, err := http.NewRequestWithContext(ctx, http.MethodPost, c.cfg.URL, strings.NewReader(form.Encode()))
+		if err != nil {
+			return nil, err
+		}
+		r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		return r, nil
 	case KindMastodon:
 		form := url.Values{"status": {text}}
 		u := strings.TrimRight(c.cfg.Server, "/") + "/api/v1/statuses"

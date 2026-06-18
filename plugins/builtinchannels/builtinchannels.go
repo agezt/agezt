@@ -147,4 +147,28 @@ var manifests = []channel.Manifest{
 		ConfigSection: "zulip", RequiredEnv: []string{"AGEZT_ZULIP_SERVER", "AGEZT_ZULIP_EMAIL", "AGEZT_ZULIP_APIKEY", "AGEZT_ZULIP_STREAM"},
 		DocsURL: "https://zulip.com/api/send-message",
 	},
+	{
+		Kind: "feishu", Display: "Feishu / Lark", Transport: "webhook", Duplex: false,
+		Description:   "Outbound messages via a Feishu/Lark custom bot.",
+		ConfigSection: "feishu", RequiredEnv: []string{"AGEZT_FEISHU_WEBHOOK"},
+		DocsURL: "https://open.feishu.cn/document/client-docs/bot-v3/add-custom-bot",
+	},
+	{
+		Kind: "dingtalk", Display: "DingTalk", Transport: "webhook", Duplex: false,
+		Description:   "Outbound messages via a DingTalk custom robot.",
+		ConfigSection: "dingtalk", RequiredEnv: []string{"AGEZT_DINGTALK_WEBHOOK"},
+		DocsURL: "https://open.dingtalk.com/document/robots/custom-robot-access",
+	},
+	{
+		Kind: "wecom", Display: "WeChat Work (WeCom)", Transport: "webhook", Duplex: false,
+		Description:   "Outbound messages via a WeCom group robot.",
+		ConfigSection: "wecom", RequiredEnv: []string{"AGEZT_WECOM_WEBHOOK"},
+		DocsURL: "https://developer.work.weixin.qq.com/document/path/91770",
+	},
+	{
+		Kind: "synology", Display: "Synology Chat", Transport: "webhook", Duplex: false,
+		Description:   "Outbound messages via a Synology Chat incoming webhook.",
+		ConfigSection: "synology", RequiredEnv: []string{"AGEZT_SYNOLOGY_WEBHOOK"},
+		DocsURL: "https://kb.synology.com/DSM/help/Chat/chat_integration",
+	},
 }

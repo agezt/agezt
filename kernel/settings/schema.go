@@ -293,6 +293,34 @@ func builtinSections() []Section {
 			},
 		},
 		{
+			ID: "feishu", Name: "Feishu / Lark",
+			Help: "Outbound messages via a Feishu/Lark custom bot webhook. Restart to apply.",
+			Fields: []Field{
+				pw("AGEZT_FEISHU_WEBHOOK", "Bot webhook URL", "The custom bot's webhook URL."),
+			},
+		},
+		{
+			ID: "dingtalk", Name: "DingTalk",
+			Help: "Outbound messages via a DingTalk custom robot webhook. Restart to apply.",
+			Fields: []Field{
+				pw("AGEZT_DINGTALK_WEBHOOK", "Robot webhook URL", "The custom robot's webhook URL."),
+			},
+		},
+		{
+			ID: "wecom", Name: "WeChat Work (WeCom)",
+			Help: "Outbound messages via a WeCom group robot webhook. Restart to apply.",
+			Fields: []Field{
+				pw("AGEZT_WECOM_WEBHOOK", "Group robot webhook URL", "The group robot's webhook URL."),
+			},
+		},
+		{
+			ID: "synology", Name: "Synology Chat",
+			Help: "Outbound messages via a Synology Chat incoming webhook. Restart to apply.",
+			Fields: []Field{
+				pw("AGEZT_SYNOLOGY_WEBHOOK", "Incoming webhook URL", "The Synology Chat integration's webhook URL."),
+			},
+		},
+		{
 			ID: "interfaces", Name: "Interfaces",
 			Help: "Network surfaces the daemon serves. Restart to apply.",
 			Fields: []Field{

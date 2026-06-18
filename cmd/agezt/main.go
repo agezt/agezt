@@ -2861,6 +2861,18 @@ func buildPushChannels(ctx context.Context, k *kernelruntime.Kernel) ([]*push.Ch
 	if env("ZULIP_APIKEY") != "" {
 		add(push.Config{Kind: push.KindZulip, Server: env("ZULIP_SERVER"), User: env("ZULIP_EMAIL"), Token: env("ZULIP_APIKEY"), Target: env("ZULIP_STREAM"), Topic: env("ZULIP_TOPIC")})
 	}
+	if u := env("FEISHU_WEBHOOK"); u != "" {
+		add(push.Config{Kind: push.KindFeishu, URL: u})
+	}
+	if u := env("DINGTALK_WEBHOOK"); u != "" {
+		add(push.Config{Kind: push.KindDingTalk, URL: u})
+	}
+	if u := env("WECOM_WEBHOOK"); u != "" {
+		add(push.Config{Kind: push.KindWeCom, URL: u})
+	}
+	if u := env("SYNOLOGY_WEBHOOK"); u != "" {
+		add(push.Config{Kind: push.KindSynology, URL: u})
+	}
 	if len(chans) == 0 {
 		return nil, nil, ""
 	}

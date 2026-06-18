@@ -256,6 +256,11 @@ var configEnvVars = []string{
 	"AGEZT_ZULIP_APIKEY",
 	"AGEZT_ZULIP_STREAM",
 	"AGEZT_ZULIP_TOPIC",
+	// Enterprise / Asia webhook bots.
+	"AGEZT_FEISHU_WEBHOOK",
+	"AGEZT_DINGTALK_WEBHOOK",
+	"AGEZT_WECOM_WEBHOOK",
+	"AGEZT_SYNOLOGY_WEBHOOK",
 }
 
 func (s *Server) handleConfig(conn net.Conn, req Request) {
