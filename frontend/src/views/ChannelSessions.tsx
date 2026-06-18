@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
-import { Radio, ChevronDown, ChevronRight, X, MessageCircle } from "lucide-react";
-import { getJSON } from "@/lib/api";
+import { Radio, ChevronDown, ChevronRight, X, MessageCircle, Send } from "lucide-react";
+import { getJSON, postAction } from "@/lib/api";
 import { useEvents } from "@/lib/events";
 import { cn, fmtTime } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Markdown } from "@/components/Markdown";
+import { useUI } from "@/components/ui/feedback";
+import { rawURL, type ArtifactEntry } from "@/views/Files";
 import {
   sessionsFromInboxThreads,
   lastSnippet,
@@ -21,6 +23,7 @@ import {
 export function ChannelSessions() {
   const { events } = useEvents();
   const [sessions, setSessions] = useState<ChannelSession[]>([]);
+  const [imagesByCorr, setImagesByCorr] = useState<Record<string, ArtifactEntry[]>>({});
   const [open, setOpen] = useState(true);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
 
@@ -30,6 +33,17 @@ export function ChannelSessions() {
       setSessions(sessionsFromInboxThreads(d.threads ?? []));
     } catch {
       // Non-fatal: the section just stays empty if the inbox isn't reachable.
+    }
+    try {
+      // Inbound images, bucketed by correlation, so a session can show them inline.
+      const imgs = await getJSON<{ entries?: ArtifactEntry[] }>("/api/artifacts", { kind: "image" });
+      const byCorr: Record<string, ArtifactEntry[]> = {};
+      for (const e of imgs.entries || []) {
+        if (e.corr) (byCorr[e.corr] ||= []).push(e);
+      }
+      setImagesByCorr(byCorr);
+    } catch {
+      /* images are a nicety */
     }
   }
 
@@ -81,12 +95,51 @@ export function ChannelSessions() {
         </div>
       )}
 
-      {selected && <SessionPane session={selected} onClose={() => setSelectedKey(null)} />}
+      {selected && (
+        <SessionPane
+          session={selected}
+          images={selected.correlationIds.flatMap((c) => imagesByCorr[c] || [])}
+          onClose={() => setSelectedKey(null)}
+          onSent={reload}
+        />
+      )}
     </div>
   );
 }
 
-function SessionPane({ session, onClose }: { session: ChannelSession; onClose: () => void }) {
+function SessionPane({
+  session,
+  images,
+  onClose,
+  onSent,
+}: {
+  session: ChannelSession;
+  images: ArtifactEntry[];
+  onClose: () => void;
+  onSent: () => void;
+}) {
+  const ui = useUI();
+  const [reply, setReply] = useState("");
+  const [sending, setSending] = useState(false);
+  // Reply target: the chat/room id, falling back to the sender for 1:1 channels.
+  const to = session.channelId || session.sender;
+
+  async function send() {
+    const text = reply.trim();
+    if (!text || sending) return;
+    setSending(true);
+    try {
+      await postAction("/api/send", { channel: session.channelKind, to, text });
+      setReply("");
+      ui.toast(`Sent to ${session.title} on ${session.channelKind}`, "success");
+      onSent();
+    } catch (e) {
+      ui.toast((e as Error).message, "error");
+    } finally {
+      setSending(false);
+    }
+  }
+
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm" onClick={onClose}>
       <div
@@ -123,10 +176,46 @@ function SessionPane({ session, onClose }: { session: ChannelSession; onClose: (
               </div>
             );
           })}
+          {images.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 border-t border-border/60 pt-2">
+              {images.map((e) => (
+                <a
+                  key={e.id}
+                  href={rawURL(e)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title={e.caption || e.name || "image"}
+                  className="block size-16 overflow-hidden rounded-md border border-border bg-panel"
+                >
+                  <img src={rawURL(e)} alt={e.caption || "image"} className="size-full object-cover" loading="lazy" />
+                </a>
+              ))}
+            </div>
+          )}
         </div>
 
-        <div className="border-t border-border px-4 py-2 text-[11px] text-muted">
-          Read-only — replies go out on {session.channelKind}. This view follows the conversation live.
+        <div className="flex items-end gap-2 border-t border-border px-3 py-2">
+          <textarea
+            value={reply}
+            onChange={(e) => setReply(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                void send();
+              }
+            }}
+            rows={1}
+            placeholder={`Reply on ${session.channelKind} to ${to}…`}
+            aria-label="Reply"
+            className="min-h-8 flex-1 resize-none rounded-md border border-border bg-panel px-2 py-1.5 text-sm outline-none focus-visible:border-accent"
+          />
+          <button
+            onClick={() => void send()}
+            disabled={sending || reply.trim() === ""}
+            className="inline-flex h-8 items-center gap-1 rounded-md bg-accent px-3 text-sm text-accent-foreground disabled:opacity-50"
+          >
+            <Send className="size-3.5" /> Send
+          </button>
         </div>
       </div>
     </div>
