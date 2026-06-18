@@ -56,6 +56,24 @@ describe("QuickConnect", () => {
     }));
   });
 
+  it("optionally pins the provider as default brain", async () => {
+    render(withUI(<QuickConnect />));
+    await screen.findByText("Quick Connect");
+
+    fireEvent.change(screen.getByLabelText("DeepSeek API key"), { target: { value: "sk-test" } });
+    const keyInput = screen.getByLabelText("DeepSeek API key");
+    const card = keyInput.closest("div.glass") ?? keyInput.parentElement!.parentElement!;
+    // Tick "Set as default brain" within the DeepSeek card.
+    const checkbox = card.querySelector('input[type="checkbox"]') as HTMLInputElement;
+    fireEvent.click(checkbox);
+    const connectBtn = Array.from(card.querySelectorAll("button")).find((b) => /connect/i.test(b.textContent || ""))!;
+    fireEvent.click(connectBtn);
+
+    await waitFor(() => expect(postJSON).toHaveBeenCalledWith("/api/config/set", { name: "AGEZT_PROVIDER", value: "deepseek" }));
+    expect(postJSON).toHaveBeenCalledWith("/api/config/set", { name: "AGEZT_MODEL", value: "deepseek-chat" });
+    expect(postJSON).toHaveBeenCalledWith("/api/provider/reload", {});
+  });
+
   it("refuses to connect without a key", async () => {
     render(withUI(<QuickConnect />));
     await screen.findByText("Quick Connect");

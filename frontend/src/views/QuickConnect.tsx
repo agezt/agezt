@@ -115,6 +115,15 @@ async function connectProvider(args: {
   });
 }
 
+// setDefaultProvider pins this provider + model as the daemon's primary brain.
+// AGEZT_PROVIDER / AGEZT_MODEL are ApplyLive, so the reload makes it active with
+// no restart.
+async function setDefaultProvider(id: string, model: string) {
+  await postJSON("/api/config/set", { name: "AGEZT_PROVIDER", value: id });
+  await postJSON("/api/config/set", { name: "AGEZT_MODEL", value: model.trim() });
+  await postJSON("/api/provider/reload", {});
+}
+
 function Glyph({ color, glyph }: { color: string; glyph: string }) {
   return (
     <span
@@ -140,6 +149,7 @@ function PresetCard({
   const [api, setApi] = useState(preset.api);
   const [model, setModel] = useState(preset.model);
   const [key, setKey] = useState("");
+  const [makeDefault, setMakeDefault] = useState(false);
   const [busy, setBusy] = useState(false);
 
   async function connect() {
@@ -150,7 +160,8 @@ function PresetCard({
     setBusy(true);
     try {
       await connectProvider({ id: preset.id, name: preset.name, family: preset.family, api, keyEnv: preset.keyEnv, model, key });
-      ui.toast(`Connected ${preset.name}`, "success");
+      if (makeDefault) await setDefaultProvider(preset.id, model);
+      ui.toast(makeDefault ? `Connected ${preset.name} — now the default brain` : `Connected ${preset.name}`, "success");
       setKey("");
       onConnected();
     } catch (e) {
@@ -209,6 +220,11 @@ function PresetCard({
         </div>
       </details>
 
+      <label className="flex items-center gap-1.5 text-[11px] text-muted">
+        <input type="checkbox" checked={makeDefault} onChange={(e) => setMakeDefault(e.target.checked)} className="size-3.5 accent-accent" />
+        Set as default brain
+      </label>
+
       <Button size="sm" disabled={busy} onClick={connect} className="mt-auto">
         {busy ? <RefreshCw className="size-3.5 animate-spin" /> : <Plug className="size-3.5" />}
         {connected ? "Reconnect" : "Connect"}
@@ -224,6 +240,7 @@ function CustomCard({ onConnected, ui }: { onConnected: () => void; ui: UIToast 
   const [model, setModel] = useState("");
   const [family, setFamily] = useState<PresetFamily>("openai-compatible");
   const [key, setKey] = useState("");
+  const [makeDefault, setMakeDefault] = useState(false);
   const [busy, setBusy] = useState(false);
 
   function slug(s: string) {
@@ -241,8 +258,10 @@ function CustomCard({ onConnected, ui }: { onConnected: () => void; ui: UIToast 
     }
     setBusy(true);
     try {
-      await connectProvider({ id: slug(name), name: name.trim(), family, api, keyEnv: keyEnv.trim(), model, key });
-      ui.toast(`Connected ${name}`, "success");
+      const id = slug(name);
+      await connectProvider({ id, name: name.trim(), family, api, keyEnv: keyEnv.trim(), model, key });
+      if (makeDefault) await setDefaultProvider(id, model);
+      ui.toast(makeDefault ? `Connected ${name} — now the default brain` : `Connected ${name}`, "success");
       setKey("");
       onConnected();
     } catch (e) {
@@ -283,6 +302,10 @@ function CustomCard({ onConnected, ui }: { onConnected: () => void; ui: UIToast 
           aria-label="Custom provider API key"
           className="h-8 flex-1 text-xs"
         />
+        <label className="flex items-center gap-1.5 whitespace-nowrap text-[11px] text-muted">
+          <input type="checkbox" checked={makeDefault} onChange={(e) => setMakeDefault(e.target.checked)} className="size-3.5 accent-accent" />
+          Set as default
+        </label>
         <Button size="sm" disabled={busy} onClick={connect}>
           {busy ? <RefreshCw className="size-3.5 animate-spin" /> : <Plug className="size-3.5" />}
           Connect
