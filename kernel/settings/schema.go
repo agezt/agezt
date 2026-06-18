@@ -334,6 +334,20 @@ func builtinSections() []Section {
 			},
 		},
 		{
+			ID: "whatsappgw", Name: "WhatsApp (Gateway)",
+			Help: "Easy WhatsApp via a self-hosted WAHA or Evolution gateway (Docker + QR login, no Meta Business account). Restart to apply.",
+			Fields: []Field{
+				{Env: "AGEZT_WHATSAPPGW_URL", Label: "Gateway URL", Type: TypeText, Apply: ApplyRestart, Help: "e.g. http://localhost:3000 (WAHA) or your Evolution API URL"},
+				{Env: "AGEZT_WHATSAPPGW_BACKEND", Label: "Backend", Type: TypeText, Apply: ApplyRestart, Help: "\"waha\" (default) or \"evolution\""},
+				{Env: "AGEZT_WHATSAPPGW_SESSION", Label: "Session / instance", Type: TypeText, Apply: ApplyRestart, Help: "WAHA session or Evolution instance name (default \"default\")"},
+				pw("AGEZT_WHATSAPPGW_KEY", "API key", "the gateway's API key (WAHA X-Api-Key / Evolution apikey)"),
+				{Env: "AGEZT_WHATSAPPGW_NUMBERS", Label: "Allowed numbers", Type: TypeCSV, Apply: ApplyRestart, Help: "comma-separated numbers allowed to drive the agent"},
+				{Env: "AGEZT_WHATSAPPGW_ADDR", Label: "Inbound addr (optional)", Type: TypeText, Apply: ApplyRestart, Help: "host:port to serve the gateway's webhook (two-way); blank = outbound only"},
+				{Env: "AGEZT_WHATSAPPGW_PATH", Label: "Inbound path", Type: TypeText, Apply: ApplyRestart, Help: "webhook route (default /whatsappgw)"},
+				pw("AGEZT_WHATSAPPGW_SECRET", "Webhook secret (optional)", "if set, inbound must echo it in X-Webhook-Secret"),
+			},
+		},
+		{
 			ID: "irc", Name: "IRC",
 			Help: "Two-way IRC channel — connects to any ircd and joins channels. Restart to apply.",
 			Fields: []Field{

@@ -95,6 +95,7 @@ import (
 	"github.com/agezt/agezt/plugins/channels/telegram"
 	webhookchan "github.com/agezt/agezt/plugins/channels/webhook"
 	"github.com/agezt/agezt/plugins/channels/whatsapp"
+	"github.com/agezt/agezt/plugins/channels/whatsappgw"
 	"github.com/agezt/agezt/plugins/providers/compat"
 	"github.com/agezt/agezt/plugins/providers/embed"
 	"github.com/agezt/agezt/plugins/providers/voice"
@@ -1504,6 +1505,15 @@ func runDaemon(stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "  twitch channel   : disabled (set AGEZT_TWITCH_USERNAME + AGEZT_TWITCH_TOKEN)\n")
 	}
 
+	// WhatsApp via a self-hosted gateway (WAHA/Evolution) — the easy WhatsApp path.
+	wgChan, wgSink, wgDesc := buildWhatsAppGateway(ctx, k)
+	if wgChan != nil {
+		go wgChan.Start(ctx)
+		fmt.Fprintf(stdout, "  whatsapp gateway : %s\n", wgDesc)
+	} else {
+		fmt.Fprintf(stdout, "  whatsapp gateway : disabled (set AGEZT_WHATSAPPGW_URL)\n")
+	}
+
 	// SMS channel (SPEC-04 §1) — duplex over Twilio Programmable Messaging when
 	// AGEZT_SMS_ACCOUNT_SID + AGEZT_SMS_AUTH_TOKEN are set. Inbound is a signed
 	// Twilio webhook (needs AGEZT_SMS_ADDR); outbound texts go via the REST API
@@ -1579,7 +1589,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 
 	// Every configured channel's brief sink, teed: Pulse briefs and (M782)
 	// alert notifications share the same delivery surface.
-	channelSinks := combineSinks(tgSink, slSink, dcSink, whSink, emSink, mxSink, ircSink, twSink, smSink, waSink, haSink, tmSink, sgSink, pushSink)
+	channelSinks := combineSinks(tgSink, slSink, dcSink, whSink, emSink, mxSink, ircSink, twSink, wgSink, smSink, waSink, haSink, tmSink, sgSink, pushSink)
 
 	// Pulse — the proactive heart (SPEC-03). On by default; the resident
 	// engine runs on the daemon ctx so `agt halt`/SIGTERM/`agt shutdown`
@@ -1757,6 +1767,9 @@ func runDaemon(stdout, stderr io.Writer) int {
 	}
 	if twChan != nil {
 		liveChannels["twitch"] = twChan
+	}
+	if wgChan != nil {
+		liveChannels["whatsappgw"] = wgChan
 	}
 	if smChan != nil {
 		liveChannels["sms"] = smChan
@@ -2784,6 +2797,65 @@ func buildTwitch(ctx context.Context, k *kernelruntime.Kernel) (*irc.Channel, pu
 	desc := fmt.Sprintf("as %s, %d channel(s)", user, len(chans))
 	if len(chans) == 0 {
 		desc = fmt.Sprintf("as %s, NO channels (set AGEZT_TWITCH_CHANNELS)", user)
+	}
+	return ch, sink, desc
+}
+
+// buildWhatsAppGateway constructs the easy-path WhatsApp channel — a self-hosted
+// WAHA or Evolution API gateway (QR login, no Meta) — when AGEZT_WHATSAPPGW_URL
+// is set. Outbound always; inbound (two-way) when AGEZT_WHATSAPPGW_ADDR points
+// the gateway's webhook at this daemon. Briefs tee to the allowlisted numbers.
+//
+//	AGEZT_WHATSAPPGW_URL      gateway base URL, e.g. http://localhost:3000  (required)
+//	AGEZT_WHATSAPPGW_BACKEND  "waha" (default) or "evolution"
+//	AGEZT_WHATSAPPGW_SESSION  WAHA session / Evolution instance (default "default")
+//	AGEZT_WHATSAPPGW_KEY      gateway API key
+//	AGEZT_WHATSAPPGW_NUMBERS  comma-separated allowed sender numbers
+//	AGEZT_WHATSAPPGW_ADDR     host:port to serve the inbound webhook (two-way)
+//	AGEZT_WHATSAPPGW_PATH     inbound route (default /whatsappgw)
+//	AGEZT_WHATSAPPGW_SECRET   optional shared secret the gateway must echo inbound
+func buildWhatsAppGateway(ctx context.Context, k *kernelruntime.Kernel) (*whatsappgw.Channel, pulse.BriefSink, string) {
+	base := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "WHATSAPPGW_URL"))
+	if base == "" {
+		return nil, nil, ""
+	}
+	numbers := splitNonEmpty(os.Getenv(brand.EnvPrefix + "WHATSAPPGW_NUMBERS"))
+	addr := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "WHATSAPPGW_ADDR"))
+	backend := strings.ToLower(strings.TrimSpace(os.Getenv(brand.EnvPrefix + "WHATSAPPGW_BACKEND")))
+
+	ch := whatsappgw.New(whatsappgw.Config{
+		Backend:   backend,
+		BaseURL:   base,
+		Session:   strings.TrimSpace(os.Getenv(brand.EnvPrefix + "WHATSAPPGW_SESSION")),
+		APIKey:    strings.TrimSpace(os.Getenv(brand.EnvPrefix + "WHATSAPPGW_KEY")),
+		Allowlist: channel.NewAllowlist(numbers),
+		Bus:       k.Bus(),
+		Handler:   makeChannelHandler(k),
+		Addr:      addr,
+		Path:      strings.TrimSpace(os.Getenv(brand.EnvPrefix + "WHATSAPPGW_PATH")),
+		Secret:    strings.TrimSpace(os.Getenv(brand.EnvPrefix + "WHATSAPPGW_SECRET")),
+	})
+
+	var sink pulse.BriefSink
+	if len(numbers) > 0 {
+		sink = pulse.SinkFunc(func(b pulse.Brief) error {
+			var firstErr error
+			for _, n := range numbers {
+				if err := ch.Send(ctx, channel.Outbound{ChannelID: n, Text: formatBrief(b), Priority: channel.PriorityNotify}); err != nil && firstErr == nil {
+					firstErr = err
+				}
+			}
+			return firstErr
+		})
+	}
+
+	be := backend
+	if be == "" {
+		be = "waha"
+	}
+	desc := fmt.Sprintf("%s via %s, allowlist=%d number(s)", base, be, len(numbers))
+	if addr == "" {
+		desc += " (outbound-only; set AGEZT_WHATSAPPGW_ADDR for two-way)"
 	}
 	return ch, sink, desc
 }

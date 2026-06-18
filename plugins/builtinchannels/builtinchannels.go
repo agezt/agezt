@@ -183,4 +183,10 @@ var manifests = []channel.Manifest{
 		ConfigSection: "twitch", RequiredEnv: []string{"AGEZT_TWITCH_USERNAME", "AGEZT_TWITCH_TOKEN"},
 		DocsURL: "https://dev.twitch.tv/docs/irc/",
 	},
+	{
+		Kind: "whatsappgw", Display: "WhatsApp (Gateway)", Transport: "rest", Duplex: true,
+		Description:   "Easy WhatsApp via a self-hosted WAHA / Evolution gateway (QR login, no Meta).",
+		ConfigSection: "whatsappgw", RequiredEnv: []string{"AGEZT_WHATSAPPGW_URL"},
+		DocsURL: "https://waha.devlike.pro/",
+	},
 }
