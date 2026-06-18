@@ -305,6 +305,13 @@ type Config struct {
 	// tool reports the marketplace is unavailable. Off by default.
 	MarketTool bool
 
+	// Voice, when non-nil, registers the in-process `voice` tool so an agent can
+	// transcribe inbound audio (speech-to-text) and synthesize spoken replies
+	// (text-to-speech). The kernel never picks an implementation — the daemon
+	// injects one (typically the OpenAI-compatible voice adapter plugin) built
+	// from AGEZT_STT_* / AGEZT_TTS_*. Unset → no voice tool.
+	Voice Voice
+
 	// Forge / skill knobs (SPEC-05 §4–5; Phase 2 slice 2). The skill store
 	// and `agt skill` CLI always work; these gate only the per-run
 	// behaviour and default OFF (daemon is the single enable point).
@@ -728,6 +735,13 @@ func Open(cfg Config) (*Kernel, error) {
 		mktTool = newMarketTool()
 		effTools["market"] = mktTool
 	}
+	// The voice tool needs the kernel's artifact store (bound just after k is
+	// built) to persist synthesized audio.
+	var vTool *voiceTool
+	if cfg.Voice != nil {
+		vTool = newVoiceTool(cfg.Voice)
+		effTools["voice"] = vTool
+	}
 
 	catStore := catalog.NewStore(catDir)
 	cat := cfg.Catalog
@@ -793,6 +807,9 @@ func Open(cfg Config) (*Kernel, error) {
 	}
 	if mktTool != nil {
 		mktTool.manager = k.Market
+	}
+	if vTool != nil {
+		vTool.saveArtifact = k.artifacts.Put
 	}
 
 	// Config Center for agent SDK config access (M???)

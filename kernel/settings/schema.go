@@ -104,6 +104,19 @@ func builtinSections() []Section {
 			},
 		},
 		{
+			ID: "voice", Name: "Voice (Speech)",
+			Help: "Optional speech-to-text and text-to-speech so agents can hear voice notes and speak replies. OpenAI-compatible — point at a local server (faster-whisper / Kokoro) or a hosted API. Each half is independent. Restart to apply.",
+			Fields: []Field{
+				{Env: "AGEZT_STT_URL", Label: "Transcription API URL", Type: TypeText, Apply: ApplyRestart, Help: "OpenAI-compatible API root for /audio/transcriptions, e.g. http://localhost:8000 or https://api.openai.com/v1."},
+				{Env: "AGEZT_STT_MODEL", Label: "Transcription model", Type: TypeText, Apply: ApplyRestart, Help: "e.g. whisper-1 (OpenAI) or Systran/faster-whisper-base."},
+				{Env: "AGEZT_STT_KEY", Label: "Transcription API key", Type: TypePassword, Secret: true, Apply: ApplyRestart, Help: "Bearer token for hosted APIs; leave empty for a local server."},
+				{Env: "AGEZT_TTS_URL", Label: "Synthesis API URL", Type: TypeText, Apply: ApplyRestart, Help: "OpenAI-compatible API root for /audio/speech."},
+				{Env: "AGEZT_TTS_MODEL", Label: "Synthesis model", Type: TypeText, Apply: ApplyRestart, Help: "e.g. tts-1 (OpenAI) or kokoro."},
+				{Env: "AGEZT_TTS_VOICE", Label: "Voice", Type: TypeText, Apply: ApplyRestart, Help: "voice name, e.g. alloy (default)."},
+				{Env: "AGEZT_TTS_KEY", Label: "Synthesis API key", Type: TypePassword, Secret: true, Apply: ApplyRestart, Help: "Bearer token for hosted APIs; leave empty for a local server."},
+			},
+		},
+		{
 			ID: "telegram", Name: "Telegram",
 			Help: "Telegram bot channel. Restart to apply.",
 			Fields: []Field{

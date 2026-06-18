@@ -97,6 +97,7 @@ import (
 	"github.com/agezt/agezt/plugins/channels/whatsapp"
 	"github.com/agezt/agezt/plugins/providers/compat"
 	"github.com/agezt/agezt/plugins/providers/embed"
+	"github.com/agezt/agezt/plugins/providers/voice"
 	"github.com/agezt/agezt/plugins/tools/acpagent"
 	artifactstool "github.com/agezt/agezt/plugins/tools/artifacts"
 	boardtool "github.com/agezt/agezt/plugins/tools/boardtool"
@@ -669,6 +670,32 @@ func runDaemon(stdout, stderr io.Writer) int {
 		}
 	}
 
+	// Voice adapter (STT + TTS) over an OpenAI-compatible endpoint, same shape as
+	// the embeddings adapter. Each half is independent: set AGEZT_STT_URL +
+	// AGEZT_STT_MODEL to let agents transcribe inbound audio, and/or AGEZT_TTS_URL
+	// + AGEZT_TTS_MODEL to let them synthesize spoken replies. Local (faster-
+	// whisper / Kokoro behind an OpenAI shim) or hosted (api.openai.com/v1 +
+	// AGEZT_STT_KEY / AGEZT_TTS_KEY). Unset → no voice tool is registered.
+	voiceAdapter := &voice.Adapter{}
+	if sttURL := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "STT_URL")); sttURL != "" {
+		if sttModel := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "STT_MODEL")); sttModel == "" {
+			fmt.Fprintf(stderr, "%s: %sSTT_URL is set but %sSTT_MODEL is empty — transcription disabled\n", brand.Binary, brand.EnvPrefix, brand.EnvPrefix)
+		} else {
+			voiceAdapter.STT = &voice.STTClient{BaseURL: sttURL, Model: sttModel, APIKey: strings.TrimSpace(os.Getenv(brand.EnvPrefix + "STT_KEY"))}
+		}
+	}
+	if ttsURL := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "TTS_URL")); ttsURL != "" {
+		if ttsModel := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "TTS_MODEL")); ttsModel == "" {
+			fmt.Fprintf(stderr, "%s: %sTTS_URL is set but %sTTS_MODEL is empty — synthesis disabled\n", brand.Binary, brand.EnvPrefix, brand.EnvPrefix)
+		} else {
+			voiceAdapter.TTS = &voice.TTSClient{BaseURL: ttsURL, Model: ttsModel, Voice: strings.TrimSpace(os.Getenv(brand.EnvPrefix + "TTS_VOICE")), APIKey: strings.TrimSpace(os.Getenv(brand.EnvPrefix + "TTS_KEY"))}
+		}
+	}
+	var voiceCfg kernelruntime.Voice
+	if voiceAdapter.HasSTT() || voiceAdapter.HasTTS() {
+		voiceCfg = voiceAdapter // typed-nil avoidance: only assign when something is configured
+	}
+
 	cfg := kernelruntime.Config{
 		BaseDir:          baseDir,
 		Provider:         gov, // Governor implements agent.Provider
@@ -687,6 +714,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 		MemoryTopK:                 5,
 		MemoryDistillMinTools:      distillMinTools,
 		MemoryEmbedder:             memEmbedder, // M901: provider embeddings opt-in (nil = local hashing)
+		Voice:                      voiceCfg,    // voice adapter opt-in (nil = no voice tool)
 		WorldInject:                worldOn,
 		WorldTool:                  worldOn,
 		WorldTopK:                  5,

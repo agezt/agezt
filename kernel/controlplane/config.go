@@ -273,6 +273,14 @@ var configEnvVars = []string{
 	"AGEZT_TWITCH_TOKEN",
 	"AGEZT_TWITCH_CHANNELS",
 	"AGEZT_TWITCH_ALLOWLIST",
+	// Voice adapter (STT + TTS, OpenAI-compatible).
+	"AGEZT_STT_URL",
+	"AGEZT_STT_MODEL",
+	"AGEZT_STT_KEY",
+	"AGEZT_TTS_URL",
+	"AGEZT_TTS_MODEL",
+	"AGEZT_TTS_VOICE",
+	"AGEZT_TTS_KEY",
 }
 
 func (s *Server) handleConfig(conn net.Conn, req Request) {
