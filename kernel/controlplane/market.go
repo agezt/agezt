@@ -222,6 +222,34 @@ func strArg(v any) string {
 	return strings.TrimSpace(s)
 }
 
+// parseCapList parses a decoded "auto_approve_caps" arg — a comma/space-separated
+// string OR a JSON array of strings — into a capability set. Used by handleRun to
+// thread the chat's session-scoped auto-approve grant into the run context.
+func parseCapList(v any) map[string]bool {
+	add := func(out map[string]bool, raw string) {
+		for _, f := range strings.FieldsFunc(raw, func(r rune) bool { return r == ',' || r == ' ' || r == '\t' || r == '\n' }) {
+			if f = strings.TrimSpace(f); f != "" {
+				out[f] = true
+			}
+		}
+	}
+	out := map[string]bool{}
+	switch t := v.(type) {
+	case string:
+		add(out, t)
+	case []any:
+		for _, e := range t {
+			if s, ok := e.(string); ok {
+				add(out, s)
+			}
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
 func (s *Server) market() *market.Manager {
 	if s.k == nil {
 		return nil

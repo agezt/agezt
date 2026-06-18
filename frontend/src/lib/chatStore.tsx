@@ -109,6 +109,12 @@ export interface ChatEngine {
    *  else without creating a durable roster agent. */
   conversationPersona: string;
   setConversationPersona: (persona: string) => void;
+  /** Session-scoped grant: when true, runs started from this chat auto-approve
+   *  Tool Forge actions (and the code-exec its test op runs) instead of prompting
+   *  for HITL each time — e.g. when standing up an agent army. Not persisted;
+   *  resets when the page reloads. */
+  autoApproveForge: boolean;
+  setAutoApproveForge: (on: boolean) => void;
   /** Edit the user message at `index` and re-run from there: replace its text,
    *  drop every later message, and stream a fresh answer with the prior history. */
   editAndResend: (index: number, text: string) => void;
@@ -167,6 +173,9 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   const setAgent = (a: string) => setStore((s) => withActiveConvAgent(s, a, Date.now()));
   const [activeModel, setActiveModel] = useState("");
   const [busy, setBusy] = useState(false);
+  // Session-scoped auto-approve for Tool Forge (not persisted): the "build an
+  // agent army without per-forge approval prompts" toggle the owner asked for.
+  const [autoApproveForge, setAutoApproveForge] = useState(false);
   const [learned, setLearned] = useState<Record<string, LearnedMem[]>>({});
   const abortRef = useRef<AbortController | null>(null);
   // The correlation id of the run currently streaming, captured from its frames
@@ -266,6 +275,8 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
           agent: activeConvAgent(store).trim() || undefined, // per-conversation agent (M789)
           history: history.length ? history : undefined,
           system: persona || undefined, // per-conversation identity override (M711)
+          // Session-scoped auto-approve for Tool Forge (op=test also runs code.exec).
+          auto_approve_caps: autoApproveForge ? "tool.forge,code.exec" : undefined,
         },
         (f) => {
           // Capture the run's correlation id from the first frame that carries
@@ -482,6 +493,8 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     editAndResend,
     conversationPersona: activePersona(store),
     setConversationPersona,
+    autoApproveForge,
+    setAutoApproveForge,
     historySummary: activeSummary(store),
     stop,
     newChat,

@@ -387,7 +387,14 @@ export function buildHistoryWithSummary(
 }
 
 export async function streamRun(
-  body: { intent: string; model?: string; history?: ChatHistoryTurn[]; system?: string; agent?: string },
+  body: {
+    intent: string;
+    model?: string;
+    history?: ChatHistoryTurn[];
+    system?: string;
+    agent?: string;
+    auto_approve_caps?: string;
+  },
   onFrame: (f: ChatFrame) => void,
   signal?: AbortSignal,
 ): Promise<void> {

@@ -75,7 +75,7 @@ import { ChannelSessions } from "@/views/ChannelSessions";
 // cost. The engine (store, streaming, model) lives in ChatProvider so a run keeps
 // going when you leave the view; this component is the full-screen UI over it.
 export function Chat() {
-  const { store, messages, busy, model, setModel, agent, setAgent, activeModel, send, retry, continueRun, editAndResend, conversationPersona, setConversationPersona, historySummary, stop, newChat, selectConversation, removeConversation, renameConversation, togglePin, activeCorr, steer, queue, enqueue, removeQueued, reorderQueued, clearQueue, sendQueuedNow } =
+  const { store, messages, busy, model, setModel, agent, setAgent, activeModel, send, retry, continueRun, editAndResend, conversationPersona, setConversationPersona, autoApproveForge, setAutoApproveForge, historySummary, stop, newChat, selectConversation, removeConversation, renameConversation, togglePin, activeCorr, steer, queue, enqueue, removeQueued, reorderQueued, clearQueue, sendQueuedNow } =
     useChat();
   const ui = useUI();
   const [input, setInput] = useState("");
@@ -455,6 +455,25 @@ export function Chat() {
           />
           <AgentPicker value={agent} onChange={setAgent} />
           <ConversationPersona value={conversationPersona} onChange={setConversationPersona} />
+          <button
+            onClick={() => setAutoApproveForge(!autoApproveForge)}
+            role="switch"
+            aria-checked={autoApproveForge}
+            title={
+              autoApproveForge
+                ? "Tool Forge actions are auto-approved for this session — click to require approval again"
+                : "Auto-approve Tool Forge actions for this session (no approval prompt while building an agent army)"
+            }
+            className={
+              "inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs transition-colors " +
+              (autoApproveForge
+                ? "bg-accent/15 text-accent"
+                : "text-muted hover:text-foreground")
+            }
+          >
+            <span aria-hidden>{autoApproveForge ? "🔓" : "🔒"}</span>
+            Forge auto-approve
+          </button>
           <PromptLauncher onPick={(text) => setInput((cur) => (cur.trim() ? cur.trimEnd() + "\n" : "") + text)} />
           {messages.length > 0 && (
             <button

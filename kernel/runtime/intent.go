@@ -49,6 +49,27 @@ func (k *Kernel) publishIntentConfirmationRequired(corr, actor string, frame int
 	})
 }
 
+// publishAutoApprove journals that a session-scoped operator grant satisfied an
+// approval-class capability without prompting (the chat "auto-approve Tool Forge
+// this session" toggle). Auditable: `agt why` / the policy log shows the run
+// auto-approved this capability rather than asking.
+func (k *Kernel) publishAutoApprove(corr, actor, capability, tool string) {
+	if k == nil || k.bus == nil {
+		return
+	}
+	_, _ = k.bus.Publish(event.Spec{
+		Subject:       "policy.auto_approved",
+		Kind:          event.Kind("policy.auto_approved"),
+		Actor:         actor,
+		CorrelationID: corr,
+		Payload: map[string]any{
+			"capability": capability,
+			"tool":       tool,
+			"reason":     "session-scoped auto-approve grant",
+		},
+	})
+}
+
 func regretAxesPayload(axes intentmodel.RegretAxes) map[string]float64 {
 	return map[string]float64{
 		"physical":      axes.Physical,

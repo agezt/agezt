@@ -1635,6 +1635,15 @@ func (s *Server) handleRun(ctx context.Context, conn net.Conn, req Request) {
 		ctx = runtime.WithMaxCost(ctx, maxCost)
 	}
 
+	// Session-scoped auto-approve grant (chat "auto-approve Tool Forge this
+	// session"): a comma/space-separated list of edict capabilities to auto-grant
+	// when policy would otherwise prompt for HITL approval, for this run and every
+	// sub-agent it spawns. Never overrides a hard-deny. Used so standing up an
+	// agent army doesn't prompt for each tool-forge approval.
+	if caps := parseCapList(req.Args["auto_approve_caps"]); len(caps) > 0 {
+		ctx = runtime.WithAutoApproveCapabilities(ctx, caps)
+	}
+
 	// Assured run (M651): when assure > 0, run the "do-it-for-sure" loop — run,
 	// verify completion, retry with the gap fed back — up to that many attempts,
 	// instead of a single pass. A malformed value is a usage error.

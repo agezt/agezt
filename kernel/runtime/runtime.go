@@ -1554,6 +1554,18 @@ func (k *Kernel) policyHook(ctx context.Context, tc agent.ToolCall) agent.Policy
 		verdict.WouldAsk = true
 	}
 
+	// Session-scoped operator grant (chat "auto-approve Tool Forge this session"):
+	// if the run carries an auto-approve set covering this capability, satisfy the
+	// approval without prompting and journal it as an auto-grant (WouldAsk stays
+	// true so `agt why` shows it would have asked). Hard-denies never reach here
+	// (they resolve to deny, not approval), so this can't override the F4 floor.
+	if requiresApproval && autoApproveCap(ctx, string(out.Capability)) {
+		verdict.Allow = true
+		verdict.WouldAsk = true
+		k.publishAutoApprove(correlationFromCtx(ctx), actorFromCtx(ctx), string(out.Capability), tc.Name)
+		return verdict
+	}
+
 	if !requiresApproval {
 		return verdict
 	}
@@ -1847,6 +1859,7 @@ const (
 	ctxKeyAgentConfigOverrides
 	ctxKeyAgentNoisePolicy
 	ctxKeyWakeContext
+	ctxKeyAutoApproveCaps
 )
 
 // agentIdent carries a named agent's identity + daily ceiling for the
@@ -2035,6 +2048,29 @@ func maxCostFromCtx(ctx context.Context) int64 {
 		return v
 	}
 	return 0
+}
+
+// WithAutoApproveCapabilities marks a set of capabilities to auto-grant when
+// the policy would otherwise prompt for HITL approval, for THIS run and every
+// sub-agent it spawns (the context value rides the delegation tree). caps is a
+// set of edict capability strings (e.g. {"tool.forge","code.exec"}). This is a
+// session-scoped operator grant — e.g. the chat "auto-approve Tool Forge for
+// this session" toggle when standing up an agent army — NOT a daemon-wide policy
+// change. It never overrides a hard-deny (those resolve to deny, not approval).
+// Empty leaves the context unchanged.
+func WithAutoApproveCapabilities(ctx context.Context, caps map[string]bool) context.Context {
+	if len(caps) == 0 {
+		return ctx
+	}
+	return context.WithValue(ctx, ctxKeyAutoApproveCaps, caps)
+}
+
+// autoApproveCap reports whether capability c is in this run's auto-approve set.
+func autoApproveCap(ctx context.Context, c string) bool {
+	if v, ok := ctx.Value(ctxKeyAutoApproveCaps).(map[string]bool); ok {
+		return v[c]
+	}
+	return false
 }
 
 // WithAgentProfile applies a roster profile to a run's context (M790): the
