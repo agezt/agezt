@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/agezt/agezt/internal/brand"
@@ -225,6 +226,60 @@ func envOrDefault(name, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+// handleProviderConnect registers (or replaces) a provider in the custom.json
+// catalog layer and reloads in place — the backend half of the Web UI's "Quick
+// Connect" gallery. It writes only the provider definition (id/name/npm/api/env
+// + one model); the API key itself travels separately on the secret
+// keys/add path. custom.json wins the merge, so this pins the exact base URL a
+// coding-plan endpoint needs even when models.dev ships a different default.
+func (s *Server) handleProviderConnect(conn net.Conn, req Request) {
+	id, _ := req.Args["id"].(string)
+	id = strings.TrimSpace(id)
+	api, _ := req.Args["api"].(string)
+	api = strings.TrimSpace(api)
+	model, _ := req.Args["model"].(string)
+	model = strings.TrimSpace(model)
+	env, ok := keyEnv(req)
+	if !ok {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.env must be a provider key env var (UPPER_SNAKE, not AGEZT_*)"})
+		return
+	}
+	if id == "" || api == "" || model == "" {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.id, args.api and args.model are required"})
+		return
+	}
+	name, _ := req.Args["name"].(string)
+	if strings.TrimSpace(name) == "" {
+		name = id
+	}
+	npm, _ := req.Args["npm"].(string)
+	if strings.TrimSpace(npm) == "" {
+		npm = "@ai-sdk/openai-compatible"
+	}
+
+	p := &catalog.Provider{
+		ID:   id,
+		Name: strings.TrimSpace(name),
+		NPM:  strings.TrimSpace(npm),
+		API:  api,
+		Env:  []string{env},
+		Models: map[string]*catalog.Model{
+			model: {ID: model, Name: model, ToolCall: true},
+		},
+	}
+	added, err := s.k.CatalogStore().UpsertCustomProvider(p)
+	if err != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "save custom provider: " + err.Error()})
+		return
+	}
+	_, providersReloaded, rerr := s.k.Reload()
+	result := map[string]any{"provider_id": id, "added": added, "providers_reloaded": providersReloaded}
+	if rerr != nil {
+		result["reload_error"] = rerr.Error()
+	}
+	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: result})
 }
 
 // handleProviderReload re-reads catalog files + vault from disk and

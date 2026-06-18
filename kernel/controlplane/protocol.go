@@ -57,6 +57,11 @@ const (
 	// (M1.r). Replaces the "restart the daemon" friction printed by
 	// `agt provider creds set` since M1.o.
 	CmdProviderReload = "provider_reload"
+	// CmdProviderConnect registers (or replaces) a provider in the custom.json
+	// catalog layer and reloads in place — the backend of the Web UI "Quick
+	// Connect" gallery (args: id, name, npm, api, env, model). The API key is
+	// added separately via CmdProviderKeyAdd (secret path).
+	CmdProviderConnect = "provider_connect"
 	// Provider keyring (M700): store many API keys per provider env var and pick
 	// the active one. List never returns values (label + active + last-4 only).
 	// Add/Activate/Remove mutate the vault and reload the provider in place.

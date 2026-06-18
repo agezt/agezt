@@ -289,6 +289,49 @@ func TestStore_CustomOverridesAPIOnLoad(t *testing.T) {
 	}
 }
 
+func TestStore_UpsertCustomProvider(t *testing.T) {
+	dir := t.TempDir()
+	s := catalog.NewStore(dir)
+
+	// First upsert: newly added.
+	p := &catalog.Provider{
+		ID: "zai-coding", Name: "Z.ai GLM (Coding)", NPM: "@ai-sdk/openai-compatible",
+		API: "https://api.z.ai/api/coding/paas/v4", Env: []string{"ZAI_API_KEY"},
+		Models: map[string]*catalog.Model{"glm-4.6": {ID: "glm-4.6", Name: "glm-4.6", ToolCall: true}},
+	}
+	added, err := s.UpsertCustomProvider(p)
+	if err != nil || !added {
+		t.Fatalf("first upsert added=%v err=%v", added, err)
+	}
+	// Second upsert of the same id: replaced (not added).
+	p.Name = "Z.ai GLM v2"
+	added, err = s.UpsertCustomProvider(p)
+	if err != nil || added {
+		t.Fatalf("second upsert added=%v err=%v (want replaced)", added, err)
+	}
+	// A different id accumulates alongside.
+	if _, err := s.UpsertCustomProvider(&catalog.Provider{
+		ID: "deepseek", Name: "DeepSeek", API: "https://api.deepseek.com", Env: []string{"DEEPSEEK_API_KEY"},
+		Models: map[string]*catalog.Model{"deepseek-chat": {ID: "deepseek-chat"}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	c, err := s.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.Providers["zai-coding"].Name != "Z.ai GLM v2" {
+		t.Errorf("zai name = %q", c.Providers["zai-coding"].Name)
+	}
+	if c.Providers["zai-coding"].API != "https://api.z.ai/api/coding/paas/v4" {
+		t.Errorf("zai api = %q", c.Providers["zai-coding"].API)
+	}
+	if c.Providers["deepseek"] == nil {
+		t.Error("deepseek not accumulated in custom.json")
+	}
+}
+
 // ---- syncer ----
 
 func TestSyncer_FetchesAndParses(t *testing.T) {

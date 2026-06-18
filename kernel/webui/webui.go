@@ -414,6 +414,9 @@ var jsonRoutes = map[string]writeRoute{
 	// Provider keyring add (M700): the value is a secret, so it travels in the
 	// POST body (not a query arg). env+label+value(+active).
 	"/api/provider/keys/add": {controlplane.CmdProviderKeyAdd, []string{"env", "label", "value", "active"}},
+	// Quick Connect (provider gallery): register a provider in custom.json + reload.
+	// JSON body (id, name, npm, api, env, model); the key follows on keys/add.
+	"/api/provider/connect": {controlplane.CmdProviderConnect, []string{"id", "name", "npm", "api", "env", "model"}},
 	// Per-task model routing (M703): replace the model chains. `chains` is an
 	// object {task: [models]} too large/structured for a query arg.
 	"/api/routing/set": {controlplane.CmdRoutingSet, []string{"chains"}},

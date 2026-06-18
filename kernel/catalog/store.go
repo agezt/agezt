@@ -120,6 +120,56 @@ func (s *Store) SaveLocal(c *Catalog, source string) error {
 	})
 }
 
+// SaveCustom writes the operator-curated catalog fragment to custom.json,
+// preserving api.json + local.json. custom.json wins the Load() merge, so a
+// provider written here overrides any models.dev entry with the same id — this
+// is how Quick Connect pins an exact base URL (e.g. a coding-plan endpoint).
+// Atomic via tmp+rename; no meta update (custom has no sync timestamp).
+func (s *Store) SaveCustom(c *Catalog) error {
+	if err := s.ensureDir(); err != nil {
+		return err
+	}
+	raw, err := c.MarshalAPI()
+	if err != nil {
+		return fmt.Errorf("catalog: marshal custom: %w", err)
+	}
+	return atomicWrite(filepath.Join(s.Dir, FileCustom), raw, 0o644)
+}
+
+// loadCustom reads custom.json alone (not the merged catalog), returning an
+// empty catalog when the file is absent. Used to read-modify-write the custom
+// layer without disturbing api/local.
+func (s *Store) loadCustom() (*Catalog, error) {
+	raw, err := os.ReadFile(filepath.Join(s.Dir, FileCustom))
+	if errors.Is(err, os.ErrNotExist) {
+		return NewEmpty(), nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return ParseAPIFile(raw)
+}
+
+// UpsertCustomProvider inserts or replaces (by ID) one provider in custom.json,
+// accumulating across calls. Returns whether the provider was newly added (vs
+// replaced). The caller typically reloads the kernel afterward so the entry
+// goes live without a restart.
+func (s *Store) UpsertCustomProvider(p *Provider) (added bool, err error) {
+	if p == nil || p.ID == "" {
+		return false, fmt.Errorf("catalog: custom provider needs an id")
+	}
+	cur, err := s.loadCustom()
+	if err != nil {
+		return false, err
+	}
+	_, existed := cur.Providers[p.ID]
+	cur.Providers[p.ID] = p
+	if err := s.SaveCustom(cur); err != nil {
+		return false, err
+	}
+	return !existed, nil
+}
+
 // LoadMeta returns the sidecar or a zero-valued Meta if absent.
 func (s *Store) LoadMeta() (Meta, error) {
 	var m Meta
