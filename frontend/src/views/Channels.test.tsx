@@ -58,6 +58,22 @@ describe("Channels", () => {
     expect(screen.getByText(/2 channels · 1 live · 1 configured/)).toBeTruthy();
   });
 
+  it("sends a test message via a live channel", async () => {
+    render(withUI(<Channels />));
+    await screen.findByText("Telegram");
+    // Open Telegram (live) — its card button reads "Edit".
+    fireEvent.click(screen.getByRole("button", { name: /edit/i }));
+    fireEvent.change(await screen.findByLabelText("Test recipient"), { target: { value: "999" } });
+    fireEvent.click(screen.getByRole("button", { name: /send test/i }));
+    await waitFor(() =>
+      expect(postJSON).toHaveBeenCalledWith("/api/send", {
+        channel: "telegram",
+        to: "999",
+        text: "✅ AGEZT test message",
+      }),
+    );
+  });
+
   it("saves an account field to the Config Center", async () => {
     render(withUI(<Channels />));
     await screen.findByText("WhatsApp");

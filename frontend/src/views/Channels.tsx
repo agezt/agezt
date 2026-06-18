@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Radio, RefreshCw, Check, Settings2, ArrowLeftRight, ArrowRight, ExternalLink, Save } from "lucide-react";
+import { Radio, RefreshCw, Check, Settings2, ArrowLeftRight, ArrowRight, ExternalLink, Save, SendHorizontal } from "lucide-react";
 import { getJSON, postJSON } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/ui/page-header";
@@ -46,7 +46,25 @@ export function Channels() {
   const [openKind, setOpenKind] = useState<string>("");
   const [draft, setDraft] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
+  const [testTo, setTestTo] = useState("");
+  const [testing, setTesting] = useState(false);
   const ui = useUI();
+
+  async function sendTest(r: ChannelRow) {
+    setTesting(true);
+    try {
+      await postJSON("/api/send", {
+        channel: r.kind,
+        to: testTo.trim(),
+        text: "✅ AGEZT test message",
+      });
+      ui.toast(`Test sent via ${r.display}`, "success");
+    } catch (e) {
+      ui.toast(`${r.display}: ${(e as Error).message}`, "error");
+    } finally {
+      setTesting(false);
+    }
+  }
 
   async function load() {
     try {
@@ -73,6 +91,7 @@ export function Channels() {
     const seed: Record<string, string> = {};
     for (const f of r.fields) if (!f.secret && f.value) seed[f.env] = f.value;
     setDraft(seed);
+    setTestTo("");
     setOpenKind(r.kind);
   }
 
@@ -192,6 +211,30 @@ export function Channels() {
                       Save
                     </Button>
                     <span className="text-[10px] text-muted">Secrets are stored in the vault. Restart to apply.</span>
+                  </div>
+
+                  <div className="mt-1 flex flex-wrap items-center gap-1.5 border-t border-border/40 pt-2">
+                    <span className="text-[11px] text-muted">Test:</span>
+                    {r.duplex && (
+                      <Input
+                        value={testTo}
+                        onChange={(e) => setTestTo(e.target.value)}
+                        placeholder="recipient / chat id"
+                        aria-label="Test recipient"
+                        className="h-7 w-44 text-xs"
+                      />
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      disabled={testing || !r.live}
+                      onClick={() => sendTest(r)}
+                      title={r.live ? "Send a test message now" : "Configure and restart first — the channel must be live to test"}
+                    >
+                      {testing ? <RefreshCw className="size-3.5 animate-spin" /> : <SendHorizontal className="size-3.5" />}
+                      Send test
+                    </Button>
+                    {!r.live && <span className="text-[10px] text-muted">(live channels only)</span>}
                   </div>
                 </div>
               )}
