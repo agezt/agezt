@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Brain, RefreshCw, Search, Trash2, Plus, X, Pencil, Save, Download, Upload, Lock, Share2, Users, Sparkles } from "lucide-react";
+import { Brain, RefreshCw, Search, Trash2, Plus, X, Pencil, Save, Download, Upload, Lock, Share2, Users, Sparkles, ShieldCheck } from "lucide-react";
 import { getJSON, postAction, postJSON } from "@/lib/api";
 import { downloadText } from "@/lib/export";
 import { cn, fmtTime } from "@/lib/utils";
@@ -24,6 +24,15 @@ interface MemRecord {
   added_by?: string;
   updated_by?: string;
   tags?: Record<string, string>;
+}
+
+interface MemoryAudit {
+  total?: number;
+  usable?: number;
+  expired?: number;
+  suspended?: number;
+  contradiction_load?: number;
+  contradictions?: Array<{ key?: string; ids?: string[]; subject?: string; type?: string; scope?: string }>;
 }
 
 // parseMemoryJSON normalises an exported memory file into a list of re-addable
@@ -69,6 +78,7 @@ export function Memory() {
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
+  const [audit, setAudit] = useState<MemoryAudit | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   // Scope filter (M915): null = all, "" = shared brain, "<scope>" = that
@@ -106,8 +116,12 @@ export function Memory() {
   async function reload() {
     setLoading(true);
     try {
-      const d = await getJSON<{ records?: MemRecord[] }>("/api/memory");
+      const [d, a] = await Promise.all([
+        getJSON<{ records?: MemRecord[] }>("/api/memory"),
+        getJSON<MemoryAudit>("/api/memory/audit").catch(() => null),
+      ]);
       setRecords(d.records || []);
+      setAudit(a && typeof a.usable === "number" ? a : null);
       setErr(null);
     } catch (e) {
       setErr((e as Error).message);
@@ -144,7 +158,7 @@ export function Memory() {
   const PRUNE_DAYS = 30;
   async function prune() {
     try {
-      const dry = await postJSON<{ prunable?: number }>("/api/memory/prune", { older_than_days: String(PRUNE_DAYS), dry_run: "true" });
+      const dry = await postAction<{ prunable?: number }>("/api/memory/prune", { older_than_days: String(PRUNE_DAYS), dry_run: "true" });
       const n = dry.prunable ?? 0;
       if (n === 0) {
         ui.toast("Nothing to prune — no soft-deleted records older than 30 days", "success");
@@ -157,7 +171,7 @@ export function Memory() {
         danger: true,
       });
       if (!ok) return;
-      const res = await postJSON<{ pruned?: number }>("/api/memory/prune", { older_than_days: String(PRUNE_DAYS), dry_run: "false" });
+      const res = await postAction<{ pruned?: number }>("/api/memory/prune", { older_than_days: String(PRUNE_DAYS), dry_run: "false" });
       ui.toast(`Pruned ${res.pruned ?? 0} record(s)`, "success");
       await reload();
     } catch (e) {
@@ -166,11 +180,11 @@ export function Memory() {
   }
 
   // tidy collapses the near-duplicate auto-distilled notes that built up before
-  // the write-time subject gate (M994) — the "1000+ saçma girdi" cleanup. Keeps
+  // the write-time subject gate (M994) — the "1000+ nonsense entries" cleanup. Keeps
   // the strongest note per subject, forgets the rest (reversible). Dry-run first.
   async function tidy() {
     try {
-      const dry = await postJSON<{ collapsed?: number }>("/api/memory/tidy", { dry_run: "true" });
+      const dry = await postAction<{ collapsed?: number }>("/api/memory/tidy", { dry_run: "true" });
       const n = dry.collapsed ?? 0;
       if (n === 0) {
         ui.toast("Nothing to tidy — no duplicate distilled notes", "success");
@@ -182,11 +196,33 @@ export function Memory() {
         confirmLabel: "Tidy",
       });
       if (!ok) return;
-      const res = await postJSON<{ collapsed?: number }>("/api/memory/tidy", { dry_run: "false" });
+      const res = await postAction<{ collapsed?: number }>("/api/memory/tidy", { dry_run: "false" });
       ui.toast(`Collapsed ${res.collapsed ?? 0} duplicate note(s)`, "success");
       await reload();
     } catch (e) {
       ui.toast(`tidy failed: ${(e as Error).message}`, "error");
+    }
+  }
+
+  async function cleanLowValue() {
+    try {
+      const dry = await postAction<{ rejected?: number; scanned?: number }>("/api/memory/clean", { dry_run: "true" });
+      const n = dry.rejected ?? 0;
+      if (n === 0) {
+        ui.toast("Nothing to clean — no low-value active memories found", "success");
+        return;
+      }
+      const ok = await ui.confirm({
+        title: "Clean low-value memories?",
+        message: `${n} record${n === 1 ? "" : "s"} look like logs, transient notes, or low-value automatic memories. They will be permanently deleted because log output is not memory.`,
+        confirmLabel: "Delete",
+      });
+      if (!ok) return;
+      const res = await postAction<{ removed?: number }>("/api/memory/clean", { dry_run: "false" });
+      ui.toast(`Deleted ${res.removed ?? 0} low-value record(s)`, "success");
+      await reload();
+    } catch (e) {
+      ui.toast(`clean failed: ${(e as Error).message}`, "error");
     }
   }
 
@@ -284,6 +320,9 @@ export function Memory() {
             <Button variant="ghost" size="sm" onClick={tidy} title="Collapse near-duplicate auto-distilled notes — keep the strongest per subject">
               <Sparkles className="size-3.5" /> Tidy
             </Button>
+            <Button variant="ghost" size="sm" onClick={cleanLowValue} title="Forget active records that look like logs or low-value automatic notes">
+              <ShieldCheck className="size-3.5" /> Clean
+            </Button>
             <Button variant="ghost" size="sm" onClick={prune} title="Permanently remove forgotten/superseded records older than 30 days">
               <Trash2 className="size-3.5" /> Prune
             </Button>
@@ -293,6 +332,18 @@ export function Memory() {
           </>
         }
       />
+
+      {audit && (
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-panel/60 px-3 py-2 text-xs">
+          <span className="flex items-center gap-1 font-medium">
+            <ShieldCheck className="size-3.5 text-accent" /> Hygiene
+          </span>
+          <Metric label="usable" value={audit.usable ?? 0} />
+          <Metric label="expired" value={audit.expired ?? 0} warn={(audit.expired ?? 0) > 0} />
+          <Metric label="suspended" value={audit.suspended ?? 0} warn={(audit.suspended ?? 0) > 0} />
+          <Metric label="conflict load" value={audit.contradiction_load ?? 0} warn={(audit.contradiction_load ?? 0) > 0} />
+        </div>
+      )}
 
       {scopes.scoped.length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Memory scope filter">
@@ -443,6 +494,14 @@ export function Memory() {
         </div>
       )}
     </div>
+  );
+}
+
+function Metric({ label, value, warn }: { label: string; value: number; warn?: boolean }) {
+  return (
+    <span className={cn("rounded-md border px-2 py-0.5", warn ? "border-amber-500/40 text-amber-300" : "border-border text-muted")}>
+      {label}: <span className="font-mono text-foreground">{value}</span>
+    </span>
   );
 }
 

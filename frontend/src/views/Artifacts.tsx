@@ -281,7 +281,7 @@ function ArtifactCard({ entry, category, onOpen }: { entry: ArtifactEntry; categ
   );
 }
 
-// Viewer — the preview modal with a fullscreen toggle ("büyük ekran"): inset-2
+// Viewer — the preview modal with a fullscreen toggle ("fullscreen"): inset-2
 // when expanded, so an HTML report or a chart fills the monitor.
 function Viewer({ entry, onClose, onDelete }: { entry: ArtifactEntry; onClose: () => void; onDelete: () => void }) {
   const [full, setFull] = useState(false);

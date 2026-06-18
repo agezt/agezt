@@ -109,10 +109,9 @@ const (
 	// the journal (recent runs / stats / search). A read of local activity the
 	// operator already owns — low risk, Allow by default (M644).
 	CapRunsRead Capability = "runs.read"
-	// CapStanding gates the `standing` tool: the agent creating its OWN autonomous,
-	// trigger-driven agents (Chronos standing orders that fire a plan on a cron
-	// schedule or a matching event). The strongest autonomy grant — it sets up
-	// unattended behaviour — so ask-first by default (M645).
+	// CapStanding gates the `standing` tool: the agent creating durable event/cron
+	// wake rules for governed future runs. It does not mint agent identities, but
+	// it does set up unattended behaviour, so it is ask-first by default (M645).
 	CapStanding Capability = "standing"
 	// CapBoard gates the `board` tool: agents posting to and reading from the
 	// shared, persistent message board so they can coordinate and talk to each
@@ -586,9 +585,9 @@ func New(opt Options) *Engine {
 	}
 }
 
-// DefaultLevels is the MAX-AUTONOMY posture (M814, owner's law: "default
-// olarak kapatmadıkça her şeye izni var" — everything is allowed unless the
-// operator turns it off). Every capability defaults to LevelAllow;
+// DefaultLevels is the MAX-AUTONOMY posture (M814, owner's law: "has
+// permission for everything unless you turn it off by default" — everything is
+// allowed unless the operator turns it off). Every capability defaults to LevelAllow;
 // restriction is the operator's opt-OUT, applied per capability through the
 // Policy center, `agt edict`, AGEZT_EDICT_DENY, or a durable overlay.
 //

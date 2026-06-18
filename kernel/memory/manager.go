@@ -54,10 +54,16 @@ type RememberSpec struct {
 	Content    string
 	Tags       map[string]string
 	Confidence float64
+	Evidence   Evidence
+	HalfLifeMS int64
 	// Actor records WHO is writing (M851): the acting agent's slug, or
 	// "operator"/"distill" for non-agent writes. Stored as AddedBy (first writer)
 	// and UpdatedBy (latest writer) on the record. Empty leaves provenance unset.
 	Actor string
+	// Force bypasses long-term retention filtering. Operator/control-plane writes
+	// set this because they are explicit curation; automatic and agent writes do
+	// not.
+	Force bool
 }
 
 // Remember stores (or reinforces) a memory record and journals the write.
@@ -84,6 +90,16 @@ func (m *Manager) Remember(corr string, spec RememberSpec) (Record, bool, error)
 	if conf > 1 {
 		conf = 1
 	}
+	if !spec.Force && shouldFilterSpec(spec) {
+		if d := assessSpec(spec); !d.Keep {
+			return Record{}, false, fmt.Errorf("memory: low-value record rejected (%s)", d.Reason)
+		}
+	}
+	evidence := normalizeEvidence(spec.Evidence, spec.Tags, t)
+	halfLifeMS := spec.HalfLifeMS
+	if halfLifeMS <= 0 {
+		halfLifeMS = defaultHalfLifeMS(t, evidence)
+	}
 	nowMS := m.now().UnixMilli()
 	// Scope participates in identity (M915): two agents privately noting the
 	// same content get two records, instead of the second write reinforcing the
@@ -107,6 +123,8 @@ func (m *Manager) Remember(corr string, spec RememberSpec) (Record, bool, error)
 		Content:    spec.Content,
 		Tags:       spec.Tags,
 		Confidence: conf,
+		Evidence:   evidence,
+		HalfLifeMS: halfLifeMS,
 		CreatedMS:  nowMS,
 		LastSeenMS: nowMS,
 		AddedBy:    spec.Actor,
@@ -119,6 +137,12 @@ func (m *Manager) Remember(corr string, spec RememberSpec) (Record, bool, error)
 		rec.CreatedMS = existing.CreatedMS
 		rec.SourceEvent = existing.SourceEvent
 		rec.Confidence = clampConf(existing.Confidence + 0.1)
+		if spec.Evidence == "" {
+			rec.Evidence = existing.Evidence
+		}
+		if spec.HalfLifeMS <= 0 {
+			rec.HalfLifeMS = existing.HalfLifeMS
+		}
 		// Provenance: AddedBy is first-writer-wins (preserve the original author,
 		// like SourceEvent); UpdatedBy reflects this latest write. A legacy record
 		// with no AddedBy adopts this writer as its author.
@@ -131,6 +155,10 @@ func (m *Manager) Remember(corr string, spec RememberSpec) (Record, bool, error)
 		if existing.Tags != nil && rec.Tags == nil {
 			rec.Tags = existing.Tags
 		}
+		// A successful re-observation/reconstruction makes a suspended record
+		// usable again without erasing its audit history from the journal.
+		rec.SuspendedMS = 0
+		rec.SuspendedReason = ""
 		// Preserve a supersession link: re-stating content that was explicitly
 		// superseded must NOT silently resurrect it as active (it has a designated
 		// successor). Without this, rec.SupersededBy="" would overwrite the link and
@@ -154,6 +182,12 @@ func (m *Manager) Remember(corr string, spec RememberSpec) (Record, bool, error)
 		"chars":      len(spec.Content),
 		"confidence": rec.Confidence,
 	}
+	if rec.Evidence != "" {
+		payload["evidence"] = string(rec.Evidence)
+	}
+	if rec.HalfLifeMS > 0 {
+		payload["half_life_ms"] = rec.HalfLifeMS
+	}
 	if rec.UpdatedBy != "" {
 		payload["actor"] = rec.UpdatedBy // who wrote this (M851)
 	}
@@ -167,7 +201,7 @@ func (m *Manager) Remember(corr string, spec RememberSpec) (Record, bool, error)
 	return rec, !found, nil
 }
 
-// Recall ranks active records against query and journals a memory.retrieved
+// Recall ranks usable records against query and journals a memory.retrieved
 // event (under corr) when anything matched, so `agt why` shows exactly what
 // knowledge was surfaced for a task. Returns the ranked results (possibly
 // empty).
@@ -287,6 +321,8 @@ type HygieneStats struct {
 	Active     int `json:"active"`
 	Tombstoned int `json:"tombstoned"`
 	Superseded int `json:"superseded"`
+	Suspended  int `json:"suspended"`
+	Expired    int `json:"expired"`
 	// Prunable is how many soft-deleted (tombstoned or superseded) records are
 	// older than the given cutoff — the dead weight a Prune would reclaim.
 	Prunable int `json:"prunable"`
@@ -308,6 +344,10 @@ func (m *Manager) Hygiene(olderThanMs int64) (HygieneStats, error) {
 			st.Tombstoned++
 		case r.SupersededBy != "":
 			st.Superseded++
+		case r.Suspended():
+			st.Suspended++
+		case r.Expired(m.now().UnixMilli()):
+			st.Expired++
 		default:
 			st.Active++
 		}
@@ -388,16 +428,17 @@ func (m *Manager) Supersede(corr, oldID string, spec RememberSpec) (Record, erro
 // `agt memory get`.
 func (m *Manager) Get(id string) (Record, bool, error) { return m.store.Get(id) }
 
-// Active returns every non-tombstoned, non-superseded record, sorted
-// deterministically. Used by `agt memory list` and as the recall corpus.
+// Active returns every usable record, sorted deterministically. Used by
+// `agt memory list` and as the recall corpus.
 func (m *Manager) Active() ([]Record, error) {
 	all, err := m.store.All()
 	if err != nil {
 		return nil, err
 	}
+	nowMS := m.now().UnixMilli()
 	out := all[:0]
 	for _, r := range all {
-		if r.Active() {
+		if r.Usable(nowMS) {
 			out = append(out, r)
 		}
 	}
@@ -420,6 +461,190 @@ func (m *Manager) Search(query string, limit int) ([]Scored, error) {
 		return nil, err
 	}
 	return SearchHybrid(all, query, limit, m.now().UnixMilli()), nil
+}
+
+// SearchScoped ranks visible records without journaling. It is the quiet
+// candidate-list path for context selection manifests: runtime can explain both
+// chosen and rejected memory candidates without emitting a second
+// memory.retrieved event or changing the actual recall behaviour.
+func (m *Manager) SearchScoped(query string, limit int, scope string) ([]Scored, error) {
+	all, err := m.store.All()
+	if err != nil {
+		return nil, err
+	}
+	all = filterScope(all, scope)
+	return SearchHybrid(all, query, limit, m.now().UnixMilli()), nil
+}
+
+// Suspend marks a record as retained-but-not-usable. This is the operational
+// form of "competitive suppression": no destructive edit, no active recall.
+func (m *Manager) Suspend(corr, id, reason string) (bool, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	rec, found, err := m.store.Get(id)
+	if err != nil {
+		return false, err
+	}
+	if !found {
+		return false, nil
+	}
+	nowMS := m.now().UnixMilli()
+	rec.SuspendedMS = nowMS
+	rec.SuspendedReason = strings.TrimSpace(reason)
+	rec.LastSeenMS = nowMS
+	if err := m.store.Put(rec); err != nil {
+		return false, err
+	}
+	m.publish(event.KindMemorySuspended, corr, map[string]any{
+		"id":      id,
+		"subject": rec.Subject,
+		"reason":  rec.SuspendedReason,
+	})
+	return true, nil
+}
+
+// AuditReport is the memory hygiene view used to detect stale or competing
+// memories before they contaminate retrieval.
+type AuditReport struct {
+	Total             int                  `json:"total"`
+	Usable            int                  `json:"usable"`
+	Suspended         int                  `json:"suspended"`
+	Expired           int                  `json:"expired"`
+	ContradictionLoad int                  `json:"contradiction_load"`
+	ExpiredIDs        []string             `json:"expired_ids,omitempty"`
+	SuspendedIDs      []string             `json:"suspended_ids,omitempty"`
+	Contradictions    []ContradictionGroup `json:"contradictions,omitempty"`
+}
+
+// CleanReport summarizes low-value retention cleanup. Removed means hard-deleted:
+// clean targets records that never belonged in memory, not records worth a
+// reversible tombstone.
+type CleanReport struct {
+	DryRun      bool               `json:"dry_run"`
+	HardDeleted bool               `json:"hard_deleted"`
+	Scanned     int                `json:"scanned"`
+	Rejected    int                `json:"rejected"`
+	Removed     int                `json:"removed"`
+	Decisions   []CleanDecisionRow `json:"decisions,omitempty"`
+}
+
+type CleanDecisionRow struct {
+	ID      string `json:"id"`
+	Subject string `json:"subject,omitempty"`
+	Reason  string `json:"reason"`
+}
+
+type ContradictionGroup struct {
+	Key     string   `json:"key"`
+	IDs     []string `json:"ids"`
+	Subject string   `json:"subject,omitempty"`
+	Type    Type     `json:"type,omitempty"`
+	Scope   string   `json:"scope,omitempty"`
+}
+
+// Audit finds records that are barred by expiration/suspension and same-topic
+// active records that compete with different content. It does not claim which
+// record is true; it only exposes the contradiction load.
+func (m *Manager) Audit() (AuditReport, error) {
+	all, err := m.store.All()
+	if err != nil {
+		return AuditReport{}, err
+	}
+	nowMS := m.now().UnixMilli()
+	report := AuditReport{Total: len(all)}
+	byKey := map[string][]Record{}
+	for _, r := range all {
+		if !r.Active() {
+			continue
+		}
+		switch {
+		case r.Suspended():
+			report.Suspended++
+			report.SuspendedIDs = append(report.SuspendedIDs, r.ID)
+			continue
+		case r.Expired(nowMS):
+			report.Expired++
+			report.ExpiredIDs = append(report.ExpiredIDs, r.ID)
+			continue
+		default:
+			report.Usable++
+		}
+		if contradictionTrackedType(r.Type) {
+			byKey[contradictionKey(r)] = append(byKey[contradictionKey(r)], r)
+		}
+	}
+	for key, rs := range byKey {
+		if len(rs) < 2 || sameNormalizedContent(rs) {
+			continue
+		}
+		ids := make([]string, 0, len(rs))
+		for _, r := range rs {
+			ids = append(ids, r.ID)
+		}
+		report.Contradictions = append(report.Contradictions, ContradictionGroup{
+			Key:     key,
+			IDs:     ids,
+			Subject: rs[0].Subject,
+			Type:    rs[0].Type,
+			Scope:   scopeOf(rs[0].Tags),
+		})
+		report.ContradictionLoad += len(rs) - 1
+	}
+	return report, nil
+}
+
+// CleanLowValue applies the retention filter to the store and hard-deletes
+// records that do not belong in memory at all: execution logs, transient sweep
+// notes, and automatic low-value records. This is deliberately stricter than
+// Forget/Prune: clean is the "this was never memory" path. Dry-run is the
+// default at the control-plane/CLI layer; execute mode reclaims the rows
+// immediately.
+func (m *Manager) CleanLowValue(corr string, dryRun bool) (CleanReport, error) {
+	all, err := m.store.All()
+	if err != nil {
+		return CleanReport{}, err
+	}
+	report := CleanReport{DryRun: dryRun, HardDeleted: !dryRun, Scanned: len(all)}
+	var victims []string
+	for _, r := range all {
+		if sourceOf(r.Tags) == "operator" || r.AddedBy == "operator" || r.UpdatedBy == "operator" ||
+			r.Evidence == EvidenceCurated || r.Evidence == EvidenceConstraint || r.Type == TypePreference {
+			continue
+		}
+		decision := AssessRetention(r)
+		if decision.Keep {
+			continue
+		}
+		report.Rejected++
+		report.Decisions = append(report.Decisions, CleanDecisionRow{ID: r.ID, Subject: r.Subject, Reason: decision.Reason})
+		if dryRun {
+			continue
+		}
+		victims = append(victims, r.ID)
+	}
+	if !dryRun && len(victims) > 0 {
+		m.mu.Lock()
+		for _, id := range victims {
+			ok, derr := m.store.Delete(id)
+			if derr != nil {
+				m.mu.Unlock()
+				return report, derr
+			}
+			if ok {
+				report.Removed++
+			}
+		}
+		m.mu.Unlock()
+	}
+	if !dryRun && report.Removed > 0 {
+		m.publish(event.KindMemoryCleaned, corr, map[string]any{
+			"scanned":      report.Scanned,
+			"rejected":     report.Rejected,
+			"removed":      report.Removed,
+			"hard_deleted": true,
+		})
+	}
+	return report, nil
 }
 
 // publish writes one event through the bus, returning the persisted event (or
@@ -507,6 +732,8 @@ const toolInputSchema = `{
     "subject": {"type": "string", "description": "entity/topic the memory is about (remember)"},
     "content": {"type": "string", "description": "the text to remember (remember)"},
     "type":    {"type": "string", "enum": ["FACT","SUMMARY","RELATION","PREFERENCE","OBSERVATION"], "description": "memory type (remember; default FACT)"},
+    "evidence":{"type": "string", "enum": ["observed","inferred","curated","constraint"], "description": "epistemic source class (remember; default inferred/derived from source)"},
+    "half_life_ms":{"type": "integer", "description": "mechanical expiration budget in milliseconds (remember; default by evidence/type)"},
     "query":   {"type": "string", "description": "search text (recall)"},
     "limit":   {"type": "integer", "description": "max results (recall; default 5)"},
     "id":      {"type": "string", "description": "record id (forget, find_related)"},
@@ -518,16 +745,18 @@ const toolInputSchema = `{
 }`
 
 type toolInput struct {
-	Action  string   `json:"action"`
-	Subject string   `json:"subject"`
-	Content string   `json:"content"`
-	Type    Type     `json:"type"`
-	Query   string   `json:"query"`
-	Limit   int      `json:"limit"`
-	ID      string   `json:"id"`
-	IDs     []string `json:"ids"`
-	Shared  bool     `json:"shared"`
-	Scope   string   `json:"scope"`
+	Action     string   `json:"action"`
+	Subject    string   `json:"subject"`
+	Content    string   `json:"content"`
+	Type       Type     `json:"type"`
+	Evidence   Evidence `json:"evidence"`
+	HalfLifeMS int64    `json:"half_life_ms"`
+	Query      string   `json:"query"`
+	Limit      int      `json:"limit"`
+	ID         string   `json:"id"`
+	IDs        []string `json:"ids"`
+	Shared     bool     `json:"shared"`
+	Scope      string   `json:"scope"`
 }
 
 // memoryTool is the in-process agent.Tool that lets the agent remember,
@@ -549,6 +778,16 @@ func (t memoryTool) Definition() agent.ToolDef {
 			"Your notes are PRIVATE to you by default — recall surfaces them plus the shared memory. " +
 			"Pass shared=true only for facts genuinely useful to ALL agents " +
 			"(owner preferences, project-wide decisions); be selective about the shared brain.",
+		Effect: agent.ToolEffect{
+			Class: agent.EffectReversible,
+			PredictedEffects: []string{
+				"read durable memory for recall/find_related actions",
+				"write or tombstone durable memory for remember/forget/bulk_forget actions",
+			},
+			AffectedResources: []string{"memory store", "agent/private memory scope", "shared memory scope when requested"},
+			RollbackNotes:     "Recall needs no rollback. Remembered records can be tombstoned with forget; tombstones and writes are journaled for audit/replay.",
+			Confidence:        0.9,
+		},
 		InputSchema: json.RawMessage(toolInputSchema),
 	}
 }
@@ -575,6 +814,7 @@ func (t memoryTool) Invoke(ctx context.Context, input json.RawMessage) (agent.Re
 		}
 		rec, created, err := t.mgr.Remember(corr, RememberSpec{
 			Type: in.Type, Subject: in.Subject, Content: in.Content, Tags: toolTags(scope),
+			Evidence: in.Evidence, HalfLifeMS: in.HalfLifeMS,
 			Actor: toolActor(ctx), // who is writing — the agent slug, or "agent" (M851)
 		})
 		if err != nil {
@@ -865,9 +1105,84 @@ func distillKey(t Type, subject, scope string) string {
 	return string(t) + "\x00" + strings.Join(strings.Fields(strings.ToLower(subject)), " ") + "\x00" + scope
 }
 
+func normalizeEvidence(e Evidence, tags map[string]string, t Type) Evidence {
+	switch e {
+	case EvidenceObserved, EvidenceInferred, EvidenceCurated, EvidenceConstraint:
+		return e
+	}
+	if tags != nil {
+		switch tags["source"] {
+		case "operator":
+			return EvidenceCurated
+		case "distill", "brain-distill", "agent":
+			return EvidenceInferred
+		}
+	}
+	if t == TypeObservation {
+		return EvidenceObserved
+	}
+	return EvidenceInferred
+}
+
+func defaultHalfLifeMS(t Type, e Evidence) int64 {
+	const dayMS = int64(24 * time.Hour / time.Millisecond)
+	switch e {
+	case EvidenceConstraint:
+		return 3650 * dayMS
+	case EvidenceCurated:
+		return 180 * dayMS
+	case EvidenceObserved:
+		return 30 * dayMS
+	}
+	switch t {
+	case TypePreference:
+		return 180 * dayMS
+	case TypeSummary:
+		return 90 * dayMS
+	case TypeObservation:
+		return 30 * dayMS
+	default:
+		return 60 * dayMS
+	}
+}
+
+func contradictionTrackedType(t Type) bool {
+	switch t {
+	case TypeFact, TypePreference, TypeRelation, TypeObservation:
+		return true
+	default:
+		return false
+	}
+}
+
+func contradictionKey(r Record) string {
+	return string(r.Type) + "\x00" + normalizeTopic(r.Subject) + "\x00" + scopeOf(r.Tags)
+}
+
+func normalizeTopic(s string) string {
+	return strings.Join(strings.Fields(strings.ToLower(s)), " ")
+}
+
+func normalizeContent(s string) string {
+	return strings.Join(strings.Fields(strings.ToLower(s)), " ")
+}
+
+func sameNormalizedContent(rs []Record) bool {
+	if len(rs) < 2 {
+		return true
+	}
+	first := normalizeContent(rs[0].Content)
+	for _, r := range rs[1:] {
+		if normalizeContent(r.Content) != first {
+			return false
+		}
+	}
+	return true
+}
+
 // DedupeDistilled retroactively collapses the near-duplicate auto-distilled notes
 // that accumulated before the write-time subject gate (M993) existed — the "1000+
-// saçma girdi" the owner saw. It groups active source=distill records by
+// nonsense entries" the owner saw. It groups active source=distill records by
 // distillKey and, for each group with more than one, keeps the strongest note
 // (highest confidence, then most-recently-seen) and FORGETS the rest (soft
 // tombstone — reversible, and prunable later). Curated memories (the explicit

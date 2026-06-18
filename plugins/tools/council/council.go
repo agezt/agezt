@@ -4,8 +4,8 @@
 // Council of Elders (M837) — a panel of differently-modelled advisors that
 // deliberates a question and returns a consensus. So in any situation an agent
 // can defer a hard or high-stakes decision to several strong models and get back
-// a reconciled answer ("herhangi bir durumda bu heyete başvurulup buradan cevap
-// alınabilir"). The orchestration lives in kernel/runtime; this tool is the thin
+// a reconciled answer ("in any situation this council can be consulted and an answer
+// can be obtained from here"). The orchestration lives in kernel/runtime; this tool is the thin
 // agent-facing front.
 package council
 
@@ -53,6 +53,15 @@ func (t *Tool) Definition() agent.ToolDef {
     "rounds":   {"type":"integer", "description":"Deliberation rounds after the opening positions (default 1)."}
   }
 }`),
+		Effect: agent.ToolEffect{
+			Class: agent.EffectReversible,
+			PredictedEffects: []string{
+				"Run several model calls to deliberate on a question and return consensus, dissent, and opinions.",
+			},
+			AffectedResources: []string{"model-provider budget", "council run transcript"},
+			RollbackNotes:     "No external state is changed beyond model spend and transcript records; spend cannot be recovered.",
+			Confidence:        0.8,
+		},
 	}
 }
 

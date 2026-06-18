@@ -284,8 +284,8 @@ func TestApplyOverlay_RestoresOntoEngine(t *testing.T) {
 }
 
 // TestDefaultLevels_MaxAutonomy pins the M814 owner posture: EVERY known
-// capability defaults to LevelAllow ("default olarak kapatmadıkça her şeye
-// izni var"). Restriction is the operator's opt-OUT, not the default — a
+// capability defaults to LevelAllow ("has permission for everything unless you
+// turn it off by default"). Restriction is the operator's opt-OUT, not the default — a
 // new capability missing from the map, or any non-Allow default, fails here.
 func TestDefaultLevels_MaxAutonomy(t *testing.T) {
 	e := New(Options{})

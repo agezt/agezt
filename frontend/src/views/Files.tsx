@@ -137,7 +137,7 @@ export function Files() {
   const files = shown.filter((e) => !isImage(e));
 
   // collect reaps stale artifacts (M845): a dry-run reports the candidates, then a
-  // confirm actually deletes them — the operator's "onaylı" path.
+  // confirm actually deletes them — the operator's "approved" path.
   const COLLECT_DAYS = 30;
   async function collect() {
     try {
