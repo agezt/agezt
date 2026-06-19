@@ -92,6 +92,7 @@ import (
 	"github.com/agezt/agezt/plugins/channels/irc"
 	linechan "github.com/agezt/agezt/plugins/channels/line"
 	"github.com/agezt/agezt/plugins/channels/matrix"
+	"github.com/agezt/agezt/plugins/channels/onebot"
 	"github.com/agezt/agezt/plugins/channels/push"
 	signalchan "github.com/agezt/agezt/plugins/channels/signal"
 	"github.com/agezt/agezt/plugins/channels/slack"
@@ -102,6 +103,7 @@ import (
 	"github.com/agezt/agezt/plugins/channels/wecom"
 	"github.com/agezt/agezt/plugins/channels/whatsapp"
 	"github.com/agezt/agezt/plugins/channels/whatsappgw"
+	"github.com/agezt/agezt/plugins/channels/zalo"
 	"github.com/agezt/agezt/plugins/providers/compat"
 	"github.com/agezt/agezt/plugins/providers/embed"
 	"github.com/agezt/agezt/plugins/providers/voice"
@@ -1567,6 +1569,23 @@ func runDaemon(stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "  wecom (2way)     : %s\n", wcDesc)
 	}
 
+	// QQ / WeChat via a OneBot v11 gateway; Zalo via the Official Account API.
+	qqChan, qqSink, qqDesc := buildOneBot(ctx, k, "qq", "QQ")
+	if qqChan != nil {
+		go qqChan.Start(ctx)
+		fmt.Fprintf(stdout, "  qq channel       : %s\n", qqDesc)
+	}
+	wxChan, wxSink, wxDesc := buildOneBot(ctx, k, "wechat", "WECHAT")
+	if wxChan != nil {
+		go wxChan.Start(ctx)
+		fmt.Fprintf(stdout, "  wechat channel   : %s\n", wxDesc)
+	}
+	zlChan, zlSink, zlDesc := buildZalo(ctx, k)
+	if zlChan != nil {
+		go zlChan.Start(ctx)
+		fmt.Fprintf(stdout, "  zalo channel     : %s\n", zlDesc)
+	}
+
 	// SMS channel (SPEC-04 §1) — duplex over Twilio Programmable Messaging when
 	// AGEZT_SMS_ACCOUNT_SID + AGEZT_SMS_AUTH_TOKEN are set. Inbound is a signed
 	// Twilio webhook (needs AGEZT_SMS_ADDR); outbound texts go via the REST API
@@ -1642,7 +1661,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 
 	// Every configured channel's brief sink, teed: Pulse briefs and (M782)
 	// alert notifications share the same delivery surface.
-	channelSinks := combineSinks(tgSink, slSink, dcSink, whSink, emSink, mxSink, ircSink, twSink, wgSink, imSink, lnSink, gcSink, mmSink, dtSink, fsSink, wcSink, smSink, waSink, haSink, tmSink, sgSink, pushSink)
+	channelSinks := combineSinks(tgSink, slSink, dcSink, whSink, emSink, mxSink, ircSink, twSink, wgSink, imSink, lnSink, gcSink, mmSink, dtSink, fsSink, wcSink, qqSink, wxSink, zlSink, smSink, waSink, haSink, tmSink, sgSink, pushSink)
 
 	// Pulse — the proactive heart (SPEC-03). On by default; the resident
 	// engine runs on the daemon ctx so `agt halt`/SIGTERM/`agt shutdown`
@@ -1844,6 +1863,15 @@ func runDaemon(stdout, stderr io.Writer) int {
 	}
 	if wcChan != nil {
 		liveChannels["wecom"] = wcChan
+	}
+	if qqChan != nil {
+		liveChannels["qq"] = qqChan
+	}
+	if wxChan != nil {
+		liveChannels["wechat"] = wxChan
+	}
+	if zlChan != nil {
+		liveChannels["zalo"] = zlChan
 	}
 	if smChan != nil {
 		liveChannels["sms"] = smChan
@@ -3198,6 +3226,90 @@ func buildWeCom(ctx context.Context, k *kernelruntime.Kernel) (*wecom.Channel, p
 		})
 	}
 	return ch, sink, fmt.Sprintf("WeCom app, allowlist=%d user(s)", len(users))
+}
+
+// buildOneBot constructs a QQ / WeChat channel over a OneBot v11 gateway when its
+// inbound addr is set. QQ and WeChat have no first-party bot API; a self-hosted
+// gateway (go-cqhttp / NapCat / Lagrange for QQ; wcf / wechatbot for WeChat)
+// speaks OneBot. kind is the channel name; prefix is the env namespace.
+//
+//	AGEZT_<PREFIX>_GATEWAY  gateway HTTP API base, e.g. http://localhost:5700
+//	AGEZT_<PREFIX>_TOKEN    gateway access token (bearer)
+//	AGEZT_<PREFIX>_SECRET   HMAC-SHA1 secret verifying inbound X-Signature
+//	AGEZT_<PREFIX>_USERS    comma-separated allowed user ids
+//	AGEZT_<PREFIX>_ADDR     host:port to serve the inbound webhook (enables two-way)
+//	AGEZT_<PREFIX>_PATH     inbound route (default /<kind>)
+func buildOneBot(ctx context.Context, k *kernelruntime.Kernel, kind, prefix string) (*onebot.Channel, pulse.BriefSink, string) {
+	get := func(s string) string { return strings.TrimSpace(os.Getenv(brand.EnvPrefix + prefix + s)) }
+	addr := get("_ADDR")
+	if addr == "" {
+		return nil, nil, ""
+	}
+	users := splitNonEmpty(os.Getenv(brand.EnvPrefix + prefix + "_USERS"))
+	ch := onebot.New(onebot.Config{
+		Kind:        kind,
+		APIBase:     get("_GATEWAY"),
+		AccessToken: get("_TOKEN"),
+		Secret:      get("_SECRET"),
+		Allowlist:   channel.NewAllowlist(users),
+		Bus:         k.Bus(),
+		Handler:     makeChannelHandler(k),
+		Addr:        addr,
+		Path:        get("_PATH"),
+	})
+	var sink pulse.BriefSink
+	if len(users) > 0 && get("_GATEWAY") != "" {
+		sink = pulse.SinkFunc(func(b pulse.Brief) error {
+			var firstErr error
+			for _, u := range users {
+				if err := ch.Send(ctx, channel.Outbound{ChannelID: "private:" + u, Text: formatBrief(b), Priority: channel.PriorityNotify}); err != nil && firstErr == nil {
+					firstErr = err
+				}
+			}
+			return firstErr
+		})
+	}
+	return ch, sink, fmt.Sprintf("%s via OneBot gateway, allowlist=%d user(s)", kind, len(users))
+}
+
+// buildZalo constructs the two-way Zalo channel (Official Account API) when
+// AGEZT_ZALO_ADDR is set. Replies + briefs use the OA message API.
+//
+//	AGEZT_ZALO_APP_ID   OA app id (part of the inbound signature)
+//	AGEZT_ZALO_TOKEN    OA access token (sends)
+//	AGEZT_ZALO_SECRET   OA secret key (verifies the inbound signature)
+//	AGEZT_ZALO_USERS    comma-separated allowed user ids
+//	AGEZT_ZALO_ADDR     host:port to serve the inbound webhook (enables two-way)
+//	AGEZT_ZALO_PATH     inbound route (default /zalo)
+func buildZalo(ctx context.Context, k *kernelruntime.Kernel) (*zalo.Channel, pulse.BriefSink, string) {
+	addr := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "ZALO_ADDR"))
+	if addr == "" {
+		return nil, nil, ""
+	}
+	users := splitNonEmpty(os.Getenv(brand.EnvPrefix + "ZALO_USERS"))
+	ch := zalo.New(zalo.Config{
+		AppID:       strings.TrimSpace(os.Getenv(brand.EnvPrefix + "ZALO_APP_ID")),
+		AccessToken: strings.TrimSpace(os.Getenv(brand.EnvPrefix + "ZALO_TOKEN")),
+		Secret:      strings.TrimSpace(os.Getenv(brand.EnvPrefix + "ZALO_SECRET")),
+		Allowlist:   channel.NewAllowlist(users),
+		Bus:         k.Bus(),
+		Handler:     makeChannelHandler(k),
+		Addr:        addr,
+		Path:        strings.TrimSpace(os.Getenv(brand.EnvPrefix + "ZALO_PATH")),
+	})
+	var sink pulse.BriefSink
+	if len(users) > 0 {
+		sink = pulse.SinkFunc(func(b pulse.Brief) error {
+			var firstErr error
+			for _, u := range users {
+				if err := ch.Send(ctx, channel.Outbound{ChannelID: u, Text: formatBrief(b), Priority: channel.PriorityNotify}); err != nil && firstErr == nil {
+					firstErr = err
+				}
+			}
+			return firstErr
+		})
+	}
+	return ch, sink, fmt.Sprintf("Zalo OA, allowlist=%d user(s)", len(users))
 }
 
 // buildSMS constructs the Twilio SMS channel when AGEZT_SMS_ACCOUNT_SID +

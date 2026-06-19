@@ -15,6 +15,7 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/sha1"
+	"crypto/subtle"
 	"encoding/base64"
 	"encoding/binary"
 	"encoding/hex"
@@ -188,9 +189,15 @@ func (c *Channel) handleInbound(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "forbidden", http.StatusForbidden)
 		return
 	}
-	plain, _, err := c.decrypt(env.Encrypt)
+	plain, receiveID, err := c.decrypt(env.Encrypt)
 	if err != nil {
 		http.Error(w, "decrypt failed", http.StatusBadRequest)
+		return
+	}
+	// The trailing receive_id must equal our corp id (WXBizMsgCrypt spec) — guards
+	// against payloads encrypted for a different corp being replayed at us.
+	if c.cfg.CorpID != "" && subtle.ConstantTimeCompare([]byte(receiveID), []byte(c.cfg.CorpID)) != 1 {
+		http.Error(w, "forbidden", http.StatusForbidden)
 		return
 	}
 	w.WriteHeader(http.StatusOK) // WeCom accepts an empty 200; reply goes via the API.

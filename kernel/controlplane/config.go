@@ -291,6 +291,27 @@ var configEnvVars = []string{
 	"AGEZT_WECOM_USERS",
 	"AGEZT_WECOM_ADDR",
 	"AGEZT_WECOM_PATH",
+	// QQ (OneBot gateway, two-way).
+	"AGEZT_QQ_GATEWAY",
+	"AGEZT_QQ_TOKEN",
+	"AGEZT_QQ_SECRET",
+	"AGEZT_QQ_USERS",
+	"AGEZT_QQ_ADDR",
+	"AGEZT_QQ_PATH",
+	// WeChat (OneBot gateway, two-way).
+	"AGEZT_WECHAT_GATEWAY",
+	"AGEZT_WECHAT_TOKEN",
+	"AGEZT_WECHAT_SECRET",
+	"AGEZT_WECHAT_USERS",
+	"AGEZT_WECHAT_ADDR",
+	"AGEZT_WECHAT_PATH",
+	// Zalo (Official Account, two-way).
+	"AGEZT_ZALO_APP_ID",
+	"AGEZT_ZALO_TOKEN",
+	"AGEZT_ZALO_SECRET",
+	"AGEZT_ZALO_USERS",
+	"AGEZT_ZALO_ADDR",
+	"AGEZT_ZALO_PATH",
 	"AGEZT_SYNOLOGY_WEBHOOK",
 	// WhatsApp gateway (WAHA / Evolution, two-way).
 	"AGEZT_WHATSAPPGW_URL",

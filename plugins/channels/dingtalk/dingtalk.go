@@ -21,6 +21,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -171,13 +173,15 @@ func (c *Channel) dispatch(ctx context.Context, m inbound) {
 	if reply == "" {
 		return
 	}
-	// Reply to the per-message sessionWebhook when present; else the robot webhook.
-	url := m.replyURL
-	if url == "" {
-		url = c.cfg.WebhookURL
+	// Reply to the per-message sessionWebhook only when it's a genuine DingTalk
+	// URL (guards against a forged inbound pointing us at an attacker/internal
+	// host — SSRF); otherwise fall back to the trusted configured robot webhook.
+	target := c.cfg.WebhookURL
+	if safeReplyURL(m.replyURL) {
+		target = m.replyURL
 	}
 	for _, chunk := range channel.SplitText(reply, dtMaxChars) {
-		_ = c.post(ctx, url, chunk)
+		_ = c.post(ctx, target, chunk)
 	}
 }
 
@@ -265,15 +269,37 @@ func (c *Channel) seenBefore(id string) bool {
 // ---- wire shapes ---------------------------------------------------------
 
 // validSign verifies DingTalk's outgoing signature:
-// sign = base64(HMAC-SHA256(secret, timestamp + "\n" + secret)).
+// sign = base64(HMAC-SHA256(secret, timestamp + "\n" + secret)). The timestamp
+// must be within ±5 minutes of now (DingTalk's window) to block replay.
 func validSign(secret, timestamp, sign string) bool {
 	if timestamp == "" || sign == "" {
+		return false
+	}
+	ms, err := strconv.ParseInt(timestamp, 10, 64)
+	if err != nil {
+		return false
+	}
+	if d := time.Now().UnixMilli() - ms; d > 5*60*1000 || d < -5*60*1000 {
 		return false
 	}
 	mac := hmac.New(sha256.New, []byte(secret))
 	mac.Write([]byte(timestamp + "\n" + secret))
 	want := base64.StdEncoding.EncodeToString(mac.Sum(nil))
 	return subtle.ConstantTimeCompare([]byte(want), []byte(strings.TrimSpace(sign))) == 1
+}
+
+// safeReplyURL reports whether raw is a genuine DingTalk session webhook
+// (https + a *.dingtalk.com host) — used to refuse SSRF to arbitrary hosts.
+func safeReplyURL(raw string) bool {
+	if raw == "" {
+		return false
+	}
+	u, err := url.Parse(raw)
+	if err != nil || u.Scheme != "https" {
+		return false
+	}
+	host := strings.ToLower(u.Hostname())
+	return host == "oapi.dingtalk.com" || strings.HasSuffix(host, ".dingtalk.com")
 }
 
 // parseInbound reads a DingTalk robot message: {msgtype, text:{content},

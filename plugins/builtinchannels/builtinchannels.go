@@ -166,6 +166,24 @@ var manifests = []channel.Manifest{
 		DocsURL: "https://developer.work.weixin.qq.com/document/path/91770",
 	},
 	{
+		Kind: "qq", Display: "QQ", Transport: "webhook", Duplex: true,
+		Description:   "Two-way QQ via a self-hosted OneBot v11 gateway (go-cqhttp / NapCat / Lagrange).",
+		ConfigSection: "qq", RequiredEnv: []string{"AGEZT_QQ_GATEWAY", "AGEZT_QQ_ADDR"},
+		DocsURL: "https://github.com/botuniverse/onebot-11",
+	},
+	{
+		Kind: "wechat", Display: "WeChat", Transport: "webhook", Duplex: true,
+		Description:   "Two-way personal WeChat via a self-hosted OneBot-compatible gateway (wcf / wechatbot). No first-party API — gateway required.",
+		ConfigSection: "wechat", RequiredEnv: []string{"AGEZT_WECHAT_GATEWAY", "AGEZT_WECHAT_ADDR"},
+		DocsURL: "https://github.com/botuniverse/onebot-11",
+	},
+	{
+		Kind: "zalo", Display: "Zalo", Transport: "webhook", Duplex: true,
+		Description:   "Two-way Zalo via the Official Account API (event webhook + OA message API).",
+		ConfigSection: "zalo", RequiredEnv: []string{"AGEZT_ZALO_TOKEN"},
+		DocsURL: "https://developers.zalo.me/docs/official-account",
+	},
+	{
 		Kind: "synology", Display: "Synology Chat", Transport: "webhook", Duplex: false,
 		Description:   "Outbound messages via a Synology Chat incoming webhook.",
 		ConfigSection: "synology", RequiredEnv: []string{"AGEZT_SYNOLOGY_WEBHOOK"},
