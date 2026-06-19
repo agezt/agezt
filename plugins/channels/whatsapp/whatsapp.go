@@ -224,7 +224,7 @@ func (c *Channel) handleVerify(w http.ResponseWriter, r *http.Request) {
 // dispatch runs one inbound text message through the allowlist + handler and sends
 // the reply back via the Graph API.
 func (c *Channel) dispatch(ctx context.Context, m inboundMsg) {
-	if m.from == "" || (strings.TrimSpace(m.text) == "" && m.audioID == "") {
+	if m.from == "" || (strings.TrimSpace(m.text) == "" && m.audioID == "" && m.imageID == "") {
 		return
 	}
 	if m.id != "" && c.dedup.seenBefore(m.id) {
@@ -244,6 +244,13 @@ func (c *Channel) dispatch(ctx context.Context, m inboundMsg) {
 	if allowed && m.audioID != "" {
 		if du, err := c.fetchMediaDataURL(ctx, m.audioID); err == nil && du != "" {
 			msg.Audio = []string{du}
+		}
+	}
+	// Inbound image: fetch as a data: URL so a vision model can see it
+	// (allowlisted senders only — never dereference an unauthorized media id).
+	if allowed && m.imageID != "" {
+		if du, err := c.fetchMediaDataURL(ctx, m.imageID); err == nil && du != "" {
+			msg.Images = []string{du}
 		}
 	}
 	c.emitInbound(msg, corr, allowed)
@@ -519,6 +526,10 @@ type waWebhook struct {
 					Voice struct {
 						ID string `json:"id"`
 					} `json:"voice"`
+					Image struct {
+						ID      string `json:"id"`
+						Caption string `json:"caption"`
+					} `json:"image"`
 				} `json:"messages"`
 			} `json:"value"`
 		} `json:"changes"`
@@ -528,6 +539,7 @@ type waWebhook struct {
 type inboundMsg struct {
 	from, id, text string
 	audioID        string // set for voice/audio messages (Cloud API media id)
+	imageID        string // set for image messages (Cloud API media id)
 }
 
 // messages flattens the nested webhook envelope to the messages it carries.
@@ -549,6 +561,8 @@ func (w waWebhook) messages() []inboundMsg {
 						id = m.Voice.ID
 					}
 					out = append(out, inboundMsg{from: m.From, id: m.ID, audioID: id})
+				case "image":
+					out = append(out, inboundMsg{from: m.From, id: m.ID, text: m.Image.Caption, imageID: m.Image.ID})
 				}
 			}
 		}

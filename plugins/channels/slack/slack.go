@@ -300,11 +300,19 @@ func (c *Channel) process(ctx context.Context, ev slackEvent) {
 	// file referenced by an unauthorized sender.
 	if allowed && len(ev.Files) > 0 {
 		for _, f := range ev.Files {
-			if !strings.HasPrefix(f.Mimetype, "image/") || f.URLPrivate == "" {
+			if f.URLPrivate == "" {
 				continue
 			}
-			if du, err := c.fetchFileDataURL(ctx, f.URLPrivate, f.Mimetype); err == nil && du != "" {
-				msg.Images = append(msg.Images, du)
+			switch {
+			case strings.HasPrefix(f.Mimetype, "image/"):
+				if du, err := c.fetchFileDataURL(ctx, f.URLPrivate, f.Mimetype); err == nil && du != "" {
+					msg.Images = append(msg.Images, du)
+				}
+			case strings.HasPrefix(f.Mimetype, "audio/"):
+				// Voice clips / audio files → transcribed by the ambient STT path.
+				if du, err := c.fetchFileDataURL(ctx, f.URLPrivate, f.Mimetype); err == nil && du != "" {
+					msg.Audio = append(msg.Audio, du)
+				}
 			}
 		}
 	}
