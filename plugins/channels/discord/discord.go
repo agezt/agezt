@@ -272,6 +272,31 @@ func (in discordInteraction) imageAttachments() []discordAttachment {
 	return out
 }
 
+// audioAttachments returns attachment options that resolve to audio (a voice
+// message or an uploaded clip). They're transcribed by the ambient STT path when
+// AGEZT_STT_* is configured, so a user can talk to the agent on Discord.
+func (in discordInteraction) audioAttachments() []discordAttachment {
+	if in.Data == nil || in.Data.Resolved == nil {
+		return nil
+	}
+	var out []discordAttachment
+	for _, o := range in.Data.Options {
+		if o.Type != optionTypeAttachment {
+			continue
+		}
+		var id string
+		if err := json.Unmarshal(o.Value, &id); err != nil || id == "" {
+			continue
+		}
+		att, ok := in.Data.Resolved.Attachments[id]
+		if !ok || att.URL == "" || !strings.HasPrefix(att.ContentType, "audio/") {
+			continue
+		}
+		out = append(out, att)
+	}
+	return out
+}
+
 // text returns the slash command's prompt. It prefers the option explicitly
 // named "prompt" (the registered command's text field) and only considers STRING
 // options, so a reordered or additional option can't silently feed the agent the
@@ -350,7 +375,7 @@ func (c *Channel) handleCommand(w http.ResponseWriter, in discordInteraction) {
 		writeJSON(w, ephemeral("not authorized"))
 		return
 	}
-	if c.handler == nil || (msg.Text == "" && len(in.imageAttachments()) == 0) {
+	if c.handler == nil || (msg.Text == "" && len(in.imageAttachments()) == 0 && len(in.audioAttachments()) == 0) {
 		writeJSON(w, ephemeral("nothing to do"))
 		return
 	}
@@ -401,6 +426,13 @@ func (c *Channel) runAndFollowUp(ctx context.Context, in discordInteraction, msg
 	for _, att := range in.imageAttachments() {
 		if du, err := c.fetchAttachmentDataURL(ctx, att); err == nil && du != "" {
 			msg.Images = append(msg.Images, du)
+		}
+	}
+	// Inbound voice messages / audio clips: fetch as data: URLs so the ambient
+	// STT path (when AGEZT_STT_* is set) transcribes them into the agent's intent.
+	for _, att := range in.audioAttachments() {
+		if du, err := c.fetchAttachmentDataURL(ctx, att); err == nil && du != "" {
+			msg.Audio = append(msg.Audio, du)
 		}
 	}
 	reply, err := c.handler(ctx, msg, corr)

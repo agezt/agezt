@@ -187,3 +187,28 @@ func TestDiscord_IgnoresNonAllowlisted(t *testing.T) {
 	default:
 	}
 }
+
+func TestDiscord_AttachmentClassification(t *testing.T) {
+	in := discordInteraction{
+		Data: &discordData{
+			Options: []discordOption{
+				{Type: optionTypeAttachment, Value: json.RawMessage(`"img"`)},
+				{Type: optionTypeAttachment, Value: json.RawMessage(`"voice"`)},
+				{Type: optionTypeAttachment, Value: json.RawMessage(`"doc"`)},
+			},
+			Resolved: &discordResolved{Attachments: map[string]discordAttachment{
+				"img":   {URL: "https://cdn/x.png", ContentType: "image/png"},
+				"voice": {URL: "https://cdn/x.ogg", ContentType: "audio/ogg"},
+				"doc":   {URL: "https://cdn/x.pdf", ContentType: "application/pdf"},
+			}},
+		},
+	}
+	imgs := in.imageAttachments()
+	if len(imgs) != 1 || imgs[0].ContentType != "image/png" {
+		t.Fatalf("imageAttachments = %+v", imgs)
+	}
+	auds := in.audioAttachments()
+	if len(auds) != 1 || auds[0].ContentType != "audio/ogg" {
+		t.Fatalf("audioAttachments = %+v", auds)
+	}
+}
