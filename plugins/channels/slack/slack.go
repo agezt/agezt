@@ -26,7 +26,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"sync"
@@ -320,10 +322,10 @@ func (c *Channel) process(ctx context.Context, ev slackEvent) {
 		rep = channel.Reply{Text: "sorry — that failed: " + err.Error()}
 	}
 	reply := rep.Text
-	if reply == "" {
+	if reply == "" && len(rep.Attachments) == 0 {
 		return
 	}
-	_ = c.send(ctx, channel.Outbound{ChannelID: ev.Channel, ThreadID: msg.ThreadID, Text: reply, Priority: channel.PriorityNotify}, corr)
+	_ = c.send(ctx, channel.Outbound{ChannelID: ev.Channel, ThreadID: msg.ThreadID, Text: reply, Attachments: rep.Attachments, Priority: channel.PriorityNotify}, corr)
 }
 
 // verify checks Slack's request signature: v0=HMAC-SHA256(secret, "v0:ts:body"),
@@ -375,15 +377,120 @@ const slackMaxChars = 40000
 func (c *Channel) send(ctx context.Context, out channel.Outbound, corr string) error {
 	// Slack rejects an empty message (errors with "no_text"); no-op rather than
 	// fail, covering the Send path and whitespace-only answers (M236).
-	if strings.TrimSpace(out.Text) == "" {
+	if strings.TrimSpace(out.Text) == "" && len(out.Attachments) == 0 {
 		return nil
 	}
 	for _, chunk := range channel.SplitText(out.Text, slackMaxChars) {
+		if strings.TrimSpace(chunk) == "" {
+			continue
+		}
 		if err := c.postMessage(ctx, out.ChannelID, out.ThreadID, chunk); err != nil {
 			return err
 		}
 	}
+	for _, att := range out.Attachments {
+		if err := c.sendFile(ctx, out.ChannelID, out.ThreadID, att); err != nil {
+			return err
+		}
+	}
 	c.emitOutbound(out, corr)
+	return nil
+}
+
+// sendFile uploads an attachment via Slack's external-upload flow:
+// files.getUploadURLExternal → POST bytes to the upload URL →
+// files.completeUploadExternal (which shares it into the channel/thread).
+func (c *Channel) sendFile(ctx context.Context, channelID, threadTS string, att channel.Attachment) error {
+	if len(att.Data) == 0 {
+		return nil
+	}
+	fn := att.Filename
+	if fn == "" {
+		fn = "file"
+	}
+	// 1) get an upload URL + file id.
+	form := url.Values{"filename": {fn}, "length": {strconv.Itoa(len(att.Data))}}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.base+"/files.getUploadURLExternal", strings.NewReader(form.Encode()))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Authorization", "Bearer "+c.token)
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return err
+	}
+	var up struct {
+		OK        bool   `json:"ok"`
+		Error     string `json:"error"`
+		UploadURL string `json:"upload_url"`
+		FileID    string `json:"file_id"`
+	}
+	err = json.NewDecoder(io.LimitReader(resp.Body, maxBody)).Decode(&up)
+	resp.Body.Close()
+	if err != nil {
+		return err
+	}
+	if !up.OK || up.UploadURL == "" {
+		return fmt.Errorf("slack getUploadURLExternal: %s", up.Error)
+	}
+	// 2) POST the bytes to the upload URL (multipart field "file").
+	var buf bytes.Buffer
+	mw := multipart.NewWriter(&buf)
+	fw, err := mw.CreateFormFile("file", fn)
+	if err != nil {
+		return err
+	}
+	if _, err := fw.Write(att.Data); err != nil {
+		return err
+	}
+	if err := mw.Close(); err != nil {
+		return err
+	}
+	ureq, err := http.NewRequestWithContext(ctx, http.MethodPost, up.UploadURL, &buf)
+	if err != nil {
+		return err
+	}
+	ureq.Header.Set("Content-Type", mw.FormDataContentType())
+	uresp, err := c.client.Do(ureq)
+	if err != nil {
+		return err
+	}
+	_, _ = io.Copy(io.Discard, io.LimitReader(uresp.Body, 8<<10))
+	uresp.Body.Close()
+	if uresp.StatusCode/100 != 2 {
+		return fmt.Errorf("slack upload: status %d", uresp.StatusCode)
+	}
+	// 3) complete + share into the channel/thread.
+	complete := map[string]any{
+		"files":      []map[string]string{{"id": up.FileID, "title": fn}},
+		"channel_id": channelID,
+	}
+	if threadTS != "" {
+		complete["thread_ts"] = threadTS
+	}
+	cbody, _ := json.Marshal(complete)
+	creq, err := http.NewRequestWithContext(ctx, http.MethodPost, c.base+"/files.completeUploadExternal", bytes.NewReader(cbody))
+	if err != nil {
+		return err
+	}
+	creq.Header.Set("Content-Type", "application/json; charset=utf-8")
+	creq.Header.Set("Authorization", "Bearer "+c.token)
+	cresp, err := c.client.Do(creq)
+	if err != nil {
+		return err
+	}
+	defer cresp.Body.Close()
+	var cr struct {
+		OK    bool   `json:"ok"`
+		Error string `json:"error"`
+	}
+	if err := json.NewDecoder(io.LimitReader(cresp.Body, maxBody)).Decode(&cr); err != nil {
+		return err
+	}
+	if !cr.OK {
+		return fmt.Errorf("slack completeUploadExternal: %s", cr.Error)
+	}
 	return nil
 }
 

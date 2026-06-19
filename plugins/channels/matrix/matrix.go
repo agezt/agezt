@@ -262,10 +262,10 @@ func (c *Channel) handleInbound(ctx context.Context, roomID string, ev roomEvent
 		rep = channel.Reply{Text: "sorry — that failed: " + err.Error()}
 	}
 	reply := rep.Text
-	if reply == "" {
+	if reply == "" && len(rep.Attachments) == 0 {
 		return
 	}
-	_ = c.send(ctx, channel.Outbound{ChannelID: roomID, Text: reply, Priority: channel.PriorityNotify}, corr)
+	_ = c.send(ctx, channel.Outbound{ChannelID: roomID, Text: reply, Attachments: rep.Attachments, Priority: channel.PriorityNotify}, corr)
 }
 
 // Send implements channel.Channel (used by the Pulse→Matrix sink and any
@@ -277,10 +277,13 @@ func (c *Channel) Send(ctx context.Context, out channel.Outbound) error {
 // send PUTs m.room.message (chunked to the platform limit) and journals
 // channel.outbound under corr.
 func (c *Channel) send(ctx context.Context, out channel.Outbound, corr string) error {
-	if strings.TrimSpace(out.Text) == "" {
+	if strings.TrimSpace(out.Text) == "" && len(out.Attachments) == 0 {
 		return nil // empty/whitespace is a no-op, not a failed send
 	}
 	for _, chunk := range channel.SplitText(out.Text, matrixMaxChars) {
+		if strings.TrimSpace(chunk) == "" {
+			continue
+		}
 		// A fresh transaction id per chunk makes the PUT idempotent (a retried
 		// delivery with the same txn id is deduplicated by the homeserver).
 		txn := ulid.New()
@@ -309,7 +312,82 @@ func (c *Channel) send(ctx context.Context, out channel.Outbound, corr string) e
 			return err
 		}
 	}
+	for _, att := range out.Attachments {
+		if err := c.sendMedia(ctx, out.ChannelID, att); err != nil {
+			return err
+		}
+	}
 	c.emitOutbound(out, corr)
+	return nil
+}
+
+// sendMedia uploads an attachment to the media repo, then posts an m.audio /
+// m.image / m.file room event referencing the returned mxc:// URI.
+func (c *Channel) sendMedia(ctx context.Context, roomID string, att channel.Attachment) error {
+	if len(att.Data) == 0 {
+		return nil
+	}
+	fn := att.Filename
+	if fn == "" {
+		fn = "file"
+	}
+	// 1) upload bytes → mxc:// URI.
+	up := fmt.Sprintf("%s/_matrix/media/v3/upload?filename=%s", c.base, url.QueryEscape(fn))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, up, bytes.NewReader(att.Data))
+	if err != nil {
+		return err
+	}
+	if att.MIME != "" {
+		req.Header.Set("Content-Type", att.MIME)
+	}
+	req.Header.Set("Authorization", "Bearer "+c.token)
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return c.scrubToken(err)
+	}
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, 8<<10))
+	resp.Body.Close()
+	if resp.StatusCode/100 != 2 {
+		return fmt.Errorf("matrix media upload: status %d", resp.StatusCode)
+	}
+	var ur struct {
+		ContentURI string `json:"content_uri"`
+	}
+	if err := json.Unmarshal(body, &ur); err != nil || ur.ContentURI == "" {
+		return fmt.Errorf("matrix media upload: no content_uri")
+	}
+	// 2) post the typed message event.
+	msgtype := "m.file"
+	switch att.Kind {
+	case "audio":
+		msgtype = "m.audio"
+	case "image":
+		msgtype = "m.image"
+	}
+	txn := ulid.New()
+	endpoint := fmt.Sprintf("%s/_matrix/client/v3/rooms/%s/send/m.room.message/%s",
+		c.base, url.PathEscape(roomID), url.PathEscape(txn))
+	ev, _ := json.Marshal(map[string]any{
+		"msgtype": msgtype,
+		"body":    fn,
+		"url":     ur.ContentURI,
+		"info":    map[string]any{"mimetype": att.MIME, "size": len(att.Data)},
+	})
+	ereq, err := http.NewRequestWithContext(ctx, http.MethodPut, endpoint, bytes.NewReader(ev))
+	if err != nil {
+		return err
+	}
+	ereq.Header.Set("Content-Type", "application/json")
+	ereq.Header.Set("Authorization", "Bearer "+c.token)
+	eresp, err := c.client.Do(ereq)
+	if err != nil {
+		return c.scrubToken(err)
+	}
+	defer eresp.Body.Close()
+	_, _ = io.Copy(io.Discard, io.LimitReader(eresp.Body, 4<<10))
+	if eresp.StatusCode/100 != 2 {
+		return fmt.Errorf("matrix send media event: status %d", eresp.StatusCode)
+	}
 	return nil
 }
 
