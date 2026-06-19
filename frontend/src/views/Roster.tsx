@@ -2362,7 +2362,7 @@ function AgentFormFields(props: {
         </label>
         {field("Description", "description", "what this agent is for", "Description")}
       </div>
-      <Advanced label="Dayanıklılık & onarım" className="mt-2">
+      <Advanced label="Resilience & repair" className="mt-2">
       <div className="grid gap-2 sm:grid-cols-3">
         {field("Retry attempts", "retryAttempts", "0 = no run retry", "Retry attempts")}
         <label className="flex flex-col gap-1 text-[11px] text-muted">
@@ -2420,7 +2420,7 @@ function AgentFormFields(props: {
           className={cn(inputCls, "resize-y")}
         />
       </label>
-      <Advanced label="Araçlar, görevler & geçersiz kılmalar" className="mt-2">
+      <Advanced label="Tools, tasks & overrides" className="mt-2">
       <div className="grid gap-2 sm:grid-cols-2">
         <label className="flex flex-col gap-1 text-[11px] text-muted">
           Tool allowlist

@@ -15,6 +15,7 @@ import {
   incidentLineageLabel,
   escalationOperationalTasks,
   summarizeAgentRuntimeStatus,
+  fleetCardIssueSummary,
   summarizeProviderRoutingRow,
   summarizeAgentPolicyDenials,
   lastAutonomyRunbookSourceLabel,
@@ -1153,5 +1154,40 @@ describe("wakeLineage", () => {
   it("is empty for manual wakes with no source", () => {
     expect(lastAutonomyRunbookSourceLabel(undefined)).toBe("");
     expect(lastAutonomyRunbookSourceLabel({ phase: "completed" })).toBe("");
+  });
+});
+
+describe("fleetCardIssueSummary", () => {
+  it("reports no issues for a null or healthy runtime status", () => {
+    expect(fleetCardIssueSummary(null)).toEqual({ count: 0, tone: "none", detail: "" });
+    const healthy = summarizeAgentRuntimeStatus({ health_state: "healthy" });
+    expect(fleetCardIssueSummary(healthy)).toEqual({ count: 0, tone: "none", detail: "" });
+  });
+
+  it("collapses health/routing/retry/escalation into a single bad-tone count", () => {
+    const rs = summarizeAgentRuntimeStatus({
+      health_state: "misconfigured",
+      misconfiguration_count: 2,
+      routing_fallback_count: 3,
+      retry_count: 1,
+      escalation_open_count: 2,
+    });
+    const got = fleetCardIssueSummary(rs);
+    expect(got.tone).toBe("bad");
+    expect(got.count).toBe(4);
+    expect(got.detail).toContain("routing fallback ×3");
+    expect(got.detail).toContain("retry ×1");
+    expect(got.detail).toContain("2 open escalations");
+  });
+
+  it("surfaces in-flight repair as an accent signal when otherwise healthy", () => {
+    const rs = summarizeAgentRuntimeStatus({
+      health_state: "healthy",
+      repair_state: "queued",
+      repair_inflight: 1,
+    });
+    const got = fleetCardIssueSummary(rs);
+    expect(got.count).toBe(1);
+    expect(got.tone).toBe("accent");
   });
 });

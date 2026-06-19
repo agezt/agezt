@@ -2244,7 +2244,7 @@ function Overview({
       )}
 
       <Disclosure
-        summary={<span className="text-[11px] font-medium text-foreground/90">Sözleşme &amp; çalışma kayıtları</span>}
+        summary={<span className="text-[11px] font-medium text-foreground/90">Contract &amp; activity records</span>}
       >
         <div className="space-y-3">
       <AgentEntityContract entries={entityContract} slug={slug} />
@@ -8204,6 +8204,23 @@ function DiagTab({
         onChanged={onChanged}
       />
 
+      {/* Calm lead: one health line, always visible. The full wake-policy,
+          health, repair, posture and override walls fold underneath — one click
+          away, never flooding the tab by default. */}
+      <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-panel/30 p-2.5 text-[11px]">
+        <Badge variant={health.state === "healthy" ? "good" : health.state === "retired" ? "default" : "bad"}>
+          {health.label}
+        </Badge>
+        <span className="min-w-0 flex-1 truncate text-muted" title={health.detail}>
+          {health.detail}
+        </span>
+      </div>
+
+      <Disclosure
+        summary={<span className="text-[10px] uppercase tracking-wider text-muted">Health, policy &amp; repair detail</span>}
+      >
+      <div className="space-y-3 pt-1">
+
       <div className="rounded-lg border border-border bg-panel/40 p-2.5 text-[11px]">
         <div className="mb-2 flex flex-wrap items-center gap-2">
           <Badge variant={wakePolicy.tone === "good" ? "good" : wakePolicy.tone === "bad" ? "bad" : "warn"}>
@@ -8522,6 +8539,9 @@ function DiagTab({
           · {fail.started_unix_ms ? fmtTime(fail.started_unix_ms) : "—"}
         </div>
       )}
+
+      </div>
+      </Disclosure>
 
       {/* denied capabilities — the healthy "nothing denied" state stays plain;
           a non-empty list folds behind its count so it never floods the page. */}

@@ -21,8 +21,8 @@ import {
   X,
   ArrowUpRight,
   Activity,
+  AlertTriangle,
   Flame,
-  Repeat,
   ShieldCheck,
   IdCard,
   ListChecks,
@@ -49,7 +49,7 @@ import { AgentAvatar } from "@/components/AgentAvatar";
 import { Button } from "@/components/ui/button";
 import { cn, clip, fmtDateTime, fmtAgo } from "@/lib/utils";
 import { money } from "@/lib/format";
-import { summarizeAgentRuntimeStatus } from "@/lib/agentdetail";
+import { summarizeAgentRuntimeStatus, fleetCardIssueSummary } from "@/lib/agentdetail";
 
 export function fleetAgentRepairOpsSummary(
   profile: Pick<ApiProfile, "retired" | "retry_policy" | "health_policy" | "self_repair">,
@@ -277,11 +277,14 @@ export function FleetCard({ e, onOpen }: { e: FleetEntity; onOpen: () => void })
   const runtimeStatus = e.kind === "roster" && e.raw && typeof e.raw === "object"
     ? summarizeAgentRuntimeStatus((e.raw as { status?: Parameters<typeof summarizeAgentRuntimeStatus>[0] }).status)
     : null;
-  const profile = e.kind === "roster" && e.raw && typeof e.raw === "object" ? (e.raw as ApiProfile) : null;
-  const identityCard = profile ? fleetAgentIdentityCardSummary(profile, e.state, e.running) : null;
-  const repairOps = profile ? fleetAgentRepairOpsSummary(profile, runtimeStatus) : null;
-  const healthOps = profile ? fleetAgentHealthOpsSummary(e, runtimeStatus) : null;
-  const liveOps = profile ? fleetAgentLiveOpsSummary(e, runtimeStatus, primaryTrigger, repairOps) : null;
+  // The calm signal card surfaces only the essentials (avatar · name · state ·
+  // model · last/next) plus ONE collapsed "issues" chip. The full operational
+  // ledger (identity, tasks, tools, authority, health, repair) lives on the
+  // detail page / Fleet drill-in, reached by clicking the card.
+  const issues = fleetCardIssueSummary(runtimeStatus);
+  const metric = e.nextRunMs
+    ? { label: "next wake", value: fmtDateTime(e.nextRunMs) }
+    : { label: "last run", value: e.lastRunMs ? fmtAgo(e.lastRunMs) : "never" };
   return (
     <button
       onClick={onOpen}
@@ -315,72 +318,18 @@ export function FleetCard({ e, onOpen }: { e: FleetEntity; onOpen: () => void })
                 <ShieldCheck className="size-2.5" /> guardian
               </span>
             )}
-            {runtimeStatus?.healthText && (
+            {issues.count > 0 && (
               <span
                 className={cn(
                   "inline-flex items-center gap-0.5 rounded-md px-1.5 py-0.5 text-[9px] font-medium",
-                  runtimeStatus.healthTone === "bad" ? "bg-bad/10 text-bad" : "bg-panel text-muted",
+                  issues.tone === "bad" && "bg-bad/10 text-bad",
+                  issues.tone === "warn" && "bg-warn/10 text-warn",
+                  issues.tone === "accent" && "bg-accent/10 text-accent",
                 )}
+                title={issues.detail}
               >
-                {runtimeStatus.healthText}
-              </span>
-            )}
-            {runtimeStatus?.repairText && (
-              <span
-                className={cn(
-                  "inline-flex items-center gap-0.5 rounded-md px-1.5 py-0.5 text-[9px] font-medium",
-                  runtimeStatus.repairTone === "accent" && "bg-accent/10 text-accent",
-                  runtimeStatus.repairTone === "good" && "bg-good/10 text-good",
-                  runtimeStatus.repairTone === "bad" && "bg-bad/10 text-bad",
-                )}
-              >
-                {runtimeStatus.repairText}
-              </span>
-            )}
-            {runtimeStatus?.repairKindText && (
-              <span
-                className={cn(
-                  "inline-flex items-center gap-0.5 rounded-md px-1.5 py-0.5 text-[9px] font-medium",
-                  runtimeStatus.repairKindTone === "accent" && "bg-accent/10 text-accent",
-                  runtimeStatus.repairKindTone === "warn" && "bg-warn/10 text-warn",
-                )}
-              >
-                {runtimeStatus.repairKindText}
-              </span>
-            )}
-            {runtimeStatus?.routingText && (
-              <span
-                className={cn(
-                  "inline-flex items-center gap-0.5 rounded-md px-1.5 py-0.5 text-[9px] font-medium",
-                  runtimeStatus.routingTone === "bad" ? "bg-bad/10 text-bad" : "bg-panel text-muted",
-                )}
-                title={runtimeStatus.routingDetail || "recent model-chain fallback pressure"}
-              >
-                {runtimeStatus.routingText}
-              </span>
-            )}
-            {runtimeStatus?.retryText && (
-              <span
-                className={cn(
-                  "inline-flex items-center gap-0.5 rounded-md px-1.5 py-0.5 text-[9px] font-medium",
-                  runtimeStatus.retryTone === "bad" ? "bg-bad/10 text-bad" : "bg-panel text-muted",
-                )}
-                title={runtimeStatus.retryDetail || "recent whole-run retry pressure"}
-              >
-                {runtimeStatus.retryText}
-              </span>
-            )}
-            {runtimeStatus?.escalationText && (
-              <span
-                className={cn(
-                  "inline-flex items-center gap-0.5 rounded-md px-1.5 py-0.5 text-[9px] font-medium",
-                  runtimeStatus.escalationTone === "bad" && "bg-bad/10 text-bad",
-                  runtimeStatus.escalationTone === "accent" && "bg-accent/10 text-accent",
-                  runtimeStatus.escalationTone === "muted" && "bg-panel text-muted",
-                )}
-                title="open owner/escalation workload"
-              >
-                {runtimeStatus.escalationText}
+                {issues.tone === "accent" ? <Activity className="size-2.5 work-pulse" /> : <AlertTriangle className="size-2.5" />}
+                {issues.count}
               </span>
             )}
           </div>
@@ -399,122 +348,20 @@ export function FleetCard({ e, onOpen }: { e: FleetEntity; onOpen: () => void })
       <div className="flex flex-1 flex-col gap-2 p-3">
         <WakeStateBand e={e} trigger={primaryTrigger} />
 
-        {liveOps && (
-          <div
-            className={cn(
-              "flex min-h-[3.25rem] items-start gap-2 rounded-lg border px-2 py-1.5",
-              liveOps.tone === "accent" && "border-accent/40 bg-accent/10",
-              liveOps.tone === "good" && "border-good/30 bg-good/5",
-              liveOps.tone === "warn" && "border-warn/40 bg-warn/10",
-              liveOps.tone === "bad" && "border-bad/35 bg-bad/5",
-              liveOps.tone === "muted" && "border-border bg-panel/25",
-            )}
-            title={liveOps.detail}
-          >
-            <Activity
-              className={cn(
-                "mt-0.5 size-3.5 shrink-0",
-                liveOps.tone === "accent" && "work-pulse text-accent",
-                liveOps.tone === "good" && "text-good",
-                liveOps.tone === "warn" && "text-warn",
-                liveOps.tone === "bad" && "text-bad",
-                liveOps.tone === "muted" && "text-muted",
-              )}
-            />
-            <div className="min-w-0 flex-1">
-              <div className="text-[9px] font-semibold uppercase tracking-wider text-muted">Live ops</div>
-              <div
-                className={cn(
-                  "mt-0.5 truncate text-[11px] font-medium",
-                  liveOps.tone === "accent" && "text-accent",
-                  liveOps.tone === "good" && "text-good",
-                  liveOps.tone === "warn" && "text-warn",
-                  liveOps.tone === "bad" && "text-bad",
-                )}
-              >
-                {liveOps.value}
-              </div>
-              <div className="mt-0.5 truncate text-[10px] text-muted">{liveOps.detail}</div>
-            </div>
-          </div>
-        )}
-
-        {identityCard && (
-          <div
-            className={cn(
-              "flex min-h-[4.25rem] min-w-0 gap-2 rounded-lg border bg-panel/35 px-2 py-1.5",
-              identityCard.tone === "accent" && "border-accent/40 bg-accent/10",
-              identityCard.tone === "good" && "border-good/30 bg-good/5",
-              identityCard.tone === "warn" && "border-warn/40 bg-warn/10",
-              identityCard.tone === "bad" && "border-bad/35 bg-bad/5",
-              identityCard.tone === "muted" && "border-border bg-panel/25",
-            )}
-            title={identityCard.detail}
-          >
-            <IdCard
-              className={cn(
-                "mt-0.5 size-3.5 shrink-0 text-muted",
-                identityCard.tone === "accent" && "text-accent",
-                identityCard.tone === "good" && "text-good",
-                identityCard.tone === "warn" && "text-warn",
-                identityCard.tone === "bad" && "text-bad",
-              )}
-            />
-            <div className="min-w-0 flex-1">
-              <div className="text-[9px] font-semibold uppercase tracking-wider text-muted">Agent card</div>
-              <div
-                className={cn(
-                  "mt-0.5 truncate text-[11px] font-medium",
-                  identityCard.tone === "accent" && "text-accent",
-                  identityCard.tone === "good" && "text-good",
-                  identityCard.tone === "warn" && "text-warn",
-                  identityCard.tone === "bad" && "text-bad",
-                )}
-                title={identityCard.label}
-              >
-                {identityCard.label}
-              </div>
-              <div className="mt-0.5 line-clamp-2 text-[10px] text-muted">{identityCard.detail}</div>
-            </div>
-          </div>
-        )}
-
         <div className="grid grid-cols-2 gap-1.5">
-          <FleetInfo label="wake" value={primaryTrigger ? `${primaryTrigger.mode}: ${primaryTrigger.label}` : "manual"} />
-          <FleetInfo label="status" value={STATE_LABEL[e.state]} />
           <FleetInfo label="model" value={e.model || "default"} mono />
-          <FleetInfo
-            label={e.nextRunMs ? "next" : "last"}
-            value={e.nextRunMs ? fmtDateTime(e.nextRunMs) : e.lastRunMs ? fmtAgo(e.lastRunMs) : "never"}
-          />
+          <FleetInfo label={metric.label} value={metric.value} />
         </div>
 
-        {profile && (
-          <div className="grid grid-cols-2 gap-1.5">
-            <FleetInfo label="identity" value={fleetAgentHierarchyLabel(profile)} />
-            <FleetInfo label="tasks" value={fleetAgentTaskContractLabel(profile)} />
-            <FleetInfo label="tools" value={fleetAgentCapabilityLabel(profile)} mono />
-            <FleetInfo label="authority" value={fleetAgentAuthorityLabel(profile)} />
-            <FleetInfo label="health ops" value={healthOps?.value} />
-            <FleetInfo label="repair ops" value={repairOps?.value} />
-          </div>
-        )}
-
         {e.description ? (
-          <div className="line-clamp-2 min-h-[2.75rem] rounded-lg border border-border bg-panel/30 px-2 py-1.5 text-[11px] text-muted" title={e.description}>
+          <div className="mt-auto line-clamp-2 rounded-lg border border-border bg-panel/30 px-2 py-1.5 text-[11px] text-muted" title={e.description}>
             {clip(e.description, 140)}
           </div>
         ) : (
-          <div className="min-h-[2.75rem] rounded-lg border border-dashed border-border bg-panel/20 px-2 py-1.5 text-[11px] text-muted">
+          <div className="mt-auto rounded-lg border border-dashed border-border bg-panel/20 px-2 py-1.5 text-[11px] text-muted">
             no description
           </div>
         )}
-
-        <div className="mt-auto flex flex-wrap gap-1">
-          {e.triggers.map((t, i) => (
-            <TriggerChip key={`${t.mode}-${i}`} mode={t.mode} label={t.label} />
-          ))}
-        </div>
       </div>
 
       <div className="flex items-center gap-2 border-t border-border px-3 py-2 text-[10px] text-muted">
@@ -526,35 +373,6 @@ export function FleetCard({ e, onOpen }: { e: FleetEntity; onOpen: () => void })
             <Flame className="size-2.5" /> {e.fires}
           </span>
         )}
-        {runtimeStatus?.repairInflight ? (
-          <span className="inline-flex shrink-0 items-center gap-1 rounded-md border border-accent/30 bg-accent/10 px-1.5 py-0.5 text-accent">
-            <Activity className="size-2.5" /> {runtimeStatus.repairInflight}
-          </span>
-        ) : null}
-        {runtimeStatus?.routingFallbackCount ? (
-          <span
-            className="inline-flex shrink-0 items-center gap-1 rounded-md border border-bad/30 bg-bad/10 px-1.5 py-0.5 text-bad"
-            title={runtimeStatus.routingDetail || "recent model-chain fallback pressure"}
-          >
-            <Repeat className="size-2.5" /> {runtimeStatus.routingFallbackCount}
-          </span>
-        ) : null}
-        {runtimeStatus?.retryCount ? (
-          <span
-            className="inline-flex shrink-0 items-center gap-1 rounded-md border border-bad/30 bg-bad/10 px-1.5 py-0.5 text-bad"
-            title={runtimeStatus.retryDetail || "recent whole-run retry pressure"}
-          >
-            <Repeat className="size-2.5" /> retry {runtimeStatus.retryCount}
-          </span>
-        ) : null}
-        {runtimeStatus?.escalationOpenCount ? (
-          <span
-            className="inline-flex shrink-0 items-center gap-1 rounded-md border border-bad/30 bg-bad/10 px-1.5 py-0.5 text-bad"
-            title="open owner/escalation workload"
-          >
-            <Share2 className="size-2.5" /> {runtimeStatus.escalationOpenCount}
-          </span>
-        ) : null}
         {typeof e.raw === "object" && e.raw && typeof (e.raw as Record<string, unknown>)["max_cost_mc"] === "number" && (
           <span className="ml-auto inline-flex shrink-0 items-center gap-1 rounded-md border border-border bg-panel/40 px-1.5 py-0.5">
             <Coins className="size-2.5" /> {money((e.raw as Record<string, unknown>)["max_cost_mc"] as number)}

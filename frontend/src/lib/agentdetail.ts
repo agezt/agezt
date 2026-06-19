@@ -1549,6 +1549,39 @@ export function summarizeAgentRuntimeStatus(
   };
 }
 
+// FleetCardIssues collapses an agent's runtime-status signals (health, routing
+// fallbacks, retries, escalations, in-flight repair) into ONE indicator for the
+// calm identity card: a count, the worst tone, and a "·"-joined detail for the
+// tooltip. Healthy → count 0 (the card shows no issue chip).
+export interface FleetCardIssues {
+  count: number;
+  tone: "bad" | "warn" | "accent" | "none";
+  detail: string;
+}
+
+export function fleetCardIssueSummary(rs: AgentCardRuntimeSummary | null | undefined): FleetCardIssues {
+  if (!rs) return { count: 0, tone: "none", detail: "" };
+  const parts: { label: string; tone: "bad" | "warn" | "accent" }[] = [];
+  if (rs.healthTone === "bad" && rs.healthText) parts.push({ label: rs.healthText, tone: "bad" });
+  if (rs.routingFallbackCount > 0) parts.push({ label: `routing fallback ×${rs.routingFallbackCount}`, tone: "bad" });
+  if (rs.retryCount > 0) parts.push({ label: `retry ×${rs.retryCount}`, tone: "bad" });
+  if (rs.escalationOpenCount > 0) {
+    parts.push({
+      label: `${rs.escalationOpenCount} open escalation${rs.escalationOpenCount === 1 ? "" : "s"}`,
+      tone: rs.escalationTone === "bad" ? "bad" : "warn",
+    });
+  }
+  if (rs.repairInflight > 0) parts.push({ label: rs.repairText || `repairing ×${rs.repairInflight}`, tone: "accent" });
+  const tone: FleetCardIssues["tone"] = parts.some((p) => p.tone === "bad")
+    ? "bad"
+    : parts.some((p) => p.tone === "warn")
+      ? "warn"
+      : parts.some((p) => p.tone === "accent")
+        ? "accent"
+        : "none";
+  return { count: parts.length, tone, detail: parts.map((p) => p.label).join(" · ") };
+}
+
 export function summarizeProviderRoutingRow(
   row: ProviderRoutingRow,
 ): ProviderRoutingSummary {
