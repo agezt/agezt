@@ -76,6 +76,7 @@ import type { CommandItem } from "@/lib/commands";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { AdvancedToggle } from "@/components/AdvancedToggle";
 import { toggleTheme } from "@/lib/theme";
+import { toggleAdvanced } from "@/lib/advanced";
 import { useChat } from "@/lib/chatStore";
 import { focusRun } from "@/lib/runfocus";
 import { agentSlugFromHash, openAgent } from "@/lib/agentnav";
@@ -558,6 +559,13 @@ export default function App() {
         group: "Action",
         keywords: "dark light appearance",
         run: () => toggleTheme(),
+      },
+      {
+        id: "act-advanced",
+        label: "Toggle Advanced mode",
+        group: "Action",
+        keywords: "calm detail diagnostics expert verbose simple",
+        run: () => toggleAdvanced(),
       },
       {
         id: "act-appearance-export",
