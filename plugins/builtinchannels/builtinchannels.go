@@ -136,12 +136,6 @@ var manifests = []channel.Manifest{
 		DocsURL: "https://docs.joinmastodon.org/methods/statuses/",
 	},
 	{
-		Kind: "line", Display: "LINE", Transport: "rest", Duplex: false,
-		Description:   "Outbound push via the LINE Messaging API.",
-		ConfigSection: "line", RequiredEnv: []string{"AGEZT_LINE_TOKEN", "AGEZT_LINE_TO"},
-		DocsURL: "https://developers.line.biz/en/docs/messaging-api/",
-	},
-	{
 		Kind: "zulip", Display: "Zulip", Transport: "rest", Duplex: false,
 		Description:   "Outbound messages to a Zulip stream via a bot.",
 		ConfigSection: "zulip", RequiredEnv: []string{"AGEZT_ZULIP_SERVER", "AGEZT_ZULIP_EMAIL", "AGEZT_ZULIP_APIKEY", "AGEZT_ZULIP_STREAM"},
