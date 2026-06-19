@@ -133,6 +133,7 @@ func registerManagementCommands() {
 	Register(&Command{Name: "changelog", Run: cmdChangelog})
 	Register(&Command{Name: "artifact", Run: cmdArtifact})
 	Register(&Command{Name: "send", Run: cmdSend})
+	Register(&Command{Name: "channel", Run: cmdChannel})
 	Register(&Command{Name: "ha", Run: cmdHA})
 	Register(&Command{Name: "transcribe", Run: cmdTranscribe})
 	Register(&Command{Name: "listen", Run: cmdListen})

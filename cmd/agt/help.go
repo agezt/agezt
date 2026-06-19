@@ -274,6 +274,9 @@ func helpGroups() []helpGroup {
 			{"send", "push an outbound message through a channel", []string{
 				"send --channel KIND --to ID <text>",
 			}},
+			{"channel", "communication channels + their connectivity status", []string{
+				"channel list [--json]    every channel: live / configured / needs-setup",
+			}},
 			{"ha", "operator-facing Home Assistant client", []string{
 				"ha <states|services|call>",
 			}},
