@@ -2,7 +2,11 @@
 // once and rides it on every request. Kept in memory only (never localStorage);
 // left in the URL so a refresh re-authorizes. EventSource can't set headers, so
 // the token must travel on the query string.
-export const TOKEN = new URLSearchParams(location.search).get("token") || "";
+// Guard `location` so importing this module never throws under a node test
+// environment (pure-logic specs that transitively import it); in the browser
+// this is always defined.
+export const TOKEN =
+  typeof location !== "undefined" ? new URLSearchParams(location.search).get("token") || "" : "";
 
 export function withToken(path: string, extra?: Record<string, string>): string {
   const u = new URLSearchParams(extra || {});

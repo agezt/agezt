@@ -583,7 +583,7 @@ export function Agents() {
               // an agent. Automations (standing/schedule/workflow) have no page, so
               // they open the inline "how does this run?" panel.
               shownFleet.map((e) => (
-                <FleetCard key={e.key} e={e} onOpen={() => (e.kind === "roster" ? openAgent(e.slug) : setSelKey(e.key))} />
+                <FleetCard key={e.key} e={e} onOpen={() => (e.kind === "roster" ? openAgent(e.slug) : setSelKey(e.key))} onAction={reloadAll} />
               ))
             )}
           </div>

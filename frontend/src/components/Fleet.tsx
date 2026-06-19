@@ -28,10 +28,12 @@ import {
   ListChecks,
   Wrench,
   Moon,
+  Play,
   PauseCircle,
   Skull,
   type LucideIcon,
 } from "lucide-react";
+import { useState, type MouseEvent as ReactMouseEvent, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import {
   fleetAgentCapabilityLabel,
   fleetAgentAuthorityLabel,
@@ -50,6 +52,8 @@ import { Button } from "@/components/ui/button";
 import { cn, clip, fmtDateTime, fmtAgo } from "@/lib/utils";
 import { money } from "@/lib/format";
 import { summarizeAgentRuntimeStatus, fleetCardIssueSummary } from "@/lib/agentdetail";
+import { useUI } from "@/components/ui/feedback";
+import { postAction } from "@/lib/api";
 
 export function fleetAgentRepairOpsSummary(
   profile: Pick<ApiProfile, "retired" | "retry_policy" | "health_policy" | "self_repair">,
@@ -270,7 +274,19 @@ export function TriggerChip({ mode, label }: { mode: TriggerMode; label: string 
 
 // FleetCard — one agent/automation, whatever its kind, at a glance: identity,
 // type, state, and how it gets triggered.
-export function FleetCard({ e, onOpen }: { e: FleetEntity; onOpen: () => void }) {
+export function FleetCard({
+  e,
+  onOpen,
+  onAction,
+}: {
+  e: FleetEntity;
+  onOpen: () => void;
+  /** Called after a quick action (wake / pause / resume) succeeds, so the
+   *  parent can refetch. Optional — live SSE refetch covers it otherwise. */
+  onAction?: () => void;
+}) {
+  const ui = useUI();
+  const [acting, setActing] = useState(false);
   const Kind = KIND_META[e.kind].icon;
   const color = kindColor(e.kind);
   const primaryTrigger = e.triggers[0];
@@ -285,12 +301,50 @@ export function FleetCard({ e, onOpen }: { e: FleetEntity; onOpen: () => void })
   const metric = e.nextRunMs
     ? { label: "next wake", value: fmtDateTime(e.nextRunMs) }
     : { label: "last run", value: e.lastRunMs ? fmtAgo(e.lastRunMs) : "never" };
+
+  // Per-card quick actions for roster agents — wake now, pause/resume — so the
+  // operator never has to open the detail page for the common moves.
+  const canAct = e.kind === "roster" && !e.retired;
+  async function runAction(ev: ReactMouseEvent, fn: () => Promise<unknown>, okMsg: string) {
+    ev.stopPropagation();
+    if (acting) return;
+    setActing(true);
+    try {
+      await fn();
+      ui.toast(okMsg, "success");
+      onAction?.();
+    } catch (err) {
+      ui.toast((err as Error).message, "error");
+    } finally {
+      setActing(false);
+    }
+  }
+  const wake = (ev: ReactMouseEvent) =>
+    runAction(ev, () => postAction("/api/agents/wake", { ref: e.slug, reason: "manual operator wake" }), `${e.name} wake queued`);
+  const toggleEnabled = (ev: ReactMouseEvent) => {
+    const next = !e.enabled;
+    return runAction(
+      ev,
+      () => postAction("/api/agents/enable", { ref: e.slug, enabled: next ? "true" : "false" }),
+      `${e.name} ${next ? "resumed" : "paused"}`,
+    );
+  };
+  const onCardKey = (ev: ReactKeyboardEvent) => {
+    if (ev.key === "Enter" || ev.key === " ") {
+      ev.preventDefault();
+      onOpen();
+    }
+  };
+
   return (
-    <button
+    <div
+      role="button"
+      tabIndex={0}
       onClick={onOpen}
+      onKeyDown={onCardKey}
       title={e.kind === "roster" ? `Open ${e.name}'s identity page` : `Open ${e.name}`}
       className={cn(
-        "group flex min-h-[230px] flex-col overflow-hidden rounded-xl border bg-card text-left shadow-e1 transition-[border-color,box-shadow] hover:border-accent hover:shadow-e2",
+        "group flex min-h-[230px] cursor-pointer flex-col overflow-hidden rounded-xl border bg-card text-left shadow-e1 transition-[border-color,box-shadow] hover:border-accent hover:shadow-e2 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent",
         e.running ? "border-accent/60" : "border-border",
         (e.state === "paused" || e.state === "retired") && "opacity-60",
       )}
@@ -362,6 +416,37 @@ export function FleetCard({ e, onOpen }: { e: FleetEntity; onOpen: () => void })
             no description
           </div>
         )}
+
+        {canAct && (
+          <div className="flex gap-1.5">
+            <button
+              type="button"
+              onClick={wake}
+              disabled={acting}
+              title={`Wake ${e.name} now`}
+              className="inline-flex flex-1 items-center justify-center gap-1 rounded-md border border-accent/40 bg-accent/10 px-2 py-1 text-[11px] font-medium text-accent transition-colors hover:bg-accent/20 disabled:opacity-50"
+            >
+              <Zap className="size-3" /> Wake
+            </button>
+            <button
+              type="button"
+              onClick={toggleEnabled}
+              disabled={acting}
+              title={e.enabled ? "Pause automatic wakes" : "Resume automatic wakes"}
+              className="inline-flex items-center justify-center gap-1 rounded-md border border-border bg-panel/50 px-2 py-1 text-[11px] font-medium text-muted transition-colors hover:text-foreground disabled:opacity-50"
+            >
+              {e.enabled ? (
+                <>
+                  <PauseCircle className="size-3" /> Pause
+                </>
+              ) : (
+                <>
+                  <Play className="size-3" /> Resume
+                </>
+              )}
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="flex items-center gap-2 border-t border-border px-3 py-2 text-[10px] text-muted">
@@ -379,7 +464,7 @@ export function FleetCard({ e, onOpen }: { e: FleetEntity; onOpen: () => void })
           </span>
         )}
       </div>
-    </button>
+    </div>
   );
 }
 
