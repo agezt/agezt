@@ -259,16 +259,24 @@ func builtinSections() []Section {
 		},
 		{
 			ID: "googlechat", Name: "Google Chat",
-			Help: "Outbound messages via a Google Chat Incoming Webhook. Restart to apply.",
+			Help: "Google Chat. Outbound uses the space's Incoming Webhook. Add an inbound addr (and point a Chat app's endpoint at it) to make it TWO-WAY. Restart to apply.",
 			Fields: []Field{
-				pw("AGEZT_GOOGLECHAT_WEBHOOK", "Webhook URL", "The space's Incoming Webhook URL."),
+				pw("AGEZT_GOOGLECHAT_WEBHOOK", "Webhook URL", "The space's Incoming Webhook URL (outbound + replies)."),
+				{Env: "AGEZT_GOOGLECHAT_ADDR", Label: "Inbound addr (two-way)", Type: TypeText, Apply: ApplyRestart, Help: "host:port to serve the Chat app's event webhook; blank = outbound only"},
+				{Env: "AGEZT_GOOGLECHAT_USERS", Label: "Allowed senders (two-way)", Type: TypeCSV, Apply: ApplyRestart, Help: "comma-separated sender emails allowed to drive the agent"},
+				pw("AGEZT_GOOGLECHAT_TOKEN", "Verify token (optional)", "if set, the endpoint URL must carry ?token=…"),
+				{Env: "AGEZT_GOOGLECHAT_PATH", Label: "Inbound path", Type: TypeText, Apply: ApplyRestart, Help: "webhook route (default /googlechat)"},
 			},
 		},
 		{
 			ID: "mattermost", Name: "Mattermost",
-			Help: "Outbound messages via a Mattermost Incoming Webhook. Restart to apply.",
+			Help: "Mattermost. Outbound uses an Incoming Webhook. Add an inbound addr (and a Mattermost outgoing webhook pointing at it) to make it TWO-WAY. Restart to apply.",
 			Fields: []Field{
-				pw("AGEZT_MATTERMOST_WEBHOOK", "Webhook URL", "The channel's Incoming Webhook URL."),
+				pw("AGEZT_MATTERMOST_WEBHOOK", "Webhook URL", "The channel's Incoming Webhook URL (outbound + replies)."),
+				{Env: "AGEZT_MATTERMOST_ADDR", Label: "Inbound addr (two-way)", Type: TypeText, Apply: ApplyRestart, Help: "host:port to serve the outgoing webhook; blank = outbound only"},
+				{Env: "AGEZT_MATTERMOST_USERS", Label: "Allowed usernames (two-way)", Type: TypeCSV, Apply: ApplyRestart, Help: "comma-separated user_names allowed to drive the agent"},
+				pw("AGEZT_MATTERMOST_TOKEN", "Outgoing-webhook token", "verifies the inbound outgoing-webhook POST"),
+				{Env: "AGEZT_MATTERMOST_PATH", Label: "Inbound path", Type: TypeText, Apply: ApplyRestart, Help: "webhook route (default /mattermost)"},
 			},
 		},
 		{

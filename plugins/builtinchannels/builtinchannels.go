@@ -112,14 +112,14 @@ var manifests = []channel.Manifest{
 		DocsURL: "https://www.pushbullet.com",
 	},
 	{
-		Kind: "googlechat", Display: "Google Chat", Transport: "webhook", Duplex: false,
-		Description:   "Outbound messages via a Google Chat Incoming Webhook.",
+		Kind: "googlechat", Display: "Google Chat", Transport: "webhook", Duplex: true,
+		Description:   "Google Chat — outbound via an Incoming Webhook, and two-way (app event webhook in) with an inbound addr.",
 		ConfigSection: "googlechat", RequiredEnv: []string{"AGEZT_GOOGLECHAT_WEBHOOK"},
 		DocsURL: "https://developers.google.com/chat/how-tos/webhooks",
 	},
 	{
-		Kind: "mattermost", Display: "Mattermost", Transport: "webhook", Duplex: false,
-		Description:   "Outbound messages via a Mattermost Incoming Webhook.",
+		Kind: "mattermost", Display: "Mattermost", Transport: "webhook", Duplex: true,
+		Description:   "Mattermost — outbound via an Incoming Webhook, and two-way (outgoing-webhook in) with an inbound addr.",
 		ConfigSection: "mattermost", RequiredEnv: []string{"AGEZT_MATTERMOST_WEBHOOK"},
 		DocsURL: "https://developers.mattermost.com/integrate/webhooks/incoming/",
 	},

@@ -82,6 +82,7 @@ import (
 	"github.com/agezt/agezt/plugins/builtinguardians"
 	"github.com/agezt/agezt/plugins/builtinmarket"
 	"github.com/agezt/agezt/plugins/builtinskills"
+	"github.com/agezt/agezt/plugins/channels/chatwebhook"
 	"github.com/agezt/agezt/plugins/channels/discord"
 	"github.com/agezt/agezt/plugins/channels/email"
 	"github.com/agezt/agezt/plugins/channels/homeassistant"
@@ -1533,6 +1534,19 @@ func runDaemon(stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "  line channel     : %s\n", lnDesc)
 	}
 
+	// Two-way Google Chat / Mattermost (incoming webhook out + webhook in) —
+	// supersede the outbound-only push entries when an inbound addr is set.
+	gcChan, gcSink, gcDesc := buildChatWebhook(ctx, k, chatwebhook.KindGoogleChat, "GOOGLECHAT")
+	if gcChan != nil {
+		go gcChan.Start(ctx)
+		fmt.Fprintf(stdout, "  googlechat (2way): %s\n", gcDesc)
+	}
+	mmChan, mmSink, mmDesc := buildChatWebhook(ctx, k, chatwebhook.KindMattermost, "MATTERMOST")
+	if mmChan != nil {
+		go mmChan.Start(ctx)
+		fmt.Fprintf(stdout, "  mattermost (2way): %s\n", mmDesc)
+	}
+
 	// SMS channel (SPEC-04 §1) — duplex over Twilio Programmable Messaging when
 	// AGEZT_SMS_ACCOUNT_SID + AGEZT_SMS_AUTH_TOKEN are set. Inbound is a signed
 	// Twilio webhook (needs AGEZT_SMS_ADDR); outbound texts go via the REST API
@@ -1608,7 +1622,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 
 	// Every configured channel's brief sink, teed: Pulse briefs and (M782)
 	// alert notifications share the same delivery surface.
-	channelSinks := combineSinks(tgSink, slSink, dcSink, whSink, emSink, mxSink, ircSink, twSink, wgSink, imSink, lnSink, smSink, waSink, haSink, tmSink, sgSink, pushSink)
+	channelSinks := combineSinks(tgSink, slSink, dcSink, whSink, emSink, mxSink, ircSink, twSink, wgSink, imSink, lnSink, gcSink, mmSink, smSink, waSink, haSink, tmSink, sgSink, pushSink)
 
 	// Pulse — the proactive heart (SPEC-03). On by default; the resident
 	// engine runs on the daemon ctx so `agt halt`/SIGTERM/`agt shutdown`
@@ -1795,6 +1809,12 @@ func runDaemon(stdout, stderr io.Writer) int {
 	}
 	if lnChan != nil {
 		liveChannels["line"] = lnChan
+	}
+	if gcChan != nil {
+		liveChannels["googlechat"] = gcChan
+	}
+	if mmChan != nil {
+		liveChannels["mattermost"] = mmChan
 	}
 	if smChan != nil {
 		liveChannels["sms"] = smChan
@@ -2985,6 +3005,54 @@ func buildLine(ctx context.Context, k *kernelruntime.Kernel) (*linechan.Channel,
 	return ch, sink, desc
 }
 
+// twoWayChatConfigured reports whether the two-way chat-webhook channel for a
+// push kind (prefix "GOOGLECHAT" / "MATTERMOST") should own that name — an
+// inbound addr is set — so buildPushChannels yields the outbound-only entry.
+func twoWayChatConfigured(prefix string) bool {
+	return strings.TrimSpace(os.Getenv(brand.EnvPrefix+prefix+"_ADDR")) != ""
+}
+
+// buildChatWebhook constructs a two-way Google Chat / Mattermost channel when its
+// inbound addr is set. Outbound + replies use the incoming-webhook URL.
+//
+//	AGEZT_<PREFIX>_WEBHOOK  incoming-webhook URL (outbound + replies)
+//	AGEZT_<PREFIX>_ADDR     host:port to serve the inbound webhook (enables two-way)
+//	AGEZT_<PREFIX>_TOKEN    verification token (Mattermost outgoing-webhook token / Google Chat ?token=)
+//	AGEZT_<PREFIX>_USERS    comma-separated allowed senders (usernames / emails)
+//	AGEZT_<PREFIX>_PATH     inbound route (default /<kind>)
+func buildChatWebhook(ctx context.Context, k *kernelruntime.Kernel, kind, prefix string) (*chatwebhook.Channel, pulse.BriefSink, string) {
+	if !twoWayChatConfigured(prefix) {
+		return nil, nil, ""
+	}
+	get := func(s string) string { return strings.TrimSpace(os.Getenv(brand.EnvPrefix + prefix + s)) }
+	users := splitNonEmpty(os.Getenv(brand.EnvPrefix + prefix + "_USERS"))
+	webhook := get("_WEBHOOK")
+
+	ch := chatwebhook.New(chatwebhook.Config{
+		Kind:       kind,
+		WebhookURL: webhook,
+		Token:      get("_TOKEN"),
+		Allowlist:  channel.NewAllowlist(users),
+		Bus:        k.Bus(),
+		Handler:    makeChannelHandler(k),
+		Addr:       get("_ADDR"),
+		Path:       get("_PATH"),
+	})
+
+	var sink pulse.BriefSink
+	if webhook != "" {
+		sink = pulse.SinkFunc(func(b pulse.Brief) error {
+			return ch.Send(ctx, channel.Outbound{Text: formatBrief(b), Priority: channel.PriorityNotify})
+		})
+	}
+
+	desc := fmt.Sprintf("%s two-way, allowlist=%d sender(s)", kind, len(users))
+	if webhook == "" {
+		desc += " (inbound-only; set AGEZT_" + prefix + "_WEBHOOK for replies/briefs)"
+	}
+	return ch, sink, desc
+}
+
 // buildSMS constructs the Twilio SMS channel when AGEZT_SMS_ACCOUNT_SID +
 // AGEZT_SMS_AUTH_TOKEN are set. Inbound (signed Twilio webhook) is served when
 // AGEZT_SMS_ADDR is also set; outbound texts + Pulse briefs to the allowlisted
@@ -3262,10 +3330,11 @@ func buildPushChannels(ctx context.Context, k *kernelruntime.Kernel) ([]*push.Ch
 	if env("PUSHBULLET_TOKEN") != "" {
 		add(push.Config{Kind: push.KindPushbullet, Token: env("PUSHBULLET_TOKEN")})
 	}
-	if u := env("GOOGLECHAT_WEBHOOK"); u != "" {
+	if u := env("GOOGLECHAT_WEBHOOK"); u != "" && !twoWayChatConfigured("GOOGLECHAT") {
+		// Two-way Google Chat (AGEZT_GOOGLECHAT_ADDR) owns the name; see buildChatWebhook.
 		add(push.Config{Kind: push.KindGoogleChat, URL: u})
 	}
-	if u := env("MATTERMOST_WEBHOOK"); u != "" {
+	if u := env("MATTERMOST_WEBHOOK"); u != "" && !twoWayChatConfigured("MATTERMOST") {
 		add(push.Config{Kind: push.KindMattermost, URL: u})
 	}
 	if u := env("ROCKETCHAT_WEBHOOK"); u != "" {
