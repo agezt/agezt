@@ -66,6 +66,9 @@ const (
 	// Evolution) for whether its session is logged in (args: url, backend,
 	// session, key). Lets the Channels wizard show connected vs scan-QR.
 	CmdWhatsAppGatewayStatus = "whatsappgw_status"
+	// CmdWhatsAppGatewayQR fetches the gateway's login QR (args: url, backend,
+	// session, key) as a data: URL, so the wizard can render it inline to scan.
+	CmdWhatsAppGatewayQR = "whatsappgw_qr"
 	// Provider keyring (M700): store many API keys per provider env var and pick
 	// the active one. List never returns values (label + active + last-4 only).
 	// Add/Activate/Remove mutate the vault and reload the provider in place.

@@ -4,6 +4,7 @@ package controlplane
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"io"
 	"net"
@@ -134,29 +135,13 @@ func (s *Server) handleWhatsAppGatewayStatus(conn net.Conn, req Request) {
 		keyHeader = "X-Api-Key"
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	hreq, err := http.NewRequestWithContext(ctx, http.MethodGet, statusURL, nil)
-	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
-		return
-	}
-	if key != "" {
-		hreq.Header.Set(keyHeader, key)
-	}
-	// netguard screens every dial + redirect hop: loopback/private allowed (the
-	// gateway is local), link-local (incl. 169.254.169.254 metadata)/multicast/
-	// unspecified blocked.
-	client := netguard.New(netguard.AllowLoopback(), netguard.AllowPrivate()).HTTPClient(10 * time.Second)
-	resp, err := client.Do(hreq)
+	body, code, _, err := wgGatewayGET(statusURL, keyHeader, key, 1<<20)
 	if err != nil {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"ok": false, "error": "cannot reach gateway: " + err.Error()}})
 		return
 	}
-	defer resp.Body.Close()
-	body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
-	if resp.StatusCode/100 != 2 {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"ok": false, "error": "gateway status " + http.StatusText(resp.StatusCode), "http_status": resp.StatusCode}})
+	if code/100 != 2 {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"ok": false, "error": "gateway status " + http.StatusText(code), "http_status": code}})
 		return
 	}
 	// Accept both shapes: WAHA {status:"WORKING"} and Evolution {instance:{state:"open"}}.
@@ -181,6 +166,96 @@ func (s *Server) handleWhatsAppGatewayStatus(conn net.Conn, req Request) {
 		"connected": connected,
 		"status":    status,
 	}})
+}
+
+// handleWhatsAppGatewayQR fetches the login QR from a self-hosted gateway and
+// returns it as a data: URL, so the Channels wizard can render it inline — scan
+// to log the gateway's WhatsApp session in without opening the gateway's own UI.
+// Same stateless, SSRF-guarded probe as the status check.
+func (s *Server) handleWhatsAppGatewayQR(conn net.Conn, req Request) {
+	base := strings.TrimRight(strings.TrimSpace(wgArg(req, "url")), "/")
+	if base == "" {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.url (gateway URL) is required"})
+		return
+	}
+	backend := strings.ToLower(strings.TrimSpace(wgArg(req, "backend")))
+	session := strings.TrimSpace(wgArg(req, "session"))
+	if session == "" {
+		session = "default"
+	}
+	key := strings.TrimSpace(wgArg(req, "key"))
+
+	var qrURL, keyHeader string
+	if backend == "evolution" {
+		qrURL = base + "/instance/connect/" + session
+		keyHeader = "apikey"
+	} else {
+		qrURL = base + "/api/" + session + "/auth/qr?format=image"
+		keyHeader = "X-Api-Key"
+	}
+
+	body, code, ctype, err := wgGatewayGET(qrURL, keyHeader, key, 4<<20)
+	if err != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"ok": false, "error": "cannot reach gateway: " + err.Error()}})
+		return
+	}
+	if code/100 != 2 {
+		// Often means already logged in (no QR) or wrong session.
+		s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"ok": false, "error": "no QR (gateway returned " + http.StatusText(code) + " — already logged in?)", "http_status": code}})
+		return
+	}
+
+	dataURL := ""
+	if strings.HasPrefix(ctype, "image/") {
+		// WAHA returns the QR as a raw image.
+		dataURL = "data:" + ctype + ";base64," + base64.StdEncoding.EncodeToString(body)
+	} else {
+		// Evolution returns JSON { base64: "<data url or raw base64>", code: "..." }.
+		var j struct {
+			Base64 string `json:"base64"`
+		}
+		_ = json.Unmarshal(body, &j)
+		switch {
+		case strings.HasPrefix(j.Base64, "data:"):
+			dataURL = j.Base64
+		case j.Base64 != "":
+			dataURL = "data:image/png;base64," + j.Base64
+		}
+	}
+	if dataURL == "" {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"ok": false, "error": "gateway did not return a QR image"}})
+		return
+	}
+	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"ok": true, "qr": dataURL}})
+}
+
+// wgGatewayGET issues an SSRF-guarded GET to a self-hosted gateway and returns
+// the body, HTTP status, and content type. netguard screens every dial +
+// redirect hop: loopback/private are allowed (the gateway is legitimately
+// local/LAN), but link-local (incl. the 169.254.169.254 cloud-metadata
+// endpoint), multicast, and unspecified targets are refused.
+func wgGatewayGET(fullURL, keyHeader, key string, max int64) (body []byte, status int, contentType string, err error) {
+	u, perr := url.Parse(fullURL)
+	if perr != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+		return nil, 0, "", &url.Error{Op: "parse", URL: fullURL, Err: perr}
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	hreq, err := http.NewRequestWithContext(ctx, http.MethodGet, fullURL, nil)
+	if err != nil {
+		return nil, 0, "", err
+	}
+	if key != "" {
+		hreq.Header.Set(keyHeader, key)
+	}
+	client := netguard.New(netguard.AllowLoopback(), netguard.AllowPrivate()).HTTPClient(10 * time.Second)
+	resp, err := client.Do(hreq)
+	if err != nil {
+		return nil, 0, "", err
+	}
+	defer resp.Body.Close()
+	b, _ := io.ReadAll(io.LimitReader(resp.Body, max))
+	return b, resp.StatusCode, resp.Header.Get("Content-Type"), nil
 }
 
 // wgArg reads a string request arg, tolerating a missing/non-string value.

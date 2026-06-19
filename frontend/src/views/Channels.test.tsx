@@ -81,6 +81,23 @@ describe("Channels", () => {
     expect(await screen.findByText(/logged in & ready/i)).toBeTruthy();
   });
 
+  it("renders the gateway QR inline", async () => {
+    getJSON.mockResolvedValue({ channels: WGW_ONLY });
+    const png = "data:image/png;base64,iVBORw0KGgoAAAANS";
+    postJSON.mockImplementation((path: string) =>
+      path === "/api/whatsappgw/qr" ? Promise.resolve({ ok: true, qr: png }) : Promise.resolve({ ok: true, connected: false, status: "SCAN_QR_CODE" }),
+    );
+    render(withUI(<Channels />));
+    await screen.findByText("WhatsApp (Gateway)");
+    fireEvent.click(screen.getByRole("button", { name: /edit/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /show qr/i }));
+    await waitFor(() =>
+      expect(postJSON).toHaveBeenCalledWith("/api/whatsappgw/qr", expect.objectContaining({ url: "http://localhost:3000", backend: "waha" })),
+    );
+    const img = (await screen.findByAltText("WhatsApp login QR")) as HTMLImageElement;
+    expect(img.src).toBe(png);
+  });
+
   it("lists channels with connected / needs-setup state", async () => {
     render(withUI(<Channels />));
     expect(await screen.findByText("Telegram")).toBeTruthy();

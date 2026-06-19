@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Radio, RefreshCw, Check, Settings2, ArrowLeftRight, ArrowRight, ExternalLink, Save, SendHorizontal } from "lucide-react";
+import { Radio, RefreshCw, Check, Settings2, ArrowLeftRight, ArrowRight, ExternalLink, Save, SendHorizontal, QrCode } from "lucide-react";
 import { getJSON, postJSON } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/ui/page-header";
@@ -50,7 +50,36 @@ export function Channels() {
   const [testing, setTesting] = useState(false);
   const [gwStatus, setGwStatus] = useState<{ ok: boolean; connected?: boolean; status?: string; error?: string } | null>(null);
   const [gwChecking, setGwChecking] = useState(false);
+  const [gwQR, setGwQR] = useState<string>("");
+  const [gwQRErr, setGwQRErr] = useState<string>("");
+  const [gwQRLoading, setGwQRLoading] = useState(false);
   const ui = useUI();
+
+  function gwArgs() {
+    return {
+      url: draft["AGEZT_WHATSAPPGW_URL"] || "",
+      backend: draft["AGEZT_WHATSAPPGW_BACKEND"] || "",
+      session: draft["AGEZT_WHATSAPPGW_SESSION"] || "",
+      key: draft["AGEZT_WHATSAPPGW_KEY"] || "",
+    };
+  }
+
+  // showQR fetches the gateway's login QR (proxied + SSRF-guarded by the daemon)
+  // and renders it inline, so you scan to log in without opening the gateway UI.
+  async function showQR() {
+    setGwQRLoading(true);
+    setGwQR("");
+    setGwQRErr("");
+    try {
+      const r = await postJSON<{ ok: boolean; qr?: string; error?: string }>("/api/whatsappgw/qr", gwArgs());
+      if (r.ok && r.qr) setGwQR(r.qr);
+      else setGwQRErr(r.error || "no QR available");
+    } catch (e) {
+      setGwQRErr((e as Error).message);
+    } finally {
+      setGwQRLoading(false);
+    }
+  }
 
   // checkGateway probes a WhatsApp gateway (WAHA/Evolution) for whether its
   // session is logged in, using the current form values. The key (if typed this
@@ -59,12 +88,7 @@ export function Channels() {
     setGwChecking(true);
     setGwStatus(null);
     try {
-      const r = await postJSON<{ ok: boolean; connected?: boolean; status?: string; error?: string }>("/api/whatsappgw/status", {
-        url: draft["AGEZT_WHATSAPPGW_URL"] || "",
-        backend: draft["AGEZT_WHATSAPPGW_BACKEND"] || "",
-        session: draft["AGEZT_WHATSAPPGW_SESSION"] || "",
-        key: draft["AGEZT_WHATSAPPGW_KEY"] || "",
-      });
+      const r = await postJSON<{ ok: boolean; connected?: boolean; status?: string; error?: string }>("/api/whatsappgw/status", gwArgs());
       setGwStatus(r);
     } catch (e) {
       setGwStatus({ ok: false, error: (e as Error).message });
@@ -116,6 +140,8 @@ export function Channels() {
     setDraft(seed);
     setTestTo("");
     setGwStatus(null);
+    setGwQR("");
+    setGwQRErr("");
     setOpenKind(r.kind);
   }
 
@@ -253,14 +279,32 @@ export function Channels() {
                         )
                       )}
                       {draft["AGEZT_WHATSAPPGW_URL"] && !gwStatus?.connected && (
+                        <Button variant="ghost" size="sm" disabled={gwQRLoading} onClick={showQR}>
+                          {gwQRLoading ? <RefreshCw className="size-3.5 animate-spin" /> : <QrCode className="size-3.5" />}
+                          Show QR
+                        </Button>
+                      )}
+                      {draft["AGEZT_WHATSAPPGW_URL"] && !gwStatus?.connected && (
                         <a
                           href={draft["AGEZT_WHATSAPPGW_URL"]}
                           target="_blank"
                           rel="noreferrer noopener"
                           className="inline-flex items-center gap-0.5 text-[11px] text-accent hover:underline"
                         >
-                          Open gateway to scan QR <ExternalLink className="size-3" />
+                          Open gateway <ExternalLink className="size-3" />
                         </a>
+                      )}
+                      {(gwQR || gwQRErr) && (
+                        <div className="w-full pt-1">
+                          {gwQR ? (
+                            <div className="flex flex-col items-start gap-1">
+                              <img src={gwQR} alt="WhatsApp login QR" className="size-44 rounded-md border border-border bg-white p-1.5" />
+                              <span className="text-[10px] text-muted">Scan with WhatsApp → Linked devices. Then re-check the connection.</span>
+                            </div>
+                          ) : (
+                            <span className="text-[11px] text-warn">{gwQRErr}</span>
+                          )}
+                        </div>
                       )}
                     </div>
                   )}
