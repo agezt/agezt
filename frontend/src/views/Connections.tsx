@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { SkeletonList } from "@/components/ui/skeleton";
+import { AnimatedNumber } from "@/components/AnimatedNumber";
 
 // Connections — one cockpit for "what's actually wired up": AI providers
 // (credentialed?), channels (live/configured?), and MCP servers (attached?).
@@ -23,7 +24,15 @@ function go(id: string) {
 }
 
 function Dot({ tone }: { tone: "good" | "warn" | "muted" }) {
-  return <span className={cn("inline-block size-2 rounded-full", tone === "good" ? "bg-good" : tone === "warn" ? "bg-warn" : "bg-muted/40")} />;
+  // Live/connected dots pulse — a calm sign of life.
+  return (
+    <span
+      className={cn(
+        "inline-block size-2 rounded-full",
+        tone === "good" ? "bg-good animate-pulse" : tone === "warn" ? "bg-warn" : "bg-muted/40",
+      )}
+    />
+  );
 }
 
 export function Connections() {
@@ -151,9 +160,9 @@ export function ConnectivityStrip() {
       <Network className="size-3.5 text-accent" />
       <span className="font-semibold uppercase tracking-wider text-accent">Connections</span>
       <span className="text-muted">
-        <span className="font-semibold text-fg">{s.providers}</span> provider{s.providers === 1 ? "" : "s"} keyed ·{" "}
-        <span className="font-semibold text-fg">{s.channels}</span> channel{s.channels === 1 ? "" : "s"} live ·{" "}
-        <span className="font-semibold text-fg">{s.mcp}</span> MCP attached
+        <AnimatedNumber value={s.providers} className="font-semibold text-fg" /> provider{s.providers === 1 ? "" : "s"} keyed ·{" "}
+        <AnimatedNumber value={s.channels} className="font-semibold text-fg" /> channel{s.channels === 1 ? "" : "s"} live ·{" "}
+        <AnimatedNumber value={s.mcp} className="font-semibold text-fg" /> MCP attached
       </span>
       <ArrowRight className="ml-auto size-3.5 text-muted" />
     </button>
@@ -187,7 +196,7 @@ function SectionCard({
         <Icon className="size-4 text-accent" />
         <span className="text-sm font-semibold">{title}</span>
         <span className="ml-auto text-[11px] text-muted">
-          <span className="font-semibold text-fg">{connected}</span> {connectedLabel}
+          <AnimatedNumber value={connected} className="font-semibold text-fg" /> {connectedLabel}
           {total > 0 && <span className="text-muted"> / {total}</span>}
         </span>
       </div>
