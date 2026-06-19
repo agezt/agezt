@@ -87,6 +87,7 @@ import (
 	"github.com/agezt/agezt/plugins/channels/homeassistant"
 	"github.com/agezt/agezt/plugins/channels/imessage"
 	"github.com/agezt/agezt/plugins/channels/irc"
+	linechan "github.com/agezt/agezt/plugins/channels/line"
 	"github.com/agezt/agezt/plugins/channels/matrix"
 	"github.com/agezt/agezt/plugins/channels/push"
 	signalchan "github.com/agezt/agezt/plugins/channels/signal"
@@ -1524,6 +1525,14 @@ func runDaemon(stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "  imessage channel : disabled (set AGEZT_IMESSAGE_URL)\n")
 	}
 
+	// LINE two-way (official Messaging API) — supersedes the outbound-only push
+	// LINE when a channel secret is set.
+	lnChan, lnSink, lnDesc := buildLine(ctx, k)
+	if lnChan != nil {
+		go lnChan.Start(ctx)
+		fmt.Fprintf(stdout, "  line channel     : %s\n", lnDesc)
+	}
+
 	// SMS channel (SPEC-04 §1) — duplex over Twilio Programmable Messaging when
 	// AGEZT_SMS_ACCOUNT_SID + AGEZT_SMS_AUTH_TOKEN are set. Inbound is a signed
 	// Twilio webhook (needs AGEZT_SMS_ADDR); outbound texts go via the REST API
@@ -1599,7 +1608,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 
 	// Every configured channel's brief sink, teed: Pulse briefs and (M782)
 	// alert notifications share the same delivery surface.
-	channelSinks := combineSinks(tgSink, slSink, dcSink, whSink, emSink, mxSink, ircSink, twSink, wgSink, imSink, smSink, waSink, haSink, tmSink, sgSink, pushSink)
+	channelSinks := combineSinks(tgSink, slSink, dcSink, whSink, emSink, mxSink, ircSink, twSink, wgSink, imSink, lnSink, smSink, waSink, haSink, tmSink, sgSink, pushSink)
 
 	// Pulse — the proactive heart (SPEC-03). On by default; the resident
 	// engine runs on the daemon ctx so `agt halt`/SIGTERM/`agt shutdown`
@@ -1783,6 +1792,9 @@ func runDaemon(stdout, stderr io.Writer) int {
 	}
 	if imChan != nil {
 		liveChannels["imessage"] = imChan
+	}
+	if lnChan != nil {
+		liveChannels["line"] = lnChan
 	}
 	if smChan != nil {
 		liveChannels["sms"] = smChan
@@ -2925,6 +2937,54 @@ func buildIMessage(ctx context.Context, k *kernelruntime.Kernel) (*imessage.Chan
 	return ch, sink, desc
 }
 
+// twoWayLineConfigured reports whether the dedicated two-way LINE channel should
+// own the "line" name (a channel secret is set) — in which case buildPushChannels
+// yields LINE to it to avoid a double registration.
+func twoWayLineConfigured() bool {
+	return strings.TrimSpace(os.Getenv(brand.EnvPrefix+"LINE_SECRET")) != ""
+}
+
+// buildLine constructs the two-way LINE channel (official Messaging API) when a
+// channel secret is set. Outbound push uses AGEZT_LINE_TOKEN; inbound (two-way)
+// is served when AGEZT_LINE_ADDR is set and verified with AGEZT_LINE_SECRET.
+//
+//	AGEZT_LINE_TOKEN    channel access token (Bearer for reply/push)
+//	AGEZT_LINE_SECRET   channel secret (verifies inbound signature; enables two-way)  (required)
+//	AGEZT_LINE_USERS    comma-separated allowed sender userIds
+//	AGEZT_LINE_TO       recipient id for Pulse briefs
+//	AGEZT_LINE_ADDR     host:port to serve LINE's webhook (two-way)
+//	AGEZT_LINE_PATH     inbound route (default /line)
+func buildLine(ctx context.Context, k *kernelruntime.Kernel) (*linechan.Channel, pulse.BriefSink, string) {
+	if !twoWayLineConfigured() {
+		return nil, nil, ""
+	}
+	users := splitNonEmpty(os.Getenv(brand.EnvPrefix + "LINE_USERS"))
+	addr := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "LINE_ADDR"))
+
+	ch := linechan.New(linechan.Config{
+		Secret:      strings.TrimSpace(os.Getenv(brand.EnvPrefix + "LINE_SECRET")),
+		AccessToken: strings.TrimSpace(os.Getenv(brand.EnvPrefix + "LINE_TOKEN")),
+		Allowlist:   channel.NewAllowlist(users),
+		Bus:         k.Bus(),
+		Handler:     makeChannelHandler(k),
+		Addr:        addr,
+		Path:        strings.TrimSpace(os.Getenv(brand.EnvPrefix + "LINE_PATH")),
+	})
+
+	var sink pulse.BriefSink
+	if to := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "LINE_TO")); to != "" {
+		sink = pulse.SinkFunc(func(b pulse.Brief) error {
+			return ch.Send(ctx, channel.Outbound{ChannelID: to, Text: formatBrief(b), Priority: channel.PriorityNotify})
+		})
+	}
+
+	desc := fmt.Sprintf("LINE Messaging API, allowlist=%d user(s)", len(users))
+	if addr == "" {
+		desc += " (outbound-only; set AGEZT_LINE_ADDR for two-way)"
+	}
+	return ch, sink, desc
+}
+
 // buildSMS constructs the Twilio SMS channel when AGEZT_SMS_ACCOUNT_SID +
 // AGEZT_SMS_AUTH_TOKEN are set. Inbound (signed Twilio webhook) is served when
 // AGEZT_SMS_ADDR is also set; outbound texts + Pulse briefs to the allowlisted
@@ -3214,7 +3274,9 @@ func buildPushChannels(ctx context.Context, k *kernelruntime.Kernel) ([]*push.Ch
 	if env("MASTODON_TOKEN") != "" {
 		add(push.Config{Kind: push.KindMastodon, Server: env("MASTODON_SERVER"), Token: env("MASTODON_TOKEN")})
 	}
-	if env("LINE_TOKEN") != "" {
+	if env("LINE_TOKEN") != "" && !twoWayLineConfigured() {
+		// When AGEZT_LINE_SECRET is set the dedicated two-way LINE channel owns
+		// the "line" name (see buildLine), so skip the outbound-only push entry.
 		add(push.Config{Kind: push.KindLine, Token: env("LINE_TOKEN"), Target: env("LINE_TO")})
 	}
 	if env("ZULIP_APIKEY") != "" {

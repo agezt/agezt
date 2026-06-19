@@ -288,10 +288,14 @@ func builtinSections() []Section {
 		},
 		{
 			ID: "line", Name: "LINE",
-			Help: "Outbound push via the LINE Messaging API. Restart to apply.",
+			Help: "LINE Messaging API. Outbound push needs the channel access token. Add the channel secret + an inbound addr to make it TWO-WAY (LINE posts a signed webhook; replies go via the reply token). Restart to apply.",
 			Fields: []Field{
 				pw("AGEZT_LINE_TOKEN", "Channel access token", "From the LINE Developers console."),
-				{Env: "AGEZT_LINE_TO", Label: "Recipient ID", Type: TypeText, Apply: ApplyRestart, Help: "User/group/room id to push to."},
+				{Env: "AGEZT_LINE_TO", Label: "Recipient ID (outbound)", Type: TypeText, Apply: ApplyRestart, Help: "User/group/room id to push briefs to."},
+				pw("AGEZT_LINE_SECRET", "Channel secret (two-way)", "Verifies the inbound webhook signature; enables two-way."),
+				{Env: "AGEZT_LINE_USERS", Label: "Allowed user IDs (two-way)", Type: TypeCSV, Apply: ApplyRestart, Help: "comma-separated LINE userIds allowed to drive the agent"},
+				{Env: "AGEZT_LINE_ADDR", Label: "Inbound addr (two-way)", Type: TypeText, Apply: ApplyRestart, Help: "host:port to serve LINE's webhook; blank = outbound only"},
+				{Env: "AGEZT_LINE_PATH", Label: "Inbound path", Type: TypeText, Apply: ApplyRestart, Help: "webhook route (default /line)"},
 			},
 		},
 		{

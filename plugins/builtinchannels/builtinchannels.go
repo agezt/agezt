@@ -195,4 +195,10 @@ var manifests = []channel.Manifest{
 		ConfigSection: "imessage", RequiredEnv: []string{"AGEZT_IMESSAGE_URL"},
 		DocsURL: "https://bluebubbles.app/",
 	},
+	{
+		Kind: "line", Display: "LINE", Transport: "webhook", Duplex: true,
+		Description:   "LINE Messaging API — outbound push, and two-way (signed webhook + reply token) with a channel secret + inbound addr.",
+		ConfigSection: "line", RequiredEnv: []string{"AGEZT_LINE_TOKEN"},
+		DocsURL: "https://developers.line.biz/en/docs/messaging-api/",
+	},
 }
