@@ -83,8 +83,10 @@ import (
 	"github.com/agezt/agezt/plugins/builtinmarket"
 	"github.com/agezt/agezt/plugins/builtinskills"
 	"github.com/agezt/agezt/plugins/channels/chatwebhook"
+	"github.com/agezt/agezt/plugins/channels/dingtalk"
 	"github.com/agezt/agezt/plugins/channels/discord"
 	"github.com/agezt/agezt/plugins/channels/email"
+	"github.com/agezt/agezt/plugins/channels/feishu"
 	"github.com/agezt/agezt/plugins/channels/homeassistant"
 	"github.com/agezt/agezt/plugins/channels/imessage"
 	"github.com/agezt/agezt/plugins/channels/irc"
@@ -97,6 +99,7 @@ import (
 	"github.com/agezt/agezt/plugins/channels/teams"
 	"github.com/agezt/agezt/plugins/channels/telegram"
 	webhookchan "github.com/agezt/agezt/plugins/channels/webhook"
+	"github.com/agezt/agezt/plugins/channels/wecom"
 	"github.com/agezt/agezt/plugins/channels/whatsapp"
 	"github.com/agezt/agezt/plugins/channels/whatsappgw"
 	"github.com/agezt/agezt/plugins/providers/compat"
@@ -1547,6 +1550,23 @@ func runDaemon(stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "  mattermost (2way): %s\n", mmDesc)
 	}
 
+	// DingTalk / Feishu / WeCom two-way (China enterprise platforms).
+	dtChan, dtSink, dtDesc := buildDingTalk(ctx, k)
+	if dtChan != nil {
+		go dtChan.Start(ctx)
+		fmt.Fprintf(stdout, "  dingtalk (2way)  : %s\n", dtDesc)
+	}
+	fsChan, fsSink, fsDesc := buildFeishu(ctx, k)
+	if fsChan != nil {
+		go fsChan.Start(ctx)
+		fmt.Fprintf(stdout, "  feishu (2way)    : %s\n", fsDesc)
+	}
+	wcChan, wcSink, wcDesc := buildWeCom(ctx, k)
+	if wcChan != nil {
+		go wcChan.Start(ctx)
+		fmt.Fprintf(stdout, "  wecom (2way)     : %s\n", wcDesc)
+	}
+
 	// SMS channel (SPEC-04 §1) — duplex over Twilio Programmable Messaging when
 	// AGEZT_SMS_ACCOUNT_SID + AGEZT_SMS_AUTH_TOKEN are set. Inbound is a signed
 	// Twilio webhook (needs AGEZT_SMS_ADDR); outbound texts go via the REST API
@@ -1622,7 +1642,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 
 	// Every configured channel's brief sink, teed: Pulse briefs and (M782)
 	// alert notifications share the same delivery surface.
-	channelSinks := combineSinks(tgSink, slSink, dcSink, whSink, emSink, mxSink, ircSink, twSink, wgSink, imSink, lnSink, gcSink, mmSink, smSink, waSink, haSink, tmSink, sgSink, pushSink)
+	channelSinks := combineSinks(tgSink, slSink, dcSink, whSink, emSink, mxSink, ircSink, twSink, wgSink, imSink, lnSink, gcSink, mmSink, dtSink, fsSink, wcSink, smSink, waSink, haSink, tmSink, sgSink, pushSink)
 
 	// Pulse — the proactive heart (SPEC-03). On by default; the resident
 	// engine runs on the daemon ctx so `agt halt`/SIGTERM/`agt shutdown`
@@ -1815,6 +1835,15 @@ func runDaemon(stdout, stderr io.Writer) int {
 	}
 	if mmChan != nil {
 		liveChannels["mattermost"] = mmChan
+	}
+	if dtChan != nil {
+		liveChannels["dingtalk"] = dtChan
+	}
+	if fsChan != nil {
+		liveChannels["feishu"] = fsChan
+	}
+	if wcChan != nil {
+		liveChannels["wecom"] = wcChan
 	}
 	if smChan != nil {
 		liveChannels["sms"] = smChan
@@ -3053,6 +3082,124 @@ func buildChatWebhook(ctx context.Context, k *kernelruntime.Kernel, kind, prefix
 	return ch, sink, desc
 }
 
+// buildDingTalk constructs the two-way DingTalk channel when AGEZT_DINGTALK_ADDR
+// is set. Replies go to each message's sessionWebhook; briefs use the custom
+// robot webhook (AGEZT_DINGTALK_WEBHOOK).
+//
+//	AGEZT_DINGTALK_WEBHOOK  custom-robot webhook (outbound briefs / agt send)
+//	AGEZT_DINGTALK_SECRET   robot secret (verifies inbound timestamp+sign)
+//	AGEZT_DINGTALK_USERS    comma-separated allowed senderStaffId / nick
+//	AGEZT_DINGTALK_ADDR     host:port to serve the inbound webhook (enables two-way)
+//	AGEZT_DINGTALK_PATH     inbound route (default /dingtalk)
+func buildDingTalk(ctx context.Context, k *kernelruntime.Kernel) (*dingtalk.Channel, pulse.BriefSink, string) {
+	addr := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "DINGTALK_ADDR"))
+	if addr == "" {
+		return nil, nil, ""
+	}
+	users := splitNonEmpty(os.Getenv(brand.EnvPrefix + "DINGTALK_USERS"))
+	webhook := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "DINGTALK_WEBHOOK"))
+	ch := dingtalk.New(dingtalk.Config{
+		WebhookURL: webhook,
+		Secret:     strings.TrimSpace(os.Getenv(brand.EnvPrefix + "DINGTALK_SECRET")),
+		Allowlist:  channel.NewAllowlist(users),
+		Bus:        k.Bus(),
+		Handler:    makeChannelHandler(k),
+		Addr:       addr,
+		Path:       strings.TrimSpace(os.Getenv(brand.EnvPrefix + "DINGTALK_PATH")),
+	})
+	var sink pulse.BriefSink
+	if webhook != "" {
+		sink = pulse.SinkFunc(func(b pulse.Brief) error {
+			return ch.Send(ctx, channel.Outbound{Text: formatBrief(b), Priority: channel.PriorityNotify})
+		})
+	}
+	return ch, sink, fmt.Sprintf("DingTalk robot, allowlist=%d sender(s)", len(users))
+}
+
+// buildFeishu constructs the two-way Feishu / Lark channel when AGEZT_FEISHU_ADDR
+// is set. Replies + briefs use the IM API (tenant_access_token from app id/secret).
+//
+//	AGEZT_FEISHU_APP_ID        app id
+//	AGEZT_FEISHU_APP_SECRET    app secret
+//	AGEZT_FEISHU_VERIFY_TOKEN  event verification token
+//	AGEZT_FEISHU_CHAT          chat_id for proactive briefs
+//	AGEZT_FEISHU_USERS         comma-separated allowed sender open_ids
+//	AGEZT_FEISHU_ADDR          host:port to serve the inbound webhook (enables two-way)
+//	AGEZT_FEISHU_PATH          inbound route (default /feishu)
+func buildFeishu(ctx context.Context, k *kernelruntime.Kernel) (*feishu.Channel, pulse.BriefSink, string) {
+	addr := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "FEISHU_ADDR"))
+	appID := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "FEISHU_APP_ID"))
+	if addr == "" || appID == "" {
+		return nil, nil, ""
+	}
+	users := splitNonEmpty(os.Getenv(brand.EnvPrefix + "FEISHU_USERS"))
+	chat := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "FEISHU_CHAT"))
+	ch := feishu.New(feishu.Config{
+		AppID:       appID,
+		AppSecret:   strings.TrimSpace(os.Getenv(brand.EnvPrefix + "FEISHU_APP_SECRET")),
+		VerifyToken: strings.TrimSpace(os.Getenv(brand.EnvPrefix + "FEISHU_VERIFY_TOKEN")),
+		DefaultChat: chat,
+		Allowlist:   channel.NewAllowlist(users),
+		Bus:         k.Bus(),
+		Handler:     makeChannelHandler(k),
+		Addr:        addr,
+		Path:        strings.TrimSpace(os.Getenv(brand.EnvPrefix + "FEISHU_PATH")),
+	})
+	var sink pulse.BriefSink
+	if chat != "" {
+		sink = pulse.SinkFunc(func(b pulse.Brief) error {
+			return ch.Send(ctx, channel.Outbound{ChannelID: chat, Text: formatBrief(b), Priority: channel.PriorityNotify})
+		})
+	}
+	return ch, sink, fmt.Sprintf("Feishu app, allowlist=%d user(s)", len(users))
+}
+
+// buildWeCom constructs the two-way WeCom (WeChat Work) channel when
+// AGEZT_WECOM_ADDR is set. Inbound is an AES-encrypted callback; replies use the
+// app message-send API (access_token from corp id/secret).
+//
+//	AGEZT_WECOM_CORP_ID      corp id
+//	AGEZT_WECOM_CORP_SECRET  app secret
+//	AGEZT_WECOM_AGENT_ID     app agent id
+//	AGEZT_WECOM_TOKEN        callback token
+//	AGEZT_WECOM_AES_KEY      callback EncodingAESKey
+//	AGEZT_WECOM_USERS        comma-separated allowed user ids
+//	AGEZT_WECOM_ADDR         host:port to serve the inbound callback (enables two-way)
+//	AGEZT_WECOM_PATH         inbound route (default /wecom)
+func buildWeCom(ctx context.Context, k *kernelruntime.Kernel) (*wecom.Channel, pulse.BriefSink, string) {
+	addr := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "WECOM_ADDR"))
+	corp := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "WECOM_CORP_ID"))
+	if addr == "" || corp == "" {
+		return nil, nil, ""
+	}
+	users := splitNonEmpty(os.Getenv(brand.EnvPrefix + "WECOM_USERS"))
+	ch := wecom.New(wecom.Config{
+		CorpID:     corp,
+		CorpSecret: strings.TrimSpace(os.Getenv(brand.EnvPrefix + "WECOM_CORP_SECRET")),
+		AgentID:    strings.TrimSpace(os.Getenv(brand.EnvPrefix + "WECOM_AGENT_ID")),
+		Token:      strings.TrimSpace(os.Getenv(brand.EnvPrefix + "WECOM_TOKEN")),
+		AESKey:     strings.TrimSpace(os.Getenv(brand.EnvPrefix + "WECOM_AES_KEY")),
+		Allowlist:  channel.NewAllowlist(users),
+		Bus:        k.Bus(),
+		Handler:    makeChannelHandler(k),
+		Addr:       addr,
+		Path:       strings.TrimSpace(os.Getenv(brand.EnvPrefix + "WECOM_PATH")),
+	})
+	var sink pulse.BriefSink
+	if len(users) > 0 {
+		sink = pulse.SinkFunc(func(b pulse.Brief) error {
+			var firstErr error
+			for _, u := range users {
+				if err := ch.Send(ctx, channel.Outbound{ChannelID: u, Text: formatBrief(b), Priority: channel.PriorityNotify}); err != nil && firstErr == nil {
+					firstErr = err
+				}
+			}
+			return firstErr
+		})
+	}
+	return ch, sink, fmt.Sprintf("WeCom app, allowlist=%d user(s)", len(users))
+}
+
 // buildSMS constructs the Twilio SMS channel when AGEZT_SMS_ACCOUNT_SID +
 // AGEZT_SMS_AUTH_TOKEN are set. Inbound (signed Twilio webhook) is served when
 // AGEZT_SMS_ADDR is also set; outbound texts + Pulse briefs to the allowlisted
@@ -3351,13 +3498,15 @@ func buildPushChannels(ctx context.Context, k *kernelruntime.Kernel) ([]*push.Ch
 	if env("ZULIP_APIKEY") != "" {
 		add(push.Config{Kind: push.KindZulip, Server: env("ZULIP_SERVER"), User: env("ZULIP_EMAIL"), Token: env("ZULIP_APIKEY"), Target: env("ZULIP_STREAM"), Topic: env("ZULIP_TOPIC")})
 	}
-	if u := env("FEISHU_WEBHOOK"); u != "" {
+	// Feishu/DingTalk/WeCom: the dedicated two-way channels own the name when
+	// their inbound addr is configured (see buildFeishu/buildDingTalk/buildWeCom).
+	if u := env("FEISHU_WEBHOOK"); u != "" && (env("FEISHU_ADDR") == "" || env("FEISHU_APP_ID") == "") {
 		add(push.Config{Kind: push.KindFeishu, URL: u})
 	}
-	if u := env("DINGTALK_WEBHOOK"); u != "" {
+	if u := env("DINGTALK_WEBHOOK"); u != "" && env("DINGTALK_ADDR") == "" {
 		add(push.Config{Kind: push.KindDingTalk, URL: u})
 	}
-	if u := env("WECOM_WEBHOOK"); u != "" {
+	if u := env("WECOM_WEBHOOK"); u != "" && (env("WECOM_ADDR") == "" || env("WECOM_CORP_ID") == "") {
 		add(push.Config{Kind: push.KindWeCom, URL: u})
 	}
 	if u := env("SYNOLOGY_WEBHOOK"); u != "" {
