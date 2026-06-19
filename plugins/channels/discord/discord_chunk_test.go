@@ -86,8 +86,8 @@ func TestDiscord_FollowUpChunksLongAnswer(t *testing.T) {
 		BaseURL:    api.URL,
 		HTTPClient: api.Client(),
 		Allowlist:  channel.NewAllowlist([]string{"C1"}),
-		Handler: func(_ context.Context, _ channel.UnifiedMessage, _ string) (string, error) {
-			return long, nil
+		Handler: func(_ context.Context, _ channel.UnifiedMessage, _ string) (channel.Reply, error) {
+			return channel.Reply{Text: long}, nil
 		},
 	})
 

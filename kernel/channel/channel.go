@@ -51,6 +51,18 @@ const (
 	PriorityUrgent Priority = "urgent"
 )
 
+// Attachment is one piece of outbound media (image, audio/voice, or file) the
+// agent wants delivered alongside (or instead of) text. Data carries the raw
+// bytes — the daemon resolves any artifact reference to bytes before handing it
+// to a channel, so channel packages never import the artifact store. Channels
+// whose platform has no media API ignore Attachments (text still delivers).
+type Attachment struct {
+	Kind     string `json:"kind"`               // "image" | "audio" | "file"
+	Data     []byte `json:"-"`                  // raw bytes (not serialized in events)
+	MIME     string `json:"mime,omitempty"`     // e.g. "image/png", "audio/ogg"
+	Filename string `json:"filename,omitempty"` // suggested filename
+}
+
 // Outbound is a message the kernel hands a channel to deliver.
 type Outbound struct {
 	ChannelID string `json:"channel_id"`
@@ -59,15 +71,27 @@ type Outbound struct {
 	ThreadID string   `json:"thread_id,omitempty"`
 	Text     string   `json:"text"`
 	Priority Priority `json:"priority,omitempty"`
+	// Attachments are outbound media (images / voice clips / files). Channels
+	// that support media send them; text-only channels ignore the slice.
+	Attachments []Attachment `json:"-"`
+}
+
+// Reply is what an InboundHandler returns: the text answer plus any media the
+// agent produced (a synthesized voice clip for a voice message, a generated
+// image, …). Text-only replies set just Text; an empty Text with no Attachments
+// means "nothing to send back".
+type Reply struct {
+	Text        string
+	Attachments []Attachment
 }
 
 // InboundHandler turns an inbound message into a reply. The daemon supplies it
 // (wired to the agent loop). corr is the correlation the channel minted for
 // this exchange, so the handler can run the agent under it and keep the
 // channel.inbound/outbound events linked to the agent's task arc. An empty
-// reply means "nothing to send back". A non-nil error is surfaced to the user
-// as a short failure notice.
-type InboundHandler func(ctx context.Context, msg UnifiedMessage, corr string) (reply string, err error)
+// Reply (no text, no attachments) means "nothing to send back". A non-nil error
+// is surfaced to the user as a short failure notice.
+type InboundHandler func(ctx context.Context, msg UnifiedMessage, corr string) (Reply, error)
 
 // Channel is a duplex messaging surface (SPEC-04 §1.2).
 type Channel interface {

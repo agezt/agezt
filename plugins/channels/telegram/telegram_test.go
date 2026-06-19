@@ -92,10 +92,10 @@ func TestInboundRunsHandlerAndReplies(t *testing.T) {
 	defer srv.Close()
 
 	var gotText, gotCorr string
-	h := func(_ context.Context, msg channel.UnifiedMessage, corr string) (string, error) {
+	h := func(_ context.Context, msg channel.UnifiedMessage, corr string) (channel.Reply, error) {
 		gotText = msg.Text
 		gotCorr = corr
-		return "the answer", nil
+		return channel.Reply{Text: "the answer"}, nil
 	}
 	c, j := newTestChannel(t, srv, channel.NewAllowlist([]string{"42"}), h)
 
@@ -136,9 +136,9 @@ func TestInboundAllowlistRejection(t *testing.T) {
 	defer srv.Close()
 
 	called := false
-	h := func(context.Context, channel.UnifiedMessage, string) (string, error) {
+	h := func(context.Context, channel.UnifiedMessage, string) (channel.Reply, error) {
 		called = true
-		return "should not run", nil
+		return channel.Reply{Text: "should not run"}, nil
 	}
 	c, j := newTestChannel(t, srv, channel.NewAllowlist([]string{"42"}), h)
 
@@ -182,11 +182,11 @@ func TestStartPollsAndAdvancesOffset(t *testing.T) {
 
 	var mu sync.Mutex
 	var seen []string
-	h := func(_ context.Context, msg channel.UnifiedMessage, _ string) (string, error) {
+	h := func(_ context.Context, msg channel.UnifiedMessage, _ string) (channel.Reply, error) {
 		mu.Lock()
 		seen = append(seen, msg.Text)
 		mu.Unlock()
-		return "", nil
+		return channel.Reply{}, nil
 	}
 	c, _ := newTestChannel(t, srv, channel.NewAllowlist([]string{"42"}), h)
 

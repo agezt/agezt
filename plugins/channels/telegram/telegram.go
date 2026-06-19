@@ -292,10 +292,11 @@ func (c *Channel) handleInbound(ctx context.Context, m *tgMessage) {
 		return
 	}
 
-	reply, err := c.handler(ctx, msg, corr)
+	rep, err := c.handler(ctx, msg, corr)
 	if err != nil {
-		reply = "sorry — that failed: " + err.Error()
+		rep = channel.Reply{Text: "sorry — that failed: " + err.Error()}
 	}
+	reply := rep.Text
 	if reply == "" {
 		return
 	}

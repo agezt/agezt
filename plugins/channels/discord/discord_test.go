@@ -115,9 +115,9 @@ func TestDiscord_CommandDrivesAgentAndFollowsUp(t *testing.T) {
 		BaseURL:    api.URL,
 		HTTPClient: api.Client(),
 		Allowlist:  channel.NewAllowlist([]string{"C1"}),
-		Handler: func(_ context.Context, msg channel.UnifiedMessage, _ string) (string, error) {
+		Handler: func(_ context.Context, msg channel.UnifiedMessage, _ string) (channel.Reply, error) {
 			got.Store(msg.Text)
-			return "pong", nil
+			return channel.Reply{Text: "pong"}, nil
 		},
 	})
 
@@ -155,9 +155,9 @@ func TestDiscord_IgnoresNonAllowlisted(t *testing.T) {
 	c := New(Config{
 		PublicKey: pub, Token: "bot", ApplicationID: "APP", BaseURL: api.URL, HTTPClient: api.Client(),
 		Allowlist: channel.NewAllowlist([]string{"C1"}),
-		Handler: func(_ context.Context, _ channel.UnifiedMessage, _ string) (string, error) {
+		Handler: func(_ context.Context, _ channel.UnifiedMessage, _ string) (channel.Reply, error) {
 			atomic.AddInt32(&calls, 1)
-			return "reply", nil
+			return channel.Reply{Text: "reply"}, nil
 		},
 	})
 

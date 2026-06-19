@@ -40,9 +40,9 @@ func TestSlack_InboundImageFileBecomesDataURL(t *testing.T) {
 		SigningSecret: secret, Token: "xoxb-test", BaseURL: srv.URL,
 		HTTPClient: srv.Client(),
 		Allowlist:  channel.NewAllowlist([]string{"C1"}),
-		Handler: func(_ context.Context, msg channel.UnifiedMessage, _ string) (string, error) {
+		Handler: func(_ context.Context, msg channel.UnifiedMessage, _ string) (channel.Reply, error) {
 			gotImages <- msg.Images
-			return "seen", nil
+			return channel.Reply{Text: "seen"}, nil
 		},
 	})
 
@@ -88,9 +88,9 @@ func TestSlack_InboundNonImageFileSkipped(t *testing.T) {
 		SigningSecret: secret, Token: "xoxb-test", BaseURL: srv.URL,
 		HTTPClient: srv.Client(),
 		Allowlist:  channel.NewAllowlist([]string{"C1"}),
-		Handler: func(_ context.Context, msg channel.UnifiedMessage, _ string) (string, error) {
+		Handler: func(_ context.Context, msg channel.UnifiedMessage, _ string) (channel.Reply, error) {
 			gotImages <- msg.Images
-			return "ok", nil
+			return channel.Reply{Text: "ok"}, nil
 		},
 	})
 

@@ -118,9 +118,9 @@ func TestVerify_HandshakeEchoesChallenge(t *testing.T) {
 func TestInbound_AllowedRepliesViaGraph(t *testing.T) {
 	g := newGraphMock(t)
 	var got channel.UnifiedMessage
-	h := func(_ context.Context, m channel.UnifiedMessage, _ string) (string, error) {
+	h := func(_ context.Context, m channel.UnifiedMessage, _ string) (channel.Reply, error) {
 		got = m
-		return "pong", nil
+		return channel.Reply{Text: "pong"}, nil
 	}
 	c, j := newTestChannel(t, Config{
 		AppSecret: "sek", Allowlist: channel.NewAllowlist([]string{"+15551230001"}), Handler: h,
@@ -162,9 +162,9 @@ func TestInbound_AllowedRepliesViaGraph(t *testing.T) {
 func TestInbound_BadSignatureRejected(t *testing.T) {
 	g := newGraphMock(t)
 	ran := false
-	h := func(_ context.Context, _ channel.UnifiedMessage, _ string) (string, error) {
+	h := func(_ context.Context, _ channel.UnifiedMessage, _ string) (channel.Reply, error) {
 		ran = true
-		return "x", nil
+		return channel.Reply{Text: "x"}, nil
 	}
 	c, _ := newTestChannel(t, Config{AppSecret: "sek", Allowlist: channel.NewAllowlist([]string{"+1"}), Handler: h}, g)
 	body := textWebhook("+1", "wamid.2", "hi")
@@ -194,9 +194,9 @@ func TestInbound_EmptySecretFailsClosed(t *testing.T) {
 func TestInbound_NotAllowedRefused(t *testing.T) {
 	g := newGraphMock(t)
 	ran := false
-	h := func(_ context.Context, _ channel.UnifiedMessage, _ string) (string, error) {
+	h := func(_ context.Context, _ channel.UnifiedMessage, _ string) (channel.Reply, error) {
 		ran = true
-		return "no", nil
+		return channel.Reply{Text: "no"}, nil
 	}
 	c, j := newTestChannel(t, Config{AppSecret: "sek", Allowlist: channel.NewAllowlist([]string{"+15550000000"}), Handler: h}, g)
 	body := textWebhook("+15559999999", "wamid.3", "drive me")
@@ -242,9 +242,9 @@ func TestMessages_ParsesTextAndVoice(t *testing.T) {
 func TestInbound_DedupsMessageID(t *testing.T) {
 	g := newGraphMock(t)
 	runs := 0
-	h := func(_ context.Context, _ channel.UnifiedMessage, _ string) (string, error) {
+	h := func(_ context.Context, _ channel.UnifiedMessage, _ string) (channel.Reply, error) {
 		runs++
-		return "ok", nil
+		return channel.Reply{Text: "ok"}, nil
 	}
 	c, _ := newTestChannel(t, Config{AppSecret: "sek", Allowlist: channel.NewAllowlist([]string{"+1"}), Handler: h}, g)
 	body := textWebhook("+1", "wamid.dup", "hi")

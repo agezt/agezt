@@ -129,9 +129,9 @@ func TestHandleInbound_AllowedRepliesViaSend(t *testing.T) {
 	defer srv.Close()
 
 	var gotMsg channel.UnifiedMessage
-	h := func(_ context.Context, m channel.UnifiedMessage, _ string) (string, error) {
+	h := func(_ context.Context, m channel.UnifiedMessage, _ string) (channel.Reply, error) {
 		gotMsg = m
-		return "pong", nil
+		return channel.Reply{Text: "pong"}, nil
 	}
 	c, j := newTestChannel(t, srv, channel.NewAllowlist([]string{"!room:test"}), h)
 	c.handleInbound(context.Background(), "!room:test", textEvent("@alice:test", "ping"))
@@ -164,9 +164,9 @@ func TestHandleInbound_NotAllowedRefused(t *testing.T) {
 	defer srv.Close()
 
 	ran := false
-	h := func(_ context.Context, _ channel.UnifiedMessage, _ string) (string, error) {
+	h := func(_ context.Context, _ channel.UnifiedMessage, _ string) (channel.Reply, error) {
 		ran = true
-		return "should not run", nil
+		return channel.Reply{Text: "should not run"}, nil
 	}
 	c, _ := newTestChannel(t, srv, channel.NewAllowlist([]string{"!allowed:test"}), h)
 	c.handleInbound(context.Background(), "!stranger:test", textEvent("@mallory:test", "drive me"))

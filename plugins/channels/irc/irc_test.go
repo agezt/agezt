@@ -70,12 +70,12 @@ func TestHandlePrivmsgAllowlist(t *testing.T) {
 	ch := New(Config{
 		Nick:      "bot",
 		Allowlist: channel.NewAllowlist([]string{"#room"}),
-		Handler: func(ctx context.Context, m channel.UnifiedMessage, corr string) (string, error) {
+		Handler: func(ctx context.Context, m channel.UnifiedMessage, corr string) (channel.Reply, error) {
 			ran = true
 			if m.ChannelKind != "irc" || m.ChannelID != "#room" || m.Sender != "alice" {
 				t.Fatalf("unexpected msg %+v", m)
 			}
-			return "pong", nil
+			return channel.Reply{Text: "pong"}, nil
 		},
 	})
 

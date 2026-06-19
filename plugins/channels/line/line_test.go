@@ -84,8 +84,8 @@ func TestInboundRepliesViaReplyToken(t *testing.T) {
 		AccessToken: "tok",
 		APIBase:     srv.URL,
 		Allowlist:   channel.NewAllowlist([]string{"U123"}),
-		Handler: func(ctx context.Context, m channel.UnifiedMessage, corr string) (string, error) {
-			return "pong", nil
+		Handler: func(ctx context.Context, m channel.UnifiedMessage, corr string) (channel.Reply, error) {
+			return channel.Reply{Text: "pong"}, nil
 		},
 		HTTPClient: srv.Client(),
 	})

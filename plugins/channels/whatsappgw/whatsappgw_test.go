@@ -89,12 +89,12 @@ func TestInboundDispatchAllowlist(t *testing.T) {
 		Backend:   BackendWAHA,
 		BaseURL:   "http://unused",
 		Allowlist: channel.NewAllowlist([]string{"12345"}),
-		Handler: func(ctx context.Context, m channel.UnifiedMessage, corr string) (string, error) {
+		Handler: func(ctx context.Context, m channel.UnifiedMessage, corr string) (channel.Reply, error) {
 			ran = true
 			if m.ChannelKind != "whatsappgw" || m.ChannelID != "12345" {
 				t.Fatalf("msg = %+v", m)
 			}
-			return "", nil // no reply → no outbound attempt
+			return channel.Reply{}, nil // no reply → no outbound attempt
 		},
 	})
 	// Not allowlisted → handler must not run.

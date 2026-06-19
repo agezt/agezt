@@ -104,7 +104,7 @@ func TestMakeChannelHandlerRunsGovernedAgentUnderChannelCorrelation(t *testing.T
 	}
 	t.Cleanup(func() { k.Close() })
 
-	reply, err := makeChannelHandler(k)(context.Background(), channel.UnifiedMessage{
+	rep, err := makeChannelHandler(k)(context.Background(), channel.UnifiedMessage{
 		ChannelKind: "webhook",
 		ChannelID:   "room-1",
 		Sender:      "ersin",
@@ -113,8 +113,8 @@ func TestMakeChannelHandlerRunsGovernedAgentUnderChannelCorrelation(t *testing.T
 	if err != nil {
 		t.Fatalf("channel handler: %v", err)
 	}
-	if reply != "channel handled" {
-		t.Fatalf("reply = %q, want channel handled", reply)
+	if rep.Text != "channel handled" {
+		t.Fatalf("reply = %q, want channel handled", rep.Text)
 	}
 
 	var sawReceived, sawCompleted bool

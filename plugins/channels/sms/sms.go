@@ -231,10 +231,11 @@ func (c *Channel) handleInbound(w http.ResponseWriter, r *http.Request) {
 		writeTwiML(w, "")
 		return
 	}
-	reply, err := c.handler(r.Context(), msg, corr)
+	rep, err := c.handler(r.Context(), msg, corr)
 	if err != nil {
-		reply = "sorry — that failed: " + err.Error()
+		rep = channel.Reply{Text: "sorry — that failed: " + err.Error()}
 	}
+	reply := rep.Text
 	if reply != "" {
 		c.emitOutbound(channel.Outbound{ChannelID: from, Text: reply, Priority: channel.PriorityNotify}, corr)
 	}

@@ -64,9 +64,9 @@ func countKind(t *testing.T, j *journal.Journal, k event.Kind) int {
 // reply comes back as TwiML.
 func TestInbound_AllowedRepliesViaTwiML(t *testing.T) {
 	var got channel.UnifiedMessage
-	h := func(_ context.Context, m channel.UnifiedMessage, _ string) (string, error) {
+	h := func(_ context.Context, m channel.UnifiedMessage, _ string) (channel.Reply, error) {
 		got = m
-		return "pong", nil
+		return channel.Reply{Text: "pong"}, nil
 	}
 	c, j := newTestChannel(t, Config{
 		AuthToken: "tok", Allowlist: channel.NewAllowlist([]string{"+15551230001"}), Handler: h,
@@ -96,9 +96,9 @@ func TestInbound_AllowedRepliesViaTwiML(t *testing.T) {
 // A bad signature is rejected (401) and the handler never runs.
 func TestInbound_BadSignatureRejected(t *testing.T) {
 	ran := false
-	h := func(_ context.Context, _ channel.UnifiedMessage, _ string) (string, error) {
+	h := func(_ context.Context, _ channel.UnifiedMessage, _ string) (channel.Reply, error) {
 		ran = true
-		return "x", nil
+		return channel.Reply{Text: "x"}, nil
 	}
 	c, _ := newTestChannel(t, Config{AuthToken: "tok", Allowlist: channel.NewAllowlist([]string{"+1"}), Handler: h})
 	form := url.Values{"From": {"+1"}, "Body": {"hi"}}
@@ -131,9 +131,9 @@ func TestInbound_EmptyTokenFailsClosed(t *testing.T) {
 // is an empty TwiML ack, and the refusal is journaled (allowed=false).
 func TestInbound_NotAllowedRefused(t *testing.T) {
 	ran := false
-	h := func(_ context.Context, _ channel.UnifiedMessage, _ string) (string, error) {
+	h := func(_ context.Context, _ channel.UnifiedMessage, _ string) (channel.Reply, error) {
 		ran = true
-		return "nope", nil
+		return channel.Reply{Text: "nope"}, nil
 	}
 	c, j := newTestChannel(t, Config{AuthToken: "tok", Allowlist: channel.NewAllowlist([]string{"+15550000000"}), Handler: h})
 	form := url.Values{"From": {"+15559999999"}, "Body": {"drive me"}, "MessageSid": {"SM2"}}
@@ -161,11 +161,11 @@ func TestInbound_NotAllowedRefused(t *testing.T) {
 func TestInbound_DedupsMessageSid(t *testing.T) {
 	var mu sync.Mutex
 	runs := 0
-	h := func(_ context.Context, _ channel.UnifiedMessage, _ string) (string, error) {
+	h := func(_ context.Context, _ channel.UnifiedMessage, _ string) (channel.Reply, error) {
 		mu.Lock()
 		runs++
 		mu.Unlock()
-		return "ok", nil
+		return channel.Reply{Text: "ok"}, nil
 	}
 	c, _ := newTestChannel(t, Config{AuthToken: "tok", Allowlist: channel.NewAllowlist([]string{"+1"}), Handler: h})
 	form := url.Values{"From": {"+1"}, "Body": {"hi"}, "MessageSid": {"SMdup"}}

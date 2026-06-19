@@ -72,8 +72,8 @@ func TestDispatchRepliesViaGateway(t *testing.T) {
 		Kind:      "qq",
 		APIBase:   srv.URL,
 		Allowlist: channel.NewAllowlist([]string{"12345"}),
-		Handler: func(ctx context.Context, m channel.UnifiedMessage, corr string) (string, error) {
-			return "pong", nil
+		Handler: func(ctx context.Context, m channel.UnifiedMessage, corr string) (channel.Reply, error) {
+			return channel.Reply{Text: "pong"}, nil
 		},
 		HTTPClient: srv.Client(),
 	})

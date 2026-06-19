@@ -186,10 +186,11 @@ func (c *Channel) handlePrivmsg(ctx context.Context, prefix string, params strin
 	if !allowed || c.cfg.Handler == nil {
 		return
 	}
-	reply, err := c.cfg.Handler(ctx, msg, corr)
+	rep, err := c.cfg.Handler(ctx, msg, corr)
 	if err != nil {
-		reply = "sorry — that failed: " + err.Error()
+		rep = channel.Reply{Text: "sorry — that failed: " + err.Error()}
 	}
+	reply := rep.Text
 	if reply == "" {
 		return
 	}

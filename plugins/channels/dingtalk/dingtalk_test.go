@@ -68,8 +68,8 @@ func TestDispatchRepliesToConfiguredWebhook(t *testing.T) {
 	ch := New(Config{
 		WebhookURL: srv.URL, // trusted fallback (a non-dingtalk replyURL is refused)
 		Allowlist:  channel.NewAllowlist([]string{"S1"}),
-		Handler: func(ctx context.Context, m channel.UnifiedMessage, corr string) (string, error) {
-			return "pong", nil
+		Handler: func(ctx context.Context, m channel.UnifiedMessage, corr string) (channel.Reply, error) {
+			return channel.Reply{Text: "pong"}, nil
 		},
 		HTTPClient: srv.Client(),
 	})

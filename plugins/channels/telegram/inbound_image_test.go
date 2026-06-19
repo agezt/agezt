@@ -37,9 +37,9 @@ func TestInbound_PhotoBecomesImageDataURL(t *testing.T) {
 	defer srv.Close()
 
 	var got channel.UnifiedMessage
-	h := func(_ context.Context, msg channel.UnifiedMessage, _ string) (string, error) {
+	h := func(_ context.Context, msg channel.UnifiedMessage, _ string) (channel.Reply, error) {
 		got = msg
-		return "seen", nil
+		return channel.Reply{Text: "seen"}, nil
 	}
 	c, _ := newTestChannel(t, srv, channel.NewAllowlist([]string{"42"}), h)
 

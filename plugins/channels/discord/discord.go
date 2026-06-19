@@ -435,10 +435,11 @@ func (c *Channel) runAndFollowUp(ctx context.Context, in discordInteraction, msg
 			msg.Audio = append(msg.Audio, du)
 		}
 	}
-	reply, err := c.handler(ctx, msg, corr)
+	rep, err := c.handler(ctx, msg, corr)
 	if err != nil {
-		reply = "sorry — that failed: " + err.Error()
+		rep = channel.Reply{Text: "sorry — that failed: " + err.Error()}
 	}
+	reply := rep.Text
 	if reply == "" {
 		reply = "(no output)"
 	}

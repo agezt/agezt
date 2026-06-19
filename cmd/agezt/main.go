@@ -2290,7 +2290,7 @@ func gateVisionWith(cat *catalog.Catalog, defaultModel, model string, images []s
 
 func makeChannelHandler(k *kernelruntime.Kernel) channel.InboundHandler {
 	limit := channelHistoryLimit()
-	return func(hctx context.Context, msg channel.UnifiedMessage, corr string) (string, error) {
+	return func(hctx context.Context, msg channel.UnifiedMessage, corr string) (channel.Reply, error) {
 		intent := msg.Text
 		if h := channel.ConversationHistory(k.Journal(), msg.ChannelKind, msg.ChannelID, msg.ThreadID, msg.Sender, limit); h != "" {
 			intent = h
@@ -2310,9 +2310,9 @@ func makeChannelHandler(k *kernelruntime.Kernel) channel.InboundHandler {
 				if derr != nil {
 					if errors.Is(derr, kernelruntime.ErrNoVisionModel) {
 						persistInboundImages(k, msg, corr, "")
-						return "", err
+						return channel.Reply{}, err
 					}
-					return "", derr
+					return channel.Reply{}, derr
 				}
 				caption = c
 				if strings.TrimSpace(intent) == "" {
@@ -2356,7 +2356,8 @@ func makeChannelHandler(k *kernelruntime.Kernel) channel.InboundHandler {
 			}
 			persistInboundAudio(k, msg, corr)
 		}
-		return k.RunWith(hctx, corr, intent)
+		text, rerr := k.RunWith(hctx, corr, intent)
+		return channel.Reply{Text: text}, rerr
 	}
 }
 
