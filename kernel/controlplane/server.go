@@ -555,6 +555,8 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.handleProviderReload(conn, req)
 	case CmdProviderConnect:
 		s.handleProviderConnect(conn, req)
+	case CmdProviderProbe:
+		s.handleProviderProbe(conn, req)
 	case CmdWhatsAppGatewayStatus:
 		s.handleWhatsAppGatewayStatus(conn, req)
 	case CmdWhatsAppGatewayQR:

@@ -62,6 +62,10 @@ const (
 	// Connect" gallery (args: id, name, npm, api, env, model). The API key is
 	// added separately via CmdProviderKeyAdd (secret path).
 	CmdProviderConnect = "provider_connect"
+	// CmdProviderProbe checks whether a provider endpoint is reachable (args:
+	// url, key) by GETting its OpenAI-compatible /models list. The connectivity
+	// status behind a Connect button (esp. keyless local runtimes).
+	CmdProviderProbe = "provider_probe"
 	// CmdWhatsAppGatewayStatus probes a self-hosted WhatsApp gateway (WAHA/
 	// Evolution) for whether its session is logged in (args: url, backend,
 	// session, key). Lets the Channels wizard show connected vs scan-QR.

@@ -241,10 +241,16 @@ func (s *Server) handleProviderConnect(conn net.Conn, req Request) {
 	api = strings.TrimSpace(api)
 	model, _ := req.Args["model"].(string)
 	model = strings.TrimSpace(model)
-	env, ok := keyEnv(req)
-	if !ok {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.env must be a provider key env var (UPPER_SNAKE, not AGEZT_*)"})
-		return
+	// env is OPTIONAL: a keyless local runtime (Ollama, LM Studio, …) connects
+	// with no API key. When present it must be a valid provider env var.
+	var envs []string
+	if raw, _ := req.Args["env"].(string); strings.TrimSpace(raw) != "" {
+		env, ok := keyEnv(req)
+		if !ok {
+			s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.env must be a provider key env var (UPPER_SNAKE, not AGEZT_*)"})
+			return
+		}
+		envs = []string{env}
 	}
 	if id == "" || api == "" || model == "" {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.id, args.api and args.model are required"})
@@ -264,7 +270,7 @@ func (s *Server) handleProviderConnect(conn net.Conn, req Request) {
 		Name: strings.TrimSpace(name),
 		NPM:  strings.TrimSpace(npm),
 		API:  api,
-		Env:  []string{env},
+		Env:  envs,
 		Models: map[string]*catalog.Model{
 			model: {ID: model, Name: model, ToolCall: true},
 		},

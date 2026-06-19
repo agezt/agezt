@@ -47,6 +47,7 @@ export function QuickConnect() {
 
   const coding = useMemo(() => PROVIDER_PRESETS.filter((p) => p.category === "coding"), []);
   const popular = useMemo(() => PROVIDER_PRESETS.filter((p) => p.category === "popular"), []);
+  const local = useMemo(() => PROVIDER_PRESETS.filter((p) => p.category === "local"), []);
 
   return (
     <div className="space-y-6">
@@ -64,6 +65,12 @@ export function QuickConnect() {
 
       <Section title="Popular providers" hint="Fast, low-friction OpenAI-compatible endpoints.">
         {popular.map((p) => (
+          <PresetCard key={p.id} preset={p} connected={credentialed.has(p.id)} onConnected={refresh} ui={ui} />
+        ))}
+      </Section>
+
+      <Section title="Local runtimes (no key)" hint="Run models on your own machine — Connect with one click, no API key.">
+        {local.map((p) => (
           <PresetCard key={p.id} preset={p} connected={credentialed.has(p.id)} onConnected={refresh} ui={ui} />
         ))}
       </Section>
@@ -115,6 +122,26 @@ async function connectProvider(args: {
   });
 }
 
+// connectKeyless registers a local runtime that needs no API key.
+async function connectKeyless(args: { id: string; name: string; family: PresetFamily; api: string; model: string }) {
+  await postJSON("/api/provider/connect", {
+    id: args.id,
+    name: args.name,
+    npm: familyNpm(args.family),
+    api: args.api.trim(),
+    env: "",
+    model: args.model.trim(),
+  });
+}
+
+// probeProvider checks whether an endpoint is reachable (daemon-side, SSRF-guarded).
+async function probeProvider(api: string, key: string) {
+  return postJSON<{ ok: boolean; reachable?: boolean; authorized?: boolean; models?: number; error?: string }>(
+    "/api/provider/probe",
+    { url: api.trim(), key: key.trim() },
+  );
+}
+
 // setDefaultProvider pins this provider + model as the daemon's primary brain.
 // AGEZT_PROVIDER / AGEZT_MODEL are ApplyLive, so the reload makes it active with
 // no restart.
@@ -151,15 +178,21 @@ function PresetCard({
   const [key, setKey] = useState("");
   const [makeDefault, setMakeDefault] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [probe, setProbe] = useState<{ reachable?: boolean; authorized?: boolean; models?: number; error?: string } | null>(null);
+  const [probing, setProbing] = useState(false);
 
   async function connect() {
-    if (!key.trim()) {
+    if (!preset.keyless && !key.trim()) {
       ui.toast("Paste an API key first", "error");
       return;
     }
     setBusy(true);
     try {
-      await connectProvider({ id: preset.id, name: preset.name, family: preset.family, api, keyEnv: preset.keyEnv, model, key });
+      if (preset.keyless) {
+        await connectKeyless({ id: preset.id, name: preset.name, family: preset.family, api, model });
+      } else {
+        await connectProvider({ id: preset.id, name: preset.name, family: preset.family, api, keyEnv: preset.keyEnv, model, key });
+      }
       if (makeDefault) await setDefaultProvider(preset.id, model);
       ui.toast(makeDefault ? `Connected ${preset.name} — now the default brain` : `Connected ${preset.name}`, "success");
       setKey("");
@@ -168,6 +201,20 @@ function PresetCard({
       ui.toast(`${preset.name}: ${(e as Error).message}`, "error");
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function check() {
+    setProbing(true);
+    setProbe(null);
+    try {
+      const r = await probeProvider(api, key);
+      if (r.ok) setProbe(r);
+      else setProbe({ error: r.error || "unreachable" });
+    } catch (e) {
+      setProbe({ error: (e as Error).message });
+    } finally {
+      setProbing(false);
     }
   }
 
@@ -200,17 +247,21 @@ function PresetCard({
         </a>
       </div>
 
-      <label className="flex flex-col gap-1">
-        <span className="text-[10px] uppercase tracking-wide text-muted">API key</span>
-        <Input
-          type="password"
-          value={key}
-          onChange={(e) => setKey(e.target.value)}
-          placeholder={`${preset.keyEnv}…`}
-          aria-label={`${preset.name} ${preset.tagline} key`}
-          className="h-8 text-xs"
-        />
-      </label>
+      {preset.keyless ? (
+        <span className="text-[11px] text-muted">No API key — just Connect. Make sure the local server is running.</span>
+      ) : (
+        <label className="flex flex-col gap-1">
+          <span className="text-[10px] uppercase tracking-wide text-muted">API key</span>
+          <Input
+            type="password"
+            value={key}
+            onChange={(e) => setKey(e.target.value)}
+            placeholder={`${preset.keyEnv}…`}
+            aria-label={`${preset.name} ${preset.tagline} key`}
+            className="h-8 text-xs"
+          />
+        </label>
+      )}
 
       <details className="group">
         <summary className="cursor-pointer text-[10px] text-muted hover:text-fg">Endpoint & model</summary>
@@ -225,10 +276,32 @@ function PresetCard({
         Set as default brain
       </label>
 
-      <Button size="sm" disabled={busy} onClick={connect} className="mt-auto">
-        {busy ? <RefreshCw className="size-3.5 animate-spin" /> : <Plug className="size-3.5" />}
-        {connected ? "Reconnect" : "Connect"}
-      </Button>
+      <div className="mt-auto flex items-center gap-2">
+        <Button size="sm" disabled={busy} onClick={connect}>
+          {busy ? <RefreshCw className="size-3.5 animate-spin" /> : <Plug className="size-3.5" />}
+          {connected ? "Reconnect" : "Connect"}
+        </Button>
+        <Button variant="ghost" size="sm" disabled={probing} onClick={check} title="Check the endpoint is reachable">
+          {probing ? <RefreshCw className="size-3.5 animate-spin" /> : <Check className="size-3.5" />}
+          Check
+        </Button>
+      </div>
+      {probe && (
+        <span
+          className={cn(
+            "text-[11px]",
+            probe.error ? "text-bad" : probe.authorized ? "text-good" : probe.reachable ? "text-warn" : "text-bad",
+          )}
+        >
+          {probe.error
+            ? `unreachable: ${probe.error}`
+            : probe.authorized
+              ? `✓ reachable (${probe.models ?? 0} models)`
+              : probe.reachable
+                ? "reachable — needs a valid key"
+                : "unreachable"}
+        </span>
+      )}
     </Card>
   );
 }

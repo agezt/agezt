@@ -417,6 +417,8 @@ var jsonRoutes = map[string]writeRoute{
 	// Quick Connect (provider gallery): register a provider in custom.json + reload.
 	// JSON body (id, name, npm, api, env, model); the key follows on keys/add.
 	"/api/provider/connect": {controlplane.CmdProviderConnect, []string{"id", "name", "npm", "api", "env", "model"}},
+	// Provider reachability probe (key in body → jsonRoute): is the endpoint up?
+	"/api/provider/probe": {controlplane.CmdProviderProbe, []string{"url", "key"}},
 	// WhatsApp gateway connection probe (key in body → jsonRoute): is the WAHA/
 	// Evolution session logged in? Lets the Channels wizard show connected vs scan-QR.
 	"/api/whatsappgw/status": {controlplane.CmdWhatsAppGatewayStatus, []string{"url", "backend", "session", "key"}},

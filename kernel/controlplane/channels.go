@@ -258,6 +258,52 @@ func wgGatewayGET(fullURL, keyHeader, key string, max int64) (body []byte, statu
 	return b, resp.StatusCode, resp.Header.Get("Content-Type"), nil
 }
 
+// handleProviderProbe checks whether an LLM provider endpoint is reachable by
+// GETting its OpenAI-compatible /models list — the "connectivity status" behind
+// a Connect button, so you can verify a keyless local runtime (Ollama, LM Studio)
+// or a keyed endpoint is up before relying on it. Same SSRF-guarded probe as the
+// gateway checks (loopback/private allowed; metadata/link-local blocked).
+func (s *Server) handleProviderProbe(conn net.Conn, req Request) {
+	base := strings.TrimRight(strings.TrimSpace(wgArg(req, "url")), "/")
+	if base == "" {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.url is required"})
+		return
+	}
+	// OpenAI-compatible servers list models at <base>/models (base usually ends /v1).
+	modelsURL := base + "/models"
+	key := strings.TrimSpace(wgArg(req, "key"))
+	body, code, _, err := wgGatewayGET(modelsURL, "Authorization", bearer(key), 1<<20)
+	if err != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"ok": false, "error": "cannot reach endpoint: " + err.Error()}})
+		return
+	}
+	// 2xx = reachable + authorized. 401/403 = reachable but needs/!valid key.
+	reachable := code/100 == 2 || code == 401 || code == 403
+	count := 0
+	if code/100 == 2 {
+		var parsed struct {
+			Data []json.RawMessage `json:"data"`
+		}
+		_ = json.Unmarshal(body, &parsed)
+		count = len(parsed.Data)
+	}
+	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{
+		"ok":          true,
+		"reachable":   reachable,
+		"authorized":  code/100 == 2,
+		"http_status": code,
+		"models":      count,
+	}})
+}
+
+// bearer wraps a non-empty key as a Bearer value, else returns "".
+func bearer(key string) string {
+	if key == "" {
+		return ""
+	}
+	return "Bearer " + key
+}
+
 // wgArg reads a string request arg, tolerating a missing/non-string value.
 func wgArg(req Request, key string) string {
 	v, _ := req.Args[key].(string)

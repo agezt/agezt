@@ -18,11 +18,13 @@ export interface ProviderPreset {
   vendor: string;
   /** Short badge, e.g. "Coding plan", "Token plan", "API". */
   tagline: string;
-  category: "coding" | "popular";
+  category: "coding" | "popular" | "local";
   family: PresetFamily;
+  /** keyless = a local runtime that needs no API key (Connect is one click). */
+  keyless?: boolean;
   /** Base URL (editable in the card). */
   api: string;
-  /** Key env var the keyring stores under (UPPER_SNAKE, not AGEZT_*). */
+  /** Key env var the keyring stores under (UPPER_SNAKE, not AGEZT_*); "" when keyless. */
   keyEnv: string;
   /** Default model id (editable in the card). */
   model: string;
@@ -132,5 +134,27 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     id: "xai", name: "xAI Grok", vendor: "xai", tagline: "API", category: "popular",
     family: "openai-compatible", api: "https://api.x.ai/v1", keyEnv: "XAI_API_KEY", model: "grok-2-latest",
     color: "#111827", glyph: "X", signupUrl: "https://console.x.ai/", docsUrl: "https://docs.x.ai/",
+  },
+
+  // ---- Local runtimes (no API key — Connect is one click) ----
+  {
+    id: "ollama", name: "Ollama", vendor: "ollama", tagline: "Local · no key", category: "local",
+    keyless: true, family: "openai-compatible", api: "http://localhost:11434/v1", keyEnv: "", model: "llama3.2",
+    color: "#0f172a", glyph: "Ol", signupUrl: "https://ollama.com/download", docsUrl: "https://ollama.com/",
+  },
+  {
+    id: "lmstudio", name: "LM Studio", vendor: "lmstudio", tagline: "Local · no key", category: "local",
+    keyless: true, family: "openai-compatible", api: "http://localhost:1234/v1", keyEnv: "", model: "local-model",
+    color: "#6d28d9", glyph: "LM", signupUrl: "https://lmstudio.ai/", docsUrl: "https://lmstudio.ai/docs",
+  },
+  {
+    id: "jan", name: "Jan", vendor: "jan", tagline: "Local · no key", category: "local",
+    keyless: true, family: "openai-compatible", api: "http://localhost:1337/v1", keyEnv: "", model: "local-model",
+    color: "#0ea5e9", glyph: "Jan", signupUrl: "https://jan.ai/", docsUrl: "https://jan.ai/docs",
+  },
+  {
+    id: "llamacpp", name: "llama.cpp", vendor: "llamacpp", tagline: "Local · no key", category: "local",
+    keyless: true, family: "openai-compatible", api: "http://localhost:8080/v1", keyEnv: "", model: "local-model",
+    color: "#334155", glyph: "Lc", signupUrl: "https://github.com/ggml-org/llama.cpp", docsUrl: "https://github.com/ggml-org/llama.cpp",
   },
 ];

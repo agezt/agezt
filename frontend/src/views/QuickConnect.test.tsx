@@ -74,6 +74,36 @@ describe("QuickConnect", () => {
     expect(postJSON).toHaveBeenCalledWith("/api/provider/reload", {});
   });
 
+  it("connects a keyless local runtime with no key (env empty)", async () => {
+    render(withUI(<QuickConnect />));
+    await screen.findByText("Quick Connect");
+    const ollama = screen.getByText("Ollama");
+    const card = ollama.closest("div.glass")!;
+    const connectBtn = Array.from(card.querySelectorAll("button")).find((b) => /connect/i.test(b.textContent || ""))!;
+    fireEvent.click(connectBtn);
+    await waitFor(() =>
+      expect(postJSON).toHaveBeenCalledWith("/api/provider/connect", expect.objectContaining({
+        id: "ollama",
+        env: "",
+        api: "http://localhost:11434/v1",
+      })),
+    );
+    // No keyring write for a keyless runtime.
+    expect(postJSON).not.toHaveBeenCalledWith("/api/provider/keys/add", expect.anything());
+  });
+
+  it("probes endpoint reachability via Check", async () => {
+    postJSON.mockResolvedValue({ ok: true, reachable: true, authorized: true, models: 7 });
+    render(withUI(<QuickConnect />));
+    await screen.findByText("Quick Connect");
+    const ollama = screen.getByText("Ollama");
+    const card = ollama.closest("div.glass")!;
+    const checkBtn = Array.from(card.querySelectorAll("button")).find((b) => /check/i.test(b.textContent || ""))!;
+    fireEvent.click(checkBtn);
+    await waitFor(() => expect(postJSON).toHaveBeenCalledWith("/api/provider/probe", expect.objectContaining({ url: "http://localhost:11434/v1" })));
+    expect(await screen.findByText(/reachable \(7 models\)/i)).toBeTruthy();
+  });
+
   it("refuses to connect without a key", async () => {
     render(withUI(<QuickConnect />));
     await screen.findByText("Quick Connect");
