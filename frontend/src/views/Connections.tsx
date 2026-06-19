@@ -124,6 +124,42 @@ export function Connections() {
   );
 }
 
+// ConnectivityStrip is a compact one-line summary for the Cockpit: keyed
+// providers · live channels · attached MCP, linking to the full Connections view.
+export function ConnectivityStrip() {
+  const [s, setS] = useState<{ providers: number; channels: number; mcp: number } | null>(null);
+  useEffect(() => {
+    Promise.all([
+      getJSON<{ providers?: Provider[] }>("/api/catalog").catch(() => ({ providers: [] })),
+      getJSON<{ channels?: ChannelRow[] }>("/api/channels").catch(() => ({ channels: [] })),
+      getJSON<{ servers?: MCPServer[] }>("/api/mcp").catch(() => ({ servers: [] })),
+    ]).then(([cat, ch, mcp]) =>
+      setS({
+        providers: (cat.providers || []).filter((p) => p.credentialed).length,
+        channels: (ch.channels || []).filter((c) => c.live).length,
+        mcp: (mcp.servers || []).filter((m) => m.attached).length,
+      }),
+    );
+  }, []);
+  if (!s) return null;
+  return (
+    <button
+      onClick={go("connections")}
+      className="flex w-full items-center gap-3 rounded-lg border border-border bg-panel/45 p-2.5 text-left text-xs transition-colors hover:border-accent/40"
+      title="Open the Connections cockpit"
+    >
+      <Network className="size-3.5 text-accent" />
+      <span className="font-semibold uppercase tracking-wider text-accent">Connections</span>
+      <span className="text-muted">
+        <span className="font-semibold text-fg">{s.providers}</span> provider{s.providers === 1 ? "" : "s"} keyed ·{" "}
+        <span className="font-semibold text-fg">{s.channels}</span> channel{s.channels === 1 ? "" : "s"} live ·{" "}
+        <span className="font-semibold text-fg">{s.mcp}</span> MCP attached
+      </span>
+      <ArrowRight className="ml-auto size-3.5 text-muted" />
+    </button>
+  );
+}
+
 function SectionCard({
   icon: Icon,
   title,

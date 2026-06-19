@@ -3,6 +3,7 @@ import { Activity, RefreshCw, Cpu, Wallet, ListTree, Network, Radio, CalendarClo
 import { cn } from "@/lib/utils";
 import { money } from "@/lib/format";
 import { getJSON } from "@/lib/api";
+import { ConnectivityStrip } from "@/views/Connections";
 import { useEvents, type AgentEvent } from "@/lib/events";
 import { recentAttentionAlerts, type RankedAlert } from "@/lib/alerts";
 import { incidentRootId } from "@/lib/incidents";
@@ -244,6 +245,8 @@ export function Dashboard() {
           </ul>
         </div>
       )}
+
+      <ConnectivityStrip />
 
       {fleetOps && fleetOps.total > 0 && (
         <div className="rounded-lg border border-border bg-panel/45 p-3">

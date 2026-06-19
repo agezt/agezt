@@ -5,7 +5,7 @@ import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 const getJSON = vi.fn();
 vi.mock("@/lib/api", () => ({ getJSON: (...a: unknown[]) => getJSON(...a) }));
 
-import { Connections } from "@/views/Connections";
+import { Connections, ConnectivityStrip } from "@/views/Connections";
 
 beforeEach(() => {
   getJSON.mockImplementation((path: string) => {
@@ -34,5 +34,16 @@ describe("Connections", () => {
     expect(location.hash).toBe("#quickconnect");
     fireEvent.click(screen.getByRole("button", { name: /manage channels/i }));
     expect(location.hash).toBe("#channels");
+  });
+
+  it("ConnectivityStrip summarizes counts and links to the cockpit", async () => {
+    location.hash = "";
+    render(<ConnectivityStrip />);
+    const btn = await screen.findByRole("button", { name: /connections/i });
+    expect(btn.textContent).toMatch(/1 provider keyed/i);
+    expect(btn.textContent).toMatch(/1 channel live/i);
+    expect(btn.textContent).toMatch(/1 MCP attached/i);
+    fireEvent.click(btn);
+    expect(location.hash).toBe("#connections");
   });
 });
