@@ -9,11 +9,13 @@ import App from "./App";
 import { applyAccentHue, loadAccentHue } from "@/lib/accent";
 import { applyConsoleTitle, loadConsoleName } from "@/lib/brand";
 import { applyTheme } from "@/lib/theme";
+import { applyAdvanced } from "@/lib/advanced";
 
 // Apply saved appearance prefs before first paint so there's no flash of the default.
 applyTheme();
 applyAccentHue(loadAccentHue());
 applyConsoleTitle(loadConsoleName());
+applyAdvanced();
 import { EventsProvider } from "@/lib/events";
 import { UIProvider } from "@/components/ui/feedback";
 import { ChatProvider } from "@/lib/chatStore";

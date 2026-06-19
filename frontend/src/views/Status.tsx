@@ -22,6 +22,7 @@ import { Button } from "@/components/ui/button";
 import { Muted, ErrorText } from "@/components/JsonView";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { PageHeader } from "@/components/ui/page-header";
+import { Advanced, Calm } from "@/components/ui/advanced";
 
 interface StatusData {
   daemon?: string;
@@ -160,7 +161,11 @@ export function Status() {
             />
           </div>
 
-          {/* Detail cards */}
+          {/* Diagnostic detail — folded away from the calm view; Advanced reveals it. */}
+          <Calm>
+            <p className="text-[11px] text-muted">Turn on Advanced mode (top bar) for delegation, HTTP, credential-chain and routing detail.</p>
+          </Calm>
+          <Advanced>
           <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
             <Card title="Delegation" icon={Network}>
               {data.delegation ? (
@@ -212,6 +217,7 @@ export function Status() {
               </div>
             </Card>
           </div>
+          </Advanced>
         </>
       )}
     </div>

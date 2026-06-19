@@ -74,6 +74,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 type ConfirmRequest = ConfirmOptions;
 import type { CommandItem } from "@/lib/commands";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { AdvancedToggle } from "@/components/AdvancedToggle";
 import { toggleTheme } from "@/lib/theme";
 import { useChat } from "@/lib/chatStore";
 import { focusRun } from "@/lib/runfocus";
@@ -923,6 +924,7 @@ function Header({
           <Play className="size-4" /> <span className="hidden sm:inline">Resume</span>
         </button>
         <AccentPicker />
+        <AdvancedToggle />
         <ThemeToggle />
       </div>
     </header>
