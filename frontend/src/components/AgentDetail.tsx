@@ -1204,8 +1204,6 @@ export function AgentDetail({
           <div className="space-y-2">
             <Row label="model route" value={modelPassport} />
             <Row label="skills" value={skillPassport.value} />
-            <Row label="noise budget" value={noiseBudgetPassport.detail} />
-            <Row label="schedule pressure" value={schedulePassport.detail} />
             <Row label="task type" value={profile.task_type || "—"} />
             <Row
               label="lifecycle"
@@ -1226,83 +1224,90 @@ export function AgentDetail({
             />
             <Row label="contract" value={taskContract} />
             <Row label="call policy" value={agentHierarchySummary(profile)} />
-            <Row label="delegation" value={delegationPassport.detail} />
-            <Row label="trust ceiling" value={profile.trust_ceiling || "L4"} />
-            <Row
-              label="memory scope"
-              value={
-                <span className="font-mono">
-                  {agentScope(slug, profile.memory_scope)}
-                </span>
-              }
-            />
-            <Row
-              label="workdir"
-              value={
-                profile.workdir ? (
-                  <span className="font-mono">{profile.workdir}</span>
-                ) : (
-                  "—"
-                )
-              }
-            />
-            <Row
-              label="retry"
-              value={agentRetryPolicyDetail(profile)}
-            />
-            <Row
-              label="doctor"
-              value={
-                profile.health_policy?.doctor_agent ? (
-                  <span className="font-mono">
-                    {profile.health_policy.doctor_agent}
-                  </span>
-                ) : (
-                  "—"
-                )
-              }
-            />
-            <Row
-              label="self-repair"
-              value={
-                profile.self_repair?.enabled
-                  ? `enabled${profile.self_repair?.max_attempts ? ` · ${profile.self_repair.max_attempts} attempts` : ""}`
-                  : "off"
-              }
-            />
-            <Row label="noise policy" value={agentNoisePolicyLabel(profile)} />
-            <Row
-              label="state"
-              value={
-                <span>
-                  {runtimeStatus.operationalText || state}
-                  {runtimeStatus.liveDetail ? ` · ${runtimeStatus.liveDetail}` : ""}
-                </span>
-              }
-            />
-            <Row
-              label="last activity"
-              value={
-                runtimeStatus.lastActivitySummary
-                  ? `${runtimeStatus.lastActivitySummary}${runtimeStatus.lastActivityMs ? ` · ${fmtAgo(runtimeStatus.lastActivityMs)}` : ""}`
-                  : "—"
-              }
-            />
-            <Row
-              label="next wake"
-              value={
-                runtimeStatus.nextWakeMs ? (
-                  <span>
-                    {fmtDue(runtimeStatus.nextWakeMs)}
-                    {runtimeStatus.wakeDetail ? (
-                      <span className="text-muted"> · {runtimeStatus.wakeDetail}</span>
-                    ) : null}
-                  </span>
-                ) : (
-                  "—"
-                )
-              }
-            />
+            {/* Identity essentials lead; the operational/policy/runtime knobs fold
+                so the Soul tab reads as "who is this agent", not a config ledger. */}
+            <Disclosure
+              summary={<span className="text-[10px] uppercase tracking-wider text-muted">Operational config, policy &amp; runtime</span>}
+            >
+              <div className="space-y-2 pt-1">
+                <Row label="noise budget" value={noiseBudgetPassport.detail} />
+                <Row label="schedule pressure" value={schedulePassport.detail} />
+                <Row label="delegation" value={delegationPassport.detail} />
+                <Row label="trust ceiling" value={profile.trust_ceiling || "L4"} />
+                <Row
+                  label="memory scope"
+                  value={
+                    <span className="font-mono">
+                      {agentScope(slug, profile.memory_scope)}
+                    </span>
+                  }
+                />
+                <Row
+                  label="workdir"
+                  value={
+                    profile.workdir ? (
+                      <span className="font-mono">{profile.workdir}</span>
+                    ) : (
+                      "—"
+                    )
+                  }
+                />
+                <Row label="retry" value={agentRetryPolicyDetail(profile)} />
+                <Row
+                  label="doctor"
+                  value={
+                    profile.health_policy?.doctor_agent ? (
+                      <span className="font-mono">
+                        {profile.health_policy.doctor_agent}
+                      </span>
+                    ) : (
+                      "—"
+                    )
+                  }
+                />
+                <Row
+                  label="self-repair"
+                  value={
+                    profile.self_repair?.enabled
+                      ? `enabled${profile.self_repair?.max_attempts ? ` · ${profile.self_repair.max_attempts} attempts` : ""}`
+                      : "off"
+                  }
+                />
+                <Row label="noise policy" value={agentNoisePolicyLabel(profile)} />
+                <Row
+                  label="state"
+                  value={
+                    <span>
+                      {runtimeStatus.operationalText || state}
+                      {runtimeStatus.liveDetail ? ` · ${runtimeStatus.liveDetail}` : ""}
+                    </span>
+                  }
+                />
+                <Row
+                  label="last activity"
+                  value={
+                    runtimeStatus.lastActivitySummary
+                      ? `${runtimeStatus.lastActivitySummary}${runtimeStatus.lastActivityMs ? ` · ${fmtAgo(runtimeStatus.lastActivityMs)}` : ""}`
+                      : "—"
+                  }
+                />
+                <Row
+                  label="next wake"
+                  value={
+                    runtimeStatus.nextWakeMs ? (
+                      <span>
+                        {fmtDue(runtimeStatus.nextWakeMs)}
+                        {runtimeStatus.wakeDetail ? (
+                          <span className="text-muted"> · {runtimeStatus.wakeDetail}</span>
+                        ) : null}
+                      </span>
+                    ) : (
+                      "—"
+                    )
+                  }
+                />
+              </div>
+            </Disclosure>
             <div>
               <div className="mb-1 text-[10px] uppercase tracking-wider text-muted">
                 soul — identity core
