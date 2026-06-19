@@ -8,12 +8,14 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"time"
 
 	"github.com/agezt/agezt/kernel/channel"
 	"github.com/agezt/agezt/kernel/creds"
+	"github.com/agezt/agezt/kernel/netguard"
 	"github.com/agezt/agezt/kernel/settings"
 )
 
@@ -108,6 +110,14 @@ func (s *Server) handleWhatsAppGatewayStatus(conn net.Conn, req Request) {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.url (gateway URL) is required"})
 		return
 	}
+	// SSRF guard: require an http(s) URL, and (below) route the probe through
+	// netguard so a request-supplied URL can't reach the cloud-metadata endpoint
+	// or other link-local/multicast targets, even via a redirect. Loopback +
+	// private ranges ARE allowed — the gateway is legitimately local/LAN.
+	if u, err := url.Parse(base); err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.url must be an http(s) gateway URL"})
+		return
+	}
 	backend := strings.ToLower(strings.TrimSpace(wgArg(req, "backend")))
 	session := strings.TrimSpace(wgArg(req, "session"))
 	if session == "" {
@@ -134,7 +144,11 @@ func (s *Server) handleWhatsAppGatewayStatus(conn net.Conn, req Request) {
 	if key != "" {
 		hreq.Header.Set(keyHeader, key)
 	}
-	resp, err := (&http.Client{Timeout: 10 * time.Second}).Do(hreq)
+	// netguard screens every dial + redirect hop: loopback/private allowed (the
+	// gateway is local), link-local (incl. 169.254.169.254 metadata)/multicast/
+	// unspecified blocked.
+	client := netguard.New(netguard.AllowLoopback(), netguard.AllowPrivate()).HTTPClient(10 * time.Second)
+	resp, err := client.Do(hreq)
 	if err != nil {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"ok": false, "error": "cannot reach gateway: " + err.Error()}})
 		return
