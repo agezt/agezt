@@ -141,6 +141,7 @@ func helpGroups() []helpGroup {
 				"catalog discover [url]                  auto-discover local Ollama models",
 			}},
 			{"provider", "credentials, keyrings, live checks, hot reload", []string{
+				"provider connect <id> --url <base> --model <m> [--env E --key K] [--default]   register a provider (custom) + key, live",
 				"provider creds list|set <NAME> [<value>]|rm <NAME>    the vault (set prompts when value omitted)",
 				"provider keys <list|add|activate|rm>    multiple keys per provider, pick the active one",
 				"provider setup [provider-id]            prompt for missing keys (offline)",
