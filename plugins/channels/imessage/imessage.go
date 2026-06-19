@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"net/url"
 	"strings"
@@ -196,10 +197,10 @@ func (c *Channel) dispatch(ctx context.Context, m inbound) {
 		rep = channel.Reply{Text: "sorry — that failed: " + err.Error()}
 	}
 	reply := rep.Text
-	if reply == "" {
+	if reply == "" && len(rep.Attachments) == 0 {
 		return
 	}
-	_ = c.Send(ctx, channel.Outbound{ChannelID: target, Text: reply, Priority: channel.PriorityNotify})
+	_ = c.Send(ctx, channel.Outbound{ChannelID: target, Text: reply, Attachments: rep.Attachments, Priority: channel.PriorityNotify})
 }
 
 // Send posts out.Text to out.ChannelID (a chat guid, phone number, or email) via
@@ -210,14 +211,22 @@ func (c *Channel) Send(ctx context.Context, out channel.Outbound) error {
 	if target == "" {
 		return fmt.Errorf("imessage: send requires a chat guid or address")
 	}
-	if text == "" {
+	if text == "" && len(out.Attachments) == 0 {
 		return nil
 	}
 	if c.base == "" {
 		return fmt.Errorf("imessage: BlueBubbles server URL not configured")
 	}
 	for _, chunk := range channel.SplitText(text, imMaxChars) {
+		if strings.TrimSpace(chunk) == "" {
+			continue
+		}
 		if err := c.sendOne(ctx, chatGUID(target), chunk); err != nil {
+			return err
+		}
+	}
+	for _, att := range out.Attachments {
+		if err := c.sendAttachment(ctx, chatGUID(target), att); err != nil {
 			return err
 		}
 	}
@@ -258,6 +267,53 @@ func (c *Channel) sendOne(ctx context.Context, guid, text string) error {
 	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 8<<10))
 	if resp.StatusCode/100 != 2 {
 		return fmt.Errorf("imessage: BlueBubbles returned status %d", resp.StatusCode)
+	}
+	return nil
+}
+
+// sendAttachment uploads one media attachment to a chat via BlueBubbles'
+// /api/v1/message/attachment endpoint (multipart/form-data).
+func (c *Channel) sendAttachment(ctx context.Context, guid string, att channel.Attachment) error {
+	if len(att.Data) == 0 {
+		return nil
+	}
+	fn := att.Filename
+	if fn == "" {
+		fn = "attachment"
+	}
+	var buf bytes.Buffer
+	mw := multipart.NewWriter(&buf)
+	_ = mw.WriteField("chatGuid", guid)
+	_ = mw.WriteField("tempGuid", "agezt-"+ulid.New())
+	_ = mw.WriteField("name", fn)
+	_ = mw.WriteField("method", "private-api")
+	fw, err := mw.CreateFormFile("attachment", fn)
+	if err != nil {
+		return err
+	}
+	if _, err := fw.Write(att.Data); err != nil {
+		return err
+	}
+	if err := mw.Close(); err != nil {
+		return err
+	}
+	endpoint := c.base + "/api/v1/message/attachment"
+	if c.cfg.Password != "" {
+		endpoint += "?password=" + url.QueryEscape(c.cfg.Password)
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, &buf)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", mw.FormDataContentType())
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 8<<10))
+	if resp.StatusCode/100 != 2 {
+		return fmt.Errorf("imessage: attachment upload returned status %d", resp.StatusCode)
 	}
 	return nil
 }

@@ -350,6 +350,7 @@ var configEnvVars = []string{
 	"AGEZT_TTS_MODEL",
 	"AGEZT_TTS_VOICE",
 	"AGEZT_TTS_KEY",
+	"AGEZT_VOICE_REPLY",
 }
 
 func (s *Server) handleConfig(conn net.Conn, req Request) {

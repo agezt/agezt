@@ -36,7 +36,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
+	"net/textproto"
 	"strings"
 	"sync"
 	"time"
@@ -253,10 +255,10 @@ func (c *Channel) dispatch(ctx context.Context, m inboundMsg) {
 		rep = channel.Reply{Text: "sorry — that failed: " + err.Error()}
 	}
 	reply := rep.Text
-	if reply == "" {
+	if reply == "" && len(rep.Attachments) == 0 {
 		return
 	}
-	if err := c.send(ctx, channel.Outbound{ChannelID: m.from, Text: reply, Priority: channel.PriorityNotify}, corr); err != nil && c.bus != nil {
+	if err := c.send(ctx, channel.Outbound{ChannelID: m.from, Text: reply, Attachments: rep.Attachments, Priority: channel.PriorityNotify}, corr); err != nil && c.bus != nil {
 		_, _ = c.bus.Publish(event.Spec{
 			Subject: "channel.error.whatsapp", Kind: event.KindChannelOutbound, Actor: "channel-whatsapp",
 			CorrelationID: corr, Payload: map[string]any{"error": err.Error(), "channel_id": m.from},
@@ -352,7 +354,7 @@ func (c *Channel) verify(sig string, body []byte) bool {
 // Send implements channel.Channel: send a WhatsApp text to out.ChannelID via the
 // Graph API, splitting long text. Errors when credentials are missing.
 func (c *Channel) Send(ctx context.Context, out channel.Outbound) error {
-	if strings.TrimSpace(out.Text) == "" {
+	if strings.TrimSpace(out.Text) == "" && len(out.Attachments) == 0 {
 		return nil
 	}
 	corr := "chan-" + ulid.New()
@@ -365,6 +367,9 @@ func (c *Channel) send(ctx context.Context, out channel.Outbound, corr string) e
 	}
 	endpoint := c.graphBase + "/" + c.phoneID + "/messages"
 	for _, chunk := range channel.SplitText(out.Text, waMaxChars) {
+		if strings.TrimSpace(chunk) == "" {
+			continue
+		}
 		payload, err := json.Marshal(map[string]any{
 			"messaging_product": "whatsapp",
 			"to":                out.ChannelID,
@@ -390,8 +395,109 @@ func (c *Channel) send(ctx context.Context, out channel.Outbound, corr string) e
 			return fmt.Errorf("whatsapp: Graph API returned status %d", resp.StatusCode)
 		}
 	}
+	for _, att := range out.Attachments {
+		if err := c.sendMedia(ctx, out.ChannelID, att); err != nil {
+			return err
+		}
+	}
 	c.emitOutbound(out, corr)
 	return nil
+}
+
+// sendMedia delivers one attachment via the WhatsApp Cloud API's two-step flow:
+// upload the bytes to /{phoneID}/media (multipart) → POST a typed message
+// referencing the returned media id.
+func (c *Channel) sendMedia(ctx context.Context, to string, att channel.Attachment) error {
+	if len(att.Data) == 0 {
+		return nil
+	}
+	id, err := c.uploadMedia(ctx, att)
+	if err != nil || id == "" {
+		return err
+	}
+	mtype := "document"
+	switch att.Kind {
+	case "audio":
+		mtype = "audio"
+	case "image":
+		mtype = "image"
+	}
+	media := map[string]any{"id": id}
+	if mtype == "document" && att.Filename != "" {
+		media["filename"] = att.Filename
+	}
+	payload, _ := json.Marshal(map[string]any{
+		"messaging_product": "whatsapp",
+		"to":                to,
+		"type":              mtype,
+		mtype:               media,
+	})
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.graphBase+"/"+c.phoneID+"/messages", bytes.NewReader(payload))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+c.accessToken)
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 8<<10))
+	if resp.StatusCode/100 != 2 {
+		return fmt.Errorf("whatsapp: send media returned status %d", resp.StatusCode)
+	}
+	return nil
+}
+
+// uploadMedia POSTs the attachment bytes to /{phoneID}/media and returns the
+// media id.
+func (c *Channel) uploadMedia(ctx context.Context, att channel.Attachment) (string, error) {
+	fn := att.Filename
+	if fn == "" {
+		fn = "file"
+	}
+	var buf bytes.Buffer
+	mw := multipart.NewWriter(&buf)
+	_ = mw.WriteField("messaging_product", "whatsapp")
+	if att.MIME != "" {
+		_ = mw.WriteField("type", att.MIME)
+	}
+	h := make(textproto.MIMEHeader)
+	h.Set("Content-Disposition", fmt.Sprintf(`form-data; name="file"; filename=%q`, fn))
+	if att.MIME != "" {
+		h.Set("Content-Type", att.MIME)
+	}
+	fw, err := mw.CreatePart(h)
+	if err != nil {
+		return "", err
+	}
+	if _, err := fw.Write(att.Data); err != nil {
+		return "", err
+	}
+	if err := mw.Close(); err != nil {
+		return "", err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.graphBase+"/"+c.phoneID+"/media", &buf)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Content-Type", mw.FormDataContentType())
+	req.Header.Set("Authorization", "Bearer "+c.accessToken)
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, 8<<10))
+	if resp.StatusCode/100 != 2 {
+		return "", fmt.Errorf("whatsapp: media upload returned status %d", resp.StatusCode)
+	}
+	var r struct {
+		ID string `json:"id"`
+	}
+	_ = json.Unmarshal(body, &r)
+	return r.ID, nil
 }
 
 // --- wire shapes ----------------------------------------------------------

@@ -33,6 +33,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"strconv"
 	"strings"
@@ -440,10 +441,10 @@ func (c *Channel) runAndFollowUp(ctx context.Context, in discordInteraction, msg
 		rep = channel.Reply{Text: "sorry — that failed: " + err.Error()}
 	}
 	reply := rep.Text
-	if reply == "" {
+	if reply == "" && len(rep.Attachments) == 0 {
 		reply = "(no output)"
 	}
-	_ = c.followUp(ctx, in.Token, in.ChannelID, reply, corr)
+	_ = c.followUp(ctx, in.Token, in.ChannelID, reply, rep.Attachments, corr)
 }
 
 // verify checks Discord's Ed25519 request signature over (timestamp || body),
@@ -514,13 +515,17 @@ func (c *Channel) Send(ctx context.Context, out channel.Outbound) error {
 // Like Send, it chunks past Discord's 2000-char limit (M234) — each POST to the
 // follow-up webhook creates a new message — so a long slash-command answer is
 // delivered in sequence rather than rejected and lost.
-func (c *Channel) followUp(ctx context.Context, token, channelID, content, corr string) error {
-	if strings.TrimSpace(content) == "" {
+func (c *Channel) followUp(ctx context.Context, token, channelID, content string, atts []channel.Attachment, corr string) error {
+	if strings.TrimSpace(content) == "" && len(atts) == 0 {
 		return nil
 	}
+	url := c.base + "/webhooks/" + c.appID + "/" + token
 	for _, chunk := range channel.SplitText(content, discordMaxChars) {
+		if strings.TrimSpace(chunk) == "" {
+			continue
+		}
 		body, _ := json.Marshal(map[string]any{"content": chunk})
-		req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.base+"/webhooks/"+c.appID+"/"+token, bytes.NewReader(body))
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 		if err != nil {
 			return err
 		}
@@ -529,8 +534,46 @@ func (c *Channel) followUp(ctx context.Context, token, channelID, content, corr 
 			return err
 		}
 	}
+	// Outbound media: each attachment is a multipart follow-up message
+	// (voice clip, image, file) — Discord renders voice/images inline.
+	for _, att := range atts {
+		if err := c.followUpMedia(ctx, url, att); err != nil {
+			return err
+		}
+	}
 	c.emitOutbound(channel.Outbound{ChannelID: channelID, Text: content, Priority: channel.PriorityNotify}, corr)
 	return nil
+}
+
+// followUpMedia posts one attachment to the interaction follow-up webhook as
+// multipart/form-data (payload_json + files[0]).
+func (c *Channel) followUpMedia(ctx context.Context, url string, att channel.Attachment) error {
+	if len(att.Data) == 0 {
+		return nil
+	}
+	fn := att.Filename
+	if fn == "" {
+		fn = "file"
+	}
+	var buf bytes.Buffer
+	mw := multipart.NewWriter(&buf)
+	_ = mw.WriteField("payload_json", `{"attachments":[{"id":0,"filename":`+strconv.Quote(fn)+`}]}`)
+	part, err := mw.CreateFormFile("files[0]", fn)
+	if err != nil {
+		return err
+	}
+	if _, err := part.Write(att.Data); err != nil {
+		return err
+	}
+	if err := mw.Close(); err != nil {
+		return err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, &buf)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", mw.FormDataContentType())
+	return c.do(req)
 }
 
 func (c *Channel) do(req *http.Request) error {

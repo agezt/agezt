@@ -2357,7 +2357,42 @@ func makeChannelHandler(k *kernelruntime.Kernel) channel.InboundHandler {
 			persistInboundAudio(k, msg, corr)
 		}
 		text, rerr := k.RunWith(hctx, corr, intent)
-		return channel.Reply{Text: text}, rerr
+		reply := channel.Reply{Text: text}
+		// Voice-in → voice-out: if the user sent a voice message and TTS is
+		// configured, speak the answer back as an audio attachment so the
+		// conversation stays in voice (opt out with AGEZT_VOICE_REPLY=off).
+		if rerr == nil && len(msg.Audio) > 0 && strings.TrimSpace(text) != "" && voiceReplyEnabled() {
+			if v := k.Voice(); v != nil && v.HasTTS() {
+				if audio, mime, serr := v.Speak(hctx, text); serr == nil && len(audio) > 0 {
+					reply.Attachments = append(reply.Attachments, channel.Attachment{
+						Kind: "audio", Data: audio, MIME: mime, Filename: "reply" + audioExt(mime),
+					})
+				}
+			}
+		}
+		return reply, rerr
+	}
+}
+
+// voiceReplyEnabled reports whether voice-in→voice-out is on (default yes).
+func voiceReplyEnabled() bool {
+	v := strings.ToLower(strings.TrimSpace(os.Getenv(brand.EnvPrefix + "VOICE_REPLY")))
+	return v != "off" && v != "0" && v != "false" && v != "no"
+}
+
+// audioExt maps a TTS MIME type to a file extension for the outbound clip.
+func audioExt(mime string) string {
+	switch {
+	case strings.Contains(mime, "ogg"), strings.Contains(mime, "opus"):
+		return ".ogg"
+	case strings.Contains(mime, "mpeg"), strings.Contains(mime, "mp3"):
+		return ".mp3"
+	case strings.Contains(mime, "wav"):
+		return ".wav"
+	case strings.Contains(mime, "aac"), strings.Contains(mime, "m4a"), strings.Contains(mime, "mp4"):
+		return ".m4a"
+	default:
+		return ".ogg"
 	}
 }
 

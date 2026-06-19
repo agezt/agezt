@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"net/url"
 	"path/filepath"
@@ -297,10 +298,10 @@ func (c *Channel) handleInbound(ctx context.Context, m *tgMessage) {
 		rep = channel.Reply{Text: "sorry — that failed: " + err.Error()}
 	}
 	reply := rep.Text
-	if reply == "" {
+	if reply == "" && len(rep.Attachments) == 0 {
 		return
 	}
-	_ = c.send(ctx, channel.Outbound{ChannelID: chatID, ThreadID: msg.ThreadID, Text: reply, Priority: channel.PriorityNotify}, corr)
+	_ = c.send(ctx, channel.Outbound{ChannelID: chatID, ThreadID: msg.ThreadID, Text: reply, Attachments: rep.Attachments, Priority: channel.PriorityNotify}, corr)
 }
 
 // tgPhotoMaxRaw bounds a downloaded photo so the resulting data: URL stays
@@ -408,11 +409,14 @@ func (c *Channel) send(ctx context.Context, out channel.Outbound, corr string) e
 	// "message text is empty"). Treat it as a no-op rather than a failed send —
 	// covers the Send path (Pulse, agt send) and whitespace-only agent answers
 	// the inbound reply guard's exact-"" check would miss (M236).
-	if strings.TrimSpace(out.Text) == "" {
+	if strings.TrimSpace(out.Text) == "" && len(out.Attachments) == 0 {
 		return nil
 	}
 	endpoint := fmt.Sprintf("%s/bot%s/sendMessage", c.base, c.token)
 	for _, chunk := range channel.SplitText(out.Text, telegramMaxChars) {
+		if strings.TrimSpace(chunk) == "" {
+			continue
+		}
 		fields := map[string]any{"chat_id": out.ChannelID, "text": chunk}
 		// Forum-topic reply (M885): message_thread_id routes the message into
 		// the originating topic instead of the chat's General stream.
@@ -443,7 +447,69 @@ func (c *Channel) send(ctx context.Context, out channel.Outbound, corr string) e
 			return err
 		}
 	}
+	// Outbound media: voice clips, photos, files (M-multimodal).
+	for _, att := range out.Attachments {
+		if err := c.sendAttachment(ctx, out, att); err != nil {
+			return err
+		}
+	}
 	c.emitOutbound(out, corr)
+	return nil
+}
+
+// sendAttachment uploads one media attachment via the matching Bot API method
+// (sendVoice for OGG/Opus, sendAudio for other audio, sendPhoto for images,
+// sendDocument otherwise) as multipart/form-data.
+func (c *Channel) sendAttachment(ctx context.Context, out channel.Outbound, att channel.Attachment) error {
+	if len(att.Data) == 0 {
+		return nil
+	}
+	method, field := "sendDocument", "document"
+	switch att.Kind {
+	case "audio":
+		if strings.Contains(att.MIME, "ogg") || strings.Contains(att.MIME, "opus") {
+			method, field = "sendVoice", "voice"
+		} else {
+			method, field = "sendAudio", "audio"
+		}
+	case "image":
+		method, field = "sendPhoto", "photo"
+	}
+	var buf bytes.Buffer
+	mw := multipart.NewWriter(&buf)
+	_ = mw.WriteField("chat_id", out.ChannelID)
+	if out.ThreadID != "" {
+		_ = mw.WriteField("message_thread_id", out.ThreadID)
+	}
+	fn := att.Filename
+	if fn == "" {
+		fn = "file"
+	}
+	fw, err := mw.CreateFormFile(field, fn)
+	if err != nil {
+		return err
+	}
+	if _, err := fw.Write(att.Data); err != nil {
+		return err
+	}
+	if err := mw.Close(); err != nil {
+		return err
+	}
+	endpoint := fmt.Sprintf("%s/bot%s/%s", c.base, c.token, method)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, &buf)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", mw.FormDataContentType())
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return c.scrubToken(err)
+	}
+	defer resp.Body.Close()
+	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 8<<10))
+	if resp.StatusCode/100 != 2 {
+		return fmt.Errorf("telegram %s: status %d", method, resp.StatusCode)
+	}
 	return nil
 }
 
