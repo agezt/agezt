@@ -348,6 +348,19 @@ func builtinSections() []Section {
 			},
 		},
 		{
+			ID: "imessage", Name: "iMessage",
+			Help: "iMessage via a self-hosted BlueBubbles server (a Mac running BlueBubbles, https://bluebubbles.app). REST send + inbound webhook. Restart to apply.",
+			Fields: []Field{
+				{Env: "AGEZT_IMESSAGE_URL", Label: "BlueBubbles URL", Type: TypeText, Apply: ApplyRestart, Help: "e.g. http://localhost:1234"},
+				pw("AGEZT_IMESSAGE_PASSWORD", "Server password", "the BlueBubbles server password"),
+				{Env: "AGEZT_IMESSAGE_METHOD", Label: "Send method", Type: TypeText, Apply: ApplyRestart, Help: "\"private-api\" (default) or \"apple-script\""},
+				{Env: "AGEZT_IMESSAGE_ADDRESSES", Label: "Allowed addresses", Type: TypeCSV, Apply: ApplyRestart, Help: "comma-separated phone/email allowed to drive the agent"},
+				{Env: "AGEZT_IMESSAGE_ADDR", Label: "Inbound addr (optional)", Type: TypeText, Apply: ApplyRestart, Help: "host:port to serve the BlueBubbles webhook (two-way); blank = outbound only"},
+				{Env: "AGEZT_IMESSAGE_PATH", Label: "Inbound path", Type: TypeText, Apply: ApplyRestart, Help: "webhook route (default /imessage)"},
+				pw("AGEZT_IMESSAGE_SECRET", "Webhook secret (optional)", "if set, inbound must echo it in X-Webhook-Secret"),
+			},
+		},
+		{
 			ID: "irc", Name: "IRC",
 			Help: "Two-way IRC channel — connects to any ircd and joins channels. Restart to apply.",
 			Fields: []Field{

@@ -85,6 +85,7 @@ import (
 	"github.com/agezt/agezt/plugins/channels/discord"
 	"github.com/agezt/agezt/plugins/channels/email"
 	"github.com/agezt/agezt/plugins/channels/homeassistant"
+	"github.com/agezt/agezt/plugins/channels/imessage"
 	"github.com/agezt/agezt/plugins/channels/irc"
 	"github.com/agezt/agezt/plugins/channels/matrix"
 	"github.com/agezt/agezt/plugins/channels/push"
@@ -1514,6 +1515,15 @@ func runDaemon(stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "  whatsapp gateway : disabled (set AGEZT_WHATSAPPGW_URL)\n")
 	}
 
+	// iMessage via a self-hosted BlueBubbles server — the Mac-bridge iMessage path.
+	imChan, imSink, imDesc := buildIMessage(ctx, k)
+	if imChan != nil {
+		go imChan.Start(ctx)
+		fmt.Fprintf(stdout, "  imessage channel : %s\n", imDesc)
+	} else {
+		fmt.Fprintf(stdout, "  imessage channel : disabled (set AGEZT_IMESSAGE_URL)\n")
+	}
+
 	// SMS channel (SPEC-04 §1) — duplex over Twilio Programmable Messaging when
 	// AGEZT_SMS_ACCOUNT_SID + AGEZT_SMS_AUTH_TOKEN are set. Inbound is a signed
 	// Twilio webhook (needs AGEZT_SMS_ADDR); outbound texts go via the REST API
@@ -1589,7 +1599,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 
 	// Every configured channel's brief sink, teed: Pulse briefs and (M782)
 	// alert notifications share the same delivery surface.
-	channelSinks := combineSinks(tgSink, slSink, dcSink, whSink, emSink, mxSink, ircSink, twSink, wgSink, smSink, waSink, haSink, tmSink, sgSink, pushSink)
+	channelSinks := combineSinks(tgSink, slSink, dcSink, whSink, emSink, mxSink, ircSink, twSink, wgSink, imSink, smSink, waSink, haSink, tmSink, sgSink, pushSink)
 
 	// Pulse — the proactive heart (SPEC-03). On by default; the resident
 	// engine runs on the daemon ctx so `agt halt`/SIGTERM/`agt shutdown`
@@ -1770,6 +1780,9 @@ func runDaemon(stdout, stderr io.Writer) int {
 	}
 	if wgChan != nil {
 		liveChannels["whatsappgw"] = wgChan
+	}
+	if imChan != nil {
+		liveChannels["imessage"] = imChan
 	}
 	if smChan != nil {
 		liveChannels["sms"] = smChan
@@ -2856,6 +2869,58 @@ func buildWhatsAppGateway(ctx context.Context, k *kernelruntime.Kernel) (*whatsa
 	desc := fmt.Sprintf("%s via %s, allowlist=%d number(s)", base, be, len(numbers))
 	if addr == "" {
 		desc += " (outbound-only; set AGEZT_WHATSAPPGW_ADDR for two-way)"
+	}
+	return ch, sink, desc
+}
+
+// buildIMessage constructs the iMessage channel — a self-hosted BlueBubbles
+// server (a Mac bridge; https://bluebubbles.app) — when AGEZT_IMESSAGE_URL is
+// set. Outbound always; inbound (two-way) when AGEZT_IMESSAGE_ADDR points the
+// BlueBubbles webhook back at this channel.
+//
+//	AGEZT_IMESSAGE_URL        BlueBubbles server URL, e.g. http://localhost:1234  (required)
+//	AGEZT_IMESSAGE_PASSWORD   BlueBubbles server password
+//	AGEZT_IMESSAGE_METHOD     "private-api" (default) or "apple-script"
+//	AGEZT_IMESSAGE_ADDRESSES  comma-separated allowed sender addresses (phone/email)
+//	AGEZT_IMESSAGE_ADDR       host:port to serve the inbound webhook (two-way)
+//	AGEZT_IMESSAGE_PATH       inbound route (default /imessage)
+//	AGEZT_IMESSAGE_SECRET     optional shared secret the webhook must echo (X-Webhook-Secret)
+func buildIMessage(ctx context.Context, k *kernelruntime.Kernel) (*imessage.Channel, pulse.BriefSink, string) {
+	base := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "IMESSAGE_URL"))
+	if base == "" {
+		return nil, nil, ""
+	}
+	addresses := splitNonEmpty(os.Getenv(brand.EnvPrefix + "IMESSAGE_ADDRESSES"))
+	addr := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "IMESSAGE_ADDR"))
+
+	ch := imessage.New(imessage.Config{
+		BaseURL:   base,
+		Password:  strings.TrimSpace(os.Getenv(brand.EnvPrefix + "IMESSAGE_PASSWORD")),
+		Method:    strings.ToLower(strings.TrimSpace(os.Getenv(brand.EnvPrefix + "IMESSAGE_METHOD"))),
+		Allowlist: channel.NewAllowlist(addresses),
+		Bus:       k.Bus(),
+		Handler:   makeChannelHandler(k),
+		Addr:      addr,
+		Path:      strings.TrimSpace(os.Getenv(brand.EnvPrefix + "IMESSAGE_PATH")),
+		Secret:    strings.TrimSpace(os.Getenv(brand.EnvPrefix + "IMESSAGE_SECRET")),
+	})
+
+	var sink pulse.BriefSink
+	if len(addresses) > 0 {
+		sink = pulse.SinkFunc(func(b pulse.Brief) error {
+			var firstErr error
+			for _, a := range addresses {
+				if err := ch.Send(ctx, channel.Outbound{ChannelID: a, Text: formatBrief(b), Priority: channel.PriorityNotify}); err != nil && firstErr == nil {
+					firstErr = err
+				}
+			}
+			return firstErr
+		})
+	}
+
+	desc := fmt.Sprintf("%s via BlueBubbles, allowlist=%d address(es)", base, len(addresses))
+	if addr == "" {
+		desc += " (outbound-only; set AGEZT_IMESSAGE_ADDR for two-way)"
 	}
 	return ch, sink, desc
 }

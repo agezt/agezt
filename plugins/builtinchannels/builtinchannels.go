@@ -189,4 +189,10 @@ var manifests = []channel.Manifest{
 		ConfigSection: "whatsappgw", RequiredEnv: []string{"AGEZT_WHATSAPPGW_URL"},
 		DocsURL: "https://waha.devlike.pro/",
 	},
+	{
+		Kind: "imessage", Display: "iMessage", Transport: "rest", Duplex: true,
+		Description:   "iMessage via a self-hosted BlueBubbles server (a Mac bridge) — REST send + inbound webhook.",
+		ConfigSection: "imessage", RequiredEnv: []string{"AGEZT_IMESSAGE_URL"},
+		DocsURL: "https://bluebubbles.app/",
+	},
 }
