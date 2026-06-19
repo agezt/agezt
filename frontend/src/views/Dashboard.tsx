@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 import { money } from "@/lib/format";
 import { getJSON } from "@/lib/api";
 import { ConnectivityStrip } from "@/views/Connections";
+import { Advanced, Calm } from "@/components/ui/advanced";
 import { useEvents, type AgentEvent } from "@/lib/events";
 import { recentAttentionAlerts, type RankedAlert } from "@/lib/alerts";
 import { incidentRootId } from "@/lib/incidents";
@@ -415,7 +416,12 @@ export function Dashboard() {
         </Card>
       </div>
 
-      {/* Live event ticker */}
+      {/* Live event ticker — raw rows; the activity sparkline above is the calm
+          pulse, so the row-by-row detail folds behind Advanced. */}
+      <Calm>
+        <p className="text-[11px] text-muted">The live event stream is in Advanced mode — the activity sparkline above shows the pulse.</p>
+      </Calm>
+      <Advanced>
       <div className="glass rounded-xl">
         <div className="flex items-center gap-2 border-b border-border px-3 py-2 text-xs font-semibold uppercase tracking-wider text-muted">
           <Radio className="size-3.5" /> Live events
@@ -448,6 +454,7 @@ export function Dashboard() {
           )}
         </div>
       </div>
+      </Advanced>
     </div>
   );
 }

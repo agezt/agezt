@@ -17,11 +17,13 @@ vi.mock("@/views/Agents", () => ({
 }));
 
 import { Dashboard, dashboardFleetOpsSummary } from "@/views/Dashboard";
+import { setAdvanced } from "@/lib/advanced";
 
 afterEach(cleanup);
 beforeEach(() => {
   getJSON.mockReset();
   liveEvents = [];
+  setAdvanced(false); // calm by default; the ticker test opts in
 });
 
 describe("Dashboard", () => {
@@ -135,6 +137,7 @@ describe("Dashboard", () => {
   });
 
   it("shows operator/phase badges in the live event ticker for incident-family events", async () => {
+    setAdvanced(true); // the raw ticker lives in Advanced mode
     const now = Date.now();
     liveEvents = [
       {
