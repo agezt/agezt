@@ -20,11 +20,13 @@ import (
 	"crypto/hmac"
 	"crypto/sha1"
 	"crypto/subtle"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -132,6 +134,13 @@ type inbound struct {
 	target string // reply target: "private:<id>" or "group:<id>"
 	text   string
 	id     string // message_id for dedup
+	media  []obMedia
+}
+
+// obMedia is one inbound media segment extracted from CQ codes.
+type obMedia struct {
+	kind string // "image" | "audio"
+	url  string
 }
 
 func (c *Channel) handleInbound(w http.ResponseWriter, r *http.Request) {
@@ -155,7 +164,7 @@ func (c *Channel) handleInbound(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *Channel) dispatch(ctx context.Context, m inbound) {
-	if m.sender == "" || strings.TrimSpace(m.text) == "" {
+	if m.sender == "" || (strings.TrimSpace(m.text) == "" && len(m.media) == 0) {
 		return
 	}
 	if m.id != "" && c.seenBefore(m.id) {
@@ -170,6 +179,19 @@ func (c *Channel) dispatch(ctx context.Context, m inbound) {
 	}
 	corr := "chan-" + ulid.New()
 	allowed := c.cfg.Allowlist.Allows(m.sender)
+	// Inbound media: fetch each CQ image/record URL (allowlisted senders only) so
+	// images reach a vision model and voice clips are transcribed.
+	if allowed {
+		for _, md := range m.media {
+			if du := c.fetchMedia(ctx, md.url); du != "" {
+				if md.kind == "audio" {
+					msg.Audio = append(msg.Audio, du)
+				} else {
+					msg.Images = append(msg.Images, du)
+				}
+			}
+		}
+	}
 	c.emitInbound(msg, corr, allowed)
 	if !allowed || c.cfg.Handler == nil {
 		return
@@ -328,10 +350,66 @@ func parseEvent(body []byte) (inbound, bool) {
 	if e.MessageType == "group" && e.GroupID.String() != "" && e.GroupID.String() != "0" {
 		target = "group:" + e.GroupID.String()
 	}
+	clean, media := extractCQMedia(text)
 	return inbound{
 		sender: user,
 		target: target,
-		text:   strings.TrimSpace(text),
+		text:   strings.TrimSpace(clean),
 		id:     e.MessageID.String(),
+		media:  media,
 	}, true
+}
+
+var cqRe = regexp.MustCompile(`\[CQ:(image|record),([^\]]*)\]`)
+var cqURLRe = regexp.MustCompile(`url=([^,\]]+)`)
+
+// fetchMedia downloads a media URL referenced by a CQ code and returns it as an
+// inline data: URL. Best-effort: returns "" on any failure.
+func (c *Channel) fetchMedia(ctx context.Context, mediaURL string) string {
+	if mediaURL == "" || !strings.HasPrefix(mediaURL, "http") {
+		return ""
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, mediaURL, nil)
+	if err != nil {
+		return ""
+	}
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return ""
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode/100 != 2 {
+		return ""
+	}
+	data, err := io.ReadAll(io.LimitReader(resp.Body, 16<<20+1))
+	if err != nil || len(data) == 0 || len(data) > 16<<20 {
+		return ""
+	}
+	mime := resp.Header.Get("Content-Type")
+	if mime == "" {
+		mime = "application/octet-stream"
+	}
+	return "data:" + mime + ";base64," + base64.StdEncoding.EncodeToString(data)
+}
+
+// extractCQMedia pulls image/record media URLs out of a OneBot raw_message's CQ
+// codes and returns the text with those codes removed. CQ entity escapes are
+// decoded for the URL.
+func extractCQMedia(raw string) (string, []obMedia) {
+	var media []obMedia
+	for _, m := range cqRe.FindAllStringSubmatch(raw, -1) {
+		kind := "image"
+		if m[1] == "record" {
+			kind = "audio"
+		}
+		if u := cqURLRe.FindStringSubmatch(m[2]); u != nil {
+			media = append(media, obMedia{kind: kind, url: cqUnescape(u[1])})
+		}
+	}
+	return cqRe.ReplaceAllString(raw, ""), media
+}
+
+func cqUnescape(s string) string {
+	r := strings.NewReplacer("&amp;", "&", "&#91;", "[", "&#93;", "]", "&#44;", ",")
+	return r.Replace(s)
 }

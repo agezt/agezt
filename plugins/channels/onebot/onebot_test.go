@@ -11,6 +11,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/agezt/agezt/kernel/channel"
@@ -30,6 +31,28 @@ func TestParseEvent(t *testing.T) {
 	// non-message post types dropped.
 	if _, ok := parseEvent([]byte(`{"post_type":"notice"}`)); ok {
 		t.Fatal("notice should be dropped")
+	}
+	// CQ image/record codes are pulled out as media (URL decoded) and stripped from text.
+	cq := []byte(`{"post_type":"message","message_type":"private","message_id":9,"user_id":5,"raw_message":"look [CQ:image,file=a.jpg,url=https://x.test/a.jpg] and [CQ:record,url=https://x.test/v.amr]"}`)
+	c, ok := parseEvent(cq)
+	if !ok || len(c.media) != 2 {
+		t.Fatalf("cq media = %+v ok=%v", c, ok)
+	}
+	if c.media[0].kind != "image" || c.media[0].url != "https://x.test/a.jpg" {
+		t.Fatalf("image media = %+v", c.media[0])
+	}
+	if c.media[1].kind != "audio" || c.media[1].url != "https://x.test/v.amr" {
+		t.Fatalf("record media = %+v", c.media[1])
+	}
+	if strings.Contains(c.text, "CQ:") {
+		t.Fatalf("CQ codes should be stripped from text: %q", c.text)
+	}
+}
+
+func TestExtractCQMediaUnescape(t *testing.T) {
+	_, media := extractCQMedia(`[CQ:image,url=https://x.test/a&#44;b.jpg&amp;k=1]`)
+	if len(media) != 1 || media[0].url != "https://x.test/a,b.jpg&k=1" {
+		t.Fatalf("unescape = %+v", media)
 	}
 }
 

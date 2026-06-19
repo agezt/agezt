@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"sort"
 	"strings"
 	"sync"
@@ -145,9 +146,11 @@ func (c *Channel) Handler() http.Handler {
 }
 
 type inbound struct {
-	sender string // FromUserName, the allowlist key
-	text   string
-	id     string // MsgId for dedup
+	sender    string // FromUserName, the allowlist key
+	text      string
+	id        string // MsgId for dedup
+	mediaID   string // MediaId of an inbound image/voice message
+	mediaType string // "image" | "audio"
 }
 
 func (c *Channel) handleInbound(w http.ResponseWriter, r *http.Request) {
@@ -207,7 +210,7 @@ func (c *Channel) handleInbound(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *Channel) dispatch(ctx context.Context, m inbound) {
-	if m.sender == "" || strings.TrimSpace(m.text) == "" {
+	if m.sender == "" || (strings.TrimSpace(m.text) == "" && m.mediaID == "") {
 		return
 	}
 	if m.id != "" && c.seenBefore(m.id) {
@@ -222,6 +225,17 @@ func (c *Channel) dispatch(ctx context.Context, m inbound) {
 	}
 	corr := "chan-" + ulid.New()
 	allowed := c.cfg.Allowlist.Allows(m.sender)
+	// Inbound media: fetch by media id (allowlisted senders only) so an image
+	// reaches a vision model and a voice clip is transcribed.
+	if allowed && m.mediaID != "" {
+		if du := c.fetchMedia(ctx, m.mediaID, m.mediaType); du != "" {
+			if m.mediaType == "audio" {
+				msg.Audio = []string{du}
+			} else {
+				msg.Images = []string{du}
+			}
+		}
+	}
 	c.emitInbound(msg, corr, allowed)
 	if !allowed || c.cfg.Handler == nil {
 		return
@@ -289,6 +303,48 @@ func (c *Channel) sendOne(ctx context.Context, token, user, text string) error {
 		return fmt.Errorf("wecom: send returned status %d", resp.StatusCode)
 	}
 	return nil
+}
+
+// fetchMedia downloads an inbound media file by id (cgi-bin/media/get) and
+// returns it as an inline data: URL. Best-effort: returns "" on any failure.
+func (c *Channel) fetchMedia(ctx context.Context, mediaID, mediaType string) string {
+	if mediaID == "" {
+		return ""
+	}
+	tok, err := c.accessToken(ctx)
+	if err != nil || tok == "" {
+		return ""
+	}
+	endpoint := c.apiBase + "/cgi-bin/media/get?access_token=" + url.QueryEscape(tok) + "&media_id=" + url.QueryEscape(mediaID)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return ""
+	}
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return ""
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode/100 != 2 {
+		return ""
+	}
+	data, err := io.ReadAll(io.LimitReader(resp.Body, 16<<20+1))
+	if err != nil || len(data) == 0 || len(data) > 16<<20 {
+		return ""
+	}
+	// WeCom returns JSON ({"errcode":...}) on failure rather than binary.
+	if len(data) > 0 && data[0] == '{' {
+		return ""
+	}
+	mime := resp.Header.Get("Content-Type")
+	if mime == "" {
+		if mediaType == "audio" {
+			mime = "audio/amr"
+		} else {
+			mime = "image/jpeg"
+		}
+	}
+	return "data:" + mime + ";base64," + base64.StdEncoding.EncodeToString(data)
 }
 
 func (c *Channel) accessToken(ctx context.Context) (string, error) {
@@ -418,21 +474,29 @@ func pkcs7Unpad(b []byte) ([]byte, error) {
 }
 
 // parseMessage reads the decrypted inner XML: <xml><FromUserName/><Content/>
-// <MsgType/><MsgId/></xml>. Only text messages are kept.
+// <MsgType/><MsgId/><MediaId/></xml>. Text plus image/voice media messages are kept.
 func parseMessage(plain []byte) (inbound, bool) {
 	var x struct {
 		FromUserName string `xml:"FromUserName"`
 		MsgType      string `xml:"MsgType"`
 		Content      string `xml:"Content"`
 		MsgID        string `xml:"MsgId"`
+		MediaID      string `xml:"MediaId"`
 	}
 	if err := xml.Unmarshal(plain, &x); err != nil {
 		return inbound{}, false
 	}
-	if x.MsgType != "" && x.MsgType != "text" {
+	in := inbound{sender: x.FromUserName, text: strings.TrimSpace(x.Content), id: x.MsgID}
+	switch x.MsgType {
+	case "", "text":
+	case "image":
+		in.mediaID, in.mediaType = x.MediaID, "image"
+	case "voice":
+		in.mediaID, in.mediaType = x.MediaID, "audio"
+	default:
 		return inbound{}, false
 	}
-	return inbound{sender: x.FromUserName, text: strings.TrimSpace(x.Content), id: x.MsgID}, true
+	return in, true
 }
 
 // encrypt builds a WXBizMsgCrypt payload (used by tests to exercise decrypt).

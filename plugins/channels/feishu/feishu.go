@@ -13,10 +13,12 @@ import (
 	"bytes"
 	"context"
 	"crypto/subtle"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -127,10 +129,13 @@ func (c *Channel) Handler() http.Handler {
 }
 
 type inbound struct {
-	sender string // open_id, the allowlist key
-	chatID string // reply target
-	text   string
-	id     string // event/message id for dedup
+	sender    string // open_id, the allowlist key
+	chatID    string // reply target
+	text      string
+	id        string // event/message id for dedup
+	messageID string // message_id, for the resources endpoint
+	fileKey   string // image_key / file_key of an inbound media message
+	mediaType string // "image" | "audio"
 }
 
 func (c *Channel) handleInbound(w http.ResponseWriter, r *http.Request) {
@@ -165,7 +170,7 @@ func (c *Channel) handleInbound(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *Channel) dispatch(ctx context.Context, m inbound) {
-	if m.sender == "" || strings.TrimSpace(m.text) == "" {
+	if m.sender == "" || (strings.TrimSpace(m.text) == "" && m.fileKey == "") {
 		return
 	}
 	if m.id != "" && c.seenBefore(m.id) {
@@ -180,6 +185,17 @@ func (c *Channel) dispatch(ctx context.Context, m inbound) {
 	}
 	corr := "chan-" + ulid.New()
 	allowed := c.cfg.Allowlist.Allows(m.sender)
+	// Inbound media: fetch the message resource (allowlisted senders only) so an
+	// image reaches a vision model and a voice clip is transcribed.
+	if allowed && m.fileKey != "" {
+		if du := c.fetchResource(ctx, m.messageID, m.fileKey, m.mediaType); du != "" {
+			if m.mediaType == "audio" {
+				msg.Audio = []string{du}
+			} else {
+				msg.Images = []string{du}
+			}
+		}
+	}
 	c.emitInbound(msg, corr, allowed)
 	if !allowed || c.cfg.Handler == nil {
 		return
@@ -247,6 +263,50 @@ func (c *Channel) sendOne(ctx context.Context, token, chatID, text string) error
 		return fmt.Errorf("feishu: send returned status %d", resp.StatusCode)
 	}
 	return nil
+}
+
+// fetchResource downloads an inbound message resource (image/file) and returns
+// it as an inline data: URL. Best-effort: returns "" on any failure.
+func (c *Channel) fetchResource(ctx context.Context, messageID, fileKey, mediaType string) string {
+	if messageID == "" || fileKey == "" {
+		return ""
+	}
+	token, err := c.tenantToken(ctx)
+	if err != nil || token == "" {
+		return ""
+	}
+	rtype := "file"
+	if mediaType == "image" {
+		rtype = "image"
+	}
+	endpoint := c.apiBase + "/open-apis/im/v1/messages/" + url.PathEscape(messageID) +
+		"/resources/" + url.PathEscape(fileKey) + "?type=" + rtype
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return ""
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return ""
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode/100 != 2 {
+		return ""
+	}
+	data, err := io.ReadAll(io.LimitReader(resp.Body, 16<<20+1))
+	if err != nil || len(data) == 0 || len(data) > 16<<20 {
+		return ""
+	}
+	mime := resp.Header.Get("Content-Type")
+	if mime == "" {
+		if mediaType == "audio" {
+			mime = "audio/opus"
+		} else {
+			mime = "image/jpeg"
+		}
+	}
+	return "data:" + mime + ";base64," + base64.StdEncoding.EncodeToString(data)
 }
 
 // tenantToken returns a cached tenant_access_token, fetching a fresh one when
@@ -367,21 +427,34 @@ func parseEvent(body []byte) (inbound, string, bool) {
 	if err := json.Unmarshal(body, &e); err != nil {
 		return inbound{}, "", false
 	}
-	if e.Header.EventType != "im.message.receive_v1" || e.Event.Message.MessageType != "text" {
+	if e.Header.EventType != "im.message.receive_v1" {
 		return inbound{}, e.Header.Token, false
 	}
 	var content struct {
-		Text string `json:"text"`
+		Text     string `json:"text"`
+		ImageKey string `json:"image_key"`
+		FileKey  string `json:"file_key"`
 	}
 	_ = json.Unmarshal([]byte(e.Event.Message.Content), &content)
 	id := e.Event.Message.MessageID
 	if id == "" {
 		id = e.Header.EventID
 	}
-	return inbound{
-		sender: e.Event.Sender.SenderID.OpenID,
-		chatID: e.Event.Message.ChatID,
-		text:   strings.TrimSpace(content.Text),
-		id:     id,
-	}, e.Header.Token, true
+	in := inbound{
+		sender:    e.Event.Sender.SenderID.OpenID,
+		chatID:    e.Event.Message.ChatID,
+		text:      strings.TrimSpace(content.Text),
+		id:        id,
+		messageID: e.Event.Message.MessageID,
+	}
+	switch e.Event.Message.MessageType {
+	case "text":
+	case "image":
+		in.fileKey, in.mediaType = content.ImageKey, "image"
+	case "audio":
+		in.fileKey, in.mediaType = content.FileKey, "audio"
+	default:
+		return inbound{}, e.Header.Token, false
+	}
+	return in, e.Header.Token, true
 }

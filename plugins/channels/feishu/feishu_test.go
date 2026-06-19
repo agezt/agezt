@@ -30,9 +30,19 @@ func TestParseEvent(t *testing.T) {
 	if !ok || tok != "t1" || m.sender != "ou_1" || m.chatID != "oc_1" || m.text != "hi" || m.id != "m1" {
 		t.Fatalf("parseEvent = %+v tok=%q ok=%v", m, tok, ok)
 	}
-	// non-text message dropped.
-	if _, _, ok := parseEvent([]byte(`{"header":{"event_type":"im.message.receive_v1"},"event":{"message":{"message_type":"image"}}}`)); ok {
-		t.Fatal("image message should be dropped")
+	// image message is kept with its image_key + media type so the resource can be fetched.
+	im, _, ok := parseEvent([]byte(`{"header":{"event_type":"im.message.receive_v1"},"event":{"message":{"message_id":"m2","message_type":"image","content":"{\"image_key\":\"img_k1\"}"}}}`))
+	if !ok || im.mediaType != "image" || im.fileKey != "img_k1" || im.messageID != "m2" {
+		t.Fatalf("image parseEvent = %+v ok=%v", im, ok)
+	}
+	// audio message keeps its file_key under the audio media type.
+	au, _, ok := parseEvent([]byte(`{"header":{"event_type":"im.message.receive_v1"},"event":{"message":{"message_id":"m3","message_type":"audio","content":"{\"file_key\":\"file_k1\"}"}}}`))
+	if !ok || au.mediaType != "audio" || au.fileKey != "file_k1" {
+		t.Fatalf("audio parseEvent = %+v ok=%v", au, ok)
+	}
+	// genuinely unsupported message types are still dropped.
+	if _, _, ok := parseEvent([]byte(`{"header":{"event_type":"im.message.receive_v1"},"event":{"message":{"message_type":"sticker"}}}`)); ok {
+		t.Fatal("sticker message should be dropped")
 	}
 }
 

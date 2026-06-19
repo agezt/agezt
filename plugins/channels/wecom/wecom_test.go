@@ -19,6 +19,20 @@ func testAESKey() string {
 	return base64.StdEncoding.EncodeToString(make([]byte, 32))[:43]
 }
 
+func TestParseMessageMedia(t *testing.T) {
+	img, ok := parseMessage([]byte(`<xml><FromUserName>u1</FromUserName><MsgType>image</MsgType><MediaId>MID1</MediaId><MsgId>2</MsgId></xml>`))
+	if !ok || img.mediaType != "image" || img.mediaID != "MID1" {
+		t.Fatalf("image = %+v ok=%v", img, ok)
+	}
+	voc, ok := parseMessage([]byte(`<xml><FromUserName>u1</FromUserName><MsgType>voice</MsgType><MediaId>MID2</MediaId><MsgId>3</MsgId></xml>`))
+	if !ok || voc.mediaType != "audio" || voc.mediaID != "MID2" {
+		t.Fatalf("voice = %+v ok=%v", voc, ok)
+	}
+	if _, ok := parseMessage([]byte(`<xml><MsgType>location</MsgType></xml>`)); ok {
+		t.Fatal("location should be dropped")
+	}
+}
+
 func TestEncryptDecryptRoundTrip(t *testing.T) {
 	c := New(Config{AESKey: testAESKey()})
 	inner := `<xml><FromUserName><![CDATA[user1]]></FromUserName><MsgType><![CDATA[text]]></MsgType><Content><![CDATA[hello]]></Content><MsgId>99</MsgId></xml>`
