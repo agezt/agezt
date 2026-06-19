@@ -18,6 +18,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/subtle"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -134,10 +135,18 @@ func (c *Channel) Handler() http.Handler {
 
 // inbound is one normalized inbound message extracted from a BlueBubbles webhook.
 type inbound struct {
-	chatGUID string // reply target (chats[0].guid)
-	sender   string // handle address, for the allowlist
-	text     string
-	id       string // message guid for dedup
+	chatGUID    string // reply target (chats[0].guid)
+	sender      string // handle address, for the allowlist
+	text        string
+	id          string // message guid for dedup
+	attachments []imAttachment
+}
+
+// imAttachment is one inbound BlueBubbles attachment (downloaded by guid).
+type imAttachment struct {
+	guid string
+	mime string
+	name string
 }
 
 func (c *Channel) handleInbound(w http.ResponseWriter, r *http.Request) {
@@ -169,7 +178,7 @@ func (c *Channel) dispatch(ctx context.Context, m inbound) {
 	if target == "" {
 		target = m.sender
 	}
-	if target == "" || strings.TrimSpace(m.text) == "" {
+	if target == "" || (strings.TrimSpace(m.text) == "" && len(m.attachments) == 0) {
 		return
 	}
 	if m.id != "" && c.seenBefore(m.id) {
@@ -188,6 +197,20 @@ func (c *Channel) dispatch(ctx context.Context, m inbound) {
 	}
 	corr := "chan-" + ulid.New()
 	allowed := c.cfg.Allowlist.Allows(key)
+	// Inbound attachments: download image/audio (allowlisted senders only) so a
+	// voice clip is transcribed and an image reaches a vision model.
+	if allowed {
+		for _, a := range m.attachments {
+			du := c.fetchAttachmentData(ctx, a)
+			switch {
+			case du == "":
+			case strings.HasPrefix(a.mime, "audio/"):
+				msg.Audio = append(msg.Audio, du)
+			case strings.HasPrefix(a.mime, "image/"):
+				msg.Images = append(msg.Images, du)
+			}
+		}
+	}
 	c.emitInbound(msg, corr, allowed)
 	if !allowed || c.cfg.Handler == nil {
 		return
@@ -334,6 +357,39 @@ func (c *Channel) emitInbound(msg channel.UnifiedMessage, corr string, allowed b
 	})
 }
 
+// fetchAttachmentData downloads a BlueBubbles attachment by guid and returns it
+// as an inline data: URL. Best-effort: returns "" on any failure.
+func (c *Channel) fetchAttachmentData(ctx context.Context, a imAttachment) string {
+	endpoint := c.base + "/api/v1/attachment/" + url.PathEscape(a.guid) + "/download"
+	if c.cfg.Password != "" {
+		endpoint += "?password=" + url.QueryEscape(c.cfg.Password)
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return ""
+	}
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return ""
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode/100 != 2 {
+		return ""
+	}
+	data, err := io.ReadAll(io.LimitReader(resp.Body, 16<<20+1))
+	if err != nil || len(data) == 0 || len(data) > 16<<20 {
+		return ""
+	}
+	mime := a.mime
+	if mime == "" {
+		mime = resp.Header.Get("Content-Type")
+	}
+	if mime == "" {
+		mime = "application/octet-stream"
+	}
+	return "data:" + mime + ";base64," + base64.StdEncoding.EncodeToString(data)
+}
+
 // seenBefore reports whether a message guid was already processed (replay guard),
 // recording it otherwise. Bounded by a small ring.
 func (c *Channel) seenBefore(id string) bool {
@@ -369,6 +425,11 @@ func parseWebhook(body []byte) (inbound, bool) {
 			Chats []struct {
 				GUID string `json:"guid"`
 			} `json:"chats"`
+			Attachments []struct {
+				GUID         string `json:"guid"`
+				MimeType     string `json:"mimeType"`
+				TransferName string `json:"transferName"`
+			} `json:"attachments"`
 		} `json:"data"`
 	}
 	if err := json.Unmarshal(body, &w); err != nil {
@@ -384,11 +445,19 @@ func parseWebhook(body []byte) (inbound, bool) {
 	if len(w.Data.Chats) > 0 {
 		chat = w.Data.Chats[0].GUID
 	}
+	var atts []imAttachment
+	for _, a := range w.Data.Attachments {
+		if a.GUID == "" {
+			continue
+		}
+		atts = append(atts, imAttachment{guid: a.GUID, mime: a.MimeType, name: a.TransferName})
+	}
 	return inbound{
-		chatGUID: chat,
-		sender:   w.Data.Handle.Address,
-		text:     w.Data.Text,
-		id:       w.Data.GUID,
+		chatGUID:    chat,
+		sender:      w.Data.Handle.Address,
+		text:        w.Data.Text,
+		id:          w.Data.GUID,
+		attachments: atts,
 	}, true
 }
 

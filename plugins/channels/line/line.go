@@ -132,6 +132,7 @@ type inbound struct {
 	replyToken string
 	text       string
 	id         string
+	mediaType  string // "image" | "audio" for media messages (id is the content id)
 }
 
 func (c *Channel) handleInbound(w http.ResponseWriter, r *http.Request) {
@@ -155,7 +156,7 @@ func (c *Channel) handleInbound(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *Channel) dispatch(ctx context.Context, m inbound) {
-	if m.userID == "" || strings.TrimSpace(m.text) == "" {
+	if m.userID == "" || (strings.TrimSpace(m.text) == "" && m.mediaType == "") {
 		return
 	}
 	if m.id != "" && c.seenBefore(m.id) {
@@ -170,6 +171,17 @@ func (c *Channel) dispatch(ctx context.Context, m inbound) {
 	}
 	corr := "chan-" + ulid.New()
 	allowed := c.cfg.Allowlist.Allows(m.userID)
+	// Inbound media: fetch the message content (allowlisted senders only) so a
+	// voice clip is transcribed and an image reaches a vision model.
+	if allowed && m.mediaType != "" {
+		if du := c.fetchContent(ctx, m.id, m.mediaType); du != "" {
+			if m.mediaType == "audio" {
+				msg.Audio = []string{du}
+			} else {
+				msg.Images = []string{du}
+			}
+		}
+	}
 	c.emitInbound(msg, corr, allowed)
 	if !allowed || c.cfg.Handler == nil {
 		return
@@ -285,6 +297,47 @@ func textMessages(text string) []map[string]any {
 	return msgs
 }
 
+// fetchContent downloads a LINE message's binary content (image/audio) from the
+// content host and returns it as an inline data: URL. Best-effort: returns ""
+// on any failure.
+func (c *Channel) fetchContent(ctx context.Context, messageID, kind string) string {
+	if messageID == "" {
+		return ""
+	}
+	base := c.apiBase
+	if base == defaultAPIBase {
+		base = "https://api-data.line.me" // LINE serves content from a separate host
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, base+"/v2/bot/message/"+messageID+"/content", nil)
+	if err != nil {
+		return ""
+	}
+	if c.cfg.AccessToken != "" {
+		req.Header.Set("Authorization", "Bearer "+c.cfg.AccessToken)
+	}
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return ""
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode/100 != 2 {
+		return ""
+	}
+	data, err := io.ReadAll(io.LimitReader(resp.Body, 16<<20+1))
+	if err != nil || len(data) == 0 || len(data) > 16<<20 {
+		return ""
+	}
+	mime := resp.Header.Get("Content-Type")
+	if mime == "" {
+		if kind == "audio" {
+			mime = "audio/m4a"
+		} else {
+			mime = "image/jpeg"
+		}
+	}
+	return "data:" + mime + ";base64," + base64.StdEncoding.EncodeToString(data)
+}
+
 // validSignature checks X-Line-Signature = base64(HMAC-SHA256(secret, body)).
 func validSignature(secret string, body []byte, header string) bool {
 	mac := hmac.New(sha256.New, []byte(secret))
@@ -316,14 +369,25 @@ func parseWebhook(body []byte) []inbound {
 	}
 	var out []inbound
 	for _, e := range w.Events {
-		if e.Type != "message" || e.Message.Type != "text" {
+		if e.Type != "message" {
 			continue
 		}
 		from := e.Source.UserID
 		if from == "" {
 			from = e.Source.GroupID
 		}
-		out = append(out, inbound{userID: from, replyToken: e.ReplyToken, text: e.Message.Text, id: e.Message.ID})
+		in := inbound{userID: from, replyToken: e.ReplyToken, id: e.Message.ID}
+		switch e.Message.Type {
+		case "text":
+			in.text = e.Message.Text
+		case "image":
+			in.mediaType = "image"
+		case "audio":
+			in.mediaType = "audio"
+		default:
+			continue
+		}
+		out = append(out, in)
 	}
 	return out
 }
