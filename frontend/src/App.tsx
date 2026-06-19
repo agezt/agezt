@@ -112,6 +112,7 @@ import { ConfigCenter } from "@/views/ConfigCenter";
 import { Cache } from "@/views/Cache";
 import { Providers } from "@/views/Providers";
 import { QuickConnect } from "@/views/QuickConnect";
+import { Connections } from "@/views/Connections";
 import { Tools } from "@/views/Tools";
 import { Catalog } from "@/views/Catalog";
 import { Models } from "@/views/Models";
@@ -269,6 +270,7 @@ const NAV_GROUPS: NavGroup[] = [
       { id: "prompts", label: "Prompts", icon: MessageSquarePlus, render: Prompts },
       { id: "configcenter", label: "Config Center", icon: SlidersHorizontal, render: ConfigCenter },
       { id: "config", label: "Config", icon: Settings, render: Config },
+      { id: "connections", label: "Connections", icon: Network, render: Connections },
       { id: "quickconnect", label: "Quick Connect", icon: Plug, render: QuickConnect },
       { id: "providers", label: "Providers", icon: Cpu, render: Providers },
       { id: "models", label: "Models", icon: Layers, render: Models },

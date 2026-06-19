@@ -2008,6 +2008,36 @@ export const HELP: Record<string, HelpTopic> = {
     ],
   },
 
+  connections: {
+    title: "Connections",
+    intro:
+      "One cockpit for everything you've wired up — AI providers, communication channels, and MCP servers — and what still needs connecting. Read-only; each section links to the place you manage it.",
+    sections: [
+      {
+        heading: "What it shows",
+        items: [
+          {
+            term: "AI Providers",
+            desc: "How many providers are keyed (have a usable credential) out of the catalog total, with the connected ones listed. 'Connect a provider' jumps to Quick Connect.",
+          },
+          {
+            term: "Channels",
+            desc: "Channels that are live (running) and those configured-but-not-yet-started (restart to start). 'Manage channels' opens the Channels wizard.",
+          },
+          {
+            term: "MCP Servers",
+            desc: "MCP servers attached to the agent (and those enabled but not attached). 'Manage MCP' opens the MCP view.",
+          },
+        ],
+      },
+    ],
+    tips: ["Green = connected/live/attached; amber = configured but needs a restart or attach."],
+    related: [
+      { id: "quickconnect", label: "Quick Connect" },
+      { id: "channels", label: "Channels" },
+      { id: "mcp", label: "MCP Servers" },
+    ],
+  },
   quickconnect: {
     title: "Quick Connect",
     intro:

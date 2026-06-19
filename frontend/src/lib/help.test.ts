@@ -19,7 +19,7 @@ const NAV_IDS = [
   "toolbox", "market", "channels",
   // System
   "overview", "setup", "system", "persona", "prompts", "configcenter", "config",
-  "quickconnect", "providers", "models", "routing", "chains", "tools", "catalog", "policy", "cache", "storage", "backup",
+  "connections", "quickconnect", "providers", "models", "routing", "chains", "tools", "catalog", "policy", "cache", "storage", "backup",
 ];
 
 describe("help content coverage", () => {

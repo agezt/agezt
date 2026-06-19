@@ -1,0 +1,176 @@
+import { useEffect, useMemo, useState } from "react";
+import { Network, Plug, Radio, Boxes, ArrowRight, RefreshCw } from "lucide-react";
+import { getJSON } from "@/lib/api";
+import { cn } from "@/lib/utils";
+import { PageHeader } from "@/components/ui/page-header";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { SkeletonList } from "@/components/ui/skeleton";
+
+// Connections — one cockpit for "what's actually wired up": AI providers
+// (credentialed?), channels (live/configured?), and MCP servers (attached?).
+// Read-only aggregation over the existing endpoints; each section links to the
+// place you connect/manage it. Answers the "am I connected?" question at a glance.
+
+interface Provider { id: string; name?: string; credentialed?: boolean }
+interface ChannelRow { kind: string; display?: string; live?: boolean; configured?: boolean }
+interface MCPServer { name: string; enabled?: boolean; attached?: boolean }
+
+function go(id: string) {
+  return () => {
+    location.hash = id;
+  };
+}
+
+function Dot({ tone }: { tone: "good" | "warn" | "muted" }) {
+  return <span className={cn("inline-block size-2 rounded-full", tone === "good" ? "bg-good" : tone === "warn" ? "bg-warn" : "bg-muted/40")} />;
+}
+
+export function Connections() {
+  const [providers, setProviders] = useState<Provider[] | null>(null);
+  const [channels, setChannels] = useState<ChannelRow[] | null>(null);
+  const [servers, setServers] = useState<MCPServer[] | null>(null);
+  const [err, setErr] = useState("");
+  const [loading, setLoading] = useState(true);
+
+  async function load() {
+    setLoading(true);
+    setErr("");
+    try {
+      const [cat, ch, mcp] = await Promise.all([
+        getJSON<{ providers?: Provider[] }>("/api/catalog").catch(() => ({ providers: [] })),
+        getJSON<{ channels?: ChannelRow[] }>("/api/channels").catch(() => ({ channels: [] })),
+        getJSON<{ servers?: MCPServer[] }>("/api/mcp").catch(() => ({ servers: [] })),
+      ]);
+      setProviders(cat.providers || []);
+      setChannels(ch.channels || []);
+      setServers(mcp.servers || []);
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  }
+  useEffect(() => {
+    load();
+  }, []);
+
+  const keyed = useMemo(() => (providers || []).filter((p) => p.credentialed), [providers]);
+  const liveCh = useMemo(() => (channels || []).filter((c) => c.live), [channels]);
+  const configuredCh = useMemo(() => (channels || []).filter((c) => c.configured && !c.live), [channels]);
+  const attached = useMemo(() => (servers || []).filter((s) => s.attached), [servers]);
+  const enabledOnly = useMemo(() => (servers || []).filter((s) => s.enabled && !s.attached), [servers]);
+
+  return (
+    <div className="space-y-6">
+      <PageHeader
+        icon={Network}
+        title="Connections"
+        description="Everything you've wired up — providers, channels and MCP servers — and what still needs connecting."
+        actions={
+          <Button variant="ghost" size="sm" onClick={load} disabled={loading}>
+            <RefreshCw className={cn("size-3.5", loading && "animate-spin")} /> Refresh
+          </Button>
+        }
+      />
+
+      {err && <p className="text-sm text-bad">{err}</p>}
+      {loading && !providers ? (
+        <SkeletonList count={3} />
+      ) : (
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+          <SectionCard
+            icon={Plug}
+            title="AI Providers"
+            connected={keyed.length}
+            total={(providers || []).length}
+            connectedLabel="keyed"
+            items={keyed.map((p) => ({ key: p.id, label: p.name || p.id, tone: "good" as const }))}
+            emptyHint="No provider connected yet — add a key or connect a local model."
+            actionLabel="Connect a provider"
+            onAction={go("quickconnect")}
+          />
+          <SectionCard
+            icon={Radio}
+            title="Channels"
+            connected={liveCh.length}
+            total={(channels || []).length}
+            connectedLabel="live"
+            items={[
+              ...liveCh.map((c) => ({ key: c.kind, label: c.display || c.kind, tone: "good" as const })),
+              ...configuredCh.map((c) => ({ key: c.kind, label: `${c.display || c.kind} (restart to start)`, tone: "warn" as const })),
+            ]}
+            emptyHint="No channel live — set one up to reach the agent from Telegram, WhatsApp, …"
+            actionLabel="Manage channels"
+            onAction={go("channels")}
+          />
+          <SectionCard
+            icon={Boxes}
+            title="MCP Servers"
+            connected={attached.length}
+            total={(servers || []).length}
+            connectedLabel="attached"
+            items={[
+              ...attached.map((s) => ({ key: s.name, label: s.name, tone: "good" as const })),
+              ...enabledOnly.map((s) => ({ key: s.name, label: `${s.name} (enabled)`, tone: "warn" as const })),
+            ]}
+            emptyHint="No MCP server attached — add one to give agents extra tools."
+            actionLabel="Manage MCP"
+            onAction={go("mcp")}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SectionCard({
+  icon: Icon,
+  title,
+  connected,
+  total,
+  connectedLabel,
+  items,
+  emptyHint,
+  actionLabel,
+  onAction,
+}: {
+  icon: typeof Plug;
+  title: string;
+  connected: number;
+  total: number;
+  connectedLabel: string;
+  items: { key: string; label: string; tone: "good" | "warn" | "muted" }[];
+  emptyHint: string;
+  actionLabel: string;
+  onAction: () => void;
+}) {
+  return (
+    <Card glass className="flex flex-col gap-3 p-4">
+      <div className="flex items-center gap-2">
+        <Icon className="size-4 text-accent" />
+        <span className="text-sm font-semibold">{title}</span>
+        <span className="ml-auto text-[11px] text-muted">
+          <span className="font-semibold text-fg">{connected}</span> {connectedLabel}
+          {total > 0 && <span className="text-muted"> / {total}</span>}
+        </span>
+      </div>
+      <div className="flex min-h-16 flex-col gap-1">
+        {items.length === 0 ? (
+          <p className="text-[11px] text-muted">{emptyHint}</p>
+        ) : (
+          items.slice(0, 8).map((it) => (
+            <div key={it.key + it.label} className="flex items-center gap-2 text-xs">
+              <Dot tone={it.tone} />
+              <span className="truncate">{it.label}</span>
+            </div>
+          ))
+        )}
+        {items.length > 8 && <span className="text-[10px] text-muted">+{items.length - 8} more</span>}
+      </div>
+      <Button variant="ghost" size="sm" onClick={onAction} className="mt-auto justify-start">
+        {actionLabel} <ArrowRight className="size-3.5" />
+      </Button>
+    </Card>
+  );
+}
