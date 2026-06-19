@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -139,9 +140,14 @@ func (c *Channel) handleInbound(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	m, ts, ok := parseEvent(body)
-	if c.cfg.Secret != "" && !c.validSignature(body, ts, r.Header.Get("X-ZEvent-Signature")) {
-		http.Error(w, "forbidden", http.StatusForbidden)
-		return
+	if c.cfg.Secret != "" {
+		// Verify the signature AND reject stale timestamps (±5 min) so a captured
+		// signed event can't be replayed indefinitely. (msg_id replay is also
+		// caught by the dedup ring in dispatch.)
+		if !c.validSignature(body, ts, r.Header.Get("X-ZEvent-Signature")) || !freshTimestamp(ts) {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
 	}
 	w.WriteHeader(http.StatusOK)
 	if ok {
@@ -261,6 +267,17 @@ func (c *Channel) seenBefore(id string) bool {
 }
 
 // ---- wire shapes ---------------------------------------------------------
+
+// freshTimestamp reports whether a Zalo epoch-ms timestamp is within ±5 minutes
+// of now — the replay window for signed events.
+func freshTimestamp(ts string) bool {
+	ms, err := strconv.ParseInt(strings.TrimSpace(ts), 10, 64)
+	if err != nil {
+		return false
+	}
+	d := time.Now().UnixMilli() - ms
+	return d <= 5*60*1000 && d >= -5*60*1000
+}
 
 // validSignature checks Zalo's signature: sha256(appId + body + timestamp +
 // secret), hex, optionally prefixed "mac=".

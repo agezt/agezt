@@ -10,7 +10,9 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
+	"time"
 
 	"github.com/agezt/agezt/kernel/channel"
 )
@@ -92,5 +94,18 @@ func TestDispatchAllowlist(t *testing.T) {
 	c.dispatch(context.Background(), inbound{sender: "U2", text: "ping", id: "M2"}) // not allowed
 	if hits != 1 {
 		t.Fatalf("expected 1 send, got %d", hits)
+	}
+}
+
+func TestFreshTimestamp(t *testing.T) {
+	now := time.Now().UnixMilli()
+	if !freshTimestamp(strconv.FormatInt(now, 10)) {
+		t.Fatal("current timestamp rejected")
+	}
+	if freshTimestamp("1700000000000") {
+		t.Fatal("stale timestamp accepted")
+	}
+	if freshTimestamp("not-a-number") {
+		t.Fatal("garbage timestamp accepted")
 	}
 }
