@@ -417,6 +417,9 @@ var jsonRoutes = map[string]writeRoute{
 	// Quick Connect (provider gallery): register a provider in custom.json + reload.
 	// JSON body (id, name, npm, api, env, model); the key follows on keys/add.
 	"/api/provider/connect": {controlplane.CmdProviderConnect, []string{"id", "name", "npm", "api", "env", "model"}},
+	// WhatsApp gateway connection probe (key in body → jsonRoute): is the WAHA/
+	// Evolution session logged in? Lets the Channels wizard show connected vs scan-QR.
+	"/api/whatsappgw/status": {controlplane.CmdWhatsAppGatewayStatus, []string{"url", "backend", "session", "key"}},
 	// Per-task model routing (M703): replace the model chains. `chains` is an
 	// object {task: [models]} too large/structured for a query arg.
 	"/api/routing/set": {controlplane.CmdRoutingSet, []string{"chains"}},

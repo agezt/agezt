@@ -48,7 +48,30 @@ export function Channels() {
   const [saving, setSaving] = useState(false);
   const [testTo, setTestTo] = useState("");
   const [testing, setTesting] = useState(false);
+  const [gwStatus, setGwStatus] = useState<{ ok: boolean; connected?: boolean; status?: string; error?: string } | null>(null);
+  const [gwChecking, setGwChecking] = useState(false);
   const ui = useUI();
+
+  // checkGateway probes a WhatsApp gateway (WAHA/Evolution) for whether its
+  // session is logged in, using the current form values. The key (if typed this
+  // session) rides in the body; otherwise the probe runs keyless.
+  async function checkGateway() {
+    setGwChecking(true);
+    setGwStatus(null);
+    try {
+      const r = await postJSON<{ ok: boolean; connected?: boolean; status?: string; error?: string }>("/api/whatsappgw/status", {
+        url: draft["AGEZT_WHATSAPPGW_URL"] || "",
+        backend: draft["AGEZT_WHATSAPPGW_BACKEND"] || "",
+        session: draft["AGEZT_WHATSAPPGW_SESSION"] || "",
+        key: draft["AGEZT_WHATSAPPGW_KEY"] || "",
+      });
+      setGwStatus(r);
+    } catch (e) {
+      setGwStatus({ ok: false, error: (e as Error).message });
+    } finally {
+      setGwChecking(false);
+    }
+  }
 
   async function sendTest(r: ChannelRow) {
     setTesting(true);
@@ -92,6 +115,7 @@ export function Channels() {
     for (const f of r.fields) if (!f.secret && f.value) seed[f.env] = f.value;
     setDraft(seed);
     setTestTo("");
+    setGwStatus(null);
     setOpenKind(r.kind);
   }
 
@@ -212,6 +236,34 @@ export function Channels() {
                     </Button>
                     <span className="text-[10px] text-muted">Secrets are stored in the vault. Restart to apply.</span>
                   </div>
+
+                  {r.kind === "whatsappgw" && (
+                    <div className="mt-1 flex flex-wrap items-center gap-2 border-t border-border/40 pt-2">
+                      <Button variant="ghost" size="sm" disabled={gwChecking || !draft["AGEZT_WHATSAPPGW_URL"]} onClick={checkGateway}>
+                        {gwChecking ? <RefreshCw className="size-3.5 animate-spin" /> : <Check className="size-3.5" />}
+                        Check connection
+                      </Button>
+                      {gwStatus && (
+                        gwStatus.ok ? (
+                          <span className={cn("text-[11px]", gwStatus.connected ? "text-good" : "text-warn")}>
+                            {gwStatus.connected ? "✓ logged in & ready" : `not logged in (${gwStatus.status || "scan the QR"})`}
+                          </span>
+                        ) : (
+                          <span className="text-[11px] text-bad">{gwStatus.error || "probe failed"}</span>
+                        )
+                      )}
+                      {draft["AGEZT_WHATSAPPGW_URL"] && !gwStatus?.connected && (
+                        <a
+                          href={draft["AGEZT_WHATSAPPGW_URL"]}
+                          target="_blank"
+                          rel="noreferrer noopener"
+                          className="inline-flex items-center gap-0.5 text-[11px] text-accent hover:underline"
+                        >
+                          Open gateway to scan QR <ExternalLink className="size-3" />
+                        </a>
+                      )}
+                    </div>
+                  )}
 
                   <div className="mt-1 flex flex-wrap items-center gap-1.5 border-t border-border/40 pt-2">
                     <span className="text-[11px] text-muted">Test:</span>

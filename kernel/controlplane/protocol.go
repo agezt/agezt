@@ -62,6 +62,10 @@ const (
 	// Connect" gallery (args: id, name, npm, api, env, model). The API key is
 	// added separately via CmdProviderKeyAdd (secret path).
 	CmdProviderConnect = "provider_connect"
+	// CmdWhatsAppGatewayStatus probes a self-hosted WhatsApp gateway (WAHA/
+	// Evolution) for whether its session is logged in (args: url, backend,
+	// session, key). Lets the Channels wizard show connected vs scan-QR.
+	CmdWhatsAppGatewayStatus = "whatsappgw_status"
 	// Provider keyring (M700): store many API keys per provider env var and pick
 	// the active one. List never returns values (label + active + last-4 only).
 	// Add/Activate/Remove mutate the vault and reload the provider in place.

@@ -48,7 +48,39 @@ beforeEach(() => {
   postJSON.mockResolvedValue({});
 });
 
+const WGW_ONLY = [
+  {
+    kind: "whatsappgw",
+    display: "WhatsApp (Gateway)",
+    description: "WAHA/Evolution",
+    transport: "rest",
+    duplex: true,
+    configured: true,
+    live: false,
+    fields: [
+      { env: "AGEZT_WHATSAPPGW_URL", label: "Gateway URL", set: true, value: "http://localhost:3000" },
+      { env: "AGEZT_WHATSAPPGW_BACKEND", label: "Backend", set: true, value: "waha" },
+    ],
+  },
+];
+
 describe("Channels", () => {
+  it("probes the WhatsApp gateway connection", async () => {
+    getJSON.mockResolvedValue({ channels: WGW_ONLY });
+    postJSON.mockResolvedValue({ ok: true, connected: true, status: "WORKING" });
+    render(withUI(<Channels />));
+    await screen.findByText("WhatsApp (Gateway)");
+    fireEvent.click(screen.getByRole("button", { name: /edit/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /check connection/i }));
+    await waitFor(() =>
+      expect(postJSON).toHaveBeenCalledWith("/api/whatsappgw/status", expect.objectContaining({
+        url: "http://localhost:3000",
+        backend: "waha",
+      })),
+    );
+    expect(await screen.findByText(/logged in & ready/i)).toBeTruthy();
+  });
+
   it("lists channels with connected / needs-setup state", async () => {
     render(withUI(<Channels />));
     expect(await screen.findByText("Telegram")).toBeTruthy();
