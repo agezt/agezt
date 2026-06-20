@@ -186,6 +186,8 @@ export function Models() {
         )}
       </p>
 
+      <ChatGPTSignIn onChanged={reload} />
+
       {err ? (
         <ErrorText>{err}</ErrorText>
       ) : !data ? (
@@ -291,6 +293,142 @@ function ProviderCard({
           </table>
         </div>
       )}
+    </div>
+  );
+}
+
+// ChatGPTSignIn is the "Sign in with ChatGPT" card: connect a ChatGPT
+// subscription (Plus/Pro) as a provider via OAuth — no API key. It gates behind
+// an explicit acknowledgement that this uses an unofficial backend, opens the
+// browser authorize flow (redirect lands on the daemon's 127.0.0.1:1455
+// listener), polls to completion, and offers importing a local Codex CLI login.
+function ChatGPTSignIn({ onChanged }: { onChanged: () => void }) {
+  const { toast, confirm } = useUI();
+  const [connected, setConnected] = useState(false);
+  const [email, setEmail] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [status, setStatus] = useState("");
+
+  const refresh = useCallback(async () => {
+    try {
+      const r = await postJSON<{ connected?: boolean; email?: string }>("/api/provider/oauth/status", { state: "" });
+      setConnected(!!r.connected);
+      setEmail(r.email || "");
+    } catch {
+      /* unauthenticated console or daemon down — leave as disconnected */
+    }
+  }, []);
+
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
+
+  async function signIn() {
+    const ok = await confirm({
+      title: "Sign in with ChatGPT?",
+      message:
+        "This connects your ChatGPT subscription via the same login Codex CLI uses. It relies on an unofficial OpenAI backend — it may stop working or violate OpenAI's terms, and only ever uses your own account. Continue?",
+      confirmLabel: "Continue",
+      danger: true,
+    });
+    if (!ok) return;
+    setBusy(true);
+    setStatus("Opening ChatGPT…");
+    try {
+      const r = await postJSON<{ authorize_url?: string; state?: string; error?: string }>(
+        "/api/provider/oauth/start",
+        { provider: "chatgpt" },
+      );
+      if (!r.authorize_url || !r.state) throw new Error(r.error || "could not start sign-in");
+      window.open(r.authorize_url, "_blank", "noopener,noreferrer");
+      setStatus("Waiting for you to authorize in the new tab…");
+      for (let i = 0; i < 90; i++) {
+        await new Promise((res) => setTimeout(res, 2000));
+        const st = await postJSON<{ status?: string; error?: string }>("/api/provider/oauth/status", { state: r.state });
+        if (st.status === "done") {
+          toast("Connected ChatGPT", "success");
+          setStatus("");
+          await refresh();
+          onChanged();
+          return;
+        }
+        if (st.status === "error") throw new Error(st.error || "authorization failed");
+      }
+      throw new Error("timed out waiting for authorization");
+    } catch (e) {
+      setStatus("");
+      toast((e as Error).message, "error");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function importCodex() {
+    setBusy(true);
+    try {
+      const r = await postJSON<{ connected?: boolean; email?: string; error?: string }>(
+        "/api/provider/oauth/import",
+        {},
+      );
+      if (!r.connected) throw new Error(r.error || "no Codex CLI login found");
+      toast("Imported ChatGPT login from Codex CLI", "success");
+      await refresh();
+      onChanged();
+    } catch (e) {
+      toast((e as Error).message, "error");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function disconnect() {
+    setBusy(true);
+    try {
+      await postJSON("/api/provider/oauth/logout", {});
+      toast("Disconnected ChatGPT", "info");
+      await refresh();
+      onChanged();
+    } catch (e) {
+      toast((e as Error).message, "error");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="glass rounded-xl p-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <KeyRound className="size-4 text-accent" />
+        <span className="text-sm font-medium text-foreground">Sign in with ChatGPT</span>
+        {connected ? (
+          <span className="rounded-full bg-good/15 px-2 py-0.5 text-[11px] text-good">
+            connected{email ? ` · ${email}` : ""}
+          </span>
+        ) : (
+          <span className="rounded-full bg-panel px-2 py-0.5 text-[11px] text-muted">not connected</span>
+        )}
+        <div className="ml-auto flex items-center gap-2">
+          {connected ? (
+            <Button variant="ghost" size="sm" onClick={disconnect} disabled={busy}>
+              Disconnect
+            </Button>
+          ) : (
+            <>
+              <Button variant="ghost" size="sm" onClick={importCodex} disabled={busy} title="Use a local `codex login` session">
+                Import from Codex CLI
+              </Button>
+              <Button size="sm" onClick={signIn} disabled={busy}>
+                {busy ? <RefreshCw className="size-3.5 animate-spin" /> : <KeyRound className="size-3.5" />} Sign in with ChatGPT
+              </Button>
+            </>
+          )}
+        </div>
+      </div>
+      <p className="mt-1.5 text-[11px] text-muted">
+        Use your ChatGPT Plus/Pro subscription as a provider (gpt-5-codex) — no API key. Uses an unofficial OpenAI
+        backend (the Codex login); may break or conflict with OpenAI’s terms.
+        {status ? <span className="ml-1 text-foreground">{status}</span> : null}
+      </p>
     </div>
   );
 }
