@@ -12,6 +12,15 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Fixed
+- **Anthropic 400 on tool names — dotted/long names broke every Anthropic chain arm.**
+  The Anthropic adapter sent tool names verbatim, so `browser.read` (and dynamic
+  MCP/forge tools with other characters or >64 chars) tripped Anthropic's
+  `^[a-zA-Z0-9_-]{1,64}$` validation → `400 invalid_request_error`, killing the
+  Anthropic arm of any routing/fallback chain. Tool names are now conformed to a
+  collision-safe wire form before sending (tools array + assistant-history
+  tool_use, streaming and non-streaming) and reversed on the response so calls
+  still route to the real tool — matching the OpenAI adapter's existing behavior.
+
 - **`agt <cmd> -h` is now safe and uniform for every command (M936).** Commands that treat their
   first argument as data used to EXECUTE on `-h` — `agt run -h` literally sent "-h" to the live
   agent as an intent and billed a completion for it. A central interception now answers
