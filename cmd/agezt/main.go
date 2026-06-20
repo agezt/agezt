@@ -33,6 +33,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"reflect"
 	"sort"
 	"strconv"
 	"strings"
@@ -1462,13 +1463,8 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// system POSTs a signed JSON message and gets the agent's reply synchronously;
 	// briefs/`agt send` tee to a configured outbound URL. Enabled when a secret
 	// (inbound) or an outbound URL is set.
-	whChan, whSink, whDesc := buildWebhook(ctx, k)
-	if whChan != nil {
-		go whChan.Start(ctx)
-		fmt.Fprintf(stdout, "  webhook channel  : %s\n", whDesc)
-	} else {
-		fmt.Fprintf(stdout, "  webhook channel  : disabled (set AGEZT_WEBHOOK_SECRET + AGEZT_WEBHOOK_ADDR)\n")
-	}
+	whInsts := buildAccountsLegacy(ctx, k, "webhook", buildWebhook)
+	startInstances(ctx, stdout, "webhook", "webhook channel", "disabled (set AGEZT_WEBHOOK_SECRET + AGEZT_WEBHOOK_ADDR)", whInsts)
 
 	// Email channel (SPEC-04 §1) — outbound-only over SMTP. Briefs/`agt send` mail
 	// the allowlisted recipients. Enabled when AGEZT_EMAIL_SMTP_ADDR is set.
@@ -1485,123 +1481,69 @@ func runDaemon(stdout, stderr io.Writer) int {
 	startInstances(ctx, stdout, "matrix", "matrix channel", "disabled (set AGEZT_MATRIX_HOMESERVER + AGEZT_MATRIX_TOKEN)", mxInsts)
 
 	// IRC channel (SPEC-04 §1) — two-way over a persistent socket to any ircd.
-	ircChan, ircSink, ircDesc := buildIRC(ctx, k)
-	if ircChan != nil {
-		go ircChan.Start(ctx)
-		fmt.Fprintf(stdout, "  irc channel      : %s\n", ircDesc)
-	} else {
-		fmt.Fprintf(stdout, "  irc channel      : disabled (set AGEZT_IRC_SERVER + AGEZT_IRC_NICK)\n")
-	}
+	ircInsts := buildAccountsLegacy(ctx, k, "irc", buildIRC)
+	startInstances(ctx, stdout, "irc", "irc channel", "disabled (set AGEZT_IRC_SERVER + AGEZT_IRC_NICK)", ircInsts)
 
 	// Twitch chat (SPEC-04 §1) — IRC over Twitch's server; reuses the IRC channel.
-	twChan, twSink, twDesc := buildTwitch(ctx, k)
-	if twChan != nil {
-		go twChan.Start(ctx)
-		fmt.Fprintf(stdout, "  twitch channel   : %s\n", twDesc)
-	} else {
-		fmt.Fprintf(stdout, "  twitch channel   : disabled (set AGEZT_TWITCH_USERNAME + AGEZT_TWITCH_TOKEN)\n")
-	}
+	twInsts := buildAccountsLegacy(ctx, k, "twitch", buildTwitch)
+	startInstances(ctx, stdout, "twitch", "twitch channel", "disabled (set AGEZT_TWITCH_USERNAME + AGEZT_TWITCH_TOKEN)", twInsts)
 
 	// WhatsApp via a self-hosted gateway (WAHA/Evolution) — the easy WhatsApp path.
-	wgChan, wgSink, wgDesc := buildWhatsAppGateway(ctx, k)
-	if wgChan != nil {
-		go wgChan.Start(ctx)
-		fmt.Fprintf(stdout, "  whatsapp gateway : %s\n", wgDesc)
-	} else {
-		fmt.Fprintf(stdout, "  whatsapp gateway : disabled (set AGEZT_WHATSAPPGW_URL)\n")
-	}
+	wgInsts := buildAccountsLegacy(ctx, k, "whatsappgw", buildWhatsAppGateway)
+	startInstances(ctx, stdout, "whatsappgw", "whatsapp gateway", "disabled (set AGEZT_WHATSAPPGW_URL)", wgInsts)
 
 	// iMessage via a self-hosted BlueBubbles server — the Mac-bridge iMessage path.
-	imChan, imSink, imDesc := buildIMessage(ctx, k)
-	if imChan != nil {
-		go imChan.Start(ctx)
-		fmt.Fprintf(stdout, "  imessage channel : %s\n", imDesc)
-	} else {
-		fmt.Fprintf(stdout, "  imessage channel : disabled (set AGEZT_IMESSAGE_URL)\n")
-	}
+	imInsts := buildAccountsLegacy(ctx, k, "imessage", buildIMessage)
+	startInstances(ctx, stdout, "imessage", "imessage channel", "disabled (set AGEZT_IMESSAGE_URL)", imInsts)
 
 	// LINE two-way (official Messaging API) — supersedes the outbound-only push
 	// LINE when a channel secret is set.
-	lnChan, lnSink, lnDesc := buildLine(ctx, k)
-	if lnChan != nil {
-		go lnChan.Start(ctx)
-		fmt.Fprintf(stdout, "  line channel     : %s\n", lnDesc)
-	}
+	lnInsts := buildAccountsLegacy(ctx, k, "line", buildLine)
+	startInstances(ctx, stdout, "line", "line channel", "", lnInsts)
 
 	// Two-way Google Chat / Mattermost (incoming webhook out + webhook in) —
 	// supersede the outbound-only push entries when an inbound addr is set.
-	gcChan, gcSink, gcDesc := buildChatWebhook(ctx, k, chatwebhook.KindGoogleChat, "GOOGLECHAT")
-	if gcChan != nil {
-		go gcChan.Start(ctx)
-		fmt.Fprintf(stdout, "  googlechat (2way): %s\n", gcDesc)
-	}
-	mmChan, mmSink, mmDesc := buildChatWebhook(ctx, k, chatwebhook.KindMattermost, "MATTERMOST")
-	if mmChan != nil {
-		go mmChan.Start(ctx)
-		fmt.Fprintf(stdout, "  mattermost (2way): %s\n", mmDesc)
-	}
+	gcInsts := buildAccountsLegacy(ctx, k, "googlechat", func(c context.Context, kk *kernelruntime.Kernel) (*chatwebhook.Channel, pulse.BriefSink, string) {
+		return buildChatWebhook(c, kk, chatwebhook.KindGoogleChat, "GOOGLECHAT")
+	})
+	startInstances(ctx, stdout, "googlechat", "googlechat (2way)", "", gcInsts)
+	mmInsts := buildAccountsLegacy(ctx, k, "mattermost", func(c context.Context, kk *kernelruntime.Kernel) (*chatwebhook.Channel, pulse.BriefSink, string) {
+		return buildChatWebhook(c, kk, chatwebhook.KindMattermost, "MATTERMOST")
+	})
+	startInstances(ctx, stdout, "mattermost", "mattermost (2way)", "", mmInsts)
 
 	// DingTalk / Feishu / WeCom two-way (China enterprise platforms).
-	dtChan, dtSink, dtDesc := buildDingTalk(ctx, k)
-	if dtChan != nil {
-		go dtChan.Start(ctx)
-		fmt.Fprintf(stdout, "  dingtalk (2way)  : %s\n", dtDesc)
-	}
-	fsChan, fsSink, fsDesc := buildFeishu(ctx, k)
-	if fsChan != nil {
-		go fsChan.Start(ctx)
-		fmt.Fprintf(stdout, "  feishu (2way)    : %s\n", fsDesc)
-	}
-	wcChan, wcSink, wcDesc := buildWeCom(ctx, k)
-	if wcChan != nil {
-		go wcChan.Start(ctx)
-		fmt.Fprintf(stdout, "  wecom (2way)     : %s\n", wcDesc)
-	}
+	dtInsts := buildAccountsLegacy(ctx, k, "dingtalk", buildDingTalk)
+	startInstances(ctx, stdout, "dingtalk", "dingtalk (2way)", "", dtInsts)
+	fsInsts := buildAccountsLegacy(ctx, k, "feishu", buildFeishu)
+	startInstances(ctx, stdout, "feishu", "feishu (2way)", "", fsInsts)
+	wcInsts := buildAccountsLegacy(ctx, k, "wecom", buildWeCom)
+	startInstances(ctx, stdout, "wecom", "wecom (2way)", "", wcInsts)
 
 	// QQ / WeChat via a OneBot v11 gateway; Zalo via the Official Account API.
-	qqChan, qqSink, qqDesc := buildOneBot(ctx, k, "qq", "QQ")
-	if qqChan != nil {
-		go qqChan.Start(ctx)
-		fmt.Fprintf(stdout, "  qq channel       : %s\n", qqDesc)
-	}
-	wxChan, wxSink, wxDesc := buildOneBot(ctx, k, "wechat", "WECHAT")
-	if wxChan != nil {
-		go wxChan.Start(ctx)
-		fmt.Fprintf(stdout, "  wechat channel   : %s\n", wxDesc)
-	}
-	zlChan, zlSink, zlDesc := buildZalo(ctx, k)
-	if zlChan != nil {
-		go zlChan.Start(ctx)
-		fmt.Fprintf(stdout, "  zalo channel     : %s\n", zlDesc)
-	}
-	nctChan, nctSink, nctDesc := buildNextcloudTalk(ctx, k)
-	if nctChan != nil {
-		go nctChan.Start(ctx)
-		fmt.Fprintf(stdout, "  nextcloud talk   : %s\n", nctDesc)
-	}
-	maChan, maSink, maDesc := buildMastodon(ctx, k)
-	if maChan != nil {
-		go maChan.Start(ctx)
-		fmt.Fprintf(stdout, "  mastodon channel : %s\n", maDesc)
-	}
-	noChan, noSink, noDesc := buildNostr(ctx, k)
-	if noChan != nil {
-		go noChan.Start(ctx)
-		npub, _ := nostr.EncodeNpub(noChan.PubHex())
-		fmt.Fprintf(stdout, "  nostr channel    : %s (%s)\n", noDesc, npub)
-	}
+	qqInsts := buildAccountsLegacy(ctx, k, "qq", func(c context.Context, kk *kernelruntime.Kernel) (*onebot.Channel, pulse.BriefSink, string) {
+		return buildOneBot(c, kk, "qq", "QQ")
+	})
+	startInstances(ctx, stdout, "qq", "qq channel", "", qqInsts)
+	wxInsts := buildAccountsLegacy(ctx, k, "wechat", func(c context.Context, kk *kernelruntime.Kernel) (*onebot.Channel, pulse.BriefSink, string) {
+		return buildOneBot(c, kk, "wechat", "WECHAT")
+	})
+	startInstances(ctx, stdout, "wechat", "wechat channel", "", wxInsts)
+	zlInsts := buildAccountsLegacy(ctx, k, "zalo", buildZalo)
+	startInstances(ctx, stdout, "zalo", "zalo channel", "", zlInsts)
+	nctInsts := buildAccountsLegacy(ctx, k, "nextcloudtalk", buildNextcloudTalk)
+	startInstances(ctx, stdout, "nextcloudtalk", "nextcloud talk", "", nctInsts)
+	maInsts := buildAccountsLegacy(ctx, k, "mastodon", buildMastodon)
+	startInstances(ctx, stdout, "mastodon", "mastodon channel", "", maInsts)
+	noInsts := buildAccountsLegacy(ctx, k, "nostr", buildNostr)
+	startInstances(ctx, stdout, "nostr", "nostr channel", "", noInsts)
 
 	// SMS channel (SPEC-04 §1) — duplex over Twilio Programmable Messaging when
 	// AGEZT_SMS_ACCOUNT_SID + AGEZT_SMS_AUTH_TOKEN are set. Inbound is a signed
 	// Twilio webhook (needs AGEZT_SMS_ADDR); outbound texts go via the REST API
 	// (needs AGEZT_SMS_FROM); briefs tee to the allowlisted numbers.
-	smChan, smSink, smDesc := buildSMS(ctx, k)
-	if smChan != nil {
-		go smChan.Start(ctx)
-		fmt.Fprintf(stdout, "  sms channel      : %s\n", smDesc)
-	} else {
-		fmt.Fprintf(stdout, "  sms channel      : disabled (set AGEZT_SMS_ACCOUNT_SID + AGEZT_SMS_AUTH_TOKEN)\n")
-	}
+	smInsts := buildAccountsLegacy(ctx, k, "sms", buildSMS)
+	startInstances(ctx, stdout, "sms", "sms channel", "disabled (set AGEZT_SMS_ACCOUNT_SID + AGEZT_SMS_AUTH_TOKEN)", smInsts)
 
 	// WhatsApp channel (SPEC-04 §1) — duplex over Meta's WhatsApp Cloud API when
 	// AGEZT_WHATSAPP_APP_SECRET + AGEZT_WHATSAPP_ACCESS_TOKEN are set. Inbound is a
@@ -1614,36 +1556,21 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// AGEZT_HOMEASSISTANT_URL + AGEZT_HOMEASSISTANT_TOKEN are set. Briefs/`agt send`
 	// land as phone pushes / TTS / persistent notifications on the allowlisted
 	// notify services. Outbound-only (drive FROM HA via the webhook channel).
-	haChan, haSink, haDesc := buildHomeAssistant(ctx, k)
-	if haChan != nil {
-		go haChan.Start(ctx)
-		fmt.Fprintf(stdout, "  homeassistant ch : %s\n", haDesc)
-	} else {
-		fmt.Fprintf(stdout, "  homeassistant ch : disabled (set AGEZT_HOMEASSISTANT_URL + AGEZT_HOMEASSISTANT_TOKEN)\n")
-	}
+	haInsts := buildAccountsLegacy(ctx, k, "homeassistant", buildHomeAssistant)
+	startInstances(ctx, stdout, "homeassistant", "homeassistant ch", "disabled (set AGEZT_HOMEASSISTANT_URL + AGEZT_HOMEASSISTANT_TOKEN)", haInsts)
 
 	// Teams channel (SPEC-04 §1) — outbound to Microsoft Teams Incoming Webhooks
 	// when AGEZT_TEAMS_WEBHOOKS is set (name=url,name2=url2). Briefs/`agt send`
 	// post a card to the named Teams channel. Outbound-only.
-	tmChan, tmSink, tmDesc := buildTeams(ctx, k)
-	if tmChan != nil {
-		go tmChan.Start(ctx)
-		fmt.Fprintf(stdout, "  teams channel    : %s\n", tmDesc)
-	} else {
-		fmt.Fprintf(stdout, "  teams channel    : disabled (set AGEZT_TEAMS_WEBHOOKS=name=url,...)\n")
-	}
+	tmInsts := buildAccountsLegacy(ctx, k, "teams", buildTeams)
+	startInstances(ctx, stdout, "teams", "teams channel", "disabled (set AGEZT_TEAMS_WEBHOOKS=name=url,...)", tmInsts)
 
 	// Signal channel (SPEC-04 §1) — duplex via an operator-run signal-cli-rest-api
 	// when AGEZT_SIGNAL_API_URL + AGEZT_SIGNAL_NUMBER are set. Long-polls
 	// /v1/receive for inbound and POSTs /v2/send for outbound; briefs tee to the
 	// allowlisted numbers like the others.
-	sgChan, sgSink, sgDesc := buildSignal(ctx, k)
-	if sgChan != nil {
-		go sgChan.Start(ctx)
-		fmt.Fprintf(stdout, "  signal channel   : %s\n", sgDesc)
-	} else {
-		fmt.Fprintf(stdout, "  signal channel   : disabled (set AGEZT_SIGNAL_API_URL + AGEZT_SIGNAL_NUMBER)\n")
-	}
+	sgInsts := buildAccountsLegacy(ctx, k, "signal", buildSignal)
+	startInstances(ctx, stdout, "signal", "signal channel", "disabled (set AGEZT_SIGNAL_API_URL + AGEZT_SIGNAL_NUMBER)", sgInsts)
 
 	// Push-notification channels (SPEC-04 §1): a family of simple outbound
 	// destinations — ntfy, Pushover, Gotify, Pushbullet, Google Chat, Mattermost —
@@ -1661,10 +1588,15 @@ func runDaemon(stdout, stderr io.Writer) int {
 
 	// Every configured channel's brief sink, teed: Pulse briefs and (M782)
 	// alert notifications share the same delivery surface.
-	positionalSinks := []pulse.BriefSink{whSink, ircSink, twSink, wgSink, imSink, lnSink, gcSink, mmSink, dtSink, fsSink, wcSink, qqSink, wxSink, zlSink, nctSink, maSink, noSink, smSink, haSink, tmSink, sgSink, pushSink}
-	// Multi-account channels contribute one sink per instance.
-	positionalSinks = append(positionalSinks, instanceSinks(tgInsts, emInsts, slInsts, dcInsts, mxInsts, waInsts)...)
-	channelSinks := combineSinks(positionalSinks...)
+	// All channels are multi-account now: one brief sink per instance, plus the
+	// push family (its own internal multi-destination sink).
+	allInsts := [][]chanInstance{
+		tgInsts, emInsts, slInsts, dcInsts, mxInsts, waInsts,
+		whInsts, ircInsts, twInsts, wgInsts, imInsts, lnInsts, gcInsts, mmInsts,
+		dtInsts, fsInsts, wcInsts, qqInsts, wxInsts, zlInsts, nctInsts, maInsts, noInsts,
+		smInsts, haInsts, tmInsts, sgInsts,
+	}
+	channelSinks := combineSinks(append(instanceSinks(allInsts...), pushSink)...)
 
 	// Pulse — the proactive heart (SPEC-03). On by default; the resident
 	// engine runs on the daemon ctx so `agt halt`/SIGTERM/`agt shutdown`
@@ -1819,72 +1751,9 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// Built from the channels actually constructed above so a kind only sends when
 	// it's configured; senders journal channel.outbound via each channel's Send.
 	liveChannels := map[string]channel.Channel{}
-	// Multi-account channels register every instance by its instance key
+	// Every channel is multi-account: register every instance by its instance key
 	// ("telegram", "telegram#bot2", "email#work", …).
-	registerInstances(liveChannels, tgInsts, emInsts, slInsts, dcInsts, mxInsts, waInsts)
-	if whChan != nil {
-		liveChannels["webhook"] = whChan
-	}
-	if ircChan != nil {
-		liveChannels["irc"] = ircChan
-	}
-	if twChan != nil {
-		liveChannels["twitch"] = twChan
-	}
-	if wgChan != nil {
-		liveChannels["whatsappgw"] = wgChan
-	}
-	if imChan != nil {
-		liveChannels["imessage"] = imChan
-	}
-	if lnChan != nil {
-		liveChannels["line"] = lnChan
-	}
-	if gcChan != nil {
-		liveChannels["googlechat"] = gcChan
-	}
-	if mmChan != nil {
-		liveChannels["mattermost"] = mmChan
-	}
-	if dtChan != nil {
-		liveChannels["dingtalk"] = dtChan
-	}
-	if fsChan != nil {
-		liveChannels["feishu"] = fsChan
-	}
-	if wcChan != nil {
-		liveChannels["wecom"] = wcChan
-	}
-	if qqChan != nil {
-		liveChannels["qq"] = qqChan
-	}
-	if wxChan != nil {
-		liveChannels["wechat"] = wxChan
-	}
-	if zlChan != nil {
-		liveChannels["zalo"] = zlChan
-	}
-	if nctChan != nil {
-		liveChannels["nextcloudtalk"] = nctChan
-	}
-	if maChan != nil {
-		liveChannels["mastodon"] = maChan
-	}
-	if noChan != nil {
-		liveChannels["nostr"] = noChan
-	}
-	if smChan != nil {
-		liveChannels["sms"] = smChan
-	}
-	if haChan != nil {
-		liveChannels["homeassistant"] = haChan
-	}
-	if tmChan != nil {
-		liveChannels["teams"] = tmChan
-	}
-	if sgChan != nil {
-		liveChannels["signal"] = sgChan
-	}
+	registerInstances(liveChannels, allInsts...)
 	for _, pc := range pushChans {
 		liveChannels[pc.Name()] = pc
 	}
@@ -4073,7 +3942,9 @@ func buildAccounts(ctx context.Context, k *kernelruntime.Kernel, kind string,
 // "disabled" line for the kind when none are configured.
 func startInstances(ctx context.Context, stdout io.Writer, kind, label, disabledHint string, insts []chanInstance) {
 	if len(insts) == 0 {
-		fmt.Fprintf(stdout, "  %-16s : %s\n", label, disabledHint)
+		if disabledHint != "" {
+			fmt.Fprintf(stdout, "  %-16s : %s\n", label, disabledHint)
+		}
 		return
 	}
 	for _, in := range insts {
@@ -4126,6 +3997,59 @@ func instanceMatch(keys []string, target string) []string {
 		if base, _, _ := strings.Cut(k, "#"); base == target {
 			out = append(out, k)
 		}
+	}
+	return out
+}
+
+// overlayEnv temporarily sets each base env to its "#label" value for a labelled
+// instance, returning a restore func; for the default instance ("") it's a no-op.
+// This lets the legacy buildXxx functions (which read os.Getenv directly) build a
+// labelled account without rewriting them — safe because builds are synchronous
+// and each channel reads its config into a struct before Start runs.
+func overlayEnv(baseEnvs []string, label string) func() {
+	if label == "" {
+		return func() {}
+	}
+	type saved struct {
+		key, val string
+		had      bool
+	}
+	prev := make([]saved, 0, len(baseEnvs))
+	for _, base := range baseEnvs {
+		old, had := os.LookupEnv(base)
+		prev = append(prev, saved{base, old, had})
+		if v, ok := os.LookupEnv(base + "#" + label); ok {
+			_ = os.Setenv(base, v)
+		} else {
+			_ = os.Unsetenv(base)
+		}
+	}
+	return func() {
+		for _, s := range prev {
+			if s.had {
+				_ = os.Setenv(s.key, s.val)
+			} else {
+				_ = os.Unsetenv(s.key)
+			}
+		}
+	}
+}
+
+// buildAccountsLegacy builds the default + every "#label" instance of a channel
+// whose buildXxx still reads os.Getenv directly, via overlayEnv. A typed-nil
+// return (unconfigured instance) is skipped.
+func buildAccountsLegacy[T channel.Channel](ctx context.Context, k *kernelruntime.Kernel, kind string,
+	f func(context.Context, *kernelruntime.Kernel) (T, pulse.BriefSink, string)) []chanInstance {
+	baseEnvs := settings.SectionEnvs(kind)
+	var out []chanInstance
+	for _, label := range append([]string{""}, channelLabels(kind)...) {
+		restore := overlayEnv(baseEnvs, label)
+		ch, sink, desc := f(ctx, k)
+		restore()
+		if rv := reflect.ValueOf(ch); rv.Kind() == reflect.Ptr && rv.IsNil() {
+			continue
+		}
+		out = append(out, chanInstance{key: instanceKey(kind, label), desc: desc, ch: ch, sink: sink})
 	}
 	return out
 }

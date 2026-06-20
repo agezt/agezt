@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -42,6 +43,43 @@ func TestInstanceMatch(t *testing.T) {
 	}
 	if g := instanceMatch(keys, "discord"); g != nil {
 		t.Fatalf("unknown kind = %v, want nil", g)
+	}
+}
+
+// TestOverlayEnv verifies the legacy multi-account driver: for a labelled
+// instance each base env is temporarily set to its "#label" value (or unset when
+// the label has no value), and fully restored afterwards. The default instance
+// ("") is a no-op.
+func TestOverlayEnv(t *testing.T) {
+	base := []string{brand.EnvPrefix + "OVTEST_A", brand.EnvPrefix + "OVTEST_B"}
+	t.Setenv(base[0], "bare-a")
+	t.Setenv(base[1], "bare-b")
+	t.Setenv(base[0]+"#work", "work-a")
+	// Note: base[1]#work intentionally unset → overlay must unset base[1].
+
+	// Default instance: no change.
+	restore := overlayEnv(base, "")
+	if v, _ := os.LookupEnv(base[0]); v != "bare-a" {
+		t.Fatalf("default overlay changed %s = %q", base[0], v)
+	}
+	restore()
+
+	// Labelled instance: A becomes work-a, B is unset.
+	restore = overlayEnv(base, "work")
+	if v, _ := os.LookupEnv(base[0]); v != "work-a" {
+		t.Fatalf("overlay A = %q, want work-a", v)
+	}
+	if v, ok := os.LookupEnv(base[1]); ok {
+		t.Fatalf("overlay B = %q, want unset", v)
+	}
+	restore()
+
+	// Restored to the bare values.
+	if v, _ := os.LookupEnv(base[0]); v != "bare-a" {
+		t.Fatalf("post-restore A = %q, want bare-a", v)
+	}
+	if v, _ := os.LookupEnv(base[1]); v != "bare-b" {
+		t.Fatalf("post-restore B = %q, want bare-b", v)
 	}
 }
 
