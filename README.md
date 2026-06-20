@@ -86,7 +86,11 @@ It reaches you on **eleven messaging channels** (Telegram, Slack, Discord, Matri
 SMS, WhatsApp, Signal, email, Microsoft Teams, Home Assistant, and generic
 webhooks) — inbound messages drive the agent (allowlisted, fail-closed; the
 account's own messages skipped so a reply never loops), outbound carries replies and
-Pulse briefs; **official client SDKs** in **Python** (sync + asyncio), **TypeScript**,
+Pulse briefs. Each channel can run **multiple accounts at once** (e.g. 10 email
+mailboxes, several bots) via guided **Connect pages** with per-channel help, QR /
+gateway / **OAuth** ("Connect with Slack/Mastodon") sign-in, and two-way email over
+IMAP/POP — see [`docs/CONNECT.md`](docs/CONNECT.md). **Official client SDKs** in
+**Python** (sync + asyncio), **TypeScript**,
 and **Rust** wrap the REST API; a **plugin/skill marketplace** (`agt plugin
 registry` / `agt skill registry`) installs from a remote catalog with **BLAKE3
 verification**; a supervised **public tunnel** (cloudflared/ngrok/custom) can
@@ -246,6 +250,7 @@ agt run "<intent>"                     one-shot intent (LLM ↔ tools loop)
 agt doctor                             health preflight (exit 1 = a check failed)
 agt status / agt runs last             daemon health · last run as a task arc
 agt provider setup [id] / check        add keys · verify a live roundtrip
+agt provider chatgpt login|import      Sign in with ChatGPT (subscription, no key)
 agt catalog sync [--local]             refresh models.dev (offline-capable)
 agt memory … / agt world … / agt skill …   the cognitive loop (add/list/forget/…)
 agt reflect run                        review behaviour, decay stale knowledge
@@ -268,6 +273,12 @@ binding source of authority:
 - [`.project/SPEC-*.md`](.project/) — 16 component specs
 - [`.project/PHASE-*-REPORT.md`](.project/) — every shipped phase, its
   scope and trade-offs (47+ reports from M1.a through M1.zz and beyond)
+
+Operator how-to guides live under [`docs/`](docs/):
+- [`docs/CONNECT.md`](docs/CONNECT.md) — connect providers (incl. **Sign in with
+  ChatGPT**) and channels (multi-account, guided Connect, OAuth, two-way email)
+- [`docs/CONSOLE.md`](docs/CONSOLE.md) — the Web UI console
+- [`docs/AGENT-SDK-ARCHITECTURE.md`](docs/AGENT-SDK-ARCHITECTURE.md) — the client SDKs
 
 ## What's built
 
@@ -310,6 +321,10 @@ The v1 substrate. Highlights:
   `compat` (OpenAI-compatible vendors: Groq, DeepSeek,
   xAI, OpenRouter, Together, ...), Azure OpenAI, Mistral. Every family
   has working streaming; image input on every multimodal-capable family.
+- `openairesponses` — **"Sign in with ChatGPT"**: use a ChatGPT Plus/Pro
+  **subscription** as a provider (no API key) over the Responses backend. OAuth
+  sign-in from the UI or `agt provider chatgpt login`. Unofficial backend — see
+  [`docs/CONNECT.md`](docs/CONNECT.md) for the terms/risk caveat.
 
 **Tools** (`plugins/tools/`)
 - `shell` — warden-isolated subprocess

@@ -21,6 +21,38 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   dump that buried the error. (M936)
 
 ### Added
+- **"Sign in with ChatGPT" — subscription provider, no API key.** Connect a
+  ChatGPT Plus/Pro plan as an LLM provider (catalog id `chatgpt`;
+  `gpt-5-codex`/`gpt-5`/`gpt-5-mini`) the way Codex CLI does: OAuth 2.0 PKCE
+  against `auth.openai.com` (one-shot `127.0.0.1:1455` redirect listener), tokens
+  stored as one encrypted vault secret with proactive + on-401 refresh
+  (`kernel/chatgptauth`), and a Responses-API adapter to the ChatGPT backend
+  (`plugins/providers/openairesponses`, Codex's system prompt vendored Apache-2.0).
+  Registers with auth mode **subscription** (governor-preferred) **only when
+  signed in** — never auto-selected, preserving the no-default rule. Connect from
+  the Web UI (Models → "Sign in with ChatGPT") or the CLI (`agt provider chatgpt
+  login`/`import`/`status`/`logout`); a local `codex login` can be imported
+  directly. **Unofficial OpenAI backend** — may break or conflict with OpenAI's
+  terms; both surfaces gate it behind an explicit acknowledgement. See
+  [`docs/CONNECT.md`](docs/CONNECT.md).
+- **Multiple accounts per channel + guided Connect.** Every messaging channel can
+  now run **several accounts at once** (e.g. 10 email mailboxes each with its own
+  SMTP + IMAP/POP, several Telegram bots) via an `AGEZT_*#label` instance model
+  (non-secret → config store, secret → vault; unlabelled = the default account, so
+  single-account setups are unchanged). No "active" account — all run; send fan-out
+  hits every account for a bare kind, one for `kind#label`. The Web UI gains guided
+  **Connect pages** (per-channel "what you'll need" help + fields + Send-test) with
+  per-channel connect methods (`token`/`qr`/`gateway`), plus an account-management
+  API (`channel_account_set`/`channel_account_remove`).
+- **Channel OAuth — "Connect with Slack / Mastodon".** Token-free channel sign-in:
+  paste the OAuth app's client id/secret (and instance URL for Mastodon), authorize
+  in the browser, and the token lands in the account's `#label` vault slot. The
+  daemon exposes a public `/oauth/callback` and exchanges the code over an
+  SSRF-guarded client; manual token entry stays as a fallback.
+- **Two-way email (IMAP/POP inbound).** Email is now bidirectional per account:
+  `AGEZT_EMAIL_INBOX_*` polls an IMAP or POP3 mailbox, an allowlisted sender drives
+  the agent, and the answer is sent back over SMTP (POP3 `starttls` upgrades before
+  credentials). All inbox fields are `#label`-aware.
 - **Mailbox watch — push instead of polling (M938).** `GET /api/v1/mailbox/watch?name=&topic=`
   streams new board messages as SSE `mail` frames the moment they land: `name` watches one
   agent/app's mail (DMs + foreign broadcasts, the live counterpart of the inbox), `topic` one
