@@ -254,8 +254,16 @@ See: `cmd/agt/agent.go`, `cmd/agt/agent_authority_test.go`.
 
 ### Remaining priorities
 
-- Harden schedule typed-target execution end-to-end (see `NEXT.md` Priority #4).
-- Add high-risk approval visibility (not just denials) to agent detail and CLI.
+Both original priorities are now complete:
+
+- ~~Harden schedule typed-target execution end-to-end~~ — done (`fix(cadence): harden typed schedule target validation`)
+- ~~Add high-risk approval visibility~~ — done (`feat(agents): surface high-risk approval history in agent diagnostics`)
+
+Next priorities for platform maturity:
+
+- Add memory/world/skill audit CLI commands (`agt memory audit`, `agt world audit`, `agt skill eval`) so epistemic hygiene is operator-visible.
+- Make plugin protocol versioning machine-checkable (manifest/protocol version field).
+- Add behavioral SDK parity tests beyond route-string coverage (typed request/response, error semantics, per endpoint).
 
 ## Bottom line
 
