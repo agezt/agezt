@@ -92,6 +92,7 @@ import (
 	"github.com/agezt/agezt/plugins/channels/irc"
 	linechan "github.com/agezt/agezt/plugins/channels/line"
 	"github.com/agezt/agezt/plugins/channels/matrix"
+	"github.com/agezt/agezt/plugins/channels/nextcloudtalk"
 	"github.com/agezt/agezt/plugins/channels/onebot"
 	"github.com/agezt/agezt/plugins/channels/push"
 	signalchan "github.com/agezt/agezt/plugins/channels/signal"
@@ -1592,6 +1593,11 @@ func runDaemon(stdout, stderr io.Writer) int {
 		go zlChan.Start(ctx)
 		fmt.Fprintf(stdout, "  zalo channel     : %s\n", zlDesc)
 	}
+	nctChan, nctSink, nctDesc := buildNextcloudTalk(ctx, k)
+	if nctChan != nil {
+		go nctChan.Start(ctx)
+		fmt.Fprintf(stdout, "  nextcloud talk   : %s\n", nctDesc)
+	}
 
 	// SMS channel (SPEC-04 §1) — duplex over Twilio Programmable Messaging when
 	// AGEZT_SMS_ACCOUNT_SID + AGEZT_SMS_AUTH_TOKEN are set. Inbound is a signed
@@ -1668,7 +1674,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 
 	// Every configured channel's brief sink, teed: Pulse briefs and (M782)
 	// alert notifications share the same delivery surface.
-	channelSinks := combineSinks(tgSink, slSink, dcSink, whSink, emSink, mxSink, ircSink, twSink, wgSink, imSink, lnSink, gcSink, mmSink, dtSink, fsSink, wcSink, qqSink, wxSink, zlSink, smSink, waSink, haSink, tmSink, sgSink, pushSink)
+	channelSinks := combineSinks(tgSink, slSink, dcSink, whSink, emSink, mxSink, ircSink, twSink, wgSink, imSink, lnSink, gcSink, mmSink, dtSink, fsSink, wcSink, qqSink, wxSink, zlSink, nctSink, smSink, waSink, haSink, tmSink, sgSink, pushSink)
 
 	// Pulse — the proactive heart (SPEC-03). On by default; the resident
 	// engine runs on the daemon ctx so `agt halt`/SIGTERM/`agt shutdown`
@@ -1879,6 +1885,9 @@ func runDaemon(stdout, stderr io.Writer) int {
 	}
 	if zlChan != nil {
 		liveChannels["zalo"] = zlChan
+	}
+	if nctChan != nil {
+		liveChannels["nextcloudtalk"] = nctChan
 	}
 	if smChan != nil {
 		liveChannels["sms"] = smChan
@@ -3373,6 +3382,47 @@ func buildZalo(ctx context.Context, k *kernelruntime.Kernel) (*zalo.Channel, pul
 		})
 	}
 	return ch, sink, fmt.Sprintf("Zalo OA, allowlist=%d user(s)", len(users))
+}
+
+// buildNextcloudTalk constructs the Nextcloud Talk channel when AGEZT_NEXTCLOUDTALK_URL
+// + AGEZT_NEXTCLOUDTALK_SECRET are set. Inbound (signed bot webhook) is served when
+// AGEZT_NEXTCLOUDTALK_ADDR is also set; outbound replies + Pulse briefs go to the
+// allowlisted conversation tokens (AGEZT_NEXTCLOUDTALK_TOKENS).
+//
+//	AGEZT_NEXTCLOUDTALK_URL     Nextcloud base URL, e.g. https://cloud.example.com (required)
+//	AGEZT_NEXTCLOUDTALK_SECRET  shared bot secret; signs/verifies (required)
+//	AGEZT_NEXTCLOUDTALK_ADDR    host:port for the inbound webhook (inbound)
+//	AGEZT_NEXTCLOUDTALK_PATH    inbound route (default /nextcloudtalk)
+//	AGEZT_NEXTCLOUDTALK_TOKENS  comma-separated allowlist of conversation tokens
+func buildNextcloudTalk(ctx context.Context, k *kernelruntime.Kernel) (*nextcloudtalk.Channel, pulse.BriefSink, string) {
+	server := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "NEXTCLOUDTALK_URL"))
+	secret := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "NEXTCLOUDTALK_SECRET"))
+	if server == "" || secret == "" {
+		return nil, nil, ""
+	}
+	tokens := splitNonEmpty(os.Getenv(brand.EnvPrefix + "NEXTCLOUDTALK_TOKENS"))
+	ch := nextcloudtalk.New(nextcloudtalk.Config{
+		ServerURL: server,
+		Secret:    secret,
+		Allowlist: channel.NewAllowlist(tokens),
+		Bus:       k.Bus(),
+		Handler:   makeChannelHandler(k),
+		Addr:      strings.TrimSpace(os.Getenv(brand.EnvPrefix + "NEXTCLOUDTALK_ADDR")),
+		Path:      strings.TrimSpace(os.Getenv(brand.EnvPrefix + "NEXTCLOUDTALK_PATH")),
+	})
+	var sink pulse.BriefSink
+	if len(tokens) > 0 {
+		sink = pulse.SinkFunc(func(b pulse.Brief) error {
+			var firstErr error
+			for _, t := range tokens {
+				if err := ch.Send(ctx, channel.Outbound{ChannelID: t, Text: formatBrief(b), Priority: channel.PriorityNotify}); err != nil && firstErr == nil {
+					firstErr = err
+				}
+			}
+			return firstErr
+		})
+	}
+	return ch, sink, fmt.Sprintf("Nextcloud Talk, allowlist=%d token(s)", len(tokens))
 }
 
 // buildSMS constructs the Twilio SMS channel when AGEZT_SMS_ACCOUNT_SID +

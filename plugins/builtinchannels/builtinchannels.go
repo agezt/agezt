@@ -181,6 +181,12 @@ var manifests = []channel.Manifest{
 		DocsURL: "https://github.com/botuniverse/onebot-11",
 	},
 	{
+		Kind: "nextcloudtalk", Display: "Nextcloud Talk", Transport: "webhook", Duplex: true,
+		Description:   "Two-way Nextcloud Talk via the Talk Bot API (signed webhook in + bot message API out).",
+		ConfigSection: "nextcloudtalk", RequiredEnv: []string{"AGEZT_NEXTCLOUDTALK_URL", "AGEZT_NEXTCLOUDTALK_SECRET"},
+		DocsURL: "https://nextcloud-talk.readthedocs.io/en/latest/bots/",
+	},
+	{
 		Kind: "zalo", Display: "Zalo", Transport: "webhook", Duplex: true,
 		Description:   "Two-way Zalo via the Official Account API (event webhook + OA message API).",
 		ConfigSection: "zalo", RequiredEnv: []string{"AGEZT_ZALO_TOKEN"},

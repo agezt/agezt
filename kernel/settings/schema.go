@@ -365,6 +365,17 @@ func builtinSections() []Section {
 			},
 		},
 		{
+			ID: "nextcloudtalk", Name: "Nextcloud Talk",
+			Help: "Two-way Nextcloud Talk via the Talk Bot API. Register a bot (occ talk:bot:install) with a shared secret, point its webhook at the inbound addr, and add the conversation tokens it may act in. Restart to apply.",
+			Fields: []Field{
+				{Env: "AGEZT_NEXTCLOUDTALK_URL", Label: "Nextcloud URL", Type: TypeText, Apply: ApplyRestart, Help: "base URL, e.g. https://cloud.example.com (all replies go here)"},
+				pw("AGEZT_NEXTCLOUDTALK_SECRET", "Bot shared secret", "the bot's shared secret; signs + verifies messages"),
+				{Env: "AGEZT_NEXTCLOUDTALK_TOKENS", Label: "Allowed conversation tokens", Type: TypeCSV, Apply: ApplyRestart, Help: "comma-separated conversation tokens the bot may act in (also brief targets)"},
+				{Env: "AGEZT_NEXTCLOUDTALK_ADDR", Label: "Inbound addr (two-way)", Type: TypeText, Apply: ApplyRestart, Help: "host:port to serve the bot webhook; blank = outbound only"},
+				{Env: "AGEZT_NEXTCLOUDTALK_PATH", Label: "Inbound path", Type: TypeText, Apply: ApplyRestart, Help: "webhook route (default /nextcloudtalk)"},
+			},
+		},
+		{
 			ID: "whatsappgw", Name: "WhatsApp (Gateway)",
 			Help: "Easy WhatsApp via a self-hosted WAHA or Evolution gateway (Docker + QR login, no Meta Business account). Restart to apply.",
 			Fields: []Field{
