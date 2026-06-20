@@ -275,6 +275,7 @@ That is meaningfully different from generic agent frameworks. The remaining work
 | `examples/autonomous/policy-denial-audit/` | implemented | governance is runtime, not just UI |
 | `examples/autonomous/mailbox-delegation/` | implemented | durable identity, authority, wake causality |
 | `agt agent authority <slug>` | implemented | effective runtime policy proof |
-| `examples/autonomous/typed-schedule-system-task/` | planned | typed schedules, not cron-wrapped prompts |
+| `examples/autonomous/typed-schedule-system-task/` | implemented | typed schedules, not cron-wrapped prompts |
 | `examples/autonomous/plugin-governance/` | implemented | plugin trust, allowlists, audit |
 | `docs/PLUGIN-SECURITY.md` | implemented | plugin trust model, pinning, crash/reload |
+| `docs/API-STABILITY.md` | implemented | public/private surface stability, versioning, SDK parity |
