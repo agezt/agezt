@@ -1449,24 +1449,14 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// Slack channel (SPEC-04 §1) — duplex when AGEZT_SLACK_TOKEN is set. Serves
 	// the Events API endpoint for inbound (HMAC-verified) and chat.postMessage for
 	// outbound; briefs tee to it like Telegram.
-	slChan, slSink, slDesc := buildSlack(ctx, k)
-	if slChan != nil {
-		go slChan.Start(ctx)
-		fmt.Fprintf(stdout, "  slack            : %s\n", slDesc)
-	} else {
-		fmt.Fprintf(stdout, "  slack            : disabled (set AGEZT_SLACK_TOKEN)\n")
-	}
+	slInsts := buildAccounts(ctx, k, "slack", buildSlackInstance)
+	startInstances(ctx, stdout, "slack", "slack", "disabled (set AGEZT_SLACK_TOKEN)", slInsts)
 
 	// Discord channel (SPEC-04 §1) — duplex when AGEZT_DISCORD_TOKEN is set.
 	// Serves the Interactions endpoint for inbound slash commands (Ed25519-verified)
 	// and posts via the bot token for outbound; briefs tee to it like the others.
-	dcChan, dcSink, dcDesc := buildDiscord(ctx, k)
-	if dcChan != nil {
-		go dcChan.Start(ctx)
-		fmt.Fprintf(stdout, "  discord          : %s\n", dcDesc)
-	} else {
-		fmt.Fprintf(stdout, "  discord          : disabled (set AGEZT_DISCORD_TOKEN)\n")
-	}
+	dcInsts := buildAccounts(ctx, k, "discord", buildDiscordInstance)
+	startInstances(ctx, stdout, "discord", "discord", "disabled (set AGEZT_DISCORD_TOKEN)", dcInsts)
 
 	// Generic webhook channel (SPEC-04 §1) — vendor-neutral duplex. Any external
 	// system POSTs a signed JSON message and gets the agent's reply synchronously;
@@ -1491,13 +1481,8 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// when AGEZT_MATRIX_HOMESERVER + AGEZT_MATRIX_TOKEN are set. Long-polls /sync
 	// for inbound and PUTs m.room.message for outbound; briefs tee to the
 	// allowlisted rooms like the others.
-	mxChan, mxSink, mxDesc := buildMatrix(ctx, k)
-	if mxChan != nil {
-		go mxChan.Start(ctx)
-		fmt.Fprintf(stdout, "  matrix channel   : %s\n", mxDesc)
-	} else {
-		fmt.Fprintf(stdout, "  matrix channel   : disabled (set AGEZT_MATRIX_HOMESERVER + AGEZT_MATRIX_TOKEN)\n")
-	}
+	mxInsts := buildAccounts(ctx, k, "matrix", buildMatrixInstance)
+	startInstances(ctx, stdout, "matrix", "matrix channel", "disabled (set AGEZT_MATRIX_HOMESERVER + AGEZT_MATRIX_TOKEN)", mxInsts)
 
 	// IRC channel (SPEC-04 §1) — two-way over a persistent socket to any ircd.
 	ircChan, ircSink, ircDesc := buildIRC(ctx, k)
@@ -1622,13 +1607,8 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// AGEZT_WHATSAPP_APP_SECRET + AGEZT_WHATSAPP_ACCESS_TOKEN are set. Inbound is a
 	// signed Meta webhook (needs AGEZT_WHATSAPP_ADDR); outbound goes via the Graph
 	// API (needs AGEZT_WHATSAPP_PHONE_NUMBER_ID); briefs tee to the allowlist.
-	waChan, waSink, waDesc := buildWhatsApp(ctx, k)
-	if waChan != nil {
-		go waChan.Start(ctx)
-		fmt.Fprintf(stdout, "  whatsapp channel : %s\n", waDesc)
-	} else {
-		fmt.Fprintf(stdout, "  whatsapp channel : disabled (set AGEZT_WHATSAPP_APP_SECRET + AGEZT_WHATSAPP_ACCESS_TOKEN)\n")
-	}
+	waInsts := buildAccounts(ctx, k, "whatsapp", buildWhatsAppInstance)
+	startInstances(ctx, stdout, "whatsapp", "whatsapp channel", "disabled (set AGEZT_WHATSAPP_APP_SECRET + AGEZT_WHATSAPP_ACCESS_TOKEN)", waInsts)
 
 	// Home Assistant channel (SPEC-04 §1) — outbound to HA's notify API when
 	// AGEZT_HOMEASSISTANT_URL + AGEZT_HOMEASSISTANT_TOKEN are set. Briefs/`agt send`
@@ -1681,9 +1661,9 @@ func runDaemon(stdout, stderr io.Writer) int {
 
 	// Every configured channel's brief sink, teed: Pulse briefs and (M782)
 	// alert notifications share the same delivery surface.
-	positionalSinks := []pulse.BriefSink{slSink, dcSink, whSink, mxSink, ircSink, twSink, wgSink, imSink, lnSink, gcSink, mmSink, dtSink, fsSink, wcSink, qqSink, wxSink, zlSink, nctSink, maSink, noSink, smSink, waSink, haSink, tmSink, sgSink, pushSink}
-	// Multi-account channels (telegram, email) contribute one sink per instance.
-	positionalSinks = append(positionalSinks, instanceSinks(tgInsts, emInsts)...)
+	positionalSinks := []pulse.BriefSink{whSink, ircSink, twSink, wgSink, imSink, lnSink, gcSink, mmSink, dtSink, fsSink, wcSink, qqSink, wxSink, zlSink, nctSink, maSink, noSink, smSink, haSink, tmSink, sgSink, pushSink}
+	// Multi-account channels contribute one sink per instance.
+	positionalSinks = append(positionalSinks, instanceSinks(tgInsts, emInsts, slInsts, dcInsts, mxInsts, waInsts)...)
 	channelSinks := combineSinks(positionalSinks...)
 
 	// Pulse — the proactive heart (SPEC-03). On by default; the resident
@@ -1841,18 +1821,9 @@ func runDaemon(stdout, stderr io.Writer) int {
 	liveChannels := map[string]channel.Channel{}
 	// Multi-account channels register every instance by its instance key
 	// ("telegram", "telegram#bot2", "email#work", …).
-	registerInstances(liveChannels, tgInsts, emInsts)
-	if slChan != nil {
-		liveChannels["slack"] = slChan
-	}
-	if dcChan != nil {
-		liveChannels["discord"] = dcChan
-	}
+	registerInstances(liveChannels, tgInsts, emInsts, slInsts, dcInsts, mxInsts, waInsts)
 	if whChan != nil {
 		liveChannels["webhook"] = whChan
-	}
-	if mxChan != nil {
-		liveChannels["matrix"] = mxChan
 	}
 	if ircChan != nil {
 		liveChannels["irc"] = ircChan
@@ -1904,9 +1875,6 @@ func runDaemon(stdout, stderr io.Writer) int {
 	}
 	if smChan != nil {
 		liveChannels["sms"] = smChan
-	}
-	if waChan != nil {
-		liveChannels["whatsapp"] = waChan
 	}
 	if haChan != nil {
 		liveChannels["homeassistant"] = haChan
@@ -2648,21 +2616,21 @@ func buildTelegramInstance(ctx context.Context, k *kernelruntime.Kernel, label s
 //
 // The inbound handler runs the normal agent loop under the channel's correlation,
 // so `agt why`/`agt inbox` link the Slack message to the task.
-func buildSlack(ctx context.Context, k *kernelruntime.Kernel) (*slack.Channel, pulse.BriefSink, string) {
-	token := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "SLACK_TOKEN"))
+func buildSlackInstance(ctx context.Context, k *kernelruntime.Kernel, label string, get func(string) string) (channel.Channel, pulse.BriefSink, string) {
+	token := strings.TrimSpace(get(brand.EnvPrefix + "SLACK_TOKEN"))
 	if token == "" {
 		return nil, nil, ""
 	}
-	secret := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "SLACK_SIGNING_SECRET"))
-	addr := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "SLACK_ADDR"))
-	channelIDs := splitNonEmpty(os.Getenv(brand.EnvPrefix + "SLACK_CHANNELS"))
+	secret := strings.TrimSpace(get(brand.EnvPrefix + "SLACK_SIGNING_SECRET"))
+	addr := strings.TrimSpace(get(brand.EnvPrefix + "SLACK_ADDR"))
+	channelIDs := splitNonEmpty(get(brand.EnvPrefix + "SLACK_CHANNELS"))
 
 	handler := makeChannelHandler(k)
 	ch := slack.New(slack.Config{
 		Token:         token,
 		SigningSecret: secret,
 		Addr:          addr,
-		BaseURL:       strings.TrimSpace(os.Getenv(brand.EnvPrefix + "SLACK_API_BASE")), // empty → public Web API
+		BaseURL:       strings.TrimSpace(get(brand.EnvPrefix + "SLACK_API_BASE")), // empty → public Web API
 		Allowlist:     channel.NewAllowlist(channelIDs),
 		Bus:           k.Bus(),
 		Handler:       handler,
@@ -2843,15 +2811,15 @@ func buildEmailInstance(ctx context.Context, k *kernelruntime.Kernel, label stri
 //
 // The inbound handler runs the normal agent loop under the channel's correlation,
 // so `agt why`/`agt inbox` link the Discord command to the task.
-func buildDiscord(ctx context.Context, k *kernelruntime.Kernel) (*discord.Channel, pulse.BriefSink, string) {
-	token := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "DISCORD_TOKEN"))
+func buildDiscordInstance(ctx context.Context, k *kernelruntime.Kernel, label string, get func(string) string) (channel.Channel, pulse.BriefSink, string) {
+	token := strings.TrimSpace(get(brand.EnvPrefix + "DISCORD_TOKEN"))
 	if token == "" {
 		return nil, nil, ""
 	}
-	pubKey := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "DISCORD_PUBLIC_KEY"))
-	appID := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "DISCORD_APP_ID"))
-	addr := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "DISCORD_ADDR"))
-	channelIDs := splitNonEmpty(os.Getenv(brand.EnvPrefix + "DISCORD_CHANNELS"))
+	pubKey := strings.TrimSpace(get(brand.EnvPrefix + "DISCORD_PUBLIC_KEY"))
+	appID := strings.TrimSpace(get(brand.EnvPrefix + "DISCORD_APP_ID"))
+	addr := strings.TrimSpace(get(brand.EnvPrefix + "DISCORD_ADDR"))
+	channelIDs := splitNonEmpty(get(brand.EnvPrefix + "DISCORD_CHANNELS"))
 
 	handler := makeChannelHandler(k)
 	ch := discord.New(discord.Config{
@@ -2859,7 +2827,7 @@ func buildDiscord(ctx context.Context, k *kernelruntime.Kernel) (*discord.Channe
 		PublicKey:     pubKey,
 		ApplicationID: appID,
 		Addr:          addr,
-		BaseURL:       strings.TrimSpace(os.Getenv(brand.EnvPrefix + "DISCORD_API_BASE")), // empty → public API
+		BaseURL:       strings.TrimSpace(get(brand.EnvPrefix + "DISCORD_API_BASE")), // empty → public API
 		Allowlist:     channel.NewAllowlist(channelIDs),
 		Bus:           k.Bus(),
 		Handler:       handler,
@@ -2894,13 +2862,13 @@ func buildDiscord(ctx context.Context, k *kernelruntime.Kernel) (*discord.Channe
 // and AGEZT_MATRIX_TOKEN are set, plus a Pulse brief sink to the allowlisted rooms.
 // Returns (nil, nil, "") when unconfigured. Mirrors buildTelegram: long-polls /sync
 // for inbound, PUTs m.room.message for outbound.
-func buildMatrix(ctx context.Context, k *kernelruntime.Kernel) (*matrix.Channel, pulse.BriefSink, string) {
-	homeserver := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "MATRIX_HOMESERVER"))
-	token := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "MATRIX_TOKEN"))
+func buildMatrixInstance(ctx context.Context, k *kernelruntime.Kernel, label string, get func(string) string) (channel.Channel, pulse.BriefSink, string) {
+	homeserver := strings.TrimSpace(get(brand.EnvPrefix + "MATRIX_HOMESERVER"))
+	token := strings.TrimSpace(get(brand.EnvPrefix + "MATRIX_TOKEN"))
 	if homeserver == "" || token == "" {
 		return nil, nil, ""
 	}
-	roomIDs := splitNonEmpty(os.Getenv(brand.EnvPrefix + "MATRIX_ROOMS"))
+	roomIDs := splitNonEmpty(get(brand.EnvPrefix + "MATRIX_ROOMS"))
 
 	handler := makeChannelHandler(k)
 	ch := matrix.New(matrix.Config{
@@ -3650,17 +3618,17 @@ func buildSMS(ctx context.Context, k *kernelruntime.Kernel) (*sms.Channel, pulse
 //	AGEZT_WHATSAPP_ADDR             host:port for the inbound webhook (inbound)
 //	AGEZT_WHATSAPP_PATH             inbound route (default /whatsapp)
 //	AGEZT_WHATSAPP_NUMBERS          comma-separated allowlist of sender numbers
-func buildWhatsApp(ctx context.Context, k *kernelruntime.Kernel) (*whatsapp.Channel, pulse.BriefSink, string) {
-	appSecret := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "WHATSAPP_APP_SECRET"))
-	accessToken := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "WHATSAPP_ACCESS_TOKEN"))
+func buildWhatsAppInstance(ctx context.Context, k *kernelruntime.Kernel, label string, get func(string) string) (channel.Channel, pulse.BriefSink, string) {
+	appSecret := strings.TrimSpace(get(brand.EnvPrefix + "WHATSAPP_APP_SECRET"))
+	accessToken := strings.TrimSpace(get(brand.EnvPrefix + "WHATSAPP_ACCESS_TOKEN"))
 	if appSecret == "" || accessToken == "" {
 		return nil, nil, ""
 	}
-	phoneID := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "WHATSAPP_PHONE_NUMBER_ID"))
-	verifyToken := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "WHATSAPP_VERIFY_TOKEN"))
-	addr := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "WHATSAPP_ADDR"))
-	path := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "WHATSAPP_PATH"))
-	numbers := splitNonEmpty(os.Getenv(brand.EnvPrefix + "WHATSAPP_NUMBERS"))
+	phoneID := strings.TrimSpace(get(brand.EnvPrefix + "WHATSAPP_PHONE_NUMBER_ID"))
+	verifyToken := strings.TrimSpace(get(brand.EnvPrefix + "WHATSAPP_VERIFY_TOKEN"))
+	addr := strings.TrimSpace(get(brand.EnvPrefix + "WHATSAPP_ADDR"))
+	path := strings.TrimSpace(get(brand.EnvPrefix + "WHATSAPP_PATH"))
+	numbers := splitNonEmpty(get(brand.EnvPrefix + "WHATSAPP_NUMBERS"))
 
 	ch := whatsapp.New(whatsapp.Config{
 		Addr:          addr,

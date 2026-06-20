@@ -243,12 +243,17 @@ type popConn struct {
 }
 
 func (c *Channel) dialPOP3() (*popConn, error) {
+	host := c.inboxAddr
+	if i := strings.LastIndex(host, ":"); i >= 0 {
+		host = host[:i]
+	}
 	var conn net.Conn
 	var err error
-	if c.inboxTLS == "none" || c.inboxTLS == "starttls" {
+	switch c.inboxTLS {
+	case "none", "starttls":
 		conn, err = net.DialTimeout("tcp", c.inboxAddr, 15*time.Second)
-	} else {
-		conn, err = tls.DialWithDialer(&net.Dialer{Timeout: 15 * time.Second}, "tcp", c.inboxAddr, nil)
+	default: // implicit TLS (e.g. :995)
+		conn, err = tls.DialWithDialer(&net.Dialer{Timeout: 15 * time.Second}, "tcp", c.inboxAddr, &tls.Config{ServerName: host})
 	}
 	if err != nil {
 		return nil, err
@@ -257,6 +262,22 @@ func (c *Channel) dialPOP3() (*popConn, error) {
 	if _, err := p.readLine(); err != nil { // server greeting (+OK ...)
 		p.close()
 		return nil, err
+	}
+	// STARTTLS: upgrade the plaintext connection BEFORE sending credentials, so
+	// USER/PASS never travel in the clear. (A bare "none" stays plaintext by the
+	// operator's explicit choice; the default is implicit TLS above.)
+	if c.inboxTLS == "starttls" {
+		if _, err := p.cmd("STLS"); err != nil {
+			p.close()
+			return nil, err
+		}
+		tconn := tls.Client(conn, &tls.Config{ServerName: host})
+		if err := tconn.Handshake(); err != nil {
+			p.close()
+			return nil, err
+		}
+		p.conn = tconn
+		p.text = textproto.NewConn(tconn)
 	}
 	if _, err := p.cmd("USER " + c.inboxUser); err != nil {
 		p.close()
