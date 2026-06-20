@@ -70,7 +70,8 @@ describe("Channels", () => {
     postJSON.mockResolvedValue({ ok: true, connected: true, status: "WORKING" });
     render(withUI(<Channels />));
     await screen.findByText("WhatsApp (Gateway)");
-    fireEvent.click(screen.getByRole("button", { name: /edit/i }));
+    fireEvent.click(screen.getByRole("button", { name: /manage/i })); // expand card
+    fireEvent.click(await screen.findByRole("button", { name: /^edit$/i })); // open the account form
     fireEvent.click(await screen.findByRole("button", { name: /check connection/i }));
     await waitFor(() =>
       expect(postJSON).toHaveBeenCalledWith("/api/whatsappgw/status", expect.objectContaining({
@@ -89,12 +90,13 @@ describe("Channels", () => {
     );
     render(withUI(<Channels />));
     await screen.findByText("WhatsApp (Gateway)");
-    fireEvent.click(screen.getByRole("button", { name: /edit/i }));
+    fireEvent.click(screen.getByRole("button", { name: /manage/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /^edit$/i }));
     fireEvent.click(await screen.findByRole("button", { name: /show qr/i }));
     await waitFor(() =>
       expect(postJSON).toHaveBeenCalledWith("/api/whatsappgw/qr", expect.objectContaining({ url: "http://localhost:3000", backend: "waha" })),
     );
-    const img = (await screen.findByAltText("WhatsApp login QR")) as HTMLImageElement;
+    const img = (await screen.findByAltText("login QR")) as HTMLImageElement;
     expect(img.src).toBe(png);
   });
 
@@ -107,33 +109,52 @@ describe("Channels", () => {
     expect(screen.getByText(/2 channels · 1 live · 1 configured/)).toBeTruthy();
   });
 
-  it("sends a test message via a live channel", async () => {
+  it("sends a test message via a live account", async () => {
     render(withUI(<Channels />));
     await screen.findByText("Telegram");
-    // Open Telegram (live) — its card button reads "Edit".
-    fireEvent.click(screen.getByRole("button", { name: /edit/i }));
+    fireEvent.click(screen.getByRole("button", { name: /manage/i })); // expand → account list
     fireEvent.change(await screen.findByLabelText("Test recipient"), { target: { value: "999" } });
     fireEvent.click(screen.getByRole("button", { name: /send test/i }));
     await waitFor(() =>
       expect(postJSON).toHaveBeenCalledWith("/api/send", {
-        channel: "telegram",
+        channel: "telegram", // default account → bare kind
         to: "999",
         text: "✅ AGEZT test message",
       }),
     );
   });
 
-  it("saves an account field to the Config Center", async () => {
+  it("saves an account field via the channel-account API", async () => {
     render(withUI(<Channels />));
     await screen.findByText("WhatsApp");
-    // Open WhatsApp's setup form (it's the "Connect" one).
-    fireEvent.click(screen.getByRole("button", { name: /connect/i }));
+    fireEvent.click(screen.getByRole("button", { name: /connect/i })); // expand (not configured)
+    fireEvent.click(await screen.findByRole("button", { name: /^edit$/i })); // open the default account
     fireEvent.change(await screen.findByLabelText("Access token"), { target: { value: "EAAG-secret" } });
     fireEvent.click(screen.getByRole("button", { name: /^save$/i }));
     await waitFor(() =>
-      expect(postJSON).toHaveBeenCalledWith("/api/config/set", {
+      expect(postJSON).toHaveBeenCalledWith("/api/channel/account/set", {
+        kind: "whatsapp",
+        label: "",
         name: "AGEZT_WHATSAPP_ACCESS_TOKEN",
         value: "EAAG-secret",
+      }),
+    );
+  });
+
+  it("adds a second labelled account", async () => {
+    render(withUI(<Channels />));
+    await screen.findByText("Telegram");
+    fireEvent.click(screen.getByRole("button", { name: /manage/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /add account/i }));
+    fireEvent.change(await screen.findByLabelText("Account name"), { target: { value: "bot2" } });
+    fireEvent.change(await screen.findByLabelText("Bot token"), { target: { value: "tok2" } });
+    fireEvent.click(screen.getByRole("button", { name: /^save$/i }));
+    await waitFor(() =>
+      expect(postJSON).toHaveBeenCalledWith("/api/channel/account/set", {
+        kind: "telegram",
+        label: "bot2",
+        name: "AGEZT_TELEGRAM_TOKEN",
+        value: "tok2",
       }),
     );
   });
