@@ -259,11 +259,11 @@ Both original priorities are now complete:
 - ~~Harden schedule typed-target execution end-to-end~~ — done (`fix(cadence): harden typed schedule target validation`)
 - ~~Add high-risk approval visibility~~ — done (`feat(agents): surface high-risk approval history in agent diagnostics`)
 
-Next priorities for platform maturity:
+Next priorities for platform maturity — all complete:
 
-- Add memory/world/skill audit CLI commands (`agt memory audit`, `agt world audit`, `agt skill eval`) so epistemic hygiene is operator-visible.
-- Make plugin protocol versioning machine-checkable (manifest/protocol version field).
-- Add behavioral SDK parity tests beyond route-string coverage (typed request/response, error semantics, per endpoint).
+- ~~Add memory/world/skill audit CLI commands~~ — done: `agt memory audit` (existing), `agt world audit`, `agt skill hygiene`
+- ~~Make plugin protocol versioning machine-checkable~~ — done: `ProtocolVersion` constant + `checkProtocolVersion` at spawn (see `docs/PLUGIN-SECURITY.md` P9)
+- ~~Add behavioral SDK parity tests beyond route-string coverage~~ — done: 20 behavioral dimensions at parity across Python/TypeScript/Rust (see `docs/SDK-PARITY.md`)
 
 ## Bottom line
 
