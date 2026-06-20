@@ -188,7 +188,7 @@ var manifests = []channel.Manifest{
 	},
 	{
 		Kind: "nostr", Display: "Nostr", Transport: "socket", Duplex: true,
-		Description:   "Two-way Nostr over relays — answers signed kind-1 mentions of the agent's pubkey, posts threaded replies.",
+		Description:   "Two-way Nostr over relays — answers signed kind-1 mentions and NIP-04 encrypted DMs of the agent's pubkey, with threaded/encrypted replies.",
 		ConfigSection: "nostr", RequiredEnv: []string{"AGEZT_NOSTR_PRIVKEY", "AGEZT_NOSTR_RELAYS"},
 		DocsURL: "https://github.com/nostr-protocol/nips/blob/master/01.md",
 	},

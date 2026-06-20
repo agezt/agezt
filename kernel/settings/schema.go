@@ -368,11 +368,11 @@ func builtinSections() []Section {
 		},
 		{
 			ID: "nostr", Name: "Nostr",
-			Help: "Two-way Nostr over relays. Give the agent a secret key (64-char hex) and relay URLs; it answers signed kind-1 mentions of its pubkey from allowlisted authors and posts threaded replies. Restart to apply.",
+			Help: "Two-way Nostr over relays. Give the agent a secret key (hex or nsec) and relay URLs; it answers signed kind-1 mentions and NIP-04 encrypted DMs of its pubkey from allowlisted authors, replying threaded (public) or encrypted (DM). Restart to apply.",
 			Fields: []Field{
-				pw("AGEZT_NOSTR_PRIVKEY", "Secret key (hex)", "the agent's 64-char hex secret key (not nsec)"),
+				pw("AGEZT_NOSTR_PRIVKEY", "Secret key", "the agent's secret key as 64-char hex or nsec1…"),
 				{Env: "AGEZT_NOSTR_RELAYS", Label: "Relays", Type: TypeCSV, Apply: ApplyRestart, Help: "comma-separated wss:// relay URLs"},
-				{Env: "AGEZT_NOSTR_AUTHORS", Label: "Allowed authors (hex)", Type: TypeCSV, Apply: ApplyRestart, Help: "comma-separated author pubkeys (hex) allowed to drive the agent"},
+				{Env: "AGEZT_NOSTR_AUTHORS", Label: "Allowed authors", Type: TypeCSV, Apply: ApplyRestart, Help: "comma-separated author pubkeys (hex or npub1…) allowed to drive the agent"},
 			},
 		},
 		{

@@ -85,14 +85,11 @@ type relayConn struct {
 // New constructs a Nostr channel. Returns an error if the private key is missing
 // or malformed.
 func New(cfg Config) (*Channel, error) {
-	hexKey := strings.TrimSpace(cfg.PrivKeyHex)
-	if strings.HasPrefix(hexKey, "nsec1") {
-		return nil, fmt.Errorf("nostr: provide the secret key as 64-char hex, not nsec (bech32 not supported)")
+	hexKey, err := decodeNostrKey(cfg.PrivKeyHex, "nsec")
+	if err != nil {
+		return nil, err
 	}
-	raw, err := hex.DecodeString(hexKey)
-	if err != nil || len(raw) != 32 {
-		return nil, fmt.Errorf("nostr: PrivKeyHex must be 64 hex chars (32 bytes)")
-	}
+	raw, _ := hex.DecodeString(hexKey)
 	priv, _ := btcec.PrivKeyFromBytes(raw)
 	pubHex := hex.EncodeToString(schnorr.SerializePubKey(priv.PubKey())) // 32-byte x-only
 	var relays []string
@@ -168,10 +165,10 @@ func (c *Channel) serveRelay(ctx context.Context, url string) {
 	c.register(rc)
 	defer c.unregister(rc)
 
-	// Subscribe to kind-1 notes that p-tag us, from now on.
+	// Subscribe to kind-1 mentions and kind-4 encrypted DMs that p-tag us, from now on.
 	sub := "agezt-" + ulid.New()
 	filter := map[string]any{
-		"kinds": []int{1},
+		"kinds": []int{1, 4},
 		"#p":    []string{c.pubHex},
 		"since": time.Now().Unix(),
 	}
@@ -238,17 +235,31 @@ func (c *Channel) dispatch(ctx context.Context, ev nostrEvent) {
 	if ev.Pubkey == c.pubHex {
 		return // never react to our own notes (loop guard)
 	}
-	if strings.TrimSpace(ev.Content) == "" {
+	if c.seenBefore(ev.ID) {
 		return
 	}
-	if c.seenBefore(ev.ID) {
+	// Resolve the author pubkey (for ECDH on DMs and for threading).
+	their, perr := parseXOnly(ev.Pubkey)
+	isDM := ev.Kind == 4
+	text := ev.Content
+	if isDM {
+		if perr != nil {
+			return
+		}
+		dec, derr := nip04Decrypt(c.priv, their, ev.Content)
+		if derr != nil {
+			return // not a DM we can read (wrong recipient / malformed)
+		}
+		text = dec
+	}
+	if strings.TrimSpace(text) == "" {
 		return
 	}
 	msg := channel.UnifiedMessage{
 		ChannelKind:  "nostr",
 		ChannelID:    ev.Pubkey,
 		Sender:       ev.Pubkey,
-		Text:         ev.Content,
+		Text:         text,
 		PlatformTSMS: time.Now().UnixMilli(),
 	}
 	corr := "chan-" + ulid.New()
@@ -264,36 +275,48 @@ func (c *Channel) dispatch(ctx context.Context, ev nostrEvent) {
 	if strings.TrimSpace(rep.Text) == "" {
 		return
 	}
-	// Reply threaded to the mention (NIP-10): e-tag the root, p-tag the author.
+	if isDM {
+		// Reply privately, encrypted to the sender (NIP-04).
+		_ = c.publishKind4(their, ev.Pubkey, rep.Text, corr)
+		return
+	}
+	// Public reply threaded to the mention (NIP-10): e-tag the root, p-tag the author.
 	tags := [][]string{{"e", ev.ID, "", "reply"}, {"p", ev.Pubkey}}
-	_ = c.publish(ctx, rep.Text, tags, corr)
+	_ = c.publishKind1(rep.Text, tags, corr)
 }
 
 // Send implements channel.Channel: publish out.Text as a standalone note.
-func (c *Channel) Send(ctx context.Context, out channel.Outbound) error {
+func (c *Channel) Send(_ context.Context, out channel.Outbound) error {
 	text := strings.TrimSpace(out.Text)
 	if text == "" {
 		return nil
 	}
-	return c.publish(ctx, text, [][]string{}, "chan-"+ulid.New())
+	return c.publishKind1(text, [][]string{}, "chan-"+ulid.New())
 }
 
-// publish builds, signs and broadcasts a kind-1 event to every connected relay.
-func (c *Channel) publish(ctx context.Context, text string, tags [][]string, corr string) error {
+// publishKind1 builds, signs and broadcasts a kind-1 (public note) event.
+func (c *Channel) publishKind1(text string, tags [][]string, corr string) error {
 	if tags == nil {
 		tags = [][]string{}
 	}
-	body := text
-	if len(body) > maxChars {
-		body = body[:maxChars]
+	ev := nostrEvent{Pubkey: c.pubHex, CreatedAt: time.Now().Unix(), Kind: 1, Tags: tags, Content: truncate(text)}
+	return c.signAndBroadcast(ev, text, corr)
+}
+
+// publishKind4 sends an encrypted DM (NIP-04) to recipient, journaling the
+// plaintext so the operator can read what was sent.
+func (c *Channel) publishKind4(recip *btcec.PublicKey, recipHex, text, corr string) error {
+	enc, err := nip04Encrypt(c.priv, recip, truncate(text))
+	if err != nil {
+		return err
 	}
-	ev := nostrEvent{
-		Pubkey:    c.pubHex,
-		CreatedAt: time.Now().Unix(),
-		Kind:      1,
-		Tags:      tags,
-		Content:   body,
-	}
+	ev := nostrEvent{Pubkey: c.pubHex, CreatedAt: time.Now().Unix(), Kind: 4, Tags: [][]string{{"p", recipHex}}, Content: enc}
+	return c.signAndBroadcast(ev, text, corr)
+}
+
+// signAndBroadcast signs ev and queues it to every connected relay. journalText
+// is the human-readable text recorded in the outbound event (plaintext for DMs).
+func (c *Channel) signAndBroadcast(ev nostrEvent, journalText, corr string) error {
 	if err := ev.sign(c.priv); err != nil {
 		return err
 	}
@@ -301,12 +324,27 @@ func (c *Channel) publish(ctx context.Context, text string, tags [][]string, cor
 	if err != nil {
 		return err
 	}
-	sent := c.broadcast(frame)
-	if sent == 0 {
+	if c.broadcast(frame) == 0 {
 		return fmt.Errorf("nostr: no connected relay to publish to")
 	}
-	c.emitOutbound(channel.Outbound{ChannelID: c.pubHex, Text: text, Priority: channel.PriorityNotify}, corr)
+	c.emitOutbound(channel.Outbound{ChannelID: c.pubHex, Text: journalText, Priority: channel.PriorityNotify}, corr)
 	return nil
+}
+
+func truncate(s string) string {
+	if len(s) > maxChars {
+		return s[:maxChars]
+	}
+	return s
+}
+
+// parseXOnly turns a 32-byte hex x-only pubkey into a btcec public key.
+func parseXOnly(hexKey string) (*btcec.PublicKey, error) {
+	b, err := hex.DecodeString(hexKey)
+	if err != nil {
+		return nil, err
+	}
+	return schnorr.ParsePubKey(b)
 }
 
 // broadcast queues frame to every connected relay; returns how many accepted it.

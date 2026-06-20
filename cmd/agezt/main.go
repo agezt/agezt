@@ -1608,7 +1608,8 @@ func runDaemon(stdout, stderr io.Writer) int {
 	noChan, noSink, noDesc := buildNostr(ctx, k)
 	if noChan != nil {
 		go noChan.Start(ctx)
-		fmt.Fprintf(stdout, "  nostr channel    : %s (npub hex %s)\n", noDesc, noChan.PubHex())
+		npub, _ := nostr.EncodeNpub(noChan.PubHex())
+		fmt.Fprintf(stdout, "  nostr channel    : %s (%s)\n", noDesc, npub)
 	}
 
 	// SMS channel (SPEC-04 §1) — duplex over Twilio Programmable Messaging when
@@ -3502,10 +3503,18 @@ func buildNostr(ctx context.Context, k *kernelruntime.Kernel) (*nostr.Channel, p
 		return nil, nil, ""
 	}
 	authors := splitNonEmpty(os.Getenv(brand.EnvPrefix + "NOSTR_AUTHORS"))
+	// Authors may be hex or npub… — normalize to hex so the allowlist matches the
+	// hex pubkey on inbound events.
+	norm := make([]string, 0, len(authors))
+	for _, a := range authors {
+		if h, derr := nostr.DecodePubkey(a); derr == nil {
+			norm = append(norm, h)
+		}
+	}
 	ch, err := nostr.New(nostr.Config{
 		PrivKeyHex: priv,
 		Relays:     relays,
-		Allowlist:  channel.NewAllowlist(authors),
+		Allowlist:  channel.NewAllowlist(norm),
 		Bus:        k.Bus(),
 		Handler:    makeChannelHandler(k),
 	})
