@@ -18,6 +18,7 @@ See [CHANGELOG.md](CHANGELOG.md).
 tests), `npm run build`, and Playwright browser E2E against the embedded SPA and a
 live demo daemon.
 **Dependencies:** see [DEPENDENCIES.md](DEPENDENCIES.md) for the current `go.mod`-derived dependency inventory and justification status.
+**Positioning:** see [docs/COMPARISON.md](docs/COMPARISON.md) for how AGEZT differs from generic agent frameworks without unverifiable competitor claims.
 
 ## What you get
 
