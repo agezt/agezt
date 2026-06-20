@@ -295,6 +295,46 @@ directly, so the operator/daemon controls exactly what leaks.
 
 ---
 
+## P9: Protocol version compatibility check
+
+**Threat.** A plugin compiled against a newer or older wire protocol than the host's produces
+silent corruption or cryptic mid-run failures — a tool call arrives with a field the host doesn't
+understand, or the host sends a method the plugin doesn't handle, and the agent gets a confusing
+error instead of a clear "this plugin is incompatible."
+
+**Control.** The plugin protocol now carries a `ProtocolVersion` constant in
+`kernel/plugin/protocol.go` (currently `1`). Plugins echo it back in their `initialize` response
+via the `protocol_version` field. The host's spawn path calls `checkProtocolVersion` immediately
+after parsing the initialize response:
+
+- If the plugin's version matches the host's, it loads normally.
+- If the plugin omits the field entirely (zero value), it is treated as `1` for backward
+  compatibility with plugins written before this field existed.
+- If the versions differ, the host returns `ErrProtocolVersionMismatch` and tears down the
+  partially-started plugin — the operator gets a clear error at spawn, not a mystery at runtime.
+
+**Versioning policy.**
+
+- A **major version bump** means a breaking wire change (new required fields, removed methods,
+  changed semantics). The host rejects plugins with a different major version.
+- A **minor change** (new optional field, new method) does **not** bump the version. Both host
+  and plugin must tolerate unknown optional fields — the JSON wire shape is inherently
+  forward-compatible for additive changes.
+
+**Limitations.**
+
+- The check is a spawn-time gate, not a continuous enforcement. A plugin that changes behavior
+  mid-run after passing the version check is not caught by this mechanism (it is caught by the
+  crash-isolation and frame-size bounds).
+- Plugins written before this field was introduced pass by default (v1 back-compat). This means
+  the version check cannot distinguish "v1 plugin" from "plugin that doesn't know about the field."
+  This is intentional — it avoids breaking the existing plugin ecosystem.
+
+See: `kernel/plugin/protocol.go` (`ProtocolVersion`, `InitializeResult`), `kernel/plugin/host.go`
+(`checkProtocolVersion`, `ErrProtocolVersionMismatch`), `kernel/plugin/protocol_version_test.go`.
+
+---
+
 ## Operator deployment checklist
 
 Minimum posture for plugins in a production deployment:
@@ -316,6 +356,10 @@ Minimum posture for plugins in a production deployment:
    `host/invoke` callbacks when the plugin genuinely needs them.
 7. **Run the daemon as a dedicated user.** A plugin process shares the
   daemon's OS user. A dedicated user limits filesystem exposure.
+8. **Check protocol version compatibility.** Plugins that advertise a
+  `protocol_version` different from the host's are rejected at spawn. If a
+  plugin fails to load with `ErrProtocolVersionMismatch`, update the plugin
+  or the daemon so both speak the same protocol version.
 
 ---
 
