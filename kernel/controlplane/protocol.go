@@ -1325,6 +1325,11 @@ const (
 	// joined with their Config Center account fields + a configured flag — the
 	// data the Channels wizard renders. Read-only.
 	CmdChannelList = "channel_list"
+	// Multi-account channel management: write/remove one channel account instance's
+	// fields (the default or a "#label" account). args — Set: kind,label,name,value;
+	// Remove: kind,label. Listing rides CmdChannelList's per-channel "accounts".
+	CmdChannelAccountSet    = "channel_account_set"
+	CmdChannelAccountRemove = "channel_account_remove"
 	// Schema registry (M695): skills/plugins register their own config sections
 	// into <baseDir>/schemas/*.json. Register: args{section}; Unregister: args{id}.
 	CmdConfigSchemaRegister   = "config_schema_register"

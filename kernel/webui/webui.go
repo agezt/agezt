@@ -381,6 +381,8 @@ var writeRoutes = map[string]writeRoute{
 	// the provider in place. (Add is a jsonRoute — the value is a secret body.)
 	"/api/provider/keys/activate": {controlplane.CmdProviderKeyActivate, []string{"env", "label"}},
 	"/api/provider/keys/remove":   {controlplane.CmdProviderKeyRemove, []string{"env", "label"}},
+	// Multi-account channel: remove a labelled account (deletes its stored fields).
+	"/api/channel/account/remove": {controlplane.CmdChannelAccountRemove, []string{"kind", "label"}},
 }
 
 // jsonRoutes are mutating commands invoked with a JSON request BODY rather than
@@ -414,6 +416,9 @@ var jsonRoutes = map[string]writeRoute{
 	// Provider keyring add (M700): the value is a secret, so it travels in the
 	// POST body (not a query arg). env+label+value(+active).
 	"/api/provider/keys/add": {controlplane.CmdProviderKeyAdd, []string{"env", "label", "value", "active"}},
+	// Multi-account channel: set one field of an account instance. The value may be
+	// a secret, so it travels in the POST body. kind+label(""=default)+name+value.
+	"/api/channel/account/set": {controlplane.CmdChannelAccountSet, []string{"kind", "label", "name", "value"}},
 	// Quick Connect (provider gallery): register a provider in custom.json + reload.
 	// JSON body (id, name, npm, api, env, model); the key follows on keys/add.
 	"/api/provider/connect": {controlplane.CmdProviderConnect, []string{"id", "name", "npm", "api", "env", "model"}},

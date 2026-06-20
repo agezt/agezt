@@ -21,6 +21,13 @@ type Manifest struct {
 	RequiredEnv   []string  `json:"required_env"`   // env vars that must be set for the channel to start
 	DocsURL       string    `json:"docs_url,omitempty"`
 	Media         MediaCaps `json:"media"` // which non-text modalities this channel carries, per direction
+	// SetupSteps are terse "what you'll need / how to get credentials" bullets the
+	// guided Connect flow shows before the field form. Optional.
+	SetupSteps []string `json:"setup_steps,omitempty"`
+	// ConnectMethod tells the UI how to connect: "token" (default — paste fields),
+	// "qr" (scan, e.g. whatsappgw), "gateway" (self-hosted URL + reachability), or
+	// "oauth" (authorize in browser). Empty = "token".
+	ConnectMethod string `json:"connect_method,omitempty"`
 }
 
 // MediaCaps describes a channel's non-text multimodal reach. Text is always
@@ -74,6 +81,15 @@ func SetLive(kinds []string) {
 
 // IsLive reports whether a channel kind is currently running.
 func IsLive(kind string) bool { return live[kind] }
+
+// InstanceKey addresses a channel account-instance: the bare kind for the
+// default account, "kind#label" for a labelled one.
+func InstanceKey(kind, label string) string {
+	if label == "" {
+		return kind
+	}
+	return kind + "#" + label
+}
 
 // liveInstances is the set of running instance keys ("kind" for the default
 // account, "kind#label" for a labelled one). The Channels view reads it to show

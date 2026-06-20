@@ -39,46 +39,70 @@ func (s *Server) handleChannelList(conn net.Conn, req Request) {
 		fieldsBySection[sec.ID] = sec.Fields
 	}
 
-	// isSet reports whether an env var has a value anywhere (env > vault > store).
-	isSet := func(f settings.Field) (set bool, value string) {
+	// isSetKey reports whether a (possibly "#label"-suffixed) env key has a value
+	// anywhere (env > vault > store). Secrets report presence only.
+	isSetKey := func(f settings.Field, key string) (set bool, value string) {
 		if f.Secret {
-			return os.Getenv(f.Env) != "" || vault.Has(f.Env), ""
+			return os.Getenv(key) != "" || vault.Has(key), ""
 		}
-		val := os.Getenv(f.Env)
+		val := os.Getenv(key)
 		if val == "" {
-			val, _ = store.Get(f.Env)
+			val, _ = store.Get(key)
 		}
 		return val != "", val
 	}
-
-	rows := make([]map[string]any, 0, len(channel.Manifests()))
-	for _, m := range channel.Manifests() {
-		fields := make([]map[string]any, 0)
-		for _, f := range fieldsBySection[m.ConfigSection] {
-			set, value := isSet(f)
+	// fieldsFor builds the per-field presence/value list for one account label.
+	fieldsFor := func(sectionFields []settings.Field, label string) []map[string]any {
+		out := make([]map[string]any, 0, len(sectionFields))
+		for _, f := range sectionFields {
+			key := settings.SuffixEnv(f.Env, label)
+			set, value := isSetKey(f, key)
 			fld := map[string]any{
-				"env":        f.Env,
+				"env":        f.Env, // base env; the label addresses the instance
 				"label":      f.Label,
 				"secret":     f.Secret,
 				"required":   f.Required,
 				"help":       f.Help,
 				"set":        set,
-				"env_pinned": s.configEnvPinned[f.Env],
+				"env_pinned": label == "" && s.configEnvPinned[f.Env],
 			}
 			if !f.Secret {
 				fld["value"] = value
 			}
-			fields = append(fields, fld)
+			out = append(out, fld)
 		}
-		configured := true
-		for _, env := range m.RequiredEnv {
-			present := os.Getenv(env) != "" || vault.Has(env)
-			if !present {
-				if v, _ := store.Get(env); v == "" {
-					configured = false
-					break
+		return out
+	}
+	// configuredFor reports whether all required envs are present for a label.
+	configuredFor := func(required []string, label string) bool {
+		for _, env := range required {
+			key := settings.SuffixEnv(env, label)
+			if os.Getenv(key) == "" && !vault.Has(key) {
+				if v, _ := store.Get(key); v == "" {
+					return false
 				}
 			}
+		}
+		return true
+	}
+
+	allKeys := append(store.Names(), vault.Names()...)
+	rows := make([]map[string]any, 0, len(channel.Manifests()))
+	for _, m := range channel.Manifests() {
+		sectionFields := fieldsBySection[m.ConfigSection]
+		baseEnvs := make([]string, 0, len(sectionFields))
+		for _, f := range sectionFields {
+			baseEnvs = append(baseEnvs, f.Env)
+		}
+		// Accounts: the default instance ("") + every discovered "#label".
+		accounts := make([]map[string]any, 0, 2)
+		for _, label := range append([]string{""}, settings.AccountLabels(allKeys, baseEnvs)...) {
+			accounts = append(accounts, map[string]any{
+				"label":      label,
+				"configured": configuredFor(m.RequiredEnv, label),
+				"live":       channel.IsLiveInstance(channel.InstanceKey(m.Kind, label)),
+				"fields":     fieldsFor(sectionFields, label),
+			})
 		}
 		rows = append(rows, map[string]any{
 			"kind":           m.Kind,
@@ -87,11 +111,14 @@ func (s *Server) handleChannelList(conn net.Conn, req Request) {
 			"transport":      m.Transport,
 			"duplex":         m.Duplex,
 			"media":          m.Media,
+			"setup_steps":    m.SetupSteps,
+			"connect_method": m.ConnectMethod,
 			"config_section": m.ConfigSection,
 			"docs_url":       m.DocsURL,
-			"configured":     configured,
+			"configured":     configuredFor(m.RequiredEnv, ""), // default-instance, back-compat
 			"live":           channel.IsLive(m.Kind),
-			"fields":         fields,
+			"fields":         fieldsFor(sectionFields, ""), // default-instance fields, back-compat
+			"accounts":       accounts,
 		})
 	}
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{

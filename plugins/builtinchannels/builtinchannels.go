@@ -27,7 +27,14 @@ var manifests = []channel.Manifest{
 		Kind: "telegram", Display: "Telegram", Transport: "long-poll", Duplex: true,
 		Description:   "Telegram bot — two-way chat and notifications via @BotFather.",
 		ConfigSection: "telegram", RequiredEnv: []string{"AGEZT_TELEGRAM_TOKEN"},
-		Media:   channel.MediaCaps{ImageIn: true, VoiceIn: true, ImageOut: true, VoiceOut: true},
+		Media:         channel.MediaCaps{ImageIn: true, VoiceIn: true, ImageOut: true, VoiceOut: true},
+		ConnectMethod: "token",
+		SetupSteps: []string{
+			"Open a chat with @BotFather in Telegram.",
+			"Send /newbot and follow the prompts to name your bot.",
+			"Copy the bot token it gives you into the Bot token field.",
+			"Message your new bot, then add your chat id to Allowed chat IDs (get it from @userinfobot).",
+		},
 		DocsURL: "https://core.telegram.org/bots",
 	},
 	{
@@ -78,8 +85,15 @@ var manifests = []channel.Manifest{
 	},
 	{
 		Kind: "email", Display: "Email / SMTP", Transport: "smtp", Duplex: false,
-		Description:   "Outbound email over SMTP.",
+		Description:   "Outbound email over SMTP. Add several accounts, each its own server.",
 		ConfigSection: "email", RequiredEnv: []string{"AGEZT_EMAIL_SMTP_ADDR", "AGEZT_EMAIL_FROM"},
+		ConnectMethod: "token",
+		SetupSteps: []string{
+			"Find your provider's SMTP host:port (e.g. smtp.gmail.com:587).",
+			"For Gmail/Outlook, create an app password (not your login password).",
+			"Enter the SMTP server, your from address, username and app password.",
+			"Add the recipient addresses the agent is allowed to email.",
+		},
 	},
 	{
 		Kind: "homeassistant", Display: "Home Assistant", Transport: "rest", Duplex: false,
