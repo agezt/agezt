@@ -141,6 +141,43 @@ describe("Channels", () => {
     );
   });
 
+  it("connects an oauth channel via Connect with X", async () => {
+    const SLACK = [
+      {
+        kind: "slack",
+        display: "Slack",
+        description: "Slack bot",
+        transport: "webhook",
+        duplex: true,
+        configured: false,
+        connect_method: "oauth",
+        fields: [{ env: "AGEZT_SLACK_TOKEN", label: "Bot token", secret: true, required: true, set: false }],
+      },
+    ];
+    getJSON.mockResolvedValue({ channels: SLACK });
+    postJSON.mockImplementation((path: string) => {
+      if (path === "/api/channel/oauth/start") return Promise.resolve({ authorize_url: "https://slack.com/oauth/v2/authorize?x=1", state: "st-1" });
+      if (path === "/api/channel/oauth/status") return Promise.resolve({ status: "done" });
+      return Promise.resolve({});
+    });
+    const open = vi.spyOn(window, "open").mockImplementation(() => null);
+
+    render(withUI(<Channels />));
+    await screen.findByText("Slack");
+    fireEvent.click(screen.getByRole("button", { name: /connect/i })); // expand (not configured)
+    fireEvent.click(await screen.findByRole("button", { name: /^edit$/i })); // open the account form
+    fireEvent.change(await screen.findByLabelText("OAuth client id"), { target: { value: "cid" } });
+    fireEvent.change(await screen.findByLabelText("OAuth client secret"), { target: { value: "csec" } });
+    fireEvent.click(screen.getByRole("button", { name: /connect with slack/i }));
+    await waitFor(() =>
+      expect(postJSON).toHaveBeenCalledWith("/api/channel/oauth/start", expect.objectContaining({
+        kind: "slack", client_id: "cid", client_secret: "csec",
+      })),
+    );
+    await waitFor(() => expect(open).toHaveBeenCalledWith("https://slack.com/oauth/v2/authorize?x=1", "_blank", "noopener,noreferrer"));
+    open.mockRestore();
+  });
+
   it("adds a second labelled account", async () => {
     render(withUI(<Channels />));
     await screen.findByText("Telegram");

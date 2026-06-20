@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   Radio, RefreshCw, Check, ExternalLink, Save, SendHorizontal, QrCode,
   Image as ImageIcon, Mic, ArrowDown, ArrowUp, ArrowLeftRight, ArrowRight,
-  Plus, Pencil, Trash2, X, ListChecks,
+  Plus, Pencil, Trash2, X, ListChecks, KeyRound,
 } from "lucide-react";
 import { getJSON, postJSON } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -145,6 +145,59 @@ function ConnectForm({
   const isQR = row.connect_method === "qr" || row.kind === "whatsappgw";
   const [gw, setGw] = useState<{ checking?: boolean; connected?: boolean; status?: string; error?: string }>({});
   const [qr, setQR] = useState<{ loading?: boolean; img?: string; error?: string }>({});
+  // OAuth connect (connect_method "oauth") — "Connect with X" instead of pasting
+  // a token. Client id/secret are entered here and used only for the exchange;
+  // the resulting token is stored in the account's vault slot by the daemon.
+  const isOAuth = row.connect_method === "oauth";
+  const oauthInstanceField = row.kind === "mastodon" ? "AGEZT_MASTODON_SERVER" : "";
+  const [oauth, setOAuth] = useState<{ clientId: string; clientSecret: string; instance: string; busy?: boolean; status?: string; error?: string }>(
+    () => ({ clientId: "", clientSecret: "", instance: account.fields.find((f) => f.env === oauthInstanceField)?.value || "" }),
+  );
+  const redirectURI = typeof window !== "undefined" ? window.location.origin + "/oauth/callback" : "/oauth/callback";
+
+  async function startOAuth() {
+    const clientId = oauth.clientId.trim();
+    const clientSecret = oauth.clientSecret.trim();
+    if (!clientId || !clientSecret) {
+      ui.toast("Enter the OAuth client id and client secret first", "error");
+      return;
+    }
+    if (oauthInstanceField && !oauth.instance.trim()) {
+      ui.toast("Enter your instance URL first", "error");
+      return;
+    }
+    const lbl = label.trim();
+    if (lbl && !/^[a-z0-9][a-z0-9_-]{0,31}$/.test(lbl)) {
+      ui.toast("Account name must be a slug: lowercase letters/digits/-/_ (max 32)", "error");
+      return;
+    }
+    setOAuth((o) => ({ ...o, busy: true, status: "Opening provider…", error: undefined }));
+    try {
+      const r = await postJSON<{ authorize_url?: string; state?: string; error?: string }>("/api/channel/oauth/start", {
+        kind: row.kind, label: lbl, client_id: clientId, client_secret: clientSecret,
+        redirect_uri: redirectURI, instance_url: oauth.instance.trim(),
+      });
+      if (!r.authorize_url || !r.state) throw new Error(r.error || "could not start OAuth");
+      window.open(r.authorize_url, "_blank", "noopener,noreferrer");
+      setOAuth((o) => ({ ...o, status: "Waiting for you to authorize in the new tab…" }));
+      // Poll the flow status until it resolves (or ~2.5 min timeout).
+      for (let i = 0; i < 75; i++) {
+        await new Promise((res) => setTimeout(res, 2000));
+        const st = await postJSON<{ status?: string; error?: string }>("/api/channel/oauth/status", { state: r.state });
+        if (st.status === "done") {
+          ui.toast(`Connected ${row.display}${lbl ? ` · ${lbl}` : ""} — restart to apply`, "success");
+          setOAuth((o) => ({ ...o, busy: false, status: "Connected ✓" }));
+          onSaved();
+          onClose();
+          return;
+        }
+        if (st.status === "error") throw new Error(st.error || "authorization failed");
+      }
+      throw new Error("timed out waiting for authorization");
+    } catch (e) {
+      setOAuth((o) => ({ ...o, busy: false, status: undefined, error: (e as Error).message }));
+    }
+  }
   function gwArgs() {
     return {
       url: draft["AGEZT_WHATSAPPGW_URL"] || "",
@@ -255,6 +308,51 @@ function ConnectForm({
             className="mt-0.5 h-8 w-full text-xs"
           />
         </label>
+      )}
+
+      {/* OAuth connect — "Connect with X". Manual token entry stays below. */}
+      {isOAuth && (
+        <div className="space-y-1.5 rounded border border-accent/40 bg-accent/5 p-2">
+          <div className="flex items-center gap-1.5 text-[11px] font-medium text-foreground">
+            <KeyRound className="size-3" /> Connect with {row.display}
+          </div>
+          {oauthInstanceField && (
+            <Input
+              value={oauth.instance}
+              onChange={(e) => setOAuth((o) => ({ ...o, instance: e.target.value }))}
+              placeholder="Instance URL — e.g. https://mastodon.social"
+              aria-label="Instance URL"
+              className="h-8 w-full font-mono text-xs"
+            />
+          )}
+          <Input
+            value={oauth.clientId}
+            onChange={(e) => setOAuth((o) => ({ ...o, clientId: e.target.value }))}
+            placeholder="OAuth client id"
+            aria-label="OAuth client id"
+            className="h-8 w-full font-mono text-xs"
+          />
+          <Input
+            type="password"
+            value={oauth.clientSecret}
+            onChange={(e) => setOAuth((o) => ({ ...o, clientSecret: e.target.value }))}
+            placeholder="OAuth client secret"
+            aria-label="OAuth client secret"
+            className="h-8 w-full font-mono text-xs"
+          />
+          <p className="text-[10px] text-muted">
+            Redirect URL (add this to your OAuth app): <code className="text-foreground">{redirectURI}</code>
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="default" size="sm" disabled={oauth.busy} onClick={startOAuth}>
+              {oauth.busy ? <RefreshCw className="size-3.5 animate-spin" /> : <KeyRound className="size-3.5" />}
+              Connect with {row.display}
+            </Button>
+            {oauth.status && <span className="text-[11px] text-muted">{oauth.status}</span>}
+            {oauth.error && <span className="text-[11px] text-bad">{oauth.error}</span>}
+          </div>
+          <p className="text-[10px] text-muted">…or paste a token manually below.</p>
+        </div>
       )}
 
       {/* Step 2 — fields */}

@@ -90,3 +90,6 @@ webui-*.png
 .dev-home/
 bin/
 .wrongstack/
+
+# local ad-hoc test-counting script (machine-specific path, not portable)
+scout_tests.ps1
