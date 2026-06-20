@@ -111,11 +111,27 @@ Before merging a change to any external or beta surface:
 - [ ] Confirm auth behavior: no secrets in URLs unless the transport limitation is explicitly documented.
 - [ ] Confirm audit behavior: externally triggered actions still produce journal/correlation evidence.
 
+## SDK parity report
+
+The generated parity report lives at `docs/SDK-PARITY.md` and is checked by:
+
+```bash
+go run ./tools/sdkparity -check docs/SDK-PARITY.md
+```
+
+Regenerate it after `/api/v1` route or SDK coverage changes:
+
+```bash
+go run ./tools/sdkparity -out docs/SDK-PARITY.md
+```
+
+The report is static route-string coverage only. It does not replace behavioral SDK tests.
+
 ## Known gaps
 
 These are not blockers for using AGEZT, but they matter for platform positioning:
 
-1. **SDK parity matrix is manual.** There is no generated report that compares SDK endpoint coverage against the contract.
+1. **SDK parity is now reported, not enforced as behavioral conformance.** `docs/SDK-PARITY.md` checks route-string coverage; typed request/response parity and error semantics still need SDK tests.
 2. **Web UI APIs are broad and internal.** External callers may discover them, but they should not depend on them unless promoted to `/api/v1`.
 3. **Plugin protocol versioning needs to become explicit.** Current docs describe the model, but manifest/protocol compatibility should be machine-checkable.
 4. **Event/journal schema versioning is implicit.** Events are central to `agt why` and demos; schema compatibility needs a documented migration story.
