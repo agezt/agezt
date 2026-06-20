@@ -231,17 +231,12 @@ Avoid this language unless backed by a runnable test/demo:
 
 ### Priority 1: Comparison evidence pack
 
-**Partly done.** Two runnable demos exist:
+**Done.** Four runnable demos exist:
 
 - `examples/autonomous/policy-denial-audit/` — implemented
 - `examples/autonomous/mailbox-delegation/` — implemented
-
-Remaining demos to create:
-
-- `examples/autonomous/typed-schedule-system-task/`
-- `examples/autonomous/plugin-governance/`
-
-Each demo should include expected event subjects, expected `agt why` output shape, and a screenshot or transcript.
+- `examples/autonomous/typed-schedule-system-task/` — implemented
+- `examples/autonomous/plugin-governance/` — implemented
 
 ### Priority 2: Effective authority proof
 
@@ -259,10 +254,8 @@ See: `cmd/agt/agent.go`, `cmd/agt/agent_authority_test.go`.
 
 ### Remaining priorities
 
-- Complete the demo pack (typed-schedule, plugin-governance demos).
 - Harden schedule typed-target execution end-to-end (see `NEXT.md` Priority #4).
 - Add high-risk approval visibility (not just denials) to agent detail and CLI.
-- Create `docs/PLUGIN-SECURITY.md` covering trust levels, pinning, allowlists, and crash/reload behavior.
 
 ## Bottom line
 
@@ -283,5 +276,5 @@ That is meaningfully different from generic agent frameworks. The remaining work
 | `examples/autonomous/mailbox-delegation/` | implemented | durable identity, authority, wake causality |
 | `agt agent authority <slug>` | implemented | effective runtime policy proof |
 | `examples/autonomous/typed-schedule-system-task/` | planned | typed schedules, not cron-wrapped prompts |
-| `examples/autonomous/plugin-governance/` | planned | plugin trust, allowlists, audit |
-| `docs/PLUGIN-SECURITY.md` | planned | plugin trust model, pinning, crash/reload |
+| `examples/autonomous/plugin-governance/` | implemented | plugin trust, allowlists, audit |
+| `docs/PLUGIN-SECURITY.md` | implemented | plugin trust model, pinning, crash/reload |
