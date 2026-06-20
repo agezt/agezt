@@ -86,7 +86,15 @@ func (p *Provider) CompleteStream(ctx context.Context, req agent.CompletionReque
 		return nil, &APIError{Status: httpResp.StatusCode, Body: string(raw)}
 	}
 
-	return parseStream(httpResp.Body, onChunk)
+	resp, err := parseStream(httpResp.Body, onChunk)
+	if err != nil {
+		return nil, err
+	}
+	// Reverse the request-side tool-name conformance on the final response so the
+	// call routes to the real tool (the live chunks carry the wire name, which is
+	// display-only; dispatch uses this assembled response).
+	restoreToolCallNames(resp, reverseToolNames(req.Tools))
+	return resp, nil
 }
 
 // encodeStreamRequest mirrors encodeRequest but adds "stream": true.
@@ -105,9 +113,10 @@ func encodeStreamRequest(model, system string, msgs []agent.Message, tools []age
 		Thinking  *anthThinking `json:"thinking,omitempty"` // M318
 	}
 	thinking, maxTok := thinkingConfig(thinkingBudget, maxTok)
-	wire := streamReq{Model: model, MaxTokens: maxTok, System: buildAnthSystem(system), Stream: true, Tools: buildAnthTools(tools), Thinking: thinking}
+	fwd, _ := wireToolNames(tools)
+	wire := streamReq{Model: model, MaxTokens: maxTok, System: buildAnthSystem(system), Stream: true, Tools: buildAnthTools(tools, fwd), Thinking: thinking}
 	for _, m := range msgs {
-		am, err := canonicalToAnth(m)
+		am, err := canonicalToAnth(m, fwd)
 		if err != nil {
 			return nil, err
 		}
