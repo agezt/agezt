@@ -142,6 +142,7 @@ func helpGroups() []helpGroup {
 			}},
 			{"provider", "credentials, keyrings, live checks, hot reload", []string{
 				"provider connect <id> --url <base> --model <m> [--env E --key K] [--default]   register a provider (custom) + key, live",
+				"provider chatgpt <login|import|logout|status>   Sign in with ChatGPT (subscription, no API key)",
 				"provider creds list|set <NAME> [<value>]|rm <NAME>    the vault (set prompts when value omitted)",
 				"provider keys <list|add|activate|rm>    multiple keys per provider, pick the active one",
 				"provider setup [provider-id]            prompt for missing keys (offline)",

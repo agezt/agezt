@@ -23,7 +23,7 @@ import (
 // `creds`; M1.p added `check`; M1.r adds `reload`.
 func cmdProvider(args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
-		fmt.Fprintf(stderr, "%s provider: subcommand required (connect, creds, keys, check, reload)\n", brand.CLI)
+		fmt.Fprintf(stderr, "%s provider: subcommand required (connect, chatgpt, creds, keys, check, reload)\n", brand.CLI)
 		return 2
 	}
 	switch args[0] {
@@ -33,6 +33,8 @@ func cmdProvider(args []string, stdout, stderr io.Writer) int {
 		return cmdProviderKeys(args[1:], stdout, stderr)
 	case "connect":
 		return cmdProviderConnect(args[1:], stdout, stderr)
+	case "chatgpt":
+		return cmdProviderChatGPT(args[1:], stdout, stderr)
 	case "check":
 		return cmdProviderCheck(args[1:], stdout, stderr)
 	case "log":
@@ -50,7 +52,7 @@ func cmdProvider(args []string, stdout, stderr io.Writer) int {
 	case "cost":
 		return cmdProviderCost(args[1:], stdout, stderr)
 	default:
-		fmt.Fprintf(stderr, "%s provider: unknown subcommand %q (connect, creds, keys, check, cost, log, reload, setup, import)\n", brand.CLI, args[0])
+		fmt.Fprintf(stderr, "%s provider: unknown subcommand %q (connect, chatgpt, creds, keys, check, cost, log, reload, setup, import)\n", brand.CLI, args[0])
 		return 2
 	}
 }
