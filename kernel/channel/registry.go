@@ -74,3 +74,21 @@ func SetLive(kinds []string) {
 
 // IsLive reports whether a channel kind is currently running.
 func IsLive(kind string) bool { return live[kind] }
+
+// liveInstances is the set of running instance keys ("kind" for the default
+// account, "kind#label" for a labelled one). The Channels view reads it to show
+// per-account live state in the multi-account UI.
+var liveInstances = map[string]bool{}
+
+// SetLiveInstances records the running instance keys. Replaces the prior set.
+func SetLiveInstances(keys []string) {
+	next := make(map[string]bool, len(keys))
+	for _, k := range keys {
+		next[k] = true
+	}
+	liveInstances = next
+}
+
+// IsLiveInstance reports whether a specific instance key is running. The default
+// account's key is the bare kind; a labelled account's is "kind#label".
+func IsLiveInstance(key string) bool { return liveInstances[key] }

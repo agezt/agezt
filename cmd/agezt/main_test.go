@@ -19,6 +19,32 @@ import (
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
 
+// TestInstanceMatch verifies send-target → instance-key resolution: a bare kind
+// fans out to all of its accounts; "kind#label" hits exactly one.
+func TestInstanceMatch(t *testing.T) {
+	keys := []string{"email", "email#work", "email#alerts", "telegram", "slack"}
+	// Bare kind fans out to default + all labelled instances.
+	got := instanceMatch(keys, "email")
+	if len(got) != 3 {
+		t.Fatalf("email fan-out = %v, want 3 instances", got)
+	}
+	// Exact instance addressing.
+	if g := instanceMatch(keys, "email#work"); len(g) != 1 || g[0] != "email#work" {
+		t.Fatalf("email#work = %v, want [email#work]", g)
+	}
+	// Single-account kind → exactly one (back-compat).
+	if g := instanceMatch(keys, "telegram"); len(g) != 1 || g[0] != "telegram" {
+		t.Fatalf("telegram = %v, want [telegram]", g)
+	}
+	// Unknown targets.
+	if g := instanceMatch(keys, "email#missing"); g != nil {
+		t.Fatalf("missing label = %v, want nil", g)
+	}
+	if g := instanceMatch(keys, "discord"); g != nil {
+		t.Fatalf("unknown kind = %v, want nil", g)
+	}
+}
+
 // TestDeliverScheduled — a scheduled run's answer is broadcast to every configured
 // channel recipient, prefixed with the schedule id; empty answers are skipped (M152).
 func TestDeliverScheduled(t *testing.T) {

@@ -1441,13 +1441,10 @@ func runDaemon(stdout, stderr io.Writer) int {
 
 	// Telegram channel (SPEC-04 §1) — duplex when AGEZT_TELEGRAM_TOKEN is
 	// set. Built before Pulse so its brief sink can tee with the log sink.
-	tgChan, tgSink, tgDesc := buildTelegram(ctx, k)
-	if tgChan != nil {
-		go tgChan.Start(ctx)
-		fmt.Fprintf(stdout, "  telegram         : %s\n", tgDesc)
-	} else {
-		fmt.Fprintf(stdout, "  telegram         : disabled (set AGEZT_TELEGRAM_TOKEN)\n")
-	}
+	// Telegram channel (SPEC-04 §1) — multi-account: the default instance plus any
+	// "#label" accounts (several bots) are all built and started.
+	tgInsts := buildAccounts(ctx, k, "telegram", buildTelegramInstance)
+	startInstances(ctx, stdout, "telegram", "telegram", "disabled (set AGEZT_TELEGRAM_TOKEN)", tgInsts)
 
 	// Slack channel (SPEC-04 §1) — duplex when AGEZT_SLACK_TOKEN is set. Serves
 	// the Events API endpoint for inbound (HMAC-verified) and chat.postMessage for
@@ -1485,13 +1482,10 @@ func runDaemon(stdout, stderr io.Writer) int {
 
 	// Email channel (SPEC-04 §1) — outbound-only over SMTP. Briefs/`agt send` mail
 	// the allowlisted recipients. Enabled when AGEZT_EMAIL_SMTP_ADDR is set.
-	emChan, emSink, emDesc := buildEmail(ctx, k)
-	if emChan != nil {
-		go emChan.Start(ctx)
-		fmt.Fprintf(stdout, "  email channel    : %s\n", emDesc)
-	} else {
-		fmt.Fprintf(stdout, "  email channel    : disabled (set AGEZT_EMAIL_SMTP_ADDR + AGEZT_EMAIL_FROM)\n")
-	}
+	// Email channel (SPEC-04 §1) — multi-account: the default instance plus any
+	// "#label" accounts (several mailboxes, each its own SMTP) are all built.
+	emInsts := buildAccounts(ctx, k, "email", buildEmailInstance)
+	startInstances(ctx, stdout, "email", "email channel", "disabled (set AGEZT_EMAIL_SMTP_ADDR + AGEZT_EMAIL_FROM)", emInsts)
 
 	// Matrix channel (SPEC-04 §1) — duplex over the open Matrix Client-Server API
 	// when AGEZT_MATRIX_HOMESERVER + AGEZT_MATRIX_TOKEN are set. Long-polls /sync
@@ -1687,7 +1681,10 @@ func runDaemon(stdout, stderr io.Writer) int {
 
 	// Every configured channel's brief sink, teed: Pulse briefs and (M782)
 	// alert notifications share the same delivery surface.
-	channelSinks := combineSinks(tgSink, slSink, dcSink, whSink, emSink, mxSink, ircSink, twSink, wgSink, imSink, lnSink, gcSink, mmSink, dtSink, fsSink, wcSink, qqSink, wxSink, zlSink, nctSink, maSink, noSink, smSink, waSink, haSink, tmSink, sgSink, pushSink)
+	positionalSinks := []pulse.BriefSink{slSink, dcSink, whSink, mxSink, ircSink, twSink, wgSink, imSink, lnSink, gcSink, mmSink, dtSink, fsSink, wcSink, qqSink, wxSink, zlSink, nctSink, maSink, noSink, smSink, waSink, haSink, tmSink, sgSink, pushSink}
+	// Multi-account channels (telegram, email) contribute one sink per instance.
+	positionalSinks = append(positionalSinks, instanceSinks(tgInsts, emInsts)...)
+	channelSinks := combineSinks(positionalSinks...)
 
 	// Pulse — the proactive heart (SPEC-03). On by default; the resident
 	// engine runs on the daemon ctx so `agt halt`/SIGTERM/`agt shutdown`
@@ -1842,9 +1839,9 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// Built from the channels actually constructed above so a kind only sends when
 	// it's configured; senders journal channel.outbound via each channel's Send.
 	liveChannels := map[string]channel.Channel{}
-	if tgChan != nil {
-		liveChannels["telegram"] = tgChan
-	}
+	// Multi-account channels register every instance by its instance key
+	// ("telegram", "telegram#bot2", "email#work", …).
+	registerInstances(liveChannels, tgInsts, emInsts)
 	if slChan != nil {
 		liveChannels["slack"] = slChan
 	}
@@ -1853,9 +1850,6 @@ func runDaemon(stdout, stderr io.Writer) int {
 	}
 	if whChan != nil {
 		liveChannels["webhook"] = whChan
-	}
-	if emChan != nil {
-		liveChannels["email"] = emChan
 	}
 	if mxChan != nil {
 		liveChannels["matrix"] = mxChan
@@ -1930,22 +1924,52 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// "live" vs merely "configured (restart to start)".
 	liveKinds := make([]string, 0, len(liveChannels))
 	for k := range liveChannels {
-		liveKinds = append(liveKinds, k)
+		// An instance key may be "kind#label"; the per-kind "live" flag keys off
+		// the base kind, so any live instance lights up the manifest.
+		base, _, _ := strings.Cut(k, "#")
+		liveKinds = append(liveKinds, base)
 	}
 	channel.SetLive(liveKinds)
+	channel.SetLiveInstances(liveChannelKeys(liveChannels))
+	// channelTargets resolves a send target to one or more live channels. An exact
+	// instance key ("email#work") hits that one instance; a bare kind ("email")
+	// fans out to every instance of that kind (the default + all "#label"
+	// accounts). For a single-account kind this is exactly one channel — identical
+	// to the pre-multi-account behavior.
+	channelTargets := func(target string) []channel.Channel {
+		var out []channel.Channel
+		for _, key := range instanceMatch(liveChannelKeys(liveChannels), target) {
+			if ch, ok := liveChannels[key]; ok {
+				out = append(out, ch)
+			}
+		}
+		return out
+	}
 	channelSend := func(sctx context.Context, kind, id, text string) error {
-		ch, ok := liveChannels[kind]
-		if !ok {
+		chs := channelTargets(kind)
+		if len(chs) == 0 {
 			return fmt.Errorf("channel %q not configured", kind)
 		}
-		return ch.Send(sctx, channel.Outbound{ChannelID: id, Text: text, Priority: channel.PriorityNotify})
+		var firstErr error
+		for _, ch := range chs {
+			if err := ch.Send(sctx, channel.Outbound{ChannelID: id, Text: text, Priority: channel.PriorityNotify}); err != nil && firstErr == nil {
+				firstErr = err
+			}
+		}
+		return firstErr
 	}
 	channelSendMedia := func(sctx context.Context, kind, id, text string, atts []channel.Attachment) error {
-		ch, ok := liveChannels[kind]
-		if !ok {
+		chs := channelTargets(kind)
+		if len(chs) == 0 {
 			return fmt.Errorf("channel %q not configured", kind)
 		}
-		return ch.Send(sctx, channel.Outbound{ChannelID: id, Text: text, Attachments: atts, Priority: channel.PriorityNotify})
+		var firstErr error
+		for _, ch := range chs {
+			if err := ch.Send(sctx, channel.Outbound{ChannelID: id, Text: text, Attachments: atts, Priority: channel.PriorityNotify}); err != nil && firstErr == nil {
+				firstErr = err
+			}
+		}
+		return firstErr
 	}
 	srv.SetChannelSender(channelSend)
 
@@ -2572,18 +2596,18 @@ func extForMime(mime string) string {
 //
 // The inbound handler runs the normal agent loop under the channel's
 // correlation, so `agt why`/`agt inbox` link the Telegram message to the task.
-func buildTelegram(ctx context.Context, k *kernelruntime.Kernel) (*telegram.Channel, pulse.BriefSink, string) {
-	token := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "TELEGRAM_TOKEN"))
+func buildTelegramInstance(ctx context.Context, k *kernelruntime.Kernel, label string, get func(string) string) (channel.Channel, pulse.BriefSink, string) {
+	token := strings.TrimSpace(get(brand.EnvPrefix + "TELEGRAM_TOKEN"))
 	if token == "" {
 		return nil, nil, ""
 	}
-	chatIDs := splitNonEmpty(os.Getenv(brand.EnvPrefix + "TELEGRAM_CHAT_ID"))
+	chatIDs := splitNonEmpty(get(brand.EnvPrefix + "TELEGRAM_CHAT_ID"))
 	allow := channel.NewAllowlist(chatIDs)
 
 	handler := makeChannelHandler(k)
 	ch := telegram.New(telegram.Config{
 		Token:     token,
-		BaseURL:   strings.TrimSpace(os.Getenv(brand.EnvPrefix + "TELEGRAM_API_BASE")), // empty → public Bot API
+		BaseURL:   strings.TrimSpace(get(brand.EnvPrefix + "TELEGRAM_API_BASE")), // empty → public Bot API
 		Allowlist: allow,
 		Bus:       k.Bus(),
 		Handler:   handler,
@@ -2741,19 +2765,19 @@ func buildWebhook(ctx context.Context, k *kernelruntime.Kernel) (*webhookchan.Ch
 //	                        be mailed (briefs + `agt send`)
 //
 // Outbound-only — there's no inbound email surface (IMAP/MX is out of scope).
-func buildEmail(ctx context.Context, k *kernelruntime.Kernel) (*email.Channel, pulse.BriefSink, string) {
-	addr := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "EMAIL_SMTP_ADDR"))
+func buildEmailInstance(ctx context.Context, k *kernelruntime.Kernel, label string, get func(string) string) (channel.Channel, pulse.BriefSink, string) {
+	addr := strings.TrimSpace(get(brand.EnvPrefix + "EMAIL_SMTP_ADDR"))
 	if addr == "" {
 		return nil, nil, ""
 	}
-	from := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "EMAIL_FROM"))
-	recipients := splitNonEmpty(os.Getenv(brand.EnvPrefix + "EMAIL_RECIPIENTS"))
+	from := strings.TrimSpace(get(brand.EnvPrefix + "EMAIL_FROM"))
+	recipients := splitNonEmpty(get(brand.EnvPrefix + "EMAIL_RECIPIENTS"))
 
 	ch := email.New(email.Config{
 		Addr:      addr,
 		From:      from,
-		Username:  strings.TrimSpace(os.Getenv(brand.EnvPrefix + "EMAIL_USERNAME")),
-		Password:  os.Getenv(brand.EnvPrefix + "EMAIL_PASSWORD"),
+		Username:  strings.TrimSpace(get(brand.EnvPrefix + "EMAIL_USERNAME")),
+		Password:  get(brand.EnvPrefix + "EMAIL_PASSWORD"),
 		Allowlist: channel.NewAllowlist(recipients),
 		Bus:       k.Bus(),
 	})
@@ -4004,6 +4028,129 @@ func combineSinks(sinks ...pulse.BriefSink) pulse.BriefSink {
 	default:
 		return live
 	}
+}
+
+// chanInstance is one configured account-instance of a channel kind (multi-account).
+type chanInstance struct {
+	key  string // instanceKey(kind, label): bare kind for the default, "kind#label" otherwise
+	desc string
+	ch   channel.Channel
+	sink pulse.BriefSink
+}
+
+// instanceKey addresses a channel instance: the bare kind for the default
+// (back-compat) instance, "kind#label" for a labelled one.
+func instanceKey(kind, label string) string {
+	if label == "" {
+		return kind
+	}
+	return kind + "#" + label
+}
+
+// channelLabels returns the configured NON-default instance labels for a channel
+// kind, discovered from the process env (the daemon injects store+vault keys,
+// including "#label" suffixed ones, at boot via injectConfig).
+func channelLabels(kind string) []string {
+	baseEnvs := settings.SectionEnvs(kind)
+	if len(baseEnvs) == 0 {
+		return nil
+	}
+	env := os.Environ()
+	keys := make([]string, 0, len(env))
+	for _, kv := range env {
+		if k, _, ok := strings.Cut(kv, "="); ok {
+			keys = append(keys, k)
+		}
+	}
+	return settings.AccountLabels(keys, baseEnvs)
+}
+
+// buildAccounts builds every configured instance (the default plus each labelled
+// account) of a channel kind via a per-instance builder. The builder MUST return
+// a nil channel.Channel interface (not a typed nil) when its instance is
+// unconfigured, so unconfigured instances are skipped cleanly.
+func buildAccounts(ctx context.Context, k *kernelruntime.Kernel, kind string,
+	build func(context.Context, *kernelruntime.Kernel, string, func(string) string) (channel.Channel, pulse.BriefSink, string)) []chanInstance {
+	var out []chanInstance
+	for _, label := range append([]string{""}, channelLabels(kind)...) {
+		ch, sink, desc := build(ctx, k, label, settings.FieldGetter(label))
+		if ch == nil {
+			continue
+		}
+		out = append(out, chanInstance{key: instanceKey(kind, label), desc: desc, ch: ch, sink: sink})
+	}
+	return out
+}
+
+// startInstances starts each instance's read loop and logs it; logs a single
+// "disabled" line for the kind when none are configured.
+func startInstances(ctx context.Context, stdout io.Writer, kind, label, disabledHint string, insts []chanInstance) {
+	if len(insts) == 0 {
+		fmt.Fprintf(stdout, "  %-16s : %s\n", label, disabledHint)
+		return
+	}
+	for _, in := range insts {
+		go in.ch.Start(ctx)
+		who := in.key
+		if who == kind {
+			who = "default"
+		}
+		fmt.Fprintf(stdout, "  %-16s : %s [%s]\n", label, in.desc, who)
+	}
+}
+
+// instanceSinks collects the non-nil brief sinks across instance groups.
+func instanceSinks(groups ...[]chanInstance) []pulse.BriefSink {
+	var out []pulse.BriefSink
+	for _, g := range groups {
+		for _, in := range g {
+			if in.sink != nil {
+				out = append(out, in.sink)
+			}
+		}
+	}
+	return out
+}
+
+// registerInstances maps every instance into liveChannels by its instance key.
+func registerInstances(live map[string]channel.Channel, groups ...[]chanInstance) {
+	for _, g := range groups {
+		for _, in := range g {
+			live[in.key] = in.ch
+		}
+	}
+}
+
+// instanceMatch returns the instance keys a send target addresses: an exact
+// "kind#label" key, or every "kind"/"kind#*" key when target is a bare kind
+// (fan-out across all accounts of that kind). For a single-account kind this is
+// exactly one key — identical to the pre-multi-account behavior.
+func instanceMatch(keys []string, target string) []string {
+	if strings.Contains(target, "#") {
+		for _, k := range keys {
+			if k == target {
+				return []string{target}
+			}
+		}
+		return nil
+	}
+	var out []string
+	for _, k := range keys {
+		if base, _, _ := strings.Cut(k, "#"); base == target {
+			out = append(out, k)
+		}
+	}
+	return out
+}
+
+// liveChannelKeys returns the instance keys of the live channel map (used to
+// record per-account live state for the Channels UI).
+func liveChannelKeys(live map[string]channel.Channel) []string {
+	out := make([]string, 0, len(live))
+	for k := range live {
+		out = append(out, k)
+	}
+	return out
 }
 
 // briefSink returns the Pulse sink: the log sink alone, or teed with extra
