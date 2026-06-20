@@ -1335,12 +1335,19 @@ func TestScheduleRunAndEnableValidateTypedTargetsStillExist(t *testing.T) {
 		t.Fatalf("add system task schedule shell: %v", err)
 	}
 	systemTaskID, _ := add["id"].(string)
-	if _, err := k.Schedules().SetSystemTaskTarget(systemTaskID, "missing_system_task"); err != nil {
-		t.Fatalf("force stale system task target: %v", err)
+	// Defense-in-depth: SetSystemTaskTarget now validates the task name at the
+	// store level (not just at the control plane). An invalid task name is
+	// rejected immediately — the schedule entry cannot be corrupted.
+	if _, err := k.Schedules().SetSystemTaskTarget(systemTaskID, "missing_system_task"); err == nil ||
+		!strings.Contains(err.Error(), "unknown system task") {
+		t.Fatalf("store should reject unknown system task, got: %v", err)
 	}
-	if _, err := c.Call(ctx, controlplane.CmdScheduleRun, map[string]any{"id": systemTaskID}); err == nil ||
-		!strings.Contains(err.Error(), "unknown system task: missing_system_task") {
-		t.Fatalf("run stale system task err = %v, want unknown system task", err)
+	// The control-plane validateScheduleRunnable is still the second gate for
+	// schedules that were valid when added but became stale (e.g. a workflow
+	// was deleted after the schedule was created). For system tasks, the store
+	// is the first and only gate — the entry stays as intent-target.
+	if _, err := c.Call(ctx, controlplane.CmdScheduleRun, map[string]any{"id": systemTaskID}); err != nil {
+		t.Fatalf("run system task schedule (still intent-target): unexpected error: %v", err)
 	}
 
 	list, err := c.Call(ctx, controlplane.CmdScheduleList, nil)
@@ -1360,9 +1367,8 @@ func TestScheduleRunAndEnableValidateTypedTargetsStillExist(t *testing.T) {
 		}
 	}
 	for id, want := range map[string]string{
-		workflowID:   "unknown workflow: missing-flow",
-		toolID:       "unknown tool: missing-tool",
-		systemTaskID: "unknown system task: missing_system_task",
+		workflowID: "unknown workflow: missing-flow",
+		toolID:     "unknown tool: missing-tool",
 	} {
 		if got := blocked[id]; !strings.Contains(got, want) {
 			t.Fatalf("schedule list target_error[%s] = %q, want %q", id, got, want)

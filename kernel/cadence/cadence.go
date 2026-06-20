@@ -216,6 +216,71 @@ type Entry struct {
 	Assure int `json:"assure,omitempty"`
 }
 
+// Validate checks that the entry's target-type fields are internally consistent:
+// exactly one target type is active, conflicting fields are cleared, and typed
+// targets carry the required identifier. Returns nil when valid, an error
+// describing the first inconsistency otherwise. Pure; no store access.
+//
+// This is defense-in-depth: the control plane validates at schedule-add time,
+// but a hand-edited schedules.json or a future code path that bypasses the
+// control plane should not produce an entry that silently misfires. The fire
+// path (cmd/agezt) also guards against unknown targets at runtime.
+func (e Entry) Validate() error {
+	targetCount := 0
+	if e.Workflow != "" {
+		targetCount++
+	}
+	if e.SystemTask != "" {
+		targetCount++
+	}
+	if e.Tool != "" {
+		targetCount++
+	}
+	// TargetIntent (e.Target == "") with a non-empty typed field is suspicious:
+	// either a partial edit or a corrupt entry. Allow it only if no typed field
+	// is set (the historical intent-only entry).
+	if e.Target == "" && targetCount > 0 {
+		return fmt.Errorf("cadence: entry %s has target=intent but typed fields are set (workflow=%q system_task=%q tool=%q)", e.ID, e.Workflow, e.SystemTask, e.Tool)
+	}
+	switch e.Target {
+	case TargetWorkflow:
+		if e.Workflow == "" {
+			return fmt.Errorf("cadence: entry %s has target=workflow but workflow ref is empty", e.ID)
+		}
+		if e.SystemTask != "" || e.Tool != "" {
+			return fmt.Errorf("cadence: entry %s has target=workflow but system_task or tool is also set", e.ID)
+		}
+	case TargetSystemTask:
+		if e.SystemTask == "" {
+			return fmt.Errorf("cadence: entry %s has target=system_task but system_task is empty", e.ID)
+		}
+		if !IsSystemTask(e.SystemTask) {
+			return fmt.Errorf("cadence: entry %s has target=system_task but %q is not a known system task", e.ID, e.SystemTask)
+		}
+		if e.Workflow != "" || e.Tool != "" || e.Agent != "" || e.Model != "" {
+			return fmt.Errorf("cadence: entry %s has target=system_task but workflow/tool/agent/model is also set", e.ID)
+		}
+		if len(e.Payload) > 0 {
+			return fmt.Errorf("cadence: entry %s has target=system_task but payload is set (system tasks do not accept payloads)", e.ID)
+		}
+	case TargetTool:
+		if e.Tool == "" {
+			return fmt.Errorf("cadence: entry %s has target=tool but tool is empty", e.ID)
+		}
+		if e.Workflow != "" || e.SystemTask != "" {
+			return fmt.Errorf("cadence: entry %s has target=tool but workflow or system_task is also set", e.ID)
+		}
+	case TargetIntent:
+		// Intent target: typed fields must all be clear.
+		if targetCount > 0 {
+			return fmt.Errorf("cadence: entry %s has target=intent but typed fields are set", e.ID)
+		}
+	default:
+		return fmt.Errorf("cadence: entry %s has unknown target %q", e.ID, e.Target)
+	}
+	return nil
+}
+
 // Interval is the entry's firing period (interval mode only).
 func (e Entry) Interval() time.Duration { return time.Duration(e.IntervalSec) * time.Second }
 
@@ -856,11 +921,18 @@ func (s *Store) SetWorkflowTarget(id, ref string, payload json.RawMessage) (bool
 }
 
 // SetSystemTaskTarget makes an entry fire a daemon maintenance task instead of
-// an LLM intent. The caller validates task names against the daemon whitelist.
+// an LLM intent. The task name is validated against the known system-task enum
+// (IsSystemTask) as defense-in-depth: the control plane already validates, but
+// a direct store caller (env-seeded schedule, a future code path, or a
+// hand-edited schedules.json) should not be able to set an arbitrary task name
+// that could smuggle unexpected behavior through the fire path.
 func (s *Store) SetSystemTaskTarget(id, task string) (bool, error) {
 	task = strings.TrimSpace(task)
 	if task == "" {
 		return false, fmt.Errorf("cadence: system task is required")
+	}
+	if !IsSystemTask(task) {
+		return false, fmt.Errorf("cadence: unknown system task %q (valid: %s)", task, strings.Join(SystemTasks(), ", "))
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
