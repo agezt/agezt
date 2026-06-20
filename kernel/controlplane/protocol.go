@@ -1330,6 +1330,26 @@ const (
 	// Remove: kind,label. Listing rides CmdChannelList's per-channel "accounts".
 	CmdChannelAccountSet    = "channel_account_set"
 	CmdChannelAccountRemove = "channel_account_remove"
+	// OAuth connect flow (Phase 4) for channels whose ConnectMethod is "oauth"
+	// (Slack/Discord/Mastodon). Start: args{kind,label,client_id,client_secret,
+	// redirect_uri[,instance_url]} → {authorize_url,state}; the browser is sent to
+	// authorize_url and redirected back to the daemon's /oauth/callback, which
+	// invokes Callback: args{code,state} → exchanges the code and writes the bot
+	// token into the account's "#label" vault slot. Status: args{state} →
+	// {status: pending|done|error}.
+	CmdChannelOAuthStart    = "channel_oauth_start"
+	CmdChannelOAuthCallback = "channel_oauth_callback"
+	CmdChannelOAuthStatus   = "channel_oauth_status"
+	// Provider OAuth (Phase: ChatGPT subscription) — "Sign in with ChatGPT".
+	// Start: args{provider:"chatgpt"} → {authorize_url,state}; the browser
+	// authorizes and is redirected to the daemon's own 127.0.0.1:1455 listener
+	// (the Codex client's fixed redirect) which exchanges the code into the token
+	// vault. Status: args{state} → {status}. Import: pull ~/.codex/auth.json.
+	// Logout: clear the stored tokens.
+	CmdProviderOAuthStart  = "provider_oauth_start"
+	CmdProviderOAuthStatus = "provider_oauth_status"
+	CmdProviderOAuthImport = "provider_oauth_import"
+	CmdProviderOAuthLogout = "provider_oauth_logout"
 	// Schema registry (M695): skills/plugins register their own config sections
 	// into <baseDir>/schemas/*.json. Register: args{section}; Unregister: args{id}.
 	CmdConfigSchemaRegister   = "config_schema_register"

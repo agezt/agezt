@@ -28,6 +28,7 @@ import (
 	"context"
 	"crypto/subtle"
 	"encoding/json"
+	"fmt"
 	"io"
 	"io/fs"
 	"net/http"
@@ -419,6 +420,17 @@ var jsonRoutes = map[string]writeRoute{
 	// Multi-account channel: set one field of an account instance. The value may be
 	// a secret, so it travels in the POST body. kind+label(""=default)+name+value.
 	"/api/channel/account/set": {controlplane.CmdChannelAccountSet, []string{"kind", "label", "name", "value"}},
+	// Channel OAuth connect (Phase 4): start a flow (client_secret is a secret →
+	// POST body) returning {authorize_url,state}; poll its status. The browser
+	// redirect lands on the public /oauth/callback handler (registered separately).
+	"/api/channel/oauth/start":  {controlplane.CmdChannelOAuthStart, []string{"kind", "label", "client_id", "client_secret", "redirect_uri", "instance_url"}},
+	"/api/channel/oauth/status": {controlplane.CmdChannelOAuthStatus, []string{"state"}},
+	// "Sign in with ChatGPT" provider login: start the flow (1455 redirect
+	// listener) → poll status; import a local Codex CLI login; or disconnect.
+	"/api/provider/oauth/start":  {controlplane.CmdProviderOAuthStart, []string{"provider"}},
+	"/api/provider/oauth/status": {controlplane.CmdProviderOAuthStatus, []string{"state"}},
+	"/api/provider/oauth/import": {controlplane.CmdProviderOAuthImport, []string{"path"}},
+	"/api/provider/oauth/logout": {controlplane.CmdProviderOAuthLogout, []string{}},
 	// Quick Connect (provider gallery): register a provider in custom.json + reload.
 	// JSON body (id, name, npm, api, env, model); the key follows on keys/add.
 	"/api/provider/connect": {controlplane.CmdProviderConnect, []string{"id", "name", "npm", "api", "env", "model"}},
@@ -588,7 +600,59 @@ func (s *Server) Handler() http.Handler {
 	// control plane (constant-time); all this handler can ever do is ask
 	// "fire workflow <name>" — no reads, no other writes, uniform refusals.
 	mux.HandleFunc("/hooks/", s.secure(s.handleWorkflowHook))
+	// Channel OAuth redirect target (Phase 4). Public (no console token): the
+	// provider redirects the operator's browser here with ?code&state. Security
+	// rests on the unguessable state minted by /api/channel/oauth/start.
+	mux.HandleFunc("/oauth/callback", s.secure(s.handleOAuthCallback))
 	return mux
+}
+
+// handleOAuthCallback receives the provider's authorization redirect
+// (GET /oauth/callback?code=&state=), forwards it to the control plane to
+// exchange the code and store the token, and renders a small self-closing page.
+func (s *Server) handleOAuthCallback(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	code := q.Get("code")
+	state := q.Get("state")
+	if e := q.Get("error"); e != "" {
+		oauthResultPage(w, false, "Authorization was denied: "+e)
+		return
+	}
+	if code == "" || state == "" {
+		oauthResultPage(w, false, "Missing code or state in the redirect.")
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+	defer cancel()
+	if _, err := s.client.Call(ctx, controlplane.CmdChannelOAuthCallback, map[string]any{
+		"code": code, "state": state,
+	}); err != nil {
+		oauthResultPage(w, false, err.Error())
+		return
+	}
+	oauthResultPage(w, true, "")
+}
+
+// oauthResultPage renders a minimal terminal page for the OAuth redirect. The
+// console polls /api/channel/oauth/status for the real outcome, so this is just
+// operator-facing confirmation they can close.
+func oauthResultPage(w http.ResponseWriter, ok bool, msg string) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	title, detail := "Connected ✓", "You can close this window and return to the console."
+	if !ok {
+		title, detail = "Connection failed", htmlEscape(msg)
+	}
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprintf(w, `<!doctype html><meta charset="utf-8"><title>%s</title>`+
+		`<body style="font:16px system-ui;display:grid;place-items:center;height:100vh;margin:0;background:#0b1020;color:#e6e8f0">`+
+		`<div style="text-align:center;max-width:32rem;padding:2rem"><h1 style="font-size:1.4rem">%s</h1>`+
+		`<p style="opacity:.8">%s</p></div><script>setTimeout(function(){window.close()},1500)</script>`,
+		title, title, detail)
+}
+
+func htmlEscape(s string) string {
+	r := strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;", `"`, "&quot;")
+	return r.Replace(s)
 }
 
 // webhookBodyCap bounds an inbound hook body — payloads are trigger inputs,

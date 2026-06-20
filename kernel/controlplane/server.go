@@ -23,6 +23,7 @@ import (
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/approval"
 	"github.com/agezt/agezt/kernel/board"
+	"github.com/agezt/agezt/kernel/chatgptauth"
 	"github.com/agezt/agezt/kernel/event"
 	intentmodel "github.com/agezt/agezt/kernel/intent"
 	"github.com/agezt/agezt/kernel/memory"
@@ -145,6 +146,20 @@ type Server struct {
 	// updateSvc is the self-update engine (M860), injected via SetUpdateService.
 	// Nil when update is disabled; the update handlers report that.
 	updateSvc *update.Service
+
+	// oauthPending tracks in-flight channel OAuth flows (Phase 4) by their opaque
+	// state token: the kind/label being connected, the client credentials + PKCE
+	// verifier, and the terminal status the browser-redirect callback records.
+	// Guarded by oauthMu; entries are short-lived (pruned on completion + by age).
+	oauthMu      sync.Mutex
+	oauthPending map[string]*oauthFlow
+
+	// chatgpt is the lazily-built "Sign in with ChatGPT" token manager; provLogin
+	// is the single in-flight provider OAuth login (the 1455 redirect listener).
+	chatgptOnce sync.Once
+	chatgpt     *chatgptauth.Manager
+	provLoginMu sync.Mutex
+	provLogin   *providerLogin
 }
 
 // ChannelSender delivers text out a named channel kind to a channel/chat id. The
@@ -933,6 +948,20 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.handleChannelAccountSet(conn, req)
 	case CmdChannelAccountRemove:
 		s.handleChannelAccountRemove(conn, req)
+	case CmdChannelOAuthStart:
+		s.handleChannelOAuthStart(conn, req)
+	case CmdChannelOAuthCallback:
+		s.handleChannelOAuthCallback(conn, req)
+	case CmdChannelOAuthStatus:
+		s.handleChannelOAuthStatus(conn, req)
+	case CmdProviderOAuthStart:
+		s.handleProviderOAuthStart(conn, req)
+	case CmdProviderOAuthStatus:
+		s.handleProviderOAuthStatus(conn, req)
+	case CmdProviderOAuthImport:
+		s.handleProviderOAuthImport(conn, req)
+	case CmdProviderOAuthLogout:
+		s.handleProviderOAuthLogout(conn, req)
 	case CmdConfigSet:
 		s.handleConfigSet(conn, req)
 	case CmdConfigSchemaRegister:
