@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Radio, RefreshCw, Check, Settings2, ArrowLeftRight, ArrowRight, ExternalLink, Save, SendHorizontal, QrCode } from "lucide-react";
+import { Radio, RefreshCw, Check, Settings2, ArrowLeftRight, ArrowRight, ExternalLink, Save, SendHorizontal, QrCode, Image as ImageIcon, Mic, ArrowDown, ArrowUp } from "lucide-react";
 import { getJSON, postJSON } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/ui/page-header";
@@ -23,17 +23,63 @@ interface ChannelField {
 }
 
 // A channel manifest joined with its account fields + configured state.
+interface MediaCaps {
+  image_in?: boolean;
+  voice_in?: boolean;
+  image_out?: boolean;
+  voice_out?: boolean;
+}
+
 interface ChannelRow {
   kind: string;
   display: string;
   description?: string;
   transport?: string;
   duplex?: boolean;
+  media?: MediaCaps;
   config_section?: string;
   docs_url?: string;
   configured?: boolean;
   live?: boolean;
   fields: ChannelField[];
+}
+
+// DirArrows renders ↓ (inbound), ↑ (outbound) or ↕ (both) for one modality.
+function DirArrows({ inbound, outbound }: { inbound?: boolean; outbound?: boolean }) {
+  if (inbound && outbound) return <ArrowLeftRight className="size-2.5" />;
+  if (outbound) return <ArrowUp className="size-2.5" />;
+  return <ArrowDown className="size-2.5" />;
+}
+
+// MediaChips shows which non-text modalities a channel carries (image / voice)
+// and in which direction. Text is implicit on every channel, so it's not shown.
+function MediaChips({ media }: { media?: MediaCaps }) {
+  if (!media) return null;
+  const img = media.image_in || media.image_out;
+  const voice = media.voice_in || media.voice_out;
+  if (!img && !voice) return null;
+  return (
+    <>
+      {img && (
+        <span
+          className="inline-flex items-center gap-0.5 rounded bg-accent/10 px-1.5 py-0.5 text-accent"
+          title={`Image ${media.image_in ? "receive" : ""}${media.image_in && media.image_out ? " + " : ""}${media.image_out ? "send" : ""}`}
+        >
+          <ImageIcon className="size-2.5" />
+          <DirArrows inbound={media.image_in} outbound={media.image_out} />
+        </span>
+      )}
+      {voice && (
+        <span
+          className="inline-flex items-center gap-0.5 rounded bg-accent2/10 px-1.5 py-0.5 text-accent2"
+          title={`Voice ${media.voice_in ? "receive" : ""}${media.voice_in && media.voice_out ? " + " : ""}${media.voice_out ? "send" : ""}`}
+        >
+          <Mic className="size-2.5" />
+          <DirArrows inbound={media.voice_in} outbound={media.voice_out} />
+        </span>
+      )}
+    </>
+  );
 }
 
 // Channels — a wizard-style hub to connect communication channels (Telegram,
@@ -216,6 +262,7 @@ export function Channels() {
                       {r.duplex ? <ArrowLeftRight className="size-3" /> : <ArrowRight className="size-3" />}
                       {r.duplex ? "two-way" : "outbound only"}
                     </span>
+                    <MediaChips media={r.media} />
                     {r.docs_url && (
                       <a
                         href={r.docs_url}

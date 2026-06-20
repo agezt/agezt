@@ -12,14 +12,25 @@ import "sort"
 // a new gateway can be added by name (register a manifest + an account schema)
 // without bespoke UI work.
 type Manifest struct {
-	Kind          string   `json:"kind"`           // stable id, e.g. "telegram" (matches Channel.Name())
-	Display       string   `json:"display"`        // human label, e.g. "Telegram"
-	Description   string   `json:"description"`    // one-line "what is this channel"
-	Transport     string   `json:"transport"`      // "long-poll" | "webhook" | "rest" | "smtp"
-	Duplex        bool     `json:"duplex"`         // true = two-way (can receive), false = outbound-only
-	ConfigSection string   `json:"config_section"` // settings/Config Center section ID holding its fields
-	RequiredEnv   []string `json:"required_env"`   // env vars that must be set for the channel to start
-	DocsURL       string   `json:"docs_url,omitempty"`
+	Kind          string    `json:"kind"`           // stable id, e.g. "telegram" (matches Channel.Name())
+	Display       string    `json:"display"`        // human label, e.g. "Telegram"
+	Description   string    `json:"description"`    // one-line "what is this channel"
+	Transport     string    `json:"transport"`      // "long-poll" | "webhook" | "rest" | "smtp"
+	Duplex        bool      `json:"duplex"`         // true = two-way (can receive), false = outbound-only
+	ConfigSection string    `json:"config_section"` // settings/Config Center section ID holding its fields
+	RequiredEnv   []string  `json:"required_env"`   // env vars that must be set for the channel to start
+	DocsURL       string    `json:"docs_url,omitempty"`
+	Media         MediaCaps `json:"media"` // which non-text modalities this channel carries, per direction
+}
+
+// MediaCaps describes a channel's non-text multimodal reach. Text is always
+// supported, so only image/voice are tracked, per direction. ImageOut/VoiceOut
+// report whether the channel can deliver an outbound attachment of that kind.
+type MediaCaps struct {
+	ImageIn  bool `json:"image_in,omitempty"`
+	VoiceIn  bool `json:"voice_in,omitempty"`
+	ImageOut bool `json:"image_out,omitempty"`
+	VoiceOut bool `json:"voice_out,omitempty"`
 }
 
 // registry is the process-wide set of registered channel manifests. The daemon
