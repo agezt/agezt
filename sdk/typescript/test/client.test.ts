@@ -79,6 +79,8 @@ test("health", async () => {
   const h = await client().health();
   assert.equal(h.status, "ok");
   assert.equal(h.version, "test");
+  assert.equal(h.default_model, "m");
+  assert.equal(h.model_count, 1);
 });
 
 test("models", async () => {
@@ -114,6 +116,7 @@ test("runStream yields start/token/token/done and reassembles tokens", async () 
 test("getRun returns the event arc", async () => {
   const arc = await client().getRun("c1");
   assert.equal(arc.count, 2);
+  assert.equal(arc.correlation_id, "c1");
   assert.equal(arc.events.length, 2);
 });
 

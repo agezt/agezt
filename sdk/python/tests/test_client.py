@@ -89,6 +89,8 @@ class ClientTest(unittest.TestCase):
         h = self.c.health()
         self.assertEqual(h["status"], "ok")
         self.assertEqual(h["version"], "test")
+        self.assertEqual(h["default_model"], "m")
+        self.assertEqual(h["model_count"], 1)
 
     def test_models(self):
         m = self.c.models()
@@ -120,6 +122,7 @@ class ClientTest(unittest.TestCase):
     def test_get_run(self):
         arc = self.c.get_run("c1")
         self.assertEqual(arc["count"], 2)
+        self.assertEqual(arc["correlation_id"], "c1")
         self.assertEqual(len(arc["events"]), 2)
 
     def test_bad_token_raises_401(self):
