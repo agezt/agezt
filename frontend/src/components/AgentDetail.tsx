@@ -127,6 +127,17 @@ interface ToolInvocation {
   output?: string;
   duration_ms?: number;
 }
+interface ApprovalDecision {
+  ts_unix_ms?: number;
+  approval_id?: string;
+  actor?: string;
+  correlation_id?: string;
+  capability?: string;
+  tool?: string;
+  reason?: string;
+  status?: "pending" | "granted" | "denied" | "timeout" | string;
+  resolved_by?: string;
+}
 interface PolicyStats {
   denial_rate?: number;
   denied?: number;
@@ -322,6 +333,7 @@ export function AgentDetail({
   const [skills, setSkills] = useState<SkillLite[] | null>(null);
   const [policy, setPolicy] = useState<PolicyDecision[] | null>(null);
   const [tools, setTools] = useState<ToolInvocation[] | null>(null);
+  const [approvals, setApprovals] = useState<ApprovalDecision[] | null>(null);
   const [posture, setPosture] = useState<PolicyStats | null>(null);
   const [askPolicy, setAskPolicy] = useState<string | null>(null);
   const [edictLevels, setEdictLevels] = useState<Record<string, string>>({});
@@ -349,6 +361,9 @@ export function AgentDetail({
       getJSON<{ invocations?: ToolInvocation[] }>("/api/tool_log", {
         limit: "200",
       }),
+      getJSON<{ approvals?: ApprovalDecision[] }>("/api/approvals_log", {
+        limit: "200",
+      }),
       getJSON<PolicyStats>("/api/policy"),
       getJSON<{ ask_policy?: string; levels?: Record<string, string> }>("/api/edict_show"),
       getJSON<{ tools?: ToolCatalogRow[] }>("/api/tools_catalog"),
@@ -369,11 +384,12 @@ export function AgentDetail({
       }),
     ]).then((res) => {
       if (!alive) return;
-      const [m, sk, pl, tl, po, ed, tc, ap, bd, rt, pv, rp, rs, es] = res;
+      const [m, sk, pl, tl, al, po, ed, tc, ap, bd, rt, pv, rp, rs, es] = res;
       setMemory(m.status === "fulfilled" ? m.value.records || [] : []);
       setSkills(sk.status === "fulfilled" ? sk.value.skills || [] : []);
       setPolicy(pl.status === "fulfilled" ? pl.value.decisions || [] : []);
       setTools(tl.status === "fulfilled" ? tl.value.invocations || [] : []);
+      setApprovals(al.status === "fulfilled" ? al.value.approvals || [] : []);
       setPosture(po.status === "fulfilled" ? po.value : null);
       setAskPolicy(
         ed.status === "fulfilled" ? (ed.value.ask_policy ?? null) : null,
@@ -437,6 +453,10 @@ export function AgentDetail({
         ? filterByCorrelation(tools, corrs, slug).filter((t) => t.error)
         : null,
     [tools, corrs, slug],
+  );
+  const myApprovals = useMemo(
+    () => (approvals ? filterByCorrelation(approvals, corrs, slug) : null),
+    [approvals, corrs, slug],
   );
   const myOrders = useMemo(
     () => orders.filter((o) => o.agent === slug),
@@ -1454,6 +1474,7 @@ export function AgentDetail({
             agentPermissions={agentPermissions}
             wakePolicy={wakePolicy}
             denials={myDenials}
+            approvals={myApprovals}
             toolErrors={myToolErrors}
             fail={fail}
             health={health}
@@ -8143,6 +8164,7 @@ function DiagTab({
   agentPermissions,
   wakePolicy,
   denials,
+  approvals,
   toolErrors,
   fail,
   health,
@@ -8161,6 +8183,7 @@ function DiagTab({
   agentPermissions: AgentPermissionsSnapshot | null;
   wakePolicy: WakeAccessSummary;
   denials: PolicyDecision[] | null;
+  approvals: ApprovalDecision[] | null;
   toolErrors: ToolInvocation[] | null;
   fail?: RunLite;
   health: AgentHealthSnapshot;
@@ -8590,6 +8613,56 @@ function DiagTab({
                 </span>
                 <span className="ml-auto shrink-0 font-mono text-[10px] text-muted opacity-70">
                   {fmtTime(d.ts_unix_ms)}
+                </span>
+              </li>
+            ))}
+          </ul>
+          </Disclosure>
+        )}
+      </div>
+
+      {/* approvals — human gates are the positive/negative counterpart to policy denials. */}
+      <div>
+        {!approvals ? (
+          <>
+            <div className="mb-1 text-[10px] uppercase tracking-wider text-muted">human approvals</div>
+            <SkeletonList count={2} lines={1} />
+          </>
+        ) : approvals.length === 0 ? (
+          <div className="text-[11px] text-muted">
+            no human approval request is attributed to this agent
+          </div>
+        ) : (
+          <Disclosure
+            summary={
+              <span className="text-[10px] uppercase tracking-wider text-muted">
+                {approvals.length} human approval{approvals.length === 1 ? "" : "s"}
+              </span>
+            }
+          >
+          <ul className="space-y-1">
+            {approvals.slice(0, 40).map((a, i) => (
+              <li key={a.approval_id || i} className="flex items-start gap-2 text-[11px]">
+                <span
+                  className={cn(
+                    "rounded px-1.5 py-0.5 font-mono text-[10px]",
+                    a.status === "granted"
+                      ? "bg-good/15 text-good"
+                      : a.status === "denied" || a.status === "timeout"
+                        ? "bg-bad/15 text-bad"
+                        : "bg-warn/15 text-warn",
+                  )}
+                >
+                  {a.status || "pending"}
+                </span>
+                <span className="min-w-0 flex-1 truncate text-muted" title={a.reason}>
+                  {a.capability || a.tool || "capability"}
+                  {a.tool ? ` · ${a.tool}` : ""}
+                  {a.reason ? ` — ${a.reason}` : ""}
+                  {a.resolved_by ? ` (${a.resolved_by})` : ""}
+                </span>
+                <span className="ml-auto shrink-0 font-mono text-[10px] text-muted opacity-70">
+                  {fmtTime(a.ts_unix_ms)}
                 </span>
               </li>
             ))}

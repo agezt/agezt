@@ -20,13 +20,13 @@ func TestApprovalsLog_JoinsRequestAndOutcome(t *testing.T) {
 	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 	reqd := func(id, cap, tool string) {
 		k.Bus().Publish(event.Spec{
-			Subject: "approval", Kind: event.KindApprovalRequested, Actor: "agent",
+			Subject: "approval", Kind: event.KindApprovalRequested, Actor: "agent", CorrelationID: "corr-" + id,
 			Payload: map[string]any{"approval_id": id, "capability": cap, "tool_name": tool, "reason": "r"},
 		})
 	}
 	resolved := func(id string, kind event.Kind, by string) {
 		k.Bus().Publish(event.Spec{
-			Subject: "approval", Kind: kind, Actor: "agent",
+			Subject: "approval", Kind: kind, Actor: "agent", CorrelationID: "corr-" + id,
 			Payload: map[string]any{"approval_id": id, "decision": "x", "resolved_by": by},
 		})
 	}
@@ -52,8 +52,8 @@ func TestApprovalsLog_JoinsRequestAndOutcome(t *testing.T) {
 			a1 = m
 		}
 	}
-	if a1 == nil || a1["status"] != "granted" || a1["resolved_by"] != "alice" {
-		t.Errorf("a1 = %v want granted by alice", a1)
+	if a1 == nil || a1["status"] != "granted" || a1["resolved_by"] != "alice" || a1["actor"] != "agent" || a1["correlation_id"] != "corr-a1" {
+		t.Errorf("a1 = %v want granted by alice with actor/correlation", a1)
 	}
 
 	// --denied → only a2.

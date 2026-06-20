@@ -170,6 +170,7 @@ func (s *Server) handleApprovalsLog(conn net.Conn, req Request) {
 	type approval struct {
 		ts, seq                      int64
 		id, capability, tool, reason string
+		actor, correlationID         string
 		status                       string // pending | granted | denied | timeout
 		resolvedBy                   string
 	}
@@ -202,6 +203,7 @@ func (s *Server) handleApprovalsLog(conn net.Conn, req Request) {
 			a := get(p.ApprovalID, e.TSUnixMS, e.Seq)
 			a.ts, a.seq = e.TSUnixMS, e.Seq // requested time anchors the row
 			a.capability, a.tool, a.reason = p.Capability, p.ToolName, p.Reason
+			a.actor, a.correlationID = e.Actor, e.CorrelationID
 		case event.KindApprovalGranted, event.KindApprovalDenied, event.KindApprovalTimeout:
 			var p struct {
 				ApprovalID string `json:"approval_id"`
@@ -212,6 +214,12 @@ func (s *Server) handleApprovalsLog(conn net.Conn, req Request) {
 				return nil
 			}
 			a := get(p.ApprovalID, e.TSUnixMS, e.Seq)
+			if a.actor == "" {
+				a.actor = e.Actor
+			}
+			if a.correlationID == "" {
+				a.correlationID = e.CorrelationID
+			}
 			switch e.Kind {
 			case event.KindApprovalGranted:
 				a.status = "granted"
@@ -251,13 +259,15 @@ func (s *Server) handleApprovalsLog(conn net.Conn, req Request) {
 	out := make([]map[string]any, 0, len(rows))
 	for _, a := range rows {
 		out = append(out, map[string]any{
-			"ts_unix_ms":  a.ts,
-			"approval_id": a.id,
-			"capability":  a.capability,
-			"tool":        a.tool,
-			"reason":      a.reason,
-			"status":      a.status,
-			"resolved_by": a.resolvedBy,
+			"ts_unix_ms":     a.ts,
+			"approval_id":    a.id,
+			"capability":     a.capability,
+			"tool":           a.tool,
+			"reason":         a.reason,
+			"actor":          a.actor,
+			"correlation_id": a.correlationID,
+			"status":         a.status,
+			"resolved_by":    a.resolvedBy,
 		})
 	}
 	s.writeResp(conn, Response{

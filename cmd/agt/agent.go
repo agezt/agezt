@@ -734,10 +734,77 @@ func cmdAgentShow(args []string, stdout, stderr io.Writer) int {
 		if v := str(p["soul"]); v != "" {
 			fmt.Fprintf(stdout, "soul:\n  %s\n", strings.ReplaceAll(v, "\n", "\n  "))
 		}
+		if sum, ok := agentApprovalSummary(ctx, c, str(p["slug"])); ok {
+			fmt.Fprintf(stdout, "approvals:    %d total", sum.Total)
+			if sum.Pending > 0 {
+				fmt.Fprintf(stdout, " %d pending", sum.Pending)
+			}
+			if sum.Granted > 0 {
+				fmt.Fprintf(stdout, " %d granted", sum.Granted)
+			}
+			if sum.Denied > 0 {
+				fmt.Fprintf(stdout, " %d denied", sum.Denied)
+			}
+			if sum.Timeout > 0 {
+				fmt.Fprintf(stdout, " %d timeout", sum.Timeout)
+			}
+			if sum.LastStatus != "" {
+				fmt.Fprintf(stdout, " last=%s", sum.LastStatus)
+				if sum.LastTool != "" {
+					fmt.Fprintf(stdout, ":%s", sum.LastTool)
+				}
+			}
+			fmt.Fprintln(stdout)
+		}
 		return 0
 	}
 	fmt.Fprintf(stderr, "%s agent show: unknown agent %q\n", brand.CLI, ref)
 	return 1
+}
+
+type agentApprovalStats struct {
+	Total      int
+	Granted    int
+	Denied     int
+	Timeout    int
+	Pending    int
+	LastStatus string
+	LastTool   string
+}
+
+func agentApprovalSummary(ctx context.Context, c *controlplane.Client, slug string) (agentApprovalStats, bool) {
+	if slug == "" || c == nil {
+		return agentApprovalStats{}, false
+	}
+	res, err := c.Call(ctx, controlplane.CmdApprovalsLog, map[string]any{"limit": 200})
+	if err != nil {
+		return agentApprovalStats{}, false
+	}
+	rows, _ := res["approvals"].([]any)
+	var out agentApprovalStats
+	for _, raw := range rows {
+		row, _ := raw.(map[string]any)
+		if row == nil || str(row["actor"]) != slug {
+			continue
+		}
+		out.Total++
+		status := str(row["status"])
+		switch status {
+		case "granted":
+			out.Granted++
+		case "denied":
+			out.Denied++
+		case "timeout":
+			out.Timeout++
+		default:
+			out.Pending++
+		}
+		if out.LastStatus == "" {
+			out.LastStatus = status
+			out.LastTool = str(row["tool"])
+		}
+	}
+	return out, out.Total > 0
 }
 
 func cmdAgentAdd(args []string, stdout, stderr io.Writer) int {
