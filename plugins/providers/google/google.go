@@ -35,6 +35,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/plugins/providers/internal/httpread"
+	"github.com/agezt/agezt/plugins/providers/internal/toolname"
 )
 
 const (
@@ -170,7 +171,12 @@ func (p *Provider) Complete(ctx context.Context, req agent.CompletionRequest) (*
 	if httpResp.StatusCode/100 != 2 {
 		return nil, &APIError{Status: httpResp.StatusCode, Body: string(respBytes)}
 	}
-	return decodeResponse(respBytes, model)
+	resp, err := decodeResponse(respBytes, model)
+	if err != nil {
+		return nil, err
+	}
+	toolname.RestoreCalls(resp, toolname.Reverse(req.Tools))
+	return resp, nil
 }
 
 // ----- dialect translation (canonical ↔ Gemini generateContent) -----
@@ -265,6 +271,7 @@ type geminiUsageMetadata struct {
 }
 
 func encodeRequest(system string, msgs []agent.Message, tools []agent.ToolDef, maxTok int, jsonMode bool, thinkingBudget int) ([]byte, error) {
+	fwd, _ := toolname.Maps(tools)
 	wire := geminiRequest{}
 	if s := strings.TrimSpace(system); s != "" {
 		wire.SystemInstruction = &geminiContent{
@@ -273,7 +280,7 @@ func encodeRequest(system string, msgs []agent.Message, tools []agent.ToolDef, m
 		}
 	}
 	for _, m := range msgs {
-		c, err := canonicalToGemini(m)
+		c, err := canonicalToGemini(m, fwd)
 		if err != nil {
 			return nil, err
 		}
@@ -290,7 +297,7 @@ func encodeRequest(system string, msgs []agent.Message, tools []agent.ToolDef, m
 				params = json.RawMessage(`{"type":"object","properties":{}}`)
 			}
 			decls = append(decls, geminiFunctionDecl{
-				Name:        t.Name,
+				Name:        toolname.Wire(fwd, t.Name),
 				Description: t.Description,
 				Parameters:  params,
 			})
@@ -336,7 +343,7 @@ func parseImageDataURL(s string) (mediaType, data string, ok bool) {
 	return mt, payload, true
 }
 
-func canonicalToGemini(m agent.Message) (*geminiContent, error) {
+func canonicalToGemini(m agent.Message, fwd map[string]string) (*geminiContent, error) {
 	switch m.Role {
 	case agent.RoleSystem:
 		// System messages fold into systemInstruction at the request
@@ -367,7 +374,7 @@ func canonicalToGemini(m agent.Message) (*geminiContent, error) {
 			}
 			parts = append(parts, geminiPart{
 				FunctionCall: &geminiFunctionCall{
-					Name: tc.Name,
+					Name: toolname.Wire(fwd, tc.Name),
 					Args: args,
 				},
 			})

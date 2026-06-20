@@ -34,6 +34,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/plugins/providers/internal/httpread"
+	"github.com/agezt/agezt/plugins/providers/internal/toolname"
 )
 
 const (
@@ -148,7 +149,12 @@ func (p *Provider) Complete(ctx context.Context, req agent.CompletionRequest) (*
 	if httpResp.StatusCode/100 != 2 {
 		return nil, &APIError{Status: httpResp.StatusCode, Body: string(respBytes)}
 	}
-	return decodeResponse(respBytes, model)
+	resp, err := decodeResponse(respBytes, model)
+	if err != nil {
+		return nil, err
+	}
+	toolname.RestoreCalls(resp, toolname.Reverse(req.Tools))
+	return resp, nil
 }
 
 // ----- dialect translation (canonical ↔ Cohere v2 chat) -----
@@ -226,6 +232,7 @@ type cohereTokens struct {
 }
 
 func encodeRequest(model, system string, msgs []agent.Message, tools []agent.ToolDef, maxTok int) ([]byte, error) {
+	fwd, _ := toolname.Maps(tools)
 	wire := cohereRequest{
 		Model:     model,
 		Stream:    false,
@@ -235,7 +242,7 @@ func encodeRequest(model, system string, msgs []agent.Message, tools []agent.Too
 		wire.Messages = append(wire.Messages, cohereMessage{Role: "system", Content: s})
 	}
 	for _, m := range msgs {
-		cm, err := canonicalToCohere(m)
+		cm, err := canonicalToCohere(m, fwd)
 		if err != nil {
 			return nil, err
 		}
@@ -252,7 +259,7 @@ func encodeRequest(model, system string, msgs []agent.Message, tools []agent.Too
 		wire.Tools = append(wire.Tools, cohereTool{
 			Type: "function",
 			Function: cohereToolFnDef{
-				Name:        t.Name,
+				Name:        toolname.Wire(fwd, t.Name),
 				Description: t.Description,
 				Parameters:  params,
 			},
@@ -261,7 +268,7 @@ func encodeRequest(model, system string, msgs []agent.Message, tools []agent.Too
 	return json.Marshal(wire)
 }
 
-func canonicalToCohere(m agent.Message) (*cohereMessage, error) {
+func canonicalToCohere(m agent.Message, fwd map[string]string) (*cohereMessage, error) {
 	switch m.Role {
 	case agent.RoleSystem:
 		if strings.TrimSpace(m.Content) == "" {
@@ -281,7 +288,7 @@ func canonicalToCohere(m agent.Message) (*cohereMessage, error) {
 				ID:   tc.ID,
 				Type: "function",
 				Function: cohereToolCallFn{
-					Name:      tc.Name,
+					Name:      toolname.Wire(fwd, tc.Name),
 					Arguments: string(args),
 				},
 			})

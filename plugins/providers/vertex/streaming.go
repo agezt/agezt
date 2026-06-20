@@ -16,6 +16,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/plugins/providers/internal/httpread"
+	"github.com/agezt/agezt/plugins/providers/internal/toolname"
 )
 
 // CompleteStream implements agent.StreamingProvider. It POSTs to the
@@ -97,7 +98,12 @@ func (p *Provider) CompleteStream(ctx context.Context, req agent.CompletionReque
 		return nil, &APIError{Status: httpResp.StatusCode, Body: string(raw)}
 	}
 
-	return parseStream(httpResp.Body, model, onChunk)
+	resp, err := parseStream(httpResp.Body, model, onChunk)
+	if err != nil {
+		return nil, err
+	}
+	toolname.RestoreCalls(resp, toolname.Reverse(req.Tools))
+	return resp, nil
 }
 
 // ResolveStreamEndpoint mirrors ResolveEndpoint but targets

@@ -16,6 +16,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/plugins/providers/internal/httpread"
+	"github.com/agezt/agezt/plugins/providers/internal/toolname"
 )
 
 // CompleteStream implements agent.StreamingProvider for Cohere v2.
@@ -78,11 +79,17 @@ func (p *Provider) CompleteStream(ctx context.Context, req agent.CompletionReque
 		return nil, &APIError{Status: httpResp.StatusCode, Body: string(raw)}
 	}
 
-	return parseStream(httpResp.Body, model, onChunk)
+	resp, err := parseStream(httpResp.Body, model, onChunk)
+	if err != nil {
+		return nil, err
+	}
+	toolname.RestoreCalls(resp, toolname.Reverse(req.Tools))
+	return resp, nil
 }
 
 // encodeStreamRequest mirrors encodeRequest but flips stream=true.
 func encodeStreamRequest(model, system string, msgs []agent.Message, tools []agent.ToolDef, maxTok int) ([]byte, error) {
+	fwd, _ := toolname.Maps(tools)
 	wire := cohereRequest{
 		Model:     model,
 		Stream:    true,
@@ -92,7 +99,7 @@ func encodeStreamRequest(model, system string, msgs []agent.Message, tools []age
 		wire.Messages = append(wire.Messages, cohereMessage{Role: "system", Content: s})
 	}
 	for _, m := range msgs {
-		cm, err := canonicalToCohere(m)
+		cm, err := canonicalToCohere(m, fwd)
 		if err != nil {
 			return nil, err
 		}
@@ -109,7 +116,7 @@ func encodeStreamRequest(model, system string, msgs []agent.Message, tools []age
 		wire.Tools = append(wire.Tools, cohereTool{
 			Type: "function",
 			Function: cohereToolFnDef{
-				Name:        t.Name,
+				Name:        toolname.Wire(fwd, t.Name),
 				Description: t.Description,
 				Parameters:  params,
 			},

@@ -37,6 +37,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/plugins/providers/internal/httpread"
+	"github.com/agezt/agezt/plugins/providers/internal/toolname"
 )
 
 const (
@@ -174,13 +175,13 @@ type anthVxCacheControl struct {
 // tool with cache_control so Vertex caches the stable tools prefix that repeats
 // every agent-loop iteration. Vertex ignores the marker when the prefix is below
 // the minimum cacheable size, so it's safe to always set.
-func buildVxTools(tools []agent.ToolDef) []anthVxTool {
+func buildVxTools(tools []agent.ToolDef, fwd map[string]string) []anthVxTool {
 	if len(tools) == 0 {
 		return nil
 	}
 	out := make([]anthVxTool, 0, len(tools))
 	for _, t := range tools {
-		out = append(out, anthVxTool{Name: t.Name, Description: t.Description, InputSchema: t.InputSchema})
+		out = append(out, anthVxTool{Name: toolname.Wire(fwd, t.Name), Description: t.Description, InputSchema: t.InputSchema})
 	}
 	out[len(out)-1].CacheControl = &anthVxCacheControl{Type: "ephemeral"}
 	return out
@@ -242,17 +243,18 @@ func anthVxUsageToAgent(inputTokens, cacheRead, cacheCreation, outputTokens int,
 }
 
 func encodeAnthropicOnVertexRequest(system string, msgs []agent.Message, tools []agent.ToolDef, maxTok, thinkingBudget int, stream bool) ([]byte, error) {
+	fwd, _ := toolname.Maps(tools)
 	thinking, maxTok := anthVxThinkingConfig(thinkingBudget, maxTok)
 	wire := anthVertexRequest{
 		AnthropicVersion: AnthropicVertexVersion,
 		MaxTokens:        maxTok,
 		System:           buildVxSystem(system),
 		Stream:           stream,
-		Tools:            buildVxTools(tools),
+		Tools:            buildVxTools(tools, fwd),
 		Thinking:         thinking,
 	}
 	for _, m := range msgs {
-		am, err := canonicalToAnthVx(m)
+		am, err := canonicalToAnthVx(m, fwd)
 		if err != nil {
 			return nil, err
 		}
@@ -285,7 +287,7 @@ func parseImageDataURL(s string) (mediaType, data string, ok bool) {
 	return mt, payload, true
 }
 
-func canonicalToAnthVx(m agent.Message) (*anthVxMessage, error) {
+func canonicalToAnthVx(m agent.Message, fwd map[string]string) (*anthVxMessage, error) {
 	switch m.Role {
 	case agent.RoleSystem:
 		return nil, nil
@@ -317,7 +319,7 @@ func canonicalToAnthVx(m agent.Message) (*anthVxMessage, error) {
 			blocks = append(blocks, anthVxBlock{
 				Type:  "tool_use",
 				ID:    tc.ID,
-				Name:  tc.Name,
+				Name:  toolname.Wire(fwd, tc.Name),
 				Input: input,
 			})
 		}
@@ -434,7 +436,12 @@ func (p *Provider) completeAnthropic(ctx context.Context, req agent.CompletionRe
 	if httpResp.StatusCode/100 != 2 {
 		return nil, &APIError{Status: httpResp.StatusCode, Body: string(respBytes)}
 	}
-	return decodeAnthropicOnVertexResponse(respBytes, model)
+	resp, err := decodeAnthropicOnVertexResponse(respBytes, model)
+	if err != nil {
+		return nil, err
+	}
+	toolname.RestoreCalls(resp, toolname.Reverse(req.Tools))
+	return resp, nil
 }
 
 // completeStreamAnthropic is the Anthropic-on-Vertex streaming path.
@@ -475,7 +482,12 @@ func (p *Provider) completeStreamAnthropic(ctx context.Context, req agent.Comple
 		raw, _ := httpread.All(httpResp.Body, httpread.DefaultMaxResponseBytes)
 		return nil, &APIError{Status: httpResp.StatusCode, Body: string(raw)}
 	}
-	return parseAnthropicSSE(httpResp.Body, model, onChunk)
+	resp, err := parseAnthropicSSE(httpResp.Body, model, onChunk)
+	if err != nil {
+		return nil, err
+	}
+	toolname.RestoreCalls(resp, toolname.Reverse(req.Tools))
+	return resp, nil
 }
 
 // ----- Anthropic SSE dispatch (event-tagged) -----

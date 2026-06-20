@@ -40,6 +40,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/plugins/providers/internal/httpread"
+	"github.com/agezt/agezt/plugins/providers/internal/toolname"
 )
 
 const (
@@ -309,6 +310,7 @@ func (p *Provider) Complete(ctx context.Context, req agent.CompletionRequest) (*
 	if err != nil {
 		return nil, err
 	}
+	toolname.RestoreCalls(resp, toolname.Reverse(req.Tools))
 	// Bedrock reports the authoritative token counts in response headers for every
 	// InvokeModel call (M327). Vendors whose body carries no inline usage (Mistral,
 	// Cohere) would otherwise report zero spend to the governor — under-billing the
@@ -398,13 +400,13 @@ type anthCacheControl struct {
 // repeats every agent-loop iteration. Bedrock ignores the marker when the prefix
 // is below the minimum cacheable size, so it's safe to always set; cache reads
 // bill at ~0.1× input (M289-291/M296).
-func buildBedrockTools(tools []agent.ToolDef) []anthTool {
+func buildBedrockTools(tools []agent.ToolDef, fwd map[string]string) []anthTool {
 	if len(tools) == 0 {
 		return nil
 	}
 	out := make([]anthTool, 0, len(tools))
 	for _, t := range tools {
-		out = append(out, anthTool{Name: t.Name, Description: t.Description, InputSchema: t.InputSchema})
+		out = append(out, anthTool{Name: toolname.Wire(fwd, t.Name), Description: t.Description, InputSchema: t.InputSchema})
 	}
 	out[len(out)-1].CacheControl = &anthCacheControl{Type: "ephemeral"}
 	return out
@@ -465,14 +467,15 @@ func anthBedrockUsageToAgent(inputTokens, cacheRead, cacheCreation, outputTokens
 }
 
 func encodeAnthropicOnBedrockRequest(system string, msgs []agent.Message, tools []agent.ToolDef, maxTok int) ([]byte, error) {
+	fwd, _ := toolname.Maps(tools)
 	wire := anthBedrockRequest{
 		AnthropicVersion: AnthropicBedrockVersion,
 		MaxTokens:        maxTok,
 		System:           buildBedrockSystem(system),
-		Tools:            buildBedrockTools(tools),
+		Tools:            buildBedrockTools(tools, fwd),
 	}
 	for _, m := range msgs {
-		am, err := canonicalToAnth(m)
+		am, err := canonicalToAnth(m, fwd)
 		if err != nil {
 			return nil, err
 		}
@@ -504,7 +507,7 @@ func parseImageDataURL(s string) (mediaType, data string, ok bool) {
 	return mt, payload, true
 }
 
-func canonicalToAnth(m agent.Message) (*anthMessage, error) {
+func canonicalToAnth(m agent.Message, fwd map[string]string) (*anthMessage, error) {
 	switch m.Role {
 	case agent.RoleSystem:
 		return nil, nil
@@ -536,7 +539,7 @@ func canonicalToAnth(m agent.Message) (*anthMessage, error) {
 			blocks = append(blocks, anthBlock{
 				Type:  "tool_use",
 				ID:    tc.ID,
-				Name:  tc.Name,
+				Name:  toolname.Wire(fwd, tc.Name),
 				Input: input,
 			})
 		}

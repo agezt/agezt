@@ -36,6 +36,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/plugins/providers/internal/httpread"
+	"github.com/agezt/agezt/plugins/providers/internal/toolname"
 )
 
 const (
@@ -191,7 +192,12 @@ func (p *Provider) Complete(ctx context.Context, req agent.CompletionRequest) (*
 	if httpResp.StatusCode/100 != 2 {
 		return nil, &APIError{Status: httpResp.StatusCode, Body: string(respBytes)}
 	}
-	return decodeResponse(respBytes, model)
+	resp, err := decodeResponse(respBytes, model)
+	if err != nil {
+		return nil, err
+	}
+	toolname.RestoreCalls(resp, toolname.Reverse(req.Tools))
+	return resp, nil
 }
 
 // ----- dialect translation (canonical ↔ Vertex generateContent) -----
@@ -282,12 +288,13 @@ type vxUsageMetadata struct {
 }
 
 func encodeRequest(system string, msgs []agent.Message, tools []agent.ToolDef, maxTok int, jsonMode bool, thinkingBudget int) ([]byte, error) {
+	fwd, _ := toolname.Maps(tools)
 	wire := vxRequest{}
 	if s := strings.TrimSpace(system); s != "" {
 		wire.SystemInstruction = &vxContent{Parts: []vxPart{{Text: s}}}
 	}
 	for _, m := range msgs {
-		c, err := canonicalToVertex(m)
+		c, err := canonicalToVertex(m, fwd)
 		if err != nil {
 			return nil, err
 		}
@@ -304,7 +311,7 @@ func encodeRequest(system string, msgs []agent.Message, tools []agent.ToolDef, m
 				params = json.RawMessage(`{"type":"object","properties":{}}`)
 			}
 			decls = append(decls, vxFunctionDecl{
-				Name:        t.Name,
+				Name:        toolname.Wire(fwd, t.Name),
 				Description: t.Description,
 				Parameters:  params,
 			})
@@ -329,7 +336,7 @@ func encodeRequest(system string, msgs []agent.Message, tools []agent.ToolDef, m
 	return json.Marshal(wire)
 }
 
-func canonicalToVertex(m agent.Message) (*vxContent, error) {
+func canonicalToVertex(m agent.Message, fwd map[string]string) (*vxContent, error) {
 	switch m.Role {
 	case agent.RoleSystem:
 		return nil, nil
@@ -355,7 +362,7 @@ func canonicalToVertex(m agent.Message) (*vxContent, error) {
 				args = json.RawMessage(`{}`)
 			}
 			parts = append(parts, vxPart{
-				FunctionCall: &vxFunctionCall{Name: tc.Name, Args: args},
+				FunctionCall: &vxFunctionCall{Name: toolname.Wire(fwd, tc.Name), Args: args},
 			})
 		}
 		if len(parts) == 0 {
