@@ -3,7 +3,7 @@
 # AGEZT Makefile
 # Explicitly builds with CGO_ENABLED=0 (pure Go, no C dependencies)
 #
-# Requires: Go 1.21+, Make
+# Requires: Go 1.26.4+ (see go.mod), Make
 # Note: This project does NOT use CGO - pure Go build
 
 .PHONY: all build test race clean vet install webui-e2e webui-e2e-ps

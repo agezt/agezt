@@ -17,7 +17,7 @@ See [CHANGELOG.md](CHANGELOG.md).
 **Recent local gates:** `go test ./...`, frontend `npm test` (121 files / 1052
 tests), `npm run build`, and Playwright browser E2E against the embedded SPA and a
 live demo daemon.
-**Dependencies:** one (`lukechampine.com/blake3`) + one transitive.
+**Dependencies:** see [DEPENDENCIES.md](DEPENDENCIES.md) for the current `go.mod`-derived dependency inventory and justification status.
 
 ## What you get
 

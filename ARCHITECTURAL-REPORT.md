@@ -63,7 +63,7 @@ ongoing development.
 | **Config dir** | `~/.agezt/` |
 | **License** | MIT (SPDX headers) |
 | **Go module** | `github.com/agezt/agezt` |
-| **Go version** | 1.26.3 (CGO_ENABLED=0) |
+| **Go version** | 1.26.4 (CGO_ENABLED=0; see `go.mod`) |
 
 ### Design Principles
 
@@ -105,7 +105,7 @@ ongoing development.
 ### Kernel (Backend)
 | Component | Technology | Version |
 |---|---|---|
-| **Language** | Go | 1.26.3 |
+| **Language** | Go | 1.26.4 |
 | **Compilation** | Static binary, `CGO_ENABLED=0` | — |
 | **Architectures** | amd64, arm64 | Linux, macOS, Windows |
 | **Transport** | JSON-RPC 2.0 over stdio | newline-delimited |
@@ -115,21 +115,21 @@ ongoing development.
 | **State Store** | CobaltDB-class embedded KV (pluggable) | — |
 | **Event Bus** | In-process, subject-routed, durable-before-publish | — |
 | **Secrets** | AES-256-GCM at rest, PBKDF2 key derivation | — |
-| **External Dependencies** | **1** (BLAKE3 + its cpu-feature dep) | — |
+| **External Dependencies** | See `go.mod` and `DEPENDENCIES.md` for current direct + indirect module inventory | — |
 
 ### Frontend (Web UI)
 | Component | Technology | Version |
 |---|---|---|
-| **Framework** | React | 19.0.0 |
-| **Language** | TypeScript | 5.7.2 |
-| **Build** | Vite | 6.0.7 |
-| **Styling** | Tailwind CSS | 4.0.0 |
-| **Components** | shadcn/ui (Radix primitives) | — |
-| **Flow/Graph** | @xyflow/react (React Flow) | 12.4.2 |
-| **Icons** | Lucide React | 0.469.0 |
+| **Framework** | React | 19.2.7 |
+| **Language** | TypeScript | 6.0.3 |
+| **Build** | Vite | 8.0.16 |
+| **Styling** | Tailwind CSS | 4.3.1 |
+| **Components** | Radix primitives | dropdown-menu 2.1.17, scroll-area 1.2.11, tabs 1.1.14, tooltip 1.2.9 |
+| **Flow/Graph** | @xyflow/react (React Flow) | 12.11.0 |
+| **Icons** | Lucide React | 1.18.0 |
 | **Testing (unit)** | Vitest | 4.1.8 |
 | **Testing (E2E)** | Playwright | 1.60.0 |
-| **Runtime** | Node.js ≥18 (embedded via go:embed) | — |
+| **Runtime** | Node.js 24 for frontend tooling (`frontend/.nvmrc`); built assets embedded via `go:embed` | — |
 
 ### SDK Ecosystem
 | SDK | Language | Runtime | Dependencies |

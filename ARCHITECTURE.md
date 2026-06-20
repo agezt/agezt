@@ -34,6 +34,8 @@ The system currently has these major layers:
 
 The current worktree is heavily modified. Do not assume a clean diff. Inspect current files before editing, and do not revert unrelated changes.
 
+Version and dependency source of truth: backend Go version and module inventory live in `go.mod`; justified dependency notes live in `DEPENDENCIES.md`; frontend tool/runtime versions live in `frontend/package.json` and `frontend/.nvmrc`.
+
 ## Agent Identity Model
 
 Durable agent identity is represented primarily by `kernel/roster.Profile`.
