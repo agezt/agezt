@@ -123,3 +123,9 @@ test("a bad token throws APIError(401)", async () => {
     (e: unknown) => e instanceof APIError && e.status === 401 && e.type === "unauthorized",
   );
 });
+
+test("tenant header does not break auth", async () => {
+  const tc = new Client(base, "testtoken", { timeoutMs: 5000, tenant: "acme" });
+  const h = await tc.health();
+  assert.equal(h.status, "ok");
+});
