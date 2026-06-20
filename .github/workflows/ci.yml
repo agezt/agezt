@@ -262,6 +262,8 @@ jobs:
       - uses: ./.github/actions/setup-go-safe
       - name: Verify every module is in tools/depscheck/allowlist.txt
         run: bash scripts/ci-go-retry.sh go run ./tools/depscheck
+      - name: Verify SDK parity report is up to date
+        run: bash scripts/ci-go-retry.sh go run ./tools/sdkparity -check docs/SDK-PARITY.md
 
   lint:
     # Static-analysis gates driven clean in M485/M487. gofmt + staticcheck are
