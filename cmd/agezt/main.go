@@ -94,6 +94,7 @@ import (
 	"github.com/agezt/agezt/plugins/channels/mastodon"
 	"github.com/agezt/agezt/plugins/channels/matrix"
 	"github.com/agezt/agezt/plugins/channels/nextcloudtalk"
+	"github.com/agezt/agezt/plugins/channels/nostr"
 	"github.com/agezt/agezt/plugins/channels/onebot"
 	"github.com/agezt/agezt/plugins/channels/push"
 	signalchan "github.com/agezt/agezt/plugins/channels/signal"
@@ -1604,6 +1605,11 @@ func runDaemon(stdout, stderr io.Writer) int {
 		go maChan.Start(ctx)
 		fmt.Fprintf(stdout, "  mastodon channel : %s\n", maDesc)
 	}
+	noChan, noSink, noDesc := buildNostr(ctx, k)
+	if noChan != nil {
+		go noChan.Start(ctx)
+		fmt.Fprintf(stdout, "  nostr channel    : %s (npub hex %s)\n", noDesc, noChan.PubHex())
+	}
 
 	// SMS channel (SPEC-04 §1) — duplex over Twilio Programmable Messaging when
 	// AGEZT_SMS_ACCOUNT_SID + AGEZT_SMS_AUTH_TOKEN are set. Inbound is a signed
@@ -1680,7 +1686,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 
 	// Every configured channel's brief sink, teed: Pulse briefs and (M782)
 	// alert notifications share the same delivery surface.
-	channelSinks := combineSinks(tgSink, slSink, dcSink, whSink, emSink, mxSink, ircSink, twSink, wgSink, imSink, lnSink, gcSink, mmSink, dtSink, fsSink, wcSink, qqSink, wxSink, zlSink, nctSink, maSink, smSink, waSink, haSink, tmSink, sgSink, pushSink)
+	channelSinks := combineSinks(tgSink, slSink, dcSink, whSink, emSink, mxSink, ircSink, twSink, wgSink, imSink, lnSink, gcSink, mmSink, dtSink, fsSink, wcSink, qqSink, wxSink, zlSink, nctSink, maSink, noSink, smSink, waSink, haSink, tmSink, sgSink, pushSink)
 
 	// Pulse — the proactive heart (SPEC-03). On by default; the resident
 	// engine runs on the daemon ctx so `agt halt`/SIGTERM/`agt shutdown`
@@ -1897,6 +1903,9 @@ func runDaemon(stdout, stderr io.Writer) int {
 	}
 	if maChan != nil {
 		liveChannels["mastodon"] = maChan
+	}
+	if noChan != nil {
+		liveChannels["nostr"] = noChan
 	}
 	if smChan != nil {
 		liveChannels["sms"] = smChan
@@ -3477,6 +3486,37 @@ func buildMastodon(ctx context.Context, k *kernelruntime.Kernel) (*mastodon.Chan
 		return ch.Send(ctx, channel.Outbound{Text: formatBrief(b), Priority: channel.PriorityNotify})
 	})
 	return ch, sink, fmt.Sprintf("Mastodon (two-way), allowlist=%d acct(s)", len(users))
+}
+
+// buildNostr constructs the Nostr channel when AGEZT_NOSTR_PRIVKEY + AGEZT_NOSTR_RELAYS
+// are set. It connects to the relays, answers kind-1 mentions of the agent's
+// pubkey from allowlisted authors, and posts briefs as standalone notes.
+//
+//	AGEZT_NOSTR_PRIVKEY  64-char hex secret key (required)
+//	AGEZT_NOSTR_RELAYS   comma-separated wss:// relay URLs (required)
+//	AGEZT_NOSTR_AUTHORS  comma-separated author pubkeys (hex) allowed to drive the agent
+func buildNostr(ctx context.Context, k *kernelruntime.Kernel) (*nostr.Channel, pulse.BriefSink, string) {
+	priv := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "NOSTR_PRIVKEY"))
+	relays := splitNonEmpty(os.Getenv(brand.EnvPrefix + "NOSTR_RELAYS"))
+	if priv == "" || len(relays) == 0 {
+		return nil, nil, ""
+	}
+	authors := splitNonEmpty(os.Getenv(brand.EnvPrefix + "NOSTR_AUTHORS"))
+	ch, err := nostr.New(nostr.Config{
+		PrivKeyHex: priv,
+		Relays:     relays,
+		Allowlist:  channel.NewAllowlist(authors),
+		Bus:        k.Bus(),
+		Handler:    makeChannelHandler(k),
+	})
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "%s: nostr channel disabled: %v\n", brand.Binary, err)
+		return nil, nil, ""
+	}
+	sink := pulse.SinkFunc(func(b pulse.Brief) error {
+		return ch.Send(ctx, channel.Outbound{Text: formatBrief(b), Priority: channel.PriorityNotify})
+	})
+	return ch, sink, fmt.Sprintf("Nostr, %d relay(s), allowlist=%d author(s)", len(relays), len(authors))
 }
 
 // buildSMS constructs the Twilio SMS channel when AGEZT_SMS_ACCOUNT_SID +

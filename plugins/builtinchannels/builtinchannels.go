@@ -187,6 +187,12 @@ var manifests = []channel.Manifest{
 		DocsURL: "https://nextcloud-talk.readthedocs.io/en/latest/bots/",
 	},
 	{
+		Kind: "nostr", Display: "Nostr", Transport: "socket", Duplex: true,
+		Description:   "Two-way Nostr over relays — answers signed kind-1 mentions of the agent's pubkey, posts threaded replies.",
+		ConfigSection: "nostr", RequiredEnv: []string{"AGEZT_NOSTR_PRIVKEY", "AGEZT_NOSTR_RELAYS"},
+		DocsURL: "https://github.com/nostr-protocol/nips/blob/master/01.md",
+	},
+	{
 		Kind: "zalo", Display: "Zalo", Transport: "webhook", Duplex: true,
 		Description:   "Two-way Zalo via the Official Account API (event webhook + OA message API).",
 		ConfigSection: "zalo", RequiredEnv: []string{"AGEZT_ZALO_TOKEN"},

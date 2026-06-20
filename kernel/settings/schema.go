@@ -367,6 +367,15 @@ func builtinSections() []Section {
 			},
 		},
 		{
+			ID: "nostr", Name: "Nostr",
+			Help: "Two-way Nostr over relays. Give the agent a secret key (64-char hex) and relay URLs; it answers signed kind-1 mentions of its pubkey from allowlisted authors and posts threaded replies. Restart to apply.",
+			Fields: []Field{
+				pw("AGEZT_NOSTR_PRIVKEY", "Secret key (hex)", "the agent's 64-char hex secret key (not nsec)"),
+				{Env: "AGEZT_NOSTR_RELAYS", Label: "Relays", Type: TypeCSV, Apply: ApplyRestart, Help: "comma-separated wss:// relay URLs"},
+				{Env: "AGEZT_NOSTR_AUTHORS", Label: "Allowed authors (hex)", Type: TypeCSV, Apply: ApplyRestart, Help: "comma-separated author pubkeys (hex) allowed to drive the agent"},
+			},
+		},
+		{
 			ID: "nextcloudtalk", Name: "Nextcloud Talk",
 			Help: "Two-way Nextcloud Talk via the Talk Bot API. Register a bot (occ talk:bot:install) with a shared secret, point its webhook at the inbound addr, and add the conversation tokens it may act in. Restart to apply.",
 			Fields: []Field{

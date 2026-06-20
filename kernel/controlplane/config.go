@@ -320,6 +320,10 @@ var configEnvVars = []string{
 	"AGEZT_NEXTCLOUDTALK_TOKENS",
 	"AGEZT_NEXTCLOUDTALK_ADDR",
 	"AGEZT_NEXTCLOUDTALK_PATH",
+	// Nostr (relays, two-way).
+	"AGEZT_NOSTR_PRIVKEY",
+	"AGEZT_NOSTR_RELAYS",
+	"AGEZT_NOSTR_AUTHORS",
 	"AGEZT_SYNOLOGY_WEBHOOK",
 	// WhatsApp gateway (WAHA / Evolution, two-way).
 	"AGEZT_WHATSAPPGW_URL",
