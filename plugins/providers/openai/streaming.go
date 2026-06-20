@@ -16,6 +16,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/plugins/providers/internal/httpread"
+	"github.com/agezt/agezt/plugins/providers/internal/toolname"
 )
 
 // CompleteStream implements agent.StreamingProvider. It POSTs to the
@@ -99,7 +100,7 @@ func (p *Provider) CompleteStream(ctx context.Context, req agent.CompletionReque
 	if err != nil {
 		return nil, err
 	}
-	restoreToolCallNames(resp, reverseToolNames(req.Tools))
+	toolname.RestoreCalls(resp, toolname.Reverse(req.Tools))
 	return resp, nil
 }
 
@@ -127,7 +128,7 @@ func encodeStreamRequest(model, system string, msgs []agent.Message, tools []age
 		StreamOptions:  &streamOptions{IncludeUsage: true},
 		ResponseFormat: jsonObjectFormat(jsonMode),
 	}
-	fwd, _ := wireToolNames(tools)
+	fwd, _ := toolname.Maps(tools)
 	if strings.TrimSpace(system) != "" {
 		wire.Messages = append(wire.Messages, oaMessage{Role: "system", Content: system})
 	}
@@ -149,7 +150,7 @@ func encodeStreamRequest(model, system string, msgs []agent.Message, tools []age
 		wire.Tools = append(wire.Tools, oaTool{
 			Type: "function",
 			Function: oaToolFnDef{
-				Name:        fwd[t.Name],
+				Name:        toolname.Wire(fwd, t.Name),
 				Description: t.Description,
 				Parameters:  params,
 			},

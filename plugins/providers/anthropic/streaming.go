@@ -15,6 +15,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/plugins/providers/internal/httpread"
+	"github.com/agezt/agezt/plugins/providers/internal/toolname"
 )
 
 // CompleteStream implements agent.StreamingProvider. It POSTs to the
@@ -93,7 +94,7 @@ func (p *Provider) CompleteStream(ctx context.Context, req agent.CompletionReque
 	// Reverse the request-side tool-name conformance on the final response so the
 	// call routes to the real tool (the live chunks carry the wire name, which is
 	// display-only; dispatch uses this assembled response).
-	restoreToolCallNames(resp, reverseToolNames(req.Tools))
+	toolname.RestoreCalls(resp, toolname.Reverse(req.Tools))
 	return resp, nil
 }
 
@@ -113,7 +114,7 @@ func encodeStreamRequest(model, system string, msgs []agent.Message, tools []age
 		Thinking  *anthThinking `json:"thinking,omitempty"` // M318
 	}
 	thinking, maxTok := thinkingConfig(thinkingBudget, maxTok)
-	fwd, _ := wireToolNames(tools)
+	fwd, _ := toolname.Maps(tools)
 	wire := streamReq{Model: model, MaxTokens: maxTok, System: buildAnthSystem(system), Stream: true, Tools: buildAnthTools(tools, fwd), Thinking: thinking}
 	for _, m := range msgs {
 		am, err := canonicalToAnth(m, fwd)

@@ -30,6 +30,7 @@ import (
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/plugins/providers/internal/httpread"
 	"github.com/agezt/agezt/plugins/providers/internal/retry"
+	"github.com/agezt/agezt/plugins/providers/internal/toolname"
 )
 
 const (
@@ -189,7 +190,7 @@ func (p *Provider) Complete(ctx context.Context, req agent.CompletionRequest) (*
 	if err != nil {
 		return nil, err
 	}
-	restoreToolCallNames(resp, reverseToolNames(req.Tools))
+	toolname.RestoreCalls(resp, toolname.Reverse(req.Tools))
 	return resp, nil
 }
 
@@ -340,85 +341,11 @@ type oaChoice struct {
 	FinishReason string    `json:"finish_reason"`
 }
 
-// sanitizeToolName conforms a tool name to OpenAI's required pattern
-// ^[a-zA-Z0-9_-]+$ by replacing every other rune with '_'. Agezt exposes dotted
-// tool names (e.g. "browser.read"); OpenAI and strict openai-compatible gateways
-// reject those with a 400 ("does not match pattern") — which the governor's mock
-// fallback would otherwise silently mask. The change is reversed on the response
-// via reverseToolNames, so a tool_call still routes to the real tool.
-func sanitizeToolName(name string) string {
-	var b strings.Builder
-	b.Grow(len(name))
-	for _, r := range name {
-		switch {
-		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9', r == '_', r == '-':
-			b.WriteRune(r)
-		default:
-			b.WriteByte('_')
-		}
-	}
-	return b.String()
-}
-
-// wireToolNames computes the provider-facing ("wire") name for each tool, conformed
-// to OpenAI's ^[a-zA-Z0-9_-]+$ pattern, and guarantees the mapping is INJECTIVE:
-// when two distinct tool names sanitise to the same string (e.g. "browser.read" and
-// "browser_read" both → "browser_read"), the collision is broken with a
-// deterministic numeric suffix so no two tools are ever sent under the same wire
-// name. It returns fwd (original→wire, every tool) and rev (wire→original, only the
-// entries where wire differs from the original — an unchanged name routes to itself,
-// so it needs no reverse rewrite).
-//
-// Without this, reverseToolNames silently overwrote on collision (last writer wins,
-// non-deterministically by slice order) and encodeRequest shipped two function defs
-// with the SAME name; a provider tool_call could then route attacker- or
-// model-controlled arguments to the WRONG tool. The forward map is shared by both
-// encoders and the assistant-history replay so the wire names are consistent across
-// the whole request, and rev matches exactly what was sent.
-func wireToolNames(tools []agent.ToolDef) (fwd, rev map[string]string) {
-	fwd = make(map[string]string, len(tools))
-	used := make(map[string]bool, len(tools))
-	for _, t := range tools {
-		if _, dup := fwd[t.Name]; dup {
-			continue // duplicate tool name: one wire mapping is enough
-		}
-		base := sanitizeToolName(t.Name)
-		wire := base
-		for n := 2; used[wire]; n++ {
-			wire = base + "_" + strconv.Itoa(n)
-		}
-		used[wire] = true
-		fwd[t.Name] = wire
-		if wire != t.Name {
-			if rev == nil {
-				rev = make(map[string]string, 2)
-			}
-			rev[wire] = t.Name
-		}
-	}
-	return fwd, rev
-}
-
-// reverseToolNames maps each tool's wire name back to its original (nil when none
-// differ). Derived from wireToolNames so it is collision-safe and matches exactly
-// the names encodeRequest/encodeStreamRequest put on the wire.
-func reverseToolNames(tools []agent.ToolDef) map[string]string {
-	_, rev := wireToolNames(tools)
-	return rev
-}
-
-// restoreToolCallNames rewrites a response's tool-call names from their sanitized
-// wire form back to the original tool names, in place.
-func restoreToolCallNames(resp *agent.CompletionResponse, rev map[string]string) {
-	if resp == nil || len(rev) == 0 {
-		return
-	}
-	for i, tc := range resp.Message.ToolCalls {
-		if orig, ok := rev[tc.Name]; ok {
-			resp.Message.ToolCalls[i].Name = orig
-		}
-	}
-}
+// Tool-name conformance (OpenAI's ^[a-zA-Z0-9_-]{1,64}$) lives in the shared
+// plugins/providers/internal/toolname package: toolname.Maps builds the injective
+// original↔wire mapping, toolname.Wire applies it on encode, and
+// toolname.RestoreCalls reverses it on the response so a tool_call still routes to
+// the real tool.
 
 func encodeRequest(model, system string, msgs []agent.Message, tools []agent.ToolDef, maxTok int, jsonMode bool) ([]byte, error) {
 	wire := oaRequest{
@@ -427,7 +354,7 @@ func encodeRequest(model, system string, msgs []agent.Message, tools []agent.Too
 		MaxTokens:      maxTok, // 0 → omitted via omitempty
 		ResponseFormat: jsonObjectFormat(jsonMode),
 	}
-	fwd, _ := wireToolNames(tools)
+	fwd, _ := toolname.Maps(tools)
 	if strings.TrimSpace(system) != "" {
 		wire.Messages = append(wire.Messages, oaMessage{Role: "system", Content: system})
 	}
@@ -449,7 +376,7 @@ func encodeRequest(model, system string, msgs []agent.Message, tools []agent.Too
 		wire.Tools = append(wire.Tools, oaTool{
 			Type: "function",
 			Function: oaToolFnDef{
-				Name:        fwd[t.Name],
+				Name:        toolname.Wire(fwd, t.Name),
 				Description: t.Description,
 				Parameters:  params,
 			},
@@ -504,10 +431,7 @@ func canonicalToOA(m agent.Message, fwd map[string]string) (*oaMessage, error) {
 			}
 			// OpenAI expects arguments as a JSON-encoded *string*, not
 			// a nested object. We already have valid JSON bytes; cast.
-			name := sanitizeToolName(tc.Name)
-			if w, ok := fwd[tc.Name]; ok {
-				name = w
-			}
+			name := toolname.Wire(fwd, tc.Name)
 			om.ToolCalls = append(om.ToolCalls, oaToolCall{
 				ID:   tc.ID,
 				Type: "function",

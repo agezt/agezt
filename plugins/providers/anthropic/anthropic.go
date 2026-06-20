@@ -18,13 +18,13 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/plugins/providers/internal/httpread"
 	"github.com/agezt/agezt/plugins/providers/internal/retry"
+	"github.com/agezt/agezt/plugins/providers/internal/toolname"
 )
 
 const (
@@ -195,7 +195,7 @@ func (p *Provider) Complete(ctx context.Context, req agent.CompletionRequest) (*
 	}
 	// Map any sanitized tool names back to their originals so the call routes to
 	// the real tool (mirrors the request-side wireToolNames conformance).
-	restoreToolCallNames(resp, reverseToolNames(req.Tools))
+	toolname.RestoreCalls(resp, toolname.Reverse(req.Tools))
 	return resp, nil
 }
 
@@ -285,101 +285,10 @@ func buildAnthTools(tools []agent.ToolDef, fwd map[string]string) []anthTool {
 	}
 	out := make([]anthTool, 0, len(tools))
 	for _, t := range tools {
-		out = append(out, anthTool{Name: wireName(fwd, t.Name), Description: t.Description, InputSchema: t.InputSchema})
+		out = append(out, anthTool{Name: toolname.Wire(fwd, t.Name), Description: t.Description, InputSchema: t.InputSchema})
 	}
 	out[len(out)-1].CacheControl = &anthCacheControl{Type: "ephemeral"}
 	return out
-}
-
-// --- tool-name conformance (mirrors plugins/providers/openai) ---
-//
-// Anthropic validates tool names against ^[a-zA-Z0-9_-]{1,64}$ and rejects the
-// whole request with a 400 invalid_request_error otherwise. Agezt exposes dotted
-// names like "browser.read" (and dynamic MCP/forge tools may carry other
-// characters or exceed 64 chars), so names are conformed to a "wire" form before
-// sending and reversed on the response, exactly as the OpenAI adapter does — keep
-// the two in sync. The forward map is INJECTIVE (collisions broken with a numeric
-// suffix) so two tools never share a wire name and a tool_call always routes to
-// the right tool.
-
-// sanitizeToolName replaces every rune outside [a-zA-Z0-9_-] with '_' and caps the
-// length at 64 (Anthropic's max).
-func sanitizeToolName(name string) string {
-	var b strings.Builder
-	b.Grow(len(name))
-	for _, r := range name {
-		switch {
-		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9', r == '_', r == '-':
-			b.WriteRune(r)
-		default:
-			b.WriteByte('_')
-		}
-	}
-	s := b.String()
-	if len(s) > 64 {
-		s = s[:64]
-	}
-	if s == "" {
-		s = "_"
-	}
-	return s
-}
-
-// wireToolNames returns fwd (original→wire, every tool) and rev (wire→original,
-// only entries that changed). Collisions get a deterministic numeric suffix.
-func wireToolNames(tools []agent.ToolDef) (fwd, rev map[string]string) {
-	fwd = make(map[string]string, len(tools))
-	used := make(map[string]bool, len(tools))
-	for _, t := range tools {
-		if _, dup := fwd[t.Name]; dup {
-			continue
-		}
-		base := sanitizeToolName(t.Name)
-		if len(base) > 60 {
-			base = base[:60] // leave room for a collision suffix
-		}
-		wire := base
-		for n := 2; used[wire]; n++ {
-			wire = base + "_" + strconv.Itoa(n)
-		}
-		used[wire] = true
-		fwd[t.Name] = wire
-		if wire != t.Name {
-			if rev == nil {
-				rev = make(map[string]string, 2)
-			}
-			rev[wire] = t.Name
-		}
-	}
-	return fwd, rev
-}
-
-func reverseToolNames(tools []agent.ToolDef) map[string]string {
-	_, rev := wireToolNames(tools)
-	return rev
-}
-
-// wireName looks up a name in the forward map, falling back to the name itself.
-func wireName(fwd map[string]string, name string) string {
-	if fwd != nil {
-		if w, ok := fwd[name]; ok {
-			return w
-		}
-	}
-	return name
-}
-
-// restoreToolCallNames rewrites a response's tool-call names from their wire form
-// back to the originals, in place.
-func restoreToolCallNames(resp *agent.CompletionResponse, rev map[string]string) {
-	if resp == nil || len(rev) == 0 {
-		return
-	}
-	for i, tc := range resp.Message.ToolCalls {
-		if orig, ok := rev[tc.Name]; ok {
-			resp.Message.ToolCalls[i].Name = orig
-		}
-	}
 }
 
 type anthMessage struct {
@@ -444,7 +353,7 @@ func anthUsageToAgent(inputTokens, cacheRead, cacheCreation, outputTokens int, m
 
 func encodeRequest(model, system string, msgs []agent.Message, tools []agent.ToolDef, maxTok, thinkingBudget int) ([]byte, error) {
 	thinking, maxTok := thinkingConfig(thinkingBudget, maxTok)
-	fwd, _ := wireToolNames(tools)
+	fwd, _ := toolname.Maps(tools)
 	wire := anthRequest{
 		Model:     model,
 		MaxTokens: maxTok,
@@ -528,7 +437,7 @@ func canonicalToAnth(m agent.Message, fwd map[string]string) (*anthMessage, erro
 			blocks = append(blocks, anthBlock{
 				Type:  "tool_use",
 				ID:    tc.ID,
-				Name:  wireName(fwd, tc.Name),
+				Name:  toolname.Wire(fwd, tc.Name),
 				Input: input,
 			})
 		}

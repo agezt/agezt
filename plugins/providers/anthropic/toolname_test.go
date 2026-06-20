@@ -67,39 +67,6 @@ func TestToolNamesConformToAnthropicPattern(t *testing.T) {
 	}
 }
 
-// TestRestoreToolCallNames_RoundTrip verifies a tool_use returned under the wire
-// name is mapped back to the original so the call routes to the real tool.
-func TestRestoreToolCallNames_RoundTrip(t *testing.T) {
-	tools := []agent.ToolDef{{Name: "browser.read"}}
-	fwd, rev := wireToolNames(tools)
-	if fwd["browser.read"] != "browser_read" || rev["browser_read"] != "browser.read" {
-		t.Fatalf("maps wrong: fwd=%v rev=%v", fwd, rev)
-	}
-	resp := &agent.CompletionResponse{
-		Message: agent.Message{ToolCalls: []agent.ToolCall{{ID: "1", Name: "browser_read"}}},
-	}
-	restoreToolCallNames(resp, reverseToolNames(tools))
-	if resp.Message.ToolCalls[0].Name != "browser.read" {
-		t.Fatalf("name not restored: %q", resp.Message.ToolCalls[0].Name)
-	}
-}
-
-// TestWireToolNames_CollisionsAndLength: distinct names that sanitise to the same
-// wire string get a deterministic suffix, and over-long names are capped at 64.
-func TestWireToolNames_CollisionsAndLength(t *testing.T) {
-	fwd, _ := wireToolNames([]agent.ToolDef{{Name: "browser.read"}, {Name: "browser_read"}})
-	a, b := fwd["browser.read"], fwd["browser_read"]
-	if a == b {
-		t.Fatalf("collision not broken: both → %q", a)
-	}
-	if !anthNamePattern.MatchString(a) || !anthNamePattern.MatchString(b) {
-		t.Fatalf("collision wire names invalid: %q %q", a, b)
-	}
-
-	long := strings.Repeat("a.b", 40) // 120 chars with dots
-	fwd2, _ := wireToolNames([]agent.ToolDef{{Name: long}})
-	w := fwd2[long]
-	if len(w) > 64 || !anthNamePattern.MatchString(w) {
-		t.Fatalf("long name not conformed: len=%d %q", len(w), w)
-	}
-}
+// (Unit coverage of the conformance maps lives in
+// plugins/providers/internal/toolname; this file keeps the Anthropic-specific
+// integration assertion above.)
