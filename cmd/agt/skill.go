@@ -6,6 +6,8 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/agezt/agezt/internal/brand"
@@ -49,6 +51,8 @@ func cmdSkill(args []string, stdout, stderr io.Writer) int {
 		return cmdSkillCat(args[1:], stdout, stderr)
 	case "registry":
 		return cmdSkillRegistry(args[1:], stdout, stderr)
+	case "hygiene":
+		return cmdSkillHygiene(args[1:], stdout, stderr)
 	case "-h", "--help", "help":
 		fmt.Fprintf(stdout, "usage: %s skill <subcommand>\n", brand.CLI)
 		fmt.Fprintf(stdout, "  list [--json]                 list all skills + lifecycle state\n")
@@ -66,6 +70,7 @@ func cmdSkill(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "  files <id> [--json]           list a skill's bundle resources + their directory\n")
 		fmt.Fprintf(stdout, "  cat <id> <path>               print one bundle resource (reference file or script)\n")
 		fmt.Fprintf(stdout, "  registry <dir> [--install <name>]   list/install verifiable bundles in a directory\n")
+	fmt.Fprintf(stdout, "  hygiene [--idle-days N] [--json]   report idle/unused skills (epistemic hygiene)\n")
 		return 0
 	default:
 		fmt.Fprintf(stderr, "%s skill: unknown subcommand %q (list|show|history|promote|quarantine|revert|share|reassign|diff|export|import|registry)\n", brand.CLI, args[0])
@@ -425,4 +430,84 @@ func shortID(id string) string {
 		return id[:12]
 	}
 	return id
+}
+
+func cmdSkillHygiene(args []string, stdout, stderr io.Writer) int {
+	asJSON := false
+	idleDays := 0
+	for i := 0; i < len(args); i++ {
+		switch {
+		case args[i] == "--json":
+			asJSON = true
+		case args[i] == "--idle-days" && i+1 < len(args):
+			i++
+			n, err := strconv.Atoi(args[i])
+			if err != nil || n <= 0 {
+				fmt.Fprintf(stderr, "%s skill hygiene: bad --idle-days %q\n", brand.CLI, args[i])
+				return 2
+			}
+			idleDays = n
+		case strings.HasPrefix(args[i], "--idle-days="):
+			n, err := strconv.Atoi(strings.TrimPrefix(args[i], "--idle-days="))
+			if err != nil || n <= 0 {
+				fmt.Fprintf(stderr, "%s skill hygiene: bad --idle-days\n", brand.CLI)
+				return 2
+			}
+			idleDays = n
+		case strings.HasPrefix(args[i], "--"):
+			// unknown flag, skip
+		default:
+			fmt.Fprintf(stderr, "%s skill hygiene: unexpected arg %q\n", brand.CLI, args[i])
+			return 2
+		}
+	}
+	callArgs := map[string]any{}
+	if idleDays > 0 {
+		callArgs["idle_days"] = idleDays
+	}
+	c := dial(stderr)
+	if c == nil {
+		return 1
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	res, err := c.Call(ctx, controlplane.CmdSkillHygiene, callArgs)
+	if err != nil {
+		fmt.Fprintf(stderr, "%s skill hygiene: %v\n", brand.CLI, err)
+		return 1
+	}
+	if asJSON {
+		return encodeJSON(stdout, res)
+	}
+	days := intNumber(res["idle_days"])
+	total := intNumber(res["total"])
+	active := intNumber(res["active"])
+	idleCount := intNumber(res["idle_count"])
+	fmt.Fprintf(stdout, "skill hygiene (idle ≥ %d days):\n", days)
+	fmt.Fprintf(stdout, "  total:   %d\n", total)
+	fmt.Fprintf(stdout, "  active:  %d\n", active)
+	fmt.Fprintf(stdout, "  idle:    %d\n", idleCount)
+	if idle, _ := res["idle"].([]any); len(idle) > 0 {
+		fmt.Fprintf(stdout, "\nidle skills:\n")
+		for _, raw := range idle {
+			sk, _ := raw.(map[string]any)
+			if sk == nil {
+				continue
+			}
+			name := str(sk["name"])
+			if name == "" {
+				name = str(sk["id"])
+			}
+			uses := intNumber(sk["uses"])
+			lastUsed := intNumber(sk["last_used_ms"])
+			detail := "never used"
+			if lastUsed > 0 {
+				detail = fmt.Sprintf("last used %s", time.UnixMilli(int64(lastUsed)).Format(time.RFC3339))
+			}
+			fmt.Fprintf(stdout, "  %-30s  %d use(s), %s\n", name, uses, detail)
+		}
+	} else if idleCount == 0 {
+		fmt.Fprintf(stdout, "\nno idle skills — all active skills have been used recently.\n")
+	}
+	return 0
 }
