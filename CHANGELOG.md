@@ -12,14 +12,19 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 ## [Unreleased]
 
 ### Fixed
-- **Anthropic 400 on tool names — dotted/long names broke every Anthropic chain arm.**
-  The Anthropic adapter sent tool names verbatim, so `browser.read` (and dynamic
-  MCP/forge tools with other characters or >64 chars) tripped Anthropic's
-  `^[a-zA-Z0-9_-]{1,64}$` validation → `400 invalid_request_error`, killing the
-  Anthropic arm of any routing/fallback chain. Tool names are now conformed to a
-  collision-safe wire form before sending (tools array + assistant-history
-  tool_use, streaming and non-streaming) and reversed on the response so calls
-  still route to the real tool — matching the OpenAI adapter's existing behavior.
+- **Provider 400 on tool names — dotted/long names broke chain arms across every
+  strict provider.** Adapters sent tool names verbatim, so `browser.read` (and
+  dynamic MCP/forge tools with other characters or >64 chars) tripped provider
+  function-name validation (e.g. Anthropic's `^[a-zA-Z0-9_-]{1,64}$`) → 400
+  invalid_request_error, killing that provider's arm of a routing/fallback chain.
+  Tool-name conformance — previously only in the OpenAI adapter — is now a shared
+  helper (`plugins/providers/internal/toolname`) applied across **anthropic,
+  openai, google, cohere, bedrock, and vertex** (Gemini + Anthropic-on-Vertex):
+  request names (tool defs + assistant-history tool_use, streaming and
+  non-streaming) are conformed to a collision-safe wire form and reversed on the
+  response so a tool_call still routes to the real tool. The shared sanitizer also
+  caps length at 64 (which the OpenAI copy lacked) and enforces a leading
+  letter/underscore (Gemini's rule).
 
 - **`agt <cmd> -h` is now safe and uniform for every command (M936).** Commands that treat their
   first argument as data used to EXECUTE on `-h` — `agt run -h` literally sent "-h" to the live
