@@ -74,6 +74,21 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   OAuth client id/secret entry and start/poll flow; `plugins/builtinchannels/builtinchannels.go`
   switches Slack from `token` to `oauth` connect method and adds Mastodon OAuth setup steps.
 
+- **`agt skill hygiene [--idle-days N] [--json]`** — surfaces idle/unused skills (epistemic
+  hygiene) from the existing `CmdSkillHygiene` control-plane command: total, active, idle counts
+  plus per-skill name, use count, and last-used timestamp. Operators can now see which skills are
+  collecting dust before they mislead the agent.
+
+- **`agt world audit [--json]`** — world-model health summary: entity/relation counts, untyped
+  entities, decayed entities (30-day staleness), superseded entities, and a kind distribution
+  table. Client-side aggregation over `CmdWorldList` so no new protocol command was needed.
+
+- **SDK behavioral parity tests closed.** Python and TypeScript SDK tests now assert all four
+  `health` fields (`status`, `version`, `default_model`, `model_count`) and the `getRun`
+  `correlation_id` field, matching what Rust already asserted. All three SDKs now have identical
+  behavioral coverage across 20 dimensions: health, models, runs (sync/stream/failure), get_run,
+  auth, tenant header, and the full mailbox surface.
+
 ### Fixed
 
 - **Turkish prompt-injection phrases now detected.** `kernel/cadence/injection.go` gained three
@@ -87,6 +102,14 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
   `schedules.json` cannot set arbitrary task names. A new `Entry.Validate()` method checks
   target-type field consistency (each target carries only its required identifier, no
   cross-contamination).
+
+- **Plugin protocol versioning is now machine-checkable.** `kernel/plugin/protocol.go`
+  gains a `ProtocolVersion` constant (currently 1) and `InitializeResult` carries a
+  `protocol_version` field. The host's spawn path calls `checkProtocolVersion` after
+  parsing the initialize response and rejects a mismatch with `ErrProtocolVersionMismatch`
+  rather than failing cryptically mid-run. Plugins that omit the field default to v1 for
+  backward compatibility. Four unit tests cover exact-match, omitted (back-compat), mismatch,
+  and future-version rejection.
 
 - **Provider 400 on tool names — dotted/long names broke chain arms across every
   strict provider.** Adapters sent tool names verbatim, so `browser.read` (and
