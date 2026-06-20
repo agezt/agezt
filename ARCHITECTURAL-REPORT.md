@@ -1,7 +1,8 @@
 # Agezt — Comprehensive Architectural Report
 
-> **Generated:** 2026-06-10 · **Branch:** `main` · **Version:** v1.0.0+ · **Latest phase:** M781
+> **Generated:** 2026-06-20 · **Branch:** `main` · **Version:** v1.0.0+ · **Latest phase:** M781+
 > **Scope:** Every component, module, and technology across the entire monorepo.
+> **Note:** Version and dependency details are sourced from `go.mod`, `frontend/package.json`, and `frontend/.nvmrc`. See `docs/SDK-PARITY.md` for API coverage and `docs/DEPENDENCIES.md` for the dependency inventory.
 
 ---
 
@@ -135,7 +136,7 @@ ongoing development.
 | SDK | Language | Runtime | Dependencies |
 |---|---|---|---|
 | **Go SDK** | Go | Native | stdlib only (wraps control-plane client) |
-| **TypeScript SDK** | TypeScript | Node.js ≥18 | `@types/node` (dev only) |
+| **TypeScript SDK** | TypeScript | Node.js ≥18 (dev tooling uses Node 24 per `frontend/.nvmrc`) | `@types/node` (dev only) |
 | **Python SDK** | Python | ≥3.9 | stdlib only (urllib + json) |
 | **Rust SDK** | Rust | ≥1.70 | std only (reqwest-free, uses std::net) |
 
@@ -1191,14 +1192,14 @@ filling the gaps between major milestones.
 
 ## Appendix B: Complete Plugin Inventory
 
-### Provider Plugins (8)
-`anthropic`, `openai`, `ollama`, `google`, `vertex`, `bedrock`, `cohere`, `compat`
+### Provider Plugins (11 + 2 internal)
+`anthropic`, `bedrock`, `cohere`, `compat`, `embed`, `google`, `ollama`, `openai`, `openairesponses`, `vertex`, `voice` · internal: `mock`, `internal/*`
 
-### Tool Plugins (18)
-`shell`, `file`, `http`, `browser`, `coding`, `acpagent`, `peer`, `notify`, `websearch`, `schedule`, `boardtool`, `introspecttool`, `skilltool`, `standingtool`, `runstool`, `config`, `codeexec`, `homeassistant`
+### Tool Plugins (27)
+`acpagent`, `artifacts`, `boardtool`, `browser`, `codeexec`, `coding`, `config`, `council`, `db`, `fetch`, `file`, `forgetool`, `homeassistant`, `http`, `introspecttool`, `mcptool`, `notify`, `overseertool`, `peer`, `runstool`, `schedule`, `sendmedia`, `shell`, `skilltool`, `standingtool`, `websearch`, `workflowtool`
 
-### Channel Plugins (11)
-`telegram`, `slack`, `discord`, `email`, `whatsapp`, `sms`, `signal`, `matrix`, `teams`, `homeassistant`, `webhook`
+### Channel Plugins (25)
+`chatwebhook`, `dingtalk`, `discord`, `email`, `feishu`, `homeassistant`, `imessage`, `irc`, `line`, `mastodon`, `matrix`, `nextcloudtalk`, `nostr`, `onebot`, `push`, `signal`, `slack`, `sms`, `teams`, `telegram`, `webhook`, `wecom`, `whatsapp`, `whatsappgw`, `zalo`
 
 ### External Plugins (1)
 `mcpbridge`
@@ -1220,4 +1221,4 @@ filling the gaps between major milestones.
 ---
 
 *End of architectural report. This document covers every component, module, and technology
-in the Agezt codebase as of 2026-06-10 (branch `main`, ~781 phases shipped across 224 PRs, v1.0.0+).*}
+in the Agezt codebase as of 2026-06-20 (branch `main`, ~781+ phases shipped across 224+ PRs, v1.0.0+). For positioning, security, operations, and SDK parity documentation, see `docs/index.md`.*}
