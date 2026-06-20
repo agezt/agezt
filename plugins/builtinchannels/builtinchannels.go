@@ -135,8 +135,8 @@ var manifests = []channel.Manifest{
 		DocsURL: "https://docs.rocket.chat/docs/integrations",
 	},
 	{
-		Kind: "mastodon", Display: "Mastodon", Transport: "rest", Duplex: false,
-		Description:   "Outbound posts to a Mastodon account.",
+		Kind: "mastodon", Display: "Mastodon", Transport: "rest", Duplex: true,
+		Description:   "Mastodon — outbound posts, and two-way (polls mention notifications → threaded replies) with an acct allowlist.",
 		ConfigSection: "mastodon", RequiredEnv: []string{"AGEZT_MASTODON_SERVER", "AGEZT_MASTODON_TOKEN"},
 		DocsURL: "https://docs.joinmastodon.org/methods/statuses/",
 	},

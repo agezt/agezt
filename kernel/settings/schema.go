@@ -288,10 +288,12 @@ func builtinSections() []Section {
 		},
 		{
 			ID: "mastodon", Name: "Mastodon",
-			Help: "Outbound posts (toots) to a Mastodon account. Restart to apply.",
+			Help: "Mastodon. Outbound posts (toots) need an access token with write:statuses. Add an acct allowlist to make it TWO-WAY — the agent polls mention notifications (needs read:notifications) and replies as threaded toots. Restart to apply.",
 			Fields: []Field{
 				{Env: "AGEZT_MASTODON_SERVER", Label: "Instance URL", Type: TypeText, Apply: ApplyRestart, Help: "e.g. https://mastodon.social"},
-				pw("AGEZT_MASTODON_TOKEN", "Access token", "An app access token with write:statuses."),
+				pw("AGEZT_MASTODON_TOKEN", "Access token", "App token; write:statuses (post) + read:notifications (two-way)."),
+				{Env: "AGEZT_MASTODON_USERS", Label: "Allowed accts (two-way)", Type: TypeCSV, Apply: ApplyRestart, Help: "comma-separated acct handles (e.g. alice@example.social) allowed to drive the agent; enables mention polling"},
+				{Env: "AGEZT_MASTODON_POLL", Label: "Poll interval (sec)", Type: TypeText, Apply: ApplyRestart, Help: "mention poll interval in seconds (default 60)"},
 			},
 		},
 		{

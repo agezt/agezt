@@ -91,6 +91,7 @@ import (
 	"github.com/agezt/agezt/plugins/channels/imessage"
 	"github.com/agezt/agezt/plugins/channels/irc"
 	linechan "github.com/agezt/agezt/plugins/channels/line"
+	"github.com/agezt/agezt/plugins/channels/mastodon"
 	"github.com/agezt/agezt/plugins/channels/matrix"
 	"github.com/agezt/agezt/plugins/channels/nextcloudtalk"
 	"github.com/agezt/agezt/plugins/channels/onebot"
@@ -1598,6 +1599,11 @@ func runDaemon(stdout, stderr io.Writer) int {
 		go nctChan.Start(ctx)
 		fmt.Fprintf(stdout, "  nextcloud talk   : %s\n", nctDesc)
 	}
+	maChan, maSink, maDesc := buildMastodon(ctx, k)
+	if maChan != nil {
+		go maChan.Start(ctx)
+		fmt.Fprintf(stdout, "  mastodon channel : %s\n", maDesc)
+	}
 
 	// SMS channel (SPEC-04 §1) — duplex over Twilio Programmable Messaging when
 	// AGEZT_SMS_ACCOUNT_SID + AGEZT_SMS_AUTH_TOKEN are set. Inbound is a signed
@@ -1674,7 +1680,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 
 	// Every configured channel's brief sink, teed: Pulse briefs and (M782)
 	// alert notifications share the same delivery surface.
-	channelSinks := combineSinks(tgSink, slSink, dcSink, whSink, emSink, mxSink, ircSink, twSink, wgSink, imSink, lnSink, gcSink, mmSink, dtSink, fsSink, wcSink, qqSink, wxSink, zlSink, nctSink, smSink, waSink, haSink, tmSink, sgSink, pushSink)
+	channelSinks := combineSinks(tgSink, slSink, dcSink, whSink, emSink, mxSink, ircSink, twSink, wgSink, imSink, lnSink, gcSink, mmSink, dtSink, fsSink, wcSink, qqSink, wxSink, zlSink, nctSink, maSink, smSink, waSink, haSink, tmSink, sgSink, pushSink)
 
 	// Pulse — the proactive heart (SPEC-03). On by default; the resident
 	// engine runs on the daemon ctx so `agt halt`/SIGTERM/`agt shutdown`
@@ -1888,6 +1894,9 @@ func runDaemon(stdout, stderr io.Writer) int {
 	}
 	if nctChan != nil {
 		liveChannels["nextcloudtalk"] = nctChan
+	}
+	if maChan != nil {
+		liveChannels["mastodon"] = maChan
 	}
 	if smChan != nil {
 		liveChannels["sms"] = smChan
@@ -3425,6 +3434,51 @@ func buildNextcloudTalk(ctx context.Context, k *kernelruntime.Kernel) (*nextclou
 	return ch, sink, fmt.Sprintf("Nextcloud Talk, allowlist=%d token(s)", len(tokens))
 }
 
+// twoWayMastodonConfigured reports whether the dedicated two-way Mastodon channel
+// should own the "mastodon" name — true when an acct allowlist is set, signalling
+// the operator wants the agent to answer mentions (not just post).
+func twoWayMastodonConfigured() bool {
+	return strings.TrimSpace(os.Getenv(brand.EnvPrefix+"MASTODON_USERS")) != ""
+}
+
+// buildMastodon constructs the two-way Mastodon channel when AGEZT_MASTODON_USERS
+// is set (alongside SERVER + TOKEN). It polls mention notifications and replies as
+// threaded statuses; outbound briefs post standalone statuses.
+//
+//	AGEZT_MASTODON_SERVER  instance base URL (required)
+//	AGEZT_MASTODON_TOKEN   access token, read:notifications + write:statuses (required)
+//	AGEZT_MASTODON_USERS   comma-separated acct handles allowed to drive the agent (enables two-way)
+//	AGEZT_MASTODON_POLL    poll interval seconds (default 60)
+func buildMastodon(ctx context.Context, k *kernelruntime.Kernel) (*mastodon.Channel, pulse.BriefSink, string) {
+	if !twoWayMastodonConfigured() {
+		return nil, nil, ""
+	}
+	server := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "MASTODON_SERVER"))
+	token := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "MASTODON_TOKEN"))
+	if server == "" || token == "" {
+		return nil, nil, ""
+	}
+	users := splitNonEmpty(os.Getenv(brand.EnvPrefix + "MASTODON_USERS"))
+	poll := 0
+	if v := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "MASTODON_POLL")); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			poll = n
+		}
+	}
+	ch := mastodon.New(mastodon.Config{
+		Server:    server,
+		Token:     token,
+		Allowlist: channel.NewAllowlist(users),
+		Bus:       k.Bus(),
+		Handler:   makeChannelHandler(k),
+		PollSecs:  poll,
+	})
+	sink := pulse.SinkFunc(func(b pulse.Brief) error {
+		return ch.Send(ctx, channel.Outbound{Text: formatBrief(b), Priority: channel.PriorityNotify})
+	})
+	return ch, sink, fmt.Sprintf("Mastodon (two-way), allowlist=%d acct(s)", len(users))
+}
+
 // buildSMS constructs the Twilio SMS channel when AGEZT_SMS_ACCOUNT_SID +
 // AGEZT_SMS_AUTH_TOKEN are set. Inbound (signed Twilio webhook) is served when
 // AGEZT_SMS_ADDR is also set; outbound texts + Pulse briefs to the allowlisted
@@ -3712,7 +3766,9 @@ func buildPushChannels(ctx context.Context, k *kernelruntime.Kernel) ([]*push.Ch
 	if u := env("ROCKETCHAT_WEBHOOK"); u != "" {
 		add(push.Config{Kind: push.KindRocketChat, URL: u})
 	}
-	if env("MASTODON_TOKEN") != "" {
+	if env("MASTODON_TOKEN") != "" && !twoWayMastodonConfigured() {
+		// When an allowlist is set the dedicated two-way Mastodon channel owns the
+		// "mastodon" name (it polls mentions + posts), so skip this outbound entry.
 		add(push.Config{Kind: push.KindMastodon, Server: env("MASTODON_SERVER"), Token: env("MASTODON_TOKEN")})
 	}
 	if env("LINE_TOKEN") != "" && !twoWayLineConfigured() {
