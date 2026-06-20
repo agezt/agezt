@@ -327,7 +327,7 @@ func TestBuildGovernor_UnconfiguredWhenNoProvider(t *testing.T) {
 	t.Setenv(brand.EnvPrefix+"PROVIDER", "")
 	t.Setenv(brand.EnvPrefix+"MODEL", "")
 
-	gov, desc, model, err := buildGovernor(catalog.NewEmpty(), func(string) string { return "" })
+	gov, desc, model, err := buildGovernor(catalog.NewEmpty(), func(string) string { return "" }, t.TempDir())
 	if err != nil {
 		t.Fatalf("buildGovernor: %v", err)
 	}
@@ -357,7 +357,7 @@ func TestBuildGovernor_UnconfiguredWhenNoProvider(t *testing.T) {
 func TestSelectPrimary_UnknownProviderIsHardError(t *testing.T) {
 	t.Setenv(brand.EnvPrefix+"PROVIDER", "does-not-exist")
 	t.Setenv(brand.EnvPrefix+"MODEL", "")
-	if _, _, _, _, err := selectPrimary(catalog.NewEmpty(), func(string) string { return "" }); err == nil {
+	if _, _, _, _, err := selectPrimary(catalog.NewEmpty(), func(string) string { return "" }, t.TempDir()); err == nil {
 		t.Fatal("unknown provider id should be a hard error")
 	}
 }

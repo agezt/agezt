@@ -96,7 +96,7 @@ func TestReconcileAlternateProviders_RegistersKeyedAlternates(t *testing.T) {
 	// Reload selected "alpha" as the new primary (the caller installs it via
 	// gov.Replace afterwards); reconcile must register "beta" as an alternate
 	// with its catalog model list and leave "unkeyed" out.
-	reconcileAlternateProviders(reg, cat, reconcileLookup, "alpha")
+	reconcileAlternateProviders(reg, cat, reconcileLookup, "alpha", t.TempDir())
 
 	beta, ok := reg.Get("beta")
 	if !ok {
@@ -130,7 +130,7 @@ func TestReconcileAlternateProviders_DropsStaleAlternates(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	reconcileAlternateProviders(reg, cat, reconcileLookup, "alpha")
+	reconcileAlternateProviders(reg, cat, reconcileLookup, "alpha", t.TempDir())
 
 	if _, ok := reg.Get("stale-prov"); ok {
 		t.Error("stale alternate (no longer credentialed/in catalog) was not removed")

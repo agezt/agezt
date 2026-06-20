@@ -344,7 +344,12 @@ func runDaemon(stdout, stderr io.Writer) int {
 	}
 	credDesc := fmt.Sprintf("vault entries=%d at %s — at-rest: %s — %s", credCount, credStore.Path, atRest, awsChainDesc)
 
-	gov, govDesc, model, err := buildGovernor(cat, credLookup)
+	// Make ChatGPT ("Sign in with ChatGPT") discoverable in Models; it only
+	// registers as a live provider once the operator signs in.
+	seedChatGPTCatalog(catStore)
+	cat, _ = catStore.Load()
+
+	gov, govDesc, model, err := buildGovernor(cat, credLookup, baseDir)
 	if err != nil {
 		fmt.Fprintf(stderr, "%s: %v\n", brand.Binary, err)
 		return 1
@@ -938,7 +943,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 		// missing credential after rotation should be visible
 		// immediately, not next time the daemon happens to dispatch
 		// an LLM call.
-		prov, _, model2, auth, err := selectPrimary(c, freshLookup)
+		prov, _, model2, auth, err := selectPrimary(c, freshLookup, baseDir)
 		if err != nil {
 			return fmt.Errorf("select primary: %w", err)
 		}
@@ -958,7 +963,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 		if prov.Name() != unconfiguredProviderName {
 			reg.Remove(unconfiguredProviderName) // no-op when absent
 		}
-		reconcileAlternateProviders(reg, c, freshLookup, prov.Name())
+		reconcileAlternateProviders(reg, c, freshLookup, prov.Name(), baseDir)
 		if err := gov.Replace(&governor.ProviderInfo{
 			Name:     prov.Name(),
 			Provider: prov,
@@ -6079,9 +6084,9 @@ func healthStatFromJournal(k *kernelruntime.Kernel) pulse.HealthStatFunc {
 //	                                  model from per-task routing or a fallback
 //	                                  chain; with neither, the governor returns
 //	                                  ErrNoModelConfigured.
-func buildGovernor(cat *catalog.Catalog, lookup func(string) string) (*governor.Governor, string, string, error) {
+func buildGovernor(cat *catalog.Catalog, lookup func(string) string, baseDir string) (*governor.Governor, string, string, error) {
 	reg := governor.NewRegistry()
-	primary, primaryDesc, model, authMode, err := selectPrimary(cat, lookup)
+	primary, primaryDesc, model, authMode, err := selectPrimary(cat, lookup, baseDir)
 	if err != nil {
 		return nil, "", "", err
 	}
@@ -6127,6 +6132,14 @@ func buildGovernor(cat *catalog.Catalog, lookup func(string) string) (*governor.
 			continue // duplicate name or similar — skip gracefully
 		}
 		registered[entry.ID] = true
+		extraProviders++
+	}
+
+	// ChatGPT ("Sign in with ChatGPT") registers as a subscription alternate when
+	// signed in (and not already the primary) — its models route to the Responses
+	// backend adapter.
+	if registerChatGPTAlternate(reg, baseDir, primaryName, false) {
+		registered["chatgpt"] = true
 		extraProviders++
 	}
 
@@ -6342,7 +6355,7 @@ func buildGovernor(cat *catalog.Catalog, lookup func(string) string) (*governor.
 // chains over the reconciled registry. Build failures are skipped, never
 // fatal — a misconfigured alternate must not stop the reload (same rule as
 // boot). Fallback entries (the offline mock) are never touched.
-func reconcileAlternateProviders(reg *governor.Registry, c *catalog.Catalog, lookup func(string) string, primaryName string) {
+func reconcileAlternateProviders(reg *governor.Registry, c *catalog.Catalog, lookup func(string) string, primaryName, baseDir string) {
 	eligible := map[string]bool{primaryName: true}
 	for _, entry := range c.ProviderList() {
 		if entry.ID == primaryName {
@@ -6364,6 +6377,10 @@ func reconcileAlternateProviders(reg *governor.Registry, c *catalog.Catalog, loo
 			continue
 		}
 		eligible[entry.ID] = true
+	}
+	// ChatGPT subscription alternate (re-)registered when signed in.
+	if registerChatGPTAlternate(reg, baseDir, primaryName, true) {
+		eligible["chatgpt"] = true
 	}
 	for _, info := range reg.All() {
 		if info.IsFallback || eligible[info.Name] {
@@ -6406,12 +6423,23 @@ func catalogModelIDs(cat *catalog.Catalog, providerID string) []string {
 //
 // The run model comes from AGEZT_MODEL when set; otherwise it is left empty and
 // resolved per-run from routing / a fallback chain (or ErrNoModelConfigured).
-func selectPrimary(cat *catalog.Catalog, lookup func(string) string) (agent.Provider, string, string, governor.AuthMode, error) {
+func selectPrimary(cat *catalog.Catalog, lookup func(string) string, baseDir string) (agent.Provider, string, string, governor.AuthMode, error) {
 	// AGEZT_PROVIDER and AGEZT_MODEL are *config*, not credentials —
 	// always read from env directly (operators may want a one-off
 	// override that doesn't sit in the vault).
 	want := strings.ToLower(strings.TrimSpace(os.Getenv(brand.EnvPrefix + "PROVIDER")))
 	modelOverride := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "MODEL"))
+
+	// ChatGPT ("Sign in with ChatGPT") is not a compat catalog provider — it uses
+	// the OAuth token store + Responses adapter, so build it directly.
+	if want == "chatgpt" {
+		prov, desc, auth, ok := buildChatGPTPrimary(baseDir, modelOverride)
+		if !ok {
+			return nil, "", "", "", fmt.Errorf(
+				"%sPROVIDER=chatgpt but not signed in — use Setup → Providers → Sign in with ChatGPT first", brand.EnvPrefix)
+		}
+		return prov, desc, modelOverride, auth, nil
+	}
 
 	// Explicit catalog id is the ONLY way to select a primary. The daemon has no
 	// default provider, never auto-picks from credentials, and has no offline mock
