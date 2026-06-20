@@ -13,14 +13,16 @@
 // loop. Inbound text is passed to the agent as an intent (data), and the agent's
 // tool calls still pass through Edict.
 //
-// Scope: text messages (m.text). Inbound images (m.image → data: URL for vision)
-// are a deliberate follow-up, kept out so this first cut stays small and correct;
-// the Telegram/Slack/Discord image path is the template when it lands.
+// Scope: text (m.text) plus inbound image/voice — m.image/m.audio/m.video are
+// downloaded from the media repo (mxc:// → /_matrix/media/v3/download) into a
+// data: URL for vision / ambient STT, and outbound attachments are uploaded and
+// posted as m.image/m.audio/m.file. Media is fetched only for allowlisted rooms.
 package matrix
 
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -129,6 +131,10 @@ type roomEvent struct {
 	Content struct {
 		MsgType string `json:"msgtype"`
 		Body    string `json:"body"`
+		URL     string `json:"url"` // mxc:// URI for m.image/m.audio/m.video/m.file
+		Info    struct {
+			MimeType string `json:"mimetype"`
+		} `json:"info"`
 	} `json:"content"`
 }
 
@@ -181,13 +187,20 @@ func (c *Channel) Start(ctx context.Context) error {
 	}
 }
 
-// dispatchable reports whether a timeline event is an inbound text message from
-// someone other than the bot itself.
+// dispatchable reports whether a timeline event is an inbound message we handle
+// (text, or an image/voice with a downloadable mxc:// URI) from someone other
+// than the bot itself.
 func (c *Channel) dispatchable(ev roomEvent) bool {
-	return ev.Type == "m.room.message" &&
-		ev.Content.MsgType == "m.text" &&
-		strings.TrimSpace(ev.Content.Body) != "" &&
-		ev.Sender != c.userID
+	if ev.Type != "m.room.message" || ev.Sender == c.userID {
+		return false
+	}
+	switch ev.Content.MsgType {
+	case "m.text":
+		return strings.TrimSpace(ev.Content.Body) != ""
+	case "m.image", "m.audio", "m.video":
+		return strings.HasPrefix(ev.Content.URL, "mxc://")
+	}
+	return false
 }
 
 func (c *Channel) logBackoff() {} // hook point; kept tiny so Start reads cleanly
@@ -246,6 +259,18 @@ func (c *Channel) handleInbound(ctx context.Context, roomID string, ev roomEvent
 	}
 	corr := "chan-" + ulid.New()
 	allowed := c.allow.Allows(roomID)
+	// Inbound media: download the mxc:// content (allowlisted rooms only — never
+	// dereference media from an unauthorized room) so an image reaches a vision
+	// model and a voice clip is transcribed by the ambient STT path.
+	if allowed && strings.HasPrefix(ev.Content.URL, "mxc://") {
+		if du := c.fetchMXC(ctx, ev.Content.URL, ev.Content.Info.MimeType); du != "" {
+			if ev.Content.MsgType == "m.audio" {
+				msg.Audio = []string{du}
+			} else {
+				msg.Images = []string{du}
+			}
+		}
+	}
 	c.emitInbound(msg, corr, allowed)
 
 	if !allowed {
@@ -319,6 +344,43 @@ func (c *Channel) send(ctx context.Context, out channel.Outbound, corr string) e
 	}
 	c.emitOutbound(out, corr)
 	return nil
+}
+
+// fetchMXC downloads an mxc:// content URI from the media repo and returns it as
+// an inline data: URL. Best-effort: returns "" on any failure. The mxc form is
+// mxc://<server>/<mediaId>.
+func (c *Channel) fetchMXC(ctx context.Context, mxc, mime string) string {
+	rest := strings.TrimPrefix(mxc, "mxc://")
+	server, mediaID, ok := strings.Cut(rest, "/")
+	if !ok || server == "" || mediaID == "" {
+		return ""
+	}
+	endpoint := fmt.Sprintf("%s/_matrix/media/v3/download/%s/%s",
+		c.base, url.PathEscape(server), url.PathEscape(mediaID))
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return ""
+	}
+	req.Header.Set("Authorization", "Bearer "+c.token)
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return ""
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode/100 != 2 {
+		return ""
+	}
+	data, err := io.ReadAll(io.LimitReader(resp.Body, 16<<20+1))
+	if err != nil || len(data) == 0 || len(data) > 16<<20 {
+		return ""
+	}
+	if mime == "" {
+		mime = resp.Header.Get("Content-Type")
+	}
+	if mime == "" {
+		mime = "application/octet-stream"
+	}
+	return "data:" + mime + ";base64," + base64.StdEncoding.EncodeToString(data)
 }
 
 // sendMedia uploads an attachment to the media repo, then posts an m.audio /

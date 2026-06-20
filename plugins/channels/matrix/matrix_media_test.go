@@ -46,3 +46,29 @@ func TestSendMediaUploadsThenPosts(t *testing.T) {
 		t.Fatalf("msgtype = %q, want m.audio", eventMsgType)
 	}
 }
+
+func TestFetchMXC(t *testing.T) {
+	var gotPath, gotAuth string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath, gotAuth = r.URL.Path, r.Header.Get("Authorization")
+		w.Header().Set("Content-Type", "image/png")
+		_, _ = w.Write([]byte("\x89PNGdata"))
+	}))
+	defer srv.Close()
+	c := New(Config{Homeserver: srv.URL, Token: "tok", HTTPClient: srv.Client()})
+
+	du := c.fetchMXC(context.Background(), "mxc://home.test/MEDIA1", "")
+	if !strings.HasPrefix(du, "data:image/png;base64,") {
+		t.Fatalf("data URL = %q", du)
+	}
+	if gotPath != "/_matrix/media/v3/download/home.test/MEDIA1" {
+		t.Fatalf("download path = %q", gotPath)
+	}
+	if gotAuth != "Bearer tok" {
+		t.Fatalf("auth = %q", gotAuth)
+	}
+	// A malformed mxc URI yields "" without a request.
+	if du := c.fetchMXC(context.Background(), "not-an-mxc", ""); du != "" {
+		t.Fatalf("malformed mxc should yield empty, got %q", du)
+	}
+}

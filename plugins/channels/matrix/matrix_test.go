@@ -194,10 +194,22 @@ func TestDispatchable(t *testing.T) {
 	if c.dispatchable(empty) {
 		t.Error("a whitespace-only body must be skipped")
 	}
-	notText := textEvent("@alice:test", "x")
-	notText.Content.MsgType = "m.image"
-	if c.dispatchable(notText) {
-		t.Error("a non-text msgtype must be skipped (text-only scope)")
+	imgNoURL := textEvent("@alice:test", "")
+	imgNoURL.Content.MsgType = "m.image"
+	if c.dispatchable(imgNoURL) {
+		t.Error("an m.image without a downloadable mxc URL must be skipped")
+	}
+	img := textEvent("@alice:test", "photo.png")
+	img.Content.MsgType = "m.image"
+	img.Content.URL = "mxc://test/abc123"
+	if !c.dispatchable(img) {
+		t.Error("an m.image with an mxc URL should dispatch (inbound media)")
+	}
+	aud := textEvent("@alice:test", "note.ogg")
+	aud.Content.MsgType = "m.audio"
+	aud.Content.URL = "mxc://test/def456"
+	if !c.dispatchable(aud) {
+		t.Error("an m.audio with an mxc URL should dispatch (inbound voice)")
 	}
 	notMsg := textEvent("@alice:test", "x")
 	notMsg.Type = "m.room.member"
