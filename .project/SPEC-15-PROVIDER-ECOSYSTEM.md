@@ -24,6 +24,12 @@ There are 100+ providers and thousands of models, changing constantly (new model
 - Auth modes per provider: subscription (OAuth/PKCE), api-key, or local (none). The Governor prefers subscriptions, respects limits, falls back (DECISIONS C2).
 - `agt provider list` shows synced providers, their models, auth status, and limit posture; `agt provider use <model>` pins a default.
 
+#### 1.3.1 "Sign in with ChatGPT" (subscription provider)
+A built-in **subscription** provider lets the operator use a ChatGPT Plus/Pro plan as a model source without an API key — the same path Codex CLI uses. It is an UNOFFICIAL, undocumented OpenAI backend: it impersonates the Codex public OAuth client and calls the ChatGPT Responses backend, so it may break or conflict with OpenAI's terms; the Web UI gates it behind an explicit acknowledgement. It only authenticates the operator's own account.
+- **Auth**: OAuth2 PKCE against `auth.openai.com` (Codex client id), redirect to the daemon's one-shot `127.0.0.1:1455/auth/callback` listener; tokens (access/refresh/id + account id) stored as one vault secret. Proactive + on-401 refresh. `kernel/chatgptauth`.
+- **Wire**: the OpenAI **Responses API** at `chatgpt.com/backend-api/codex/responses` (NOT chat/completions), with `chatgpt-account-id` + Codex's own system instructions (vendored, Apache-2.0). Adapter: `plugins/providers/openairesponses`. Translates AGEZT's chat-shaped request ↔ Responses items + tools, streams SSE → one response.
+- **Registration**: catalog id `chatgpt` (models gpt-5-codex/gpt-5/gpt-5-mini); registered in the governor with `AuthSubscription` **only when signed in**, never auto-selected (no-default-provider rule). Control-plane: `provider_oauth_{start,status,import,logout}`; Web UI: a card in Models with "Sign in with ChatGPT" + "Import from Codex CLI".
+
 ### 1.4 Events
 `EVT_CATALOG_SYNCED` (added to the schema) records source, counts, and changes (new/removed/repriced models) — visible in the system changelog (SPEC-08).
 
