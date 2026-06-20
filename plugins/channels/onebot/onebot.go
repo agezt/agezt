@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
@@ -35,6 +36,7 @@ import (
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/channel"
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/netguard"
 	"github.com/agezt/agezt/kernel/ulid"
 )
 
@@ -64,6 +66,10 @@ type Channel struct {
 	path    string
 	apiBase string
 	client  *http.Client
+	// mediaClient fetches attacker-supplied CQ media URLs. It is SSRF-guarded
+	// (blocks loopback/private/link-local/metadata, re-validates every redirect
+	// hop) because, unlike apiBase, the URL comes straight from an inbound message.
+	mediaClient *http.Client
 
 	dmu  sync.Mutex
 	seen map[string]struct{}
@@ -84,11 +90,12 @@ func New(cfg Config) *Channel {
 		client = &http.Client{Timeout: 30 * time.Second}
 	}
 	return &Channel{
-		cfg:     cfg,
-		path:    cfg.Path,
-		apiBase: strings.TrimRight(cfg.APIBase, "/"),
-		client:  client,
-		seen:    make(map[string]struct{}, dedupCapacity),
+		cfg:         cfg,
+		path:        cfg.Path,
+		apiBase:     strings.TrimRight(cfg.APIBase, "/"),
+		client:      client,
+		mediaClient: netguard.New().HTTPClient(30 * time.Second),
+		seen:        make(map[string]struct{}, dedupCapacity),
 	}
 }
 
@@ -366,14 +373,22 @@ var cqURLRe = regexp.MustCompile(`url=([^,\]]+)`)
 // fetchMedia downloads a media URL referenced by a CQ code and returns it as an
 // inline data: URL. Best-effort: returns "" on any failure.
 func (c *Channel) fetchMedia(ctx context.Context, mediaURL string) string {
-	if mediaURL == "" || !strings.HasPrefix(mediaURL, "http") {
+	if mediaURL == "" {
+		return ""
+	}
+	// The URL is attacker-controlled (it arrived in an inbound CQ code). Require
+	// http(s) and fetch only through the SSRF-guarded client, which rejects
+	// loopback/private/link-local/metadata targets on the initial dial and on
+	// every redirect hop.
+	u, err := url.Parse(mediaURL)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") {
 		return ""
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, mediaURL, nil)
 	if err != nil {
 		return ""
 	}
-	resp, err := c.client.Do(req)
+	resp, err := c.mediaClient.Do(req)
 	if err != nil {
 		return ""
 	}

@@ -70,6 +70,30 @@ func TestSplitTarget(t *testing.T) {
 	}
 }
 
+func TestFetchMediaSSRFGuard(t *testing.T) {
+	// The CQ media URL is attacker-controlled, so fetchMedia must refuse to reach
+	// loopback/private targets. An httptest server binds 127.0.0.1, which the
+	// guarded client blocks → "".
+	hit := false
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hit = true
+		w.Header().Set("Content-Type", "image/png")
+		_, _ = w.Write([]byte("\x89PNG"))
+	}))
+	defer srv.Close()
+	c := New(Config{Kind: "qq"})
+	if du := c.fetchMedia(context.Background(), srv.URL); du != "" {
+		t.Fatalf("loopback media URL should be blocked, got %q", du)
+	}
+	if hit {
+		t.Fatal("guarded client connected to a loopback server")
+	}
+	// Non-http(s) schemes are rejected outright.
+	if du := c.fetchMedia(context.Background(), "file:///etc/passwd"); du != "" {
+		t.Fatalf("file scheme should be rejected, got %q", du)
+	}
+}
+
 func TestValidSignature(t *testing.T) {
 	secret := "s"
 	body := []byte(`{"post_type":"message"}`)

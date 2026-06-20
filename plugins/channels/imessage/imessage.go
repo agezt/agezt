@@ -20,6 +20,7 @@ import (
 	"crypto/subtle"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"mime/multipart"
@@ -284,7 +285,7 @@ func (c *Channel) sendOne(ctx context.Context, guid, text string) error {
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := c.client.Do(req)
 	if err != nil {
-		return err
+		return scrubURLError(err)
 	}
 	defer resp.Body.Close()
 	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 8<<10))
@@ -331,7 +332,7 @@ func (c *Channel) sendAttachment(ctx context.Context, guid string, att channel.A
 	req.Header.Set("Content-Type", mw.FormDataContentType())
 	resp, err := c.client.Do(req)
 	if err != nil {
-		return err
+		return scrubURLError(err)
 	}
 	defer resp.Body.Close()
 	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 8<<10))
@@ -355,6 +356,21 @@ func (c *Channel) emitInbound(msg channel.UnifiedMessage, corr string, allowed b
 			"sender": msg.Sender, "text": msg.Text, "allowed": allowed,
 		},
 	})
+}
+
+// scrubURLError redacts the query string from a *url.Error so the BlueBubbles
+// password (passed as ?password=… per the BlueBubbles API) never reaches logs
+// or surfaced errors. Transport errors from net/http are *url.Error values
+// whose .URL carries the full request URL including the query.
+func scrubURLError(err error) error {
+	var ue *url.Error
+	if errors.As(err, &ue) {
+		if u, perr := url.Parse(ue.URL); perr == nil {
+			u.RawQuery = ""
+			ue.URL = u.String()
+		}
+	}
+	return err
 }
 
 // fetchAttachmentData downloads a BlueBubbles attachment by guid and returns it
