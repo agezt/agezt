@@ -127,13 +127,19 @@ func builtinSections() []Section {
 		},
 		{
 			ID: "email", Name: "Email / SMTP",
-			Help: "Outbound email channel. Restart to apply.",
+			Help: "Email channel. Outbound over SMTP; add an inbox (IMAP/POP3) to make it TWO-WAY — the agent polls for new mail from allowed senders and replies. Add several accounts, each its own server. Restart to apply.",
 			Fields: []Field{
 				{Env: "AGEZT_EMAIL_SMTP_ADDR", Label: "SMTP host:port", Type: TypeText, Apply: ApplyRestart, Help: "e.g. smtp.gmail.com:587"},
 				{Env: "AGEZT_EMAIL_FROM", Label: "From address", Type: TypeText, Apply: ApplyRestart},
 				{Env: "AGEZT_EMAIL_USERNAME", Label: "SMTP username", Type: TypeText, Apply: ApplyRestart},
-				pw("AGEZT_EMAIL_PASSWORD", "SMTP password", "Stored encrypted in the vault."),
-				{Env: "AGEZT_EMAIL_RECIPIENTS", Label: "Allowed recipients", Type: TypeCSV, Apply: ApplyRestart},
+				pw("AGEZT_EMAIL_PASSWORD", "SMTP password", "Stored encrypted in the vault. (Use an app password for Gmail/Outlook.)"),
+				{Env: "AGEZT_EMAIL_RECIPIENTS", Label: "Allowed addresses", Type: TypeCSV, Apply: ApplyRestart, Help: "comma-separated — mail targets AND inbound senders allowed to drive the agent"},
+				{Env: "AGEZT_EMAIL_INBOX_ADDR", Label: "Inbox host:port (two-way)", Type: TypeText, Apply: ApplyRestart, Help: "IMAP (e.g. imap.gmail.com:993) or POP3 (e.g. pop.gmail.com:995); blank = outbound only"},
+				{Env: "AGEZT_EMAIL_INBOX_PROTOCOL", Label: "Inbox protocol", Type: TypeText, Apply: ApplyRestart, Help: "\"imap\" (default) or \"pop3\""},
+				{Env: "AGEZT_EMAIL_INBOX_USERNAME", Label: "Inbox username", Type: TypeText, Apply: ApplyRestart, Help: "defaults to the SMTP username"},
+				pw("AGEZT_EMAIL_INBOX_PASSWORD", "Inbox password", "defaults to the SMTP password; stored in the vault"),
+				{Env: "AGEZT_EMAIL_INBOX_TLS", Label: "Inbox TLS", Type: TypeText, Apply: ApplyRestart, Help: "\"tls\" (default, implicit) | \"starttls\" | \"none\""},
+				{Env: "AGEZT_EMAIL_INBOX_POLL", Label: "Poll interval (sec)", Type: TypeText, Apply: ApplyRestart, Help: "how often to check for new mail (default 60)"},
 			},
 		},
 		{

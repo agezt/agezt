@@ -2754,17 +2754,19 @@ func buildWebhook(ctx context.Context, k *kernelruntime.Kernel) (*webhookchan.Ch
 	}
 }
 
-// buildEmail constructs the outbound email channel when AGEZT_EMAIL_SMTP_ADDR is
-// set. Returns (nil, nil, "") otherwise.
+// buildEmailInstance constructs an email channel account when AGEZT_EMAIL_SMTP_ADDR
+// is set. Outbound over SMTP; two-way when an inbox (IMAP/POP3) is also configured.
 //
-//	AGEZT_EMAIL_SMTP_ADDR   SMTP server host:port (e.g. smtp.example.com:587), enables
-//	AGEZT_EMAIL_FROM        sender address
-//	AGEZT_EMAIL_USERNAME    SMTP AUTH username (with PASSWORD); empty → no auth
-//	AGEZT_EMAIL_PASSWORD    SMTP AUTH password
-//	AGEZT_EMAIL_RECIPIENTS  comma-separated allowlist of recipient addresses that may
-//	                        be mailed (briefs + `agt send`)
-//
-// Outbound-only — there's no inbound email surface (IMAP/MX is out of scope).
+//	AGEZT_EMAIL_SMTP_ADDR     SMTP server host:port (e.g. smtp.example.com:587), enables
+//	AGEZT_EMAIL_FROM          sender address
+//	AGEZT_EMAIL_USERNAME      SMTP AUTH username (with PASSWORD); empty → no auth
+//	AGEZT_EMAIL_PASSWORD      SMTP AUTH password
+//	AGEZT_EMAIL_RECIPIENTS    comma-separated allowlist of addresses (mail targets + inbound senders)
+//	AGEZT_EMAIL_INBOX_ADDR    IMAP/POP3 server host:port — enables two-way (poll for new mail)
+//	AGEZT_EMAIL_INBOX_PROTOCOL "imap" (default) or "pop3"
+//	AGEZT_EMAIL_INBOX_USERNAME/PASSWORD  mailbox creds (default to the SMTP ones)
+//	AGEZT_EMAIL_INBOX_TLS     "tls" (default) | "starttls" | "none"
+//	AGEZT_EMAIL_INBOX_POLL    poll interval seconds (default 60)
 func buildEmailInstance(ctx context.Context, k *kernelruntime.Kernel, label string, get func(string) string) (channel.Channel, pulse.BriefSink, string) {
 	addr := strings.TrimSpace(get(brand.EnvPrefix + "EMAIL_SMTP_ADDR"))
 	if addr == "" {
@@ -2772,14 +2774,32 @@ func buildEmailInstance(ctx context.Context, k *kernelruntime.Kernel, label stri
 	}
 	from := strings.TrimSpace(get(brand.EnvPrefix + "EMAIL_FROM"))
 	recipients := splitNonEmpty(get(brand.EnvPrefix + "EMAIL_RECIPIENTS"))
+	inboxAddr := strings.TrimSpace(get(brand.EnvPrefix + "EMAIL_INBOX_ADDR"))
+	pollSecs := 0
+	if v := strings.TrimSpace(get(brand.EnvPrefix + "EMAIL_INBOX_POLL")); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			pollSecs = n
+		}
+	}
 
+	var handler channel.InboundHandler
+	if inboxAddr != "" {
+		handler = makeChannelHandler(k)
+	}
 	ch := email.New(email.Config{
-		Addr:      addr,
-		From:      from,
-		Username:  strings.TrimSpace(get(brand.EnvPrefix + "EMAIL_USERNAME")),
-		Password:  get(brand.EnvPrefix + "EMAIL_PASSWORD"),
-		Allowlist: channel.NewAllowlist(recipients),
-		Bus:       k.Bus(),
+		Addr:          addr,
+		From:          from,
+		Username:      strings.TrimSpace(get(brand.EnvPrefix + "EMAIL_USERNAME")),
+		Password:      get(brand.EnvPrefix + "EMAIL_PASSWORD"),
+		Allowlist:     channel.NewAllowlist(recipients),
+		Bus:           k.Bus(),
+		InboxAddr:     inboxAddr,
+		InboxProtocol: strings.TrimSpace(get(brand.EnvPrefix + "EMAIL_INBOX_PROTOCOL")),
+		InboxUsername: strings.TrimSpace(get(brand.EnvPrefix + "EMAIL_INBOX_USERNAME")),
+		InboxPassword: get(brand.EnvPrefix + "EMAIL_INBOX_PASSWORD"),
+		InboxTLS:      strings.TrimSpace(get(brand.EnvPrefix + "EMAIL_INBOX_TLS")),
+		PollSecs:      pollSecs,
+		Handler:       handler,
 	})
 
 	var sink pulse.BriefSink
@@ -2795,13 +2815,17 @@ func buildEmailInstance(ctx context.Context, k *kernelruntime.Kernel, label stri
 		})
 	}
 
+	dir := "outbound"
+	if inboxAddr != "" {
+		dir = "two-way (inbox " + inboxAddr + ")"
+	}
 	switch {
 	case from == "":
 		return ch, sink, "configured but NO from address (set AGEZT_EMAIL_FROM)"
 	case len(recipients) == 0:
-		return ch, sink, fmt.Sprintf("outbound via %s, NO recipients (set AGEZT_EMAIL_RECIPIENTS)", addr)
+		return ch, sink, fmt.Sprintf("%s via %s, NO recipients (set AGEZT_EMAIL_RECIPIENTS)", dir, addr)
 	default:
-		return ch, sink, fmt.Sprintf("outbound via %s, %d recipient(s)", addr, len(recipients))
+		return ch, sink, fmt.Sprintf("%s via %s, %d recipient(s)", dir, addr, len(recipients))
 	}
 }
 
@@ -4040,12 +4064,7 @@ type chanInstance struct {
 
 // instanceKey addresses a channel instance: the bare kind for the default
 // (back-compat) instance, "kind#label" for a labelled one.
-func instanceKey(kind, label string) string {
-	if label == "" {
-		return kind
-	}
-	return kind + "#" + label
-}
+func instanceKey(kind, label string) string { return channel.InstanceKey(kind, label) }
 
 // channelLabels returns the configured NON-default instance labels for a channel
 // kind, discovered from the process env (the daemon injects store+vault keys,

@@ -84,8 +84,8 @@ var manifests = []channel.Manifest{
 		DocsURL: "https://learn.microsoft.com/microsoftteams/platform/webhooks-and-connectors/how-to/add-incoming-webhook",
 	},
 	{
-		Kind: "email", Display: "Email / SMTP", Transport: "smtp", Duplex: false,
-		Description:   "Outbound email over SMTP. Add several accounts, each its own server.",
+		Kind: "email", Display: "Email / SMTP", Transport: "smtp", Duplex: true,
+		Description:   "Email — outbound over SMTP, two-way with an IMAP/POP3 inbox. Add several accounts, each its own server.",
 		ConfigSection: "email", RequiredEnv: []string{"AGEZT_EMAIL_SMTP_ADDR", "AGEZT_EMAIL_FROM"},
 		ConnectMethod: "token",
 		SetupSteps: []string{

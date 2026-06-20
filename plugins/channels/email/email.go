@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"net/smtp"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/agezt/agezt/kernel/bus"
@@ -44,7 +45,8 @@ type Config struct {
 	Password string
 	// From is the envelope + header sender address.
 	From string
-	// Allowlist restricts which recipient addresses may be mailed (fail-closed).
+	// Allowlist restricts which recipient addresses may be mailed (fail-closed),
+	// AND which inbound senders may drive the agent.
 	Allowlist channel.Allowlist
 	// Bus journals channel.outbound events. May be nil.
 	Bus *bus.Bus
@@ -52,9 +54,25 @@ type Config struct {
 	Send SendFunc
 	// now overrides the clock for the Date header (tests); nil → time.Now.
 	now func() time.Time
+
+	// --- inbound (optional): poll a mailbox so the channel is two-way ---
+	// InboxAddr is the IMAP/POP3 server "host:port"; empty → outbound-only.
+	InboxAddr string
+	// InboxProtocol is "imap" (default) or "pop3".
+	InboxProtocol string
+	// InboxUsername/Password authenticate to the mailbox; empty → fall back to the
+	// SMTP Username/Password.
+	InboxUsername string
+	InboxPassword string
+	// InboxTLS is "tls" (default, implicit), "starttls", or "none".
+	InboxTLS string
+	// PollSecs is the inbound poll interval (default 60).
+	PollSecs int
+	// Handler runs the agent for an inbound message. Required for inbound.
+	Handler channel.InboundHandler
 }
 
-// Channel is the outbound email messaging surface.
+// Channel is the email messaging surface (outbound SMTP + optional inbound poll).
 type Channel struct {
 	addr  string
 	from  string
@@ -63,6 +81,20 @@ type Channel struct {
 	bus   *bus.Bus
 	send  SendFunc
 	now   func() time.Time
+
+	// inbound config
+	inboxAddr  string
+	inboxProto string
+	inboxUser  string
+	inboxPass  string
+	inboxTLS   string
+	pollEvery  time.Duration
+	handler    channel.InboundHandler
+
+	// inbound replay-guard (seen Message-IDs + POP3 UIDLs)
+	smu  sync.Mutex
+	seen map[string]struct{}
+	ring []string
 }
 
 // New constructs an outbound email Channel.
@@ -83,23 +115,50 @@ func New(cfg Config) *Channel {
 		}
 		auth = smtp.PlainAuth("", cfg.Username, cfg.Password, host)
 	}
+	inboxUser, inboxPass := cfg.InboxUsername, cfg.InboxPassword
+	if inboxUser == "" {
+		inboxUser = cfg.Username
+	}
+	if inboxPass == "" {
+		inboxPass = cfg.Password
+	}
+	poll := inboxPollDefault
+	if cfg.PollSecs > 0 {
+		poll = time.Duration(cfg.PollSecs) * time.Second
+	}
+	proto := strings.ToLower(strings.TrimSpace(cfg.InboxProtocol))
+	if proto == "" {
+		proto = "imap"
+	}
 	return &Channel{
-		addr:  cfg.Addr,
-		from:  cfg.From,
-		auth:  auth,
-		allow: cfg.Allowlist,
-		bus:   cfg.Bus,
-		send:  send,
-		now:   now,
+		addr:       cfg.Addr,
+		from:       cfg.From,
+		auth:       auth,
+		allow:      cfg.Allowlist,
+		bus:        cfg.Bus,
+		send:       send,
+		now:        now,
+		inboxAddr:  strings.TrimSpace(cfg.InboxAddr),
+		inboxProto: proto,
+		inboxUser:  inboxUser,
+		inboxPass:  inboxPass,
+		inboxTLS:   strings.ToLower(strings.TrimSpace(cfg.InboxTLS)),
+		pollEvery:  poll,
+		handler:    cfg.Handler,
+		seen:       make(map[string]struct{}, dedupCap),
 	}
 }
 
 // Name implements channel.Channel.
 func (c *Channel) Name() string { return "email" }
 
-// Start implements channel.Channel. Email is outbound-only, so Start just blocks
-// until ctx is cancelled (keeping the daemon's per-channel lifecycle uniform).
+// Start implements channel.Channel. With an inbox configured it polls for new
+// mail (two-way); otherwise it blocks until ctx is cancelled (outbound-only),
+// keeping the daemon's per-channel lifecycle uniform.
 func (c *Channel) Start(ctx context.Context) error {
+	if c.startInbound(ctx) {
+		return nil
+	}
 	<-ctx.Done()
 	return nil
 }
