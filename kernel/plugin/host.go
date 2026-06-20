@@ -364,6 +364,10 @@ func Spawn(ctx context.Context, cfg Config) (*Plugin, error) {
 		_ = p.Close()
 		return nil, fmt.Errorf("plugin: parse initialize result: %w", err)
 	}
+	if err := checkProtocolVersion(initResult.ProtocolVersion); err != nil {
+		_ = p.Close()
+		return nil, err
+	}
 	if err := capAdvertisedTools(initResult.Tools, cfg.MaxAdvertisedTools); err != nil {
 		_ = p.Close()
 		return nil, err
@@ -397,6 +401,26 @@ var ErrCallbacksDisabled = errors.New("plugin: host callbacks not enabled (opera
 // plugin author can tell "callbacks blanket-disabled" from
 // "callbacks enabled but this specific tool not in the allowlist."
 var ErrHostToolNotFound = errors.New("plugin: requested host tool not in allowlist")
+
+// ErrProtocolVersionMismatch is returned by Spawn when the plugin's
+// advertised protocol_version differs from the host's ProtocolVersion.
+// A major mismatch means the wire contract changed; the host rejects
+// the plugin rather than failing cryptically mid-run.
+var ErrProtocolVersionMismatch = errors.New("plugin: protocol version mismatch")
+
+// checkProtocolVersion enforces that the plugin speaks a compatible wire
+// protocol version. Plugins that omit the field (version 0) default to 1
+// for backward compatibility with plugins written before this field existed.
+func checkProtocolVersion(pluginVersion int) error {
+	if pluginVersion == 0 {
+		pluginVersion = 1 // back-compat: missing field = v1
+	}
+	if pluginVersion != ProtocolVersion {
+		return fmt.Errorf("%w: plugin advertises v%d, host speaks v%d",
+			ErrProtocolVersionMismatch, pluginVersion, ProtocolVersion)
+	}
+	return nil
+}
 
 // capAdvertisedTools fails when a plugin advertises more tools than the
 // configured maximum (M182), so a hostile initialize result can't blow

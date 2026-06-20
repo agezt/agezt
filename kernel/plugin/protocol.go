@@ -119,7 +119,12 @@ type ToolDef struct {
 // initialize later (e.g. after a plugin restart) and the new
 // list replaces the old.
 type InitializeResult struct {
-	Tools []ToolDef `json:"tools"`
+	// ProtocolVersion is the wire protocol version the plugin speaks.
+	// Plugins that omit it default to 1. The host rejects a major mismatch
+	// at spawn so an incompatible plugin fails fast with a clear error.
+	// Optional for back-compat.
+	ProtocolVersion int `json:"protocol_version,omitempty"`
+	Tools           []ToolDef `json:"tools"`
 }
 
 // InvokeParams is the payload of a tool/invoke request.
@@ -157,3 +162,17 @@ const (
 	// way to structure it.
 	MethodHostInvoke = "host/invoke"
 )
+
+// ProtocolVersion is the wire protocol version the host speaks. Plugins
+// echo it back in their initialize response so the host can reject an
+// incompatible plugin at spawn rather than failing cryptically mid-run.
+//
+// Versioning policy:
+//   - A major version bump means a breaking wire change (new/removed
+//     required fields, changed method semantics).
+//   - A minor change (new optional field, new method) does NOT bump the
+//     version — the host and plugin must tolerate unknown optional fields.
+//
+// Plugins that omit the field entirely are treated as v1 (back-compat with
+// plugins written before this field was introduced).
+const ProtocolVersion = 1
