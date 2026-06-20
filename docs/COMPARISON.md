@@ -150,45 +150,27 @@ Safer claim: "AGEZT has a broad platform surface; the clearest adoption path is 
 
 To position AGEZT well, compare using runnable scenarios rather than abstract feature lists.
 
-### Demo 1: Durable agent lifecycle
+### Demo 1: Policy denial and audit
 
-Show that an agent is created once, sleeps, wakes, runs, records lifecycle state, and can be inspected later.
-
-Evidence command shape:
-
-```bash
-agt agent create researcher --model <model>
-agt agent wake researcher "summarize this repo"
-agt agent show researcher --json
-agt why <correlation_id>
-```
-
-### Demo 2: Mailbox-caused wake
-
-Show a message causing an agent wake, the resulting run correlation, and the reply path.
-
-Evidence command shape:
-
-```bash
-agt inbox send researcher "check the latest build failure"
-agt agent show researcher --json
-agt why <wake_or_run_id>
-```
-
-### Demo 3: Policy denial and explanation
+**Status: implemented** — `examples/autonomous/policy-denial-audit/`
 
 Show a high-risk tool request being denied, journaled, and visible in agent diagnostics.
 
-Evidence command shape:
-
 ```bash
-agt edict test shell "rm -rf /"
-agt run "try to delete the workspace root"
-agt agent show <agent> --json
-agt why <policy_event_id>
+bash examples/autonomous/policy-denial-audit/run.sh
 ```
 
-### Demo 4: Typed schedule, not prompt storage
+### Demo 2: Mailbox wake and agent hierarchy
+
+**Status: implemented** — `examples/autonomous/mailbox-delegation/`
+
+Show durable agent creation, parent/child ownership, effective authority, and wake causality.
+
+```bash
+bash examples/autonomous/mailbox-delegation/run.sh
+```
+
+### Demo 3: Typed schedule, not prompt storage
 
 Show a schedule targeting a system task or agent identity with typed payload and inspectable fire history.
 
@@ -198,6 +180,17 @@ Evidence command shape:
 agt schedule add --system-task catalog_sync --every 24h
 agt schedule fires --json
 agt why <schedule_fire_event_id>
+```
+
+### Demo 4: Effective authority proof
+
+**Status: implemented** — `agt agent authority <slug>`
+
+Show the effective runtime authority for an agent, merged from profile + live policy overlay.
+
+```bash
+agt agent authority <slug>
+agt agent authority <slug> --json
 ```
 
 ### Demo 5: Plugin/tool governance
@@ -238,53 +231,38 @@ Avoid this language unless backed by a runnable test/demo:
 
 ### Priority 1: Comparison evidence pack
 
-Create reproducible demos under `examples/autonomous/`:
+**Partly done.** Two runnable demos exist:
 
-- `durable-agent-lifecycle/`
-- `mailbox-delegation/`
-- `policy-denial-audit/`
-- `typed-schedule-system-task/`
-- `plugin-governance/`
+- `examples/autonomous/policy-denial-audit/` — implemented
+- `examples/autonomous/mailbox-delegation/` — implemented
+
+Remaining demos to create:
+
+- `examples/autonomous/typed-schedule-system-task/`
+- `examples/autonomous/plugin-governance/`
 
 Each demo should include expected event subjects, expected `agt why` output shape, and a screenshot or transcript.
 
 ### Priority 2: Effective authority proof
 
-Add an operator-facing command and matching Web UI panel:
+**Done.** `agt agent authority <slug> [--json] [--explain]` is implemented and tested. It merges the agent profile with the live Edict policy snapshot and renders effective tool allow/deny, trust ceiling (with cap annotations), memory scope, approval mode, capability levels, and the hard-deny floor.
 
-```bash
-agt agent authority <slug> --explain
-```
-
-It should resolve and display effective runtime authority, not only stored profile fields.
+See: `cmd/agt/agent.go`, `cmd/agt/agent_authority_test.go`.
 
 ### Priority 3: Threat model
 
-Create `docs/THREAT-MODEL.md` covering:
-
-- prompt injection
-- tool misuse
-- credential exfiltration
-- local token exposure
-- plugin compromise
-- SSRF and network egress
-- workspace escape
-- shell/code execution limits
-- requested vs effective isolation
-- tenant boundaries
+**Done.** `docs/THREAT-MODEL.md` covers prompt injection, tool misuse, process isolation (with platform caveats), secret exposure, token exposure, channel abuse, plugin compromise, tenant boundary, SSRF, and workspace escape.
 
 ### Priority 4: Operations proof
 
-Create `docs/OPERATIONS.md` and a dashboard/example showing:
+**Done.** `docs/OPERATIONS.md` covers health/readiness probes, metrics, cost management, policy triage, event audit, backup/restore drills, vault management, incident runbooks, and a monitoring checklist.
 
-- run counts and failures
-- tool denials
-- approvals
-- cost/budget events
-- plugin crashes/reloads
-- schedule fires
-- guardian noise controls
-- backup/restore drill
+### Remaining priorities
+
+- Complete the demo pack (typed-schedule, plugin-governance demos).
+- Harden schedule typed-target execution end-to-end (see `NEXT.md` Priority #4).
+- Add high-risk approval visibility (not just denials) to agent detail and CLI.
+- Create `docs/PLUGIN-SECURITY.md` covering trust levels, pinning, allowlists, and crash/reload behavior.
 
 ## Bottom line
 
@@ -293,3 +271,17 @@ AGEZT's strongest position is not "more agents" or "more tools." The strongest p
 > an autonomous-agent runtime where identity, authority, memory, schedule, communication, action, and audit are all first-class system objects.
 
 That is meaningfully different from generic agent frameworks. The remaining work is to package the claim as evidence: runnable demos, effective authority proof, threat model, and operations guidance.
+
+## Related documentation
+
+| Document | Status | Covers |
+|---|---|---|
+| `docs/COMPARISON.md` | this document | positioning vs generic agent frameworks |
+| `docs/THREAT-MODEL.md` | implemented | T1–T10 threats, controls, limitations, deployment checklist |
+| `docs/OPERATIONS.md` | implemented | health, metrics, cost, triage, backup/restore, runbooks |
+| `examples/autonomous/policy-denial-audit/` | implemented | governance is runtime, not just UI |
+| `examples/autonomous/mailbox-delegation/` | implemented | durable identity, authority, wake causality |
+| `agt agent authority <slug>` | implemented | effective runtime policy proof |
+| `examples/autonomous/typed-schedule-system-task/` | planned | typed schedules, not cron-wrapped prompts |
+| `examples/autonomous/plugin-governance/` | planned | plugin trust, allowlists, audit |
+| `docs/PLUGIN-SECURITY.md` | planned | plugin trust model, pinning, crash/reload |
