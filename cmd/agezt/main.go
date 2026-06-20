@@ -128,6 +128,7 @@ import (
 	"github.com/agezt/agezt/plugins/tools/peer"
 	"github.com/agezt/agezt/plugins/tools/runstool"
 	scheduletool "github.com/agezt/agezt/plugins/tools/schedule"
+	"github.com/agezt/agezt/plugins/tools/sendmedia"
 	"github.com/agezt/agezt/plugins/tools/shell"
 	skilltool "github.com/agezt/agezt/plugins/tools/skilltool"
 	standingtool "github.com/agezt/agezt/plugins/tools/standingtool"
@@ -414,9 +415,15 @@ func runDaemon(stdout, stderr io.Writer) int {
 		}
 	}
 	var notifyTool *notify.Tool
+	var sendMediaTool *sendmedia.Tool
 	if len(notifyTargets) > 0 {
 		notifyTool = notify.New() // unbound; Bind wires the sender once channels exist
 		tools["notify"] = notifyTool
+		// send_media: the attachment-carrying sibling of notify (same allowlist
+		// pinning), so the agent can push an image/voice/file artifact to the
+		// operator. Registered unbound here; Bind wires it once channels exist.
+		sendMediaTool = sendmedia.New()
+		tools["send_media"] = sendMediaTool
 	}
 
 	// Self-scheduling tool (`schedule`, M634): the agent arranges its OWN future
@@ -1905,6 +1912,13 @@ func runDaemon(stdout, stderr io.Writer) int {
 		}
 		return ch.Send(sctx, channel.Outbound{ChannelID: id, Text: text, Priority: channel.PriorityNotify})
 	}
+	channelSendMedia := func(sctx context.Context, kind, id, text string, atts []channel.Attachment) error {
+		ch, ok := liveChannels[kind]
+		if !ok {
+			return fmt.Errorf("channel %q not configured", kind)
+		}
+		return ch.Send(sctx, channel.Outbound{ChannelID: id, Text: text, Attachments: atts, Priority: channel.PriorityNotify})
+	}
 	srv.SetChannelSender(channelSend)
 
 	// Bind the proactive-messaging tool (`notify`, M143) to the live channels. The
@@ -1915,6 +1929,19 @@ func runDaemon(stdout, stderr io.Writer) int {
 	if notifyTool != nil {
 		notifyTool.Bind(channelSend, notifyTargets)
 		fmt.Fprintf(stdout, "  notify tool      : enabled (%d channel(s) the agent can ping)\n", len(notifyTargets))
+	}
+	// Bind the proactive media-messaging tool (`send_media`) to the same live
+	// channels + operator allowlist, plus the artifact store so it can resolve a
+	// ref to bytes. Recipients stay pinned to the allowlist (the agent supplies
+	// only the artifact ref + optional caption).
+	if sendMediaTool != nil {
+		sendMediaTool.Bind(channelSendMedia, notifyTargets, func(ref string) ([]byte, error) {
+			if a := k.Artifacts(); a != nil {
+				return a.Get(ref)
+			}
+			return nil, fmt.Errorf("artifact store unavailable")
+		})
+		fmt.Fprintf(stdout, "  send_media tool  : enabled (the agent can send images/voice/files to the operator)\n")
 	}
 
 	// Bind the self-scheduling tool to the live cadence store (M634), now that the

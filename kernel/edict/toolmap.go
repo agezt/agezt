@@ -150,6 +150,10 @@ func CapabilityForToolCall(toolName string, input json.RawMessage) Capability {
 		return CapRemoteRun
 	case "notify":
 		return CapNotify
+	case "send_media":
+		// Same outbound-to-operator surface as notify (just carries an attachment),
+		// so it rides the same capability gate.
+		return CapNotify
 	case "config":
 		var p struct {
 			Op string `json:"op"`

@@ -40,6 +40,7 @@ func TestCapabilityForToolCall(t *testing.T) {
 		{"council", `{"question":"ship?"}`, CapDelegate},
 		{"remote_run", `{"task":"x"}`, CapRemoteRun},
 		{"notify", `{"text":"hi"}`, CapNotify},
+		{"send_media", `{"artifact":"abc"}`, CapNotify},
 		{"homeassistant", `{"operation":"get_states","entity_id":"light.x"}`, CapHomeAssistantRead},
 		{"homeassistant", `{"operation":"call_service","domain":"light","service":"turn_on"}`, CapHomeAssistantCall},
 		{"homeassistant", `{"operation":"  CALL_SERVICE  "}`, CapHomeAssistantCall},
