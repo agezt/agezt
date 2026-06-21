@@ -1,4 +1,4 @@
-import { getJSON, withToken } from "@/lib/api";
+import { authHeaders, getJSON } from "@/lib/api";
 import { parseSSEChunk, type ChatFrame } from "@/lib/chat";
 
 // A pack's readable contents, for the gallery's "What's inside" panel.
@@ -34,9 +34,9 @@ export async function streamMarket(
   onFrame: (f: ChatFrame) => void,
   signal?: AbortSignal,
 ): Promise<void> {
-  const res = await fetch(withToken(path), {
+  const res = await fetch(path, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: authHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(body),
     signal,
   });

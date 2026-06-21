@@ -20,7 +20,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { usePanel } from "@/lib/usePanel";
-import { postAction } from "@/lib/api";
+import { authHeaders, postAction } from "@/lib/api";
 import { cn, fmtTime } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -37,6 +37,8 @@ import {
   rawURL,
   previewMaxBytes,
   isRunInternal,
+  BlobArtifact,
+  downloadArtifact,
 } from "./Files";
 
 // Artifacts gallery (M931): every kind of agent output, bucketed by what it IS
@@ -261,10 +263,10 @@ function ArtifactCard({ entry, category, onOpen }: { entry: ArtifactEntry; categ
       title={entry.caption || entry.name || entry.id}
     >
       {pictorial ? (
-        <img
-          src={rawURL(entry)}
+        <BlobArtifact
+          entry={entry}
+          kind="image"
           alt={entry.caption || entry.name || meta.label}
-          loading="lazy"
           className={cn("size-full", category === "svg" ? "bg-white object-contain p-2" : "object-cover")}
         />
       ) : (
@@ -310,9 +312,9 @@ function Viewer({ entry, onClose, onDelete }: { entry: ArtifactEntry; onClose: (
           <button onClick={() => setFull(!full)} className="text-muted hover:text-accent" title={full ? "Exit fullscreen" : "Fullscreen"} aria-label={full ? "Exit fullscreen" : "Fullscreen"}>
             {full ? <Minimize2 className="size-4" /> : <Maximize2 className="size-4" />}
           </button>
-          <a href={rawURL(entry, true)} download className="text-muted hover:text-accent" title="Download">
+          <button onClick={() => downloadArtifact(entry).catch(console.error)} className="text-muted hover:text-accent" title="Download">
             <Download className="size-4" />
-          </a>
+          </button>
           <button onClick={onDelete} className="text-muted hover:text-bad" title="Delete">
             <Trash2 className="size-4" />
           </button>
@@ -354,7 +356,7 @@ function ViewerBody({ entry, category, full }: { entry: ArtifactEntry; category:
     let cancelled = false;
     setText(null);
     setErr(null);
-    fetch(rawURL(entry))
+    fetch(rawURL(entry), { headers: authHeaders() })
       .then((r) => (r.ok ? r.text() : Promise.reject(new Error(`HTTP ${r.status}`))))
       .then((t) => !cancelled && setText(category === "json" ? prettyJSON(t) : t))
       .catch((e) => !cancelled && setErr((e as Error).message));
@@ -367,15 +369,16 @@ function ViewerBody({ entry, category, full }: { entry: ArtifactEntry; category:
 
   if (category === "image" || category === "svg") {
     return (
-      <img
-        src={rawURL(entry)}
+      <BlobArtifact
+        entry={entry}
+        kind="image"
         alt={entry.caption || entry.name || "artifact"}
         className={cn("mx-auto rounded-md", full ? "max-h-full" : "max-h-[68vh]", category === "svg" && "bg-white p-3")}
       />
     );
   }
   if (category === "pdf") {
-    return <iframe src={rawURL(entry)} title={entry.name || "pdf"} className={cn("w-full rounded-md border border-border bg-white", frameH)} />;
+    return <BlobArtifact entry={entry} kind="pdf" title={entry.name || "pdf"} className={cn("w-full rounded-md border border-border bg-white", frameH)} />;
   }
   if (!fetchText) {
     return <p className="py-12 text-center text-sm text-muted">No inline preview for this file type — use Download.</p>;

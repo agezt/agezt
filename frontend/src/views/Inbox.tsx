@@ -9,7 +9,7 @@ import { ErrorText } from "@/components/JsonView";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { useUI } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
-import { rawURL, type ArtifactEntry } from "@/views/Files";
+import { BlobArtifact, type ArtifactEntry } from "@/views/Files";
 import { focusRun } from "@/lib/runfocus";
 
 // COMMON_CHANNELS pre-fills the kind picker with the channels the daemon can carry;
@@ -232,16 +232,9 @@ export function Inbox() {
               {(imagesByCorr[th.correlation_id]?.length ?? 0) > 0 && (
                 <div className="mt-2 flex flex-wrap gap-1.5 border-t border-border pt-2">
                   {imagesByCorr[th.correlation_id].map((e) => (
-                    <a
-                      key={e.id}
-                      href={rawURL(e)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      title={e.caption || e.name || "image"}
-                      className="block size-16 overflow-hidden rounded-md border border-border bg-panel"
-                    >
-                      <img src={rawURL(e)} alt={e.caption || "image"} className="size-full object-cover" loading="lazy" />
-                    </a>
+                    <div key={e.id} title={e.caption || e.name || "image"} className="block size-16 overflow-hidden rounded-md border border-border bg-panel">
+                      <BlobArtifact entry={e} kind="image" alt={e.caption || "image"} className="size-full object-cover" />
+                    </div>
                   ))}
                 </div>
               )}

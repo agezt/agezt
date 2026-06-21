@@ -1,4 +1,4 @@
-import { withToken } from "@/lib/api";
+import { authHeaders } from "@/lib/api";
 
 // transcribeAudio uploads a recorded clip to the webui /api/transcribe route and
 // returns the recognised text. The daemon hands the audio to its configured STT
@@ -9,8 +9,8 @@ export async function transcribeAudio(blob: Blob, filename = "clip.webm"): Promi
   const form = new FormData();
   form.append("file", blob, filename);
   // No explicit Content-Type: the browser sets multipart/form-data with the
-  // boundary. Auth rides the ?token= query param like every other webui call.
-  const res = await fetch(withToken("/api/transcribe"), { method: "POST", body: form });
+  // boundary. Auth uses a bearer header like other fetch-based webui calls.
+  const res = await fetch("/api/transcribe", { method: "POST", headers: authHeaders(), body: form });
   if (!res.ok) {
     let msg = `HTTP ${res.status}`;
     try {

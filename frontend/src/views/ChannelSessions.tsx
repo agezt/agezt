@@ -6,7 +6,7 @@ import { cn, fmtTime } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Markdown } from "@/components/Markdown";
 import { useUI } from "@/components/ui/feedback";
-import { rawURL, type ArtifactEntry } from "@/views/Files";
+import { BlobArtifact, type ArtifactEntry } from "@/views/Files";
 import {
   sessionsFromInboxThreads,
   lastSnippet,
@@ -179,16 +179,9 @@ function SessionPane({
           {images.length > 0 && (
             <div className="flex flex-wrap gap-1.5 border-t border-border/60 pt-2">
               {images.map((e) => (
-                <a
-                  key={e.id}
-                  href={rawURL(e)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  title={e.caption || e.name || "image"}
-                  className="block size-16 overflow-hidden rounded-md border border-border bg-panel"
-                >
-                  <img src={rawURL(e)} alt={e.caption || "image"} className="size-full object-cover" loading="lazy" />
-                </a>
+                <div key={e.id} title={e.caption || e.name || "image"} className="block size-16 overflow-hidden rounded-md border border-border bg-panel">
+                  <BlobArtifact entry={e} kind="image" alt={e.caption || "image"} className="size-full object-cover" />
+                </div>
               ))}
             </div>
           )}

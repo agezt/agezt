@@ -7,9 +7,7 @@ const postAction = vi.fn();
 vi.mock("@/lib/api", () => ({
   getJSON: (...a: unknown[]) => getJSON(...a),
   postAction: (...a: unknown[]) => postAction(...a),
-  // withToken is used to build <img>/download URLs; a simple stub is enough.
-  withToken: (path: string, extra?: Record<string, string>) =>
-    `${path}?${new URLSearchParams(extra || {}).toString()}`,
+  authHeaders: () => new Headers({ Authorization: "Bearer test-token" }),
 }));
 
 const confirm = vi.fn();
@@ -20,13 +18,19 @@ vi.mock("@/components/ui/feedback", () => ({
 
 import { Files, isImage, rawURL, isPdf, textKind, isRunInternal } from "@/views/Files";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+});
 beforeEach(() => {
   getJSON.mockReset();
   postAction.mockReset();
   confirm.mockReset();
   toast.mockReset();
   postAction.mockResolvedValue({});
+  vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:test-artifact");
+  vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
+  vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(new Blob(["img"], { type: "image/png" })));
 });
 
 describe("pure helpers", () => {
@@ -82,9 +86,10 @@ describe("Files view", () => {
     // The deliberate file (report.md) shows; the run-internal out.txt is hidden by default.
     await waitFor(() => expect(screen.getByText("report.md")).toBeTruthy());
     expect(screen.queryByText("out.txt")).toBeNull();
+    await waitFor(() => expect(document.querySelector("img")).toBeTruthy());
     const img = document.querySelector("img") as HTMLImageElement;
-    expect(img).toBeTruthy();
-    expect(img.getAttribute("src")).toContain("/api/artifact/raw?ref=aaa");
+    expect(img.getAttribute("src")).toBe("blob:test-artifact");
+    expect(fetch).toHaveBeenCalledWith("/api/artifact/raw?ref=aaa&mime=image%2Fpng", { headers: expect.any(Headers) });
 
     // Delete the file row → confirm → postAction with the id.
     fireEvent.click(screen.getByTitle("Delete"));

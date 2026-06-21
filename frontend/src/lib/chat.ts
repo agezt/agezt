@@ -1,5 +1,5 @@
 import { num } from "@/lib/rundetail";
-import { withToken } from "@/lib/api";
+import { authHeaders } from "@/lib/api";
 
 // A frame is one SSE `data:` object streamed by the webui /api/run proxy. Most
 // frames carry a forwarded agent event ({kind, payload, ...}); the proxy also
@@ -398,9 +398,9 @@ export async function streamRun(
   onFrame: (f: ChatFrame) => void,
   signal?: AbortSignal,
 ): Promise<void> {
-  const res = await fetch(withToken("/api/run"), {
+  const res = await fetch("/api/run", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: authHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(body),
     signal,
   });

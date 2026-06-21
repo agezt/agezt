@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { FolderOpen, RefreshCw, Trash2, Download, ImageIcon, FileText, X, Loader2 } from "lucide-react";
 import { usePanel } from "@/lib/usePanel";
-import { withToken, postAction } from "@/lib/api";
+import { authHeaders, postAction } from "@/lib/api";
 import { cn, fmtTime } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -97,15 +97,68 @@ export function categoryOf(e: ArtifactEntry): ArtifactCategory {
 // previewMaxBytes caps inline text fetches so a giant artifact can't hang the UI.
 export const previewMaxBytes = 2 * 1024 * 1024;
 
-// rawURL builds the tokenized binary URL for an entry (optionally a download).
+// rawURL builds the binary URL for an entry. Fetch callers attach bearer auth;
+// browser navigations must use a Blob URL produced by fetchRawBlobURL instead.
 export function rawURL(e: ArtifactEntry, download = false): string {
-  const params: Record<string, string> = { ref: e.ref };
-  if (e.mime) params.mime = e.mime;
+  const params = new URLSearchParams({ ref: e.ref });
+  if (e.mime) params.set("mime", e.mime);
   if (download) {
-    params.download = "1";
-    params.name = e.name || `${e.kind || "artifact"}-${e.id}`;
+    params.set("download", "1");
+    params.set("name", e.name || `${e.kind || "artifact"}-${e.id}`);
   }
-  return withToken("/api/artifact/raw", params);
+  return `/api/artifact/raw?${params.toString()}`;
+}
+
+async function fetchRawBlob(e: ArtifactEntry, download = false): Promise<Blob> {
+  const res = await fetch(rawURL(e, download), { headers: authHeaders() });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.blob();
+}
+
+export async function downloadArtifact(e: ArtifactEntry): Promise<void> {
+  const blob = await fetchRawBlob(e, true);
+  const href = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = href;
+  a.download = e.name || `${e.kind || "artifact"}-${e.id}`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(href);
+}
+
+export function BlobArtifact({ entry, kind, alt, title, className }: { entry: ArtifactEntry; kind: "image" | "pdf"; alt?: string; title?: string; className?: string }) {
+  const [href, setHref] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    let objectURL = "";
+    setHref(null);
+    setErr(null);
+    fetchRawBlob(entry)
+      .then((blob) => {
+        if (cancelled) return;
+        objectURL = URL.createObjectURL(blob);
+        setHref(objectURL);
+      })
+      .catch((e) => !cancelled && setErr((e as Error).message));
+    return () => {
+      cancelled = true;
+      if (objectURL) URL.revokeObjectURL(objectURL);
+    };
+  }, [entry]);
+
+  if (err) return <p className="py-6 text-center text-sm text-muted">{err}</p>;
+  if (!href) {
+    return (
+      <p className="flex items-center justify-center gap-2 py-6 text-sm text-muted">
+        <Loader2 className="size-4 animate-spin" /> loading preview…
+      </p>
+    );
+  }
+  if (kind === "pdf") return <iframe src={href} title={title || entry.name || "pdf"} className={className} />;
+  return <img src={href} alt={alt || entry.caption || entry.name || "image"} className={className} loading="lazy" />;
 }
 
 function humanSize(n?: number): string {
@@ -258,7 +311,7 @@ export function Files() {
                   className="group relative aspect-square overflow-hidden rounded-lg border border-border bg-panel"
                   title={e.caption || e.name || e.id}
                 >
-                  <img src={rawURL(e)} alt={e.caption || e.name || "image"} className="size-full object-cover" loading="lazy" />
+                  <BlobArtifact entry={e} kind="image" alt={e.caption || e.name || "image"} className="size-full object-cover" />
                   <span className="absolute inset-x-0 bottom-0 truncate bg-black/55 px-1.5 py-0.5 text-left text-[10px] text-white/90">
                     {e.source || "file"} · {fmtTime(e.created_ms)}
                   </span>
@@ -289,9 +342,16 @@ export function Files() {
                   {e.kind && e.kind !== "file" && <Badge variant="default">{e.kind}</Badge>}
                   <span className="text-[11px] text-muted">{humanSize(e.size)}</span>
                   <span className="text-[11px] text-muted">{fmtTime(e.created_ms)}</span>
-                  <a href={rawURL(e, true)} download onClick={(ev) => ev.stopPropagation()} className="text-muted hover:text-accent" title="Download">
+                  <button
+                    onClick={(ev) => {
+                      ev.stopPropagation();
+                      downloadArtifact(e).catch((err) => ui.toast((err as Error).message, "error"));
+                    }}
+                    className="text-muted hover:text-accent"
+                    title="Download"
+                  >
                     <Download className="size-3.5" />
-                  </a>
+                  </button>
                   <button
                     onClick={(ev) => {
                       ev.stopPropagation();
@@ -334,9 +394,9 @@ function PreviewModal({
       >
         <div className="flex items-center gap-2 border-b border-border px-4 py-2">
           <span className="min-w-0 flex-1 truncate text-sm font-semibold">{entry.name || entry.id}</span>
-          <a href={rawURL(entry, true)} download className="text-muted hover:text-accent" title="Download">
+          <button onClick={() => downloadArtifact(entry).catch(console.error)} className="text-muted hover:text-accent" title="Download">
             <Download className="size-4" />
-          </a>
+          </button>
           <button onClick={onDelete} className="text-muted hover:text-bad" title="Delete">
             <Trash2 className="size-4" />
           </button>
@@ -379,7 +439,7 @@ function PreviewBody({ entry }: { entry: ArtifactEntry }) {
     }
     let cancelled = false;
     setLoading(true);
-    fetch(rawURL(entry))
+    fetch(rawURL(entry), { headers: authHeaders() })
       .then((r) => (r.ok ? r.text() : Promise.reject(new Error(`HTTP ${r.status}`))))
       .then((t) => {
         if (cancelled) return;
@@ -393,10 +453,10 @@ function PreviewBody({ entry }: { entry: ArtifactEntry }) {
   }, [entry, kind]);
 
   if (isImage(entry)) {
-    return <img src={rawURL(entry)} alt={entry.caption || entry.name || "image"} className="mx-auto max-h-[68vh] rounded-md" />;
+    return <BlobArtifact entry={entry} kind="image" alt={entry.caption || entry.name || "image"} className="mx-auto max-h-[68vh] rounded-md" />;
   }
   if (isPdf(entry)) {
-    return <iframe src={rawURL(entry)} title={entry.name || "pdf"} className="h-[68vh] w-full rounded-md border border-border bg-white" />;
+    return <BlobArtifact entry={entry} kind="pdf" title={entry.name || "pdf"} className="h-[68vh] w-full rounded-md border border-border bg-white" />;
   }
   if (kind === "") {
     return <p className="py-12 text-center text-sm text-muted">No inline preview for this file type — use Download.</p>;

@@ -8,8 +8,7 @@ const focusRun = vi.fn();
 vi.mock("@/lib/api", () => ({
   getJSON: (...a: unknown[]) => getJSON(...a),
   postAction: (...a: unknown[]) => postAction(...a),
-  withToken: (path: string, extra?: Record<string, string>) =>
-    `${path}?${new URLSearchParams(extra || {}).toString()}`,
+  authHeaders: () => new Headers({ Authorization: "Bearer test-token" }),
 }));
 // Avoid the SSE EventSource (not in jsdom): stub the events hook.
 vi.mock("@/lib/events", () => ({
@@ -20,12 +19,18 @@ vi.mock("@/lib/runfocus", () => ({ focusRun: (...a: unknown[]) => focusRun(...a)
 import { SendMessageForm, Inbox, threadMatches } from "@/views/Inbox";
 import { UIProvider } from "@/components/ui/feedback";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+});
 beforeEach(() => {
   getJSON.mockReset();
   postAction.mockReset();
   focusRun.mockReset();
   postAction.mockResolvedValue({ sent: true });
+  vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:test-artifact");
+  vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
+  vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(new Blob(["img"], { type: "image/png" })));
   location.hash = "";
 });
 
@@ -144,9 +149,10 @@ describe("Inbox inline image thumbnails (M828)", () => {
 
     // The thread's own image (corr c1) renders; the other thread's image does not.
     await waitFor(() => expect(screen.getByText("look at this")).toBeTruthy());
+    await waitFor(() => expect(document.querySelectorAll("img").length).toBe(1));
     const imgs = document.querySelectorAll("img");
-    expect(imgs.length).toBe(1);
-    expect(imgs[0].getAttribute("src")).toContain("/api/artifact/raw?ref=aaa");
+    expect(imgs[0].getAttribute("src")).toBe("blob:test-artifact");
+    expect(fetch).toHaveBeenCalledWith("/api/artifact/raw?ref=aaa&mime=image%2Fpng", { headers: expect.any(Headers) });
   });
 });
 
