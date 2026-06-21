@@ -88,8 +88,10 @@ import {
   summarizeAgentPolicyDenials,
   lastAutonomyRunbookSourceLabel,
   wakeLineage,
+  escalationCausalityLineage,
   mailboxWakeFor,
   type MailboxWakeRef,
+  type EscalationCausalityLineage,
   type ReaperReport,
   type AgentHealthSnapshot,
   type AgentConfigOverrideSummary,
@@ -1436,6 +1438,10 @@ export function AgentDetail({
             messages={myComms}
             escalations={escalations}
             wokeMessages={profile.status?.mailbox_wakes}
+            onFocusRun={(correlationId) => {
+              setActivityFocusRun(correlationId);
+              setTab("activity");
+            }}
             onManage={onManage}
             onChanged={() => {
               setBump((b) => b + 1);
@@ -5844,11 +5850,87 @@ export function agentMailboxPassport(
   };
 }
 
+// CommsCausalityLineage renders the delegated/doctor comms causality lineage for
+// one escalation message: the wake run this agent's run that the message caused
+// (deep-links into the Activity tab) and the incident chain (root → parent →
+// current, each deep-linkable to the Incident page). This is the delegated/doctor
+// analogue of the mailbox "woke" badge — it proves the message-to-wake causal
+// link and lets the operator follow it downstream.
+function CommsCausalityLineage({
+  slug,
+  lineage,
+  onFocusRun,
+}: {
+  slug: string;
+  lineage: EscalationCausalityLineage;
+  onFocusRun: (correlationId: string | undefined) => void;
+}) {
+  if (!lineage.origin) return null;
+  const tone = lineage.origin === "delegated" ? "text-accent" : "text-muted";
+  return (
+    <span className="inline-flex flex-wrap items-center gap-1 rounded bg-card px-1.5 py-0.5 text-[10px]">
+      <span
+        className={cn("inline-flex items-center gap-1", tone)}
+        title={`This escalation message woke ${slug}`}
+      >
+        <Zap className="size-3" />
+        {lineage.label}
+      </span>
+      {lineage.wakeCorrelationId && (
+        <button
+          onClick={() => onFocusRun(lineage.wakeCorrelationId)}
+          className="font-mono text-accent transition-colors hover:text-accent2"
+          title="Open the run this escalation woke in Activity"
+        >
+          run {clip(lineage.wakeCorrelationId, 24)}
+        </button>
+      )}
+      {lineage.rootIncidentId && (
+        <button
+          onClick={() => openIncident(lineage.rootIncidentId!)}
+          className="font-mono text-muted transition-colors hover:text-accent"
+          title={
+            lineage.rootAgent
+              ? `Open the root incident (root ${lineage.rootAgent})`
+              : "Open the root incident"
+          }
+        >
+          root {clip(lineage.rootIncidentId, 18)}
+        </button>
+      )}
+      {lineage.parentIncidentId &&
+        lineage.parentIncidentId !== lineage.rootIncidentId &&
+        lineage.parentIncidentId !== lineage.incidentId && (
+          <button
+            onClick={() => openIncident(lineage.parentIncidentId!)}
+            className="font-mono text-muted transition-colors hover:text-accent"
+            title="Open the parent (delegation hop) incident"
+          >
+            parent {clip(lineage.parentIncidentId, 18)}
+          </button>
+        )}
+      {lineage.incidentId && lineage.incidentId !== lineage.rootIncidentId && (
+        <button
+          onClick={() => openIncident(lineage.incidentId!)}
+          className="font-mono text-muted transition-colors hover:text-accent"
+          title="Open this agent's incident"
+        >
+          incident {clip(lineage.incidentId, 18)}
+        </button>
+      )}
+      {lineage.nextOwner && (
+        <span className="font-mono text-muted">→ {lineage.nextOwner}</span>
+      )}
+    </span>
+  );
+}
+
 function CommsTab({
   slug,
   messages,
   escalations,
   wokeMessages,
+  onFocusRun,
   onManage,
   onChanged,
 }: {
@@ -5856,6 +5938,7 @@ function CommsTab({
   messages: BoardMessage[] | null;
   escalations: AgentEscalation[] | null;
   wokeMessages?: Record<string, MailboxWakeRef>;
+  onFocusRun: (correlationId: string | undefined) => void;
   onManage: (view: string) => void;
   onChanged: () => void;
 }) {
@@ -6118,38 +6201,18 @@ function CommsTab({
                     </span>
                   )}
                   {escalation?.origin_kind === "doctor" && (
-                    <button
-                      onClick={() =>
-                        escalation.root_incident_id
-                          ? openIncident(escalation.root_incident_id)
-                          : escalation.incident_id
-                            ? openIncident(escalation.incident_id)
-                            : undefined
-                      }
-                      className="rounded bg-card px-1.5 py-0.5 text-[10px] text-muted transition-colors hover:text-accent"
-                      title="Open this escalation incident"
-                    >
-                      {[escalationChainLabel(escalation), incidentLineageLabel(escalation)]
-                        .filter(Boolean)
-                        .join(" · ") || "doctor origin"}
-                    </button>
+                    <CommsCausalityLineage
+                      slug={slug}
+                      lineage={escalationCausalityLineage(escalation)}
+                      onFocusRun={onFocusRun}
+                    />
                   )}
                   {escalation?.origin_kind === "delegated" && (
-                    <button
-                      onClick={() =>
-                        escalation.root_incident_id
-                          ? openIncident(escalation.root_incident_id)
-                          : escalation.incident_id
-                            ? openIncident(escalation.incident_id)
-                            : undefined
-                      }
-                      className="rounded bg-card px-1.5 py-0.5 text-[10px] text-accent transition-colors hover:text-accent2"
-                      title="Open this delegated escalation incident"
-                    >
-                      {[escalationChainLabel(escalation), incidentLineageLabel(escalation)]
-                        .filter(Boolean)
-                        .join(" · ") || "delegated"}
-                    </button>
+                    <CommsCausalityLineage
+                      slug={slug}
+                      lineage={escalationCausalityLineage(escalation)}
+                      onFocusRun={onFocusRun}
+                    />
                   )}
                   {waitingHere && (
                     <span className="ml-auto flex items-center gap-1">

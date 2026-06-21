@@ -1304,6 +1304,100 @@ export function wakeLineage(rb?: AgentLastAutonomyRunbook): WakeLineage {
   };
 }
 
+// EscalationCausalityLineage is the comms causality lineage for a delegated or
+// doctor escalation: it ties the board message that surfaced the incident to the
+// wake/run it actually triggered (wakeCorrelationId) and the full incident chain
+// (root → parent → current) so an operator can drill from "this message woke the
+// agent" through to the run and the originating incident. Mirrors mailboxWakeFor
+// (message → mailbox wake) for the delegated/doctor escalation route.
+export interface EscalationCausalityLineage {
+  // doctor | delegated — empty when the row carries no wake provenance at all.
+  origin: "doctor" | "delegated" | "";
+  // the run the escalation woke on this agent (target_correlation); the link from
+  // the message to the causally downstream run. undefined when the wake failed or
+  // the envelope predates correlation capture.
+  wakeCorrelationId?: string;
+  // the incident chain — root (originating agent), parent (delegation hop), and
+  // current (this agent's incident). All deep-linkable.
+  rootIncidentId?: string;
+  parentIncidentId?: string;
+  incidentId?: string;
+  // who the escalation was handed to next (delegated resolutions only).
+  nextOwner?: string;
+  // provenance for the chain label — the agent whose failure started it and how
+  // many delegation hops deep this wake sits.
+  rootAgent?: string;
+  chainDepth?: number;
+  // human-readable causality line, e.g. "woke via doctor for builder" /
+  // "woke via delegation by lead (hop 2)".
+  label: string;
+}
+
+// escalationCausalityLineage folds a delegated/doctor escalation row into the
+// structured, navigable causality the Comms tab renders. The label is the
+// "message → wake" headline; the ids are the drill targets. Returns an empty
+// origin (label "") when the row carries no wake provenance, so callers can gate
+// rendering on `lineage.origin` alone.
+export function escalationCausalityLineage(
+  row:
+    | Pick<
+        AgentEscalation,
+        | "origin_kind"
+        | "origin_agent"
+        | "wake_correlation_id"
+        | "incident_id"
+        | "root_incident_id"
+        | "parent_incident_id"
+        | "delegate_to"
+        | "root_agent"
+        | "chain_depth"
+      >
+    | null
+    | undefined,
+): EscalationCausalityLineage {
+  const base: EscalationCausalityLineage = {
+    origin: "",
+    label: "",
+  };
+  if (!row) return base;
+  const origin = (row.origin_kind || "").trim();
+  if (origin !== "doctor" && origin !== "delegated") return base;
+  const originAgent = (row.origin_agent || "").trim();
+  const rootAgent = (row.root_agent || "").trim();
+  const wakeCorr = (row.wake_correlation_id || "").trim() || undefined;
+  const rootIncident = (row.root_incident_id || "").trim() || undefined;
+  const parentIncident = (row.parent_incident_id || "").trim() || undefined;
+  const incident = (row.incident_id || "").trim() || undefined;
+  const nextOwner = (row.delegate_to || "").trim() || undefined;
+  const depth =
+    typeof row.chain_depth === "number" ? row.chain_depth : undefined;
+
+  // Causality headline: "woke via <route> [by/for <agent>][ (hop N)]".
+  const route =
+    origin === "delegated"
+      ? originAgent
+        ? `via delegation by ${originAgent}`
+        : "via delegation"
+      : originAgent
+        ? `via doctor for ${originAgent}`
+        : "via doctor";
+  const bits: string[] = [`woke ${route}`];
+  if (typeof depth === "number" && depth > 0) bits.push(`hop ${depth}`);
+  const label = bits.join(" · ");
+
+  return {
+    origin,
+    wakeCorrelationId: wakeCorr,
+    rootIncidentId: rootIncident,
+    parentIncidentId: parentIncident,
+    incidentId: incident,
+    nextOwner,
+    rootAgent: rootAgent || undefined,
+    chainDepth: depth,
+    label,
+  };
+}
+
 export function summarizeAgentRuntimeStatus(
   status?: AgentRuntimeStatus | null,
 ): AgentCardRuntimeSummary {

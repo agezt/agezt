@@ -20,6 +20,7 @@ import {
   summarizeAgentPolicyDenials,
   lastAutonomyRunbookSourceLabel,
   wakeLineage,
+  escalationCausalityLineage,
   mailboxWakeFor,
   type AgentRepairStatus,
   type ReaperReport,
@@ -1154,6 +1155,100 @@ describe("wakeLineage", () => {
   it("is empty for manual wakes with no source", () => {
     expect(lastAutonomyRunbookSourceLabel(undefined)).toBe("");
     expect(lastAutonomyRunbookSourceLabel({ phase: "completed" })).toBe("");
+  });
+});
+
+describe("escalationCausalityLineage", () => {
+  it("folds a doctor escalation into the wake run and incident chain", () => {
+    const got = escalationCausalityLineage({
+      origin_kind: "doctor",
+      origin_agent: "guardian-doctor",
+      wake_correlation_id: "wake-run-1",
+      incident_id: "inc-child-abc",
+      root_incident_id: "inc-root-abc",
+      root_agent: "builder",
+      chain_depth: 0,
+    });
+    expect(got.origin).toBe("doctor");
+    expect(got.label).toBe("woke via doctor for guardian-doctor");
+    expect(got.wakeCorrelationId).toBe("wake-run-1");
+    expect(got.incidentId).toBe("inc-child-abc");
+    expect(got.rootIncidentId).toBe("inc-root-abc");
+    expect(got.rootAgent).toBe("builder");
+    expect(got.chainDepth).toBe(0);
+    expect(got.nextOwner).toBeUndefined();
+    expect(got.parentIncidentId).toBeUndefined();
+  });
+
+  it("folds a delegated escalation with the parent incident and next owner", () => {
+    const got = escalationCausalityLineage({
+      origin_kind: "delegated",
+      origin_agent: "lead",
+      wake_correlation_id: "deleg-run-2",
+      incident_id: "inc-child-2",
+      root_incident_id: "inc-root-2",
+      parent_incident_id: "inc-parent-2",
+      delegate_to: "infra-lead",
+      root_agent: "builder",
+      chain_depth: 2,
+    });
+    expect(got.origin).toBe("delegated");
+    expect(got.label).toBe("woke via delegation by lead · hop 2");
+    expect(got.wakeCorrelationId).toBe("deleg-run-2");
+    expect(got.parentIncidentId).toBe("inc-parent-2");
+    expect(got.nextOwner).toBe("infra-lead");
+    expect(got.chainDepth).toBe(2);
+  });
+
+  it("labels a delegated wake without an origin agent", () => {
+    const got = escalationCausalityLineage({
+      origin_kind: "delegated",
+      wake_correlation_id: "r",
+    });
+    expect(got.label).toBe("woke via delegation");
+    expect(got.origin).toBe("delegated");
+  });
+
+  it("omits the hop suffix when chain depth is zero or missing", () => {
+    expect(
+      escalationCausalityLineage({
+        origin_kind: "doctor",
+        origin_agent: "doc",
+      }).label,
+    ).toBe("woke via doctor for doc");
+    expect(
+      escalationCausalityLineage({
+        origin_kind: "doctor",
+        origin_agent: "doc",
+        chain_depth: 0,
+      }).label,
+    ).toBe("woke via doctor for doc");
+  });
+
+  it("trims whitespace and drops blank fields", () => {
+    const got = escalationCausalityLineage({
+      origin_kind: "doctor",
+      origin_agent: "  doc  ",
+      wake_correlation_id: "  ",
+      incident_id: "  inc  ",
+    });
+    expect(got.wakeCorrelationId).toBeUndefined();
+    expect(got.incidentId).toBe("inc");
+    expect(got.label).toBe("woke via doctor for doc");
+  });
+
+  it("returns an empty origin for null/undefined/non-escalation rows", () => {
+    expect(escalationCausalityLineage(null)).toEqual({ origin: "", label: "" });
+    expect(escalationCausalityLineage(undefined)).toEqual({
+      origin: "",
+      label: "",
+    });
+    expect(
+      escalationCausalityLineage({ origin_kind: "" }).origin,
+    ).toBe("");
+    expect(
+      escalationCausalityLineage({ origin_kind: "other" }).origin,
+    ).toBe("");
   });
 });
 
