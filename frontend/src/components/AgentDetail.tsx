@@ -47,6 +47,10 @@ import {
   Puzzle,
   Stethoscope,
   FileCode,
+  CheckCircle,
+  AlertCircle,
+  XCircle,
+  MinusCircle,
 } from "lucide-react";
 import { getJSON, postAction, postJSON } from "@/lib/api";
 import { cn, fmtTime, fmtDateTime, fmtAgo, fmtDue, clip } from "@/lib/utils";
@@ -2983,21 +2987,38 @@ function Overview({
           <div className="text-[11px] font-medium text-foreground/80">
             Health contract
           </div>
-          <div className="mt-1 grid grid-cols-2 gap-1.5">
+          {/* Health indicators - more visual */}
+          <div className="mt-1 grid grid-cols-3 gap-1.5">
             {healthContract.map((entry) => (
-              <div key={entry.label} title={entry.detail} className="min-w-0">
-                <div
-                  className={cn(
-                    "truncate text-[10px] font-medium uppercase tracking-wider",
-                    entry.tone === "good" && "text-good",
-                    entry.tone === "warn" && "text-warn",
-                    entry.tone === "bad" && "text-bad",
-                    entry.tone === "muted" && "text-muted",
-                  )}
-                >
+              <div
+                key={entry.label}
+                title={`${entry.label}: ${entry.detail}`}
+                className={cn(
+                  "flex flex-col items-center gap-0.5 rounded-md border p-1.5 text-center",
+                  entry.tone === "good" && "border-good/30 bg-good/10",
+                  entry.tone === "warn" && "border-warn/30 bg-warn/10",
+                  entry.tone === "bad" && "border-bad/30 bg-bad/10",
+                  entry.tone === "muted" && "border-border bg-panel/30",
+                )}
+              >
+                {entry.tone === "good" ? (
+                  <CheckCircle className="size-3.5 text-good" />
+                ) : entry.tone === "warn" ? (
+                  <AlertCircle className="size-3.5 text-warn" />
+                ) : entry.tone === "bad" ? (
+                  <XCircle className="size-3.5 text-bad" />
+                ) : (
+                  <MinusCircle className="size-3.5 text-muted" />
+                )}
+                <div className={cn(
+                  "truncate text-[9px] font-medium",
+                  entry.tone === "good" && "text-good",
+                  entry.tone === "warn" && "text-warn",
+                  entry.tone === "bad" && "text-bad",
+                  entry.tone === "muted" && "text-muted",
+                )}>
                   {entry.label}
                 </div>
-                <div className="truncate text-[11px] text-muted">{entry.value}</div>
               </div>
             ))}
           </div>
