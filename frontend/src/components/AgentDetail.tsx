@@ -38,6 +38,15 @@ import {
   Plus,
   Repeat,
   IdCard,
+  Heart,
+  Eye,
+  FileText,
+  Lightbulb,
+  Gauge,
+  HardDrive,
+  Puzzle,
+  Stethoscope,
+  FileCode,
 } from "lucide-react";
 import { getJSON, postAction, postJSON } from "@/lib/api";
 import { cn, fmtTime, fmtDateTime, fmtAgo, fmtDue, clip } from "@/lib/utils";
@@ -274,13 +283,13 @@ const TABS: { id: DetailTab; label: string; icon: typeof Bot }[] = [
   { id: "activity", label: "Activity", icon: ActivityIcon },
   { id: "triggers", label: "Triggers", icon: Anchor },
   { id: "comms", label: "Comms", icon: Mail },
-  { id: "soul", label: "Soul", icon: ScrollText },
+  { id: "soul", label: "Soul", icon: Heart },
   { id: "model", label: "Model", icon: Cpu },
   { id: "memory", label: "Memory", icon: Brain },
   { id: "skills", label: "Skills", icon: Sparkles },
   { id: "repair", label: "Repair", icon: Wrench },
-  { id: "diag", label: "Diagnostics", icon: ShieldCheck },
-  { id: "files", label: "Files", icon: FolderOpen },
+  { id: "diag", label: "Diagnostics", icon: Gauge },
+  { id: "files", label: "Files", icon: FileCode },
 ];
 
 const PRIMARY_TABS: DetailTab[] = ["overview", "activity", "triggers", "comms"];
