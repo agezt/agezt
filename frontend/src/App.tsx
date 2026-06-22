@@ -58,6 +58,7 @@ import { cn } from "@/lib/utils";
 import { postAction, getJSON } from "@/lib/api";
 import { useEvents } from "@/lib/events";
 import { ingestCouncilEvent } from "@/lib/councilStore";
+import { ingestConductorEvent } from "@/lib/conductorStore";
 import { attentionAlertCount } from "@/lib/alerts";
 import { foldActivityEvent, summarize, type ActivityState } from "@/lib/activity";
 import { CommandPalette } from "@/components/CommandPalette";
@@ -129,6 +130,7 @@ import { IncidentPage } from "@/views/IncidentPage";
 import { Files } from "@/views/Files";
 import { Data } from "@/views/Data";
 import { Council } from "@/views/Council";
+import { Conductor } from "@/views/Conductor";
 import { Persona } from "@/views/Persona";
 import { Prompts } from "@/views/Prompts";
 import { Backup } from "@/views/Backup";
@@ -219,6 +221,7 @@ const NAV_GROUPS: NavGroup[] = [
       { id: "roster", label: "Roster", icon: Users, render: Roster },
       { id: "overseer", label: "Overseer", icon: Eye, render: Overseer },
       { id: "council", label: "Council", icon: Scale, render: Council },
+      { id: "conductor", label: "Conductor", icon: Network, render: Conductor },
       { id: "toolforge", label: "Tool Forge", icon: Hammer, render: Toolforge },
       { id: "mcp", label: "MCP Servers", icon: Plug, render: Mcp },
       { id: "sandbox", label: "Sandbox", icon: FlaskConical, render: Sandbox },
@@ -348,6 +351,7 @@ export default function App() {
   // level, so a deliberation keeps assembling even when the Council view isn't
   // mounted — letting the operator navigate away and return mid-run.
   useEffect(() => subscribe(ingestCouncilEvent), [subscribe]);
+  useEffect(() => subscribe(ingestConductorEvent), [subscribe]);
 
   // Fetch the daemon's build provenance once for the sidebar footer (M971).
   useEffect(() => {

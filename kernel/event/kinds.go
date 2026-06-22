@@ -140,6 +140,17 @@ const (
 	KindCouncilStarted   Kind = "council.member.started"
 	KindCouncilOpinion   Kind = "council.opinion"
 	KindCouncilConsensus Kind = "council.consensus"
+	// Conductor (M997) — the asymmetric, verify-driven orchestrator: a Thinker
+	// plans, a Worker (usually a different model) solves, and a Verifier checks
+	// (running the worker's code when it can), looping until accepted. These
+	// events are the audit trail (`agt why`) and the live feed the Web UI follows
+	// to watch a run unfold. KindConductorStarted opens it {task, thinker, worker,
+	// verifier, rounds, plan}; KindConductorStep records one role action {role,
+	// model, round, text|verdict/reason, exec, error}; KindConductorDone records
+	// the outcome {passed, rounds, answer}.
+	KindConductorStarted Kind = "conductor.started"
+	KindConductorStep    Kind = "conductor.step"
+	KindConductorDone    Kind = "conductor.done"
 	// KindTaskContinued records that a run exhausted its tool-round budget
 	// (MaxIter) without a final answer and was AUTOMATICALLY continued (M833) —
 	// the loop injected a "keep going" turn and granted another batch of rounds
@@ -435,6 +446,9 @@ var knownKinds = map[Kind]struct{}{
 	KindCouncilConvened:            {},
 	KindCouncilOpinion:             {},
 	KindCouncilConsensus:           {},
+	KindConductorStarted:           {},
+	KindConductorStep:              {},
+	KindConductorDone:              {},
 	KindPolicyCompacted:            {},
 	KindNetguardBlocked:            {},
 	KindCapabilityRejected:         {},

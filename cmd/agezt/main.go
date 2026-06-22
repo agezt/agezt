@@ -117,6 +117,7 @@ import (
 	"github.com/agezt/agezt/plugins/tools/browser"
 	"github.com/agezt/agezt/plugins/tools/codeexec"
 	"github.com/agezt/agezt/plugins/tools/coding"
+	conductortool "github.com/agezt/agezt/plugins/tools/conductor"
 	configtool "github.com/agezt/agezt/plugins/tools/config"
 	counciltool "github.com/agezt/agezt/plugins/tools/council"
 	dbtool "github.com/agezt/agezt/plugins/tools/db"
@@ -1117,6 +1118,10 @@ func runDaemon(stdout, stderr io.Writer) int {
 	if ct, ok := tools["council"].(*counciltool.Tool); ok {
 		ct.SetRunner(k)
 	}
+	// Inject the kernel into the conductor tool (M997) as the orchestration runner.
+	if cond, ok := tools["conductor"].(*conductortool.Tool); ok {
+		cond.SetRunner(k)
+	}
 
 	// Wire the bus into the Governor and the Warden so their events
 	// land in the journal. MUST happen before any Run is dispatched.
@@ -1948,6 +1953,10 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// the warden + base dir); we reach it through the returned tools map.
 	if ce, ok := tools["code_exec"].(*codeexec.Tool); ok {
 		ce.Bind(k.Bus())
+		// Let the Conductor's Verifier role (M997) actually RUN a worker's code
+		// through the same sandbox. nil-safe: when code_exec is absent the
+		// Verifier falls back to LLM critique.
+		k.SetConductorExec(ce)
 		fmt.Fprintf(stdout, "  code_exec tool   : enabled (the agent can write & run code: %s)\n", strings.Join(ce.Languages(), ", "))
 	}
 
@@ -6896,6 +6905,14 @@ func buildTools(baseDir string, stderr io.Writer, ward warden.Engine) (map[strin
 	ct := counciltool.New()
 	out["council"] = ct
 	registered = append(registered, "council(consensus panel)")
+
+	// conductor — the Conductor (M997): an asymmetric, verify-driven panel
+	// (Thinker/Worker/Verifier) that runs the worker's code and loops until it
+	// passes. The kernel runner + code-exec backend are injected after Open.
+	// Always registered.
+	cond := conductortool.New()
+	out["conductor"] = cond
+	registered = append(registered, "conductor(verify-driven panel)")
 
 	// coding — external coding-agent bridge (P6-CODE). Registered only when
 	// AGEZT_CODING_CMD is set (the command that runs Claude Code / Codex / Aider

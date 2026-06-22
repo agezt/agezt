@@ -557,6 +557,19 @@ const (
 	// {seat, model}. Applies live and persists to the config store so it survives restart.
 	CmdCouncilSet = "council_set"
 
+	// Conductor (M997) — the operator surface for the asymmetric, verify-driven
+	// panel (kernel/runtime, M997). The agent reaches the same engine through the
+	// `conductor` tool.
+	// CmdConductorRoles returns the default role→model assignment the Conductor
+	// will use when roles aren't given (so the UI/CLI can preview who fills each
+	// role). Returns: {thinker, worker, verifier, available_models}.
+	CmdConductorRoles = "conductor_roles"
+	// CmdConductorAsk runs the full Thinker/Worker/Verifier loop and returns the
+	// answer + transcript. Args: task (req), thinker, worker, verifier (model ids
+	// or "@chains"), max_rounds, plan (bool), corr. Returns: {answer, passed,
+	// roles, rounds, plan, steps, correlation_id}.
+	CmdConductorAsk = "conductor_ask"
+
 	// CmdJournalGrep is the server-side filter sibling of
 	// CmdJournalTail. Today operators run `agt journal tail 10000
 	// --json | jq 'select(...)'` which loads the entire tail into

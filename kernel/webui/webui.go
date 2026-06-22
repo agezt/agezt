@@ -141,6 +141,8 @@ var apiRoutes = map[string]string{
 	"/api/data/collections": controlplane.CmdDataCollections,
 	// Council of Elders (M839): the default membership the panel convenes with. Read-only.
 	"/api/council/members": controlplane.CmdCouncilMembers,
+	// Conductor (M997): the default role→model assignment the panel will use. Read-only.
+	"/api/conductor/roles": controlplane.CmdConductorRoles,
 	"/api/autonomy":        controlplane.CmdAutonomyFeed,
 	"/api/reflect":         controlplane.CmdReflectShow,
 	"/api/approvals":       controlplane.CmdApprovals,
@@ -460,9 +462,13 @@ var jsonRoutes = map[string]writeRoute{
 	"/api/council/ask": {controlplane.CmdCouncilAsk, []string{"question", "rounds", "corr"}},
 	// Council members edit (M839): replace the default council membership. members
 	// is an array of {seat, model}. Applies live and persists to config store.
-	"/api/council/set":  {controlplane.CmdCouncilSet, []string{"members"}},
-	"/api/prompts/set":  {controlplane.CmdPromptsSet, []string{"prompts"}},
-	"/api/standing/add": {controlplane.CmdStandingAdd, []string{"order"}},
+	"/api/council/set": {controlplane.CmdCouncilSet, []string{"members"}},
+	// Conductor ask (M997): run the Thinker/Worker/Verifier loop on a task.
+	// Long-running (several model calls + possibly a sandbox run) but bounded by
+	// the jsonProxy timeout. POST body.
+	"/api/conductor/ask": {controlplane.CmdConductorAsk, []string{"task", "thinker", "worker", "verifier", "max_rounds", "plan", "corr"}},
+	"/api/prompts/set":   {controlplane.CmdPromptsSet, []string{"prompts"}},
+	"/api/standing/add":  {controlplane.CmdStandingAdd, []string{"order"}},
 	// Edit a standing order in place (M729): id + any subset of the human-tunable
 	// fields. assure is numeric, so the JSON body preserves its type.
 	"/api/standing/edit": {controlplane.CmdStandingEdit, []string{"id", "name", "plan", "agent", "mode", "max_trust", "briefing_min", "assure", "cooldown_sec"}},
