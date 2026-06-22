@@ -591,13 +591,13 @@ export function Mcp() {
                   </div>
                   <p className="mt-1 text-xs text-muted">{e.description}</p>
                   <p
-                    className="mt-1 truncate font-mono text-[10px] text-muted/80"
+                    className="mt-1 truncate font-mono text-xs text-muted/80"
                     title={e.url || `${e.command} ${e.args}`}
                   >
                     {e.url || `${e.command} ${e.args}`}
                   </p>
                   {e.needs && (
-                    <p className="mt-1 flex items-center gap-1 text-[10px] text-amber-500/90">
+                    <p className="mt-1 flex items-center gap-1 text-xs text-amber-500/90">
                       <KeyRound className="h-3 w-3" /> needs: {e.needs}
                     </p>
                   )}
@@ -608,7 +608,7 @@ export function Mcp() {
           {filterCatalog(CATALOG, catFilter, catQuery).length === 0 && (
             <p className="py-3 text-center text-xs text-muted">No presets match “{catQuery.trim()}”.</p>
           )}
-          <p className="mt-2 text-[10px] text-muted/80">
+          <p className="mt-2 text-xs text-muted/80">
             Note: servers marked “needs … (env)” get the secret injected only into that server’s process via the env
             field — the rest of the environment stays scrubbed. “Use” prefills the key names so you just paste the value.
           </p>

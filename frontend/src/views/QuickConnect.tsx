@@ -240,7 +240,7 @@ function PresetCard({
           href={preset.signupUrl}
           target="_blank"
           rel="noreferrer noopener"
-          className="inline-flex items-center gap-0.5 text-[10px] text-accent hover:underline"
+          className="inline-flex items-center gap-0.5 text-xs text-accent hover:underline"
           title="Get an API key"
         >
           Get key <ExternalLink className="size-3" />
@@ -251,7 +251,7 @@ function PresetCard({
         <span className="text-[11px] text-muted">No API key — just Connect. Make sure the local server is running.</span>
       ) : (
         <label className="flex flex-col gap-1">
-          <span className="text-[10px] uppercase tracking-wide text-muted">API key</span>
+          <span className="text-xs uppercase tracking-wide text-muted">API key</span>
           <Input
             type="password"
             value={key}
@@ -264,7 +264,7 @@ function PresetCard({
       )}
 
       <details className="group">
-        <summary className="cursor-pointer text-[10px] text-muted hover:text-fg">Endpoint & model</summary>
+        <summary className="cursor-pointer text-xs text-muted hover:text-fg">Endpoint & model</summary>
         <div className="mt-2 flex flex-col gap-2">
           <Input value={api} onChange={(e) => setApi(e.target.value)} aria-label="Base URL" className="h-7 font-mono text-[11px]" />
           <Input value={model} onChange={(e) => setModel(e.target.value)} aria-label="Model" className="h-7 font-mono text-[11px]" />
@@ -349,7 +349,7 @@ function CustomCard({ onConnected, ui }: { onConnected: () => void; ui: UIToast 
       <div className="flex items-center gap-2">
         <Sparkles className="size-4 text-accent" />
         <span className="text-sm font-semibold">Custom provider</span>
-        <span className="text-[10px] text-muted">Any OpenAI- or Anthropic-compatible API</span>
+        <span className="text-xs text-muted">Any OpenAI- or Anthropic-compatible API</span>
       </div>
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-5">
         <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Name" aria-label="Provider name" className="h-8 text-xs" />

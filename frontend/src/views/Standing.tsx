@@ -326,7 +326,7 @@ export function Standing() {
                 )}
               >
                 {f.label}
-                <span className="rounded-full bg-card px-1.5 text-[10px] tabular-nums">{f.count}</span>
+                <span className="rounded-full bg-card px-1.5 text-xs tabular-nums">{f.count}</span>
               </button>
             ))}
           </div>
@@ -342,13 +342,13 @@ export function Standing() {
                   <Badge variant={o.enabled ? "good" : "default"}>{o.enabled ? "active" : "paused"}</Badge>
                   <span className="text-sm font-semibold">{o.name || o.id}</span>
                   {o.initiative?.mode && (
-                    <span className="rounded bg-panel px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted">
+                    <span className="rounded bg-panel px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wider text-muted">
                       {o.initiative.mode}
                     </span>
                   )}
                   {(o.assure ?? 0) > 0 && (
                     <span
-                      className="inline-flex items-center gap-1 rounded-full bg-good/10 px-1.5 py-0.5 text-[10px] font-semibold text-good"
+                      className="inline-flex items-center gap-1 rounded-full bg-good/10 px-1.5 py-0.5 text-xs font-semibold text-good"
                       title={`do-it-for-sure: each firing verifies completion and retries up to ${o.assure}×`}
                     >
                       <ShieldCheck className="size-3" />
@@ -357,7 +357,7 @@ export function Standing() {
                   )}
                   {(o.cooldown_sec ?? 0) > 0 && (
                     <span
-                      className="inline-flex items-center gap-1 rounded-full bg-panel px-1.5 py-0.5 text-[10px] font-semibold text-muted"
+                      className="inline-flex items-center gap-1 rounded-full bg-panel px-1.5 py-0.5 text-xs font-semibold text-muted"
                       title="minimum gap between event-triggered firings"
                     >
                       <Clock className="size-3" />
@@ -366,7 +366,7 @@ export function Standing() {
                   )}
                   {frequencyIssue && (
                     <span
-                      className="inline-flex items-center gap-1 rounded-full bg-warn/10 px-1.5 py-0.5 text-[10px] font-semibold text-warn"
+                      className="inline-flex items-center gap-1 rounded-full bg-warn/10 px-1.5 py-0.5 text-xs font-semibold text-warn"
                       title={frequencyIssue}
                     >
                       <AlertTriangle className="size-3" />
@@ -431,7 +431,7 @@ export function Standing() {
                   {(o.triggers || []).map((t, i) => (
                     <span
                       key={i}
-                      className="inline-flex items-center gap-1 rounded-full border border-border bg-panel px-2 py-0.5 text-[10px]"
+                      className="inline-flex items-center gap-1 rounded-full border border-border bg-panel px-2 py-0.5 text-xs"
                       title={`trigger: ${t.type}`}
                     >
                       {t.type === "event" ? (
@@ -445,7 +445,7 @@ export function Standing() {
                 </div>
                 {o.agent && (
                   <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                    <span className="inline-flex items-center gap-1 rounded-full border border-accent/40 bg-accent/10 px-2 py-0.5 text-[10px] text-accent">
+                    <span className="inline-flex items-center gap-1 rounded-full border border-accent/40 bg-accent/10 px-2 py-0.5 text-xs text-accent">
                       <Users className="size-3" />
                       runs as {o.agent}
                     </span>
@@ -460,7 +460,7 @@ export function Standing() {
                   </div>
                 )}
                 {o.plan && <p className="mt-1.5 line-clamp-2 text-xs text-foreground/80">{o.plan}</p>}
-                <div className="mt-1 flex items-center gap-3 text-[10px]">
+                <div className="mt-1 flex items-center gap-3 text-xs">
                   <button onClick={() => toggleHistory(o.id)} className="text-accent/80 transition-colors hover:text-accent" title="Show this order's life story from the journal">
                     {history?.id === o.id ? "hide history" : "history"}
                   </button>
@@ -479,7 +479,7 @@ export function Standing() {
                           {typeof ev.payload?.action === "string" && (
                             <span className="text-foreground/80">{ev.payload.action as string}</span>
                           )}
-                          <span className="ml-auto font-mono text-[10px] text-muted">{fmtTime(ev.ts_unix_ms)}</span>
+                          <span className="ml-auto font-mono text-xs text-muted">{fmtTime(ev.ts_unix_ms)}</span>
                         </li>
                       ))
                     )}
@@ -1000,7 +1000,7 @@ function StandingWakeLedger({ items, id }: { items: StandingWakeLedgerEntry[]; i
 function StandingStat({ label, value, accent }: { label: string; value: string | number; accent?: boolean }) {
   return (
     <div className="rounded-lg border border-border bg-panel/60 px-3 py-2">
-      <div className="text-[10px] font-semibold uppercase tracking-wider text-muted">{label}</div>
+      <div className="text-xs font-semibold uppercase tracking-wider text-muted">{label}</div>
       <div className={cn("mt-0.5 text-lg font-semibold tabular-nums", accent ? "text-accent" : "text-foreground")}>{value}</div>
     </div>
   );

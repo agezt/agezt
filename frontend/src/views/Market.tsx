@@ -274,7 +274,7 @@ export function Market() {
               {sources.map((s) => (
                 <li key={s.name} className="flex items-center gap-2 rounded-md border border-border/60 px-2 py-1 text-xs">
                   <span className="font-medium">{s.name}</span>
-                  <span className="min-w-0 flex-1 truncate font-mono text-[10px] text-muted">{s.url}</span>
+                  <span className="min-w-0 flex-1 truncate font-mono text-xs text-muted">{s.url}</span>
                   {s.pubkey && <ShieldCheck className="size-3 text-good" aria-label="signer key pinned" />}
                   <Button variant="ghost" size="sm" disabled={syncing} onClick={() => sync(s.name)} title="Sync">
                     <RotateCw className="size-3" />
@@ -353,7 +353,7 @@ export function Market() {
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-1.5">
                     <span className="font-medium text-foreground">{p.name}</span>
-                    <span className="font-mono text-[10px] text-muted">{p.version}</span>
+                    <span className="font-mono text-xs text-muted">{p.version}</span>
                     {p.signed ? (
                       <ShieldCheck className="size-3 text-good" aria-label="signed" />
                     ) : (
@@ -367,7 +367,7 @@ export function Market() {
                     {p.update_available && <Badge variant="warn">update</Badge>}
                   </div>
                   {p.description && <p className="mt-0.5 line-clamp-2 text-[11px] text-muted">{p.description}</p>}
-                  <div className="mt-1 flex flex-wrap items-center gap-2 text-[10px] text-muted">
+                  <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted">
                     {p.category && <span className="rounded bg-panel px-1.5 py-0.5 capitalize">{p.category}</span>}
                     <span>
                       {p.skill_count ?? 0} skill{(p.skill_count ?? 0) === 1 ? "" : "s"} · {p.mcp_count ?? 0} MCP ·{" "}
@@ -383,7 +383,7 @@ export function Market() {
                     </button>
                   </div>
                   {expanded.has(p.name) && (
-                    <div className="mt-1.5 space-y-1 border-t border-border/50 pt-1.5 text-[10px]">
+                    <div className="mt-1.5 space-y-1 border-t border-border/50 pt-1.5 text-xs">
                       {details[p.name] === "loading" || details[p.name] === undefined ? (
                         <span className="text-muted">loading…</span>
                       ) : (
@@ -438,7 +438,7 @@ export function Market() {
                 </div>
               </div>
               {progress[p.name] && progress[p.name].length > 0 && (
-                <ul className="mt-2 space-y-0.5 border-t border-border/50 pt-1.5 text-[10px]">
+                <ul className="mt-2 space-y-0.5 border-t border-border/50 pt-1.5 text-xs">
                   {progress[p.name].map((s, i) => (
                     <li key={i} className="flex items-center gap-1.5 font-mono">
                       {s.ok ? <Check className="size-2.5 text-good" /> : <ShieldAlert className="size-2.5 text-bad" />}

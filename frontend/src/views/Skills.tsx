@@ -148,7 +148,7 @@ export function Skills() {
               {idle.map((s) => (
                 <li key={s.id} className="flex items-center gap-2 text-xs">
                   <span className="min-w-0 flex-1 truncate font-medium text-foreground/85">{s.name}</span>
-                  <span className="shrink-0 text-[10px] text-muted">{(s.uses ?? 0) === 0 ? "never used" : `${s.uses} uses`}</span>
+                  <span className="shrink-0 text-xs text-muted">{(s.uses ?? 0) === 0 ? "never used" : `${s.uses} uses`}</span>
                   <button
                     onClick={() =>
                       act(s.id!, "/api/skill/quarantine", {
@@ -162,7 +162,7 @@ export function Skills() {
                       })
                     }
                     disabled={busy === s.id}
-                    className="shrink-0 rounded px-1.5 py-0.5 text-[10px] text-bad hover:bg-bad/10"
+                    className="shrink-0 rounded px-1.5 py-0.5 text-xs text-bad hover:bg-bad/10"
                   >
                     retire
                   </button>
@@ -217,7 +217,7 @@ export function Skills() {
                 className="h-8 w-full rounded-md border border-border bg-panel pl-7 pr-12 text-xs text-foreground outline-none focus-visible:border-accent"
               />
               {q.trim() && (
-                <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted">
+                <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted">
                   {skills.filter((s) => skillMatches(s, q.trim().toLowerCase())).length}/{skills.length}
                 </span>
               )}
@@ -233,14 +233,14 @@ export function Skills() {
             return (
               <div key={s.id || i} className="glass rounded-xl p-3">
                 <div className="flex items-center gap-2">
-                  <span className={cn("rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider", statusTone[s.status || ""] || "bg-panel text-muted")}>
+                  <span className={cn("rounded px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wider", statusTone[s.status || ""] || "bg-panel text-muted")}>
                     {s.status || "?"}
                   </span>
                   <span className="truncate text-sm font-semibold">{s.name || "—"}</span>
-                  {s.version != null && <span className="text-[10px] text-muted">v{s.version}</span>}
+                  {s.version != null && <span className="text-xs text-muted">v{s.version}</span>}
                   {s.agent && (
                     <span
-                      className="inline-flex items-center gap-1 rounded-full bg-accent/10 px-1.5 py-0.5 text-[10px] text-accent"
+                      className="inline-flex items-center gap-1 rounded-full bg-accent/10 px-1.5 py-0.5 text-xs text-accent"
                       title={`private skill — only the “${s.agent}” agent retrieves it`}
                     >
                       <Bot className="size-2.5" /> {s.agent}
@@ -332,7 +332,7 @@ export function Skills() {
 
                 {s.description && <p className="mt-1.5 text-xs text-foreground/85">{s.description}</p>}
 
-                <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-muted">
+                <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
                   {s.created_ms ? <span>{fmtTime(s.created_ms)}</span> : null}
                   {(m.shadow_evals || 0) > 0 && (
                     <span className="text-accent">
@@ -442,7 +442,7 @@ function IconBtn({
       onClick={onClick}
       disabled={busy}
       title={label}
-      className={cn("inline-flex h-6 items-center gap-1 rounded border px-1.5 text-[10px] transition-colors hover:text-white disabled:opacity-50", c)}
+      className={cn("inline-flex h-6 items-center gap-1 rounded border px-1.5 text-xs transition-colors hover:text-white disabled:opacity-50", c)}
     >
       <Icon className="size-3" /> {label}
     </button>
@@ -572,7 +572,7 @@ export function AuthorSkillForm({
         </label>
       </div>
 
-      <p className="mt-2 text-[10px] text-muted">
+      <p className="mt-2 text-xs text-muted">
         {editing ? (
           <>
             Saving with a changed body creates a new <span className="text-foreground/80">version</span> of this skill — it

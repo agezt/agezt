@@ -192,7 +192,7 @@ export function Activity() {
                       <div className="truncate text-muted">{row.detail}</div>
                     )}
                   </div>
-                  <span className="shrink-0 font-mono text-[10px] text-muted opacity-70">
+                  <span className="shrink-0 font-mono text-xs text-muted opacity-70">
                     {fmtTime(row.ts_unix_ms)}
                   </span>
                 </li>
@@ -201,7 +201,7 @@ export function Activity() {
           </ul>
           {doctorIncidents.length > 0 && (
             <div className="mt-3 border-t border-border pt-2">
-              <div className="mb-1.5 text-[10px] uppercase tracking-wider text-muted">
+              <div className="mb-1.5 text-xs uppercase tracking-wider text-muted">
                 repair incident trees
               </div>
               <DoctorIncidentTrees

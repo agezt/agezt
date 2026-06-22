@@ -247,7 +247,7 @@ function FileRow({ project, file }: { project: string; file: SbFile }) {
             <p className="text-xs text-muted">loading…</p>
           ) : (
             <>
-              {truncated && <p className="mb-1 text-[10px] text-warn">truncated to first 256 KiB</p>}
+              {truncated && <p className="mb-1 text-xs text-warn">truncated to first 256 KiB</p>}
               <pre className="max-h-96 overflow-auto rounded-md border border-border bg-panel p-2 text-[11px] leading-relaxed">
                 <code>{content}</code>
               </pre>

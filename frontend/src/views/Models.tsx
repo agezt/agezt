@@ -233,7 +233,7 @@ function ProviderCard({
       <button onClick={onToggle} className="flex w-full items-center gap-2 px-3 py-2.5 text-left">
         <ChevronRight className={cn("size-3.5 shrink-0 text-muted transition-transform", open && "rotate-90")} />
         <span className="text-sm font-semibold">{provider.name || provider.id}</span>
-        <span className="font-mono text-[10px] text-muted">{provider.id}</span>
+        <span className="font-mono text-xs text-muted">{provider.id}</span>
         {provider.credentialed ? (
           <span className="inline-flex items-center gap-1 rounded bg-good/15 px-1.5 py-0.5 text-[9px] font-medium uppercase text-good" title="An API key is configured for this provider">
             <KeyRound className="size-2.5" /> keyed
@@ -243,7 +243,7 @@ function ProviderCard({
             <KeyRound className="size-2.5" /> no key
           </span>
         )}
-        <span className="ml-auto text-[10px] tabular-nums text-muted">
+        <span className="ml-auto text-xs tabular-nums text-muted">
           {models.length || provider.model_count || 0} model{(models.length || provider.model_count) === 1 ? "" : "s"}
         </span>
       </button>
@@ -255,7 +255,7 @@ function ProviderCard({
       {open && models.length > 0 && (
         <div className="border-t border-border/60">
           <table className="w-full text-xs">
-            <thead className="text-[10px] uppercase tracking-wide text-muted">
+            <thead className="text-xs uppercase tracking-wide text-muted">
               <tr className="border-b border-border/40">
                 <th className="px-3 py-1.5 text-left font-medium">Model</th>
                 <th className="px-2 py-1.5 text-right font-medium">Context</th>
@@ -506,7 +506,7 @@ function KeyManager({ env, onChanged }: { env: string; onChanged: () => void }) 
     <div className="space-y-2">
       <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted">
         <KeyRound className="size-3" /> API keys
-        <code className="rounded bg-panel px-1 font-mono text-[10px] normal-case tracking-normal text-foreground/70">{env}</code>
+        <code className="rounded bg-panel px-1 font-mono text-xs normal-case tracking-normal text-foreground/70">{env}</code>
       </div>
 
       {keys === null ? (
@@ -532,7 +532,7 @@ function KeyManager({ env, onChanged }: { env: string; onChanged: () => void }) 
                 </button>
               )}
               <span className="font-medium text-foreground">{k.label}</span>
-              <span className="font-mono text-[10px] text-muted">{k.last4}</span>
+              <span className="font-mono text-xs text-muted">{k.last4}</span>
               <button
                 onClick={() => remove(k.label)}
                 disabled={busy}
@@ -563,7 +563,7 @@ function KeyManager({ env, onChanged }: { env: string; onChanged: () => void }) 
           className="h-7 w-44 font-mono text-xs"
           aria-label="New key value"
         />
-        <label className="flex items-center gap-1 text-[10px] text-muted">
+        <label className="flex items-center gap-1 text-xs text-muted">
           <input type="checkbox" checked={makeActive} onChange={(e) => setMakeActive(e.target.checked)} className="size-3 accent-accent" />
           make active
         </label>

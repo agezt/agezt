@@ -236,7 +236,7 @@ export function Health() {
             <Clock className="size-3.5" /> Uptime
           </div>
           <div className="mt-1 text-xl font-semibold tabular-nums">{humanizeUptime(st?.uptime_seconds ?? 0)}</div>
-          <div className="mt-0.5 text-[11px] text-muted">since last start</div>
+          <div className="mt-0.5 text-xs text-muted">since last start</div>
         </div>
       </div>
 
@@ -277,7 +277,7 @@ export function Health() {
               ))}
           </div>
           {st?.provider_fallbacks?.last_reason && (
-            <div className="mt-2 text-[11px] text-muted">last: {st.provider_fallbacks.last_reason}</div>
+            <div className="mt-2 text-xs text-muted">last: {st.provider_fallbacks.last_reason}</div>
           )}
         </div>
       )}
@@ -315,7 +315,7 @@ function DoctorCard({ diags, loaded }: { diags: Diagnostic[]; loaded: boolean })
               {d.fixHash && (
                 <button
                   onClick={() => (location.hash = d.fixHash!)}
-                  className="ml-auto shrink-0 rounded border border-border px-1.5 py-0.5 text-[10px] text-accent transition-colors hover:border-accent"
+                  className="ml-auto shrink-0 rounded border border-border px-1.5 py-0.5 text-xs text-accent transition-colors hover:border-accent"
                 >
                   {d.fixLabel || "Fix"} →
                 </button>

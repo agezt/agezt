@@ -340,7 +340,7 @@ function ConnectForm({
             aria-label="OAuth client secret"
             className="h-8 w-full font-mono text-xs"
           />
-          <p className="text-[10px] text-muted">
+          <p className="text-xs text-muted">
             Redirect URL (add this to your OAuth app): <code className="text-foreground">{redirectURI}</code>
           </p>
           <div className="flex flex-wrap items-center gap-2">
@@ -351,7 +351,7 @@ function ConnectForm({
             {oauth.status && <span className="text-[11px] text-muted">{oauth.status}</span>}
             {oauth.error && <span className="text-[11px] text-bad">{oauth.error}</span>}
           </div>
-          <p className="text-[10px] text-muted">…or paste a token manually below.</p>
+          <p className="text-xs text-muted">…or paste a token manually below.</p>
         </div>
       )}
 
@@ -362,7 +362,7 @@ function ConnectForm({
           <span className="flex items-center gap-1 text-[11px] text-muted">
             {f.label}
             {f.required && <span className="text-bad">*</span>}
-            {f.env_pinned && <span className="text-[10px]">(set in environment)</span>}
+            {f.env_pinned && <span className="text-xs">(set in environment)</span>}
           </span>
           <Input
             type={f.secret ? "password" : "text"}
@@ -373,7 +373,7 @@ function ConnectForm({
             className="mt-0.5 h-8 w-full font-mono text-xs"
             aria-label={f.label}
           />
-          {f.help && <span className="mt-0.5 block text-[10px] text-muted">{f.help}</span>}
+          {f.help && <span className="mt-0.5 block text-xs text-muted">{f.help}</span>}
         </label>
       ))}
 
@@ -403,7 +403,7 @@ function ConnectForm({
               {qr.img ? (
                 <div className="flex flex-col items-start gap-1">
                   <img src={qr.img} alt="login QR" className="size-44 rounded-md border border-border bg-white p-1.5" />
-                  <span className="text-[10px] text-muted">Scan with WhatsApp → Linked devices, then re-check.</span>
+                  <span className="text-xs text-muted">Scan with WhatsApp → Linked devices, then re-check.</span>
                 </div>
               ) : (
                 <span className="text-[11px] text-warn">{qr.error}</span>
@@ -418,7 +418,7 @@ function ConnectForm({
           {saving ? <RefreshCw className="size-3.5 animate-spin" /> : <Save className="size-3.5" />}
           Save
         </Button>
-        <span className="text-[10px] text-muted">Secrets are stored in the vault. Restart to apply.</span>
+        <span className="text-xs text-muted">Secrets are stored in the vault. Restart to apply.</span>
       </div>
     </div>
   );
@@ -492,7 +492,7 @@ function AccountManager({ row, onChanged }: { row: ChannelRow; onChanged: () => 
 
             {/* Per-account test row. */}
             <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-              <span className="text-[10px] text-muted">Test:</span>
+              <span className="text-xs text-muted">Test:</span>
               {row.duplex && (
                 <Input
                   value={testTo}
@@ -606,13 +606,13 @@ export function Channels() {
                       <span className="font-medium text-foreground">{r.display}</span>
                       <StatusBadge live={r.live} configured={r.configured} />
                       {accts.length > 1 && (
-                        <span className="text-[10px] text-muted">
+                        <span className="text-xs text-muted">
                           {accts.length} accounts{liveAccts ? ` · ${liveAccts} live` : ""}
                         </span>
                       )}
                     </div>
                     {r.description && <p className="mt-0.5 line-clamp-2 text-[11px] text-muted">{r.description}</p>}
-                    <div className="mt-1 flex flex-wrap items-center gap-2 text-[10px] text-muted">
+                    <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted">
                       {r.transport && <span className="rounded bg-panel px-1.5 py-0.5">{r.transport}</span>}
                       <span className="inline-flex items-center gap-1">
                         {r.duplex ? <ArrowLeftRight className="size-3" /> : <ArrowRight className="size-3" />}

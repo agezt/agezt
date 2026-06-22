@@ -513,7 +513,7 @@ export function Board() {
                   />
                   {wakePlan.label}
                 </label>
-                {wakePlan.issue && <span className="text-[10px] text-warn">{wakePlan.issue}</span>}
+                {wakePlan.issue && <span className="text-xs text-warn">{wakePlan.issue}</span>}
               </div>
             )}
             <Button size="sm" onClick={sendBoardMessage} disabled={sending || !sendText.trim() || (sendMode === "dm" && !sendTo.trim())}>
@@ -541,7 +541,7 @@ export function Board() {
                   </span>
                 )}
                 <span className="text-foreground/90">{h.text}</span>
-                <span className="ml-auto shrink-0 font-mono text-[10px] text-muted opacity-70">{fmtTime(h.ts_unix_ms)}</span>
+                <span className="ml-auto shrink-0 font-mono text-xs text-muted opacity-70">{fmtTime(h.ts_unix_ms)}</span>
               </li>
             ))}
           </ul>
@@ -679,7 +679,7 @@ export function Board() {
                 )}
               >
                 {label}
-                <span className="rounded-full bg-card px-1.5 text-[10px] tabular-nums">{filterCounts[id]}</span>
+                <span className="rounded-full bg-card px-1.5 text-xs tabular-nums">{filterCounts[id]}</span>
               </button>
             ))}
           </div>
@@ -712,12 +712,12 @@ export function Board() {
               <li key={i} className="glass rounded-xl p-3">
                 <div className="flex items-center gap-2">
                   {ackedBy ? (
-                    <span className="inline-flex items-center gap-1 rounded-full border border-good/40 bg-good/10 px-2 py-0.5 text-[10px] text-good" title={`acknowledged by ${ackedBy}`}>
+                    <span className="inline-flex items-center gap-1 rounded-full border border-good/40 bg-good/10 px-2 py-0.5 text-xs text-good" title={`acknowledged by ${ackedBy}`}>
                       <CheckCheck className="size-3" />
                       seen by {ackedBy}
                     </span>
                   ) : null}
-                  <span className="inline-flex items-center gap-1 rounded-full border border-border bg-panel px-2 py-0.5 text-[10px] text-accent">
+                  <span className="inline-flex items-center gap-1 rounded-full border border-border bg-panel px-2 py-0.5 text-xs text-accent">
                     <Hash className="size-3 opacity-70" />
                     {m.topic}
                   </span>
@@ -728,13 +728,13 @@ export function Board() {
                     </span>
                   )}
                   {m.help && (
-                    <span className="inline-flex items-center gap-1 rounded-full border border-warn/40 bg-warn/10 px-2 py-0.5 text-[10px] text-warn" title="help request">
+                    <span className="inline-flex items-center gap-1 rounded-full border border-warn/40 bg-warn/10 px-2 py-0.5 text-xs text-warn" title="help request">
                       <LifeBuoy className="size-3" />
                       help
                     </span>
                   )}
                   {m.to === "*" ? (
-                    <span className="inline-flex items-center gap-1 rounded-full border border-accent/40 bg-accent/10 px-2 py-0.5 text-[10px] text-accent" title="broadcast to every agent">
+                    <span className="inline-flex items-center gap-1 rounded-full border border-accent/40 bg-accent/10 px-2 py-0.5 text-xs text-accent" title="broadcast to every agent">
                       <Megaphone className="size-3" />
                       all
                     </span>
@@ -747,13 +747,13 @@ export function Board() {
                     )
                   )}
                   {m.reply_to && (
-                    <span className="inline-flex items-center gap-1 rounded-full border border-border bg-panel px-2 py-0.5 text-[10px] text-muted" title={`reply to ${m.reply_to}`}>
+                    <span className="inline-flex items-center gap-1 rounded-full border border-border bg-panel px-2 py-0.5 text-xs text-muted" title={`reply to ${m.reply_to}`}>
                       <CornerDownRight className="size-3" />
                       reply
                     </span>
                   )}
                   {m.id && waiting.has(m.id) && (
-                    <span className="rounded-full border border-warn/40 bg-warn/10 px-2 py-0.5 text-[10px] text-warn">
+                    <span className="rounded-full border border-warn/40 bg-warn/10 px-2 py-0.5 text-xs text-warn">
                       awaiting reply
                     </span>
                   )}
@@ -782,7 +782,7 @@ export function Board() {
                       </Button>
                     </span>
                   )}
-                  <span className="ml-auto font-mono text-[10px] text-muted opacity-70">{fmtTime(m.ts_unix_ms)}</span>
+                  <span className="ml-auto font-mono text-xs text-muted opacity-70">{fmtTime(m.ts_unix_ms)}</span>
                 </div>
                 <Markdown source={m.text} className="mt-1.5 text-sm text-foreground/90" />
                 {m.id && replyTo === m.id && (
@@ -815,7 +815,7 @@ export function Board() {
 function BoardStat({ label, value, accent, warn }: { label: string; value: number | string; accent?: boolean; warn?: boolean }) {
   return (
     <div className={cn("rounded-lg border bg-card p-2.5", warn ? "border-warn/50" : accent ? "border-accent/50" : "border-border")}>
-      <div className="text-[10px] font-semibold uppercase tracking-wider text-muted">{label}</div>
+      <div className="text-xs font-semibold uppercase tracking-wider text-muted">{label}</div>
       <div className={cn("mt-0.5 text-lg font-semibold tabular-nums", warn ? "text-warn" : accent && "text-accent")}>{value}</div>
     </div>
   );

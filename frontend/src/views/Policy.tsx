@@ -473,7 +473,7 @@ export function PolicyTestForm({ capabilities }: { capabilities: string[] }) {
           <Badge variant={outcome.tone === "bad" ? "bad" : outcome.tone === "good" ? "good" : "default"}>
             {outcome.label}
           </Badge>
-          {result.level && <span className={cn("rounded border px-1.5 py-0.5 text-[10px] font-semibold tabular-nums", levelTone(result.level))}>{result.level}</span>}
+          {result.level && <span className={cn("rounded border px-1.5 py-0.5 text-xs font-semibold tabular-nums", levelTone(result.level))}>{result.level}</span>}
           {result.hard_denied && result.hard_deny_rule && (
             <span className="text-muted">
               rule <span className="font-mono text-foreground/80">{result.hard_deny_rule}</span>
@@ -536,7 +536,7 @@ export function RedactionCheckForm() {
         className="h-20 w-full resize-y rounded-md border border-border bg-panel p-2 font-mono text-xs outline-none placeholder:text-muted/60 focus-visible:border-accent"
       />
       <div className="mt-2 flex items-center justify-between gap-2">
-        <span className="text-[10px] text-muted">The probe text is sent in the request body (never a URL) and the response shows only the redacted form.</span>
+        <span className="text-xs text-muted">The probe text is sent in the request body (never a URL) and the response shows only the redacted form.</span>
         <Button size="sm" variant="ghost" onClick={run} disabled={!text.trim() || running} title="Test redaction">
           {running ? <RefreshCw className="size-3.5 animate-spin" /> : <EyeOff className="size-3.5" />} Check
         </Button>
@@ -554,11 +554,11 @@ export function RedactionCheckForm() {
               <Badge>no match</Badge>
             )}
             {result.categories?.map((c) => (
-              <span key={c} className="rounded bg-panel px-1.5 py-0.5 font-mono text-[10px] text-accent">
+              <span key={c} className="rounded bg-panel px-1.5 py-0.5 font-mono text-xs text-accent">
                 {c}
               </span>
             ))}
-            {result.literal_hit && <span className="text-[10px] text-muted">matched a configured secret literal</span>}
+            {result.literal_hit && <span className="text-xs text-muted">matched a configured secret literal</span>}
           </div>
           {result.would_redact && (
             <pre className="overflow-x-auto whitespace-pre-wrap break-words rounded-md border border-border/70 bg-panel/40 p-2 font-mono text-[11px] text-foreground/85">

@@ -211,7 +211,7 @@ function SectionCard({
             </div>
           ))
         )}
-        {items.length > 8 && <span className="text-[10px] text-muted">+{items.length - 8} more</span>}
+        {items.length > 8 && <span className="text-xs text-muted">+{items.length - 8} more</span>}
       </div>
       <Button variant="ghost" size="sm" onClick={onAction} className="mt-auto justify-start">
         {actionLabel} <ArrowRight className="size-3.5" />

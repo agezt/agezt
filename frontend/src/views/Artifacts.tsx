@@ -245,7 +245,7 @@ function CategoryChip({
     >
       {Icon && <Icon className="size-3" />}
       {label}
-      <span className={cn("rounded-full px-1 text-[10px]", active ? "bg-accent/20" : "bg-panel")}>{count}</span>
+      <span className={cn("rounded-full px-1 text-xs", active ? "bg-accent/20" : "bg-panel")}>{count}</span>
     </button>
   );
 }
@@ -275,7 +275,7 @@ function ArtifactCard({ entry, category, onOpen }: { entry: ArtifactEntry; categ
           <span className="line-clamp-2 break-all text-center text-[11px] text-foreground/90">{entry.name || entry.id}</span>
         </div>
       )}
-      <span className="absolute inset-x-0 bottom-0 flex items-center gap-1 truncate bg-black/55 px-1.5 py-0.5 text-[10px] text-white/90">
+      <span className="absolute inset-x-0 bottom-0 flex items-center gap-1 truncate bg-black/55 px-1.5 py-0.5 text-xs text-white/90">
         {entry.source && <span className="truncate">{entry.source}</span>}
         <span className="ml-auto shrink-0">{humanSize(entry.size)}</span>
       </span>

@@ -107,7 +107,7 @@ export function ApprovalsHistory() {
               <StatusBadge status={a.status} />
               <span className="shrink-0 font-mono text-[11px] text-foreground">{a.capability || a.tool || "?"}</span>
               <span className="min-w-0 flex-1 truncate text-muted">{a.reason || a.tool || ""}</span>
-              {a.resolved_by && <span className="shrink-0 text-[10px] text-muted/80">by {a.resolved_by}</span>}
+              {a.resolved_by && <span className="shrink-0 text-xs text-muted/80">by {a.resolved_by}</span>}
               <span className="w-14 shrink-0 text-right tabular-nums text-muted">{fmtTime(a.ts_unix_ms)}</span>
             </li>
           ))}

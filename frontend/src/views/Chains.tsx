@@ -304,7 +304,7 @@ function ChainCard({
         </span>
         {agentN > 0 && (
           <span
-            className="inline-flex items-center gap-1 rounded bg-panel px-1.5 py-0.5 text-[10px] text-muted"
+            className="inline-flex items-center gap-1 rounded bg-panel px-1.5 py-0.5 text-xs text-muted"
             title={`Referenced by: ${usage.agents!.join(", ")}`}
           >
             <Users className="size-2.5" /> {agentN} agent{agentN === 1 ? "" : "s"}
@@ -312,7 +312,7 @@ function ChainCard({
         )}
         {taskN > 0 && (
           <span
-            className="inline-flex items-center gap-1 rounded bg-panel px-1.5 py-0.5 text-[10px] text-muted"
+            className="inline-flex items-center gap-1 rounded bg-panel px-1.5 py-0.5 text-xs text-muted"
             title={`Task types: ${usage.tasks!.join(", ")}`}
           >
             <Route className="size-2.5" /> {taskN} task{taskN === 1 ? "" : "s"}

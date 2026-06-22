@@ -171,7 +171,7 @@ export function Overseer() {
           <>
             <span
               className={cn(
-                "flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium",
+                "flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium",
                 connected ? "bg-good/10 text-good" : "bg-muted/20 text-muted",
               )}
               title={connected ? "Live event stream connected" : "Stream disconnected — polling"}
@@ -244,12 +244,12 @@ export function Overseer() {
                             {r.intent || r.correlation_id}
                           </span>
                           {r.parent_correlation && (
-                            <span className="shrink-0 rounded bg-panel px-1 text-[10px] text-muted">
+                            <span className="shrink-0 rounded bg-panel px-1 text-xs text-muted">
                               sub-agent
                             </span>
                           )}
                         </div>
-                        <div className="mt-0.5 flex items-center gap-2 text-[10px] text-muted">
+                        <div className="mt-0.5 flex items-center gap-2 text-xs text-muted">
                           {ctx?.agent && (
                             <span className="inline-flex items-center gap-1 rounded bg-accent/10 py-0.5 pl-0.5 pr-1.5 text-accent">
                               <AgentAvatar slug={ctx.agent} size={14} status="running" />
@@ -257,7 +257,7 @@ export function Overseer() {
                             </span>
                           )}
                           {ctx?.phase && (
-                            <span className="rounded bg-panel px-1 text-[10px] text-foreground/85">
+                            <span className="rounded bg-panel px-1 text-xs text-foreground/85">
                               {ctx.phase}
                             </span>
                           )}
@@ -298,7 +298,7 @@ export function Overseer() {
                       key={m.id || i}
                       className="rounded-md border border-amber-500/30 bg-amber-500/5 px-2.5 py-1.5"
                     >
-                      <div className="flex items-center gap-1.5 text-[10px] text-muted">
+                      <div className="flex items-center gap-1.5 text-xs text-muted">
                         {m.to === "*" ? (
                           <Megaphone className="size-3 text-amber-400" />
                         ) : (
@@ -337,11 +337,11 @@ export function Overseer() {
                       <div className="min-w-0 flex-1">
                         <div className="flex items-baseline gap-2">
                           <span className="truncate text-xs">{d.label}</span>
-                          <span className="ml-auto shrink-0 text-[10px] text-muted">
+                          <span className="ml-auto shrink-0 text-xs text-muted">
                             {fmtTime(e.ts_unix_ms)}
                           </span>
                         </div>
-                        {e.actor && <div className="truncate text-[10px] text-muted">{e.actor}</div>}
+                        {e.actor && <div className="truncate text-xs text-muted">{e.actor}</div>}
                       </div>
                     </li>
                   );
@@ -505,7 +505,7 @@ function Stat({
       </span>
       <div className="min-w-0">
         <div className="text-lg font-semibold leading-none">{value}</div>
-        <div className="mt-1 truncate text-[10px] uppercase tracking-wide text-muted">{label}</div>
+        <div className="mt-1 truncate text-xs uppercase tracking-wide text-muted">{label}</div>
       </div>
     </div>
   );

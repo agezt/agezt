@@ -242,7 +242,7 @@ export function World() {
                   return (
                     <div key={r.id || i} className="flex items-center gap-2 rounded-md border border-border/60 bg-panel/40 px-2.5 py-1 text-xs">
                       <span className="font-medium text-foreground/80">{from}</span>
-                      <span className="font-mono text-[10px] text-accent">{r.verb}</span>
+                      <span className="font-mono text-xs text-accent">{r.verb}</span>
                       <span className="font-medium text-foreground/80">{to}</span>
                       <div className="ml-auto">
                         <ActionButton
@@ -277,7 +277,7 @@ export function World() {
                   className="h-8 w-full rounded-md border border-border bg-panel pl-7 pr-2 text-xs text-foreground outline-none focus-visible:border-accent"
                 />
                 {query && (
-                  <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted">
+                  <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted">
                     {shown.length}/{ents.length}
                   </span>
                 )}
@@ -317,7 +317,7 @@ function KindChip({ label, n, active, onClick }: { label: string; n: number; act
       )}
     >
       <span>{label}</span>
-      <span className="rounded-full bg-card px-1 text-[10px] tabular-nums">{n}</span>
+      <span className="rounded-full bg-card px-1 text-xs tabular-nums">{n}</span>
     </button>
   );
 }

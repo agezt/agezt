@@ -122,12 +122,12 @@ export function Search() {
                       {incidentEventSummary(e) || e.subject}
                     </span>
                     {e.correlation_id && (
-                      <span className="shrink-0 text-[10px] text-muted">{e.correlation_id.slice(-6)}</span>
+                      <span className="shrink-0 text-xs text-muted">{e.correlation_id.slice(-6)}</span>
                     )}
                   </div>
                   {isOpen && (
                     <div className="border-t border-border/40 bg-panel/40 px-3 py-2">
-                      <div className="mb-1 flex gap-3 text-[10px] text-muted">
+                      <div className="mb-1 flex gap-3 text-xs text-muted">
                         <span>seq {e.seq ?? "—"}</span>
                         <span>actor {e.actor || "—"}</span>
                         <span>{e.correlation_id || "—"}</span>
@@ -340,7 +340,7 @@ export function CausationTrace({ eventId }: { eventId: string }) {
             <span className="text-[11px] text-muted">no upstream cause recorded — this event is a root cause</span>
           )}
           {data?.parent_correlation && (
-            <div className="mt-1 text-[10px] text-muted">
+            <div className="mt-1 text-xs text-muted">
               part of a sub-agent run · parent <span className="font-mono text-foreground/70">{data.parent_correlation.slice(-8)}</span>
             </div>
           )}
@@ -367,7 +367,7 @@ function Field({
 }) {
   return (
     <label className="flex flex-col gap-1">
-      <span className="text-[10px] uppercase tracking-wider text-muted">{label}</span>
+      <span className="text-xs uppercase tracking-wider text-muted">{label}</span>
       <input
         value={value}
         onChange={(e) => onChange(e.target.value)}

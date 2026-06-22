@@ -136,7 +136,7 @@ function Metric({
       </div>
       <div className="mt-0.5 flex items-baseline gap-2">
         <span className="text-2xl font-semibold tabular-nums">{value}</span>
-        <span className="text-[10px] text-muted">now {nowFmt ? nowFmt(now) : now}</span>
+        <span className="text-xs text-muted">now {nowFmt ? nowFmt(now) : now}</span>
       </div>
       <SpendArea values={series} className="mt-1 h-12" />
     </div>

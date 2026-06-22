@@ -262,7 +262,7 @@ export function Tools() {
                           )}
                           <span
                             className={cn(
-                              "ml-auto shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-semibold tabular-nums",
+                              "ml-auto shrink-0 rounded-full px-1.5 py-0.5 text-xs font-semibold tabular-nums",
                               t.calls > 0 ? "bg-accent/15 text-accent" : "bg-panel text-muted",
                             )}
                             title={t.calls > 0 ? "called this session" : "available but not yet called"}
@@ -270,7 +270,7 @@ export function Tools() {
                             {t.calls > 0 ? `${t.calls} call${t.calls === 1 ? "" : "s"}` : "idle"}
                           </span>
                         </div>
-                        <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-muted">
+                        <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted">
                           {t.capability && (
                             <span className="inline-flex items-center gap-0.5" title="Edict capability">
                               <ShieldCheck className="size-2.5" /> {t.capability}
@@ -354,7 +354,7 @@ function ObservationBadge({ ev }: { ev: Invocation }) {
     const matches = ev.directive_matches?.length ? `; matches: ${ev.directive_matches.join(", ")}` : "";
     return (
       <span
-        className="inline-flex shrink-0 items-center gap-1 rounded-full border border-bad/40 bg-bad/10 px-1.5 py-0.5 text-[10px] font-semibold text-bad"
+        className="inline-flex shrink-0 items-center gap-1 rounded-full border border-bad/40 bg-bad/10 px-1.5 py-0.5 text-xs font-semibold text-bad"
         title={`Directive-like untrusted observation${source}${matches}`}
       >
         <AlertTriangle className="size-3" /> injection
@@ -364,7 +364,7 @@ function ObservationBadge({ ev }: { ev: Invocation }) {
   if (ev.observation_trust === "untrusted") {
     return (
       <span
-        className="inline-flex shrink-0 items-center gap-1 rounded-full border border-border bg-panel px-1.5 py-0.5 text-[10px] font-semibold text-muted"
+        className="inline-flex shrink-0 items-center gap-1 rounded-full border border-border bg-panel px-1.5 py-0.5 text-xs font-semibold text-muted"
         title={`Untrusted observation${source}`}
       >
         <ShieldCheck className="size-3" /> untrusted
@@ -406,7 +406,7 @@ function FilterChip({ label, n, active, onClick }: { label: string; n: number; a
       )}
     >
       <span className="font-mono">{label}</span>
-      <span className="rounded-full bg-card px-1 text-[10px] tabular-nums">{n}</span>
+      <span className="rounded-full bg-card px-1 text-xs tabular-nums">{n}</span>
     </button>
   );
 }

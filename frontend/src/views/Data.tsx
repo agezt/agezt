@@ -338,7 +338,7 @@ export function Data() {
                         <td className="whitespace-nowrap border-b border-border/60 px-2 py-1.5 text-right">
                           <div className="flex items-center justify-end gap-1">
                             <span
-                              className="hidden rounded bg-panel px-1.5 py-0.5 font-mono text-[10px] text-muted sm:inline-flex"
+                              className="hidden rounded bg-panel px-1.5 py-0.5 font-mono text-xs text-muted sm:inline-flex"
                               title={dataRecordAttribution(r)}
                             >
                               {dataRecordWriter(r)}
@@ -528,7 +528,7 @@ function CalendarView({ records, onEdit, onDelete }: BespokeProps) {
     <li key={r.id} className="group flex items-start gap-3 glass rounded-xl px-3 py-2 text-sm">
       <div className="flex w-16 shrink-0 flex-col items-center rounded-md bg-panel py-1">
         <CalendarDays className="size-3.5 text-accent" />
-        <span className="mt-0.5 font-mono text-[10px] text-muted">{str(r.fields?.date).slice(5) || "—"}</span>
+        <span className="mt-0.5 font-mono text-xs text-muted">{str(r.fields?.date).slice(5) || "—"}</span>
       </div>
       <div className="min-w-0 flex-1">
         <div className="truncate font-medium">{str(r.fields?.title) || "—"}</div>

@@ -166,12 +166,12 @@ export function Alerts() {
                           }}
                         />
                       )}
-                      <span className="ml-auto shrink-0 text-[10px] tabular-nums text-muted">
+                      <span className="ml-auto shrink-0 text-xs tabular-nums text-muted">
                         {r.tsMs ? fmtTime(r.tsMs) : ""}
                       </span>
                     </div>
                     {r.detail && <div className="mt-0.5 break-words text-xs text-foreground/80">{r.detail}</div>}
-                    <div className="mt-0.5 flex items-center gap-2 text-[10px] text-muted">
+                    <div className="mt-0.5 flex items-center gap-2 text-xs text-muted">
                       <span className="rounded bg-panel px-1.5 py-0.5 font-medium">{r.source}</span>
                       <span className="font-mono opacity-70">{r.kind}</span>
                       {incidentRootId(r) && (

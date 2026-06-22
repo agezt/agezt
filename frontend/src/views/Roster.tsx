@@ -2307,7 +2307,7 @@ function AgentFormFields(props: {
           <div className="flex h-[30px] items-center">
             <ModelPicker value={state.model || ""} activeModel="daemon default" onChange={(id) => set("model", id)} />
           </div>
-          {modelIsChain && <span className="text-[10px] text-accent">chain is self-contained — fallbacks come from @{state.model.slice(1)}</span>}
+          {modelIsChain && <span className="text-xs text-accent">chain is self-contained — fallbacks come from @{state.model.slice(1)}</span>}
         </label>
         {modelIsChain
           ? null
@@ -2484,7 +2484,7 @@ function AgentFormFields(props: {
         className="mt-2 rounded-md border border-border bg-panel/60 px-2.5 py-2 text-xs text-muted"
         aria-label="Task contract preview"
       >
-        <div className="mb-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted">
+        <div className="mb-0.5 text-xs font-semibold uppercase tracking-wider text-muted">
           Task contract
         </div>
         <div className="text-foreground/85">{taskContractPreview}</div>
@@ -3292,7 +3292,7 @@ export function Roster() {
               )}
             >
               {label}
-              <span className="rounded-full bg-card px-1.5 text-[10px] tabular-nums">{count}</span>
+              <span className="rounded-full bg-card px-1.5 text-xs tabular-nums">{count}</span>
             </button>
           ))}
         </div>
@@ -3302,7 +3302,7 @@ export function Roster() {
         <section className="rounded-xl border border-border bg-card/45 p-3" aria-label="Agent graveyard">
           <div className="flex flex-wrap items-start gap-3">
             <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted">
+              <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted">
                 <Skull className="h-3 w-3" /> Agent graveyard
               </div>
               <div className="mt-1 text-sm font-medium text-foreground">
@@ -3330,7 +3330,7 @@ export function Roster() {
               )}
               title={graveyardCleanup.detail}
             >
-              <div className={cn("text-[10px] font-semibold uppercase tracking-wider", graveyardCleanup.tone === "warn" ? "text-warn" : graveyardCleanup.tone === "good" ? "text-good" : "text-muted")}>
+              <div className={cn("text-xs font-semibold uppercase tracking-wider", graveyardCleanup.tone === "warn" ? "text-warn" : graveyardCleanup.tone === "good" ? "text-good" : "text-muted")}>
                 Cleanup
               </div>
               <div className="mt-0.5 font-medium text-foreground/85">{graveyardCleanup.label}</div>
@@ -3355,7 +3355,7 @@ export function Roster() {
                     <div className="mt-0.5 truncate text-[11px] text-muted">
                       {p.retired_reason?.trim() || agentGraveyardSummary(p)}
                     </div>
-                    <div className="mt-1 text-[10px] text-muted">
+                    <div className="mt-1 text-xs text-muted">
                       {agentIdentityKind(p)}{p.retired_ms ? ` · ${fmtDateTime(p.retired_ms)}` : ""}
                     </div>
                   </div>
@@ -3589,7 +3589,7 @@ export function Roster() {
                   )}
                 >
                   <div className="flex flex-wrap items-center gap-2">
-                    <div className="text-[10px] font-semibold uppercase tracking-wider text-muted">Death certificate</div>
+                    <div className="text-xs font-semibold uppercase tracking-wider text-muted">Death certificate</div>
                     <div
                       className={cn(
                         "font-medium",
@@ -3619,7 +3619,7 @@ export function Roster() {
                 </div>
               )}
               <div className="mt-3 rounded-lg border border-border bg-card/45 p-2">
-                <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted">Removal ledger</div>
+                <div className="mb-1 text-xs font-semibold uppercase tracking-wider text-muted">Removal ledger</div>
                 <div className="grid gap-1.5 md:grid-cols-3">
                   {removalLedger.map((entry) => (
                     <div
@@ -4084,7 +4084,7 @@ export function Roster() {
                   <button
                     type="button"
                     onClick={() => openIncident(runtimeStatus.repairIncidentId!)}
-                    className="inline-flex items-center gap-1 rounded-md border border-border bg-warn/10 px-1.5 py-0.5 text-[10px] font-medium text-warn transition-colors hover:border-warn/50 hover:bg-warn/15"
+                    className="inline-flex items-center gap-1 rounded-md border border-border bg-warn/10 px-1.5 py-0.5 text-xs font-medium text-warn transition-colors hover:border-warn/50 hover:bg-warn/15"
                     title={runtimeStatus.repairIncidentDetail || "Open repair incident"}
                   >
                     {runtimeStatus.repairIncidentText}
@@ -4334,7 +4334,7 @@ export function Roster() {
             </div>
 
             <div className="mt-auto flex items-center justify-between gap-2 border-t border-border/70 bg-panel/30 px-3 py-2">
-              <span className="truncate font-mono text-[10px] text-muted">{p.id}</span>
+              <span className="truncate font-mono text-xs text-muted">{p.id}</span>
               <span className="flex shrink-0 items-center gap-1">
                 <Button
                   size="sm"
@@ -4469,7 +4469,7 @@ function RosterStat({ label, value, accent, tone }: { label: string; value: Reac
   const activeTone = tone || (accent ? "accent" : undefined);
   return (
     <div className={cn("rounded-lg border bg-card p-2.5 shadow-e1", activeTone === "accent" ? "border-accent/50" : activeTone === "warn" ? "border-warn/50" : "border-border")}>
-      <div className="text-[10px] font-semibold uppercase tracking-wider text-muted">{label}</div>
+      <div className="text-xs font-semibold uppercase tracking-wider text-muted">{label}</div>
       <div className={cn("mt-0.5 text-lg font-semibold tabular-nums", activeTone === "accent" && "text-accent", activeTone === "warn" && "text-warn")}>{value}</div>
     </div>
   );
@@ -4490,7 +4490,7 @@ function ImpactList({
     <div className="min-w-0 rounded-lg border border-border bg-card/65 p-2 text-xs">
       <div className="flex items-center gap-2">
         <span className="font-medium text-foreground">{label}</span>
-        <span className="ml-auto rounded-md bg-panel px-1.5 py-0.5 font-mono text-[10px] text-muted">{count}</span>
+        <span className="ml-auto rounded-md bg-panel px-1.5 py-0.5 font-mono text-xs text-muted">{count}</span>
       </div>
       {note && <div className="mt-1 text-[11px] text-muted">{note}</div>}
       {items.length > 0 && (
@@ -4533,7 +4533,7 @@ function CascadeOption({
           className="size-3.5"
         />
         <span className="font-medium text-foreground">{label}</span>
-        <span className="ml-auto rounded-md bg-card px-1.5 py-0.5 font-mono text-[10px] text-muted">{count}</span>
+        <span className="ml-auto rounded-md bg-card px-1.5 py-0.5 font-mono text-xs text-muted">{count}</span>
       </span>
       {note && <span className="text-[11px] text-muted">{note}</span>}
       {items.length > 0 && (
@@ -4577,7 +4577,7 @@ function IdentityPill({ children, className, title }: { children: ReactNode; cla
   return (
     <span
       title={title}
-      className={cn("inline-flex items-center gap-1 rounded-full bg-panel px-1.5 py-0.5 text-[10px] font-medium text-muted", className)}
+      className={cn("inline-flex items-center gap-1 rounded-full bg-panel px-1.5 py-0.5 text-xs font-medium text-muted", className)}
     >
       {children}
     </span>

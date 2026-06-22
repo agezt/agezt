@@ -73,7 +73,7 @@ export function ChannelSessions() {
       >
         {open ? <ChevronDown className="size-3" /> : <ChevronRight className="size-3" />}
         <Radio className="size-3" /> Channels
-        <span className="ml-auto rounded-full bg-panel px-1.5 text-[10px]">{sessions.length}</span>
+        <span className="ml-auto rounded-full bg-panel px-1.5 text-xs">{sessions.length}</span>
       </button>
       {open && (
         <div className="mt-1 max-h-44 space-y-0.5 overflow-auto">
@@ -89,7 +89,7 @@ export function ChannelSessions() {
                 <span className="min-w-0 flex-1 truncate text-xs font-medium">{s.title}</span>
                 <span className="shrink-0 text-[9px] uppercase text-muted">{s.channelKind}</span>
               </span>
-              <span className="w-full truncate pl-4 text-[10px] text-muted">{lastSnippet(s)}</span>
+              <span className="w-full truncate pl-4 text-xs text-muted">{lastSnippet(s)}</span>
             </button>
           ))}
         </div>
@@ -169,7 +169,7 @@ function SessionPane({
                     out ? "bg-accent/15 text-foreground" : "bg-card border border-border",
                   )}
                 >
-                  {!out && m.sender && <div className="mb-0.5 text-[10px] font-semibold text-muted">{m.sender}</div>}
+                  {!out && m.sender && <div className="mb-0.5 text-xs font-semibold text-muted">{m.sender}</div>}
                   <Markdown source={m.text || ""} className="text-sm" />
                   <div className="mt-0.5 text-right text-[9px] text-muted opacity-70">{fmtTime(m.ts_unix_ms)}</div>
                 </div>

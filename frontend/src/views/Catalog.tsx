@@ -96,7 +96,7 @@ export function Catalog() {
                       onChange={(e) => setLevel(r.capability, e.target.value)}
                       title="trust level — grant (L4) or restrict (L0) this capability"
                       className={cn(
-                        "rounded border bg-panel px-1 py-0.5 text-[10px] font-semibold tabular-nums outline-none focus:border-accent disabled:opacity-50",
+                        "rounded border bg-panel px-1 py-0.5 text-xs font-semibold tabular-nums outline-none focus:border-accent disabled:opacity-50",
                         levelTone(r.level),
                       )}
                     >
@@ -108,7 +108,7 @@ export function Catalog() {
                       ))}
                     </select>
                   )}
-                  <span className="ml-auto text-[10px] tabular-nums text-muted">
+                  <span className="ml-auto text-xs tabular-nums text-muted">
                     {r.calls > 0 ? (
                       <>
                         {r.calls} call{r.calls === 1 ? "" : "s"}
@@ -120,7 +120,7 @@ export function Catalog() {
                   </span>
                 </div>
                 {r.capability && (
-                  <div className="mt-1 text-[10px] text-muted">
+                  <div className="mt-1 text-xs text-muted">
                     capability <span className="font-mono text-foreground/80">{r.capability}</span>
                   </div>
                 )}

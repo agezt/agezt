@@ -153,7 +153,7 @@ export function Inbox() {
             className="h-8 w-full rounded-md border border-border bg-panel pl-7 pr-12 text-xs text-foreground outline-none focus-visible:border-accent"
           />
           {q.trim() && (
-            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted">
+            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted">
               {threads.filter((th) => threadMatches(th, q.trim().toLowerCase())).length}/{threads.length}
             </span>
           )}
@@ -186,7 +186,7 @@ export function Inbox() {
                       setPrefill({ channel: th.channel_kind!, to: th.channel_id! });
                       setShowSend(true);
                     }}
-                    className="text-[11px] text-accent/80 transition-colors hover:text-accent"
+                    className="text-xs text-accent/80 transition-colors hover:text-accent"
                     title="Reply on this channel"
                   >
                     reply
@@ -198,13 +198,13 @@ export function Inbox() {
                       focusRun(th.correlation_id);
                       location.hash = "runs";
                     }}
-                    className="inline-flex items-center gap-1 text-[11px] text-muted transition-colors hover:text-accent"
+                    className="inline-flex items-center gap-1 text-xs text-muted transition-colors hover:text-accent"
                     title="Open the governed run created for this channel message"
                   >
                     <ListTree className="size-3" /> run
                   </button>
                 )}
-                <span className="ml-auto text-[10px] tabular-nums text-muted">
+                <span className="ml-auto text-xs tabular-nums text-muted">
                   {th.last_ts_unix_ms ? fmtTime(th.last_ts_unix_ms) : ""}
                 </span>
               </div>
@@ -222,7 +222,7 @@ export function Inbox() {
                           out ? "bg-accent/10 text-foreground" : "bg-panel text-foreground/90",
                         )}
                       >
-                        {m.sender && !out && <div className="text-[10px] font-semibold text-muted">{m.sender}</div>}
+                        {m.sender && !out && <div className="text-xs font-semibold text-muted">{m.sender}</div>}
                         <div className="whitespace-pre-wrap break-words">{m.text}</div>
                       </div>
                     </li>
@@ -283,7 +283,7 @@ export function SendMessageForm({
   return (
     <div className="rounded-lg border border-accent/30 bg-card p-3">
       <div className="flex flex-wrap items-center gap-2">
-        <label className="flex flex-col gap-1 text-[11px] text-muted">
+        <label className="flex flex-col gap-1 text-xs text-muted">
           Channel
           <input
             value={channel}
@@ -298,7 +298,7 @@ export function SendMessageForm({
             ))}
           </datalist>
         </label>
-        <label className="flex min-w-0 flex-1 flex-col gap-1 text-[11px] text-muted">
+        <label className="flex min-w-0 flex-1 flex-col gap-1 text-xs text-muted">
           To (recipient / chat id)
           <input
             value={to}
@@ -317,7 +317,7 @@ export function SendMessageForm({
         className="mt-2 h-20 w-full resize-y rounded-md border border-border bg-panel p-2 text-sm outline-none placeholder:text-muted/60 focus-visible:border-accent"
       />
       <div className="mt-2 flex items-center justify-between">
-        <span className="text-[10px] text-muted">Sends via a configured channel; the daemon refuses if that channel isn’t set up.</span>
+        <span className="text-xs text-muted">Sends via a configured channel; the daemon refuses if that channel isn’t set up.</span>
         <Button size="sm" onClick={send} disabled={!valid || sending}>
           {sending ? <RefreshCw className="size-3.5 animate-spin" /> : <Plus className="size-3.5" />} Send
         </Button>

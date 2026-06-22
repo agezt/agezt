@@ -383,7 +383,7 @@ export function Agents() {
             <aside className="glass min-h-0 overflow-auto rounded-xl p-3 lg:w-96 lg:shrink-0">
               <div className="mb-2 flex items-start gap-2">
                 <div className="min-w-0 flex-1">
-                  <div className="text-[10px] font-semibold uppercase tracking-wider text-muted">
+                  <div className="text-xs font-semibold uppercase tracking-wider text-muted">
                     {pickedNode.root ? "lead" : `sub-agent · L${pickedNode.depth}`}
                   </div>
                   <div className="truncate text-xs font-medium" title={pickedNode.intent || pickedNode.id}>
@@ -436,7 +436,7 @@ export function Agents() {
                   )}
                 >
                   {f}
-                  <span className="rounded-full bg-card px-1.5 text-[10px] tabular-nums">{n}</span>
+                  <span className="rounded-full bg-card px-1.5 text-xs tabular-nums">{n}</span>
                 </button>
               );
             })}
@@ -524,7 +524,7 @@ export function Agents() {
             >
               <f.icon className="size-3" />
               {f.label}
-              <span className="rounded-full bg-card px-1.5 text-[10px] tabular-nums">{n}</span>
+              <span className="rounded-full bg-card px-1.5 text-xs tabular-nums">{n}</span>
             </button>
           );
         })}
@@ -612,14 +612,14 @@ function RunCard({ r, onOpen }: { r: RootSummary; onOpen: () => void }) {
         <span
           className={cn("size-2 shrink-0 rounded-full", KIND_DOT[r.kind], r.kind === "running" && "animate-pulse")}
         />
-        <span className="text-[10px] font-semibold uppercase tracking-wider text-muted">{r.status || "run"}</span>
+        <span className="text-xs font-semibold uppercase tracking-wider text-muted">{r.status || "run"}</span>
         {r.agentName && (
-          <span className="inline-flex items-center gap-1 rounded-full bg-panel py-0.5 pl-0.5 pr-1.5 text-[10px] text-accent">
+          <span className="inline-flex items-center gap-1 rounded-full bg-panel py-0.5 pl-0.5 pr-1.5 text-xs text-accent">
             <AgentAvatar slug={r.agentName} size={14} status={r.kind === "running" ? "running" : undefined} /> {r.agentName}
           </span>
         )}
         {r.startedMs ? (
-          <span className="ml-auto inline-flex items-center gap-1 text-[10px] text-muted">
+          <span className="ml-auto inline-flex items-center gap-1 text-xs text-muted">
             <Clock className="size-2.5" /> {fmtTime(r.startedMs)}
           </span>
         ) : null}
@@ -658,7 +658,7 @@ function RunCard({ r, onOpen }: { r: RootSummary; onOpen: () => void }) {
       </div>
 
       {r.model && (
-        <div className="truncate font-mono text-[10px] text-muted" title={r.model}>
+        <div className="truncate font-mono text-xs text-muted" title={r.model}>
           {r.model}
         </div>
       )}
@@ -690,7 +690,7 @@ function BigStat({
 }) {
   return (
     <div className={cn("glass rounded-xl p-2.5 transition-shadow hover:shadow-e3", accent && "glow-accent")}>
-      <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted">
+      <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted">
         <Icon className={cn("size-3", accent && "text-accent")} /> {label}
       </div>
       <div className={cn("mt-0.5 text-2xl font-bold tabular-nums", accent ? "text-gradient" : "text-foreground")}>

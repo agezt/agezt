@@ -70,7 +70,7 @@ export function Config() {
                       summary={
                         <span className="flex w-full items-center gap-2">
                           <span className="text-xs font-semibold uppercase tracking-wider text-accent">{sec}</span>
-                          <span className="ml-auto font-mono text-[10px] text-muted">{keys.length}</span>
+                          <span className="ml-auto font-mono text-xs text-muted">{keys.length}</span>
                         </span>
                       }
                     >
@@ -78,7 +78,7 @@ export function Config() {
                         {keys.map((k) => (
                           <span
                             key={k}
-                            className="rounded border border-border bg-panel px-1.5 py-0.5 font-mono text-[10px] text-foreground/80"
+                            className="rounded border border-border bg-panel px-1.5 py-0.5 font-mono text-xs text-foreground/80"
                             title={k}
                           >
                             {k.replace(/^AGEZT_/, "")}

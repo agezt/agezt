@@ -222,7 +222,7 @@ export function Council() {
             <Button variant="ghost" size="sm" className="h-7 gap-1 px-2 text-xs" onClick={addMember}>
               <Plus className="size-3" /> Add seat
             </Button>
-            <span className="ml-auto text-[10px] text-muted">Tip: leave seat name blank to auto-name as Elder N</span>
+            <span className="ml-auto text-xs text-muted">Tip: leave seat name blank to auto-name as Elder N</span>
           </div>
           <div className="flex items-center gap-2">
             <Button
@@ -245,7 +245,7 @@ export function Council() {
             </Button>
           </div>
           {draftMembers.some((m) => !m.model) && (
-            <p className="text-[10px] text-muted">Each seat must have a model selected.</p>
+            <p className="text-xs text-muted">Each seat must have a model selected.</p>
           )}
         </div>
       )}
@@ -317,7 +317,7 @@ function CouncilLive({ run }: { run: CouncilRun }) {
         )}
         <span className={cn("font-medium", run.done ? "text-foreground" : "text-foreground/90")}>{progressLabel(run)}</span>
         {run.rounds > 0 && (
-          <Badge variant="default" className="ml-auto text-[10px]">
+          <Badge variant="default" className="ml-auto text-xs">
             round {Math.min(round, run.rounds)} / {run.rounds}
           </Badge>
         )}
@@ -362,7 +362,7 @@ function CouncilLive({ run }: { run: CouncilRun }) {
                 <div key={op.seat + i} className="view-enter glass rounded-xl p-3">
                   <div className="mb-1 flex items-center gap-2">
                     <span className="text-xs font-semibold text-foreground/80">{op.seat}</span>
-                    <Badge variant="default" className="font-mono text-[10px]">{op.model}</Badge>
+                    <Badge variant="default" className="font-mono text-xs">{op.model}</Badge>
                   </div>
                   {op.error ? (
                     <span className="text-xs text-bad">error: {op.error}</span>
@@ -411,14 +411,14 @@ function SeatNode({ run, seat, model, hue }: { run: CouncilRun; seat: string; mo
       title={op?.error ? `error: ${op.error}` : model}
     >
       <span
-        className={cn("relative flex size-7 shrink-0 items-center justify-center rounded-full border-2 text-[10px] font-bold", ring)}
+        className={cn("relative flex size-7 shrink-0 items-center justify-center rounded-full border-2 text-xs font-bold", ring)}
         style={{ background: `oklch(0.6 0.14 ${hue} / 0.18)`, color: `oklch(0.7 0.15 ${hue})` }}
       >
         {status === "thinking" ? <Loader2 className="size-3.5 animate-spin" /> : status === "error" ? <X className="size-3.5 text-bad" /> : status === "done" ? <Check className="size-3.5 text-good" /> : initials}
       </span>
       <span className="flex min-w-0 flex-col leading-tight">
         <span className="truncate text-xs font-semibold text-foreground/85">{seat}</span>
-        <span className="truncate font-mono text-[10px] text-muted">{model}</span>
+        <span className="truncate font-mono text-xs text-muted">{model}</span>
       </span>
     </div>
   );

@@ -258,7 +258,7 @@ export function Setup({
                   <span className="font-mono">{p.id}</span>
                   {p.credentialed && <Badge variant="good">keyed</Badge>}
                   {!p.credentialed && !providerKeyEnv(p) && <Badge variant="default">local</Badge>}
-                  <span className="ml-auto text-[10px] text-muted">{p.model_count ?? 0} models</span>
+                  <span className="ml-auto text-xs text-muted">{p.model_count ?? 0} models</span>
                 </button>
               </li>
             ))}
@@ -300,7 +300,7 @@ export function Setup({
                   aria-label={`Use model ${m.id}`}
                 >
                   <span className="font-mono">{m.id}</span>
-                  {m.name && <span className="text-[10px] text-muted">{m.name}</span>}
+                  {m.name && <span className="text-xs text-muted">{m.name}</span>}
                 </button>
               </li>
             ))}
@@ -392,7 +392,7 @@ function Stepper({ step }: { step: Step }) {
           <div key={s.id} className="flex items-center gap-2">
             <span
               className={cn(
-                "flex h-5 w-5 items-center justify-center rounded-full border text-[10px]",
+                "flex h-5 w-5 items-center justify-center rounded-full border text-xs",
                 done && "border-good bg-good/15 text-good",
                 cur && "border-accent text-accent",
                 !done && !cur && "border-border text-muted",

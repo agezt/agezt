@@ -403,14 +403,14 @@ export function Memory() {
               <li key={r.id || i} className="glass rounded-xl p-3">
                 <div className="mb-1 flex items-center gap-2">
                   {r.type && (
-                    <span className="rounded bg-accent/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-accent">
+                    <span className="rounded bg-accent/15 px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wider text-accent">
                       {r.type}
                     </span>
                   )}
                   {scope && (
                     <span
                       title={`Private to “${scope}” — only that agent recalls this note`}
-                      className="flex items-center gap-1 rounded bg-panel px-1.5 py-0.5 text-[10px] font-semibold text-muted"
+                      className="flex items-center gap-1 rounded bg-panel px-1.5 py-0.5 text-xs font-semibold text-muted"
                     >
                       <Lock className="size-3" /> {scope}
                     </span>
@@ -418,7 +418,7 @@ export function Memory() {
                   <span className="truncate text-sm font-semibold">{r.subject || "—"}</span>
                   <div className="ml-auto flex items-center gap-2">
                     {r.confidence != null && (
-                      <span className="text-[10px] tabular-nums text-muted">conf {Math.round((r.confidence || 0) * 100)}%</span>
+                      <span className="text-xs tabular-nums text-muted">conf {Math.round((r.confidence || 0) * 100)}%</span>
                     )}
                     {r.id && scope && (
                       <button
@@ -455,7 +455,7 @@ export function Memory() {
                   </div>
                 </div>
                 <p className="whitespace-pre-wrap break-words text-xs text-foreground/85">{r.content}</p>
-                <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-muted">
+                <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
                   {r.created_ms ? <span>{fmtTime(r.created_ms)}</span> : null}
                   {r.added_by && (
                     <span title={r.updated_by && r.updated_by !== r.added_by ? `last updated by ${r.updated_by}` : "who added this"}>
@@ -681,7 +681,7 @@ export function ReviseFactForm({
         aria-label="Revise memory content"
         className="mt-2 h-20 w-full resize-y rounded-md border border-border bg-panel p-2 text-sm outline-none placeholder:text-muted/60 focus-visible:border-accent"
       />
-      <p className="mt-1 text-[10px] text-muted">
+      <p className="mt-1 text-xs text-muted">
         Revising keeps history: a new record supersedes the old one, which is retained for audit.
       </p>
       <div className="mt-2 flex items-center justify-end">

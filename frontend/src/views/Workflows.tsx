@@ -394,7 +394,7 @@ function WfNodeView({ data, selected }: NodeProps<WfRFNode>) {
       {/* Coloured header band: a tint of the type colour + icon, so the graph
           reads at a glance by colour and shape, not by reading labels. */}
       <div
-        className="flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-semibold tracking-wide uppercase"
+        className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold tracking-wide uppercase"
         style={{ color, backgroundColor: `color-mix(in oklch, ${color} 14%, transparent)` }}
       >
         {Icon && <Icon className="size-3" />}
@@ -402,7 +402,7 @@ function WfNodeView({ data, selected }: NodeProps<WfRFNode>) {
       </div>
       <div className="px-3 pb-3 pt-1.5">
         <div className="truncate text-xs font-semibold">{clip(data.label || data.wfType, 26)}</div>
-        <div className="truncate text-[10px] text-muted">{clip(summarize(data.wfType, data.config), 30)}</div>
+        <div className="truncate text-xs text-muted">{clip(summarize(data.wfType, data.config), 30)}</div>
       {ports.map((p, i) => (
         <Handle
           key={p}
@@ -624,7 +624,7 @@ function NodePanel({
           {meta?.icon && <meta.icon className="size-3.5" style={{ color: meta.color }} />}
           {meta?.label || node.data.wfType}
         </span>
-        <span className="font-mono text-[10px] text-muted">{node.id}</span>
+        <span className="font-mono text-xs text-muted">{node.id}</span>
       </div>
       <label className="flex flex-col gap-1 text-[11px] text-muted">
         Label
@@ -668,7 +668,7 @@ function NodePanel({
       ))}
       {relSpecs.length > 0 && (
         <>
-          <div className="mt-1 text-[10px] font-semibold tracking-wide text-muted uppercase">Reliability</div>
+          <div className="mt-1 text-xs font-semibold tracking-wide text-muted uppercase">Reliability</div>
           {relSpecs.map((f) => (
             <label key={f.key} className="flex flex-col gap-1 text-[11px] text-muted">
               {f.label}
@@ -689,7 +689,7 @@ function NodePanel({
             <Trash2 className="h-3.5 w-3.5" /> Delete
           </Button>
         ) : (
-          <span className="text-[10px] text-muted">the trigger is permanent</span>
+          <span className="text-xs text-muted">the trigger is permanent</span>
         )}
         <Button size="sm" onClick={apply} aria-label="Apply node config">
           Apply
@@ -697,7 +697,7 @@ function NodePanel({
       </div>
       {onTest && node.data.wfType !== "trigger" && (
         <>
-          <div className="mt-1 text-[10px] font-semibold tracking-wide text-muted uppercase">Test this node</div>
+          <div className="mt-1 text-xs font-semibold tracking-wide text-muted uppercase">Test this node</div>
           <label className="flex flex-col gap-1 text-[11px] text-muted">
             Upstream data (JSON, optional) — node ids → their outputs
             <textarea
@@ -741,30 +741,30 @@ function NodePanel({
       {runInfo && (
         <div className="mt-2 space-y-1 rounded-md border border-border bg-panel p-2" aria-label="Last run data">
           <div className="flex items-center gap-2">
-            <span className="text-[10px] font-semibold tracking-wide text-muted uppercase">Last run</span>
+            <span className="text-xs font-semibold tracking-wide text-muted uppercase">Last run</span>
             <Badge variant={runInfo.ok !== false || runInfo.handled ? "good" : "bad"}>
               {runInfo.ok !== false ? "ok" : runInfo.handled ? "rescued" : "failed"}
             </Badge>
-            {runInfo.port && <span className="font-mono text-[10px] text-muted">port {runInfo.port}</span>}
+            {runInfo.port && <span className="font-mono text-xs text-muted">port {runInfo.port}</span>}
             {(runInfo.attempts ?? 1) > 1 && (
-              <span className="text-[10px] text-warn">{runInfo.attempts} attempts</span>
+              <span className="text-xs text-warn">{runInfo.attempts} attempts</span>
             )}
           </div>
           {runInfo.input && (
             <div>
-              <div className="text-[10px] text-muted">input</div>
-              <pre className="max-h-24 overflow-auto rounded bg-card p-1 text-[10px] whitespace-pre-wrap">{runInfo.input}</pre>
+              <div className="text-xs text-muted">input</div>
+              <pre className="max-h-24 overflow-auto rounded bg-card p-1 text-xs whitespace-pre-wrap">{runInfo.input}</pre>
             </div>
           )}
           {runInfo.output && (
             <div>
-              <div className="text-[10px] text-muted">
+              <div className="text-xs text-muted">
                 output{runInfo.output_truncated ? " (truncated)" : ""}
               </div>
-              <pre className="max-h-32 overflow-auto rounded bg-card p-1 text-[10px] whitespace-pre-wrap">{runInfo.output}</pre>
+              <pre className="max-h-32 overflow-auto rounded bg-card p-1 text-xs whitespace-pre-wrap">{runInfo.output}</pre>
             </div>
           )}
-          {runInfo.error && <div className="text-[10px] text-bad">{runInfo.error}</div>}
+          {runInfo.error && <div className="text-xs text-bad">{runInfo.error}</div>}
         </div>
       )}
     </div>
@@ -961,7 +961,7 @@ export function RunsDrawer({
   return (
     <div className="glass rounded-xl p-2">
       <div className="mb-1 flex items-center gap-2">
-        <span className="text-[10px] font-semibold tracking-wide text-muted uppercase">Run history</span>
+        <span className="text-xs font-semibold tracking-wide text-muted uppercase">Run history</span>
         <Button size="sm" variant="ghost" onClick={load} aria-label="Refresh runs">
           <RefreshCw className="h-3 w-3" />
         </Button>
@@ -990,11 +990,11 @@ export function RunsDrawer({
                 <span>
                   {(r.node_events || []).length} node(s){dur}
                 </span>
-                <span className="rounded bg-panel px-1.5 py-0.5 font-mono text-[10px] text-muted" title={`runner: ${source}`}>
+                <span className="rounded bg-panel px-1.5 py-0.5 font-mono text-xs text-muted" title={`runner: ${source}`}>
                   {source}
                 </span>
                 {r.error && <span className="truncate text-bad">{clip(r.error, 40)}</span>}
-                <span className="ml-auto font-mono text-[10px] text-muted">{clip(r.correlation_id, 18)}</span>
+                <span className="ml-auto font-mono text-xs text-muted">{clip(r.correlation_id, 18)}</span>
               </button>
             </li>
           );
@@ -1285,7 +1285,7 @@ export function Workflows() {
         )}
         <div className="flex min-h-0 flex-1 rounded-lg border border-border">
           <div className="flex w-36 shrink-0 flex-col gap-1 overflow-y-auto border-r border-border bg-card p-2">
-            <div className="mb-1 text-[10px] font-semibold tracking-wide text-muted uppercase">Nodes</div>
+            <div className="mb-1 text-xs font-semibold tracking-wide text-muted uppercase">Nodes</div>
             {Object.entries(NODE_META)
               .filter(([t]) => t !== "trigger")
               .map(([t, m]) => {

@@ -203,7 +203,7 @@ function RolePicker({
         activeModel={auto || undefined}
         triggerClassName="h-9 w-full max-w-none rounded-lg px-3 text-sm"
       />
-      <span className="text-[10px] text-muted">{value ? "overridden" : `Auto: ${auto || "a keyed provider"}`}</span>
+      <span className="text-xs text-muted">{value ? "overridden" : `Auto: ${auto || "a keyed provider"}`}</span>
     </div>
   );
 }

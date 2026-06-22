@@ -312,7 +312,7 @@ export function Files() {
                   title={e.caption || e.name || e.id}
                 >
                   <BlobArtifact entry={e} kind="image" alt={e.caption || e.name || "image"} className="size-full object-cover" />
-                  <span className="absolute inset-x-0 bottom-0 truncate bg-black/55 px-1.5 py-0.5 text-left text-[10px] text-white/90">
+                  <span className="absolute inset-x-0 bottom-0 truncate bg-black/55 px-1.5 py-0.5 text-left text-xs text-white/90">
                     {e.source || "file"} · {fmtTime(e.created_ms)}
                   </span>
                 </button>

@@ -169,7 +169,7 @@ export function Analyst() {
             </div>
           )}
           {turn.status === "done" && (
-            <div className="mt-3 border-t border-border/60 pt-2 text-[10px] text-muted">
+            <div className="mt-3 border-t border-border/60 pt-2 text-xs text-muted">
               {turn.model} · {turn.iters} iter{turn.iters === 1 ? "" : "s"} · {money(turn.costMicrocents)}
             </div>
           )}

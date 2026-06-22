@@ -217,11 +217,11 @@ export function Autonomy() {
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-medium">{it.title}</span>
-                      <span className="rounded bg-panel px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-muted">
+                      <span className="rounded bg-panel px-1.5 py-0.5 text-xs uppercase tracking-wider text-muted">
                         {it.category}
                       </span>
                       {it.category === "doctor" && <IncidentBadges item={it} />}
-                      <span className="ml-auto font-mono text-[10px] text-muted opacity-70">
+                      <span className="ml-auto font-mono text-xs text-muted opacity-70">
                         {fmtTime(it.ts_unix_ms)}
                       </span>
                     </div>
@@ -490,7 +490,7 @@ export function PulseControl() {
         <span className="text-sm font-semibold">Proactive heartbeat</span>
         <span
           className={cn(
-            "rounded-full px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider",
+            "rounded-full px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wider",
             paused ? "bg-panel text-muted" : "bg-good/15 text-good",
           )}
         >

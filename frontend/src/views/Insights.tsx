@@ -128,7 +128,7 @@ export function Insights() {
                     {r.status || "—"}
                   </span>
                   <span className="min-w-0 flex-1 truncate" title={r.intent || r.correlation_id}>{r.intent || r.correlation_id}</span>
-                  {r.model && <span className="shrink-0 truncate font-mono text-[10px] text-muted" title={r.model}>{r.model}</span>}
+                  {r.model && <span className="shrink-0 truncate font-mono text-xs text-muted" title={r.model}>{r.model}</span>}
                   <span className="shrink-0 tabular-nums text-muted">{money(r.spent_mc ?? 0)}</span>
                 </li>
               ))}

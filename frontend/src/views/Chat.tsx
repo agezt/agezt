@@ -691,15 +691,15 @@ function QueuePanel({
         <ListPlus className="size-3.5" />
         <span className="font-medium text-foreground/80">Queue</span>
         <span className="rounded-full bg-card px-1.5 tabular-nums">{queue.length}</span>
-        <span className="text-[10px]">{busy ? "next sends when this run finishes" : "idle — send the next now"}</span>
-        <button onClick={onClear} className="ml-auto inline-flex items-center gap-1 text-[10px] hover:text-bad" title="Clear the whole queue">
+        <span className="text-xs">{busy ? "next sends when this run finishes" : "idle — send the next now"}</span>
+        <button onClick={onClear} className="ml-auto inline-flex items-center gap-1 text-xs hover:text-bad" title="Clear the whole queue">
           <Trash2 className="size-3" /> Clear
         </button>
       </div>
       <ol className="space-y-1">
         {queue.map((m, i) => (
           <li key={m.id} className="flex items-center gap-1.5 rounded-md border border-border bg-card px-2 py-1 text-xs">
-            <span className="w-4 shrink-0 text-center font-mono text-[10px] text-muted">{i + 1}</span>
+            <span className="w-4 shrink-0 text-center font-mono text-xs text-muted">{i + 1}</span>
             <span className="min-w-0 flex-1 truncate" title={m.text}>{m.text}</span>
             {!busy && i === 0 && (
               <button onClick={onSendNow} className="shrink-0 text-accent hover:underline" title="Send this now">
@@ -1337,7 +1337,7 @@ export function ContextModal({
     ...Object.keys(byRole).filter((r) => !ROLE_ORDER.includes(r) && byRole[r] > 0),
   ];
   const totalChars = roles.reduce((a, r) => a + byRole[r], 0) || c.chars;
-  const section = "px-3 pt-2.5 pb-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted";
+  const section = "px-3 pt-2.5 pb-0.5 text-xs font-semibold uppercase tracking-wider text-muted";
 
   return (
     <div
@@ -1479,7 +1479,7 @@ export function ContextModal({
             )}
           </div>
 
-          <p className="px-3 pt-3 text-[10px] leading-snug text-muted/70">
+          <p className="px-3 pt-3 text-xs leading-snug text-muted/70">
             Composition is measured in characters (≈{CHARS_PER_TOKEN} chars/token estimate) and covers the system
             prompt + messages — tool definitions add to the billed input on top. Token totals are provider-reported;
             the gauge uses the last call's real prompt tokens when available.
@@ -1622,13 +1622,13 @@ function LearnedChips({ corr }: { corr: string }) {
 
   return (
     <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-      <span className="inline-flex items-center gap-1 text-[10px] text-muted">
+      <span className="inline-flex items-center gap-1 text-xs text-muted">
         <Brain className="size-3 text-accent" /> learned
       </span>
       {items.map((m) => (
         <span
           key={m.id}
-          className="inline-flex items-center gap-1 rounded-full border border-border bg-panel px-2 py-0.5 text-[10px]"
+          className="inline-flex items-center gap-1 rounded-full border border-border bg-panel px-2 py-0.5 text-xs"
           title={`${m.action} · ${m.type}`}
         >
           <span className="font-semibold uppercase tracking-wider text-accent">{m.type}</span>
@@ -1683,13 +1683,13 @@ function ToolChip({ c }: { c: ChatTool }) {
         <div className="border-t border-border">
           {c.input && (
             <div>
-              <div className="px-2.5 pt-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted">Arguments</div>
+              <div className="px-2.5 pt-1.5 text-xs font-semibold uppercase tracking-wider text-muted">Arguments</div>
               <ToolOutput text={c.input} />
             </div>
           )}
           {c.output && (
             <div>
-              <div className="px-2.5 pt-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted">
+              <div className="px-2.5 pt-1.5 text-xs font-semibold uppercase tracking-wider text-muted">
                 {c.error ? "Error" : "Result"}
               </div>
               <ToolOutput text={c.output} />

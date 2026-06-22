@@ -191,7 +191,7 @@ export function Status() {
                       <span className="font-mono">{s.addr}</span>
                       <span className="text-muted">{s.name}</span>
                       {s.loopback && (
-                        <span className="ml-auto rounded-full bg-good/15 px-1.5 py-0.5 text-[10px] text-good">loopback</span>
+                        <span className="ml-auto rounded-full bg-good/15 px-1.5 py-0.5 text-xs text-good">loopback</span>
                       )}
                     </li>
                   ))}
@@ -229,7 +229,7 @@ function Vital({ icon: Icon, label, value }: { icon: typeof Activity; label: str
     <div className="flex items-center gap-2">
       <Icon className="size-4 text-muted" />
       <div>
-        <div className="text-[10px] uppercase tracking-wider text-muted">{label}</div>
+        <div className="text-xs uppercase tracking-wider text-muted">{label}</div>
         <div className="text-sm font-medium tabular-nums">{value}</div>
       </div>
     </div>

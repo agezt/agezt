@@ -215,7 +215,7 @@ export function Dashboard() {
                     />
                   )}
                   {a.detail && <span className="min-w-0 flex-1 truncate text-muted">{a.detail}</span>}
-                  <span className="ml-auto shrink-0 font-mono text-[10px] text-muted">{a.source}</span>
+                  <span className="ml-auto shrink-0 font-mono text-xs text-muted">{a.source}</span>
                   {incidentRootId(a) && (
                     <button
                       onClick={() => openIncident(incidentRootId(a))}
@@ -605,7 +605,7 @@ function MiniOp({
   const color = { accent: "text-accent", warn: "text-warn", bad: "text-bad", muted: "text-foreground" }[tone];
   return (
     <div className="rounded-md border border-border bg-card/55 px-2 py-1.5">
-      <div className="flex items-center gap-1 text-[10px] uppercase tracking-wider text-muted">
+      <div className="flex items-center gap-1 text-xs uppercase tracking-wider text-muted">
         <Icon className={cn("size-3", pulse && "animate-pulse")} /> {label}
       </div>
       <div className={cn("mt-0.5 text-lg font-semibold tabular-nums", color)}>{value}</div>

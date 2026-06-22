@@ -220,7 +220,7 @@ export function ConfigCenter() {
             <div className="space-y-3">
               {CATEGORY_ORDER.filter((c) => grouped[c]?.length).map((cat) => (
                 <div key={cat}>
-                  <div className="mb-1 px-2 text-[10px] font-semibold uppercase tracking-wider text-muted">{cat}</div>
+                  <div className="mb-1 px-2 text-xs font-semibold uppercase tracking-wider text-muted">{cat}</div>
                   <div className="space-y-0.5">
                     {grouped[cat].map((sec) => {
                       const Icon = iconFor(sec);
@@ -340,7 +340,7 @@ function AgentRuntimeConfigPanel({ toast }: { toast: (text: string, kind?: "succ
           </p>
         </div>
         {entries && (
-          <div className="flex flex-wrap gap-1.5 text-[10px] font-medium uppercase tracking-wider text-muted">
+          <div className="flex flex-wrap gap-1.5 text-xs font-medium uppercase tracking-wider text-muted">
             <span className="rounded bg-panel px-1.5 py-0.5">{summary.total} total</span>
             <span className="rounded bg-panel px-1.5 py-0.5">{summary.identityBound} identity-bound</span>
             <span className="rounded bg-panel px-1.5 py-0.5">{summary.shared} shared</span>
@@ -394,7 +394,7 @@ function AgentRuntimeConfigPanel({ toast }: { toast: (text: string, kind?: "succ
                 <div className="truncate font-mono text-muted" title={entry.rating === "secret" ? undefined : entry.value}>
                   {entry.rating === "secret" ? "********" : entry.value || "—"}
                 </div>
-                <span className={cn("w-fit rounded px-1.5 py-0.5 text-[10px] uppercase", ratingClass(entry.rating || "internal"))}>{entry.rating || "internal"}</span>
+                <span className={cn("w-fit rounded px-1.5 py-0.5 text-xs uppercase", ratingClass(entry.rating || "internal"))}>{entry.rating || "internal"}</span>
                 <div className="min-w-0 text-[11px] text-muted">
                   {entry.allowed_agents?.length ? <div className="truncate">allow: {entry.allowed_agents.join(", ")}</div> : null}
                   {entry.excluded_agents?.length ? <div className="truncate">deny: {entry.excluded_agents.join(", ")}</div> : null}
@@ -492,7 +492,7 @@ function SectionCard({
                 <Puzzle className="size-2.5" /> registered
               </span>
             )}
-            <span className="ml-auto shrink-0 font-mono text-[10px] text-muted">
+            <span className="ml-auto shrink-0 font-mono text-xs text-muted">
               {setCount}/{section.fields.length}
             </span>
           </span>
@@ -585,8 +585,8 @@ function FieldRow({
             </span>
           )}
         </div>
-        <code className="text-[10px] text-muted">{field.env.replace(/^AGEZT_/, "")}</code>
-        {field.help && <p className="text-[10px] leading-snug text-muted">{field.help}</p>}
+        <code className="text-xs text-muted">{field.env.replace(/^AGEZT_/, "")}</code>
+        {field.help && <p className="text-xs leading-snug text-muted">{field.help}</p>}
       </div>
 
       <div className="flex flex-col gap-1">
@@ -610,7 +610,7 @@ function FieldRow({
         </div>
 
         {field.secret && !managed && (
-          <span className={cn("inline-flex items-center gap-1 text-[10px]", isSet ? "text-good" : "text-muted")}>
+          <span className={cn("inline-flex items-center gap-1 text-xs", isSet ? "text-good" : "text-muted")}>
             {isSet ? (
               <>
                 <Check className="size-2.5" /> set — type a new value to replace

@@ -302,7 +302,7 @@ function ChainRow({
       <div className="mb-2 flex items-baseline gap-2">
         <h3 className="font-mono text-sm font-semibold text-foreground">{task}</h3>
         <span className="text-[11px] text-muted">{TASK_HELP[task] || "Custom task type."}</span>
-        {models.length === 0 && <span className="ml-auto text-[10px] uppercase tracking-wide text-muted">daemon default</span>}
+        {models.length === 0 && <span className="ml-auto text-xs uppercase tracking-wide text-muted">daemon default</span>}
       </div>
 
       {models.length > 0 && (

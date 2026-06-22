@@ -132,7 +132,7 @@ export function Toolbox() {
           {inv.managers.length > 0 && (
             <span className="flex flex-wrap items-center gap-1">
               {inv.managers.map((m) => (
-                <Badge key={m} variant="default" className="font-mono text-[10px]">{m}</Badge>
+                <Badge key={m} variant="default" className="font-mono text-xs">{m}</Badge>
               ))}
             </span>
           )}
@@ -228,9 +228,9 @@ export function Toolbox() {
             <TerminalSquare className="size-3.5 text-accent" />
             <span className="text-[11px] font-semibold">Install output</span>
             {running ? (
-              <span className="inline-flex items-center gap-1 text-[10px] text-accent"><Loader2 className="size-3 animate-spin" /> running…</span>
+              <span className="inline-flex items-center gap-1 text-xs text-accent"><Loader2 className="size-3 animate-spin" /> running…</span>
             ) : (
-              <span className="text-[10px] text-muted">done</span>
+              <span className="text-xs text-muted">done</span>
             )}
             <span className="ml-auto flex items-center gap-1">
               {running && abort.current && (
@@ -253,10 +253,10 @@ export function Toolbox() {
                     {p.ok ? <CheckCircle2 className="size-3.5 text-good" /> : p.skipped ? <MinusCircle className="size-3.5 text-muted" /> : <XCircle className="size-3.5 text-bad" />}
                     <span className="font-mono font-medium">{p.tool}</span>
                     {p.version && <span className="text-muted">{p.version}</span>}
-                    {p.manager && <span className="ml-auto font-mono text-[10px] text-muted">{p.manager}</span>}
+                    {p.manager && <span className="ml-auto font-mono text-xs text-muted">{p.manager}</span>}
                   </div>
                   {(p.error || p.command) && (
-                    <div className="ml-5 font-mono text-[10px] text-muted">{p.error ? `✗ ${p.error}` : p.command}</div>
+                    <div className="ml-5 font-mono text-xs text-muted">{p.error ? `✗ ${p.error}` : p.command}</div>
                   )}
                 </li>
               ))}
@@ -278,17 +278,17 @@ function ToolCard({ t, outdated, running, onInstall }: { t: ToolStatus; outdated
         ) : (
           <Badge variant="default" className="text-muted">missing</Badge>
         )}
-        <span className="ml-auto text-[10px] text-muted">{CATEGORY_LABELS[t.category as ToolCategory] || t.category}</span>
+        <span className="ml-auto text-xs text-muted">{CATEGORY_LABELS[t.category as ToolCategory] || t.category}</span>
       </div>
       {t.description && <div className="line-clamp-2 text-[11px] text-muted">{t.description}</div>}
-      {t.installed && t.version && <div className="truncate font-mono text-[10px] text-foreground/70" title={t.path}>{t.version}</div>}
-      {!t.installed && t.command && <div className="truncate font-mono text-[10px] text-muted" title={t.command}>$ {t.command}</div>}
+      {t.installed && t.version && <div className="truncate font-mono text-xs text-foreground/70" title={t.path}>{t.version}</div>}
+      {!t.installed && t.command && <div className="truncate font-mono text-xs text-muted" title={t.command}>$ {t.command}</div>}
       <div className="mt-auto flex items-center gap-2 pt-1">
         {!t.installed && t.installable && (
           <Button size="sm" disabled={running} onClick={onInstall}><Download className="size-3.5" /> Install</Button>
         )}
         {!t.installed && !t.installable && (
-          <span className="text-[10px] text-muted">no install recipe for this host</span>
+          <span className="text-xs text-muted">no install recipe for this host</span>
         )}
         {t.installed && outdated && (
           <Button size="sm" variant="ghost" disabled={running} onClick={onInstall}><ArrowUpCircle className="size-3.5" /> Update</Button>
@@ -306,7 +306,7 @@ function FilterChip({ active, onClick, label, count }: { active: boolean; onClic
         active ? "border-accent bg-accent/10 text-accent" : "border-border text-muted hover:border-accent",
       )}>
       {label}
-      <span className="rounded-full bg-card px-1.5 text-[10px] tabular-nums">{count}</span>
+      <span className="rounded-full bg-card px-1.5 text-xs tabular-nums">{count}</span>
     </button>
   );
 }
@@ -314,7 +314,7 @@ function FilterChip({ active, onClick, label, count }: { active: boolean; onClic
 function BigStat({ icon: Icon, label, value, accent }: { icon: typeof Boxes; label: string; value: number | string; accent?: boolean }) {
   return (
     <div className={cn("rounded-xl p-2.5", accent ? "border border-accent/50 bg-card" : "glass")}>
-      <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted">
+      <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted">
         <Icon className={cn("size-3", accent && "text-accent")} /> {label}
       </div>
       <div className={cn("mt-0.5 text-lg font-semibold tabular-nums", accent && "text-accent")}>{value}</div>

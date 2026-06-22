@@ -192,7 +192,7 @@ export function Runs() {
               className="h-8 w-full rounded-md border border-border bg-panel pl-7 pr-12 text-xs text-foreground outline-none focus-visible:border-accent"
             />
             {query && (
-              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted">
+              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted">
                 {shown.length}/{runs.length}
               </span>
             )}

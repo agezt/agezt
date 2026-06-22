@@ -588,7 +588,7 @@ export function IncidentPage({
               {treeOps.label}
             </span>
             <span className="text-muted">{treeOps.detail}</span>
-            <span className="ml-auto font-mono text-[10px] text-muted opacity-70">
+            <span className="ml-auto font-mono text-xs text-muted opacity-70">
               {rootId}
             </span>
           </div>
@@ -615,7 +615,7 @@ export function IncidentPage({
                   <li key={row.id} className="rounded-lg border border-border bg-panel/40 px-2.5 py-2">
                     <div className="flex items-center gap-2 text-xs">
                       <span className="font-medium">{row.title}</span>
-                      <span className="ml-auto font-mono text-[10px] text-muted opacity-70">
+                      <span className="ml-auto font-mono text-xs text-muted opacity-70">
                         {fmtTime(row.tsMs)}
                       </span>
                     </div>
@@ -641,7 +641,7 @@ export function IncidentPage({
                       <div className="flex flex-wrap items-center gap-1.5">
                         <IncidentBadges item={row} mono />
                       </div>
-                      <span className="ml-auto font-mono text-[10px] text-muted opacity-70">
+                      <span className="ml-auto font-mono text-xs text-muted opacity-70">
                         {fmtTime(row.tsMs)}
                       </span>
                     </div>
@@ -750,7 +750,7 @@ export function IncidentPage({
                         {ops.allowedResolutions.map((row) => (
                           <span
                             key={row}
-                            className="rounded-full border border-amber-400/25 bg-amber-400/10 px-2 py-0.5 font-mono text-[10px] text-amber-100/90"
+                            className="rounded-full border border-amber-400/25 bg-amber-400/10 px-2 py-0.5 font-mono text-xs text-amber-100/90"
                           >
                             {row}
                           </span>
@@ -922,7 +922,7 @@ export function IncidentPage({
                               key={row.slug}
                               type="button"
                               onClick={() => setDelegateTo(row.slug)}
-                              className="rounded-full border border-amber-400/20 bg-amber-400/10 px-2 py-0.5 text-[10px] text-amber-100/90 transition-colors hover:border-amber-300/35 hover:bg-amber-400/15"
+                              className="rounded-full border border-amber-400/20 bg-amber-400/10 px-2 py-0.5 text-xs text-amber-100/90 transition-colors hover:border-amber-300/35 hover:bg-amber-400/15"
                               title={row.name && row.name !== row.slug ? row.name : row.slug}
                             >
                               {row.slug}
@@ -972,23 +972,23 @@ export function IncidentPage({
                             selectedDelegateEscalationSummary.ackedCount > 0) && (
                             <div className="flex flex-wrap gap-1.5">
                               {selectedDelegateStatus.healthText && (
-                                <span className="rounded-full border border-border/70 bg-panel/50 px-2 py-0.5 text-[10px] text-amber-50/90">
+                                <span className="rounded-full border border-border/70 bg-panel/50 px-2 py-0.5 text-xs text-amber-50/90">
                                   {selectedDelegateStatus.healthText}
                                 </span>
                               )}
                               {selectedDelegateStatus.repairKindText && (
-                                <span className="rounded-full border border-border/70 bg-panel/50 px-2 py-0.5 text-[10px] text-amber-50/90">
+                                <span className="rounded-full border border-border/70 bg-panel/50 px-2 py-0.5 text-xs text-amber-50/90">
                                   {selectedDelegateStatus.repairKindText}
                                 </span>
                               )}
                               {selectedDelegateStatus.repairText && (
-                                <span className="rounded-full border border-border/70 bg-panel/50 px-2 py-0.5 text-[10px] text-amber-50/90">
+                                <span className="rounded-full border border-border/70 bg-panel/50 px-2 py-0.5 text-xs text-amber-50/90">
                                   {selectedDelegateStatus.repairText}
                                 </span>
                               )}
                               {selectedDelegateStatus.routingText && (
                                 <span
-                                  className="rounded-full border border-border/70 bg-panel/50 px-2 py-0.5 text-[10px] text-amber-50/90"
+                                  className="rounded-full border border-border/70 bg-panel/50 px-2 py-0.5 text-xs text-amber-50/90"
                                   title={selectedDelegateStatus.routingDetail}
                                 >
                                   {selectedDelegateStatus.routingText}
@@ -996,14 +996,14 @@ export function IncidentPage({
                               )}
                               {selectedDelegateEscalationSummary.openCount > 0 && (
                                 <span
-                                  className="rounded-full border border-border/70 bg-panel/50 px-2 py-0.5 text-[10px] text-amber-50/90"
+                                  className="rounded-full border border-border/70 bg-panel/50 px-2 py-0.5 text-xs text-amber-50/90"
                                   title={`${selectedDelegateEscalationSummary.doctorOpenCount} doctor, ${selectedDelegateEscalationSummary.delegatedOpenCount} delegated`}
                                 >
                                   open esc {selectedDelegateEscalationSummary.openCount}
                                 </span>
                               )}
                               {selectedDelegateEscalationSummary.ackedCount > 0 && (
-                                <span className="rounded-full border border-border/70 bg-panel/50 px-2 py-0.5 text-[10px] text-amber-50/90">
+                                <span className="rounded-full border border-border/70 bg-panel/50 px-2 py-0.5 text-xs text-amber-50/90">
                                   acked {selectedDelegateEscalationSummary.ackedCount}
                                 </span>
                               )}
@@ -1061,7 +1061,7 @@ export function IncidentPage({
                                 type="button"
                                 disabled={!preset.preview.valid}
                                 onClick={() => useForcePreset(preset.taskType, preset.chainText, preset.summary)}
-                                className="rounded-full border border-amber-400/20 bg-amber-400/10 px-2 py-0.5 text-[10px] text-amber-100/90 transition-colors hover:border-amber-300/35 hover:bg-amber-400/15 disabled:cursor-not-allowed disabled:opacity-45"
+                                className="rounded-full border border-amber-400/20 bg-amber-400/10 px-2 py-0.5 text-xs text-amber-100/90 transition-colors hover:border-amber-300/35 hover:bg-amber-400/15 disabled:cursor-not-allowed disabled:opacity-45"
                                 title={preset.summary}
                               >
                                 {preset.taskType}: {preset.chainText}
