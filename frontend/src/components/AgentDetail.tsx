@@ -59,7 +59,7 @@ import { ModelChip } from "@/components/ModelChip";
 import { TriggerChip } from "@/components/Fleet";
 import { openAgent } from "@/lib/agentnav";
 import { openIncident } from "@/lib/incidentnav";
-import { agentCommandStrip, agentControlCenterLedger, agentEnableToast, agentHierarchySummary, agentIdentityCardSummary, agentLifecycleDispositionPassport, agentLifecycleSummary, agentLifeSummary, agentLivePresencePassport, agentModelPassportSummary, agentNoiseBudgetPassport, agentRemovalCascadePreset, agentRemoveToast, agentRetireToast, agentReviveToast, agentSchedulePressurePassport, agentSkillPassportSummary, agentTaskContractSummary, agentTaskProgressSummary, guardianQuietPolicyPayload, systemGuardianSafetySummary, type AgentCommandStripItem, type AgentControlCenterEntry, type AgentEnableResult, type AgentProfile, type AgentRemoveResult, type AgentRetireResult, type AgentReviveResult } from "@/views/Roster";
+import { agentCommandStrip, agentControlCenterLedger, agentEnableToast, agentHierarchySummary, agentIdentityCardSummary, agentLifecycleDispositionPassport, agentLifecycleSummary, agentLifeSummary, agentLivePresencePassport, agentModelPassportSummary, agentModelRoutePassport, agentNoiseBudgetPassport, agentRemovalCascadePreset, agentRemoveToast, agentRetireToast, agentReviveToast, agentSchedulePressurePassport, agentSkillPassportSummary, agentTaskContractSummary, agentTaskProgressSummary, guardianQuietPolicyPayload, systemGuardianSafetySummary, type AgentCommandStripItem, type AgentControlCenterEntry, type AgentEnableResult, type AgentProfile, type AgentRemoveResult, type AgentRetireResult, type AgentReviveResult } from "@/views/Roster";
 import {
   scheduleAgentSlug,
   highImpactToolNames,
@@ -359,6 +359,7 @@ export function AgentDetail({
   const [escalations, setEscalations] = useState<AgentEscalation[] | null>(
     null,
   );
+  const [modelPickerOpen, setModelPickerOpen] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -666,6 +667,26 @@ export function AgentDetail({
     }
   }
 
+  async function saveModel(modelId: string) {
+    setBusy(true);
+    try {
+      await postJSON("/api/agents/edit", {
+        ref: slug,
+        profile: editableAgentProfile(profile, {
+          model: modelId,
+        }),
+      });
+      ui.toast(`${slug} model updated`, "success");
+      setModelPickerOpen(false);
+      onChanged?.();
+      setBump((b) => b + 1);
+    } catch (e) {
+      ui.toast((e as Error).message, "error");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function pauseFrequentSchedules(scheduleIds: string[]) {
     const ids = Array.from(new Set(scheduleIds.filter(Boolean)));
     if (ids.length === 0) return;
@@ -750,6 +771,7 @@ export function AgentDetail({
     : runtimeStatus.operationalText || state;
   const taskContract = agentTaskContractSummary(profile);
   const lifecycleDisposition = agentLifecycleDispositionPassport(profile);
+  const modelRoute = agentModelRoutePassport(profile);
   const modelPassport = agentModelPassportSummary(profile);
   const skillPassport = agentDetailSkillPassport(mySkills);
   const noiseBudgetPassport = agentNoiseBudgetPassport(profile);
@@ -840,7 +862,7 @@ export function AgentDetail({
                   {profile.description}
                 </p>
               )}
-              <div className="mt-2 grid gap-2 sm:grid-cols-3">
+              <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
                 <AgentDetailHeroFact
                   icon={ActivityIcon}
                   label="Presence"
@@ -862,6 +884,32 @@ export function AgentDetail({
                   detail={identityCard.detail}
                   tone={identityCard.tone}
                 />
+                <div className="col-span-2 flex items-center gap-2 rounded-lg border border-border/60 bg-panel/25 p-2 sm:col-span-1">
+                  <Cpu className="size-4 shrink-0 text-muted" />
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[10px] font-medium uppercase tracking-wider text-muted">Model &amp; Fallback</div>
+                    <div className={cn(
+                      "truncate text-xs font-medium",
+                      modelRoute.tone === "good" && "text-good",
+                      modelRoute.tone === "warn" && "text-warn",
+                      modelRoute.tone === "muted" && "text-muted",
+                    )}>
+                      {modelRoute.value}
+                    </div>
+                    {modelRoute.detail && (
+                      <div className="truncate text-[10px] text-muted">{modelRoute.detail}</div>
+                    )}
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="shrink-0"
+                    onClick={() => setModelPickerOpen(true)}
+                    title="Edit model and fallback chain"
+                  >
+                    <Wrench className="size-3.5" />
+                  </Button>
+                </div>
               </div>
               <div className="sr-only">{livePresence.value} · {livePresence.detail}</div>
               {wakeIssue && (
@@ -882,6 +930,13 @@ export function AgentDetail({
             </div>
           </div>
         </div>
+
+        {modelPickerOpen && (
+          <ModelPicker
+            value={profile.model || ""}
+            onChange={saveModel}
+          />
+        )}
 
         <div className="flex flex-wrap items-start justify-end gap-1 rounded-xl border border-border bg-panel/25 p-2 lg:max-w-[20rem]">
           <Button
@@ -1014,8 +1069,8 @@ export function AgentDetail({
       {/* Power-user operations + the full identity passport fold away by default —
           the humane summary above is what you see first. */}
       <Disclosure
-        className="rounded-lg border border-border bg-panel/30 px-1.5 py-0.5"
-        summary={<span className="text-[11px] font-medium text-foreground/90">Details — operation &amp; identity passport</span>}
+        className="rounded-lg border border-border/40 bg-panel/20 px-1.5 py-0.5"
+        summary={<span className="text-[10px] font-medium text-muted/70 uppercase tracking-wider">Details — operation &amp; identity passport</span>}
       >
         <div className="flex flex-col gap-3 p-1.5">
           <AgentDetailCommandStrip items={commandStrip} slug={slug} />
@@ -1023,8 +1078,8 @@ export function AgentDetail({
           <AgentControlInterventionCard summary={controlIntervention} onEdit={() => setTab("diag")} />
 
           <div>
-            <div className="mb-1.5 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted">
-              <ShieldCheck className="size-3" /> Identity passport
+            <div className="mb-1.5 flex items-center gap-1.5 text-[9px] font-semibold uppercase tracking-wider text-muted/60">
+              <ShieldCheck className="size-2.5" /> Identity passport
             </div>
         <div className="grid gap-1.5 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-8">
           <PassportCell
@@ -1144,10 +1199,10 @@ export function AgentDetail({
         role="tablist"
         aria-label={`${slug} detail sections`}
       >
-        <div className="mb-1 px-1 text-[9px] font-semibold uppercase tracking-wider text-muted">
+        <div className="mb-2 px-1 text-[9px] font-semibold uppercase tracking-wider text-muted">
           Daily
         </div>
-        <div className="flex flex-wrap gap-1">
+        <div className="flex flex-wrap gap-1.5">
           {PRIMARY_TABS.map((id) => (
             <AgentDetailTabButton
               key={id}
@@ -1166,39 +1221,29 @@ export function AgentDetail({
             />
           ))}
         </div>
-        <Disclosure
-          className="mt-2 rounded-lg border border-border/60 bg-card/40 px-1 py-0.5"
-          summary={<span className="text-[11px] font-medium text-muted">More sections: identity, model, repair, diagnostics, files</span>}
-        >
-          <div className="grid gap-2 p-1.5 md:grid-cols-2">
-            {SECONDARY_TAB_GROUPS.map((group) => (
-              <div key={group.label} className="min-w-0" role="group" aria-label={`${group.label} tabs`}>
-                <div className="mb-1 px-1 text-[9px] font-semibold uppercase tracking-wider text-muted">
-                  {group.label}
-                </div>
-                <div className="flex flex-wrap gap-1">
-                  {group.tabs.map((id) => (
-                    <AgentDetailTabButton
-                      key={id}
-                      id={id}
-                      active={tab === id}
-                      counts={{
-                        memory: myMemory,
-                        skills: mySkills,
-                        orders: myOrders,
-                        schedules: mySchedules,
-                        comms: myComms,
-                        denials: myDenials,
-                        toolErrors: myToolErrors,
-                      }}
-                      onSelect={setTab}
-                    />
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        </Disclosure>
+        <div className="mt-3 mb-2 px-1 text-[9px] font-semibold uppercase tracking-wider text-muted">
+          Identity &amp; Maintenance
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          {SECONDARY_TAB_GROUPS.flatMap((g) => g.tabs).map((id) => (
+            <AgentDetailTabButton
+              key={id}
+              id={id}
+              active={tab === id}
+              counts={{
+                memory: myMemory,
+                skills: mySkills,
+                orders: myOrders,
+                schedules: mySchedules,
+                comms: myComms,
+                denials: myDenials,
+                toolErrors: myToolErrors,
+              }}
+              onSelect={setTab}
+              secondary
+            />
+          ))}
+        </div>
       </div>
 
       <div className="min-h-0 overflow-auto">
@@ -1578,11 +1623,13 @@ function AgentDetailTabButton({
   active,
   counts,
   onSelect,
+  secondary = false,
 }: {
   id: DetailTab;
   active: boolean;
   counts: Parameters<typeof tabCount>[1];
   onSelect: (tab: DetailTab) => void;
+  secondary?: boolean;
 }) {
   const t = TAB_BY_ID.get(id);
   if (!t) return null;
@@ -1593,16 +1640,25 @@ function AgentDetailTabButton({
       aria-current={active ? "page" : undefined}
       onClick={() => onSelect(t.id)}
       className={cn(
-        "flex items-center gap-1 rounded-lg px-2 py-1.5 text-[11px] font-medium transition-colors",
-        active
-          ? "bg-card text-foreground shadow-e1"
-          : "text-muted hover:bg-card/60 hover:text-foreground",
+        "flex items-center gap-1 rounded-lg transition-colors",
+        secondary
+          ? cn(
+              "px-1.5 py-1 text-[10px]",
+              active ? "bg-card/70 text-foreground/80 shadow-sm" : "text-muted/70 hover:bg-card/50 hover:text-foreground/70",
+            )
+          : cn(
+              "px-2 py-1.5 text-[11px] font-medium",
+              active ? "bg-card text-foreground shadow-e1" : "text-muted hover:bg-card/60 hover:text-foreground",
+            ),
       )}
     >
-      <t.icon className="size-3" />
+      <t.icon className={secondary ? "size-2.5" : "size-3"} />
       {t.label}
       {count !== undefined && count > 0 && (
-        <span className="ml-0.5 rounded bg-panel px-1 font-mono text-[9px] text-muted">
+        <span className={cn(
+          "ml-0.5 rounded bg-panel px-1 font-mono",
+          secondary ? "text-[8px] text-muted/60" : "text-[9px] text-muted",
+        )}>
           {count}
         </span>
       )}
@@ -1626,7 +1682,7 @@ function AgentDetailHeroFact({
   return (
     <div
       className={cn(
-        "min-w-0 rounded-lg border border-border/70 bg-card/50 px-2.5 py-2",
+        "min-w-0 rounded-lg border border-border/70 bg-card/50 px-3 py-2.5",
         tone === "good" && "border-good/30 bg-good/5",
         tone === "warn" && "border-warn/40 bg-warn/10",
         tone === "bad" && "border-bad/35 bg-bad/5",
@@ -1634,13 +1690,13 @@ function AgentDetailHeroFact({
       )}
       title={detail || value}
     >
-      <div className="flex min-w-0 items-center gap-1.5 text-[9px] font-semibold uppercase tracking-wider text-muted">
-        <Icon className="size-3 shrink-0" />
+      <div className="flex min-w-0 items-center gap-2 text-[10px] font-semibold uppercase tracking-wider text-muted">
+        <Icon className="size-5 shrink-0" />
         <span className="truncate">{label}</span>
       </div>
       <div
         className={cn(
-          "mt-0.5 truncate text-[11px] font-medium text-foreground/90",
+          "mt-1 truncate text-sm font-medium text-foreground/90",
           tone === "good" && "text-good",
           tone === "warn" && "text-warn",
           tone === "bad" && "text-bad",
@@ -1650,7 +1706,7 @@ function AgentDetailHeroFact({
       >
         {value}
       </div>
-      {detail && <div className="mt-0.5 line-clamp-2 text-[10px] leading-4 text-muted">{detail}</div>}
+      {detail && <div className="mt-0.5 line-clamp-2 text-[11px] leading-4 text-muted">{detail}</div>}
     </div>
   );
 }
@@ -9009,6 +9065,7 @@ function FilesTab({
     </div>
   );
 }
+
 function SkillFiles({ id }: { id: string }) {
   const [files, setFiles] = useState<SkillFile[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
