@@ -188,7 +188,7 @@ function StatePill({ state }: { state: FleetState }) {
           ? "text-muted"
           : "text-foreground/70";
   return (
-    <span className={cn("inline-flex items-center gap-1 text-[10px] uppercase tracking-wider", cls)}>
+    <span className={cn("inline-flex items-center gap-1 text-xs uppercase tracking-wider", cls)}>
       {state === "running" && <span className="size-1.5 animate-pulse rounded-full bg-accent" />}
       {STATE_LABEL[state]}
     </span>
@@ -246,12 +246,12 @@ function WakeStateBand({ e, trigger }: { e: FleetEntity; trigger?: { mode: Trigg
     >
       <Icon className={cn("size-4 shrink-0", state.mode === "running" && "work-pulse")} />
       <div className="min-w-0 flex-1">
-        <div className="truncate text-[11px] font-semibold uppercase tracking-wider">{state.label}</div>
-        <div className="truncate font-mono text-[10px] opacity-80" title={state.detail}>
+        <div className="truncate text-sm font-semibold uppercase tracking-wider">{state.label}</div>
+        <div className="truncate font-mono text-xs opacity-80" title={state.detail}>
           {state.detail}
         </div>
       </div>
-      <span className="shrink-0 rounded-md bg-card/60 px-1.5 py-0.5 text-[9px] uppercase tracking-wider opacity-80">
+      <span className="shrink-0 rounded-md bg-card/60 px-1.5 py-0.5 text-xs uppercase tracking-wider opacity-80">
         {STATE_LABEL[e.state]}
       </span>
     </div>
@@ -264,7 +264,7 @@ export function TriggerChip({ mode, label }: { mode: TriggerMode; label: string 
   return (
     <span
       title={`${mode} · ${label}`}
-      className="inline-flex max-w-full items-center gap-1 rounded-md border border-border bg-panel/50 px-1.5 py-0.5 text-[10px] text-foreground/80"
+      className="inline-flex max-w-full items-center gap-1 rounded-md border border-border bg-panel/50 px-1.5 py-0.5 text-xs text-foreground/80"
     >
       <Icon className="size-2.5 shrink-0 text-muted" />
       <span className="truncate font-mono">{label}</span>
@@ -362,20 +362,20 @@ export function FleetCard({
           </div>
           <div className="mt-1 flex flex-wrap items-center gap-1">
             <span
-              className="inline-flex max-w-full items-center gap-1 rounded-md border border-border bg-card/70 px-1.5 py-0.5 text-[10px] font-medium"
+              className="inline-flex max-w-full items-center gap-1 rounded-md border border-border bg-card/70 px-1.5 py-0.5 text-xs font-medium"
               style={color ? { color } : undefined}
             >
               <Kind className="size-2.5 shrink-0" /> <span className="truncate">{KIND_META[e.kind].label}</span>
             </span>
             {e.system && (
-              <span className="inline-flex items-center gap-0.5 rounded-md bg-accent/15 px-1.5 py-0.5 text-[9px] font-medium text-accent" title="Shipped internal guardian — part of the daemon's self-healing fleet">
+              <span className="inline-flex items-center gap-0.5 rounded-md bg-accent/15 px-1.5 py-0.5 text-xs font-medium text-accent" title="Shipped internal guardian — part of the daemon's self-healing fleet">
                 <ShieldCheck className="size-2.5" /> guardian
               </span>
             )}
             {issues.count > 0 && (
               <span
                 className={cn(
-                  "inline-flex items-center gap-0.5 rounded-md px-1.5 py-0.5 text-[9px] font-medium",
+                  "inline-flex items-center gap-0.5 rounded-md px-1.5 py-0.5 text-xs font-medium",
                   issues.tone === "bad" && "bg-bad/10 text-bad",
                   issues.tone === "warn" && "bg-warn/10 text-warn",
                   issues.tone === "accent" && "bg-accent/10 text-accent",
@@ -408,11 +408,11 @@ export function FleetCard({
         </div>
 
         {e.description ? (
-          <div className="mt-auto line-clamp-2 rounded-lg border border-border bg-panel/30 px-2 py-1.5 text-[11px] text-muted" title={e.description}>
+          <div className="mt-auto line-clamp-2 rounded-lg border border-border bg-panel/30 px-2 py-1.5 text-sm text-muted" title={e.description}>
             {clip(e.description, 140)}
           </div>
         ) : (
-          <div className="mt-auto rounded-lg border border-dashed border-border bg-panel/20 px-2 py-1.5 text-[11px] text-muted">
+          <div className="mt-auto rounded-lg border border-dashed border-border bg-panel/20 px-2 py-1.5 text-sm text-muted">
             no description
           </div>
         )}
@@ -424,7 +424,7 @@ export function FleetCard({
               onClick={wake}
               disabled={acting}
               title={`Wake ${e.name} now`}
-              className="inline-flex flex-1 items-center justify-center gap-1 rounded-md border border-accent/40 bg-accent/10 px-2 py-1 text-[11px] font-medium text-accent transition-colors hover:bg-accent/20 disabled:opacity-50"
+              className="inline-flex flex-1 items-center justify-center gap-1 rounded-md border border-accent/40 bg-accent/10 px-2 py-1 text-sm font-medium text-accent transition-colors hover:bg-accent/20 disabled:opacity-50"
             >
               <Zap className="size-3" /> Wake
             </button>
@@ -433,7 +433,7 @@ export function FleetCard({
               onClick={toggleEnabled}
               disabled={acting}
               title={e.enabled ? "Pause automatic wakes" : "Resume automatic wakes"}
-              className="inline-flex items-center justify-center gap-1 rounded-md border border-border bg-panel/50 px-2 py-1 text-[11px] font-medium text-muted transition-colors hover:text-foreground disabled:opacity-50"
+              className="inline-flex items-center justify-center gap-1 rounded-md border border-border bg-panel/50 px-2 py-1 text-sm font-medium text-muted transition-colors hover:text-foreground disabled:opacity-50"
             >
               {e.enabled ? (
                 <>
@@ -449,7 +449,7 @@ export function FleetCard({
         )}
       </div>
 
-      <div className="flex items-center gap-2 border-t border-border px-3 py-2 text-[10px] text-muted">
+      <div className="flex items-center gap-2 border-t border-border px-3 py-2 text-xs text-muted">
         <span className="truncate font-mono" title={e.slug}>
           {e.slug}
         </span>
@@ -471,8 +471,8 @@ export function FleetCard({
 function FleetInfo({ label, value, mono }: { label: string; value?: string; mono?: boolean }) {
   return (
     <div className="min-w-0 rounded-lg border border-border bg-panel/35 px-2 py-1.5">
-      <div className="text-[9px] font-semibold uppercase tracking-wider text-muted">{label}</div>
-      <div className={cn("truncate text-[11px] text-foreground/85", mono && "font-mono")} title={value || ""}>
+      <div className="text-xs font-semibold uppercase tracking-wider text-muted">{label}</div>
+      <div className={cn("truncate text-sm text-foreground/85", mono && "font-mono")} title={value || ""}>
         {value || "-"}
       </div>
     </div>
@@ -482,7 +482,7 @@ function FleetInfo({ label, value, mono }: { label: string; value?: string; mono
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
   if (value == null || value === "") return null;
   return (
-    <div className="flex gap-2 text-[11px]">
+    <div className="flex gap-2 text-sm">
       <span className="w-24 shrink-0 text-muted">{label}</span>
       <span className="min-w-0 flex-1 break-words">{value}</span>
     </div>
@@ -524,7 +524,7 @@ export function FleetDetail({
           <div className="truncate text-sm font-semibold" title={e.name}>
             {e.name}
           </div>
-          <div className="flex items-center gap-1.5 text-[10px]" style={color ? { color } : undefined}>
+          <div className="flex items-center gap-1.5 text-xs" style={color ? { color } : undefined}>
             <Kind className="size-3" /> {KIND_META[e.kind].label}
             <StatePill state={e.state} />
           </div>
@@ -538,11 +538,11 @@ export function FleetDetail({
         </button>
       </div>
 
-      {e.description && <p className="text-[11px] text-muted">{e.description}</p>}
+      {e.description && <p className="text-sm text-muted">{e.description}</p>}
 
       {/* The hero: how this comes alive. */}
       <div className="rounded-lg border border-accent/40 bg-accent/5 p-2.5">
-        <div className="mb-1.5 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-accent">
+        <div className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-accent">
           <Activity className="size-3" /> How does this run?
         </div>
         <div className="space-y-2">
@@ -552,23 +552,23 @@ export function FleetDetail({
               <div key={`${t.mode}-${i}`} className="flex gap-2">
                 <Icon className="mt-0.5 size-3.5 shrink-0 text-accent" />
                 <div className="min-w-0">
-                  <div className="text-[11px] font-medium">
+                  <div className="text-sm font-medium">
                     {t.mode}
                     {t.label && t.label !== t.mode ? <span className="ml-1 font-mono text-muted">· {t.label}</span> : null}
                     {t.via ? <span className="ml-1 text-muted">via {t.via}</span> : null}
                   </div>
-                  <div className="text-[11px] text-muted">{t.needs}</div>
+                  <div className="text-sm text-muted">{t.needs}</div>
                 </div>
               </div>
             );
           })}
           {e.nextRunMs && (
-            <div className="text-[11px] text-muted">
+            <div className="text-sm text-muted">
               Next fire: <span className="font-mono text-foreground/80">{fmtDateTime(e.nextRunMs)}</span>
             </div>
           )}
           {e.kind === "workflow" && (e.raw as Record<string, unknown>)?.["trigger_kind"] === "webhook" && (
-            <div className="text-[11px] text-muted">
+            <div className="text-sm text-muted">
               Endpoint: <span className="font-mono text-foreground/80">POST /api/workflows/webhook</span> — exact URL &amp; secret
               live in Flow Studio.
             </div>
@@ -668,8 +668,8 @@ export function FleetDetail({
             <Row label="last run" value={e.lastRunMs ? fmtAgo(e.lastRunMs) : "never"} />
             {str("soul") && (
               <div>
-                <div className="mb-1 text-[10px] uppercase tracking-wider text-muted">soul</div>
-                <pre className="max-h-40 overflow-auto whitespace-pre-wrap rounded-md bg-card p-2 font-mono text-[10px] text-foreground/80">
+                <div className="mb-1 text-xs uppercase tracking-wider text-muted">soul</div>
+                <pre className="max-h-40 overflow-auto whitespace-pre-wrap rounded-md bg-card p-2 font-mono text-xs text-foreground/80">
                   {str("soul")}
                 </pre>
               </div>

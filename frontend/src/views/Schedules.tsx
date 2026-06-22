@@ -1317,7 +1317,7 @@ export function Schedules() {
                     )}
                   >
                     {f.label}
-                    <span className="rounded-full bg-card px-1.5 text-[10px] tabular-nums">{f.count}</span>
+                    <span className="rounded-full bg-card px-1.5 text-xs tabular-nums">{f.count}</span>
                   </button>
                 ))}
               </div>
@@ -1325,7 +1325,7 @@ export function Schedules() {
           })()}
           {fires.length > 0 && (
             <div className="mb-3 rounded-lg border border-border/60 bg-panel/40 p-2">
-              <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted">Recent firings</div>
+              <div className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-muted">Recent firings</div>
               <div className="grid gap-1.5 md:grid-cols-2">
                 {fires.map((f, idx) => (
                   <div
@@ -1335,10 +1335,10 @@ export function Schedules() {
                     <Badge variant={statusVariant(f.status || "")}>{f.status || "fired"}</Badge>
                     <div className="min-w-0 flex-1">
                       <div className="truncate font-medium text-foreground/85">{f.action || f.intent || f.schedule_id || f.correlation_id || "Scheduled job"}</div>
-                      <div className="truncate text-[10px] text-muted">
+                      <div className="truncate text-xs text-muted">
                         {f.fired_unix_ms ? fmtDateTime(f.fired_unix_ms) : "time unknown"}
                       </div>
-                      <div className="truncate text-[10px] text-muted/85">
+                      <div className="truncate text-xs text-muted/85">
                         {scheduleFireMeta(f).join(" · ")}
                       </div>
                     </div>
@@ -1379,7 +1379,7 @@ export function Schedules() {
                   </Badge>
                   <span
                     className={cn(
-                      "inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider",
+                      "inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wider",
                       sourceTone(s.source),
                     )}
                     title={`source: ${s.source || "?"}`}
@@ -1387,12 +1387,12 @@ export function Schedules() {
                     {s.source === "agent" && <Bot className="size-3" />}
                     {s.source || "?"}
                   </span>
-                  <span className="inline-flex items-center gap-1 rounded-full bg-panel px-1.5 py-0.5 text-[10px] font-semibold text-foreground/75" title={`job target: ${targetLabel}`}>
+                  <span className="inline-flex items-center gap-1 rounded-full bg-panel px-1.5 py-0.5 text-xs font-semibold text-foreground/75" title={`job target: ${targetLabel}`}>
                     {targetLabel}
                   </span>
                   {s.mode === "continuous" && s.enabled !== false && (
                     <span
-                      className="inline-flex items-center gap-1 rounded-full bg-bad/10 px-1.5 py-0.5 text-[10px] font-semibold text-bad"
+                      className="inline-flex items-center gap-1 rounded-full bg-bad/10 px-1.5 py-0.5 text-xs font-semibold text-bad"
                       title={`alive — ${s.fires ?? 0} cycle${s.fires === 1 ? "" : "s"} completed`}
                     >
                       <Heart className="size-3 animate-pulse fill-current" />
@@ -1401,17 +1401,17 @@ export function Schedules() {
                   )}
                   {(s.assure ?? 0) > 0 && (
                     <span
-                      className="inline-flex items-center gap-1 rounded-full bg-good/10 px-1.5 py-0.5 text-[10px] font-semibold text-good"
+                      className="inline-flex items-center gap-1 rounded-full bg-good/10 px-1.5 py-0.5 text-xs font-semibold text-good"
                       title={`do-it-for-sure: each firing verifies completion and retries up to ${s.assure}×`}
                     >
                       <ShieldCheck className="size-3" />
                       assured {s.assure}×
                     </span>
                   )}
-                  {s.enabled === false && <span className="text-[10px] text-muted">(paused)</span>}
+                  {s.enabled === false && <span className="text-xs text-muted">(paused)</span>}
                   {s.agent && (
                     <span className="inline-flex items-center gap-1.5">
-                      <span className="inline-flex items-center gap-1 rounded-full bg-accent/10 px-1.5 py-0.5 text-[10px] font-semibold text-accent" title={`runs as ${s.agent}`}>
+                      <span className="inline-flex items-center gap-1 rounded-full bg-accent/10 px-1.5 py-0.5 text-xs font-semibold text-accent" title={`runs as ${s.agent}`}>
                         <Bot className="size-3" />
                         {agentLabel(profiles, s.agent)}
                       </span>
@@ -1419,14 +1419,14 @@ export function Schedules() {
                     </span>
                   )}
                   {s.target === "workflow" && s.workflow && (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-good/10 px-1.5 py-0.5 text-[10px] font-semibold text-good" title={`runs workflow ${s.workflow}`}>
+                    <span className="inline-flex items-center gap-1 rounded-full bg-good/10 px-1.5 py-0.5 text-xs font-semibold text-good" title={`runs workflow ${s.workflow}`}>
                       <GitFork className="size-3" />
                       {s.workflow}
                     </span>
                   )}
                   {s.target === "system_task" && s.system_task && (
                     <span
-                      className="inline-flex items-center gap-1 rounded-full bg-panel px-1.5 py-0.5 text-[10px] font-semibold text-muted"
+                      className="inline-flex items-center gap-1 rounded-full bg-panel px-1.5 py-0.5 text-xs font-semibold text-muted"
                       title={`runs system task ${s.system_task} · ${systemTaskExecutionLabel(systemTaskInfo.find((task) => task.name === s.system_task))}`}
                     >
                       <RefreshCw className="size-3" />
@@ -1434,20 +1434,20 @@ export function Schedules() {
                     </span>
                   )}
                   {s.target === "tool" && s.tool && (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-warn/10 px-1.5 py-0.5 text-[10px] font-semibold text-warn" title={`runs tool ${s.tool}`}>
+                    <span className="inline-flex items-center gap-1 rounded-full bg-warn/10 px-1.5 py-0.5 text-xs font-semibold text-warn" title={`runs tool ${s.tool}`}>
                       <Wrench className="size-3" />
                       {s.tool}
                     </span>
                   )}
                   {s.model && (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-panel px-1.5 py-0.5 font-mono text-[10px] font-semibold text-muted" title={`model override: ${s.model}`}>
+                    <span className="inline-flex items-center gap-1 rounded-full bg-panel px-1.5 py-0.5 font-mono text-xs font-semibold text-muted" title={`model override: ${s.model}`}>
                       model {s.model}
                     </span>
                   )}
                   {s.last_status && <Badge variant={statusVariant(s.last_status)}>{s.last_status}</Badge>}
                   {frequencyIssue && (
                     <span
-                      className="inline-flex items-center gap-1 rounded-full bg-warn/10 px-1.5 py-0.5 text-[10px] font-semibold text-warn"
+                      className="inline-flex items-center gap-1 rounded-full bg-warn/10 px-1.5 py-0.5 text-xs font-semibold text-warn"
                       title={frequencyIssue}
                     >
                       <AlertTriangle className="size-3" />
@@ -1456,7 +1456,7 @@ export function Schedules() {
                   )}
                   {targetHealth.tone === "bad" && (
                     <span
-                      className="inline-flex items-center gap-1 rounded-full bg-bad/10 px-1.5 py-0.5 text-[10px] font-semibold text-bad"
+                      className="inline-flex items-center gap-1 rounded-full bg-bad/10 px-1.5 py-0.5 text-xs font-semibold text-bad"
                       title={targetHealth.detail}
                     >
                       <AlertTriangle className="size-3" />
@@ -1520,7 +1520,7 @@ export function Schedules() {
                 <div className="mt-1.5 text-sm font-medium">{actionTitle}</div>
                 <div
                   className={cn(
-                    "mt-1 flex min-w-0 items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] text-muted",
+                    "mt-1 flex min-w-0 items-center gap-1.5 rounded-md border px-2 py-1 text-sm text-muted",
                     contractSummary.tone === "good"
                       ? "border-good/25 bg-good/5"
                       : contractSummary.tone === "warn"
@@ -1535,7 +1535,7 @@ export function Schedules() {
                 </div>
                 <div
                   className={cn(
-                    "mt-1 rounded-md border px-2 py-1.5 text-[11px]",
+                    "mt-1 rounded-md border px-2 py-1.5 text-sm",
                     executionManifest.tone === "good"
                       ? "border-good/25 bg-good/5"
                       : executionManifest.tone === "warn"
@@ -1564,8 +1564,8 @@ export function Schedules() {
                   <div className="grid gap-1 sm:grid-cols-2 xl:grid-cols-6">
                     {Object.entries(executionManifest.fields).map(([label, value]) => (
                       <div key={label} className="min-w-0 rounded bg-background/35 px-1.5 py-1">
-                        <div className="truncate text-[9px] font-semibold uppercase tracking-wider text-muted/75">{label}</div>
-                        <div className="truncate text-[11px] font-medium text-foreground/85">{value}</div>
+                        <div className="truncate text-xs font-semibold uppercase tracking-wider text-muted/75">{label}</div>
+                        <div className="truncate text-sm font-medium text-foreground/85">{value}</div>
                       </div>
                     ))}
                   </div>
@@ -1573,7 +1573,7 @@ export function Schedules() {
                 <ScheduleCommandStrip items={commandStrip} id={s.id} />
                 <div
                   className={cn(
-                    "mt-1 flex min-w-0 items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] text-muted",
+                    "mt-1 flex min-w-0 items-center gap-1.5 rounded-md border px-2 py-1 text-sm text-muted",
                     cronJobPassport.tone === "good"
                       ? "border-good/25 bg-good/5"
                       : cronJobPassport.tone === "warn"
@@ -1587,7 +1587,7 @@ export function Schedules() {
                   <span className="min-w-0 truncate">{cronJobPassport.value}</span>
                 </div>
                 <ScheduleCronjobLedger items={cronjobLedger} id={s.id} />
-                <div className="mt-1 grid gap-1 rounded-md border border-border/60 bg-panel/40 p-1.5 text-[11px] text-muted md:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)]">
+                <div className="mt-1 grid gap-1 rounded-md border border-border/60 bg-panel/40 p-1.5 text-sm text-muted md:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)]">
                   <div className="flex min-w-0 items-center gap-1.5 rounded bg-background/35 px-1.5 py-1" title={executionContract}>
                   <CalendarClock className="size-3 shrink-0 text-accent" />
                   <span className="truncate">{executionContract}</span>
@@ -1624,15 +1624,15 @@ export function Schedules() {
                   </div>
                 </div>
                 {s.intent && actionTitle !== s.intent && (
-                  <div className="mt-0.5 text-[11px] text-muted">label: {s.intent}</div>
+                  <div className="mt-0.5 text-sm text-muted">label: {s.intent}</div>
                 )}
                 {attentionReasons.length > 0 && (
-                  <div className="mt-1.5 flex items-start gap-1.5 rounded-md border border-warn/30 bg-warn/10 px-2 py-1.5 text-[11px] text-warn">
+                  <div className="mt-1.5 flex items-start gap-1.5 rounded-md border border-warn/30 bg-warn/10 px-2 py-1.5 text-sm text-warn">
                     <AlertTriangle className="mt-0.5 size-3 shrink-0" />
                     <span>{attentionReasons.join(" · ")}</span>
                   </div>
                 )}
-                <div className="mt-1 flex flex-wrap items-center gap-x-3 text-[10px] text-muted">
+                <div className="mt-1 flex flex-wrap items-center gap-x-3 text-xs text-muted">
                   {s.enabled !== false && s.next_run_unix ? (
                     <span className="inline-flex items-center gap-1">
                       next {fmtDateTime(s.next_run_unix * 1000)}
@@ -1657,7 +1657,7 @@ export function Schedules() {
                   <span className="font-mono opacity-70">{s.id}</span>
                 </div>
                 {forecast?.id === s.id && (
-                  <ol className="mt-1.5 space-y-0.5 rounded-md border border-border/60 bg-panel/40 p-2 text-[11px]">
+                  <ol className="mt-1.5 space-y-0.5 rounded-md border border-border/60 bg-panel/40 p-2 text-sm">
                     {forecast.times.length === 0 ? (
                       <li className="text-muted">no upcoming fires (paused, past one-shot, or no matching times)</li>
                     ) : (
@@ -1717,7 +1717,7 @@ export function Schedules() {
 function SchedStat({ label, value, accent }: { label: string; value: number | string; accent?: boolean }) {
   return (
     <div className={cn("rounded-lg border bg-card p-2.5", accent ? "border-accent/50" : "border-border")}>
-      <div className="text-[10px] font-semibold uppercase tracking-wider text-muted">{label}</div>
+      <div className="text-xs font-semibold uppercase tracking-wider text-muted">{label}</div>
       <div className={cn("mt-0.5 text-lg font-semibold tabular-nums", accent && "text-accent")}>{value}</div>
     </div>
   );
@@ -1748,11 +1748,11 @@ function ScheduleCommandStrip({ items, id }: { items: ScheduleCommandStripItem[]
                 item.tone === "accent" && "bg-accent",
               )}
             />
-            <span className="truncate text-[9px] font-semibold uppercase tracking-wider text-muted/80">{item.label}</span>
+            <span className="truncate text-xs font-semibold uppercase tracking-wider text-muted/80">{item.label}</span>
           </div>
           <div
             className={cn(
-              "mt-0.5 truncate text-[11px] font-medium text-foreground/90",
+              "mt-0.5 truncate text-sm font-medium text-foreground/90",
               item.tone === "good" && "text-good",
               item.tone === "bad" && "text-bad",
               item.tone === "warn" && "text-warn",
@@ -1771,7 +1771,7 @@ function ScheduleCommandStrip({ items, id }: { items: ScheduleCommandStripItem[]
 function ScheduleCronjobLedger({ items, id }: { items: ScheduleCommandStripItem[]; id: string }) {
   return (
     <div className="mt-1.5 rounded-md border border-border/60 bg-panel/35 p-1.5" aria-label={`${id} cronjob ledger`}>
-      <div className="mb-1 text-[9px] font-semibold uppercase tracking-wider text-muted/80">Cronjob ledger</div>
+      <div className="mb-1 text-xs font-semibold uppercase tracking-wider text-muted/80">Cronjob ledger</div>
       <div className="grid gap-1 sm:grid-cols-2 xl:grid-cols-5">
         {items.map((item) => (
           <div
@@ -1786,8 +1786,8 @@ function ScheduleCronjobLedger({ items, id }: { items: ScheduleCommandStripItem[
               item.tone === "muted" && "text-muted",
             )}
           >
-            <div className="truncate text-[9px] font-semibold uppercase tracking-wider text-muted/75">{item.label}</div>
-            <div className="truncate text-[11px] font-medium">{item.value}</div>
+            <div className="truncate text-xs font-semibold uppercase tracking-wider text-muted/75">{item.label}</div>
+            <div className="truncate text-sm font-medium">{item.value}</div>
           </div>
         ))}
       </div>
@@ -2305,7 +2305,7 @@ export function NewScheduleForm({
   return (
     <div className="glass rounded-xl p-3">
       <div className="grid gap-2 sm:grid-cols-[minmax(150px,190px)_minmax(180px,240px)_1fr]">
-        <label className="flex flex-col gap-1 text-[11px] text-muted">
+        <label className="flex flex-col gap-1 text-sm text-muted">
           Target
           <select
             value={target}
@@ -2320,7 +2320,7 @@ export function NewScheduleForm({
           </select>
         </label>
         {target === "agent" ? (
-          <label className="flex flex-col gap-1 text-[11px] text-muted">
+          <label className="flex flex-col gap-1 text-sm text-muted">
             Roster agent
             <select
               value={agentRef}
@@ -2340,14 +2340,14 @@ export function NewScheduleForm({
               )}
             </select>
             {selectedAgentIssue && (
-              <span className="text-[10px] leading-snug text-warn">{selectedAgentIssue}</span>
+              <span className="text-xs leading-snug text-warn">{selectedAgentIssue}</span>
             )}
             {selectedToolAgentIssue && (
-              <span className="text-[10px] leading-snug text-warn">{selectedToolAgentIssue}</span>
+              <span className="text-xs leading-snug text-warn">{selectedToolAgentIssue}</span>
             )}
           </label>
         ) : target === "workflow" ? (
-          <label className="flex flex-col gap-1 text-[11px] text-muted">
+          <label className="flex flex-col gap-1 text-sm text-muted">
             Workflow
             <select
               value={workflowRef}
@@ -2368,7 +2368,7 @@ export function NewScheduleForm({
             </select>
           </label>
         ) : target === "system_task" ? (
-          <label className="flex flex-col gap-1 text-[11px] text-muted">
+          <label className="flex flex-col gap-1 text-sm text-muted">
             System task
             <select
               value={systemTask}
@@ -2384,23 +2384,23 @@ export function NewScheduleForm({
               {initialSystemTask && !effectiveSystemTasks.includes(initialSystemTask) && <option value={initialSystemTask}>{initialSystemTask}</option>}
             </select>
             {selectedSystemTaskInfo?.description && (
-              <span className="text-[10px] leading-snug text-muted/80">
+              <span className="text-xs leading-snug text-muted/80">
                 {selectedSystemTaskInfo.description}
               </span>
             )}
-            <span className="text-[10px] leading-snug text-muted/80">
+            <span className="text-xs leading-snug text-muted/80">
               {systemTaskExecutionLabel(selectedSystemTaskInfo)}
               {selectedSystemTaskInfo?.effect ? ` - ${selectedSystemTaskInfo.effect}` : ""}
             </span>
             {!!selectedSystemTaskInfo?.recommended_interval_sec && (
-              <span className="text-[10px] leading-snug text-muted/80">
+              <span className="text-xs leading-snug text-muted/80">
                 Recommended cadence: every {intervalParts(selectedSystemTaskInfo.recommended_interval_sec).amount}{" "}
                 {intervalParts(selectedSystemTaskInfo.recommended_interval_sec).unit}
               </span>
             )}
           </label>
         ) : (
-          <label className="flex flex-col gap-1 text-[11px] text-muted">
+          <label className="flex flex-col gap-1 text-sm text-muted">
             Tool
             <select
               value={toolRef}
@@ -2418,7 +2418,7 @@ export function NewScheduleForm({
             </select>
           </label>
         )}
-        <label className="flex flex-col gap-1 text-[11px] text-muted">
+        <label className="flex flex-col gap-1 text-sm text-muted">
           {taskLabel}
           <textarea
             value={intent}
@@ -2427,13 +2427,13 @@ export function NewScheduleForm({
             aria-label={taskLabel}
             className="h-16 w-full resize-y rounded-md border border-border bg-panel p-2 text-sm text-foreground outline-none placeholder:text-muted/60 focus-visible:border-accent"
           />
-          <span className="text-[10px] leading-snug text-muted/80">{taskHint}</span>
+          <span className="text-xs leading-snug text-muted/80">{taskHint}</span>
         </label>
       </div>
 
       {!editing && (
         <div className="mt-2 rounded-md border border-border bg-panel/35 px-2 py-1.5">
-          <div className="mb-1 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted">
+          <div className="mb-1 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted">
             <Wrench className="size-3" /> Daemon cron presets
           </div>
           <div className="flex flex-wrap gap-1.5">
@@ -2455,9 +2455,9 @@ export function NewScheduleForm({
 
       <Disclosure
         className="mt-2"
-        summary={<span className="text-[11px] font-medium text-foreground/80">Details — manifest &amp; contract</span>}
+        summary={<span className="text-sm font-medium text-foreground/80">Details — manifest &amp; contract</span>}
       >
-      <div className="mt-1 rounded-md border border-border bg-panel/35 px-2 py-1.5 text-[11px] text-muted">
+      <div className="mt-1 rounded-md border border-border bg-panel/35 px-2 py-1.5 text-sm text-muted">
         <span className="font-semibold uppercase tracking-wider text-foreground/70">Execution</span>{" "}
         <span>{executionContract}</span>
         {payloadContract && <span> · {payloadContract}</span>}
@@ -2465,7 +2465,7 @@ export function NewScheduleForm({
 
       <div
         className={cn(
-          "mt-2 rounded-md border p-2 text-[11px]",
+          "mt-2 rounded-md border p-2 text-sm",
           formManifestTone === "good"
             ? "border-good/25 bg-good/5"
             : formManifestTone === "warn"
@@ -2477,16 +2477,16 @@ export function NewScheduleForm({
         aria-label="Schedule target manifest"
         title={formManifestDetail}
       >
-        <div className="mb-1 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted">
+        <div className="mb-1 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted">
           <ShieldCheck className="size-3" /> Target manifest · {formManifest.label}
         </div>
         <div className="grid gap-1.5 sm:grid-cols-3 lg:grid-cols-6">
           {Object.entries(formManifestFields).map(([key, value]) => (
             <div key={key} className="min-w-0 rounded border border-border/55 bg-panel/45 px-2 py-1">
-              <div className="truncate text-[9px] font-semibold uppercase tracking-wider text-muted/80">
+              <div className="truncate text-xs font-semibold uppercase tracking-wider text-muted/80">
                 {key}
               </div>
-              <div className="mt-0.5 truncate text-[10px] text-foreground/85" title={value}>
+              <div className="mt-0.5 truncate text-xs text-foreground/85" title={value}>
                 {value}
               </div>
             </div>
@@ -2496,7 +2496,7 @@ export function NewScheduleForm({
 
       <div
         className={cn(
-          "mt-2 rounded-md border px-2 py-1.5 text-[11px] text-muted",
+          "mt-2 rounded-md border px-2 py-1.5 text-sm text-muted",
           formContract.tone === "good"
             ? "border-good/25 bg-good/5"
             : formContract.tone === "warn"
@@ -2514,7 +2514,7 @@ export function NewScheduleForm({
 
       <div
         className={cn(
-          "mt-2 rounded-md border px-2 py-1.5 text-[11px] text-muted",
+          "mt-2 rounded-md border px-2 py-1.5 text-sm text-muted",
           identityBoundary.tone === "good"
             ? "border-good/25 bg-good/5"
             : identityBoundary.tone === "warn"
@@ -2533,7 +2533,7 @@ export function NewScheduleForm({
 
       {showRunAsAgent && (
         <div className={cn("mt-2 grid gap-2", target === "workflow" && "sm:grid-cols-2")}>
-          <label className="flex flex-col gap-1 text-[11px] text-muted">
+          <label className="flex flex-col gap-1 text-sm text-muted">
             Run as agent
             <select
               value={agentRef}
@@ -2553,14 +2553,14 @@ export function NewScheduleForm({
               )}
             </select>
             {selectedAgentIssue && (
-              <span className="text-[10px] leading-snug text-warn">{selectedAgentIssue}</span>
+              <span className="text-xs leading-snug text-warn">{selectedAgentIssue}</span>
             )}
             {selectedToolAgentIssue && (
-              <span className="text-[10px] leading-snug text-warn">{selectedToolAgentIssue}</span>
+              <span className="text-xs leading-snug text-warn">{selectedToolAgentIssue}</span>
             )}
           </label>
           {target === "workflow" && (
-            <label className="flex flex-col gap-1 text-[11px] text-muted">
+            <label className="flex flex-col gap-1 text-sm text-muted">
               Model override
               <input
                 value={modelRef}
@@ -2575,7 +2575,7 @@ export function NewScheduleForm({
       )}
 
       {target === "agent" && (
-        <label className="mt-2 flex flex-col gap-1 text-[11px] text-muted sm:max-w-[240px]">
+        <label className="mt-2 flex flex-col gap-1 text-sm text-muted sm:max-w-[240px]">
           Model override
           <input
             value={modelRef}
@@ -2588,7 +2588,7 @@ export function NewScheduleForm({
       )}
 
       {(target === "workflow" || target === "tool") && (
-        <label className="mt-2 flex flex-col gap-1 text-[11px] text-muted">
+        <label className="mt-2 flex flex-col gap-1 text-sm text-muted">
           {target === "workflow" ? "Workflow payload JSON" : "Tool payload JSON"}
           <textarea
             value={payloadText}
@@ -2597,13 +2597,13 @@ export function NewScheduleForm({
             aria-label={target === "workflow" ? "Workflow payload JSON" : "Tool payload JSON"}
             className="h-16 w-full resize-y rounded-md border border-border bg-panel p-2 font-mono text-xs text-foreground outline-none placeholder:text-muted/60 focus-visible:border-accent"
           />
-          <span className={cn("text-[10px] leading-snug", payloadContract.startsWith("invalid") ? "text-bad" : "text-muted/80")}>
+          <span className={cn("text-xs leading-snug", payloadContract.startsWith("invalid") ? "text-bad" : "text-muted/80")}>
             {payloadContract}
           </span>
         </label>
       )}
 
-      <div className="mt-2 flex flex-col gap-1 text-[11px] text-muted">
+      <div className="mt-2 flex flex-col gap-1 text-sm text-muted">
         When
         <div className="flex flex-wrap items-center gap-1.5">
           <div className="inline-flex overflow-hidden rounded-md border border-border">
@@ -2657,7 +2657,7 @@ export function NewScheduleForm({
                 <option value="minutes">minutes</option>
                 <option value="hours">hours</option>
               </select>
-              {mode === "continuous" && <span className="text-[11px] text-muted">after each completed run</span>}
+              {mode === "continuous" && <span className="text-sm text-muted">after each completed run</span>}
             </div>
           )}
           {mode === "window" && (
@@ -2695,7 +2695,7 @@ export function NewScheduleForm({
                 aria-label="Window start time"
                 className="rounded-md border border-border bg-panel px-2 py-1 text-sm text-foreground outline-none focus-visible:border-accent"
               />
-              <span className="text-[11px] text-muted">to</span>
+              <span className="text-sm text-muted">to</span>
               <input
                 type="time"
                 value={windowEnd}
@@ -2736,7 +2736,7 @@ export function NewScheduleForm({
       </div>
 
       {editing && (
-        <p className="mt-2 text-[10px] text-muted">
+        <p className="mt-2 text-xs text-muted">
           Editing saves the selected job target and optional label. Cadence is only changed when you edit the timing controls.
         </p>
       )}
