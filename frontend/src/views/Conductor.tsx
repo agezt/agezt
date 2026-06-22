@@ -9,6 +9,7 @@ import { ErrorText } from "@/components/JsonView";
 import { Markdown } from "@/components/Markdown";
 import { useUI } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
+import { ModelPicker } from "@/components/ModelPicker";
 import { useConductorStore, startConductorRun, applyConductorResult, genConductorCorr } from "@/lib/conductorStore";
 import { type ConductorRun, type ConductorStep, progressLabel } from "@/lib/conductor";
 
@@ -129,14 +130,17 @@ export function Conductor() {
         <div className="flex flex-wrap items-center gap-3 text-sm">
           <label className="flex items-center gap-1.5 text-muted">
             <span>Max rounds</span>
-            <input
-              type="number"
-              min={1}
-              max={6}
+            <select
               value={maxRounds}
-              onChange={(e) => setMaxRounds(Math.max(1, Math.min(6, Number(e.target.value) || 1)))}
-              className="w-16 rounded-md border border-border bg-panel px-2 py-1 text-foreground"
-            />
+              onChange={(e) => setMaxRounds(Number(e.target.value))}
+              className="rounded-md border border-border bg-panel px-2 py-1 text-foreground outline-none focus:border-accent/50"
+            >
+              {[1, 2, 3, 4, 5, 6].map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+            </select>
           </label>
           <label className="flex items-center gap-1.5 text-muted">
             <input type="checkbox" checked={plan} onChange={(e) => setPlan(e.target.checked)} />
@@ -159,10 +163,10 @@ export function Conductor() {
         </div>
 
         {showAdvanced && (
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-            <RoleInput label="Thinker" value={thinker} onChange={setThinker} placeholder={roles?.thinker || "auto"} />
-            <RoleInput label="Worker" value={worker} onChange={setWorker} placeholder={roles?.worker || "auto"} />
-            <RoleInput label="Verifier" value={verifier} onChange={setVerifier} placeholder={roles?.verifier || "auto"} />
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <RolePicker label="Thinker" value={thinker} onChange={setThinker} auto={roles?.thinker} />
+            <RolePicker label="Worker" value={worker} onChange={setWorker} auto={roles?.worker} />
+            <RolePicker label="Verifier" value={verifier} onChange={setVerifier} auto={roles?.verifier} />
           </div>
         )}
       </Card>
@@ -174,29 +178,25 @@ export function Conductor() {
   );
 }
 
-function RoleInput({
+// RolePicker selects a role's model from the shared ModelPicker (keyed models +
+// named fallback chains). value "" means "auto" — the daemon fills the role from
+// the keyed providers; the picker shows that auto choice as the default hint.
+function RolePicker({
   label,
   value,
   onChange,
-  placeholder,
+  auto,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
-  placeholder: string;
+  auto?: string;
 }) {
   return (
-    <label className="flex flex-col gap-1 text-xs text-muted">
-      <span>
-        {label} <span className="opacity-60">(model id or @chain)</span>
-      </span>
-      <input
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        className="rounded-md border border-border bg-panel px-2 py-1 text-sm text-foreground outline-none focus:border-accent/50"
-      />
-    </label>
+    <div className="flex flex-col gap-1 text-xs text-muted">
+      <span>{label}</span>
+      <ModelPicker value={value} onChange={onChange} activeModel={auto || undefined} />
+    </div>
   );
 }
 
