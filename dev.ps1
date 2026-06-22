@@ -5,6 +5,12 @@
 #   .\dev.ps1 -SkipBuild   reuse bin\*.exe from the last build
 #   .\dev.ps1 -WebAddr 127.0.0.1:9000   serve the console elsewhere
 #
+# Frontend commands must be run from the repo's frontend directory:
+#   cd .\frontend
+#   npm run build     # runs: tsc --noEmit && vite build
+#   npm test
+# Running npm commands from the repo root will use the wrong working directory.
+#
 # The daemon runs against .\.dev-home (NEVER the real ~/.agezt - a dev run
 # against the real home once rewrote live standing orders). Provider keys are
 # seeded into the dev vault from .env (script dir, or the main repo root when
