@@ -9,7 +9,9 @@ import { Muted, ErrorText } from "@/components/JsonView";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { PageHeader } from "@/components/ui/page-header";
 import { SpendArea, BarList, OutcomeBar } from "@/components/Charts";
-import { computeInsights, type RunRow } from "@/lib/insights";
+import { computeInsights, type RunRow as InsightsRunRow } from "@/lib/insights";
+
+type RunRow = InsightsRunRow & { intent?: string };
 
 function dur(ms: number): string {
   if (ms <= 0) return "—";
@@ -105,6 +107,32 @@ export function Insights() {
                 sub: `${money(m.spentMc)} · ${m.runs} run${m.runs === 1 ? "" : "s"}`,
               }))}
             />
+            {ins.byModel.length > 0 && (
+              <div className="mt-3 grid grid-cols-2 gap-1.5 text-[11px] text-muted sm:grid-cols-3">
+                {ins.byModel.slice(0, 6).map((m) => (
+                  <div key={m.model} className="rounded-md border border-border/60 bg-card/40 px-2 py-1.5">
+                    <div className="truncate font-medium text-foreground/80">{m.model}</div>
+                    <div>avg {money(m.avgSpentMc)}/run</div>
+                    <div>{m.avgIters ? `${m.avgIters.toFixed(1)} iters/run` : "no iters"}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+
+          <Card title="Recent runs" icon={ListTree}>
+            <ul className="divide-y divide-border/60">
+              {(runs || []).slice(0, 8).map((r) => (
+                <li key={r.correlation_id} className="flex items-center gap-2 py-1.5 text-xs">
+                  <span className={cn("shrink-0 font-medium", r.status === "completed" ? "text-good" : r.status === "failed" ? "text-bad" : r.status === "running" ? "text-accent" : "text-muted")}>
+                    {r.status || "—"}
+                  </span>
+                  <span className="min-w-0 flex-1 truncate" title={r.intent || r.correlation_id}>{r.intent || r.correlation_id}</span>
+                  {r.model && <span className="shrink-0 truncate font-mono text-[10px] text-muted" title={r.model}>{r.model}</span>}
+                  <span className="shrink-0 tabular-nums text-muted">{money(r.spent_mc ?? 0)}</span>
+                </li>
+              ))}
+            </ul>
           </Card>
         </>
       )}

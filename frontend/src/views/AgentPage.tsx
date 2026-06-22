@@ -15,15 +15,15 @@ import {
   type ApiSchedule,
   type ApiWorkflow,
   type ApiPulse,
+  type FleetState,
+  type FleetTrigger,
 } from "@/lib/fleet";
-import type { RunLite } from "@/lib/agentdetail";
+import { summarizeAgentRuntimeStatus, type RunLite } from "@/lib/agentdetail";
 
-// AgentPage (M960) is the deep-linkable, full-page agent identity console reached
-// at `#agent/<slug>` — the page the owner couldn't find when it lived only as a
-// click-to-open panel inside Agents → Fleet. It loads the same durable catalog
-// the Fleet view does, resolves this agent's triggers/state via buildFleet, and
-// hands everything to the (shared, now-enriched) AgentDetail in page mode. Being
-// a real URL, it's bookmarkable, shareable, and survives a reload.
+// AgentPage is the full-page identity route for one agent (#agent/<slug>).
+// It renders the same AgentDetail Command Center used inside the Fleet tab —
+// all tabs (Overview, Activity, Triggers, Comms, Soul, Model, Memory, Skills,
+// Repair, Diagnostics, Files) are available here in page mode.
 export function AgentPage({ slug, onNavigate }: { slug: string; onNavigate: (view: string) => void }) {
   const { events } = useEvents();
   const [profiles, setProfiles] = useState<AgentProfile[] | null>(null);
@@ -114,7 +114,7 @@ export function AgentPage({ slug, onNavigate }: { slug: string; onNavigate: (vie
         {back}
         <EmptyState
           icon={Bot}
-          title={`No agent “${slug}”`}
+          title={`No agent "${slug}"`}
           hint="This agent may have been removed or never existed. Open one from the Fleet."
         />
       </div>
@@ -122,24 +122,21 @@ export function AgentPage({ slug, onNavigate }: { slug: string; onNavigate: (vie
   }
 
   return (
-    <div className="flex min-h-0 flex-col gap-2">
-      {back}
+    <div className="flex min-h-0 flex-col gap-3">
+      <div>
+        {back}
+      </div>
       <AgentDetail
-        page
         slug={slug}
         profile={profile}
         runs={runs}
         orders={orders}
-        triggers={entity.triggers}
-        state={entity.state}
+        triggers={entity.triggers as FleetTrigger[]}
+        state={entity.state as FleetState}
         schedules={schedules}
+        page
         onClose={() => onNavigate("agents")}
         onManage={onNavigate}
-        onLive={() => onNavigate("agents")}
-        onChanged={() => {
-          loadRuns();
-          loadCatalog();
-        }}
       />
     </div>
   );

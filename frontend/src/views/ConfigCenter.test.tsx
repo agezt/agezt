@@ -194,6 +194,7 @@ describe("ConfigCenter view", () => {
     const input = screen.getByDisplayValue("deepseek-chat") as HTMLInputElement;
     fireEvent.change(input, { target: { value: "deepseek-reasoner" } });
     const save = input.parentElement?.querySelector('button[title="Save"]') as HTMLButtonElement;
+    await waitFor(() => expect(save.disabled).toBe(false));
     fireEvent.click(save);
 
     await waitFor(() =>

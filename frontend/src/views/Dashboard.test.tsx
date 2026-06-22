@@ -221,4 +221,28 @@ describe("Dashboard", () => {
     await waitFor(() => expect(screen.getByText("offline")).toBeTruthy());
     expect(screen.getByText("of 3 schedules")).toBeTruthy();
   });
+
+  it("shows error rate and delegation count from stats", async () => {
+    getJSON.mockImplementation((url: string) => {
+      switch (url) {
+        case "/api/stats":
+          return Promise.resolve({ total: 10, completed: 7, failed: 3, running: 0, delegations: 2 });
+        case "/api/budget":
+          return Promise.resolve({});
+        case "/api/status":
+          return Promise.resolve({ journal_head: 1, schedules: { total: 0, enabled: 0 } });
+        case "/api/journal":
+          return Promise.resolve({ events: [] });
+        case "/api/runs":
+          return Promise.resolve({ runs: [] });
+        default:
+          return Promise.resolve({});
+      }
+    });
+
+    render(<Dashboard />);
+    await waitFor(() => expect(screen.getByText("error rate")).toBeTruthy());
+    expect(screen.getByText("30%")).toBeTruthy();
+    expect(screen.getByText("delegations")).toBeTruthy();
+  });
 });

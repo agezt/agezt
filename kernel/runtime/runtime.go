@@ -484,6 +484,13 @@ type Kernel struct {
 	configCenter *configcenter.Center  // config center for agent SDK config access
 	tools        map[string]agent.Tool // cfg.Tools + the memory/world tools (when enabled)
 
+	// conductorExec is the optional code-execution backend the Conductor's
+	// Verifier role uses to actually RUN a worker's code (M997). Injected once
+	// after Open by the daemon (SetConductorExec, wired from the code_exec tool)
+	// so the kernel never imports the codeexec plugin. nil when the sandbox is
+	// off — the Verifier then falls back to LLM critique.
+	conductorExec CodeExecutor
+
 	catalogStore *catalog.Store
 	catalog      *catalog.Catalog // snapshot — refreshable via ReloadCatalog
 

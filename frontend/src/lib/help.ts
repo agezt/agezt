@@ -978,6 +978,52 @@ export const HELP: Record<string, HelpTopic> = {
       { id: "providers", label: "Providers" },
     ],
   },
+  conductor: {
+    title: "Conductor",
+    intro:
+      "Asymmetric, verify-driven collaboration: a Thinker plans, a Worker solves, and a Verifier checks — running the worker's code when it can — looping until the answer is verified or the round cap is hit.",
+    sections: [
+      {
+        heading: "Running a task",
+        items: [
+          {
+            term: "Task",
+            desc: "Describe a hard, verifiable task (coding, math, multi-step reasoning) where one model's answer isn't enough. Press Conduct (or ⌘/Ctrl+Enter).",
+          },
+          {
+            term: "Roles",
+            desc: "Each role defaults to a different keyed-provider model; override any with a model id or @chain under Role models.",
+          },
+          {
+            term: "Max rounds & plan",
+            desc: "Max rounds caps Worker↔Verifier retries (default 2). Plan adds a first call that tailors each role's instructions to the task.",
+          },
+        ],
+      },
+      {
+        heading: "Reading the result",
+        items: [
+          {
+            term: "Verified / Not verified",
+            desc: "The verdict header shows whether the Verifier accepted the final answer, and how many rounds it took.",
+          },
+          {
+            term: "Transcript",
+            desc: "Each role's turn in order: the Thinker's plan, the Worker's attempts, and the Verifier's check — including real code-execution output when it ran the code.",
+          },
+        ],
+      },
+    ],
+    tips: [
+      "The Conductor needs at least one keyed provider — empty role models mean no credentials are configured yet.",
+      "It shines on tasks the Verifier can actually run: ask the Worker for code with self-tests and the check becomes a real execution, not just an opinion.",
+    ],
+    related: [
+      { id: "council", label: "Council" },
+      { id: "models", label: "Models" },
+      { id: "chains", label: "Fallback chains" },
+    ],
+  },
 
   toolforge: {
     title: "Tool Forge",

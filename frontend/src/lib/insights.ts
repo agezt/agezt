@@ -17,6 +17,16 @@ export interface ModelStat {
   model: string;
   runs: number;
   spentMc: number;
+  avgSpentMc: number; // spentMc / runs — cost per run
+  avgIters: number; // mean iters across that model's runs (0 if unknown)
+}
+
+// Internal accumulator; promoted to ModelStat once averages are computed.
+interface ModelAcc {
+  model: string;
+  runs: number;
+  spentMc: number;
+  iters: number;
 }
 export interface SpendPoint {
   t: number; // started_unix_ms
@@ -51,7 +61,7 @@ export function computeInsights(runs: RunRow[]): Insights {
   let durCount = 0;
   let iterSum = 0;
   let iterCount = 0;
-  const models = new Map<string, ModelStat>();
+  const models = new Map<string, ModelAcc>();
 
   for (const r of runs) {
     const spent = n(r.spent_mc);
@@ -76,9 +86,10 @@ export function computeInsights(runs: RunRow[]): Insights {
       iterCount++;
     }
     const m = r.model || "—";
-    const ms = models.get(m) || { model: m, runs: 0, spentMc: 0 };
+    const ms = models.get(m) || { model: m, runs: 0, spentMc: 0, iters: 0 };
     ms.runs++;
     ms.spentMc += spent;
+    ms.iters += n(r.iters);
     models.set(m, ms);
   }
 
@@ -101,7 +112,15 @@ export function computeInsights(runs: RunRow[]): Insights {
     successRate: finished ? completed / finished : 0,
     avgDurationMs: durCount ? durSum / durCount : 0,
     avgIters: iterCount ? iterSum / iterCount : 0,
-    byModel: [...models.values()].sort((a, b) => b.spentMc - a.spentMc),
+    byModel: [...models.values()]
+      .map((ms): ModelStat => ({
+        model: ms.model,
+        runs: ms.runs,
+        spentMc: ms.spentMc,
+        avgSpentMc: ms.runs > 0 ? ms.spentMc / ms.runs : 0,
+        avgIters: ms.runs > 0 ? ms.iters / ms.runs : 0,
+      }))
+      .sort((a, b) => b.spentMc - a.spentMc),
     spend,
   };
 }

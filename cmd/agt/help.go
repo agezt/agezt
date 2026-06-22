@@ -82,6 +82,14 @@ func helpGroups() []helpGroup {
 			{"why", "every event sharing one event's correlation (the run's story)", []string{
 				"why <event_id> [--json|--payload]",
 			}},
+			{"conductor", "run Thinker/Worker/Verifier roles on (usually) different models to solve & verify a hard task", []string{
+				`conductor "<task>"            run with auto-filled roles (one per keyed provider)`,
+				"  [--thinker <model>] [--worker <model>] [--verifier <model>]   role→model overrides (id or @chain)",
+				"  [--max-rounds <n>]          worker/verifier retry cap (default 2)",
+				"  [--plan]                    tailor per-role instructions first",
+				"  [--json|-q]                 full transcript as JSON / answer-only",
+				"  exit: 0 = verified, 3 = not verified, 1 = error",
+			}},
 			{"approvals", "list pending human-in-the-loop approval requests", []string{
 				"approvals [--json]",
 			}},
