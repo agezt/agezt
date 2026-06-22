@@ -32,6 +32,7 @@ import {
   agentMailboxSubjects,
   agentMailboxWakeContract,
   agentMailboxPassport,
+  agentInboxPrioritySummary,
   agentLifecycleInterventionSummary,
   agentAuthorityContractSummary,
   agentAuthorityManifest,
@@ -940,6 +941,28 @@ describe("agent mailbox helpers", () => {
     expect(waitingForAgent(messages, "researcher").map((m) => m.id)).toEqual(["q1", "b2"]);
   });
 
+  it("summarizes direct, broadcast, help, replied, and stale inbox priority buckets", () => {
+    const now = Date.UTC(2026, 0, 2, 12);
+    expect(agentInboxPrioritySummary([
+      { id: "direct", from: "lead", to: "researcher", text: "direct", ts_unix_ms: now - 2 * 60 * 60 * 1000 },
+      { id: "broadcast", from: "ops", to: "*", text: "broadcast", ts_unix_ms: now - 25 * 60 * 60 * 1000 },
+      { id: "help", from: "ops", to: "researcher", text: "help", help: true, ts_unix_ms: now - 10 * 60 * 1000 },
+      { id: "answered", from: "ops", to: "researcher", text: "answered", ts_unix_ms: now - 5 * 60 * 1000 },
+      { id: "reply", from: "researcher", to: "ops", reply_to: "answered", text: "done", ts_unix_ms: now - 4 * 60 * 1000 },
+      { id: "seen", from: "ops", to: "researcher", text: "seen", acked_by: ["researcher"], ts_unix_ms: now - 3 * 60 * 1000 },
+    ], "researcher", now)).toEqual({
+      direct: 2,
+      broadcast: 1,
+      help: 1,
+      replied: 1,
+      stale: 1,
+      waiting: 3,
+      label: "3 waiting",
+      detail: "2 direct · 1 broadcast · 1 help · 1 replied · 1 stale",
+      tone: "warn",
+    });
+  });
+
   it("summarizes mailbox backlog and armed wake subjects for the identity passport", () => {
     expect(agentMailboxPassport("researcher", [
       { id: "q1", from: "ops", to: "researcher", text: "still waiting" },
@@ -1146,6 +1169,14 @@ describe("AgentDetail lifecycle intervention", () => {
     );
 
     expect(await screen.findByText("Agent identity card")).toBeTruthy();
+    expect(screen.getByText("Presence")).toBeTruthy();
+    expect(screen.getByText("Daily")).toBeTruthy();
+    expect(screen.getByText("More sections: identity, model, repair, diagnostics, files")).toBeTruthy();
+    expect(screen.getByRole("tablist", { name: "ops detail sections" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Overview/ }).getAttribute("aria-pressed")).toBe("true");
+    expect(screen.getByRole("button", { name: /Soul/ }).getAttribute("aria-pressed")).toBe("false");
+    expect(screen.getByText("More actions")).toBeTruthy();
+    expect(screen.getByText("Pause wakes")).toBeTruthy();
     expect(screen.getByLabelText("ops command strip")).toBeTruthy();
     expect(screen.getByLabelText("ops control center")).toBeTruthy();
     expect(screen.getByText("Control center")).toBeTruthy();

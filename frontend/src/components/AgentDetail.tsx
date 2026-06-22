@@ -271,17 +271,25 @@ type DetailTab =
 
 const TABS: { id: DetailTab; label: string; icon: typeof Bot }[] = [
   { id: "overview", label: "Overview", icon: Bot },
-  { id: "soul", label: "Soul", icon: ScrollText },
-  { id: "triggers", label: "Triggers", icon: Anchor },
-  { id: "model", label: "Model", icon: Cpu },
   { id: "activity", label: "Activity", icon: ActivityIcon },
+  { id: "triggers", label: "Triggers", icon: Anchor },
   { id: "comms", label: "Comms", icon: Mail },
+  { id: "soul", label: "Soul", icon: ScrollText },
+  { id: "model", label: "Model", icon: Cpu },
   { id: "memory", label: "Memory", icon: Brain },
   { id: "skills", label: "Skills", icon: Sparkles },
+  { id: "repair", label: "Repair", icon: Wrench },
   { id: "diag", label: "Diagnostics", icon: ShieldCheck },
   { id: "files", label: "Files", icon: FolderOpen },
-  { id: "repair", label: "Repair", icon: Wrench },
 ];
+
+const PRIMARY_TABS: DetailTab[] = ["overview", "activity", "triggers", "comms"];
+const SECONDARY_TAB_GROUPS: { label: string; tabs: DetailTab[] }[] = [
+  { label: "Identity", tabs: ["soul", "model", "memory", "skills"] },
+  { label: "Maintenance", tabs: ["repair", "diag", "files"] },
+];
+
+const TAB_BY_ID = new Map(TABS.map((tab) => [tab.id, tab]));
 
 // AgentDetail (M953) — the per-agent Command Center: one screen that answers
 // "what is this agent, how is it triggered, what has it done, what does it know,
@@ -740,7 +748,6 @@ export function AgentDetail({
   const stateLabel = running
     ? runtimeStatus.operationalText || "running"
     : runtimeStatus.operationalText || state;
-  const taskProgress = agentTaskProgressSummary(profile.tasklist);
   const taskContract = agentTaskContractSummary(profile);
   const lifecycleDisposition = agentLifecycleDispositionPassport(profile);
   const modelPassport = agentModelPassportSummary(profile);
@@ -775,7 +782,6 @@ export function AgentDetail({
   const waitingMailboxCount = myComms ? waitingForAgent(myComms, slug).length : 0;
   const mailboxPassport = agentMailboxPassport(slug, myComms || [], myOrders);
   const policyDenials = summarizeAgentPolicyDenials(profile.status);
-  const lifeSummary = agentLifeSummary(profile, runtimeStatus, wakeIssue, waitingMailboxCount);
   const livePresence = agentLivePresencePassport(profile, runtimeStatus, waitingMailboxCount);
   const identityCard = agentIdentityCardSummary(
     profile,
@@ -802,67 +808,82 @@ export function AgentDetail({
   return (
     <section className="flex min-h-0 flex-col gap-3 rounded-lg border border-border bg-card p-3">
       {/* Header */}
-      <div className="flex items-start gap-2">
-        <AgentAvatar
-          slug={slug}
-          name={profile.name}
-          size={40}
-          status={avatarStatus}
-        />
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="font-mono text-sm font-semibold text-foreground">
-              {slug}
-            </span>
-            {profile.name && profile.name !== slug && (
-              <span className="text-xs text-muted">{profile.name}</span>
-            )}
-            <StatePill state={state} label={stateLabel} running={running} />
-            {runtimeStatus.lastActivitySummary && (
-              <span className="text-[11px] text-muted">
-                last {runtimeStatus.lastActivityMs ? fmtAgo(runtimeStatus.lastActivityMs) : ""}
-                {runtimeStatus.lastActivityMs ? " · " : ""}
-                {runtimeStatus.lastActivitySummary}
-              </span>
-            )}
-            {runtimeStatus.nextWakeMs && (
-              <span className="text-[11px] text-muted">
-                next wake · {fmtDue(runtimeStatus.nextWakeMs)}
-                {runtimeStatus.wakeDetail ? ` · ${runtimeStatus.wakeDetail}` : ""}
-              </span>
-            )}
-            {taskProgress && (
-              <span className="text-[11px] text-muted">
-                tasks · {taskProgress}
-              </span>
-            )}
-          </div>
-          {profile.description && (
-            <p className="mt-0.5 text-[11px] text-muted">
-              {profile.description}
-            </p>
+      <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto]">
+        <div
+          className={cn(
+            "min-w-0 rounded-xl border border-border bg-panel/35 p-3",
+            identityCard.tone === "accent" && "border-accent/40 bg-accent/10",
+            identityCard.tone === "good" && "border-good/30 bg-good/5",
+            identityCard.tone === "warn" && "border-warn/40 bg-warn/10",
+            identityCard.tone === "bad" && "border-bad/35 bg-bad/5",
           )}
-          <p className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[11px] text-muted" title={lifeSummary}>
-            <ActivityIcon className="size-3 shrink-0 text-accent" />
-            <span className="min-w-0 truncate">{livePresence.value} · {livePresence.detail}</span>
-          </p>
-          {wakeIssue && (
-            <p className="mt-0.5 flex flex-wrap items-center gap-1 text-[11px] text-muted">
-              <span>{wakeIssue}</span>
-              {wakeOwner && (
-                <button
-                  type="button"
-                  className="font-mono text-accent hover:underline"
-                  aria-label={`Open wake owner ${wakeOwner}`}
-                  onClick={() => openAgent(wakeOwner)}
-                >
-                  Open {wakeOwner}
-                </button>
+        >
+          <div className="flex min-w-0 items-start gap-3">
+            <AgentAvatar
+              slug={slug}
+              name={profile.name}
+              size={48}
+              status={avatarStatus}
+            />
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-mono text-base font-semibold text-foreground">
+                  {slug}
+                </span>
+                {profile.name && profile.name !== slug && (
+                  <span className="text-sm text-muted">{profile.name}</span>
+                )}
+                <StatePill state={state} label={stateLabel} running={running} />
+              </div>
+              {profile.description && (
+                <p className="mt-1 max-w-3xl text-sm leading-6 text-foreground/80">
+                  {profile.description}
+                </p>
               )}
-            </p>
-          )}
+              <div className="mt-2 grid gap-2 sm:grid-cols-3">
+                <AgentDetailHeroFact
+                  icon={ActivityIcon}
+                  label="Presence"
+                  value={livePresence.value}
+                  detail={livePresence.detail}
+                  tone={livePresence.tone}
+                />
+                <AgentDetailHeroFact
+                  icon={CalendarClock}
+                  label="Next wake"
+                  value={runtimeStatus.nextWakeMs ? fmtDue(runtimeStatus.nextWakeMs) : runtimeStatus.wakeText || "manual"}
+                  detail={runtimeStatus.wakeDetail || schedulePassport.detail}
+                  tone={schedulePassport.tone}
+                />
+                <AgentDetailHeroFact
+                  icon={IdCard}
+                  label="Agent identity card"
+                  value={identityCard.label}
+                  detail={identityCard.detail}
+                  tone={identityCard.tone}
+                />
+              </div>
+              <div className="sr-only">{livePresence.value} · {livePresence.detail}</div>
+              {wakeIssue && (
+                <p className="mt-2 flex flex-wrap items-center gap-1 text-[11px] text-muted">
+                  <span>{wakeIssue}</span>
+                  {wakeOwner && (
+                    <button
+                      type="button"
+                      className="font-mono text-accent hover:underline"
+                      aria-label={`Open wake owner ${wakeOwner}`}
+                      onClick={() => openAgent(wakeOwner)}
+                    >
+                      Open {wakeOwner}
+                    </button>
+                  )}
+                </p>
+              )}
+            </div>
+          </div>
         </div>
-        <div className="flex shrink-0 items-center gap-1">
+
+        <div className="flex flex-wrap items-start justify-end gap-1 rounded-xl border border-border bg-panel/25 p-2 lg:max-w-[20rem]">
           <Button
             variant="ghost"
             size="sm"
@@ -872,16 +893,6 @@ export function AgentDetail({
             onClick={wakeAgentNow}
           >
             <Zap className="size-3.5" /> Wake
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            disabled={busy || schedulePassport.frequentIds.length === 0}
-            title={schedulePassport.frequentIds.length > 0 ? `Pause ${schedulePassport.frequentIds.length} frequent schedule${schedulePassport.frequentIds.length === 1 ? "" : "s"}` : "No frequent schedules"}
-            aria-label={`Pause frequent schedules for ${slug}`}
-            onClick={() => pauseFrequentSchedules(schedulePassport.frequentIds)}
-          >
-            <CalendarClock className="size-3.5" />
           </Button>
           {running && onLive && (
             <Button
@@ -893,53 +904,71 @@ export function AgentDetail({
               <ActivityIcon className="size-3.5" /> Live
             </Button>
           )}
-          {!profile.retired && (
-            <Button
-              variant="ghost"
-              size="sm"
-              disabled={busy}
-              title={profile.enabled ? "Pause agent" : "Resume agent"}
-              onClick={() => setAgentEnabled(!profile.enabled)}
-            >
-              {profile.enabled ? (
-                <Pause className="size-3.5" />
-              ) : (
-                <Play className="size-3.5" />
-              )}
-            </Button>
-          )}
-          {profile.retired ? (
-            <Button
-              variant="ghost"
-              size="sm"
-              disabled={busy}
-              title="Revive from the graveyard"
-              aria-label={`Revive ${slug}`}
-              onClick={() => setAgentRetired(false)}
-            >
-              <ArchiveRestore className="size-3.5" /> Revive
-            </Button>
-          ) : (
-            <Button
-              variant="ghost"
-              size="sm"
-              disabled={busy}
-              title="Retire to the graveyard"
-              aria-label={`Retire ${slug}`}
-              onClick={() => setAgentRetired(true)}
-            >
-              <Archive className="size-3.5" /> Retire
-            </Button>
-          )}
-          <Button
-            variant="ghost"
-            size="sm"
-            title="Open lifecycle intervention and removal impact"
-            aria-label={`Lifecycle ${slug}`}
-            onClick={() => setTab("overview")}
+          <Disclosure
+            className="min-w-full rounded-lg border border-border/60 bg-card/40 px-1 py-0.5"
+            summary={<span className="text-[11px] font-medium text-muted">More actions</span>}
           >
-            <Skull className="size-3.5" /> Lifecycle
-          </Button>
+            <div className="flex flex-wrap gap-1 p-1.5">
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={busy || schedulePassport.frequentIds.length === 0}
+                title={schedulePassport.frequentIds.length > 0 ? `Pause ${schedulePassport.frequentIds.length} frequent schedule${schedulePassport.frequentIds.length === 1 ? "" : "s"}` : "No frequent schedules"}
+                aria-label={`Pause frequent schedules for ${slug}`}
+                onClick={() => pauseFrequentSchedules(schedulePassport.frequentIds)}
+              >
+                <CalendarClock className="size-3.5" /> Pause wakes
+              </Button>
+              {!profile.retired && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={busy}
+                  title={profile.enabled ? "Pause agent" : "Resume agent"}
+                  onClick={() => setAgentEnabled(!profile.enabled)}
+                >
+                  {profile.enabled ? (
+                    <Pause className="size-3.5" />
+                  ) : (
+                    <Play className="size-3.5" />
+                  )}
+                  {profile.enabled ? "Pause" : "Resume"}
+                </Button>
+              )}
+              {profile.retired ? (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={busy}
+                  title="Revive from the graveyard"
+                  aria-label={`Revive ${slug}`}
+                  onClick={() => setAgentRetired(false)}
+                >
+                  <ArchiveRestore className="size-3.5" /> Revive
+                </Button>
+              ) : (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={busy}
+                  title="Retire to the graveyard"
+                  aria-label={`Retire ${slug}`}
+                  onClick={() => setAgentRetired(true)}
+                >
+                  <Archive className="size-3.5" /> Retire
+                </Button>
+              )}
+              <Button
+                variant="ghost"
+                size="sm"
+                title="Open lifecycle intervention and removal impact"
+                aria-label={`Lifecycle ${slug}`}
+                onClick={() => setTab("overview")}
+              >
+                <Skull className="size-3.5" /> Lifecycle
+              </Button>
+            </div>
+          </Disclosure>
           {!page && (
             <Button
               variant="ghost"
@@ -953,50 +982,12 @@ export function AgentDetail({
           {!page && (
             <button
               onClick={onClose}
-              className="rounded-md border border-border p-1 text-muted hover:border-accent hover:text-foreground"
+              className="rounded-md border border-border p-1.5 text-muted hover:border-accent hover:text-foreground"
               title="Close"
             >
               <X className="size-3.5" />
             </button>
           )}
-        </div>
-      </div>
-
-      <div
-        className={cn(
-          "flex min-w-0 items-start gap-2 rounded-lg border border-border bg-panel/45 px-3 py-2",
-          identityCard.tone === "accent" && "border-accent/40 bg-accent/10",
-          identityCard.tone === "good" && "border-good/30 bg-good/5",
-          identityCard.tone === "warn" && "border-warn/40 bg-warn/10",
-          identityCard.tone === "bad" && "border-bad/35 bg-bad/5",
-        )}
-        title={identityCard.detail}
-      >
-        <IdCard
-          className={cn(
-            "mt-0.5 size-4 shrink-0 text-muted",
-            identityCard.tone === "accent" && "text-accent",
-            identityCard.tone === "good" && "text-good",
-            identityCard.tone === "warn" && "text-warn",
-            identityCard.tone === "bad" && "text-bad",
-          )}
-        />
-        <div className="min-w-0 flex-1">
-          <div className="text-[9px] font-semibold uppercase tracking-wider text-muted">Agent identity card</div>
-          <div
-            className={cn(
-              "mt-0.5 truncate text-xs font-medium text-foreground",
-              identityCard.tone === "accent" && "text-accent",
-              identityCard.tone === "good" && "text-good",
-              identityCard.tone === "warn" && "text-warn",
-              identityCard.tone === "bad" && "text-bad",
-            )}
-          >
-            {identityCard.label}
-          </div>
-          <div className="mt-0.5 line-clamp-2 text-[11px] text-muted">
-            {identityCard.detail}
-          </div>
         </div>
       </div>
 
@@ -1148,38 +1139,66 @@ export function AgentDetail({
       </Disclosure>
 
       {/* Tabs */}
-      <div className="flex flex-wrap items-center gap-1 border-b border-border pb-1">
-        {TABS.map((t) => {
-          const count = tabCount(t.id, {
-            memory: myMemory,
-            skills: mySkills,
-            orders: myOrders,
-            schedules: mySchedules,
-            comms: myComms,
-            denials: myDenials,
-            toolErrors: myToolErrors,
-          });
-          return (
-            <button
-              key={t.id}
-              onClick={() => setTab(t.id)}
-              className={cn(
-                "flex items-center gap-1 rounded px-2 py-1 text-[11px] font-medium transition-colors",
-                tab === t.id
-                  ? "bg-panel text-foreground"
-                  : "text-muted hover:text-foreground",
-              )}
-            >
-              <t.icon className="size-3" />
-              {t.label}
-              {count !== undefined && count > 0 && (
-                <span className="ml-0.5 rounded bg-card px-1 font-mono text-[9px] text-muted">
-                  {count}
-                </span>
-              )}
-            </button>
-          );
-        })}
+      <div
+        className="rounded-xl border border-border bg-panel/20 p-2"
+        role="tablist"
+        aria-label={`${slug} detail sections`}
+      >
+        <div className="mb-1 px-1 text-[9px] font-semibold uppercase tracking-wider text-muted">
+          Daily
+        </div>
+        <div className="flex flex-wrap gap-1">
+          {PRIMARY_TABS.map((id) => (
+            <AgentDetailTabButton
+              key={id}
+              id={id}
+              active={tab === id}
+              counts={{
+                memory: myMemory,
+                skills: mySkills,
+                orders: myOrders,
+                schedules: mySchedules,
+                comms: myComms,
+                denials: myDenials,
+                toolErrors: myToolErrors,
+              }}
+              onSelect={setTab}
+            />
+          ))}
+        </div>
+        <Disclosure
+          className="mt-2 rounded-lg border border-border/60 bg-card/40 px-1 py-0.5"
+          summary={<span className="text-[11px] font-medium text-muted">More sections: identity, model, repair, diagnostics, files</span>}
+        >
+          <div className="grid gap-2 p-1.5 md:grid-cols-2">
+            {SECONDARY_TAB_GROUPS.map((group) => (
+              <div key={group.label} className="min-w-0" role="group" aria-label={`${group.label} tabs`}>
+                <div className="mb-1 px-1 text-[9px] font-semibold uppercase tracking-wider text-muted">
+                  {group.label}
+                </div>
+                <div className="flex flex-wrap gap-1">
+                  {group.tabs.map((id) => (
+                    <AgentDetailTabButton
+                      key={id}
+                      id={id}
+                      active={tab === id}
+                      counts={{
+                        memory: myMemory,
+                        skills: mySkills,
+                        orders: myOrders,
+                        schedules: mySchedules,
+                        comms: myComms,
+                        denials: myDenials,
+                        toolErrors: myToolErrors,
+                      }}
+                      onSelect={setTab}
+                    />
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </Disclosure>
       </div>
 
       <div className="min-h-0 overflow-auto">
@@ -1551,6 +1570,88 @@ function StatePill({
       )}
       {label || state}
     </span>
+  );
+}
+
+function AgentDetailTabButton({
+  id,
+  active,
+  counts,
+  onSelect,
+}: {
+  id: DetailTab;
+  active: boolean;
+  counts: Parameters<typeof tabCount>[1];
+  onSelect: (tab: DetailTab) => void;
+}) {
+  const t = TAB_BY_ID.get(id);
+  if (!t) return null;
+  const count = tabCount(t.id, counts);
+  return (
+    <button
+      aria-pressed={active}
+      aria-current={active ? "page" : undefined}
+      onClick={() => onSelect(t.id)}
+      className={cn(
+        "flex items-center gap-1 rounded-lg px-2 py-1.5 text-[11px] font-medium transition-colors",
+        active
+          ? "bg-card text-foreground shadow-e1"
+          : "text-muted hover:bg-card/60 hover:text-foreground",
+      )}
+    >
+      <t.icon className="size-3" />
+      {t.label}
+      {count !== undefined && count > 0 && (
+        <span className="ml-0.5 rounded bg-panel px-1 font-mono text-[9px] text-muted">
+          {count}
+        </span>
+      )}
+    </button>
+  );
+}
+
+function AgentDetailHeroFact({
+  icon: Icon,
+  label,
+  value,
+  detail,
+  tone,
+}: {
+  icon: typeof Bot;
+  label: string;
+  value: string;
+  detail?: string;
+  tone?: "good" | "warn" | "bad" | "accent" | "muted";
+}) {
+  return (
+    <div
+      className={cn(
+        "min-w-0 rounded-lg border border-border/70 bg-card/50 px-2.5 py-2",
+        tone === "good" && "border-good/30 bg-good/5",
+        tone === "warn" && "border-warn/40 bg-warn/10",
+        tone === "bad" && "border-bad/35 bg-bad/5",
+        tone === "accent" && "border-accent/35 bg-accent/10",
+      )}
+      title={detail || value}
+    >
+      <div className="flex min-w-0 items-center gap-1.5 text-[9px] font-semibold uppercase tracking-wider text-muted">
+        <Icon className="size-3 shrink-0" />
+        <span className="truncate">{label}</span>
+      </div>
+      <div
+        className={cn(
+          "mt-0.5 truncate text-[11px] font-medium text-foreground/90",
+          tone === "good" && "text-good",
+          tone === "warn" && "text-warn",
+          tone === "bad" && "text-bad",
+          tone === "accent" && "text-accent",
+          tone === "muted" && "text-muted",
+        )}
+      >
+        {value}
+      </div>
+      {detail && <div className="mt-0.5 line-clamp-2 text-[10px] leading-4 text-muted">{detail}</div>}
+    </div>
   );
 }
 
@@ -5816,6 +5917,56 @@ export function waitingForAgent(
   });
 }
 
+export interface AgentInboxPrioritySummary {
+  direct: number;
+  broadcast: number;
+  help: number;
+  replied: number;
+  stale: number;
+  waiting: number;
+  label: string;
+  detail: string;
+  tone: "good" | "warn" | "muted";
+}
+
+export function agentInboxPrioritySummary(
+  messages: BoardMessage[],
+  slug: string,
+  nowMs = Date.now(),
+): AgentInboxPrioritySummary {
+  const s = slug.trim().toLowerCase();
+  const waiting = waitingForAgent(messages, slug);
+  const direct = waiting.filter((m) => (m.to || "").trim().toLowerCase() === s).length;
+  const broadcast = waiting.filter((m) => m.to === "*").length;
+  const help = waiting.filter((m) => m.help).length;
+  const replied = messages.filter((m) => {
+    if (!m.reply_to) return false;
+    const from = (m.from || "").trim().toLowerCase();
+    const to = (m.to || "").trim().toLowerCase();
+    return from === s || to === s;
+  }).length;
+  const staleCutoff = nowMs - 24 * 60 * 60 * 1000;
+  const stale = waiting.filter((m) => (m.ts_unix_ms || nowMs) < staleCutoff).length;
+  const parts = [
+    direct ? `${direct} direct` : "",
+    broadcast ? `${broadcast} broadcast` : "",
+    help ? `${help} help` : "",
+    replied ? `${replied} replied` : "",
+    stale ? `${stale} stale` : "",
+  ].filter(Boolean);
+  return {
+    direct,
+    broadcast,
+    help,
+    replied,
+    stale,
+    waiting: waiting.length,
+    label: waiting.length > 0 ? `${waiting.length} waiting` : "inbox clear",
+    detail: parts.length > 0 ? parts.join(" · ") : "no waiting direct, broadcast, help, replied, or stale messages",
+    tone: stale > 0 || help > 0 ? "warn" : waiting.length > 0 ? "warn" : replied > 0 ? "muted" : "good",
+  };
+}
+
 export function agentMailboxPassport(
   slug: string,
   messages: BoardMessage[] = [],
@@ -5953,6 +6104,7 @@ function CommsTab({
   const [busy, setBusy] = useState(false);
   const loadedMessages = messages || [];
   const waiting = waitingForAgent(loadedMessages, slug);
+  const inboxPriority = agentInboxPrioritySummary(loadedMessages, slug);
   const escalationByMessage = useMemo(
     () =>
       new Map(
@@ -6120,6 +6272,20 @@ function CommsTab({
           <Button size="sm" onClick={sendAsAgent} disabled={busy || !outTo.trim() || !outText.trim()}>
             <Send className="size-3.5" /> Send as agent
           </Button>
+        </div>
+      </div>
+
+      <div className="rounded-lg border border-border bg-panel/30 p-2.5">
+        <div className="mb-2 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted">
+          <Mail className="size-3" /> inbox priority summary
+        </div>
+        <div className="flex flex-wrap items-center gap-2 text-[11px]">
+          <Badge variant={inboxPriority.tone === "good" ? "good" : inboxPriority.tone === "warn" ? "warn" : "default"}>
+            {inboxPriority.label}
+          </Badge>
+          <span className="min-w-0 flex-1 text-muted" title={inboxPriority.detail}>
+            {inboxPriority.detail}
+          </span>
         </div>
       </div>
 
