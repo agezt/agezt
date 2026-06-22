@@ -64,7 +64,7 @@ export function ACPAgents() {
           {inv.active_command ? (
             <span className="inline-flex items-center gap-1 text-[11px] text-muted">
               default:{" "}
-              <code className="rounded bg-card px-1.5 py-0.5 font-mono text-[10px] text-accent">{inv.active_command}</code>
+              <code className="rounded bg-card px-1.5 py-0.5 font-mono text-xs text-accent">{inv.active_command}</code>
             </span>
           ) : (
             <span className="text-[11px] text-muted">
@@ -119,13 +119,13 @@ function AgentCard({ a, onCopy }: { a: ACPAgentStatus; onCopy: (text: string, wh
           </span>
         )}
         {a.installed ? <Badge variant="good">installed</Badge> : <Badge variant="default" className="text-muted">missing</Badge>}
-        <span className="ml-auto font-mono text-[10px] text-muted">{a.slug}</span>
+        <span className="ml-auto font-mono text-xs text-muted">{a.slug}</span>
       </div>
 
       {a.description && <div className="text-[11px] text-muted">{a.description}</div>}
 
       {a.installed && a.version && (
-        <div className="truncate font-mono text-[10px] text-foreground/70" title={a.path}>{a.version}</div>
+        <div className="truncate font-mono text-xs text-foreground/70" title={a.path}>{a.version}</div>
       )}
 
       {/* Launch command (installed) or install hint (missing) */}
@@ -133,7 +133,7 @@ function AgentCard({ a, onCopy }: { a: ACPAgentStatus; onCopy: (text: string, wh
         <button
           onClick={() => onCopy(a.command, "command")}
           title="Copy launch command"
-          className="group flex items-center gap-1 truncate rounded bg-card px-1.5 py-1 text-left font-mono text-[10px] text-muted hover:text-accent"
+          className="group flex items-center gap-1 truncate rounded bg-card px-1.5 py-1 text-left font-mono text-xs text-muted hover:text-accent"
         >
           <Copy className="size-3 shrink-0 opacity-0 group-hover:opacity-100" />
           <span className="truncate">$ {a.command}</span>
@@ -142,14 +142,14 @@ function AgentCard({ a, onCopy }: { a: ACPAgentStatus; onCopy: (text: string, wh
         <button
           onClick={() => onCopy(a.install!, "install command")}
           title="Copy install command"
-          className="group flex items-center gap-1 truncate rounded bg-card px-1.5 py-1 text-left font-mono text-[10px] text-muted hover:text-accent"
+          className="group flex items-center gap-1 truncate rounded bg-card px-1.5 py-1 text-left font-mono text-xs text-muted hover:text-accent"
         >
           <Copy className="size-3 shrink-0 opacity-0 group-hover:opacity-100" />
           <span className="truncate">{a.install}</span>
         </button>
       ) : null}
 
-      <div className="mt-auto flex items-center gap-2 pt-1 text-[10px] text-muted">
+      <div className="mt-auto flex items-center gap-2 pt-1 text-xs text-muted">
         <span className="truncate">{acpUsageHint(a)}</span>
         {a.docs && (
           <a
@@ -170,7 +170,7 @@ function AgentCard({ a, onCopy }: { a: ACPAgentStatus; onCopy: (text: string, wh
 function BigStat({ icon: Icon, label, value, accent }: { icon: typeof Boxes; label: string; value: number | string; accent?: boolean }) {
   return (
     <div className={cn("rounded-xl p-2.5", accent ? "border border-accent/50 bg-card" : "glass")}>
-      <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted">
+      <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted">
         <Icon className={cn("size-3", accent && "text-accent")} /> {label}
       </div>
       <div className={cn("mt-0.5 text-lg font-semibold tabular-nums", accent && "text-accent")}>{value}</div>
