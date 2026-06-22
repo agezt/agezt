@@ -2,7 +2,8 @@
 
 > **Generated:** 2026-06-20 · **Branch:** `main` · **Version:** v1.0.0+ · **Latest phase:** M781+
 > **Scope:** Every component, module, and technology across the entire monorepo.
-> **Note:** Version and dependency details are sourced from `go.mod`, `frontend/package.json`, and `frontend/.nvmrc`. See `docs/SDK-PARITY.md` for API coverage and `docs/DEPENDENCIES.md` for the dependency inventory.
+> **Note:** Version and dependency details are sourced from `go.mod`, `frontend/package.json`, and `frontend/.nvmrc`. See `docs/SDK-PARITY.md` for API coverage and `DEPENDENCIES.md` for the dependency inventory.
+> **Current-state note:** This generated report is broad but partially stale in its phase/test-count sections. For the latest review and gap plan, see `docs/SYSTEM-REVIEW.md`, `docs/MISSING-PARTS-REPORT.md`, and `docs/MISSING-PARTS-PLAN.md`.
 
 ---
 

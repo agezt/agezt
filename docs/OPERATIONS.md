@@ -541,6 +541,62 @@ Minimum recurring checks for a production deployment:
 
 ---
 
+## 13. Example operator wiring
+
+AGEZT exposes probes, metrics, and CLI checks; it does not install your monitoring stack. Use these as starting points, not bundled defaults.
+
+### Prometheus scrape sketch
+
+```yaml
+scrape_configs:
+  - job_name: agezt
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["127.0.0.1:8787"]
+```
+
+Pair `/metrics` with `/healthz` and `/readyz` probes. Keep auth/tunnel policy consistent with your deployment; do not expose daemon control surfaces publicly without the controls in `docs/THREAT-MODEL.md` and `docs/OPERATIONS.md`.
+
+### Grafana starter panels
+
+Build panels from `/metrics` and CLI JSON outputs for:
+
+- daemon readiness and health;
+- active/running runs;
+- daily spend vs budget;
+- policy denials per hour;
+- approval queue size;
+- provider fallback/retry counts;
+- journal verification failures;
+- doctor/repair events;
+- mailbox/help escalation counts.
+
+### Backup scheduling examples
+
+Cron-style example:
+
+```cron
+# Daily AGEZT backup at 03:15 local time.
+15 3 * * * /usr/local/bin/agt backup --out /var/backups/agezt/agezt-$(date +\%Y\%m\%d).tar.zst >/var/log/agezt-backup.log 2>&1
+```
+
+Systemd timer deployments should run the same `agt backup` command from a locked-down service account and periodically run a restore drill against a scratch `AGEZT_HOME`.
+
+### Vault rotation checklist
+
+- Schedule a monthly reminder for `agt vault rotate`.
+- Verify providers after rotation with `agt provider check --all`.
+- Keep recovery material outside the AGEZT config directory.
+- Record the rotation in your operator change log.
+
+### Platform-specific validation notes
+
+- Linux CI should cover warden/resource-limit behavior.
+- Windows CI should cover path, shell, and service behavior where process isolation downgrades to timeout/output/env/workdir controls.
+- macOS CI should cover developer install and filesystem behavior if macOS is a supported operator target.
+
+---
+
 ## What is explicitly out of scope
 
 - AGEZT does not ship a prebuilt Grafana dashboard. Build one from `/metrics`

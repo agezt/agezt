@@ -434,6 +434,17 @@ Minimum posture for a production deployment:
 
 ---
 
+## Claims guardrails
+
+Use precise language when describing AGEZT's security posture:
+
+- Say **contains blast radius** for prompt injection; do not say prompt injection is solved.
+- Say **governed and audited irreversible tools**; do not promise generic rollback for shell/code execution.
+- Say **requested vs effective isolation is visible**; do not claim equal sandboxing across Linux, Windows, and macOS.
+- Say **hash-pinned plugins**; do not imply publisher signing or provenance verification.
+
+---
+
 ## What is explicitly out of scope
 
 - AGEZT does not provide a hardened sandbox against a malicious local user on

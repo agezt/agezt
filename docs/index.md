@@ -9,6 +9,9 @@ Start here when evaluating, operating, or integrating AGEZT.
 | [COMPARISON.md](COMPARISON.md) | understand how AGEZT differs from generic agent frameworks without unverifiable competitor claims |
 | [../ARCHITECTURE.md](../ARCHITECTURE.md) | understand the core agent identity, runtime, Web UI, and source-of-truth layout |
 | [../ARCHITECTURAL-REPORT.md](../ARCHITECTURAL-REPORT.md) | read the broader generated architecture report and module map |
+| [SYSTEM-REVIEW.md](SYSTEM-REVIEW.md) | inspect the latest system-wide review artifact and current-state findings |
+| [MISSING-PARTS-REPORT.md](MISSING-PARTS-REPORT.md) | review missing features, documentation gaps, and quality/test risks |
+| [MISSING-PARTS-PLAN.md](MISSING-PARTS-PLAN.md) | plan which missing parts to implement, defer, or document |
 
 ## Security and governance
 
@@ -23,6 +26,7 @@ Start here when evaluating, operating, or integrating AGEZT.
 | Document | Use when you need to... |
 |---|---|
 | [OPERATIONS.md](OPERATIONS.md) | run day-2 operations: health, metrics, cost, policy triage, backup/restore, incident runbooks |
+| [GRAVEYARD-POLICY.md](GRAVEYARD-POLICY.md) | understand retired-agent retention posture and the bar for any future destructive automation |
 | [CONNECT.md](CONNECT.md) | connect providers and messaging channels, including OAuth and multiple accounts |
 | [CONSOLE.md](CONSOLE.md) | understand and operate the embedded Web UI console |
 
@@ -31,6 +35,7 @@ Start here when evaluating, operating, or integrating AGEZT.
 | Document | Use when you need to... |
 |---|---|
 | [API-STABILITY.md](API-STABILITY.md) | understand public/private surface stability, versioning policy, and SDK parity rules |
+| [EVENT-SCHEMA.md](EVENT-SCHEMA.md) | understand event/journal compatibility rules for audit consumers and demos |
 | [SDK-PARITY.md](SDK-PARITY.md) | inspect generated `/api/v1` route coverage across Go/Python/TypeScript/Rust SDKs |
 
 ## Runnable positioning demos

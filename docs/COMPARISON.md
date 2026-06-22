@@ -106,29 +106,38 @@ Evidence to inspect:
 
 The project is active pre-release work. These are the areas where AGEZT should be precise rather than absolute.
 
-### 1. Effective authority is still being hardened end-to-end
+### 1. Effective authority is runtime-enforced and should stay evidence-backed
 
-The UI exposes authority concepts, and runtime policy enforcement exists, but the strongest product claim requires a single explainable path from displayed permissions to API representation to runtime decision to journal event.
+Runtime policy enforcement is implemented and journaled for both in-loop tool calls and direct `RunTool` calls. `agt agent authority <slug> [--json] [--explain]` provides the merged profile + live Edict policy view operators need to compare displayed authority with enforced authority.
 
-Do not claim: "All displayed permissions are fully enforced everywhere."
+Evidence to inspect:
 
-Safer claim: "AGEZT treats authority as a first-class runtime concern and is tightening end-to-end effective-policy proof."
+- `cmd/agt/agent_authority_test.go`
+- `kernel/agent/agent_test.go` (`TestRun_PolicyDeny_SkipsToolInvoke`)
+- `kernel/runtime/toolcaps_test.go` (`TestRunTool_JournalsPolicyDecisionOnDirectPath`)
+- `kernel/runtime/approval_test.go`
+- `kernel/controlplane/roster_test.go` (`TestAgentList_FoldsPolicyDenialsByRunCorrelation`)
+- `docs/OPERATIONS.md` effective authority workflow
 
-Recommended next proof:
+Do not claim: "Every future UI authority field is automatically enforced without a matching runtime/journal proof."
 
-```text
-agt agent authority <slug> --explain
-```
+Safer claim: "AGEZT treats authority as a first-class runtime concern; current tool policy, approval, denial, and effective-authority CLI paths are tested and auditable, and new displayed authority fields must be tied to runtime/journal evidence."
 
-The command should show effective tool allow/deny, trust ceiling, approval requirements, memory scope, config access, schedule/channel wake permissions, and the source of each rule.
+### 2. Typed schedule targets are implemented and should stay evidence-backed
 
-### 2. Schedule target hardening is still a differentiator to finish
+AGEZT's schedule philosophy is strong: schedules are typed infrastructure, not hidden prompt storage. Current code and tests cover agent, workflow, system-task, and tool targets; system tasks are enum/allowlist based, reject arbitrary payloads, and expose typed fire metadata.
 
-AGEZT's schedule philosophy is strong: schedules are typed infrastructure, not hidden prompt storage. The remaining work is to prove each target type end-to-end and prevent system-task/tool payloads from smuggling arbitrary agent instructions.
+Evidence to inspect:
 
-Do not claim: "Schedules are fully hardened across every target type."
+- `kernel/cadence/target_validation_test.go`
+- `kernel/cadence/injection_test.go`
+- `cmd/agezt/schedule_system_task_test.go`
+- `cmd/agt/schedule_fires_test.go`
+- `examples/autonomous/typed-schedule-system-task/`
 
-Safer claim: "AGEZT models schedules as typed triggers and is hardening each target path with explicit audit fields."
+Do not claim: "Schedules are prompt-injection-proof in every possible future extension."
+
+Safer claim: "AGEZT models schedules as typed triggers; the current target paths are tested and auditable, and future target extensions must keep the same validation bar."
 
 ### 3. Strong isolation varies by platform
 
@@ -271,7 +280,7 @@ AGEZT's strongest position is not "more agents" or "more tools." The strongest p
 
 > an autonomous-agent runtime where identity, authority, memory, schedule, communication, action, and audit are all first-class system objects.
 
-That is meaningfully different from generic agent frameworks. The remaining work is to package the claim as evidence: runnable demos, effective authority proof, threat model, and operations guidance.
+That is meaningfully different from generic agent frameworks. The original positioning evidence package is implemented; remaining maturity work is tracked in `MISSING-PARTS-REPORT.md` and `MISSING-PARTS-PLAN.md` so claims stay tied to current tests, docs, and review artifacts.
 
 ## Related documentation
 

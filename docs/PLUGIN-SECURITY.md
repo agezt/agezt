@@ -363,6 +363,21 @@ Minimum posture for plugins in a production deployment:
 
 ---
 
+## Operator hardening checklist
+
+Use this checklist for production plugin deployments:
+
+- Pin every external plugin with `AGEZT_PLUGIN_PINS`; unpinned plugins are trust-on-first-use.
+- Use `AGEZT_PLUGIN_TOOLS` to expose only the tools the operator intends.
+- Run plugins under a dedicated low-privilege OS user when possible.
+- Keep plugin binaries outside writable workspaces used by agents.
+- Review plugin stdout/stderr logs after reloads and crashes.
+- Treat MCP servers as separate trust domains; apply their own egress and auth policy.
+- Re-hash and update pins only after verifying the new binary out of band.
+- Keep the limitations below visible in deployment docs; do not market plugin processes as sandboxed.
+
+---
+
 ## What is explicitly out of scope
 
 - AGEZT does not cryptographically sign plugins. Verification is hash-based
