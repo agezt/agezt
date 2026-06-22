@@ -39,12 +39,15 @@ The generated table above is static route-string coverage only. Behavioral parit
 
 Current behavioral coverage includes:
 
-- **Python** (`sdk/python/tests/test_client.py`): bearer auth, health/models, sync run, streaming run frames, run event arc, API errors, and tenant client behavior.
-- **TypeScript** (`sdk/typescript/test/client.test.ts`): bearer auth, health/models, sync run, streaming run frames, run event arc, API errors, and tenant client behavior.
-- **Rust** (`sdk/rust/tests/client.rs`): bearer auth, health/models, sync run, streaming run frames, run event arc, API errors, tenant header transmission, and mailbox send/inbox/ack/replies/messages/topics/watch flows.
-- **Go** (`sdk/*_test.go`): local control-plane request construction/parsing plus typed run and mailbox parsing behavior; Go does not use REST route-string coverage for its primary SDK path.
+- **Python sync client** (`sdk/python/tests/test_client.py`): bearer auth, health/model response mapping, sync run body/model forwarding, provider-error preservation, streaming SSE frame parsing, run event arc retrieval, 401 errors, and tenant client behavior.
+- **Python mailbox client** (`sdk/python/tests/test_mailbox.py`): DM send body shape, broadcast target, help flag, inbox query encoding, ack body/errors, watch SSE mail frames, replies, messages, and topics.
+- **Python async client** (`sdk/python/tests/test_aio.py`): async health/models, sync-run equivalent, provider-error preservation, streaming SSE frame parsing, run event arc retrieval, 401 errors, and context-manager behavior.
+- **TypeScript run client** (`sdk/typescript/test/client.test.ts`): bearer auth, typed health/model response mapping, sync run body/model forwarding, APIError preservation, streaming SSE frame parsing, run event arc retrieval, 401 errors, and tenant client behavior.
+- **TypeScript mailbox client** (`sdk/typescript/test/mailbox.test.ts`): DM send body shape, broadcast target, help flag, inbox query encoding, ack body/errors, watch SSE mail frames, replies, messages, and topics.
+- **Rust REST client** (`sdk/rust/tests/client.rs`): bearer auth, tenant header transmission, typed health/models, sync run model forwarding, API error preservation, streaming SSE frame parsing, run event arc fields, mailbox send/broadcast/help, inbox query encoding, ack errors, replies/messages/topics, and watch SSE mail frames.
+- **Go SDK** (`sdk/*_test.go`): local control-plane request construction/parsing, runtime-file dial behavior, typed run parsing, event helper semantics, approval parsing, mailbox parsing/routing behavior, and zero-value tolerance for omitted fields. Go does not use REST route-string coverage for its primary SDK path.
 
-## Remaining conformance work
+## Future conformance work
 
 - Keep route-string coverage and behavioral conformance separate in future reports.
 - When a new SDK-intended `/api/v1` feature is added, add or update behavioral tests for typed request/response shape, auth behavior, error behavior, and any streaming/event semantics before calling the feature SDK-complete.
